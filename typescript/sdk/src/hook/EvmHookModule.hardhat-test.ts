@@ -731,9 +731,7 @@ describe('EvmHookModule', async () => {
 
     for (const type of [HookType.ROUTING, HookType.FALLBACK_ROUTING]) {
       beforeEach(() => {
-        exampleRoutingConfig.type = type as
-          | HookType.ROUTING
-          | HookType.FALLBACK_ROUTING;
+        exampleRoutingConfig.type = type;
       });
 
       it(`should skip deployment with warning if no chain metadata configured ${type}`, async () => {
@@ -877,16 +875,21 @@ describe('EvmHookModule', async () => {
           },
         ],
       };
-      const { hook } = await createHook(hookConfig);
-      const deployedHookBefore =
-        (await hook.read()) as WithAddress<AggregationHookConfig>;
+      const { hook, initialHookAddress } = await createHook(hookConfig);
 
-      // expect 0 updates, but actually deploys a new hook
-      await expectTxsAndUpdate(hook, hookConfig, 0);
-      const deployedHookAfter =
+      // Read the deployed config and use the child hook's address for update
+      // This follows the same pattern as other similar tests
+      const deployedHook =
         (await hook.read()) as WithAddress<AggregationHookConfig>;
+      const childHook = deployedHook.hooks[0] as DerivedHookConfig;
+      const expectedConfig: AggregationHookConfig = {
+        type: HookType.AGGREGATION,
+        hooks: [childHook.address],
+      };
 
-      expect(deployedHookBefore.address).to.equal(deployedHookAfter.address);
+      // expect 0 updates when using the deployed hook's address
+      await expectTxsAndUpdate(hook, expectedConfig, 0);
+      expect(initialHookAddress).to.equal(hook.serialize().deployedHook);
     });
 
     // generate a random config for each ownable hook type
@@ -926,8 +929,8 @@ describe('EvmHookModule', async () => {
 
       it(`update owner in an existing ${config.type} not owned by deployer`, async () => {
         // hook owner is not the deployer
-        config.owner = randomAddress();
-        const originalOwner = config.owner;
+        const originalOwner = randomAddress();
+        config.owner = originalOwner;
 
         // create a new hook
         const { hook, initialHookAddress } = await createHook(config);
@@ -946,8 +949,8 @@ describe('EvmHookModule', async () => {
 
       it(`update owner in an existing ${config.type} not owned by deployer and no change`, async () => {
         // hook owner is not the deployer
-        config.owner = randomAddress();
-        const originalOwner = config.owner;
+        const originalOwner = randomAddress();
+        config.owner = originalOwner;
 
         // create a new hook
         const { hook, initialHookAddress } = await createHook(config);

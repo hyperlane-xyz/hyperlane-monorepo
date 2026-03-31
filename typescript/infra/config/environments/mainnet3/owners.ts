@@ -2,7 +2,8 @@ import { ChainMap, OwnableConfig } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
 import { ethereumChainNames } from './chains.js';
-import { awIcas } from './governance/ica/aw.js';
+import { awIcasLegacy } from './governance/ica/_awLegacy.js';
+import { regularIcasLegacy } from './governance/ica/_regularLegacy.js';
 import { regularIcas } from './governance/ica/regular.js';
 import { awSafes } from './governance/safe/aw.js';
 import { regularSafes } from './governance/safe/regular.js';
@@ -22,9 +23,10 @@ export const DEPLOYER = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 export const ethereumChainOwners: ChainMap<OwnableConfig> = Object.fromEntries(
   ethereumChainNames.map((local) => {
     const owner =
-      regularIcas[local] ??
       regularSafes[local] ??
-      awIcas[local] ??
+      regularIcas[local] ??
+      regularIcasLegacy[local] ??
+      awIcasLegacy[local] ??
       awSafes[local] ??
       DEPLOYER;
 
@@ -53,10 +55,6 @@ export const chainOwners: ChainMap<OwnableConfig> = {
     // Squads multisig
     owner: 'E4TncCw3WMqQZbkACVcomX3HqcSzLfNyhTnqKN1DimGr',
   },
-  injective: {
-    // Native multisig
-    owner: 'inj1ac6qpt57vhtfzdecd2an052elwgenwtxcn9chl',
-  },
   neutron: {
     // Da0Da0 multisig
     owner: 'neutron1fqf5mprg3f5hytvzp3t7spmsum6rjrw80mq8zgkc0h6rxga0dtzqws3uu7',
@@ -64,9 +62,6 @@ export const chainOwners: ChainMap<OwnableConfig> = {
   // We intentionally cause issues if these were to be used, but satisfy the types
   // and ensure there's an entry for each supported chain.
   stride: {
-    owner: 'n/a - nothing owned here',
-  },
-  osmosis: {
     owner: 'n/a - nothing owned here',
   },
   milkyway: {
@@ -89,10 +84,19 @@ export const chainOwners: ChainMap<OwnableConfig> = {
   starknet: {
     owner: '0x06aE465e0c05735820a75500c40CB4dAbBe46eBF1F1665f9ba3f9a7Dcc78a6D1',
   },
-  svmbnb: {
-    owner: '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf',
-  },
   solaxy: {
     owner: '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf',
+  },
+  noble: {
+    owner: 'TODO: configure noble owner',
+  },
+  celestia: {
+    owner: 'TODO: configure celestia owner',
+  },
+  radix: {
+    owner: 'account_rdx1280taxhhnuek02y59yapsg4kjtux954qkyufpwmy4dlfcxdrjzr7fj',
+  },
+  aleo: {
+    owner: 'TODO: configure aleo owner',
   },
 };

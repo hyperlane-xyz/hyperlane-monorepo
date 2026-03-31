@@ -4,9 +4,9 @@
 use std::{collections::HashMap, fmt::Debug, str::FromStr, sync::Arc};
 
 use derive_new::new;
-use eyre::Context;
 use futures::{stream, StreamExt};
 use hyperlane_ethereum::Signers;
+use maplit::hashmap;
 use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 
@@ -18,16 +18,25 @@ use hyperlane_base::{
 };
 use hyperlane_core::{
     accumulator::merkle::Proof, AggregationIsm, CcipReadIsm, Checkpoint, HyperlaneDomain,
-    HyperlaneMessage, InterchainSecurityModule, MultisigIsm, RoutingIsm, ValidatorAnnounce, H160,
-    H256,
+    HyperlaneMessage, InterchainSecurityModule, ModuleType, MultisigIsm, RoutingIsm,
+    ValidatorAnnounce, H160, H256,
 };
 
-use crate::merkle_tree::builder::MerkleTreeBuilder;
 use crate::msg::metadata::base_builder::validator_announced_storages::fetch_storage_locations_helper;
+use crate::{merkle_tree::builder::MerkleTreeBuilder, msg::metadata::MetadataBuildError};
 
 use super::{base::IsmCachePolicyClassifier, IsmAwareAppContextClassifier};
 
 mod validator_announced_storages;
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct IsmBuildMetricsParams {
+    pub app_context: Option<String>,
+    pub origin: HyperlaneDomain,
+    pub destination: HyperlaneDomain,
+    pub ism_type: ModuleType,
+    pub success: bool,
+}
 
 /// Base metadata builder with types used by higher level metadata builders.
 #[allow(clippy::too_many_arguments)]
@@ -66,7 +75,13 @@ pub trait BuildsBaseMetadata: Send + Sync + Debug {
     fn cache(&self) -> &OptionalCache<MeteredCache<LocalCache>>;
     fn get_signer(&self) -> Option<&Signers>;
 
-    async fn get_proof(&self, leaf_index: u32, checkpoint: Checkpoint) -> eyre::Result<Proof>;
+    fn update_ism_metric(&self, params: IsmBuildMetricsParams);
+
+    async fn get_proof(
+        &self,
+        leaf_index: u32,
+        checkpoint: Checkpoint,
+    ) -> Result<Proof, MetadataBuildError>;
     async fn highest_known_leaf_index(&self) -> Option<u32>;
     async fn get_merkle_leaf_id_by_message_id(&self, message_id: H256)
         -> eyre::Result<Option<u32>>;
@@ -104,14 +119,28 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
         &self.cache
     }
 
-    async fn get_proof(&self, leaf_index: u32, checkpoint: Checkpoint) -> eyre::Result<Proof> {
-        const CTX: &str = "When fetching message proof";
+    fn update_ism_metric(&self, params: IsmBuildMetricsParams) {
+        let labels = hashmap! {
+            "app_context" => params.app_context.as_deref().unwrap_or("Unknown"),
+            "origin" => params.origin.name(),
+            "remote" => params.destination.name(),
+            "ism_type" => params.ism_type.as_str(),
+            "status" => if params.success { "success" } else { "failure" },
+        };
+        self.metrics.ism_build_count().with(&labels).inc();
+    }
+
+    async fn get_proof(
+        &self,
+        leaf_index: u32,
+        checkpoint: Checkpoint,
+    ) -> Result<Proof, MetadataBuildError> {
         let proof = self
             .origin_prover_sync
             .read()
             .await
             .get_proof(leaf_index, checkpoint.index)
-            .context(CTX)?;
+            .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
 
         if proof.root() != checkpoint.root {
             info!(
@@ -119,6 +148,12 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
                 canonical_root = ?proof.root(),
                 "Could not fetch metadata: checkpoint root does not match canonical root from merkle proof"
             );
+            self.metrics.set_merkle_root_mismatch(self.origin_domain());
+
+            return Err(MetadataBuildError::MerkleRootMismatch {
+                root: checkpoint.root,
+                canonical_root: proof.root(),
+            });
         }
         Ok(proof)
     }
@@ -282,7 +317,7 @@ impl BaseMetadataBuilder {
             Ok(checkpoint_syncer) => {
                 return Ok(Some(checkpoint_syncer));
             }
-            Err(CheckpointSyncerBuildError::ReorgEvent(reorg_event)) => {
+            Err(CheckpointSyncerBuildError::ReorgFlag(reorg_event)) => {
                 if self.ignore_reorg_reports {
                     warn!(
                         ?reorg_event,
@@ -295,7 +330,7 @@ impl BaseMetadataBuilder {
                 // If a reorg event has been posted to a checkpoint syncer,
                 // we refuse to build
                 // This will result in a short circuit and return an error for the entire build process of all syncers
-                return Err(CheckpointSyncerBuildError::ReorgEvent(reorg_event));
+                return Err(CheckpointSyncerBuildError::ReorgFlag(reorg_event));
             }
             Err(err) => {
                 debug!(

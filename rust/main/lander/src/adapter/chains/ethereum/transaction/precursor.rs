@@ -8,6 +8,7 @@ pub trait Precursor {
     fn precursor_mut(&mut self) -> &mut EthereumTxPrecursor;
 }
 
+#[allow(clippy::panic)]
 impl Precursor for Transaction {
     fn precursor(&self) -> &EthereumTxPrecursor {
         match &self.vm_specific_data {

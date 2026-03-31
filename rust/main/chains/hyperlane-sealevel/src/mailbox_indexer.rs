@@ -42,7 +42,7 @@ impl SealevelMailboxIndexer {
     /// Create a new SealevelMailboxIndexer
     pub fn new(
         provider: Arc<SealevelProvider>,
-        tx_submitter: Box<dyn TransactionSubmitter>,
+        tx_submitter: Arc<dyn TransactionSubmitter>,
         locator: &ContractLocator,
         conf: &ConnectionConf,
         advanced_log_meta: bool,
@@ -131,7 +131,9 @@ impl SealevelMailboxIndexer {
     }
 
     fn dispatched_message_account(&self, account: &Account) -> ChainResult<Pubkey> {
-        let unique_message_pubkey = Pubkey::new(&account.data);
+        let unique_message_pubkey = Pubkey::try_from(account.data.as_slice()).map_err(|e| {
+            ChainCommunicationError::from_other_str(&format!("Invalid pubkey: {e}"))
+        })?;
         let (expected_pubkey, _bump) = Pubkey::try_find_program_address(
             mailbox_dispatched_message_pda_seeds!(unique_message_pubkey),
             &self.mailbox.program_id,

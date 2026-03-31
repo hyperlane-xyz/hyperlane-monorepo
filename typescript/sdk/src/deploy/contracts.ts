@@ -1,5 +1,6 @@
 import {
   DomainRoutingIsmFactory__factory,
+  IncrementalDomainRoutingIsmFactory__factory,
   StaticAggregationHookFactory__factory,
   StaticAggregationIsmFactory__factory,
   StaticMerkleRootMultisigIsmFactory__factory,
@@ -18,6 +19,8 @@ export const proxyFactoryFactories = {
   staticAggregationIsmFactory: new StaticAggregationIsmFactory__factory(),
   staticAggregationHookFactory: new StaticAggregationHookFactory__factory(),
   domainRoutingIsmFactory: new DomainRoutingIsmFactory__factory(),
+  incrementalDomainRoutingIsmFactory:
+    new IncrementalDomainRoutingIsmFactory__factory(),
   staticMerkleRootWeightedMultisigIsmFactory:
     new StaticMerkleRootWeightedMultisigIsmFactory__factory(),
   staticMessageIdWeightedMultisigIsmFactory:
@@ -34,7 +37,8 @@ export const proxyFactoryImplementations: ProxyFactoryImplementations = {
   staticMessageIdMultisigIsmFactory: 'StaticMessageIdMultisigIsm',
   staticAggregationIsmFactory: 'StaticAggregationIsm',
   staticAggregationHookFactory: 'StaticAggregationHook',
-  domainRoutingIsmFactory: 'DomaingRoutingIsm',
+  domainRoutingIsmFactory: 'DomainRoutingIsm',
+  incrementalDomainRoutingIsmFactory: 'IncrementalDomainRoutingIsm',
   staticMerkleRootWeightedMultisigIsmFactory:
     'StaticMerkleRootWeightedMultisigIsm',
   staticMessageIdWeightedMultisigIsmFactory:

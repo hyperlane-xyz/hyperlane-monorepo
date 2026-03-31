@@ -1,0 +1,23 @@
+import type { BlockExplorer } from '../metadata/chainMetadataTypes.js';
+import { ExplorerFamily } from '../metadata/chainMetadataTypes.js';
+
+export function isEvmBlockExplorerAndNotEtherscan(
+  blockExplorer: BlockExplorer,
+): boolean {
+  if (!blockExplorer.family) {
+    return false;
+  }
+
+  const byFamily: Record<ExplorerFamily, boolean> = {
+    [ExplorerFamily.Blockscout]: true,
+    [ExplorerFamily.Etherscan]: false,
+    [ExplorerFamily.Other]: false,
+    [ExplorerFamily.Routescan]: true,
+    [ExplorerFamily.Voyager]: false,
+    [ExplorerFamily.ZkSync]: true,
+    [ExplorerFamily.RadixDashboard]: false,
+    [ExplorerFamily.Unknown]: false,
+  };
+
+  return byFamily[blockExplorer.family] ?? false;
+}

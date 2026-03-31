@@ -1,4 +1,6 @@
 export {
+  hexToBech32mPrefix,
+  hexToRadixCustomPrefix,
   addressToByteHexString,
   addressToBytes,
   addressToBytes32,
@@ -6,11 +8,17 @@ export {
   addressToBytesEvm,
   addressToBytesSol,
   addressToBytesStarknet,
+  addressToBytesRadix,
+  addressToBytesAleo,
+  addressToBytesTron,
   bytes32ToAddress,
   bytesToAddressCosmos,
   bytesToAddressEvm,
   bytesToAddressSol,
   bytesToAddressStarknet,
+  bytesToAddressRadix,
+  bytesToAddressAleo,
+  bytesToAddressTron,
   bytesToProtocolAddress,
   capitalizeAddress,
   convertToProtocolAddress,
@@ -20,6 +28,10 @@ export {
   eqAddressEvm,
   eqAddressSol,
   eqAddressStarknet,
+  eqAddressRadix,
+  eqAddressAleo,
+  eqOptionalAddress,
+  eqAddressTron,
   getAddressProtocolType,
   isAddress,
   isAddressCosmos,
@@ -27,23 +39,36 @@ export {
   isAddressEvm,
   isAddressSealevel,
   isAddressStarknet,
+  isAddressRadix,
+  isAddressAleo,
+  isAddressTron,
   isValidAddress,
   isValidAddressCosmos,
   isValidAddressEvm,
   isValidAddressSealevel,
   isValidAddressStarknet,
+  isValidAddressRadix,
+  isValidAddressAleo,
+  isValidAddressTron,
   isPrivateKeyEvm,
   isValidTransactionHash,
   isValidTransactionHashCosmos,
   isValidTransactionHashEvm,
   isValidTransactionHashSealevel,
   isValidTransactionHashStarknet,
+  isValidTransactionHashRadix,
+  isValidTransactionHashAleo,
+  isValidTransactionHashTron,
+  isEmptyAddress,
   isZeroishAddress,
   normalizeAddress,
   normalizeAddressCosmos,
   normalizeAddressEvm,
   normalizeAddressSealevel,
   normalizeAddressStarknet,
+  normalizeAddressRadix,
+  normalizeAddressAleo,
+  normalizeAddressTron,
   padBytesToLength,
   shortenAddress,
   strip0x,
@@ -53,22 +78,28 @@ export {
   addBufferToGasLimit,
   convertDecimals,
   convertDecimalsToIntegerString,
+  convertToScaledAmount,
   eqAmountApproximate,
   fromWei,
   fromWeiRounded,
   toWei,
   tryParseAmount,
 } from './amount.js';
-export { chunk, exclude, randomElement } from './arrays.js';
+export { chunk, exclude, randomElement, arrayEqual } from './arrays.js';
 export {
+  AllSettledResult,
   concurrentMap,
   fetchWithTimeout,
+  LazyAsync,
+  mapAllSettled,
   pollAsync,
   raceWithContext,
   retryAsync,
   runWithTimeout,
   sleep,
+  timedAsync,
   timeout,
+  tryFn,
 } from './async.js';
 export { base58ToBuffer, bufferToBase58, hexOrBase58ToHex } from './base58.js';
 export { fromBase64, toBase64 } from './base64.js';
@@ -87,8 +118,9 @@ export {
   isS3Checkpoint,
   isS3CheckpointWithId,
 } from './checkpoints.js';
+export { normalizeConfig, sortArraysInConfig } from './config.js';
 export { domainHash } from './domains.js';
-export { safelyAccessEnvVar, inCIMode } from './env.js';
+export { safelyAccessEnvVar, inCIMode, inKubernetes } from './env.js';
 export { canonizeId, evmId } from './ids.js';
 export {
   LogFormat,
@@ -102,13 +134,19 @@ export {
   rootLogger,
   setRootLogger,
 } from './logging.js';
+export type { Logger } from './logging.js';
 export { mean, median, randomInt, stdDev, sum } from './math.js';
 export {
+  extractRefundAddressFromMetadata,
   formatMessage,
+  formatStandardHookMetadata,
+  hasValidRefundAddress,
   messageId,
   parseMessage,
+  parseStandardHookMetadata,
   parseWarpRouteMessage,
 } from './messages.js';
+export type { StandardHookMetadataParams } from './messages.js';
 export {
   formatLegacyMultisigIsmMetadata,
   parseLegacyMultisigIsmMetadata,
@@ -140,8 +178,13 @@ export {
   transformObj,
   TransformObjectTransformer,
   sortArraysInObject,
+  objDiff,
 } from './objects.js';
 export { Result, failure, success } from './result.js';
+export {
+  applyRpcUrlOverridesFromEnv,
+  type ChainMetadataWithRpcUrls,
+} from './rpc.js';
 export {
   difference,
   intersection,
@@ -172,6 +215,7 @@ export {
   Domain,
   EvmChainId,
   HexString,
+  KnownProtocolType,
   MerkleProof,
   MessageStatus,
   Numberish,
@@ -179,7 +223,9 @@ export {
   ParsedMessage,
   ProtocolSmallestUnit,
   ProtocolType,
+  isEVMLike,
   ProtocolTypeValue,
+  ReorgEvent,
   S3Announcement,
   S3Checkpoint,
   S3CheckpointWithId,
@@ -192,3 +238,4 @@ export { isHttpsUrl, isRelativeUrl, isUrl } from './url.js';
 export { assert } from './validation.js';
 export { BaseValidator, ValidatorConfig } from './validator.js';
 export { tryParseJsonOrYaml } from './yaml.js';
+export { createServiceLogger } from './logging.js';

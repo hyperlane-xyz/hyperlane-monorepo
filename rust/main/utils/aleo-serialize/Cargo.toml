@@ -1,0 +1,12 @@
+[package]
+name = "aleo-serialize"
+documentation.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license-file.workspace = true
+publish.workspace = true
+version.workspace = true
+
+[dependencies]
+snarkvm.workspace = true
+anyhow.workspace = true

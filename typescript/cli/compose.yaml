@@ -1,0 +1,6 @@
+services:
+  hyperlane-cosmos-simapp:
+    image: ghcr.io/hyperlane-xyz/hyperlane-cosmos-simapp:v1.0.1
+    ports:
+      - 26657:26657
+      - 1317:1317

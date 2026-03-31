@@ -1,7 +1,7 @@
 use hyperlane_base::db::DbError;
 use hyperlane_core::{ChainCommunicationError, U256};
 
-use crate::transaction::TransactionUuid;
+use crate::{transaction::TransactionUuid, LanderError};
 
 pub(crate) type NonceResult<T> = Result<T, NonceError>;
 
@@ -18,5 +18,14 @@ pub(crate) enum NonceError {
 impl From<DbError> for NonceError {
     fn from(error: DbError) -> Self {
         NonceError::DatabaseError(error)
+    }
+}
+
+impl From<NonceError> for LanderError {
+    fn from(value: NonceError) -> Self {
+        match value {
+            NonceError::DatabaseError(err) => LanderError::DbError(err),
+            NonceError::ProviderError(err) => LanderError::ChainCommunicationError(err),
+        }
     }
 }

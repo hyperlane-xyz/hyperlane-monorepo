@@ -18,6 +18,23 @@ contract TestInterchainGasPaymaster is InterchainGasPaymaster {
         return gasPrice * gasAmount;
     }
 
+    function quoteGasPayment(
+        address,
+        uint32,
+        uint256 gasAmount
+    ) public pure override returns (uint256) {
+        return gasPrice * gasAmount;
+    }
+
+    function _quoteGasPayment(
+        address,
+        uint32,
+        uint256 _gasLimit,
+        address
+    ) internal pure override returns (uint256) {
+        return gasPrice * _gasLimit;
+    }
+
     function getDefaultGasUsage() public pure returns (uint256) {
         return DEFAULT_GAS_USAGE;
     }

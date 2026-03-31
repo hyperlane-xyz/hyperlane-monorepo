@@ -27,7 +27,7 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(Transaction::TimeCreated)
                             .timestamp()
                             .not_null()
-                            .default("NOW()"),
+                            .default(SimpleExpr::Custom("NOW()".to_owned())),
                     )
                     .col(
                         ColumnDef::new_with_type(Transaction::Hash, Hash)

@@ -40,7 +40,7 @@ use utils::{get_matching_lines, get_ts_infra_path};
 
 use crate::{
     config::Config,
-    ethereum::{start_anvil, termination_invariants::termination_invariants_met},
+    ethereum::{ethereum_termination_invariants::termination_invariants_met, start_anvil},
     invariants::post_startup_invariants,
     metrics::agent_balance_sum,
     utils::{concat_path, make_static, stop_child, AgentHandles, ArbitraryData, TaskHandle},
@@ -66,6 +66,9 @@ mod cosmosnative;
 
 #[cfg(feature = "starknet")]
 mod starknet;
+
+#[cfg(feature = "radix")]
+mod radix;
 
 pub static AGENT_LOGGING_DIR: Lazy<&Path> = Lazy::new(|| {
     let dir = Path::new("/tmp/test_logs");
@@ -291,7 +294,7 @@ fn main() -> ExitCode {
     // spawn 1st validator before any messages have been sent to test empty mailbox
     state.push_agent(validator_envs.first().unwrap().clone().spawn("VL1", None));
 
-    sleep(Duration::from_secs(5));
+    crate::utils::wait_for_postgres();
 
     log!("Init postgres db...");
     Program::new(concat_path(AGENT_BIN_PATH, "init-db"))
@@ -302,7 +305,7 @@ fn main() -> ExitCode {
     // Send a message that's guaranteed to fail
     // "failMessageBody" hex value is 0x6661696c4d657373616765426f6479
     let fail_message_body = format!("0x{}", hex::encode("failMessageBody"));
-    let kathy_failed_tx = Program::new("yarn")
+    let kathy_failed_tx = Program::new("pnpm")
         .working_dir(&ts_infra_path)
         .cmd("kathy")
         .arg("messages", FAILED_MESSAGE_COUNT.to_string())
@@ -311,14 +314,14 @@ fn main() -> ExitCode {
     kathy_failed_tx.clone().run().join();
 
     // Send half the kathy messages before starting the rest of the agents
-    let kathy_env_single_insertion = Program::new("yarn")
+    let kathy_env_single_insertion = Program::new("pnpm")
         .working_dir(&ts_infra_path)
         .cmd("kathy")
         .arg("messages", (config.kathy_messages / 4).to_string())
         .arg("timeout", "1000");
     kathy_env_single_insertion.clone().run().join();
 
-    let kathy_env_zero_insertion = Program::new("yarn")
+    let kathy_env_zero_insertion = Program::new("pnpm")
         .working_dir(&ts_infra_path)
         .cmd("kathy")
         .arg(
@@ -331,7 +334,7 @@ fn main() -> ExitCode {
         .arg("default-hook", "interchainGasPaymaster");
     kathy_env_zero_insertion.clone().run().join();
 
-    let kathy_env_double_insertion = Program::new("yarn")
+    let kathy_env_double_insertion = Program::new("pnpm")
         .working_dir(&ts_infra_path)
         .cmd("kathy")
         .arg("messages", (config.kathy_messages / 4).to_string())
@@ -408,7 +411,7 @@ fn main() -> ExitCode {
     set_validator_reorg_flag(&checkpoints_dirs, 1);
 
     // Send a single message from validator 1's origin chain to test the relayer's reorg handling.
-    Program::new("yarn")
+    Program::new("pnpm")
         .working_dir(ts_infra_path)
         .cmd("kathy")
         .arg("messages", "1")
@@ -510,6 +513,7 @@ fn create_relayer(rocks_db_dir: &TempDir) -> Program {
                 "payment": "1"
             }]"#,
         )
+        .hyp_env("CACHEDEFAULTEXPIRATIONSECONDS", "5")
         .arg(
             "chains.test1.customRpcUrls",
             "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
@@ -525,10 +529,10 @@ fn stop_validator(state: &mut State, validator_index: usize) {
     let (child, _) = state
         .agents
         .get_mut(&name)
-        .unwrap_or_else(|| panic!("Validator {} not found", name));
+        .unwrap_or_else(|| panic!("Validator {name} not found"));
     child
         .kill()
-        .unwrap_or_else(|_| panic!("Failed to stop validator {}", name));
+        .unwrap_or_else(|_| panic!("Failed to stop validator {name}"));
     // Remove the validator from the state
     state.agents.remove(&name);
 }

@@ -8,6 +8,7 @@ use solana_program::{
     program_error::ProgramError,
     pubkey::Pubkey,
 };
+use solana_system_interface::program as system_program;
 
 use crate::validator_announce_pda_seeds;
 
@@ -28,8 +29,7 @@ impl Instruction {
 
     /// Serializes an instruction into a byte vector.
     pub fn into_instruction_data(self) -> Result<Vec<u8>, ProgramError> {
-        self.try_to_vec()
-            .map_err(|err| ProgramError::BorshIoError(err.to_string()))
+        borsh::to_vec(&self).map_err(|_| ProgramError::BorshIoError)
     }
 }
 
@@ -56,10 +56,7 @@ pub struct AnnounceInstruction {
 impl AnnounceInstruction {
     /// Returns the replay ID for this announcement.
     pub fn replay_id(&self) -> [u8; 32] {
-        let mut hasher = keccak::Hasher::default();
-        hasher.hash(self.validator.as_bytes());
-        hasher.hash(self.storage_location.as_bytes());
-        hasher.result().to_bytes()
+        keccak::hashv(&[self.validator.as_bytes(), self.storage_location.as_bytes()]).to_bytes()
     }
 }
 
@@ -85,7 +82,7 @@ pub fn init_instruction(
     // 2. `[writable]` The ValidatorAnnounce PDA account.
     let accounts = vec![
         AccountMeta::new_readonly(payer, true),
-        AccountMeta::new_readonly(solana_program::system_program::id(), false),
+        AccountMeta::new_readonly(system_program::ID, false),
         AccountMeta::new(validator_announce_account, false),
     ];
 

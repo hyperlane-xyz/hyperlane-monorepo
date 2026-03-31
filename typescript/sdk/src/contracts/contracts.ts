@@ -6,18 +6,27 @@ import {
   EvmChainId,
   ProtocolType,
   ValueOf,
+  addressToByteHexString,
+  assert,
   eqAddress,
   hexOrBase58ToHex,
+  isEVMLike,
   objFilter,
   objMap,
   pick,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import type { EthersLikeProvider } from '../deploy/proxy.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
-import { ChainMap, Connection, OwnableConfig } from '../types.js';
+import {
+  ChainMap,
+  ChainNameOrId,
+  Connection,
+  OwnableConfig,
+} from '../types.js';
 
 import {
   HyperlaneAddresses,
@@ -152,21 +161,19 @@ export function attachContractsMapAndGetForeignDeployments<
   foreignDeployments: ChainMap<Address>;
 } {
   const contractsMap = attachContractsMap(
-    filterChainMapToProtocol(
-      addressesMap,
-      ProtocolType.Ethereum,
-      metadataManager,
-    ),
+    objFilter(addressesMap, (c, _addrs): _addrs is HyperlaneAddresses<F> => {
+      const protocol = metadataManager.tryGetChainMetadata(c)?.protocol;
+      return !!protocol && isEVMLike(protocol);
+    }),
     factories,
   );
 
   // TODO: This function shouldn't need to be aware of application types like collateral / synthetic / native etc. Ideally this should work for any app, not just warp routes. is it safe to assume this is always an object containing 1 key/value pair, and that the value will always be an address?
   const foreignDeployments = objMap(
-    filterChainMapExcludeProtocol(
-      addressesMap,
-      ProtocolType.Ethereum,
-      metadataManager,
-    ),
+    objFilter(addressesMap, (c, _addrs): _addrs is any => {
+      const protocol = metadataManager.tryGetChainMetadata(c)?.protocol;
+      return !!protocol && !isEVMLike(protocol);
+    }),
     (chain, addresses) => {
       const router =
         addresses.router ||
@@ -184,12 +191,20 @@ export function attachContractsMapAndGetForeignDeployments<
       }
 
       switch (protocolType) {
+        case ProtocolType.Tron:
         case ProtocolType.Ethereum:
-          throw new Error('Ethereum chain should not have foreign deployments');
+          throw new Error('EVM-like chain should not have foreign deployments');
 
         case ProtocolType.Cosmos:
         case ProtocolType.CosmosNative:
+        case ProtocolType.Starknet:
           return router;
+
+        case ProtocolType.Aleo:
+          return addressToByteHexString(router, ProtocolType.Aleo);
+
+        case ProtocolType.Radix:
+          return addressToByteHexString(router, ProtocolType.Radix);
 
         case ProtocolType.Sealevel:
           return hexOrBase58ToHex(router);
@@ -257,11 +272,11 @@ export function appFromAddressesMapHelper<F extends HyperlaneFactories>(
   contractsMap: HyperlaneContractsMap<F>;
   multiProvider: MultiProvider;
 } {
-  // Filter out non-Ethereum chains from the addressesMap
+  // Filter out non-EVM-like chains from the addressesMap
   const ethereumAddressesMap = objFilter(
     addressesMap,
     (chain, _): _ is HyperlaneAddresses<F> =>
-      multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
+      isEVMLike(multiProvider.getProtocol(chain)),
   );
 
   // Attaches contracts for each Ethereum chain for which we have a complete set of addresses
@@ -304,4 +319,45 @@ export function transferOwnershipTransactions(
       ),
     },
   ];
+}
+
+export async function isAddressActive(
+  provider: EthersLikeProvider,
+  address: Address,
+): Promise<boolean> {
+  const [code, txnCount] = await Promise.all([
+    provider.getCode(address),
+    provider.getTransactionCount(address),
+  ]);
+
+  return code !== '0x' || txnCount > 0;
+}
+
+/**
+ * Checks if the provided address is a contract
+ */
+export async function isContractAddress(
+  multiProvider: MultiProvider,
+  chain: ChainNameOrId,
+  address: string,
+  blockNumber?: number,
+) {
+  const provider = multiProvider.getProvider(chain);
+  const code = await provider.getCode(address, blockNumber);
+
+  return code !== '0x';
+}
+
+/**
+ * Checks if the provided address is a contract and throws if it isn't
+ */
+export async function assertIsContractAddress(
+  multiProvider: MultiProvider,
+  chain: ChainNameOrId,
+  address: string,
+) {
+  assert(
+    await isContractAddress(multiProvider, chain, address),
+    `Address "${address}" on chain "${chain}" is not a contract`,
+  );
 }

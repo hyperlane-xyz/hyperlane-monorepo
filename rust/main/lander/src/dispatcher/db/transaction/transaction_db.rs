@@ -85,7 +85,7 @@ impl TransactionDb for HyperlaneRocksDB {
             .is_none()
         {
             let highest_index = self.retrieve_highest_transaction_index().await?;
-            let tx_index = highest_index + 1;
+            let tx_index = highest_index.saturating_add(1);
             self.store_highest_transaction_index(tx_index).await?;
             self.store_transaction_index_by_uuid(tx_index, &tx.uuid)
                 .await?;
@@ -147,8 +147,8 @@ impl Encode for Transaction {
         W: Write,
     {
         // Serialize to JSON and write to the writer, to avoid having to implement the encoding manually
-        let serialized = serde_json::to_vec(self)
-            .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "Failed to serialize"))?;
+        let serialized =
+            serde_json::to_vec(self).map_err(|_| std::io::Error::other("Failed to serialize"))?;
         writer.write(&serialized)
     }
 }
@@ -161,10 +161,9 @@ impl Decode for Transaction {
     {
         // Deserialize from JSON and read from the reader, to avoid having to implement the encoding / decoding manually
         serde_json::from_reader(reader).map_err(|err| {
-            HyperlaneProtocolError::IoError(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Failed to deserialize. Error: {}", err),
-            ))
+            HyperlaneProtocolError::IoError(std::io::Error::other(format!(
+                "Failed to deserialize. Error: {err}"
+            )))
         })
     }
 }
@@ -186,8 +185,8 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let db = DB::from_path(temp_dir.path()).unwrap();
         let domain = KnownHyperlaneDomain::Arbitrum.into();
-        let rocksdb = Arc::new(HyperlaneRocksDB::new(&domain, db));
-        rocksdb
+
+        (Arc::new(HyperlaneRocksDB::new(&domain, db))) as _
     }
 
     #[tokio::test]

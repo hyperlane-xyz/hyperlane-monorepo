@@ -4,22 +4,17 @@
  */
 export const rootHardhatConfig = {
   solidity: {
-    version: '0.8.22',
+    version: '0.8.33',
     settings: {
+      evmVersion: 'cancun',
       optimizer: {
         enabled: true,
-        runs: 999_999,
+        runs: 10_000,
       },
     },
   },
   mocha: {
     bail: true,
     import: 'tsx',
-  },
-  warnings: {
-    // turn off all warnings for libs:
-    'fx-portal/**/*': {
-      default: 'off',
-    },
   },
 };

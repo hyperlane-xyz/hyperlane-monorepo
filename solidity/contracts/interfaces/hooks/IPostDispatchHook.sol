@@ -14,7 +14,7 @@ pragma solidity >=0.8.0;
 @@@@@@@@@       @@@@@@@@*/
 
 interface IPostDispatchHook {
-    enum Types {
+    enum HookTypes {
         UNUSED,
         ROUTING,
         AGGREGATION,
@@ -24,13 +24,15 @@ interface IPostDispatchHook {
         ID_AUTH_ISM,
         PAUSABLE,
         PROTOCOL_FEE,
-        LAYER_ZERO_V1,
+        DEPRECATED,
         RATE_LIMITED,
         ARB_L2_TO_L1,
         OP_L2_TO_L1,
         MAILBOX_DEFAULT_HOOK,
         AMOUNT_ROUTING,
-        CCTP
+        CCTP,
+        TIMELOCK_ROUTING,
+        PREDICATE_ROUTER_WRAPPER
     }
 
     /**
@@ -59,6 +61,15 @@ interface IPostDispatchHook {
 
     /**
      * @notice Compute the payment required by the postDispatch call
+     * @dev The returned quote is denominated in a single currency - either native ETH
+     * (when metadata.feeToken is address(0) or unspecified) or an ERC-20 token
+     * (when metadata.feeToken is set). Mixing fee denominations within a single
+     * dispatch is not supported.
+     *
+     * When feeToken is set, hooks that only support native fees should return 0 or
+     * revert via supportsMetadata. The Mailbox.quoteDispatch sums quotes from
+     * requiredHook and hook, which assumes both use the same denomination.
+     *
      * @param metadata The metadata required for the hook
      * @param message The message passed from the Mailbox.dispatch() call
      * @return Quoted payment for the postDispatch call

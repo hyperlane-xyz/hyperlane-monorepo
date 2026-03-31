@@ -88,15 +88,6 @@ export const rcMultisigIsmConfigs: ChainMap<MultisigConfig> = {
     ],
   },
   // ----------------- Testnets -----------------
-  alfajores: {
-    threshold: 1,
-    validators: [
-      {
-        address: '0xace978aaa61d9ee44fe3ab147fd227e0e66b8909',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-    ],
-  },
   fuji: {
     threshold: 1,
     validators: [
@@ -120,15 +111,6 @@ export const rcMultisigIsmConfigs: ChainMap<MultisigConfig> = {
     validators: [
       {
         address: '0x6353c7402626054c824bd0eca721f82b725e2b4d',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-    ],
-  },
-  scrollsepolia: {
-    threshold: 1,
-    validators: [
-      {
-        address: '0x50d939d66f114350f322eb8b2e9f01fbc401d4c9',
         alias: AW_VALIDATOR_ALIAS,
       },
     ],

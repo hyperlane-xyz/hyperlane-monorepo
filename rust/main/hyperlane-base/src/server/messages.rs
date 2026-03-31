@@ -15,8 +15,9 @@ pub async fn fetch_messages(
     nonce_start: u32,
     nonce_end: u32,
 ) -> ServerResult<Vec<HyperlaneMessage>> {
-    let mut messages = Vec::with_capacity((nonce_end + 1).saturating_sub(nonce_start) as usize);
-    for nonce in nonce_start..(nonce_end + 1) {
+    let mut messages =
+        Vec::with_capacity(nonce_end.saturating_add(1).saturating_sub(nonce_start) as usize);
+    for nonce in nonce_start..nonce_end.saturating_add(1) {
         let retrieve_res = db.retrieve_message_by_nonce(nonce).map_err(|err| {
             let error_msg = "Failed to fetch message";
             tracing::debug!(nonce, ?err, "{error_msg}");

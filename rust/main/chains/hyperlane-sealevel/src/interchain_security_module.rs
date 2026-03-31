@@ -7,7 +7,7 @@ use tracing::warn;
 
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessage, InterchainSecurityModule, ModuleType, H256, U256,
+    HyperlaneDomain, HyperlaneMessage, InterchainSecurityModule, Metadata, ModuleType, H256, U256,
 };
 use hyperlane_sealevel_interchain_security_module_interface::InterchainSecurityModuleInstruction;
 use serializable_account_meta::SimulationReturnData;
@@ -90,7 +90,7 @@ impl InterchainSecurityModule for SealevelInterchainSecurityModule {
     async fn dry_run_verify(
         &self,
         _message: &HyperlaneMessage,
-        _metadata: &[u8],
+        _metadata: &Metadata,
     ) -> ChainResult<Option<U256>> {
         // TODO: Implement this once we have aggregation ISM support in Sealevel
         Ok(Some(U256::zero()))

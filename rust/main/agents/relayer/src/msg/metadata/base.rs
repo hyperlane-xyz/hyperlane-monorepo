@@ -15,7 +15,8 @@ use serde::{Deserialize, Deserializer};
 use tokio::sync::{Mutex, RwLock};
 
 use hyperlane_core::{
-    HyperlaneDomain, HyperlaneMessage, InterchainSecurityModule, Mailbox, ModuleType, H256,
+    HyperlaneDomain, HyperlaneMessage, InterchainSecurityModule, Mailbox, Metadata, ModuleType,
+    ReorgEventResponse, H256,
 };
 
 use crate::settings::matching_list::MatchingList;
@@ -27,8 +28,8 @@ pub enum MetadataBuildError {
     /// While building metadata, encountered something that should
     /// prohibit all metadata for the message from being built.
     /// Provides the reason for the refusal.
-    #[error("Refused")]
-    Refused(String),
+    #[error("Refused ({0})")]
+    Refused(MetadataBuildRefused),
     /// Unable to fetch metadata, but no error occurred
     #[error("Could not fetch metadata")]
     CouldNotFetch,
@@ -44,15 +45,14 @@ pub enum MetadataBuildError {
     AggregationThresholdNotMet(u32),
     #[error("Fast path error ({0})")]
     FastPathError(String),
+    #[error("Merkle root mismatch ({root}, {canonical_root})")]
+    MerkleRootMismatch { root: H256, canonical_root: H256 },
 }
 
-#[derive(Clone, Debug, new)]
-pub struct Metadata(Vec<u8>);
-
-impl Metadata {
-    pub fn to_vec(&self) -> Vec<u8> {
-        self.0.clone()
-    }
+#[derive(Clone, Debug, PartialEq, thiserror::Error)]
+pub enum MetadataBuildRefused {
+    #[error("Reorg detected ({0:?})")]
+    Reorg(ReorgEventResponse),
 }
 
 #[async_trait::async_trait]
@@ -144,7 +144,7 @@ pub struct IsmAwareAppContextClassifier {
 impl IsmAwareAppContextClassifier {
     pub fn new(
         default_ism_getter: DefaultIsmCache,
-        app_matching_lists: Vec<(MatchingList, String)>,
+        app_matching_lists: Arc<Vec<(MatchingList, String)>>,
     ) -> Self {
         Self {
             default_ism_getter,
@@ -172,7 +172,7 @@ impl IsmAwareAppContextClassifier {
 /// Classifies messages into an app context if they have one.
 #[derive(Debug, new)]
 pub struct AppContextClassifier {
-    app_matching_lists: Vec<(MatchingList, String)>,
+    app_matching_lists: Arc<Vec<(MatchingList, String)>>,
 }
 
 impl AppContextClassifier {
@@ -244,9 +244,8 @@ where
     let nums: Vec<u8> = Vec::deserialize(deserializer)?;
     let mut set = HashSet::new();
     for num in nums {
-        let module = ModuleType::from_u8(num).ok_or_else(|| {
-            serde::de::Error::custom(format!("Invalid module type value: {}", num))
-        })?;
+        let module = ModuleType::from_u8(num)
+            .ok_or_else(|| serde::de::Error::custom(format!("Invalid module type value: {num}")))?;
         set.insert(module);
     }
     Ok(set)
@@ -298,7 +297,7 @@ impl IsmCachePolicyClassifier {
                 }
                 IsmCacheSelector::AppContext {
                     context: selector_app_context,
-                } => app_context.map_or(false, |app_context| app_context == selector_app_context),
+                } => app_context == Some(selector_app_context),
             };
 
             if matches_module
@@ -332,11 +331,11 @@ mod tests {
             cache_policy: IsmCachePolicy::IsmSpecific,
         };
 
-        assert_eq!(config.matches_chain("foochain"), true);
-        assert_eq!(config.matches_chain("barchain"), false);
+        assert!(config.matches_chain("foochain"));
+        assert!(!config.matches_chain("barchain"));
 
-        assert_eq!(config.matches_module_type(ModuleType::Aggregation), true);
-        assert_eq!(config.matches_module_type(ModuleType::Routing), false);
+        assert!(config.matches_module_type(ModuleType::Aggregation));
+        assert!(!config.matches_module_type(ModuleType::Routing));
     }
 
     #[test]

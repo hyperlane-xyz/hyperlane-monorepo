@@ -3,8 +3,8 @@
 
 use async_trait::async_trait;
 use hyperlane_core::{
-    ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneProvider, InterchainGasPaymaster, H256,
+    ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider,
+    InterchainGasPaymaster, H256,
 };
 
 use crate::{ConnectionConf, StarknetProvider};
@@ -18,9 +18,9 @@ pub struct StarknetInterchainGasPaymaster {
 }
 
 impl StarknetInterchainGasPaymaster {
-    pub fn new(conn: &ConnectionConf, locator: &ContractLocator) -> ChainResult<Self> {
+    pub fn new(provider: StarknetProvider, conn: ConnectionConf) -> ChainResult<Self> {
         Ok(Self {
-            provider: StarknetProvider::new(locator.domain.clone(), conn),
+            provider,
             conn: conn.clone(),
         })
     }

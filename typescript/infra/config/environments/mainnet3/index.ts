@@ -13,10 +13,8 @@ import { agents } from './agent.js';
 import { environment as environmentName, getRegistry } from './chains.js';
 import { core } from './core.js';
 import { keyFunderConfig } from './funding.js';
-import { helloWorld } from './helloworld.js';
 import { igp } from './igp.js';
 import { infrastructure } from './infrastructure.js';
-import { bridgeAdapterConfigs, relayerConfig } from './liquidityLayer.js';
 import { chainOwners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
 import { checkWarpDeployConfig } from './warp/checkWarpDeploy.js';
@@ -53,11 +51,6 @@ export const environment: EnvironmentConfig = {
   igp,
   owners: chainOwners,
   infra: infrastructure,
-  helloWorld,
   keyFunderConfig,
   checkWarpDeployConfig,
-  liquidityLayerConfig: {
-    bridgeAdapters: bridgeAdapterConfigs,
-    relayer: relayerConfig,
-  },
 };

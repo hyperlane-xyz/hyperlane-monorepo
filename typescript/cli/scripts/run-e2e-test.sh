@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -e
 
 function cleanup() {
   set +e
@@ -11,6 +12,9 @@ function cleanup() {
   set -e
 }
 
+# Ensure cleanup runs even on error
+trap cleanup EXIT
+
 cleanup
 
 echo "Starting anvil2, anvil3 and anvil4 chains for E2E tests"
@@ -21,11 +25,9 @@ anvil --chain-id 31348 -p 8601 --state /tmp/anvil4/state --gas-price 1 > /dev/nu
 echo "Running E2E tests"
 if [ -n "${CLI_E2E_TEST}" ]; then
   echo "Running only ${CLI_E2E_TEST} test"
-  yarn mocha --config .mocharc-e2e.json "src/**/${CLI_E2E_TEST}.e2e-test.ts"
+  pnpm mocha --config .mocharc-e2e.json "src/**/${CLI_E2E_TEST}.e2e-test.ts"
 else
-  yarn mocha --config .mocharc-e2e.json "src/**/*.e2e-test.ts"
+  pnpm mocha --config .mocharc-e2e.json "src/**/*.e2e-test.ts"
 fi
-
-cleanup
 
 echo "Completed E2E tests"

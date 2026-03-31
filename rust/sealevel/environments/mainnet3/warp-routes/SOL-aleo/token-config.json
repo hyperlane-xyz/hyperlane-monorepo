@@ -1,0 +1,22 @@
+{
+  "aleo": {
+    "type": "synthetic",
+    "decimals": 9,
+    "name": "Hyperlane SOL",
+    "symbol": "SOL",
+    "foreignDeployment": "aleo1m3f6d2sp07ca6cpjw20xw7tv9qhvhu5t33ak6c830kjmxwl6s5zq5qswg8"
+  },
+  "hyperevm": {
+    "type": "synthetic",
+    "name": "Solana",
+    "symbol": "SOL",
+    "decimals": 9,
+    "foreignDeployment": "0xEe3147deeDFC0c6DDD7c65D4e9ff9a48632BE645"
+  },
+  "solanamainnet": {
+    "type": "native",
+    "decimals": 9,
+    "owner": "ABJnd4eWexNte9GYy21ud5hvSwFKWedveP6GCFxXKkCw",
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF"
+  }
+}

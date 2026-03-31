@@ -6,23 +6,32 @@ import hre from 'hardhat';
 import {
   ERC20Test,
   ERC20Test__factory,
+  LinearFee__factory,
   ProxyAdmin,
   ProxyAdmin__factory,
+  RoutingFee__factory,
+  TokenRouter__factory,
   TransparentUpgradeableProxy__factory,
   XERC20Test,
   XERC20Test__factory,
 } from '@hyperlane-xyz/core';
-import { Address, objMap } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  eqAddress,
+  isZeroishAddress,
+  objMap,
+} from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
 import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import { ViolationType } from '../deploy/types.js';
+import { TokenFeeType } from '../fee/types.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 
-import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
+import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
 import { HypERC20App } from './app.js';
 import { HypERC20Checker } from './checker.js';
 import { TokenType } from './config.js';
@@ -30,6 +39,7 @@ import { HypERC20Deployer } from './deploy.js';
 import {
   SyntheticTokenConfig,
   WarpRouteDeployConfigMailboxRequired,
+  isDepositAddressTokenConfig,
 } from './types.js';
 
 const chain = TestChainName.test1;
@@ -114,6 +124,112 @@ describe('TokenDeployer', async () => {
     await deployer.deploy(config);
   });
 
+  it('deploys a deposit-address bridge and derives its config', async () => {
+    const depositAddress = ethers.Wallet.createRandom().address;
+    const recipient = ethers.utils.hexZeroPad(
+      ethers.Wallet.createRandom().address,
+      32,
+    );
+
+    const depositConfig: WarpRouteDeployConfigMailboxRequired = {
+      [chain]: {
+        ...config[chain],
+        type: TokenType.collateralDepositAddress,
+        token: erc20.address,
+        destinationConfigs: {
+          [TestChainName.test2]: {
+            [recipient]: {
+              depositAddress,
+              feeBps: '1000',
+            },
+          },
+        },
+      },
+    };
+
+    const contracts = await deployer.deploy(depositConfig);
+    const routerAddress =
+      contracts[chain][TokenType.collateralDepositAddress].address;
+
+    const reader = new EvmWarpRouteReader(multiProvider, chain);
+    const derivedConfig = await reader.deriveWarpRouteConfig(routerAddress);
+
+    expect(derivedConfig.type).to.equal(TokenType.collateralDepositAddress);
+    if (!isDepositAddressTokenConfig(derivedConfig)) {
+      throw new Error('Expected deposit-address token config');
+    }
+    expect(derivedConfig.token).to.equal(erc20.address);
+    expect(derivedConfig.mailbox).to.equal(ethers.constants.AddressZero);
+    expect(derivedConfig.hook).to.equal(ethers.constants.AddressZero);
+    expect(derivedConfig.interchainSecurityModule).to.equal(
+      ethers.constants.AddressZero,
+    );
+    expect(derivedConfig.remoteRouters).to.deep.equal({});
+    expect(derivedConfig.destinationConfigs).to.deep.equal({
+      [multiProvider.getDomainId(TestChainName.test2).toString()]: {
+        [recipient.toLowerCase()]: {
+          depositAddress,
+          feeBps: '1000',
+        },
+      },
+    });
+  });
+
+  it('deploys mixed deposit-address and router configs', async () => {
+    const depositAddress = ethers.Wallet.createRandom().address;
+    const recipient = ethers.utils.hexZeroPad(
+      ethers.Wallet.createRandom().address,
+      32,
+    );
+
+    const mixedConfig: WarpRouteDeployConfigMailboxRequired = {
+      [TestChainName.test1]: {
+        ...config[TestChainName.test1],
+        type: TokenType.collateralDepositAddress,
+        token: erc20.address,
+        destinationConfigs: {
+          [TestChainName.test2]: {
+            [recipient]: {
+              depositAddress,
+              feeBps: '1000',
+            },
+          },
+        },
+      },
+      [TestChainName.test2]: {
+        ...config[TestChainName.test2],
+        type: TokenType.synthetic,
+      },
+    };
+
+    const contracts = await deployer.deploy(mixedConfig);
+    expect(
+      contracts[TestChainName.test1][TokenType.collateralDepositAddress]
+        .address,
+    ).to.not.equal(ethers.constants.AddressZero);
+    expect(
+      contracts[TestChainName.test2][TokenType.synthetic].address,
+    ).to.not.equal(ethers.constants.AddressZero);
+
+    const reader = new EvmWarpRouteReader(multiProvider, TestChainName.test1);
+    const derivedConfig = await reader.deriveWarpRouteConfig(
+      contracts[TestChainName.test1][TokenType.collateralDepositAddress]
+        .address,
+    );
+
+    if (!isDepositAddressTokenConfig(derivedConfig)) {
+      throw new Error('Expected deposit-address token config');
+    }
+    expect(derivedConfig.destinationConfigs).to.deep.equal({
+      [multiProvider.getDomainId(TestChainName.test2).toString()]: {
+        [recipient.toLowerCase()]: {
+          depositAddress,
+          feeBps: '1000',
+        },
+      },
+    });
+  });
+
   for (const type of [
     TokenType.collateral,
     TokenType.synthetic,
@@ -134,10 +250,10 @@ describe('TokenDeployer', async () => {
       let checker: HypERC20Checker;
       let app: HypERC20App;
       beforeEach(async () => {
+        // @ts-expect-error - Test assigns varying token types to config
         config[chain] = {
           ...config[chain],
           type,
-          // @ts-ignore
           token: token(),
         };
 
@@ -220,21 +336,18 @@ describe('TokenDeployer', async () => {
     });
 
     describe('ERC20WarpRouterReader', async () => {
-      let reader: EvmERC20WarpRouteReader;
+      let reader: EvmWarpRouteReader;
       let routerAddress: Address;
 
       before(() => {
-        reader = new EvmERC20WarpRouteReader(
-          multiProvider,
-          TestChainName.test1,
-        );
+        reader = new EvmWarpRouteReader(multiProvider, TestChainName.test1);
       });
 
       beforeEach(async () => {
+        // @ts-expect-error - Test assigns varying token types to config
         config[chain] = {
           ...config[chain],
           type,
-          // @ts-ignore
           token: token(),
         };
         const warpRoute = await deployer.deploy(config);
@@ -247,4 +360,78 @@ describe('TokenDeployer', async () => {
       });
     });
   }
+
+  describe('TokenFee with optional token for synthetic', () => {
+    it('should deploy LinearFee without token and resolve to router address', async () => {
+      const syntheticConfig: WarpRouteDeployConfigMailboxRequired = {
+        [chain]: {
+          ...config[chain],
+          type: TokenType.synthetic,
+          tokenFee: {
+            type: TokenFeeType.LinearFee,
+            owner: signer.address,
+            bps: 100n,
+            maxFee: 1000000000n,
+            halfAmount: 500000000n,
+          },
+        },
+      };
+
+      const warpRoute = await deployer.deploy(syntheticConfig);
+      const routerAddress = warpRoute[chain].synthetic.address;
+
+      const router = TokenRouter__factory.connect(
+        routerAddress,
+        multiProvider.getProvider(chain),
+      );
+      const feeRecipient = await router.feeRecipient();
+      expect(isZeroishAddress(feeRecipient)).to.be.false;
+
+      const linearFee = LinearFee__factory.connect(
+        feeRecipient,
+        multiProvider.getProvider(chain),
+      );
+      const feeToken = await linearFee.token();
+      expect(eqAddress(feeToken, routerAddress)).to.be.true;
+    });
+
+    it('should deploy RoutingFee without token and resolve to router address', async () => {
+      const syntheticConfig: WarpRouteDeployConfigMailboxRequired = {
+        [chain]: {
+          ...config[chain],
+          type: TokenType.synthetic,
+          tokenFee: {
+            type: TokenFeeType.RoutingFee,
+            owner: signer.address,
+            feeContracts: {
+              [TestChainName.test2]: {
+                type: TokenFeeType.LinearFee,
+                owner: signer.address,
+                bps: 100n,
+                maxFee: 1000000000n,
+                halfAmount: 500000000n,
+              },
+            },
+          },
+        },
+      };
+
+      const warpRoute = await deployer.deploy(syntheticConfig);
+      const routerAddress = warpRoute[chain].synthetic.address;
+
+      const router = TokenRouter__factory.connect(
+        routerAddress,
+        multiProvider.getProvider(chain),
+      );
+      const feeRecipient = await router.feeRecipient();
+      expect(isZeroishAddress(feeRecipient)).to.be.false;
+
+      const routingFee = RoutingFee__factory.connect(
+        feeRecipient,
+        multiProvider.getProvider(chain),
+      );
+      const feeToken = await routingFee.token();
+      expect(eqAddress(feeToken, routerAddress)).to.be.true;
+    });
+  });
 });

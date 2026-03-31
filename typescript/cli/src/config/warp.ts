@@ -2,27 +2,33 @@ import { confirm, input, select } from '@inquirer/prompts';
 import { stringify as yamlStringify } from 'yaml';
 
 import {
-  ChainMap,
+  type ChainMap,
   ChainTechnicalStack,
-  DeployedOwnableConfig,
+  type DeployableTokenType,
+  type DeployedOwnableConfig,
   HypERC20Deployer,
-  HypTokenRouterConfig,
-  IsmConfig,
+  type HypTokenRouterConfig,
+  type IsmConfig,
   IsmType,
-  MailboxClientConfig,
+  type MailboxClientConfig,
   TokenType,
-  WarpCoreConfig,
+  type WarpCoreConfig,
   WarpCoreConfigSchema,
-  WarpRouteDeployConfig,
-  WarpRouteDeployConfigMailboxRequired,
+  type WarpRouteDeployConfig,
+  type WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigMailboxRequiredSchema,
   WarpRouteDeployConfigSchema,
   isMovableCollateralTokenConfig,
   resolveRouterMapConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, assert, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
+import {
+  type Address,
+  assert,
+  objMap,
+  promiseObjAll,
+} from '@hyperlane-xyz/utils';
 
-import { CommandContext } from '../context/types.js';
+import { type CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
 import {
@@ -40,7 +46,7 @@ import { useProvidedWarpRouteIdOrPrompt } from '../utils/warp.js';
 
 import { createAdvancedIsmConfig } from './ism.js';
 
-const TYPE_DESCRIPTIONS: Record<TokenType, string> = {
+const TYPE_DESCRIPTIONS: Record<DeployableTokenType, string> = {
   [TokenType.synthetic]: 'A new ERC20 with remote transfer functionality',
   [TokenType.syntheticRebase]: `A rebasing ERC20 with remote transfer functionality. Must be paired with ${TokenType.collateralVaultRebase}`,
   [TokenType.collateral]:
@@ -61,17 +67,39 @@ const TYPE_DESCRIPTIONS: Record<TokenType, string> = {
     'Extends an existing xERC20 Lockbox with Warp Route functionality',
   [TokenType.nativeOpL2]: 'An OP L2 native ETH token',
   [TokenType.nativeOpL1]: 'An OP L1 native ETH token',
+  [TokenType.collateralEverclear]:
+    'A collateral token that can be transferred via Everclear intents',
+  [TokenType.ethEverclear]:
+    'An ETH token that can be transferred via Everclear intents',
+  [TokenType.collateralDepositAddress]:
+    'A collateral token that bridges by depositing into a configured address',
   // TODO: describe
   [TokenType.syntheticUri]: '',
   [TokenType.collateralUri]: '',
   [TokenType.nativeScaled]: '',
+  [TokenType.collateralOft]:
+    'A collateral token that bridges via LayerZero OFT',
+  [TokenType.crossCollateral]:
+    'A collateral token that can route to multiple routers across chains',
 };
 
-const TYPE_CHOICES = Object.values(TokenType).map((type) => ({
-  name: type,
-  value: type,
-  description: TYPE_DESCRIPTIONS[type],
-}));
+// Types that are only configurable via YAML, not the interactive prompt
+const YAML_ONLY_TYPES: TokenType[] = [
+  TokenType.collateralOft,
+  TokenType.collateralCctp,
+  TokenType.collateralDepositAddress,
+];
+
+const TYPE_CHOICES = Object.values(TokenType)
+  .filter(
+    (type): type is DeployableTokenType =>
+      type !== TokenType.unknown && !YAML_ONLY_TYPES.includes(type),
+  )
+  .map((type) => ({
+    name: type,
+    value: type,
+    description: TYPE_DESCRIPTIONS[type],
+  }));
 
 export async function fillDefaults(
   context: CommandContext,
@@ -236,6 +264,7 @@ export async function createWarpRouteDeployConfig({
       case TokenType.XERC20:
       case TokenType.XERC20Lockbox:
       case TokenType.collateralFiat:
+      case TokenType.crossCollateral:
         result[chain] = {
           type,
           owner,

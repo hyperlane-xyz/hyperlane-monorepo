@@ -2,6 +2,7 @@ import { BigNumber, errors as EthersError, providers, utils } from 'ethers';
 import { Logger, pino } from 'pino';
 
 import {
+  isObjEmpty,
   raceWithContext,
   retryAsync,
   rootLogger,
@@ -24,8 +25,52 @@ import {
   ProviderPerformResult,
   ProviderStatus,
   ProviderTimeoutResult,
+  RpcConfigWithConnectionInfo,
   SmartProviderOptions,
 } from './types.js';
+import { parseCustomRpcHeaders } from '../../utils/provider.js';
+
+function buildRpcConnections(
+  rawUrl: string,
+  existingConnection?: utils.ConnectionInfo,
+): {
+  url: string;
+  connection?: utils.ConnectionInfo;
+  redactedConnection?: utils.ConnectionInfo;
+} {
+  const { url, headers, redactedHeaders } = parseCustomRpcHeaders(rawUrl);
+  if (isObjEmpty(headers)) {
+    return {
+      url,
+      connection: existingConnection,
+      redactedConnection: existingConnection,
+    };
+  }
+
+  const baseConnection = existingConnection ?? { url };
+  const baseUrl = baseConnection.url === rawUrl ? url : baseConnection.url;
+  const baseHeaders = baseConnection.headers ?? {};
+
+  return {
+    url,
+    connection: {
+      ...baseConnection,
+      url: baseUrl,
+      headers: {
+        ...baseHeaders,
+        ...headers,
+      },
+    },
+    redactedConnection: {
+      ...baseConnection,
+      url: baseUrl,
+      headers: {
+        ...baseHeaders,
+        ...redactedHeaders,
+      },
+    },
+  };
+}
 
 export function getSmartProviderErrorMessage(errorMsg: string): string {
   return `${errorMsg}: RPC request failed. Check RPC validity. To override RPC URLs, see: https://docs.hyperlane.xyz/docs/deploy-hyperlane-troubleshooting#override-rpc-urls`;
@@ -33,27 +78,41 @@ export function getSmartProviderErrorMessage(errorMsg: string): string {
 
 // This is a partial list. If needed, check the full list for more: https://docs.ethers.org/v5/api/utils/logger/#errors
 const RPC_SERVER_ERRORS = [
-  EthersError.NETWORK_ERROR,
-  EthersError.NOT_IMPLEMENTED,
   EthersError.SERVER_ERROR,
   EthersError.TIMEOUT,
   EthersError.UNKNOWN_ERROR,
-  EthersError.UNSUPPORTED_OPERATION,
 ];
 
 const RPC_BLOCKCHAIN_ERRORS = [
   EthersError.CALL_EXCEPTION,
   EthersError.INSUFFICIENT_FUNDS,
+  EthersError.INVALID_ARGUMENT, // Ethers decode failure (e.g., calling method on wrong contract type)
+  EthersError.NETWORK_ERROR,
   EthersError.NONCE_EXPIRED,
+  EthersError.NOT_IMPLEMENTED,
   EthersError.REPLACEMENT_UNDERPRICED,
   EthersError.TRANSACTION_REPLACED,
   EthersError.UNPREDICTABLE_GAS_LIMIT,
+  EthersError.UNSUPPORTED_OPERATION,
 ];
 const DEFAULT_MAX_RETRIES = 1;
 const DEFAULT_BASE_RETRY_DELAY_MS = 250; // 0.25 seconds
 const DEFAULT_STAGGER_DELAY_MS = 1000; // 1 seconds
+const DEFAULT_PHASE2_WAIT_MULTIPLIER = 20;
 
 type HyperlaneProvider = HyperlaneEtherscanProvider | HyperlaneJsonRpcProvider;
+
+export class BlockchainError extends Error {
+  public readonly isRecoverable = false;
+
+  constructor(message: string, options?: { cause?: Error }) {
+    super(message, options);
+  }
+
+  static {
+    this.prototype.name = this.name;
+  }
+}
 
 export class HyperlaneSmartProvider
   extends providers.BaseProvider
@@ -108,7 +167,23 @@ export class HyperlaneSmartProvider
 
     if (rpcUrls?.length) {
       this.rpcProviders = rpcUrls.map((rpcConfig) => {
-        const newProvider = new HyperlaneJsonRpcProvider(rpcConfig, network);
+        const existingConnection = (rpcConfig as RpcConfigWithConnectionInfo)
+          .connection;
+        const { url, connection, redactedConnection } = buildRpcConnections(
+          rpcConfig.http,
+          existingConnection,
+        );
+        const configWithRedactedHeaders: RpcConfigWithConnectionInfo = {
+          ...rpcConfig,
+          http: url,
+          connection: redactedConnection,
+        };
+        const newProvider = new HyperlaneJsonRpcProvider(
+          configWithRedactedHeaders,
+          network,
+          undefined,
+          connection,
+        );
         newProvider.supportedMethods.forEach((m) => supportedMethods.add(m));
         return newProvider;
       });
@@ -154,7 +229,12 @@ export class HyperlaneSmartProvider
       maxFeePerGas = block.baseFeePerGas.mul(2).add(maxPriorityFeePerGas);
     }
 
-    return { lastBaseFeePerGas, maxFeePerGas, maxPriorityFeePerGas, gasPrice };
+    return {
+      lastBaseFeePerGas,
+      maxFeePerGas,
+      maxPriorityFeePerGas,
+      gasPrice,
+    };
   }
 
   static fromChainMetadata(
@@ -203,6 +283,16 @@ export class HyperlaneSmartProvider
     this.requestCount += 1;
     const reqId = this.requestCount;
 
+    // SendTransaction must not be retried - it could cause duplicate submissions
+    if (method === ProviderMethod.SendTransaction) {
+      return this.performWithFallback(
+        method,
+        params,
+        supportedProviders,
+        reqId,
+      );
+    }
+
     return retryAsync(
       () => this.performWithFallback(method, params, supportedProviders, reqId),
       this.options?.maxRetries || DEFAULT_MAX_RETRIES,
@@ -244,8 +334,9 @@ export class HyperlaneSmartProvider
   }
 
   /**
-   * This perform method will trigger any providers that support the method
-   * one at a time in preferential order. If one is slow to respond, the next is triggered.
+   * This perform method has two phases:
+   * 1. Sequentially triggers providers until success or blockchain error (permanent failure)
+   * 2. Waits for any remaining pending provider promises to complete
    * TODO: Consider adding a quorum option that requires a certain number of providers to agree
    */
   protected async performWithFallback(
@@ -257,45 +348,53 @@ export class HyperlaneSmartProvider
     let pIndex = 0;
     const providerResultPromises: Promise<ProviderPerformResult>[] = [];
     const providerResultErrors: unknown[] = [];
-    while (true) {
-      // Trigger the next provider in line
-      if (pIndex < providers.length) {
-        const provider = providers[pIndex];
-        const isLastProvider = pIndex === providers.length - 1;
 
-        // Skip the explorer provider if it's currently in a cooldown period
-        if (
-          this.isExplorerProvider(provider) &&
-          provider.getQueryWaitTime() > 0 &&
-          !isLastProvider &&
-          method !== ProviderMethod.GetLogs // never skip GetLogs
-        ) {
-          pIndex += 1;
-          continue;
-        }
+    // Phase 1: Trigger providers sequentially until success or blockchain error
+    providerLoop: while (pIndex < providers.length) {
+      const provider = providers[pIndex];
+      const isLastProvider = pIndex === providers.length - 1;
 
-        const resultPromise = this.wrapProviderPerform(
-          provider,
-          pIndex,
-          method,
-          params,
-          reqId,
-        );
+      // Skip the explorer provider if it's currently in a cooldown period
+      if (
+        this.isExplorerProvider(provider) &&
+        provider.getQueryWaitTime() > 0 &&
+        !isLastProvider &&
+        method !== ProviderMethod.GetLogs // never skip GetLogs
+      ) {
+        pIndex += 1;
+        continue;
+      }
+
+      const resultPromise = this.wrapProviderPerform(
+        provider,
+        pIndex,
+        method,
+        params,
+        reqId,
+      );
+      // SendTransaction must not race against a timeout - we must wait for the
+      // RPC response to avoid losing track of a submitted transaction
+      let result;
+      if (method === ProviderMethod.SendTransaction) {
+        result = await resultPromise;
+      } else {
         const timeoutPromise = timeoutResult(
           this.options?.fallbackStaggerMs || DEFAULT_STAGGER_DELAY_MS,
         );
-        const result = await Promise.race([resultPromise, timeoutPromise]);
+        result = await Promise.race([resultPromise, timeoutPromise]);
+      }
 
-        const providerMetadata = {
-          providerIndex: pIndex,
-          rpcUrl: provider.getBaseUrl(),
-          method: `${method}(${JSON.stringify(params)})`,
-          chainId: this.network.chainId,
-        };
+      const providerMetadata = {
+        providerIndex: pIndex,
+        rpcUrl: provider.getBaseUrl(),
+        method: `${method}(${JSON.stringify(params)})`,
+        chainId: this.network.chainId,
+      };
 
-        if (result.status === ProviderStatus.Success) {
+      switch (result.status) {
+        case ProviderStatus.Success:
           return result.value;
-        } else if (result.status === ProviderStatus.Timeout) {
+        case ProviderStatus.Timeout:
           this.logger.debug(
             { ...providerMetadata },
             `Slow response from provider:`,
@@ -303,7 +402,62 @@ export class HyperlaneSmartProvider
           );
           providerResultPromises.push(resultPromise);
           pIndex += 1;
-        } else if (result.status === ProviderStatus.Error) {
+          break;
+        case ProviderStatus.Error: {
+          providerResultErrors.push(result.error);
+
+          // SendTransaction must never fall through to another provider - the tx
+          // may already be in a mempool even if the RPC returned a transient error.
+          if (method === ProviderMethod.SendTransaction) {
+            this.logger.debug(
+              { ...providerMetadata },
+              `SendTransaction error - not falling through to next provider`,
+            );
+            break providerLoop;
+          }
+
+          // If this is a blockchain error, stop trying additional providers as it's a permanent failure
+          // For CALL_EXCEPTION, we need to distinguish:
+          // 1. Real revert with data - permanent (has revert data like "0x08c379a0...")
+          // 2. Real revert without data - permanent (has nested error.error.code === 3 from JSON-RPC)
+          // 3. Empty return data decode failure - permanent (no nested error, ethers failed to decode "0x")
+          // 4. Actual RPC issue - transient (has nested error but not code 3)
+          const errorCode = (result.error as any)?.code;
+          const revertData = (result.error as any)?.data;
+          const hasRevertData = !!revertData && revertData !== '0x';
+          const nestedError = (result.error as any)?.error;
+          // JSON-RPC error code 3 definitively indicates execution revert (EIP-1474)
+          // Check both nested levels as ethers wraps errors in error.error.code structure
+          const jsonRpcErrorCode =
+            nestedError?.error?.code ?? nestedError?.code;
+          const isJsonRpcRevert = jsonRpcErrorCode === 3;
+          // No nested error means ethers failed to decode empty return data - this is permanent
+          const isEmptyReturnDecodeFailure =
+            errorCode === EthersError.CALL_EXCEPTION &&
+            !hasRevertData &&
+            !nestedError;
+          const isCallExceptionWithoutData =
+            errorCode === EthersError.CALL_EXCEPTION &&
+            !hasRevertData &&
+            !isJsonRpcRevert &&
+            !isEmptyReturnDecodeFailure;
+          const isPermanentBlockchainError =
+            RPC_BLOCKCHAIN_ERRORS.includes(errorCode) &&
+            !isCallExceptionWithoutData;
+
+          if (isPermanentBlockchainError) {
+            this.logger.debug(
+              { ...providerMetadata },
+              `${errorCode} detected - stopping provider fallback as this is a permanent failure`,
+            );
+            break providerLoop;
+          }
+          if (isCallExceptionWithoutData) {
+            this.logger.debug(
+              { ...providerMetadata },
+              `${errorCode} without revert data detected - treating as transient RPC error, will retry`,
+            );
+          }
           this.logger.debug(
             {
               error: result.error,
@@ -312,62 +466,63 @@ export class HyperlaneSmartProvider
             `Error from provider.`,
             isLastProvider ? '' : 'Triggering next provider.',
           );
-          providerResultErrors.push(result.error);
           pIndex += 1;
-        } else {
+          break;
+        }
+        default:
           throw new Error(
             `Unexpected result from provider: ${JSON.stringify(
               providerMetadata,
             )}`,
           );
-        }
+      }
+    }
 
-        // All providers already triggered, wait for one to complete or all to fail/timeout
-      } else if (providerResultPromises.length > 0) {
-        const timeoutPromise = timeoutResult(
-          this.options?.fallbackStaggerMs || DEFAULT_STAGGER_DELAY_MS,
-          20,
+    // Phase 2: All providers already triggered, wait for one to complete or all to fail/timeout
+    // If no providers are left, all have already failed
+    if (providerResultPromises.length === 0) {
+      const CombinedError = this.getCombinedProviderError(
+        providerResultErrors,
+        `All providers failed on chain ${
+          this.network.name
+        } for method ${method} and params ${JSON.stringify(params, null, 2)}`,
+      );
+      throw new CombinedError();
+    }
+
+    // Wait for at least one provider to succeed or all to fail/timeout
+    const timeoutPromise = timeoutResult(
+      this.options?.fallbackStaggerMs || DEFAULT_STAGGER_DELAY_MS,
+      DEFAULT_PHASE2_WAIT_MULTIPLIER,
+    );
+    const resultPromise = this.waitForProviderSuccess(providerResultPromises);
+    const result = await Promise.race([resultPromise, timeoutPromise]);
+
+    switch (result.status) {
+      case ProviderStatus.Success:
+        return result.value;
+      case ProviderStatus.Timeout: {
+        const CombinedError = this.getCombinedProviderError(
+          [result, ...providerResultErrors],
+          `All providers timed out on chain ${this.network.name} for method ${method}`,
         );
-        const resultPromise = this.waitForProviderSuccess(
-          providerResultPromises,
-        );
-        const result = await Promise.race([resultPromise, timeoutPromise]);
-
-        if (result.status === ProviderStatus.Success) {
-          return result.value;
-        } else if (result.status === ProviderStatus.Timeout) {
-          this.throwCombinedProviderErrors(
-            [result, ...providerResultErrors],
-            `All providers timed out on chain ${this._network.name} for method ${method}`,
-          );
-        } else if (result.status === ProviderStatus.Error) {
-          this.throwCombinedProviderErrors(
-            [result.error, ...providerResultErrors],
-            `All providers failed on chain ${
-              this._network.name
-            } for method ${method} and params ${JSON.stringify(
-              params,
-              null,
-              2,
-            )}`,
-          );
-        } else {
-          throw new Error('Unexpected result from provider');
-        }
-
-        // All providers have already failed, all hope is lost
-      } else {
-        this.throwCombinedProviderErrors(
-          providerResultErrors,
+        throw new CombinedError();
+      }
+      case ProviderStatus.Error: {
+        const CombinedError = this.getCombinedProviderError(
+          [result.error, ...providerResultErrors],
           `All providers failed on chain ${
-            this._network.name
+            this.network.name
           } for method ${method} and params ${JSON.stringify(params, null, 2)}`,
         );
+        throw new CombinedError();
       }
+      default:
+        throw new Error('Unexpected result from provider');
     }
   }
 
-  // Warp for additional logging and error handling
+  // Wrap for additional logging and error handling
   protected async wrapProviderPerform(
     provider: HyperlaneProvider,
     pIndex: number,
@@ -426,12 +581,36 @@ export class HyperlaneSmartProvider
     };
   }
 
-  protected throwCombinedProviderErrors(
+  protected getCombinedProviderError(
     errors: any[],
     fallbackMsg: string,
-  ): void {
+  ): new () => Error {
     this.logger.debug(fallbackMsg);
-    if (errors.length === 0) throw new Error(fallbackMsg);
+    if (errors.length === 0) {
+      return class extends Error {
+        constructor() {
+          super(fallbackMsg);
+        }
+      };
+    }
+
+    // Find blockchain errors, but exclude CALL_EXCEPTION without revert data (likely RPC issues)
+    // Note: ethers sets data to "0x" when there's no actual revert data
+    // However, JSON-RPC error code 3 definitively indicates a contract revert (EIP-1474)
+    // Also, no nested error means ethers failed to decode empty return data - also permanent
+    const rpcBlockchainError = errors.find((e) => {
+      if (!RPC_BLOCKCHAIN_ERRORS.includes(e.code)) return false;
+      if (e.code !== EthersError.CALL_EXCEPTION) return true;
+      // For CALL_EXCEPTION, check if it's a real revert or decode failure
+      const hasRevertData = !!e.data && e.data !== '0x';
+      // Check for JSON-RPC error code 3 (nested in error.error.code by ethers)
+      // Also check shallower level as error nesting varies
+      const jsonRpcErrorCode = e.error?.error?.code ?? e.error?.code;
+      const isJsonRpcRevert = jsonRpcErrorCode === 3;
+      // No nested error means ethers failed to decode empty return data - permanent
+      const isEmptyReturnDecodeFailure = !e.error;
+      return hasRevertData || isJsonRpcRevert || isEmptyReturnDecodeFailure;
+    });
 
     const rpcServerError = errors.find((e) =>
       RPC_SERVER_ERRORS.includes(e.code),
@@ -441,29 +620,49 @@ export class HyperlaneSmartProvider
       (e) => e.status === ProviderStatus.Timeout,
     );
 
-    const rpcBlockchainError = errors.find((e) =>
-      RPC_BLOCKCHAIN_ERRORS.includes(e.code),
-    );
-
-    if (rpcServerError) {
-      throw Error(
-        rpcServerError.error?.message ?? // Server errors sometimes will not have an error.message
-          getSmartProviderErrorMessage(rpcServerError.code),
-        { cause: rpcServerError },
-      );
+    if (rpcBlockchainError) {
+      // All blockchain errors are non-retryable and take priority
+      return class extends BlockchainError {
+        constructor() {
+          super(rpcBlockchainError.reason ?? rpcBlockchainError.code, {
+            cause: rpcBlockchainError,
+          });
+        }
+      };
+    } else if (rpcServerError) {
+      return class extends Error {
+        constructor() {
+          super(
+            rpcServerError.error?.message ?? // Server errors sometimes will not have an error.message
+              getSmartProviderErrorMessage(rpcServerError.code),
+            { cause: rpcServerError },
+          );
+        }
+      };
     } else if (timedOutError) {
-      throw Error(getSmartProviderErrorMessage(ProviderStatus.Timeout), {
-        cause: timedOutError,
-      });
-    } else if (rpcBlockchainError) {
-      throw Error(rpcBlockchainError.reason ?? rpcBlockchainError.code, {
-        cause: rpcBlockchainError,
-      });
+      return class extends Error {
+        constructor() {
+          super(fallbackMsg, {
+            cause: timedOutError,
+          });
+        }
+      };
     } else {
-      this.logger.error(
+      this.logger.warn(
+        {
+          errors: errors.map((e) => ({
+            code: e?.code,
+            message: e?.message,
+            name: e?.name,
+          })),
+        },
         'Unhandled error case in combined provider error handler',
       );
-      throw Error(fallbackMsg);
+      return class extends Error {
+        constructor() {
+          super(fallbackMsg);
+        }
+      };
     }
   }
 }

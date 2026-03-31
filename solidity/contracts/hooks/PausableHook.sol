@@ -34,7 +34,7 @@ contract PausableHook is AbstractPostDispatchHook, Ownable, Pausable {
 
     /// @inheritdoc IPostDispatchHook
     function hookType() external pure override returns (uint8) {
-        return uint8(IPostDispatchHook.Types.PAUSABLE);
+        return uint8(IPostDispatchHook.HookTypes.PAUSABLE);
     }
 
     // ============ Internal functions ============

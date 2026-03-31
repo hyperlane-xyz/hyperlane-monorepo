@@ -1,11 +1,11 @@
 image:
-  repository: gcr.io/hyperlane-labs-dev/hyperlane-monorepo
+  repository: ghcr.io/hyperlane-xyz/hyperlane-warp-monitor
   tag:
 hyperlane:
   runEnv: mainnet3
   context: hyperlane
   chains: []
-  registryCommit:
+  registryUri: ''
 nameOverride: ''
 fullnameOverride: ''
 externalSecrets:

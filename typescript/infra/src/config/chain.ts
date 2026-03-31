@@ -7,40 +7,61 @@ import {
   ChainName,
   HyperlaneSmartProvider,
   ProviderRetryOptions,
+  safeApiKeyRequired,
 } from '@hyperlane-xyz/sdk';
 import {
-  ProtocolType,
+  Address,
   inCIMode,
+  inKubernetes,
+  isEVMLike,
   objFilter,
   objMerge,
+  rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import { getChain, getRegistryWithOverrides } from '../../config/registry.js';
 import { getSecretRpcEndpoints } from '../agents/index.js';
+import { getSafeApiKey } from '../utils/safe.js';
 
 import { DeployEnvironment } from './environment.js';
 
+// V2 ICAs are not supported on these chains, due to the block gas limit being
+// lower than the amount required to deploy the new InterchainAccountRouter
+// implementation.
+export const legacyIcaChainRouters: Record<
+  ChainName,
+  {
+    interchainAccountIsm: Address;
+    interchainAccountRouter: Address;
+  }
+> = {
+  viction: {
+    interchainAccountIsm: '0x551BbEc45FD665a8C95ca8731CbC32b7653Bc59B',
+    interchainAccountRouter: '0xc11f8Cf2343d3788405582F65B8af6A4F7a6FfC8',
+  },
+};
+export const legacyIcaChains = Object.keys(legacyIcaChainRouters);
+export const legacyEthIcaRouter = '0x5E532F7B610618eE73C2B462978e94CB1F7995Ce';
+
 // A list of chains to skip during deploy, check-deploy and ICA operations.
 // Used by scripts like check-owner-ica.ts to exclude chains that are temporarily
-// unsupported (e.g. zksync, zeronetwork) or have known issues (e.g. lumia).
+// unsupported (e.g. zksync, zeronetwork) or have known issues
 export const chainsToSkip: ChainName[] = [
+  // downtime
+  'molten',
+
+  // not AW owned
+  'forma',
+
   // TODO: remove once zksync PR is merged into main
   // mainnets
   'zksync',
   'zeronetwork',
-  'zklink',
-  'treasure',
   'abstract',
   'sophon',
 
   // testnets
-  'abstracttestnet',
-
-  // Oct 16 batch
-  'lumia',
-
-  // Removal TBD
-  'arthera',
+  'arcadiatestnet2',
 ];
 
 export const defaultRetry: ProviderRetryOptions = {
@@ -78,13 +99,11 @@ export function getChainMetadatas(chains: Array<ChainName>) {
 
   const ethereumMetadatas = objFilter(
     allMetadatas,
-    (_, metadata): metadata is ChainMetadata =>
-      metadata.protocol === ProtocolType.Ethereum,
+    (_, metadata): metadata is ChainMetadata => isEVMLike(metadata.protocol),
   );
   const nonEthereumMetadatas = objFilter(
     allMetadatas,
-    (_, metadata): metadata is ChainMetadata =>
-      metadata.protocol !== ProtocolType.Ethereum,
+    (_, metadata): metadata is ChainMetadata => !isEVMLike(metadata.protocol),
   );
 
   return { ethereumMetadatas, nonEthereumMetadatas };
@@ -144,7 +163,12 @@ export async function getSecretMetadataOverrides(
 
   for (const { chain, rpcUrls } of secretRpcUrls) {
     if (rpcUrls.length === 0) {
-      throw Error(`No secret RPC URLs found for chain: ${chain}`);
+      // Don't throw - just skip the override. The registry will use public RPCs.
+      // This allows warp routes with deprecated chains to still be checked on supported chains.
+      rootLogger.warn(
+        `No secret RPC URLs found for chain: ${chain}. Using public RPCs from registry.`,
+      );
+      continue;
     }
     // Need explicit casting here because Zod expects a non-empty array.
     const metadataRpcUrls = rpcUrls.map((rpcUrl: string) => ({
@@ -153,6 +177,20 @@ export async function getSecretMetadataOverrides(
     chainMetadataOverrides[chain] = {
       rpcUrls: metadataRpcUrls,
     };
+  }
+
+  // Only fetch Safe API key when running locally (not in k8s)
+  // Safe API is only needed for infra + http registry usage
+  const safeApiKey = !inKubernetes() ? await getSafeApiKey() : undefined;
+  if (safeApiKey) {
+    for (const chain of chains) {
+      const chainMetadata = getChain(chain);
+      const txServiceUrl = chainMetadata.gnosisSafeTransactionServiceUrl;
+      if (txServiceUrl && safeApiKeyRequired(txServiceUrl)) {
+        chainMetadataOverrides[chain] ??= {};
+        chainMetadataOverrides[chain].gnosisSafeApiKey = safeApiKey;
+      }
+    }
   }
 
   return chainMetadataOverrides;

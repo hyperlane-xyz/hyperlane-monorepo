@@ -3,6 +3,8 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 #![deny(warnings)]
+#![deny(clippy::unwrap_used, clippy::panic)]
+#![deny(clippy::arithmetic_side_effects)]
 
 pub use crate::multisig_ism::*;
 pub use interchain_gas::*;
@@ -18,9 +20,12 @@ pub use signer::create_keypair;
 pub use solana_sdk::signer::keypair::Keypair;
 pub use trait_builder::*;
 pub use tx_submitter::*;
+pub use tx_type::*;
 pub use validator_announce::*;
 
 mod account;
+/// Address Lookup Table support for transaction size reduction
+pub mod alt;
 /// Hyperlane Application specific functionality
 pub mod application;
 mod error;
@@ -39,5 +44,6 @@ mod rpc;
 mod signer;
 mod trait_builder;
 mod tx_submitter;
+mod tx_type;
 mod utils;
 mod validator_announce;

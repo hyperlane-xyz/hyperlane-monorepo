@@ -1,4 +1,3 @@
-
 [package]
 name = "scraper"
 documentation.workspace = true
@@ -35,6 +34,8 @@ migration = { path = "migration" }
 
 [dev-dependencies]
 reqwest.workspace = true
+testcontainers.workspace = true
+testcontainers-modules.workspace = true
 tokio-test = "0.4"
 tracing-test.workspace = true
 ethers-prometheus = { path = "../../ethers-prometheus", features = ["serde"] }
@@ -45,3 +46,4 @@ hyperlane-test = { path = "../../hyperlane-test" }
 default = ["color-eyre", "oneline-errors"]
 oneline-errors = ["hyperlane-base/oneline-errors"]
 color-eyre = ["hyperlane-base/color-eyre"]
+aleo = ["hyperlane-base/aleo"]

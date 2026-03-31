@@ -126,7 +126,9 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
             maxBatchSize: batchConfig.maxBatchSize,
             bypassBatchSimulation: batchConfig.bypassBatchSimulation,
             ...(batchConfig.maxSubmitQueueLength
-              ? { maxSubmitQueueLength: batchConfig.maxSubmitQueueLength }
+              ? {
+                  maxSubmitQueueLength: batchConfig.maxSubmitQueueLength,
+                }
               : {}),
             priorityFeeOracle,
             transactionSubmitter,
@@ -201,19 +203,29 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
   async helmValues(): Promise<HelmRootAgentValues> {
     const values = await super.helmValues();
 
+    // Inject per-chain processAltOverrides into Sealevel chain configs
+    const processAltOverrides =
+      this.config.relayerConfig.processAltOverrides ?? {};
+    values.hyperlane.chains = values.hyperlane.chains.map((chain) => {
+      const overrides = processAltOverrides[chain.name];
+      if (overrides && overrides.length > 0) {
+        return { ...chain, processAltOverrides: JSON.stringify(overrides) };
+      }
+      return chain;
+    });
+
     const config = await this.config.buildConfig();
 
     // Divide the keys between the configmap and the env config.
     const configMapConfig: RelayerConfigMapConfig = {
       addressBlacklist: config.addressBlacklist,
-      metricAppContexts: config.metricAppContexts,
       gasPaymentEnforcement: config.gasPaymentEnforcement,
       ismCacheConfigs: config.ismCacheConfigs,
     };
-    const envConfig = objOmitKeys<RelayerConfig>(
-      config,
-      Object.keys(configMapConfig),
-    ) as RelayerEnvConfig;
+    const envConfig = objOmitKeys<RelayerConfig>(config, [
+      ...Object.keys(configMapConfig),
+      'metricAppContexts',
+    ]) as RelayerEnvConfig;
 
     values.hyperlane.relayer = {
       enabled: true,
@@ -250,15 +262,6 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
       value: 'relayer',
       effect: 'NoSchedule',
     });
-
-    if (this.context.includes('vanguard')) {
-      values.tolerations.push({
-        key: 'context-family',
-        operator: 'Equal',
-        value: 'vanguard',
-        effect: 'NoSchedule',
-      });
-    }
 
     return values;
   }
@@ -397,6 +400,11 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
     }
 
     return helmValues;
+  }
+
+  protected compareChainConfigurations() {
+    // Validators are always scoped to a single origin chain; skip chain diffs.
+    return { hasChanges: false, added: [], removed: [] };
   }
 }
 

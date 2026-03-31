@@ -12,10 +12,63 @@ export const ethereumChainNames = supportedChainNames.filter(
   isEthereumProtocolChain,
 );
 
+// Agent specific chain metadata overrides
+// Such as minGasPrice, minFeePerGas, minPriorityFeePerGas
+export const agentSpecificChainMetadataOverrides: ChainMap<
+  Partial<ChainMetadata>
+> = {
+  incentiv: {
+    transactionOverrides: {
+      minGasPrice: 1 * 10 ** 9, // 1 gwei
+      minFeePerGas: 1 * 10 ** 9, // 1 gwei
+      minPriorityFeePerGas: 1 * 10 ** 9, // 1 gwei
+    },
+  },
+  ronin: {
+    transactionOverrides: {
+      minGasPrice: 20 * 10 ** 9, // 20 gwei
+      minFeePerGas: 20 * 10 ** 9, // 20 gwei
+      minPriorityFeePerGas: 20 * 10 ** 9, // 20 gwei
+    },
+  },
+  ink: {
+    transactionOverrides: {
+      minGasPrice: 1, // 1 wei
+      minFeePerGas: 1, // 1 wei
+      minPriorityFeePerGas: 1, // 1 wei
+    },
+  },
+  krown: {
+    transactionOverrides: {
+      minGasPrice: 11 * 10 ** 5,
+      minFeePerGas: 11 * 10 ** 5,
+      minPriorityFeePerGas: 11 * 10 ** 5,
+    },
+  },
+};
+
+// Chains without CoinGecko listings - these won't be overwritten by print-token-prices.ts
+export const tokenPriceOverrides: ChainMap<string> = {
+  incentiv: '0.003',
+  krown: '0.0015',
+};
+
 export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
+  kyve: {
+    gasPrice: {
+      amount: '63.0',
+      denom: 'ukyve',
+    },
+  },
+  noble: {
+    gasPrice: {
+      amount: '0.1',
+      denom: 'uusdn',
+    },
+  },
   bsc: {
     transactionOverrides: {
-      gasPrice: 3 * 10 ** 9, // 3 gwei
+      gasPrice: 1 * 10 ** 8, // 0.1 gwei
     },
   },
   polygonzkevm: {
@@ -50,58 +103,24 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
       gasPrice: 1 * 10 ** 6, // 0.001 gwei
     },
   },
-  rootstockmainnet: {
-    transactionOverrides: {
-      gasPrice: 7 * 10 ** 7, // 0.07 gwei
-      // gasLimit: 6800000, // set when deploying contracts
-    },
-  },
   // Deploy-only overrides, set when deploying contracts
   // chilizmainnet: {
   //   transactionOverrides: {
   //     maxFeePerGas: 100000 * 10 ** 9, // 100,000 gwei
+  //     maxPriorityFeePerGas: 100000 * 10 ** 9, // 100,000 gwei
   //   },
   // },
-  // taiko: {
-  //   transactionOverrides: {
-  //     gasPrice: 25 * 10 ** 7, // 0.25 gwei
-  //   },
-  // },
-  // linea: {
-  //   transactionOverrides: {
-  //     gasPrice: 5 * 10 ** 8, // 0.5 gwei
-  //   },
-  // },
-  // zircuit: {
+  // xlayer: {
   //   blocks: {
   //     confirmations: 5,
   //   },
   // },
-  // degenchain: {
-  //   transactionOverrides: {
-  //     maxFeePerGas: 100 * 10 ** 9, // 100 gwei
-  //     maxPriorityFeePerGas: 10 * 10 ** 9, // 10 gwei
-  //   },
-  // },
-  // polygon: {
-  //   transactionOverrides: {
-  //     // A very high max fee per gas is used as Polygon is susceptible
-  //     // to large swings in gas prices.
-  //     maxFeePerGas: 800 * 10 ** 9, // 800 gwei
-  //     maxPriorityFeePerGas: 50 * 10 ** 9, // 50 gwei
-  //   },
-  // },
-  // unitzero: {
-  //   transactionOverrides: {
-  //     gasPrice: 600 * 10 ** 9, // 600 gwei
-  //   },
-  // },
-  // matchain: {
+  // soneium: {
   //   blocks: {
-  //     confirmations: 5,
+  //     confirmations: 3,
   //   },
   // },
-  // cyber: {
+  // flowmainnet: {
   //   blocks: {
   //     confirmations: 3,
   //   },

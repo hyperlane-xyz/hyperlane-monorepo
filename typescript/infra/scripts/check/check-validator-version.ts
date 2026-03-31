@@ -1,6 +1,5 @@
 import { execSync } from 'child_process';
 
-import { ValidatorAnnounce__factory } from '@hyperlane-xyz/core';
 import {
   ChainName,
   defaultMultisigConfigs,
@@ -124,18 +123,9 @@ async function main() {
   const mismatchedValidators: ValidatorInfo[] = [];
   const upgradedValidators: ValidatorInfo[] = [];
 
-  // Manually add validator announce for OG Lumia chain deployment
-  const lumiaValidatorAnnounce = ValidatorAnnounce__factory.connect(
-    '0x989B7307d266151BE763935C856493D968b2affF',
-    core.multiProvider.getProvider('lumia'),
-  );
-
   await Promise.all(
     targetNetworks.map(async (chain) => {
-      const validatorAnnounce =
-        chain === 'lumia'
-          ? lumiaValidatorAnnounce
-          : core.getContracts(chain).validatorAnnounce;
+      const validatorAnnounce = core.getContracts(chain).validatorAnnounce;
       const expectedValidators = defaultMultisigConfigs[chain].validators || [];
       const storageLocations =
         await validatorAnnounce.getAnnouncedStorageLocations(

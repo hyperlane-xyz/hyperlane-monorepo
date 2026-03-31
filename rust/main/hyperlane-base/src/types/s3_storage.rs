@@ -10,9 +10,13 @@ use aws_sdk_s3::{
 use dashmap::DashMap;
 use derive_new::new;
 use eyre::{bail, Result};
-use hyperlane_core::{ReorgEvent, SignedAnnouncement, SignedCheckpointWithMessageId};
 use prometheus::IntGauge;
 use tokio::sync::OnceCell;
+use tracing::error;
+
+use hyperlane_core::{
+    ReorgEvent, ReorgEventResponse, SignedAnnouncement, SignedCheckpointWithMessageId,
+};
 
 use crate::CheckpointSyncer;
 
@@ -178,7 +182,7 @@ impl S3Storage {
     fn get_composite_key(&self, key: String) -> String {
         match self.folder.as_deref() {
             None | Some("") => key,
-            Some(folder_str) => format!("{}/{}", folder_str, key),
+            Some(folder_str) => format!("{folder_str}/{key}"),
         }
     }
 
@@ -200,6 +204,10 @@ impl S3Storage {
 
     fn reorg_flag_key() -> String {
         "reorg_flag.json".to_owned()
+    }
+
+    fn reorg_rpc_responses_key() -> String {
+        "reorg_rpc_responses.json".to_owned()
     }
 }
 
@@ -279,12 +287,42 @@ impl CheckpointSyncer for S3Storage {
         Ok(())
     }
 
-    async fn reorg_status(&self) -> Result<Option<ReorgEvent>> {
-        self.anonymously_read_from_bucket(S3Storage::reorg_flag_key())
-            .await?
-            .map(|data| serde_json::from_slice(&data))
-            .transpose()
-            .map_err(Into::into)
+    async fn write_reorg_rpc_responses(&self, reorg_log: String) -> Result<()> {
+        self.write_to_bucket(S3Storage::reorg_rpc_responses_key(), &reorg_log)
+            .await?;
+        Ok(())
+    }
+
+    async fn reorg_status(&self) -> Result<ReorgEventResponse> {
+        let file = self
+            .anonymously_read_from_bucket(S3Storage::reorg_flag_key())
+            .await?;
+
+        let contents = match file {
+            Some(s) => s,
+            None => {
+                return Ok(ReorgEventResponse {
+                    exists: false,
+                    event: None,
+                    content: None,
+                })
+            }
+        };
+        match serde_json::from_slice(&contents) {
+            Ok(s) => Ok(ReorgEventResponse {
+                exists: true,
+                event: Some(s),
+                content: Some(String::from_utf8_lossy(&contents).to_string()),
+            }),
+            Err(err) => {
+                error!(?err, "Failed to parse reorg event");
+                Ok(ReorgEventResponse {
+                    exists: true,
+                    event: None,
+                    content: Some(String::from_utf8_lossy(&contents).to_string()),
+                })
+            }
+        }
     }
 }
 

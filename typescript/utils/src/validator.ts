@@ -8,6 +8,7 @@ import {
   Checkpoint,
   CheckpointWithId,
   HexString,
+  ReorgEvent,
   S3CheckpointWithId,
   SignatureLike,
 } from './types.js';
@@ -106,6 +107,10 @@ export class BaseValidator {
   getLatestCheckpointUrl(): string {
     throw new Error('Not implemented');
   }
+
+  getReorgStatus(): Promise<ReorgEvent | null> {
+    throw new Error('Not implemented');
+  }
 }
 
 /**
@@ -114,7 +119,7 @@ export class BaseValidator {
 export const createAnnounce = async (
   validatorPrivKey: string,
   storageLocation: string,
-  mailboxId: string,
+  mailboxAddress: string,
   localDomain: number,
 ) => {
   const domainIdBytes = Buffer.alloc(4);
@@ -123,7 +128,7 @@ export const createAnnounce = async (
   const domainHashBytes = toHexString(
     Buffer.concat([
       domainIdBytes,
-      fromHexString(mailboxId),
+      fromHexString(mailboxAddress),
       Buffer.from('HYPERLANE_ANNOUNCEMENT'),
     ]),
   );

@@ -54,17 +54,19 @@ backtrace = { workspace = true, optional = true }
 backtrace-oneline = { path = "../utils/backtrace-oneline", optional = true }
 
 ethers-prometheus = { path = "../ethers-prometheus", features = ["serde"] }
-hyperlane-core = { path = "../hyperlane-core", features = ["agent", "float"] }
+hyperlane-core = { path = "../hyperlane-core", features = ["agent", "float", "matching-list"] }
 hyperlane-metric = { path = "../hyperlane-metric" }
 hyperlane-operation-verifier = { path = "../applications/hyperlane-operation-verifier" }
 hyperlane-test = { path = "../hyperlane-test" }
 
+hyperlane-aleo = { path = "../chains/hyperlane-aleo", optional = true }
 hyperlane-ethereum = { path = "../chains/hyperlane-ethereum" }
 hyperlane-fuel = { path = "../chains/hyperlane-fuel" }
 hyperlane-cosmos = { path = "../chains/hyperlane-cosmos" }
 hyperlane-starknet = { path = "../chains/hyperlane-starknet" }
-hyperlane-cosmos-native = { path = "../chains/hyperlane-cosmos-native" }
 hyperlane-sealevel = { path = "../chains/hyperlane-sealevel" }
+hyperlane-radix = { path = "../chains/hyperlane-radix" }
+hyperlane-tron = { path = "../chains/hyperlane-tron" }
 
 # dependency version is determined by etheres
 rusoto_core = "*"
@@ -87,3 +89,4 @@ default = ["oneline-errors", "color-eyre"]
 oneline-eyre = ["backtrace-oneline", "backtrace"]
 oneline-errors = ["oneline-eyre"]
 test-utils = ["dep:tempfile"]
+aleo = ["dep:hyperlane-aleo"]

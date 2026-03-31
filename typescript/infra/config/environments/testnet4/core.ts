@@ -37,17 +37,9 @@ import { supportedChainNames } from './supportedChainNames.js';
 export const core: ChainMap<CoreConfig> = objMap(
   ethereumChainOwners,
   (local, owner) => {
-    // Special case for rometestnet2 due to non-standard gas metering.
-    const connectedChains =
-      local === 'rometestnet2'
-        ? [
-            'sepolia',
-            'arbitrumsepolia',
-            'basesepolia',
-            'optimismsepolia',
-            'bsctestnet',
-          ]
-        : supportedChainNames.filter((chain) => chain !== local);
+    const connectedChains = supportedChainNames.filter(
+      (chain) => chain !== local,
+    );
 
     // Create a map of connected chains to their default multisig configs
     const originMultisigs: ChainMap<MultisigConfig> = Object.fromEntries(

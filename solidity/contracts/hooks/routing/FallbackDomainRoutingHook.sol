@@ -39,7 +39,7 @@ contract FallbackDomainRoutingHook is DomainRoutingHook {
 
     /// @inheritdoc IPostDispatchHook
     function hookType() external pure override returns (uint8) {
-        return uint8(IPostDispatchHook.Types.FALLBACK_ROUTING);
+        return uint8(IPostDispatchHook.HookTypes.FALLBACK_ROUTING);
     }
 
     // ============ Internal Functions ============

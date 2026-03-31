@@ -12,6 +12,7 @@ use nix::sys::signal::Signal;
 use nix::unistd::Pid;
 
 use crate::logging::log;
+use crate::program::Program;
 
 /// Make a function run as a task by writing `#[apply(as_task)]`. This will spawn a new thread
 /// and then return the result through a TaskHandle.
@@ -137,8 +138,7 @@ pub fn get_matching_lines<'a>(
         search_strings.iter().for_each(|search_string_vec| {
             if search_string_vec
                 .iter()
-                .map(|search_string| line.contains(search_string))
-                .all(|x| x)
+                .all(|search_string| line.contains(search_string))
             {
                 let count = matches.entry(search_string_vec.clone()).or_insert(0);
                 *count += 1;
@@ -191,4 +191,46 @@ pub fn get_ts_infra_path() -> PathBuf {
     let path_str = String::from_utf8(output).expect("Failed to parse workspace path");
     let git_workspace_path = PathBuf::from(path_str.trim());
     concat_path(git_workspace_path, "typescript/infra")
+}
+
+/// Poll postgres container until pg_isready succeeds.
+#[allow(dead_code)]
+pub fn wait_for_postgres() {
+    use std::thread::sleep;
+    use std::time::Duration;
+
+    const MAX_ATTEMPTS: u32 = 30;
+    for attempt in 1..=MAX_ATTEMPTS {
+        let status = Command::new("docker")
+            .args([
+                "exec",
+                "scraper-testnet-postgres",
+                "pg_isready",
+                "-U",
+                "postgres",
+            ])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
+        if let Ok(s) = status {
+            if s.success() {
+                log!("Postgres ready after {} attempts", attempt);
+                return;
+            }
+        }
+        sleep(Duration::from_secs(1));
+    }
+    panic!("Postgres not ready after {MAX_ATTEMPTS} attempts");
+}
+
+#[allow(dead_code)]
+pub(crate) fn download(output: &str, uri: &str, dir: &str) {
+    Program::new("curl")
+        .arg("output", output)
+        .flag("location")
+        .cmd(uri)
+        .flag("silent")
+        .working_dir(dir)
+        .run()
+        .join();
 }

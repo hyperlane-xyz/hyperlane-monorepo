@@ -23,9 +23,6 @@ pub struct ContractSyncMetrics {
     /// - `chain`: Chain the indexer is collecting data from.
     pub stored_events: IntCounterVec,
 
-    /// See `last_known_message_nonce` in CoreMetrics.
-    pub message_nonce: IntGaugeVec,
-
     /// Contract sync liveness metric
     pub liveness_metrics: IntGaugeVec,
 
@@ -60,13 +57,11 @@ impl ContractSyncMetrics {
             )
             .expect("failed to register liveness metric");
 
-        let message_nonce = metrics.last_known_message_nonce();
         let cursor_metrics = Arc::new(CursorMetrics::new(metrics));
 
         ContractSyncMetrics {
             indexed_height,
             stored_events,
-            message_nonce,
             liveness_metrics,
             cursor_metrics,
         }

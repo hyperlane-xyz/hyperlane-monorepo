@@ -6,6 +6,7 @@
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
+#![deny(clippy::unwrap_used, clippy::panic)]
 
 use eyre::Result;
 
@@ -16,7 +17,7 @@ use relayer::Relayer;
 #[cfg(feature = "memory-profiling")]
 mod memory_profiler;
 
-#[tokio::main(flavor = "multi_thread", worker_threads = 20)]
+#[tokio::main(flavor = "multi_thread", worker_threads = 8)]
 async fn main() -> Result<()> {
     // Logging is not initialised at this point, so, using `println!`
     println!("Relayer starting up...");

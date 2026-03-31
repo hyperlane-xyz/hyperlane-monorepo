@@ -51,6 +51,14 @@ export const TokenConfigSchema = z.object({
     .string()
     .optional()
     .describe('The CoinGecko id of the token, used for price lookups'),
+  scale: ZUint.lt(256).optional().describe('The scaling factor of the token'),
+  warpRouteId: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      'Unique warp route identifier, used to disambiguate tokens that share the same addressOrDenom on the same chain (e.g. M0 Portal tokens)',
+    ),
 });
 
 export type TokenArgs = Omit<
@@ -79,9 +87,11 @@ export interface IToken extends TokenArgs {
 
   isNft(): boolean;
   isNative(): boolean;
+  isHypNative(): boolean;
   isHypToken(): boolean;
   isIbcToken(): boolean;
   isMultiChainToken(): boolean;
+  isCrossCollateralToken(): boolean;
 
   getConnections(): TokenConnection[];
 

@@ -16,6 +16,7 @@ auto_impl.workspace = true
 bigdecimal.workspace = true
 borsh.workspace = true
 bs58.workspace = true
+bech32.workspace = true
 bytes = { workspace = true, features = ["serde"] }
 config = { workspace = true, optional = true }
 convert_case.workspace = true
@@ -29,6 +30,7 @@ fixed-hash.workspace = true
 futures = { workspace = true, optional = true }
 getrandom.workspace = true
 hex.workspace = true
+regex = { workspace = true, optional = true }
 itertools.workspace = true
 num = { workspace = true, features = ["serde"] }
 num-derive.workspace = true
@@ -68,3 +70,4 @@ ethers = [
 ]
 solana = ["dep:solana-sdk"]
 async = ["tokio", "futures"]
+matching-list = ["dep:regex"]

@@ -18,11 +18,8 @@ import {
 } from './chains.js';
 import { core } from './core.js';
 import { keyFunderConfig } from './funding.js';
-import { helloWorld } from './helloworld.js';
 import { igp } from './igp.js';
 import { infrastructure } from './infrastructure.js';
-import { bridgeAdapterConfigs } from './liquidityLayer.js';
-import { liquidityLayerRelayerConfig } from './middleware.js';
 import { owners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
 
@@ -68,11 +65,6 @@ export const environment: EnvironmentConfig = {
   core,
   igp,
   infra: infrastructure,
-  helloWorld,
   owners,
   keyFunderConfig,
-  liquidityLayerConfig: {
-    bridgeAdapters: bridgeAdapterConfigs,
-    relayer: liquidityLayerRelayerConfig,
-  },
 };

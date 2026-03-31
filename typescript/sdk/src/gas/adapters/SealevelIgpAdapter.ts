@@ -22,15 +22,24 @@ import {
 } from '../../utils/sealevelSerialization.js';
 
 import {
-  SealeveIgpInstruction,
+  SealevelGasOracle,
+  SealevelGasOracleConfig,
+  SealevelGasOracleType,
+  SealevelGasOverheadConfig,
   SealevelIgpData,
   SealevelIgpDataSchema,
+  SealevelIgpInstruction,
   SealevelIgpQuoteGasPaymentInstruction,
   SealevelIgpQuoteGasPaymentResponse,
   SealevelIgpQuoteGasPaymentResponseSchema,
   SealevelIgpQuoteGasPaymentSchema,
   SealevelOverheadIgpData,
   SealevelOverheadIgpDataSchema,
+  SealevelRemoteGasData,
+  SealevelSetDestinationGasOverheadsInstruction,
+  SealevelSetDestinationGasOverheadsInstructionSchema,
+  SealevelSetGasOracleConfigsInstruction,
+  SealevelSetGasOracleConfigsInstructionSchema,
 } from './serialization.js';
 
 export interface IgpPaymentKeys {
@@ -80,7 +89,7 @@ export abstract class SealevelIgpProgramAdapter extends BaseSealevelAdapter {
       });
     }
     const value = new SealevelInstructionWrapper({
-      instruction: SealeveIgpInstruction.QuoteGasPayment,
+      instruction: SealevelIgpInstruction.QuoteGasPayment,
       data: new SealevelIgpQuoteGasPaymentInstruction({
         destination_domain: destination,
         gas_amount: BigInt(gasAmount),
@@ -143,6 +152,46 @@ export abstract class SealevelIgpProgramAdapter extends BaseSealevelAdapter {
       igpProgramId,
     );
   }
+
+  // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/programs/hyperlane-sealevel-igp/src/pda_seeds.rs
+  static deriveIgpAccountPda(
+    programId: string | PublicKey,
+    salt: Uint8Array,
+  ): PublicKey {
+    return this.deriveIgpAccountPdaWithBump(programId, salt)[0];
+  }
+
+  static deriveIgpAccountPdaWithBump(
+    programId: string | PublicKey,
+    salt: Uint8Array,
+  ): [PublicKey, number] {
+    const programIdKey =
+      typeof programId === 'string' ? new PublicKey(programId) : programId;
+    return super.derivePdaWithBump(
+      ['hyperlane_igp', '-', 'igp', '-', Buffer.from(salt)],
+      programIdKey,
+    );
+  }
+
+  // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/programs/hyperlane-sealevel-igp/src/pda_seeds.rs
+  static deriveOverheadIgpAccountPda(
+    programId: string | PublicKey,
+    salt: Uint8Array,
+  ): PublicKey {
+    return this.deriveOverheadIgpAccountPdaWithBump(programId, salt)[0];
+  }
+
+  static deriveOverheadIgpAccountPdaWithBump(
+    programId: string | PublicKey,
+    salt: Uint8Array,
+  ): [PublicKey, number] {
+    const programIdKey =
+      typeof programId === 'string' ? new PublicKey(programId) : programId;
+    return super.derivePdaWithBump(
+      ['hyperlane_igp', '-', 'overhead_igp', '-', Buffer.from(salt)],
+      programIdKey,
+    );
+  }
 }
 
 export class SealevelIgpAdapter extends SealevelIgpProgramAdapter {
@@ -170,7 +219,7 @@ export class SealevelIgpAdapter extends SealevelIgpProgramAdapter {
     const connection = this.getProvider();
 
     const accountInfo = await connection.getAccountInfo(new PublicKey(address));
-    assert(accountInfo, `No account info found for ${address}}`);
+    assert(accountInfo, `No account info found for ${address}`);
 
     const accountData = deserializeUnchecked(
       SealevelIgpDataSchema,
@@ -206,7 +255,7 @@ export class SealevelIgpAdapter extends SealevelIgpProgramAdapter {
     }
 
     const keys = this.getClaimInstructionKeyList(beneficiary);
-    const data = Buffer.from([SealeveIgpInstruction.Claim]);
+    const data = Buffer.from([SealevelIgpInstruction.Claim]);
 
     const claimIgpInstruction = new TransactionInstruction({
       keys,
@@ -229,6 +278,96 @@ export class SealevelIgpAdapter extends SealevelIgpProgramAdapter {
     transaction.add(claimIgpInstruction);
     return transaction;
   }
+
+  /**
+   * Create a SetGasOracleConfigs instruction
+   */
+  createSetGasOracleConfigsInstruction(
+    igpAccount: PublicKey,
+    owner: PublicKey,
+    configs: SealevelGasOracleConfig[],
+  ): TransactionInstruction {
+    const keys = [
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+      { pubkey: igpAccount, isSigner: false, isWritable: true },
+      { pubkey: owner, isSigner: true, isWritable: true },
+    ];
+
+    const value = new SealevelInstructionWrapper({
+      instruction: SealevelIgpInstruction.SetGasOracleConfigs,
+      data: new SealevelSetGasOracleConfigsInstruction(configs),
+    });
+
+    const data = Buffer.from(
+      serialize(SealevelSetGasOracleConfigsInstructionSchema, value),
+    );
+
+    return new TransactionInstruction({
+      keys,
+      programId: this.programId,
+      data,
+    });
+  }
+
+  /**
+   * Create a gas oracle config from remote gas data
+   */
+  createGasOracleConfig(
+    domain: number,
+    remoteGasData: SealevelRemoteGasData | null,
+  ): SealevelGasOracleConfig {
+    const gasOracle = remoteGasData
+      ? new SealevelGasOracle({
+          type: SealevelGasOracleType.RemoteGasData,
+          data: remoteGasData,
+        })
+      : null;
+
+    return new SealevelGasOracleConfig(domain, gasOracle);
+  }
+
+  /**
+   * Check if gas oracle matches expected config
+   */
+  gasOracleMatches(
+    currentOracle: SealevelGasOracle | undefined,
+    expected: SealevelRemoteGasData,
+  ): { matches: boolean; actual: SealevelRemoteGasData | null } {
+    if (!currentOracle) {
+      return { matches: false, actual: null };
+    }
+
+    // Guard: only proceed if currentOracle is the remote-gas variant (type 0)
+    if (currentOracle.type !== SealevelGasOracleType.RemoteGasData) {
+      return { matches: false, actual: null };
+    }
+
+    const actual = currentOracle.data;
+    // Ensure BigInt comparison works correctly (Borsh might deserialize as different types)
+    const actualExchangeRate =
+      typeof actual.token_exchange_rate === 'bigint'
+        ? actual.token_exchange_rate
+        : BigInt(actual.token_exchange_rate);
+    const actualGasPrice =
+      typeof actual.gas_price === 'bigint'
+        ? actual.gas_price
+        : BigInt(actual.gas_price);
+    const expectedExchangeRate =
+      typeof expected.token_exchange_rate === 'bigint'
+        ? expected.token_exchange_rate
+        : BigInt(expected.token_exchange_rate);
+    const expectedGasPrice =
+      typeof expected.gas_price === 'bigint'
+        ? expected.gas_price
+        : BigInt(expected.gas_price);
+
+    const matches =
+      actualExchangeRate === expectedExchangeRate &&
+      actualGasPrice === expectedGasPrice &&
+      actual.token_decimals === expected.token_decimals;
+
+    return { matches, actual };
+  }
 }
 
 export class SealevelOverheadIgpAdapter extends SealevelIgpProgramAdapter {
@@ -249,7 +388,7 @@ export class SealevelOverheadIgpAdapter extends SealevelIgpProgramAdapter {
     const connection = this.getProvider();
 
     const accountInfo = await connection.getAccountInfo(new PublicKey(address));
-    assert(accountInfo, `No account info found for ${address}}`);
+    assert(accountInfo, `No account info found for ${address}`);
 
     const accountData = deserializeUnchecked(
       SealevelOverheadIgpDataSchema,
@@ -266,5 +405,45 @@ export class SealevelOverheadIgpAdapter extends SealevelIgpProgramAdapter {
       igpAccount: igpData.inner_pub_key,
       overheadIgpAccount: this.overheadIgp,
     };
+  }
+
+  /**
+   * Create a SetDestinationGasOverheads instruction
+   */
+  createSetDestinationGasOverheadsInstruction(
+    overheadIgpAccount: PublicKey,
+    owner: PublicKey,
+    configs: SealevelGasOverheadConfig[],
+  ): TransactionInstruction {
+    const keys = [
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+      { pubkey: overheadIgpAccount, isSigner: false, isWritable: true },
+      { pubkey: owner, isSigner: true, isWritable: true },
+    ];
+
+    const value = new SealevelInstructionWrapper({
+      instruction: SealevelIgpInstruction.SetDestinationGasOverheads,
+      data: new SealevelSetDestinationGasOverheadsInstruction(configs),
+    });
+
+    const data = Buffer.from(
+      serialize(SealevelSetDestinationGasOverheadsInstructionSchema, value),
+    );
+
+    return new TransactionInstruction({
+      keys,
+      programId: this.programId,
+      data,
+    });
+  }
+
+  /**
+   * Create a gas overhead config
+   */
+  createGasOverheadConfig(
+    destination_domain: number,
+    gas_overhead: bigint | null,
+  ): SealevelGasOverheadConfig {
+    return new SealevelGasOverheadConfig(destination_domain, gas_overhead);
   }
 }

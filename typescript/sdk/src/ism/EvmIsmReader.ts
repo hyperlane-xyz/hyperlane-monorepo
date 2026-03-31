@@ -36,6 +36,7 @@ import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
+import { contractHasString } from '../utils/contract.js';
 
 import {
   AggregationIsmConfig,
@@ -50,6 +51,9 @@ import {
   OffchainLookupIsmConfig,
   RoutingIsmConfig,
 } from './types.js';
+
+const INCREMENTAL_REVERT_STRING =
+  'IncrementalDomainRoutingIsm: removal not supported';
 
 export interface IsmReader {
   deriveIsmConfig(address: Address): Promise<DerivedIsmConfig>;
@@ -210,6 +214,16 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       ModuleType.ROUTING,
     );
 
+    // OPTIMIZATION: When we have messageContext, we only need to derive
+    // the specific ISM that will verify this message, not the full routing table.
+    // Just call route(message) and derive that single ISM directly.
+    if (this.messageContext) {
+      const routedIsmAddress = await abstractRoutingIsm.route(
+        this.messageContext.message,
+      );
+      return this.deriveIsmConfig(routedIsmAddress);
+    }
+
     // check if its the ICA ISM
     try {
       const icaInstance = InterchainAccountRouter__factory.connect(
@@ -217,11 +231,6 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         this.provider,
       );
       await icaInstance.CCIP_READ_ISM();
-      if (this.messageContext) {
-        // Route via the message context to get routed ISM
-        const routedIsm = await icaInstance.route(this.messageContext.message);
-        return this.deriveIsmConfig(routedIsm);
-      }
       // If no message context, just return this ICA ISM placeholder
       return {
         address,
@@ -254,9 +263,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
 
     const defaultFallbackIsmInstance =
       DefaultFallbackRoutingIsm__factory.connect(address, this.provider);
-    const domainIds = this.messageContext
-      ? [BigNumber.from(this.messageContext.parsed.origin)]
-      : await defaultFallbackIsmInstance.domains();
+    const domainIds = await defaultFallbackIsmInstance.domains();
 
     const icaRouter = InterchainAccountRouter__factory.connect(
       address,
@@ -293,7 +300,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       );
 
     // Fallback routing ISM extends from MailboxClient, default routing
-    let ismType = IsmType.FALLBACK_ROUTING;
+    let ismType: IsmType = IsmType.FALLBACK_ROUTING;
     try {
       await defaultFallbackIsmInstance.mailbox();
     } catch {
@@ -302,6 +309,20 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         'Error accessing mailbox property, implying this is not a fallback routing ISM.',
         address,
       );
+    }
+
+    // Check if it's an incremental routing ISM by looking for the unique error message in bytecode
+    if (ismType === IsmType.ROUTING) {
+      if (
+        await contractHasString(
+          this.provider,
+          address,
+          INCREMENTAL_REVERT_STRING,
+        )
+      ) {
+        ismType = IsmType.INCREMENTAL_ROUTING;
+        this.logger.debug({ address }, 'Detected incremental routing ISM');
+      }
     }
 
     return {
@@ -366,11 +387,31 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
   ): Promise<WithAddress<RoutingIsmConfig>> {
     const ism = AmountRoutingIsm__factory.connect(address, this.provider);
 
-    const [lowerIsm, upperIsm, threshold] = await Promise.all([
-      ism.lower(),
-      ism.upper(),
-      ism.threshold(),
-    ]);
+    let lowerIsm: Address;
+    let upperIsm: Address;
+    let threshold: BigNumber;
+    try {
+      [lowerIsm, upperIsm, threshold] = await Promise.all([
+        ism.lower(),
+        ism.upper(),
+        ism.threshold(),
+      ]);
+    } catch {
+      // If we fail to access AmountRoutingIsm properties, this is likely a legacy InterchainAccountIsm
+      this.logger.debug(
+        'Error accessing AmountRoutingIsm properties, treating as legacy InterchainAccountIsm.',
+        address,
+      );
+
+      // return a basic ICA routing config for legacy contracts
+      return {
+        type: IsmType.INTERCHAIN_ACCOUNT_ROUTING,
+        isms: {},
+        address,
+        owner: ethers.constants.AddressZero,
+      };
+    }
+
     return {
       type: IsmType.AMOUNT_ROUTING,
       address,
@@ -384,6 +425,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     address: Address,
   ): Promise<WithAddress<AggregationIsmConfig>> {
     const ism = StaticAggregationIsm__factory.connect(address, this.provider);
+
     this.assertModuleType(await ism.moduleType(), ModuleType.AGGREGATION);
 
     const [modules, threshold] = await ism.modulesAndThreshold(
@@ -420,7 +462,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       `expected module type to be ${ModuleType.MERKLE_ROOT_MULTISIG} or ${ModuleType.MESSAGE_ID_MULTISIG}, got ${moduleType}`,
     );
 
-    let ismType =
+    let ismType: IsmType =
       moduleType === ModuleType.MERKLE_ROOT_MULTISIG
         ? IsmType.MERKLE_ROOT_MULTISIG
         : IsmType.MESSAGE_ID_MULTISIG;

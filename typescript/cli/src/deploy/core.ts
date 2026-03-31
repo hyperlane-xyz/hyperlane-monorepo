@@ -1,31 +1,34 @@
 import { stringify as yamlStringify } from 'yaml';
 
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
-import { ChainAddresses } from '@hyperlane-xyz/registry';
+import { AltVMCoreModule } from '@hyperlane-xyz/deploy-sdk';
+import { GasAction, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import {
-  ChainName,
+  type ChainName,
   ContractVerifier,
-  CoreConfig,
-  CosmosNativeCoreModule,
-  DeployedCoreAddresses,
+  type CoreConfig,
+  type DeployedCoreAddresses,
   EvmCoreModule,
   ExplorerLicenseType,
+  altVmChainLookup,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { mustGet } from '@hyperlane-xyz/utils';
 
-import { MINIMUM_CORE_DEPLOY_GAS } from '../consts.js';
-import { MultiProtocolSignerManager } from '../context/strategies/signer/MultiProtocolSignerManager.js';
-import { WriteCommandContext } from '../context/types.js';
+import { type MultiProtocolSignerManager } from '../context/strategies/signer/MultiProtocolSignerManager.js';
+import { type WriteCommandContext } from '../context/types.js';
 import { log, logBlue, logGray, logGreen } from '../logger.js';
 import { indentYamlOrJson } from '../utils/files.js';
 
+import { validateCoreConfigForAltVM } from './configValidation.js';
 import {
   completeDeploy,
-  prepareDeploy,
+  getBalances,
   runDeployPlanStep,
   runPreflightChecksForChains,
   validateCoreIsmCompatibility,
 } from './utils.js';
+import { getSubmitterByStrategy } from './warp.js';
 
 interface DeployParams {
   context: WriteCommandContext;
@@ -36,6 +39,7 @@ interface DeployParams {
 
 interface ApplyParams extends DeployParams {
   deployedCoreAddresses: DeployedCoreAddresses;
+  strategyUrl?: string;
 }
 
 /**
@@ -44,8 +48,7 @@ interface ApplyParams extends DeployParams {
 export async function runCoreDeploy(params: DeployParams) {
   const { context, config } = params;
   const chain = params.chain;
-  const { isDryRun, registry, multiProvider, multiProtocolSigner, apiKeys } =
-    context;
+  const { registry, multiProvider, apiKeys } = context;
 
   // Validate ISM compatibility
   validateCoreIsmCompatibility(chain, config, context);
@@ -56,24 +59,29 @@ export async function runCoreDeploy(params: DeployParams) {
     config,
   };
 
+  await runDeployPlanStep(deploymentParams);
+
+  await runPreflightChecksForChains({
+    ...deploymentParams,
+    chains: [chain],
+    minGas: GasAction.CORE_DEPLOY_GAS,
+  });
+
   let deployedAddresses: ChainAddresses;
-  switch (multiProvider.getProtocol(chain)) {
+  const protocol = multiProvider.getProtocol(chain);
+  switch (protocol) {
+    case ProtocolType.Tron:
     case ProtocolType.Ethereum:
       {
         const signer = multiProvider.getSigner(chain);
-        await runDeployPlanStep(deploymentParams);
-
-        await runPreflightChecksForChains({
-          ...deploymentParams,
-          chains: [chain],
-          minGas: MINIMUM_CORE_DEPLOY_GAS,
-        });
 
         const userAddress = await signer.getAddress();
 
-        const initialBalances = await prepareDeploy(context, userAddress, [
-          chain,
-        ]);
+        const initialBalances = await getBalances(
+          context,
+          [chain],
+          userAddress,
+        );
 
         const contractVerifier = new ContractVerifier(
           multiProvider,
@@ -96,37 +104,31 @@ export async function runCoreDeploy(params: DeployParams) {
         deployedAddresses = evmCoreModule.serialize();
       }
       break;
+    default: {
+      const signer = mustGet(context.altVmSigners, chain);
+      logBlue('🚀 All systems ready, captain! Beginning deployment...');
 
-    case ProtocolType.CosmosNative:
-      {
-        await multiProtocolSigner?.initSigner(chain);
-        const signer =
-          multiProtocolSigner?.getCosmosNativeSigner(chain) ?? null;
-        assert(signer, 'Cosmos Native signer failed!');
+      const userAddress = signer.getSignerAddress();
+      const initialBalances = await getBalances(context, [chain], userAddress);
 
-        logBlue('🚀 All systems ready, captain! Beginning deployment...');
+      const coreModule = await AltVMCoreModule.create({
+        chain,
+        config: validateCoreConfigForAltVM(config, chain),
+        chainLookup: altVmChainLookup(multiProvider),
+        signer,
+      });
 
-        const cosmosNativeCoreModule = await CosmosNativeCoreModule.create({
-          chain,
-          config,
-          multiProvider,
-          signer,
-        });
-
-        deployedAddresses = cosmosNativeCoreModule.serialize();
-      }
-      break;
-
-    default:
-      throw new Error('Chain protocol is not supported yet!');
+      await completeDeploy(context, 'core', initialBalances, userAddress, [
+        chain,
+      ]);
+      deployedAddresses = coreModule.serialize();
+    }
   }
 
-  if (!isDryRun) {
-    await registry.updateChain({
-      chainName: chain,
-      addresses: deployedAddresses,
-    });
-  }
+  await registry.updateChain({
+    chainName: chain,
+    addresses: deployedAddresses,
+  });
 
   logGreen('✅ Core contract deployments complete:\n');
   log(indentYamlOrJson(yamlStringify(deployedAddresses, null, 2), 4));
@@ -134,9 +136,11 @@ export async function runCoreDeploy(params: DeployParams) {
 
 export async function runCoreApply(params: ApplyParams) {
   const { context, chain, deployedCoreAddresses, config } = params;
-  const { multiProvider, multiProtocolSigner } = context;
+  const { multiProvider } = context;
 
-  switch (multiProvider.getProtocol(chain)) {
+  const protocol = multiProvider.getProtocol(chain);
+  switch (protocol) {
+    case ProtocolType.Tron:
     case ProtocolType.Ethereum: {
       const evmCoreModule = new EvmCoreModule(multiProvider, {
         chain,
@@ -164,35 +168,33 @@ export async function runCoreApply(params: ApplyParams) {
       }
       break;
     }
-    case ProtocolType.CosmosNative: {
-      await multiProtocolSigner?.initSigner(chain);
-      const signer = multiProtocolSigner?.getCosmosNativeSigner(chain) ?? null;
-      assert(signer, 'Cosmos Native signer failed!');
+    default: {
+      const signer = mustGet(context.altVmSigners, chain);
 
-      const cosmosNativeCoreModule = new CosmosNativeCoreModule(
-        multiProvider,
+      const { submitter } = await getSubmitterByStrategy({
+        chain,
+        context: params.context,
+        strategyUrl: params.strategyUrl,
+      });
+
+      const validatedConfig = validateCoreConfigForAltVM(config, chain);
+
+      const coreModule = new AltVMCoreModule(
+        altVmChainLookup(multiProvider),
         signer,
         {
           chain,
-          config,
+          config: validatedConfig,
           addresses: deployedCoreAddresses,
         },
       );
 
-      const transactions = await cosmosNativeCoreModule.update(config);
+      const transactions = await coreModule.update(validatedConfig);
 
       if (transactions.length) {
         logGray('Updating deployed core contracts');
-        const response = await signer.signAndBroadcast(
-          signer.account.address,
-          transactions,
-          2,
-        );
 
-        assert(
-          response.code === 0,
-          `Transaction failed with status code ${response.code}`,
-        );
+        await submitter.submit(...transactions);
 
         logGreen(`Core config updated on ${chain}.`);
       } else {
@@ -200,7 +202,6 @@ export async function runCoreApply(params: ApplyParams) {
           `Core config on ${chain} is the same as target. No updates needed.`,
         );
       }
-      break;
     }
   }
 }

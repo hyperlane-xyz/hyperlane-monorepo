@@ -162,7 +162,11 @@ impl SealevelInterchainGasPaymasterIndexer {
             .map_err(ChainCommunicationError::from_other)?
             .into_inner();
 
-        tracing::debug!(gas_payment_account=?gas_payment_account, "Found gas payment account");
+        tracing::debug!(
+            gas_payment_account=?gas_payment_account,
+            payment_pda_pubkey=?valid_payment_pda_pubkey,
+            "Found gas payment account",
+        );
 
         let igp_payment = InterchainGasPayment {
             message_id: gas_payment_account.message_id,
@@ -203,7 +207,9 @@ impl SealevelInterchainGasPaymasterIndexer {
     }
 
     fn interchain_payment_account(&self, account: &Account) -> ChainResult<Pubkey> {
-        let unique_gas_payment_pubkey = Pubkey::new(&account.data);
+        let unique_gas_payment_pubkey = Pubkey::try_from(account.data.as_slice()).map_err(|e| {
+            ChainCommunicationError::from_other_str(&format!("Invalid pubkey: {e}"))
+        })?;
         let (expected_pubkey, _bump) = Pubkey::try_find_program_address(
             igp_gas_payment_pda_seeds!(unique_gas_payment_pubkey),
             &self.igp.program_id,
@@ -299,7 +305,6 @@ impl SequenceAwareIndexer<InterchainGasPayment> for SealevelInterchainGasPaymast
 
 #[cfg(test)]
 mod tests {
-    use borsh::BorshSerialize;
     use hyperlane_sealevel_igp::accounts::GasPaymentData;
 
     use super::*;
@@ -322,16 +327,17 @@ mod tests {
             .into(),
         );
 
-        let serialized = gas_payment.into_inner().try_to_vec().unwrap();
+        let serialized = borsh::to_vec(&*gas_payment.into_inner()).unwrap();
         // Note: although unclear in the docs, the reason for subtracting 1 is as follows.
         // The `offset` field of `memcmp` does not add to the offset of the `dataSlice` filtering param in `get_payment_with_sequence`.
         // As such, `UNIQUE_GAS_PAYMENT_PUBKEY_OFFSET` has to account for that 1-byte offset of that `offset` field, which represents
         // an `is_initialized` boolean.
         // Since the dummy `GasPaymentAccount` is not prefixed by an `is_initialized` boolean, we have to subtract 1 from the offset.
-        let sliced_unique_gas_payment_pubkey = Pubkey::new(
+        let sliced_unique_gas_payment_pubkey = Pubkey::try_from(
             &serialized[(UNIQUE_GAS_PAYMENT_PUBKEY_OFFSET - 1)
                 ..(UNIQUE_GAS_PAYMENT_PUBKEY_OFFSET + 32 - 1)],
-        );
+        )
+        .unwrap();
         assert_eq!(
             expected_unique_gas_payment_pubkey,
             sliced_unique_gas_payment_pubkey

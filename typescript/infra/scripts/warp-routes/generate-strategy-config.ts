@@ -6,9 +6,9 @@ import {
   assert,
   configureRootLogger,
 } from '@hyperlane-xyz/utils';
+import { writeYaml } from '@hyperlane-xyz/utils/fs';
 
 import { strategyConfigGetterMap } from '../../config/warp.js';
-import { writeYamlAtPath } from '../../src/utils/utils.js';
 import {
   getArgs,
   withKnownWarpRouteId,
@@ -26,7 +26,7 @@ async function main() {
   const strategy = strategyConfigGetterMap[warpRouteId]();
   assert(strategy, `Strategy not found by warpId ${strategy}`);
 
-  logger.info(`Strategy Created`, strategy);
+  logger.info(`Strategy Created`, JSON.stringify(strategy, null, 2));
 
   if (outFile) {
     // JSON strategies may contain private keys
@@ -41,7 +41,7 @@ async function main() {
     }
     const configFileName = `${warpRouteId}-strategy.yaml`;
     const outputFilePath = `${outFile}/${configFileName}`;
-    writeYamlAtPath(outputFilePath, strategy);
+    writeYaml(outputFilePath, strategy);
     logger.info(`Strategy successfully created at`, outputFilePath);
   }
 }

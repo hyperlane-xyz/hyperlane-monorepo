@@ -14,16 +14,17 @@ use ethers_contract::builders::ContractCall;
 use ethers_contract::{Multicall, MulticallResult};
 use ethers_core::utils::WEI_IN_ETHER;
 use futures_util::future::join_all;
+use hyperlane_core::Metadata;
 use tokio::join;
 use tokio::sync::Mutex;
 use tracing::instrument;
 
 use hyperlane_core::{
-    rpc_clients::call_and_retry_indefinitely, utils::bytes_to_hex, BatchItem, BatchResult,
-    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProtocolError,
-    HyperlaneProvider, Indexed, Indexer, LogMeta, Mailbox, QueueOperation, RawHyperlaneMessage,
-    ReorgPeriod, SequenceAwareIndexer, TxCostEstimate, TxOutcome, H160, H256, H512, U256,
+    rpc_clients::call_and_retry_indefinitely, BatchItem, BatchResult, ChainCommunicationError,
+    ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    HyperlaneMessage, HyperlaneProtocolError, HyperlaneProvider, Indexed, Indexer, LogMeta,
+    Mailbox, QueueOperation, RawHyperlaneMessage, ReorgPeriod, SequenceAwareIndexer,
+    TxCostEstimate, TxOutcome, H160, H256, H512, U256,
 };
 
 use crate::error::HyperlaneEthereumError;
@@ -38,7 +39,7 @@ use crate::{
     TransactionOverrides,
 };
 
-use super::multicall::{self, build_multicall};
+use super::multicall::{self, build_multicall, BatchCache};
 use super::utils::{fetch_raw_logs_and_meta, get_finalized_block_number};
 
 impl<M> std::fmt::Display for EthereumMailboxInternal<M>
@@ -275,11 +276,11 @@ where
     arbitrum_node_interface: Option<Arc<ArbitrumNodeInterface<M>>>,
     conn: ConnectionConf,
     cache: Arc<Mutex<EthereumMailboxCache>>,
+    batch_cache: Arc<Mutex<BatchCache>>,
 }
 
 #[derive(Debug, Default)]
 pub struct EthereumMailboxCache {
-    pub is_contract: HashMap<H256, bool>,
     pub latest_block: Option<Block<TxHash>>,
     pub eip1559_fee: Option<Eip1559Fee>,
 }
@@ -312,6 +313,7 @@ where
             arbitrum_node_interface,
             conn: conn.clone(),
             cache: Default::default(),
+            batch_cache: Default::default(),
         }
     }
 
@@ -453,8 +455,8 @@ impl<M: Middleware + 'static> BatchSimulation<M> {
         cache: Arc<Mutex<EthereumMailboxCache>>,
     ) -> ChainResult<BatchResult> {
         if let Some(mut submittable_batch) = self.call {
-            let estimated = multicall::estimate(submittable_batch.call, self.successful).await?;
-            submittable_batch.call = estimated;
+            let gas_limit = multicall::estimate(&submittable_batch.call, self.successful).await?;
+            submittable_batch.call.tx.set_gas(gas_limit);
             let batch_outcome = submittable_batch.submit(cache).await?;
             Ok(BatchResult::new(
                 Some(batch_outcome),
@@ -547,11 +549,11 @@ where
             .into())
     }
 
-    #[instrument(skip(self, message, metadata), fields(metadata=%bytes_to_hex(metadata)))]
+    #[instrument(skip(self, message, metadata))]
     async fn process(
         &self,
         message: &HyperlaneMessage,
-        metadata: &[u8],
+        metadata: &Metadata,
         tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
         let contract_call = self
@@ -572,11 +574,12 @@ where
             .iter()
             .map(|op| op.try_batch())
             .collect::<ChainResult<Vec<BatchItem<HyperlaneMessage>>>>()?;
+
         let mut multicall = build_multicall(
             self.provider.clone(),
-            &self.conn,
             self.domain.clone(),
-            self.cache.clone(),
+            self.batch_cache.clone(),
+            self.conn.batch_contract_address(),
         )
         .await
         .map_err(|e| HyperlaneEthereumError::MulticallError(e.to_string()))?;
@@ -622,11 +625,11 @@ where
         simulation.try_submit(self.cache.clone()).await
     }
 
-    #[instrument(skip(self), fields(msg=%message, metadata=%bytes_to_hex(metadata)))]
+    #[instrument(skip(self))]
     async fn process_estimate_costs(
         &self,
         message: &HyperlaneMessage,
-        metadata: &[u8],
+        metadata: &Metadata,
     ) -> ChainResult<TxCostEstimate> {
         // this function is used to get an accurate gas estimate for the transaction
         // rather than a gas amount that will guarantee inclusion, so we use `false`
@@ -678,7 +681,7 @@ where
     async fn process_calldata(
         &self,
         message: &HyperlaneMessage,
-        metadata: &[u8],
+        metadata: &Metadata,
     ) -> ChainResult<Vec<u8>> {
         let mut contract_call = self.contract.process(
             metadata.to_vec().into(),
@@ -718,7 +721,7 @@ mod test {
     use ethers_core::types::FeeHistory;
     use hyperlane_core::{
         ContractLocator, HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, Mailbox,
-        TxCostEstimate, H160, H256, U256,
+        Metadata, TxCostEstimate, H160, H256, U256,
     };
 
     use crate::{contracts::EthereumMailbox, ConnectionConf, RpcConnectionConf};
@@ -737,6 +740,10 @@ mod test {
             },
             transaction_overrides: Default::default(),
             op_submission_config: Default::default(),
+            consider_null_transaction_receipt: false,
+            grpc_urls: None,
+            solidity_grpc_urls: None,
+            energy_multiplier: None,
         };
 
         let mailbox = EthereumMailbox::new(
@@ -753,12 +760,12 @@ mod test {
 
     #[tokio::test]
     async fn test_process_estimate_costs_sets_l2_gas_limit_for_arbitrum() {
-        let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::PlumeTestnet);
+        let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Plume);
         // An Arbitrum Nitro chain
         let (mailbox, mock_provider) = get_test_mailbox(domain.clone());
 
         let message = HyperlaneMessage::default();
-        let metadata: Vec<u8> = vec![];
+        let metadata = Metadata::new(vec![]);
 
         assert!(mailbox.arbitrum_node_interface.is_some());
         // Confirm `H160::from_low_u64_ne(0xC8)` does what's expected
@@ -771,13 +778,13 @@ mod test {
         // order, so we start with the final RPCs and work toward the first
         // RPCs
 
-        // RPC 4: eth_gasPrice by process_estimate_costs
+        // RPC 9: eth_gasPrice by process_estimate_costs
         // Return 15 gwei
         let gas_price: U256 =
             EthersU256::from(ethers::utils::parse_units("15", "gwei").unwrap()).into();
         mock_provider.push(gas_price).unwrap();
 
-        // RPC 6: eth_estimateGas to the ArbitrumNodeInterface's estimateRetryableTicket function by process_estimate_costs
+        // RPC 8: eth_estimateGas to the ArbitrumNodeInterface's estimateRetryableTicket function by process_estimate_costs
         let l2_gas_limit = U256::from(200000); // 200k gas
         mock_provider.push(l2_gas_limit).unwrap();
 
@@ -788,18 +795,23 @@ mod test {
             reward: vec![vec![]],
         };
 
-        // RPC 5: eth_feeHistory from the estimate_eip1559_fees_default
-        mock_provider.push(fee_history).unwrap();
+        // RPC 5-7: eth_feeHistory from the estimate_eip1559_fees_default with different percentiles
+        mock_provider.push(fee_history.clone()).unwrap();
+        mock_provider.push(fee_history.clone()).unwrap();
+        mock_provider.push(fee_history.clone()).unwrap();
+
+        // RPC 4: eth_feeHistory from the estimate_eip1559_fees_default
+        mock_provider.push(fee_history.clone()).unwrap();
 
         let latest_block: Block<Transaction> = Block {
             gas_limit: ethers::types::U256::MAX,
             ..Block::<Transaction>::default()
         };
 
-        // RPC 4: eth_getBlockByNumber from the estimate_eip1559_fees_default
+        // RPC 3: eth_getBlockByNumber from the estimate_eip1559_fees_default
         mock_provider.push(latest_block.clone()).unwrap();
 
-        // RPC 3: eth_getBlockByNumber from the fill_tx_gas_params call in process_contract_call
+        // RPC 2: eth_getBlockByNumber from the fill_tx_gas_params call in process_contract_call
         // to get the latest block gas limit and for eip 1559 fee estimation
         mock_provider.push(latest_block).unwrap();
 
@@ -829,13 +841,13 @@ mod test {
             get_test_mailbox(HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum));
 
         let message = HyperlaneMessage::default();
-        let metadata: Vec<u8> = vec![];
+        let metadata = Metadata::new(vec![]);
 
         // The MockProvider responses we push are processed in LIFO
         // order, so we start with the final RPCs and work toward the first
         // RPCs
 
-        // RPC 6: eth_gasPrice by process_estimate_costs
+        // RPC 8: eth_gasPrice by process_estimate_costs
         // Return 15 gwei
         let gas_price: U256 =
             EthersU256::from(ethers::utils::parse_units("15", "gwei").unwrap()).into();
@@ -848,7 +860,12 @@ mod test {
             reward: vec![vec![]],
         };
 
-        // RPC 5: eth_feeHistory from the estimate_eip1559_fees_default
+        // RPC 5-7: eth_feeHistory from the estimate_eip1559_fees_default with different percentiles
+        mock_provider.push(fee_history.clone()).unwrap();
+        mock_provider.push(fee_history.clone()).unwrap();
+        mock_provider.push(fee_history.clone()).unwrap();
+
+        // RPC 4: eth_feeHistory from the estimate_eip1559_fees_default
         mock_provider.push(fee_history).unwrap();
 
         let latest_block_gas_limit = U256::from(12345u32);
@@ -857,10 +874,10 @@ mod test {
             ..Block::<Transaction>::default()
         };
 
-        // RPC 4: eth_getBlockByNumber from the estimate_eip1559_fees_default
+        // RPC 3: eth_getBlockByNumber from the estimate_eip1559_fees_default
         mock_provider.push(latest_block.clone()).unwrap();
 
-        // RPC 3: eth_getBlockByNumber from the fill_tx_gas_params call in process_contract_call
+        // RPC 2: eth_getBlockByNumber from the fill_tx_gas_params call in process_contract_call
         // to get the latest block gas limit and for eip 1559 fee estimation
         mock_provider.push(latest_block).unwrap();
 

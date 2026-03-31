@@ -10,24 +10,24 @@ import {
   objMap,
   rootLogger,
 } from '@hyperlane-xyz/utils';
+import { readJsonFromDir } from '@hyperlane-xyz/utils/fs';
 
 import { Contexts } from '../../config/contexts.js';
-import { helloworld } from '../../config/environments/helloworld.js';
-import localKathyAddresses from '../../config/kathy.json' with { type: 'json' };
 import { getChain } from '../../config/registry.js';
 import localRelayerAddresses from '../../config/relayer.json' with { type: 'json' };
 import { getAWValidatorsPath } from '../../scripts/agent-utils.js';
-import { getJustHelloWorldConfig } from '../../scripts/helloworld/utils.js';
-import { AgentContextConfig, RootAgentConfig } from '../config/agent/agent.js';
-import { DeployEnvironment } from '../config/environment.js';
+import type {
+  AgentContextConfig,
+  RootAgentConfig,
+} from '../config/agent/agent.js';
+import type { DeployEnvironment } from '../config/environment.js';
 import { Role } from '../roles.js';
 import { fetchGCPSecret, setGCPSecretUsingClient } from '../utils/gcloud.js';
 import {
   execCmd,
   getInfraPath,
   isEthereumProtocolChain,
-  readJSON,
-  writeJsonAtPath,
+  writeAndFormatJsonAtPath,
 } from '../utils/utils.js';
 
 import { AgentAwsKey } from './aws/key.js';
@@ -40,10 +40,8 @@ export type LocalRoleAddresses = Record<
 >;
 export const relayerAddresses: LocalRoleAddresses =
   localRelayerAddresses as LocalRoleAddresses;
-export const kathyAddresses: LocalRoleAddresses =
-  localKathyAddresses as LocalRoleAddresses;
 
-const debugLog = rootLogger.child({ module: 'infra:agents:key:utils' }).debug;
+const logger = rootLogger.child({ module: 'infra:agents:key-utils' });
 
 export interface KeyAsAddress {
   identifier: string;
@@ -128,23 +126,6 @@ function getRoleKeyMapPerChain(
     }
   };
 
-  const setKathyKeys = () => {
-    const helloWorldConfig = getJustHelloWorldConfig(
-      helloworld[agentConfig.runEnv as 'mainnet3' | 'testnet4'], // test doesn't have hello world configs
-      agentConfig.context,
-    );
-    // Kathy is only needed on chains where the hello world contracts are deployed.
-    for (const chainName of Object.keys(helloWorldConfig.addresses)) {
-      const kathyKey = getKathyKeyForChain(agentConfig, chainName);
-      keysPerChain[chainName] = {
-        ...keysPerChain[chainName],
-        [Role.Kathy]: {
-          [kathyKey.identifier]: kathyKey,
-        },
-      };
-    }
-  };
-
   const setDeployerKeys = () => {
     const deployerKey = getDeployerKey(agentConfig);
     // Default to using the relayer keys for the deployer keys
@@ -171,6 +152,19 @@ function getRoleKeyMapPerChain(
     }
   };
 
+  const setInventoryRebalancerKeys = () => {
+    const inventoryKey = getInventoryRebalancerKey(agentConfig);
+    // Assign the single inventory rebalancer key to all chains that have a relayer configured
+    for (const chainName of agentConfig.contextChainNames.relayer) {
+      keysPerChain[chainName] = {
+        ...keysPerChain[chainName],
+        [Role.InventoryRebalancer]: {
+          [inventoryKey.identifier]: inventoryKey,
+        },
+      };
+    }
+  };
+
   for (const role of agentConfig.rolesWithKeys) {
     switch (role) {
       case Role.Validator:
@@ -179,14 +173,14 @@ function getRoleKeyMapPerChain(
       case Role.Relayer:
         setRelayerKeys();
         break;
-      case Role.Kathy:
-        setKathyKeys();
-        break;
       case Role.Deployer:
         setDeployerKeys();
         break;
       case Role.Rebalancer:
         setRebalancerKeys();
+        break;
+      case Role.InventoryRebalancer:
+        setInventoryRebalancerKeys();
         break;
       default:
         throw Error(`Unsupported role with keys ${role}`);
@@ -200,7 +194,7 @@ function getRoleKeyMapPerChain(
 export function getAllCloudAgentKeys(
   agentConfig: RootAgentConfig,
 ): Array<CloudAgentKey> {
-  debugLog('Retrieving all cloud agent keys');
+  logger.debug('Retrieving all cloud agent keys');
   const keysPerChain = getRoleKeyMapPerChain(agentConfig);
 
   const keysByIdentifier = Object.keys(keysPerChain).reduce(
@@ -235,7 +229,7 @@ export function getCloudAgentKey(
   chainName?: ChainName,
   index?: number,
 ): CloudAgentKey {
-  debugLog(`Retrieving cloud agent key for ${role} on ${chainName}`);
+  logger.debug(`Retrieving cloud agent key for ${role} on ${chainName}`);
   switch (role) {
     case Role.Validator:
       if (chainName === undefined || index === undefined) {
@@ -248,15 +242,12 @@ export function getCloudAgentKey(
         throw Error('Must provide chainName for relayer key');
       }
       return getRelayerKeyForChain(agentConfig, chainName);
-    case Role.Kathy:
-      if (chainName === undefined) {
-        throw Error('Must provide chainName for kathy key');
-      }
-      return getKathyKeyForChain(agentConfig, chainName);
     case Role.Deployer:
       return getDeployerKey(agentConfig);
     case Role.Rebalancer:
       return getRebalancerKey(agentConfig);
+    case Role.InventoryRebalancer:
+      return getInventoryRebalancerKey(agentConfig);
     default:
       throw Error(`Unsupported role ${role}`);
   }
@@ -271,7 +262,7 @@ export function getRelayerKeyForChain(
   agentConfig: AgentContextConfig,
   chainName: ChainName,
 ): CloudAgentKey {
-  debugLog(`Retrieving relayer key for ${chainName}`);
+  logger.debug(`Retrieving relayer key for ${chainName}`);
   // If AWS is enabled and the chain is an Ethereum-based chain, we want to use
   // an AWS key.
   if (agentConfig.aws && isEthereumProtocolChain(chainName)) {
@@ -286,29 +277,19 @@ export function getRelayerKeyForChain(
   );
 }
 
-// Gets the kathy key used for signing txs to the provided chain.
-// Note this is basically a dupe of getRelayerKeyForChain, but to encourage
-// consumers to be aware of what role they're using, and to keep the door open
-// for future per-role deviations, we have separate functions.
-export function getKathyKeyForChain(
+// Returns the deployer key for the specified chain or EVM by default in the provided context.
+export function getDeployerKey(
   agentConfig: AgentContextConfig,
-  chainName: ChainName,
+  chainName?: ChainName,
 ): CloudAgentKey {
-  debugLog(`Retrieving kathy key for ${chainName}`);
-  // If AWS is enabled and the chain is an Ethereum-based chain, we want to use
-  // an AWS key.
-  if (agentConfig.aws && isEthereumProtocolChain(chainName)) {
-    return new AgentAwsKey(agentConfig, Role.Kathy);
-  }
+  logger.debug('Retrieving deployer key');
 
-  return new AgentGCPKey(agentConfig.runEnv, agentConfig.context, Role.Kathy);
-}
-
-// Returns the deployer key. This is always a GCP key, not chain specific,
-// and in the Hyperlane context.
-export function getDeployerKey(agentConfig: AgentContextConfig): CloudAgentKey {
-  debugLog('Retrieving deployer key');
-  return new AgentGCPKey(agentConfig.runEnv, Contexts.Hyperlane, Role.Deployer);
+  return new AgentGCPKey(
+    agentConfig.runEnv,
+    Contexts.Hyperlane,
+    Role.Deployer,
+    chainName,
+  );
 }
 
 // Returns the rebalancer key. This is always a GCP key, not chain specific
@@ -316,11 +297,24 @@ export function getDeployerKey(agentConfig: AgentContextConfig): CloudAgentKey {
 export function getRebalancerKey(
   agentConfig: AgentContextConfig,
 ): CloudAgentKey {
-  debugLog('Retrieving rebalancer key');
+  logger.debug('Retrieving rebalancer key');
   return new AgentGCPKey(
     agentConfig.runEnv,
     Contexts.Hyperlane,
     Role.Rebalancer,
+  );
+}
+
+// Returns the inventory rebalancer key. This is always a GCP key, not chain specific
+// and in the Hyperlane context
+export function getInventoryRebalancerKey(
+  agentConfig: AgentContextConfig,
+): CloudAgentKey {
+  logger.debug('Retrieving inventory rebalancer key');
+  return new AgentGCPKey(
+    agentConfig.runEnv,
+    Contexts.Hyperlane,
+    Role.InventoryRebalancer,
   );
 }
 
@@ -342,7 +336,7 @@ export function getValidatorKeysForChain(
   validator: CloudAgentKey;
   chainSigner: CloudAgentKey;
 } {
-  debugLog(`Retrieving validator keys for ${chainName}`);
+  logger.debug(`Retrieving validator keys for ${chainName}`);
   const validator = agentConfig.aws
     ? new AgentAwsKey(agentConfig, Role.Validator, chainName, index)
     : new AgentGCPKey(
@@ -359,7 +353,7 @@ export function getValidatorKeysForChain(
   if (isEthereumProtocolChain(chainName)) {
     chainSigner = validator;
   } else {
-    debugLog(`Retrieving GCP key for ${chainName}, as it is not EVM`);
+    logger.debug(`Retrieving GCP key for ${chainName}, as it is not EVM`);
     chainSigner = new AgentGCPKey(
       agentConfig.runEnv,
       agentConfig.context,
@@ -420,7 +414,7 @@ async function createAgentKeys(
   agentConfig: AgentContextConfig,
   agentKeysToCreate: string[],
 ) {
-  debugLog('Creating agent keys if none exist');
+  logger.debug('Creating agent keys if none exist');
 
   const keys = getAllCloudAgentKeys(agentConfig);
 
@@ -431,7 +425,7 @@ async function createAgentKeys(
   // Process only non-Starknet keys for creation
   await Promise.all(
     keysToCreate.map(async (key) => {
-      debugLog(`Creating key if not exists: ${key.identifier}`);
+      logger.debug(`Creating key if not exists: ${key.identifier}`);
       return key.createIfNotExists();
     }),
   );
@@ -470,7 +464,7 @@ async function agentKeysToBeCreated(
 }
 
 export async function deleteAgentKeys(agentConfig: AgentContextConfig) {
-  debugLog('Deleting agent keys');
+  logger.debug('Deleting agent keys');
 
   // Filter out Starknet keys - we don't want to delete them
   const keysToDelete = getModifiableKeys(agentConfig);
@@ -489,7 +483,7 @@ export async function rotateKey(
   role: Role,
   chainName: ChainName,
 ) {
-  debugLog(`Rotating key for ${role} on ${chainName}`);
+  logger.debug(`Rotating key for ${role} on ${chainName}`);
   const key = getCloudAgentKey(agentConfig, role, chainName);
   await key.update();
   await persistAddressesLocally(agentConfig, [key]);
@@ -506,19 +500,19 @@ async function persistAddressesInGcp(
       true,
     )) as KeyAsAddress[];
     if (deepEquals(keys, existingSecret)) {
-      debugLog(
+      logger.debug(
         `Addresses already persisted to GCP for ${context} context in ${environment} environment`,
       );
       return;
     }
-  } catch (e) {
+  } catch {
     // If the secret doesn't exist, we'll create it below.
-    debugLog(
+    logger.debug(
       `No existing secret found for ${context} context in ${environment} environment`,
     );
   }
 
-  debugLog(
+  logger.debug(
     `Persisting addresses to GCP for ${context} context in ${environment} environment`,
   );
   await setGCPSecretUsingClient(
@@ -535,12 +529,12 @@ async function persistAddressesLocally(
   agentConfig: AgentContextConfig,
   keys: CloudAgentKey[],
 ) {
-  debugLog(
-    `Persisting addresses to GCP for ${agentConfig.context} context in ${agentConfig.runEnv} environment`,
+  logger.debug(
+    `Persisting addresses locally for ${agentConfig.context} context in ${agentConfig.runEnv} environment`,
   );
   // recent keys fetched from aws saved to local artifacts
   const multisigValidatorKeys: ChainMap<{ validators: Address[] }> = {};
-  let relayer, kathy;
+  let relayer: Address | undefined;
   for (const key of keys) {
     // Some types of keys come in an AWS and a GCP variant. We prefer
     // to persist the AWS version of the key if AWS is enabled.
@@ -557,11 +551,6 @@ async function persistAddressesLocally(
         throw new Error('More than one Relayer found in gcpCloudAgentKeys');
       relayer = key.address;
     }
-    if (key.role === Role.Kathy) {
-      if (kathy)
-        throw new Error('More than one Kathy found in gcpCloudAgentKeys');
-      kathy = key.address;
-    }
 
     if (key.chainName) {
       multisigValidatorKeys[key.chainName] ||= {
@@ -575,16 +564,6 @@ async function persistAddressesLocally(
     }
   }
   if (!relayer) throw new Error('No Relayer found in awsCloudAgentKeys');
-  if (agentConfig.context === Contexts.Hyperlane) {
-    if (!kathy) throw new Error('No Kathy found in awsCloudAgentKeys');
-    await persistRoleAddressesToLocalArtifacts(
-      Role.Kathy,
-      agentConfig.runEnv,
-      agentConfig.context,
-      kathy,
-      kathyAddresses,
-    );
-  }
   await persistRoleAddressesToLocalArtifacts(
     Role.Relayer,
     agentConfig.runEnv,
@@ -615,7 +594,7 @@ export async function persistRoleAddressesToLocalArtifacts(
   // Resolve the relative path
   const filePath = join(getInfraPath(), `config/${role}.json`);
 
-  writeJsonAtPath(filePath, addresses);
+  writeAndFormatJsonAtPath(filePath, addresses);
 }
 
 // maintaining the multisigIsm schema sans threshold
@@ -625,7 +604,7 @@ export async function persistValidatorAddressesToLocalArtifacts(
   fetchedValidatorAddresses: ChainMap<{ validators: Address[] }>,
 ) {
   // Write the updated object back to the file
-  writeJsonAtPath(
+  writeAndFormatJsonAtPath(
     getAWValidatorsPath(environment, context),
     fetchedValidatorAddresses,
   );
@@ -633,12 +612,12 @@ export async function persistValidatorAddressesToLocalArtifacts(
 
 export function fetchLocalKeyAddresses(role: Role): LocalRoleAddresses {
   try {
-    const addresses: LocalRoleAddresses = readJSON(
+    const addresses: LocalRoleAddresses = readJsonFromDir(
       CONFIG_DIRECTORY_PATH,
       `${role}.json`,
     );
 
-    debugLog(`Fetching addresses from GCP for ${role} role ...`);
+    logger.debug(`Fetching addresses locally for ${role} role ...`);
     return addresses;
   } catch (e) {
     throw new Error(`Error fetching addresses locally for ${role} role: ${e}`);

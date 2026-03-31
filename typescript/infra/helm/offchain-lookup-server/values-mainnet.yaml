@@ -2,11 +2,11 @@ environment: mainnet
 
 # General deployment configuration
 image:
-  repository: gcr.io/abacus-labs-dev/hyperlane-monorepo
+  repository: ghcr.io/hyperlane-xyz/hyperlane-offchain-lookup-server
   # Modify this tag to deploy a new revision.
   # Images can be found here:
-  # https://console.cloud.google.com/artifacts/docker/abacus-labs-dev/us/gcr.io/hyperlane-monorepo?inv=1&invt=AbxRMg&project=abacus-labs-dev
-  tag: 000ecdc-20250602-134843
+  # https://github.com/orgs/hyperlane-xyz/packages/container/package/hyperlane-offchain-lookup-server
+  tag: c558a9f-20260304-105251
 
 # In Google Cloud Secret Manager, all secrets need to have a certain prefix in order to be accessible by
 # the Cluster Secret Store. For testnet this prefix is "hyperlane-testnet4"
@@ -28,6 +28,6 @@ env:
   - name: SERVER_PORT
     value: '3000'
   - name: REGISTRY_URI
-    value: 'https://github.com/hyperlane-xyz/hyperlane-registry'
+    value: 'https://github.com/hyperlane-xyz/hyperlane-registry/tree/1783373afe4be89ab85e379b32f24c7c26c73416'
   - name: SERVER_BASE_URL
     value: 'https://offchain-lookup.services.hyperlane.xyz'

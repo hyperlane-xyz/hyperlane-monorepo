@@ -1,0 +1,18 @@
+{
+  "eclipsemainnet": {
+    "type": "synthetic",
+    "decimals": 6,
+    "name": "Pump",
+    "symbol": "PUMP",
+    "interchainGasPaymaster": "3Wp4qKkgf4tjXz1soGyTSndCgBPLZFSrZkiDZ8Qp9EEj",
+    "owner": "3KK8L7UYd7NV575w9vWR2o1kNqdSFvEPUwcTA5353cax",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/8948b4a92fb3369600bfa99b3967d2c47b5e39a6/deployments/warp_routes/PUMP/metadata.json"
+  },
+  "solanamainnet": {
+    "type": "collateral",
+    "decimals": 6,
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "owner": "AuUJ9cFh1iGPpQfmyFfD3AJVUrGgNHJ6vqMNSPJn4Ekb",
+    "token": "pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn"
+  }
+}

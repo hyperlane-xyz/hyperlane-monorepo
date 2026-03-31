@@ -1,24 +1,44 @@
-# File extension owners
-
-*.sol @yorhodes @aroralanuk @ltyu
-*.ts @yorhodes @ltyu
-*.rs @tkporter @daniel-savu @ameten
-
 # Package owners
 
 ## Contracts
-solidity/ @yorhodes @tkporter @aroralanuk @ltyu
+solidity/ @yorhodes @nambrot
+starknet/ @yorhodes @troykessler
 
 ## Agents
-rust/ @tkporter @daniel-savu
+rust/ @tkporter @yjamin
 
 ## SDK
-typescript/utils @yorhodes @ltyu @paulbalaji
-typescript/sdk @yorhodes @ltyu @paulbalaji
-typescript/widgets @xaroz @cmcewen
+typescript/sdk @yorhodes @paulbalaji @xaroz @xeno097
+typescript/utils @yorhodes @paulbalaji @xaroz @xeno097
+typescript/widgets @xaroz @xeno097
+
+## Multi-VM SDK
+typescript/deploy-sdk @xeno097 @troykessler
+typescript/provider-sdk @xeno097 @troykessler
+typescript/aleo-sdk @xeno097 @troykessler @yjamin
+typescript/cosmos-sdk @xeno097 @troykessler @yjamin
+typescript/cosmos-types @xeno097 @troykessler @yjamin
+typescript/radix-sdk @xeno097 @troykessler @yjamin
+typescript/tron-sdk @xeno097 @troykessler @yjamin
 
 ## CLI
-typescript/cli @yorhodes @ltyu
+typescript/cli @yorhodes @xeno097
 
 ## Infra
-typescript/infra @tkporter @paulbalaji @Mo-Hussain
+typescript/infra @paulbalaji @Mo-Hussain @tkporter
+typescript/github-proxy @paulbalaji @Mo-Hussain @tkporter
+typescript/helloworld @paulbalaji @Mo-Hussain @tkporter
+typescript/http-registry-server @paulbalaji @Mo-Hussain @tkporter
+typescript/keyfunder @paulbalaji @Mo-Hussain @tkporter
+typescript/metrics @paulbalaji @Mo-Hussain @tkporter
+typescript/warp-monitor @paulbalaji @Mo-Hussain @tkporter @xeno097
+
+## Relayer & Rebalancer
+typescript/ccip-server @Mo-Hussain @nambrot
+typescript/rebalancer @Mo-Hussain @nambrot @paulbalaji
+typescript/rebalancer-sim @Mo-Hussain @nambrot @paulbalaji
+typescript/relayer @Mo-Hussain @yorhodes @paulbalaji
+
+## Shared Tooling
+typescript/eslint-config @xeno097 @paulbalaji
+typescript/tsconfig @xeno097 @paulbalaji

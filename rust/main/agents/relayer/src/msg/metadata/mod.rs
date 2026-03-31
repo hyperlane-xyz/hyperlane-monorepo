@@ -9,8 +9,9 @@ mod routing;
 
 pub(crate) use base::{
     AppContextClassifier, DefaultIsmCache, IsmAwareAppContextClassifier, IsmCacheConfig,
-    IsmCachePolicy, IsmCachePolicyClassifier, MessageMetadataBuildParams, Metadata,
-    MetadataBuildError, MetadataBuilder,
+    IsmCachePolicy, IsmCachePolicyClassifier, MessageMetadataBuildParams, MetadataBuildError,
+    MetadataBuilder,
 };
-pub(crate) use base_builder::{BaseMetadataBuilder, BuildsBaseMetadata};
+#[allow(unused_imports)]
+pub(crate) use base_builder::{BaseMetadataBuilder, BuildsBaseMetadata, IsmBuildMetricsParams};
 pub(crate) use message_builder::MessageMetadataBuilder;

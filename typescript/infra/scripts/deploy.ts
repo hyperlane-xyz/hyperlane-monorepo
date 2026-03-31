@@ -4,7 +4,6 @@ import path from 'path';
 import prompts from 'prompts';
 
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
-import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
 import {
   ChainMap,
   ContractVerifier,
@@ -18,15 +17,19 @@ import {
   HyperlaneIsmFactory,
   HyperlaneProxyFactoryDeployer,
   InterchainAccount,
+  InterchainAccountConfig,
   InterchainAccountDeployer,
   InterchainQueryDeployer,
-  LiquidityLayerDeployer,
+  IsmType,
+  RouterConfig,
   TestRecipientDeployer,
 } from '@hyperlane-xyz/sdk';
 import { inCIMode, objFilter, objMap } from '@hyperlane-xyz/utils';
+import { writeYaml } from '@hyperlane-xyz/utils/fs';
 
 import { Contexts } from '../config/contexts.js';
 import { core as coreConfig } from '../config/environments/mainnet3/core.js';
+import { DEFAULT_OFFCHAIN_LOOKUP_ISM_URLS } from '../config/environments/utils.js';
 import { getEnvAddresses } from '../config/registry.js';
 import { getWarpConfig } from '../config/warp.js';
 import { chainsToSkip } from '../src/config/chain.js';
@@ -39,7 +42,6 @@ import {
 import { DEPLOYERS } from '../src/governance.js';
 import { Role } from '../src/roles.js';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork.js';
-import { writeYamlAtPath } from '../src/utils/utils.js';
 
 import {
   Modules,
@@ -53,6 +55,7 @@ import {
   withFork,
   withKnownWarpRouteId,
   withModule,
+  withWritePlan,
 } from './agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from './core-utils.js';
 
@@ -66,22 +69,31 @@ async function main() {
     chains,
     concurrentDeploy,
     warpRouteId,
+    writePlan,
   } = await withContext(
     withConcurrentDeploy(
-      withChains(
-        withModule(
-          withFork(withKnownWarpRouteId(withBuildArtifactPath(getArgs()))),
+      withWritePlan(
+        withChains(
+          withModule(
+            withFork(withKnownWarpRouteId(withBuildArtifactPath(getArgs()))),
+          ),
         ),
       ),
     ),
   ).argv;
   const envConfig = getEnvironmentConfig(environment);
 
+  const providerChains = chains?.length
+    ? chains.filter((chain) => !chainsToSkip.includes(chain))
+    : envConfig.supportedChainNames.filter(
+        (chain) => !chainsToSkip.includes(chain),
+      );
+
   let multiProvider = await envConfig.getMultiProvider(
     context,
     Role.Deployer,
     true,
-    chains,
+    providerChains,
   );
 
   const targetNetworks =
@@ -160,7 +172,20 @@ async function main() {
     );
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
     const { core } = await getHyperlaneCore(environment, multiProvider);
-    config = core.getRouterConfig(envConfig.owners);
+    config = objMap(
+      core.getRouterConfig(envConfig.owners) as ChainMap<RouterConfig>,
+      (_, routerConfig): InterchainAccountConfig => {
+        return {
+          ...routerConfig,
+          commitmentIsm: {
+            type: IsmType.OFFCHAIN_LOOKUP,
+            owner: routerConfig.owner,
+            ownerOverrides: routerConfig.ownerOverrides,
+            urls: DEFAULT_OFFCHAIN_LOOKUP_ISM_URLS,
+          },
+        };
+      },
+    );
     deployer = new InterchainAccountDeployer(
       multiProvider,
       contractVerifier,
@@ -172,24 +197,6 @@ async function main() {
     const { core } = await getHyperlaneCore(environment, multiProvider);
     config = core.getRouterConfig(envConfig.owners);
     deployer = new InterchainQueryDeployer(
-      multiProvider,
-      contractVerifier,
-      concurrentDeploy,
-    );
-  } else if (module === Modules.LIQUIDITY_LAYER) {
-    const { core } = await getHyperlaneCore(environment, multiProvider);
-    const routerConfig = core.getRouterConfig(envConfig.owners);
-    if (!envConfig.liquidityLayerConfig) {
-      throw new Error(`No liquidity layer config for ${environment}`);
-    }
-    config = objMap(
-      envConfig.liquidityLayerConfig.bridgeAdapters,
-      (chain, conf) => ({
-        ...conf,
-        ...routerConfig[chain],
-      }),
-    );
-    deployer = new LiquidityLayerDeployer(
       multiProvider,
       contractVerifier,
       concurrentDeploy,
@@ -220,15 +227,6 @@ async function main() {
     }));
     deployer = new TestQuerySenderDeployer(
       multiProvider,
-      contractVerifier,
-      concurrentDeploy,
-    );
-  } else if (module === Modules.HELLO_WORLD) {
-    const { core } = await getHyperlaneCore(environment, multiProvider);
-    config = core.getRouterConfig(envConfig.owners);
-    deployer = new HelloWorldDeployer(
-      multiProvider,
-      undefined,
       contractVerifier,
       concurrentDeploy,
     );
@@ -284,34 +282,41 @@ async function main() {
 
   // prompt for confirmation in production environments
   if (environment !== 'test' && !fork) {
-    const confirmConfig =
-      chains && chains.length > 0
-        ? objFilter(config, (chain, _): _ is unknown =>
-            (chains ?? []).includes(chain),
-          )
-        : config;
+    if (writePlan) {
+      const confirmConfig =
+        chains && chains.length > 0
+          ? objFilter(config, (chain, _): _ is unknown =>
+              (chains ?? []).includes(chain),
+            )
+          : config;
 
-    // Have to print plan per chain because full plan is too big
-    const deploymentPlansDir = path.join(modulePath, 'deployment-plans');
-    if (!fs.existsSync(deploymentPlansDir)) {
-      fs.mkdirSync(deploymentPlansDir, { recursive: true });
+      // Have to print plan per chain because full plan is too big
+      const deploymentPlansDir = path.join(modulePath, 'deployment-plans');
+      if (!fs.existsSync(deploymentPlansDir)) {
+        fs.mkdirSync(deploymentPlansDir, { recursive: true });
+      }
+
+      Object.entries(confirmConfig).forEach(([chain, chainConfig]) => {
+        const chainDeployPlanPath = path.join(
+          deploymentPlansDir,
+          `${chain}.yaml`,
+        );
+        writeYaml(chainDeployPlanPath, chainConfig);
+        console.log(
+          `Deployment Plan for ${chain} written to ${chainDeployPlanPath}`,
+        );
+      });
     }
 
-    Object.entries(confirmConfig).forEach(([chain, config]) => {
-      const chainDeployPlanPath = path.join(
-        deploymentPlansDir,
-        `${chain}.yaml`,
-      );
-      writeYamlAtPath(chainDeployPlanPath, config);
-      console.log(
-        `Deployment Plan for ${chain} written to ${chainDeployPlanPath}`,
-      );
-    });
+    const confirmChainCount =
+      chains && chains.length > 0
+        ? chains.filter((chain) => !chainsToSkip.includes(chain)).length
+        : Object.keys(config).length;
 
     const { value: confirmed } = await prompts({
       type: 'confirm',
       name: 'value',
-      message: `Confirm you want to deploy this ${module} configuration to ${environment}?`,
+      message: `Confirm you want to deploy this ${module} configuration to ${environment}? (${confirmChainCount} chains)`,
       initial: false,
     });
     if (!confirmed) {

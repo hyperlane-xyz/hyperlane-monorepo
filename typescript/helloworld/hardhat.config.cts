@@ -9,7 +9,7 @@ import 'solidity-coverage';
  */
 module.exports = {
   solidity: {
-    version: '0.8.19',
+    version: '0.8.22',
   },
   gasReporter: {
     currency: 'USD',
@@ -19,5 +19,6 @@ module.exports = {
     target: 'ethers-v5',
     alwaysGenerateOverloads: true,
     node16Modules: true,
+    tsNocheck: true,
   },
 };

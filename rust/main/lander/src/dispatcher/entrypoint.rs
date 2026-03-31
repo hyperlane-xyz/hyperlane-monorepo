@@ -1,6 +1,8 @@
 // TODO: re-enable clippy warnings
 #![allow(dead_code)]
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use eyre::{eyre, Result};
 use tracing::info;
@@ -24,6 +26,7 @@ pub trait Entrypoint {
     ) -> Result<Option<GasLimit>, LanderError>;
 }
 
+#[derive(Clone)]
 pub struct DispatcherEntrypoint {
     pub(crate) inner: DispatcherState,
 }
@@ -38,7 +41,9 @@ impl DispatcherEntrypoint {
         })
     }
 
-    fn from_inner(inner: DispatcherState) -> Self {
+    /// Create a DispatcherEntrypoint from a DispatcherState (for testing)
+    #[cfg(any(test, feature = "integration_test"))]
+    pub fn from_inner(inner: DispatcherState) -> Self {
         Self { inner }
     }
 }

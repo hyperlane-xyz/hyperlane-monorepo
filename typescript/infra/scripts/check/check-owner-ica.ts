@@ -6,6 +6,7 @@ import {
   configureRootLogger,
   eqAddress,
   isZeroishAddress,
+  mapAllSettled,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -13,7 +14,11 @@ import {
   getGovernanceIcas,
   getGovernanceSafes,
 } from '../../config/environments/mainnet3/governance/utils.js';
-import { chainsToSkip } from '../../src/config/chain.js';
+import {
+  chainsToSkip,
+  legacyEthIcaRouter,
+  legacyIcaChains,
+} from '../../src/config/chain.js';
 import { withGovernanceType } from '../../src/governance.js';
 import { isEthereumProtocolChain } from '../../src/utils/utils.js';
 import { getArgs as getEnvArgs, withChains } from '../agent-utils.js';
@@ -73,23 +78,52 @@ async function main() {
     string,
     { Expected: Address; Actual: Address }
   > = {};
-  for (const chain of checkOwnerIcaChains) {
-    const expectedAddress = icas[chain];
-    if (!expectedAddress) {
-      rootLogger.error(`No expected address found for ${chain}`);
-      continue;
+  const { fulfilled, rejected } = await mapAllSettled(
+    checkOwnerIcaChains,
+    async (chain) => {
+      const expectedAddress = icas[chain];
+      if (!expectedAddress) {
+        rootLogger.error(`No expected address found for ${chain}`);
+        return { chain, error: 'No expected address found' as const };
+      }
+
+      const icaRouter = legacyIcaChains.includes(chain)
+        ? legacyEthIcaRouter
+        : ownerChainInterchainAccountRouter;
+
+      try {
+        const actualAccount = await interchainAccountApp.getAccount(chain, {
+          ...ownerConfig,
+          localRouter: icaRouter,
+        });
+        if (!eqAddress(expectedAddress, actualAccount)) {
+          return {
+            chain,
+            result: {
+              Expected: expectedAddress,
+              Actual: actualAccount,
+            },
+          };
+        }
+        return { chain, result: null };
+      } catch (error) {
+        rootLogger.error(`Error processing chain ${chain}:`, error);
+        return { chain, error };
+      }
+    },
+    (chain) => chain,
+  );
+
+  for (const [chain, value] of fulfilled) {
+    if ('error' in value && value.error) {
+      rootLogger.error(`Failed to process ${chain}:`, value.error);
+    } else if (value.result) {
+      mismatchedResults[chain] = value.result;
     }
-    const actualAccount = await interchainAccountApp.getAccount(
-      chain,
-      ownerConfig,
-      ownerChainInterchainAccountRouter,
-    );
-    if (!eqAddress(expectedAddress, actualAccount)) {
-      mismatchedResults[chain] = {
-        Expected: expectedAddress,
-        Actual: actualAccount,
-      };
-    }
+  }
+
+  for (const [chain, error] of rejected) {
+    rootLogger.error(`Promise rejected for ${chain}:`, error);
   }
 
   if (Object.keys(mismatchedResults).length > 0) {

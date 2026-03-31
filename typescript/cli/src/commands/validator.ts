@@ -1,13 +1,13 @@
-import { CommandModule } from 'yargs';
+import { type CommandModule } from 'yargs';
 
 import {
-  Address,
-  ProtocolType,
+  type Address,
+  isEVMLike,
   isValidAddressEvm,
   normalizeAddressEvm,
 } from '@hyperlane-xyz/utils';
 
-import { CommandModuleWithContext } from '../context/types.js';
+import { type CommandModuleWithContext } from '../context/types.js';
 import { errorRed, log } from '../logger.js';
 import { getValidatorAddress } from '../validator/address.js';
 import { checkValidatorSetup } from '../validator/preFlightCheck.js';
@@ -67,7 +67,7 @@ const addressCommand: CommandModuleWithContext<{
 
 const preFlightCheckCommand: CommandModuleWithContext<{
   chain: string;
-  validators: string;
+  validators: string[];
 }> = {
   command: 'check',
   describe: 'Check the validator has announced correctly for a given chain',
@@ -88,7 +88,7 @@ const preFlightCheckCommand: CommandModuleWithContext<{
 
     const chainMetadata = multiProvider.getChainMetadata(chain);
 
-    if (chainMetadata.protocol !== ProtocolType.Ethereum) {
+    if (!isEVMLike(chainMetadata.protocol)) {
       errorRed(
         `\n❌ Validator pre flight check only supports EVM chains. Exiting.`,
       );
@@ -96,11 +96,10 @@ const preFlightCheckCommand: CommandModuleWithContext<{
     }
 
     // validate validators addresses
-    const validatorList = validators.split(',');
     const invalidAddresses: Set<Address> = new Set();
     const validAddresses: Set<Address> = new Set();
 
-    for (const address of validatorList) {
+    for (const address of validators) {
       if (isValidAddressEvm(address)) {
         validAddresses.add(normalizeAddressEvm(address));
       } else {

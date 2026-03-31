@@ -9,6 +9,7 @@ import {LinearFee} from "../../contracts/token/fees/LinearFee.sol";
 import {ProgressiveFee} from "../../contracts/token/fees/ProgressiveFee.sol";
 import {RegressiveFee} from "../../contracts/token/fees/RegressiveFee.sol";
 import {RoutingFee} from "../../contracts/token/fees/RoutingFee.sol";
+import {CrossCollateralRoutingFee} from "../../contracts/token/CrossCollateralRoutingFee.sol";
 import {Quote} from "../../contracts/interfaces/ITokenBridge.sol";
 
 // --- Base Test ---
@@ -177,6 +178,81 @@ contract ProgressiveFeeTest is BaseFeeTest {
             "Progressive fee mismatch"
         );
     }
+
+    function test_ProgressiveFee_IncreasingPercentageBeforePeak() public {
+        // Test that fee percentage increases as amount increases toward halfAmount
+        ProgressiveFee localProgressiveFee = new ProgressiveFee(
+            address(token),
+            1000,
+            10000,
+            OWNER
+        );
+
+        uint256 amount1 = 2000;
+        uint256 amount2 = 5000;
+        uint256 amount3 = 10000;
+
+        uint256 fee1 = localProgressiveFee
+        .quoteTransferRemote(destination, recipient, amount1)[0].amount;
+        uint256 fee2 = localProgressiveFee
+        .quoteTransferRemote(destination, recipient, amount2)[0].amount;
+        uint256 fee3 = localProgressiveFee
+        .quoteTransferRemote(destination, recipient, amount3)[0].amount;
+
+        // Calculate percentages (scaled by 1e18 for precision)
+        uint256 percentage1 = (fee1 * 1e18) / amount1;
+        uint256 percentage2 = (fee2 * 1e18) / amount2;
+        uint256 percentage3 = (fee3 * 1e18) / amount3;
+
+        // Verify percentages increase before peak
+        assertLt(percentage1, percentage2, "Percentage should increase");
+        assertLt(percentage2, percentage3, "Percentage should increase");
+    }
+
+    function test_ProgressiveFee_DecreasingPercentageAfterPeak() public {
+        // Test that fee percentage decreases as amount increases beyond halfAmount
+        ProgressiveFee localProgressiveFee = new ProgressiveFee(
+            address(token),
+            1000,
+            10000,
+            OWNER
+        );
+
+        uint256 amount1 = 10000;
+        uint256 amount2 = 20000;
+        uint256 amount3 = 50000;
+
+        uint256 fee1 = localProgressiveFee
+        .quoteTransferRemote(destination, recipient, amount1)[0].amount;
+        uint256 fee2 = localProgressiveFee
+        .quoteTransferRemote(destination, recipient, amount2)[0].amount;
+        uint256 fee3 = localProgressiveFee
+        .quoteTransferRemote(destination, recipient, amount3)[0].amount;
+
+        // Calculate percentages (scaled by 1e18 for precision)
+        uint256 percentage1 = (fee1 * 1e18) / amount1;
+        uint256 percentage2 = (fee2 * 1e18) / amount2;
+        uint256 percentage3 = (fee3 * 1e18) / amount3;
+
+        // Verify percentages decrease after peak
+        assertGt(percentage1, percentage2, "Percentage should decrease");
+        assertGt(percentage2, percentage3, "Percentage should decrease");
+    }
+
+    function test_ProgressiveFee_ZeroAmount() public {
+        // Test that fee is zero when amount is zero
+        ProgressiveFee localProgressiveFee = new ProgressiveFee(
+            address(token),
+            1000,
+            10000,
+            OWNER
+        );
+
+        uint256 fee = localProgressiveFee
+        .quoteTransferRemote(destination, recipient, 0)[0].amount;
+
+        assertEq(fee, 0, "Fee should be zero for zero amount");
+    }
 }
 
 // --- RegressiveFee Tests ---
@@ -224,6 +300,36 @@ contract RegressiveFeeTest is BaseFeeTest {
             expectedFee,
             "Regressive fee mismatch"
         );
+    }
+
+    function test_RegressiveFee_ContinuouslyDecreasingPercentage() public {
+        // Test that fee percentage continuously decreases as amount increases
+        RegressiveFee localRegressiveFee = new RegressiveFee(
+            address(token),
+            1000,
+            5000,
+            OWNER
+        );
+
+        uint256 amount1 = 1000;
+        uint256 amount2 = 5000;
+        uint256 amount3 = 20000;
+
+        uint256 fee1 = localRegressiveFee
+        .quoteTransferRemote(destination, recipient, amount1)[0].amount;
+        uint256 fee2 = localRegressiveFee
+        .quoteTransferRemote(destination, recipient, amount2)[0].amount;
+        uint256 fee3 = localRegressiveFee
+        .quoteTransferRemote(destination, recipient, amount3)[0].amount;
+
+        // Calculate percentages (scaled by 1e18 for precision)
+        uint256 percentage1 = (fee1 * 1e18) / amount1;
+        uint256 percentage2 = (fee2 * 1e18) / amount2;
+        uint256 percentage3 = (fee3 * 1e18) / amount3;
+
+        // Verify percentages continuously decrease
+        assertGt(percentage1, percentage2, "Percentage should decrease");
+        assertGt(percentage2, percentage3, "Percentage should decrease");
     }
 }
 
@@ -313,6 +419,87 @@ contract RoutingFeeTest is BaseFeeTest {
             token.balanceOf(address(routingFee)),
             0,
             "ERC20 balance not zero after claim"
+        );
+    }
+
+    function test_Domains_empty() public {
+        uint32[] memory domains = routingFee.domains();
+        assertEq(domains.length, 0);
+    }
+
+    function test_Domains_afterSetFeeContract() public {
+        uint32 dest1 = 100;
+        uint32 dest2 = 200;
+
+        vm.startPrank(OWNER);
+        routingFee.setFeeContract(dest1, address(linearFee1));
+        routingFee.setFeeContract(dest2, address(linearFee1));
+        vm.stopPrank();
+
+        uint32[] memory domains = routingFee.domains();
+        assertEq(domains.length, 2);
+    }
+
+    function test_Domains_idempotent() public {
+        vm.startPrank(OWNER);
+        routingFee.setFeeContract(DEST1, address(linearFee1));
+        routingFee.setFeeContract(DEST1, address(linearFee1));
+        vm.stopPrank();
+
+        uint32[] memory domains = routingFee.domains();
+        assertEq(domains.length, 1);
+    }
+
+    function test_Domains_removedWhenFeeContractZero() public {
+        // Add a fee contract
+        vm.startPrank(OWNER);
+        routingFee.setFeeContract(DEST1, address(linearFee1));
+        assertEq(routingFee.domains().length, 1);
+
+        // Remove by setting to zero
+        routingFee.setFeeContract(DEST1, address(0));
+        vm.stopPrank();
+
+        uint32[] memory domains = routingFee.domains();
+        assertEq(domains.length, 0);
+    }
+
+    function test_Domains_removeNonExistentNoOp() public {
+        // Remove non-existent domain should not revert
+        vm.prank(OWNER);
+        routingFee.setFeeContract(999, address(0));
+
+        uint32[] memory domains = routingFee.domains();
+        assertEq(domains.length, 0);
+    }
+
+    function test_Domains_readdAfterRemoval() public {
+        vm.startPrank(OWNER);
+        // Add then remove
+        routingFee.setFeeContract(DEST1, address(linearFee1));
+        routingFee.setFeeContract(DEST1, address(0));
+        assertEq(routingFee.domains().length, 0);
+
+        // Re-add
+        routingFee.setFeeContract(DEST1, address(linearFee1));
+        vm.stopPrank();
+
+        uint32[] memory domains = routingFee.domains();
+        assertEq(domains.length, 1);
+        assertEq(domains[0], DEST1);
+    }
+}
+
+contract CrossCollateralRoutingFeeTest is Test {
+    address internal constant OWNER = address(0x123);
+
+    function test_CrossCollateralRoutingFee_Type() public {
+        CrossCollateralRoutingFee routingFee = new CrossCollateralRoutingFee(
+            OWNER
+        );
+        assertEq(
+            uint(routingFee.feeType()),
+            uint(FeeType.CROSS_COLLATERAL_ROUTING)
         );
     }
 }

@@ -1,5 +1,274 @@
 # @hyperlane-xyz/utils
 
+## 27.1.0
+
+### Patch Changes
+
+- b892e61: Added `isEmptyAddress` utility function that returns true when an address is undefined, null, empty string, or matches a known zero address pattern.
+
+## 27.0.0
+
+## 26.0.0
+
+### Major Changes
+
+- 1d116d8: Added Tron ProtocolType & deprecated Tron TechnicalStack. Add support for TronLink wallet in the widgets.
+
+### Patch Changes
+
+- 06aacac: Fix aleo empty program prefix
+
+## 25.5.0
+
+## 25.4.1
+
+## 25.4.0
+
+### Patch Changes
+
+- 1f021bf: Implemented warp token artifact API for Aleo. Added warp token readers and writers for native, collateral, and synthetic tokens, with AleoWarpArtifactManager providing factory methods for type-specific operations. Writers support creating new warp tokens with ISM and Hook configuration, enrolling remote routers, and transferring ownership. Update operations generate transaction arrays for ISM and Hook changes, router enrollment/unenrollment, and ownership transfers.
+
+## 25.3.2
+
+## 25.3.1
+
+## 25.3.0
+
+## 25.2.0
+
+### Minor Changes
+
+- ccd638d: Improved shared RPC override handling across TypeScript services.
+
+### Patch Changes
+
+- 360db52: Fixed `timeout()` to clear its internal `setTimeout` when the wrapped promise settles, preventing lingering timers from keeping the Node.js event loop alive.
+
+## 25.1.0
+
+### Patch Changes
+
+- b930534: Added oxlint as a fast first-pass linter and converted imports to type-only where appropriate to resolve import cycle warnings.
+
+## 25.0.0
+
+### Minor Changes
+
+- 52ce778: A `LazyAsync` helper was added to `@hyperlane-xyz/utils` for safe, deduplicated async initialization. It replaces the scattered pattern of `if (!cached) { cached = await init(); } return cached` with an approach that deduplicates concurrent callers, clears state on errors to allow retries, and supports reset capability. Consumer packages were migrated to use this utility.
+
+## 24.0.0
+
+### Minor Changes
+
+- 9dc71fe: Added forward-compatible enum validation to prevent SDK failures when the registry contains new enum values. Added `Unknown` variants to `ProtocolType`, `TokenType`, `IsmType`, `HookType`, `ExplorerFamily`, and `ChainTechnicalStack` enums. Exported `KnownProtocolType` and `DeployableTokenType` for type-safe mappings.
+
+### Patch Changes
+
+- 57461b2: The arrow wrapper in fetchWithTimeout was replaced with a bound method to prevent closure from capturing surrounding scope and keeping large objects alive for the lifetime of the AbortSignal timeout. Removed duplicate dead code from SDK.
+- d580bb6: fix: provide common bech32 method
+- bde05e9: Fixed GCP logging configuration not being applied to SDK components like SmartProvider. When createServiceLogger initializes a GCP logger, it now also updates rootLogger so child loggers inherit the GCP config.
+
+## 23.0.0
+
+### Minor Changes
+
+- 52fd0f8: Added StandardHookMetadata utilities: `formatStandardHookMetadata()` for building hook metadata, `parseStandardHookMetadata()` for parsing all fields, `extractRefundAddressFromMetadata()` and `hasValidRefundAddress()` for refund address helpers.
+
+### Patch Changes
+
+- a10cfc8: ISM update test coverage was improved by creating a shared test factory that works across AltVM protocols (Cosmos, Aleo, Radix). The factory supports explicit test skipping configuration through a `skipTests` parameter, making protocol-specific limitations clear in test configuration rather than hidden in implementation.
+
+  Aleo address handling was fixed to properly support ISM unsetting. The `isZeroishAddress` regex now matches Aleo null addresses both with and without program ID prefix. The `fromAleoAddress` helper was updated to handle addresses without the '/' separator. The `getSetTokenIsmTransaction` method now converts zero addresses to `ALEO_NULL_ADDRESS` before processing.
+
+## 22.0.0
+
+### Minor Changes
+
+- 66ef635: Added `mapAllSettled` helper to @hyperlane-xyz/utils for typed parallel operations with key-based error tracking. Migrated Promise.allSettled patterns across sdk, cli, infra, and rebalancer packages to use the new helper.
+- 3aec1c4: Added `timedAsync` utility for trace-level timing instrumentation of async operations.
+
+### Patch Changes
+
+- b892d63: Created new `@hyperlane-xyz/metrics` package to consolidate Prometheus metric utilities across the monorepo. Includes shared gauge definitions, metric update functions, balance utilities, metrics server, pushgateway utilities, and types. Added `tryFn` utility to `@hyperlane-xyz/utils`.
+
+## 21.1.0
+
+## 21.0.0
+
+### Patch Changes
+
+- 0bce4e7: Fixed an issue with starknet addresses validation
+
+## 20.1.0
+
+### Minor Changes
+
+- 11fa887: Upgrade TypeScript from 5.3.3 to 5.8.3 and compilation target to ES2023
+  - Upgraded TypeScript from 5.3.3 to 5.8.3 across all packages
+  - Updated compilation target from ES2022 to ES2023 (Node 16+ fully supported)
+  - Converted internal const enums to 'as const' pattern for better compatibility
+  - Updated @types/node from ^18.14.5 to ^20.17.0 for TypeScript 5.7+ compatibility
+  - Fixed JSON imports to use required 'with { type: "json" }' attribute (TS 5.7+ requirement)
+  - No breaking changes to public API - all changes are internal or non-breaking
+
+## 20.0.0
+
+### Patch Changes
+
+- b3ebc08: Use stringifyObject in writeJson and writeYaml for proper ethers BigNumber serialization. Rename removeEndingSlash to removeTrailingSlash.
+
+## 19.13.0
+
+## 19.12.0
+
+### Minor Changes
+
+- af2cd1729: Support reading ReorgEvent object from validator buckets.
+- e37100e2e: Add new `@hyperlane-xyz/utils/fs` submodule with filesystem utilities for Node.js. Includes functions for reading/writing JSON and YAML files, path resolution, directory management, and format-agnostic file operations. This submodule is not suitable for browser use.
+
+### Patch Changes
+
+- 08cf7eca9: Parse starknet addresses before validating with regex
+
+## 19.11.0
+
+## 19.10.0
+
+### Minor Changes
+
+- c2a64e8c5: feat: add setTokenHook to altvm interface
+
+### Patch Changes
+
+- aad2988c9: Export Logger type from utils for explicit typing in deploy-sdk
+
+## 19.9.0
+
+### Minor Changes
+
+- 8c027d852: Let retryAsync() to break the retry loop for non-recoverable errors
+
+## 19.8.0
+
+### Minor Changes
+
+- 2ed21c97d: Fix bug in the address detection logic that prevented radix localnet addresses to be recognized as valid radix addresses
+- 78ff6cd47: add new methods for altvm interface
+- 3f75ad86d: Add `inKubernetes` util fn.
+
+## 19.7.0
+
+## 19.6.0
+
+### Minor Changes
+
+- 419e16910: add the objDiff function to determine the field with primitive values that are different or not present when comparing 2 objects of the same type
+
+## 19.6.0-beta.0
+
+### Minor Changes
+
+- 419e16910: add the objDiff function to determine the field with primitive values that are different or not present when comparing 2 objects of the same type
+
+## 19.5.0
+
+### Minor Changes
+
+- 312826d10: Updated the AltVM provider connect interface so that it can optionally accept extra params needed for instantiating the provider
+
+## 19.4.0
+
+### Patch Changes
+
+- 5a4e22d34: Bump @solana/web3.js dependency explicitly from ^1.95.4 to ^1.98.4.
+
+## 19.3.0
+
+## 19.2.0
+
+## 19.1.1
+
+## 19.1.0
+
+## 19.0.0
+
+### Major Changes
+
+- 32479e139: feat: add AltVM interface
+
+### Minor Changes
+
+- 8eab305bd: chore: add transactionToPrintableJson to altvm interface
+- e42a0e8e1: chore: updated AltVM interface
+
+## 18.3.0
+
+### Minor Changes
+
+- 2c47e1143: Update `pick` method to correctly represent the type of the returned object
+- 6b8419370: export radix ism module
+
+### Patch Changes
+
+- c41bc3b93: fix cosmos native bytes to address
+
+## 18.2.0
+
+## 18.1.0
+
+## 18.0.0
+
+### Minor Changes
+
+- cfc0eb2a7: Add radix explorer type
+
+## 17.0.0
+
+### Major Changes
+
+- 8c15edc67: Added Radix Protocol Type
+
+### Patch Changes
+
+- e0bda316a: Ignore dynamic import in webpack builds
+
+## 16.2.0
+
+## 16.1.1
+
+## 16.1.0
+
+## 16.0.0
+
+## 15.0.0
+
+### Minor Changes
+
+- 451f3f6c3: Support pino-pretty in development
+- a33c8abd4: Implement `convertToScaledAmount` for amounts that need scaling
+
+## 14.4.0
+
+## 14.3.0
+
+## 14.2.0
+
+## 14.1.0
+
+## 14.0.0
+
+### Patch Changes
+
+- 7ad8e394c: fix starknet token adapter
+
+## 13.4.0
+
+### Minor Changes
+
+- 0ec92f775: Update starknet dependency from v6 to v7.
+- ec8d196d9: Fix CosmosNative address parsing
+- bacf16a80: Export yaml eslint config
+
 ## 13.3.0
 
 ## 13.2.1

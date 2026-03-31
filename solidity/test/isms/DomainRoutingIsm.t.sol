@@ -114,11 +114,11 @@ contract DomainRoutingIsmTest is Test {
         for (uint256 i = 0; i < count; ++i) {
             assertEq(address(ism.module(domains[i])), address(modules[i]));
         }
-        vm.expectRevert();
+        vm.expectRevert("Domain already exists");
         ism.addBatch(domainModules);
     }
 
-    function testRemove(uint32 domain) public {
+    function testRemove(uint32 domain) public virtual {
         vm.expectRevert();
         ism.remove(domain);
 
@@ -129,7 +129,7 @@ contract DomainRoutingIsmTest is Test {
         ism.remove(domain);
     }
 
-    function testRemoveBatch(uint32 domain, uint8 count) public {
+    function testRemoveBatch(uint32 domain, uint8 count) public virtual {
         vm.assume(count > 0);
         uint32[] memory domains = uniqueDomains(domain, count);
         IInterchainSecurityModule[] memory modules = deployTestIsms(count);
@@ -142,14 +142,14 @@ contract DomainRoutingIsmTest is Test {
             });
         }
         ism.addBatch(domainModules);
-        ism.removeBatch(domainModules);
+        ism.removeBatch(domains);
         for (uint256 i = 0; i < count; ++i) {
             vm.expectRevert();
             ism.module(domains[i]);
         }
     }
 
-    function testFactoryDeploy(uint8 count, uint32 domain) public {
+    function testFactoryDeploy(uint8 count, uint32 domain) public virtual {
         vm.assume(count > 0);
         vm.assume(domain > count);
         DomainRoutingIsmFactory factory = new DomainRoutingIsmFactory();
@@ -165,7 +165,7 @@ contract DomainRoutingIsmTest is Test {
             assertEq(address(ism.module(_domains[i])), address(_isms[i]));
         }
         uint32[] memory shortDomains = new uint32[](count - 1);
-        vm.expectRevert();
+        vm.expectRevert("length mismatch");
         factory.deploy(address(this), shortDomains, _isms);
     }
 

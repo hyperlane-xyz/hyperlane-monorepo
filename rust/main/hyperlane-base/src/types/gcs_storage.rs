@@ -2,7 +2,9 @@ use crate::CheckpointSyncer;
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::{bail, Result};
-use hyperlane_core::{ReorgEvent, SignedAnnouncement, SignedCheckpointWithMessageId};
+use hyperlane_core::{
+    ReorgEvent, ReorgEventResponse, SignedAnnouncement, SignedCheckpointWithMessageId,
+};
 use std::fmt;
 use tracing::{error, info, instrument};
 use ya_gcp::{
@@ -17,6 +19,7 @@ const LATEST_INDEX_KEY: &str = "gcsLatestIndexKey";
 const METADATA_KEY: &str = "gcsMetadataKey";
 const ANNOUNCEMENT_KEY: &str = "gcsAnnouncementKey";
 const REORG_FLAG_KEY: &str = "gcsReorgFlagKey";
+const REORG_RPC_RESPONSES_KEY: &str = "gcsReorgRpcResponsesKey";
 
 /// Path to GCS users_secret file
 pub const GCS_USER_SECRET: &str = "GCS_USER_SECRET";
@@ -129,7 +132,7 @@ impl GcsStorageClient {
 
     fn object_path(&self, object_name: &str) -> String {
         if let Some(folder) = &self.folder {
-            format!("{}/{}", folder, object_name)
+            format!("{folder}/{object_name}")
         } else {
             object_name.to_string()
         }
@@ -272,17 +275,42 @@ impl CheckpointSyncer for GcsStorageClient {
         self.upload_and_log(object_name, data).await
     }
 
+    #[instrument(skip(self, log))]
+    async fn write_reorg_rpc_responses(&self, log: String) -> Result<()> {
+        let object_name = REORG_RPC_RESPONSES_KEY;
+        self.upload_and_log(object_name, log.into_bytes()).await
+    }
+
     /// Read the reorg status from this syncer
     #[instrument(skip(self))]
-    async fn reorg_status(&self) -> Result<Option<ReorgEvent>> {
-        match self.inner.get_object(&self.bucket, REORG_FLAG_KEY).await {
-            Ok(data) => Ok(Some(serde_json::from_slice(data.as_ref())?)),
-            Err(e) => match e {
+    async fn reorg_status(&self) -> Result<ReorgEventResponse> {
+        let object = match self.inner.get_object(&self.bucket, REORG_FLAG_KEY).await {
+            Ok(data) => data,
+            Err(err) => match err {
                 ObjectError::Failure(Error::HttpStatus(HttpStatusError(StatusCode::NOT_FOUND))) => {
-                    Ok(None)
+                    return Ok(ReorgEventResponse {
+                        exists: false,
+                        event: None,
+                        content: None,
+                    });
                 }
-                _ => bail!(e),
+                _ => bail!(err),
             },
+        };
+        match serde_json::from_slice(&object) {
+            Ok(s) => Ok(ReorgEventResponse {
+                exists: true,
+                event: Some(s),
+                content: Some(String::from_utf8_lossy(&object).to_string()),
+            }),
+            Err(err) => {
+                error!(?err, "Failed to parse reorg event");
+                Ok(ReorgEventResponse {
+                    exists: true,
+                    event: None,
+                    content: Some(String::from_utf8_lossy(&object).to_string()),
+                })
+            }
         }
     }
 }

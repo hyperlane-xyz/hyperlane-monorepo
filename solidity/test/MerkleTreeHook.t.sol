@@ -71,6 +71,9 @@ contract MerkleTreeHookTest is Test {
     }
 
     function testHookType() public {
-        assertEq(hook.hookType(), uint8(IPostDispatchHook.Types.MERKLE_TREE));
+        assertEq(
+            hook.hookType(),
+            uint8(IPostDispatchHook.HookTypes.MERKLE_TREE)
+        );
     }
 }

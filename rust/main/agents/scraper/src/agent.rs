@@ -3,9 +3,12 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use derive_more::AsRef;
 use futures::future::try_join_all;
-use hyperlane_core::{Delivery, HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, H512};
-use tokio::{sync::mpsc::Receiver as MpscReceiver, task::JoinHandle};
-use tracing::{info, info_span, trace, Instrument};
+use hyperlane_core::{
+    rpc_clients::RPC_RETRY_SLEEP_DURATION, Delivery, HyperlaneDomain, HyperlaneMessage,
+    InterchainGasPayment, H512,
+};
+use tokio::{sync::mpsc::Receiver as MpscReceiver, task::JoinHandle, time::sleep};
+use tracing::{info, info_span, instrument, trace, Instrument};
 
 use hyperlane_base::{
     broadcast::BroadcastMpscSender, metrics::AgentMetrics, settings::IndexSettings, AgentMetadata,
@@ -14,6 +17,8 @@ use hyperlane_base::{
 };
 
 use crate::{db::ScraperDb, settings::ScraperSettings, store::HyperlaneDbStore};
+
+const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
 
 /// A message explorer scraper agent
 #[derive(Debug, AsRef)]
@@ -60,9 +65,14 @@ impl BaseAgent for Scraper {
 
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&metrics));
 
-        let scrapers =
-            Self::build_chain_scrapers(&settings, metrics.clone(), &chain_metrics, db.clone())
-                .await;
+        let scrapers = Self::build_chain_scrapers(
+            &settings,
+            metrics.clone(),
+            &chain_metrics,
+            db.clone(),
+            contract_sync_metrics.clone(),
+        )
+        .await;
 
         trace!(domain_count = scrapers.len(), "Created scrapers");
 
@@ -125,17 +135,17 @@ impl BaseAgent for Scraper {
                 }
             };
 
-            match self.scrape(scraper).await {
-                Ok(scraper_task) => {
-                    tasks.push(scraper_task);
-                }
+            let scraper_task = match self
+                .try_n_times_to_scrape(scraper, CURSOR_INSTANTIATION_ATTEMPTS)
+                .await
+            {
+                Ok(s) => s,
                 Err(err) => {
-                    tracing::error!(?err, ?scraper.domain, "Failed to scrape domain");
-                    self.chain_metrics
-                        .set_critical_error(scraper.domain.name(), true);
+                    tracing::error!(?err, ?scraper.domain, "Failed to scrape chain");
                     continue;
                 }
-            }
+            };
+            tasks.push(scraper_task);
             tasks.push(metrics_updater.spawn());
         }
         tasks.push(self.runtime_metrics.spawn());
@@ -146,8 +156,34 @@ impl BaseAgent for Scraper {
 }
 
 impl Scraper {
+    /// Try to scrape attempts times before giving up.
+    async fn try_n_times_to_scrape(
+        &self,
+        scraper: &ChainScraper,
+        attempts: usize,
+    ) -> eyre::Result<JoinHandle<()>> {
+        for i in 0..attempts {
+            let scraper_task = match self.scrape(scraper).await {
+                Ok(s) => s,
+                Err(err) => {
+                    tracing::error!(?err, ?scraper.domain, attempt_count=i, "Failed to scrape chain");
+                    sleep(RPC_RETRY_SLEEP_DURATION).await;
+                    continue;
+                }
+            };
+
+            self.chain_metrics
+                .set_critical_error(scraper.domain.name(), false);
+            return Ok(scraper_task);
+        }
+        self.chain_metrics
+            .set_critical_error(scraper.domain.name(), true);
+        Err(eyre::eyre!("Failed to scrape chain"))
+    }
+
     /// Sync contract data and other blockchain with the current chain state.
     /// This will spawn long-running contract sync tasks
+    #[instrument(fields(domain=%scraper.domain.name()), skip_all)]
     async fn scrape(&self, scraper: &ChainScraper) -> eyre::Result<JoinHandle<()>> {
         let store = scraper.store.clone();
         let index_settings = scraper.index_settings.clone();
@@ -190,26 +226,26 @@ impl Scraper {
 
         Ok(tokio::spawn(
             async move {
-                // If any of the tasks panic, we want to propagate it, so we unwrap
-                try_join_all(tasks).await.unwrap();
+                try_join_all(tasks)
+                    .await
+                    .expect("Some scraper tasks failed");
             }
             .instrument(info_span!("Scraper Tasks")),
         ))
     }
 
+    #[instrument(fields(domain=%domain.name()), skip_all)]
     async fn build_chain_scraper(
         domain: &HyperlaneDomain,
         settings: &ScraperSettings,
         metrics: Arc<CoreMetrics>,
         scraper_db: ScraperDb,
+        contract_sync_metrics: Arc<ContractSyncMetrics>,
     ) -> eyre::Result<ChainScraper> {
         info!(domain = domain.name(), "create chain scraper for domain");
         let chain_setup = settings.chain_setup(domain)?;
         info!(domain = domain.name(), "create HyperlaneProvider");
-        let provider = settings
-            .build_provider(domain, &metrics.clone())
-            .await?
-            .into();
+        let provider = chain_setup.build_provider(&metrics).await?.into();
         info!(domain = domain.name(), "create HyperlaneDbStore");
         let store = HyperlaneDbStore::new(
             scraper_db,
@@ -218,6 +254,7 @@ impl Scraper {
             chain_setup.addresses.interchain_gas_paymaster,
             provider,
             &chain_setup.index.clone(),
+            Some(contract_sync_metrics.stored_events.clone()),
         )
         .await?;
         Ok(ChainScraper {
@@ -232,12 +269,19 @@ impl Scraper {
         metrics: Arc<CoreMetrics>,
         chain_metrics: &ChainMetrics,
         scraper_db: ScraperDb,
+        contract_sync_metrics: Arc<ContractSyncMetrics>,
     ) -> HashMap<u32, ChainScraper> {
         let mut scrapers: HashMap<u32, ChainScraper> = HashMap::new();
 
         for domain in settings.chains_to_scrape.iter() {
-            match Self::build_chain_scraper(domain, settings, metrics.clone(), scraper_db.clone())
-                .await
+            match Self::build_chain_scraper(
+                domain,
+                settings,
+                metrics.clone(),
+                scraper_db.clone(),
+                contract_sync_metrics.clone(),
+            )
+            .await
             {
                 Ok(scraper) => {
                     info!(domain = domain.name(), "insert chain scraper");
@@ -264,6 +308,7 @@ impl Scraper {
         store: HyperlaneDbStore,
         index_settings: IndexSettings,
     ) -> eyre::Result<(JoinHandle<()>, Option<BroadcastMpscSender<H512>>)> {
+        let label = "message_dispatch";
         let sync = self
             .as_ref()
             .settings
@@ -277,18 +322,22 @@ impl Scraper {
             )
             .await
             .map_err(|err| {
-                tracing::error!(?err, ?domain, "Error syncing sequenced contract");
+                tracing::error!(
+                    ?err,
+                    domain = domain.name(),
+                    label,
+                    "Error syncing sequenced contract"
+                );
                 err
             })?;
         let cursor = sync.cursor(index_settings.clone()).await.map_err(|err| {
-            tracing::error!(?err, ?domain, "Error getting cursor");
+            tracing::error!(?err, domain = domain.name(), label, "Error getting cursor");
             err
         })?;
         let maybe_broadcaser = sync.get_broadcaster();
         let task = tokio::spawn(
-            async move { sync.sync("message_dispatch", cursor.into()).await }.instrument(
-                info_span!("ChainContractSync", chain=%domain.name(), event="message_dispatch"),
-            ),
+            async move { sync.sync(label, cursor.into()).await }
+                .instrument(info_span!("ChainContractSync", chain=%domain.name(), event=label)),
         );
         Ok((task, maybe_broadcaser))
     }
@@ -301,6 +350,7 @@ impl Scraper {
         store: HyperlaneDbStore,
         index_settings: IndexSettings,
     ) -> eyre::Result<JoinHandle<()>> {
+        let label = "message_delivery";
         let sync = self
             .as_ref()
             .settings
@@ -314,13 +364,16 @@ impl Scraper {
             )
             .await
             .map_err(|err| {
-                tracing::error!(?err, ?domain, "Error syncing contract");
+                tracing::error!(
+                    ?err,
+                    domain = domain.name(),
+                    label,
+                    "Error syncing contract"
+                );
                 err
             })?;
-
-        let label = "message_delivery";
         let cursor = sync.cursor(index_settings.clone()).await.map_err(|err| {
-            tracing::error!(?err, ?domain, "Error getting cursor");
+            tracing::error!(?err, domain = domain.name(), label, "Error getting cursor");
             err
         })?;
         // there is no txid receiver for delivery indexing, since delivery txs aren't batched with
@@ -340,6 +393,7 @@ impl Scraper {
         index_settings: IndexSettings,
         tx_id_receiver: Option<MpscReceiver<H512>>,
     ) -> eyre::Result<JoinHandle<()>> {
+        let label = "gas_payment";
         let sync = self
             .as_ref()
             .settings
@@ -353,13 +407,16 @@ impl Scraper {
             )
             .await
             .map_err(|err| {
-                tracing::error!(?err, ?domain, "Error syncing contract");
+                tracing::error!(
+                    ?err,
+                    domain = domain.name(),
+                    label,
+                    "Error syncing contract"
+                );
                 err
             })?;
-
-        let label = "gas_payment";
         let cursor = sync.cursor(index_settings.clone()).await.map_err(|err| {
-            tracing::error!(?err, ?domain, "Error getting cursor");
+            tracing::error!(?err, domain = domain.name(), label, "Error getting cursor");
             err
         })?;
         Ok(tokio::spawn(
@@ -379,7 +436,7 @@ mod test {
 
     use ethers::utils::hex;
     use ethers_prometheus::middleware::PrometheusMiddlewareConf;
-    use prometheus::{opts, IntGaugeVec, Registry};
+    use prometheus::Registry;
     use reqwest::Url;
     use sea_orm::{DatabaseBackend, MockDatabase};
 
@@ -387,7 +444,7 @@ mod test {
         settings::{
             ChainConf, ChainConnectionConf, CoreContractAddresses, Settings, TracingConfig,
         },
-        BLOCK_HEIGHT_HELP, BLOCK_HEIGHT_LABELS, CRITICAL_ERROR_HELP, CRITICAL_ERROR_LABELS,
+        ChainMetrics,
     };
     use hyperlane_core::{
         config::OpSubmissionConfig, IndexMode, KnownHyperlaneDomain, ReorgPeriod, H256,
@@ -451,6 +508,10 @@ mod test {
                         max_batch_size: 1,
                         ..Default::default()
                     },
+                    consider_null_transaction_receipt: false,
+                    grpc_urls: None,
+                    solidity_grpc_urls: None,
+                    energy_multiplier: None,
                 }),
                 metrics_conf: PrometheusMiddlewareConf {
                     contracts: HashMap::new(),
@@ -461,13 +522,27 @@ mod test {
                     chunk_size: 1,
                     mode: IndexMode::Block,
                 },
+                confirmations: Default::default(),
+                chain_id: Default::default(),
                 ignore_reorg_reports: false,
+                native_token: Default::default(),
             },
         )];
 
+        let chains = chains
+            .into_iter()
+            .map(|(_, conf)| (conf.domain.clone(), conf))
+            .collect::<HashMap<_, _>>();
+
+        let domains = chains
+            .keys()
+            .map(|domain| (domain.name().to_string(), domain.clone()))
+            .collect();
+
         ScraperSettings {
             base: Settings {
-                chains: chains.into_iter().collect(),
+                domains,
+                chains,
                 metrics_port: 5000,
                 tracing: TracingConfig::default(),
             },
@@ -482,20 +557,9 @@ mod test {
         let mut settings = generate_test_scraper_settings();
 
         let registry = Registry::new();
-        let core_metrics = CoreMetrics::new("scraper", 4000, registry).unwrap();
-        let chain_metrics = ChainMetrics {
-            block_height: IntGaugeVec::new(
-                opts!("block_height", BLOCK_HEIGHT_HELP),
-                BLOCK_HEIGHT_LABELS,
-            )
-            .unwrap(),
-            gas_price: None,
-            critical_error: IntGaugeVec::new(
-                opts!("critical_error", CRITICAL_ERROR_HELP),
-                CRITICAL_ERROR_LABELS,
-            )
-            .unwrap(),
-        };
+        let core_metrics = Arc::new(CoreMetrics::new("scraper", 4000, registry).unwrap());
+        let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&core_metrics));
+        let chain_metrics = ChainMetrics::test_default();
 
         // set the chains we want to scrape
         settings.chains_to_scrape = vec![
@@ -514,9 +578,10 @@ mod test {
 
         let scrapers = Scraper::build_chain_scrapers(
             &settings,
-            Arc::new(core_metrics),
+            core_metrics,
             &chain_metrics,
             scraper_db,
+            contract_sync_metrics,
         )
         .await;
 

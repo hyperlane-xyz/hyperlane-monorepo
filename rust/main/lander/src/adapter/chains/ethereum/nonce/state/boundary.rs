@@ -21,7 +21,7 @@ impl NonceManagerState {
             // If the finalized nonce is greater than or equal to the upper nonce, it means that
             // some transactions were finalized by a service different from Lander.
             // And we need to update the upper nonce.
-            upper_nonce = finalized_nonce + U256::one();
+            upper_nonce = finalized_nonce.saturating_add(U256::one());
             self.set_upper_nonce(&upper_nonce).await?;
         }
 

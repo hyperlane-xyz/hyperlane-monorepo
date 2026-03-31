@@ -11,16 +11,19 @@ export function MultiProtocolWalletModal({
   isOpen,
   close,
   protocols,
+  onProtocolSelected,
 }: {
   isOpen: boolean;
   close: () => void;
   protocols?: ProtocolType[]; // defaults to all protocols if not provided
+  onProtocolSelected?: (protocol: ProtocolType) => void;
 }) {
   const connectFns = useConnectFns();
 
   const onClickProtocol = (protocol: ProtocolType) => {
     close();
     const connectFn = connectFns[protocol];
+    if (onProtocolSelected) onProtocolSelected(protocol);
     if (connectFn) connectFn();
   };
 
@@ -36,7 +39,7 @@ export function MultiProtocolWalletModal({
             onClick={onClickProtocol}
             subTitle="an EVM"
           >
-            Ethereum
+            EVM
           </ProtocolButton>
         )}
         {includesProtocol(ProtocolType.Sealevel) && (
@@ -64,6 +67,33 @@ export function MultiProtocolWalletModal({
             subTitle="a Starknet"
           >
             Starknet
+          </ProtocolButton>
+        )}
+        {includesProtocol(ProtocolType.Radix) && (
+          <ProtocolButton
+            protocol={ProtocolType.Radix}
+            onClick={onClickProtocol}
+            subTitle="a Radix"
+          >
+            Radix
+          </ProtocolButton>
+        )}
+        {includesProtocol(ProtocolType.Aleo) && (
+          <ProtocolButton
+            protocol={ProtocolType.Aleo}
+            onClick={onClickProtocol}
+            subTitle="a Aleo"
+          >
+            Aleo
+          </ProtocolButton>
+        )}
+        {includesProtocol(ProtocolType.Tron) && (
+          <ProtocolButton
+            protocol={ProtocolType.Tron}
+            onClick={onClickProtocol}
+            subTitle="a Tron"
+          >
+            Tron
           </ProtocolButton>
         )}
       </div>

@@ -15,7 +15,7 @@ const METRICS_NAMESPACE: &str = "hyperlane_lander";
 
 /// Macro to prefix a string with the namespace.
 fn namespaced(name: &str) -> String {
-    format!("{}_{}", METRICS_NAMESPACE, name)
+    format!("{METRICS_NAMESPACE}_{name}")
 }
 
 /// Metrics for a particular domain
@@ -30,6 +30,10 @@ pub struct DispatcherMetrics {
     pub inclusion_stage_pool_length: IntGaugeVec,
     pub finality_stage_pool_length: IntGaugeVec,
 
+    // tracks inclusion stage errors
+    pub inclusion_stage_error: IntCounterVec,
+
+    pub batched_transactions: IntCounterVec,
     pub dropped_payloads: IntCounterVec,
     pub dropped_transactions: IntCounterVec,
 
@@ -52,6 +56,9 @@ pub struct DispatcherMetrics {
     finalized_nonce: IntGaugeVec,
     /// Upper nonce, namely the nonce which can be used next for each destination
     upper_nonce: IntGaugeVec,
+    /// Counts how many times we've noticed the nonce in tx is different from nonce
+    /// stored in db
+    mismatched_nonce: IntGaugeVec,
     /// Gas limit set for the transaction, if applicable
     pub gas_limit: IntGaugeVec,
 }
@@ -90,12 +97,27 @@ impl DispatcherMetrics {
             &["destination",],
             registry.clone()
         )?;
+
+        let inclusion_stage_error = register_int_counter_vec_with_registry!(
+            opts!(namespaced("inclusion_stage_error"), "The number of errors",),
+            &["destination", "error_type", "infra_error"],
+            registry.clone()
+        )?;
+
         let dropped_payloads = register_int_counter_vec_with_registry!(
             opts!(
                 namespaced("dropped_payloads"),
                 "The number of payloads dropped",
             ),
             &["destination", "reason",],
+            registry.clone()
+        )?;
+        let batched_transactions = register_int_counter_vec_with_registry!(
+            opts!(
+                namespaced("batched_transactions"),
+                "The number of batched transactions",
+            ),
+            &["destination", "status",],
             registry.clone()
         )?;
         let dropped_transactions = register_int_counter_vec_with_registry!(
@@ -178,12 +200,21 @@ impl DispatcherMetrics {
             &["destination", "signer",],
             registry.clone()
         )?;
+        let mismatched_nonce = register_int_gauge_vec_with_registry!(
+            opts!(
+                namespaced("mismatched_nonce"),
+                "Count how many times nonce mismatch between tx and db",
+            ),
+            &["destination", "signer",],
+            registry.clone()
+        )?;
         Ok(Self {
             registry: registry.clone(),
             task_liveness,
             building_stage_queue_length,
             inclusion_stage_pool_length,
             finality_stage_pool_length,
+            batched_transactions,
             dropped_payloads,
             dropped_transactions,
             transaction_submissions,
@@ -194,7 +225,9 @@ impl DispatcherMetrics {
             priority_fee,
             finalized_nonce,
             upper_nonce,
+            mismatched_nonce,
             gas_limit,
+            inclusion_stage_error,
         })
     }
 
@@ -273,6 +306,17 @@ impl DispatcherMetrics {
             .set(gas_limit as i64);
     }
 
+    pub fn update_inclusion_stage_error_metric(
+        &self,
+        domain: &str,
+        error_type: &str,
+        is_infra_error: bool,
+    ) {
+        self.inclusion_stage_error
+            .with_label_values(&[domain, error_type, is_infra_error.to_string().as_str()])
+            .inc();
+    }
+
     pub fn get_finalized_nonce(&self, destination: &str, signer: &str) -> IntGauge {
         self.finalized_nonce
             .with_label_values(&[destination, signer])
@@ -281,6 +325,16 @@ impl DispatcherMetrics {
 
     pub fn get_upper_nonce(&self, destination: &str, signer: &str) -> IntGauge {
         self.upper_nonce
+            .with_label_values(&[destination, signer])
+            .clone()
+    }
+
+    pub fn get_batched_transactions(&self) -> IntCounterVec {
+        self.batched_transactions.clone()
+    }
+
+    pub fn get_mismatched_nonce(&self, destination: &str, signer: &str) -> IntGauge {
+        self.mismatched_nonce
             .with_label_values(&[destination, signer])
             .clone()
     }
@@ -309,11 +363,12 @@ impl DispatcherMetrics {
         Ok(out_buf)
     }
 
-    #[cfg(test)]
+    /// Create a dummy instance for testing purposes
+    #[cfg(any(test, feature = "integration_test"))]
     pub fn dummy_instance() -> Self {
         let registry = Registry::new();
         let instance = Self::new(registry.clone());
-        instance.unwrap()
+        instance.expect("Failed to create dummy metrics instance for testing")
     }
 }
 

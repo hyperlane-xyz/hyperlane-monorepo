@@ -11,6 +11,7 @@ use derive_new::new;
 use eyre::Result;
 use prometheus::IntGauge;
 use serde::{de::DeserializeOwned, Serialize};
+use tokio::sync::RwLock;
 use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument, Level};
 
 use hyperlane_base::{
@@ -20,8 +21,8 @@ use hyperlane_base::{
 use hyperlane_core::{
     gas_used_by_operation, BatchItem, ChainCommunicationError, ChainResult, ConfirmReason,
     FixedPointNumber, HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox,
-    MessageSubmissionData, PendingOperation, PendingOperationResult, PendingOperationStatus,
-    ReprepareReason, TryBatchAs, TxCostEstimate, TxOutcome, H256, U256,
+    MessageSubmissionData, Metadata, PendingOperation, PendingOperationResult,
+    PendingOperationStatus, ReprepareReason, TryBatchAs, TxCostEstimate, TxOutcome, H256, U256,
 };
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
@@ -32,7 +33,7 @@ use crate::{
 
 use super::{
     gas_payment::{GasPaymentEnforcer, GasPolicyStatus},
-    metadata::{BuildsBaseMetadata, MessageMetadataBuilder, Metadata, MetadataBuilder},
+    metadata::{BuildsBaseMetadata, MessageMetadataBuilder, MetadataBuilder},
 };
 
 /// a default of 66 is picked, so messages are retried for 2 weeks (period confirmed by @nambrot) before being skipped.
@@ -73,16 +74,16 @@ pub struct MessageContext {
     pub metadata_builder: Arc<dyn BuildsBaseMetadata>,
     /// Used to determine if messages from the origin have made sufficient gas
     /// payments.
-    pub origin_gas_payment_enforcer: Arc<GasPaymentEnforcer>,
+    pub origin_gas_payment_enforcer: Arc<RwLock<GasPaymentEnforcer>>,
     /// Hard limit on transaction gas when submitting a transaction to the
     /// destination.
     pub transaction_gas_limit: Option<U256>,
     pub metrics: MessageSubmissionMetrics,
     /// Application operation verifier
-    pub application_operation_verifier: Option<Arc<dyn ApplicationOperationVerifier>>,
+    pub application_operation_verifier: Arc<dyn ApplicationOperationVerifier>,
 }
 
-/// A message that the submitter can and should try to submit.
+/// A message that is pending processing and submission.
 #[derive(new, Serialize)]
 pub struct PendingMessage {
     pub message: HyperlaneMessage,
@@ -110,7 +111,7 @@ pub struct PendingMessage {
     submission_outcome: Option<TxOutcome>,
     #[new(default)]
     #[serde(skip_serializing)]
-    metadata: Option<Vec<u8>>,
+    metadata: Option<Metadata>,
     #[new(default)]
     #[serde(skip_serializing)]
     metric: Option<Arc<IntGauge>>,
@@ -204,6 +205,10 @@ impl PendingOperation for PendingMessage {
         &self.message.recipient
     }
 
+    fn body(&self) -> &[u8] {
+        &self.message.body
+    }
+
     fn retrieve_status_from_db(&self) -> Option<PendingOperationStatus> {
         match self.ctx.origin_db.retrieve_status_by_message_id(&self.id()) {
             Ok(status) => status,
@@ -292,16 +297,15 @@ impl PendingOperation for PendingMessage {
             None => None,
         };
 
-        let metadata_bytes = match self.metadata.as_ref() {
+        let metadata = match self.metadata.as_ref() {
             Some(metadata) => {
                 tracing::debug!(USE_CACHE_METADATA_LOG);
                 metadata.clone()
             }
             _ => match self.build_metadata().await {
                 Ok(metadata) => {
-                    let metadata_bytes = metadata.to_vec();
-                    self.metadata = Some(metadata_bytes.clone());
-                    metadata_bytes
+                    self.metadata = Some(metadata.clone());
+                    metadata
                 }
                 Err(err) => {
                     return err;
@@ -319,7 +323,7 @@ impl PendingOperation for PendingMessage {
             None => match self
                 .ctx
                 .destination_mailbox
-                .process_estimate_costs(&self.message, &metadata_bytes)
+                .process_estimate_costs(&self.message, &metadata)
                 .await
             {
                 Ok(cost) => cost,
@@ -360,7 +364,7 @@ impl PendingOperation for PendingMessage {
         }
 
         self.submission_data = Some(Box::new(MessageSubmissionData {
-            metadata: metadata_bytes,
+            metadata,
             gas_limit,
         }));
         PendingOperationResult::Success
@@ -405,7 +409,7 @@ impl PendingOperation for PendingMessage {
             .await;
         match tx_outcome {
             Ok(outcome) => {
-                self.set_operation_outcome(outcome, state.gas_limit);
+                self.set_operation_outcome(outcome, state.gas_limit).await;
                 PendingOperationResult::Confirm(ConfirmReason::SubmittedBySelf)
             }
             Err(e) => {
@@ -464,7 +468,7 @@ impl PendingOperation for PendingMessage {
         }
     }
 
-    fn set_operation_outcome(
+    async fn set_operation_outcome(
         &mut self,
         submission_outcome: TxOutcome,
         submission_estimated_cost: U256,
@@ -493,6 +497,8 @@ impl PendingOperation for PendingMessage {
         if let Err(e) = self
             .ctx
             .origin_gas_payment_enforcer
+            .read()
+            .await
             .record_tx_outcome(&self.message, operation_outcome.clone())
         {
             error!(error=?e, "Error when recording tx outcome");
@@ -513,7 +519,7 @@ impl PendingOperation for PendingMessage {
     }
 
     fn set_next_attempt_after(&mut self, delay: Duration) {
-        self.next_attempt_after = Some(Instant::now() + delay);
+        self.next_attempt_after = Instant::now().checked_add(delay);
     }
 
     fn reset_attempts(&mut self) {
@@ -590,7 +596,7 @@ impl PendingMessage {
 
     fn next_attempt_after(num_retries: u32, max_retries: u32) -> Option<Instant> {
         PendingMessage::calculate_msg_backoff(num_retries, max_retries, None)
-            .map(|dur| Instant::now() + dur)
+            .and_then(|dur| Instant::now().checked_add(dur))
     }
 
     fn get_retries_or_skip(
@@ -793,12 +799,15 @@ impl PendingMessage {
         &mut self,
         tx_cost_estimate: &TxCostEstimate,
     ) -> GasPaymentRequirementOutcome {
-        let gas_limit = match self
+        let gas_limit = self
             .ctx
             .origin_gas_payment_enforcer
-            .message_meets_gas_payment_requirement(&self.message, tx_cost_estimate)
+            .read()
             .await
-        {
+            .message_meets_gas_payment_requirement(&self.message, tx_cost_estimate)
+            .await;
+
+        let gas_limit = match gas_limit {
             Ok(gas_limit) => gas_limit,
             Err(err) => {
                 return GasPaymentRequirementOutcome::RequirementNotMet(
@@ -877,14 +886,14 @@ impl PendingMessage {
     }
 
     fn inc_attempts(&mut self) {
-        self.set_retries(self.num_retries + 1);
+        self.set_retries(self.num_retries.saturating_add(1));
         self.last_attempted_at = Instant::now();
         self.next_attempt_after = PendingMessage::calculate_msg_backoff(
             self.num_retries,
             self.max_retries,
             Some(self.message.id()),
         )
-        .map(|dur| self.last_attempted_at + dur);
+        .and_then(|dur| self.last_attempted_at.checked_add(dur));
     }
 
     fn set_retries(&mut self, retries: u32) {
@@ -916,23 +925,29 @@ impl PendingMessage {
             2 => 10,
             3 => 30,
             4 => 60,
-            i if (5..25).contains(&i) => 60 * 3,
+            i if (5..25).contains(&i) => 60u64.saturating_mul(3),
             // linearly increase from 5min to ~25min, adding 1.5min for each additional attempt
-            i if (25..40).contains(&i) => 60 * 5 + (i as u64 - 25) * 90,
+            i if (25..40).contains(&i) => 60u64
+                .saturating_mul(5)
+                .saturating_add((i as u64).saturating_sub(25).saturating_mul(90)),
             // wait 30min for the next 5 attempts
-            i if (40..45).contains(&i) => 60 * 30,
+            i if (40..45).contains(&i) => 60u64.saturating_mul(30),
             // wait 60min for the next 5 attempts
-            i if (45..50).contains(&i) => 60 * 60,
+            i if (45..50).contains(&i) => 60u64.saturating_mul(60),
             // linearly increase the backoff time, adding 1h for each additional attempt
             i if (50..max_retries).contains(&i) => {
-                let hour: u64 = 60 * 60;
-                let two_hours: u64 = hour * 2;
+                let hour: u64 = 60u64.saturating_mul(60);
+                let two_hours: u64 = hour.saturating_mul(2);
                 // To be extra safe, `max` to make sure it's at least 2 hours.
-                let target = two_hours.max((num_retries - 49) as u64 * two_hours);
+                let target = two_hours
+                    .max((num_retries.saturating_sub(49) as u64).saturating_mul(two_hours));
                 // Schedule it at some random point in the next 6 hours to
                 // avoid scheduling messages with the same # of retries
                 // at the exact same time and starve new messages.
-                target + (rand::random::<u64>() % (6 * hour))
+
+                let six_hours = hour.saturating_mul(6);
+                let random_val = rand::random::<u64>();
+                target.saturating_add(random_val.overflowing_rem(six_hours).0)
             }
             // after `max_message_retries`, the message is considered undeliverable
             // and the backoff is set as far into the future as possible
@@ -955,7 +970,6 @@ impl PendingMessage {
         match self
             .ctx
             .application_operation_verifier
-            .as_ref()?
             .verify(&self.app_context, &self.message)
             .await
         {
@@ -1028,6 +1042,13 @@ impl PendingMessage {
                 warn!(count, "Max validator count reached");
                 self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
             }
+            MetadataBuildError::MerkleRootMismatch {
+                root,
+                canonical_root,
+            } => {
+                warn!(?root, ?canonical_root, "Merkle root mismatch");
+                self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
+            }
         });
         let build_metadata_end = Instant::now();
 
@@ -1054,134 +1075,18 @@ impl PendingMessage {
 #[cfg(test)]
 mod test {
     use std::{
-        fmt::Debug,
         sync::Arc,
         time::{Duration, Instant},
     };
 
     use chrono::TimeDelta;
+    use hyperlane_base::tests::mock_hyperlane_db::MockHyperlaneDb as MockDb;
     use hyperlane_base::{cache::OptionalCache, db::*};
-    use hyperlane_core::{identifiers::UniqueIdentifier, *};
+    use hyperlane_core::*;
 
     use crate::test_utils::dummy_data::{dummy_message_context, dummy_metadata_builder};
 
     use super::{PendingMessage, DEFAULT_MAX_MESSAGE_RETRIES};
-
-    mockall::mock! {
-        pub Db {
-            fn provider(&self) -> Box<dyn HyperlaneProvider>;
-        }
-
-        impl Debug for Db {
-            fn fmt<'a>(&self, f: &mut std::fmt::Formatter<'a>) -> std::fmt::Result;
-        }
-
-        impl HyperlaneDb for Db {
-            fn retrieve_highest_seen_message_nonce(&self) -> DbResult<Option<u32>>;
-            fn retrieve_message_by_nonce(&self, nonce: u32) -> DbResult<Option<HyperlaneMessage>>;
-            fn retrieve_processed_by_nonce(&self, nonce: &u32) -> DbResult<Option<bool>>;
-            fn domain(&self) -> &HyperlaneDomain;
-            fn store_message_id_by_nonce(&self, nonce: &u32, id: &H256) -> DbResult<()>;
-            fn retrieve_message_id_by_nonce(&self, nonce: &u32) -> DbResult<Option<H256>>;
-            fn store_message_by_id(&self, id: &H256, message: &HyperlaneMessage) -> DbResult<()>;
-            fn retrieve_message_by_id(&self, id: &H256) -> DbResult<Option<HyperlaneMessage>>;
-            fn store_dispatched_block_number_by_nonce(
-                &self,
-                nonce: &u32,
-                block_number: &u64,
-            ) -> DbResult<()>;
-            fn retrieve_dispatched_block_number_by_nonce(&self, nonce: &u32) -> DbResult<Option<u64>>;
-            fn store_processed_by_nonce(&self, nonce: &u32, processed: &bool) -> DbResult<()>;
-            fn store_processed_by_gas_payment_meta(
-                &self,
-                meta: &InterchainGasPaymentMeta,
-                processed: &bool,
-            ) -> DbResult<()>;
-            fn retrieve_processed_by_gas_payment_meta(
-                &self,
-                meta: &InterchainGasPaymentMeta,
-            ) -> DbResult<Option<bool>>;
-            fn store_interchain_gas_expenditure_data_by_message_id(
-                &self,
-                message_id: &H256,
-                data: &InterchainGasExpenditureData,
-            ) -> DbResult<()>;
-            fn retrieve_interchain_gas_expenditure_data_by_message_id(
-                &self,
-                message_id: &H256,
-            ) -> DbResult<Option<InterchainGasExpenditureData>>;
-            fn store_status_by_message_id(
-                &self,
-                message_id: &H256,
-                status: &PendingOperationStatus,
-            ) -> DbResult<()>;
-            fn retrieve_status_by_message_id(
-                &self,
-                message_id: &H256,
-            ) -> DbResult<Option<PendingOperationStatus>>;
-            fn store_interchain_gas_payment_data_by_gas_payment_key(
-                &self,
-                key: &GasPaymentKey,
-                data: &InterchainGasPaymentData,
-            ) -> DbResult<()>;
-            fn retrieve_interchain_gas_payment_data_by_gas_payment_key(
-                &self,
-                key: &GasPaymentKey,
-            ) -> DbResult<Option<InterchainGasPaymentData>>;
-            fn store_gas_payment_by_sequence(
-                &self,
-                sequence: &u32,
-                payment: &InterchainGasPayment,
-            ) -> DbResult<()>;
-            fn retrieve_gas_payment_by_sequence(
-                &self,
-                sequence: &u32,
-            ) -> DbResult<Option<InterchainGasPayment>>;
-            fn store_gas_payment_block_by_sequence(
-                &self,
-                sequence: &u32,
-                block_number: &u64,
-            ) -> DbResult<()>;
-            fn retrieve_gas_payment_block_by_sequence(&self, sequence: &u32) -> DbResult<Option<u64>>;
-            fn store_pending_message_retry_count_by_message_id(
-                &self,
-                message_id: &H256,
-                count: &u32,
-            ) -> DbResult<()>;
-            fn retrieve_pending_message_retry_count_by_message_id(
-                &self,
-                message_id: &H256,
-            ) -> DbResult<Option<u32>>;
-            fn store_merkle_tree_insertion_by_leaf_index(
-                &self,
-                leaf_index: &u32,
-                insertion: &MerkleTreeInsertion,
-            ) -> DbResult<()>;
-            fn retrieve_merkle_tree_insertion_by_leaf_index(
-                &self,
-                leaf_index: &u32,
-            ) -> DbResult<Option<MerkleTreeInsertion>>;
-            fn store_merkle_leaf_index_by_message_id(
-                &self,
-                message_id: &H256,
-                leaf_index: &u32,
-            ) -> DbResult<()>;
-            fn retrieve_merkle_leaf_index_by_message_id(&self, message_id: &H256) -> DbResult<Option<u32>>;
-            fn store_merkle_tree_insertion_block_number_by_leaf_index(
-                &self,
-                leaf_index: &u32,
-                block_number: &u64,
-            ) -> DbResult<()>;
-            fn retrieve_merkle_tree_insertion_block_number_by_leaf_index(
-                &self,
-                leaf_index: &u32,
-            ) -> DbResult<Option<u64>>;
-            fn store_highest_seen_message_nonce_number(&self, nonce: &u32) -> DbResult<()>;
-            fn retrieve_highest_seen_message_nonce_number(&self) -> DbResult<Option<u32>>;
-            fn store_payload_uuids_by_message_id(&self, message_id: &H256, payload_uuids: Vec<UniqueIdentifier>) -> DbResult<()>;
-            fn retrieve_payload_uuids_by_message_id(&self, message_id: &H256) -> DbResult<Option<Vec<UniqueIdentifier>>>;
-        }
-    }
 
     #[test]
     fn test_calculate_msg_backoff_does_not_overflow() {
@@ -1266,7 +1171,7 @@ mod test {
         let seconds = duration_total_secs % 60;
         let minutes = (duration_total_secs / 60) % 60;
         let hours = (duration_total_secs / 60) / 60;
-        format!("{}:{}:{}", hours, minutes, seconds)
+        format!("{hours}:{minutes}:{seconds}")
     }
 
     fn dummy_db_with_retries(retries: u32) -> MockDb {
@@ -1298,14 +1203,16 @@ mod test {
             .sum();
 
         // Have a window that is acceptable for "around 2 weeks".
-        // Give or take 1 day.
+        // The backoff calculation adds random jitter of 0-6 hours for retries 50-65
+        // (16 retries), giving up to 96 hours of variance. Use ±5 days tolerance
+        // to account for this randomness.
         let max_backoff_duration = chrono::Duration::weeks(2)
-            .checked_add(&TimeDelta::days(1))
+            .checked_add(&TimeDelta::days(5))
             .expect("Failed to compute duration")
             .to_std()
             .expect("Failed to convert TimeDelta to Duration");
         let min_backoff_duration = chrono::Duration::weeks(2)
-            .checked_sub(&TimeDelta::days(1))
+            .checked_sub(&TimeDelta::days(5))
             .expect("Failed to compute duration")
             .to_std()
             .expect("Failed to convert TimeDelta to Duration");
@@ -1422,7 +1329,7 @@ mod test {
             2,
         );
 
-        let pending_message_debug = format!("{:?}", pending_message);
+        let pending_message_debug = format!("{pending_message:?}");
         let expected = r#"PendingMessage { num_retries: 0, since_last_attempt_s: 0, next_attempt_after_s: 0, message_id: 0xaeafdd9f018e66a50d30bb141184d10e57bd956e839f70213c163eb41a3c0d87, status: FirstPrepareAttempt, app_context: Some("test-0") }"#;
         assert_eq!(pending_message_debug, expected);
     }

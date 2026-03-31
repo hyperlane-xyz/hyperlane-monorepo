@@ -5,19 +5,29 @@ import {
   HypXERC20__factory,
   IXERC20__factory,
 } from '@hyperlane-xyz/core';
+import { createWarpTokenReader } from '@hyperlane-xyz/deploy-sdk';
+import { hasProtocol } from '@hyperlane-xyz/provider-sdk';
 import {
-  ChainMap,
-  ChainName,
-  DerivedWarpRouteDeployConfig,
-  EvmERC20WarpRouteReader,
-  HypTokenRouterConfig,
-  MultiProvider,
+  type ChainMap,
+  type ChainName,
+  type DerivedWarpRouteDeployConfig,
+  EvmWarpRouteReader,
+  type HypTokenRouterConfig,
+  type MultiProvider,
   TokenStandard,
-  WarpCoreConfig,
+  type WarpCoreConfig,
+  altVmChainLookup,
 } from '@hyperlane-xyz/sdk';
-import { isAddressEvm, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
+import {
+  type Address,
+  ProtocolType,
+  isEVMLike,
+  objFilter,
+  objMap,
+  promiseObjAll,
+} from '@hyperlane-xyz/utils';
 
-import { CommandContext } from '../context/types.js';
+import { type CommandContext } from '../context/types.js';
 import { logGray, logRed, logTable } from '../logger.js';
 import { getWarpCoreConfigOrExit } from '../utils/warp.js';
 
@@ -26,36 +36,55 @@ export async function runWarpRouteRead({
   chain,
   address,
   symbol,
+  warpRouteId,
+  warpCoreConfigPath,
 }: {
   context: CommandContext;
   chain?: ChainName;
   address?: string;
   symbol?: string;
+  warpRouteId?: string;
+  warpCoreConfigPath?: string;
 }): Promise<ChainMap<HypTokenRouterConfig>> {
-  const hasTokenSymbol = Boolean(symbol);
-  const hasChainAddress = Boolean(chain && address);
+  let addresses: ChainMap<Address>;
+  let warpCoreConfig: WarpCoreConfig | undefined;
+  if (symbol || warpCoreConfigPath || warpRouteId) {
+    warpCoreConfig = await getWarpCoreConfigOrExit({
+      context,
+      symbol,
+      warp: warpCoreConfigPath,
+      warpRouteId,
+    });
 
-  if (!hasTokenSymbol && !hasChainAddress) {
-    logRed(
-      'Invalid input parameters. Please provide either a token symbol or both chain name and token address',
+    addresses = Object.fromEntries(
+      warpCoreConfig.tokens.map((t) => [t.chainName, t.addressOrDenom!]),
     );
-    process.exit(1);
+  } else if (chain && address) {
+    addresses = {
+      [chain]: address,
+    };
+  } else {
+    throw new Error(
+      'Invalid input parameters. Please provide either a token symbol, a warp route id or both chain name and token address',
+    );
   }
 
-  const warpCoreConfig = hasTokenSymbol
-    ? await getWarpCoreConfigOrExit({
-        context,
-        symbol,
-      })
-    : undefined;
+  // Remove any unsupported chain to avoid crashing
+  const filteredAddresses = objFilter(
+    addresses,
+    (chain, _address): _address is string =>
+      isEVMLike(context.multiProvider.getProtocol(chain)) ||
+      hasProtocol(context.multiProvider.getProtocol(chain)),
+  );
+  if (warpCoreConfig) {
+    warpCoreConfig.tokens = warpCoreConfig.tokens.filter(
+      (config) =>
+        isEVMLike(context.multiProvider.getProtocol(config.chainName)) ||
+        hasProtocol(context.multiProvider.getProtocol(config.chainName)),
+    );
+  }
 
-  const addresses = warpCoreConfig
-    ? Object.fromEntries(
-        warpCoreConfig.tokens.map((t) => [t.chainName, t.addressOrDenom!]),
-      )
-    : { [chain!]: address! };
-
-  return deriveWarpRouteConfigs(context, addresses, warpCoreConfig);
+  return deriveWarpRouteConfigs(context, filteredAddresses, warpCoreConfig);
 }
 
 export async function getWarpRouteConfigsByCore({
@@ -79,35 +108,60 @@ async function deriveWarpRouteConfigs(
 ): Promise<DerivedWarpRouteDeployConfig> {
   const { multiProvider } = context;
 
-  validateEvmCompatibility(addresses);
+  validateCompatibility(
+    context.multiProvider,
+    context.supportedProtocols,
+    addresses,
+  );
 
   // Get XERC20 limits if warpCoreConfig is available
   if (warpCoreConfig) {
-    await logXerc20Limits(warpCoreConfig, multiProvider);
+    await logXERC20Limits(warpCoreConfig, multiProvider);
   }
 
   // Derive and return warp route config
   return promiseObjAll(
-    objMap(addresses, async (chain, address) =>
-      new EvmERC20WarpRouteReader(multiProvider, chain).deriveWarpRouteConfig(
-        address,
-      ),
-    ),
+    objMap(addresses, async (chain, address) => {
+      const protocol = context.multiProvider.getProtocol(chain);
+      switch (protocol) {
+        case ProtocolType.Tron:
+        case ProtocolType.Ethereum: {
+          return new EvmWarpRouteReader(
+            multiProvider,
+            chain,
+          ).deriveWarpRouteConfig(address);
+        }
+        default: {
+          const chainLookup = altVmChainLookup(multiProvider);
+          const chainMetadata = chainLookup.getChainMetadata(chain);
+          const reader = createWarpTokenReader(chainMetadata, chainLookup);
+          return reader.deriveWarpConfig(address);
+        }
+      }
+    }),
   );
 }
 
-// Validate that all chains are EVM compatible
-function validateEvmCompatibility(addresses: ChainMap<string>): void {
-  const nonEvmChains = Object.entries(addresses)
-    .filter(([_, address]) => !isAddressEvm(address))
+// Validate that all chains are EVM or AltVM compatible
+// by token standard
+function validateCompatibility(
+  multiProvider: MultiProvider,
+  supportedProtocols: ProtocolType[],
+  addresses: ChainMap<string>,
+): void {
+  const nonCompatibleChains = Object.entries(addresses)
+    .filter(
+      ([chain]) =>
+        !supportedProtocols.includes(multiProvider.getProtocol(chain)),
+    )
     .map(([chain]) => chain);
 
-  if (nonEvmChains.length > 0) {
-    const chainList = nonEvmChains.join(', ');
+  if (nonCompatibleChains.length > 0) {
+    const chainList = nonCompatibleChains.join(', ');
     logRed(
       `${chainList} ${
-        nonEvmChains.length > 1 ? 'are' : 'is'
-      } non-EVM and not compatible with the cli`,
+        nonCompatibleChains.length > 1 ? 'are' : 'is'
+      } not compatible with the cli, compatible protocols are: ${supportedProtocols.join(', ')}`,
     );
     process.exit(1);
   }
@@ -116,7 +170,7 @@ function validateEvmCompatibility(addresses: ChainMap<string>): void {
 /**
  * Logs XERC20 token limits for the given warp core config
  */
-export async function logXerc20Limits(
+export async function logXERC20Limits(
   warpCoreConfig: WarpCoreConfig,
   multiProvider: MultiProvider,
 ): Promise<void> {

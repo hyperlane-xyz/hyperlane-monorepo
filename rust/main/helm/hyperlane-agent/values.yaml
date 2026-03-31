@@ -1,6 +1,6 @@
 image:
-  repository: gcr.io/abacus-labs-dev/hyperlane-agent
-  pullPolicy: Always
+  repository: ghcr.io/hyperlane-xyz/hyperlane-agent
+  pullPolicy: IfNotPresent
   tag: 'latest'
 
 imagePullSecrets: []
@@ -108,7 +108,7 @@ hyperlane:
     storage:
       name: 'state-premium'
       storageClass: 'premium-immediate-rwo'
-      size: 10Gi
+      size: 32Gi
       snapshot:
         enabled: false
         name: ''
@@ -128,7 +128,7 @@ hyperlane:
       object_targz: ''
 
   relayerChains:
-    - name: 'alfajores'
+    - name: 'ethereum'
       signer:
         type: # "aws"
 

@@ -1,0 +1,68 @@
+name: Check Bytecode Changes
+
+on:
+  pull_request:
+    paths:
+      - 'solidity/**'
+      - '.github/workflows/bytecode-analysis.yml'
+  workflow_dispatch:
+    inputs:
+      base:
+        description: 'Branch to compare against'
+        required: true
+        default: 'main'
+
+jobs:
+  diff-check:
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout the PR branch
+      - name: Checkout PR branch
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: pnpm-cache
+        uses: ./.github/actions/pnpm-cache
+        with:
+          cache-provider: buildjet
+
+      - name: pnpm-install
+        run: pnpm install --frozen-lockfile
+
+      - name: Setup Foundry
+        uses: ./.github/actions/setup-foundry
+
+      # Run the command on PR branch
+      - name: Run command on PR branch
+        run: pnpm -C solidity run bytecode HEAD-bytecode
+
+      # Checkout the target branch (base)
+      - name: Checkout target branch (base) contracts
+        env:
+          BASE_REF: ${{ github.event.inputs.base || github.event.pull_request.base.sha }}
+        run: |
+          git fetch origin $BASE_REF
+          # Remove then checkout to ensure clean state
+          # (git checkout alone doesn't delete files that only exist in HEAD)
+          rm -rf solidity/contracts
+          if [[ "$BASE_REF" =~ ^[0-9a-f]{40}$ ]]; then
+            git checkout $BASE_REF -- solidity/contracts
+          else
+            git checkout origin/$BASE_REF -- solidity/contracts
+          fi
+
+      # Run the command on the target branch
+      - name: Run command on target branch
+        run: pnpm -C solidity run bytecode base-bytecode
+
+      # Compare outputs
+      - name: Compare outputs
+        env:
+          BASE_REF: ${{ github.event.inputs.base || github.event.pull_request.base.sha }}
+        run: .github/scripts/check-diff-changeset.sh bytecode solidity/base-bytecode solidity/HEAD-bytecode "$BASE_REF"

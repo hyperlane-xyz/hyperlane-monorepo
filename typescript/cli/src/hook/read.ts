@@ -1,8 +1,13 @@
-import { ChainName, EvmHookReader } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, stringifyObject } from '@hyperlane-xyz/utils';
+import { createHookReader } from '@hyperlane-xyz/deploy-sdk';
+import { type ChainName, EvmHookReader } from '@hyperlane-xyz/sdk';
+import {
+  type Address,
+  ProtocolType,
+  stringifyObject,
+} from '@hyperlane-xyz/utils';
 
-import { CommandContext } from '../context/types.js';
-import { log, logBlue, logRed } from '../logger.js';
+import { type CommandContext } from '../context/types.js';
+import { log, logBlue } from '../logger.js';
 import { resolveFileFormat, writeFileAtPath } from '../utils/files.js';
 
 /**
@@ -19,19 +24,37 @@ export async function readHookConfig({
   address: Address;
   out?: string;
 }): Promise<void> {
-  if (context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum) {
-    const hookReader = new EvmHookReader(context.multiProvider, chain);
-    const config = await hookReader.deriveHookConfig(address);
-    const stringConfig = stringifyObject(config, resolveFileFormat(out), 2);
-    if (!out) {
-      logBlue(`Hook Config at ${address} on ${chain}:`);
-      log(stringConfig);
-    } else {
-      writeFileAtPath(out, stringConfig + '\n');
-      logBlue(`Hook Config written to ${out}.`);
+  const protocol = context.multiProvider.getProtocol(chain);
+  switch (protocol) {
+    case ProtocolType.Tron:
+    case ProtocolType.Ethereum: {
+      const hookReader = new EvmHookReader(context.multiProvider, chain);
+      const config = await hookReader.deriveHookConfig(address);
+      const stringConfig = stringifyObject(config, resolveFileFormat(out), 2);
+      if (!out) {
+        logBlue(`Hook Config at ${address} on ${chain}:`);
+        log(stringConfig);
+      } else {
+        writeFileAtPath(out, stringConfig + '\n');
+        logBlue(`Hook Config written to ${out}.`);
+      }
+      break;
     }
-    return;
+    default: {
+      const metadata = context.multiProvider.getChainMetadata(chain);
+      const addresses = await context.registry.getChainAddresses(chain);
+      const hookReader = createHookReader(metadata, context.multiProvider, {
+        mailbox: addresses?.mailbox,
+      });
+      const config = await hookReader.deriveHookConfig(address);
+      const stringConfig = stringifyObject(config, resolveFileFormat(out), 2);
+      if (!out) {
+        logBlue(`Hook Config at ${address} on ${chain}:`);
+        log(stringConfig);
+      } else {
+        writeFileAtPath(out, stringConfig + '\n');
+        logBlue(`Hook Config written to ${out}.`);
+      }
+    }
   }
-
-  logRed('Unsupported chain. Currently this command supports EVM chains only.');
 }

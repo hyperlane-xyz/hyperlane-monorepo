@@ -15,9 +15,12 @@ pragma solidity >=0.6.11;
 
 // ============ Internal Imports ============
 import {Router} from "./Router.sol";
+import {EnumerableMapExtended} from "../libs/EnumerableMapExtended.sol";
 import {StandardHookMetadata} from "../hooks/libs/StandardHookMetadata.sol";
 
 abstract contract GasRouter is Router {
+    using EnumerableMapExtended for EnumerableMapExtended.UintToBytes32Map;
+
     event GasSet(uint32 domain, uint256 gas);
 
     // ============ Mutable Storage ============
@@ -59,7 +62,13 @@ abstract contract GasRouter is Router {
     function quoteGasPayment(
         uint32 _destinationDomain
     ) public view virtual returns (uint256) {
-        return _GasRouter_quoteDispatch(_destinationDomain, "", address(hook));
+        return
+            _Router_quoteDispatch(
+                _destinationDomain,
+                "",
+                _GasRouter_hookMetadata(_destinationDomain),
+                address(hook)
+            );
     }
 
     function _GasRouter_hookMetadata(
@@ -69,38 +78,12 @@ abstract contract GasRouter is Router {
             StandardHookMetadata.overrideGasLimit(destinationGas[_destination]);
     }
 
-    function _setDestinationGas(uint32 domain, uint256 gas) internal {
+    function _setDestinationGas(uint32 domain, uint256 gas) internal virtual {
+        require(
+            _routers.contains(uint256(domain)),
+            _domainNotFoundError(domain)
+        );
         destinationGas[domain] = gas;
         emit GasSet(domain, gas);
-    }
-
-    function _GasRouter_dispatch(
-        uint32 _destination,
-        uint256 _value,
-        bytes memory _messageBody,
-        address _hook
-    ) internal returns (bytes32) {
-        return
-            _Router_dispatch(
-                _destination,
-                _value,
-                _messageBody,
-                _GasRouter_hookMetadata(_destination),
-                _hook
-            );
-    }
-
-    function _GasRouter_quoteDispatch(
-        uint32 _destination,
-        bytes memory _messageBody,
-        address _hook
-    ) internal view returns (uint256) {
-        return
-            _Router_quoteDispatch(
-                _destination,
-                _messageBody,
-                _GasRouter_hookMetadata(_destination),
-                _hook
-            );
     }
 }

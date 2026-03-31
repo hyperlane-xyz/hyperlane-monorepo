@@ -1,4 +1,4 @@
-use hyperlane_core::{utils::hex_or_base58_to_h256, H256};
+use hyperlane_core::{utils::hex_or_base58_or_bech32_to_h256, H256};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
@@ -7,12 +7,14 @@ use std::{
 };
 
 use solana_client::rpc_client::RpcClient;
-use solana_program::instruction::Instruction;
-use solana_sdk::{
-    account_utils::StateMut,
-    bpf_loader_upgradeable::{self, UpgradeableLoaderState},
-    pubkey::Pubkey,
+use solana_loader_v3_interface::{
+    instruction::set_upgrade_authority, state::UpgradeableLoaderState,
 };
+use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
+
+/// Well-known BPF Loader Upgradeable program ID.
+const BPF_LOADER_UPGRADEABLE_ID: Pubkey =
+    solana_sdk::pubkey!("BPFLoaderUpgradeab1e11111111111111111111111");
 
 use account_utils::DiscriminatorData;
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
@@ -305,6 +307,10 @@ pub(crate) fn deploy_routers<
 
     let existing_program_ids = read_router_program_ids(&deploy_dir);
 
+    if ctx.write_instructions_enabled {
+        ctx.instructions_path = Some(deploy_dir.clone());
+    }
+
     // Builds a HashMap of all the foreign deployments from the app config.
     // These domains with foreign deployments will not have any txs / deployments
     // made directly to them, but the routers will be enrolled on the other chains.
@@ -319,7 +325,7 @@ pub(crate) fn deploy_routers<
                     let chain_metadata = chain_metadatas.get(chain_name).unwrap();
                     (
                         chain_metadata.domain_id,
-                        hex_or_base58_to_h256(foreign_deployment).unwrap(),
+                        hex_or_base58_or_bech32_to_h256(foreign_deployment).unwrap(),
                     )
                 })
         })
@@ -454,7 +460,7 @@ fn configure_connection_client(
                     ),
                 )
                 .with_client(&client)
-                .send_with_pubkey_signer(&owner);
+                .send_with_pubkey_signer(&owner, Some(chain_metadata.clone().name));
         } else {
             println!(
                 "WARNING: Cannot set ISM for chain: {} ({}) to {:?}, the existing owner is None",
@@ -485,7 +491,7 @@ fn configure_connection_client(
                         ),
                     )
                     .with_client(&client)
-                    .send_with_pubkey_signer(&owner);
+                    .send_with_pubkey_signer(&owner, Option::from(chain_metadata.clone().name));
             } else {
                 println!(
                     "WARNING: Cannot set IGP for chain: {} ({}) to {:?}, the existing owner is None",
@@ -514,7 +520,8 @@ fn configure_owner(
 
     if actual_owner != expected_owner {
         if let Some(actual_owner) = actual_owner {
-            ctx.new_txn()
+            let tx_result = ctx
+                .new_txn()
                 .add_with_description(
                     deployer.set_owner_instruction(&client, program_id, expected_owner),
                     format!(
@@ -523,7 +530,13 @@ fn configure_owner(
                     ),
                 )
                 .with_client(&client)
-                .send_with_pubkey_signer(&actual_owner);
+                .send_with_pubkey_signer(&actual_owner, Option::from(chain_metadata.clone().name));
+
+            // If the transaction was not submitted (e.g. multisig flow writing YAML),
+            // skip post-change verification.
+            if tx_result.is_none() {
+                return;
+            }
         } else {
             // Flag if we can't change the owner
             println!(
@@ -564,9 +577,10 @@ fn configure_upgrade_authority(
     {
         if let Some(actual_upgrade_authority) = actual_upgrade_authority {
             // Then set the upgrade authority to what we expect.
-            ctx.new_txn()
+            let tx_result = ctx
+                .new_txn()
                 .add_with_description(
-                    bpf_loader_upgradeable::set_upgrade_authority(
+                    set_upgrade_authority(
                         program_id,
                         &actual_upgrade_authority,
                         expected_upgrade_authority.as_ref(),
@@ -577,7 +591,16 @@ fn configure_upgrade_authority(
                     ),
                 )
                 .with_client(&client)
-                .send_with_pubkey_signer(&actual_upgrade_authority);
+                .send_with_pubkey_signer(
+                    &actual_upgrade_authority,
+                    Option::from(chain_metadata.clone().name),
+                );
+
+            // If the transaction was not submitted (e.g. multisig flow writing YAML),
+            // skip post-change verification.
+            if tx_result.is_none() {
+                return;
+            }
         } else {
             // Flag if we can't change the upgrade authority
             println!(
@@ -606,31 +629,33 @@ fn get_program_upgrade_authority(
 ) -> Result<Option<Pubkey>, &'static str> {
     let program_account = client.get_account(program_id).unwrap();
     // If the program isn't upgradeable, exit
-    if program_account.owner != bpf_loader_upgradeable::id() {
+    if program_account.owner != BPF_LOADER_UPGRADEABLE_ID {
         return Err("Program is not upgradeable");
     }
 
     // The program id must actually be a program
-    let programdata_address = if let Ok(UpgradeableLoaderState::Program {
-        programdata_address,
-    }) = program_account.state()
-    {
-        programdata_address
-    } else {
-        return Err("Unable to deserialize program account");
+    // Note: UpgradeableLoaderState uses solana_pubkey::Pubkey which we convert to solana_sdk::pubkey::Pubkey
+    let programdata_address: UpgradeableLoaderState =
+        bincode::deserialize(&program_account.data)
+            .map_err(|_| "Unable to deserialize program account")?;
+    let programdata_address = match programdata_address {
+        UpgradeableLoaderState::Program {
+            programdata_address,
+        } => Pubkey::new_from_array(programdata_address.to_bytes()),
+        _ => return Err("Unable to deserialize program account"),
     };
 
     let program_data_account = client.get_account(&programdata_address).unwrap();
 
     // If the program data account somehow isn't deserializable, exit
-    let actual_upgrade_authority = if let Ok(UpgradeableLoaderState::ProgramData {
-        upgrade_authority_address,
-        slot: _,
-    }) = program_data_account.state()
-    {
-        upgrade_authority_address
-    } else {
-        return Err("Unable to deserialize program data account");
+    let program_data: UpgradeableLoaderState = bincode::deserialize(&program_data_account.data)
+        .map_err(|_| "Unable to deserialize program data account")?;
+    let actual_upgrade_authority = match program_data {
+        UpgradeableLoaderState::ProgramData {
+            upgrade_authority_address,
+            slot: _,
+        } => upgrade_authority_address.map(|p| Pubkey::new_from_array(p.to_bytes())),
+        _ => return Err("Unable to deserialize program data account"),
     };
 
     Ok(actual_upgrade_authority)
@@ -714,7 +739,7 @@ fn enroll_all_remote_routers<
                         ),
                     )
                     .with_client(&chain_metadata.client())
-                    .send_with_pubkey_signer(&owner);
+                    .send_with_pubkey_signer(&owner, Option::from(chain_metadata.clone().name));
             } else {
                 println!(
                     "WARNING: Cannot enroll routers for chain: {} ({}) with program_id {}, the existing owner is None",

@@ -70,6 +70,7 @@ contract HypERC4626CollateralTest is HypTokenTest {
         HypERC4626Collateral implementation = new HypERC4626Collateral(
             vault,
             SCALE,
+            SCALE,
             address(localMailbox)
         );
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
@@ -87,11 +88,13 @@ contract HypERC4626CollateralTest is HypTokenTest {
         remoteToken = new HypERC4626(
             primaryToken.decimals(),
             SCALE,
+            SCALE,
             address(remoteMailbox),
             localToken.localDomain()
         );
         peerToken = new HypERC4626(
             primaryToken.decimals(),
+            SCALE,
             SCALE,
             address(peerMailbox),
             localToken.localDomain()
@@ -140,7 +143,7 @@ contract HypERC4626CollateralTest is HypTokenTest {
 
         _accrueYield();
 
-        localRebasingToken.rebase(DESTINATION, bytes(""), address(0));
+        localRebasingToken.rebase(DESTINATION);
         remoteMailbox.processNextInboundMessage();
         assertApproxEqRelDecimal(
             remoteToken.balanceOf(BOB),
@@ -148,28 +151,6 @@ contract HypERC4626CollateralTest is HypTokenTest {
             1e14,
             0
         );
-    }
-
-    function testRemoteTransfer_rebaseWithCustomHook() public {
-        _performRemoteTransferWithoutExpectation(0, transferAmount);
-        assertEq(remoteToken.balanceOf(BOB), transferAmount);
-
-        _accrueYield();
-
-        uint256 FEE = 1e18;
-        ProtocolFee customHook = new ProtocolFee(
-            FEE,
-            FEE,
-            address(this),
-            address(this)
-        );
-
-        localRebasingToken.rebase{value: FEE}(
-            DESTINATION,
-            StandardHookMetadata.overrideMsgValue(FEE),
-            address(customHook)
-        );
-        assertEq(address(customHook).balance, FEE);
     }
 
     function testRebaseWithTransfer() public {
@@ -321,7 +302,7 @@ contract HypERC4626CollateralTest is HypTokenTest {
         );
 
         _accrueYield();
-        localRebasingToken.rebase(DESTINATION, bytes(""), address(0));
+        localRebasingToken.rebase(DESTINATION);
         remoteMailbox.processNextInboundMessage();
 
         uint256 sharesAfterYield = remoteRebasingToken.totalShares();
@@ -343,7 +324,7 @@ contract HypERC4626CollateralTest is HypTokenTest {
         );
 
         _accrueYield();
-        localRebasingToken.rebase(DESTINATION, bytes(""), address(0));
+        localRebasingToken.rebase(DESTINATION);
         remoteMailbox.processNextInboundMessage();
 
         uint256 bobShareBalanceAfterYield = remoteRebasingToken.shareBalanceOf(
@@ -415,7 +396,7 @@ contract HypERC4626CollateralTest is HypTokenTest {
 
         _accrueYield();
 
-        localRebasingToken.rebase(DESTINATION, bytes(""), address(0));
+        localRebasingToken.rebase(DESTINATION);
         remoteMailbox.processNextInboundMessage();
 
         // Use balance here since it might be off by <1bp
@@ -454,7 +435,7 @@ contract HypERC4626CollateralTest is HypTokenTest {
         _accrueYield();
         _accrueYield(); // earning 2x yield to be split
 
-        localRebasingToken.rebase(DESTINATION, bytes(""), address(0));
+        localRebasingToken.rebase(DESTINATION);
         vm.prank(CAROL);
 
         remoteToken.transferRemote(
@@ -492,7 +473,7 @@ contract HypERC4626CollateralTest is HypTokenTest {
         // decrease collateral in vault by 10%
         uint256 drawdown = 5e18;
         primaryToken.burnFrom(address(vault), drawdown);
-        localRebasingToken.rebase(DESTINATION, bytes(""), address(0));
+        localRebasingToken.rebase(DESTINATION);
         remoteMailbox.processNextInboundMessage();
 
         // Use balance here since it might be off by <1bp
@@ -518,7 +499,7 @@ contract HypERC4626CollateralTest is HypTokenTest {
 
         _accrueYield();
 
-        localRebasingToken.rebase(DESTINATION, bytes(""), address(0));
+        localRebasingToken.rebase(DESTINATION);
         remoteMailbox.processNextInboundMessage();
 
         vm.prank(BOB);
@@ -537,7 +518,7 @@ contract HypERC4626CollateralTest is HypTokenTest {
         ); // 5 * 0.9 = 4.5% yield
         assertEq(peerRebasingToken.exchangeRate(), 1e10); // assertingthat transfers by the synthetic variant don't impact the exchang rate
 
-        localRebasingToken.rebase(PEER_DESTINATION, bytes(""), address(0));
+        localRebasingToken.rebase(PEER_DESTINATION);
         peerMailbox.processNextInboundMessage();
 
         assertApproxEqRelDecimal(
@@ -553,7 +534,7 @@ contract HypERC4626CollateralTest is HypTokenTest {
         assertEq(remoteToken.balanceOf(BOB), transferAmount);
 
         _accrueYield();
-        localRebasingToken.rebase(DESTINATION, bytes(""), address(0)); // yield is added
+        localRebasingToken.rebase(DESTINATION); // yield is added
         remoteMailbox.processNextInboundMessage();
 
         uint256 balance = remoteToken.balanceOf(BOB);
@@ -582,7 +563,7 @@ contract HypERC4626CollateralTest is HypTokenTest {
 
         _accrueYield();
 
-        localRebasingToken.rebase(DESTINATION, bytes(""), address(0)); // yield is added
+        localRebasingToken.rebase(DESTINATION); // yield is added
         remoteMailbox.processNextInboundMessage();
 
         // BOB: remote -> peer(BOB) (yield is leftover)
@@ -594,7 +575,7 @@ contract HypERC4626CollateralTest is HypTokenTest {
         );
         peerMailbox.processNextInboundMessage();
 
-        localRebasingToken.rebase(PEER_DESTINATION, bytes(""), address(0));
+        localRebasingToken.rebase(PEER_DESTINATION);
         peerMailbox.processNextInboundMessage();
 
         // BOB: peer -> local(CAROL)
@@ -634,7 +615,7 @@ contract HypERC4626CollateralTest is HypTokenTest {
         );
 
         _accrueYield();
-        localRebasingToken.rebase(DESTINATION, bytes(""), address(0));
+        localRebasingToken.rebase(DESTINATION);
         remoteMailbox.processNextInboundMessage();
 
         uint256 supplyAfterYield = remoteToken.totalSupply();
@@ -653,7 +634,7 @@ contract HypERC4626CollateralTest is HypTokenTest {
 
         _accrueYield();
 
-        localRebasingToken.rebase(DESTINATION, bytes(""), address(0));
+        localRebasingToken.rebase(DESTINATION);
         remoteMailbox.processNextInboundMessage();
         assertApproxEqRelDecimal(
             remoteToken.balanceOf(BOB),

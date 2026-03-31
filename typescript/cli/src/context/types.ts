@@ -1,48 +1,69 @@
 import type { ethers } from 'ethers';
 import type { CommandModule } from 'yargs';
+import { z } from 'zod';
 
+import { type AltVM } from '@hyperlane-xyz/provider-sdk';
+import {
+  type AnnotatedTx,
+  type TxReceipt,
+} from '@hyperlane-xyz/provider-sdk/module';
 import type { IRegistry } from '@hyperlane-xyz/registry';
 import type {
   ChainMap,
   ChainMetadata,
   MultiProtocolProvider,
   MultiProvider,
-  ProtocolMap,
   WarpCoreConfig,
   WarpRouteDeployConfigMailboxRequired,
 } from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { MultiProtocolSignerManager } from './strategies/signer/MultiProtocolSignerManager.js';
+export const SignerKeyProtocolMapSchema = z
+  .record(z.nativeEnum(ProtocolType), z.string().nonempty(), {
+    errorMap: (_issue, _ctx) => ({
+      message: `Key inputs not valid, make sure to use --key.{protocol} or the legacy flag --key but not both at the same time or avoid defining multiple --key or --key.{protocol} flags for the same protocol.`,
+    }),
+  })
+  .or(z.string().nonempty())
+  .transform((value) =>
+    typeof value === 'string' ? { [ProtocolType.Ethereum]: value } : value,
+  );
 
-export interface ContextSettings {
-  registryUris: string[];
-  key?: string | ProtocolMap<string>;
-  fromAddress?: string;
+export type SignerKeyProtocolMap = z.infer<typeof SignerKeyProtocolMapSchema>;
+
+interface BaseContext {
+  key?: string | SignerKeyProtocolMap;
   requiresKey?: boolean;
-  disableProxy?: boolean;
   skipConfirmation?: boolean;
   strategyPath?: string;
+}
+
+export interface ContextSettings extends BaseContext {
+  registryUris: string[];
+  disableProxy?: boolean;
   authToken?: string;
 }
 
-export interface CommandContext {
+export interface CommandContext extends Omit<
+  BaseContext,
+  'key' | 'skipConfirmation'
+> {
+  key?: SignerKeyProtocolMap;
   registry: IRegistry;
   chainMetadata: ChainMap<ChainMetadata>;
   multiProvider: MultiProvider;
   multiProtocolProvider: MultiProtocolProvider;
+  altVmProviders: ChainMap<AltVM.IProvider>;
+  supportedProtocols: ProtocolType[];
   skipConfirmation: boolean;
-  key?: string;
   // just for evm chains backward compatibility
   signerAddress?: string;
-  strategyPath?: string;
 }
 
-export interface WriteCommandContext extends CommandContext {
-  key: string;
+export interface WriteCommandContext extends Omit<CommandContext, 'key'> {
+  key: SignerKeyProtocolMap;
   signer: ethers.Signer;
-  multiProtocolSigner?: MultiProtocolSignerManager;
-  isDryRun?: boolean;
-  dryRunChain?: string;
+  altVmSigners: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>>;
   apiKeys?: ChainMap<string>;
 }
 

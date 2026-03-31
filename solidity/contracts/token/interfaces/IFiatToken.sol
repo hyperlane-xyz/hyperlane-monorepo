@@ -21,4 +21,17 @@ interface IFiatToken is IERC20 {
      * @return True if the operation was successful.
      */
     function mint(address _to, uint256 _amount) external returns (bool);
+
+    /**
+     * @notice Gets the minter allowance for an account.
+     * @param _minter The address to check.
+     * @return The remaining minter allowance for the account.
+     */
+    function minterAllowance(address _minter) external view returns (uint256);
+
+    /**
+     * @notice Checks if an address is a minter
+     * @param _minter The address to check.
+     */
+    function isMinter(address _minter) external view returns (bool);
 }

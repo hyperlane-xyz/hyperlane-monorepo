@@ -2,11 +2,11 @@ environment: testnet
 
 # General deployment configuration
 image:
-  repository: gcr.io/abacus-labs-dev/hyperlane-monorepo
+  repository: ghcr.io/hyperlane-xyz/hyperlane-offchain-lookup-server
   # Modify this tag to deploy a new revision.
   # Images can be found here:
-  # https://console.cloud.google.com/artifacts/docker/abacus-labs-dev/us/gcr.io/hyperlane-monorepo?inv=1&invt=AbxRMg&project=abacus-labs-dev
-  tag: 0b57705-20250514-150736
+  # https://github.com/orgs/hyperlane-xyz/packages/container/package/hyperlane-offchain-lookup-server
+  tag: c558a9f-20260304-105251
 
 secrets:
   name: 'offchain-lookup-server'

@@ -1,12 +1,12 @@
 use eyre::{Context, Result};
+use migration::OnConflict;
 use sea_orm::{
     prelude::*, ActiveValue::*, DbErr, EntityTrait, FromQueryResult, Insert, QueryResult,
     QuerySelect,
 };
 use tracing::{debug, trace};
 
-use hyperlane_core::{address_to_bytes, h256_to_bytes, BlockInfo, H256};
-use migration::OnConflict;
+use hyperlane_core::{h256_to_bytes, BlockInfo, H256};
 
 use crate::date_time;
 use crate::db::ScraperDb;
@@ -84,7 +84,7 @@ impl ScraperDb {
         let models = blocks
             .map(|info| block::ActiveModel {
                 id: NotSet,
-                hash: Set(address_to_bytes(&info.hash)),
+                hash: Set(h256_to_bytes(&info.hash)),
                 time_created: Set(date_time::now()),
                 domain: Unchanged(domain as i32),
                 height: Unchanged(info.number as i64),
@@ -96,11 +96,7 @@ impl ScraperDb {
         debug!(blocks = models.len(), "Writing blocks to database");
         trace!(?models, "Writing blocks to database");
         match Insert::many(models)
-            .on_conflict(
-                OnConflict::column(block::Column::Hash)
-                    .do_nothing()
-                    .to_owned(),
-            )
+            .on_conflict(OnConflict::new().do_nothing().to_owned())
             .exec(&self.0)
             .await
         {
@@ -110,3 +106,6 @@ impl ScraperDb {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

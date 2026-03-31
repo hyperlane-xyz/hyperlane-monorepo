@@ -300,11 +300,11 @@ function ChainInfo({ chainMetadata }: { chainMetadata: ChainMetadata }) {
       <SectionHeader>Chain Information</SectionHeader>
       <div className="htw-grid htw-grid-cols-2 htw-gap-1.5">
         <div>
-          <SectionHeader className="htw-text-xs">Chain Id</SectionHeader>
+          <SectionHeader className="htw-text-xs">Chain ID</SectionHeader>
           <span className="htw-text-sm">{chainId}</span>
         </div>
         <div>
-          <SectionHeader className="htw-text-xs">Domain Id</SectionHeader>
+          <SectionHeader className="htw-text-xs">Domain ID</SectionHeader>
           <span className="htw-text-sm">{domainId}</span>
         </div>
         <div>

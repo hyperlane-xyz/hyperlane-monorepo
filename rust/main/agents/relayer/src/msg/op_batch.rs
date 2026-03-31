@@ -11,8 +11,8 @@ use tokio::time::sleep;
 use tracing::{info, instrument, warn};
 
 use super::{
+    message_processor::{submit_single_operation, MessageProcessorMetrics},
     op_queue::OpQueue,
-    op_submitter::{submit_single_operation, SerialSubmitterMetrics},
     pending_message::CONFIRM_DELAY,
 };
 
@@ -31,7 +31,7 @@ impl OperationBatch {
         self,
         prepare_queue: &mut OpQueue,
         confirm_queue: &mut OpQueue,
-        metrics: &SerialSubmitterMetrics,
+        metrics: &MessageProcessorMetrics,
     ) {
         let excluded_ops = match self.try_submit_as_batch(metrics).await {
             Ok(batch_result) => {
@@ -54,7 +54,7 @@ impl OperationBatch {
     #[instrument(skip(self, metrics), ret, level = "debug")]
     async fn try_submit_as_batch(
         &self,
-        metrics: &SerialSubmitterMetrics,
+        metrics: &MessageProcessorMetrics,
     ) -> ChainResult<BatchResult> {
         // We already assume that the relayer submits to a single mailbox per destination.
         // So it's fine to use the first item in the batch to get the mailbox.
@@ -137,7 +137,8 @@ impl OperationBatch {
     ) {
         let total_estimated_cost = total_estimated_cost(sent_ops.as_slice());
         for mut op in sent_ops {
-            op.set_operation_outcome(outcome.clone(), total_estimated_cost);
+            op.set_operation_outcome(outcome.clone(), total_estimated_cost)
+                .await;
             op.set_next_attempt_after(CONFIRM_DELAY);
             confirm_queue
                 .push(
@@ -154,7 +155,7 @@ impl OperationBatch {
         self,
         prepare_queue: &mut OpQueue,
         confirm_queue: &mut OpQueue,
-        metrics: &SerialSubmitterMetrics,
+        metrics: &MessageProcessorMetrics,
     ) {
         for op in self.operations.into_iter() {
             submit_single_operation(op, prepare_queue, confirm_queue, metrics).await;
@@ -170,14 +171,14 @@ mod tests {
     use crate::{
         merkle_tree::builder::MerkleTreeBuilder,
         msg::{
+            db_loader::tests::{dummy_cache_metrics, DummyApplicationOperationVerifier},
             gas_payment::GasPaymentEnforcer,
             metadata::{
                 BaseMetadataBuilder, DefaultIsmCache, IsmAwareAppContextClassifier,
                 IsmCachePolicyClassifier,
             },
-            op_queue::test::MockPendingOperation,
+            op_queue::tests::MockPendingOperation,
             pending_message::{MessageContext, PendingMessage},
-            processor::test::{dummy_cache_metrics, DummyApplicationOperationVerifier},
         },
         settings::{
             matching_list::MatchingList, GasPaymentEnforcementConf, GasPaymentEnforcementPolicy,
@@ -193,7 +194,7 @@ mod tests {
     };
     use hyperlane_core::{
         config::OpSubmissionConfig, Decode, HyperlaneMessage, KnownHyperlaneDomain,
-        MessageSubmissionData, ReorgPeriod, SubmitterType, H160, U256,
+        MessageSubmissionData, Metadata, ReorgPeriod, SubmitterType, H160, U256,
     };
     use hyperlane_ethereum::{ConnectionConf, RpcConnectionConf};
     use hyperlane_test::mocks::{MockMailboxContract, MockValidatorAnnounceContract};
@@ -215,7 +216,7 @@ mod tests {
     #[tokio::test]
     async fn test_handle_batch_result_succeeds() {
         let mut mock_mailbox = MockMailboxContract::new();
-        let dummy_domain: HyperlaneDomain = KnownHyperlaneDomain::Alfajores.into();
+        let dummy_domain: HyperlaneDomain = KnownHyperlaneDomain::Sepolia.into();
 
         mock_mailbox.expect_supports_batching().return_const(true);
         mock_mailbox.expect_process_batch().returning(move |_ops| {
@@ -240,7 +241,7 @@ mod tests {
     #[tokio::test]
     async fn test_handle_batch_result_fails() {
         let mut mock_mailbox = MockMailboxContract::new();
-        let dummy_domain: HyperlaneDomain = KnownHyperlaneDomain::Alfajores.into();
+        let dummy_domain: HyperlaneDomain = KnownHyperlaneDomain::Sepolia.into();
 
         mock_mailbox.expect_supports_batching().return_const(true);
         mock_mailbox
@@ -264,7 +265,7 @@ mod tests {
     #[tokio::test]
     async fn test_handle_batch_succeeds_eventually() {
         let mut mock_mailbox = MockMailboxContract::new();
-        let dummy_domain: HyperlaneDomain = KnownHyperlaneDomain::Alfajores.into();
+        let dummy_domain: HyperlaneDomain = KnownHyperlaneDomain::Sepolia.into();
 
         let mut counter = 0;
         mock_mailbox.expect_supports_batching().return_const(true);
@@ -294,7 +295,7 @@ mod tests {
     #[tokio::test]
     async fn test_handle_batch_result_fails_if_not_supported() {
         let mut mock_mailbox = MockMailboxContract::new();
-        let dummy_domain: HyperlaneDomain = KnownHyperlaneDomain::Alfajores.into();
+        let dummy_domain: HyperlaneDomain = KnownHyperlaneDomain::Sepolia.into();
 
         mock_mailbox.expect_supports_batching().return_const(false);
         mock_mailbox.expect_process_batch().returning(move |_ops| {
@@ -352,10 +353,17 @@ mod tests {
                     bypass_batch_simulation: false,
                     ..Default::default()
                 },
+                consider_null_transaction_receipt: false,
+                grpc_urls: None,
+                solidity_grpc_urls: None,
+                energy_multiplier: None,
             }),
             metrics_conf: Default::default(),
             index: Default::default(),
+            confirmations: Default::default(),
+            chain_id: Default::default(),
             ignore_reorg_reports: false,
+            native_token: Default::default(),
         };
 
         // https://explorer.hyperlane.xyz/message/0x29160a18c6e27c2f14ebe021207ac3f90664507b9c5aacffd802b2afcc15788a
@@ -393,7 +401,7 @@ mod tests {
             core_metrics.clone(),
             cache.clone(),
             base_db.clone(),
-            IsmAwareAppContextClassifier::new(default_ism_getter.clone(), vec![]),
+            IsmAwareAppContextClassifier::new(default_ism_getter.clone(), vec![].into()),
             IsmCachePolicyClassifier::new(default_ism_getter, Default::default()),
             None,
             false,
@@ -403,16 +411,16 @@ mod tests {
             origin_db: Arc::new(base_db.clone()),
             cache: cache.clone(),
             metadata_builder: Arc::new(metadata_builder),
-            origin_gas_payment_enforcer: Arc::new(GasPaymentEnforcer::new(
+            origin_gas_payment_enforcer: Arc::new(RwLock::new(GasPaymentEnforcer::new(
                 vec![GasPaymentEnforcementConf {
                     policy: GasPaymentEnforcementPolicy::None,
                     matching_list: MatchingList::default(),
                 }],
                 base_db.clone(),
-            )),
+            ))),
             transaction_gas_limit: Default::default(),
             metrics: dummy_submission_metrics(),
-            application_operation_verifier: Some(Arc::new(DummyApplicationOperationVerifier {})),
+            application_operation_verifier: Arc::new(DummyApplicationOperationVerifier {}),
         });
 
         let attempts = 2;
@@ -421,14 +429,14 @@ mod tests {
         let mut pending_messages = vec![];
         // Message found here https://basescan.org/tx/0x65345812a1f7df6236292d52d50418a090c84e2c901912bede6cadb9810a9882#eventlog
         let metadata =
-        "0x000000100000001000000010000001680000000000000000000000100000015800000000000000000000000019dc38aeae620380430c200a6e990d5af5480117dbd3d5e656de9dcf604fcc90b52a3b97d9f3573b4a0733e824f1358e515698cf00139eaa5452e030aa937f6b14162a44ec3327f6832bbf16e4b0d6df452524af1c1a04e875b4ce7ac0da92aa08838a89f2a126eef23f6b6a08b6cdbe9e9e804b321088b91b034f9466eed2da1dcc36cb220b887b15f3e111a179142c27e4a0b6d6b7a291e22577d6296d82b7c3f29e8989ec1161d853aba0982b2db28b9a9917226c2c27111c41c99e6a84e7717740f901528062385e659b4330e7227593a334be532d27bcf24f3f13bf4fc1a860e96f8d6937984ea83ef61c8ea30d48cc903f6ff725406a4d1ce73f46064b3403ea4c720b770f4389d7259b275f085c6a98cef9a04880a249b42c382ba34a63031debbfb5b9b232ffd9ee45ff63a7249e83c7e9720f9e978a431b".as_bytes().to_vec();
+        Metadata::new("0x000000100000001000000010000001680000000000000000000000100000015800000000000000000000000019dc38aeae620380430c200a6e990d5af5480117dbd3d5e656de9dcf604fcc90b52a3b97d9f3573b4a0733e824f1358e515698cf00139eaa5452e030aa937f6b14162a44ec3327f6832bbf16e4b0d6df452524af1c1a04e875b4ce7ac0da92aa08838a89f2a126eef23f6b6a08b6cdbe9e9e804b321088b91b034f9466eed2da1dcc36cb220b887b15f3e111a179142c27e4a0b6d6b7a291e22577d6296d82b7c3f29e8989ec1161d853aba0982b2db28b9a9917226c2c27111c41c99e6a84e7717740f901528062385e659b4330e7227593a334be532d27bcf24f3f13bf4fc1a860e96f8d6937984ea83ef61c8ea30d48cc903f6ff725406a4d1ce73f46064b3403ea4c720b770f4389d7259b275f085c6a98cef9a04880a249b42c382ba34a63031debbfb5b9b232ffd9ee45ff63a7249e83c7e9720f9e978a431b".as_bytes().to_vec());
 
         for b in 0..batch_size {
             let mut pending_message = PendingMessage::new(
                 message.clone(),
                 message_context.clone(),
                 PendingOperationStatus::FirstPrepareAttempt,
-                Some(format!("test-{}", b)),
+                Some(format!("test-{b}")),
                 attempts,
             );
             pending_message.submission_data = Some(Box::new(MessageSubmissionData {
@@ -439,8 +447,8 @@ mod tests {
         }
 
         let arb_domain = HyperlaneDomain::new_test_domain("arbitrum");
-        let serial_submitter_metrics =
-            SerialSubmitterMetrics::new(core_metrics.clone(), &arb_domain);
+        let message_processor_metrics =
+            MessageProcessorMetrics::new(core_metrics.clone(), &arb_domain);
 
         let operation_batch = OperationBatch::new(
             pending_messages
@@ -450,7 +458,7 @@ mod tests {
             arb_domain,
         );
         operation_batch
-            .try_submit_as_batch(&serial_submitter_metrics)
+            .try_submit_as_batch(&message_processor_metrics)
             .await
             .unwrap();
     }

@@ -8,14 +8,12 @@ use tracing::{debug, info, instrument};
 use {hyperlane_base::cache::FunctionCallCache, tracing::warn};
 
 use hyperlane_core::{
-    AggregationIsm, HyperlaneMessage, InterchainSecurityModule, ModuleType, H256, U256,
+    AggregationIsm, HyperlaneMessage, InterchainSecurityModule, Metadata, ModuleType, H256, U256,
 };
 
 use crate::msg::metadata::{base::MetadataBuildError, message_builder};
 
-use super::{
-    IsmCachePolicy, MessageMetadataBuildParams, MessageMetadataBuilder, Metadata, MetadataBuilder,
-};
+use super::{IsmCachePolicy, MessageMetadataBuildParams, MessageMetadataBuilder, MetadataBuilder};
 
 /// Bytes used to store one member of the (start, end) range tuple
 /// Copied from `AggregationIsmMetadata.sol`
@@ -31,7 +29,7 @@ struct SubModuleMetadata {
     /// The index of the sub-module (ISM) in the aggregation ISM.
     index: usize,
     /// The metadata for the sub-module.
-    metadata: Vec<u8>,
+    metadata: Metadata,
 }
 
 #[derive(Debug)]
@@ -41,7 +39,7 @@ struct IsmAndMetadata {
 }
 
 impl IsmAndMetadata {
-    fn new(ism: Box<dyn InterchainSecurityModule>, index: usize, metadata: Vec<u8>) -> Self {
+    fn new(ism: Box<dyn InterchainSecurityModule>, index: usize, metadata: Metadata) -> Self {
         Self {
             ism,
             meta: SubModuleMetadata::new(index, metadata),
@@ -56,7 +54,9 @@ impl AggregationIsmMetadataBuilder {
         fn encode_byte_index(i: usize) -> [u8; 4] {
             (i as u32).to_be_bytes()
         }
-        let range_tuples_size = METADATA_RANGE_SIZE * 2 * ism_count;
+        let range_tuples_size = METADATA_RANGE_SIZE
+            .saturating_mul(2)
+            .saturating_mul(ism_count);
         //  Format of metadata:
         //  [????:????] Metadata start/end uint32 ranges, packed as uint64
         //  [????:????] ISM metadata, packed encoding
@@ -65,15 +65,16 @@ impl AggregationIsmMetadataBuilder {
         let mut buffer = vec![0; range_tuples_size];
         for SubModuleMetadata { index, metadata } in metadatas.iter_mut() {
             let range_start = buffer.len();
-            buffer.append(metadata);
+            buffer.extend_from_slice(metadata.as_ref());
             let range_end = buffer.len();
 
             // The new tuple starts at the end of the previous ones.
             // Also see: https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/445da4fb0d8140a08c4b314e3051b7a934b0f968/solidity/contracts/libs/isms/AggregationIsmMetadata.sol#L49
-            let encoded_range_start = METADATA_RANGE_SIZE * 2 * (*index);
+            let encoded_range_start = METADATA_RANGE_SIZE.saturating_mul(2).saturating_mul(*index);
             // Overwrite the 0-initialized buffer
             buffer.splice(
-                encoded_range_start..(encoded_range_start + METADATA_RANGE_SIZE * 2),
+                encoded_range_start
+                    ..encoded_range_start.saturating_add(METADATA_RANGE_SIZE.saturating_mul(2)),
                 [encode_byte_index(range_start), encode_byte_index(range_end)].concat(),
             );
         }
@@ -266,7 +267,7 @@ impl AggregationIsmMetadataBuilder {
         )
         .await?;
 
-        let metadata = sub_module_and_meta.metadata.to_vec();
+        let metadata = sub_module_and_meta.metadata;
 
         // return an error if delivering with this metadata fails
         if sub_module_and_meta
@@ -338,8 +339,8 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
 
         // If any inner ISMs are refusing to build metadata, we propagate just the first refusal.
         for sub_module_res in sub_modules_and_metas.iter() {
-            if let Err(MetadataBuildError::Refused(s)) = sub_module_res {
-                return Err(MetadataBuildError::Refused(s.to_string()));
+            if let Err(MetadataBuildError::Refused(reason)) = sub_module_res {
+                return Err(MetadataBuildError::Refused(reason.clone()));
             }
         }
 
@@ -354,7 +355,7 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
                 Ok(sub_module_and_meta) => Either::Left(IsmAndMetadata::new(
                     sub_module_and_meta.ism,
                     index,
-                    sub_module_and_meta.metadata.to_vec(),
+                    sub_module_and_meta.metadata,
                 )),
                 Err(_) => Either::Right((*ism_address, None)),
             });
@@ -378,24 +379,30 @@ mod test {
         let mut metadatas = vec![
             SubModuleMetadata::new(
                 0,
-                Vec::from_hex("290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563")
-                    .unwrap(),
+                Metadata::from_hex(
+                    "290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563",
+                )
+                .unwrap(),
             ),
             SubModuleMetadata::new(
                 1,
-                Vec::from_hex("510e4e770828ddbf7f7b00ab00a9f6adaf81c0dc9cc85f1f8249c256942d61d9")
-                    .unwrap(),
+                Metadata::from_hex(
+                    "510e4e770828ddbf7f7b00ab00a9f6adaf81c0dc9cc85f1f8249c256942d61d9",
+                )
+                .unwrap(),
             ),
             SubModuleMetadata::new(
                 2,
-                Vec::from_hex("356e5a2cc1eba076e650ac7473fccc37952b46bc2e419a200cec0c451dce2336")
-                    .unwrap(),
+                Metadata::from_hex(
+                    "356e5a2cc1eba076e650ac7473fccc37952b46bc2e419a200cec0c451dce2336",
+                )
+                .unwrap(),
             ),
         ];
-        let expected = Vec::from_hex("000000180000003800000038000000580000005800000078290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563510e4e770828ddbf7f7b00ab00a9f6adaf81c0dc9cc85f1f8249c256942d61d9356e5a2cc1eba076e650ac7473fccc37952b46bc2e419a200cec0c451dce2336").unwrap();
+        let expected = Metadata::from_hex("000000180000003800000038000000580000005800000078290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563510e4e770828ddbf7f7b00ab00a9f6adaf81c0dc9cc85f1f8249c256942d61d9356e5a2cc1eba076e650ac7473fccc37952b46bc2e419a200cec0c451dce2336").unwrap();
         assert_eq!(
             AggregationIsmMetadataBuilder::format_metadata(&mut metadatas, 3),
-            expected
+            *expected
         );
     }
 
@@ -405,23 +412,31 @@ mod test {
         let mut metadatas = vec![
             SubModuleMetadata::new(
                 0,
-                Vec::from_hex("290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563")
-                    .unwrap(),
+                Metadata::from_hex(
+                    "290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563",
+                )
+                .unwrap(),
             ),
             SubModuleMetadata::new(
                 1,
-                Vec::from_hex("510e4e770828ddbf7f7b00ab00a9f6adaf81c0dc9cc85f1f8249c256942d61d9")
-                    .unwrap(),
+                Metadata::from_hex(
+                    "510e4e770828ddbf7f7b00ab00a9f6adaf81c0dc9cc85f1f8249c256942d61d9",
+                )
+                .unwrap(),
             ),
             SubModuleMetadata::new(
                 2,
-                Vec::from_hex("356e5a2cc1eba076e650ac7473fccc37952b46bc2e419a200cec0c451dce2336")
-                    .unwrap(),
+                Metadata::from_hex(
+                    "356e5a2cc1eba076e650ac7473fccc37952b46bc2e419a200cec0c451dce2336",
+                )
+                .unwrap(),
             ),
             SubModuleMetadata::new(
                 4,
-                Vec::from_hex("f2e59013a0a379837166b59f871b20a8a0d101d1c355ea85d35329360e69c000")
-                    .unwrap(),
+                Metadata::from_hex(
+                    "f2e59013a0a379837166b59f871b20a8a0d101d1c355ea85d35329360e69c000",
+                )
+                .unwrap(),
             ),
         ];
         let expected = Vec::from_hex("000000280000004800000048000000680000006800000088000000000000000000000088000000a8290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563510e4e770828ddbf7f7b00ab00a9f6adaf81c0dc9cc85f1f8249c256942d61d9356e5a2cc1eba076e650ac7473fccc37952b46bc2e419a200cec0c451dce2336f2e59013a0a379837166b59f871b20a8a0d101d1c355ea85d35329360e69c000").unwrap();
@@ -433,7 +448,7 @@ mod test {
 
     #[test]
     fn test_format_empty_metadata_works_correctly() {
-        let mut metadatas = vec![SubModuleMetadata::new(0, Vec::from_hex("").unwrap())];
+        let mut metadatas = vec![SubModuleMetadata::new(0, Metadata::from_hex("").unwrap())];
         let expected = Vec::from_hex("0000000800000008").unwrap();
         assert_eq!(
             AggregationIsmMetadataBuilder::format_metadata(&mut metadatas, 1),
@@ -445,23 +460,23 @@ mod test {
     fn test_n_cheapest_metas_works() {
         let metas_and_gas = vec![
             (
-                SubModuleMetadata::new(3, vec![]),
+                SubModuleMetadata::new(3, Metadata::new(vec![])),
                 U256::from_dec_str("3").unwrap(),
             ),
             (
-                SubModuleMetadata::new(2, vec![]),
+                SubModuleMetadata::new(2, Metadata::new(vec![])),
                 U256::from_dec_str("2").unwrap(),
             ),
             (
-                SubModuleMetadata::new(1, vec![]),
+                SubModuleMetadata::new(1, Metadata::new(vec![])),
                 U256::from_dec_str("1").unwrap(),
             ),
         ];
         assert_eq!(
             AggregationIsmMetadataBuilder::n_cheapest_metas(metas_and_gas, 2),
             vec![
-                SubModuleMetadata::new(1, vec![]),
-                SubModuleMetadata::new(2, vec![])
+                SubModuleMetadata::new(1, Metadata::new(vec![])),
+                SubModuleMetadata::new(2, Metadata::new(vec![]))
             ]
         )
     }

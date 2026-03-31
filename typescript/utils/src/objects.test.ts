@@ -12,6 +12,7 @@ import {
   isObject,
   keepOnlyDiffObjects,
   mustGet,
+  objDiff,
   objFilter,
   objKeys,
   objLength,
@@ -134,6 +135,140 @@ describe('Object utilities', () => {
     const obj = { a: 1, b: 2, c: 3 };
     const result = objFilter(obj, (k: string, v: number): v is number => v > 1);
     expect(result).to.eql({ b: 2, c: 3 });
+  });
+
+  describe(objDiff.name, () => {
+    const testCases: Array<{
+      description: string;
+      obj1: Record<string | number, any>;
+      obj2: Record<string | number, any>;
+      expected: Record<string | number, any>;
+      areEquals?: (a: any, b: any) => boolean;
+    }> = [
+      {
+        description: 'should return empty object when objects are identical',
+        obj1: { a: 1, b: 2, c: 3 },
+        obj2: { a: 1, b: 2, c: 3 },
+        expected: {},
+      },
+      {
+        description:
+          'should return keys that exist in first object but not in second',
+        obj1: { a: 1, b: 2, c: 3 },
+        obj2: { a: 1, b: 2 },
+        expected: { c: 3 },
+      },
+      {
+        description: 'should return keys with different values',
+        obj1: { a: 1, b: 2, c: 3 },
+        obj2: { a: 1, b: 5, c: 3 },
+        expected: { b: 2 },
+      },
+      {
+        description:
+          'should return combination of missing keys and different values',
+        obj1: { a: 1, b: 2, c: 3, d: 4 },
+        obj2: { a: 1, b: 5, c: 3 },
+        expected: { b: 2, d: 4 },
+      },
+      {
+        description: 'should work with string keys and values',
+        obj1: { name: 'Alice', city: 'Paris', age: '25' },
+        obj2: { name: 'Alice', city: 'London', age: '25' },
+        expected: { city: 'Paris' },
+      },
+      {
+        description: 'should work with number keys',
+        obj1: { 1: 'one', 2: 'two', 3: 'three' },
+        obj2: { 1: 'one', 2: 'TWO', 3: 'three' },
+        expected: { 2: 'two' },
+      },
+      {
+        description: 'should work with boolean values',
+        obj1: { a: true, b: false, c: true },
+        obj2: { a: true, b: true, c: true },
+        expected: { b: false },
+      },
+      {
+        description: 'should work with undefined values',
+        obj1: { a: undefined, b: 'value', c: undefined },
+        obj2: { a: undefined, b: 'different', c: undefined },
+        expected: { b: 'value' },
+      },
+      {
+        description: 'should work with mixed primitive types',
+        obj1: { a: 1, b: 'hello', c: true, d: undefined },
+        obj2: { a: 2, b: 'hello', c: false, d: undefined },
+        expected: { a: 1, c: true },
+      },
+      {
+        description: 'should handle empty objects',
+        obj1: {},
+        obj2: {},
+        expected: {},
+      },
+      {
+        description: 'should handle first object empty, second has values',
+        obj1: {},
+        obj2: { a: 1, b: 2 },
+        expected: {},
+      },
+      {
+        description: 'should handle first object has values, second empty',
+        obj1: { a: 1, b: 2 },
+        obj2: {},
+        expected: { a: 1, b: 2 },
+      },
+      {
+        description: 'should work with bigint values',
+        obj1: { a: 1n, b: 2n, c: 3n },
+        obj2: { a: 1n, b: 5n, c: 3n },
+        expected: { b: 2n },
+      },
+      {
+        description: 'should handle edge case with falsy values',
+        obj1: { a: 0, b: '', c: false, d: null },
+        obj2: { a: 1, b: 'test', c: true, d: undefined },
+        expected: { a: 0, b: '', c: false, d: null },
+      },
+      {
+        description:
+          'should work with custom equality function - case insensitive',
+        obj1: { a: 'Hello', b: 'WORLD', c: 'Test' },
+        obj2: { a: 'hello', b: 'world', c: 'different' },
+        expected: { c: 'Test' },
+        areEquals: (a: string, b: string) =>
+          a.toLowerCase() === b.toLowerCase(),
+      },
+      {
+        description:
+          'should work with custom equality function - tolerance based numbers',
+        obj1: { a: 1.1, b: 2.2, c: 3.3 },
+        obj2: { a: 1.15, b: 2.25, c: 4.0 },
+        expected: { c: 3.3 },
+        areEquals: (a: number, b: number) => Math.abs(a - b) < 0.1,
+      },
+      {
+        description: 'should work with complex custom equality function',
+        obj1: { user1: 'active', user2: 'inactive', user3: 'pending' },
+        obj2: { user1: 'ACTIVE', user2: 'disabled', user3: 'PENDING' },
+        expected: {},
+        areEquals: (a: string, b: string) => {
+          const normalize = (status: string) => {
+            const lower = status.toLowerCase();
+            return lower === 'disabled' ? 'inactive' : lower;
+          };
+          return normalize(a) === normalize(b);
+        },
+      },
+    ];
+
+    for (const { description, obj1, obj2, expected, areEquals } of testCases) {
+      it(description, () => {
+        const result = objDiff(obj1, obj2, areEquals);
+        expect(result).to.eql(expected);
+      });
+    }
   });
 
   it('deepFind should find nested object', () => {

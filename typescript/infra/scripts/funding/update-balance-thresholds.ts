@@ -4,8 +4,8 @@ import yargs from 'yargs';
 import { ChainMap } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
-import rawDailyBurn from '../../config/environments/mainnet3/balances/dailyRelayerBurn.json';
-import rawDesiredRelayerBalanceOverrides from '../../config/environments/mainnet3/balances/desiredRelayerBalanceOverrides.json';
+import rawDailyBurn from '../../config/environments/mainnet3/balances/dailyRelayerBurn.json' with { type: 'json' };
+import rawDesiredRelayerBalanceOverrides from '../../config/environments/mainnet3/balances/desiredRelayerBalanceOverrides.json' with { type: 'json' };
 import {
   BalanceThresholdType,
   RELAYER_BALANCE_TARGET_DAYS,
@@ -21,7 +21,7 @@ import {
   sortThresholdTypes,
   sortThresholds,
 } from '../../src/funding/balances.js';
-import { writeJsonAtPath } from '../../src/utils/utils.js';
+import { writeAndFormatJsonAtPath } from '../../src/utils/utils.js';
 import { withSkipReview } from '../agent-utils.js';
 
 enum UserReview {
@@ -354,7 +354,7 @@ function writeConfigsToFile(newConfigs: ThresholdsData) {
       rootLogger.info(
         `Writing updated thresholds for ${thresholdType} => ${fileName}`,
       );
-      writeJsonAtPath(configPath, newConfigs[thresholdType]);
+      writeAndFormatJsonAtPath(configPath, newConfigs[thresholdType]);
     } catch (error) {
       rootLogger.error(`Failed to write config for ${thresholdType}:`, error);
     }

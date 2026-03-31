@@ -6,22 +6,19 @@ use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, MultisigIsm, H256,
 };
-use starknet::accounts::SingleOwnerAccount;
 use starknet::core::types::Felt;
-use starknet::providers::AnyProvider;
-use starknet::signers::LocalWallet;
 use tracing::instrument;
 
-use crate::contracts::multisig_ism::MultisigIsm as StarknetMultisigIsmInternal;
+use crate::contracts::multisig_ism::MultisigIsmReader;
 use crate::error::HyperlaneStarknetError;
 use crate::types::HyH256;
-use crate::{build_single_owner_account, ConnectionConf, Signer, StarknetProvider};
+use crate::{ConnectionConf, JsonProvider, StarknetProvider};
 
 /// A reference to a MultisigISM contract on some Starknet chain
 #[derive(Debug)]
 #[allow(unused)]
 pub struct StarknetMultisigIsm {
-    contract: StarknetMultisigIsmInternal<SingleOwnerAccount<AnyProvider, LocalWallet>>,
+    contract: MultisigIsmReader<JsonProvider>,
     provider: StarknetProvider,
     conn: ConnectionConf,
 }
@@ -29,29 +26,20 @@ pub struct StarknetMultisigIsm {
 impl StarknetMultisigIsm {
     /// Create a reference to a MultisigISM at a specific Starknet address on some
     /// chain
-    pub async fn new(
+    pub fn new(
+        provider: StarknetProvider,
         conn: &ConnectionConf,
         locator: &ContractLocator<'_>,
-        signer: Option<Signer>,
     ) -> ChainResult<Self> {
-        let account = build_single_owner_account(&conn.url, signer).await?;
-
+        let json_provider = provider.rpc_client().clone();
         let ism_address: Felt = HyH256(locator.address).into();
-
-        let contract = StarknetMultisigIsmInternal::new(ism_address, account);
+        let contract = MultisigIsmReader::new(ism_address, json_provider);
 
         Ok(Self {
             contract,
-            provider: StarknetProvider::new(locator.domain.clone(), conn),
+            provider,
             conn: conn.clone(),
         })
-    }
-
-    #[allow(unused)]
-    pub fn contract(
-        &self,
-    ) -> &StarknetMultisigIsmInternal<SingleOwnerAccount<AnyProvider, LocalWallet>> {
-        &self.contract
     }
 }
 

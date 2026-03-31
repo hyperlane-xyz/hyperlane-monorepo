@@ -17,7 +17,7 @@ contract LpCollateralRouterTest is Test {
 
     function setUp() public {
         MockMailbox mailbox = new MockMailbox(1);
-        router = new TestLpCollateralRouter(1, address(mailbox));
+        router = new TestLpCollateralRouter(1, 1, address(mailbox));
         vm.label(alice, "Alice");
         vm.label(bob, "Bob");
     }

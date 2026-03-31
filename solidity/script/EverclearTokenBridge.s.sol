@@ -17,12 +17,15 @@ contract EverclearTokenBridgeScript is Script {
 
         // Deploy the bridge. This is an ARB eth bridge.
         EverclearTokenBridge bridge = new EverclearTokenBridge(
-            IERC20(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1), // WETH
+            0x82aF49447D8a07e3bd95BD0d56f35241523fBab1, // WETH
+            1,
+            1,
+            address(0x979Ca5202784112f4738403dBec5D0F3B9daabB9), // Mailbox
             IEverclearAdapter(0x15a7cA97D1ed168fB34a4055CEFa2E2f9Bdb6C75) // Everclear adapter
         );
 
         // Initialize the bridge
-        bridge.initialize(deployer);
+        bridge.initialize(address(0), deployer);
 
         // Set the output asset for the bridge.
         // This is optimism weth
@@ -36,6 +39,7 @@ contract EverclearTokenBridgeScript is Script {
 
         // Set the fee params for the bridge.
         bridge.setFeeParams(
+            10, // destination domain
             1000000000000,
             1751851366,
             hex"4edddfdeabc459e3e9df4bc6807698e26443a663b3905c9b5d0f1054b4831b4616e89ff702f57e13d650331f11986ebe925ce497621b7f488c4672189b49b8e11c"
@@ -48,7 +52,7 @@ contract EverclearTokenBridgeScript is Script {
         EverclearTokenBridge bridge = _getBridge();
 
         // Convert some eth to weth
-        (uint256 fee, , ) = bridge.feeParams();
+        (uint256 fee, , ) = bridge.feeParams(10); // destination domain 10 (Optimism)
         uint256 amount = 0.0001 ether;
         uint256 totalAmount = amount + fee + 1;
         IWETH weth = IWETH(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);

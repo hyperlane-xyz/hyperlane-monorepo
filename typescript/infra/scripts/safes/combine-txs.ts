@@ -6,8 +6,9 @@ import * as path from 'path';
 import yargs from 'yargs';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
+import { readJson } from '@hyperlane-xyz/utils/fs';
 
-import { readJSONAtPath, writeJsonAtPath } from '../../src/utils/utils.js';
+import { writeAndFormatJsonAtPath } from '../../src/utils/utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
 type TxFile = {
@@ -25,7 +26,22 @@ function readJSONFiles(directory: string): Record<string, TxFile[]> {
   for (const file of files) {
     if (path.extname(file) === '.json') {
       const filePath = path.join(directory, file);
-      const txs: TxFile = readJSONAtPath(filePath);
+
+      let txs: TxFile;
+
+      // If the filename contains 'timelock', expect an array and only parse the first object
+      if (file.includes('timelock')) {
+        const arr = readJson<TxFile[]>(filePath);
+        if (!Array.isArray(arr) || arr.length === 0) {
+          throw new Error(
+            `Expected an array of objects in ${filePath} for TimelockController, but got: ${JSON.stringify(arr)}`,
+          );
+        }
+        txs = arr[0];
+      } else {
+        txs = readJson<TxFile>(filePath);
+      }
+
       const chainId = txs.chainId;
       if (!transactionsByChainId[chainId]) {
         transactionsByChainId[chainId] = [];
@@ -62,7 +78,7 @@ async function writeCombinedTransactions(
     // NOTE: hacky use of chainid instead of domainid or chain name here
     const chainName = multiProvider.getChainName(chainId);
     const outputFilePath = path.join(outputDir, `${chainId}-${chainName}.json`);
-    writeJsonAtPath(outputFilePath, outputData);
+    writeAndFormatJsonAtPath(outputFilePath, outputData);
     rootLogger.info(`Combined transactions written to ${outputFilePath}`);
   }
 }

@@ -1,7 +1,7 @@
 import {
   ChainMap,
   ChainName,
-  ProtocolAgnositicGasOracleConfig,
+  ProtocolAgnositicGasOracleConfigWithTypicalCost,
 } from '@hyperlane-xyz/sdk';
 import {
   ProtocolType,
@@ -13,20 +13,21 @@ import {
 import { WarpRouteIds } from '../../config/environments/mainnet3/warp/warpIds.js';
 import { getChain, getWarpAddresses } from '../../config/registry.js';
 import { DeployEnvironment } from '../../src/config/environment.js';
-import { writeJsonAtPath } from '../../src/utils/utils.js';
-import { getArgs, withOutputFile } from '../agent-utils.js';
+import { svmGasOracleConfigPath } from '../../src/utils/sealevel.js';
+import { writeAndFormatJsonAtPath } from '../../src/utils/utils.js';
+import { getArgs, withWrite } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
 // This script exists to print the gas oracle configs for a given environment
 // so they can easily be copied into the Sealevel tooling. :'(
 
 interface GasOracleConfigWithOverhead {
-  oracleConfig: ProtocolAgnositicGasOracleConfig;
+  oracleConfig: ProtocolAgnositicGasOracleConfigWithTypicalCost;
   overhead?: number;
 }
 
 async function main() {
-  const { environment, outFile } = await withOutputFile(getArgs()).argv;
+  const { environment, write } = await withWrite(getArgs()).argv;
 
   const environmentConfig = getEnvironmentConfig(environment);
 
@@ -52,11 +53,21 @@ async function main() {
 
     return connectedChains.reduce((agg, destination) => {
       const oracleConfig = igpConfig.oracleConfig[destination];
+      // Skip destinations without oracle configs
+      if (!oracleConfig) {
+        console.debug(
+          `No oracle config for ${origin} -> ${destination}, skipping`,
+        );
+        return agg;
+      }
       if (oracleConfig.tokenDecimals === undefined) {
         throw new Error(
           `Token decimals not defined for ${origin} -> ${destination}`,
         );
       }
+      // Strip out the typical cost that may or may not be defined
+      delete oracleConfig.typicalCost;
+
       agg[destination] = {
         oracleConfig,
         overhead: igpConfig?.overhead?.[destination],
@@ -72,11 +83,12 @@ async function main() {
       value !== undefined,
   );
 
-  console.log(stringifyObject(gasOracles, 'json', 2));
-
-  if (outFile) {
-    console.log(`Writing config to ${outFile}`);
-    writeJsonAtPath(outFile, gasOracles);
+  if (write) {
+    const filepath = svmGasOracleConfigPath(environment);
+    console.log(`Writing config to ${filepath}`);
+    await writeAndFormatJsonAtPath(filepath, gasOracles);
+  } else {
+    console.log(stringifyObject(gasOracles, 'json', 2));
   }
 }
 
@@ -98,31 +110,40 @@ function getChainConnections(
   if (environment === 'mainnet3') {
     // All the mainnet3 warp route chains
     connectedChains = [
-      // For the Rivalz team building out their own warp route
-      ['solanamainnet', 'rivalz'],
       ['solanamainnet', 'everclear'],
-      ['solanamainnet', 'infinityvmmainnet'],
       ['solanamainnet', 'sophon'],
       ['solanamainnet', 'abstract'],
       ['solanamainnet', 'apechain'],
       ['solanamainnet', 'subtensor'],
+      ['solanamainnet', 'pulsechain'],
+      ['solanamainnet', 'electroneum'],
+      ['solanamainnet', 'galactica'],
+      ['solanamainnet', 'radix'],
+      ['solanamainnet', 'carrchain'],
+      ['solanamainnet', 'incentiv'],
+      ['solanamainnet', 'litchain'],
+      ['solanamainnet', 'aleo'],
+      ['solanamainnet', 'eni'],
+      ['solanamainnet', 'citrea'],
       // For Starknet / Paradex
       ['solanamainnet', 'starknet'],
       ['solanamainnet', 'paradex'],
-      // for svmBNB routes solana<>bsc<>svmbnb<>soon
       ['solanamainnet', 'bsc'],
-      ['svmbnb', 'solanamainnet'],
-      ['svmbnb', 'bsc'],
-      ['svmbnb', 'soon'],
       ['soon', 'solanamainnet'],
       ['soon', 'bsc'],
       // for eclipse routes
       ['eclipsemainnet', 'sonicsvm'],
       ['eclipsemainnet', 'soon'],
       ['eclipsemainnet', 'katana'],
+      ['eclipsemainnet', 'unichain'],
+      ['eclipsemainnet', 'optimism'],
+      ['eclipsemainnet', 'polygon'],
       // for solaxy routes
       ['solaxy', 'solanamainnet'],
       ['solaxy', 'ethereum'],
+      // for celestia svm routes
+      ['celestia', 'solanamainnet'],
+      ['celestia', 'eclipsemainnet'],
       // All warp routes
       ...Object.values(WarpRouteIds).map(getWarpChains),
     ];
@@ -132,7 +153,6 @@ function getChainConnections(
       // For SOL/solanatestnet-sonicsvmtestnet
       ['solanatestnet', 'sonicsvmtestnet'],
       ['solanatestnet', 'connextsepolia'],
-      ['solanatestnet', 'infinityvmmonza'],
       ['solanatestnet', 'basesepolia'],
     ];
   } else {

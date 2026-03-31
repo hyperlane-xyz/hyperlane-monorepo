@@ -3,4 +3,6 @@ export enum TxSubmitterType {
   IMPERSONATED_ACCOUNT = 'impersonatedAccount',
   GNOSIS_SAFE = 'gnosisSafe',
   GNOSIS_TX_BUILDER = 'gnosisSafeTxBuilder',
+  INTERCHAIN_ACCOUNT = 'interchainAccount',
+  TIMELOCK_CONTROLLER = 'timelockController',
 }

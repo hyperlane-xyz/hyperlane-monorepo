@@ -10,11 +10,12 @@ import {
   serializeContractsMap,
 } from '@hyperlane-xyz/sdk';
 import {
-  ProtocolType,
+  isEVMLike,
   objFilter,
   objMerge,
   runWithTimeout,
 } from '@hyperlane-xyz/utils';
+import { readJson } from '@hyperlane-xyz/utils/fs';
 
 import {
   Modules,
@@ -22,7 +23,7 @@ import {
   writeAddresses,
 } from '../../scripts/agent-utils.js';
 import { DeployEnvironment } from '../config/environment.js';
-import { readJSONAtPath, writeJsonAtPath } from '../utils/utils.js';
+import { writeAndFormatJsonAtPath } from '../utils/utils.js';
 
 enum DeployStatus {
   EMPTY = '🫥',
@@ -80,9 +81,14 @@ export async function deployWithArtifacts<Config extends object>({
       : configMap;
 
   // Run post-deploy steps
+  let exitInProgress = false;
   const handleExit = async () => {
+    if (exitInProgress) return;
+    exitInProgress = true;
     console.info(chalk.gray.italic('Running post-deploy steps'));
-    await runWithTimeout(5000, () => postDeploy(deployer, cache))
+    await runWithTimeout(5000, () =>
+      postDeploy(deployer, cache, targetNetworks),
+    )
       .then(() => console.info('Post-deploy completed'))
       .catch((error) => {
         console.error(
@@ -128,9 +134,6 @@ export async function deployWithArtifacts<Config extends object>({
 
   // Handle Ctrl+C
   process.on('SIGINT', handleExit);
-  // One final post-deploy before exit to ensure
-  // deployments exceeding the timeout are still written
-  process.on('beforeExit', handleExit);
 
   // Standard deploy modules are the ones that can be deployed with the
   // abstract HyperlaneDeployer's deploy function because they don't require any special logic
@@ -153,11 +156,20 @@ export async function deployWithArtifacts<Config extends object>({
       } else {
         console.error(chalk.red('Contract deployment failed'), error);
       }
+      // Mark all target chains as failed so handleExit writes artifacts
+      // and exits non-zero
+      for (const chain of Object.keys(targetConfigMap)) {
+        deployStatus[chain] = DeployStatus.FAILURE;
+      }
     }
   }
+
+  // Explicitly run post-deploy and exit. Cannot rely on 'beforeExit' because
+  // active provider connections keep the event loop alive indefinitely.
+  await handleExit();
 }
 
-async function baseDeploy<
+export async function baseDeploy<
   Config extends object,
   Factories extends HyperlaneFactories,
 >(
@@ -167,9 +179,8 @@ async function baseDeploy<
   concurrentDeploy: boolean,
 ): Promise<HyperlaneContractsMap<Factories>> {
   const configChains = Object.keys(configMap);
-  const ethereumConfigChains = configChains.filter(
-    (chain) =>
-      multiProvider.getChainMetadata(chain).protocol === ProtocolType.Ethereum,
+  const ethereumConfigChains = configChains.filter((chain) =>
+    isEVMLike(multiProvider.getChainMetadata(chain).protocol),
   );
 
   const targetChains = multiProvider.intersect(
@@ -215,6 +226,9 @@ async function baseDeploy<
         console.error(
           chalk.red.bold(`Deployment failed on ${chain}. ${error}`),
         );
+        if (error?.stack) {
+          console.error(chalk.gray(error.stack));
+        }
       });
   };
 
@@ -232,6 +246,7 @@ async function baseDeploy<
 async function postDeploy<Config extends object>(
   deployer: HyperlaneDeployer<Config, any>,
   cache: DeployCache,
+  targetNetworks: ChainName[],
 ) {
   if (cache.write) {
     const deployedAddresses = serializeContractsMap(deployer.deployedContracts);
@@ -239,11 +254,11 @@ async function postDeploy<Config extends object>(
     const addresses = objMerge(deployedAddresses, cachedAddresses);
 
     // cache addresses of deployed contracts
-    writeAddresses(cache.environment, cache.module, addresses);
+    writeAddresses(cache.environment, cache.module, addresses, targetNetworks);
 
     let savedVerification = {};
     try {
-      savedVerification = readJSONAtPath(cache.verification);
+      savedVerification = readJson(cache.verification);
     } catch (e) {
       console.error(
         chalk.red('Failed to load cached verification inputs. Error: ', e),
@@ -268,6 +283,9 @@ async function postDeploy<Config extends object>(
     );
 
     // write back deduplicated verification inputs
-    writeJsonAtPath(cache.verification, deduplicatedVerificationInputs);
+    writeAndFormatJsonAtPath(
+      cache.verification,
+      deduplicatedVerificationInputs,
+    );
   }
 }

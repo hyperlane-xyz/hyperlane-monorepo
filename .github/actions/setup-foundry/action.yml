@@ -1,0 +1,39 @@
+name: 'Setup Foundry'
+description: 'Install Foundry and Soldeer dependencies'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Read Foundry version
+      id: foundry-version
+      shell: bash
+      run: echo "version=$(cat solidity/.foundryrc)" >> $GITHUB_OUTPUT
+
+    - name: Cache Foundry
+      id: foundry-cache
+      uses: actions/cache@v5
+      with:
+        path: ~/.foundry
+        key: foundry-${{ runner.os }}-${{ steps.foundry-version.outputs.version }}
+
+    - name: Install Foundry
+      if: steps.foundry-cache.outputs.cache-hit != 'true'
+      uses: foundry-rs/foundry-toolchain@v1
+      with:
+        version: ${{ steps.foundry-version.outputs.version }}
+
+    - name: Add Foundry to PATH (from cache)
+      if: steps.foundry-cache.outputs.cache-hit == 'true'
+      shell: bash
+      run: echo "$HOME/.foundry/bin" >> $GITHUB_PATH
+
+    - name: Cache Soldeer dependencies
+      uses: actions/cache@v5
+      with:
+        path: solidity/dependencies
+        key: soldeer-${{ hashFiles('solidity/soldeer.lock') }}
+
+    - name: Install Soldeer dependencies
+      shell: bash
+      run: forge soldeer install
+      working-directory: ./solidity

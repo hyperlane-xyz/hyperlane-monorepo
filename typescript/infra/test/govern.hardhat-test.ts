@@ -37,8 +37,10 @@ import {
   HyperlaneAppGovernor,
 } from '../src/govern/HyperlaneAppGovernor.js';
 
+// eslint-disable-next-line jest/no-export -- test fixture class
 export class TestApp extends HyperlaneApp<{}> {}
 
+// eslint-disable-next-line jest/no-export -- test fixture class
 export class TestChecker extends HyperlaneAppChecker<TestApp, OwnableConfig> {
   async checkChain(_: string): Promise<void> {
     this.addViolation({
@@ -50,6 +52,7 @@ export class TestChecker extends HyperlaneAppChecker<TestApp, OwnableConfig> {
   }
 }
 
+// eslint-disable-next-line jest/no-export -- test fixture class
 export class HyperlaneTestGovernor extends HyperlaneAppGovernor<
   TestApp,
   OwnableConfig
@@ -96,7 +99,7 @@ describe('ICA governance', async () => {
   let multiProvider: MultiProvider;
   let accountConfig: AccountConfig;
   let coreApp: TestCoreApp;
-  // let local: InterchainAccountRouter;
+  let local: InterchainAccountRouter;
   let remote: InterchainAccountRouter;
   let routerConfig: ChainMap<IcaRouterConfig>;
   let contracts: HyperlaneContractsMap<InterchainAccountFactories>;
@@ -133,14 +136,15 @@ describe('ICA governance', async () => {
     contracts = await new InterchainAccountDeployer(multiProvider).deploy(
       routerConfig,
     );
-    // local = contracts[localChain].interchainAccountRouter;
+    local = contracts[localChain].interchainAccountRouter;
     remote = contracts[remoteChain].interchainAccountRouter;
     icaApp = new InterchainAccount(contracts, multiProvider);
 
     accountConfig = {
       origin: TestChainName.test1,
       owner: signer.address,
-      localRouter: remote.address,
+      localRouter: local.address,
+      routerOverride: remote.address,
     };
 
     accountOwner = await icaApp.deployAccount(remoteChain, accountConfig);

@@ -4,11 +4,16 @@
 use std::{collections::HashMap, ops::Deref};
 
 use chrono::{DateTime, Utc};
+use uuid::Uuid;
 
 use hyperlane_core::{identifiers::UniqueIdentifier, H256, H512};
 
+#[cfg(feature = "aleo")]
+use crate::adapter::chains::AleoTxPrecursor;
 use crate::{
-    adapter::{EthereumTxPrecursor, SealevelTxPrecursor},
+    adapter::chains::{
+        tron::TronTxPrecursor, EthereumTxPrecursor, RadixTxPrecursor, SealevelTxPrecursor,
+    },
     payload::PayloadDetails,
     LanderError,
 };
@@ -36,6 +41,51 @@ pub struct Transaction {
     pub creation_timestamp: DateTime<Utc>,
     /// the date and time the transaction was last submitted
     pub last_submission_attempt: Option<DateTime<Utc>>,
+    /// the date and time the transaction status was last checked
+    pub last_status_check: Option<DateTime<Utc>>,
+}
+
+impl Transaction {
+    /// Type-safe generic builder for creating a transaction with chain-specific precursor data.
+    /// This centralizes the common transaction construction logic across all chain adapters
+    /// while ensuring compile-time type safety - you cannot accidentally create a Transaction
+    /// with the wrong VmSpecificTxData variant for a given chain.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `P` - Any precursor type that implements `Into<VmSpecificTxData>` (AleoTxPrecursor,
+    ///   EthereumTxPrecursor, SealevelTxPrecursor, or RadixTxPrecursor)
+    ///
+    /// # Arguments
+    ///
+    /// * `precursor` - Chain-specific transaction precursor data
+    /// * `payload_details` - One or more payload details (single payload = vec with 1 item, batching = multiple items)
+    ///
+    /// # Returns
+    ///
+    /// A new Transaction with:
+    /// - Fresh UUID
+    /// - Empty tx_hashes
+    /// - PendingInclusion status
+    /// - 0 submission attempts
+    /// - Current timestamp
+    /// - No submission or status check timestamps
+    pub fn new<P: Into<VmSpecificTxData>>(
+        precursor: P,
+        payload_details: Vec<PayloadDetails>,
+    ) -> Self {
+        Self {
+            uuid: TransactionUuid::new(Uuid::new_v4()),
+            tx_hashes: vec![],
+            vm_specific_data: precursor.into(),
+            payload_details,
+            status: TransactionStatus::PendingInclusion,
+            submission_attempts: 0,
+            creation_timestamp: Utc::now(),
+            last_submission_attempt: None,
+            last_status_check: None,
+        }
+    }
 }
 
 #[derive(Default, Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq, Hash)]
@@ -47,7 +97,9 @@ pub enum TransactionStatus {
     Mempool,
     /// in an unfinalized block
     Included,
-    /// in a block older than the configured `reorgPeriod`
+    /// in a block older than the configured `reorgPeriod`.
+    /// If a transaction fails on-chain, it is still considered finalized because it
+    /// consumed a nonce on EVM.
     Finalized,
     /// the tx was drop either by the submitter or by the chain
     Dropped(DropReason),
@@ -61,7 +113,8 @@ impl TransactionStatus {
 
         // count the occurrences of each successfully queried hash status
         for status in statuses.iter().flatten() {
-            *status_counts.entry(status.clone()).or_insert(0) += 1;
+            let entry = status_counts.entry(status.clone()).or_insert(0);
+            *entry = entry.saturating_add(1);
         }
 
         let finalized_count = status_counts
@@ -78,10 +131,10 @@ impl TransactionStatus {
             return TransactionStatus::Finalized;
         } else if *included_count > 0 {
             return TransactionStatus::Included;
-        } else if *pending_count > 0 {
-            return TransactionStatus::PendingInclusion;
         } else if *mempool_count > 0 {
             return TransactionStatus::Mempool;
+        } else if *pending_count > 0 {
+            return TransactionStatus::PendingInclusion;
         } else if !status_counts.is_empty() {
             // if the hashmap is not empty, it must mean that the hashes were dropped,
             // because the hashmap is populated only if the status query was successful
@@ -99,14 +152,29 @@ pub enum DropReason {
     DroppedByChain,
     /// dropped by the submitter
     FailedSimulation,
+    /// dropped because of some other reason we are not aware of
+    Other(String),
 }
 
+impl DropReason {
+    pub fn to_metrics_label(&self) -> String {
+        match self {
+            Self::DroppedByChain => "DroppedByChain".to_string(),
+            Self::FailedSimulation => "FailedSimulation".to_string(),
+            Self::Other(_) => "Other".to_string(),
+        }
+    }
+}
 // add nested enum entries as we add VMs
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub enum VmSpecificTxData {
-    Evm(EthereumTxPrecursor),
-    Svm(SealevelTxPrecursor),
+    #[cfg(feature = "aleo")]
+    Aleo(Box<AleoTxPrecursor>),
     CosmWasm,
+    Evm(Box<EthereumTxPrecursor>),
+    Radix(Box<RadixTxPrecursor>),
+    Svm(Box<SealevelTxPrecursor>),
+    Tron(Box<TronTxPrecursor>),
 }
 
 #[cfg(test)]
@@ -185,7 +253,6 @@ mod tests {
 
         let statuses = vec![
             Ok(TransactionStatus::Dropped(DropReason::DroppedByChain)),
-            Ok(TransactionStatus::Mempool),
             Ok(TransactionStatus::PendingInclusion),
             Err(LanderError::NetworkError("Network error".to_string())),
         ];
@@ -202,6 +269,7 @@ mod tests {
         let statuses = vec![
             Err(LanderError::NetworkError("Network error".to_string())),
             Ok(TransactionStatus::Mempool),
+            Ok(TransactionStatus::PendingInclusion),
             Ok(TransactionStatus::Dropped(DropReason::DroppedByChain)),
         ];
 

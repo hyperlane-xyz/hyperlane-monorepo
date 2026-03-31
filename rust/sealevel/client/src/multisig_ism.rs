@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::{fs::File, path::Path};
 
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use solana_program::pubkey::Pubkey;
 use solana_sdk::instruction::Instruction;
@@ -21,7 +22,7 @@ use hyperlane_sealevel_multisig_ism_message_id::{
     instruction::{set_validators_and_threshold_instruction, ValidatorsAndThreshold},
 };
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct MultisigIsmConfig {
     /// Note this type is ignored in this tooling. It'll always assume this
@@ -236,8 +237,12 @@ fn configure_multisig_ism_message_id(
     // (chain_name of the set being update, instruction)
     let mut ism_update_instructions: Vec<(String, Instruction)> = Vec::new();
 
+    // Sort chain names alphabetically for deterministic ordering
+    let chain_names: Vec<String> = multisig_configs.keys().cloned().sorted().collect();
+
     // First gather all instructions that need to be executed
-    for (chain_name, multisig_ism_config) in multisig_configs {
+    for chain_name in chain_names {
+        let multisig_ism_config = multisig_configs.get(&chain_name).unwrap();
         println!(
             "Checking configuration for chain {} with config {:?}",
             chain_name, multisig_ism_config
@@ -248,7 +253,7 @@ fn configure_multisig_ism_message_id(
             ctx,
             program_id,
             chain_metadata.domain_id,
-            &multisig_ism_config,
+            multisig_ism_config,
         );
 
         if matches {
@@ -266,7 +271,7 @@ fn configure_multisig_ism_message_id(
                 program_id,
                 ctx.payer_pubkey,
                 chain_metadata.domain_id,
-                multisig_ism_config.into(),
+                multisig_ism_config.clone().into(),
             )
             .unwrap();
 

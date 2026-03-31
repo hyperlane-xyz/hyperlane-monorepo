@@ -7,6 +7,7 @@
 use std::{
     collections::{HashMap, HashSet},
     default::Default,
+    ops::Add,
     time::Duration,
 };
 
@@ -17,15 +18,19 @@ use serde::Deserialize;
 use serde_json::Value;
 use url::Url;
 
+use hyperlane_core::matching_list::MatchingList;
+
 use h_cosmos::RawCosmosAmount;
 use hyperlane_core::{
     cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol,
-    HyperlaneDomainTechnicalStack, IndexMode, ReorgPeriod, SubmitterType,
+    HyperlaneDomainTechnicalStack, IndexMode, NativeToken, ReorgPeriod, SubmitterType,
 };
 
 use crate::settings::{
-    chains::IndexSettings, parser::connection_parser::build_connection_conf, trace::TracingConfig,
-    ChainConf, CoreContractAddresses, Settings, SignerConf,
+    chains::IndexSettings,
+    parser::connection_parser::{build_connection_conf, is_protocol_supported},
+    trace::TracingConfig,
+    ChainConf, ChainConnectionConf, CoreContractAddresses, Settings, SignerConf,
 };
 
 pub use super::envs::*;
@@ -36,6 +41,17 @@ mod connection_parser;
 mod json_value_parser;
 
 const DEFAULT_CHUNK_SIZE: u32 = 1999;
+
+/// Try to extract the protocol from a chain config without fully parsing it.
+/// Returns None if the protocol field is missing or invalid.
+fn try_get_protocol(chain: &ValueParser) -> Option<HyperlaneDomainProtocol> {
+    let mut err = ConfigParsingError::default();
+    chain
+        .chain(&mut err)
+        .get_key("protocol")
+        .parse_from_str::<HyperlaneDomainProtocol>("Invalid Hyperlane domain protocol")
+        .end()
+}
 
 /// The base agent config
 #[derive(Debug, Deserialize)]
@@ -103,22 +119,36 @@ impl FromRawConf<RawAgentConf, Option<&HashSet<&str>>> for Settings {
 
         let default_rpc_consensus_type = agent_name_to_default_rpc_consensus_type(agent_name);
 
-        let chains: HashMap<String, ChainConf> = raw_chains
+        let chains: HashMap<HyperlaneDomain, ChainConf> = raw_chains
             .into_iter()
             .filter_map(|(name, chain)| {
+                // Pre-check if the protocol is supported before attempting to parse
+                if let Some(protocol) = try_get_protocol(&chain) {
+                    if !is_protocol_supported(protocol) {
+                        tracing::warn!(
+                            chain = %name,
+                            protocol = %protocol,
+                            "Skipping chain with unsupported protocol (enable with --features {protocol})"
+                        );
+                        return None;
+                    }
+                }
                 parse_chain(chain, &name, default_rpc_consensus_type.as_str())
                     .take_config_err(&mut err)
                     .map(|v| (name, v))
             })
-            .map(|(name, mut chain)| {
+            .map(|(_, mut chain)| {
                 if let Some(default_signer) = &default_signer {
                     chain.signer.get_or_insert_with(|| default_signer.clone());
                 }
-                (name, chain)
+                (chain.domain.clone(), chain)
             })
             .collect();
 
+        let domains = chains.keys().map(|k| (k.to_string(), k.clone())).collect();
+
         err.into_result(Self {
+            domains,
             chains,
             metrics_port,
             tracing: TracingConfig { fmt, level },
@@ -141,12 +171,6 @@ fn parse_chain(
         .and_then(parse_signer)
         .end();
 
-    let submitter = chain
-        .chain(&mut err)
-        .get_opt_key("submitter")
-        .parse_from_str::<SubmitterType>("Invalid Submitter type")
-        .unwrap_or_default();
-
     // measured in seconds (with fractions)
     let estimated_block_time = chain
         .chain(&mut err)
@@ -163,13 +187,14 @@ fn parse_chain(
         .parse_value("Invalid reorgPeriod")
         .unwrap_or(ReorgPeriod::from_blocks(1));
 
-    let rpcs = parse_base_and_override_urls(&chain, "rpcUrls", "customRpcUrls", "http", &mut err);
+    let rpcs =
+        parse_base_and_override_urls(&chain, "rpcUrls", "customRpcUrls", "http", &mut err, false);
 
     let from = chain
         .chain(&mut err)
         .get_opt_key("index")
         .get_opt_key("from")
-        .parse_u32()
+        .parse_i64()
         .unwrap_or(0);
     let chunk_size = chain
         .chain(&mut err)
@@ -244,6 +269,48 @@ fn parse_chain(
         .parse_bool()
         .unwrap_or(false);
 
+    let confirmations = chain
+        .chain(&mut err)
+        .get_opt_key("blocks")
+        .get_opt_key("confirmations")
+        .parse_u32()
+        .unwrap_or(1);
+
+    // chainId can be a number (EVM) or a string (Cosmos), so we need to handle both.
+    let chain_id = chain
+        .chain(&mut err)
+        .get_opt_key("chainId")
+        .parse_value::<serde_json::Value>("Invalid chainId")
+        .map(|v| match v {
+            serde_json::Value::String(s) => s,
+            serde_json::Value::Number(n) => n.to_string(),
+            other => other.to_string(),
+        })
+        .unwrap_or_default();
+
+    let native_token_decimals = chain
+        .chain(&mut err)
+        .get_opt_key("nativeToken")
+        .get_opt_key("decimals")
+        .parse_u32()
+        .unwrap_or(18);
+
+    let native_token_symbol = chain
+        .chain(&mut err)
+        .get_opt_key("nativeToken")
+        .get_opt_key("symbol")
+        .parse_string()
+        .unwrap_or("")
+        .to_owned();
+
+    let native_token_denom = chain
+        .chain(&mut err)
+        .get_opt_key("nativeToken")
+        .get_opt_key("denom")
+        .parse_string()
+        .unwrap_or("")
+        .to_owned();
+
     cfg_unwrap_all!(&chain.cwp, err: [domain]);
     let connection = build_connection_conf(
         domain.domain_protocol(),
@@ -259,7 +326,35 @@ fn parse_chain(
         },
     );
 
+    // Convert Ethereum → Tron when techstack indicates Tron
+    let connection = connection.map(|conn| {
+        if domain.domain_technical_stack() == HyperlaneDomainTechnicalStack::Tron {
+            if let ChainConnectionConf::Ethereum(eth_conf) = conn {
+                return ethereum_to_tron_connection_conf(eth_conf);
+            }
+        }
+        conn
+    });
+
     cfg_unwrap_all!(&chain.cwp, err: [connection, mailbox, interchain_gas_paymaster, validator_announce, merkle_tree_hook]);
+
+    let submitter = chain
+        .chain(&mut err)
+        .get_opt_key("submitter")
+        .parse_from_str::<SubmitterType>("Invalid Submitter type")
+        .end();
+    // for EVM chains, default to `SubmitterType::Lander` if not specified
+    let submitter = match submitter {
+        Some(submitter_type) => submitter_type,
+        None => match connection.protocol() {
+            HyperlaneDomainProtocol::Ethereum
+            | HyperlaneDomainProtocol::Aleo
+            | HyperlaneDomainProtocol::Radix
+            | HyperlaneDomainProtocol::Sealevel
+            | HyperlaneDomainProtocol::Tron => SubmitterType::Lander,
+            _ => Default::default(),
+        },
+    };
     err.into_result(ChainConf {
         domain,
         signer,
@@ -279,7 +374,14 @@ fn parse_chain(
             chunk_size,
             mode,
         },
+        confirmations,
+        chain_id,
         ignore_reorg_reports,
+        native_token: NativeToken {
+            decimals: native_token_decimals,
+            symbol: native_token_symbol,
+            denom: native_token_denom,
+        },
     })
 }
 
@@ -299,7 +401,7 @@ fn parse_domain(chain: ValueParser, name: &str) -> ConfigResult<HyperlaneDomain>
     } else {
         Err(eyre!("missing chain name, the config may be corrupted"))
     }
-    .take_err(&mut err, || &chain.cwp + "name");
+    .take_err(&mut err, || (&chain.cwp).add("name"));
 
     let domain_id = chain
         .chain(&mut err)
@@ -413,6 +515,22 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
                 is_legacy,
             })
         }};
+        (radixKey) => {{
+            let key = signer
+                .chain(&mut err)
+                .get_opt_key("key")
+                .parse_private_key()
+                .unwrap_or_default();
+            let suffix = signer
+                .chain(&mut err)
+                .get_opt_key("suffix")
+                .parse_string()
+                .unwrap_or_default();
+            err.into_result(SignerConf::RadixKey {
+                key,
+                suffix: suffix.to_owned(),
+            })
+        }};
     }
 
     match signer_type {
@@ -420,8 +538,9 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
         Some("aws") => parse_signer!(aws),
         Some("cosmosKey") => parse_signer!(cosmosKey),
         Some("starkKey") => parse_signer!(starkKey),
+        Some("radixKey") => parse_signer!(radixKey),
         Some(t) => {
-            Err(eyre!("Unknown signer type `{t}`")).into_config_result(|| &signer.cwp + "type")
+            Err(eyre!("Unknown signer type `{t}`")).into_config_result(|| (&signer.cwp).add("type"))
         }
         None if key_is_some => parse_signer!(hexKey),
         None if id_is_some | region_is_some => parse_signer!(aws),
@@ -457,13 +576,56 @@ pub fn recase_json_value(mut val: Value, case: Case) -> Value {
         Value::Object(obj) => {
             let keys = obj.keys().cloned().collect_vec();
             for key in keys {
-                let val = obj.remove(&key).unwrap();
-                obj.insert(key.to_case(case), recase_json_value(val, case));
+                let val = match obj.remove(&key) {
+                    Some(v) => v,
+                    None => continue,
+                };
+
+                let cased_key = key.to_case(case);
+                obj.insert(cased_key, recase_json_value(val, case));
             }
         }
         _ => {}
     }
     val
+}
+
+/// Parse a JSON array from a ValueParser, handling both stringified JSON and native arrays.
+pub fn parse_json_array(p: ValueParser) -> Option<(ConfigPath, Value)> {
+    let mut err = ConfigParsingError::default();
+
+    match p {
+        ValueParser {
+            val: Value::String(array_str),
+            cwp,
+        } => serde_json::from_str::<Value>(array_str)
+            .context("Expected JSON string")
+            .take_err(&mut err, || cwp.clone())
+            .map(|v| (cwp, recase_json_value(v, Case::Flat))),
+        ValueParser {
+            val: value @ Value::Array(_),
+            cwp,
+        } => Some((cwp, value.clone())),
+        _ => Err(eyre!("Expected JSON array or stringified JSON"))
+            .take_err(&mut err, || p.cwp.clone()),
+    }
+}
+
+/// Parse a matching list from a ValueParser.
+pub fn parse_matching_list(p: ValueParser) -> ConfigResult<MatchingList> {
+    let mut err = ConfigParsingError::default();
+
+    let raw_list = parse_json_array(p.clone()).map(|(_, v)| v);
+    let Some(raw_list) = raw_list else {
+        return err.into_result(MatchingList::default());
+    };
+    let p = ValueParser::new(p.cwp.clone(), &raw_list);
+    let ml = p
+        .parse_value::<MatchingList>("Expected matching list")
+        .take_config_err(&mut err)
+        .unwrap_or_default();
+
+    err.into_result(ml)
 }
 
 /// Expects AgentSigner.
@@ -490,10 +652,14 @@ fn parse_urls(
     key: &str,
     protocol: &str,
     err: &mut ConfigParsingError,
+    optional: bool,
 ) -> Vec<Url> {
+    let chain = if optional {
+        chain.chain(err).get_opt_key(key)
+    } else {
+        chain.chain(err).get_key(key)
+    };
     chain
-        .chain(err)
-        .get_key(key)
         .into_array_iter()
         .map(|urls| {
             urls.filter_map(|v| {
@@ -519,7 +685,7 @@ fn parse_custom_urls(
         .end()
         .map(|urls| {
             urls.split(',')
-                .filter_map(|url| url.parse().take_err(err, || &chain.cwp + key))
+                .filter_map(|url| url.parse().take_err(err, || (&chain.cwp).add(key)))
                 .collect_vec()
         })
 }
@@ -530,20 +696,55 @@ fn parse_base_and_override_urls(
     override_key: &str,
     protocol: &str,
     err: &mut ConfigParsingError,
+    optional: bool,
 ) -> Vec<Url> {
-    let base = parse_urls(chain, base_key, protocol, err);
+    let base = parse_urls(chain, base_key, protocol, err, optional);
     let overrides = parse_custom_urls(chain, override_key, err);
     let combined = overrides.unwrap_or(base);
 
-    if combined.is_empty() {
+    if combined.is_empty() && !optional {
+        let config_path = (&chain.cwp).add(base_key.to_ascii_lowercase());
         err.push(
-            &chain.cwp + base_key.to_ascii_lowercase(),
+            config_path,
             eyre!("Missing base {} definitions for chain", base_key),
         );
+        let config_path = (&chain.cwp).add(override_key.to_lowercase());
         err.push(
-            &chain.cwp + override_key.to_lowercase(),
+            config_path,
             eyre!("Also missing {} overrides for chain", base_key),
         );
     }
     combined
+}
+
+/// Convert an Ethereum connection conf to a Tron connection conf.
+/// Used when a chain has `protocol: "ethereum"` + `technicalStack: "tron"`.
+fn ethereum_to_tron_connection_conf(
+    eth_conf: hyperlane_ethereum::ConnectionConf,
+) -> ChainConnectionConf {
+    ChainConnectionConf::Tron(hyperlane_tron::ConnectionConf::new(
+        eth_conf.rpc_urls(),
+        eth_conf.grpc_urls.unwrap_or_default(),
+        eth_conf.solidity_grpc_urls.unwrap_or_default(),
+        eth_conf.energy_multiplier,
+    ))
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn supports_sequence_h256s() {
+        let json_str = r#"[{"origindomain":1399811151,"senderaddress":["0x6AD4DEBA8A147d000C09de6465267a9047d1c217","0x6AD4DEBA8A147d000C09de6465267a9047d1c218"],"destinationdomain":11155111,"recipientaddress":["0x6AD4DEBA8A147d000C09de6465267a9047d1c217","0x6AD4DEBA8A147d000C09de6465267a9047d1c218"]}]"#;
+
+        // Test parsing directly into MatchingList
+        serde_json::from_str::<MatchingList>(json_str).unwrap();
+
+        // Test parsing into a Value and then into MatchingList, which is the path used
+        // by the agent config parser.
+        let val: serde_json::Value = serde_json::from_str(json_str).unwrap();
+        let value_parser = ValueParser::new(Default::default(), &val);
+        parse_matching_list(value_parser).unwrap();
+    }
 }

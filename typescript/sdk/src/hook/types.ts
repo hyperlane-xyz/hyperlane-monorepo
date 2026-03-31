@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
-import { Address, WithAddress } from '@hyperlane-xyz/utils';
+import { Address, WithAddress, isNullish } from '@hyperlane-xyz/utils';
 
-import { ProtocolAgnositicGasOracleConfigSchema } from '../gas/oracle/types.js';
+import { ProtocolAgnositicGasOracleConfigWithTypicalCostSchema } from '../gas/oracle/types.js';
 import { ZHash } from '../metadata/customZodTypes.js';
 import {
   ChainMap,
@@ -22,7 +22,7 @@ export enum OnchainHookType {
   ID_AUTH_ISM,
   PAUSABLE,
   PROTOCOL_FEE,
-  LAYER_ZERO_V1,
+  DEPRECATED,
   RATE_LIMITED,
   ARB_L2_TO_L1,
   OP_L2_TO_L1,
@@ -30,26 +30,31 @@ export enum OnchainHookType {
   AMOUNT_ROUTING,
 }
 
-export enum HookType {
-  CUSTOM = 'custom',
-  MERKLE_TREE = 'merkleTreeHook',
-  INTERCHAIN_GAS_PAYMASTER = 'interchainGasPaymaster',
-  AGGREGATION = 'aggregationHook',
-  PROTOCOL_FEE = 'protocolFee',
-  OP_STACK = 'opStackHook',
-  ROUTING = 'domainRoutingHook',
-  FALLBACK_ROUTING = 'fallbackRoutingHook',
-  AMOUNT_ROUTING = 'amountRoutingHook',
-  PAUSABLE = 'pausableHook',
-  ARB_L2_TO_L1 = 'arbL2ToL1Hook',
-  MAILBOX_DEFAULT = 'defaultHook',
-  CCIP = 'ccipHook',
-}
+export const HookType = {
+  CUSTOM: 'custom',
+  MERKLE_TREE: 'merkleTreeHook',
+  INTERCHAIN_GAS_PAYMASTER: 'interchainGasPaymaster',
+  AGGREGATION: 'aggregationHook',
+  PROTOCOL_FEE: 'protocolFee',
+  OP_STACK: 'opStackHook',
+  ROUTING: 'domainRoutingHook',
+  FALLBACK_ROUTING: 'fallbackRoutingHook',
+  AMOUNT_ROUTING: 'amountRoutingHook',
+  PAUSABLE: 'pausableHook',
+  ARB_L2_TO_L1: 'arbL2ToL1Hook',
+  MAILBOX_DEFAULT: 'defaultHook',
+  CCIP: 'ccipHook',
+  UNKNOWN: 'unknownHook',
+} as const;
 
-export const HookTypeToContractNameMap: Record<
-  Exclude<HookType, HookType.CUSTOM>,
-  string
-> = {
+export type HookType = (typeof HookType)[keyof typeof HookType];
+
+export type DeployableHookType = Exclude<
+  HookType,
+  typeof HookType.CUSTOM | typeof HookType.UNKNOWN
+>;
+
+export const HookTypeToContractNameMap: Record<DeployableHookType, string> = {
   [HookType.MERKLE_TREE]: 'merkleTreeHook',
   [HookType.INTERCHAIN_GAS_PAYMASTER]: 'interchainGasPaymaster',
   [HookType.AGGREGATION]: 'staticAggregationHook',
@@ -75,21 +80,21 @@ export type MailboxDefaultHookConfig = z.infer<typeof MailboxDefaultHookSchema>;
 export type CCIPHookConfig = z.infer<typeof CCIPHookSchema>;
 // explicitly typed to avoid zod circular dependency
 export type AggregationHookConfig = {
-  type: HookType.AGGREGATION;
+  type: typeof HookType.AGGREGATION;
   hooks: Array<HookConfig>;
 };
 export type RoutingHookConfig = OwnableConfig & {
   domains: ChainMap<HookConfig>;
 };
 export type DomainRoutingHookConfig = RoutingHookConfig & {
-  type: HookType.ROUTING;
+  type: typeof HookType.ROUTING;
 };
 export type FallbackRoutingHookConfig = RoutingHookConfig & {
-  type: HookType.FALLBACK_ROUTING;
+  type: typeof HookType.FALLBACK_ROUTING;
   fallback: HookConfig;
 };
 export type AmountRoutingHookConfig = {
-  type: HookType.AMOUNT_ROUTING;
+  type: typeof HookType.AMOUNT_ROUTING;
   threshold: number;
   lowerHook: HookConfig;
   upperHook: HookConfig;
@@ -100,7 +105,7 @@ export type HookConfig = z.infer<typeof HookConfigSchema>;
 export type DerivedHookConfig = WithAddress<Exclude<HookConfig, Address>>;
 
 // Hook types that can be updated in-place
-export const MUTABLE_HOOK_TYPE = [
+export const MUTABLE_HOOK_TYPE: HookType[] = [
   HookType.INTERCHAIN_GAS_PAYMASTER,
   HookType.PROTOCOL_FEE,
   HookType.ROUTING,
@@ -155,7 +160,7 @@ export const IgpSchema = OwnableSchema.extend({
   beneficiary: z.string(),
   oracleKey: z.string(),
   overhead: z.record(z.number()),
-  oracleConfig: z.record(ProtocolAgnositicGasOracleConfigSchema),
+  oracleConfig: z.record(ProtocolAgnositicGasOracleConfigWithTypicalCostSchema),
 });
 
 export const DomainRoutingHookConfigSchema: z.ZodSchema<DomainRoutingHookConfig> =
@@ -198,6 +203,54 @@ export const CCIPHookSchema = z.object({
   destinationChain: z.string(),
 });
 
+export const UnknownHookSchema = z
+  .object({
+    type: z.literal(HookType.UNKNOWN),
+  })
+  .passthrough();
+export type UnknownHookConfig = z.infer<typeof UnknownHookSchema>;
+
+const KnownHookTypes: string[] = Object.values(HookType).filter(
+  (t) => t !== HookType.UNKNOWN,
+);
+
+/**
+ * Recursively normalizes unknown hook type values to HookType.UNKNOWN.
+ * Use this before parsing with HookConfigSchema when configs may contain
+ * hook types not yet known to this SDK version.
+ *
+ * Note: String address configs (e.g., "0x...") are passed through unchanged
+ * since they represent deployed hook addresses, not hook type configs.
+ */
+export function normalizeUnknownHookTypes<T>(config: T): T {
+  // Handle nullish values and primitives (including string addresses)
+  if (isNullish(config) || typeof config !== 'object') {
+    return config;
+  }
+
+  if (Array.isArray(config)) {
+    return config.map(normalizeUnknownHookTypes) as T;
+  }
+
+  // At this point, config must be a non-null object (not array, not primitive)
+  const obj = config as Record<string, unknown>;
+  const normalized: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(obj)) {
+    if (key === 'type' && typeof value === 'string') {
+      normalized[key] = KnownHookTypes.includes(value)
+        ? value
+        : HookType.UNKNOWN;
+    } else if (typeof value === 'object' && !isNullish(value)) {
+      normalized[key] = normalizeUnknownHookTypes(value);
+    } else {
+      normalized[key] = value;
+    }
+  }
+
+  return normalized as T;
+}
+
 export const HookConfigSchema = z.union([
   ZHash,
   ProtocolFeeSchema,
@@ -212,7 +265,18 @@ export const HookConfigSchema = z.union([
   ArbL2ToL1HookSchema,
   MailboxDefaultHookSchema,
   CCIPHookSchema,
+  UnknownHookSchema,
 ]);
+
+/**
+ * Forward-compatible hook config schema that normalizes unknown hook types.
+ * Use this instead of HookConfigSchema when parsing configs that may contain
+ * hook types added in newer registry versions.
+ */
+export const SafeParseHookConfigSchema = z.preprocess(
+  normalizeUnknownHookTypes,
+  HookConfigSchema,
+);
 
 // TODO: deprecate in favor of CoreConfigSchema
 export const HooksConfigSchema = z.object({

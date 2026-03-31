@@ -11,3 +11,7 @@ export function safelyAccessEnvVar(name: string, toLowerCase = false) {
 export function inCIMode() {
   return process.env.CI === 'true';
 }
+
+export function inKubernetes() {
+  return process.env.KUBERNETES_SERVICE_HOST !== undefined;
+}

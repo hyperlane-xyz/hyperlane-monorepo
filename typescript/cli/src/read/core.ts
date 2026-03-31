@@ -1,12 +1,18 @@
+import { AltVMCoreReader } from '@hyperlane-xyz/deploy-sdk';
 import {
-  ChainName,
-  CoreConfig,
-  CosmosNativeCoreReader,
+  type ChainName,
+  type CoreConfig,
   EvmCoreReader,
+  altVmChainLookup,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
+import {
+  type Address,
+  ProtocolType,
+  assert,
+  mustGet,
+} from '@hyperlane-xyz/utils';
 
-import { CommandContext } from '../context/types.js';
+import { type CommandContext } from '../context/types.js';
 import { errorRed } from '../logger.js';
 
 export async function executeCoreRead({
@@ -31,10 +37,11 @@ export async function executeCoreRead({
   const protocolType = context.multiProvider.getProtocol(chain);
 
   switch (protocolType) {
+    case ProtocolType.Tron:
     case ProtocolType.Ethereum: {
       const evmCoreReader = new EvmCoreReader(context.multiProvider, chain);
       try {
-        return evmCoreReader.deriveCoreConfig({
+        return await evmCoreReader.deriveCoreConfig({
           mailbox,
           interchainAccountRouter: addresses?.interchainAccountRouter,
         });
@@ -47,15 +54,13 @@ export async function executeCoreRead({
       }
       break;
     }
-    case ProtocolType.CosmosNative: {
-      const cosmosProvider =
-        await context.multiProtocolProvider!.getCosmJsNativeProvider(chain);
-      const cosmosCoreReader = new CosmosNativeCoreReader(
-        context.multiProvider,
-        cosmosProvider,
-      );
+    default: {
+      const provider = mustGet(context.altVmProviders, chain);
+      const chainLookup = altVmChainLookup(context.multiProvider);
+      const metadata = chainLookup.getChainMetadata(chain);
+      const coreReader = new AltVMCoreReader(metadata, chainLookup, provider);
       try {
-        return cosmosCoreReader.deriveCoreConfig(mailbox);
+        return await coreReader.deriveCoreConfig(mailbox);
       } catch (e: any) {
         errorRed(
           `❌ Failed to read core config for mailbox ${mailbox} on ${chain}:`,
@@ -63,11 +68,6 @@ export async function executeCoreRead({
         );
         process.exit(1);
       }
-      break;
-    }
-    default: {
-      errorRed(`❌ Core Read not supported for protocol type ${protocolType}:`);
-      process.exit(1);
     }
   }
 }

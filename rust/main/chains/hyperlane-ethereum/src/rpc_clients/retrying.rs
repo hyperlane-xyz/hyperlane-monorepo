@@ -89,10 +89,12 @@ where
         let params = serde_json::to_value(params).expect("valid");
 
         let mut last_err = None;
-        let mut i = 1;
+        let mut i: u32 = 1;
         loop {
             let mut rate_limited = false;
-            let backoff_ms = self.base_retry_ms * 2u64.pow(i - 1);
+            let backoff_ms = self
+                .base_retry_ms
+                .saturating_mul(2u64.saturating_pow(i.saturating_sub(1)));
             if let Some(ref last_err) = last_err {
                 // `last_err` is always expected to be `Some` if `i > 1`
                 warn!(attempt = i, ?last_err, "Dispatching request");
@@ -120,7 +122,7 @@ where
                 }
             }
 
-            i += 1;
+            i = i.saturating_add(1);
             if i <= self.max_requests {
                 let backoff_ms = if rate_limited {
                     backoff_ms.max(20 * 1000) // 20s timeout
@@ -187,7 +189,8 @@ impl JsonRpcClient for RetryingProvider<PrometheusJsonRpcClient<Http>> {
             )
             .entered();
 
-            match categorize_client_response(method, res) {
+            let provider_host = self.inner.node_host();
+            match categorize_client_response(provider_host, method, res) {
                 IsOk(res) => Accept(res),
                 RetryableErr(e) => Retry(e),
                 RateLimitErr(e) => RateLimitedRetry(e),

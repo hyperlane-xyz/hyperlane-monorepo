@@ -9,6 +9,7 @@ use solana_program::{
     pubkey,
     pubkey::Pubkey,
 };
+use solana_system_interface::program as system_program;
 
 use ecdsa_signature::EcdsaSignature;
 use hyperlane_core::{Encode, HyperlaneMessage, ModuleType, H160, H256};
@@ -53,7 +54,7 @@ async fn new_funded_keypair(
     let keypair = Keypair::new();
     let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
     let transaction = Transaction::new_signed_with_payer(
-        &[solana_sdk::system_instruction::transfer(
+        &[solana_system_interface::instruction::transfer(
             &payer.pubkey(),
             &keypair.pubkey(),
             lamports,
@@ -82,7 +83,7 @@ async fn initialize(
             vec![
                 AccountMeta::new_readonly(payer.pubkey(), true),
                 AccountMeta::new(access_control_pda_key, false),
-                AccountMeta::new_readonly(solana_program::system_program::id(), false),
+                AccountMeta::new_readonly(system_program::ID, false),
             ],
         )],
         Some(&payer.pubkey()),
@@ -119,7 +120,7 @@ async fn set_validators_and_threshold(
                 AccountMeta::new_readonly(payer.pubkey(), true),
                 AccountMeta::new_readonly(access_control_pda_key, false),
                 AccountMeta::new(domain_data_pda_key, false),
-                AccountMeta::new_readonly(solana_program::system_program::id(), false),
+                AccountMeta::new_readonly(system_program::ID, false),
             ],
         )],
         Some(&payer.pubkey()),

@@ -2,12 +2,13 @@ import { expect } from 'chai';
 
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
-import { rootLogger } from '@hyperlane-xyz/utils';
+import { retryAsync, rootLogger } from '@hyperlane-xyz/utils';
 
 import { WarpRouteIds } from '../config/environments/mainnet3/warp/warpIds.js';
 
-// TODO: enable when merging audit branch to main
-describe.skip('Warp IDs', () => {
+describe('Warp IDs', function () {
+  this.timeout(60_000); // 60s timeout for fetching all warp IDs from registry
+
   it('Has all warp IDs in the registry', async () => {
     const registry = getRegistry({
       registryUris: [DEFAULT_GITHUB_REGISTRY],
@@ -15,9 +16,15 @@ describe.skip('Warp IDs', () => {
       logger: rootLogger,
     });
     for (const warpId of Object.values(WarpRouteIds)) {
-      // That's a long sentence!
+      // Retry to handle transient network failures (e.g. socket closed)
+      // when fetching from GitHub registry in CI
+      const route = await retryAsync(
+        () => registry.getWarpRoute(warpId),
+        3,
+        500,
+      );
       expect(
-        await registry.getWarpRoute(warpId),
+        route,
         `Warp ID ${warpId} not in registry, the .registryrc or your local registry may be out of date`,
       ).to.not.be.null.and.not.be.undefined;
     }

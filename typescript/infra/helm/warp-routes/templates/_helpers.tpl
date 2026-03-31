@@ -70,17 +70,16 @@ The warp-routes container
   env:
   - name: LOG_FORMAT
     value: json
-  - name: REGISTRY_COMMIT
-    value: {{ .Values.hyperlane.registryCommit }}
-  args:
-  - ./node_modules/.bin/tsx
-  - ./typescript/infra/scripts/warp-routes/monitor/monitor-warp-route-balances.ts
-  - -v
-  - "30000"
-  - --warpRouteId
-  - {{ .Values.warpRouteId }}
-  - -e
-  - {{ .Values.environment}}
+  - name: LOG_LEVEL
+    value: info
+  {{- if .Values.hyperlane.registryUri }}
+  - name: REGISTRY_URI
+    value: {{ .Values.hyperlane.registryUri }}
+  {{- end }}
+  - name: WARP_ROUTE_ID
+    value: {{ .Values.warpRouteId }}
+  - name: CHECK_FREQUENCY
+    value: "30000"
   envFrom:
   - secretRef:
       name: {{ include "hyperlane.fullname" . }}-secret

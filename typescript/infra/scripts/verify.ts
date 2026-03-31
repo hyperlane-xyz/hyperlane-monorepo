@@ -4,13 +4,13 @@ import {
   PostDeploymentContractVerifier,
   VerificationInput,
 } from '@hyperlane-xyz/sdk';
+import { readJson } from '@hyperlane-xyz/utils/fs';
 
 import { assertEnvironment } from '../src/config/environment.js';
 import {
   extractBuildArtifact,
   fetchExplorerApiKeys,
 } from '../src/deployment/verify.js';
-import { readJSONAtPath } from '../src/utils/utils.js';
 
 import { getArgs, withBuildArtifactPath, withChain } from './agent-utils.js';
 import { getEnvironmentConfig } from './core-utils.js';
@@ -33,7 +33,7 @@ async function main() {
   const multiProvider = await config.getMultiProvider();
 
   // grab verification artifacts
-  const verification: ChainMap<VerificationInput> = readJSONAtPath(
+  const verification: ChainMap<VerificationInput> = readJson(
     verificationArtifactPath,
   );
 

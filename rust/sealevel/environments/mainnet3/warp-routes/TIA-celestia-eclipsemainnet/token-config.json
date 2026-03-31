@@ -1,0 +1,16 @@
+{
+  "celestia" : {
+    "decimals": 6,
+    "foreignDeployment": "0x726f757465725f61707000000000000000000000000000010000000000000004",
+    "type": "native"
+  },
+  "eclipsemainnet": {
+    "type": "synthetic",
+    "decimals": 6,
+    "name": "Celestia",
+    "owner": "8GAvyeQyBNwnuxVSpk9drn8TgJLEVWSQEpdcei6JwG8e",
+    "symbol": "TIA",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/b21b78514a42e8c050b36472c8325fd4b5177366/deployments/warp_routes/TIA/metadata.json",
+    "interchainGasPaymaster": "3Wp4qKkgf4tjXz1soGyTSndCgBPLZFSrZkiDZ8Qp9EEj"
+  }
+}

@@ -1,25 +1,30 @@
 import { stringify as yamlStringify } from 'yaml';
 
+import { GasAction } from '@hyperlane-xyz/provider-sdk';
 import {
-  ChainName,
-  DispatchedMessage,
+  type ChainName,
+  type DispatchedMessage,
   HyperlaneCore,
-  HyperlaneRelayer,
   MultiProtocolProvider,
   ProviderType,
-  Token,
+  type Token,
   TokenAmount,
   WarpCore,
-  WarpCoreConfig,
+  type WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { parseWarpRouteMessage, timeout } from '@hyperlane-xyz/utils';
+import {
+  isEVMLike,
+  assert,
+  parseWarpRouteMessage,
+  timeout,
+} from '@hyperlane-xyz/utils';
 
-import { EXPLORER_URL, MINIMUM_TEST_SEND_GAS } from '../consts.js';
-import { WriteCommandContext } from '../context/types.js';
+import { EXPLORER_URL } from '../consts.js';
+import { type WriteCommandContext } from '../context/types.js';
 import { runPreflightChecksForChains } from '../deploy/utils.js';
 import { log, logBlue, logGreen, logRed } from '../logger.js';
 import { indentYamlOrJson } from '../utils/files.js';
-import { stubMerkleTreeConfig } from '../utils/relay.js';
+import { runSelfRelay } from '../utils/relay.js';
 import { runTokenSelectionStep } from '../utils/tokens.js';
 
 export const WarpSendLogs = {
@@ -35,6 +40,9 @@ export async function sendTestTransfer({
   timeoutSec,
   skipWaitForDelivery,
   selfRelay,
+  skipValidation,
+  sourceToken,
+  destinationToken,
 }: {
   context: WriteCommandContext;
   warpCoreConfig: WarpCoreConfig;
@@ -44,11 +52,30 @@ export async function sendTestTransfer({
   timeoutSec: number;
   skipWaitForDelivery: boolean;
   selfRelay?: boolean;
+  skipValidation?: boolean;
+  sourceToken?: string;
+  destinationToken?: string;
 }) {
+  const { multiProvider } = context;
+
+  // TODO: Add multi-protocol support. WarpCore supports multi-protocol transfers,
+  // but CLI transaction handling currently only processes EthersV5 transactions.
+  const nonEvmChains = chains.filter(
+    (chain) => !isEVMLike(multiProvider.getProtocol(chain)),
+  );
+  if (nonEvmChains.length > 0) {
+    const chainDetails = nonEvmChains
+      .map((chain) => `'${chain}' (${multiProvider.getProtocol(chain)})`)
+      .join(', ');
+    throw new Error(
+      `'hyperlane warp send' only supports EVM chains. Non-EVM chains found: ${chainDetails}`,
+    );
+  }
+
   await runPreflightChecksForChains({
     context,
     chains,
-    minGas: MINIMUM_TEST_SEND_GAS,
+    minGas: GasAction.TEST_SEND_GAS,
   });
 
   for (let i = 0; i < chains.length; i++) {
@@ -67,6 +94,9 @@ export async function sendTestTransfer({
           recipient,
           skipWaitForDelivery,
           selfRelay,
+          skipValidation,
+          sourceToken,
+          destinationToken,
         }),
         timeoutSec * 1000,
         'Timed out waiting for messages to be delivered',
@@ -84,6 +114,9 @@ async function executeDelivery({
   recipient,
   skipWaitForDelivery,
   selfRelay,
+  skipValidation,
+  sourceToken: sourceTokenAddr,
+  destinationToken: destTokenAddr,
 }: {
   context: WriteCommandContext;
   origin: ChainName;
@@ -93,6 +126,9 @@ async function executeDelivery({
   recipient?: string;
   skipWaitForDelivery: boolean;
   selfRelay?: boolean;
+  skipValidation?: boolean;
+  sourceToken?: string;
+  destinationToken?: string;
 }) {
   const { multiProvider, registry } = context;
 
@@ -115,7 +151,11 @@ async function executeDelivery({
 
   let token: Token;
   const tokensForRoute = warpCore.getTokensForRoute(origin, destination);
-  if (tokensForRoute.length === 0) {
+  if (sourceTokenAddr) {
+    const found = warpCore.findToken(origin, sourceTokenAddr);
+    assert(found, `Source token ${sourceTokenAddr} not found on ${origin}`);
+    token = found;
+  } else if (tokensForRoute.length === 0) {
     logRed(`No Warp Routes found from ${origin} to ${destination}`);
     throw new Error('Error finding warp route');
   } else if (tokensForRoute.length === 1) {
@@ -126,15 +166,28 @@ async function executeDelivery({
     token = warpCore.findToken(origin, routerAddress)!;
   }
 
-  const errors = await warpCore.validateTransfer({
-    originTokenAmount: token.amount(amount),
-    destination,
-    recipient,
-    sender: signerAddress,
-  });
-  if (errors) {
-    logRed('Error validating transfer', JSON.stringify(errors));
-    throw new Error('Error validating transfer');
+  let destToken: Token | undefined;
+  if (destTokenAddr) {
+    const found = warpCore.findToken(destination, destTokenAddr);
+    assert(
+      found,
+      `Destination token ${destTokenAddr} not found on ${destination}`,
+    );
+    destToken = found;
+  }
+
+  if (!skipValidation) {
+    const errors = await warpCore.validateTransfer({
+      originTokenAmount: token.amount(amount),
+      destination,
+      recipient,
+      sender: signerAddress,
+      destinationToken: destToken,
+    });
+    if (errors) {
+      logRed('Error validating transfer', JSON.stringify(errors));
+      throw new Error('Error validating transfer');
+    }
   }
 
   // TODO: override hook address for self-relay
@@ -143,45 +196,49 @@ async function executeDelivery({
     destination,
     sender: signerAddress,
     recipient,
+    destinationToken: destToken ?? undefined,
   });
 
   const txReceipts = [];
   for (const tx of transferTxs) {
-    if (tx.type === ProviderType.EthersV5) {
+    if (tx.type === ProviderType.EthersV5 || tx.type === ProviderType.Tron) {
       const txResponse = await signer.sendTransaction(tx.transaction);
       const txReceipt = await multiProvider.handleTx(origin, txResponse);
       txReceipts.push(txReceipt);
     }
   }
+  assert(
+    txReceipts.length > 0,
+    `No supported transfer receipt produced for ${origin} -> ${destination}`,
+  );
   const transferTxReceipt = txReceipts[txReceipts.length - 1];
-  const messageIndex: number = 0;
-  const message: DispatchedMessage =
-    HyperlaneCore.getDispatchedMessages(transferTxReceipt)[messageIndex];
-
-  const parsed = parseWarpRouteMessage(message.parsed.body);
+  const messages = HyperlaneCore.getDispatchedMessages(transferTxReceipt);
+  const message: DispatchedMessage | undefined = messages[0];
 
   logBlue(
     `Sent transfer from sender (${signerAddress}) on ${origin} to recipient (${recipient}) on ${destination}.`,
   );
-  logBlue(`Message ID: ${message.id}`);
-  logBlue(`Explorer Link: ${EXPLORER_URL}/message/${message.id}`);
-  log(`Message:\n${indentYamlOrJson(yamlStringify(message, null, 2), 4)}`);
-  log(`Body:\n${indentYamlOrJson(yamlStringify(parsed, null, 2), 4)}`);
 
-  if (selfRelay) {
-    const relayer = new HyperlaneRelayer({ core });
-
-    const hookAddress = await core.getSenderHookAddress(message);
-    const merkleAddress = chainAddresses[origin].merkleTreeHook;
-    stubMerkleTreeConfig(relayer, origin, hookAddress, merkleAddress);
-
-    log('Attempting self-relay of transfer...');
-    await relayer.relayMessage(transferTxReceipt, messageIndex, message);
-    logGreen(WarpSendLogs.SUCCESS);
-    return;
+  if (message) {
+    const parsed = parseWarpRouteMessage(message.parsed.body);
+    logBlue(`Message ID: ${message.id}`);
+    logBlue(`Explorer Link: ${EXPLORER_URL}/message/${message.id}`);
+    log(`Message:\n${indentYamlOrJson(yamlStringify(message, null, 2), 4)}`);
+    log(`Body:\n${indentYamlOrJson(yamlStringify(parsed, null, 2), 4)}`);
+  } else {
+    logGreen('Same-chain transfer completed (no interchain message).');
   }
 
-  if (skipWaitForDelivery) return;
+  if (selfRelay && message) {
+    return runSelfRelay({
+      txReceipt: transferTxReceipt,
+      multiProvider: multiProvider,
+      registry: registry,
+      successMessage: WarpSendLogs.SUCCESS,
+    });
+  }
+
+  if (skipWaitForDelivery || !message) return;
 
   // Max wait 10 minutes
   await core.waitForMessageProcessed(transferTxReceipt, 10000, 60);

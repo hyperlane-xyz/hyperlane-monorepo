@@ -18,32 +18,32 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
-
-      - name: yarn-cache
-        uses: buildjet/cache@v4
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
         with:
-          path: |
-            **/node_modules
-            .yarn
-          key: ${{ runner.os }}-yarn-4.5.1-cache-${{ hashFiles('./yarn.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-yarn-4.5.1.-cache-
+          node-version-file: .nvmrc
 
-      - name: yarn-install
-        run: yarn install
+      - name: pnpm-cache
+        uses: ./.github/actions/pnpm-cache
+        with:
+          cache-provider: buildjet
 
-      - name: foundry-install
-        uses: foundry-rs/foundry-toolchain@v1
+      - name: pnpm-install
+        run: pnpm install --frozen-lockfile
+
+      - name: Setup Foundry
+        uses: ./.github/actions/setup-foundry
 
       - name: forge-build
         run: cd solidity && forge build --build-info
 
       - name: Static analysis
-        uses: crytic/slither-action@v0.4.0
+        uses: crytic/slither-action@v0.4.1
         id: slither
         with:
           target: 'solidity/'
@@ -53,7 +53,7 @@ jobs:
           ignore-compile: true
 
       - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: ${{ steps.slither.outputs.sarif }}
           category: 'slither'

@@ -65,9 +65,6 @@
   "zircuit": {
     "router": "0xA5f471A19fdB367Ea80c4c82ecd30eA94090d549"
   },
-  "kroma": {
-    "router": "0x9f6f71f3D58aCeba796ADD5f00A893C636163BB2"
-  },
   "everclear": {
     "router": "0xe35030B407C96C037190B63646AC1Eb34F43Cc2b"
   },

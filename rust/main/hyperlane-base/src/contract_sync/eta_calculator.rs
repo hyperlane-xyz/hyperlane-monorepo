@@ -1,4 +1,7 @@
-use std::time::{Duration, Instant};
+use std::{
+    ops::Div,
+    time::{Duration, Instant},
+};
 
 use derive_new::new;
 use tracing::warn;
@@ -31,7 +34,7 @@ impl SyncerEtaCalculator {
         self.last_time = now;
 
         // It was observed that this function can be called with a `last_block` that is greater
-        // than the `currenct_block`, which results in an underflow. Use saturating math to
+        // than the `current_block`, which results in an underflow. Use saturating math to
         // prevent this.
         let blocks_processed = current_block.saturating_sub(self.last_block) as f64;
         let tip_progression = current_tip.saturating_sub(self.last_tip) as f64;
@@ -65,8 +68,8 @@ impl SyncerEtaCalculator {
             // max out at 1yr if we are behind
             default_duration
         } else {
-            match Duration::try_from_secs_f64((current_tip - current_block) as f64 / effective_rate)
-            {
+            let secs = (current_tip.saturating_sub(current_block) as f64).div(effective_rate);
+            match Duration::try_from_secs_f64(secs) {
                 Ok(eta) => eta,
                 Err(e) => {
                     warn!(error=?e, tip=?current_tip, block=?current_block, rate=?effective_rate, "Failed to calculate the eta");

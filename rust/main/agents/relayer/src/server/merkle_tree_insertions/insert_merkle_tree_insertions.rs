@@ -1,27 +1,12 @@
-use std::collections::HashMap;
-
-use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
-use derive_new::new;
+use axum::{extract::State, http::StatusCode, Json};
 use serde::{Deserialize, Serialize};
 
-use hyperlane_base::{
-    db::HyperlaneRocksDB,
-    server::utils::{ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse},
+use hyperlane_base::server::utils::{
+    ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse,
 };
 use hyperlane_core::{MerkleTreeInsertion, H256};
 
-#[derive(Clone, Debug, new)]
-pub struct ServerState {
-    pub dbs: HashMap<u32, HyperlaneRocksDB>,
-}
-
-impl ServerState {
-    pub fn router(self) -> Router {
-        Router::new()
-            .route("/merkle_tree_insertions", post(handler))
-            .with_state(self)
-    }
-}
+use crate::server::merkle_tree_insertions::ServerState;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TreeInsertion {
@@ -73,7 +58,7 @@ pub async fn handler(
                             },
                         )
                     })?;
-                insertion_count += 1;
+                insertion_count = insertion_count.saturating_add(1);
             }
             None => {
                 tracing::debug!(?insertion, "No db found for chain");
@@ -91,13 +76,16 @@ pub async fn handler(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use axum::{
         body::Body,
         http::{header::CONTENT_TYPE, Method, Request, Response, StatusCode},
+        Router,
     };
     use tower::ServiceExt;
 
-    use hyperlane_base::db::{HyperlaneDb, DB};
+    use hyperlane_base::db::{HyperlaneDb, HyperlaneRocksDB, DB};
     use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain};
 
     use super::*;
@@ -148,7 +136,6 @@ mod tests {
             .retrieve_merkle_tree_insertion_by_leaf_index(&leaf_index)
             .expect("DB Error")
             .expect("Message not found")
-            .clone()
     }
 
     fn get_merkle_tree_insertion_block_number(
@@ -197,7 +184,7 @@ mod tests {
         assert_eq!(resp_body.count, body.merkle_tree_insertions.len() as u64);
 
         // check db has correct merkle tree insertions
-        let actual = vec![
+        let actual = [
             get_merkle_tree_insertion(&dbs, &domains[0], 100),
             get_merkle_tree_insertion(&dbs, &domains[1], 100),
         ];
@@ -208,7 +195,7 @@ mod tests {
         }
 
         // check db has correct merkle tree insertion block number
-        let actual = vec![
+        let actual = [
             get_merkle_tree_insertion_block_number(&dbs, &domains[0], 100),
             get_merkle_tree_insertion_block_number(&dbs, &domains[1], 100),
         ];
@@ -275,7 +262,7 @@ mod tests {
         assert_eq!(resp_body.count, body.merkle_tree_insertions.len() as u64);
 
         // check db has correct merkle tree insertions
-        let actual = vec![
+        let actual = [
             get_merkle_tree_insertion(&dbs, &domains[0], 100),
             get_merkle_tree_insertion(&dbs, &domains[1], 100),
         ];
@@ -286,7 +273,7 @@ mod tests {
         }
 
         // check db has correct merkle tree insertion block number
-        let actual = vec![
+        let actual = [
             get_merkle_tree_insertion_block_number(&dbs, &domains[0], 100),
             get_merkle_tree_insertion_block_number(&dbs, &domains[1], 100),
         ];

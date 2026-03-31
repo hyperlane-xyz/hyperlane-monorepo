@@ -7,6 +7,7 @@ coverage/
 coverage.json
 storage/
 *.env
+!.env.default
 *lcov.info
 # Foundry
 out
@@ -16,10 +17,22 @@ flattened/
 buildArtifact.json
 fixtures/
 broadcast/
+# Soldeer
+dependencies/
 # ZKSync
 artifacts-zk
 cache-zk
+# Tron
+artifacts-tron
+cache-tron
+out-tron
+forge-cache-tron
 core-utils/zksync/artifacts/output
 .zksolc-libraries-cache/
 typechain-types/
 typechain/
+
+# bytecode dumps
+bytecode/
+# interface dumps
+interface/

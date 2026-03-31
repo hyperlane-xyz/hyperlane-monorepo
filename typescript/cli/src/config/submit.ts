@@ -1,14 +1,14 @@
 import { stringify as yamlStringify } from 'yaml';
 
 import {
-  AnnotatedEV5Transaction,
-  SubmissionStrategy,
+  type AnnotatedEV5Transaction,
+  type ChainName,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert, errorToString } from '@hyperlane-xyz/utils';
+import { type ProtocolType, errorToString } from '@hyperlane-xyz/utils';
 
-import { WriteCommandContext } from '../context/types.js';
+import { type WriteCommandContext } from '../context/types.js';
+import { getSubmitterByStrategy } from '../deploy/warp.js';
 import { logGray, logRed } from '../logger.js';
-import { getSubmitterBuilder } from '../submit/submit.js';
 import {
   indentYamlOrJson,
   readYamlOrJson,
@@ -17,36 +17,34 @@ import {
 
 export async function runSubmit({
   context,
-  transactionsFilepath,
+  chain,
+  transactions,
   receiptsFilepath,
-  submissionStrategy,
+  strategyPath,
 }: {
   context: WriteCommandContext;
-  transactionsFilepath: string;
+  chain: ChainName;
+  transactions: AnnotatedEV5Transaction[];
   receiptsFilepath: string;
-  submissionStrategy: SubmissionStrategy;
+  strategyPath?: string;
 }) {
-  const { multiProvider } = context;
-
-  assert(
-    submissionStrategy,
-    'Submission strategy required to submit transactions.\nPlease create a submission strategy. See examples in cli/examples/submit/strategy/*.',
-  );
-  const transactions = getTransactions(transactionsFilepath);
-
-  const submitterBuilder = await getSubmitterBuilder<ProtocolType>({
-    submissionStrategy,
-    multiProvider,
+  const { submitter } = await getSubmitterByStrategy<ProtocolType>({
+    chain,
+    context,
+    strategyUrl: strategyPath,
   });
 
   try {
-    const transactionReceipts = await submitterBuilder.submit(...transactions);
+    const transactionReceipts = await submitter.submit(...transactions);
     if (transactionReceipts) {
       logGray(
         '🧾 Transaction receipts:\n\n',
         indentYamlOrJson(yamlStringify(transactionReceipts, null, 2), 4),
       );
-      writeYamlOrJson(receiptsFilepath, transactionReceipts, 'yaml');
+      const receiptPath = `${receiptsFilepath}/${chain}-${
+        submitter.txSubmitterType
+      }-${Date.now()}-receipts.json`;
+      writeYamlOrJson(receiptPath, transactionReceipts, 'json');
     }
   } catch (error) {
     logRed(
@@ -57,7 +55,7 @@ export async function runSubmit({
   }
 }
 
-function getTransactions(
+export function getTransactions(
   transactionsFilepath: string,
 ): AnnotatedEV5Transaction[] {
   return readYamlOrJson<AnnotatedEV5Transaction[]>(transactionsFilepath.trim());

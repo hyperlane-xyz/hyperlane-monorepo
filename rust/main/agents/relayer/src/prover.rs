@@ -60,8 +60,8 @@ impl Prover {
     ///
     /// This will fail if the underlying tree is full.
     pub fn ingest(&mut self, element: H256) -> Result<H256, ProverError> {
-        self.count += 1;
         self.tree.push_leaf(element, TREE_DEPTH)?;
+        self.count = self.count.saturating_add(1);
         Ok(self.tree.hash())
     }
 

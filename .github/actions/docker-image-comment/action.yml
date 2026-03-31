@@ -1,0 +1,117 @@
+name: 'Docker Image PR Comment'
+description: 'Create, update, or delete a PR comment with docker image tags'
+
+inputs:
+  comment_tag:
+    description: 'Unique identifier for the comment (e.g., monorepo-docker-image)'
+    required: true
+  image_name:
+    description: 'Name of the image for the comment header (e.g., Monorepo Docker Image)'
+    required: true
+  emoji:
+    description: 'Emoji to use in the comment header'
+    required: false
+    default: '🐳'
+  image_tags:
+    description: 'The image tags to display'
+    required: false
+    default: ''
+  pr_number:
+    description: 'The pull request number'
+    required: true
+  github_token:
+    description: 'GitHub token for authentication'
+    required: true
+  job_status:
+    description: 'Job status (success/failure) to determine action'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Post, update, or delete PR comment
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        PR_NUMBER: ${{ inputs.pr_number }}
+        COMMENT_TAG: ${{ inputs.comment_tag }}
+        IMAGE_NAME: ${{ inputs.image_name }}
+        EMOJI: ${{ inputs.emoji }}
+        IMAGE_TAGS: ${{ inputs.image_tags }}
+        JOB_STATUS: ${{ inputs.job_status }}
+      run: |
+        # Define comment identifier
+        COMMENT_IDENTIFIER="<!-- ${COMMENT_TAG} -->"
+
+        # Prepare comment body based on job status
+        if [ "$JOB_STATUS" == "success" ]; then
+          # Service emoji mapping
+          declare -A SERVICE_EMOJI=(
+            ["rebalancer"]="♻️"
+            ["warp-monitor"]="🕵️"
+            ["key-funder"]="🔑"
+            ["ts-relayer"]="🚀"
+            ["offchain-lookup-server"]="🔍"
+            ["monorepo"]="📦"
+          )
+
+          # Parse tags and format as table
+          declare -A SERVICE_TAGS
+          declare -A SERVICE_FULL
+          while IFS= read -r tag; do
+            [ -z "$tag" ] && continue
+            # Extract service name and tag value
+            service=$(echo "$tag" | sed -E 's|.*/hyperlane-([^:]+):.*|\1|')
+            tag_value=$(echo "$tag" | sed -E 's|.*:([^:]+)$|\1|')
+            SERVICE_TAGS[$service]="$tag_value"
+            SERVICE_FULL[$service]="$tag"
+          done <<< "$IMAGE_TAGS"
+
+          # Build table rows (sorted for consistent ordering)
+          TABLE_ROWS=""
+          FULL_LIST=""
+          for service in $(echo "${!SERVICE_TAGS[@]}" | tr ' ' '\n' | sort); do
+            emoji="${SERVICE_EMOJI[$service]:-}"
+            display_name="${emoji:+$emoji }${service}"
+            TABLE_ROWS="${TABLE_ROWS}| ${display_name} | \`${SERVICE_TAGS[$service]}\` |"$'\n'
+            FULL_LIST="${FULL_LIST}${SERVICE_FULL[$service]}"$'\n'
+          done
+
+          # Build comment body using printf to avoid YAML parsing issues
+          # Full image paths are collapsed in PR comments
+          COMMENT_BODY=$(printf '%s\n## %s %s Built Successfully\n\n| Service | Tag |\n|---------|-----|\n%s\n<details>\n<summary>Full image paths</summary>\n\n```\n%s```\n</details>' \
+            "${COMMENT_IDENTIFIER}" "${EMOJI}" "${IMAGE_NAME}" "${TABLE_ROWS}" "${FULL_LIST}")
+        else
+          # On failure, we'll delete the comment instead
+          COMMENT_BODY=""
+        fi
+
+        # Find all existing comments with our identifier
+        COMMENT_IDS=$(gh pr view ${PR_NUMBER} \
+          --repo ${GITHUB_REPOSITORY} \
+          --json comments \
+          --jq '.comments[] | select(.body | contains("'"${COMMENT_IDENTIFIER}"'")) | .id')
+
+        # Delete all existing comments with our identifier to avoid duplicates
+        if [ -n "$COMMENT_IDS" ]; then
+          echo "Found existing comment(s), deleting to avoid duplicates..."
+          while IFS= read -r comment_id; do
+            if [ -n "$comment_id" ]; then
+              # Use GraphQL mutation to delete by node ID
+              gh api graphql -f query='
+                mutation($id: ID!) {
+                  deleteIssueComment(input: {id: $id}) {
+                    clientMutationId
+                  }
+                }' -f id="$comment_id" 2>/dev/null || true
+            fi
+          done <<< "$COMMENT_IDS"
+        fi
+
+        # Create new comment if job succeeded
+        if [ -n "$COMMENT_BODY" ]; then
+          gh pr comment ${PR_NUMBER} \
+            --repo ${GITHUB_REPOSITORY} \
+            --body "${COMMENT_BODY}"
+        fi

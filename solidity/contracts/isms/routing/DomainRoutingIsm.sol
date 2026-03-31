@@ -120,11 +120,9 @@ contract DomainRoutingIsm is
         _remove(_domain);
     }
 
-    function removeBatch(
-        DomainModule[] calldata _domainModules
-    ) external onlyOwner {
-        for (uint256 i = 0; i < _domainModules.length; ++i) {
-            _remove(_domainModules[i].domain);
+    function removeBatch(uint32[] calldata _domains) external onlyOwner {
+        for (uint256 i = 0; i < _domains.length; ++i) {
+            _remove(_domains[i]);
         }
     }
 
@@ -161,7 +159,7 @@ contract DomainRoutingIsm is
      * @notice Removes the specified origin domain's ISM
      * @param _domain The origin domain
      */
-    function _remove(uint32 _domain) internal {
+    function _remove(uint32 _domain) internal virtual {
         require(_modules.remove(_domain), _originNotFoundError(_domain));
         emit ModuleRemoved(_domain);
     }
@@ -188,7 +186,7 @@ contract DomainRoutingIsm is
      * @param _domain The origin domain
      * @param _module The ISM to use to verify messages
      */
-    function _set(uint32 _domain, address _module) internal {
+    function _set(uint32 _domain, address _module) internal virtual {
         require(_module.isContract(), "ISM must be a contract");
         _modules.set(_domain, _module.addressToBytes32());
         emit ModuleSet(_domain, _module);

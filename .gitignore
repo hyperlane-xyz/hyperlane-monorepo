@@ -1,7 +1,8 @@
 node_modules
 test_deploy.env
+results.sarif
 
-**/.env
+**/.env*
 **/tsconfig.tsbuildinfo
 **/tmp.*
 **/*.swp
@@ -20,9 +21,9 @@ typescript/infra/config/environments/test/create2/*json
 typescript/infra/config/environments/test/testrecipient/*json
 solidity/artifacts
 
-.yarn/install-state.gz
-.yarn/cache
-yarn-error.log
+# pnpm
+.pnpm-store/
+pnpm-debug.log*
 
 .turbo
 
@@ -30,3 +31,24 @@ yarn-error.log
 **/*.ignore
 
 tsconfig.editor.json
+
+# yalc
+yalc.lock
+.yalc
+
+**/keys
+!typescript/infra/scripts/keys
+**/warp-route-deployer-key.json
+**/key.json
+**/deployer-key.json
+
+# .yarn as we use pnpm now
+.yarn
+
+.opencode
+.sisyphus
+
+
+# Forge build artifacts
+cache/
+out/

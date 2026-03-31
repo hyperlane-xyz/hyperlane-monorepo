@@ -1,4 +1,8 @@
+use std::collections::HashMap;
 use std::{sync::Arc, time::Duration};
+
+use prometheus::{CounterVec, IntCounter, IntCounterVec, IntGauge, Opts, Registry};
+use tokio::sync::RwLock;
 
 use hyperlane_base::{
     cache::{LocalCache, MeteredCache, OptionalCache},
@@ -8,20 +12,18 @@ use hyperlane_base::{
 };
 use hyperlane_core::{HyperlaneDomain, H256};
 use hyperlane_test::mocks::{MockMailboxContract, MockValidatorAnnounceContract};
-use prometheus::{CounterVec, IntCounter, IntCounterVec, IntGauge, Opts, Registry};
-use tokio::sync::RwLock;
 
 use crate::{
     merkle_tree::builder::MerkleTreeBuilder,
     metrics::message_submission::MessageSubmissionMetrics,
     msg::{
+        db_loader::tests::DummyApplicationOperationVerifier,
         gas_payment::GasPaymentEnforcer,
         metadata::{
             BaseMetadataBuilder, DefaultIsmCache, IsmAwareAppContextClassifier,
             IsmCachePolicyClassifier,
         },
         pending_message::MessageContext,
-        processor::test::DummyApplicationOperationVerifier,
     },
 };
 
@@ -39,10 +41,17 @@ pub fn dummy_chain_conf(domain: &HyperlaneDomain) -> ChainConf {
             },
             transaction_overrides: Default::default(),
             op_submission_config: Default::default(),
+            consider_null_transaction_receipt: false,
+            grpc_urls: None,
+            solidity_grpc_urls: None,
+            energy_multiplier: None,
         }),
         metrics_conf: Default::default(),
         index: Default::default(),
+        confirmations: Default::default(),
+        chain_id: Default::default(),
         ignore_reorg_reports: false,
+        native_token: Default::default(),
     }
 }
 
@@ -53,12 +62,19 @@ pub fn dummy_metadata_builder(
     cache: OptionalCache<MeteredCache<LocalCache>>,
 ) -> BaseMetadataBuilder {
     let mut settings = Settings::default();
+    let domains = HashMap::from([
+        (origin_domain.name().to_string(), origin_domain.clone()),
+        (
+            destination_domain.name().to_string(),
+            destination_domain.clone(),
+        ),
+    ]);
+    settings.domains = domains;
+    settings
+        .chains
+        .insert(origin_domain.clone(), dummy_chain_conf(origin_domain));
     settings.chains.insert(
-        origin_domain.name().to_owned(),
-        dummy_chain_conf(origin_domain),
-    );
-    settings.chains.insert(
-        destination_domain.name().to_owned(),
+        destination_domain.clone(),
         dummy_chain_conf(destination_domain),
     );
     let destination_chain_conf = settings.chain_setup(destination_domain).unwrap();
@@ -75,7 +91,7 @@ pub fn dummy_metadata_builder(
         Arc::new(core_metrics),
         cache,
         db.clone(),
-        IsmAwareAppContextClassifier::new(default_ism_getter.clone(), vec![]),
+        IsmAwareAppContextClassifier::new(default_ism_getter.clone(), vec![].into()),
         IsmCachePolicyClassifier::new(default_ism_getter, Default::default()),
         None,
         false,
@@ -111,9 +127,9 @@ pub fn dummy_message_context(
         origin_db: Arc::new(db.clone()),
         cache,
         metadata_builder: base_metadata_builder,
-        origin_gas_payment_enforcer: Arc::new(GasPaymentEnforcer::new([], db.clone())),
+        origin_gas_payment_enforcer: Arc::new(RwLock::new(GasPaymentEnforcer::new([], db.clone()))),
         transaction_gas_limit: Default::default(),
         metrics: dummy_submission_metrics(),
-        application_operation_verifier: Some(Arc::new(DummyApplicationOperationVerifier {})),
+        application_operation_verifier: Arc::new(DummyApplicationOperationVerifier {}),
     }
 }

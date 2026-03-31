@@ -213,9 +213,9 @@ impl Encode for GasPaymentKey {
     where
         W: std::io::Write,
     {
-        let mut written = 0;
-        written += self.message_id.write_to(writer)?;
-        written += self.destination.write_to(writer)?;
+        let mut written: usize = 0;
+        written = written.saturating_add(self.message_id.write_to(writer)?);
+        written = written.saturating_add(self.destination.write_to(writer)?);
         Ok(written)
     }
 }
@@ -238,11 +238,11 @@ impl Encode for InterchainGasPayment {
     where
         W: std::io::Write,
     {
-        let mut written = 0;
-        written += self.message_id.write_to(writer)?;
-        written += self.destination.write_to(writer)?;
-        written += self.payment.write_to(writer)?;
-        written += self.gas_amount.write_to(writer)?;
+        let mut written: usize = 0;
+        written = written.saturating_add(self.message_id.write_to(writer)?);
+        written = written.saturating_add(self.destination.write_to(writer)?);
+        written = written.saturating_add(self.payment.write_to(writer)?);
+        written = written.saturating_add(self.gas_amount.write_to(writer)?);
         Ok(written)
     }
 }
@@ -269,17 +269,17 @@ impl<T: Encode> Encode for Indexed<T> {
     where
         W: std::io::Write,
     {
-        let mut written = 0;
-        written += self.inner().write_to(writer)?;
+        let mut written: usize = 0;
+        written = written.saturating_add(self.inner().write_to(writer)?);
         match self.sequence {
             Some(sequence) => {
                 let sequence_is_defined = true;
-                written += sequence_is_defined.write_to(writer)?;
-                written += sequence.write_to(writer)?;
+                written = written.saturating_add(sequence_is_defined.write_to(writer)?);
+                written = written.saturating_add(sequence.write_to(writer)?);
             }
             None => {
                 let sequence_is_defined = false;
-                written += sequence_is_defined.write_to(writer)?;
+                written = written.saturating_add(sequence_is_defined.write_to(writer)?);
             }
         }
         Ok(written)
@@ -308,14 +308,14 @@ impl<T: Encode> Encode for Vec<T> {
     where
         W: std::io::Write,
     {
-        let mut written = 0;
+        let mut written: usize = 0;
         // Write the length of the vector as a u32
-        written += (self.len() as u64).write_to(writer)?;
+        written = written.saturating_add((self.len() as u64).write_to(writer)?);
 
         // Write each `T` in the vector using its `Encode` implementation
-        written += self.iter().try_fold(0, |acc, item| {
-            item.write_to(writer).map(|bytes| acc + bytes)
-        })?;
+        written = written.saturating_add(self.iter().try_fold(0usize, |acc, item| {
+            item.write_to(writer).map(|bytes| acc.saturating_add(bytes))
+        })?);
         Ok(written)
     }
 }

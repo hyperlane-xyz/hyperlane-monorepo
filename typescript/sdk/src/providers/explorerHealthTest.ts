@@ -14,6 +14,12 @@ const PROTOCOL_TO_ADDRESS: Record<ProtocolType, Address> = {
   [ProtocolType.CosmosNative]: 'cosmos100000000000000000000000000000000000000',
   [ProtocolType.Starknet]:
     '0x0000000000000000000000000000000000000000000000000000000000000000',
+  [ProtocolType.Radix]:
+    'account_sim0000000000000000000000000000000000000000000000000000000',
+  [ProtocolType.Aleo]:
+    'aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc',
+  [ProtocolType.Tron]: 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb',
+  [ProtocolType.Unknown]: '0x0000000000000000000000000000000000000000',
 };
 
 const PROTOCOL_TO_TX_HASH: Partial<Record<ProtocolType, Address>> = {

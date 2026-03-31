@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
+use ethers::core::k256::sha2::{Digest, Sha256};
 use ethers::prelude::{AwsSigner, LocalWallet};
 use ethers::utils::hex::ToHex;
 use eyre::{bail, Context, Report};
@@ -39,6 +40,13 @@ pub enum SignerConf {
         prefix: String,
         /// Account address type for cosmos address
         account_address_type: AccountAddressType,
+    },
+    /// Radix Specific key
+    RadixKey {
+        /// private key
+        key: H256,
+        /// suffix for address formatting
+        suffix: String,
     },
     /// Starknet Specific key
     StarkKey {
@@ -88,14 +96,12 @@ impl BuildableWithSignerConf for hyperlane_ethereum::Signers {
                 ),
             )),
             SignerConf::Aws { id, region } => {
+                let http_client = utils::http_client_with_timeout()
+                    .map_err(|err| eyre::eyre!(err.to_string()))?;
                 let client = KmsClient::new_with_client(
-                    rusoto_core::Client::new_with(
-                        AwsChainCredentialsProvider::new(),
-                        utils::http_client_with_timeout().unwrap(),
-                    ),
+                    rusoto_core::Client::new_with(AwsChainCredentialsProvider::new(), http_client),
                     region.clone(),
                 );
-
                 let signer = AwsSigner::new(client, id, 0, Some(AWS_SIGNER_TIMEOUT)).await?;
                 hyperlane_ethereum::Signers::Aws(signer)
             }
@@ -106,6 +112,9 @@ impl BuildableWithSignerConf for hyperlane_ethereum::Signers {
                 bail!("starkKey signer is not supported by Ethereum")
             }
             SignerConf::Node => bail!("Node signer"),
+            SignerConf::RadixKey { .. } => {
+                bail!("radixKey signer is not supported by Ethereum")
+            }
         })
     }
 }
@@ -116,6 +125,51 @@ impl ChainSigner for hyperlane_ethereum::Signers {
     }
     fn address_h256(&self) -> H256 {
         ethers::types::H256::from(ethers::signers::Signer::address(self)).into()
+    }
+}
+
+#[async_trait]
+impl BuildableWithSignerConf for hyperlane_tron::TronSigner {
+    async fn build(conf: &SignerConf) -> Result<Self, Report> {
+        match conf {
+            SignerConf::HexKey { key } => {
+                let key = ethers::core::k256::SecretKey::from_be_bytes(key.as_bytes())?;
+                let wallet = ethers::core::k256::ecdsa::SigningKey::from(key);
+                Ok(hyperlane_tron::TronSigner::from(wallet))
+            }
+            SignerConf::Aws { id, region } => {
+                let http_client = utils::http_client_with_timeout()
+                    .map_err(|err| eyre::eyre!(err.to_string()))?;
+                let client = KmsClient::new_with_client(
+                    rusoto_core::Client::new_with(AwsChainCredentialsProvider::new(), http_client),
+                    region.clone(),
+                );
+                let signer = AwsSigner::new(client, id, 0, Some(AWS_SIGNER_TIMEOUT)).await?;
+                Ok(hyperlane_tron::TronSigner::Aws(signer))
+            }
+            _ => bail!(format!("{conf:?} key is not supported by tron")),
+        }
+    }
+}
+
+impl ChainSigner for hyperlane_tron::TronSigner {
+    fn address_string(&self) -> String {
+        let mut address_bytes = self.address_h256().to_fixed_bytes().to_vec();
+        address_bytes[11] = 0x41; // Tron address prefix
+
+        let hash1 = Sha256::digest(&address_bytes[11..]);
+        let hash2 = Sha256::digest(hash1);
+
+        let checksum = &hash2[0..4];
+
+        let mut final_bytes = Vec::with_capacity(25);
+        final_bytes.extend_from_slice(&address_bytes[11..]);
+        final_bytes.extend_from_slice(checksum);
+
+        bs58::encode(final_bytes).into_string()
+    }
+    fn address_h256(&self) -> H256 {
+        ethers::types::H256::from(self.address()).into()
     }
 }
 
@@ -208,29 +262,9 @@ impl BuildableWithSignerConf for hyperlane_starknet::Signer {
     }
 }
 
-#[async_trait]
-impl BuildableWithSignerConf for hyperlane_cosmos_native::Signer {
-    async fn build(conf: &SignerConf) -> Result<Self, Report> {
-        if let SignerConf::CosmosKey {
-            key,
-            prefix,
-            account_address_type,
-        } = conf
-        {
-            Ok(hyperlane_cosmos_native::Signer::new(
-                key.as_bytes().to_vec(),
-                prefix.clone(),
-                account_address_type,
-            )?)
-        } else {
-            bail!(format!("{conf:?} key is not supported by cosmos"));
-        }
-    }
-}
-
 impl ChainSigner for hyperlane_starknet::Signer {
     fn address_string(&self) -> String {
-        self.address.to_string()
+        self.address.to_hex_string()
     }
 
     fn address_h256(&self) -> H256 {
@@ -238,10 +272,48 @@ impl ChainSigner for hyperlane_starknet::Signer {
     }
 }
 
-impl ChainSigner for hyperlane_cosmos_native::Signer {
-    fn address_string(&self) -> String {
-        self.address_string.clone()
+#[async_trait]
+impl BuildableWithSignerConf for hyperlane_radix::RadixSigner {
+    async fn build(conf: &SignerConf) -> Result<Self, Report> {
+        if let SignerConf::RadixKey { key, suffix } = conf {
+            Ok(hyperlane_radix::RadixSigner::new(
+                key.as_bytes().to_vec(),
+                suffix.to_string(),
+            )?)
+        } else {
+            bail!(format!("{conf:?} key is not supported by radix"));
+        }
     }
+}
+
+impl ChainSigner for hyperlane_radix::RadixSigner {
+    fn address_string(&self) -> String {
+        self.encoded_address.clone()
+    }
+
+    fn address_h256(&self) -> H256 {
+        self.address_256
+    }
+}
+
+#[cfg(feature = "aleo")]
+#[async_trait]
+impl BuildableWithSignerConf for hyperlane_aleo::AleoSigner {
+    async fn build(conf: &SignerConf) -> Result<Self, Report> {
+        if let SignerConf::HexKey { key } = conf {
+            Ok(hyperlane_aleo::AleoSigner::new(key.as_bytes())?)
+        } else {
+            bail!(format!("{conf:?} key is not supported by aleo"));
+        }
+    }
+}
+
+#[cfg(feature = "aleo")]
+impl ChainSigner for hyperlane_aleo::AleoSigner {
+    fn address_string(&self) -> String {
+        self.address().to_owned()
+    }
+
     fn address_h256(&self) -> H256 {
         self.address_h256()
     }
@@ -252,7 +324,7 @@ mod tests {
     use ethers::{signers::LocalWallet, utils::hex};
     use hyperlane_core::{AccountAddressType, Encode, H256};
 
-    use crate::settings::ChainSigner;
+    use crate::settings::{ChainSigner, SignerConf};
 
     #[test]
     fn address_h256_ethereum() {
@@ -280,7 +352,7 @@ mod tests {
             "0d861aa9ee7b09fe0305a649ec9aa0dfede421817dbe995b48964e5a79fc89e50f8ac473c042cdd96a1fc81eac32221188807572521429fb871a856a668502a5";
         const ADDRESS: &str = "0f8ac473c042cdd96a1fc81eac32221188807572521429fb871a856a668502a5";
 
-        let chain_signer = hyperlane_sealevel::Keypair::from_bytes(
+        let chain_signer = hyperlane_sealevel::Keypair::try_from(
             hex::decode(PRIVATE_KEY)
                 .expect("Failed to decode private key")
                 .as_slice(),
@@ -344,29 +416,32 @@ mod tests {
         assert_eq!(chain_signer.address_h256(), address_h256);
     }
 
-    #[test]
-    fn address_h256_cosmosnative() {
+    #[tokio::test]
+    async fn address_h256_tron() {
+        use crate::settings::signers::BuildableWithSignerConf;
+
         const PRIVATE_KEY: &str =
-            "5486418967eabc770b0fcb995f7ef6d9a72f7fc195531ef76c5109f44f51af26";
-        const ADDRESS: &str = "000000000000000000000000b5a79b48c87e7a37bdb625096140ee7054816942";
+            "b2752a4539917a795c79caaa0e99d8111078574f381ca3f7598c6ff1ea6b6e3c";
+        let address =
+            hex::decode("000000000000000000000000e304de1cb42ac734b97bd6ae767942e00d751f8a")
+                .unwrap();
 
-        let key = H256::from_slice(
-            hex::decode(PRIVATE_KEY)
-                .expect("Failed to decode public key")
-                .as_slice(),
-        );
-        let chain_signer = hyperlane_cosmos_native::Signer::new(
-            key.to_vec(),
-            "neutron".to_string(),
-            &AccountAddressType::Bitcoin,
-        )
-        .expect("Failed to create cosmos signer");
+        let signer_config = SignerConf::HexKey {
+            key: H256::from_slice(
+                hex::decode(PRIVATE_KEY)
+                    .expect("Failed to decode private key")
+                    .as_slice(),
+            ),
+        };
 
-        let address_h256 = H256::from_slice(
-            hex::decode(ADDRESS)
-                .expect("Failed to decode public key")
-                .as_slice(),
+        let tron_signer = hyperlane_tron::TronSigner::build(&signer_config)
+            .await
+            .expect("Failed to build tron signer");
+
+        assert_eq!(H256::from_slice(&address), tron_signer.address_h256());
+        assert_eq!(
+            "TWfaDp7My62uVWnxPiohWau4HyanfDG31N",
+            tron_signer.address_string()
         );
-        assert_eq!(chain_signer.address_h256(), address_h256);
     }
 }

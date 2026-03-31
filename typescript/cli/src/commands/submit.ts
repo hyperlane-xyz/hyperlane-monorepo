@@ -1,15 +1,16 @@
+import { groupBy } from 'lodash-es';
+
 import {
-  SubmissionStrategy,
+  type SubmissionStrategy,
   SubmissionStrategySchema,
 } from '@hyperlane-xyz/sdk';
 
-import { runSubmit } from '../config/submit.js';
-import { CommandModuleWithWriteContext } from '../context/types.js';
-import { logBlue, logGray } from '../logger.js';
-import { readYamlOrJson } from '../utils/files.js';
+import { getTransactions, runSubmit } from '../config/submit.js';
+import { type CommandModuleWithWriteContext } from '../context/types.js';
+import { logBlue, logGray, logRed } from '../logger.js';
+import { isFile, readYamlOrJson } from '../utils/files.js';
 
 import {
-  dryRunCommandOption,
   outputFileCommandOption,
   strategyCommandOption,
   transactionsCommandOption,
@@ -21,7 +22,6 @@ import {
 export const submitCommand: CommandModuleWithWriteContext<{
   transactions: string;
   strategy: string;
-  'dry-run': string;
   receipts: string;
 }> = {
   command: 'submit',
@@ -29,27 +29,47 @@ export const submitCommand: CommandModuleWithWriteContext<{
   builder: {
     transactions: transactionsCommandOption,
     strategy: strategyCommandOption,
-    'dry-run': dryRunCommandOption,
-    receipts: outputFileCommandOption('./generated/transactions/receipts.yaml'),
+    receipts: outputFileCommandOption(
+      './generated/transactions/receipts',
+      false,
+      'Output directory for transaction receipts',
+    ),
   },
   handler: async ({
     context,
-    transactions,
-    strategy: strategyUrl,
-    receipts,
+    transactions: transactionsPath,
+    strategy: strategyPath,
+    receipts: receiptsFilepath,
   }) => {
     logGray(`Hyperlane Submit`);
     logGray(`----------------`);
 
-    const submissionStrategy = readSubmissionStrategy(strategyUrl);
-    await runSubmit({
-      context,
-      transactionsFilepath: transactions,
-      receiptsFilepath: receipts,
-      submissionStrategy,
-    });
+    // Defensive check: if receiptsFilepath exists and is a file, fail with clear error
+    if (isFile(receiptsFilepath)) {
+      logRed(
+        `❌ Error: receipts path '${receiptsFilepath}' exists but is a file. Expected a directory.`,
+      );
+      process.exit(1);
+    }
 
-    logBlue(`✅ Submission complete`);
+    const chainTransactions = groupBy(
+      getTransactions(transactionsPath),
+      'chainId',
+    );
+
+    for (const [chainId, transactions] of Object.entries(chainTransactions)) {
+      const chain = context.multiProvider.getChainName(chainId);
+
+      await runSubmit({
+        context,
+        chain,
+        transactions,
+        strategyPath,
+        receiptsFilepath,
+      });
+      logBlue(`✅ Submission complete for chain ${chain}`);
+    }
+
     process.exit(0);
   },
 };

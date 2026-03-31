@@ -9,12 +9,14 @@ export default [
     rules: {
       'no-console': ['off'],
       'no-restricted-imports': ['off'],
-    },
-  },
-  {
-    ignores: ['./src/tests/**/*.ts'],
-    rules: {
-      'import/no-cycle': ['off'],
+      'import/no-cycle': ['off'], // FIXME: Turn this back on when we resolve the cycles
+      '@typescript-eslint/consistent-type-imports': [
+        'error',
+        {
+          prefer: 'type-imports',
+          fixStyle: 'inline-type-imports',
+        },
+      ],
     },
   },
 ];

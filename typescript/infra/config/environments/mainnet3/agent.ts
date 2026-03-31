@@ -4,6 +4,7 @@ import {
   AgentSealevelPriorityFeeOracleType,
   AgentSealevelTransactionSubmitter,
   AgentSealevelTransactionSubmitterType,
+  ChainMap,
   ChainName,
   GasPaymentEnforcement,
   GasPaymentEnforcementPolicyType,
@@ -14,6 +15,7 @@ import {
   ModuleType,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
+import { Address, addressToBytes32, objMap } from '@hyperlane-xyz/utils';
 
 import {
   AgentChainConfig,
@@ -22,9 +24,12 @@ import {
   getAgentChainNamesFromConfig,
 } from '../../../src/config/agent/agent.js';
 import {
+  BaseRelayerConfig,
+  IcaMessageType,
   MetricAppContext,
   chainMapMatchingList,
   consistentSenderRecipientMatchingList,
+  icaMatchingList,
   matchingList,
   routerMatchingList,
   senderMatchingList,
@@ -32,29 +37,22 @@ import {
 } from '../../../src/config/agent/relayer.js';
 import { BaseScraperConfig } from '../../../src/config/agent/scraper.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
-import { Contexts, mustBeValidContext } from '../../contexts.js';
+import { Contexts } from '../../contexts.js';
+import { DockerImageRepos, mainnetDockerTags } from '../../docker.js';
 import { getDomainId, getWarpAddresses } from '../../registry.js';
 
 import { environment, ethereumChainNames } from './chains.js';
 import { blacklistedMessageIds } from './customBlacklist.js';
-import { helloWorld } from './helloworld.js';
-import aaveSenderAddresses from './misc-artifacts/aave-sender-addresses.json';
-import everclearSenderAddresses from './misc-artifacts/everclear-sender-addresses.json';
-import merklyEthAddresses from './misc-artifacts/merkly-eth-addresses.json';
-import merklyNftAddresses from './misc-artifacts/merkly-eth-addresses.json';
-import merklyErc20Addresses from './misc-artifacts/merkly-eth-addresses.json';
+import aaveSenderAddresses from './misc-artifacts/aave-sender-addresses.json' with { type: 'json' };
+import everclearSenderAddresses from './misc-artifacts/everclear-sender-addresses.json' with { type: 'json' };
+import merklyErc20Addresses from './misc-artifacts/merkly-erc20-addresses.json' with { type: 'json' };
+import merklyEthAddresses from './misc-artifacts/merkly-eth-addresses.json' with { type: 'json' };
 import {
   mainnet3SupportedChainNames,
   supportedChainNames,
 } from './supportedChainNames.js';
 import { validatorChainConfig } from './validators.js';
 import { WarpRouteIds } from './warp/warpIds.js';
-
-// const releaseCandidateHelloworldMatchingList = routerMatchingList(
-//   helloWorld[Contexts.ReleaseCandidate].addresses,
-// );
-
-const repo = 'gcr.io/abacus-labs-dev/hyperlane-agent';
 
 // The chains here must be consistent with the environment's supportedChainNames, which is
 // checked / enforced at runtime & in the CI pipeline.
@@ -68,8 +66,9 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Validator]: {
     abstract: true,
     // acala: true,
+    adichain: true,
+    aleo: true,
     ancient8: true,
-    alephzeroevmmainnet: true,
     apechain: true,
     appchain: true,
     arbitrum: true,
@@ -87,140 +86,134 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bob: true,
     boba: true,
     botanix: true,
-    bouncebit: true,
     bsc: true,
     bsquared: true,
+    carrchain: true,
+    celestia: true,
     celo: true,
-    cheesechain: true,
     chilizmainnet: true,
-    conflux: true,
-    conwai: true,
+    citrea: true,
     coredao: true,
     coti: true,
     cyber: true,
-    deepbrainchain: true,
     degenchain: true,
     dogechain: true,
-    duckchain: true,
     eclipsemainnet: true,
+    eden: true,
+    electroneum: true,
     endurance: true,
+    eni: true,
     ethereum: true,
     everclear: true,
-    evmos: true,
     fantom: true,
-    flame: true,
     flare: true,
     flowmainnet: true,
     fluence: true,
-    form: true,
-    // fractal: false,
+    forma: false, // relayer + scraper only
     fraxtal: true,
     fusemainnet: true,
-    game7: true,
+    galactica: true,
     gnosis: true,
     gravity: true,
-    guru: true,
     harmony: true,
     hashkey: true,
     hemi: true,
     hyperevm: true,
+    igra: true,
     immutablezkevmmainnet: true,
-    inevm: true,
-    infinityvmmainnet: true,
-    injective: true,
+    incentiv: true,
     ink: true,
     kaia: true,
     katana: true,
-    kroma: true,
+    krown: true,
     kyve: true,
+    lazai: true,
     linea: true,
     lisk: true,
+    litchain: true,
     lukso: true,
-    lumia: true,
     lumiaprism: true,
     mantapacific: true,
     mantle: true,
+    mantra: true,
     matchain: true,
+    megaeth: true,
     merlin: true,
     metal: true,
     metis: true,
     milkyway: true,
-    mint: true,
     miraclechain: true,
+    mitosis: true,
     mode: true,
     molten: true,
+    monad: true,
     moonbeam: true,
     morph: true,
-    nero: true,
     neutron: true,
     nibiru: true,
+    noble: true,
     oortmainnet: true,
     ontology: true,
     opbnb: true,
     optimism: true,
     orderly: true,
-    osmosis: true,
     paradex: true,
     peaq: true,
+    plasma: true,
     plume: true,
     polygon: true,
     polygonzkevm: true,
     polynomialfi: true,
     prom: true,
-    proofofplay: true,
+    pulsechain: true,
+    radix: true,
     rarichain: true,
     reactive: true,
-    real: true,
     redstone: true,
-    rivalz: true,
     ronin: true,
-    rootstockmainnet: true,
-    sanko: true,
     scroll: true,
     sei: true,
     shibarium: true,
-    snaxchain: true,
     solanamainnet: true,
-    solaxy: false,
+    solaxy: true,
+    somnia: true,
     soneium: true,
     sonic: true,
     sonicsvm: true,
     soon: true,
     sophon: true,
+    stable: true,
     starknet: true,
     story: true,
     stride: false,
     subtensor: true,
     superseed: true,
     superpositionmainnet: true,
-    svmbnb: true,
     swell: true,
+    tac: true,
     taiko: true,
     tangle: true,
-    telos: true,
     torus: true,
-    treasure: true,
-    trumpchain: true,
     unichain: true,
-    unitzero: true,
     vana: true,
     viction: true,
     worldchain: true,
     xai: true,
     xlayer: true,
-    xpla: true,
+    xrplevm: true,
+    zerogravity: true,
     zeronetwork: true,
     zetachain: true,
     zircuit: true,
-    zklink: true,
     zksync: true,
     zoramainnet: true,
   },
   [Role.Relayer]: {
     abstract: true,
     // acala: true,
+    aleo: true,
+    adichain: true,
     ancient8: true,
-    alephzeroevmmainnet: true,
     apechain: true,
     appchain: true,
     arcadia: true,
@@ -238,140 +231,134 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bob: true,
     boba: true,
     botanix: true,
-    bouncebit: true,
     bsc: true,
     bsquared: true,
+    carrchain: true,
+    celestia: true,
     celo: true,
-    cheesechain: true,
     chilizmainnet: true,
-    conflux: true,
-    conwai: true,
+    citrea: true,
     coredao: true,
     coti: true,
     cyber: true,
-    deepbrainchain: true,
     degenchain: true,
     dogechain: true,
-    duckchain: true,
     eclipsemainnet: true,
+    eden: true,
+    electroneum: true,
     endurance: true,
+    eni: true,
     ethereum: true,
     everclear: true,
-    evmos: true,
     fantom: true,
-    flame: true,
     flare: true,
     flowmainnet: true,
     fluence: true,
-    form: true,
-    // fractal: false,
+    forma: true,
     fraxtal: true,
     fusemainnet: true,
-    game7: true,
+    galactica: true,
     gnosis: true,
     gravity: true,
-    guru: true,
     harmony: true,
     hashkey: true,
     hemi: true,
     hyperevm: true,
+    igra: true,
     immutablezkevmmainnet: true,
-    inevm: true,
-    infinityvmmainnet: true,
-    injective: true,
+    incentiv: true,
     ink: true,
     kaia: true,
     katana: true,
-    kroma: true,
+    krown: true,
     kyve: true,
+    lazai: true,
     linea: true,
     lisk: true,
+    litchain: true,
     lukso: true,
-    lumia: true,
     lumiaprism: true,
     mantapacific: true,
     mantle: true,
+    mantra: true,
     matchain: true,
+    megaeth: true,
     merlin: true,
     metal: true,
     metis: true,
     milkyway: true,
-    mint: true,
     miraclechain: true,
+    mitosis: true,
     mode: true,
     molten: true,
+    monad: true,
     moonbeam: true,
     morph: true,
-    nero: true,
     neutron: true,
     nibiru: true,
+    noble: true,
     oortmainnet: true,
     ontology: true,
     opbnb: true,
     optimism: true,
     orderly: true,
-    osmosis: true,
     paradex: true,
     peaq: true,
+    plasma: true,
     plume: true,
     polygon: true,
     polygonzkevm: true,
     polynomialfi: true,
     prom: true,
-    proofofplay: true,
+    pulsechain: true,
+    radix: true,
     rarichain: true,
     reactive: true,
-    real: true,
     redstone: true,
-    rivalz: true,
     ronin: true,
-    rootstockmainnet: true,
-    sanko: true,
     scroll: true,
     sei: true,
     shibarium: true,
-    snaxchain: true,
     solanamainnet: true,
-    solaxy: false,
+    solaxy: true,
+    somnia: true,
     soneium: true,
     sonic: true,
     sonicsvm: true,
     soon: true,
     sophon: true,
+    stable: true,
     starknet: true,
     story: true,
     stride: true,
     subtensor: true,
     superseed: true,
     superpositionmainnet: true,
-    svmbnb: true,
     swell: true,
+    tac: true,
     taiko: true,
     tangle: true,
-    telos: true,
     torus: true,
-    treasure: true,
-    trumpchain: true,
     unichain: true,
-    unitzero: true,
     vana: true,
     viction: true,
     worldchain: true,
     xai: true,
     xlayer: true,
-    xpla: true,
+    xrplevm: true,
+    zerogravity: true,
     zeronetwork: true,
     zetachain: true,
     zircuit: true,
-    zklink: true,
     zksync: true,
     zoramainnet: true,
   },
   [Role.Scraper]: {
     abstract: true,
     // acala: true,
+    aleo: true,
+    adichain: true,
     ancient8: true,
-    alephzeroevmmainnet: true,
     apechain: true,
     appchain: true,
     arbitrum: true,
@@ -389,133 +376,126 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bob: true,
     boba: true,
     botanix: true,
-    bouncebit: true,
     bsc: true,
     bsquared: true,
+    carrchain: true,
+    celestia: true,
     celo: true,
-    cheesechain: true,
     chilizmainnet: true,
-    conflux: true,
-    conwai: true,
+    citrea: true,
     coredao: true,
     coti: true,
     cyber: true,
-    deepbrainchain: true,
     degenchain: true,
     dogechain: true,
-    duckchain: true,
     eclipsemainnet: true,
+    eden: true,
+    electroneum: true,
     endurance: true,
+    eni: true,
     ethereum: true,
     everclear: true,
-    evmos: true,
     fantom: true,
-    flame: true,
     flare: true,
     flowmainnet: true,
     fluence: true,
-    form: true,
-    // fractal: false,
+    forma: true,
     fraxtal: true,
     fusemainnet: true,
-    game7: true,
+    galactica: true,
     gnosis: true,
     gravity: true,
-    guru: true,
     harmony: true,
     hashkey: true,
     hemi: true,
     hyperevm: true,
+    igra: true,
     immutablezkevmmainnet: true,
-    inevm: true,
-    infinityvmmainnet: true,
+    incentiv: true,
     ink: true,
-    injective: true,
     kaia: true,
     katana: true,
-    kroma: true,
+    krown: true,
     kyve: true,
+    lazai: true,
     linea: true,
     lisk: true,
+    litchain: true,
     lukso: true,
-    lumia: true,
     lumiaprism: true,
     mantapacific: true,
     mantle: true,
+    mantra: true,
     matchain: true,
+    megaeth: true,
     merlin: true,
     metal: true,
     metis: true,
     milkyway: true,
-    mint: true,
     miraclechain: true,
+    mitosis: true,
     mode: true,
     molten: true,
+    monad: true,
     moonbeam: true,
     morph: true,
-    nero: true,
     neutron: true,
     nibiru: true,
+    noble: true,
     oortmainnet: true,
     ontology: true,
     opbnb: true,
     optimism: true,
     orderly: true,
-    osmosis: true,
     paradex: true,
     peaq: true,
+    plasma: true,
     plume: true,
     polygon: true,
     polygonzkevm: true,
     polynomialfi: true,
     prom: true,
-    proofofplay: true,
+    pulsechain: true,
+    radix: true,
     rarichain: true,
     reactive: true,
-    real: true,
     redstone: true,
-    rivalz: true,
     ronin: true,
-    rootstockmainnet: true,
-    sanko: true,
     scroll: true,
     sei: true,
     shibarium: true,
-    snaxchain: true,
     solanamainnet: true,
-    solaxy: false,
+    solaxy: true,
+    somnia: true,
     soneium: true,
     sonic: true,
     sonicsvm: true,
     soon: true,
     sophon: true,
+    stable: true,
     starknet: true,
     story: true,
     stride: true,
     subtensor: true,
     superseed: true,
     superpositionmainnet: true,
-    svmbnb: true,
     swell: true,
+    tac: true,
     taiko: true,
     tangle: true,
-    telos: true,
     torus: true,
-    treasure: true,
-    trumpchain: true,
     unichain: true,
-    unitzero: true,
     vana: true,
-    // Has RPC non-compliance that breaks scraping.
-    viction: false,
+    // Note: default rpc.viction.xyz endpoint can't be used for scraping (returns 429s).
+    viction: true,
     worldchain: true,
     xai: true,
     xlayer: true,
-    xpla: true,
+    xrplevm: true,
+    zerogravity: true,
     zeronetwork: true,
     zetachain: true,
     zircuit: true,
-    zklink: true,
     zksync: true,
     zoramainnet: true,
   },
@@ -523,7 +503,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
 
 // Chains not in our core set of supported chains, and supported ONLY by the scraper
 export const scraperOnlyChains: BaseScraperConfig['scraperOnlyChains'] = {
-  forma: true,
   edgenchain: true,
 };
 
@@ -595,39 +574,89 @@ const contextBase = {
   },
 } as const;
 
+const veloMessageModuleMatchingList = consistentSenderRecipientMatchingList(
+  '0x2BbA7515F7cF114B45186274981888D8C2fBA15E',
+);
+
+// Velodrome Universal Router addresses (also used by Superswap)
+// Source: https://github.com/velodrome-finance/universal-router/tree/main/deployment-addresses
+const velodromeUniversalRouterOwner =
+  '0x01D40099fCD87C018969B0e8D4aB1633Fb34763C';
+
+const velodromeUniversalRouters: ChainMap<Address> = {
+  base: velodromeUniversalRouterOwner,
+  celo: velodromeUniversalRouterOwner,
+  fraxtal: velodromeUniversalRouterOwner,
+  ink: velodromeUniversalRouterOwner,
+  lisk: velodromeUniversalRouterOwner,
+  metal: velodromeUniversalRouterOwner,
+  mode: velodromeUniversalRouterOwner,
+  optimism: velodromeUniversalRouterOwner,
+  soneium: velodromeUniversalRouterOwner,
+  superseed: velodromeUniversalRouterOwner,
+  swell: velodromeUniversalRouterOwner,
+  unichain: velodromeUniversalRouterOwner,
+};
+
+const superswapIcaV2CommitmentMatchingList = icaMatchingList(
+  objMap(velodromeUniversalRouters, (_, owner) => ({
+    messageType: IcaMessageType.COMMITMENT,
+    owner,
+  })),
+);
+
+const icaV2RevealMatchingList = icaMatchingList(
+  objMap(velodromeUniversalRouters, () => ({
+    messageType: IcaMessageType.REVEAL,
+  })),
+);
+
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   {
     type: GasPaymentEnforcementPolicyType.None,
     matchingList: [
-      // Infinity VM is gasless, so ignore outbound txs from InfinityVM to Solana.
-      {
-        originDomain: getDomainId('infinityvmmainnet'),
-        destinationDomain: getDomainId('solanamainnet'),
-      },
+      { originDomain: getDomainId('noble') },
       { originDomain: getDomainId('starknet') },
       { originDomain: getDomainId('paradex') },
+      // Not a core chain
+      {
+        originDomain: getDomainId('forma'),
+        destinationDomain: getDomainId('stride'),
+      },
+      // Not a core chain
+      {
+        originDomain: getDomainId('stride'),
+        destinationDomain: getDomainId('forma'),
+      },
+      // Not a core chain
+      {
+        originDomain: getDomainId('forma'),
+        destinationDomain: getDomainId('celestia'),
+      },
     ],
   },
   {
     type: GasPaymentEnforcementPolicyType.Minimum,
     payment: '1',
     matchingList: [
+      // Temporary workaround
+      { destinationDomain: getDomainId('citrea') },
       // Temporary workaround due to funky Mantle gas amounts.
       { destinationDomain: getDomainId('mantle') },
       // Temporary workaround due to funky Torus gas amounts.
       { destinationDomain: getDomainId('torus') },
-      // Infinity VM is gasless, so enforcing min 1 wei here ensures outbound txs
-      // outside of Solana are ignored.
-      { originDomain: getDomainId('infinityvmmainnet') },
+      // Not a core chain
+      { destinationDomain: getDomainId('forma') },
       // Temporary workaround due to funky Zeronetwork gas amounts.
       { destinationDomain: getDomainId('zeronetwork') },
       // Temporary workaround during testing of MilkyWay.
       { originDomain: getDomainId('milkyway') },
-      // Temporary workaround for incorrect gas limits estimated when sending to Starknet chains
-      { destinationDomain: getDomainId('starknet') },
-      { destinationDomain: getDomainId('paradex') },
-      // Temporary workaround for some high gas amount estimates on Treasure
-      ...warpRouteMatchingList(WarpRouteIds.ArbitrumTreasureMAGIC),
+      // Being more generous with some Velo message module messages, which occasionally underpay
+      ...veloMessageModuleMatchingList,
+      // Superswap ICA matches on ICA owner address in message body
+      ...superswapIcaV2CommitmentMatchingList,
+      // ICA reveal messages (does not filter on ICA owner)
+      ...icaV2RevealMatchingList,
     ],
   },
   {
@@ -665,15 +694,7 @@ const stagingStHyperMatchingList = chainMapMatchingList({
   ethereum: '0x0C919509663cb273E156B706f065b9F7e6331891',
 });
 
-const vanguardMatchingList = [
-  ...hyperMatchingList,
-  ...stHyperMatchingList,
-  ...stagingHyperMatchingList,
-  ...stagingStHyperMatchingList,
-];
-
 // Gets metric app contexts, including:
-// - helloworld
 // - all warp routes defined in WarpRouteIds, using addresses from the registry
 // - misc important applications not defined in the registry, e.g. merkly
 const metricAppContextsGetter = (): MetricAppContext[] => {
@@ -702,12 +723,6 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
   return [
     ...warpContexts,
     {
-      name: 'helloworld',
-      matchingList: routerMatchingList(
-        helloWorld[Contexts.Hyperlane].addresses,
-      ),
-    },
-    {
       name: 'merkly_erc20',
       matchingList: routerMatchingList(merklyErc20Addresses),
     },
@@ -716,18 +731,12 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
       matchingList: routerMatchingList(merklyEthAddresses),
     },
     {
-      name: 'merkly_nft',
-      matchingList: routerMatchingList(merklyNftAddresses),
-    },
-    {
       name: 'velo_message_module',
       // Almost all messages to / from this address relate to the Velo Message Module.
       // The only exception is Metal, which had an initial misconfiguration that the Velo
       // team resolved with a different contract deploy. We can still only match on this address
       // as Metal is the only exception, so it's always receiving from or sending messages to this address.
-      matchingList: consistentSenderRecipientMatchingList(
-        '0x2BbA7515F7cF114B45186274981888D8C2fBA15E',
-      ),
+      matchingList: veloMessageModuleMatchingList,
     },
     {
       name: 'velo_token_bridge',
@@ -767,6 +776,20 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
       name: 'stHYPER-STAGING/bsc-ethereum',
       matchingList: stagingStHyperMatchingList,
     },
+    {
+      name: 'superswap_ica_v2',
+      matchingList: [
+        ...superswapIcaV2CommitmentMatchingList,
+        // WARN: does not only reflect superswaps messages
+        ...icaV2RevealMatchingList,
+      ],
+    },
+    {
+      name: 'm0',
+      matchingList: consistentSenderRecipientMatchingList(
+        '0x36f586A30502AE3afb555b8aA4dCc05d233c2ecE',
+      ),
+    },
   ];
 };
 
@@ -797,6 +820,42 @@ const blacklist: MatchingList = [
   ...blacklistedMessageIds.map((messageId) => ({
     messageId,
   })),
+  // legacy forma routes we are not relaying
+  {
+    destinationDomain: getDomainId('forma'),
+    recipientAddress: [
+      '0x4ca56fbecfe8431996c6b4ec8da140d4201338e8',
+      '0x0a5c7d4ee3d65b2581d5606f8081fc8d8be22319',
+      '0x74a26075fa2eec77936a56b0f9645d32a79b28af',
+      '0xfcee86f472d0c19fccdd3aedb89aa9cc0a1fb0d1',
+    ],
+  },
+  // legacy forma routes we are not relaying
+  {
+    originDomain: getDomainId('forma'),
+    senderAddress: [
+      '0x6052c5c075212f013c856bff015872914ed3492a',
+      '0xd5ebc5e5f38c2d8c91c43122a105327c1f0260b4',
+    ],
+  },
+  // routes on legacy pulsechain mailbox
+  {
+    destinationDomain: getDomainId('pulsechain'),
+    recipientAddress: [
+      '0x688B161745c4eCEc2Ce07DC385cF2B57D9980244',
+      '0x50d03965Ed30de5d246BdDa18E7B10A8904B8CF1',
+      '0xD110Cbf543c3b237aB3EC171D7117932A4807F9B',
+      '0x87353B9AA546F8cf7290DeD2d339C0Ec694d7144',
+      '0x5DD749B87FA2e456482adb231FB9c2b0302A3027',
+      '0xe227B51F5D7079fAa07b7621657e3aa5906d2185',
+      '0x867c1fd9341DEC12e4B779C35D7b7C475316b334',
+    ],
+  },
+  // StarkNet<>StarkNet messages
+  {
+    originDomain: getDomainId('starknet'),
+    destinationDomain: getDomainId('starknet'),
+  },
 ];
 
 const ismCacheConfigs: Array<IsmCacheConfig> = [
@@ -818,6 +877,21 @@ const ismCacheConfigs: Array<IsmCacheConfig> = [
   },
 ];
 
+const processAltOverrides: BaseRelayerConfig['processAltOverrides'] = {
+  solanamainnet: [
+    {
+      matchingList: [
+        {
+          recipientAddress: addressToBytes32(
+            'mZhPGteS36G7FhMTcRofLQU8ocBNAsGq7u8SKSHfL2X',
+          ),
+        },
+      ],
+      addressLookupTable: '8MedWKtfT7QdMcZWDuVPx1iUrJRRZXDQpzyZAaqzQg2Z',
+    },
+  ],
+};
+
 const hyperlane: RootAgentConfig = {
   ...contextBase,
   context: Contexts.Hyperlane,
@@ -826,13 +900,20 @@ const hyperlane: RootAgentConfig = {
   relayer: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
-      repo,
-      tag: 'fe8f2cd-20250620-104910',
+      repo: DockerImageRepos.AGENT,
+      tag: mainnetDockerTags.relayer,
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
+    processAltOverrides,
+    batch: {
+      batchSizeOverrides: {
+        starknet: 16,
+        paradex: 16,
+      },
+    },
     cache: {
       enabled: true,
     },
@@ -840,8 +921,8 @@ const hyperlane: RootAgentConfig = {
   },
   validators: {
     docker: {
-      repo,
-      tag: 'fe8f2cd-20250620-104910',
+      repo: DockerImageRepos.AGENT,
+      tag: mainnetDockerTags.validator,
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -851,8 +932,8 @@ const hyperlane: RootAgentConfig = {
     scraperOnlyChains,
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
-      repo,
-      tag: '420c950-20250612-172436',
+      repo: DockerImageRepos.AGENT,
+      tag: mainnetDockerTags.scraper,
     },
     resources: scraperResources,
   },
@@ -862,20 +943,24 @@ const releaseCandidate: RootAgentConfig = {
   ...contextBase,
   context: Contexts.ReleaseCandidate,
   contextChainNames: hyperlaneContextAgentChainNames,
-  rolesWithKeys: [Role.Relayer, Role.Kathy, Role.Validator],
+  rolesWithKeys: [Role.Relayer, Role.Validator],
   relayer: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
-      repo,
-      tag: '8185c87-20250618-151232',
+      repo: DockerImageRepos.AGENT,
+      tag: mainnetDockerTags.relayerRC,
     },
     blacklist,
-    // We're temporarily (ab)using the RC relayer as a way to increase
-    // message throughput.
-    // whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
+    processAltOverrides,
+    batch: {
+      batchSizeOverrides: {
+        starknet: 16,
+        paradex: 16,
+      },
+    },
     cache: {
       enabled: true,
     },
@@ -883,8 +968,8 @@ const releaseCandidate: RootAgentConfig = {
   },
   validators: {
     docker: {
-      repo,
-      tag: 'cedc8e1-20250603-094703',
+      repo: DockerImageRepos.AGENT,
+      tag: mainnetDockerTags.validatorRC,
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
@@ -896,7 +981,7 @@ const neutron: RootAgentConfig = {
   ...contextBase,
   contextChainNames: {
     validator: [],
-    relayer: ['neutron', 'mantapacific', 'arbitrum'],
+    relayer: ['mantapacific', 'arbitrum'],
     scraper: [],
   },
   context: Contexts.Neutron,
@@ -904,13 +989,20 @@ const neutron: RootAgentConfig = {
   relayer: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
-      repo,
-      tag: '8185c87-20250618-151232',
+      repo: DockerImageRepos.AGENT,
+      tag: mainnetDockerTags.relayerRC,
     },
     blacklist,
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
+    processAltOverrides,
+    batch: {
+      batchSizeOverrides: {
+        starknet: 16,
+        paradex: 16,
+      },
+    },
     cache: {
       enabled: true,
     },
@@ -918,79 +1010,8 @@ const neutron: RootAgentConfig = {
   },
 };
 
-const getVanguardRootAgentConfig = (index: number): RootAgentConfig => ({
-  ...contextBase,
-  context: mustBeValidContext(`vanguard${index}`),
-  contextChainNames: {
-    validator: [],
-    relayer: ['bsc', 'arbitrum', 'optimism', 'ethereum', 'base'],
-    scraper: [],
-  },
-  rolesWithKeys: [Role.Relayer],
-  relayer: {
-    rpcConsensusType: RpcConsensusType.Fallback,
-    docker: {
-      repo,
-      // includes gasPriceCap overrides + per-chain maxSubmitQueueLength
-      tag: '420c950-20250612-172436',
-    },
-    whitelist: vanguardMatchingList,
-    // Not specifying a blacklist for optimization purposes -- all the message IDs
-    // in there are not vanguard-specific.
-    gasPaymentEnforcement: [
-      {
-        type: GasPaymentEnforcementPolicyType.None,
-        matchingList: vanguardMatchingList,
-      },
-    ],
-    metricAppContextsGetter,
-    ismCacheConfigs,
-    cache: {
-      enabled: true,
-      // Cache for 10 minutes
-      defaultExpirationSeconds: 10 * 60,
-    },
-    resources: {
-      requests: {
-        // Big enough to claim a c3-standard-44 each
-        cpu: '35000m',
-        memory: '100Gi',
-      },
-    },
-    dbBootstrap: true,
-    mixing: {
-      enabled: true,
-      // Arbitrary salt to ensure different agents have different sorting behavior for pending messages
-      salt: 69690 + index,
-    },
-    batch: {
-      defaultBatchSize: 32,
-      batchSizeOverrides: {
-        // Slightly lower to ideally fit within 5M
-        ethereum: 26,
-      },
-      bypassBatchSimulation: true,
-      maxSubmitQueueLength: {
-        arbitrum: 350,
-        base: 350,
-        bsc: 350,
-        optimism: 350,
-        ethereum: 75,
-      },
-    },
-    txIdIndexingEnabled: false,
-    igpIndexingEnabled: false,
-  },
-});
-
 export const agents = {
   [Contexts.Hyperlane]: hyperlane,
   [Contexts.ReleaseCandidate]: releaseCandidate,
   [Contexts.Neutron]: neutron,
-  [Contexts.Vanguard0]: getVanguardRootAgentConfig(0),
-  [Contexts.Vanguard1]: getVanguardRootAgentConfig(1),
-  [Contexts.Vanguard2]: getVanguardRootAgentConfig(2),
-  [Contexts.Vanguard3]: getVanguardRootAgentConfig(3),
-  [Contexts.Vanguard4]: getVanguardRootAgentConfig(4),
-  [Contexts.Vanguard5]: getVanguardRootAgentConfig(5),
 };

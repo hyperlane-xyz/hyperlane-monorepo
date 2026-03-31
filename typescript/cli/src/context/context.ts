@@ -1,98 +1,115 @@
 import { confirm } from '@inquirer/prompts';
-import { Signer, ethers } from 'ethers';
+import { type ethers } from 'ethers';
 
-import { IRegistry } from '@hyperlane-xyz/registry';
+import { loadProtocolProviders } from '@hyperlane-xyz/deploy-sdk';
+import {
+  type AltVM,
+  getProtocolProvider,
+  hasProtocol,
+} from '@hyperlane-xyz/provider-sdk';
+import { type IRegistry } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import {
-  ChainMap,
-  ChainMetadata,
-  ChainName,
+  type ChainMap,
+  type ChainMetadata,
+  type ChainName,
   ExplorerFamily,
   MultiProtocolProvider,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { assert, isNullish, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  type Address,
+  ProtocolType,
+  isEVMLike,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
-import { DEFAULT_STRATEGY_CONFIG_PATH } from '../commands/options.js';
-import { isSignCommand, isValidKey } from '../commands/signCommands.js';
-import { safeReadChainSubmissionStrategyConfig } from '../config/strategy.js';
-import { forkNetworkToMultiProvider, verifyAnvil } from '../deploy/dry-run.js';
-import { logBlue } from '../logger.js';
-import { runSingleChainSelectionStep } from '../utils/chains.js';
+import { isSignCommand } from '../commands/signCommands.js';
+import { readChainSubmissionStrategyConfig } from '../config/strategy.js';
 import { detectAndConfirmOrPrompt } from '../utils/input.js';
-import { getImpersonatedSigner, getSigner } from '../utils/keys.js';
+import { getSigner } from '../utils/keys.js';
 
-import { ChainResolverFactory } from './strategies/chain/ChainResolverFactory.js';
+import { createAltVMSigners } from './altvm.js';
+import { resolveChains } from './strategies/chain/chainResolver.js';
 import { MultiProtocolSignerManager } from './strategies/signer/MultiProtocolSignerManager.js';
 import {
-  CommandContext,
-  ContextSettings,
-  WriteCommandContext,
+  type CommandContext,
+  type ContextSettings,
+  type SignerKeyProtocolMap,
+  SignerKeyProtocolMapSchema,
 } from './types.js';
 
 export async function contextMiddleware(argv: Record<string, any>) {
-  const isDryRun = !isNullish(argv.dryRun);
   const requiresKey = isSignCommand(argv);
 
-  // if a key was provided, check if it has a valid format
-  if (argv.key) {
-    assert(
-      isValidKey(argv.key),
-      `Key inputs not valid, make sure to use --key.{protocol} or the legacy flag --key but not both at the same time`,
-    );
-  }
-
   const settings: ContextSettings = {
-    registryUris: [
-      ...argv.registry,
-      ...(argv.overrides ? [argv.overrides] : []),
-    ],
+    registryUris: [...argv.registry],
     key: argv.key,
-    fromAddress: argv.fromAddress,
     requiresKey,
     disableProxy: argv.disableProxy,
     skipConfirmation: argv.yes,
     strategyPath: argv.strategy,
     authToken: argv.authToken,
   };
-  if (!isDryRun && settings.fromAddress)
-    throw new Error(
-      "'--from-address' or '-f' should only be used for dry-runs",
-    );
-  const context = isDryRun
-    ? await getDryRunContext(settings, argv.dryRun)
-    : await getContext(settings);
-  argv.context = context;
+
+  argv.context = await getContext(settings);
 }
 
 export async function signerMiddleware(argv: Record<string, any>) {
-  const { key, requiresKey, multiProvider, strategyPath, chainMetadata } =
+  const { key, requiresKey, strategyPath, multiProtocolProvider } =
     argv.context;
 
-  const multiProtocolProvider = new MultiProtocolProvider(chainMetadata);
-  if (!requiresKey) return argv;
+  const strategyConfig = strategyPath
+    ? await readChainSubmissionStrategyConfig(strategyPath)
+    : {};
 
-  const strategyConfig = await safeReadChainSubmissionStrategyConfig(
-    strategyPath ?? DEFAULT_STRATEGY_CONFIG_PATH,
+  /**
+   * Resolves chains based on the command type.
+   */
+  const chains = await resolveChains(argv);
+
+  /**
+   * Load and create AltVM Providers
+   */
+  const altVmChains = chains.filter(
+    (chain) => !isEVMLike(argv.context.multiProvider.getProtocol(chain)),
   );
 
-  /**
-   * Intercepts Hyperlane command to determine chains.
-   */
-  const chainStrategy = ChainResolverFactory.getStrategy(argv);
+  try {
+    await loadProtocolProviders(
+      new Set(
+        altVmChains.map((chain) =>
+          argv.context.multiProvider.getProtocol(chain),
+        ),
+      ),
+    );
+  } catch (e) {
+    throw new Error(
+      `Failed to load providers in context for ${altVmChains.join(', ')}`,
+      { cause: e },
+    );
+  }
 
-  /**
-   * Resolves chains based on the chain strategy.
-   */
-  const chains = await chainStrategy.resolveChains(argv);
+  await Promise.all(
+    altVmChains.map(async (chain) => {
+      const { altVmProviders, multiProvider } = argv.context;
+      const protocol = multiProvider.getProtocol(chain);
+      const metadata = multiProvider.getChainMetadata(chain);
+
+      if (hasProtocol(protocol))
+        altVmProviders[chain] =
+          await getProtocolProvider(protocol).createProvider(metadata);
+    }),
+  );
+
+  if (!requiresKey) return argv;
 
   /**
    * Extracts signer config
    */
-  const multiProtocolSigner = new MultiProtocolSignerManager(
+  const multiProtocolSigner = await MultiProtocolSignerManager.init(
     strategyConfig,
     chains,
-    multiProvider,
     multiProtocolProvider,
     { key },
   );
@@ -101,7 +118,16 @@ export async function signerMiddleware(argv: Record<string, any>) {
    * @notice Attaches signers to MultiProvider and assigns it to argv.multiProvider
    */
   argv.context.multiProvider = await multiProtocolSigner.getMultiProvider();
-  argv.context.multiProtocolSigner = multiProtocolSigner;
+
+  /**
+   * Creates AltVM signers
+   */
+  argv.context.altVmSigners = await createAltVMSigners(
+    argv.context.multiProvider,
+    chains,
+    key,
+    strategyConfig,
+  );
 
   return argv;
 }
@@ -126,16 +152,25 @@ export async function getContext({
     authToken,
   });
 
-  //Just for backward compatibility
-  let signerAddress: string | undefined = undefined;
-  if (key && typeof key === 'string') {
-    let signer: Signer;
-    ({ key, signer } = await getSigner({ key, skipConfirmation }));
-    signerAddress = await signer.getAddress();
-  }
+  const { keyMap, ethereumSignerAddress } = await getSignerKeyMap(
+    key,
+    !!skipConfirmation,
+  );
 
   const multiProvider = await getMultiProvider(registry);
   const multiProtocolProvider = await getMultiProtocolProvider(registry);
+
+  // This mapping gets populated as part of signerMiddleware
+  const altVmProviders: ChainMap<AltVM.IProvider> = {};
+
+  const supportedProtocols = [
+    ProtocolType.Ethereum,
+    ProtocolType.Tron,
+    ProtocolType.CosmosNative,
+    ProtocolType.Radix,
+    ProtocolType.Aleo,
+    ProtocolType.Sealevel,
+  ];
 
   return {
     registry,
@@ -143,75 +178,57 @@ export async function getContext({
     chainMetadata: multiProvider.metadata,
     multiProvider,
     multiProtocolProvider,
-    key,
+    altVmProviders,
+    supportedProtocols,
+    key: keyMap,
     skipConfirmation: !!skipConfirmation,
-    signerAddress,
+    signerAddress: ethereumSignerAddress,
     strategyPath,
-  } as CommandContext;
+  };
 }
 
 /**
- * Retrieves dry-run context for the user-selected command
- * @returns dry-run context for the current command
+ * Resolves private keys by protocol type by reading either the key
+ * argument passed to the CLI or falling back to reading from env
  */
-export async function getDryRunContext(
-  {
-    registryUris,
-    key,
-    fromAddress,
-    skipConfirmation,
-    disableProxy = false,
-    authToken,
-  }: ContextSettings,
-  chain?: ChainName,
-): Promise<CommandContext> {
-  const registry = getRegistry({
-    registryUris,
-    enableProxy: !disableProxy,
-    logger: rootLogger,
-    authToken,
+async function getSignerKeyMap(
+  rawKeyMap: ContextSettings['key'],
+  skipConfirmation: boolean,
+): Promise<{ keyMap: SignerKeyProtocolMap; ethereumSignerAddress?: Address }> {
+  const keyMap: SignerKeyProtocolMap = SignerKeyProtocolMapSchema.parse(
+    rawKeyMap ?? {},
+  );
+
+  Object.values(ProtocolType).forEach((protocol) => {
+    if (keyMap[protocol]) {
+      return;
+    }
+
+    if (process.env[`HYP_KEY_${protocol.toUpperCase()}`]) {
+      keyMap[protocol] = process.env[`HYP_KEY_${protocol.toUpperCase()}`];
+      return;
+    }
+
+    if (protocol === ProtocolType.Ethereum && process.env.HYP_KEY) {
+      keyMap[protocol] = process.env.HYP_KEY;
+      return;
+    }
   });
-  const chainMetadata = await registry.getMetadata();
 
-  if (!chain) {
-    if (skipConfirmation) throw new Error('No chains provided');
-    chain = await runSingleChainSelectionStep(
-      chainMetadata,
-      'Select chain to dry-run against:',
-    );
+  // Just for backward compatibility
+  let signerAddress: string | undefined = undefined;
+  if (keyMap[ProtocolType.Ethereum]) {
+    const { signer } = await getSigner({
+      key: keyMap[ProtocolType.Ethereum],
+      skipConfirmation,
+    });
+    signerAddress = await signer.getAddress();
   }
 
-  logBlue(`Dry-running against chain: ${chain}`);
-  await verifyAnvil();
-
-  let multiProvider = await getMultiProvider(registry);
-  const multiProtocolProvider = await getMultiProtocolProvider(registry);
-  multiProvider = await forkNetworkToMultiProvider(multiProvider, chain);
-
-  if (typeof key === 'string') {
-    const { impersonatedKey, impersonatedSigner } = await getImpersonatedSigner(
-      {
-        fromAddress,
-        key: key as string,
-        skipConfirmation,
-      },
-    );
-    multiProvider.setSharedSigner(impersonatedSigner);
-
-    return {
-      registry,
-      chainMetadata: multiProvider.metadata,
-      key: impersonatedKey,
-      signer: impersonatedSigner,
-      multiProvider: multiProvider,
-      multiProtocolProvider: multiProtocolProvider,
-      skipConfirmation: !!skipConfirmation,
-      isDryRun: true,
-      dryRunChain: chain,
-    } as WriteCommandContext;
-  } else {
-    throw new Error(`dry-run needs --key legacy key flag`);
-  }
+  return {
+    keyMap,
+    ethereumSignerAddress: signerAddress,
+  };
 }
 
 /**
@@ -283,4 +300,61 @@ export async function requestAndSaveApiKeys(
   }
 
   return apiKeys;
+}
+
+/**
+ * Ensures EVM signers are attached to multiProvider for the specified chains.
+ * This is useful for commands that do interactive chain selection after the
+ * initial signer middleware has run.
+ *
+ * Uses the same signer strategy infrastructure as the middleware, which properly
+ * handles ZkSync chains and strategy-based keys.
+ *
+ * @param context - The write command context with key, multiProvider, and multiProtocolProvider
+ * @param chains - The chains to ensure signers for
+ */
+export async function ensureEvmSignersForChains(
+  context: {
+    key: SignerKeyProtocolMap;
+    multiProvider: MultiProvider;
+    multiProtocolProvider: MultiProtocolProvider;
+    strategyPath?: string;
+  },
+  chains: ChainName[],
+): Promise<void> {
+  // Filter to only EVM chains
+  const evmChains = chains.filter((chain) =>
+    isEVMLike(context.multiProvider.getProtocol(chain)),
+  );
+
+  // Find chains that are missing signers
+  const missingSignerChains = evmChains.filter(
+    (chain) => !context.multiProvider.tryGetSigner(chain),
+  );
+
+  // If all signers already exist, nothing to do
+  if (missingSignerChains.length === 0) {
+    return;
+  }
+
+  // Load strategy config if provided
+  const strategyConfig = context.strategyPath
+    ? await readChainSubmissionStrategyConfig(context.strategyPath)
+    : {};
+
+  // Use MultiProtocolSignerManager to create signers properly
+  // This handles ZkSync chains and strategy-based keys
+  const signerManager = await MultiProtocolSignerManager.init(
+    strategyConfig,
+    missingSignerChains,
+    context.multiProtocolProvider,
+    { key: context.key },
+  );
+
+  // Attach the created signers to multiProvider
+  for (const chain of missingSignerChains) {
+    const signer = signerManager.getEVMSigner(chain);
+    const provider = context.multiProvider.getProvider(chain);
+    context.multiProvider.setSigner(chain, signer.connect(provider));
+  }
 }

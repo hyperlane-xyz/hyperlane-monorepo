@@ -1,12 +1,17 @@
-import { CommandModule } from 'yargs';
+import { type CommandModule } from 'yargs';
 
-import { CommandModuleWithContext } from '../context/types.js';
+import {
+  type CommandModuleWithContext,
+  type CommandModuleWithWriteContext,
+} from '../context/types.js';
+import { runIsmDeploy } from '../ism/deploy.js';
 import { readIsmConfig } from '../ism/read.js';
 import { log, logGray } from '../logger.js';
 
 import {
   addressCommandOption,
   chainCommandOption,
+  inputFileCommandOption,
   outputFileCommandOption,
 } from './options.js';
 
@@ -16,8 +21,47 @@ import {
 export const ismCommand: CommandModule = {
   command: 'ism',
   describe: 'Operations relating to ISMs',
-  builder: (yargs) => yargs.command(read).version(false).demandCommand(),
+  builder: (yargs) =>
+    yargs.command(deploy).command(read).version(false).demandCommand(),
   handler: () => log('Command required'),
+};
+
+// Examples for testing:
+// Deploy a multisig ISM:
+//     hyperlane ism deploy --chain sepolia --config ./ism-config.yaml
+// Deploy with output file:
+//     hyperlane ism deploy --chain sepolia --config ./ism-config.yaml --out ./deployed-ism.json
+export const deploy: CommandModuleWithWriteContext<{
+  chain: string;
+  config: string;
+  out?: string;
+}> = {
+  command: 'deploy',
+  describe: 'Deploys an ISM to a chain',
+  builder: {
+    chain: {
+      ...chainCommandOption,
+      demandOption: true,
+    },
+    config: inputFileCommandOption({
+      description: 'Path to ISM configuration file (YAML or JSON)',
+      demandOption: true,
+    }),
+    out: outputFileCommandOption(
+      undefined,
+      false,
+      'Output file path for deployed ISM address',
+    ),
+  },
+  handler: async ({ context, chain, config, out }) => {
+    await runIsmDeploy({
+      context,
+      chain,
+      configPath: config,
+      outPath: out,
+    });
+    process.exit(0);
+  },
 };
 
 // Examples for testing:
@@ -25,8 +69,8 @@ export const ismCommand: CommandModule = {
 //     hyperlane ism read --chain celo --address 0x99e8E56Dce3402D6E09A82718937fc1cA2A9491E
 // Aggregation ISM for bsc domain on inevm (may take 5s)
 //     hyperlane ism read --chain inevm --address 0x79A7c7Fe443971CBc6baD623Fdf8019C379a7178
-// Test ISM on alfajores testnet
-//     hyperlane ism read --chain alfajores --address 0xdB52E4853b6A40D2972E6797E0BDBDb3eB761966
+// Test ISM on sepolia testnet
+//     hyperlane ism read --chain sepolia --address 0xdB52E4853b6A40D2972E6797E0BDBDb3eB761966
 export const read: CommandModuleWithContext<{
   chain: string;
   address: string;

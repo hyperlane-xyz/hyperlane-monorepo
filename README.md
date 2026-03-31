@@ -30,11 +30,23 @@ To read more about interchain applications, how the protocol works, and how to i
 
 #### Install `jq`
 
-You need `jq` installed on your machine. You can download it from [official page](https://jqlang.github.io/jq/download/) or use a package manager of your choice.
+You need `jq` installed on your machine. You can download it from [official page](https://jqlang.org/download/) or use a package manager of your choice.
 
 #### Install `gitleaks`
 
 You need `gitleaks` installed on your machine. You can download it from [official page](https://github.com/gitleaks/gitleaks) or use a package manager of your choice.
+
+#### Install `typos`
+
+[typos](https://github.com/crate-ci/typos) is used for spell checking. Install it via your package manager:
+
+```bash
+# macOS
+brew install typos-cli
+
+# or via cargo
+cargo install typos-cli --locked
+```
 
 #### Foundry
 
@@ -46,17 +58,17 @@ Run the following to install `foundryup`:
 curl -L https://foundry.paradigm.xyz | bash
 ```
 
-Then run `foundryup` to install `forge`, `cast`, `anvil` and `chisel`.
+Then run `foundryup` with the pinned version to install `forge`, `cast`, `anvil` and `chisel`.
 
 ```bash
-foundryup
+foundryup --install $(cat solidity/.foundryrc)
 ```
 
-Check out the [Foundry Book](https://book.getfoundry.sh/getting-started/installation) for more information.
+Check out the [Foundry Book](https://getfoundry.sh/introduction/installation/) for more information.
 
 #### Node
 
-This repository targets v20 of node. We recommend using [nvm](https://github.com/nvm-sh/nvm) to manage your node version.
+This repository targets v24 of node. We recommend using [nvm](https://github.com/nvm-sh/nvm) to manage your node version.
 
 To install nvm
 
@@ -64,29 +76,29 @@ To install nvm
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
 ```
 
-To install version 20
+To install version 24
 
 ```bash
-nvm install 20
-nvm use 20
+nvm install 24
+nvm use 24
 ```
 
 You should change versions automatically with the `.nvmrc` file.
 
 ### Workspaces
 
-This monorepo uses [Yarn Workspaces](https://yarnpkg.com/features/workspaces). Installing dependencies, building, testing, and running prettier for all packages can be done from the root directory of the repository.
+This monorepo uses [pnpm workspaces](https://pnpm.io/workspaces). Installing dependencies, building, testing, and running prettier for all packages can be done from the root directory of the repository.
 
 - Installing dependencies
 
   ```bash
-  yarn install
+  pnpm install
   ```
 
 - Building
 
   ```bash
-  yarn build
+  pnpm build
   ```
 
 If you are using [VSCode](https://code.visualstudio.com/), you can launch the [multi-root workspace](https://code.visualstudio.com/docs/editor/multi-root-workspaces) with `code mono.code-workspace`, install the recommended workspace extensions, and use the editor settings.
@@ -125,12 +137,10 @@ For an alpha or beta version, follow the directions [here](https://github.com/ch
 To manually trigger Agent or Monorepo Docker builds in CI, you can use the workflows provided in the repository. Here are the steps to do so:
 
 1. **Navigate to the workflow:**
-
    - For agents, go to the [Rust Docker Workflow](https://github.com/hyperlane-xyz/hyperlane-monorepo/actions/workflows/rust-docker.yml).
    - For the monorepo, go to the [Monorepo Docker Workflow](https://github.com/hyperlane-xyz/hyperlane-monorepo/actions/workflows/monorepo-docker.yml).
 
 2. **Trigger the workflow:**
-
    - On the workflow page, click on the "Run workflow" button.
    - You may need to select a branch and decide whether to trigger builds for the `arm64` platform.
 

@@ -5,7 +5,8 @@ use time::OffsetDateTime;
 
 /// Convert from a unix timestamp in seconds to a TimeDateTime object.
 pub fn from_unix_timestamp_s(timestamp: u64) -> TimeDateTime {
-    let offset = OffsetDateTime::from_unix_timestamp(timestamp as i64).unwrap();
+    let offset =
+        OffsetDateTime::from_unix_timestamp(timestamp as i64).expect("Invalid unix timestamp");
     TimeDateTime::new(offset.date(), offset.time())
 }
 

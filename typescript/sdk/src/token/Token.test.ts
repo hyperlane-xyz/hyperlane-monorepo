@@ -16,6 +16,7 @@ import { stubMultiProtocolProvider } from '../test/multiProviderStubs.js';
 
 import { TokenArgs } from './IToken.js';
 import { Token } from './Token.js';
+import { TokenConnectionType } from './TokenConnection.js';
 import { TokenStandard } from './TokenStandard.js';
 
 // null values represent TODOs here, ideally all standards should be tested
@@ -123,6 +124,18 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     symbol: 'USDC',
     name: 'USDC',
   },
+  [TokenStandard.EvmM0PortalLite]: {
+    chainName: TestChainName.test2,
+    standard: TokenStandard.EvmM0PortalLite,
+    addressOrDenom: '0x36f586A30502AE3afb555b8aA4dCc05d233c2ecE', // Portal address
+    collateralAddressOrDenom: '0xaca92e438df0b2401ff60da7e4337b687a2435da', // mUSD token address
+    decimals: 6,
+    symbol: 'mUSD',
+    name: 'MetaMask USD',
+  },
+  [TokenStandard.EvmHypEverclearCollateral]: null,
+  [TokenStandard.EvmHypEverclearEth]: null,
+  [TokenStandard.EvmHypCrossCollateralRouter]: null,
 
   // Sealevel
   [TokenStandard.SealevelSpl]: {
@@ -221,9 +234,38 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
   [TokenStandard.CosmNativeHypSynthetic]: null,
 
   //TODO: check this and manage it.
+  [TokenStandard.StarknetNative]: null,
   [TokenStandard.StarknetHypCollateral]: null,
   [TokenStandard.StarknetHypNative]: null,
   [TokenStandard.StarknetHypSynthetic]: null,
+
+  [TokenStandard.RadixHypCollateral]: null,
+  [TokenStandard.RadixNative]: null,
+  [TokenStandard.RadixHypSynthetic]: null,
+
+  [TokenStandard.AleoNative]: null,
+  [TokenStandard.AleoHypNative]: null,
+  [TokenStandard.AleoHypCollateral]: null,
+  [TokenStandard.AleoHypSynthetic]: null,
+
+  [TokenStandard.TRC20]: null,
+  [TokenStandard.TRC721]: null,
+  [TokenStandard.TronNative]: null,
+  [TokenStandard.TronHypNative]: null,
+  [TokenStandard.TronHypCollateral]: null,
+  [TokenStandard.TronHypOwnerCollateral]: null,
+  [TokenStandard.TronHypRebaseCollateral]: null,
+  [TokenStandard.TronHypCollateralFiat]: null,
+  [TokenStandard.TronHypSynthetic]: null,
+  [TokenStandard.TronHypSyntheticRebase]: null,
+  [TokenStandard.TronHypXERC20]: null,
+  [TokenStandard.TronHypXERC20Lockbox]: null,
+  [TokenStandard.TronHypVSXERC20]: null,
+  [TokenStandard.TronHypVSXERC20Lockbox]: null,
+  [TokenStandard.TronM0PortalLite]: null,
+  [TokenStandard.TronHypEverclearCollateral]: null,
+  [TokenStandard.TronHypEverclearEth]: null,
+  [TokenStandard.TronHypCrossCollateralRouter]: null,
 };
 
 const PROTOCOL_TO_ADDRESS_FOR_BALANCE_CHECK: Partial<
@@ -270,9 +312,263 @@ describe('Token', () => {
         balanceOf: async () => '100',
       };
 
+      // @ts-ignore
+      adapter.getWrappedTokenAdapter = () => ({
+        getBalance: async () => 100n,
+      });
+
       const balance = await adapter.getBalance(balanceCheckAddress);
       expect(typeof balance).to.eql('bigint');
       sandbox.restore();
     });
   }
+
+  describe('getHypAdapter', () => {
+    it('returns EvmHypNativeAdapter for EvmNative with connections', () => {
+      const multiProvider =
+        MultiProtocolProvider.createTestMultiProtocolProvider<{
+          mailbox?: string;
+        }>();
+
+      const evmNativeToken = new Token(
+        Token.FromChainMetadataNativeToken(test1),
+      );
+      const remoteToken = new Token({
+        chainName: TestChainName.test2,
+        standard: TokenStandard.EvmHypSynthetic,
+        addressOrDenom: '0x8358D8291e3bEDb04804975eEa0fe9fe0fAfB147',
+        decimals: 18,
+        symbol: 'TIA',
+        name: 'TIA',
+      });
+      evmNativeToken.addConnection({
+        token: remoteToken,
+        type: TokenConnectionType.Hyperlane,
+      });
+
+      const adapter = evmNativeToken.getHypAdapter(multiProvider);
+      expect(adapter.constructor.name).to.eql('EvmHypNativeAdapter');
+    });
+
+    it('returns EvmHypNativeAdapter for EvmNative with untyped connection', () => {
+      const multiProvider =
+        MultiProtocolProvider.createTestMultiProtocolProvider<{
+          mailbox?: string;
+        }>();
+
+      const evmNativeToken = new Token(
+        Token.FromChainMetadataNativeToken(test1),
+      );
+      const remoteToken = new Token({
+        chainName: TestChainName.test2,
+        standard: TokenStandard.EvmHypSynthetic,
+        addressOrDenom: '0x8358D8291e3bEDb04804975eEa0fe9fe0fAfB147',
+        decimals: 18,
+        symbol: 'TIA',
+        name: 'TIA',
+      });
+      evmNativeToken.addConnection({ token: remoteToken });
+
+      const adapter = evmNativeToken.getHypAdapter(multiProvider);
+      expect(adapter.constructor.name).to.eql('EvmHypNativeAdapter');
+    });
+
+    it('throws for EvmNative without connections', () => {
+      const multiProvider =
+        MultiProtocolProvider.createTestMultiProtocolProvider<{
+          mailbox?: string;
+        }>();
+
+      const evmNativeToken = new Token(
+        Token.FromChainMetadataNativeToken(test1),
+      );
+
+      expect(() => evmNativeToken.getHypAdapter(multiProvider)).to.throw(
+        'not applicable to hyp adapter',
+      );
+    });
+
+    it('throws for EvmNative with IBC connections', () => {
+      const multiProvider =
+        MultiProtocolProvider.createTestMultiProtocolProvider<{
+          mailbox?: string;
+        }>();
+
+      const evmNativeToken = new Token(
+        Token.FromChainMetadataNativeToken(test1),
+      );
+      const remoteToken = new Token({
+        chainName: testCosmosChain.name,
+        standard: TokenStandard.CosmosIbc,
+        addressOrDenom: 'ibc/1234',
+        decimals: 6,
+        symbol: 'TIA',
+        name: 'TIA',
+      });
+      evmNativeToken.addConnection({
+        token: remoteToken,
+        type: TokenConnectionType.Ibc,
+        sourcePort: 'transfer',
+        sourceChannel: 'channel-0',
+      });
+
+      expect(() => evmNativeToken.getHypAdapter(multiProvider)).to.throw(
+        'not applicable to hyp adapter',
+      );
+    });
+
+    it('throws for EvmNative with chain not in multiProvider', () => {
+      const multiProvider =
+        MultiProtocolProvider.createTestMultiProtocolProvider<{
+          mailbox?: string;
+        }>();
+
+      const evmNativeToken = new Token({
+        chainName: 'nonexistent',
+        standard: TokenStandard.EvmNative,
+        addressOrDenom: '0x0000000000000000000000000000000000000000',
+        decimals: 18,
+        symbol: 'ETH',
+        name: 'Ether',
+      });
+      const remoteToken = new Token({
+        chainName: TestChainName.test2,
+        standard: TokenStandard.EvmHypSynthetic,
+        addressOrDenom: '0x8358D8291e3bEDb04804975eEa0fe9fe0fAfB147',
+        decimals: 18,
+        symbol: 'ETH',
+        name: 'Ether',
+      });
+      evmNativeToken.addConnection({
+        token: remoteToken,
+        type: TokenConnectionType.Hyperlane,
+      });
+
+      expect(() => evmNativeToken.getHypAdapter(multiProvider)).to.throw(
+        'not found in multiProvider',
+      );
+    });
+  });
+
+  describe('isFungibleWith', () => {
+    const evmNativeToken = Token.FromChainMetadataNativeToken(test1);
+
+    const evmHypNativeToken = new Token({
+      chainName: TestChainName.test1,
+      standard: TokenStandard.EvmHypNative,
+      addressOrDenom: '0x26f32245fCF5Ad53159E875d5Cae62aEcf19c2d4',
+      decimals: 18,
+      symbol: 'ETH',
+      name: 'Ether',
+    });
+
+    const evmHypNativeToken2 = new Token({
+      chainName: TestChainName.test1,
+      standard: TokenStandard.EvmHypNative,
+      addressOrDenom: '0x41b5234A896FbC4b3e2F7237592D054716762131',
+      decimals: 18,
+      symbol: 'ETH',
+      name: 'Ether',
+    });
+
+    const evmHypCollateralToken = new Token({
+      chainName: TestChainName.test1,
+      standard: TokenStandard.EvmHypCollateral,
+      addressOrDenom: '0x31b5234A896FbC4b3e2F7237592D054716762131',
+      collateralAddressOrDenom: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+      decimals: 6,
+      symbol: 'USDC',
+      name: 'USD Coin',
+    });
+
+    const evmHypSyntheticToken = new Token({
+      chainName: TestChainName.test1,
+      standard: TokenStandard.EvmHypSynthetic,
+      addressOrDenom: '0x8358D8291e3bEDb04804975eEa0fe9fe0fAfB147',
+      decimals: 6,
+      symbol: 'USDC',
+      name: 'USD Coin',
+    });
+
+    const cosmosIbcToken = new Token({
+      chainName: testCosmosChain.name,
+      standard: TokenStandard.CosmosIbc,
+      addressOrDenom:
+        'ibc/773B4D0A3CD667B2275D5A4A7A2F0909C0BA0F4059C0B9181E680DDF4965DCC7',
+      decimals: 6,
+      symbol: 'TIA',
+      name: 'TIA',
+    });
+
+    const cosmosNativeToken = new Token({
+      chainName: testCosmosChain.name,
+      standard: TokenStandard.CosmosNative,
+      addressOrDenom:
+        'ibc/773B4D0A3CD667B2275D5A4A7A2F0909C0BA0F4059C0B9181E680DDF4965DCC7',
+      decimals: 6,
+      symbol: 'TIA',
+      name: 'TIA',
+    });
+
+    it('returns false for undefined token', () => {
+      expect(evmHypCollateralToken.isFungibleWith(undefined)).to.be.false;
+    });
+
+    it('returns false for tokens on different chains', () => {
+      const differentChainToken = new Token({
+        chainName: TestChainName.test2,
+        standard: TokenStandard.ERC20,
+        addressOrDenom: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+        decimals: 6,
+        symbol: 'USDC',
+        name: 'USD Coin',
+      });
+      expect(evmHypCollateralToken.isFungibleWith(differentChainToken)).to.be
+        .false;
+    });
+
+    it('returns true for identical tokens', () => {
+      expect(evmHypCollateralToken.isFungibleWith(evmHypCollateralToken)).to.be
+        .true;
+    });
+
+    it('returns false for collateralized token and non-matching token', () => {
+      expect(evmHypCollateralToken.isFungibleWith(evmHypSyntheticToken)).to.be
+        .false;
+    });
+
+    it('returns false for non-IBC tokens with different standards', () => {
+      expect(evmHypCollateralToken.isFungibleWith(cosmosNativeToken)).to.be
+        .false;
+    });
+
+    it('returns false for HypNative token and different token standards', () => {
+      expect(evmHypNativeToken.isFungibleWith(evmHypCollateralToken)).to.be
+        .false;
+    });
+
+    it('returns true for collateralized token without collateral address and native token', () => {
+      expect(evmHypNativeToken2.isFungibleWith(evmNativeToken)).to.be.true;
+    });
+
+    it('returns true for collateralized token without collateral address and HypNative token', () => {
+      expect(evmHypNativeToken2.isFungibleWith(evmHypNativeToken)).to.be.true;
+    });
+
+    it('returns true for IBC token and matching native token', () => {
+      expect(cosmosIbcToken.isFungibleWith(cosmosNativeToken)).to.be.true;
+    });
+
+    it('returns false for IBC token and non-matching native token', () => {
+      const nonMatchingNativeToken = new Token({
+        chainName: testCosmosChain.name,
+        standard: TokenStandard.CosmosNative,
+        addressOrDenom: 'different_denom',
+        decimals: 6,
+        symbol: 'OTHER',
+        name: 'Other Token',
+      });
+      expect(cosmosIbcToken.isFungibleWith(nonMatchingNativeToken)).to.be.false;
+    });
+  });
 });

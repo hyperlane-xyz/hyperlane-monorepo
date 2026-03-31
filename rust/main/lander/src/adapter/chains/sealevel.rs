@@ -1,8 +1,8 @@
 pub use adapter::SealevelAdapter;
 pub use precursor::SealevelTxPrecursor;
 
-mod adapter;
+pub mod adapter;
 mod conf;
 mod payload;
 mod precursor;
-mod transaction;
+pub mod transaction;

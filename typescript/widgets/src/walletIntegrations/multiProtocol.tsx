@@ -2,7 +2,12 @@ import { useMemo } from 'react';
 
 import { cosmoshub } from '@hyperlane-xyz/registry';
 import { ChainName, MultiProtocolProvider } from '@hyperlane-xyz/sdk';
-import { Address, HexString, ProtocolType } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  HexString,
+  KnownProtocolType,
+  ProtocolType,
+} from '@hyperlane-xyz/utils';
 
 import { widgetLogger } from '../logger.js';
 
@@ -13,6 +18,7 @@ import {
   useCosmosDisconnectFn,
   useCosmosTransactionFns,
   useCosmosWalletDetails,
+  useCosmosWatchAsset,
 } from './cosmos.js';
 import {
   useEthereumAccount,
@@ -21,7 +27,17 @@ import {
   useEthereumDisconnectFn,
   useEthereumTransactionFns,
   useEthereumWalletDetails,
+  useEthereumWatchAsset,
 } from './ethereum.js';
+import {
+  useRadixAccount,
+  useRadixActiveChain,
+  useRadixConnectFn,
+  useRadixDisconnectFn,
+  useRadixTransactionFns,
+  useRadixWalletDetails,
+  useRadixWatchAsset,
+} from './radix.js';
 import {
   useSolanaAccount,
   useSolanaActiveChain,
@@ -29,6 +45,7 @@ import {
   useSolanaDisconnectFn,
   useSolanaTransactionFns,
   useSolanaWalletDetails,
+  useSolanaWatchAsset,
 } from './solana.js';
 import {
   useStarknetAccount,
@@ -37,13 +54,33 @@ import {
   useStarknetDisconnectFn,
   useStarknetTransactionFns,
   useStarknetWalletDetails,
+  useStarknetWatchAsset,
 } from './starknet.js';
+import {
+  useTronAccount,
+  useTronActiveChain,
+  useTronConnectFn,
+  useTronDisconnectFn,
+  useTronTransactionFns,
+  useTronWalletDetails,
+  useTronWatchAsset,
+} from './tron.js';
 import {
   AccountInfo,
   ActiveChainInfo,
   ChainTransactionFns,
   WalletDetails,
+  WatchAssetFns,
 } from './types.js';
+import {
+  useAleoAccount,
+  useAleoActiveChain,
+  useAleoConnectFn,
+  useAleoDisconnectFn,
+  useAleoTransactionFns,
+  useAleoWalletDetails,
+  useAleoWatchAsset,
+} from './aleo.js';
 
 const logger = widgetLogger.child({
   module: 'walletIntegrations/multiProtocol',
@@ -53,13 +90,17 @@ export function useAccounts(
   multiProvider: MultiProtocolProvider,
   blacklistedAddresses: Address[] = [],
 ): {
-  accounts: Record<ProtocolType, AccountInfo>;
+  accounts: Record<KnownProtocolType, AccountInfo>;
   readyAccounts: Array<AccountInfo>;
 } {
   const evmAccountInfo = useEthereumAccount(multiProvider);
   const solAccountInfo = useSolanaAccount(multiProvider);
   const cosmAccountInfo = useCosmosAccount(multiProvider);
   const starknetAccountInfo = useStarknetAccount(multiProvider);
+  const radixAccountInfo = useRadixAccount(multiProvider);
+  const aleoAccountInfo = useAleoAccount(multiProvider);
+  const tronAccountInfo = useTronAccount(multiProvider);
+
   // Filtered ready accounts
   const readyAccounts = useMemo(
     () =>
@@ -68,8 +109,19 @@ export function useAccounts(
         solAccountInfo,
         cosmAccountInfo,
         starknetAccountInfo,
+        radixAccountInfo,
+        aleoAccountInfo,
+        tronAccountInfo,
       ].filter((a) => a.isReady),
-    [evmAccountInfo, solAccountInfo, cosmAccountInfo, starknetAccountInfo],
+    [
+      evmAccountInfo,
+      solAccountInfo,
+      cosmAccountInfo,
+      starknetAccountInfo,
+      radixAccountInfo,
+      aleoAccountInfo,
+      tronAccountInfo,
+    ],
   );
 
   // Check if any of the ready accounts are blacklisted
@@ -89,6 +141,9 @@ export function useAccounts(
         [ProtocolType.Cosmos]: cosmAccountInfo,
         [ProtocolType.CosmosNative]: cosmAccountInfo,
         [ProtocolType.Starknet]: starknetAccountInfo,
+        [ProtocolType.Radix]: radixAccountInfo,
+        [ProtocolType.Aleo]: aleoAccountInfo,
+        [ProtocolType.Tron]: tronAccountInfo,
       },
       readyAccounts,
     }),
@@ -97,6 +152,9 @@ export function useAccounts(
       solAccountInfo,
       cosmAccountInfo,
       starknetAccountInfo,
+      radixAccountInfo,
+      aleoAccountInfo,
+      tronAccountInfo,
       readyAccounts,
     ],
   );
@@ -123,7 +181,7 @@ export function useAccountAddressForChain(
 export function getAccountAddressForChain(
   multiProvider: MultiProtocolProvider,
   chainName?: ChainName,
-  accounts?: Record<ProtocolType, AccountInfo>,
+  accounts?: Record<KnownProtocolType, AccountInfo>,
 ): Address | undefined {
   if (!chainName || !accounts) return undefined;
   const protocol = multiProvider.getProtocol(chainName);
@@ -176,7 +234,7 @@ export function getAddressFromAccountAndChain(
 export function getAccountAddressAndPubKey(
   multiProvider: MultiProtocolProvider,
   chainName?: ChainName,
-  accounts?: Record<ProtocolType, AccountInfo>,
+  accounts?: Record<KnownProtocolType, AccountInfo>,
 ): { address?: Address; publicKey?: Promise<HexString> } {
   const address = getAccountAddressForChain(multiProvider, chainName, accounts);
   if (!accounts || !chainName || !address) return {};
@@ -185,11 +243,14 @@ export function getAccountAddressAndPubKey(
   return { address, publicKey };
 }
 
-export function useWalletDetails(): Record<ProtocolType, WalletDetails> {
+export function useWalletDetails(): Record<KnownProtocolType, WalletDetails> {
   const evmWallet = useEthereumWalletDetails();
   const solWallet = useSolanaWalletDetails();
   const cosmosWallet = useCosmosWalletDetails();
   const starknetWallet = useStarknetWalletDetails();
+  const radixWallet = useRadixWalletDetails();
+  const aleoWallet = useAleoWalletDetails();
+  const tronWallet = useTronWalletDetails();
 
   return useMemo(
     () => ({
@@ -198,16 +259,30 @@ export function useWalletDetails(): Record<ProtocolType, WalletDetails> {
       [ProtocolType.Cosmos]: cosmosWallet,
       [ProtocolType.CosmosNative]: cosmosWallet,
       [ProtocolType.Starknet]: starknetWallet,
+      [ProtocolType.Radix]: radixWallet,
+      [ProtocolType.Aleo]: aleoWallet,
+      [ProtocolType.Tron]: tronWallet,
     }),
-    [evmWallet, solWallet, cosmosWallet, starknetWallet],
+    [
+      evmWallet,
+      solWallet,
+      cosmosWallet,
+      starknetWallet,
+      radixWallet,
+      aleoWallet,
+      tronWallet,
+    ],
   );
 }
 
-export function useConnectFns(): Record<ProtocolType, () => void> {
+export function useConnectFns(): Record<KnownProtocolType, () => void> {
   const onConnectEthereum = useEthereumConnectFn();
   const onConnectSolana = useSolanaConnectFn();
   const onConnectCosmos = useCosmosConnectFn();
   const onConnectStarknet = useStarknetConnectFn();
+  const onConnectRadix = useRadixConnectFn();
+  const onConnectAleo = useAleoConnectFn();
+  const onConnectTron = useTronConnectFn();
 
   return useMemo(
     () => ({
@@ -216,16 +291,33 @@ export function useConnectFns(): Record<ProtocolType, () => void> {
       [ProtocolType.Cosmos]: onConnectCosmos,
       [ProtocolType.CosmosNative]: onConnectCosmos,
       [ProtocolType.Starknet]: onConnectStarknet,
+      [ProtocolType.Radix]: onConnectRadix,
+      [ProtocolType.Aleo]: onConnectAleo,
+      [ProtocolType.Tron]: onConnectTron,
     }),
-    [onConnectEthereum, onConnectSolana, onConnectCosmos, onConnectStarknet],
+    [
+      onConnectEthereum,
+      onConnectSolana,
+      onConnectCosmos,
+      onConnectStarknet,
+      onConnectRadix,
+      onConnectAleo,
+      onConnectTron,
+    ],
   );
 }
 
-export function useDisconnectFns(): Record<ProtocolType, () => Promise<void>> {
+export function useDisconnectFns(): Record<
+  KnownProtocolType,
+  () => Promise<void>
+> {
   const disconnectEvm = useEthereumDisconnectFn();
   const disconnectSol = useSolanaDisconnectFn();
   const disconnectCosmos = useCosmosDisconnectFn();
   const disconnectStarknet = useStarknetDisconnectFn();
+  const disconnectRadix = useRadixDisconnectFn();
+  const disconnectAleo = useAleoDisconnectFn();
+  const disconnectTron = useTronDisconnectFn();
 
   const onClickDisconnect =
     (env: ProtocolType, disconnectFn?: () => Promise<void> | void) =>
@@ -260,26 +352,57 @@ export function useDisconnectFns(): Record<ProtocolType, () => Promise<void>> {
         ProtocolType.Starknet,
         disconnectStarknet,
       ),
+      [ProtocolType.Radix]: onClickDisconnect(
+        ProtocolType.Radix,
+        disconnectRadix,
+      ),
+      [ProtocolType.Aleo]: onClickDisconnect(ProtocolType.Aleo, disconnectAleo),
+      [ProtocolType.Tron]: onClickDisconnect(ProtocolType.Tron, disconnectTron),
     }),
-    [disconnectEvm, disconnectSol, disconnectCosmos, disconnectStarknet],
+    [
+      disconnectEvm,
+      disconnectSol,
+      disconnectCosmos,
+      disconnectStarknet,
+      disconnectRadix,
+      disconnectAleo,
+      disconnectTron,
+    ],
   );
 }
 
 export function useActiveChains(multiProvider: MultiProtocolProvider): {
-  chains: Record<ProtocolType, ActiveChainInfo>;
+  chains: Record<KnownProtocolType, ActiveChainInfo>;
   readyChains: Array<ActiveChainInfo>;
 } {
   const evmChain = useEthereumActiveChain(multiProvider);
   const solChain = useSolanaActiveChain(multiProvider);
   const cosmChain = useCosmosActiveChain(multiProvider);
   const starknetChain = useStarknetActiveChain(multiProvider);
+  const radixChain = useRadixActiveChain(multiProvider);
+  const aleoChain = useAleoActiveChain(multiProvider);
+  const tronChain = useTronActiveChain(multiProvider);
 
   const readyChains = useMemo(
     () =>
-      [evmChain, solChain, cosmChain, starknetChain].filter(
-        (c) => !!c.chainDisplayName,
-      ),
-    [evmChain, solChain, cosmChain, starknetChain],
+      [
+        evmChain,
+        solChain,
+        cosmChain,
+        starknetChain,
+        radixChain,
+        aleoChain,
+        tronChain,
+      ].filter((c) => !!c.chainDisplayName),
+    [
+      evmChain,
+      solChain,
+      cosmChain,
+      starknetChain,
+      radixChain,
+      aleoChain,
+      tronChain,
+    ],
   );
 
   return useMemo(
@@ -290,48 +413,105 @@ export function useActiveChains(multiProvider: MultiProtocolProvider): {
         [ProtocolType.Cosmos]: cosmChain,
         [ProtocolType.CosmosNative]: cosmChain,
         [ProtocolType.Starknet]: starknetChain,
+        [ProtocolType.Radix]: radixChain,
+        [ProtocolType.Aleo]: aleoChain,
+        [ProtocolType.Tron]: tronChain,
       },
       readyChains,
     }),
-    [evmChain, solChain, cosmChain, readyChains, starknetChain],
+    [
+      evmChain,
+      solChain,
+      cosmChain,
+      readyChains,
+      starknetChain,
+      radixChain,
+      aleoChain,
+      tronChain,
+    ],
   );
 }
 
 export function useTransactionFns(
   multiProvider: MultiProtocolProvider,
-): Record<ProtocolType, ChainTransactionFns> {
-  const { switchNetwork: onSwitchEvmNetwork, sendTransaction: onSendEvmTx } =
-    useEthereumTransactionFns(multiProvider);
-  const { switchNetwork: onSwitchSolNetwork, sendTransaction: onSendSolTx } =
-    useSolanaTransactionFns(multiProvider);
-  const { switchNetwork: onSwitchCosmNetwork, sendTransaction: onSendCosmTx } =
-    useCosmosTransactionFns(multiProvider);
+): Record<KnownProtocolType, ChainTransactionFns> {
+  const {
+    switchNetwork: onSwitchEvmNetwork,
+    sendTransaction: onSendEvmTx,
+    sendMultiTransaction: onSendMultiEvmTx,
+  } = useEthereumTransactionFns(multiProvider);
+  const {
+    switchNetwork: onSwitchSolNetwork,
+    sendTransaction: onSendSolTx,
+    sendMultiTransaction: onSendMultiSolTx,
+  } = useSolanaTransactionFns(multiProvider);
+  const {
+    switchNetwork: onSwitchCosmNetwork,
+    sendTransaction: onSendCosmTx,
+    sendMultiTransaction: onSendMultiCosmTx,
+  } = useCosmosTransactionFns(multiProvider);
   const {
     switchNetwork: onSwitchStarknetNetwork,
     sendTransaction: onSendStarknetTx,
+    sendMultiTransaction: onSendMultiStarknetTx,
   } = useStarknetTransactionFns(multiProvider);
+  const {
+    switchNetwork: onSwitchRadixNetwork,
+    sendTransaction: onSendRadixTx,
+    sendMultiTransaction: onSendMultiRadixTx,
+  } = useRadixTransactionFns(multiProvider);
+  const {
+    switchNetwork: onSwitchAleoNetwork,
+    sendTransaction: onSendAleoTx,
+    sendMultiTransaction: onSendMultiAleoTx,
+  } = useAleoTransactionFns(multiProvider);
+  const {
+    switchNetwork: onSwitchTronNetwork,
+    sendTransaction: onSendTronTx,
+    sendMultiTransaction: onSendMultiTronTx,
+  } = useTronTransactionFns(multiProvider);
 
   return useMemo(
     () => ({
       [ProtocolType.Ethereum]: {
         sendTransaction: onSendEvmTx,
+        sendMultiTransaction: onSendMultiEvmTx,
         switchNetwork: onSwitchEvmNetwork,
       },
       [ProtocolType.Sealevel]: {
         sendTransaction: onSendSolTx,
+        sendMultiTransaction: onSendMultiSolTx,
         switchNetwork: onSwitchSolNetwork,
       },
       [ProtocolType.Cosmos]: {
         sendTransaction: onSendCosmTx,
+        sendMultiTransaction: onSendMultiCosmTx,
         switchNetwork: onSwitchCosmNetwork,
       },
       [ProtocolType.CosmosNative]: {
         sendTransaction: onSendCosmTx,
+        sendMultiTransaction: onSendMultiCosmTx,
         switchNetwork: onSwitchCosmNetwork,
       },
       [ProtocolType.Starknet]: {
         sendTransaction: onSendStarknetTx,
+        sendMultiTransaction: onSendMultiStarknetTx,
         switchNetwork: onSwitchStarknetNetwork,
+      },
+      [ProtocolType.Radix]: {
+        sendTransaction: onSendRadixTx,
+        sendMultiTransaction: onSendMultiRadixTx,
+        switchNetwork: onSwitchRadixNetwork,
+      },
+      [ProtocolType.Aleo]: {
+        sendTransaction: onSendAleoTx,
+        sendMultiTransaction: onSendMultiAleoTx,
+        switchNetwork: onSwitchAleoNetwork,
+      },
+      [ProtocolType.Tron]: {
+        sendTransaction: onSendTronTx,
+        sendMultiTransaction: onSendMultiTronTx,
+        switchNetwork: onSwitchTronNetwork,
       },
     }),
     [
@@ -343,6 +523,62 @@ export function useTransactionFns(
       onSwitchCosmNetwork,
       onSendStarknetTx,
       onSwitchStarknetNetwork,
+      onSendRadixTx,
+      onSwitchRadixNetwork,
+      onSendAleoTx,
+      onSwitchAleoNetwork,
+      onSendTronTx,
+      onSwitchTronNetwork,
+    ],
+  );
+}
+
+export function useWatchAsset(
+  multiProvider: MultiProtocolProvider,
+): Record<KnownProtocolType, WatchAssetFns> {
+  const { addAsset: evmAddAsset } = useEthereumWatchAsset(multiProvider);
+  const { addAsset: solanaAddAsset } = useSolanaWatchAsset(multiProvider);
+  const { addAsset: cosmosAddAsset } = useCosmosWatchAsset(multiProvider);
+  const { addAsset: starknetAddAsset } = useStarknetWatchAsset(multiProvider);
+  const { addAsset: radixAddAsset } = useRadixWatchAsset(multiProvider);
+  const { addAsset: aleoAddAsset } = useAleoWatchAsset(multiProvider);
+  const { addAsset: tronAddAsset } = useTronWatchAsset(multiProvider);
+
+  return useMemo(
+    () => ({
+      [ProtocolType.Ethereum]: {
+        addAsset: evmAddAsset,
+      },
+      [ProtocolType.Sealevel]: {
+        addAsset: solanaAddAsset,
+      },
+      [ProtocolType.Cosmos]: {
+        addAsset: cosmosAddAsset,
+      },
+      [ProtocolType.CosmosNative]: {
+        addAsset: cosmosAddAsset,
+      },
+      [ProtocolType.Starknet]: {
+        addAsset: starknetAddAsset,
+      },
+      [ProtocolType.Radix]: {
+        addAsset: radixAddAsset,
+      },
+      [ProtocolType.Aleo]: {
+        addAsset: aleoAddAsset,
+      },
+      [ProtocolType.Tron]: {
+        addAsset: tronAddAsset,
+      },
+    }),
+    [
+      evmAddAsset,
+      solanaAddAsset,
+      cosmosAddAsset,
+      starknetAddAsset,
+      radixAddAsset,
+      aleoAddAsset,
+      tronAddAsset,
     ],
   );
 }

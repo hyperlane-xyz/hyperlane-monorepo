@@ -8,8 +8,8 @@ use crate::dispatcher::{BuildingStageQueue, DispatcherState, PayloadDbLoader};
 use crate::tests::test_utils::{dummy_tx, tmp_dbs, MockAdapter};
 use crate::transaction::TransactionUuid;
 use crate::{
-    Dispatcher, DispatcherEntrypoint, Entrypoint, FullPayload, LanderError, PayloadStatus,
-    PayloadUuid, TransactionStatus,
+    Dispatcher, DispatcherEntrypoint, Entrypoint, FullPayload, LanderError, PayloadDropReason,
+    PayloadStatus, PayloadUuid, TransactionDropReason, TransactionStatus,
 };
 
 use super::PayloadDb;
@@ -98,22 +98,137 @@ async fn test_entrypoint_send_is_finalized_by_dispatcher() {
     assert_metrics(metrics, metrics_assertion);
 }
 
+/// This tests checks that we do simulation before the first submission of the payload.
+/// The simulation succeeds, the transaction will be submitted and finalized.
+/// The simulation fails on the second submission, but we actually won't reach that point
+/// since we run simulation only for unsubmitted transactions.
 #[tracing_test::traced_test]
 #[tokio::test]
-async fn test_entrypoint_send_fails_simulation_after_first_submission() {
+async fn test_entrypoint_send_fails_simulation_after_first_submission_but_finalization_succeeds() {
     let payload = FullPayload::random();
 
     let mut adapter = MockAdapter::new();
+    adapter.expect_reprocess_txs_poll_rate().returning(|| None);
+    let mut counter = 0;
+    adapter.expect_simulate_tx().returning(move |_| {
+        counter += 1;
+        if counter == 1 {
+            // estimation is successful the first time around, and the payload makes it into a tx
+            Ok(vec![])
+        } else {
+            // the second time around, the estimation fails, say due to a network race condition
+            // where the payload was delivered by someone else and now it reverts
+            Err(LanderError::SimulationFailed(vec![
+                "simulation failed".to_string()
+            ]))
+        }
+    });
+    let adapter = mock_adapter_methods(adapter, payload.clone());
+    let adapter = Arc::new(adapter);
+    let (entrypoint, dispatcher) = mock_entrypoint_and_dispatcher(adapter.clone()).await;
+    let metrics = dispatcher.inner.metrics.clone();
+
+    let _payload_dispatcher = tokio::spawn(async move { dispatcher.spawn().await });
+    entrypoint.send_payload(&payload).await.unwrap();
+
+    // wait until the payload status is InTransaction(Finalized)
+    wait_until_payload_status(
+        entrypoint.inner.payload_db.clone(),
+        payload.uuid(),
+        |payload_status| {
+            matches!(
+                payload_status,
+                PayloadStatus::InTransaction(TransactionStatus::Finalized)
+            )
+        },
+    )
+    .await;
+    sleep(Duration::from_millis(200)).await; // Wait for the metrics to be updated
+
+    let metrics_assertion = MetricsAssertion {
+        domain: entrypoint.inner.domain.clone(),
+        finalized_txs: 1,
+        building_stage_queue_length: 0,
+        inclusion_stage_pool_length: 0,
+        finality_stage_pool_length: 0,
+        dropped_payloads: 0,
+        dropped_transactions: 0,
+        dropped_payload_reason: "".to_string(),
+        dropped_transaction_reason: "".to_string(),
+        // in `mock_adapter_methods`, the tx_status method is mocked to return `PendingInclusion` for the first 2 calls,
+        // which causes the tx to be resubmitted each time
+        transaction_submissions: 2,
+    };
+    assert_metrics(metrics, metrics_assertion);
+}
+
+#[tracing_test::traced_test]
+#[tokio::test]
+async fn test_entrypoint_send_fails_simulation_before_first_submission() {
+    let payload = FullPayload::random();
+
+    let mut adapter = MockAdapter::new();
+    adapter.expect_reprocess_txs_poll_rate().returning(|| None);
+    // the payload always fails simulation
+    adapter.expect_simulate_tx().returning(move |_| {
+        Err(LanderError::SimulationFailed(vec![
+            "simulation failed".to_string()
+        ]))
+    });
+    let adapter = mock_adapter_methods(adapter, payload.clone());
+    let adapter = Arc::new(adapter);
+    let (entrypoint, dispatcher) = mock_entrypoint_and_dispatcher(adapter.clone()).await;
+    let metrics = dispatcher.inner.metrics.clone();
+
+    let _payload_dispatcher = tokio::spawn(async move { dispatcher.spawn().await });
+    entrypoint.send_payload(&payload).await.unwrap();
+
+    // wait until the payload status is InTransaction(Dropped(_))
+    wait_until_payload_status(
+        entrypoint.inner.payload_db.clone(),
+        payload.uuid(),
+        |payload_status| {
+            matches!(
+                payload_status,
+                PayloadStatus::InTransaction(TransactionStatus::Dropped(_))
+            )
+        },
+    )
+    .await;
+    sleep(Duration::from_millis(200)).await; // Wait for the metrics to be updated
+
+    let metrics_assertion = MetricsAssertion {
+        domain: entrypoint.inner.domain.clone(),
+        finalized_txs: 0,
+        building_stage_queue_length: 0,
+        inclusion_stage_pool_length: 0,
+        finality_stage_pool_length: 0,
+        dropped_payloads: 1,
+        dropped_transactions: 1,
+        dropped_payload_reason: "DroppedInTransaction(Other(\"Non-retryable error: Transaction simulation failed, reason: [\\\"simulation failed\\\"]\"))".to_string(),
+        dropped_transaction_reason: "Other(\"Non-retryable error: Transaction simulation failed, reason: [\\\"simulation failed\\\"]\")".to_string(),
+        transaction_submissions: 0,
+    };
+    assert_metrics(metrics, metrics_assertion);
+}
+
+#[tracing_test::traced_test]
+#[tokio::test]
+async fn test_entrypoint_send_fails_estimation_after_first_submission() {
+    let payload = FullPayload::random();
+
+    let mut adapter = MockAdapter::new();
+    adapter.expect_reprocess_txs_poll_rate().returning(|| None);
     let mut counter = 0;
     adapter.expect_estimate_tx().returning(move |_| {
         counter += 1;
         if counter == 1 {
-            // simulation is successful the first time around, and the payload makes it into a tx
+            // estimation is successful the first time around, and the payload makes it into a tx
             Ok(())
         } else {
-            // the second time around, the simulation fails, say due to a network race condition
+            // the second time around, the estimation fails, say due to a network race condition
             // where the payload was delivered by someone else and now it reverts
-            Err(LanderError::SimulationFailed)
+            Err(LanderError::EstimationFailed)
         }
     });
     let adapter = mock_adapter_methods(adapter, payload.clone());
@@ -129,7 +244,7 @@ async fn test_entrypoint_send_fails_simulation_after_first_submission() {
         entrypoint.inner.payload_db.clone(),
         payload.uuid(),
         |payload_status| {
-            println!("Payload status: {:?}", payload_status);
+            println!("Payload status: {payload_status:?}");
             matches!(
                 payload_status,
                 PayloadStatus::InTransaction(TransactionStatus::Dropped(_))
@@ -147,8 +262,11 @@ async fn test_entrypoint_send_fails_simulation_after_first_submission() {
         finality_stage_pool_length: 0,
         dropped_payloads: 1,
         dropped_transactions: 1,
-        dropped_payload_reason: "DroppedInTransaction(FailedSimulation)".to_string(),
-        dropped_transaction_reason: "FailedSimulation".to_string(),
+        dropped_payload_reason:
+            "DroppedInTransaction(Other(\"Non-retryable error: Transaction estimation failed\"))"
+                .to_string(),
+        dropped_transaction_reason: "Other(\"Non-retryable error: Transaction estimation failed\")"
+            .to_string(),
         transaction_submissions: 1,
     };
     assert_metrics(metrics, metrics_assertion);
@@ -156,14 +274,15 @@ async fn test_entrypoint_send_fails_simulation_after_first_submission() {
 
 #[tracing_test::traced_test]
 #[tokio::test]
-async fn test_entrypoint_send_fails_simulation_before_first_submission() {
+async fn test_entrypoint_send_fails_estimation_before_first_submission() {
     let payload = FullPayload::random();
 
     let mut adapter = MockAdapter::new();
+    adapter.expect_reprocess_txs_poll_rate().returning(|| None);
     // the payload always fails simulation
     adapter
         .expect_estimate_tx()
-        .returning(move |_| Err(LanderError::SimulationFailed));
+        .returning(move |_| Err(LanderError::EstimationFailed));
     let adapter = mock_adapter_methods(adapter, payload.clone());
     let adapter = Arc::new(adapter);
     let (entrypoint, dispatcher) = mock_entrypoint_and_dispatcher(adapter.clone()).await;
@@ -194,8 +313,11 @@ async fn test_entrypoint_send_fails_simulation_before_first_submission() {
         finality_stage_pool_length: 0,
         dropped_payloads: 1,
         dropped_transactions: 1,
-        dropped_payload_reason: "DroppedInTransaction(FailedSimulation)".to_string(),
-        dropped_transaction_reason: "FailedSimulation".to_string(),
+        dropped_payload_reason:
+            "DroppedInTransaction(Other(\"Non-retryable error: Transaction estimation failed\"))"
+                .to_string(),
+        dropped_transaction_reason: "Other(\"Non-retryable error: Transaction estimation failed\")"
+            .to_string(),
         transaction_submissions: 0,
     };
     assert_metrics(metrics, metrics_assertion);
@@ -257,7 +379,10 @@ async fn wait_until_payload_status<F>(
     }
 }
 
+/// Mocks the adapter methods to return predefined values for testing purposes.
+/// If a method was mocked already, it won't override it.
 fn mock_adapter_methods(mut adapter: MockAdapter, payload: FullPayload) -> MockAdapter {
+    adapter.expect_reprocess_txs_poll_rate().returning(|| None);
     adapter
         .expect_estimated_block_time()
         .return_const(Duration::from_millis(100));
@@ -265,10 +390,11 @@ fn mock_adapter_methods(mut adapter: MockAdapter, payload: FullPayload) -> MockA
     let tx = dummy_tx(vec![payload.clone()], TransactionStatus::PendingInclusion);
     let tx_building_result = TxBuildingResult::new(vec![payload.details.clone()], Some(tx));
     let txs = vec![tx_building_result];
+
     adapter
         .expect_build_transactions()
         .returning(move |_| txs.clone());
-    adapter.expect_simulate_tx().returning(move |_| Ok(true));
+
     let mut counter = 0;
     adapter.expect_tx_status().returning(move |_| {
         counter += 1;
@@ -281,17 +407,24 @@ fn mock_adapter_methods(mut adapter: MockAdapter, payload: FullPayload) -> MockA
             _ => Ok(TransactionStatus::Finalized),
         }
     });
-    adapter.expect_reverted_payloads().returning(|_| Ok(vec![]));
 
-    adapter.expect_simulate_tx().returning(|_| Ok(true));
+    adapter.expect_simulate_tx().returning(|_| Ok(vec![]));
 
     adapter.expect_estimate_tx().returning(|_| Ok(()));
+
+    adapter
+        .expect_tx_ready_for_resubmission()
+        .returning(|_| true);
 
     adapter.expect_submit().returning(|_| Ok(()));
 
     adapter
         .expect_update_vm_specific_metrics()
         .returning(|_, _| ());
+
+    adapter.expect_reverted_payloads().returning(|_| Ok(vec![]));
+
+    adapter.expect_post_finalized().returning(|| Ok(()));
 
     adapter.expect_max_batch_size().returning(|| 1);
 
@@ -315,7 +448,7 @@ fn assert_metrics(metrics: DispatcherMetrics, assertion: MetricsAssertion) {
     // check metrics
     let gathered_metrics = metrics.gather().unwrap();
     let metrics_str = String::from_utf8(gathered_metrics).unwrap();
-    println!("Metrics: {}", metrics_str);
+    println!("Metrics: {metrics_str}");
 
     let finalized_txs = metrics
         .finalized_transactions

@@ -3,6 +3,7 @@ use eyre::{bail, ContextCompat};
 use hyperlane_base::settings::{ChainConf, ChainConnectionConf, SignerConf};
 use hyperlane_sealevel::{create_keypair as create_raw_keypair, ConnectionConf, SealevelKeypair};
 
+#[allow(clippy::panic)]
 pub fn get_connection_conf(conf: &ChainConf) -> &ConnectionConf {
     match &conf.connection {
         ChainConnectionConf::Sealevel(connection_conf) => connection_conf,

@@ -37,7 +37,10 @@ contract ProtocolFeeTest is Test {
     }
 
     function testHookType() public {
-        assertEq(fees.hookType(), uint8(IPostDispatchHook.Types.PROTOCOL_FEE));
+        assertEq(
+            fees.hookType(),
+            uint8(IPostDispatchHook.HookTypes.PROTOCOL_FEE)
+        );
     }
 
     function testSetProtocolFee(uint256 fee) public {
@@ -186,6 +189,67 @@ contract ProtocolFeeTest is Test {
         vm.expectEmit(true, true, true, true);
         emit ProtocolFee.ProtocolFeePaid(alice, feeRequired);
         fees.postDispatch{value: feeSent}("", testMessage);
+    }
+
+    // ============ supportsMetadata Tests ============
+
+    function test_supportsMetadata_emptyMetadata() public view {
+        assertTrue(fees.supportsMetadata(""));
+    }
+
+    function test_supportsMetadata_standardMetadata() public view {
+        bytes memory metadata = StandardHookMetadata.overrideGasLimit(100_000);
+        assertTrue(fees.supportsMetadata(metadata));
+    }
+
+    function test_supportsMetadata_rejectsFeeToken_whenFeeNonZero()
+        public
+        view
+    {
+        bytes memory metadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            100_000,
+            address(this),
+            address(0xBEEF) // non-zero feeToken
+        );
+        // protocolFee > 0 (FEE = 1e16), so feeToken metadata should be rejected
+        assertFalse(fees.supportsMetadata(metadata));
+    }
+
+    function test_supportsMetadata_acceptsFeeToken_whenFeeZero() public {
+        // Create a new ProtocolFee with 0 fee
+        ProtocolFee zeroFees = new ProtocolFee(MAX_FEE, 0, bob, address(this));
+
+        bytes memory metadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            100_000,
+            address(this),
+            address(0xBEEF) // non-zero feeToken
+        );
+        // protocolFee == 0, so feeToken metadata should be accepted
+        assertTrue(zeroFees.supportsMetadata(metadata));
+    }
+
+    function test_quoteDispatch_revertWhen_feeTokenAndFeeNonZero() public {
+        bytes memory metadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            100_000,
+            address(this),
+            address(0xBEEF)
+        );
+        vm.expectRevert("AbstractPostDispatchHook: invalid metadata variant");
+        fees.quoteDispatch(metadata, testMessage);
+    }
+
+    function test_postDispatch_revertWhen_feeTokenAndFeeNonZero() public {
+        bytes memory metadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            100_000,
+            address(this),
+            address(0xBEEF)
+        );
+        vm.expectRevert("AbstractPostDispatchHook: invalid metadata variant");
+        fees.postDispatch(metadata, testMessage);
     }
 
     // ============ Helper Functions ============

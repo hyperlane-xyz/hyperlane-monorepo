@@ -1,4 +1,5 @@
 import '@matterlabs/hardhat-zksync-solc';
+import '@nomicfoundation/hardhat-foundry';
 import '@nomiclabs/hardhat-ethers';
 import 'hardhat-ignore-warnings';
 
@@ -13,6 +14,9 @@ module.exports = {
     version: '1.5.12',
     compilerSource: 'binary',
     enableEraVMExtensions: true,
+    settings: {
+      libraries: {},
+    },
   },
   defaultNetwork: 'ZKsyncInMemoryNode',
   networks: {

@@ -67,7 +67,7 @@ pub async fn fetch_storage_locations_helper(
 
 /// Generates a cache key for a given validator.
 fn generate_cache_key(validator: &H256) -> String {
-    format!("storage_location:{:?}", validator)
+    format!("storage_location:{validator:?}")
 }
 
 #[cfg(test)]

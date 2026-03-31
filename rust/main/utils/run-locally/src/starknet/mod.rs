@@ -208,6 +208,7 @@ fn launch_starknet_relayer(
         .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
         .hyp_env("TRACING_LEVEL", if debug { "debug" } else { "info" })
         .hyp_env("GASPAYMENTENFORCEMENT", "[{\"type\": \"none\"}]")
+        .hyp_env("CACHEDEFAULTEXPIRATIONSECONDS", "5")
         .hyp_env("METRICSPORT", metrics.to_string())
         .spawn("RLY", None);
 
@@ -236,6 +237,31 @@ fn launch_starknet_scraper(
         .spawn("SCR", None);
 
     scraper
+}
+
+/// Poll the Starknet devnet JSON-RPC endpoint until it responds successfully.
+fn wait_for_starknet_node(rpc_addr: &str) {
+    const MAX_ATTEMPTS: u32 = 60;
+    for attempt in 0..MAX_ATTEMPTS {
+        let resp = ureq::post(rpc_addr)
+            .set("Content-Type", "application/json")
+            .send_string(r#"{"jsonrpc":"2.0","id":1,"method":"starknet_chainId","params":[]}"#);
+        if let Ok(resp) = resp {
+            if resp.status() == 200 {
+                log!(
+                    "Starknet devnet at {} is ready (attempt {})",
+                    rpc_addr,
+                    attempt + 1
+                );
+                return;
+            }
+        }
+        sleep(Duration::from_secs(1));
+    }
+    panic!(
+        "Starknet devnet at {} failed to start after {MAX_ATTEMPTS}s",
+        rpc_addr
+    );
 }
 
 const ENV_STARKNET_CLI_PATH_KEY: &str = "E2E_STARKLI_CLI_PATH";
@@ -311,13 +337,12 @@ fn run_locally() {
     };
     let _relayer = "hpl-relayer";
 
-    // give things a chance to fully start.
-    sleep(Duration::from_secs(20));
-
+    // Wait for devnet nodes to be ready before proceeding.
     let nodes = nodes
         .into_iter()
         .map(|v| (v.0.join(), v.1, v.2, v.3))
         .map(|(launch_resp, chain_id, metrics_port, domain)| {
+            wait_for_starknet_node(&launch_resp.endpoint.rpc_addr);
             let mut starknet_cli = launch_resp.cli(&starklid);
             starknet_cli.init(
                 STARKNET_KEY.into(),
@@ -398,7 +423,7 @@ fn run_locally() {
         .cmd("postgres:14")
         .spawn("SQL", None);
 
-    sleep(Duration::from_secs(15));
+    crate::utils::wait_for_postgres();
 
     log!("Init postgres db...");
     Program::new(concat_path(format!("../../{AGENT_BIN_PATH}"), "init-db"))
@@ -455,7 +480,7 @@ fn run_locally() {
         }
 
         for target in targets {
-            dispatched_messages += 2;
+            dispatched_messages += 10;
             let mut cli = StarknetCLI::new(starklid.clone());
 
             let msg_body: &[u8] = b"hello world";
@@ -493,21 +518,13 @@ fn run_locally() {
                 .chain(options_args)
                 .collect();
 
-            cli.send_tx(
-                node.deployments.mailbox.clone(),
-                "dispatch".to_string(),
-                args.clone(),
-            );
-
-            sleep(Duration::from_secs(5));
-
-            cli.send_tx(
-                node.deployments.mailbox.clone(),
-                "dispatch".to_string(),
-                args.clone(),
-            );
-
-            sleep(Duration::from_secs(5));
+            for _ in 0..10 {
+                cli.send_tx(
+                    node.deployments.mailbox.clone(),
+                    "dispatch".to_string(),
+                    args.clone(),
+                );
+            }
         }
     }
 

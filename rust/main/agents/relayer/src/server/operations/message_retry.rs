@@ -3,7 +3,9 @@ use derive_new::new;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{broadcast::Sender, mpsc};
 
-use crate::{msg::op_submitter::SUBMITTER_QUEUE_COUNT, settings::matching_list::MatchingList};
+use crate::{
+    msg::message_processor::MESSAGE_PROCESSOR_QUEUE_COUNT, settings::matching_list::MatchingList,
+};
 
 const MESSAGE_RETRY_API_BASE: &str = "/message_retry";
 
@@ -55,11 +57,11 @@ async fn handler(
     tracing::debug!(?payload);
     tracing::debug!(uuid = uuid_string, "Sending message retry request");
 
-    // Create a channel that can hold each chain's SerialSubmitter
+    // Create a channel that can hold each chain's MessageProcessor
     // message retry responses.
     // 3 queues for each chain (prepare, submit, confirm)
     let (transmitter, mut receiver) =
-        mpsc::channel(SUBMITTER_QUEUE_COUNT * state.destination_chains);
+        mpsc::channel(MESSAGE_PROCESSOR_QUEUE_COUNT.saturating_mul(state.destination_chains));
     state
         .retry_request_transmitter
         .send(MessageRetryRequest {
@@ -70,7 +72,7 @@ async fn handler(
         .map_err(|err| {
             // Technically it's bad practice to print the error message to the user, but
             // this endpoint is for debugging purposes only.
-            format!("Failed to send retry request to the queue: {}", err)
+            format!("Failed to send retry request to the queue: {err}")
         })?;
 
     let mut resp = MessageRetryResponse {
@@ -87,8 +89,8 @@ async fn handler(
             matched = relayer_resp.matched,
             "Received relayer response"
         );
-        resp.evaluated += relayer_resp.evaluated;
-        resp.matched += relayer_resp.matched;
+        resp.evaluated = resp.evaluated.saturating_add(relayer_resp.evaluated);
+        resp.matched = resp.matched.saturating_add(relayer_resp.matched);
     }
 
     Ok(Json(resp))
@@ -101,12 +103,14 @@ mod tests {
         http::{header::CONTENT_TYPE, Method, Request, Response, StatusCode},
     };
     use hyperlane_core::{HyperlaneMessage, QueueOperation};
+
+    use crate::settings::matching_list::MatchingListExt;
     use serde_json::json;
     use tokio::sync::broadcast::{Receiver, Sender};
     use tower::ServiceExt;
 
     use crate::{
-        msg::op_queue::test::MockPendingOperation, server::ENDPOINT_MESSAGES_QUEUE_SIZE,
+        msg::op_queue::tests::MockPendingOperation, server::ENDPOINT_MESSAGES_QUEUE_SIZE,
         test_utils::request::parse_body_to_json,
     };
 
@@ -171,7 +175,7 @@ mod tests {
             vec![Box::new(pending_operation.clone()) as QueueOperation],
             vec![(1, 1)],
         );
-        tokio::task::spawn(async { respond_task.await });
+        tokio::task::spawn(respond_task);
 
         let body = json!([
             {
@@ -207,7 +211,7 @@ mod tests {
             vec![Box::new(pending_operation.clone()) as QueueOperation],
             vec![(1, 1)],
         );
-        tokio::task::spawn(async { respond_task.await });
+        tokio::task::spawn(respond_task);
 
         let body = json!([
             {
@@ -243,7 +247,7 @@ mod tests {
             vec![Box::new(pending_operation.clone()) as QueueOperation],
             vec![(1, 1)],
         );
-        tokio::task::spawn(async { respond_task.await });
+        tokio::task::spawn(respond_task);
 
         let body = json!([
             {
@@ -275,7 +279,7 @@ mod tests {
             vec![Box::new(pending_operation.clone()) as QueueOperation],
             vec![(1, 1)],
         );
-        tokio::task::spawn(async { respond_task.await });
+        tokio::task::spawn(respond_task);
 
         let body = json!([
             {
@@ -307,7 +311,7 @@ mod tests {
             vec![Box::new(pending_operation.clone()) as QueueOperation],
             vec![(1, 1)],
         );
-        tokio::task::spawn(async { respond_task.await });
+        tokio::task::spawn(respond_task);
 
         let body = json!([
             {
@@ -343,7 +347,7 @@ mod tests {
             vec![Box::new(pending_operation.clone()) as QueueOperation],
             vec![(1, 1)],
         );
-        tokio::task::spawn(async { respond_task.await });
+        tokio::task::spawn(respond_task);
 
         let body = json!([
             {

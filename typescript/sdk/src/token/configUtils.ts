@@ -1,14 +1,17 @@
+import { constants } from 'ethers';
 import { zeroAddress } from 'viem';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   Address,
-  ProtocolType,
   TransformObjectTransformer,
   addressToBytes32,
+  assert,
   deepCopy,
   intersection,
   isAddressEvm,
   isCosmosIbcDenomAddress,
+  isEVMLike,
   isObjEmpty,
   objFilter,
   objMap,
@@ -18,6 +21,11 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { isProxy } from '../deploy/proxy.js';
+import {
+  ResolvedTokenFeeConfigInput,
+  TokenFeeConfigInput,
+  TokenFeeType,
+} from '../fee/types.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -25,18 +33,25 @@ import { DestinationGas, RemoteRouters } from '../router/types.js';
 import { ChainMap } from '../types.js';
 import { WarpCoreConfig } from '../warp/types.js';
 
-import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
+import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
 import { TokenMetadataMap } from './TokenMetadataMap.js';
 import { gasOverhead } from './config.js';
-import { HypERC20Deployer } from './deploy.js';
+import { deriveTokenMetadata } from './tokenMetadataUtils.js';
 import {
   ContractVerificationStatus,
   DerivedWarpRouteDeployConfig,
+  HypTokenConfig,
   HypTokenRouterConfig,
   HypTokenRouterVirtualConfig,
+  OwnerStatus,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
+  isCollateralTokenConfig,
+  isCrossCollateralTokenConfig,
   isMovableCollateralTokenConfig,
+  isNativeTokenConfig,
+  isSyntheticRebaseTokenConfig,
+  isSyntheticTokenConfig,
 } from './types.js';
 
 /**
@@ -45,9 +60,18 @@ import {
 const getGasConfig = (
   warpDeployConfig: WarpRouteDeployConfig,
   chain: string,
-): string =>
-  warpDeployConfig[chain].gas?.toString() ||
-  gasOverhead(warpDeployConfig[chain].type).toString();
+): string => {
+  const chainDeployConfig = warpDeployConfig[chain];
+  assert(
+    chainDeployConfig,
+    `Deploy config not found for chain ${chain}. Unable to get gas config`,
+  );
+
+  return (
+    chainDeployConfig.gas?.toString() ||
+    gasOverhead(chainDeployConfig.type).toString()
+  );
+};
 
 /**
  * Returns default router addresses and gas values for cross-chain communication.
@@ -64,15 +88,23 @@ export function getDefaultRemoteRouterAndDestinationGasConfig(
   const remoteRouters: RemoteRouters = {};
   const destinationGas: DestinationGas = {};
 
-  const otherChains = multiProvider
-    .getRemoteChains(chain)
-    .filter((c) => Object.keys(deployedRoutersAddresses).includes(c));
+  const otherChains = multiProvider.getRemoteChains(chain).filter(
+    (remoteChain) =>
+      // Include chains that specify foreignDeployment so that they can be enrolled
+      // in the current deployment/update
+      Object.keys(deployedRoutersAddresses).includes(remoteChain) ||
+      warpDeployConfig[remoteChain]?.foreignDeployment,
+  );
 
   for (const otherChain of otherChains) {
     const domainId = multiProvider.getDomainId(otherChain);
 
     remoteRouters[domainId] = {
-      address: deployedRoutersAddresses[otherChain],
+      address:
+        // Include chains that specify foreignDeployment so that the gas configuration
+        // can be in the current deployment/update
+        deployedRoutersAddresses[otherChain] ??
+        warpDeployConfig[otherChain].foreignDeployment,
     };
 
     destinationGas[domainId] = getGasConfig(warpDeployConfig, otherChain);
@@ -99,6 +131,41 @@ export function getRouterAddressesFromWarpCoreConfig(
 }
 
 /**
+ * Gets the chain names from a WarpCoreConfig
+ */
+export function getChainsFromWarpCoreConfig(
+  warpCoreConfig: WarpCoreConfig,
+): string[] {
+  return warpCoreConfig.tokens.map((token) => token.chainName);
+}
+
+/**
+ * Checks if a WarpCoreConfig includes all specified chains.
+ */
+export function warpCoreConfigMatchesChains(
+  config: WarpCoreConfig,
+  chains: string[],
+): boolean {
+  const configChains = new Set(getChainsFromWarpCoreConfig(config));
+  return chains.every((chain) => configChains.has(chain));
+}
+
+/**
+ * Filters a map of WarpCoreConfigs to only include routes that span all specified chains.
+ */
+export function filterWarpCoreConfigMapByChains<T extends WarpCoreConfig>(
+  configMap: Record<string, T>,
+  chains: string[],
+): Record<string, T> {
+  if (chains.length === 0) {
+    return configMap;
+  }
+  return objFilter(configMap, (_, config): config is T =>
+    warpCoreConfigMatchesChains(config, chains),
+  );
+}
+
+/**
  * Expands a Warp deploy config with additional data
  *
  * @param multiProvider
@@ -120,14 +187,16 @@ export async function expandWarpDeployConfig(params: {
     expandedOnChainWarpConfig,
   } = params;
 
-  const derivedTokenMetadata: TokenMetadataMap =
-    await HypERC20Deployer.deriveTokenMetadata(multiProvider, warpDeployConfig);
+  const derivedTokenMetadata: TokenMetadataMap = await deriveTokenMetadata(
+    multiProvider,
+    warpDeployConfig,
+  );
 
   // If the token is on an EVM chain check if it is deployed as a proxy
   // to expand the proxy config too
   const isDeployedAsProxyByChain = await promiseObjAll(
     objMap(deployedRoutersAddresses, async (chain, address) => {
-      if (!(multiProvider.getProtocol(chain) === ProtocolType.Ethereum)) {
+      if (!isEVMLike(multiProvider.getProtocol(chain))) {
         return false;
       }
 
@@ -175,9 +244,38 @@ export async function expandWarpDeployConfig(params: {
 
       chainConfig.remoteRouters = formattedRemoteRouters;
 
+      const selfDomain = multiProvider.getDomainId(chain).toString();
+      const ccrGasDomains = isCrossCollateralTokenConfig(chainConfig)
+        ? Object.keys(chainConfig.crossCollateralRouters ?? {}).filter(
+            (domain) => domain !== selfDomain,
+          )
+        : [];
+      const gasDomainsToKeep = new Set([
+        ...Object.keys(formattedRemoteRouters),
+        ...ccrGasDomains,
+      ]);
+
+      // CrossCollateralRouter may require destination gas for CCR-only domains
+      // that are not present in Router._routers.
+      if (isCrossCollateralTokenConfig(chainConfig)) {
+        for (const domain of ccrGasDomains) {
+          gasDomainsToKeep.add(domain);
+          // Ensure CCR-only destinations get destinationGas defaults so
+          // warp check/apply can enforce gas config on enrolled CCR domains.
+          if (!chainConfig.destinationGas?.[domain]) {
+            chainConfig.destinationGas = {
+              ...chainConfig.destinationGas,
+              [domain]:
+                chainConfig.gas?.toString() ||
+                gasOverhead(chainConfig.type).toString(),
+            };
+          }
+        }
+      }
+
       const remoteGasDomainsToKeep = intersection(
         new Set(Object.keys(chainConfig.destinationGas ?? {})),
-        new Set(Object.keys(formattedRemoteRouters)),
+        gasDomainsToKeep,
       );
 
       // If the deploy config specified a custom config for remote routers
@@ -190,57 +288,192 @@ export async function expandWarpDeployConfig(params: {
 
       chainConfig.destinationGas = formattedDestinationGas;
 
-      const isEVMChain =
-        multiProvider.getProtocol(chain) === ProtocolType.Ethereum;
+      const protocol = multiProvider.getProtocol(chain);
+      const isEVMChain = isEVMLike(protocol);
 
-      // Expand EVM warpDeployConfig virtual to the control states
+      // Expand EVM warpDeployConfig virtual to the control states (states that we expect)
+      // For contractVerificationStatus, all values should be 'verified'
+      // For ownerStatus, all values should be 'active or 'gnosisSafe'
       if (
-        expandedOnChainWarpConfig?.[chain]?.contractVerificationStatus &&
-        multiProvider.getProtocol(chain) === ProtocolType.Ethereum
+        isEVMChain &&
+        expandedOnChainWarpConfig?.[chain]?.contractVerificationStatus
       ) {
         // For most cases, we set to Verified
         chainConfig.contractVerificationStatus = objMap(
           expandedOnChainWarpConfig[chain].contractVerificationStatus ?? {},
           (_, status) => {
-            // Skipped for local e2e testing
-            if (status === ContractVerificationStatus.Skipped)
-              return ContractVerificationStatus.Skipped;
+            switch (status) {
+              case ContractVerificationStatus.Skipped:
+              case ContractVerificationStatus.Verified:
+                return status; // Pass through the status so diffs will be shown
+              case ContractVerificationStatus.Unverified:
+              case ContractVerificationStatus.Error:
+                return ContractVerificationStatus.Verified;
+            }
+          },
+        );
+      }
 
-            return ContractVerificationStatus.Verified;
+      if (isEVMChain && expandedOnChainWarpConfig?.[chain]?.ownerStatus) {
+        // For 'active' or 'gnosis-safe', we set their actual state as the control because they are both acceptable.
+        // For other cases, we expect 'active'
+        chainConfig.ownerStatus = objMap(
+          expandedOnChainWarpConfig[chain].ownerStatus ?? {},
+          (_, status) => {
+            switch (status) {
+              // Skipped for local e2e testing
+              case OwnerStatus.Skipped:
+              case OwnerStatus.Active:
+              case OwnerStatus.GnosisSafe:
+                return status; // Pass through the status so diffs will be shown
+              case OwnerStatus.Error:
+              case OwnerStatus.Inactive:
+                return OwnerStatus.Active;
+            }
           },
         );
       }
 
       // Expand the hook config only if we have an explicit config in the deploy config
-      // and the current chain is an EVM one.
-      // if we have an address we leave it like that to avoid deriving
-      if (
-        isEVMChain &&
-        chainConfig.hook &&
-        typeof chainConfig.hook !== 'string'
-      ) {
-        const reader = new EvmHookReader(multiProvider, chain);
-
-        chainConfig.hook = await reader.deriveHookConfig(chainConfig.hook);
+      // (not just an address string for EVM - those are left as-is to avoid deriving)
+      if (chainConfig.hook && typeof chainConfig.hook !== 'string') {
+        switch (protocol) {
+          case ProtocolType.Tron:
+          case ProtocolType.Ethereum: {
+            const reader = new EvmHookReader(multiProvider, chain);
+            chainConfig.hook = await reader.deriveHookConfig(chainConfig.hook);
+            break;
+          }
+          default: {
+            // For non-EVM chains: config objects are kept as-is (no recursive expansion support)
+            // TODO: Handle HookConfig objects (nested config expansion) when Artifact API adds support
+            break;
+          }
+        }
       }
 
       // Expand the ism config only if we have an explicit config in the deploy config
-      // if we have an address we leave it like that to avoid deriving
+      // (not just an address string for EVM - those are left as-is to avoid deriving)
       if (
-        isEVMChain &&
         chainConfig.interchainSecurityModule &&
         typeof chainConfig.interchainSecurityModule !== 'string'
       ) {
-        const reader = new EvmIsmReader(multiProvider, chain);
+        switch (protocol) {
+          case ProtocolType.Tron:
+          case ProtocolType.Ethereum: {
+            const reader = new EvmIsmReader(multiProvider, chain);
+            chainConfig.interchainSecurityModule = await reader.deriveIsmConfig(
+              chainConfig.interchainSecurityModule,
+            );
+            break;
+          }
+          default: {
+            // For non-EVM chains: config objects are kept as-is (no recursive expansion support)
+            // TODO: Handle IsmConfig objects (nested config expansion) when Artifact API adds support
+            break;
+          }
+        }
+      }
 
-        chainConfig.interchainSecurityModule = await reader.deriveIsmConfig(
-          chainConfig.interchainSecurityModule,
+      if (chainConfig.tokenFee) {
+        const routerAddress = deployedRoutersAddresses[chain];
+        assert(routerAddress, `Missing deployed router address for ${chain}`);
+        chainConfig.tokenFee = resolveTokenFeeAddress(
+          chainConfig.tokenFee,
+          routerAddress,
+          chainConfig,
         );
       }
 
       return chainConfig;
     }),
   );
+}
+
+/**
+ * Resolves the fee token address based on the warp route token type.
+ * - Native tokens: fee token is AddressZero
+ * - Collateral tokens: fee token is the collateral token address
+ * - Synthetic tokens: fee token is the router address (the HypERC20 itself)
+ */
+function getFeeTokenAddress(
+  routerAddress: Address,
+  tokenConfig: HypTokenConfig,
+): Address {
+  if (isNativeTokenConfig(tokenConfig)) {
+    return constants.AddressZero;
+  }
+
+  if (
+    isCollateralTokenConfig(tokenConfig) ||
+    isCrossCollateralTokenConfig(tokenConfig)
+  ) {
+    return tokenConfig.token;
+  }
+
+  if (
+    isSyntheticTokenConfig(tokenConfig) ||
+    isSyntheticRebaseTokenConfig(tokenConfig)
+  ) {
+    return routerAddress;
+  }
+
+  throw new Error(`Unsupported token type for fee resolution`);
+}
+
+function resolveCrossCollateralFeeContracts(
+  destinationConfig: Record<string, TokenFeeConfigInput>,
+  routerAddress: Address,
+  tokenConfig: HypTokenConfig,
+) {
+  return Object.fromEntries(
+    Object.entries(destinationConfig).map(([router, subFee]) => [
+      router,
+      resolveTokenFeeAddress(subFee, routerAddress, tokenConfig),
+    ]),
+  );
+}
+
+export function resolveTokenFeeAddress(
+  feeConfig: TokenFeeConfigInput,
+  routerAddress: Address,
+  tokenConfig: HypTokenConfig,
+): ResolvedTokenFeeConfigInput {
+  const feeToken = getFeeTokenAddress(routerAddress, tokenConfig);
+
+  if (feeConfig.type === TokenFeeType.RoutingFee) {
+    return {
+      ...feeConfig,
+      token: feeToken,
+      feeContracts: Object.fromEntries(
+        Object.entries(feeConfig.feeContracts).map(([chain, subFee]) => [
+          chain,
+          resolveTokenFeeAddress(subFee, routerAddress, tokenConfig),
+        ]),
+      ),
+    } satisfies ResolvedTokenFeeConfigInput;
+  }
+
+  if (feeConfig.type === TokenFeeType.CrossCollateralRoutingFee) {
+    return {
+      ...feeConfig,
+      feeContracts: Object.fromEntries(
+        Object.keys(feeConfig.feeContracts).map((chain) => [
+          chain,
+          resolveCrossCollateralFeeContracts(
+            feeConfig.feeContracts[chain],
+            routerAddress,
+            tokenConfig,
+          ),
+        ]),
+      ),
+    } satisfies ResolvedTokenFeeConfigInput;
+  }
+
+  return {
+    ...feeConfig,
+    token: feeToken,
+  } satisfies ResolvedTokenFeeConfigInput;
 }
 
 export async function expandVirtualWarpDeployConfig(params: {
@@ -254,7 +487,7 @@ export async function expandVirtualWarpDeployConfig(params: {
   const { multiProvider, onChainWarpConfig, deployedRoutersAddresses } = params;
   return promiseObjAll(
     objMap(onChainWarpConfig, async (chain, config) => {
-      const warpReader = new EvmERC20WarpRouteReader(multiProvider, chain);
+      const warpReader = new EvmWarpRouteReader(multiProvider, chain);
       const warpVirtualConfig = await warpReader.deriveWarpRouteVirtualConfig(
         chain,
         deployedRoutersAddresses[chain],
@@ -299,6 +532,13 @@ const sortArraysInConfigToCheck = (a: any, b: any): number => {
     return 0;
   }
 
+  // Sort allowedRebalancingBridges by bridge address
+  if (a.bridge && b.bridge) {
+    if (a.bridge < b.bridge) return -1;
+    if (a.bridge > b.bridge) return 1;
+    return 0;
+  }
+
   if (a < b) return -1;
   if (a > b) return 1;
 
@@ -316,6 +556,69 @@ const FIELDS_TO_IGNORE = new Set<keyof HypTokenRouterConfig>([
   'symbol',
   'name',
 ]);
+
+function normalizeCrossCollateralFeeContractsForCheck(
+  destinationConfig: Record<string, TokenFeeConfigInput>,
+) {
+  return Object.fromEntries(
+    Object.entries(destinationConfig).map(([router, nestedFee]) => [
+      router,
+      normalizeTokenFeeForCheck(nestedFee),
+    ]),
+  );
+}
+
+function normalizeTokenFeeForCheck(
+  feeConfig: TokenFeeConfigInput | undefined,
+): TokenFeeConfigInput | undefined {
+  if (!feeConfig) return feeConfig;
+
+  const tokenConfig =
+    'token' in feeConfig && feeConfig.token ? { token: feeConfig.token } : {};
+
+  if (feeConfig.type === TokenFeeType.RoutingFee) {
+    const normalizedFeeContracts = Object.fromEntries(
+      Object.entries(feeConfig.feeContracts).map(([chain, nestedFee]) => [
+        chain,
+        normalizeTokenFeeForCheck(nestedFee),
+      ]),
+    );
+
+    return {
+      type: TokenFeeType.RoutingFee,
+      owner: feeConfig.owner,
+      ...tokenConfig,
+      feeContracts: normalizedFeeContracts,
+    };
+  }
+
+  if (feeConfig.type === TokenFeeType.CrossCollateralRoutingFee) {
+    const normalizedFeeContracts = Object.fromEntries(
+      Object.keys(feeConfig.feeContracts).map((chain) => [
+        chain,
+        normalizeCrossCollateralFeeContractsForCheck(
+          feeConfig.feeContracts[chain],
+        ),
+      ]),
+    );
+    return {
+      type: TokenFeeType.CrossCollateralRoutingFee,
+      owner: feeConfig.owner,
+      feeContracts: normalizedFeeContracts,
+    };
+  }
+
+  if (feeConfig.type === TokenFeeType.LinearFee) {
+    return {
+      type: TokenFeeType.LinearFee,
+      owner: feeConfig.owner,
+      bps: feeConfig.bps,
+      ...tokenConfig,
+    };
+  }
+
+  return feeConfig;
+}
 
 /**
  * transforms the provided {@link HypTokenRouterConfig}, removing the address, totalSupply and ownerOverrides
@@ -343,6 +646,12 @@ export function transformConfigToCheck(
     )
       ? clonedTokenConfig.allowedRebalancingBridges
       : undefined;
+  }
+
+  if (clonedTokenConfig.tokenFee) {
+    clonedTokenConfig.tokenFee = normalizeTokenFeeForCheck(
+      clonedTokenConfig.tokenFee,
+    );
   }
 
   return sortArraysInObject(

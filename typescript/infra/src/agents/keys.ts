@@ -2,10 +2,10 @@ import { ethers } from 'ethers';
 import { Provider as ZkProvider, Wallet as ZkWallet } from 'zksync-ethers';
 
 import { ChainName } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { HexString, ProtocolType, isEVMLike } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
-import { DeployEnvironment } from '../config/environment.js';
+import type { DeployEnvironment } from '../config/environment.js';
 import { Role } from '../roles.js';
 import { assertChain, assertContext, assertRole } from '../utils/utils.js';
 
@@ -23,8 +23,11 @@ export abstract class BaseAgentKey {
 
   // By default, only Ethereum keys are supported. Subclasses may override
   // this to support other protocols.
-  addressForProtocol(protocol: ProtocolType): string | undefined {
-    if (protocol === ProtocolType.Ethereum) {
+  addressForProtocol(
+    protocol: ProtocolType,
+    _bech32Prefix?: string,
+  ): string | undefined {
+    if (isEVMLike(protocol)) {
       return this.address;
     }
     return undefined;
@@ -63,7 +66,7 @@ export abstract class CloudAgentKey extends BaseCloudAgentKey {
   abstract update(): Promise<string>;
 
   abstract getSigner(
-    provider?: ethers.providers.Provider | ZkProvider,
+    provider: ethers.providers.Provider | ZkProvider,
   ): Promise<ethers.Signer | ZkWallet>;
 
   abstract privateKey: string;
@@ -73,6 +76,20 @@ export abstract class CloudAgentKey extends BaseCloudAgentKey {
       identifier: this.identifier,
       address: this.address,
     };
+  }
+
+  privateKeyForProtocol(
+    protocol: Exclude<ProtocolType, ProtocolType.Sealevel>,
+  ): HexString;
+  privateKeyForProtocol(protocol: ProtocolType.Sealevel): Uint8Array;
+  privateKeyForProtocol(protocol: ProtocolType): HexString | Uint8Array {
+    if (isEVMLike(protocol)) {
+      return this.privateKey;
+    }
+
+    throw new Error(
+      `Base implementation of CloudAgentKey.privateKeyForProtocol does not support protocol ${protocol}`,
+    );
   }
 }
 
@@ -107,10 +124,8 @@ export class ReadOnlyCloudAgentKey extends BaseCloudAgentKey {
    * and constructs a ReadOnlyAgentKey.
    * @param identifier The "identifier" of the key. This can come in a few different
    * flavors, e.g.:
-   * alias/hyperlane-testnet2-key-kathy (<-- hyperlane context, not specific to any chain)
    * alias/hyperlane-testnet2-key-optimismkovan-relayer (<-- hyperlane context, chain specific)
-   * alias/hyperlane-testnet2-key-alfajores-validator-0 (<-- hyperlane context, chain specific and has an index)
-   * hyperlane-dev-key-kathy (<-- same idea as above, but without the `alias/` prefix if it's not AWS-based)
+   * alias/hyperlane-testnet2-key-sepolia-validator-0 (<-- hyperlane context, chain specific and has an index)
    * alias/flowcarbon-testnet2-key-optimismkovan-relayer (<-- flowcarbon context & chain specific, intended to show that there are non-hyperlane contexts)
    * @param address The address of the key.
    * @returns A ReadOnlyAgentKey for the provided identifier and address.

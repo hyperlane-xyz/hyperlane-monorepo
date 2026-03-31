@@ -12,16 +12,16 @@ import { ProtocolType, objMap } from '@hyperlane-xyz/utils';
 import { Contexts } from '../../../config/contexts.js';
 import { getChain } from '../../../config/registry.js';
 import { AgentChainNames, AgentRole, Role } from '../../roles.js';
-import { DeployEnvironment } from '../environment.js';
-import { HelmImageValues } from '../infrastructure.js';
+import type { DeployEnvironment } from '../environment.js';
+import type { HelmImageValues } from '../infrastructure.js';
 
-import {
+import type {
   BaseRelayerConfig,
   HelmRelayerChainValues,
   HelmRelayerValues,
 } from './relayer.js';
-import { BaseScraperConfig, HelmScraperValues } from './scraper.js';
-import {
+import type { BaseScraperConfig, HelmScraperValues } from './scraper.js';
+import type {
   HelmValidatorValues,
   ValidatorBaseChainConfigMap,
 } from './validator.js';
@@ -59,8 +59,7 @@ interface HelmHyperlaneValues {
 
 // See rust/main/helm/values.yaml for the full list of options and their defaults.
 // This is at `.hyperlane.chains` in the values file.
-export interface HelmAgentChainOverride
-  extends DeepPartial<AgentChainMetadata> {
+export interface HelmAgentChainOverride extends DeepPartial<AgentChainMetadata> {
   name: AgentChainMetadata['name'];
 }
 
@@ -127,11 +126,17 @@ export type StarknetKeyConfig = {
   type: AgentSignerKeyType.Starknet;
   legacy: boolean;
 };
+// Radix key config
+export type RadixKeyConfig = {
+  type: AgentSignerKeyType.Radix;
+  suffix: string;
+};
 export type KeyConfig =
   | AwsKeyConfig
   | HexKeyConfig
   | CosmosKeyConfig
-  | StarknetKeyConfig;
+  | StarknetKeyConfig
+  | RadixKeyConfig;
 interface IndexingConfig {
   from: number;
   chunk: number;
@@ -243,11 +248,27 @@ export function defaultChainSignerKeyConfig(chainName: ChainName): KeyConfig {
         );
       }
       return { type: AgentSignerKeyType.Cosmos, prefix: metadata.bech32Prefix };
+    case ProtocolType.Radix: {
+      // get the suffix based on the chain id
+      let suffix: string;
+      switch (metadata.chainId) {
+        case 240: // localnet
+          suffix = 'loc';
+          break;
+        case 2: // stokenet
+          suffix = 'tdx_2_';
+          break;
+        default: // mainnet
+          suffix = 'rdx';
+      }
+      return { type: AgentSignerKeyType.Radix, suffix: suffix };
+    }
     // Use starknet key for starknet & paradexsepolia
     case ProtocolType.Starknet: {
       return { type: AgentSignerKeyType.Starknet, legacy: false };
     }
-    // For Ethereum and Sealevel use a hex key
+    // For Ethereum, Tron, and Sealevel use a hex key
+    case ProtocolType.Tron:
     case ProtocolType.Ethereum:
     case ProtocolType.Sealevel:
     default:

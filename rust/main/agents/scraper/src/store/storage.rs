@@ -8,6 +8,7 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use eyre::Result;
 use itertools::Itertools;
+use prometheus::IntCounterVec;
 use tracing::{trace, warn};
 
 use hyperlane_base::settings::IndexSettings;
@@ -34,6 +35,8 @@ pub struct HyperlaneDbStore {
     pub(crate) interchain_gas_paymaster_address: H256,
     provider: Arc<dyn HyperlaneProvider>,
     cursor: Arc<BlockCursor>,
+    /// Metric for tracking raw message dispatches stored (used for CCTP availability)
+    stored_events_metric: Option<IntCounterVec>,
 }
 
 #[allow(unused)]
@@ -45,6 +48,7 @@ impl HyperlaneDbStore {
         interchain_gas_paymaster_address: H256,
         provider: Arc<dyn HyperlaneProvider>,
         index_settings: &IndexSettings,
+        stored_events_metric: Option<IntCounterVec>,
     ) -> Result<Self> {
         let cursor = Arc::new(
             db.block_cursor(domain.id(), index_settings.from as u64)
@@ -57,7 +61,13 @@ impl HyperlaneDbStore {
             interchain_gas_paymaster_address,
             provider,
             cursor,
+            stored_events_metric,
         })
+    }
+
+    /// Get the stored events metric for incrementing when raw messages are stored.
+    pub fn stored_events_metric(&self) -> Option<&IntCounterVec> {
+        self.stored_events_metric.as_ref()
     }
 
     /// Takes a list of txn and block hashes and ensure they are all in the
@@ -218,14 +228,16 @@ impl HyperlaneDbStore {
             .iter_mut()
             .filter(|(_, block_info)| block_info.is_none());
 
-        let mut blocks_to_insert: Vec<(&mut BasicBlock, Option<BlockInfo>)> =
-            Vec::with_capacity(CHUNK_SIZE);
-        let mut hashes_to_insert: Vec<&H256> = Vec::with_capacity(CHUNK_SIZE);
         for chunk in as_chunks(blocks_to_fetch, CHUNK_SIZE) {
             debug_assert!(!chunk.is_empty());
+            let mut block_infos: Vec<BlockInfo> = Vec::with_capacity(CHUNK_SIZE);
+            let mut blocks_to_insert: Vec<&mut BasicBlock> = Vec::with_capacity(CHUNK_SIZE);
+            let mut hashes_to_insert: Vec<&H256> = Vec::with_capacity(CHUNK_SIZE);
             for (hash, block_info) in chunk {
                 // We should have block_id in this map for every hashes
-                let block_id = block_hash_to_block_id_map[hash];
+                let block_id = block_hash_to_block_id_map
+                    .get(hash)
+                    .expect("Missing block id");
                 let block_height = block_id.height;
 
                 let info = match self.provider.get_block_by_height(block_height).await {
@@ -239,7 +251,8 @@ impl HyperlaneDbStore {
                     id: -1,
                     hash: *hash,
                 });
-                blocks_to_insert.push((basic_info_ref, Some(info)));
+                block_infos.push(info);
+                blocks_to_insert.push(basic_info_ref);
                 hashes_to_insert.push(hash);
             }
 
@@ -250,12 +263,7 @@ impl HyperlaneDbStore {
             }
 
             self.db
-                .store_blocks(
-                    self.domain.id(),
-                    blocks_to_insert
-                        .iter_mut()
-                        .map(|(_, info)| info.take().unwrap()),
-                )
+                .store_blocks(self.domain.id(), block_infos.into_iter())
                 .await?;
 
             let hashes = self
@@ -266,7 +274,7 @@ impl HyperlaneDbStore {
                 .map(|b| (b.hash, b.id))
                 .collect::<HashMap<_, _>>();
 
-            for (block_ref, _) in blocks_to_insert.drain(..) {
+            for block_ref in blocks_to_insert {
                 if let Some(id) = hashes.get(&block_ref.hash) {
                     block_ref.id = *id;
                 }

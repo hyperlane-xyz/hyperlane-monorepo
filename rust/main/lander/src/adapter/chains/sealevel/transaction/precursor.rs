@@ -7,6 +7,7 @@ pub trait Precursor {
     fn precursor(&self) -> &SealevelTxPrecursor;
 }
 
+#[allow(clippy::panic)]
 impl Precursor for Transaction {
     fn precursor(&self) -> &SealevelTxPrecursor {
         match &self.vm_specific_data {

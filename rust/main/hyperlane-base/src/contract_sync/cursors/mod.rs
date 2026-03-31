@@ -44,6 +44,9 @@ impl Indexable for HyperlaneMessage {
             HyperlaneDomainProtocol::Cosmos => CursorType::SequenceAware,
             HyperlaneDomainProtocol::Starknet => CursorType::SequenceAware,
             HyperlaneDomainProtocol::CosmosNative => CursorType::SequenceAware,
+            HyperlaneDomainProtocol::Radix => CursorType::SequenceAware,
+            HyperlaneDomainProtocol::Aleo => CursorType::SequenceAware,
+            HyperlaneDomainProtocol::Tron => CursorType::SequenceAware,
         }
     }
 
@@ -66,6 +69,9 @@ impl Indexable for InterchainGasPayment {
             HyperlaneDomainProtocol::Cosmos => CursorType::RateLimited,
             HyperlaneDomainProtocol::Starknet => CursorType::RateLimited,
             HyperlaneDomainProtocol::CosmosNative => CursorType::RateLimited,
+            HyperlaneDomainProtocol::Radix => CursorType::SequenceAware,
+            HyperlaneDomainProtocol::Aleo => CursorType::SequenceAware,
+            HyperlaneDomainProtocol::Tron => CursorType::RateLimited,
         }
     }
 
@@ -83,6 +89,9 @@ impl Indexable for MerkleTreeInsertion {
             HyperlaneDomainProtocol::Cosmos => CursorType::SequenceAware,
             HyperlaneDomainProtocol::Starknet => CursorType::SequenceAware,
             HyperlaneDomainProtocol::CosmosNative => CursorType::SequenceAware,
+            HyperlaneDomainProtocol::Radix => CursorType::SequenceAware,
+            HyperlaneDomainProtocol::Aleo => CursorType::SequenceAware,
+            HyperlaneDomainProtocol::Tron => CursorType::SequenceAware,
         }
     }
 
@@ -100,6 +109,9 @@ impl Indexable for Delivery {
             HyperlaneDomainProtocol::Cosmos => CursorType::RateLimited,
             HyperlaneDomainProtocol::Starknet => CursorType::RateLimited,
             HyperlaneDomainProtocol::CosmosNative => CursorType::RateLimited,
+            HyperlaneDomainProtocol::Radix => CursorType::SequenceAware,
+            HyperlaneDomainProtocol::Aleo => CursorType::SequenceAware,
+            HyperlaneDomainProtocol::Tron => CursorType::RateLimited,
         }
     }
 

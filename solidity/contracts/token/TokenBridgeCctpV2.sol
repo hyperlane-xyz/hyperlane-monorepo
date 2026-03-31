@@ -1,0 +1,238 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+pragma solidity >=0.8.0;
+
+import {TokenBridgeCctpBase} from "./TokenBridgeCctpBase.sol";
+import {TokenRouter} from "./libs/TokenRouter.sol";
+import {TypedMemView} from "./../libs/TypedMemView.sol";
+import {Message} from "./../libs/Message.sol";
+import {TokenMessage} from "./libs/TokenMessage.sol";
+import {CctpMessageV2, BurnMessageV2} from "../libs/CctpMessageV2.sol";
+import {TypeCasts} from "../libs/TypeCasts.sol";
+import {IMessageHandlerV2} from "../interfaces/cctp/IMessageHandlerV2.sol";
+import {ITokenMessengerV2} from "../interfaces/cctp/ITokenMessengerV2.sol";
+import {IMessageTransmitterV2} from "../interfaces/cctp/IMessageTransmitterV2.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
+
+// @dev Supports only CCTP V2
+contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
+    using CctpMessageV2 for bytes29;
+    using BurnMessageV2 for bytes29;
+    using TypedMemView for bytes29;
+
+    using Message for bytes;
+    using TypeCasts for bytes32;
+    using StorageSlot for bytes32;
+
+    error MaxFeeTooHigh();
+
+    event MaxFeePpmSet(uint256 maxFeePpm);
+
+    bytes32 private constant MAX_FEE_PPM_SLOT =
+        keccak256("hyperlane.storage.TokenBridgeCctpV2.maxFeePpm");
+
+    uint256 private constant MAX_FEE_DENOMINATOR = 1_000_000;
+
+    // see https://developers.circle.com/cctp/cctp-finality-and-fees#defined-finality-thresholds
+    uint32 public immutable minFinalityThreshold;
+
+    constructor(
+        address _erc20,
+        address _mailbox,
+        IMessageTransmitterV2 _messageTransmitter,
+        ITokenMessengerV2 _tokenMessenger,
+        uint256 _maxFeePpm,
+        uint32 _minFinalityThreshold
+    )
+        TokenBridgeCctpBase(
+            _erc20,
+            _mailbox,
+            _messageTransmitter,
+            _tokenMessenger
+        )
+    {
+        _setMaxFeePpm(_maxFeePpm);
+        minFinalityThreshold = _minFinalityThreshold;
+    }
+
+    // ============ External Functions ============
+
+    /**
+     * @notice Returns the maximum fee rate in parts per million (ppm).
+     * @dev 100 ppm = 1 bps = 0.01%. Examples:
+     *      - 100 ppm = 1 bps (0.01%)
+     *      - 130 ppm = 1.3 bps (0.013%, Circle's typical Optimism/Arbitrum/Base fee)
+     *      - 150 ppm = 1.5 bps (0.015%, Circle's typical Unichain fee)
+     * @return The maximum fee rate in ppm.
+     */
+    function maxFeePpm() public view returns (uint256) {
+        return MAX_FEE_PPM_SLOT.getUint256Slot().value;
+    }
+
+    /**
+     * @notice Sets the maximum fee rate in parts per million (ppm).
+     * @dev 100 ppm = 1 bps = 0.01%. Examples:
+     *      - 100 ppm = 1 bps (0.01%)
+     *      - 130 ppm = 1.3 bps (0.013%, Circle's typical Optimism/Arbitrum/Base fee)
+     *      - 150 ppm = 1.5 bps (0.015%, Circle's typical Unichain fee)
+     * @param _maxFeePpm The new maximum fee in ppm (must be < 1_000_000).
+     */
+    function setMaxFeePpm(uint256 _maxFeePpm) external onlyOwner {
+        _setMaxFeePpm(_maxFeePpm);
+    }
+
+    function _setMaxFeePpm(uint256 _maxFeePpm) internal {
+        if (_maxFeePpm >= MAX_FEE_DENOMINATOR) revert MaxFeeTooHigh();
+        MAX_FEE_PPM_SLOT.getUint256Slot().value = _maxFeePpm;
+        emit MaxFeePpmSet(_maxFeePpm);
+    }
+
+    // ============ TokenRouter overrides ============
+
+    /**
+     * @inheritdoc TokenRouter
+     * @dev Overrides to indicate v2 fees.
+     *
+     * Hyperlane uses a "minimum amount out" approach where users specify the exact amount
+     * they want the recipient to receive on the destination chain. This provides a better
+     * UX by guaranteeing predictable outcomes regardless of underlying bridge fee structures.
+     *
+     * However, some underlying bridges like CCTP charge fees as a percentage of the input
+     * amount (amountIn), not the output amount. This requires "reversing" the fee calculation:
+     * we need to determine what input amount (after fees are deducted) will result in the
+     * desired output amount reaching the recipient.
+     *
+     * The formula solves for the fee needed such that after Circle takes their percentage,
+     * the recipient receives exactly `amount`:
+     *
+     *   (amount + fee) * (MAX_FEE_DENOMINATOR - maxFeePpm) / MAX_FEE_DENOMINATOR = amount
+     *
+     * Solving for fee:
+     *   fee = (amount * maxFeePpm) / (MAX_FEE_DENOMINATOR - maxFeePpm)
+     *
+     * Example: If amount = 100 USDC and maxFeePpm = 130 (1.3 bps = 0.013%):
+     *   fee = (100 * 130) / (1_000_000 - 130) = 13000 / 999870 ≈ 0.013 USDC
+     *   We deposit 100.013 USDC, Circle takes up to 0.013 USDC, recipient gets exactly 100 USDC.
+     *
+     * Note: maxFeePpm is in parts per million (ppm), where 100 ppm = 1 bps = 0.01%.
+     * This precision allows representing fractional basis points like Circle's 1.3 bps fees.
+     */
+    function _externalFeeAmount(
+        uint32,
+        bytes32,
+        uint256 amount
+    ) internal view override returns (uint256 feeAmount) {
+        // round up because depositForBurn maxFee is an upper bound
+        // enforced offchain by the Iris attestation service without precision loss
+        uint256 _maxFeePpm = maxFeePpm();
+        return
+            Math.mulDiv(
+                amount,
+                _maxFeePpm,
+                MAX_FEE_DENOMINATOR - _maxFeePpm,
+                Math.Rounding.Up
+            );
+    }
+
+    function _getCCTPVersion() internal pure override returns (uint32) {
+        return 1;
+    }
+
+    function _getCircleRecipient(
+        bytes29 cctpMessage
+    ) internal pure override returns (address) {
+        return cctpMessage._getRecipient().bytes32ToAddress();
+    }
+
+    function _validateTokenMessage(
+        bytes calldata hyperlaneMessage,
+        bytes29 cctpMessage
+    ) internal pure override {
+        bytes29 burnMessage = cctpMessage._getMessageBody();
+        burnMessage._validateBurnMessageFormat();
+
+        bytes32 circleBurnSender = burnMessage._getMessageSender();
+        if (circleBurnSender != hyperlaneMessage.sender())
+            revert InvalidBurnSender();
+
+        bytes calldata tokenMessage = hyperlaneMessage.body();
+
+        if (TokenMessage.amount(tokenMessage) != burnMessage._getAmount())
+            revert InvalidMintAmount();
+
+        if (
+            TokenMessage.recipient(tokenMessage) !=
+            burnMessage._getMintRecipient()
+        ) revert InvalidMintRecipient();
+    }
+
+    function _validateHookMessage(
+        bytes calldata hyperlaneMessage,
+        bytes29 cctpMessage
+    ) internal pure override {
+        bytes32 circleMessageId = cctpMessage._getMessageBody().index(0, 32);
+        if (circleMessageId != hyperlaneMessage.id()) revert InvalidMessageId();
+    }
+
+    // @inheritdoc IMessageHandlerV2
+    function handleReceiveFinalizedMessage(
+        uint32 sourceDomain,
+        bytes32 sender,
+        uint32 /*finalityThresholdExecuted*/,
+        bytes calldata messageBody
+    ) external override returns (bool) {
+        return
+            _receiveMessageId(
+                sourceDomain,
+                sender,
+                abi.decode(messageBody, (bytes32))
+            );
+    }
+
+    // @inheritdoc IMessageHandlerV2
+    function handleReceiveUnfinalizedMessage(
+        uint32 sourceDomain,
+        bytes32 sender,
+        uint32 /*finalityThresholdExecuted*/,
+        bytes calldata messageBody
+    ) external override returns (bool) {
+        return
+            _receiveMessageId(
+                sourceDomain,
+                sender,
+                abi.decode(messageBody, (bytes32))
+            );
+    }
+
+    function _sendMessageIdToIsm(
+        uint32 destinationDomain,
+        bytes32 ism,
+        bytes32 messageId
+    ) internal override {
+        IMessageTransmitterV2(address(messageTransmitter)).sendMessage(
+            destinationDomain,
+            ism,
+            ism,
+            minFinalityThreshold,
+            abi.encode(messageId)
+        );
+    }
+
+    function _bridgeViaCircle(
+        uint32 circleDomain,
+        bytes32 _recipient,
+        uint256 _amount,
+        uint256 _maxFee,
+        bytes32 _ism
+    ) internal override {
+        ITokenMessengerV2(address(tokenMessenger)).depositForBurn(
+            _amount,
+            circleDomain,
+            _recipient,
+            address(wrappedToken),
+            _ism,
+            _maxFee,
+            minFinalityThreshold
+        );
+    }
+}

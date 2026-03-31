@@ -1,8 +1,14 @@
-import { ChainName, EvmIsmReader } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, stringifyObject } from '@hyperlane-xyz/utils';
+import { createIsmReader } from '@hyperlane-xyz/deploy-sdk';
+import {
+  type ChainName,
+  type DerivedIsmConfig,
+  EvmIsmReader,
+  altVmChainLookup,
+} from '@hyperlane-xyz/sdk';
+import { type Address, isEVMLike, stringifyObject } from '@hyperlane-xyz/utils';
 
-import { CommandContext } from '../context/types.js';
-import { log, logBlue, logRed } from '../logger.js';
+import { type CommandContext } from '../context/types.js';
+import { log, logBlue } from '../logger.js';
 import { resolveFileFormat, writeFileAtPath } from '../utils/files.js';
 
 /**
@@ -19,19 +25,27 @@ export async function readIsmConfig({
   address: Address;
   out?: string;
 }): Promise<void> {
-  if (context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum) {
+  let config: DerivedIsmConfig;
+  let stringConfig: string;
+
+  const protocol = context.multiProvider.getProtocol(chain);
+  if (isEVMLike(protocol)) {
     const ismReader = new EvmIsmReader(context.multiProvider, chain);
-    const config = await ismReader.deriveIsmConfig(address);
-    const stringConfig = stringifyObject(config, resolveFileFormat(out), 2);
-    if (!out) {
-      logBlue(`ISM Config at ${address} on ${chain}:`);
-      log(stringConfig);
-    } else {
-      writeFileAtPath(out, stringConfig + '\n');
-      logBlue(`ISM Config written to ${out}.`);
-    }
-    return;
+    config = await ismReader.deriveIsmConfig(address);
+    stringConfig = stringifyObject(config, resolveFileFormat(out), 2);
+  } else {
+    const chainLookup = altVmChainLookup(context.multiProvider);
+    const metadata = chainLookup.getChainMetadata(chain);
+    const ismReader = createIsmReader(metadata, chainLookup);
+    config = await ismReader.deriveIsmConfig(address);
+    stringConfig = stringifyObject(config, resolveFileFormat(out), 2);
   }
 
-  logRed('Unsupported chain. Currently this command supports EVM chains only.');
+  if (!out) {
+    logBlue(`ISM Config at ${address} on ${chain}:`);
+    log(stringConfig);
+  } else {
+    writeFileAtPath(out, stringConfig + '\n');
+    logBlue(`ISM Config written to ${out}.`);
+  }
 }
