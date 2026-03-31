@@ -443,6 +443,36 @@ contract InterchainGasPaymasterTest is Test {
 
     // ============ postDispatch ============
 
+    function testPostDispatch_revertsIfMessageNotDispatched() public {
+        // Use a message whose id doesn't match latestDispatchedId
+        bytes memory wrongMessage = MessageUtils.formatMessage(
+            0,
+            999,
+            testOriginDomain,
+            address(this).addressToBytes32(),
+            testDestinationDomain,
+            address(0x1).addressToBytes32(),
+            ""
+        );
+
+        vm.expectRevert("IGP: message not dispatched");
+        igp.postDispatch("", wrongMessage);
+    }
+
+    function testPostDispatch_revertsIfReplayedAfterNewDispatch() public {
+        // First postDispatch succeeds
+        uint256 quote = igp.quoteDispatch("", testEncodedMessage);
+        vm.deal(address(this), quote * 2);
+        igp.postDispatch{value: quote}("", testEncodedMessage);
+
+        // New dispatch changes latestDispatchedId
+        testMailbox.updateLatestDispatchedId(bytes32(uint256(0xdead)));
+
+        // Replay reverts
+        vm.expectRevert("IGP: message not dispatched");
+        igp.postDispatch{value: quote}("", testEncodedMessage);
+    }
+
     function testPostDispatch_defaultGasLimit() public {
         setRemoteGasData(
             testDestinationDomain,
