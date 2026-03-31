@@ -17,7 +17,7 @@ pragma solidity >=0.8.0;
 import {AbstractPostDispatchHook} from "../../hooks/libs/AbstractPostDispatchHook.sol";
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
 import {TokenRouter} from "../libs/TokenRouter.sol";
-import {ITokenFee, Quote} from "../../interfaces/ITokenBridge.sol";
+import {Quote} from "../../interfaces/ITokenBridge.sol";
 import {Quotes} from "../libs/Quotes.sol";
 
 // ============ Predicate Imports ============
@@ -55,8 +55,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 contract PredicateRouterWrapper is
     AbstractPostDispatchHook,
     PredicateClient,
-    Ownable,
-    ITokenFee
+    Ownable
 {
     using SafeERC20 for IERC20;
 
@@ -273,23 +272,6 @@ contract PredicateRouterWrapper is
         // Note: pendingAttestation is cleared in _postDispatch()
         // If we reach here, the transfer succeeded
         return messageId;
-    }
-
-    // ============ ITokenFee Implementation ============
-
-    /**
-     * @notice Quotes the fees for a remote transfer by delegating to the underlying warp route
-     * @param _destination The destination chain domain
-     * @param _recipient The recipient address on destination (as bytes32)
-     * @param _amount The amount of tokens to transfer
-     * @return quotes An array of Quote structs representing the fees
-     */
-    function quoteTransferRemote(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount
-    ) external view override returns (Quote[] memory quotes) {
-        return warpRoute.quoteTransferRemote(_destination, _recipient, _amount);
     }
 
     // ============ Hook Implementation ============

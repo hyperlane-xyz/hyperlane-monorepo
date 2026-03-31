@@ -160,19 +160,15 @@ contract OpL2NativeTokenBridge is TokenRouter {
         uint256 _amount,
         address /* _feeToken */
     ) internal view override returns (uint256) {
-        bytes memory message = TokenMessage.format(
-            _recipient,
-            _amount
-        );
         uint256 proveQuote = _Router_quoteDispatch(
             _destination,
-            message,
+            TokenMessage.format(_recipient, 0),
             _proveHookMetadata(),
             address(hook)
         );
         uint256 finalizeQuote = _Router_quoteDispatch(
             _destination,
-            message,
+            TokenMessage.format(_recipient, _outboundAmount(_amount)),
             _finalizeHookMetadata(),
             address(hook)
         );
