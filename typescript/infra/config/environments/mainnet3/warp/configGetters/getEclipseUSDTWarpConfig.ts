@@ -56,9 +56,12 @@ export const evmDeploymentChains = [
   'arbitrum',
   'plasma',
   'tron',
-];
+] as const;
 
-export const nonEvmDeploymentChains = ['eclipsemainnet', 'solanamainnet'];
+export const nonEvmDeploymentChains = [
+  'eclipsemainnet',
+  'solanamainnet',
+] as const;
 
 const deploymentChains = [
   ...evmDeploymentChains,

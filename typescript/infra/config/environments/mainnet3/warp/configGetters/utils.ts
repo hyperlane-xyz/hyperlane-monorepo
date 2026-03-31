@@ -1,5 +1,3 @@
-import assert from 'assert';
-
 import {
   ChainMap,
   ChainName,
@@ -13,6 +11,7 @@ import {
 import {
   Address,
   arrayToObject,
+  assert,
   intersection,
   objMap,
 } from '@hyperlane-xyz/utils';
