@@ -253,10 +253,12 @@ abstract contract OffchainQuotedIGP is AbstractOffchainQuoter {
         if (!_checkStaleQuote(existing.issuedAt, sq.issuedAt)) return false;
 
         (uint128 rate, uint128 gasPrice) = IGPQuoteData.decode(sq.data);
-        existing.tokenExchangeRate = rate;
-        existing.gasPrice = gasPrice;
-        existing.issuedAt = sq.issuedAt;
-        existing.expiry = sq.expiry;
+        $.offchainQuotes[feeToken_][dest][sender] = StoredGasQuote(
+            rate,
+            gasPrice,
+            sq.issuedAt,
+            sq.expiry
+        );
         return true;
     }
 }
