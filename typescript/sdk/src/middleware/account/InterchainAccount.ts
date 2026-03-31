@@ -566,7 +566,7 @@ export function commitmentFromRevealMessage(message: string): string {
   return toHexString(commitment);
 }
 
-export const PostCallsSchema = z.object({
+const PostCallsBaseSchema = z.object({
   calls: z
     .array(
       z.object({
@@ -578,14 +578,33 @@ export const PostCallsSchema = z.object({
     .min(1),
   relayers: z.array(ZHash),
   salt: z.string(),
-  commitmentDispatchTx: z.string().optional(),
   ismOverride: z.string().optional(),
   originDomain: z.number(),
+});
+
+// Legacy shape: ICA derived from dispatch tx receipt events
+const PostCallsLegacySchema = PostCallsBaseSchema.extend({
+  commitmentDispatchTx: z.string(),
+});
+
+// New shape: ICA derived directly from destination + owner
+const PostCallsIcaSchema = PostCallsBaseSchema.extend({
   destinationDomain: z.number(),
   owner: z.string(),
 });
 
+export const PostCallsSchema = z.union([
+  PostCallsIcaSchema,
+  PostCallsLegacySchema,
+]);
+
 export type PostCallsType = z.infer<typeof PostCallsSchema>;
+export type PostCallsLegacyType = z.infer<typeof PostCallsLegacySchema>;
+export type PostCallsIcaType = z.infer<typeof PostCallsIcaSchema>;
+
+export function isPostCallsIca(data: PostCallsType): data is PostCallsIcaType {
+  return 'destinationDomain' in data && 'owner' in data;
+}
 
 export async function shareCallsWithPrivateRelayer(
   serverUrl: string,

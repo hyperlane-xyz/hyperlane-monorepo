@@ -1,20 +1,32 @@
+import type { Log } from '@ethersproject/providers';
 import { Request, Response, Router } from 'express';
 import { Logger } from 'pino';
 import { z } from 'zod';
 
-import { CommitmentReadIsmService__factory } from '@hyperlane-xyz/core';
+import {
+  CommitmentReadIsmService__factory,
+  InterchainAccountRouter__factory,
+} from '@hyperlane-xyz/core';
 import {
   AccountConfig,
   InterchainAccount,
   MultiProvider,
+  PostCallsIcaType,
+  PostCallsLegacyType,
   PostCallsSchema,
   PostCallsType,
+  isPostCallsIca,
   commitmentFromIcaCalls,
   commitmentFromRevealMessage,
   encodeIcaCalls,
   normalizeCalls,
 } from '@hyperlane-xyz/sdk';
-import { eqAddress, parseMessage } from '@hyperlane-xyz/utils';
+import {
+  addressToBytes32,
+  bytes32ToAddress,
+  eqAddress,
+  parseMessage,
+} from '@hyperlane-xyz/utils';
 
 import { prisma } from '../db.js';
 import { createAbiHandler } from '../utils/abiHandler.js';
@@ -34,10 +46,14 @@ const EnvSchema = z.object({
   SERVER_BASE_URL: z.string(),
 });
 
-// Zod schema for retrieving a commitment record, reusing PostCallsSchema for common fields
-const CommitmentRecordSchema = PostCallsSchema.extend({
+// Zod schema for retrieving a commitment record
+const CommitmentRecordSchema = z.object({
   commitment: z.string(),
   ica: z.string(),
+  calls: z.array(z.any()),
+  relayers: z.array(z.string()),
+  salt: z.string(),
+  originDomain: z.number(),
 });
 
 export class CallCommitmentsService extends BaseService {
@@ -106,52 +122,17 @@ export class CallCommitmentsService extends BaseService {
 
     logger.info(data, 'Processing commitment creation');
 
-    let originChain: string;
-    let destinationChain: string;
-    try {
-      originChain = this.multiProvider.getChainName(data.originDomain);
-      destinationChain = this.multiProvider.getChainName(
-        data.destinationDomain,
-      );
-    } catch (error: any) {
-      logger.warn(
-        {
-          originDomain: data.originDomain,
-          destinationDomain: data.destinationDomain,
-          error: error.message,
-        },
-        'Unknown domain',
-      );
-      return res.status(400).json({ error: 'Unknown domain provided' });
-    }
-
-    // Create AccountConfig
-    const accountConfig: AccountConfig = {
-      origin: originChain,
-      owner: data.owner,
-      ismOverride: data.ismOverride,
-      // consider handling more overrides here
-    };
-
-    logger.debug(
-      { originChain, destinationChain, owner: data.owner },
-      'Deriving ICA on destination',
-    );
-
     let ica: string;
     try {
-      ica = await this.icaApp.getAccount(destinationChain, accountConfig);
+      if (isPostCallsIca(data)) {
+        ica = await this.deriveIcaFromConfig(data, logger);
+      } else {
+        ica = await this.deriveIcaFromDispatchTx(data, commitment, logger);
+      }
     } catch (error: any) {
-      logger.error(
-        {
-          originDomain: data.originDomain,
-          destinationDomain: data.destinationDomain,
-          owner: data.owner,
-          ismOverride: data.ismOverride,
-          error: error.message,
-          stack: error.stack,
-        },
-        'Failed to derive ICA address: chain name lookup or ICA derivation failed',
+      logger.warn(
+        { error: error.message, stack: error.stack },
+        'Failed to derive ICA address',
       );
       return res.status(400).json({
         error: `Failed to derive ICA address: ${error.message}`,
@@ -205,7 +186,7 @@ export class CallCommitmentsService extends BaseService {
 
       if (
         record.relayers.length > 0 &&
-        !record.relayers.find((r) => eqAddress(r, relayer))
+        !record.relayers.find((r: string) => eqAddress(r, relayer))
       ) {
         log.warn(
           {
@@ -317,6 +298,83 @@ export class CallCommitmentsService extends BaseService {
     logger.info(parsed, 'Successfully fetched commitment record');
 
     return parsed;
+  }
+
+  /**
+   * New path: derive ICA from explicitly provided destination + owner.
+   */
+  private async deriveIcaFromConfig(
+    data: PostCallsIcaType,
+    logger: Logger,
+  ): Promise<string> {
+    const originChain = this.multiProvider.getChainName(data.originDomain);
+    const destinationChain = this.multiProvider.getChainName(
+      data.destinationDomain,
+    );
+
+    const accountConfig: AccountConfig = {
+      origin: originChain,
+      owner: data.owner,
+      ismOverride: data.ismOverride,
+    };
+
+    logger.debug(
+      { originChain, destinationChain, owner: data.owner },
+      'Deriving ICA from config',
+    );
+
+    return this.icaApp.getAccount(destinationChain, accountConfig);
+  }
+
+  /**
+   * Legacy path: derive ICA from the dispatch tx receipt events.
+   */
+  private async deriveIcaFromDispatchTx(
+    data: PostCallsLegacyType,
+    commitment: string,
+    logger: Logger,
+  ): Promise<string> {
+    const provider = this.multiProvider.getProvider(data.originDomain);
+    const receipt = await provider.getTransactionReceipt(
+      data.commitmentDispatchTx,
+    );
+
+    if (!receipt) {
+      throw new Error(
+        `Transaction not found: ${data.commitmentDispatchTx} on domain ${data.originDomain}`,
+      );
+    }
+
+    logger.info(
+      {
+        commitmentDispatchTx: data.commitmentDispatchTx,
+        originDomain: data.originDomain,
+      },
+      'Deriving ICA from dispatch tx',
+    );
+
+    const iface = InterchainAccountRouter__factory.createInterface();
+    const callTopic = iface.getEventTopic('RemoteCallDispatched');
+    const callLog = receipt.logs.find((l: Log) => l.topics[0] === callTopic);
+    if (!callLog) {
+      throw new Error('RemoteCallDispatched event not found');
+    }
+
+    const parsedCall = iface.parseLog(callLog);
+    const owner = addressToBytes32(parsedCall.args.owner);
+    const destinationRouterAddress = bytes32ToAddress(parsedCall.args.router);
+    const ismAddress = bytes32ToAddress(parsedCall.args.ism);
+    const originRouter = addressToBytes32(callLog.address);
+    const destinationDomain = parsedCall.args.destination as number;
+    const salt = parsedCall.args.salt as string;
+
+    const destinationRouter = InterchainAccountRouter__factory.connect(
+      destinationRouterAddress,
+      this.multiProvider.getProvider(destinationDomain),
+    );
+    return destinationRouter[
+      'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
+    ](data.originDomain, owner, originRouter, ismAddress, salt);
   }
 
   /**

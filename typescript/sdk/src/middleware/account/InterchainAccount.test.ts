@@ -39,7 +39,7 @@ describe('commitmentFromRevealMessage', () => {
   });
 });
 
-const validPayload = (overrides: Record<string, any> = {}) => ({
+const basePayload = {
   calls: [
     {
       to: '0x' + 'ab'.repeat(20),
@@ -49,22 +49,41 @@ const validPayload = (overrides: Record<string, any> = {}) => ({
   ],
   relayers: ['0x' + 'cd'.repeat(20)],
   salt: '0x' + '00'.repeat(32),
-  commitmentDispatchTx: '0x' + 'ef'.repeat(32),
   originDomain: 1,
+};
+
+const icaPayload = (overrides: Record<string, any> = {}) => ({
+  ...basePayload,
   destinationDomain: 2,
   owner: '0x' + 'aa'.repeat(20),
   ...overrides,
 });
 
+const legacyPayload = (overrides: Record<string, any> = {}) => ({
+  ...basePayload,
+  commitmentDispatchTx: '0x' + 'ef'.repeat(32),
+  ...overrides,
+});
+
 describe('PostCallsSchema', () => {
-  it('accepts valid EVM address', () => {
-    const result = PostCallsSchema.safeParse(validPayload());
+  it('accepts new ICA shape with destinationDomain + owner', () => {
+    const result = PostCallsSchema.safeParse(icaPayload());
     expect(result.success).to.be.true;
+  });
+
+  it('accepts legacy shape with commitmentDispatchTx', () => {
+    const result = PostCallsSchema.safeParse(legacyPayload());
+    expect(result.success).to.be.true;
+  });
+
+  it('rejects payload missing both discriminants', () => {
+    const result = PostCallsSchema.safeParse(basePayload);
+    expect(result.success).to.be.false;
   });
 
   it('accepts valid bytes32 address', () => {
     const result = PostCallsSchema.safeParse(
-      validPayload({
+      icaPayload({
         calls: [{ to: '0x' + 'ab'.repeat(32), data: '0x', value: '0' }],
       }),
     );
@@ -73,7 +92,7 @@ describe('PostCallsSchema', () => {
 
   it('rejects empty string to address', () => {
     const result = PostCallsSchema.safeParse(
-      validPayload({
+      icaPayload({
         calls: [{ to: '', data: '0x', value: '0' }],
       }),
     );
@@ -82,7 +101,7 @@ describe('PostCallsSchema', () => {
 
   it('rejects URL as to address', () => {
     const result = PostCallsSchema.safeParse(
-      validPayload({
+      icaPayload({
         calls: [{ to: 'http://evil.com', data: '0x', value: '0' }],
       }),
     );
@@ -91,7 +110,7 @@ describe('PostCallsSchema', () => {
 
   it('rejects SQL injection in to address', () => {
     const result = PostCallsSchema.safeParse(
-      validPayload({
+      icaPayload({
         calls: [{ to: "'; DROP TABLE--", data: '0x', value: '0' }],
       }),
     );
@@ -100,7 +119,7 @@ describe('PostCallsSchema', () => {
 
   it('rejects prototype pollution in to address', () => {
     const result = PostCallsSchema.safeParse(
-      validPayload({
+      icaPayload({
         calls: [{ to: '__proto__', data: '0x', value: '0' }],
       }),
     );
@@ -109,7 +128,7 @@ describe('PostCallsSchema', () => {
 
   it('rejects invalid relayer address', () => {
     const result = PostCallsSchema.safeParse(
-      validPayload({ relayers: ['not-an-address'] }),
+      icaPayload({ relayers: ['not-an-address'] }),
     );
     expect(result.success).to.be.false;
   });

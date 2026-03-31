@@ -374,6 +374,9 @@ export {
   normalizeCalls,
   PostCallsSchema,
   PostCallsType,
+  PostCallsLegacyType,
+  PostCallsIcaType,
+  isPostCallsIca,
   RawCallData,
   shareCallsWithPrivateRelayer,
 } from './middleware/account/InterchainAccount.js';
