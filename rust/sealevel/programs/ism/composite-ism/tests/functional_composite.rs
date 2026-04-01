@@ -10,13 +10,11 @@
 //! - TransferOwnership updates the stored owner to the new address
 //! - TransferOwnership with None renounces ownership (owner becomes None)
 //! - GetOwner returns the current owner via return data
-//! - Type returns the ModuleType corresponding to the root ISM node
 
 mod common;
 
 use account_utils::DiscriminatorEncode;
 use borsh::BorshDeserialize;
-use hyperlane_core::ModuleType;
 use hyperlane_sealevel_composite_ism::{
     accounts::{CompositeIsmAccount, IsmNode},
     instruction::{transfer_ownership_instruction, update_config_instruction},
@@ -325,46 +323,4 @@ async fn test_get_owner() {
             .return_data;
 
     assert_eq!(owner, Some(payer.pubkey()));
-}
-
-#[tokio::test]
-async fn test_ism_type() {
-    let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
-
-    // Aggregation root → ModuleType::Aggregation
-    initialize(
-        &mut banks_client,
-        &payer,
-        recent_blockhash,
-        IsmNode::Aggregation {
-            threshold: 1,
-            sub_isms: vec![IsmNode::Test { accept: true }],
-        },
-    )
-    .await
-    .unwrap();
-
-    let storage_pda = storage_pda_key();
-    let type_bytes = banks_client
-        .simulate_transaction(Transaction::new_unsigned(Message::new_with_blockhash(
-            &[solana_sdk::instruction::Instruction::new_with_bytes(
-                composite_ism_id(),
-                &InterchainSecurityModuleInstruction::Type.encode().unwrap(),
-                vec![AccountMeta::new_readonly(storage_pda, false)],
-            )],
-            Some(&payer.pubkey()),
-            &recent_blockhash,
-        )))
-        .await
-        .unwrap()
-        .simulation_details
-        .unwrap()
-        .return_data
-        .unwrap()
-        .data;
-
-    let type_u32 = SimulationReturnData::<u32>::try_from_slice(&type_bytes)
-        .unwrap()
-        .return_data;
-    assert_eq!(type_u32, ModuleType::Aggregation as u32);
 }

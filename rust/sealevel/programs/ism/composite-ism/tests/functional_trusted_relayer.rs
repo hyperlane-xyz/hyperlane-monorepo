@@ -9,10 +9,11 @@
 //! - Verify fails with InvalidRelayer when a different account is provided instead of the relayer
 //! - Verify fails with RelayerNotSigner when the relayer pubkey is present but is_signer=false
 //! - VerifyAccountMetas returns the relayer pubkey as a signer account (plus the storage PDA)
+//! - Type returns ModuleType::Null
 
 mod common;
 
-use hyperlane_core::Encode;
+use hyperlane_core::{Encode, ModuleType};
 use hyperlane_sealevel_composite_ism::{accounts::IsmNode, error::Error};
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction,
@@ -27,8 +28,8 @@ use solana_sdk::{
 };
 
 use common::{
-    assert_simulation_error, assert_simulation_ok, composite_ism_id, dummy_message, initialize,
-    program_test, storage_pda_key,
+    assert_simulation_error, assert_simulation_ok, composite_ism_id, dummy_message, get_ism_type,
+    initialize, program_test, storage_pda_key,
 };
 
 #[tokio::test]
@@ -210,4 +211,26 @@ async fn test_verify_account_metas_returns_relayer_as_signer() {
     assert!(!account_metas[0].is_signer);
     assert_eq!(account_metas[1].pubkey, relayer.pubkey());
     assert!(account_metas[1].is_signer);
+}
+
+#[tokio::test]
+async fn test_ism_type() {
+    let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
+
+    let relayer = Keypair::new();
+    initialize(
+        &mut banks_client,
+        &payer,
+        recent_blockhash,
+        IsmNode::TrustedRelayer {
+            relayer: relayer.pubkey(),
+        },
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(
+        get_ism_type(&mut banks_client, &payer, recent_blockhash).await,
+        ModuleType::Null,
+    );
 }

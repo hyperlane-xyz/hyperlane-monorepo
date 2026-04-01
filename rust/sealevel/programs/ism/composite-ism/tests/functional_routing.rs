@@ -8,10 +8,11 @@
 //! - Verify succeeds via the default ISM when no explicit route matches the origin
 //! - Verify fails with NoRouteForDomain when no route matches and no default is set
 //! - VerifyAccountMetas returns the accounts of the sub-ISM selected for the message's origin
+//! - Type returns ModuleType::Routing
 
 mod common;
 
-use hyperlane_core::Encode;
+use hyperlane_core::{Encode, ModuleType};
 use hyperlane_sealevel_composite_ism::{accounts::IsmNode, error::Error};
 use hyperlane_sealevel_interchain_security_module_interface::VerifyInstruction;
 use solana_sdk::{
@@ -20,8 +21,8 @@ use solana_sdk::{
 };
 
 use common::{
-    assert_simulation_error, assert_simulation_ok, dummy_message, get_verify_account_metas,
-    initialize, program_test, simulate_verify, storage_pda_key,
+    assert_simulation_error, assert_simulation_ok, dummy_message, get_ism_type,
+    get_verify_account_metas, initialize, program_test, simulate_verify, storage_pda_key,
 };
 
 const ORIGIN: u32 = 1234;
@@ -199,4 +200,26 @@ async fn test_verify_account_metas_returns_selected_branch_accounts() {
     assert_eq!(account_metas[0].pubkey, storage_pda_key());
     assert_eq!(account_metas[1].pubkey, relayer.pubkey());
     assert!(account_metas[1].is_signer);
+}
+
+#[tokio::test]
+async fn test_ism_type() {
+    let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
+
+    initialize(
+        &mut banks_client,
+        &payer,
+        recent_blockhash,
+        IsmNode::Routing {
+            routes: vec![(ORIGIN, IsmNode::Test { accept: true })],
+            default_ism: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(
+        get_ism_type(&mut banks_client, &payer, recent_blockhash).await,
+        ModuleType::Routing,
+    );
 }

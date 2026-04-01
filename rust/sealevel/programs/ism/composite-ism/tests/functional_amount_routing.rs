@@ -11,10 +11,11 @@
 //! - Verify fails with InvalidMessageBody when message body is shorter than 64 bytes
 //! - VerifyAccountMetas returns accounts for the `lower` branch when amount < threshold
 //! - VerifyAccountMetas returns accounts for the `upper` branch when amount >= threshold
+//! - Type returns ModuleType::Routing (AmountRouting is a Routing variant)
 
 mod common;
 
-use hyperlane_core::Encode;
+use hyperlane_core::{Encode, ModuleType};
 use hyperlane_sealevel_composite_ism::{accounts::IsmNode, error::Error};
 use hyperlane_sealevel_interchain_security_module_interface::VerifyInstruction;
 use solana_sdk::{
@@ -23,8 +24,9 @@ use solana_sdk::{
 };
 
 use common::{
-    assert_simulation_error, assert_simulation_ok, dummy_message, get_verify_account_metas,
-    initialize, program_test, simulate_verify, storage_pda_key, token_message_body,
+    assert_simulation_error, assert_simulation_ok, dummy_message, get_ism_type,
+    get_verify_account_metas, initialize, program_test, simulate_verify, storage_pda_key,
+    token_message_body,
 };
 
 /// Builds an AmountRouting node with `lower = Test{accept:true}`, `upper = Test{accept:false}`.
@@ -301,4 +303,23 @@ async fn test_verify_account_metas_upper_branch() {
     assert_eq!(account_metas[0].pubkey, storage_pda_key());
     assert_eq!(account_metas[1].pubkey, relayer_upper.pubkey());
     assert!(account_metas[1].is_signer);
+}
+
+#[tokio::test]
+async fn test_ism_type() {
+    let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
+
+    initialize(
+        &mut banks_client,
+        &payer,
+        recent_blockhash,
+        amount_routing_node(1000),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(
+        get_ism_type(&mut banks_client, &payer, recent_blockhash).await,
+        ModuleType::Routing,
+    );
 }

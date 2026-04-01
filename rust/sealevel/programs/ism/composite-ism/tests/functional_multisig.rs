@@ -9,11 +9,12 @@
 //! - Verify fails with NoDomainConfig when no domain config exists for the message origin
 //! - Verify fails with InvalidMetadata when the metadata is too short to parse
 //! - VerifyAccountMetas returns only the storage PDA (MultisigMessageId needs no extra accounts)
+//! - Type returns ModuleType::MessageIdMultisig
 
 mod common;
 
 use ecdsa_signature::EcdsaSignature;
-use hyperlane_core::Encode;
+use hyperlane_core::{Encode, ModuleType};
 use hyperlane_sealevel_composite_ism::{
     accounts::{DomainConfig, IsmNode},
     error::Error,
@@ -24,8 +25,8 @@ use multisig_ism::test_data::{get_multisig_ism_test_data, MultisigIsmTestData};
 use solana_sdk::{instruction::InstructionError, transaction::TransactionError};
 
 use common::{
-    assert_simulation_error, assert_simulation_ok, get_verify_account_metas, initialize,
-    program_test, simulate_verify, storage_pda_key,
+    assert_simulation_error, assert_simulation_ok, get_ism_type, get_verify_account_metas,
+    initialize, program_test, simulate_verify, storage_pda_key,
 };
 
 fn multisig_root(origin: u32, validators: Vec<hyperlane_core::H160>, threshold: u8) -> IsmNode {
@@ -292,4 +293,29 @@ async fn test_verify_account_metas_no_extra_accounts() {
     // MultisigMessageId reads all state from the storage PDA — no extra accounts needed.
     assert_eq!(account_metas.len(), 1);
     assert_eq!(account_metas[0].pubkey, storage_pda_key());
+}
+
+#[tokio::test]
+async fn test_ism_type() {
+    let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
+
+    let MultisigIsmTestData {
+        message,
+        validators,
+        ..
+    } = get_multisig_ism_test_data();
+
+    initialize(
+        &mut banks_client,
+        &payer,
+        recent_blockhash,
+        multisig_root(message.origin, validators, 1),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(
+        get_ism_type(&mut banks_client, &payer, recent_blockhash).await,
+        ModuleType::MessageIdMultisig,
+    );
 }

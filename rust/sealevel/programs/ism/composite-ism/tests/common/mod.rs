@@ -1,5 +1,5 @@
 use borsh::BorshDeserialize;
-use hyperlane_core::{HyperlaneMessage, H256};
+use hyperlane_core::{HyperlaneMessage, ModuleType, H256};
 use hyperlane_sealevel_composite_ism::{
     accounts::IsmNode, instruction::initialize_instruction, processor::process_instruction,
 };
@@ -205,4 +205,35 @@ pub fn encode_aggregation_metadata(sub_metas: &[Option<&[u8]>]) -> Vec<u8> {
         }
     }
     buf
+}
+
+/// Simulates `Type` and returns the resulting `ModuleType`.
+pub async fn get_ism_type(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    recent_blockhash: Hash,
+) -> ModuleType {
+    let storage_pda = storage_pda_key();
+    let data = banks_client
+        .simulate_transaction(Transaction::new_unsigned(Message::new_with_blockhash(
+            &[Instruction::new_with_bytes(
+                composite_ism_id(),
+                &InterchainSecurityModuleInstruction::Type.encode().unwrap(),
+                vec![AccountMeta::new_readonly(storage_pda, false)],
+            )],
+            Some(&payer.pubkey()),
+            &recent_blockhash,
+        )))
+        .await
+        .unwrap()
+        .simulation_details
+        .unwrap()
+        .return_data
+        .unwrap()
+        .data;
+
+    let type_u32 = SimulationReturnData::<u32>::try_from_slice(&data)
+        .unwrap()
+        .return_data;
+    num_traits::FromPrimitive::from_u32(type_u32).unwrap()
 }

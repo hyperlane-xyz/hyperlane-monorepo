@@ -9,10 +9,11 @@
 //! - Verify fails with ThresholdNotMet when fewer sub-ISMs than threshold provide metadata
 //! - Verify fails when a sub-ISM with metadata rejects (one Test{accept:false} in the set)
 //! - VerifyAccountMetas returns the union of accounts from sub-ISMs that have metadata
+//! - Type returns ModuleType::Aggregation
 
 mod common;
 
-use hyperlane_core::Encode;
+use hyperlane_core::{Encode, ModuleType};
 use hyperlane_sealevel_composite_ism::{accounts::IsmNode, error::Error};
 use hyperlane_sealevel_interchain_security_module_interface::VerifyInstruction;
 use solana_sdk::{
@@ -22,7 +23,8 @@ use solana_sdk::{
 
 use common::{
     assert_simulation_error, assert_simulation_ok, dummy_message, encode_aggregation_metadata,
-    get_verify_account_metas, initialize, program_test, simulate_verify, storage_pda_key,
+    get_ism_type, get_verify_account_metas, initialize, program_test, simulate_verify,
+    storage_pda_key,
 };
 
 #[tokio::test]
@@ -262,4 +264,26 @@ async fn test_verify_account_metas_union_of_active_sub_isms() {
     assert_eq!(account_metas[0].pubkey, storage_pda_key());
     assert_eq!(account_metas[1].pubkey, relayer_a.pubkey());
     assert!(account_metas[1].is_signer);
+}
+
+#[tokio::test]
+async fn test_ism_type() {
+    let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
+
+    initialize(
+        &mut banks_client,
+        &payer,
+        recent_blockhash,
+        IsmNode::Aggregation {
+            threshold: 1,
+            sub_isms: vec![IsmNode::Test { accept: true }],
+        },
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(
+        get_ism_type(&mut banks_client, &payer, recent_blockhash).await,
+        ModuleType::Aggregation,
+    );
 }
