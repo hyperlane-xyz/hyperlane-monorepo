@@ -3,7 +3,6 @@
 //! Test cases:
 //! - Initialize creates the storage PDA with the correct owner and root node
 //! - Initialize fails with AlreadyInitialized if called a second time
-//! - Initialize fails with InvalidConfig if the root has an invalid config (threshold > sub-ISMs)
 //! - UpdateConfig replaces the root ISM tree and persists the new config
 //! - UpdateConfig fails with InvalidArgument if the caller is not the owner
 //! - UpdateConfig fails with AccountNotInitialized if the program has not been initialized
@@ -76,32 +75,6 @@ async fn test_initialize_errors_if_called_twice() {
             0,
             InstructionError::Custom(
                 hyperlane_sealevel_composite_ism::error::Error::AlreadyInitialized as u32,
-            ),
-        ),
-    );
-}
-
-#[tokio::test]
-async fn test_initialize_invalid_config() {
-    let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
-
-    // Aggregation with threshold > sub-ISM count is invalid.
-    let root = IsmNode::Aggregation {
-        threshold: 3,
-        sub_isms: vec![
-            IsmNode::Test { accept: true },
-            IsmNode::Test { accept: true },
-        ],
-    };
-
-    let result = initialize(&mut banks_client, &payer, recent_blockhash, root).await;
-
-    assert_transaction_error(
-        result,
-        TransactionError::InstructionError(
-            0,
-            InstructionError::Custom(
-                hyperlane_sealevel_composite_ism::error::Error::InvalidConfig as u32,
             ),
         ),
     );

@@ -3,19 +3,28 @@
 //! Aggregation requires at least `threshold` sub-ISMs to have metadata provided,
 //! and ALL sub-ISMs that do have metadata must pass verification.
 //!
-//! Test cases:
+//! CONFIG:
+//! - Initialize stores the Aggregation root node in the PDA
+//! - Initialize fails with InvalidConfig when threshold > sub_isms.len()
+//! - Type returns ModuleType::Aggregation
+//!
+//! VERIFY:
 //! - Verify succeeds when all sub-ISMs have metadata and all pass (threshold=2, 2-of-2)
 //! - Verify succeeds when only the threshold subset provides metadata and all pass (threshold=1, 1-of-2)
 //! - Verify fails with ThresholdNotMet when fewer sub-ISMs than threshold provide metadata
 //! - Verify fails when a sub-ISM with metadata rejects (one Test{accept:false} in the set)
 //! - VerifyAccountMetas returns the union of accounts from sub-ISMs that have metadata
-//! - Type returns ModuleType::Aggregation
 
 mod common;
 
+use borsh::BorshDeserialize;
 use hyperlane_core::{Encode, ModuleType};
-use hyperlane_sealevel_composite_ism::{accounts::IsmNode, error::Error};
+use hyperlane_sealevel_composite_ism::{
+    accounts::{CompositeIsmAccount, IsmNode},
+    error::Error,
+};
 use hyperlane_sealevel_interchain_security_module_interface::VerifyInstruction;
+use hyperlane_test_utils::assert_transaction_error;
 use solana_sdk::{
     instruction::InstructionError, signature::Signer, signer::keypair::Keypair,
     transaction::TransactionError,
@@ -26,6 +35,86 @@ use common::{
     get_ism_type, get_verify_account_metas, initialize, program_test, simulate_verify,
     storage_pda_key,
 };
+
+// ── CONFIG ───────────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn test_initialize() {
+    let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
+
+    let root = IsmNode::Aggregation {
+        threshold: 1,
+        sub_isms: vec![IsmNode::Test { accept: true }],
+    };
+    initialize(&mut banks_client, &payer, recent_blockhash, root.clone())
+        .await
+        .unwrap();
+
+    let storage_data = banks_client
+        .get_account(storage_pda_key())
+        .await
+        .unwrap()
+        .unwrap()
+        .data;
+    let storage = CompositeIsmAccount::fetch_data(&mut &storage_data[..])
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(storage.owner, Some(payer.pubkey()));
+    assert_eq!(storage.root, Some(root));
+}
+
+#[tokio::test]
+async fn test_initialize_invalid_config() {
+    let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
+
+    // threshold > sub_isms.len() is invalid.
+    let result = initialize(
+        &mut banks_client,
+        &payer,
+        recent_blockhash,
+        IsmNode::Aggregation {
+            threshold: 3,
+            sub_isms: vec![
+                IsmNode::Test { accept: true },
+                IsmNode::Test { accept: true },
+            ],
+        },
+    )
+    .await;
+
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(
+            0,
+            InstructionError::Custom(Error::InvalidConfig as u32),
+        ),
+    );
+}
+
+#[tokio::test]
+async fn test_ism_type() {
+    let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
+
+    initialize(
+        &mut banks_client,
+        &payer,
+        recent_blockhash,
+        IsmNode::Aggregation {
+            threshold: 1,
+            sub_isms: vec![IsmNode::Test { accept: true }],
+        },
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(
+        get_ism_type(&mut banks_client, &payer, recent_blockhash).await,
+        ModuleType::Aggregation,
+    );
+}
+
+// ── VERIFY ───────────────────────────────────────────────────────────────────
 
 #[tokio::test]
 async fn test_verify_all_provided() {
@@ -264,26 +353,4 @@ async fn test_verify_account_metas_union_of_active_sub_isms() {
     assert_eq!(account_metas[0].pubkey, storage_pda_key());
     assert_eq!(account_metas[1].pubkey, relayer_a.pubkey());
     assert!(account_metas[1].is_signer);
-}
-
-#[tokio::test]
-async fn test_ism_type() {
-    let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
-
-    initialize(
-        &mut banks_client,
-        &payer,
-        recent_blockhash,
-        IsmNode::Aggregation {
-            threshold: 1,
-            sub_isms: vec![IsmNode::Test { accept: true }],
-        },
-    )
-    .await
-    .unwrap();
-
-    assert_eq!(
-        get_ism_type(&mut banks_client, &payer, recent_blockhash).await,
-        ModuleType::Aggregation,
-    );
 }

@@ -3,17 +3,24 @@
 //! Routing selects a sub-ISM based on the message's origin domain and passes
 //! metadata through unchanged. Falls back to default_ism if no route matches.
 //!
-//! Test cases:
+//! CONFIG:
+//! - Initialize stores the Routing root node in the PDA
+//! - Type returns ModuleType::Routing
+//!
+//! VERIFY:
 //! - Verify succeeds by routing to the sub-ISM configured for the message's origin domain
 //! - Verify succeeds via the default ISM when no explicit route matches the origin
 //! - Verify fails with NoRouteForDomain when no route matches and no default is set
 //! - VerifyAccountMetas returns the accounts of the sub-ISM selected for the message's origin
-//! - Type returns ModuleType::Routing
 
 mod common;
 
+use borsh::BorshDeserialize;
 use hyperlane_core::{Encode, ModuleType};
-use hyperlane_sealevel_composite_ism::{accounts::IsmNode, error::Error};
+use hyperlane_sealevel_composite_ism::{
+    accounts::{CompositeIsmAccount, IsmNode},
+    error::Error,
+};
 use hyperlane_sealevel_interchain_security_module_interface::VerifyInstruction;
 use solana_sdk::{
     instruction::InstructionError, signature::Signer, signer::keypair::Keypair,
@@ -27,6 +34,58 @@ use common::{
 
 const ORIGIN: u32 = 1234;
 const OTHER_ORIGIN: u32 = 9999;
+
+// ── CONFIG ───────────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn test_initialize() {
+    let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
+
+    let root = IsmNode::Routing {
+        routes: vec![(ORIGIN, IsmNode::Test { accept: true })],
+        default_ism: None,
+    };
+    initialize(&mut banks_client, &payer, recent_blockhash, root.clone())
+        .await
+        .unwrap();
+
+    let storage_data = banks_client
+        .get_account(storage_pda_key())
+        .await
+        .unwrap()
+        .unwrap()
+        .data;
+    let storage = CompositeIsmAccount::fetch_data(&mut &storage_data[..])
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(storage.owner, Some(payer.pubkey()));
+    assert_eq!(storage.root, Some(root));
+}
+
+#[tokio::test]
+async fn test_ism_type() {
+    let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
+
+    initialize(
+        &mut banks_client,
+        &payer,
+        recent_blockhash,
+        IsmNode::Routing {
+            routes: vec![(ORIGIN, IsmNode::Test { accept: true })],
+            default_ism: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(
+        get_ism_type(&mut banks_client, &payer, recent_blockhash).await,
+        ModuleType::Routing,
+    );
+}
+
+// ── VERIFY ───────────────────────────────────────────────────────────────────
 
 #[tokio::test]
 async fn test_verify_matched_route() {
@@ -200,26 +259,4 @@ async fn test_verify_account_metas_returns_selected_branch_accounts() {
     assert_eq!(account_metas[0].pubkey, storage_pda_key());
     assert_eq!(account_metas[1].pubkey, relayer.pubkey());
     assert!(account_metas[1].is_signer);
-}
-
-#[tokio::test]
-async fn test_ism_type() {
-    let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
-
-    initialize(
-        &mut banks_client,
-        &payer,
-        recent_blockhash,
-        IsmNode::Routing {
-            routes: vec![(ORIGIN, IsmNode::Test { accept: true })],
-            default_ism: None,
-        },
-    )
-    .await
-    .unwrap();
-
-    assert_eq!(
-        get_ism_type(&mut banks_client, &payer, recent_blockhash).await,
-        ModuleType::Routing,
-    );
 }

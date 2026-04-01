@@ -3,26 +3,30 @@
 //! Uses the pre-generated test data from the multisig-ism library (3 validators,
 //! known ECDSA signatures over a fixed checkpoint + message).
 //!
-//! Test cases:
+//! CONFIG:
+//! - Initialize stores the MultisigMessageId root node (with domain config) in the PDA
+//! - Type returns ModuleType::MessageIdMultisig
+//!
+//! VERIFY:
 //! - Verify succeeds with a valid quorum of validator signatures (2-of-3)
 //! - Verify fails with ThresholdNotMet when 2 duplicate signatures are provided for a 2-of-3 threshold (verifier requires unique validators)
 //! - Verify fails with NoDomainConfig when no domain config exists for the message origin
 //! - Verify fails with InvalidMetadata when the metadata is too short to parse
 //! - VerifyAccountMetas returns only the storage PDA (MultisigMessageId needs no extra accounts)
-//! - Type returns ModuleType::MessageIdMultisig
 
 mod common;
 
+use borsh::BorshDeserialize;
 use ecdsa_signature::EcdsaSignature;
 use hyperlane_core::{Encode, ModuleType};
 use hyperlane_sealevel_composite_ism::{
-    accounts::{DomainConfig, IsmNode},
+    accounts::{CompositeIsmAccount, DomainConfig, IsmNode},
     error::Error,
     multisig_metadata::MultisigIsmMessageIdMetadata,
 };
 use hyperlane_sealevel_interchain_security_module_interface::VerifyInstruction;
 use multisig_ism::test_data::{get_multisig_ism_test_data, MultisigIsmTestData};
-use solana_sdk::{instruction::InstructionError, transaction::TransactionError};
+use solana_sdk::{instruction::InstructionError, signature::Signer, transaction::TransactionError};
 
 use common::{
     assert_simulation_error, assert_simulation_ok, get_ism_type, get_verify_account_metas,
@@ -38,6 +42,64 @@ fn multisig_root(origin: u32, validators: Vec<hyperlane_core::H160>, threshold: 
         }],
     }
 }
+
+// ── CONFIG ───────────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn test_initialize() {
+    let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
+
+    let MultisigIsmTestData {
+        message,
+        validators,
+        ..
+    } = get_multisig_ism_test_data();
+
+    let root = multisig_root(message.origin, validators, 1);
+    initialize(&mut banks_client, &payer, recent_blockhash, root.clone())
+        .await
+        .unwrap();
+
+    let storage_data = banks_client
+        .get_account(storage_pda_key())
+        .await
+        .unwrap()
+        .unwrap()
+        .data;
+    let storage = CompositeIsmAccount::fetch_data(&mut &storage_data[..])
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(storage.owner, Some(payer.pubkey()));
+    assert_eq!(storage.root, Some(root));
+}
+
+#[tokio::test]
+async fn test_ism_type() {
+    let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
+
+    let MultisigIsmTestData {
+        message,
+        validators,
+        ..
+    } = get_multisig_ism_test_data();
+
+    initialize(
+        &mut banks_client,
+        &payer,
+        recent_blockhash,
+        multisig_root(message.origin, validators, 1),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(
+        get_ism_type(&mut banks_client, &payer, recent_blockhash).await,
+        ModuleType::MessageIdMultisig,
+    );
+}
+
+// ── VERIFY ───────────────────────────────────────────────────────────────────
 
 #[tokio::test]
 async fn test_verify_valid_signatures() {
@@ -293,29 +355,4 @@ async fn test_verify_account_metas_no_extra_accounts() {
     // MultisigMessageId reads all state from the storage PDA — no extra accounts needed.
     assert_eq!(account_metas.len(), 1);
     assert_eq!(account_metas[0].pubkey, storage_pda_key());
-}
-
-#[tokio::test]
-async fn test_ism_type() {
-    let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
-
-    let MultisigIsmTestData {
-        message,
-        validators,
-        ..
-    } = get_multisig_ism_test_data();
-
-    initialize(
-        &mut banks_client,
-        &payer,
-        recent_blockhash,
-        multisig_root(message.origin, validators, 1),
-    )
-    .await
-    .unwrap();
-
-    assert_eq!(
-        get_ism_type(&mut banks_client, &payer, recent_blockhash).await,
-        ModuleType::MessageIdMultisig,
-    );
 }

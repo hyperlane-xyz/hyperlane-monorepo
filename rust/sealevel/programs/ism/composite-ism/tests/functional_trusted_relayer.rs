@@ -4,17 +4,22 @@
 //! In the relayer's case this is the identity keypair — a separate key from the fee-payer
 //! that co-signs each process transaction.
 //!
-//! Test cases:
+//! CONFIG:
+//! - Initialize stores the TrustedRelayer root node (with relayer pubkey) in the PDA
+//! - Type returns ModuleType::Null
+//!
+//! VERIFY:
 //! - Verify succeeds when the configured relayer's pubkey is listed as a signer in the tx
 //! - Verify fails with InvalidRelayer when a different account is provided instead of the relayer
 //! - Verify fails with RelayerNotSigner when the relayer pubkey is present but is_signer=false
 //! - VerifyAccountMetas returns the relayer pubkey as a signer account (plus the storage PDA)
-//! - Type returns ModuleType::Null
 
 mod common;
 
+use borsh::BorshDeserialize;
 use hyperlane_core::{Encode, ModuleType};
-use hyperlane_sealevel_composite_ism::{accounts::IsmNode, error::Error};
+use hyperlane_sealevel_composite_ism::accounts::{CompositeIsmAccount, IsmNode};
+use hyperlane_sealevel_composite_ism::error::Error;
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction,
 };
@@ -31,6 +36,58 @@ use common::{
     assert_simulation_error, assert_simulation_ok, composite_ism_id, dummy_message, get_ism_type,
     initialize, program_test, storage_pda_key,
 };
+
+// ── CONFIG ───────────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn test_initialize() {
+    let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
+
+    let relayer = Keypair::new();
+    let root = IsmNode::TrustedRelayer {
+        relayer: relayer.pubkey(),
+    };
+    initialize(&mut banks_client, &payer, recent_blockhash, root.clone())
+        .await
+        .unwrap();
+
+    let storage_data = banks_client
+        .get_account(storage_pda_key())
+        .await
+        .unwrap()
+        .unwrap()
+        .data;
+    let storage = CompositeIsmAccount::fetch_data(&mut &storage_data[..])
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(storage.owner, Some(payer.pubkey()));
+    assert_eq!(storage.root, Some(root));
+}
+
+#[tokio::test]
+async fn test_ism_type() {
+    let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
+
+    let relayer = Keypair::new();
+    initialize(
+        &mut banks_client,
+        &payer,
+        recent_blockhash,
+        IsmNode::TrustedRelayer {
+            relayer: relayer.pubkey(),
+        },
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(
+        get_ism_type(&mut banks_client, &payer, recent_blockhash).await,
+        ModuleType::Null,
+    );
+}
+
+// ── VERIFY ───────────────────────────────────────────────────────────────────
 
 #[tokio::test]
 async fn test_verify_correct_relayer() {
@@ -211,26 +268,4 @@ async fn test_verify_account_metas_returns_relayer_as_signer() {
     assert!(!account_metas[0].is_signer);
     assert_eq!(account_metas[1].pubkey, relayer.pubkey());
     assert!(account_metas[1].is_signer);
-}
-
-#[tokio::test]
-async fn test_ism_type() {
-    let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
-
-    let relayer = Keypair::new();
-    initialize(
-        &mut banks_client,
-        &payer,
-        recent_blockhash,
-        IsmNode::TrustedRelayer {
-            relayer: relayer.pubkey(),
-        },
-    )
-    .await
-    .unwrap();
-
-    assert_eq!(
-        get_ism_type(&mut banks_client, &payer, recent_blockhash).await,
-        ModuleType::Null,
-    );
 }

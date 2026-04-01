@@ -4,19 +4,26 @@
 //! and routes to `lower` if amount < threshold, or `upper` if amount >= threshold.
 //! This mirrors the TokenMessage format used in warp route transfers.
 //!
-//! Test cases:
+//! CONFIG:
+//! - Initialize stores the AmountRouting root node in the PDA
+//! - Type returns ModuleType::Routing (AmountRouting is a Routing variant)
+//!
+//! VERIFY:
 //! - Verify routes to `lower` (accept=true) when amount < threshold
 //! - Verify routes to `upper` (accept=false) when amount == threshold (boundary)
 //! - Verify routes to `upper` (accept=false) when amount > threshold
 //! - Verify fails with InvalidMessageBody when message body is shorter than 64 bytes
 //! - VerifyAccountMetas returns accounts for the `lower` branch when amount < threshold
 //! - VerifyAccountMetas returns accounts for the `upper` branch when amount >= threshold
-//! - Type returns ModuleType::Routing (AmountRouting is a Routing variant)
 
 mod common;
 
+use borsh::BorshDeserialize;
 use hyperlane_core::{Encode, ModuleType};
-use hyperlane_sealevel_composite_ism::{accounts::IsmNode, error::Error};
+use hyperlane_sealevel_composite_ism::{
+    accounts::{CompositeIsmAccount, IsmNode},
+    error::Error,
+};
 use hyperlane_sealevel_interchain_security_module_interface::VerifyInstruction;
 use solana_sdk::{
     instruction::InstructionError, signature::Signer, signer::keypair::Keypair,
@@ -39,6 +46,52 @@ fn amount_routing_node(threshold_value: u64) -> IsmNode {
         upper: Box::new(IsmNode::Test { accept: false }),
     }
 }
+
+// ── CONFIG ───────────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn test_initialize() {
+    let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
+
+    let root = amount_routing_node(1000);
+    initialize(&mut banks_client, &payer, recent_blockhash, root.clone())
+        .await
+        .unwrap();
+
+    let storage_data = banks_client
+        .get_account(storage_pda_key())
+        .await
+        .unwrap()
+        .unwrap()
+        .data;
+    let storage = CompositeIsmAccount::fetch_data(&mut &storage_data[..])
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(storage.owner, Some(payer.pubkey()));
+    assert_eq!(storage.root, Some(root));
+}
+
+#[tokio::test]
+async fn test_ism_type() {
+    let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
+
+    initialize(
+        &mut banks_client,
+        &payer,
+        recent_blockhash,
+        amount_routing_node(1000),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(
+        get_ism_type(&mut banks_client, &payer, recent_blockhash).await,
+        ModuleType::Routing,
+    );
+}
+
+// ── VERIFY ───────────────────────────────────────────────────────────────────
 
 #[tokio::test]
 async fn test_verify_amount_below_threshold_routes_lower() {
@@ -303,23 +356,4 @@ async fn test_verify_account_metas_upper_branch() {
     assert_eq!(account_metas[0].pubkey, storage_pda_key());
     assert_eq!(account_metas[1].pubkey, relayer_upper.pubkey());
     assert!(account_metas[1].is_signer);
-}
-
-#[tokio::test]
-async fn test_ism_type() {
-    let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
-
-    initialize(
-        &mut banks_client,
-        &payer,
-        recent_blockhash,
-        amount_routing_node(1000),
-    )
-    .await
-    .unwrap();
-
-    assert_eq!(
-        get_ism_type(&mut banks_client, &payer, recent_blockhash).await,
-        ModuleType::Routing,
-    );
 }
