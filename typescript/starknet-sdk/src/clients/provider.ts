@@ -256,8 +256,8 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
         normalizeStarknetAddressSafe(nativeToken.denom)
     ) {
       return {
-        name: nativeToken.name ?? '',
-        symbol: nativeToken.symbol ?? '',
+        name: nativeToken.name,
+        symbol: nativeToken.symbol,
         decimals: nativeToken.decimals ?? 18,
       };
     }
@@ -601,11 +601,11 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
         denom = normalizeStarknetAddressSafe(nativeTokenAddress);
       } catch (error) {
         if (!isProbeMiss(error)) throw error;
-        denom = this.metadata.nativeToken?.denom || this.feeTokenAddress;
+        denom = this.metadata.nativeToken?.denom ?? this.feeTokenAddress;
       }
 
-      name = this.metadata.nativeToken?.name || name;
-      symbol = this.metadata.nativeToken?.symbol || symbol;
+      name = this.metadata.nativeToken?.name ?? name;
+      symbol = this.metadata.nativeToken?.symbol ?? symbol;
       decimals = this.metadata.nativeToken?.decimals ?? decimals;
     }
 

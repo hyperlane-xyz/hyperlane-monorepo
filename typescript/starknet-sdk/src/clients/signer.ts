@@ -111,11 +111,11 @@ export class StarknetSigner
     if (receipt.isSuccess()) return;
 
     if (receipt.isReverted()) {
+      const receiptValue = receipt.value;
       const revertReason =
-        receipt.value &&
-        typeof receipt.value === 'object' &&
-        typeof Reflect.get(receipt.value, 'revert_reason') === 'string'
-          ? Reflect.get(receipt.value, 'revert_reason')
+        typeof receiptValue === 'object' &&
+        typeof Reflect.get(receiptValue, 'revert_reason') === 'string'
+          ? Reflect.get(receiptValue, 'revert_reason')
           : undefined;
       const details =
         typeof revertReason === 'string' && revertReason.length > 0
@@ -192,7 +192,7 @@ export class StarknetSigner
         : await factory.deploy(constructorCalldata);
 
     const transactionHash =
-      deployment.deployTransactionHash ||
+      deployment.deployTransactionHash ??
       StarknetSigner.readStringField(deployment, 'transaction_hash');
     assert(transactionHash, 'missing Starknet deploy transaction hash');
 
@@ -426,7 +426,7 @@ export class StarknetSigner
 
     if (req.routes.length > 0) {
       const routeTxs = await Promise.all(
-        req.routes.map((route) =>
+        req.routes.map(async (route) =>
           this.getSetRoutingIsmRouteTransaction({
             signer: this.signerAddress,
             ismAddress,

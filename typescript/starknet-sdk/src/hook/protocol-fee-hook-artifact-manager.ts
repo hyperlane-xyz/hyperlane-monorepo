@@ -85,7 +85,7 @@ async function readProtocolFeeMaxFromStorage(
   // fall back to all candidates when multiple non-zero slots are populated.
   const candidates = (
     await Promise.all(
-      MAX_PROTOCOL_FEE_STORAGE_KEYS.map((key) =>
+      MAX_PROTOCOL_FEE_STORAGE_KEYS.map(async (key) =>
         readUint256Storage(provider, contractAddress, key),
       ),
     )

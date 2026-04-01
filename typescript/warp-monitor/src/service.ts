@@ -29,7 +29,7 @@ import { WarpMonitor } from './monitor.js';
 import { initializeLogger } from './utils.js';
 
 async function main(): Promise<void> {
-  const VERSION = process.env.SERVICE_VERSION || 'dev';
+  const VERSION = process.env.SERVICE_VERSION ?? 'dev';
 
   // Validate required environment variables
   const warpRouteId = process.env.WARP_ROUTE_ID;
@@ -83,7 +83,7 @@ async function main(): Promise<void> {
   try {
     // Initialize registry (uses env var or defaults to GitHub registry)
     // For GitHub registries, REGISTRY_URI can include /tree/{commit} to pin to a specific version
-    const registryUri = process.env.REGISTRY_URI || DEFAULT_GITHUB_REGISTRY;
+    const registryUri = process.env.REGISTRY_URI ?? DEFAULT_GITHUB_REGISTRY;
     const registry = getRegistry({
       registryUris: [registryUri],
       enableProxy: true,

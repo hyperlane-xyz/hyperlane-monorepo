@@ -16,9 +16,9 @@ describe('Warp Monitor Utils', () => {
 
   describe('setLoggerBindings', () => {
     it('should not throw when setting bindings', () => {
-      expect(() =>
-        setLoggerBindings({ warp_route: 'test-route' }),
-      ).to.not.throw();
+      expect(() => {
+        setLoggerBindings({ warp_route: 'test-route' });
+      }).to.not.throw();
     });
   });
 
