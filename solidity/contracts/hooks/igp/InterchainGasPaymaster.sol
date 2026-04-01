@@ -231,8 +231,14 @@ contract InterchainGasPaymaster is
         address _refundAddress
     ) public payable override {
         uint256 _payment = quoteGasPayment(_destinationDomain, _gasLimit);
-        _collectNative(_refundAddress, _payment);
-        emit GasPayment(_messageId, _destinationDomain, _gasLimit, _payment);
+        _payForGas(
+            NATIVE_TOKEN,
+            _messageId,
+            _destinationDomain,
+            _gasLimit,
+            _refundAddress,
+            _payment
+        );
     }
 
     /**
@@ -248,18 +254,20 @@ contract InterchainGasPaymaster is
         bytes32 _messageId,
         uint32 _destinationDomain,
         uint256 _gasLimit
-    ) external payable {
+    ) external {
         uint256 _payment = quoteGasPayment(
             _feeToken,
             _destinationDomain,
             _gasLimit
         );
-        if (_feeToken == address(0)) {
-            _collectNative(msg.sender, _payment);
-        } else {
-            _collectToken(_feeToken, msg.sender, _payment);
-        }
-        emit GasPayment(_messageId, _destinationDomain, _gasLimit, _payment);
+        _payForGas(
+            _feeToken,
+            _messageId,
+            _destinationDomain,
+            _gasLimit,
+            msg.sender,
+            _payment
+        );
     }
 
     /**
@@ -432,40 +440,57 @@ contract InterchainGasPaymaster is
     // ============ Internal Functions ============
 
     /**
-     * @notice Collects native gas payment and refunds overpayment.
-     * @param _refundAddress The address to refund native overpayment to.
-     * @param _payment The required payment amount.
+     * @notice Internal helper to handle gas payments for both native and ERC20 tokens.
+     * @dev For native: checks msg.value >= payment and refunds overpayment to _payer.
+     *      For tokens: transfers exact payment amount from _payer.
+     * @param _feeToken The token to pay with, or NATIVE_TOKEN (address(0)) for native.
+     * @param _messageId The ID of the message to pay for.
+     * @param _destinationDomain The domain of the message's destination chain.
+     * @param _gasLimit The amount of destination gas to pay for.
+     * @param _payerOrRefundAddress For native: refund address. For tokens: address to transfer from.
+     * @param _payment The payment amount (from quoteGasPayment).
      */
-    function _collectNative(address _refundAddress, uint256 _payment) internal {
-        require(
-            msg.value >= _payment,
-            "IGP: insufficient interchain gas payment"
-        );
-        uint256 _overpayment = msg.value - _payment;
-        if (_overpayment > 0) {
-            require(_refundAddress != address(0), "no refund address");
-            payable(_refundAddress).sendValue(_overpayment);
-        }
-    }
-
-    /**
-     * @notice Collects ERC20 gas payment from payer.
-     * @param _feeToken The ERC20 token to collect.
-     * @param _payer The address to transfer tokens from.
-     * @param _payment The required payment amount.
-     */
-    function _collectToken(
+    function _payForGas(
         address _feeToken,
-        address _payer,
+        bytes32 _messageId,
+        uint32 _destinationDomain,
+        uint256 _gasLimit,
+        address _payerOrRefundAddress,
         uint256 _payment
     ) internal {
-        // Revert if native value is sent alongside an ERC20 fee payment
-        // to prevent ETH from being stuck in the contract.
-        require(
-            msg.value == 0,
-            "IGP: native value not accepted with ERC20 fee"
-        );
-        IERC20(_feeToken).safeTransferFrom(_payer, address(this), _payment);
+        if (_feeToken == address(0)) {
+            // Native payment: check msg.value and refund overpayment
+            require(
+                msg.value >= _payment,
+                "IGP: insufficient interchain gas payment"
+            );
+            uint256 _overpayment = msg.value - _payment;
+            if (_overpayment > 0) {
+                require(
+                    _payerOrRefundAddress != address(0),
+                    "no refund address"
+                );
+                payable(_payerOrRefundAddress).sendValue(_overpayment);
+            }
+        } else {
+            // Token payment: transfer exact amount from payer.
+            // Revert if native value is sent alongside an ERC20 fee payment
+            // to prevent ETH from being stuck in the contract. When called
+            // via Mailbox.dispatch, the caller should send only enough
+            // msg.value to cover the requiredHook's native fee; the Mailbox
+            // forwards the remainder here, which must be zero.
+            require(
+                msg.value == 0,
+                "IGP: native value not accepted with ERC20 fee"
+            );
+            IERC20(_feeToken).safeTransferFrom(
+                _payerOrRefundAddress,
+                address(this),
+                _payment
+            );
+        }
+
+        emit GasPayment(_messageId, _destinationDomain, _gasLimit, _payment);
     }
 
     /// @inheritdoc AbstractPostDispatchHook
@@ -494,16 +519,18 @@ contract InterchainGasPaymaster is
             message.senderAddress()
         );
 
-        if (_feeToken == address(0)) {
-            _collectNative(
-                metadata.refundAddress(message.senderAddress()),
-                _payment
-            );
-        } else {
-            _collectToken(_feeToken, message.senderAddress(), _payment);
-        }
+        address _payerOrRefundAddress = _feeToken == address(0)
+            ? metadata.refundAddress(message.senderAddress())
+            : message.senderAddress();
 
-        emit GasPayment(message.id(), _destinationDomain, _gasLimit, _payment);
+        _payForGas(
+            _feeToken,
+            message.id(),
+            _destinationDomain,
+            _gasLimit,
+            _payerOrRefundAddress,
+            _payment
+        );
     }
 
     /// @inheritdoc AbstractPostDispatchHook
