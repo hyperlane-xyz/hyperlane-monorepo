@@ -1170,6 +1170,32 @@ impl ChainConf {
         .context(ctx)
     }
 
+    /// Creates a [`h_sealevel::SealevelCompositeIsm`] for a composite ISM program.
+    ///
+    /// Only valid for Sealevel chains; returns an error for all others.
+    pub async fn build_sealevel_composite_ism(
+        &self,
+        address: H256,
+        metrics: &CoreMetrics,
+    ) -> Result<h_sealevel::SealevelCompositeIsm> {
+        let ctx = "Building Sealevel composite ISM";
+        let locator = self.locator(address);
+
+        match &self.connection {
+            ChainConnectionConf::Sealevel(conf) => {
+                let keypair = self.sealevel_signer().await.context(ctx)?;
+                let provider =
+                    Arc::new(build_sealevel_provider(self, &locator, &[], conf, metrics));
+                Ok(h_sealevel::SealevelCompositeIsm::new(
+                    provider,
+                    locator,
+                    keypair.map(h_sealevel::SealevelKeypair::new),
+                ))
+            }
+            _ => eyre::bail!("SealevelCompositeIsm is only supported on Sealevel chains"),
+        }
+    }
+
     /// Try to convert the chain setting into a RoutingIsm Ism contract
     pub async fn build_routing_ism(
         &self,

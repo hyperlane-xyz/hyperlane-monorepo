@@ -6,7 +6,6 @@
 //! CONFIG:
 //! - Initialize stores the Aggregation root node in the PDA
 //! - Initialize fails with InvalidConfig when threshold > sub_isms.len()
-//! - Type returns ModuleType::Aggregation
 //!
 //! VERIFY:
 //! - Verify succeeds when all sub-ISMs have metadata and all pass (threshold=2, 2-of-2)
@@ -17,7 +16,7 @@
 
 mod common;
 
-use hyperlane_core::{Encode, ModuleType};
+use hyperlane_core::Encode;
 use hyperlane_sealevel_composite_ism::{
     accounts::{CompositeIsmAccount, IsmNode},
     error::Error,
@@ -31,8 +30,7 @@ use solana_sdk::{
 
 use common::{
     assert_simulation_error, assert_simulation_ok, dummy_message, encode_aggregation_metadata,
-    get_ism_type, get_verify_account_metas, initialize, program_test, simulate_verify,
-    storage_pda_key,
+    get_verify_account_metas, initialize, program_test, simulate_verify, storage_pda_key,
 };
 
 // ── CONFIG ───────────────────────────────────────────────────────────────────
@@ -88,28 +86,6 @@ async fn test_initialize_invalid_config() {
             0,
             InstructionError::Custom(Error::InvalidConfig as u32),
         ),
-    );
-}
-
-#[tokio::test]
-async fn test_ism_type() {
-    let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
-
-    initialize(
-        &mut banks_client,
-        &payer,
-        recent_blockhash,
-        IsmNode::Aggregation {
-            threshold: 1,
-            sub_isms: vec![IsmNode::Test { accept: true }],
-        },
-    )
-    .await
-    .unwrap();
-
-    assert_eq!(
-        get_ism_type(&mut banks_client, &payer, recent_blockhash).await,
-        ModuleType::Aggregation,
     );
 }
 

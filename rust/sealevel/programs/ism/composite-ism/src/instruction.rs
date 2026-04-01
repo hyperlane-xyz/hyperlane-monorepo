@@ -39,6 +39,17 @@ pub enum Instruction {
     /// 0. `[signer]` The current owner.
     /// 1. `[writable]` The storage PDA account.
     TransferOwnership(Option<Pubkey>),
+
+    /// Returns the [`MetadataSpec`] for the given message as return data.
+    ///
+    /// Resolves Routing/AmountRouting inline so the relayer receives a flat spec.
+    ///
+    /// Accounts:
+    /// 0. `[]` The storage PDA account.
+    GetMetadataSpec(
+        /// Raw-encoded [`HyperlaneMessage`].
+        Vec<u8>,
+    ),
 }
 
 impl DiscriminatorData for Instruction {
@@ -90,6 +101,21 @@ pub fn update_config_instruction(
             AccountMeta::new(storage_pda_key, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
+    })
+}
+
+/// Creates a GetMetadataSpec instruction.
+pub fn get_metadata_spec_instruction(
+    program_id: Pubkey,
+    message_bytes: Vec<u8>,
+) -> Result<SolanaInstruction, ProgramError> {
+    let (storage_pda_key, _) = Pubkey::try_find_program_address(storage_pda_seeds!(), &program_id)
+        .ok_or(ProgramError::InvalidSeeds)?;
+
+    Ok(SolanaInstruction {
+        program_id,
+        data: Instruction::GetMetadataSpec(message_bytes).encode()?,
+        accounts: vec![AccountMeta::new_readonly(storage_pda_key, false)],
     })
 }
 

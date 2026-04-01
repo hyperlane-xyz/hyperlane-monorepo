@@ -6,6 +6,7 @@ mod message_builder;
 mod multisig;
 mod null_metadata;
 mod routing;
+mod sealevel_composite;
 
 pub(crate) use base::{
     AppContextClassifier, DefaultIsmCache, IsmAwareAppContextClassifier, IsmCacheConfig,

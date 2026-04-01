@@ -6,7 +6,6 @@
 //!
 //! CONFIG:
 //! - Initialize stores the AmountRouting root node in the PDA
-//! - Type returns ModuleType::Routing (AmountRouting is a Routing variant)
 //!
 //! VERIFY:
 //! - Verify routes to `lower` (accept=true) when amount < threshold
@@ -18,7 +17,7 @@
 
 mod common;
 
-use hyperlane_core::{Encode, ModuleType};
+use hyperlane_core::Encode;
 use hyperlane_sealevel_composite_ism::{
     accounts::{CompositeIsmAccount, IsmNode},
     error::Error,
@@ -30,9 +29,8 @@ use solana_sdk::{
 };
 
 use common::{
-    assert_simulation_error, assert_simulation_ok, dummy_message, get_ism_type,
-    get_verify_account_metas, initialize, program_test, simulate_verify, storage_pda_key,
-    token_message_body,
+    assert_simulation_error, assert_simulation_ok, dummy_message, get_verify_account_metas,
+    initialize, program_test, simulate_verify, storage_pda_key, token_message_body,
 };
 
 /// Builds an AmountRouting node with `lower = Test{accept:true}`, `upper = Test{accept:false}`.
@@ -69,25 +67,6 @@ async fn test_initialize() {
 
     assert_eq!(storage.owner, Some(payer.pubkey()));
     assert_eq!(storage.root, Some(root));
-}
-
-#[tokio::test]
-async fn test_ism_type() {
-    let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
-
-    initialize(
-        &mut banks_client,
-        &payer,
-        recent_blockhash,
-        amount_routing_node(1000),
-    )
-    .await
-    .unwrap();
-
-    assert_eq!(
-        get_ism_type(&mut banks_client, &payer, recent_blockhash).await,
-        ModuleType::Routing,
-    );
 }
 
 // ── VERIFY ───────────────────────────────────────────────────────────────────

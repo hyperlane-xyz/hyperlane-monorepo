@@ -5,7 +5,6 @@
 //!
 //! CONFIG:
 //! - Initialize normalizes filled_level to max_capacity and last_updated to 0
-//! - Type returns ModuleType::Null
 //!
 //! VERIFY:
 //! - Verify succeeds and decrements filled_level when amount is within capacity
@@ -23,7 +22,7 @@
 
 mod common;
 
-use hyperlane_core::{Encode, ModuleType, H256};
+use hyperlane_core::{Encode, H256};
 use hyperlane_sealevel_composite_ism::{
     accounts::{CompositeIsmAccount, IsmNode},
     error::Error,
@@ -44,7 +43,7 @@ use solana_sdk::{
 };
 
 use common::{
-    assert_simulation_error, assert_simulation_ok, composite_ism_id, dummy_message, get_ism_type,
+    assert_simulation_error, assert_simulation_ok, composite_ism_id, dummy_message,
     get_verify_account_metas, initialize, program_test, simulate_verify, storage_pda_key,
     token_message_body,
 };
@@ -158,25 +157,6 @@ async fn test_initialize() {
     // normalize_node sets filled_level = max_capacity and last_updated = 0.
     assert_eq!(filled_level, MAX_CAPACITY);
     assert_eq!(last_updated, 0);
-}
-
-#[tokio::test]
-async fn test_ism_type() {
-    let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
-
-    initialize(
-        &mut banks_client,
-        &payer,
-        recent_blockhash,
-        rate_limited_node(MAX_CAPACITY),
-    )
-    .await
-    .unwrap();
-
-    assert_eq!(
-        get_ism_type(&mut banks_client, &payer, recent_blockhash).await,
-        ModuleType::Null,
-    );
 }
 
 // ── VERIFY ───────────────────────────────────────────────────────────────────

@@ -5,7 +5,6 @@
 //!
 //! CONFIG:
 //! - Initialize stores the Routing root node in the PDA
-//! - Type returns ModuleType::Routing
 //!
 //! VERIFY:
 //! - Verify succeeds by routing to the sub-ISM configured for the message's origin domain
@@ -15,7 +14,7 @@
 
 mod common;
 
-use hyperlane_core::{Encode, ModuleType};
+use hyperlane_core::Encode;
 use hyperlane_sealevel_composite_ism::{
     accounts::{CompositeIsmAccount, IsmNode},
     error::Error,
@@ -27,8 +26,8 @@ use solana_sdk::{
 };
 
 use common::{
-    assert_simulation_error, assert_simulation_ok, dummy_message, get_ism_type,
-    get_verify_account_metas, initialize, program_test, simulate_verify, storage_pda_key,
+    assert_simulation_error, assert_simulation_ok, dummy_message, get_verify_account_metas,
+    initialize, program_test, simulate_verify, storage_pda_key,
 };
 
 const ORIGIN: u32 = 1234;
@@ -60,28 +59,6 @@ async fn test_initialize() {
 
     assert_eq!(storage.owner, Some(payer.pubkey()));
     assert_eq!(storage.root, Some(root));
-}
-
-#[tokio::test]
-async fn test_ism_type() {
-    let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
-
-    initialize(
-        &mut banks_client,
-        &payer,
-        recent_blockhash,
-        IsmNode::Routing {
-            routes: vec![(ORIGIN, IsmNode::Test { accept: true })],
-            default_ism: None,
-        },
-    )
-    .await
-    .unwrap();
-
-    assert_eq!(
-        get_ism_type(&mut banks_client, &payer, recent_blockhash).await,
-        ModuleType::Routing,
-    );
 }
 
 // ── VERIFY ───────────────────────────────────────────────────────────────────

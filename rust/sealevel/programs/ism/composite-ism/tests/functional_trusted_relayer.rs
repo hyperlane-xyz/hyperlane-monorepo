@@ -6,7 +6,6 @@
 //!
 //! CONFIG:
 //! - Initialize stores the TrustedRelayer root node (with relayer pubkey) in the PDA
-//! - Type returns ModuleType::Null
 //!
 //! VERIFY:
 //! - Verify succeeds when the configured relayer's pubkey is listed as a signer in the tx
@@ -16,7 +15,7 @@
 
 mod common;
 
-use hyperlane_core::{Encode, ModuleType};
+use hyperlane_core::Encode;
 use hyperlane_sealevel_composite_ism::accounts::{CompositeIsmAccount, IsmNode};
 use hyperlane_sealevel_composite_ism::error::Error;
 use hyperlane_sealevel_interchain_security_module_interface::{
@@ -32,8 +31,8 @@ use solana_sdk::{
 };
 
 use common::{
-    assert_simulation_error, assert_simulation_ok, composite_ism_id, dummy_message, get_ism_type,
-    initialize, program_test, storage_pda_key,
+    assert_simulation_error, assert_simulation_ok, composite_ism_id, dummy_message, initialize,
+    program_test, storage_pda_key,
 };
 
 // ── CONFIG ───────────────────────────────────────────────────────────────────
@@ -62,28 +61,6 @@ async fn test_initialize() {
 
     assert_eq!(storage.owner, Some(payer.pubkey()));
     assert_eq!(storage.root, Some(root));
-}
-
-#[tokio::test]
-async fn test_ism_type() {
-    let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
-
-    let relayer = Keypair::new();
-    initialize(
-        &mut banks_client,
-        &payer,
-        recent_blockhash,
-        IsmNode::TrustedRelayer {
-            relayer: relayer.pubkey(),
-        },
-    )
-    .await
-    .unwrap();
-
-    assert_eq!(
-        get_ism_type(&mut banks_client, &payer, recent_blockhash).await,
-        ModuleType::Null,
-    );
 }
 
 // ── VERIFY ───────────────────────────────────────────────────────────────────

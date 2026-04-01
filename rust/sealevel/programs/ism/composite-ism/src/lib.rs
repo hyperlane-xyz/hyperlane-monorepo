@@ -3,6 +3,7 @@ pub mod accounts;
 pub mod error;
 pub mod instruction;
 pub mod metadata;
+pub mod metadata_spec;
 pub mod multisig_metadata;
 pub mod processor;
 pub mod rate_limit;

@@ -5,7 +5,6 @@
 //!
 //! CONFIG:
 //! - Initialize stores the MultisigMessageId root node (with domain config) in the PDA
-//! - Type returns ModuleType::MessageIdMultisig
 //!
 //! VERIFY:
 //! - Verify succeeds with a valid quorum of validator signatures (2-of-3)
@@ -17,7 +16,7 @@
 mod common;
 
 use ecdsa_signature::EcdsaSignature;
-use hyperlane_core::{Encode, ModuleType};
+use hyperlane_core::Encode;
 use hyperlane_sealevel_composite_ism::{
     accounts::{CompositeIsmAccount, DomainConfig, IsmNode},
     error::Error,
@@ -28,8 +27,8 @@ use multisig_ism::test_data::{get_multisig_ism_test_data, MultisigIsmTestData};
 use solana_sdk::{instruction::InstructionError, signature::Signer, transaction::TransactionError};
 
 use common::{
-    assert_simulation_error, assert_simulation_ok, get_ism_type, get_verify_account_metas,
-    initialize, program_test, simulate_verify, storage_pda_key,
+    assert_simulation_error, assert_simulation_ok, get_verify_account_metas, initialize,
+    program_test, simulate_verify, storage_pda_key,
 };
 
 fn multisig_root(origin: u32, validators: Vec<hyperlane_core::H160>, threshold: u8) -> IsmNode {
@@ -71,31 +70,6 @@ async fn test_initialize() {
 
     assert_eq!(storage.owner, Some(payer.pubkey()));
     assert_eq!(storage.root, Some(root));
-}
-
-#[tokio::test]
-async fn test_ism_type() {
-    let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
-
-    let MultisigIsmTestData {
-        message,
-        validators,
-        ..
-    } = get_multisig_ism_test_data();
-
-    initialize(
-        &mut banks_client,
-        &payer,
-        recent_blockhash,
-        multisig_root(message.origin, validators, 1),
-    )
-    .await
-    .unwrap();
-
-    assert_eq!(
-        get_ism_type(&mut banks_client, &payer, recent_blockhash).await,
-        ModuleType::MessageIdMultisig,
-    );
 }
 
 // ── VERIFY ───────────────────────────────────────────────────────────────────

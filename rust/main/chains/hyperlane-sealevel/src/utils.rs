@@ -46,7 +46,7 @@ pub fn sanitize_dynamic_accounts(
 ) -> ChainResult<Vec<AccountMeta>> {
     // Force all accounts to non-signer, except the explicitly trusted identity.
     account_metas.iter_mut().for_each(|meta| {
-        let is_identity = identity.map_or(false, |id| meta.pubkey == *id);
+        let is_identity = identity.is_some_and(|id| meta.pubkey == *id);
         if meta.is_signer && !is_identity {
             tracing::warn!(meta = ?meta, "Forcing account meta to be non-signer");
             meta.is_signer = false;

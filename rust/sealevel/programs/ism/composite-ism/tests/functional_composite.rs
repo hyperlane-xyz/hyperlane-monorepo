@@ -9,6 +9,7 @@
 //! - TransferOwnership updates the stored owner to the new address
 //! - TransferOwnership with None renounces ownership (owner becomes None)
 //! - GetOwner returns the current owner via return data
+//! - Type always returns ModuleType::Composite regardless of the root node type
 
 mod common;
 
@@ -30,7 +31,11 @@ use solana_sdk::{
     transaction::{Transaction, TransactionError},
 };
 
-use common::{composite_ism_id, initialize, new_funded_keypair, program_test, storage_pda_key};
+use hyperlane_core::ModuleType;
+
+use common::{
+    composite_ism_id, get_ism_type, initialize, new_funded_keypair, program_test, storage_pda_key,
+};
 
 #[tokio::test]
 async fn test_initialize() {
@@ -295,4 +300,23 @@ async fn test_get_owner() {
             .return_data;
 
     assert_eq!(owner, Some(payer.pubkey()));
+}
+
+#[tokio::test]
+async fn test_ism_type() {
+    let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
+
+    initialize(
+        &mut banks_client,
+        &payer,
+        recent_blockhash,
+        IsmNode::Test { accept: true },
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(
+        get_ism_type(&mut banks_client, &payer, recent_blockhash).await,
+        ModuleType::Composite,
+    );
 }

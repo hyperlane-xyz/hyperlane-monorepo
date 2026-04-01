@@ -21,6 +21,7 @@ use crate::{
     accounts::{CompositeIsmAccount, CompositeIsmStorage, IsmNode},
     error::Error,
     instruction::Instruction,
+    metadata_spec::{spec_for_node, MetadataSpec},
     storage_pda_seeds,
     verify::verify_node,
 };
@@ -61,31 +62,33 @@ pub fn process_instruction(
         Instruction::TransferOwnership(new_owner) => {
             transfer_ownership(program_id, accounts, new_owner)
         }
+        Instruction::GetMetadataSpec(message_bytes) => {
+            let message = HyperlaneMessage::read_from(&mut &message_bytes[..])
+                .map_err(|_| ProgramError::InvalidArgument)?;
+            let spec = get_metadata_spec(program_id, accounts, &message)?;
+            let bytes = borsh::to_vec(&SimulationReturnData::new(spec))
+                .map_err(|_| ProgramError::BorshIoError)?;
+            set_return_data(&bytes[..]);
+            Ok(())
+        }
     }
 }
 
-/// Returns the module type corresponding to the root ISM node.
+/// Returns the module type for this ISM.
+///
+/// Always returns `ModuleType::Composite` so the relayer knows to use the
+/// `GetMetadataSpec` path rather than the per-ISM-type chain calls.
 ///
 /// Accounts:
 /// 0. `[]` The storage PDA account.
 fn ism_type(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
     let storage_info = next_account_info(accounts_iter)?;
-    let storage = load_storage(program_id, storage_info)?;
+    // Validate that the account is a properly initialised composite ISM PDA
+    // (this also checks program ownership and PDA derivation).
+    let _storage = load_storage(program_id, storage_info)?;
 
-    let module_type = match storage.root {
-        Some(IsmNode::TrustedRelayer { .. }) => ModuleType::Null,
-        Some(IsmNode::MultisigMessageId { .. }) => ModuleType::MessageIdMultisig,
-        Some(IsmNode::Aggregation { .. }) => ModuleType::Aggregation,
-        Some(IsmNode::Routing { .. }) => ModuleType::Routing,
-        Some(IsmNode::Test { .. }) => ModuleType::Null,
-        Some(IsmNode::Pausable { .. }) => ModuleType::Null,
-        Some(IsmNode::AmountRouting { .. }) => ModuleType::Routing,
-        Some(IsmNode::RateLimited { .. }) => ModuleType::Null,
-        None => return Err(Error::ConfigNotSet.into()),
-    };
-
-    let bytes = borsh::to_vec(&SimulationReturnData::new(module_type as u32))
+    let bytes = borsh::to_vec(&SimulationReturnData::new(ModuleType::Composite as u32))
         .map_err(|_| ProgramError::BorshIoError)?;
     set_return_data(&bytes[..]);
     Ok(())
@@ -143,6 +146,26 @@ fn verify_account_metas(
         metadata,
         message,
     ))
+}
+
+/// Returns the [`MetadataSpec`] for a given message.
+///
+/// Resolves Routing/AmountRouting inline so the relayer receives a flat spec
+/// without needing to know about routing nodes.
+///
+/// Accounts:
+/// 0. `[]` The storage PDA account.
+fn get_metadata_spec(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    message: &HyperlaneMessage,
+) -> Result<MetadataSpec, ProgramError> {
+    let accounts_iter = &mut accounts.iter();
+    let storage_info = next_account_info(accounts_iter)?;
+    let storage = load_storage(program_id, storage_info)?;
+
+    let root = storage.root.as_ref().ok_or(Error::ConfigNotSet)?;
+    spec_for_node(root, message).map_err(Into::into)
 }
 
 /// Initializes the program, creating the storage PDA.
