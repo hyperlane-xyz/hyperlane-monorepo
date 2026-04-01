@@ -565,11 +565,11 @@ contract InterchainAccountRouter is
             _destination,
             _router,
             _commitmentMsg,
-            StandardHookMetadata.formatMetadata(
+            StandardHookMetadata.formatWithFeeToken(
                 0,
                 COMMIT_TX_GAS_USAGE,
                 address(this),
-                bytes("")
+                _hookMetadata.feeToken()
             ),
             _hook,
             msg.value

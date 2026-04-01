@@ -1791,4 +1791,100 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
             "Alice's pre-approval should still be infinite after Bob's dispatch"
         );
     }
+
+    // ============ Commit-Reveal Fee Token Consistency Tests ============
+
+    function test_callRemoteCommitReveal_withERC20Fee() public {
+        uint256 revealGasLimit = 100_000;
+        uint256 commitGasUsage = originErc20Router.COMMIT_TX_GAS_USAGE();
+
+        // Quote both commit and reveal using ERC20 fee token
+        uint256 totalQuote = originErc20Router.quoteGasForCommitReveal(
+            address(feeToken),
+            destination,
+            revealGasLimit
+        );
+
+        // Approve fee tokens for the hook
+        originErc20Router.approveFeeTokenForHook(
+            address(feeToken),
+            address(erc20Igp)
+        );
+        feeToken.approve(address(originErc20Router), totalQuote);
+
+        bytes memory hookMetadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            revealGasLimit,
+            address(this),
+            address(feeToken)
+        );
+
+        uint256 feeBalanceBefore = feeToken.balanceOf(address(this));
+
+        // Dispatch commit-reveal with ERC20 fee metadata
+        originErc20Router.callRemoteCommitReveal{value: 0}(
+            destination,
+            erc20RouterOverride,
+            ismOverride,
+            hookMetadata,
+            IPostDispatchHook(address(erc20Igp)),
+            bytes32(0),
+            keccak256("test_commitment")
+        );
+
+        uint256 feeBalanceAfter = feeToken.balanceOf(address(this));
+
+        // Both commit and reveal should have been paid with fee tokens
+        assertEq(
+            feeBalanceBefore - feeBalanceAfter,
+            totalQuote,
+            "Fee tokens charged should match quoteGasForCommitReveal"
+        );
+    }
+
+    function test_callRemoteCommitReveal_withNativeFee_noFeeTokenInMetadata()
+        public
+    {
+        // When hookMetadata has no fee token, commitment should also use native fee
+        originIcaRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+
+        uint256 gasLimit = 100_000;
+        uint256 quote = originIcaRouter.quoteGasForCommitReveal(
+            destination,
+            gasLimit
+        );
+
+        uint256 feeBalanceBefore = feeToken.balanceOf(address(this));
+
+        // Use standard metadata without fee token
+        bytes memory hookMetadata = StandardHookMetadata.formatMetadata(
+            0,
+            gasLimit,
+            address(this),
+            bytes("")
+        );
+
+        originIcaRouter.callRemoteCommitReveal{value: quote}(
+            destination,
+            routerOverride,
+            ismOverride,
+            hookMetadata,
+            IPostDispatchHook(address(igp)),
+            bytes32(0),
+            keccak256("native_commitment")
+        );
+
+        uint256 feeBalanceAfter = feeToken.balanceOf(address(this));
+
+        // No ERC20 tokens should have been used
+        assertEq(
+            feeBalanceBefore,
+            feeBalanceAfter,
+            "No fee tokens should be charged for native fee path"
+        );
+    }
 }
