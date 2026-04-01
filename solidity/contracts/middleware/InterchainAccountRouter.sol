@@ -339,13 +339,8 @@ contract InterchainAccountRouter is
 
     /**
      * @notice Returns the remote address of a locally owned interchain account
-     * @dev This interchain account is not guaranteed to have been deployed
-     * @dev This function will only work if the destination domain is
-     * EVM compatible
-     * @param _owner The local owner of the interchain account
-     * @param _router The remote InterchainAccountRouter
-     * @param _ism The remote address of the ISM
-     * @return The remote address of the interchain account
+     * @dev Convenience overload with default empty salt. Delegates to
+     * AbstractInterchainAccountRouter.getRemoteInterchainAccount(address,address,address,bytes32).
      */
     function getRemoteInterchainAccount(
         address _owner,
@@ -359,43 +354,6 @@ contract InterchainAccountRouter is
                 _ism,
                 InterchainAccountMessage.EMPTY_SALT
             );
-    }
-
-    /**
-     * @notice Returns the remote address of a locally owned interchain account
-     * @dev This interchain account is not guaranteed to have been deployed
-     * @dev This function will only work if the destination domain is
-     * EVM compatible
-     * @param _owner The local owner of the interchain account
-     * @param _router The remote InterchainAccountRouter
-     * @param _ism The remote address of the ISM
-     * @param _userSalt Salt provided by the user, allows control over account derivation.
-     * @return The remote address of the interchain account
-     */
-    function getRemoteInterchainAccount(
-        address _owner,
-        address _router,
-        address _ism,
-        bytes32 _userSalt
-    ) public view returns (address) {
-        require(_router != address(0), "no router specified for destination");
-
-        // replicate router constructor Create2 derivation
-        address _implementation = Create2.computeAddress(
-            bytes32(0),
-            keccak256(_implementationBytecode(_router)),
-            _router
-        );
-
-        bytes32 _bytecodeHash = _proxyBytecodeHash(_implementation);
-        bytes32 _salt = _getSalt(
-            localDomain,
-            _owner.addressToBytes32(),
-            address(this).addressToBytes32(),
-            _ism.addressToBytes32(),
-            _userSalt
-        );
-        return Create2.computeAddress(_salt, _bytecodeHash, _router);
     }
 
     /**
