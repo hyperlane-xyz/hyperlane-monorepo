@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { addressToBytes32 as addressToBytes32Util } from '@hyperlane-xyz/utils';
 
 // ============================================================================
 // Chain Configuration
@@ -197,8 +197,8 @@ export function isSupportedRoute(
 
 /**
  * Convert an address to bytes32 format for LayerZero.
- * Pads a standard EVM address to 32 bytes.
+ * Delegates to @hyperlane-xyz/utils addressToBytes32.
  */
 export function addressToBytes32(address: string): string {
-  return ethers.utils.hexZeroPad(address, 32);
+  return addressToBytes32Util(address);
 }
