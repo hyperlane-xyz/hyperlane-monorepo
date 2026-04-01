@@ -266,7 +266,7 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
             uint256 hookFee = _quoteGasPaymentTo(
                 _destination,
                 _recipient,
-                _outboundAmount(_amount),
+                _amount,
                 _token,
                 _targetRouter
             );
@@ -414,7 +414,7 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
             gasQuote = _quoteGasPaymentTo(
                 _destination,
                 _recipient,
-                _outboundAmount(_amount),
+                _amount,
                 _feeToken,
                 _targetRouter
             );
@@ -449,7 +449,7 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
             mailbox.quoteDispatch(
                 _destination,
                 _targetRouter,
-                TokenMessage.format(_recipient, _amount),
+                TokenMessage.format(_recipient, _outboundAmount(_amount)),
                 _generateHookMetadata(_destination, _feeToken),
                 IPostDispatchHook(address(hook))
             );
