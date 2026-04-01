@@ -6,6 +6,7 @@ import {PackageVersioned} from "../PackageVersioned.sol";
 import {Quotes} from "./libs/Quotes.sol";
 import {TokenBridgeOft} from "./TokenBridgeOft.sol";
 import {IKatanaVaultRedeemer} from "./interfaces/IKatanaVaultRedeemer.sol";
+import {IWETH} from "./interfaces/IWETH.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
@@ -13,7 +14,7 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /**
  * @title TokenBridgeKatanaVaultHelper
- * @notice Ethereum-side helper for the Katana USDC/vbUSDC bridge flow.
+ * @notice Ethereum-side helper for Katana vault-share bridging.
  * @dev Outbound transfers pull the local asset, mint the exact vault shares
  *      required for the LayerZero send, then hand transport to an existing
  *      TokenBridgeOft. Inbound redemptions are permissionless and always pay
@@ -29,6 +30,8 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
  *        surface smaller.
  *      - An ICA-owned balance on Ethereum was rejected; this helper holds the
  *        inbound shares directly and the ICA only needs to poke redemption.
+ *      - Native ETH support is handled here instead of through a separate
+ *        helper so the USDC/WBTC/ETH routes share the same vault-share logic.
  * @dev Token support assumptions:
  *      - Fee-on-transfer tokens: NOT supported.
  *      - Rebasing tokens: NOT supported.
@@ -43,8 +46,8 @@ contract TokenBridgeKatanaVaultHelper is ITokenBridge, IKatanaVaultRedeemer, Pac
 
     error TokenBridgeKatanaVaultHelper__InsufficientNativeFee(uint256 requiredFee, uint256 providedFee);
     error TokenBridgeKatanaVaultHelper__InsufficientShares(uint256 expectedShares, uint256 actualShares);
-    error TokenBridgeKatanaVaultHelper__UnexpectedDecimalConversionRate(uint256 actualRate);
     error TokenBridgeKatanaVaultHelper__InvalidShareBridgeToken(address expectedToken, address actualToken);
+    error TokenBridgeKatanaVaultHelper__InvalidWrappedNativeToken(address expectedToken, address actualToken);
     error TokenBridgeKatanaVaultHelper__UnexpectedRecipient(bytes32 expectedRecipient, bytes32 actualRecipient);
     error TokenBridgeKatanaVaultHelper__UnsupportedDestination(uint32 destination);
     error TokenBridgeKatanaVaultHelper__ZeroKatanaBeneficiary();
@@ -56,14 +59,17 @@ contract TokenBridgeKatanaVaultHelper is ITokenBridge, IKatanaVaultRedeemer, Pac
     );
     event RedemptionCompleted(address indexed redeemer, uint256 shares, uint256 assetsOut);
 
-    /// @notice Local ERC4626 share vault. For Katana this is the Ethereum vbUSDC vault.
+    /// @notice Local ERC4626 share vault. For Katana this is the Ethereum vbToken vault.
     IERC4626 public immutable shareVault;
 
-    /// @notice Local underlying asset deposited into `shareVault`. For Katana this is USDC.
+    /// @notice Local underlying asset deposited into `shareVault`. For Katana this is USDC/WBTC/WETH.
     IERC20 public immutable assetToken;
 
     /// @notice Existing OFT-backed bridge that transports vault shares to Katana.
     TokenBridgeOft public immutable shareBridge;
+
+    /// @notice Wrapped native token used when the local asset should be treated as native ETH.
+    IWETH public immutable wrappedNativeToken;
 
     /// @notice Fixed Katana beneficiary that receives bridged vault shares.
     bytes32 public immutable katanaBeneficiary;
@@ -71,7 +77,13 @@ contract TokenBridgeKatanaVaultHelper is ITokenBridge, IKatanaVaultRedeemer, Pac
     /// @notice Fixed Ethereum beneficiary that receives local assets after redemption.
     address public immutable ethereumBeneficiary;
 
-    constructor(address _shareVault, address _shareBridge, bytes32 _katanaBeneficiary, address _ethereumBeneficiary) {
+    constructor(
+        address _shareVault,
+        address _shareBridge,
+        bytes32 _katanaBeneficiary,
+        address _ethereumBeneficiary,
+        address _wrappedNativeToken
+    ) {
         if (_shareVault == address(0) || _shareBridge == address(0) || _ethereumBeneficiary == address(0)) {
             revert TokenBridgeKatanaVaultHelper__ZeroAddress();
         }
@@ -82,14 +94,15 @@ contract TokenBridgeKatanaVaultHelper is ITokenBridge, IKatanaVaultRedeemer, Pac
         if (shareToken != _shareVault) {
             revert TokenBridgeKatanaVaultHelper__InvalidShareBridgeToken(_shareVault, shareToken);
         }
-        uint256 decimalConversionRate = shareBridge_.decimalConversionRate();
-        if (decimalConversionRate != 1) {
-            revert TokenBridgeKatanaVaultHelper__UnexpectedDecimalConversionRate(decimalConversionRate);
+        address assetAddress = IERC4626(_shareVault).asset();
+        if (_wrappedNativeToken != address(0) && assetAddress != _wrappedNativeToken) {
+            revert TokenBridgeKatanaVaultHelper__InvalidWrappedNativeToken(_wrappedNativeToken, assetAddress);
         }
 
         shareVault = IERC4626(_shareVault);
-        assetToken = IERC20(IERC4626(_shareVault).asset());
+        assetToken = IERC20(assetAddress);
         shareBridge = shareBridge_;
+        wrappedNativeToken = IWETH(_wrappedNativeToken);
         katanaBeneficiary = _katanaBeneficiary;
         ethereumBeneficiary = _ethereumBeneficiary;
 
@@ -98,6 +111,7 @@ contract TokenBridgeKatanaVaultHelper is ITokenBridge, IKatanaVaultRedeemer, Pac
     }
 
     function token() public view returns (address) {
+        if (_usesNativeAsset()) return address(0);
         return address(assetToken);
     }
 
@@ -113,6 +127,12 @@ contract TokenBridgeKatanaVaultHelper is ITokenBridge, IKatanaVaultRedeemer, Pac
         uint256 requiredShares = shareQuotes.extract(address(shareVault));
         if (requiredShares == 0) revert TokenBridgeKatanaVaultHelper__ZeroShareQuote(_amount);
         uint256 requiredAssets = shareVault.previewMint(requiredShares);
+
+        if (_usesNativeAsset()) {
+            quotes = new Quote[](1);
+            quotes[0] = Quote({token: address(0), amount: shareQuotes.extract(address(0)) + requiredAssets});
+            return quotes;
+        }
 
         quotes = new Quote[](2);
         quotes[0] = Quote({token: address(0), amount: shareQuotes.extract(address(0))});
@@ -133,6 +153,31 @@ contract TokenBridgeKatanaVaultHelper is ITokenBridge, IKatanaVaultRedeemer, Pac
         if (requiredShares == 0) revert TokenBridgeKatanaVaultHelper__ZeroShareQuote(_amount);
         uint256 maxAssetsIn = shareVault.previewMint(requiredShares);
 
+        if (_usesNativeAsset()) {
+            uint256 totalNativeRequired = nativeFee + maxAssetsIn;
+            if (msg.value < totalNativeRequired) {
+                revert TokenBridgeKatanaVaultHelper__InsufficientNativeFee(totalNativeRequired, msg.value);
+            }
+
+            wrappedNativeToken.deposit{value: maxAssetsIn}();
+            uint256 nativeAssetsIn = shareVault.mint(requiredShares, address(this));
+            uint256 nativeAssetRefund = maxAssetsIn - nativeAssetsIn;
+            if (nativeAssetRefund > 0) {
+                wrappedNativeToken.withdraw(nativeAssetRefund);
+                Address.sendValue(payable(msg.sender), nativeAssetRefund);
+            }
+
+            messageId = shareBridge.transferRemote{value: nativeFee}(_destination, _recipient, _amount);
+
+            uint256 excessNativeAfterAssets = msg.value - totalNativeRequired;
+            if (excessNativeAfterAssets > 0) {
+                Address.sendValue(payable(msg.sender), excessNativeAfterAssets);
+            }
+
+            emit TransferRemoteInitiated(_destination, _recipient, requiredShares, nativeAssetsIn, messageId);
+            return messageId;
+        }
+
         if (msg.value < nativeFee) {
             revert TokenBridgeKatanaVaultHelper__InsufficientNativeFee(nativeFee, msg.value);
         }
@@ -149,7 +194,7 @@ contract TokenBridgeKatanaVaultHelper is ITokenBridge, IKatanaVaultRedeemer, Pac
             Address.sendValue(payable(msg.sender), excessNative);
         }
 
-        emit TransferRemoteInitiated(_destination, _recipient, _amount, assetsIn, messageId);
+        emit TransferRemoteInitiated(_destination, _recipient, requiredShares, assetsIn, messageId);
     }
 
     /// @notice Redeems inbound shares to the fixed Ethereum beneficiary.
@@ -161,9 +206,19 @@ contract TokenBridgeKatanaVaultHelper is ITokenBridge, IKatanaVaultRedeemer, Pac
             revert TokenBridgeKatanaVaultHelper__InsufficientShares(_shares, balance);
         }
 
-        assetsOut = shareVault.redeem(_shares, ethereumBeneficiary, address(this));
+        if (_usesNativeAsset()) {
+            assetsOut = shareVault.redeem(_shares, address(this), address(this));
+            wrappedNativeToken.withdraw(assetsOut);
+            Address.sendValue(payable(ethereumBeneficiary), assetsOut);
+        } else {
+            assetsOut = shareVault.redeem(_shares, ethereumBeneficiary, address(this));
+        }
 
         emit RedemptionCompleted(msg.sender, _shares, assetsOut);
+    }
+
+    receive() external payable {
+        require(msg.sender == address(wrappedNativeToken), "TBKVH: only wrapped native");
     }
 
     function _checkOutbound(uint32 _destination, bytes32 _recipient) internal view {
@@ -173,5 +228,9 @@ contract TokenBridgeKatanaVaultHelper is ITokenBridge, IKatanaVaultRedeemer, Pac
         if (_recipient != katanaBeneficiary) {
             revert TokenBridgeKatanaVaultHelper__UnexpectedRecipient(katanaBeneficiary, _recipient);
         }
+    }
+
+    function _usesNativeAsset() internal view returns (bool) {
+        return address(wrappedNativeToken) != address(0);
     }
 }
