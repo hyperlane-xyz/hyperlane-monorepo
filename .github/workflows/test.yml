@@ -3,11 +3,11 @@ name: test
 on:
   # Triggers the workflow on pushes to main branch
   push:
-    branches: [main, "audit-*"]
+    branches: [main, 'audit-*']
   # Triggers on pull requests
   pull_request:
     branches:
-      - "*"
+      - '*'
   merge_group:
   workflow_dispatch:
 
@@ -49,7 +49,7 @@ jobs:
   lint-prettier-run:
     runs-on: depot-ubuntu-24.04-8
     needs: [change-detection]
-    if: needs.change-detection.outputs.skip_ts != 'true'
+    if: needs.change-detection.outputs.run_lint_prettier == 'true'
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
@@ -64,8 +64,17 @@ jobs:
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
 
-      - name: lint
+      - name: oxlint
         run: pnpm run lint
+
+      - name: solhint
+        run: pnpm -C solidity lint
+
+      - name: helloworld solhint
+        run: pnpm -C typescript/helloworld lint
+
+      - name: multicollateral lint
+        run: pnpm -C solidity/multicollateral lint
 
       - name: Get changed PR files
         if: github.event_name == 'pull_request'
@@ -78,24 +87,33 @@ jobs:
       - name: Run oxfmt (changed files)
         if: github.event_name == 'pull_request'
         run: |
-          cat changed_files.txt | grep -E '\.(js|ts|jsx|tsx|json|md)$' | \
-          xargs -r pnpm exec oxfmt --check --no-error-on-unmatched-pattern
+          mapfile -t oxfmt_files < <(
+            grep -E '\.(js|ts|jsx|tsx|json|yaml|yml|md)$' changed_files.txt || true
+          )
+          if ((${#oxfmt_files[@]})); then
+            pnpm exec oxfmt --ignore-path .gitignore --check --no-error-on-unmatched-pattern "${oxfmt_files[@]}"
+          fi
 
       - name: Run prettier for Solidity (changed files)
         if: github.event_name == 'pull_request'
         run: |
-          cat changed_files.txt | grep -E '\.sol$' | \
-          xargs -r pnpm exec prettier --check --no-error-on-unmatched-pattern
+          mapfile -t prettier_files < <(grep -E '\.sol$' changed_files.txt || true)
+          if ((${#prettier_files[@]})); then
+            pnpm exec prettier --check --no-error-on-unmatched-pattern "${prettier_files[@]}"
+          fi
 
       - name: Run oxfmt (all files)
         if: github.event_name != 'pull_request'
-        run: pnpm exec oxfmt --check .
+        run: pnpm exec oxfmt --ignore-path .gitignore --check .
         continue-on-error: true
 
       - name: Run prettier for Solidity (all files)
         if: github.event_name != 'pull_request'
-        run: pnpm exec prettier --check 'solidity/contracts/**/*.sol' 'solidity/test/**/*.sol'
+        run: pnpm exec prettier --check 'solidity/**/*.sol' 'typescript/helloworld/contracts/**/*.sol'
         continue-on-error: true
+
+      - name: Check YAML sort order
+        run: pnpm exec tsx ./scripts/sort-yaml.ts --check
 
       - name: Clean up
         if: always()
@@ -111,7 +129,7 @@ jobs:
       - name: Check lint-prettier status
         uses: ./.github/actions/check-job-status
         with:
-          job_name: "Lint Prettier"
+          job_name: 'Lint Prettier'
           result: ${{ needs.lint-prettier-run.result }}
 
   set-base-sha:
@@ -135,6 +153,7 @@ jobs:
     needs: [set-base-sha]
     outputs:
       skip_ts: ${{ steps.decide.outputs.skip_ts }}
+      run_lint_prettier: ${{ steps.decide.outputs.run_lint_prettier }}
       run_cli_e2e: ${{ steps.decide.outputs.run_cli_e2e }}
       ci_tier: ${{ steps.decide.outputs.ci_tier }}
       has_cosmos: ${{ steps.decide.outputs.has_cosmos }}
@@ -166,7 +185,15 @@ jobs:
           base_sha: ${{ needs.set-base-sha.outputs.base_sha }}
           head_sha: ${{ needs.set-base-sha.outputs.current_sha }}
           path_pattern: '(rust/|\.github/|typescript/Dockerfile|typescript/docker-entrypoint\.sh)'
-          path_pattern_only: "true"
+          path_pattern_only: 'true'
+
+      - name: Check if workflow files changed
+        id: check-github
+        uses: ./.github/actions/check-path-changes
+        with:
+          base_sha: ${{ needs.set-base-sha.outputs.base_sha }}
+          head_sha: ${{ needs.set-base-sha.outputs.current_sha }}
+          path_pattern: '\.github/'
 
       - name: Categorize changes for CLI e2e and VM detection
         id: check-vm
@@ -248,6 +275,7 @@ jobs:
 
           if [[ "${{ steps.context.outputs.should_skip }}" == "true" ]]; then
             echo "skip_ts=true" >> $GITHUB_OUTPUT
+            echo "run_lint_prettier=false" >> $GITHUB_OUTPUT
             echo "run_cli_e2e=false" >> $GITHUB_OUTPUT
             echo "ci_tier=$CI_TIER" >> $GITHUB_OUTPUT
             echo "has_cosmos=false" >> $GITHUB_OUTPUT
@@ -263,6 +291,7 @@ jobs:
 
           if [[ "${{ steps.context.outputs.must_run }}" == "true" ]]; then
             echo "skip_ts=false" >> $GITHUB_OUTPUT
+            echo "run_lint_prettier=true" >> $GITHUB_OUTPUT
             echo "run_cli_e2e=true" >> $GITHUB_OUTPUT
             echo "ci_tier=full" >> $GITHUB_OUTPUT
             echo "has_cosmos=true" >> $GITHUB_OUTPUT
@@ -276,7 +305,14 @@ jobs:
             exit 0
           fi
 
-          echo "skip_ts=${{ steps.check-skip-ts.outputs.only_changes }}" >> $GITHUB_OUTPUT
+          SKIP_TS="${{ steps.check-skip-ts.outputs.only_changes }}"
+          RUN_LINT_PRETTIER=false
+          if [[ "$SKIP_TS" != "true" || "${{ steps.check-github.outputs.has_changes }}" == "true" ]]; then
+            RUN_LINT_PRETTIER=true
+          fi
+
+          echo "skip_ts=$SKIP_TS" >> $GITHUB_OUTPUT
+          echo "run_lint_prettier=$RUN_LINT_PRETTIER" >> $GITHUB_OUTPUT
           echo "run_cli_e2e=${{ steps.check-vm.outputs.has_cli_changes }}" >> $GITHUB_OUTPUT
           echo "ci_tier=$CI_TIER" >> $GITHUB_OUTPUT
           echo "has_cosmos=${{ steps.check-vm.outputs.has_cosmos }}" >> $GITHUB_OUTPUT
@@ -317,7 +353,7 @@ jobs:
       - name: Check pnpm-test status
         uses: ./.github/actions/check-job-status
         with:
-          job_name: "PNPM Test"
+          job_name: 'PNPM Test'
           result: ${{ needs.pnpm-test-run.result }}
 
   infra-test:
@@ -399,7 +435,7 @@ jobs:
       - name: Check cli-install-test status
         uses: ./.github/actions/check-job-status
         with:
-          job_name: "CLI Install Test"
+          job_name: 'CLI Install Test'
           result: ${{ needs.cli-install-test-run.result }}
 
   # Reusable workflow callers
@@ -429,7 +465,7 @@ jobs:
       - name: Check CLI E2E status
         uses: ./.github/actions/check-job-status
         with:
-          job_name: "CLI E2E"
+          job_name: 'CLI E2E'
           result: ${{ needs.cli-e2e-tests.result }}
 
   sdk-e2e-tests:
@@ -453,7 +489,7 @@ jobs:
       - name: Check SDK E2E status
         uses: ./.github/actions/check-job-status
         with:
-          job_name: "SDK E2E"
+          job_name: 'SDK E2E'
           result: ${{ needs.sdk-e2e-tests.result }}
 
   rust-e2e-tests:

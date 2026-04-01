@@ -10,7 +10,6 @@
       "@hyperlane-xyz/cli",
       "@hyperlane-xyz/cosmos-sdk",
       "@hyperlane-xyz/cosmos-types",
-      "@hyperlane-xyz/eslint-config",
       "@hyperlane-xyz/github-proxy",
       "@hyperlane-xyz/helloworld",
       "@hyperlane-xyz/http-registry-server",

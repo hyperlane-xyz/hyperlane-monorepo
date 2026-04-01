@@ -12,8 +12,8 @@ import {
   ArtifactDeployed,
   ArtifactNew,
   ArtifactState,
+  ConfigOnChain,
   IArtifactManager,
-  RawArtifact,
   isArtifactDeployed,
   isArtifactNew,
   isArtifactUnderived,
@@ -111,10 +111,8 @@ export interface RoutingIsmArtifactConfig {
   domains: Record<number, Artifact<IsmArtifactConfig, DeployedIsmAddress>>;
 }
 
-export type RawRoutingIsmArtifactConfig = RawArtifact<
-  RoutingIsmArtifactConfig,
-  DeployedIsmAddress
->;
+export type RawRoutingIsmArtifactConfig =
+  ConfigOnChain<RoutingIsmArtifactConfig>;
 
 export interface RawIsmArtifactConfigs {
   domainRoutingIsm: RawRoutingIsmArtifactConfig;
@@ -255,7 +253,12 @@ export function mergeIsmArtifacts(
     expectedConfig.domains,
   )) {
     const domainId = parseInt(domainIdStr);
-    const currentDomainIsm = currentConfig.domains[domainId];
+    const currentDomainIsm = Object.prototype.hasOwnProperty.call(
+      currentConfig.domains,
+      domainId,
+    )
+      ? currentConfig.domains[domainId]
+      : undefined;
 
     let currentDeployedIsm: DeployedIsmArtifact | undefined;
     if (currentDomainIsm && isArtifactDeployed(currentDomainIsm)) {

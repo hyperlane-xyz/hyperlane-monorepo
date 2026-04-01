@@ -40,7 +40,7 @@ jobs:
             hyperlane-agent
             hyperlane-monorepo
             hyperlane-node-services
-          image-tags: "pr-*"
+          image-tags: 'pr-*'
           tag-selection: tagged
           cut-off: 1w
           keep-n-most-recent: 5

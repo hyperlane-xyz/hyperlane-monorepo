@@ -87,7 +87,7 @@ export class WarpMonitor {
 
     startMetricsServer(metricsRegister);
     logger.info(
-      { port: process.env['PROMETHEUS_PORT'] || '9090' },
+      { port: process.env['PROMETHEUS_PORT'] ?? '9090' },
       'Metrics server started',
     );
 
@@ -186,11 +186,11 @@ export class WarpMonitor {
       },
     };
 
-    while (true) {
+    for (;;) {
       await tryFn(
         async () => {
           const collateralSnapshots = await Promise.all(
-            warpCore.tokens.map((token) =>
+            warpCore.tokens.map(async (token) =>
               this.updateTokenMetrics(
                 warpCore,
                 warpDeployConfig,
@@ -571,8 +571,12 @@ export class WarpMonitor {
     const nodeByKey = new Map<string, RouterNodeMetadata>();
 
     for (const token of warpCore.tokens) {
+      if (
+        !Object.prototype.hasOwnProperty.call(chainMetadata, token.chainName)
+      ) {
+        continue;
+      }
       const metadata = chainMetadata[token.chainName];
-      if (!metadata) continue;
       if (!ethersUtils.isAddress(token.addressOrDenom)) continue;
 
       const domainId = metadata.domainId;

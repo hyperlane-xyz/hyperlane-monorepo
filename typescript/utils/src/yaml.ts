@@ -3,6 +3,7 @@ import {
   Node as YamlNode,
   parseDocument,
   parse as yamlParse,
+  type ToStringOptions,
 } from 'yaml';
 
 import { sortArrayByKey } from './arrays.js';
@@ -353,12 +354,13 @@ function addContentLineWithInlineComment(
 export function transformYaml<T extends YamlNode = YamlNode>(
   content: string,
   transformer: (data: T) => T,
+  options?: ToStringOptions,
 ): string {
   const parsedDoc = parseDocument(content, { keepSourceTokens: true });
   const newDoc = new Document();
   newDoc.contents = transformer(parsedDoc.toJSON());
 
-  return preserveYamlComments(content, newDoc.toString());
+  return preserveYamlComments(content, newDoc.toString(options));
 }
 
 export type ArraySortConfig = {
@@ -367,6 +369,41 @@ export type ArraySortConfig = {
     sortKey: string;
   }>;
 };
+
+export const WARP_YAML_SORT_CONFIG: ArraySortConfig = {
+  arrays: [
+    { path: 'tokens', sortKey: 'chainName' },
+    { path: 'tokens[].connections', sortKey: 'token' },
+    { path: '*.interchainSecurityModule.modules', sortKey: 'type' },
+    {
+      path: '*.interchainSecurityModule.modules[].domains.*.modules',
+      sortKey: 'type',
+    },
+  ],
+};
+
+export function sortObjectKeys(obj: unknown): unknown {
+  if (Array.isArray(obj)) {
+    return obj.map(sortObjectKeys);
+  }
+
+  if (obj !== null && typeof obj === 'object') {
+    // CAST: after the object check, we need an indexable record view to sort keys.
+    return Object.keys(obj as Record<string, unknown>)
+      .sort()
+      .reduce(
+        (sorted, key) => {
+          // CAST: same narrowed object, indexed by a sorted string key.
+          sorted[key] = sortObjectKeys((obj as Record<string, unknown>)[key]);
+          return sorted;
+        },
+        // CAST: reduce builds a plain object with sorted keys.
+        {} as Record<string, unknown>,
+      );
+  }
+
+  return obj;
+}
 
 /**
  * Finds a matching sort key from configuration based on the given path array
@@ -421,6 +458,30 @@ function isPathMatch(path: string[], patternParts: string[]): boolean {
   return pathIndex === path.length;
 }
 
+function isSortablePrimitive(
+  value: unknown,
+): value is string | number | bigint | boolean | null {
+  return (
+    value === null ||
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'bigint' ||
+    typeof value === 'boolean'
+  );
+}
+
+function sortPrimitiveArray<T>(array: T[]): T[] {
+  if (!array.every(isSortablePrimitive)) return array;
+
+  return [...array].sort((a, b) => {
+    const left = String(a);
+    const right = String(b);
+    if (left < right) return -1;
+    if (left > right) return 1;
+    return 0;
+  });
+}
+
 /**
  * Sorts arrays nested within objects according to configuration
  */
@@ -439,7 +500,9 @@ export function sortNestedArrays<T>(
     );
 
     return (
-      sortKey ? sortArrayByKey(processedArray, sortKey) : processedArray
+      sortKey
+        ? sortArrayByKey(processedArray, sortKey)
+        : sortPrimitiveArray(processedArray)
     ) as T;
   }
 

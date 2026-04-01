@@ -652,16 +652,18 @@ export function computeRemoteRoutersUpdates(
       !isNullish(expectedDestinationGas),
       `Missing destination gas for domain ${domainId} in expected router configuration`,
     );
-    const currentRouterAddress = currentRoutersConfig.remoteRouters[domainId];
+    const currentRouterAddress = Object.prototype.hasOwnProperty.call(
+      currentRoutersConfig.remoteRouters,
+      domainId,
+    )
+      ? currentRoutersConfig.remoteRouters[domainId].address
+      : undefined;
     const currentDestinationGas =
       currentRoutersConfig.destinationGas[domainId] ?? '0';
 
     const needsUpdate =
       !currentRouterAddress ||
-      !compareAddresses(
-        currentRouterAddress.address,
-        expectedRemoteRouter.address,
-      ) ||
+      !compareAddresses(currentRouterAddress, expectedRemoteRouter.address) ||
       currentDestinationGas !== expectedDestinationGas;
 
     if (needsUpdate) {

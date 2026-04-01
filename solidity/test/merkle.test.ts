@@ -9,11 +9,11 @@ import {
 
 import { getSigner } from './signer.js';
 
-describe('Merkle', async () => {
+describe('Merkle', () => {
   for (const testCase of merkleTestCases) {
     const { testName, leaves, expectedRoot, proofs } = testCase;
 
-    describe(testName, async () => {
+    describe(testName, () => {
       let merkle: TestMerkle;
 
       before(async () => {

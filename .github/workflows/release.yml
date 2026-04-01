@@ -10,7 +10,6 @@ on:
       - 'typescript/**'
       - '!typescript/infra/**'
       - '!typescript/ccip-server/**'
-      - '!typescript/eslint-config/**'
       - '!typescript/github-proxy/**'
       - '!typescript/http-registry-server/**'
       - '!typescript/tsconfig/**'

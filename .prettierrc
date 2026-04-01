@@ -4,13 +4,5 @@
   "useTabs": false,
   "singleQuote": false,
   "bracketSpacing": false,
-  "plugins": ["prettier-plugin-solidity"],
-  "overrides": [
-    {
-      "files": ["*.json", "*.yaml", "*.yml"],
-      "options": {
-        "tabWidth": 2
-      }
-    }
-  ]
+  "plugins": ["prettier-plugin-solidity"]
 }

@@ -4,8 +4,10 @@ import { expect } from 'chai';
 import {
   ArraySortConfig,
   sortNestedArrays,
+  sortObjectKeys,
   transformYaml,
   tryParseJsonOrYaml,
+  WARP_YAML_SORT_CONFIG,
 } from './yaml.js';
 
 describe('tryParseJsonOrYaml', () => {
@@ -192,6 +194,20 @@ describe('sortNestedArrays', () => {
     expect(result.otherItems[0].id).to.equal(3);
     expect(result.otherItems[1].id).to.equal(1);
     expect(result.otherItems[2].id).to.equal(2);
+  });
+
+  it('should sort primitive arrays lexicographically when no keyed rule matches', () => {
+    const data = {
+      names: ['zeta', 'alpha', 'beta'],
+      nested: {
+        flags: [true, false, true],
+      },
+    };
+
+    const result = sortNestedArrays(data, { arrays: [] });
+
+    expect(result.names).to.deep.equal(['alpha', 'beta', 'zeta']);
+    expect(result.nested.flags).to.deep.equal([false, true, true]);
   });
 
   it('should not match when path length is shorter than pattern length', () => {
@@ -389,6 +405,36 @@ describe('sortNestedArrays', () => {
       { age: 10, name: 'c1' },
       { age: 20, name: 'c2' },
     ]);
+  });
+});
+
+describe('sortObjectKeys', () => {
+  it('should recursively sort object keys', () => {
+    const result = sortObjectKeys({
+      zebra: { bravo: 2, alpha: 1 },
+      alpha: [{ delta: 4, charlie: 3 }],
+    });
+
+    expect(result).to.deep.equal({
+      alpha: [{ charlie: 3, delta: 4 }],
+      zebra: { alpha: 1, bravo: 2 },
+    });
+  });
+});
+
+describe('WARP_YAML_SORT_CONFIG', () => {
+  it('should preserve the warp YAML array sort rules', () => {
+    expect(WARP_YAML_SORT_CONFIG).to.deep.equal({
+      arrays: [
+        { path: 'tokens', sortKey: 'chainName' },
+        { path: 'tokens[].connections', sortKey: 'token' },
+        { path: '*.interchainSecurityModule.modules', sortKey: 'type' },
+        {
+          path: '*.interchainSecurityModule.modules[].domains.*.modules',
+          sortKey: 'type',
+        },
+      ],
+    });
   });
 });
 

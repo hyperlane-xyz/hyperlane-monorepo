@@ -186,20 +186,14 @@ export function coreResultToDeployedAddresses(result: {
     switch (requiredHookArtifact.config.type) {
       case 'interchainGasPaymaster':
         // Only set if not already set by default hook
-        if (!addresses.interchainGasPaymaster) {
-          addresses.interchainGasPaymaster = hookAddress;
-        }
+        addresses.interchainGasPaymaster ??= hookAddress;
         break;
       case 'protocolFee':
-        if (!addresses.protocolFee) {
-          addresses.protocolFee = hookAddress;
-        }
+        addresses.protocolFee ??= hookAddress;
         break;
       case 'merkleTreeHook':
         // Only set if not already set by default hook
-        if (!addresses.merkleTreeHook) {
-          addresses.merkleTreeHook = hookAddress;
-        }
+        addresses.merkleTreeHook ??= hookAddress;
         break;
     }
   }

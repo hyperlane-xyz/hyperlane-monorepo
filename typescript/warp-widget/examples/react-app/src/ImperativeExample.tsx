@@ -64,12 +64,9 @@ export function ImperativeExample() {
     <div>
       <h2>Imperative API</h2>
       <p>
-        <code>createWarpWidget()</code> from{' '}
-        <code>@hyperlane-xyz/warp-widget</code>
+        <code>createWarpWidget()</code> from <code>@hyperlane-xyz/warp-widget</code>
         {readyCount > 0 && (
-          <span style={{ color: '#22c55e', marginLeft: 8 }}>
-            Ready ({readyCount})
-          </span>
+          <span style={{ color: '#22c55e', marginLeft: 8 }}>Ready ({readyCount})</span>
         )}
       </p>
 

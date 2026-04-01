@@ -1,8 +1,8 @@
 defaultHook:
-  beneficiary: "0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691"
-  maxProtocolFee: "100"
-  owner: "0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691"
-  protocolFee: "10"
+  beneficiary: '0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691'
+  maxProtocolFee: '100'
+  owner: '0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691'
+  protocolFee: '10'
   type: protocolFee
 defaultIsm:
   domains:
@@ -12,9 +12,9 @@ defaultIsm:
       threshold: 1
       type: messageIdMultisigIsm
       validators:
-        - "0x10E0271ec47d55511a047516f2a7301801d55eaB"
-  owner: "0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691"
+        - '0x10E0271ec47d55511a047516f2a7301801d55eaB'
+  owner: '0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691'
   type: domainRoutingIsm
-owner: "0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691"
+owner: '0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691'
 requiredHook:
   type: merkleTreeHook

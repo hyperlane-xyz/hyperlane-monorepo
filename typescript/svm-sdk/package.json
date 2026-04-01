@@ -32,7 +32,7 @@
     "program:generate": "node scripts/generate-program-bytes.mjs",
     "program:check": "node scripts/check-program-bytes-hash.mjs",
     "format": "oxfmt --write ./src",
-    "lint": "eslint -c ./eslint.config.mjs",
+    "lint": "oxlint -c ../../oxlint.json",
     "clean": "rm -rf ./dist ./cache",
     "dev": "tsc --watch",
     "test": "pnpm test:unit",
@@ -49,28 +49,19 @@
     "@solana/kit": "^6.1.0"
   },
   "devDependencies": {
-    "@eslint/js": "catalog:",
-    "@hyperlane-xyz/eslint-config": "workspace:^",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@types/chai": "^4.3.14",
     "@types/chai-as-promised": "catalog:",
     "@types/mocha": "^10.0.6",
     "@types/node": "catalog:",
     "@types/sinon": "catalog:",
-    "@typescript-eslint/eslint-plugin": "catalog:",
-    "@typescript-eslint/parser": "catalog:",
     "chai": "^4.4.1",
     "chai-as-promised": "catalog:",
-    "eslint": "catalog:",
-    "eslint-config-prettier": "catalog:",
-    "eslint-import-resolver-typescript": "catalog:",
-    "eslint-plugin-import": "catalog:",
     "mocha": "^10.4.0",
     "oxfmt": "catalog:",
     "sinon": "catalog:",
     "testcontainers": "catalog:",
     "tsx": "catalog:",
-    "typescript": "catalog:",
-    "typescript-eslint": "catalog:"
+    "typescript": "catalog:"
   }
 }

@@ -227,7 +227,9 @@ export class ExplorerPendingTransfersClient {
     `;
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10_000);
+    const timeout = setTimeout(() => {
+      controller.abort();
+    }, 10_000);
 
     try {
       const response = await fetch(this.apiUrl, {
