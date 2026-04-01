@@ -240,7 +240,9 @@ abstract contract OffchainQuotedIGP is AbstractOffchainQuoter {
         TRANSIENT_GAS_PRICE_SLOT.store(gasPrice);
     }
 
-    function _storeStanding(SignedQuote calldata sq) internal override returns (bool) {
+    function _storeStanding(
+        SignedQuote calldata sq
+    ) internal override returns (bool) {
         (address feeToken_, uint32 dest, address sender) = IGPQuoteContext
             .decode(sq.context);
         OffchainQuotedIGPStorage storage $ = _getOffchainQuotedIGPStorage();

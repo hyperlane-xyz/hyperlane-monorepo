@@ -258,7 +258,9 @@ contract OffchainQuotedLinearFee is AbstractOffchainQuoter, LinearFee {
         return (false, 0);
     }
 
-    function _storeStanding(SignedQuote calldata sq) internal override returns (bool) {
+    function _storeStanding(
+        SignedQuote calldata sq
+    ) internal override returns (bool) {
         // amount is signed in the EIP-712 digest but not used as a standing storage key —
         // linear fee params scale with any transfer amount. Require wildcard to make this
         // explicit and prevent signers from accidentally committing to a specific amount.
