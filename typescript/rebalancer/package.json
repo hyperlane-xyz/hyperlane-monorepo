@@ -57,7 +57,6 @@
     "pino": "catalog:",
     "pino-pretty": "catalog:",
     "prom-client": "catalog:",
-    "tronweb": "catalog:",
     "uuid": "catalog:",
     "viem": "catalog:",
     "yaml": "catalog:",
