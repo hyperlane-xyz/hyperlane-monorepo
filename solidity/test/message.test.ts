@@ -20,7 +20,7 @@ const remoteDomain = 1000;
 const localDomain = 2000;
 const nonce = 11;
 
-describe('Message', async () => {
+describe('Message', () => {
   let messageLib: TestMessage;
   let version: number;
 

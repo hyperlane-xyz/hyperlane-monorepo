@@ -1,5 +1,4 @@
 {
-  "$schema": "./node_modules/oxfmt/configuration_schema.json",
   "printWidth": 80,
   "tabWidth": 2,
   "useTabs": false,
@@ -29,6 +28,7 @@
     "typescript/helloworld/artifacts/**",
     "typescript/helloworld/cache/**",
     "typescript/helloworld/src/types/**",
+    "typescript/infra/config/environments/**/rebalancer/**",
     "typescript/infra/helm/**/templates/**",
     "typescript/infra/src/infrastructure/external-secrets/helm/templates/**",
     "vectors/**",
