@@ -1,28 +1,23 @@
 import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
 import { assert, objFilter } from '@hyperlane-xyz/utils';
-import {
-  RouterConfigWithoutOwner,
-  tokens,
-} from '../../../../../src/config/warp.js';
+import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { awIcas } from '../../governance/ica/aw.js';
 import { awProxyAdmins } from '../../governance/proxy-admin/aw.js';
 import { awSafes } from '../../governance/safe/aw.js';
 import { getWarpFeeOwner } from '../../governance/utils.js';
 import { chainOwners } from '../../owners.js';
 import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
-import { getFixedRoutingFeeConfig, scaleDownConfig } from './utils.js';
+import { usdtTokenAddresses } from '../tokens.js';
+import { WarpRouteIds } from '../warpIds.js';
+import {
+  getFixedRoutingFeeConfig,
+  getRebalancingBridgesConfigFor,
+  getRebalancingUSDTConfigForChain,
+  scaleDownConfig,
+} from './utils.js';
 import { getGnosisSafeBuilderStrategyConfigGenerator } from '../../../utils.js';
 
 const contractVersion = '11.1.0';
-
-const usdtTokenAddresses: Record<string, string> = {
-  ethereum: tokens.ethereum.USDT,
-  bsc: tokens.bsc.USDT,
-  arbitrum: tokens.arbitrum.USDT,
-  plasma: tokens.plasma.USDT,
-  tron: tokens.tron.USDT,
-  solanamainnet: tokens.solanamainnet.USDT,
-};
 
 const chainTokenMetadata: Record<string, { name: string; symbol: string }> = {
   ethereum: { name: 'Tether USD', symbol: 'USDT' },
@@ -70,6 +65,13 @@ const deploymentChains = [
 
 export type DeploymentChain = (typeof deploymentChains)[number];
 
+// EVM chains with rebalancing support
+const rebalanceableCollateralChains = [
+  'ethereum',
+  'arbitrum',
+  'plasma',
+] as const satisfies DeploymentChain[];
+
 const productionOwnersByChain: Record<DeploymentChain, string> = {
   ethereum: awSafes.ethereum,
   bsc: '0x269Af9E53192AF49a22ff47e30b89dE1375AE1fd', // ICA
@@ -100,22 +102,50 @@ export const buildEclipseUSDTWarpConfig = async (
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const { ownersByChain, programIds, proxyAdmins } = options;
 
+  const rebalancingConfigByChain = getRebalancingBridgesConfigFor(
+    rebalanceableCollateralChains,
+    [WarpRouteIds.USDTOft],
+  );
+
   const configs: Array<[DeploymentChain, HypTokenRouterConfig]> = [];
 
+  // Configure EVM collateral chains
+  const rebalanceableSet = new Set<string>(rebalanceableCollateralChains);
+
   for (const chain of evmDeploymentChains) {
+    let chainConfig: HypTokenRouterConfig;
     const proxyAdmin = proxyAdmins[chain];
     assert(proxyAdmin, `Missing proxyAdmin for chain ${chain}`);
 
-    const usdtToken = usdtTokenAddresses[chain];
-    assert(usdtToken, `USDT address not defined for ${chain}`);
     const decimals = chainDecimals[chain];
     assert(decimals != null, `Decimals not defined for ${chain}`);
 
     const destinations = evmDeploymentChains.filter((c) => c !== chain);
 
-    configs.push([
-      chain,
-      {
+    if (rebalanceableSet.has(chain)) {
+      const baseConfig = getRebalancingUSDTConfigForChain(
+        chain as (typeof rebalanceableCollateralChains)[number],
+        routerConfig,
+        ownersByChain,
+        rebalancingConfigByChain,
+      );
+      chainConfig = {
+        ...baseConfig,
+        ...chainTokenMetadata[chain],
+        proxyAdmin,
+        contractVersion: chain === 'ethereum' ? contractVersion : undefined,
+        decimals,
+        tokenFee: getFixedRoutingFeeConfig(
+          getWarpFeeOwner(chain),
+          destinations,
+          1.5,
+        ),
+        ...scaleDownConfig(decimals, MESSAGE_DECIMALS),
+      };
+    } else {
+      const usdtToken = usdtTokenAddresses[chain];
+      assert(usdtToken, `USDT address not defined for ${chain}`);
+      chainConfig = {
         ...chainTokenMetadata[chain],
         type: TokenType.collateral,
         token: usdtToken,
@@ -130,8 +160,10 @@ export const buildEclipseUSDTWarpConfig = async (
           1.5,
         ),
         ...scaleDownConfig(decimals, MESSAGE_DECIMALS),
-      },
-    ]);
+      };
+    }
+
+    configs.push([chain, chainConfig]);
   }
 
   // Configure non-evm chains

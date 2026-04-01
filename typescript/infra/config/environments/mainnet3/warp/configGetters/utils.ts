@@ -19,6 +19,7 @@ import {
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { getRegistry } from '../../../../registry.js';
 import { usdcTokenAddresses } from '../cctp.js';
+import { usdtTokenAddresses } from '../tokens.js';
 import { WarpRouteIds } from '../warpIds.js';
 
 const REBALANCER = '0xa3948a15e1d0778a7d53268b651B2411AF198FE3';
@@ -116,6 +117,94 @@ export const getRebalancingUSDCConfigForChain = (
   return {
     type: TokenType.collateral,
     token: usdcTokenAddress,
+    mailbox: routerConfigByChain[currentChain].mailbox,
+    owner,
+    allowedRebalancers,
+    allowedRebalancingBridges,
+  };
+};
+
+export function getRebalancingBridgesConfigFor(
+  deploymentChains: readonly ChainName[],
+  warpRouteIds: [string, ...string[]],
+): ChainMap<RebalancingConfig> {
+  const registry = getRegistry();
+
+  const routeData = warpRouteIds.map((warpRouteId) => {
+    const route = registry.getWarpRoute(warpRouteId);
+    assert(route, `Warp route ${warpRouteId} not found`);
+
+    const chainSet = new Set(route.tokens.map(({ chainName }) => chainName));
+    const bridgesByChain = Object.fromEntries(
+      route.tokens.map(({ chainName, addressOrDenom }): [string, string] => {
+        assert(
+          addressOrDenom,
+          `Expected bridge address for ${warpRouteId} on ${chainName}`,
+        );
+        return [chainName, addressOrDenom];
+      }),
+    );
+
+    return { chainSet, bridgesByChain };
+  });
+
+  const deploymentSet = new Set(deploymentChains);
+  const chainSets = routeData.map(({ chainSet }) => chainSet);
+  const allSets = [deploymentSet, ...chainSets];
+  const rebalanceableChains = [
+    ...allSets.reduce((acc, set) => intersection(acc, set)),
+  ];
+
+  return objMap(
+    arrayToObject(rebalanceableChains),
+    (currentChain): RebalancingConfig => {
+      const bridges = routeData.map(({ bridgesByChain }) => {
+        const bridge = bridgesByChain[currentChain];
+        assert(bridge, `No bridge found for chain ${currentChain}`);
+        return { bridge };
+      });
+
+      const allowedRebalancingBridges = Object.fromEntries(
+        rebalanceableChains
+          .filter((remoteChain) => remoteChain !== currentChain)
+          .map((remoteChain) => [remoteChain, bridges]),
+      );
+
+      return {
+        allowedRebalancers: [REBALANCER],
+        allowedRebalancingBridges,
+      };
+    },
+  );
+}
+
+export const getRebalancingUSDTConfigForChain = (
+  currentChain: keyof typeof usdtTokenAddresses,
+  routerConfigByChain: ChainMap<RouterConfigWithoutOwner>,
+  ownersByChain: ChainMap<Address>,
+  rebalancingConfigByChain: ChainMap<RebalancingConfig>,
+): HypTokenRouterConfig => {
+  const owner = ownersByChain[currentChain];
+  assert(owner, `Owner not found for chain ${currentChain}`);
+
+  const usdtTokenAddress = usdtTokenAddresses[currentChain];
+  assert(
+    usdtTokenAddress,
+    `USDT token address not found for chain ${currentChain}`,
+  );
+
+  const currentRebalancingConfig = rebalancingConfigByChain[currentChain];
+  assert(
+    currentRebalancingConfig,
+    `Rebalancing config not found for chain ${currentChain}`,
+  );
+
+  const { allowedRebalancers, allowedRebalancingBridges } =
+    currentRebalancingConfig;
+
+  return {
+    type: TokenType.collateral,
+    token: usdtTokenAddress,
     mailbox: routerConfigByChain[currentChain].mailbox,
     owner,
     allowedRebalancers,
