@@ -16,6 +16,7 @@ pragma solidity >=0.8.0;
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ReentrancyGuardTransient} from "../libs/ReentrancyGuardTransient.sol";
 import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
 
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
@@ -164,7 +165,7 @@ library CalldataHeadLib {
  *      to the caller. Quote submitter = address(this) — only this contract
  *      can submit. The signer authorizes a specific user's quotes.
  */
-contract QuotedCalls is PackageVersioned {
+contract QuotedCalls is PackageVersioned, ReentrancyGuardTransient {
     using SafeERC20 for IERC20;
 
     // ============ Immutables ============
@@ -284,7 +285,7 @@ contract QuotedCalls is PackageVersioned {
     function execute(
         bytes calldata commands,
         bytes[] calldata inputs
-    ) external payable {
+    ) external payable nonReentrant {
         require(commands.length == inputs.length, "length mismatch");
 
         for (uint256 i; i < commands.length; ++i) {
@@ -356,7 +357,11 @@ contract QuotedCalls is PackageVersioned {
                 IAllowanceTransfer.PermitSingle memory permitSingle,
                 bytes memory signature
             ) = abi.decode(input, (IAllowanceTransfer.PermitSingle, bytes));
-            PERMIT2.permit(msg.sender, permitSingle, signature);
+            // Use try/catch to handle front-running: if an attacker submits
+            // the same permit signature first, the permit is already consumed
+            // and this call reverts. Gracefully continue since the allowance
+            // was already set by the front-runner's submission.
+            try PERMIT2.permit(msg.sender, permitSingle, signature) {} catch {}
         } else if (command == PERMIT2_TRANSFER_FROM) {
             (address token, uint160 amount) = abi.decode(
                 input,
