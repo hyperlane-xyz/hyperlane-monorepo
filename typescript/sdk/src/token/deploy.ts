@@ -472,7 +472,7 @@ abstract class TokenDeployer<
             );
             await this.multiProvider.handleTx(
               chain,
-              tokenBridge.setDestinationConfig(
+              tokenBridge.addDestinationConfig(
                 Number(domainId),
                 recipientConfig.depositAddress,
                 recipient,

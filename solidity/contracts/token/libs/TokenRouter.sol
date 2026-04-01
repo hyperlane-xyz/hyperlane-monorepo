@@ -254,8 +254,11 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
                 );
             }
 
-            // Approve fee hook to pull fee tokens
-            IERC20(_token).approve(_feeHook, hookFee);
+            // Per-call approval only: standing approvals to fee hooks are unsafe
+            // because postDispatch is publicly callable with arbitrary message data,
+            // allowing a third party to spend the approval. Funds would go to the
+            // hook beneficiary (not the attacker), but the caller still loses tokens.
+            IERC20(_token).forceApprove(_feeHook, hookFee);
         }
 
         _transferFromSender(charge);
@@ -379,6 +382,12 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
      * @param _feeHook The fee hook address.
      */
     function _setFeeHook(address _feeHook) internal {
+        if (_feeHook != address(0)) {
+            require(
+                token() != address(0),
+                "TokenRouter: fee hook requires ERC20 token"
+            );
+        }
         FEE_HOOK_SLOT.getAddressSlot().value = _feeHook;
         emit FeeHookSet(_feeHook);
     }
