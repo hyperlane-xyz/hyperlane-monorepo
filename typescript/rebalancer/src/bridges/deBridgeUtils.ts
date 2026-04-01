@@ -77,6 +77,7 @@ export function formatAddressForDebridge(
 // TypeScript Types
 // ============================================================================
 
+/** @see https://dln.debridge.finance/v1.0/dln/order/quote */
 export interface DeBridgeTokenEstimation {
   chainId: number;
   address: string;
@@ -87,6 +88,7 @@ export interface DeBridgeTokenEstimation {
   approximateUsdValue?: number;
 }
 
+/** @see https://dln.debridge.finance/v1.0/dln/order/quote */
 export interface DeBridgeQuoteResponse {
   estimation?: {
     srcChainTokenIn: DeBridgeTokenEstimation;
@@ -100,6 +102,7 @@ export interface DeBridgeQuoteResponse {
   errorMessage?: string;
 }
 
+/** @see https://dln.debridge.finance/v1.0/dln/order/create-tx */
 export interface DeBridgeCreateTxResponse extends DeBridgeQuoteResponse {
   tx?: {
     to: string;
@@ -108,6 +111,7 @@ export interface DeBridgeCreateTxResponse extends DeBridgeQuoteResponse {
   };
 }
 
+/** @see https://api.dln.trade/v1.0/dln/order/{orderId}/status */
 export interface DeBridgeOrderStatusResponse {
   status?:
     | 'Created'
