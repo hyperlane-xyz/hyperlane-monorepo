@@ -175,24 +175,13 @@ export function getChainIdFromEID(eid: number): number {
 
 /**
  * Check if a route is supported.
- * Supported routes: Ethereum <-> Arbitrum, Ethereum <-> Plasma, Arbitrum <-> Plasma
+ * Derived from OFT_CONTRACTS - a route is supported if an OFT contract exists for it.
  */
 export function isSupportedRoute(
   fromChainId: number,
   toChainId: number,
 ): boolean {
-  const supportedPairs = [
-    [1, 42161], // Ethereum <-> Arbitrum
-    [42161, 1],
-    [1, 9745], // Ethereum <-> Plasma
-    [9745, 1],
-    [42161, 9745], // Arbitrum <-> Plasma
-    [9745, 42161],
-  ];
-
-  return supportedPairs.some(
-    ([from, to]) => from === fromChainId && to === toChainId,
-  );
+  return OFT_CONTRACTS[fromChainId]?.[toChainId] !== undefined;
 }
 
 /**
