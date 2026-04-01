@@ -2,4 +2,4 @@
 "@hyperlane-xyz/core": patch
 ---
 
-Standing quote staleness logic was lifted into `AbstractOffchainQuoter._checkStaleQuote`. Strictly older quotes revert with `StaleQuote`, equal `issuedAt` quotes are silently skipped, and newer quotes are stored with event emission.
+Standing quote staleness behavior was refined: strictly older quotes still revert with `StaleQuote`, equal `issuedAt` quotes are now silently skipped (no revert, no storage update), and only newer quotes trigger storage writes and `QuoteSubmitted` event emission.
