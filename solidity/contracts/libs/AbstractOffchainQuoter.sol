@@ -169,5 +169,7 @@ abstract contract AbstractOffchainQuoter is IOffchainQuoter {
     // ============ Abstract ============
 
     function _storeTransient(SignedQuote calldata sq) internal virtual;
-    function _storeStanding(SignedQuote calldata sq) internal virtual returns (bool updated);
+    function _storeStanding(
+        SignedQuote calldata sq
+    ) internal virtual returns (bool updated);
 }
