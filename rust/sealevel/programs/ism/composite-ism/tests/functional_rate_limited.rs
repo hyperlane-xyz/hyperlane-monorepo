@@ -23,7 +23,6 @@
 
 mod common;
 
-use borsh::BorshDeserialize;
 use hyperlane_core::{Encode, ModuleType, H256};
 use hyperlane_sealevel_composite_ism::{
     accounts::{CompositeIsmAccount, IsmNode},
@@ -34,7 +33,7 @@ use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction,
 };
 use solana_program::instruction::AccountMeta;
-use solana_program_test::{BanksClient, BanksClientError, ProgramTestContext};
+use solana_program_test::{BanksClient, BanksClientError};
 use solana_sdk::{
     clock::Clock,
     hash::Hash,

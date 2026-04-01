@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use borsh::BorshDeserialize;
 use hyperlane_core::{HyperlaneMessage, ModuleType, H256};
 use hyperlane_sealevel_composite_ism::{

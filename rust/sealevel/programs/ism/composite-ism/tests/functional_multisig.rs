@@ -16,7 +16,6 @@
 
 mod common;
 
-use borsh::BorshDeserialize;
 use ecdsa_signature::EcdsaSignature;
 use hyperlane_core::{Encode, ModuleType};
 use hyperlane_sealevel_composite_ism::{

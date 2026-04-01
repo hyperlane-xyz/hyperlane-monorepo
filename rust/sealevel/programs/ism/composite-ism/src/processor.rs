@@ -382,7 +382,6 @@ fn load_storage(
 mod test {
     use super::*;
     use crate::accounts::DomainConfig;
-    use account_utils::DiscriminatorEncode;
     use ecdsa_signature::EcdsaSignature;
     use hyperlane_core::{Encode, H160, H256};
     use hyperlane_sealevel_interchain_security_module_interface::{

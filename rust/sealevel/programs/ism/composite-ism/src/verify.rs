@@ -206,9 +206,6 @@ mod test {
     use ecdsa_signature::EcdsaSignature;
     use hyperlane_core::{Encode, H256};
     use multisig_ism::test_data::{get_multisig_ism_test_data, MultisigIsmTestData};
-    use solana_program::pubkey::Pubkey;
-    use std::cell::RefCell;
-    use std::rc::Rc;
 
     const ORIGIN_DOMAIN: u32 = 1234u32;
 

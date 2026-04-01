@@ -18,7 +18,6 @@ use hyperlane_sealevel_composite_ism::{
     accounts::{CompositeIsmAccount, IsmNode},
     instruction::{transfer_ownership_instruction, update_config_instruction},
 };
-use hyperlane_sealevel_interchain_security_module_interface::InterchainSecurityModuleInstruction;
 use hyperlane_test_utils::assert_transaction_error;
 use serializable_account_meta::SimulationReturnData;
 use solana_program::instruction::AccountMeta;
@@ -153,7 +152,7 @@ async fn test_update_config_not_owner() {
 
 #[tokio::test]
 async fn test_update_config_not_initialized() {
-    let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
+    let (banks_client, payer, recent_blockhash) = program_test().start().await;
 
     let ix = update_config_instruction(
         composite_ism_id(),

@@ -16,7 +16,6 @@
 
 mod common;
 
-use borsh::BorshDeserialize;
 use hyperlane_core::{Encode, ModuleType};
 use hyperlane_sealevel_composite_ism::accounts::{CompositeIsmAccount, IsmNode};
 use hyperlane_sealevel_composite_ism::error::Error;
