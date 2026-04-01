@@ -66,19 +66,53 @@ contract ReentrantAttacker {
 }
 
 /// @dev Minimal mock Permit2. Skips signature verification; just sets allowances and transfers.
+///      Tracks nonces and reverts on reuse, matching real Permit2 behavior.
 contract MockPermit2 {
-    // owner => token => spender => amount
-    mapping(address => mapping(address => mapping(address => uint160)))
+    struct PackedAllowance {
+        uint160 amount;
+        uint48 expiration;
+        uint48 nonce;
+    }
+
+    // owner => token => spender => allowance
+    mapping(address => mapping(address => mapping(address => PackedAllowance)))
         public allowances;
+
+    // owner => token => spender => nonce => used
+    mapping(address => mapping(address => mapping(address => mapping(uint48 => bool))))
+        public usedNonces;
+
+    error InvalidNonce();
+
+    function allowance(
+        address owner,
+        address token,
+        address spender
+    ) external view returns (uint160, uint48, uint48) {
+        PackedAllowance storage a = allowances[owner][token][spender];
+        return (a.amount, a.expiration, a.nonce);
+    }
 
     function permit(
         address owner,
         IAllowanceTransfer.PermitSingle calldata permitSingle,
         bytes calldata
     ) external {
+        if (
+            usedNonces[owner][permitSingle.details.token][permitSingle.spender][
+                permitSingle.details.nonce
+            ]
+        ) revert InvalidNonce();
+        usedNonces[owner][permitSingle.details.token][permitSingle.spender][
+            permitSingle.details.nonce
+        ] = true;
         allowances[owner][permitSingle.details.token][
             permitSingle.spender
-        ] = permitSingle.details.amount;
+        ] = PackedAllowance({
+            amount: permitSingle.details.amount,
+            expiration: permitSingle.details.expiration,
+            nonce: permitSingle.details.nonce + 1
+        });
     }
 
     function transferFrom(
@@ -87,10 +121,10 @@ contract MockPermit2 {
         uint160 amount,
         address token
     ) external {
-        uint160 allowed = allowances[from][token][msg.sender];
-        if (allowed != type(uint160).max) {
-            require(allowed >= amount, "insufficient allowance");
-            allowances[from][token][msg.sender] = allowed - amount;
+        PackedAllowance storage a = allowances[from][token][msg.sender];
+        if (a.amount != type(uint160).max) {
+            require(a.amount >= amount, "insufficient allowance");
+            a.amount -= amount;
         }
         IERC20(token).transferFrom(from, to, amount);
     }
@@ -608,14 +642,12 @@ contract QuotedCallsTest is Test {
         assertEq(primaryToken.balanceOf(address(quotedFee)), MAX_FEE);
         assertEq(primaryToken.balanceOf(address(quotedCalls)), 0);
         // Permit2 allowance untouched (ERC20 path was used)
-        assertEq(
-            permit2.allowances(
-                ALICE,
-                address(primaryToken),
-                address(quotedCalls)
-            ),
-            0
+        (uint160 amt, , ) = permit2.allowance(
+            ALICE,
+            address(primaryToken),
+            address(quotedCalls)
         );
+        assertEq(amt, 0);
     }
 
     // ============ Tests: Permit2 fallback path ============
@@ -665,14 +697,101 @@ contract QuotedCallsTest is Test {
         assertEq(primaryToken.balanceOf(address(quotedFee)), MAX_FEE);
         assertEq(primaryToken.balanceOf(address(quotedCalls)), 0);
         // Permit2 allowance was consumed
-        assertEq(
-            permit2.allowances(
-                ALICE,
-                address(primaryToken),
-                address(quotedCalls)
-            ),
-            0
+        (uint160 amt2, , ) = permit2.allowance(
+            ALICE,
+            address(primaryToken),
+            address(quotedCalls)
         );
+        assertEq(amt2, 0);
+    }
+
+    // ============ Tests: Permit2 front-running ============
+
+    /// @dev An attacker front-runs the user's tx by submitting the same permit
+    ///      signature first. The permit nonce is consumed, so QuotedCalls'
+    ///      PERMIT2_PERMIT would revert without the try/catch. The allowance was
+    ///      already set by the front-runner's submission, so execute succeeds.
+    function test_permit2Permit_frontrunned_succeeds() public {
+        uint256 totalTokens = TRANSFER_AMT + MAX_FEE;
+
+        IAllowanceTransfer.PermitSingle memory permitSingle = IAllowanceTransfer
+            .PermitSingle({
+                details: IAllowanceTransfer.PermitDetails({
+                    token: address(primaryToken),
+                    amount: uint160(totalTokens),
+                    expiration: uint48(block.timestamp + 3600),
+                    nonce: 0
+                }),
+                spender: address(quotedCalls),
+                sigDeadline: block.timestamp + 3600
+            });
+
+        // Front-runner submits the same permit before ALICE's tx
+        permit2.permit(ALICE, permitSingle, "");
+
+        // Verify allowance was already set by the front-runner
+        (uint160 frontrunAmt, , ) = permit2.allowance(
+            ALICE,
+            address(primaryToken),
+            address(quotedCalls)
+        );
+        assertEq(frontrunAmt, uint160(totalTokens));
+
+        // Directly calling permit again would revert (nonce consumed)
+        vm.expectRevert(MockPermit2.InvalidNonce.selector);
+        permit2.permit(ALICE, permitSingle, "");
+
+        // But ALICE's execute should succeed — try/catch handles the revert
+        bytes1[] memory cmds = new bytes1[](4);
+        bytes[] memory ins = new bytes[](4);
+        (cmds[0], ins[0]) = _cmdSubmitQuote(_buildFeeQuote(ALICE));
+        (cmds[1], ins[1]) = _cmdPermit2Permit(permitSingle, "");
+        (cmds[2], ins[2]) = _cmdPermit2TransferFrom(
+            address(primaryToken),
+            uint160(totalTokens)
+        );
+        (cmds[3], ins[3]) = _cmdTransferRemote(
+            address(localToken),
+            DESTINATION,
+            BOB.addressToBytes32(),
+            TRANSFER_AMT,
+            0,
+            address(primaryToken),
+            totalTokens
+        );
+
+        (bytes memory commands, bytes[] memory inputs) = _pack(cmds, ins);
+
+        vm.prank(ALICE);
+        quotedCalls.execute(commands, inputs);
+
+        assertEq(primaryToken.balanceOf(ALICE), 1000e18 - totalTokens);
+        assertEq(primaryToken.balanceOf(address(quotedFee)), MAX_FEE);
+        assertEq(primaryToken.balanceOf(address(quotedCalls)), 0);
+    }
+
+    /// @dev Without try/catch, a front-run permit would cause the entire
+    ///      execute to revert. This test verifies the nonce-reuse revert
+    ///      behavior of MockPermit2 is correct (baseline for the above test).
+    function test_permit2Permit_nonce_reuse_reverts() public {
+        IAllowanceTransfer.PermitSingle memory permitSingle = IAllowanceTransfer
+            .PermitSingle({
+                details: IAllowanceTransfer.PermitDetails({
+                    token: address(primaryToken),
+                    amount: uint160(1e18),
+                    expiration: uint48(block.timestamp + 3600),
+                    nonce: 0
+                }),
+                spender: address(quotedCalls),
+                sigDeadline: block.timestamp + 3600
+            });
+
+        // First call succeeds
+        permit2.permit(ALICE, permitSingle, "");
+
+        // Second call with same nonce reverts
+        vm.expectRevert(MockPermit2.InvalidNonce.selector);
+        permit2.permit(ALICE, permitSingle, "");
     }
 
     // ============ Tests: CONTRACT_BALANCE sentinel ============

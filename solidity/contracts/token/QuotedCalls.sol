@@ -357,7 +357,11 @@ contract QuotedCalls is PackageVersioned, ReentrancyGuardTransient {
                 IAllowanceTransfer.PermitSingle memory permitSingle,
                 bytes memory signature
             ) = abi.decode(input, (IAllowanceTransfer.PermitSingle, bytes));
-            PERMIT2.permit(msg.sender, permitSingle, signature);
+            // Use try/catch to handle front-running: if an attacker submits
+            // the same permit signature first, the permit is already consumed
+            // and this call reverts. Gracefully continue since the allowance
+            // was already set by the front-runner's submission.
+            try PERMIT2.permit(msg.sender, permitSingle, signature) {} catch {}
         } else if (command == PERMIT2_TRANSFER_FROM) {
             (address token, uint160 amount) = abi.decode(
                 input,
