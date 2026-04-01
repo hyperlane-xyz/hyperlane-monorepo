@@ -92,7 +92,7 @@ contract TokenRouterIgpTest is Test {
         destMailbox.setRequiredHook(address(noopHook));
 
         // Deploy IGP with token support
-        igp = new InterchainGasPaymaster(address(originMailbox));
+        igp = new InterchainGasPaymaster();
         igp.initialize(address(this), address(this));
 
         // Deploy gas oracle for token payments

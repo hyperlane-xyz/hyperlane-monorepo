@@ -116,7 +116,7 @@ contract QuotedCallsTest is Test {
 
         primaryToken = new ERC20Test("Test", "TST", TOTAL_SUPPLY, DECIMALS);
 
-        igp = new InterchainGasPaymaster(address(localMailbox));
+        igp = new InterchainGasPaymaster();
         igp.initialize(address(this), address(this));
         igp.addQuoteSigner(signer);
 

@@ -1084,7 +1084,7 @@ export class EvmHookModule extends HyperlaneModule<
       HookType.INTERCHAIN_GAS_PAYMASTER,
       HookType.INTERCHAIN_GAS_PAYMASTER,
       this.args.addresses.proxyAdmin,
-      [this.args.addresses.mailbox],
+      [],
       [deployerAddress, config.beneficiary],
     );
 

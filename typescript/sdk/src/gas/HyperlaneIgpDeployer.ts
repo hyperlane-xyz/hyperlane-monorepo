@@ -7,7 +7,6 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   addBufferToGasLimit,
-  assert,
   eqAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -48,14 +47,12 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     storageGasOracle: StorageGasOracle,
     config: IgpConfig,
   ): Promise<InterchainGasPaymaster> {
-    const mailbox = this.cachedAddresses[chain]?.mailbox;
-    assert(mailbox, `Mailbox address not cached for ${chain}`);
     const igp = await this.deployProxiedContract(
       chain,
       'interchainGasPaymaster',
       'interchainGasPaymaster',
       proxyAdmin.address,
-      [mailbox],
+      [],
       [await this.multiProvider.getSignerAddress(chain), config.beneficiary],
     );
 

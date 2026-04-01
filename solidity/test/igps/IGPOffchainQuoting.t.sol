@@ -41,7 +41,7 @@ contract IGPOffchainQuotingTest is Test {
         signer = vm.addr(signerPk);
 
         testMailbox = new TestMailbox(1);
-        igp = new InterchainGasPaymaster(address(testMailbox));
+        igp = new InterchainGasPaymaster();
         igp.initialize(address(this), BENEFICIARY);
 
         oracle = new StorageGasOracle();

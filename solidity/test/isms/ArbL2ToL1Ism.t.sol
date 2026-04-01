@@ -39,9 +39,7 @@ contract ArbL2ToL1IsmTest is ExternalBridgeTest {
 
     function deployHook() public {
         originMailbox = new TestMailbox(ORIGIN_DOMAIN);
-        mockOverheadIgp = new TestInterchainGasPaymaster(
-            address(originMailbox)
-        );
+        mockOverheadIgp = new TestInterchainGasPaymaster();
         hook = new ArbL2ToL1Hook(
             address(originMailbox),
             DESTINATION_DOMAIN,

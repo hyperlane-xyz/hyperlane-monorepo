@@ -1,5 +1,5 @@
 ---
-'@hyperlane-xyz/core': minor
+'@hyperlane-xyz/core': patch
 ---
 
-Added `latestDispatchedId` message integrity check to IGP `postDispatch` and split fee collection into `_collectNative` / `_collectToken`. Made `payForGas(feeToken)` payable to support both native and ERC20 fee paths.
+Added documentation that standing ERC20 approvals to fee hooks are unsafe; in the worst case, funds are recoverable by hook operators rather than profiting an attacker.

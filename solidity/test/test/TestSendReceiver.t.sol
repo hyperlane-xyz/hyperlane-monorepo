@@ -26,7 +26,7 @@ contract TestSendReceiverTest is Test {
     function setUp() public {
         mailbox = new TestMailbox(TEST_ORIGIN_DOMAIN);
         TestIsm ism = new TestIsm();
-        igp = new TestInterchainGasPaymaster(address(mailbox));
+        igp = new TestInterchainGasPaymaster();
         TestMerkleTreeHook requiredHook = new TestMerkleTreeHook(
             address(mailbox)
         );

@@ -120,9 +120,7 @@ contract InterchainAccountRouterTestBase is Test {
     function setUp() public virtual {
         environment = new MockHyperlaneEnvironment(origin, destination);
 
-        igp = new TestInterchainGasPaymaster(
-            address(environment.mailboxes(origin))
-        );
+        igp = new TestInterchainGasPaymaster();
         gasPaymentQuote = igp.quoteGasPayment(
             destination,
             igp.getDefaultGasUsage()
@@ -166,9 +164,7 @@ contract InterchainAccountRouterTestBase is Test {
         feeToken = new ERC20Test("Fee Token", "FEE", 1_000_000e18, 18);
 
         // Deploy real IGP with ERC20 support
-        erc20Igp = new InterchainGasPaymaster(
-            address(environment.mailboxes(origin))
-        );
+        erc20Igp = new InterchainGasPaymaster();
         erc20Igp.initialize(address(this), address(this));
 
         // Deploy and configure gas oracle

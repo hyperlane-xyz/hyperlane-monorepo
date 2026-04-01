@@ -126,7 +126,7 @@ abstract contract HypTokenTest is Test {
             ORIGIN,
             address(localToken).addressToBytes32()
         );
-        igp = new TestInterchainGasPaymaster(address(localMailbox));
+        igp = new TestInterchainGasPaymaster();
         vm.deal(ALICE, 125000);
     }
 

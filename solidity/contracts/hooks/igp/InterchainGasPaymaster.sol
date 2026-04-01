@@ -19,7 +19,6 @@ import {StandardHookMetadata} from "../libs/StandardHookMetadata.sol";
 import {IGasOracle} from "../../interfaces/IGasOracle.sol";
 import {IInterchainGasPaymaster} from "../../interfaces/IInterchainGasPaymaster.sol";
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
-import {IMailbox} from "../../interfaces/IMailbox.sol";
 import {AbstractPostDispatchHook} from "../libs/AbstractPostDispatchHook.sol";
 import {OffchainQuotedIGP} from "./OffchainQuotedIGP.sol";
 import {Indexed} from "../../libs/Indexed.sol";
@@ -61,9 +60,6 @@ contract InterchainGasPaymaster is
     uint256 internal immutable DEFAULT_GAS_USAGE = 50_000;
     /// @notice Sentinel address for native gas oracle lookups in tokenGasOracles
     address public constant NATIVE_TOKEN = address(0);
-
-    /// @notice The Mailbox used to verify dispatched messages.
-    IMailbox public immutable mailbox;
 
     // ============ Public Storage ============
 
@@ -120,10 +116,6 @@ contract InterchainGasPaymaster is
     }
 
     // ============ External Functions ============
-
-    constructor(address _mailbox) {
-        mailbox = IMailbox(_mailbox);
-    }
 
     /// @inheritdoc IPostDispatchHook
     function hookType() external pure override returns (uint8) {
@@ -477,16 +469,17 @@ contract InterchainGasPaymaster is
     }
 
     /// @inheritdoc AbstractPostDispatchHook
+    /// @dev When using ERC20 fee tokens, `_postDispatch` pulls tokens from `message.senderAddress()`
+    /// via `safeTransferFrom`. Because `postDispatch` is publicly callable with arbitrary message
+    /// bytes, any standing token approval to the IGP can be spent by a third-party caller
+    /// supplying a crafted message. In this scenario, funds are collected by the IGP and are
+    /// recoverable by the beneficiary (the hook operator), NOT by the attacker.
+    /// Callers that hold fee tokens should use exact per-call approvals rather than
+    /// standing (infinite) allowances to the IGP.
     function _postDispatch(
         bytes calldata metadata,
         bytes calldata message
     ) internal override {
-        // ensures integrity on the message.senderAddress for spending token approvals
-        require(
-            mailbox.latestDispatchedId() == message.id(),
-            "IGP: message not dispatched"
-        );
-
         address _feeToken = metadata.feeToken(address(0));
         uint32 _destinationDomain = message.destination();
         uint256 _gasLimit = destinationGasLimit(

@@ -14,7 +14,6 @@ import {StorageGasOracle} from "../../contracts/hooks/igp/StorageGasOracle.sol";
 import {IGasOracle} from "../../contracts/interfaces/IGasOracle.sol";
 import {IPostDispatchHook} from "../../contracts/interfaces/hooks/IPostDispatchHook.sol";
 import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
-import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
 contract InterchainGasPaymasterTest is Test {
     using StandardHookMetadata for bytes;
     using TypeCasts for address;
@@ -24,7 +23,6 @@ contract InterchainGasPaymasterTest is Test {
     StorageGasOracle testOracle;
     StorageGasOracle tokenOracle;
     ERC20Test feeToken;
-    TestMailbox testMailbox;
     address constant beneficiary = address(0x444444);
 
     uint32 constant testOriginDomain = 22222;
@@ -66,8 +64,7 @@ contract InterchainGasPaymasterTest is Test {
 
     function setUp() public {
         blockNumber = block.number;
-        testMailbox = new TestMailbox(testOriginDomain);
-        igp = new InterchainGasPaymaster(address(testMailbox));
+        igp = new InterchainGasPaymaster();
         igp.initialize(address(this), beneficiary);
         testOracle = new StorageGasOracle();
         setTestDestinationGasConfig(
@@ -86,7 +83,6 @@ contract InterchainGasPaymasterTest is Test {
         );
 
         testEncodedMessage = _encodeTestMessage();
-        testMailbox.updateLatestDispatchedId(testEncodedMessage.id());
     }
 
     // ============ constructor ============
@@ -442,36 +438,6 @@ contract InterchainGasPaymasterTest is Test {
     }
 
     // ============ postDispatch ============
-
-    function testPostDispatch_revertsIfMessageNotDispatched() public {
-        // Use a message whose id doesn't match latestDispatchedId
-        bytes memory wrongMessage = MessageUtils.formatMessage(
-            0,
-            999,
-            testOriginDomain,
-            address(this).addressToBytes32(),
-            testDestinationDomain,
-            address(0x1).addressToBytes32(),
-            ""
-        );
-
-        vm.expectRevert("IGP: message not dispatched");
-        igp.postDispatch("", wrongMessage);
-    }
-
-    function testPostDispatch_revertsIfReplayedAfterNewDispatch() public {
-        // First postDispatch succeeds
-        uint256 quote = igp.quoteDispatch("", testEncodedMessage);
-        vm.deal(address(this), quote * 2);
-        igp.postDispatch{value: quote}("", testEncodedMessage);
-
-        // New dispatch changes latestDispatchedId
-        testMailbox.updateLatestDispatchedId(bytes32(uint256(0xdead)));
-
-        // Replay reverts
-        vm.expectRevert("IGP: message not dispatched");
-        igp.postDispatch{value: quote}("", testEncodedMessage);
-    }
 
     function testPostDispatch_defaultGasLimit() public {
         setRemoteGasData(
@@ -992,9 +958,7 @@ contract InterchainGasPaymasterTest is Test {
     // ============ domains ============
 
     function testDomains_empty() public {
-        InterchainGasPaymaster newIgp = new InterchainGasPaymaster(
-            address(testMailbox)
-        );
+        InterchainGasPaymaster newIgp = new InterchainGasPaymaster();
         newIgp.initialize(address(this), beneficiary);
         uint32[] memory domains = newIgp.domains();
         assertEq(domains.length, 0);
@@ -1071,9 +1035,7 @@ contract InterchainGasPaymasterTest is Test {
     }
 
     function testDomains_removeNonExistentNoOp() public {
-        InterchainGasPaymaster newIgp = new InterchainGasPaymaster(
-            address(testMailbox)
-        );
+        InterchainGasPaymaster newIgp = new InterchainGasPaymaster();
         newIgp.initialize(address(this), beneficiary);
 
         // Remove non-existent domain should not revert
@@ -1128,9 +1090,7 @@ contract InterchainGasPaymasterTest is Test {
         public
     {
         // Create a fresh IGP with no domains configured
-        InterchainGasPaymaster newIgp = new InterchainGasPaymaster(
-            address(testMailbox)
-        );
+        InterchainGasPaymaster newIgp = new InterchainGasPaymaster();
         newIgp.initialize(address(this), beneficiary);
 
         // Try to set non-native token oracle without native token configured first
