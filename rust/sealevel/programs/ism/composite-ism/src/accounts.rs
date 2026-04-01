@@ -1,7 +1,7 @@
 use access_control::AccessControl;
 use account_utils::{AccountData, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
-use hyperlane_core::H160;
+use hyperlane_core::{H160, H256};
 use solana_program::{program_error::ProgramError, pubkey::Pubkey};
 
 /// A validator set and threshold for a specific origin domain.
@@ -57,6 +57,29 @@ pub enum IsmNode {
         threshold: [u8; 32],
         lower: Box<IsmNode>,
         upper: Box<IsmNode>,
+    },
+
+    /// Token-bucket rate-limited ISM.
+    ///
+    /// Reads amount from `body[56..64]` (last 8 bytes of the 32-byte BE u256 in
+    /// TokenMessage format). Enforces a rolling 24-hour transfer limit.
+    ///
+    /// `filled_level` and `last_updated` are mutable state fields updated on every
+    /// successful `Verify`. Both are normalized to `(max_capacity, 0)` on
+    /// `Initialize`/`UpdateConfig` — callers cannot set arbitrary initial state.
+    ///
+    /// Calling `UpdateConfig` resets the rate limit state.
+    ///
+    /// ModuleType: Null.
+    RateLimited {
+        /// Config: max tokens transferable per 24-hour rolling window.
+        max_capacity: u64,
+        /// Config: if `Some`, only messages to this recipient are accepted.
+        recipient: Option<H256>,
+        /// State: current remaining capacity. Normalized to `max_capacity` on init.
+        filled_level: u64,
+        /// State: unix timestamp of last deduction. Normalized to `0` on init.
+        last_updated: i64,
     },
 }
 

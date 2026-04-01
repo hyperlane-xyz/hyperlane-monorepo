@@ -2,7 +2,9 @@ use hyperlane_core::{Checkpoint, CheckpointWithMessageId, HyperlaneMessage};
 use multisig_ism::multisig::MultisigIsm;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
+    clock::Clock,
     entrypoint::ProgramResult,
+    sysvar::Sysvar,
 };
 
 use crate::{
@@ -10,15 +12,20 @@ use crate::{
     error::Error,
     metadata::{parse_aggregation_ranges, sub_metadata},
     multisig_metadata::MultisigIsmMessageIdMetadata,
+    rate_limit::calculate_current_level,
 };
 
 /// Recursively verifies a message against an ISM node.
 ///
+/// `node` is `&mut` so that `RateLimited` can update `filled_level` and
+/// `last_updated` in place; the caller is responsible for persisting the
+/// storage PDA back to the account after this returns.
+///
 /// `accounts_iter` is advanced only for nodes that require signer accounts
 /// (currently only `TrustedRelayer`). All other state is read from the VAM PDA
 /// already loaded by the caller.
-pub fn verify_node<'a, 'b, I>(
-    node: &IsmNode,
+pub(crate) fn verify_node<'a, 'b, I>(
+    node: &mut IsmNode,
     metadata: &[u8],
     message: &HyperlaneMessage,
     accounts_iter: &mut I,
@@ -81,7 +88,7 @@ where
             }
 
             // Verify each sub-ISM that has metadata. All must pass.
-            for (i, sub_ism) in sub_isms.iter().enumerate() {
+            for (i, sub_ism) in sub_isms.iter_mut().enumerate() {
                 if !ranges[i].has_metadata() {
                     continue;
                 }
@@ -96,12 +103,16 @@ where
             routes,
             default_ism,
         } => {
-            let sub_ism = routes
-                .iter()
+            let sub_ism: &mut IsmNode = if let Some((_, ism)) = routes
+                .iter_mut()
                 .find(|(domain, _)| *domain == message.origin)
-                .map(|(_, ism)| ism)
-                .or(default_ism.as_deref())
-                .ok_or(Error::NoRouteForDomain)?;
+            {
+                ism
+            } else if let Some(d) = default_ism {
+                d.as_mut()
+            } else {
+                return Err(Error::NoRouteForDomain.into());
+            };
 
             // Routing is transparent: pass metadata through unchanged.
             verify_node(sub_ism, metadata, message, accounts_iter)
@@ -122,7 +133,7 @@ where
                 .try_into()
                 .map_err(|_| Error::InvalidMessageBody)?;
 
-            let sub_ism = if amount >= *threshold { upper } else { lower };
+            let sub_ism: &mut IsmNode = if amount >= *threshold { upper } else { lower };
             verify_node(sub_ism, metadata, message, accounts_iter)
         }
 
@@ -140,6 +151,50 @@ where
             } else {
                 Ok(())
             }
+        }
+
+        IsmNode::RateLimited {
+            max_capacity,
+            recipient,
+            filled_level,
+            last_updated,
+        } => {
+            // 1. Recipient guard.
+            if let Some(r) = recipient {
+                if message.recipient != *r {
+                    return Err(Error::RecipientMismatch.into());
+                }
+            }
+
+            // 2. Parse amount from body[56..64] (last 8 bytes of 32-byte BE u256).
+            //    TokenMessage layout: [recipient (32b) | amount (32b BE) | ...]
+            //    Amounts exceeding u64::MAX (non-zero bytes at [32..56]) are rejected.
+            if message.body.len() < 64 {
+                return Err(Error::InvalidMessageBody.into());
+            }
+            if message.body[32..56].iter().any(|&b| b != 0) {
+                return Err(Error::InvalidMessageBody.into());
+            }
+            let amount = u64::from_be_bytes(
+                message.body[56..64]
+                    .try_into()
+                    .map_err(|_| Error::InvalidMessageBody)?,
+            );
+
+            // 3. Compute adjusted level via token bucket refill.
+            let now = Clock::get()?.unix_timestamp;
+            let adjusted =
+                calculate_current_level(*filled_level, *last_updated, now, *max_capacity);
+
+            // 4. Check capacity.
+            if amount > adjusted {
+                return Err(Error::RateLimitExceeded.into());
+            }
+
+            // 5. Update state in place; processor writes the PDA back.
+            *filled_level = adjusted - amount;
+            *last_updated = now;
+            Ok(())
         }
     }
 }
@@ -173,19 +228,19 @@ mod test {
 
     #[test]
     fn test_node_accept() {
-        let node = IsmNode::Test { accept: true };
+        let mut node = IsmNode::Test { accept: true };
         let msg = dummy_message(ORIGIN_DOMAIN);
         let mut iter = std::iter::empty::<&AccountInfo>();
-        assert!(verify_node(&node, &[], &msg, &mut iter).is_ok());
+        assert!(verify_node(&mut node, &[], &msg, &mut iter).is_ok());
     }
 
     #[test]
     fn test_node_reject() {
-        let node = IsmNode::Test { accept: false };
+        let mut node = IsmNode::Test { accept: false };
         let msg = dummy_message(ORIGIN_DOMAIN);
         let mut iter = std::iter::empty::<&AccountInfo>();
         assert_eq!(
-            verify_node(&node, &[], &msg, &mut iter).unwrap_err(),
+            verify_node(&mut node, &[], &msg, &mut iter).unwrap_err(),
             Error::VerifyRejected.into()
         );
     }
@@ -194,19 +249,19 @@ mod test {
 
     #[test]
     fn test_pausable_unpaused() {
-        let node = IsmNode::Pausable { paused: false };
+        let mut node = IsmNode::Pausable { paused: false };
         let msg = dummy_message(ORIGIN_DOMAIN);
         let mut iter = std::iter::empty::<&AccountInfo>();
-        assert!(verify_node(&node, &[], &msg, &mut iter).is_ok());
+        assert!(verify_node(&mut node, &[], &msg, &mut iter).is_ok());
     }
 
     #[test]
     fn test_pausable_paused() {
-        let node = IsmNode::Pausable { paused: true };
+        let mut node = IsmNode::Pausable { paused: true };
         let msg = dummy_message(ORIGIN_DOMAIN);
         let mut iter = std::iter::empty::<&AccountInfo>();
         assert_eq!(
-            verify_node(&node, &[], &msg, &mut iter).unwrap_err(),
+            verify_node(&mut node, &[], &msg, &mut iter).unwrap_err(),
             Error::VerifyRejected.into()
         );
     }
@@ -215,47 +270,47 @@ mod test {
 
     #[test]
     fn test_routing_to_accept() {
-        let node = IsmNode::Routing {
+        let mut node = IsmNode::Routing {
             routes: vec![(ORIGIN_DOMAIN, IsmNode::Test { accept: true })],
             default_ism: None,
         };
         let msg = dummy_message(ORIGIN_DOMAIN);
         let mut iter = std::iter::empty::<&AccountInfo>();
-        assert!(verify_node(&node, &[], &msg, &mut iter).is_ok());
+        assert!(verify_node(&mut node, &[], &msg, &mut iter).is_ok());
     }
 
     #[test]
     fn test_routing_to_reject() {
-        let node = IsmNode::Routing {
+        let mut node = IsmNode::Routing {
             routes: vec![(ORIGIN_DOMAIN, IsmNode::Test { accept: false })],
             default_ism: None,
         };
         let msg = dummy_message(ORIGIN_DOMAIN);
         let mut iter = std::iter::empty::<&AccountInfo>();
-        assert!(verify_node(&node, &[], &msg, &mut iter).is_err());
+        assert!(verify_node(&mut node, &[], &msg, &mut iter).is_err());
     }
 
     #[test]
     fn test_routing_default() {
-        let node = IsmNode::Routing {
+        let mut node = IsmNode::Routing {
             routes: vec![],
             default_ism: Some(Box::new(IsmNode::Test { accept: true })),
         };
         let msg = dummy_message(ORIGIN_DOMAIN);
         let mut iter = std::iter::empty::<&AccountInfo>();
-        assert!(verify_node(&node, &[], &msg, &mut iter).is_ok());
+        assert!(verify_node(&mut node, &[], &msg, &mut iter).is_ok());
     }
 
     #[test]
     fn test_routing_no_route() {
-        let node = IsmNode::Routing {
+        let mut node = IsmNode::Routing {
             routes: vec![],
             default_ism: None,
         };
         let msg = dummy_message(ORIGIN_DOMAIN);
         let mut iter = std::iter::empty::<&AccountInfo>();
         assert_eq!(
-            verify_node(&node, &[], &msg, &mut iter).unwrap_err(),
+            verify_node(&mut node, &[], &msg, &mut iter).unwrap_err(),
             Error::NoRouteForDomain.into()
         );
     }
@@ -293,7 +348,7 @@ mod test {
     fn test_aggregation_threshold_met() {
         // threshold=1, 2 sub-ISMs, only sub-ISM 0 has metadata
         let metadata = encode_aggregation_metadata(&[Some(&[]), None]);
-        let node = IsmNode::Aggregation {
+        let mut node = IsmNode::Aggregation {
             threshold: 1,
             sub_isms: vec![
                 IsmNode::Test { accept: true },
@@ -302,14 +357,14 @@ mod test {
         };
         let msg = dummy_message(ORIGIN_DOMAIN);
         let mut iter = std::iter::empty::<&AccountInfo>();
-        assert!(verify_node(&node, &metadata, &msg, &mut iter).is_ok());
+        assert!(verify_node(&mut node, &metadata, &msg, &mut iter).is_ok());
     }
 
     #[test]
     fn test_aggregation_threshold_not_met() {
         // threshold=2 but only 1 sub-ISM has metadata
         let metadata = encode_aggregation_metadata(&[Some(&[]), None]);
-        let node = IsmNode::Aggregation {
+        let mut node = IsmNode::Aggregation {
             threshold: 2,
             sub_isms: vec![
                 IsmNode::Test { accept: true },
@@ -319,7 +374,7 @@ mod test {
         let msg = dummy_message(ORIGIN_DOMAIN);
         let mut iter = std::iter::empty::<&AccountInfo>();
         assert_eq!(
-            verify_node(&node, &metadata, &msg, &mut iter).unwrap_err(),
+            verify_node(&mut node, &metadata, &msg, &mut iter).unwrap_err(),
             Error::ThresholdNotMet.into()
         );
     }
@@ -328,7 +383,7 @@ mod test {
     fn test_aggregation_sub_ism_fails() {
         // Both sub-ISMs have metadata but sub-ISM 0 rejects
         let metadata = encode_aggregation_metadata(&[Some(&[]), Some(&[])]);
-        let node = IsmNode::Aggregation {
+        let mut node = IsmNode::Aggregation {
             threshold: 1,
             sub_isms: vec![
                 IsmNode::Test { accept: false },
@@ -337,7 +392,7 @@ mod test {
         };
         let msg = dummy_message(ORIGIN_DOMAIN);
         let mut iter = std::iter::empty::<&AccountInfo>();
-        assert!(verify_node(&node, &metadata, &msg, &mut iter).is_err());
+        assert!(verify_node(&mut node, &metadata, &msg, &mut iter).is_err());
     }
 
     // ── MultisigMessageId node ─────────────────────────────────────────────
@@ -351,7 +406,7 @@ mod test {
             signatures,
         } = get_multisig_ism_test_data();
 
-        let node = IsmNode::MultisigMessageId {
+        let mut node = IsmNode::MultisigMessageId {
             domain_configs: vec![DomainConfig {
                 origin: message.origin,
                 validators,
@@ -371,12 +426,12 @@ mod test {
         let meta_bytes = meta.to_vec();
 
         let mut iter = std::iter::empty::<&AccountInfo>();
-        assert!(verify_node(&node, &meta_bytes, &message, &mut iter).is_ok());
+        assert!(verify_node(&mut node, &meta_bytes, &message, &mut iter).is_ok());
     }
 
     #[test]
     fn test_multisig_no_domain_config() {
-        let node = IsmNode::MultisigMessageId {
+        let mut node = IsmNode::MultisigMessageId {
             domain_configs: vec![],
         };
         let msg = dummy_message(ORIGIN_DOMAIN);
@@ -384,7 +439,7 @@ mod test {
         let dummy_meta = vec![0u8; 68 + 65];
         let mut iter = std::iter::empty::<&AccountInfo>();
         assert_eq!(
-            verify_node(&node, &dummy_meta, &msg, &mut iter).unwrap_err(),
+            verify_node(&mut node, &dummy_meta, &msg, &mut iter).unwrap_err(),
             Error::NoDomainConfig.into()
         );
     }
@@ -409,19 +464,19 @@ mod test {
 
     #[test]
     fn test_amount_routing_below_threshold_routes_lower() {
-        let node = amount_routing_node(1000);
+        let mut node = amount_routing_node(1000);
         // amount = 500 < 1000 → lower (accept=true)
         let mut amount = [0u8; 32];
         amount[24..32].copy_from_slice(&500u64.to_be_bytes());
         let mut msg = dummy_message(ORIGIN_DOMAIN);
         msg.body = token_message_body(amount);
         let mut iter = std::iter::empty::<&AccountInfo>();
-        assert!(verify_node(&node, &[], &msg, &mut iter).is_ok());
+        assert!(verify_node(&mut node, &[], &msg, &mut iter).is_ok());
     }
 
     #[test]
     fn test_amount_routing_at_threshold_routes_upper() {
-        let node = amount_routing_node(1000);
+        let mut node = amount_routing_node(1000);
         // amount = 1000 >= 1000 → upper (accept=false)
         let mut amount = [0u8; 32];
         amount[24..32].copy_from_slice(&1000u64.to_be_bytes());
@@ -429,31 +484,31 @@ mod test {
         msg.body = token_message_body(amount);
         let mut iter = std::iter::empty::<&AccountInfo>();
         assert_eq!(
-            verify_node(&node, &[], &msg, &mut iter).unwrap_err(),
+            verify_node(&mut node, &[], &msg, &mut iter).unwrap_err(),
             Error::VerifyRejected.into()
         );
     }
 
     #[test]
     fn test_amount_routing_above_threshold_routes_upper() {
-        let node = amount_routing_node(1000);
+        let mut node = amount_routing_node(1000);
         // amount = 5000 >= 1000 → upper (accept=false)
         let mut amount = [0u8; 32];
         amount[24..32].copy_from_slice(&5000u64.to_be_bytes());
         let mut msg = dummy_message(ORIGIN_DOMAIN);
         msg.body = token_message_body(amount);
         let mut iter = std::iter::empty::<&AccountInfo>();
-        assert!(verify_node(&node, &[], &msg, &mut iter).is_err());
+        assert!(verify_node(&mut node, &[], &msg, &mut iter).is_err());
     }
 
     #[test]
     fn test_amount_routing_body_too_short() {
-        let node = amount_routing_node(1000);
+        let mut node = amount_routing_node(1000);
         let mut msg = dummy_message(ORIGIN_DOMAIN);
         msg.body = vec![0u8; 10]; // too short
         let mut iter = std::iter::empty::<&AccountInfo>();
         assert_eq!(
-            verify_node(&node, &[], &msg, &mut iter).unwrap_err(),
+            verify_node(&mut node, &[], &msg, &mut iter).unwrap_err(),
             Error::InvalidMessageBody.into()
         );
     }

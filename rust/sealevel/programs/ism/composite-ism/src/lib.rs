@@ -5,6 +5,7 @@ pub mod instruction;
 pub mod metadata;
 pub mod multisig_metadata;
 pub mod processor;
+pub mod rate_limit;
 pub mod verify;
 
 /// PDA seeds for the storage account.

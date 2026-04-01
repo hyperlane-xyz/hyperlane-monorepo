@@ -34,6 +34,10 @@ pub enum Error {
     InvalidConfig = 14,
     #[error("Message body too short to decode token amount")]
     InvalidMessageBody = 15,
+    #[error("Rate limit capacity exceeded")]
+    RateLimitExceeded = 16,
+    #[error("Message recipient does not match configured recipient")]
+    RecipientMismatch = 17,
 }
 
 impl From<MultisigIsmError> for Error {

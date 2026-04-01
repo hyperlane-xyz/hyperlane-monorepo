@@ -7,6 +7,29 @@ use crate::{
     metadata::{parse_aggregation_ranges, sub_metadata},
 };
 
+/// Returns `true` if the ISM tree contains any `RateLimited` node.
+///
+/// Used to decide whether the storage PDA must be marked writable in
+/// `VerifyAccountMetas` and whether the processor must write it back after
+/// `verify_node`.
+pub(crate) fn contains_rate_limited(node: &IsmNode) -> bool {
+    match node {
+        IsmNode::RateLimited { .. } => true,
+        IsmNode::Aggregation { sub_isms, .. } => sub_isms.iter().any(contains_rate_limited),
+        IsmNode::Routing {
+            routes,
+            default_ism,
+        } => {
+            routes.iter().any(|(_, n)| contains_rate_limited(n))
+                || default_ism.as_deref().is_some_and(contains_rate_limited)
+        }
+        IsmNode::AmountRouting { lower, upper, .. } => {
+            contains_rate_limited(lower) || contains_rate_limited(upper)
+        }
+        _ => false,
+    }
+}
+
 /// Returns the additional account metas required by `Verify` for this ISM node,
 /// beyond account 0 (the VAM PDA) which is always included by the caller.
 ///
@@ -93,6 +116,9 @@ pub fn required_accounts_for_node(
             required_accounts_for_node(sub_ism, metadata, message)
         }
 
+        // State lives in the VAM PDA; no extra accounts needed.
+        IsmNode::RateLimited { .. } => vec![],
+
         // No extra accounts for these leaf ISMs.
         IsmNode::Test { .. } | IsmNode::Pausable { .. } => vec![],
     }
@@ -100,13 +126,21 @@ pub fn required_accounts_for_node(
 
 /// Returns the full account metas list for `VerifyAccountMetas`:
 /// always starts with the VAM PDA, then any node-specific accounts.
+///
+/// The VAM PDA is marked **writable** when the ISM tree contains a `RateLimited`
+/// node (which mutates `filled_level`/`last_updated` during `Verify`).
 pub fn all_verify_account_metas(
     vam_pda_key: &Pubkey,
     root: &IsmNode,
     metadata: &[u8],
     message: &HyperlaneMessage,
 ) -> Vec<SerializableAccountMeta> {
-    let mut accounts = vec![AccountMeta::new_readonly(*vam_pda_key, false).into()];
+    let storage_meta = if contains_rate_limited(root) {
+        AccountMeta::new(*vam_pda_key, false) // writable, not signer
+    } else {
+        AccountMeta::new_readonly(*vam_pda_key, false)
+    };
+    let mut accounts = vec![storage_meta.into()];
     accounts.extend(required_accounts_for_node(root, metadata, message));
     accounts
 }
@@ -237,5 +271,85 @@ mod test {
         let accounts = required_accounts_for_node(&node, &metadata, &msg);
         // Deduplication: only one entry for the shared relayer
         assert_eq!(accounts.len(), 1);
+    }
+
+    #[test]
+    fn test_rate_limited_no_extra_accounts() {
+        let node = IsmNode::RateLimited {
+            max_capacity: 1_000,
+            recipient: None,
+            filled_level: 1_000,
+            last_updated: 0,
+        };
+        let msg = dummy_message(ORIGIN);
+        let accounts = required_accounts_for_node(&node, &[], &msg);
+        assert!(accounts.is_empty());
+    }
+
+    #[test]
+    fn test_contains_rate_limited_leaf() {
+        let node = IsmNode::RateLimited {
+            max_capacity: 1_000,
+            recipient: None,
+            filled_level: 1_000,
+            last_updated: 0,
+        };
+        assert!(contains_rate_limited(&node));
+    }
+
+    #[test]
+    fn test_contains_rate_limited_nested_in_aggregation() {
+        let node = IsmNode::Aggregation {
+            threshold: 1,
+            sub_isms: vec![
+                IsmNode::Test { accept: true },
+                IsmNode::RateLimited {
+                    max_capacity: 1_000,
+                    recipient: None,
+                    filled_level: 1_000,
+                    last_updated: 0,
+                },
+            ],
+        };
+        assert!(contains_rate_limited(&node));
+    }
+
+    #[test]
+    fn test_contains_rate_limited_false_for_others() {
+        let node = IsmNode::Aggregation {
+            threshold: 1,
+            sub_isms: vec![
+                IsmNode::Test { accept: true },
+                IsmNode::Pausable { paused: false },
+            ],
+        };
+        assert!(!contains_rate_limited(&node));
+    }
+
+    #[test]
+    fn test_all_verify_account_metas_writable_for_rate_limited() {
+        let vam_pda = Pubkey::new_unique();
+        let node = IsmNode::RateLimited {
+            max_capacity: 1_000,
+            recipient: None,
+            filled_level: 1_000,
+            last_updated: 0,
+        };
+        let msg = dummy_message(ORIGIN);
+        let accounts = all_verify_account_metas(&vam_pda, &node, &[], &msg);
+        assert_eq!(accounts.len(), 1);
+        assert_eq!(accounts[0].pubkey, vam_pda);
+        assert!(accounts[0].is_writable);
+        assert!(!accounts[0].is_signer);
+    }
+
+    #[test]
+    fn test_all_verify_account_metas_readonly_for_non_rate_limited() {
+        let vam_pda = Pubkey::new_unique();
+        let node = IsmNode::Test { accept: true };
+        let msg = dummy_message(ORIGIN);
+        let accounts = all_verify_account_metas(&vam_pda, &node, &[], &msg);
+        assert_eq!(accounts.len(), 1);
+        assert!(!accounts[0].is_writable);
     }
 }

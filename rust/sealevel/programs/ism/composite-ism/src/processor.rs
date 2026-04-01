@@ -17,7 +17,7 @@ use solana_program::{
 use solana_system_interface::program as system_program;
 
 use crate::{
-    account_metas::all_verify_account_metas,
+    account_metas::{all_verify_account_metas, contains_rate_limited},
     accounts::{CompositeIsmAccount, CompositeIsmStorage, IsmNode},
     error::Error,
     instruction::Instruction,
@@ -81,6 +81,7 @@ fn ism_type(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
         Some(IsmNode::Test { .. }) => ModuleType::Null,
         Some(IsmNode::Pausable { .. }) => ModuleType::Null,
         Some(IsmNode::AmountRouting { .. }) => ModuleType::Routing,
+        Some(IsmNode::RateLimited { .. }) => ModuleType::Null,
         None => return Err(Error::ConfigNotSet.into()),
     };
 
@@ -93,7 +94,8 @@ fn ism_type(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
 /// Verifies a message against the ISM config tree.
 ///
 /// Accounts:
-/// 0. `[]` The storage PDA account (VAM PDA).
+/// 0. `[]` The storage PDA account (VAM PDA). Marked writable when the ISM tree
+///    contains a `RateLimited` node (state must be written back after verify).
 /// 1..N. Additional accounts as returned by `VerifyAccountMetas` (e.g., relayer signer).
 fn verify(
     program_id: &Pubkey,
@@ -103,10 +105,18 @@ fn verify(
 ) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
     let storage_info = next_account_info(accounts_iter)?;
-    let storage = load_storage(program_id, storage_info)?;
+    let mut storage = load_storage(program_id, storage_info)?;
 
-    let root = storage.root.as_ref().ok_or(Error::ConfigNotSet)?;
-    verify_node(root, metadata, message, accounts_iter)
+    // Determine before taking &mut borrow whether we need to write back.
+    let needs_writeback = contains_rate_limited(storage.root.as_ref().ok_or(Error::ConfigNotSet)?);
+
+    let root = storage.root.as_mut().ok_or(Error::ConfigNotSet)?;
+    verify_node(root, metadata, message, accounts_iter)?;
+
+    if needs_writeback {
+        CompositeIsmAccount::from(storage).store(storage_info, true)?;
+    }
+    Ok(())
 }
 
 /// Returns the account metas required for `Verify`.
@@ -141,8 +151,9 @@ fn verify_account_metas(
 /// 0. `[signer]` The new owner and payer.
 /// 1. `[writable]` The storage PDA account.
 /// 2. `[executable]` The system program.
-fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], root: IsmNode) -> ProgramResult {
+fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], mut root: IsmNode) -> ProgramResult {
     validate_config(&root)?;
+    normalize_node(&mut root);
 
     let accounts_iter = &mut accounts.iter();
 
@@ -192,12 +203,20 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], root: IsmNode) -> P
 
 /// Replaces the full ISM config tree. Owner-gated. Reallocs PDA if needed.
 ///
+/// Calling `UpdateConfig` with a `RateLimited` node resets the rate limit state
+/// (`filled_level = max_capacity`, `last_updated = 0`).
+///
 /// Accounts:
 /// 0. `[signer]` The owner.
 /// 1. `[writable]` The storage PDA account.
 /// 2. `[executable]` The system program (required for realloc).
-fn update_config(program_id: &Pubkey, accounts: &[AccountInfo], root: IsmNode) -> ProgramResult {
+fn update_config(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    mut root: IsmNode,
+) -> ProgramResult {
     validate_config(&root)?;
+    normalize_node(&mut root);
 
     let accounts_iter = &mut accounts.iter();
 
@@ -251,7 +270,8 @@ fn transfer_ownership(
 
 /// Validates the ISM config tree.
 /// Returns an error if any Aggregation node has threshold > sub-ISM count,
-/// or any MultisigMessageId domain config has threshold > validator count.
+/// any MultisigMessageId domain config has threshold > validator count,
+/// or any RateLimited node has max_capacity == 0.
 fn validate_config(node: &IsmNode) -> ProgramResult {
     match node {
         IsmNode::Aggregation {
@@ -290,8 +310,51 @@ fn validate_config(node: &IsmNode) -> ProgramResult {
             validate_config(lower)?;
             validate_config(upper)
         }
+        IsmNode::RateLimited { max_capacity, .. } => {
+            if *max_capacity == 0 {
+                return Err(Error::InvalidConfig.into());
+            }
+            Ok(())
+        }
         // Leaf nodes with no sub-config to validate.
         IsmNode::TrustedRelayer { .. } | IsmNode::Test { .. } | IsmNode::Pausable { .. } => Ok(()),
+    }
+}
+
+/// Normalizes mutable state fields in `RateLimited` nodes to their canonical
+/// initial values, recursively. Called before storing any config to prevent
+/// callers from supplying arbitrary state.
+///
+/// Sets `filled_level = max_capacity` and `last_updated = 0` for every
+/// `RateLimited` node in the tree.
+fn normalize_node(node: &mut IsmNode) {
+    match node {
+        IsmNode::RateLimited {
+            max_capacity,
+            filled_level,
+            last_updated,
+            ..
+        } => {
+            *filled_level = *max_capacity;
+            *last_updated = 0;
+        }
+        IsmNode::Aggregation { sub_isms, .. } => {
+            sub_isms.iter_mut().for_each(normalize_node);
+        }
+        IsmNode::Routing {
+            routes,
+            default_ism,
+        } => {
+            routes.iter_mut().for_each(|(_, n)| normalize_node(n));
+            if let Some(d) = default_ism {
+                normalize_node(d);
+            }
+        }
+        IsmNode::AmountRouting { lower, upper, .. } => {
+            normalize_node(lower);
+            normalize_node(upper);
+        }
+        _ => {}
     }
 }
 
@@ -487,6 +550,65 @@ mod test {
             validate_config(&node).unwrap_err(),
             Error::InvalidConfig.into()
         );
+    }
+
+    #[test]
+    fn test_validate_config_rate_limited_zero_capacity() {
+        let node = IsmNode::RateLimited {
+            max_capacity: 0,
+            recipient: None,
+            filled_level: 0,
+            last_updated: 0,
+        };
+        assert_eq!(
+            validate_config(&node).unwrap_err(),
+            Error::InvalidConfig.into()
+        );
+    }
+
+    #[test]
+    fn test_normalize_node_rate_limited() {
+        let mut node = IsmNode::RateLimited {
+            max_capacity: 1_000,
+            recipient: None,
+            filled_level: 0,   // should become 1_000
+            last_updated: 999, // should become 0
+        };
+        normalize_node(&mut node);
+        assert_eq!(
+            node,
+            IsmNode::RateLimited {
+                max_capacity: 1_000,
+                recipient: None,
+                filled_level: 1_000,
+                last_updated: 0,
+            }
+        );
+    }
+
+    #[test]
+    fn test_normalize_node_nested_in_aggregation() {
+        let mut node = IsmNode::Aggregation {
+            threshold: 1,
+            sub_isms: vec![IsmNode::RateLimited {
+                max_capacity: 500,
+                recipient: None,
+                filled_level: 0,
+                last_updated: 42,
+            }],
+        };
+        normalize_node(&mut node);
+        if let IsmNode::Aggregation { sub_isms, .. } = &node {
+            assert_eq!(
+                sub_isms[0],
+                IsmNode::RateLimited {
+                    max_capacity: 500,
+                    recipient: None,
+                    filled_level: 500,
+                    last_updated: 0,
+                }
+            );
+        }
     }
 
     #[test]
