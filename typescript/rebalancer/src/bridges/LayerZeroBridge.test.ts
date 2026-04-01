@@ -7,10 +7,8 @@ import { ethers } from 'ethers';
 
 import type { ExternalBridgeConfig } from '../interfaces/IExternalBridge.js';
 import { LayerZeroBridge } from './LayerZeroBridge.js';
-import { OFT_ABI } from './layerZeroUtils.js';
 import {
   createMockLayerZeroQuote,
-  createMockLayerZeroBridgeRoute,
   createMockLZScanResponse,
   createMockQuoteOFTResponse,
   createMockQuoteSendResponse,
@@ -44,13 +42,6 @@ const BRIDGE_CONFIG: ExternalBridgeConfig = {
       domainId: 7758,
       protocol: ProtocolType.Ethereum,
       rpcUrls: [{ http: 'https://plasma-rpc.example.com' }],
-    },
-    tron: {
-      chainId: 728126428,
-      name: 'tron',
-      domainId: 728126428,
-      protocol: 'tron' as ProtocolType,
-      rpcUrls: [{ http: 'https://api.trongrid.io' }],
     },
   },
 };
@@ -135,63 +126,6 @@ describe('LayerZeroBridge', function () {
       expect(quoteSendStub.calledOnce).to.equal(true);
     });
 
-    it('returns valid quote for Tron→EVM route (Tron→Arbitrum)', async () => {
-      const iface = new ethers.utils.Interface(OFT_ABI);
-      const quoteOFTResponse = createMockQuoteOFTResponse();
-      const quoteSendResponse = createMockQuoteSendResponse();
-
-      const encodedQuoteOFT = iface.encodeFunctionResult('quoteOFT', [
-        [
-          quoteOFTResponse.oftLimit.minAmountLD,
-          quoteOFTResponse.oftLimit.maxAmountLD,
-        ],
-        quoteOFTResponse.oftFeeDetails.map((f) => [
-          f.feeAmountLD,
-          f.description,
-        ]),
-        [
-          quoteOFTResponse.oftReceipt.amountSentLD,
-          quoteOFTResponse.oftReceipt.amountReceivedLD,
-        ],
-      ]);
-      const encodedQuoteSend = iface.encodeFunctionResult('quoteSend', [
-        [quoteSendResponse.nativeFee, quoteSendResponse.lzTokenFee],
-      ]);
-
-      const fetchStub = sinon
-        .stub(globalThis, 'fetch')
-        .callsFake(async (_url, init) => {
-          const body = JSON.parse(String(init?.body ?? '{}')) as {
-            data?: string;
-          };
-          const selector = body.data?.slice(0, 10) ?? '';
-          const quoteOFTSelector = iface.getSighash('quoteOFT');
-
-          if (selector === quoteOFTSelector) {
-            return makeResponse({
-              constant_result: [encodedQuoteOFT.slice(2)],
-            });
-          }
-          return makeResponse({
-            constant_result: [encodedQuoteSend.slice(2)],
-          });
-        });
-
-      const quote = await bridge.quote({
-        ...BASE_PARAMS,
-        fromChain: 728126428,
-        toChain: 42161,
-        fromAmount: 10000000000n,
-        fromAddress: '4176f8f34f5e4000000000000000000000000000',
-      });
-
-      expect(quote.tool).to.equal('layerzero');
-      expect(quote.fromAmount).to.equal(10000000000n);
-      expect(quote.toAmount).to.equal(9997000000n);
-      expect(quote.gasCosts).to.equal(1000000000000000n);
-      expect(fetchStub.callCount).to.equal(2);
-    });
-
     it('handles reverse quote (toAmount specified)', async () => {
       const quoteOFTResponse = createMockQuoteOFTResponse();
       const quoteSendResponse = createMockQuoteSendResponse();
@@ -255,23 +189,6 @@ describe('LayerZeroBridge', function () {
           fromChain: 56,
           toChain: 1,
           fromAmount: 1000000n,
-        });
-      } catch (error) {
-        threw = true;
-        expect((error as Error).message).to.include('Unsupported route');
-      }
-      expect(threw).to.equal(true);
-    });
-
-    it('throws for cross-system route (Tron→Plasma)', async () => {
-      let threw = false;
-      try {
-        await bridge.quote({
-          ...BASE_PARAMS,
-          fromChain: 728126428,
-          toChain: 7758,
-          fromAmount: 1000000n,
-          fromAddress: '4176f8f34f5e4000000000000000000000000000',
         });
       } catch (error) {
         threw = true;
@@ -365,33 +282,6 @@ describe('LayerZeroBridge', function () {
       let threw = false;
       try {
         await bridge.execute(quote, {});
-      } catch (error) {
-        threw = true;
-        expect((error as Error).message).to.include('Missing private key');
-      }
-      expect(threw).to.equal(true);
-    });
-
-    it('throws when Tron private key missing for Tron-origin', async () => {
-      const tronRoute = createMockLayerZeroBridgeRoute({
-        fromChainId: 728126428,
-        toChainId: 42161,
-      });
-      const quote = createMockLayerZeroQuote({
-        route: tronRoute,
-        requestParams: {
-          ...BASE_PARAMS,
-          fromChain: 728126428,
-          toChain: 42161,
-          fromAmount: 10000000000n,
-        },
-      });
-
-      let threw = false;
-      try {
-        await bridge.execute(quote, {
-          [ProtocolType.Ethereum]: TEST_EVM_PRIVATE_KEY,
-        });
       } catch (error) {
         threw = true;
         expect((error as Error).message).to.include('Missing private key');
@@ -511,7 +401,7 @@ describe('LayerZeroBridge', function () {
       expect(status).to.deep.equal({ status: 'not_found' });
     });
 
-    it('normalizes Tron tx hash by adding 0x prefix', async () => {
+    it('normalizes tx hash by adding 0x prefix', async () => {
       let calledUrl = '';
       sinon.stub(globalThis, 'fetch').callsFake(async (input) => {
         calledUrl = String(input);

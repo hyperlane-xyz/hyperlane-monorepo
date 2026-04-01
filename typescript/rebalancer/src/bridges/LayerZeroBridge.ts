@@ -19,36 +19,11 @@ import {
   getUSDTAddress,
   getEID,
   isSupportedRoute,
-  isTronChain,
   addressToBytes32,
   type SendParam,
   type MessagingFee,
   type LayerZeroBridgeRoute,
 } from './layerZeroUtils.js';
-
-type TronWebLike = {
-  trx: {
-    getTransactionInfo: (txId: string) => Promise<{
-      receipt?: { result?: string };
-    }>;
-    sign: (tx: unknown) => Promise<{ txID: string }>;
-    sendRawTransaction: (signed: unknown) => Promise<{ result?: boolean }>;
-  };
-  address: {
-    fromPrivateKey: (privateKey: string) => string;
-    toHex: (address: string) => string;
-    fromHex: (hexAddress: string) => string;
-  };
-  transactionBuilder: {
-    triggerSmartContract: (
-      contractAddress: string,
-      functionSelector: string,
-      options: { callValue: number; feeLimit: number },
-      parameters: Array<{ type: string; value: unknown }>,
-      issuerAddress: string,
-    ) => Promise<{ transaction?: { txID: string } }>;
-  };
-};
 
 function toBigInt(value: unknown): bigint {
   if (typeof value === 'bigint') return value;
@@ -58,25 +33,6 @@ function toBigInt(value: unknown): bigint {
     return BigInt((value as { toString: () => string }).toString());
   }
   throw new Error(`Unable to convert value to bigint: ${String(value)}`);
-}
-
-function toTronHexAddress(address: string): string {
-  const normalized = address.replace(/^0x/, '');
-  if (normalized.startsWith('41') && normalized.length === 42)
-    return normalized;
-  if (normalized.length === 40) return `41${normalized}`;
-  throw new Error(`Invalid Tron/EVM address: ${address}`);
-}
-
-function toEvmAddress(address: string): string {
-  const normalized = address.replace(/^0x/, '');
-  if (normalized.startsWith('41') && normalized.length === 42) {
-    return `0x${normalized.slice(2)}`;
-  }
-  if (normalized.length === 40) {
-    return `0x${normalized}`;
-  }
-  throw new Error(`Invalid address for EVM ABI encoding: ${address}`);
 }
 
 export class LayerZeroBridge implements IExternalBridge {
@@ -132,7 +88,7 @@ export class LayerZeroBridge implements IExternalBridge {
     const amountLD = fromAmount ?? (toAmount! * 10000n) / 9970n;
     const sendParam: SendParam = {
       dstEid,
-      to: addressToBytes32(targetAddress, isTronChain(toChain)),
+      to: addressToBytes32(targetAddress),
       amountLD,
       minAmountLD: 0n,
       extraOptions: '0x',
@@ -140,116 +96,37 @@ export class LayerZeroBridge implements IExternalBridge {
       oftCmd: '0x',
     };
 
-    const iface = new ethers.utils.Interface(OFT_ABI);
-    let oftFeeDetails: Array<{ feeAmountLD: bigint }> = [];
-    let oftReceipt: { amountReceivedLD: bigint } = { amountReceivedLD: 0n };
-    let messagingFee: MessagingFee = { nativeFee: 0n, lzTokenFee: 0n };
+    const provider = new ethers.providers.StaticJsonRpcProvider(
+      this.getRpcUrl(fromChain),
+      fromChain,
+    );
+    const oft = new ethers.Contract(oftContract, OFT_ABI, provider);
 
-    if (!isTronChain(fromChain)) {
-      const provider = new ethers.providers.StaticJsonRpcProvider(
-        this.getRpcUrl(fromChain),
-        fromChain,
-      );
-      const oft = new ethers.Contract(oftContract, OFT_ABI, provider);
+    const quoteOFTResult = await oft.quoteOFT(sendParam);
+    const quoteOFTTuple =
+      quoteOFTResult.oftFeeDetails !== undefined
+        ? quoteOFTResult
+        : {
+            oftFeeDetails: quoteOFTResult[1],
+            oftReceipt: quoteOFTResult[2],
+          };
+    const oftFeeDetails = (
+      quoteOFTTuple.oftFeeDetails as Array<{ feeAmountLD: unknown }>
+    ).map((fee) => ({ feeAmountLD: toBigInt(fee.feeAmountLD) }));
+    const oftReceipt = {
+      amountReceivedLD: toBigInt(quoteOFTTuple.oftReceipt.amountReceivedLD),
+    };
+    sendParam.minAmountLD = oftReceipt.amountReceivedLD;
 
-      const quoteOFTResult = await oft.quoteOFT(sendParam);
-      const quoteOFTTuple =
-        quoteOFTResult.oftFeeDetails !== undefined
-          ? quoteOFTResult
-          : {
-              oftFeeDetails: quoteOFTResult[1],
-              oftReceipt: quoteOFTResult[2],
-            };
-      oftFeeDetails = (
-        quoteOFTTuple.oftFeeDetails as Array<{ feeAmountLD: unknown }>
-      ).map((fee) => ({ feeAmountLD: toBigInt(fee.feeAmountLD) }));
-      oftReceipt = {
-        amountReceivedLD: toBigInt(quoteOFTTuple.oftReceipt.amountReceivedLD),
-      };
-      sendParam.minAmountLD = oftReceipt.amountReceivedLD;
-
-      const quoteSendResult = await oft.quoteSend(sendParam, false);
-      const quoteSendTuple =
-        quoteSendResult.nativeFee !== undefined
-          ? quoteSendResult
-          : quoteSendResult[0];
-      messagingFee = {
-        nativeFee: toBigInt(quoteSendTuple.nativeFee),
-        lzTokenFee: toBigInt(quoteSendTuple.lzTokenFee),
-      };
-    } else {
-      const rpcUrl = this.getRpcUrl(fromChain);
-      const oftContractHex = toTronHexAddress(oftContract);
-
-      const quoteOFTCalldata = iface.encodeFunctionData('quoteOFT', [
-        sendParam,
-      ]);
-      const quoteOFTResponse = await this.fetchWithRetry(
-        `${rpcUrl}/wallet/triggerconstantcontract`,
-        {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            owner_address: '0x0000000000000000000000000000000000000000',
-            contract_address: oftContractHex,
-            data: quoteOFTCalldata,
-            visible: false,
-          }),
-        },
-      );
-      const quoteOFTData = (await quoteOFTResponse.json()) as {
-        constant_result?: string[];
-      };
-      const quoteOFTDecoded = iface.decodeFunctionResult(
-        'quoteOFT',
-        `0x${quoteOFTData.constant_result?.[0] ?? ''}`,
-      );
-      const tronOftFeeDetails = (
-        quoteOFTDecoded[1] as Array<{ feeAmountLD: unknown }>
-      ).map((fee) => ({ feeAmountLD: toBigInt(fee.feeAmountLD) }));
-      const tronOftReceipt = quoteOFTDecoded[2] as {
-        amountReceivedLD: unknown;
-      };
-
-      oftFeeDetails = tronOftFeeDetails;
-      oftReceipt = {
-        amountReceivedLD: toBigInt(tronOftReceipt.amountReceivedLD),
-      };
-      sendParam.minAmountLD = oftReceipt.amountReceivedLD;
-
-      const quoteSendCalldata = iface.encodeFunctionData('quoteSend', [
-        sendParam,
-        false,
-      ]);
-      const quoteSendResponse = await this.fetchWithRetry(
-        `${rpcUrl}/wallet/triggerconstantcontract`,
-        {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            owner_address: '0x0000000000000000000000000000000000000000',
-            contract_address: oftContractHex,
-            data: quoteSendCalldata,
-            visible: false,
-          }),
-        },
-      );
-      const quoteSendData = (await quoteSendResponse.json()) as {
-        constant_result?: string[];
-      };
-      const quoteSendDecoded = iface.decodeFunctionResult(
-        'quoteSend',
-        `0x${quoteSendData.constant_result?.[0] ?? ''}`,
-      );
-      const tronMessagingFee = quoteSendDecoded[0] as {
-        nativeFee: unknown;
-        lzTokenFee: unknown;
-      };
-      messagingFee = {
-        nativeFee: toBigInt(tronMessagingFee.nativeFee),
-        lzTokenFee: toBigInt(tronMessagingFee.lzTokenFee),
-      };
-    }
+    const quoteSendResult = await oft.quoteSend(sendParam, false);
+    const quoteSendTuple =
+      quoteSendResult.nativeFee !== undefined
+        ? quoteSendResult
+        : quoteSendResult[0];
+    const messagingFee: MessagingFee = {
+      nativeFee: toBigInt(quoteSendTuple.nativeFee),
+      lzTokenFee: toBigInt(quoteSendTuple.lzTokenFee),
+    };
 
     const feeCosts = oftFeeDetails.reduce(
       (sum, fee) => sum + fee.feeAmountLD,
@@ -284,160 +161,39 @@ export class LayerZeroBridge implements IExternalBridge {
   ): Promise<BridgeTransferResult> {
     const { route } = quote;
     const { fromChainId: fromChain, toChainId: toChain } = route;
-    const rpcUrl = this.getRpcUrl(fromChain);
 
-    if (!isTronChain(fromChain)) {
-      const key = privateKeys[ProtocolType.Ethereum];
-      assert(key, 'Missing private key for EVM chain');
+    const key = privateKeys[ProtocolType.Ethereum];
+    assert(key, 'Missing private key for EVM chain');
 
-      const provider = new ethers.providers.StaticJsonRpcProvider(
-        rpcUrl,
-        fromChain,
-      );
-      const wallet = new ethers.Wallet(ensure0x(key), provider);
+    const provider = new ethers.providers.StaticJsonRpcProvider(
+      this.getRpcUrl(fromChain),
+      fromChain,
+    );
+    const wallet = new ethers.Wallet(ensure0x(key), provider);
 
-      const erc20 = new ethers.Contract(route.usdtContract, ERC20_ABI, wallet);
-      const allowance = await erc20.allowance(
-        wallet.address,
+    const erc20 = new ethers.Contract(route.usdtContract, ERC20_ABI, wallet);
+    const allowance = await erc20.allowance(wallet.address, route.oftContract);
+    if (toBigInt(allowance) < route.sendParam.amountLD) {
+      const approveTx = await erc20.approve(
         route.oftContract,
+        ethers.constants.MaxUint256,
       );
-      if (toBigInt(allowance) < route.sendParam.amountLD) {
-        const approveTx = await erc20.approve(
-          route.oftContract,
-          ethers.constants.MaxUint256,
-        );
-        await approveTx.wait();
-      }
-
-      const oft = new ethers.Contract(route.oftContract, OFT_ABI, wallet);
-      const tx = await oft.send(
-        route.sendParam,
-        route.messagingFee,
-        wallet.address,
-        {
-          value: route.messagingFee.nativeFee,
-        },
-      );
-      await tx.wait();
-
-      return {
-        txHash: tx.hash,
-        fromChain,
-        toChain,
-      };
+      await approveTx.wait();
     }
 
-    const tronProtocol = 'tron' as ProtocolType;
-    const key = privateKeys[tronProtocol];
-    assert(key, 'Missing private key for Tron chain');
-
-    const { TronWeb } = await import('tronweb');
-    const strippedKey = key.replace(/^0x/, '');
-    const tronWeb = new TronWeb({
-      fullHost: rpcUrl,
-      privateKey: strippedKey,
-    }) as unknown as TronWebLike;
-    const signerAddress = tronWeb.address.fromPrivateKey(strippedKey);
-
-    const signerHex = tronWeb.address.toHex(signerAddress);
-    const signerEvm = toEvmAddress(signerHex);
-    const oftTronAddress = tronWeb.address.fromHex(
-      toTronHexAddress(route.oftContract),
-    );
-    const usdtTronAddress = tronWeb.address.fromHex(
-      toTronHexAddress(route.usdtContract),
-    );
-
-    const erc20Iface = new ethers.utils.Interface(ERC20_ABI);
-    const allowanceCallData = erc20Iface.encodeFunctionData('allowance', [
-      signerEvm,
-      toEvmAddress(route.oftContract),
-    ]);
-    const allowanceResponse = await this.fetchWithRetry(
-      `${rpcUrl}/wallet/triggerconstantcontract`,
+    const oft = new ethers.Contract(route.oftContract, OFT_ABI, wallet);
+    const tx = await oft.send(
+      route.sendParam,
+      route.messagingFee,
+      wallet.address,
       {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          owner_address: signerHex,
-          contract_address: toTronHexAddress(route.usdtContract),
-          data: allowanceCallData,
-          visible: false,
-        }),
+        value: route.messagingFee.nativeFee,
       },
     );
-    const allowanceData = (await allowanceResponse.json()) as {
-      constant_result?: string[];
-    };
-    const allowanceDecoded = erc20Iface.decodeFunctionResult(
-      'allowance',
-      `0x${allowanceData.constant_result?.[0] ?? ''}`,
-    );
-    const allowance = toBigInt(allowanceDecoded[0]);
-
-    if (allowance < route.sendParam.amountLD) {
-      const approveResult =
-        await tronWeb.transactionBuilder.triggerSmartContract(
-          usdtTronAddress,
-          'approve(address,uint256)',
-          { callValue: 0, feeLimit: 100_000_000 },
-          [
-            { type: 'address', value: oftTronAddress },
-            {
-              type: 'uint256',
-              value: ethers.constants.MaxUint256.toString(),
-            },
-          ],
-          signerAddress,
-        );
-      assert(
-        approveResult.transaction,
-        'Tron approve transaction build failed',
-      );
-      const signedApprove = await tronWeb.trx.sign(approveResult.transaction);
-      await tronWeb.trx.sendRawTransaction(signedApprove);
-      await this.waitForTronTx(tronWeb, signedApprove.txID, rpcUrl);
-    }
-
-    const sendResult = await tronWeb.transactionBuilder.triggerSmartContract(
-      oftTronAddress,
-      'send((uint32,bytes32,uint256,uint256,bytes,bytes,bytes),(uint256,uint256),address)',
-      {
-        callValue: Number(route.messagingFee.nativeFee),
-        feeLimit: 500_000_000,
-      },
-      [
-        {
-          type: 'tuple(uint32,bytes32,uint256,uint256,bytes,bytes,bytes)',
-          value: [
-            route.sendParam.dstEid,
-            route.sendParam.to,
-            route.sendParam.amountLD.toString(),
-            route.sendParam.minAmountLD.toString(),
-            route.sendParam.extraOptions,
-            route.sendParam.composeMsg,
-            route.sendParam.oftCmd,
-          ],
-        },
-        {
-          type: 'tuple(uint256,uint256)',
-          value: [
-            route.messagingFee.nativeFee.toString(),
-            route.messagingFee.lzTokenFee.toString(),
-          ],
-        },
-        { type: 'address', value: signerAddress },
-      ],
-      signerAddress,
-    );
-    assert(sendResult.transaction, 'Tron send transaction build failed');
-
-    const signedSend = await tronWeb.trx.sign(sendResult.transaction);
-    await tronWeb.trx.sendRawTransaction(signedSend);
-    await this.waitForTronTx(tronWeb, signedSend.txID, rpcUrl);
+    await tx.wait();
 
     return {
-      txHash: sendResult.transaction.txID,
+      txHash: tx.hash,
       fromChain,
       toChain,
     };
@@ -480,29 +236,6 @@ export class LayerZeroBridge implements IExternalBridge {
       default:
         return { status: 'pending', substatus: statusName };
     }
-  }
-
-  private async waitForTronTx(
-    tronWeb: TronWebLike,
-    txId: string,
-    rpcUrl: string,
-  ): Promise<void> {
-    const start = Date.now();
-    while (Date.now() - start < 30_000) {
-      const info = await tronWeb.trx.getTransactionInfo(txId);
-      const result = info?.receipt?.result;
-
-      if (result === 'FAILED') {
-        throw new Error(`Tron transaction failed: ${txId} (${rpcUrl})`);
-      }
-      if (result === 'SUCCESS') {
-        return;
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-    }
-
-    throw new Error(`Tron transaction timed out: ${txId} (${rpcUrl})`);
   }
 
   private async fetchWithRetry(
