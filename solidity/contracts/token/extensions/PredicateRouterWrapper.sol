@@ -170,8 +170,11 @@ contract PredicateRouterWrapper is
         // Initialize PredicateClient (handles registry, policy storage and registration)
         _initPredicateClient(_registry, _policyID);
 
-        // Infinite approval to warp route for collateral routes only
-        if (tokenType == TokenType.Collateral) {
+        // Infinite approval to warp route for routes where it may pull tokens
+        if (
+            tokenType == TokenType.Collateral ||
+            tokenType == TokenType.Synthetic
+        ) {
             token.forceApprove(_warpRoute, type(uint256).max);
         }
     }
@@ -267,7 +270,7 @@ contract PredicateRouterWrapper is
         }
 
         // 8. Refund excess native value to caller
-        uint256 excess = address(this).balance;
+        uint256 excess = msg.value - totalNativeRequired;
         if (excess > 0) {
             (bool refundSuccess, ) = msg.sender.call{value: excess}("");
             if (!refundSuccess) revert PredicateRouterWrapper__RefundFailed();
