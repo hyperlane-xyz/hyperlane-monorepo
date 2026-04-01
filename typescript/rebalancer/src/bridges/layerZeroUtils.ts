@@ -10,12 +10,6 @@ export const CHAIN_ID_TO_EID: Record<number, number> = {
   9745: 30383, // Plasma
 };
 
-export const EID_TO_CHAIN_ID: Record<number, number> = {
-  30101: 1, // Ethereum
-  30110: 42161, // Arbitrum
-  30383: 9745, // Plasma
-};
-
 // ============================================================================
 // Contract Addresses
 // ============================================================================
@@ -160,17 +154,6 @@ export function getEID(chainId: number): number {
     throw new Error(`No EID configured for chain ${chainId}`);
   }
   return eid;
-}
-
-/**
- * Get the chain ID from a LayerZero EID
- */
-export function getChainIdFromEID(eid: number): number {
-  const chainId = EID_TO_CHAIN_ID[eid];
-  if (chainId === undefined) {
-    throw new Error(`No chain ID configured for EID ${eid}`);
-  }
-  return chainId;
 }
 
 /**
