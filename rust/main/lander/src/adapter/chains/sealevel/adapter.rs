@@ -150,6 +150,27 @@ impl SealevelAdapter {
     }
 
     #[cfg(test)]
+    fn new_internal_default_with_identity(
+        identity: SealevelKeypair,
+        client: Arc<dyn SubmitSealevelRpc>,
+        provider: Arc<dyn SealevelProviderForLander>,
+        oracle: Arc<dyn PriorityFeeOracle>,
+        submitter: Arc<dyn TransactionSubmitter>,
+    ) -> Self {
+        Self {
+            estimated_block_time: Duration::from_secs(1),
+            max_batch_size: 1,
+            keypair: SealevelKeypair::default(),
+            identity: Some(identity),
+            provider,
+            client,
+            oracle,
+            submitter,
+            estimate_freshness_cache: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
+    #[cfg(test)]
     fn new_internal_default(
         client: Arc<dyn SubmitSealevelRpc>,
         provider: Arc<dyn SealevelProviderForLander>,
@@ -242,7 +263,16 @@ impl SealevelAdapter {
             estimate,
         } = precursor;
 
-        let additional_signers: Vec<&SealevelKeypair> = self.identity.iter().collect();
+        let additional_signers: Vec<&SealevelKeypair> = self
+            .identity
+            .iter()
+            .filter(|signer| {
+                instruction
+                    .accounts
+                    .iter()
+                    .any(|meta| meta.pubkey == signer.pubkey() && meta.is_signer)
+            })
+            .collect();
         self.provider
             .create_transaction_for_instruction(
                 estimate.compute_units,

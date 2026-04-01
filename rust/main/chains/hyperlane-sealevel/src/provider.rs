@@ -79,16 +79,16 @@ pub trait SealevelProviderForLander: Send + Sync {
     /// Creates Sealevel transaction for instruction.
     /// Returns `SealevelTxType::Versioned` with ALT if `alt_address` is provided,
     /// or `SealevelTxType::Legacy` otherwise.
-    async fn create_transaction_for_instruction(
+    async fn create_transaction_for_instruction<'a>(
         &self,
         compute_unit_limit: u32,
         compute_unit_price_micro_lamports: u64,
         instruction: Instruction,
-        payer: &SealevelKeypair,
+        payer: &'a SealevelKeypair,
         tx_submitter: Arc<dyn TransactionSubmitter>,
         sign: bool,
         alt_address: Option<Pubkey>,
-        additional_signers: &[&SealevelKeypair],
+        additional_signers: &'a [&'a SealevelKeypair],
     ) -> ChainResult<SealevelTxType>;
 
     /// Estimates cost for Sealevel instruction.
@@ -150,16 +150,16 @@ impl SealevelProviderForLander for SealevelProvider {
     /// Returns `SealevelTxType::Versioned` with ALT if `alt_address` is provided,
     /// or `SealevelTxType::Legacy` otherwise.
     /// If `sign` is true, the transaction will be signed.
-    async fn create_transaction_for_instruction(
+    async fn create_transaction_for_instruction<'a>(
         &self,
         compute_unit_limit: u32,
         compute_unit_price_micro_lamports: u64,
         instruction: Instruction,
-        payer: &SealevelKeypair,
+        payer: &'a SealevelKeypair,
         tx_submitter: Arc<dyn TransactionSubmitter>,
         sign: bool,
         alt_address: Option<Pubkey>,
-        additional_signers: &[&SealevelKeypair],
+        additional_signers: &'a [&'a SealevelKeypair],
     ) -> ChainResult<SealevelTxType> {
         let instructions = vec![
             // Set the compute unit limit.

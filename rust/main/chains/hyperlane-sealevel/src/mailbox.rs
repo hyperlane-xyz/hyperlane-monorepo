@@ -545,8 +545,17 @@ impl Mailbox for SealevelMailbox {
         let payload = self.get_process_payload(message, metadata).await?;
 
         let payer = self.get_payer()?;
-        let additional_signers: Vec<&SealevelKeypair> =
-            self.get_signer_if_separate().into_iter().collect();
+        let additional_signers: Vec<&SealevelKeypair> = self
+            .get_signer_if_separate()
+            .filter(|signer| {
+                payload
+                    .instruction
+                    .accounts
+                    .iter()
+                    .any(|meta| meta.pubkey == signer.pubkey() && meta.is_signer)
+            })
+            .into_iter()
+            .collect();
         let tx = self
             .provider
             .build_estimated_tx_for_instruction(
