@@ -374,7 +374,7 @@ async function resolveImplementationHash(
     if (hasAbiMethod(contract, 'implementation')) {
       return coerceClassHash(await callContract(contract, 'implementation'));
     }
-  } catch (error) {
+  } catch (error: unknown) {
     rootLogger.warn(
       { address: contract.address, error },
       'Proxy resolution failed; falling back to contract own ABI',
