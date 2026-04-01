@@ -93,6 +93,8 @@ abstract contract AbstractOffchainQuoter is IOffchainQuoter {
         _verifyQuoteSigner(sq, signature);
 
         // transient quotes (expiry == issuedAt) auto-clear at end of tx.
+        // NOTE: Keep transient quote expiry windows as short as possible (ideally
+        // same-block) to minimize the window for price manipulation or front-running.
         // standing quotes persist in storage until they expire or are overwritten.
         if (sq.expiry == sq.issuedAt) {
             _storeTransient(sq);
