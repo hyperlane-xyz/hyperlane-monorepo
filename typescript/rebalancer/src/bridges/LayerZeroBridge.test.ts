@@ -37,9 +37,9 @@ const BRIDGE_CONFIG: ExternalBridgeConfig = {
       rpcUrls: [{ http: 'https://arb-rpc.example.com' }],
     },
     plasma: {
-      chainId: 7758,
+      chainId: 9745,
       name: 'plasma',
-      domainId: 7758,
+      domainId: 9745,
       protocol: ProtocolType.Ethereum,
       rpcUrls: [{ http: 'https://plasma-rpc.example.com' }],
     },
@@ -48,7 +48,7 @@ const BRIDGE_CONFIG: ExternalBridgeConfig = {
 
 const BASE_PARAMS = {
   fromChain: 42161,
-  toChain: 7758,
+  toChain: 9745,
   fromToken: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9',
   toToken: '0xB8CE59FC3717ada4C02eaDF9682A9e934F625ebb',
   fromAddress: '0x1234567890123456789012345678901234567890',
@@ -234,7 +234,7 @@ describe('LayerZeroBridge', function () {
       expect(result).to.deep.equal({
         txHash: '0xdeadbeef',
         fromChain: 42161,
-        toChain: 7758,
+        toChain: 9745,
       });
       expect(allowanceStub.calledOnce).to.equal(true);
       expect(approveStub.calledOnce).to.equal(true);
@@ -309,7 +309,7 @@ describe('LayerZeroBridge', function () {
         ),
       );
 
-      const status = await bridge.getStatus('0xabc123', 42161, 7758);
+      const status = await bridge.getStatus('0xabc123', 42161, 9745);
 
       expect(status).to.deep.equal({
         status: 'complete',
@@ -334,7 +334,7 @@ describe('LayerZeroBridge', function () {
         ),
       );
 
-      const status = await bridge.getStatus('0xabc123', 42161, 7758);
+      const status = await bridge.getStatus('0xabc123', 42161, 9745);
       expect(status).to.deep.equal({
         status: 'pending',
         substatus: 'INFLIGHT',
@@ -357,7 +357,7 @@ describe('LayerZeroBridge', function () {
         ),
       );
 
-      const status = await bridge.getStatus('0xabc123', 42161, 7758);
+      const status = await bridge.getStatus('0xabc123', 42161, 9745);
       expect(status).to.deep.equal({ status: 'failed', error: 'FAILED' });
     });
 
@@ -377,7 +377,7 @@ describe('LayerZeroBridge', function () {
         ),
       );
 
-      const status = await bridge.getStatus('0xabc123', 42161, 7758);
+      const status = await bridge.getStatus('0xabc123', 42161, 9745);
       expect(status).to.deep.equal({ status: 'failed', error: 'BLOCKED' });
     });
 
@@ -397,7 +397,7 @@ describe('LayerZeroBridge', function () {
         ),
       );
 
-      const status = await bridge.getStatus('0xabc123', 42161, 7758);
+      const status = await bridge.getStatus('0xabc123', 42161, 9745);
       expect(status).to.deep.equal({ status: 'not_found' });
     });
 
@@ -408,7 +408,7 @@ describe('LayerZeroBridge', function () {
         return makeResponse(createMockLZScanResponse('INFLIGHT'));
       });
 
-      await bridge.getStatus('abc123', 42161, 7758);
+      await bridge.getStatus('abc123', 42161, 9745);
       expect(calledUrl).to.include('/0xabc123');
     });
   });
