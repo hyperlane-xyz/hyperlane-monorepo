@@ -277,6 +277,25 @@ contract DefaultFallbackRoutingIsmTest is DomainRoutingIsmTest {
         new DefaultFallbackRoutingIsm(address(0));
     }
 
+    function testRemoveBatch(uint32 domain, uint8 count) public override {
+        vm.assume(count > 0);
+        uint32[] memory domains = uniqueDomains(domain, count);
+        IInterchainSecurityModule[] memory modules = deployTestIsms(count);
+        DomainRoutingIsm.DomainModule[]
+            memory domainModules = new DomainRoutingIsm.DomainModule[](count);
+        for (uint256 i = 0; i < count; ++i) {
+            domainModules[i] = DomainRoutingIsm.DomainModule({
+                domain: domains[i],
+                module: modules[i]
+            });
+        }
+        ism.addBatch(domainModules);
+        ism.removeBatch(domains);
+        for (uint256 i = 0; i < count; ++i) {
+            assertEq(address(ism.module(domains[i])), address(defaultIsm));
+        }
+    }
+
     function testVerifyNoIsm(uint32 domain, bytes32 seed) public override {
         vm.assume(domain > 0);
         ism.set(domain, deployTestIsm(seed));
