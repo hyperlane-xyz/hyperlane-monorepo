@@ -126,7 +126,7 @@ export const getRebalancingUSDCConfigForChain = (
 
 export function getRebalancingBridgesConfigFor(
   deploymentChains: readonly ChainName[],
-  warpRouteIds: [string, ...string[]],
+  warpRouteIds: [WarpRouteIds, ...WarpRouteIds[]],
 ): ChainMap<RebalancingConfig> {
   const registry = getRegistry();
 
