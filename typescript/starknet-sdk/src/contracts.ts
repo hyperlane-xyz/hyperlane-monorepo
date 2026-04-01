@@ -407,10 +407,22 @@ function coerceClassHash(value: unknown): bigint {
  * to contract call-based reading. Some Starknet chains (e.g. Paradex)
  * have privacy enabled that disallows direct storage reads.
  */
+/** JSON-RPC error codes that indicate storage reads are unavailable. */
+const STORAGE_READ_FALLBACK_CODES = new Set([-32601, -32000]);
+
+/** Error message fragments (lowercase) that indicate storage reads are unavailable. */
+const STORAGE_READ_FALLBACK_MESSAGES = [
+  'method not found',
+  'method not allowed',
+  'not supported',
+  'unsupported',
+  'not implemented',
+] as const;
+
 export function shouldFallbackStorageRead(error: unknown): boolean {
   const code =
     error && typeof error === 'object' ? Reflect.get(error, 'code') : undefined;
-  if (code === -32601 || code === -32000) return true;
+  if (STORAGE_READ_FALLBACK_CODES.has(code)) return true;
 
   const message =
     error instanceof Error
@@ -424,11 +436,7 @@ export function shouldFallbackStorageRead(error: unknown): boolean {
           );
   const normalizedMessage = message.toLowerCase();
 
-  return [
-    'method not found',
-    'method not allowed',
-    'not supported',
-    'unsupported',
-    'not implemented',
-  ].some((fragment) => normalizedMessage.includes(fragment));
+  return STORAGE_READ_FALLBACK_MESSAGES.some((fragment) =>
+    normalizedMessage.includes(fragment),
+  );
 }

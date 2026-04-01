@@ -63,13 +63,12 @@ describe('Starknet Warp Token read E2E Tests', function () {
     },
   ]) {
     it(`should read ${testCase.type} token on ${testCase.chainMetadata.name} at ${testCase.tokenAddress}`, async () => {
+      const artifactManager = new StarknetWarpArtifactManager(
+        testCase.chainMetadata,
+      );
+
       const read = await retryAsync(
-        () => {
-          const artifactManager = new StarknetWarpArtifactManager(
-            testCase.chainMetadata,
-          );
-          return artifactManager.readWarpToken(testCase.tokenAddress);
-        },
+        async () => artifactManager.readWarpToken(testCase.tokenAddress),
         3,
         7000,
       );
