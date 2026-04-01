@@ -1,4 +1,4 @@
-import { createHash } from 'crypto';
+import { bytesToAddressTron } from '@hyperlane-xyz/utils';
 
 // ============================================================================
 // API Constants
@@ -51,46 +51,9 @@ export function isDebridgeTronChain(debridgeChainId: number): boolean {
 }
 
 /**
- * Base58 encode a buffer using the Bitcoin alphabet
- */
-function base58Encode(buf: Buffer): string {
-  const ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
-  let n = BigInt('0x' + buf.toString('hex'));
-  let s = '';
-  while (n > 0n) {
-    s = ALPHABET[Number(n % 58n)] + s;
-    n = n / 58n;
-  }
-  // Preserve leading zero bytes as '1' characters
-  for (const b of buf) {
-    if (b !== 0) break;
-    s = '1' + s;
-  }
-  return s;
-}
-
-/**
- * Convert a hex address to Tron base58check format
- * Strips 0x prefix, adds 0x41 Tron mainnet prefix, computes double-SHA256 checksum
- */
-function hexToTronBase58(hexAddress: string): string {
-  const TRON_PREFIX = '41';
-  const addr = hexAddress.replace(/^0x/, '').replace(/^41/, '');
-  const withPrefix = Buffer.from(TRON_PREFIX + addr, 'hex');
-  const hash1 = createHash('sha256').update(withPrefix).digest();
-  const hash2 = createHash('sha256').update(hash1).digest();
-  const checksum = hash2.slice(0, 4);
-  const full = Buffer.concat([withPrefix, checksum]);
-  return base58Encode(full);
-}
-
-/**
- * Format an address for deBridge API calls
- * For Tron: converts hex addresses to base58check format
- * For EVM chains: returns address as-is
- * @param address The address to format
- * @param debridgeChainId The deBridge chain ID
- * @returns Formatted address
+ * Format an address for deBridge API calls.
+ * For Tron: converts hex addresses to base58check format.
+ * For EVM chains: returns address as-is.
  */
 export function formatAddressForDebridge(
   address: string,
@@ -101,9 +64,10 @@ export function formatAddressForDebridge(
     if (address.startsWith('T') && address.length === 34) {
       return address;
     }
-    // Hex address — convert to Tron base58
+    // Hex address — convert to Tron base58 using @hyperlane-xyz/utils
     if (address.startsWith('0x') || address.startsWith('41')) {
-      return hexToTronBase58(address);
+      const hex = address.replace(/^0x/, '').replace(/^41/, '');
+      return bytesToAddressTron(Buffer.from(hex, 'hex'));
     }
   }
   return address;
