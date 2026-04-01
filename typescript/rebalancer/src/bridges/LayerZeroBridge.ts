@@ -25,16 +25,6 @@ import {
   type LayerZeroBridgeRoute,
 } from './layerZeroUtils.js';
 
-function toBigInt(value: unknown): bigint {
-  if (typeof value === 'bigint') return value;
-  if (typeof value === 'number') return BigInt(value);
-  if (typeof value === 'string') return BigInt(value);
-  if (value && typeof value === 'object' && 'toString' in value) {
-    return BigInt((value as { toString: () => string }).toString());
-  }
-  throw new Error(`Unable to convert value to bigint: ${String(value)}`);
-}
-
 export class LayerZeroBridge implements IExternalBridge {
   readonly externalBridgeId = 'layerzero';
   readonly logger: Logger;
@@ -111,10 +101,14 @@ export class LayerZeroBridge implements IExternalBridge {
             oftReceipt: quoteOFTResult[2],
           };
     const oftFeeDetails = (
-      quoteOFTTuple.oftFeeDetails as Array<{ feeAmountLD: unknown }>
-    ).map((fee) => ({ feeAmountLD: toBigInt(fee.feeAmountLD) }));
+      quoteOFTTuple.oftFeeDetails as Array<{
+        feeAmountLD: { toString(): string };
+      }>
+    ).map((fee) => ({ feeAmountLD: BigInt(fee.feeAmountLD.toString()) }));
     const oftReceipt = {
-      amountReceivedLD: toBigInt(quoteOFTTuple.oftReceipt.amountReceivedLD),
+      amountReceivedLD: BigInt(
+        quoteOFTTuple.oftReceipt.amountReceivedLD.toString(),
+      ),
     };
     sendParam.minAmountLD = oftReceipt.amountReceivedLD;
 
@@ -124,8 +118,8 @@ export class LayerZeroBridge implements IExternalBridge {
         ? quoteSendResult
         : quoteSendResult[0];
     const messagingFee: MessagingFee = {
-      nativeFee: toBigInt(quoteSendTuple.nativeFee),
-      lzTokenFee: toBigInt(quoteSendTuple.lzTokenFee),
+      nativeFee: BigInt(quoteSendTuple.nativeFee.toString()),
+      lzTokenFee: BigInt(quoteSendTuple.lzTokenFee.toString()),
     };
 
     const feeCosts = oftFeeDetails.reduce(
@@ -173,7 +167,7 @@ export class LayerZeroBridge implements IExternalBridge {
 
     const erc20 = new ethers.Contract(route.usdtContract, ERC20_ABI, wallet);
     const allowance = await erc20.allowance(wallet.address, route.oftContract);
-    if (toBigInt(allowance) < route.sendParam.amountLD) {
+    if (BigInt(allowance.toString()) < route.sendParam.amountLD) {
       const approveTx = await erc20.approve(
         route.oftContract,
         ethers.constants.MaxUint256,
