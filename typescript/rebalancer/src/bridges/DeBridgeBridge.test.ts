@@ -85,8 +85,8 @@ function createMockQuoteResponse(
         address: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
         name: 'Tether USD',
         symbol: 'USDT',
-        decimals: 6,
-        amount: '4998000',
+        decimals: 18,
+        amount: '4990000000000000000',
       },
     },
     fixFee: '1000',
@@ -104,7 +104,7 @@ function createMockStatusResponse(
   if (status === 'Fulfilled' || status === 'ClaimedUnlock') {
     base.fulfilledDstEventMetadata = {
       transactionHash: { stringValue: '0x' + 'b'.repeat(64) },
-      receivedAmount: { bigIntegerValue: '4998000' },
+      receivedAmount: { bigIntegerValue: '4990000000000000000' },
       ...overrides?.fulfilledDstEventMetadata,
     };
   }
@@ -238,8 +238,8 @@ describe('DeBridgeBridge.quote()', function () {
 
     expect(quote.tool).to.equal('debridge');
     expect(quote.fromAmount).to.equal(5000000000000000000n);
-    expect(quote.toAmount).to.equal(4998000n);
-    expect(quote.toAmountMin).to.equal(4998000n);
+    expect(quote.toAmount).to.equal(4990000000000000000n);
+    expect(quote.toAmountMin).to.equal(4990000000000000000n);
     expect(quote.feeCosts).to.equal(1500n); // 1000 + 500
     expect(quote.gasCosts).to.equal(0n);
     expect(quote.executionDuration).to.equal(60);
@@ -257,12 +257,12 @@ describe('DeBridgeBridge.quote()', function () {
       fromToken: '0x55d398326f99059fF775485246999027B3197955',
       toToken: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
       fromAddress: '0x1234567890123456789012345678901234567890',
-      toAmount: 4998000n,
+      toAmount: 4990000000000000000n,
     });
 
     // When toAmount is specified (fromAmount undefined), fromAmount comes from API response
     expect(quote.fromAmount).to.equal(5000000000000000000n);
-    expect(quote.toAmount).to.equal(4998000n);
+    expect(quote.toAmount).to.equal(4990000000000000000n);
   });
 
   it('throws when API returns error response (no estimation)', async () => {
@@ -364,7 +364,7 @@ describe('DeBridgeBridge.quote()', function () {
 
     expect(calledUrl).to.include('srcChainId=100000028');
     expect(calledUrl).to.include('dstChainId=100000026');
-    expect(calledUrl).to.include('prependOperatingExpenses=true');
+    expect(calledUrl).to.include('prependOperatingExpenses=false');
   });
 
   it('formats Tron token addresses in API URL', async () => {
@@ -420,7 +420,7 @@ describe('DeBridgeBridge.getStatus()', function () {
     expect(status).to.deep.equal({
       status: 'complete',
       receivingTxHash: '0x' + 'b'.repeat(64),
-      receivedAmount: 4998000n,
+      receivedAmount: 4990000000000000000n,
     });
   });
 
