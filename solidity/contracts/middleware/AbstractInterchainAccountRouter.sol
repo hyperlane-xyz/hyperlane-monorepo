@@ -245,6 +245,10 @@ abstract contract AbstractInterchainAccountRouter is Router {
             );
 
             IERC20(_feeToken).safeTransferFrom(msg.sender, address(this), _fee);
+            // Standing approval is acceptable here: postDispatch replay with a
+            // crafted message could spend this approval, but tokens are never held
+            // in this contract so there is nothing to drain. Funds collected by the
+            // hook are recoverable by the hook beneficiary, not the attacker.
             IERC20(_feeToken).forceApprove(address(_hook), type(uint256).max);
         }
 

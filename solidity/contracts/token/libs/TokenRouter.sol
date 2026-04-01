@@ -254,7 +254,10 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
                 );
             }
 
-            // Approve fee hook to pull fee tokens
+            // Per-call approval only: standing approvals to fee hooks are unsafe
+            // because postDispatch is publicly callable with arbitrary message data,
+            // allowing a third party to spend the approval. Funds would go to the
+            // hook beneficiary (not the attacker), but the caller still loses tokens.
             IERC20(_token).forceApprove(_feeHook, hookFee);
         }
 
