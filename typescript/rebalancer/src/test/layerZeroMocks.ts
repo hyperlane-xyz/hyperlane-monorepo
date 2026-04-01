@@ -109,7 +109,7 @@ export function createMockLayerZeroBridgeRoute(
     oftContract: '0x14E4A1B13bf7F943c8ff7C51fb60FA964A298D92', // Arbitrum native OFT
     usdtContract: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9', // Arbitrum USDT
     fromChainId: 42161, // Arbitrum
-    toChainId: 7758, // Plasma
+    toChainId: 9745, // Plasma
     ...overrides,
   };
 }
@@ -123,7 +123,7 @@ export function createMockLayerZeroQuote(
 ): BridgeQuote<LayerZeroBridgeRoute> {
   const requestParams: BridgeQuoteParams = {
     fromChain: 42161, // Arbitrum
-    toChain: 7758, // Plasma
+    toChain: 9745, // Plasma
     fromToken: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9', // Arbitrum USDT
     toToken: '0xB8CE59FC3717ada4C02eaDF9682A9e934F625ebb', // Plasma USDT
     fromAddress: '0x1234567890123456789012345678901234567890',
