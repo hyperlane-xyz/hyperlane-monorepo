@@ -26,6 +26,9 @@ multisig-ism = { path = "../../../libraries/multisig-ism" }
 serializable-account-meta = { path = "../../../libraries/serializable-account-meta" }
 
 [dev-dependencies]
+hyperlane-test-utils = { path = "../../../libraries/test-utils" }
+solana-banks-interface.workspace = true
+tokio = { workspace = true, features = ["macros", "rt"] }
 multisig-ism = { path = "../../../libraries/multisig-ism", features = ["test-data"] }
 solana-program-test.workspace = true
 solana-sdk.workspace = true

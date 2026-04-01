@@ -3461,16 +3461,19 @@ dependencies = [
  "hex",
  "hyperlane-core",
  "hyperlane-sealevel-interchain-security-module-interface",
+ "hyperlane-test-utils",
  "multisig-ism",
  "num-derive",
  "num-traits",
  "rand 0.8.5",
  "serializable-account-meta",
+ "solana-banks-interface",
  "solana-program 3.0.0",
  "solana-program-test",
  "solana-sdk",
  "solana-system-interface 2.0.0",
  "thiserror 1.0.69",
+ "tokio",
 ]
 
 [[package]]
@@ -11384,6 +11387,7 @@ dependencies = [
  "signal-hook-registry",
  "socket2 0.6.2",
  "tokio-macros",
+ "tracing",
  "windows-sys 0.61.2",
 ]
 
