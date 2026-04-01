@@ -1,4 +1,5 @@
 import { ethers } from 'ethers';
+import { TronWeb } from 'tronweb';
 
 import type { ChainMap, ChainMetadata } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
@@ -27,29 +28,6 @@ import {
 const TIMEOUT_MS = 30_000;
 const MAX_RETRIES = 3;
 const BASE_BACKOFF_MS = 1_000;
-
-type TronWebLike = {
-  trx: {
-    getTransactionInfo: (txId: string) => Promise<{
-      receipt?: { result?: string };
-    }>;
-    sign: (tx: unknown) => Promise<{ txID: string }>;
-    sendRawTransaction: (signed: unknown) => Promise<{ result?: boolean }>;
-  };
-  address: {
-    fromPrivateKey: (privateKey: string) => string;
-    toHex: (address: string) => string;
-  };
-  transactionBuilder: {
-    triggerSmartContract: (
-      contractAddress: string,
-      functionSelector: string,
-      options: { callValue: number; feeLimit: number },
-      parameters: Array<{ type: string; value: unknown }>,
-      issuerAddress: string,
-    ) => Promise<{ transaction?: { txID: string } }>;
-  };
-};
 
 export class DeBridgeBridge implements IExternalBridge {
   readonly externalBridgeId = DEBRIDGE_TOOL;
@@ -178,21 +156,33 @@ export class DeBridgeBridge implements IExternalBridge {
     const isTronSource = isDebridgeTronChain(srcDebridgeChainId);
     const isTronDest = isDebridgeTronChain(dstDebridgeChainId);
 
+    const sourceProtocol = isTronSource
+      ? ('tron' as ProtocolType)
+      : ProtocolType.Ethereum;
+
     let senderAddress: string;
-    if (isTronSource) {
-      const tronKey = privateKeys['tron' as ProtocolType];
-      assert(tronKey, 'Missing private key for Tron chain');
-      const { TronWeb } = await import('tronweb');
-      const strippedKey = tronKey.replace(/^0x/, '');
-      const tw = new TronWeb({
-        fullHost: 'https://api.trongrid.io',
-        privateKey: strippedKey,
-      }) as unknown as TronWebLike;
-      senderAddress = tw.address.fromPrivateKey(strippedKey);
-    } else {
-      const evmKey = privateKeys[ProtocolType.Ethereum];
-      assert(evmKey, 'Missing private key for EVM chain');
-      senderAddress = new ethers.Wallet(evmKey).address;
+    switch (sourceProtocol) {
+      case 'tron' as ProtocolType: {
+        const tronKey = privateKeys['tron' as ProtocolType];
+        assert(tronKey, 'Missing private key for Tron chain');
+        const strippedKey = tronKey.replace(/^0x/, '');
+        const tw = new TronWeb({
+          fullHost: 'https://api.trongrid.io',
+          privateKey: strippedKey,
+        });
+        const derived = tw.address.fromPrivateKey(strippedKey);
+        assert(derived, 'Failed to derive Tron address from private key');
+        senderAddress = derived as string;
+        break;
+      }
+      case ProtocolType.Ethereum: {
+        const evmKey = privateKeys[ProtocolType.Ethereum];
+        assert(evmKey, 'Missing private key for EVM chain');
+        senderAddress = new ethers.Wallet(evmKey).address;
+        break;
+      }
+      default:
+        throw new Error(`Unsupported source protocol: ${sourceProtocol}`);
     }
 
     let recipientAddress: string;
@@ -263,29 +253,32 @@ export class DeBridgeBridge implements IExternalBridge {
     const { to, data: txData, value: txValue } = createTxData.tx;
     const orderId = createTxData.orderId;
 
-    if (isTronSource) {
-      return this.executeTron(
-        privateKeys,
-        to,
-        txData,
-        txValue,
-        orderId,
-        params.fromChain,
-        params.toChain,
-      );
+    switch (sourceProtocol) {
+      case 'tron' as ProtocolType:
+        return this.executeTron(
+          privateKeys,
+          to,
+          txData,
+          txValue,
+          orderId,
+          params.fromChain,
+          params.toChain,
+        );
+      case ProtocolType.Ethereum:
+        return this.executeEvm(
+          privateKeys,
+          to,
+          txData,
+          txValue,
+          orderId,
+          params.fromChain,
+          params.toChain,
+          params.fromToken,
+          quote.fromAmount,
+        );
+      default:
+        throw new Error(`Unsupported source protocol: ${sourceProtocol}`);
     }
-
-    return this.executeEvm(
-      privateKeys,
-      to,
-      txData,
-      txValue,
-      orderId,
-      params.fromChain,
-      params.toChain,
-      params.fromToken,
-      quote.fromAmount,
-    );
   }
 
   async getStatus(
@@ -455,19 +448,18 @@ export class DeBridgeBridge implements IExternalBridge {
     const tronKey = privateKeys['tron' as ProtocolType];
     assert(tronKey, 'Missing private key for Tron chain');
 
-    const { TronWeb } = await import('tronweb');
     const strippedKey = tronKey.replace(/^0x/, '');
     const rpcUrl = this.getRpcUrl(fromChain);
     const tronWeb = new TronWeb({
       fullHost: rpcUrl,
       privateKey: strippedKey,
-    }) as unknown as TronWebLike;
+    });
     const signerAddress = tronWeb.address.fromPrivateKey(strippedKey);
+    assert(signerAddress, 'Failed to derive Tron address from private key');
+
     // deBridge provides raw ABI calldata in tx.data.
     // Extract function selector (first 4 bytes) and pass remaining bytes
     // as hex parameter to triggerSmartContract.
-    // Note: This path is for Tron as source chain (less common than EVM source).
-    // The data field from deBridge is EVM ABI-encoded calldata.
     const functionSelector = data.slice(2, 10); // first 4 bytes (8 hex chars after 0x)
     const hexParams = data.slice(10); // remaining calldata
     const callValue = Number(BigInt(value));
@@ -482,37 +474,43 @@ export class DeBridgeBridge implements IExternalBridge {
       `0x${functionSelector}`,
       { callValue, feeLimit: 500_000_000 },
       [{ type: 'bytes', value: hexParams }],
-      signerAddress,
+      signerAddress as string,
     );
 
     assert(triggerResult.transaction, 'Tron transaction build failed');
 
     // Inject the raw calldata from deBridge API into the built transaction
-    const rawTx = triggerResult.transaction as Record<string, unknown>;
+    const rawTx = triggerResult.transaction as unknown as Record<
+      string,
+      unknown
+    >;
     const rawData = (rawTx.raw_data as Record<string, unknown>) ?? {};
     rawTx.raw_data = { ...rawData, data };
 
-    const signedTx = await tronWeb.trx.sign(rawTx);
-    await tronWeb.trx.sendRawTransaction(signedTx);
-    await this.waitForTronTx(tronWeb, signedTx.txID);
+    const signedTx = await tronWeb.trx.sign(
+      rawTx as unknown as Parameters<typeof tronWeb.trx.sign>[0],
+    );
+    assert(typeof signedTx !== 'string', 'Unexpected string from trx.sign');
+    await tronWeb.trx.sendRawTransaction(
+      signedTx as Parameters<typeof tronWeb.trx.sendRawTransaction>[0],
+    );
+    const txId = (signedTx as { txID: string }).txID;
+    await this.waitForTronTx(tronWeb, txId);
 
     this.logger.info(
-      { txHash: signedTx.txID, orderId },
+      { txHash: txId, orderId },
       'deBridge Tron transaction confirmed',
     );
 
     return {
-      txHash: signedTx.txID,
+      txHash: txId,
       fromChain,
       toChain,
       transferId: orderId,
     };
   }
 
-  private async waitForTronTx(
-    tronWeb: TronWebLike,
-    txId: string,
-  ): Promise<void> {
+  private async waitForTronTx(tronWeb: TronWeb, txId: string): Promise<void> {
     const start = Date.now();
     while (Date.now() - start < TIMEOUT_MS) {
       const info = await tronWeb.trx.getTransactionInfo(txId);
