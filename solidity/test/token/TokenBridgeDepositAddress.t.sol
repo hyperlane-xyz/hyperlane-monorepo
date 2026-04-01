@@ -135,6 +135,23 @@ contract TokenBridgeDepositAddressTest is Test {
         bridge.quoteTransferRemote(DOMAIN_ARB, wrongRecipient, 100e6);
     }
 
+    function test_addDestinationConfig_revertsOnDuplicate() public {
+        vm.prank(owner);
+        vm.expectRevert("deposit address already configured");
+        bridge.addDestinationConfig(
+            DOMAIN_ARB,
+            depositAddress,
+            recipient,
+            FEE_BPS
+        );
+    }
+
+    function test_transferRemote_revertsOnZeroAmount() public {
+        vm.prank(caller);
+        vm.expectRevert("amount must be > 0");
+        bridge.transferRemote(DOMAIN_ARB, recipient, 0);
+    }
+
     function test_transferRemote() public {
         uint256 amount = 100e6;
         uint256 feeAmount = (amount * FEE_BPS) / MAX_BPS;

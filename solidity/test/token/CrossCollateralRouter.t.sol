@@ -640,6 +640,27 @@ contract CrossCollateralRouterTest is Test {
         );
     }
 
+    function test_revert_handle_sameDomainViaMailbox() public {
+        vm.prank(address(originMailbox));
+        vm.expectRevert("CCR: same-domain via mailbox not allowed");
+        usdcRouterA.handle(
+            ORIGIN,
+            address(usdcRouterA).addressToBytes32(),
+            abi.encodePacked(BOB.addressToBytes32(), uint256(100e18))
+        );
+    }
+
+    function test_revert_requireAuthorizedRouter_zeroAddress() public {
+        vm.prank(ALICE);
+        vm.expectRevert("CCR: router is zero address");
+        usdcRouterA.transferRemoteTo(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            1000e6,
+            bytes32(0)
+        );
+    }
+
     // ============ 8. Direct-call handle security ============
 
     function test_revert_handle_directCall_unenrolledCaller() public {
