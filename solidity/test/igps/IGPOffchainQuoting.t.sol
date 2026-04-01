@@ -367,7 +367,7 @@ contract IGPOffchainQuotingTest is Test {
         assertEq(fee, 30_000_000); // oracle
     }
 
-    function test_standingQuote_staleRejected() public {
+    function test_standingQuote_staleReverts() public {
         uint48 now_ = uint48(block.timestamp);
         _submitStanding(
             address(0),
@@ -391,6 +391,38 @@ contract IGPOffchainQuotingTest is Test {
         bytes memory sig = _signQuote(sq);
         vm.expectRevert(AbstractOffchainQuoter.StaleQuote.selector);
         igp.submitQuote(sq, sig);
+    }
+
+    function test_standingQuote_equalIssuedAt_noop() public {
+        uint48 now_ = uint48(block.timestamp);
+        _submitStanding(
+            address(0),
+            DEST,
+            address(this),
+            EXCHANGE_RATE,
+            GAS_PRICE,
+            now_,
+            now_ + 3600
+        );
+
+        // Same issuedAt should be silently skipped (no revert, no update)
+        SignedQuote memory sq = SignedQuote({
+            context: abi.encodePacked(address(0), DEST, address(this)),
+            data: _encodeGasData(3e10, 200),
+            issuedAt: now_,
+            expiry: now_ + 7200,
+            salt: bytes32(0),
+            submitter: address(0)
+        });
+        bytes memory sig = _signQuote(sq);
+        igp.submitQuote(sq, sig);
+
+        // Original quote values should be preserved
+        uint256 fee = igp.quoteGasPayment(DEST, GAS_LIMIT);
+        uint256 expected = (uint256(GAS_LIMIT) *
+            uint256(GAS_PRICE) *
+            uint256(EXCHANGE_RATE)) / 1e10;
+        assertEq(fee, expected);
     }
 
     // ============ Priority ============
