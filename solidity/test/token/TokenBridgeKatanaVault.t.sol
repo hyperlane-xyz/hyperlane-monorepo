@@ -324,7 +324,7 @@ contract TokenBridgeKatanaRedeemIcaTest is Test {
         shareBridge.addDomain(ETH_DOMAIN, ETH_EID);
 
         bridge = new TokenBridgeKatanaRedeemIca(
-            address(shareBridge), address(icaRouter), ethereumVaultHelper, ethereumBeneficiary, ICA_GAS_LIMIT, owner
+            address(shareBridge), address(icaRouter), ethereumVaultHelper, ethereumBeneficiary, ICA_GAS_LIMIT
         );
 
         usdc.mint(caller, 1_000e6);

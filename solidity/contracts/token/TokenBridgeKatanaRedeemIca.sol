@@ -13,7 +13,6 @@ import {IKatanaVaultRedeemer} from "./interfaces/IKatanaVaultRedeemer.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title TokenBridgeKatanaRedeemIca
@@ -33,7 +32,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
  *      - Rebasing tokens: NOT supported.
  *      - ERC-777 hooks/callbacks: NOT explicitly supported.
  */
-contract TokenBridgeKatanaRedeemIca is ITokenBridge, Ownable, PackageVersioned {
+contract TokenBridgeKatanaRedeemIca is ITokenBridge, PackageVersioned {
     using Quotes for Quote[];
     using SafeERC20 for IERC20;
     using TypeCasts for address;
@@ -47,7 +46,7 @@ contract TokenBridgeKatanaRedeemIca is ITokenBridge, Ownable, PackageVersioned {
     error TokenBridgeKatanaRedeemIca__UnsupportedDestination(uint32 destination);
     error TokenBridgeKatanaRedeemIca__ZeroAddress();
     error TokenBridgeKatanaRedeemIca__ZeroBeneficiary();
-    error TokenBridgeKatanaRedeemIca__ZeroGasLimit();
+    error TokenBridgeKatanaRedeemIca__ZeroRedeemGasLimit();
 
     event SentTransferRemote(
         address indexed sender,
@@ -57,7 +56,6 @@ contract TokenBridgeKatanaRedeemIca is ITokenBridge, Ownable, PackageVersioned {
         bytes32 shareBridgeMessageId,
         bytes32 icaMessageId
     );
-    event IcaGasLimitSet(uint256 gasLimit);
 
     /// @notice Generic OFT-backed transport used to move vbUSDC shares from Katana to Ethereum.
     TokenBridgeOft public immutable shareBridge;
@@ -75,25 +73,23 @@ contract TokenBridgeKatanaRedeemIca is ITokenBridge, Ownable, PackageVersioned {
     address public immutable ethereumBeneficiary;
 
     /// @notice Gas limit used when quoting and dispatching the ICA redemption poke.
-    uint256 public icaGasLimit;
+    uint256 public immutable redeemGasLimit;
 
     constructor(
         address _shareBridge,
         address _icaRouter,
         address _ethereumVaultHelper,
         address _ethereumBeneficiary,
-        uint256 _icaGasLimit,
-        address _owner
+        uint256 _redeemGasLimit
     ) {
-        if (
-            _shareBridge == address(0) || _icaRouter == address(0) || _ethereumVaultHelper == address(0)
-                || _owner == address(0)
-        ) revert TokenBridgeKatanaRedeemIca__ZeroAddress();
+        if (_shareBridge == address(0) || _icaRouter == address(0) || _ethereumVaultHelper == address(0)) {
+            revert TokenBridgeKatanaRedeemIca__ZeroAddress();
+        }
         if (_ethereumBeneficiary == address(0)) {
             revert TokenBridgeKatanaRedeemIca__ZeroBeneficiary();
         }
-        if (_icaGasLimit == 0) {
-            revert TokenBridgeKatanaRedeemIca__ZeroGasLimit();
+        if (_redeemGasLimit == 0) {
+            revert TokenBridgeKatanaRedeemIca__ZeroRedeemGasLimit();
         }
 
         TokenBridgeOft shareBridge_ = TokenBridgeOft(_shareBridge);
@@ -107,20 +103,13 @@ contract TokenBridgeKatanaRedeemIca is ITokenBridge, Ownable, PackageVersioned {
         icaRouter = IInterchainAccountRouter(_icaRouter);
         ethereumVaultHelper = _ethereumVaultHelper;
         ethereumBeneficiary = _ethereumBeneficiary;
-        icaGasLimit = _icaGasLimit;
+        redeemGasLimit = _redeemGasLimit;
 
         shareToken.forceApprove(_shareBridge, type(uint256).max);
-        _transferOwnership(_owner);
     }
 
     function token() public view returns (address) {
         return address(shareToken);
-    }
-
-    function setIcaGasLimit(uint256 _gasLimit) external onlyOwner {
-        if (_gasLimit == 0) revert TokenBridgeKatanaRedeemIca__ZeroGasLimit();
-        icaGasLimit = _gasLimit;
-        emit IcaGasLimitSet(_gasLimit);
     }
 
     function quoteTransferRemote(uint32 _destination, bytes32 _recipient, uint256 _amount)
@@ -133,7 +122,7 @@ contract TokenBridgeKatanaRedeemIca is ITokenBridge, Ownable, PackageVersioned {
 
         Quote[] memory shareQuotes =
             shareBridge.quoteTransferRemote(_destination, ethereumVaultHelper.addressToBytes32(), _amount);
-        uint256 nativeFee = shareQuotes.extract(address(0)) + icaRouter.quoteGasPayment(_destination, icaGasLimit);
+        uint256 nativeFee = shareQuotes.extract(address(0)) + icaRouter.quoteGasPayment(_destination, redeemGasLimit);
 
         quotes = new Quote[](2);
         quotes[0] = Quote({token: address(0), amount: nativeFee});
@@ -152,7 +141,7 @@ contract TokenBridgeKatanaRedeemIca is ITokenBridge, Ownable, PackageVersioned {
             shareBridge.quoteTransferRemote(_destination, ethereumVaultHelper.addressToBytes32(), _amount);
         uint256 shareBridgeNativeFee = shareQuotes.extract(address(0));
         uint256 shareAmount = shareQuotes.extract(address(shareToken));
-        uint256 icaFee = icaRouter.quoteGasPayment(_destination, icaGasLimit);
+        uint256 icaFee = icaRouter.quoteGasPayment(_destination, redeemGasLimit);
         uint256 totalNativeFee = shareBridgeNativeFee + icaFee;
 
         if (msg.value < totalNativeFee) {
@@ -170,8 +159,9 @@ contract TokenBridgeKatanaRedeemIca is ITokenBridge, Ownable, PackageVersioned {
         CallLib.Call[] memory calls = new CallLib.Call[](1);
         calls[0] = CallLib.build(ethereumVaultHelper, 0, abi.encodeCall(IKatanaVaultRedeemer.redeem, (_amount)));
 
-        bytes32 icaMessageId =
-            icaRouter.callRemote{value: icaFee}(_destination, calls, StandardHookMetadata.overrideGasLimit(icaGasLimit));
+        bytes32 icaMessageId = icaRouter.callRemote{value: icaFee}(
+            _destination, calls, StandardHookMetadata.overrideGasLimit(redeemGasLimit)
+        );
 
         uint256 excessNative = msg.value - totalNativeFee;
         if (excessNative > 0) {
