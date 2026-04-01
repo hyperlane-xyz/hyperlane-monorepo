@@ -8,25 +8,20 @@ export const CHAIN_ID_TO_EID: Record<number, number> = {
   1: 30101, // Ethereum
   42161: 30110, // Arbitrum
   9745: 30383, // Plasma
-  728126428: 30420, // Tron
 };
 
 export const EID_TO_CHAIN_ID: Record<number, number> = {
   30101: 1, // Ethereum
   30110: 42161, // Arbitrum
   30383: 9745, // Plasma
-  30420: 728126428, // Tron
 };
 
 // ============================================================================
 // Contract Addresses
 // ============================================================================
 
+// Contract addresses from https://docs.usdt0.to/technical-documentation/deployments
 export const OFT_CONTRACTS: Record<number, Record<number, string>> = {
-  // Contract addresses from https://docs.usdt0.to/technical-documentation/deployments
-  // NOTE: Tron is on the Legacy Mesh and is NOT a direct OFT peer.
-  //       Sending TO Tron requires the MultiHop Composer on Arbitrum (not yet supported).
-  //       Only native USDT0 chains (Ethereum, Arbitrum, Plasma) can route directly via OFT.
   1: {
     // Ethereum OFT Adapter: 0x6C96dE32CEa08842dcc4058c14d3aaAD7Fa41dee
     42161: '0x6C96dE32CEa08842dcc4058c14d3aaAD7Fa41dee', // Eth -> Arb
@@ -48,7 +43,6 @@ export const USDT_CONTRACTS: Record<number, string> = {
   1: '0xdAC17F958D2ee523a2206206994597C13D831ec7', // Ethereum USDT
   42161: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9', // Arbitrum USDT
   9745: '0xB8CE59FC3717ada4C02eaDF9682A9e934F625ebb', // Plasma USDT
-  728126428: '0xa614f803B6FD780986A42c78Ec9c7f77e6DeD13C', // Tron USDT (hex)
 };
 
 // ============================================================================
@@ -112,7 +106,6 @@ export interface LayerZeroBridgeRoute {
 export interface LayerZeroScanMessage {
   status: string; // 'INFLIGHT' | 'DELIVERED' | 'FAILED' | 'BLOCKED'
   dstTxHash?: string;
-  // other fields...
 }
 
 export interface LayerZeroScanResponse {
@@ -132,9 +125,6 @@ export const LAYERZERO_SCAN_API_URL =
 
 /**
  * Get the OFT contract address for a given route
- * @param fromChainId Source chain ID
- * @param toChainId Destination chain ID
- * @returns OFT contract address
  */
 export function getOFTContract(fromChainId: number, toChainId: number): string {
   const contracts = OFT_CONTRACTS[fromChainId];
@@ -152,8 +142,6 @@ export function getOFTContract(fromChainId: number, toChainId: number): string {
 
 /**
  * Get the USDT contract address for a given chain
- * @param chainId Chain ID
- * @returns USDT contract address
  */
 export function getUSDTAddress(chainId: number): string {
   const address = USDT_CONTRACTS[chainId];
@@ -165,8 +153,6 @@ export function getUSDTAddress(chainId: number): string {
 
 /**
  * Get the LayerZero EID for a given chain ID
- * @param chainId Chain ID
- * @returns LayerZero EID
  */
 export function getEID(chainId: number): number {
   const eid = CHAIN_ID_TO_EID[chainId];
@@ -178,8 +164,6 @@ export function getEID(chainId: number): number {
 
 /**
  * Get the chain ID from a LayerZero EID
- * @param eid LayerZero EID
- * @returns Chain ID
  */
 export function getChainIdFromEID(eid: number): number {
   const chainId = EID_TO_CHAIN_ID[eid];
@@ -190,22 +174,13 @@ export function getChainIdFromEID(eid: number): number {
 }
 
 /**
- * Check if a route is supported
- * Supported routes (bidirectional):
- * - Tron <-> Arbitrum
- * - Tron <-> Ethereum
- * - Ethereum <-> Arbitrum
- * - Arbitrum <-> Plasma
- * @param fromChainId Source chain ID
- * @param toChainId Destination chain ID
- * @returns true if route is supported
+ * Check if a route is supported.
+ * Supported routes: Ethereum <-> Arbitrum, Ethereum <-> Plasma, Arbitrum <-> Plasma
  */
 export function isSupportedRoute(
   fromChainId: number,
   toChainId: number,
 ): boolean {
-  // Only native USDT0 chains can route directly via OFT.
-  // Tron is Legacy Mesh — requires MultiHop Composer (not yet supported).
   const supportedPairs = [
     [1, 42161], // Ethereum <-> Arbitrum
     [42161, 1],
@@ -221,45 +196,9 @@ export function isSupportedRoute(
 }
 
 /**
- * Check if a chain is Tron
- * @param chainId Chain ID
- * @returns true if chain is Tron
+ * Convert an address to bytes32 format for LayerZero.
+ * Pads a standard EVM address to 32 bytes.
  */
-export function isTronChain(chainId: number): boolean {
-  return chainId === 728126428;
-}
-
-/**
- * Normalizes a Tron address to TronWeb hex format (41...) for use with addressToBytes32.
- * Accepts both base58 (T...) and hex (41... or 0x...) formats.
- * Note: base58 conversion requires TronWeb at runtime; this function handles hex inputs only.
- * For base58 inputs, callers must pre-convert using tronWeb.address.toHex().
- */
-export function normalizeTronAddress(address: string): string {
-  if (address.startsWith('T') && address.length === 34) {
-    throw new Error(
-      `Cannot normalize Tron base58 address without TronWeb: ${address}. Pre-convert using tronWeb.address.toHex()`,
-    );
-  }
-  if (address.startsWith('41') && address.length === 42) return address;
-  const normalized = address.replace(/^0x/, '');
-  if (normalized.length === 40) return `41${normalized}`;
-  throw new Error(`Unrecognized Tron address format: ${address}`);
-}
-
-/**
- * Convert an address to bytes32 format for LayerZero
- * For Tron: normalizes to hex format, strips '41' prefix (2 chars), then pads to 32 bytes
- * For other chains: pads address to 32 bytes
- * @param address Address (TronWeb hex format for Tron, standard hex for others)
- * @param isTron Whether the address is from Tron
- * @returns bytes32 hex string
- */
-export function addressToBytes32(address: string, isTron: boolean): string {
-  if (isTron) {
-    const hexAddr = normalizeTronAddress(address);
-    const stripped = hexAddr.slice(2); // remove '41' prefix
-    return ethers.utils.hexZeroPad('0x' + stripped, 32);
-  }
+export function addressToBytes32(address: string): string {
   return ethers.utils.hexZeroPad(address, 32);
 }
