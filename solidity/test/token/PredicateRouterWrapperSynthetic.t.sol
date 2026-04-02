@@ -352,7 +352,7 @@ contract PredicateRouterWrapperSyntheticTest is Test {
 
         vm.prank(ALICE);
         vm.expectRevert(
-            IPredicateWrapper.IPredicateWrapper__UnauthorizedTransfer.selector
+            IPredicateWrapper.PredicateWrapper__UnauthorizedTransfer.selector
         );
         syntheticRouter.transferRemote{value: requiredValue}(
             DESTINATION,

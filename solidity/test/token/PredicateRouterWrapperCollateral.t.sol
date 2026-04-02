@@ -227,7 +227,7 @@ contract PredicateRouterWrapperCollateralTest is Test {
 
     function test_constructor_revert_ifZeroRegistry() public {
         vm.expectRevert(
-            IPredicateWrapper.IPredicateWrapper__InvalidRegistry.selector
+            IPredicateWrapper.PredicateWrapper__InvalidRegistry.selector
         );
         new PredicateRouterWrapper(
             address(collateralRouter),
@@ -238,7 +238,7 @@ contract PredicateRouterWrapperCollateralTest is Test {
 
     function test_constructor_revert_ifEmptyPolicy() public {
         vm.expectRevert(
-            IPredicateWrapper.IPredicateWrapper__InvalidPolicy.selector
+            IPredicateWrapper.PredicateWrapper__InvalidPolicy.selector
         );
         new PredicateRouterWrapper(
             address(collateralRouter),
@@ -351,7 +351,7 @@ contract PredicateRouterWrapperCollateralTest is Test {
 
         vm.prank(ALICE);
         vm.expectRevert(
-            IPredicateWrapper.IPredicateWrapper__AttestationInvalid.selector
+            IPredicateWrapper.PredicateWrapper__AttestationInvalid.selector
         );
         predicateWrapper.transferRemoteWithAttestation{value: requiredValue}(
             attestation,
@@ -470,7 +470,7 @@ contract PredicateRouterWrapperCollateralTest is Test {
 
         vm.prank(ALICE);
         vm.expectRevert(
-            IPredicateWrapper.IPredicateWrapper__UnauthorizedTransfer.selector
+            IPredicateWrapper.PredicateWrapper__UnauthorizedTransfer.selector
         );
         collateralRouter.transferRemote{value: requiredValue}(
             DESTINATION,
@@ -529,7 +529,7 @@ contract PredicateRouterWrapperCollateralTest is Test {
 
     function test_setPolicyID_revert_ifEmptyPolicy() public {
         vm.expectRevert(
-            IPredicateWrapper.IPredicateWrapper__InvalidPolicy.selector
+            IPredicateWrapper.PredicateWrapper__InvalidPolicy.selector
         );
         predicateWrapper.setPolicyID("");
     }
@@ -574,7 +574,7 @@ contract PredicateRouterWrapperCollateralTest is Test {
 
     function test_setRegistry_revert_ifZeroAddress() public {
         vm.expectRevert(
-            IPredicateWrapper.IPredicateWrapper__InvalidRegistry.selector
+            IPredicateWrapper.PredicateWrapper__InvalidRegistry.selector
         );
         predicateWrapper.setRegistry(address(0));
     }
@@ -698,7 +698,7 @@ contract PredicateRouterWrapperCollateralIntegrationTest is
 
         vm.prank(ALICE);
         vm.expectRevert(
-            IPredicateWrapper.IPredicateWrapper__UnauthorizedTransfer.selector
+            IPredicateWrapper.PredicateWrapper__UnauthorizedTransfer.selector
         );
         collateralRouter.transferRemote{value: requiredValue}(
             DESTINATION,

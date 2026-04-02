@@ -528,7 +528,7 @@ contract PredicateRouterWrapperForkTest is Test {
 
         vm.prank(ALICE);
         vm.expectRevert(
-            IPredicateWrapper.IPredicateWrapper__UnauthorizedTransfer.selector
+            IPredicateWrapper.PredicateWrapper__UnauthorizedTransfer.selector
         );
         collateralRouter.transferRemote{value: requiredValue}(
             DESTINATION,
@@ -561,7 +561,7 @@ contract PredicateRouterWrapperForkTest is Test {
 
         vm.prank(ALICE);
         vm.expectRevert(
-            IPredicateWrapper.IPredicateWrapper__UnauthorizedTransfer.selector
+            IPredicateWrapper.PredicateWrapper__UnauthorizedTransfer.selector
         );
         collateralRouter.transferRemote{value: requiredValue}(
             DESTINATION,
