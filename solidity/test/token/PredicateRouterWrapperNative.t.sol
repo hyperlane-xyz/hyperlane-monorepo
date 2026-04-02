@@ -22,6 +22,7 @@ import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.so
 import {HypNative} from "../../contracts/token/HypNative.sol";
 import {HypERC20} from "../../contracts/token/HypERC20.sol";
 import {PredicateRouterWrapper} from "../../contracts/token/extensions/PredicateRouterWrapper.sol";
+import {AbstractPredicateWrapper} from "../../contracts/token/libs/AbstractPredicateWrapper.sol";
 import {Statement, Attestation} from "@predicate/interfaces/IPredicateRegistry.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
@@ -299,8 +300,8 @@ contract PredicateRouterWrapperNativeTest is Test {
 
         vm.prank(ALICE);
         vm.expectRevert(
-            PredicateRouterWrapper
-                .PredicateRouterWrapper__UnauthorizedTransfer
+            AbstractPredicateWrapper
+                .AbstractPredicateWrapper__UnauthorizedTransfer
                 .selector
         );
         nativeRouter.transferRemote{value: totalValue}(

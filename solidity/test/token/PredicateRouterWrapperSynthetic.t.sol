@@ -23,6 +23,7 @@ import {HypERC20} from "../../contracts/token/HypERC20.sol";
 import {HypERC20Collateral} from "../../contracts/token/HypERC20Collateral.sol";
 import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
 import {PredicateRouterWrapper} from "../../contracts/token/extensions/PredicateRouterWrapper.sol";
+import {AbstractPredicateWrapper} from "../../contracts/token/libs/AbstractPredicateWrapper.sol";
 import {Statement, Attestation} from "@predicate/interfaces/IPredicateRegistry.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
@@ -351,8 +352,8 @@ contract PredicateRouterWrapperSyntheticTest is Test {
 
         vm.prank(ALICE);
         vm.expectRevert(
-            PredicateRouterWrapper
-                .PredicateRouterWrapper__UnauthorizedTransfer
+            AbstractPredicateWrapper
+                .AbstractPredicateWrapper__UnauthorizedTransfer
                 .selector
         );
         syntheticRouter.transferRemote{value: requiredValue}(

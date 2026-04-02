@@ -22,7 +22,8 @@ import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
 import {HypERC20Collateral} from "../../contracts/token/HypERC20Collateral.sol";
 import {CrossCollateralRouter} from "../../contracts/token/CrossCollateralRouter.sol";
-import {PredicateCrossCollateralRouterWrapper} from "../../contracts/token/PredicateCrossCollateralRouterWrapper.sol";
+import {PredicateCrossCollateralRouterWrapper} from "../../contracts/token/extensions/PredicateCrossCollateralRouterWrapper.sol";
+import {AbstractPredicateWrapper} from "../../contracts/token/libs/AbstractPredicateWrapper.sol";
 import {Statement, Attestation} from "@predicate/interfaces/IPredicateRegistry.sol";
 import {Quote} from "../../contracts/interfaces/ITokenBridge.sol";
 
@@ -265,8 +266,8 @@ contract PredicateCrossCollateralRouterWrapperTest is Test {
 
     function test_constructor_revert_ifZeroRegistry() public {
         vm.expectRevert(
-            PredicateCrossCollateralRouterWrapper
-                .PredicateCrossCollateralRouterWrapper__InvalidRegistry
+            AbstractPredicateWrapper
+                .AbstractPredicateWrapper__InvalidRegistry
                 .selector
         );
         new PredicateCrossCollateralRouterWrapper(
@@ -278,8 +279,8 @@ contract PredicateCrossCollateralRouterWrapperTest is Test {
 
     function test_constructor_revert_ifEmptyPolicy() public {
         vm.expectRevert(
-            PredicateCrossCollateralRouterWrapper
-                .PredicateCrossCollateralRouterWrapper__InvalidPolicy
+            AbstractPredicateWrapper
+                .AbstractPredicateWrapper__InvalidPolicy
                 .selector
         );
         new PredicateCrossCollateralRouterWrapper(
@@ -580,8 +581,8 @@ contract PredicateCrossCollateralRouterWrapperTest is Test {
 
         vm.prank(ALICE);
         vm.expectRevert(
-            PredicateCrossCollateralRouterWrapper
-                .PredicateCrossCollateralRouterWrapper__UnauthorizedTransfer
+            AbstractPredicateWrapper
+                .AbstractPredicateWrapper__UnauthorizedTransfer
                 .selector
         );
         routerA.transferRemote{value: 0}(
@@ -888,8 +889,8 @@ contract PredicateCrossCollateralRouterWrapperTest is Test {
 
     function test_setPolicyID_revert_ifEmptyPolicy() public {
         vm.expectRevert(
-            PredicateCrossCollateralRouterWrapper
-                .PredicateCrossCollateralRouterWrapper__InvalidPolicy
+            AbstractPredicateWrapper
+                .AbstractPredicateWrapper__InvalidPolicy
                 .selector
         );
         predicateWrapper.setPolicyID("");
@@ -934,8 +935,8 @@ contract PredicateCrossCollateralRouterWrapperTest is Test {
 
     function test_setRegistry_revert_ifZeroAddress() public {
         vm.expectRevert(
-            PredicateCrossCollateralRouterWrapper
-                .PredicateCrossCollateralRouterWrapper__InvalidRegistry
+            AbstractPredicateWrapper
+                .AbstractPredicateWrapper__InvalidRegistry
                 .selector
         );
         predicateWrapper.setRegistry(address(0));
@@ -1100,8 +1101,8 @@ contract PredicateCrossCollateralRouterWrapperIntegrationTest is
 
         vm.prank(ALICE);
         vm.expectRevert(
-            PredicateCrossCollateralRouterWrapper
-                .PredicateCrossCollateralRouterWrapper__UnauthorizedTransfer
+            AbstractPredicateWrapper
+                .AbstractPredicateWrapper__UnauthorizedTransfer
                 .selector
         );
         routerA.transferRemote{value: 0}(
