@@ -74,11 +74,6 @@ contract PredicateRouterWrapper is AbstractPredicateWrapper, ITokenFee {
     // ============ Errors ============
 
     error PredicateRouterWrapper__InvalidWarpRoute();
-    error PredicateRouterWrapper__AttestationInvalid();
-    error PredicateRouterWrapper__InsufficientValue();
-    error PredicateRouterWrapper__PostDispatchNotExecuted();
-    error PredicateRouterWrapper__ReentryDetected();
-    error PredicateRouterWrapper__RefundFailed();
 
     // ============ Events ============
 
@@ -148,9 +143,6 @@ contract PredicateRouterWrapper is AbstractPredicateWrapper, ITokenFee {
         bytes32 _recipient,
         uint256 _amount
     ) external payable returns (bytes32 messageId) {
-        if (pendingAttestation)
-            revert PredicateRouterWrapper__ReentryDetected();
-
         bytes memory encodedSigAndArgs = abi.encodeWithSelector(
             TokenRouter.transferRemote.selector,
             _destination,
@@ -158,13 +150,11 @@ contract PredicateRouterWrapper is AbstractPredicateWrapper, ITokenFee {
             _amount
         );
 
-        bool isValid = _authorizeTransaction(
-            _attestation,
-            encodedSigAndArgs,
-            msg.sender,
-            msg.value
+        Quote[] memory quotes = warpRoute.quoteTransferRemote(
+            _destination,
+            _recipient,
+            _amount
         );
-        if (!isValid) revert PredicateRouterWrapper__AttestationInvalid();
 
         emit TransferAuthorized(
             msg.sender,
@@ -174,51 +164,14 @@ contract PredicateRouterWrapper is AbstractPredicateWrapper, ITokenFee {
             _attestation.uuid
         );
 
-        // Set flag before external calls (CEI pattern - checked in postDispatch)
-        pendingAttestation = true;
-
-        Quote[] memory quotes = warpRoute.quoteTransferRemote(
-            _destination,
-            _recipient,
-            _amount
-        );
-
-        uint256 totalNativeRequired = Quotes.extract(quotes, address(0));
-        if (msg.value < totalNativeRequired)
-            revert PredicateRouterWrapper__InsufficientValue();
-
-        if (tokenType != TokenType.Native) {
-            uint256 totalTokenRequired = Quotes.extract(quotes, address(token));
-            token.safeTransferFrom(
-                msg.sender,
-                address(this),
-                totalTokenRequired
+        return
+            _executeAttested(
+                _attestation,
+                encodedSigAndArgs,
+                address(warpRoute),
+                quotes,
+                true
             );
-        }
-
-        (bool success, bytes memory returnData) = address(warpRoute).call{
-            value: totalNativeRequired
-        }(encodedSigAndArgs);
-
-        if (!success) {
-            assembly {
-                revert(add(returnData, 32), mload(returnData))
-            }
-        }
-
-        messageId = abi.decode(returnData, (bytes32));
-
-        if (pendingAttestation) {
-            revert PredicateRouterWrapper__PostDispatchNotExecuted();
-        }
-
-        uint256 excess = msg.value - totalNativeRequired;
-        if (excess > 0) {
-            (bool refundSuccess, ) = msg.sender.call{value: excess}("");
-            if (!refundSuccess) revert PredicateRouterWrapper__RefundFailed();
-        }
-
-        return messageId;
     }
 
     // ============ ITokenFee Implementation ============
@@ -232,5 +185,19 @@ contract PredicateRouterWrapper is AbstractPredicateWrapper, ITokenFee {
         uint256 _amount
     ) external view override returns (Quote[] memory quotes) {
         return warpRoute.quoteTransferRemote(_destination, _recipient, _amount);
+    }
+
+    // ============ Internal Functions ============
+
+    function _pullTokens(Quote[] memory quotes) internal override {
+        if (tokenType == TokenType.Native) return;
+        uint256 totalTokenRequired = Quotes.extract(quotes, address(token));
+        if (totalTokenRequired > 0) {
+            token.safeTransferFrom(
+                msg.sender,
+                address(this),
+                totalTokenRequired
+            );
+        }
     }
 }

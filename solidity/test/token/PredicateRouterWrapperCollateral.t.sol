@@ -355,8 +355,8 @@ contract PredicateRouterWrapperCollateralTest is Test {
 
         vm.prank(ALICE);
         vm.expectRevert(
-            PredicateRouterWrapper
-                .PredicateRouterWrapper__AttestationInvalid
+            AbstractPredicateWrapper
+                .AbstractPredicateWrapper__AttestationInvalid
                 .selector
         );
         predicateWrapper.transferRemoteWithAttestation{value: requiredValue}(

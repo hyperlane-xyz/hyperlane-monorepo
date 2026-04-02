@@ -389,8 +389,8 @@ contract PredicateCrossCollateralRouterWrapperTest is Test {
 
         vm.prank(ALICE);
         vm.expectRevert(
-            PredicateCrossCollateralRouterWrapper
-                .PredicateCrossCollateralRouterWrapper__AttestationInvalid
+            AbstractPredicateWrapper
+                .AbstractPredicateWrapper__AttestationInvalid
                 .selector
         );
         predicateWrapper.transferRemoteWithAttestation{value: 0}(
@@ -504,8 +504,8 @@ contract PredicateCrossCollateralRouterWrapperTest is Test {
 
         vm.prank(ALICE);
         vm.expectRevert(
-            PredicateCrossCollateralRouterWrapper
-                .PredicateCrossCollateralRouterWrapper__InsufficientValue
+            AbstractPredicateWrapper
+                .AbstractPredicateWrapper__InsufficientValue
                 .selector
         );
         predicateWrapper.transferRemoteWithAttestation{value: 0.5 ether}(
@@ -561,8 +561,8 @@ contract PredicateCrossCollateralRouterWrapperTest is Test {
         );
 
         vm.expectRevert(
-            PredicateCrossCollateralRouterWrapper
-                .PredicateCrossCollateralRouterWrapper__RefundFailed
+            AbstractPredicateWrapper
+                .AbstractPredicateWrapper__RefundFailed
                 .selector
         );
         rejecter.doTransferRemote{value: 1 ether}(
@@ -717,8 +717,8 @@ contract PredicateCrossCollateralRouterWrapperTest is Test {
 
         vm.prank(ALICE);
         vm.expectRevert(
-            PredicateCrossCollateralRouterWrapper
-                .PredicateCrossCollateralRouterWrapper__InsufficientValue
+            AbstractPredicateWrapper
+                .AbstractPredicateWrapper__InsufficientValue
                 .selector
         );
         predicateWrapper.transferRemoteToWithAttestation{value: 0.5 ether}(

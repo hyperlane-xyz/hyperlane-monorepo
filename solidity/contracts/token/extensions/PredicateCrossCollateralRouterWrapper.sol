@@ -16,6 +16,7 @@ pragma solidity >=0.8.0;
 // ============ Core Imports ============
 import {Quote} from "../../interfaces/ITokenBridge.sol";
 import {AbstractPredicateWrapper} from "../libs/AbstractPredicateWrapper.sol";
+import {Quotes} from "../libs/Quotes.sol";
 
 // ============ Predicate Imports ============
 import {Attestation} from "@predicate/interfaces/IPredicateRegistry.sol";
@@ -26,7 +27,6 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 
 // ============ Local Imports ============
 import {CrossCollateralRouter} from "../CrossCollateralRouter.sol";
-import {Quotes} from "../libs/Quotes.sol";
 
 /**
  * @title PredicateCrossCollateralRouterWrapper
@@ -69,11 +69,6 @@ contract PredicateCrossCollateralRouterWrapper is AbstractPredicateWrapper {
     // ============ Errors ============
 
     error PredicateCrossCollateralRouterWrapper__InvalidRouter();
-    error PredicateCrossCollateralRouterWrapper__AttestationInvalid();
-    error PredicateCrossCollateralRouterWrapper__InsufficientValue();
-    error PredicateCrossCollateralRouterWrapper__PostDispatchNotExecuted();
-    error PredicateCrossCollateralRouterWrapper__RefundFailed();
-    error PredicateCrossCollateralRouterWrapper__ReentryDetected();
 
     // ============ Events ============
 
@@ -131,9 +126,6 @@ contract PredicateCrossCollateralRouterWrapper is AbstractPredicateWrapper {
         bytes32 _recipient,
         uint256 _amount
     ) external payable returns (bytes32 messageId) {
-        if (pendingAttestation)
-            revert PredicateCrossCollateralRouterWrapper__ReentryDetected();
-
         bytes memory encodedSigAndArgs = abi.encodeWithSelector(
             CrossCollateralRouter.transferRemote.selector,
             _destination,
@@ -141,14 +133,11 @@ contract PredicateCrossCollateralRouterWrapper is AbstractPredicateWrapper {
             _amount
         );
 
-        bool isValid = _authorizeTransaction(
-            _attestation,
-            encodedSigAndArgs,
-            msg.sender,
-            msg.value
+        Quote[] memory quotes = crossCollateralRouter.quoteTransferRemote(
+            _destination,
+            _recipient,
+            _amount
         );
-        if (!isValid)
-            revert PredicateCrossCollateralRouterWrapper__AttestationInvalid();
 
         emit TransferAuthorized(
             msg.sender,
@@ -159,45 +148,14 @@ contract PredicateCrossCollateralRouterWrapper is AbstractPredicateWrapper {
             _attestation.uuid
         );
 
-        Quote[] memory quotes = crossCollateralRouter.quoteTransferRemote(
-            _destination,
-            _recipient,
-            _amount
-        );
-
-        uint256 totalNativeRequired = Quotes.extract(quotes, address(0));
-        if (msg.value < totalNativeRequired)
-            revert PredicateCrossCollateralRouterWrapper__InsufficientValue();
-
-        _handleTokenTransfer(quotes);
-
-        bool isCrossDomain = _destination != localDomain;
-        if (isCrossDomain) {
-            pendingAttestation = true;
-        }
-
-        (bool success, bytes memory returnData) = address(crossCollateralRouter)
-            .call{value: totalNativeRequired}(encodedSigAndArgs);
-
-        if (!success) {
-            assembly {
-                revert(add(returnData, 32), mload(returnData))
-            }
-        }
-
-        if (isCrossDomain && pendingAttestation) {
-            revert PredicateCrossCollateralRouterWrapper__PostDispatchNotExecuted();
-        }
-
-        uint256 excess = msg.value - totalNativeRequired;
-        if (excess > 0) {
-            (bool refundSuccess, ) = msg.sender.call{value: excess}("");
-            if (!refundSuccess)
-                revert PredicateCrossCollateralRouterWrapper__RefundFailed();
-        }
-
-        messageId = abi.decode(returnData, (bytes32));
-        return messageId;
+        return
+            _executeAttested(
+                _attestation,
+                encodedSigAndArgs,
+                address(crossCollateralRouter),
+                quotes,
+                _destination != localDomain
+            );
     }
 
     /**
@@ -216,9 +174,6 @@ contract PredicateCrossCollateralRouterWrapper is AbstractPredicateWrapper {
         uint256 _amount,
         bytes32 _targetRouter
     ) external payable returns (bytes32 messageId) {
-        if (pendingAttestation)
-            revert PredicateCrossCollateralRouterWrapper__ReentryDetected();
-
         bytes memory encodedSigAndArgs = abi.encodeWithSelector(
             CrossCollateralRouter.transferRemoteTo.selector,
             _destination,
@@ -227,14 +182,12 @@ contract PredicateCrossCollateralRouterWrapper is AbstractPredicateWrapper {
             _targetRouter
         );
 
-        bool isValid = _authorizeTransaction(
-            _attestation,
-            encodedSigAndArgs,
-            msg.sender,
-            msg.value
+        Quote[] memory quotes = crossCollateralRouter.quoteTransferRemoteTo(
+            _destination,
+            _recipient,
+            _amount,
+            _targetRouter
         );
-        if (!isValid)
-            revert PredicateCrossCollateralRouterWrapper__AttestationInvalid();
 
         emit TransferAuthorized(
             msg.sender,
@@ -245,53 +198,20 @@ contract PredicateCrossCollateralRouterWrapper is AbstractPredicateWrapper {
             _attestation.uuid
         );
 
-        Quote[] memory quotes = crossCollateralRouter.quoteTransferRemoteTo(
-            _destination,
-            _recipient,
-            _amount,
-            _targetRouter
-        );
-
-        uint256 totalNativeRequired = Quotes.extract(quotes, address(0));
-        if (msg.value < totalNativeRequired)
-            revert PredicateCrossCollateralRouterWrapper__InsufficientValue();
-
-        _handleTokenTransfer(quotes);
-
-        bool isCrossDomain = _destination != localDomain;
-        if (isCrossDomain) {
-            pendingAttestation = true;
-        }
-
-        (bool success, bytes memory returnData) = address(crossCollateralRouter)
-            .call{value: totalNativeRequired}(encodedSigAndArgs);
-
-        if (!success) {
-            assembly {
-                revert(add(returnData, 32), mload(returnData))
-            }
-        }
-
-        if (isCrossDomain && pendingAttestation) {
-            revert PredicateCrossCollateralRouterWrapper__PostDispatchNotExecuted();
-        }
-
-        uint256 excess = msg.value - totalNativeRequired;
-        if (excess > 0) {
-            (bool refundSuccess, ) = msg.sender.call{value: excess}("");
-            if (!refundSuccess)
-                revert PredicateCrossCollateralRouterWrapper__RefundFailed();
-        }
-
-        messageId = abi.decode(returnData, (bytes32));
-        return messageId;
+        return
+            _executeAttested(
+                _attestation,
+                encodedSigAndArgs,
+                address(crossCollateralRouter),
+                quotes,
+                _destination != localDomain
+            );
     }
 
     // ============ Internal Functions ============
 
-    function _handleTokenTransfer(Quote[] memory quotes) internal {
+    function _pullTokens(Quote[] memory quotes) internal override {
         uint256 totalTokenRequired = Quotes.extract(quotes, address(token));
-
         if (totalTokenRequired > 0) {
             token.safeTransferFrom(
                 msg.sender,
