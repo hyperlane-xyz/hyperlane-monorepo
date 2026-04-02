@@ -29,6 +29,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 // ============ Local Imports ============
 import {CrossCollateralRouter} from "./CrossCollateralRouter.sol";
+import {Quotes} from "./libs/Quotes.sol";
 
 /**
  * @title PredicateCrossCollateralRouterWrapper
@@ -106,6 +107,12 @@ contract PredicateCrossCollateralRouterWrapper is
 
     /// @notice Thrown when ETH withdrawal fails
     error PredicateCrossCollateralRouterWrapper__WithdrawFailed();
+
+    /// @notice Thrown when insufficient ETH sent for transfer
+    error PredicateCrossCollateralRouterWrapper__InsufficientValue();
+
+    /// @notice Thrown when ETH refund to caller fails
+    error PredicateCrossCollateralRouterWrapper__RefundFailed();
 
     /// @notice Thrown when re-entry is detected
     error PredicateCrossCollateralRouterWrapper__ReentryDetected();
@@ -211,19 +218,24 @@ contract PredicateCrossCollateralRouterWrapper is
             _amount
         );
 
-        // 4. Handle token transfer, pulling total quoted amount
+        // 4. Validate msg.value covers native fees
+        uint256 totalNativeRequired = Quotes.extract(quotes, address(0));
+        if (msg.value < totalNativeRequired)
+            revert PredicateCrossCollateralRouterWrapper__InsufficientValue();
+
+        // 5. Handle token transfer, pulling total quoted amount
         _handleTokenTransfer(quotes);
 
-        // 5. Set flag for cross-domain only (same-domain doesn't use postDispatch)
+        // 6. Set flag for cross-domain only (same-domain doesn't use postDispatch)
         bool isCrossDomain = _destination != localDomain;
         if (isCrossDomain) {
             pendingAttestation = true;
         }
 
-        // 6. Call cross-collateral router using already-encoded calldata
+        // 7. Call cross-collateral router using already-encoded calldata
         // This reuses the same calldata that was validated in the attestation
         (bool success, bytes memory returnData) = address(crossCollateralRouter)
-            .call{value: msg.value}(encodedSigAndArgs);
+            .call{value: totalNativeRequired}(encodedSigAndArgs);
 
         if (!success) {
             // Bubble up revert reason from router
@@ -232,15 +244,22 @@ contract PredicateCrossCollateralRouterWrapper is
             }
         }
 
-        // 7. For cross-domain: postDispatch should have consumed the authorization flag synchronously
+        // 8. For cross-domain: postDispatch should have consumed the authorization flag synchronously
         //    For same-domain: no flag was set, no postDispatch
         if (isCrossDomain && pendingAttestation) {
             revert PredicateCrossCollateralRouterWrapper__PostDispatchNotExecuted();
         }
 
+        // 9. Refund excess native value to caller
+        uint256 excess = msg.value - totalNativeRequired;
+        if (excess > 0) {
+            (bool refundSuccess, ) = msg.sender.call{value: excess}("");
+            if (!refundSuccess)
+                revert PredicateCrossCollateralRouterWrapper__RefundFailed();
+        }
+
         // Note: pendingAttestation is cleared in _postDispatch() for cross-domain
-        // If we reach here, the transfer succeeded
-        messageId = success ? abi.decode(returnData, (bytes32)) : bytes32(0);
+        messageId = abi.decode(returnData, (bytes32));
         return messageId;
     }
 
@@ -303,19 +322,24 @@ contract PredicateCrossCollateralRouterWrapper is
             _targetRouter
         );
 
-        // 4. Handle token transfer, pulling total quoted amount
+        // 4. Validate msg.value covers native fees
+        uint256 totalNativeRequired = Quotes.extract(quotes, address(0));
+        if (msg.value < totalNativeRequired)
+            revert PredicateCrossCollateralRouterWrapper__InsufficientValue();
+
+        // 5. Handle token transfer, pulling total quoted amount
         _handleTokenTransfer(quotes);
 
-        // 5. Set flag for cross-domain only (same-domain doesn't use postDispatch)
+        // 6. Set flag for cross-domain only (same-domain doesn't use postDispatch)
         bool isCrossDomain = _destination != localDomain;
         if (isCrossDomain) {
             pendingAttestation = true;
         }
 
-        // 6. Call cross-collateral router using already-encoded calldata
+        // 7. Call cross-collateral router using already-encoded calldata
         // This reuses the same calldata that was validated in the attestation
         (bool success, bytes memory returnData) = address(crossCollateralRouter)
-            .call{value: msg.value}(encodedSigAndArgs);
+            .call{value: totalNativeRequired}(encodedSigAndArgs);
 
         if (!success) {
             // Bubble up revert reason from router
@@ -324,15 +348,22 @@ contract PredicateCrossCollateralRouterWrapper is
             }
         }
 
-        // 7. For cross-domain: postDispatch should have consumed the authorization flag synchronously
+        // 8. For cross-domain: postDispatch should have consumed the authorization flag synchronously
         //    For same-domain: no flag was set, no postDispatch
         if (isCrossDomain && pendingAttestation) {
             revert PredicateCrossCollateralRouterWrapper__PostDispatchNotExecuted();
         }
 
+        // 9. Refund excess native value to caller
+        uint256 excess = msg.value - totalNativeRequired;
+        if (excess > 0) {
+            (bool refundSuccess, ) = msg.sender.call{value: excess}("");
+            if (!refundSuccess)
+                revert PredicateCrossCollateralRouterWrapper__RefundFailed();
+        }
+
         // Note: pendingAttestation is cleared in _postDispatch() for cross-domain
-        // If we reach here, the transfer succeeded
-        messageId = success ? abi.decode(returnData, (bytes32)) : bytes32(0);
+        messageId = abi.decode(returnData, (bytes32));
         return messageId;
     }
 
