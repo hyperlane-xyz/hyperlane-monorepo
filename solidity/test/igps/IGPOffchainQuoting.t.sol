@@ -367,6 +367,21 @@ contract IGPOffchainQuotingTest is Test {
         assertEq(fee, 30_000_000); // oracle
     }
 
+    function test_submitQuote_expiryBeforeIssuedAt_reverts() public {
+        uint48 now_ = uint48(block.timestamp);
+        SignedQuote memory sq = SignedQuote({
+            context: abi.encodePacked(address(0), DEST, address(this)),
+            data: _encodeGasData(EXCHANGE_RATE, GAS_PRICE),
+            issuedAt: now_ + 100,
+            expiry: now_,
+            salt: bytes32(0),
+            submitter: address(0)
+        });
+        bytes memory sig = _signQuote(sq);
+        vm.expectRevert(AbstractOffchainQuoter.InvalidQuote.selector);
+        igp.submitQuote(sq, sig);
+    }
+
     function test_standingQuote_staleReverts() public {
         uint48 now_ = uint48(block.timestamp);
         _submitStanding(
