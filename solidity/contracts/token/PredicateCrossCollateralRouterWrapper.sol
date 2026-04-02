@@ -344,14 +344,7 @@ contract PredicateCrossCollateralRouterWrapper is
      * @param quotes The quotes from crossCollateralRouter.quoteTransferRemote[To]
      */
     function _handleTokenTransfer(Quote[] memory quotes) internal {
-        uint256 totalTokenRequired = 0;
-        address tokenAddr = address(token);
-
-        for (uint256 i = 0; i < quotes.length; i++) {
-            if (quotes[i].token == tokenAddr) {
-                totalTokenRequired += quotes[i].amount;
-            }
-        }
+        uint256 totalTokenRequired = Quotes.extract(quotes, address(token));
 
         if (totalTokenRequired > 0) {
             token.safeTransferFrom(
