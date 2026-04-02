@@ -6,6 +6,7 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 
 import ERC20TestAbi from '@hyperlane-xyz/core/tron/abi/contracts/test/ERC20Test.sol/ERC20Test.json' with { type: 'json' };
 import { TronSigner } from '../clients/signer.js';
+import { MAX_TRON_ORIGIN_ENERGY_LIMIT } from '../ethers/TronJsonRpcProvider.js';
 import { TronReceipt, TronTransaction } from '../utils/types.js';
 
 describe('4. tron sdk warp e2e tests', async function () {
@@ -53,7 +54,7 @@ describe('4. tron sdk warp e2e tests', async function () {
     const options = {
       feeLimit: 1_000_000_000,
       userFeePercentage: 100,
-      originEnergyLimit: 10_000_000,
+      originEnergyLimit: MAX_TRON_ORIGIN_ENERGY_LIMIT,
       abi: ERC20TestAbi.abi,
       bytecode: ERC20TestAbi.bytecode,
       parameters: ['test', 'test', 100_000_000, 6],

@@ -1,9 +1,12 @@
-import { providers } from 'ethers';
+import { BigNumber, providers } from 'ethers';
 
 import { retryAsync } from '@hyperlane-xyz/utils';
 
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_BASE_RETRY_MS = 250;
+
+/** TronWeb's maximum allowed originEnergyLimit for contract creation. */
+export const MAX_TRON_ORIGIN_ENERGY_LIMIT = 10_000_000;
 
 /**
  * TronJsonRpcProvider extends ethers JsonRpcProvider for Tron's JSON-RPC API.
@@ -17,7 +20,7 @@ const DEFAULT_BASE_RETRY_MS = 250;
  * and wraps all RPC calls with retry logic to handle transient errors
  * (e.g. TronGrid rate limiting).
  */
-export class TronJsonRpcProvider extends providers.JsonRpcProvider {
+export class TronJsonRpcProvider extends providers.StaticJsonRpcProvider {
   public host: string;
   private maxRetries: number;
   private baseRetryMs: number;
@@ -28,12 +31,24 @@ export class TronJsonRpcProvider extends providers.JsonRpcProvider {
     maxRetries = DEFAULT_MAX_RETRIES,
     baseRetryMs = DEFAULT_BASE_RETRY_MS,
   ) {
-    // Ensure we're pointing to the /jsonrpc endpoint
-    const jsonRpcUrl = host.endsWith('/jsonrpc') ? host : `${host}/jsonrpc`;
-    super(jsonRpcUrl, network);
+    super(host, network);
     this.host = host;
     this.maxRetries = maxRetries;
     this.baseRetryMs = baseRetryMs;
+  }
+
+  /**
+   * Override network detection to handle Tron nodes that don't support eth_chainId.
+   * Falls back to a default network if detection fails.
+   */
+  async detectNetwork(): Promise<providers.Network> {
+    try {
+      return await super.detectNetwork();
+    } catch {
+      // TRE/TronGrid may not support eth_chainId reliably.
+      // Return a default network to avoid blocking all RPC calls.
+      return { name: 'tron', chainId: 728126428 };
+    }
   }
 
   /**
@@ -46,6 +61,18 @@ export class TronJsonRpcProvider extends providers.JsonRpcProvider {
       this.maxRetries,
       this.baseRetryMs,
     );
+  }
+
+  /**
+   * Tron's eth_estimateGas is unreliable — it rejects contract creation (no `to` field)
+   * and often returns "method parameters invalid" for contract calls.
+   * Return a default gas limit since Tron uses feeLimit (not gasLimit) for execution,
+   * and TronWallet.buildTransaction caps feeLimit at 1000 TRX anyway.
+   */
+  async estimateGas(
+    _transaction: providers.TransactionRequest,
+  ): Promise<BigNumber> {
+    return BigNumber.from(MAX_TRON_ORIGIN_ENERGY_LIMIT);
   }
 
   /**

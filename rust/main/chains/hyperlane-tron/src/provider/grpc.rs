@@ -1,8 +1,10 @@
 use std::ops::Deref;
+use std::str::FromStr;
 use std::time::Duration;
 
 use derive_new::new;
 use tonic::async_trait;
+use tonic::codegen::http::header::{HeaderName, HeaderValue};
 use tonic::transport::{Channel, Endpoint};
 use tron_rs::tron::protocol::wallet_solidity_client::WalletSolidityClient;
 use tron_rs::tron::protocol::EmptyMessage;
@@ -73,13 +75,24 @@ impl GrpcProvider {
         let clients = urls
             .into_iter()
             .map(|url| {
-                let metrics_config =
-                    PrometheusConfig::from_url(&url, ClientConnectionType::Grpc, chain.clone());
-                Endpoint::new(url.to_string())
+                let (custom_headers, clean_url) = parse_grpc_custom_headers(&url);
+                let metrics_config = PrometheusConfig::from_url(
+                    &clean_url,
+                    ClientConnectionType::Grpc,
+                    chain.clone(),
+                );
+                Endpoint::new(clean_url.to_string())
                     .map(|e| e.timeout(REQUEST_TIMEOUT))
                     .map(|e| e.connect_timeout(REQUEST_TIMEOUT))
-                    .map(|e| MetricsChannel::new(e.connect_lazy(), metrics.clone(), metrics_config))
-                    .map(|m| GrpcChannel::new(m, url))
+                    .map(|e| {
+                        MetricsChannel::new(
+                            e.connect_lazy(),
+                            metrics.clone(),
+                            metrics_config,
+                            custom_headers,
+                        )
+                    })
+                    .map(|m| GrpcChannel::new(m, clean_url))
                     .map_err(Into::<HyperlaneTronError>::into)
             })
             .collect::<Result<Vec<GrpcChannel>, _>>()?;
@@ -87,6 +100,39 @@ impl GrpcProvider {
         let fallback = FallbackProvider::new(clients);
         Ok(Self { fallback })
     }
+}
+
+/// Parse `custom_rpc_header` query params from a URL into (HeaderName, HeaderValue) pairs
+/// and return a clean URL with those params stripped.
+fn parse_grpc_custom_headers(url: &Url) -> (Vec<(HeaderName, HeaderValue)>, Url) {
+    let mut headers = Vec::new();
+    let mut retained_queries: Vec<(String, String)> = Vec::new();
+
+    for (key, value) in url.query_pairs() {
+        if key != "custom_rpc_header" {
+            retained_queries.push((key.into_owned(), value.into_owned()));
+            continue;
+        }
+        if let Some((name_raw, value_raw)) = value.split_once(':') {
+            if let (Ok(name), Ok(val)) = (
+                HeaderName::from_str(name_raw),
+                HeaderValue::from_str(value_raw),
+            ) {
+                headers.push((name, val));
+            }
+        }
+    }
+
+    let mut clean_url = url.clone();
+    clean_url.set_query(None);
+    if !retained_queries.is_empty() {
+        let mut qp = clean_url.query_pairs_mut();
+        for (k, v) in retained_queries {
+            qp.append_pair(&k, &v);
+        }
+    }
+
+    (headers, clean_url)
 }
 
 impl Deref for GrpcProvider {

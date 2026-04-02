@@ -4,8 +4,33 @@ import { TronWeb, Types } from 'tronweb';
 
 import { assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
 
-import { TronJsonRpcProvider } from './TronJsonRpcProvider.js';
+import {
+  MAX_TRON_ORIGIN_ENERGY_LIMIT,
+  TronJsonRpcProvider,
+} from './TronJsonRpcProvider.js';
 import { TransactionRequest } from '@ethersproject/providers';
+
+/**
+ * Extract custom_rpc_header query params from a URL into a headers object.
+ * e.g. "https://api.trongrid.io?custom_rpc_header=TRON-PRO-API-KEY:abc"
+ * returns { "TRON-PRO-API-KEY": "abc" }
+ */
+function parseCustomHeaders(url: string): Record<string, string> {
+  const headers: Record<string, string> = {};
+  try {
+    const parsed = new URL(url);
+    for (const [key, value] of parsed.searchParams) {
+      if (key !== 'custom_rpc_header') continue;
+      const colonIdx = value.indexOf(':');
+      if (colonIdx > 0) {
+        headers[value.slice(0, colonIdx)] = value.slice(colonIdx + 1);
+      }
+    }
+  } catch {
+    // Not a valid URL, return empty headers
+  }
+  return headers;
+}
 
 /** Union of possible TronWeb transaction types */
 export type TronTransaction =
@@ -43,18 +68,34 @@ export class TronWallet extends Wallet {
    */
   private static txCounter = 0;
 
-  private readonly tronUrl: string;
+  private readonly originalTronUrl: string;
   private tronWeb: TronWeb;
   private tronAddress: string;
   private tronAddressHex: string;
   private txBuilder: TronTransactionBuilder;
 
   constructor(privateKey: string, tronUrl: string) {
-    tronUrl = tronUrl.endsWith('/jsonrpc') ? tronUrl.slice(0, -8) : tronUrl;
+    // tronUrl should be the JSON-RPC endpoint (e.g. http://host:port/jsonrpc
+    // for TronGrid/TRE, or the root URL for third-party providers like Alchemy).
+    // TronWeb needs the base HTTP API URL — strip /jsonrpc path if present, and
+    // fall back to public TronGrid for third-party providers that only serve JSON-RPC.
+    // Extract custom headers before stripping path, as they may contain API keys.
+    const headers = parseCustomHeaders(tronUrl);
+    const parsed = new URL(tronUrl);
+    if (parsed.pathname.endsWith('/jsonrpc')) {
+      parsed.pathname = parsed.pathname.slice(0, -8);
+    }
+    // Strip custom_rpc_header params from the base URL
+    parsed.searchParams.delete('custom_rpc_header');
+    const baseUrl = parsed.toString();
+    const tronWebUrl =
+      /^https?:\/\/(localhost|127\.0\.0\.1|[^/]*trongrid)/.test(baseUrl)
+        ? baseUrl
+        : 'https://api.trongrid.io';
     super(privateKey, new TronJsonRpcProvider(tronUrl));
-    this.tronUrl = tronUrl;
+    this.originalTronUrl = tronUrl;
 
-    this.tronWeb = new TronWeb({ fullHost: tronUrl });
+    this.tronWeb = new TronWeb({ fullHost: tronWebUrl, headers });
     const cleanKey = strip0x(privateKey);
     this.tronWeb.setPrivateKey(cleanKey);
 
@@ -64,7 +105,12 @@ export class TronWallet extends Wallet {
     this.tronAddressHex = this.tronWeb.address.toHex(this.tronAddress);
     this.tronWeb.setAddress(this.tronAddress);
 
-    this.txBuilder = new TronTransactionBuilder(tronUrl, this.tronAddress);
+    this.txBuilder = new TronTransactionBuilder(
+      tronWebUrl,
+      this.tronAddress,
+      tronUrl,
+      headers,
+    );
   }
 
   /**
@@ -72,7 +118,7 @@ export class TronWallet extends Wallet {
    * Base Wallet.connect() returns a plain Wallet, losing Tron behavior.
    */
   connect(_provider: providers.Provider): TronWallet {
-    return new TronWallet(this.privateKey, this.tronUrl);
+    return new TronWallet(this.privateKey, this.originalTronUrl);
   }
 
   /** Convert Tron address (base58 or 41-hex) to ethers 0x address */
@@ -121,6 +167,7 @@ export class TronWallet extends Wallet {
       {
         data,
         dataFormat: 'hex',
+        txLocal: true,
       },
     );
 
@@ -142,13 +189,21 @@ export class TronTransactionBuilder extends TronWeb {
   private tronAddressHex: string;
   private provider: TronJsonRpcProvider;
 
-  constructor(tronUrl: string, tronAddress: string) {
-    tronUrl = tronUrl.endsWith('/jsonrpc') ? tronUrl.slice(0, -8) : tronUrl;
-    super({ fullHost: tronUrl });
+  constructor(
+    tronWebUrl: string,
+    tronAddress: string,
+    jsonRpcUrl?: string,
+    headers?: Record<string, string>,
+  ) {
+    super({ fullHost: tronWebUrl, headers });
 
     this.tronAddress = tronAddress;
     this.setAddress(this.tronAddress);
-    this.provider = new TronJsonRpcProvider(tronUrl);
+    // Use provided JSON-RPC URL, or derive from TronWeb URL
+    const rpcUrl =
+      jsonRpcUrl ??
+      (tronWebUrl.endsWith('/jsonrpc') ? tronWebUrl : `${tronWebUrl}/jsonrpc`);
+    this.provider = new TronJsonRpcProvider(rpcUrl);
     this.tronAddressHex = this.address.toHex(this.tronAddress);
   }
 
@@ -223,7 +278,10 @@ export class TronTransactionBuilder extends TronWeb {
         bytecode: strip0x(tx.data.toString()),
         feeLimit,
         callValue,
-        originEnergyLimit: gasLimit.toNumber(),
+        originEnergyLimit: Math.min(
+          gasLimit.toNumber(),
+          MAX_TRON_ORIGIN_ENERGY_LIMIT,
+        ),
       },
       this.tronAddress,
     );
