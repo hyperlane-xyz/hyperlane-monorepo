@@ -22,6 +22,7 @@ import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.so
 import {HypNative} from "../../contracts/token/HypNative.sol";
 import {HypERC20} from "../../contracts/token/HypERC20.sol";
 import {PredicateRouterWrapper} from "../../contracts/token/extensions/PredicateRouterWrapper.sol";
+import {IPredicateWrapper} from "../../contracts/interfaces/IPredicateWrapper.sol";
 import {Statement, Attestation} from "@predicate/interfaces/IPredicateRegistry.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
@@ -261,9 +262,7 @@ contract PredicateRouterWrapperNativeTest is Test {
 
         vm.prank(ALICE);
         vm.expectRevert(
-            PredicateRouterWrapper
-                .PredicateRouterWrapper__InsufficientValue
-                .selector
+            IPredicateWrapper.IPredicateWrapper__InsufficientValue.selector
         );
         predicateWrapper.transferRemoteWithAttestation{
             value: insufficientValue
@@ -299,9 +298,7 @@ contract PredicateRouterWrapperNativeTest is Test {
 
         vm.prank(ALICE);
         vm.expectRevert(
-            PredicateRouterWrapper
-                .PredicateRouterWrapper__UnauthorizedTransfer
-                .selector
+            IPredicateWrapper.IPredicateWrapper__UnauthorizedTransfer.selector
         );
         nativeRouter.transferRemote{value: totalValue}(
             DESTINATION,
@@ -327,7 +324,7 @@ contract PredicateRouterWrapperNativeTest is Test {
         uint256 excessValue = TRANSFER_AMT + gasValue + 1 ether;
 
         vm.expectRevert(
-            PredicateRouterWrapper.PredicateRouterWrapper__RefundFailed.selector
+            IPredicateWrapper.IPredicateWrapper__RefundFailed.selector
         );
         rejecter.doTransfer{value: excessValue}(
             attestation,
