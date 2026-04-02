@@ -5,7 +5,6 @@ import {
   tokens,
 } from '../../../../../src/config/warp.js';
 import { awSafes } from '../../governance/safe/aw.js';
-import { awIcas } from '../../governance/ica/aw.js';
 
 const deploymentChains = ['ethereum', 'arbitrum', 'plasma'] as const;
 
@@ -23,13 +22,11 @@ const oftAddresses: Record<DeploymentChain, string> = {
   plasma: '0x02ca37966753bDdDf11216B73B16C1dE756A7CF9',
 };
 
-// const ownersByChain: Record<DeploymentChain, string> = {
-//   'arbitrum': awIcas.arbitrum,
-//   'ethereum': awSafes.ethereum,
-//   'plasma':  awIcas.plasma
-// }
-
-const deployerAddress = '0x3e0A78A330F2b97059A4D507ca9d8292b65B6FB5';
+const ownersByChain: Record<DeploymentChain, string> = {
+  ethereum: awSafes.ethereum,
+  arbitrum: '0xD2757Bbc28C80789Ed679f22Ac65597Cacf51A45', // ICA (commented out in aw.ts)
+  plasma: '0x5f132a9a16F8e4AE1E2ec2F2bcEdf074d1496c3f', // ICA (from origin/main, not on audit branch)
+};
 
 export const getUSDTOftWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
@@ -39,7 +36,7 @@ export const getUSDTOftWarpConfig = async (
       chain,
       {
         ...routerConfig[chain],
-        owner: deployerAddress,
+        owner: ownersByChain[chain],
         type: TokenType.collateralOft,
         token: tokens[chain as keyof typeof tokens as DeploymentChain].USDT,
         oft: oftAddresses[chain],
