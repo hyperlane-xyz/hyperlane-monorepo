@@ -149,4 +149,5 @@ export enum WarpRouteIds {
 
   // USDT OFT
   USDTOft = 'USDT/oft',
+  USDTOftLegacy = 'USDT/oft-legacy',
 }
