@@ -14,17 +14,15 @@ import {StorageGasOracle} from "../../contracts/hooks/igp/StorageGasOracle.sol";
 import {IGasOracle} from "../../contracts/interfaces/IGasOracle.sol";
 import {IPostDispatchHook} from "../../contracts/interfaces/hooks/IPostDispatchHook.sol";
 import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
-
 contract InterchainGasPaymasterTest is Test {
     using StandardHookMetadata for bytes;
     using TypeCasts for address;
     using MessageUtils for bytes;
-
+    using Message for bytes;
     InterchainGasPaymaster igp;
     StorageGasOracle testOracle;
     StorageGasOracle tokenOracle;
     ERC20Test feeToken;
-
     address constant beneficiary = address(0x444444);
 
     uint32 constant testOriginDomain = 22222;

@@ -93,7 +93,7 @@ contract TokenBridgeCctpV1Test is Test {
         igpDestination = new TestInterchainGasPaymaster();
 
         mailboxOrigin.setDefaultHook(address(igpOrigin));
-        mailboxOrigin.setDefaultHook(address(igpDestination));
+        mailboxDestination.setDefaultHook(address(igpDestination));
 
         tokenOrigin = new MockToken();
         tokenDestination = new MockToken();

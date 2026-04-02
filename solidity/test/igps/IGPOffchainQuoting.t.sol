@@ -5,6 +5,8 @@ import {Test} from "forge-std/Test.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 import {InterchainGasPaymaster} from "../../contracts/hooks/igp/InterchainGasPaymaster.sol";
+import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
+import {Message} from "../../contracts/libs/Message.sol";
 import {AbstractOffchainQuoter} from "../../contracts/libs/AbstractOffchainQuoter.sol";
 import {SignedQuote} from "../../contracts/interfaces/IOffchainQuoter.sol";
 import {IGPQuoteContext, IGPQuoteData, OffchainQuotedIGP} from "../../contracts/hooks/igp/OffchainQuotedIGP.sol";
@@ -16,9 +18,11 @@ import {MessageUtils} from "../isms/IsmTestUtils.sol";
 
 contract IGPOffchainQuotingTest is Test {
     using TypeCasts for address;
+    using Message for bytes;
     using MessageUtils for bytes;
 
     InterchainGasPaymaster igp;
+    TestMailbox testMailbox;
     StorageGasOracle oracle;
 
     uint256 signerPk = 0xA11CE;
@@ -36,6 +40,7 @@ contract IGPOffchainQuotingTest is Test {
     function setUp() public {
         signer = vm.addr(signerPk);
 
+        testMailbox = new TestMailbox(1);
         igp = new InterchainGasPaymaster();
         igp.initialize(address(this), BENEFICIARY);
 
@@ -284,6 +289,7 @@ contract IGPOffchainQuotingTest is Test {
 
         uint256 quote = igp.quoteDispatch(metadata, message);
         vm.deal(address(this), quote);
+        testMailbox.updateLatestDispatchedId(message.id());
         igp.postDispatch{value: quote}(metadata, message);
 
         // Transient persists after postDispatch
@@ -361,7 +367,22 @@ contract IGPOffchainQuotingTest is Test {
         assertEq(fee, 30_000_000); // oracle
     }
 
-    function test_standingQuote_staleRejected() public {
+    function test_submitQuote_expiryBeforeIssuedAt_reverts() public {
+        uint48 now_ = uint48(block.timestamp);
+        SignedQuote memory sq = SignedQuote({
+            context: abi.encodePacked(address(0), DEST, address(this)),
+            data: _encodeGasData(EXCHANGE_RATE, GAS_PRICE),
+            issuedAt: now_ + 100,
+            expiry: now_,
+            salt: bytes32(0),
+            submitter: address(0)
+        });
+        bytes memory sig = _signQuote(sq);
+        vm.expectRevert(AbstractOffchainQuoter.InvalidQuote.selector);
+        igp.submitQuote(sq, sig);
+    }
+
+    function test_standingQuote_staleReverts() public {
         uint48 now_ = uint48(block.timestamp);
         _submitStanding(
             address(0),
@@ -385,6 +406,38 @@ contract IGPOffchainQuotingTest is Test {
         bytes memory sig = _signQuote(sq);
         vm.expectRevert(AbstractOffchainQuoter.StaleQuote.selector);
         igp.submitQuote(sq, sig);
+    }
+
+    function test_standingQuote_equalIssuedAt_noop() public {
+        uint48 now_ = uint48(block.timestamp);
+        _submitStanding(
+            address(0),
+            DEST,
+            address(this),
+            EXCHANGE_RATE,
+            GAS_PRICE,
+            now_,
+            now_ + 3600
+        );
+
+        // Same issuedAt should be silently skipped (no revert, no update)
+        SignedQuote memory sq = SignedQuote({
+            context: abi.encodePacked(address(0), DEST, address(this)),
+            data: _encodeGasData(3e10, 200),
+            issuedAt: now_,
+            expiry: now_ + 7200,
+            salt: bytes32(0),
+            submitter: address(0)
+        });
+        bytes memory sig = _signQuote(sq);
+        igp.submitQuote(sq, sig);
+
+        // Original quote values should be preserved
+        uint256 fee = igp.quoteGasPayment(DEST, GAS_LIMIT);
+        uint256 expected = (uint256(GAS_LIMIT) *
+            uint256(GAS_PRICE) *
+            uint256(EXCHANGE_RATE)) / 1e10;
+        assertEq(fee, expected);
     }
 
     // ============ Priority ============

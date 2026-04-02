@@ -17,7 +17,7 @@ pragma solidity >=0.8.0;
 import {AbstractPostDispatchHook} from "../../hooks/libs/AbstractPostDispatchHook.sol";
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
 import {TokenRouter} from "../libs/TokenRouter.sol";
-import {Quote} from "../../interfaces/ITokenBridge.sol";
+import {ITokenFee, Quote} from "../../interfaces/ITokenBridge.sol";
 import {Quotes} from "../libs/Quotes.sol";
 
 // ============ Predicate Imports ============
@@ -55,7 +55,8 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 contract PredicateRouterWrapper is
     AbstractPostDispatchHook,
     PredicateClient,
-    Ownable
+    Ownable,
+    ITokenFee
 {
     using SafeERC20 for IERC20;
 
@@ -119,6 +120,9 @@ contract PredicateRouterWrapper is
     /// @notice Thrown when re-entry is detected
     error PredicateRouterWrapper__ReentryDetected();
 
+    /// @notice Thrown when ETH refund to caller fails
+    error PredicateRouterWrapper__RefundFailed();
+
     // ============ Events ============
 
     /// @notice Emitted when a transfer is authorized via attestation
@@ -167,7 +171,7 @@ contract PredicateRouterWrapper is
         // Initialize PredicateClient (handles registry, policy storage and registration)
         _initPredicateClient(_registry, _policyID);
 
-        // Infinite approval to warp route for collateral routes only
+        // Infinite approval to warp route for routes where it may pull tokens
         if (
             tokenType == TokenType.Collateral ||
             tokenType == TokenType.Synthetic
@@ -233,14 +237,13 @@ contract PredicateRouterWrapper is
             _amount
         );
 
-        // 5. Handle token transfer based on type, pulling total quoted amount
-        if (tokenType == TokenType.Native) {
-            // For native tokens, sum all native quote amounts
-            uint256 totalNativeRequired = Quotes.extract(quotes, address(0));
-            if (msg.value < totalNativeRequired)
-                revert PredicateRouterWrapper__InsufficientValue();
-        } else {
-            // For ERC20 tokens, sum all token quote amounts and pull from user
+        // 5. Validate msg.value covers native fees (dispatch fee for all types, plus token amount for native)
+        uint256 totalNativeRequired = Quotes.extract(quotes, address(0));
+        if (msg.value < totalNativeRequired)
+            revert PredicateRouterWrapper__InsufficientValue();
+
+        // 6. Handle ERC20 token transfer if applicable
+        if (tokenType != TokenType.Native) {
             uint256 totalTokenRequired = Quotes.extract(quotes, address(token));
             token.safeTransferFrom(
                 msg.sender,
@@ -249,14 +252,12 @@ contract PredicateRouterWrapper is
             );
         }
 
-        // 6. Call warp route using already-encoded calldata (avoids re-encoding)
-        // This reuses the same calldata that was validated in the attestation
+        // 7. Call warp route forwarding only the required native amount
         (bool success, bytes memory returnData) = address(warpRoute).call{
-            value: msg.value
+            value: totalNativeRequired
         }(encodedSigAndArgs);
 
         if (!success) {
-            // Bubble up revert reason from warpRoute
             assembly {
                 revert(add(returnData, 32), mload(returnData))
             }
@@ -269,9 +270,31 @@ contract PredicateRouterWrapper is
             revert PredicateRouterWrapper__PostDispatchNotExecuted();
         }
 
-        // Note: pendingAttestation is cleared in _postDispatch()
-        // If we reach here, the transfer succeeded
+        // 8. Refund excess native value to caller
+        uint256 excess = msg.value - totalNativeRequired;
+        if (excess > 0) {
+            (bool refundSuccess, ) = msg.sender.call{value: excess}("");
+            if (!refundSuccess) revert PredicateRouterWrapper__RefundFailed();
+        }
+
         return messageId;
+    }
+
+    // ============ ITokenFee Implementation ============
+
+    /**
+     * @notice Quotes the fees for a remote transfer by delegating to the underlying warp route
+     * @param _destination The destination chain domain
+     * @param _recipient The recipient address on destination (as bytes32)
+     * @param _amount The amount of tokens to transfer
+     * @return quotes An array of Quote structs representing the fees
+     */
+    function quoteTransferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) external view override returns (Quote[] memory quotes) {
+        return warpRoute.quoteTransferRemote(_destination, _recipient, _amount);
     }
 
     // ============ Hook Implementation ============
