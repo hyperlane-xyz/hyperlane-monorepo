@@ -229,6 +229,34 @@ describe('configUtils', () => {
       });
     });
 
+    it('normalizes OffchainQuotedLinearFee maxFee/halfAmount so equivalent bps configs compare equal', () => {
+      const transformedObj = transformConfigToCheck({
+        type: TokenType.collateral,
+        token: ADDRESS,
+        tokenFee: {
+          type: TokenFeeType.OffchainQuotedLinearFee,
+          owner: ADDRESS,
+          token: ADDRESS,
+          bps: 300n,
+          maxFee: 999n,
+          halfAmount: 123n,
+          quoteSigners: [ADDRESS],
+        },
+      } as any);
+
+      expect(transformedObj).to.eql({
+        type: TokenType.collateral,
+        token: ADDRESS,
+        tokenFee: {
+          type: TokenFeeType.OffchainQuotedLinearFee,
+          owner: ADDRESS,
+          token: ADDRESS,
+          bps: 300n,
+          quoteSigners: [ADDRESS],
+        },
+      });
+    });
+
     it('normalizes RoutingFee maxFee/halfAmount recursively for feeContracts', () => {
       const transformedObj = transformConfigToCheck({
         type: TokenType.collateral,
