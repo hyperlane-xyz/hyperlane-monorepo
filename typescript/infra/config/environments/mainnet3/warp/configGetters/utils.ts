@@ -148,26 +148,33 @@ export function getRebalancingBridgesConfigFor(
     return { chainSet, bridgesByChain };
   });
 
-  const deploymentSet = new Set(deploymentChains);
-  const chainSets = routeData.map(({ chainSet }) => chainSet);
-  const allSets = [deploymentSet, ...chainSets];
-  const rebalanceableChains = [
-    ...allSets.reduce((acc, set) => intersection(acc, set)),
-  ];
+  // Union: a chain is rebalanceable if it's in deploymentChains AND in at least one route
+  const rebalanceableChains = deploymentChains.filter((chain) =>
+    routeData.some(({ chainSet }) => chainSet.has(chain)),
+  );
 
   return objMap(
     arrayToObject(rebalanceableChains),
     (currentChain): RebalancingConfig => {
-      const bridges = routeData.map(({ bridgesByChain }) => {
-        const bridge = bridgesByChain[currentChain];
-        assert(bridge, `No bridge found for chain ${currentChain}`);
-        return { bridge };
-      });
-
+      // For each (currentChain, remoteChain) pair, only include bridges
+      // from routes that have both chains
       const allowedRebalancingBridges = Object.fromEntries(
         rebalanceableChains
           .filter((remoteChain) => remoteChain !== currentChain)
-          .map((remoteChain) => [remoteChain, bridges]),
+          .map((remoteChain) => {
+            const bridges = routeData
+              .filter(
+                ({ chainSet }) =>
+                  chainSet.has(currentChain) && chainSet.has(remoteChain),
+              )
+              .map(({ bridgesByChain }) => {
+                const bridge = bridgesByChain[currentChain];
+                assert(bridge, `No bridge found for chain ${currentChain}`);
+                return { bridge };
+              });
+            return [remoteChain, bridges];
+          })
+          .filter(([, bridges]) => (bridges as unknown[]).length > 0),
       );
 
       return {

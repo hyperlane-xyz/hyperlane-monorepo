@@ -70,6 +70,7 @@ const rebalanceableCollateralChains = [
   'ethereum',
   'arbitrum',
   'plasma',
+  'tron',
 ] as const satisfies DeploymentChain[];
 
 const productionOwnersByChain: Record<DeploymentChain, string> = {
@@ -104,7 +105,7 @@ export const buildEclipseUSDTWarpConfig = async (
 
   const rebalancingConfigByChain = getRebalancingBridgesConfigFor(
     rebalanceableCollateralChains,
-    [WarpRouteIds.USDTOft],
+    [WarpRouteIds.USDTOft, WarpRouteIds.USDTOftLegacy],
   );
 
   const configs: Array<[DeploymentChain, HypTokenRouterConfig]> = [];
