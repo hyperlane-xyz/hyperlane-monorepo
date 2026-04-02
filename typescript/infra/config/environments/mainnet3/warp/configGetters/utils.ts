@@ -172,9 +172,9 @@ export function getRebalancingBridgesConfigFor(
                 assert(bridge, `No bridge found for chain ${currentChain}`);
                 return { bridge };
               });
-            return [remoteChain, bridges];
+            return [remoteChain, bridges] as const;
           })
-          .filter(([, bridges]) => (bridges as unknown[]).length > 0),
+          .filter(([, bridges]) => bridges.length > 0),
       );
 
       return {
