@@ -41856,6 +41856,31 @@
       ]
     },
     {
+      "name": "RISE/bsc-ethereum",
+      "matchingList": [
+        {
+          "originDomain": 56,
+          "senderAddress": [
+            "0x0000000000000000000000005615605eba908eea01225e796c97b9fcda15ac7c"
+          ],
+          "destinationDomain": 1,
+          "recipientAddress": [
+            "0x000000000000000000000000260f395c37a85e557f8e95bcc881f22d047bfb4f"
+          ]
+        },
+        {
+          "originDomain": 1,
+          "senderAddress": [
+            "0x000000000000000000000000260f395c37a85e557f8e95bcc881f22d047bfb4f"
+          ],
+          "destinationDomain": 56,
+          "recipientAddress": [
+            "0x0000000000000000000000005615605eba908eea01225e796c97b9fcda15ac7c"
+          ]
+        }
+      ]
+    },
+    {
       "name": "merkly_erc20",
       "matchingList": [
         {
