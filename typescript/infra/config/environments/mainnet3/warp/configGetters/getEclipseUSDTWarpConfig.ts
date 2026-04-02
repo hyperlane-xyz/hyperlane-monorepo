@@ -97,6 +97,29 @@ export interface EclipseUSDTWarpConfigOptions {
   proxyAdmins: ChainMap<{ address?: string; owner: string }>;
 }
 
+const getBaseEvmConfig = (
+  chain: DeploymentChain,
+  proxyAdmins: ChainMap<{ address?: string; owner: string }>,
+) => {
+  const proxyAdmin = proxyAdmins[chain];
+  assert(proxyAdmin, `Missing proxyAdmin for chain ${chain}`);
+  const decimals = chainDecimals[chain];
+  assert(decimals != null, `Decimals not defined for ${chain}`);
+  const destinations = evmDeploymentChains.filter((c) => c !== chain);
+  return {
+    ...chainTokenMetadata[chain],
+    proxyAdmin,
+    contractVersion: chain === 'ethereum' ? contractVersion : undefined,
+    decimals,
+    tokenFee: getFixedRoutingFeeConfig(
+      getWarpFeeOwner(chain),
+      destinations,
+      1.5,
+    ),
+    ...scaleDownConfig(decimals, MESSAGE_DECIMALS),
+  };
+};
+
 export const buildEclipseUSDTWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   options: EclipseUSDTWarpConfigOptions,
@@ -113,58 +136,34 @@ export const buildEclipseUSDTWarpConfig = async (
   // Configure EVM collateral chains
   const rebalanceableSet = new Set<string>(rebalanceableCollateralChains);
 
-  for (const chain of evmDeploymentChains) {
-    let chainConfig: HypTokenRouterConfig;
-    const proxyAdmin = proxyAdmins[chain];
-    assert(proxyAdmin, `Missing proxyAdmin for chain ${chain}`);
+  for (const chain of rebalanceableCollateralChains) {
+    const baseConfig = getRebalancingUSDTConfigForChain(
+      chain,
+      routerConfig,
+      ownersByChain,
+      rebalancingConfigByChain,
+    );
+    configs.push([
+      chain,
+      { ...baseConfig, ...getBaseEvmConfig(chain, proxyAdmins) },
+    ]);
+  }
 
-    const decimals = chainDecimals[chain];
-    assert(decimals != null, `Decimals not defined for ${chain}`);
-
-    const destinations = evmDeploymentChains.filter((c) => c !== chain);
-
-    if (rebalanceableSet.has(chain)) {
-      const baseConfig = getRebalancingUSDTConfigForChain(
-        chain as (typeof rebalanceableCollateralChains)[number],
-        routerConfig,
-        ownersByChain,
-        rebalancingConfigByChain,
-      );
-      chainConfig = {
-        ...baseConfig,
-        ...chainTokenMetadata[chain],
-        proxyAdmin,
-        contractVersion: chain === 'ethereum' ? contractVersion : undefined,
-        decimals,
-        tokenFee: getFixedRoutingFeeConfig(
-          getWarpFeeOwner(chain),
-          destinations,
-          1.5,
-        ),
-        ...scaleDownConfig(decimals, MESSAGE_DECIMALS),
-      };
-    } else {
-      const usdtToken = usdtTokenAddresses[chain];
-      assert(usdtToken, `USDT address not defined for ${chain}`);
-      chainConfig = {
-        ...chainTokenMetadata[chain],
+  for (const chain of evmDeploymentChains.filter(
+    (c) => !rebalanceableSet.has(c),
+  )) {
+    const usdtToken = usdtTokenAddresses[chain];
+    assert(usdtToken, `USDT address not defined for ${chain}`);
+    configs.push([
+      chain,
+      {
+        ...getBaseEvmConfig(chain, proxyAdmins),
         type: TokenType.collateral,
         token: usdtToken,
         owner: ownersByChain[chain],
-        proxyAdmin,
         mailbox: routerConfig[chain].mailbox,
-        contractVersion: chain === 'ethereum' ? contractVersion : undefined,
-        decimals,
-        tokenFee: getFixedRoutingFeeConfig(
-          getWarpFeeOwner(chain),
-          destinations,
-          1.5,
-        ),
-        ...scaleDownConfig(decimals, MESSAGE_DECIMALS),
-      };
-    }
-
-    configs.push([chain, chainConfig]);
+      },
+    ]);
   }
 
   // Configure non-evm chains
