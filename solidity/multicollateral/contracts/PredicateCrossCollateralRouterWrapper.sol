@@ -149,8 +149,7 @@ contract PredicateCrossCollateralRouterWrapper is
         localDomain = crossCollateralRouter.localDomain();
 
         // Initialize PredicateClient (handles registry, policy storage and registration)
-        // TODO: Re-enable for production - disabled for local testing
-        // _initPredicateClient(_registry, _policyID);
+        _initPredicateClient(_registry, _policyID);
 
         // Infinite approval to cross-collateral router for token transfers
         token.forceApprove(_crossCollateralRouter, type(uint256).max);
@@ -187,15 +186,14 @@ contract PredicateCrossCollateralRouterWrapper is
         );
 
         // 2. Validate with Predicate (reverts if invalid)
-        // TODO: Re-enable signature check for production
-        // bool isValid = _authorizeTransaction(
-        //     _attestation,
-        //     encodedSigAndArgs,
-        //     msg.sender,
-        //     msg.value
-        // );
-        // if (!isValid)
-        //     revert PredicateCrossCollateralRouterWrapper__AttestationInvalid();
+        bool isValid = _authorizeTransaction(
+            _attestation,
+            encodedSigAndArgs,
+            msg.sender,
+            msg.value
+        );
+        if (!isValid)
+            revert PredicateCrossCollateralRouterWrapper__AttestationInvalid();
 
         emit TransferAuthorized(
             msg.sender,
@@ -279,15 +277,14 @@ contract PredicateCrossCollateralRouterWrapper is
         );
 
         // 2. Validate with Predicate (reverts if invalid)
-        // TODO: Re-enable signature check for production
-        // bool isValid = _authorizeTransaction(
-        //     _attestation,
-        //     encodedSigAndArgs,
-        //     msg.sender,
-        //     msg.value
-        // );
-        // if (!isValid)
-        //     revert PredicateCrossCollateralRouterWrapper__AttestationInvalid();
+        bool isValid = _authorizeTransaction(
+            _attestation,
+            encodedSigAndArgs,
+            msg.sender,
+            msg.value
+        );
+        if (!isValid)
+            revert PredicateCrossCollateralRouterWrapper__AttestationInvalid();
 
         emit TransferAuthorized(
             msg.sender,
