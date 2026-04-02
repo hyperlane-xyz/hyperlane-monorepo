@@ -15,7 +15,8 @@ pragma solidity >=0.8.0;
 
 import {AbstractPostDispatchHook} from "../../hooks/libs/AbstractPostDispatchHook.sol";
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
-import {Quote} from "../../interfaces/ITokenBridge.sol";
+import {ITokenBridge, Quote} from "../../interfaces/ITokenBridge.sol";
+import {IPredicateWrapper} from "../../interfaces/IPredicateWrapper.sol";
 import {Quotes} from "./Quotes.sol";
 
 import {PredicateClient} from "@predicate/mixins/PredicateClient.sol";
@@ -33,7 +34,8 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 abstract contract AbstractPredicateWrapper is
     AbstractPostDispatchHook,
     PredicateClient,
-    Ownable
+    Ownable,
+    IPredicateWrapper
 {
     using Quotes for Quote[];
 
@@ -48,18 +50,6 @@ abstract contract AbstractPredicateWrapper is
     /// @dev Key bypass-prevention: if false in postDispatch, transfer was unauthorized
     bool public pendingAttestation;
 
-    // ============ Errors ============
-
-    error AbstractPredicateWrapper__UnauthorizedTransfer();
-    error AbstractPredicateWrapper__InvalidRegistry();
-    error AbstractPredicateWrapper__InvalidPolicy();
-    error AbstractPredicateWrapper__WithdrawFailed();
-    error AbstractPredicateWrapper__AttestationInvalid();
-    error AbstractPredicateWrapper__InsufficientValue();
-    error AbstractPredicateWrapper__PostDispatchNotExecuted();
-    error AbstractPredicateWrapper__RefundFailed();
-    error AbstractPredicateWrapper__ReentryDetected();
-
     // ============ Internal Helpers ============
 
     /// @notice Validates registry/policy and initializes PredicateClient
@@ -68,14 +58,80 @@ abstract contract AbstractPredicateWrapper is
         string memory _policyID
     ) internal {
         if (_registry == address(0))
-            revert AbstractPredicateWrapper__InvalidRegistry();
+            revert IPredicateWrapper__InvalidRegistry();
         if (bytes(_policyID).length == 0)
-            revert AbstractPredicateWrapper__InvalidPolicy();
+            revert IPredicateWrapper__InvalidPolicy();
         _initPredicateClient(_registry, _policyID);
     }
 
     /// @notice Pull the required ERC20 tokens from msg.sender. Subclasses implement.
     function _pullTokens(Quote[] memory quotes) internal virtual;
+
+    /// @notice Returns the underlying router to call. Subclasses implement.
+    function _transferRouter() internal view virtual returns (ITokenBridge);
+
+    /// @notice Returns whether the destination is cross-domain. Subclasses implement.
+    function _isCrossDomain(
+        uint32 destination
+    ) internal view virtual returns (bool);
+
+    /// @notice Emits the TransferAuthorized event. Subclasses implement.
+    function _emitTransferAuthorized(
+        address sender,
+        uint32 destination,
+        bytes32 recipient,
+        uint256 amount,
+        string calldata uuid
+    ) internal virtual;
+
+    // ============ External Functions ============
+
+    /**
+     * @notice Transfer tokens with Predicate attestation validation
+     * @param _attestation The Predicate attestation proving compliance
+     * @param _destination The destination chain domain
+     * @param _recipient The recipient address on destination (as bytes32)
+     * @param _amount The amount of tokens to transfer
+     * @return messageId The Hyperlane message ID
+     */
+    function transferRemoteWithAttestation(
+        Attestation calldata _attestation,
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) external payable virtual returns (bytes32 messageId) {
+        ITokenBridge router = _transferRouter();
+
+        bytes memory encodedSigAndArgs = abi.encodeWithSelector(
+            ITokenBridge.transferRemote.selector,
+            _destination,
+            _recipient,
+            _amount
+        );
+
+        Quote[] memory quotes = router.quoteTransferRemote(
+            _destination,
+            _recipient,
+            _amount
+        );
+
+        _emitTransferAuthorized(
+            msg.sender,
+            _destination,
+            _recipient,
+            _amount,
+            _attestation.uuid
+        );
+
+        return
+            _executeAttested(
+                _attestation,
+                encodedSigAndArgs,
+                address(router),
+                quotes,
+                _isCrossDomain(_destination)
+            );
+    }
 
     /**
      * @notice Template: authorize → check value → pull tokens → call router → refund.
@@ -93,8 +149,7 @@ abstract contract AbstractPredicateWrapper is
         Quote[] memory quotes,
         bool setPending
     ) internal returns (bytes32 messageId) {
-        if (pendingAttestation)
-            revert AbstractPredicateWrapper__ReentryDetected();
+        if (pendingAttestation) revert IPredicateWrapper__ReentryDetected();
 
         if (
             !_authorizeTransaction(
@@ -103,11 +158,11 @@ abstract contract AbstractPredicateWrapper is
                 msg.sender,
                 msg.value
             )
-        ) revert AbstractPredicateWrapper__AttestationInvalid();
+        ) revert IPredicateWrapper__AttestationInvalid();
 
         uint256 totalNativeRequired = Quotes.extract(quotes, address(0));
         if (msg.value < totalNativeRequired)
-            revert AbstractPredicateWrapper__InsufficientValue();
+            revert IPredicateWrapper__InsufficientValue();
 
         _pullTokens(quotes);
 
@@ -124,12 +179,12 @@ abstract contract AbstractPredicateWrapper is
         }
 
         if (setPending && pendingAttestation)
-            revert AbstractPredicateWrapper__PostDispatchNotExecuted();
+            revert IPredicateWrapper__PostDispatchNotExecuted();
 
         uint256 excess = msg.value - totalNativeRequired;
         if (excess > 0) {
             (bool refundSuccess, ) = msg.sender.call{value: excess}("");
-            if (!refundSuccess) revert AbstractPredicateWrapper__RefundFailed();
+            if (!refundSuccess) revert IPredicateWrapper__RefundFailed();
         }
 
         return abi.decode(returnData, (bytes32));
@@ -140,7 +195,7 @@ abstract contract AbstractPredicateWrapper is
     /// @notice Verifies transfer originated from an attested wrapper call
     function _postDispatch(bytes calldata, bytes calldata) internal override {
         if (!pendingAttestation)
-            revert AbstractPredicateWrapper__UnauthorizedTransfer();
+            revert IPredicateWrapper__UnauthorizedTransfer();
         pendingAttestation = false;
     }
 
@@ -157,14 +212,14 @@ abstract contract AbstractPredicateWrapper is
     /// @notice Updates the Predicate policy ID
     function setPolicyID(string memory _policyID) external onlyOwner {
         if (bytes(_policyID).length == 0)
-            revert AbstractPredicateWrapper__InvalidPolicy();
+            revert IPredicateWrapper__InvalidPolicy();
         _setPolicyID(_policyID);
     }
 
     /// @notice Updates the Predicate registry address
     function setRegistry(address _registry) external onlyOwner {
         if (_registry == address(0))
-            revert AbstractPredicateWrapper__InvalidRegistry();
+            revert IPredicateWrapper__InvalidRegistry();
         _setRegistry(_registry);
     }
 
@@ -177,6 +232,6 @@ abstract contract AbstractPredicateWrapper is
     function withdrawETH() external onlyOwner {
         uint256 balance = address(this).balance;
         (bool success, ) = msg.sender.call{value: balance}("");
-        if (!success) revert AbstractPredicateWrapper__WithdrawFailed();
+        if (!success) revert IPredicateWrapper__WithdrawFailed();
     }
 }

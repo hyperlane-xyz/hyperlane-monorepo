@@ -14,7 +14,7 @@ pragma solidity >=0.8.0;
 @@@@@@@@@       @@@@@@@@*/
 
 // ============ Core Imports ============
-import {Quote} from "../../interfaces/ITokenBridge.sol";
+import {ITokenBridge, Quote} from "../../interfaces/ITokenBridge.sol";
 import {AbstractPredicateWrapper} from "../libs/AbstractPredicateWrapper.sol";
 import {Quotes} from "../libs/Quotes.sol";
 
@@ -113,52 +113,6 @@ contract PredicateCrossCollateralRouterWrapper is AbstractPredicateWrapper {
     // ============ External Functions ============
 
     /**
-     * @notice Transfer tokens to primary enrolled router with Predicate attestation validation
-     * @param _attestation The Predicate attestation proving compliance
-     * @param _destination The destination chain domain
-     * @param _recipient The recipient address on destination (as bytes32)
-     * @param _amount The amount of tokens to transfer
-     * @return messageId The Hyperlane message ID (0 for same-domain transfers)
-     */
-    function transferRemoteWithAttestation(
-        Attestation calldata _attestation,
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount
-    ) external payable returns (bytes32 messageId) {
-        bytes memory encodedSigAndArgs = abi.encodeWithSelector(
-            CrossCollateralRouter.transferRemote.selector,
-            _destination,
-            _recipient,
-            _amount
-        );
-
-        Quote[] memory quotes = crossCollateralRouter.quoteTransferRemote(
-            _destination,
-            _recipient,
-            _amount
-        );
-
-        emit TransferAuthorized(
-            msg.sender,
-            _destination,
-            _recipient,
-            _amount,
-            bytes32(0),
-            _attestation.uuid
-        );
-
-        return
-            _executeAttested(
-                _attestation,
-                encodedSigAndArgs,
-                address(crossCollateralRouter),
-                quotes,
-                _destination != localDomain
-            );
-    }
-
-    /**
      * @notice Transfer tokens to specific target router with Predicate attestation validation
      * @param _attestation The Predicate attestation proving compliance
      * @param _destination The destination chain domain
@@ -208,7 +162,34 @@ contract PredicateCrossCollateralRouterWrapper is AbstractPredicateWrapper {
             );
     }
 
-    // ============ Internal Functions ============
+    // ============ Internal Overrides ============
+
+    function _transferRouter() internal view override returns (ITokenBridge) {
+        return ITokenBridge(address(crossCollateralRouter));
+    }
+
+    function _isCrossDomain(
+        uint32 destination
+    ) internal view override returns (bool) {
+        return destination != localDomain;
+    }
+
+    function _emitTransferAuthorized(
+        address sender,
+        uint32 destination,
+        bytes32 recipient,
+        uint256 amount,
+        string calldata uuid
+    ) internal override {
+        emit TransferAuthorized(
+            sender,
+            destination,
+            recipient,
+            amount,
+            bytes32(0),
+            uuid
+        );
+    }
 
     function _pullTokens(Quote[] memory quotes) internal override {
         uint256 totalTokenRequired = Quotes.extract(quotes, address(token));

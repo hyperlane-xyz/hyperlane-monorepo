@@ -15,7 +15,7 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {TokenRouter} from "../libs/TokenRouter.sol";
-import {ITokenFee, Quote} from "../../interfaces/ITokenBridge.sol";
+import {ITokenBridge, ITokenFee, Quote} from "../../interfaces/ITokenBridge.sol";
 import {Quotes} from "../libs/Quotes.sol";
 import {AbstractPredicateWrapper} from "../libs/AbstractPredicateWrapper.sol";
 
@@ -127,53 +127,6 @@ contract PredicateRouterWrapper is AbstractPredicateWrapper, ITokenFee {
         }
     }
 
-    // ============ External Functions ============
-
-    /**
-     * @notice Transfer tokens with Predicate attestation validation
-     * @param _attestation The Predicate attestation proving compliance
-     * @param _destination The destination chain domain
-     * @param _recipient The recipient address on destination (as bytes32)
-     * @param _amount The amount of tokens to transfer
-     * @return messageId The Hyperlane message ID
-     */
-    function transferRemoteWithAttestation(
-        Attestation calldata _attestation,
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount
-    ) external payable returns (bytes32 messageId) {
-        bytes memory encodedSigAndArgs = abi.encodeWithSelector(
-            TokenRouter.transferRemote.selector,
-            _destination,
-            _recipient,
-            _amount
-        );
-
-        Quote[] memory quotes = warpRoute.quoteTransferRemote(
-            _destination,
-            _recipient,
-            _amount
-        );
-
-        emit TransferAuthorized(
-            msg.sender,
-            _destination,
-            _recipient,
-            _amount,
-            _attestation.uuid
-        );
-
-        return
-            _executeAttested(
-                _attestation,
-                encodedSigAndArgs,
-                address(warpRoute),
-                quotes,
-                true
-            );
-    }
-
     // ============ ITokenFee Implementation ============
 
     /**
@@ -187,7 +140,25 @@ contract PredicateRouterWrapper is AbstractPredicateWrapper, ITokenFee {
         return warpRoute.quoteTransferRemote(_destination, _recipient, _amount);
     }
 
-    // ============ Internal Functions ============
+    // ============ Internal Overrides ============
+
+    function _transferRouter() internal view override returns (ITokenBridge) {
+        return ITokenBridge(address(warpRoute));
+    }
+
+    function _isCrossDomain(uint32) internal pure override returns (bool) {
+        return true;
+    }
+
+    function _emitTransferAuthorized(
+        address sender,
+        uint32 destination,
+        bytes32 recipient,
+        uint256 amount,
+        string calldata uuid
+    ) internal override {
+        emit TransferAuthorized(sender, destination, recipient, amount, uuid);
+    }
 
     function _pullTokens(Quote[] memory quotes) internal override {
         if (tokenType == TokenType.Native) return;
