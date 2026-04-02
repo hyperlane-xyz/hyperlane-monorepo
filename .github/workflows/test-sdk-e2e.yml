@@ -108,6 +108,11 @@ jobs:
           - validator_announce
           - warp_core
           - warp_transfer
+          - read-warp-token
+        include:
+          - test: read-warp-token
+            continue-on-error: true
+    continue-on-error: ${{ matrix.continue-on-error || false }}
     steps:
       - uses: actions/checkout@v6
         with:
