@@ -2,13 +2,13 @@
 pragma solidity >=0.8.0;
 
 interface IPredicateWrapper {
-    error IPredicateWrapper__UnauthorizedTransfer();
-    error IPredicateWrapper__InvalidRegistry();
-    error IPredicateWrapper__InvalidPolicy();
-    error IPredicateWrapper__WithdrawFailed();
-    error IPredicateWrapper__AttestationInvalid();
-    error IPredicateWrapper__InsufficientValue();
-    error IPredicateWrapper__PostDispatchNotExecuted();
-    error IPredicateWrapper__RefundFailed();
-    error IPredicateWrapper__ReentryDetected();
+    error PredicateWrapper__UnauthorizedTransfer();
+    error PredicateWrapper__InvalidRegistry();
+    error PredicateWrapper__InvalidPolicy();
+    error PredicateWrapper__WithdrawFailed();
+    error PredicateWrapper__AttestationInvalid();
+    error PredicateWrapper__InsufficientValue();
+    error PredicateWrapper__PostDispatchNotExecuted();
+    error PredicateWrapper__RefundFailed();
+    error PredicateWrapper__ReentryDetected();
 }
