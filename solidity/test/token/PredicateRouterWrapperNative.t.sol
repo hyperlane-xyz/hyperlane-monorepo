@@ -262,7 +262,7 @@ contract PredicateRouterWrapperNativeTest is Test {
 
         vm.prank(ALICE);
         vm.expectRevert(
-            IPredicateWrapper.PredicateWrapper__InsufficientValue.selector
+            IPredicateWrapper.PredicateRouterWrapper__InsufficientValue.selector
         );
         predicateWrapper.transferRemoteWithAttestation{
             value: insufficientValue
@@ -298,7 +298,9 @@ contract PredicateRouterWrapperNativeTest is Test {
 
         vm.prank(ALICE);
         vm.expectRevert(
-            IPredicateWrapper.PredicateWrapper__UnauthorizedTransfer.selector
+            IPredicateWrapper
+                .PredicateRouterWrapper__UnauthorizedTransfer
+                .selector
         );
         nativeRouter.transferRemote{value: totalValue}(
             DESTINATION,
@@ -324,7 +326,7 @@ contract PredicateRouterWrapperNativeTest is Test {
         uint256 excessValue = TRANSFER_AMT + gasValue + 1 ether;
 
         vm.expectRevert(
-            IPredicateWrapper.PredicateWrapper__RefundFailed.selector
+            IPredicateWrapper.PredicateRouterWrapper__RefundFailed.selector
         );
         rejecter.doTransfer{value: excessValue}(
             attestation,

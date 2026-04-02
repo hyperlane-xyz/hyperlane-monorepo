@@ -58,9 +58,9 @@ abstract contract AbstractPredicateWrapper is
         string memory _policyID
     ) internal {
         if (_registry == address(0))
-            revert IPredicateWrapper.PredicateWrapper__InvalidRegistry();
+            revert IPredicateWrapper.PredicateRouterWrapper__InvalidRegistry();
         if (bytes(_policyID).length == 0)
-            revert IPredicateWrapper.PredicateWrapper__InvalidPolicy();
+            revert IPredicateWrapper.PredicateRouterWrapper__InvalidPolicy();
         _initPredicateClient(_registry, _policyID);
     }
 
@@ -150,7 +150,7 @@ abstract contract AbstractPredicateWrapper is
         bool setPending
     ) internal returns (bytes32 messageId) {
         if (pendingAttestation)
-            revert IPredicateWrapper.PredicateWrapper__ReentryDetected();
+            revert IPredicateWrapper.PredicateRouterWrapper__ReentryDetected();
 
         if (
             !_authorizeTransaction(
@@ -159,11 +159,12 @@ abstract contract AbstractPredicateWrapper is
                 msg.sender,
                 msg.value
             )
-        ) revert IPredicateWrapper.PredicateWrapper__AttestationInvalid();
+        ) revert IPredicateWrapper.PredicateRouterWrapper__AttestationInvalid();
 
         uint256 totalNativeRequired = Quotes.extract(quotes, address(0));
         if (msg.value < totalNativeRequired)
-            revert IPredicateWrapper.PredicateWrapper__InsufficientValue();
+            revert IPredicateWrapper
+                .PredicateRouterWrapper__InsufficientValue();
 
         _pullTokens(quotes);
 
@@ -181,13 +182,13 @@ abstract contract AbstractPredicateWrapper is
 
         if (setPending && pendingAttestation)
             revert IPredicateWrapper
-                .PredicateWrapper__PostDispatchNotExecuted();
+                .PredicateRouterWrapper__PostDispatchNotExecuted();
 
         uint256 excess = msg.value - totalNativeRequired;
         if (excess > 0) {
             (bool refundSuccess, ) = msg.sender.call{value: excess}("");
             if (!refundSuccess)
-                revert IPredicateWrapper.PredicateWrapper__RefundFailed();
+                revert IPredicateWrapper.PredicateRouterWrapper__RefundFailed();
         }
 
         return abi.decode(returnData, (bytes32));
@@ -198,7 +199,8 @@ abstract contract AbstractPredicateWrapper is
     /// @notice Verifies transfer originated from an attested wrapper call
     function _postDispatch(bytes calldata, bytes calldata) internal override {
         if (!pendingAttestation)
-            revert IPredicateWrapper.PredicateWrapper__UnauthorizedTransfer();
+            revert IPredicateWrapper
+                .PredicateRouterWrapper__UnauthorizedTransfer();
         pendingAttestation = false;
     }
 
@@ -215,14 +217,14 @@ abstract contract AbstractPredicateWrapper is
     /// @notice Updates the Predicate policy ID
     function setPolicyID(string memory _policyID) external onlyOwner {
         if (bytes(_policyID).length == 0)
-            revert IPredicateWrapper.PredicateWrapper__InvalidPolicy();
+            revert IPredicateWrapper.PredicateRouterWrapper__InvalidPolicy();
         _setPolicyID(_policyID);
     }
 
     /// @notice Updates the Predicate registry address
     function setRegistry(address _registry) external onlyOwner {
         if (_registry == address(0))
-            revert IPredicateWrapper.PredicateWrapper__InvalidRegistry();
+            revert IPredicateWrapper.PredicateRouterWrapper__InvalidRegistry();
         _setRegistry(_registry);
     }
 
@@ -236,6 +238,6 @@ abstract contract AbstractPredicateWrapper is
         uint256 balance = address(this).balance;
         (bool success, ) = msg.sender.call{value: balance}("");
         if (!success)
-            revert IPredicateWrapper.PredicateWrapper__WithdrawFailed();
+            revert IPredicateWrapper.PredicateRouterWrapper__WithdrawFailed();
     }
 }
