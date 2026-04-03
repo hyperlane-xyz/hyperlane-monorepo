@@ -74,14 +74,15 @@ class CCTPService extends BaseService {
     );
 
     // CCIP-read spec: POST /getCctpAttestation
-    this.router.post(
-      '/getCctpAttestation',
-      createAbiHandler(
+    this.router.post('/getCctpAttestation', async (req, res) => {
+      const originTxHash = req.body?.originTxHash as string | undefined;
+      return createAbiHandler(
         CctpService__factory,
         'getCCTPAttestation',
-        this.getCCTPAttestation.bind(this),
-      ),
-    );
+        (message: string, logger: Logger) =>
+          this.getCCTPAttestation(message, originTxHash, logger),
+      )(req, res);
+    });
   }
 
   async getCCTPMessageFromReceipt(
@@ -130,7 +131,11 @@ class CCTPService extends BaseService {
     throw new Error('Unable to find MessageSent event in logs');
   }
 
-  async getCCTPAttestation(message: string, logger: Logger) {
+  async getCCTPAttestation(
+    message: string,
+    originTxHash: string | undefined,
+    logger: Logger,
+  ) {
     const log = this.addLoggerServiceContext(logger);
 
     log.info(
@@ -141,11 +146,20 @@ class CCTPService extends BaseService {
     const messageId: string = ethers.utils.keccak256(message);
     log.info({ messageId, hyperlaneMessage: message }, 'Generated message ID');
 
-    const txHash =
-      await this.hyperlaneService.getOriginTransactionHashByMessageId(
+    let txHash: string | undefined = originTxHash;
+
+    if (txHash) {
+      log.info({ txHash, messageId }, 'Using tx hash provided by relayer');
+    } else {
+      log.info(
+        { messageId },
+        'No tx hash from relayer, falling back to scraper lookup',
+      );
+      txHash = await this.hyperlaneService.getOriginTransactionHashByMessageId(
         messageId,
         log,
       );
+    }
 
     if (!txHash) {
       throw new Error(`Invalid transaction hash: ${txHash}`);

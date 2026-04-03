@@ -15,8 +15,8 @@ use sha3::{digest::Update, Digest, Keccak256};
 use tracing::{info, instrument, warn};
 
 use hyperlane_core::{
-    utils::bytes_to_hex, CcipReadIsm, HyperlaneMessage, HyperlaneSignerExt, Metadata, ModuleType,
-    RawHyperlaneMessage, Signable, H160, H256,
+    h512_to_bytes, utils::bytes_to_hex, CcipReadIsm, HyperlaneMessage, HyperlaneSignerExt,
+    Metadata, ModuleType, RawHyperlaneMessage, Signable, H160, H256,
 };
 use hyperlane_ethereum::{OffchainLookup, Signers};
 
@@ -37,6 +37,7 @@ struct OffchainLookupRequestBody {
     pub data: String,
     pub sender: String,
     pub signature: Option<String>,
+    pub origin_tx_hash: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -223,6 +224,15 @@ async fn metadata_build(
         .call_get_offchain_verify_info(ism, message)
         .await?;
 
+    let origin_tx_hash = ism_builder
+        .base
+        .base_builder()
+        .retrieve_origin_tx_hash_by_message_id(message.id())
+        .await
+        .ok()
+        .flatten()
+        .map(|h| bytes_to_hex(&h512_to_bytes(&h)));
+
     let ccip_url_regex = create_ccip_url_regex();
 
     for url in info.urls.iter() {
@@ -232,7 +242,7 @@ async fn metadata_build(
         }
 
         // if we fail, we want to try the other urls
-        match fetch_offchain_data(ism_builder, &info, url).await {
+        match fetch_offchain_data(ism_builder, &info, url, origin_tx_hash.clone()).await {
             Ok(data) => return Ok(data),
             Err(err) => {
                 tracing::warn!(?ism_address, url, ?err, "Failed to fetch offchain data");
@@ -250,6 +260,7 @@ async fn fetch_offchain_data(
     ism_builder: &CcipReadIsmMetadataBuilder,
     info: &OffchainLookup,
     url: &str,
+    origin_tx_hash: Option<String>,
 ) -> Result<Metadata, MetadataBuildError> {
     // Compute relayer authentication signature via EIP-191
     let maybe_signature_hex = if let Some(signer) = ism_builder.base.base_builder().get_signer() {
@@ -271,6 +282,7 @@ async fn fetch_offchain_data(
             sender: sender_as_bytes,
             data: data_as_bytes,
             signature: maybe_signature_hex,
+            origin_tx_hash,
         };
         Client::new()
             .request(Method::POST, interpolated_url)
