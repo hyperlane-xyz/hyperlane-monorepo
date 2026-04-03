@@ -1,6 +1,6 @@
 #![allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use cache_types::SerializedOffchainLookup;
@@ -15,8 +15,8 @@ use sha3::{digest::Update, Digest, Keccak256};
 use tracing::{info, instrument, warn};
 
 use hyperlane_core::{
-    utils::bytes_to_hex, CcipReadIsm, HyperlaneMessage, HyperlaneSignerExt, Metadata, ModuleType,
-    RawHyperlaneMessage, Signable, H160, H256,
+    h512_to_bytes, utils::bytes_to_hex, CcipReadIsm, HyperlaneMessage, HyperlaneSignerExt,
+    Metadata, ModuleType, RawHyperlaneMessage, Signable, H160, H256,
 };
 use hyperlane_ethereum::{OffchainLookup, Signers};
 
@@ -31,12 +31,15 @@ use super::{
 mod cache_types;
 
 pub const DEFAULT_TIMEOUT: u64 = 30;
+const FETCH_RETRY_INTERVAL: Duration = Duration::from_secs(3);
+const FETCH_RETRY_BUDGET: Duration = Duration::from_secs(60);
 
 #[derive(Clone, Debug, Serialize)]
 struct OffchainLookupRequestBody {
     pub data: String,
     pub sender: String,
     pub signature: Option<String>,
+    pub origin_tx_hash: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -223,6 +226,15 @@ async fn metadata_build(
         .call_get_offchain_verify_info(ism, message)
         .await?;
 
+    let origin_tx_hash = ism_builder
+        .base
+        .base_builder()
+        .retrieve_origin_tx_hash_by_message_id(message.id())
+        .await
+        .ok()
+        .flatten()
+        .map(|h| bytes_to_hex(&h512_to_bytes(&h)));
+
     let ccip_url_regex = create_ccip_url_regex();
 
     for url in info.urls.iter() {
@@ -231,12 +243,28 @@ async fn metadata_build(
             continue;
         }
 
-        // if we fail, we want to try the other urls
-        match fetch_offchain_data(ism_builder, &info, url).await {
-            Ok(data) => return Ok(data),
-            Err(err) => {
-                tracing::warn!(?ism_address, url, ?err, "Failed to fetch offchain data");
-                continue;
+        let deadline = Instant::now() + FETCH_RETRY_BUDGET;
+        loop {
+            match fetch_offchain_data(ism_builder, &info, url, origin_tx_hash.clone()).await {
+                Ok(data) => return Ok(data),
+                Err(err) => {
+                    if Instant::now() >= deadline {
+                        tracing::warn!(
+                            ?ism_address,
+                            url,
+                            ?err,
+                            "Failed to fetch offchain data, budget exhausted"
+                        );
+                        break;
+                    }
+                    tracing::debug!(
+                        ?ism_address,
+                        url,
+                        ?err,
+                        "Failed to fetch offchain data, retrying"
+                    );
+                    tokio::time::sleep(FETCH_RETRY_INTERVAL).await;
+                }
             }
         }
     }
@@ -250,6 +278,7 @@ async fn fetch_offchain_data(
     ism_builder: &CcipReadIsmMetadataBuilder,
     info: &OffchainLookup,
     url: &str,
+    origin_tx_hash: Option<String>,
 ) -> Result<Metadata, MetadataBuildError> {
     // Compute relayer authentication signature via EIP-191
     let maybe_signature_hex = if let Some(signer) = ism_builder.base.base_builder().get_signer() {
@@ -271,6 +300,7 @@ async fn fetch_offchain_data(
             sender: sender_as_bytes,
             data: data_as_bytes,
             signature: maybe_signature_hex,
+            origin_tx_hash,
         };
         Client::new()
             .request(Method::POST, interpolated_url)
