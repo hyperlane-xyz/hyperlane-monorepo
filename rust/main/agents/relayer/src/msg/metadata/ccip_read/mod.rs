@@ -1,6 +1,6 @@
 #![allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use cache_types::SerializedOffchainLookup;
@@ -31,6 +31,8 @@ use super::{
 mod cache_types;
 
 pub const DEFAULT_TIMEOUT: u64 = 30;
+const FETCH_RETRY_INTERVAL: Duration = Duration::from_secs(3);
+const FETCH_RETRY_BUDGET: Duration = Duration::from_secs(60);
 
 #[derive(Clone, Debug, Serialize)]
 struct OffchainLookupRequestBody {
@@ -241,12 +243,28 @@ async fn metadata_build(
             continue;
         }
 
-        // if we fail, we want to try the other urls
-        match fetch_offchain_data(ism_builder, &info, url, origin_tx_hash.clone()).await {
-            Ok(data) => return Ok(data),
-            Err(err) => {
-                tracing::warn!(?ism_address, url, ?err, "Failed to fetch offchain data");
-                continue;
+        let deadline = Instant::now() + FETCH_RETRY_BUDGET;
+        loop {
+            match fetch_offchain_data(ism_builder, &info, url, origin_tx_hash.clone()).await {
+                Ok(data) => return Ok(data),
+                Err(err) => {
+                    if Instant::now() >= deadline {
+                        tracing::warn!(
+                            ?ism_address,
+                            url,
+                            ?err,
+                            "Failed to fetch offchain data, budget exhausted"
+                        );
+                        break;
+                    }
+                    tracing::debug!(
+                        ?ism_address,
+                        url,
+                        ?err,
+                        "Failed to fetch offchain data, retrying"
+                    );
+                    tokio::time::sleep(FETCH_RETRY_INTERVAL).await;
+                }
             }
         }
     }
