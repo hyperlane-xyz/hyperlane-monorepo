@@ -1,18 +1,24 @@
-import type { Log, TransactionReceipt } from '@ethersproject/providers';
+import type { Log } from '@ethersproject/providers';
 import { Request, Response, Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import { Logger } from 'pino';
 import { z } from 'zod';
 
 import {
   CommitmentReadIsmService__factory,
   InterchainAccountRouter__factory,
-  Mailbox__factory,
 } from '@hyperlane-xyz/core';
 import {
+  AccountConfig,
+  InterchainAccount,
   MultiProvider,
+  PostCallsIcaType,
+  PostCallsLegacyType,
   PostCallsSchema,
   PostCallsType,
+  isPostCallsIca,
   commitmentFromIcaCalls,
+  commitmentFromRevealMessage,
   encodeIcaCalls,
   normalizeCalls,
 } from '@hyperlane-xyz/sdk';
@@ -20,7 +26,7 @@ import {
   addressToBytes32,
   bytes32ToAddress,
   eqAddress,
-  messageId,
+  parseMessage,
 } from '@hyperlane-xyz/utils';
 
 import { prisma } from '../db.js';
@@ -41,19 +47,24 @@ const EnvSchema = z.object({
   SERVER_BASE_URL: z.string(),
 });
 
-// Zod schema for retrieving a commitment record, reusing PostCallsSchema for common fields
-const CommitmentRecordSchema = PostCallsSchema.extend({
+// Zod schema for retrieving a commitment record
+const CommitmentRecordSchema = z.object({
   commitment: z.string(),
-  revealMessageId: z.string(),
   ica: z.string(),
+  calls: z.array(z.any()),
+  relayers: z.array(z.string()),
+  salt: z.string(),
+  originDomain: z.number(),
 });
 
-// TODO: Authenticate relayer
 export class CallCommitmentsService extends BaseService {
   private multiProvider: MultiProvider;
   private baseUrl: string;
 
-  constructor(config: ServiceConfigWithBaseUrl) {
+  constructor(
+    config: ServiceConfigWithBaseUrl,
+    private icaApp: InterchainAccount,
+  ) {
     super(config);
     this.multiProvider = config.multiProvider;
     this.baseUrl = config.baseUrl;
@@ -62,14 +73,26 @@ export class CallCommitmentsService extends BaseService {
 
   static async create(serviceName: string): Promise<CallCommitmentsService> {
     const env = EnvSchema.parse(process.env);
+    const registry = await this.getRegistry(env.REGISTRY_URI);
+
     const multiProvider = await BaseService.getMultiProvider(env.REGISTRY_URI);
     const baseUrl = env.SERVER_BASE_URL + '/' + serviceName;
 
-    return new CallCommitmentsService({
-      serviceName,
+    // Build InterchainAccount app
+    const coreAddresses = await registry.getAddresses();
+    const icaApp = InterchainAccount.fromAddressesMap(
+      coreAddresses,
       multiProvider,
-      baseUrl,
-    });
+    );
+
+    return new CallCommitmentsService(
+      {
+        serviceName,
+        multiProvider,
+        baseUrl,
+      },
+      icaApp,
+    );
   }
 
   public async handleCommitment(req: Request, res: Response) {
@@ -98,53 +121,34 @@ export class CallCommitmentsService extends BaseService {
     }
     logger.setBindings({ commitment });
 
-    logger.info(
-      {
-        commitmentDispatchTx: data.commitmentDispatchTx,
-        calls: data.calls,
-        relayers: data.relayers,
-        salt: data.salt,
-        callsCount: data.calls.length,
-        originDomain: data.originDomain,
-      },
-      'Processing commitment creation',
-    );
+    logger.info(data, 'Processing commitment creation');
 
-    let ica: string, revealMessageId: string;
+    let ica: string;
     try {
-      ({ ica, revealMessageId } = await this.validateCommitmentEvents(
-        data,
-        commitment,
-        logger,
-      ));
+      if (isPostCallsIca(data)) {
+        ica = await this.deriveIcaFromConfig(data, logger);
+      } else {
+        ica = await this.deriveIcaFromDispatchTx(data, logger);
+      }
     } catch (error: any) {
-      // TODO: distinguish between infrastructure vs client errors
       logger.warn(
-        {
-          commitmentDispatchTx: data.commitmentDispatchTx,
-          originDomain: data.originDomain,
-          error: error.message,
-          stack: error.stack,
-        },
-        'Commitment dispatch validation failed',
+        { error: error.message, stack: error.stack },
+        'Failed to derive ICA address',
       );
-      return res.status(400).json({ error: error.message });
+      return res.status(400).json({
+        error: `Failed to derive ICA address: ${error.message}`,
+      });
     }
 
     // Attempt to insert the commitment. Using upsert for idempotency.
     try {
-      await this.upsertCommitmentInDB(
-        commitment,
-        { ...data, ica, revealMessageId },
-        logger,
-      );
+      await this.upsertCommitmentInDB(commitment, { ...data, ica }, logger);
     } catch (error: any) {
       // Any database error is unexpected.
       logger.error(
         {
-          commitmentDispatchTx: data.commitmentDispatchTx,
-          originDomain: data.originDomain,
-          messageId: revealMessageId,
+          ...data,
+          ica,
           error: error.message,
           stack: error.stack,
           error_reason: UnhandledErrorReason.CALL_COMMITMENTS_DATABASE_ERROR,
@@ -158,10 +162,7 @@ export class CallCommitmentsService extends BaseService {
       return res.status(500).json({ error: 'Internal server error' });
     }
 
-    logger.info(
-      { revealMessageId, commitmentDispatchTx: data.commitmentDispatchTx },
-      'Commitment processing completed successfully',
-    );
+    logger.info(data, 'Commitment processing completed successfully');
     return res.sendStatus(200);
   }
 
@@ -174,24 +175,23 @@ export class CallCommitmentsService extends BaseService {
     log.info({ message, relayer }, 'Handling fetch commitment request');
 
     try {
-      const revealMsgId = messageId(message);
+      const { body } = parseMessage(message);
+      const commitment = commitmentFromRevealMessage(body);
       log.info(
-        { revealMsgId, message, relayer },
-        'Generated reveal message ID',
+        { commitment, message, relayer },
+        'Extracted commitment from reveal message',
       );
 
-      const record = await this.fetchCommitmentRecord(revealMsgId, log);
+      const record = await this.fetchCommitmentRecord(commitment, log);
 
       if (
         record.relayers.length > 0 &&
-        !record.relayers.find((r) => eqAddress(r, relayer))
+        !record.relayers.find((r: string) => eqAddress(r, relayer))
       ) {
         log.warn(
           {
-            revealMsgId,
-            message,
+            ...record,
             relayer,
-            commitment: record.commitment,
           },
           'Relayer not authorized for this commitment',
         );
@@ -207,7 +207,6 @@ export class CallCommitmentsService extends BaseService {
       log.info(
         {
           commitment: record.commitment,
-          revealMsgId,
           callsCount: record.calls.length,
         },
         'Serving calls for commitment',
@@ -230,59 +229,13 @@ export class CallCommitmentsService extends BaseService {
   }
 
   /**
-   * Extract the reveal message ID from the transaction receipt.
-   * Finds the second DispatchId event after the CommitRevealDispatched event.
-   */
-  private extractRevealMessageIdAndValidateDispatchedCommitment(
-    receipt: TransactionReceipt,
-    commitment: string,
-    logger: Logger,
-  ): string {
-    const iface = InterchainAccountRouter__factory.createInterface();
-    const dispatchIdTopic =
-      Mailbox__factory.createInterface().getEventTopic('DispatchId');
-    const revealDispatchedTopic = iface.getEventTopic('CommitRevealDispatched');
-
-    // Find the index of the CommitRevealDispatched log with the given commitment
-    const revealIndex = receipt.logs.findIndex(
-      (log: Log) =>
-        log.topics[0] === revealDispatchedTopic &&
-        iface.parseLog(log).args.commitment === commitment,
-    );
-    if (revealIndex === -1) {
-      logger.warn(
-        { receipt, commitmentDispatchTx: receipt.transactionHash },
-        'CommitRevealDispatched event not found in logs',
-      );
-      throw new Error('CommitRevealDispatched event not found in logs');
-    }
-
-    // Find the next two DispatchId logs after the CommitRevealDispatched
-    const dispatchLogsAfterReveal = receipt.logs
-      .slice(revealIndex + 1)
-      .filter((log: Log) => log.topics[0] === dispatchIdTopic);
-
-    if (dispatchLogsAfterReveal.length < 2) {
-      logger.warn(
-        { receipt, commitmentDispatchTx: receipt.transactionHash },
-        'Not enough DispatchId events after CommitRevealDispatched',
-      );
-      throw new Error(
-        'Not enough DispatchId events after CommitRevealDispatched',
-      );
-    }
-
-    return dispatchLogsAfterReveal[1].topics[1];
-  }
-
-  /**
    * Validate and parse the request body against the Zod schema.
    * Returns parsed data or sends a 400 response and returns null.
    */
   private parseCommitmentBody(body: any, res: Response, logger: Logger) {
     const result = PostCallsSchema.safeParse(body);
     if (!result.success) {
-      const errors = result.error.flatten().fieldErrors;
+      const errors = result.error.format();
       logger.warn({ errors, body }, 'Invalid request body received');
       res.status(400).json({ errors });
       return null;
@@ -297,39 +250,27 @@ export class CallCommitmentsService extends BaseService {
     commitment: string,
     data: PostCallsType & {
       ica: string;
-      revealMessageId: string;
     },
     logger: Logger,
   ) {
-    const {
-      calls,
-      relayers,
-      salt,
-      ica,
-      revealMessageId,
-      commitmentDispatchTx,
-      originDomain,
-    } = data;
+    const { calls, relayers, salt, ica, originDomain } = data;
 
     await prisma.commitment.upsert({
-      where: { revealMessageId },
+      where: { commitment },
       update: {}, // Do nothing if it already exists.
       create: {
         commitment,
-        revealMessageId,
         calls,
         relayers,
         salt,
         ica,
-        commitmentDispatchTx,
         originDomain,
       },
     });
 
     logger.info(
       {
-        revealMessageId,
-        ica,
+        commitment,
         callsCount: calls.length,
         originDomain,
       },
@@ -341,58 +282,69 @@ export class CallCommitmentsService extends BaseService {
    * Fetch a commitment record from the database by revealMessageId.
    * Throws if not found.
    */
-  private async fetchCommitmentRecord(revealMessageId: string, logger: Logger) {
-    logger.info(
-      { revealMessageId },
-      'Fetching commitment from DB with revealMessageId',
-    );
+  private async fetchCommitmentRecord(commitment: string, logger: Logger) {
+    logger.info({ commitment }, 'Fetching commitment from DB');
 
     const record = await prisma.commitment.findUnique({
-      where: { revealMessageId },
+      where: { commitment },
     });
 
     if (!record) {
-      logger.warn(
-        { revealMessageId },
-        'Commitment not found in DB with revealMessageId',
-      );
-      throw new Error(
-        'Commitment not found for revealMessageId: ' + revealMessageId,
-      );
+      logger.warn({ commitment }, 'Commitment not found in DB');
+      throw new Error('Commitment not found: ' + commitment);
     }
 
     const parsed = CommitmentRecordSchema.parse(record);
-    logger.info(
-      { commitment: parsed.commitment, revealMessageId },
-      'Successfully fetched commitment record',
-    );
+    logger.info(parsed, 'Successfully fetched commitment record');
 
     return parsed;
   }
 
-  // Validate the commitment events by checking the transaction receipt
-  // and parsing the events emitted by the InterchainAccountRouter.
-  // This ensures that the commitment was dispatched correctly and
-  // return the ICA address.
-  // Throws if validation fails.
-  private async validateCommitmentEvents(
-    data: PostCallsType,
-    commitment: string,
+  /**
+   * New path: derive ICA from explicitly provided destination + owner.
+   */
+  private async deriveIcaFromConfig(
+    data: PostCallsIcaType,
     logger: Logger,
-  ): Promise<{ ica: string; revealMessageId: string }> {
+  ): Promise<string> {
+    const originChain = this.multiProvider.getChainName(data.originDomain);
+    const destinationChain = this.multiProvider.getChainName(
+      data.destinationDomain,
+    );
+
+    const accountConfig: AccountConfig = {
+      origin: originChain,
+      owner: data.owner,
+      ismOverride: data.ismOverride,
+      userSalt: data.userSalt,
+    };
+
+    logger.debug(
+      {
+        originChain,
+        destinationChain,
+        owner: data.owner,
+        userSalt: data.userSalt,
+      },
+      'Deriving ICA from config',
+    );
+
+    return this.icaApp.getAccount(destinationChain, accountConfig);
+  }
+
+  /**
+   * Legacy path: derive ICA from the dispatch tx receipt events.
+   */
+  private async deriveIcaFromDispatchTx(
+    data: PostCallsLegacyType,
+    logger: Logger,
+  ): Promise<string> {
     const provider = this.multiProvider.getProvider(data.originDomain);
     const receipt = await provider.getTransactionReceipt(
       data.commitmentDispatchTx,
     );
 
     if (!receipt) {
-      logger.error(
-        {
-          commitmentDispatchTx: data.commitmentDispatchTx,
-          originDomain: data.originDomain,
-        },
-        'Transaction not found',
-      );
       throw new Error(
         `Transaction not found: ${data.commitmentDispatchTx} on domain ${data.originDomain}`,
       );
@@ -403,59 +355,16 @@ export class CallCommitmentsService extends BaseService {
         commitmentDispatchTx: data.commitmentDispatchTx,
         originDomain: data.originDomain,
       },
-      'Validating commitment events',
+      'Deriving ICA from dispatch tx',
     );
 
-    // 2) Extract reveal message ID
-    const revealMessageId =
-      this.extractRevealMessageIdAndValidateDispatchedCommitment(
-        receipt,
-        commitment,
-        logger,
-      );
-
-    // 3) Derive ICA from RemoteCallDispatched
-    const ica = await this.deriveIcaFromRemoteCallDispatched(
-      receipt,
-      data.originDomain,
-      logger,
-    );
-
-    logger.info(
-      {
-        ica,
-        revealMessageId,
-        commitmentDispatchTx: data.commitmentDispatchTx,
-        originDomain: data.originDomain,
-      },
-      'Commitment validation successful',
-    );
-
-    return { ica, revealMessageId };
-  }
-
-  /**
-   * Parse the RemoteCallDispatched event from the receipt and derive the ICA address.
-   */
-  private async deriveIcaFromRemoteCallDispatched(
-    receipt: TransactionReceipt,
-    originDomain: number,
-    logger: Logger,
-  ): Promise<string> {
     const iface = InterchainAccountRouter__factory.createInterface();
     const callTopic = iface.getEventTopic('RemoteCallDispatched');
     const callLog = receipt.logs.find((l: Log) => l.topics[0] === callTopic);
     if (!callLog) {
-      logger.warn(
-        {
-          receipt,
-          originDomain,
-          commitmentDispatchTx: receipt.transactionHash,
-        },
-        'RemoteCallDispatched event not found',
-      );
       throw new Error('RemoteCallDispatched event not found');
     }
+
     const parsedCall = iface.parseLog(callLog);
     const owner = addressToBytes32(parsedCall.args.owner);
     const destinationRouterAddress = bytes32ToAddress(parsedCall.args.router);
@@ -464,21 +373,35 @@ export class CallCommitmentsService extends BaseService {
     const destinationDomain = parsedCall.args.destination as number;
     const salt = parsedCall.args.salt as string;
 
-    // Derive the ICA by calling the on-chain view
     const destinationRouter = InterchainAccountRouter__factory.connect(
       destinationRouterAddress,
       this.multiProvider.getProvider(destinationDomain),
     );
     return destinationRouter[
       'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
-    ](originDomain, owner, originRouter, ismAddress, salt);
+    ](data.originDomain, owner, originRouter, ismAddress, salt);
   }
 
   /**
    * Register routes onto an Express Router or app.
    */
   private registerRoutes(router: Router, baseUrl: string): void {
-    router.post('/calls', this.handleCommitment.bind(this));
+    const commitmentRateLimit = rateLimit({
+      windowMs: 60 * 1000,
+      max: 20,
+      standardHeaders: true,
+      legacyHeaders: false,
+      handler: (_req, res) => {
+        PrometheusMetrics.logRateLimited();
+        res.status(429).json({ error: 'Too many requests' });
+      },
+    });
+
+    router.post(
+      '/calls',
+      commitmentRateLimit,
+      this.handleCommitment.bind(this),
+    );
     router.post(
       '/getCallsFromRevealMessage',
       createAbiHandler(
