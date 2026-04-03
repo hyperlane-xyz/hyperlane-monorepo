@@ -24,6 +24,7 @@ import {HypERC20Collateral} from "../../contracts/token/HypERC20Collateral.sol";
 import {HypERC20} from "../../contracts/token/HypERC20.sol";
 import {HypNative} from "../../contracts/token/HypNative.sol";
 import {PredicateRouterWrapper} from "../../contracts/token/extensions/PredicateRouterWrapper.sol";
+import {IPredicateWrapper} from "../../contracts/interfaces/IPredicateWrapper.sol";
 import {Statement, Attestation} from "@predicate/interfaces/IPredicateRegistry.sol";
 import {Quote} from "../../contracts/interfaces/ITokenBridge.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
@@ -226,9 +227,7 @@ contract PredicateRouterWrapperCollateralTest is Test {
 
     function test_constructor_revert_ifZeroRegistry() public {
         vm.expectRevert(
-            PredicateRouterWrapper
-                .PredicateRouterWrapper__InvalidRegistry
-                .selector
+            IPredicateWrapper.PredicateRouterWrapper__InvalidRegistry.selector
         );
         new PredicateRouterWrapper(
             address(collateralRouter),
@@ -239,9 +238,7 @@ contract PredicateRouterWrapperCollateralTest is Test {
 
     function test_constructor_revert_ifEmptyPolicy() public {
         vm.expectRevert(
-            PredicateRouterWrapper
-                .PredicateRouterWrapper__InvalidPolicy
-                .selector
+            IPredicateWrapper.PredicateRouterWrapper__InvalidPolicy.selector
         );
         new PredicateRouterWrapper(
             address(collateralRouter),
@@ -354,7 +351,7 @@ contract PredicateRouterWrapperCollateralTest is Test {
 
         vm.prank(ALICE);
         vm.expectRevert(
-            PredicateRouterWrapper
+            IPredicateWrapper
                 .PredicateRouterWrapper__AttestationInvalid
                 .selector
         );
@@ -475,7 +472,7 @@ contract PredicateRouterWrapperCollateralTest is Test {
 
         vm.prank(ALICE);
         vm.expectRevert(
-            PredicateRouterWrapper
+            IPredicateWrapper
                 .PredicateRouterWrapper__UnauthorizedTransfer
                 .selector
         );
@@ -536,9 +533,7 @@ contract PredicateRouterWrapperCollateralTest is Test {
 
     function test_setPolicyID_revert_ifEmptyPolicy() public {
         vm.expectRevert(
-            PredicateRouterWrapper
-                .PredicateRouterWrapper__InvalidPolicy
-                .selector
+            IPredicateWrapper.PredicateRouterWrapper__InvalidPolicy.selector
         );
         predicateWrapper.setPolicyID("");
     }
@@ -583,9 +578,7 @@ contract PredicateRouterWrapperCollateralTest is Test {
 
     function test_setRegistry_revert_ifZeroAddress() public {
         vm.expectRevert(
-            PredicateRouterWrapper
-                .PredicateRouterWrapper__InvalidRegistry
-                .selector
+            IPredicateWrapper.PredicateRouterWrapper__InvalidRegistry.selector
         );
         predicateWrapper.setRegistry(address(0));
     }
@@ -709,7 +702,7 @@ contract PredicateRouterWrapperCollateralIntegrationTest is
 
         vm.prank(ALICE);
         vm.expectRevert(
-            PredicateRouterWrapper
+            IPredicateWrapper
                 .PredicateRouterWrapper__UnauthorizedTransfer
                 .selector
         );
