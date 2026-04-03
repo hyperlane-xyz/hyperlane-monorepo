@@ -1,5 +1,15 @@
 # @hyperlane-xyz/http-registry-server
 
+## 30.0.0
+
+### Patch Changes
+
+- Updated dependencies [e1ed158]
+- Updated dependencies [95c2891]
+- Updated dependencies [7646819]
+  - @hyperlane-xyz/sdk@30.0.0
+  - @hyperlane-xyz/utils@30.0.0
+
 ## 29.1.0
 
 ### Patch Changes

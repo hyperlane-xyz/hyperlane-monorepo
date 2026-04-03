@@ -1,5 +1,18 @@
 # @hyperlane-xyz/metrics
 
+## 0.2.8
+
+### Patch Changes
+
+- 7646819: Fixed metrics server startup to validate `PROMETHEUS_PORT` before listening and throw a clear error for empty, non-numeric, or out-of-range values.
+- Updated dependencies [77db719]
+- Updated dependencies [e1ed158]
+- Updated dependencies [95c2891]
+- Updated dependencies [7646819]
+  - @hyperlane-xyz/core@11.1.1
+  - @hyperlane-xyz/sdk@30.0.0
+  - @hyperlane-xyz/utils@30.0.0
+
 ## 0.2.7
 
 ### Patch Changes
