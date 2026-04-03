@@ -4,10 +4,13 @@ import { addressToBytes32 as addressToBytes32Util } from '@hyperlane-xyz/utils';
 // Chain Configuration
 // ============================================================================
 
+export const TRON_CHAIN_ID = 728126428;
+
 export const CHAIN_ID_TO_EID: Record<number, number> = {
   1: 30101, // Ethereum
   42161: 30110, // Arbitrum
   9745: 30383, // Plasma
+  [TRON_CHAIN_ID]: 30420, // Tron (Legacy Mesh)
 };
 
 // ============================================================================
@@ -33,10 +36,28 @@ export const OFT_CONTRACTS: Record<number, Record<number, string>> = {
   },
 };
 
+// Legacy Mesh OFT contracts for Tron routes (ETH↔Tron, ARB↔Tron)
+// TFG4wBaDQ8sHWWP1ACeSGnoNR6RRzevLPt = 0x3a08f76772e200653bb55c2a92998daca62e0e97 in EVM hex
+export const LEGACY_MESH_CONTRACTS: Record<number, Record<number, string>> = {
+  1: {
+    42161: '0x1F748c76dE468e9D11bd340fA9D5CBADf315dFB0',
+    [TRON_CHAIN_ID]: '0x1F748c76dE468e9D11bd340fA9D5CBADf315dFB0',
+  },
+  42161: {
+    1: '0x77652D5aba086137b595875263FC200182919B92',
+    [TRON_CHAIN_ID]: '0x77652D5aba086137b595875263FC200182919B92',
+  },
+  [TRON_CHAIN_ID]: {
+    1: '0x3a08f76772e200653bb55c2a92998daca62e0e97',
+    42161: '0x3a08f76772e200653bb55c2a92998daca62e0e97',
+  },
+};
+
 export const USDT_CONTRACTS: Record<number, string> = {
   1: '0xdAC17F958D2ee523a2206206994597C13D831ec7', // Ethereum USDT
   42161: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9', // Arbitrum USDT
   9745: '0xB8CE59FC3717ada4C02eaDF9682A9e934F625ebb', // Plasma USDT
+  [TRON_CHAIN_ID]: '0xa614f803b6fd780986a42c78ec9c7f77e6ded13c', // Tron USDT
 };
 
 // ============================================================================
@@ -88,6 +109,8 @@ export interface OFTLimit {
   maxAmountLD: bigint;
 }
 
+export type RouteNetwork = 'native' | 'legacy';
+
 export interface LayerZeroBridgeRoute {
   sendParam: SendParam;
   messagingFee: MessagingFee;
@@ -95,6 +118,7 @@ export interface LayerZeroBridgeRoute {
   usdtContract: string;
   fromChainId: number;
   toChainId: number;
+  network: RouteNetwork;
 }
 
 export interface LayerZeroScanMessage {
@@ -117,26 +141,35 @@ export const LAYERZERO_SCAN_API_URL =
 // Helper Functions
 // ============================================================================
 
-/**
- * Get the OFT contract address for a given route
- */
-export function getOFTContract(fromChainId: number, toChainId: number): string {
-  const contracts = OFT_CONTRACTS[fromChainId];
-  if (!contracts) {
-    throw new Error(`No OFT contracts configured for chain ${fromChainId}`);
-  }
-  const contract = contracts[toChainId];
-  if (!contract) {
+export function getRouteNetwork(
+  fromChainId: number,
+  toChainId: number,
+): RouteNetwork | null {
+  if (OFT_CONTRACTS[fromChainId]?.[toChainId] !== undefined) return 'native';
+  if (LEGACY_MESH_CONTRACTS[fromChainId]?.[toChainId] !== undefined)
+    return 'legacy';
+  return null;
+}
+
+export function getOFTContractForRoute(
+  fromChainId: number,
+  toChainId: number,
+): { address: string; network: RouteNetwork } {
+  const network = getRouteNetwork(fromChainId, toChainId);
+  if (!network) {
     throw new Error(
       `No OFT contract configured for route ${fromChainId} -> ${toChainId}`,
     );
   }
-  return contract;
+  const contracts =
+    network === 'native' ? OFT_CONTRACTS : LEGACY_MESH_CONTRACTS;
+  return { address: contracts[fromChainId][toChainId], network };
 }
 
-/**
- * Get the USDT contract address for a given chain
- */
+export function getOFTContract(fromChainId: number, toChainId: number): string {
+  return getOFTContractForRoute(fromChainId, toChainId).address;
+}
+
 export function getUSDTAddress(chainId: number): string {
   const address = USDT_CONTRACTS[chainId];
   if (!address) {
@@ -145,9 +178,6 @@ export function getUSDTAddress(chainId: number): string {
   return address;
 }
 
-/**
- * Get the LayerZero EID for a given chain ID
- */
 export function getEID(chainId: number): number {
   const eid = CHAIN_ID_TO_EID[chainId];
   if (eid === undefined) {
@@ -156,21 +186,13 @@ export function getEID(chainId: number): number {
   return eid;
 }
 
-/**
- * Check if a route is supported.
- * Derived from OFT_CONTRACTS - a route is supported if an OFT contract exists for it.
- */
 export function isSupportedRoute(
   fromChainId: number,
   toChainId: number,
 ): boolean {
-  return OFT_CONTRACTS[fromChainId]?.[toChainId] !== undefined;
+  return getRouteNetwork(fromChainId, toChainId) !== null;
 }
 
-/**
- * Convert an address to bytes32 format for LayerZero.
- * Delegates to @hyperlane-xyz/utils addressToBytes32.
- */
 export function addressToBytes32(address: string): string {
   return addressToBytes32Util(address);
 }

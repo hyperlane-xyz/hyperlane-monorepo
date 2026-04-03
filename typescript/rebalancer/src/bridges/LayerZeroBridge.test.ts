@@ -8,6 +8,11 @@ import { ethers } from 'ethers';
 import type { ExternalBridgeConfig } from '../interfaces/IExternalBridge.js';
 import { LayerZeroBridge } from './LayerZeroBridge.js';
 import {
+  getRouteNetwork,
+  getOFTContractForRoute,
+  isSupportedRoute,
+} from './layerZeroUtils.js';
+import {
   createMockLayerZeroQuote,
   createMockLZScanResponse,
   createMockQuoteOFTResponse,
@@ -411,5 +416,62 @@ describe('LayerZeroBridge', function () {
       await bridge.getStatus('abc123', 42161, 9745);
       expect(calledUrl).to.include('/0xabc123');
     });
+  });
+});
+
+describe('getRouteNetwork()', function () {
+  it('returns native for ETH→Plasma', () => {
+    expect(getRouteNetwork(1, 9745)).to.equal('native');
+  });
+  it('returns native for ETH→ARB (both available, native preferred)', () => {
+    expect(getRouteNetwork(1, 42161)).to.equal('native');
+  });
+  it('returns legacy for ETH→Tron', () => {
+    expect(getRouteNetwork(1, 728126428)).to.equal('legacy');
+  });
+  it('returns legacy for Tron→ETH', () => {
+    expect(getRouteNetwork(728126428, 1)).to.equal('legacy');
+  });
+  it('returns legacy for ARB→Tron', () => {
+    expect(getRouteNetwork(42161, 728126428)).to.equal('legacy');
+  });
+  it('returns null for BSC→ETH (unsupported)', () => {
+    expect(getRouteNetwork(56, 1)).to.equal(null);
+  });
+});
+
+describe('getOFTContractForRoute()', function () {
+  it('returns native ETH OFT Adapter for ETH→ARB', () => {
+    const r = getOFTContractForRoute(1, 42161);
+    expect(r.network).to.equal('native');
+    expect(r.address).to.equal('0x6C96dE32CEa08842dcc4058c14d3aaAD7Fa41dee');
+  });
+  it('returns legacy ETH OFT for ETH→Tron', () => {
+    const r = getOFTContractForRoute(1, 728126428);
+    expect(r.network).to.equal('legacy');
+    expect(r.address).to.equal('0x1F748c76dE468e9D11bd340fA9D5CBADf315dFB0');
+  });
+  it('returns legacy Tron OFT for Tron→ETH', () => {
+    const r = getOFTContractForRoute(728126428, 1);
+    expect(r.network).to.equal('legacy');
+    expect(r.address).to.equal('0x3a08f76772e200653bb55c2a92998daca62e0e97');
+  });
+  it('throws for unsupported route', () => {
+    expect(() => getOFTContractForRoute(56, 1)).to.throw();
+  });
+});
+
+describe('isSupportedRoute()', function () {
+  it('supports ETH→Plasma (native)', () => {
+    expect(isSupportedRoute(1, 9745)).to.be.true;
+  });
+  it('supports ETH→Tron (legacy)', () => {
+    expect(isSupportedRoute(1, 728126428)).to.be.true;
+  });
+  it('supports Tron→ARB (legacy)', () => {
+    expect(isSupportedRoute(728126428, 42161)).to.be.true;
+  });
+  it('does not support BSC→ETH', () => {
+    expect(isSupportedRoute(56, 1)).to.be.false;
   });
 });
