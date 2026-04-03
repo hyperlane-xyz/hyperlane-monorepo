@@ -123,7 +123,7 @@ Used in `allowedRebalancingBridges` on each collateral chain. The two addresses 
 For each chain (collateral + synthetics), read the mailbox address from the local registry:
 
 ```bash
-REGISTRY_PATH="$(dirname $(pwd))/hyperlane-registry"
+REGISTRY_PATH="$(dirname $(pwd))/../hyperlane-registry"
 cat "$REGISTRY_PATH/chains/<chain>/addresses.yaml" | grep "^mailbox:"
 ```
 
@@ -253,17 +253,174 @@ Check if a directory and/or file already exists. If it does, show the user the e
 
 Write the deploy.yaml to the registry path, then show the user the final content and full path.
 
-Tell the user the next steps:
+Ask the user: **"Does this deploy.yaml look correct? Type `yes` to proceed to deployment, or describe any changes needed."**
 
-1. Review the generated deploy.yaml
-2. Run the Hyperlane CLI to deploy: `hyperlane warp deploy --config <path-to-deploy.yaml>`
-3. After deployment, the config.yaml will be generated — merge both into the registry via PR
+Do not proceed to Step 7 until the user confirms.
+
+---
+
+## Step 7: Prepare Warp Deploy Command
+
+### 7a: Determine Warp Route ID
+
+The warp route ID is derived from the deploy.yaml output path:
+
+```
+$REGISTRY_PATH/deployments/warp_routes/<TOKEN>/<chain1>-<chain2>-deploy.yaml
+                                        └──────────────────────────────────┘
+                                        Warp route ID = <TOKEN>/<chain1>-<chain2>
+```
+
+Example: if the file is `deployments/warp_routes/RISE/bsc-ethereum-deploy.yaml`, the warp route ID is `RISE/bsc-ethereum`.
+
+### 7b: Identify Required Protocols
+
+For each chain in the route, determine its VM protocol type:
+
+| Protocol       | Example chains                                              | Key flag         |
+| -------------- | ----------------------------------------------------------- | ---------------- |
+| EVM (ethereum) | ethereum, arbitrum, base, optimism, polygon, avalanche, bsc | `--key.ethereum` |
+| Sealevel       | solana, eclipsemainnet                                      | `--key.sealevel` |
+| Cosmos         | neutron, osmosis                                            | `--key.cosmos`   |
+| Starknet       | starknet                                                    | `--key.starknet` |
+
+If all chains are EVM, only one key is needed. If the route spans multiple VM types, a separate key flag is needed per protocol.
+
+### 7c: Ask for Key Environment Variables
+
+For each unique protocol needed, ask the user:
+
+> **What environment variable holds your deployer private key for `{protocol}` chains?**
+> (Press enter to use the default: `HYP_KEY` for single-protocol routes, or `HYP_KEY_{PROTOCOL}` for multi-protocol)
+
+Use the provided variable name(s) to build the command.
+
+### 7d: Ownership Warning
+
+**If the deploy.yaml uses real owner addresses** (i.e., NOT the deployer address for all owners — meaning real Safe/ICA addresses appear in `owner` fields):
+
+> ⚠️ **WARNING: This config uses real owner addresses, not a temporary deployer address.**
+> Deploying directly with real owners means contracts will be owned by the multisig/ICA from day one.
+> This is fine for production, but make sure you have verified each owner address exists on its chain before proceeding.
+> If this is a test deploy, consider re-running with a deployer address as temporary owner.
+
+If all `owner` fields equal the deployer address (deployer mode), no warning is needed.
+
+### 7e: Build and Show the Command
+
+Assemble the full deploy command. The command must be run from `typescript/cli`. Always include `--yes` to skip the interactive confirmation prompt:
+
+```bash
+cd typescript/cli
+
+pnpm hyperlane warp deploy \
+  --registry $REGISTRY_PATH \
+  --warp-route-id <TOKEN>/<chain1>-<chain2> \
+  --key.ethereum $MY_ETH_KEY_VAR \
+  [--key.sealevel $MY_SOL_KEY_VAR]   # only if sealevel chains present
+  [--key.cosmos $MY_COSMOS_KEY_VAR]   # only if cosmos chains present
+  --yes
+```
+
+Where `$MY_ETH_KEY_VAR` etc. are the env variable names provided in 7c.
+
+Show the user the exact command with the real values substituted. Then ask:
+
+> **Ready to run the warp deploy?** Type `yes` to execute, or `no` to run it manually.
+
+---
+
+## Step 8: Run Warp Deploy
+
+If the user confirms, tell the user upfront:
+
+> **Starting warp deploy for `<TOKEN>/<chain1>-<chain2>`.**
+> This deploys contracts on each chain sequentially and typically takes **5–15 minutes**.
+> Chains: `<list all chains>`
+> You'll see the full output when it completes.
+
+Then run the deploy command from `typescript/cli`. Always use a 10-minute timeout (600000ms). Always include `--yes`:
+
+```bash
+cd /path/to/hyperlane-monorepo/typescript/cli && pnpm hyperlane warp deploy \
+  --registry $REGISTRY_PATH \
+  --warp-route-id <TOKEN>/<chain1>-<chain2> \
+  --key.ethereum $MY_ETH_KEY_VAR \
+  --yes
+```
+
+**On success:** the CLI writes a `<chain1>-<chain2>-config.yaml` file next to the deploy.yaml in the registry. Show the user the full deploy output so they can see which contracts were deployed and their addresses.
+
+**On failure:** show the error output and stop. Do not proceed to Step 9. Common issues:
+
+- Insufficient gas → run `/warp-deploy-preflight` first
+- RPC errors → check the chain's RPC URL in the registry
+- Key not set → confirm the env variable is exported in the shell
+
+---
+
+## Step 9: Add CoinGecko ID and Finalize Config
+
+### 9a: Look Up CoinGecko ID
+
+Search CoinGecko for the token symbol/name in the registry core-config.yaml.
+
+If found, add `coinGeckoId: <api-id>` to each **non-synthetic** token entry in the config.yaml (i.e., `collateral` and `native` entries only — NOT `synthetic` entries).
+
+Update the config.yaml file with the coinGeckoId field added after `addressOrDenom` (or at the end of each matching token block, before `connections`).
+
+If not found on CoinGecko, note this to the user and skip.
+
+### 9b: Warp Send Test (deployer mode, two-chain routes only)
+
+**Skip this step if:** the route has more than 2 chains, or the deploy did NOT use a deployer address as owner.
+
+If both conditions are met (deployer mode + exactly 2 chains), ask:
+
+> **What environment variable holds your private key for sending test transactions?**
+> (This is the actual private key value, not an address — e.g. `MY_PK`)
+
+Then send a test transfer in **each direction** — chain A → chain B, then chain B → chain A. Run each send sequentially (wait for the first to complete before the second). Use `--amount 100000` (adjustable by user):
+
+```bash
+cd /path/to/hyperlane-monorepo/typescript/cli
+
+# Send from chain1 → chain2
+pnpm hyperlane warp send \
+  --origin <chain1> \
+  --destination <chain2> \
+  --amount 100000 \
+  --key $MY_PK \
+  -w <TOKEN>/<chain1>-<chain2>
+
+# Send from chain2 → chain1
+pnpm hyperlane warp send \
+  --origin <chain2> \
+  --destination <chain1> \
+  --amount 100000 \
+  --key $MY_PK \
+  -w <TOKEN>/<chain1>-<chain2>
+```
+
+Each send may take a few minutes to relay. After each send, show the user:
+
+- Whether it succeeded or failed
+- The **Message ID** (from the CLI output)
+- The **Explorer link** (e.g. `https://explorer.hyperlane.xyz/message/<id>`)
+
+If either send fails or times out, show the error and still report the message ID if available so it can be tracked. Do not block on failures — continue to 9c regardless.
+
+### 9c: Show Final Config for Review
+
+Show the user the complete final content of `<chains>-config.yaml`. Ask:
+
+> **Does this config.yaml look correct?** Type `yes` to complete or let the user request changes
 
 ---
 
 ## Notes
 
-- The registry path is `$(dirname $(pwd))/hyperlane-registry` relative to the monorepo root
+- The registry path is `$(dirname $(pwd))/../hyperlane-registry` relative to the monorepo root. The hyperlane-registry repo is expected to be cloned at the same level as hyperlane-monorepo.
 - For USDC, use the token addresses and CCTP bridge addresses from the reference tables above — no need to search the registry
 - If the ticket has links to token contracts on block explorers, use those addresses
 - `owner` is typically an Abacus Works Safe address specified in the ticket; for non-Ethereum chains managed via ICA, use `<ICA_ADDRESS>` as placeholder
