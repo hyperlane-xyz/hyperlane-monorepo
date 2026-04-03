@@ -6,7 +6,7 @@ import {
   EthJsonRpcBlockParameterTag,
   MultiProtocolProvider,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { isEVMLike, ProtocolType } from '@hyperlane-xyz/utils';
 import type { ConfirmedBlockTag } from '../interfaces/IMonitor.js';
 
 /**
@@ -26,13 +26,21 @@ export async function getConfirmedBlockTag(
   try {
     const metadata = multiProvider.getChainMetadata(chainName);
 
-    // Only EVM chains support block tag queries
-    if (metadata.protocol !== ProtocolType.Ethereum) {
+    // Only EVM-like chains support block tag queries (e.g., Ethereum, Tron).
+    // Tron uses TronJsonRpcProvider which supports eth_blockNumber
+    if (!isEVMLike(metadata.protocol)) {
       return undefined;
     }
 
     const reorgPeriod = metadata.blocks?.reorgPeriod ?? 32;
     if (typeof reorgPeriod === 'string') {
+      if (metadata.protocol === ProtocolType.Tron) {
+        logger?.warn(
+          { chain: chainName, reorgPeriod },
+          'Tron does not support named block tags — ignoring string reorgPeriod, using latest block',
+        );
+        return undefined;
+      }
       return reorgPeriod as EthJsonRpcBlockParameterTag;
     }
 
