@@ -95,6 +95,7 @@ export const getRebalancingUSDCConfigForChain = (
   routerConfigByChain: ChainMap<RouterConfigWithoutOwner>,
   ownersByChain: ChainMap<Address>,
   rebalancingConfigByChain: ChainMap<RebalancingConfig>,
+  tokenFee?: TokenFeeConfigInput,
 ): HypTokenRouterConfig => {
   const owner = ownersByChain[currentChain];
   assert(owner, `Owner not found for chain ${currentChain}`);
@@ -121,6 +122,7 @@ export const getRebalancingUSDCConfigForChain = (
     owner,
     allowedRebalancers,
     allowedRebalancingBridges,
+    tokenFee,
   };
 };
 
@@ -131,6 +133,7 @@ export const getCollateralTokenConfigForChain = <
   routerConfigByChain: ChainMap<RouterConfigWithoutOwner>,
   ownersByChain: TOwnerAddress,
   collateralTokensByChain: ChainMap<Address>,
+  tokenFee?: TokenFeeConfigInput,
 ): HypTokenRouterConfig => {
   const owner = ownersByChain[currentChain];
   assert(owner, `Owner not found for chain ${currentChain}`);
@@ -146,6 +149,7 @@ export const getCollateralTokenConfigForChain = <
     token: collateralAddress,
     mailbox: routerConfigByChain[currentChain].mailbox,
     owner,
+    tokenFee,
   };
 };
 
@@ -182,6 +186,20 @@ export const getNativeTokenConfigForChain = <
     owner,
   };
 };
+
+export function getFixedRoutingFeeConfigForChain<
+  T extends { [key: string]: string },
+>(
+  currentChain: Extract<keyof T, ChainName>,
+  ownersByChain: T,
+  feeDestinations: readonly (keyof T)[],
+  bps: number,
+): TokenFeeConfigInput {
+  const owner = ownersByChain[currentChain];
+  assert(owner, `Fee owner not found for chain ${currentChain}`);
+
+  return getFixedRoutingFeeConfig(owner, feeDestinations as string[], bps);
+}
 
 /**
  * Creates a RoutingFee configuration with a fixed fee for specified destinations.
