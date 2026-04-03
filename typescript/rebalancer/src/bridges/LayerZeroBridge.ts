@@ -3,6 +3,8 @@ import type { ChainMetadata } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert, ensure0x } from '@hyperlane-xyz/utils';
 import type { Logger } from 'pino';
 
+import { TronSigner } from '@hyperlane-xyz/tron-sdk';
+
 import type {
   BridgeQuote,
   BridgeQuoteParams,
@@ -15,7 +17,8 @@ import {
   OFT_ABI,
   ERC20_ABI,
   LAYERZERO_SCAN_API_URL,
-  getOFTContract,
+  TRON_CHAIN_ID,
+  getOFTContractForRoute,
   getUSDTAddress,
   getEID,
   isSupportedRoute,
@@ -40,7 +43,8 @@ export class LayerZeroBridge implements IExternalBridge {
       for (const [, metadata] of Object.entries(config.chainMetadata)) {
         if (
           metadata.chainId !== undefined &&
-          metadata.protocol === ProtocolType.Ethereum
+          (metadata.protocol === ProtocolType.Ethereum ||
+            metadata.protocol === ('tron' as ProtocolType))
         ) {
           this.chainMetadataByChainId.set(Number(metadata.chainId), metadata);
         }
@@ -72,7 +76,10 @@ export class LayerZeroBridge implements IExternalBridge {
       'Must specify either fromAmount or toAmount',
     );
 
-    const oftContract = getOFTContract(fromChain, toChain);
+    const { address: oftContract, network } = getOFTContractForRoute(
+      fromChain,
+      toChain,
+    );
     const dstEid = getEID(toChain);
     const targetAddress = toAddress ?? fromAddress;
     const amountLD = fromAmount ?? (toAmount! * 10000n) / 9970n;
@@ -144,6 +151,7 @@ export class LayerZeroBridge implements IExternalBridge {
         usdtContract: getUSDTAddress(fromChain),
         fromChainId: fromChain,
         toChainId: toChain,
+        network,
       },
       requestParams: params,
     };
@@ -155,6 +163,10 @@ export class LayerZeroBridge implements IExternalBridge {
   ): Promise<BridgeTransferResult> {
     const { route } = quote;
     const { fromChainId: fromChain, toChainId: toChain } = route;
+
+    if (fromChain === TRON_CHAIN_ID) {
+      return this.executeTron(route, privateKeys);
+    }
 
     const key = privateKeys[ProtocolType.Ethereum];
     assert(key, 'Missing private key for EVM chain');
@@ -191,6 +203,82 @@ export class LayerZeroBridge implements IExternalBridge {
       fromChain,
       toChain,
     };
+  }
+
+  private async executeTron(
+    route: LayerZeroBridgeRoute,
+    privateKeys: Partial<Record<ProtocolType, string>>,
+  ): Promise<BridgeTransferResult> {
+    const { fromChainId: fromChain, toChainId: toChain } = route;
+
+    const tronKey = privateKeys['tron' as ProtocolType];
+    assert(tronKey, 'Missing private key for Tron chain');
+    const strippedKey = tronKey.replace(/^0x/, '');
+
+    const tronSigner = (await TronSigner.connectWithSigner(
+      [this.getRpcUrl(fromChain)],
+      strippedKey,
+      { metadata: {} },
+    )) as TronSigner;
+
+    const tronWeb = tronSigner.getTronweb();
+    const signerAddress = tronSigner.getSignerAddress();
+
+    const oftContractTron = tronWeb.address.fromHex(
+      '41' + route.oftContract.slice(2),
+    );
+    const usdtContractTron = tronWeb.address.fromHex(
+      '41' + route.usdtContract.slice(2),
+    );
+
+    const { transaction: approveTx } =
+      await tronWeb.transactionBuilder.triggerSmartContract(
+        usdtContractTron,
+        'approve(address,uint256)',
+        {},
+        [
+          { type: 'address', value: oftContractTron },
+          {
+            type: 'uint256',
+            value: route.sendParam.amountLD.toString(),
+          },
+        ],
+        signerAddress,
+      );
+    await tronSigner.sendAndConfirmTransaction(approveTx);
+
+    const iface = new ethers.utils.Interface(OFT_ABI);
+    const signerHex = tronWeb.address.toHex(signerAddress);
+    const signerEvmAddress = '0x' + signerHex.slice(2);
+
+    const encoded = iface.encodeFunctionData('send', [
+      [
+        route.sendParam.dstEid,
+        route.sendParam.to,
+        route.sendParam.amountLD,
+        route.sendParam.minAmountLD,
+        route.sendParam.extraOptions,
+        route.sendParam.composeMsg,
+        route.sendParam.oftCmd,
+      ],
+      [route.messagingFee.nativeFee, route.messagingFee.lzTokenFee],
+      signerEvmAddress,
+    ]);
+
+    const nativeFee = Number(route.messagingFee.nativeFee);
+    const rawParameter = encoded.slice(10);
+
+    const { transaction: sendTx } =
+      await tronWeb.transactionBuilder.triggerSmartContract(
+        oftContractTron,
+        'send((uint32,bytes32,uint256,uint256,bytes,bytes,bytes),(uint256,uint256),address)',
+        { callValue: nativeFee, feeLimit: 500_000_000, rawParameter },
+        [],
+        signerAddress,
+      );
+
+    const receipt = await tronSigner.sendAndConfirmTransaction(sendTx);
+    return { txHash: receipt.id, fromChain, toChain };
   }
 
   async getStatus(

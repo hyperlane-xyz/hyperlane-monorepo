@@ -11,6 +11,7 @@ import type {
   LayerZeroBridgeRoute,
   LayerZeroScanMessage,
   LayerZeroScanResponse,
+  RouteNetwork,
 } from '../bridges/layerZeroUtils.js';
 
 /**
@@ -106,10 +107,11 @@ export function createMockLayerZeroBridgeRoute(
   return {
     sendParam: createMockSendParam(),
     messagingFee: createMockQuoteSendResponse(),
-    oftContract: '0x14E4A1B13bf7F943c8ff7C51fb60FA964A298D92', // Arbitrum native OFT
-    usdtContract: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9', // Arbitrum USDT
-    fromChainId: 42161, // Arbitrum
-    toChainId: 9745, // Plasma
+    oftContract: '0x14E4A1B13bf7F943c8ff7C51fb60FA964A298D92',
+    usdtContract: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9',
+    fromChainId: 42161,
+    toChainId: 9745,
+    network: 'native' as RouteNetwork,
     ...overrides,
   };
 }
