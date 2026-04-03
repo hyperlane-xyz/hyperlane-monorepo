@@ -359,7 +359,8 @@ async function executeDelivery({
   for (const tx of transferTxs) {
     if (tx.type === ProviderType.EthersV5 || tx.type === ProviderType.Tron) {
       const signer = multiProvider.getSigner(origin);
-      const txResponse = await signer.sendTransaction(tx.transaction);
+      const preparedTx = await multiProvider.prepareTx(origin, tx.transaction);
+      const txResponse = await signer.sendTransaction(preparedTx);
       const txReceipt = await multiProvider.handleTx(origin, txResponse);
       const typedReceipt: TypedTransactionReceipt = {
         type: tx.type,
