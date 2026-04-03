@@ -109,8 +109,33 @@ impl ForwardBackwardIterator {
                     return Ok(Some(low_nonce_message));
                 }
 
-                // If both iterators give us unindexed messages, there are no messages at the moment
-                (MessageStatus::Unindexed, MessageStatus::Unindexed) => return Ok(None),
+                // If both iterators give us unindexed messages, check whether
+                // ContractSync has stored new messages above the current iterator
+                // position since initialization. This handles the case where
+                // `index.from` skips early blocks on a shared mailbox: the
+                // high_nonce_iter starts at nonce 0 (empty DB default), but
+                // nonce 0 is never indexed because it predates `index.from`,
+                // leaving the iterator permanently stuck.
+                (MessageStatus::Unindexed, MessageStatus::Unindexed) => {
+                    if let Ok(Some(new_high)) =
+                        self.high_nonce_iter.db.retrieve_highest_seen_message_nonce()
+                    {
+                        let current = self.high_nonce_iter.nonce.unwrap_or(0);
+                        if new_high > current {
+                            debug!(
+                                new_high,
+                                current,
+                                domain = self._domain,
+                                "Re-syncing nonce iterator: ContractSync has indexed \
+                                 messages above the current iterator position"
+                            );
+                            self.high_nonce_iter.nonce = Some(new_high);
+                            self.low_nonce_iter.nonce = new_high.checked_sub(1);
+                            continue;
+                        }
+                    }
+                    return Ok(None);
+                }
             }
             // This loop may iterate through millions of processed messages, blocking the runtime.
             // So, to avoid starving other futures in this task, yield to the runtime
