@@ -775,8 +775,10 @@ abstract class TokenDeployer<
         scale: tokenMetadataMap.getScale(chain),
         gas: gasOverhead(config.type),
         ...config,
-        // override intermediate owner to the signer
-        owner: await this.multiProvider.getSigner(chain).getAddress(),
+        // override intermediate owner to the signer for all chains that need deployment
+        ...(!config.foreignDeployment
+          ? { owner: await this.multiProvider.getSigner(chain).getAddress() }
+          : {}),
       })),
     );
     // Deploy OFT contracts separately — they lack Router/MailboxClient interfaces
