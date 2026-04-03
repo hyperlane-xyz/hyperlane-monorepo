@@ -58,6 +58,7 @@
     "chai": "^4.4.1",
     "chai-as-promised": "catalog:",
     "mocha": "^10.4.0",
+    "mocha-steps": "catalog:",
     "oxfmt": "catalog:",
     "sinon": "catalog:",
     "testcontainers": "catalog:",
