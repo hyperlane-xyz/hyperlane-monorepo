@@ -126,4 +126,9 @@ export const awIcas: ChainMap<Address> = {
   // Jan 29, 2026 - Migrating Ontology to v2 ICAs
   // ----------------------------------------------------------
   ontology: '0xa822324f214c2081ea6Cc50fAae011cC74fDcCA3',
+
+  // Mar 16, 2026
+  // ----------------------------------------------------------
+  // igra: '0xfA14458b1907BDa6E48bA619aF715c4532c3486c',
+  tron: '0xB960616C7E2ee0F2a296A4b2B9D0b3308E23A69D',
 } as const;

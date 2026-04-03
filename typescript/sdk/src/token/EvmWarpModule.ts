@@ -1129,7 +1129,7 @@ export class EvmWarpModule extends HyperlaneModule<
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
-    if (!expectedConfig.hook) {
+    if (!expectedConfig.hook || expectedConfig.hook === constants.AddressZero) {
       return [];
     }
 

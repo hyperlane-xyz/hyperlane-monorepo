@@ -194,9 +194,7 @@ function setSignerForChain(
   const { protocol, rpcUrls } = multiProvider.getChainMetadata(chain);
   if (protocol === ProtocolType.Tron) {
     assert(rpcUrls?.length, `No rpcUrls configured for chain ${chain}`);
-    // TronWallet expects the base node URL without /jsonrpc suffix
-    const tronUrl = rpcUrls[0].http.replace(/\/jsonrpc\/?$/, '');
-    multiProvider.setSigner(chain, new TronWallet(key, tronUrl));
+    multiProvider.setSigner(chain, new TronWallet(key, rpcUrls[0].http));
   } else {
     multiProvider.setSigner(chain, new ethers.Wallet(key));
   }
