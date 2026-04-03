@@ -138,6 +138,72 @@ describe('EvmTokenFeeReader', () => {
     });
   });
 
+  describe('OffchainQuotedLinearFee', () => {
+    it('should read the offchain quoted linear fee config', async () => {
+      const config = TokenFeeConfigSchema.parse({
+        type: TokenFeeType.OffchainQuotedLinearFee,
+        maxFee: MAX_FEE,
+        halfAmount: HALF_AMOUNT,
+        bps: BPS,
+        token: token.address,
+        owner: signer.address,
+        quoteSigners: [signer.address],
+      });
+      const deployer = new EvmTokenFeeDeployer(
+        multiProvider,
+        TestChainName.test2,
+      );
+      const deployedContracts = await deployer.deploy({
+        [TestChainName.test2]: config,
+      });
+      const reader = new EvmTokenFeeReader(multiProvider, TestChainName.test2);
+      const contract =
+        deployedContracts[TestChainName.test2][
+          TokenFeeType.OffchainQuotedLinearFee
+        ];
+      const onchainConfig = await reader.deriveTokenFeeConfig({
+        address: contract.address,
+      });
+      expect(normalizeConfig(onchainConfig)).to.deep.equal(
+        normalizeConfig(config),
+      );
+    });
+
+    it('should read multiple quote signers', async () => {
+      const [, otherSigner] = await hre.ethers.getSigners();
+      const config = TokenFeeConfigSchema.parse({
+        type: TokenFeeType.OffchainQuotedLinearFee,
+        maxFee: MAX_FEE,
+        halfAmount: HALF_AMOUNT,
+        bps: BPS,
+        token: token.address,
+        owner: signer.address,
+        quoteSigners: [signer.address, otherSigner.address],
+      });
+      const deployer = new EvmTokenFeeDeployer(
+        multiProvider,
+        TestChainName.test2,
+      );
+      const deployedContracts = await deployer.deploy({
+        [TestChainName.test2]: config,
+      });
+      const reader = new EvmTokenFeeReader(multiProvider, TestChainName.test2);
+      const contract =
+        deployedContracts[TestChainName.test2][
+          TokenFeeType.OffchainQuotedLinearFee
+        ];
+      const onchainConfig = await reader.deriveTokenFeeConfig({
+        address: contract.address,
+      });
+      expect(onchainConfig.type).to.equal(TokenFeeType.OffchainQuotedLinearFee);
+      if (onchainConfig.type === TokenFeeType.OffchainQuotedLinearFee) {
+        expect(onchainConfig.quoteSigners).to.have.lengthOf(2);
+        expect(onchainConfig.quoteSigners).to.include(signer.address);
+        expect(onchainConfig.quoteSigners).to.include(otherSigner.address);
+      }
+    });
+  });
+
   describe('RoutingFee', () => {
     it('should be able to derive a routing fee config and its sub fees', async () => {
       const routingFeeConfig: TokenFeeConfig = {

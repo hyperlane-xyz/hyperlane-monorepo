@@ -1660,6 +1660,7 @@ contract CrossCollateralRouterTest is Test {
         );
 
         uint256 aliceBefore = originUSDC.balanceOf(ALICE);
+        uint256 bobBefore = destUSDT.balanceOf(BOB);
         vm.startPrank(ALICE);
         originUSDC.approve(address(quotedCalls), totalTokens);
         quotedCalls.execute(commands, inputs);
@@ -1670,7 +1671,10 @@ contract CrossCollateralRouterTest is Test {
         assertEq(originUSDC.balanceOf(address(quotedCalls)), 0);
 
         env.processNextPendingMessage();
-        assertGt(destUSDT.balanceOf(BOB), 0);
+        assertEq(
+            destUSDT.balanceOf(BOB),
+            bobBefore + QC_TRANSFER_AMOUNT * USDC_SCALE_NUM
+        );
     }
 
     // ============ Helpers ============
