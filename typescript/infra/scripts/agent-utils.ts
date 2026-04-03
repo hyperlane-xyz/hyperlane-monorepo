@@ -539,6 +539,18 @@ export async function getAgentConfigsBasedOnArgs(argv?: {
 
 // Gets the agent config of a specific context.
 // without fetching environment config
+export class MissingAgentConfigError extends Error {
+  constructor(
+    public readonly context: Contexts,
+    public readonly environment: DeployEnvironment,
+  ) {
+    super(
+      `Context ${context} does not exist in agents for environment ${environment}`,
+    );
+    this.name = 'MissingAgentConfigError';
+  }
+}
+
 export function getAgentConfig(
   context: Contexts,
   environment: DeployEnvironment,
@@ -548,9 +560,7 @@ export function getAgentConfig(
     RootAgentConfig
   >;
   if (!Object.keys(agents[environment]).includes(context)) {
-    throw new Error(
-      `Context ${context} does not exist in agents for environment ${environment}`,
-    );
+    throw new MissingAgentConfigError(context, environment);
   }
   return agentsForEnvironment[context];
 }
