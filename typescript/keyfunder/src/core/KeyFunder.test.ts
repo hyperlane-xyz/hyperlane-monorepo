@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import type { Logger } from 'pino';
 import sinon from 'sinon';
 
-import { MultiProvider } from '@hyperlane-xyz/sdk';
+import { MultiProtocolProvider, MultiProvider } from '@hyperlane-xyz/sdk';
 
 import type { KeyFunderConfig } from '../config/types.js';
 
@@ -34,6 +34,7 @@ describe('KeyFunder', () => {
     } as unknown as Logger;
 
     const multiProvider = sinon.createStubInstance(MultiProvider);
+    const multiProtocolProvider = sinon.createStubInstance(MultiProtocolProvider);
 
     const config: KeyFunderConfig = {
       version: '1',
@@ -49,8 +50,12 @@ describe('KeyFunder', () => {
       },
     };
 
-    const keyFunder = new KeyFunder(multiProvider, config, {
+    const keyFunder = new KeyFunder(multiProvider, multiProtocolProvider, config, {
       logger,
+      getSigner: async () => ({
+        address: async () => '0x1111111111111111111111111111111111111111',
+        sendAndConfirmTransaction: async () => '0xhash',
+      }),
     });
     const recordFunderBalanceStub = sinon.stub(
       keyFunder as unknown as {

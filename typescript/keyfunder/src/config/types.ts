@@ -7,6 +7,10 @@ const AddressSchema = z
     'Must be a valid Ethereum address (0x-prefixed, 40 hex characters)',
   );
 
+const RoleAddressSchema = z
+  .string()
+  .min(1, 'Role addresses must be a non-empty string');
+
 // Requires leading digit (e.g., "0.5" not ".5") for YAML readability
 const BalanceStringSchema = z
   .string()
@@ -16,7 +20,7 @@ const BalanceStringSchema = z
   );
 
 export const RoleConfigSchema = z.object({
-  address: AddressSchema,
+  address: RoleAddressSchema,
 });
 
 export const IgpConfigSchema = z.object({
