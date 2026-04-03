@@ -1,5 +1,11 @@
 # @hyperlane-xyz/core
 
+## 11.1.1
+
+### Patch Changes
+
+- 77db719: Fixed SafeERC20.sol operations for Tron
+
 ## 11.1.0
 
 ### Minor Changes
