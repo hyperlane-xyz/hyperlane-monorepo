@@ -15,7 +15,7 @@ pragma solidity >=0.8.0;
 
 import {AbstractPostDispatchHook} from "../../hooks/libs/AbstractPostDispatchHook.sol";
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
-import {ITokenBridge, Quote} from "../../interfaces/ITokenBridge.sol";
+import {ITokenBridge, ITokenFee, Quote} from "../../interfaces/ITokenBridge.sol";
 import {IPredicateWrapper} from "../../interfaces/IPredicateWrapper.sol";
 import {Quotes} from "./Quotes.sol";
 
@@ -35,7 +35,8 @@ abstract contract AbstractPredicateWrapper is
     AbstractPostDispatchHook,
     PredicateClient,
     Ownable,
-    IPredicateWrapper
+    IPredicateWrapper,
+    ITokenFee
 {
     using Quotes for Quote[];
 

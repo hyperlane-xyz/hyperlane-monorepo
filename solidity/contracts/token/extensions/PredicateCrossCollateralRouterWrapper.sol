@@ -27,6 +27,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 
 // ============ Local Imports ============
 import {CrossCollateralRouter} from "../CrossCollateralRouter.sol";
+import {ICrossCollateralFee} from "../interfaces/ICrossCollateralFee.sol";
 
 /**
  * @title PredicateCrossCollateralRouterWrapper
@@ -52,7 +53,10 @@ import {CrossCollateralRouter} from "../CrossCollateralRouter.sol";
  *
  * @custom:oz-version 4.9.x (uses Ownable without constructor argument)
  */
-contract PredicateCrossCollateralRouterWrapper is AbstractPredicateWrapper {
+contract PredicateCrossCollateralRouterWrapper is
+    AbstractPredicateWrapper,
+    ICrossCollateralFee
+{
     using SafeERC20 for IERC20;
 
     // ============ Immutables ============
@@ -159,6 +163,44 @@ contract PredicateCrossCollateralRouterWrapper is AbstractPredicateWrapper {
                 address(crossCollateralRouter),
                 quotes,
                 _destination != localDomain
+            );
+    }
+
+    // ========== ICrossCollateralFee Implementation ==========
+
+    /**
+     * @notice Quotes the fees for a remote transfer by delegating to the underlying cross
+     * collateral route
+     */
+    function quoteTransferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) external view override returns (Quote[] memory quotes) {
+        return
+            crossCollateralRouter.quoteTransferRemote(
+                _destination,
+                _recipient,
+                _amount
+            );
+    }
+
+    /**
+     * @notice Quotes the fees to a specific target router by delegating to the underlying
+     * cross collateral route
+     */
+    function quoteTransferRemoteTo(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount,
+        bytes32 _targetRouter
+    ) external view override returns (Quote[] memory quotes) {
+        return
+            crossCollateralRouter.quoteTransferRemoteTo(
+                _destination,
+                _recipient,
+                _amount,
+                _targetRouter
             );
     }
 
