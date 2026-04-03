@@ -1,3 +1,11 @@
+## [2.3.0] - 2026-04-02
+
+* feat(tron): migrate Tron agents from gRPC to HTTP API (#8370)
+* fix: aggregation ism run verify (#8417)
+* fix: process gas estimation for trusted relayer isms (#8457)
+* refactor(evm): remove evm tron techstack (#8408)
+* revert: aggregation ISM verify change (#8417) (#8451)
+
 ## [2.1.0] - 2026-03-04
 
 * feat(tron): add ethereum compatibility & tron aws signer (#8222)
