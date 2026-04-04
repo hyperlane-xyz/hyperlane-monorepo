@@ -27,14 +27,95 @@ contract DomainRoutingIsmTest is Test {
         return new TestIsm(abi.encode(requiredMetadata));
     }
 
+    function deployTestIsms(
+        uint256 count
+    ) internal returns (IInterchainSecurityModule[] memory isms) {
+        isms = new IInterchainSecurityModule[](count);
+        for (uint32 i = 0; i < count; ++i) {
+            isms[i] = IInterchainSecurityModule(deployTestIsm(bytes32(0)));
+        }
+    }
+
+    function uniqueDomains(
+        uint32 domain,
+        uint256 count
+    ) internal pure returns (uint32[] memory) {
+        uint32[] memory domains = new uint32[](count);
+        for (uint32 i = 0; i < count; ++i) {
+            unchecked {
+                domains[i] = domain + i;
+            }
+        }
+        return domains;
+    }
+
     function getMetadata(uint32 domain) internal view returns (bytes memory) {
         return TestIsm(address(ism.module(domain))).requiredMetadata();
     }
 
     function testSet(uint32 domain) public {
+        vm.expectRevert("ISM must be a contract");
+        ism.set(domain, IInterchainSecurityModule(address(0x0)));
+
         TestIsm _ism = deployTestIsm(bytes32(0));
+        vm.expectEmit(true, false, false, true);
+        emit DomainRoutingIsm.ModuleSet(domain, address(_ism));
         ism.set(domain, _ism);
         assertEq(address(ism.module(domain)), address(_ism));
+    }
+
+    function testSetBatch(uint32 domain, uint8 count) public {
+        vm.assume(count > 0);
+        uint32[] memory domains = uniqueDomains(domain, count);
+
+        IInterchainSecurityModule[] memory modules = deployTestIsms(count);
+        DomainRoutingIsm.DomainModule[]
+            memory domainModules = new DomainRoutingIsm.DomainModule[](count);
+        for (uint256 i = 0; i < count; ++i) {
+            domainModules[i] = DomainRoutingIsm.DomainModule({
+                domain: domains[i],
+                module: modules[i]
+            });
+        }
+        ism.setBatch(domainModules);
+        for (uint256 i = 0; i < count; ++i) {
+            assertEq(address(ism.module(domains[i])), address(modules[i]));
+        }
+    }
+
+    function testAdd(uint32 domain) public {
+        vm.expectRevert("ISM must be a contract");
+        ism.add(domain, IInterchainSecurityModule(address(0x0)));
+
+        TestIsm _ism = deployTestIsm(bytes32(0));
+        vm.expectEmit(true, false, false, true);
+        emit DomainRoutingIsm.ModuleSet(domain, address(_ism));
+        ism.add(domain, _ism);
+        assertEq(address(ism.module(domain)), address(_ism));
+
+        vm.expectRevert("Domain already exists");
+        ism.add(domain, _ism);
+    }
+
+    function testAddBatch(uint32 domain, uint8 count) public {
+        vm.assume(count > 0);
+        uint32[] memory domains = uniqueDomains(domain, count);
+
+        IInterchainSecurityModule[] memory modules = deployTestIsms(count);
+        DomainRoutingIsm.DomainModule[]
+            memory domainModules = new DomainRoutingIsm.DomainModule[](count);
+        for (uint256 i = 0; i < count; ++i) {
+            domainModules[i] = DomainRoutingIsm.DomainModule({
+                domain: domains[i],
+                module: modules[i]
+            });
+        }
+        ism.addBatch(domainModules);
+        for (uint256 i = 0; i < count; ++i) {
+            assertEq(address(ism.module(domains[i])), address(modules[i]));
+        }
+        vm.expectRevert("Domain already exists");
+        ism.addBatch(domainModules);
     }
 
     function testRemove(uint32 domain) public virtual {
@@ -43,10 +124,33 @@ contract DomainRoutingIsmTest is Test {
 
         TestIsm _ism = deployTestIsm(bytes32(0));
         ism.set(domain, _ism);
+        vm.expectEmit(true, false, false, false);
+        emit DomainRoutingIsm.ModuleRemoved(domain);
         ism.remove(domain);
     }
 
-    function testSetManyViaFactory(uint8 count, uint32 domain) public {
+    function testRemoveBatch(uint32 domain, uint8 count) public virtual {
+        vm.assume(count > 0);
+        uint32[] memory domains = uniqueDomains(domain, count);
+        IInterchainSecurityModule[] memory modules = deployTestIsms(count);
+        DomainRoutingIsm.DomainModule[]
+            memory domainModules = new DomainRoutingIsm.DomainModule[](count);
+        for (uint256 i = 0; i < count; ++i) {
+            domainModules[i] = DomainRoutingIsm.DomainModule({
+                domain: domains[i],
+                module: modules[i]
+            });
+        }
+        ism.addBatch(domainModules);
+        ism.removeBatch(domains);
+        for (uint256 i = 0; i < count; ++i) {
+            vm.expectRevert();
+            ism.module(domains[i]);
+        }
+    }
+
+    function testFactoryDeploy(uint8 count, uint32 domain) public virtual {
+        vm.assume(count > 0);
         vm.assume(domain > count);
         DomainRoutingIsmFactory factory = new DomainRoutingIsmFactory();
         uint32[] memory _domains = new uint32[](count);
@@ -60,6 +164,9 @@ contract DomainRoutingIsmTest is Test {
         for (uint256 i = 0; i < count; ++i) {
             assertEq(address(ism.module(_domains[i])), address(_isms[i]));
         }
+        uint32[] memory shortDomains = new uint32[](count - 1);
+        vm.expectRevert("length mismatch");
+        factory.deploy(address(this), shortDomains, _isms);
     }
 
     function testSetNonOwner(
@@ -69,6 +176,53 @@ contract DomainRoutingIsmTest is Test {
         vm.prank(NON_OWNER);
         vm.expectRevert("Ownable: caller is not the owner");
         ism.set(domain, _ism);
+    }
+
+    function testSetBatchNonOwner(uint32 domain) public {
+        DomainRoutingIsm.DomainModule[]
+            memory domainModules = new DomainRoutingIsm.DomainModule[](1);
+        domainModules[0] = DomainRoutingIsm.DomainModule({
+            domain: domain,
+            module: IInterchainSecurityModule(address(0))
+        });
+        vm.prank(NON_OWNER);
+        vm.expectRevert("Ownable: caller is not the owner");
+        ism.setBatch(domainModules);
+    }
+
+    function testAddNonOwner(
+        uint32 domain,
+        IInterchainSecurityModule _ism
+    ) public {
+        vm.prank(NON_OWNER);
+        vm.expectRevert("Ownable: caller is not the owner");
+        ism.add(domain, _ism);
+    }
+
+    function testAddBatchNonOwner(uint32 domain) public {
+        DomainRoutingIsm.DomainModule[]
+            memory domainModules = new DomainRoutingIsm.DomainModule[](1);
+        domainModules[0] = DomainRoutingIsm.DomainModule({
+            domain: domain,
+            module: IInterchainSecurityModule(address(0))
+        });
+        vm.prank(NON_OWNER);
+        vm.expectRevert("Ownable: caller is not the owner");
+        ism.addBatch(domainModules);
+    }
+
+    function testRemoveNonOwner(uint32 domain) public {
+        vm.prank(NON_OWNER);
+        vm.expectRevert("Ownable: caller is not the owner");
+        ism.remove(domain);
+    }
+
+    function testRemoveBatchNonOwner(uint32 domain) public {
+        uint32[] memory domains = new uint32[](1);
+        domains[0] = domain;
+        vm.prank(NON_OWNER);
+        vm.expectRevert("Ownable: caller is not the owner");
+        ism.removeBatch(domains);
     }
 
     function testVerify(uint32 domain, bytes32 seed) public {
@@ -121,6 +275,25 @@ contract DefaultFallbackRoutingIsmTest is DomainRoutingIsmTest {
     function testConstructorReverts() public {
         vm.expectRevert("MailboxClient: invalid mailbox");
         new DefaultFallbackRoutingIsm(address(0));
+    }
+
+    function testRemoveBatch(uint32 domain, uint8 count) public override {
+        vm.assume(count > 0);
+        uint32[] memory domains = uniqueDomains(domain, count);
+        IInterchainSecurityModule[] memory modules = deployTestIsms(count);
+        DomainRoutingIsm.DomainModule[]
+            memory domainModules = new DomainRoutingIsm.DomainModule[](count);
+        for (uint256 i = 0; i < count; ++i) {
+            domainModules[i] = DomainRoutingIsm.DomainModule({
+                domain: domains[i],
+                module: modules[i]
+            });
+        }
+        ism.addBatch(domainModules);
+        ism.removeBatch(domains);
+        for (uint256 i = 0; i < count; ++i) {
+            assertEq(address(ism.module(domains[i])), address(defaultIsm));
+        }
     }
 
     function testVerifyNoIsm(uint32 domain, bytes32 seed) public override {

@@ -29,8 +29,18 @@ contract DomainRoutingIsm is
     using Address for address;
     using Strings for uint32;
 
+    // ============ Events ============
+    event ModuleSet(uint32 indexed domain, address module);
+    event ModuleRemoved(uint32 indexed domain);
+
     // ============ Mutable Storage ============
     EnumerableMapExtended.UintToBytes32Map internal _modules;
+
+    // ============ Structs ============
+    struct DomainModule {
+        uint32 domain;
+        IInterchainSecurityModule module;
+    }
 
     // ============ External Functions ============
 
@@ -74,12 +84,46 @@ contract DomainRoutingIsm is
         _set(_domain, address(_module));
     }
 
+    function setBatch(
+        DomainModule[] calldata _domainModules
+    ) external onlyOwner {
+        _set(_domainModules);
+    }
+
+    /**
+     * @notice Adds the specified origin domain
+     * @dev Reverts if the domain already exists
+     * @dev Behavior similar to set but useful for distinguishing by selector
+     * @param _domain The origin domain
+     * @param _module The ISM to use to verify messages
+     */
+    function add(
+        uint32 _domain,
+        IInterchainSecurityModule _module
+    ) external onlyOwner {
+        _add(_domain, address(_module));
+    }
+
+    function addBatch(
+        DomainModule[] calldata _domainModules
+    ) external onlyOwner {
+        for (uint256 i = 0; i < _domainModules.length; ++i) {
+            _add(_domainModules[i].domain, address(_domainModules[i].module));
+        }
+    }
+
     /**
      * @notice Removes the specified origin domain
      * @param _domain The origin domain
      */
     function remove(uint32 _domain) external onlyOwner {
         _remove(_domain);
+    }
+
+    function removeBatch(uint32[] calldata _domains) external onlyOwner {
+        for (uint256 i = 0; i < _domains.length; ++i) {
+            _remove(_domains[i]);
+        }
     }
 
     function domains() external view returns (uint256[] memory) {
@@ -117,12 +161,24 @@ contract DomainRoutingIsm is
      */
     function _remove(uint32 _domain) internal virtual {
         require(_modules.remove(_domain), _originNotFoundError(_domain));
+        emit ModuleRemoved(_domain);
     }
 
     function _originNotFoundError(
         uint32 _origin
     ) internal pure returns (string memory) {
         return string.concat("No ISM found for origin: ", _origin.toString());
+    }
+
+    function _set(DomainModule[] calldata _domainModules) internal {
+        for (uint256 i = 0; i < _domainModules.length; ++i) {
+            _set(_domainModules[i].domain, address(_domainModules[i].module));
+        }
+    }
+
+    function _add(uint32 _domain, address _module) internal {
+        require(!_modules.contains(_domain), "Domain already exists");
+        _set(_domain, _module);
     }
 
     /**
@@ -133,5 +189,6 @@ contract DomainRoutingIsm is
     function _set(uint32 _domain, address _module) internal virtual {
         require(_module.isContract(), "ISM must be a contract");
         _modules.set(_domain, _module.addressToBytes32());
+        emit ModuleSet(_domain, _module);
     }
 }
