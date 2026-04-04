@@ -57,3 +57,10 @@ hyperlane-sealevel-validator-announce = { path = "../programs/validator-announce
     "no-entrypoint",
 ] }
 hyperlane-sealevel-hello-world = { path = "../programs/helloworld" }
+hyperlane-sealevel-trusted-relayer-ism = { path = "../programs/ism/trusted-relayer-ism", features = [
+    "no-entrypoint",
+] }
+hyperlane-sealevel-interchain-security-module-interface = { path = "../libraries/interchain-security-module-interface" }
+hyperlane-sealevel-test-ism = { path = "../programs/ism/test-ism", features = [
+    "no-entrypoint",
+] }

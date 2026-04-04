@@ -122,7 +122,7 @@ pub fn process_squads_cmd(ctx: Context, cmd: SquadsCmd) {
                 ),
                 ProgramIdWithMetadata::new(
                     "Multisig ISM Message ID".into(),
-                    core_program_ids.multisig_ism_message_id,
+                    core_program_ids.multisig_ism_message_id.unwrap_or_default(),
                 ),
                 ProgramIdWithMetadata::new("IGP program".into(), core_program_ids.igp_program_id),
             ];

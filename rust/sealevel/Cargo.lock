@@ -3423,12 +3423,15 @@ dependencies = [
  "hyperlane-sealevel-connection-client",
  "hyperlane-sealevel-hello-world",
  "hyperlane-sealevel-igp",
+ "hyperlane-sealevel-interchain-security-module-interface",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-multisig-ism-message-id",
+ "hyperlane-sealevel-test-ism",
  "hyperlane-sealevel-token",
  "hyperlane-sealevel-token-collateral",
  "hyperlane-sealevel-token-lib",
  "hyperlane-sealevel-token-native",
+ "hyperlane-sealevel-trusted-relayer-ism",
  "hyperlane-sealevel-validator-announce",
  "itertools 0.14.0",
  "pretty_env_logger",
@@ -3764,6 +3767,27 @@ dependencies = [
  "solana-system-interface 2.0.0",
  "spl-noop",
  "tarpc",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "hyperlane-sealevel-trusted-relayer-ism"
+version = "0.1.0"
+dependencies = [
+ "access-control",
+ "account-utils",
+ "borsh 1.6.0",
+ "getrandom 0.2.17",
+ "hyperlane-core",
+ "hyperlane-sealevel-interchain-security-module-interface",
+ "hyperlane-test-utils",
+ "num-derive",
+ "num-traits",
+ "serializable-account-meta",
+ "solana-program 3.0.0",
+ "solana-program-test",
+ "solana-sdk",
+ "solana-system-interface 2.0.0",
  "thiserror 1.0.69",
 ]
 
