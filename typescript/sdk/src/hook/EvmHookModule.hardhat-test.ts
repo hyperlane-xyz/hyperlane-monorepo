@@ -667,6 +667,59 @@ describe('EvmHookModule', async () => {
       await expectTxsAndUpdate(hook, config, 1);
     });
 
+    it('should create IGP with tokenOracleConfig', async () => {
+      const config = await createDeployerOwnedIgpHookConfig();
+      const feeToken = randomAddress();
+      config.tokenOracleConfig = {
+        [feeToken]: Object.fromEntries(
+          testChains.map((c) => [
+            c,
+            {
+              tokenExchangeRate: randomInt(1234567891234).toString(),
+              gasPrice: randomInt(1234567891234).toString(),
+            },
+          ]),
+        ),
+      };
+
+      // create hook - afterEach will verify read matches config
+      await createHook(config);
+    });
+
+    it('should update tokenOracleConfig in IGP', async () => {
+      const feeToken = randomAddress();
+      const config = await createDeployerOwnedIgpHookConfig();
+      config.tokenOracleConfig = {
+        [feeToken]: Object.fromEntries(
+          testChains.map((c) => [
+            c,
+            {
+              tokenExchangeRate: randomInt(1234567891234).toString(),
+              gasPrice: randomInt(1234567891234).toString(),
+            },
+          ]),
+        ),
+      };
+
+      const { hook } = await createHook(config);
+
+      // change the token oracle config
+      config.tokenOracleConfig = {
+        [feeToken]: Object.fromEntries(
+          testChains.map((c) => [
+            c,
+            {
+              tokenExchangeRate: randomInt(987654321).toString(),
+              gasPrice: randomInt(987654321).toString(),
+            },
+          ]),
+        ),
+      };
+
+      // expect 2 txs: 1 to update oracle gas data + 1 to set token gas oracles
+      await expectTxsAndUpdate(hook, config, 2);
+    });
+
     it('should update protocol fee in protocol fee hook', async () => {
       const config: ProtocolFeeHookConfig = {
         owner: await multiProvider.getSignerAddress(chain),

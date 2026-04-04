@@ -13,6 +13,7 @@ import {
   TokenBridgeCctpBase__factory,
   TokenBridgeCctpV2__factory,
   TokenRouter,
+  TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import {
   CrossCollateralRouter__factory,
@@ -699,6 +700,32 @@ abstract class TokenDeployer<
     );
   }
 
+  protected async setFeeHooks(
+    configMap: ChainMap<HypTokenConfig>,
+    deployedContractsMap: HyperlaneContractsMap<Factories>,
+  ): Promise<void> {
+    await promiseObjAll(
+      objMap(configMap, async (chain, config) => {
+        const fullConfig = config as HypTokenRouterConfig;
+        if (!fullConfig.feeHook) return;
+
+        const routerAddress = this.router(deployedContractsMap[chain]).address;
+        const router = TokenRouter__factory.connect(
+          routerAddress,
+          this.multiProvider.getSigner(chain),
+        );
+
+        this.logger.info(
+          `Setting feeHook on ${chain} to ${fullConfig.feeHook}`,
+        );
+        await this.multiProvider.handleTx(
+          chain,
+          router.setFeeHook(fullConfig.feeHook),
+        );
+      }),
+    );
+  }
+
   protected async enrollCrossCollateralRouters(
     configMap: ChainMap<HypTokenConfig>,
     deployedContractsMap: HyperlaneContractsMap<Factories>,
@@ -824,6 +851,8 @@ abstract class TokenDeployer<
     await this.setEverclearOutputAssets(configMap, deployedContractsMap);
 
     await this.enrollCrossCollateralRouters(configMap, deployedContractsMap);
+
+    await this.setFeeHooks(configMap, deployedContractsMap);
 
     await super.transferOwnership(deployedContractsMap, configMap);
 

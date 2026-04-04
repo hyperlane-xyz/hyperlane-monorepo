@@ -2,7 +2,10 @@ import { z } from 'zod';
 
 import { Address, WithAddress, isNullish } from '@hyperlane-xyz/utils';
 
-import { ProtocolAgnositicGasOracleConfigWithTypicalCostSchema } from '../gas/oracle/types.js';
+import {
+  ProtocolAgnositicGasOracleConfigSchema,
+  ProtocolAgnositicGasOracleConfigWithTypicalCostSchema,
+} from '../gas/oracle/types.js';
 import { ZHash } from '../metadata/customZodTypes.js';
 import {
   ChainMap,
@@ -161,6 +164,10 @@ export const IgpSchema = OwnableSchema.extend({
   oracleKey: z.string(),
   overhead: z.record(z.number()),
   oracleConfig: z.record(ProtocolAgnositicGasOracleConfigWithTypicalCostSchema),
+  // Maps fee token address -> remote chain -> oracle config for ERC20 gas payments
+  tokenOracleConfig: z
+    .record(z.record(ProtocolAgnositicGasOracleConfigSchema))
+    .optional(),
 });
 
 export const DomainRoutingHookConfigSchema: z.ZodSchema<DomainRoutingHookConfig> =
