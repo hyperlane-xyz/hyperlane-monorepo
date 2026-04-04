@@ -22,6 +22,10 @@ mock! {
             &self,
             announcement: SignedType<Announcement>,
         ) -> Option<U256>;
+        fn _announce_calldata(
+            &self,
+            announcement: SignedType<Announcement>,
+        ) -> ChainResult<Vec<u8>>;
     }
 }
 
@@ -65,5 +69,12 @@ impl ValidatorAnnounce for MockValidatorAnnounceContract {
         _chain_signer: H256,
     ) -> Option<U256> {
         self._announce_tokens_needed(announcement)
+    }
+
+    async fn announce_calldata(
+        &self,
+        announcement: SignedType<Announcement>,
+    ) -> ChainResult<Vec<u8>> {
+        self._announce_calldata(announcement)
     }
 }
