@@ -59,21 +59,39 @@ pub async fn update_tx_status(
     if new_status == old_tx_status {
         return Ok(());
     }
-    // these metric updates assume a transaction can only be finalized once and dropped once.
-    // note that a transaction may be counted as `finalized` initially, and then later
-    // also counted as `dropped` if it was reorged out.
-    match tx.status {
-        TransactionStatus::Finalized => {
-            state
-                .metrics
-                .update_finalized_transactions_metric(&state.domain);
+    // Keep finalized tx gauge and DB count in sync with status transitions.
+    // Note: tx persistence (line 56) and count update are non-atomic; on crash
+    // between them the recount endpoint can reconcile the gauge from DB state.
+    match (&old_tx_status, &tx.status) {
+        (TransactionStatus::Finalized, _) => {
+            match state.tx_db.decrement_finalized_transaction_count().await {
+                Ok(count) => state
+                    .metrics
+                    .set_finalized_transactions_metric(count, &state.domain),
+                Err(err) => error!(
+                    ?err,
+                    "Failed to persist finalized transaction count decrement"
+                ),
+            }
         }
-        TransactionStatus::Dropped(ref reason) => {
-            state
-                .metrics
-                .update_dropped_transactions_metric(&format!("{reason:?}"), &state.domain);
+        (_, TransactionStatus::Finalized) => {
+            match state.tx_db.increment_finalized_transaction_count().await {
+                Ok(count) => state
+                    .metrics
+                    .set_finalized_transactions_metric(count, &state.domain),
+                Err(err) => error!(
+                    ?err,
+                    "Failed to persist finalized transaction count increment"
+                ),
+            }
         }
         _ => {}
+    }
+
+    if let TransactionStatus::Dropped(ref reason) = tx.status {
+        state
+            .metrics
+            .update_dropped_transactions_metric(&format!("{reason:?}"), &state.domain);
     }
     Ok(())
 }
