@@ -92,6 +92,24 @@ impl HyperlaneRocksDB {
     ) -> DbResult<bool> {
         if let Ok(Some(_)) = self.retrieve_message_id_by_nonce(&message.nonce) {
             trace!(hyp_message=?message, "Message already stored in db");
+            // Still update max_seen_nonce to track indexer progress, even if message
+            // was already stored by relay API
+            self.try_update_max_seen_message_nonce(message.nonce)?;
+
+            // If the stored block number is 0 (from relay API) and we now have a real block number,
+            // update it with the actual value from the indexer
+            if self
+                .retrieve_dispatched_block_number_by_nonce(&message.nonce)?
+                .unwrap_or(0)
+                == 0
+                && dispatched_block_number > 0
+            {
+                self.store_dispatched_block_number_by_nonce(
+                    &message.nonce,
+                    &dispatched_block_number,
+                )?;
+            }
+
             return Ok(false);
         }
         self.upsert_message(message, dispatched_block_number)?;
