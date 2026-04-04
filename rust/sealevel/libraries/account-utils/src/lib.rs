@@ -162,6 +162,11 @@ where
         let mut writable_target: &mut [u8] = &mut *target;
         true.serialize(&mut writable_target)
             .and_then(|_| self.data.serialize(&mut writable_target))?;
+
+        // Zero remaining bytes to prevent stale data from being misinterpreted
+        // during backward-compatible deserialization (e.g. trailing Option fields).
+        writable_target.fill(0);
+
         Ok(())
     }
 }
