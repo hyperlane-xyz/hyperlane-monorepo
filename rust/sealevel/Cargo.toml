@@ -20,6 +20,7 @@ members = [
     "programs/hyperlane-sealevel-token-native",
     "programs/ism/multisig-ism-message-id",
     "programs/ism/test-ism",
+    "programs/ism/trusted-relayer",
     "programs/mailbox",
     "programs/mailbox-test",
     "programs/test-send-receiver",
