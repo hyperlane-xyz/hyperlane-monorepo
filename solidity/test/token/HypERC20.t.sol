@@ -19,7 +19,7 @@ import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transpa
 import {Mailbox} from "../../contracts/Mailbox.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {MockMailbox} from "../../contracts/mock/MockMailbox.sol";
-import {XERC20LockboxTest, XERC20Test, FiatTokenTest, ERC20Test} from "../../contracts/test/ERC20Test.sol";
+import {XERC20LockboxTest, XERC20Test, FiatTokenTest, ERC20Test, FalseReturnERC20Test} from "../../contracts/test/ERC20Test.sol";
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
 import {TestInterchainGasPaymaster} from "../../contracts/test/TestInterchainGasPaymaster.sol";
 import {GasRouter} from "../../contracts/client/GasRouter.sol";
@@ -510,6 +510,58 @@ contract HypERC20CollateralTest is HypTokenTest {
             GAS_LIMIT * igp.gasPrice()
         );
         assertEq(_localTokenBalanceOf(ALICE), balanceBefore - TRANSFER_AMT);
+    }
+}
+
+contract HypERC20CollateralFalseReturnTransferTest is HypTokenTest {
+    using TypeCasts for address;
+
+    HypERC20Collateral internal erc20Collateral;
+
+    function setUp() public override {
+        super.setUp();
+
+        primaryToken = new FalseReturnERC20Test(
+            NAME,
+            SYMBOL,
+            TOTAL_SUPPLY,
+            DECIMALS
+        );
+
+        localToken = new HypERC20Collateral(
+            address(primaryToken),
+            SCALE,
+            SCALE,
+            address(localMailbox)
+        );
+        erc20Collateral = HypERC20Collateral(address(localToken));
+
+        erc20Collateral.enrollRemoteRouter(
+            DESTINATION,
+            address(remoteToken).addressToBytes32()
+        );
+
+        primaryToken.transfer(address(localToken), 1000e18);
+        primaryToken.transfer(ALICE, 1000e18);
+
+        _enrollRemoteTokenRouter();
+    }
+
+    function _localTokenBalanceOf(
+        address _account
+    ) internal view override returns (uint256) {
+        return ERC20Test(primaryToken).balanceOf(_account);
+    }
+
+    function testHandle_falseReturnTransferSucceeds() public {
+        uint256 aliceBalanceBefore = _localTokenBalanceOf(ALICE);
+
+        _handleLocalTransfer(TRANSFER_AMT);
+
+        assertEq(
+            _localTokenBalanceOf(ALICE),
+            aliceBalanceBefore + TRANSFER_AMT
+        );
     }
 }
 
