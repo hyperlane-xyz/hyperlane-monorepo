@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fs::File;
+use std::io::{BufRead, BufReader};
 
 use maplit::hashmap;
 use relayer::GAS_EXPENDITURE_LOG_MESSAGE;
@@ -81,6 +82,14 @@ pub fn relayer_termination_invariants_met(
     const STORING_NEW_MESSAGE_LOG_MESSAGE: &str = "Storing new message in db";
     const FOUND_LOGS_IN_INDEX_RANGE: &str = "Found log(s) in index range";
     const HYPER_INCOMING_BODY_LOG_MESSAGE: &str = "incoming body completed";
+    const LANDER_ESTIMATE_LOG_MESSAGE: &str = "Estimated gas with Lander";
+    const CLASSIC_ESTIMATE_LOG_MESSAGE: &str = "Estimating gas with Classical";
+    const LANDER_ESTIMATOR_FALLBACK_LOG_MESSAGE: &str = "falling back to Classic gas estimation";
+    const LANDER_PREPARATION_ESTIMATION_FAILED_LOG_MESSAGE: &str =
+        "Lander preparation gas estimation failed";
+    const EXPECTED_FAILED_MESSAGE_REVERT: &str = "execution reverted: failMessageBody";
+    const EXPECTED_SIMULATED_DELIVERY_FAILURE_REVERT: &str =
+        "execution reverted: block hash ends in 0";
 
     const TX_ID_INDEXING_LOG_MESSAGE: &str = "Found log(s) for tx id";
 
@@ -91,12 +100,21 @@ pub fn relayer_termination_invariants_met(
     let gas_expenditure_line_filter = vec![GAS_EXPENDITURE_LOG_MESSAGE];
     let hyper_incoming_body_line_filter = vec![HYPER_INCOMING_BODY_LOG_MESSAGE];
     let tx_id_indexing_line_filter = vec![TX_ID_INDEXING_LOG_MESSAGE];
+    let lander_estimate_line_filter = vec![LANDER_ESTIMATE_LOG_MESSAGE];
+    let classic_estimate_line_filter = vec![CLASSIC_ESTIMATE_LOG_MESSAGE];
+    let lander_estimator_fallback_line_filter = vec![LANDER_ESTIMATOR_FALLBACK_LOG_MESSAGE];
+    let lander_preparation_estimation_failed_line_filter =
+        vec![LANDER_PREPARATION_ESTIMATION_FAILED_LOG_MESSAGE];
     let invariant_logs = vec![
         storing_new_msg_line_filter.clone(),
         found_logs_index_range_filter.clone(),
         gas_expenditure_line_filter.clone(),
         hyper_incoming_body_line_filter.clone(),
         tx_id_indexing_line_filter.clone(),
+        lander_estimate_line_filter.clone(),
+        classic_estimate_line_filter.clone(),
+        lander_estimator_fallback_line_filter.clone(),
+        lander_preparation_estimation_failed_line_filter.clone(),
     ];
     let log_counts = get_matching_lines(&relayer_logfile, invariant_logs);
 
@@ -159,6 +177,58 @@ pub fn relayer_termination_invariants_met(
         !log_counts.contains_key(&hyper_incoming_body_line_filter),
         "Verbose logs not expected at the log level set in e2e"
     );
+    if matches!(submitter_type, SubmitterType::Lander) {
+        let lander_estimate_log_count = *log_counts.get(&lander_estimate_line_filter).unwrap_or(&0);
+        if lander_estimate_log_count == 0 {
+            log!("No preparation-time Lander estimation logs found");
+            return Ok(false);
+        }
+        let classic_estimate_log_count =
+            *log_counts.get(&classic_estimate_line_filter).unwrap_or(&0);
+        if classic_estimate_log_count > 0 {
+            log!(
+                "Found {} Classical estimation logs while Lander estimator is expected",
+                classic_estimate_log_count
+            );
+            return Ok(false);
+        }
+        let lander_estimator_fallback_log_count = *log_counts
+            .get(&lander_estimator_fallback_line_filter)
+            .unwrap_or(&0);
+        if lander_estimator_fallback_log_count > 0 {
+            log!(
+                "Found {} Lander-estimator fallback logs",
+                lander_estimator_fallback_log_count
+            );
+            return Ok(false);
+        }
+    }
+    let lander_preparation_estimation_failed_log_count = *log_counts
+        .get(&lander_preparation_estimation_failed_line_filter)
+        .unwrap_or(&0);
+    let expected_lander_preparation_estimation_failed_log_count = {
+        let relayer_logfile = File::open(AGENT_LOGGING_DIR.join("RLY-output.log"))?;
+        BufReader::new(relayer_logfile)
+            .lines()
+            .map_while(Result::ok)
+            .filter(|line| line.contains(LANDER_PREPARATION_ESTIMATION_FAILED_LOG_MESSAGE))
+            .filter(|line| {
+                line.contains(EXPECTED_FAILED_MESSAGE_REVERT)
+                    || line.contains(EXPECTED_SIMULATED_DELIVERY_FAILURE_REVERT)
+            })
+            .count() as u32
+    };
+    let unexpected_lander_preparation_estimation_failed_log_count =
+        lander_preparation_estimation_failed_log_count
+            .saturating_sub(expected_lander_preparation_estimation_failed_log_count);
+    if unexpected_lander_preparation_estimation_failed_log_count > 0 {
+        log!(
+            "Found {} unexpected preparation-estimation failures in relayer logs (ignored {} expected synthetic reverts)",
+            unexpected_lander_preparation_estimation_failed_log_count,
+            expected_lander_preparation_estimation_failed_log_count
+        );
+        return Ok(false);
+    }
 
     // TestSendReceiver randomly breaks gas payments up into
     // two. So we expect at least as many gas payments as messages.

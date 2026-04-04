@@ -30,7 +30,7 @@ use solana_transaction_status::{
 };
 
 use hyperlane_base::db::{HyperlaneRocksDB, DB};
-use hyperlane_core::{ChainResult, HyperlaneDomain, KnownHyperlaneDomain};
+use hyperlane_core::{ChainResult, FixedPointNumber, HyperlaneDomain, KnownHyperlaneDomain, U256};
 use hyperlane_sealevel::{
     fallback::SubmitSealevelRpc, PriorityFeeOracle, SealevelKeypair, SealevelProviderForLander,
     SealevelTxCostEstimate, SealevelTxType, TransactionSubmitter,
@@ -341,6 +341,37 @@ where
 
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
+}
+
+#[tokio::test]
+async fn test_sealevel_entrypoint_preparation_estimate() {
+    let payload = create_sealevel_payload();
+
+    let client = create_sealevel_client();
+    let provider = create_sealevel_provider_for_successful_tx();
+    let oracle = MockOracle::new();
+    let submitter = create_sealevel_submitter();
+
+    let adapter = lander::create_test_sealevel_adapter(
+        Arc::new(client),
+        Arc::new(provider),
+        Arc::new(oracle),
+        Arc::new(submitter),
+        Duration::from_millis(100),
+    );
+
+    let (payload_db, tx_db) = tmp_dbs();
+    let (entrypoint, _dispatcher) =
+        lander::create_test_dispatcher(adapter, payload_db, tx_db, "sealevel".to_string()).await;
+
+    let estimate = entrypoint
+        .estimate_gas_limit_for_preparation(&payload)
+        .await
+        .expect("Failed to estimate gas for preparation");
+
+    assert_eq!(estimate.gas_limit, U256::from(GAS_LIMIT));
+    assert_eq!(estimate.gas_price, FixedPointNumber::zero());
+    assert_eq!(estimate.l2_gas_limit, None);
 }
 
 /// Test that a Sealevel payload reaches finalized status through the full dispatcher pipeline
