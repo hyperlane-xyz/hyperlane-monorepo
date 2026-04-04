@@ -129,14 +129,40 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> ForwardSequenceAwareS
         let current_sequence = self.current_indexing_snapshot.sequence;
         let range = match current_sequence.cmp(&onchain_sequence_count) {
             Ordering::Equal => {
-                // We are synced up to the latest sequence so we don't need to index anything.
-
-                // We can update the current indexing snapshot to the tip.
-                // This will let us only index blocks that are likely to have new logs once
-                // there's a new sequence to search for.
-                self.current_indexing_snapshot.at_block = tip;
-
-                None
+                // We are synced up to the latest sequence, but we should still check blocks
+                // between our current block and the tip, in case a new message was dispatched
+                // during downtime (e.g., after validator restart).
+                // This is especially important when the validator restarts and there might be
+                // messages in blocks between the last indexed block and the current tip.
+                //
+                // However, if at_block >= tip, we're already at or past the finalized tip,
+                // so we should check if there's a gap between what we've indexed and what's onchain.
+                // The issue is that when the validator restarts, at_block might be initialized to tip,
+                // but we might not have indexed all messages up to that point.
+                if self.current_indexing_snapshot.at_block < tip {
+                    // There are blocks ahead of us, so we should index them even though
+                    // the sequence count matches, as there might be a message we haven't indexed yet.
+                    // This only works in block mode; in sequence mode we can't search by block.
+                    match &self.index_mode {
+                        IndexMode::Block => self.get_next_block_range(tip),
+                        IndexMode::Sequence => {
+                            // In sequence mode, we can't search by block, so we just update
+                            // the block pointer and wait for the sequence count to increase.
+                            // The next poll will catch any new sequences.
+                            self.current_indexing_snapshot.at_block = tip;
+                            None
+                        }
+                    }
+                } else {
+                    // We are at or past the tip. However, we might not have indexed all messages
+                    // if the validator restarted. Check if the current sequence is actually indexed.
+                    // If not, we need to search backwards from the tip to find it.
+                    // But actually, if we're here, it means skip_indexed() has already run,
+                    // so if the sequence isn't indexed, we should have already advanced past it.
+                    // So we're truly synced.
+                    self.current_indexing_snapshot.at_block = tip;
+                    None
+                }
             }
             Ordering::Less => {
                 // The cursor is behind the onchain sequence count, so we need to index.
