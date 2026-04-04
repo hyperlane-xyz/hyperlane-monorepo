@@ -16,6 +16,7 @@ import { LazyAsync, eqAddress, objMap } from '@hyperlane-xyz/utils';
 import { filterOwnableContracts } from '../contracts/contracts.js';
 import { isProxy, proxyAdmin } from '../deploy/proxy.js';
 import { TokenMismatchViolation } from '../deploy/types.js';
+import { HyperlaneSmartProvider } from '../providers/SmartProvider/SmartProvider.js';
 import { ProxiedRouterChecker } from '../router/ProxiedRouterChecker.js';
 import { ProxiedFactories } from '../router/types.js';
 import { ChainName } from '../types.js';
@@ -150,14 +151,22 @@ export class HypERC20Checker extends ProxiedRouterChecker<
     // Check if configured token type matches actual token type
     if (isNativeTokenConfig(expectedConfig)) {
       try {
-        await this.multiProvider.estimateGas(
-          chain,
-          {
-            to: hypToken.address,
-            value: BigNumber.from(1),
-          },
-          NON_ZERO_SENDER_ADDRESS,
-        );
+        const provider = this.multiProvider.getProvider(chain);
+        const transaction = {
+          from: NON_ZERO_SENDER_ADDRESS,
+          to: hypToken.address,
+          value: BigNumber.from(1),
+        };
+
+        if (provider instanceof HyperlaneSmartProvider) {
+          await provider.probeEstimateGas(transaction);
+        } else {
+          await this.multiProvider.estimateGas(
+            chain,
+            transaction,
+            NON_ZERO_SENDER_ADDRESS,
+          );
+        }
       } catch {
         const violation: TokenMismatchViolation = {
           type: 'deployed token not payable',
