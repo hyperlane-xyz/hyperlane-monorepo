@@ -227,6 +227,12 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
         `Cannot deploy unknown hook type`,
       );
       const hookType = config.type as DeployableHookType;
+
+      if (hookType === HookType.PREDICATE) {
+        throw new Error(
+          'Predicate hooks cannot be deployed via HyperlaneCoreDeployer, they must be pre-deployed',
+        );
+      }
       return hooks[hookType];
     }
   }

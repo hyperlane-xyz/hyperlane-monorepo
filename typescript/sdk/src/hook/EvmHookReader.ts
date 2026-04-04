@@ -175,6 +175,9 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
           derivedHookConfig =
             await this.deriveMailboxDefaultHookConfig(address);
           break;
+        case OnchainHookType.PREDICATE_ROUTER_WRAPPER:
+          derivedHookConfig = { type: HookType.PREDICATE, address };
+          break;
         default:
           throw new Error(
             `Unsupported HookType: ${OnchainHookType[onchainHookType]}`,

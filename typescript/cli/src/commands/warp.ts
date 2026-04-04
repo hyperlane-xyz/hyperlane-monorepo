@@ -352,6 +352,8 @@ const send: CommandModuleWithWriteContext<
       recipient?: string;
       chains?: string[];
       skipValidation?: boolean;
+      predicateApiKey?: string;
+      attestation?: string;
       sourceToken?: string;
       destinationToken?: string;
     }
@@ -381,6 +383,14 @@ const send: CommandModuleWithWriteContext<
       description: 'Skip transfer validation (e.g., collateral checks)',
       default: false,
     },
+    'predicate-api-key': {
+      type: 'string',
+      description: 'Predicate API key for fetching attestations automatically',
+    },
+    attestation: {
+      type: 'string',
+      description: 'Pre-obtained Predicate attestation (JSON string)',
+    },
     'source-token': {
       type: 'string',
       description:
@@ -399,12 +409,16 @@ const send: CommandModuleWithWriteContext<
     timeout,
     quick,
     relay,
+    symbol,
+    warp,
     warpRouteId,
     amount,
     recipient,
     roundTrip,
     chains: chainsArg,
     skipValidation,
+    predicateApiKey,
+    attestation,
     sourceToken,
     destinationToken,
   }) => {
@@ -484,6 +498,8 @@ const send: CommandModuleWithWriteContext<
       skipWaitForDelivery: quick,
       selfRelay: relay,
       skipValidation,
+      predicateApiKey,
+      attestation,
       sourceToken,
       destinationToken,
     });

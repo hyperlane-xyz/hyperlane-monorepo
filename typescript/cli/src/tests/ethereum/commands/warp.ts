@@ -368,6 +368,8 @@ export function hyperlaneWarpSendRelay({
   value = 2,
   chains,
   roundTrip,
+  predicateApiKey,
+  attestation,
   sourceToken,
   destinationToken,
   skipValidation,
@@ -379,6 +381,8 @@ export function hyperlaneWarpSendRelay({
   value?: number | string;
   chains?: string[];
   roundTrip?: boolean;
+  predicateApiKey?: string;
+  attestation?: string;
   sourceToken?: string;
   destinationToken?: string;
   skipValidation?: boolean;
@@ -395,6 +399,8 @@ export function hyperlaneWarpSendRelay({
         --amount ${value} \
         ${chains?.length ? chains.flatMap((c) => ['--chains', c]) : []} \
         ${roundTrip ? ['--round-trip'] : []} \
+        ${predicateApiKey ? ['--predicate-api-key', predicateApiKey] : []} \
+        ${attestation ? ['--attestation', attestation] : []} \
         ${sourceToken ? ['--source-token', sourceToken] : []} \
         ${destinationToken ? ['--destination-token', destinationToken] : []} \
         ${skipValidation ? ['--skip-validation'] : []} `;
