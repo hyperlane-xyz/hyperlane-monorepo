@@ -36,6 +36,7 @@ import type {
 } from '../interfaces/IRebalancer.js';
 import type { InventoryRoute } from '../interfaces/IStrategy.js';
 import type { IActionTracker } from '../tracking/IActionTracker.js';
+import { type Metrics } from '../metrics/Metrics.js';
 import type {
   PartialInventoryIntent,
   RebalanceIntent,
@@ -135,6 +136,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     warpCore: WarpCore,
     multiProvider: MultiProvider,
     logger: Logger,
+    private readonly metrics?: Metrics,
   ) {
     this.config = config;
     this.actionTracker = actionTracker;
@@ -410,6 +412,11 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         },
         'Failed to execute inventory route',
       );
+      this.metrics?.recordTxFailure(
+        route.origin,
+        route.destination,
+        'inventory_route_execution_failed',
+      );
 
       return [
         {
@@ -494,6 +501,11 @@ export class InventoryRebalancer implements IInventoryRebalancer {
           error: (error as Error).message,
         },
         'Failed to continue partial inventory intent',
+      );
+      this.metrics?.recordTxFailure(
+        route.origin,
+        route.destination,
+        'inventory_intent_continuation_failed',
       );
 
       return [
@@ -810,6 +822,11 @@ export class InventoryRebalancer implements IInventoryRebalancer {
             },
             'Inventory movement failed',
           );
+          this.metrics?.recordBridgeFailure(
+            plan.chain,
+            destination,
+            'movement_failed',
+          );
         }
       }
 
@@ -948,6 +965,11 @@ export class InventoryRebalancer implements IInventoryRebalancer {
           intentId: intent.id,
         },
         'TransferRemote transaction sent but no messageId found in logs',
+      );
+      this.metrics?.recordTxFailure(
+        origin,
+        destination,
+        'transfer_remote_no_message_id',
       );
     }
 
@@ -1228,6 +1250,11 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         },
         'Failed to calculate max viable bridge amount, skipping chain',
       );
+      this.metrics?.recordBridgeFailure(
+        sourceChain,
+        targetChain,
+        'quote_failed',
+      );
       return 0n;
     }
   }
@@ -1444,6 +1471,11 @@ export class InventoryRebalancer implements IInventoryRebalancer {
           error: (error as Error).message,
         },
         'Failed to execute inventory movement',
+      );
+      this.metrics?.recordBridgeFailure(
+        sourceChain,
+        targetChain,
+        'execution_failed',
       );
 
       return {

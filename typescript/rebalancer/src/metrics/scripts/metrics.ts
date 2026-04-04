@@ -1,5 +1,5 @@
 import { type Logger } from 'pino';
-import { Counter, Registry } from 'prom-client';
+import { Counter, Gauge, Registry } from 'prom-client';
 
 import {
   type NativeWalletBalance,
@@ -54,6 +54,46 @@ export const rebalancerActionsCreatedTotal = new Counter({
   help: 'Total number of rebalancing actions (transactions) attempted.',
   registers: [metricsRegister],
   labelNames: ['warp_route_id', 'origin', 'destination', 'succeeded'],
+});
+
+export const rebalancerInventoryBalance = new Gauge({
+  name: 'hyperlane_rebalancer_inventory_balance',
+  help: 'Current balance of inventory account per chain.',
+  registers: [metricsRegister],
+  labelNames: ['warp_route_id', 'chain', 'token_symbol', 'token_address'],
+});
+
+export const rebalancerCycleErrorsTotal = new Counter({
+  name: 'hyperlane_rebalancer_cycle_errors_total',
+  help: 'Total orchestrator-level errors per cycle (sync failures, execution crashes).',
+  registers: [metricsRegister],
+  labelNames: ['warp_route_id', 'error_type'],
+});
+
+export const rebalancerTxFailuresTotal = new Counter({
+  name: 'hyperlane_rebalancer_tx_failures_total',
+  help: 'Total transaction-level failures (send, gas estimation, quote, populate, missing dispatch).',
+  registers: [metricsRegister],
+  labelNames: ['warp_route_id', 'origin', 'destination', 'failure_reason'],
+});
+
+export const rebalancerBridgeFailuresTotal = new Counter({
+  name: 'hyperlane_rebalancer_bridge_failures_total',
+  help: 'Total external bridge failures (quote and execution).',
+  registers: [metricsRegister],
+  labelNames: [
+    'warp_route_id',
+    'source_chain',
+    'target_chain',
+    'failure_reason',
+  ],
+});
+
+export const rebalancerInventoryBalanceFetchFailuresTotal = new Counter({
+  name: 'hyperlane_rebalancer_inventory_balance_fetch_failures_total',
+  help: 'Total failures when fetching inventory balances per chain.',
+  registers: [metricsRegister],
+  labelNames: ['warp_route_id', 'chain'],
 });
 
 /**
