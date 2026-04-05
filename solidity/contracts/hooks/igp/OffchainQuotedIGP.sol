@@ -240,10 +240,9 @@ abstract contract OffchainQuotedIGP is AbstractOffchainQuoter {
         TRANSIENT_GAS_PRICE_SLOT.store(gasPrice);
     }
 
-    // Decode context and data, write to persistent storage. Rejects stale quotes.
-    function _storeStanding(SignedQuote calldata sq) internal override {
-        // match on postDispatch context (narrowed to message.destination and message.sender)
-        // feeToken comes from message sender hook metadata
+    function _storeStanding(
+        SignedQuote calldata sq
+    ) internal override returns (bool) {
         (address feeToken_, uint32 dest, address sender) = IGPQuoteContext
             .decode(sq.context);
         OffchainQuotedIGPStorage storage $ = _getOffchainQuotedIGPStorage();
@@ -251,10 +250,9 @@ abstract contract OffchainQuotedIGP is AbstractOffchainQuoter {
             sender
         ];
 
-        // ensure signed quote is issued more recently than standing quote
-        if (sq.issuedAt <= existing.issuedAt) revert StaleQuote();
+        if (sq.issuedAt < existing.issuedAt) revert StaleQuote();
+        if (sq.issuedAt == existing.issuedAt) return false;
 
-        // update gas oracle params for matching postDispatch
         (uint128 rate, uint128 gasPrice) = IGPQuoteData.decode(sq.data);
         $.offchainQuotes[feeToken_][dest][sender] = StoredGasQuote(
             rate,
@@ -262,5 +260,6 @@ abstract contract OffchainQuotedIGP is AbstractOffchainQuoter {
             sq.issuedAt,
             sq.expiry
         );
+        return true;
     }
 }

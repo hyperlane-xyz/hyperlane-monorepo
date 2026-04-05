@@ -494,6 +494,13 @@ contract InterchainGasPaymaster is
     }
 
     /// @inheritdoc AbstractPostDispatchHook
+    /// @dev When using ERC20 fee tokens, `_postDispatch` pulls tokens from `message.senderAddress()`
+    /// via `safeTransferFrom`. Because `postDispatch` is publicly callable with arbitrary message
+    /// bytes, any standing token approval to the IGP can be spent by a third-party caller
+    /// supplying a crafted message. In this scenario, funds are collected by the IGP and are
+    /// recoverable by the beneficiary (the hook operator), NOT by the attacker.
+    /// Callers that hold fee tokens should use exact per-call approvals rather than
+    /// standing (infinite) allowances to the IGP.
     function _postDispatch(
         bytes calldata metadata,
         bytes calldata message
