@@ -66,6 +66,8 @@ import {
   DepositAddressTokenConfig,
   HypTokenConfig,
   HypTokenRouterConfig,
+  KatanaRedeemIcaTokenConfig,
+  KatanaVaultHelperTokenConfig,
   OftTokenConfig,
   WarpRouteDeployConfig,
   isCctpTokenConfig,
@@ -74,6 +76,8 @@ import {
   isEverclearEthBridgeTokenConfig,
   isEverclearTokenBridgeConfig,
   isDepositAddressTokenConfig,
+  isKatanaRedeemIcaConfig,
+  isKatanaVaultHelperConfig,
   isMovableCollateralTokenConfig,
   isCrossCollateralTokenConfig,
   isNativeTokenConfig,
@@ -94,6 +98,12 @@ const CCTP_INITIALIZE_SIGNATURE = 'initialize(address,address,string[])';
 // initialize(address _hook, address _owner)
 const EVERCLEAR_TOKEN_BRIDGE_INITIALIZE_SIGNATURE =
   'initialize(address,address)';
+
+function isKatanaDirectBridgeConfig(
+  config: HypTokenConfig,
+): config is KatanaVaultHelperTokenConfig | KatanaRedeemIcaTokenConfig {
+  return isKatanaVaultHelperConfig(config) || isKatanaRedeemIcaConfig(config);
+}
 
 export const TOKEN_INITIALIZE_SIGNATURE = (
   contractName: HypERC20contracts[DeployableTokenType],
@@ -207,6 +217,24 @@ abstract class TokenDeployer<
       return [config.oft, config.owner];
     } else if (isDepositAddressTokenConfig(config)) {
       return [config.token, config.owner];
+    } else if (isKatanaVaultHelperConfig(config)) {
+      return [
+        config.shareVault,
+        config.shareBridge,
+        config.katanaBeneficiary,
+        config.ethereumBeneficiary,
+        'wrappedNativeToken' in config
+          ? config.wrappedNativeToken
+          : constants.AddressZero,
+      ];
+    } else if (isKatanaRedeemIcaConfig(config)) {
+      return [
+        config.shareBridge,
+        config.icaRouter,
+        config.ethereumVaultHelper,
+        config.ethereumBeneficiary,
+        config.redeemGasLimit,
+      ];
     } else if (isCctpTokenConfig(config)) {
       switch (config.cctpVersion) {
         case 'V1':
@@ -263,7 +291,10 @@ abstract class TokenDeployer<
     if (isOftTokenConfig(config)) {
       // OFT is deployed unproxied — owner is set in constructor, no initialize
       throw new Error('OFT does not use initialize');
-    } else if (isDepositAddressTokenConfig(config)) {
+    } else if (
+      isDepositAddressTokenConfig(config) ||
+      isKatanaDirectBridgeConfig(config)
+    ) {
       throw new Error('Direct bridge adapters do not use initialize');
     } else if (
       isCollateralTokenConfig(config) ||
@@ -839,7 +870,10 @@ abstract class TokenDeployer<
     const directBridgeContracts: Record<string, Record<string, unknown>> = {};
     const oftContracts: Record<string, Record<string, unknown>> = {};
     for (const [chain, config] of Object.entries(resolvedConfigMap)) {
-      if (isDepositAddressTokenConfig(config)) {
+      if (
+        isDepositAddressTokenConfig(config) ||
+        isKatanaDirectBridgeConfig(config)
+      ) {
         const contractKey = this.routerContractKey(config);
         const constructorArgs = await this.constructorArgs(chain, config);
         const contract = await this.deployContractWithName(

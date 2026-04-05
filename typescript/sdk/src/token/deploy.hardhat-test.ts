@@ -1,3 +1,5 @@
+import { readFileSync } from 'fs';
+
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import { ethers } from 'ethers';
@@ -6,10 +8,14 @@ import hre from 'hardhat';
 import {
   ERC20Test,
   ERC20Test__factory,
+  ERC4626Test__factory,
   LinearFee__factory,
   ProxyAdmin,
   ProxyAdmin__factory,
   RoutingFee__factory,
+  TokenBridgeKatanaRedeemIca__factory,
+  TokenBridgeKatanaVaultHelper__factory,
+  TokenBridgeOft__factory,
   TokenRouter__factory,
   TransparentUpgradeableProxy__factory,
   XERC20Test,
@@ -43,6 +49,24 @@ import {
 } from './types.js';
 
 const chain = TestChainName.test1;
+const MOCK_COMPOSE_OFT_ARTIFACT = JSON.parse(
+  readFileSync(
+    new URL(
+      '../../../../solidity/out/TokenBridgeKatanaVault.t.sol/MockComposeOFT.json',
+      import.meta.url,
+    ),
+    'utf8',
+  ),
+);
+const MOCK_WETH_ARTIFACT = JSON.parse(
+  readFileSync(
+    new URL(
+      '../../../../solidity/out/TokenBridgeKatanaVault.t.sol/MockWETH.json',
+      import.meta.url,
+    ),
+    'utf8',
+  ),
+);
 
 function addOverridesToConfig(
   config: WarpRouteDeployConfigMailboxRequired,
@@ -71,6 +95,14 @@ describe('TokenDeployer', async () => {
   let erc20: ERC20Test;
   let admin: ProxyAdmin;
   const totalSupply = '100000';
+
+  async function deployMockComposeOft(tokenAddress: Address) {
+    return new ethers.ContractFactory(
+      MOCK_COMPOSE_OFT_ARTIFACT.abi,
+      MOCK_COMPOSE_OFT_ARTIFACT.bytecode.object,
+      signer,
+    ).deploy(tokenAddress, true, 6);
+  }
 
   before(async () => {
     [signer] = await hre.ethers.getSigners();
@@ -230,6 +262,189 @@ describe('TokenDeployer', async () => {
     });
   });
 
+  it('deploys a katana vault helper from YAML-only config', async () => {
+    const asset = await new ERC20Test__factory(signer).deploy(
+      'USD Coin',
+      'USDC',
+      totalSupply,
+      6,
+    );
+    const vault = await new ERC4626Test__factory(signer).deploy(
+      asset.address,
+      'Vaulted USDC',
+      'vbUSDC',
+    );
+    const composeOft = await deployMockComposeOft(vault.address);
+    const shareBridge = await new TokenBridgeOft__factory(signer).deploy(
+      composeOft.address,
+      signer.address,
+    );
+    const katanaBeneficiary = ethers.utils.hexZeroPad(
+      ethers.Wallet.createRandom().address,
+      32,
+    );
+    const ethereumBeneficiary = ethers.Wallet.createRandom().address;
+
+    const helperConfig: WarpRouteDeployConfigMailboxRequired = {
+      [chain]: {
+        owner: config[chain].owner,
+        mailbox: config[chain].mailbox,
+        type: TokenType.collateralKatanaVaultHelper,
+        shareVault: vault.address,
+        shareBridge: shareBridge.address,
+        katanaBeneficiary,
+        ethereumBeneficiary,
+      },
+    };
+
+    const contracts = await deployer.deploy(helperConfig);
+    const helper = TokenBridgeKatanaVaultHelper__factory.connect(
+      contracts[chain][TokenType.collateralKatanaVaultHelper].address,
+      signer,
+    );
+
+    expect(await helper.shareVault()).to.equal(vault.address);
+    expect(await helper.shareBridge()).to.equal(shareBridge.address);
+    expect(await helper.katanaBeneficiary()).to.equal(
+      katanaBeneficiary.toLowerCase(),
+    );
+    expect(await helper.ethereumBeneficiary()).to.equal(ethereumBeneficiary);
+    expect(await helper.token()).to.equal(asset.address);
+  });
+
+  it('derives native metadata for katana vault helper configs', async () => {
+    const nativeToken = multiProvider.getChainMetadata(chain).nativeToken;
+    expect(nativeToken).to.not.equal(undefined);
+
+    const weth = await new ethers.ContractFactory(
+      MOCK_WETH_ARTIFACT.abi,
+      MOCK_WETH_ARTIFACT.bytecode.object,
+      signer,
+    ).deploy();
+    const vault = await new ERC4626Test__factory(signer).deploy(
+      weth.address,
+      'Vaulted Ether',
+      'vbETH',
+    );
+
+    const metadata = await HypERC20Deployer.deriveTokenMetadata(multiProvider, {
+      [chain]: {
+        owner: config[chain].owner,
+        mailbox: config[chain].mailbox,
+        type: TokenType.nativeKatanaVaultHelper,
+        shareVault: vault.address,
+        shareBridge: ethers.Wallet.createRandom().address,
+        katanaBeneficiary: ethers.utils.hexZeroPad(
+          ethers.Wallet.createRandom().address,
+          32,
+        ),
+        ethereumBeneficiary: ethers.Wallet.createRandom().address,
+        wrappedNativeToken: weth.address,
+      },
+    });
+
+    expect(metadata.getName(chain)).to.equal(nativeToken!.name);
+    expect(metadata.getSymbol(chain)).to.equal(nativeToken!.symbol);
+    expect(metadata.getDecimals(chain)).to.equal(nativeToken!.decimals);
+  });
+
+  it('deploys a native katana vault helper from YAML-only config', async () => {
+    const weth = await new ethers.ContractFactory(
+      MOCK_WETH_ARTIFACT.abi,
+      MOCK_WETH_ARTIFACT.bytecode.object,
+      signer,
+    ).deploy();
+    const vault = await new ERC4626Test__factory(signer).deploy(
+      weth.address,
+      'Vaulted Ether',
+      'vbETH',
+    );
+    const composeOft = await deployMockComposeOft(vault.address);
+    const shareBridge = await new TokenBridgeOft__factory(signer).deploy(
+      composeOft.address,
+      signer.address,
+    );
+    const katanaBeneficiary = ethers.utils.hexZeroPad(
+      ethers.Wallet.createRandom().address,
+      32,
+    );
+    const ethereumBeneficiary = ethers.Wallet.createRandom().address;
+
+    const helperConfig: WarpRouteDeployConfigMailboxRequired = {
+      [chain]: {
+        owner: config[chain].owner,
+        mailbox: config[chain].mailbox,
+        type: TokenType.nativeKatanaVaultHelper,
+        shareVault: vault.address,
+        shareBridge: shareBridge.address,
+        katanaBeneficiary,
+        ethereumBeneficiary,
+        wrappedNativeToken: weth.address,
+      },
+    };
+
+    const contracts = await deployer.deploy(helperConfig);
+    const helper = TokenBridgeKatanaVaultHelper__factory.connect(
+      contracts[chain][TokenType.nativeKatanaVaultHelper].address,
+      signer,
+    );
+
+    expect(await helper.wrappedNativeToken()).to.equal(weth.address);
+    expect(await helper.token()).to.equal(ethers.constants.AddressZero);
+  });
+
+  it('deploys a katana redeem ICA bridge from YAML-only config', async () => {
+    const asset = await new ERC20Test__factory(signer).deploy(
+      'Vaulted Bitcoin',
+      'WBTC',
+      totalSupply,
+      8,
+    );
+    const vault = await new ERC4626Test__factory(signer).deploy(
+      asset.address,
+      'Vaulted Bitcoin',
+      'vbWBTC',
+    );
+    const composeOft = await deployMockComposeOft(vault.address);
+    const shareBridge = await new TokenBridgeOft__factory(signer).deploy(
+      composeOft.address,
+      signer.address,
+    );
+    const icaRouter = ethers.Wallet.createRandom().address;
+    const ethereumVaultHelper = ethers.Wallet.createRandom().address;
+    const ethereumBeneficiary = ethers.Wallet.createRandom().address;
+
+    const redeemConfig: WarpRouteDeployConfigMailboxRequired = {
+      [chain]: {
+        owner: config[chain].owner,
+        mailbox: config[chain].mailbox,
+        type: TokenType.collateralKatanaRedeemIca,
+        shareBridge: shareBridge.address,
+        icaRouter,
+        ethereumVaultHelper,
+        ethereumBeneficiary,
+        redeemGasLimit: 250000,
+      },
+    };
+
+    const contracts = await deployer.deploy(redeemConfig);
+    const redeemBridge = TokenBridgeKatanaRedeemIca__factory.connect(
+      contracts[chain][TokenType.collateralKatanaRedeemIca].address,
+      signer,
+    );
+
+    expect(await redeemBridge.shareBridge()).to.equal(shareBridge.address);
+    expect(await redeemBridge.icaRouter()).to.equal(icaRouter);
+    expect(await redeemBridge.ethereumVaultHelper()).to.equal(
+      ethereumVaultHelper,
+    );
+    expect(await redeemBridge.ethereumBeneficiary()).to.equal(
+      ethereumBeneficiary,
+    );
+    expect(await redeemBridge.redeemGasLimit()).to.equal(250000);
+    expect(await redeemBridge.token()).to.equal(vault.address);
+  });
+
   for (const type of [
     TokenType.collateral,
     TokenType.synthetic,
@@ -250,12 +465,11 @@ describe('TokenDeployer', async () => {
       let checker: HypERC20Checker;
       let app: HypERC20App;
       beforeEach(async () => {
-        // @ts-expect-error - Test assigns varying token types to config
         config[chain] = {
           ...config[chain],
           type,
           token: token(),
-        };
+        } as any;
 
         const contractsMap = await deployer.deploy(config);
         app = new HypERC20App(contractsMap, multiProvider);
@@ -344,12 +558,11 @@ describe('TokenDeployer', async () => {
       });
 
       beforeEach(async () => {
-        // @ts-expect-error - Test assigns varying token types to config
         config[chain] = {
           ...config[chain],
           type,
           token: token(),
-        };
+        } as any;
         const warpRoute = await deployer.deploy(config);
         routerAddress = warpRoute[chain][type].address;
       });

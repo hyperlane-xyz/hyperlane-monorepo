@@ -2,9 +2,10 @@ import {
   ERC20__factory,
   ERC721Enumerable__factory,
   IERC4626__factory,
+  TokenBridgeOft__factory,
   IXERC20Lockbox__factory,
 } from '@hyperlane-xyz/core';
-import { isEVMLike } from '@hyperlane-xyz/utils';
+import { assert, isEVMLike } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
 
@@ -19,6 +20,8 @@ import {
   isEverclearCollateralTokenConfig,
   isEverclearEthBridgeTokenConfig,
   isCrossCollateralTokenConfig,
+  isKatanaRedeemIcaConfig,
+  isKatanaVaultHelperConfig,
   isNativeTokenConfig,
   isTokenMetadata,
   isXERC20TokenConfig,
@@ -36,6 +39,8 @@ export async function deriveTokenMetadata(
     TokenType.collateralCctp,
     TokenType.collateralDepositAddress,
     TokenType.collateralEverclear,
+    TokenType.collateralKatanaVaultHelper,
+    TokenType.nativeKatanaVaultHelper,
     TokenType.XERC20,
     TokenType.XERC20Lockbox,
     TokenType.native,
@@ -83,11 +88,13 @@ export async function deriveTokenMetadata(
       isXERC20TokenConfig(config) ||
       isCctpTokenConfig(config) ||
       isDepositAddressTokenConfig(config) ||
+      isKatanaVaultHelperConfig(config) ||
+      isKatanaRedeemIcaConfig(config) ||
       isEverclearCollateralTokenConfig(config)
     ) {
       const provider = multiProvider.getProvider(chain);
 
-      if (config.isNft) {
+      if (config.isNft && 'token' in config) {
         const erc721 = ERC721Enumerable__factory.connect(
           config.token,
           provider,
@@ -106,7 +113,7 @@ export async function deriveTokenMetadata(
         continue;
       }
 
-      let token: string;
+      let token: string | undefined;
       switch (config.type) {
         case TokenType.XERC20Lockbox:
           token = await IXERC20Lockbox__factory.connect(
@@ -120,11 +127,44 @@ export async function deriveTokenMetadata(
             provider,
           ).callStatic.asset();
           break;
+        case TokenType.collateralKatanaVaultHelper:
+          token = await IERC4626__factory.connect(
+            config.shareVault,
+            provider,
+          ).callStatic.asset();
+          break;
+        case TokenType.nativeKatanaVaultHelper: {
+          const nativeToken = multiProvider.getChainMetadata(chain).nativeToken;
+          if (nativeToken) {
+            metadataMap.update(
+              chain,
+              TokenMetadataSchema.parse({
+                ...nativeToken,
+              }),
+            );
+            continue;
+          }
+          token = await IERC4626__factory.connect(
+            config.shareVault,
+            provider,
+          ).callStatic.asset();
+          break;
+        }
+        case TokenType.collateralKatanaRedeemIca:
+          token = await TokenBridgeOft__factory.connect(
+            config.shareBridge,
+            provider,
+          ).callStatic.token();
+          break;
         default:
-          token = config.token;
+          token = 'token' in config ? config.token : undefined;
           break;
       }
 
+      assert(
+        token,
+        `Missing token address for metadata derivation on ${chain}`,
+      );
       const erc20 = ERC20__factory.connect(token, provider);
       const [name, symbol, decimals] = await Promise.all([
         erc20.name(),

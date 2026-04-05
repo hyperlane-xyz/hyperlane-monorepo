@@ -13,6 +13,9 @@ export const TokenType = {
   collateralEverclear: 'collateralEverclear',
   collateralDepositAddress: 'collateralDepositAddress',
   collateralOft: 'collateralOft',
+  collateralKatanaVaultHelper: 'collateralKatanaVaultHelper',
+  nativeKatanaVaultHelper: 'nativeKatanaVaultHelper',
+  collateralKatanaRedeemIca: 'collateralKatanaRedeemIca',
   native: 'native',
   nativeOpL2: 'nativeOpL2',
   nativeOpL1: 'nativeOpL1',
@@ -50,6 +53,9 @@ const isMovableCollateralTokenTypeMap = {
   [TokenType.collateralEverclear]: false,
   [TokenType.collateralDepositAddress]: false,
   [TokenType.collateralOft]: false,
+  [TokenType.collateralKatanaVaultHelper]: false,
+  [TokenType.nativeKatanaVaultHelper]: false,
+  [TokenType.collateralKatanaRedeemIca]: false,
   [TokenType.crossCollateral]: true, // CrossCollateralRouter extends HypERC20Collateral
   [TokenType.unknown]: false,
 } as const;

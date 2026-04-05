@@ -44,9 +44,17 @@ contract TokenBridgeKatanaRedeemIca is ITokenBridge, PackageVersioned {
     /// @notice Hardcoded Hyperlane domain for Ethereum on this route.
     uint32 public constant ETHEREUM_DOMAIN = 1;
 
-    error TokenBridgeKatanaRedeemIca__InsufficientNativeFee(uint256 requiredFee, uint256 providedFee);
-    error TokenBridgeKatanaRedeemIca__UnexpectedRecipient(bytes32 expectedRecipient, bytes32 actualRecipient);
-    error TokenBridgeKatanaRedeemIca__UnsupportedDestination(uint32 destination);
+    error TokenBridgeKatanaRedeemIca__InsufficientNativeFee(
+        uint256 requiredFee,
+        uint256 providedFee
+    );
+    error TokenBridgeKatanaRedeemIca__UnexpectedRecipient(
+        bytes32 expectedRecipient,
+        bytes32 actualRecipient
+    );
+    error TokenBridgeKatanaRedeemIca__UnsupportedDestination(
+        uint32 destination
+    );
     error TokenBridgeKatanaRedeemIca__ZeroAddress();
     error TokenBridgeKatanaRedeemIca__ZeroBeneficiary();
     error TokenBridgeKatanaRedeemIca__ZeroRedeemGasLimit();
@@ -85,7 +93,11 @@ contract TokenBridgeKatanaRedeemIca is ITokenBridge, PackageVersioned {
         address _ethereumBeneficiary,
         uint256 _redeemGasLimit
     ) {
-        if (_shareBridge == address(0) || _icaRouter == address(0) || _ethereumVaultHelper == address(0)) {
+        if (
+            _shareBridge == address(0) ||
+            _icaRouter == address(0) ||
+            _ethereumVaultHelper == address(0)
+        ) {
             revert TokenBridgeKatanaRedeemIca__ZeroAddress();
         }
         if (_ethereumBeneficiary == address(0)) {
@@ -110,55 +122,79 @@ contract TokenBridgeKatanaRedeemIca is ITokenBridge, PackageVersioned {
         return address(shareToken);
     }
 
-    function quoteTransferRemote(uint32 _destination, bytes32 _recipient, uint256 _amount)
-        external
-        view
-        override
-        returns (Quote[] memory quotes)
-    {
+    function quoteTransferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) external view override returns (Quote[] memory quotes) {
         _checkOutbound(_destination, _recipient);
 
-        (uint256 shareBridgeNativeFee, uint256 shareAmount,) =
-            _quoteShareTransfer(_destination, ethereumVaultHelper.addressToBytes32(), _amount);
-        uint256 nativeFee = shareBridgeNativeFee + icaRouter.quoteGasPayment(_destination, redeemGasLimit);
+        (
+            uint256 shareBridgeNativeFee,
+            uint256 shareAmount,
+
+        ) = _quoteShareTransfer(
+                _destination,
+                ethereumVaultHelper.addressToBytes32(),
+                _amount
+            );
+        uint256 nativeFee = shareBridgeNativeFee +
+            icaRouter.quoteGasPayment(_destination, redeemGasLimit);
 
         quotes = new Quote[](2);
         quotes[0] = Quote({token: address(0), amount: nativeFee});
         quotes[1] = Quote({token: address(shareToken), amount: shareAmount});
     }
 
-    function transferRemote(uint32 _destination, bytes32 _recipient, uint256 _amount)
-        external
-        payable
-        override
-        returns (bytes32 messageId)
-    {
+    function transferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) external payable override returns (bytes32 messageId) {
         _checkOutbound(_destination, _recipient);
 
-        (uint256 shareBridgeNativeFee, uint256 shareAmount, uint256 deliveredShareAmount) =
-            _quoteShareTransfer(_destination, ethereumVaultHelper.addressToBytes32(), _amount);
-        uint256 icaFee = icaRouter.quoteGasPayment(_destination, redeemGasLimit);
+        (
+            uint256 shareBridgeNativeFee,
+            uint256 shareAmount,
+            uint256 deliveredShareAmount
+        ) = _quoteShareTransfer(
+                _destination,
+                ethereumVaultHelper.addressToBytes32(),
+                _amount
+            );
+        uint256 icaFee = icaRouter.quoteGasPayment(
+            _destination,
+            redeemGasLimit
+        );
         uint256 totalNativeFee = shareBridgeNativeFee + icaFee;
 
         if (msg.value < totalNativeFee) {
-            revert TokenBridgeKatanaRedeemIca__InsufficientNativeFee(totalNativeFee, msg.value);
+            revert TokenBridgeKatanaRedeemIca__InsufficientNativeFee(
+                totalNativeFee,
+                msg.value
+            );
         }
 
         shareToken.safeTransferFrom(msg.sender, address(this), shareAmount);
 
-        bytes32 shareBridgeMessageId = shareBridge.transferRemote{value: shareBridgeNativeFee}(
-            _destination, ethereumVaultHelper.addressToBytes32(), _amount
-        );
+        bytes32 shareBridgeMessageId = shareBridge.transferRemote{
+            value: shareBridgeNativeFee
+        }(_destination, ethereumVaultHelper.addressToBytes32(), _amount);
 
         // The ICA poke carries the exact amount that LayerZero reports will be
         // delivered to the helper, so dusty 8/18-decimal share tokens can be
         // redeemed without leaving stranded shares behind.
         CallLib.Call[] memory calls = new CallLib.Call[](1);
-        calls[0] =
-            CallLib.build(ethereumVaultHelper, 0, abi.encodeCall(IKatanaVaultRedeemer.redeem, (deliveredShareAmount)));
+        calls[0] = CallLib.build(
+            ethereumVaultHelper,
+            0,
+            abi.encodeCall(IKatanaVaultRedeemer.redeem, (deliveredShareAmount))
+        );
 
         bytes32 icaMessageId = icaRouter.callRemote{value: icaFee}(
-            _destination, calls, StandardHookMetadata.overrideGasLimit(redeemGasLimit)
+            _destination,
+            calls,
+            StandardHookMetadata.overrideGasLimit(redeemGasLimit)
         );
 
         uint256 excessNative = msg.value - totalNativeFee;
@@ -166,28 +202,55 @@ contract TokenBridgeKatanaRedeemIca is ITokenBridge, PackageVersioned {
             Address.sendValue(payable(msg.sender), excessNative);
         }
 
-        emit SentTransferRemote(msg.sender, _destination, _recipient, _amount, shareBridgeMessageId, icaMessageId);
+        emit SentTransferRemote(
+            msg.sender,
+            _destination,
+            _recipient,
+            _amount,
+            shareBridgeMessageId,
+            icaMessageId
+        );
 
         return keccak256(abi.encode(shareBridgeMessageId, icaMessageId));
     }
 
     /// @dev Confirms the caller is using the route's fixed Ethereum domain and beneficiary.
-    function _checkOutbound(uint32 _destination, bytes32 _recipient) internal view {
+    function _checkOutbound(
+        uint32 _destination,
+        bytes32 _recipient
+    ) internal view {
         if (_destination != ETHEREUM_DOMAIN) {
-            revert TokenBridgeKatanaRedeemIca__UnsupportedDestination(_destination);
+            revert TokenBridgeKatanaRedeemIca__UnsupportedDestination(
+                _destination
+            );
         }
         bytes32 expectedRecipient = ethereumBeneficiary.addressToBytes32();
         if (_recipient != expectedRecipient) {
-            revert TokenBridgeKatanaRedeemIca__UnexpectedRecipient(expectedRecipient, _recipient);
+            revert TokenBridgeKatanaRedeemIca__UnexpectedRecipient(
+                expectedRecipient,
+                _recipient
+            );
         }
     }
 
-    function _quoteShareTransfer(uint32 _destination, bytes32 _recipient, uint256 _amount)
+    function _quoteShareTransfer(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    )
         internal
         view
-        returns (uint256 nativeFee, uint256 shareAmount, uint256 deliveredShareAmount)
+        returns (
+            uint256 nativeFee,
+            uint256 shareAmount,
+            uint256 deliveredShareAmount
+        )
     {
-        Quote[] memory shareQuotes = shareBridge.quoteTransferRemote(_destination, _recipient, _amount);
+        Quote[] memory shareQuotes = shareBridge.quoteTransferRemote(
+            _destination,
+            _recipient,
+            _amount
+        );
         nativeFee = shareQuotes.extract(address(0));
         shareAmount = shareQuotes.extract(address(shareToken));
 
@@ -201,7 +264,11 @@ contract TokenBridgeKatanaRedeemIca is ITokenBridge, PackageVersioned {
             oftCmd: ""
         });
 
-        (, OFTFeeDetail[] memory feeDetails, OFTReceipt memory receipt) = shareBridge.oft().quoteOFT(sendParam);
+        (
+            ,
+            OFTFeeDetail[] memory feeDetails,
+            OFTReceipt memory receipt
+        ) = shareBridge.oft().quoteOFT(sendParam);
         feeDetails;
         deliveredShareAmount = receipt.amountReceivedLD;
     }

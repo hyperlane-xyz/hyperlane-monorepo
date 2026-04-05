@@ -23,6 +23,8 @@ import {
   TokenBridgeCctpV1__factory,
   TokenBridgeCctpV2__factory,
   TokenBridgeDepositAddress__factory,
+  TokenBridgeKatanaRedeemIca__factory,
+  TokenBridgeKatanaVaultHelper__factory,
 } from '@hyperlane-xyz/core';
 
 import { DeployableTokenType, TokenType } from './config.js';
@@ -48,6 +50,9 @@ export const hypERC20contracts = {
   [TokenType.collateralEverclear]: 'EverclearTokenBridge',
   [TokenType.collateralDepositAddress]: 'TokenBridgeDepositAddress',
   [TokenType.collateralOft]: 'TokenBridgeOft',
+  [TokenType.collateralKatanaVaultHelper]: 'TokenBridgeKatanaVaultHelper',
+  [TokenType.nativeKatanaVaultHelper]: 'TokenBridgeKatanaVaultHelper',
+  [TokenType.collateralKatanaRedeemIca]: 'TokenBridgeKatanaRedeemIca',
   [TokenType.crossCollateral]: 'CrossCollateralRouter',
 } as const satisfies Record<DeployableTokenType, string>;
 export type HypERC20contracts = typeof hypERC20contracts;
@@ -79,6 +84,12 @@ export const hypERC20factories = {
   [TokenType.collateralDepositAddress]:
     new TokenBridgeDepositAddress__factory(),
   [TokenType.collateralOft]: new TokenBridgeOft__factory(),
+  [TokenType.collateralKatanaVaultHelper]:
+    new TokenBridgeKatanaVaultHelper__factory(),
+  [TokenType.nativeKatanaVaultHelper]:
+    new TokenBridgeKatanaVaultHelper__factory(),
+  [TokenType.collateralKatanaRedeemIca]:
+    new TokenBridgeKatanaRedeemIca__factory(),
   [TokenType.crossCollateral]: new CrossCollateralRouter__factory(),
 } as const satisfies Record<HypERC20TokenType, ContractFactory>;
 export type HypERC20Factories = typeof hypERC20factories;

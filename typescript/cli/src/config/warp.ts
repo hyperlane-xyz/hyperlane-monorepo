@@ -73,6 +73,12 @@ const TYPE_DESCRIPTIONS: Record<DeployableTokenType, string> = {
     'An ETH token that can be transferred via Everclear intents',
   [TokenType.collateralDepositAddress]:
     'A collateral token that bridges by depositing into a configured address',
+  [TokenType.collateralKatanaVaultHelper]:
+    'A YAML-only Ethereum helper that bridges Katana vault shares via an existing OFT adapter',
+  [TokenType.nativeKatanaVaultHelper]:
+    'A YAML-only Ethereum helper that bridges native ETH into Katana vault shares via an existing OFT adapter',
+  [TokenType.collateralKatanaRedeemIca]:
+    'A YAML-only Katana wrapper that sends vault shares via OFT and dispatches an ICA redeem on Ethereum',
   // TODO: describe
   [TokenType.syntheticUri]: '',
   [TokenType.collateralUri]: '',
@@ -88,6 +94,9 @@ const YAML_ONLY_TYPES: TokenType[] = [
   TokenType.collateralOft,
   TokenType.collateralCctp,
   TokenType.collateralDepositAddress,
+  TokenType.collateralKatanaVaultHelper,
+  TokenType.nativeKatanaVaultHelper,
+  TokenType.collateralKatanaRedeemIca,
 ];
 
 const TYPE_CHOICES = Object.values(TokenType)
