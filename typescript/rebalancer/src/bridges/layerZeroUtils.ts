@@ -14,6 +14,21 @@ export const CHAIN_ID_TO_EID: Record<number, number> = {
 };
 
 // ============================================================================
+// Chain Network Membership
+// ============================================================================
+
+// Chains that support native USDT0 OFT transfers
+const NATIVE_CHAINS = new Set([1, 42161, 9745]); // ETH, ARB, Plasma
+
+// Chains that support Legacy Mesh OFT transfers
+const LEGACY_CHAINS = new Set([1, 42161, TRON_CHAIN_ID]); // ETH, ARB, Tron
+
+// Arbitrum is the hub for compose (native-only <-> legacy-only) routes
+export const ARB_HUB_EID = 30110;
+export const ARB_HUB_CHAIN_ID = 42161;
+export const MULTIHOP_COMPOSER = '0x759BA420bF1ded1765F18C2DC3Fc57A1964A2Ad1';
+
+// ============================================================================
 // Contract Addresses
 // ============================================================================
 
@@ -109,7 +124,7 @@ export interface OFTLimit {
   maxAmountLD: bigint;
 }
 
-export type RouteNetwork = 'native' | 'legacy';
+export type RouteNetwork = 'native' | 'legacy' | 'compose';
 
 export interface LayerZeroBridgeRoute {
   sendParam: SendParam;
@@ -119,6 +134,9 @@ export interface LayerZeroBridgeRoute {
   fromChainId: number;
   toChainId: number;
   network: RouteNetwork;
+  // Compose-specific fields (only set when network === 'compose')
+  composeSendParam?: SendParam; // The SendParam for the second hop
+  composeMessagingFee?: MessagingFee; // Fee quoted for the second hop
 }
 
 export interface LayerZeroScanMessage {
@@ -145,10 +163,56 @@ export function getRouteNetwork(
   fromChainId: number,
   toChainId: number,
 ): RouteNetwork | null {
+  // Both in native → native (prefer native over legacy for 0% fee)
   if (OFT_CONTRACTS[fromChainId]?.[toChainId] !== undefined) return 'native';
+  // Both in legacy → legacy
   if (LEGACY_MESH_CONTRACTS[fromChainId]?.[toChainId] !== undefined)
     return 'legacy';
+  // One native-only, other legacy-only → compose via Arbitrum hub
+  const fromNativeOnly =
+    NATIVE_CHAINS.has(fromChainId) && !LEGACY_CHAINS.has(fromChainId);
+  const fromLegacyOnly =
+    LEGACY_CHAINS.has(fromChainId) && !NATIVE_CHAINS.has(fromChainId);
+  const toNativeOnly =
+    NATIVE_CHAINS.has(toChainId) && !LEGACY_CHAINS.has(toChainId);
+  const toLegacyOnly =
+    LEGACY_CHAINS.has(toChainId) && !NATIVE_CHAINS.has(toChainId);
+  if ((fromNativeOnly && toLegacyOnly) || (fromLegacyOnly && toNativeOnly)) {
+    return 'compose';
+  }
   return null;
+}
+
+/**
+ * For compose routes, returns the OFT contracts for each hop:
+ *   Hop 1: source chain → Arbitrum hub (via source chain's OFT network)
+ *   Hop 2: Arbitrum hub → destination (via destination chain's OFT network)
+ */
+export function getComposeHopContracts(
+  fromChainId: number,
+  toChainId: number,
+): { firstHopOFT: string; secondHopOFT: string } {
+  // First hop: source → Arbitrum. Use the source chain's network to reach Arb.
+  const firstHopOFT = NATIVE_CHAINS.has(fromChainId)
+    ? OFT_CONTRACTS[fromChainId]?.[ARB_HUB_CHAIN_ID]
+    : LEGACY_MESH_CONTRACTS[fromChainId]?.[ARB_HUB_CHAIN_ID];
+
+  // Second hop: Arbitrum → destination. Use the destination chain's network from Arb.
+  const secondHopOFT = NATIVE_CHAINS.has(toChainId)
+    ? OFT_CONTRACTS[ARB_HUB_CHAIN_ID]?.[toChainId]
+    : LEGACY_MESH_CONTRACTS[ARB_HUB_CHAIN_ID]?.[toChainId];
+
+  if (!firstHopOFT) {
+    throw new Error(
+      `No compose first hop OFT for chain ${fromChainId} -> Arbitrum`,
+    );
+  }
+  if (!secondHopOFT) {
+    throw new Error(
+      `No compose second hop OFT for Arbitrum -> chain ${toChainId}`,
+    );
+  }
+  return { firstHopOFT, secondHopOFT };
 }
 
 export function getOFTContractForRoute(
@@ -160,6 +224,11 @@ export function getOFTContractForRoute(
     throw new Error(
       `No OFT contract configured for route ${fromChainId} -> ${toChainId}`,
     );
+  }
+  if (network === 'compose') {
+    // For compose, the firstHopOFT is what the source chain calls
+    const { firstHopOFT } = getComposeHopContracts(fromChainId, toChainId);
+    return { address: firstHopOFT, network };
   }
   const contracts =
     network === 'native' ? OFT_CONTRACTS : LEGACY_MESH_CONTRACTS;
