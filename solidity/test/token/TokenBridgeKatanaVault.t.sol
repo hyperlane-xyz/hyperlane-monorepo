@@ -315,6 +315,80 @@ contract TokenBridgeKatanaVaultHelperUsdcTest is
         );
     }
 
+    function test_constructor_revertsForZeroAddress() public {
+        vm.expectRevert(
+            TokenBridgeKatanaVaultHelper
+                .TokenBridgeKatanaVaultHelper__ZeroAddress
+                .selector
+        );
+        new TokenBridgeKatanaVaultHelper(
+            address(0),
+            address(shareBridge),
+            katanaBeneficiary,
+            ethereumBeneficiary,
+            address(0)
+        );
+    }
+
+    function test_constructor_revertsForInvalidShareBridgeToken() public {
+        MockShareVault otherVault = new MockShareVault(
+            address(usdc),
+            "Other Vault Bridge USDC",
+            "ovbUSDC"
+        );
+        MockComposeOFT otherOft = new MockComposeOFT(
+            address(otherVault),
+            true,
+            6
+        );
+        TokenBridgeOft otherBridge = new TokenBridgeOft(
+            address(otherOft),
+            owner
+        );
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                TokenBridgeKatanaVaultHelper
+                    .TokenBridgeKatanaVaultHelper__InvalidShareBridgeToken
+                    .selector,
+                address(shareVault),
+                address(otherVault)
+            )
+        );
+        new TokenBridgeKatanaVaultHelper(
+            address(shareVault),
+            address(otherBridge),
+            katanaBeneficiary,
+            ethereumBeneficiary,
+            address(0)
+        );
+    }
+
+    function test_constructor_revertsForInvalidWrappedNativeToken() public {
+        MockWETH weth = new MockWETH();
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                TokenBridgeKatanaVaultHelper
+                    .TokenBridgeKatanaVaultHelper__InvalidWrappedNativeToken
+                    .selector,
+                address(weth),
+                address(usdc)
+            )
+        );
+        new TokenBridgeKatanaVaultHelper(
+            address(shareVault),
+            address(shareBridge),
+            katanaBeneficiary,
+            ethereumBeneficiary,
+            address(weth)
+        );
+    }
+
+    function test_token_isAssetToken() public view {
+        assertEq(helper.token(), address(usdc));
+    }
+
     function test_quoteTransferRemote_revertsForZeroShareQuote() public {
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -325,6 +399,35 @@ contract TokenBridgeKatanaVaultHelperUsdcTest is
             )
         );
         helper.quoteTransferRemote(KATANA_DOMAIN, katanaBeneficiary, 0);
+    }
+
+    function test_quoteTransferRemote_revertsForUnsupportedDestination()
+        public
+    {
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                TokenBridgeKatanaVaultHelper
+                    .TokenBridgeKatanaVaultHelper__UnsupportedDestination
+                    .selector,
+                KATANA_DOMAIN + 1
+            )
+        );
+        helper.quoteTransferRemote(KATANA_DOMAIN + 1, katanaBeneficiary, 100e6);
+    }
+
+    function test_quoteTransferRemote_revertsForUnexpectedRecipient() public {
+        bytes32 wrongRecipient = TypeCasts.addressToBytes32(makeAddr("wrong"));
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                TokenBridgeKatanaVaultHelper
+                    .TokenBridgeKatanaVaultHelper__UnexpectedRecipient
+                    .selector,
+                katanaBeneficiary,
+                wrongRecipient
+            )
+        );
+        helper.quoteTransferRemote(KATANA_DOMAIN, wrongRecipient, 100e6);
     }
 
     function test_transferRemote_mintsSharesAndBridgesThem() public {
@@ -368,6 +471,26 @@ contract TokenBridgeKatanaVaultHelperUsdcTest is
         assertEq(caller.balance, callerBalanceBefore - 0.001 ether);
     }
 
+    function test_transferRemote_revertsForInsufficientNativeFee() public {
+        vm.startPrank(caller);
+        usdc.approve(address(helper), type(uint256).max);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                TokenBridgeKatanaVaultHelper
+                    .TokenBridgeKatanaVaultHelper__InsufficientNativeFee
+                    .selector,
+                0.001 ether,
+                0.001 ether - 1
+            )
+        );
+        helper.transferRemote{value: 0.001 ether - 1}(
+            KATANA_DOMAIN,
+            katanaBeneficiary,
+            25e6
+        );
+        vm.stopPrank();
+    }
+
     function test_redeem_isPermissionless() public {
         usdc.mint(address(this), 55e6);
         usdc.approve(address(shareVault), 55e6);
@@ -378,6 +501,19 @@ contract TokenBridgeKatanaVaultHelperUsdcTest is
 
         assertEq(usdc.balanceOf(ethereumBeneficiary), 55e6);
         assertEq(shareVault.balanceOf(address(helper)), 0);
+    }
+
+    function test_redeem_revertsForInsufficientShares() public {
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                TokenBridgeKatanaVaultHelper
+                    .TokenBridgeKatanaVaultHelper__InsufficientShares
+                    .selector,
+                1,
+                0
+            )
+        );
+        helper.redeem(1);
     }
 }
 
@@ -529,6 +665,33 @@ contract TokenBridgeKatanaVaultHelperEthTest is
         assertEq(address(helper).balance, 0);
         assertEq(weth.balanceOf(address(helper)), 0);
     }
+
+    function test_transferRemote_revertsForInsufficientNativeFee() public {
+        uint256 amount = 1 ether + 1;
+        uint256 totalRequired = 1_000_001_000_000_000_000 + 0.001 ether;
+
+        vm.prank(caller);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                TokenBridgeKatanaVaultHelper
+                    .TokenBridgeKatanaVaultHelper__InsufficientNativeFee
+                    .selector,
+                totalRequired,
+                totalRequired - 1
+            )
+        );
+        helper.transferRemote{value: totalRequired - 1}(
+            KATANA_DOMAIN,
+            katanaBeneficiary,
+            amount
+        );
+    }
+
+    function test_receive_revertsForNonWrappedNativeSender() public {
+        vm.deal(address(this), 1 ether);
+        vm.expectRevert(bytes("TBKVH: only wrapped native"));
+        payable(address(helper)).transfer(1);
+    }
 }
 
 abstract contract TokenBridgeKatanaRedeemIcaBaseTest is Test {
@@ -608,6 +771,88 @@ contract TokenBridgeKatanaRedeemIcaUsdcTest is
         assertEq(quotes[1].amount, 101010102);
     }
 
+    function test_token_isShareToken() public view {
+        assertEq(bridge.token(), address(shareVault));
+    }
+
+    function test_constructor_revertsForZeroAddress() public {
+        vm.expectRevert(
+            TokenBridgeKatanaRedeemIca
+                .TokenBridgeKatanaRedeemIca__ZeroAddress
+                .selector
+        );
+        new TokenBridgeKatanaRedeemIca(
+            address(0),
+            address(icaRouter),
+            ethereumVaultHelper,
+            ethereumBeneficiary,
+            REDEEM_GAS_LIMIT
+        );
+    }
+
+    function test_constructor_revertsForZeroBeneficiary() public {
+        vm.expectRevert(
+            TokenBridgeKatanaRedeemIca
+                .TokenBridgeKatanaRedeemIca__ZeroBeneficiary
+                .selector
+        );
+        new TokenBridgeKatanaRedeemIca(
+            address(shareBridge),
+            address(icaRouter),
+            ethereumVaultHelper,
+            address(0),
+            REDEEM_GAS_LIMIT
+        );
+    }
+
+    function test_constructor_revertsForZeroRedeemGasLimit() public {
+        vm.expectRevert(
+            TokenBridgeKatanaRedeemIca
+                .TokenBridgeKatanaRedeemIca__ZeroRedeemGasLimit
+                .selector
+        );
+        new TokenBridgeKatanaRedeemIca(
+            address(shareBridge),
+            address(icaRouter),
+            ethereumVaultHelper,
+            ethereumBeneficiary,
+            0
+        );
+    }
+
+    function test_quoteTransferRemote_revertsForUnsupportedDestination()
+        public
+    {
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                TokenBridgeKatanaRedeemIca
+                    .TokenBridgeKatanaRedeemIca__UnsupportedDestination
+                    .selector,
+                ETH_DOMAIN + 1
+            )
+        );
+        bridge.quoteTransferRemote(
+            ETH_DOMAIN + 1,
+            TypeCasts.addressToBytes32(ethereumBeneficiary),
+            100e6
+        );
+    }
+
+    function test_quoteTransferRemote_revertsForUnexpectedRecipient() public {
+        bytes32 wrongRecipient = TypeCasts.addressToBytes32(makeAddr("wrong"));
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                TokenBridgeKatanaRedeemIca
+                    .TokenBridgeKatanaRedeemIca__UnexpectedRecipient
+                    .selector,
+                TypeCasts.addressToBytes32(ethereumBeneficiary),
+                wrongRecipient
+            )
+        );
+        bridge.quoteTransferRemote(ETH_DOMAIN, wrongRecipient, 100e6);
+    }
+
     function test_transferRemote_dispatchesDeliveredShareAmount() public {
         vm.prank(caller);
         bridge.transferRemote{value: 0.003 ether}(
@@ -634,6 +879,37 @@ contract TokenBridgeKatanaRedeemIcaUsdcTest is
             ),
             caller
         );
+    }
+
+    function test_transferRemote_revertsForInsufficientNativeFee() public {
+        vm.prank(caller);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                TokenBridgeKatanaRedeemIca
+                    .TokenBridgeKatanaRedeemIca__InsufficientNativeFee
+                    .selector,
+                0.003 ether,
+                0.003 ether - 1
+            )
+        );
+        bridge.transferRemote{value: 0.003 ether - 1}(
+            ETH_DOMAIN,
+            TypeCasts.addressToBytes32(ethereumBeneficiary),
+            50e6
+        );
+    }
+
+    function test_transferRemote_refundsExcessNative() public {
+        uint256 callerBalanceBefore = caller.balance;
+
+        vm.prank(caller);
+        bridge.transferRemote{value: 0.01 ether}(
+            ETH_DOMAIN,
+            TypeCasts.addressToBytes32(ethereumBeneficiary),
+            50e6
+        );
+
+        assertEq(caller.balance, callerBalanceBefore - 0.003 ether);
     }
 }
 
