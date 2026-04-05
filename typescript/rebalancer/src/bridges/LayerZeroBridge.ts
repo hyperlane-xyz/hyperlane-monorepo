@@ -1,4 +1,5 @@
 import { ethers } from 'ethers';
+import { Options } from '@layerzerolabs/lz-v2-utilities';
 import type { ChainMetadata } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert, ensure0x } from '@hyperlane-xyz/utils';
 import type { Logger } from 'pino';
@@ -18,7 +19,11 @@ import {
   ERC20_ABI,
   LAYERZERO_SCAN_API_URL,
   TRON_CHAIN_ID,
+  ARB_HUB_EID,
+  ARB_HUB_CHAIN_ID,
+  MULTIHOP_COMPOSER,
   getOFTContractForRoute,
+  getComposeHopContracts,
   getUSDTAddress,
   getEID,
   isSupportedRoute,
@@ -135,6 +140,11 @@ export class LayerZeroBridge implements IExternalBridge {
     );
     const gasCosts = messagingFee.nativeFee;
 
+    // ── Compose route: two-step fee estimation ────────────────────────────────
+    if (network === 'compose') {
+      return this.quoteCompose(params, sendParam, oftReceipt, feeCosts);
+    }
+
     return {
       id: crypto.randomUUID(),
       tool: 'layerzero',
@@ -157,6 +167,168 @@ export class LayerZeroBridge implements IExternalBridge {
     };
   }
 
+  /**
+   * Two-step fee estimation for compose routes (native-only ↔ legacy-only).
+   *
+   * Flow:
+   *   Step 1: Quote second hop (Arbitrum hub → destination) to get nextHopNativeFee
+   *   Step 2: Build compose options (lzReceive + lzCompose with packed fee)
+   *   Step 3: Build first hop SendParam with composeMsg = abi.encode(nextHopSendParam)
+   *   Step 4: Quote first hop (source → Arbitrum Composer) to get total fee
+   */
+  private async quoteCompose(
+    params: BridgeQuoteParams,
+    _firstHopSendParam: SendParam,
+    _firstHopReceipt: { amountReceivedLD: bigint },
+    _feeCosts: bigint,
+  ): Promise<BridgeQuote<LayerZeroBridgeRoute>> {
+    const { fromChain, toChain, fromAddress, toAddress } = params;
+    const amountLD = _firstHopSendParam.amountLD;
+    const { firstHopOFT, secondHopOFT } = getComposeHopContracts(
+      fromChain,
+      toChain,
+    );
+    const targetAddress = toAddress ?? fromAddress;
+
+    // ── Step 1: Quote second hop (Arbitrum → destination) ──────────────────
+    const arbProvider = new ethers.providers.StaticJsonRpcProvider(
+      this.getRpcUrl(ARB_HUB_CHAIN_ID),
+      ARB_HUB_CHAIN_ID,
+    );
+    const secondHopOFTContract = new ethers.Contract(
+      secondHopOFT,
+      OFT_ABI,
+      arbProvider,
+    );
+    const secondHopSendParam: SendParam = {
+      dstEid: getEID(toChain),
+      to: addressToBytes32(targetAddress),
+      amountLD,
+      minAmountLD: 0n,
+      extraOptions: '0x',
+      composeMsg: '0x',
+      oftCmd: '0x',
+    };
+    // quoteOFT to get minAmountLD after Legacy Mesh 0.03% fee
+    const secondHopOFTResult =
+      await secondHopOFTContract.quoteOFT(secondHopSendParam);
+    const secondHopReceivedLD = BigInt(
+      (
+        secondHopOFTResult.oftReceipt?.amountReceivedLD ??
+        secondHopOFTResult[2]?.amountReceivedLD ??
+        amountLD
+      ).toString(),
+    );
+    secondHopSendParam.minAmountLD = secondHopReceivedLD;
+
+    const secondHopFeeResult = await secondHopOFTContract.quoteSend(
+      secondHopSendParam,
+      false,
+    );
+    const nextHopNativeFee = BigInt(
+      (
+        secondHopFeeResult.nativeFee ??
+        secondHopFeeResult[0]?.nativeFee ??
+        secondHopFeeResult[0]
+      ).toString(),
+    );
+
+    // ── Step 2: Encode composeMsg = abi.encode(nextHopSendParam) ───────────
+    const abiCoder = new ethers.utils.AbiCoder();
+    const composeMsg = abiCoder.encode(
+      ['tuple(uint32,bytes32,uint256,uint256,bytes,bytes,bytes)'],
+      [
+        [
+          secondHopSendParam.dstEid,
+          secondHopSendParam.to,
+          secondHopSendParam.amountLD,
+          secondHopSendParam.minAmountLD,
+          secondHopSendParam.extraOptions,
+          secondHopSendParam.composeMsg,
+          secondHopSendParam.oftCmd,
+        ],
+      ],
+    );
+
+    // ── Step 3: Build first hop options with compose gas + packed fee ───────
+    const firstHopOptions = Options.newOptions()
+      .addExecutorLzReceiveOption(65_000, 0)
+      .addExecutorComposeOption(0, 500_000, nextHopNativeFee);
+
+    const composerBytes32 = addressToBytes32(MULTIHOP_COMPOSER);
+    const firstHopSendParam: SendParam = {
+      dstEid: ARB_HUB_EID,
+      to: composerBytes32,
+      amountLD,
+      minAmountLD: 0n,
+      extraOptions: firstHopOptions.toHex(),
+      composeMsg,
+      oftCmd: '0x',
+    };
+
+    // ── Step 4: Quote first hop (source → Arbitrum Composer) ───────────────
+    const sourceProvider = new ethers.providers.StaticJsonRpcProvider(
+      this.getRpcUrl(fromChain),
+      fromChain,
+    );
+    const firstHopOFTContract = new ethers.Contract(
+      firstHopOFT,
+      OFT_ABI,
+      sourceProvider,
+    );
+    // quoteOFT for first hop (0.03% fee if legacy source)
+    const firstHopOFTResult =
+      await firstHopOFTContract.quoteOFT(firstHopSendParam);
+    const firstHopReceivedLD = BigInt(
+      (
+        firstHopOFTResult.oftReceipt?.amountReceivedLD ??
+        firstHopOFTResult[2]?.amountReceivedLD ??
+        amountLD
+      ).toString(),
+    );
+    firstHopSendParam.minAmountLD = firstHopReceivedLD;
+
+    const firstHopFeeResult = await firstHopOFTContract.quoteSend(
+      firstHopSendParam,
+      false,
+    );
+    const totalNativeFee = BigInt(
+      (
+        firstHopFeeResult.nativeFee ??
+        firstHopFeeResult[0]?.nativeFee ??
+        firstHopFeeResult[0]
+      ).toString(),
+    );
+
+    const messagingFee: MessagingFee = {
+      nativeFee: totalNativeFee,
+      lzTokenFee: 0n,
+    };
+
+    return {
+      id: crypto.randomUUID(),
+      tool: 'layerzero',
+      fromAmount: amountLD,
+      toAmount: secondHopReceivedLD,
+      toAmountMin: secondHopReceivedLD,
+      executionDuration: 300, // compose takes longer (two hops)
+      gasCosts: totalNativeFee,
+      feeCosts: 0n,
+      route: {
+        sendParam: firstHopSendParam,
+        messagingFee,
+        oftContract: firstHopOFT,
+        usdtContract: getUSDTAddress(fromChain),
+        fromChainId: fromChain,
+        toChainId: toChain,
+        network: 'compose',
+        composeSendParam: secondHopSendParam,
+        composeMessagingFee: { nativeFee: nextHopNativeFee, lzTokenFee: 0n },
+      },
+      requestParams: params,
+    };
+  }
+
   async execute(
     quote: BridgeQuote<LayerZeroBridgeRoute>,
     privateKeys: Partial<Record<ProtocolType, string>>,
@@ -167,6 +339,8 @@ export class LayerZeroBridge implements IExternalBridge {
     if (fromChain === TRON_CHAIN_ID) {
       return this.executeTron(route, privateKeys);
     }
+    // compose and native/legacy EVM routes all use the same execution path —
+    // the sendParam already has the composeMsg and extraOptions baked in by quote()
 
     const key = privateKeys[ProtocolType.Ethereum];
     assert(key, 'Missing private key for EVM chain');
