@@ -475,3 +475,76 @@ describe('isSupportedRoute()', function () {
     expect(isSupportedRoute(56, 1)).to.be.false;
   });
 });
+
+// ── Compose route tests ────────────────────────────────────────────────────
+
+import { getComposeHopContracts } from './layerZeroUtils.js';
+
+describe('getRouteNetwork() — compose detection', function () {
+  it('returns compose for Plasma → Tron (native-only → legacy-only)', () => {
+    expect(getRouteNetwork(9745, 728126428)).to.equal('compose');
+  });
+
+  it('returns compose for Tron → Plasma (legacy-only → native-only)', () => {
+    expect(getRouteNetwork(728126428, 9745)).to.equal('compose');
+  });
+
+  it('does NOT return compose for ETH → Tron (both in legacy)', () => {
+    expect(getRouteNetwork(1, 728126428)).to.equal('legacy');
+  });
+
+  it('does NOT return compose for Plasma → ETH (both in native)', () => {
+    expect(getRouteNetwork(9745, 1)).to.equal('native');
+  });
+
+  it('does NOT return compose for ETH → ARB (both in native and legacy)', () => {
+    // native preferred over legacy
+    expect(getRouteNetwork(1, 42161)).to.equal('native');
+  });
+
+  it('returns null for unsupported route (BSC → Plasma)', () => {
+    expect(getRouteNetwork(56, 9745)).to.equal(null);
+  });
+});
+
+describe('getComposeHopContracts()', function () {
+  it('Plasma → Tron: firstHop = Plasma native OFT, secondHop = ARB Legacy Mesh OFT', () => {
+    const { firstHopOFT, secondHopOFT } = getComposeHopContracts(
+      9745,
+      728126428,
+    );
+    // Plasma native OFT
+    expect(firstHopOFT).to.equal('0x02ca37966753bDdDf11216B73B16C1dE756A7CF9');
+    // ARB Legacy Mesh OFT (reaches Tron)
+    expect(secondHopOFT).to.equal('0x77652D5aba086137b595875263FC200182919B92');
+  });
+
+  it('Tron → Plasma: firstHop = Tron Legacy OFT, secondHop = ARB native OFT', () => {
+    const { firstHopOFT, secondHopOFT } = getComposeHopContracts(
+      728126428,
+      9745,
+    );
+    // Tron Legacy OFT
+    expect(firstHopOFT).to.equal('0x3a08f76772e200653bb55c2a92998daca62e0e97');
+    // ARB native OFT (reaches Plasma)
+    expect(secondHopOFT).to.equal('0x14E4A1B13bf7F943c8ff7C51fb60FA964A298D92');
+  });
+
+  it('throws for unsupported route', () => {
+    expect(() => getComposeHopContracts(56, 9745)).to.throw();
+  });
+});
+
+describe('isSupportedRoute() — compose included', function () {
+  it('supports Plasma → Tron (compose)', () => {
+    expect(isSupportedRoute(9745, 728126428)).to.be.true;
+  });
+
+  it('supports Tron → Plasma (compose)', () => {
+    expect(isSupportedRoute(728126428, 9745)).to.be.true;
+  });
+
+  it('does not support BSC → Plasma', () => {
+    expect(isSupportedRoute(56, 9745)).to.be.false;
+  });
+});
