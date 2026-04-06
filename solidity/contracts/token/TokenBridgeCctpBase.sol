@@ -346,6 +346,11 @@ abstract contract TokenBridgeCctpBase is
         bytes calldata metadata,
         bytes calldata message
     ) internal override {
+        // Prevent backrunning transferRemote with postDispatch for the same message.
+        // transferRemote dispatches with sender == address(this). If an attacker
+        // backruns it with postDispatch, a second Circle "hook" message is created
+        // that can set isVerified[messageId] = true on the destination without
+        // executing the Circle mint, permanently stranding the user's burned funds.
         if (message.senderAddress() == address(this))
             revert InvalidPostDispatchSender();
         bytes32 id = message.id();
