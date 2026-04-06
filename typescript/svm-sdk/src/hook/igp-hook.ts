@@ -239,7 +239,7 @@ export class SvmIgpHookWriter
     if (oracleConfigs.length > 0) {
       const setOracleIx = await getSetGasOracleConfigsInstruction(
         programId,
-        this.svmSigner.signer,
+        this.svmSigner.signer.address,
         igpPda,
         oracleConfigs,
       );
@@ -273,7 +273,7 @@ export class SvmIgpHookWriter
 
       const setOverheadIx = await getSetDestinationGasOverheadsInstruction(
         programId,
-        this.svmSigner.signer,
+        this.svmSigner.signer.address,
         overheadIgpPda,
         overheadConfigs,
       );
@@ -361,7 +361,7 @@ export class SvmIgpHookWriter
     if (oracleConfigsToUpdate.length > 0) {
       const setOracleIx = await getSetGasOracleConfigsInstruction(
         programId,
-        this.svmSigner.signer,
+        ownerAddress,
         igpPda,
         oracleConfigsToUpdate,
       );
@@ -408,7 +408,7 @@ export class SvmIgpHookWriter
 
       const setOverheadIx = await getSetDestinationGasOverheadsInstruction(
         programId,
-        this.svmSigner.signer,
+        ownerAddress,
         overheadIgpPda,
         overheadConfigsToUpdate,
       );

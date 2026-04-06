@@ -468,13 +468,13 @@ export class SvmSigner
   }
 
   async sendAndConfirmTransaction(
-    transaction: SvmTransaction,
+    transaction: SendableSvmTransaction,
   ): Promise<SvmReceipt> {
     return this.send(transaction);
   }
 
   async sendAndConfirmBatchTransactions(
-    _transactions: SvmTransaction[],
+    _transactions: SendableSvmTransaction[],
   ): Promise<SvmReceipt> {
     throw new Error('Sealevel does not support transaction batching');
   }

@@ -5,7 +5,7 @@ import {
 } from '@solana/errors';
 import {
   AccountRole,
-  type Address,
+  address,
   blockhash,
   getBase58Encoder,
   getCompiledTransactionMessageDecoder,
@@ -787,11 +787,12 @@ describe('SvmSigner', () => {
   // ---- Fee payer derivation ----
 
   // Deterministic fake addresses (valid base58, 32 bytes)
-  const OWNER_ADDRESS = '11111111111111111111111111111112' as Address;
-  const SQUADS_VAULT_ADDRESS =
-    'zUeFx6cfxedG2JnFtMKkTXnxgPa5M44tyaF9RrPunCp' as Address;
-  const PROGRAM_ADDRESS = '11111111111111111111111111111113' as Address;
-  const TOKEN_PDA_ADDRESS = '11111111111111111111111111111114' as Address;
+  const OWNER_ADDRESS = address('11111111111111111111111111111112');
+  const SQUADS_VAULT_ADDRESS = address(
+    'zUeFx6cfxedG2JnFtMKkTXnxgPa5M44tyaF9RrPunCp',
+  );
+  const PROGRAM_ADDRESS = address('11111111111111111111111111111113');
+  const TOKEN_PDA_ADDRESS = address('11111111111111111111111111111114');
 
   const base58Encoder = getBase58Encoder();
   const messageDecoder = getCompiledTransactionMessageDecoder();
