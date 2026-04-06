@@ -22,6 +22,7 @@ import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.so
 import {HypERC20Collateral} from "../../contracts/token/HypERC20Collateral.sol";
 import {HypERC20} from "../../contracts/token/HypERC20.sol";
 import {PredicateRouterWrapper} from "../../contracts/token/extensions/PredicateRouterWrapper.sol";
+import {IPredicateWrapper} from "../../contracts/interfaces/IPredicateWrapper.sol";
 import {IPredicateRegistry, Statement, Attestation} from "@predicate/interfaces/IPredicateRegistry.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
@@ -527,7 +528,7 @@ contract PredicateRouterWrapperForkTest is Test {
 
         vm.prank(ALICE);
         vm.expectRevert(
-            PredicateRouterWrapper
+            IPredicateWrapper
                 .PredicateRouterWrapper__UnauthorizedTransfer
                 .selector
         );
@@ -562,7 +563,7 @@ contract PredicateRouterWrapperForkTest is Test {
 
         vm.prank(ALICE);
         vm.expectRevert(
-            PredicateRouterWrapper
+            IPredicateWrapper
                 .PredicateRouterWrapper__UnauthorizedTransfer
                 .selector
         );
