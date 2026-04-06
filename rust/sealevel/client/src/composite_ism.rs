@@ -169,6 +169,9 @@ impl From<IsmNode> for IsmNodeConfig {
                 lower: Box::new(IsmNodeConfig::from(*lower)),
                 upper: Box::new(IsmNodeConfig::from(*upper)),
             },
+            IsmNode::RateLimited { .. } => {
+                panic!("RateLimited ISM nodes have no JSON config representation")
+            }
         }
     }
 }
