@@ -302,6 +302,9 @@ export class EvmTokenFeeReader extends HyperlaneReader {
       }
     | undefined
   > {
+    const chainName = this.multiProvider.tryGetChainName(destination);
+    if (!chainName) return undefined;
+
     const routerKeys = getCrossCollateralRouterKeys(
       destination,
       crossCollateralRouters,
@@ -329,10 +332,7 @@ export class EvmTokenFeeReader extends HyperlaneReader {
       return undefined;
     }
 
-    return {
-      chainName: this.multiProvider.getChainName(destination),
-      routerFeeConfigs,
-    };
+    return { chainName, routerFeeConfigs };
   }
 
   convertFromBps(bps: bigint): FeeParameters {
