@@ -213,6 +213,11 @@ async function executeDelivery({
 
   // Build QuotedCalls params if fee-quoting is configured
   let quotedCalls: QuotedCallsParams | undefined;
+  if (feeQuotingUrl && !feeQuotingApiKey) {
+    log(
+      'Warning: --fee-quoting-url provided without --fee-quoting-api-key, skipping fee quoting',
+    );
+  }
   if (feeQuotingUrl && feeQuotingApiKey) {
     const chainAddressesForOrigin = chainAddresses[origin];
     const quotedCallsAddress = chainAddressesForOrigin?.quotedCalls as

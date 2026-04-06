@@ -64,13 +64,8 @@ function createTestApp(): Express {
 
   const chainContexts = new Map<string, ChainQuoteContext>();
   chainContexts.set('ethereum', {
-    chainId: 1,
-    domainId: 1,
     chainName: 'ethereum',
     quotedCallsAddress: QUOTED_CALLS,
-    multiProvider: {
-      getChainName: (d: number) => (d === 42161 ? 'arbitrum' : `chain-${d}`),
-    } as any,
     routers,
   });
 
@@ -78,6 +73,10 @@ function createTestApp(): Express {
     signerKey: TEST_PRIVATE_KEY,
     quoteMode: 'transient',
     quoteExpiry: 300,
+    multiProvider: {
+      getChainName: (d: number) => (d === 42161 ? 'arbitrum' : `chain-${d}`),
+      getChainId: () => 1,
+    } as any,
     chainContexts,
     logger: pino({ level: 'silent' }),
   });

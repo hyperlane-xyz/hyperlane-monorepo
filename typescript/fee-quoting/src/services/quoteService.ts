@@ -38,11 +38,8 @@ export interface RouterQuoteContext {
 
 /** Per-chain context shared across all routers on that chain */
 export interface ChainQuoteContext {
-  chainId: number;
-  domainId: number;
   chainName: string;
   quotedCallsAddress: Address;
-  multiProvider: MultiProvider;
   routers: Map<Address, RouterQuoteContext>;
 }
 
@@ -50,6 +47,7 @@ export interface QuoteServiceOptions {
   signerKey: Hex;
   quoteMode: QuoteMode;
   quoteExpiry: number;
+  multiProvider: MultiProvider;
   chainContexts: Map<string, ChainQuoteContext>;
   logger: Logger;
   quotesServed?: Counter<string>;
@@ -59,6 +57,7 @@ export class QuoteService {
   private readonly account: LocalAccount;
   private readonly quoteMode: QuoteMode;
   private readonly quoteExpiry: number;
+  private readonly multiProvider: MultiProvider;
   private readonly chainContexts: Map<string, ChainQuoteContext>;
   private readonly logger: Logger;
   private readonly quotesServed?: Counter<string>;
@@ -67,6 +66,7 @@ export class QuoteService {
     this.account = privateKeyToAccount(options.signerKey);
     this.quoteMode = options.quoteMode;
     this.quoteExpiry = options.quoteExpiry;
+    this.multiProvider = options.multiProvider;
     this.chainContexts = options.chainContexts;
     this.logger = options.logger;
     this.quotesServed = options.quotesServed;
@@ -117,7 +117,7 @@ export class QuoteService {
       transientBuffer: DEFAULT_TRANSIENT_BUFFER_SECONDS,
     };
 
-    const destChainName = ctx.multiProvider.getChainName(destination);
+    const destChainName = this.multiProvider.getChainName(destination);
     const quotePromises: Promise<SubmitQuoteCommand>[] = [];
 
     if (WARP_FEE_COMMANDS.has(command)) {
@@ -130,7 +130,7 @@ export class QuoteService {
         this.account.address,
         targetRouter,
       );
-      if ('address' in feeResult) {
+      if (feeResult.resolved) {
         quotePromises.push(
           this.signWarpFeeQuote(
             ctx,
@@ -143,7 +143,7 @@ export class QuoteService {
       } else {
         this.logSkipped(
           'warp fee',
-          feeResult.skipped,
+          feeResult.reason,
           origin,
           router,
           destChainName,
@@ -156,7 +156,7 @@ export class QuoteService {
       destChainName,
       this.account.address,
     );
-    if ('address' in igpResult) {
+    if (igpResult.resolved) {
       quotePromises.push(
         this.signIgpQuote(
           ctx,
@@ -168,7 +168,7 @@ export class QuoteService {
         ),
       );
     } else {
-      this.logSkipped('IGP', igpResult.skipped, origin, router, destChainName);
+      this.logSkipped('IGP', igpResult.reason, origin, router, destChainName);
     }
 
     const quotes = await Promise.all(quotePromises);
@@ -201,7 +201,7 @@ export class QuoteService {
 
   private logSkipped(
     quoterType: string,
-    reason: 'not_configured' | 'not_upgraded' | 'not_authorized',
+    reason: SkipReason,
     origin: string,
     router: Address,
     destination: string,
@@ -234,7 +234,7 @@ export class QuoteService {
     const data = encodePacked(['uint256', 'uint256'], [0n, 1n]);
 
     const { quote, signature } = await this.signQuote(
-      ctx.chainId,
+      this.multiProvider.getChainId(ctx.chainName) as number,
       feeQuoter,
       context,
       data,
@@ -258,7 +258,7 @@ export class QuoteService {
     const data = encodePacked(['uint128', 'uint128'], [0n, 0n]);
 
     const { quote, signature } = await this.signQuote(
-      ctx.chainId,
+      this.multiProvider.getChainId(ctx.chainName) as number,
       igp,
       context,
       data,
@@ -329,14 +329,15 @@ interface QuoteBinding {
 
 // ============ Config traversal ============
 
+type SkipReason = 'not_configured' | 'not_upgraded' | 'not_authorized';
 type ResolveResult =
-  | { address: string }
-  | { skipped: 'not_configured' | 'not_upgraded' | 'not_authorized' };
+  | { resolved: true; address: string }
+  | { resolved: false; reason: SkipReason };
 
 function checkSignerAuthorized(
   signers: string[] | undefined,
   signer: Address,
-): 'not_configured' | 'not_upgraded' | 'not_authorized' | undefined {
+): SkipReason | undefined {
   if (!signers) return 'not_upgraded';
   if (signers.length === 0) return 'not_upgraded';
   if (!signers.some((s) => eqAddress(s, signer))) return 'not_authorized';
@@ -350,7 +351,7 @@ function resolveFeeQuoter(
   targetRouter?: Hex,
 ): ResolveResult {
   const tokenFee = config.tokenFee;
-  if (!tokenFee) return { skipped: 'not_configured' };
+  if (!tokenFee) return { resolved: false, reason: 'not_configured' };
 
   let resolved = tokenFee;
   if (tokenFee.type === TokenFeeType.RoutingFee && tokenFee.feeContracts) {
@@ -383,9 +384,9 @@ function resolveFeeQuoter(
       ? (resolved.quoteSigners as string[] | undefined)
       : undefined;
   const reason = checkSignerAuthorized(signers, signer);
-  if (reason) return { skipped: reason };
+  if (reason) return { resolved: false, reason };
 
-  return { address: resolved.address };
+  return { resolved: true, address: resolved.address };
 }
 
 function resolveIgp(
@@ -394,7 +395,8 @@ function resolveIgp(
   signer: Address,
 ): ResolveResult {
   const hook = config.hook;
-  if (typeof hook === 'string') return { skipped: 'not_configured' };
+  if (typeof hook === 'string')
+    return { resolved: false, reason: 'not_configured' };
 
   let searchRoot: Exclude<HookConfig, string> = hook;
   if (
@@ -421,10 +423,10 @@ function resolveIgp(
       'address' in v,
   );
 
-  if (!igp) return { skipped: 'not_configured' };
+  if (!igp) return { resolved: false, reason: 'not_configured' };
 
   const reason = checkSignerAuthorized(igp.quoteSigners, signer);
-  if (reason) return { skipped: reason };
+  if (reason) return { resolved: false, reason };
 
-  return { address: igp.address };
+  return { resolved: true, address: igp.address };
 }

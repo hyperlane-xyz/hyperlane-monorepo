@@ -12,13 +12,12 @@ import {
   EvmWarpRouteReader,
   HyperlaneCore,
   MultiProvider,
-  getChainIdNumber,
-  getDomainId,
 } from '@hyperlane-xyz/sdk';
 import {
   assert,
   createServiceLogger,
   isZeroishAddress,
+  pick,
 } from '@hyperlane-xyz/utils';
 
 import packageJson from './package.json' with { type: 'json' };
@@ -79,12 +78,14 @@ export class FeeQuotingServer {
 
     this.app.use(createHealthRouter(() => this.ready));
 
-    const chainContexts = await this.buildChainContexts(registry);
+    const { multiProvider, chainContexts } =
+      await this.buildChainContexts(registry);
 
     const quoteService = new QuoteService({
       signerKey: this.config.signerKey as Hex,
       quoteMode: this.config.quoteMode,
       quoteExpiry: this.config.quoteExpiry,
+      multiProvider,
       chainContexts,
       logger: this.logger,
       quotesServed: metrics.quotesServed,
@@ -141,9 +142,10 @@ export class FeeQuotingServer {
     process.on('SIGINT', shutdown);
   }
 
-  private async buildChainContexts(
-    registry: IRegistry,
-  ): Promise<Map<string, ChainQuoteContext>> {
+  private async buildChainContexts(registry: IRegistry): Promise<{
+    multiProvider: MultiProvider;
+    chainContexts: Map<string, ChainQuoteContext>;
+  }> {
     const chainAddresses = await registry.getAddresses();
     assert(chainAddresses, 'Failed to load registry addresses');
 
@@ -165,10 +167,9 @@ export class FeeQuotingServer {
     );
 
     const multiProvider = new MultiProvider(chainMetadataMap);
-    const filteredAddresses = Object.fromEntries(
-      Object.entries(chainAddresses).filter(
-        ([chain]) => chain in chainMetadataMap,
-      ),
+    const filteredAddresses = pick(
+      chainAddresses,
+      Object.keys(chainMetadataMap),
     );
     const core = HyperlaneCore.fromAddressesMap(
       filteredAddresses,
@@ -234,13 +235,9 @@ export class FeeQuotingServer {
         // Get or create chain context
         let ctx = chainContexts.get(chainName);
         if (!ctx) {
-          const metadata = chainMetadataMap[chainName];
           ctx = {
-            chainId: getChainIdNumber(metadata),
-            domainId: getDomainId(metadata),
             chainName,
             quotedCallsAddress: quotedCallsAddress as Address,
-            multiProvider,
             routers: new Map(),
           };
           chainContexts.set(chainName, ctx);
@@ -253,6 +250,6 @@ export class FeeQuotingServer {
       }
     }
 
-    return chainContexts;
+    return { multiProvider, chainContexts };
   }
 }

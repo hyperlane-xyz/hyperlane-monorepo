@@ -37,6 +37,7 @@ const DESTINATION = 42161;
 
 const mockMultiProvider = {
   getChainName: (d: number) => (d === 42161 ? 'arbitrum' : `chain-${d}`),
+  getChainId: () => 1,
 } as any;
 
 const mockDerivedConfig = {
@@ -71,11 +72,8 @@ function createTestContext(
     derivedConfig: mockDerivedConfig,
   });
   return {
-    chainId: 1,
-    domainId: 1,
     chainName: 'ethereum',
     quotedCallsAddress: QUOTED_CALLS,
-    multiProvider: mockMultiProvider,
     routers,
     ...overrides,
   };
@@ -90,6 +88,7 @@ function createTestService(
     signerKey: TEST_PRIVATE_KEY,
     quoteMode: 'transient',
     quoteExpiry: 300,
+    multiProvider: mockMultiProvider,
     chainContexts,
     logger: pino({ level: 'silent' }),
     ...overrides,
