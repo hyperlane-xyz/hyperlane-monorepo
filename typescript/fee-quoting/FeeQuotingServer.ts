@@ -14,6 +14,7 @@ import {
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
 import {
+  ProtocolType,
   assert,
   createServiceLogger,
   isZeroishAddress,
@@ -180,6 +181,15 @@ export class FeeQuotingServer {
     for (const warpConfig of warpConfigs) {
       for (const token of warpConfig.tokens) {
         const { chainName } = token;
+        const metadata = chainMetadataMap[chainName];
+
+        if (metadata?.protocol !== ProtocolType.Ethereum) {
+          this.logger.debug(
+            { chainName, protocol: metadata?.protocol },
+            'Skipping non-EVM chain',
+          );
+          continue;
+        }
 
         const addresses = chainAddresses[chainName];
         if (!addresses) {
