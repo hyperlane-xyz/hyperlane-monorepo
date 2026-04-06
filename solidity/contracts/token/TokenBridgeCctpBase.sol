@@ -66,6 +66,7 @@ abstract contract TokenBridgeCctpBase is
     error InvalidMintAmount();
     error InvalidMintRecipient();
     error InvalidMessageId();
+    error InvalidPostDispatchSender();
 
     uint256 private constant _SCALE = 1;
 
@@ -345,6 +346,8 @@ abstract contract TokenBridgeCctpBase is
         bytes calldata metadata,
         bytes calldata message
     ) internal override {
+        if (message.senderAddress() == address(this))
+            revert InvalidPostDispatchSender();
         bytes32 id = message.id();
         if (!_isLatestDispatched(id)) revert MessageNotDispatched();
 
