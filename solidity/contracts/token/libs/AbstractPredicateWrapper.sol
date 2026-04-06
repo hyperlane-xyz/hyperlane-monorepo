@@ -89,8 +89,15 @@ abstract contract AbstractPredicateWrapper is
         }
     }
 
-    function _pullTokens(Quote[] memory quotes) internal virtual {
-        if (address(token) == address(0)) return;
+    function _pullTokens(
+        Quote[] memory quotes
+    ) internal virtual returns (uint256 totalNativeRequired) {
+        totalNativeRequired = Quotes.extract(quotes, address(0));
+        if (msg.value < totalNativeRequired)
+            revert IPredicateWrapper
+                .PredicateRouterWrapper__InsufficientValue();
+
+        if (address(token) == address(0)) return totalNativeRequired;
         uint256 totalTokenRequired = Quotes.extract(quotes, address(token));
         if (totalTokenRequired > 0) {
             token.safeTransferFrom(
@@ -193,12 +200,7 @@ abstract contract AbstractPredicateWrapper is
             )
         ) revert IPredicateWrapper.PredicateRouterWrapper__AttestationInvalid();
 
-        uint256 totalNativeRequired = Quotes.extract(quotes, address(0));
-        if (msg.value < totalNativeRequired)
-            revert IPredicateWrapper
-                .PredicateRouterWrapper__InsufficientValue();
-
-        _pullTokens(quotes);
+        uint256 totalNativeRequired = _pullTokens(quotes);
 
         if (setPending) pendingAttestation = true;
 
