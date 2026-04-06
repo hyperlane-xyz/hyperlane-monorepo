@@ -981,6 +981,7 @@ export {
 } from './signers/svm/solana-web3js.js';
 
 export {
+  DEFAULT_ROUTER_KEY,
   OnchainTokenFeeType,
   onChainTypeToTokenFeeTypeMap,
   TokenFeeType,

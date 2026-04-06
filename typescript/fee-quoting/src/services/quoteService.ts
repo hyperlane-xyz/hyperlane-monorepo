@@ -6,6 +6,7 @@ import { privateKeyToAccount } from 'viem/accounts';
 import { deepFind, eqAddress } from '@hyperlane-xyz/utils';
 import type { WithAddress } from '@hyperlane-xyz/utils';
 import {
+  DEFAULT_ROUTER_KEY,
   type DerivedTokenRouterConfig,
   type HookConfig,
   type IgpHookConfig,
@@ -364,18 +365,13 @@ function resolveFeeQuoter(
     tokenFee.feeContracts
   ) {
     const destConfig = tokenFee.feeContracts[destChainName] as
-      | {
-          default?: DerivedTokenFeeConfig;
-          routers?: Record<string, DerivedTokenFeeConfig>;
-        }
+      | Record<string, DerivedTokenFeeConfig>
       | undefined;
     if (destConfig) {
-      // For transferRemoteTo, resolve the router-specific fee contract
-      const routerFee = targetRouter
-        ? destConfig.routers?.[targetRouter]
-        : undefined;
-      // Fall back to default fee contract
-      resolved = routerFee ?? destConfig.default ?? resolved;
+      // Keys are router key hashes (bytes32). Look up targetRouter key first,
+      // then fall back to DEFAULT_ROUTER_KEY.
+      const routerFee = targetRouter ? destConfig[targetRouter] : undefined;
+      resolved = routerFee ?? destConfig[DEFAULT_ROUTER_KEY] ?? resolved;
     }
   }
 
@@ -389,6 +385,29 @@ function resolveFeeQuoter(
   return { resolved: true, address: resolved.address };
 }
 
+/** Resolve the hook config for a specific destination, unwrapping routing layers. */
+function resolveDestinationHook(
+  hook: Exclude<HookConfig, string>,
+  destChainName: string,
+): Exclude<HookConfig, string> | undefined {
+  if (
+    hook.type !== HookType.ROUTING &&
+    hook.type !== HookType.FALLBACK_ROUTING
+  ) {
+    return hook;
+  }
+  const destHook = hook.domains[destChainName];
+  if (destHook && typeof destHook !== 'string') return destHook;
+  if (
+    hook.type === HookType.FALLBACK_ROUTING &&
+    hook.fallback &&
+    typeof hook.fallback !== 'string'
+  ) {
+    return hook.fallback;
+  }
+  return undefined;
+}
+
 function resolveIgp(
   config: DerivedTokenRouterConfig,
   destChainName: string,
@@ -398,23 +417,11 @@ function resolveIgp(
   if (typeof hook === 'string')
     return { resolved: false, reason: 'not_configured' };
 
-  let searchRoot: Exclude<HookConfig, string> = hook;
-  if (
-    hook.type === HookType.ROUTING ||
-    hook.type === HookType.FALLBACK_ROUTING
-  ) {
-    const destHook = hook.domains[destChainName];
-    if (destHook && typeof destHook !== 'string') {
-      searchRoot = destHook;
-    } else if (hook.type === HookType.FALLBACK_ROUTING && hook.fallback) {
-      if (typeof hook.fallback !== 'string') {
-        searchRoot = hook.fallback;
-      }
-    }
-  }
+  const destHook = resolveDestinationHook(hook, destChainName);
+  if (!destHook) return { resolved: false, reason: 'not_configured' };
 
   const igp = deepFind(
-    searchRoot as object,
+    destHook as object,
     (v): v is WithAddress<IgpHookConfig> =>
       typeof v === 'object' &&
       v !== null &&

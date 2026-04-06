@@ -3,8 +3,7 @@ import { pino } from 'pino';
 import { type Address, type Hex, verifyTypedData } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 
-import { HookType } from '@hyperlane-xyz/sdk';
-import { TokenFeeType } from '@hyperlane-xyz/sdk';
+import { DEFAULT_ROUTER_KEY, HookType, TokenFeeType } from '@hyperlane-xyz/sdk';
 
 import {
   EIP712_DOMAIN,
@@ -361,7 +360,7 @@ describe('QuoteService', () => {
             owner: ZERO_ADDRESS,
             feeContracts: {
               arbitrum: {
-                default: {
+                [DEFAULT_ROUTER_KEY]: {
                   type: TokenFeeType.OffchainQuotedLinearFee,
                   address: DEST_FEE,
                   token: FEE_TOKEN,
@@ -411,7 +410,7 @@ describe('QuoteService', () => {
             owner: ZERO_ADDRESS,
             feeContracts: {
               arbitrum: {
-                default: {
+                [DEFAULT_ROUTER_KEY]: {
                   type: TokenFeeType.OffchainQuotedLinearFee,
                   address: DEST_FEE,
                   token: FEE_TOKEN,
@@ -421,17 +420,15 @@ describe('QuoteService', () => {
                   bps: 0n,
                   quoteSigners: [TEST_SIGNER],
                 },
-                routers: {
-                  [TARGET_ROUTER]: {
-                    type: TokenFeeType.OffchainQuotedLinearFee,
-                    address: ROUTER_FEE,
-                    token: FEE_TOKEN,
-                    owner: ZERO_ADDRESS,
-                    maxFee: 0n,
-                    halfAmount: 1n,
-                    bps: 0n,
-                    quoteSigners: [TEST_SIGNER],
-                  },
+                [TARGET_ROUTER]: {
+                  type: TokenFeeType.OffchainQuotedLinearFee,
+                  address: ROUTER_FEE,
+                  token: FEE_TOKEN,
+                  owner: ZERO_ADDRESS,
+                  maxFee: 0n,
+                  halfAmount: 1n,
+                  bps: 0n,
+                  quoteSigners: [TEST_SIGNER],
                 },
               },
             },
@@ -472,7 +469,7 @@ describe('QuoteService', () => {
             owner: ZERO_ADDRESS,
             feeContracts: {
               arbitrum: {
-                default: {
+                [DEFAULT_ROUTER_KEY]: {
                   type: TokenFeeType.OffchainQuotedLinearFee,
                   address: DEST_FEE,
                   token: FEE_TOKEN,

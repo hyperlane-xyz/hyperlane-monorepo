@@ -389,10 +389,12 @@ const send: CommandModuleWithWriteContext<
     'fee-quoting-url': {
       type: 'string',
       description: 'Fee quoting service URL for offchain fee quotes',
+      default: process.env.FEE_QUOTING_URL,
     },
     'fee-quoting-api-key': {
       type: 'string',
       description: 'API key for the fee quoting service',
+      default: process.env.FEE_QUOTING_API_KEY,
     },
   },
   handler: async ({
