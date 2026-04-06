@@ -164,7 +164,7 @@ contract PredicateRouterWrapperNativeTest is Test {
     function test_constructor_native_noApprovalNeeded() public view {
         // Constructor should skip approval for native tokens
         // (No way to verify directly, but shouldn't revert)
-        assertEq(address(predicateWrapper.warpRoute()), address(nativeRouter));
+        assertEq(address(predicateWrapper.router()), address(nativeRouter));
     }
 
     // ============ Transfer Tests ============

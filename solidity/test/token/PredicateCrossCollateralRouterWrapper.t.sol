@@ -27,6 +27,15 @@ import {IPredicateWrapper} from "../../contracts/interfaces/IPredicateWrapper.so
 import {Statement, Attestation} from "@predicate/interfaces/IPredicateRegistry.sol";
 import {Quote} from "../../contracts/interfaces/ITokenBridge.sol";
 
+/// @dev Mock router that returns address(0) for token() to test the native-token assert
+contract MockNativeTokenRouter {
+    uint32 public localDomain = 1;
+
+    function token() external pure returns (address) {
+        return address(0);
+    }
+}
+
 /**
  * @title PredicateCrossCollateralRouterWrapperTest
  * @notice Tests PredicateCrossCollateralRouterWrapper with a CrossCollateralRouter
@@ -221,10 +230,7 @@ contract PredicateCrossCollateralRouterWrapperTest is Test {
     // ============ Constructor Tests ============
 
     function test_constructor_setsCrossCollateralRouter() public view {
-        assertEq(
-            address(predicateWrapper.crossCollateralRouter()),
-            address(routerA)
-        );
+        assertEq(address(predicateWrapper.router()), address(routerA));
     }
 
     function test_constructor_setsToken() public view {
@@ -253,9 +259,7 @@ contract PredicateCrossCollateralRouterWrapperTest is Test {
 
     function test_constructor_revert_ifZeroRouter() public {
         vm.expectRevert(
-            PredicateCrossCollateralRouterWrapper
-                .PredicateCrossCollateralRouterWrapper__InvalidRouter
-                .selector
+            IPredicateWrapper.PredicateRouterWrapper__InvalidRouter.selector
         );
         new PredicateCrossCollateralRouterWrapper(
             address(0),
@@ -271,6 +275,20 @@ contract PredicateCrossCollateralRouterWrapperTest is Test {
         new PredicateCrossCollateralRouterWrapper(
             address(routerA),
             address(0),
+            POLICY_ID
+        );
+    }
+
+    function test_constructor_revert_ifNativeToken() public {
+        MockNativeTokenRouter nativeRouter = new MockNativeTokenRouter();
+        vm.expectRevert(
+            IPredicateWrapper
+                .PredicateRouterWrapper__NativeTokenUnsupported
+                .selector
+        );
+        new PredicateCrossCollateralRouterWrapper(
+            address(nativeRouter),
+            address(registry),
             POLICY_ID
         );
     }

@@ -199,10 +199,7 @@ contract PredicateRouterWrapperCollateralTest is Test {
     // ============ Constructor Tests ============
 
     function test_constructor_setsWarpRoute() public view {
-        assertEq(
-            address(predicateWrapper.warpRoute()),
-            address(collateralRouter)
-        );
+        assertEq(address(predicateWrapper.router()), address(collateralRouter));
     }
 
     function test_constructor_setsToken() public view {

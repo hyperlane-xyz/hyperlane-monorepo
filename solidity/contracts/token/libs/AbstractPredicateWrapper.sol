@@ -18,10 +18,13 @@ import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
 import {ITokenBridge, ITokenFee, Quote} from "../../interfaces/ITokenBridge.sol";
 import {IPredicateWrapper} from "../../interfaces/IPredicateWrapper.sol";
 import {Quotes} from "./Quotes.sol";
+import {TokenRouter} from "./TokenRouter.sol";
 
 import {PredicateClient} from "@predicate/mixins/PredicateClient.sol";
 import {Attestation} from "@predicate/interfaces/IPredicateRegistry.sol";
 
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
@@ -39,11 +42,23 @@ abstract contract AbstractPredicateWrapper is
     ITokenFee
 {
     using Quotes for Quote[];
+    using SafeERC20 for IERC20;
 
     // ============ Constants ============
 
     uint8 public constant override hookType =
         uint8(IPostDispatchHook.HookTypes.PREDICATE_ROUTER_WRAPPER);
+
+    // ============ Immutables ============
+
+    /// @notice The underlying router being wrapped
+    TokenRouter public immutable router;
+
+    /// @notice The ERC20 token managed by the router
+    IERC20 public immutable token;
+
+    /// @notice The local domain ID (cached from router during construction)
+    uint32 public immutable localDomain;
 
     // ============ Storage ============
 
@@ -51,30 +66,40 @@ abstract contract AbstractPredicateWrapper is
     /// @dev Key bypass-prevention: if false in postDispatch, transfer was unauthorized
     bool public pendingAttestation;
 
-    // ============ Internal Helpers ============
+    // ============ Constructor ============
 
-    /// @notice Validates registry/policy and initializes PredicateClient
-    function _initPredicateWrapperBase(
-        address _registry,
-        string memory _policyID
-    ) internal {
+    constructor(address _router, address _registry, string memory _policyID) {
+        if (_router == address(0))
+            revert IPredicateWrapper.PredicateRouterWrapper__InvalidRouter();
         if (_registry == address(0))
             revert IPredicateWrapper.PredicateRouterWrapper__InvalidRegistry();
         if (bytes(_policyID).length == 0)
             revert IPredicateWrapper.PredicateRouterWrapper__InvalidPolicy();
+
+        router = TokenRouter(_router);
+        address tokenAddress = router.token();
+        token = IERC20(tokenAddress);
+        localDomain = router.localDomain();
+
         _initPredicateClient(_registry, _policyID);
+
+        // Infinite approval to router for token transfers (skip for native)
+        if (tokenAddress != address(0)) {
+            IERC20(tokenAddress).forceApprove(_router, type(uint256).max);
+        }
     }
 
-    /// @notice Pull the required ERC20 tokens from msg.sender. Subclasses implement.
-    function _pullTokens(Quote[] memory quotes) internal virtual;
-
-    /// @notice Returns the underlying router to call. Subclasses implement.
-    function _transferRouter() internal view virtual returns (ITokenBridge);
-
-    /// @notice Returns whether the destination is cross-domain. Subclasses implement.
-    function _isCrossDomain(
-        uint32 destination
-    ) internal view virtual returns (bool);
+    function _pullTokens(Quote[] memory quotes) internal virtual {
+        if (address(token) == address(0)) return;
+        uint256 totalTokenRequired = Quotes.extract(quotes, address(token));
+        if (totalTokenRequired > 0) {
+            token.safeTransferFrom(
+                msg.sender,
+                address(this),
+                totalTokenRequired
+            );
+        }
+    }
 
     /// @notice Emits the TransferAuthorized event. Subclasses implement.
     function _emitTransferAuthorized(
@@ -86,6 +111,17 @@ abstract contract AbstractPredicateWrapper is
     ) internal virtual;
 
     // ============ External Functions ============
+
+    /**
+     * @notice Quotes the fees for a remote transfer by delegating to the underlying router
+     */
+    function quoteTransferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) external view override returns (Quote[] memory quotes) {
+        return router.quoteTransferRemote(_destination, _recipient, _amount);
+    }
 
     /**
      * @notice Transfer tokens with Predicate attestation validation
@@ -101,8 +137,6 @@ abstract contract AbstractPredicateWrapper is
         bytes32 _recipient,
         uint256 _amount
     ) external payable virtual returns (bytes32 messageId) {
-        ITokenBridge router = _transferRouter();
-
         bytes memory encodedSigAndArgs = abi.encodeWithSelector(
             ITokenBridge.transferRemote.selector,
             _destination,
@@ -128,9 +162,8 @@ abstract contract AbstractPredicateWrapper is
             _executeAttested(
                 _attestation,
                 encodedSigAndArgs,
-                address(router),
                 quotes,
-                _isCrossDomain(_destination)
+                _destination != localDomain
             );
     }
 
@@ -138,7 +171,6 @@ abstract contract AbstractPredicateWrapper is
      * @notice Template: authorize → check value → pull tokens → call router → refund.
      * @param _attestation  Predicate attestation
      * @param encodedSigAndArgs  ABI-encoded selector + arguments for the router call
-     * @param _router  Address of the underlying router to call
      * @param quotes  Fee quotes returned by the router's quote function
      * @param setPending  Whether to set/check pendingAttestation (false for same-domain CCR)
      * @return messageId  Decoded from the router's return data
@@ -146,7 +178,6 @@ abstract contract AbstractPredicateWrapper is
     function _executeAttested(
         Attestation calldata _attestation,
         bytes memory encodedSigAndArgs,
-        address _router,
         Quote[] memory quotes,
         bool setPending
     ) internal returns (bytes32 messageId) {
@@ -171,7 +202,7 @@ abstract contract AbstractPredicateWrapper is
 
         if (setPending) pendingAttestation = true;
 
-        (bool success, bytes memory returnData) = _router.call{
+        (bool success, bytes memory returnData) = address(router).call{
             value: totalNativeRequired
         }(encodedSigAndArgs);
 
