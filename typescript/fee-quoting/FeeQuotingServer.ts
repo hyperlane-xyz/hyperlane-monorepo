@@ -164,7 +164,7 @@ export class FeeQuotingServer {
           if (!chainMetadataMap[token.chainName]) {
             const metadata = await registry.getChainMetadata(token.chainName);
             assert(metadata, `No chain metadata for: ${token.chainName}`);
-            chainMetadataMap[token.chainName] = metadata as ChainMetadata;
+            chainMetadataMap[token.chainName] = metadata;
           }
         }
         return config;

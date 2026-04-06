@@ -83,7 +83,7 @@ async function main() {
     `Starting fee quoting server for warp routes: ${config.warpRouteIds.join(', ')}`,
   );
 
-  const registry: IRegistry = await getRegistry({
+  const registry: IRegistry = getRegistry({
     registryUris: [config.registryUri],
     enableProxy: true,
     logger: rootLogger,

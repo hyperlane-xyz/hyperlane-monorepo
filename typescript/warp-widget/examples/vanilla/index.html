@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Warp Widget — Vanilla iframe Example</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f1f5f9; padding: 2rem; color: #0f172a; }
+    h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
+    p { color: #64748b; font-size: 0.875rem; margin-bottom: 1rem; }
+    code { background: #e2e8f0; padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.8rem; }
+    .container { max-width: 500px; margin: 0 auto; }
+    .widget-frame { border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.12); }
+    .status { color: #22c55e; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Warp Widget — Vanilla iframe</h1>
+    <p>Zero dependencies. Just an <code>&lt;iframe&gt;</code> tag.</p>
+    <p id="status"></p>
+
+    <div class="widget-frame">
+      <iframe
+        src="https://nexus.hyperlane.xyz/embed?accent=3b82f6&bg=f8fafc&card=ffffff&text=0f172a&border=e2e8f0"
+        width="440"
+        height="620"
+        style="border: none; display: block;"
+        allow="clipboard-write"
+        sandbox="allow-scripts allow-forms allow-same-origin allow-popups"
+      ></iframe>
+    </div>
+  </div>
+
+  <script>
+    window.addEventListener('message', function (event) {
+      // Validate origin to prevent spoofed events from other iframes
+      if (event.origin !== 'https://nexus.hyperlane.xyz') return;
+      if (event.data?.type === 'hyperlane-warp-widget' && event.data.event?.type === 'ready') {
+        document.getElementById('status').innerHTML = '<span class="status">Widget ready!</span>';
+      }
+    });
+  </script>
+</body>
+</html>
