@@ -70,12 +70,15 @@ export class FeeQuotingServer {
       res.set('Content-Type', register.contentType);
       res.end(await register.metrics());
     });
-    metricsApp.listen(DEFAULT_METRICS_PORT, () => {
+    const metricsServer = metricsApp.listen(DEFAULT_METRICS_PORT, () => {
       this.logger.info(
         { port: DEFAULT_METRICS_PORT },
         'Metrics server running',
       );
     });
+    metricsServer.on('error', (error) =>
+      this.logger.error({ error }, 'Metrics server error'),
+    );
 
     this.app.use(createHealthRouter(() => this.ready));
 
@@ -130,6 +133,7 @@ export class FeeQuotingServer {
     const shutdown = () => {
       this.logger.info('Shutting down...');
       this.ready = false;
+      metricsServer.close();
       server.close(() => {
         this.logger.info('Server closed');
         process.exit(0);
