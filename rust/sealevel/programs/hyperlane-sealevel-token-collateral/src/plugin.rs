@@ -235,9 +235,9 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
     ///
     /// Accounts:
     /// 0. `[executable]` The SPL token program for the mint.
-    /// 1. `[writable]` The mint.
-    /// 2. `[writable]` The token sender's associated token account, from which tokens will be sent.
-    /// 3. `[writable]` The escrow PDA account.
+    /// 1. `[writeable]` The mint.
+    /// 2. `[writeable]` The token sender's associated token account, from which tokens will be sent.
+    /// 3. `[writeable]` The escrow PDA account.
     fn transfer_in<'a, 'b>(
         _program_id: &Pubkey,
         token: &HyperlaneToken<Self>,
@@ -312,10 +312,10 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
     /// Accounts:
     /// 0. `[executable]` SPL token for the mint.
     /// 1. `[executable]` SPL associated token account.
-    /// 2. `[writable]` Mint account.
-    /// 3. `[writable]` Recipient associated token account.
-    /// 4. `[writable]` ATA payer PDA account.
-    /// 5. `[writable]` Escrow account.
+    /// 2. `[writeable]` Mint account.
+    /// 3. `[writeable]` Recipient associated token account.
+    /// 4. `[writeable]` ATA payer PDA account.
+    /// 5. `[writeable]` Escrow account.
     fn transfer_out<'a, 'b>(
         program_id: &Pubkey,
         token: &HyperlaneToken<Self>,
@@ -451,7 +451,7 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
                 AccountMeta::new(ata_payer_account_key, false).into(),
                 AccountMeta::new(token.plugin_data.escrow, false).into(),
             ],
-            // The recipient does not need to be writable
+            // The recipient does not need to be writeable
             false,
         ))
     }

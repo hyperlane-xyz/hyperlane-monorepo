@@ -76,7 +76,7 @@ pub async fn initialize_igp_program(
     // Accounts:
     // 0. `[executable]` The system program.
     // 1. `[signer]` The payer account.
-    // 2. `[writable]` The program data account.
+    // 2. `[writeable]` The program data account.
     let init_instruction = Instruction::new_with_borsh(
         program_id,
         &IgpInstruction::Init,
@@ -106,7 +106,7 @@ pub async fn initialize_igp(
     // Accounts:
     // 0. `[executable]` The system program.
     // 1. `[signer]` The payer account.
-    // 2. `[writable]` The IGP account to initialize.
+    // 2. `[writeable]` The IGP account to initialize.
     let init_instruction = Instruction::new_with_borsh(
         program_id,
         &IgpInstruction::InitIgp(InitIgp {
@@ -141,7 +141,7 @@ pub async fn initialize_overhead_igp(
     // Accounts:
     // 0. `[executable]` The system program.
     // 1. `[signer]` The payer account.
-    // 2. `[writable]` The Overhead IGP account to initialize.
+    // 2. `[writeable]` The Overhead IGP account to initialize.
     let init_instruction = Instruction::new_with_borsh(
         program_id,
         &IgpInstruction::InitOverheadIgp(InitOverheadIgp { salt, owner, inner }),

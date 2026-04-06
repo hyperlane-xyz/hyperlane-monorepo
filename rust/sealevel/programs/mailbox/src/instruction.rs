@@ -139,7 +139,7 @@ pub fn transfer_ownership_instruction(
         Pubkey::try_find_program_address(mailbox_outbox_pda_seeds!(), &program_id)
             .ok_or(ProgramError::InvalidSeeds)?;
 
-    // 0. `[writable]` The Outbox PDA account.
+    // 0. `[writeable]` The Outbox PDA account.
     // 1. `[signer]` The current owner.
     let instruction = SolanaInstruction {
         program_id,
@@ -165,7 +165,7 @@ pub fn set_default_ism_instruction(
         Pubkey::try_find_program_address(mailbox_outbox_pda_seeds!(), &program_id)
             .ok_or(ProgramError::InvalidSeeds)?;
 
-    // 0. `[writable]` - The Inbox PDA account.
+    // 0. `[writeable]` - The Inbox PDA account.
     // 1. `[]` - The Outbox PDA account.
     // 2. `[signer]` - The owner of the Mailbox.
     let instruction = SolanaInstruction {

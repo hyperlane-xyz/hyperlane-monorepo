@@ -511,7 +511,7 @@ fn get_recipient_ism(
 /// Sets the default ISM.
 ///
 /// Accounts:
-/// 0. `[writable]` - The Inbox PDA account.
+/// 0. `[writeable]` - The Inbox PDA account.
 /// 1. `[]` - The Outbox PDA account.
 /// 2. `[signer]` - The owner of the Mailbox.
 fn inbox_set_default_ism(
@@ -555,13 +555,13 @@ fn inbox_set_default_ism(
 /// Sets the ID of the message as return data.
 ///
 /// Accounts:
-/// 0. `[writable]` Outbox PDA.
+/// 0. `[writeable]` Outbox PDA.
 /// 1. `[signer]` Message sender signer.
 /// 2. `[executable]` System program.
 /// 3. `[executable]` SPL Noop program.
 /// 4. `[signer]` Payer.
 /// 5. `[signer]` Unique message account.
-/// 6. `[writable]` Dispatched message PDA. An empty message PDA relating to the seeds
+/// 6. `[writeable]` Dispatched message PDA. An empty message PDA relating to the seeds
 ///    `mailbox_dispatched_message_pda_seeds` where the message contents will be stored.
 fn outbox_dispatch(
     program_id: &Pubkey,
@@ -840,7 +840,7 @@ fn get_owner(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
 /// Transfers ownership.
 ///
 /// Accounts:
-/// 0. `[writable]` The Outbox PDA account.
+/// 0. `[writeable]` The Outbox PDA account.
 /// 1. `[signer]` The current owner.
 fn transfer_ownership(
     program_id: &Pubkey,
@@ -867,7 +867,7 @@ fn transfer_ownership(
 /// Claims protocol fees
 ///
 /// Accounts:
-/// 0. `[writable]` The Outbox PDA account.
+/// 0. `[writeable]` The Outbox PDA account.
 /// 1. `[]` The beneficiary.
 fn claim_protocol_fees(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
@@ -897,7 +897,7 @@ fn claim_protocol_fees(program_id: &Pubkey, accounts: &[AccountInfo]) -> Program
 /// Sets the protocol fee configuration.
 ///
 /// Accounts:
-/// 0. `[writable]` The Outbox PDA account.
+/// 0. `[writeable]` The Outbox PDA account.
 /// 1. `[signer]` The current owner.
 fn set_protocol_fee_config(
     program_id: &Pubkey,

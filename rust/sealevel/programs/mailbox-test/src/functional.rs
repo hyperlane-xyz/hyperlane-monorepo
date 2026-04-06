@@ -393,8 +393,8 @@ async fn test_protocol_fee() {
         .unwrap();
 
     // Accounts:
-    // 0. `[writable]` The outbox account.
-    // 1. `[writable]` The protocol fees beneficiary.
+    // 0. `[writeable]` The outbox account.
+    // 1. `[writeable]` The protocol fees beneficiary.
     process_instruction(
         &mut banks_client,
         Instruction::new_with_borsh(
@@ -692,13 +692,13 @@ async fn test_dispatch_returns_message_id() {
             .into_instruction_data()
             .unwrap(),
         accounts: vec![
-            // 0. `[writable]` Outbox PDA.
+            // 0. `[writeable]` Outbox PDA.
             // 1. `[signer]` Message sender signer.
             // 2. `[executable]` System program.
             // 3. `[executable]` SPL Noop program.
             // 4. `[signer]` Payer.
             // 5. `[signer]` Unique message account.
-            // 6. `[writable]` Dispatched message PDA. An empty message PDA relating to the seeds
+            // 6. `[writeable]` Dispatched message PDA. An empty message PDA relating to the seeds
             //    `mailbox_dispatched_message_pda_seeds` where the message contents will be stored.
             AccountMeta::new(mailbox_accounts.outbox, false),
             AccountMeta::new(payer.pubkey(), true),
@@ -1340,7 +1340,7 @@ async fn test_inbox_set_default_ism() {
             .into_instruction_data()
             .unwrap(),
         accounts: vec![
-            // 0. `[writable]` - The Inbox PDA account.
+            // 0. `[writeable]` - The Inbox PDA account.
             // 1. `[]` - The Outbox PDA account.
             // 2. `[signer]` - The owner of the Mailbox.
             AccountMeta::new(mailbox_accounts.inbox, false),
@@ -1394,7 +1394,7 @@ async fn test_inbox_set_default_ism_errors_if_owner_not_signer() {
             .into_instruction_data()
             .unwrap(),
         accounts: vec![
-            // 0. `[writable]` - The Inbox PDA account.
+            // 0. `[writeable]` - The Inbox PDA account.
             // 1. `[]` - The Outbox PDA account.
             // 2. `[signer]` - The owner of the Mailbox.
             AccountMeta::new(mailbox_accounts.inbox, false),
@@ -1416,7 +1416,7 @@ async fn test_inbox_set_default_ism_errors_if_owner_not_signer() {
             .into_instruction_data()
             .unwrap(),
         accounts: vec![
-            // 0. `[writable]` - The Inbox PDA account.
+            // 0. `[writeable]` - The Inbox PDA account.
             // 1. `[]` - The Outbox PDA account.
             // 2. `[signer]` - The owner of the Mailbox.
             AccountMeta::new(mailbox_accounts.inbox, false),

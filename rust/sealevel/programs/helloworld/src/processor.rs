@@ -105,7 +105,7 @@ pub fn process_instruction(
 /// Accounts:
 /// 0. `[executable]` System program.
 /// 1. `[signer]` Payer.
-/// 2. `[writable]` Storage PDA.
+/// 2. `[writeable]` Storage PDA.
 fn init(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
@@ -155,22 +155,22 @@ fn init(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> ProgramRes
 /// Dispatches a message using the dispatch authority.
 ///
 /// Accounts:
-/// 0.  `[writable]` Program storage.
+/// 0.  `[writeable]` Program storage.
 /// 1.  `[executable]` The Mailbox program.
-/// 2.  `[writable]` Outbox PDA.
+/// 2.  `[writeable]` Outbox PDA.
 /// 3.  `[]` This program's dispatch authority.
 /// 4.  `[executable]` System program.
 /// 5.  `[executable]` SPL Noop program.
 /// 6.  `[signer]` Payer.
 /// 7.  `[signer]` Unique message account.
-/// 8.  `[writable]` Dispatched message PDA. An empty message PDA relating to the seeds
+/// 8.  `[writeable]` Dispatched message PDA. An empty message PDA relating to the seeds
 ///     `mailbox_dispatched_message_pda_seeds` where the message contents will be stored.
 ///     ---- if an IGP is configured ----
 /// 9.  `[executable]` The IGP program.
-/// 10. `[writable]` The IGP program data.
-/// 11. `[writable]` The gas payment PDA.
+/// 10. `[writeable]` The IGP program data.
+/// 11. `[writeable]` The gas payment PDA.
 /// 12. `[]` OPTIONAL - The Overhead IGP program, if the configured IGP is an Overhead IGP.
-/// 13. `[writable]` The IGP account.
+/// 13. `[writeable]` The IGP account.
 ///     ---- end if an IGP is configured ----
 fn send_hello_world(
     program_id: &Pubkey,
@@ -263,10 +263,10 @@ fn send_hello_world(
             //
             // 0. `[executable]` The system program.
             // 1. `[signer]` The payer.
-            // 2. `[writable]` The IGP program data.
+            // 2. `[writeable]` The IGP program data.
             // 3. `[signer]` Unique gas payment account.
-            // 4. `[writable]` Gas payment PDA.
-            // 5. `[writable]` The IGP account.
+            // 4. `[writeable]` Gas payment PDA.
+            // 5. `[writeable]` The IGP account.
             // 6. `[]` Overhead IGP account (optional).
 
             let mut igp_payment_account_metas = vec![
@@ -355,7 +355,7 @@ fn send_hello_world(
 /// Handles a message.
 ///
 /// Accounts:
-/// 0. `[writable]` Process authority specific to this program.
+/// 0. `[writeable]` Process authority specific to this program.
 /// 1. `[]` Storage PDA account.
 pub fn handle(
     program_id: &Pubkey,
@@ -412,7 +412,7 @@ pub fn handle(
 }
 
 /// Accounts:
-/// 0. `[writable]` Storage PDA account.
+/// 0. `[writeable]` Storage PDA account.
 /// 1. `[signer]` Owner.
 fn set_interchain_security_module(
     program_id: &Pubkey,
@@ -486,7 +486,7 @@ fn set_account_meta_return_data(program_id: &Pubkey) -> ProgramResult {
 ///
 /// Accounts:
 /// 0. `[executable]` System program.
-/// 1. `[writable]` Storage PDA account.
+/// 1. `[writeable]` Storage PDA account.
 /// 2. `[signer]` Owner.
 fn enroll_remote_routers(
     program_id: &Pubkey,

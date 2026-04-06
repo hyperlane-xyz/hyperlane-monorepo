@@ -178,8 +178,8 @@ impl ValidatorAnnounce for SealevelValidatorAnnounce {
         // 0. [signer] The payer.
         // 1. [executable] The system program.
         // 2. [] The ValidatorAnnounce PDA account.
-        // 3. [writable] The validator-specific ValidatorStorageLocationsAccount PDA account.
-        // 4. [writable] The ReplayProtection PDA account specific to the announcement being made.
+        // 3. [writeable] The validator-specific ValidatorStorageLocationsAccount PDA account.
+        // 4. [writeable] The ReplayProtection PDA account specific to the announcement being made.
         let accounts = vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(system_program::id(), false),

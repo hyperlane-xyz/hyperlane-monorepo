@@ -132,7 +132,7 @@ pub fn init_instruction(
     // Accounts:
     // 0. `[executable]` The system program.
     // 1. `[signer]` The payer account.
-    // 2. `[writable]` The program data PDA account.
+    // 2. `[writeable]` The program data PDA account.
     let accounts = vec![
         AccountMeta::new_readonly(system_program::ID, false),
         AccountMeta::new_readonly(payer, true),
@@ -169,7 +169,7 @@ pub fn init_igp_instruction(
     // Accounts:
     // 0. `[executable]` The system program.
     // 1. `[signer]` The payer account.
-    // 2. `[writable]` The IGP account to initialize.
+    // 2. `[writeable]` The IGP account to initialize.
     let accounts = vec![
         AccountMeta::new_readonly(system_program::ID, false),
         AccountMeta::new_readonly(payer, true),
@@ -202,7 +202,7 @@ pub fn init_overhead_igp_instruction(
     // Accounts:
     // 0. `[executable]` The system program.
     // 1. `[signer]` The payer account.
-    // 2. `[writable]` The IGP account to initialize.
+    // 2. `[writeable]` The IGP account to initialize.
     let accounts = vec![
         AccountMeta::new_readonly(system_program::ID, false),
         AccountMeta::new_readonly(payer, true),
@@ -229,7 +229,7 @@ pub fn set_destination_gas_overheads(
 
     // Accounts:
     // 0. `[executable]` The system program.
-    // 1. `[writable]` The IGP.
+    // 1. `[writeable]` The IGP.
     // 2. `[signer]` The IGP owner.
     let accounts = vec![
         AccountMeta::new_readonly(system_program::ID, false),
@@ -257,7 +257,7 @@ pub fn set_gas_oracle_configs_instruction(
 
     // Accounts:
     // 0. `[executable]` The system program.
-    // 1. `[writable]` The IGP.
+    // 1. `[writeable]` The IGP.
     // 2. `[signer]` The IGP owner.
     let accounts = vec![
         AccountMeta::new_readonly(system_program::ID, false),
@@ -304,10 +304,10 @@ pub fn pay_for_gas_instruction(
     // Accounts:
     // 0. `[executable]` The system program.
     // 1. `[signer]` The payer.
-    // 2. `[writable]` The IGP program data.
+    // 2. `[writeable]` The IGP program data.
     // 3. `[signer]` Unique gas payment account.
-    // 4. `[writable]` Gas payment PDA.
-    // 5. `[writable]` The IGP account.
+    // 4. `[writeable]` Gas payment PDA.
+    // 5. `[writeable]` The IGP account.
     // 6. `[]` Overhead IGP account (optional).
     let mut accounts = vec![
         AccountMeta::new_readonly(system_program::ID, false),
@@ -348,7 +348,7 @@ pub fn transfer_igp_account_ownership_instruction(
         ),
     };
 
-    // 0. `[writable]` The IGP or OverheadIGP.
+    // 0. `[writeable]` The IGP or OverheadIGP.
     // 1. `[signer]` The owner of the IGP account.
     let instruction = SolanaInstruction {
         program_id,
@@ -371,8 +371,8 @@ pub fn claim_instruction(
 
     // Accounts:
     // 0. `[executable]` The system program.
-    // 1. `[writable]` The IGP.
-    // 2. `[writable]` The IGP beneficiary.
+    // 1. `[writeable]` The IGP.
+    // 2. `[writeable]` The IGP beneficiary.
     let accounts = vec![
         AccountMeta::new_readonly(system_program::ID, false),
         AccountMeta::new(igp, false),

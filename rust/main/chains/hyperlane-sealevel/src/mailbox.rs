@@ -47,7 +47,7 @@ const SYSTEM_PROGRAM: &str = "11111111111111111111111111111111";
 const SPL_NOOP: &str = "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV";
 
 // Earlier versions of collateral warp routes were deployed off a version where the mint
-// was requested as a writable account for handle instruction. This is not necessary,
+// was requested as a writeable account for handle instruction. This is not necessary,
 // and generally requires a higher priority fee to be paid.
 // This is a HashMap of of (collateral warp route recipient -> mint address) that is
 // used to force the mint address to be readonly.

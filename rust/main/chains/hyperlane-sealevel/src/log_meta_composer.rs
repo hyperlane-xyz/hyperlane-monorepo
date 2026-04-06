@@ -241,7 +241,7 @@ fn filter_by_validity(
         OptionSerializer::Some(addresses) => {
             // If there are loaded addresses, we have a versioned transaction
             // that may include dynamically loaded addresses (e.g. from a lookup table).
-            // The order of these is [static, dynamic writable, dynamic readonly] and
+            // The order of these is [static, dynamic writeable, dynamic readonly] and
             // follows the iter ordering of https://docs.rs/solana-sdk/latest/solana_sdk/message/struct.AccountKeys.html.
             [
                 message.account_keys,

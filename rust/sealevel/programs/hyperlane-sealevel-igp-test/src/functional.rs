@@ -68,7 +68,7 @@ async fn initialize(
     // Accounts:
     // 0. `[executable]` The system program.
     // 1. `[signer]` The payer account.
-    // 2. `[writable]` The program data account.
+    // 2. `[writeable]` The program data account.
     let init_instruction = Instruction::new_with_borsh(
         program_id,
         &IgpInstruction::Init,
@@ -98,7 +98,7 @@ async fn initialize_igp(
     // Accounts:
     // 0. `[executable]` The system program.
     // 1. `[signer]` The payer account.
-    // 2. `[writable]` The IGP account to initialize.
+    // 2. `[writeable]` The IGP account to initialize.
     let init_instruction = Instruction::new_with_borsh(
         program_id,
         &IgpInstruction::InitIgp(InitIgp {
@@ -133,7 +133,7 @@ async fn initialize_overhead_igp(
     // Accounts:
     // 0. `[executable]` The system program.
     // 1. `[signer]` The payer account.
-    // 2. `[writable]` The Overhead IGP account to initialize.
+    // 2. `[writeable]` The Overhead IGP account to initialize.
     let init_instruction = Instruction::new_with_borsh(
         program_id,
         &IgpInstruction::InitOverheadIgp(InitOverheadIgp { salt, owner, inner }),
@@ -439,7 +439,7 @@ async fn test_set_gas_oracle_configs() {
 
     // Accounts:
     // 0. `[executable]` The system program.
-    // 1. `[writable]` The IGP.
+    // 1. `[writeable]` The IGP.
     // 2. `[signer]` The IGP owner.
     let instruction = Instruction::new_with_borsh(
         program_id,
@@ -537,7 +537,7 @@ async fn test_set_gas_oracle_configs_errors_if_owner_not_signer() {
 
     // Accounts:
     // 0. `[executable]` The system program.
-    // 1. `[writable]` The IGP.
+    // 1. `[writeable]` The IGP.
     // 2. `[signer]` The IGP owner.
 
     // Try with the correct owner passed in, but it's not a signer
@@ -601,7 +601,7 @@ async fn test_set_destination_gas_overheads() {
 
     // Accounts:
     // 0. `[executable]` The system program.
-    // 1. `[writable]` The Overhead IGP.
+    // 1. `[writeable]` The Overhead IGP.
     // 2. `[signer]` The Overhead IGP owner.
     let instruction = Instruction::new_with_borsh(
         program_id,
@@ -699,7 +699,7 @@ async fn test_set_destination_gas_overheads_errors_if_owner_not_signer() {
 
     // Accounts:
     // 0. `[executable]` The system program.
-    // 1. `[writable]` The Overhead IGP.
+    // 1. `[writeable]` The Overhead IGP.
     // 2. `[signer]` The Overhead IGP owner.
 
     // Try with the correct owner passed in, but it's not a signer
@@ -988,10 +988,10 @@ async fn pay_for_gas(
 
     // 0. `[executable]` The system program.
     // 1. `[signer]` The payer.
-    // 2. `[writable]` The IGP program data.
+    // 2. `[writeable]` The IGP program data.
     // 3. `[signer]` Unique gas payment account.
-    // 4. `[writable]` Gas payment PDA.
-    // 5. `[writable]` The IGP account.
+    // 4. `[writeable]` Gas payment PDA.
+    // 5. `[writeable]` The IGP account.
     // 6. `[]` Overhead IGP account (optional).
     let mut accounts = vec![
         AccountMeta::new_readonly(system_program::id(), false),
@@ -1302,8 +1302,8 @@ async fn test_claim() {
 
     // Accounts:
     // 0. `[executable]` The system program.
-    // 1. `[writable]` The IGP.
-    // 2. `[writable]` The IGP beneficiary.
+    // 1. `[writeable]` The IGP.
+    // 2. `[writeable]` The IGP beneficiary.
     process_instruction(
         &mut banks_client,
         Instruction::new_with_borsh(

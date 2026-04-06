@@ -116,7 +116,7 @@ export class SealevelMultisigAdapter extends BaseSealevelAdapter {
     const keys: AccountMeta[] = [
       // 0. `[signer]` The current access control owner.
       { pubkey: owner, isSigner: true, isWritable: true },
-      // 1. `[writable]` The access control PDA account.
+      // 1. `[writeable]` The access control PDA account.
       { pubkey: accessControlPda, isSigner: false, isWritable: true },
     ];
 

@@ -198,8 +198,8 @@ async fn announce(
     // 0. `[signer]` The payer.
     // 1. `[executable]` The system program.
     // 2. `[]` The ValidatorAnnounce PDA account.
-    // 3. `[writable]` The validator-specific ValidatorStorageLocationsAccount PDA account.
-    // 4. `[writable]` The ReplayProtection PDA account specific to the announcement being made.
+    // 3. `[writeable]` The validator-specific ValidatorStorageLocationsAccount PDA account.
+    // 4. `[writeable]` The ReplayProtection PDA account specific to the announcement being made.
     let announce_instruction = Instruction::new_with_borsh(
         program_id,
         &ValidatorAnnounceInstruction::Announce(announce_instruction),
