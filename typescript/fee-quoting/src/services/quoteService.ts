@@ -400,32 +400,27 @@ function resolveDestinationHook(
   return resolved && typeof resolved !== 'string' ? resolved : undefined;
 }
 
+const isIgp = (v: object): v is WithAddress<IgpHookConfig> =>
+  typeof v === 'object' &&
+  v !== null &&
+  'type' in v &&
+  v.type === HookType.INTERCHAIN_GAS_PAYMASTER &&
+  'address' in v;
+
 function resolveIgp(
   config: DerivedTokenRouterConfig,
   destChainName: string,
   signer: Address,
 ): ResolveResult {
-  const hook = config.hook;
-  if (typeof hook === 'string')
+  if (typeof config.hook === 'string')
     return { resolved: false, reason: 'not_configured' };
 
-  const destHook = resolveDestinationHook(hook, destChainName);
-  if (!destHook) return { resolved: false, reason: 'not_configured' };
-
-  const igp = deepFind(
-    destHook as object,
-    (v): v is WithAddress<IgpHookConfig> =>
-      typeof v === 'object' &&
-      v !== null &&
-      'type' in v &&
-      v.type === HookType.INTERCHAIN_GAS_PAYMASTER &&
-      'address' in v,
-  );
-
+  const destHook = resolveDestinationHook(config.hook, destChainName);
+  const igp = destHook && deepFind(destHook as object, isIgp);
   if (!igp) return { resolved: false, reason: 'not_configured' };
 
   const reason = checkSignerAuthorized(igp.quoteSigners, signer);
-  if (reason) return { resolved: false, reason };
-
-  return { resolved: true, address: igp.address };
+  return reason
+    ? { resolved: false, reason }
+    : { resolved: true, address: igp.address };
 }
