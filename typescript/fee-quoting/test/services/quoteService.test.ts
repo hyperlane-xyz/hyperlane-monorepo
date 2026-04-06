@@ -18,6 +18,7 @@ import {
 } from '../../src/services/quoteService.js';
 import { QuotedCallsCommand } from '../../src/types.js';
 
+// Foundry/Hardhat default test account #0
 const TEST_PRIVATE_KEY =
   '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' as Hex;
 const TEST_ACCOUNT = privateKeyToAccount(TEST_PRIVATE_KEY);

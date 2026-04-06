@@ -246,7 +246,7 @@ export class FeeQuotingServer {
           chainContexts.set(chainName, ctx);
         }
 
-        ctx.routers.set(warpRouteAddress as Address, {
+        ctx.routers.set(warpRouteAddress.toLowerCase() as Address, {
           feeToken,
           derivedConfig,
         });

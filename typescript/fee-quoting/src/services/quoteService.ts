@@ -100,7 +100,8 @@ export class QuoteService {
       throw new ApiError(`Unknown origin chain: ${origin}`, 400);
     }
 
-    const routerCtx = ctx.routers.get(router);
+    const normalizedRouter = router.toLowerCase() as Address;
+    const routerCtx = ctx.routers.get(normalizedRouter);
     if (!routerCtx) {
       throw new ApiError(`Unknown router ${router} on ${origin}`, 400);
     }
