@@ -23,11 +23,12 @@ const TRON_EXCLUDED_PATTERNS = [
   "/contracts/CheckpointFraudProofs.sol",
 ];
 
-// Test contracts kept for tron-sdk (TestStorage, ERC20Test)
+// Test contracts kept for tron-sdk (TestStorage, ERC20Test, TestIsm, etc.)
 const TRON_TEST_ALLOWLIST = [
   "TestStorage.sol",
   "ERC20Test.sol",
   "TestRecipient.sol",
+  "TestIsm.sol",
 ];
 
 subtask(TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS, async (_, __, runSuper) => {
