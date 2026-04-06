@@ -415,10 +415,12 @@ const send: CommandModuleWithWriteContext<
     destinationToken,
     feeQuotingUrl,
     feeQuotingApiKey,
+    warpRouteId,
   }) => {
     const warpCoreConfig = await getWarpCoreConfigOrExit({
       symbol,
       warp,
+      warpRouteId,
       context,
     });
     let chains = chainsArg?.length ? chainsArg : [];
