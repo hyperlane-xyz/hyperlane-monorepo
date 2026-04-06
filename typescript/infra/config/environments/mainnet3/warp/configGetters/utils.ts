@@ -308,22 +308,24 @@ export function scaleDownConfig(
 export function getFixedRoutingFeeConfig(
   owner: Address,
   feeDestinations: readonly ChainName[],
-  bps: number,
+  bps: number | Record<ChainName, number>,
   feeParams?: Record<string, { maxFee: string; halfAmount: string }>,
 ): TokenFeeConfigInput {
   const feeContracts: Record<ChainName, TokenFeeConfigInput> = {};
 
   for (const chain of feeDestinations) {
+    const chainBps = typeof bps === 'number' ? bps : bps[chain];
+
     const params = feeParams?.[chain];
     feeContracts[chain] = params
       ? {
           type: TokenFeeType.LinearFee,
           owner,
-          bps,
+          bps: chainBps,
           maxFee: BigInt(params.maxFee),
           halfAmount: BigInt(params.halfAmount),
         }
-      : { type: TokenFeeType.LinearFee, owner, bps };
+      : { type: TokenFeeType.LinearFee, owner, bps: chainBps };
   }
 
   return {

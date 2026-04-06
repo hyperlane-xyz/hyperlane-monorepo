@@ -39,6 +39,39 @@ const chainDecimals: Record<string, number> = {
   bsc: 18,
 };
 
+const feeBps: Record<string, Record<string, number>> = {
+  ethereum: {
+    arbitrum: 3.1,
+    plasma: 10.0,
+    bsc: 15.0,
+    tron: 15.0,
+  },
+  arbitrum: {
+    ethereum: 6.4,
+    plasma: 10.0,
+    bsc: 15.0,
+    tron: 15.0,
+  },
+  plasma: {
+    ethereum: 10.0,
+    arbitrum: 10.0,
+    bsc: 15.0,
+    tron: 15.0,
+  },
+  bsc: {
+    ethereum: 15.0,
+    arbitrum: 15.0,
+    plasma: 15.0,
+    tron: 15.0,
+  },
+  tron: {
+    ethereum: 15.0,
+    arbitrum: 15.0,
+    plasma: 15.0,
+    bsc: 15.0,
+  },
+};
+
 // Convention: use the minimum decimals as the message encoding baseline.
 // The contract does not enforce this — each router independently applies its own scale.
 // We derive scales here so that all routers agree on the same message amount encoding.
@@ -106,6 +139,8 @@ const getBaseEvmConfig = (
   const decimals = chainDecimals[chain];
   assert(decimals != null, `Decimals not defined for ${chain}`);
   const destinations = evmDeploymentChains.filter((c) => c !== chain);
+  const destinationFeeBps = feeBps[chain];
+  assert(destinationFeeBps, `Missing destination fee bps for ${chain}`);
   return {
     ...chainTokenMetadata[chain],
     proxyAdmin,
@@ -114,7 +149,7 @@ const getBaseEvmConfig = (
     tokenFee: getFixedRoutingFeeConfig(
       getWarpFeeOwner(chain),
       destinations,
-      1.5,
+      destinationFeeBps,
     ),
     ...scaleDownConfig(decimals, MESSAGE_DECIMALS),
   };
