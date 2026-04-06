@@ -21,6 +21,8 @@ export type { SolanaRpcClient } from './rpc.js';
 export { createRpc } from './rpc.js';
 
 // Artifact managers
+export { SvmMailboxArtifactManager as SealevelMailboxArtifactManager } from './core/mailbox-artifact-manager.js';
+export { SvmValidatorAnnounceArtifactManager as SealevelValidatorAnnounceArtifactManager } from './core/validator-announce-artifact-manager.js';
 export { SvmIsmArtifactManager as SealevelIsmArtifactManager } from './ism/ism-artifact-manager.js';
 export { SvmHookArtifactManager as SealevelHookArtifactManager } from './hook/hook-artifact-manager.js';
 
@@ -33,6 +35,20 @@ export {
   SvmTestIsmReader as SealevelTestIsmReader,
   SvmTestIsmWriter as SealevelTestIsmWriter,
 } from './ism/test-ism.js';
+
+// Core readers/writers
+export {
+  SvmMailboxReader as SealevelMailboxReader,
+  SvmMailboxWriter as SealevelMailboxWriter,
+} from './core/mailbox.js';
+export {
+  SvmValidatorAnnounceReader as SealevelValidatorAnnounceReader,
+  SvmValidatorAnnounceWriter as SealevelValidatorAnnounceWriter,
+} from './core/validator-announce.js';
+export type {
+  SvmMailboxConfig as SealevelMailboxConfig,
+  SvmValidatorAnnounceConfig as SealevelValidatorAnnounceConfig,
+} from './core/types.js';
 
 // Hook readers/writers
 export {
@@ -49,6 +65,7 @@ export {
   createDeployProgramPlan,
   createUpgradeProgramPlan,
   executeDeployPlan,
+  DeployStageKind,
 } from './deploy/program-deployer.js';
 export type {
   DeployProgramPlan,
@@ -59,7 +76,11 @@ export type {
 export { resolveProgram } from './deploy/resolve-program.js';
 
 // Transaction utilities
-export { getComputeBudgetInstructions, buildTransactionMessage } from './tx.js';
+export {
+  getComputeBudgetInstructions,
+  buildTransactionMessage,
+  serializeUnsignedTransaction,
+} from './tx.js';
 
 // PDA derivation
 export {
@@ -67,10 +88,15 @@ export {
   deriveMultisigIsmDomainDataPda,
   deriveTestIsmStoragePda,
   deriveHyperlaneTokenPda,
+  deriveMailboxInboxPda,
+  deriveMailboxOutboxPda,
   deriveAtaPayerPda,
   deriveIgpProgramDataPda,
   deriveIgpAccountPda,
   deriveOverheadIgpAccountPda,
+  deriveValidatorAnnouncePda,
+  deriveValidatorStorageLocationsPda,
+  deriveReplayProtectionPda,
 } from './pda.js';
 
 // Account decoders
@@ -85,3 +111,11 @@ export {
   decodeMultisigIsmDomainDataAccount,
 } from './accounts/multisig-ism-message-id.js';
 export { decodeTestIsmStorageAccount } from './accounts/test-ism.js';
+export {
+  decodeMailboxInboxAccount,
+  decodeMailboxOutboxAccount,
+} from './core/mailbox-query.js';
+export {
+  decodeValidatorAnnounceAccount,
+  decodeValidatorStorageLocationsAccount,
+} from './core/validator-announce-query.js';

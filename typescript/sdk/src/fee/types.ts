@@ -2,11 +2,16 @@ import { z } from 'zod';
 
 import {
   ZBigNumberish,
+  ZBps,
   ZChainName,
   ZHash,
 } from '../metadata/customZodTypes.js';
 
-import { convertToBps } from './utils.js';
+import {
+  MAX_BPS_DECIMALS,
+  convertToBps,
+  isBpsPrecisionValid,
+} from './utils.js';
 
 // Matches the enum in BaseFee.sol
 export enum OnchainTokenFeeType {
@@ -85,14 +90,14 @@ export type QuoteSignersConfig = z.infer<typeof QuoteSignersSchema>;
 
 export const LinearFeeConfigSchema = StandardFeeConfigBaseSchema.extend({
   type: z.literal(TokenFeeType.LinearFee),
-  bps: ZBigNumberish,
+  bps: ZBps,
 });
 export type LinearFeeConfig = z.infer<typeof LinearFeeConfigSchema>;
 
 // Linear Fee Input - only requires bps & type, token is optional
 export const LinearFeeInputConfigSchema = BaseFeeConfigInputSchema.extend({
   type: z.literal(TokenFeeType.LinearFee),
-  bps: ZBigNumberish.optional(),
+  bps: ZBps.optional(),
   ...FeeParametersSchema.partial().shape,
 })
   .superRefine((v, ctx) => {
@@ -107,12 +112,19 @@ export const LinearFeeInputConfigSchema = BaseFeeConfigInputSchema.extend({
       });
     }
 
-    // Reject bps = 0 to prevent division by zero in convertFromBps
-    if (hasBps && BigInt(v.bps!) === 0n) {
+    if (hasBps && v.bps! <= 0) {
       ctx.addIssue({
         code: 'custom',
         path: ['bps'],
         message: 'bps must be > 0',
+      });
+    }
+
+    if (hasBps && !isBpsPrecisionValid(v.bps!)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['bps'],
+        message: `bps must have at most ${MAX_BPS_DECIMALS} decimal places`,
       });
     }
 

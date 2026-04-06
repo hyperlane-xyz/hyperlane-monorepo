@@ -36,8 +36,8 @@ describe('Environment', () => {
         );
 
         for (const chain of Object.keys(ethereumCoreConfigs)) {
-          // Skip eden as it has limited connectivity (only connected to celestia)
-          if (chain === 'eden') {
+          // Skip eden and tron as they have limited connectivity
+          if (chain === 'eden' || chain === 'tron') {
             continue;
           }
 

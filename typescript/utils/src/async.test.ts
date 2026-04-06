@@ -356,6 +356,7 @@ describe('mapAllSettled', () => {
     const { rejected } = await mapAllSettled(
       items,
       async () => {
+        // eslint-disable-next-line @typescript-eslint/only-throw-error
         throw 'string error';
       },
       (item) => item,

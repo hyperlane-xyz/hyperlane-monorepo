@@ -29,7 +29,7 @@ pnpm build
 pnpm test
 
 # Lint and format
-pnpm lint && pnpm prettier
+pnpm lint && pnpm format
 
 # Solidity tests (both Hardhat and Forge)
 pnpm -C solidity test
@@ -51,7 +51,7 @@ pnpm -C typescript/cli test:radix:e2e
 ```bash
 # TypeScript/Solidity
 pnpm lint          # Must pass
-pnpm prettier      # Auto-formats code
+pnpm format        # Auto-formats code
 pnpm test          # Run relevant tests
 pnpm changeset     # Add changeset if modifying published packages
 
@@ -60,6 +60,8 @@ cd rust/main && cargo clippy --features aleo,integration_test -- -D warnings
 cd rust/main && cargo test --all-targets --features aleo,integration_test
 cd rust/main && cargo fmt
 ```
+
+**Never skip commit hooks. Do not use `git commit --no-verify` or otherwise bypass `.husky/pre-commit`. Fix hook failures, then commit.**
 
 ### Changeset Style
 
@@ -205,7 +207,7 @@ cd rust/main && cargo test --release --package run-locally --features sealevel -
 
 ```bash
 pnpm lint                               # Lint all packages
-pnpm prettier                           # Format all packages
+pnpm format                             # Format all packages
 pnpm -C solidity lint                   # Solidity linting (solhint)
 cd rust/main && cargo clippy            # Rust linting
 cd rust/main && cargo fmt               # Rust formatting

@@ -45,8 +45,8 @@ export const TokenMetadataSchema = z.object({
         denominator: z.number().int().gt(0),
       }),
       z.object({
-        numerator: z.coerce.bigint(),
-        denominator: z.coerce.bigint(),
+        numerator: z.coerce.bigint().positive(),
+        denominator: z.coerce.bigint().positive(),
       }),
     ])
     .optional(),

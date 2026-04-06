@@ -1,8 +1,4 @@
-import {
-  address as parseAddress,
-  type Rpc,
-  type SolanaRpcApi,
-} from '@solana/kit';
+import { address as parseAddress } from '@solana/kit';
 
 import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import type {
@@ -16,17 +12,14 @@ import type {
 } from '@hyperlane-xyz/provider-sdk/ism';
 
 import type { SvmSigner } from '../clients/signer.js';
-import type { SvmDeployedIsm } from '../types.js';
+import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
+import type { SvmDeployedIsm, SvmRpc } from '../types.js';
 
 import { detectIsmType } from './ism-query.js';
-import {
-  SvmMessageIdMultisigIsmReader,
-  SvmMessageIdMultisigIsmWriter,
-} from './multisig-ism.js';
 import { SvmTestIsmReader, SvmTestIsmWriter } from './test-ism.js';
 
 export class SvmIsmArtifactManager implements IRawIsmArtifactManager {
-  constructor(private readonly rpc: Rpc<SolanaRpcApi>) {}
+  constructor(private readonly rpc: SvmRpc) {}
 
   async readIsm(address: string): Promise<DeployedRawIsmArtifact> {
     const programId = parseAddress(address);
@@ -46,7 +39,12 @@ export class SvmIsmArtifactManager implements IRawIsmArtifactManager {
       >;
     } = {
       testIsm: () => new SvmTestIsmReader(this.rpc),
-      messageIdMultisigIsm: () => new SvmMessageIdMultisigIsmReader(this.rpc),
+      // FIXME: SVM multisig ISM has a completely different shape from other msig ISMs
+      messageIdMultisigIsm: () => {
+        throw new Error(
+          'Multisig ISM reading not supported via artifact manager on SVM (different config shape). Use SvmMessageIdMultisigIsmReader directly.',
+        );
+      },
     };
     const factory = readers[type];
     if (!factory) throw new Error(`Unsupported ISM type: ${type}`);
@@ -63,9 +61,18 @@ export class SvmIsmArtifactManager implements IRawIsmArtifactManager {
         SvmDeployedIsm
       >;
     } = {
-      testIsm: () => new SvmTestIsmWriter(this.rpc, signer),
-      messageIdMultisigIsm: () =>
-        new SvmMessageIdMultisigIsmWriter(this.rpc, signer),
+      testIsm: () =>
+        new SvmTestIsmWriter(
+          { program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.testIsm } },
+          this.rpc,
+          signer,
+        ),
+      // FIXME: SVM multisig ISM has a completely different shape from other msig ISMs
+      messageIdMultisigIsm: () => {
+        throw new Error(
+          'Multisig ISM deployment not supported via artifact manager on SVM (different config shape). Use SvmMessageIdMultisigIsmWriter directly.',
+        );
+      },
     };
     const factory = writers[type];
     if (!factory) throw new Error(`Unsupported ISM type: ${type}`);

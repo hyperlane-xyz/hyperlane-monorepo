@@ -1,5 +1,4 @@
 import {
-  AltVM,
   ChainMetadataForAltVM,
   getProtocolProvider,
 } from '@hyperlane-xyz/provider-sdk';
@@ -16,11 +15,12 @@ import {
   HookArtifactConfig,
   HookConfig,
   IRawHookArtifactManager,
+  MUTABLE_HOOK_TYPE,
   hookConfigToArtifact,
   shouldDeployNewHook,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, isEmptyAddress } from '@hyperlane-xyz/utils';
 
 import { HookReader } from './hook-reader.js';
 
@@ -77,7 +77,7 @@ export function createHookWriter(
  * - Works with pure Artifact API (HookArtifactConfig)
  * - Delegates to typed writers from artifact manager for specific hook types
  * - Protocol-agnostic through artifact manager abstraction
- * - Supports IGP hook updates (gas configs, owner changes)
+ * - Supports mutable hook updates (e.g. IGP gas configs, protocol fee updates)
  * - MerkleTree hooks are immutable (no updates)
  *
  * Note: In the future, the Artifact API will include an explicit check
@@ -114,7 +114,7 @@ export class HookWriter
 
   /**
    * Updates an existing hook to match the desired configuration.
-   * Only IGP hooks support updates (gas config changes, owner changes).
+   * Mutable hooks delegate to their protocol-specific writers.
    * MerkleTree hooks are immutable - returns empty array.
    *
    * Note: In the future, the Artifact API will provide an explicit
@@ -126,17 +126,12 @@ export class HookWriter
   async update(artifact: DeployedHookArtifact): Promise<AnnotatedTx[]> {
     const { artifactState, config, deployed } = artifact;
 
-    // Only IGP hooks are mutable - support gas config and owner updates
-    if (config.type === AltVM.HookType.INTERCHAIN_GAS_PAYMASTER) {
-      const writer = this.artifactManager.createWriter(
-        config.type,
-        this.signer,
-      );
-      return writer.update({ artifactState, config, deployed });
+    if (!MUTABLE_HOOK_TYPE.includes(config.type)) {
+      return [];
     }
 
-    // MerkleTree hooks are immutable - no updates possible
-    return [];
+    const writer = this.artifactManager.createWriter(config.type, this.signer);
+    return writer.update({ artifactState, config, deployed });
   }
 
   /**
@@ -168,7 +163,7 @@ export class HookWriter
     );
 
     // If no existing hook, deploy new one directly
-    if (!actualAddress) {
+    if (!actualAddress || isEmptyAddress(actualAddress)) {
       const [deployed] = await this.create(expectedArtifact);
       return {
         address: deployed.deployed.address,
@@ -189,7 +184,7 @@ export class HookWriter
       };
     }
 
-    // Update existing hook (only IGP hooks support updates)
+    // Update existing hook in place when the hook type is mutable.
     const deployedArtifact: DeployedHookArtifact = {
       ...expectedArtifact,
       artifactState: ArtifactState.DEPLOYED,

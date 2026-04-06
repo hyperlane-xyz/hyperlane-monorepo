@@ -140,7 +140,10 @@ export function getChainsFromWarpCoreConfig(
 }
 
 /**
- * Checks if a WarpCoreConfig includes all specified chains.
+ * Checks if a WarpCoreConfig includes all specified chains
+ * @param config - The warp core config to check
+ * @param chains - Array of chain names that must all be present
+ * @returns true if the config spans all specified chains
  */
 export function warpCoreConfigMatchesChains(
   config: WarpCoreConfig,
@@ -151,7 +154,11 @@ export function warpCoreConfigMatchesChains(
 }
 
 /**
- * Filters a map of WarpCoreConfigs to only include routes that span all specified chains.
+ * Filters a map of WarpCoreConfigs to only include routes that span all specified chains
+ * @param configMap - Record of route IDs to WarpCoreConfig
+ * @param chains - Array of chain names that must all be present in each route
+ * @returns Filtered record containing only routes that span all specified chains.
+ * If `chains` is empty, returns `configMap` unchanged (treated as no filter).
  */
 export function filterWarpCoreConfigMapByChains<T extends WarpCoreConfig>(
   configMap: Record<string, T>,

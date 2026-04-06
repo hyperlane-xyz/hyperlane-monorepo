@@ -123,7 +123,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
     ]);
   });
 
-  describe(`hyperlane warp deploy --config ... --yes --key ...`, () => {
+  describe(`hyperlane warp deploy --yes --key ...`, () => {
     let tokenChain2: ERC20Test;
     let everclearBridgeAdapterMock: MockEverclearAdapter;
 
@@ -277,7 +277,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       const tokenFee = {
         type: TokenFeeType.LinearFee,
         token: tokenChain2.address,
-        bps: 1n,
+        bps: 1,
       };
 
       const warpConfig = WarpRouteDeployConfigSchema.parse({
@@ -315,7 +315,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       const tokenFee = {
         type: TokenFeeType.LinearFee,
         owner: ownerAddress,
-        bps: 1n,
+        bps: 1,
       };
 
       const warpConfig = WarpRouteDeployConfigSchema.parse({
@@ -421,7 +421,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
           owner: ownerAddress,
           tokenFee: {
             type: TokenFeeType.LinearFee,
-            bps: 100n,
+            bps: 100,
           },
         },
       });
@@ -626,7 +626,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
     });
 
     it('should deploy a synthetic token with LinearFee using only bps (computed path)', async () => {
-      const providedBps = 100n;
+      const providedBps = 100;
 
       const warpConfig = WarpRouteDeployConfigSchema.parse({
         [CHAIN_NAME_2]: {
@@ -665,7 +665,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       expect(syntheticConfig.tokenFee?.type).to.equal(TokenFeeType.LinearFee);
 
       const tokenFee = syntheticConfig.tokenFee as LinearFeeConfig;
-      expect(BigInt(tokenFee.bps)).to.equal(providedBps);
+      expect(tokenFee.bps).to.equal(providedBps);
       expect(tokenFee.maxFee).to.exist;
       expect(tokenFee.halfAmount).to.exist;
       expect(BigInt(tokenFee.maxFee) > 0n).to.be.true;

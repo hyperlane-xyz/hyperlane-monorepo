@@ -1,6 +1,6 @@
 /* eslint-disable no-console */
 import { expect } from 'chai';
-import { after, before, describe, it } from 'mocha';
+import { before, describe, it } from 'mocha';
 
 import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
@@ -17,78 +17,45 @@ import {
   SvmMessageIdMultisigIsmWriter,
   type SvmMultisigIsmConfig,
 } from '../ism/multisig-ism.js';
-import {
-  SvmTestIsmReader,
-  SvmTestIsmWriter,
-  type SvmTestIsmConfig,
-} from '../ism/test-ism.js';
+import { SvmTestIsmReader, SvmTestIsmWriter } from '../ism/test-ism.js';
 import type { SvmDeployedIsm } from '../types.js';
 import { createRpc } from '../rpc.js';
-import {
-  TEST_PROGRAM_IDS,
-  airdropSol,
-  getPreloadedPrograms,
-} from '../testing/setup.js';
-import {
-  type SolanaTestValidator,
-  startSolanaTestValidator,
-  waitForRpcReady,
-} from '../testing/solana-container.js';
+import { TEST_SVM_CHAIN_METADATA } from '../testing/constants.js';
+import { TEST_PROGRAM_IDS, airdropSol } from '../testing/setup.js';
 import { address } from '@solana/kit';
 
 const TEST_PRIVATE_KEY =
   '0x0000000000000000000000000000000000000000000000000000000000000001';
 
-const PRELOADED_PROGRAMS: Array<'testIsm' | 'multisigIsm'> = [
-  'testIsm',
-  'multisigIsm',
-];
-
 describe('SVM ISM E2E Tests', function () {
   this.timeout(180_000);
 
-  let solana: SolanaTestValidator;
   let rpc: ReturnType<typeof createRpc>;
   let signer: SvmSigner;
 
   before(async () => {
-    const preloadedPrograms = getPreloadedPrograms(PRELOADED_PROGRAMS);
-
-    console.log('Starting Solana test validator with preloaded programs...');
-    solana = await startSolanaTestValidator({ preloadedPrograms });
-    console.log(`Validator started at: ${solana.rpcUrl}`);
-
-    await waitForRpcReady(solana.rpcUrl);
-
-    rpc = createRpc(solana.rpcUrl);
+    rpc = createRpc(TEST_SVM_CHAIN_METADATA.rpcUrl);
     signer = await SvmSigner.connectWithSigner(
-      [solana.rpcUrl],
+      [TEST_SVM_CHAIN_METADATA.rpcUrl],
       TEST_PRIVATE_KEY,
     );
 
-    console.log(`Airdropping SOL to ${signer.getSignerAddress()}...`);
     await airdropSol(rpc, address(signer.getSignerAddress()));
-  });
-
-  after(async () => {
-    if (solana) {
-      await solana.stop();
-    }
   });
 
   describe('Test ISM', () => {
     it('should initialize and read Test ISM', async function () {
-      const writer = new SvmTestIsmWriter(rpc, signer);
+      const writer = new SvmTestIsmWriter(
+        { program: { programId: TEST_PROGRAM_IDS.testIsm } },
+        rpc,
+        signer,
+      );
 
       let deployed, receipts;
       try {
-        const config: SvmTestIsmConfig = {
-          type: IsmType.TEST_ISM,
-          program: { programId: TEST_PROGRAM_IDS.testIsm },
-        };
         [deployed, receipts] = await writer.create({
           artifactState: ArtifactState.NEW,
-          config,
+          config: { type: IsmType.TEST_ISM },
         });
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -117,7 +84,11 @@ describe('SVM ISM E2E Tests', function () {
     });
 
     it('should return empty transactions for update', async () => {
-      const writer = new SvmTestIsmWriter(rpc, signer);
+      const writer = new SvmTestIsmWriter(
+        { program: { programId: TEST_PROGRAM_IDS.testIsm } },
+        rpc,
+        signer,
+      );
 
       const artifact: ArtifactDeployed<TestIsmConfig, SvmDeployedIsm> = {
         artifactState: ArtifactState.DEPLOYED,

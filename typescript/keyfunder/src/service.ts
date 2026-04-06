@@ -15,7 +15,7 @@ import { KeyFunder } from './core/KeyFunder.js';
 import { KeyFunderMetrics } from './metrics/Metrics.js';
 
 async function main(): Promise<void> {
-  const VERSION = process.env.SERVICE_VERSION || 'dev';
+  const VERSION = process.env.SERVICE_VERSION ?? 'dev';
 
   const configFile = process.env.KEYFUNDER_CONFIG_FILE;
   if (!configFile) {
@@ -45,7 +45,7 @@ async function main(): Promise<void> {
     const configuredChains = configLoader.getConfiguredChains();
     logger.info({ chains: configuredChains }, 'Loaded keyfunder configuration');
 
-    const registryUri = process.env.REGISTRY_URI || DEFAULT_GITHUB_REGISTRY;
+    const registryUri = process.env.REGISTRY_URI ?? DEFAULT_GITHUB_REGISTRY;
     const registry = getRegistry({
       registryUris: [registryUri],
       enableProxy: true,

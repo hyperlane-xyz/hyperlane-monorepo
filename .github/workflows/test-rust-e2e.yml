@@ -24,7 +24,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        e2e-type: [cosmwasm, cosmosnative, evm, sealevel, starknet, radix]
+        e2e-type: [cosmwasm, cosmosnative, evm, sealevel, starknet, radix, tron]
     steps:
       - uses: actions/checkout@v6
         with:
@@ -137,7 +137,7 @@ jobs:
         uses: rui314/setup-mold@v1
 
       - name: pnpm-build
-        if: matrix.e2e-type == 'evm' && steps.check-conditions.outputs.skip-e2e != 'true'
+        if: (matrix.e2e-type == 'evm' || matrix.e2e-type == 'tron') && steps.check-conditions.outputs.skip-e2e != 'true'
         uses: ./.github/actions/pnpm-build-with-cache
 
       - name: Install system dependencies
@@ -159,6 +159,15 @@ jobs:
       - name: Setup sccache
         if: steps.check-conditions.outputs.skip-e2e != 'true'
         uses: ./.github/actions/setup-sccache
+
+      - name: agent tests (Tron)
+        if: ${{ matrix.e2e-type == 'tron' && steps.check-conditions.outputs.skip-e2e != 'true' }}
+        run: cargo test --release --package run-locally --bin run-locally --features tron -- tron::test --nocapture
+        working-directory: ./rust/main
+        env:
+          RUST_BACKTRACE: 'full'
+          E2E_CI_MODE: 'true'
+          E2E_CI_TIMEOUT_SEC: '600'
 
       - name: agent tests (CosmWasm)
         if: ${{ matrix.e2e-type == 'cosmwasm' && steps.check-conditions.outputs.skip-e2e != 'true' }}

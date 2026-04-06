@@ -10,11 +10,13 @@ import {
 import { type IProvider } from '@hyperlane-xyz/provider-sdk/altvm';
 import { type IRawHookArtifactManager } from '@hyperlane-xyz/provider-sdk/hook';
 import { type IRawIsmArtifactManager } from '@hyperlane-xyz/provider-sdk/ism';
+import { type IRawMailboxArtifactManager } from '@hyperlane-xyz/provider-sdk/mailbox';
 import {
   type AnnotatedTx,
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
 import { type IRawWarpArtifactManager } from '@hyperlane-xyz/provider-sdk/warp';
+import { type IRawValidatorAnnounceArtifactManager } from '@hyperlane-xyz/provider-sdk/validator-announce';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { CosmosHookArtifactManager } from '../hook/hook-artifact-manager.js';
@@ -23,6 +25,7 @@ import { CosmosWarpArtifactManager } from '../warp/warp-artifact-manager.js';
 
 import { CosmosNativeProvider } from './provider.js';
 import { CosmosNativeSigner } from './signer.js';
+import { CosmosMailboxArtifactManager } from '../mailbox/mailbox-artifact-manager.js';
 
 export class CosmosNativeProtocolProvider implements ProtocolProvider {
   createProvider(chainMetadata: ChainMetadataForAltVM): Promise<IProvider> {
@@ -90,6 +93,29 @@ export class CosmosNativeProtocolProvider implements ProtocolProvider {
     assert(chainMetadata.rpcUrls, 'rpc urls undefined');
     const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
     return new CosmosWarpArtifactManager(rpcUrls);
+  }
+
+  createMailboxArtifactManager(
+    chainMetadata: ChainMetadataForAltVM,
+  ): IRawMailboxArtifactManager {
+    const [rpcUrl, ...otherRpcUrls] =
+      chainMetadata.rpcUrls?.map((rpc) => rpc.http) ?? [];
+    assert(
+      rpcUrl,
+      `Expected at least one rpc url for chain ${chainMetadata.name}`,
+    );
+
+    return new CosmosMailboxArtifactManager({
+      domainId: chainMetadata.domainId,
+      rpcUrls: [rpcUrl, ...otherRpcUrls],
+    });
+  }
+
+  createValidatorAnnounceArtifactManager(
+    _chainMetadata: ChainMetadataForAltVM,
+  ): IRawValidatorAnnounceArtifactManager | null {
+    // Cosmos does not support validator announce
+    return null;
   }
 
   getMinGas(): MinimumRequiredGasByAction {

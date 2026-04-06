@@ -30,6 +30,7 @@ import {
   REGISTRY_PATH,
   WARP_CONFIG_PATH_1,
   WARP_CORE_CONFIG_PATH_1,
+  WARP_DEPLOY_1_ID,
   WARP_DEPLOY_CONFIG_PATH_1,
 } from '../consts.js';
 
@@ -102,7 +103,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
     );
   }
 
-  describe('hyperlane warp deploy --config ...', () => {
+  describe('hyperlane warp deploy', () => {
     it(`should exit early when the provided deployment file does not exist`, async function () {
       const nonExistingFilePath = 'non-existing-path';
       // Currently if the file provided in the config flag does not exist a prompt will still be shown to the
@@ -124,7 +125,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       const output = hyperlaneWarp
         .deployRaw({
-          warpDeployPath: nonExistingFilePath,
+          warpRouteId: nonExistingFilePath,
         })
         .stdio('pipe')
         .nothrow();
@@ -133,7 +134,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       expect(finalOutput.exitCode).to.equal(1);
       expect(finalOutput.text()).to.include(
-        `Warp route deployment config file not found at ${nonExistingFilePath}`,
+        `No warp route found for symbol "${nonExistingFilePath.toUpperCase()}"`,
       );
     });
 
@@ -180,7 +181,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       // Deploy
       const output = hyperlaneWarp
-        .deployRaw({ warpDeployPath: WARP_DEPLOY_CONFIG_PATH_1 })
+        .deployRaw({ warpRouteId: WARP_DEPLOY_1_ID })
         .stdio('pipe')
         .nothrow();
 
@@ -257,7 +258,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
     });
   });
 
-  describe('hyperlane warp deploy --config ... --yes', () => {
+  describe('hyperlane warp deploy --yes', () => {
     it(`should exit early when the provided deployment file does not exist and the skip flag is provided`, async function () {
       const nonExistingFilePath = 'non-existing-path';
       // Currently if the file provided in the config flag does not exist a prompt will still be shown to the
@@ -279,7 +280,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       const output = hyperlaneWarp
         .deployRaw({
-          warpDeployPath: nonExistingFilePath,
+          warpRouteId: nonExistingFilePath,
           skipConfirmationPrompts: true,
         })
         .stdio('pipe')
@@ -289,7 +290,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       expect(finalOutput.exitCode).to.equal(1);
       expect(finalOutput.text()).to.include(
-        `Warp route deployment config file not found at ${nonExistingFilePath}`,
+        `No warp route found for symbol "${nonExistingFilePath.toUpperCase()}"`,
       );
     });
 
@@ -332,7 +333,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       // Deploy
       const output = hyperlaneWarp
         .deployRaw({
-          warpDeployPath: WARP_DEPLOY_CONFIG_PATH_1,
+          warpRouteId: WARP_DEPLOY_1_ID,
           skipConfirmationPrompts: true,
         })
         .stdio('pipe')

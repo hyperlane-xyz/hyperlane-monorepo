@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/ccip-server",
-  "version": "27.1.0",
+  "version": "29.1.0",
   "private": true,
   "description": "CCIP server",
   "license": "Apache-2.0",
@@ -18,7 +18,7 @@
     "start": "tsx src/server.ts",
     "dev": "NODE_ENV=development LOG_FORMAT=pretty tsx watch src/server.ts",
     "test": "jest",
-    "lint": "eslint -c ./eslint.config.mjs",
+    "lint": "oxlint -c ../../oxlint.json",
     "format": "oxfmt --write ./src ./tests"
   },
   "dependencies": {
@@ -53,11 +53,7 @@
     "@types/node": "catalog:",
     "@types/pg": "^8.16.0",
     "@types/pino-http": "^5.8.4",
-    "@typescript-eslint/eslint-plugin": "catalog:",
-    "@typescript-eslint/parser": "catalog:",
     "@vercel/ncc": "catalog:",
-    "eslint": "catalog:",
-    "eslint-import-resolver-typescript": "catalog:",
     "jest": "^29.7.0",
     "nodemon": "^3.0.3",
     "pino-pretty": "catalog:",

@@ -18,6 +18,10 @@ import type { IRawWarpArtifactManager } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert } from '@hyperlane-xyz/utils';
 import { address as parseAddress } from '@solana/kit';
 
+import { type IRawMailboxArtifactManager } from '@hyperlane-xyz/provider-sdk/mailbox';
+import { type IRawValidatorAnnounceArtifactManager } from '@hyperlane-xyz/provider-sdk/validator-announce';
+import { SvmMailboxArtifactManager } from '../core/mailbox-artifact-manager.js';
+import { SvmValidatorAnnounceArtifactManager } from '../core/validator-announce-artifact-manager.js';
 import { SvmHookArtifactManager } from '../hook/hook-artifact-manager.js';
 import { SvmIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 import { createRpc } from '../rpc.js';
@@ -72,9 +76,23 @@ export class SvmProtocolProvider implements ProtocolProvider {
     return new SvmWarpArtifactManager(rpc);
   }
 
+  createMailboxArtifactManager(
+    chainMetadata: ChainMetadataForAltVM,
+  ): IRawMailboxArtifactManager {
+    const rpc = createRpc(this.getRpcUrls(chainMetadata)[0]);
+    return new SvmMailboxArtifactManager(rpc, chainMetadata.domainId);
+  }
+
+  createValidatorAnnounceArtifactManager(
+    chainMetadata: ChainMetadataForAltVM,
+  ): IRawValidatorAnnounceArtifactManager {
+    const rpc = createRpc(this.getRpcUrls(chainMetadata)[0]);
+    return new SvmValidatorAnnounceArtifactManager(rpc, chainMetadata.domainId);
+  }
+
   getMinGas(): MinimumRequiredGasByAction {
     return {
-      CORE_DEPLOY_GAS: 0n,
+      CORE_DEPLOY_GAS: 10_000_000_000n,
       // ~2.6 SOL covers program account rent + token PDA rent + ATA payer funding
       WARP_DEPLOY_GAS: 2_600_000_000n,
       TEST_SEND_GAS: 0n,

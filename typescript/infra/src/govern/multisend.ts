@@ -19,6 +19,10 @@ import {
   retrySafeApi,
 } from '../utils/safe.js';
 
+// Safe nonce overrides to ensure transactions are proposed at the correct nonce.
+// Remove entries once the transactions have been executed.
+const SAFE_NONCE_OVERRIDES: Record<string, number> = {};
+
 export abstract class MultiSend {
   abstract sendTransactions(calls: CallData[]): Promise<void>;
 }
@@ -102,11 +106,15 @@ export class SafeMultiSend extends MultiSend {
 
   // Helper function to propose individual transactions
   private async proposeIndividualTransactions(calls: CallData[]) {
+    const nonce = SAFE_NONCE_OVERRIDES[this.chain];
     for (const call of calls) {
       const safeTransactionData = createSafeTransactionData(call);
-      const safeTransaction = await createSafeTransaction(this.safeSdk, [
-        safeTransactionData,
-      ]);
+      const safeTransaction = await createSafeTransaction(
+        this.safeSdk,
+        [safeTransactionData],
+        undefined,
+        nonce,
+      );
       await this.proposeSafeTransaction(
         this.safeSdk,
         this.safeService,
@@ -117,6 +125,7 @@ export class SafeMultiSend extends MultiSend {
 
   // Helper function to propose a multi-send transaction
   private async proposeMultiSendTransaction(calls: CallData[]) {
+    const nonce = SAFE_NONCE_OVERRIDES[this.chain];
     const safeTransactionData = calls.map((call) =>
       createSafeTransactionData(call),
     );
@@ -124,6 +133,7 @@ export class SafeMultiSend extends MultiSend {
       this.safeSdk,
       safeTransactionData,
       true,
+      nonce,
     );
     await this.proposeSafeTransaction(
       this.safeSdk,

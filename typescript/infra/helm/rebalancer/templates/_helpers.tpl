@@ -70,6 +70,8 @@ The rebalancer container
   image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
   imagePullPolicy: IfNotPresent
   env:
+  - name: SERVICE_NAME
+    value: {{ .Values.serviceName | default "rebalancer" | quote }}
   - name: LOG_FORMAT
     value: json
   - name: LOG_LEVEL

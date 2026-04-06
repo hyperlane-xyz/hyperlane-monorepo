@@ -53,6 +53,9 @@ export class ForkIndexer {
       return; // No-op: nothing to scan yet
     }
 
+    // Check delivery status for previously discovered messages
+    await this.updateDeliveryStatus(confirmedBlockTags);
+
     for (const [chain] of this.providers) {
       const currentBlock = confirmedBlockTags[chain];
       if (currentBlock === undefined) {
@@ -138,5 +141,43 @@ export class ForkIndexer {
 
       this.lastScannedBlock.set(chain, currentBlockNumber);
     }
+  }
+
+  private async updateDeliveryStatus(
+    confirmedBlockTags: ConfirmedBlockTags,
+  ): Promise<void> {
+    const allMessages = [...this.rebalanceActions, ...this.userTransfers];
+    await Promise.all(
+      allMessages.map(async (msg) => {
+        if (msg.is_delivered) return;
+
+        const destChain = this.core.multiProvider.tryGetChainName(
+          msg.destination_domain_id,
+        );
+        if (!destChain) return;
+
+        const blockTag = confirmedBlockTags[destChain];
+        if (blockTag === undefined) return;
+
+        try {
+          const mailbox = this.core.getContracts(destChain).mailbox;
+          const delivered = await mailbox.delivered(msg.msg_id, {
+            blockTag,
+          });
+          if (delivered) {
+            msg.is_delivered = true;
+            this.logger.debug(
+              { msgId: msg.msg_id, destChain },
+              'ForkIndexer marked message as delivered',
+            );
+          }
+        } catch (error) {
+          this.logger.debug(
+            { msgId: msg.msg_id, destChain, error },
+            'Failed to check delivery status',
+          );
+        }
+      }),
+    );
   }
 }

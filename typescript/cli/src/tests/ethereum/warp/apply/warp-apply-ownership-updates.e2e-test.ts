@@ -60,7 +60,6 @@ describe('hyperlane warp apply E2E (ownership updates)', async function () {
 
     fixture.writeConfigs();
     await evmWarpCommands.deploy(
-      DEFAULT_EVM_WARP_DEPLOY_PATH,
       HYP_KEY_BY_PROTOCOL.ethereum,
       DEFAULT_EVM_WARP_ID,
     );
@@ -188,7 +187,7 @@ describe('hyperlane warp apply E2E (ownership updates)', async function () {
     const tokenFeeConfig = {
       type: TokenFeeType.LinearFee as const,
       owner: feeOwner,
-      bps: BigInt('100'),
+      bps: 100,
     };
 
     const warpDeployConfig = fixture.getDeployConfig();

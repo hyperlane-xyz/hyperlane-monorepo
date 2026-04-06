@@ -1,4 +1,3 @@
-import { Address } from '@arbitrum/sdk';
 import { expect } from 'chai';
 import { constants } from 'ethers';
 
@@ -11,12 +10,17 @@ import {
 } from '../fee/types.js';
 import { HookType } from '../hook/types.js';
 import { IsmType } from '../ism/types.js';
+import type { WarpCoreConfig } from '../warp/types.js';
 
 import { TokenType } from './config.js';
 import {
+  filterWarpCoreConfigMapByChains,
+  getChainsFromWarpCoreConfig,
   resolveTokenFeeAddress,
   transformConfigToCheck,
+  warpCoreConfigMatchesChains,
 } from './configUtils.js';
+import { TokenStandard } from './TokenStandard.js';
 import { HypTokenConfig } from './types.js';
 
 describe('configUtils', () => {
@@ -48,7 +52,7 @@ describe('configUtils', () => {
               },
               {
                 type: IsmType.FALLBACK_ROUTING,
-                address: Address,
+                address: ADDRESS,
               },
             ],
           },
@@ -458,7 +462,7 @@ describe('configUtils', () => {
       const input = {
         type: TokenFeeType.LinearFee as const,
         owner: OWNER_ADDRESS,
-        bps: 100n,
+        bps: 100,
       };
 
       const result = resolveTokenFeeAddress(
@@ -475,7 +479,7 @@ describe('configUtils', () => {
       const input = {
         type: TokenFeeType.LinearFee as const,
         owner: OWNER_ADDRESS,
-        bps: 100n,
+        bps: 100,
       };
 
       const result = resolveTokenFeeAddress(
@@ -491,7 +495,7 @@ describe('configUtils', () => {
       const input = {
         type: TokenFeeType.LinearFee as const,
         owner: OWNER_ADDRESS,
-        bps: 100n,
+        bps: 100,
       };
 
       const result = resolveTokenFeeAddress(
@@ -511,12 +515,12 @@ describe('configUtils', () => {
           ethereum: {
             type: TokenFeeType.LinearFee as const,
             owner: OWNER_ADDRESS,
-            bps: 100n,
+            bps: 100,
           },
           arbitrum: {
             type: TokenFeeType.LinearFee as const,
             owner: OWNER_ADDRESS,
-            bps: 50n,
+            bps: 50,
           },
         },
       };
@@ -590,6 +594,88 @@ describe('configUtils', () => {
       expect(result.feeContracts.ethereum[ROUTER_KEY]?.token).to.equal(
         ROUTER_ADDRESS,
       );
+    });
+  });
+
+  const buildWarpCoreConfig = (chainNames: string[]): WarpCoreConfig => ({
+    tokens: chainNames.map((chainName, index) => ({
+      chainName,
+      standard: TokenStandard.EvmHypSynthetic,
+      decimals: 18,
+      symbol: `TKN${index + 1}`,
+      name: `Token ${index + 1}`,
+      addressOrDenom: `0x${(index + 1).toString(16).padStart(40, '0')}`,
+    })),
+  });
+
+  describe('getChainsFromWarpCoreConfig', () => {
+    it('should return chain names from tokens', () => {
+      const config = buildWarpCoreConfig(['ethereum', 'arbitrum', 'optimism']);
+
+      const result = getChainsFromWarpCoreConfig(config);
+      expect(result).to.deep.equal(['ethereum', 'arbitrum', 'optimism']);
+    });
+
+    it('should return empty array for empty tokens', () => {
+      const config = buildWarpCoreConfig([]);
+      const result = getChainsFromWarpCoreConfig(config);
+      expect(result).to.deep.equal([]);
+    });
+  });
+
+  describe('warpCoreConfigMatchesChains', () => {
+    const config = buildWarpCoreConfig(['ethereum', 'arbitrum', 'optimism']);
+
+    it('should return true when all chains are present', () => {
+      expect(warpCoreConfigMatchesChains(config, ['ethereum', 'arbitrum'])).to
+        .be.true;
+    });
+
+    it('should return true for single chain match', () => {
+      expect(warpCoreConfigMatchesChains(config, ['optimism'])).to.be.true;
+    });
+
+    it('should return false when a chain is missing', () => {
+      expect(warpCoreConfigMatchesChains(config, ['ethereum', 'polygon'])).to.be
+        .false;
+    });
+
+    it('should return true for empty chains array', () => {
+      expect(warpCoreConfigMatchesChains(config, [])).to.be.true;
+    });
+  });
+
+  describe('filterWarpCoreConfigMapByChains', () => {
+    const configMap: Record<string, WarpCoreConfig> = {
+      'ETH/ethereum-arbitrum': buildWarpCoreConfig(['ethereum', 'arbitrum']),
+      'ETH/ethereum-optimism': buildWarpCoreConfig(['ethereum', 'optimism']),
+      'USDC/arbitrum-optimism': buildWarpCoreConfig(['arbitrum', 'optimism']),
+    };
+
+    it('should filter to routes containing all specified chains', () => {
+      const result = filterWarpCoreConfigMapByChains(configMap, [
+        'ethereum',
+        'arbitrum',
+      ]);
+      expect(Object.keys(result)).to.deep.equal(['ETH/ethereum-arbitrum']);
+    });
+
+    it('should return multiple routes when chains match multiple', () => {
+      const result = filterWarpCoreConfigMapByChains(configMap, ['ethereum']);
+      expect(Object.keys(result).sort()).to.deep.equal([
+        'ETH/ethereum-arbitrum',
+        'ETH/ethereum-optimism',
+      ]);
+    });
+
+    it('should return empty object when no routes match', () => {
+      const result = filterWarpCoreConfigMapByChains(configMap, ['polygon']);
+      expect(Object.keys(result)).to.have.lengthOf(0);
+    });
+
+    it('should return all routes for empty chains array', () => {
+      const result = filterWarpCoreConfigMapByChains(configMap, []);
+      expect(Object.keys(result)).to.have.lengthOf(3);
     });
   });
 });

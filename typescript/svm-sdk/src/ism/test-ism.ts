@@ -1,8 +1,4 @@
-import {
-  address as parseAddress,
-  type Rpc,
-  type SolanaRpcApi,
-} from '@solana/kit';
+import { address as parseAddress } from '@solana/kit';
 
 import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
@@ -22,19 +18,25 @@ import type {
   SvmDeployedIsm,
   SvmProgramTarget,
   SvmReceipt,
+  SvmRpc,
 } from '../types.js';
 
 import { fetchTestIsmStorageAccount } from './ism-query.js';
 
-export interface SvmTestIsmConfig extends TestIsmConfig {
+/**
+ * Deployment-time configuration for the SVM test ISM writer.
+ * Passed to the writer constructor; separate from the on-chain artifact config.
+ */
+export type SvmTestIsmWriterConfig = Readonly<{
+  /** How to obtain the deployed program: fresh bytes or pre-existing ID. */
   program: SvmProgramTarget;
-}
+}>;
 
 export class SvmTestIsmReader implements ArtifactReader<
   TestIsmConfig,
   SvmDeployedIsm
 > {
-  constructor(protected readonly rpc: Rpc<SolanaRpcApi>) {}
+  constructor(protected readonly rpc: SvmRpc) {}
 
   async read(
     address: string,
@@ -58,20 +60,18 @@ export class SvmTestIsmWriter
   implements ArtifactWriter<TestIsmConfig, SvmDeployedIsm>
 {
   constructor(
-    rpc: Rpc<SolanaRpcApi>,
+    private readonly config: SvmTestIsmWriterConfig,
+    rpc: SvmRpc,
     private readonly svmSigner: SvmSigner,
   ) {
     super(rpc);
   }
 
   async create(
-    artifact: ArtifactNew<TestIsmConfig>,
+    _artifact: ArtifactNew<TestIsmConfig>,
   ): Promise<[ArtifactDeployed<TestIsmConfig, SvmDeployedIsm>, SvmReceipt[]]> {
-    // CAST: ArtifactWriter interface uses base TestIsmConfig, but SVM
-    // needs the extra `program` field from SvmTestIsmConfig.
-    const config = artifact.config as SvmTestIsmConfig;
     const { programAddress, receipts } = await resolveProgram(
-      config.program,
+      this.config.program,
       this.svmSigner,
       this.rpc,
     );
@@ -84,6 +84,7 @@ export class SvmTestIsmWriter
       );
       const initReceipt = await this.svmSigner.send({
         instructions: [instruction],
+        skipPreflight: true,
       });
       receipts.push(initReceipt);
     }
