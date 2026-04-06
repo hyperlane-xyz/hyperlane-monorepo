@@ -123,8 +123,13 @@ export class WarpMonitor {
     const warpDeployConfig =
       await this.registry.getWarpDeployConfig(warpRouteId);
     const routerNodes = this.buildRouterNodes(warpCore, chainMetadata);
+    const explorerRouterNodes = this.buildExplorerRouterNodes(routerNodes);
     const pendingTransfersClient = explorerApiUrl
-      ? new ExplorerPendingTransfersClient(explorerApiUrl, routerNodes, logger)
+      ? new ExplorerPendingTransfersClient(
+          explorerApiUrl,
+          explorerRouterNodes,
+          logger,
+        )
       : undefined;
 
     logger.info(
@@ -134,8 +139,11 @@ export class WarpMonitor {
         tokenCount: warpCore.tokens.length,
         chains: warpCore.getTokenChains(),
         crossCollateralNodeCount: routerNodes.length,
+        explorerNodeCount: explorerRouterNodes.length,
         explorerEnabled: !!pendingTransfersClient,
-        inventoryTrackingEnabled: !!inventoryAddress,
+        inventoryTrackingEnabled: routerNodes.some((node) =>
+          this.getConfiguredInventoryAddress(node, inventoryAddress),
+        ),
       },
       'Starting warp route monitor',
     );
@@ -351,13 +359,18 @@ export class WarpMonitor {
       );
     }
 
-    if (!inventoryAddress) return;
-
     await Promise.all(
       routerNodes.map(async (node) => {
+        const configuredInventoryAddress = this.getConfiguredInventoryAddress(
+          node,
+          inventoryAddress,
+        );
+        if (!configuredInventoryAddress) return;
         try {
           const adapter = node.token.getAdapter(warpCore.multiProvider);
-          const inventoryBalance = await adapter.getBalance(inventoryAddress);
+          const inventoryBalance = await adapter.getBalance(
+            configuredInventoryAddress,
+          );
 
           updateInventoryBalanceMetrics({
             warpRouteId,
@@ -367,7 +380,7 @@ export class WarpMonitor {
             tokenAddress: node.tokenAddress,
             tokenSymbol: node.tokenSymbol,
             tokenName: node.tokenName,
-            inventoryAddress,
+            inventoryAddress: configuredInventoryAddress,
             inventoryBalance: this.formatTokenAmount(
               node.token,
               inventoryBalance,
@@ -383,6 +396,24 @@ export class WarpMonitor {
         }
       }),
     );
+  }
+
+  private getConfiguredInventoryAddress(
+    node: RouterNodeMetadata,
+    inventoryAddress?: string,
+  ): string | undefined {
+    const protocolInventoryAddress =
+      process.env[
+        `INVENTORY_ADDRESS_${node.token.protocol.toUpperCase()}`
+      ]?.trim();
+
+    if (protocolInventoryAddress) {
+      return protocolInventoryAddress;
+    }
+
+    return node.token.protocol === ProtocolType.Ethereum
+      ? inventoryAddress
+      : undefined;
   }
 
   // Updates the metrics for a single token in a warp route.
@@ -598,6 +629,16 @@ export class WarpMonitor {
     }
 
     return [...nodeByKey.values()];
+  }
+
+  private buildExplorerRouterNodes(
+    routerNodes: RouterNodeMetadata[],
+  ): RouterNodeMetadata[] {
+    return routerNodes.filter(
+      (node) =>
+        node.token.protocol === ProtocolType.Ethereum &&
+        ethersUtils.isAddress(node.routerAddress),
+    );
   }
 
   private buildNodeId(token: Token): string {

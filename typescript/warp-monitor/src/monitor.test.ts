@@ -20,12 +20,15 @@ function createMockToken({
   collateralized,
   decimals,
   getBalance = async () => 0n,
+  protocol = ProtocolType.Ethereum,
 }: {
   collateralized: boolean;
   decimals: number;
-  getBalance?: () => Promise<bigint>;
+  getBalance?: (address: string) => Promise<bigint>;
+  protocol?: ProtocolType;
 }): Token {
   return {
+    protocol,
     isCollateralized: () => collateralized,
     amount: ((amount: bigint) => ({
       getDecimalFormattedAmount: () => Number(amount) / 10 ** decimals,
@@ -82,8 +85,22 @@ function invokeBuildRouterNodes(
   return buildRouterNodes.call(monitor, warpCore, chainMetadata);
 }
 
+function invokeBuildExplorerRouterNodes(
+  monitor: WarpMonitor,
+  routerNodes: RouterNodeMetadata[],
+): RouterNodeMetadata[] {
+  const buildExplorerRouterNodes = (monitor as any)
+    .buildExplorerRouterNodes as (
+    routerNodes: RouterNodeMetadata[],
+  ) => RouterNodeMetadata[];
+
+  return buildExplorerRouterNodes.call(monitor, routerNodes);
+}
+
 describe('WarpMonitor', () => {
   afterEach(() => {
+    delete process.env.INVENTORY_ADDRESS_ETHEREUM;
+    delete process.env.INVENTORY_ADDRESS_SEALEVEL;
     resetPendingDestinationMetrics();
     resetInventoryBalanceMetrics();
   });
@@ -260,6 +277,62 @@ describe('WarpMonitor', () => {
     );
   });
 
+  it('excludes Solana router nodes from explorer queries', () => {
+    const monitor = new WarpMonitor(
+      {
+        warpRouteId: 'CROSS/ctusd',
+        checkFrequency: 10_000,
+        explorerApiUrl: 'https://explorer.example/graphql',
+      },
+      {} as IRegistry,
+    );
+
+    const evmNodeId = 'USDC|base|0x1234567890123456789012345678901234567890';
+    const sealevelNodeId =
+      'USDC|solanamainnet|SolRouter1111111111111111111111111111111';
+    const routerNodes: RouterNodeMetadata[] = [
+      {
+        nodeId: evmNodeId,
+        chainName: 'base' as RouterNodeMetadata['chainName'],
+        domainId: 8453,
+        routerAddress: '0x1234567890123456789012345678901234567890',
+        tokenAddress: '0xabcdef1234567890123456789012345678901234',
+        tokenName: 'USD Coin',
+        tokenSymbol: 'USDC',
+        tokenDecimals: 6,
+        token: createMockToken({
+          collateralized: true,
+          decimals: 6,
+          protocol: ProtocolType.Ethereum,
+        }),
+      },
+      {
+        nodeId: sealevelNodeId,
+        chainName: 'solanamainnet' as RouterNodeMetadata['chainName'],
+        domainId: 1399811149,
+        routerAddress: 'SolRouter1111111111111111111111111111111',
+        tokenAddress: 'SolMint1111111111111111111111111111111111',
+        tokenName: 'USD Coin',
+        tokenSymbol: 'USDC',
+        tokenDecimals: 6,
+        token: createMockToken({
+          collateralized: true,
+          decimals: 6,
+          protocol: ProtocolType.Sealevel,
+        }),
+      },
+    ];
+
+    const explorerRouterNodes = invokeBuildExplorerRouterNodes(
+      monitor,
+      routerNodes,
+    );
+
+    expect(explorerRouterNodes.map((node) => node.nodeId)).to.deep.equal([
+      evmNodeId,
+    ]);
+  });
+
   it('does not emit inventory metrics when balance read fails', async () => {
     const monitor = new WarpMonitor(
       {
@@ -319,6 +392,167 @@ describe('WarpMonitor', () => {
     expect(
       inventoryLines.some((line) => line.includes(`node_id="${nodeId}"`)),
     ).to.equal(false);
+  });
+
+  it('uses protocol-specific inventory addresses when configured', async () => {
+    process.env.INVENTORY_ADDRESS_ETHEREUM =
+      '0xEA2117b24F7947647Bec60527B68f4244AE40c01';
+    process.env.INVENTORY_ADDRESS_SEALEVEL =
+      'EqC3NZkibWavWcT6HnU8tz4jiFxTEayKQyEPz3KZU4uc';
+
+    const monitor = new WarpMonitor(
+      {
+        warpRouteId: 'CROSS/ctusd',
+        checkFrequency: 10_000,
+      },
+      {} as IRegistry,
+    );
+
+    const evmNodeId = 'USDC|base|0xroutera';
+    const sealevelNodeId =
+      'USDC|solanamainnet|SolRouter1111111111111111111111111111111';
+    const calls: string[] = [];
+    const routerNodes: RouterNodeMetadata[] = [
+      {
+        nodeId: evmNodeId,
+        chainName: 'base' as RouterNodeMetadata['chainName'],
+        domainId: 8453,
+        routerAddress: '0xroutera',
+        tokenAddress: '0xtokena',
+        tokenName: 'USD Coin',
+        tokenSymbol: 'USDC',
+        tokenDecimals: 6,
+        token: createMockToken({
+          collateralized: true,
+          decimals: 6,
+          getBalance: async (address: string) => {
+            calls.push(address);
+            return 2_000_000n;
+          },
+        }),
+      },
+      {
+        nodeId: sealevelNodeId,
+        chainName: 'solanamainnet' as RouterNodeMetadata['chainName'],
+        domainId: 1399811149,
+        routerAddress: 'SolRouter1111111111111111111111111111111',
+        tokenAddress: 'SolMint1111111111111111111111111111111111',
+        tokenName: 'USD Coin',
+        tokenSymbol: 'USDC',
+        tokenDecimals: 6,
+        token: createMockToken({
+          collateralized: true,
+          decimals: 6,
+          protocol: ProtocolType.Sealevel,
+          getBalance: async (address: string) => {
+            calls.push(address);
+            return 3_000_000n;
+          },
+        }),
+      },
+    ];
+
+    const pendingTransfersClient: Pick<
+      ExplorerPendingTransfersClient,
+      'getPendingDestinationTransfers'
+    > = {
+      async getPendingDestinationTransfers() {
+        return [] as PendingDestinationTransfer[];
+      },
+    };
+
+    await invokeUpdatePendingAndInventoryMetrics(
+      monitor,
+      { multiProvider: {} } as WarpCore,
+      routerNodes,
+      new Map(),
+      'CROSS/ctusd',
+      pendingTransfersClient as ExplorerPendingTransfersClient,
+      200,
+    );
+
+    expect(calls).to.deep.equal([
+      '0xEA2117b24F7947647Bec60527B68f4244AE40c01',
+      'EqC3NZkibWavWcT6HnU8tz4jiFxTEayKQyEPz3KZU4uc',
+    ]);
+  });
+
+  it('does not use the global inventory address for Sealevel nodes', async () => {
+    const monitor = new WarpMonitor(
+      {
+        warpRouteId: 'CROSS/ctusd',
+        checkFrequency: 10_000,
+      },
+      {} as IRegistry,
+    );
+
+    const evmNodeId = 'USDC|base|0xroutera';
+    const sealevelNodeId =
+      'USDC|solanamainnet|SolRouter1111111111111111111111111111111';
+    const calls: string[] = [];
+    const routerNodes: RouterNodeMetadata[] = [
+      {
+        nodeId: evmNodeId,
+        chainName: 'base' as RouterNodeMetadata['chainName'],
+        domainId: 8453,
+        routerAddress: '0xroutera',
+        tokenAddress: '0xtokena',
+        tokenName: 'USD Coin',
+        tokenSymbol: 'USDC',
+        tokenDecimals: 6,
+        token: createMockToken({
+          collateralized: true,
+          decimals: 6,
+          getBalance: async (address: string) => {
+            calls.push(`evm:${address}`);
+            return 2_000_000n;
+          },
+        }),
+      },
+      {
+        nodeId: sealevelNodeId,
+        chainName: 'solanamainnet' as RouterNodeMetadata['chainName'],
+        domainId: 1399811149,
+        routerAddress: 'SolRouter1111111111111111111111111111111',
+        tokenAddress: 'SolMint1111111111111111111111111111111111',
+        tokenName: 'USD Coin',
+        tokenSymbol: 'USDC',
+        tokenDecimals: 6,
+        token: createMockToken({
+          collateralized: true,
+          decimals: 6,
+          protocol: ProtocolType.Sealevel,
+          getBalance: async (address: string) => {
+            calls.push(`sealevel:${address}`);
+            return 3_000_000n;
+          },
+        }),
+      },
+    ];
+
+    const pendingTransfersClient: Pick<
+      ExplorerPendingTransfersClient,
+      'getPendingDestinationTransfers'
+    > = {
+      async getPendingDestinationTransfers() {
+        return [] as PendingDestinationTransfer[];
+      },
+    };
+
+    await invokeUpdatePendingAndInventoryMetrics(
+      monitor,
+      { multiProvider: {} } as WarpCore,
+      routerNodes,
+      new Map(),
+      'CROSS/ctusd',
+      pendingTransfersClient as ExplorerPendingTransfersClient,
+      200,
+      '0xEA2117b24F7947647Bec60527B68f4244AE40c01',
+    );
+
+    expect(calls).to.deep.equal([
+      'evm:0xEA2117b24F7947647Bec60527B68f4244AE40c01',
+    ]);
   });
 
   it('resets pending metrics and still updates inventory when explorer query fails', async () => {
