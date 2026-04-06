@@ -10,6 +10,7 @@ import {
   MailboxClient__factory,
   MovableCollateralRouter__factory,
   ProxyAdmin__factory,
+  TokenBridgeCctpV2__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
@@ -79,6 +80,7 @@ import {
   VERSION_ERROR_MESSAGE,
   contractVersionMatchesDependency,
   derivedIsmAddress,
+  isCctpTokenConfig,
   isEverclearTokenBridgeConfig,
   isMovableCollateralTokenConfig,
   isCrossCollateralTokenConfig,
@@ -1438,6 +1440,27 @@ export class EvmWarpModule extends HyperlaneModule<
         [proxyAddress, implementation.address],
       ),
     });
+
+    // After upgrading CCTP V2 routes, set maxFeePpm on the proxy since the
+    // storage slot name changed from maxFeeBps to maxFeePpm and the constructor
+    // only writes to the implementation's storage, not the proxy's.
+    if (
+      isCctpTokenConfig(expectedConfig) &&
+      expectedConfig.cctpVersion === 'V2' &&
+      expectedConfig.maxFeeBps !== undefined &&
+      expectedConfig.maxFeeBps > 0
+    ) {
+      const maxFeePpm = Math.round(expectedConfig.maxFeeBps * 100);
+      updateTransactions.push({
+        chainId: this.chainId,
+        annotation: `Setting maxFeePpm to ${maxFeePpm} on ${this.args.chain}`,
+        to: proxyAddress,
+        data: TokenBridgeCctpV2__factory.createInterface().encodeFunctionData(
+          'setMaxFeePpm',
+          [maxFeePpm],
+        ),
+      });
+    }
 
     return updateTransactions;
   }
