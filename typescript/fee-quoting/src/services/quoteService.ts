@@ -385,27 +385,19 @@ function resolveFeeQuoter(
   return { resolved: true, address: resolved.address };
 }
 
+type ObjectHookConfig = Exclude<HookConfig, string>;
+
 /** Resolve the hook config for a specific destination, unwrapping routing layers. */
 function resolveDestinationHook(
-  hook: Exclude<HookConfig, string>,
+  hook: ObjectHookConfig,
   destChainName: string,
-): Exclude<HookConfig, string> | undefined {
-  if (
-    hook.type !== HookType.ROUTING &&
-    hook.type !== HookType.FALLBACK_ROUTING
-  ) {
+): ObjectHookConfig | undefined {
+  if (hook.type !== HookType.ROUTING && hook.type !== HookType.FALLBACK_ROUTING)
     return hook;
-  }
-  const destHook = hook.domains[destChainName];
-  if (destHook && typeof destHook !== 'string') return destHook;
-  if (
-    hook.type === HookType.FALLBACK_ROUTING &&
-    hook.fallback &&
-    typeof hook.fallback !== 'string'
-  ) {
-    return hook.fallback;
-  }
-  return undefined;
+  const resolved =
+    hook.domains[destChainName] ??
+    (hook.type === HookType.FALLBACK_ROUTING ? hook.fallback : undefined);
+  return resolved && typeof resolved !== 'string' ? resolved : undefined;
 }
 
 function resolveIgp(
