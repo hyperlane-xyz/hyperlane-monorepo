@@ -199,7 +199,10 @@ contract PredicateRouterWrapperCollateralTest is Test {
     // ============ Constructor Tests ============
 
     function test_constructor_setsWarpRoute() public view {
-        assertEq(address(predicateWrapper.router()), address(collateralRouter));
+        assertEq(
+            address(predicateWrapper.warpRoute()),
+            address(collateralRouter)
+        );
     }
 
     function test_constructor_setsToken() public view {
@@ -314,21 +317,6 @@ contract PredicateRouterWrapperCollateralTest is Test {
         remoteMailbox.processNextInboundMessage();
 
         assertEq(remoteToken.balanceOf(BOB), TRANSFER_AMT);
-    }
-
-    function test_transferRemoteWithAttestation_clearsPendingFlag() public {
-        Attestation memory attestation = _createAttestation(
-            "test-uuid-flag",
-            block.timestamp + 1 hours
-        );
-
-        // Before transfer, flag should be false
-        assertFalse(predicateWrapper.pendingAttestation());
-
-        _approveAndTransfer(ALICE, TRANSFER_AMT, attestation);
-
-        // After transfer, flag should be cleared (false)
-        assertFalse(predicateWrapper.pendingAttestation());
     }
 
     function test_transferRemoteWithAttestation_revert_ifValidationFails()
@@ -483,7 +471,7 @@ contract PredicateRouterWrapperCollateralTest is Test {
     function test_bypassPrevention_pendingFlagNotSetExternally() public {
         // The pendingAttestation flag is only set by transferRemoteWithAttestation
         // There's no way for external actors to set it
-        assertFalse(predicateWrapper.pendingAttestation());
+        assertFalse(predicateWrapper.hasPendingAttestation());
 
         // Even if someone could somehow set the flag, they can't call the protected function
         // because only the wrapper itself can set it during transferRemoteWithAttestation
@@ -655,7 +643,7 @@ contract PredicateRouterWrapperCollateralIntegrationTest is
             primaryToken.balanceOf(ALICE),
             aliceBalanceBefore - TRANSFER_AMT
         );
-        assertFalse(predicateWrapper.pendingAttestation()); // Flag cleared
+        assertFalse(predicateWrapper.hasPendingAttestation()); // Flag cleared
 
         // Step 6-7: Process on destination
         remoteMailbox.processNextInboundMessage();

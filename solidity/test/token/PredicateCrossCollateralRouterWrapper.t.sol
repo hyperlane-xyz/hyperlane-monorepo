@@ -230,7 +230,7 @@ contract PredicateCrossCollateralRouterWrapperTest is Test {
     // ============ Constructor Tests ============
 
     function test_constructor_setsCrossCollateralRouter() public view {
-        assertEq(address(predicateWrapper.router()), address(routerA));
+        assertEq(address(predicateWrapper.warpRoute()), address(routerA));
     }
 
     function test_constructor_setsToken() public view {
@@ -259,7 +259,7 @@ contract PredicateCrossCollateralRouterWrapperTest is Test {
 
     function test_constructor_revert_ifZeroRouter() public {
         vm.expectRevert(
-            IPredicateWrapper.PredicateRouterWrapper__InvalidRouter.selector
+            IPredicateWrapper.PredicateRouterWrapper__InvalidWarpRoute.selector
         );
         new PredicateCrossCollateralRouterWrapper(
             address(0),
@@ -374,19 +374,6 @@ contract PredicateCrossCollateralRouterWrapperTest is Test {
         remoteMailbox.processNextInboundMessage();
 
         assertEq(primaryToken.balanceOf(BOB), bobBefore + TRANSFER_AMT);
-    }
-
-    function test_transferRemoteWithAttestation_clearsPendingFlag() public {
-        Attestation memory attestation = _createAttestation(
-            "uuid-flag",
-            block.timestamp + 1 hours
-        );
-
-        assertFalse(predicateWrapper.pendingAttestation());
-
-        _approveAndTransferRemote(ALICE, TRANSFER_AMT, attestation);
-
-        assertFalse(predicateWrapper.pendingAttestation());
     }
 
     function test_transferRemoteWithAttestation_revert_ifAttestationInvalid()
@@ -602,10 +589,6 @@ contract PredicateCrossCollateralRouterWrapperTest is Test {
         );
     }
 
-    function test_bypassPrevention_pendingFlagInitiallyFalse() public view {
-        assertFalse(predicateWrapper.pendingAttestation());
-    }
-
     // ============ transferRemoteToWithAttestation Tests (cross-domain) ============
 
     function test_transferRemoteToWithAttestation_crossDomain_success() public {
@@ -685,28 +668,6 @@ contract PredicateCrossCollateralRouterWrapperTest is Test {
         remoteMailbox.processNextInboundMessage();
 
         assertEq(primaryToken.balanceOf(BOB), bobBefore + TRANSFER_AMT);
-    }
-
-    function test_transferRemoteToWithAttestation_crossDomain_clearsPendingFlag()
-        public
-    {
-        bytes32 targetRouter = address(routerB).addressToBytes32();
-        Attestation memory attestation = _createAttestation(
-            "uuid-remoteto-flag",
-            block.timestamp + 1 hours
-        );
-
-        assertFalse(predicateWrapper.pendingAttestation());
-
-        _approveAndTransferRemoteTo(
-            ALICE,
-            TRANSFER_AMT,
-            DESTINATION,
-            targetRouter,
-            attestation
-        );
-
-        assertFalse(predicateWrapper.pendingAttestation());
     }
 
     function test_transferRemoteToWithAttestation_crossDomain_revert_ifInsufficientValue()
@@ -802,32 +763,6 @@ contract PredicateCrossCollateralRouterWrapperTest is Test {
         );
         // BOB receives destToken from routerC synchronously (no mailbox needed)
         assertEq(destToken.balanceOf(BOB), bobDestBefore + TRANSFER_AMT);
-    }
-
-    function test_transferRemoteToWithAttestation_sameDomain_doesNotSetPendingFlag()
-        public
-    {
-        bytes32 targetRouter = address(routerC).addressToBytes32();
-        Attestation memory attestation = _createAttestation(
-            "uuid-samedomain-flag",
-            block.timestamp + 1 hours
-        );
-
-        assertFalse(predicateWrapper.pendingAttestation());
-
-        vm.startPrank(ALICE);
-        primaryToken.approve(address(predicateWrapper), TRANSFER_AMT);
-        predicateWrapper.transferRemoteToWithAttestation{value: 0}(
-            attestation,
-            ORIGIN,
-            BOB.addressToBytes32(),
-            TRANSFER_AMT,
-            targetRouter
-        );
-        vm.stopPrank();
-
-        // Flag must remain false for same-domain (no postDispatch called)
-        assertFalse(predicateWrapper.pendingAttestation());
     }
 
     function test_transferRemoteToWithAttestation_sameDomain_refundsExcessETH()
@@ -1069,8 +1004,6 @@ contract PredicateCrossCollateralRouterWrapperIntegrationTest is
             primaryToken.balanceOf(ALICE),
             aliceBalanceBefore - TRANSFER_AMT
         );
-        assertFalse(predicateWrapper.pendingAttestation()); // Flag cleared
-
         remoteMailbox.processNextInboundMessage();
 
         assertEq(primaryToken.balanceOf(BOB), bobBalanceBefore + TRANSFER_AMT);

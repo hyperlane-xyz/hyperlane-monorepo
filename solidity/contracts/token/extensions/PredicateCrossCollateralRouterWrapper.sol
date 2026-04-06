@@ -96,7 +96,7 @@ contract PredicateCrossCollateralRouterWrapper is
         uint256 _amount,
         bytes32 _targetRouter
     ) external payable returns (bytes32 messageId) {
-        CrossCollateralRouter ccr = CrossCollateralRouter(address(router));
+        CrossCollateralRouter ccr = CrossCollateralRouter(address(warpRoute));
 
         bytes memory encodedSigAndArgs = abi.encodeWithSelector(
             CrossCollateralRouter.transferRemoteTo.selector,
@@ -144,7 +144,7 @@ contract PredicateCrossCollateralRouterWrapper is
         bytes32 _targetRouter
     ) external view override returns (Quote[] memory quotes) {
         return
-            CrossCollateralRouter(address(router)).quoteTransferRemoteTo(
+            CrossCollateralRouter(address(warpRoute)).quoteTransferRemoteTo(
                 _destination,
                 _recipient,
                 _amount,

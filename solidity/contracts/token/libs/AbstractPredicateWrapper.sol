@@ -19,6 +19,7 @@ import {ITokenBridge, ITokenFee, Quote} from "../../interfaces/ITokenBridge.sol"
 import {IPredicateWrapper} from "../../interfaces/IPredicateWrapper.sol";
 import {Quotes} from "./Quotes.sol";
 import {TokenRouter} from "./TokenRouter.sol";
+import {TransientStorage} from "../../libs/TransientStorage.sol";
 
 import {PredicateClient} from "@predicate/mixins/PredicateClient.sol";
 import {Attestation} from "@predicate/interfaces/IPredicateRegistry.sol";
@@ -30,7 +31,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 /**
  * @title AbstractPredicateWrapper
  * @author Abacus Works
- * @notice Shared base for Predicate-gated router wrapper contracts.
+ * @notice Shared base for Predicate-gated warpRoute wrapper contracts.
  *         Provides the pendingAttestation bypass-prevention mechanism,
  *         hook implementation, and admin functions common to all wrappers.
  */
@@ -43,6 +44,7 @@ abstract contract AbstractPredicateWrapper is
 {
     using Quotes for Quote[];
     using SafeERC20 for IERC20;
+    using TransientStorage for bytes32;
 
     // ============ Constants ============
 
@@ -51,41 +53,50 @@ abstract contract AbstractPredicateWrapper is
 
     // ============ Immutables ============
 
-    /// @notice The underlying router being wrapped
-    TokenRouter public immutable router;
+    /// @notice The underlying warpRoute being wrapped
+    TokenRouter public immutable warpRoute;
 
-    /// @notice The ERC20 token managed by the router
+    /// @notice The ERC20 token managed by the warpRoute
     IERC20 public immutable token;
 
-    /// @notice The local domain ID (cached from router during construction)
+    /// @notice The local domain ID (cached from warpRoute during construction)
     uint32 public immutable localDomain;
 
-    // ============ Storage ============
+    // ============ Transient Storage ============
 
-    /// @notice Flag set before calling the router, checked in postDispatch
+    /// @notice Transient flag set before calling the warpRoute, checked in postDispatch
     /// @dev Key bypass-prevention: if false in postDispatch, transfer was unauthorized
-    bool public pendingAttestation;
+    bytes32 private constant PENDING_ATTESTATION_SLOT =
+        keccak256("AbstractPredicateWrapper.pendingAttestation");
+
+    function hasPendingAttestation() public view returns (bool) {
+        return PENDING_ATTESTATION_SLOT.loadBool();
+    }
 
     // ============ Constructor ============
 
-    constructor(address _router, address _registry, string memory _policyID) {
-        if (_router == address(0))
-            revert IPredicateWrapper.PredicateRouterWrapper__InvalidRouter();
+    constructor(
+        address _warpRoute,
+        address _registry,
+        string memory _policyID
+    ) {
+        if (_warpRoute == address(0))
+            revert IPredicateWrapper.PredicateRouterWrapper__InvalidWarpRoute();
         if (_registry == address(0))
             revert IPredicateWrapper.PredicateRouterWrapper__InvalidRegistry();
         if (bytes(_policyID).length == 0)
             revert IPredicateWrapper.PredicateRouterWrapper__InvalidPolicy();
 
-        router = TokenRouter(_router);
-        address tokenAddress = router.token();
+        warpRoute = TokenRouter(_warpRoute);
+        address tokenAddress = warpRoute.token();
         token = IERC20(tokenAddress);
-        localDomain = router.localDomain();
+        localDomain = warpRoute.localDomain();
 
         _initPredicateClient(_registry, _policyID);
 
-        // Infinite approval to router for token transfers (skip for native)
+        // Infinite approval to warpRoute for token transfers (skip for native)
         if (tokenAddress != address(0)) {
-            IERC20(tokenAddress).forceApprove(_router, type(uint256).max);
+            IERC20(tokenAddress).forceApprove(_warpRoute, type(uint256).max);
         }
     }
 
@@ -120,14 +131,14 @@ abstract contract AbstractPredicateWrapper is
     // ============ External Functions ============
 
     /**
-     * @notice Quotes the fees for a remote transfer by delegating to the underlying router
+     * @notice Quotes the fees for a remote transfer by delegating to the underlying warpRoute
      */
     function quoteTransferRemote(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
     ) external view override returns (Quote[] memory quotes) {
-        return router.quoteTransferRemote(_destination, _recipient, _amount);
+        return warpRoute.quoteTransferRemote(_destination, _recipient, _amount);
     }
 
     /**
@@ -151,7 +162,7 @@ abstract contract AbstractPredicateWrapper is
             _amount
         );
 
-        Quote[] memory quotes = router.quoteTransferRemote(
+        Quote[] memory quotes = warpRoute.quoteTransferRemote(
             _destination,
             _recipient,
             _amount
@@ -175,14 +186,14 @@ abstract contract AbstractPredicateWrapper is
     }
 
     /**
-     * @notice Template: authorize → check value → pull tokens → call router → refund.
+     * @notice Template: authorize → check value → pull tokens → call warpRoute → refund.
      * @dev For same-domain transfers, attestation and hook bypass prevention are skipped
      *      because postDispatch is never called, making enforcement unenforceable.
      * @param _attestation  Predicate attestation
-     * @param encodedSigAndArgs  ABI-encoded selector + arguments for the router call
-     * @param quotes  Fee quotes returned by the router's quote function
+     * @param encodedSigAndArgs  ABI-encoded selector + arguments for the warpRoute call
+     * @param quotes  Fee quotes returned by the warpRoute's quote function
      * @param _destination  The destination domain
-     * @return messageId  Decoded from the router's return data
+     * @return messageId  Decoded from the warpRoute's return data
      */
     function _executeAttested(
         Attestation calldata _attestation,
@@ -190,7 +201,7 @@ abstract contract AbstractPredicateWrapper is
         Quote[] memory quotes,
         uint32 _destination
     ) internal returns (bytes32 messageId) {
-        if (pendingAttestation)
+        if (hasPendingAttestation())
             revert IPredicateWrapper.PredicateRouterWrapper__ReentryDetected();
 
         if (_destination != localDomain) {
@@ -205,12 +216,12 @@ abstract contract AbstractPredicateWrapper is
                 revert IPredicateWrapper
                     .PredicateRouterWrapper__AttestationInvalid();
 
-            pendingAttestation = true;
+            PENDING_ATTESTATION_SLOT.set();
         }
 
         uint256 totalNativeRequired = _pullTokens(quotes);
 
-        (bool success, bytes memory returnData) = address(router).call{
+        (bool success, bytes memory returnData) = address(warpRoute).call{
             value: totalNativeRequired
         }(encodedSigAndArgs);
 
@@ -220,7 +231,7 @@ abstract contract AbstractPredicateWrapper is
             }
         }
 
-        if (pendingAttestation)
+        if (hasPendingAttestation())
             revert IPredicateWrapper
                 .PredicateRouterWrapper__PostDispatchNotExecuted();
 
@@ -238,13 +249,13 @@ abstract contract AbstractPredicateWrapper is
 
     /// @notice Verifies transfer originated from an attested wrapper call
     function _postDispatch(bytes calldata, bytes calldata) internal override {
-        if (!pendingAttestation)
+        if (!hasPendingAttestation())
             revert IPredicateWrapper
                 .PredicateRouterWrapper__UnauthorizedTransfer();
-        pendingAttestation = false;
+        PENDING_ATTESTATION_SLOT.clear();
     }
 
-    /// @notice No fee — gas fees are paid via the router's IGP hook
+    /// @notice No fee — gas fees are paid via the warpRoute's IGP hook
     function _quoteDispatch(
         bytes calldata,
         bytes calldata
@@ -270,7 +281,7 @@ abstract contract AbstractPredicateWrapper is
 
     // ============ ETH Handling ============
 
-    /// @notice Accepts ETH refunds from the router's hook
+    /// @notice Accepts ETH refunds from the warpRoute's hook
     receive() external payable {}
 
     /// @notice Withdraws trapped ETH to owner

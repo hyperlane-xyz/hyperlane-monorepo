@@ -3,7 +3,7 @@ pragma solidity >=0.8.0;
 
 interface IPredicateWrapper {
     error PredicateRouterWrapper__UnauthorizedTransfer();
-    error PredicateRouterWrapper__InvalidRouter();
+    error PredicateRouterWrapper__InvalidWarpRoute();
     error PredicateRouterWrapper__NativeTokenUnsupported();
     error PredicateRouterWrapper__InvalidRegistry();
     error PredicateRouterWrapper__InvalidPolicy();

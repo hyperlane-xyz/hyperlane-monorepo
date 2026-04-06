@@ -40,6 +40,14 @@ import {AbstractPredicateWrapper} from "../libs/AbstractPredicateWrapper.sol";
  * @custom:oz-version 4.9.x (uses Ownable without constructor argument)
  */
 contract PredicateRouterWrapper is AbstractPredicateWrapper {
+    // ============ Enums ============
+
+    enum TokenType {
+        Native,
+        Synthetic,
+        Collateral
+    }
+
     // ============ Events ============
 
     /// @notice Emitted when a transfer is authorized via attestation
@@ -58,6 +66,15 @@ contract PredicateRouterWrapper is AbstractPredicateWrapper {
         address _registry,
         string memory _policyID
     ) AbstractPredicateWrapper(_warpRoute, _registry, _policyID) {}
+
+    // ============ Views ============
+
+    function tokenType() public view returns (TokenType) {
+        address tokenAddress = address(token);
+        if (tokenAddress == address(0)) return TokenType.Native;
+        if (tokenAddress == address(warpRoute)) return TokenType.Synthetic;
+        return TokenType.Collateral;
+    }
 
     // ============ Internal Overrides ============
 

@@ -193,7 +193,10 @@ contract PredicateRouterWrapperSyntheticTest is Test {
     function test_constructor_synthetic_noApprovalNeeded() public view {
         // Constructor should skip approval for synthetic tokens
         // (token address == warpRoute address)
-        assertEq(address(predicateWrapper.router()), address(syntheticRouter));
+        assertEq(
+            address(predicateWrapper.warpRoute()),
+            address(syntheticRouter)
+        );
     }
 
     // ============ Transfer Tests ============
