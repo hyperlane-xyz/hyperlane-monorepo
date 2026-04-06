@@ -112,6 +112,7 @@ jobs:
           REGISTRY="ghcr.io/hyperlane-xyz"
 
           TAGS=$(cat << EOF
+          ${REGISTRY}/hyperlane-fee-quoting:${TAG_SHA_DATE}
           ${REGISTRY}/hyperlane-rebalancer:${TAG_SHA_DATE}
           ${REGISTRY}/hyperlane-warp-monitor:${TAG_SHA_DATE}
           ${REGISTRY}/hyperlane-key-funder:${TAG_SHA_DATE}
@@ -128,6 +129,7 @@ jobs:
 
           | Service | Tag |
           |---------|-----|
+          | 💰 fee-quoting | \`${TAG_SHA_DATE}\` |
           | ♻️ rebalancer | \`${TAG_SHA_DATE}\` |
           | 🕵️ warp-monitor | \`${TAG_SHA_DATE}\` |
           | 🔑 key-funder | \`${TAG_SHA_DATE}\` |

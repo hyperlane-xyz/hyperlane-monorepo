@@ -394,3 +394,128 @@ Existing warp routes can adopt offchain quoting by setting the new fee recipient
 | `test/token/QuotedCalls.invariant.t.sol`           | Created  | Invariant tests — malicious target fuzzing |
 | `test/igps/IGPOffchainQuoting.t.sol`               | Created  | Unit tests for IGP offchain quoting        |
 | `test/token/CrossCollateralRouter.t.sol`           | Modified | QuotedCalls + cross-collateral demo test   |
+
+## Local Development Sandbox
+
+Persistent local sandbox for testing the full offchain fee quoting stack against a frontend (e.g. Nexus UI). Uses anvil forks of real chains with a writable registry overlay.
+
+### Registry Architecture
+
+```mermaid
+graph LR
+    subgraph Consumers
+        CLI[CLI]
+        FQS[FeeQuotingServer]
+        NEX[Nexus UI]
+    end
+
+    CLI -- read + write --> HS
+    FQS -- read --> HS
+    NEX -- read --> HS
+
+    HS["HttpServer :8535\nwriteMode: true"]
+
+    subgraph "forkRegistry Proxy"
+        direction TB
+        HS -- GET --> MR
+        HS -- POST --> OV
+    end
+
+    subgraph MergedRegistry
+        direction TB
+        UP["Upstream\nread-only"] --> MR[merge]
+        OV["PartialRegistry\nin-memory overlay"] --> MR
+    end
+```
+
+The fork registry uses a `Proxy` that reads from the full `MergedRegistry` (upstream + overlay) but routes writes only to the `PartialRegistry` overlay. This prevents `core apply` or `warp apply` from writing to the upstream registry.
+
+### Sandbox Sequence
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant CLI
+    participant Registry as HttpServer :8535
+    participant Overlay as PartialRegistry
+    participant Anvil as Anvil :8545
+    participant FQS as FeeQuotingServer :3001
+    participant Nexus as Nexus UI
+
+    Note over User,Nexus: Step 1 — warp fork
+    User->>CLI: warp fork --warpRouteId id
+    CLI->>Anvil: start anvil --fork-url rpc --chain-id id
+    CLI->>Registry: start HttpServer(forkRegistry, writeMode)
+
+    Note over User,Nexus: Step 2 — core apply (deploy QuotedCalls)
+    User->>CLI: core apply --registry http://localhost:8535
+    CLI->>Registry: GET /chain/chainA/addresses
+    Registry-->>CLI: addresses (no quotedCalls)
+    CLI->>Anvil: deploy QuotedCalls → 0xABC
+    CLI->>Registry: POST /chain/chainA {quotedCalls: 0xABC}
+    Registry->>Overlay: updateChain (write to overlay only)
+    Note over Registry,Overlay: GET now returns quotedCalls: 0xABC
+
+    Note over User,Nexus: Step 3 — warp apply (impersonated owner)
+    User->>CLI: warp apply --strategy impersonated.yaml
+    CLI->>Anvil: anvil_impersonateAccount(owner)
+    CLI->>Anvil: anvil_setBalance(owner)
+    CLI->>Anvil: deploy OffchainQuotedLinearFee (from: owner)
+    CLI->>Anvil: setTokenFee(feeContract) (from: owner)
+    CLI->>Anvil: addQuoteSigner(signer) (from: owner)
+
+    Note over User,Nexus: Step 4 — fee-quoting server
+    User->>FQS: start --registry http://localhost:8535
+    FQS->>Registry: GET warp route + chain addresses
+    Registry-->>FQS: includes quotedCalls from overlay
+    FQS->>Anvil: EvmWarpRouteReader (reads fee config on-chain)
+    FQS-->>User: Listening on :3001
+
+    Note over User,Nexus: Step 5 — Nexus UI transfer
+    Nexus->>Registry: GET chain metadata + addresses
+    Nexus->>FQS: GET /quote/transferRemote
+    FQS-->>Nexus: signed quotes (IGP + warp fee)
+    Nexus->>Anvil: QuotedCalls.execute(SUBMIT_QUOTE, TRANSFER_FROM, TRANSFER_REMOTE, SWEEP)
+    Anvil-->>Nexus: tx receipt
+```
+
+### Commands
+
+```bash
+# Default anvil private key (account 0, funded on all forks)
+export HYP_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+
+# 1. Fork warp route — anvil forks on :8545+, writable registry on :8535
+hyperlane warp fork --warpRouteId <id>
+
+# 2. Deploy QuotedCalls (anyone can deploy, uses default anvil key)
+hyperlane core apply \
+  --registry http://localhost:8535 \
+  --chain <chain> \
+  --config core.yaml
+
+# 3. Apply warp config (fee contract + quoteSigners) via impersonated owner
+hyperlane warp apply \
+  --registry http://localhost:8535 \
+  --strategy strategy.yaml \
+  --config warp-deploy.yaml
+
+# 4. Start fee-quoting HTTP server
+pnpm -C typescript/fee-quoting exec tsx scripts/run-server.ts \
+  --signer-key $HYP_KEY \
+  --warp-route-ids <id> \
+  --registry http://localhost:8535 \
+  --api-keys test-key \
+  --quote-mode transient \
+  --port 3001
+
+# 5. Point Nexus UI at fork registry :8535 and fee service :3001
+```
+
+Where `strategy.yaml` impersonates the warp route owner for `onlyOwner` transactions:
+
+```yaml
+submitter:
+  type: impersonatedAccount
+  userAddress: '0x<warp-route-owner>'
+```

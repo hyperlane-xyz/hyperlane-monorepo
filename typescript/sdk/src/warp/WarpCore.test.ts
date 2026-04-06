@@ -63,19 +63,11 @@ describe('WarpCore', () => {
     .stub(multiProvider, 'estimateTransactionFee')
     .returns(Promise.resolve(MOCK_LOCAL_QUOTE));
 
-  it('Constructs', () => {
-    const fromArgs = new WarpCore(multiProvider, [
-      Token.FromChainMetadataNativeToken(test1),
-    ]);
+  before(() => {
     const exampleConfig = yamlParse(
       fs.readFileSync('./src/warp/test-warp-core-config.yaml', 'utf-8'),
     );
-    const fromConfig = WarpCore.FromConfig(multiProvider, exampleConfig);
-    expect(fromArgs).to.be.instanceOf(WarpCore);
-    expect(fromConfig).to.be.instanceOf(WarpCore);
-    expect(fromConfig.tokens.length).to.equal(exampleConfig.tokens.length);
-
-    warpCore = fromConfig;
+    warpCore = WarpCore.FromConfig(multiProvider, exampleConfig);
     [
       evmHypNative,
       evmHypSynthetic,
@@ -90,6 +82,19 @@ describe('WarpCore', () => {
       cw20,
       cosmosIbc,
     ] = warpCore.tokens;
+  });
+
+  it('Constructs', () => {
+    const fromArgs = new WarpCore(multiProvider, [
+      Token.FromChainMetadataNativeToken(test1),
+    ]);
+    const exampleConfig = yamlParse(
+      fs.readFileSync('./src/warp/test-warp-core-config.yaml', 'utf-8'),
+    );
+    const fromConfig = WarpCore.FromConfig(multiProvider, exampleConfig);
+    expect(fromArgs).to.be.instanceOf(WarpCore);
+    expect(fromConfig).to.be.instanceOf(WarpCore);
+    expect(fromConfig.tokens.length).to.equal(exampleConfig.tokens.length);
   });
 
   it('Finds tokens', () => {

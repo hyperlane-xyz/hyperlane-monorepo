@@ -197,7 +197,8 @@ export class EvmTokenFeeReader extends HyperlaneReader {
         routingDestinations.map(async (destination) => {
           const subFeeAddress = await routingFee.feeContracts(destination);
           if (subFeeAddress === constants.AddressZero) return;
-          const chainName = this.multiProvider.getChainName(destination);
+          const chainName = this.multiProvider.tryGetChainName(destination);
+          if (!chainName) return;
           feeContracts[chainName] = await this.deriveTokenFeeConfig({
             address: subFeeAddress,
           });
@@ -301,6 +302,9 @@ export class EvmTokenFeeReader extends HyperlaneReader {
       }
     | undefined
   > {
+    const chainName = this.multiProvider.tryGetChainName(destination);
+    if (!chainName) return undefined;
+
     const routerKeys = getCrossCollateralRouterKeys(
       destination,
       crossCollateralRouters,
@@ -328,10 +332,7 @@ export class EvmTokenFeeReader extends HyperlaneReader {
       return undefined;
     }
 
-    return {
-      chainName: this.multiProvider.getChainName(destination),
-      routerFeeConfigs,
-    };
+    return { chainName, routerFeeConfigs };
   }
 
   convertFromBps(bps: bigint): FeeParameters {
