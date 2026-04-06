@@ -170,31 +170,30 @@ abstract contract AbstractPredicateWrapper is
                 _attestation,
                 encodedSigAndArgs,
                 quotes,
-                _destination != localDomain
+                _destination
             );
     }
 
     /**
      * @notice Template: authorize → check value → pull tokens → call router → refund.
+     * @dev For same-domain transfers, attestation and hook bypass prevention are skipped
+     *      because postDispatch is never called, making enforcement unenforceable.
      * @param _attestation  Predicate attestation
      * @param encodedSigAndArgs  ABI-encoded selector + arguments for the router call
      * @param quotes  Fee quotes returned by the router's quote function
-     * @param isCrossDomain  Whether this is a cross-domain transfer requiring authorization
-     *        and hook bypass prevention (false for same-domain CCR where postDispatch is
-     *        never called, making attestation enforcement unenforceable via the wrapper)
+     * @param _destination  The destination domain
      * @return messageId  Decoded from the router's return data
      */
     function _executeAttested(
         Attestation calldata _attestation,
         bytes memory encodedSigAndArgs,
         Quote[] memory quotes,
-        bool isCrossDomain
+        uint32 _destination
     ) internal returns (bytes32 messageId) {
-        if (isCrossDomain) {
-            if (pendingAttestation)
-                revert IPredicateWrapper
-                    .PredicateRouterWrapper__ReentryDetected();
+        if (pendingAttestation)
+            revert IPredicateWrapper.PredicateRouterWrapper__ReentryDetected();
 
+        if (_destination != localDomain) {
             if (
                 !_authorizeTransaction(
                     _attestation,
@@ -221,7 +220,7 @@ abstract contract AbstractPredicateWrapper is
             }
         }
 
-        if (isCrossDomain && pendingAttestation)
+        if (pendingAttestation)
             revert IPredicateWrapper
                 .PredicateRouterWrapper__PostDispatchNotExecuted();
 

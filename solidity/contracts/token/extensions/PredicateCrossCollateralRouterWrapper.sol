@@ -127,7 +127,7 @@ contract PredicateCrossCollateralRouterWrapper is
                 _attestation,
                 encodedSigAndArgs,
                 quotes,
-                _destination != localDomain
+                _destination
             );
     }
 
