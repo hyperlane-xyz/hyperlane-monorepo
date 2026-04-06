@@ -3,6 +3,7 @@
   "version": "27.1.0",
   "description": "Offchain fee quoting service and client for Hyperlane",
   "license": "Apache-2.0",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "files": [
     "/dist"
   ],

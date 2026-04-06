@@ -31,6 +31,7 @@ COPY typescript/cosmos-sdk/package.json ./typescript/cosmos-sdk/
 COPY typescript/cosmos-types/package.json ./typescript/cosmos-types/
 COPY typescript/deploy-sdk/package.json ./typescript/deploy-sdk/
 COPY typescript/eslint-config/package.json ./typescript/eslint-config/
+COPY typescript/fee-quoting/package.json ./typescript/fee-quoting/
 COPY typescript/github-proxy/package.json ./typescript/github-proxy/
 COPY typescript/helloworld/package.json ./typescript/helloworld/
 COPY typescript/http-registry-server/package.json ./typescript/http-registry-server/
