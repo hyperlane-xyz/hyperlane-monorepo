@@ -179,30 +179,37 @@ abstract contract AbstractPredicateWrapper is
      * @param _attestation  Predicate attestation
      * @param encodedSigAndArgs  ABI-encoded selector + arguments for the router call
      * @param quotes  Fee quotes returned by the router's quote function
-     * @param setPending  Whether to set/check pendingAttestation (false for same-domain CCR)
+     * @param isCrossDomain  Whether this is a cross-domain transfer requiring authorization
+     *        and hook bypass prevention (false for same-domain CCR where postDispatch is
+     *        never called, making attestation enforcement unenforceable via the wrapper)
      * @return messageId  Decoded from the router's return data
      */
     function _executeAttested(
         Attestation calldata _attestation,
         bytes memory encodedSigAndArgs,
         Quote[] memory quotes,
-        bool setPending
+        bool isCrossDomain
     ) internal returns (bytes32 messageId) {
-        if (pendingAttestation)
-            revert IPredicateWrapper.PredicateRouterWrapper__ReentryDetected();
+        if (isCrossDomain) {
+            if (pendingAttestation)
+                revert IPredicateWrapper
+                    .PredicateRouterWrapper__ReentryDetected();
 
-        if (
-            !_authorizeTransaction(
-                _attestation,
-                encodedSigAndArgs,
-                msg.sender,
-                msg.value
+            if (
+                !_authorizeTransaction(
+                    _attestation,
+                    encodedSigAndArgs,
+                    msg.sender,
+                    msg.value
+                )
             )
-        ) revert IPredicateWrapper.PredicateRouterWrapper__AttestationInvalid();
+                revert IPredicateWrapper
+                    .PredicateRouterWrapper__AttestationInvalid();
+
+            pendingAttestation = true;
+        }
 
         uint256 totalNativeRequired = _pullTokens(quotes);
-
-        if (setPending) pendingAttestation = true;
 
         (bool success, bytes memory returnData) = address(router).call{
             value: totalNativeRequired
@@ -214,7 +221,7 @@ abstract contract AbstractPredicateWrapper is
             }
         }
 
-        if (setPending && pendingAttestation)
+        if (isCrossDomain && pendingAttestation)
             revert IPredicateWrapper
                 .PredicateRouterWrapper__PostDispatchNotExecuted();
 
