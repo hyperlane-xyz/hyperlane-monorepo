@@ -471,7 +471,7 @@ contract PredicateRouterWrapperCollateralTest is Test {
     function test_bypassPrevention_pendingFlagNotSetExternally() public {
         // The pendingAttestation flag is only set by transferRemoteWithAttestation
         // There's no way for external actors to set it
-        assertFalse(predicateWrapper.hasPendingAttestation());
+        assertFalse(predicateWrapper.pendingAttestation());
 
         // Even if someone could somehow set the flag, they can't call the protected function
         // because only the wrapper itself can set it during transferRemoteWithAttestation
@@ -643,7 +643,7 @@ contract PredicateRouterWrapperCollateralIntegrationTest is
             primaryToken.balanceOf(ALICE),
             aliceBalanceBefore - TRANSFER_AMT
         );
-        assertFalse(predicateWrapper.hasPendingAttestation()); // Flag cleared
+        assertFalse(predicateWrapper.pendingAttestation()); // Flag cleared
 
         // Step 6-7: Process on destination
         remoteMailbox.processNextInboundMessage();

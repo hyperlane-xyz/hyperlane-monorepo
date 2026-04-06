@@ -69,7 +69,7 @@ abstract contract AbstractPredicateWrapper is
     bytes32 private constant PENDING_ATTESTATION_SLOT =
         keccak256("AbstractPredicateWrapper.pendingAttestation");
 
-    function hasPendingAttestation() public view returns (bool) {
+    function pendingAttestation() public view returns (bool) {
         return PENDING_ATTESTATION_SLOT.loadBool();
     }
 
@@ -201,7 +201,7 @@ abstract contract AbstractPredicateWrapper is
         Quote[] memory quotes,
         uint32 _destination
     ) internal returns (bytes32 messageId) {
-        if (hasPendingAttestation())
+        if (pendingAttestation())
             revert IPredicateWrapper.PredicateRouterWrapper__ReentryDetected();
 
         if (_destination != localDomain) {
@@ -231,7 +231,7 @@ abstract contract AbstractPredicateWrapper is
             }
         }
 
-        if (hasPendingAttestation())
+        if (pendingAttestation())
             revert IPredicateWrapper
                 .PredicateRouterWrapper__PostDispatchNotExecuted();
 
@@ -249,7 +249,7 @@ abstract contract AbstractPredicateWrapper is
 
     /// @notice Verifies transfer originated from an attested wrapper call
     function _postDispatch(bytes calldata, bytes calldata) internal override {
-        if (!hasPendingAttestation())
+        if (!pendingAttestation())
             revert IPredicateWrapper
                 .PredicateRouterWrapper__UnauthorizedTransfer();
         PENDING_ATTESTATION_SLOT.clear();
