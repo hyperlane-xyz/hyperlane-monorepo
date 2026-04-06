@@ -146,7 +146,4 @@ export enum WarpRouteIds {
 
   // ctUSD
   CitreaUSD = 'ctUSD/citrea',
-
-  // QuotedCalls demo
-  QuotedCallsDemoUSDC = 'USDC/quoted-calls-demo',
 }
