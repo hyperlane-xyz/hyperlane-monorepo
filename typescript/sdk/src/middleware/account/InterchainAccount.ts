@@ -154,8 +154,14 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
 
       // Estimate gas for deployment
       const gasEstimate = await destinationRouter.estimateGas[
-        'getDeployedInterchainAccount(uint32,address,address,address)'
-      ](originDomain, config.owner, originRouterAddress, destinationIsmAddress);
+        'getDeployedInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
+      ](
+        originDomain,
+        addressToBytes32(config.owner),
+        addressToBytes32(originRouterAddress),
+        destinationIsmAddress,
+        userSalt,
+      );
 
       // Add buffer to gas estimate
       const gasWithBuffer = addBufferToGasLimit(gasEstimate);
@@ -164,12 +170,13 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       await this.multiProvider.handleTx(
         destinationChain,
         destinationRouter[
-          'getDeployedInterchainAccount(uint32,address,address,address)'
+          'getDeployedInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
         ](
           originDomain,
-          config.owner,
-          originRouterAddress,
+          addressToBytes32(config.owner),
+          addressToBytes32(originRouterAddress),
           destinationIsmAddress,
+          userSalt,
           {
             gasLimit: gasWithBuffer,
             ...txOverrides,
