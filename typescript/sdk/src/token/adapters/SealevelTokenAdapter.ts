@@ -552,7 +552,7 @@ export abstract class SealevelHypTokenAdapter
       },
       // 3.   [executable] The mailbox program.
       { pubkey: mailbox, isSigner: false, isWritable: false },
-      // 4.   [writeable] The mailbox outbox account.
+      // 4.   [writable] The mailbox outbox account.
       {
         pubkey: this.deriveMailboxOutboxAccount(mailbox),
         isSigner: false,
@@ -568,7 +568,7 @@ export abstract class SealevelHypTokenAdapter
       { pubkey: sender, isSigner: true, isWritable: false },
       // 7.   [signer] Unique message account.
       { pubkey: randomWallet, isSigner: true, isWritable: false },
-      // 8.   [writeable] Message storage PDA.
+      // 8.   [writable] Message storage PDA.
       {
         pubkey: this.deriveMsgStorageAccount(mailbox, randomWallet),
         isSigner: false,
@@ -580,13 +580,13 @@ export abstract class SealevelHypTokenAdapter
         ...keys,
         // 9.    [executable] The IGP program.
         { pubkey: igp.programId, isSigner: false, isWritable: false },
-        // 10.   [writeable] The IGP program data.
+        // 10.   [writable] The IGP program data.
         {
           pubkey: SealevelOverheadIgpAdapter.deriveIgpProgramPda(igp.programId),
           isSigner: false,
           isWritable: true,
         },
-        // 11.   [writeable] Gas payment PDA.
+        // 11.   [writable] Gas payment PDA.
         {
           pubkey: SealevelOverheadIgpAdapter.deriveGasPaymentPda(
             igp.programId,
@@ -609,7 +609,7 @@ export abstract class SealevelHypTokenAdapter
       }
       keys = [
         ...keys,
-        // 13.   [writeable] The Overhead's inner IGP account (or the normal IGP account if there's no Overhead IGP).
+        // 13.   [writable] The Overhead's inner IGP account (or the normal IGP account if there's no Overhead IGP).
         {
           pubkey: igp.igpAccount,
           isSigner: false,
@@ -798,7 +798,7 @@ export class SealevelHypNativeAdapter extends SealevelHypTokenAdapter {
       ...(await super.getTransferInstructionKeyList(params)),
       // 9.   [executable] The system program.
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-      // 10.  [writeable] The native token collateral PDA account.
+      // 10.  [writable] The native token collateral PDA account.
       {
         pubkey: this.deriveNativeTokenCollateralAccount(),
         isSigner: false,
@@ -852,15 +852,15 @@ export class SealevelHypCollateralAdapter extends SealevelHypTokenAdapter {
         isSigner: false,
         isWritable: false,
       },
-      /// 10.  [writeable] The mint.
+      /// 10.  [writable] The mint.
       { pubkey: this.tokenMintPubKey, isSigner: false, isWritable: true },
-      /// 11.  [writeable] The token sender's associated token account, from which tokens will be sent.
+      /// 11.  [writable] The token sender's associated token account, from which tokens will be sent.
       {
         pubkey: await this.deriveAssociatedTokenAccount(params.sender),
         isSigner: false,
         isWritable: true,
       },
-      /// 12.  [writeable] The escrow PDA account.
+      /// 12.  [writable] The escrow PDA account.
       { pubkey: this.deriveEscrowAccount(), isSigner: false, isWritable: true },
     ];
   }
@@ -882,13 +882,13 @@ export class SealevelHypSyntheticAdapter extends SealevelHypTokenAdapter {
       ...(await super.getTransferInstructionKeyList(params)),
       /// 9. [executable] The spl_token_2022 program.
       { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
-      /// 10. [writeable] The mint / mint authority PDA account.
+      /// 10. [writable] The mint / mint authority PDA account.
       {
         pubkey: this.deriveMintAuthorityAccount(),
         isSigner: false,
         isWritable: true,
       },
-      /// 11. [writeable] The token sender's associated token account, from which tokens will be burned.
+      /// 11. [writable] The token sender's associated token account, from which tokens will be burned.
       {
         pubkey: await this.deriveAssociatedTokenAccount(params.sender),
         isSigner: false,

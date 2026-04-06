@@ -107,7 +107,7 @@ where
     ) -> Result<(), ProgramError>;
 
     /// Gets the AccountMetas required by the `transfer_out` function.
-    /// Returns (AccountMetas, whether recipient wallet must be writeable)
+    /// Returns (AccountMetas, whether recipient wallet must be writable)
     fn transfer_out_account_metas(
         program_id: &Pubkey,
         token: &HyperlaneToken<Self>,
@@ -260,17 +260,17 @@ where
     /// - 1: `[executable]` The spl_noop program.
     /// - 2: `[]` The token PDA account.
     /// - 3: `[executable]` The mailbox program.
-    /// - 4: `[writeable]` The mailbox outbox account.
+    /// - 4: `[writable]` The mailbox outbox account.
     /// - 5: `[]` Message dispatch authority.
     /// - 6: `[signer]` The token sender and mailbox payer.
     /// - 7: `[signer]` Unique message / gas payment account.
-    /// - 8: `[writeable]` Message storage PDA.
+    /// - 8: `[writable]` Message storage PDA.
     ///   ---- If using an IGP ----
     /// - 9: `[executable]` The IGP program.
-    /// - 10: `[writeable]` The IGP program data.
-    /// - 11: `[writeable]` Gas payment PDA.
+    /// - 10: `[writable]` The IGP program data.
+    /// - 11: `[writable]` Gas payment PDA.
     /// - 12: `[]` OPTIONAL - The Overhead IGP program, if the configured IGP is an Overhead IGP.
-    /// - 13: `[writeable]` The IGP account.
+    /// - 13: `[writable]` The IGP account.
     ///   ---- End if ----
     /// - 14..N: `[??..??]` Plugin-specific accounts.
     pub fn transfer_remote(
@@ -365,10 +365,10 @@ where
                 //
                 // 0. `[executable]` The system program.
                 // 1. `[signer]` The payer.
-                // 2. `[writeable]` The IGP program data.
+                // 2. `[writable]` The IGP program data.
                 // 3. `[signer]` Unique gas payment account.
-                // 4. `[writeable]` Gas payment PDA.
-                // 5. `[writeable]` The IGP account.
+                // 4. `[writable]` Gas payment PDA.
+                // 5. `[writable]` The IGP account.
                 // 6. `[]` Overhead IGP account (optional).
 
                 let mut igp_payment_account_metas = vec![
@@ -592,7 +592,7 @@ where
         let token_account_info = next_account_info(accounts_iter)?;
         let token = HyperlaneToken::verify_account_and_fetch_inner(program_id, token_account_info)?;
 
-        let (transfer_out_account_metas, writeable_recipient) =
+        let (transfer_out_account_metas, writable_recipient) =
             T::transfer_out_account_metas(program_id, &token, &message)?;
 
         let mut accounts: Vec<SerializableAccountMeta> = vec![
@@ -601,7 +601,7 @@ where
             AccountMeta {
                 pubkey: Pubkey::new_from_array(message.recipient().into()),
                 is_signer: false,
-                is_writable: writeable_recipient,
+                is_writable: writable_recipient,
             }
             .into(),
         ];
@@ -622,7 +622,7 @@ where
     ///
     /// Accounts:
     /// 0. `[executable]` The system program.
-    /// 1. `[writeable]` The token PDA account.
+    /// 1. `[writable]` The token PDA account.
     /// 2. `[signer]` The owner.
     pub fn enroll_remote_router(
         program_id: &Pubkey,
@@ -671,7 +671,7 @@ where
     ///
     /// Accounts:
     /// 0. `[executable]` The system program.
-    /// 1. `[writeable]` The token PDA account.
+    /// 1. `[writable]` The token PDA account.
     /// 2. `[signer]` The owner.
     pub fn enroll_remote_routers(
         program_id: &Pubkey,
@@ -719,7 +719,7 @@ where
     /// Transfers ownership.
     ///
     /// Accounts:
-    /// 0. `[writeable]` The token PDA account.
+    /// 0. `[writable]` The token PDA account.
     /// 1. `[signer]` The current owner.
     pub fn transfer_ownership(
         program_id: &Pubkey,
@@ -791,7 +791,7 @@ where
     /// Lets the owner set the interchain security module.
     ///
     /// Accounts:
-    /// 0. `[writeable]` The token PDA account.
+    /// 0. `[writable]` The token PDA account.
     /// 1. `[signer]` The access control owner.
     pub fn set_interchain_security_module(
         program_id: &Pubkey,
@@ -820,7 +820,7 @@ where
     ///
     /// Accounts:
     /// 0. `[executable]` The system program.
-    /// 1. `[writeable]` The token PDA account.
+    /// 1. `[writable]` The token PDA account.
     /// 2. `[signer]` The access control owner.
     pub fn set_destination_gas_configs(
         program_id: &Pubkey,
@@ -859,7 +859,7 @@ where
     /// Lets the owner set the interchain gas paymaster.
     ///
     /// Accounts:
-    /// 0. `[writeable]` The token PDA account.
+    /// 0. `[writable]` The token PDA account.
     /// 1. `[signer]` The access control owner.
     pub fn set_interchain_gas_paymaster(
         program_id: &Pubkey,

@@ -108,21 +108,21 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
 /// 1.  `[executable]` The spl_noop program.
 /// 2.  `[]` The token PDA account.
 /// 3.  `[executable]` The mailbox program.
-/// 4.  `[writeable]` The mailbox outbox account.
+/// 4.  `[writable]` The mailbox outbox account.
 /// 5.  `[]` Message dispatch authority.
 /// 6.  `[signer]` The token sender and mailbox payer.
 /// 7.  `[signer]` Unique message / gas payment account.
-/// 8.  `[writeable]` Message storage PDA.
+/// 8.  `[writable]` Message storage PDA.
 ///     ---- If using an IGP ----
 /// 9.  `[executable]` The IGP program.
-/// 10. `[writeable]` The IGP program data.
-/// 11. `[writeable]` Gas payment PDA.
+/// 10. `[writable]` The IGP program data.
+/// 11. `[writable]` Gas payment PDA.
 /// 12. `[]` OPTIONAL - The Overhead IGP program, if the configured IGP is an Overhead IGP.
-/// 13. `[writeable]` The IGP account.
+/// 13. `[writable]` The IGP account.
 ///     ---- End if ----
 /// 14. `[executable]` The spl_token_2022 program.
-/// 15. `[writeable]` The mint / mint authority PDA account.
-/// 16. `[writeable]` The token sender's associated token account, from which tokens will be burned.
+/// 15. `[writable]` The mint / mint authority PDA account.
+/// 16. `[writable]` The token sender's associated token account, from which tokens will be burned.
 fn transfer_remote(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -138,9 +138,9 @@ fn transfer_remote(
 // 3. `[]` recipient wallet address
 // 4. `[executable]` SPL token 2022 program
 // 5. `[executable]` SPL associated token account
-// 6. `[writeable]` Mint account
-// 7. `[writeable]` Recipient associated token account
-// 8. `[writeable]` ATA payer PDA account.
+// 6. `[writable]` Mint account
+// 7. `[writable]` Recipient associated token account
+// 8. `[writable]` ATA payer PDA account.
 fn transfer_from_remote(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -164,7 +164,7 @@ fn transfer_from_remote_account_metas(
 ///
 /// Accounts:
 /// 0. `[executable]` The system program.
-/// 1. `[writeable]` The token PDA account.
+/// 1. `[writable]` The token PDA account.
 /// 2. `[signer]` The owner.
 fn enroll_remote_router(
     program_id: &Pubkey,
@@ -178,7 +178,7 @@ fn enroll_remote_router(
 ///
 /// Accounts:
 /// 0. `[executable]` The system program.
-/// 1. `[writeable]` The token PDA account.
+/// 1. `[writable]` The token PDA account.
 /// 2. `[signer]` The owner.
 fn enroll_remote_routers(
     program_id: &Pubkey,
@@ -192,7 +192,7 @@ fn enroll_remote_routers(
 ///
 /// Accounts:
 /// 0. `[executable]` The system program.
-/// 1. `[writeable]` The token PDA account.
+/// 1. `[writable]` The token PDA account.
 /// 2. `[signer]` The owner.
 fn set_destination_gas_configs(
     program_id: &Pubkey,
@@ -207,7 +207,7 @@ fn set_destination_gas_configs(
 /// Transfers ownership.
 ///
 /// Accounts:
-/// 0. `[writeable]` The token PDA account.
+/// 0. `[writable]` The token PDA account.
 /// 1. `[signer]` The current owner.
 fn transfer_ownership(
     program_id: &Pubkey,
@@ -236,7 +236,7 @@ fn interchain_security_module_account_metas(program_id: &Pubkey) -> ProgramResul
 /// Lets the owner set the interchain security module.
 ///
 /// Accounts:
-/// 0. `[writeable]` The token PDA account.
+/// 0. `[writable]` The token PDA account.
 /// 1. `[signer]` The access control owner.
 fn set_interchain_security_module(
     program_id: &Pubkey,
@@ -251,7 +251,7 @@ fn set_interchain_security_module(
 /// Lets the owner set the interchain gas paymaster.
 ///
 /// Accounts:
-/// 0. `[writeable]` The token PDA account.
+/// 0. `[writable]` The token PDA account.
 /// 1. `[signer]` The access control owner.
 fn set_interchain_gas_paymaster(
     program_id: &Pubkey,

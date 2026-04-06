@@ -446,20 +446,20 @@ async fn test_transfer_remote() {
             // 1.   `[executable]` The spl_noop program.
             // 2.   `[]` The token PDA account.
             // 3.   `[executable]` The mailbox program.
-            // 4.   `[writeable]` The mailbox outbox account.
+            // 4.   `[writable]` The mailbox outbox account.
             // 5.   `[]` Message dispatch authority.
             // 6.   `[signer]` The token sender and mailbox payer.
             // 7.   `[signer]` Unique message / gas payment account.
-            // 8.   `[writeable]` Message storage PDA.
+            // 8.   `[writable]` Message storage PDA.
             //      ---- If using an IGP ----
             // 9.   `[executable]` The IGP program.
-            // 10.  `[writeable]` The IGP program data.
-            // 11.  `[writeable]` Gas payment PDA.
+            // 10.  `[writable]` The IGP program data.
+            // 11.  `[writable]` Gas payment PDA.
             // 12.  `[]` OPTIONAL - The Overhead IGP program, if the configured IGP is an Overhead IGP.
-            // 13.  `[writeable]` The IGP account.
+            // 13.  `[writable]` The IGP account.
             //      ---- End if ----
             // 14.  `[executable]` The system program.
-            // 15.  `[writeable]` The native token collateral PDA account.
+            // 15.  `[writable]` The native token collateral PDA account.
             vec![
                 AccountMeta::new_readonly(system_program::ID, false),
                 AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
@@ -803,9 +803,9 @@ async fn test_transfer_from_remote_errors_if_process_authority_not_signer() {
                 // 0.   `[signer]` Mailbox processor authority specific to this program.
                 // 1.   `[executable]` system_program
                 // 2.   `[]` hyperlane_token storage
-                // 3.   `[writeable]` recipient wallet address
+                // 3.   `[writable]` recipient wallet address
                 // 4.   `[executable]` The system program.
-                // 5.   `[writeable]` The native token collateral PDA account.
+                // 5.   `[writable]` The native token collateral PDA account.
                 AccountMeta::new_readonly(
                     hyperlane_token_accounts.mailbox_process_authority,
                     false,

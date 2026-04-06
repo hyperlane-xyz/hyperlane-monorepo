@@ -102,7 +102,7 @@ pub fn process_instruction(
 /// Accounts:
 /// 0. `[executable]` System program.
 /// 1. `[signer]` Payer.
-/// 2. `[writeable]` Storage PDA.
+/// 2. `[writable]` Storage PDA.
 fn init(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
@@ -143,7 +143,7 @@ fn init(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
 }
 
 /// Accounts:
-/// 0. `[writeable]` Storage PDA.
+/// 0. `[writable]` Storage PDA.
 fn set_accept(_program_id: &Pubkey, accounts: &[AccountInfo], accept: bool) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 

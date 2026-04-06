@@ -117,7 +117,7 @@ impl HyperlaneSealevelTokenPlugin for NativePlugin {
     ///
     /// Accounts:
     /// 0. `[executable]` The system program.
-    /// 1. `[writeable]` The native token collateral PDA account.
+    /// 1. `[writable]` The native token collateral PDA account.
     fn transfer_in<'a, 'b>(
         program_id: &Pubkey,
         token: &HyperlaneToken<Self>,
@@ -147,7 +147,7 @@ impl HyperlaneSealevelTokenPlugin for NativePlugin {
     ///
     /// Accounts:
     /// 0. `[executable]` The system program.
-    /// 1. `[writeable]` The native token collateral PDA account.
+    /// 1. `[writable]` The native token collateral PDA account.
     fn transfer_out<'a, 'b>(
         program_id: &Pubkey,
         token: &HyperlaneToken<Self>,
@@ -200,7 +200,7 @@ impl HyperlaneSealevelTokenPlugin for NativePlugin {
                 AccountMeta::new_readonly(system_program::ID, false).into(),
                 AccountMeta::new(native_collateral_key, false).into(),
             ],
-            // Recipient wallet must be writeable to send lamports to it.
+            // Recipient wallet must be writable to send lamports to it.
             true,
         ))
     }

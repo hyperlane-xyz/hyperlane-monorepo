@@ -234,9 +234,9 @@ export class SealevelIgpAdapter extends SealevelIgpProgramAdapter {
     return [
       // 0. [executable] The system program.
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-      // 1. [writeable] The IGP account.
+      // 1. [writable] The IGP account.
       { pubkey: this.igp, isSigner: false, isWritable: true },
-      // 2. [writeable] The IGP beneficiary.
+      // 2. [writable] The IGP beneficiary.
       { pubkey: beneficiary, isSigner: false, isWritable: true },
     ];
   }

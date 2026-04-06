@@ -125,7 +125,7 @@ pub fn enroll_remote_routers_instruction(
 
     // Accounts:
     // 0. `[executable]` The system program.
-    // 1. `[writeable]` The token PDA account.
+    // 1. `[writable]` The token PDA account.
     // 2. `[signer]` The owner.
     let accounts = vec![
         AccountMeta::new_readonly(system_program::ID, false),
@@ -156,7 +156,7 @@ pub fn set_destination_gas_configs(
 
     // Accounts:
     // 0. `[executable]` The system program.
-    // 1. `[writeable]` The token PDA account.
+    // 1. `[writable]` The token PDA account.
     // 2. `[signer]` The owner.
     let accounts = vec![
         AccountMeta::new_readonly(system_program::ID, false),
@@ -186,7 +186,7 @@ pub fn transfer_ownership_instruction(
     let ixn = Instruction::TransferOwnership(new_owner);
 
     // Accounts:
-    // 0. `[writeable]` The token PDA account.
+    // 0. `[writable]` The token PDA account.
     // 1. `[signer]` The current owner.
     let accounts = vec![
         AccountMeta::new(token_key, false),
@@ -215,7 +215,7 @@ pub fn set_interchain_security_module_instruction(
     let ixn = Instruction::SetInterchainSecurityModule(new_interchain_security_module);
 
     // Accounts:
-    // 0. `[writeable]` The token PDA account.
+    // 0. `[writable]` The token PDA account.
     // 1. `[signer]` The current owner.
     let accounts = vec![
         AccountMeta::new(token_key, false),
@@ -244,7 +244,7 @@ pub fn set_igp_instruction(
     let ixn = Instruction::SetInterchainGasPaymaster(igp_program_and_account);
 
     // Accounts:
-    // 0. `[writeable]` The token PDA account.
+    // 0. `[writable]` The token PDA account.
     // 1. `[signer]` The current owner.
     let accounts = vec![
         AccountMeta::new(token_key, false),

@@ -132,7 +132,7 @@ pub fn transfer_ownership_instruction(
             .ok_or(ProgramError::InvalidSeeds)?;
 
     // 0. `[signer]` The current access control owner.
-    // 1. `[writeable]` The access control PDA account.
+    // 1. `[writable]` The access control PDA account.
     let instruction = SolanaInstruction {
         program_id,
         data: Instruction::TransferOwnership(new_owner).encode()?,

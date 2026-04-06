@@ -74,7 +74,7 @@ pub fn init_instruction(
     // Accounts:
     // 0. `[executable]` System program.
     // 1. `[signer]` Payer.
-    // 2. `[writeable]` Storage PDA.
+    // 2. `[writable]` Storage PDA.
     let accounts = vec![
         AccountMeta::new_readonly(system_program::ID, false),
         AccountMeta::new_readonly(payer, true),
@@ -103,7 +103,7 @@ pub fn enroll_remote_routers_instruction(
     // Accounts:
     // 0. `[executable]` System program.
     // 1. `[signer]` Payer.
-    // 2. `[writeable]` Storage PDA.
+    // 2. `[writable]` Storage PDA.
     let accounts = vec![
         AccountMeta::new_readonly(system_program::ID, false),
         AccountMeta::new(program_storage_account, false),
@@ -130,7 +130,7 @@ pub fn set_interchain_security_module_instruction(
             .ok_or(ProgramError::InvalidSeeds)?;
 
     // Accounts:
-    // 0. `[writeable]` Storage PDA account.
+    // 0. `[writable]` Storage PDA account.
     // 1. `[signer]` Owner.
     let accounts = vec![
         AccountMeta::new(program_storage_account, false),

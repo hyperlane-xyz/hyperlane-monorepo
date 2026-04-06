@@ -192,8 +192,8 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
     ///
     /// Accounts:
     /// 0. `[executable]` The spl_token_2022 program.
-    /// 1. `[writeable]` The mint / mint authority PDA account.
-    /// 2. `[writeable]` The token sender's associated token account, from which tokens will be burned.
+    /// 1. `[writable]` The mint / mint authority PDA account.
+    /// 2. `[writable]` The token sender's associated token account, from which tokens will be burned.
     fn transfer_in<'a, 'b>(
         program_id: &Pubkey,
         token: &HyperlaneToken<Self>,
@@ -250,9 +250,9 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
     /// Accounts:
     /// 0. `[executable]` SPL token 2022 program
     /// 1. `[executable]` SPL associated token account
-    /// 2. `[writeable]` Mint account
-    /// 3. `[writeable]` Recipient associated token account
-    /// 4. `[writeable]` ATA payer PDA account.
+    /// 2. `[writable]` Mint account
+    /// 3. `[writable]` Recipient associated token account
+    /// 4. `[writable]` ATA payer PDA account.
     fn transfer_out<'a, 'b>(
         program_id: &Pubkey,
         token: &HyperlaneToken<Self>,
@@ -363,7 +363,7 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
                 AccountMeta::new(recipient_associated_token_account, false).into(),
                 AccountMeta::new(ata_payer_account_key, false).into(),
             ],
-            // The recipient does not need to be writeable
+            // The recipient does not need to be writable
             false,
         ))
     }

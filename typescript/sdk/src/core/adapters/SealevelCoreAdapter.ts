@@ -215,11 +215,11 @@ export class SealevelCoreAdapter
       SealevelCoreAdapter.deriveMailboxOutboxPda(mailboxProgramId);
 
     const keys: AccountMeta[] = [
-      // 0. `[writeable]` - The Inbox PDA account.
+      // 0. `[writable]` - The Inbox PDA account.
       { pubkey: inboxPda, isSigner: false, isWritable: true },
       // 1. `[]` - The Outbox PDA account.
       { pubkey: outboxPda, isSigner: false, isWritable: false },
-      // 2. `[signer, writeable]` - The owner of the Mailbox.
+      // 2. `[signer, writable]` - The owner of the Mailbox.
       { pubkey: owner, isSigner: true, isWritable: true },
     ];
 
@@ -258,9 +258,9 @@ export class SealevelCoreAdapter
       SealevelCoreAdapter.deriveMailboxOutboxPda(mailboxProgramId);
 
     const keys: AccountMeta[] = [
-      // 0. `[writeable]` The Outbox PDA account.
+      // 0. `[writable]` The Outbox PDA account.
       { pubkey: outboxPda, isSigner: false, isWritable: true },
-      // 1. `[signer, writeable]` The current owner.
+      // 1. `[signer, writable]` The current owner.
       { pubkey: owner, isSigner: true, isWritable: true },
     ];
 

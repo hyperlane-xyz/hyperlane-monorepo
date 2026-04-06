@@ -39,7 +39,7 @@ impl TestIsmTestClient {
             accounts: vec![
                 // 0. `[executable]` System program.
                 // 1. `[signer]` Payer.
-                // 2. `[writeable]` Storage PDA.
+                // 2. `[writable]` Storage PDA.
                 AccountMeta::new_readonly(system_program::ID, false),
                 AccountMeta::new(payer_pubkey, true),
                 AccountMeta::new(Self::get_storage_pda_key(), false),
@@ -65,7 +65,7 @@ impl TestIsmTestClient {
             program_id,
             data: borsh::to_vec(&TestIsmInstruction::SetAccept(accept)).unwrap(),
             accounts: vec![
-                // 0. `[writeable]` Storage PDA.
+                // 0. `[writable]` Storage PDA.
                 AccountMeta::new(Self::get_storage_pda_key(), false),
             ],
         };
