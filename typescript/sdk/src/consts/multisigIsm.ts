@@ -808,12 +808,13 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   fluent: {
-    threshold: 1,
+    threshold: 2,
     validators: [
       {
         address: '0xea189ae1a9c3e86bcb63597a34a8ea3b0bb83406',
         alias: AW_VALIDATOR_ALIAS,
       },
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
@@ -1094,12 +1095,13 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   kiichain: {
-    threshold: 1,
+    threshold: 2,
     validators: [
       {
         address: '0x5513bc60f0a3a8520edc03828c1bc6111008b54e',
         alias: AW_VALIDATOR_ALIAS,
       },
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
@@ -1443,12 +1445,13 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   mocachain: {
-    threshold: 1,
+    threshold: 2,
     validators: [
       {
         address: '0x31ab8fc95d941defa077f8501c6800e935c3b081',
         alias: AW_VALIDATOR_ALIAS,
       },
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
