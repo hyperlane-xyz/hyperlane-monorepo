@@ -84,6 +84,11 @@ impl TronProvider {
         })
     }
 
+    /// Returns the signer's Ethereum-style address, if a signer is configured.
+    pub fn signer_address(&self) -> Option<H160> {
+        self.signer.as_ref().map(|s| s.address())
+    }
+
     fn get_signer(&self) -> ChainResult<&TronSigner> {
         Ok(self
             .signer

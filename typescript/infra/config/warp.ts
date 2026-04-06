@@ -67,6 +67,7 @@ import {
 } from './environments/mainnet3/warp/configGetters/getEclipseUSDCWarpConfig.js';
 import { getElectroneumUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getElectroneumUSDCWarpConfig.js';
 import {
+  getEni1PieceWarpConfig,
   getEniEthWarpConfig,
   getEniUsdcWarpConfig,
   getEniUsdtWarpConfig,
@@ -213,6 +214,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.EniWBTC]: getEniWbtcWarpConfig,
   [WarpRouteIds.EniUSDC]: getEniUsdcWarpConfig,
   [WarpRouteIds.EniUSDT]: getEniUsdtWarpConfig,
+  [WarpRouteIds.Eni1Piece]: getEni1PieceWarpConfig,
   [WarpRouteIds.ModeUSDTSTAGE]: getUSDTSTAGEWarpConfig,
   [WarpRouteIds.AleoUSDC]: getAleoUSDCWarpConfig,
 };

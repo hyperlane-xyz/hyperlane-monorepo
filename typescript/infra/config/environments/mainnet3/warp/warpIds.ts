@@ -133,6 +133,7 @@ export enum WarpRouteIds {
   EniUSDC = 'USDC/eni',
   EniUSDT = 'USDT/eni',
   EniBNB = 'BNB/eni',
+  Eni1Piece = '1Piece/eni',
 
   ModeUSDTSTAGE = 'USDTSTAGE/mode',
 
@@ -147,4 +148,7 @@ export enum WarpRouteIds {
 
   // ctUSD
   CitreaUSD = 'ctUSD/citrea',
+
+  // RISE routes
+  BscEthereumRISE = 'RISE/bsc-ethereum',
 }

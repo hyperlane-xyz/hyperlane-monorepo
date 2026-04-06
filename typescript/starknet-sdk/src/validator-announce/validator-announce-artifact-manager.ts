@@ -20,7 +20,10 @@ import { hash } from 'starknet';
 
 import { StarknetProvider } from '../clients/provider.js';
 import { StarknetSigner } from '../clients/signer.js';
-import { normalizeStarknetAddressSafe } from '../contracts.js';
+import {
+  normalizeStarknetAddressSafe,
+  shouldFallbackStorageRead,
+} from '../contracts.js';
 
 const STARKNET_STORAGE_ADDRESS_BOUND = (1n << 251n) - 256n;
 const logger = rootLogger.child({
@@ -29,31 +32,6 @@ const logger = rootLogger.child({
 const MAILBOX_STORAGE_KEYS = ['mailbox', '_mailbox'].map(
   (name) => hash.starknetKeccak(name) % STARKNET_STORAGE_ADDRESS_BOUND,
 );
-
-function shouldFallbackStorageRead(error: unknown): boolean {
-  const code =
-    error && typeof error === 'object' ? Reflect.get(error, 'code') : undefined;
-  if (code === -32601) return true;
-
-  const message =
-    error instanceof Error
-      ? error.message
-      : typeof error === 'string'
-        ? error
-        : String(
-            error && typeof error === 'object'
-              ? Reflect.get(error, 'message')
-              : error,
-          );
-  const normalizedMessage = message.toLowerCase();
-
-  return [
-    'method not found',
-    'not supported',
-    'unsupported',
-    'not implemented',
-  ].some((fragment) => normalizedMessage.includes(fragment));
-}
 
 async function readStorageAddress(
   provider: StarknetProvider,
@@ -90,7 +68,7 @@ async function readMailboxAddressFromStorage(
 ): Promise<string | undefined> {
   const candidates = (
     await Promise.all(
-      MAILBOX_STORAGE_KEYS.map((key) =>
+      MAILBOX_STORAGE_KEYS.map(async (key) =>
         readStorageAddress(provider, contractAddress, key),
       ),
     )
@@ -226,7 +204,7 @@ export class StarknetValidatorAnnounceArtifactManager implements IRawValidatorAn
     return signer;
   }
 
-  readValidatorAnnounce(
+  async readValidatorAnnounce(
     address: string,
   ): Promise<DeployedRawValidatorAnnounceArtifact> {
     return this.createReader('validatorAnnounce').read(address);
@@ -238,9 +216,6 @@ export class StarknetValidatorAnnounceArtifactManager implements IRawValidatorAn
     RawValidatorAnnounceArtifactConfigs[T],
     DeployedValidatorAnnounceAddress
   > {
-    if (type !== 'validatorAnnounce') {
-      throw new Error('Unsupported Starknet validator announce type');
-    }
     const readers: {
       [K in ValidatorAnnounceType]: ArtifactReader<
         RawValidatorAnnounceArtifactConfigs[K],
@@ -249,7 +224,9 @@ export class StarknetValidatorAnnounceArtifactManager implements IRawValidatorAn
     } = {
       validatorAnnounce: new StarknetValidatorAnnounceReader(this.provider),
     };
-    return readers[type];
+    const reader = readers[type];
+    assert(reader, 'Unsupported Starknet validator announce type');
+    return reader;
   }
 
   createWriter<T extends ValidatorAnnounceType>(
@@ -259,21 +236,20 @@ export class StarknetValidatorAnnounceArtifactManager implements IRawValidatorAn
     RawValidatorAnnounceArtifactConfigs[T],
     DeployedValidatorAnnounceAddress
   > {
-    if (type !== 'validatorAnnounce') {
-      throw new Error('Unsupported Starknet validator announce type');
-    }
-    const starknetSigner = this.requireStarknetSigner(signer);
-    const writers: {
-      [K in ValidatorAnnounceType]: ArtifactWriter<
+    const writerFactories: {
+      [K in ValidatorAnnounceType]: () => ArtifactWriter<
         RawValidatorAnnounceArtifactConfigs[K],
         DeployedValidatorAnnounceAddress
       >;
     } = {
-      validatorAnnounce: new StarknetValidatorAnnounceWriter(
-        this.provider,
-        starknetSigner,
-      ),
+      validatorAnnounce: () =>
+        new StarknetValidatorAnnounceWriter(
+          this.provider,
+          this.requireStarknetSigner(signer),
+        ),
     };
-    return writers[type];
+    const writerFactory = writerFactories[type];
+    assert(writerFactory, 'Unsupported Starknet validator announce type');
+    return writerFactory();
   }
 }
