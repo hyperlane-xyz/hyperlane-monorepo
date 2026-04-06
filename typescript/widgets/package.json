@@ -22,10 +22,6 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
-    "./animations/*": {
-      "types": "./dist/animations/*.d.ts",
-      "default": "./dist/animations/*.js"
-    },
     "./styles.css": "./dist/styles.css",
     "./chains/*": {
       "types": "./dist/chains/*.d.ts",

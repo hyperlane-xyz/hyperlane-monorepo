@@ -21,10 +21,6 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
-    "./consts/*": {
-      "types": "./dist/consts/*.d.ts",
-      "default": "./dist/consts/*.js"
-    },
     "./metadata/*": {
       "types": "./dist/metadata/*.d.ts",
       "default": "./dist/metadata/*.js"

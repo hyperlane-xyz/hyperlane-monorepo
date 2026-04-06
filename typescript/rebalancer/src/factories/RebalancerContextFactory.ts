@@ -6,12 +6,12 @@ import {
   type CoreAddresses,
   MultiProtocolCore,
   MultiProtocolProvider,
-  MultiProviderAdapter,
   MultiProvider,
   type Token,
   WarpCore,
   type WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
+import type { MultiProviderAdapter } from '@hyperlane-xyz/sdk/providers/MultiProviderAdapter';
 import {
   Address,
   assert,
