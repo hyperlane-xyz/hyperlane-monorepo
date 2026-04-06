@@ -162,6 +162,7 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
         uint32 _domain,
         bytes32 _router
     ) internal view {
+        require(_router != bytes32(0), "CCR: router is zero address");
         require(
             _isRemoteRouter(_domain, _router) ||
                 _crossCollateralRouters[_domain].contains(_router),
@@ -182,6 +183,11 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
         bytes calldata _message
     ) external payable override {
         if (msg.sender == address(mailbox)) {
+            // Cross-chain via mailbox: origin must differ from local domain
+            require(
+                _origin != localDomain,
+                "CCR: same-domain via mailbox not allowed"
+            );
             // Cross-chain via mailbox: sender must be enrolled
             _requireAuthorizedRouter(_origin, _sender);
         } else {
@@ -260,7 +266,7 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
             uint256 hookFee = _quoteGasPaymentTo(
                 _destination,
                 _recipient,
-                _outboundAmount(_amount),
+                _amount,
                 _token,
                 _targetRouter
             );
@@ -408,7 +414,7 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
             gasQuote = _quoteGasPaymentTo(
                 _destination,
                 _recipient,
-                _outboundAmount(_amount),
+                _amount,
                 _feeToken,
                 _targetRouter
             );
@@ -443,7 +449,7 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
             mailbox.quoteDispatch(
                 _destination,
                 _targetRouter,
-                TokenMessage.format(_recipient, _amount),
+                TokenMessage.format(_recipient, _outboundAmount(_amount)),
                 _generateHookMetadata(_destination, _feeToken),
                 IPostDispatchHook(address(hook))
             );

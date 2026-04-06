@@ -676,7 +676,7 @@ describe('EvmHookModule', async () => {
       // create a new hook
       const { hook } = await createHook(config);
 
-      // add quote signers
+      // add quote signers (contractVersion needed to confirm IGP supports them)
       config.quoteSigners = [randomAddress(), randomAddress()];
 
       // expect 2 txs to add quote signers
@@ -687,7 +687,6 @@ describe('EvmHookModule', async () => {
       const signerA = randomAddress();
       const signerB = randomAddress();
       const config = await createDeployerOwnedIgpHookConfig();
-      config.contractVersion = CONTRACTS_PACKAGE_VERSION;
       config.quoteSigners = [signerA, signerB];
 
       // create a new hook with signers
@@ -704,7 +703,6 @@ describe('EvmHookModule', async () => {
       const signerA = randomAddress();
       const signerB = randomAddress();
       const config = await createDeployerOwnedIgpHookConfig();
-      config.contractVersion = CONTRACTS_PACKAGE_VERSION;
       config.quoteSigners = [signerA, signerB];
 
       const { hook } = await createHook(config);
@@ -718,7 +716,6 @@ describe('EvmHookModule', async () => {
     it('should not update IGP if quote signers unchanged', async () => {
       const signerAddr = randomAddress();
       const config = await createDeployerOwnedIgpHookConfig();
-      config.contractVersion = CONTRACTS_PACKAGE_VERSION;
       config.quoteSigners = [signerAddr];
 
       const { hook } = await createHook(config);
@@ -727,15 +724,17 @@ describe('EvmHookModule', async () => {
       await expectTxsAndUpdate(hook, config, 0);
     });
 
-    it('should skip quote signer updates when contractVersion is not set', async () => {
+    it('should not remove existing quote signers when target omits the field', async () => {
       const config = await createDeployerOwnedIgpHookConfig();
+      config.contractVersion = CONTRACTS_PACKAGE_VERSION;
+      config.quoteSigners = [randomAddress()];
 
       const { hook } = await createHook(config);
 
-      // add quote signers without contractVersion
-      config.quoteSigners = [randomAddress()];
+      // omit quoteSigners from target — should not generate remove txs
+      delete config.quoteSigners;
 
-      // expect 0 txs since contractVersion gates signer updates
+      // expect 0 txs since omitting quoteSigners means "don't change"
       await expectTxsAndUpdate(hook, config, 0);
     });
 

@@ -106,6 +106,12 @@ abstract contract AbstractInterchainAccountRouter is Router {
 
     receive() external payable {}
 
+    /**
+     * @notice Approves the fee token for the hook to spend.
+     * @dev Grants max approval so the hook can pull fee tokens during dispatch.
+     * @param _feeToken The ERC20 fee token address.
+     * @param _hook The hook address to approve.
+     */
     function approveFeeTokenForHook(address _feeToken, address _hook) external {
         IERC20(_feeToken).forceApprove(_hook, type(uint256).max);
     }
@@ -239,6 +245,10 @@ abstract contract AbstractInterchainAccountRouter is Router {
             );
 
             IERC20(_feeToken).safeTransferFrom(msg.sender, address(this), _fee);
+            // Standing approval is acceptable here: postDispatch replay with a
+            // crafted message could spend this approval, but tokens are never held
+            // in this contract so there is nothing to drain. Funds collected by the
+            // hook are recoverable by the hook beneficiary, not the attacker.
             IERC20(_feeToken).forceApprove(address(_hook), type(uint256).max);
         }
 
@@ -302,6 +312,41 @@ abstract contract AbstractInterchainAccountRouter is Router {
         );
         Router._enrollRemoteRouter(_destination, _router);
         _enrollRemoteIsm(_destination, _ism);
+    }
+
+    /**
+     * @notice Returns the remote address of a locally owned interchain account
+     * @dev This interchain account is not guaranteed to have been deployed
+     * @dev This function will only work if the destination domain is EVM compatible
+     * @param _owner The local owner of the interchain account
+     * @param _router The remote InterchainAccountRouter
+     * @param _ism The remote address of the ISM
+     * @param _userSalt Salt provided by the user, allows control over account derivation.
+     * @return The remote address of the interchain account
+     */
+    function getRemoteInterchainAccount(
+        address _owner,
+        address _router,
+        address _ism,
+        bytes32 _userSalt
+    ) public view returns (address) {
+        require(_router != address(0), "no router specified for destination");
+
+        address _implementation = Create2.computeAddress(
+            bytes32(0),
+            keccak256(_implementationBytecode(_router)),
+            _router
+        );
+
+        bytes32 _bytecodeHash = _proxyBytecodeHash(_implementation);
+        bytes32 _salt = _getSalt(
+            localDomain,
+            _owner.addressToBytes32(),
+            address(this).addressToBytes32(),
+            _ism.addressToBytes32(),
+            _userSalt
+        );
+        return Create2.computeAddress(_salt, _bytecodeHash, _router);
     }
 
     function _getSalt(

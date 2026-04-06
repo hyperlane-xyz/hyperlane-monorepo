@@ -140,6 +140,66 @@ contract AmountRoutingTest is Test {
     // for receiving refunds
     receive() external payable {}
 
+    function test_postDispatch_forwardsMsgValue_lower(
+        bytes32 recipient,
+        uint256 amount,
+        uint256 extraValue
+    ) public {
+        vm.assume(amount < threshold);
+        extraValue = bound(extraValue, 0, 10 ether);
+        deal(address(this), lowerFee + extraValue);
+
+        bytes memory message = _buildMessage(recipient, amount);
+        uint256 totalValue = lowerFee + extraValue;
+
+        // entire msg.value should be forwarded to the child hook
+        vm.expectCall(
+            address(lowerHook),
+            totalValue,
+            abi.encodeCall(IPostDispatchHook.postDispatch, (bytes(""), message))
+        );
+        hook.postDispatch{value: totalValue}(bytes(""), message);
+        assertEq(address(lowerHook).balance, totalValue);
+    }
+
+    function test_postDispatch_forwardsMsgValue_upper(
+        bytes32 recipient,
+        uint256 amount,
+        uint256 extraValue
+    ) public {
+        vm.assume(amount >= threshold);
+        extraValue = bound(extraValue, 0, 10 ether);
+        deal(address(this), upperFee + extraValue);
+
+        bytes memory message = _buildMessage(recipient, amount);
+        uint256 totalValue = upperFee + extraValue;
+
+        vm.expectCall(
+            address(upperHook),
+            totalValue,
+            abi.encodeCall(IPostDispatchHook.postDispatch, (bytes(""), message))
+        );
+        hook.postDispatch{value: totalValue}(bytes(""), message);
+        assertEq(address(upperHook).balance, totalValue);
+    }
+
+    function _buildMessage(
+        bytes32 recipient,
+        uint256 amount
+    ) internal pure returns (bytes memory) {
+        // header: version(1) + nonce(4) + origin(4) + sender(32) + destination(4) + recipient(32) = 77 bytes
+        bytes memory headers = abi.encodePacked(
+            uint8(0),
+            uint32(0),
+            uint32(0),
+            bytes32(0),
+            uint32(0),
+            bytes32(0)
+        );
+        bytes memory body = abi.encodePacked(recipient, amount);
+        return abi.encodePacked(headers, body);
+    }
+
     function test_hookType() public view {
         assertEq(
             hook.hookType(),

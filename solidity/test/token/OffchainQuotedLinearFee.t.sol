@@ -377,6 +377,21 @@ contract OffchainQuotedLinearFeeTest is Test {
         );
     }
 
+    function test_submitQuote_expiryBeforeIssuedAt_reverts() public {
+        uint48 now_ = uint48(block.timestamp);
+        SignedQuote memory sq = SignedQuote({
+            context: _quoteContext(DEST, RECIPIENT, WILDCARD_AMOUNT),
+            data: _encodeFeeData(MAX_FEE, HALF_AMOUNT),
+            issuedAt: now_ + 100,
+            expiry: now_,
+            salt: bytes32(0),
+            submitter: address(0)
+        });
+        bytes memory sig = _signQuote(sq);
+        vm.expectRevert(AbstractOffchainQuoter.InvalidQuote.selector);
+        quotedFee.submitQuote(sq, sig);
+    }
+
     function test_standingQuote_staleQuote_reverts() public {
         uint48 now_ = uint48(block.timestamp);
         _submitStanding(
@@ -389,7 +404,7 @@ contract OffchainQuotedLinearFeeTest is Test {
             now_ + 3600
         );
 
-        // Try to submit older quote
+        // Older issuedAt should revert
         SignedQuote memory sq = SignedQuote({
             context: _quoteContext(DEST, RECIPIENT, WILDCARD_AMOUNT),
             data: _encodeFeeData(MAX_FEE + 1, HALF_AMOUNT),
@@ -401,6 +416,39 @@ contract OffchainQuotedLinearFeeTest is Test {
         bytes memory sig = _signQuote(sq);
         vm.expectRevert(AbstractOffchainQuoter.StaleQuote.selector);
         quotedFee.submitQuote(sq, sig);
+    }
+
+    function test_standingQuote_equalIssuedAt_noop() public {
+        uint48 now_ = uint48(block.timestamp);
+        _submitStanding(
+            DEST,
+            RECIPIENT,
+            WILDCARD_AMOUNT,
+            MAX_FEE,
+            HALF_AMOUNT,
+            now_,
+            now_ + 3600
+        );
+
+        // Same issuedAt should be silently skipped (no revert, no update)
+        SignedQuote memory sq = SignedQuote({
+            context: _quoteContext(DEST, RECIPIENT, WILDCARD_AMOUNT),
+            data: _encodeFeeData(MAX_FEE + 1, HALF_AMOUNT),
+            issuedAt: now_,
+            expiry: now_ + 7200,
+            salt: bytes32(0),
+            submitter: address(0)
+        });
+        bytes memory sig = _signQuote(sq);
+        quotedFee.submitQuote(sq, sig);
+
+        // Original quote values should be preserved (MAX_FEE, not MAX_FEE + 1)
+        Quote[] memory result = quotedFee.quoteTransferRemote(
+            DEST,
+            RECIPIENT,
+            AMOUNT
+        );
+        assertEq(result[0].amount, _computeFee(MAX_FEE, HALF_AMOUNT, AMOUNT));
     }
 
     function test_standingQuote_nonWildcardAmount_reverts() public {

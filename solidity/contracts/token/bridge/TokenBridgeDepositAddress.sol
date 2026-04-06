@@ -57,7 +57,8 @@ contract TokenBridgeDepositAddress is
         address indexed depositAddress,
         uint256 amount,
         uint256 feeAmount,
-        uint256 feeBps
+        uint256 feeBps,
+        uint256 nonce
     );
 
     IERC20 public immutable wrappedToken;
@@ -102,6 +103,7 @@ contract TokenBridgeDepositAddress is
         bytes32 _recipient,
         uint256 _amount
     ) external payable override returns (bytes32) {
+        require(_amount > 0, "amount must be > 0");
         if (msg.value != 0) revert NativeFeeNotSupported(msg.value);
 
         DestinationConfig memory config = _getDestinationConfig(
@@ -124,13 +126,14 @@ contract TokenBridgeDepositAddress is
             config.depositAddress,
             _amount,
             feeAmount,
-            config.feeBps
+            config.feeBps,
+            nonce
         );
 
         return bytes32(0);
     }
 
-    function setDestinationConfig(
+    function addDestinationConfig(
         uint32 _destination,
         address _depositAddress,
         bytes32 _recipient,
@@ -142,6 +145,13 @@ contract TokenBridgeDepositAddress is
         if (_feeBps >= BPS_DENOMINATOR) {
             revert InvalidFeeBps(_feeBps);
         }
+        // Prevent accidental overwrites of existing deposit address configs.
+        // To update, first removeDestinationConfig then addDestinationConfig.
+        require(
+            _destinationConfigs[_destination][_recipient].depositAddress ==
+                address(0),
+            "deposit address already configured"
+        );
 
         _addDomain(_destination);
         _configuredRecipients[_destination].add(_recipient);
