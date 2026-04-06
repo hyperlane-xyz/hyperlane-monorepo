@@ -1,5 +1,15 @@
 # @hyperlane-xyz/core
 
+## 11.2.0
+
+### Minor Changes
+
+- ac297da: Added a sender check in CctpBase.\_postDispatch to prevent misuse when called via transferRemote.
+
+### Patch Changes
+
+- 77db719: Fixed SafeERC20.sol operations for Tron
+
 ## 11.1.0
 
 ### Minor Changes
