@@ -135,7 +135,8 @@ export class EvmTokenFeeReader extends HyperlaneReader {
         routingDestinations.map(async (destination) => {
           const subFeeAddress = await routingFee.feeContracts(destination);
           if (subFeeAddress === constants.AddressZero) return;
-          const chainName = this.multiProvider.getChainName(destination);
+          const chainName = this.multiProvider.tryGetChainName(destination);
+          if (!chainName) return;
           feeContracts[chainName] = await this.deriveTokenFeeConfig({
             address: subFeeAddress,
 

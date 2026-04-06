@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/warp-monitor",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "private": true,
   "description": "Hyperlane Warp Route Balance Monitor Service",
   "keywords": [
@@ -20,7 +20,7 @@
     "bundle": "rm -rf ./bundle && ncc build ./dist/service.js -o bundle -e @google-cloud/pino-logging-gcp-config && node ../../scripts/ncc.post-bundle.mjs",
     "clean": "rm -rf dist cache bundle",
     "dev": "tsc --watch",
-    "lint": "eslint -c ./eslint.config.mjs ./src",
+    "lint": "oxlint -c ../../oxlint.json",
     "format": "oxfmt --write ./src",
     "test": "mocha --config .mocharc.json './src/**/*.test.ts' --exit",
     "test:ci": "pnpm test",
@@ -39,7 +39,6 @@
     "prom-client": "catalog:"
   },
   "devDependencies": {
-    "@hyperlane-xyz/eslint-config": "workspace:^",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@types/chai": "catalog:",
     "@types/mocha": "catalog:",
@@ -47,7 +46,6 @@
     "@types/sinon": "catalog:",
     "@vercel/ncc": "catalog:",
     "chai": "catalog:",
-    "eslint": "catalog:",
     "mocha": "catalog:",
     "oxfmt": "catalog:",
     "sinon": "catalog:",

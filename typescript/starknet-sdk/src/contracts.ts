@@ -21,8 +21,10 @@ import {
   assert,
   bytes32ToAddress,
   ensure0x,
+  isNullish,
   isZeroishAddress,
   normalizeAddressStarknet,
+  rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import { StarknetAnnotatedTx } from './types.js';
@@ -332,4 +334,109 @@ export function normalizeRoutersAddress(value: unknown): string {
     return normalizeStarknetAddressSafe(num.toHex(uint256.uint256ToBN(value)));
   }
   return normalizeStarknetAddressSafe(value);
+}
+
+/**
+ * Creates a Contract instance using the on-chain ABI fetched from the provider.
+ * If the contract is a proxy, resolves the implementation class ABI so
+ * starknet.js parses responses with the correct types.
+ *
+ * Handles both Cairo 1 proxies (`get_implementation` returning a struct)
+ * and Cairo 0 proxies (`implementation` returning a felt).
+ */
+export async function getOnChainStarknetContract(
+  provider: ProviderInterface,
+  address: string,
+): Promise<Contract> {
+  const normalized = normalizeStarknetAddressSafe(address);
+  const { abi } = await provider.getClassAt(normalized);
+  const contract = new Contract(abi, normalized, provider);
+
+  const implHash = await resolveImplementationHash(contract);
+  if (isNullish(implHash) || implHash === 0n) return contract;
+
+  const implClass = await provider.getClassByHash(`0x${implHash.toString(16)}`);
+  return new Contract(implClass.abi, normalized, provider);
+}
+
+async function resolveImplementationHash(
+  contract: Contract,
+): Promise<bigint | undefined> {
+  try {
+    // Cairo 1 proxy pattern
+    if (hasAbiMethod(contract, 'get_implementation')) {
+      return coerceClassHash(
+        await callContract(contract, 'get_implementation'),
+      );
+    }
+
+    // Cairo 0 proxy pattern
+    if (hasAbiMethod(contract, 'implementation')) {
+      return coerceClassHash(await callContract(contract, 'implementation'));
+    }
+  } catch (error: unknown) {
+    rootLogger.warn(
+      { address: contract.address, error },
+      'Proxy resolution failed; falling back to contract own ABI',
+    );
+  }
+
+  return undefined;
+}
+
+/**
+ * Coerces a proxy implementation call result to a bigint class hash.
+ * Handles both direct values (bigint/string) and single-field structs
+ * returned by Cairo 0 (e.g. `{ implementation_hash_: bigint }`).
+ */
+function coerceClassHash(value: unknown): bigint {
+  if (typeof value === 'bigint') return value;
+  if (typeof value === 'string') return BigInt(value);
+  if (typeof value === 'number') return BigInt(value);
+
+  if (isObjectRecord(value)) {
+    const values = Object.values(value);
+    if (values.length === 1) return coerceClassHash(values[0]);
+  }
+
+  return toBigInt(value);
+}
+
+/**
+ * Determines whether a storage read error should trigger a fallback
+ * to contract call-based reading. Some Starknet chains (e.g. Paradex)
+ * have privacy enabled that disallows direct storage reads.
+ */
+/** JSON-RPC error codes that indicate storage reads are unavailable. */
+const STORAGE_READ_FALLBACK_CODES = new Set([-32601, -32000]);
+
+/** Error message fragments (lowercase) that indicate storage reads are unavailable. */
+const STORAGE_READ_FALLBACK_MESSAGES = [
+  'method not found',
+  'method not allowed',
+  'not supported',
+  'unsupported',
+  'not implemented',
+] as const;
+
+export function shouldFallbackStorageRead(error: unknown): boolean {
+  const code =
+    error && typeof error === 'object' ? Reflect.get(error, 'code') : undefined;
+  if (STORAGE_READ_FALLBACK_CODES.has(code)) return true;
+
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === 'string'
+        ? error
+        : String(
+            error && typeof error === 'object'
+              ? Reflect.get(error, 'message')
+              : error,
+          );
+  const normalizedMessage = message.toLowerCase();
+
+  return STORAGE_READ_FALLBACK_MESSAGES.some((fragment) =>
+    normalizedMessage.includes(fragment),
+  );
 }

@@ -1,5 +1,30 @@
 # @hyperlane-xyz/sdk
 
+## 30.0.0
+
+### Minor Changes
+
+- d0dbf1a: PostCallsSchema is now a backwards-compatible union accepting either `destinationDomain` + `owner` (new ICA derivation path) or `commitmentDispatchTx` (legacy dispatch tx path). Added `isPostCallsIca()` type guard, `PostCallsIcaType`, `PostCallsLegacyType` exports, and `commitmentFromRevealMessage()` helper. Tightened schema validation to use ZHash for `owner`, `salt`, `ismOverride`, and `commitmentDispatchTx` fields.
+
+### Patch Changes
+
+- e1ed158: User-specified remoteRouters and destinationGas in warp deploy configs were ignored during router enrollment when the remote chains were not part of the deployment. enrollCrossChainRouters now merges user-specified entries with auto-discovered routers from deployed contracts.
+- 95c2891: Routing fee config derivation skips non-EVM domains unknown to MultiProvider instead of throwing.
+- Updated dependencies [ac297da]
+- Updated dependencies [77db719]
+- Updated dependencies [37255ba]
+- Updated dependencies [7646819]
+  - @hyperlane-xyz/core@11.2.0
+  - @hyperlane-xyz/deploy-sdk@4.2.3
+  - @hyperlane-xyz/provider-sdk@4.2.3
+  - @hyperlane-xyz/utils@30.0.0
+  - @hyperlane-xyz/multicollateral@1.0.2
+  - @hyperlane-xyz/tron-sdk@22.1.7
+  - @hyperlane-xyz/aleo-sdk@30.0.0
+  - @hyperlane-xyz/cosmos-sdk@30.0.0
+  - @hyperlane-xyz/radix-sdk@30.0.0
+  - @hyperlane-xyz/starknet-core@30.0.0
+
 ## 29.1.0
 
 ### Minor Changes
