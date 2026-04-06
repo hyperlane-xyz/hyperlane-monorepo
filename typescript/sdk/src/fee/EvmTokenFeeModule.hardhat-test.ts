@@ -238,7 +238,7 @@ describe('EvmTokenFeeModule', () => {
         onchainConfig.type === TokenFeeType.RoutingFee,
         `Must be ${TokenFeeType.RoutingFee}`,
       );
-      expect(onchainConfig.feeContracts[test4Chain]?.bps).to.equal(BPS + 1n);
+      expect(onchainConfig.feeContracts[test4Chain]?.bps).to.equal(BPS + 1);
     });
 
     it('should transfer ownership if they are different', async () => {
@@ -348,7 +348,7 @@ describe('EvmTokenFeeModule', () => {
         onchainConfig.type === TokenFeeType.RoutingFee,
         `Must be ${TokenFeeType.RoutingFee}`,
       );
-      expect(onchainConfig.feeContracts[test4Chain]?.bps).to.equal(BPS + 1n);
+      expect(onchainConfig.feeContracts[test4Chain]?.bps).to.equal(BPS + 1);
     });
 
     it('should forward token reader params when updating routing fees', async () => {
@@ -491,7 +491,7 @@ describe('EvmTokenFeeModule', () => {
               [DEFAULT_ROUTER_KEY]: {
                 type: TokenFeeType.LinearFee,
                 owner: signer.address,
-                bps: BPS + 1n,
+                bps: BPS + 1,
               },
             },
           },
@@ -521,7 +521,7 @@ describe('EvmTokenFeeModule', () => {
       );
       expect(
         onchainConfig.feeContracts[test4Chain]?.[DEFAULT_ROUTER_KEY]?.bps,
-      ).to.equal(BPS + 1n);
+      ).to.equal(BPS + 1);
     });
 
     it('should redeploy an empty CCRF using explicitly resolved child tokens', async () => {
@@ -983,7 +983,7 @@ describe('EvmTokenFeeModule', () => {
         chain: test4Chain,
         config: offchainConfig,
       });
-      const updatedConfig = { ...offchainConfig, bps: BPS + 1n };
+      const updatedConfig = { ...offchainConfig, bps: BPS + 1 };
       await expectTxsAndUpdate(module, updatedConfig, 0);
       const onchainConfig = await module.read();
       assert(

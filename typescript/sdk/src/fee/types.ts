@@ -80,6 +80,10 @@ export type FeeParameters = z.infer<typeof FeeParametersSchema>;
 const StandardFeeConfigBaseSchema =
   BaseFeeConfigSchema.merge(FeeParametersSchema);
 
+const BpsConfigSchema = StandardFeeConfigBaseSchema.extend({
+  bps: ZBps,
+});
+
 // Shared schema for offchain quote signer configuration
 export const QuoteSignersSchema = z.object({
   quoteSigners: z.array(ZHash).optional(),
@@ -88,9 +92,8 @@ export type QuoteSignersConfig = z.infer<typeof QuoteSignersSchema>;
 
 // ====== INDIVIDUAL FEE SCHEMAS ======
 
-export const LinearFeeConfigSchema = StandardFeeConfigBaseSchema.extend({
+export const LinearFeeConfigSchema = BpsConfigSchema.extend({
   type: z.literal(TokenFeeType.LinearFee),
-  bps: ZBps,
 });
 export type LinearFeeConfig = z.infer<typeof LinearFeeConfigSchema>;
 
@@ -143,11 +146,11 @@ export const LinearFeeInputConfigSchema = BaseFeeConfigInputSchema.extend({
   }));
 export type LinearFeeInputConfig = z.infer<typeof LinearFeeInputConfigSchema>;
 
-export const OffchainQuotedLinearFeeConfigSchema =
-  StandardFeeConfigBaseSchema.merge(QuoteSignersSchema).extend({
-    type: z.literal(TokenFeeType.OffchainQuotedLinearFee),
-    bps: ZBigNumberish,
-  });
+export const OffchainQuotedLinearFeeConfigSchema = BpsConfigSchema.merge(
+  QuoteSignersSchema,
+).extend({
+  type: z.literal(TokenFeeType.OffchainQuotedLinearFee),
+});
 export type OffchainQuotedLinearFeeConfig = z.infer<
   typeof OffchainQuotedLinearFeeConfigSchema
 >;
@@ -156,7 +159,7 @@ export const OffchainQuotedLinearFeeInputConfigSchema =
   BaseFeeConfigInputSchema.merge(QuoteSignersSchema)
     .extend({
       type: z.literal(TokenFeeType.OffchainQuotedLinearFee),
-      bps: ZBigNumberish.optional(),
+      bps: ZBps.optional(),
       ...FeeParametersSchema.partial().shape,
     })
     .superRefine((v, ctx) => {
@@ -171,11 +174,19 @@ export const OffchainQuotedLinearFeeInputConfigSchema =
         });
       }
 
-      if (hasBps && BigInt(v.bps!) === 0n) {
+      if (hasBps && v.bps! <= 0) {
         ctx.addIssue({
           code: 'custom',
           path: ['bps'],
           message: 'bps must be > 0',
+        });
+      }
+
+      if (hasBps && !isBpsPrecisionValid(v.bps!)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['bps'],
+          message: `bps must have at most ${MAX_BPS_DECIMALS} decimal places`,
         });
       }
 
