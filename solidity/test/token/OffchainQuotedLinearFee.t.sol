@@ -377,6 +377,21 @@ contract OffchainQuotedLinearFeeTest is Test {
         );
     }
 
+    function test_submitQuote_expiryBeforeIssuedAt_reverts() public {
+        uint48 now_ = uint48(block.timestamp);
+        SignedQuote memory sq = SignedQuote({
+            context: _quoteContext(DEST, RECIPIENT, WILDCARD_AMOUNT),
+            data: _encodeFeeData(MAX_FEE, HALF_AMOUNT),
+            issuedAt: now_ + 100,
+            expiry: now_,
+            salt: bytes32(0),
+            submitter: address(0)
+        });
+        bytes memory sig = _signQuote(sq);
+        vm.expectRevert(AbstractOffchainQuoter.InvalidQuote.selector);
+        quotedFee.submitQuote(sq, sig);
+    }
+
     function test_standingQuote_staleQuote_reverts() public {
         uint48 now_ = uint48(block.timestamp);
         _submitStanding(

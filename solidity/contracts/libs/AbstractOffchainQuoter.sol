@@ -67,6 +67,7 @@ abstract contract AbstractOffchainQuoter is IOffchainQuoter {
     // ============ Errors ============
 
     error QuoteExpired();
+    error InvalidQuote();
     error StaleQuote();
     error InvalidSigner();
     error InvalidSubmitter();
@@ -84,6 +85,7 @@ abstract contract AbstractOffchainQuoter is IOffchainQuoter {
         SignedQuote calldata sq,
         bytes calldata signature
     ) external {
+        if (sq.expiry < sq.issuedAt) revert InvalidQuote();
         if (uint48(block.timestamp) > sq.expiry) revert QuoteExpired();
         // submitter field restricts who can submit (e.g. QuotedCalls only).
         // address(0) means unrestricted — any caller may submit.

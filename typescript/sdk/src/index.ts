@@ -111,6 +111,7 @@ export { ICoreAdapter } from './core/adapters/types.js';
 export {
   CoreAddresses,
   CoreFactories,
+  PERMIT2_ADDRESS,
   coreFactories,
 } from './core/contracts.js';
 export { HyperlaneLifecyleEvent } from './core/events.js';
@@ -980,6 +981,7 @@ export {
 } from './signers/svm/solana-web3js.js';
 
 export {
+  DEFAULT_ROUTER_KEY,
   OnchainTokenFeeType,
   onChainTypeToTokenFeeTypeMap,
   TokenFeeType,
@@ -988,6 +990,11 @@ export {
   TokenFeeConfigInputSchema,
   TokenFeeConfigInput,
   LinearFeeConfig,
+  OffchainQuotedLinearFeeConfig,
+  OffchainQuotedLinearFeeConfigSchema,
+  OffchainQuotedLinearFeeInputConfigSchema,
+  QuoteSignersSchema,
+  QuoteSignersConfig,
 } from './fee/types.js';
 export { convertToBps } from './fee/utils.js';
 

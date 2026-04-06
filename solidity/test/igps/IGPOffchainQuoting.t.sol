@@ -367,6 +367,21 @@ contract IGPOffchainQuotingTest is Test {
         assertEq(fee, 30_000_000); // oracle
     }
 
+    function test_submitQuote_expiryBeforeIssuedAt_reverts() public {
+        uint48 now_ = uint48(block.timestamp);
+        SignedQuote memory sq = SignedQuote({
+            context: abi.encodePacked(address(0), DEST, address(this)),
+            data: _encodeGasData(EXCHANGE_RATE, GAS_PRICE),
+            issuedAt: now_ + 100,
+            expiry: now_,
+            salt: bytes32(0),
+            submitter: address(0)
+        });
+        bytes memory sig = _signQuote(sq);
+        vm.expectRevert(AbstractOffchainQuoter.InvalidQuote.selector);
+        igp.submitQuote(sq, sig);
+    }
+
     function test_standingQuote_staleReverts() public {
         uint48 now_ = uint48(block.timestamp);
         _submitStanding(
@@ -927,5 +942,29 @@ contract IGPQuoteCodecTest is Test {
         bytes memory tooLong = new bytes(33);
         vm.expectRevert();
         codec.decodeData(tooLong);
+    }
+}
+
+contract ERC7201StorageLocationTest is Test {
+    function test_offchainQuotedIGP_storageLocation() public pure {
+        bytes32 innerHash = keccak256("hyperlane.storage.OffchainQuotedIGP");
+        bytes32 expectedSlot = keccak256(abi.encode(uint256(innerHash) - 1)) &
+            ~bytes32(uint256(0xff));
+        assertEq(
+            expectedSlot,
+            0x37f6b30297338df08e6d85e9801872705361ae192b2a17f9ad37df1c08991200
+        );
+    }
+
+    function test_abstractOffchainQuoter_storageLocation() public pure {
+        bytes32 innerHash = keccak256(
+            "hyperlane.storage.AbstractOffchainQuoter"
+        );
+        bytes32 expectedSlot = keccak256(abi.encode(uint256(innerHash) - 1)) &
+            ~bytes32(uint256(0xff));
+        assertEq(
+            expectedSlot,
+            0x64f71a44403ec21f823dd9edb7275f10db1dce468c4e448159a561ce20e08a00
+        );
     }
 }
