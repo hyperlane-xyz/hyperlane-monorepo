@@ -127,6 +127,142 @@ pub struct HyperlaneSealevelToken<
     _plugin: std::marker::PhantomData<T>,
 }
 
+/// Validated core init accounts (0-3) and derived values.
+pub struct InitAccountBundle<'account_info_slice, 'account_info> {
+    /// The system program account.
+    pub system_program: &'account_info_slice AccountInfo<'account_info>,
+    /// The token PDA account (writable, uninitialized).
+    pub token_account: &'account_info_slice AccountInfo<'account_info>,
+    /// The dispatch authority PDA account (writable, uninitialized).
+    pub dispatch_authority_account: &'account_info_slice AccountInfo<'account_info>,
+    /// The payer account (signer).
+    pub payer_account: &'account_info_slice AccountInfo<'account_info>,
+    /// The token PDA bump seed.
+    pub token_bump: u8,
+    /// The dispatch authority PDA bump seed.
+    pub dispatch_authority_bump: u8,
+    /// The mailbox process authority derived for this program.
+    pub mailbox_process_authority: Pubkey,
+}
+
+/// Validates and extracts the core init accounts (0-3): system program, token PDA,
+/// dispatch authority PDA, and payer. Derives bumps and mailbox process authority.
+pub fn validate_init_accounts<'account_info_slice, 'account_info>(
+    program_id: &Pubkey,
+    accounts_iter: &mut std::slice::Iter<'account_info_slice, AccountInfo<'account_info>>,
+    mailbox: &Pubkey,
+) -> Result<InitAccountBundle<'account_info_slice, 'account_info>, ProgramError> {
+    let system_program_id = system_program::ID;
+
+    // Account 0: System program
+    let system_program = next_account_info(accounts_iter)?;
+    if system_program.key != &system_program_id {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+
+    // Account 1: Token storage account
+    let token_account = next_account_info(accounts_iter)?;
+    let (token_key, token_bump) =
+        Pubkey::find_program_address(hyperlane_token_pda_seeds!(), program_id);
+    if &token_key != token_account.key {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+    if !token_account.data_is_empty() || token_account.owner != &system_program_id {
+        return Err(ProgramError::AccountAlreadyInitialized);
+    }
+
+    // Account 2: Dispatch authority PDA
+    let dispatch_authority_account = next_account_info(accounts_iter)?;
+    let (dispatch_authority_key, dispatch_authority_bump) =
+        Pubkey::find_program_address(mailbox_message_dispatch_authority_pda_seeds!(), program_id);
+    if *dispatch_authority_account.key != dispatch_authority_key {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+    if !dispatch_authority_account.data_is_empty()
+        || dispatch_authority_account.owner != &system_program_id
+    {
+        return Err(ProgramError::AccountAlreadyInitialized);
+    }
+
+    // Account 3: Payer
+    let payer_account = next_account_info(accounts_iter)?;
+    if !payer_account.is_signer {
+        return Err(ProgramError::MissingRequiredSignature);
+    }
+
+    // Mailbox process authority for this program as a recipient
+    let (mailbox_process_authority, _) =
+        Pubkey::find_program_address(mailbox_process_authority_pda_seeds!(program_id), mailbox);
+
+    Ok(InitAccountBundle {
+        system_program,
+        token_account,
+        dispatch_authority_account,
+        payer_account,
+        token_bump,
+        dispatch_authority_bump,
+        mailbox_process_authority,
+    })
+}
+
+/// Builds the `HyperlaneTokenAccount<T>` from the init data, plugin data, and validated accounts.
+pub fn build_token_state<T: HyperlaneSealevelTokenPlugin>(
+    init: Init,
+    plugin_data: T,
+    bundle: &InitAccountBundle,
+) -> HyperlaneTokenAccount<T> {
+    let token: HyperlaneToken<T> = HyperlaneToken {
+        bump: bundle.token_bump,
+        mailbox: init.mailbox,
+        mailbox_process_authority: bundle.mailbox_process_authority,
+        dispatch_authority_bump: bundle.dispatch_authority_bump,
+        owner: Some(*bundle.payer_account.key),
+        interchain_security_module: init.interchain_security_module,
+        interchain_gas_paymaster: init.interchain_gas_paymaster,
+        destination_gas: HashMap::new(),
+        decimals: init.decimals,
+        remote_decimals: init.remote_decimals,
+        remote_routers: HashMap::new(),
+        plugin_data,
+    };
+    HyperlaneTokenAccount::<T>::from(token)
+}
+
+/// Creates the core token PDA and dispatch authority PDA, and stores the token data.
+pub fn create_core_pdas<T: HyperlaneSealevelTokenPlugin>(
+    program_id: &Pubkey,
+    bundle: &InitAccountBundle,
+    token_account_data: &HyperlaneTokenAccount<T>,
+) -> ProgramResult {
+    let rent = Rent::get()?;
+
+    // Create token account PDA
+    create_pda_account(
+        bundle.payer_account,
+        &rent,
+        token_account_data.size(),
+        program_id,
+        bundle.system_program,
+        bundle.token_account,
+        hyperlane_token_pda_seeds!(bundle.token_bump),
+    )?;
+
+    // Create dispatch authority PDA (0 bytes)
+    create_pda_account(
+        bundle.payer_account,
+        &rent,
+        0,
+        program_id,
+        bundle.system_program,
+        bundle.dispatch_authority_account,
+        mailbox_message_dispatch_authority_pda_seeds!(bundle.dispatch_authority_bump),
+    )?;
+
+    token_account_data.store(bundle.token_account, false)?;
+
+    Ok(())
+}
+
 impl<T> HyperlaneSealevelToken<T>
 where
     T: HyperlaneSealevelTokenPlugin
@@ -147,58 +283,13 @@ where
     pub fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> ProgramResult {
         let accounts_iter = &mut accounts.iter();
 
-        // Account 0: System program
-        let system_program_id = system_program::ID;
-        let system_program = next_account_info(accounts_iter)?;
-        if system_program.key != &system_program_id {
-            return Err(ProgramError::IncorrectProgramId);
-        }
-
-        // Account 1: Token storage account
-        let token_account = next_account_info(accounts_iter)?;
-        let (token_key, token_bump) =
-            Pubkey::find_program_address(hyperlane_token_pda_seeds!(), program_id);
-        if &token_key != token_account.key {
-            return Err(ProgramError::IncorrectProgramId);
-        }
-        if !token_account.data_is_empty() || token_account.owner != &system_program_id {
-            return Err(ProgramError::AccountAlreadyInitialized);
-        }
-
-        // Account 2: Dispatch authority PDA.
-        let dispatch_authority_account = next_account_info(accounts_iter)?;
-        let (dispatch_authority_key, dispatch_authority_bump) = Pubkey::find_program_address(
-            mailbox_message_dispatch_authority_pda_seeds!(),
-            program_id,
-        );
-        if *dispatch_authority_account.key != dispatch_authority_key {
-            return Err(ProgramError::IncorrectProgramId);
-        }
-        if !dispatch_authority_account.data_is_empty()
-            || dispatch_authority_account.owner != &system_program_id
-        {
-            return Err(ProgramError::AccountAlreadyInitialized);
-        }
-
-        // Account 3: Payer
-        let payer_account = next_account_info(accounts_iter)?;
-        if !payer_account.is_signer {
-            return Err(ProgramError::MissingRequiredSignature);
-        }
-
-        // Get the Mailbox's process authority that is specific to this program
-        // as a recipient.
-        let (mailbox_process_authority, _mailbox_process_authority_bump) =
-            Pubkey::find_program_address(
-                mailbox_process_authority_pda_seeds!(program_id),
-                &init.mailbox,
-            );
+        let bundle = validate_init_accounts(program_id, accounts_iter, &init.mailbox)?;
 
         let plugin_data = T::initialize(
             program_id,
-            system_program,
-            token_account,
-            payer_account,
+            bundle.system_program,
+            bundle.token_account,
+            bundle.payer_account,
             accounts_iter,
         )?;
 
@@ -206,47 +297,8 @@ where
             return Err(ProgramError::from(Error::ExtraneousAccount));
         }
 
-        let rent = Rent::get()?;
-
-        let token: HyperlaneToken<T> = HyperlaneToken {
-            bump: token_bump,
-            mailbox: init.mailbox,
-            mailbox_process_authority,
-            dispatch_authority_bump,
-            owner: Some(*payer_account.key),
-            interchain_security_module: init.interchain_security_module,
-            interchain_gas_paymaster: init.interchain_gas_paymaster,
-            destination_gas: HashMap::new(),
-            decimals: init.decimals,
-            remote_decimals: init.remote_decimals,
-            remote_routers: HashMap::new(),
-            plugin_data,
-        };
-        let token_account_data = HyperlaneTokenAccount::<T>::from(token);
-
-        // Create token account PDA
-        create_pda_account(
-            payer_account,
-            &rent,
-            token_account_data.size(),
-            program_id,
-            system_program,
-            token_account,
-            hyperlane_token_pda_seeds!(token_bump),
-        )?;
-
-        // Create dispatch authority PDA
-        create_pda_account(
-            payer_account,
-            &rent,
-            0,
-            program_id,
-            system_program,
-            dispatch_authority_account,
-            mailbox_message_dispatch_authority_pda_seeds!(dispatch_authority_bump),
-        )?;
-
-        token_account_data.store(token_account, false)?;
+        let token_account_data = build_token_state(init, plugin_data, &bundle);
+        create_core_pdas(program_id, &bundle, &token_account_data)?;
 
         Ok(())
     }
