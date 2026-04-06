@@ -311,6 +311,9 @@ export class SvmIgpHookWriter
       throw new Error('IGP account not initialized');
     }
 
+    assert(currentIgp.owner, `IGP ${programId} has no owner`);
+    const ownerAddress = currentIgp.owner;
+
     const { address: igpPda } = await deriveIgpAccountPda(programId, this.salt);
 
     const oracleConfigsToUpdate: GasOracleConfig[] = [];
@@ -364,6 +367,7 @@ export class SvmIgpHookWriter
       );
 
       txs.push({
+        feePayer: ownerAddress,
         instructions: [setOracleIx],
         annotation: `Update gas oracles for ${oracleConfigsToUpdate.length} domains`,
       });
@@ -410,6 +414,7 @@ export class SvmIgpHookWriter
       );
 
       txs.push({
+        feePayer: ownerAddress,
         instructions: [setOverheadIx],
         annotation: `Update gas overheads for ${overheadConfigsToUpdate.length} domains`,
       });

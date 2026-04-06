@@ -1,4 +1,5 @@
 import {
+  type Address,
   type Base64EncodedWireTransaction,
   type KeyPairSigner,
   type ReadonlyUint8Array,
@@ -22,6 +23,7 @@ import {
 
 import { type AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert, rootLogger, sleep, strip0x } from '@hyperlane-xyz/utils';
+import type { InstructionAccountMeta } from '../instructions/utils.js';
 
 import { createRpc } from '../rpc.js';
 import {
@@ -37,6 +39,24 @@ import type {
 
 import { SvmProvider } from './provider.js';
 import { DEFAULT_COMPUTE_UNITS } from '../constants.js';
+
+/** Transaction input for `send()` — feePayer is excluded since the signer provides it. */
+type SendableSvmTransaction = Omit<SvmTransaction, 'feePayer'>;
+
+/** Shape returned by `transactionToPrintableJson`. */
+export interface PrintableSvmTransaction {
+  annotation?: string;
+  instructions: PrintableSvmInstruction[];
+  computeUnits?: number;
+  transaction_base58: string;
+  message_base58: string;
+}
+
+export interface PrintableSvmInstruction {
+  programAddress: Address;
+  accounts?: readonly InstructionAccountMeta[];
+  data?: string;
+}
 
 type SignatureStatusResponse = Awaited<
   ReturnType<GetSignatureStatusesApi['getSignatureStatuses']>
@@ -166,10 +186,10 @@ export class SvmSigner
 
   async transactionToPrintableJson(
     transaction: AnnotatedSvmTransaction,
-  ): Promise<object> {
+  ): Promise<PrintableSvmTransaction> {
     const { transactionBase58, messageBase58 } = serializeUnsignedTransaction(
       transaction.instructions,
-      this.signer.address,
+      transaction.feePayer ?? this.signer.address,
     );
 
     return {
@@ -191,7 +211,7 @@ export class SvmSigner
    * load-balanced RPC node desync.
    */
   private async signAndSend(
-    tx: SvmTransaction,
+    tx: SendableSvmTransaction,
     maxAttempts = 5,
   ): Promise<{
     signature: Signature;
@@ -285,7 +305,7 @@ export class SvmSigner
    * Sends a transaction and polls for confirmation. On blockhash expiry,
    * checks transaction history before resubmitting to prevent double-execution.
    */
-  async send(tx: SvmTransaction): Promise<SvmReceipt> {
+  async send(tx: SendableSvmTransaction): Promise<SvmReceipt> {
     const maxBlockhashAttempts = 3;
     const pollIntervalMs = 2000;
 
