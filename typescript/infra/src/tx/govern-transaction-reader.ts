@@ -19,6 +19,7 @@ import {
   IXERC20__factory,
   MovableCollateralRouter__factory,
   Ownable__factory,
+  TokenBridgeCctpV2__factory,
   ProxyAdmin__factory,
   RoutingFee__factory,
   TimelockController__factory,
@@ -1081,11 +1082,20 @@ export class GovernTransactionReader {
     const { symbol } = await this.multiProvider.getNativeToken(chain);
     const tokenRouterInterface =
       MovableCollateralRouter__factory.createInterface();
+    const cctpV2Interface = TokenBridgeCctpV2__factory.createInterface();
 
-    const decoded = tokenRouterInterface.parseTransaction({
-      data: tx.data,
-      value: tx.value,
-    });
+    let decoded;
+    try {
+      decoded = tokenRouterInterface.parseTransaction({
+        data: tx.data,
+        value: tx.value,
+      });
+    } catch {
+      decoded = cctpV2Interface.parseTransaction({
+        data: tx.data,
+        value: tx.value,
+      });
+    }
 
     let insight: string | undefined;
     let feeDetails: Record<string, any> | undefined;
@@ -1239,6 +1249,15 @@ export class GovernTransactionReader {
       const [domain, router] = decoded.args;
       const chainName = this.multiProvider.tryGetChainName(domain);
       insight = `Enroll remote router for domain ${domain}${chainName ? ` (${chainName})` : ''} to ${router}`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      cctpV2Interface.functions['setMaxFeePpm(uint256)'].name
+    ) {
+      const [maxFeePpm] = decoded.args;
+      const bps = BigNumber.from(maxFeePpm).toNumber() / 100;
+      insight = `Set max fee to ${maxFeePpm} ppm (${bps} bps)`;
     }
 
     let ownableTx = {};
