@@ -2,29 +2,38 @@ import {
   DataRequestBuilder,
   generateRolaChallenge,
 } from '@radixdlt/radix-dapp-toolkit';
-import { useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 
 import type { MinimalProviderRegistry } from '@hyperlane-xyz/sdk/providers/MinimalProviderRegistry';
-import { ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/utils';
+
+import { widgetLogger } from '../logger.js';
 
 import { useAccount } from './radix/AccountContext.js';
 import { usePopup } from './radix/RadixProviders.js';
 import { useRdt } from './radix/hooks/useRdt.js';
 import type { AccountInfo, ActiveChainInfo, WalletDetails } from './types.js';
 
+const logger = widgetLogger.child({
+  module: 'walletIntegrations/radixWallet',
+});
+
 export function useRadixAccount(
   _multiProvider: MinimalProviderRegistry,
 ): AccountInfo {
   const { accounts } = useAccount();
 
-  return {
-    protocol: ProtocolType.Radix,
-    addresses: accounts.map((account) => ({
-      address: account.address,
-    })),
-    publicKey: undefined,
-    isReady: !!accounts.length,
-  };
+  return useMemo(
+    () => ({
+      protocol: ProtocolType.Radix,
+      addresses: accounts.map((account) => ({
+        address: account.address,
+      })),
+      publicKey: undefined,
+      isReady: !!accounts.length,
+    }),
+    [accounts],
+  );
 }
 
 export function useRadixWalletDetails(): WalletDetails {
@@ -43,42 +52,60 @@ export function useRadixWalletDetails(): WalletDetails {
 
 export function useRadixConnectFn(): () => void {
   const rdt = useRdt();
-  assert(rdt, `radix dapp toolkit not defined`);
-
   const popUp = usePopup();
-  assert(popUp, `radix wallet popup not defined`);
-
   const { setAccounts } = useAccount();
 
-  rdt.walletApi.provideChallengeGenerator(async () => generateRolaChallenge());
-
-  return async () => {
-    popUp.setShowPopUp(true);
-    rdt.walletApi.setRequestData(
-      DataRequestBuilder.accounts().exactly(1).reset(),
+  useEffect(() => {
+    if (!rdt) return;
+    rdt.walletApi.provideChallengeGenerator(async () =>
+      generateRolaChallenge(),
     );
-    const result = await rdt.walletApi.sendRequest();
-    if (result.isOk()) {
-      setAccounts(
-        result.value.accounts.map((p) => ({
-          address: p.address,
-        })),
-      );
-    }
-    popUp.setShowPopUp(false);
-  };
+  }, [rdt]);
+
+  return useCallback(() => {
+    void (async () => {
+      if (!rdt) {
+        logger.warn('Radix dapp toolkit not defined');
+        return;
+      }
+      if (!popUp) {
+        logger.warn('Radix wallet popup not defined');
+        return;
+      }
+
+      popUp.setShowPopUp(true);
+      try {
+        rdt.walletApi.setRequestData(
+          DataRequestBuilder.accounts().exactly(1).reset(),
+        );
+        const result = await rdt.walletApi.sendRequest();
+        if (result.isOk()) {
+          setAccounts(
+            result.value.accounts.map((p) => ({
+              address: p.address,
+            })),
+          );
+        }
+      } finally {
+        popUp.setShowPopUp(false);
+      }
+    })();
+  }, [popUp, rdt, setAccounts]);
 }
 
 export function useRadixDisconnectFn(): () => Promise<void> {
   const rdt = useRdt();
-  assert(rdt, `radix dapp toolkit not defined`);
-
   const { setAccounts } = useAccount();
 
-  return async () => {
+  return useCallback(async () => {
+    if (!rdt) {
+      logger.warn('Radix dapp toolkit not defined');
+      setAccounts([]);
+      return;
+    }
     rdt.disconnect();
     setAccounts([]);
-  };
+  }, [rdt, setAccounts]);
 }
 
 export function useRadixActiveChain(

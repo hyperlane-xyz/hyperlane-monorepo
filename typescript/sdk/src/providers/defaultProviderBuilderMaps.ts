@@ -8,7 +8,10 @@ import {
   defaultCosmJsProviderBuilder,
   defaultCosmJsWasmProviderBuilder,
 } from './builders/cosmos.js';
-import { defaultEthersV5ProviderBuilder } from './builders/ethersV5.js';
+import {
+  defaultEthersV5ProviderBuilder,
+  defaultGnosisTxBuilderProviderBuilder,
+} from './builders/ethersV5.js';
 import { defaultRadixProviderBuilder } from './builders/radix.js';
 import { defaultSolProviderBuilder } from './builders/solana.js';
 import { defaultStarknetJsProviderBuilder } from './builders/starknet.js';
@@ -24,7 +27,7 @@ export type ProviderBuilderMap = Record<
 
 export const defaultProviderBuilderMap: ProviderBuilderMap = {
   [ProviderType.EthersV5]: defaultEthersV5ProviderBuilder,
-  [ProviderType.GnosisTxBuilder]: defaultEthersV5ProviderBuilder,
+  [ProviderType.GnosisTxBuilder]: defaultGnosisTxBuilderProviderBuilder,
   [ProviderType.Viem]: defaultViemProviderBuilder,
   [ProviderType.SolanaWeb3]: defaultSolProviderBuilder,
   [ProviderType.CosmJs]: defaultCosmJsProviderBuilder,

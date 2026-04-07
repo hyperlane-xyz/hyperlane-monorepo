@@ -62,8 +62,8 @@ export class MinimalProviderRegistry<
       rootLogger.child({
         module: loggerModule,
       });
-    this.providers = options.providers || {};
-    this.providerBuilders = options.providerBuilders || {};
+    this.providers = options.providers ?? {};
+    this.providerBuilders = options.providerBuilders ?? {};
   }
 
   override extendChainMetadata<NewExt = {}>(
@@ -125,6 +125,8 @@ export class MinimalProviderRegistry<
       throw new Error(
         `Invalid provider type, expected ${type} but found ${provider.type}`,
       );
+    // CAST: provider.type is checked against `type` immediately above, so the
+    // wrapped provider payload matches the requested generic T.
     return provider.provider as T;
   }
 

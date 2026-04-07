@@ -1,5 +1,8 @@
 import type { RpcUrl } from '../../metadata/chainMetadataTypes.js';
-import type { EthersV5Provider } from '../ProviderType.js';
+import type {
+  EthersV5Provider,
+  GnosisTxBuilderProvider,
+} from '../ProviderType.js';
 import { ProviderType } from '../ProviderType.js';
 import { HyperlaneSmartProvider } from '../SmartProvider/SmartProvider.js';
 import type { ProviderRetryOptions } from '../SmartProvider/types.js';
@@ -26,6 +29,14 @@ export const defaultEthersV5ProviderBuilder: ProviderBuilderFn<
   );
   return { type: ProviderType.EthersV5, provider };
 };
+
+export const defaultGnosisTxBuilderProviderBuilder: ProviderBuilderFn<
+  GnosisTxBuilderProvider
+> = (rpcUrls, network, retryOverride) => ({
+  type: ProviderType.GnosisTxBuilder,
+  provider: defaultEthersV5ProviderBuilder(rpcUrls, network, retryOverride)
+    .provider,
+});
 
 export function defaultFuelProviderBuilder(
   rpcUrls: RpcUrl[],

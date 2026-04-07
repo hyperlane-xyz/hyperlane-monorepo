@@ -242,6 +242,11 @@ export interface ZKSyncProvider extends TypedProviderBase<ZKSyncBaseProvider> {
   provider: ZKSyncBaseProvider;
 }
 
+export interface GnosisTxBuilderProvider extends TypedProviderBase<EV5Providers.Provider> {
+  type: ProviderType.GnosisTxBuilder;
+  provider: EV5Providers.Provider;
+}
+
 export type TypedProvider =
   | EthersV5Provider
   // | EthersV6Provider
@@ -252,6 +257,7 @@ export type TypedProvider =
   | CosmJsNativeProvider
   | StarknetJsProvider
   | ZKSyncProvider
+  | GnosisTxBuilderProvider
   | RadixProvider
   | AleoProvider
   | TronProvider;

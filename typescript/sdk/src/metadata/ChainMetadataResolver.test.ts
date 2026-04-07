@@ -52,6 +52,9 @@ describe(createChainMetadataResolver.name, () => {
     const resolver = createChainMetadataResolver(metadata);
     expect(resolver.tryGetChainMetadata('11155111')).to.equal(metadata.sepolia);
     expect(resolver.tryGetChainMetadata(11155111)).to.equal(metadata.sepolia);
+    expect(resolver.tryGetDomainId('11155111')).to.equal(
+      metadata.sepolia.domainId,
+    );
   });
 
   it('does not mishandle non-numeric chain ids', () => {

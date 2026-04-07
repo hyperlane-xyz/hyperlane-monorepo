@@ -1,5 +1,6 @@
 import { objFilter, objMap, pick } from '@hyperlane-xyz/utils';
 
+import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import type { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 import type { ChainMap, ChainName } from '../types.js';
 
@@ -18,10 +19,16 @@ import type { ProviderBuilderFn } from './providerBuilders.js';
 export interface MultiProviderAdapterOptions extends MinimalProviderRegistryOptions {}
 
 export function wrapMultiProviderProviders<MetaExt = {}>(
+  chainMetadata: ChainMap<ChainMetadata<MetaExt>>,
   providers: MultiProvider<MetaExt>['providers'],
 ): ChainMap<TypedProvider> {
-  return objMap(providers, (_, provider) => ({
-    type: ProviderType.EthersV5,
+  // CAST: objMap preserves the chain keys, but its generic return type does not
+  // narrow back to ChainMap<TypedProvider>.
+  return objMap(providers, (chain, provider) => ({
+    type:
+      chainMetadata[chain]?.technicalStack === ChainTechnicalStack.ZkSync
+        ? ProviderType.ZkSync
+        : ProviderType.EthersV5,
     provider,
   })) as ChainMap<TypedProvider>;
 }
@@ -73,7 +80,7 @@ export function createAdapterFromMultiProvider<
       },
     } as TOptions;
   const newMp = new AdapterClass(mp.metadata, adapterOptions);
-  newMp.setProviders(wrapMultiProviderProviders(mp.providers));
+  newMp.setProviders(wrapMultiProviderProviders(mp.metadata, mp.providers));
   return newMp;
 }
 

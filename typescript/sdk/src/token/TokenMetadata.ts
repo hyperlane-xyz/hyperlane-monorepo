@@ -100,6 +100,8 @@ export class TokenMetadata implements ITokenMetadata {
       chainMetadata.nativeToken ||
       PROTOCOL_TO_DEFAULT_NATIVE_TOKEN[knownProtocol];
 
+    // CAST: TypeScript cannot infer that `new this(...)` returns InstanceType<T>
+    // for a polymorphic static method bound via `this: T`.
     return new this({
       chainName,
       standard: PROTOCOL_TO_NATIVE_STANDARD[knownProtocol],
