@@ -7,4 +7,4 @@
 '@hyperlane-xyz/widgets': patch
 ---
 
-Add runtime entrypoints for non-EVM SDKs and avoid bundling heavy deploy-time modules in UI wallet integrations.
+Added runtime entrypoints for non-EVM SDKs and avoided bundling heavy deploy-time modules in UI wallet integrations.
