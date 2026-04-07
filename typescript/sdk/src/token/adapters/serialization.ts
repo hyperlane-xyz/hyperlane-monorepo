@@ -1,6 +1,6 @@
 import { PublicKey } from '@solana/web3.js';
 
-import { Domain } from '@hyperlane-xyz/utils';
+import { Domain, assert } from '@hyperlane-xyz/utils';
 
 import {
   SealevelInterchainGasPaymasterConfig,
@@ -266,6 +266,11 @@ export function encodeTokenMessage(
   amount: bigint,
   metadata: Uint8Array = new Uint8Array(0),
 ): Buffer {
+  assert(recipient.length === 32, 'TokenMessage recipient must be 32 bytes');
+  assert(
+    amount >= 0n && amount < 2n ** 256n,
+    'TokenMessage amount out of U256 range',
+  );
   const buf = Buffer.alloc(64 + metadata.length);
   buf.set(recipient, 0);
   const amountHex = amount.toString(16).padStart(64, '0');

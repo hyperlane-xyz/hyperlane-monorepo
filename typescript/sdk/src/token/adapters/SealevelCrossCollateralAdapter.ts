@@ -288,6 +288,11 @@ export class SealevelHypCrossCollateralAdapter
     const data = Buffer.from(base64Data, 'base64');
     // First 4 bytes are the Vec length (little-endian u32)
     const count = data.readUInt32LE(0);
+    const expectedLength = 4 + count * SERIALIZABLE_ACCOUNT_META_SIZE;
+    assert(
+      data.length >= expectedLength,
+      `HandleLocalAccountMetas returned truncated data: expected ${expectedLength} bytes, got ${data.length}`,
+    );
     const accountMetas: Array<AccountMeta> = [];
     for (let i = 0; i < count; i++) {
       const offset = 4 + i * SERIALIZABLE_ACCOUNT_META_SIZE;
