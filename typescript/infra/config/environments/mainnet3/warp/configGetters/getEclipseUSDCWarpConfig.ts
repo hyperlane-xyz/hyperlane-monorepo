@@ -6,7 +6,7 @@ import {
   TokenType,
   TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, objMap } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { getChainAddresses } from '../../../../registry.js';
@@ -19,11 +19,33 @@ import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
 import { WarpRouteIds } from '../warpIds.js';
 
 import {
+  getCollateralTokenConfigForChain,
   getFileSubmitterStrategyConfig,
   getFixedRoutingFeeConfig,
   getRebalancingUSDCConfigForChain,
   getUSDCRebalancingBridgesConfigFor,
 } from './utils.js';
+
+type DeploymentChains<T> = {
+  ethereum: T;
+  arbitrum: T;
+  base: T;
+  bsc: T;
+  optimism: T;
+  polygon: T;
+  katana: T;
+  unichain: T;
+  eclipsemainnet: T;
+  solanamainnet: T;
+  ink: T;
+  worldchain: T;
+  avalanche: T;
+  hyperevm: T;
+  linea: T;
+  monad: T;
+};
+
+export type DeploymentChain = keyof DeploymentChains<unknown>;
 
 /**
  * Eclipse USDC Warp Route
@@ -40,61 +62,37 @@ import {
  * - Routing fee: 5 bps for EVM-to-EVM transfers, 0 bps for EVM-to-SVM transfers
  * - Contract version 10.1.3
  */
-const awProxyAdminAddresses: ChainMap<string> = {
-  arbitrum: '0x33465314CbD880976B7A9f86062d615DE5E4Fa8A',
-  base: '0x4e60dB3117AB7322949dC0A8E952D0cD413B1132',
-  ethereum: '0x692e50577fAaBF10F824Dc8Ce581e3Af93785175',
-  optimism: '0x51ec280B550be2999995f0d931Ac2974B9D9304E',
-  polygon: '0xD65217cA148C1074DdF59Bd95079Da76c65e130E',
-  unichain: '0xe175575c38726fd2B62b12e01D92e3F170a90059',
-  avalanche: '0x75a06e84226311B71749EF4F33B1e628D7999b83',
-  linea: '0x71644C723D205E9Bc9C1939ee7bffECf7b5C9687',
-  monad: '0x8F8FEf4Af7575c0A0f9455565ab807484Bb55987',
-  ink: '0x3Ee33a0F98c06eE3d3E5c1717bD3AfbB0f749879',
-  worldchain: '0xbcA7cc1c87E67341463f62F00Ea096564cAD13C1',
-  hyperevm: '0xa5ff938C9DdC524d98ebf0297e39A6F5918Db2CD',
-} as const;
-
-const awProxyAdminOwners: ChainMap<string | undefined> = {
-  arbitrum: awSafes.arbitrum,
-  base: awSafes.base,
-  ethereum: awSafes.ethereum,
-  optimism: awSafes.optimism,
-  polygon: awSafes.polygon,
-  unichain: awSafes.unichain,
-  avalanche: awSafes.avalanche,
-  linea: awSafes.linea,
-  monad: awSafes.monad,
-  ink: awSafes.ink,
-  worldchain: awSafes.worldchain,
-  hyperevm: awSafes.hyperevm,
-} as const;
-
 export const evmDeploymentChains = [
-  'ethereum',
   'arbitrum',
+  'avalanche',
   'base',
+  'bsc',
+  'ethereum',
+  'hyperevm',
+  'ink',
+  'katana',
+  'linea',
+  'monad',
   'optimism',
   'polygon',
   'unichain',
-  'ink',
   'worldchain',
-  'avalanche',
-  'hyperevm',
-  'linea',
-  'monad',
-];
-export const nonEvmDeploymentChains = ['eclipsemainnet', 'solanamainnet'];
+] as const satisfies DeploymentChain[];
 
-const deploymentChains = [
+type EvmChain = (typeof evmDeploymentChains)[number];
+
+export const nonEvmDeploymentChains = [
+  'eclipsemainnet',
+  'solanamainnet',
+] as const satisfies DeploymentChain[];
+
+export const deploymentChains = [
   ...evmDeploymentChains,
   ...nonEvmDeploymentChains,
-] as const;
-
-export type DeploymentChain = (typeof deploymentChains)[number];
+] as const satisfies DeploymentChain[];
 
 // EVM chains with CCTP rebalancing support
-export const rebalanceableCollateralChains = [
+export const cctpRebalanceableChains = [
   'arbitrum',
   'base',
   'ethereum',
@@ -108,72 +106,70 @@ export const rebalanceableCollateralChains = [
   'linea',
   // No monad yet
 ] as const satisfies DeploymentChain[];
+const cctpRebalanceableSet = new Set<EvmChain>(cctpRebalanceableChains);
 
-// On-chain LinearFee parameters for already-deployed chains.
-// These were deployed with the original bps logic of using the totalSupply()
-// Without these, warp apply will 1) redeploy the fees and 2) warp check will show diffs
-const deployedChainFeeParams: Record<
-  string,
-  { maxFee: string; halfAmount: string }
-> = {
-  arbitrum: {
-    maxFee: '18459382986016399860015592127403368310046070992504417749897631',
-    halfAmount:
-      '18459382986016399860015592127403368310046070992504417749897630000',
-  },
-  base: {
-    maxFee: '27099327091626495140416592859206796555048937074435830815167597',
-    halfAmount:
-      '27099327091626495140416592859206796555048937074435830815167596000',
-  },
-  ethereum: {
-    maxFee: '2207817649756434359838725503051961931875524909323049373661705',
-    halfAmount:
-      '2207817649756434359838725503051961931875524909323049373661704000',
-  },
-  optimism: {
-    maxFee: '557857035769277571442107158893568717753786146662512570068048277',
-    halfAmount:
-      '557857035769277571442107158893568717753786146662512570068048276000',
-  },
-  polygon: {
-    maxFee: '189444232384281426231109839818586514265950429404753541975752862',
-    halfAmount:
-      '189444232384281426231109839818586514265950429404753541975752862000',
-  },
-  unichain: {
-    maxFee: '2675917496765118465156267568419760491445101099689821059982086779',
-    halfAmount:
-      '2675917496765118465156267568419760491445101099689821059982086778000',
-  },
-  avalanche: {
-    maxFee: '115792089237316195423570985008687907853269',
-    halfAmount: '115792089237316195423570985008687907853268000',
-  },
-  hyperevm: {
-    maxFee: '115792089237316195423570985008687907853269',
-    halfAmount: '115792089237316195423570985008687907853268000',
-  },
-  ink: {
-    maxFee: '115792089237316195423570985008687907853269',
-    halfAmount: '115792089237316195423570985008687907853268000',
-  },
-  linea: {
-    maxFee: '115792089237316195423570985008687907853269',
-    halfAmount: '115792089237316195423570985008687907853268000',
-  },
-  worldchain: {
-    maxFee: '115792089237316195423570985008687907853269',
-    halfAmount: '115792089237316195423570985008687907853268000',
-  },
-};
+export const rebalancingChains = [
+  'arbitrum',
+  'base',
+  'ethereum',
+  'optimism',
+  'polygon',
+  'unichain',
+  'ink',
+  'worldchain',
+  'avalanche',
+  'hyperevm',
+  'linea',
+  'bsc',
+  'katana',
+] as const satisfies DeploymentChain[];
 
-const productionOwnersByChain: Record<DeploymentChain, string> = {
+const awProxyAdminAddresses: Record<EvmChain, string | undefined> = {
+  arbitrum: '0x33465314CbD880976B7A9f86062d615DE5E4Fa8A',
+  base: '0x4e60dB3117AB7322949dC0A8E952D0cD413B1132',
+  ethereum: '0x692e50577fAaBF10F824Dc8Ce581e3Af93785175',
+  optimism: '0x51ec280B550be2999995f0d931Ac2974B9D9304E',
+  polygon: '0xD65217cA148C1074DdF59Bd95079Da76c65e130E',
+  unichain: '0xe175575c38726fd2B62b12e01D92e3F170a90059',
+  avalanche: '0x75a06e84226311B71749EF4F33B1e628D7999b83',
+  linea: '0x71644C723D205E9Bc9C1939ee7bffECf7b5C9687',
+  monad: '0x8F8FEf4Af7575c0A0f9455565ab807484Bb55987',
+  ink: '0x3Ee33a0F98c06eE3d3E5c1717bD3AfbB0f749879',
+  worldchain: '0xbcA7cc1c87E67341463f62F00Ea096564cAD13C1',
+  hyperevm: '0xa5ff938C9DdC524d98ebf0297e39A6F5918Db2CD',
+
+  bsc: undefined,
+  katana: undefined,
+} as const;
+
+const awProxyAdminOwners: Record<EvmChain, string> = {
+  arbitrum: awSafes.arbitrum,
+  base: awSafes.base,
   ethereum: awSafes.ethereum,
+  optimism: awSafes.optimism,
+  polygon: awSafes.polygon,
+  unichain: awSafes.unichain,
+  avalanche: awSafes.avalanche,
+  linea: awSafes.linea,
+  monad: awSafes.monad,
+  ink: awSafes.ink,
+  worldchain: awSafes.worldchain,
+  hyperevm: awSafes.hyperevm,
+
+  bsc: awSafes.bsc,
+  katana: awSafes.katana,
+} as const;
+
+const productionOwnersByChain: DeploymentChains<string> = {
+  ethereum: awSafes.ethereum,
+  // Explicitly set from typescript/infra/config/environments/mainnet3/governance/ica/aw.ts
   arbitrum: '0xD2757Bbc28C80789Ed679f22Ac65597Cacf51A45',
   base: '0x61756c4beBC1BaaC09d89729E2cbaD8BD30c62B7',
+  bsc: '0x269Af9E53192AF49a22ff47e30b89dE1375AE1fd',
   optimism: '0x1E2afA8d1B841c53eDe9474D188Cd4FcfEd40dDC',
+  //
   polygon: awIcas.polygon,
+  katana: awIcas.katana,
   unichain: awIcas.unichain,
   eclipsemainnet: chainOwners.eclipsemainnet.owner,
   solanamainnet: chainOwners.solanamainnet.owner,
@@ -191,12 +187,22 @@ const PRODUCTION_PROGRAM_IDS = {
   solanamainnet: '3EpVCPUgyjq2MfGeCttyey6bs5zya5wjYZ2BE6yDg6bm',
 };
 
+const SVM_IGP_ADDRESSES = {
+  eclipsemainnet: 'Hs7KVBU67nBnWhDPZkEFwWqrFMUfJbmY2DQ4gmCZfaZp',
+  solanamainnet: 'BhNcatUDC2D5JTyeaqrdSukiVFsEHK7e3hVmKMztwefv',
+} as const;
+
 export interface EclipseUSDCWarpConfigOptions {
   ownersByChain: Record<DeploymentChain, string>;
   programIds: { eclipsemainnet: string; solanamainnet: string };
   tokenMetadata?: { symbol: string; name: string };
-  proxyAdmins: ChainMap<{ address: string; owner: string }>;
+  proxyAdmins: ChainMap<{ address: string | undefined; owner: string }>;
 }
+
+const rebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
+  cctpRebalanceableChains,
+  [WarpRouteIds.MainnetCCTPV2Standard, WarpRouteIds.MainnetCCTPV2Fast],
+);
 
 export const buildEclipseUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
@@ -204,100 +210,101 @@ export const buildEclipseUSDCWarpConfig = async (
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const { ownersByChain, programIds, tokenMetadata, proxyAdmins } = options;
 
-  const rebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
-    rebalanceableCollateralChains,
-    [WarpRouteIds.MainnetCCTPV2Standard, WarpRouteIds.MainnetCCTPV2Fast],
-  );
-
   const configs: Array<[DeploymentChain, HypTokenRouterConfig]> = [];
+  for (const currentChain of deploymentChains) {
+    // Scaling
+    const scaleConfig =
+      currentChain === 'bsc'
+        ? {
+            numerator: 1,
+            denominator: 10 ** 12,
+          }
+        : {
+            numerator: 1,
+            denominator: 1,
+          };
 
-  // Configure EVM collateral chains
-  const rebalanceableSet = new Set<string>(rebalanceableCollateralChains);
-
-  for (const chain of evmDeploymentChains) {
     let chainConfig: HypTokenRouterConfig;
-    const proxyAdmin = proxyAdmins[chain];
-    assert(proxyAdmin, `Missing proxyAdmin for chain ${chain}`);
+    if (currentChain === 'eclipsemainnet') {
+      chainConfig = {
+        type: TokenType.synthetic,
+        mailbox: routerConfig.eclipsemainnet.mailbox,
+        hook: SVM_IGP_ADDRESSES.eclipsemainnet,
+        foreignDeployment: programIds.eclipsemainnet,
+        owner: ownersByChain.eclipsemainnet,
+        gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
+      };
+    } else if (currentChain === 'solanamainnet') {
+      chainConfig = {
+        type: TokenType.collateral,
+        token: usdcTokenAddresses.solanamainnet,
+        mailbox: routerConfig.solanamainnet.mailbox,
+        hook: SVM_IGP_ADDRESSES.solanamainnet,
+        foreignDeployment: programIds.solanamainnet,
+        owner: ownersByChain.solanamainnet,
+        gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
+      };
+    } else {
+      // Proxy admin config
+      const proxyAdmin = proxyAdmins[currentChain];
+      assert(proxyAdmin, `Missing proxyAdmin for chain ${currentChain}`);
 
-    if (rebalanceableSet.has(chain)) {
-      const baseConfig = getRebalancingUSDCConfigForChain(
-        chain as (typeof rebalanceableCollateralChains)[number],
-        routerConfig,
-        ownersByChain,
-        rebalancingConfigByChain,
+      // Fees
+      const feeDestinations = evmDeploymentChains.filter(
+        (otherChain) => otherChain !== currentChain,
       );
-      const destinations = rebalanceableCollateralChains.filter(
-        (c) => c !== chain,
+      const feeConfig = getFixedRoutingFeeConfig(
+        getWarpFeeOwner(currentChain),
+        feeDestinations,
+        1.5,
       );
-      const originFeeParams = deployedChainFeeParams[chain];
-      const feeParams = originFeeParams
-        ? Object.fromEntries(destinations.map((d) => [d, originFeeParams]))
-        : undefined;
+
+      const baseConfig = cctpRebalanceableSet.has(currentChain)
+        ? getRebalancingUSDCConfigForChain(
+            currentChain,
+            routerConfig,
+            ownersByChain,
+            rebalancingConfigByChain,
+            feeConfig,
+          )
+        : getCollateralTokenConfigForChain(
+            currentChain,
+            routerConfig,
+            ownersByChain,
+            usdcTokenAddresses,
+            feeConfig,
+          );
+
       chainConfig = {
         ...baseConfig,
         ...tokenMetadata,
         proxyAdmin,
-        tokenFee: getFixedRoutingFeeConfig(
-          getWarpFeeOwner(chain),
-          destinations,
-          5,
-          feeParams,
-        ),
-      };
-    } else {
-      const usdcToken =
-        usdcTokenAddresses[chain as keyof typeof usdcTokenAddresses];
-      assert(usdcToken, `USDC address not defined for ${chain}`);
-      chainConfig = {
-        ...tokenMetadata,
-        type: TokenType.collateral,
-        token: usdcToken,
-        owner: ownersByChain[chain],
-        proxyAdmin,
-        mailbox: routerConfig[chain].mailbox,
+        tokenFee: feeConfig,
+        scale: scaleConfig,
       };
     }
 
-    configs.push([chain, chainConfig]);
+    configs.push([currentChain, chainConfig]);
   }
-
-  // Configure non-evm chains
-  configs.push([
-    'eclipsemainnet',
-    {
-      type: TokenType.synthetic,
-      mailbox: routerConfig.eclipsemainnet.mailbox,
-      foreignDeployment: programIds.eclipsemainnet,
-      owner: ownersByChain.eclipsemainnet,
-      gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
-    },
-  ]);
-
-  configs.push([
-    'solanamainnet',
-    {
-      type: TokenType.collateral,
-      token: usdcTokenAddresses.solanamainnet,
-      mailbox: routerConfig.solanamainnet.mailbox,
-      foreignDeployment: programIds.solanamainnet,
-      owner: ownersByChain.solanamainnet,
-      gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
-    },
-  ]);
 
   return Object.fromEntries(configs);
 };
 
-const awProxyAdmins: ChainMap<{ address: string; owner: string }> =
-  Object.fromEntries(
-    Object.entries(awProxyAdminAddresses).map(([chain, address]) => [
-      chain,
-      {
-        address,
-        owner: awProxyAdminOwners[chain] ?? chainOwners[chain].owner,
-      },
-    ]),
-  );
+const awProxyAdmins: ChainMap<{ address: string | undefined; owner: string }> =
+  objMap(awProxyAdminAddresses, (chain, address) => {
+    const proxyAdminOwner =
+      awProxyAdminOwners[chain] ?? chainOwners[chain].owner;
+
+    assert(
+      proxyAdminOwner,
+      `Expected proxy admin owner to be defined for chain ${proxyAdminOwner}`,
+    );
+
+    return {
+      address: address,
+      owner: proxyAdminOwner,
+    };
+  });
 
 export const getEclipseUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
@@ -306,6 +313,10 @@ export const getEclipseUSDCWarpConfig = async (
     ownersByChain: productionOwnersByChain,
     programIds: PRODUCTION_PROGRAM_IDS,
     proxyAdmins: awProxyAdmins,
+    tokenMetadata: {
+      name: 'USDC Coin',
+      symbol: 'USDC',
+    },
   });
 
 // Strategies
@@ -320,9 +331,10 @@ const ORIGIN_CHAIN = 'ethereum';
 export const getEclipseUSDCStrategyConfig = (): ChainSubmissionStrategy => {
   const safeAddress = awSafes[ORIGIN_CHAIN];
   const originSafeSubmitter = {
-    type: TxSubmitterType.GNOSIS_SAFE as const,
+    type: TxSubmitterType.GNOSIS_TX_BUILDER as const,
     chain: ORIGIN_CHAIN,
     safeAddress,
+    version: '1',
   };
 
   const chainAddress = getChainAddresses();
@@ -350,8 +362,22 @@ export const getEclipseUSDCStrategyConfig = (): ChainSubmissionStrategy => {
     ],
   );
 
+  const svmFileStrategies: [
+    string,
+    { submitter: { type: 'file'; filepath: string } },
+  ][] = nonEvmDeploymentChains.map((chain) => [
+    chain,
+    {
+      submitter: {
+        type: 'file' as const,
+        filepath: `/tmp/eclipse-usdc-${chain}.json`,
+      },
+    },
+  ]);
+
   return Object.fromEntries([
     [ORIGIN_CHAIN, { submitter: originSafeSubmitter }],
     ...icaStrategies,
+    ...svmFileStrategies,
   ]);
 };
