@@ -24,7 +24,12 @@ export function createStarknetHypAdapter(
     return undefined;
   }
 
-  if (isStarknetFeeToken(chainName, addressOrDenom)) {
+  if (
+    isStarknetFeeToken(chainName, addressOrDenom) &&
+    (standard === TokenStandard.StarknetHypNative ||
+      standard === TokenStandard.StarknetHypSynthetic ||
+      standard === TokenStandard.StarknetHypCollateral)
+  ) {
     return new StarknetHypFeeAdapter(chainName, multiProvider, {
       warpRouter: addressOrDenom,
     });

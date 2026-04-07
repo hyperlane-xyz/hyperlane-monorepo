@@ -7,6 +7,8 @@ import type { MinimalProviderRegistry } from '@hyperlane-xyz/sdk/providers/Minim
 import type { ChainName } from '@hyperlane-xyz/sdk/types';
 import { HexString, ProtocolType, ensure0x } from '@hyperlane-xyz/utils';
 
+import { widgetLogger } from '../logger.js';
+
 import type {
   AccountInfo,
   ActiveChainInfo,
@@ -16,6 +18,9 @@ import type {
 import { getChainsForProtocol } from './utils.js';
 
 const PLACEHOLDER_COSMOS_CHAIN = cosmoshub.name;
+const logger = widgetLogger.child({
+  module: 'widgets/walletIntegrations/cosmosWallet',
+});
 
 function toHexString(bytes: Uint8Array): HexString {
   return ensure0x(
@@ -31,13 +36,20 @@ export function useCosmosAccount(
 
   return useMemo(() => {
     const addresses: Array<ChainAddress> = [];
-    let publicKey: Promise<HexString> | undefined;
+    let publicKey: Promise<HexString | undefined> | undefined;
     let isReady = false;
 
     for (const [chainName, context] of Object.entries(chainToContext)) {
       if (!context.address) continue;
       addresses.push({ address: context.address, chainName });
-      publicKey = context.getAccount().then((acc) => toHexString(acc.pubkey));
+      // Keep the most recently connected chain's public key.
+      publicKey = context.getAccount().then(
+        (acc) => toHexString(acc.pubkey),
+        (error) => {
+          logger.error('Failed to get Cosmos account public key', { error });
+          return undefined;
+        },
+      );
       isReady = true;
     }
 
@@ -96,11 +108,14 @@ export function useCosmosActiveChain(
 export function getCosmosChains(
   multiProvider: MinimalProviderRegistry,
 ): ChainMetadata[] {
-  return [
+  const chains = [
     ...getChainsForProtocol(multiProvider, ProtocolType.Cosmos),
     ...getChainsForProtocol(multiProvider, ProtocolType.CosmosNative),
-    cosmoshub,
   ];
+  if (!chains.some((chain) => chain.name === cosmoshub.name)) {
+    chains.push(cosmoshub);
+  }
+  return chains;
 }
 
 export function getCosmosChainNames(

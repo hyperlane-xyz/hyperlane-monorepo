@@ -70,7 +70,7 @@ export function getAccountAddressAndPubKey(
   multiProvider: MinimalProviderRegistry,
   chainName?: ChainName,
   accounts?: Record<KnownProtocolType, AccountInfo>,
-): { address?: Address; publicKey?: Promise<HexString> } {
+): { address?: Address; publicKey?: Promise<HexString | undefined> } {
   const address = getAccountAddressForChain(multiProvider, chainName, accounts);
   if (!accounts || !chainName || !address) return {};
   const protocol = multiProvider.getProtocol(chainName);

@@ -6,6 +6,7 @@ import {
 } from '@starknet-react/core';
 import { useCallback, useMemo } from 'react';
 import { useStarknetkitConnectModal } from 'starknetkit';
+import type { StarknetkitConnector } from 'starknetkit';
 
 import type { MinimalProviderRegistry } from '@hyperlane-xyz/sdk/providers/MinimalProviderRegistry';
 import { ProtocolType } from '@hyperlane-xyz/utils';
@@ -17,6 +18,30 @@ import type { AccountInfo, ActiveChainInfo, WalletDetails } from './types.js';
 const logger = widgetLogger.child({
   module: 'widgets/walletIntegrations/starknetWallet',
 });
+
+type StarknetReactConnector = ReturnType<
+  typeof useConnect
+>['connectors'][number];
+
+function toStarknetkitConnector(
+  connector: StarknetReactConnector,
+): StarknetkitConnector {
+  const icon =
+    typeof connector.icon === 'string'
+      ? connector.icon
+      : connector.icon
+        ? {
+            light: connector.icon.light,
+            dark: connector.icon.dark,
+          }
+        : undefined;
+
+  return {
+    id: connector.id,
+    name: connector.name,
+    ...(icon ? { icon } : {}),
+  };
+}
 
 export function useStarknetAccount(
   _multiProvider: MinimalProviderRegistry,
@@ -54,7 +79,7 @@ export function useStarknetWalletDetails(): WalletDetails {
 export function useStarknetConnectFn(): () => void {
   const { connectAsync, connectors } = useConnect();
   const { starknetkitConnectModal } = useStarknetkitConnectModal({
-    connectors: [],
+    connectors: connectors.map(toStarknetkitConnector),
   });
 
   return useCallback(async () => {

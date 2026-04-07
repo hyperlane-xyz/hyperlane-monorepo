@@ -16,7 +16,7 @@ export interface AccountInfo {
   addresses: Array<ChainAddress>;
   // And another Cosmos exception, public keys are needed
   // for tx simulation and gas estimation
-  publicKey?: Promise<HexString>;
+  publicKey?: Promise<HexString | undefined>;
   isReady: boolean;
 }
 
