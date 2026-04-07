@@ -65,7 +65,10 @@ import { ChainName, ChainNameOrId } from '../types.js';
 import { scalesEqual } from '../utils/decimals.js';
 import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
 
-import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
+import {
+  CCTP_PPM_STORAGE_VERSION,
+  EvmWarpRouteReader,
+} from './EvmWarpRouteReader.js';
 import { EvmXERC20Module } from './EvmXERC20Module.js';
 import { DeployableTokenType, TokenType } from './config.js';
 import { resolveTokenFeeAddress } from './configUtils.js';
@@ -1461,7 +1464,22 @@ export class EvmWarpModule extends HyperlaneModule<
       ? actualConfig.maxFeeBps
       : undefined;
 
-    if (actualMaxFeeBps === expectedConfig.maxFeeBps) {
+    // When upgrading across the CCTP_PPM_STORAGE_VERSION boundary, the
+    // pre-upgrade contract stores the fee in integer bps while the
+    // post-upgrade contract expects ppm. The reader normalises to bps so the
+    // values look equal, but the raw on-chain slot will be wrong after the
+    // proxy upgrade. Always emit setMaxFeePpm in this case.
+    const crossingPpmBoundary =
+      actualConfig.contractVersion &&
+      expectedConfig.contractVersion &&
+      compareVersions(actualConfig.contractVersion, CCTP_PPM_STORAGE_VERSION) <
+        0 &&
+      compareVersions(
+        expectedConfig.contractVersion,
+        CCTP_PPM_STORAGE_VERSION,
+      ) >= 0;
+
+    if (!crossingPpmBoundary && actualMaxFeeBps === expectedConfig.maxFeeBps) {
       return [];
     }
 

@@ -2208,6 +2208,36 @@ describe('EvmWarpModule', async () => {
       );
     });
 
+    it('emits setMaxFeePpm when upgrading across PPM storage boundary even if values match', () => {
+      const actual = makeCctpV2Config(1.3, {
+        contractVersion: '10.1.0',
+      }) as DerivedTokenRouterConfig;
+      const expected = makeCctpV2Config(1.3, {
+        contractVersion: '10.2.0',
+      });
+      const txs = warpModule.createSetMaxFeePpmTxs(actual, expected);
+
+      expect(txs).to.have.length(1);
+      expect(txs[0].data).to.equal(
+        TokenBridgeCctpV2__factory.createInterface().encodeFunctionData(
+          'setMaxFeePpm',
+          [130],
+        ),
+      );
+    });
+
+    it('skips setMaxFeePpm when both versions are above PPM boundary and values match', () => {
+      const actual = makeCctpV2Config(1.3, {
+        contractVersion: '10.2.0',
+      }) as DerivedTokenRouterConfig;
+      const expected = makeCctpV2Config(1.3, {
+        contractVersion: '10.3.0',
+      });
+      expect(warpModule.createSetMaxFeePpmTxs(actual, expected)).to.deep.equal(
+        [],
+      );
+    });
+
     it('returns tx when actual has no maxFeeBps', () => {
       const actual = {
         ...baseConfig,
