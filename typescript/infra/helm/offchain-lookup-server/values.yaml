@@ -6,7 +6,7 @@ image:
   # Modify this tag to deploy a new revision.
   # Images can be found here:
   # https://github.com/orgs/hyperlane-xyz/packages/container/package/hyperlane-node-services
-  tag: 3b17358-20260315-183126
+  tag: d0dbf1a-20260406-190037
 serviceName: ccip-server
 
 secrets:

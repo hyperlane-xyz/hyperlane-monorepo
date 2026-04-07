@@ -195,6 +195,9 @@ catalogs:
     ethers:
       specifier: ^5.8.0
       version: 5.8.0
+    express-rate-limit:
+      specifier: ^8.3.1
+      version: 8.3.1
     hardhat:
       specifier: ^2.22.2
       version: 2.27.0
@@ -593,6 +596,9 @@ importers:
       express:
         specifier: ^4.17.1
         version: 4.21.2
+      express-rate-limit:
+        specifier: 'catalog:'
+        version: 8.3.1(express@4.21.2)
       pg:
         specifier: ^8.17.2
         version: 8.17.2
@@ -615,15 +621,18 @@ importers:
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
         version: link:../tsconfig
-      '@jest/globals':
-        specifier: ^29.7.0
-        version: 29.7.0
+      '@types/chai':
+        specifier: 'catalog:'
+        version: 4.3.20
       '@types/cors':
         specifier: ^2
         version: 2.8.19
       '@types/express':
         specifier: ^4.17.1
         version: 4.17.25
+      '@types/mocha':
+        specifier: 'catalog:'
+        version: 10.0.10
       '@types/node':
         specifier: 'catalog:'
         version: 24.10.9
@@ -633,21 +642,27 @@ importers:
       '@types/pino-http':
         specifier: ^5.8.4
         version: 5.8.4
+      '@types/sinon':
+        specifier: 'catalog:'
+        version: 17.0.4
       '@vercel/ncc':
         specifier: 'catalog:'
         version: 0.38.4
-      jest:
-        specifier: ^29.7.0
-        version: 29.7.0(@types/node@24.10.9)(babel-plugin-macros@3.1.0)(ts-node@10.9.2(@types/node@24.10.9)(typescript@6.0.2))
+      chai:
+        specifier: 'catalog:'
+        version: 4.5.0
+      mocha:
+        specifier: 'catalog:'
+        version: 11.7.5
       nodemon:
         specifier: ^3.0.3
         version: 3.1.11
       pino-pretty:
         specifier: 'catalog:'
         version: 13.1.2
-      ts-jest:
-        specifier: ^29.1.2
-        version: 29.4.5(@babel/core@7.28.5)(@jest/transform@29.7.0)(@jest/types@29.6.3)(babel-jest@29.7.0(@babel/core@7.28.5))(jest-util@29.7.0)(jest@29.7.0(@types/node@24.10.9)(babel-plugin-macros@3.1.0)(ts-node@10.9.2(@types/node@24.10.9)(typescript@6.0.2)))(typescript@6.0.2)
+      sinon:
+        specifier: 'catalog:'
+        version: 13.0.2
       tsx:
         specifier: 'catalog:'
         version: 4.19.1
@@ -2757,7 +2772,7 @@ importers:
         version: 1.1.13(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       '@tronweb3/tronwallet-adapters':
         specifier: 'catalog:'
-        version: 1.2.21(@react-native-async-storage/async-storage@1.24.0(react-native@0.82.1(@babel/core@7.28.5)(@types/react@18.3.27)(bufferutil@4.0.9)(react@18.3.1)(utf-8-validate@5.0.10)))(@types/node@24.10.9)(@types/react@18.3.27)(babel-plugin-macros@3.1.0)(bufferutil@4.0.9)(react@18.3.1)(typescript@6.0.2)(utf-8-validate@5.0.10)(zod@4.1.12)
+        version: 1.2.21(@react-native-async-storage/async-storage@1.24.0(react-native@0.82.1(@babel/core@7.28.5)(@types/react@18.3.27)(bufferutil@4.0.9)(react@18.3.1)(utf-8-validate@5.0.10)))(@types/node@24.10.9)(@types/react@18.3.27)(babel-plugin-macros@3.1.0)(bufferutil@4.0.9)(react@18.3.1)(ts-node@10.9.2(@types/node@24.10.9)(typescript@6.0.2))(typescript@6.0.2)(utf-8-validate@5.0.10)(zod@4.1.12)
       '@wagmi/core':
         specifier: ^2.12.26
         version: 2.22.1(@tanstack/query-core@5.90.10)(@types/react@18.3.27)(immer@10.2.0)(react@18.3.1)(typescript@6.0.2)(use-sync-external-store@1.4.0(react@18.3.1))(viem@2.39.3(bufferutil@4.0.9)(typescript@6.0.2)(utf-8-validate@5.0.10)(zod@4.1.12))
@@ -7793,6 +7808,9 @@ packages:
 
   '@sinonjs/text-encoding@0.7.3':
     resolution: {integrity: sha512-DE427ROAphMQzU4ENbliGYrBSYPXF+TtLg9S8vzeA+OF4ZKzoDdzfL8sxuMUGS/lgRhM6j1URSk9ghf7Xo1tyA==}
+    deprecated: |-
+      Deprecated: no longer maintained and no longer used by Sinon packages. See
+        https://github.com/sinonjs/nise/issues/243 for replacement details.
 
   '@smithy/abort-controller@4.2.5':
     resolution: {integrity: sha512-j7HwVkBw68YW8UmFRcjZOmssE77Rvk0GWAIN1oFBhsaovQmZWYCIcGa9/pwRB0ExI8Sk9MWNALTjftjHZea7VA==}
@@ -10743,10 +10761,6 @@ packages:
     engines: {node: ^6 || ^7 || ^8 || ^9 || ^10 || ^11 || ^12 || >=13.7}
     hasBin: true
 
-  bs-logger@0.2.6:
-    resolution: {integrity: sha512-pd8DCoxmbgc7hyPKOvxtqNcjYoOsABPQdcCUjGp3d42VR2CX1ORhk2A87oqqu5R1kk+76nsxZupkmyd+MVtCog==}
-    engines: {node: '>= 6'}
-
   bs58@4.0.1:
     resolution: {integrity: sha512-Ok3Wdf5vOIlBrgCvTq96gBkJw+JUEzdBgyaza5HLtPm7yTHkjRy8+JzNyHF7BHa0bNWOQIp3m5YF0nnFcOIKLw==}
 
@@ -12128,6 +12142,12 @@ packages:
   exponential-backoff@3.1.3:
     resolution: {integrity: sha512-ZgEeZXj30q+I0EN+CbSSpIyPaJ5HVQD18Z1m+u1FXbAeT94mr1zw50q4q6jiiC447Nl/YTcIYSAftiGqetwXCA==}
 
+  express-rate-limit@8.3.1:
+    resolution: {integrity: sha512-D1dKN+cmyPWuvB+G2SREQDzPY1agpBIcTa9sJxOPMCNeH3gwzhqJRDWCXW3gg0y//+LQ/8j52JbMROWyrKdMdw==}
+    engines: {node: '>= 16'}
+    peerDependencies:
+      express: '>= 4.11'
+
   express@4.21.2:
     resolution: {integrity: sha512-28HqgMZAmih1Czt9ny7qr6ek2qddF4FclbMzwhCREB6OFfH+rXAnuNCwo1/wFvrtbgsQDb4kSbX9de9lFbrXnA==}
     engines: {node: '>= 0.10.0'}
@@ -13002,6 +13022,10 @@ packages:
   io-ts@1.10.4:
     resolution: {integrity: sha512-b23PteSnYXSONJ6JQXRAlvJhuw8KOtkqa87W4wDtvMrud/DTJd5X+NpOOI+O/zZwVq6v0VLAaJ+1EDViKEuN9g==}
 
+  ip-address@10.1.0:
+    resolution: {integrity: sha512-XXADHxXmvT9+CRxhXg56LJovE+bmWnEWB78LB83VZTprKTmaC5QfruXocxzTZ2Kl0DNwKuBdlIhjL8LeY8Sf8Q==}
+    engines: {node: '>= 12'}
+
   ipaddr.js@1.9.1:
     resolution: {integrity: sha512-0KI/607xoxSToH7GjN1FfSbLoU0+btTicjsQSWQlh/hZykN8KpmMf7uYwPW3R+akZ6R/w18ZlXSHBYXiYUPO3g==}
     engines: {node: '>= 0.10'}
@@ -13802,9 +13826,6 @@ packages:
   lodash.get@4.4.2:
     resolution: {integrity: sha512-z+Uw/vLuy6gQe8cfaFWD7p0wVv8fJl3mbzXh33RS+0oW2wvUqiRXiQ69gLWSLpgB5/6sU+r6BlQR0MBILadqTQ==}
     deprecated: This package is deprecated. Use the optional chaining (?.) operator instead.
-
-  lodash.memoize@4.1.2:
-    resolution: {integrity: sha512-t7j+NzmgnQzTAYXcsHYLgimltOV1MXHtlOWf6GjL9Kj8GK5FInw5JotxvbOs+IvV1/Dzo04/fCGfLVs7aXb4Ag==}
 
   lodash.mergewith@4.6.2:
     resolution: {integrity: sha512-GK3g5RPZWTRSeLSpgP8Xhra+pnjBC56q9FZYe1d5RN3TJ35dbkGy3YqBSMbyCrlbi+CM9Z3Jk5yTL7RCsqboyQ==}
@@ -16810,33 +16831,6 @@ packages:
   ts-interface-checker@0.1.13:
     resolution: {integrity: sha512-Y/arvbn+rrz3JCKl9C4kVNfTfSm2/mEp5FSz5EsZSANGPSlQrpRI5M4PKF+mJnE52jOO90PnPSc3Ur3bTQw0gA==}
 
-  ts-jest@29.4.5:
-    resolution: {integrity: sha512-HO3GyiWn2qvTQA4kTgjDcXiMwYQt68a1Y8+JuLRVpdIzm+UOLSHgl/XqR4c6nzJkq5rOkjc02O2I7P7l/Yof0Q==}
-    engines: {node: ^14.15.0 || ^16.10.0 || ^18.0.0 || >=20.0.0}
-    hasBin: true
-    peerDependencies:
-      '@babel/core': '>=7.0.0-beta.0 <8'
-      '@jest/transform': ^29.0.0 || ^30.0.0
-      '@jest/types': ^29.0.0 || ^30.0.0
-      babel-jest: ^29.0.0 || ^30.0.0
-      esbuild: '*'
-      jest: ^29.0.0 || ^30.0.0
-      jest-util: ^29.0.0 || ^30.0.0
-      typescript: '>=4.3 <6'
-    peerDependenciesMeta:
-      '@babel/core':
-        optional: true
-      '@jest/transform':
-        optional: true
-      '@jest/types':
-        optional: true
-      babel-jest:
-        optional: true
-      esbuild:
-        optional: true
-      jest-util:
-        optional: true
-
   ts-mixer@6.0.4:
     resolution: {integrity: sha512-ufKpbmrugz5Aou4wcr5Wc1UUFWOLhq+Fm6qa6P0w0K5Qw2yhaUoiWszhCVuNQyNwrlGiscHOmqYoAox1PtvgjA==}
 
@@ -16968,10 +16962,6 @@ packages:
   type-fest@2.19.0:
     resolution: {integrity: sha512-RAH822pAdBgcNMAfWnCBU3CFZcfZ/i1eZjwFU/dsLKumyuuP3niueg2UAukXYF0E2AAoc82ZSSf9J0WQBinzHA==}
     engines: {node: '>=12.20'}
-
-  type-fest@4.41.0:
-    resolution: {integrity: sha512-TeTSQ6H5YHvpqVwBRcnLDCBnDOHWYu7IvGbHT6N8AOymcr9PJGjc1GTtiWZTYg0NCgYwvnYWEkVChQAr9bjfwA==}
-    engines: {node: '>=16'}
 
   type-is@1.6.18:
     resolution: {integrity: sha512-TkRKr9sUTxEH8MdfuCSP7VizJyzRNMjj2J2do2Jr3Kym598JVdEksuzPQCnlFPW4ky9Q+iA+ma9BGm06XQBy8g==}
@@ -27628,7 +27618,7 @@ snapshots:
 
   '@tootallnate/once@2.0.0': {}
 
-  '@tronweb3/abstract-adapter-evm@1.0.3(@types/node@24.10.9)(babel-plugin-macros@3.1.0)(bufferutil@4.0.9)(utf-8-validate@5.0.10)':
+  '@tronweb3/abstract-adapter-evm@1.0.3(@types/node@24.10.9)(babel-plugin-macros@3.1.0)(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@24.10.9)(typescript@6.0.2))(utf-8-validate@5.0.10)':
     dependencies:
       eventemitter3: 4.0.7
       jest: 29.7.0(@types/node@24.10.9)(babel-plugin-macros@3.1.0)(ts-node@10.9.2(@types/node@24.10.9)(typescript@6.0.2))
@@ -27661,10 +27651,10 @@ snapshots:
       - debug
       - utf-8-validate
 
-  '@tronweb3/tronwallet-adapter-binance-evm@1.1.1(@types/node@24.10.9)(babel-plugin-macros@3.1.0)(bufferutil@4.0.9)(utf-8-validate@5.0.10)':
+  '@tronweb3/tronwallet-adapter-binance-evm@1.1.1(@types/node@24.10.9)(babel-plugin-macros@3.1.0)(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@24.10.9)(typescript@6.0.2))(utf-8-validate@5.0.10)':
     dependencies:
       '@binance/w3w-utils': 1.1.8
-      '@tronweb3/abstract-adapter-evm': 1.0.3(@types/node@24.10.9)(babel-plugin-macros@3.1.0)(bufferutil@4.0.9)(utf-8-validate@5.0.10)
+      '@tronweb3/abstract-adapter-evm': 1.0.3(@types/node@24.10.9)(babel-plugin-macros@3.1.0)(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@24.10.9)(typescript@6.0.2))(utf-8-validate@5.0.10)
     transitivePeerDependencies:
       - '@types/node'
       - babel-plugin-macros
@@ -27753,9 +27743,9 @@ snapshots:
       - debug
       - utf-8-validate
 
-  '@tronweb3/tronwallet-adapter-metamask-evm@1.0.0(@types/node@24.10.9)(babel-plugin-macros@3.1.0)(bufferutil@4.0.9)(utf-8-validate@5.0.10)':
+  '@tronweb3/tronwallet-adapter-metamask-evm@1.0.0(@types/node@24.10.9)(babel-plugin-macros@3.1.0)(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@24.10.9)(typescript@6.0.2))(utf-8-validate@5.0.10)':
     dependencies:
-      '@tronweb3/abstract-adapter-evm': 1.0.3(@types/node@24.10.9)(babel-plugin-macros@3.1.0)(bufferutil@4.0.9)(utf-8-validate@5.0.10)
+      '@tronweb3/abstract-adapter-evm': 1.0.3(@types/node@24.10.9)(babel-plugin-macros@3.1.0)(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@24.10.9)(typescript@6.0.2))(utf-8-validate@5.0.10)
     transitivePeerDependencies:
       - '@types/node'
       - babel-plugin-macros
@@ -27813,9 +27803,9 @@ snapshots:
       - debug
       - utf-8-validate
 
-  '@tronweb3/tronwallet-adapter-tronlink-evm@1.1.0(@types/node@24.10.9)(babel-plugin-macros@3.1.0)(bufferutil@4.0.9)(utf-8-validate@5.0.10)':
+  '@tronweb3/tronwallet-adapter-tronlink-evm@1.1.0(@types/node@24.10.9)(babel-plugin-macros@3.1.0)(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@24.10.9)(typescript@6.0.2))(utf-8-validate@5.0.10)':
     dependencies:
-      '@tronweb3/abstract-adapter-evm': 1.0.3(@types/node@24.10.9)(babel-plugin-macros@3.1.0)(bufferutil@4.0.9)(utf-8-validate@5.0.10)
+      '@tronweb3/abstract-adapter-evm': 1.0.3(@types/node@24.10.9)(babel-plugin-macros@3.1.0)(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@24.10.9)(typescript@6.0.2))(utf-8-validate@5.0.10)
     transitivePeerDependencies:
       - '@types/node'
       - babel-plugin-macros
@@ -27878,10 +27868,10 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@tronweb3/tronwallet-adapters@1.2.21(@react-native-async-storage/async-storage@1.24.0(react-native@0.82.1(@babel/core@7.28.5)(@types/react@18.3.27)(bufferutil@4.0.9)(react@18.3.1)(utf-8-validate@5.0.10)))(@types/node@24.10.9)(@types/react@18.3.27)(babel-plugin-macros@3.1.0)(bufferutil@4.0.9)(react@18.3.1)(typescript@6.0.2)(utf-8-validate@5.0.10)(zod@4.1.12)':
+  '@tronweb3/tronwallet-adapters@1.2.21(@react-native-async-storage/async-storage@1.24.0(react-native@0.82.1(@babel/core@7.28.5)(@types/react@18.3.27)(bufferutil@4.0.9)(react@18.3.1)(utf-8-validate@5.0.10)))(@types/node@24.10.9)(@types/react@18.3.27)(babel-plugin-macros@3.1.0)(bufferutil@4.0.9)(react@18.3.1)(ts-node@10.9.2(@types/node@24.10.9)(typescript@6.0.2))(typescript@6.0.2)(utf-8-validate@5.0.10)(zod@4.1.12)':
     dependencies:
       '@tronweb3/tronwallet-adapter-binance': 1.0.2(bufferutil@4.0.9)(utf-8-validate@5.0.10)
-      '@tronweb3/tronwallet-adapter-binance-evm': 1.1.1(@types/node@24.10.9)(babel-plugin-macros@3.1.0)(bufferutil@4.0.9)(utf-8-validate@5.0.10)
+      '@tronweb3/tronwallet-adapter-binance-evm': 1.1.1(@types/node@24.10.9)(babel-plugin-macros@3.1.0)(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@24.10.9)(typescript@6.0.2))(utf-8-validate@5.0.10)
       '@tronweb3/tronwallet-adapter-bitkeep': 1.1.7(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       '@tronweb3/tronwallet-adapter-bybit': 1.0.2(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       '@tronweb3/tronwallet-adapter-foxwallet': 1.0.1(bufferutil@4.0.9)(utf-8-validate@5.0.10)
@@ -27889,13 +27879,13 @@ snapshots:
       '@tronweb3/tronwallet-adapter-guarda': 1.0.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       '@tronweb3/tronwallet-adapter-imtoken': 1.0.3(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       '@tronweb3/tronwallet-adapter-ledger': 1.1.12(bufferutil@4.0.9)(utf-8-validate@5.0.10)
-      '@tronweb3/tronwallet-adapter-metamask-evm': 1.0.0(@types/node@24.10.9)(babel-plugin-macros@3.1.0)(bufferutil@4.0.9)(utf-8-validate@5.0.10)
+      '@tronweb3/tronwallet-adapter-metamask-evm': 1.0.0(@types/node@24.10.9)(babel-plugin-macros@3.1.0)(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@24.10.9)(typescript@6.0.2))(utf-8-validate@5.0.10)
       '@tronweb3/tronwallet-adapter-metamask-tron': 1.0.1(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       '@tronweb3/tronwallet-adapter-okxwallet': 1.0.7(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       '@tronweb3/tronwallet-adapter-tokenpocket': 1.0.8(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       '@tronweb3/tronwallet-adapter-tomowallet': 1.0.1(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       '@tronweb3/tronwallet-adapter-tronlink': 1.1.13(bufferutil@4.0.9)(utf-8-validate@5.0.10)
-      '@tronweb3/tronwallet-adapter-tronlink-evm': 1.1.0(@types/node@24.10.9)(babel-plugin-macros@3.1.0)(bufferutil@4.0.9)(utf-8-validate@5.0.10)
+      '@tronweb3/tronwallet-adapter-tronlink-evm': 1.1.0(@types/node@24.10.9)(babel-plugin-macros@3.1.0)(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@24.10.9)(typescript@6.0.2))(utf-8-validate@5.0.10)
       '@tronweb3/tronwallet-adapter-trust': 1.0.2(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       '@tronweb3/tronwallet-adapter-walletconnect': 3.0.2(@react-native-async-storage/async-storage@1.24.0(react-native@0.82.1(@babel/core@7.28.5)(@types/react@18.3.27)(bufferutil@4.0.9)(react@18.3.1)(utf-8-validate@5.0.10)))(@types/react@18.3.27)(bufferutil@4.0.9)(react@18.3.1)(typescript@6.0.2)(utf-8-validate@5.0.10)(zod@4.1.12)
     transitivePeerDependencies:
@@ -30817,10 +30807,6 @@ snapshots:
       node-releases: 2.0.27
       update-browserslist-db: 1.1.4(browserslist@4.28.0)
 
-  bs-logger@0.2.6:
-    dependencies:
-      fast-json-stable-stringify: 2.1.0
-
   bs58@4.0.1:
     dependencies:
       base-x: 3.0.11
@@ -32460,6 +32446,11 @@ snapshots:
 
   exponential-backoff@3.1.3: {}
 
+  express-rate-limit@8.3.1(express@4.21.2):
+    dependencies:
+      express: 4.21.2
+      ip-address: 10.1.0
+
   express@4.21.2:
     dependencies:
       accepts: 1.3.8
@@ -33566,6 +33557,8 @@ snapshots:
     dependencies:
       fp-ts: 1.19.3
 
+  ip-address@10.1.0: {}
+
   ipaddr.js@1.9.1: {}
 
   iron-webcrypto@1.2.1: {}
@@ -34590,8 +34583,6 @@ snapshots:
   lodash.debounce@4.0.8: {}
 
   lodash.get@4.4.2: {}
-
-  lodash.memoize@4.1.2: {}
 
   lodash.mergewith@4.6.2: {}
 
@@ -38436,26 +38427,6 @@ snapshots:
 
   ts-interface-checker@0.1.13: {}
 
-  ts-jest@29.4.5(@babel/core@7.28.5)(@jest/transform@29.7.0)(@jest/types@29.6.3)(babel-jest@29.7.0(@babel/core@7.28.5))(jest-util@29.7.0)(jest@29.7.0(@types/node@24.10.9)(babel-plugin-macros@3.1.0)(ts-node@10.9.2(@types/node@24.10.9)(typescript@6.0.2)))(typescript@6.0.2):
-    dependencies:
-      bs-logger: 0.2.6
-      fast-json-stable-stringify: 2.1.0
-      handlebars: 4.7.8
-      jest: 29.7.0(@types/node@24.10.9)(babel-plugin-macros@3.1.0)(ts-node@10.9.2(@types/node@24.10.9)(typescript@6.0.2))
-      json5: 2.2.3
-      lodash.memoize: 4.1.2
-      make-error: 1.3.6
-      semver: 7.7.3
-      type-fest: 4.41.0
-      typescript: 6.0.2
-      yargs-parser: 21.1.1
-    optionalDependencies:
-      '@babel/core': 7.28.5
-      '@jest/transform': 29.7.0
-      '@jest/types': 29.6.3
-      babel-jest: 29.7.0(@babel/core@7.28.5)
-      jest-util: 29.7.0
-
   ts-mixer@6.0.4: {}
 
   ts-node@10.9.2(@types/node@24.10.9)(typescript@6.0.2):
@@ -38557,8 +38528,6 @@ snapshots:
   type-fest@1.4.0: {}
 
   type-fest@2.19.0: {}
-
-  type-fest@4.41.0: {}
 
   type-is@1.6.18:
     dependencies:

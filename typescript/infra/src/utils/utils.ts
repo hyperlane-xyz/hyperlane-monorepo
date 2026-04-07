@@ -2,7 +2,7 @@
 import asn1 from 'asn1.js';
 import { exec } from 'child_process';
 import { ethers } from 'ethers';
-import { dirname, join } from 'path';
+import { dirname, join, resolve } from 'path';
 import { fileURLToPath } from 'url';
 
 import { ChainMap, ChainName, NativeToken } from '@hyperlane-xyz/sdk';
@@ -193,9 +193,10 @@ const OXFMT_EXTENSIONS = new Set([
 
 export async function formatFile(filepath: string): Promise<void> {
   const ext = filepath.slice(filepath.lastIndexOf('.'));
+  const absolutePath = resolve(filepath);
   const formatter = OXFMT_EXTENSIONS.has(ext)
-    ? `npx oxfmt --write "${filepath}"`
-    : `npx prettier --write "${filepath}"`;
+    ? `npx oxfmt --write "${absolutePath}"`
+    : `npx prettier --write "${absolutePath}"`;
 
   try {
     const monorepoRoot = getMonorepoRoot();

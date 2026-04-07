@@ -402,11 +402,15 @@ export {
 } from './middleware/account/contracts.js';
 export {
   commitmentFromIcaCalls,
+  commitmentFromRevealMessage,
   encodeIcaCalls,
   InterchainAccount,
   normalizeCalls,
   PostCallsSchema,
   PostCallsType,
+  PostCallsLegacyType,
+  PostCallsIcaType,
+  isPostCallsIca,
   RawCallData,
   shareCallsWithPrivateRelayer,
 } from './middleware/account/InterchainAccount.js';
