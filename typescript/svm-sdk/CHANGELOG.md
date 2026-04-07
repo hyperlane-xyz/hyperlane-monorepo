@@ -1,5 +1,13 @@
 # @hyperlane-xyz/sealevel-sdk
 
+## 30.1.0
+
+### Patch Changes
+
+- b643062: Fixed serialized transaction output using the local keypair as fee payer instead of the actual authority (e.g. Squads vault). Added explicit feePayer field to SvmTransaction and set it on all update paths. Refactored IGP instruction builders to accept Address instead of TransactionSigner so the on-chain owner is used in serialized transactions.
+  - @hyperlane-xyz/utils@30.1.0
+  - @hyperlane-xyz/provider-sdk@4.2.4
+
 ## 30.0.0
 
 ### Major Changes

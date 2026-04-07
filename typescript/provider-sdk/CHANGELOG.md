@@ -1,5 +1,11 @@
 # @hyperlane-xyz/provider-sdk
 
+## 4.2.4
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@30.1.0
+
 ## 4.2.3
 
 ### Patch Changes
