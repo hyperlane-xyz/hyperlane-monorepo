@@ -695,8 +695,12 @@ export class WarpCore {
     // Same-chain: calls handle() directly on target router (atomic, no relay needed).
     const destinationDomainId = this.multiProvider.getDomainId(destination);
 
+    const originDomainId = this.multiProvider.getDomainId(
+      originToken.chainName,
+    );
+    const isLocalTransfer = destinationDomainId === originDomainId;
     const extraSignerKeypairs =
-      providerType === ProviderType.SolanaWeb3
+      providerType === ProviderType.SolanaWeb3 && !isLocalTransfer
         ? [Keypair.generate()]
         : undefined;
     const txReq = await adapter.populateTransferRemoteToTx({
