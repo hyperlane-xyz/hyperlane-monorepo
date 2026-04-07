@@ -30,6 +30,8 @@ import {
   writableSignerAddress,
 } from './utils.js';
 
+// Cross-collateral plugin discriminator [2; 8], distinct from the base
+// token program discriminator [1; 8] (PROGRAM_INSTRUCTION_DISCRIMINATOR).
 const CC_INSTRUCTION_DISCRIMINATOR = new Uint8Array([2, 2, 2, 2, 2, 2, 2, 2]);
 
 export enum CrossCollateralInstructionKind {
@@ -40,14 +42,18 @@ export enum CrossCollateralInstructionKind {
 }
 
 export type CrossCollateralRouterUpdate =
-  | { kind: 'add'; domain: number; router: H256 }
+  | { kind: 'add'; config: { domain: number; router: H256 } }
   | { kind: 'remove'; config: RemoteRouterConfig };
 
 function encodeCrossCollateralRouterUpdate(
   update: CrossCollateralRouterUpdate,
 ): ReadonlyUint8Array {
   if (update.kind === 'add') {
-    return concatBytes(u8(0), u32le(update.domain), encodeH256(update.router));
+    return concatBytes(
+      u8(0),
+      u32le(update.config.domain),
+      encodeH256(update.config.router),
+    );
   }
 
   return concatBytes(u8(1), encodeRemoteRouterConfig(update.config));

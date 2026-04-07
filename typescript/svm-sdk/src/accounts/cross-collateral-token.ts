@@ -1,6 +1,6 @@
 import { decodeAccountData } from '../codecs/account-data.js';
 import type { ByteCursor } from '../codecs/binary.js';
-import { decodeMapU32SetH256 } from '../codecs/shared.js';
+import { decodeMapU32VecH256 } from '../codecs/shared.js';
 
 export interface CrossCollateralStateData {
   bump: number;
@@ -22,6 +22,6 @@ function decodeCrossCollateralStateInner(
   const bump = cursor.readU8();
   const dispatchAuthorityBump = cursor.readU8();
   const localDomain = cursor.readU32LE();
-  const enrolledRouters = decodeMapU32SetH256(cursor);
+  const enrolledRouters = decodeMapU32VecH256(cursor);
   return { bump, dispatchAuthorityBump, localDomain, enrolledRouters };
 }

@@ -85,7 +85,9 @@ export async function detectWarpTokenType(
       : `Ambiguous warp token type for program ${programId}: multiple type-specific PDAs exist (${matches.join(', ')})`,
   );
 
-  return matches[0]!;
+  const result = matches[0];
+  assert(result !== undefined, 'Unexpected empty matches after validation');
+  return result;
 }
 
 /** Converts a 32-byte router H256 to a 0x-prefixed hex string. */

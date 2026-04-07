@@ -28,6 +28,7 @@ import { getMintDecimals, fetchMintMetadata } from '../accounts/mint.js';
 import { decodeCollateralPlugin } from '../accounts/token.js';
 import type { SvmSigner } from '../clients/signer.js';
 import {
+  DEFAULT_COMPUTE_UNITS,
   RENT_SYSVAR_ADDRESS,
   SPL_TOKEN_PROGRAM_ADDRESS,
   TOKEN_2022_PROGRAM_ADDRESS,
@@ -94,7 +95,7 @@ export class SvmCrossCollateralTokenReader implements ArtifactReader<
       `Cross-collateral state PDA not found at ${ccStatePdaAddr}`,
     );
     const ccState = decodeCrossCollateralStateAccount(
-      ccStateAccount.data as Uint8Array,
+      Uint8Array.from(ccStateAccount.data),
     );
     assert(
       !isNullish(ccState),
@@ -171,8 +172,7 @@ export async function buildCrossCollateralRouterEnrollTxs(
     for (const routerHex of routerSet) {
       updates.push({
         kind: 'add',
-        domain: parseInt(domain),
-        router: routerHexToBytes(routerHex),
+        config: { domain: Number(domain), router: routerHexToBytes(routerHex) },
       });
     }
   }
@@ -207,14 +207,14 @@ export async function buildCrossCollateralRouterUnenrollTxs(
     if (routerSet === null) {
       updates.push({
         kind: 'remove',
-        config: { domain: parseInt(domain), router: null },
+        config: { domain: Number(domain), router: null },
       });
     } else {
       for (const routerHex of routerSet) {
         updates.push({
           kind: 'remove',
           config: {
-            domain: parseInt(domain),
+            domain: Number(domain),
             router: routerHexToBytes(routerHex),
           },
         });
@@ -271,21 +271,15 @@ export class SvmCrossCollateralTokenWriter
 
     // Validate the collateral mint
     const collateralMint = parseAddress(tokenConfig.token);
-    const mintInfo = await this.rpc
-      .getAccountInfo(collateralMint, { encoding: 'base64' })
-      .send();
-    assert(
-      !isNullish(mintInfo.value),
-      `Mint account not found: ${collateralMint}`,
-    );
-    const splProgram = parseAddress(mintInfo.value.owner);
+    const mintAccount = await fetchEncodedAccount(this.rpc, collateralMint);
+    assert(mintAccount.exists, `Mint account not found: ${collateralMint}`);
+    const splProgram = mintAccount.programAddress;
     assert(
       splProgram === SPL_TOKEN_PROGRAM_ADDRESS ||
         splProgram === TOKEN_2022_PROGRAM_ADDRESS,
       `Mint ${collateralMint} is not owned by SPL Token or Token-2022 (owner: ${splProgram})`,
     );
-    const mintRawData = Buffer.from(mintInfo.value.data[0] as string, 'base64');
-    const localDecimals = getMintDecimals(mintRawData);
+    const localDecimals = getMintDecimals(Uint8Array.from(mintAccount.data));
     assertLocalDecimals(localDecimals);
     const remoteDecimals = scaleToRemoteDecimals(
       localDecimals,
@@ -330,7 +324,7 @@ export class SvmCrossCollateralTokenWriter
     receipts.push(
       await this.svmSigner.send({
         instructions: [initIx],
-        computeUnits: 400_000,
+        computeUnits: DEFAULT_COMPUTE_UNITS,
         skipPreflight: true,
       }),
     );
@@ -399,20 +393,25 @@ export class SvmCrossCollateralTokenWriter
     const currentCCRouters = current.config.crossCollateralRouters ?? {};
     const expectedCCRouters = artifact.config.crossCollateralRouters ?? {};
 
-    const toUnenroll: Record<number, Set<string>> = {};
+    const toUnenroll: Record<number, Set<string> | null> = {};
     for (const [domainStr, currentSet] of Object.entries(currentCCRouters)) {
-      const domain = parseInt(domainStr);
-      const expectedSet = expectedCCRouters[domain] ?? new Set();
-      for (const router of currentSet) {
-        if (!expectedSet.has(router)) {
-          (toUnenroll[domain] ??= new Set()).add(router);
+      const domain = Number(domainStr);
+      const expectedSet = expectedCCRouters[domain];
+      if (!expectedSet || expectedSet.size === 0) {
+        // Domain removed entirely — bulk unenroll
+        toUnenroll[domain] = null;
+      } else {
+        for (const router of currentSet) {
+          if (!expectedSet.has(router)) {
+            (toUnenroll[domain] ??= new Set()).add(router);
+          }
         }
       }
     }
 
     const toEnroll: Record<number, Set<string>> = {};
     for (const [domainStr, expectedSet] of Object.entries(expectedCCRouters)) {
-      const domain = parseInt(domainStr);
+      const domain = Number(domainStr);
       const currentSet = currentCCRouters[domain] ?? new Set();
       for (const router of expectedSet) {
         if (!currentSet.has(router)) {

@@ -369,7 +369,7 @@ export function decodeMapU32H256(cursor: ByteCursor): Map<number, H256> {
   return entries;
 }
 
-export function decodeMapU32SetH256(
+export function decodeMapU32VecH256(
   cursor: ByteCursor,
 ): Map<number, Uint8Array[]> {
   const mapLen = cursor.readU32LE();
