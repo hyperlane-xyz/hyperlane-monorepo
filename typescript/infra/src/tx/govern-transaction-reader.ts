@@ -14,6 +14,7 @@ import { BigNumber, ethers } from 'ethers';
 import {
   BaseFee__factory,
   ERC20__factory,
+  EverclearTokenBridge__factory,
   HypXERC20Lockbox__factory,
   IXERC20VS__factory,
   IXERC20__factory,
@@ -25,6 +26,7 @@ import {
   TimelockController__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
+import { CrossCollateralRouter__factory } from '@hyperlane-xyz/multicollateral';
 import {
   AnnotatedEV5Transaction,
   ChainMap,
@@ -1092,185 +1094,26 @@ export class GovernTransactionReader {
     }
 
     const { symbol } = await this.multiProvider.getNativeToken(chain);
-    const tokenRouterInterface =
-      MovableCollateralRouter__factory.createInterface();
-    const cctpV2Interface = TokenBridgeCctpV2__factory.createInterface();
 
-    let decoded;
-    try {
-      decoded = tokenRouterInterface.parseTransaction({
-        data: tx.data,
-        value: tx.value,
-      });
-    } catch {
-      decoded = cctpV2Interface.parseTransaction({
-        data: tx.data,
-        value: tx.value,
-      });
-    }
+    // Combined interface from all warp route contract ABIs so any governance
+    // transaction targeting a warp route can be decoded automatically.
+    const warpRouteInterface = new ethers.utils.Interface([
+      ...MovableCollateralRouter__factory.abi,
+      ...TokenBridgeCctpV2__factory.abi,
+      ...CrossCollateralRouter__factory.abi,
+      ...EverclearTokenBridge__factory.abi,
+    ]);
 
-    let insight: string | undefined;
-    let feeDetails: Record<string, any> | undefined;
-    if (
-      decoded.functionFragment.name ===
-      tokenRouterInterface.functions['setHook(address)'].name
-    ) {
-      const [hookAddress] = decoded.args;
-      insight = `Set hook to ${hookAddress}`;
-    }
+    const decoded = warpRouteInterface.parseTransaction({
+      data: tx.data,
+      value: tx.value,
+    });
 
-    if (
-      decoded.functionFragment.name ===
-      tokenRouterInterface.functions['addBridge(uint32,address)'].name
-    ) {
-      const [domain, bridgeAddress] = decoded.args;
-      insight = `Set bridge for origin domain ${domain} to ${bridgeAddress}`;
-    }
-
-    if (
-      decoded.functionFragment.name ===
-      tokenRouterInterface.functions['removeBridge(uint32,address)'].name
-    ) {
-      const [domain, bridgeAddress] = decoded.args;
-      const chainName = this.multiProvider.tryGetChainName(domain);
-      insight = `Remove bridge ${bridgeAddress} from domain ${domain}${chainName ? ` (${chainName})` : ''}`;
-    }
-
-    if (
-      decoded.functionFragment.name ===
-      tokenRouterInterface.functions['addRebalancer(address)'].name
-    ) {
-      const [rebalancer] = decoded.args;
-      insight = `Add rebalancer ${rebalancer}`;
-    }
-
-    if (
-      decoded.functionFragment.name ===
-      tokenRouterInterface.functions['setInterchainSecurityModule(address)']
-        .name
-    ) {
-      const [ismAddress] = decoded.args;
-      insight = `Set ISM to ${ismAddress}`;
-    }
-
-    if (
-      decoded.functionFragment.name ===
-      tokenRouterInterface.functions['setDestinationGas((uint32,uint256)[])']
-        .name
-    ) {
-      const [gasConfigs] = decoded.args;
-      const insights = gasConfigs.map(
-        (config: { domain: number; gas: BigNumber }) => {
-          const chainName = this.multiProvider.getChainName(config.domain);
-          return `domain ${
-            config.domain
-          } (${chainName}) to ${config.gas.toString()}`;
-        },
-      );
-      insight = `Set destination gas for ${insights.join(', ')}`;
-    }
-
-    if (
-      decoded.functionFragment.name ===
-      tokenRouterInterface.functions['enrollRemoteRouters(uint32[],bytes32[])']
-        .name
-    ) {
-      const [domains, routers] = decoded.args;
-      const insights = domains.map((domain: number, index: number) => {
-        const chainName = this.multiProvider.getChainName(domain);
-        return `domain ${domain} (${chainName}) to ${routers[index]}`;
-      });
-      insight = `Enroll remote routers for ${insights.join(', ')}`;
-    }
-
-    if (
-      decoded.functionFragment.name ===
-      tokenRouterInterface.functions['unenrollRemoteRouter(uint32)'].name
-    ) {
-      const [domain] = decoded.args;
-      const chainName = this.multiProvider.getChainName(domain);
-      insight = `Unenroll remote router for domain ${domain} (${chainName})`;
-    }
-
-    if (
-      decoded.functionFragment.name ===
-      tokenRouterInterface.functions['unenrollRemoteRouters(uint32[])'].name
-    ) {
-      const [domains] = decoded.args;
-      const insights = domains.map((domain: number) => {
-        const chainName = this.multiProvider.getChainName(domain);
-        return `domain ${domain} (${chainName})`;
-      });
-      insight = `Unenroll remote routers for ${insights.join(', ')}`;
-    }
-
-    if (
-      decoded.functionFragment.name ===
-      tokenRouterInterface.functions['setFeeRecipient(address)'].name
-    ) {
-      const [recipient] = decoded.args;
-      // Read fee contract details (handles address(0), non-fee contracts gracefully)
-      const feeInfo = await this.readFeeContractDetails(
-        chain,
-        tx.to!,
-        recipient,
-      );
-      insight = feeInfo.insight;
-      feeDetails = feeInfo.feeDetails;
-    }
-
-    if (
-      decoded.functionFragment.name ===
-      tokenRouterInterface.functions['removeRebalancer(address)'].name
-    ) {
-      const [rebalancer] = decoded.args;
-      insight = `Remove rebalancer ${rebalancer}`;
-    }
-
-    if (
-      decoded.functionFragment.name ===
-      tokenRouterInterface.functions['setRecipient(uint32,bytes32)'].name
-    ) {
-      const [domain, recipient] = decoded.args;
-      const chainName = this.multiProvider.tryGetChainName(domain);
-      insight = `Set rebalance recipient for domain ${domain}${chainName ? ` (${chainName})` : ''} to ${recipient}`;
-    }
-
-    if (
-      decoded.functionFragment.name ===
-      tokenRouterInterface.functions['removeRecipient(uint32)'].name
-    ) {
-      const [domain] = decoded.args;
-      const chainName = this.multiProvider.tryGetChainName(domain);
-      insight = `Remove rebalance recipient for domain ${domain}${chainName ? ` (${chainName})` : ''}`;
-    }
-
-    if (
-      decoded.functionFragment.name ===
-      tokenRouterInterface.functions['approveTokenForBridge(address,address)']
-        .name
-    ) {
-      const [token, bridge] = decoded.args;
-      insight = `Approve token ${token} for bridge ${bridge}`;
-    }
-
-    if (
-      decoded.functionFragment.name ===
-      tokenRouterInterface.functions['enrollRemoteRouter(uint32,bytes32)'].name
-    ) {
-      const [domain, router] = decoded.args;
-      const chainName = this.multiProvider.tryGetChainName(domain);
-      insight = `Enroll remote router for domain ${domain}${chainName ? ` (${chainName})` : ''} to ${router}`;
-    }
-
-    if (
-      decoded.functionFragment.name ===
-      cctpV2Interface.functions['setMaxFeePpm(uint256)'].name
-    ) {
-      const [maxFeePpm] = decoded.args;
-      const bps = BigNumber.from(maxFeePpm).toNumber() / 100;
-      insight = `Set max fee to ${maxFeePpm} ppm (${bps} bps)`;
-    }
+    const { insight, feeDetails } = await this.deriveWarpInsight(
+      chain,
+      tx,
+      decoded,
+    );
 
     let ownableTx = {};
     if (!insight) {
@@ -1290,6 +1133,165 @@ export class GovernTransactionReader {
       signature: decoded.signature,
       ...(feeDetails && { feeDetails }),
     };
+  }
+
+  private async deriveWarpInsight(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+    decoded: ethers.utils.TransactionDescription,
+  ): Promise<{
+    insight: string | undefined;
+    feeDetails: Record<string, any> | undefined;
+  }> {
+    let insight: string | undefined;
+    let feeDetails: Record<string, any> | undefined;
+    const name = decoded.functionFragment.name;
+
+    switch (name) {
+      case 'setHook': {
+        insight = `Set hook to ${decoded.args[0]}`;
+        break;
+      }
+      case 'addBridge': {
+        const [domain, bridgeAddress] = decoded.args;
+        insight = `Set bridge for origin domain ${domain} to ${bridgeAddress}`;
+        break;
+      }
+      case 'removeBridge': {
+        const [domain, bridgeAddress] = decoded.args;
+        const chainName = this.multiProvider.tryGetChainName(domain);
+        insight = `Remove bridge ${bridgeAddress} from domain ${domain}${chainName ? ` (${chainName})` : ''}`;
+        break;
+      }
+      case 'addRebalancer': {
+        insight = `Add rebalancer ${decoded.args[0]}`;
+        break;
+      }
+      case 'removeRebalancer': {
+        insight = `Remove rebalancer ${decoded.args[0]}`;
+        break;
+      }
+      case 'setInterchainSecurityModule': {
+        insight = `Set ISM to ${decoded.args[0]}`;
+        break;
+      }
+      case 'setDestinationGas': {
+        const [gasConfigs] = decoded.args;
+        const insights = gasConfigs.map(
+          (config: { domain: number; gas: BigNumber }) => {
+            const chainName = this.multiProvider.getChainName(config.domain);
+            return `domain ${config.domain} (${chainName}) to ${config.gas.toString()}`;
+          },
+        );
+        insight = `Set destination gas for ${insights.join(', ')}`;
+        break;
+      }
+      case 'enrollRemoteRouter': {
+        const [domain, router] = decoded.args;
+        const chainName = this.multiProvider.tryGetChainName(domain);
+        insight = `Enroll remote router for domain ${domain}${chainName ? ` (${chainName})` : ''} to ${router}`;
+        break;
+      }
+      case 'enrollRemoteRouters': {
+        const [domains, routers] = decoded.args;
+        const insights = domains.map((domain: number, index: number) => {
+          const chainName = this.multiProvider.getChainName(domain);
+          return `domain ${domain} (${chainName}) to ${routers[index]}`;
+        });
+        insight = `Enroll remote routers for ${insights.join(', ')}`;
+        break;
+      }
+      case 'unenrollRemoteRouter': {
+        const [domain] = decoded.args;
+        const chainName = this.multiProvider.getChainName(domain);
+        insight = `Unenroll remote router for domain ${domain} (${chainName})`;
+        break;
+      }
+      case 'unenrollRemoteRouters': {
+        const [domains] = decoded.args;
+        const insights = domains.map((domain: number) => {
+          const chainName = this.multiProvider.getChainName(domain);
+          return `domain ${domain} (${chainName})`;
+        });
+        insight = `Unenroll remote routers for ${insights.join(', ')}`;
+        break;
+      }
+      case 'setFeeRecipient': {
+        const feeInfo = await this.readFeeContractDetails(
+          chain,
+          tx.to!,
+          decoded.args[0],
+        );
+        insight = feeInfo.insight;
+        feeDetails = feeInfo.feeDetails;
+        break;
+      }
+      case 'setRecipient': {
+        const [domain, recipient] = decoded.args;
+        const chainName = this.multiProvider.tryGetChainName(domain);
+        insight = `Set rebalance recipient for domain ${domain}${chainName ? ` (${chainName})` : ''} to ${recipient}`;
+        break;
+      }
+      case 'removeRecipient': {
+        const [domain] = decoded.args;
+        const chainName = this.multiProvider.tryGetChainName(domain);
+        insight = `Remove rebalance recipient for domain ${domain}${chainName ? ` (${chainName})` : ''}`;
+        break;
+      }
+      case 'approveTokenForBridge': {
+        const [token, bridge] = decoded.args;
+        insight = `Approve token ${token} for bridge ${bridge}`;
+        break;
+      }
+      case 'setMaxFeePpm': {
+        const [maxFeePpm] = decoded.args;
+        const bps = BigNumber.from(maxFeePpm).toNumber() / 100;
+        insight = `Set max fee to ${maxFeePpm} ppm (${bps} bps)`;
+        break;
+      }
+      case 'enrollCrossCollateralRouters': {
+        const [domains, routers] = decoded.args;
+        const insights = domains.map((domain: number, index: number) => {
+          const chainName = this.multiProvider.tryGetChainName(domain);
+          return `domain ${domain}${chainName ? ` (${chainName})` : ''} to ${routers[index]}`;
+        });
+        insight = `Enroll cross-collateral routers for ${insights.join(', ')}`;
+        break;
+      }
+      case 'unenrollCrossCollateralRouters': {
+        const [domains, routers] = decoded.args;
+        const insights = domains.map((domain: number, index: number) => {
+          const chainName = this.multiProvider.tryGetChainName(domain);
+          return `domain ${domain}${chainName ? ` (${chainName})` : ''} router ${routers[index]}`;
+        });
+        insight = `Unenroll cross-collateral routers for ${insights.join(', ')}`;
+        break;
+      }
+      case 'setOutputAssetsBatch': {
+        const [assets] = decoded.args;
+        const insights = assets.map(
+          (asset: { destination: number; outputAsset: string }) => {
+            const chainName = this.multiProvider.tryGetChainName(
+              asset.destination,
+            );
+            return `domain ${asset.destination}${chainName ? ` (${chainName})` : ''} to ${asset.outputAsset}`;
+          },
+        );
+        insight = `Set output assets for ${insights.join(', ')}`;
+        break;
+      }
+      case 'setFeeParams': {
+        const [domainId, fee, deadline] = decoded.args;
+        const chainName = this.multiProvider.tryGetChainName(domainId);
+        const humanDeadline = new Date(
+          BigNumber.from(deadline).toNumber() * 1000,
+        ).toISOString();
+        insight = `Set Everclear fee params for domain ${domainId}${chainName ? ` (${chainName})` : ''}, fee=${fee}, deadline=${humanDeadline}`;
+        break;
+      }
+    }
+
+    return { insight, feeDetails };
   }
 
   /**
