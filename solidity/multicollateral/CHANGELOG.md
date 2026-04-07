@@ -1,5 +1,13 @@
 # @hyperlane-xyz/multicollateral
 
+## 1.0.2
+
+### Patch Changes
+
+- Updated dependencies [ac297da]
+- Updated dependencies [77db719]
+    - @hyperlane-xyz/core@11.2.0
+
 ## 1.0.1
 
 ### Patch Changes
