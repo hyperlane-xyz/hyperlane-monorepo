@@ -5,6 +5,39 @@ export {
 } from './fee/EvmTokenFeeReader.js';
 
 export {
+  buildExecuteCalldata,
+  buildQuoteCalldata,
+  type QuotedCallsTransaction,
+  type QuotedTransferParams,
+} from './quoted-calls/builder.js';
+export {
+  CONTRACT_BALANCE,
+  type Quote as QuotedCallsQuote,
+  computeScopedSalt,
+  decodeQuoteExecuteResult,
+  encodeExecuteCalldata,
+  encodePermit2PermitInput,
+  encodePermit2TransferFromInput,
+  encodeQuoteExecuteCalldata,
+  encodeSubmitQuoteInput,
+  encodeSweepInput,
+  encodeTransferFromInput,
+  encodeTransferRemoteInput,
+  encodeTransferRemoteToInput,
+  extractQuoteTotals,
+  quotedCallsAbi,
+  sumQuotesByToken,
+} from './quoted-calls/codec.js';
+export {
+  type Permit2Data,
+  type QuotedCallsParams,
+  QuotedCallsCommand,
+  type SignedQuoteData,
+  type SubmitQuoteCommand,
+  TokenPullMode,
+} from './quoted-calls/types.js';
+
+export {
   isAddressActive,
   isContractAddress,
   assertIsContractAddress,
@@ -78,6 +111,7 @@ export { ICoreAdapter } from './core/adapters/types.js';
 export {
   CoreAddresses,
   CoreFactories,
+  PERMIT2_ADDRESS,
   coreFactories,
 } from './core/contracts.js';
 export { HyperlaneLifecyleEvent } from './core/events.js';
@@ -776,6 +810,10 @@ export {
   XERC20LimitsTokenConfig,
   CctpTokenConfig,
   CctpTokenConfigSchema,
+  DepositAddressDestinationConfig,
+  DepositAddressDestinationConfigSchema,
+  DepositAddressTokenConfig,
+  DepositAddressTokenConfigSchema,
   CollateralRebaseTokenConfigSchema,
   CollateralTokenConfig,
   CollateralTokenConfigSchema,
@@ -801,6 +839,7 @@ export {
   isEverclearCollateralTokenConfig,
   isEverclearEthBridgeTokenConfig,
   isEverclearTokenBridgeConfig,
+  isDepositAddressTokenConfig,
   EverclearCollateralTokenConfig,
   EverclearEthBridgeTokenConfig,
   isXERC20TokenConfig,
@@ -950,6 +989,7 @@ export {
 } from './signers/svm/solana-web3js.js';
 
 export {
+  DEFAULT_ROUTER_KEY,
   OnchainTokenFeeType,
   onChainTypeToTokenFeeTypeMap,
   TokenFeeType,
@@ -958,6 +998,11 @@ export {
   TokenFeeConfigInputSchema,
   TokenFeeConfigInput,
   LinearFeeConfig,
+  OffchainQuotedLinearFeeConfig,
+  OffchainQuotedLinearFeeConfigSchema,
+  OffchainQuotedLinearFeeInputConfigSchema,
+  QuoteSignersSchema,
+  QuoteSignersConfig,
 } from './fee/types.js';
 export { convertToBps } from './fee/utils.js';
 

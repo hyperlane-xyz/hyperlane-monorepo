@@ -55,7 +55,6 @@ COPY typescript/svm-sdk/package.json ./typescript/svm-sdk/
 COPY typescript/tron-sdk/package.json ./typescript/tron-sdk/
 COPY typescript/tsconfig/package.json ./typescript/tsconfig/
 COPY solidity/package.json ./solidity/
-COPY solidity/multicollateral/package.json ./solidity/multicollateral/
 COPY solhint-plugin/package.json ./solhint-plugin/
 COPY starknet/package.json ./starknet/
 

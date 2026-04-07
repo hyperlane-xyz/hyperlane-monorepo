@@ -8,6 +8,7 @@ import { UINT_256_MAX } from 'starknet';
 
 import {
   CONTRACTS_PACKAGE_VERSION,
+  CrossCollateralRouter__factory,
   ERC20Test,
   ERC20Test__factory,
   ERC4626Test,
@@ -25,7 +26,6 @@ import {
   MovableCollateralRouter__factory,
   TokenBridgeCctpV2__factory,
 } from '@hyperlane-xyz/core';
-import { CrossCollateralRouter__factory } from '@hyperlane-xyz/multicollateral';
 import {
   EvmIsmModule,
   HookConfig,
@@ -2105,6 +2105,64 @@ describe('EvmWarpModule', async () => {
         setFeeRecipientTxs.length,
         'setFeeRecipient should be called when fee contract address changes',
       ).to.equal(1);
+    });
+
+    it('should deploy and update OffchainQuotedLinearFee via warp apply', async () => {
+      const config: HypTokenRouterConfig = {
+        ...baseConfig,
+        type: TokenType.native,
+      };
+
+      const evmERC20WarpModule = await EvmWarpModule.create({
+        chain,
+        config,
+        multiProvider,
+        proxyFactoryFactories: ismFactoryAddresses,
+      });
+
+      const actualConfig = await evmERC20WarpModule.read();
+      const signerAddress = await multiProvider.getSignerAddress(chain);
+
+      // Deploy with OffchainQuotedLinearFee
+      const expectedConfig = HypTokenRouterConfigSchema.parse({
+        ...actualConfig,
+        tokenFee: {
+          type: TokenFeeType.OffchainQuotedLinearFee,
+          maxFee: 1000000000,
+          halfAmount: 500000000,
+          quoteSigners: [signerAddress],
+        },
+      });
+      await sendTxs(await evmERC20WarpModule.update(expectedConfig));
+
+      const updatedConfig = await evmERC20WarpModule.read();
+      expect(updatedConfig.tokenFee?.type).to.equal(
+        TokenFeeType.OffchainQuotedLinearFee,
+      );
+
+      // Update signers without redeploying
+      const [, otherSigner] = await hre.ethers.getSigners();
+      const updatedFeeConfig = HypTokenRouterConfigSchema.parse({
+        ...updatedConfig,
+        tokenFee: {
+          type: TokenFeeType.OffchainQuotedLinearFee,
+          maxFee: 1000000000,
+          halfAmount: 500000000,
+          quoteSigners: [signerAddress, otherSigner.address],
+        },
+      });
+      const signerUpdateTxs = await evmERC20WarpModule.update(updatedFeeConfig);
+      // 1 tx to add signer (no setFeeRecipient since address unchanged)
+      expect(signerUpdateTxs.length).to.equal(1);
+      await sendTxs(signerUpdateTxs);
+
+      const finalConfig = await evmERC20WarpModule.read();
+      expect(finalConfig.tokenFee?.type).to.equal(
+        TokenFeeType.OffchainQuotedLinearFee,
+      );
+      if (finalConfig.tokenFee?.type === TokenFeeType.OffchainQuotedLinearFee) {
+        expect(finalConfig.tokenFee.quoteSigners).to.have.lengthOf(2);
+      }
     });
   });
 
