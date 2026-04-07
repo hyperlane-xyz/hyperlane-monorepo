@@ -11,10 +11,7 @@ import {
 } from './MultiProviderAdapter.js';
 import { MultiProvider } from './MultiProvider.js';
 import { ProviderType, TypedProvider } from './ProviderType.js';
-import {
-  ProviderBuilderMap,
-  defaultTronEthersProviderBuilder,
-} from './providerBuilders.js';
+import { defaultTronEthersProviderBuilder } from './providerBuilders.js';
 import { defaultProviderBuilderMap } from './defaultProviderBuilderMaps.js';
 import type { ProviderBuilderFn } from './providerBuilders.js';
 
@@ -36,7 +33,10 @@ export class MultiProtocolProvider<
   ) {
     super(chainMetadata, {
       ...options,
-      providerBuilders: options.providerBuilders || defaultProviderBuilderMap,
+      providerBuilders: {
+        ...defaultProviderBuilderMap,
+        ...options.providerBuilders,
+      },
     });
   }
 
@@ -60,7 +60,7 @@ export class MultiProtocolProvider<
     return new MultiProtocolProvider(newMetadata, {
       ...this.options,
       providers: this.providers,
-      providerBuilders: this.providerBuilders as Partial<ProviderBuilderMap>,
+      providerBuilders: this.providerBuilders,
     });
   }
 
@@ -82,11 +82,22 @@ export class MultiProtocolProvider<
     };
   }
 
+  static createTestMultiProtocolProvider(
+    metadata?: typeof multiProtocolTestChainMetadata,
+    providers?: Partial<Record<ProtocolType, TypedProvider>>,
+  ): MultiProtocolProvider;
   static createTestMultiProtocolProvider<MetaExt = {}>(
-    metadata = multiProtocolTestChainMetadata,
+    metadata?: ChainMap<ChainMetadata<MetaExt>>,
+    providers?: Partial<Record<ProtocolType, TypedProvider>>,
+  ): MultiProtocolProvider<MetaExt>;
+  static createTestMultiProtocolProvider<MetaExt = {}>(
+    // CAST: test fixtures intentionally only carry shared chain metadata fields.
+    metadata: ChainMap<
+      ChainMetadata<MetaExt>
+    > = multiProtocolTestChainMetadata as ChainMap<ChainMetadata<MetaExt>>,
     providers: Partial<Record<ProtocolType, TypedProvider>> = {},
   ): MultiProtocolProvider<MetaExt> {
-    const mp = new MultiProtocolProvider(metadata);
+    const mp = new MultiProtocolProvider<MetaExt>(metadata);
     const providerMap: ChainMap<TypedProvider> = {};
     for (const [protocol, provider] of Object.entries(providers)) {
       const chains = Object.values(metadata).filter(
@@ -95,6 +106,6 @@ export class MultiProtocolProvider<
       chains.forEach((c) => (providerMap[c.name] = provider));
     }
     mp.setProviders(providerMap);
-    return mp as MultiProtocolProvider<MetaExt>;
+    return mp;
   }
 }

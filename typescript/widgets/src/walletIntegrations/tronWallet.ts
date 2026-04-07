@@ -59,5 +59,5 @@ export function useTronDisconnectFn(): () => Promise<void> {
 export function useTronActiveChain(
   _multiProvider: MinimalProviderRegistry,
 ): ActiveChainInfo {
-  return useMemo(() => ({}) as ActiveChainInfo, []);
+  return useMemo<ActiveChainInfo>(() => ({}), []);
 }

@@ -59,7 +59,10 @@ export function useAccounts(
     .map((a) => a.addresses)
     .flat()
     .map((a) => a.address.toLowerCase());
-  if (readyAddresses.some((a) => blacklistedAddresses.includes(a))) {
+  const lowercasedBlacklistedAddresses = new Set(
+    blacklistedAddresses.map((address) => address.toLowerCase()),
+  );
+  if (readyAddresses.some((a) => lowercasedBlacklistedAddresses.has(a))) {
     throw new Error('Wallet address is blacklisted');
   }
 

@@ -72,6 +72,7 @@ export interface ITokenMetadata extends TokenArgs {
   isNft(): boolean;
   isNative(): boolean;
   isHypNative(): boolean;
+  isCollateralized(): boolean;
   isHypToken(): boolean;
   isIbcToken(): boolean;
   isMultiChainToken(): boolean;

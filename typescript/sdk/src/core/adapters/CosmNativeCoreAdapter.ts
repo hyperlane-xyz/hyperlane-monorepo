@@ -37,7 +37,7 @@ export class CosmNativeCoreAdapter
 {
   constructor(
     public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProviderAdapter<any>,
+    public readonly multiProvider: MultiProviderAdapter,
     public readonly addresses: { mailbox: Address },
   ) {
     super(chainName, multiProvider, addresses);

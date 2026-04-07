@@ -48,7 +48,7 @@ export type TokenConnection<TToken extends ITokenMetadata = ITokenMetadata> =
   | IbcTokenConnection<TToken>
   | IbcToHyperlaneTokenConnection<TToken>;
 
-const TokenConnectionRegex = /^(.+)|(.+)|(.+)$/;
+const TokenConnectionRegex = /^(.+)\|(.+)\|(.+)$/;
 
 // Distinct from type above in that it uses a
 // serialized representation of the tokens instead

@@ -45,16 +45,16 @@ export function useAleoAccount(
 
   return {
     protocol: ProtocolType.Aleo,
-    addresses: account
+    addresses: account?.address
       ? [
           {
-            address: account.address ?? '',
+            address: account.address,
             chainName: 'Aleo',
           },
         ]
       : [],
     publicKey: undefined,
-    isReady: !!account,
+    isReady: !!account?.address,
   };
 }
 
@@ -97,5 +97,5 @@ export function useAleoDisconnectFn(): () => Promise<void> {
 export function useAleoActiveChain(
   _multiProvider: MinimalProviderRegistry,
 ): ActiveChainInfo {
-  return useMemo(() => ({}) as ActiveChainInfo, []);
+  return useMemo<ActiveChainInfo>(() => ({}), []);
 }

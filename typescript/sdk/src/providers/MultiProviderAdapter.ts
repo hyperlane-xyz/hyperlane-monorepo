@@ -13,6 +13,7 @@ import {
   ProviderType,
   TypedProvider,
 } from './ProviderType.js';
+import type { ProviderBuilderFn } from './providerBuilders.js';
 
 export interface MultiProviderAdapterOptions extends MinimalProviderRegistryOptions {}
 
@@ -25,9 +26,33 @@ export function wrapMultiProviderProviders<MetaExt = {}>(
   })) as ChainMap<TypedProvider>;
 }
 
+function wrapMultiProviderBuilder(
+  providerBuilder: MultiProvider['providerBuilder'],
+): ProviderBuilderFn<TypedProvider> {
+  return (urls, chainId) => ({
+    type: ProviderType.EthersV5,
+    provider: providerBuilder(urls, chainId),
+  });
+}
+
+function unwrapEthersProviderBuilder(
+  providerBuilder?: ProviderBuilderFn<TypedProvider>,
+): MultiProviderOptions['providerBuilder'] | undefined {
+  if (!providerBuilder) return undefined;
+  return (urls, chainId) => {
+    const provider = providerBuilder(urls, chainId);
+    if (provider.type !== ProviderType.EthersV5) {
+      throw new Error(
+        `Cannot convert ${provider.type} builder into a MultiProvider EthersV5 builder`,
+      );
+    }
+    return provider.provider;
+  };
+}
+
 export function createAdapterFromMultiProvider<
   MetaExt = {},
-  TOptions = MultiProviderAdapterOptions,
+  TOptions extends MultiProviderAdapterOptions = MultiProviderAdapterOptions,
   TAdapter extends MultiProviderAdapter<MetaExt> =
     MultiProviderAdapter<MetaExt>,
 >(
@@ -38,7 +63,16 @@ export function createAdapterFromMultiProvider<
   mp: MultiProvider<MetaExt>,
   options?: TOptions,
 ): TAdapter {
-  const newMp = new AdapterClass(mp.metadata, options);
+  const adapterOptions =
+    // CAST: preserve adapter-specific option fields while injecting the bridged builder map.
+    {
+      ...options,
+      providerBuilders: {
+        ...options?.providerBuilders,
+        [ProviderType.EthersV5]: wrapMultiProviderBuilder(mp.providerBuilder),
+      },
+    } as TOptions;
+  const newMp = new AdapterClass(mp.metadata, adapterOptions);
   newMp.setProviders(wrapMultiProviderProviders(mp.providers));
   return newMp;
 }
@@ -61,7 +95,14 @@ export class MultiProviderAdapter<
   }
 
   toMultiProvider(options?: MultiProviderOptions): MultiProvider<MetaExt> {
-    const newMp = new MultiProvider<MetaExt>(this.metadata, options);
+    const newMp = new MultiProvider<MetaExt>(this.metadata, {
+      ...options,
+      providerBuilder:
+        options?.providerBuilder ||
+        unwrapEthersProviderBuilder(
+          this.providerBuilders[ProviderType.EthersV5],
+        ),
+    });
 
     const providers = objMap(
       this.providers,

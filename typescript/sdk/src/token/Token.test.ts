@@ -7,6 +7,7 @@ import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
 import {
   TestChainName,
+  multiProtocolTestChainMetadata,
   test1,
   testCosmosChain,
   testSealevelChain,
@@ -383,6 +384,46 @@ describe('Token', () => {
       expect(adapter.constructor.name).to.eql('EvmHypNativeAdapter');
     });
 
+    it('returns EvmHypNativeAdapter for TronNative with connections', () => {
+      const multiProvider =
+        MultiProtocolProvider.createTestMultiProtocolProvider<{
+          mailbox?: string;
+        }>({
+          ...multiProtocolTestChainMetadata,
+          tron: {
+            ...test1,
+            chainId: 9913388,
+            domainId: 9913388,
+            name: 'tron',
+            protocol: ProtocolType.Tron,
+          },
+        });
+
+      const tronNativeToken = new Token({
+        chainName: 'tron',
+        standard: TokenStandard.TronNative,
+        addressOrDenom: 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb',
+        decimals: 6,
+        symbol: 'TRX',
+        name: 'Tron',
+      });
+      const remoteToken = new Token({
+        chainName: TestChainName.test2,
+        standard: TokenStandard.EvmHypSynthetic,
+        addressOrDenom: '0x8358D8291e3bEDb04804975eEa0fe9fe0fAfB147',
+        decimals: 6,
+        symbol: 'TRX',
+        name: 'Tron',
+      });
+      tronNativeToken.addConnection({
+        token: remoteToken,
+        type: TokenConnectionType.Hyperlane,
+      });
+
+      const adapter = tronNativeToken.getHypAdapter(multiProvider);
+      expect(adapter.constructor.name).to.eql('EvmHypNativeAdapter');
+    });
+
     it('throws for EvmNative without connections', () => {
       const multiProvider =
         MultiProtocolProvider.createTestMultiProtocolProvider<{
@@ -559,6 +600,7 @@ describe('Token', () => {
 
     it('returns true for collateralized token without collateral address and native token', () => {
       expect(evmHypNativeToken2.isFungibleWith(evmNativeToken)).to.be.true;
+      expect(evmNativeToken.isFungibleWith(evmHypNativeToken2)).to.be.true;
     });
 
     it('returns true for collateralized token without collateral address and HypNative token', () => {
@@ -567,6 +609,7 @@ describe('Token', () => {
 
     it('returns true for IBC token and matching native token', () => {
       expect(cosmosIbcToken.isFungibleWith(cosmosNativeToken)).to.be.true;
+      expect(cosmosNativeToken.isFungibleWith(cosmosIbcToken)).to.be.true;
     });
 
     it('returns false for IBC token and non-matching native token', () => {

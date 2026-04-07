@@ -25,6 +25,41 @@ import {
 } from './TokenStandard.js';
 import { PROTOCOL_TO_DEFAULT_NATIVE_TOKEN } from './nativeTokenMetadata.js';
 
+export function tokenIdentifiersEqual(left?: string, right?: string): boolean {
+  if (left == null || right == null) return left === right;
+  return left === right || eqAddress(left, right);
+}
+
+function matchesUnderlyingAsset(
+  source: ITokenMetadata,
+  target: ITokenMetadata,
+): boolean {
+  if (source.isCollateralized()) {
+    if (
+      source.collateralAddressOrDenom &&
+      tokenIdentifiersEqual(
+        source.collateralAddressOrDenom,
+        target.addressOrDenom,
+      )
+    ) {
+      return true;
+    }
+
+    if (
+      !source.collateralAddressOrDenom &&
+      (target.isNative() || target.isHypNative())
+    ) {
+      return true;
+    }
+  }
+
+  return (
+    source.standard === TokenStandard.CosmosIbc &&
+    target.standard === TokenStandard.CosmosNative &&
+    tokenIdentifiersEqual(source.addressOrDenom, target.addressOrDenom)
+  );
+}
+
 export class TokenMetadata implements ITokenMetadata {
   declare chainName: TokenArgs['chainName'];
   declare standard: TokenArgs['standard'];
@@ -137,21 +172,28 @@ export class TokenMetadata implements ITokenMetadata {
 
   removeConnection(token: ITokenMetadata): TokenMetadata {
     const index = this.connections?.findIndex((t) => t.token.equals(token));
-    if (index && index >= 0) this.connections?.splice(index, 1);
+    if (index !== undefined && index >= 0) this.connections?.splice(index, 1);
     return this;
   }
 
   equals(token?: ITokenMetadata): boolean {
     if (!token) return false;
+    if (
+      (this.warpRouteId || token.warpRouteId) &&
+      this.warpRouteId !== token.warpRouteId
+    ) {
+      return false;
+    }
     return (
       this.protocol === token.protocol &&
       this.chainName === token.chainName &&
       this.standard === token.standard &&
       this.decimals === token.decimals &&
-      this.addressOrDenom.toLowerCase() ===
-        token.addressOrDenom.toLowerCase() &&
-      this.collateralAddressOrDenom?.toLowerCase() ===
-        token.collateralAddressOrDenom?.toLowerCase()
+      tokenIdentifiersEqual(this.addressOrDenom, token.addressOrDenom) &&
+      tokenIdentifiersEqual(
+        this.collateralAddressOrDenom,
+        token.collateralAddressOrDenom,
+      )
     );
   }
 
@@ -159,31 +201,8 @@ export class TokenMetadata implements ITokenMetadata {
     if (!token || token.chainName !== this.chainName) return false;
 
     if (this.equals(token)) return true;
-
-    if (this.isCollateralized()) {
-      if (
-        this.collateralAddressOrDenom &&
-        eqAddress(this.collateralAddressOrDenom, token.addressOrDenom)
-      ) {
-        return true;
-      }
-
-      if (
-        !this.collateralAddressOrDenom &&
-        (token.isNative() || token.isHypNative())
-      ) {
-        return true;
-      }
-    }
-
-    if (
-      this.standard === TokenStandard.CosmosIbc &&
-      token.standard === TokenStandard.CosmosNative &&
-      this.addressOrDenom.toLowerCase() === token.addressOrDenom.toLowerCase()
-    ) {
-      return true;
-    }
-
-    return false;
+    return (
+      matchesUnderlyingAsset(this, token) || matchesUnderlyingAsset(token, this)
+    );
   }
 }

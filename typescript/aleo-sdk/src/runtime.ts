@@ -4,4 +4,4 @@ export { AleoProtocolProvider } from './clients/protocol.js';
 export { AleoProvider } from './clients/provider.js';
 export { AleoSigner } from './clients/signer.js';
 
-export { AleoReceipt, AleoTransaction } from './utils/types.js';
+export type { AleoReceipt, AleoTransaction } from './utils/types.js';

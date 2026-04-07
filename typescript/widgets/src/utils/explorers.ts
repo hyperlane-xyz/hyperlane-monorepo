@@ -26,7 +26,7 @@ export async function queryExplorer<P>(
   apiKey?: string,
   timeout?: number,
 ) {
-  const baseUrl = getExplorerApiUrl(chainName, chainMetadata);
+  const baseUrl = await getExplorerApiUrl(chainName, chainMetadata);
   if (!baseUrl)
     throw new Error(`No URL found for explorer for chain ${chainName}`);
 

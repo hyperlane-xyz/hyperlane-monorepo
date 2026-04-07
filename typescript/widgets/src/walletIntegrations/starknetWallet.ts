@@ -5,7 +5,7 @@ import {
   useNetwork,
 } from '@starknet-react/core';
 import { useCallback, useMemo } from 'react';
-import { StarknetkitConnector, useStarknetkitConnectModal } from 'starknetkit';
+import { useStarknetkitConnectModal } from 'starknetkit';
 
 import type { MinimalProviderRegistry } from '@hyperlane-xyz/sdk/providers/MinimalProviderRegistry';
 import { ProtocolType } from '@hyperlane-xyz/utils';
@@ -54,14 +54,26 @@ export function useStarknetWalletDetails(): WalletDetails {
 export function useStarknetConnectFn(): () => void {
   const { connectAsync, connectors } = useConnect();
   const { starknetkitConnectModal } = useStarknetkitConnectModal({
-    connectors: connectors as StarknetkitConnector[],
+    connectors: [],
   });
 
   return useCallback(async () => {
     const { connector } = await starknetkitConnectModal();
-    if (connector) await connectAsync({ connector });
-    else logger.error('No Starknet wallet connectors available');
-  }, [connectAsync, starknetkitConnectModal]);
+    if (!connector) {
+      logger.error('No Starknet wallet connectors available');
+      return;
+    }
+
+    const selectedConnector = connectors.find((c) => c.id === connector.id);
+    if (!selectedConnector) {
+      logger.error(
+        `Selected Starknet connector ${connector.id} is not registered with @starknet-react/core`,
+      );
+      return;
+    }
+
+    await connectAsync({ connector: selectedConnector });
+  }, [connectAsync, connectors, starknetkitConnectModal]);
 }
 
 export function useStarknetDisconnectFn(): () => Promise<void> {

@@ -17,6 +17,10 @@ import {
 import type { MultiProviderAdapter } from '@hyperlane-xyz/sdk/providers/MultiProviderAdapter';
 import type { ITokenMetadata } from '@hyperlane-xyz/sdk/token/ITokenMetadata';
 import { LOCKBOX_STANDARDS } from '@hyperlane-xyz/sdk/token/TokenStandard';
+import type {
+  IHypTokenAdapter,
+  IMovableCollateralRouterAdapter,
+} from '@hyperlane-xyz/sdk/token/adapters/ITokenAdapter';
 import type { ChainName } from '@hyperlane-xyz/sdk/types';
 import type { WarpTypedTransaction } from '@hyperlane-xyz/sdk/warp/types';
 import { ProtocolType, assert, sleep } from '@hyperlane-xyz/utils';
@@ -38,6 +42,13 @@ export {
   useEthereumDisconnectFn,
   useEthereumWalletDetails,
 } from './ethereumWallet.js';
+
+function isWrappedTokenAddressAdapter(
+  adapter: IHypTokenAdapter<unknown>,
+): adapter is IHypTokenAdapter<unknown> &
+  Pick<IMovableCollateralRouterAdapter<unknown>, 'getWrappedTokenAddress'> {
+  return 'getWrappedTokenAddress' in adapter;
+}
 
 export function useEthereumSwitchNetwork(
   multiProvider: MultiProviderAdapter,
@@ -80,9 +91,11 @@ export function useEthereumWatchAsset(
           adapter,
           `No EVM hyp adapter found for lockbox token ${token.symbol}`,
         );
-        tokenAddress = await (
-          adapter as unknown as { getWrappedTokenAddress(): Promise<string> }
-        ).getWrappedTokenAddress();
+        assert(
+          isWrappedTokenAddressAdapter(adapter),
+          `Hyp adapter for ${token.symbol} does not expose getWrappedTokenAddress`,
+        );
+        tokenAddress = await adapter.getWrappedTokenAddress();
       } else {
         tokenAddress = token.collateralAddressOrDenom || token.addressOrDenom;
       }

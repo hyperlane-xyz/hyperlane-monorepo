@@ -5,7 +5,7 @@ import { cosmoshub } from '@hyperlane-xyz/registry';
 import type { ChainMetadata } from '@hyperlane-xyz/sdk/metadata/chainMetadataTypes';
 import type { MinimalProviderRegistry } from '@hyperlane-xyz/sdk/providers/MinimalProviderRegistry';
 import type { ChainName } from '@hyperlane-xyz/sdk/types';
-import { HexString, ProtocolType } from '@hyperlane-xyz/utils';
+import { HexString, ProtocolType, ensure0x } from '@hyperlane-xyz/utils';
 
 import type {
   AccountInfo,
@@ -16,6 +16,12 @@ import type {
 import { getChainsForProtocol } from './utils.js';
 
 const PLACEHOLDER_COSMOS_CHAIN = cosmoshub.name;
+
+function toHexString(bytes: Uint8Array): HexString {
+  return ensure0x(
+    Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join(''),
+  );
+}
 
 export function useCosmosAccount(
   multiProvider: MinimalProviderRegistry,
@@ -31,9 +37,7 @@ export function useCosmosAccount(
     for (const [chainName, context] of Object.entries(chainToContext)) {
       if (!context.address) continue;
       addresses.push({ address: context.address, chainName });
-      publicKey = context
-        .getAccount()
-        .then((acc) => Buffer.from(acc.pubkey).toString('hex'));
+      publicKey = context.getAccount().then((acc) => toHexString(acc.pubkey));
       isReady = true;
     }
 
@@ -72,9 +76,21 @@ export function useCosmosDisconnectFn(): () => Promise<void> {
 }
 
 export function useCosmosActiveChain(
-  _multiProvider: MinimalProviderRegistry,
+  multiProvider: MinimalProviderRegistry,
 ): ActiveChainInfo {
-  return useMemo(() => ({}) as ActiveChainInfo, []);
+  const chainToContext = useChains(getCosmosChainNames(multiProvider));
+  const activeChainName = Object.entries(chainToContext).find(
+    ([, context]) => !!context.address,
+  )?.[0];
+
+  return useMemo<ActiveChainInfo>(() => {
+    if (!activeChainName) return {};
+    const chainMetadata = multiProvider.tryGetChainMetadata(activeChainName);
+    return {
+      chainName: activeChainName,
+      chainDisplayName: chainMetadata?.displayName || activeChainName,
+    };
+  }, [activeChainName, multiProvider]);
 }
 
 export function getCosmosChains(

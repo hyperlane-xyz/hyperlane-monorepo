@@ -3,4 +3,4 @@
 '@hyperlane-xyz/widgets': patch
 ---
 
-Add light subpath exports for SDK provider and warp modules, plus lean widget subpath exports.
+Added light subpath exports for SDK provider and warp modules, plus lean widget subpath exports.
