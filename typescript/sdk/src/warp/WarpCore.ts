@@ -128,7 +128,7 @@ export class WarpCore {
         const token2 = tokens.find(
           (token) =>
             token.chainName === chainName &&
-            token.addressOrDenom === addressOrDenom &&
+            tokenIdentifiersEqual(token.addressOrDenom, addressOrDenom) &&
             (!token1.warpRouteId || token.warpRouteId === token1.warpRouteId),
         );
         assert(

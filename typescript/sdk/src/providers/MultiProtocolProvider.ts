@@ -86,18 +86,22 @@ export class MultiProtocolProvider<
     metadata?: typeof multiProtocolTestChainMetadata,
     providers?: Partial<Record<ProtocolType, TypedProvider>>,
   ): MultiProtocolProvider;
-  static createTestMultiProtocolProvider<MetaExt = {}>(
-    metadata?: ChainMap<ChainMetadata<MetaExt>>,
+  static createTestMultiProtocolProvider<MetaExt>(
+    metadata: ChainMap<ChainMetadata<MetaExt>>,
     providers?: Partial<Record<ProtocolType, TypedProvider>>,
   ): MultiProtocolProvider<MetaExt>;
   static createTestMultiProtocolProvider<MetaExt = {}>(
-    // CAST: test fixtures intentionally only carry shared chain metadata fields.
-    metadata: ChainMap<
-      ChainMetadata<MetaExt>
-    > = multiProtocolTestChainMetadata as ChainMap<ChainMetadata<MetaExt>>,
+    metadata:
+      | typeof multiProtocolTestChainMetadata
+      | ChainMap<ChainMetadata<MetaExt>> = multiProtocolTestChainMetadata,
     providers: Partial<Record<ProtocolType, TypedProvider>> = {},
-  ): MultiProtocolProvider<MetaExt> {
-    const mp = new MultiProtocolProvider<MetaExt>(metadata);
+  ): MultiProtocolProvider | MultiProtocolProvider<MetaExt> {
+    // CAST: the generic overload now requires callers to supply matching
+    // metadata. The shared implementation still handles the non-generic
+    // default-fixture overload through the same code path.
+    const mp = new MultiProtocolProvider<MetaExt>(
+      metadata as ChainMap<ChainMetadata<MetaExt>>,
+    );
     const providerMap: ChainMap<TypedProvider> = {};
     for (const [protocol, provider] of Object.entries(providers)) {
       const chains = Object.values(metadata).filter(

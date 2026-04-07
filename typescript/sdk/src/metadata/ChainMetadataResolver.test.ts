@@ -61,4 +61,17 @@ describe(createChainMetadataResolver.name, () => {
     );
     expect(resolver.tryGetChainMetadata(4)).to.equal(null);
   });
+
+  it('throws on duplicate domain ids', () => {
+    expect(() =>
+      createChainMetadataResolver({
+        foo: metadata.ethereum,
+        bar: {
+          ...metadata.sepolia,
+          name: 'bar',
+          domainId: metadata.ethereum.domainId,
+        },
+      }),
+    ).to.throw('Duplicate domainId detected');
+  });
 });

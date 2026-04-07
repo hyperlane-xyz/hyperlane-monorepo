@@ -25,8 +25,11 @@ export const TokenConfigSchema = z.object({
   addressOrDenom: z
     .string()
     .min(1)
-    .or(z.null())
-    .describe('The address or denom, or null for native tokens'),
+    .nullable()
+    .transform((value) => value ?? '')
+    .describe(
+      'The address or denom; null config values are normalized to an empty string for native tokens',
+    ),
   collateralAddressOrDenom: z
     .string()
     .min(1)

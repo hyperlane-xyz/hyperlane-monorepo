@@ -12,8 +12,10 @@ import {
   testCosmosChain,
   testSealevelChain,
 } from '../consts/testChains.js';
+import type { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { stubMultiProtocolProvider } from '../test/multiProviderStubs.js';
+import type { ChainMap } from '../types.js';
 
 import { TokenArgs } from './IToken.js';
 import { Token } from './Token.js';
@@ -296,16 +298,25 @@ const STANDARD_TO_ADDRESS_FOR_BALANCE_CHECK: Partial<
 };
 
 describe('Token', () => {
+  function createMailboxTestMetadata(): ChainMap<
+    ChainMetadata<{ mailbox?: string }>
+  > {
+    return {
+      ...multiProtocolTestChainMetadata,
+      [testSealevelChain.name]: {
+        ...multiProtocolTestChainMetadata[testSealevelChain.name],
+        mailbox: SystemProgram.programId.toBase58(),
+      },
+    };
+  }
+
   for (const tokenArgs of Object.values(STANDARD_TO_TOKEN)) {
     if (!tokenArgs) continue;
     it(`Handles ${tokenArgs.standard} standard`, async () => {
       const multiProvider =
-        MultiProtocolProvider.createTestMultiProtocolProvider<{
-          mailbox?: string;
-        }>();
-      // A placeholder mailbox address for the sealevel chain
-      multiProvider.metadata[testSealevelChain.name].mailbox =
-        SystemProgram.programId.toBase58();
+        MultiProtocolProvider.createTestMultiProtocolProvider(
+          createMailboxTestMetadata(),
+        );
 
       console.debug('Testing token standard', tokenArgs.standard);
       const token = new Token(tokenArgs);
@@ -337,9 +348,9 @@ describe('Token', () => {
   describe('getHypAdapter', () => {
     it('returns EvmHypNativeAdapter for EvmNative with connections', () => {
       const multiProvider =
-        MultiProtocolProvider.createTestMultiProtocolProvider<{
-          mailbox?: string;
-        }>();
+        MultiProtocolProvider.createTestMultiProtocolProvider(
+          createMailboxTestMetadata(),
+        );
 
       const evmNativeToken = new Token(
         Token.FromChainMetadataNativeToken(test1),
@@ -363,9 +374,9 @@ describe('Token', () => {
 
     it('returns EvmHypNativeAdapter for EvmNative with untyped connection', () => {
       const multiProvider =
-        MultiProtocolProvider.createTestMultiProtocolProvider<{
-          mailbox?: string;
-        }>();
+        MultiProtocolProvider.createTestMultiProtocolProvider(
+          createMailboxTestMetadata(),
+        );
 
       const evmNativeToken = new Token(
         Token.FromChainMetadataNativeToken(test1),
@@ -426,9 +437,9 @@ describe('Token', () => {
 
     it('throws for EvmNative without connections', () => {
       const multiProvider =
-        MultiProtocolProvider.createTestMultiProtocolProvider<{
-          mailbox?: string;
-        }>();
+        MultiProtocolProvider.createTestMultiProtocolProvider(
+          createMailboxTestMetadata(),
+        );
 
       const evmNativeToken = new Token(
         Token.FromChainMetadataNativeToken(test1),
@@ -441,9 +452,9 @@ describe('Token', () => {
 
     it('throws for EvmNative with IBC connections', () => {
       const multiProvider =
-        MultiProtocolProvider.createTestMultiProtocolProvider<{
-          mailbox?: string;
-        }>();
+        MultiProtocolProvider.createTestMultiProtocolProvider(
+          createMailboxTestMetadata(),
+        );
 
       const evmNativeToken = new Token(
         Token.FromChainMetadataNativeToken(test1),
@@ -470,9 +481,9 @@ describe('Token', () => {
 
     it('throws for EvmNative with chain not in multiProvider', () => {
       const multiProvider =
-        MultiProtocolProvider.createTestMultiProtocolProvider<{
-          mailbox?: string;
-        }>();
+        MultiProtocolProvider.createTestMultiProtocolProvider(
+          createMailboxTestMetadata(),
+        );
 
       const evmNativeToken = new Token({
         chainName: 'nonexistent',

@@ -43,12 +43,13 @@ export function buildWarpRouteMaps(warpRouteConfigs: WarpRouteConfigs): {
       if (!addressOrDenom) return;
 
       warpRouteChainAddressMap[chainName] ||= {};
-      warpRouteChainAddressMap[chainName][addressOrDenom] = {
+      const tokenArgs: TokenArgsWithWireDecimals = {
         ...rest,
         chainName,
         addressOrDenom,
         wireDecimals,
-      } as TokenArgsWithWireDecimals;
+      };
+      warpRouteChainAddressMap[chainName][addressOrDenom] = tokenArgs;
 
       warpRouteIdToAddressesMap[routeIdLower].push({
         chainName,

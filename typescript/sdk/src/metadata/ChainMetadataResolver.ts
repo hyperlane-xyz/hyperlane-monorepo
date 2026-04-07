@@ -1,3 +1,5 @@
+import { assert } from '@hyperlane-xyz/utils';
+
 import type { ChainMap, ChainNameOrId } from '../types.js';
 
 import type { ChainMetadata } from './chainMetadataTypes.js';
@@ -23,14 +25,50 @@ export function createChainMetadataResolver<MetaExt = {}>(
   const byDomainId = new Map<number, ChainMetadata<MetaExt>>();
   const byChainId = new Map<string | number, ChainMetadata<MetaExt>>();
 
+  const assertUniqueIndex = (
+    existing: ChainMetadata<MetaExt> | undefined,
+    chainMetadata: ChainMetadata<MetaExt>,
+    key: string | number,
+    field: 'domainId' | 'chainId',
+  ) => {
+    assert(
+      !existing || existing.name === chainMetadata.name,
+      `Duplicate ${field} detected: ${String(key)}`,
+    );
+  };
+
   Object.values(metadata).forEach((chainMetadata) => {
+    assertUniqueIndex(
+      byDomainId.get(chainMetadata.domainId),
+      chainMetadata,
+      chainMetadata.domainId,
+      'domainId',
+    );
     byDomainId.set(chainMetadata.domainId, chainMetadata);
     if (chainMetadata.chainId !== undefined && chainMetadata.chainId !== null) {
+      assertUniqueIndex(
+        byChainId.get(chainMetadata.chainId),
+        chainMetadata,
+        chainMetadata.chainId,
+        'chainId',
+      );
       byChainId.set(chainMetadata.chainId, chainMetadata);
 
       const numericChainId = tryNormalizeNumericChainId(chainMetadata.chainId);
       if (numericChainId !== null) {
+        assertUniqueIndex(
+          byChainId.get(numericChainId),
+          chainMetadata,
+          numericChainId,
+          'chainId',
+        );
         byChainId.set(numericChainId, chainMetadata);
+        assertUniqueIndex(
+          byChainId.get(String(numericChainId)),
+          chainMetadata,
+          String(numericChainId),
+          'chainId',
+        );
         byChainId.set(String(numericChainId), chainMetadata);
       }
     }

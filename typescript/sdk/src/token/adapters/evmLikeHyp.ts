@@ -48,47 +48,59 @@ export function createEvmLikeHypAdapter(
     });
   }
 
-  switch (standard) {
-    case standards.hypNative:
-      return new EvmHypNativeAdapter(chainName, multiProvider, {
-        token: addressOrDenom,
-      });
-    case standards.hypCollateral[0]:
-    case standards.hypCollateral[1]:
-      return new EvmMovableCollateralAdapter(chainName, multiProvider, {
-        token: addressOrDenom,
-      });
-    case standards.hypCrossCollateralRouter:
-      return new EvmHypCrossCollateralAdapter(chainName, multiProvider, {
-        token: addressOrDenom,
-      });
-    case standards.hypRebaseCollateral:
-      return new EvmHypRebaseCollateralAdapter(chainName, multiProvider, {
-        token: addressOrDenom,
-      });
-    case standards.hypCollateralFiat:
-      return new EvmHypCollateralFiatAdapter(chainName, multiProvider, {
-        token: addressOrDenom,
-      });
-    case standards.hypSynthetic:
-      return new EvmHypSyntheticAdapter(chainName, multiProvider, {
-        token: addressOrDenom,
-      });
-    case standards.hypSyntheticRebase:
-      return new EvmHypSyntheticRebaseAdapter(chainName, multiProvider, {
-        token: addressOrDenom,
-      });
-    case standards.hypXerc20[0]:
-    case standards.hypXerc20[1]:
-      return new EvmHypXERC20Adapter(chainName, multiProvider, {
-        token: addressOrDenom,
-      });
-    case standards.hypXerc20Lockbox[0]:
-    case standards.hypXerc20Lockbox[1]:
-      return new EvmHypXERC20LockboxAdapter(chainName, multiProvider, {
-        token: addressOrDenom,
-      });
-    default:
-      return undefined;
+  if (standard === standards.hypNative) {
+    return new EvmHypNativeAdapter(chainName, multiProvider, {
+      token: addressOrDenom,
+    });
   }
+
+  if (standards.hypCollateral.some((candidate) => candidate === standard)) {
+    return new EvmMovableCollateralAdapter(chainName, multiProvider, {
+      token: addressOrDenom,
+    });
+  }
+
+  if (standard === standards.hypCrossCollateralRouter) {
+    return new EvmHypCrossCollateralAdapter(chainName, multiProvider, {
+      token: addressOrDenom,
+    });
+  }
+
+  if (standard === standards.hypRebaseCollateral) {
+    return new EvmHypRebaseCollateralAdapter(chainName, multiProvider, {
+      token: addressOrDenom,
+    });
+  }
+
+  if (standard === standards.hypCollateralFiat) {
+    return new EvmHypCollateralFiatAdapter(chainName, multiProvider, {
+      token: addressOrDenom,
+    });
+  }
+
+  if (standard === standards.hypSynthetic) {
+    return new EvmHypSyntheticAdapter(chainName, multiProvider, {
+      token: addressOrDenom,
+    });
+  }
+
+  if (standard === standards.hypSyntheticRebase) {
+    return new EvmHypSyntheticRebaseAdapter(chainName, multiProvider, {
+      token: addressOrDenom,
+    });
+  }
+
+  if (standards.hypXerc20.some((candidate) => candidate === standard)) {
+    return new EvmHypXERC20Adapter(chainName, multiProvider, {
+      token: addressOrDenom,
+    });
+  }
+
+  if (standards.hypXerc20Lockbox.some((candidate) => candidate === standard)) {
+    return new EvmHypXERC20LockboxAdapter(chainName, multiProvider, {
+      token: addressOrDenom,
+    });
+  }
+
+  return undefined;
 }

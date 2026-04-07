@@ -49,7 +49,7 @@ describe(buildWarpRouteMaps.name, () => {
         tokens: [
           {
             chainName: 'ethereum',
-            addressOrDenom: null,
+            addressOrDenom: '',
             decimals: 18,
             name: 'ETH',
             symbol: 'ETH',
