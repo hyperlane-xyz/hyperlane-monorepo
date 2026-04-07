@@ -29,11 +29,21 @@ const TRON_TEST_ALLOWLIST = [
   "ERC20Test.sol",
   "TestRecipient.sol",
   "TestIsm.sol",
+  "ERC4626Test.sol",
+];
+
+// Mock contracts kept for tron CLI e2e tests
+const TRON_MOCK_ALLOWLIST = [
+  "MockEverclearAdapter.sol",
+  "MockERC4626YieldSharing.sol",
 ];
 
 subtask(TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS, async (_, __, runSuper) => {
   const sourcePaths = await runSuper();
   return sourcePaths.filter((sourcePath: string) => {
+    if (sourcePath.includes("/contracts/mock/")) {
+      return TRON_MOCK_ALLOWLIST.some((f) => sourcePath.endsWith(f));
+    }
     if (TRON_EXCLUDED_PATTERNS.some((p) => sourcePath.includes(p))) return false;
     if (sourcePath.includes("/contracts/test/")) {
       return TRON_TEST_ALLOWLIST.some((f) => sourcePath.endsWith(f));
