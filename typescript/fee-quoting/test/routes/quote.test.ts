@@ -4,8 +4,7 @@ import { pino } from 'pino';
 import request from 'supertest';
 import type { Address, Hex } from 'viem';
 
-import { HookType } from '@hyperlane-xyz/sdk';
-import { TokenFeeType } from '@hyperlane-xyz/sdk';
+import { HookType, TokenFeeType } from '@hyperlane-xyz/sdk';
 
 import { ZERO_ADDRESS } from '../../src/constants.js';
 import { createApiKeyAuth } from '../../src/middleware/apiKeyAuth.js';

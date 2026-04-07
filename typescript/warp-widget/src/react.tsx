@@ -65,8 +65,12 @@ export function HyperlaneWarpWidget({
   const widgetRef = useRef<WarpWidgetInstance | null>(null);
   const configRef = useRef(config);
   const onEventRef = useRef(onEvent);
+  const widthRef = useRef(width);
+  const heightRef = useRef(height);
   configRef.current = config;
   onEventRef.current = onEvent;
+  widthRef.current = width;
+  heightRef.current = height;
 
   // Memoize config key for stable dependency — avoids iframe recreation on identical configs
   const configKey = useMemo(() => stableStringify(config ?? {}), [config]);
@@ -79,8 +83,8 @@ export function HyperlaneWarpWidget({
     const widget = createWarpWidget({
       container,
       config: configRef.current,
-      width,
-      height,
+      width: widthRef.current,
+      height: heightRef.current,
     });
     widgetRef.current = widget;
 

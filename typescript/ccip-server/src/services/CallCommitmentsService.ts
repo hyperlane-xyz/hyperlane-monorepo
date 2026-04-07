@@ -1,6 +1,6 @@
 import type { Log } from '@ethersproject/providers';
 import { Request, Response, Router } from 'express';
-import rateLimit from 'express-rate-limit';
+import createRateLimit from 'express-rate-limit';
 import { Logger } from 'pino';
 import { z } from 'zod';
 
@@ -386,7 +386,7 @@ export class CallCommitmentsService extends BaseService {
    * Register routes onto an Express Router or app.
    */
   private registerRoutes(router: Router, baseUrl: string): void {
-    const commitmentRateLimit = rateLimit({
+    const commitmentRateLimit = createRateLimit({
       windowMs: 60 * 1000,
       max: 20,
       standardHeaders: true,
