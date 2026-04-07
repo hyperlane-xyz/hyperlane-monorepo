@@ -190,6 +190,7 @@ export class EvmWarpModule extends HyperlaneModule<
       )),
       ...(await this.createIsmUpdateTxs(actualConfig, expectedConfig)),
       ...(await this.createHookUpdateTxs(actualConfig, expectedConfig)),
+      ...this.createFeeHookUpdateTxs(actualConfig, expectedConfig),
       ...(await this.createTokenFeeUpdateTxs(
         actualConfig,
         expectedConfig,
@@ -1159,6 +1160,36 @@ export class EvmWarpModule extends HyperlaneModule<
         proxyAdminAddress,
       },
     );
+  }
+
+  createFeeHookUpdateTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): AnnotatedEV5Transaction[] {
+    const expectedFeeHook = expectedConfig.feeHook;
+    const actualFeeHook = actualConfig.feeHook;
+
+    // No change needed
+    if (!expectedFeeHook && !actualFeeHook) return [];
+    if (
+      expectedFeeHook &&
+      actualFeeHook &&
+      eqAddress(expectedFeeHook, actualFeeHook)
+    )
+      return [];
+
+    const newFeeHook = expectedFeeHook ?? constants.AddressZero;
+    return [
+      {
+        chainId: this.chainId,
+        annotation: `Setting feeHook to ${newFeeHook}`,
+        to: this.args.addresses.deployedTokenRoute,
+        data: TokenRouter__factory.createInterface().encodeFunctionData(
+          'setFeeHook',
+          [newFeeHook],
+        ),
+      },
+    ];
   }
 
   /**

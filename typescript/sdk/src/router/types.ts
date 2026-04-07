@@ -149,4 +149,5 @@ export const DestinationGasSchema = z.record(
 export const GasRouterConfigSchema = RouterConfigSchema.extend({
   gas: z.number().optional(),
   destinationGas: DestinationGasSchema.optional(),
+  feeHook: ZHash.optional(),
 });
