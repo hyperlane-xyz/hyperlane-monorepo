@@ -49,6 +49,7 @@
     "@hyperlane-xyz/utils": "workspace:*",
     "@inquirer/prompts": "catalog:",
     "@inquirer/select": "catalog:",
+    "@layerzerolabs/lz-v2-utilities": "catalog:",
     "@lifi/sdk": "catalog:",
     "@solana/web3.js": "catalog:",
     "bignumber.js": "catalog:",
