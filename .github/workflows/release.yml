@@ -10,7 +10,6 @@ on:
       - 'typescript/**'
       - '!typescript/infra/**'
       - '!typescript/ccip-server/**'
-      - '!typescript/eslint-config/**'
       - '!typescript/github-proxy/**'
       - '!typescript/http-registry-server/**'
       - '!typescript/tsconfig/**'
@@ -20,6 +19,22 @@ on:
       - '.github/workflows/release.yml'
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
+    inputs:
+      snapshot_tag:
+        description: 'NPM dist-tag for the beta release'
+        required: true
+        default: 'beta'
+        type: choice
+        options:
+          - beta
+          - alpha
+          - rc
+          - preview
+      include_zksync:
+        description: 'Include ZKSync build artifacts (adds ~6min)'
+        required: false
+        default: false
+        type: boolean
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
@@ -34,6 +49,7 @@ jobs:
   # This job prepares the release by creating or updating a release PR.
   # Notice the omission of the `publish` flag in the changesets action.
   prepare-release:
+    if: github.event_name == 'push'
     permissions:
       id-token: write
       contents: write
@@ -90,9 +106,9 @@ jobs:
         env:
           NPM_CONFIG_PROVENANCE: true
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   check-latest-published:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     outputs:
       all_latest: ${{ steps.check.outputs.all_latest }}
@@ -129,7 +145,7 @@ jobs:
   # Windows is excluded here for speed but tested nightly via cli-install-test.yml.
   cli-install-cross-platform-release-test:
     needs: [check-latest-published]
-    if: needs.check-latest-published.outputs.all_latest == 'false'
+    if: github.event_name == 'push' && needs.check-latest-published.outputs.all_latest == 'false'
     uses: ./.github/workflows/cli-install-test.yml
     with:
       include-windows: false
@@ -137,7 +153,7 @@ jobs:
   # This job publishes the release to NPM.
   publish-release:
     needs: cli-install-cross-platform-release-test
-    if: github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       id-token: write
       contents: write
@@ -166,6 +182,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
+          registry-url: 'https://registry.npmjs.org'
 
       - name: Setup Foundry
         uses: ./.github/actions/setup-foundry
@@ -198,4 +215,115 @@ jobs:
         env:
           NPM_CONFIG_PROVENANCE: true
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  publish-beta:
+    if: github.event_name == 'workflow_dispatch'
+    concurrency:
+      group: npm-beta-release
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Check for changesets
+        run: |
+          CHANGESET_COUNT=$(find .changeset -name "*.md" ! -name "README.md" ! -name "config.json" 2>/dev/null | wc -l | tr -d ' ')
+          if [ "$CHANGESET_COUNT" -eq 0 ]; then
+            echo "::error::No pending changesets found. Beta releases require pending changeset files."
+            echo ""
+            echo "To create a beta release:"
+            echo "1. Add a changeset: pnpm exec changeset"
+            echo "2. Commit the changeset file"
+            echo "3. Run this workflow again"
+            exit 1
+          fi
+          echo "Found $CHANGESET_COUNT changeset(s)"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Need to install foundry for the build step. `hardhat-foundry` expects foundry to be installed.
+      - name: Setup Foundry
+        uses: ./.github/actions/setup-foundry
+
+      # Build BEFORE snapshot versioning so turbo cache hits are preserved.
+      # Snapshot versioning rewrites every package.json, which invalidates turbo hashes.
+      - name: Build packages
+        run: pnpm run build
+
+      - name: Build ZKSync artifacts
+        if: inputs.include_zksync
+        run: pnpm run build:zk
+
+      - name: Create snapshot versions
+        run: pnpm exec changeset version --snapshot ${{ inputs.snapshot_tag }}
+
+      - name: Get snapshot version
+        id: version
+        run: |
+          SNAPSHOT_VERSION=$(node -p "require('./typescript/sdk/package.json').version")
+          echo "snapshot=$SNAPSHOT_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Publish beta packages
+        run: pnpm exec changeset publish --tag ${{ inputs.snapshot_tag }} --no-git-tag
+        env:
+          NPM_CONFIG_PROVENANCE: true
+
+      - name: Summary
+        run: |
+          echo "### Beta Release Published" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** \`${{ steps.version.outputs.snapshot }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**NPM Tag:** \`${{ inputs.snapshot_tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Install with:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "npm install @hyperlane-xyz/sdk@${{ inputs.snapshot_tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "npm install @hyperlane-xyz/cli@${{ inputs.snapshot_tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+  notify-publish-failure:
+    if: >-
+      always() && (
+        needs.publish-release.result == 'failure' ||
+        needs.check-latest-published.result == 'failure' ||
+        needs.cli-install-cross-platform-release-test.result == 'failure'
+      )
+    needs:
+      [
+        check-latest-published,
+        cli-install-cross-platform-release-test,
+        publish-release,
+      ]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify Slack on publish failure
+        uses: slackapi/slack-github-action@v3
+        with:
+          webhook: ${{ secrets.SLACK_INCIDENTS_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload: |
+            text: ":red-siren: NPM package publish failed — see workflow run for details"
+            blocks:
+              - type: "section"
+                text:
+                  type: "mrkdwn"
+                  text: ":red-siren: *NPM package publish failed*\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View workflow run #${{ github.run_number }}>"

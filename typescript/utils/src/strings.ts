@@ -31,7 +31,9 @@ export function streamToString(stream: NodeJS.ReadableStream): Promise<string> {
     stream
       .setEncoding('utf8')
       .on('data', (chunk) => chunks.push(chunk))
-      .on('error', (err) => reject(err))
+      .on('error', (err) =>
+        reject(err instanceof Error ? err : new Error(String(err))),
+      )
       .on('end', () => resolve(String.prototype.concat(...chunks)));
   });
 }

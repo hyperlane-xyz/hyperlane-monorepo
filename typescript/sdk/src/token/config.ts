@@ -68,6 +68,8 @@ export function isMovableCollateralTokenType(type: TokenType): boolean {
   return !!isMovableCollateralTokenTypeMap[type];
 }
 
+export const MAX_GAS_OVERHEAD = 68_000;
+
 export const gasOverhead = (tokenType: TokenType): number => {
   switch (tokenType) {
     case TokenType.synthetic:
@@ -76,7 +78,7 @@ export const gasOverhead = (tokenType: TokenType): number => {
     case TokenType.nativeScaled:
       return 44_000;
     default:
-      return 68_000;
+      return MAX_GAS_OVERHEAD;
   }
 };
 

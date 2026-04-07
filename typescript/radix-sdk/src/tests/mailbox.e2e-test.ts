@@ -33,7 +33,7 @@ describe('Radix Mailbox (e2e)', function () {
       DEPLOYED_TEST_CHAIN_METADATA.rpcUrls?.map((url) => url.http) ?? [];
     assert(rpcUrls.length > 0, 'Expected at least 1 rpc url for the tests');
 
-    radixSigner = (await RadixSigner.connectWithSigner(
+    radixSigner = await RadixSigner.connectWithSigner(
       rpcUrls,
       TEST_RADIX_PRIVATE_KEY,
       {
@@ -43,10 +43,10 @@ describe('Radix Mailbox (e2e)', function () {
           packageAddress: DEPLOYED_TEST_CHAIN_METADATA.packageAddress,
         },
       },
-    )) as RadixSigner;
+    );
 
-    const gateway = (radixSigner as any).gateway;
-    const base = (radixSigner as any).base;
+    const gateway = radixSigner.getGatewayClient();
+    const base = radixSigner.getBaseClient();
     artifactManager = new RadixMailboxArtifactManager(
       gateway,
       base,

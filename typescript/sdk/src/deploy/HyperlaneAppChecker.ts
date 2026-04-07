@@ -7,7 +7,7 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   Address,
-  ProtocolType,
+  isEVMLike,
   assert,
   eqAddress,
   isZeroishAddress,
@@ -71,20 +71,16 @@ export abstract class HyperlaneAppChecker<
       !chainsToCheck || chainsToCheck.length === 0 ? appChains : chainsToCheck;
     return Promise.all(
       chains
-        .filter(
-          (chain) =>
-            this.multiProvider.getChainMetadata(chain).protocol ===
-            ProtocolType.Ethereum,
+        .filter((chain) =>
+          isEVMLike(this.multiProvider.getChainMetadata(chain).protocol),
         )
         .map((chain) => this.checkChain(chain)),
     );
   }
 
   getEvmChains(): ChainName[] {
-    return Object.keys(this.configMap).filter(
-      (chain) =>
-        this.multiProvider.getChainMetadata(chain).protocol ===
-        ProtocolType.Ethereum,
+    return Object.keys(this.configMap).filter((chain) =>
+      isEVMLike(this.multiProvider.getChainMetadata(chain).protocol),
     );
   }
 

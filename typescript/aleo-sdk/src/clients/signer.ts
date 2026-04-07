@@ -9,8 +9,8 @@ import {
   SUFFIX_LENGTH_LONG,
   SUFFIX_LENGTH_SHORT,
   fromAleoAddress,
-  getProgramIdFromSuffix,
   getProgramSuffix,
+  getUnusedSuffix,
   loadProgramsInDeployOrder,
   programIdToPlaintext,
   toAleoAddress,
@@ -32,7 +32,7 @@ export class AleoSigner
     rpcUrls: string[],
     privateKey: string,
     extraParams?: Record<string, any>,
-  ): Promise<AltVM.ISigner<AleoTransaction, AleoReceipt>> {
+  ): Promise<AleoSigner> {
     assert(extraParams, `extra params not defined`);
 
     const metadata = extraParams.metadata as Record<string, unknown>;
@@ -88,28 +88,6 @@ export class AleoSigner
       err instanceof Error &&
       err.message.includes('already exists on the network') &&
       err.message.includes(programId)
-    );
-  }
-
-  private async getUnusedSuffix(
-    programName: AleoProgram,
-    length: number,
-    maxAttempts = 20,
-  ): Promise<string> {
-    for (let i = 0; i < maxAttempts; i++) {
-      const suffix = this.generateSuffix(length);
-      const programId = getProgramIdFromSuffix(
-        this.prefix,
-        programName,
-        suffix,
-      );
-      if (!(await this.isProgramDeployed(programId))) {
-        return suffix;
-      }
-    }
-
-    throw new Error(
-      `Could not find an unused suffix for ${programName} after ${maxAttempts} attempts`,
     );
   }
 
@@ -264,7 +242,9 @@ export class AleoSigner
       );
     }
 
-    const mailboxSuffix = await this.getUnusedSuffix(
+    const mailboxSuffix = await getUnusedSuffix(
+      this.aleoClient,
+      this.prefix,
       'mailbox',
       SUFFIX_LENGTH_LONG,
     );

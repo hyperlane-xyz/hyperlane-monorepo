@@ -107,6 +107,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     everclear: true,
     fantom: true,
     flare: true,
+    fluent: true,
     flowmainnet: true,
     fluence: true,
     forma: false, // relayer + scraper only
@@ -125,6 +126,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     ink: true,
     kaia: true,
     katana: true,
+    kiichain: true,
     krown: true,
     kyve: true,
     lazai: true,
@@ -144,6 +146,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     milkyway: true,
     miraclechain: true,
     mitosis: true,
+    mocachain: true,
     mode: true,
     molten: true,
     monad: true,
@@ -194,6 +197,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     taiko: true,
     tangle: true,
     torus: true,
+    tron: true,
     unichain: true,
     vana: true,
     viction: true,
@@ -211,8 +215,8 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Relayer]: {
     abstract: true,
     // acala: true,
-    aleo: true,
     adichain: true,
+    aleo: true,
     ancient8: true,
     apechain: true,
     appchain: true,
@@ -252,6 +256,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     everclear: true,
     fantom: true,
     flare: true,
+    fluent: true,
     flowmainnet: true,
     fluence: true,
     forma: true,
@@ -270,6 +275,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     ink: true,
     kaia: true,
     katana: true,
+    kiichain: true,
     krown: true,
     kyve: true,
     lazai: true,
@@ -289,6 +295,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     milkyway: true,
     miraclechain: true,
     mitosis: true,
+    mocachain: true,
     mode: true,
     molten: true,
     monad: true,
@@ -339,6 +346,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     taiko: true,
     tangle: true,
     torus: true,
+    tron: true,
     unichain: true,
     vana: true,
     viction: true,
@@ -356,8 +364,8 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Scraper]: {
     abstract: true,
     // acala: true,
-    aleo: true,
     adichain: true,
+    aleo: true,
     ancient8: true,
     apechain: true,
     appchain: true,
@@ -397,6 +405,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     everclear: true,
     fantom: true,
     flare: true,
+    fluent: true,
     flowmainnet: true,
     fluence: true,
     forma: true,
@@ -415,6 +424,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     ink: true,
     kaia: true,
     katana: true,
+    kiichain: true,
     krown: true,
     kyve: true,
     lazai: true,
@@ -434,6 +444,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     milkyway: true,
     miraclechain: true,
     mitosis: true,
+    mocachain: true,
     mode: true,
     molten: true,
     monad: true,
@@ -484,6 +495,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     taiko: true,
     tangle: true,
     torus: true,
+    tron: true,
     unichain: true,
     vana: true,
     // Note: default rpc.viction.xyz endpoint can't be used for scraping (returns 429s).
@@ -801,6 +813,13 @@ const relayerResources = {
   },
 };
 
+const fastPathRelayerResources = {
+  requests: {
+    cpu: '8000m',
+    memory: '16G',
+  },
+};
+
 const validatorResources = {
   requests: {
     cpu: '500m',
@@ -1010,8 +1029,51 @@ const neutron: RootAgentConfig = {
   },
 };
 
+// Cross Collateral USDC - https://github.com/hyperlane-xyz/hyperlane-registry/blob/codex/nambrot-cross-collateral-deploy/deployments/warp_routes/USDC/ctusd-config.yaml
+const fastPathUsdcMatchingList = chainMapMatchingList({
+  arbitrum: '0x62fe676dff1e7ABBCcbedc8BABc993827b9fb189',
+  base: '0xd54A15f8dF8C6dD9Ef3b5589BE0bF37EC6f61F91',
+  ethereum: '0xd4463cB3c90b3F49c673310BEC9bC18311134B47',
+  citrea: '0x38E8720EBE02e7c5254F9De9F81440C7a770a9c6',
+});
+
+// Cross Collateral USDT - https://github.com/hyperlane-xyz/hyperlane-registry/blob/codex/nambrot-cross-collateral-deploy/deployments/warp_routes/USDT/ctusd-config.yaml
+const fastPathUsdtMatchingList = chainMapMatchingList({
+  arbitrum: '0x824353938ee1361265097acC9E329828e3455c15',
+  base: '0xA9A434f0aBCE2f3e7073752046545530e32DE6cF',
+  ethereum: '0xd4463cB3c90b3F49c673310BEC9bC18311134B47',
+});
+
+const fastPath: RootAgentConfig = {
+  ...contextBase,
+  context: Contexts.FastPath,
+  contextChainNames: {
+    validator: [],
+    relayer: ['arbitrum', 'base', 'citrea', 'ethereum'],
+    scraper: [],
+  },
+  rolesWithKeys: [Role.Relayer],
+  relayer: {
+    rpcConsensusType: RpcConsensusType.Fallback,
+    docker: {
+      repo: DockerImageRepos.AGENT,
+      tag: mainnetDockerTags.relayerFastPath,
+    },
+    whitelist: [...fastPathUsdcMatchingList, ...fastPathUsdtMatchingList],
+    blacklist,
+    gasPaymentEnforcement,
+    reorgPeriodOverrides: { ethereum: 1 },
+    ismCacheConfigs,
+    cache: {
+      enabled: true,
+    },
+    resources: fastPathRelayerResources,
+  },
+};
+
 export const agents = {
   [Contexts.Hyperlane]: hyperlane,
   [Contexts.ReleaseCandidate]: releaseCandidate,
   [Contexts.Neutron]: neutron,
+  [Contexts.FastPath]: fastPath,
 };

@@ -402,11 +402,15 @@ export {
 } from './middleware/account/contracts.js';
 export {
   commitmentFromIcaCalls,
+  commitmentFromRevealMessage,
   encodeIcaCalls,
   InterchainAccount,
   normalizeCalls,
   PostCallsSchema,
   PostCallsType,
+  PostCallsLegacyType,
+  PostCallsIcaType,
+  isPostCallsIca,
   RawCallData,
   shareCallsWithPrivateRelayer,
 } from './middleware/account/InterchainAccount.js';
@@ -613,6 +617,7 @@ export {
   IcaRouterConfig,
   IcaRouterConfigSchema,
   IcaRouterConfig as InterchainAccountConfig,
+  IcaRouterType,
 } from './ica/types.js';
 export { EvmIsmModule } from './ism/EvmIsmModule.js';
 export {
@@ -739,9 +744,12 @@ export { DeployableTokenType, TokenType } from './token/config.js';
 export {
   expandVirtualWarpDeployConfig,
   expandWarpDeployConfig,
+  filterWarpCoreConfigMapByChains,
+  getChainsFromWarpCoreConfig,
   getRouterAddressesFromWarpCoreConfig,
   splitWarpCoreAndExtendedConfigs,
   transformConfigToCheck,
+  warpCoreConfigMatchesChains,
 } from './token/configUtils.js';
 export {
   hypERC20contracts,

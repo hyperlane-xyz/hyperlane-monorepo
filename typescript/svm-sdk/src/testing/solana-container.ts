@@ -12,20 +12,38 @@ import * as os from 'os';
 // eslint-disable-next-line import/no-nodejs-modules
 import * as path from 'path';
 
-import { isNullish } from '@hyperlane-xyz/utils';
+import { type TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
+import { assert, isNullish, retryAsync } from '@hyperlane-xyz/utils';
 import {
   GenericContainer,
   type StartedTestContainer,
   Wait,
 } from 'testcontainers';
 
+import { AGAVE_VERSION, TEST_SVM_CHAIN_METADATA } from './constants.js';
+
+// Vendored Docker seccomp profile with io_uring syscalls pre-patched.
+// Agave v2.0+ requires io_uring which Docker's default profile blocks.
+// To update: fetch https://raw.githubusercontent.com/moby/profiles/main/seccomp/default.json,
+// add io_uring_enter/io_uring_register/io_uring_setup to the main SCMP_ACT_ALLOW rule,
+// and save to src/testing/fixtures/docker-seccomp.json.
+// See https://github.com/moby/moby/issues/47532
+const DOCKER_SECCOMP_PATH = path.join(
+  path.dirname(new URL(import.meta.url).pathname),
+  'fixtures',
+  'docker-seccomp.json',
+);
+
+function getSeccompProfile(): string {
+  return fs.readFileSync(DOCKER_SECCOMP_PATH, 'utf-8');
+}
+
 // Agave v3.0.x activates stricter_abi_and_runtime_constraints which rejects
 // the old Token-2022 program's non-zero-init realloc calls. The test setup
 // overrides the built-in Token-2022 with v10.0.0 (via --bpf-program) which
 // uses zero-init realloc and is compatible with the stricter runtime.
 // See https://github.com/anza-xyz/agave/issues/9799
-export const SOLANA_VALIDATOR_IMAGE = 'anzaxyz/agave:v3.0.14';
-export const SOLANA_RPC_PORT = 8899;
+export const SOLANA_VALIDATOR_IMAGE = `ghcr.io/hyperlane-xyz/hyperlane-solana-validator:${AGAVE_VERSION}`;
 
 export function isAppleSilicon(): boolean {
   try {
@@ -72,9 +90,15 @@ function getValidatorVersion(binaryPath: string): string | null {
   }
 }
 
+// Strip leading 'v' for the filesystem path (releases use bare semver).
+const AGAVE_SEMVER = AGAVE_VERSION.replace(/^v/, '');
+
 const SOLANA_BINARY_PATHS = [
   path.join(os.homedir(), '.local/share/solana/install/active_release/bin'),
-  path.join(os.homedir(), '.local/share/solana/install/releases/3.0.14/bin'),
+  path.join(
+    os.homedir(),
+    `.local/share/solana/install/releases/${AGAVE_SEMVER}/bin`,
+  ),
   '/tmp/solana-release/bin',
   '/opt/homebrew/bin',
   '/usr/local/bin',
@@ -134,11 +158,9 @@ export interface SolanaValidatorConfig {
   image?: string;
   keepRunning?: boolean;
   validatorArgs?: string[];
-  forceDocker?: boolean;
   binaryPath?: string;
-  rpcPort?: number;
+  rpcPort: number;
   preloadedPrograms?: PreloadedProgram[];
-  platform?: string;
 }
 
 export interface SolanaTestValidator {
@@ -149,8 +171,6 @@ export interface SolanaTestValidator {
   process?: ChildProcess;
 }
 
-export type SolanaTestContainer = SolanaTestValidator;
-
 async function startLocalValidator(
   config: SolanaValidatorConfig,
 ): Promise<SolanaTestValidator> {
@@ -158,7 +178,7 @@ async function startLocalValidator(
     binaryPath,
     keepRunning = false,
     validatorArgs = [],
-    rpcPort = SOLANA_RPC_PORT,
+    rpcPort,
     preloadedPrograms = [],
   } = config;
 
@@ -254,9 +274,8 @@ async function startDockerValidator(
     image = SOLANA_VALIDATOR_IMAGE,
     keepRunning = false,
     validatorArgs = [],
-    rpcPort = SOLANA_RPC_PORT,
+    rpcPort,
     preloadedPrograms = [],
-    platform,
   } = config;
 
   const bpfProgramArgs: string[] = [];
@@ -281,8 +300,6 @@ async function startDockerValidator(
   const command = [
     '--rpc-port',
     String(rpcPort),
-    '--bind-address',
-    '0.0.0.0',
     '--ledger',
     '/tmp/solana-ledger',
     '--reset',
@@ -291,18 +308,24 @@ async function startDockerValidator(
     ...validatorArgs,
   ];
 
+  // Agave v2.0+ uses io_uring which Docker's default seccomp profile blocks.
+  // Use vendored seccomp profile with io_uring syscalls pre-patched.
+  // See https://github.com/moby/moby/issues/47532
+  const seccompProfile = getSeccompProfile();
   let builder = new GenericContainer(image)
     .withEntrypoint(entrypoint)
-    .withExposedPorts(rpcPort)
+    .withExposedPorts({ container: rpcPort, host: rpcPort })
     .withCommand(command)
-    .withWaitStrategy(Wait.forLogMessage(/Processed Slot:/, 1))
+    .withSecurityOpt(`seccomp=${seccompProfile}`)
+    .withWaitStrategy(Wait.forLogMessage(/rpc bound to/, 1))
     .withStartupTimeout(120_000);
 
-  const effectivePlatform =
-    platform ?? (isAppleSilicon() ? 'linux/amd64' : undefined);
-  if (effectivePlatform) {
-    builder = builder.withPlatform(effectivePlatform);
-  }
+  assert(
+    os.platform() === 'linux',
+    'Docker-based Solana validator requires Linux. ' +
+      'Solana needs AVX instructions that cannot be emulated on other platforms. ' +
+      'Install solana-test-validator locally: https://docs.anza.xyz/cli/install',
+  );
 
   const bindMounts = [...hostDirToContainerDir.entries()].map(
     ([hostDir, containerDir]) => ({
@@ -315,7 +338,7 @@ async function startDockerValidator(
     builder = builder.withBindMounts(bindMounts);
   }
 
-  const container = await builder.start();
+  const container = await retryAsync(() => builder.start(), 3, 5000);
 
   const mappedPort = container.getMappedPort(rpcPort);
   const host = container.getHost();
@@ -333,37 +356,7 @@ async function startDockerValidator(
   };
 }
 
-export async function startSolanaTestValidator(
-  config: SolanaValidatorConfig = {},
-): Promise<SolanaTestValidator> {
-  const { forceDocker = false } = config;
-
-  if (!forceDocker) {
-    const localBinary = config.binaryPath ?? findSolanaTestValidator();
-    if (localBinary) {
-      // eslint-disable-next-line no-console
-      console.log(`Using local solana-test-validator: ${localBinary}`);
-      return startLocalValidator({ ...config, binaryPath: localBinary });
-    }
-  }
-
-  if (isAppleSilicon()) {
-    throw new Error(
-      'No local solana-test-validator found on Apple Silicon.\n' +
-        'Docker is not supported: Solana requires AVX instructions that Rosetta 2 cannot emulate.\n' +
-        'Install natively from: https://docs.anza.xyz/cli/install\n' +
-        'Or download directly:\n' +
-        '  curl -L -o /tmp/solana.tar.bz2 https://github.com/anza-xyz/agave/releases/download/v3.0.14/solana-release-aarch64-apple-darwin.tar.bz2\n' +
-        '  tar jxf /tmp/solana.tar.bz2 -C /tmp',
-    );
-  }
-
-  // eslint-disable-next-line no-console
-  console.log('Using Docker for solana-test-validator');
-  return startDockerValidator(config);
-}
-
-export async function waitForRpcReady(
+async function waitForRpcReady(
   rpcUrl: string,
   maxAttempts = 30,
   delayMs = 1000,
@@ -399,6 +392,48 @@ export async function waitForRpcReady(
   );
 }
 
-export const APPLE_SILICON_SKIP_MESSAGE =
-  'Skipping: No local solana-test-validator found and Docker unavailable. ' +
-  'Install from https://docs.anza.xyz/cli/install';
+/**
+ * Starts a Solana test validator and waits for the RPC to be ready.
+ * Uses a local binary if available, otherwise falls back to Docker (Linux only).
+ *
+ * @param chainMetadata - Test chain metadata (defaults to TEST_SVM_CHAIN_METADATA)
+ * @param preloadedPrograms - Programs to preload into the validator
+ */
+export async function runSolanaNode(
+  chainMetadata: TestChainMetadata = TEST_SVM_CHAIN_METADATA,
+  preloadedPrograms: PreloadedProgram[] = [],
+): Promise<SolanaTestValidator> {
+  const config: SolanaValidatorConfig = {
+    rpcPort: chainMetadata.rpcPort,
+    preloadedPrograms,
+  };
+
+  let validator: SolanaTestValidator;
+
+  const localBinary = findSolanaTestValidator();
+  if (localBinary) {
+    // eslint-disable-next-line no-console
+    console.log(`Using local solana-test-validator: ${localBinary}`);
+    validator = await startLocalValidator({
+      ...config,
+      binaryPath: localBinary,
+    });
+  } else if (isAppleSilicon()) {
+    throw new Error(
+      'No local solana-test-validator found on Apple Silicon.\n' +
+        'Docker is not supported: Solana requires AVX instructions that Rosetta 2 cannot emulate.\n' +
+        'Install natively from: https://docs.anza.xyz/cli/install\n' +
+        'Or download directly:\n' +
+        `  curl -L -o /tmp/solana.tar.bz2 https://github.com/anza-xyz/agave/releases/download/${AGAVE_VERSION}/solana-release-aarch64-apple-darwin.tar.bz2\n` +
+        '  tar jxf /tmp/solana.tar.bz2 -C /tmp',
+    );
+  } else {
+    // eslint-disable-next-line no-console
+    console.log('Using Docker for solana-test-validator');
+    validator = await startDockerValidator(config);
+  }
+
+  await waitForRpcReady(validator.rpcUrl);
+
+  return validator;
+}

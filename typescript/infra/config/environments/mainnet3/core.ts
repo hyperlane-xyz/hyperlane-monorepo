@@ -25,6 +25,7 @@ import { Address, objMap } from '@hyperlane-xyz/utils';
 import { getChain } from '../../registry.js';
 
 import { getEdenCoreConfig } from './eden.js';
+import { getTronCoreConfig } from './tron.js';
 import { igp } from './igp.js';
 import { DEPLOYER, ethereumChainOwners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
@@ -38,6 +39,11 @@ export const core: ChainMap<CoreConfig> = objMap(
     // eden is a special case, it's only connected to celestia
     if (local === 'eden') {
       return getEdenCoreConfig(owner, igp['eden']);
+    }
+
+    // tron only has ISM/hooks for its connected chains
+    if (local === 'tron') {
+      return getTronCoreConfig(owner, igp['tron']);
     }
 
     const originMultisigs: ChainMap<MultisigConfig> = Object.fromEntries(

@@ -1,6 +1,7 @@
 import {
   Logger,
   WithAddress,
+  assert,
   deepEquals,
   normalizeConfig,
   rootLogger,
@@ -24,7 +25,9 @@ export type HookModuleType = {
 
 export interface HookConfigs {
   interchainGasPaymaster: IgpHookModuleConfig;
+  protocolFee: ProtocolFeeHookModuleConfig;
   merkleTreeHook: MerkleTreeHookConfig;
+  unknownHook: UnknownHookConfig;
 }
 export type HookType = keyof HookConfigs;
 export type HookConfig = HookConfigs[HookType];
@@ -36,6 +39,8 @@ export function altVmHookTypeToProviderHookType(
   switch (hookType) {
     case AltVM.HookType.INTERCHAIN_GAS_PAYMASTER:
       return AltVM.HookType.INTERCHAIN_GAS_PAYMASTER;
+    case AltVM.HookType.PROTOCOL_FEE:
+      return AltVM.HookType.PROTOCOL_FEE;
     case AltVM.HookType.MERKLE_TREE:
       return AltVM.HookType.MERKLE_TREE;
     default:
@@ -45,7 +50,7 @@ export function altVmHookTypeToProviderHookType(
 
 export const MUTABLE_HOOK_TYPE: HookType[] = [
   'interchainGasPaymaster',
-  // 'protocolFee',
+  'protocolFee',
   // 'domainRoutingHook',
   // 'fallbackRoutingHook',
   // 'pausableHook',
@@ -72,6 +77,22 @@ export interface IgpHookModuleConfig {
 export interface MerkleTreeHookConfig {
   type: 'merkleTreeHook';
 }
+
+export interface UnknownHookConfig {
+  type: 'unknownHook';
+  [key: string]: unknown;
+}
+
+export interface ProtocolFeeHookModuleConfig {
+  type: 'protocolFee';
+  owner: string;
+  beneficiary: string;
+  maxProtocolFee: string;
+  protocolFee: string;
+}
+
+// Protocol fee config has identical shapes for Config API and Artifact API.
+export type ProtocolFeeHookConfig = ProtocolFeeHookModuleConfig;
 
 export type HookModuleAddresses = {
   deployedHook: string;
@@ -109,7 +130,9 @@ export interface IgpHookConfig {
 
 export interface HookArtifactConfigs {
   interchainGasPaymaster: IgpHookConfig;
+  protocolFee: ProtocolFeeHookConfig;
   merkleTreeHook: MerkleTreeHookConfig;
+  unknownHook: UnknownHookConfig;
 }
 
 /**
@@ -141,7 +164,9 @@ export type IHookArtifactManager = IArtifactManager<
  */
 export interface RawHookArtifactConfigs {
   interchainGasPaymaster: IgpHookConfig;
+  protocolFee: ProtocolFeeHookConfig;
   merkleTreeHook: MerkleTreeHookConfig;
+  unknownHook: UnknownHookConfig;
 }
 
 /**
@@ -149,6 +174,20 @@ export interface RawHookArtifactConfigs {
  * deploys or reads a single hook artifact on chain
  */
 export type RawHookArtifactConfig = RawHookArtifactConfigs[HookType];
+
+function isProtocolFeeHookConfig(
+  config: HookArtifactConfig,
+): config is ProtocolFeeHookConfig {
+  return config.type === AltVM.HookType.PROTOCOL_FEE;
+}
+
+function hasUnreadableProtocolFeeMax(config: HookArtifactConfig): boolean {
+  return (
+    isProtocolFeeHookConfig(config) &&
+    // CAST: Reflect.get requires an object argument; HookArtifactConfig is always an object here.
+    Reflect.get(config as object, '__maxProtocolFeeUnknown') === true
+  );
+}
 
 /**
  * Should be used to implement an object/closure or class that individually deploys
@@ -166,6 +205,43 @@ export interface IRawHookArtifactManager extends IArtifactManager<
    * @returns The artifact configuration and deployment data
    */
   readHook(address: string): Promise<DeployedHookArtifact>;
+}
+
+function formatUnhandledHookType(value: unknown): string {
+  if (value && typeof value === 'object') {
+    const hookType = Reflect.get(value, 'type');
+    if (hookType !== undefined) return String(hookType);
+
+    try {
+      return JSON.stringify(value);
+    } catch {
+      const constructor = Reflect.get(value, 'constructor');
+      const constructorName =
+        typeof constructor === 'function'
+          ? Reflect.get(constructor, 'name')
+          : undefined;
+      return typeof constructorName === 'string'
+        ? `[object ${constructorName}]`
+        : '[object]';
+    }
+  }
+
+  return String(value);
+}
+
+function throwUnhandledHookType(value: unknown, context: string): never {
+  throw new Error(
+    `Unhandled hook type in ${context}: ${formatUnhandledHookType(value)}`,
+  );
+}
+
+export function throwUnsupportedHookType(
+  hookType: string,
+  protocolName: string,
+): never {
+  throw new Error(
+    `Unsupported hook artifact type ${hookType} for protocol ${protocolName}`,
+  );
 }
 
 // Hook Config Utilities
@@ -270,8 +346,28 @@ export function hookConfigToArtifact(
         },
       };
 
+    case 'unknownHook':
+      return {
+        artifactState: ArtifactState.NEW,
+        config: {
+          type: 'unknownHook',
+        },
+      };
+
+    case 'protocolFee':
+      return {
+        artifactState: ArtifactState.NEW,
+        config: {
+          type: AltVM.HookType.PROTOCOL_FEE,
+          owner: config.owner,
+          beneficiary: config.beneficiary,
+          maxProtocolFee: config.maxProtocolFee,
+          protocolFee: config.protocolFee,
+        },
+      };
+
     default: {
-      throw new Error(`Unhandled hook type: ${(config as any).type}`);
+      return throwUnhandledHookType(config, 'hookConfigToArtifact');
     }
   }
 }
@@ -305,12 +401,29 @@ export function shouldDeployNewHook(
       // MerkleTree hooks are immutable - must deploy new if config changed
       return !deepEquals(normalizedActual, normalizedExpected);
 
+    case 'unknownHook':
+      return false;
+
     case AltVM.HookType.INTERCHAIN_GAS_PAYMASTER:
       // IGP hooks are mutable - can be updated
       return false;
+    case AltVM.HookType.PROTOCOL_FEE: {
+      assert(
+        isProtocolFeeHookConfig(actual),
+        'expected protocolFee hook config',
+      );
+      if (hasUnreadableProtocolFeeMax(actual)) {
+        throw new Error(
+          'Cannot compare protocolFee maxProtocolFee because the current hook does not expose a readable maxProtocolFee',
+        );
+      }
+      const expectedProtocolFee: ProtocolFeeHookConfig = expected;
+      // maxProtocolFee is immutable (constructor-only) and requires redeploy.
+      return actual.maxProtocolFee !== expectedProtocolFee.maxProtocolFee;
+    }
 
     default: {
-      throw new Error(`Unhandled hook type: ${(expected as any).type}`);
+      return throwUnhandledHookType(expected, 'shouldDeployNewHook');
     }
   }
 }
@@ -424,8 +537,24 @@ export function hookArtifactToDerivedConfig(
         address,
       };
 
+    case 'unknownHook':
+      return {
+        type: 'unknownHook',
+        address,
+      };
+
+    case AltVM.HookType.PROTOCOL_FEE:
+      return {
+        type: 'protocolFee',
+        owner: config.owner,
+        beneficiary: config.beneficiary,
+        maxProtocolFee: config.maxProtocolFee,
+        protocolFee: config.protocolFee,
+        address,
+      };
+
     default: {
-      throw new Error(`Unhandled hook type: ${(config as any).type}`);
+      return throwUnhandledHookType(config, 'hookArtifactToDerivedConfig');
     }
   }
 }

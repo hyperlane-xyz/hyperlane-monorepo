@@ -1,5 +1,27 @@
 # @hyperlane-xyz/core
 
+## 11.2.0
+
+### Minor Changes
+
+- ac297da: Added a sender check in CctpBase.\_postDispatch to prevent misuse when called via transferRemote.
+
+### Patch Changes
+
+- 77db719: Fixed SafeERC20.sol operations for Tron
+
+## 11.1.0
+
+### Minor Changes
+
+- 6c715a7: Added MinimalInterchainAccountRouter for chains with tight deployment size limits.
+
+## 11.0.3
+
+### Patch Changes
+
+- a4a74d8: TokenBridgeOft was refactored to remove TokenRouter inheritance, implementing ITokenBridge directly with OwnableUpgradeable. The contract no longer requires a mailbox, remote router enrollment, or destination gas configuration. Fee recipient support was removed and OFT fee quotes were consolidated into a single token quote entry. SDK deployer, warp route reader, and warp module were updated to handle OFT configs separately from Router-based configs.
+
 ## 11.0.2
 
 ### Patch Changes

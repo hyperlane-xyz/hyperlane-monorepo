@@ -37,7 +37,11 @@ import {
 import { TronWallet } from '@hyperlane-xyz/tron-sdk';
 
 import { getContext } from '../../../context/context.js';
-import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import {
+  isFile,
+  readYamlOrJson,
+  writeYamlOrJson,
+} from '../../../utils/files.js';
 import { KeyBoardKeys, type TestPromptAction } from '../../commands/helpers.js';
 import {
   ANVIL_KEY,
@@ -50,7 +54,6 @@ export const GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH = (
   symbol: string,
 ): string => {
   const fileName = path.parse(originalDeployConfigPath).name;
-
   return getCombinedWarpRoutePath(symbol, [fileName]);
 };
 
@@ -163,10 +166,16 @@ export function getTokenAddressFromWarpConfig(
  * Retrieves the deployed Warp address from the Warp core config.
  */
 export function getDeployedWarpAddress(chain: string, warpCorePath: string) {
+  assert(isFile(warpCorePath), `File doesn't exist at ${warpCorePath}`);
   const warpCoreConfig: WarpCoreConfig = readYamlOrJson(warpCorePath);
   WarpCoreConfigSchema.parse(warpCoreConfig);
-  return warpCoreConfig.tokens.find((t) => t.chainName === chain)!
-    .addressOrDenom;
+  const tokenConfig = warpCoreConfig.tokens.find(
+    (token) => token.chainName === chain,
+  );
+  if (!tokenConfig?.addressOrDenom) {
+    throw new Error(`Could not find token config for ${chain}`);
+  }
+  return tokenConfig.addressOrDenom;
 }
 
 export async function getDomainId(
@@ -194,9 +203,7 @@ function setSignerForChain(
   const { protocol, rpcUrls } = multiProvider.getChainMetadata(chain);
   if (protocol === ProtocolType.Tron) {
     assert(rpcUrls?.length, `No rpcUrls configured for chain ${chain}`);
-    // TronWallet expects the base node URL without /jsonrpc suffix
-    const tronUrl = rpcUrls[0].http.replace(/\/jsonrpc\/?$/, '');
-    multiProvider.setSigner(chain, new TronWallet(key, tronUrl));
+    multiProvider.setSigner(chain, new TronWallet(key, rpcUrls[0].http));
   } else {
     multiProvider.setSigner(chain, new ethers.Wallet(key));
   }
@@ -407,11 +414,11 @@ export function hyperlaneStatus({
         --yes`;
 }
 
-export function hyperlaneRelayer(chains: string[], warp?: string) {
+export function hyperlaneRelayer(chains: string[], warpRouteId?: string) {
   return $`${localTestRunCmdPrefix()} hyperlane relayer \
         --registry ${REGISTRY_PATH} \
         ${chains.flatMap((c) => ['--chains', c])} \
-        --warp ${warp ?? ''} \
+        ${warpRouteId ? ['--warp-route-id', warpRouteId] : []} \
         --key ${ANVIL_KEY} \
         --verbosity debug \
         --yes`;

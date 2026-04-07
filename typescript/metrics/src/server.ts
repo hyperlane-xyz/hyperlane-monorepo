@@ -16,7 +16,24 @@ export function startMetricsServer(
   register: Registry,
   logger?: Logger,
 ): http.Server {
-  const port = parseInt(process.env['PROMETHEUS_PORT'] || '9090');
+  const configuredPort = process.env['PROMETHEUS_PORT'];
+  const portString = configuredPort ?? '9090';
+
+  if (!/^\d+$/.test(portString)) {
+    const message =
+      'PROMETHEUS_PORT must contain only digits and be between 1 and 65535';
+    logger?.error({ port: configuredPort }, message);
+    throw new Error(message);
+  }
+
+  const port = Number(portString);
+
+  if (port < 1 || port > 65535) {
+    const message = 'PROMETHEUS_PORT must be between 1 and 65535';
+    logger?.error({ port }, message);
+    throw new Error(message);
+  }
+
   const server = http
     .createServer((req, res) => {
       if (req.url !== '/metrics') {

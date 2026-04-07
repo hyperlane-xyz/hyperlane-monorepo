@@ -3,19 +3,20 @@
 // import { AltVMFileSubmitter } from '@hyperlane-xyz/deploy-sdk/AltVMFileSubmitter';
 
 export { AltVMJsonRpcSubmitter } from './AltVMJsonRpcSubmitter.js';
-export { AltVMCoreModule } from './AltVMCoreModule.js';
-export { AltVMCoreReader } from './AltVMCoreReader.js';
-export { coreModuleProvider } from './core-module.js';
-export { CoreArtifactReader } from './core/core-artifact-reader.js';
-export { createHookReader } from './hook/hook-reader.js';
-export { HookWriter, createHookWriter } from './hook/hook-writer.js';
-export { createIsmReader } from './ism/generic-ism.js';
-export { IsmWriter, createIsmWriter } from './ism/generic-ism-writer.js';
-export { WarpTokenReader, createWarpTokenReader } from './warp/warp-reader.js';
-export { WarpTokenWriter, createWarpTokenWriter } from './warp/warp-writer.js';
 export {
+  CoreArtifactReader,
+  createCoreReader,
+} from './core/core-artifact-reader.js';
+export { CoreWriter, createCoreWriter } from './core/core-writer.js';
+export { createHookReader } from './hook/hook-reader.js';
+export { createHookWriter, HookWriter } from './hook/hook-writer.js';
+export { createIsmWriter, IsmWriter } from './ism/generic-ism-writer.js';
+export { createIsmReader } from './ism/generic-ism.js';
+export { loadProtocolProviders } from './protocol.js';
+export {
+  UnsupportedIsmTypeError,
   validateIsmConfig,
   validateIsmType,
-  UnsupportedIsmTypeError,
 } from './utils/validation.js';
-export { loadProtocolProviders } from './protocol.js';
+export { createWarpTokenReader, WarpTokenReader } from './warp/warp-reader.js';
+export { createWarpTokenWriter, WarpTokenWriter } from './warp/warp-writer.js';

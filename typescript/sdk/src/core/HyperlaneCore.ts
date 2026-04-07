@@ -11,11 +11,11 @@ import {
 import {
   Address,
   AddressBytes32,
-  ProtocolType,
   addBufferToGasLimit,
   addressToBytes32,
   assert,
   bytes32ToAddress,
+  isEVMLike,
   isZeroishAddress,
   messageId,
   objFilter,
@@ -69,7 +69,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     const evmContractsMap = objFilter(
       this.contractsMap,
       (chainName, _): _ is HyperlaneContracts<CoreFactories> =>
-        this.multiProvider.getProtocol(chainName) === ProtocolType.Ethereum,
+        isEVMLike(this.multiProvider.getProtocol(chainName)),
     );
 
     // get config
@@ -409,7 +409,8 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     return new Promise<ethers.ContractReceipt>((resolve, reject) => {
       mailbox.once(filter, (emittedId, event) => {
         if (id !== emittedId) {
-          reject(`Expected message id ${id} but got ${emittedId}`);
+          reject(new Error(`Expected message id ${id} but got ${emittedId}`));
+          return;
         }
         resolve(
           this.multiProvider.handleTx(destinationChain, event.getTransaction()),

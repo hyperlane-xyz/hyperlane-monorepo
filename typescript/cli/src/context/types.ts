@@ -56,6 +56,10 @@ export interface CommandContext extends Omit<
   altVmProviders: ChainMap<AltVM.IProvider>;
   supportedProtocols: ProtocolType[];
   skipConfirmation: boolean;
+  warpCoreConfig?: WarpCoreConfig;
+  warpDeployConfig?: WarpRouteDeployConfigMailboxRequired;
+  resolvedWarpRouteId?: string;
+  altVmSigners: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>>;
   // just for evm chains backward compatibility
   signerAddress?: string;
 }
@@ -63,16 +67,17 @@ export interface CommandContext extends Omit<
 export interface WriteCommandContext extends Omit<CommandContext, 'key'> {
   key: SignerKeyProtocolMap;
   signer: ethers.Signer;
-  altVmSigners: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>>;
   apiKeys?: ChainMap<string>;
 }
 
 export interface WarpDeployCommandContext extends WriteCommandContext {
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+  resolvedWarpRouteId?: string;
 }
 export interface WarpApplyCommandContext extends WriteCommandContext {
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   warpCoreConfig: WarpCoreConfig;
+  resolvedWarpRouteId?: string;
 }
 
 export type CommandModuleWithContext<Args> = CommandModule<
