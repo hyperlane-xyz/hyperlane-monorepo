@@ -75,7 +75,7 @@ class CCTPService extends BaseService {
 
     // CCIP-read spec: POST /getCctpAttestation
     this.router.post('/getCctpAttestation', async (req, res) => {
-      const originTxHash = req.body?.originTxHash as string | undefined;
+      const originTxHash = req.body?.origin_tx_hash as string | undefined;
       return createAbiHandler(
         CctpService__factory,
         'getCCTPAttestation',
