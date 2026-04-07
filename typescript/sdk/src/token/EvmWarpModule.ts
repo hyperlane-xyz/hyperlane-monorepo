@@ -226,6 +226,7 @@ export class EvmWarpModule extends HyperlaneModule<
 
       ...this.createUpdateEverclearFeeParamsTxs(actualConfig, expectedConfig),
       ...this.createRemoveEverclearFeeParamsTxs(actualConfig, expectedConfig),
+      ...this.createSetMaxFeePpmTxs(actualConfig, expectedConfig),
       ...xerc20Txs,
 
       ...this.createOwnershipUpdateTxs(actualConfig, expectedConfig),
@@ -1441,28 +1442,41 @@ export class EvmWarpModule extends HyperlaneModule<
       ),
     });
 
-    // After upgrading CCTP V2 routes, set maxFeePpm on the proxy since the
-    // storage slot name changed from maxFeeBps to maxFeePpm and the constructor
-    // only writes to the implementation's storage, not the proxy's.
+    return updateTransactions;
+  }
+
+  createSetMaxFeePpmTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): AnnotatedEV5Transaction[] {
     if (
-      isCctpTokenConfig(expectedConfig) &&
-      expectedConfig.cctpVersion === 'V2' &&
-      expectedConfig.maxFeeBps !== undefined &&
-      expectedConfig.maxFeeBps > 0
+      !isCctpTokenConfig(expectedConfig) ||
+      expectedConfig.cctpVersion !== 'V2' ||
+      expectedConfig.maxFeeBps === undefined
     ) {
-      const maxFeePpm = Math.round(expectedConfig.maxFeeBps * 100);
-      updateTransactions.push({
+      return [];
+    }
+
+    const actualMaxFeeBps = isCctpTokenConfig(actualConfig)
+      ? actualConfig.maxFeeBps
+      : undefined;
+
+    if (actualMaxFeeBps === expectedConfig.maxFeeBps) {
+      return [];
+    }
+
+    const maxFeePpm = Math.round(expectedConfig.maxFeeBps * 100);
+    return [
+      {
         chainId: this.chainId,
         annotation: `Setting maxFeePpm to ${maxFeePpm} on ${this.args.chain}`,
-        to: proxyAddress,
+        to: this.args.addresses.deployedTokenRoute,
         data: TokenBridgeCctpV2__factory.createInterface().encodeFunctionData(
           'setMaxFeePpm',
           [maxFeePpm],
         ),
-      });
-    }
-
-    return updateTransactions;
+      },
+    ];
   }
 
   /**
