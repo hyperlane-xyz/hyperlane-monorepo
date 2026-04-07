@@ -3742,6 +3742,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-sealevel-token-cross-collateral"
+version = "0.1.0"
+dependencies = [
+ "access-control",
+ "account-utils",
+ "borsh 1.6.0",
+ "getrandom 0.2.17",
+ "hyperlane-core",
+ "hyperlane-sealevel-connection-client",
+ "hyperlane-sealevel-igp",
+ "hyperlane-sealevel-mailbox",
+ "hyperlane-sealevel-message-recipient-interface",
+ "hyperlane-sealevel-test-ism",
+ "hyperlane-sealevel-token-collateral",
+ "hyperlane-sealevel-token-lib",
+ "hyperlane-test-utils",
+ "hyperlane-warp-route",
+ "num-derive",
+ "num-traits",
+ "serializable-account-meta",
+ "solana-program 3.0.0",
+ "solana-program-test",
+ "solana-sdk",
+ "solana-system-interface 2.0.0",
+ "spl-associated-token-account",
+ "spl-noop",
+ "spl-token",
+ "spl-token-2022",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "hyperlane-sealevel-token-lib"
 version = "0.1.0"
 dependencies = [

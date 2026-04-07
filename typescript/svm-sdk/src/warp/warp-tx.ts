@@ -329,6 +329,7 @@ export async function computeWarpTokenUpdateInstructions(
 
   if (configInstructions.length > 0) {
     txs.push({
+      feePayer: ownerAddress,
       instructions: configInstructions,
       annotation: `Update ${label}: ISM/hook config`,
     });
@@ -356,6 +357,7 @@ export async function computeWarpTokenUpdateInstructions(
     const batch = diff.toUnenroll.slice(i, i + MAX_ROUTERS_PER_TX);
     const batchNum = i / MAX_ROUTERS_PER_TX + 1;
     txs.push({
+      feePayer: ownerAddress,
       instructions: [
         await getTokenEnrollRemoteRoutersInstruction(
           programId,
@@ -374,6 +376,7 @@ export async function computeWarpTokenUpdateInstructions(
     const batch = diff.toUnenroll.slice(i, i + MAX_GAS_CONFIGS_PER_TX);
     const batchNum = i / MAX_GAS_CONFIGS_PER_TX + 1;
     txs.push({
+      feePayer: ownerAddress,
       instructions: [
         await getTokenSetDestinationGasConfigsInstruction(
           programId,
@@ -392,6 +395,7 @@ export async function computeWarpTokenUpdateInstructions(
     const batch = diff.toEnroll.slice(i, i + MAX_ROUTERS_PER_TX);
     const batchNum = i / MAX_ROUTERS_PER_TX + 1;
     txs.push({
+      feePayer: ownerAddress,
       instructions: [
         await getTokenEnrollRemoteRoutersInstruction(
           programId,
@@ -413,6 +417,7 @@ export async function computeWarpTokenUpdateInstructions(
     const batch = diff.toEnroll.slice(i, i + MAX_GAS_CONFIGS_PER_TX);
     const batchNum = i / MAX_GAS_CONFIGS_PER_TX + 1;
     txs.push({
+      feePayer: ownerAddress,
       instructions: [
         await getTokenSetDestinationGasConfigsInstruction(
           programId,
@@ -433,6 +438,7 @@ export async function computeWarpTokenUpdateInstructions(
   // 3. Ownership change — own tx
   if (!eqOptionalAddress(current.owner, expected.owner, eqAddressSol)) {
     txs.push({
+      feePayer: ownerAddress,
       instructions: [
         await getTokenTransferOwnershipInstruction(
           programId,
@@ -459,6 +465,7 @@ export async function computeWarpTokenUpdateInstructions(
     )
   ) {
     txs.push({
+      feePayer: currentUpgradeAuthority,
       instructions: [
         await getSetUpgradeAuthorityInstruction(
           programId,

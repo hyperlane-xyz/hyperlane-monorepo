@@ -201,6 +201,7 @@ export class SvmMessageIdMultisigIsmWriter
     });
 
     return {
+      feePayer: this.svmSigner.signer.address,
       instructions: [ix],
       annotation: `Set validators for domain ${domain}`,
     };
