@@ -171,6 +171,9 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         this.deriveHypCollateralDepositAddressTokenConfig.bind(this),
       [TokenType.collateralOft]:
         this.deriveHypCollateralOftTokenConfig.bind(this),
+      [TokenType.collateralKatanaVaultHelper]: null,
+      [TokenType.nativeKatanaVaultHelper]: null,
+      [TokenType.collateralKatanaRedeemIca]: null,
       [TokenType.crossCollateral]:
         this.deriveCrossCollateralTokenConfig.bind(this),
     };

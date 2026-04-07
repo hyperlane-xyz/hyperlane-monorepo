@@ -630,6 +630,9 @@ export function generateWarpConfigs(
     TokenType.crossCollateral,
     // Requires a real OFT contract, can't be generated randomly
     TokenType.collateralOft,
+    TokenType.collateralKatanaVaultHelper,
+    TokenType.nativeKatanaVaultHelper,
+    TokenType.collateralKatanaRedeemIca,
     // Forward-compatibility placeholder, not deployable
     TokenType.unknown,
   ]);

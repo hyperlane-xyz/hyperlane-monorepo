@@ -297,6 +297,85 @@ export const OftTokenConfigSchema = TokenMetadataSchema.partial().extend({
 export type OftTokenConfig = z.infer<typeof OftTokenConfigSchema>;
 export const isOftTokenConfig = isCompliant(OftTokenConfigSchema);
 
+const BaseKatanaVaultHelperTokenConfigSchema =
+  TokenMetadataSchema.partial().extend({
+    shareVault: z.string().describe('ERC4626 share vault address on Ethereum'),
+    shareBridge: z
+      .string()
+      .describe('Existing TokenBridgeOft contract for vault-share transport'),
+    katanaBeneficiary: ZHash.describe(
+      'Fixed Katana beneficiary that receives bridged vault shares',
+    ),
+    ethereumBeneficiary: z
+      .string()
+      .describe('Fixed Ethereum beneficiary that receives redeemed assets'),
+  });
+
+export const CollateralKatanaVaultHelperTokenConfigSchema =
+  BaseKatanaVaultHelperTokenConfigSchema.extend({
+    type: z.literal(TokenType.collateralKatanaVaultHelper),
+  });
+
+export const NativeKatanaVaultHelperTokenConfigSchema =
+  BaseKatanaVaultHelperTokenConfigSchema.extend({
+    type: z.literal(TokenType.nativeKatanaVaultHelper),
+    wrappedNativeToken: z
+      .string()
+      .describe(
+        'Wrapped native token address when the helper should expose the local asset as native ETH',
+      ),
+  });
+
+export const KatanaVaultHelperTokenConfigSchema = z.discriminatedUnion('type', [
+  CollateralKatanaVaultHelperTokenConfigSchema,
+  NativeKatanaVaultHelperTokenConfigSchema,
+]);
+export type KatanaVaultHelperTokenConfig = z.infer<
+  typeof KatanaVaultHelperTokenConfigSchema
+>;
+export const isCollateralKatanaVaultHelperConfig = isCompliant(
+  CollateralKatanaVaultHelperTokenConfigSchema,
+);
+export const isNativeKatanaVaultHelperConfig = isCompliant(
+  NativeKatanaVaultHelperTokenConfigSchema,
+);
+export function isKatanaVaultHelperConfig(
+  value: unknown,
+): value is KatanaVaultHelperTokenConfig {
+  return (
+    isCollateralKatanaVaultHelperConfig(value) ||
+    isNativeKatanaVaultHelperConfig(value)
+  );
+}
+
+export const KatanaRedeemIcaTokenConfigSchema =
+  TokenMetadataSchema.partial().extend({
+    type: z.literal(TokenType.collateralKatanaRedeemIca),
+    shareBridge: z
+      .string()
+      .describe('Existing TokenBridgeOft contract for share transport'),
+    icaRouter: z
+      .string()
+      .describe('InterchainAccountRouter used for the Ethereum redeem poke'),
+    ethereumVaultHelper: z
+      .string()
+      .describe('Ethereum TokenBridgeKatanaVaultHelper contract address'),
+    ethereumBeneficiary: z
+      .string()
+      .describe('Fixed Ethereum beneficiary expected by the route'),
+    redeemGasLimit: z
+      .number()
+      .int()
+      .positive()
+      .describe('Gas limit used for the Ethereum-side ICA redeem call'),
+  });
+export type KatanaRedeemIcaTokenConfig = z.infer<
+  typeof KatanaRedeemIcaTokenConfigSchema
+>;
+export const isKatanaRedeemIcaConfig = isCompliant(
+  KatanaRedeemIcaTokenConfigSchema,
+);
+
 export const CollateralRebaseTokenConfigSchema =
   TokenMetadataSchema.partial().extend({
     type: z.literal(TokenType.collateralVaultRebase),
@@ -422,7 +501,7 @@ const KnownTokenTypes: string[] = Object.values(TokenType).filter(
   (t) => t !== TokenType.unknown,
 );
 
-const AllHypTokenConfigSchema = z.discriminatedUnion('type', [
+const AllHypTokenConfigSchema = z.union([
   NativeTokenConfigSchema,
   OpL2TokenConfigSchema,
   OpL1TokenConfigSchema,
@@ -432,6 +511,8 @@ const AllHypTokenConfigSchema = z.discriminatedUnion('type', [
   SyntheticRebaseTokenConfigSchema,
   CctpTokenConfigSchema,
   OftTokenConfigSchema,
+  KatanaVaultHelperTokenConfigSchema,
+  KatanaRedeemIcaTokenConfigSchema,
   EverclearCollateralTokenConfigSchema,
   EverclearEthBridgeTokenConfigSchema,
   DepositAddressTokenConfigSchema,
@@ -560,6 +641,8 @@ export const WarpRouteDeployConfigSchema = z
           isNativeTokenConfig(config) ||
           isEverclearTokenBridgeConfig(config) ||
           isDepositAddressTokenConfig(config) ||
+          isKatanaVaultHelperConfig(config) ||
+          isKatanaRedeemIcaConfig(config) ||
           isCrossCollateralTokenConfig(config) ||
           isOftTokenConfig(config),
       ) || entries.every(([_, config]) => isTokenMetadata(config))

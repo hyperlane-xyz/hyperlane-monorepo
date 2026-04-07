@@ -78,6 +78,56 @@ describe('WarpRouteDeployConfigSchema refine', () => {
     assert(parseResults.success, 'must be true');
   });
 
+  it('should accept katana vault helper config', () => {
+    const parseResults = WarpRouteDeployConfigSchema.safeParse({
+      ethereum: {
+        type: TokenType.collateralKatanaVaultHelper,
+        owner: SOME_ADDRESS,
+        mailbox: SOME_ADDRESS,
+        shareVault: SOME_ADDRESS,
+        shareBridge: SOME_ADDRESS,
+        katanaBeneficiary: ethers.utils.hexZeroPad(SOME_ADDRESS, 32),
+        ethereumBeneficiary: SOME_ADDRESS,
+      },
+    });
+
+    assert(parseResults.success, 'must be true');
+  });
+
+  it('should accept native katana vault helper config', () => {
+    const parseResults = WarpRouteDeployConfigSchema.safeParse({
+      ethereum: {
+        type: TokenType.nativeKatanaVaultHelper,
+        owner: SOME_ADDRESS,
+        mailbox: SOME_ADDRESS,
+        shareVault: SOME_ADDRESS,
+        shareBridge: SOME_ADDRESS,
+        katanaBeneficiary: ethers.utils.hexZeroPad(SOME_ADDRESS, 32),
+        ethereumBeneficiary: SOME_ADDRESS,
+        wrappedNativeToken: SOME_ADDRESS,
+      },
+    });
+
+    assert(parseResults.success, 'must be true');
+  });
+
+  it('should accept katana redeem ICA config', () => {
+    const parseResults = WarpRouteDeployConfigSchema.safeParse({
+      katana: {
+        type: TokenType.collateralKatanaRedeemIca,
+        owner: SOME_ADDRESS,
+        mailbox: SOME_ADDRESS,
+        shareBridge: SOME_ADDRESS,
+        icaRouter: SOME_ADDRESS,
+        ethereumVaultHelper: SOME_ADDRESS,
+        ethereumBeneficiary: SOME_ADDRESS,
+        redeemGasLimit: 250000,
+      },
+    });
+
+    assert(parseResults.success, 'must be true');
+  });
+
   it('should reject invalid deposit-address bridge config', () => {
     const parseResults = WarpRouteDeployConfigSchema.safeParse({
       arbitrum: {

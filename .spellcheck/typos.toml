@@ -62,6 +62,8 @@ TRE = "TRE"
 # Acceptable / intentional spellings
 # "transferrable" is acceptable British English
 transferrable = "transferrable"
+# Sealevel account-meta docs historically use "writeable"
+writeable = "writeable"
 # Solana processed-message discriminator (fixed 8-byte value)
 PROCESSD = "PROCESSD"
 # Fuel ABI field name (external API)

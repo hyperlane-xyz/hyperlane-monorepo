@@ -441,6 +441,9 @@ export const EVM_TOKEN_TYPE_TO_STANDARD: Record<
   [TokenType.collateralEverclear]: TokenStandard.EvmHypEverclearCollateral,
   [TokenType.collateralDepositAddress]: TokenStandard.EvmHypCollateral,
   [TokenType.collateralOft]: TokenStandard.EvmHypCollateral,
+  [TokenType.collateralKatanaVaultHelper]: TokenStandard.EvmHypCollateral,
+  [TokenType.nativeKatanaVaultHelper]: TokenStandard.EvmHypNative,
+  [TokenType.collateralKatanaRedeemIca]: TokenStandard.EvmHypCollateral,
   [TokenType.crossCollateral]: TokenStandard.EvmHypCrossCollateralRouter,
 };
 
@@ -554,6 +557,9 @@ export const TRON_TOKEN_TYPE_TO_STANDARD: Record<
   [TokenType.collateralEverclear]: TokenStandard.TronHypEverclearCollateral,
   [TokenType.collateralDepositAddress]: TokenStandard.TronHypCollateral,
   [TokenType.collateralOft]: TokenStandard.TronHypCollateral,
+  [TokenType.collateralKatanaVaultHelper]: TokenStandard.TronHypCollateral,
+  [TokenType.nativeKatanaVaultHelper]: TokenStandard.TronHypNative,
+  [TokenType.collateralKatanaRedeemIca]: TokenStandard.TronHypCollateral,
   [TokenType.crossCollateral]: TokenStandard.TronHypCrossCollateralRouter,
 };
 
