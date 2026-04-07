@@ -225,6 +225,18 @@ function isRpcOrTransportError(error: unknown): boolean {
   return false;
 }
 
+function isAbiDecodingError(error: unknown): boolean {
+  if (
+    error instanceof Error &&
+    'code' in error &&
+    (error as { code: string }).code === 'INVALID_ARGUMENT' &&
+    error.message.includes('sighash')
+  ) {
+    return true;
+  }
+  return false;
+}
+
 // Patterns that may contain secrets in ethers.js RPC error messages
 const SENSITIVE_PATTERNS = [
   /https?:\/\/\S+/gi, // RPC URLs (often contain API keys in path/query)
@@ -1886,7 +1898,7 @@ export class GovernTransactionReader {
             decoded,
           };
         } catch (error: unknown) {
-          if (!isRpcOrTransportError(error)) {
+          if (!isRpcOrTransportError(error) && !isAbiDecodingError(error)) {
             throw error;
           }
           this.logger.warn(
