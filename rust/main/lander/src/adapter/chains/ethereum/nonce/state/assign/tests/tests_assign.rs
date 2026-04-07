@@ -29,8 +29,10 @@ async fn test_assign_next_nonce_and_keep_old_linkage() {
         .assign_next_nonce(&other_tx_uuid, &None)
         .await
         .unwrap();
+    let other_tx = create_tx(other_tx_uuid.clone(), TransactionStatus::PendingInclusion);
     state
-        .set_tracked_tx_uuid(&nonce, &other_tx_uuid)
+        .tx_db
+        .store_transaction_by_uuid(&other_tx)
         .await
         .unwrap();
 

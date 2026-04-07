@@ -1,5 +1,109 @@
 # @hyperlane-xyz/deploy-sdk
 
+## 4.2.3
+
+### Patch Changes
+
+- 37255ba: Starknet AltVM follow-up behavior was fixed across the CLI toolchain. Warp apply/update paths now preserve existing Starknet hook and ISM settings when config leaves them unset or uses empty addresses, zero-address hook and ISM references are normalized as unset during provider artifact conversion, and core mailbox bootstrap only passes through existing hook addresses for Starknet while other AltVMs keep zero-address placeholders.
+- Updated dependencies [516c829]
+- Updated dependencies [37255ba]
+- Updated dependencies [2a9b135]
+- Updated dependencies [7646819]
+  - @hyperlane-xyz/starknet-sdk@27.2.3
+  - @hyperlane-xyz/provider-sdk@4.2.3
+  - @hyperlane-xyz/sealevel-sdk@30.0.0
+  - @hyperlane-xyz/utils@30.0.0
+  - @hyperlane-xyz/tron-sdk@22.1.7
+  - @hyperlane-xyz/aleo-sdk@30.0.0
+  - @hyperlane-xyz/cosmos-sdk@30.0.0
+  - @hyperlane-xyz/radix-sdk@30.0.0
+
+## 4.2.2
+
+### Patch Changes
+
+- @hyperlane-xyz/aleo-sdk@29.1.0
+- @hyperlane-xyz/cosmos-sdk@29.1.0
+- @hyperlane-xyz/radix-sdk@29.1.0
+- @hyperlane-xyz/sealevel-sdk@29.1.0
+- @hyperlane-xyz/utils@29.1.0
+- @hyperlane-xyz/starknet-sdk@27.2.2
+- @hyperlane-xyz/provider-sdk@4.2.2
+- @hyperlane-xyz/tron-sdk@22.1.6
+
+## 4.2.1
+
+### Patch Changes
+
+- @hyperlane-xyz/aleo-sdk@29.0.1
+- @hyperlane-xyz/cosmos-sdk@29.0.1
+- @hyperlane-xyz/radix-sdk@29.0.1
+- @hyperlane-xyz/sealevel-sdk@29.0.1
+- @hyperlane-xyz/utils@29.0.1
+- @hyperlane-xyz/starknet-sdk@27.2.1
+- @hyperlane-xyz/provider-sdk@4.2.1
+- @hyperlane-xyz/tron-sdk@22.1.5
+
+## 4.2.0
+
+### Minor Changes
+
+- 09d6760: Added Starknet artifact API support across the TypeScript AltVM toolchain. The new `@hyperlane-xyz/starknet-sdk` package provides Starknet protocol, signer, provider, ISM, hook, mailbox, validator announce, and end-to-end test coverage. Deploy SDK protocol loading and the CLI context/signer flows were updated so Starknet chains can be resolved and used through the shared AltVM paths.
+
+### Patch Changes
+
+- 084c6b6: The TypeScript packages were updated to support TypeScript 6.0 and to make ambient type loading explicit so the future TypeScript 7.0 upgrade is smoother.
+- Updated dependencies [3c6b1ad]
+- Updated dependencies [09d6760]
+- Updated dependencies [084c6b6]
+- Updated dependencies [f0a33c6]
+  - @hyperlane-xyz/tron-sdk@22.1.4
+  - @hyperlane-xyz/utils@29.0.0
+  - @hyperlane-xyz/starknet-sdk@27.2.0
+  - @hyperlane-xyz/aleo-sdk@29.0.0
+  - @hyperlane-xyz/cosmos-sdk@29.0.0
+  - @hyperlane-xyz/provider-sdk@4.2.0
+  - @hyperlane-xyz/radix-sdk@29.0.0
+  - @hyperlane-xyz/sealevel-sdk@29.0.0
+
+## 4.1.0
+
+### Patch Changes
+
+- Updated dependencies [5caac66]
+- Updated dependencies [2e622e8]
+  - @hyperlane-xyz/provider-sdk@4.1.0
+  - @hyperlane-xyz/sealevel-sdk@28.1.0
+  - @hyperlane-xyz/radix-sdk@28.1.0
+  - @hyperlane-xyz/cosmos-sdk@28.1.0
+  - @hyperlane-xyz/aleo-sdk@28.1.0
+  - @hyperlane-xyz/tron-sdk@22.1.3
+  - @hyperlane-xyz/utils@28.1.0
+
+## 4.0.0
+
+### Major Changes
+
+- 83767b9: Removed `AltVMCoreModule`, `AltVMCoreReader`, and `coreModuleProvider` from deploy-sdk in favor of the new core artifact API (`CoreWriter`, `createCoreReader`). Added `coreConfigToArtifact` and `coreResultToDeployedAddresses` helpers to provider-sdk. Updated CLI core deploy and read commands to use the new API.
+
+### Minor Changes
+
+- a6b7bf3: Added `CoreWriter` and `CoreArtifactReader` for coordinating core deployments using the Artifact API pattern. The `CoreWriter` orchestrates mailbox, ISM, hook, and validator announce deployments with support for both create and update flows. Updated `AltVMCoreModule` to handle `UnsetArtifactAddress` in derived core configs.
+
+### Patch Changes
+
+- Updated dependencies [26d08de]
+- Updated dependencies [83767b9]
+- Updated dependencies [228ed9f]
+- Updated dependencies [a6b7bf3]
+  - @hyperlane-xyz/aleo-sdk@28.0.0
+  - @hyperlane-xyz/provider-sdk@4.0.0
+  - @hyperlane-xyz/cosmos-sdk@28.0.0
+  - @hyperlane-xyz/radix-sdk@28.0.0
+  - @hyperlane-xyz/sealevel-sdk@28.0.0
+  - @hyperlane-xyz/tron-sdk@22.1.2
+  - @hyperlane-xyz/utils@28.0.0
+
 ## 3.1.0
 
 ### Minor Changes

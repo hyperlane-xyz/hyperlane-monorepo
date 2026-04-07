@@ -3,9 +3,7 @@ const GHCR_REGISTRY = 'ghcr.io/hyperlane-xyz';
 export const DockerImageNames = {
   AGENT: 'hyperlane-agent',
   MONOREPO: 'hyperlane-monorepo',
-  KEY_FUNDER: 'hyperlane-key-funder',
-  WARP_MONITOR: 'hyperlane-warp-monitor',
-  REBALANCER: 'hyperlane-rebalancer',
+  NODE_SERVICES: 'hyperlane-node-services',
   FEE_QUOTING: 'hyperlane-fee-quoting',
 } as const;
 
@@ -23,6 +21,7 @@ export const DockerImageRepos = Object.fromEntries(
 interface AgentDockerTags {
   relayer: string;
   relayerRC: string;
+  relayerFastPath: string;
   validator: string;
   validatorRC: string;
   scraper: string;
@@ -41,27 +40,29 @@ interface MainnetDockerTags extends BaseDockerTags {
 
 export const mainnetDockerTags: MainnetDockerTags = {
   // rust agents
-  relayer: '6d8f392-20260310-131412',
-  relayerRC: '6d8f392-20260310-131412',
-  validator: '6d8f392-20260310-131412',
-  validatorRC: '6d8f392-20260310-131412',
-  scraper: '6d8f392-20260310-131412',
+  relayer: '282d921-20260331-121156',
+  relayerRC: '282d921-20260331-121156',
+  relayerFastPath: '282d921-20260331-121156',
+  validator: '282d921-20260331-121156',
+  validatorRC: '282d921-20260331-121156',
+  scraper: '282d921-20260331-121156',
   // monorepo services
   checkWarpDeploy: 'main',
   // standalone services
-  keyFunder: 'c558a9f-20260304-105251',
-  warpMonitor: 'c558a9f-20260304-105251',
-  rebalancer: 'c558a9f-20260304-105251',
+  keyFunder: '3b17358-20260315-183126',
+  warpMonitor: '3b17358-20260315-183126',
+  rebalancer: '3b17358-20260315-183126',
   feeQuoting: '12d899d-20260325-184337',
 };
 
 export const testnetDockerTags: BaseDockerTags = {
   // rust agents
-  relayer: 'c558a9f-20260304-105241',
-  relayerRC: 'c558a9f-20260304-105241',
-  validator: 'c558a9f-20260304-105241',
-  validatorRC: 'c558a9f-20260304-105241',
-  scraper: 'c558a9f-20260304-105241',
+  relayer: '1663fd7-20260327-165421',
+  relayerRC: '1663fd7-20260327-165421',
+  relayerFastPath: '1663fd7-20260327-165421',
+  validator: '910e8e8-20260318-204227',
+  validatorRC: '910e8e8-20260318-204227',
+  scraper: '910e8e8-20260318-204227',
   // standalone services
-  keyFunder: 'c558a9f-20260304-105251',
+  keyFunder: '3b17358-20260315-183126',
 };

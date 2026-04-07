@@ -40,5 +40,5 @@ typescript/rebalancer-sim @Mo-Hussain @nambrot @paulbalaji
 typescript/relayer @Mo-Hussain @yorhodes @paulbalaji
 
 ## Shared Tooling
-typescript/eslint-config @xeno097 @paulbalaji
+oxlint.json @xeno097 @paulbalaji
 typescript/tsconfig @xeno097 @paulbalaji

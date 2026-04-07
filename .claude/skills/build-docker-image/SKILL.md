@@ -9,11 +9,11 @@ Build and publish Docker images to GHCR (`ghcr.io/hyperlane-xyz/*`).
 
 ## Workflows
 
-| Workflow                   | Image(s)                                                                                                                             | Contents                         |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------- |
-| `rust-docker.yml`          | `hyperlane-agent`                                                                                                                    | Rust relayer, validator, scraper |
-| `monorepo-docker.yml`      | `hyperlane-monorepo`                                                                                                                 | Full TS/Solidity monorepo        |
-| `node-services-docker.yml` | `hyperlane-rebalancer`, `hyperlane-warp-monitor`, `hyperlane-key-funder`, `hyperlane-ts-relayer`, `hyperlane-offchain-lookup-server` | TypeScript node services         |
+| Workflow                   | Image(s)                  | Contents                                                                         |
+| -------------------------- | ------------------------- | -------------------------------------------------------------------------------- |
+| `rust-docker.yml`          | `hyperlane-agent`         | Rust relayer, validator, scraper                                                 |
+| `monorepo-docker.yml`      | `hyperlane-monorepo`      | Full TS/Solidity monorepo                                                        |
+| `node-services-docker.yml` | `hyperlane-node-services` | All TS node services (rebalancer, warp-monitor, ccip-server, keyfunder, relayer) |
 
 ## How to Trigger
 
@@ -26,7 +26,7 @@ gh workflow run rust-docker.yml --ref <branch>
 # Monorepo image
 gh workflow run monorepo-docker.yml --ref <branch>
 
-# Node services (all 5 built together)
+# Node services (single unified image)
 gh workflow run node-services-docker.yml --ref <branch>
 
 # Include arm64 (multi-arch, slower)

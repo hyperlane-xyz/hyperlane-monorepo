@@ -571,6 +571,7 @@ async fn submit_lander_task(
         // Filter operations based on their current payload status
         let operations_to_process = filter_operations_for_submit(
             entrypoint.clone() as Arc<dyn Entrypoint + Send + Sync>,
+            &prepare_queue,
             &submit_queue,
             &confirm_queue,
             &metrics,

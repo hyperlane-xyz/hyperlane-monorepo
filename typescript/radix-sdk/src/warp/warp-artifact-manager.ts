@@ -63,6 +63,9 @@ export class RadixWarpArtifactManager implements IRawWarpArtifactManager {
       native: () => {
         throw new Error('Native tokens are not supported on Radix');
       },
+      crossCollateral: () => {
+        throw new Error('Cross-collateral tokens are not supported on Radix');
+      },
     };
 
     return readers[type]();
@@ -86,6 +89,9 @@ export class RadixWarpArtifactManager implements IRawWarpArtifactManager {
         new RadixSyntheticTokenWriter(this.gateway, baseSigner, this.base),
       native: () => {
         throw new Error('Native tokens are not supported on Radix');
+      },
+      crossCollateral: () => {
+        throw new Error('Cross-collateral tokens are not supported on Radix');
       },
     };
 

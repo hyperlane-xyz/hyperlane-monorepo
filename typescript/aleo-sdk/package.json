@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/aleo-sdk",
-  "version": "27.1.0",
+  "version": "30.0.0",
   "description": "Hyperlane TypeScript SDK for the Aleo Hyperlane SDK module",
   "keywords": [
     "aleo",
@@ -24,7 +24,7 @@
     "prebuild": "node scripts/generate-artifacts.js",
     "build": "pnpm prebuild && rm -rf ./dist && tsc",
     "format": "oxfmt --write ./src",
-    "lint": "eslint -c ./eslint.config.mjs",
+    "lint": "oxlint -c ../../oxlint.json",
     "clean": "rm -rf ./dist ./cache",
     "test": "echo \"no tests in aleo-sdk\"",
     "test:ci": "echo \"no tests in aleo-sdk\"",
@@ -38,28 +38,21 @@
     "unzipper": "^0.12.3"
   },
   "devDependencies": {
-    "@eslint/js": "catalog:",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@types/chai": "catalog:",
     "@types/chai-as-promised": "catalog:",
     "@types/mocha": "catalog:",
+    "@types/node": "catalog:",
     "@types/unzipper": "^0",
-    "@typescript-eslint/eslint-plugin": "catalog:",
-    "@typescript-eslint/parser": "catalog:",
     "chai": "catalog:",
     "chai-as-promised": "catalog:",
-    "eslint": "catalog:",
-    "eslint-config-prettier": "catalog:",
-    "eslint-import-resolver-typescript": "catalog:",
-    "eslint-plugin-import": "catalog:",
     "mocha": "catalog:",
     "mocha-steps": "catalog:",
     "node-fetch": "^3.3.2",
     "oxfmt": "catalog:",
     "testcontainers": "catalog:",
     "ts-node": "catalog:",
-    "typescript": "catalog:",
-    "typescript-eslint": "catalog:"
+    "typescript": "catalog:"
   },
   "peerDependencies": {
     "testcontainers": "catalog:"

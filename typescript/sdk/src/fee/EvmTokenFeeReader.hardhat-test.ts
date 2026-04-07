@@ -103,7 +103,7 @@ describe('EvmTokenFeeReader', () => {
     });
 
     it('should be able to convert bps to maxFee and halfAmount, and back', async () => {
-      const bps = BigInt(randomInt(1, 10_000));
+      const bps = randomInt(1, 10_000);
 
       const reader = new EvmTokenFeeReader(multiProvider, TestChainName.test2);
       const { maxFee: convertedMaxFee, halfAmount: convertedHalfAmount } =
@@ -113,8 +113,18 @@ describe('EvmTokenFeeReader', () => {
       expect(convertedBps).to.equal(bps);
     });
 
+    it('should round-trip fractional bps values', async () => {
+      const fractionalValues = [0.5, 1.5, 2.5, 8.3333];
+      const reader = new EvmTokenFeeReader(multiProvider, TestChainName.test2);
+      for (const bps of fractionalValues) {
+        const { maxFee, halfAmount } = reader.convertFromBps(bps);
+        const roundTripped = convertToBps(maxFee, halfAmount);
+        expect(roundTripped).to.equal(bps);
+      }
+    });
+
     it('should use constant divisor for consistent fee derivation', async () => {
-      const bps = 8n;
+      const bps = 8;
       const reader = new EvmTokenFeeReader(multiProvider, TestChainName.test2);
       const { maxFee, halfAmount } = reader.convertFromBps(bps);
 
@@ -132,7 +142,7 @@ describe('EvmTokenFeeReader', () => {
 
     it('should reject bps = 0 to prevent division by zero', () => {
       const reader = new EvmTokenFeeReader(multiProvider, TestChainName.test2);
-      expect(() => reader.convertFromBps(0n)).to.throw(
+      expect(() => reader.convertFromBps(0)).to.throw(
         'bps must be > 0 to prevent division by zero',
       );
     });

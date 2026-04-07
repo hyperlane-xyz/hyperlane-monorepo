@@ -49,7 +49,7 @@ jobs:
   lint-prettier-run:
     runs-on: depot-ubuntu-24.04-8
     needs: [change-detection]
-    if: needs.change-detection.outputs.skip_ts != 'true'
+    if: needs.change-detection.outputs.run_lint_prettier == 'true'
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
@@ -64,8 +64,14 @@ jobs:
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
 
-      - name: lint
+      - name: oxlint
         run: pnpm run lint
+
+      - name: solhint
+        run: pnpm -C solidity lint
+
+      - name: helloworld solhint
+        run: pnpm -C typescript/helloworld lint
 
       - name: Get changed PR files
         if: github.event_name == 'pull_request'
@@ -78,24 +84,33 @@ jobs:
       - name: Run oxfmt (changed files)
         if: github.event_name == 'pull_request'
         run: |
-          cat changed_files.txt | grep -E '\.(js|ts|jsx|tsx|json|md)$' | \
-          xargs -r pnpm exec oxfmt --check --no-error-on-unmatched-pattern
+          mapfile -t oxfmt_files < <(
+            grep -E '\.(js|ts|jsx|tsx|json|yaml|yml|md)$' changed_files.txt || true
+          )
+          if ((${#oxfmt_files[@]})); then
+            pnpm exec oxfmt --ignore-path .gitignore --check --no-error-on-unmatched-pattern "${oxfmt_files[@]}"
+          fi
 
       - name: Run prettier for Solidity (changed files)
         if: github.event_name == 'pull_request'
         run: |
-          cat changed_files.txt | grep -E '\.sol$' | \
-          xargs -r pnpm exec prettier --check --no-error-on-unmatched-pattern
+          mapfile -t prettier_files < <(grep -E '\.sol$' changed_files.txt || true)
+          if ((${#prettier_files[@]})); then
+            pnpm exec prettier --check --no-error-on-unmatched-pattern "${prettier_files[@]}"
+          fi
 
       - name: Run oxfmt (all files)
         if: github.event_name != 'pull_request'
-        run: pnpm exec oxfmt --check .
+        run: pnpm exec oxfmt --ignore-path .gitignore --check .
         continue-on-error: true
 
       - name: Run prettier for Solidity (all files)
         if: github.event_name != 'pull_request'
-        run: pnpm exec prettier --check 'solidity/contracts/**/*.sol' 'solidity/test/**/*.sol'
+        run: pnpm exec prettier --check 'solidity/**/*.sol' 'typescript/helloworld/contracts/**/*.sol'
         continue-on-error: true
+
+      - name: Check YAML sort order
+        run: pnpm exec tsx ./scripts/sort-yaml.ts --check
 
       - name: Clean up
         if: always()
@@ -135,11 +150,13 @@ jobs:
     needs: [set-base-sha]
     outputs:
       skip_ts: ${{ steps.decide.outputs.skip_ts }}
+      run_lint_prettier: ${{ steps.decide.outputs.run_lint_prettier }}
       run_cli_e2e: ${{ steps.decide.outputs.run_cli_e2e }}
       ci_tier: ${{ steps.decide.outputs.ci_tier }}
       has_cosmos: ${{ steps.decide.outputs.has_cosmos }}
       has_aleo: ${{ steps.decide.outputs.has_aleo }}
       has_radix: ${{ steps.decide.outputs.has_radix }}
+      has_starknet: ${{ steps.decide.outputs.has_starknet }}
       has_tron: ${{ steps.decide.outputs.has_tron }}
       has_relayer: ${{ steps.decide.outputs.has_relayer }}
       has_rebalancer: ${{ steps.decide.outputs.has_rebalancer }}
@@ -164,8 +181,16 @@ jobs:
         with:
           base_sha: ${{ needs.set-base-sha.outputs.base_sha }}
           head_sha: ${{ needs.set-base-sha.outputs.current_sha }}
-          path_pattern: '(rust/|\.github/|typescript/docker-bake\.hcl)'
+          path_pattern: '(rust/|\.github/|typescript/Dockerfile|typescript/docker-entrypoint\.sh)'
           path_pattern_only: 'true'
+
+      - name: Check if workflow files changed
+        id: check-github
+        uses: ./.github/actions/check-path-changes
+        with:
+          base_sha: ${{ needs.set-base-sha.outputs.base_sha }}
+          head_sha: ${{ needs.set-base-sha.outputs.current_sha }}
+          path_pattern: '\.github/'
 
       - name: Categorize changes for CLI e2e and VM detection
         id: check-vm
@@ -179,6 +204,7 @@ jobs:
             echo "has_radix=true" >> $GITHUB_OUTPUT
             echo "has_aleo=true" >> $GITHUB_OUTPUT
             echo "has_cosmos=true" >> $GITHUB_OUTPUT
+            echo "has_starknet=true" >> $GITHUB_OUTPUT
             echo "has_tron=true" >> $GITHUB_OUTPUT
             echo "has_relayer=true" >> $GITHUB_OUTPUT
             echo "has_rebalancer=true" >> $GITHUB_OUTPUT
@@ -191,6 +217,7 @@ jobs:
             echo "has_radix=false" >> $GITHUB_OUTPUT
             echo "has_aleo=false" >> $GITHUB_OUTPUT
             echo "has_cosmos=false" >> $GITHUB_OUTPUT
+            echo "has_starknet=false" >> $GITHUB_OUTPUT
             echo "has_tron=false" >> $GITHUB_OUTPUT
             echo "has_relayer=false" >> $GITHUB_OUTPUT
             echo "has_rebalancer=false" >> $GITHUB_OUTPUT
@@ -202,6 +229,7 @@ jobs:
           has_radix=$(echo "$CHANGED_FILES" | grep -qE '^typescript/radix-sdk/' && echo true || echo false)
           has_aleo=$(echo "$CHANGED_FILES" | grep -qE '^typescript/aleo-sdk/' && echo true || echo false)
           has_cosmos=$(echo "$CHANGED_FILES" | grep -qE '^typescript/(cosmos-sdk|cosmos-types)/' && echo true || echo false)
+          has_starknet=$(echo "$CHANGED_FILES" | grep -qE '^(typescript/(starknet-sdk|provider-sdk|utils)/|starknet/)' && echo true || echo false)
           has_tron=$(echo "$CHANGED_FILES" | grep -qE '^typescript/tron-sdk/' && echo true || echo false)
           has_svm=$(echo "$CHANGED_FILES" | grep -qE '^(rust/sealevel/|typescript/svm-sdk/)' && echo true || echo false)
 
@@ -219,16 +247,17 @@ jobs:
           echo "has_radix=$has_radix" >> $GITHUB_OUTPUT
           echo "has_aleo=$has_aleo" >> $GITHUB_OUTPUT
           echo "has_cosmos=$has_cosmos" >> $GITHUB_OUTPUT
+          echo "has_starknet=$has_starknet" >> $GITHUB_OUTPUT
           echo "has_tron=$has_tron" >> $GITHUB_OUTPUT
           echo "has_relayer=$has_relayer" >> $GITHUB_OUTPUT
           echo "has_rebalancer=$has_rebalancer" >> $GITHUB_OUTPUT
 
           echo "CLI changes: $has_cli_changes"
-          echo "VM-specific — radix=$has_radix aleo=$has_aleo cosmos=$has_cosmos tron=$has_tron"
+          echo "VM-specific — radix=$has_radix aleo=$has_aleo cosmos=$has_cosmos starknet=$has_starknet tron=$has_tron"
           echo "Package-specific — relayer=$has_relayer rebalancer=$has_rebalancer"
           echo "has_svm=$has_svm" >> $GITHUB_OUTPUT
 
-          echo "VM-specific — radix=$has_radix aleo=$has_aleo cosmos=$has_cosmos tron=$has_tron svm=$has_svm"
+          echo "VM-specific — radix=$has_radix aleo=$has_aleo cosmos=$has_cosmos starknet=$has_starknet tron=$has_tron svm=$has_svm"
 
       - name: Decide what to run
         id: decide
@@ -243,11 +272,13 @@ jobs:
 
           if [[ "${{ steps.context.outputs.should_skip }}" == "true" ]]; then
             echo "skip_ts=true" >> $GITHUB_OUTPUT
+            echo "run_lint_prettier=false" >> $GITHUB_OUTPUT
             echo "run_cli_e2e=false" >> $GITHUB_OUTPUT
             echo "ci_tier=$CI_TIER" >> $GITHUB_OUTPUT
             echo "has_cosmos=false" >> $GITHUB_OUTPUT
             echo "has_aleo=false" >> $GITHUB_OUTPUT
             echo "has_radix=false" >> $GITHUB_OUTPUT
+            echo "has_starknet=false" >> $GITHUB_OUTPUT
             echo "has_tron=false" >> $GITHUB_OUTPUT
             echo "has_relayer=false" >> $GITHUB_OUTPUT
             echo "has_rebalancer=false" >> $GITHUB_OUTPUT
@@ -257,11 +288,13 @@ jobs:
 
           if [[ "${{ steps.context.outputs.must_run }}" == "true" ]]; then
             echo "skip_ts=false" >> $GITHUB_OUTPUT
+            echo "run_lint_prettier=true" >> $GITHUB_OUTPUT
             echo "run_cli_e2e=true" >> $GITHUB_OUTPUT
             echo "ci_tier=full" >> $GITHUB_OUTPUT
             echo "has_cosmos=true" >> $GITHUB_OUTPUT
             echo "has_aleo=true" >> $GITHUB_OUTPUT
             echo "has_radix=true" >> $GITHUB_OUTPUT
+            echo "has_starknet=true" >> $GITHUB_OUTPUT
             echo "has_tron=true" >> $GITHUB_OUTPUT
             echo "has_relayer=true" >> $GITHUB_OUTPUT
             echo "has_rebalancer=true" >> $GITHUB_OUTPUT
@@ -269,12 +302,20 @@ jobs:
             exit 0
           fi
 
-          echo "skip_ts=${{ steps.check-skip-ts.outputs.only_changes }}" >> $GITHUB_OUTPUT
+          SKIP_TS="${{ steps.check-skip-ts.outputs.only_changes }}"
+          RUN_LINT_PRETTIER=false
+          if [[ "$SKIP_TS" != "true" || "${{ steps.check-github.outputs.has_changes }}" == "true" ]]; then
+            RUN_LINT_PRETTIER=true
+          fi
+
+          echo "skip_ts=$SKIP_TS" >> $GITHUB_OUTPUT
+          echo "run_lint_prettier=$RUN_LINT_PRETTIER" >> $GITHUB_OUTPUT
           echo "run_cli_e2e=${{ steps.check-vm.outputs.has_cli_changes }}" >> $GITHUB_OUTPUT
           echo "ci_tier=$CI_TIER" >> $GITHUB_OUTPUT
           echo "has_cosmos=${{ steps.check-vm.outputs.has_cosmos }}" >> $GITHUB_OUTPUT
           echo "has_aleo=${{ steps.check-vm.outputs.has_aleo }}" >> $GITHUB_OUTPUT
           echo "has_radix=${{ steps.check-vm.outputs.has_radix }}" >> $GITHUB_OUTPUT
+          echo "has_starknet=${{ steps.check-vm.outputs.has_starknet }}" >> $GITHUB_OUTPUT
           echo "has_tron=${{ steps.check-vm.outputs.has_tron }}" >> $GITHUB_OUTPUT
           echo "has_relayer=${{ steps.check-vm.outputs.has_relayer }}" >> $GITHUB_OUTPUT
           echo "has_rebalancer=${{ steps.check-vm.outputs.has_rebalancer }}" >> $GITHUB_OUTPUT
@@ -406,9 +447,11 @@ jobs:
       has_cosmos: ${{ needs.change-detection.outputs.has_cosmos }}
       has_aleo: ${{ needs.change-detection.outputs.has_aleo }}
       has_radix: ${{ needs.change-detection.outputs.has_radix }}
+      has_starknet: ${{ needs.change-detection.outputs.has_starknet }}
       has_tron: ${{ needs.change-detection.outputs.has_tron }}
       has_relayer: ${{ needs.change-detection.outputs.has_relayer }}
       has_rebalancer: ${{ needs.change-detection.outputs.has_rebalancer }}
+      has_svm: ${{ needs.change-detection.outputs.has_svm }}
 
   cli-e2e:
     runs-on: ubuntu-latest
@@ -430,7 +473,9 @@ jobs:
       has_cosmos: ${{ needs.change-detection.outputs.has_cosmos }}
       has_aleo: ${{ needs.change-detection.outputs.has_aleo }}
       has_radix: ${{ needs.change-detection.outputs.has_radix }}
+      has_starknet: ${{ needs.change-detection.outputs.has_starknet }}
       has_tron: ${{ needs.change-detection.outputs.has_tron }}
+      has_svm: ${{ needs.change-detection.outputs.has_svm }}
 
   sdk-e2e:
     runs-on: ubuntu-latest

@@ -1,5 +1,63 @@
 # @hyperlane-xyz/http-registry-server
 
+## 30.0.0
+
+### Patch Changes
+
+- Updated dependencies [e1ed158]
+- Updated dependencies [d0dbf1a]
+- Updated dependencies [95c2891]
+- Updated dependencies [7646819]
+  - @hyperlane-xyz/sdk@30.0.0
+  - @hyperlane-xyz/utils@30.0.0
+
+## 29.1.0
+
+### Patch Changes
+
+- Updated dependencies [a8192d7]
+- Updated dependencies [a891402]
+  - @hyperlane-xyz/sdk@29.1.0
+  - @hyperlane-xyz/utils@29.1.0
+
+## 29.0.1
+
+### Patch Changes
+
+- Updated dependencies [96508ed]
+  - @hyperlane-xyz/sdk@29.0.1
+  - @hyperlane-xyz/utils@29.0.1
+
+## 29.0.0
+
+### Patch Changes
+
+- Updated dependencies [cc6d57b]
+- Updated dependencies [3c6b1ad]
+- Updated dependencies [084c6b6]
+  - @hyperlane-xyz/sdk@29.0.0
+  - @hyperlane-xyz/utils@29.0.0
+
+## 28.1.0
+
+### Patch Changes
+
+- Updated dependencies [6c715a7]
+- Updated dependencies [2e622e8]
+- Updated dependencies [e93a4c8]
+  - @hyperlane-xyz/sdk@28.1.0
+  - @hyperlane-xyz/utils@28.1.0
+
+## 28.0.0
+
+### Patch Changes
+
+- Updated dependencies [b9c6844]
+- Updated dependencies [5a5d172]
+- Updated dependencies [a4a74d8]
+  - @hyperlane-xyz/sdk@28.0.0
+  - @hyperlane-xyz/utils@28.0.0
+
 ## 27.1.0
 
 ### Patch Changes

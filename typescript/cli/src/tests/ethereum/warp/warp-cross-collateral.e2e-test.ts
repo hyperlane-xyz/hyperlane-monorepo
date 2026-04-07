@@ -28,7 +28,6 @@ import {
   CHAIN_NAME_2,
   CHAIN_NAME_3,
   CORE_CONFIG_PATH,
-  REGISTRY_PATH,
   WARP_DEPLOY_OUTPUT_PATH,
   getCombinedWarpRoutePath,
 } from '../consts.js';
@@ -161,16 +160,13 @@ describe('hyperlane warp crossCollateral CLI e2e tests', function () {
     const usdtCollateral = parseUnits('10', 18);
     await (await usdtChain3.transfer(usdtRouter3Addr, usdtCollateral)).wait();
 
-    // Read the merged WarpCoreConfig created by warp combine
-    const MERGED_CONFIG_PATH = `${REGISTRY_PATH}/deployments/warp_routes/${mergedWarpRouteId}-config.yaml`;
-
     // Send cross-stablecoin transfer via CLI: USDC(chain2) -> USDT(chain3)
     const sendAmount = parseUnits('1', 6); // 1 USDC in 6-dec
     const balanceBefore = await usdtChain3.balanceOf(ownerAddress);
     await hyperlaneWarpSendRelay({
       origin: CHAIN_NAME_2,
       destination: CHAIN_NAME_3,
-      warpCorePath: MERGED_CONFIG_PATH,
+      warpRouteId: mergedWarpRouteId,
       sourceToken: usdcRouter2Addr,
       destinationToken: usdtRouter3Addr,
       value: sendAmount.toString(),
@@ -261,9 +257,6 @@ describe('hyperlane warp crossCollateral CLI e2e tests', function () {
     const usdtCollateral = parseUnits('10', 18);
     await (await usdt.transfer(usdtRouter2Addr, usdtCollateral)).wait();
 
-    // Read the merged WarpCoreConfig created by warp combine
-    const MERGED_CONFIG_PATH = `${REGISTRY_PATH}/deployments/warp_routes/${mergedWarpRouteId}-config.yaml`;
-
     // Send same-chain swap via CLI: USDC -> USDT on chain 2
     const swapAmount = parseUnits('1', 6); // 1 USDC
     const balanceBefore = await usdt.balanceOf(ownerAddress);
@@ -271,7 +264,7 @@ describe('hyperlane warp crossCollateral CLI e2e tests', function () {
     await hyperlaneWarpSendRelay({
       origin: CHAIN_NAME_2,
       destination: CHAIN_NAME_2,
-      warpCorePath: MERGED_CONFIG_PATH,
+      warpRouteId: mergedWarpRouteId,
       sourceToken: usdcRouter2Addr,
       destinationToken: usdtRouter2Addr,
       value: swapAmount.toString(),

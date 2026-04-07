@@ -1575,7 +1575,7 @@
       "blockExplorers": [
         {
           "apiUrl": "https://shasta.tronscan.org/#",
-          "family": "other",
+          "family": "tronscan",
           "name": "Tronscan",
           "url": "https://shasta.tronscan.org/#"
         }
@@ -1601,19 +1601,19 @@
       },
       "protocol": "tron",
       "technicalStack": "other",
+      "walletUrls": [
+        {
+          "http": "https://api.shasta.trongrid.io/wallet"
+        }
+      ],
+      "walletSolidityUrls": [
+        {
+          "http": "https://api.shasta.trongrid.io/walletsolidity"
+        }
+      ],
       "rpcUrls": [
         {
           "http": "https://api.shasta.trongrid.io/jsonrpc"
-        }
-      ],
-      "grpcUrls": [
-        {
-          "http": "http://grpc.shasta.trongrid.io:50051"
-        }
-      ],
-      "solidityGrpcUrls": [
-        {
-          "http": "http://grpc.shasta.trongrid.io:50052"
         }
       ],
       "aggregationHook": "0x0680D3fDfAB249C2fC73D1eF6c61802719d33c0a",

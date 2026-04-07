@@ -82,7 +82,12 @@ export abstract class BaseLocalDeploymentManager<
                 config.chainId.toString(),
               ])
               .withExposedPorts(8545)
-              .withWaitStrategy(Wait.forLogMessage(/Listening on/))
+              .withWaitStrategy(
+                Wait.forAll([
+                  Wait.forListeningPorts(),
+                  Wait.forLogMessage(/Listening on/),
+                ]),
+              )
               .start(),
           3,
           5000,

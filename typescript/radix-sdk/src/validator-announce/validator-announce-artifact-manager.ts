@@ -47,7 +47,6 @@ export class RadixValidatorAnnounceArtifactManager implements IRawValidatorAnnou
     DeployedValidatorAnnounceAddress
   > {
     const baseSigner = signer.getBaseSigner();
-
     return new RadixValidatorAnnounceWriter(
       this.gateway,
       baseSigner,

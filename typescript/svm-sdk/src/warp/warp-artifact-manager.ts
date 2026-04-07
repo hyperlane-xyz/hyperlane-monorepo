@@ -53,6 +53,9 @@ export class SvmWarpArtifactManager implements IRawWarpArtifactManager {
       native: () => new SvmNativeTokenReader(this.rpc),
       synthetic: () => new SvmSyntheticTokenReader(this.rpc),
       collateral: () => new SvmCollateralTokenReader(this.rpc),
+      crossCollateral: () => {
+        throw new Error('Cross-collateral tokens are not yet supported on SVM');
+      },
     };
 
     return readers[type]();
@@ -99,6 +102,9 @@ export class SvmWarpArtifactManager implements IRawWarpArtifactManager {
           this.rpc,
           signer,
         ),
+      crossCollateral: () => {
+        throw new Error('Cross-collateral tokens are not yet supported on SVM');
+      },
     };
 
     return writers[type]();

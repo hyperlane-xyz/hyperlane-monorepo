@@ -26,7 +26,7 @@ import {
   TokenFeeConfigSchema,
   TokenFeeType,
 } from './types.js';
-import { convertToBps } from './utils.js';
+import { BPS_PRECISION, convertToBps } from './utils.js';
 
 type DistributiveOmit<T, K extends keyof T> = T extends any
   ? Omit<T, K>
@@ -154,7 +154,9 @@ describe('EvmTokenFeeDeployer', () => {
     ](1, addressToBytes32(signer.address), amount);
 
     expect(quote.length).to.equal(1);
-    expect(quote[0].amount).to.be.equal((BigInt(amount) * BPS) / 10_000n);
+    expect(quote[0].amount).to.be.equal(
+      (BigInt(amount) * BigInt(BPS)) / BPS_PRECISION,
+    );
     expect(quote[0].token).to.equal(token.address);
 
     // If no fee contract is set, the quote should be zero

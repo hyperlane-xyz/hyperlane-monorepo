@@ -7,14 +7,14 @@ import { deepFind, eqAddress } from '@hyperlane-xyz/utils';
 import type { WithAddress } from '@hyperlane-xyz/utils';
 import {
   DEFAULT_ROUTER_KEY,
+  type DerivedTokenFeeConfig,
   type DerivedTokenRouterConfig,
   type HookConfig,
   type IgpHookConfig,
   type MultiProvider,
   HookType,
+  TokenFeeType,
 } from '@hyperlane-xyz/sdk';
-import { TokenFeeType } from '@hyperlane-xyz/sdk';
-import type { DerivedTokenFeeConfig } from '@hyperlane-xyz/sdk';
 
 import type { QuoteMode } from '../config.js';
 import {
@@ -376,9 +376,7 @@ function resolveFeeQuoter(
   }
 
   const signers =
-    'quoteSigners' in resolved
-      ? (resolved.quoteSigners as string[] | undefined)
-      : undefined;
+    'quoteSigners' in resolved ? resolved.quoteSigners : undefined;
   const reason = checkSignerAuthorized(signers, signer);
   if (reason) return { resolved: false, reason };
 

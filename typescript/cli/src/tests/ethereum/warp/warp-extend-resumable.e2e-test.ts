@@ -19,6 +19,7 @@ import {
   hyperlaneWarpDeploy,
   readWarpConfig,
 } from '../commands/warp.js';
+import { syncWarpDeployConfigToRegistry } from '../../commands/warp-config-sync.js';
 import {
   ANVIL_KEY,
   CHAIN_4_METADATA_PATH,
@@ -27,13 +28,13 @@ import {
   CHAIN_NAME_4,
   CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
+  REGISTRY_PATH,
   TEMP_PATH,
   WARP_CONFIG_PATH_2,
   WARP_CONFIG_PATH_EXAMPLE,
   WARP_CORE_CONFIG_PATH_2,
   WARP_DEPLOY_2_ID,
   WARP_DEPLOY_CONFIG_CHAIN_2,
-  getCombinedWarpRoutePath,
 } from '../consts.js';
 
 describe('hyperlane warp apply resumable extension tests', async function () {
@@ -79,13 +80,11 @@ describe('hyperlane warp apply resumable extension tests', async function () {
       extendedConfig: config3,
       warpCorePath: WARP_CORE_CONFIG_PATH_2,
       warpDeployPath: WARP_DEPLOY_CONFIG_CHAIN_2,
+      warpRouteId: WARP_DEPLOY_2_ID,
     });
 
     // Step 2: Record anvil3's deployed address from the registry
-    const combinedWarpCorePath_2_3 = getCombinedWarpRoutePath('ETH', [
-      CHAIN_NAME_2,
-      CHAIN_NAME_3,
-    ]);
+    const combinedWarpCorePath_2_3 = WARP_CORE_CONFIG_PATH_2;
     const warpCoreAfterFirstExtend: WarpCoreConfig = readYamlOrJson(
       combinedWarpCorePath_2_3,
     );
@@ -128,15 +127,16 @@ describe('hyperlane warp apply resumable extension tests', async function () {
     };
 
     writeYamlOrJson(warpDeployPath, warpDeployConfig);
+    syncWarpDeployConfigToRegistry({
+      warpDeployPath,
+      warpRouteId: WARP_DEPLOY_2_ID,
+      registryPath: REGISTRY_PATH,
+    });
 
-    await hyperlaneWarpApply(warpDeployPath, combinedWarpCorePath_2_3);
+    await hyperlaneWarpApply(WARP_DEPLOY_2_ID);
 
     // Step 4: Read the resulting warp core config (now includes all 3 chains)
-    const combinedWarpCorePath_2_3_4 = getCombinedWarpRoutePath('ETH', [
-      CHAIN_NAME_2,
-      CHAIN_NAME_3,
-      CHAIN_NAME_4,
-    ]);
+    const combinedWarpCorePath_2_3_4 = WARP_CORE_CONFIG_PATH_2;
     const finalWarpCoreConfig: WarpCoreConfig = readYamlOrJson(
       combinedWarpCorePath_2_3_4,
     );
@@ -236,12 +236,16 @@ describe('hyperlane warp apply resumable extension tests', async function () {
       },
     };
     writeYamlOrJson(warpDeployPath, warpDeployConfig);
+    syncWarpDeployConfigToRegistry({
+      warpDeployPath,
+      warpRouteId: WARP_DEPLOY_2_ID,
+      registryPath: REGISTRY_PATH,
+    });
 
     // Run warp apply — anvil3 should succeed, anvil4 should fail
     try {
       const result = await hyperlaneWarpApplyRaw({
-        warpDeployPath,
-        warpCorePath: WARP_CORE_CONFIG_PATH_2,
+        warpRouteId: WARP_DEPLOY_2_ID,
       }).nothrow();
       expect(result.exitCode).to.not.equal(0);
     } finally {
@@ -249,10 +253,7 @@ describe('hyperlane warp apply resumable extension tests', async function () {
     }
 
     // Verify anvil3 was persisted (partial success)
-    const combinedWarpCorePath_2_3 = getCombinedWarpRoutePath('ETH', [
-      CHAIN_NAME_2,
-      CHAIN_NAME_3,
-    ]);
+    const combinedWarpCorePath_2_3 = WARP_CORE_CONFIG_PATH_2;
     const partialWarpCore: WarpCoreConfig = readYamlOrJson(
       combinedWarpCorePath_2_3,
     );
@@ -262,14 +263,10 @@ describe('hyperlane warp apply resumable extension tests', async function () {
     expect(anvil3Address).to.be.a('string');
 
     // Re-run warp apply — anvil4 RPC is now restored
-    await hyperlaneWarpApply(warpDeployPath, combinedWarpCorePath_2_3);
+    await hyperlaneWarpApply(WARP_DEPLOY_2_ID);
 
     // Verify all 3 chains deployed
-    const combinedWarpCorePath_2_3_4 = getCombinedWarpRoutePath('ETH', [
-      CHAIN_NAME_2,
-      CHAIN_NAME_3,
-      CHAIN_NAME_4,
-    ]);
+    const combinedWarpCorePath_2_3_4 = WARP_CORE_CONFIG_PATH_2;
     const finalWarpCore: WarpCoreConfig = readYamlOrJson(
       combinedWarpCorePath_2_3_4,
     );

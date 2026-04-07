@@ -1,9 +1,11 @@
 import { ChainMap } from '@hyperlane-xyz/sdk';
 import { stringifyObject } from '@hyperlane-xyz/utils';
 
-import { getOverheadWithOverrides } from '../../config/environments/mainnet3/igp.js';
 import { getChain } from '../../config/registry.js';
-import { getTypicalRemoteGasAmount } from '../../src/config/gas-oracle.js';
+import {
+  getOverheadWithOverrides,
+  getTypicalRemoteGasAmount,
+} from '../../src/config/gas-oracle.js';
 import { getArgs } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 

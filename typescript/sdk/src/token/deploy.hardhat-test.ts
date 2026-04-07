@@ -370,7 +370,7 @@ describe('TokenDeployer', async () => {
           tokenFee: {
             type: TokenFeeType.LinearFee,
             owner: signer.address,
-            bps: 100n,
+            bps: 100,
             maxFee: 1000000000n,
             halfAmount: 500000000n,
           },
@@ -407,7 +407,7 @@ describe('TokenDeployer', async () => {
               [TestChainName.test2]: {
                 type: TokenFeeType.LinearFee,
                 owner: signer.address,
-                bps: 100n,
+                bps: 100,
                 maxFee: 1000000000n,
                 halfAmount: 500000000n,
               },

@@ -21,6 +21,7 @@ import {
   filterOutDisabledChains,
   runSingleChainSelectionStep,
 } from '../../../utils/chains.js';
+import { getOrderedWarpSendChains } from '../../../utils/warp-send.js';
 import {
   getWarpConfigs,
   getWarpCoreConfigOrExit,
@@ -42,9 +43,10 @@ export async function resolveChains(
       return resolveWarpRouteConfigChains(argv);
     case CommandType.SEND_MESSAGE:
       return resolveSendMessageChains(argv);
+    case CommandType.WARP_SEND:
+      return resolveWarpSendChains(argv);
     case CommandType.STATUS:
       return resolveStatusChains(argv);
-    case CommandType.WARP_SEND:
     case CommandType.RELAYER:
       return resolveRelayerChains(argv);
     case CommandType.WARP_READ:
@@ -76,14 +78,13 @@ export async function resolveChains(
 async function resolveWarpRouteConfigChains(
   argv: Record<string, any>,
 ): Promise<ChainName[]> {
-  const warpDeployConfig = await getWarpRouteDeployConfig({
+  const { config, resolvedWarpRouteId } = await getWarpRouteDeployConfig({
     context: argv.context,
-    warpRouteDeployConfigPath: argv.config,
     warpRouteId: argv.warpRouteId,
-    symbol: argv.symbol,
   });
-  argv.context.warpDeployConfig = warpDeployConfig;
-  argv.context.chains = Object.keys(warpDeployConfig);
+  argv.context.warpDeployConfig = config;
+  argv.context.resolvedWarpRouteId = resolvedWarpRouteId;
+  argv.context.chains = Object.keys(config);
   assert(
     argv.context.chains.length !== 0,
     'No chains found in warp route deployment config',
@@ -98,12 +99,12 @@ async function resolveWarpReadChains(
     argv.context.chains = await resolveChain(argv);
   }
 
-  if (argv.symbol || argv.warpRouteId) {
+  if (argv.warpRouteId) {
     const warpCoreConfig = await getWarpCoreConfigOrExit({
       context: argv.context,
-      symbol: argv.symbol,
       warpRouteId: argv.warpRouteId,
     });
+    argv.context.warpCoreConfig = warpCoreConfig;
     argv.context.chains = warpCoreConfig.tokens.map((token) => token.chainName);
   }
 
@@ -124,15 +125,14 @@ async function resolveChain(argv: Record<string, any>): Promise<ChainName[]> {
 async function resolveWarpConfigChains(
   argv: Record<string, any>,
 ): Promise<ChainName[]> {
-  const { warpCoreConfig, warpDeployConfig } = await getWarpConfigs({
-    context: argv.context,
-    warpRouteId: argv.warpRouteId,
-    symbol: argv.symbol,
-    warpDeployConfigPath: argv.config,
-    warpCoreConfigPath: argv.warp,
-  });
+  const { warpCoreConfig, warpDeployConfig, resolvedWarpRouteId } =
+    await getWarpConfigs({
+      context: argv.context,
+      warpRouteId: argv.warpRouteId,
+    });
   argv.context.warpCoreConfig = warpCoreConfig;
   argv.context.warpDeployConfig = warpDeployConfig;
+  argv.context.resolvedWarpRouteId = resolvedWarpRouteId;
   argv.context.chains = Object.keys(warpDeployConfig);
 
   assert(
@@ -140,6 +140,73 @@ async function resolveWarpConfigChains(
     'No chains found in warp route deployment config',
   );
   return argv.context.chains;
+}
+
+async function resolveWarpSendChains(
+  argv: Record<string, any>,
+): Promise<ChainName[]> {
+  const { multiProvider } = argv.context;
+  const chainPath: ChainName[] = [];
+
+  if (argv.chains?.length) {
+    chainPath.push(...argv.chains);
+  } else if (argv.origin && argv.destination) {
+    chainPath.push(argv.origin, argv.destination);
+  } else {
+    const filterChains = [argv.origin, argv.destination].filter(
+      Boolean,
+    ) as ChainName[];
+    const warpCoreConfig = await getWarpCoreConfigOrExit({
+      context: argv.context,
+      warpRouteId: argv.warpRouteId,
+      chains: filterChains.length > 0 ? filterChains : undefined,
+    });
+    argv.context.warpCoreConfig = warpCoreConfig;
+
+    const supportedChains = warpCoreConfig.tokens.map(
+      (token) => token.chainName,
+    );
+    chainPath.push(...getOrderedWarpSendChains(supportedChains, multiProvider));
+  }
+
+  // Cache warpCoreConfig on context so the handler doesn't re-fetch it.
+  // This ensures signers and execution use the same resolved config.
+  if (!argv.context.warpCoreConfig && argv.warpRouteId) {
+    const filterChains = chainPath.length > 0 ? chainPath : undefined;
+    argv.context.warpCoreConfig = await getWarpCoreConfigOrExit({
+      context: argv.context,
+      warpRouteId: argv.warpRouteId,
+      chains: filterChains,
+    });
+  }
+
+  const signerChains = new Set<ChainName>();
+  const normalizedRecipient =
+    typeof argv.recipient === 'string' && argv.recipient.trim().length > 0
+      ? argv.recipient
+      : undefined;
+
+  // Every hop origin needs a signer. For round-trip sends, all chains become origins.
+  const hopOrigins = argv.roundTrip
+    ? chainPath
+    : chainPath.length > 1
+      ? chainPath.slice(0, -1)
+      : chainPath;
+  hopOrigins.forEach((chain) => signerChains.add(chain));
+
+  // EVM destinations need signers when: (a) no explicit recipient (we default
+  // to the destination signer address), or (b) self-relay is enabled (the
+  // relayer submits on the destination chain).
+  if (!normalizedRecipient || argv.relay) {
+    for (let i = 1; i < chainPath.length; i += 1) {
+      const destination = chainPath[i];
+      if (isEVMLike(multiProvider.getProtocol(destination))) {
+        signerChains.add(destination);
+      }
+    }
+  }
+
+  return Array.from(signerChains);
 }
 
 async function resolveWarpRebalancerChains(

@@ -2,17 +2,27 @@ import {
   type Address,
   type Blockhash,
   type Instruction,
+  type ReadonlyUint8Array,
   type TransactionSigner,
   appendTransactionMessageInstructions,
+  blockhash,
+  compileTransactionMessage,
   createTransactionMessage,
+  getBase58Decoder,
+  getCompiledTransactionMessageEncoder,
+  getShortU16Encoder,
+  setTransactionMessageFeePayer,
   setTransactionMessageFeePayerSigner,
   setTransactionMessageLifetimeUsingBlockhash,
 } from '@solana/kit';
 
 import type { SvmInstruction, SvmTransaction } from './types.js';
+import { DEFAULT_COMPUTE_UNITS } from './constants.js';
 
-export const DEFAULT_COMPUTE_UNITS = 400_000;
-export const DEFAULT_WRITE_CHUNK_SIZE = 880;
+// Max data per BPFLoaderUpgradeable Write tx: 1232 packet limit minus tx
+// overhead. With 2 signers (payer != authority) overhead is ~355 bytes,
+// giving ~877 bytes max. Use 850 to leave margin for all signer configs.
+export const DEFAULT_WRITE_CHUNK_SIZE = 850;
 export const DEFAULT_PRIORITY_FEE_MICRO_LAMPORTS = 1;
 
 // Hand-rolled to avoid adding @solana-program/compute-budget as a dependency
@@ -91,4 +101,75 @@ export function transactionToInstructions(
   const computeUnits = tx.computeUnits ?? DEFAULT_COMPUTE_UNITS;
   const computeBudgetIxs = getComputeBudgetInstructions(computeUnits);
   return [...computeBudgetIxs, ...tx.instructions];
+}
+
+// ---------------------------------------------------------------------------
+// Unsigned transaction serialization (Squads-compatible v0 format)
+// ---------------------------------------------------------------------------
+
+const base58Decoder = getBase58Decoder();
+const messageEncoder = getCompiledTransactionMessageEncoder();
+const shortU16Encoder = getShortU16Encoder();
+
+/** Default blockhash (32 zero bytes) that needs to be replaced at submission time */
+const DEFAULT_BLOCKHASH = blockhash('11111111111111111111111111111111');
+
+/**
+ * Builds the wire bytes of an unsigned versioned (v0) transaction.
+ * Prepends compact-u16 signature count + N zero-filled 64-byte signature
+ * slots to the compiled message bytes.
+ */
+function buildUnsignedTransactionBytes(
+  numSigners: number,
+  messageBytes: ReadonlyUint8Array,
+): Uint8Array {
+  const sigCountBytes = shortU16Encoder.encode(numSigners);
+  const sigsLen = numSigners * 64;
+  const result = new Uint8Array(
+    sigCountBytes.length + sigsLen + messageBytes.length,
+  );
+  result.set(sigCountBytes, 0);
+  // signature slots are already zero-filled by Uint8Array constructor
+  result.set(messageBytes, sigCountBytes.length + sigsLen);
+  return result;
+}
+
+/**
+ * Serializes an SvmTransaction into base58-encoded formats compatible
+ * with the Squads multisig UI.
+ *
+ * Produces two representations:
+ * - `transaction_base58`: full unsigned v0 transaction (signatures + message)
+ * - `message_base58`: compiled message only (no signature wrapper)
+ *
+ * Both use a default (all-zeros) blockhash since these are unsigned
+ * transactions intended for offline / multisig signing workflows.
+ */
+export function serializeUnsignedTransaction(
+  instructions: SvmInstruction[],
+  feePayer: Address,
+): { transactionBase58: string; messageBase58: string } {
+  const txMessage = createTransactionMessage({ version: 0 });
+  const withFeePayer = setTransactionMessageFeePayer(feePayer, txMessage);
+  const withLifetime = setTransactionMessageLifetimeUsingBlockhash(
+    { blockhash: DEFAULT_BLOCKHASH, lastValidBlockHeight: 0n },
+    withFeePayer,
+  );
+  const withInstructions = appendTransactionMessageInstructions(
+    instructions,
+    withLifetime,
+  );
+
+  const compiled = compileTransactionMessage(withInstructions);
+  const messageBytes = messageEncoder.encode(compiled);
+
+  const transactionBytes = buildUnsignedTransactionBytes(
+    compiled.header.numSignerAccounts,
+    messageBytes,
+  );
+
+  return {
+    transactionBase58: base58Decoder.decode(transactionBytes),
+    messageBase58: base58Decoder.decode(messageBytes),
+  };
 }

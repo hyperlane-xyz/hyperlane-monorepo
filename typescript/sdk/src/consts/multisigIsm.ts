@@ -807,6 +807,17 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  fluent: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0xea189ae1a9c3e86bcb63597a34a8ea3b0bb83406',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
   forma: {
     threshold: 5,
     validators: [
@@ -992,12 +1003,13 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   igra: {
-    threshold: 1,
+    threshold: 2,
     validators: [
       {
         address: '0x485f0739639e46d3b06b1b92debe2ade56d8bfb1',
         alias: AW_VALIDATOR_ALIAS,
       },
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
@@ -1076,6 +1088,17 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       {
         address: '0xf23003ebdc6c53765d52b1fe7a65046eabb0e73b',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  kiichain: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0x5513bc60f0a3a8520edc03828c1bc6111008b54e',
         alias: AW_VALIDATOR_ALIAS,
       },
       DEFAULT_MITOSIS_VALIDATOR,
@@ -1418,6 +1441,17 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0x340058f071e8376c2ecff219e1e6620deea8a3c7',
         alias: 'Substance Labs',
       },
+    ],
+  },
+
+  mocachain: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0x31ab8fc95d941defa077f8501c6800e935c3b081',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
@@ -2277,6 +2311,17 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: AW_VALIDATOR_ALIAS,
       },
       DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  tron: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0x5f059616ce75d0fe6a02ea1d9fd2b32659b52adb',
+        alias: AW_VALIDATOR_ALIAS,
+      },
       DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
