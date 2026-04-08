@@ -59,6 +59,24 @@ describe('MultiProtocolProvider', () => {
       );
     });
 
+    it('preserves zksync lazy provider typing when adapting a MultiProvider', () => {
+      const multiProvider = new MultiProvider({
+        zksync: {
+          ...test1,
+          name: 'zksync',
+          domainId: 324,
+          chainId: 324,
+          technicalStack: ChainTechnicalStack.ZkSync,
+        },
+      });
+
+      const adapter = MultiProviderAdapter.fromMultiProvider(multiProvider);
+      const adapted = MultiProtocolProvider.fromMultiProvider(multiProvider);
+
+      expect(adapter.getProvider('zksync').type).to.equal(ProviderType.ZkSync);
+      expect(adapted.getProvider('zksync').type).to.equal(ProviderType.ZkSync);
+    });
+
     it('returns a gnosis-typed builder entry', () => {
       const provider = defaultProviderBuilderMap[ProviderType.GnosisTxBuilder](
         [{ http: 'https://ethereum.example.com' }],

@@ -1,8 +1,8 @@
-import { objFilter, objMap, pick } from '@hyperlane-xyz/utils';
+import { ProtocolType, objFilter, objMap, pick } from '@hyperlane-xyz/utils';
 
 import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import type { ChainMetadata } from '../metadata/chainMetadataTypes.js';
-import type { ChainMap, ChainName } from '../types.js';
+import type { ChainMap, ChainName, ChainNameOrId } from '../types.js';
 
 import {
   MinimalProviderRegistry,
@@ -11,9 +11,11 @@ import {
 import { MultiProvider, MultiProviderOptions } from './MultiProvider.js';
 import {
   EthersV5Provider,
+  PROTOCOL_TO_DEFAULT_PROVIDER_TYPE,
   ProviderType,
   TypedProvider,
 } from './ProviderType.js';
+import { defaultZKSyncProviderBuilder } from './builders/zksync.js';
 import type { ProviderBuilderFn } from './providerBuilders.js';
 
 export interface MultiProviderAdapterOptions extends MinimalProviderRegistryOptions {}
@@ -77,6 +79,7 @@ export function createAdapterFromMultiProvider<
       providerBuilders: {
         ...options?.providerBuilders,
         [ProviderType.EthersV5]: wrapMultiProviderBuilder(mp.providerBuilder),
+        [ProviderType.ZkSync]: defaultZKSyncProviderBuilder,
       },
     } as TOptions;
   const newMp = new AdapterClass(mp.metadata, adapterOptions);
@@ -87,6 +90,21 @@ export function createAdapterFromMultiProvider<
 export class MultiProviderAdapter<
   MetaExt = {},
 > extends MinimalProviderRegistry<MetaExt> {
+  protected getDefaultProviderType(
+    chainNameOrId: ChainNameOrId,
+  ): ProviderType | undefined {
+    const metadata = this.tryGetChainMetadata(chainNameOrId);
+    if (!metadata) return undefined;
+    if (
+      metadata.protocol === ProtocolType.Ethereum &&
+      metadata.technicalStack === ChainTechnicalStack.ZkSync
+    ) {
+      return ProviderType.ZkSync;
+    }
+    if (metadata.protocol === ProtocolType.Unknown) return undefined;
+    return PROTOCOL_TO_DEFAULT_PROVIDER_TYPE[metadata.protocol];
+  }
+
   constructor(
     chainMetadata: ChainMap<ChainMetadata<MetaExt>>,
     protected readonly options: MultiProviderAdapterOptions = {},
@@ -99,6 +117,16 @@ export class MultiProviderAdapter<
     options: MultiProviderAdapterOptions = {},
   ): MultiProviderAdapter<MetaExt> {
     return createAdapterFromMultiProvider(MultiProviderAdapter, mp, options);
+  }
+
+  override tryGetProvider(
+    chainNameOrId: ChainNameOrId,
+    type?: ProviderType,
+  ): TypedProvider | null {
+    return super.tryGetProvider(
+      chainNameOrId,
+      type ?? this.getDefaultProviderType(chainNameOrId),
+    );
   }
 
   toMultiProvider(options?: MultiProviderOptions): MultiProvider<MetaExt> {
