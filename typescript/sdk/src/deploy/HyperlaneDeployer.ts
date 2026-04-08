@@ -81,6 +81,13 @@ export abstract class HyperlaneDeployer<
 
   protected cachingEnabled = true;
 
+  // Args-aware deployment cache, keyed by `chain:contractName:argsHash`.
+  // Prevents same-name contracts with different constructor args from colliding.
+  private readonly deploymentCache = new Map<string, ethers.Contract>();
+  // Tracks `chain:contractName` entries that have args-aware deployments,
+  // so the name-only cachedAddresses fallback is skipped after the first deploy.
+  private readonly argsAwareContracts = new Set<string>();
+
   protected logger: Logger;
   chainTimeoutMs: number;
 
@@ -409,9 +416,33 @@ export abstract class HyperlaneDeployer<
     shouldRecover = true,
     implementationAddress?: Address,
   ): Promise<ReturnType<F['deploy']>> {
-    if (this.cachingEnabled && shouldRecover) {
+    const cacheKey = this.deriveCacheKey(contractName, constructorArgs);
+    const deploymentCacheKey = `${chain}:${cacheKey}`;
+    const nameTrackingKey = `${chain}:${contractName}`;
+
+    // Check args-aware deployment cache first (prevents same-name/different-args collisions)
+    if (this.cachingEnabled) {
+      const cachedDeployment = this.deploymentCache.get(deploymentCacheKey);
+      if (cachedDeployment) {
+        this.logger.debug(
+          `Reusing cached ${contractName} at ${cachedDeployment.address} (${cacheKey})`,
+        );
+        return cachedDeployment as ReturnType<F['deploy']>;
+      }
+    }
+
+    // Fall back to name-only cache (external recovery via cacheAddressesMap),
+    // but only if no args-aware deployment has occurred for this contract name
+    // on this chain (otherwise stale name-only entries return wrong contracts).
+    if (
+      this.cachingEnabled &&
+      shouldRecover &&
+      !this.argsAwareContracts.has(nameTrackingKey)
+    ) {
       const cachedContract = this.readCache(chain, factory, contractName);
       if (cachedContract) {
+        this.deploymentCache.set(deploymentCacheKey, cachedContract);
+        this.argsAwareContracts.add(nameTrackingKey);
         if (this.recoverVerificationInputs) {
           const recoveredInputs = await this.recoverVerificationArtifacts(
             chain,
@@ -514,6 +545,9 @@ export abstract class HyperlaneDeployer<
       // log error but keep deploying, can also verify post-deployment if needed
       this.logger.debug(`Error verifying contract: ${error}`);
     }
+
+    this.deploymentCache.set(deploymentCacheKey, contract);
+    this.argsAwareContracts.add(nameTrackingKey);
 
     return contract;
   }
@@ -698,11 +732,22 @@ export abstract class HyperlaneDeployer<
     );
   }
 
-  writeCache<K extends keyof Factories>(
-    chain: ChainName,
-    contractName: K,
-    address: Address,
-  ): void {
+  protected deriveCacheKey(
+    contractName: string,
+    constructorArgs: unknown[],
+  ): string {
+    if (constructorArgs.length === 0) return contractName;
+    const serialized = JSON.stringify(constructorArgs, (_, value) =>
+      typeof value === 'bigint'
+        ? value.toString()
+        : value?._isBigNumber
+          ? value.toString()
+          : value,
+    );
+    return `${contractName}:${ethers.utils.id(serialized).slice(2, 10)}`;
+  }
+
+  writeCache(chain: ChainName, contractName: string, address: Address): void {
     if (!this.cachedAddresses[chain]) {
       this.cachedAddresses[chain] = {};
     }
