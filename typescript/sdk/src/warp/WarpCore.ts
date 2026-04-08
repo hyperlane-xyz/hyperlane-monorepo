@@ -761,7 +761,7 @@ export class WarpCore {
     quotedCalls,
     destinationToken,
   }: {
-    originTokenAmount: TokenAmount;
+    originTokenAmount: TokenAmount<IToken>;
     destination: ChainNameOrId;
     recipient: Address;
     quotedCalls: QuotedCallsParams;
@@ -830,15 +830,15 @@ export class WarpCore {
     quotedCalls,
     destinationToken,
   }: {
-    originTokenAmount: TokenAmount;
+    originTokenAmount: TokenAmount<IToken>;
     destination: ChainNameOrId;
     sender: Address;
     recipient: Address;
     quotedCalls: QuotedCallsParams;
     destinationToken?: IToken;
   }): Promise<{
-    igpQuote: TokenAmount;
-    tokenFeeQuote?: TokenAmount;
+    igpQuote: TokenAmount<IToken>;
+    tokenFeeQuote?: TokenAmount<IToken>;
     /** Raw per-command quotes — pass to getTransferRemoteTxs */
     feeQuotes: Quote[][];
   }> {
@@ -882,7 +882,7 @@ export class WarpCore {
       tokenTotals.size <= 1,
       `Unexpected multi-token fee quotes: ${[...tokenTotals.keys()].join(', ')}`,
     );
-    let tokenFeeQuote: TokenAmount | undefined;
+    let tokenFeeQuote: TokenAmount<IToken> | undefined;
     const totalTokenQuoted = tokenTotals.get(tokenKey);
     if (totalTokenQuoted != null) {
       const feeOnly = totalTokenQuoted - originTokenAmount.amount;
@@ -914,7 +914,7 @@ export class WarpCore {
     destinationToken,
     feeQuotes,
   }: {
-    originTokenAmount: TokenAmount;
+    originTokenAmount: TokenAmount<IToken>;
     destination: ChainNameOrId;
     sender: Address;
     recipient: Address;
