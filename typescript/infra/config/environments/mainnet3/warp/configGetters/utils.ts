@@ -304,12 +304,15 @@ export function scaleDownConfig(
  * @param owner - The owner address for the fee contract
  * @param feeDestinations - List of destination chains that should have the fee applied
  * @param bps - The fee in basis points to apply for feeDestinations
+ * @param feeParams - Optional pre-deployed fee parameters per chain
+ * @param quoteSigners - If provided, uses OffchainQuotedLinearFee instead of LinearFee
  */
 export function getFixedRoutingFeeConfig(
   owner: Address,
   feeDestinations: readonly ChainName[],
   bps: number | Record<ChainName, number>,
   feeParams?: Record<string, { maxFee: string; halfAmount: string }>,
+  quoteSigners?: Address[],
 ): TokenFeeConfigInput {
   const feeContracts: Record<ChainName, TokenFeeConfigInput> = {};
 
@@ -318,15 +321,33 @@ export function getFixedRoutingFeeConfig(
     assert(chainBps != null, `Missing bps for destination chain ${chain}`);
 
     const params = feeParams?.[chain];
-    feeContracts[chain] = params
-      ? {
-          type: TokenFeeType.LinearFee,
-          owner,
-          bps: chainBps,
-          maxFee: BigInt(params.maxFee),
-          halfAmount: BigInt(params.halfAmount),
-        }
-      : { type: TokenFeeType.LinearFee, owner, bps: chainBps };
+    if (quoteSigners) {
+      feeContracts[chain] = params
+        ? {
+            type: TokenFeeType.OffchainQuotedLinearFee,
+            owner,
+            bps: chainBps,
+            maxFee: BigInt(params.maxFee),
+            halfAmount: BigInt(params.halfAmount),
+            quoteSigners,
+          }
+        : {
+            type: TokenFeeType.OffchainQuotedLinearFee,
+            owner,
+            bps: chainBps,
+            quoteSigners,
+          };
+    } else {
+      feeContracts[chain] = params
+        ? {
+            type: TokenFeeType.LinearFee,
+            owner,
+            bps: chainBps,
+            maxFee: BigInt(params.maxFee),
+            halfAmount: BigInt(params.halfAmount),
+          }
+        : { type: TokenFeeType.LinearFee, owner, bps: chainBps };
+    }
   }
 
   return {
@@ -348,6 +369,22 @@ export function getFileSubmitterStrategyConfig(
     chains.map((chain) => [
       chain,
       { submitter: { type: 'file', filepath, chain } },
+    ]),
+  ) as unknown as ChainSubmissionStrategy;
+}
+
+/**
+ * Creates an impersonated account strategy for anvil forks.
+ * 'impersonatedAccount' is CLI-specific (not in SDK types), so we use type assertion.
+ */
+export function getImpersonatedAccountStrategyConfig(
+  chains: readonly string[],
+  userAddress: Address,
+): ChainSubmissionStrategy {
+  return Object.fromEntries(
+    chains.map((chain) => [
+      chain,
+      { submitter: { type: 'impersonatedAccount', userAddress, chain } },
     ]),
   ) as unknown as ChainSubmissionStrategy;
 }

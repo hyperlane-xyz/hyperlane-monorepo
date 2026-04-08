@@ -171,6 +171,7 @@ jobs:
           - native-token
           - synthetic-token
           - collateral-token
+          - cross-collateral-token
           - provider
           - read-token
         include:

@@ -23,9 +23,6 @@
   "arbitrum": {
     "validators": ["0x4d966438fe9e2b1e7124c87bbb90cb4f0f6c59a1"]
   },
-  "arbitrumnova": {
-    "validators": ["0xd2a5e9123308d187383c87053811a2c21bd8af1f"]
-  },
   "arcadia": {
     "validators": ["0xe16ee9618f138cc2dcf9f9a95462099a8bf33a38"]
   },
@@ -35,14 +32,8 @@
   "astar": {
     "validators": ["0x4d1b2cade01ee3493f44304653d8e352c66ec3e7"]
   },
-  "aurora": {
-    "validators": ["0x37105aec3ff37c7bb0abdb0b1d75112e1e69fa86"]
-  },
   "avalanche": {
     "validators": ["0x3fb8263859843bffb02950c492d492cae169f4cf"]
-  },
-  "b3": {
-    "validators": ["0xd77b516730a836fc41934e7d5864e72c165b934e"]
   },
   "base": {
     "validators": ["0xb9453d675e0fa3c178a17b4ce1ad5b1a279b3af9"]
@@ -68,9 +59,6 @@
   "bsc": {
     "validators": ["0x570af9b7b36568c8877eebba6c6727aa9dab7268"]
   },
-  "bsquared": {
-    "validators": ["0xcadc90933c9fbe843358a4e70e46ad2db78e28aa"]
-  },
   "carrchain": {
     "validators": ["0x7ed0a7582af75dc38ad82e7125b51e3eaa6ec33b"]
   },
@@ -95,12 +83,6 @@
   "cyber": {
     "validators": ["0x94d7119ceeb802173b6924e6cc8c4cd731089a27"]
   },
-  "degenchain": {
-    "validators": ["0x433e311f19524cd64fb2123ad0aa1579a4e1fc83"]
-  },
-  "dogechain": {
-    "validators": ["0xe43f742c37858746e6d7e458bc591180d0cba440"]
-  },
   "eclipsemainnet": {
     "validators": ["0xebb52d7eaa3ff7a5a6260bfe5111ce52d57401d0"]
   },
@@ -121,9 +103,6 @@
   },
   "everclear": {
     "validators": ["0xeff20ae3d5ab90abb11e882cfce4b92ea6c74837"]
-  },
-  "fantom": {
-    "validators": ["0xa779572028e634e16f26af5dfd4fa685f619457d"]
   },
   "flare": {
     "validators": ["0xb65e52be342dba3ab2c088ceeb4290c744809134"]
@@ -151,9 +130,6 @@
   },
   "gravity": {
     "validators": ["0x23d549bf757a02a6f6068e9363196ecd958c974e"]
-  },
-  "harmony": {
-    "validators": ["0xd677803a67651974b1c264171b5d7ca8838db8d5"]
   },
   "hashkey": {
     "validators": ["0x55007cab8788cdba22844e7a2499cf43347f487a"]
@@ -224,9 +200,6 @@
   "megaeth": {
     "validators": ["0x051ddac8ecf4bae2532b8b7caa626b5567dab528"]
   },
-  "merlin": {
-    "validators": ["0xc1d6600cb9326ed2198cc8c4ba8d6668e8671247"]
-  },
   "metal": {
     "validators": ["0xd9f7f1a05826197a93df51e86cefb41dfbfb896a"]
   },
@@ -253,9 +226,6 @@
   },
   "monad": {
     "validators": ["0xb4654795b2f1b17513ffde7d85c776e4cade366c"]
-  },
-  "moonbeam": {
-    "validators": ["0x2225e2f4e9221049456da93b71d2de41f3b6b2a8"]
   },
   "morph": {
     "validators": ["0x4884535f393151ec419add872100d352f71af380"]
@@ -296,9 +266,6 @@
   "polygon": {
     "validators": ["0x12ecb319c7f4e8ac5eb5226662aeb8528c5cefac"]
   },
-  "polygonzkevm": {
-    "validators": ["0x86f2a44592bb98da766e880cfd70d3bbb295e61a"]
-  },
   "polynomialfi": {
     "validators": ["0x23d348c2d365040e56f3fee07e6897122915f513"]
   },
@@ -322,9 +289,6 @@
   },
   "ronin": {
     "validators": ["0xa3e11929317e4a871c3d47445ea7bb8c4976fd8a"]
-  },
-  "scroll": {
-    "validators": ["0xad557170a9f2f21c35e03de07cb30dcbcc3dff63"]
   },
   "sei": {
     "validators": ["0x9920d2dbf6c85ffc228fdc2e810bf895732c6aa5"]
@@ -359,17 +323,11 @@
   "stable": {
     "validators": ["0x21820baebcd972c769e490415cfee43a894f3c18"]
   },
-  "story": {
-    "validators": ["0x501eda013378c60557d763df98d617b6ba55447a"]
-  },
   "subtensor": {
     "validators": ["0xd5f8196d7060b85bea491f0b52a671e05f3d10a2"]
   },
   "superseed": {
     "validators": ["0xdc2b87cb555411bb138d3a4e5f7832c87fae2b88"]
-  },
-  "superpositionmainnet": {
-    "validators": ["0x3f489acdd341c6b4dd86293fa2cc5ecc8ccf4f84"]
   },
   "swell": {
     "validators": ["0x4f51e4f4c7fb45d82f91568480a1a2cfb69216ed"]
@@ -379,9 +337,6 @@
   },
   "taiko": {
     "validators": ["0xa930073c8f2d0b2f7423ea32293e0d1362e65d79"]
-  },
-  "tangle": {
-    "validators": ["0x1ee52cbbfacd7dcb0ba4e91efaa6fbc61602b15b"]
   },
   "torus": {
     "validators": ["0x96982a325c28a842bc8cf61b63000737bb9f1f7d"]
@@ -412,9 +367,6 @@
   },
   "zerogravity": {
     "validators": ["0xc37e7dad064c11d7ecfc75813a4d8d649d797275"]
-  },
-  "zeronetwork": {
-    "validators": ["0x1bd9e3f8a90ea1a13b0f2838a1858046368aad87"]
   },
   "zetachain": {
     "validators": ["0xa3bca0b80317dbf9c7dce16a16ac89f4ff2b23ef"]

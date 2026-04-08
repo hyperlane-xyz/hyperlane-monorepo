@@ -19,6 +19,7 @@ import {
   IXERC20__factory,
   MovableCollateralRouter__factory,
   Ownable__factory,
+  TokenBridgeCctpV2__factory,
   ProxyAdmin__factory,
   RoutingFee__factory,
   TimelockController__factory,
@@ -131,6 +132,13 @@ interface IcaRemoteCallInsight {
   calls: GovernTransaction[];
 }
 
+type FeeRouteDetail = {
+  type: string;
+  address: string;
+  bps: number;
+  percent: string;
+};
+
 type XERC20Metadata = {
   type: TokenStandard.EvmHypXERC20 | TokenStandard.EvmHypVSXERC20;
   symbol: string;
@@ -221,6 +229,18 @@ function isRpcOrTransportError(error: unknown): boolean {
     // Common transport-layer patterns
     if (/ECONNREFUSED|ENOTFOUND|ETIMEDOUT|fetch failed/i.test(error.message))
       return true;
+  }
+  return false;
+}
+
+function isAbiDecodingError(error: unknown): boolean {
+  if (
+    error instanceof Error &&
+    'code' in error &&
+    (error as { code: string }).code === 'INVALID_ARGUMENT' &&
+    error.message.includes('sighash')
+  ) {
+    return true;
   }
   return false;
 }
@@ -1081,11 +1101,20 @@ export class GovernTransactionReader {
     const { symbol } = await this.multiProvider.getNativeToken(chain);
     const tokenRouterInterface =
       MovableCollateralRouter__factory.createInterface();
+    const cctpV2Interface = TokenBridgeCctpV2__factory.createInterface();
 
-    const decoded = tokenRouterInterface.parseTransaction({
-      data: tx.data,
-      value: tx.value,
-    });
+    let decoded;
+    try {
+      decoded = tokenRouterInterface.parseTransaction({
+        data: tx.data,
+        value: tx.value,
+      });
+    } catch {
+      decoded = cctpV2Interface.parseTransaction({
+        data: tx.data,
+        value: tx.value,
+      });
+    }
 
     let insight: string | undefined;
     let feeDetails: Record<string, any> | undefined;
@@ -1241,6 +1270,15 @@ export class GovernTransactionReader {
       insight = `Enroll remote router for domain ${domain}${chainName ? ` (${chainName})` : ''} to ${router}`;
     }
 
+    if (
+      decoded.functionFragment.name ===
+      cctpV2Interface.functions['setMaxFeePpm(uint256)'].name
+    ) {
+      const [maxFeePpm] = decoded.args;
+      const bps = BigNumber.from(maxFeePpm).toNumber() / 100;
+      insight = `Set max fee to ${maxFeePpm} ppm (${bps} bps)`;
+    }
+
     let ownableTx = {};
     if (!insight) {
       ownableTx = await this.readOwnableTransaction(chain, tx);
@@ -1394,6 +1432,55 @@ export class GovernTransactionReader {
           type: 'RoutingFee',
           address: feeConfig.address,
           token: feeConfig.token,
+          owner: feeConfig.owner,
+          routes,
+        },
+      };
+    }
+
+    if (feeConfig.type === TokenFeeType.CrossCollateralRoutingFee) {
+      const routes: Record<string, Record<string, FeeRouteDetail>> = {};
+      const routeInsights: string[] = [];
+
+      for (const [chainName, routerConfigs] of Object.entries(
+        feeConfig.feeContracts || {},
+      )) {
+        const routerEntries = Object.entries(routerConfigs);
+        routes[chainName] = Object.fromEntries(
+          routerEntries.map(([routerKey, subConfig]) => {
+            const bps = subConfig.bps ? Number(subConfig.bps) : 0;
+            const percent = (bps / 100).toFixed(2);
+
+            return [
+              routerKey,
+              {
+                type: subConfig.type,
+                address: subConfig.address,
+                bps,
+                percent: `${percent}%`,
+              },
+            ];
+          }),
+        );
+
+        routeInsights.push(
+          `${chainName}: ${routerEntries.length} router${routerEntries.length === 1 ? '' : 's'}`,
+        );
+      }
+
+      const routeCount = Object.keys(routes).length;
+      const routeSummary =
+        routeCount <= 3
+          ? routeInsights.join(', ')
+          : `${routeCount} destinations configured`;
+
+      const description = `CrossCollateralRoutingFee contract (${routeSummary}, owner: ${ownerInsight})`;
+      return {
+        insight: `Set fee recipient to ${description}`,
+        description,
+        feeDetails: {
+          type: 'CrossCollateralRoutingFee',
+          address: feeConfig.address,
           owner: feeConfig.owner,
           routes,
         },
@@ -1899,7 +1986,7 @@ export class GovernTransactionReader {
             decoded,
           };
         } catch (error: unknown) {
-          if (!isRpcOrTransportError(error)) {
+          if (!isRpcOrTransportError(error) && !isAbiDecodingError(error)) {
             throw error;
           }
           this.logger.warn(
