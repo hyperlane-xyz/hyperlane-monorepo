@@ -8,7 +8,7 @@ use solana_program::{
 use solana_system_interface::program as system_program;
 
 use crate::{
-    accounts::{derive_domain_pda, IsmNode, DOMAIN_ISM_SEED},
+    accounts::{derive_domain_pda, IsmNode},
     storage_pda_seeds,
 };
 

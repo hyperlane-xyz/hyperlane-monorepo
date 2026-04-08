@@ -6,6 +6,7 @@ use hyperlane_core::{
     HyperlaneDomain, HyperlaneMessage, InterchainSecurityModule, Metadata, ModuleType,
     RawHyperlaneMessage, H256, U256,
 };
+use hyperlane_sealevel_composite_ism::accounts::derive_domain_pda;
 use hyperlane_sealevel_composite_ism::instruction::get_metadata_spec_instruction;
 pub use hyperlane_sealevel_composite_ism::metadata_spec::MetadataSpec;
 use serializable_account_meta::SimulationReturnData;
@@ -42,8 +43,13 @@ impl SealevelCompositeIsm {
     pub async fn get_metadata_spec(&self, message: &HyperlaneMessage) -> ChainResult<MetadataSpec> {
         let message_bytes = RawHyperlaneMessage::from(message).to_vec();
 
-        let instruction = get_metadata_spec_instruction(self.program_id, message_bytes)
-            .map_err(ChainCommunicationError::from_other)?;
+        // Derive the per-origin domain PDA in case the root ISM is a Routing node.
+        // For non-Routing roots the extra account is ignored by the program.
+        let (domain_pda, _) = derive_domain_pda(&self.program_id, message.origin);
+
+        let instruction =
+            get_metadata_spec_instruction(self.program_id, message_bytes, vec![domain_pda])
+                .map_err(ChainCommunicationError::from_other)?;
 
         let payer = self
             .payer

@@ -229,36 +229,48 @@ fn run_locally_composite_ism() {
     log!("Composite ISM e2e test passed");
 }
 
-/// Deploy the composite ISM program to sealeveltest2, initialize it with an
-/// aggregation(1-of-1 multisigMessageId) config, and set it as the mailbox
-/// default ISM.  Returns the deployed program ID.
+/// Deploy the composite ISM program to sealeveltest2, initialize it with a
+/// mainnet-matching structure, and set it as the mailbox default ISM.
+///
+/// Root ISM: Aggregation(1, [Pausable, Routing])
+/// Per-domain (sealeveltest1): Aggregation(1, [MultisigMessageId { validator, threshold=1 }])
+///
+/// Returns the deployed program ID.
 fn deploy_and_configure_composite_ism(
     solana_cli_tools_path: &Path,
     solana_config_path: &Path,
     built_so_dir: &Path,
 ) -> String {
-    // aggregation(threshold=1) wrapping multisigMessageId — exercises the full
-    // composite ISM tree-walk while keeping the validator set identical to the
-    // main sealevel e2e test.
-    let config = serde_json::json!({
+    // Root config mirrors mainnet defaultIsm: Aggregation(1, [Pausable, Routing])
+    let root_config = serde_json::json!({
+        "type": "aggregation",
+        "threshold": 1,
+        "sub_isms": [
+            { "type": "pausable", "paused": false },
+            { "type": "routing" }
+        ]
+    });
+
+    // Per-domain ISM for sealeveltest1 origin: Aggregation(1, [MultisigMessageId])
+    let domain_config = serde_json::json!({
         "type": "aggregation",
         "threshold": 1,
         "sub_isms": [
             {
                 "type": "multisigMessageId",
-                "domain_configs": [
-                    {
-                        "origin": SEALEVELTEST1_DOMAIN_ID_U32,
-                        "validators": [SEALEVELTEST1_VALIDATOR_ECDSA_ADDR],
-                        "threshold": 1
-                    }
-                ]
+                "validators": [SEALEVELTEST1_VALIDATOR_ECDSA_ADDR],
+                "threshold": 1
             }
         ]
     });
 
-    let mut config_file = NamedTempFile::new().expect("Failed to create temp config file");
-    serde_json::to_writer(&mut config_file, &config).expect("Failed to write composite ISM config");
+    let mut root_config_file = NamedTempFile::new().expect("Failed to create temp root config");
+    serde_json::to_writer(&mut root_config_file, &root_config)
+        .expect("Failed to write root ISM config");
+
+    let mut domain_config_file = NamedTempFile::new().expect("Failed to create temp domain config");
+    serde_json::to_writer(&mut domain_config_file, &domain_config)
+        .expect("Failed to write domain ISM config");
 
     // Write program-ids output to a temp directory to avoid polluting the source tree
     let envs_tempdir = tempdir().expect("Failed to create temp envs dir");
@@ -272,7 +284,7 @@ fn deploy_and_configure_composite_ism(
         .arg("built-so-dir", built_so_dir.to_str().unwrap())
         .arg("chain", "sealeveltest2")
         .arg("local-domain", SEALEVELTEST2_DOMAIN_ID)
-        .arg("config-file", config_file.path().to_str().unwrap())
+        .arg("config-file", root_config_file.path().to_str().unwrap())
         .run()
         .join();
 
@@ -294,6 +306,23 @@ fn deploy_and_configure_composite_ism(
 
     log!(
         "Deployed composite ISM to sealeveltest2: {}",
+        composite_ism_program_id
+    );
+
+    // Register the per-domain ISM for sealeveltest1
+    sealevel_client(solana_cli_tools_path, solana_config_path)
+        .arg("compute-budget", "200000")
+        .cmd("composite-ism")
+        .cmd("set-domain-ism")
+        .arg("program-id", &composite_ism_program_id)
+        .arg("domain", SEALEVELTEST1_DOMAIN_ID_U32.to_string())
+        .arg("config-file", domain_config_file.path().to_str().unwrap())
+        .run()
+        .join();
+
+    log!(
+        "Registered per-domain ISM for origin {} on composite ISM {}",
+        SEALEVELTEST1_DOMAIN_ID_U32,
         composite_ism_program_id
     );
 

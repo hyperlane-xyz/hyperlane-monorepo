@@ -745,6 +745,7 @@ pub(crate) enum CompositeIsmSubCmd {
     Deploy(CompositeIsmDeploy),
     Update(CompositeIsmUpdate),
     Read(CompositeIsmRead),
+    SetDomainIsm(CompositeIsmSetDomainIsm),
     TransferOwnership(TransferOwnership),
 }
 
@@ -774,6 +775,18 @@ pub(crate) struct CompositeIsmUpdate {
 pub(crate) struct CompositeIsmRead {
     #[arg(long, short)]
     program_id: Pubkey,
+}
+
+#[derive(Args)]
+pub(crate) struct CompositeIsmSetDomainIsm {
+    #[arg(long, short)]
+    program_id: Pubkey,
+    /// Origin domain ID for which this ISM should be registered.
+    #[arg(long)]
+    domain: u32,
+    /// Path to a JSON file containing the ISM node config.
+    #[arg(long)]
+    config_file: PathBuf,
 }
 
 #[derive(Args)]

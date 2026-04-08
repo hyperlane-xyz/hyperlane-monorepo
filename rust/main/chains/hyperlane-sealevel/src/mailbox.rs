@@ -238,25 +238,51 @@ impl SealevelMailbox {
     }
 
     /// Gets the account metas required for the ISM's `Verify` instruction.
+    ///
+    /// Runs a fixpoint loop: the result of each `VerifyAccountMetas` call is fed
+    /// back as input accounts for the next call, allowing composite ISMs with
+    /// `Routing` nodes to discover sub-accounts (e.g. a `TrustedRelayer` pubkey)
+    /// that are only readable once the domain PDA has been provided.
+    /// The loop terminates when the returned pubkey set stabilizes.
     pub async fn get_ism_verify_account_metas(
         &self,
         ism: Pubkey,
         metadata: Vec<u8>,
         message: Vec<u8>,
     ) -> ChainResult<Vec<AccountMeta>> {
-        let instruction =
-            InterchainSecurityModuleInstruction::VerifyAccountMetas(VerifyInstruction {
-                metadata,
-                message,
-            });
-        self.get_non_signer_account_metas_with_instruction_bytes(
-            ism,
-            &instruction
-                .encode()
-                .map_err(ChainCommunicationError::from_other)?,
+        let payer = self.get_payer()?;
+        let identity = self.get_signer_if_separate().map(|s| s.pubkey());
+
+        let (vam_pda_key, _) = Pubkey::find_program_address(
             hyperlane_sealevel_interchain_security_module_interface::VERIFY_ACCOUNT_METAS_PDA_SEEDS,
-        )
-        .await
+            &ism,
+        );
+
+        let mut accounts = vec![AccountMeta::new(vam_pda_key, false)];
+
+        loop {
+            let instruction =
+                InterchainSecurityModuleInstruction::VerifyAccountMetas(VerifyInstruction {
+                    metadata: metadata.clone(),
+                    message: message.clone(),
+                });
+            let ix = Instruction::new_with_bytes(
+                ism,
+                &instruction
+                    .encode()
+                    .map_err(ChainCommunicationError::from_other)?,
+                accounts.clone(),
+            );
+            let result = self.get_account_metas(ix).await?;
+
+            let result_keys: Vec<_> = result.iter().map(|m| m.pubkey).collect();
+            let prev_keys: Vec<_> = accounts.iter().map(|m| m.pubkey).collect();
+
+            if result_keys == prev_keys {
+                return sanitize_dynamic_accounts(result, &payer.pubkey(), identity.as_ref());
+            }
+            accounts = result;
+        }
     }
 
     /// Gets the account metas required for the recipient's `MessageRecipientInstruction::Handle` instruction.

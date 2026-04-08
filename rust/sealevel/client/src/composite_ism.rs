@@ -12,18 +12,12 @@ use crate::{
 
 use hyperlane_core::H160;
 use hyperlane_sealevel_composite_ism::{
-    accounts::{CompositeIsmAccount, DomainConfig, IsmNode},
+    accounts::{CompositeIsmAccount, IsmNode},
     instruction::{
-        initialize_instruction, transfer_ownership_instruction, update_config_instruction,
+        initialize_instruction, set_domain_ism_instruction, transfer_ownership_instruction,
+        update_config_instruction,
     },
 };
-
-/// A single entry in a routing ISM's route table.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct RoutingEntry {
-    pub domain: u32,
-    pub ism: IsmNodeConfig,
-}
 
 /// JSON-friendly mirror of [`IsmNode`].
 ///
@@ -37,14 +31,14 @@ pub(crate) enum IsmNodeConfig {
         relayer: Pubkey,
     },
     MultisigMessageId {
-        domain_configs: Vec<DomainConfigJson>,
+        validators: Vec<H160>,
+        threshold: u8,
     },
     Aggregation {
         threshold: u8,
         sub_isms: Vec<IsmNodeConfig>,
     },
     Routing {
-        routes: Vec<RoutingEntry>,
         #[serde(skip_serializing_if = "Option::is_none")]
         default_ism: Option<Box<IsmNodeConfig>>,
     },
@@ -63,41 +57,16 @@ pub(crate) enum IsmNodeConfig {
     },
 }
 
-/// JSON-friendly mirror of [`DomainConfig`].
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct DomainConfigJson {
-    pub origin: u32,
-    pub validators: Vec<H160>,
-    pub threshold: u8,
-}
-
-impl From<DomainConfigJson> for DomainConfig {
-    fn from(val: DomainConfigJson) -> Self {
-        DomainConfig {
-            origin: val.origin,
-            validators: val.validators,
-            threshold: val.threshold,
-        }
-    }
-}
-
-impl From<DomainConfig> for DomainConfigJson {
-    fn from(val: DomainConfig) -> Self {
-        DomainConfigJson {
-            origin: val.origin,
-            validators: val.validators,
-            threshold: val.threshold,
-        }
-    }
-}
-
 impl From<IsmNodeConfig> for IsmNode {
     fn from(val: IsmNodeConfig) -> Self {
         match val {
             IsmNodeConfig::TrustedRelayer { relayer } => IsmNode::TrustedRelayer { relayer },
-            IsmNodeConfig::MultisigMessageId { domain_configs } => IsmNode::MultisigMessageId {
-                domain_configs: domain_configs.into_iter().map(Into::into).collect(),
+            IsmNodeConfig::MultisigMessageId {
+                validators,
+                threshold,
+            } => IsmNode::MultisigMessageId {
+                validators,
+                threshold,
             },
             IsmNodeConfig::Aggregation {
                 threshold,
@@ -106,14 +75,7 @@ impl From<IsmNodeConfig> for IsmNode {
                 threshold,
                 sub_isms: sub_isms.into_iter().map(Into::into).collect(),
             },
-            IsmNodeConfig::Routing {
-                routes,
-                default_ism,
-            } => IsmNode::Routing {
-                routes: routes
-                    .into_iter()
-                    .map(|e| (e.domain, e.ism.into()))
-                    .collect(),
+            IsmNodeConfig::Routing { default_ism } => IsmNode::Routing {
                 default_ism: default_ism.map(|n| Box::new(IsmNode::from(*n))),
             },
             IsmNodeConfig::Test { accept } => IsmNode::Test { accept },
@@ -135,8 +97,12 @@ impl From<IsmNode> for IsmNodeConfig {
     fn from(val: IsmNode) -> Self {
         match val {
             IsmNode::TrustedRelayer { relayer } => IsmNodeConfig::TrustedRelayer { relayer },
-            IsmNode::MultisigMessageId { domain_configs } => IsmNodeConfig::MultisigMessageId {
-                domain_configs: domain_configs.into_iter().map(Into::into).collect(),
+            IsmNode::MultisigMessageId {
+                validators,
+                threshold,
+            } => IsmNodeConfig::MultisigMessageId {
+                validators,
+                threshold,
             },
             IsmNode::Aggregation {
                 threshold,
@@ -145,17 +111,7 @@ impl From<IsmNode> for IsmNodeConfig {
                 threshold,
                 sub_isms: sub_isms.into_iter().map(Into::into).collect(),
             },
-            IsmNode::Routing {
-                routes,
-                default_ism,
-            } => IsmNodeConfig::Routing {
-                routes: routes
-                    .into_iter()
-                    .map(|(domain, ism)| RoutingEntry {
-                        domain,
-                        ism: ism.into(),
-                    })
-                    .collect(),
+            IsmNode::Routing { default_ism } => IsmNodeConfig::Routing {
                 default_ism: default_ism.map(|n| Box::new(IsmNodeConfig::from(*n))),
             },
             IsmNode::Test { accept } => IsmNodeConfig::Test { accept },
@@ -232,6 +188,22 @@ pub(crate) fn process_composite_ism_cmd(mut ctx: Context, cmd: CompositeIsmCmd) 
         }
         CompositeIsmSubCmd::Read(read) => {
             read_composite_ism(&ctx, read.program_id);
+        }
+        CompositeIsmSubCmd::SetDomainIsm(set_domain) => {
+            let ism_node: IsmNode = load_config(&set_domain.config_file).into();
+            let instruction = set_domain_ism_instruction(
+                set_domain.program_id,
+                ctx.payer_pubkey,
+                set_domain.domain,
+                ism_node,
+            )
+            .unwrap();
+            ctx.new_txn()
+                .add_with_description(
+                    instruction,
+                    format!("Set domain ISM for origin domain {}", set_domain.domain),
+                )
+                .send_with_payer();
         }
         CompositeIsmSubCmd::TransferOwnership(transfer_ownership) => {
             let instruction = transfer_ownership_instruction(
