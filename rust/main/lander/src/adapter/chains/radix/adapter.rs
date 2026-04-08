@@ -17,7 +17,7 @@ use radix_transactions::{
 use scrypto::{
     address::{AddressBech32Decoder, AddressBech32Encoder},
     crypto::IsHash,
-    math::{CheckedMul, Decimal, SaturatingAdd},
+    math::{CheckedDiv, CheckedMul, Decimal, SaturatingAdd},
     network::NetworkDefinition,
     prelude::{
         manifest_decode, ManifestArgs, ManifestCustomValue, ManifestCustomValueKind, ManifestValue,
@@ -310,9 +310,75 @@ impl RadixAdapter {
 impl AdaptsChain for RadixAdapter {
     async fn estimate_gas_limit(
         &self,
-        _payload: &FullPayload,
-    ) -> Result<Option<GasLimit>, LanderError> {
-        todo!()
+        payload: &FullPayload,
+    ) -> Result<hyperlane_core::TxCostEstimate, LanderError> {
+        use hyperlane_core::FixedPointNumber;
+
+        let operation_payload: RadixTxCalldata = serde_json::from_slice(&payload.data)
+            .map_err(ChainCommunicationError::from_other)
+            .map_err(LanderError::ChainCommunicationError)?;
+
+        let manifest_value: ManifestValue = manifest_decode(&operation_payload.encoded_arguments)
+            .map_err(|err| {
+            let error_msg = "Failed to decode manifest";
+            tracing::error!(?err, payload_uuid = ?payload.uuid(), "{error_msg}");
+            LanderError::PayloadNotFound
+        })?;
+
+        let manifest_args = match manifest_value {
+            sbor::Value::Tuple { fields } => fields,
+            s => vec![s],
+        };
+
+        let decoder = AddressBech32Decoder::new(&self.network);
+        let component_address =
+            ComponentAddress::try_from_bech32(&decoder, &operation_payload.component_address)
+                .ok_or_else(|| {
+                    let error_msg = "Failed to parse ComponentAddress";
+                    tracing::error!(
+                        component_address = operation_payload.component_address,
+                        payload_uuid = ?payload.uuid(),
+                        "{error_msg}"
+                    );
+                    LanderError::PayloadNotFound
+                })?;
+
+        let (_, fee_summary) = self
+            .visible_components(
+                &component_address,
+                &operation_payload.method_name,
+                manifest_args,
+            )
+            .await
+            .map_err(LanderError::ChainCommunicationError)?;
+
+        let total_units = fee_summary
+            .execution_cost_units_consumed
+            .checked_add(fee_summary.finalization_cost_units_consumed)
+            .ok_or_else(|| {
+                LanderError::ChainCommunicationError(ChainCommunicationError::from_other_str(
+                    "Radix fee summary total units overflowed",
+                ))
+            })?;
+
+        let paid =
+            RadixProvider::total_fee(fee_summary).map_err(LanderError::ChainCommunicationError)?;
+        let paid_per_unit = if total_units == 0 {
+            paid
+        } else {
+            paid.checked_div(total_units).ok_or_else(|| {
+                LanderError::ChainCommunicationError(ChainCommunicationError::from_other_str(
+                    "Radix fee summary per-unit fee division failed",
+                ))
+            })?
+        };
+
+        Ok(hyperlane_core::TxCostEstimate {
+            gas_limit: total_units.into(),
+            gas_price: FixedPointNumber::from_str(&paid_per_unit.to_string())
+                .map_err(LanderError::ChainCommunicationError)?,
+            l2_gas_limit: None,
+        })
     }
 
     async fn build_transactions(&self, payloads: &[FullPayload]) -> Vec<TxBuildingResult> {
