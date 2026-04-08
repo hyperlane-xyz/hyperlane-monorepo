@@ -15,6 +15,7 @@ import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 
 import { EvmTokenFeeDeployer } from './EvmTokenFeeDeployer.js';
+import { EvmTokenFeeReader } from './EvmTokenFeeReader.js';
 import { BPS, HALF_AMOUNT, MAX_FEE } from './EvmTokenFeeReader.hardhat-test.js';
 import {
   DEFAULT_ROUTER_KEY,
@@ -269,6 +270,74 @@ describe('EvmTokenFeeDeployer', () => {
 
     expect(await routingFeeContract.owner()).to.equal(otherSigner.address);
     expect(await routingFeeContract.token()).to.equal(token.address);
+  });
+
+  it('should deploy RoutingFee with different bps per destination', async () => {
+    const reader = new EvmTokenFeeReader(multiProvider, TestChainName.test2);
+    const params15 = reader.convertFromBps(15);
+    const params10 = reader.convertFromBps(10);
+
+    const linearFee = (
+      bps: number,
+      params: { maxFee: bigint; halfAmount: bigint },
+    ) => ({
+      type: TokenFeeType.LinearFee,
+      token: token.address,
+      owner: signer.address,
+      maxFee: params.maxFee,
+      halfAmount: params.halfAmount,
+      bps,
+    });
+
+    const config = RoutingFeeConfigSchema.parse({
+      type: TokenFeeType.RoutingFee,
+      owner: signer.address,
+      token: token.address,
+      feeContracts: {
+        [TestChainName.test1]: linearFee(15, params15),
+        [TestChainName.test2]: linearFee(10, params10),
+        [TestChainName.test3]: linearFee(15, params15),
+      },
+    });
+
+    const deployedContracts = await deployer.deploy({
+      [TestChainName.test2]: config,
+    });
+
+    const routingFeeContract =
+      deployedContracts[TestChainName.test2][TokenFeeType.RoutingFee];
+
+    const addr1 = await routingFeeContract.feeContracts(
+      multiProvider.getDomainId(TestChainName.test1),
+    );
+    const addr2 = await routingFeeContract.feeContracts(
+      multiProvider.getDomainId(TestChainName.test2),
+    );
+    const addr3 = await routingFeeContract.feeContracts(
+      multiProvider.getDomainId(TestChainName.test3),
+    );
+
+    // test1 (15 bps) and test3 (15 bps) should share the same contract
+    expect(addr1).to.equal(addr3);
+    // test2 (10 bps) should be a different contract
+    expect(addr1).to.not.equal(addr2);
+    expect(addr2).to.not.equal(hre.ethers.constants.AddressZero);
+
+    // Verify actual bps values on-chain
+    const fee1 = LinearFee__factory.connect(addr1, signer);
+    const fee2 = LinearFee__factory.connect(addr2, signer);
+    expect(
+      convertToBps(
+        (await fee1.maxFee()).toBigInt(),
+        (await fee1.halfAmount()).toBigInt(),
+      ),
+    ).to.equal(15);
+    expect(
+      convertToBps(
+        (await fee2.maxFee()).toBigInt(),
+        (await fee2.halfAmount()).toBigInt(),
+      ),
+    ).to.equal(10);
   });
 
   it('should deploy OffchainQuotedLinearFee with correct parameters', async () => {

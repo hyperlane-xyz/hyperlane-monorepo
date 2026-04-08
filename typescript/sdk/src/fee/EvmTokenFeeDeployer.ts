@@ -32,6 +32,13 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
   EvmTokenFeeFactories
 > {
   protected readonly tokenFeeReader: EvmTokenFeeReader;
+  // Parameter-aware cache for fee contracts. The base deployer caches by
+  // contract name alone ("LinearFee"), which causes all sub-fee deploys in a
+  // RoutingFee to resolve to the first deployed contract even when bps differ.
+  // This cache keys on the fee parameters so identical configs reuse a contract
+  // while different configs get their own deployment.
+  private readonly feeContractCache = new Map<string, BaseFee>();
+
   constructor(
     protected readonly multiProvider: MultiProvider,
     protected readonly chain: ChainName,
@@ -96,12 +103,31 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
       maxFee = calculatedMaxFee;
       halfAmount = calculatedHalfAmount;
     }
-    return this.deployContract(chain, config.type, [
-      config.token,
-      maxFee,
-      halfAmount,
-      config.owner,
-    ]);
+    const cacheKey =
+      config.type === TokenFeeType.LinearFee && config.bps
+        ? `${config.type}_${config.bps}`
+        : `${config.type}_${maxFee}_${halfAmount}`;
+
+    const cached = this.feeContractCache.get(cacheKey);
+    if (cached) {
+      this.logger.debug(
+        `Reusing cached ${config.type} at ${cached.address} (${cacheKey})`,
+      );
+      return cached;
+    }
+
+    // shouldRecover = false bypasses the base deployer's name-based cache
+    // which keys by contract name alone ("LinearFee") and would return the
+    // first deployed contract for all destinations regardless of parameters.
+    const contract = await this.deployContract(
+      chain,
+      config.type,
+      [config.token, maxFee, halfAmount, config.owner],
+      undefined,
+      false,
+    );
+    this.feeContractCache.set(cacheKey, contract);
+    return contract;
   }
 
   private async deployOffchainQuotedLinearFee(
