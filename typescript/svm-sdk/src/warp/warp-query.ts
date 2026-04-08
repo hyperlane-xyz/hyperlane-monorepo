@@ -7,6 +7,7 @@ import {
   type HyperlaneTokenAccountData,
 } from '../accounts/token.js';
 import {
+  deriveCrossCollateralStatePda,
   deriveHyperlaneTokenPda,
   deriveNativeCollateralPda,
   deriveSyntheticMintPda,
@@ -18,6 +19,7 @@ export enum SvmWarpTokenType {
   Native = 'native',
   Synthetic = 'synthetic',
   Collateral = 'collateral',
+  CrossCollateral = 'crossCollateral',
 }
 
 /**
@@ -50,18 +52,26 @@ export async function detectWarpTokenType(
     { address: nativeCollateralPda },
     { address: syntheticMintPda },
     { address: escrowPda },
+    { address: ccStatePda },
   ] = await Promise.all([
     deriveNativeCollateralPda(programId),
     deriveSyntheticMintPda(programId),
     deriveEscrowPda(programId),
+    deriveCrossCollateralStatePda(programId),
   ]);
 
-  const [nativeAccount, syntheticAccount, collateralAccount] =
+  const [nativeAccount, syntheticAccount, collateralAccount, ccStateAccount] =
     await Promise.all([
       fetchEncodedAccount(rpc, nativeCollateralPda),
       fetchEncodedAccount(rpc, syntheticMintPda),
       fetchEncodedAccount(rpc, escrowPda),
+      fetchEncodedAccount(rpc, ccStatePda),
     ]);
+
+  // CC has both escrow + CC state; check CC first to disambiguate from collateral
+  if (collateralAccount.exists && ccStateAccount.exists) {
+    return SvmWarpTokenType.CrossCollateral;
+  }
 
   const matches: SvmWarpTokenType[] = [];
   if (nativeAccount.exists) matches.push(SvmWarpTokenType.Native);
@@ -75,7 +85,9 @@ export async function detectWarpTokenType(
       : `Ambiguous warp token type for program ${programId}: multiple type-specific PDAs exist (${matches.join(', ')})`,
   );
 
-  return matches[0]!;
+  const result = matches[0];
+  assert(result !== undefined, 'Unexpected empty matches after validation');
+  return result;
 }
 
 /** Converts a 32-byte router H256 to a 0x-prefixed hex string. */

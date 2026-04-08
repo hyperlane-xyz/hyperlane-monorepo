@@ -30,7 +30,7 @@ COPY typescript/cli/package.json ./typescript/cli/
 COPY typescript/cosmos-sdk/package.json ./typescript/cosmos-sdk/
 COPY typescript/cosmos-types/package.json ./typescript/cosmos-types/
 COPY typescript/deploy-sdk/package.json ./typescript/deploy-sdk/
-COPY typescript/eslint-config/package.json ./typescript/eslint-config/
+COPY typescript/fee-quoting/package.json ./typescript/fee-quoting/
 COPY typescript/github-proxy/package.json ./typescript/github-proxy/
 COPY typescript/helloworld/package.json ./typescript/helloworld/
 COPY typescript/http-registry-server/package.json ./typescript/http-registry-server/
@@ -52,7 +52,6 @@ COPY typescript/warp-monitor/package.json ./typescript/warp-monitor/
 COPY typescript/warp-widget/package.json ./typescript/warp-widget/
 COPY typescript/widgets/package.json ./typescript/widgets/
 COPY solidity/package.json ./solidity/
-COPY solidity/multicollateral/package.json ./solidity/multicollateral/
 COPY solhint-plugin/package.json ./solhint-plugin/
 COPY starknet/package.json ./starknet/
 

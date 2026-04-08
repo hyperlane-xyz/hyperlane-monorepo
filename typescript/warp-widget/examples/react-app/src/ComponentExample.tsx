@@ -46,8 +46,7 @@ export function ComponentExample() {
     <div>
       <h2>React Component</h2>
       <p>
-        <code>{'<HyperlaneWarpWidget />'}</code> from{' '}
-        <code>@hyperlane-xyz/warp-widget/react</code>
+        <code>{'<HyperlaneWarpWidget />'}</code> from <code>@hyperlane-xyz/warp-widget/react</code>
         {events.length > 0 && (
           <span style={{ color: '#22c55e', marginLeft: 8 }}>
             {events.length} event{events.length > 1 ? 's' : ''}

@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/cosmos-sdk",
-  "version": "29.1.0",
+  "version": "30.1.1",
   "description": "Hyperlane TypeScript SDK for the Cosmos Hyperlane SDK module",
   "keywords": [
     "blockchain",
@@ -29,7 +29,7 @@
   "scripts": {
     "build": "rm -rf ./dist && tsc",
     "format": "oxfmt --write ./src",
-    "lint": "eslint -c ./eslint.config.mjs",
+    "lint": "oxlint -c ../../oxlint.json",
     "clean": "rm -rf ./dist ./cache",
     "dev": "tsc --watch",
     "test": "echo \"no tests in cosmos-sdk\"",
@@ -47,27 +47,18 @@
     "@hyperlane-xyz/utils": "workspace:*"
   },
   "devDependencies": {
-    "@eslint/js": "catalog:",
-    "@hyperlane-xyz/eslint-config": "workspace:^",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@types/chai": "catalog:",
     "@types/chai-as-promised": "catalog:",
     "@types/mocha": "catalog:",
     "@types/node": "catalog:",
-    "@typescript-eslint/eslint-plugin": "catalog:",
-    "@typescript-eslint/parser": "catalog:",
     "chai": "catalog:",
     "chai-as-promised": "catalog:",
-    "eslint": "catalog:",
-    "eslint-config-prettier": "catalog:",
-    "eslint-import-resolver-typescript": "catalog:",
-    "eslint-plugin-import": "catalog:",
     "mocha": "catalog:",
     "mocha-steps": "catalog:",
     "oxfmt": "catalog:",
     "testcontainers": "catalog:",
     "ts-node": "catalog:",
-    "typescript": "catalog:",
-    "typescript-eslint": "catalog:"
+    "typescript": "catalog:"
   }
 }

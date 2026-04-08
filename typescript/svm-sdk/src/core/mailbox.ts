@@ -182,6 +182,7 @@ export class SvmMailboxWriter
     const expectedIsm = expected.defaultIsm.deployed.address;
     if (!eqAddressSol(currentIsm, expectedIsm)) {
       txs.push({
+        feePayer: ownerAddress,
         instructions: [
           await buildSetDefaultIsmInstruction(
             programId,
@@ -201,6 +202,7 @@ export class SvmMailboxWriter
         ? parseAddress(expected.owner)
         : null;
       txs.push({
+        feePayer: ownerAddress,
         instructions: [
           await buildTransferMailboxOwnershipInstruction(
             programId,

@@ -1,0 +1,59 @@
+{
+  "name": "@hyperlane-xyz/fee-quoting",
+  "version": "27.2.1",
+  "private": true,
+  "description": "Offchain fee quoting service and client for Hyperlane",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+  "files": [
+    "/dist"
+  ],
+  "type": "module",
+  "types": "./dist/server.d.ts",
+  "exports": {
+    "./server": "./dist/server.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "bundle": "rm -rf ./bundle && ncc build ./dist/scripts/run-server.js -o bundle -e @google-cloud/pino-logging-gcp-config && node ../../scripts/ncc.post-bundle.mjs",
+    "dev": "tsx watch scripts/run-server.ts",
+    "start": "tsx scripts/run-server.ts",
+    "test": "mocha --config .mocharc.json './test/**/*.test.ts' --exit",
+    "coverage": "c8 pnpm test",
+    "lint": "eslint -c ./eslint.config.mjs",
+    "format": "oxfmt --write ./src"
+  },
+  "dependencies": {
+    "@hyperlane-xyz/registry": "catalog:",
+    "@hyperlane-xyz/sdk": "workspace:*",
+    "@hyperlane-xyz/utils": "workspace:*",
+    "cors": "^2.8.5",
+    "express": "^4.17.1",
+    "pino": "catalog:",
+    "pino-http": "^8.6.1",
+    "prom-client": "catalog:",
+    "viem": "catalog:",
+    "yargs": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/chai": "catalog:",
+    "@types/cors": "^2",
+    "@types/express": "^4.17.1",
+    "@types/mocha": "catalog:",
+    "@types/node": "catalog:",
+    "@types/supertest": "^6",
+    "@types/yargs": "catalog:",
+    "@vercel/ncc": "catalog:",
+    "c8": "catalog:",
+    "chai": "catalog:",
+    "mocha": "catalog:",
+    "supertest": "^7.0.0",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

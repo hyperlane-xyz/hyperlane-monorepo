@@ -51,6 +51,7 @@ const SOLANA_HYPERLANE_PROGRAMS: &[&str] = &[
     "hyperlane-sealevel-token",
     "hyperlane-sealevel-token-native",
     "hyperlane-sealevel-token-collateral",
+    "hyperlane-sealevel-token-cross-collateral",
     "hyperlane-sealevel-igp",
 ];
 
