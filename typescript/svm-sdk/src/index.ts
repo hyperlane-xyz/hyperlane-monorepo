@@ -123,12 +123,6 @@ export {
 } from './core/validator-announce-query.js';
 export { decodeCrossCollateralStateAccount } from './accounts/cross-collateral-token.js';
 
-// Cross-collateral instruction builders
-export {
-  getCrossCollateralInitInstruction,
-  getSetCrossCollateralRoutersInstruction,
-} from './instructions/cross-collateral-token.js';
-
 // Cross-collateral warp token reader/writer
 export {
   SvmCrossCollateralTokenReader,
