@@ -74,7 +74,7 @@ const NON_EXISTENT_ACCOUNT_ERROR = 'could not find account';
  * Because a higher compute limit doesn't increase the fee for a transaction,
  * we generously request 1M units.
  */
-const TRANSFER_REMOTE_COMPUTE_LIMIT = 1_000_000;
+export const TRANSFER_REMOTE_COMPUTE_LIMIT = 1_000_000;
 
 /**
  * The factor by which to multiply the median prioritization fee

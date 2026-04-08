@@ -34,7 +34,6 @@ import {
   TOKEN_STANDARD_TO_PROVIDER_TYPE,
   TokenStandard,
 } from '../token/TokenStandard.js';
-import { EvmHypCrossCollateralAdapter } from '../token/adapters/EvmCrossCollateralAdapter.js';
 import {
   EVM_TRANSFER_REMOTE_GAS_ESTIMATE,
   EvmHypCollateralFiatAdapter,
@@ -43,6 +42,7 @@ import {
 import {
   IHypXERC20Adapter,
   InterchainGasQuote,
+  isHypCrossCollateralAdapter,
 } from '../token/adapters/ITokenAdapter.js';
 import {
   buildExecuteCalldata,
@@ -192,22 +192,23 @@ export class WarpCore {
           destinationToken,
         });
         assert(
-          isEVMLike(originToken.protocol),
-          'CrossCollateralRouter fee quoting is currently supported only on EVM origins',
-        );
-        assert(
           resolvedDestinationToken.addressOrDenom,
           'Destination token missing addressOrDenom',
         );
         const crossCollateralAdapter = originToken.getHypAdapter(
           this.multiProvider,
           destinationName,
-        ) as EvmHypCrossCollateralAdapter; // CAST: getHypAdapter returns IHypTokenAdapter<unknown>; narrowed by isCrossCollateralTransfer + isEVMLike assert above
+        );
+        assert(
+          isHypCrossCollateralAdapter(crossCollateralAdapter),
+          'Adapter does not implement IHypCrossCollateralAdapter',
+        );
         quote = await crossCollateralAdapter.quoteTransferRemoteToGas({
           destination: destinationDomainId,
           recipient,
           amount,
           targetRouter: resolvedDestinationToken.addressOrDenom,
+          sender,
         });
       } else {
         const hypAdapter = originToken.getHypAdapter(
@@ -664,21 +665,22 @@ export class WarpCore {
     );
 
     const providerType = TOKEN_STANDARD_TO_PROVIDER_TYPE[originToken.standard];
-    assert(
-      isEVMLike(originToken.protocol),
-      'CrossCollateralRouter transferRemoteTo is currently supported only on EVM origins',
-    );
 
     const adapter = originToken.getHypAdapter(
       this.multiProvider,
       destinationName,
-    ) as EvmHypCrossCollateralAdapter; // CAST: getHypAdapter returns IHypTokenAdapter<unknown>; narrowed by isCrossCollateralTransfer + isEVMLike assert above
+    );
+    assert(
+      isHypCrossCollateralAdapter(adapter),
+      'Adapter does not implement IHypCrossCollateralAdapter',
+    );
 
     const transferQuote = await adapter.quoteTransferRemoteToGas({
       destination: this.multiProvider.getDomainId(destination),
       recipient,
       amount,
       targetRouter: resolvedDestinationToken.addressOrDenom,
+      sender,
     });
     assert(
       !transferQuote.igpQuote.addressOrDenom ||
@@ -721,17 +723,28 @@ export class WarpCore {
     // Same-chain: calls handle() directly on target router (atomic, no relay needed).
     const destinationDomainId = this.multiProvider.getDomainId(destination);
 
+    const originDomainId = this.multiProvider.getDomainId(
+      originToken.chainName,
+    );
+    const isLocalTransfer = destinationDomainId === originDomainId;
+    const extraSignerKeypairs =
+      providerType === ProviderType.SolanaWeb3 && !isLocalTransfer
+        ? [Keypair.generate()]
+        : undefined;
     const txReq = await adapter.populateTransferRemoteToTx({
       destination: destinationDomainId,
       recipient,
       amount,
       targetRouter: resolvedDestinationToken.addressOrDenom,
       interchainGas: transferQuote,
+      fromAccountOwner: sender,
+      extraSigners: extraSignerKeypairs,
     });
     transactions.push({
       category: WarpTxCategory.Transfer,
       type: providerType,
       transaction: txReq,
+      ...(extraSignerKeypairs && { extraSigners: extraSignerKeypairs }),
     } as WarpTypedTransaction);
 
     return transactions;
