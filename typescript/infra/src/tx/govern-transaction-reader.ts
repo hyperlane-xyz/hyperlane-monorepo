@@ -1284,14 +1284,27 @@ export class GovernTransactionReader {
 
       // Check if it's a fee contract by calling feeType()
       const baseFee = BaseFee__factory.connect(feeRecipientAddress, provider);
-      await baseFee.feeType(); // Will throw if not a fee contract
+      const feeType = await baseFee.feeType();
 
       // Get routing destinations from the token router
       const tokenRouter = TokenRouter__factory.connect(
         tokenRouterAddress,
         provider,
       );
-      const domains = await tokenRouter.domains();
+      const routerDomains = await tokenRouter.domains();
+
+      // For RoutingFee contracts, also read domains from the fee contract itself
+      // since it may have routes configured before the token router enrolls them
+      let domains = routerDomains;
+      if (feeType === OnchainTokenFeeType.RoutingFee) {
+        const routingFee = RoutingFee__factory.connect(
+          feeRecipientAddress,
+          provider,
+        );
+        const feeDomains = await routingFee.domains();
+        const domainSet = new Set([...routerDomains, ...feeDomains]);
+        domains = Array.from(domainSet);
+      }
 
       // Use EvmTokenFeeReader to derive full config
       const feeReader = new EvmTokenFeeReader(this.multiProvider, chain);
