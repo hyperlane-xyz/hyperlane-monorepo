@@ -68,6 +68,10 @@ import {
 } from './environments/mainnet3/warp/configGetters/getEclipseUSDCWarpConfig.js';
 import { getElectroneumUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getElectroneumUSDCWarpConfig.js';
 import {
+  getIgraUSDCStrategyConfig,
+  getIgraUSDCWarpConfig,
+} from './environments/mainnet3/warp/configGetters/getIgraUSDCWarpConfig.js';
+import {
   getEni1PieceWarpConfig,
   getEniEthWarpConfig,
   getEniUsdcWarpConfig,
@@ -205,6 +209,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.RadixUSDC]: getRadixUSDCWarpConfig,
   [WarpRouteIds.PulsechainUSDC]: getPulsechainUSDCWarpConfig,
   [WarpRouteIds.ElectroneumUSDC]: getElectroneumUSDCWarpConfig,
+  [WarpRouteIds.IgraUSDC]: getIgraUSDCWarpConfig,
   [WarpRouteIds.MantraUSDC]: getMantraUSDCWarpConfig,
   [WarpRouteIds.IncentivUSDC]: getIncentivUSDCWarpConfig,
   [WarpRouteIds.LitchainLITKEY]: getLitchainLITKEYWarpConfig,
@@ -237,6 +242,7 @@ export const strategyConfigGetterMap: Record<string, StrategyConfigGetter> = {
     getRezStagingGnosisSafeBuilderStrategyConfig,
   [WarpRouteIds.BsquaredUBTC]: getUbtcGnosisSafeBuilderStrategyConfigGenerator,
   [WarpRouteIds.EclipseUSDC]: getEclipseUSDCStrategyConfig,
+  [WarpRouteIds.IgraUSDC]: getIgraUSDCStrategyConfig,
   [WarpRouteIds.EclipseUSDCSTAGE]:
     getUSDCSTAGEEclipseFileSubmitterStrategyConfig,
   [WarpRouteIds.MainnetCCTPV1]: getCCTPV1StrategyConfig,
