@@ -1279,8 +1279,13 @@ function assertCombineRoutesAreValid(routes: CombineRouteConfig[]): void {
       `Route "${route.id}" contains non-CrossCollateralRouter deploy configs for chain(s): ${invalidDeployChains.join(', ')}`,
     );
 
+    const CROSS_COLLATERAL_STANDARDS: Set<string> = new Set([
+      TokenStandard.EvmHypCrossCollateralRouter,
+      TokenStandard.SealevelHypCrossCollateral,
+      TokenStandard.TronHypCrossCollateralRouter,
+    ]);
     const invalidCoreTokens = route.coreConfig.tokens.filter(
-      (token) => token.standard !== TokenStandard.EvmHypCrossCollateralRouter,
+      (token) => !CROSS_COLLATERAL_STANDARDS.has(token.standard),
     );
     assert(
       invalidCoreTokens.length === 0,
