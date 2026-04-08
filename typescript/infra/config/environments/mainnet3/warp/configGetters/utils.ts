@@ -315,6 +315,7 @@ export function getFixedRoutingFeeConfig(
 
   for (const chain of feeDestinations) {
     const chainBps = typeof bps === 'number' ? bps : bps[chain];
+    assert(chainBps != null, `Missing bps for destination chain ${chain}`);
 
     const params = feeParams?.[chain];
     feeContracts[chain] = params
