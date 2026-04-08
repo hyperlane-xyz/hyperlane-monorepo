@@ -42,7 +42,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Validator]: {
     aleotestnet: true,
     arbitrumsepolia: true,
-    arcadiatestnet2: false,
     basesepolia: true,
     bsctestnet: true,
     celestiatestnet: true,
@@ -68,7 +67,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Relayer]: {
     aleotestnet: true,
     arbitrumsepolia: true,
-    arcadiatestnet2: false,
     basesepolia: true,
     bsctestnet: true,
     celestiatestnet: true,
@@ -94,7 +92,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Scraper]: {
     aleotestnet: true,
     arbitrumsepolia: true,
-    arcadiatestnet2: false,
     basesepolia: true,
     bsctestnet: true,
     celestiatestnet: true,
