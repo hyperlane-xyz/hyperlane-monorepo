@@ -19,8 +19,8 @@ pub(crate) fn contains_rate_limited(node: &IsmNode) -> bool {
         IsmNode::AmountRouting { lower, upper, .. } => {
             contains_rate_limited(lower) || contains_rate_limited(upper)
         }
-        // Routing disallows RateLimited inside domain PDAs (validated at SetDomainIsm time),
-        // and default_ism could theoretically contain one, but we check it too.
+        // For Routing, only the default_ism matters here — domain PDAs handle their own
+        // writable marking (see the Routing arm in required_accounts_for_node).
         IsmNode::Routing { default_ism } => {
             default_ism.as_deref().is_some_and(contains_rate_limited)
         }
@@ -118,12 +118,12 @@ pub fn required_accounts_for_node(
         IsmNode::Routing { .. } => {
             let (domain_pda_key, _) = derive_domain_pda(program_id, message.origin);
 
-            // Always include the domain PDA itself.
-            let mut result: Vec<SerializableAccountMeta> =
-                vec![AccountMeta::new_readonly(domain_pda_key, false).into()];
-
             // Pass 2: if the domain PDA was provided as an extra input account,
-            // read it to discover any sub-accounts it needs (e.g. TrustedRelayer).
+            // read it to discover sub-accounts and whether it needs to be writable
+            // (e.g. a RateLimited node inside writes state back on Verify).
+            let mut domain_pda_writable = false;
+            let mut sub_accounts: Vec<SerializableAccountMeta> = vec![];
+
             if *cursor < extra_accounts.len() && *extra_accounts[*cursor].key == domain_pda_key {
                 let domain_acc = extra_accounts[*cursor];
                 *cursor += 1;
@@ -133,7 +133,10 @@ pub fn required_accounts_for_node(
                         DomainIsmAccount::fetch_data(&mut &domain_acc.data.borrow()[..])
                     {
                         if let Some(ref ism) = storage.ism {
-                            let sub_accounts = required_accounts_for_node(
+                            if contains_rate_limited(ism) {
+                                domain_pda_writable = true;
+                            }
+                            let node_accounts = required_accounts_for_node(
                                 ism,
                                 metadata,
                                 message,
@@ -141,13 +144,12 @@ pub fn required_accounts_for_node(
                                 extra_accounts,
                                 cursor,
                             );
-                            // Deduplicate before extending.
-                            for account in sub_accounts {
-                                if !result
+                            for account in node_accounts {
+                                if !sub_accounts
                                     .iter()
                                     .any(|a: &SerializableAccountMeta| a.pubkey == account.pubkey)
                                 {
-                                    result.push(account);
+                                    sub_accounts.push(account);
                                 }
                             }
                         }
@@ -155,6 +157,13 @@ pub fn required_accounts_for_node(
                 }
             }
 
+            let domain_meta = if domain_pda_writable {
+                AccountMeta::new(domain_pda_key, false) // writable, not signer
+            } else {
+                AccountMeta::new_readonly(domain_pda_key, false)
+            };
+            let mut result: Vec<SerializableAccountMeta> = vec![domain_meta.into()];
+            result.extend(sub_accounts);
             result
         }
 

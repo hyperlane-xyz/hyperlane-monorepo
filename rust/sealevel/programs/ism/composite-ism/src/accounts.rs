@@ -150,6 +150,35 @@ pub fn derive_domain_pda(program_id: &Pubkey, domain: u32) -> (Pubkey, u8) {
     Pubkey::find_program_address(&[DOMAIN_ISM_SEED, &domain_bytes], program_id)
 }
 
+/// Loads and validates a domain ISM account, returning the full storage.
+///
+/// Returns `None` if the account is not owned by this program. Returns the
+/// boxed `DomainIsmStorage` (including `bump_seed` and `ism`) otherwise.
+pub fn load_domain_ism_storage(
+    program_id: &Pubkey,
+    domain: u32,
+    account: &AccountInfo,
+) -> Result<Option<Box<DomainIsmStorage>>, ProgramError> {
+    if account.owner != program_id {
+        return Ok(None);
+    }
+
+    let storage = DomainIsmAccount::fetch_data(&mut &account.data.borrow()[..])?
+        .ok_or(ProgramError::UninitializedAccount)?;
+
+    let domain_bytes = domain.to_le_bytes();
+    let expected_key = Pubkey::create_program_address(
+        &[DOMAIN_ISM_SEED, &domain_bytes, &[storage.bump_seed]],
+        program_id,
+    )
+    .map_err(|_| ProgramError::InvalidSeeds)?;
+    if *account.key != expected_key {
+        return Err(ProgramError::InvalidAccountData);
+    }
+
+    Ok(Some(storage))
+}
+
 /// Loads and validates a domain ISM account.
 ///
 /// Returns the stored `IsmNode` if the account is initialized, or `None` if the

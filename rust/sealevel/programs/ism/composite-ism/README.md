@@ -85,15 +85,10 @@ nesting level of account-bearing ISMs inside the domain PDA.
   also means you cannot nest two `Routing` ISMs within the same composite ISM
   deployment.
 
-- **`RateLimited` is not allowed inside a domain PDA.** `RateLimited` writes
-  its state back to the VAM PDA after each `Verify`. Domain PDAs are read-only
-  at verify time, so a `RateLimited` node inside one cannot persist its state
-  (`RateLimitedInDomainIsm` error).
-
-- **`RateLimited` requires the VAM PDA to be writable.** When the ISM tree
-  contains a `RateLimited` node, `VerifyAccountMetas` marks the storage PDA
-  writable. Callers must ensure the account is passed as writable in the
-  `Verify` transaction.
+- **`RateLimited` requires its containing PDA to be writable.** When the ISM
+  tree (or a domain PDA) contains a `RateLimited` node, `VerifyAccountMetas`
+  marks the relevant PDA (storage PDA or domain PDA) writable. Callers must
+  ensure that account is passed as writable in the `Verify` transaction.
 
 - **No cross-program delegation.** `IsmNode` has no variant that references an
   external program. You cannot embed a call to a separate composite ISM

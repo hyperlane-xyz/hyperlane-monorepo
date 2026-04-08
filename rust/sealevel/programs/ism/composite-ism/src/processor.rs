@@ -268,9 +268,10 @@ fn set_domain_ism(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
     domain: u32,
-    ism: IsmNode,
+    mut ism: IsmNode,
 ) -> ProgramResult {
     validate_domain_ism(&ism)?;
+    normalize_node(&mut ism);
 
     let accounts_iter = &mut accounts.iter();
     let owner_account = next_account_info(accounts_iter)?;
@@ -447,10 +448,15 @@ fn validate_config_inner(node: &IsmNode, routing_found: &mut bool) -> ProgramRes
 
 /// Validates an ISM intended for storage in a domain PDA.
 ///
-/// Disallows `RateLimited` (writeback to domain PDAs is not supported).
+/// Disallows `Routing` (nested routing is not supported).
 fn validate_domain_ism(node: &IsmNode) -> ProgramResult {
     match node {
-        IsmNode::RateLimited { .. } => Err(Error::RateLimitedInDomainIsm.into()),
+        IsmNode::RateLimited { max_capacity, .. } => {
+            if *max_capacity == 0 {
+                return Err(Error::InvalidConfig.into());
+            }
+            Ok(())
+        }
         IsmNode::Aggregation {
             threshold,
             sub_isms,
@@ -742,16 +748,27 @@ mod test {
     }
 
     #[test]
-    fn test_validate_domain_ism_rejects_rate_limited() {
+    fn test_validate_domain_ism_rate_limited_ok() {
         let node = IsmNode::RateLimited {
             max_capacity: 100,
             recipient: None,
             filled_level: 100,
             last_updated: 0,
         };
+        assert!(validate_domain_ism(&node).is_ok());
+    }
+
+    #[test]
+    fn test_validate_domain_ism_rate_limited_zero_capacity() {
+        let node = IsmNode::RateLimited {
+            max_capacity: 0,
+            recipient: None,
+            filled_level: 0,
+            last_updated: 0,
+        };
         assert_eq!(
             validate_domain_ism(&node).unwrap_err(),
-            Error::RateLimitedInDomainIsm.into()
+            Error::InvalidConfig.into()
         );
     }
 

@@ -8,7 +8,7 @@ use solana_program::{
 };
 
 use crate::{
-    accounts::{derive_domain_pda, load_domain_ism, IsmNode},
+    accounts::{derive_domain_pda, load_domain_ism_storage, DomainIsmAccount, IsmNode},
     error::Error,
     metadata::{parse_aggregation_ranges, sub_metadata},
     multisig_metadata::MultisigIsmMessageIdMetadata,
@@ -133,14 +133,24 @@ where
                 return Err(Error::AccountOutOfOrder.into());
             }
 
-            // Load the sub-ISM from the domain PDA (None if uninitialized).
-            let loaded_ism = load_domain_ism(program_id, message.origin, domain_pda_info)?;
+            // Load the full domain PDA storage (None if not owned by this program).
+            let loaded_storage =
+                load_domain_ism_storage(program_id, message.origin, domain_pda_info)?;
 
-            if let Some(mut ism) = loaded_ism {
-                return verify_node(&mut ism, metadata, message, accounts_iter, program_id);
+            if let Some(mut storage) = loaded_storage {
+                if let Some(mut ism) = storage.ism.take() {
+                    verify_node(&mut ism, metadata, message, accounts_iter, program_id)?;
+                    // Write updated state back to the domain PDA (e.g. RateLimited counters).
+                    if domain_pda_info.is_writable {
+                        storage.ism = Some(ism);
+                        DomainIsmAccount::from(storage).store(domain_pda_info, false)?;
+                    }
+                    return Ok(());
+                }
+                // ism is None — domain PDA exists but holds no ISM; fall through to default.
             }
 
-            // No domain PDA — fall back to default_ism.
+            // No domain PDA (or empty) — fall back to default_ism.
             if let Some(d) = default_ism {
                 return verify_node(d.as_mut(), metadata, message, accounts_iter, program_id);
             }
