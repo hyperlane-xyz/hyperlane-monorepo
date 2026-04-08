@@ -382,6 +382,7 @@ jobs:
       matrix:
         test:
           - warp-apply
+          - warp-cc-evm-svm
           - warp-deploy
           - warp-send
     steps:
@@ -536,6 +537,7 @@ jobs:
         test:
           - core-deploy
           - core-apply
+          - warp-cross-collateral
     steps:
       - uses: actions/checkout@v6
         with:
