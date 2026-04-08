@@ -37,7 +37,7 @@ describe('HyperlaneDeployer', () => {
       );
     });
 
-    it('includes args hash when args are present', () => {
+    it('includes hash when args are present', () => {
       const key = deployer.testDeriveCacheKey('LinearFee', ['0xabc', 100, 200]);
       expect(key).to.match(/^LinearFee:[0-9a-f]{8}$/);
     });
