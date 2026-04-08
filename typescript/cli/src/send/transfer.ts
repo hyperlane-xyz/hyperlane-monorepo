@@ -4,10 +4,6 @@ import { type TransactionReceipt } from '@ethersproject/providers';
 import { stringify as yamlStringify } from 'yaml';
 import { type Address, type Hex } from 'viem';
 
-import {
-  FeeQuotingClient,
-  QuotedCallsCommand as FeeQuotingCommand,
-} from '@hyperlane-xyz/fee-quoting';
 import { GasAction } from '@hyperlane-xyz/provider-sdk';
 import {
   type AnnotatedTx,
@@ -17,6 +13,8 @@ import {
   type ChainMap,
   type ChainName,
   type CoreAddresses,
+  FeeQuotingClient,
+  FeeQuotingCommand,
   HyperlaneCore,
   MultiProtocolCore,
   ProviderType,

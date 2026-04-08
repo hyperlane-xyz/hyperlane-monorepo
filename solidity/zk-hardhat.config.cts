@@ -10,6 +10,12 @@ import { rootHardhatConfig } from './rootHardhatConfig.cjs';
  */
 module.exports = {
   ...rootHardhatConfig,
+  // Override solidity version — era-solidity only supports up to 0.8.30
+  // https://github.com/matter-labs/era-solidity/releases
+  solidity: {
+    ...rootHardhatConfig.solidity,
+    version: '0.8.30',
+  },
   zksolc: {
     version: '1.5.12',
     compilerSource: 'binary',

@@ -2,7 +2,8 @@ import { type NextFunction, Request, Response, Router } from 'express';
 import type { Address, Hex } from 'viem';
 import { z } from 'zod';
 
-import { QuotedCallsCommand } from '../types.js';
+import { FeeQuotingCommand } from '@hyperlane-xyz/sdk';
+
 import { ApiError } from '../middleware/errorHandler.js';
 import type { QuoteService } from '../services/quoteService.js';
 
@@ -56,7 +57,7 @@ function parseAndValidate<T>(schema: z.ZodType<T>, query: unknown): T {
 export function createQuoteRouter(quoteService: QuoteService): Router {
   const router = Router();
 
-  function warpHandler(command: QuotedCallsCommand) {
+  function warpHandler(command: FeeQuotingCommand) {
     return async (req: Request, res: Response) => {
       const data = parseAndValidate(WarpQuerySchema, req.query);
       const response = await quoteService.getQuote(
@@ -71,7 +72,7 @@ export function createQuoteRouter(quoteService: QuoteService): Router {
     };
   }
 
-  function icaHandler(command: QuotedCallsCommand) {
+  function icaHandler(command: FeeQuotingCommand) {
     return async (req: Request, res: Response) => {
       const data = parseAndValidate(IcaQuerySchema, req.query);
       const response = await quoteService.getQuote(
@@ -87,7 +88,7 @@ export function createQuoteRouter(quoteService: QuoteService): Router {
 
   router.get(
     '/transferRemote',
-    asyncHandler(warpHandler(QuotedCallsCommand.TransferRemote)),
+    asyncHandler(warpHandler(FeeQuotingCommand.TransferRemote)),
   );
   router.get(
     '/transferRemoteTo',
@@ -95,7 +96,7 @@ export function createQuoteRouter(quoteService: QuoteService): Router {
       const data = parseAndValidate(WarpQueryWithTargetRouterSchema, req.query);
       const response = await quoteService.getQuote(
         data.origin,
-        QuotedCallsCommand.TransferRemoteTo,
+        FeeQuotingCommand.TransferRemoteTo,
         data.router as Address,
         parseInt(data.destination, 10),
         data.salt as Hex,
@@ -107,11 +108,11 @@ export function createQuoteRouter(quoteService: QuoteService): Router {
   );
   router.get(
     '/callRemoteWithOverrides',
-    asyncHandler(icaHandler(QuotedCallsCommand.CallRemoteWithOverrides)),
+    asyncHandler(icaHandler(FeeQuotingCommand.CallRemoteWithOverrides)),
   );
   router.get(
     '/callRemoteCommitReveal',
-    asyncHandler(icaHandler(QuotedCallsCommand.CallRemoteCommitReveal)),
+    asyncHandler(icaHandler(FeeQuotingCommand.CallRemoteCommitReveal)),
   );
 
   return router;

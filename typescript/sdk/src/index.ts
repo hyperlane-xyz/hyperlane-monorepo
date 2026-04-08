@@ -10,6 +10,11 @@ export {
   type QuotedCallsTransaction,
   type QuotedTransferParams,
 } from './quoted-calls/builder.js';
+export { FeeQuotingClient } from './quoted-calls/client.js';
+export type {
+  FeeQuotingClientOptions,
+  QuoteParams as FeeQuotingQuoteParams,
+} from './quoted-calls/client.js';
 export {
   CONTRACT_BALANCE,
   type Quote as QuotedCallsQuote,
@@ -29,12 +34,15 @@ export {
   sumQuotesByToken,
 } from './quoted-calls/codec.js';
 export {
+  FeeQuotingCommand,
+  type FeeQuotingQuoteResponse,
   type Permit2Data,
   type QuotedCallsParams,
   QuotedCallsCommand,
   type SignedQuoteData,
   type SubmitQuoteCommand,
   TokenPullMode,
+  WARP_FEE_COMMANDS,
 } from './quoted-calls/types.js';
 
 export {

@@ -705,9 +705,6 @@ importers:
       '@hyperlane-xyz/deploy-sdk':
         specifier: workspace:*
         version: link:../deploy-sdk
-      '@hyperlane-xyz/fee-quoting':
-        specifier: workspace:*
-        version: link:../fee-quoting
       '@hyperlane-xyz/http-registry-server':
         specifier: workspace:*
         version: link:../http-registry-server

@@ -53,6 +53,27 @@ export interface Permit2Data {
   signature: Hex;
 }
 
+/**
+ * Fee-paying commands in QuotedCalls that require offchain quotes.
+ * String values correspond to the fee-quoting service API routes.
+ */
+export enum FeeQuotingCommand {
+  TransferRemote = 'transferRemote',
+  TransferRemoteTo = 'transferRemoteTo',
+  CallRemoteWithOverrides = 'callRemoteWithOverrides',
+  CallRemoteCommitReveal = 'callRemoteCommitReveal',
+}
+
+/** Commands that require a warp fee quote (in addition to IGP) */
+export const WARP_FEE_COMMANDS = new Set<FeeQuotingCommand>([
+  FeeQuotingCommand.TransferRemote,
+  FeeQuotingCommand.TransferRemoteTo,
+]);
+
+export interface FeeQuotingQuoteResponse {
+  quotes: SubmitQuoteCommand[];
+}
+
 /** Parameters for building a QuotedCalls transfer via WarpCore */
 export interface QuotedCallsParams {
   /** QuotedCalls contract address */

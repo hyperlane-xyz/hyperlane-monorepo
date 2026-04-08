@@ -1,6 +1,6 @@
 import type { Address, Hex } from 'viem';
 
-import type { QuoteResponse, QuotedCallsCommand } from './types.js';
+import type { FeeQuotingCommand, FeeQuotingQuoteResponse } from './types.js';
 
 export interface FeeQuotingClientOptions {
   baseUrl: string;
@@ -9,7 +9,7 @@ export interface FeeQuotingClientOptions {
 
 export interface QuoteParams {
   origin: string;
-  command: QuotedCallsCommand;
+  command: FeeQuotingCommand;
   router: Address;
   destination: number;
   /** Pre-computed salt (e.g. keccak256(sender, clientSalt) for QuotedCalls) */
@@ -29,7 +29,7 @@ export class FeeQuotingClient {
     this.apiKey = options.apiKey;
   }
 
-  async getQuote(params: QuoteParams): Promise<QuoteResponse> {
+  async getQuote(params: QuoteParams): Promise<FeeQuotingQuoteResponse> {
     const query = new URLSearchParams({
       origin: params.origin,
       router: params.router,
@@ -52,6 +52,6 @@ export class FeeQuotingClient {
       );
     }
 
-    return res.json() as Promise<QuoteResponse>;
+    return res.json() as Promise<FeeQuotingQuoteResponse>;
   }
 }

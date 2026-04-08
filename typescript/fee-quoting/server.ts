@@ -9,5 +9,5 @@ export type {
 export { ServerConfigSchema, QuoteMode } from './src/config.js';
 export type { ServerConfig } from './src/config.js';
 
-// Re-export client types for convenience
-export * from './index.js';
+// Client types have been moved to @hyperlane-xyz/sdk
+// (FeeQuotingClient, FeeQuotingCommand, etc.)
