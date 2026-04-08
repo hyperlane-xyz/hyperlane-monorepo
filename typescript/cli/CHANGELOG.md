@@ -1,5 +1,11 @@
 # @hyperlane-xyz/cli
 
+## 30.1.1
+
+### Patch Changes
+
+- 26d682b: Fee quoting client and shared types were moved from @hyperlane-xyz/fee-quoting into @hyperlane-xyz/sdk. The fee-quoting package was marked as private since it is a deployable service, not a published library.
+
 ## 30.1.0
 
 ### Patch Changes
