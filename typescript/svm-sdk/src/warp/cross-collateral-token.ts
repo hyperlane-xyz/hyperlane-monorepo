@@ -18,6 +18,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   ZERO_ADDRESS_HEX_32,
+  addressToBytes32,
   assert,
   isNullish,
   isZeroishAddress,
@@ -65,6 +66,22 @@ import {
 } from './warp-tx.js';
 
 const MAX_CC_ROUTERS_PER_TX = 20;
+
+/**
+ * Canonicalize a CC routers map to lowercase hex32 for consistent diffing.
+ * Handles mixed-case and 20-byte EVM addresses in user config.
+ */
+function canonicalizeCCRouters(
+  routers: Record<number, Set<string>>,
+): Record<number, Set<string>> {
+  const result: Record<number, Set<string>> = {};
+  for (const [domain, routerSet] of Object.entries(routers)) {
+    result[Number(domain)] = new Set(
+      [...routerSet].map((r) => addressToBytes32(r).toLowerCase()),
+    );
+  }
+  return result;
+}
 
 export class SvmCrossCollateralTokenReader implements ArtifactReader<
   RawCrossCollateralWarpArtifactConfig,
@@ -389,9 +406,13 @@ export class SvmCrossCollateralTokenWriter
 
     const ownerAddress = parseAddress(current.config.owner);
 
-    // Diff CC routers
-    const currentCCRouters = current.config.crossCollateralRouters ?? {};
-    const expectedCCRouters = artifact.config.crossCollateralRouters ?? {};
+    // Diff CC routers (canonicalize to lowercase hex32 for consistent comparison)
+    const currentCCRouters = canonicalizeCCRouters(
+      current.config.crossCollateralRouters ?? {},
+    );
+    const expectedCCRouters = canonicalizeCCRouters(
+      artifact.config.crossCollateralRouters ?? {},
+    );
 
     const toUnenroll: Record<number, Set<string> | null> = {};
     for (const [domainStr, currentSet] of Object.entries(currentCCRouters)) {
