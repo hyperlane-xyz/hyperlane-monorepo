@@ -18,7 +18,7 @@ use solana_system_interface::program as system_program;
 
 use crate::{
     account_metas::{all_verify_account_metas, contains_rate_limited},
-    accounts::{CompositeIsmAccount, CompositeIsmStorage, IsmNode},
+    accounts::{CompositeIsmAccount, CompositeIsmStorage, IsmNode, PendingConfig},
     error::Error,
     instruction::Instruction,
     metadata_spec::{spec_for_node, MetadataSpec},
@@ -71,6 +71,14 @@ pub fn process_instruction(
             set_return_data(&bytes[..]);
             Ok(())
         }
+        Instruction::BeginConfigUpdate(total_len) => {
+            begin_config_update(program_id, accounts, total_len)
+        }
+        Instruction::WriteConfigChunk { offset, data } => {
+            write_config_chunk(program_id, accounts, offset, &data)
+        }
+        Instruction::CommitConfigUpdate => commit_config_update(program_id, accounts),
+        Instruction::AbortConfigUpdate => abort_config_update(program_id, accounts),
     }
 }
 
@@ -207,6 +215,7 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], mut root: IsmNode) 
         bump_seed: storage_pda_bump,
         owner: Some(*owner_account.key),
         root: Some(root),
+        pending_config: None,
     });
     let storage_size = storage.size();
 
@@ -245,12 +254,18 @@ fn update_config(
 
     let owner_account = next_account_info(accounts_iter)?;
     let storage_pda_account = next_account_info(accounts_iter)?;
+    let system_program_account = next_account_info(accounts_iter)?;
 
     let mut storage = load_storage(program_id, storage_pda_account)?;
     storage.ensure_owner_signer(owner_account)?;
     storage.root = Some(root);
 
-    CompositeIsmAccount::from(*storage).store(storage_pda_account, true)?;
+    CompositeIsmAccount::from(*storage).store_with_rent_exempt_realloc(
+        storage_pda_account,
+        &Rent::get()?,
+        owner_account,
+        system_program_account,
+    )?;
 
     Ok(())
 }
@@ -288,6 +303,133 @@ fn transfer_ownership(
     storage.transfer_ownership(owner_account, new_owner)?;
     CompositeIsmAccount::from(*storage).store(storage_pda_account, false)?;
 
+    Ok(())
+}
+
+/// Allocates (or resets) the staging buffer for a multi-tx config update.
+///
+/// Accounts:
+/// 0. `[signer]`     The owner.
+/// 1. `[writable]`   The storage PDA account.
+/// 2. `[executable]` The system program.
+fn begin_config_update(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    total_len: u32,
+) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+    let owner_account = next_account_info(accounts_iter)?;
+    let storage_pda_account = next_account_info(accounts_iter)?;
+    let system_program_account = next_account_info(accounts_iter)?;
+
+    let mut storage = load_storage(program_id, storage_pda_account)?;
+    storage.ensure_owner_signer(owner_account)?;
+
+    storage.pending_config = Some(PendingConfig {
+        total_len,
+        bytes: vec![0u8; total_len as usize],
+    });
+
+    CompositeIsmAccount::from(*storage).store_with_rent_exempt_realloc(
+        storage_pda_account,
+        &Rent::get()?,
+        owner_account,
+        system_program_account,
+    )?;
+    Ok(())
+}
+
+/// Writes a byte slice into the staging buffer at the given offset.
+///
+/// Accounts:
+/// 0. `[signer]`   The owner.
+/// 1. `[writable]` The storage PDA account.
+fn write_config_chunk(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    offset: u32,
+    data: &[u8],
+) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+    let owner_account = next_account_info(accounts_iter)?;
+    let storage_pda_account = next_account_info(accounts_iter)?;
+
+    let mut storage = load_storage(program_id, storage_pda_account)?;
+    storage.ensure_owner_signer(owner_account)?;
+
+    let pending = storage
+        .pending_config
+        .as_mut()
+        .ok_or(Error::NoPendingUpdate)?;
+
+    let end = (offset as usize)
+        .checked_add(data.len())
+        .ok_or(Error::ChunkOutOfBounds)?;
+    if end > pending.total_len as usize {
+        return Err(Error::ChunkOutOfBounds.into());
+    }
+
+    pending.bytes[offset as usize..end].copy_from_slice(data);
+
+    // No realloc — space pre-allocated by BeginConfigUpdate.
+    CompositeIsmAccount::from(*storage).store(storage_pda_account, false)?;
+    Ok(())
+}
+
+/// Deserialises, validates and commits the staged bytes as the new `root`.
+///
+/// Accounts:
+/// 0. `[signer]`     The owner.
+/// 1. `[writable]`   The storage PDA account.
+/// 2. `[executable]` The system program.
+fn commit_config_update(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+    let owner_account = next_account_info(accounts_iter)?;
+    let storage_pda_account = next_account_info(accounts_iter)?;
+    let system_program_account = next_account_info(accounts_iter)?;
+
+    let mut storage = load_storage(program_id, storage_pda_account)?;
+    storage.ensure_owner_signer(owner_account)?;
+
+    let pending = storage
+        .pending_config
+        .take()
+        .ok_or(Error::NoPendingUpdate)?;
+
+    let mut root: IsmNode = borsh::from_slice(&pending.bytes).map_err(|_| Error::InvalidConfig)?;
+    validate_config(&root)?;
+    normalize_node(&mut root);
+
+    storage.root = Some(root);
+    // pending_config is already None (taken above).
+
+    // Realloc PDA — pending space freed, new root may be a different size.
+    CompositeIsmAccount::from(*storage).store_with_rent_exempt_realloc(
+        storage_pda_account,
+        &Rent::get()?,
+        owner_account,
+        system_program_account,
+    )?;
+    Ok(())
+}
+
+/// Discards the staging buffer without committing (no-op if none exists).
+///
+/// Accounts:
+/// 0. `[signer]`     The owner.
+/// 1. `[writable]`   The storage PDA account.
+/// 2. `[executable]` The system program.
+fn abort_config_update(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+    let owner_account = next_account_info(accounts_iter)?;
+    let storage_pda_account = next_account_info(accounts_iter)?;
+
+    let mut storage = load_storage(program_id, storage_pda_account)?;
+    storage.ensure_owner_signer(owner_account)?;
+
+    storage.pending_config = None;
+
+    CompositeIsmAccount::from(*storage).store(storage_pda_account, true)?;
     Ok(())
 }
 
@@ -424,6 +566,7 @@ mod test {
             bump_seed: bump,
             owner: Some(Pubkey::new_unique()),
             root,
+            pending_config: None,
         };
         // Allocate generously; store() will write into it.
         let mut data = vec![0u8; 4096];

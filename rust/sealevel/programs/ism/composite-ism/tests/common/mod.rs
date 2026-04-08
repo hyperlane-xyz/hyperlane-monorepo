@@ -1,9 +1,15 @@
 #![allow(dead_code)]
 
 use borsh::BorshDeserialize;
-use hyperlane_core::{HyperlaneMessage, ModuleType, H256};
+use hyperlane_core::{HyperlaneMessage, ModuleType, H160, H256};
 use hyperlane_sealevel_composite_ism::{
-    accounts::IsmNode, instruction::initialize_instruction, processor::process_instruction,
+    accounts::{DomainConfig, IsmNode},
+    instruction::{
+        abort_config_update_instruction, begin_config_update_instruction,
+        commit_config_update_instruction, initialize_instruction, update_config_instruction,
+        write_config_chunk_instruction,
+    },
+    processor::process_instruction,
 };
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction, VERIFY_ACCOUNT_METAS_PDA_SEEDS,
@@ -20,6 +26,51 @@ use solana_sdk::{
     signer::keypair::Keypair,
     transaction::{Transaction, TransactionError},
 };
+
+// ── Config-size helpers (shared with integration tests) ───────────────────────
+
+/// Routing ISM with `n` domains, each pointing to `Test { accept: true }`.
+pub fn routing_n_test_domains_helper(n: u32) -> IsmNode {
+    IsmNode::Routing {
+        routes: (1..=n)
+            .map(|d| (d, IsmNode::Test { accept: true }))
+            .collect(),
+        default_ism: None,
+    }
+}
+
+/// Routing ISM with `n` domains, each pointing to a `MultisigMessageId` with
+/// one dummy validator.
+pub fn routing_n_multisig_domains_helper(n: u32) -> IsmNode {
+    let dummy_validator = H160::from([0xABu8; 20]);
+    IsmNode::Routing {
+        routes: (1..=n)
+            .map(|d| {
+                (
+                    d,
+                    IsmNode::MultisigMessageId {
+                        domain_configs: vec![DomainConfig {
+                            origin: d,
+                            validators: vec![dummy_validator],
+                            threshold: 1,
+                        }],
+                    },
+                )
+            })
+            .collect(),
+        default_ism: None,
+    }
+}
+
+/// Returns the exact wire size (bytes) of an `UpdateConfig` transaction for the
+/// given root, using `bincode` (the same serializer Solana uses on-chain).
+pub fn update_config_tx_size(root: &IsmNode) -> usize {
+    let payer = Keypair::new();
+    let ix = update_config_instruction(composite_ism_id(), payer.pubkey(), root.clone()).unwrap();
+    let msg = Message::new_with_blockhash(&[ix], Some(&payer.pubkey()), &Hash::default());
+    let tx = Transaction::new_unsigned(msg);
+    bincode::serialized_size(&tx).unwrap() as usize
+}
 
 pub fn composite_ism_id() -> Pubkey {
     pubkey!("Bprmwvw4fCr1fXF4y3qq7JyNiVwb5JNpkVRqxqMhQgau")
@@ -51,6 +102,120 @@ pub async fn initialize(
         recent_blockhash,
     );
     banks_client.process_transaction(tx).await
+}
+
+pub async fn update_config(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    recent_blockhash: Hash,
+    root: IsmNode,
+) -> Result<(), BanksClientError> {
+    let ix = update_config_instruction(composite_ism_id(), payer.pubkey(), root).unwrap();
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&payer.pubkey()),
+        &[payer],
+        recent_blockhash,
+    );
+    banks_client.process_transaction(tx).await
+}
+
+pub async fn begin_config_update(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    recent_blockhash: Hash,
+    total_len: u32,
+) -> Result<(), BanksClientError> {
+    let ix =
+        begin_config_update_instruction(composite_ism_id(), payer.pubkey(), total_len).unwrap();
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&payer.pubkey()),
+        &[payer],
+        recent_blockhash,
+    );
+    banks_client.process_transaction(tx).await
+}
+
+/// Writes `data` into the staging buffer at `offset` using a single transaction.
+pub async fn write_config_chunk(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    recent_blockhash: Hash,
+    offset: u32,
+    data: Vec<u8>,
+) -> Result<(), BanksClientError> {
+    let ix =
+        write_config_chunk_instruction(composite_ism_id(), payer.pubkey(), offset, data).unwrap();
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&payer.pubkey()),
+        &[payer],
+        recent_blockhash,
+    );
+    banks_client.process_transaction(tx).await
+}
+
+pub async fn commit_config_update(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    recent_blockhash: Hash,
+) -> Result<(), BanksClientError> {
+    let ix = commit_config_update_instruction(composite_ism_id(), payer.pubkey()).unwrap();
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&payer.pubkey()),
+        &[payer],
+        recent_blockhash,
+    );
+    banks_client.process_transaction(tx).await
+}
+
+pub async fn abort_config_update(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    recent_blockhash: Hash,
+) -> Result<(), BanksClientError> {
+    let ix = abort_config_update_instruction(composite_ism_id(), payer.pubkey()).unwrap();
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&payer.pubkey()),
+        &[payer],
+        recent_blockhash,
+    );
+    banks_client.process_transaction(tx).await
+}
+
+/// Splits Borsh-serialized `IsmNode` bytes into chunks of at most
+/// `max_chunk_bytes`, then executes BeginConfigUpdate + N×WriteConfigChunk +
+/// CommitConfigUpdate. Use this to set configs that exceed the single-tx limit.
+pub async fn chunked_update_config(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    root: IsmNode,
+    max_chunk_bytes: usize,
+) {
+    let bytes = borsh::to_vec(&root).unwrap();
+    let total_len = bytes.len() as u32;
+
+    let blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    begin_config_update(banks_client, payer, blockhash, total_len)
+        .await
+        .unwrap();
+
+    let mut offset = 0u32;
+    for chunk in bytes.chunks(max_chunk_bytes) {
+        let blockhash = banks_client.get_latest_blockhash().await.unwrap();
+        write_config_chunk(banks_client, payer, blockhash, offset, chunk.to_vec())
+            .await
+            .unwrap();
+        offset += chunk.len() as u32;
+    }
+
+    let blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    commit_config_update(banks_client, payer, blockhash)
+        .await
+        .unwrap();
 }
 
 pub fn dummy_message() -> HyperlaneMessage {

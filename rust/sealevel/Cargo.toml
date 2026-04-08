@@ -116,6 +116,10 @@ solana-clap-utils = "=3.0.7"
 solana-cli-config = "=3.0.7"
 solana-client = "=3.0.7"
 solana-commitment-config = "=3.0.0"
+litesvm = "=0.8.2"
+# Pin to prevent litesvm from bumping this to 3.1.0, which uses solana-hash 4.x
+# and conflicts with solana-runtime 3.0.7 (which uses solana-hash 3.0.0).
+solana-epoch-rewards-hasher = "=3.0.0"
 solana-compute-budget-interface = { version = "=3.0.0", features = ["borsh"] }
 solana-loader-v3-interface = { version = "=6.1.0", features = ["serde", "bincode"] }
 solana-program = "=3.0.0"

@@ -32,6 +32,13 @@ tokio = { workspace = true, features = ["macros", "rt"] }
 multisig-ism = { path = "../../../libraries/multisig-ism", features = ["test-data"] }
 solana-program-test.workspace = true
 solana-sdk.workspace = true
+litesvm.workspace = true
+bincode.workspace = true
+# Force these to 3.0.0 so they don't bump solana-hash to 4.x,
+# which conflicts with solana-runtime 3.0.7 (uses solana-hash 3.0.0).
+solana-epoch-rewards-hasher = "=3.0.0"
+solana-blake3-hasher = "=3.0.0"
+solana-keccak-hasher = "=3.0.0"
 hex.workspace = true
 rand = "0.8.5"
 

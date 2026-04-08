@@ -145,12 +145,7 @@ where
                 data_len
             };
 
-            #[allow(unexpected_cfgs)] // TODO: `rustc` 1.80.1 issue
-            if cfg!(target_os = "solana") {
-                account.resize(data_len + realloc_increment)?;
-            } else {
-                panic!("resize() is only supported on the SVM");
-            }
+            account.resize(data_len + realloc_increment)?;
         }
         Ok(())
     }

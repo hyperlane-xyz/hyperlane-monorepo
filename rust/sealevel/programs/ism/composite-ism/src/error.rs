@@ -38,6 +38,10 @@ pub enum Error {
     RateLimitExceeded = 16,
     #[error("Message recipient does not match configured recipient")]
     RecipientMismatch = 17,
+    #[error("No pending config update in progress")]
+    NoPendingUpdate = 18,
+    #[error("Chunk write exceeds the declared total_len of the pending buffer")]
+    ChunkOutOfBounds = 19,
 }
 
 impl From<MultisigIsmError> for Error {

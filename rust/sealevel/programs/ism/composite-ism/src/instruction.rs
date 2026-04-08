@@ -50,6 +50,47 @@ pub enum Instruction {
         /// Raw-encoded [`HyperlaneMessage`].
         Vec<u8>,
     ),
+
+    /// Allocates (or resets) a staging buffer for a chunked config update.
+    ///
+    /// Must be called before `WriteConfigChunk`. If a pending update already
+    /// exists it is discarded and replaced with a fresh buffer.
+    ///
+    /// Accounts:
+    /// 0. `[signer]`     The owner.
+    /// 1. `[writable]`   The storage PDA account.
+    /// 2. `[executable]` The system program (required for PDA realloc).
+    BeginConfigUpdate(u32),
+
+    /// Writes a byte slice into the staging buffer at the given offset.
+    ///
+    /// May be called any number of times; chunks may overlap (last write wins).
+    /// Does not realloc — space was pre-allocated by `BeginConfigUpdate`.
+    ///
+    /// Accounts:
+    /// 0. `[signer]`   The owner.
+    /// 1. `[writable]` The storage PDA account.
+    WriteConfigChunk { offset: u32, data: Vec<u8> },
+
+    /// Deserialises the staging buffer as an `IsmNode`, validates it, normalises
+    /// mutable state fields, and stores it as the new `root`. Clears the staging
+    /// buffer and reallocates the PDA back down to trim the pending space.
+    ///
+    /// Accounts:
+    /// 0. `[signer]`     The owner.
+    /// 1. `[writable]`   The storage PDA account.
+    /// 2. `[executable]` The system program (required for PDA realloc).
+    CommitConfigUpdate,
+
+    /// Discards the staging buffer without committing. Reallocates the PDA to
+    /// trim the pending space. Safe to call even if no update is in progress
+    /// (no-op in that case).
+    ///
+    /// Accounts:
+    /// 0. `[signer]`     The owner.
+    /// 1. `[writable]`   The storage PDA account.
+    /// 2. `[executable]` The system program (required for PDA realloc).
+    AbortConfigUpdate,
 }
 
 impl DiscriminatorData for Instruction {
@@ -116,6 +157,84 @@ pub fn get_metadata_spec_instruction(
         program_id,
         data: Instruction::GetMetadataSpec(message_bytes).encode()?,
         accounts: vec![AccountMeta::new_readonly(storage_pda_key, false)],
+    })
+}
+
+/// Creates a BeginConfigUpdate instruction.
+pub fn begin_config_update_instruction(
+    program_id: Pubkey,
+    owner: Pubkey,
+    total_len: u32,
+) -> Result<SolanaInstruction, ProgramError> {
+    let (storage_pda_key, _) = Pubkey::try_find_program_address(storage_pda_seeds!(), &program_id)
+        .ok_or(ProgramError::InvalidSeeds)?;
+
+    Ok(SolanaInstruction {
+        program_id,
+        data: Instruction::BeginConfigUpdate(total_len).encode()?,
+        accounts: vec![
+            AccountMeta::new(owner, true),
+            AccountMeta::new(storage_pda_key, false),
+            AccountMeta::new_readonly(system_program::ID, false),
+        ],
+    })
+}
+
+/// Creates a WriteConfigChunk instruction.
+pub fn write_config_chunk_instruction(
+    program_id: Pubkey,
+    owner: Pubkey,
+    offset: u32,
+    data: Vec<u8>,
+) -> Result<SolanaInstruction, ProgramError> {
+    let (storage_pda_key, _) = Pubkey::try_find_program_address(storage_pda_seeds!(), &program_id)
+        .ok_or(ProgramError::InvalidSeeds)?;
+
+    Ok(SolanaInstruction {
+        program_id,
+        data: Instruction::WriteConfigChunk { offset, data }.encode()?,
+        accounts: vec![
+            AccountMeta::new(owner, true),
+            AccountMeta::new(storage_pda_key, false),
+        ],
+    })
+}
+
+/// Creates a CommitConfigUpdate instruction.
+pub fn commit_config_update_instruction(
+    program_id: Pubkey,
+    owner: Pubkey,
+) -> Result<SolanaInstruction, ProgramError> {
+    let (storage_pda_key, _) = Pubkey::try_find_program_address(storage_pda_seeds!(), &program_id)
+        .ok_or(ProgramError::InvalidSeeds)?;
+
+    Ok(SolanaInstruction {
+        program_id,
+        data: Instruction::CommitConfigUpdate.encode()?,
+        accounts: vec![
+            AccountMeta::new(owner, true),
+            AccountMeta::new(storage_pda_key, false),
+            AccountMeta::new_readonly(system_program::ID, false),
+        ],
+    })
+}
+
+/// Creates an AbortConfigUpdate instruction.
+pub fn abort_config_update_instruction(
+    program_id: Pubkey,
+    owner: Pubkey,
+) -> Result<SolanaInstruction, ProgramError> {
+    let (storage_pda_key, _) = Pubkey::try_find_program_address(storage_pda_seeds!(), &program_id)
+        .ok_or(ProgramError::InvalidSeeds)?;
+
+    Ok(SolanaInstruction {
+        program_id,
+        data: Instruction::AbortConfigUpdate.encode()?,
+        accounts: vec![
+            AccountMeta::new(owner, true),
+            AccountMeta::new(storage_pda_key, false),
+            AccountMeta::new_readonly(system_program::ID, false),
+        ],
     })
 }
 

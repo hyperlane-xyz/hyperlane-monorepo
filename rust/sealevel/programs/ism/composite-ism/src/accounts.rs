@@ -83,6 +83,19 @@ pub enum IsmNode {
     },
 }
 
+/// Staging buffer for a multi-transaction config update.
+///
+/// Populated by `BeginConfigUpdate`, filled by `WriteConfigChunk`, then
+/// consumed by `CommitConfigUpdate`. Has no effect on `Verify` or
+/// `GetMetadataSpec` — those always read from `root`.
+#[derive(BorshSerialize, BorshDeserialize, Debug, Default, PartialEq, Clone)]
+pub struct PendingConfig {
+    /// Total expected byte length declared by `BeginConfigUpdate`.
+    pub total_len: u32,
+    /// Raw Borsh-serialized `IsmNode` bytes, pre-sized to `total_len`.
+    pub bytes: Vec<u8>,
+}
+
 /// Data stored in the VAM PDA account (VERIFY_ACCOUNT_METAS_PDA_SEEDS).
 /// Contains the complete ISM config tree.
 #[derive(BorshSerialize, BorshDeserialize, Debug, Default, PartialEq)]
@@ -90,6 +103,8 @@ pub struct CompositeIsmStorage {
     pub bump_seed: u8,
     pub owner: Option<Pubkey>,
     pub root: Option<IsmNode>,
+    /// Non-None while a chunked config update is in progress.
+    pub pending_config: Option<PendingConfig>,
 }
 
 impl SizedData for CompositeIsmStorage {
