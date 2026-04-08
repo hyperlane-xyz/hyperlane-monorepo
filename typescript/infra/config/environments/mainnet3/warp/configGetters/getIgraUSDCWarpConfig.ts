@@ -88,7 +88,7 @@ export const getIgraUSDCStrategyConfig = (): ChainSubmissionStrategy => {
     `Could not fetch originInterchainAccountRouter for ${ORIGIN_CHAIN}`,
   );
 
-  const icaChains = ([...collateralChains, 'igra'] as string[]).filter(
+  const icaChains = [...collateralChains, 'igra'].filter(
     (c) => c !== ORIGIN_CHAIN,
   );
 
