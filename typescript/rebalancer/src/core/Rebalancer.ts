@@ -450,6 +450,7 @@ export class Rebalancer implements IMovableCollateralRebalancer {
         await this.multiProvider.estimateGas(
           transaction.route.origin,
           transaction.populatedTx,
+          await this.multiProvider.getSignerAddress(transaction.route.origin),
         );
         return transaction;
       }),
