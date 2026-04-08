@@ -233,6 +233,12 @@ export const TOKEN_COLLATERALIZED_STANDARDS = [
   TokenStandard.SealevelHypCrossCollateral,
 ];
 
+export const TOKEN_CROSS_COLLATERAL_STANDARDS: Set<TokenStandard> = new Set([
+  TokenStandard.EvmHypCrossCollateralRouter,
+  TokenStandard.SealevelHypCrossCollateral,
+  TokenStandard.TronHypCrossCollateralRouter,
+]);
+
 export const XERC20_STANDARDS = [
   TokenStandard.EvmHypXERC20,
   TokenStandard.EvmHypXERC20Lockbox,

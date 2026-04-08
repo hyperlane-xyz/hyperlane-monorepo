@@ -15,6 +15,8 @@ import {
   TokenType,
   type DeployedWarpAddress,
   type RawCrossCollateralWarpArtifactConfig,
+  computeCCRouterGasConfigUpdates,
+  computeCrossCollateralRouterUpdates,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   ZERO_ADDRESS_HEX_32,
@@ -39,6 +41,7 @@ import {
   getCrossCollateralInitInstruction,
   getSetCrossCollateralRoutersInstruction,
 } from '../instructions/cross-collateral-token.js';
+import { getTokenSetDestinationGasConfigsInstruction } from '../instructions/token.js';
 import { readonlyAccount, writableAccount } from '../instructions/utils.js';
 import {
   deriveAtaPayerPda,
@@ -59,6 +62,7 @@ import {
   assertLocalDecimals,
   buildBaseInitData,
   buildFundAtaPayerInstruction,
+  MAX_GAS_CONFIGS_PER_TX,
   computeWarpTokenUpdateInstructions,
   remoteDecimalsToScale,
   scaleToRemoteDecimals,
@@ -183,6 +187,7 @@ export async function buildCrossCollateralRouterEnrollTxs(
     const batch = updates.slice(i, i + MAX_CC_ROUTERS_PER_TX);
     const batchNum = i / MAX_CC_ROUTERS_PER_TX + 1;
     txs.push({
+      feePayer: owner,
       instructions: [
         await getSetCrossCollateralRoutersInstruction(
           programAddress,
@@ -228,6 +233,7 @@ export async function buildCrossCollateralRouterUnenrollTxs(
     const batch = updates.slice(i, i + MAX_CC_ROUTERS_PER_TX);
     const batchNum = i / MAX_CC_ROUTERS_PER_TX + 1;
     txs.push({
+      feePayer: owner,
       instructions: [
         await getSetCrossCollateralRoutersInstruction(
           programAddress,
@@ -389,36 +395,13 @@ export class SvmCrossCollateralTokenWriter
 
     const ownerAddress = parseAddress(current.config.owner);
 
-    // Diff CC routers
     const currentCCRouters = current.config.crossCollateralRouters ?? {};
     const expectedCCRouters = artifact.config.crossCollateralRouters ?? {};
 
-    const toUnenroll: Record<number, Set<string> | null> = {};
-    for (const [domainStr, currentSet] of Object.entries(currentCCRouters)) {
-      const domain = Number(domainStr);
-      const expectedSet = expectedCCRouters[domain];
-      if (!expectedSet || expectedSet.size === 0) {
-        // Domain removed entirely — bulk unenroll
-        toUnenroll[domain] = null;
-      } else {
-        for (const router of currentSet) {
-          if (!expectedSet.has(router)) {
-            (toUnenroll[domain] ??= new Set()).add(router);
-          }
-        }
-      }
-    }
-
-    const toEnroll: Record<number, Set<string>> = {};
-    for (const [domainStr, expectedSet] of Object.entries(expectedCCRouters)) {
-      const domain = Number(domainStr);
-      const currentSet = currentCCRouters[domain] ?? new Set();
-      for (const router of expectedSet) {
-        if (!currentSet.has(router)) {
-          (toEnroll[domain] ??= new Set()).add(router);
-        }
-      }
-    }
+    const { toEnroll, toUnenroll } = computeCrossCollateralRouterUpdates(
+      currentCCRouters,
+      expectedCCRouters,
+    );
 
     // CC router updates first (need current owner before any ownership transfer)
     const txs: AnnotatedSvmTransaction[] = [];
@@ -443,11 +426,19 @@ export class SvmCrossCollateralTokenWriter
       );
     }
 
+    // For domains transitioning from remoteRouter to CC-only, inject their
+    // current gas into the expected config so the base diff doesn't unenroll it.
+    const expectedWithPreservedGas = preserveGasForCCTransitionDomains(
+      current.config,
+      artifact.config,
+      expectedCCRouters,
+    );
+
     // Base warp token updates (ownership/upgrade auth always last)
     txs.push(
       ...(await computeWarpTokenUpdateInstructions(
         current.config,
-        artifact.config,
+        expectedWithPreservedGas,
         programId,
         ownerAddress,
         this.rpc,
@@ -455,6 +446,102 @@ export class SvmCrossCollateralTokenWriter
       )),
     );
 
+    // Gas updates for CC-only domains not covered by computeWarpTokenUpdateInstructions
+    // (which only derives its domain set from remoteRouters).
+    const expectedRouterDomains = new Set(
+      Object.keys(artifact.config.remoteRouters).map(Number),
+    );
+    const ccGasDiff = computeCCRouterGasConfigUpdates(
+      current.config.destinationGas,
+      artifact.config.destinationGas,
+      expectedRouterDomains,
+      currentCCRouters,
+      expectedCCRouters,
+    );
+
+    txs.push(
+      ...(await buildCCGasConfigTxs(ccGasDiff, programId, ownerAddress)),
+    );
+
     return txs;
   }
+}
+
+/**
+ * For domains transitioning from remoteRouter to CC-only, inject their current
+ * gas value into the expected config. This prevents computeWarpTokenUpdateInstructions
+ * from emitting a gas unenroll that would be immediately reversed.
+ */
+function preserveGasForCCTransitionDomains(
+  current: RawCrossCollateralWarpArtifactConfig,
+  expected: RawCrossCollateralWarpArtifactConfig,
+  expectedCCRouters: Record<number, Set<string>>,
+): RawCrossCollateralWarpArtifactConfig {
+  const currentRouterDomains = new Set(
+    Object.keys(current.remoteRouters).map(Number),
+  );
+  const expectedRouterDomains = new Set(
+    Object.keys(expected.remoteRouters).map(Number),
+  );
+
+  const preservedGas: Record<number, string> = {};
+  for (const domain of currentRouterDomains) {
+    if (expectedRouterDomains.has(domain)) continue;
+    const hasCCRouters =
+      expectedCCRouters[domain] && expectedCCRouters[domain].size > 0;
+    const currentGas = current.destinationGas[domain];
+    if (hasCCRouters && currentGas) {
+      preservedGas[domain] = currentGas;
+    }
+  }
+
+  if (Object.keys(preservedGas).length === 0) return expected;
+
+  return {
+    ...expected,
+    destinationGas: { ...expected.destinationGas, ...preservedGas },
+  };
+}
+
+async function buildCCGasConfigTxs(
+  diff: {
+    toEnroll: Array<{ domain: number; gas: string }>;
+    toUnenroll: number[];
+  },
+  programId: Address,
+  ownerAddress: Address,
+): Promise<AnnotatedSvmTransaction[]> {
+  const txs: AnnotatedSvmTransaction[] = [];
+
+  for (let i = 0; i < diff.toUnenroll.length; i += MAX_GAS_CONFIGS_PER_TX) {
+    const batch = diff.toUnenroll.slice(i, i + MAX_GAS_CONFIGS_PER_TX);
+    txs.push({
+      feePayer: ownerAddress,
+      instructions: [
+        await getTokenSetDestinationGasConfigsInstruction(
+          programId,
+          ownerAddress,
+          batch.map((domain) => ({ domain, gas: null })),
+        ),
+      ],
+      annotation: `Unenroll CC-only gas configs`,
+    });
+  }
+
+  for (let i = 0; i < diff.toEnroll.length; i += MAX_GAS_CONFIGS_PER_TX) {
+    const batch = diff.toEnroll.slice(i, i + MAX_GAS_CONFIGS_PER_TX);
+    txs.push({
+      feePayer: ownerAddress,
+      instructions: [
+        await getTokenSetDestinationGasConfigsInstruction(
+          programId,
+          ownerAddress,
+          batch.map((e) => ({ domain: e.domain, gas: BigInt(e.gas) })),
+        ),
+      ],
+      annotation: `Enroll CC-only gas configs`,
+    });
+  }
+
+  return txs;
 }
