@@ -1,6 +1,7 @@
 {
   "name": "@hyperlane-xyz/fee-quoting",
   "version": "27.2.0",
+  "private": true,
   "description": "Offchain fee quoting service and client for Hyperlane",
   "license": "Apache-2.0",
   "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
@@ -8,9 +9,8 @@
     "/dist"
   ],
   "type": "module",
-  "types": "./dist/index.d.ts",
+  "types": "./dist/server.d.ts",
   "exports": {
-    ".": "./dist/index.js",
     "./server": "./dist/server.js"
   },
   "scripts": {

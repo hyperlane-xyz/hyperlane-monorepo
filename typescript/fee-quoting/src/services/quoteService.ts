@@ -9,11 +9,16 @@ import {
   DEFAULT_ROUTER_KEY,
   type DerivedTokenFeeConfig,
   type DerivedTokenRouterConfig,
+  FeeQuotingCommand,
+  type FeeQuotingQuoteResponse,
   type HookConfig,
+  HookType,
   type IgpHookConfig,
   type MultiProvider,
-  HookType,
+  type SignedQuoteData,
+  type SubmitQuoteCommand,
   TokenFeeType,
+  WARP_FEE_COMMANDS,
 } from '@hyperlane-xyz/sdk';
 
 import type { QuoteMode } from '../config.js';
@@ -23,13 +28,6 @@ import {
   ZERO_ADDRESS,
 } from '../constants.js';
 import { ApiError } from '../middleware/errorHandler.js';
-import {
-  type QuoteResponse,
-  type SignedQuoteData,
-  type SubmitQuoteCommand,
-  QuotedCallsCommand,
-  WARP_FEE_COMMANDS,
-} from '../types.js';
 
 /** Per-router config derived from on-chain state */
 export interface RouterQuoteContext {
@@ -89,13 +87,13 @@ export class QuoteService {
    */
   async getQuote(
     origin: string,
-    command: QuotedCallsCommand,
+    command: FeeQuotingCommand,
     router: Address,
     destination: number,
     salt: Hex,
     recipient?: Hex,
     targetRouter?: Hex,
-  ): Promise<QuoteResponse> {
+  ): Promise<FeeQuotingQuoteResponse> {
     const ctx = this.chainContexts.get(origin);
     if (!ctx) {
       throw new ApiError(`Unknown origin chain: ${origin}`, 400);

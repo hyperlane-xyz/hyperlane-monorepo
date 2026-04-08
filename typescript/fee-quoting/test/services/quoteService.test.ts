@@ -3,7 +3,12 @@ import { pino } from 'pino';
 import { type Address, type Hex, verifyTypedData } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 
-import { DEFAULT_ROUTER_KEY, HookType, TokenFeeType } from '@hyperlane-xyz/sdk';
+import {
+  DEFAULT_ROUTER_KEY,
+  FeeQuotingCommand,
+  HookType,
+  TokenFeeType,
+} from '@hyperlane-xyz/sdk';
 
 import {
   EIP712_DOMAIN,
@@ -15,7 +20,6 @@ import {
   type ChainQuoteContext,
   type QuoteServiceOptions,
 } from '../../src/services/quoteService.js';
-import { QuotedCallsCommand } from '../../src/types.js';
 
 // Foundry/Hardhat default test account #0
 const TEST_PRIVATE_KEY =
@@ -104,7 +108,7 @@ describe('QuoteService', () => {
     it('returns warp fee + IGP quotes', async () => {
       const res = await service.getQuote(
         'ethereum',
-        QuotedCallsCommand.TransferRemote,
+        FeeQuotingCommand.TransferRemote,
         ROUTER,
         DESTINATION,
         SALT,
@@ -116,7 +120,7 @@ describe('QuoteService', () => {
     it('expiry equals issuedAt', async () => {
       const res = await service.getQuote(
         'ethereum',
-        QuotedCallsCommand.TransferRemote,
+        FeeQuotingCommand.TransferRemote,
         ROUTER,
         DESTINATION,
         SALT,
@@ -130,7 +134,7 @@ describe('QuoteService', () => {
     it('submitter is QuotedCalls address', async () => {
       const res = await service.getQuote(
         'ethereum',
-        QuotedCallsCommand.TransferRemote,
+        FeeQuotingCommand.TransferRemote,
         ROUTER,
         DESTINATION,
         SALT,
@@ -144,7 +148,7 @@ describe('QuoteService', () => {
     it('uses provided salt', async () => {
       const res = await service.getQuote(
         'ethereum',
-        QuotedCallsCommand.TransferRemote,
+        FeeQuotingCommand.TransferRemote,
         ROUTER,
         DESTINATION,
         SALT,
@@ -158,7 +162,7 @@ describe('QuoteService', () => {
     it('ICA returns IGP only', async () => {
       const res = await service.getQuote(
         'ethereum',
-        QuotedCallsCommand.CallRemoteWithOverrides,
+        FeeQuotingCommand.CallRemoteWithOverrides,
         ROUTER,
         DESTINATION,
         SALT,
@@ -179,7 +183,7 @@ describe('QuoteService', () => {
     it('expiry > issuedAt', async () => {
       const res = await service.getQuote(
         'ethereum',
-        QuotedCallsCommand.TransferRemote,
+        FeeQuotingCommand.TransferRemote,
         ROUTER,
         DESTINATION,
         SALT,
@@ -193,7 +197,7 @@ describe('QuoteService', () => {
     it('submitter is address(0)', async () => {
       const res = await service.getQuote(
         'ethereum',
-        QuotedCallsCommand.TransferRemote,
+        FeeQuotingCommand.TransferRemote,
         ROUTER,
         DESTINATION,
         SALT,
@@ -207,7 +211,7 @@ describe('QuoteService', () => {
     it('uses provided salt', async () => {
       const res = await service.getQuote(
         'ethereum',
-        QuotedCallsCommand.TransferRemote,
+        FeeQuotingCommand.TransferRemote,
         ROUTER,
         DESTINATION,
         SALT,
@@ -224,7 +228,7 @@ describe('QuoteService', () => {
       const service = createTestService();
       const res = await service.getQuote(
         'ethereum',
-        QuotedCallsCommand.TransferRemote,
+        FeeQuotingCommand.TransferRemote,
         ROUTER,
         DESTINATION,
         SALT,
@@ -293,7 +297,7 @@ describe('QuoteService', () => {
       });
       const res = await svc.getQuote(
         'ethereum',
-        QuotedCallsCommand.CallRemoteWithOverrides,
+        FeeQuotingCommand.CallRemoteWithOverrides,
         ROUTER,
         DESTINATION,
         SALT,
@@ -313,7 +317,7 @@ describe('QuoteService', () => {
       });
       const res = await svc.getQuote(
         'ethereum',
-        QuotedCallsCommand.CallRemoteWithOverrides,
+        FeeQuotingCommand.CallRemoteWithOverrides,
         ROUTER,
         DESTINATION,
         SALT,
@@ -337,7 +341,7 @@ describe('QuoteService', () => {
       });
       const res = await svc.getQuote(
         'ethereum',
-        QuotedCallsCommand.CallRemoteWithOverrides,
+        FeeQuotingCommand.CallRemoteWithOverrides,
         ROUTER,
         DESTINATION,
         SALT,
@@ -381,7 +385,7 @@ describe('QuoteService', () => {
 
       const res = await svc.getQuote(
         'ethereum',
-        QuotedCallsCommand.TransferRemote,
+        FeeQuotingCommand.TransferRemote,
         ROUTER,
         DESTINATION,
         SALT,
@@ -441,7 +445,7 @@ describe('QuoteService', () => {
 
       const res = await svc.getQuote(
         'ethereum',
-        QuotedCallsCommand.TransferRemoteTo,
+        FeeQuotingCommand.TransferRemoteTo,
         ROUTER,
         DESTINATION,
         SALT,
@@ -490,7 +494,7 @@ describe('QuoteService', () => {
 
       const res = await svc.getQuote(
         'ethereum',
-        QuotedCallsCommand.TransferRemoteTo,
+        FeeQuotingCommand.TransferRemoteTo,
         ROUTER,
         DESTINATION,
         SALT,
@@ -536,7 +540,7 @@ describe('QuoteService', () => {
 
       const res = await svc.getQuote(
         'ethereum',
-        QuotedCallsCommand.TransferRemote,
+        FeeQuotingCommand.TransferRemote,
         ROUTER,
         DESTINATION,
         SALT,
@@ -568,7 +572,7 @@ describe('QuoteService', () => {
 
       const res = await svc.getQuote(
         'ethereum',
-        QuotedCallsCommand.TransferRemote,
+        FeeQuotingCommand.TransferRemote,
         ROUTER,
         DESTINATION,
         SALT,
@@ -595,7 +599,7 @@ describe('QuoteService', () => {
 
       const res = await svc.getQuote(
         'ethereum',
-        QuotedCallsCommand.TransferRemote,
+        FeeQuotingCommand.TransferRemote,
         ROUTER,
         DESTINATION,
         SALT,
@@ -625,7 +629,7 @@ describe('QuoteService', () => {
 
       const res = await svc.getQuote(
         'ethereum',
-        QuotedCallsCommand.TransferRemote,
+        FeeQuotingCommand.TransferRemote,
         ROUTER,
         DESTINATION,
         SALT,
@@ -652,7 +656,7 @@ describe('QuoteService', () => {
 
       const res = await svc.getQuote(
         'ethereum',
-        QuotedCallsCommand.TransferRemote,
+        FeeQuotingCommand.TransferRemote,
         ROUTER,
         DESTINATION,
         SALT,
@@ -683,7 +687,7 @@ describe('QuoteService', () => {
 
       const res = await svc.getQuote(
         'ethereum',
-        QuotedCallsCommand.TransferRemote,
+        FeeQuotingCommand.TransferRemote,
         ROUTER,
         DESTINATION,
         SALT,
@@ -698,7 +702,7 @@ describe('QuoteService', () => {
     try {
       await service.getQuote(
         'unknown',
-        QuotedCallsCommand.TransferRemote,
+        FeeQuotingCommand.TransferRemote,
         ROUTER,
         DESTINATION,
         SALT,
@@ -715,7 +719,7 @@ describe('QuoteService', () => {
     try {
       await service.getQuote(
         'ethereum',
-        QuotedCallsCommand.TransferRemote,
+        FeeQuotingCommand.TransferRemote,
         '0x9999999999999999999999999999999999999999' as Address,
         DESTINATION,
         SALT,
@@ -732,7 +736,7 @@ describe('QuoteService', () => {
     try {
       await service.getQuote(
         'ethereum',
-        QuotedCallsCommand.TransferRemote,
+        FeeQuotingCommand.TransferRemote,
         ROUTER,
         DESTINATION,
         SALT,

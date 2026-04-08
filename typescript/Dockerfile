@@ -6,7 +6,7 @@
 #   SERVICE_VERSION - Image version label
 #
 # Runtime env:
-#   SERVICE_NAME - One of: rebalancer, warp-monitor, ccip-server, keyfunder, relayer
+#   SERVICE_NAME - One of: rebalancer, warp-monitor, ccip-server, keyfunder, relayer, fee-quoting
 
 FROM node:24-slim AS builder
 
@@ -41,6 +41,7 @@ COPY typescript/warp-monitor/package.json ./typescript/warp-monitor/
 COPY typescript/ccip-server/package.json ./typescript/ccip-server/
 COPY typescript/keyfunder/package.json ./typescript/keyfunder/
 COPY typescript/relayer/package.json ./typescript/relayer/
+COPY typescript/fee-quoting/package.json ./typescript/fee-quoting/
 COPY typescript/metrics/package.json ./typescript/metrics/
 COPY typescript/deploy-sdk/package.json ./typescript/deploy-sdk/
 COPY typescript/sdk/package.json ./typescript/sdk/
@@ -111,6 +112,7 @@ COPY typescript/warp-monitor ./typescript/warp-monitor
 COPY typescript/ccip-server ./typescript/ccip-server
 COPY typescript/keyfunder ./typescript/keyfunder
 COPY typescript/relayer ./typescript/relayer
+COPY typescript/fee-quoting ./typescript/fee-quoting
 
 # Bundle all services in a single turbo invocation
 RUN pnpm turbo run bundle \
@@ -118,7 +120,8 @@ RUN pnpm turbo run bundle \
     --filter=@hyperlane-xyz/warp-monitor \
     --filter=@hyperlane-xyz/ccip-server \
     --filter=@hyperlane-xyz/keyfunder \
-    --filter=@hyperlane-xyz/relayer
+    --filter=@hyperlane-xyz/relayer \
+    --filter=@hyperlane-xyz/fee-quoting
 
 # Deduplicate identical NCC assets across bundles.
 # NCC produces byte-identical copies of WASM files (~18MB each), workers,
@@ -127,12 +130,12 @@ RUN pnpm turbo run bundle \
 # deduped result is COPY'd into the runner stage.
 RUN SERVICES_DIR=/hyperlane-monorepo/services && \
     mkdir -p $SERVICES_DIR && \
-    for svc in rebalancer warp-monitor ccip-server keyfunder relayer; do \
+    for svc in rebalancer warp-monitor ccip-server keyfunder relayer fee-quoting; do \
       cp -a typescript/${svc}/bundle $SERVICES_DIR/${svc}; \
     done && \
     CANONICAL=rebalancer && \
     cd $SERVICES_DIR && \
-    for svc in warp-monitor ccip-server keyfunder relayer; do \
+    for svc in warp-monitor ccip-server keyfunder relayer fee-quoting; do \
       for file in ${CANONICAL}/*; do \
         fname=$(basename "$file") && \
         target="${svc}/${fname}" && \
@@ -181,7 +184,7 @@ ENV NODE_ENV=production
 ENV LOG_LEVEL=info
 ENV SERVICE_VERSION=${SERVICE_VERSION}
 
-# SERVICE_NAME must be set at runtime (rebalancer, warp-monitor, ccip-server, keyfunder, relayer)
+# SERVICE_NAME must be set at runtime (rebalancer, warp-monitor, ccip-server, keyfunder, relayer, fee-quoting)
 ENV SERVICE_NAME=""
 
 # Expose metrics port (9090) and optional service port (e.g. 3000 for ccip-server)
