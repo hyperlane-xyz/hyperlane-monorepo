@@ -40,6 +40,7 @@ import {
   getCrossCollateralInitInstruction,
   getSetCrossCollateralRoutersInstruction,
 } from '../instructions/cross-collateral-token.js';
+import { getTokenSetDestinationGasConfigsInstruction } from '../instructions/token.js';
 import { readonlyAccount, writableAccount } from '../instructions/utils.js';
 import {
   deriveAtaPayerPda,
@@ -66,6 +67,8 @@ import {
 } from './warp-tx.js';
 
 const MAX_CC_ROUTERS_PER_TX = 20;
+// Each gas config entry is 13 bytes — same limit as warp-tx.ts.
+const MAX_GAS_CONFIGS_PER_TX = 60;
 
 /**
  * Canonicalize a CC routers map to lowercase hex32 for consistent diffing.
@@ -476,6 +479,99 @@ export class SvmCrossCollateralTokenWriter
       )),
     );
 
+    // Gas updates for CC-only domains (not covered by computeWarpTokenUpdateInstructions
+    // which only considers remoteRouters for domain derivation).
+    txs.push(
+      ...(await computeCCOnlyGasUpdates(
+        current.config,
+        artifact.config,
+        programId,
+        ownerAddress,
+        currentCCRouters,
+        expectedCCRouters,
+      )),
+    );
+
     return txs;
   }
+}
+
+/**
+ * Computes destination gas updates for CC-only domains — domains present in
+ * crossCollateralRouters but NOT in remoteRouters. computeWarpTokenUpdateInstructions
+ * only derives its domain set from remoteRouters, so CC-only domains are missed.
+ */
+async function computeCCOnlyGasUpdates(
+  current: RawCrossCollateralWarpArtifactConfig,
+  expected: RawCrossCollateralWarpArtifactConfig,
+  programId: Address,
+  ownerAddress: Address,
+  currentCCRouters: Record<number, Set<string>>,
+  expectedCCRouters: Record<number, Set<string>>,
+): Promise<AnnotatedSvmTransaction[]> {
+  // Domains already handled by the standard router diff
+  const remoteRouterDomains = new Set([
+    ...Object.keys(current.remoteRouters).map(Number),
+    ...Object.keys(expected.remoteRouters).map(Number),
+  ]);
+
+  // All CC domains from both current and expected
+  const allCCDomains = new Set([
+    ...Object.keys(currentCCRouters).map(Number),
+    ...Object.keys(expectedCCRouters).map(Number),
+  ]);
+
+  const gasToEnroll: Array<{ domain: number; gas: bigint }> = [];
+  const gasToUnenroll: number[] = [];
+
+  for (const domain of allCCDomains) {
+    if (remoteRouterDomains.has(domain)) continue;
+
+    const currentGas = current.destinationGas[domain];
+    const expectedGas = expected.destinationGas[domain];
+    const hasExpectedCCRouters =
+      expectedCCRouters[domain] && expectedCCRouters[domain].size > 0;
+
+    if (hasExpectedCCRouters && expectedGas) {
+      if (currentGas !== expectedGas) {
+        gasToEnroll.push({ domain, gas: BigInt(expectedGas) });
+      }
+    } else if (!hasExpectedCCRouters && currentGas) {
+      gasToUnenroll.push(domain);
+    }
+  }
+
+  const txs: AnnotatedSvmTransaction[] = [];
+
+  for (let i = 0; i < gasToUnenroll.length; i += MAX_GAS_CONFIGS_PER_TX) {
+    const batch = gasToUnenroll.slice(i, i + MAX_GAS_CONFIGS_PER_TX);
+    txs.push({
+      feePayer: ownerAddress,
+      instructions: [
+        await getTokenSetDestinationGasConfigsInstruction(
+          programId,
+          ownerAddress,
+          batch.map((domain) => ({ domain, gas: null })),
+        ),
+      ],
+      annotation: `Unenroll CC-only gas configs`,
+    });
+  }
+
+  for (let i = 0; i < gasToEnroll.length; i += MAX_GAS_CONFIGS_PER_TX) {
+    const batch = gasToEnroll.slice(i, i + MAX_GAS_CONFIGS_PER_TX);
+    txs.push({
+      feePayer: ownerAddress,
+      instructions: [
+        await getTokenSetDestinationGasConfigsInstruction(
+          programId,
+          ownerAddress,
+          batch.map((e) => ({ domain: e.domain, gas: e.gas })),
+        ),
+      ],
+      annotation: `Enroll CC-only gas configs`,
+    });
+  }
+
+  return txs;
 }
