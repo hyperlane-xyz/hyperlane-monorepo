@@ -18,7 +18,7 @@ import {
   ExplorerLicenseType,
   altVmChainLookup,
 } from '@hyperlane-xyz/sdk';
-import { mustGet } from '@hyperlane-xyz/utils';
+import { deepEquals, mustGet } from '@hyperlane-xyz/utils';
 
 import { type MultiProtocolSignerManager } from '../context/strategies/signer/MultiProtocolSignerManager.js';
 import { type WriteCommandContext } from '../context/types.js';
@@ -152,10 +152,19 @@ export async function runCoreApply(params: ApplyParams) {
       const evmCoreModule = new EvmCoreModule(multiProvider, {
         chain,
         config,
-        addresses: deployedCoreAddresses,
+        addresses: { ...deployedCoreAddresses },
       });
 
       const transactions = await evmCoreModule.update(config);
+
+      // Write back addresses if update() deployed new contracts
+      const updatedAddresses = evmCoreModule.serialize();
+      if (!deepEquals(updatedAddresses, deployedCoreAddresses)) {
+        await context.registry.updateChain({
+          chainName: chain,
+          addresses: updatedAddresses,
+        });
+      }
 
       if (transactions.length) {
         logGray('Updating deployed core contracts');

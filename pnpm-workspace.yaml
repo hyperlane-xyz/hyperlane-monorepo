@@ -6,7 +6,6 @@ minimumReleaseAgeExclude:
 packages:
   - 'solhint-plugin'
   - 'solidity'
-  - 'solidity/multicollateral'
   - 'typescript/*'
   - 'starknet'
 
@@ -31,6 +30,9 @@ catalog:
 
   # Validation
   zod: ^3.21.2
+
+  # HTTP
+  express-rate-limit: ^8.3.1
 
   # Utilities
   bignumber.js: ^9.1.1

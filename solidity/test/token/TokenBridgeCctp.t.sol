@@ -93,7 +93,7 @@ contract TokenBridgeCctpV1Test is Test {
         igpDestination = new TestInterchainGasPaymaster();
 
         mailboxOrigin.setDefaultHook(address(igpOrigin));
-        mailboxOrigin.setDefaultHook(address(igpDestination));
+        mailboxDestination.setDefaultHook(address(igpDestination));
 
         tokenOrigin = new MockToken();
         tokenDestination = new MockToken();
@@ -789,6 +789,23 @@ contract TokenBridgeCctpV1Test is Test {
             body
         );
         vm.expectRevert(TokenBridgeCctpBase.MessageNotDispatched.selector);
+        tbOrigin.postDispatch(bytes(""), message);
+    }
+
+    function test_postDispatch_revertsWhen_senderIsThis(
+        bytes32 recipient,
+        bytes calldata body
+    ) public {
+        bytes memory message = Message.formatMessage(
+            3,
+            0,
+            origin,
+            address(tbOrigin).addressToBytes32(),
+            destination,
+            recipient,
+            body
+        );
+        vm.expectRevert(TokenBridgeCctpBase.InvalidPostDispatchSender.selector);
         tbOrigin.postDispatch(bytes(""), message);
     }
 

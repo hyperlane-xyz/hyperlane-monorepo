@@ -20,6 +20,7 @@ import {IGasOracle} from "../../interfaces/IGasOracle.sol";
 import {IInterchainGasPaymaster} from "../../interfaces/IInterchainGasPaymaster.sol";
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
 import {AbstractPostDispatchHook} from "../libs/AbstractPostDispatchHook.sol";
+import {OffchainQuotedIGP} from "./OffchainQuotedIGP.sol";
 import {Indexed} from "../../libs/Indexed.sol";
 import {EnumerableDomainSet} from "../../libs/EnumerableDomainSet.sol";
 
@@ -44,7 +45,8 @@ contract InterchainGasPaymaster is
     IGasOracle,
     Indexed,
     OwnableUpgradeable,
-    EnumerableDomainSet
+    EnumerableDomainSet,
+    OffchainQuotedIGP
 {
     using Address for address payable;
     using SafeERC20 for IERC20;
@@ -285,8 +287,12 @@ contract InterchainGasPaymaster is
 
     /**
      * @notice Quotes the amount of a specific token required to pay for gas.
-     * @dev Uses tokenGasOracles for oracle lookup and destinationGasOverhead for overhead.
-     *      Use NATIVE_TOKEN (address(0)) for native gas payments.
+     * @dev Resolves offchain quotes using msg.sender as the sender dimension.
+     *      During dispatch, _quoteDispatch uses message.senderAddress() instead
+     *      (typically the warp route). For accurate pre-dispatch estimates with
+     *      sender-specific quotes, use quoteDispatch rather than this function.
+     *      Alternatively, set the `from` field in eth_call to simulate the
+     *      correct msg.sender for quote resolution.
      * @param _feeToken The token to pay gas fees in, or NATIVE_TOKEN for native.
      * @param _destinationDomain The domain of the message's destination chain.
      * @param _gasLimit The amount of destination gas to pay for.
@@ -297,6 +303,67 @@ contract InterchainGasPaymaster is
         uint32 _destinationDomain,
         uint256 _gasLimit
     ) public view virtual returns (uint256) {
+        return
+            _quoteGasPayment(
+                _feeToken,
+                _destinationDomain,
+                _gasLimit,
+                msg.sender
+            );
+    }
+
+    function _quoteGasPayment(
+        address _feeToken,
+        uint32 _destinationDomain,
+        uint256 _gasLimit,
+        address _sender
+    ) internal view virtual returns (uint256) {
+        (
+            uint128 exchangeRate,
+            uint128 gasPrice
+        ) = _resolveExchangeRateAndGasPrice(
+                _feeToken,
+                _destinationDomain,
+                _sender
+            );
+        return _computeGasFee(exchangeRate, gasPrice, _gasLimit);
+    }
+
+    /**
+     * @notice Resolve exchange rate and gas price: offchain quotes → on-chain oracle.
+     * @dev If no offchain quote matches, falls through to the on-chain oracle.
+     *      If no oracle is configured, the oracle call reverts naturally.
+     */
+    function _resolveExchangeRateAndGasPrice(
+        address _feeToken,
+        uint32 _destinationDomain,
+        address _sender
+    ) internal view returns (uint128 exchangeRate, uint128 gasPrice) {
+        bool found;
+        (found, exchangeRate, gasPrice) = _resolveOffchainQuote(
+            _feeToken,
+            _destinationDomain,
+            _sender
+        );
+        if (found) return (exchangeRate, gasPrice);
+
+        return _getExchangeRateAndGasPrice(_feeToken, _destinationDomain);
+    }
+
+    function _computeGasFee(
+        uint128 tokenExchangeRate,
+        uint128 gasPrice,
+        uint256 gasLimit
+    ) internal pure returns (uint256) {
+        return
+            (gasLimit * uint256(gasPrice) * uint256(tokenExchangeRate)) /
+            TOKEN_EXCHANGE_RATE_SCALE;
+    }
+
+    function _getExchangeRateAndGasPrice(
+        address _feeToken,
+        uint32 _destinationDomain
+    ) internal view virtual returns (uint128, uint128) {
         IGasOracle _oracle = tokenGasOracles[_feeToken][_destinationDomain];
         require(
             address(_oracle) != address(0),
@@ -305,12 +372,7 @@ contract InterchainGasPaymaster is
                 Strings.toString(_destinationDomain)
             )
         );
-        (uint128 _tokenExchangeRate, uint128 _gasPrice) = _oracle
-            .getExchangeRateAndGasPrice(_destinationDomain);
-        uint256 _destinationGasCost = _gasLimit * uint256(_gasPrice);
-        return
-            (_destinationGasCost * _tokenExchangeRate) /
-            TOKEN_EXCHANGE_RATE_SCALE;
+        return _oracle.getExchangeRateAndGasPrice(_destinationDomain);
     }
 
     /**
@@ -432,6 +494,13 @@ contract InterchainGasPaymaster is
     }
 
     /// @inheritdoc AbstractPostDispatchHook
+    /// @dev When using ERC20 fee tokens, `_postDispatch` pulls tokens from `message.senderAddress()`
+    /// via `safeTransferFrom`. Because `postDispatch` is publicly callable with arbitrary message
+    /// bytes, any standing token approval to the IGP can be spent by a third-party caller
+    /// supplying a crafted message. In this scenario, funds are collected by the IGP and are
+    /// recoverable by the beneficiary (the hook operator), NOT by the attacker.
+    /// Callers that hold fee tokens should use exact per-call approvals rather than
+    /// standing (infinite) allowances to the IGP.
     function _postDispatch(
         bytes calldata metadata,
         bytes calldata message
@@ -443,10 +512,11 @@ contract InterchainGasPaymaster is
             metadata.gasLimit(DEFAULT_GAS_USAGE)
         );
 
-        uint256 _payment = quoteGasPayment(
+        uint256 _payment = _quoteGasPayment(
             _feeToken,
             _destinationDomain,
-            _gasLimit
+            _gasLimit,
+            message.senderAddress()
         );
 
         address _payerOrRefundAddress = _feeToken == address(0)
@@ -472,10 +542,11 @@ contract InterchainGasPaymaster is
         uint32 _destinationDomain = message.destination();
         uint256 _gasLimit = metadata.gasLimit(DEFAULT_GAS_USAGE);
         return
-            quoteGasPayment(
+            _quoteGasPayment(
                 _feeToken,
                 _destinationDomain,
-                destinationGasLimit(_destinationDomain, _gasLimit)
+                destinationGasLimit(_destinationDomain, _gasLimit),
+                message.senderAddress()
             );
     }
 
@@ -518,6 +589,14 @@ contract InterchainGasPaymaster is
         }
 
         emit TokenGasOracleSet(_feeToken, _remoteDomain, address(_gasOracle));
+    }
+
+    function addQuoteSigner(address _signer) external onlyOwner {
+        _addQuoteSigner(_signer);
+    }
+
+    function removeQuoteSigner(address _signer) external onlyOwner {
+        _removeQuoteSigner(_signer);
     }
 
     /**

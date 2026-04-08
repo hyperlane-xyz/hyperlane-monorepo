@@ -1,6 +1,13 @@
+import crypto from 'node:crypto';
+
 import { type TransactionReceipt } from '@ethersproject/providers';
 import { stringify as yamlStringify } from 'yaml';
+import { type Address, type Hex } from 'viem';
 
+import {
+  FeeQuotingClient,
+  QuotedCallsCommand as FeeQuotingCommand,
+} from '@hyperlane-xyz/fee-quoting';
 import { GasAction } from '@hyperlane-xyz/provider-sdk';
 import {
   type AnnotatedTx,
@@ -13,15 +20,19 @@ import {
   HyperlaneCore,
   MultiProtocolCore,
   ProviderType,
+  type QuotedCallsParams,
   type Token,
   TokenAmount,
+  TokenPullMode,
   type TypedTransactionReceipt,
   WarpCore,
   type WarpCoreConfig,
   WarpTxCategory,
+  computeScopedSalt,
 } from '@hyperlane-xyz/sdk';
 import {
   ProtocolType,
+  addressToBytes32,
   assert,
   isEVMLike,
   mustGet,
@@ -102,6 +113,8 @@ export async function sendTestTransfer({
   skipValidation,
   sourceToken,
   destinationToken,
+  feeQuotingUrl,
+  feeQuotingApiKey,
 }: {
   context: WriteCommandContext;
   warpCoreConfig: WarpCoreConfig;
@@ -114,6 +127,8 @@ export async function sendTestTransfer({
   skipValidation?: boolean;
   sourceToken?: string;
   destinationToken?: string;
+  feeQuotingUrl?: string;
+  feeQuotingApiKey?: string;
 }) {
   const { multiProvider } = context;
 
@@ -204,6 +219,8 @@ export async function sendTestTransfer({
           sourceToken: i === 0 ? sourceToken : undefined,
           destinationToken:
             i === chains.length - 2 ? destinationToken : undefined,
+          feeQuotingUrl,
+          feeQuotingApiKey,
         }),
         timeoutSec * 1000,
         'Timed out waiting for messages to be delivered',
@@ -225,6 +242,8 @@ async function executeDelivery({
   timeoutSec,
   sourceToken: sourceTokenAddr,
   destinationToken: destTokenAddr,
+  feeQuotingUrl,
+  feeQuotingApiKey,
 }: {
   context: WriteCommandContext;
   origin: ChainName;
@@ -238,6 +257,8 @@ async function executeDelivery({
   timeoutSec: number;
   sourceToken?: string;
   destinationToken?: string;
+  feeQuotingUrl?: string;
+  feeQuotingApiKey?: string;
 }) {
   const { multiProvider, registry, altVmSigners, multiProtocolProvider } =
     context;
@@ -344,6 +365,65 @@ async function executeDelivery({
     }
   }
 
+  // Build QuotedCalls params if fee-quoting is configured
+  let quotedCalls: QuotedCallsParams | undefined;
+  if (feeQuotingUrl && !feeQuotingApiKey) {
+    log(
+      'Warning: --fee-quoting-url provided without --fee-quoting-api-key, skipping fee quoting',
+    );
+  }
+  if (feeQuotingUrl && feeQuotingApiKey) {
+    const chainAddressesForOrigin = chainAddresses[origin];
+    const quotedCallsAddress = chainAddressesForOrigin?.quotedCalls as
+      | Address
+      | undefined;
+    assert(
+      quotedCallsAddress,
+      `No quotedCalls address found for chain ${origin}`,
+    );
+
+    const clientSalt = `0x${crypto.randomBytes(32).toString('hex')}` as Hex;
+    const salt = computeScopedSalt(signerAddress as Address, clientSalt);
+    const destinationDomainId = multiProvider.getDomainId(destination);
+
+    const feeQuotingClient = new FeeQuotingClient({
+      baseUrl: feeQuotingUrl,
+      apiKey: feeQuotingApiKey,
+    });
+
+    const command = destToken
+      ? FeeQuotingCommand.TransferRemoteTo
+      : FeeQuotingCommand.TransferRemote;
+
+    logBlue('Fetching offchain fee quotes...');
+    const { quotes } = await feeQuotingClient.getQuote({
+      origin,
+      command,
+      router: token.addressOrDenom as Address,
+      destination: destinationDomainId,
+      salt,
+      recipient: addressToBytes32(recipient!) as Hex,
+    });
+
+    quotedCalls = {
+      address: quotedCallsAddress,
+      quotes,
+      clientSalt,
+      tokenPullMode: TokenPullMode.TransferFrom,
+    };
+
+    logBlue(`Got ${quotes.length} quote(s), estimating fees...`);
+    const { feeQuotes } = await warpCore.getQuotedTransferFee({
+      originTokenAmount: new TokenAmount(amount, token),
+      destination,
+      sender: signerAddress,
+      recipient: recipient!,
+      quotedCalls,
+      destinationToken: destToken,
+    });
+    quotedCalls.feeQuotes = feeQuotes;
+  }
+
   // TODO: override hook address for self-relay
   const transferTxs = await warpCore.getTransferRemoteTxs({
     originTokenAmount: new TokenAmount(amount, token),
@@ -351,6 +431,7 @@ async function executeDelivery({
     sender: signerAddress,
     recipient: recipientAddress,
     destinationToken: destToken,
+    quotedCalls,
   });
 
   const txReceipts: TypedTransactionReceipt[] = [];
