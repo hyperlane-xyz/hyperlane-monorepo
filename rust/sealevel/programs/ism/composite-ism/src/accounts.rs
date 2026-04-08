@@ -2,16 +2,11 @@ use access_control::AccessControl;
 use account_utils::{AccountData, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{H160, H256};
-use solana_program::{program_error::ProgramError, pubkey::Pubkey};
+use solana_program::{account_info::AccountInfo, program_error::ProgramError, pubkey::Pubkey};
 
-/// A validator set and threshold for a specific origin domain.
-#[derive(BorshSerialize, BorshDeserialize, Debug, Default, PartialEq, Clone)]
-pub struct DomainConfig {
-    pub origin: u32,
-    /// ECDSA secp256k1 validator addresses.
-    pub validators: Vec<H160>,
-    pub threshold: u8,
-}
+/// Seed prefix for per-domain PDA accounts under a `Routing` node.
+/// Full seeds: `[DOMAIN_ISM_SEED, &domain.to_le_bytes()]`.
+pub const DOMAIN_ISM_SEED: &[u8] = b"domain_ism";
 
 /// A node in the ISM config tree. Stored inline in the VAM PDA.
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Clone)]
@@ -21,8 +16,14 @@ pub enum IsmNode {
     TrustedRelayer { relayer: Pubkey },
 
     /// ECDSA threshold multisig over CheckpointWithMessageId.
+    /// Validators and threshold are stored inline; domain routing is handled
+    /// externally by a `Routing` node.
     /// ModuleType: MessageIdMultisig.
-    MultisigMessageId { domain_configs: Vec<DomainConfig> },
+    MultisigMessageId {
+        /// ECDSA secp256k1 validator addresses.
+        validators: Vec<H160>,
+        threshold: u8,
+    },
 
     /// m-of-n aggregation: all sub-ISMs with provided metadata must verify,
     /// and at least `threshold` must have metadata provided.
@@ -30,13 +31,6 @@ pub enum IsmNode {
     Aggregation {
         threshold: u8,
         sub_isms: Vec<IsmNode>,
-    },
-
-    /// Routes to a sub-ISM based on the message's origin domain.
-    /// ModuleType: Routing.
-    Routing {
-        routes: Vec<(u32, IsmNode)>,
-        default_ism: Option<Box<IsmNode>>,
     },
 
     /// Always accepts (accept=true) or always rejects (accept=false).
@@ -66,7 +60,7 @@ pub enum IsmNode {
     ///
     /// `filled_level` and `last_updated` are mutable state fields updated on every
     /// successful `Verify`. Both are normalized to `(max_capacity, 0)` on
-    /// `Initialize`/`UpdateConfig` — callers cannot set arbitrary initial state.
+    /// `Initialize`/`UpdateConfig` -- callers cannot set arbitrary initial state.
     ///
     /// Calling `UpdateConfig` resets the rate limit state.
     ///
@@ -81,6 +75,27 @@ pub enum IsmNode {
         /// State: unix timestamp of last deduction. Normalized to `0` on init.
         last_updated: i64,
     },
+
+    /// Routes to a per-domain PDA account based on the message's origin domain.
+    ///
+    /// Each domain's ISM is stored in its own PDA account rather than inline.
+    /// Only the single domain PDA for the incoming message's origin is loaded at
+    /// verify time, so heap usage is O(1) and the number of supported domains is
+    /// unlimited.
+    ///
+    /// Each domain PDA is at seeds `[DOMAIN_ISM_SEED, &[table_id], &domain.to_le_bytes()]`.
+    /// The `table_id` field namespaces this routing table so that multiple `Routing`
+    /// nodes in the same ISM tree can coexist (e.g. inside an `Aggregation`).
+    ///
+    /// `RateLimited` inside a domain PDA is disallowed by `SetDomainIsm` validation
+    /// (writeback requires the domain PDA to be writable, which is not supported).
+    /// `TrustedRelayer` requires a two-pass `VerifyAccountMetas` call (see relayer docs).
+    ///
+    /// ModuleType: Routing.
+    Routing {
+        /// Fallback ISM used when no domain PDA exists for the message's origin.
+        default_ism: Option<Box<IsmNode>>,
+    },
 }
 
 /// Data stored in the VAM PDA account (VERIFY_ACCOUNT_METAS_PDA_SEEDS).
@@ -94,7 +109,6 @@ pub struct CompositeIsmStorage {
 
 impl SizedData for CompositeIsmStorage {
     fn size(&self) -> usize {
-        // Use borsh serialized length as the canonical size.
         borsh::to_vec(self).map(|v| v.len()).unwrap_or(0)
     }
 }
@@ -112,6 +126,62 @@ impl AccessControl for CompositeIsmStorage {
 
 pub type CompositeIsmAccount = AccountData<CompositeIsmStorage>;
 
+/// Data stored in a per-domain PDA account for `Routing` nodes.
+///
+/// Stored at `[DOMAIN_ISM_SEED, &domain.to_le_bytes()]`.
+/// `ism: None` means the account is uninitialized.
+#[derive(BorshSerialize, BorshDeserialize, Debug, Default, PartialEq)]
+pub struct DomainIsmStorage {
+    pub bump_seed: u8,
+    pub ism: Option<IsmNode>,
+}
+
+impl SizedData for DomainIsmStorage {
+    fn size(&self) -> usize {
+        borsh::to_vec(self).map(|v| v.len()).unwrap_or(0)
+    }
+}
+
+pub type DomainIsmAccount = AccountData<DomainIsmStorage>;
+
+/// Derives the PDA key and bump seed for a domain ISM account.
+pub fn derive_domain_pda(program_id: &Pubkey, domain: u32) -> (Pubkey, u8) {
+    let domain_bytes = domain.to_le_bytes();
+    Pubkey::find_program_address(&[DOMAIN_ISM_SEED, &domain_bytes], program_id)
+}
+
+/// Loads and validates a domain ISM account.
+///
+/// Returns the stored `IsmNode` if the account is initialized, or `None` if the
+/// account is not owned by this program (i.e. no domain config has been set).
+/// Returns an error if the account belongs to the program but fails PDA
+/// verification or deserialization.
+pub fn load_domain_ism(
+    program_id: &Pubkey,
+    domain: u32,
+    account: &AccountInfo,
+) -> Result<Option<IsmNode>, ProgramError> {
+    if account.owner != program_id {
+        return Ok(None);
+    }
+
+    let storage = DomainIsmAccount::fetch_data(&mut &account.data.borrow()[..])?
+        .ok_or(ProgramError::UninitializedAccount)?;
+
+    // Verify PDA derivation using the bump stored in the account.
+    let domain_bytes = domain.to_le_bytes();
+    let expected_key = Pubkey::create_program_address(
+        &[DOMAIN_ISM_SEED, &domain_bytes, &[storage.bump_seed]],
+        program_id,
+    )
+    .map_err(|_| ProgramError::InvalidSeeds)?;
+    if *account.key != expected_key {
+        return Err(ProgramError::InvalidAccountData);
+    }
+
+    Ok(storage.ism.clone())
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -125,11 +195,8 @@ mod test {
                     relayer: Pubkey::new_unique(),
                 },
                 IsmNode::MultisigMessageId {
-                    domain_configs: vec![DomainConfig {
-                        origin: 1,
-                        validators: vec![H160::zero()],
-                        threshold: 1,
-                    }],
+                    validators: vec![H160::zero()],
+                    threshold: 1,
                 },
             ],
         };
@@ -139,14 +206,23 @@ mod test {
     }
 
     #[test]
-    fn test_routing_node_borsh_roundtrip() {
-        let inner = IsmNode::Pausable { paused: false };
+    fn test_routing_borsh_roundtrip() {
         let node = IsmNode::Routing {
-            routes: vec![(1234u32, IsmNode::Test { accept: true })],
-            default_ism: Some(Box::new(inner)),
+            default_ism: Some(Box::new(IsmNode::Test { accept: false })),
         };
         let encoded = borsh::to_vec(&node).unwrap();
         let decoded: IsmNode = BorshDeserialize::try_from_slice(&encoded).unwrap();
         assert_eq!(node, decoded);
+    }
+
+    #[test]
+    fn test_domain_ism_storage_borsh_roundtrip() {
+        let storage = DomainIsmStorage {
+            bump_seed: 254,
+            ism: Some(IsmNode::Test { accept: true }),
+        };
+        let encoded = borsh::to_vec(&storage).unwrap();
+        let decoded: DomainIsmStorage = BorshDeserialize::try_from_slice(&encoded).unwrap();
+        assert_eq!(storage, decoded);
     }
 }

@@ -3462,7 +3462,6 @@ dependencies = [
  "hyperlane-core",
  "hyperlane-sealevel-interchain-security-module-interface",
  "hyperlane-test-utils",
- "multisig-ism",
  "num-derive",
  "num-traits",
  "rand 0.8.5",

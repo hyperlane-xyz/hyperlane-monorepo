@@ -7,7 +7,10 @@ use solana_program::{
 };
 use solana_system_interface::program as system_program;
 
-use crate::{accounts::IsmNode, storage_pda_seeds};
+use crate::{
+    accounts::{derive_domain_pda, IsmNode, DOMAIN_ISM_SEED},
+    storage_pda_seeds,
+};
 
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub enum Instruction {
@@ -24,7 +27,6 @@ pub enum Instruction {
     /// Accounts:
     /// 0. `[signer]` The owner.
     /// 1. `[writable]` The storage PDA account.
-    /// 2. `[executable]` The system program (required for realloc).
     UpdateConfig(IsmNode),
 
     /// Gets the owner from the storage PDA.
@@ -42,14 +44,40 @@ pub enum Instruction {
 
     /// Returns the [`MetadataSpec`] for the given message as return data.
     ///
-    /// Resolves Routing/AmountRouting inline so the relayer receives a flat spec.
+    /// Resolves Routing/AmountRouting/RoutingPda inline so the relayer receives
+    /// a flat spec. For `RoutingPda` nodes the domain PDA for `message.origin`
+    /// must be passed as an additional account after the storage PDA (in
+    /// depth-first tree order).
     ///
     /// Accounts:
     /// 0. `[]` The storage PDA account.
+    /// 1..N. `[]` Domain PDAs for any `RoutingPda` nodes (depth-first order).
     GetMetadataSpec(
         /// Raw-encoded [`HyperlaneMessage`].
         Vec<u8>,
     ),
+
+    /// Creates or updates the ISM for a specific origin domain within a
+    /// `RoutingPda` routing table. If the domain PDA does not exist it is
+    /// created; if it already exists it is updated (realloc as needed).
+    ///
+    /// Validates the ISM and disallows `RateLimited` nodes (writeback not
+    /// supported for domain PDAs).
+    ///
+    /// Accounts:
+    /// 0. `[signer]`     The owner (must match the VAM PDA owner).
+    /// 1. `[]`           The VAM storage PDA (ownership check).
+    /// 2. `[writable]`   The domain PDA.
+    /// 3. `[executable]` The system program.
+    SetDomainIsm { domain: u32, ism: IsmNode },
+
+    /// Closes a domain PDA, returning rent to the owner.
+    ///
+    /// Accounts:
+    /// 0. `[signer]`   The owner.
+    /// 1. `[]`         The VAM storage PDA (ownership check).
+    /// 2. `[writable]` The domain PDA.
+    RemoveDomainIsm { domain: u32 },
 }
 
 impl DiscriminatorData for Instruction {
@@ -99,7 +127,6 @@ pub fn update_config_instruction(
         accounts: vec![
             AccountMeta::new(owner, true),
             AccountMeta::new(storage_pda_key, false),
-            AccountMeta::new_readonly(system_program::ID, false),
         ],
     })
 }
@@ -108,14 +135,64 @@ pub fn update_config_instruction(
 pub fn get_metadata_spec_instruction(
     program_id: Pubkey,
     message_bytes: Vec<u8>,
+    domain_pdas: Vec<Pubkey>,
 ) -> Result<SolanaInstruction, ProgramError> {
     let (storage_pda_key, _) = Pubkey::try_find_program_address(storage_pda_seeds!(), &program_id)
         .ok_or(ProgramError::InvalidSeeds)?;
 
+    let mut accounts = vec![AccountMeta::new_readonly(storage_pda_key, false)];
+    for pda in domain_pdas {
+        accounts.push(AccountMeta::new_readonly(pda, false));
+    }
+
     Ok(SolanaInstruction {
         program_id,
         data: Instruction::GetMetadataSpec(message_bytes).encode()?,
-        accounts: vec![AccountMeta::new_readonly(storage_pda_key, false)],
+        accounts,
+    })
+}
+
+/// Creates a SetDomainIsm instruction.
+pub fn set_domain_ism_instruction(
+    program_id: Pubkey,
+    owner: Pubkey,
+    domain: u32,
+    ism: IsmNode,
+) -> Result<SolanaInstruction, ProgramError> {
+    let (storage_pda_key, _) = Pubkey::try_find_program_address(storage_pda_seeds!(), &program_id)
+        .ok_or(ProgramError::InvalidSeeds)?;
+    let (domain_pda_key, _) = derive_domain_pda(&program_id, domain);
+
+    Ok(SolanaInstruction {
+        program_id,
+        data: Instruction::SetDomainIsm { domain, ism }.encode()?,
+        accounts: vec![
+            AccountMeta::new(owner, true),
+            AccountMeta::new_readonly(storage_pda_key, false),
+            AccountMeta::new(domain_pda_key, false),
+            AccountMeta::new_readonly(system_program::ID, false),
+        ],
+    })
+}
+
+/// Creates a RemoveDomainIsm instruction.
+pub fn remove_domain_ism_instruction(
+    program_id: Pubkey,
+    owner: Pubkey,
+    domain: u32,
+) -> Result<SolanaInstruction, ProgramError> {
+    let (storage_pda_key, _) = Pubkey::try_find_program_address(storage_pda_seeds!(), &program_id)
+        .ok_or(ProgramError::InvalidSeeds)?;
+    let (domain_pda_key, _) = derive_domain_pda(&program_id, domain);
+
+    Ok(SolanaInstruction {
+        program_id,
+        data: Instruction::RemoveDomainIsm { domain }.encode()?,
+        accounts: vec![
+            AccountMeta::new(owner, true),
+            AccountMeta::new_readonly(storage_pda_key, false),
+            AccountMeta::new(domain_pda_key, false),
+        ],
     })
 }
 

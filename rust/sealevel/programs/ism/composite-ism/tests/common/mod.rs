@@ -3,7 +3,11 @@
 use borsh::BorshDeserialize;
 use hyperlane_core::{HyperlaneMessage, ModuleType, H256};
 use hyperlane_sealevel_composite_ism::{
-    accounts::IsmNode, instruction::initialize_instruction, processor::process_instruction,
+    accounts::{derive_domain_pda, IsmNode},
+    instruction::{
+        initialize_instruction, remove_domain_ism_instruction, set_domain_ism_instruction,
+    },
+    processor::process_instruction,
 };
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction, VERIFY_ACCOUNT_METAS_PDA_SEEDS,
@@ -93,14 +97,14 @@ pub async fn new_funded_keypair(
     keypair
 }
 
-/// Simulates `VerifyAccountMetas` and returns the resulting `Vec<AccountMeta>`.
-pub async fn get_verify_account_metas(
+/// Single-pass `VerifyAccountMetas` call with the given input accounts.
+async fn call_vam_once(
     banks_client: &mut BanksClient,
     payer: &Keypair,
     recent_blockhash: Hash,
     verify_instruction: VerifyInstruction,
+    accounts: Vec<AccountMeta>,
 ) -> Vec<AccountMeta> {
-    let storage_pda = storage_pda_key();
     let data = banks_client
         .simulate_transaction(Transaction::new_unsigned(Message::new_with_blockhash(
             &[Instruction::new_with_bytes(
@@ -108,7 +112,7 @@ pub async fn get_verify_account_metas(
                 &InterchainSecurityModuleInstruction::VerifyAccountMetas(verify_instruction)
                     .encode()
                     .unwrap(),
-                vec![AccountMeta::new_readonly(storage_pda, false)],
+                accounts,
             )],
             Some(&payer.pubkey()),
             &recent_blockhash,
@@ -126,6 +130,63 @@ pub async fn get_verify_account_metas(
             .unwrap()
             .return_data;
     metas.into_iter().map(|m| m.into()).collect()
+}
+
+/// Simulates `VerifyAccountMetas` (single pass) and returns the result.
+pub async fn get_verify_account_metas(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    recent_blockhash: Hash,
+    verify_instruction: VerifyInstruction,
+) -> Vec<AccountMeta> {
+    let storage_pda = AccountMeta::new_readonly(storage_pda_key(), false);
+    call_vam_once(
+        banks_client,
+        payer,
+        recent_blockhash,
+        verify_instruction,
+        vec![storage_pda],
+    )
+    .await
+}
+
+/// Resolves the full account list needed by `Verify` by calling
+/// `VerifyAccountMetas` in a fixpoint loop.
+///
+/// Each iteration feeds the previous result back as input accounts, allowing
+/// `Routing` nodes to discover sub-accounts (e.g. `TrustedRelayer`) that are
+/// only readable once the domain PDA is known. The loop terminates when no new
+/// pubkeys appear in the returned list — i.e. the set has converged.
+///
+/// Use this everywhere the relayer prepares accounts for `Verify`. A single
+/// call to `get_verify_account_metas` is only sufficient for trees that contain
+/// no `Routing` nodes with `TrustedRelayer` (or other account-bearing ISMs)
+/// inside their domain PDAs.
+pub async fn get_all_verify_account_metas(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    recent_blockhash: Hash,
+    verify_instruction: VerifyInstruction,
+) -> Vec<AccountMeta> {
+    let mut accounts = vec![AccountMeta::new_readonly(storage_pda_key(), false)];
+    loop {
+        let result = call_vam_once(
+            banks_client,
+            payer,
+            recent_blockhash,
+            verify_instruction.clone(),
+            accounts.clone(),
+        )
+        .await;
+
+        // Converged when no new pubkeys appear (flags may differ but pubkeys are stable).
+        let new_keys: Vec<Pubkey> = result.iter().map(|m| m.pubkey).collect();
+        let prev_keys: Vec<Pubkey> = accounts.iter().map(|m| m.pubkey).collect();
+        if new_keys == prev_keys {
+            return result;
+        }
+        accounts = result;
+    }
 }
 
 /// Simulates `Verify` using the given account metas and returns the raw simulation result.
@@ -207,6 +268,46 @@ pub fn encode_aggregation_metadata(sub_metas: &[Option<&[u8]>]) -> Vec<u8> {
         }
     }
     buf
+}
+
+/// Returns the domain PDA key for a `Routing` node.
+pub fn domain_pda_key(domain: u32) -> Pubkey {
+    derive_domain_pda(&composite_ism_id(), domain).0
+}
+
+/// Submits a `SetDomainIsm` instruction.
+pub async fn set_domain_ism(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    recent_blockhash: Hash,
+    domain: u32,
+    ism: IsmNode,
+) -> Result<(), BanksClientError> {
+    let ix = set_domain_ism_instruction(composite_ism_id(), payer.pubkey(), domain, ism).unwrap();
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&payer.pubkey()),
+        &[payer],
+        recent_blockhash,
+    );
+    banks_client.process_transaction(tx).await
+}
+
+/// Submits a `RemoveDomainIsm` instruction.
+pub async fn remove_domain_ism(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    recent_blockhash: Hash,
+    domain: u32,
+) -> Result<(), BanksClientError> {
+    let ix = remove_domain_ism_instruction(composite_ism_id(), payer.pubkey(), domain).unwrap();
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&payer.pubkey()),
+        &[payer],
+        recent_blockhash,
+    );
+    banks_client.process_transaction(tx).await
 }
 
 /// Simulates `Type` and returns the resulting `ModuleType`.

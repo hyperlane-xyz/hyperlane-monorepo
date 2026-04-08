@@ -1,9 +1,9 @@
 use hyperlane_core::HyperlaneMessage;
 use serializable_account_meta::SerializableAccountMeta;
-use solana_program::{instruction::AccountMeta, pubkey::Pubkey};
+use solana_program::{account_info::AccountInfo, instruction::AccountMeta, pubkey::Pubkey};
 
 use crate::{
-    accounts::IsmNode,
+    accounts::{derive_domain_pda, DomainIsmAccount, IsmNode},
     metadata::{parse_aggregation_ranges, sub_metadata},
 };
 
@@ -16,15 +16,13 @@ pub(crate) fn contains_rate_limited(node: &IsmNode) -> bool {
     match node {
         IsmNode::RateLimited { .. } => true,
         IsmNode::Aggregation { sub_isms, .. } => sub_isms.iter().any(contains_rate_limited),
-        IsmNode::Routing {
-            routes,
-            default_ism,
-        } => {
-            routes.iter().any(|(_, n)| contains_rate_limited(n))
-                || default_ism.as_deref().is_some_and(contains_rate_limited)
-        }
         IsmNode::AmountRouting { lower, upper, .. } => {
             contains_rate_limited(lower) || contains_rate_limited(upper)
+        }
+        // Routing disallows RateLimited inside domain PDAs (validated at SetDomainIsm time),
+        // and default_ism could theoretically contain one, but we check it too.
+        IsmNode::Routing { default_ism } => {
+            default_ism.as_deref().is_some_and(contains_rate_limited)
         }
         _ => false,
     }
@@ -33,14 +31,18 @@ pub(crate) fn contains_rate_limited(node: &IsmNode) -> bool {
 /// Returns the additional account metas required by `Verify` for this ISM node,
 /// beyond account 0 (the VAM PDA) which is always included by the caller.
 ///
-/// For `VerifyAccountMetas` simulation the metadata is parsed to determine which
-/// aggregation sub-ISMs have metadata provided, so only their accounts are returned.
-/// If metadata parsing fails (e.g. during a dry-run), an empty list is returned for
-/// that sub-tree — the actual `Verify` call will fail with a proper error.
+/// `program_id` is needed to derive domain PDA keys for `Routing` nodes.
+///
+/// `extra_accounts` is a slice of additional accounts passed to `VerifyAccountMetas`
+/// beyond the VAM PDA (used in pass 2 for `Routing` to resolve sub-accounts like
+/// `TrustedRelayer` inside a domain PDA). `cursor` tracks how many have been consumed.
 pub fn required_accounts_for_node(
     node: &IsmNode,
     metadata: &[u8],
     message: &HyperlaneMessage,
+    program_id: &Pubkey,
+    extra_accounts: &[&AccountInfo],
+    cursor: &mut usize,
 ) -> Vec<SerializableAccountMeta> {
     match node {
         IsmNode::TrustedRelayer { relayer } => {
@@ -67,7 +69,14 @@ pub fn required_accounts_for_node(
                     continue;
                 }
                 let sub_meta = sub_metadata(metadata, ranges[i]);
-                let sub_accounts = required_accounts_for_node(sub_ism, sub_meta, message);
+                let sub_accounts = required_accounts_for_node(
+                    sub_ism,
+                    sub_meta,
+                    message,
+                    program_id,
+                    extra_accounts,
+                    cursor,
+                );
                 for account in sub_accounts {
                     if !accounts
                         .iter()
@@ -80,28 +89,11 @@ pub fn required_accounts_for_node(
             accounts
         }
 
-        IsmNode::Routing {
-            routes,
-            default_ism,
-        } => {
-            let sub_ism = routes
-                .iter()
-                .find(|(domain, _)| *domain == message.origin)
-                .map(|(_, ism)| ism)
-                .or(default_ism.as_deref());
-
-            match sub_ism {
-                Some(ism) => required_accounts_for_node(ism, metadata, message),
-                None => vec![],
-            }
-        }
-
         IsmNode::AmountRouting {
             threshold,
             lower,
             upper,
         } => {
-            // Mirror verify_node: select branch based on amount in message body.
             const AMOUNT_OFFSET: usize = 32;
             const AMOUNT_END: usize = 64;
             if message.body.len() < AMOUNT_END {
@@ -113,7 +105,57 @@ pub fn required_accounts_for_node(
                 return vec![];
             };
             let sub_ism = if amount >= *threshold { upper } else { lower };
-            required_accounts_for_node(sub_ism, metadata, message)
+            required_accounts_for_node(
+                sub_ism,
+                metadata,
+                message,
+                program_id,
+                extra_accounts,
+                cursor,
+            )
+        }
+
+        IsmNode::Routing { .. } => {
+            let (domain_pda_key, _) = derive_domain_pda(program_id, message.origin);
+
+            // Always include the domain PDA itself.
+            let mut result: Vec<SerializableAccountMeta> =
+                vec![AccountMeta::new_readonly(domain_pda_key, false).into()];
+
+            // Pass 2: if the domain PDA was provided as an extra input account,
+            // read it to discover any sub-accounts it needs (e.g. TrustedRelayer).
+            if *cursor < extra_accounts.len() && *extra_accounts[*cursor].key == domain_pda_key {
+                let domain_acc = extra_accounts[*cursor];
+                *cursor += 1;
+
+                if domain_acc.owner == program_id {
+                    if let Ok(Some(storage)) =
+                        DomainIsmAccount::fetch_data(&mut &domain_acc.data.borrow()[..])
+                    {
+                        if let Some(ref ism) = storage.ism {
+                            let sub_accounts = required_accounts_for_node(
+                                ism,
+                                metadata,
+                                message,
+                                program_id,
+                                extra_accounts,
+                                cursor,
+                            );
+                            // Deduplicate before extending.
+                            for account in sub_accounts {
+                                if !result
+                                    .iter()
+                                    .any(|a: &SerializableAccountMeta| a.pubkey == account.pubkey)
+                                {
+                                    result.push(account);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            result
         }
 
         // State lives in the VAM PDA; no extra accounts needed.
@@ -129,11 +171,16 @@ pub fn required_accounts_for_node(
 ///
 /// The VAM PDA is marked **writable** when the ISM tree contains a `RateLimited`
 /// node (which mutates `filled_level`/`last_updated` during `Verify`).
+///
+/// `extra_accounts` are additional accounts beyond the VAM PDA that were passed
+/// to the `VerifyAccountMetas` instruction (used for two-pass `Routing` resolution).
 pub fn all_verify_account_metas(
     vam_pda_key: &Pubkey,
     root: &IsmNode,
     metadata: &[u8],
     message: &HyperlaneMessage,
+    program_id: &Pubkey,
+    extra_accounts: &[&AccountInfo],
 ) -> Vec<SerializableAccountMeta> {
     let storage_meta = if contains_rate_limited(root) {
         AccountMeta::new(*vam_pda_key, false) // writable, not signer
@@ -141,14 +188,21 @@ pub fn all_verify_account_metas(
         AccountMeta::new_readonly(*vam_pda_key, false)
     };
     let mut accounts = vec![storage_meta.into()];
-    accounts.extend(required_accounts_for_node(root, metadata, message));
+    let mut cursor = 0usize;
+    accounts.extend(required_accounts_for_node(
+        root,
+        metadata,
+        message,
+        program_id,
+        extra_accounts,
+        &mut cursor,
+    ));
     accounts
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::accounts::DomainConfig;
     use hyperlane_core::H256;
 
     const ORIGIN: u32 = 1234;
@@ -192,12 +246,18 @@ mod test {
         buf
     }
 
+    fn no_extra<'a>() -> Vec<&'a AccountInfo<'a>> {
+        vec![]
+    }
+
     #[test]
     fn test_trusted_relayer_returns_signer() {
         let relayer = Pubkey::new_unique();
+        let program_id = Pubkey::new_unique();
         let node = IsmNode::TrustedRelayer { relayer };
         let msg = dummy_message(ORIGIN);
-        let accounts = required_accounts_for_node(&node, &[], &msg);
+        let accounts =
+            required_accounts_for_node(&node, &[], &msg, &program_id, &no_extra(), &mut 0);
         assert_eq!(accounts.len(), 1);
         assert_eq!(accounts[0].pubkey, relayer);
         assert!(accounts[0].is_signer);
@@ -205,21 +265,21 @@ mod test {
 
     #[test]
     fn test_multisig_no_extra_accounts() {
+        let program_id = Pubkey::new_unique();
         let node = IsmNode::MultisigMessageId {
-            domain_configs: vec![DomainConfig {
-                origin: ORIGIN,
-                validators: vec![],
-                threshold: 1,
-            }],
+            validators: vec![],
+            threshold: 1,
         };
         let msg = dummy_message(ORIGIN);
-        let accounts = required_accounts_for_node(&node, &[], &msg);
+        let accounts =
+            required_accounts_for_node(&node, &[], &msg, &program_id, &no_extra(), &mut 0);
         assert!(accounts.is_empty());
     }
 
     #[test]
     fn test_aggregation_only_active_sub_isms() {
         let relayer = Pubkey::new_unique();
+        let program_id = Pubkey::new_unique();
         // sub-ISM 0 has metadata, sub-ISM 1 does not
         let metadata = encode_aggregation_metadata(&[Some(&[]), None]);
         let node = IsmNode::Aggregation {
@@ -232,33 +292,16 @@ mod test {
             ],
         };
         let msg = dummy_message(ORIGIN);
-        let accounts = required_accounts_for_node(&node, &metadata, &msg);
-        // Only sub-ISM 0's relayer should be included
+        let accounts =
+            required_accounts_for_node(&node, &metadata, &msg, &program_id, &no_extra(), &mut 0);
         assert_eq!(accounts.len(), 1);
         assert_eq!(accounts[0].pubkey, relayer);
     }
 
     #[test]
-    fn test_routing_selects_correct_branch() {
-        let relayer_a = Pubkey::new_unique();
-        let relayer_b = Pubkey::new_unique();
-        let node = IsmNode::Routing {
-            routes: vec![
-                (ORIGIN, IsmNode::TrustedRelayer { relayer: relayer_a }),
-                (9999, IsmNode::TrustedRelayer { relayer: relayer_b }),
-            ],
-            default_ism: None,
-        };
-        let msg = dummy_message(ORIGIN);
-        let accounts = required_accounts_for_node(&node, &[], &msg);
-        assert_eq!(accounts.len(), 1);
-        assert_eq!(accounts[0].pubkey, relayer_a);
-    }
-
-    #[test]
     fn test_deduplication() {
         let relayer = Pubkey::new_unique();
-        // Both sub-ISMs use the same relayer
+        let program_id = Pubkey::new_unique();
         let metadata = encode_aggregation_metadata(&[Some(&[]), Some(&[])]);
         let node = IsmNode::Aggregation {
             threshold: 2,
@@ -268,13 +311,14 @@ mod test {
             ],
         };
         let msg = dummy_message(ORIGIN);
-        let accounts = required_accounts_for_node(&node, &metadata, &msg);
-        // Deduplication: only one entry for the shared relayer
+        let accounts =
+            required_accounts_for_node(&node, &metadata, &msg, &program_id, &no_extra(), &mut 0);
         assert_eq!(accounts.len(), 1);
     }
 
     #[test]
     fn test_rate_limited_no_extra_accounts() {
+        let program_id = Pubkey::new_unique();
         let node = IsmNode::RateLimited {
             max_capacity: 1_000,
             recipient: None,
@@ -282,8 +326,23 @@ mod test {
             last_updated: 0,
         };
         let msg = dummy_message(ORIGIN);
-        let accounts = required_accounts_for_node(&node, &[], &msg);
+        let accounts =
+            required_accounts_for_node(&node, &[], &msg, &program_id, &no_extra(), &mut 0);
         assert!(accounts.is_empty());
+    }
+
+    #[test]
+    fn test_routing_returns_domain_pda_key() {
+        let program_id = Pubkey::new_unique();
+        let node = IsmNode::Routing { default_ism: None };
+        let msg = dummy_message(ORIGIN);
+        let accounts =
+            required_accounts_for_node(&node, &[], &msg, &program_id, &no_extra(), &mut 0);
+        assert_eq!(accounts.len(), 1);
+        let (expected_key, _) = derive_domain_pda(&program_id, ORIGIN);
+        assert_eq!(accounts[0].pubkey, expected_key);
+        assert!(!accounts[0].is_signer);
+        assert!(!accounts[0].is_writable);
     }
 
     #[test]
@@ -315,20 +374,15 @@ mod test {
     }
 
     #[test]
-    fn test_contains_rate_limited_false_for_others() {
-        let node = IsmNode::Aggregation {
-            threshold: 1,
-            sub_isms: vec![
-                IsmNode::Test { accept: true },
-                IsmNode::Pausable { paused: false },
-            ],
-        };
+    fn test_contains_rate_limited_false_for_routing() {
+        let node = IsmNode::Routing { default_ism: None };
         assert!(!contains_rate_limited(&node));
     }
 
     #[test]
     fn test_all_verify_account_metas_writable_for_rate_limited() {
         let vam_pda = Pubkey::new_unique();
+        let program_id = Pubkey::new_unique();
         let node = IsmNode::RateLimited {
             max_capacity: 1_000,
             recipient: None,
@@ -336,7 +390,7 @@ mod test {
             last_updated: 0,
         };
         let msg = dummy_message(ORIGIN);
-        let accounts = all_verify_account_metas(&vam_pda, &node, &[], &msg);
+        let accounts = all_verify_account_metas(&vam_pda, &node, &[], &msg, &program_id, &[]);
         assert_eq!(accounts.len(), 1);
         assert_eq!(accounts[0].pubkey, vam_pda);
         assert!(accounts[0].is_writable);
@@ -346,9 +400,10 @@ mod test {
     #[test]
     fn test_all_verify_account_metas_readonly_for_non_rate_limited() {
         let vam_pda = Pubkey::new_unique();
+        let program_id = Pubkey::new_unique();
         let node = IsmNode::Test { accept: true };
         let msg = dummy_message(ORIGIN);
-        let accounts = all_verify_account_metas(&vam_pda, &node, &[], &msg);
+        let accounts = all_verify_account_metas(&vam_pda, &node, &[], &msg, &program_id, &[]);
         assert_eq!(accounts.len(), 1);
         assert!(!accounts[0].is_writable);
     }

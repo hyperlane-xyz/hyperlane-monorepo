@@ -1,4 +1,3 @@
-use multisig_ism::error::MultisigIsmError;
 use solana_program::program_error::ProgramError;
 
 #[derive(Copy, Clone, Debug, Eq, thiserror::Error, num_derive::FromPrimitive, PartialEq)]
@@ -38,15 +37,12 @@ pub enum Error {
     RateLimitExceeded = 16,
     #[error("Message recipient does not match configured recipient")]
     RecipientMismatch = 17,
-}
-
-impl From<MultisigIsmError> for Error {
-    fn from(err: MultisigIsmError) -> Self {
-        match err {
-            MultisigIsmError::InvalidSignature => Error::InvalidSignature,
-            MultisigIsmError::ThresholdNotMet => Error::ThresholdNotMet,
-        }
-    }
+    #[error("More than one Routing node in the ISM tree")]
+    MultipleRoutingNodes = 18,
+    #[error("RateLimited ISM is not allowed inside a domain PDA")]
+    RateLimitedInDomainIsm = 19,
+    #[error("Routing ISM is not allowed inside a domain PDA")]
+    RoutingInDomainIsm = 20,
 }
 
 impl From<Error> for ProgramError {

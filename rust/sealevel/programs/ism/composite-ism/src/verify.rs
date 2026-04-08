@@ -1,14 +1,14 @@
-use hyperlane_core::{Checkpoint, CheckpointWithMessageId, HyperlaneMessage};
-use multisig_ism::multisig::MultisigIsm;
+use hyperlane_core::{Checkpoint, CheckpointWithMessageId, HyperlaneMessage, Signable};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     clock::Clock,
     entrypoint::ProgramResult,
+    pubkey::Pubkey,
     sysvar::Sysvar,
 };
 
 use crate::{
-    accounts::IsmNode,
+    accounts::{derive_domain_pda, load_domain_ism, IsmNode},
     error::Error,
     metadata::{parse_aggregation_ranges, sub_metadata},
     multisig_metadata::MultisigIsmMessageIdMetadata,
@@ -21,14 +21,15 @@ use crate::{
 /// `last_updated` in place; the caller is responsible for persisting the
 /// storage PDA back to the account after this returns.
 ///
-/// `accounts_iter` is advanced only for nodes that require signer accounts
-/// (currently only `TrustedRelayer`). All other state is read from the VAM PDA
-/// already loaded by the caller.
+/// `accounts_iter` is advanced for nodes that require on-chain accounts:
+/// - `TrustedRelayer`: pops the relayer signer account.
+/// - `Routing`: pops the domain PDA account, then may pop sub-accounts.
 pub(crate) fn verify_node<'a, 'b, I>(
     node: &mut IsmNode,
     metadata: &[u8],
     message: &HyperlaneMessage,
     accounts_iter: &mut I,
+    program_id: &Pubkey,
 ) -> ProgramResult
 where
     I: Iterator<Item = &'a AccountInfo<'b>>,
@@ -46,33 +47,40 @@ where
             Ok(())
         }
 
-        IsmNode::MultisigMessageId { domain_configs } => {
-            let config = domain_configs
-                .iter()
-                .find(|c| c.origin == message.origin)
-                .ok_or(Error::NoDomainConfig)?;
-
+        IsmNode::MultisigMessageId {
+            validators,
+            threshold,
+        } => {
             let meta = MultisigIsmMessageIdMetadata::try_from(metadata.to_vec())
                 .map_err(|_| Error::InvalidMetadata)?;
 
-            let multisig_ism = MultisigIsm::new(
-                CheckpointWithMessageId {
-                    checkpoint: Checkpoint {
-                        merkle_tree_hook_address: meta.origin_merkle_tree_hook,
-                        mailbox_domain: message.origin,
-                        root: meta.merkle_root,
-                        index: meta.merkle_index,
-                    },
-                    message_id: message.id(),
+            let signed_digest = CheckpointWithMessageId {
+                checkpoint: Checkpoint {
+                    merkle_tree_hook_address: meta.origin_merkle_tree_hook,
+                    mailbox_domain: message.origin,
+                    root: meta.merkle_root,
+                    index: meta.merkle_index,
                 },
-                meta.validator_signatures,
-                config.validators.clone(),
-                config.threshold,
-            );
+                message_id: message.id(),
+            }
+            .eth_signed_message_hash();
+            let signed_digest_bytes = signed_digest.as_bytes();
 
-            multisig_ism
-                .verify()
-                .map_err(|e| Into::<Error>::into(e).into())
+            let validator_count = validators.len();
+            let mut validator_index = 0;
+            for i in 0..*threshold {
+                let signer = meta.validator_signatures[i as usize]
+                    .secp256k1_recover_ethereum_address(signed_digest_bytes)
+                    .map_err(|_| Error::InvalidSignature)?;
+                while validator_index < validator_count && signer != validators[validator_index] {
+                    validator_index += 1;
+                }
+                if validator_index >= validator_count {
+                    return Err(Error::ThresholdNotMet.into());
+                }
+                validator_index += 1;
+            }
+            Ok(())
         }
 
         IsmNode::Aggregation {
@@ -81,41 +89,20 @@ where
         } => {
             let ranges = parse_aggregation_ranges(metadata, sub_isms.len())?;
 
-            // Count sub-ISMs that have metadata provided.
             let provided = ranges.iter().filter(|r| r.has_metadata()).count() as u8;
             if provided < *threshold {
                 return Err(Error::ThresholdNotMet.into());
             }
 
-            // Verify each sub-ISM that has metadata. All must pass.
             for (i, sub_ism) in sub_isms.iter_mut().enumerate() {
                 if !ranges[i].has_metadata() {
                     continue;
                 }
                 let sub_meta = sub_metadata(metadata, ranges[i]);
-                verify_node(sub_ism, sub_meta, message, accounts_iter)?;
+                verify_node(sub_ism, sub_meta, message, accounts_iter, program_id)?;
             }
 
             Ok(())
-        }
-
-        IsmNode::Routing {
-            routes,
-            default_ism,
-        } => {
-            let sub_ism: &mut IsmNode = if let Some((_, ism)) = routes
-                .iter_mut()
-                .find(|(domain, _)| *domain == message.origin)
-            {
-                ism
-            } else if let Some(d) = default_ism {
-                d.as_mut()
-            } else {
-                return Err(Error::NoRouteForDomain.into());
-            };
-
-            // Routing is transparent: pass metadata through unchanged.
-            verify_node(sub_ism, metadata, message, accounts_iter)
         }
 
         IsmNode::AmountRouting {
@@ -123,7 +110,6 @@ where
             lower,
             upper,
         } => {
-            // TokenMessage body layout: [recipient (32b) | amount (32b BE) | ...]
             const AMOUNT_OFFSET: usize = 32;
             const AMOUNT_END: usize = 64;
             if message.body.len() < AMOUNT_END {
@@ -134,7 +120,32 @@ where
                 .map_err(|_| Error::InvalidMessageBody)?;
 
             let sub_ism: &mut IsmNode = if amount >= *threshold { upper } else { lower };
-            verify_node(sub_ism, metadata, message, accounts_iter)
+            verify_node(sub_ism, metadata, message, accounts_iter, program_id)
+        }
+
+        IsmNode::Routing { default_ism } => {
+            // Pop the domain PDA from the accounts iterator.
+            let domain_pda_info = next_account_info(accounts_iter)?;
+
+            // Verify the caller passed the correct domain PDA for this origin.
+            let (expected_key, _) = derive_domain_pda(program_id, message.origin);
+            if *domain_pda_info.key != expected_key {
+                return Err(Error::AccountOutOfOrder.into());
+            }
+
+            // Load the sub-ISM from the domain PDA (None if uninitialized).
+            let loaded_ism = load_domain_ism(program_id, message.origin, domain_pda_info)?;
+
+            if let Some(mut ism) = loaded_ism {
+                return verify_node(&mut ism, metadata, message, accounts_iter, program_id);
+            }
+
+            // No domain PDA — fall back to default_ism.
+            if let Some(d) = default_ism {
+                return verify_node(d.as_mut(), metadata, message, accounts_iter, program_id);
+            }
+
+            Err(Error::NoRouteForDomain.into())
         }
 
         IsmNode::Test { accept } => {
@@ -159,16 +170,12 @@ where
             filled_level,
             last_updated,
         } => {
-            // 1. Recipient guard.
             if let Some(r) = recipient {
                 if message.recipient != *r {
                     return Err(Error::RecipientMismatch.into());
                 }
             }
 
-            // 2. Parse amount from body[56..64] (last 8 bytes of 32-byte BE u256).
-            //    TokenMessage layout: [recipient (32b) | amount (32b BE) | ...]
-            //    Amounts exceeding u64::MAX (non-zero bytes at [32..56]) are rejected.
             if message.body.len() < 64 {
                 return Err(Error::InvalidMessageBody.into());
             }
@@ -181,17 +188,14 @@ where
                     .map_err(|_| Error::InvalidMessageBody)?,
             );
 
-            // 3. Compute adjusted level via token bucket refill.
             let now = Clock::get()?.unix_timestamp;
             let adjusted =
                 calculate_current_level(*filled_level, *last_updated, now, *max_capacity);
 
-            // 4. Check capacity.
             if amount > adjusted {
                 return Err(Error::RateLimitExceeded.into());
             }
 
-            // 5. Update state in place; processor writes the PDA back.
             *filled_level = adjusted - amount;
             *last_updated = now;
             Ok(())
@@ -202,12 +206,65 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::accounts::DomainConfig;
     use ecdsa_signature::EcdsaSignature;
-    use hyperlane_core::{Encode, H256};
-    use multisig_ism::test_data::{get_multisig_ism_test_data, MultisigIsmTestData};
+    use hyperlane_core::{Checkpoint, CheckpointWithMessageId, Encode, H160, H256};
+    use std::str::FromStr;
 
     const ORIGIN_DOMAIN: u32 = 1234u32;
+
+    // Test data matching the multisig-ism library's canonical fixtures.
+    // checkpoint.signing_hash() == 0x3fd308215a20af20b137372f8a69fd336ebf93d57d4076a7c46e13f315255257
+    fn test_message() -> HyperlaneMessage {
+        HyperlaneMessage {
+            version: 3,
+            nonce: 69,
+            origin: ORIGIN_DOMAIN,
+            sender: H256::from_str(
+                "0xafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafaf",
+            )
+            .unwrap(),
+            destination: 4321,
+            recipient: H256::from_str(
+                "0xbebebebebebebebebebebebebebebebebebebebebebebebebebebebebebebebe",
+            )
+            .unwrap(),
+            body: vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+        }
+    }
+
+    fn test_checkpoint(message: &HyperlaneMessage) -> CheckpointWithMessageId {
+        CheckpointWithMessageId {
+            checkpoint: Checkpoint {
+                merkle_tree_hook_address: H256::from_str(
+                    "0xabababababababababababababababababababababababababababababababab",
+                )
+                .unwrap(),
+                mailbox_domain: ORIGIN_DOMAIN,
+                root: H256::from_str(
+                    "0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+                )
+                .unwrap(),
+                index: message.nonce + 1,
+            },
+            message_id: message.id(),
+        }
+    }
+
+    fn test_validators() -> Vec<H160> {
+        vec![
+            H160::from_str("0xE3DCDBbc248cE191bDc271f3FCcd0d95911BFC5D").unwrap(),
+            H160::from_str("0xb25206874C24733F05CC0dD11924724A8E7175bd").unwrap(),
+            H160::from_str("0x28b8d0E2bBfeDe9071F8Ff3DaC9CcE3d3176DBd3").unwrap(),
+        ]
+    }
+
+    fn test_signatures() -> Vec<Vec<u8>> {
+        vec![
+            hex::decode("081d398e1452ae12267f63f224d3037b4bb3f496cb55c14a2076c5e27ed944ad6d8e10d3164bc13b5820846a3f19e013e1c551b67a3c863882f7b951acdab96d1c").unwrap(),
+            hex::decode("0c189e25dea6bb93292af16fd0516f3adc8a19556714c0b8d624016175bebcba7a5fe8218dad6fc86faeb8104fad8390ccdec989d992e852553ea6b61fbb2eda1b").unwrap(),
+            hex::decode("5493449e8a09c1105195ecf913997de51bd50926a075ad98fe3e845e0a11126b5212a2cd1afdd35a44322146d31f8fa3d179d8a9822637d8db0e2fa8b3d292421b").unwrap(),
+        ]
+    }
 
     fn dummy_message(origin: u32) -> HyperlaneMessage {
         HyperlaneMessage {
@@ -221,14 +278,16 @@ mod test {
         }
     }
 
-    // ── Test ISM node ──────────────────────────────────────────────────────
+    fn no_program_id() -> Pubkey {
+        Pubkey::new_unique()
+    }
 
     #[test]
     fn test_node_accept() {
         let mut node = IsmNode::Test { accept: true };
         let msg = dummy_message(ORIGIN_DOMAIN);
         let mut iter = std::iter::empty::<&AccountInfo>();
-        assert!(verify_node(&mut node, &[], &msg, &mut iter).is_ok());
+        assert!(verify_node(&mut node, &[], &msg, &mut iter, &no_program_id()).is_ok());
     }
 
     #[test]
@@ -237,19 +296,17 @@ mod test {
         let msg = dummy_message(ORIGIN_DOMAIN);
         let mut iter = std::iter::empty::<&AccountInfo>();
         assert_eq!(
-            verify_node(&mut node, &[], &msg, &mut iter).unwrap_err(),
+            verify_node(&mut node, &[], &msg, &mut iter, &no_program_id()).unwrap_err(),
             Error::VerifyRejected.into()
         );
     }
-
-    // ── Pausable ISM node ──────────────────────────────────────────────────
 
     #[test]
     fn test_pausable_unpaused() {
         let mut node = IsmNode::Pausable { paused: false };
         let msg = dummy_message(ORIGIN_DOMAIN);
         let mut iter = std::iter::empty::<&AccountInfo>();
-        assert!(verify_node(&mut node, &[], &msg, &mut iter).is_ok());
+        assert!(verify_node(&mut node, &[], &msg, &mut iter, &no_program_id()).is_ok());
     }
 
     #[test]
@@ -258,61 +315,181 @@ mod test {
         let msg = dummy_message(ORIGIN_DOMAIN);
         let mut iter = std::iter::empty::<&AccountInfo>();
         assert_eq!(
-            verify_node(&mut node, &[], &msg, &mut iter).unwrap_err(),
+            verify_node(&mut node, &[], &msg, &mut iter, &no_program_id()).unwrap_err(),
             Error::VerifyRejected.into()
         );
     }
 
-    // ── Routing ISM node ───────────────────────────────────────────────────
-
     #[test]
-    fn test_routing_to_accept() {
-        let mut node = IsmNode::Routing {
-            routes: vec![(ORIGIN_DOMAIN, IsmNode::Test { accept: true })],
-            default_ism: None,
+    fn test_aggregation_threshold_met() {
+        let metadata = encode_aggregation_metadata(&[Some(&[]), None]);
+        let mut node = IsmNode::Aggregation {
+            threshold: 1,
+            sub_isms: vec![
+                IsmNode::Test { accept: true },
+                IsmNode::Test { accept: true },
+            ],
         };
         let msg = dummy_message(ORIGIN_DOMAIN);
         let mut iter = std::iter::empty::<&AccountInfo>();
-        assert!(verify_node(&mut node, &[], &msg, &mut iter).is_ok());
+        assert!(verify_node(&mut node, &metadata, &msg, &mut iter, &no_program_id()).is_ok());
     }
 
     #[test]
-    fn test_routing_to_reject() {
-        let mut node = IsmNode::Routing {
-            routes: vec![(ORIGIN_DOMAIN, IsmNode::Test { accept: false })],
-            default_ism: None,
-        };
-        let msg = dummy_message(ORIGIN_DOMAIN);
-        let mut iter = std::iter::empty::<&AccountInfo>();
-        assert!(verify_node(&mut node, &[], &msg, &mut iter).is_err());
-    }
-
-    #[test]
-    fn test_routing_default() {
-        let mut node = IsmNode::Routing {
-            routes: vec![],
-            default_ism: Some(Box::new(IsmNode::Test { accept: true })),
-        };
-        let msg = dummy_message(ORIGIN_DOMAIN);
-        let mut iter = std::iter::empty::<&AccountInfo>();
-        assert!(verify_node(&mut node, &[], &msg, &mut iter).is_ok());
-    }
-
-    #[test]
-    fn test_routing_no_route() {
-        let mut node = IsmNode::Routing {
-            routes: vec![],
-            default_ism: None,
+    fn test_aggregation_threshold_not_met() {
+        let metadata = encode_aggregation_metadata(&[Some(&[]), None]);
+        let mut node = IsmNode::Aggregation {
+            threshold: 2,
+            sub_isms: vec![
+                IsmNode::Test { accept: true },
+                IsmNode::Test { accept: true },
+            ],
         };
         let msg = dummy_message(ORIGIN_DOMAIN);
         let mut iter = std::iter::empty::<&AccountInfo>();
         assert_eq!(
-            verify_node(&mut node, &[], &msg, &mut iter).unwrap_err(),
-            Error::NoRouteForDomain.into()
+            verify_node(&mut node, &metadata, &msg, &mut iter, &no_program_id()).unwrap_err(),
+            Error::ThresholdNotMet.into()
         );
     }
 
-    // ── Aggregation ISM node ───────────────────────────────────────────────
+    #[test]
+    fn test_aggregation_sub_ism_fails() {
+        let metadata = encode_aggregation_metadata(&[Some(&[]), Some(&[])]);
+        let mut node = IsmNode::Aggregation {
+            threshold: 1,
+            sub_isms: vec![
+                IsmNode::Test { accept: false },
+                IsmNode::Test { accept: true },
+            ],
+        };
+        let msg = dummy_message(ORIGIN_DOMAIN);
+        let mut iter = std::iter::empty::<&AccountInfo>();
+        assert!(verify_node(&mut node, &metadata, &msg, &mut iter, &no_program_id()).is_err());
+    }
+
+    #[test]
+    fn test_multisig_message_id_verify() {
+        let message = test_message();
+        let checkpoint = test_checkpoint(&message);
+        let signatures = test_signatures();
+
+        let mut node = IsmNode::MultisigMessageId {
+            validators: test_validators(),
+            threshold: 2,
+        };
+
+        let meta = crate::multisig_metadata::MultisigIsmMessageIdMetadata {
+            origin_merkle_tree_hook: checkpoint.checkpoint.merkle_tree_hook_address,
+            merkle_root: checkpoint.checkpoint.root,
+            merkle_index: checkpoint.checkpoint.index,
+            validator_signatures: vec![
+                EcdsaSignature::from_bytes(&signatures[0]).unwrap(),
+                EcdsaSignature::from_bytes(&signatures[1]).unwrap(),
+            ],
+        };
+        let meta_bytes = meta.to_vec();
+
+        let mut iter = std::iter::empty::<&AccountInfo>();
+        assert!(verify_node(
+            &mut node,
+            &meta_bytes,
+            &message,
+            &mut iter,
+            &no_program_id()
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn test_multisig_threshold_not_met_duplicate_sig() {
+        let message = test_message();
+        let checkpoint = test_checkpoint(&message);
+        let signatures = test_signatures();
+
+        let mut node = IsmNode::MultisigMessageId {
+            validators: test_validators(),
+            threshold: 2,
+        };
+
+        // Two copies of signature[0] — duplicate cannot satisfy a second slot.
+        let meta = crate::multisig_metadata::MultisigIsmMessageIdMetadata {
+            origin_merkle_tree_hook: checkpoint.checkpoint.merkle_tree_hook_address,
+            merkle_root: checkpoint.checkpoint.root,
+            merkle_index: checkpoint.checkpoint.index,
+            validator_signatures: vec![
+                EcdsaSignature::from_bytes(&signatures[0]).unwrap(),
+                EcdsaSignature::from_bytes(&signatures[0]).unwrap(),
+            ],
+        };
+        let meta_bytes = meta.to_vec();
+
+        let mut iter = std::iter::empty::<&AccountInfo>();
+        assert_eq!(
+            verify_node(
+                &mut node,
+                &meta_bytes,
+                &message,
+                &mut iter,
+                &no_program_id()
+            )
+            .unwrap_err(),
+            Error::ThresholdNotMet.into()
+        );
+    }
+
+    fn token_message_body(amount_bytes: [u8; 32]) -> Vec<u8> {
+        let mut body = vec![0u8; 64];
+        body[32..64].copy_from_slice(&amount_bytes);
+        body
+    }
+
+    fn amount_routing_node(threshold_value: u64) -> IsmNode {
+        let mut threshold = [0u8; 32];
+        threshold[24..32].copy_from_slice(&threshold_value.to_be_bytes());
+        IsmNode::AmountRouting {
+            threshold,
+            lower: Box::new(IsmNode::Test { accept: true }),
+            upper: Box::new(IsmNode::Test { accept: false }),
+        }
+    }
+
+    #[test]
+    fn test_amount_routing_below_threshold_routes_lower() {
+        let mut node = amount_routing_node(1000);
+        let mut amount = [0u8; 32];
+        amount[24..32].copy_from_slice(&500u64.to_be_bytes());
+        let mut msg = dummy_message(ORIGIN_DOMAIN);
+        msg.body = token_message_body(amount);
+        let mut iter = std::iter::empty::<&AccountInfo>();
+        assert!(verify_node(&mut node, &[], &msg, &mut iter, &no_program_id()).is_ok());
+    }
+
+    #[test]
+    fn test_amount_routing_at_threshold_routes_upper() {
+        let mut node = amount_routing_node(1000);
+        let mut amount = [0u8; 32];
+        amount[24..32].copy_from_slice(&1000u64.to_be_bytes());
+        let mut msg = dummy_message(ORIGIN_DOMAIN);
+        msg.body = token_message_body(amount);
+        let mut iter = std::iter::empty::<&AccountInfo>();
+        assert_eq!(
+            verify_node(&mut node, &[], &msg, &mut iter, &no_program_id()).unwrap_err(),
+            Error::VerifyRejected.into()
+        );
+    }
+
+    #[test]
+    fn test_amount_routing_body_too_short() {
+        let mut node = amount_routing_node(1000);
+        let mut msg = dummy_message(ORIGIN_DOMAIN);
+        msg.body = vec![0u8; 10];
+        let mut iter = std::iter::empty::<&AccountInfo>();
+        assert_eq!(
+            verify_node(&mut node, &[], &msg, &mut iter, &no_program_id()).unwrap_err(),
+            Error::InvalidMessageBody.into()
+        );
+    }
 
     fn encode_aggregation_metadata(sub_metas: &[Option<&[u8]>]) -> Vec<u8> {
         let header_len = (sub_metas.len() * 8) as u32;
@@ -339,174 +516,5 @@ mod test {
             }
         }
         buf
-    }
-
-    #[test]
-    fn test_aggregation_threshold_met() {
-        // threshold=1, 2 sub-ISMs, only sub-ISM 0 has metadata
-        let metadata = encode_aggregation_metadata(&[Some(&[]), None]);
-        let mut node = IsmNode::Aggregation {
-            threshold: 1,
-            sub_isms: vec![
-                IsmNode::Test { accept: true },
-                IsmNode::Test { accept: true },
-            ],
-        };
-        let msg = dummy_message(ORIGIN_DOMAIN);
-        let mut iter = std::iter::empty::<&AccountInfo>();
-        assert!(verify_node(&mut node, &metadata, &msg, &mut iter).is_ok());
-    }
-
-    #[test]
-    fn test_aggregation_threshold_not_met() {
-        // threshold=2 but only 1 sub-ISM has metadata
-        let metadata = encode_aggregation_metadata(&[Some(&[]), None]);
-        let mut node = IsmNode::Aggregation {
-            threshold: 2,
-            sub_isms: vec![
-                IsmNode::Test { accept: true },
-                IsmNode::Test { accept: true },
-            ],
-        };
-        let msg = dummy_message(ORIGIN_DOMAIN);
-        let mut iter = std::iter::empty::<&AccountInfo>();
-        assert_eq!(
-            verify_node(&mut node, &metadata, &msg, &mut iter).unwrap_err(),
-            Error::ThresholdNotMet.into()
-        );
-    }
-
-    #[test]
-    fn test_aggregation_sub_ism_fails() {
-        // Both sub-ISMs have metadata but sub-ISM 0 rejects
-        let metadata = encode_aggregation_metadata(&[Some(&[]), Some(&[])]);
-        let mut node = IsmNode::Aggregation {
-            threshold: 1,
-            sub_isms: vec![
-                IsmNode::Test { accept: false },
-                IsmNode::Test { accept: true },
-            ],
-        };
-        let msg = dummy_message(ORIGIN_DOMAIN);
-        let mut iter = std::iter::empty::<&AccountInfo>();
-        assert!(verify_node(&mut node, &metadata, &msg, &mut iter).is_err());
-    }
-
-    // ── MultisigMessageId node ─────────────────────────────────────────────
-
-    #[test]
-    fn test_multisig_message_id_verify() {
-        let MultisigIsmTestData {
-            message,
-            checkpoint,
-            validators,
-            signatures,
-        } = get_multisig_ism_test_data();
-
-        let mut node = IsmNode::MultisigMessageId {
-            domain_configs: vec![DomainConfig {
-                origin: message.origin,
-                validators,
-                threshold: 2,
-            }],
-        };
-
-        let meta = crate::multisig_metadata::MultisigIsmMessageIdMetadata {
-            origin_merkle_tree_hook: checkpoint.merkle_tree_hook_address,
-            merkle_root: checkpoint.root,
-            merkle_index: checkpoint.index,
-            validator_signatures: vec![
-                EcdsaSignature::from_bytes(&signatures[0]).unwrap(),
-                EcdsaSignature::from_bytes(&signatures[1]).unwrap(),
-            ],
-        };
-        let meta_bytes = meta.to_vec();
-
-        let mut iter = std::iter::empty::<&AccountInfo>();
-        assert!(verify_node(&mut node, &meta_bytes, &message, &mut iter).is_ok());
-    }
-
-    #[test]
-    fn test_multisig_no_domain_config() {
-        let mut node = IsmNode::MultisigMessageId {
-            domain_configs: vec![],
-        };
-        let msg = dummy_message(ORIGIN_DOMAIN);
-        // metadata must be long enough to parse (at least 68 + 65 bytes)
-        let dummy_meta = vec![0u8; 68 + 65];
-        let mut iter = std::iter::empty::<&AccountInfo>();
-        assert_eq!(
-            verify_node(&mut node, &dummy_meta, &msg, &mut iter).unwrap_err(),
-            Error::NoDomainConfig.into()
-        );
-    }
-
-    // ── AmountRouting ISM node ─────────────────────────────────────────────
-
-    fn token_message_body(amount_bytes: [u8; 32]) -> Vec<u8> {
-        let mut body = vec![0u8; 64]; // recipient (32b) + amount (32b)
-        body[32..64].copy_from_slice(&amount_bytes);
-        body
-    }
-
-    fn amount_routing_node(threshold_value: u64) -> IsmNode {
-        let mut threshold = [0u8; 32];
-        threshold[24..32].copy_from_slice(&threshold_value.to_be_bytes());
-        IsmNode::AmountRouting {
-            threshold,
-            lower: Box::new(IsmNode::Test { accept: true }),
-            upper: Box::new(IsmNode::Test { accept: false }), // upper rejects, lower accepts
-        }
-    }
-
-    #[test]
-    fn test_amount_routing_below_threshold_routes_lower() {
-        let mut node = amount_routing_node(1000);
-        // amount = 500 < 1000 → lower (accept=true)
-        let mut amount = [0u8; 32];
-        amount[24..32].copy_from_slice(&500u64.to_be_bytes());
-        let mut msg = dummy_message(ORIGIN_DOMAIN);
-        msg.body = token_message_body(amount);
-        let mut iter = std::iter::empty::<&AccountInfo>();
-        assert!(verify_node(&mut node, &[], &msg, &mut iter).is_ok());
-    }
-
-    #[test]
-    fn test_amount_routing_at_threshold_routes_upper() {
-        let mut node = amount_routing_node(1000);
-        // amount = 1000 >= 1000 → upper (accept=false)
-        let mut amount = [0u8; 32];
-        amount[24..32].copy_from_slice(&1000u64.to_be_bytes());
-        let mut msg = dummy_message(ORIGIN_DOMAIN);
-        msg.body = token_message_body(amount);
-        let mut iter = std::iter::empty::<&AccountInfo>();
-        assert_eq!(
-            verify_node(&mut node, &[], &msg, &mut iter).unwrap_err(),
-            Error::VerifyRejected.into()
-        );
-    }
-
-    #[test]
-    fn test_amount_routing_above_threshold_routes_upper() {
-        let mut node = amount_routing_node(1000);
-        // amount = 5000 >= 1000 → upper (accept=false)
-        let mut amount = [0u8; 32];
-        amount[24..32].copy_from_slice(&5000u64.to_be_bytes());
-        let mut msg = dummy_message(ORIGIN_DOMAIN);
-        msg.body = token_message_body(amount);
-        let mut iter = std::iter::empty::<&AccountInfo>();
-        assert!(verify_node(&mut node, &[], &msg, &mut iter).is_err());
-    }
-
-    #[test]
-    fn test_amount_routing_body_too_short() {
-        let mut node = amount_routing_node(1000);
-        let mut msg = dummy_message(ORIGIN_DOMAIN);
-        msg.body = vec![0u8; 10]; // too short
-        let mut iter = std::iter::empty::<&AccountInfo>();
-        assert_eq!(
-            verify_node(&mut node, &[], &msg, &mut iter).unwrap_err(),
-            Error::InvalidMessageBody.into()
-        );
     }
 }
