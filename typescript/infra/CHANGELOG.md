@@ -1,5 +1,48 @@
 # @hyperlane-xyz/infra
 
+## 30.1.0
+
+### Patch Changes
+
+- Updated dependencies [9ac480a]
+- Updated dependencies [9eefa2d]
+- Updated dependencies [4c4462f]
+- Updated dependencies [696da11]
+- Updated dependencies [71f0ca4]
+- Updated dependencies [46dda6c]
+- Updated dependencies [ac1acbb]
+- Updated dependencies [d38fad1]
+- Updated dependencies [cfed1d2]
+- Updated dependencies [9061916]
+- Updated dependencies [2057d1a]
+- Updated dependencies [d41d088]
+- Updated dependencies [e1f35a7]
+- Updated dependencies [b691b87]
+- Updated dependencies [7018cc6]
+- Updated dependencies [ef4399b]
+- Updated dependencies [3fef31c]
+- Updated dependencies [d98726f]
+- Updated dependencies [40356c6]
+- Updated dependencies [6f8c503]
+- Updated dependencies [f2749a6]
+- Updated dependencies [5eae48e]
+- Updated dependencies [6bd4fd1]
+- Updated dependencies [57e46b1]
+- Updated dependencies [993de2b]
+- Updated dependencies [b5f897c]
+- Updated dependencies [9515191]
+  - @hyperlane-xyz/core@11.3.0
+  - @hyperlane-xyz/sdk@30.1.0
+  - @hyperlane-xyz/keyfunder@0.1.16
+  - @hyperlane-xyz/metrics@0.2.9
+  - @hyperlane-xyz/rebalancer@27.2.3
+  - @hyperlane-xyz/relayer@1.1.16
+  - @hyperlane-xyz/tron-sdk@22.1.8
+  - @hyperlane-xyz/http-registry-server@30.1.0
+  - @hyperlane-xyz/deploy-sdk@4.2.4
+  - @hyperlane-xyz/utils@30.1.0
+  - @hyperlane-xyz/provider-sdk@4.2.4
+
 ## 30.0.0
 
 ### Patch Changes

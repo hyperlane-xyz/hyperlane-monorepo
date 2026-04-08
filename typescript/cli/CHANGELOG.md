@@ -1,5 +1,11 @@
 # @hyperlane-xyz/cli
 
+## 30.1.0
+
+### Patch Changes
+
+- e1f35a7: The offchain fee quoting service and client were added, with CLI integration for quoted transfers and SDK export of DEFAULT_ROUTER_KEY.
+
 ## 30.0.0
 
 ### Patch Changes

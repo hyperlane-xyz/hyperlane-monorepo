@@ -1,5 +1,36 @@
 # @hyperlane-xyz/core
 
+## 11.3.0
+
+### Minor Changes
+
+- 4c4462f: CrossCollateral contracts and tests were moved into the core Solidity package under `contracts/token` and `test/token`, and SDK imports were updated to use `@hyperlane-xyz/core` factories instead of `@hyperlane-xyz/multicollateral`.
+- 696da11: Add quoteTransferRemote to Predicate warp route wrapper
+- 46dda6c: Offchain fee quoting was added to InterchainGasPaymaster via AbstractOffchainQuoter inheritance. OffchainQuotedLinearFee was added as a new ITokenFee implementation for warp route fees. QuotedCalls command-based router was added for atomic quote submission with Permit2 and transient approvals. Solc was bumped to 0.8.28 with Cancun EVM target for transient storage support.
+- 9061916: CrossCollateralRoutingFee exposed an explicit feeType in the core contract interface.
+- d41d088: feat: predicate router wrapper for compliance attestations with Hyperlane warp routes
+- b691b87: A deposit-address token bridge adapter was added in core, and the SDK deployer, reader, and config types were updated to support `collateralDepositAddress` routes.
+- ef4399b: Addressed minor audit suggestions: renamed `setDestinationConfig` to `addDestinationConfig` in TokenBridgeDepositAddress to prevent accidental overwrites, added `getRemoteInterchainAccount` view to AbstractInterchainAccountRouter, added message type validation in MinimalInterchainAccountRouter, switched to `forceApprove` in TokenRouter fee charging, added zero-amount and same-domain guard checks in CrossCollateralRouter, and restored NatSpec documentation on shared functions.
+- 40356c6: Native fee refund logic was added to PredicateRouterWrapper to return excess ETH to callers using address(this).balance after the warp route call.
+- 6f8c503: QuotedCalls.quoteExecute was added for fee discovery via eth_call, returning per-command Quote[][] arrays. The SDK gained a QuotedCalls client with codec, builder, and WarpCore integration for atomic quoted transfers.
+- f2749a6: Added reentrancy guard using transient storage to QuotedCalls.execute and a corresponding test that verifies reentrant calls revert.
+- 6bd4fd1: feat: added PredicateCrossCollateralRouterWrapper.sol and extracted shared predicate wrapper logic into an abstract class
+- 57e46b1: The TokenBridgeOft contract, LayerZero IOFT interface, and Forge tests were moved into the core Solidity package. The SDK was updated to resolve TokenBridgeOft factories from `@hyperlane-xyz/core`, and the deprecated `@hyperlane-xyz/multicollateral` package was removed.
+- 993de2b: Added MinimalInterchainAccountRouter for chains with tight deployment size limits.
+
+### Patch Changes
+
+- 9ac480a: AmountRoutingHook.\_postDispatch() was updated to forward msg.value directly to the child hook instead of computing and forwarding the quoted amount, fixing native value handling for ERC20 fee flows.
+- 9eefa2d: The WeightedMultisigIsm non-sequential signer verification bug was fixed.
+- ac1acbb: The Tron build excluded CrossCollateral contracts that currently crash tron-solc.
+- d38fad1: Support erc20 fees for commit message of ICA commit reveal
+- cfed1d2: CrossCollateral routing fee quotes were updated to revert when no router-specific or destination-default fee contract is configured.
+- 7018cc6: Added documentation that standing ERC20 approvals to fee hooks are unsafe; in the worst case, funds are recoverable by hook operators rather than profiting an attacker.
+- 3fef31c: Fee quoting was updated to use local token amounts at call sites while ensuring message bodies use outbound (scaled) amounts for accurate hook routing.
+- d98726f: Permit2 permit call in QuotedCalls was wrapped in try/catch to handle front-running gracefully. If an attacker submits the same permit signature first, the allowance is already set and execution continues without reverting.
+- b5f897c: Standing quote staleness behavior was refined: strictly older quotes still revert with `StaleQuote`, equal `issuedAt` quotes are now silently skipped (no revert, no storage update), and only newer quotes trigger storage writes and `QuoteSubmitted` event emission.
+- 9515191: Check native fees are covered in predicate wrapper for all warp route types
+
 ## 11.2.0
 
 ### Minor Changes
