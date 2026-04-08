@@ -164,7 +164,7 @@ describe('hyperlane warp crossCollateral EVM+SVM e2e tests', function () {
       'CCTKNA',
       `${EVM_CHAIN}-${SVM_CHAIN}`,
     );
-    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, {
+    const warpDeployConfigA: WarpRouteDeployConfig = {
       [EVM_CHAIN]: {
         type: TokenType.crossCollateral,
         token: evmTokenA.address,
@@ -180,7 +180,8 @@ describe('hyperlane warp crossCollateral EVM+SVM e2e tests', function () {
         symbol: 'CCTKNA',
         decimals: DECIMALS,
       },
-    } as WarpRouteDeployConfig);
+    };
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpDeployConfigA);
 
     await warpCommands.deployRaw({
       warpRouteId: warpIdA,
@@ -199,7 +200,7 @@ describe('hyperlane warp crossCollateral EVM+SVM e2e tests', function () {
       'CCTKNB',
       `${EVM_CHAIN}-${SVM_CHAIN}`,
     );
-    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, {
+    const warpDeployConfigB: WarpRouteDeployConfig = {
       [EVM_CHAIN]: {
         type: TokenType.crossCollateral,
         token: evmTokenB.address,
@@ -215,7 +216,8 @@ describe('hyperlane warp crossCollateral EVM+SVM e2e tests', function () {
         symbol: 'CCTKNB',
         decimals: DECIMALS,
       },
-    } as WarpRouteDeployConfig);
+    };
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpDeployConfigB);
 
     await warpCommands.deployRaw({
       warpRouteId: warpIdB,

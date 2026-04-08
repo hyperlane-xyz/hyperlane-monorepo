@@ -15,11 +15,11 @@ import {
   TokenType,
   type DeployedWarpAddress,
   type RawCrossCollateralWarpArtifactConfig,
+  computeCCRouterGasConfigUpdates,
   computeCrossCollateralRouterUpdates,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   ZERO_ADDRESS_HEX_32,
-  addressToBytes32,
   assert,
   isNullish,
   isZeroishAddress,
@@ -69,22 +69,6 @@ import {
 } from './warp-tx.js';
 
 const MAX_CC_ROUTERS_PER_TX = 20;
-
-/**
- * Canonicalize a CC routers map to lowercase hex32 for consistent diffing.
- * Handles mixed-case and 20-byte EVM addresses in user config.
- */
-function canonicalizeCCRouters(
-  routers: Record<number, Set<string>>,
-): Record<number, Set<string>> {
-  const result: Record<number, Set<string>> = {};
-  for (const [domain, routerSet] of Object.entries(routers)) {
-    result[Number(domain)] = new Set(
-      [...routerSet].map((r) => addressToBytes32(r).toLowerCase()),
-    );
-  }
-  return result;
-}
 
 export class SvmCrossCollateralTokenReader implements ArtifactReader<
   RawCrossCollateralWarpArtifactConfig,
@@ -411,13 +395,8 @@ export class SvmCrossCollateralTokenWriter
 
     const ownerAddress = parseAddress(current.config.owner);
 
-    // Diff CC routers (canonicalize to lowercase hex32 for consistent comparison)
-    const currentCCRouters = canonicalizeCCRouters(
-      current.config.crossCollateralRouters ?? {},
-    );
-    const expectedCCRouters = canonicalizeCCRouters(
-      artifact.config.crossCollateralRouters ?? {},
-    );
+    const currentCCRouters = current.config.crossCollateralRouters ?? {};
+    const expectedCCRouters = artifact.config.crossCollateralRouters ?? {};
 
     const { toEnroll, toUnenroll } = computeCrossCollateralRouterUpdates(
       currentCCRouters,
@@ -447,11 +426,19 @@ export class SvmCrossCollateralTokenWriter
       );
     }
 
+    // For domains transitioning from remoteRouter to CC-only, inject their
+    // current gas into the expected config so the base diff doesn't unenroll it.
+    const expectedWithPreservedGas = preserveGasForCCTransitionDomains(
+      current.config,
+      artifact.config,
+      expectedCCRouters,
+    );
+
     // Base warp token updates (ownership/upgrade auth always last)
     txs.push(
       ...(await computeWarpTokenUpdateInstructions(
         current.config,
-        artifact.config,
+        expectedWithPreservedGas,
         programId,
         ownerAddress,
         this.rpc,
@@ -459,17 +446,21 @@ export class SvmCrossCollateralTokenWriter
       )),
     );
 
-    // Gas updates for CC-only domains (not covered by computeWarpTokenUpdateInstructions
-    // which only considers remoteRouters for domain derivation).
+    // Gas updates for CC-only domains not covered by computeWarpTokenUpdateInstructions
+    // (which only derives its domain set from remoteRouters).
+    const expectedRouterDomains = new Set(
+      Object.keys(artifact.config.remoteRouters).map(Number),
+    );
+    const ccGasDiff = computeCCRouterGasConfigUpdates(
+      current.config.destinationGas,
+      artifact.config.destinationGas,
+      expectedRouterDomains,
+      currentCCRouters,
+      expectedCCRouters,
+    );
+
     txs.push(
-      ...(await computeCCOnlyGasUpdates(
-        current.config,
-        artifact.config,
-        programId,
-        ownerAddress,
-        currentCCRouters,
-        expectedCCRouters,
-      )),
+      ...(await buildCCGasConfigTxs(ccGasDiff, programId, ownerAddress)),
     );
 
     return txs;
@@ -477,60 +468,53 @@ export class SvmCrossCollateralTokenWriter
 }
 
 /**
- * Computes destination gas updates for CC-only domains — domains present in
- * crossCollateralRouters but NOT in remoteRouters. computeWarpTokenUpdateInstructions
- * only derives its domain set from remoteRouters, so CC-only domains are missed.
+ * For domains transitioning from remoteRouter to CC-only, inject their current
+ * gas value into the expected config. This prevents computeWarpTokenUpdateInstructions
+ * from emitting a gas unenroll that would be immediately reversed.
  */
-async function computeCCOnlyGasUpdates(
+function preserveGasForCCTransitionDomains(
   current: RawCrossCollateralWarpArtifactConfig,
   expected: RawCrossCollateralWarpArtifactConfig,
-  programId: Address,
-  ownerAddress: Address,
-  currentCCRouters: Record<number, Set<string>>,
   expectedCCRouters: Record<number, Set<string>>,
-): Promise<AnnotatedSvmTransaction[]> {
-  // Domains in expected remoteRouters have gas handled by computeWarpTokenUpdateInstructions.
-  // Only use expected (not current) so that domains transitioning from remote router
-  // to CC-only are picked up here and their gas is preserved.
-  const remoteRouterDomains = new Set(
+): RawCrossCollateralWarpArtifactConfig {
+  const currentRouterDomains = new Set(
+    Object.keys(current.remoteRouters).map(Number),
+  );
+  const expectedRouterDomains = new Set(
     Object.keys(expected.remoteRouters).map(Number),
   );
 
-  // All CC domains from both current and expected
-  const allCCDomains = new Set([
-    ...Object.keys(currentCCRouters).map(Number),
-    ...Object.keys(expectedCCRouters).map(Number),
-  ]);
-
-  const gasToEnroll: Array<{ domain: number; gas: bigint }> = [];
-  const gasToUnenroll: number[] = [];
-
-  for (const domain of allCCDomains) {
-    if (remoteRouterDomains.has(domain)) continue;
-
-    const currentGas = current.destinationGas[domain];
-    const expectedGas = expected.destinationGas[domain];
-    const hasExpectedCCRouters =
+  const preservedGas: Record<number, string> = {};
+  for (const domain of currentRouterDomains) {
+    if (expectedRouterDomains.has(domain)) continue;
+    const hasCCRouters =
       expectedCCRouters[domain] && expectedCCRouters[domain].size > 0;
-
-    if (hasExpectedCCRouters && expectedGas) {
-      if (currentGas !== expectedGas) {
-        gasToEnroll.push({ domain, gas: BigInt(expectedGas) });
-      }
-    } else if (hasExpectedCCRouters && !expectedGas && currentGas) {
-      // CC routers still present but gas not in expected config — re-assert
-      // current value so the standard-path unenroll (for domains transitioning
-      // from remoteRouter to CC-only) doesn't silently drop the gas.
-      gasToEnroll.push({ domain, gas: BigInt(currentGas) });
-    } else if (!hasExpectedCCRouters && currentGas) {
-      gasToUnenroll.push(domain);
+    const currentGas = current.destinationGas[domain];
+    if (hasCCRouters && currentGas) {
+      preservedGas[domain] = currentGas;
     }
   }
 
+  if (Object.keys(preservedGas).length === 0) return expected;
+
+  return {
+    ...expected,
+    destinationGas: { ...expected.destinationGas, ...preservedGas },
+  };
+}
+
+async function buildCCGasConfigTxs(
+  diff: {
+    toEnroll: Array<{ domain: number; gas: string }>;
+    toUnenroll: number[];
+  },
+  programId: Address,
+  ownerAddress: Address,
+): Promise<AnnotatedSvmTransaction[]> {
   const txs: AnnotatedSvmTransaction[] = [];
 
-  for (let i = 0; i < gasToUnenroll.length; i += MAX_GAS_CONFIGS_PER_TX) {
-    const batch = gasToUnenroll.slice(i, i + MAX_GAS_CONFIGS_PER_TX);
+  for (let i = 0; i < diff.toUnenroll.length; i += MAX_GAS_CONFIGS_PER_TX) {
+    const batch = diff.toUnenroll.slice(i, i + MAX_GAS_CONFIGS_PER_TX);
     txs.push({
       feePayer: ownerAddress,
       instructions: [
@@ -544,15 +528,15 @@ async function computeCCOnlyGasUpdates(
     });
   }
 
-  for (let i = 0; i < gasToEnroll.length; i += MAX_GAS_CONFIGS_PER_TX) {
-    const batch = gasToEnroll.slice(i, i + MAX_GAS_CONFIGS_PER_TX);
+  for (let i = 0; i < diff.toEnroll.length; i += MAX_GAS_CONFIGS_PER_TX) {
+    const batch = diff.toEnroll.slice(i, i + MAX_GAS_CONFIGS_PER_TX);
     txs.push({
       feePayer: ownerAddress,
       instructions: [
         await getTokenSetDestinationGasConfigsInstruction(
           programId,
           ownerAddress,
-          batch.map((e) => ({ domain: e.domain, gas: e.gas })),
+          batch.map((e) => ({ domain: e.domain, gas: BigInt(e.gas) })),
         ),
       ],
       annotation: `Enroll CC-only gas configs`,

@@ -1,8 +1,10 @@
 import {
   type Logger,
+  addressToBytes32,
   assert,
   difference,
   isNullish,
+  objMap,
 } from '@hyperlane-xyz/utils';
 
 import {
@@ -693,16 +695,27 @@ export interface CrossCollateralRouterDiff {
 /**
  * Computes which cross-collateral routers need enrollment/unenrollment by
  * diffing current and expected CC router maps.
- * Pure function — protocol-agnostic.
+ * Pure function — protocol-agnostic. Addresses are canonicalized to lowercase
+ * hex32 before comparison so callers don't need to normalize beforehand.
  */
 export function computeCrossCollateralRouterUpdates(
   current: Readonly<Record<number, Set<string>>>,
   expected: Readonly<Record<number, Set<string>>>,
 ): CrossCollateralRouterDiff {
+  const canonicalize = (routers: Readonly<Record<number, Set<string>>>) =>
+    objMap(
+      routers,
+      (_domain, routerSet) =>
+        new Set([...routerSet].map((r) => addressToBytes32(r).toLowerCase())),
+    );
+
+  const canonicalCurrent = canonicalize(current);
+  const canonicalExpected = canonicalize(expected);
+
   const toUnenroll: Record<number, Set<string> | null> = {};
-  for (const [domainStr, currentSet] of Object.entries(current)) {
+  for (const [domainStr, currentSet] of Object.entries(canonicalCurrent)) {
     const domain = Number(domainStr);
-    const expectedSet = expected[domain];
+    const expectedSet = canonicalExpected[domain];
     if (isNullish(expectedSet) || expectedSet.size === 0) {
       toUnenroll[domain] = null;
     } else {
@@ -714,12 +727,54 @@ export function computeCrossCollateralRouterUpdates(
   }
 
   const toEnroll: Record<number, Set<string>> = {};
-  for (const [domainStr, expectedSet] of Object.entries(expected)) {
+  for (const [domainStr, expectedSet] of Object.entries(canonicalExpected)) {
     const domain = Number(domainStr);
-    const currentSet = current[domain] ?? new Set();
+    const currentSet = canonicalCurrent[domain] ?? new Set();
     const added = difference(expectedSet, currentSet);
     if (added.size > 0) {
       toEnroll[domain] = added;
+    }
+  }
+
+  return { toEnroll, toUnenroll };
+}
+
+export interface CCGasConfigDiff {
+  toEnroll: Array<{ domain: number; gas: string }>;
+  toUnenroll: number[];
+}
+
+/**
+ * Computes destination gas updates for CC-only domains — domains present in
+ * crossCollateralRouters but NOT in remoteRouters.
+ * Pure function — protocol-agnostic.
+ */
+export function computeCCRouterGasConfigUpdates(
+  currentDestinationGas: Readonly<Record<number, string>>,
+  expectedDestinationGas: Readonly<Record<number, string>>,
+  expectedRemoteRouterDomains: ReadonlySet<number>,
+  currentCCRouters: Readonly<Record<number, Set<string>>>,
+  expectedCCRouters: Readonly<Record<number, Set<string>>>,
+): CCGasConfigDiff {
+  const allCCDomains = new Set([
+    ...Object.keys(currentCCRouters).map(Number),
+    ...Object.keys(expectedCCRouters).map(Number),
+  ]);
+
+  const toEnroll: CCGasConfigDiff['toEnroll'] = [];
+  const toUnenroll: number[] = [];
+
+  for (const domain of allCCDomains) {
+    if (expectedRemoteRouterDomains.has(domain)) continue;
+
+    const currentGas = currentDestinationGas[domain];
+    const expectedGas = expectedDestinationGas[domain];
+    const hasExpectedCCRouters = (expectedCCRouters[domain]?.size ?? 0) > 0;
+
+    if (hasExpectedCCRouters && expectedGas && currentGas !== expectedGas) {
+      toEnroll.push({ domain, gas: expectedGas });
+    } else if (!hasExpectedCCRouters && currentGas) {
+      toUnenroll.push(domain);
     }
   }
 
