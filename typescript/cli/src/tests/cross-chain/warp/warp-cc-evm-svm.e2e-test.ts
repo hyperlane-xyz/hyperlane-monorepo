@@ -1,8 +1,9 @@
 import { expect } from 'chai';
-import { Wallet } from 'ethers';
+import { Wallet, providers } from 'ethers';
 import { type StartedTestContainer } from 'testcontainers';
 import { $ } from 'zx';
 
+import { CrossCollateralRouter__factory } from '@hyperlane-xyz/core';
 import {
   type ChainAddresses,
   createWarpRouteConfigId,
@@ -45,6 +46,7 @@ import {
   getWarpCoreConfigPath,
 } from '../../constants.js';
 import { runEvmNode } from '../../nodes.js';
+import { expectCcRouterEnrolled } from '../../utils.js';
 
 $.verbose = true;
 
@@ -260,7 +262,7 @@ describe('hyperlane warp crossCollateral EVM+SVM e2e tests', function () {
       ],
     });
 
-    // Read deployed configs to get SVM router addresses
+    // Read deployed configs to get token addresses
     const warpCorePathA = getWarpCoreConfigPath('CCTKNA', [
       EVM_CHAIN,
       SVM_CHAIN,
@@ -272,39 +274,83 @@ describe('hyperlane warp crossCollateral EVM+SVM e2e tests', function () {
     const coreConfigA = readYamlOrJson(warpCorePathA) as WarpCoreConfig;
     const coreConfigB = readYamlOrJson(warpCorePathB) as WarpCoreConfig;
 
-    // Get SVM routers from both routes
     const svmTokenA = coreConfigA.tokens.find((t) => t.chainName === SVM_CHAIN);
     const svmTokenB = coreConfigB.tokens.find((t) => t.chainName === SVM_CHAIN);
     assert(svmTokenA?.addressOrDenom, 'Route A SVM token not found');
     assert(svmTokenB?.addressOrDenom, 'Route B SVM token not found');
 
-    // Verify SVM CC routers are enrolled on-chain
+    const evmWarpTokenA = coreConfigA.tokens.find(
+      (t) => t.chainName === EVM_CHAIN,
+    );
+    const evmWarpTokenB = coreConfigB.tokens.find(
+      (t) => t.chainName === EVM_CHAIN,
+    );
+    assert(evmWarpTokenA?.addressOrDenom, 'Route A EVM token not found');
+    assert(evmWarpTokenB?.addressOrDenom, 'Route B EVM token not found');
+
+    const evmDomainId =
+      TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2.domainId;
+    const svmDomainId =
+      TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.CHAIN_NAME_1.domainId;
+
+    // --- Verify SVM CC routers enrolled on-chain ---
     const reader = new SvmCrossCollateralTokenReader(svmRpc);
 
     const stateA = await reader.read(svmTokenA.addressOrDenom);
     const stateB = await reader.read(svmTokenB.addressOrDenom);
 
-    const routerBHex32 = addressToBytes32(
-      svmTokenB.addressOrDenom,
-    ).toLowerCase();
-    const routerAHex32 = addressToBytes32(
-      svmTokenA.addressOrDenom,
-    ).toLowerCase();
-
-    const allRoutersA = Object.values(
+    expectCcRouterEnrolled(
       stateA.config.crossCollateralRouters,
-    ).flatMap((s) => [...s]);
-    expect(
-      allRoutersA.map((r) => r.toLowerCase()),
-      'SVM Route A should have SVM Route B enrolled as CC router',
-    ).to.include(routerBHex32);
-
-    const allRoutersB = Object.values(
+      svmDomainId,
+      svmTokenB.addressOrDenom,
+      `SVM Route A should have SVM Route B enrolled as CC router on domain ${svmDomainId}`,
+    );
+    expectCcRouterEnrolled(
       stateB.config.crossCollateralRouters,
-    ).flatMap((s) => [...s]);
+      svmDomainId,
+      svmTokenA.addressOrDenom,
+      `SVM Route B should have SVM Route A enrolled as CC router on domain ${svmDomainId}`,
+    );
+
+    // --- Verify EVM CC routers enrolled on-chain ---
+    const evmRpcUrl =
+      TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2.rpcUrl;
+    const evmWallet = new Wallet(EVM_KEY).connect(
+      new providers.JsonRpcProvider(evmRpcUrl),
+    );
+
+    const evmRouterA = CrossCollateralRouter__factory.connect(
+      evmWarpTokenA.addressOrDenom,
+      evmWallet,
+    );
+    const evmRouterB = CrossCollateralRouter__factory.connect(
+      evmWarpTokenB.addressOrDenom,
+      evmWallet,
+    );
+
+    const evmRouterBHex32 = addressToBytes32(
+      evmWarpTokenB.addressOrDenom,
+    ).toLowerCase();
+    const evmRouterAHex32 = addressToBytes32(
+      evmWarpTokenA.addressOrDenom,
+    ).toLowerCase();
+
+    // EVM Route A should have EVM Route B enrolled on local EVM domain
+    const evmCCRoutersA = (
+      await evmRouterA.getCrossCollateralRouters(evmDomainId)
+    ).map((r: string) => r.toLowerCase());
     expect(
-      allRoutersB.map((r) => r.toLowerCase()),
-      'SVM Route B should have SVM Route A enrolled as CC router',
-    ).to.include(routerAHex32);
+      evmCCRoutersA,
+      `EVM Route A should have EVM Route B enrolled as CC router on domain ${evmDomainId}`,
+    ).to.include(evmRouterBHex32);
+
+    // EVM Route B should have EVM Route A enrolled on local EVM domain
+    const evmCCRoutersB = (
+      await evmRouterB.getCrossCollateralRouters(evmDomainId)
+    ).map((r: string) => r.toLowerCase());
+    expect(
+      evmCCRoutersB,
+      `EVM Route B should have EVM Route A enrolled as CC router on domain ${evmDomainId}`,
+    ).to.include(evmRouterAHex32);
   });
 });

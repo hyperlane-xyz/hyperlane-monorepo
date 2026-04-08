@@ -326,7 +326,7 @@ describe('SVM Cross-Collateral Warp Token E2E Tests', function () {
             afterEnroll.config.crossCollateralRouters[12]?.has(CANONICAL_SOL),
           ).to.be.true;
 
-          // Re-apply same non-canonical config — should produce no CC router txs
+          // Re-apply same non-canonical config — should produce no txs at all
           const nochurnTxs = await writer.update({
             ...afterEnroll,
             config: {
@@ -339,12 +339,7 @@ describe('SVM Cross-Collateral Warp Token E2E Tests', function () {
             },
           });
 
-          const ccTxs = nochurnTxs.filter(
-            (tx) =>
-              tx.annotation?.includes('CC routers') ||
-              tx.annotation?.includes('CC-only gas'),
-          );
-          expect(ccTxs).to.have.length(0);
+          expect(nochurnTxs).to.have.length(0);
 
           // Cleanup
           const cleanupTxs = await writer.update({

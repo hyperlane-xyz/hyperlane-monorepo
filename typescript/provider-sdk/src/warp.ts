@@ -1,4 +1,9 @@
-import { type Logger, assert, isNullish } from '@hyperlane-xyz/utils';
+import {
+  type Logger,
+  assert,
+  difference,
+  isNullish,
+} from '@hyperlane-xyz/utils';
 
 import {
   Artifact,
@@ -672,6 +677,49 @@ export function computeRemoteRoutersUpdates(
         routerAddress: expectedRemoteRouter.address,
         gas: expectedDestinationGas,
       });
+    }
+  }
+
+  return { toEnroll, toUnenroll };
+}
+
+export interface CrossCollateralRouterDiff {
+  /** Per-domain routers to enroll */
+  toEnroll: Record<number, Set<string>>;
+  /** Per-domain routers to unenroll (null = bulk-remove entire domain) */
+  toUnenroll: Record<number, Set<string> | null>;
+}
+
+/**
+ * Computes which cross-collateral routers need enrollment/unenrollment by
+ * diffing current and expected CC router maps.
+ * Pure function — protocol-agnostic.
+ */
+export function computeCrossCollateralRouterUpdates(
+  current: Readonly<Record<number, Set<string>>>,
+  expected: Readonly<Record<number, Set<string>>>,
+): CrossCollateralRouterDiff {
+  const toUnenroll: Record<number, Set<string> | null> = {};
+  for (const [domainStr, currentSet] of Object.entries(current)) {
+    const domain = Number(domainStr);
+    const expectedSet = expected[domain];
+    if (isNullish(expectedSet) || expectedSet.size === 0) {
+      toUnenroll[domain] = null;
+    } else {
+      const removed = difference(currentSet, expectedSet);
+      if (removed.size > 0) {
+        toUnenroll[domain] = removed;
+      }
+    }
+  }
+
+  const toEnroll: Record<number, Set<string>> = {};
+  for (const [domainStr, expectedSet] of Object.entries(expected)) {
+    const domain = Number(domainStr);
+    const currentSet = current[domain] ?? new Set();
+    const added = difference(expectedSet, currentSet);
+    if (added.size > 0) {
+      toEnroll[domain] = added;
     }
   }
 

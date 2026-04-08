@@ -1,4 +1,3 @@
-import { expect } from 'chai';
 import { $ } from 'zx';
 
 import {
@@ -16,7 +15,7 @@ import {
   type WarpCoreConfig,
   type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, addressToBytes32, assert } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
@@ -32,6 +31,7 @@ import {
   TEST_CHAIN_METADATA_BY_PROTOCOL,
   getWarpCoreConfigPath,
 } from '../../constants.js';
+import { expectCcRouterEnrolled } from '../../utils.js';
 
 $.verbose = true;
 
@@ -63,32 +63,28 @@ describe('hyperlane warp crossCollateral CLI e2e tests (Sealevel)', function () 
     // Fund deployer for mint creation
     await airdropSol(rpc, signer.getSignerAddress(), 50_000_000_000n);
 
-    // Deploy core if not already deployed
-    const coreAddressesPath =
-      CORE_ADDRESSES_PATH_BY_PROTOCOL.sealevel.CHAIN_NAME_1;
-    try {
-      readYamlOrJson(coreAddressesPath);
-    } catch {
-      const hyperlaneCore = new HyperlaneE2ECoreTestCommands(
-        ProtocolType.Sealevel,
-        CHAIN_NAME,
-        REGISTRY_PATH,
-        CORE_CONFIG_PATH_BY_PROTOCOL.sealevel,
-        CORE_READ_CONFIG_PATH_BY_PROTOCOL.sealevel.CHAIN_NAME_1,
-      );
+    // Deploy core
+    const hyperlaneCore = new HyperlaneE2ECoreTestCommands(
+      ProtocolType.Sealevel,
+      CHAIN_NAME,
+      REGISTRY_PATH,
+      CORE_CONFIG_PATH_BY_PROTOCOL.sealevel,
+      CORE_READ_CONFIG_PATH_BY_PROTOCOL.sealevel.CHAIN_NAME_1,
+    );
 
-      const coreConfig = readYamlOrJson(CORE_CONFIG_PATH_BY_PROTOCOL.sealevel);
-      writeYamlOrJson(
-        CORE_READ_CONFIG_PATH_BY_PROTOCOL.sealevel.CHAIN_NAME_1,
-        coreConfig,
-      );
-      hyperlaneCore.setCoreInputPath(
-        CORE_READ_CONFIG_PATH_BY_PROTOCOL.sealevel.CHAIN_NAME_1,
-      );
-      await hyperlaneCore.deploy(SVM_KEY);
-    }
+    const coreConfig = readYamlOrJson(CORE_CONFIG_PATH_BY_PROTOCOL.sealevel);
+    writeYamlOrJson(
+      CORE_READ_CONFIG_PATH_BY_PROTOCOL.sealevel.CHAIN_NAME_1,
+      coreConfig,
+    );
+    hyperlaneCore.setCoreInputPath(
+      CORE_READ_CONFIG_PATH_BY_PROTOCOL.sealevel.CHAIN_NAME_1,
+    );
+    await hyperlaneCore.deploy(SVM_KEY);
 
-    const coreAddresses: ChainAddresses = readYamlOrJson(coreAddressesPath);
+    const coreAddresses: ChainAddresses = readYamlOrJson(
+      CORE_ADDRESSES_PATH_BY_PROTOCOL.sealevel.CHAIN_NAME_1,
+    );
     mailboxAddress = coreAddresses.mailbox;
   });
 
@@ -170,26 +166,20 @@ describe('hyperlane warp crossCollateral CLI e2e tests (Sealevel)', function () 
     const stateA = await reader.read(routerA);
     const stateB = await reader.read(routerB);
 
-    // Convert base58 router addresses to canonical lowercase hex32
-    const routerAHex32 = addressToBytes32(routerA).toLowerCase();
-    const routerBHex32 = addressToBytes32(routerB).toLowerCase();
+    const domainId =
+      TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.CHAIN_NAME_1.domainId;
 
-    // Route A should have route B's router enrolled as CC router
-    const allRoutersA = Object.values(
+    expectCcRouterEnrolled(
       stateA.config.crossCollateralRouters,
-    ).flatMap((s) => [...s]);
-    expect(
-      allRoutersA.map((r) => r.toLowerCase()),
-      'Route A should have route B enrolled as CC router',
-    ).to.include(routerBHex32);
-
-    // Route B should have route A's router enrolled as CC router
-    const allRoutersB = Object.values(
+      domainId,
+      routerB,
+      `Route A should have route B enrolled as CC router on domain ${domainId}`,
+    );
+    expectCcRouterEnrolled(
       stateB.config.crossCollateralRouters,
-    ).flatMap((s) => [...s]);
-    expect(
-      allRoutersB.map((r) => r.toLowerCase()),
-      'Route B should have route A enrolled as CC router',
-    ).to.include(routerAHex32);
+      domainId,
+      routerA,
+      `Route B should have route A enrolled as CC router on domain ${domainId}`,
+    );
   });
 });
