@@ -25,6 +25,7 @@ export enum TokenStandard {
   EvmHypVSXERC20 = 'EvmHypVSXERC20',
   EvmHypVSXERC20Lockbox = 'EvmHypVSXERC20Lockbox',
   EvmM0PortalLite = 'EvmM0PortalLite',
+  EvmM0Portal = 'EvmM0Portal',
   EvmHypEverclearCollateral = 'EvmHypEverclearCollateral',
   EvmHypEverclearEth = 'EvmHypEverclearEth',
   EvmHypCrossCollateralRouter = 'EvmHypCrossCollateralRouter',
@@ -36,6 +37,7 @@ export enum TokenStandard {
   SealevelHypNative = 'SealevelHypNative',
   SealevelHypCollateral = 'SealevelHypCollateral',
   SealevelHypSynthetic = 'SealevelHypSynthetic',
+  SealevelHypCrossCollateral = 'SealevelHypCrossCollateral',
 
   // Cosmos
   CosmosIcs20 = 'CosmosIcs20',
@@ -114,6 +116,7 @@ export const TOKEN_STANDARD_TO_PROTOCOL: Record<
   EvmHypVSXERC20: ProtocolType.Ethereum,
   EvmHypVSXERC20Lockbox: ProtocolType.Ethereum,
   EvmM0PortalLite: ProtocolType.Ethereum,
+  EvmM0Portal: ProtocolType.Ethereum,
   [TokenStandard.EvmHypEverclearCollateral]: ProtocolType.Ethereum,
   [TokenStandard.EvmHypEverclearEth]: ProtocolType.Ethereum,
   [TokenStandard.EvmHypCrossCollateralRouter]: ProtocolType.Ethereum,
@@ -125,6 +128,7 @@ export const TOKEN_STANDARD_TO_PROTOCOL: Record<
   SealevelHypNative: ProtocolType.Sealevel,
   SealevelHypCollateral: ProtocolType.Sealevel,
   SealevelHypSynthetic: ProtocolType.Sealevel,
+  SealevelHypCrossCollateral: ProtocolType.Sealevel,
 
   // Cosmos
   CosmosIcs20: ProtocolType.Cosmos,
@@ -226,6 +230,7 @@ export const TOKEN_COLLATERALIZED_STANDARDS = [
   TokenStandard.StarknetHypNative,
   TokenStandard.EvmHypCrossCollateralRouter,
   TokenStandard.TronHypCrossCollateralRouter,
+  TokenStandard.SealevelHypCrossCollateral,
 ];
 
 export const XERC20_STANDARDS = [
@@ -272,10 +277,12 @@ export const TOKEN_HYP_STANDARDS = [
   TokenStandard.EvmHypVSXERC20,
   TokenStandard.EvmHypVSXERC20Lockbox,
   TokenStandard.EvmM0PortalLite,
+  TokenStandard.EvmM0Portal,
   TokenStandard.EvmHypCrossCollateralRouter,
   TokenStandard.SealevelHypNative,
   TokenStandard.SealevelHypCollateral,
   TokenStandard.SealevelHypSynthetic,
+  TokenStandard.SealevelHypCrossCollateral,
   TokenStandard.CwHypNative,
   TokenStandard.CwHypCollateral,
   TokenStandard.CwHypSynthetic,
@@ -395,6 +402,18 @@ export const tokenTypeToStandard = (
       );
       return sealevelTokenStandard;
     }
+    case ProtocolType.Starknet: {
+      const starknetTokenStandard =
+        STARKNET_TOKEN_TYPE_TO_STANDARD[
+          tokenType as StarknetSupportedTokenTypes
+        ];
+
+      assert(
+        starknetTokenStandard,
+        `token type ${tokenType} not available on protocol ${protocolType}`,
+      );
+      return starknetTokenStandard;
+    }
     default: {
       throw new Error(
         `no token standard available for protocol type ${protocolType}`,
@@ -424,6 +443,7 @@ export const EVM_TOKEN_TYPE_TO_STANDARD: Record<
   [TokenType.nativeOpL2]: TokenStandard.EvmHypNative,
   [TokenType.ethEverclear]: TokenStandard.EvmHypEverclearEth,
   [TokenType.collateralEverclear]: TokenStandard.EvmHypEverclearCollateral,
+  [TokenType.collateralDepositAddress]: TokenStandard.EvmHypCollateral,
   [TokenType.collateralOft]: TokenStandard.EvmHypCollateral,
   [TokenType.crossCollateral]: TokenStandard.EvmHypCrossCollateralRouter,
 };
@@ -450,6 +470,7 @@ export const SEALEVEL_SUPPORTED_TOKEN_TYPES = [
   TokenType.collateral,
   TokenType.synthetic,
   TokenType.native,
+  TokenType.crossCollateral,
 ] as const;
 
 type SealevelSupportedTokenTypes =
@@ -462,6 +483,7 @@ export const SEALEVEL_TOKEN_TYPE_TO_STANDARD: Record<
   [TokenType.collateral]: TokenStandard.SealevelHypCollateral,
   [TokenType.synthetic]: TokenStandard.SealevelHypSynthetic,
   [TokenType.native]: TokenStandard.SealevelHypNative,
+  [TokenType.crossCollateral]: TokenStandard.SealevelHypCrossCollateral,
 };
 
 // Starknet supported token types
@@ -536,6 +558,7 @@ export const TRON_TOKEN_TYPE_TO_STANDARD: Record<
   [TokenType.nativeOpL2]: TokenStandard.TronHypNative,
   [TokenType.ethEverclear]: TokenStandard.TronHypEverclearEth,
   [TokenType.collateralEverclear]: TokenStandard.TronHypEverclearCollateral,
+  [TokenType.collateralDepositAddress]: TokenStandard.TronHypCollateral,
   [TokenType.collateralOft]: TokenStandard.TronHypCollateral,
   [TokenType.crossCollateral]: TokenStandard.TronHypCrossCollateralRouter,
 };

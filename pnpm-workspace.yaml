@@ -1,7 +1,11 @@
+# Reject packages published less than 7 days ago (supply chain protection)
+minimumReleaseAge: 10080
+minimumReleaseAgeExclude:
+  - '@hyperlane-xyz/*'
+
 packages:
   - 'solhint-plugin'
   - 'solidity'
-  - 'solidity/multicollateral'
   - 'typescript/*'
   - 'starknet'
 
@@ -26,6 +30,9 @@ catalog:
 
   # Validation
   zod: ^3.21.2
+
+  # HTTP
+  express-rate-limit: ^8.3.1
 
   # Utilities
   bignumber.js: ^9.1.1
@@ -104,27 +111,17 @@ catalog:
   # === Development dependencies ===
 
   # Build tools
-  typescript: 5.8.3
+  typescript: 6.0.2
   tsx: ^4.19.1
   ts-node: ^10.9.2
   '@vercel/ncc': ^0.38.3
 
   # Linting
-  oxlint: ^1.55.0
+  oxlint: ^1.57.0
   oxlint-tsgolint: ^0.17.0
-  eslint-plugin-oxlint: ^1.55.0
-  eslint: ^9.39.2
-  '@eslint/js': ^9.39.2
-  '@typescript-eslint/eslint-plugin': ^8.54.0
-  '@typescript-eslint/parser': ^8.54.0
-  eslint-config-prettier: ^10.1.8
-  eslint-import-resolver-typescript: ^4.4.4
-  eslint-plugin-import: ^2.32.0
-  globals: ^16.3.0
-  typescript-eslint: ^8.54.0
 
   # Formatting
-  oxfmt: ^0.40.0
+  oxfmt: ^0.42.0
   prettier: ^3.8.1
   prettier-plugin-solidity: ^1.4.2
 

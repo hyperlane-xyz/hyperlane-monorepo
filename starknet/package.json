@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/starknet-core",
-  "version": "28.1.0",
+  "version": "30.1.1",
   "description": "Core cairo contracts for Hyperlane",
   "keywords": [
     "Cairo",
@@ -26,22 +26,15 @@
     "generate-artifacts": "tsx ./scripts/generate-artifacts.ts",
     "build": "tsc && pnpm fetch-contracts && pnpm generate-artifacts",
     "clean": "rm -rf ./dist ./release",
-    "lint": "eslint -c ./eslint.config.mjs .",
+    "lint": "oxlint -c ../oxlint.json",
     "format": "oxfmt --write ./src"
   },
   "dependencies": {
     "starknet": "catalog:"
   },
   "devDependencies": {
-    "@eslint/js": "catalog:",
-    "@hyperlane-xyz/eslint-config": "workspace:*",
     "@hyperlane-xyz/tsconfig": "workspace:^",
-    "@typescript-eslint/eslint-plugin": "catalog:",
-    "@typescript-eslint/parser": "catalog:",
-    "eslint": "catalog:",
-    "eslint-config-prettier": "catalog:",
-    "eslint-import-resolver-typescript": "catalog:",
-    "eslint-plugin-import": "catalog:",
+    "@types/node": "catalog:",
     "globby": "^14.1.0",
     "tsx": "catalog:",
     "typescript": "catalog:"

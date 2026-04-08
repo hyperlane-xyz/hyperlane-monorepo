@@ -70,12 +70,14 @@ import type {
   ITokenAdapter,
 } from './adapters/ITokenAdapter.js';
 import { M0PortalLiteTokenAdapter } from './adapters/M0PortalLiteTokenAdapter.js';
+import { M0PortalTokenAdapter } from './adapters/M0PortalTokenAdapter.js';
 import {
   RadixHypCollateralAdapter,
   RadixHypSyntheticAdapter,
   RadixNativeTokenAdapter,
   RadixTokenAdapter,
 } from './adapters/RadixTokenAdapter.js';
+import { SealevelHypCrossCollateralAdapter } from './adapters/SealevelCrossCollateralAdapter.js';
 import {
   SealevelHypCollateralAdapter,
   SealevelHypNativeAdapter,
@@ -345,6 +347,18 @@ export class Token implements IToken {
         token: collateralAddressOrDenom,
         mailbox,
       });
+    } else if (standard === TokenStandard.SealevelHypCrossCollateral) {
+      assert(mailbox, `Mailbox required for Sealevel hyp tokens`);
+      assert(
+        collateralAddressOrDenom,
+        `collateralAddressOrDenom required for Sealevel hyp cross-collateral tokens`,
+      );
+
+      return new SealevelHypCrossCollateralAdapter(chainName, multiProvider, {
+        warpRouter: addressOrDenom,
+        token: collateralAddressOrDenom,
+        mailbox,
+      });
     } else if (standard === TokenStandard.SealevelHypSynthetic) {
       assert(mailbox, `Mailbox required for Sealevel hyp tokens`);
       assert(
@@ -437,6 +451,17 @@ export class Token implements IToken {
         'collateralAddressOrDenom (mToken address) required for M0PortalLite',
       );
       return new M0PortalLiteTokenAdapter(
+        multiProvider,
+        chainName,
+        addressOrDenom, // portal address
+        collateralAddressOrDenom, // mToken address
+      );
+    } else if (standard === TokenStandard.EvmM0Portal) {
+      assert(
+        collateralAddressOrDenom,
+        'collateralAddressOrDenom (mToken address) required for M0Portal',
+      );
+      return new M0PortalTokenAdapter(
         multiProvider,
         chainName,
         addressOrDenom, // portal address
@@ -541,7 +566,8 @@ export class Token implements IToken {
   isCrossCollateralToken(): boolean {
     return (
       this.standard === TokenStandard.EvmHypCrossCollateralRouter ||
-      this.standard === TokenStandard.TronHypCrossCollateralRouter
+      this.standard === TokenStandard.TronHypCrossCollateralRouter ||
+      this.standard === TokenStandard.SealevelHypCrossCollateral
     );
   }
 

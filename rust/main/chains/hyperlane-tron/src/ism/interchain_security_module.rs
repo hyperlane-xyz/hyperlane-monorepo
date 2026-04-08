@@ -15,6 +15,7 @@ use hyperlane_core::{
 use num_traits::cast::FromPrimitive;
 
 use crate::interfaces::i_interchain_security_module::IInterchainSecurityModule as TronInterchainSecurityModuleInternal;
+use crate::interfaces::i_trusted_relayer_ism::ITrustedRelayerIsm;
 use crate::TronProvider;
 
 /// A reference to an InterchainSecurityModule contract on some Tron chain
@@ -78,9 +79,21 @@ impl InterchainSecurityModule for TronInterchainSecurityModule {
         );
         let (verifies, gas_estimate) = try_join(tx.call(), tx.estimate_gas()).await?;
         if verifies {
-            Ok(Some(gas_estimate.into()))
-        } else {
-            Ok(None)
+            return Ok(Some(gas_estimate.into()));
         }
+        // For Null-typed ISMs (e.g. TrustedRelayerIsm), verify() returns false
+        // during a dry run because it depends on mailbox state set during process().
+        // If we are the configured trusted relayer, include it with gas=0.
+        if self.module_type().await? == ModuleType::Null {
+            if let Some(sender) = self.contract.client().signer_address() {
+                let tr = ITrustedRelayerIsm::new(self.contract.address(), self.contract.client());
+                if let Ok(trusted_relayer) = tr.trusted_relayer().call().await {
+                    if trusted_relayer == sender {
+                        return Ok(Some(U256::zero()));
+                    }
+                }
+            }
+        }
+        Ok(None)
     }
 }

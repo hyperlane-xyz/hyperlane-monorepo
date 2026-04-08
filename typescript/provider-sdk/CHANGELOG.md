@@ -1,5 +1,46 @@
 # @hyperlane-xyz/provider-sdk
 
+## 4.2.5
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@30.1.1
+
+## 4.2.4
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@30.1.0
+
+## 4.2.3
+
+### Patch Changes
+
+- 37255ba: Starknet AltVM follow-up behavior was fixed across the CLI toolchain. Warp apply/update paths now preserve existing Starknet hook and ISM settings when config leaves them unset or uses empty addresses, zero-address hook and ISM references are normalized as unset during provider artifact conversion, and core mailbox bootstrap only passes through existing hook addresses for Starknet while other AltVMs keep zero-address placeholders.
+- Updated dependencies [7646819]
+  - @hyperlane-xyz/utils@30.0.0
+
+## 4.2.2
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@29.1.0
+
+## 4.2.1
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@29.0.1
+
+## 4.2.0
+
+### Patch Changes
+
+- 084c6b6: The TypeScript packages were updated to support TypeScript 6.0 and to make ambient type loading explicit so the future TypeScript 7.0 upgrade is smoother.
+- Updated dependencies [3c6b1ad]
+- Updated dependencies [084c6b6]
+  - @hyperlane-xyz/utils@29.0.0
+
 ## 4.1.0
 
 ### Minor Changes

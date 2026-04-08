@@ -20,7 +20,8 @@
     "skipLibCheck": true,
     "sourceMap": true,
     "strict": true,
-    "target": "es2023"
+    "target": "es2023",
+    "types": ["node"]
   },
   "ts-node": {
     "experimentalSpecifierResolution": "node",

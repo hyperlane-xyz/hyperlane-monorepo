@@ -7,6 +7,7 @@ import {
   ArtifactState,
   ConfigOnChain,
   IArtifactManager,
+  addressToUnderivedArtifact,
   isArtifactDeployed,
   isArtifactNew,
 } from './artifact.js';
@@ -271,8 +272,6 @@ export interface IRawWarpArtifactManager extends IArtifactManager<
   supportsHookUpdates(): boolean;
 }
 
-// Warp Config Utilities
-
 /**
  * Converts WarpConfig (Config API) to WarpArtifactConfig (Artifact API).
  *
@@ -294,11 +293,8 @@ export function warpConfigToArtifact(
   let ismArtifact: Artifact<IsmArtifactConfig, DeployedIsmAddress> | undefined;
   if (config.interchainSecurityModule) {
     if (typeof config.interchainSecurityModule === 'string') {
-      // Address reference - create UNDERIVED artifact
-      ismArtifact = {
-        artifactState: ArtifactState.UNDERIVED,
-        deployed: { address: config.interchainSecurityModule },
-      };
+      // Normalize zero-address references to "unset" before artifact conversion.
+      ismArtifact = addressToUnderivedArtifact(config.interchainSecurityModule);
     } else {
       // ISM config - convert using ismConfigToArtifact
       ismArtifact = ismConfigToArtifact(
@@ -314,11 +310,8 @@ export function warpConfigToArtifact(
     | undefined;
   if (config.hook) {
     if (typeof config.hook === 'string') {
-      // Address reference - create UNDERIVED artifact
-      hookArtifact = {
-        artifactState: ArtifactState.UNDERIVED,
-        deployed: { address: config.hook },
-      };
+      // Normalize zero-address references to "unset" before artifact conversion.
+      hookArtifact = addressToUnderivedArtifact(config.hook);
     } else {
       // Hook config - convert using hookConfigToArtifact
       hookArtifact = hookConfigToArtifact(config.hook, chainLookup);
@@ -659,16 +652,18 @@ export function computeRemoteRoutersUpdates(
       !isNullish(expectedDestinationGas),
       `Missing destination gas for domain ${domainId} in expected router configuration`,
     );
-    const currentRouterAddress = currentRoutersConfig.remoteRouters[domainId];
+    const currentRouterAddress = Object.prototype.hasOwnProperty.call(
+      currentRoutersConfig.remoteRouters,
+      domainId,
+    )
+      ? currentRoutersConfig.remoteRouters[domainId].address
+      : undefined;
     const currentDestinationGas =
       currentRoutersConfig.destinationGas[domainId] ?? '0';
 
     const needsUpdate =
       !currentRouterAddress ||
-      !compareAddresses(
-        currentRouterAddress.address,
-        expectedRemoteRouter.address,
-      ) ||
+      !compareAddresses(currentRouterAddress, expectedRemoteRouter.address) ||
       currentDestinationGas !== expectedDestinationGas;
 
     if (needsUpdate) {

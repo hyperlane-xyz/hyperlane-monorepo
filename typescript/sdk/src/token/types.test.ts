@@ -57,6 +57,152 @@ describe('WarpRouteDeployConfigSchema refine', () => {
     expect(WarpRouteDeployConfigSchema.safeParse(config).success).to.be.true;
   });
 
+  it('should accept deposit-address bridge config', () => {
+    const parseResults = WarpRouteDeployConfigSchema.safeParse({
+      arbitrum: {
+        type: TokenType.collateralDepositAddress,
+        token: SOME_ADDRESS,
+        owner: SOME_ADDRESS,
+        mailbox: SOME_ADDRESS,
+        destinationConfigs: {
+          ethereum: {
+            [ethers.utils.hexZeroPad(SOME_ADDRESS, 32)]: {
+              depositAddress: SOME_ADDRESS,
+              feeBps: '1000',
+            },
+          },
+        },
+      },
+    });
+
+    assert(parseResults.success, 'must be true');
+  });
+
+  it('should reject invalid deposit-address bridge config', () => {
+    const parseResults = WarpRouteDeployConfigSchema.safeParse({
+      arbitrum: {
+        type: TokenType.collateralDepositAddress,
+        token: SOME_ADDRESS,
+        owner: SOME_ADDRESS,
+        mailbox: SOME_ADDRESS,
+        destinationConfigs: {
+          ethereum: {
+            [ethers.utils.hexZeroPad(SOME_ADDRESS, 32)]: {
+              depositAddress: '0x1234',
+            },
+          },
+        },
+      },
+    });
+
+    expect(parseResults.success).to.be.false;
+  });
+
+  it('should reject deposit-address bridge config with feeBps above 10000', () => {
+    const parseResults = WarpRouteDeployConfigSchema.safeParse({
+      arbitrum: {
+        type: TokenType.collateralDepositAddress,
+        token: SOME_ADDRESS,
+        owner: SOME_ADDRESS,
+        mailbox: SOME_ADDRESS,
+        destinationConfigs: {
+          ethereum: {
+            [ethers.utils.hexZeroPad(SOME_ADDRESS, 32)]: {
+              depositAddress: SOME_ADDRESS,
+              feeBps: '10001',
+            },
+          },
+        },
+      },
+    });
+
+    expect(parseResults.success).to.be.false;
+  });
+
+  it('should reject deposit-address bridge config with feeBps of 10000', () => {
+    const parseResults = WarpRouteDeployConfigSchema.safeParse({
+      arbitrum: {
+        type: TokenType.collateralDepositAddress,
+        token: SOME_ADDRESS,
+        owner: SOME_ADDRESS,
+        mailbox: SOME_ADDRESS,
+        destinationConfigs: {
+          ethereum: {
+            [ethers.utils.hexZeroPad(SOME_ADDRESS, 32)]: {
+              depositAddress: SOME_ADDRESS,
+              feeBps: '10000',
+            },
+          },
+        },
+      },
+    });
+
+    expect(parseResults.success).to.be.false;
+  });
+
+  it('should reject deposit-address bridge config with invalid feeBps string', () => {
+    const parseResults = WarpRouteDeployConfigSchema.safeParse({
+      arbitrum: {
+        type: TokenType.collateralDepositAddress,
+        token: SOME_ADDRESS,
+        owner: SOME_ADDRESS,
+        mailbox: SOME_ADDRESS,
+        destinationConfigs: {
+          ethereum: {
+            [ethers.utils.hexZeroPad(SOME_ADDRESS, 32)]: {
+              depositAddress: SOME_ADDRESS,
+              feeBps: 'abc',
+            },
+          },
+        },
+      },
+    });
+
+    expect(parseResults.success).to.be.false;
+  });
+
+  it('should reject deposit-address bridge config with empty feeBps string', () => {
+    const parseResults = WarpRouteDeployConfigSchema.safeParse({
+      arbitrum: {
+        type: TokenType.collateralDepositAddress,
+        token: SOME_ADDRESS,
+        owner: SOME_ADDRESS,
+        mailbox: SOME_ADDRESS,
+        destinationConfigs: {
+          ethereum: {
+            [ethers.utils.hexZeroPad(SOME_ADDRESS, 32)]: {
+              depositAddress: SOME_ADDRESS,
+              feeBps: '',
+            },
+          },
+        },
+      },
+    });
+
+    expect(parseResults.success).to.be.false;
+  });
+
+  it('should reject deposit-address bridge config with negative feeBps', () => {
+    const parseResults = WarpRouteDeployConfigSchema.safeParse({
+      arbitrum: {
+        type: TokenType.collateralDepositAddress,
+        token: SOME_ADDRESS,
+        owner: SOME_ADDRESS,
+        mailbox: SOME_ADDRESS,
+        destinationConfigs: {
+          ethereum: {
+            [ethers.utils.hexZeroPad(SOME_ADDRESS, 32)]: {
+              depositAddress: SOME_ADDRESS,
+              feeBps: '-1',
+            },
+          },
+        },
+      },
+    });
+
+    expect(parseResults.success).to.be.false;
+  });
+
   it('should throw if collateral type and token is empty', async () => {
     for (const type of COLLATERAL_TYPES) {
       config.arbitrum.type = type;
@@ -187,7 +333,7 @@ describe('WarpRouteDeployConfigSchema refine', () => {
           symbol: 'TEST',
           tokenFee: {
             type: TokenFeeType.LinearFee,
-            bps: 100n,
+            bps: 100,
           },
         },
       });
@@ -211,7 +357,7 @@ describe('WarpRouteDeployConfigSchema refine', () => {
             feeContracts: {
               ethereum: {
                 type: TokenFeeType.LinearFee,
-                bps: 100n,
+                bps: 100,
               },
             },
           },
@@ -233,7 +379,7 @@ describe('WarpRouteDeployConfigSchema refine', () => {
           mailbox: SOME_ADDRESS,
           tokenFee: {
             type: TokenFeeType.LinearFee,
-            bps: 100n,
+            bps: 100,
           },
         },
       });
@@ -252,7 +398,7 @@ describe('WarpRouteDeployConfigSchema refine', () => {
           mailbox: SOME_ADDRESS,
           tokenFee: {
             type: TokenFeeType.LinearFee,
-            bps: 100n,
+            bps: 100,
           },
         },
       });
@@ -273,7 +419,7 @@ describe('WarpRouteDeployConfigSchema refine', () => {
           symbol: 'TEST',
           tokenFee: {
             type: TokenFeeType.LinearFee,
-            bps: 100n,
+            bps: 100,
           },
         },
       });

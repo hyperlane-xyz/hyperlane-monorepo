@@ -260,7 +260,6 @@ pub enum KnownHyperlaneDomain {
     //
     AleoTestnet = 1617853565,
     ArbitrumSepolia = 421614,
-    ArcadiaTestnet2 = 1098411886,
     BaseSepolia = 84532,
     #[cfg_attr(feature = "strum", strum(serialize = "bsctestnet"))]
     BinanceSmartChainTestnet = 97,
@@ -401,7 +400,6 @@ pub enum HyperlaneDomainTechnicalStack {
     PolygonCDK,
     PolkadotSubstrate,
     ZkSync,
-    Tron,
     #[default]
     Other,
 }
@@ -418,7 +416,6 @@ impl KnownHyperlaneDomain {
         match self {
             AleoTestnet
             | ArbitrumSepolia
-            | ArcadiaTestnet2
             | BaseSepolia
             | BinanceSmartChainTestnet
             | CelestiaTestnet
@@ -889,7 +886,6 @@ mod tests {
             ("polygoncdk", HyperlaneDomainTechnicalStack::PolygonCDK) => {}
             ("starknet", HyperlaneDomainTechnicalStack::Starknet) => {}
             ("zksync", HyperlaneDomainTechnicalStack::ZkSync) => {}
-            ("tron", HyperlaneDomainTechnicalStack::Tron) => {}
             _ => {
                 panic!(
                     "Incorrect domain stack for `{chain_name}`.\nExpected `{protocol_str}`, got `{protocol}`"

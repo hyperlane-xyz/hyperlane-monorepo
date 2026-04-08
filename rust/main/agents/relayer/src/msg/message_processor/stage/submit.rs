@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use hyperlane_base::db::HyperlaneDb;
-use hyperlane_core::PendingOperationStatus::ReadyToSubmit;
-use hyperlane_core::QueueOperation;
+use hyperlane_core::PendingOperationStatus::{ReadyToSubmit, Retry};
+use hyperlane_core::{QueueOperation, ReprepareReason};
 use lander::Entrypoint;
 use tracing::warn;
 
@@ -17,16 +17,12 @@ use super::super::{confirm_op, MessageProcessorMetrics};
 /// - `PreSubmit`: Operations returned for immediate resubmission (payload failed/dropped before submission)
 /// - `Submit`: Operations re-queued to submit queue (still in submission pipeline: ReadyToSubmit, PendingInclusion, Mempool)
 /// - `PostSubmitSuccess`: Operations moved to confirm queue (transaction included/finalized in block)
-/// - `PostSubmitFailure`: Operations moved to confirm queue (transaction dropped after submission)
-///
-/// # Critical PostSubmitFailure Handling
-/// Both `PostSubmitSuccess` and `PostSubmitFailure` are routed to the Confirm stage to verify
-/// message delivery status. For `PostSubmitFailure`, this prevents infinite loops by ensuring
-/// the message wasn't actually delivered before returning to the prepare stage for re-preparation.
-/// The Confirm stage will verify non-delivery and then route back to prepare with linkage removed.
+/// - `PostSubmitFailure`: Operations moved to prepare queue for immediate re-preparation
+///   (transaction dropped/rejected after submission — no need to wait for confirmation)
 ///
 /// # Arguments
 /// * `entrypoint` - The lander entrypoint for checking payload status
+/// * `prepare_queue` - Queue for operations requiring immediate re-preparation
 /// * `submit_queue` - Queue for operations in submission pipeline
 /// * `confirm_queue` - Queue for operations awaiting confirmation
 /// * `metrics` - Message processor metrics for tracking
@@ -38,6 +34,7 @@ use super::super::{confirm_op, MessageProcessorMetrics};
 /// Other operations are routed to their appropriate queues internally.
 pub(crate) async fn filter_operations_for_submit(
     entrypoint: Arc<dyn Entrypoint + Send + Sync>,
+    prepare_queue: &OpQueue,
     submit_queue: &OpQueue,
     confirm_queue: &OpQueue,
     metrics: &MessageProcessorMetrics,
@@ -77,11 +74,14 @@ pub(crate) async fn filter_operations_for_submit(
                 confirm_op(op, confirm_queue, metrics).await;
             }
             PostSubmitFailure => {
-                // PostSubmitFailure is sent to Confirm stage so that it can check if message was
-                // delivered by another means and, if not, send it back to Prepare stage
-                let id = op.id();
-                warn!("Failed to submit message: message_id={id:?}");
-                confirm_op(op, confirm_queue, metrics).await;
+                let message_id = op.id();
+                warn!(%message_id, "Failed to submit message, routing to prepare queue");
+                metrics.inc_failed(op.app_context());
+                let mut op = op;
+                op.on_reprepare(None, ReprepareReason::ErrorSubmitting);
+                prepare_queue
+                    .push(op, Some(Retry(ReprepareReason::ErrorSubmitting)))
+                    .await;
             }
         }
     }

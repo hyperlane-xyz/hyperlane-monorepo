@@ -60,6 +60,7 @@ import { getEclipseStrideStTiaWarpConfig } from './environments/mainnet3/warp/co
 import {
   getEclipseUSDCSTAGEWarpConfig,
   getUSDCSTAGEEclipseFileSubmitterStrategyConfig,
+  getUSDCSTAGEEclipseImpersonatedStrategyConfig,
 } from './environments/mainnet3/warp/configGetters/getEclipseUSDCSTAGEWarpConfig.js';
 import {
   getEclipseUSDCStrategyConfig,
@@ -67,6 +68,7 @@ import {
 } from './environments/mainnet3/warp/configGetters/getEclipseUSDCWarpConfig.js';
 import { getElectroneumUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getElectroneumUSDCWarpConfig.js';
 import {
+  getEni1PieceWarpConfig,
   getEniEthWarpConfig,
   getEniUsdcWarpConfig,
   getEniUsdtWarpConfig,
@@ -213,6 +215,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.EniWBTC]: getEniWbtcWarpConfig,
   [WarpRouteIds.EniUSDC]: getEniUsdcWarpConfig,
   [WarpRouteIds.EniUSDT]: getEniUsdtWarpConfig,
+  [WarpRouteIds.Eni1Piece]: getEni1PieceWarpConfig,
   [WarpRouteIds.ModeUSDTSTAGE]: getUSDTSTAGEWarpConfig,
   [WarpRouteIds.AleoUSDC]: getAleoUSDCWarpConfig,
 };
@@ -243,6 +246,15 @@ export const strategyConfigGetterMap: Record<string, StrategyConfigGetter> = {
   [WarpRouteIds.oXAUT]: getoXAUTGnosisSafeSubmitterStrategyConfig,
   [WarpRouteIds.SuperseedUSDC]: getSuperseedUSDCStrategyConfig,
   [WarpRouteIds.VictionETH]: getVictionETHStrategyConfig,
+};
+
+/** Sandbox strategy map — uses impersonated accounts for anvil fork testing */
+export const sandboxStrategyConfigGetterMap: Record<
+  string,
+  StrategyConfigGetter
+> = {
+  [WarpRouteIds.EclipseUSDCSTAGE]:
+    getUSDCSTAGEEclipseImpersonatedStrategyConfig,
 };
 
 /**

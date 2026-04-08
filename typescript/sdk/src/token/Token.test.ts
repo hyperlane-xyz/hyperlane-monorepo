@@ -133,6 +133,15 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     symbol: 'mUSD',
     name: 'MetaMask USD',
   },
+  [TokenStandard.EvmM0Portal]: {
+    chainName: TestChainName.test2,
+    standard: TokenStandard.EvmM0Portal,
+    addressOrDenom: '0xD925C84b55E4e44a53749fF5F2a5A13F63D128fd', // Portal address
+    collateralAddressOrDenom: '0xaca92e438df0b2401ff60da7e4337b687a2435da', // mUSD token address
+    decimals: 6,
+    symbol: 'mUSD',
+    name: 'MetaMask USD',
+  },
   [TokenStandard.EvmHypEverclearCollateral]: null,
   [TokenStandard.EvmHypEverclearEth]: null,
   [TokenStandard.EvmHypCrossCollateralRouter]: null,
@@ -182,6 +191,7 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     symbol: 'SOL',
     name: 'SOL',
   },
+  [TokenStandard.SealevelHypCrossCollateral]: null,
 
   // Cosmos
   [TokenStandard.CosmosIcs20]: null,

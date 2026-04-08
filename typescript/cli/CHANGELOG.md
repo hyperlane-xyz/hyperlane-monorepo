@@ -1,5 +1,42 @@
 # @hyperlane-xyz/cli
 
+## 30.1.1
+
+### Patch Changes
+
+- 26d682b: Fee quoting client and shared types were moved from @hyperlane-xyz/fee-quoting into @hyperlane-xyz/sdk. The fee-quoting package was marked as private since it is a deployable service, not a published library.
+
+## 30.1.0
+
+### Patch Changes
+
+- e1f35a7: The offchain fee quoting service and client were added, with CLI integration for quoted transfers and SDK export of DEFAULT_ROUTER_KEY.
+
+## 30.0.0
+
+### Patch Changes
+
+- e1ed158: User-specified remoteRouters and destinationGas in warp deploy configs were ignored during router enrollment when the remote chains were not part of the deployment. enrollCrossChainRouters now merges user-specified entries with auto-discovered routers from deployed contracts.
+- 37255ba: Starknet AltVM follow-up behavior was fixed across the CLI toolchain. Warp apply/update paths now preserve existing Starknet hook and ISM settings when config leaves them unset or uses empty addresses, zero-address hook and ISM references are normalized as unset during provider artifact conversion, and core mailbox bootstrap only passes through existing hook addresses for Starknet while other AltVMs keep zero-address placeholders.
+
+## 29.1.0
+
+### Minor Changes
+
+- e4d56e9: Added tron support for hyperlane send message command
+
+## 29.0.1
+
+## 29.0.0
+
+### Minor Changes
+
+- 09d6760: Added Starknet artifact API support across the TypeScript AltVM toolchain. The new `@hyperlane-xyz/starknet-sdk` package provides Starknet protocol, signer, provider, ISM, hook, mailbox, validator announce, and end-to-end test coverage. Deploy SDK protocol loading and the CLI context/signer flows were updated so Starknet chains can be resolved and used through the shared AltVM paths.
+
+### Patch Changes
+
+- 084c6b6: The TypeScript packages were updated to support TypeScript 6.0 and to make ambient type loading explicit so the future TypeScript 7.0 upgrade is smoother.
+
 ## 28.1.0
 
 ### Minor Changes

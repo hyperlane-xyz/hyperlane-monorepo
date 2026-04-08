@@ -1,5 +1,65 @@
 # @hyperlane-xyz/sealevel-sdk
 
+## 30.1.1
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@30.1.1
+- @hyperlane-xyz/provider-sdk@4.2.5
+
+## 30.1.0
+
+### Minor Changes
+
+- 95c331e: Added cross-collateral token support to the SVM SDK, including create, read, and update operations for cross-collateral warp routes.
+
+### Patch Changes
+
+- b643062: Fixed serialized transaction output using the local keypair as fee payer instead of the actual authority (e.g. Squads vault). Added explicit feePayer field to SvmTransaction and set it on all update paths. Refactored IGP instruction builders to accept Address instead of TransactionSigner so the on-chain owner is used in serialized transactions.
+  - @hyperlane-xyz/utils@30.1.0
+  - @hyperlane-xyz/provider-sdk@4.2.4
+
+## 30.0.0
+
+### Major Changes
+
+- 2a9b135: SvmSigner send/confirm flow was refactored with block-height-based polling, client-side rebroadcast, structured blockhash error detection via @solana/errors, and double-execution prevention for processed transactions. Program deployment write stages are now sent in parallel batches with retry on failure. Breaking: DeployStage requires a new `kind` field (DeployStageKind discriminant).
+
+### Patch Changes
+
+- Updated dependencies [37255ba]
+- Updated dependencies [7646819]
+  - @hyperlane-xyz/provider-sdk@4.2.3
+  - @hyperlane-xyz/utils@30.0.0
+
+## 29.1.0
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@29.1.0
+- @hyperlane-xyz/provider-sdk@4.2.2
+
+## 29.0.1
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@29.0.1
+- @hyperlane-xyz/provider-sdk@4.2.1
+
+## 29.0.0
+
+### Minor Changes
+
+- f0a33c6: Added `serializeUnsignedTransaction` to produce base58-encoded unsigned v0 transactions and messages compatible with the Rust Sealevel CLI output. `transactionToPrintableJson` now includes `transactionBase58`, `messageBase58`, and `annotation` fields alongside the existing human-readable format.
+
+### Patch Changes
+
+- 084c6b6: The TypeScript packages were updated to support TypeScript 6.0 and to make ambient type loading explicit so the future TypeScript 7.0 upgrade is smoother.
+- Updated dependencies [3c6b1ad]
+- Updated dependencies [084c6b6]
+  - @hyperlane-xyz/utils@29.0.0
+  - @hyperlane-xyz/provider-sdk@4.2.0
+
 ## 28.1.0
 
 ### Patch Changes

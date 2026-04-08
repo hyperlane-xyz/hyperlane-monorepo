@@ -1,0 +1,12 @@
+owner: 6ASf5EcmmEHTgDJ4X4ZT5vT6iHVJBXPg5AN5YoTCpGWt
+defaultIsm:
+  type: testIsm
+defaultHook:
+  type: interchainGasPaymaster
+  owner: 6ASf5EcmmEHTgDJ4X4ZT5vT6iHVJBXPg5AN5YoTCpGWt
+  beneficiary: 6ASf5EcmmEHTgDJ4X4ZT5vT6iHVJBXPg5AN5YoTCpGWt
+  oracleKey: 6ASf5EcmmEHTgDJ4X4ZT5vT6iHVJBXPg5AN5YoTCpGWt
+  overhead: {}
+  oracleConfig: {}
+requiredHook:
+  type: merkleTreeHook
