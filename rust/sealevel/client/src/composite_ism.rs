@@ -1,4 +1,4 @@
-use std::{fs::File, path::Path};
+use std::{collections::BTreeMap, fs::File, path::Path};
 
 use serde::{Deserialize, Serialize};
 use solana_program::pubkey::Pubkey;
@@ -41,6 +41,16 @@ pub(crate) enum IsmNodeConfig {
     Routing {
         #[serde(skip_serializing_if = "Option::is_none")]
         default_ism: Option<Box<IsmNodeConfig>>,
+        /// Per-domain ISM configs.  Keys are origin domain IDs.
+        ///
+        /// This field exists only in the CLI config file — it is not stored in
+        /// the root ISM node on-chain.  During `deploy` and `update`, each entry
+        /// is submitted as a separate `SetDomainIsm` transaction after the root
+        /// `Initialize` / `UpdateConfig` transaction.
+        /// JSON object keys must be strings, so domain IDs are stored as decimal
+        /// strings (e.g. `"1399811149"`).  `collect_domain_isms` parses them to u32.
+        #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+        domains: BTreeMap<String, IsmNodeConfig>,
     },
     Test {
         accept: bool,
@@ -75,7 +85,10 @@ impl From<IsmNodeConfig> for IsmNode {
                 threshold,
                 sub_isms: sub_isms.into_iter().map(Into::into).collect(),
             },
-            IsmNodeConfig::Routing { default_ism } => IsmNode::Routing {
+            IsmNodeConfig::Routing {
+                default_ism,
+                domains: _, // domain ISMs are submitted via SetDomainIsm, not stored in the root node
+            } => IsmNode::Routing {
                 default_ism: default_ism.map(|n| Box::new(IsmNode::from(*n))),
             },
             IsmNodeConfig::Test { accept } => IsmNode::Test { accept },
@@ -113,6 +126,7 @@ impl From<IsmNode> for IsmNodeConfig {
             },
             IsmNode::Routing { default_ism } => IsmNodeConfig::Routing {
                 default_ism: default_ism.map(|n| Box::new(IsmNodeConfig::from(*n))),
+                domains: BTreeMap::new(), // on-chain node has no domain map; domain PDAs are separate
             },
             IsmNode::Test { accept } => IsmNodeConfig::Test { accept },
             IsmNode::Pausable { paused } => IsmNodeConfig::Pausable { paused },
@@ -150,6 +164,35 @@ mod serde_hex_bytes32 {
     }
 }
 
+/// Recursively walks an `IsmNodeConfig` tree and returns the domain ISM map
+/// from the first `Routing` node found, as a `Vec<(domain, IsmNodeConfig)>`.
+///
+/// Returns an empty vec if there is no `Routing` node or its `domains` map is
+/// empty.  Since the program enforces at most one `Routing` node per
+/// deployment, this always collects at most one batch of domain ISMs.
+fn collect_domain_isms(config: &IsmNodeConfig) -> Vec<(u32, IsmNodeConfig)> {
+    match config {
+        IsmNodeConfig::Routing { domains, .. } => domains
+            .iter()
+            .map(|(k, v)| {
+                let domain = k
+                    .parse::<u32>()
+                    .unwrap_or_else(|_| panic!("domain key {k:?} is not a valid u32"));
+                (domain, v.clone())
+            })
+            .collect(),
+        IsmNodeConfig::Aggregation { sub_isms, .. } => {
+            sub_isms.iter().flat_map(collect_domain_isms).collect()
+        }
+        IsmNodeConfig::AmountRouting { lower, upper, .. } => {
+            let mut result = collect_domain_isms(lower);
+            result.extend(collect_domain_isms(upper));
+            result
+        }
+        _ => vec![],
+    }
+}
+
 pub(crate) fn process_composite_ism_cmd(mut ctx: Context, cmd: CompositeIsmCmd) {
     match cmd.cmd {
         CompositeIsmSubCmd::Deploy(deploy) => {
@@ -179,12 +222,30 @@ pub(crate) fn process_composite_ism_cmd(mut ctx: Context, cmd: CompositeIsmCmd) 
         }
         CompositeIsmSubCmd::Update(update) => {
             let root = load_config(&update.config_file);
+            let domain_isms = collect_domain_isms(&root);
+
             let instruction =
                 update_config_instruction(update.program_id, ctx.payer_pubkey, root.into())
                     .unwrap();
             ctx.new_txn()
                 .add_with_description(instruction, "Update composite ISM config".to_string())
                 .send_with_payer();
+
+            for (domain, ism_config) in domain_isms {
+                let instruction = set_domain_ism_instruction(
+                    update.program_id,
+                    ctx.payer_pubkey,
+                    domain,
+                    ism_config.into(),
+                )
+                .unwrap();
+                ctx.new_txn()
+                    .add_with_description(
+                        instruction,
+                        format!("Set domain ISM for origin domain {domain}"),
+                    )
+                    .send_with_payer();
+            }
         }
         CompositeIsmSubCmd::Read(read) => {
             read_composite_ism(&ctx, read.program_id);
@@ -249,6 +310,8 @@ pub(crate) fn deploy_composite_ism(
 
     println!("Deployed Composite ISM at program ID {}", program_id);
 
+    let domain_isms = collect_domain_isms(&root);
+
     let instruction = initialize_instruction(program_id, ctx.payer_pubkey, root.into()).unwrap();
     ctx.new_txn()
         .add_with_description(
@@ -260,6 +323,18 @@ pub(crate) fn deploy_composite_ism(
         )
         .send_with_payer();
     println!("Initialized Composite ISM at program ID {}", program_id);
+
+    for (domain, ism_config) in domain_isms {
+        let instruction =
+            set_domain_ism_instruction(program_id, ctx.payer_pubkey, domain, ism_config.into())
+                .unwrap();
+        ctx.new_txn()
+            .add_with_description(
+                instruction,
+                format!("Set domain ISM for origin domain {domain}"),
+            )
+            .send_with_payer();
+    }
 
     program_id
 }
