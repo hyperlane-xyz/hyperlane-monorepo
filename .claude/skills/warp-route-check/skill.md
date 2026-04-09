@@ -420,13 +420,21 @@ MAILBOX_OWNER=$(cast call $DEST_MAILBOX "owner()(address)" --rpc-url http://loca
 # 3. Get the current default ISM (to restore later if needed)
 OLD_ISM=$(cast call $DEST_MAILBOX "defaultIsm()(address)" --rpc-url http://localhost:<DEST-PORT>)
 
-# 4. Deploy a TestRecipient-style "accept all" ISM
-# The simplest approach: deploy a minimal contract that returns true for verify()
-# Or use the existing TestIsm if deployed. For anvil forks, we can use a shortcut:
-# Set code at a fresh address to always return true for verify(bytes,bytes)
-TEST_ISM_ADDRESS="0x0000000000000000000000000000000000000042"
-# Minimal bytecode: returns true for any call
-cast rpc anvil_setCode $TEST_ISM_ADDRESS "0x600160005260206000F3" --rpc-url http://localhost:<DEST-PORT>
+# 4. Deploy Hyperlane's TestIsm.
+# TestIsm returns Types.NULL from moduleType() and true from verify(bytes,bytes),
+# so `hyperlane warp send --relay` uses null metadata instead of trying to derive
+# multisig/routing metadata on the fork.
+TEST_DEPLOYER_KEY="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+TEST_ISM_ADDRESS=$(forge create solidity/contracts/test/TestIsm.sol:TestIsm \
+  --broadcast \
+  --rpc-url http://localhost:<DEST-PORT> \
+  --private-key $TEST_DEPLOYER_KEY \
+  | awk '/Deployed to:/ {print $3}')
+
+# Confirm the fork bypass ISM has the expected Hyperlane behavior:
+# moduleType() == 6 (Types.NULL) and verify(...) == true.
+cast call $TEST_ISM_ADDRESS "moduleType()(uint8)" --rpc-url http://localhost:<DEST-PORT>
+cast call $TEST_ISM_ADDRESS "verify(bytes,bytes)(bool)" 0x 0x --rpc-url http://localhost:<DEST-PORT>
 
 # 5. Impersonate mailbox owner and set the permissive ISM
 cast rpc anvil_impersonateAccount $MAILBOX_OWNER --rpc-url http://localhost:<DEST-PORT>
@@ -479,6 +487,7 @@ hyperlane warp send \
 ```
 
 **Key flags:**
+
 - `--relay` — Self-relay the message (no real relayer on forks)
 - `--skip-validation` — Skip balance/collateral checks that may fail on forks
 - `--amount 1` — Use smallest practical amount (1 wei or 1 unit)
@@ -620,7 +629,7 @@ Create a comprehensive markdown report with the following sections:
 - **Amount**: <amount>
 - **Result**: ✅ Success / ❌ Failed (reason)
 - **Message ID**: <id> (if successful)
-- **ISM Bypass**: Yes (TestIsm at 0x...0042 set on destination mailbox)
+- **ISM Bypass**: Yes (TestIsm deployed at <address> set on destination mailbox)
 
 ## Decoded Transactions (Heimdall Output)
 
