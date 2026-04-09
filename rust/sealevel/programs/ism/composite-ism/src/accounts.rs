@@ -130,10 +130,24 @@ pub type CompositeIsmAccount = AccountData<CompositeIsmStorage>;
 ///
 /// Stored at `[DOMAIN_ISM_SEED, &domain.to_le_bytes()]`.
 /// `ism: None` means the account is uninitialized.
-#[derive(BorshSerialize, BorshDeserialize, Debug, Default, PartialEq)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq)]
 pub struct DomainIsmStorage {
     pub bump_seed: u8,
+    /// Origin domain ID that owns this PDA.  Stored inline so the CLI can
+    /// enumerate all domain PDAs via `get_program_accounts` and recover the
+    /// domain ID without needing the original config file.
+    pub domain: u32,
     pub ism: Option<IsmNode>,
+}
+
+impl Default for DomainIsmStorage {
+    fn default() -> Self {
+        Self {
+            bump_seed: 0,
+            domain: 0,
+            ism: None,
+        }
+    }
 }
 
 impl SizedData for DomainIsmStorage {
@@ -248,6 +262,7 @@ mod test {
     fn test_domain_ism_storage_borsh_roundtrip() {
         let storage = DomainIsmStorage {
             bump_seed: 254,
+            domain: 1234,
             ism: Some(IsmNode::Test { accept: true }),
         };
         let encoded = borsh::to_vec(&storage).unwrap();

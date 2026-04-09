@@ -340,6 +340,8 @@ pub(crate) fn deploy_composite_ism(
 }
 
 fn read_composite_ism(ctx: &Context, program_id: Pubkey) {
+    use hyperlane_sealevel_composite_ism::accounts::DomainIsmAccount;
+
     // Seeds match VERIFY_ACCOUNT_METAS_PDA_SEEDS from the ISM interface library,
     // which is what storage_pda_seeds!() expands to in the composite ISM crate.
     let storage_seeds: &[&[u8]] = &[b"hyperlane_ism", b"-", b"verify", b"-", b"account_metas"];
@@ -360,12 +362,67 @@ fn read_composite_ism(ctx: &Context, program_id: Pubkey) {
 
     match storage.root {
         Some(root) => {
-            let config: IsmNodeConfig = root.into();
+            let mut config: IsmNodeConfig = root.into();
+
+            // Enumerate all domain PDAs by fetching every account owned by the
+            // program.  Each DomainIsmStorage stores its own domain ID inline,
+            // so no config file is needed to recover which domain each PDA covers.
+            let all_accounts = ctx
+                .client
+                .get_program_accounts(&program_id)
+                .expect("Failed to enumerate program accounts");
+
+            // Build a map of domain → IsmNodeConfig from domain PDAs.
+            let mut domain_map: BTreeMap<String, IsmNodeConfig> = BTreeMap::new();
+            for (pubkey, acct) in &all_accounts {
+                if *pubkey == storage_pda_key {
+                    continue; // skip root storage PDA
+                }
+                if let Ok(domain_storage) = DomainIsmAccount::fetch(&mut &acct.data[..]) {
+                    let s = domain_storage.into_inner();
+                    if let Some(ism) = s.ism {
+                        domain_map.insert(s.domain.to_string(), IsmNodeConfig::from(ism));
+                    }
+                }
+            }
+
+            if !domain_map.is_empty() {
+                inject_routing_domains(&mut config, &mut domain_map);
+            }
+
             println!(
                 "{}",
                 serde_json::to_string_pretty(&config).expect("Failed to serialize config")
             );
         }
         None => println!("root: null (uninitialized)"),
+    }
+}
+
+/// Recursively walks the config tree, and for the first `Routing` node found,
+/// drains `domain_map` into its `domains` field.
+fn inject_routing_domains(
+    config: &mut IsmNodeConfig,
+    domain_map: &mut BTreeMap<String, IsmNodeConfig>,
+) {
+    match config {
+        IsmNodeConfig::Routing { domains, .. } => {
+            domains.append(domain_map);
+        }
+        IsmNodeConfig::Aggregation { sub_isms, .. } => {
+            for sub in sub_isms.iter_mut() {
+                if domain_map.is_empty() {
+                    break;
+                }
+                inject_routing_domains(sub, domain_map);
+            }
+        }
+        IsmNodeConfig::AmountRouting { lower, upper, .. } => {
+            inject_routing_domains(lower, domain_map);
+            if !domain_map.is_empty() {
+                inject_routing_domains(upper, domain_map);
+            }
+        }
+        _ => {}
     }
 }

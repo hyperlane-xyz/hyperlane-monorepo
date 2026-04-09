@@ -293,6 +293,7 @@ fn set_domain_ism(
 
     let domain_storage = DomainIsmAccount::from(DomainIsmStorage {
         bump_seed: bump,
+        domain,
         ism: Some(ism),
     });
     let required_size = domain_storage.size();
