@@ -6,6 +6,7 @@ use hyperlane_sealevel_composite_ism::{
     accounts::{derive_domain_pda, IsmNode},
     instruction::{
         initialize_instruction, remove_domain_ism_instruction, set_domain_ism_instruction,
+        update_config_instruction,
     },
     processor::process_instruction,
 };
@@ -284,6 +285,23 @@ pub async fn set_domain_ism(
     ism: IsmNode,
 ) -> Result<(), BanksClientError> {
     let ix = set_domain_ism_instruction(composite_ism_id(), payer.pubkey(), domain, ism).unwrap();
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&payer.pubkey()),
+        &[payer],
+        recent_blockhash,
+    );
+    banks_client.process_transaction(tx).await
+}
+
+/// Submits an `UpdateConfig` instruction (replaces the root ISM node).
+pub async fn update_config(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    recent_blockhash: Hash,
+    root: IsmNode,
+) -> Result<(), BanksClientError> {
+    let ix = update_config_instruction(composite_ism_id(), payer.pubkey(), root).unwrap();
     let tx = Transaction::new_signed_with_payer(
         &[ix],
         Some(&payer.pubkey()),

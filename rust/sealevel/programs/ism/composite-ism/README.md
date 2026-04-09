@@ -24,7 +24,7 @@ domain PDAs are created, updated, and closed with `SetDomainIsm` /
 | Variant | Behavior |
 |---|---|
 | `TrustedRelayer { relayer }` | Accepts if `relayer` is a signer on the transaction. |
-| `MultisigMessageId { domain_configs }` | ECDSA threshold multisig over `CheckpointWithMessageId`. Validators and threshold are stored inline per origin domain. |
+| `MultisigMessageId { validators, threshold }` | ECDSA threshold multisig over `CheckpointWithMessageId`. Validators and threshold are stored inline. Domain routing is handled by an outer `Routing` node. |
 | `Aggregation { threshold, sub_isms }` | m-of-n: at least `threshold` sub-ISMs must have metadata provided and must verify. |
 | `AmountRouting { threshold, lower, upper }` | Routes to `upper` if the TokenMessage amount >= threshold, else `lower`. |
 | `Routing { default_ism }` | Routes to a per-domain PDA for the message's origin. Falls back to `default_ism` if no domain PDA exists. See below. |
@@ -94,10 +94,33 @@ nesting level of account-bearing ISMs inside the domain PDA.
   external program. You cannot embed a call to a separate composite ISM
   deployment inside the tree.
 
-- **`MultisigMessageId` domain configs are stored inline in the VAM PDA.**
-  The node holds a flat `Vec<DomainConfig>` — one entry per origin domain,
-  each containing the full validator set and threshold. For a large number of
-  origins or large validator sets, the VAM PDA can grow significantly. The
-  intended pattern for scale is `Routing` + a single-domain `MultisigMessageId`
-  inside each domain PDA, so each origin's validator set is isolated to its own
-  account.
+- **`MultisigMessageId` validator sets are stored inline in the node.**
+  For scale, the intended pattern is `Routing` with a `MultisigMessageId` inside
+  each domain PDA, so each origin's validator set is isolated to its own account.
+
+## Solana-specific scale limits
+
+These are validated by the BPF scale tests in `tests/functional_big_isms.rs`
+(run with the compiled `.so` binary so real BPF constraints apply):
+
+| Limit | Constraint | Observed headroom |
+|---|---|---|
+| Compute budget | 1,400,000 CU per transaction | 200 domains + 3 secp256k1 recoveries: ~135k CU (90% headroom) |
+| Heap | 32 KB per BPF invocation | 50-sub-ISM Aggregation fits comfortably |
+| Call depth | 64 BPF frames | 16 levels of nested Aggregation: 17 frames |
+| `Verify` metadata tx size | 1,232 bytes (Solana packet limit) | See note below |
+
+**Transaction size is the binding constraint for deep multisig trees.** A
+`Routing → Aggregation(3-of-3)[Aggregation(3-of-3)[MultisigMessageId(3v,3)] ×3]`
+config produces ~2463 bytes of metadata — exceeding the 1232-byte Solana packet
+limit. The ISM logic itself executes correctly (~1.14M CU), but the `Verify`
+transaction cannot be submitted on mainnet as a single packet.
+
+The packet size limit is a network/UDP constraint, not a runtime constraint.
+`solana-program-test` does not enforce it. The scale tests check tx size
+explicitly by asserting on the serialized transaction length.
+
+**Practical guidance:**
+- Each 3-of-N MultisigMessageId produces 263 bytes of verify metadata (32 + 32 + 4 + 65×3).
+- A single-level `Aggregation(K)[MultisigMessageId(3v,3)]` fits within 1232 bytes for K ≤ 3.
+- Deeper trees require out-of-band metadata delivery or restructuring into smaller configs.
