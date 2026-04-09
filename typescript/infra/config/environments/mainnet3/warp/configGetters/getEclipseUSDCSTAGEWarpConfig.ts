@@ -71,6 +71,14 @@ const stagingProxyAdmins: ChainMap<{ address: string; owner: string }> = {
     address: '0x5Cdd387DAc73D4158FE3E38177B614D64E9D4668',
     owner: DEPLOYER,
   },
+  bsc: {
+    address: '0x667414F574363774c1274c6Ad47770DF8258e49E',
+    owner: DEPLOYER,
+  },
+  katana: {
+    address: '0xe01a83Bea10b6fcCe5FA8fbfBfd4F4d9f7EC15aB',
+    owner: DEPLOYER,
+  },
 };
 
 const stagingOwnersByChain: Record<DeploymentChain, string> = {
