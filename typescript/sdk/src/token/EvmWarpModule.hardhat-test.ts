@@ -8,6 +8,7 @@ import { UINT_256_MAX } from 'starknet';
 
 import {
   CONTRACTS_PACKAGE_VERSION,
+  CrossCollateralRouter__factory,
   ERC20Test,
   ERC20Test__factory,
   ERC4626Test,
@@ -23,8 +24,8 @@ import {
   MockEverclearAdapter,
   MockEverclearAdapter__factory,
   MovableCollateralRouter__factory,
+  TokenBridgeCctpV2__factory,
 } from '@hyperlane-xyz/core';
-import { CrossCollateralRouter__factory } from '@hyperlane-xyz/multicollateral';
 import {
   EvmIsmModule,
   HookConfig,
@@ -2104,6 +2105,213 @@ describe('EvmWarpModule', async () => {
         setFeeRecipientTxs.length,
         'setFeeRecipient should be called when fee contract address changes',
       ).to.equal(1);
+    });
+
+    it('should deploy and update OffchainQuotedLinearFee via warp apply', async () => {
+      const config: HypTokenRouterConfig = {
+        ...baseConfig,
+        type: TokenType.native,
+      };
+
+      const evmERC20WarpModule = await EvmWarpModule.create({
+        chain,
+        config,
+        multiProvider,
+        proxyFactoryFactories: ismFactoryAddresses,
+      });
+
+      const actualConfig = await evmERC20WarpModule.read();
+      const signerAddress = await multiProvider.getSignerAddress(chain);
+
+      // Deploy with OffchainQuotedLinearFee
+      const expectedConfig = HypTokenRouterConfigSchema.parse({
+        ...actualConfig,
+        tokenFee: {
+          type: TokenFeeType.OffchainQuotedLinearFee,
+          maxFee: 1000000000,
+          halfAmount: 500000000,
+          quoteSigners: [signerAddress],
+        },
+      });
+      await sendTxs(await evmERC20WarpModule.update(expectedConfig));
+
+      const updatedConfig = await evmERC20WarpModule.read();
+      expect(updatedConfig.tokenFee?.type).to.equal(
+        TokenFeeType.OffchainQuotedLinearFee,
+      );
+
+      // Update signers without redeploying
+      const [, otherSigner] = await hre.ethers.getSigners();
+      const updatedFeeConfig = HypTokenRouterConfigSchema.parse({
+        ...updatedConfig,
+        tokenFee: {
+          type: TokenFeeType.OffchainQuotedLinearFee,
+          maxFee: 1000000000,
+          halfAmount: 500000000,
+          quoteSigners: [signerAddress, otherSigner.address],
+        },
+      });
+      const signerUpdateTxs = await evmERC20WarpModule.update(updatedFeeConfig);
+      // 1 tx to add signer (no setFeeRecipient since address unchanged)
+      expect(signerUpdateTxs.length).to.equal(1);
+      await sendTxs(signerUpdateTxs);
+
+      const finalConfig = await evmERC20WarpModule.read();
+      expect(finalConfig.tokenFee?.type).to.equal(
+        TokenFeeType.OffchainQuotedLinearFee,
+      );
+      if (finalConfig.tokenFee?.type === TokenFeeType.OffchainQuotedLinearFee) {
+        expect(finalConfig.tokenFee.quoteSigners).to.have.lengthOf(2);
+      }
+    });
+  });
+
+  describe('createSetMaxFeePpmTxs', () => {
+    const ROUTE_ADDRESS = '0x1111111111111111111111111111111111111111';
+    const TOKEN_ADDRESS = '0x2222222222222222222222222222222222222222';
+    const MESSENGER_ADDRESS = '0x3333333333333333333333333333333333333333';
+    const TRANSMITTER_ADDRESS = '0x4444444444444444444444444444444444444444';
+
+    let warpModule: EvmWarpModule;
+
+    before(() => {
+      warpModule = new EvmWarpModule(multiProvider, {
+        chain,
+        config: {} as HypTokenRouterConfig,
+        addresses: {
+          deployedTokenRoute: ROUTE_ADDRESS,
+          ...ismFactoryAddresses,
+        },
+      });
+    });
+
+    const makeCctpV2Config = (
+      maxFeeBps?: number,
+      overrides?: Record<string, any>,
+    ): HypTokenRouterConfig =>
+      ({
+        ...baseConfig,
+        type: TokenType.collateralCctp,
+        token: TOKEN_ADDRESS,
+        tokenMessenger: MESSENGER_ADDRESS,
+        messageTransmitter: TRANSMITTER_ADDRESS,
+        cctpVersion: 'V2',
+        urls: ['https://fake-cctp-url.com'],
+        maxFeeBps,
+        ...overrides,
+      }) as HypTokenRouterConfig;
+
+    it('returns empty when expectedConfig is not CCTP', () => {
+      const actual = makeCctpV2Config(100) as DerivedTokenRouterConfig;
+      const expected = {
+        ...baseConfig,
+        type: TokenType.collateral,
+        token: TOKEN_ADDRESS,
+      } as HypTokenRouterConfig;
+      expect(warpModule.createSetMaxFeePpmTxs(actual, expected)).to.deep.equal(
+        [],
+      );
+    });
+
+    it('returns empty when cctpVersion is V1', () => {
+      const actual = makeCctpV2Config(100) as DerivedTokenRouterConfig;
+      const expected = makeCctpV2Config(200, { cctpVersion: 'V1' });
+      expect(warpModule.createSetMaxFeePpmTxs(actual, expected)).to.deep.equal(
+        [],
+      );
+    });
+
+    it('returns empty when maxFeeBps is undefined', () => {
+      const actual = makeCctpV2Config(100) as DerivedTokenRouterConfig;
+      const expected = makeCctpV2Config(undefined);
+      expect(warpModule.createSetMaxFeePpmTxs(actual, expected)).to.deep.equal(
+        [],
+      );
+    });
+
+    it('returns empty when actual matches expected', () => {
+      const actual = makeCctpV2Config(1.3) as DerivedTokenRouterConfig;
+      const expected = makeCctpV2Config(1.3);
+      expect(warpModule.createSetMaxFeePpmTxs(actual, expected)).to.deep.equal(
+        [],
+      );
+    });
+
+    it('returns setMaxFeePpm tx when fee differs', () => {
+      const actual = makeCctpV2Config(1) as DerivedTokenRouterConfig;
+      const expected = makeCctpV2Config(1.3);
+      const txs = warpModule.createSetMaxFeePpmTxs(actual, expected);
+
+      expect(txs).to.have.length(1);
+      expect(txs[0].to).to.equal(ROUTE_ADDRESS);
+      expect(txs[0].data).to.equal(
+        TokenBridgeCctpV2__factory.createInterface().encodeFunctionData(
+          'setMaxFeePpm',
+          [130],
+        ),
+      );
+    });
+
+    it('converts fractional bps to ppm correctly', () => {
+      const actual = makeCctpV2Config(0) as DerivedTokenRouterConfig;
+      const expected = makeCctpV2Config(1.5);
+      const txs = warpModule.createSetMaxFeePpmTxs(actual, expected);
+
+      expect(txs).to.have.length(1);
+      expect(txs[0].data).to.equal(
+        TokenBridgeCctpV2__factory.createInterface().encodeFunctionData(
+          'setMaxFeePpm',
+          [150],
+        ),
+      );
+    });
+
+    it('emits setMaxFeePpm when upgrading across PPM storage boundary even if values match', () => {
+      const actual = makeCctpV2Config(1.3, {
+        contractVersion: '10.1.0',
+      }) as DerivedTokenRouterConfig;
+      const expected = makeCctpV2Config(1.3, {
+        contractVersion: '10.2.0',
+      });
+      const txs = warpModule.createSetMaxFeePpmTxs(actual, expected);
+
+      expect(txs).to.have.length(1);
+      expect(txs[0].data).to.equal(
+        TokenBridgeCctpV2__factory.createInterface().encodeFunctionData(
+          'setMaxFeePpm',
+          [130],
+        ),
+      );
+    });
+
+    it('skips setMaxFeePpm when both versions are above PPM boundary and values match', () => {
+      const actual = makeCctpV2Config(1.3, {
+        contractVersion: '10.2.0',
+      }) as DerivedTokenRouterConfig;
+      const expected = makeCctpV2Config(1.3, {
+        contractVersion: '10.3.0',
+      });
+      expect(warpModule.createSetMaxFeePpmTxs(actual, expected)).to.deep.equal(
+        [],
+      );
+    });
+
+    it('returns tx when actual has no maxFeeBps', () => {
+      const actual = {
+        ...baseConfig,
+        type: TokenType.collateral,
+        token: TOKEN_ADDRESS,
+      } as DerivedTokenRouterConfig;
+      const expected = makeCctpV2Config(2);
+      const txs = warpModule.createSetMaxFeePpmTxs(actual, expected);
+
+      expect(txs).to.have.length(1);
+      expect(txs[0].data).to.equal(
+        TokenBridgeCctpV2__factory.createInterface().encodeFunctionData(
+          'setMaxFeePpm',
+          [200],
+        ),
+      );
     });
   });
 });

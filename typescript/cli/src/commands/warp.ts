@@ -354,6 +354,8 @@ const send: CommandModuleWithWriteContext<
       skipValidation?: boolean;
       sourceToken?: string;
       destinationToken?: string;
+      feeQuotingUrl?: string;
+      feeQuotingApiKey?: string;
     }
 > = {
   command: 'send',
@@ -391,6 +393,16 @@ const send: CommandModuleWithWriteContext<
       description:
         'Destination token router address (for CrossCollateralRouter cross-stablecoin transfers)',
     },
+    'fee-quoting-url': {
+      type: 'string',
+      description: 'Fee quoting service URL for offchain fee quotes',
+      default: process.env.FEE_QUOTING_URL,
+    },
+    'fee-quoting-api-key': {
+      type: 'string',
+      description: 'API key for the fee quoting service',
+      default: process.env.FEE_QUOTING_API_KEY,
+    },
   },
   handler: async ({
     context,
@@ -407,6 +419,8 @@ const send: CommandModuleWithWriteContext<
     skipValidation,
     sourceToken,
     destinationToken,
+    feeQuotingUrl,
+    feeQuotingApiKey,
   }) => {
     const filterChains = [origin, destination, ...(chainsArg || [])]
       .filter((v): v is string => Boolean(v))
@@ -486,6 +500,8 @@ const send: CommandModuleWithWriteContext<
       skipValidation,
       sourceToken,
       destinationToken,
+      feeQuotingUrl,
+      feeQuotingApiKey,
     });
     logGreen(
       `✅ Successfully sent messages for chains: ${chains.join(' ➡️ ')}`,

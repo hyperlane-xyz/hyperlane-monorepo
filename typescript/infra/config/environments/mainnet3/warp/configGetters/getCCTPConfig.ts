@@ -28,9 +28,9 @@ import {
 const SERVICE_URL = 'https://offchain-lookup.services.hyperlane.xyz';
 
 // Contract version for CCTP V2 standard routes
-const CONTRACT_VERSION_STANDARD = '10.1.3';
+const CONTRACT_VERSION_STANDARD = '11.2.0';
 // Contract version for CCTP V2 fast routes - includes updated fee config
-const CONTRACT_VERSION_FAST = '10.1.5';
+const CONTRACT_VERSION_FAST = '11.2.0';
 
 export const CCTP_CHAINS = Object.keys(tokenMessengerV1Addresses);
 

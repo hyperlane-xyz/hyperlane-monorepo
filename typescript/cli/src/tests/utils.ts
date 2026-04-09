@@ -9,7 +9,7 @@ import {
   type WarpRouteDeployConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
-import { isObjEmpty } from '@hyperlane-xyz/utils';
+import { addressToBytes32, isObjEmpty } from '@hyperlane-xyz/utils';
 
 import {
   TEST_CHAIN_METADATA_BY_PROTOCOL,
@@ -38,6 +38,26 @@ export function assertWarpRouteConfig(
     .be.false;
   expect(isObjEmpty(derivedWarpDeployConfig[chainName].remoteRouters ?? {})).to
     .be.false;
+}
+
+/**
+ * Assert that `expectedRouter` is enrolled as a CC router under `domain`
+ * in the given cross-collateral routers map.
+ */
+export function expectCcRouterEnrolled(
+  ccRouters: Record<number, Set<string>>,
+  domain: number,
+  expectedRouter: string,
+  message?: string,
+): void {
+  const canonical = addressToBytes32(expectedRouter).toLowerCase();
+  const enrolled = [...(ccRouters[domain] ?? [])].some(
+    (r) => r.toLowerCase() === canonical,
+  );
+  expect(
+    enrolled,
+    message ?? `Expected CC router ${expectedRouter} on domain ${domain}`,
+  ).to.be.true;
 }
 
 export function getUnsupportedChainWarpCoreTokenConfig(): WarpCoreConfig['tokens'][number] {

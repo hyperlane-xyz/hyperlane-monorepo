@@ -14,17 +14,15 @@ import {StorageGasOracle} from "../../contracts/hooks/igp/StorageGasOracle.sol";
 import {IGasOracle} from "../../contracts/interfaces/IGasOracle.sol";
 import {IPostDispatchHook} from "../../contracts/interfaces/hooks/IPostDispatchHook.sol";
 import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
-
 contract InterchainGasPaymasterTest is Test {
     using StandardHookMetadata for bytes;
     using TypeCasts for address;
     using MessageUtils for bytes;
-
+    using Message for bytes;
     InterchainGasPaymaster igp;
     StorageGasOracle testOracle;
     StorageGasOracle tokenOracle;
     ERC20Test feeToken;
-
     address constant beneficiary = address(0x444444);
 
     uint32 constant testOriginDomain = 22222;
@@ -1076,6 +1074,16 @@ contract InterchainGasPaymasterTest is Test {
         uint32[] memory domains = igp.domains();
         assertEq(domains.length, 1);
         assertEq(domains[0], testDestinationDomain);
+    }
+
+    function testQuoteGasPaymentTokenRevertsIfNoTokenOracleSet() public {
+        uint32 _unknownDomain = 33333;
+        address _token = address(feeToken);
+
+        vm.expectRevert(
+            abi.encodePacked("IGP: no gas oracle for domain ", "33333")
+        );
+        igp.quoteGasPayment(_token, _unknownDomain, testGasLimit);
     }
 
     function testSetTokenGasOracle_revertsForNonNativeWhenDomainNotConfigured()
