@@ -44,6 +44,9 @@ export interface MinimalProviderRegistryOptions {
   providerBuilders?: Partial<ProviderBuilderMap>;
 }
 
+// Lightweight provider registry for metadata-backed reads. It owns typed
+// provider instances/builders, but intentionally does not carry the legacy
+// MultiProvider bridge behavior layered on top by derived classes.
 export class MinimalProviderRegistry<
   MetaExt = {},
 > extends ChainMetadataManager<MetaExt> {

@@ -1,4 +1,4 @@
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, isNullish } from '@hyperlane-xyz/utils';
 
 import type { ChainMap, ChainNameOrId } from '../types.js';
 
@@ -43,7 +43,7 @@ export function createChainMetadataResolver<MetaExt = {}>(
       'domainId',
     );
     byDomainId.set(chainMetadata.domainId, chainMetadata);
-    if (chainMetadata.chainId !== undefined && chainMetadata.chainId !== null) {
+    if (!isNullish(chainMetadata.chainId)) {
       assertUniqueIndex(
         byChainId.get(chainMetadata.chainId),
         chainMetadata,
