@@ -20,7 +20,7 @@ import {
 } from './check-warp-route.js';
 
 async function main() {
-  const { environment, asDeployer, chains, fork, context, pushMetrics } =
+  const { environment, chains, pushMetrics } =
     await getCheckWarpDeployArgs().argv;
 
   const metricsRegister = new Registry();
@@ -55,7 +55,7 @@ async function main() {
     enableProxy: true,
   });
 
-  const warpCoreConfigMap =
+  const warpDeployConfigMap =
     await getWarpConfigMapFromMergedRegistry(registries);
 
   console.log(chalk.yellow('Skipping the following warp routes:'));
@@ -70,13 +70,13 @@ async function main() {
   };
 
   const envConfig = getEnvironmentConfig(environment);
-  const warpRouteIds = Object.keys(warpCoreConfigMap);
+  const warpRouteIds = Object.keys(warpDeployConfigMap);
 
   const routesWithUnsupportedChains: string[] = [];
 
   const filterResults = await Promise.all(
     warpRouteIds.map(async (warpRouteId) => {
-      const warpRouteConfig = warpCoreConfigMap[warpRouteId];
+      const warpRouteConfig = warpDeployConfigMap[warpRouteId];
       const isTestnet = await isTestnetRoute(warpRouteConfig);
       const shouldCheck =
         (environment === 'mainnet3' && !isTestnet) ||
@@ -118,7 +118,7 @@ async function main() {
 
   const warpConfigChains = new Set<ChainName>();
   warpIdsToCheck.forEach((warpRouteId) => {
-    const warpRouteConfig = warpCoreConfigMap[warpRouteId];
+    const warpRouteConfig = warpDeployConfigMap[warpRouteId];
     Object.keys(warpRouteConfig).forEach((chain) =>
       warpConfigChains.add(chain),
     );
@@ -149,7 +149,7 @@ async function main() {
         multiProvider,
         registryUris: registries,
         warpRouteId,
-        warpDeployConfig: warpCoreConfigMap[warpRouteId],
+        warpDeployConfig: warpDeployConfigMap[warpRouteId],
       });
 
       if (result.violations.length > 0) {

@@ -28,10 +28,12 @@ export async function runWarpRouteCheckFromRegistry({
   warpDeployConfig?: WarpRouteDeployConfigMailboxRequired;
   warpRouteId: string;
 }): Promise<WarpRouteCheckResult> {
-  const loadedConfigs =
-    warpCoreConfig && warpDeployConfig
-      ? { warpCoreConfig, warpDeployConfig }
-      : await loadWarpConfigsFromRegistry({ registryUris, warpRouteId });
+  const loadedConfigs = await loadWarpConfigsFromRegistry({
+    registryUris,
+    warpRouteId,
+    warpCoreConfig,
+    warpDeployConfig,
+  });
 
   const filteredConfigs = filterWarpConfigsByChains({
     chains,
@@ -71,30 +73,40 @@ export function logWarpRouteCheckResult(result: WarpRouteCheckResult) {
 async function loadWarpConfigsFromRegistry({
   registryUris,
   warpRouteId,
+  warpCoreConfig,
+  warpDeployConfig,
 }: {
   registryUris: string[];
   warpRouteId: string;
+  warpCoreConfig?: WarpCoreConfig;
+  warpDeployConfig?: WarpRouteDeployConfigMailboxRequired;
 }): Promise<{
   warpCoreConfig: WarpCoreConfig;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
 }> {
-  const registry = getRegistry({
-    registryUris,
-    enableProxy: true,
-  });
+  const resolvedWarpCoreConfig =
+    warpCoreConfig ??
+    (await getRegistry({
+      registryUris,
+      enableProxy: true,
+    }).getWarpRoute(warpRouteId));
+  const resolvedWarpDeployConfig =
+    warpDeployConfig ??
+    (await getWarpDeployConfigFromMergedRegistry(warpRouteId, registryUris));
 
-  const [warpCoreConfig, warpDeployConfig] = await Promise.all([
-    registry.getWarpRoute(warpRouteId),
-    getWarpDeployConfigFromMergedRegistry(warpRouteId, registryUris),
-  ]);
-
-  assert(warpCoreConfig, `Warp route config not found for ${warpRouteId}`);
   assert(
-    warpDeployConfig,
+    resolvedWarpCoreConfig,
+    `Warp route config not found for ${warpRouteId}`,
+  );
+  assert(
+    resolvedWarpDeployConfig,
     `Warp route deploy config not found for ${warpRouteId}`,
   );
 
-  return { warpCoreConfig, warpDeployConfig };
+  return {
+    warpCoreConfig: resolvedWarpCoreConfig,
+    warpDeployConfig: resolvedWarpDeployConfig,
+  };
 }
 
 function filterWarpConfigsByChains({
@@ -120,7 +132,7 @@ function filterWarpConfigsByChains({
   };
   const filteredWarpDeployConfig = objFilter(
     warpDeployConfig,
-    (chain, config): config is WarpRouteDeployConfigMailboxRequired[string] =>
+    (chain, _config): _config is WarpRouteDeployConfigMailboxRequired[string] =>
       requestedChains.has(chain),
   );
 
