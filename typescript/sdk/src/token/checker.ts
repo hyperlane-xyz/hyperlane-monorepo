@@ -29,6 +29,7 @@ import {
   TokenMetadata,
   isCctpTokenConfig,
   isCollateralTokenConfig,
+  isCrossCollateralTokenConfig,
   isNativeTokenConfig,
   isSyntheticTokenConfig,
   isXERC20TokenConfig,
@@ -72,6 +73,7 @@ export class HypERC20Checker extends ProxiedRouterChecker<
 
     if (
       (isCollateralTokenConfig(this.configMap[chain]) ||
+        isCrossCollateralTokenConfig(this.configMap[chain]) ||
         isXERC20TokenConfig(this.configMap[chain])) &&
       hasCollateralProxyOverrides
     ) {
@@ -172,6 +174,7 @@ export class HypERC20Checker extends ProxiedRouterChecker<
       await checkERC20(hypToken as unknown as ERC20, expectedConfig);
     } else if (
       isCollateralTokenConfig(expectedConfig) ||
+      isCrossCollateralTokenConfig(expectedConfig) ||
       isXERC20TokenConfig(expectedConfig)
     ) {
       const collateralToken = await this.getCollateralToken(chain);
@@ -242,6 +245,7 @@ export class HypERC20Checker extends ProxiedRouterChecker<
       decimals = await (hypToken as unknown as ERC20).decimals();
     } else if (
       isCollateralTokenConfig(expectedConfig) ||
+      isCrossCollateralTokenConfig(expectedConfig) ||
       isXERC20TokenConfig(expectedConfig) ||
       isCctpTokenConfig(expectedConfig)
     ) {
@@ -262,6 +266,7 @@ export class HypERC20Checker extends ProxiedRouterChecker<
 
     if (
       isCollateralTokenConfig(expectedConfig) ||
+      isCrossCollateralTokenConfig(expectedConfig) ||
       isCctpTokenConfig(expectedConfig) ||
       isXERC20TokenConfig(expectedConfig)
     ) {

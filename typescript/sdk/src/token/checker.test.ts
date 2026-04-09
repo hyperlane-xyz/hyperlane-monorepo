@@ -271,3 +271,78 @@ describe('HypERC20Checker.checkDecimalConsistency', () => {
     expect(checker.violations[0].type).to.equal('TokenDecimalsMismatch');
   });
 });
+
+describe('HypERC20Checker crossCollateral support', () => {
+  const owner = '0x000000000000000000000000000000000000dEaD';
+  const mailbox = '0x000000000000000000000000000000000000b001';
+  const collateralAddress = '0x000000000000000000000000000000000000c011';
+  const routerAddress = '0x000000000000000000000000000000000000c012';
+
+  function crossCollateralConfig(): ChainMap<HypTokenRouterConfig> {
+    return {
+      [TestChainName.test1]: {
+        type: TokenType.crossCollateral,
+        owner,
+        mailbox,
+        token: collateralAddress,
+        name: 'vbUSDC',
+        symbol: 'vbUSDC',
+        decimals: 6,
+      },
+    };
+  }
+
+  it('uses collateral-token decimals for crossCollateral configs', async () => {
+    const mp = new MultiProvider(testChainMetadata);
+    const dummyApp = {} as unknown as HypERC20App;
+
+    class TestChecker extends HypERC20Checker {
+      override async getCollateralToken() {
+        return {
+          address: collateralAddress,
+          decimals: async () => 6,
+        } as any;
+      }
+    }
+
+    const checker = new TestChecker(mp, dummyApp, crossCollateralConfig());
+    const decimals = await checker.getActualDecimals(TestChainName.test1, {
+      address: routerAddress,
+    } as unknown as TokenRouter);
+
+    expect(decimals).to.equal(6);
+  });
+
+  it('checks wrapped-token alignment for crossCollateral configs', async () => {
+    const mp = new MultiProvider(testChainMetadata);
+
+    const app = {
+      router: () =>
+        ({
+          address: routerAddress,
+          wrappedToken: async () =>
+            '0x000000000000000000000000000000000000c013',
+        }) as any,
+      getContracts: () => ({}),
+    } as unknown as HypERC20App;
+
+    class TestChecker extends HypERC20Checker {
+      override async getCollateralToken() {
+        return {
+          address: collateralAddress,
+          decimals: async () => 6,
+        } as any;
+      }
+
+      override async getEvmActualDecimals() {
+        return { [TestChainName.test1]: 6 } as Record<string, number>;
+      }
+    }
+
+    const checker = new TestChecker(mp, app, crossCollateralConfig());
+    await checker.checkToken(TestChainName.test1);
+
+    expect(checker.violations).to.have.length(1);
+    expect(checker.violations[0].type).to.equal('CollateralTokenMismatch');
+  });
+});
