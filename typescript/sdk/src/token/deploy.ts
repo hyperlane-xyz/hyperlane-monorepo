@@ -345,9 +345,10 @@ abstract class TokenDeployer<
         this.logger.info(`Mapping Circle domains on ${chain}`, {
           remoteDomains,
         });
+        const overrides = this.multiProvider.getTransactionOverrides(chain);
         await this.multiProvider.handleTx(
           chain,
-          tokenBridge.addDomains(remoteDomains),
+          tokenBridge.addDomains(remoteDomains, overrides),
         );
       }),
     );
@@ -408,10 +409,11 @@ abstract class TokenDeployer<
             `Setting maxFeePpm on ${chain} from ${currentFeeBps} bps to ${config.maxFeeBps} bps${usesPpmStorage ? ' (stored as ppm)' : ''}`,
           );
           // >= 11.0.0 uses setMaxFeePpm(), older uses setMaxFeeBps()
+          const overrides = this.multiProvider.getTransactionOverrides(chain);
           if (usesPpmName) {
             await this.multiProvider.handleTx(
               chain,
-              tokenBridgeV2.setMaxFeePpm(targetFee),
+              tokenBridgeV2.setMaxFeePpm(targetFee, overrides),
             );
           } else {
             await this.multiProvider.handleTx(
@@ -425,6 +427,7 @@ abstract class TokenDeployer<
                     .toHexString()
                     .slice(2)
                     .padStart(64, '0'),
+                ...overrides,
               }),
             );
           }
@@ -512,17 +515,19 @@ abstract class TokenDeployer<
             hyperlaneDomain: domainId,
             lzEid,
           });
+          const overrides = this.multiProvider.getTransactionOverrides(chain);
           await this.multiProvider.handleTx(
             chain,
-            tokenBridge.addDomain(Number(domainId), lzEid),
+            tokenBridge.addDomain(Number(domainId), lzEid, overrides),
           );
         }
 
         if (config.extraOptions) {
           this.logger.info(`Setting OFT extra options on ${chain}`);
+          const overrides = this.multiProvider.getTransactionOverrides(chain);
           await this.multiProvider.handleTx(
             chain,
-            tokenBridge.setExtraOptions(config.extraOptions),
+            tokenBridge.setExtraOptions(config.extraOptions, overrides),
           );
         }
       }),
@@ -546,10 +551,11 @@ abstract class TokenDeployer<
         );
 
         const rebalancers = Array.from(config.allowedRebalancers ?? []);
+        const overrides = this.multiProvider.getTransactionOverrides(chain);
         for (const rebalancer of rebalancers) {
           await this.multiProvider.handleTx(
             chain,
-            movableToken.addRebalancer(rebalancer),
+            movableToken.addRebalancer(rebalancer, overrides),
           );
         }
       }),
@@ -591,10 +597,15 @@ abstract class TokenDeployer<
         const bridgesToAllowOnRouter = bridgesToAllow.filter(({ domain }) =>
           routerDomains.includes(domain),
         );
+        const overrides = this.multiProvider.getTransactionOverrides(chain);
         for (const bridgeConfig of bridgesToAllowOnRouter) {
           await this.multiProvider.handleTx(
             chain,
-            movableToken.addBridge(bridgeConfig.domain, bridgeConfig.bridge),
+            movableToken.addBridge(
+              bridgeConfig.domain,
+              bridgeConfig.bridge,
+              overrides,
+            ),
           );
         }
       }),
@@ -664,12 +675,14 @@ abstract class TokenDeployer<
             !bridgesWithAllowanceAlreadySet[token].has(bridge),
         );
 
+        const overrides = this.multiProvider.getTransactionOverrides(chain);
         for (const bridgeConfig of filteredTokenApprovalTxs) {
           await this.multiProvider.handleTx(
             chain,
             movableToken.approveTokenForBridge(
               bridgeConfig.token,
               bridgeConfig.bridge,
+              overrides,
             ),
           );
         }
@@ -698,6 +711,7 @@ abstract class TokenDeployer<
           config.everclearFeeParams,
         );
 
+        const overrides = this.multiProvider.getTransactionOverrides(chain);
         for (const [domainId, feeConfig] of Object.entries(
           resolvedFeeParamsConfig,
         )) {
@@ -708,6 +722,7 @@ abstract class TokenDeployer<
               feeConfig.fee,
               feeConfig.deadline,
               feeConfig.signature,
+              overrides,
             ),
           );
         }
@@ -746,9 +761,10 @@ abstract class TokenDeployer<
           }),
         );
 
+        const overrides = this.multiProvider.getTransactionOverrides(chain);
         await this.multiProvider.handleTx(
           chain,
-          everclearTokenBridge.setOutputAssetsBatch(assets),
+          everclearTokenBridge.setOutputAssetsBatch(assets, overrides),
         );
       }),
     );
@@ -796,11 +812,13 @@ abstract class TokenDeployer<
           this.logger.info(
             `Batch enrolling ${domains.length} routers for ${chain}`,
           );
+          const overrides = this.multiProvider.getTransactionOverrides(chain);
           await this.multiProvider.handleTx(
             chain,
             crossCollateralRouter.enrollCrossCollateralRouters(
               domains,
               routers,
+              overrides,
             ),
           );
         }
@@ -1026,7 +1044,8 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
         });
 
         const { deployedFee } = module.serialize();
-        const tx = await router.setFeeRecipient(deployedFee);
+        const overrides = this.multiProvider.getTransactionOverrides(chain);
+        const tx = await router.setFeeRecipient(deployedFee, overrides);
         await this.multiProvider.handleTx(chain, tx);
       }),
     );
