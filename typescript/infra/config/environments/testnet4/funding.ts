@@ -31,7 +31,6 @@ export const keyFunderConfig: KeyFunderConfig<
   desiredBalancePerChain: {
     aleotestnet: '0',
     arbitrumsepolia: '0.1',
-    arcadiatestnet2: '0.1',
     basesepolia: '0.1',
     bsctestnet: '5',
     celestiatestnet: '0',

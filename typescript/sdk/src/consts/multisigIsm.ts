@@ -174,16 +174,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  arcadiatestnet2: {
-    threshold: 1,
-    validators: [
-      {
-        address: '0xd39cd388ce3f616bc81be6dd3ec9348d7cdf4dff',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-    ],
-  },
-
   artela: {
     threshold: 2,
     validators: [

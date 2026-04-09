@@ -63,8 +63,24 @@ export const chainsToSkip: ChainName[] = [
   'abstract',
   'sophon',
 
-  // testnets
+  // deprecated chains
   'arcadiatestnet2',
+  'arbitrumnova',
+  'aurora',
+  'b3',
+  'bsquared',
+  'degenchain',
+  'dogechain',
+  'fantom',
+  'harmony',
+  'merlin',
+  'moonbeam',
+  'polygonzkevm',
+  'scroll',
+  'story',
+  'superpositionmainnet',
+  'tangle',
+  'zeronetwork',
 ];
 
 export const defaultRetry: ProviderRetryOptions = {

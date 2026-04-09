@@ -82,3 +82,5 @@ node fix-typechain-ethers.mjs ./dist/tron/typechain/factories
 # trap will restore files
 trap - EXIT
 restore_files
+
+# cache bust

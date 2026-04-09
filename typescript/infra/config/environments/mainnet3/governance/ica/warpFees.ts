@@ -130,7 +130,7 @@ export const warpFeesIcas: ChainMap<Address> = {
 
   // Mar 16, 2026
   // ----------------------------------------------------------
-  // igra: '0x42cb788529463B1F41de9E3cd3d2906930aCd32F',
+  igra: '0x42cb788529463B1F41de9E3cd3d2906930aCd32F',
   // tron: '0xa5A136994e739E9042820C88F24041165767cBF9',
 
   // Apr 2, 2026

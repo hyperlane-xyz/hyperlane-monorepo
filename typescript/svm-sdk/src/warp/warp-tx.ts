@@ -172,7 +172,7 @@ const MAX_ROUTERS_PER_TX = 20;
 
 // Each gas config entry is 13 bytes in SetDestinationGasConfigs instruction
 // data. The same fixed overhead allows at most 70 configs per tx. Use 60.
-const MAX_GAS_CONFIGS_PER_TX = 60;
+export const MAX_GAS_CONFIGS_PER_TX = 60;
 
 /**
  * Sends post-init configuration (remote routers + destination gas) in
