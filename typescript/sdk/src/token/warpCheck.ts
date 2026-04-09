@@ -8,6 +8,7 @@ import { createWarpTokenReader } from '@hyperlane-xyz/deploy-sdk';
 import { hasProtocol } from '@hyperlane-xyz/provider-sdk';
 import {
   type ObjectDiff,
+  assert,
   deepCopy,
   diffObjMerge,
   eqAddress,
@@ -46,6 +47,9 @@ import {
 
 export const WARP_ROUTE_CHECK_TYPE = 'ConfigMismatch';
 export const WARP_ROUTE_CHECK_SCALE_TYPE = 'ScaleMismatch';
+
+type ObjectDiffMap = Exclude<ObjectDiff, ObjectDiff[] | undefined>;
+type ObjectDiffLeaf = Exclude<ObjectDiffMap[string], ObjectDiff | undefined>;
 
 export interface WarpRouteCheckViolation {
   actual: string;
@@ -177,9 +181,11 @@ function buildWarpRouteDiff({
 
       if (!currentDeployedConfig) {
         acc[chain] = {
-          actual: 'missing',
-          expected: 'present',
-        } as unknown as ObjectDiff;
+          route: {
+            actual: 'missing',
+            expected: 'present',
+          },
+        };
         return acc;
       }
 
@@ -317,14 +323,26 @@ function addNestedDiff(
   diff: Record<string, ObjectDiff>,
   chain: string,
   path: string[],
-  value: { actual: unknown; expected: unknown },
+  value: ObjectDiffLeaf,
 ) {
-  const chainDiff = (diff[chain] ??= {});
-  let cursor = chainDiff as Record<string, any>;
+  if (!isObjectDiffMap(diff[chain])) {
+    diff[chain] = {};
+  }
+
+  let cursor = diff[chain];
+  assert(isObjectDiffMap(cursor), `Failed to initialize diff for ${chain}`);
 
   for (const key of path.slice(0, -1)) {
-    cursor[key] ??= {};
-    cursor = cursor[key];
+    if (!isObjectDiffMap(cursor[key])) {
+      cursor[key] = {};
+    }
+
+    const nextCursor = cursor[key];
+    assert(
+      isObjectDiffMap(nextCursor),
+      `Failed to initialize nested diff for ${chain}.${key}`,
+    );
+    cursor = nextCursor;
   }
 
   cursor[path[path.length - 1]] = value;
@@ -347,18 +365,12 @@ function flattenDiffNode(
     return [];
   }
 
-  if (
-    typeof value === 'object' &&
-    !Array.isArray(value) &&
-    'actual' in (value as Record<string, unknown>) &&
-    'expected' in (value as Record<string, unknown>)
-  ) {
-    const leaf = value as { actual: unknown; expected: unknown };
+  if (isObjectDiffLeaf(value)) {
     return [
       {
-        actual: stringifyViolationValue(leaf.actual),
+        actual: stringifyViolationValue(value.actual),
         chain,
-        expected: stringifyViolationValue(leaf.expected),
+        expected: stringifyViolationValue(value.expected),
         name: path.join('.'),
         type: WARP_ROUTE_CHECK_TYPE,
       },
@@ -391,7 +403,7 @@ function getScaleViolations(
   return [
     {
       actual: 'invalid-or-missing',
-      chain: Object.keys(warpRouteConfig)[0] ?? 'unknown',
+      chain: 'route',
       expected: 'consistent-with-decimals',
       name: 'scale',
       type: WARP_ROUTE_CHECK_SCALE_TYPE,
@@ -419,4 +431,23 @@ function stringifyViolationValue(value: unknown): string {
   return `{${Object.entries(value)
     .map(([key, child]) => `${key}:${stringifyViolationValue(child)}`)
     .join(',')}}`;
+}
+
+function isObjectDiffLeaf(value: unknown): value is ObjectDiffLeaf {
+  return (
+    !!value &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    'actual' in value &&
+    'expected' in value
+  );
+}
+
+function isObjectDiffMap(value: unknown): value is ObjectDiffMap {
+  return (
+    !!value &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    !isObjectDiffLeaf(value)
+  );
 }
