@@ -125,7 +125,7 @@ pub fn update_config_instruction(
         program_id,
         data: Instruction::UpdateConfig(root).encode()?,
         accounts: vec![
-            AccountMeta::new(owner, true),
+            AccountMeta::new_readonly(owner, true),
             AccountMeta::new(storage_pda_key, false),
         ],
     })

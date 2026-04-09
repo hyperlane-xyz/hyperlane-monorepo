@@ -83,9 +83,9 @@ pub enum IsmNode {
     /// verify time, so heap usage is O(1) and the number of supported domains is
     /// unlimited.
     ///
-    /// Each domain PDA is at seeds `[DOMAIN_ISM_SEED, &[table_id], &domain.to_le_bytes()]`.
-    /// The `table_id` field namespaces this routing table so that multiple `Routing`
-    /// nodes in the same ISM tree can coexist (e.g. inside an `Aggregation`).
+    /// Each domain PDA is at seeds `[DOMAIN_ISM_SEED, &domain.to_le_bytes()]`
+    /// (see [`derive_domain_pda`]). At most one `Routing` node is allowed per ISM
+    /// tree (enforced by `validate_config`), so no namespace field is needed.
     ///
     /// `RateLimited` inside a domain PDA is disallowed by `SetDomainIsm` validation
     /// (writeback requires the domain PDA to be writable, which is not supported).

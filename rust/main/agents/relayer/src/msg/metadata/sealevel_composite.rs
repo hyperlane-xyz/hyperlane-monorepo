@@ -156,7 +156,7 @@ async fn build_metadata_from_spec_inner(
         }
 
         CompositeIsmMetadataSpec::Aggregation {
-            threshold: _,
+            threshold,
             sub_specs,
         } => {
             let ism_count = sub_specs.len();
@@ -167,6 +167,11 @@ async fn build_metadata_from_spec_inner(
                     Ok(bytes) => sub_results.push(Some(bytes)),
                     Err(_) => sub_results.push(None),
                 }
+            }
+
+            let valid_count = sub_results.iter().filter(|r| r.is_some()).count();
+            if valid_count < *threshold as usize {
+                return Err(MetadataBuildError::CouldNotFetch);
             }
 
             // Pack into aggregation format:
