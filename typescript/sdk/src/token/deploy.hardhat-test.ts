@@ -246,7 +246,7 @@ describe('TokenDeployer', async () => {
       }
     };
 
-    describe(checkWarpRouteDeployConfig.name, async () => {
+    describe('checkWarpRouteDeployConfig', async () => {
       let contractsMap: Awaited<ReturnType<HypERC20Deployer['deploy']>>;
       const getRouterAddress = (currentChain: string) =>
         contractsMap[currentChain][config[currentChain].type].address;
