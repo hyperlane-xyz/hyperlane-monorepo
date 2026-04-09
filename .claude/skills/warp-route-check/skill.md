@@ -425,10 +425,14 @@ OLD_ISM=$(cast call $DEST_MAILBOX "defaultIsm()(address)" --rpc-url http://local
 # so `hyperlane warp send --relay` uses null metadata instead of trying to derive
 # multisig/routing metadata on the fork.
 TEST_DEPLOYER_KEY="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-TEST_ISM_ADDRESS=$(forge create --root solidity contracts/test/TestIsm.sol:TestIsm \
+# Ensure Foundry dependencies are materialized in fresh worktrees/checkouts.
+pnpm -C solidity deps:soldeer
+TEST_ISM_ADDRESS=$(forge create \
+  --root solidity \
   --broadcast \
   --rpc-url http://localhost:<DEST-PORT> \
   --private-key $TEST_DEPLOYER_KEY \
+  contracts/test/TestIsm.sol:TestIsm \
   | awk '/Deployed to:/ {print $3}')
 
 # Confirm the fork bypass ISM has the expected Hyperlane behavior:
