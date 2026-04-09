@@ -123,7 +123,7 @@ export async function checkWarpRouteDeployConfig({
   );
 
   const deployedRoutersAddresses =
-    getRouterAddressesFromWarpCoreConfig(evmWarpCoreConfig);
+    getRouterAddressesFromWarpCoreConfig(warpCoreConfig);
   const onChainWarpConfig = await getWarpRouteConfigsByCore({
     multiProvider,
     warpCoreConfig: evmWarpCoreConfig,
