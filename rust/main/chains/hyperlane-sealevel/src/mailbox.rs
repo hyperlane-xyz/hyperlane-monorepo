@@ -258,9 +258,11 @@ impl SealevelMailbox {
             &ism,
         );
 
+        const MAX_VAM_ITERATIONS: usize = 10;
+
         let mut accounts = vec![AccountMeta::new(vam_pda_key, false)];
 
-        loop {
+        for _ in 0..MAX_VAM_ITERATIONS {
             let instruction =
                 InterchainSecurityModuleInstruction::VerifyAccountMetas(VerifyInstruction {
                     metadata: metadata.clone(),
@@ -283,6 +285,10 @@ impl SealevelMailbox {
             }
             accounts = result;
         }
+
+        Err(ChainCommunicationError::from_other_str(
+            "ISM verify account metas did not converge within MAX_VAM_ITERATIONS iterations",
+        ))
     }
 
     /// Gets the account metas required for the recipient's `MessageRecipientInstruction::Handle` instruction.
