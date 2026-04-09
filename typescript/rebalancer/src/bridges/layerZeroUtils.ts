@@ -5,12 +5,18 @@ import { addressToBytes32 as addressToBytes32Util } from '@hyperlane-xyz/utils';
 // ============================================================================
 
 export const TRON_CHAIN_ID = 728126428;
+export const SOLANA_CHAIN_ID = 1399811149;
+export const SOLANA_OFT_PROGRAM =
+  'Fuww9mfc8ntAwxPUzFia7VJFAdvLppyZwhPJoXySZXf7';
+export const SOLANA_OFT_STORE = 'HyXJcgYpURfDhgzuyRL7zxP4FhLg7LZQMeDrR4MXZcMN';
+export const SOLANA_USDT_MINT = 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB';
 
 export const CHAIN_ID_TO_EID: Record<number, number> = {
   1: 30101, // Ethereum
   42161: 30110, // Arbitrum
   9745: 30383, // Plasma
   [TRON_CHAIN_ID]: 30420, // Tron (Legacy Mesh)
+  [SOLANA_CHAIN_ID]: 30168, // Solana (Legacy Mesh)
 };
 
 // ============================================================================
@@ -21,7 +27,7 @@ export const CHAIN_ID_TO_EID: Record<number, number> = {
 const NATIVE_CHAINS = new Set([1, 42161, 9745]); // ETH, ARB, Plasma
 
 // Chains that support Legacy Mesh OFT transfers
-const LEGACY_CHAINS = new Set([1, 42161, TRON_CHAIN_ID]); // ETH, ARB, Tron
+const LEGACY_CHAINS = new Set([1, 42161, TRON_CHAIN_ID, SOLANA_CHAIN_ID]); // ETH, ARB, Tron, Solana
 
 // Arbitrum is the hub for compose (native-only <-> legacy-only) routes
 export const ARB_HUB_EID = 30110;
@@ -57,14 +63,17 @@ export const LEGACY_MESH_CONTRACTS: Record<number, Record<number, string>> = {
   1: {
     42161: '0x1F748c76dE468e9D11bd340fA9D5CBADf315dFB0',
     [TRON_CHAIN_ID]: '0x1F748c76dE468e9D11bd340fA9D5CBADf315dFB0',
+    [SOLANA_CHAIN_ID]: '0x1F748c76dE468e9D11bd340fA9D5CBADf315dFB0',
   },
   42161: {
     1: '0x77652D5aba086137b595875263FC200182919B92',
     [TRON_CHAIN_ID]: '0x77652D5aba086137b595875263FC200182919B92',
+    [SOLANA_CHAIN_ID]: '0x77652D5aba086137b595875263FC200182919B92',
   },
   [TRON_CHAIN_ID]: {
     1: '0x3a08f76772e200653bb55c2a92998daca62e0e97',
     42161: '0x3a08f76772e200653bb55c2a92998daca62e0e97',
+    [SOLANA_CHAIN_ID]: '0x3a08f76772e200653bb55c2a92998daca62e0e97',
   },
 };
 
@@ -73,6 +82,7 @@ export const USDT_CONTRACTS: Record<number, string> = {
   42161: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9', // Arbitrum USDT
   9745: '0xB8CE59FC3717ada4C02eaDF9682A9e934F625ebb', // Plasma USDT
   [TRON_CHAIN_ID]: '0xa614f803b6fd780986a42c78ec9c7f77e6ded13c', // Tron USDT
+  [SOLANA_CHAIN_ID]: SOLANA_USDT_MINT, // Solana USDT mint
 };
 
 // ============================================================================
@@ -126,7 +136,7 @@ export interface OFTLimit {
 
 export type RouteNetwork = 'native' | 'legacy' | 'compose';
 
-export interface LayerZeroBridgeRoute {
+interface LayerZeroEvmBridgeRouteBase {
   sendParam: SendParam;
   messagingFee: MessagingFee;
   oftContract: string;
@@ -137,6 +147,45 @@ export interface LayerZeroBridgeRoute {
   // Compose-specific fields (only set when network === 'compose')
   composeSendParam?: SendParam; // The SendParam for the second hop
   composeMessagingFee?: MessagingFee; // Fee quoted for the second hop
+}
+
+export interface LayerZeroEvmBridgeRoute extends LayerZeroEvmBridgeRouteBase {
+  kind: 'evm';
+}
+
+export interface LayerZeroTronBridgeRoute extends LayerZeroEvmBridgeRouteBase {
+  kind: 'tron';
+}
+
+export interface LayerZeroSolanaBridgeRoute {
+  kind: 'solana';
+  fromChainId: number;
+  toChainId: number;
+  network: RouteNetwork;
+  programId: string;
+  store: string;
+  tokenMint: string;
+  destinationEid: number;
+  toBytes32: string;
+  amountLd: bigint;
+  minAmountLd: bigint;
+  extraOptionsHex: string;
+  composeMsgHex: string;
+  nativeFeeLamports: bigint;
+  lzTokenFee: bigint;
+}
+
+export type LayerZeroBridgeRoute =
+  | LayerZeroEvmBridgeRoute
+  | LayerZeroTronBridgeRoute
+  | LayerZeroSolanaBridgeRoute;
+
+export interface SolanaOftDeployment {
+  chainId: number;
+  eid: number;
+  programId: string;
+  store: string;
+  tokenMint: string;
 }
 
 export interface LayerZeroScanMessage {
@@ -155,6 +204,30 @@ export interface LayerZeroScanResponse {
 export const LAYERZERO_SCAN_API_URL =
   'https://scan.layerzero-api.com/v1/messages/tx/';
 
+export function isSolanaChain(chainId: number): boolean {
+  return chainId === SOLANA_CHAIN_ID;
+}
+
+export function getSolanaOftDeployment(chainId: number): SolanaOftDeployment {
+  if (!isSolanaChain(chainId)) {
+    throw new Error(`No Solana OFT deployment configured for chain ${chainId}`);
+  }
+  return {
+    chainId,
+    eid: CHAIN_ID_TO_EID[chainId],
+    programId: SOLANA_OFT_PROGRAM,
+    store: SOLANA_OFT_STORE,
+    tokenMint: SOLANA_USDT_MINT,
+  };
+}
+
+function isLegacyMeshPair(fromChainId: number, toChainId: number): boolean {
+  if (LEGACY_MESH_CONTRACTS[fromChainId]?.[toChainId] !== undefined) {
+    return true;
+  }
+  return isSolanaChain(fromChainId) && LEGACY_CHAINS.has(toChainId);
+}
+
 // ============================================================================
 // Helper Functions
 // ============================================================================
@@ -166,8 +239,7 @@ export function getRouteNetwork(
   // Both in native → native (prefer native over legacy for 0% fee)
   if (OFT_CONTRACTS[fromChainId]?.[toChainId] !== undefined) return 'native';
   // Both in legacy → legacy
-  if (LEGACY_MESH_CONTRACTS[fromChainId]?.[toChainId] !== undefined)
-    return 'legacy';
+  if (isLegacyMeshPair(fromChainId, toChainId)) return 'legacy';
   // One native-only, other legacy-only → compose via Arbitrum hub
   const fromNativeOnly =
     NATIVE_CHAINS.has(fromChainId) && !LEGACY_CHAINS.has(fromChainId);
@@ -195,7 +267,9 @@ export function getComposeHopContracts(
   // First hop: source → Arbitrum. Use the source chain's network to reach Arb.
   const firstHopOFT = NATIVE_CHAINS.has(fromChainId)
     ? OFT_CONTRACTS[fromChainId]?.[ARB_HUB_CHAIN_ID]
-    : LEGACY_MESH_CONTRACTS[fromChainId]?.[ARB_HUB_CHAIN_ID];
+    : isSolanaChain(fromChainId)
+      ? SOLANA_OFT_PROGRAM
+      : LEGACY_MESH_CONTRACTS[fromChainId]?.[ARB_HUB_CHAIN_ID];
 
   // Second hop: Arbitrum → destination. Use the destination chain's network from Arb.
   const secondHopOFT = NATIVE_CHAINS.has(toChainId)
@@ -229,6 +303,9 @@ export function getOFTContractForRoute(
     // For compose, the firstHopOFT is what the source chain calls
     const { firstHopOFT } = getComposeHopContracts(fromChainId, toChainId);
     return { address: firstHopOFT, network };
+  }
+  if (isSolanaChain(fromChainId)) {
+    return { address: SOLANA_OFT_PROGRAM, network };
   }
   const contracts =
     network === 'native' ? OFT_CONTRACTS : LEGACY_MESH_CONTRACTS;

@@ -5,6 +5,7 @@ import { ProtocolType, assert, ensure0x } from '@hyperlane-xyz/utils';
 import type { Logger } from 'pino';
 
 import { TronSigner } from '@hyperlane-xyz/tron-sdk';
+import { solanaLayerZeroClient } from './layerZeroSolanaClient.js';
 
 import type {
   BridgeQuote,
@@ -19,6 +20,9 @@ import {
   ERC20_ABI,
   LAYERZERO_SCAN_API_URL,
   TRON_CHAIN_ID,
+  SOLANA_CHAIN_ID,
+  SOLANA_OFT_PROGRAM,
+  SOLANA_OFT_STORE,
   ARB_HUB_EID,
   ARB_HUB_CHAIN_ID,
   MULTIHOP_COMPOSER,
@@ -26,6 +30,7 @@ import {
   getComposeHopContracts,
   getUSDTAddress,
   getEID,
+  getRouteNetwork,
   isSupportedRoute,
   addressToBytes32,
   type SendParam,
@@ -49,7 +54,8 @@ export class LayerZeroBridge implements IExternalBridge {
         if (
           metadata.chainId !== undefined &&
           (metadata.protocol === ProtocolType.Ethereum ||
-            metadata.protocol === ('tron' as ProtocolType))
+            metadata.protocol === ('tron' as ProtocolType) ||
+            metadata.protocol === ProtocolType.Sealevel)
         ) {
           this.chainMetadataByChainId.set(Number(metadata.chainId), metadata);
         }
@@ -81,13 +87,25 @@ export class LayerZeroBridge implements IExternalBridge {
       'Must specify either fromAmount or toAmount',
     );
 
-    const { address: oftContract, network } = getOFTContractForRoute(
-      fromChain,
-      toChain,
-    );
+    const network = getRouteNetwork(fromChain, toChain);
+    assert(network, `Unsupported route: ${fromChain} -> ${toChain}`);
     const dstEid = getEID(toChain);
     const targetAddress = toAddress ?? fromAddress;
     const amountLD = fromAmount ?? (toAmount! * 10000n) / 9970n;
+
+    if (fromChain === SOLANA_CHAIN_ID) {
+      if (network === 'compose') {
+        return this.quoteComposeFromSolana(
+          params,
+          amountLD,
+          targetAddress,
+          toChain,
+        );
+      }
+      return this.quoteSolanaDirect(params, amountLD, targetAddress, dstEid);
+    }
+
+    const { address: oftContract } = getOFTContractForRoute(fromChain, toChain);
     const sendParam: SendParam = {
       dstEid,
       to: addressToBytes32(targetAddress),
@@ -155,6 +173,7 @@ export class LayerZeroBridge implements IExternalBridge {
       gasCosts,
       feeCosts,
       route: {
+        kind: fromChain === TRON_CHAIN_ID ? 'tron' : 'evm',
         sendParam,
         messagingFee,
         oftContract,
@@ -315,6 +334,7 @@ export class LayerZeroBridge implements IExternalBridge {
       gasCosts: totalNativeFee,
       feeCosts: 0n,
       route: {
+        kind: fromChain === TRON_CHAIN_ID ? 'tron' : 'evm',
         sendParam: firstHopSendParam,
         messagingFee,
         oftContract: firstHopOFT,
@@ -329,6 +349,171 @@ export class LayerZeroBridge implements IExternalBridge {
     };
   }
 
+  private async quoteSolanaDirect(
+    params: BridgeQuoteParams,
+    amountLD: bigint,
+    targetAddress: string,
+    dstEid: number,
+  ): Promise<BridgeQuote<LayerZeroBridgeRoute>> {
+    const { fromChain, toChain, fromAddress } = params;
+    const toBytes32 = addressToBytes32(targetAddress);
+    const quote = await solanaLayerZeroClient.quoteSolanaTransfer({
+      rpcUrl: this.getRpcUrl(fromChain),
+      fromAddress,
+      programId: SOLANA_OFT_PROGRAM,
+      store: SOLANA_OFT_STORE,
+      tokenMint: getUSDTAddress(fromChain),
+      dstEid,
+      toBytes32,
+      amountLd: amountLD,
+      minAmountLd: 0n,
+    });
+
+    return {
+      id: crypto.randomUUID(),
+      tool: 'layerzero',
+      fromAmount: amountLD,
+      toAmount: quote.amountReceivedLd,
+      toAmountMin: quote.amountReceivedLd,
+      executionDuration: 120,
+      gasCosts: quote.messagingFee.nativeFee,
+      feeCosts: quote.feeCosts,
+      route: {
+        kind: 'solana',
+        fromChainId: fromChain,
+        toChainId: toChain,
+        network: 'legacy',
+        programId: SOLANA_OFT_PROGRAM,
+        store: SOLANA_OFT_STORE,
+        tokenMint: getUSDTAddress(fromChain),
+        destinationEid: dstEid,
+        toBytes32,
+        amountLd: amountLD,
+        minAmountLd: quote.amountReceivedLd,
+        extraOptionsHex: '0x',
+        composeMsgHex: '0x',
+        nativeFeeLamports: quote.messagingFee.nativeFee,
+        lzTokenFee: quote.messagingFee.lzTokenFee,
+      },
+      requestParams: params,
+    };
+  }
+
+  private async quoteComposeFromSolana(
+    params: BridgeQuoteParams,
+    amountLD: bigint,
+    targetAddress: string,
+    toChain: number,
+  ): Promise<BridgeQuote<LayerZeroBridgeRoute>> {
+    const { fromChain, fromAddress } = params;
+    const { secondHopOFT } = getComposeHopContracts(fromChain, toChain);
+    const targetBytes32 = addressToBytes32(targetAddress);
+
+    const arbProvider = new ethers.providers.StaticJsonRpcProvider(
+      this.getRpcUrl(ARB_HUB_CHAIN_ID),
+      ARB_HUB_CHAIN_ID,
+    );
+    const secondHopOFTContract = new ethers.Contract(
+      secondHopOFT,
+      OFT_ABI,
+      arbProvider,
+    );
+    const secondHopSendParam: SendParam = {
+      dstEid: getEID(toChain),
+      to: targetBytes32,
+      amountLD,
+      minAmountLD: 0n,
+      extraOptions: '0x',
+      composeMsg: '0x',
+      oftCmd: '0x',
+    };
+    const secondHopOFTResult =
+      await secondHopOFTContract.quoteOFT(secondHopSendParam);
+    const secondHopReceivedLD = BigInt(
+      (
+        secondHopOFTResult.oftReceipt?.amountReceivedLD ??
+        secondHopOFTResult[2]?.amountReceivedLD ??
+        amountLD
+      ).toString(),
+    );
+    secondHopSendParam.minAmountLD = secondHopReceivedLD;
+
+    const secondHopFeeResult = await secondHopOFTContract.quoteSend(
+      secondHopSendParam,
+      false,
+    );
+    const nextHopNativeFee = BigInt(
+      (
+        secondHopFeeResult.nativeFee ??
+        secondHopFeeResult[0]?.nativeFee ??
+        secondHopFeeResult[0]
+      ).toString(),
+    );
+
+    const abiCoder = new ethers.utils.AbiCoder();
+    const composeMsg = abiCoder.encode(
+      ['tuple(uint32,bytes32,uint256,uint256,bytes,bytes,bytes)'],
+      [
+        [
+          secondHopSendParam.dstEid,
+          secondHopSendParam.to,
+          secondHopSendParam.amountLD,
+          secondHopSendParam.minAmountLD,
+          secondHopSendParam.extraOptions,
+          secondHopSendParam.composeMsg,
+          secondHopSendParam.oftCmd,
+        ],
+      ],
+    );
+    const firstHopOptions = Options.newOptions()
+      .addExecutorLzReceiveOption(65_000, 0)
+      .addExecutorComposeOption(0, 500_000, nextHopNativeFee);
+    const composerBytes32 = addressToBytes32(MULTIHOP_COMPOSER);
+
+    const quote = await solanaLayerZeroClient.quoteSolanaTransfer({
+      rpcUrl: this.getRpcUrl(fromChain),
+      fromAddress,
+      programId: SOLANA_OFT_PROGRAM,
+      store: SOLANA_OFT_STORE,
+      tokenMint: getUSDTAddress(fromChain),
+      dstEid: ARB_HUB_EID,
+      toBytes32: composerBytes32,
+      amountLd: amountLD,
+      minAmountLd: 0n,
+      extraOptionsHex: firstHopOptions.toHex(),
+      composeMsgHex: composeMsg,
+    });
+
+    return {
+      id: crypto.randomUUID(),
+      tool: 'layerzero',
+      fromAmount: amountLD,
+      toAmount: secondHopReceivedLD,
+      toAmountMin: secondHopReceivedLD,
+      executionDuration: 300,
+      gasCosts: quote.messagingFee.nativeFee,
+      feeCosts: quote.feeCosts,
+      route: {
+        kind: 'solana',
+        fromChainId: fromChain,
+        toChainId: toChain,
+        network: 'compose',
+        programId: SOLANA_OFT_PROGRAM,
+        store: SOLANA_OFT_STORE,
+        tokenMint: getUSDTAddress(fromChain),
+        destinationEid: ARB_HUB_EID,
+        toBytes32: composerBytes32,
+        amountLd: amountLD,
+        minAmountLd: quote.amountReceivedLd,
+        extraOptionsHex: firstHopOptions.toHex(),
+        composeMsgHex: composeMsg,
+        nativeFeeLamports: quote.messagingFee.nativeFee,
+        lzTokenFee: quote.messagingFee.lzTokenFee,
+      },
+      requestParams: params,
+    };
+  }
+
   async execute(
     quote: BridgeQuote<LayerZeroBridgeRoute>,
     privateKeys: Partial<Record<ProtocolType, string>>,
@@ -336,7 +521,18 @@ export class LayerZeroBridge implements IExternalBridge {
     const { route } = quote;
     const { fromChainId: fromChain, toChainId: toChain } = route;
 
-    if (fromChain === TRON_CHAIN_ID) {
+    if (route.kind === 'solana') {
+      const sealevelKey = privateKeys[ProtocolType.Sealevel];
+      assert(sealevelKey, 'Missing private key for Sealevel chain');
+      const txHash = await solanaLayerZeroClient.executeSolanaTransfer(
+        route,
+        sealevelKey,
+        this.getRpcUrl(fromChain),
+      );
+      return { txHash, fromChain, toChain };
+    }
+
+    if (route.kind === 'tron') {
       return this.executeTron(route, privateKeys);
     }
     // compose and native/legacy EVM routes all use the same execution path —
@@ -380,7 +576,7 @@ export class LayerZeroBridge implements IExternalBridge {
   }
 
   private async executeTron(
-    route: LayerZeroBridgeRoute,
+    route: Extract<LayerZeroBridgeRoute, { kind: 'tron' }>,
     privateKeys: Partial<Record<ProtocolType, string>>,
   ): Promise<BridgeTransferResult> {
     const { fromChainId: fromChain, toChainId: toChain } = route;

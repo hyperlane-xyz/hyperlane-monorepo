@@ -10,8 +10,13 @@ import { LayerZeroBridge } from './LayerZeroBridge.js';
 import {
   getRouteNetwork,
   getOFTContractForRoute,
+  SOLANA_CHAIN_ID,
+  SOLANA_OFT_PROGRAM,
+  TRON_CHAIN_ID,
   isSupportedRoute,
 } from './layerZeroUtils.js';
+import { getComposeHopContracts } from './layerZeroUtils.js';
+import { solanaLayerZeroClient } from './layerZeroSolanaClient.js';
 import {
   createMockLayerZeroQuote,
   createMockLZScanResponse,
@@ -47,6 +52,13 @@ const BRIDGE_CONFIG: ExternalBridgeConfig = {
       domainId: 9745,
       protocol: ProtocolType.Ethereum,
       rpcUrls: [{ http: 'https://plasma-rpc.example.com' }],
+    },
+    solana: {
+      chainId: SOLANA_CHAIN_ID,
+      name: 'solana',
+      domainId: SOLANA_CHAIN_ID,
+      protocol: ProtocolType.Sealevel,
+      rpcUrls: [{ http: 'https://solana-rpc.example.com' }],
     },
   },
 };
@@ -201,6 +213,30 @@ describe('LayerZeroBridge', function () {
       }
       expect(threw).to.equal(true);
     });
+
+    it('delegates Solana-origin quotes to the Solana client', async () => {
+      const solanaQuoteStub = sinon
+        .stub(solanaLayerZeroClient, 'quoteSolanaTransfer')
+        .resolves({
+          amountReceivedLd: 9997000n,
+          feeCosts: 3000n,
+          messagingFee: { nativeFee: 5000n, lzTokenFee: 0n },
+        });
+
+      const quote = await bridge.quote({
+        fromChain: SOLANA_CHAIN_ID,
+        toChain: 42161,
+        fromToken: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
+        toToken: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9',
+        fromAmount: 10000000n,
+        fromAddress: 'mZhPGteS36G7FhMTcRofLQU8ocBNAsGq7u8SKSHfL2X',
+      });
+
+      expect(solanaQuoteStub.calledOnce).to.equal(true);
+      expect(quote.route.kind).to.equal('solana');
+      expect(quote.route.network).to.equal('legacy');
+      expect(quote.toAmount).to.equal(9997000n);
+    });
   });
 
   describe('execute()', function () {
@@ -292,6 +328,44 @@ describe('LayerZeroBridge', function () {
         expect((error as Error).message).to.include('Missing private key');
       }
       expect(threw).to.equal(true);
+    });
+
+    it('delegates Solana-origin execution to the Solana client', async () => {
+      const quote = createMockLayerZeroQuote({
+        route: {
+          kind: 'solana',
+          fromChainId: SOLANA_CHAIN_ID,
+          toChainId: 42161,
+          network: 'legacy',
+          programId: SOLANA_OFT_PROGRAM,
+          store: 'HyXJcgYpURfDhgzuyRL7zxP4FhLg7LZQMeDrR4MXZcMN',
+          tokenMint: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
+          destinationEid: 30110,
+          toBytes32:
+            '0x0b6a86806a0354c82b8f049eb75d9c97e370a6f0c0cfa15f47909c3fe1c8f794',
+          amountLd: 10000000n,
+          minAmountLd: 9997000n,
+          extraOptionsHex: '0x',
+          composeMsgHex: '0x',
+          nativeFeeLamports: 5000n,
+          lzTokenFee: 0n,
+        },
+      });
+      const executeStub = sinon
+        .stub(solanaLayerZeroClient, 'executeSolanaTransfer')
+        .resolves('5YxNQ4fakeSig');
+
+      const result = await bridge.execute(quote, {
+        [ProtocolType.Sealevel]:
+          '1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1',
+      });
+
+      expect(executeStub.calledOnce).to.equal(true);
+      expect(result).to.deep.equal({
+        txHash: '5YxNQ4fakeSig',
+        fromChain: SOLANA_CHAIN_ID,
+        toChain: 42161,
+      });
     });
   });
 
@@ -427,13 +501,19 @@ describe('getRouteNetwork()', function () {
     expect(getRouteNetwork(1, 42161)).to.equal('native');
   });
   it('returns legacy for ETH→Tron', () => {
-    expect(getRouteNetwork(1, 728126428)).to.equal('legacy');
+    expect(getRouteNetwork(1, TRON_CHAIN_ID)).to.equal('legacy');
   });
   it('returns legacy for Tron→ETH', () => {
-    expect(getRouteNetwork(728126428, 1)).to.equal('legacy');
+    expect(getRouteNetwork(TRON_CHAIN_ID, 1)).to.equal('legacy');
   });
   it('returns legacy for ARB→Tron', () => {
-    expect(getRouteNetwork(42161, 728126428)).to.equal('legacy');
+    expect(getRouteNetwork(42161, TRON_CHAIN_ID)).to.equal('legacy');
+  });
+  it('returns legacy for Solana→ARB', () => {
+    expect(getRouteNetwork(SOLANA_CHAIN_ID, 42161)).to.equal('legacy');
+  });
+  it('returns compose for Solana→Plasma', () => {
+    expect(getRouteNetwork(SOLANA_CHAIN_ID, 9745)).to.equal('compose');
   });
   it('returns null for BSC→ETH (unsupported)', () => {
     expect(getRouteNetwork(56, 1)).to.equal(null);
@@ -447,14 +527,19 @@ describe('getOFTContractForRoute()', function () {
     expect(r.address).to.equal('0x6C96dE32CEa08842dcc4058c14d3aaAD7Fa41dee');
   });
   it('returns legacy ETH OFT for ETH→Tron', () => {
-    const r = getOFTContractForRoute(1, 728126428);
+    const r = getOFTContractForRoute(1, TRON_CHAIN_ID);
     expect(r.network).to.equal('legacy');
     expect(r.address).to.equal('0x1F748c76dE468e9D11bd340fA9D5CBADf315dFB0');
   });
   it('returns legacy Tron OFT for Tron→ETH', () => {
-    const r = getOFTContractForRoute(728126428, 1);
+    const r = getOFTContractForRoute(TRON_CHAIN_ID, 1);
     expect(r.network).to.equal('legacy');
     expect(r.address).to.equal('0x3a08f76772e200653bb55c2a92998daca62e0e97');
+  });
+  it('returns Solana OFT program for Solana→ETH', () => {
+    const r = getOFTContractForRoute(SOLANA_CHAIN_ID, 1);
+    expect(r.network).to.equal('legacy');
+    expect(r.address).to.equal(SOLANA_OFT_PROGRAM);
   });
   it('throws for unsupported route', () => {
     expect(() => getOFTContractForRoute(56, 1)).to.throw();
@@ -466,31 +551,34 @@ describe('isSupportedRoute()', function () {
     expect(isSupportedRoute(1, 9745)).to.be.true;
   });
   it('supports ETH→Tron (legacy)', () => {
-    expect(isSupportedRoute(1, 728126428)).to.be.true;
+    expect(isSupportedRoute(1, TRON_CHAIN_ID)).to.be.true;
   });
   it('supports Tron→ARB (legacy)', () => {
-    expect(isSupportedRoute(728126428, 42161)).to.be.true;
+    expect(isSupportedRoute(TRON_CHAIN_ID, 42161)).to.be.true;
+  });
+  it('supports Solana→ARB (legacy)', () => {
+    expect(isSupportedRoute(SOLANA_CHAIN_ID, 42161)).to.be.true;
   });
   it('does not support BSC→ETH', () => {
     expect(isSupportedRoute(56, 1)).to.be.false;
   });
 });
 
-// ── Compose route tests ────────────────────────────────────────────────────
-
-import { getComposeHopContracts } from './layerZeroUtils.js';
-
 describe('getRouteNetwork() — compose detection', function () {
   it('returns compose for Plasma → Tron (native-only → legacy-only)', () => {
-    expect(getRouteNetwork(9745, 728126428)).to.equal('compose');
+    expect(getRouteNetwork(9745, TRON_CHAIN_ID)).to.equal('compose');
   });
 
   it('returns compose for Tron → Plasma (legacy-only → native-only)', () => {
-    expect(getRouteNetwork(728126428, 9745)).to.equal('compose');
+    expect(getRouteNetwork(TRON_CHAIN_ID, 9745)).to.equal('compose');
+  });
+
+  it('returns compose for Plasma → Solana (native-only → legacy-only)', () => {
+    expect(getRouteNetwork(9745, SOLANA_CHAIN_ID)).to.equal('compose');
   });
 
   it('does NOT return compose for ETH → Tron (both in legacy)', () => {
-    expect(getRouteNetwork(1, 728126428)).to.equal('legacy');
+    expect(getRouteNetwork(1, TRON_CHAIN_ID)).to.equal('legacy');
   });
 
   it('does NOT return compose for Plasma → ETH (both in native)', () => {
@@ -511,7 +599,7 @@ describe('getComposeHopContracts()', function () {
   it('Plasma → Tron: firstHop = Plasma native OFT, secondHop = ARB Legacy Mesh OFT', () => {
     const { firstHopOFT, secondHopOFT } = getComposeHopContracts(
       9745,
-      728126428,
+      TRON_CHAIN_ID,
     );
     // Plasma native OFT
     expect(firstHopOFT).to.equal('0x02ca37966753bDdDf11216B73B16C1dE756A7CF9');
@@ -521,7 +609,7 @@ describe('getComposeHopContracts()', function () {
 
   it('Tron → Plasma: firstHop = Tron Legacy OFT, secondHop = ARB native OFT', () => {
     const { firstHopOFT, secondHopOFT } = getComposeHopContracts(
-      728126428,
+      TRON_CHAIN_ID,
       9745,
     );
     // Tron Legacy OFT
@@ -533,15 +621,37 @@ describe('getComposeHopContracts()', function () {
   it('throws for unsupported route', () => {
     expect(() => getComposeHopContracts(56, 9745)).to.throw();
   });
+
+  it('Solana → Plasma: firstHop = Solana OFT, secondHop = ARB native OFT', () => {
+    const { firstHopOFT, secondHopOFT } = getComposeHopContracts(
+      SOLANA_CHAIN_ID,
+      9745,
+    );
+    expect(firstHopOFT).to.equal(SOLANA_OFT_PROGRAM);
+    expect(secondHopOFT).to.equal('0x14E4A1B13bf7F943c8ff7C51fb60FA964A298D92');
+  });
+
+  it('Plasma → Solana: firstHop = Plasma native OFT, secondHop = ARB Legacy Mesh OFT', () => {
+    const { firstHopOFT, secondHopOFT } = getComposeHopContracts(
+      9745,
+      SOLANA_CHAIN_ID,
+    );
+    expect(firstHopOFT).to.equal('0x02ca37966753bDdDf11216B73B16C1dE756A7CF9');
+    expect(secondHopOFT).to.equal('0x77652D5aba086137b595875263FC200182919B92');
+  });
 });
 
 describe('isSupportedRoute() — compose included', function () {
   it('supports Plasma → Tron (compose)', () => {
-    expect(isSupportedRoute(9745, 728126428)).to.be.true;
+    expect(isSupportedRoute(9745, TRON_CHAIN_ID)).to.be.true;
   });
 
   it('supports Tron → Plasma (compose)', () => {
-    expect(isSupportedRoute(728126428, 9745)).to.be.true;
+    expect(isSupportedRoute(TRON_CHAIN_ID, 9745)).to.be.true;
+  });
+
+  it('supports Plasma → Solana (compose)', () => {
+    expect(isSupportedRoute(9745, SOLANA_CHAIN_ID)).to.be.true;
   });
 
   it('does not support BSC → Plasma', () => {
