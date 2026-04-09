@@ -2,6 +2,8 @@ import { BigNumber, providers } from 'ethers';
 
 import { retryAsync } from '@hyperlane-xyz/utils';
 
+import { parseCustomHeaders } from './TronWallet.js';
+
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_BASE_RETRY_MS = 250;
 
@@ -31,7 +33,15 @@ export class TronJsonRpcProvider extends providers.StaticJsonRpcProvider {
     maxRetries = DEFAULT_MAX_RETRIES,
     baseRetryMs = DEFAULT_BASE_RETRY_MS,
   ) {
-    super(host, network);
+    const headers = parseCustomHeaders(host);
+    const hasHeaders = Object.keys(headers).length > 0;
+    let cleanUrl = host;
+    if (hasHeaders) {
+      const parsed = new URL(host);
+      parsed.searchParams.delete('custom_rpc_header');
+      cleanUrl = parsed.toString();
+    }
+    super(hasHeaders ? { url: cleanUrl, headers } : host, network);
     this.host = host;
     this.maxRetries = maxRetries;
     this.baseRetryMs = baseRetryMs;

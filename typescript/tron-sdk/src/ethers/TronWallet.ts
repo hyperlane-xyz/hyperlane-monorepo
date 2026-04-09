@@ -15,7 +15,7 @@ import { TransactionRequest } from '@ethersproject/providers';
  * e.g. "https://api.trongrid.io?custom_rpc_header=TRON-PRO-API-KEY:abc"
  * returns { "TRON-PRO-API-KEY": "abc" }
  */
-function parseCustomHeaders(url: string): Record<string, string> {
+export function parseCustomHeaders(url: string): Record<string, string> {
   const headers: Record<string, string> = {};
   try {
     const parsed = new URL(url);
@@ -195,14 +195,29 @@ export class TronTransactionBuilder extends TronWeb {
     jsonRpcUrl?: string,
     headers?: Record<string, string>,
   ) {
-    super({ fullHost: tronWebUrl, headers });
+    // Strip custom_rpc_header from the URL and merge with any provided headers
+    const parsedHeaders = parseCustomHeaders(tronWebUrl);
+    const mergedHeaders = { ...parsedHeaders, ...headers };
+    let cleanTronWebUrl = tronWebUrl;
+    if (Object.keys(parsedHeaders).length > 0) {
+      const parsed = new URL(tronWebUrl);
+      parsed.searchParams.delete('custom_rpc_header');
+      cleanTronWebUrl = parsed.toString();
+    }
+    super({ fullHost: cleanTronWebUrl, headers: mergedHeaders });
 
     this.tronAddress = tronAddress;
     this.setAddress(this.tronAddress);
-    // Use provided JSON-RPC URL, or derive from TronWeb URL
-    const rpcUrl =
-      jsonRpcUrl ??
-      (tronWebUrl.endsWith('/jsonrpc') ? tronWebUrl : `${tronWebUrl}/jsonrpc`);
+    // Use provided JSON-RPC URL, or derive from TronWeb URL.
+    // Use URL API so /jsonrpc goes into the pathname, not after query params.
+    let rpcUrl = jsonRpcUrl;
+    if (!rpcUrl) {
+      const u = new URL(tronWebUrl);
+      if (!u.pathname.endsWith('/jsonrpc')) {
+        u.pathname = u.pathname.replace(/\/$/, '') + '/jsonrpc';
+      }
+      rpcUrl = u.toString();
+    }
     this.provider = new TronJsonRpcProvider(rpcUrl);
     this.tronAddressHex = this.address.toHex(this.tronAddress);
   }
