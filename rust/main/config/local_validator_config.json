@@ -1,0 +1,46 @@
+{
+  "originChainName": "test4",
+  "chains": {
+    "test4": {
+      "name": "test4",
+      "protocol": "ethereum",
+      "chainId": 31337,
+      "domainId": 31337,
+      "rpcUrls": [{"http": "http://127.0.0.1:8545"}],
+      "mailbox": "0x610178dA211FEF7D417bC0e6FeD39F05609AD788",
+      "merkleTreeHook": "0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0",
+      "validatorAnnounce": "0x959922bE3CAee4b8Cd9a407cc3ac1C251C2007B1",
+      "blocks": {
+        "confirmations": 1,
+        "reorgPeriod": 0,
+        "estimateBlockTime": 3
+      },
+      "interchainGasPaymaster": "0x0000000000000000000000000000000000000000",
+      "index": {
+        "from": 1
+      },
+      "signer": {
+        "type": "hexKey",
+        "key": "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
+      }
+    }
+  },
+  "db": "./validator-db-ethereumlocal1",
+  "defaultSigner": {
+    "type": "hexKey",
+    "key": "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
+  },
+  "validator": {
+    "type": "hexKey",
+    "key": "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
+  },
+  "checkpointSyncer": {
+    "type": "localStorage",
+    "path": "./validator-signatures"
+  },
+  "interval": 5,
+  "tracing": {
+    "level": "info",
+    "fmt": "compact"
+  }
+}

@@ -57,7 +57,7 @@
   },
   "allowLocalCheckpointSyncers": true,
   "relayChains": "test4,solanalocal",
-  "db": "./relayer-db",
+  "db": "/tmp/relayer-db",
   "tracing": {
     "level": "info",
     "fmt": "compact"

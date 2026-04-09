@@ -1,6 +1,6 @@
 {
   "type": "aggregation",
-  "threshold": 1,
+  "threshold": 2,
   "sub_isms": [
     {
       "type": "pausable",
