@@ -66,7 +66,7 @@ export interface WarpRouteCheckResult {
   violations: WarpRouteCheckViolation[];
 }
 
-export async function getWarpRouteConfigsByCore({
+async function getWarpRouteConfigsByCore({
   multiProvider,
   warpCoreConfig,
 }: {
@@ -365,17 +365,17 @@ function flattenDiffNode(
     return [];
   }
 
-  if (isObjectDiffLeaf(value)) {
-    return [
-      {
-        actual: stringifyViolationValue(value.actual),
-        chain,
-        expected: stringifyViolationValue(value.expected),
-        name: path.join('.'),
-        type: WARP_ROUTE_CHECK_TYPE,
-      },
-    ];
-  }
+  const leafViolations = isObjectDiffLeaf(value)
+    ? [
+        {
+          actual: stringifyViolationValue(value.actual),
+          chain,
+          expected: stringifyViolationValue(value.expected),
+          name: path.join('.'),
+          type: WARP_ROUTE_CHECK_TYPE,
+        },
+      ]
+    : [];
 
   if (Array.isArray(value)) {
     return value.flatMap((item, index) =>
@@ -384,12 +384,17 @@ function flattenDiffNode(
   }
 
   if (typeof value === 'object') {
-    return Object.entries(value as Record<string, unknown>).flatMap(
-      ([key, child]) => flattenDiffNode(chain, child, [...path, key]),
-    );
+    return [
+      ...leafViolations,
+      ...Object.entries(value as Record<string, unknown>)
+        .filter(([key]) => key !== 'actual' && key !== 'expected')
+        .flatMap(([key, child]) =>
+          flattenDiffNode(chain, child, [...path, key]),
+        ),
+    ];
   }
 
-  return [];
+  return leafViolations;
 }
 
 function getScaleViolations(

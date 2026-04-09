@@ -773,7 +773,6 @@ export {
   WARP_ROUTE_CHECK_SCALE_TYPE,
   WARP_ROUTE_CHECK_TYPE,
   checkWarpRouteDeployConfig,
-  getWarpRouteConfigsByCore,
 } from './token/warpCheck.js';
 export type {
   WarpRouteCheckResult,
