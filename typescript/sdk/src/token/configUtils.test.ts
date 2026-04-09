@@ -99,6 +99,28 @@ describe('configUtils', () => {
         },
       },
       {
+        msg: 'It should preserve the proxyAdmin address property for explicit checks',
+        input: {
+          hook: {
+            address: ADDRESS,
+            type: HookType.MERKLE_TREE,
+          },
+          proxyAdmin: {
+            address: ADDRESS,
+            owner: ADDRESS,
+          },
+        },
+        expected: {
+          hook: {
+            type: HookType.MERKLE_TREE,
+          },
+          proxyAdmin: {
+            address: ADDRESS,
+            owner: ADDRESS,
+          },
+        },
+      },
+      {
         msg: 'It should sort out of order modules and validator arrays',
         expected: {
           bsc: {

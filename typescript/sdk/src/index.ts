@@ -770,6 +770,16 @@ export { HypERC20Deployer, HypERC721Deployer } from './token/deploy.js';
 export { EvmWarpModule } from './token/EvmWarpModule.js';
 export { EvmWarpRouteReader } from './token/EvmWarpRouteReader.js';
 export {
+  WARP_ROUTE_CHECK_SCALE_TYPE,
+  WARP_ROUTE_CHECK_TYPE,
+  checkWarpRouteDeployConfig,
+  getWarpRouteConfigsByCore,
+} from './token/warpCheck.js';
+export type {
+  WarpRouteCheckResult,
+  WarpRouteCheckViolation,
+} from './token/warpCheck.js';
+export {
   EvmXERC20Reader,
   StandardXERC20Limits,
   VeloXERC20Limits,

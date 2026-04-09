@@ -260,9 +260,7 @@ export const sandboxStrategyConfigGetterMap: Record<
 /**
  * Retrieves the Warp configuration for the specified Warp route ID by fetching it from the FileSystemRegistry and GithubRegistry
  */
-async function getConfigFromMergedRegistry(
-  _routerConfig: ChainMap<RouterConfigWithoutOwner>,
-  _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
+export async function getWarpDeployConfigFromMergedRegistry(
   warpRouteId: string,
   registryUris: string[],
 ): Promise<ChainMap<HypTokenRouterConfig>> {
@@ -365,10 +363,5 @@ export async function getWarpConfig(
     );
   }
 
-  return getConfigFromMergedRegistry(
-    routerConfigWithoutOwner,
-    abacusWorksEnvOwnerConfig,
-    warpRouteId,
-    registryUris,
-  );
+  return getWarpDeployConfigFromMergedRegistry(warpRouteId, registryUris);
 }

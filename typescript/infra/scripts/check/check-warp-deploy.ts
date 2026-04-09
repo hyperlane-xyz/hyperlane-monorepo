@@ -8,15 +8,16 @@ import { ChainName } from '@hyperlane-xyz/sdk';
 import { WarpRouteIds } from '../../config/environments/mainnet3/warp/warpIds.js';
 import { DEFAULT_REGISTRY_URI } from '../../config/registry.js';
 import { getWarpConfigMapFromMergedRegistry } from '../../config/warp.js';
-import { Modules } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
 import {
   getCheckWarpDeployArgs,
   getCheckerViolationsGaugeObj,
-  getGovernor,
-  logViolations,
 } from './check-utils.js';
+import {
+  logWarpRouteCheckResult,
+  runWarpRouteCheckFromRegistry,
+} from './check-warp-route.js';
 
 async function main() {
   const { environment, asDeployer, chains, fork, context, pushMetrics } =
@@ -141,39 +142,31 @@ async function main() {
   // TODO: consider retrying this if check throws an error
   for (const warpRouteId of warpIdsToCheck) {
     console.log(`\nChecking warp route ${warpRouteId}...`);
-    const warpModule = Modules.WARP;
 
     try {
-      const governor = await getGovernor(
-        warpModule,
-        context,
-        environment,
-        asDeployer,
-        warpRouteId,
+      const result = await runWarpRouteCheckFromRegistry({
         chains,
-        fork,
-        false,
         multiProvider,
-        registries,
-      );
+        registryUris: registries,
+        warpRouteId,
+        warpDeployConfig: warpCoreConfigMap[warpRouteId],
+      });
 
-      await governor.check();
-
-      const violations: any = governor.getCheckerViolations();
-      if (violations.length > 0) {
-        logViolations(violations);
-
+      if (result.violations.length > 0) {
+        logWarpRouteCheckResult(result);
         if (pushMetrics) {
-          for (const violation of violations) {
+          for (const violation of result.violations) {
             checkerViolationsGauge
               .labels({
-                module: warpModule,
-                warp_route_id: warpRouteId,
+                actual: violation.actual,
                 chain: violation.chain,
                 contract_name: violation.name,
-                type: violation.type,
-                actual: violation.actual,
                 expected: violation.expected,
+                module: 'warp',
+                remote: '',
+                sub_type: '',
+                type: violation.type,
+                warp_route_id: warpRouteId,
               })
               .set(1);
             console.log(
@@ -182,7 +175,7 @@ async function main() {
           }
         }
       } else {
-        console.info(chalk.green(`${warpModule} checker found no violations`));
+        console.info(chalk.green(`warp checker found no violations`));
       }
 
       if (pushMetrics) {

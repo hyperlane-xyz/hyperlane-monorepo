@@ -17,6 +17,7 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   Address,
+  deepCopy,
   eqAddress,
   isZeroishAddress,
   objMap,
@@ -35,12 +36,14 @@ import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
 import { HypERC20App } from './app.js';
 import { HypERC20Checker } from './checker.js';
 import { TokenType } from './config.js';
+import { checkWarpRouteDeployConfig } from './warpCheck.js';
 import { HypERC20Deployer } from './deploy.js';
 import {
   SyntheticTokenConfig,
   WarpRouteDeployConfigMailboxRequired,
   isDepositAddressTokenConfig,
 } from './types.js';
+import { WarpCoreConfig } from '../warp/types.js';
 
 const chain = TestChainName.test1;
 
@@ -332,6 +335,115 @@ describe('TokenDeployer', async () => {
         checkerWithOwnerOverrides.expectViolations({
           [ViolationType.Owner]: 1,
         });
+      });
+    });
+
+    describe(checkWarpRouteDeployConfig.name, async () => {
+      let app: HypERC20App;
+      let contractsMap: Awaited<ReturnType<HypERC20Deployer['deploy']>>;
+
+      const getWarpCoreConfig = (): WarpCoreConfig =>
+        ({
+          tokens: Object.keys(config).map((currentChain) => ({
+            addressOrDenom: app.router(contractsMap[currentChain]).address,
+            chainName: currentChain,
+          })),
+        }) as WarpCoreConfig;
+
+      beforeEach(async () => {
+        // @ts-expect-error - Test assigns varying token types to config
+        config[chain] = {
+          ...config[chain],
+          type,
+          token: token(),
+        };
+
+        contractsMap = await deployer.deploy(config);
+        app = new HypERC20App(contractsMap, multiProvider);
+      });
+
+      it('should flag explicit proxyAdmin address mismatches', async () => {
+        const explicitProxyAdminConfig = deepCopy(config);
+        explicitProxyAdminConfig[chain].proxyAdmin = {
+          address: ethers.Wallet.createRandom().address,
+          owner: explicitProxyAdminConfig[chain].owner,
+        };
+
+        const result = await checkWarpRouteDeployConfig({
+          multiProvider,
+          warpCoreConfig: getWarpCoreConfig(),
+          warpDeployConfig: explicitProxyAdminConfig,
+        });
+
+        expect(result.isValid).to.equal(false);
+        expect(
+          result.violations.some(
+            (violation) =>
+              violation.chain === chain &&
+              violation.name === 'proxyAdmin.address',
+          ),
+        ).to.equal(true);
+      });
+
+      it('should flag collateral ownership override mismatches', async () => {
+        if (type !== TokenType.XERC20) {
+          return;
+        }
+
+        const overrideConfig = addOverridesToConfig(config, {
+          collateralProxyAdmin: await admin.owner(),
+          collateralToken: await xerc20.owner(),
+        });
+
+        await xerc20.transferOwnership(ethers.Wallet.createRandom().address);
+        await admin.transferOwnership(ethers.Wallet.createRandom().address);
+
+        const result = await checkWarpRouteDeployConfig({
+          multiProvider,
+          warpCoreConfig: getWarpCoreConfig(),
+          warpDeployConfig: overrideConfig,
+        });
+
+        expect(result.isValid).to.equal(false);
+        expect(
+          result.violations.some(
+            (violation) =>
+              violation.chain === chain &&
+              violation.name === 'ownerOverrides.collateralToken',
+          ),
+        ).to.equal(true);
+        expect(
+          result.violations.some(
+            (violation) =>
+              violation.chain === chain &&
+              violation.name === 'ownerOverrides.collateralProxyAdmin',
+          ),
+        ).to.equal(true);
+      });
+
+      it('should respect ownerOverrides.proxyAdmin over proxyAdmin.owner', async () => {
+        const overrideConfig = addOverridesToConfig(config, {
+          proxyAdmin: await contractsMap[chain].proxyAdmin.owner(),
+        });
+
+        await contractsMap[chain].proxyAdmin.transferOwnership(
+          ethers.Wallet.createRandom().address,
+        );
+
+        const result = await checkWarpRouteDeployConfig({
+          multiProvider,
+          warpCoreConfig: getWarpCoreConfig(),
+          warpDeployConfig: overrideConfig,
+        });
+
+        expect(result.isValid).to.equal(false);
+        expect(
+          result.violations.some(
+            (violation) =>
+              violation.chain === chain &&
+              violation.name === 'proxyAdmin.owner',
+          ),
+        ).to.equal(true);
       });
     });
 
