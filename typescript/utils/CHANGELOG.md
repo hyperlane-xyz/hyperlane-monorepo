@@ -1,5 +1,15 @@
 # @hyperlane-xyz/utils
 
+## 30.1.1
+
+## 30.1.0
+
+## 30.0.0
+
+### Patch Changes
+
+- 7646819: Yaml sorting helpers were exported from `@hyperlane-xyz/utils` so repo tooling can reuse a single implementation for YAML transforms and warp config ordering.
+
 ## 29.1.0
 
 ## 29.0.1
