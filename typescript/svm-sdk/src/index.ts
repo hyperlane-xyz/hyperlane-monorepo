@@ -97,6 +97,8 @@ export {
   deriveValidatorAnnouncePda,
   deriveValidatorStorageLocationsPda,
   deriveReplayProtectionPda,
+  deriveCrossCollateralStatePda,
+  deriveCrossCollateralDispatchAuthorityPda,
 } from './pda.js';
 
 // Account decoders
@@ -119,3 +121,10 @@ export {
   decodeValidatorAnnounceAccount,
   decodeValidatorStorageLocationsAccount,
 } from './core/validator-announce-query.js';
+export { decodeCrossCollateralStateAccount } from './accounts/cross-collateral-token.js';
+
+// Cross-collateral warp token reader/writer
+export {
+  SvmCrossCollateralTokenReader,
+  SvmCrossCollateralTokenWriter,
+} from './warp/cross-collateral-token.js';

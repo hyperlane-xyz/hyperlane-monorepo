@@ -128,7 +128,7 @@ jobs:
           |-------|-----|
           | hyperlane-node-services | \`${TAG_SHA_DATE}\` |
 
-          **Services included:** rebalancer, warp-monitor, ccip-server, keyfunder, relayer
+          **Services included:** rebalancer, warp-monitor, ccip-server, keyfunder, relayer, fee-quoting
 
           **Full image path:**
           \`\`\`

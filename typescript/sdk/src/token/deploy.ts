@@ -2,6 +2,7 @@ import { compareVersions } from 'compare-versions';
 import { BigNumber, constants } from 'ethers';
 
 import {
+  CrossCollateralRouter__factory,
   ERC20__factory,
   EverclearTokenBridge__factory,
   GasRouter,
@@ -10,14 +11,12 @@ import {
   OpL1V1NativeTokenBridge__factory,
   OpL2NativeTokenBridge__factory,
   PackageVersioned__factory,
+  TokenBridgeOft__factory,
   TokenBridgeCctpBase__factory,
   TokenBridgeCctpV2__factory,
+  TokenBridgeDepositAddress__factory,
   TokenRouter,
 } from '@hyperlane-xyz/core';
-import {
-  CrossCollateralRouter__factory,
-  TokenBridgeOft__factory,
-} from '@hyperlane-xyz/multicollateral';
 import {
   Address,
   addressToBytes32,
@@ -39,7 +38,7 @@ import { EvmTokenFeeModule } from '../fee/EvmTokenFeeModule.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { GasRouterDeployer } from '../router/GasRouterDeployer.js';
-import { resolveRouterMapConfig } from '../router/types.js';
+import { ProxiedFactories, resolveRouterMapConfig } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
 
 import { normalizeScale } from '../utils/decimals.js';
@@ -64,16 +63,17 @@ import {
 import { deriveTokenMetadata } from './tokenMetadataUtils.js';
 import {
   CctpTokenConfig,
+  DepositAddressTokenConfig,
   HypTokenConfig,
   HypTokenRouterConfig,
   OftTokenConfig,
   WarpRouteDeployConfig,
-  WarpRouteDeployConfigMailboxRequired,
   isCctpTokenConfig,
   isCollateralTokenConfig,
   isEverclearCollateralTokenConfig,
   isEverclearEthBridgeTokenConfig,
   isEverclearTokenBridgeConfig,
+  isDepositAddressTokenConfig,
   isMovableCollateralTokenConfig,
   isCrossCollateralTokenConfig,
   isNativeTokenConfig,
@@ -205,6 +205,8 @@ abstract class TokenDeployer<
       ];
     } else if (isOftTokenConfig(config)) {
       return [config.oft, config.owner];
+    } else if (isDepositAddressTokenConfig(config)) {
+      return [config.token, config.owner];
     } else if (isCctpTokenConfig(config)) {
       switch (config.cctpVersion) {
         case 'V1':
@@ -261,6 +263,8 @@ abstract class TokenDeployer<
     if (isOftTokenConfig(config)) {
       // OFT is deployed unproxied — owner is set in constructor, no initialize
       throw new Error('OFT does not use initialize');
+    } else if (isDepositAddressTokenConfig(config)) {
+      throw new Error('Direct bridge adapters do not use initialize');
     } else if (
       isCollateralTokenConfig(config) ||
       isXERC20TokenConfig(config) ||
@@ -432,6 +436,58 @@ abstract class TokenDeployer<
     );
   }
 
+  protected async configureDepositAddressDestinations(
+    configMap: ChainMap<HypTokenConfig>,
+    deployedContractsMap: HyperlaneContractsMap<Factories>,
+  ): Promise<void> {
+    const depositConfigs = objFilter(
+      configMap,
+      (_, config): config is DepositAddressTokenConfig =>
+        isDepositAddressTokenConfig(config),
+    );
+
+    await promiseObjAll(
+      objMap(depositConfigs, async (chain, config) => {
+        const router = this.router(deployedContractsMap[chain]).address;
+        const tokenBridge = TokenBridgeDepositAddress__factory.connect(
+          router,
+          this.multiProvider.getSigner(chain),
+        );
+
+        const resolvedConfigs = resolveRouterMapConfig(
+          this.multiProvider,
+          config.destinationConfigs,
+        );
+
+        for (const [domainId, destinationConfig] of Object.entries(
+          resolvedConfigs,
+        )) {
+          for (const [recipient, recipientConfig] of Object.entries(
+            destinationConfig,
+          )) {
+            this.logger.info(
+              `Setting deposit-address bridge destination config on ${chain}`,
+              {
+                destination: domainId,
+                depositAddress: recipientConfig.depositAddress,
+                recipient,
+              },
+            );
+            await this.multiProvider.handleTx(
+              chain,
+              tokenBridge.addDestinationConfig(
+                Number(domainId),
+                recipientConfig.depositAddress,
+                recipient,
+                BigNumber.from(recipientConfig.feeBps ?? 0),
+              ),
+            );
+          }
+        }
+      }),
+    );
+  }
+
   protected async configureOftDomains(
     configMap: ChainMap<HypTokenConfig>,
     deployedContractsMap: HyperlaneContractsMap<Factories>,
@@ -466,7 +522,6 @@ abstract class TokenDeployer<
           );
         }
 
-        // Set extra options if configured
         if (config.extraOptions) {
           this.logger.info(`Setting OFT extra options on ${chain}`);
           const overrides = this.multiProvider.getTransactionOverrides(chain);
@@ -771,7 +826,9 @@ abstract class TokenDeployer<
     );
   }
 
-  async deploy(configMap: WarpRouteDeployConfigMailboxRequired) {
+  async deploy(
+    configMap: ChainMap<HypTokenRouterConfig>,
+  ): Promise<HyperlaneContractsMap<Factories & ProxiedFactories>> {
     let tokenMetadataMap: TokenMetadataMap;
     try {
       tokenMetadataMap = await TokenDeployer.deriveTokenMetadata(
@@ -797,29 +854,59 @@ abstract class TokenDeployer<
         owner: await this.multiProvider.getSigner(chain).getAddress(),
       })),
     );
-    // Deploy OFT contracts separately — they lack Router/MailboxClient interfaces
-    // and must not be in this.deployedContracts during super.deploy(), which calls
-    // enrollRemoteRouters/configureClients on all entries.
+    const directBridgeContracts: Record<string, Record<string, unknown>> = {};
     const oftContracts: Record<string, Record<string, unknown>> = {};
     for (const [chain, config] of Object.entries(resolvedConfigMap)) {
-      if (!isOftTokenConfig(config)) continue;
-      const contractKey = this.routerContractKey(config);
-      const constructorArgs = await this.constructorArgs(chain, config);
-      const contract = await this.deployContract(
-        chain,
-        contractKey,
-        constructorArgs,
-      );
-      oftContracts[chain] = { [contractKey]: contract };
-      delete resolvedConfigMap[chain];
+      if (isDepositAddressTokenConfig(config)) {
+        const contractKey = this.routerContractKey(config);
+        const constructorArgs = await this.constructorArgs(chain, config);
+        const contract = await this.deployContractWithName(
+          chain,
+          contractKey,
+          this.routerContractName(config),
+          constructorArgs,
+        );
+        directBridgeContracts[chain] = { [contractKey]: contract };
+        delete resolvedConfigMap[chain];
+        continue;
+      }
+      if (isOftTokenConfig(config)) {
+        const contractKey = this.routerContractKey(config);
+        const constructorArgs = await this.constructorArgs(chain, config);
+        const contract = await this.deployContract(
+          chain,
+          contractKey,
+          constructorArgs,
+        );
+        oftContracts[chain] = { [contractKey]: contract };
+        delete resolvedConfigMap[chain];
+      }
     }
 
-    // Deploy remaining (non-OFT) contracts via full Router deployer flow
-    const deployedContractsMap = await super.deploy(resolvedConfigMap);
+    const deployedContractsMap =
+      Object.keys(resolvedConfigMap).length > 0
+        ? await super.deploy(resolvedConfigMap)
+        : // CAST: with no router-style deploys, the accumulated in-memory deploy state already
+          // matches the public return shape even though the base field is declared less precisely.
+          (this.deployedContracts as HyperlaneContractsMap<
+            Factories & ProxiedFactories
+          >);
 
-    // Now safe to merge OFT entries — Router-specific methods have already run
+    for (const [chain, contracts] of Object.entries(directBridgeContracts)) {
+      this.addDeployedContracts(chain, contracts);
+      deployedContractsMap[chain] = {
+        ...deployedContractsMap[chain],
+        ...contracts,
+      };
+    }
+
+    // Now safe to merge direct-bridge / OFT entries — Router-specific methods have already run
     for (const [chain, contracts] of Object.entries(oftContracts)) {
       this.addDeployedContracts(chain, contracts);
+      deployedContractsMap[chain] = {
+        ...deployedContractsMap[chain],
+        ...contracts,
+      };
     }
 
     // Configure CCTP domains after all routers are deployed and remotes are enrolled (in super.deploy)
@@ -827,6 +914,11 @@ abstract class TokenDeployer<
 
     // Set maxFeeBps for CCTP V2 routers (constructor sets it for direct deploys, this handles proxies)
     await this.configureCctpV2MaxFee(configMap, deployedContractsMap);
+
+    await this.configureDepositAddressDestinations(
+      configMap,
+      deployedContractsMap,
+    );
 
     // Configure OFT domain mappings (Hyperlane domain → LZ EID)
     await this.configureOftDomains(configMap, deployedContractsMap);
