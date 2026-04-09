@@ -105,6 +105,7 @@ export function createMockLayerZeroBridgeRoute(
   overrides?: Partial<LayerZeroBridgeRoute>,
 ): LayerZeroBridgeRoute {
   return {
+    kind: 'evm',
     sendParam: createMockSendParam(),
     messagingFee: createMockQuoteSendResponse(),
     oftContract: '0x14E4A1B13bf7F943c8ff7C51fb60FA964A298D92',
@@ -113,7 +114,7 @@ export function createMockLayerZeroBridgeRoute(
     toChainId: 9745,
     network: 'native' as RouteNetwork,
     ...overrides,
-  };
+  } as LayerZeroBridgeRoute;
 }
 
 /**
