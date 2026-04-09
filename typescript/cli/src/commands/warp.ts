@@ -620,6 +620,7 @@ export const check: CommandModuleWithContext<
     );
 
     await runWarpRouteCheck({
+      multiProvider: context.multiProvider,
       onChainWarpConfig: expandedOnChainWarpConfig,
       warpRouteConfig: expandedWarpDeployConfig,
     });
