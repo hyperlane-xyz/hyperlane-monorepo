@@ -54,12 +54,7 @@ export function getCheckWarpDeployArgs() {
 }
 
 export function getCheckDeployArgs() {
-  return withRegistryUris(
-    withModule(getCheckBaseArgs()).choices(
-      'module',
-      Object.values(Modules).filter((module) => module !== Modules.WARP),
-    ),
-  );
+  return withRegistryUris(withModule(getCheckBaseArgs()));
 }
 
 const ICA_ENABLED_MODULES = [Modules.INTERCHAIN_ACCOUNTS, Modules.HAAS];
