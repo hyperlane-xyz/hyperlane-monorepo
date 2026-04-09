@@ -49,7 +49,7 @@ ignoreBrokenPipe(process.stderr);
 
 console.log(chalk.blue('Hyperlane'), chalk.magentaBright('CLI'));
 
-if (!process.env.CI && !process.env.HYPERLANE_SKIP_VERSION_CHECK) {
+if (!process.env.CI && process.env.HYPERLANE_SKIP_VERSION_CHECK !== '1') {
   await checkVersion();
 }
 

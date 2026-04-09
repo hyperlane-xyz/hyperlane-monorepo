@@ -9,6 +9,7 @@ import {
   type WarpCoreConfig,
   type WarpRouteCheckResult,
   type WarpRouteDeployConfigMailboxRequired,
+  WarpRouteDeployConfigMailboxRequiredSchema,
   checkWarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
 import { assert, objFilter } from '@hyperlane-xyz/utils';
@@ -16,7 +17,7 @@ import { assert, objFilter } from '@hyperlane-xyz/utils';
 import { WarpRouteIds } from '../../config/environments/mainnet3/warp/warpIds.js';
 import { DEFAULT_REGISTRY_URI } from '../../config/registry.js';
 import {
-  getWarpConfigMap,
+  getWarpConfig,
   getWarpDeployConfigFromMergedRegistry,
   getWarpConfigMapFromMergedRegistry,
 } from '../../config/warp.js';
@@ -101,25 +102,20 @@ async function main() {
     Array.from(warpConfigChains),
   );
 
-  const warpDeployConfigMap = await getWarpConfigMap(
-    multiProvider,
-    envConfig,
-    registries,
-    false,
-    warpIdsToCheck,
-  );
-
   // TODO: consider retrying this if check throws an error
   for (const warpRouteId of warpIdsToCheck) {
     console.log(`\nChecking warp route ${warpRouteId}...`);
 
     try {
+      const warpDeployConfig = WarpRouteDeployConfigMailboxRequiredSchema.parse(
+        await getWarpConfig(multiProvider, envConfig, warpRouteId, registries),
+      );
       const result = await runWarpRouteCheckFromRegistry({
         chains,
         multiProvider,
         registryUris: registries,
         warpRouteId,
-        warpDeployConfig: warpDeployConfigMap[warpRouteId],
+        warpDeployConfig,
       });
 
       if (result.violations.length > 0) {

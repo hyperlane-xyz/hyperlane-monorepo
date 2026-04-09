@@ -74,7 +74,10 @@ async function getWarpRouteConfigsByCore({
   warpCoreConfig: WarpCoreConfig;
 }): Promise<DerivedWarpRouteDeployConfig> {
   const addresses = Object.fromEntries(
-    warpCoreConfig.tokens.map((t) => [t.chainName, t.addressOrDenom!]),
+    warpCoreConfig.tokens.map(({ chainName, addressOrDenom }) => {
+      assert(addressOrDenom, `Missing addressOrDenom for ${chainName}`);
+      return [chainName, addressOrDenom];
+    }),
   );
 
   return promiseObjAll(
