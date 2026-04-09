@@ -27,14 +27,11 @@ import { TestChainName } from '../consts/testChains.js';
 import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
-import { ViolationType } from '../deploy/types.js';
 import { TokenFeeType } from '../fee/types.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
-import { HypERC20App } from './app.js';
-import { HypERC20Checker } from './checker.js';
 import { TokenType } from './config.js';
 import { checkWarpRouteDeployConfig } from './warpCheck.js';
 import { HypERC20Deployer } from './deploy.js';
@@ -249,103 +246,15 @@ describe('TokenDeployer', async () => {
       }
     };
 
-    describe('HypERC20Checker', async () => {
-      let checker: HypERC20Checker;
-      let app: HypERC20App;
-      beforeEach(async () => {
-        // @ts-expect-error - Test assigns varying token types to config
-        config[chain] = {
-          ...config[chain],
-          type,
-          token: token(),
-        };
-
-        const contractsMap = await deployer.deploy(config);
-        app = new HypERC20App(contractsMap, multiProvider);
-        checker = new HypERC20Checker(multiProvider, app, config);
-      });
-
-      it(`should have no violations on clean deploy of ${type}`, async () => {
-        await checker.check();
-        checker.expectEmpty();
-      });
-
-      it(`should not output "collateralToken" violation when ownerOverrides is unset`, async () => {
-        if (type !== TokenType.XERC20) {
-          return;
-        }
-
-        await xerc20.transferOwnership(ethers.Wallet.createRandom().address);
-        await checker.check();
-        checker.expectViolations({
-          [ViolationType.Owner]: 0, // No violation because ownerOverrides is not set
-        });
-      });
-
-      it('should output "collateralToken" violation when ownerOverrides.collateralToken is set', async () => {
-        if (type !== TokenType.XERC20) {
-          return;
-        }
-        const previousOwner = await xerc20.owner();
-        const configWithOverrides = addOverridesToConfig(config, {
-          collateralToken: previousOwner,
-        });
-
-        const checkerWithOwnerOverrides = new HypERC20Checker(
-          multiProvider,
-          app,
-          configWithOverrides,
-        );
-
-        await xerc20.transferOwnership(ethers.Wallet.createRandom().address);
-        await checkerWithOwnerOverrides.check();
-        checkerWithOwnerOverrides.expectViolations({
-          [ViolationType.Owner]: 1,
-        });
-      });
-
-      it(`should not output "collateralProxyAdmin" violation when ownerOverrides is unset`, async () => {
-        if (type !== TokenType.XERC20) {
-          return;
-        }
-
-        await admin.transferOwnership(ethers.Wallet.createRandom().address);
-        await checker.check();
-        checker.expectViolations({
-          [ViolationType.Owner]: 0, // No violation because ownerOverrides is not set
-        });
-      });
-
-      it('should output "collateralProxyAdmin" violation when ownerOverrides.collateralProxyAdmin is set', async () => {
-        if (type !== TokenType.XERC20) {
-          return;
-        }
-        const previousOwner = await admin.owner();
-        const configWithOverrides = addOverridesToConfig(config, {
-          collateralProxyAdmin: previousOwner,
-        });
-        const checkerWithOwnerOverrides = new HypERC20Checker(
-          multiProvider,
-          app,
-          configWithOverrides,
-        );
-
-        await admin.transferOwnership(ethers.Wallet.createRandom().address);
-        await checkerWithOwnerOverrides.check();
-        checkerWithOwnerOverrides.expectViolations({
-          [ViolationType.Owner]: 1,
-        });
-      });
-    });
-
     describe(checkWarpRouteDeployConfig.name, async () => {
-      let app: HypERC20App;
       let contractsMap: Awaited<ReturnType<HypERC20Deployer['deploy']>>;
+      const getRouterAddress = (currentChain: string) =>
+        contractsMap[currentChain][config[currentChain].type].address;
 
       const getWarpCoreConfig = (): WarpCoreConfig =>
         ({
           tokens: Object.keys(config).map((currentChain) => ({
-            addressOrDenom: app.router(contractsMap[currentChain]).address,
+            addressOrDenom: getRouterAddress(currentChain),
             chainName: currentChain,
           })),
         }) as WarpCoreConfig;
@@ -359,7 +268,42 @@ describe('TokenDeployer', async () => {
         };
 
         contractsMap = await deployer.deploy(config);
-        app = new HypERC20App(contractsMap, multiProvider);
+      });
+
+      it(`should have no violations on clean deploy of ${type}`, async () => {
+        const result = await checkWarpRouteDeployConfig({
+          multiProvider,
+          warpCoreConfig: getWarpCoreConfig(),
+          warpDeployConfig: config,
+        });
+
+        expect(result.isValid).to.equal(true);
+        expect(result.violations).to.deep.equal([]);
+      });
+
+      it('should ignore collateral owner changes when ownerOverrides is unset', async () => {
+        if (type !== TokenType.XERC20) {
+          return;
+        }
+
+        await xerc20.transferOwnership(ethers.Wallet.createRandom().address);
+        await admin.transferOwnership(ethers.Wallet.createRandom().address);
+
+        const result = await checkWarpRouteDeployConfig({
+          multiProvider,
+          warpCoreConfig: getWarpCoreConfig(),
+          warpDeployConfig: config,
+        });
+
+        expect(result.isValid).to.equal(true);
+        expect(
+          result.violations.some((violation) =>
+            [
+              'ownerOverrides.collateralToken',
+              'ownerOverrides.collateralProxyAdmin',
+            ].includes(violation.name),
+          ),
+        ).to.equal(false);
       });
 
       it('should flag explicit proxyAdmin address mismatches', async () => {

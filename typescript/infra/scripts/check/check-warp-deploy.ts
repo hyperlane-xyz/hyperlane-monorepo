@@ -7,7 +7,10 @@ import { ChainName } from '@hyperlane-xyz/sdk';
 
 import { WarpRouteIds } from '../../config/environments/mainnet3/warp/warpIds.js';
 import { DEFAULT_REGISTRY_URI } from '../../config/registry.js';
-import { getWarpConfigMapFromMergedRegistry } from '../../config/warp.js';
+import {
+  getWarpConfigMap,
+  getWarpConfigMapFromMergedRegistry,
+} from '../../config/warp.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
 import {
@@ -55,7 +58,7 @@ async function main() {
     enableProxy: true,
   });
 
-  const warpDeployConfigMap =
+  const registryWarpDeployConfigMap =
     await getWarpConfigMapFromMergedRegistry(registries);
 
   console.log(chalk.yellow('Skipping the following warp routes:'));
@@ -70,13 +73,13 @@ async function main() {
   };
 
   const envConfig = getEnvironmentConfig(environment);
-  const warpRouteIds = Object.keys(warpDeployConfigMap);
+  const warpRouteIds = Object.keys(registryWarpDeployConfigMap);
 
   const routesWithUnsupportedChains: string[] = [];
 
   const filterResults = await Promise.all(
     warpRouteIds.map(async (warpRouteId) => {
-      const warpRouteConfig = warpDeployConfigMap[warpRouteId];
+      const warpRouteConfig = registryWarpDeployConfigMap[warpRouteId];
       const isTestnet = await isTestnetRoute(warpRouteConfig);
       const shouldCheck =
         (environment === 'mainnet3' && !isTestnet) ||
@@ -118,7 +121,7 @@ async function main() {
 
   const warpConfigChains = new Set<ChainName>();
   warpIdsToCheck.forEach((warpRouteId) => {
-    const warpRouteConfig = warpDeployConfigMap[warpRouteId];
+    const warpRouteConfig = registryWarpDeployConfigMap[warpRouteId];
     Object.keys(warpRouteConfig).forEach((chain) =>
       warpConfigChains.add(chain),
     );
@@ -137,6 +140,14 @@ async function main() {
     undefined,
     undefined,
     Array.from(warpConfigChains),
+  );
+
+  const warpDeployConfigMap = await getWarpConfigMap(
+    multiProvider,
+    envConfig,
+    registries,
+    false,
+    warpIdsToCheck,
   );
 
   // TODO: consider retrying this if check throws an error

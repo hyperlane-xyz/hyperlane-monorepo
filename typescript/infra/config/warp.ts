@@ -332,6 +332,67 @@ export async function getWarpConfig(
   registryUris = [DEFAULT_REGISTRY_URI],
   forceRegistryConfig = false,
 ): Promise<ChainMap<HypTokenRouterConfig>> {
+  const { abacusWorksEnvOwnerConfig, routerConfigWithoutOwner } =
+    await getWarpConfigGetterInputs(multiProvider, envConfig);
+  return getWarpConfigWithGetterInputs(
+    warpRouteId,
+    routerConfigWithoutOwner,
+    abacusWorksEnvOwnerConfig,
+    registryUris,
+    forceRegistryConfig,
+  );
+}
+
+export async function getWarpConfigMap(
+  multiProvider: MultiProvider,
+  envConfig: EnvironmentConfig,
+  registryUris = [DEFAULT_REGISTRY_URI],
+  forceRegistryConfig = false,
+  warpRouteIds?: string[],
+): Promise<Record<string, ChainMap<HypTokenRouterConfig>>> {
+  const registryWarpConfigMap =
+    await getWarpConfigMapFromMergedRegistry(registryUris);
+  const selectedRegistryWarpConfigMap = warpRouteIds
+    ? objMap(
+        Object.fromEntries(
+          warpRouteIds.map((warpRouteId) => [
+            warpRouteId,
+            registryWarpConfigMap[warpRouteId],
+          ]),
+        ),
+        (_warpRouteId, warpRouteConfig) => {
+          assert(warpRouteConfig, 'Warp route config not found');
+          return warpRouteConfig;
+        },
+      )
+    : registryWarpConfigMap;
+  if (forceRegistryConfig) {
+    return selectedRegistryWarpConfigMap;
+  }
+
+  const { abacusWorksEnvOwnerConfig, routerConfigWithoutOwner } =
+    await getWarpConfigGetterInputs(multiProvider, envConfig);
+
+  return promiseObjAll(
+    objMap(
+      selectedRegistryWarpConfigMap,
+      async (warpRouteId, registryWarpConfig) => {
+        const getterWarpConfig = await getWarpConfigWithGetterInputs(
+          warpRouteId,
+          routerConfigWithoutOwner,
+          abacusWorksEnvOwnerConfig,
+          registryUris,
+        );
+        return getterWarpConfig ?? registryWarpConfig;
+      },
+    ),
+  );
+}
+
+async function getWarpConfigGetterInputs(
+  multiProvider: MultiProvider,
+  envConfig: EnvironmentConfig,
+) {
   const routerConfig = await getRouterConfigsForAllVms(
     envConfig,
     multiProvider,
@@ -354,6 +415,19 @@ export async function getWarpConfig(
     };
   });
 
+  return {
+    abacusWorksEnvOwnerConfig,
+    routerConfigWithoutOwner,
+  };
+}
+
+async function getWarpConfigWithGetterInputs(
+  warpRouteId: string,
+  routerConfigWithoutOwner: ChainMap<RouterConfigWithoutOwner>,
+  abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
+  registryUris = [DEFAULT_REGISTRY_URI],
+  forceRegistryConfig = false,
+): Promise<ChainMap<HypTokenRouterConfig>> {
   const warpConfigGetter = warpConfigGetterMap[warpRouteId];
   if (warpConfigGetter && !forceRegistryConfig) {
     return warpConfigGetter(
