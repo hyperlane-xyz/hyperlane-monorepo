@@ -10,6 +10,7 @@ import {
   convertDecimalsToIntegerString,
   convertToProtocolAddress,
   convertToScaledAmount,
+  eqAddress,
   isEVMLike,
   isValidAddress,
   isZeroishAddress,
@@ -1344,6 +1345,12 @@ export class WarpCore {
       return { destinationToken: resolvedDestinationToken.error };
     }
 
+    const recipientContractError = this.validateRecipientNotRouter(
+      recipient,
+      resolvedDestinationToken,
+    );
+    if (recipientContractError) return recipientContractError;
+
     const amountError = await this.validateAmount(
       originTokenAmount,
       destination,
@@ -1436,6 +1443,30 @@ export class WarpCore {
         this.logger.error(`Recipient prefix should be ${bech32Prefix}`);
         return { recipient: 'Invalid recipient prefix' };
       }
+    }
+    return null;
+  }
+
+  /**
+   * Ensure recipient is not the destination router or collateral token contract.
+   * Sending to those addresses results in permanent fund loss.
+   */
+  protected validateRecipientNotRouter(
+    recipient: Address,
+    destinationToken: IToken,
+  ): Record<string, string> | null {
+    const routerAddress = destinationToken.addressOrDenom;
+    const collateralAddress = destinationToken.collateralAddressOrDenom;
+    if (routerAddress && eqAddress(recipient, routerAddress)) {
+      return {
+        recipient: 'Recipient is the router contract; funds would be lost',
+      };
+    }
+    if (collateralAddress && eqAddress(recipient, collateralAddress)) {
+      return {
+        recipient:
+          'Recipient is the collateral token contract; funds would be lost',
+      };
     }
     return null;
   }
