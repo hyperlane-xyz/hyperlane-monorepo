@@ -18,23 +18,21 @@ import {
 import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
 import type { TokenStandard } from '../TokenStandard.js';
 
-interface EvmLikeHypAdapterStandards {
-  native: TokenStandard;
-  hypNative: TokenStandard;
-  hypCollateral: readonly TokenStandard[];
-  hypCrossCollateralRouter: TokenStandard;
-  hypRebaseCollateral: TokenStandard;
-  hypCollateralFiat: TokenStandard;
-  hypSynthetic: TokenStandard;
-  hypSyntheticRebase: TokenStandard;
-  hypXerc20: readonly TokenStandard[];
-  hypXerc20Lockbox: readonly TokenStandard[];
-}
-
 export function createEvmLikeHypAdapter(
   multiProvider: MultiProviderAdapter<{ mailbox?: string }>,
   token: HypTokenAdapterInput,
-  standards: EvmLikeHypAdapterStandards,
+  standards: {
+    native: TokenStandard;
+    hypNative: TokenStandard;
+    hypCollateral: readonly TokenStandard[];
+    hypCrossCollateralRouter: TokenStandard;
+    hypRebaseCollateral: TokenStandard;
+    hypCollateralFiat: TokenStandard;
+    hypSynthetic: TokenStandard;
+    hypSyntheticRebase: TokenStandard;
+    hypXerc20: readonly TokenStandard[];
+    hypXerc20Lockbox: readonly TokenStandard[];
+  },
 ): IHypTokenAdapter<unknown> | undefined {
   const { standard, chainName, addressOrDenom } = token;
 
