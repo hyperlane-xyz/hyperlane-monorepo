@@ -6,6 +6,7 @@ import hre from 'hardhat';
 import {
   ERC20Test,
   ERC20Test__factory,
+  GasRouter__factory,
   LinearFee__factory,
   ProxyAdmin,
   ProxyAdmin__factory,
@@ -17,6 +18,7 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   Address,
+  ProtocolType,
   deepCopy,
   eqAddress,
   isZeroishAddress,
@@ -275,6 +277,78 @@ describe('TokenDeployer', async () => {
           multiProvider,
           warpCoreConfig: getWarpCoreConfig(),
           warpDeployConfig: config,
+        });
+
+        expect(result.isValid).to.equal(true);
+        expect(result.violations).to.deep.equal([]);
+      });
+
+      it('should ignore non-EVM route members when expanding EVM configs', async () => {
+        const cosmosChain = 'testcosmos';
+        if (!multiProvider.tryGetChainMetadata(cosmosChain)) {
+          multiProvider.addChain({
+            chainId: 'testcosmos-1',
+            domainId: 919191,
+            name: cosmosChain,
+            protocol: ProtocolType.Cosmos,
+            rpcUrls: [{ http: 'https://cosmos.example.com' }],
+            bech32Prefix: 'cosmos',
+            slip44: 118,
+            restUrls: [],
+            grpcUrls: [],
+          });
+        }
+
+        const mixedWarpDeployConfig = deepCopy(config);
+        mixedWarpDeployConfig[cosmosChain] = {
+          type: TokenType.synthetic,
+          mailbox:
+            '0x0000000000000000000000000000000000000000000000000000000000000001',
+          owner: signer.address,
+          gas: 12345,
+          name: 'Test Cosmos',
+          symbol: 'TCOSM',
+          decimals: 18,
+        };
+
+        const cosmosRouterAddress =
+          '0x0000000000000000000000000000000000000000000000000000000000000002';
+        const cosmosGas = 12345;
+
+        const mixedWarpCoreConfig = {
+          tokens: [
+            ...getWarpCoreConfig().tokens,
+            {
+              addressOrDenom: cosmosRouterAddress,
+              chainName: cosmosChain,
+            },
+          ],
+        } as WarpCoreConfig;
+        const cosmosDomain = multiProvider.getDomainId(cosmosChain);
+        for (const currentChain of Object.keys(config)) {
+          const tokenRouter = TokenRouter__factory.connect(
+            getRouterAddress(currentChain),
+            signer,
+          );
+          await tokenRouter.enrollRemoteRouter(
+            cosmosDomain,
+            cosmosRouterAddress,
+          );
+
+          const gasRouter = GasRouter__factory.connect(
+            getRouterAddress(currentChain),
+            signer,
+          );
+          await gasRouter['setDestinationGas(uint32,uint256)'](
+            cosmosDomain,
+            cosmosGas,
+          );
+        }
+
+        const result = await checkWarpRouteDeployConfig({
+          multiProvider,
+          warpCoreConfig: mixedWarpCoreConfig,
+          warpDeployConfig: mixedWarpDeployConfig,
         });
 
         expect(result.isValid).to.equal(true);

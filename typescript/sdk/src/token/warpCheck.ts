@@ -119,12 +119,6 @@ export async function checkWarpRouteDeployConfig({
     ),
   };
 
-  const evmWarpDeployConfig = objFilter(
-    warpDeployConfig,
-    (chain, _config): _config is WarpRouteDeployConfigMailboxRequired[string] =>
-      isEVMLike(multiProvider.getProtocol(chain)),
-  );
-
   const deployedRoutersAddresses =
     getRouterAddressesFromWarpCoreConfig(warpCoreConfig);
   const onChainWarpConfig = await getWarpRouteConfigsByCore({
@@ -140,25 +134,30 @@ export async function checkWarpRouteDeployConfig({
 
   const expandedWarpDeployConfig = await expandWarpDeployConfig({
     multiProvider,
-    warpDeployConfig: evmWarpDeployConfig,
+    warpDeployConfig,
     deployedRoutersAddresses,
     expandedOnChainWarpConfig,
   });
+  const evmExpandedWarpDeployConfig = objFilter(
+    expandedWarpDeployConfig,
+    (chain, _config): _config is (typeof expandedWarpDeployConfig)[string] =>
+      isEVMLike(multiProvider.getProtocol(chain)),
+  );
 
   const rawDiff = buildWarpRouteDiff({
     onChainWarpConfig: expandedOnChainWarpConfig,
-    warpRouteConfig: expandedWarpDeployConfig,
+    warpRouteConfig: evmExpandedWarpDeployConfig,
   });
 
   await addOwnerOverrideDiffs({
     multiProvider,
     diff: rawDiff,
-    warpRouteConfig: expandedWarpDeployConfig,
+    warpRouteConfig: evmExpandedWarpDeployConfig,
   });
 
   const diff = keepOnlyDiffObjects(rawDiff) as Record<string, ObjectDiff>;
   const diffViolations = flattenWarpRouteCheckDiff(diff);
-  const scaleViolations = getScaleViolations(expandedWarpDeployConfig);
+  const scaleViolations = getScaleViolations(evmExpandedWarpDeployConfig);
 
   return {
     diff,
