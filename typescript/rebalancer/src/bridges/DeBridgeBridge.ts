@@ -1,3 +1,5 @@
+import { Connection, Keypair, VersionedTransaction } from '@solana/web3.js';
+import bs58 from 'bs58';
 import { ethers } from 'ethers';
 import { TronWeb } from 'tronweb';
 
@@ -13,12 +15,14 @@ import type {
   BridgeTransferStatus,
   IExternalBridge,
 } from '../interfaces/IExternalBridge.js';
+import { parseSolanaPrivateKey } from '../utils/solanaKeyParser.js';
 import {
   DEBRIDGE_API_BASE,
   DEBRIDGE_STATUS_API,
   DEBRIDGE_TOOL,
   formatAddressForDebridge,
   hyperlaneChainIdToDebridge,
+  isDebridgeSolanaChain,
   isDebridgeTronChain,
   type DeBridgeCreateTxResponse,
   type DeBridgeOrderStatusResponse,
@@ -53,7 +57,8 @@ export class DeBridgeBridge implements IExternalBridge {
       for (const metadata of Object.values(config.chainMetadata)) {
         if (
           metadata.chainId !== undefined &&
-          metadata.protocol === ProtocolType.Ethereum
+          (metadata.protocol === ProtocolType.Ethereum ||
+            metadata.protocol === ProtocolType.Sealevel)
         ) {
           this.chainMetadataByChainId.set(Number(metadata.chainId), metadata);
         }
@@ -155,10 +160,14 @@ export class DeBridgeBridge implements IExternalBridge {
     const dstDebridgeChainId = hyperlaneChainIdToDebridge(params.toChain);
     const isTronSource = isDebridgeTronChain(srcDebridgeChainId);
     const isTronDest = isDebridgeTronChain(dstDebridgeChainId);
+    const isSolanaSource = isDebridgeSolanaChain(srcDebridgeChainId);
+    const isSolanaDest = isDebridgeSolanaChain(dstDebridgeChainId);
 
     const sourceProtocol = isTronSource
       ? ('tron' as ProtocolType)
-      : ProtocolType.Ethereum;
+      : isSolanaSource
+        ? ProtocolType.Sealevel
+        : ProtocolType.Ethereum;
 
     let senderAddress: string;
     switch (sourceProtocol) {
@@ -173,6 +182,14 @@ export class DeBridgeBridge implements IExternalBridge {
         const derived = tw.address.fromPrivateKey(strippedKey);
         assert(derived, 'Failed to derive Tron address from private key');
         senderAddress = derived as string;
+        break;
+      }
+      case ProtocolType.Sealevel: {
+        const solKey = privateKeys[ProtocolType.Sealevel];
+        assert(solKey, 'Missing private key for Solana chain');
+        const secretKey = parseSolanaPrivateKey(solKey);
+        const keypair = Keypair.fromSecretKey(secretKey);
+        senderAddress = bs58.encode(keypair.publicKey.toBytes());
         break;
       }
       case ProtocolType.Ethereum: {
@@ -192,6 +209,12 @@ export class DeBridgeBridge implements IExternalBridge {
       assert(
         params.toAddress,
         'toAddress is required when bridging to Tron from a non-Tron chain',
+      );
+      recipientAddress = params.toAddress;
+    } else if (isSolanaDest && !isSolanaSource) {
+      assert(
+        params.toAddress,
+        'toAddress is required when bridging to Solana from a non-Solana chain',
       );
       recipientAddress = params.toAddress;
     } else {
@@ -250,11 +273,22 @@ export class DeBridgeBridge implements IExternalBridge {
       `deBridge create-tx failed: ${createTxData.errorMessage ?? 'no tx returned'}`,
     );
 
-    const { to, data: txData, value: txValue } = createTxData.tx;
+    const { data: txData } = createTxData.tx;
     const orderId = createTxData.orderId;
 
     switch (sourceProtocol) {
-      case 'tron' as ProtocolType:
+      case ProtocolType.Sealevel:
+        return this.executeSolana(
+          privateKeys,
+          txData,
+          orderId,
+          params.fromChain,
+          params.toChain,
+        );
+      case 'tron' as ProtocolType: {
+        const { to, value: txValue } = createTxData.tx;
+        assert(to, 'deBridge create-tx missing `to` for Tron source');
+        assert(txValue, 'deBridge create-tx missing `value` for Tron source');
         return this.executeTron(
           privateKeys,
           to,
@@ -264,7 +298,11 @@ export class DeBridgeBridge implements IExternalBridge {
           params.fromChain,
           params.toChain,
         );
-      case ProtocolType.Ethereum:
+      }
+      case ProtocolType.Ethereum: {
+        const { to, value: txValue } = createTxData.tx;
+        assert(to, 'deBridge create-tx missing `to` for EVM source');
+        assert(txValue, 'deBridge create-tx missing `value` for EVM source');
         return this.executeEvm(
           privateKeys,
           to,
@@ -276,6 +314,7 @@ export class DeBridgeBridge implements IExternalBridge {
           params.fromToken,
           quote.fromAmount,
         );
+      }
       default:
         throw new Error(`Unsupported source protocol: ${sourceProtocol}`);
     }
@@ -504,6 +543,61 @@ export class DeBridgeBridge implements IExternalBridge {
 
     return {
       txHash: txId,
+      fromChain,
+      toChain,
+      transferId: orderId,
+    };
+  }
+
+  private async executeSolana(
+    privateKeys: Partial<Record<ProtocolType, string>>,
+    txData: string,
+    orderId: string | undefined,
+    fromChain: number,
+    toChain: number,
+  ): Promise<BridgeTransferResult> {
+    const solKey = privateKeys[ProtocolType.Sealevel];
+    assert(solKey, 'Missing private key for Solana chain');
+
+    const secretKey = parseSolanaPrivateKey(solKey);
+    const keypair = Keypair.fromSecretKey(secretKey);
+
+    const rpcUrl = this.getRpcUrl(fromChain);
+    const connection = new Connection(rpcUrl);
+
+    // deBridge returns hex-encoded serialized VersionedTransaction for Solana
+    const txBytes = Buffer.from(txData.replace(/^0x/, ''), 'hex');
+    const tx = VersionedTransaction.deserialize(txBytes);
+
+    // Update blockhash to latest before signing
+    const { blockhash, lastValidBlockHeight } =
+      await connection.getLatestBlockhash();
+    tx.message.recentBlockhash = blockhash;
+
+    tx.sign([keypair]);
+
+    this.logger.info(
+      { sender: bs58.encode(keypair.publicKey.toBytes()), fromChain, orderId },
+      'Sending deBridge Solana transaction',
+    );
+
+    const signature = await connection.sendTransaction(tx);
+    await connection.confirmTransaction(
+      { signature, blockhash, lastValidBlockHeight },
+      'confirmed',
+    );
+
+    this.logger.info(
+      { txHash: signature, orderId },
+      'deBridge Solana transaction confirmed',
+    );
+
+    if (orderId) {
+      this.txHashToOrderId.set(signature, orderId);
+    }
+
+    return {
+      txHash: signature,
       fromChain,
       toChain,
       transferId: orderId,

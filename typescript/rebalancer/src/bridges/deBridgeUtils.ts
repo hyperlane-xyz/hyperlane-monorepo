@@ -18,9 +18,11 @@ export const HYPERLANE_TO_DEBRIDGE_CHAIN_ID: Record<number, number> = {
   42161: 42161, // Arbitrum
   9745: 100000028, // Plasma
   728126428: 100000026, // Tron
+  1399811149: 7565164, // Solana
 };
 
 export const DEBRIDGE_TRON_CHAIN_ID = 100000026;
+export const DEBRIDGE_SOLANA_CHAIN_ID = 7565164;
 
 // ============================================================================
 // Helper Functions
@@ -51,8 +53,18 @@ export function isDebridgeTronChain(debridgeChainId: number): boolean {
 }
 
 /**
+ * Check if a deBridge chain ID corresponds to Solana
+ * @param debridgeChainId deBridge chain ID
+ * @returns true if the chain is Solana
+ */
+export function isDebridgeSolanaChain(debridgeChainId: number): boolean {
+  return debridgeChainId === DEBRIDGE_SOLANA_CHAIN_ID;
+}
+
+/**
  * Format an address for deBridge API calls.
  * For Tron: converts hex addresses to base58check format.
+ * For Solana: returns base58 address as-is.
  * For EVM chains: returns address as-is.
  */
 export function formatAddressForDebridge(
@@ -70,6 +82,7 @@ export function formatAddressForDebridge(
       return bytesToAddressTron(Buffer.from(hex, 'hex'));
     }
   }
+  // Solana addresses are base58, pass through unchanged
   return address;
 }
 
@@ -105,9 +118,12 @@ export interface DeBridgeQuoteResponse {
 /** @see https://dln.debridge.finance/v1.0/dln/order/create-tx */
 export interface DeBridgeCreateTxResponse extends DeBridgeQuoteResponse {
   tx?: {
-    to: string;
+    /** EVM: contract address. Absent for Solana source. */
+    to?: string;
+    /** EVM: ABI calldata. Solana: hex-encoded serialized VersionedTransaction. */
     data: string;
-    value: string;
+    /** EVM: native currency value. Absent for Solana source. */
+    value?: string;
   };
 }
 
