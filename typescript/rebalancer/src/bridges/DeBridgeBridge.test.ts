@@ -10,7 +10,9 @@ import {
   hyperlaneChainIdToDebridge,
   formatAddressForDebridge,
   isDebridgeTronChain,
+  isDebridgeSolanaChain,
   DEBRIDGE_TRON_CHAIN_ID,
+  DEBRIDGE_SOLANA_CHAIN_ID,
   type DeBridgeQuoteResponse,
   type DeBridgeOrderStatusResponse,
 } from './deBridgeUtils.js';
@@ -54,6 +56,13 @@ const BRIDGE_CONFIG: ExternalBridgeConfig = {
       domainId: 728126428,
       protocol: 'tron' as ProtocolType,
       rpcUrls: [{ http: 'https://api.trongrid.io' }],
+    },
+    solana: {
+      chainId: 1399811149,
+      name: 'solanamainnet',
+      domainId: 1399811149,
+      protocol: ProtocolType.Sealevel,
+      rpcUrls: [{ http: 'https://api.mainnet-beta.solana.com' }],
     },
   },
 };
@@ -136,6 +145,10 @@ describe('hyperlaneChainIdToDebridge()', function () {
     expect(hyperlaneChainIdToDebridge(728126428)).to.equal(100000026);
   });
 
+  it('maps Solana (1399811149 → 7565164)', () => {
+    expect(hyperlaneChainIdToDebridge(1399811149)).to.equal(7565164);
+  });
+
   it('throws for unsupported chain (99999)', () => {
     let threw = false;
     try {
@@ -162,6 +175,22 @@ describe('isDebridgeTronChain()', function () {
     expect(isDebridgeTronChain(1)).to.equal(false);
     expect(isDebridgeTronChain(56)).to.equal(false);
     expect(isDebridgeTronChain(42161)).to.equal(false);
+  });
+});
+
+// ============================================================================
+// deBridgeUtils — isDebridgeSolanaChain
+// ============================================================================
+
+describe('isDebridgeSolanaChain()', function () {
+  it('returns true for DEBRIDGE_SOLANA_CHAIN_ID', () => {
+    expect(isDebridgeSolanaChain(DEBRIDGE_SOLANA_CHAIN_ID)).to.equal(true);
+  });
+
+  it('returns false for EVM and Tron chain IDs', () => {
+    expect(isDebridgeSolanaChain(1)).to.equal(false);
+    expect(isDebridgeSolanaChain(56)).to.equal(false);
+    expect(isDebridgeSolanaChain(DEBRIDGE_TRON_CHAIN_ID)).to.equal(false);
   });
 });
 
@@ -205,6 +234,20 @@ describe('formatAddressForDebridge()', function () {
     expect(
       formatAddressForDebridge(weirdAddr, DEBRIDGE_TRON_CHAIN_ID),
     ).to.equal(weirdAddr);
+  });
+
+  it('returns Solana base58 address unchanged for Solana chain', () => {
+    const solanaAddr = '7EcDhSYGxXyscszYEp35KHN8vvw3svAuLKTzXwCFLtV';
+    expect(
+      formatAddressForDebridge(solanaAddr, DEBRIDGE_SOLANA_CHAIN_ID),
+    ).to.equal(solanaAddr);
+  });
+
+  it('returns Solana token mint address unchanged for Solana chain', () => {
+    const usdtMint = 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB';
+    expect(
+      formatAddressForDebridge(usdtMint, DEBRIDGE_SOLANA_CHAIN_ID),
+    ).to.equal(usdtMint);
   });
 });
 
@@ -365,6 +408,54 @@ describe('DeBridgeBridge.quote()', function () {
     expect(calledUrl).to.include('srcChainId=100000028');
     expect(calledUrl).to.include('dstChainId=100000026');
     expect(calledUrl).to.include('prependOperatingExpenses=false');
+  });
+
+  it('constructs correct API URL for BSC → Solana', async () => {
+    const mockData = createMockQuoteResponse();
+    let calledUrl = '';
+    sinon.stub(globalThis, 'fetch').callsFake(async (input) => {
+      calledUrl = String(input);
+      return makeResponse(mockData);
+    });
+
+    await bridge.quote({
+      fromChain: 56, // BSC → 56
+      toChain: 1399811149, // Solana → 7565164
+      fromToken: '0x55d398326f99059fF775485246999027B3197955',
+      toToken: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
+      fromAddress: '0x1234567890123456789012345678901234567890',
+      fromAmount: 10000000000000000000n,
+    });
+
+    expect(calledUrl).to.include('srcChainId=56');
+    expect(calledUrl).to.include('dstChainId=7565164');
+    expect(calledUrl).to.include(
+      'dstChainTokenOut=Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
+    );
+  });
+
+  it('constructs correct API URL for Solana → BSC', async () => {
+    const mockData = createMockQuoteResponse();
+    let calledUrl = '';
+    sinon.stub(globalThis, 'fetch').callsFake(async (input) => {
+      calledUrl = String(input);
+      return makeResponse(mockData);
+    });
+
+    await bridge.quote({
+      fromChain: 1399811149, // Solana → 7565164
+      toChain: 56, // BSC → 56
+      fromToken: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
+      toToken: '0x55d398326f99059fF775485246999027B3197955',
+      fromAddress: '7EcDhSYGxXyscszYEp35KHN8vvw3svAuLKTzXwCFLtV',
+      fromAmount: 10000000n,
+    });
+
+    expect(calledUrl).to.include('srcChainId=7565164');
+    expect(calledUrl).to.include('dstChainId=56');
+    expect(calledUrl).to.include(
+      'srcChainTokenIn=Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
+    );
   });
 
   it('formats Tron token addresses in API URL', async () => {
