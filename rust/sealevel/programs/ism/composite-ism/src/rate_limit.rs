@@ -19,8 +19,8 @@ pub fn calculate_current_level(
     if elapsed >= DURATION_SECS {
         return max_capacity;
     }
-    let refill = (elapsed as u128 * max_capacity as u128 / DURATION_SECS as u128) as u64;
-    (filled_level + refill).min(max_capacity)
+    let refill = elapsed as u128 * max_capacity as u128 / DURATION_SECS as u128;
+    ((filled_level as u128 + refill).min(max_capacity as u128)) as u64
 }
 
 #[cfg(test)]
@@ -72,6 +72,14 @@ mod tests {
         let max = u64::MAX / 2;
         let result = calculate_current_level(0, 0, DURATION_SECS / 2, max);
         assert_eq!(result, max / 2);
+    }
+
+    #[test]
+    fn test_large_values_saturates_not_wraps() {
+        // filled_level = max_capacity, partial refill: sum would exceed u64::MAX without u128.
+        let max = u64::MAX;
+        let result = calculate_current_level(max, 0, 1, max);
+        assert_eq!(result, max);
     }
 
     #[test]

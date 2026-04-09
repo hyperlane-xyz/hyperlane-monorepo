@@ -106,7 +106,7 @@ The config file is a JSON file representing the root `IsmNode`. The `"type"` fie
 {
   "type": "aggregation",
   "threshold": 2,
-  "sub_isms": [
+  "subIsms": [
     { "type": "trustedRelayer", "relayer": "<Pubkey>" },
     { "type": "test", "accept": true },
     { "type": "multisigMessageId", "domainConfigs": [...] }
@@ -144,7 +144,7 @@ The config file is a JSON file representing the root `IsmNode`. The `"type"` fie
 {
   "type": "aggregation",
   "threshold": 1,
-  "sub_isms": [
+  "subIsms": [
     {
       "type": "routing",
       "routes": [

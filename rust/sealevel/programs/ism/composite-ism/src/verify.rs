@@ -66,6 +66,10 @@ where
             .eth_signed_message_hash();
             let signed_digest_bytes = signed_digest.as_bytes();
 
+            if meta.validator_signatures.len() < *threshold as usize {
+                return Err(Error::ThresholdNotMet.into());
+            }
+
             let validator_count = validators.len();
             let mut validator_index = 0;
             for i in 0..*threshold {
@@ -89,8 +93,8 @@ where
         } => {
             let ranges = parse_aggregation_ranges(metadata, sub_isms.len())?;
 
-            let provided = ranges.iter().filter(|r| r.has_metadata()).count() as u8;
-            if provided < *threshold {
+            let provided = ranges.iter().filter(|r| r.has_metadata()).count();
+            if provided < *threshold as usize {
                 return Err(Error::ThresholdNotMet.into());
             }
 

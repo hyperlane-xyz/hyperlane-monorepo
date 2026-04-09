@@ -326,7 +326,7 @@ fn set_domain_ism(
 /// Closes a domain PDA, returning rent to the owner.
 ///
 /// Accounts:
-/// 0. `[signer]`   The owner.
+/// 0. `[signer, writable]` The owner (receives the domain PDA's rent).
 /// 1. `[]`         The VAM storage PDA (ownership check).
 /// 2. `[writable]` The domain PDA.
 fn remove_domain_ism(program_id: &Pubkey, accounts: &[AccountInfo], domain: u32) -> ProgramResult {
