@@ -58,6 +58,8 @@ spec:
             name: {{ include "agent-common.fullname" . }}-scraper3-secret
         env:
         {{- include "agent-common.config-env-vars" (dict "config" .Values.hyperlane.scraper.config) | nindent 8 }}
+        - name: HYP_CHAINS_ETHEREUM_BLOCKS_REORGPERIOD
+          value: "1"
         resources:
           {{- toYaml .Values.hyperlane.scraper.resources | nindent 10 }}
         ports:
