@@ -211,8 +211,9 @@ impl SealevelProviderForLander for SealevelProvider {
                 VersionedTransaction::try_new(VersionedMessage::V0(message), &all_signers)
                     .map_err(ChainCommunicationError::from_other)?
             } else {
+                let num_required_signatures = message.header.num_required_signatures as usize;
                 VersionedTransaction {
-                    signatures: vec![Signature::default()],
+                    signatures: vec![Signature::default(); num_required_signatures],
                     message: VersionedMessage::V0(message),
                 }
             };

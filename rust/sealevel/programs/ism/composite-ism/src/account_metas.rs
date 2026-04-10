@@ -78,10 +78,13 @@ pub fn required_accounts_for_node(
                     cursor,
                 );
                 for account in sub_accounts {
-                    if !accounts
-                        .iter()
-                        .any(|a: &SerializableAccountMeta| a.pubkey == account.pubkey)
+                    if let Some(existing) = accounts
+                        .iter_mut()
+                        .find(|a: &&mut SerializableAccountMeta| a.pubkey == account.pubkey)
                     {
+                        existing.is_signer = existing.is_signer || account.is_signer;
+                        existing.is_writable = existing.is_writable || account.is_writable;
+                    } else {
                         accounts.push(account);
                     }
                 }

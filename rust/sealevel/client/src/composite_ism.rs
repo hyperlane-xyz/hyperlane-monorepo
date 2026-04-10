@@ -106,41 +106,49 @@ impl From<IsmNodeConfig> for IsmNode {
     }
 }
 
-impl From<IsmNode> for IsmNodeConfig {
-    fn from(val: IsmNode) -> Self {
+impl TryFrom<IsmNode> for IsmNodeConfig {
+    type Error = String;
+
+    fn try_from(val: IsmNode) -> Result<Self, Self::Error> {
         match val {
-            IsmNode::TrustedRelayer { relayer } => IsmNodeConfig::TrustedRelayer { relayer },
+            IsmNode::TrustedRelayer { relayer } => Ok(IsmNodeConfig::TrustedRelayer { relayer }),
             IsmNode::MultisigMessageId {
                 validators,
                 threshold,
-            } => IsmNodeConfig::MultisigMessageId {
+            } => Ok(IsmNodeConfig::MultisigMessageId {
                 validators,
                 threshold,
-            },
+            }),
             IsmNode::Aggregation {
                 threshold,
                 sub_isms,
-            } => IsmNodeConfig::Aggregation {
-                threshold,
-                sub_isms: sub_isms.into_iter().map(Into::into).collect(),
-            },
-            IsmNode::Routing { default_ism } => IsmNodeConfig::Routing {
-                default_ism: default_ism.map(|n| Box::new(IsmNodeConfig::from(*n))),
+            } => {
+                let sub_isms: Result<Vec<_>, _> =
+                    sub_isms.into_iter().map(IsmNodeConfig::try_from).collect();
+                Ok(IsmNodeConfig::Aggregation {
+                    threshold,
+                    sub_isms: sub_isms?,
+                })
+            }
+            IsmNode::Routing { default_ism } => Ok(IsmNodeConfig::Routing {
+                default_ism: default_ism
+                    .map(|n| IsmNodeConfig::try_from(*n).map(Box::new))
+                    .transpose()?,
                 domains: BTreeMap::new(), // on-chain node has no domain map; domain PDAs are separate
-            },
-            IsmNode::Test { accept } => IsmNodeConfig::Test { accept },
-            IsmNode::Pausable { paused } => IsmNodeConfig::Pausable { paused },
+            }),
+            IsmNode::Test { accept } => Ok(IsmNodeConfig::Test { accept }),
+            IsmNode::Pausable { paused } => Ok(IsmNodeConfig::Pausable { paused }),
             IsmNode::AmountRouting {
                 threshold,
                 lower,
                 upper,
-            } => IsmNodeConfig::AmountRouting {
+            } => Ok(IsmNodeConfig::AmountRouting {
                 threshold,
-                lower: Box::new(IsmNodeConfig::from(*lower)),
-                upper: Box::new(IsmNodeConfig::from(*upper)),
-            },
+                lower: Box::new(IsmNodeConfig::try_from(*lower)?),
+                upper: Box::new(IsmNodeConfig::try_from(*upper)?),
+            }),
             IsmNode::RateLimited { .. } => {
-                panic!("RateLimited ISM nodes have no JSON config representation")
+                Err("RateLimited ISM nodes have no JSON config representation".to_string())
             }
         }
     }
@@ -362,7 +370,8 @@ fn read_composite_ism(ctx: &Context, program_id: Pubkey) {
 
     match storage.root {
         Some(root) => {
-            let mut config: IsmNodeConfig = root.into();
+            let mut config: IsmNodeConfig =
+                IsmNodeConfig::try_from(root).expect("Failed to convert root ISM node to config");
 
             // Enumerate all domain PDAs by fetching every account owned by the
             // program.  Each DomainIsmStorage stores its own domain ID inline,
@@ -381,7 +390,14 @@ fn read_composite_ism(ctx: &Context, program_id: Pubkey) {
                 if let Ok(domain_storage) = DomainIsmAccount::fetch(&mut &acct.data[..]) {
                     let s = domain_storage.into_inner();
                     if let Some(ism) = s.ism {
-                        domain_map.insert(s.domain.to_string(), IsmNodeConfig::from(ism));
+                        match IsmNodeConfig::try_from(ism) {
+                            Ok(cfg) => {
+                                domain_map.insert(s.domain.to_string(), cfg);
+                            }
+                            Err(e) => {
+                                eprintln!("Skipping domain {} ISM: {}", s.domain, e);
+                            }
+                        }
                     }
                 }
             }

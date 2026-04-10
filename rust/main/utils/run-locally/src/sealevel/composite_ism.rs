@@ -51,11 +51,12 @@ const SEALEVEL_VALIDATOR_KEY: &str =
 type DynPath = Box<dyn AsRef<Path>>;
 
 fn run_locally_composite_ism() {
-    ctrlc::set_handler(|| {
+    if let Err(e) = ctrlc::set_handler(|| {
         log!("Terminating...");
         SHUTDOWN.store(true, Ordering::Relaxed);
-    })
-    .unwrap();
+    }) {
+        log!("Failed to set ctrlc handler (may already be set): {:?}", e);
+    }
 
     let config = Config::load();
     log!("Running composite ISM e2e with config: {:?}", config);
