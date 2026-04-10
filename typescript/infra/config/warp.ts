@@ -7,6 +7,7 @@ import {
   MultiProvider,
   OwnableConfig,
   WarpRouteDeployConfig,
+  WarpRouteDeployConfigMailboxRequired,
 } from '@hyperlane-xyz/sdk';
 import { assert, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
@@ -263,7 +264,7 @@ export const sandboxStrategyConfigGetterMap: Record<
 export async function getWarpDeployConfigFromMergedRegistry(
   warpRouteId: string,
   registryUris: string[],
-): Promise<ChainMap<HypTokenRouterConfig>> {
+): Promise<WarpRouteDeployConfigMailboxRequired> {
   const registry = getRegistry({
     registryUris,
     enableProxy: true,
@@ -281,7 +282,7 @@ export async function getWarpDeployConfigFromMergedRegistry(
  */
 export async function getWarpConfigMapFromMergedRegistry(
   registryUris: string[],
-): Promise<Record<string, ChainMap<HypTokenRouterConfig>>> {
+): Promise<Record<string, WarpRouteDeployConfigMailboxRequired>> {
   const registry = getRegistry({
     registryUris,
     enableProxy: true,
@@ -309,7 +310,7 @@ export async function getWarpConfigMapFromMergedRegistry(
 async function populateWarpRouteMailboxAddresses(
   warpRoute: WarpRouteDeployConfig,
   registry: IRegistry,
-): Promise<ChainMap<HypTokenRouterConfig>> {
+): Promise<WarpRouteDeployConfigMailboxRequired> {
   const mailboxPromises = objMap(warpRoute, async (chainName, config) => {
     const mailbox =
       config.mailbox || (await registry.getChainAddresses(chainName))?.mailbox;
