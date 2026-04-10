@@ -16,6 +16,7 @@ import {
   ExplorerFamily,
   MultiProtocolProvider,
   MultiProvider,
+  UnresolvedSubmissionStrategySchema,
   type UnresolvedSubmissionStrategy,
   resolveSubmissionStrategy,
 } from '@hyperlane-xyz/sdk';
@@ -29,7 +30,10 @@ import {
 
 import { isSignCommand } from '../commands/signCommands.js';
 import { readChainSubmissionStrategyConfig } from '../config/strategy.js';
-import { CustomTxSubmitterType } from '../submitters/types.js';
+import {
+  CustomTxSubmitterType,
+  type ExtendedSubmissionStrategy,
+} from '../submitters/types.js';
 import { createSubmitterReferenceRegistry } from '../submitters/registry.js';
 import { detectAndConfirmOrPrompt } from '../utils/input.js';
 import { getSigner } from '../utils/keys.js';
@@ -91,6 +95,12 @@ function toOptionalSignerKey(value: unknown): ContextSettings['key'] {
   if (typeof value === 'string') return value;
   if (value === undefined) return undefined;
   return SignerKeyProtocolMapSchema.parse(value);
+}
+
+function parseUnresolvedSubmissionStrategy(
+  strategy: ExtendedSubmissionStrategy,
+): UnresolvedSubmissionStrategy {
+  return UnresolvedSubmissionStrategySchema.parse(strategy);
 }
 
 export async function contextMiddleware(argv: ContextMiddlewareArgv) {
@@ -186,7 +196,7 @@ export async function signerMiddleware(argv: ContextMiddlewareArgv) {
           return [
             chain,
             await resolveSubmissionStrategy(
-              strategy as UnresolvedSubmissionStrategy,
+              parseUnresolvedSubmissionStrategy(strategy),
               createSubmitterReferenceRegistry(argv.context.registry),
               chain,
             ),
@@ -445,16 +455,13 @@ export async function ensureEvmSignersForChains(
             return [chain, strategy];
           }
 
-          assert(
-            context.registry,
-            'Registry is required to resolve submitter references',
-          );
-
           return [
             chain,
             await resolveSubmissionStrategy(
-              strategy as UnresolvedSubmissionStrategy,
-              createSubmitterReferenceRegistry(context.registry),
+              parseUnresolvedSubmissionStrategy(strategy),
+              context.registry
+                ? createSubmitterReferenceRegistry(context.registry)
+                : undefined,
               chain,
             ),
           ];

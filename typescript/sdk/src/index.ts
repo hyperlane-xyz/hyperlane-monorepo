@@ -541,6 +541,7 @@ export {
   SubmitterReferenceRegistry,
   UnresolvedSubmissionStrategy,
   UnresolvedSubmissionStrategySchema,
+  getSubmitterRegistryChildren,
   parseSubmitterReferencePayload,
   resolveSubmissionStrategy,
   resolveSubmitterMetadata,

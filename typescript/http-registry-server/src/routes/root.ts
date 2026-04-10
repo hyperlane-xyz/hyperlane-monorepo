@@ -1,9 +1,21 @@
 import { Request, Response, Router } from 'express';
+import { z } from 'zod';
 
 import { WarpRouteFilterSchema } from '@hyperlane-xyz/registry';
 
-import { validateQueryParams } from '../middleware/validateRequest.js';
+import {
+  validateQueryParams,
+  validateRequestParam,
+} from '../middleware/validateRequest.js';
 import { RootService } from '../services/rootService.js';
+
+const SubmitterIdSchema = z
+  .string()
+  .min(1)
+  .refine(
+    (id) => !id.split('/').includes('..'),
+    'Submitter id must not contain parent directory segments',
+  );
 
 export function createRootRouter(rootService: RootService): Router {
   const router = Router();
@@ -48,8 +60,16 @@ export function createRootRouter(rootService: RootService): Router {
     res.json(submitter);
   };
 
-  router.get('/submitters/:id', getSubmitter);
-  router.get('/submitter/:id', getSubmitter);
+  router.get(
+    '/submitters/:id',
+    validateRequestParam('id', SubmitterIdSchema),
+    getSubmitter,
+  );
+  router.get(
+    '/submitter/:id',
+    validateRequestParam('id', SubmitterIdSchema),
+    getSubmitter,
+  );
 
   return router;
 }

@@ -36,7 +36,7 @@ import {
   type TxSubmitterBuilder,
   TxSubmitterType,
   type TypedAnnotatedTransaction,
-  type UnresolvedSubmissionStrategy,
+  UnresolvedSubmissionStrategySchema,
   type WarpCoreConfig,
   WarpCoreConfigSchema,
   type WarpRouteDeployConfig,
@@ -1230,9 +1230,11 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
 
   const resolvedStrategy =
     strategyToUse.submitter.type === CustomTxSubmitterType.FILE
-      ? (strategyToUse as SubmissionStrategy)
+      ? // CAST: FILE submitters are handled by additionalSubmitterFactories below,
+        // but the shared SDK SubmissionStrategy type only models built-in submitters.
+        (strategyToUse as SubmissionStrategy)
       : await resolveSubmissionStrategy(
-          strategyToUse as UnresolvedSubmissionStrategy,
+          UnresolvedSubmissionStrategySchema.parse(strategyToUse),
           createSubmitterReferenceRegistry(registry),
           chain,
         );

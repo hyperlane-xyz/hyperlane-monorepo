@@ -78,10 +78,15 @@ function preprocessExtendedChainSubmissionStrategy(value: unknown): unknown {
         ];
       }
 
+      if (typeof submitter.type !== 'string') {
+        return [chain, strategy];
+      }
+
+      const typedSubmitter = { ...submitter, type: submitter.type };
       const processed = preprocessChainSubmissionStrategy<{
-        submitter: SubmitterMetadata;
+        submitter: { type: string };
       }>({
-        [chain]: { submitter: submitter as SubmitterMetadata },
+        [chain]: { submitter: typedSubmitter },
       });
       return [chain, processed[chain]];
     }),
@@ -101,10 +106,12 @@ function refineExtendedChainSubmissionStrategy(
           submitter.type !== CustomTxSubmitterType.FILE
         );
       })
-      .map(([chain, strategy]) => [
-        chain,
-        { submitter: strategy.submitter as SubmitterMetadata },
-      ]),
+      .map(([chain, strategy]) => {
+        return [
+          chain,
+          { submitter: SubmitterMetadataSchema.parse(strategy.submitter) },
+        ];
+      }),
   );
 
   refineChainSubmissionStrategy(standardStrategies, ctx);

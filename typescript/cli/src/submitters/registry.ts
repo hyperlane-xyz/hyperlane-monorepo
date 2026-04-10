@@ -1,6 +1,7 @@
 import { type IRegistry } from '@hyperlane-xyz/registry';
 import {
   type SubmitterReferenceRegistry,
+  getSubmitterRegistryChildren,
   parseSubmitterReferencePayload,
 } from '@hyperlane-xyz/sdk';
 import { assert } from '@hyperlane-xyz/utils';
@@ -24,8 +25,7 @@ async function readSubmitterReference(
   registry: IRegistry,
   ref: string,
 ): Promise<unknown> {
-  const childRegistries = (registry as IRegistry & { registries?: IRegistry[] })
-    .registries;
+  const childRegistries = getSubmitterRegistryChildren(registry);
   if (childRegistries?.length) {
     for (const childRegistry of childRegistries) {
       const payload = await readSubmitterReference(childRegistry, ref);
@@ -94,22 +94,46 @@ function safeGetUri(
 }
 
 async function loadPayload(source: string): Promise<unknown> {
-  try {
-    if (isFetchableUrl(source)) {
-      const response = await fetch(source);
-      if (!response.ok) return null;
-      return parseSubmitterReferencePayload(await response.text(), source);
-    }
-
-    return readYamlOrJson(source);
-  } catch {
-    return null;
+  if (isFetchableUrl(source)) {
+    const response = await fetch(source);
+    if (response.status === 404) return null;
+    assert(
+      response.ok,
+      `Failed to fetch submitter reference ${source}: ${response.status} ${response.statusText}`,
+    );
+    return parseSubmitterReferencePayload(await response.text(), source);
   }
+  if (isUrl(source)) return null;
+
+  try {
+    return readYamlOrJson(source);
+  } catch (error) {
+    if (isNotFoundError(error)) return null;
+    throw error;
+  }
+}
+
+function isNotFoundError(error: unknown): boolean {
+  return (
+    !!error &&
+    typeof error === 'object' &&
+    'code' in error &&
+    (error.code === 'ENOENT' || error.code === 'ENOTDIR')
+  );
 }
 
 function isFetchableUrl(value: string): boolean {
   try {
     return new URL(value).protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function isUrl(value: string): boolean {
+  try {
+    new URL(value);
+    return true;
   } catch {
     return false;
   }

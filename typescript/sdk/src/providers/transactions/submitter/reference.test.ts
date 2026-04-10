@@ -9,13 +9,25 @@ import {
 describe('submitter references', () => {
   const originalFetch = globalThis.fetch;
   const fetchPayloads = new Map<string, string>();
+  const fetchStatuses = new Map<string, number>();
 
   beforeEach(() => {
     fetchPayloads.clear();
+    fetchStatuses.clear();
     globalThis.fetch = async (input) => {
-      const url = input.toString();
+      const url =
+        typeof input === 'string'
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url;
+      const status =
+        fetchStatuses.get(url) ?? (fetchPayloads.has(url) ? 200 : 404);
+      const ok = status >= 200 && status < 300;
       return {
-        ok: fetchPayloads.has(url),
+        ok,
+        status,
+        statusText: ok ? 'OK' : status === 404 ? 'Not Found' : 'Error',
         text: async () => fetchPayloads.get(url)!,
       } as Response;
     };
@@ -273,6 +285,70 @@ describe('submitter references', () => {
       throw new Error('Expected resolveSubmissionStrategy to fail');
     } catch (error) {
       expect((error as Error).message).to.include('Submitter reference');
+    }
+  });
+
+  it('throws on malformed submitter reference payloads from direct registries', async () => {
+    fetchPayloads.set(
+      'https://registry.example/submitters/dev-ethereum.yaml',
+      'type: [',
+    );
+
+    try {
+      await resolveSubmissionStrategy(
+        {
+          submitter: {
+            type: TxSubmitterType.SUBMITTER_REF,
+            ref: 'https://registry.example/submitters/dev-ethereum',
+          },
+        },
+        {
+          uri: 'https://registry.example',
+          getUri(itemPath?: string) {
+            return itemPath
+              ? `https://registry.example/${itemPath}`
+              : 'https://registry.example';
+          },
+        },
+        'ethereum',
+      );
+      throw new Error('Expected resolveSubmissionStrategy to fail');
+    } catch (error) {
+      expect((error as Error).message).to.include(
+        'Failed to parse submitter reference payload',
+      );
+    }
+  });
+
+  it('throws on non-404 fetch errors from direct registries', async () => {
+    fetchStatuses.set(
+      'https://registry.example/submitters/dev-ethereum.yaml',
+      500,
+    );
+
+    try {
+      await resolveSubmissionStrategy(
+        {
+          submitter: {
+            type: TxSubmitterType.SUBMITTER_REF,
+            ref: 'https://registry.example/submitters/dev-ethereum',
+          },
+        },
+        {
+          uri: 'https://registry.example',
+          getUri(itemPath?: string) {
+            return itemPath
+              ? `https://registry.example/${itemPath}`
+              : 'https://registry.example';
+          },
+        },
+        'ethereum',
+      );
+      throw new Error('Expected resolveSubmissionStrategy to fail');
+    } catch (error) {
+      expect((error as Error).message).to.include(
+        'Failed to fetch submitter reference https://registry.example/submitters/dev-ethereum.yaml: 500 Error',
+      );
     }
   });
 });

@@ -304,6 +304,14 @@ describe('Root Routes', () => {
 
       expect(response.body.message).to.include('Submitter fetch failed');
     });
+
+    it('should reject parent directory submitter ids', async () => {
+      await request(app)
+        .get('/submitters/%2e%2e')
+        .expect(AppConstants.HTTP_STATUS_BAD_REQUEST);
+
+      expect(mockRootService.getSubmitter.called).to.be.false;
+    });
   });
 
   describe('health endpoints', () => {

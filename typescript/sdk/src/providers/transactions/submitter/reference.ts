@@ -17,13 +17,23 @@ import {
 import { TxSubmitterType } from './TxSubmitterTypes.js';
 
 export interface SubmitterReferenceRegistry {
-  getSubmitter?(
-    ref: string,
-  ): Promise<unknown | null | undefined> | unknown | null | undefined;
+  getSubmitter?(ref: string): unknown;
   getUri?(itemPath?: string): string;
   uri?: string;
   registries?: Array<Partial<SubmitterReferenceRegistry>>;
   allowInsecureHttp?: boolean;
+}
+
+export function getSubmitterRegistryChildren<TRegistry extends object>(
+  registry: TRegistry,
+): TRegistry[] {
+  if (!('registries' in registry) || !Array.isArray(registry.registries)) {
+    return [];
+  }
+
+  return registry.registries.filter(
+    (child): child is TRegistry => !!child && typeof child === 'object',
+  );
 }
 
 const SUBMITTER_DIRECTORY = 'submitters';
@@ -138,16 +148,14 @@ export function parseSubmitterReferencePayload(
 async function loadSubmitterReferenceFromRegistry(
   registry: Partial<SubmitterReferenceRegistry>,
   ref: string,
-): Promise<unknown | null> {
-  if (registry.registries?.length) {
-    for (const childRegistry of registry.registries) {
-      const payload = await loadSubmitterReferenceFromRegistry(
-        childRegistry,
-        ref,
-      );
-      if (payload) {
-        return payload;
-      }
+): Promise<unknown> {
+  for (const childRegistry of getSubmitterRegistryChildren(registry)) {
+    const payload = await loadSubmitterReferenceFromRegistry(
+      childRegistry,
+      ref,
+    );
+    if (payload) {
+      return payload;
     }
   }
 
@@ -242,19 +250,27 @@ async function loadReferencePayload(
   source: string,
   registry: Partial<SubmitterReferenceRegistry>,
 ): Promise<string | null> {
-  try {
-    if (!isFetchableUrl(source, registry.allowInsecureHttp)) {
-      return null;
-    }
-
-    const response = await fetch(source);
-    if (!response.ok) {
-      return null;
-    }
-    return response.text();
-  } catch {
+  if (!isFetchableUrl(source, registry.allowInsecureHttp)) {
     return null;
   }
+
+  let response: Response;
+  try {
+    response = await fetch(source);
+  } catch (error) {
+    throw new Error(
+      `Failed to fetch submitter reference ${source}: ${String(error)}`,
+    );
+  }
+
+  if (response.status === 404) {
+    return null;
+  }
+  assert(
+    response.ok,
+    `Failed to fetch submitter reference ${source}: ${response.status} ${response.statusText}`,
+  );
+  return response.text();
 }
 
 function hasSupportedExtension(value: string): boolean {

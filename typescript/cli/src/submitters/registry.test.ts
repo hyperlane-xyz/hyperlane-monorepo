@@ -21,8 +21,11 @@ describe('createSubmitterReferenceRegistry', () => {
             ? input.href
             : input.url;
       fetchCalls.push(url);
+      const ok = fetchPayloads.has(url);
       return {
-        ok: fetchPayloads.has(url),
+        ok,
+        status: ok ? 200 : 404,
+        statusText: ok ? 'OK' : 'Not Found',
         text: async () => fetchPayloads.get(url)!,
       } as Response;
     };
@@ -96,5 +99,30 @@ describe('createSubmitterReferenceRegistry', () => {
 
     expect(submitter).to.equal(null);
     expect(fetchCalls).to.deep.equal([]);
+  });
+
+  it('throws on malformed submitter payloads', async () => {
+    fetchPayloads.set(
+      'https://registry.example/submitters/dev-ethereum.yaml',
+      'type: [',
+    );
+
+    const registry = createSubmitterReferenceRegistry({
+      uri: 'https://registry.example',
+      getUri(itemPath?: string) {
+        return itemPath
+          ? `https://registry.example/${itemPath}`
+          : 'https://registry.example';
+      },
+    } as IRegistry);
+
+    try {
+      await registry.getSubmitter?.('submitters/dev-ethereum');
+      throw new Error('Expected malformed submitter payload to throw');
+    } catch (error) {
+      expect((error as Error).message).to.include(
+        'Failed to parse submitter reference payload',
+      );
+    }
   });
 });
