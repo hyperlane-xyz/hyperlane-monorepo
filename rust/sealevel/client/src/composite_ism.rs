@@ -12,10 +12,10 @@ use crate::{
 
 use hyperlane_core::{H160, H256};
 use hyperlane_sealevel_composite_ism::{
-    accounts::{CompositeIsmAccount, IsmNode},
+    accounts::{CompositeIsmAccount, DomainIsmAccount, IsmNode},
     instruction::{
-        initialize_instruction, set_domain_ism_instruction, transfer_ownership_instruction,
-        update_config_instruction,
+        initialize_instruction, remove_domain_ism_instruction, set_domain_ism_instruction,
+        transfer_ownership_instruction, update_config_instruction,
     },
 };
 
@@ -261,12 +261,12 @@ pub(crate) fn process_composite_ism_cmd(mut ctx: Context, cmd: CompositeIsmCmd) 
                 .add_with_description(instruction, "Update composite ISM config".to_string())
                 .send_with_payer();
 
-            for (domain, ism_config) in domain_isms {
+            for (domain, ism_config) in &domain_isms {
                 let instruction = set_domain_ism_instruction(
                     update.program_id,
                     ctx.payer_pubkey,
-                    domain,
-                    ism_config.into(),
+                    *domain,
+                    ism_config.clone().into(),
                 )
                 .unwrap();
                 ctx.new_txn()
@@ -275,6 +275,26 @@ pub(crate) fn process_composite_ism_cmd(mut ctx: Context, cmd: CompositeIsmCmd) 
                         format!("Set domain ISM for origin domain {domain}"),
                     )
                     .send_with_payer();
+            }
+
+            // Remove domain PDAs that are no longer in the config.
+            let new_domains: std::collections::HashSet<u32> =
+                domain_isms.iter().map(|(d, _)| *d).collect();
+            for existing_domain in existing_domain_ids(&ctx, update.program_id) {
+                if !new_domains.contains(&existing_domain) {
+                    let instruction = remove_domain_ism_instruction(
+                        update.program_id,
+                        ctx.payer_pubkey,
+                        existing_domain,
+                    )
+                    .unwrap();
+                    ctx.new_txn()
+                        .add_with_description(
+                            instruction,
+                            format!("Remove domain ISM for origin domain {existing_domain}"),
+                        )
+                        .send_with_payer();
+                }
             }
         }
         CompositeIsmSubCmd::Read(read) => {
@@ -369,9 +389,30 @@ pub(crate) fn deploy_composite_ism(
     program_id
 }
 
-fn read_composite_ism(ctx: &Context, program_id: Pubkey) {
-    use hyperlane_sealevel_composite_ism::accounts::DomainIsmAccount;
+/// Returns the domain IDs of all domain PDAs currently registered on-chain for
+/// the given composite ISM program.
+fn existing_domain_ids(ctx: &Context, program_id: Pubkey) -> Vec<u32> {
+    let storage_seeds: &[&[u8]] = &[b"hyperlane_ism", b"-", b"verify", b"-", b"account_metas"];
+    let (storage_pda_key, _) = Pubkey::find_program_address(storage_seeds, &program_id);
 
+    let all_accounts = ctx
+        .client
+        .get_program_accounts(&program_id)
+        .expect("Failed to enumerate program accounts");
+
+    let mut domains = Vec::new();
+    for (pubkey, acct) in &all_accounts {
+        if *pubkey == storage_pda_key {
+            continue;
+        }
+        if let Ok(domain_storage) = DomainIsmAccount::fetch(&mut &acct.data[..]) {
+            domains.push(domain_storage.into_inner().domain);
+        }
+    }
+    domains
+}
+
+fn read_composite_ism(ctx: &Context, program_id: Pubkey) {
     // Seeds match VERIFY_ACCOUNT_METAS_PDA_SEEDS from the ISM interface library,
     // which is what storage_pda_seeds!() expands to in the composite ISM crate.
     let storage_seeds: &[&[u8]] = &[b"hyperlane_ism", b"-", b"verify", b"-", b"account_metas"];

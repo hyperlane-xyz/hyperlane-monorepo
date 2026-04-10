@@ -111,7 +111,7 @@ pub fn required_accounts_for_node(
             )
         }
 
-        IsmNode::Routing { .. } => {
+        IsmNode::Routing { default_ism } => {
             let (domain_pda_key, _) = derive_domain_pda(program_id, message.origin);
 
             // Pass 2: if the domain PDA was provided as an extra input account,
@@ -124,6 +124,7 @@ pub fn required_accounts_for_node(
                 let domain_acc = extra_accounts[*cursor];
                 *cursor += 1;
 
+                let mut used_domain_ism = false;
                 if domain_acc.owner == program_id {
                     if let Ok(Some(storage)) =
                         DomainIsmAccount::fetch_data(&mut &domain_acc.data.borrow()[..])
@@ -143,10 +144,35 @@ pub fn required_accounts_for_node(
                             // No dedup: preserve positional ordering to match verify_node
                             // consumption (same rationale as the Aggregation arm above).
                             sub_accounts.extend(node_accounts);
+                            used_domain_ism = true;
                         }
+                        // ism is None — domain PDA exists but holds no ISM; fall through to default.
+                    }
+                    // fetch_data failed — treat as no ISM; fall through to default.
+                }
+                // domain_acc not owned by this program — fall through to default.
+
+                if !used_domain_ism {
+                    // Mirror verify_node's fallback: when the domain PDA is present but
+                    // yields no ISM (not owned, empty, or ism field None), verify_node
+                    // delegates to default_ism.  Collect its accounts here so they appear
+                    // in the transaction when verify runs.
+                    if let Some(ref default) = default_ism {
+                        let default_accounts = required_accounts_for_node(
+                            default,
+                            metadata,
+                            message,
+                            program_id,
+                            extra_accounts,
+                            cursor,
+                        );
+                        sub_accounts.extend(default_accounts);
                     }
                 }
             }
+            // If cursor was not advanced (pass 1 — domain PDA not yet in extra_accounts),
+            // we return only the domain_pda_key.  The fixpoint loop will re-invoke with
+            // the domain PDA present, at which point the branch above fires.
 
             let domain_meta = if domain_pda_writable {
                 AccountMeta::new(domain_pda_key, false) // writable, not signer
@@ -350,6 +376,56 @@ mod test {
         assert_eq!(accounts[0].pubkey, expected_key);
         assert!(!accounts[0].is_signer);
         assert!(!accounts[0].is_writable);
+    }
+
+    /// Regression: when the domain PDA is in extra_accounts but is not owned by the
+    /// program (e.g. the PDA was never initialised for this origin), verify_node falls
+    /// back to default_ism.  required_accounts_for_node must include the default_ism
+    /// accounts so the Verify transaction has them available.
+    #[test]
+    fn test_routing_fallback_to_default_ism_when_domain_pda_unowned() {
+        use solana_program::account_info::AccountInfo;
+
+        let program_id = Pubkey::new_unique();
+        let relayer = Pubkey::new_unique();
+        let node = IsmNode::Routing {
+            default_ism: Some(Box::new(IsmNode::TrustedRelayer { relayer })),
+        };
+        let msg = dummy_message(ORIGIN);
+
+        let (domain_pda_key, _) = derive_domain_pda(&program_id, ORIGIN);
+
+        // Build an AccountInfo for the domain PDA that is owned by the system program
+        // (i.e. the domain PDA was never initialised for this origin — the common case).
+        let foreign_owner = Pubkey::default(); // system program / wrong owner
+        let mut lamports = 0u64;
+        let mut data: Vec<u8> = vec![];
+        let domain_pda_info = AccountInfo::new(
+            &domain_pda_key,
+            false,
+            false,
+            &mut lamports,
+            &mut data,
+            &foreign_owner,
+            false,
+        );
+
+        // Pass 1 (no extra_accounts): only the domain PDA key is returned.
+        let pass1 = required_accounts_for_node(&node, &[], &msg, &program_id, &no_extra(), &mut 0);
+        assert_eq!(pass1.len(), 1);
+        assert_eq!(pass1[0].pubkey, domain_pda_key);
+
+        // Pass 2 (domain PDA provided but not owned by program): must also include
+        // the default_ism (TrustedRelayer) account so Verify can find it.
+        let extra = vec![&domain_pda_info];
+        let accounts = required_accounts_for_node(&node, &[], &msg, &program_id, &extra, &mut 0);
+        assert_eq!(accounts.len(), 2, "expected domain_pda + relayer");
+        assert_eq!(accounts[0].pubkey, domain_pda_key);
+        assert_eq!(accounts[1].pubkey, relayer);
+        assert!(
+            accounts[1].is_signer,
+            "TrustedRelayer account must be marked as signer"
+        );
     }
 
     #[test]
