@@ -6,6 +6,7 @@ import { submitMetrics } from '@hyperlane-xyz/metrics';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import {
   type ChainName,
+  MultiProvider,
   type WarpCoreConfig,
   type WarpRouteCheckResult,
   type WarpRouteDeployConfigMailboxRequired,
@@ -102,8 +103,14 @@ async function main() {
     undefined,
     Array.from(warpConfigChains),
   );
+  // Getter inputs only need env-wide chain metadata/core addresses, not signers.
+  // Keep the checker multiprovider narrow while avoiding missing-chain lookups in code getters.
+  const getterInputsRegistry = await envConfig.getRegistry(false);
+  const getterInputsMultiProvider = new MultiProvider(
+    await getterInputsRegistry.getMetadata(),
+  );
   const warpConfigGetterInputs = await getWarpConfigGetterInputs(
-    multiProvider,
+    getterInputsMultiProvider,
     envConfig,
   );
 
@@ -125,6 +132,7 @@ async function main() {
       const result = await runWarpRouteCheckFromRegistry({
         chains,
         multiProvider,
+        registry,
         registryUris: registries,
         warpRouteId,
         warpDeployConfig,
@@ -183,18 +191,21 @@ async function runWarpRouteCheckFromRegistry({
   multiProvider,
   warpRouteId,
   registryUris,
+  registry,
   chains,
   warpCoreConfig,
   warpDeployConfig,
 }: {
   chains?: string[];
   multiProvider: Awaited<ReturnType<EnvironmentConfig['getMultiProvider']>>;
+  registry?: ReturnType<typeof getRegistry>;
   registryUris: string[];
   warpCoreConfig?: WarpCoreConfig;
   warpDeployConfig?: WarpRouteDeployConfigMailboxRequired;
   warpRouteId: string;
 }): Promise<WarpRouteCheckResult> {
   const loadedConfigs = await loadWarpConfigsFromRegistry({
+    registry,
     registryUris,
     warpRouteId,
     warpCoreConfig,
@@ -237,11 +248,13 @@ function logWarpRouteCheckResult(result: WarpRouteCheckResult) {
 }
 
 async function loadWarpConfigsFromRegistry({
+  registry,
   registryUris,
   warpRouteId,
   warpCoreConfig,
   warpDeployConfig,
 }: {
+  registry?: ReturnType<typeof getRegistry>;
   registryUris: string[];
   warpRouteId: string;
   warpCoreConfig?: WarpCoreConfig;
@@ -252,10 +265,13 @@ async function loadWarpConfigsFromRegistry({
 }> {
   const resolvedWarpCoreConfig =
     warpCoreConfig ??
-    (await getRegistry({
-      registryUris,
-      enableProxy: true,
-    }).getWarpRoute(warpRouteId));
+    (await (
+      registry ??
+      getRegistry({
+        registryUris,
+        enableProxy: true,
+      })
+    ).getWarpRoute(warpRouteId));
   const resolvedWarpDeployConfig =
     warpDeployConfig ??
     (await getWarpDeployConfigFromMergedRegistry(warpRouteId, registryUris));
