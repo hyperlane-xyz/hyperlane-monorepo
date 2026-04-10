@@ -9,28 +9,7 @@ import {
   TronJsonRpcProvider,
 } from './TronJsonRpcProvider.js';
 import { TransactionRequest } from '@ethersproject/providers';
-
-/**
- * Extract custom_rpc_header query params from a URL into a headers object.
- * e.g. "https://api.trongrid.io?custom_rpc_header=TRON-PRO-API-KEY:abc"
- * returns { "TRON-PRO-API-KEY": "abc" }
- */
-export function parseCustomHeaders(url: string): Record<string, string> {
-  const headers: Record<string, string> = {};
-  try {
-    const parsed = new URL(url);
-    for (const [key, value] of parsed.searchParams) {
-      if (key !== 'custom_rpc_header') continue;
-      const colonIdx = value.indexOf(':');
-      if (colonIdx > 0) {
-        headers[value.slice(0, colonIdx)] = value.slice(colonIdx + 1);
-      }
-    }
-  } catch {
-    // Not a valid URL, return empty headers
-  }
-  return headers;
-}
+import { stripCustomRpcHeaders } from './urlUtils.js';
 
 /** Union of possible TronWeb transaction types */
 export type TronTransaction =
@@ -80,13 +59,11 @@ export class TronWallet extends Wallet {
     // TronWeb needs the base HTTP API URL — strip /jsonrpc path if present, and
     // fall back to public TronGrid for third-party providers that only serve JSON-RPC.
     // Extract custom headers before stripping path, as they may contain API keys.
-    const headers = parseCustomHeaders(tronUrl);
-    const parsed = new URL(tronUrl);
+    const { url: cleanTronUrl, headers } = stripCustomRpcHeaders(tronUrl);
+    const parsed = new URL(cleanTronUrl);
     if (parsed.pathname.endsWith('/jsonrpc')) {
       parsed.pathname = parsed.pathname.slice(0, -8);
     }
-    // Strip custom_rpc_header params from the base URL
-    parsed.searchParams.delete('custom_rpc_header');
     const baseUrl = parsed.toString();
     const tronWebUrl =
       /^https?:\/\/(localhost|127\.0\.0\.1|[^/]*trongrid)/.test(baseUrl)
@@ -196,14 +173,9 @@ export class TronTransactionBuilder extends TronWeb {
     headers?: Record<string, string>,
   ) {
     // Strip custom_rpc_header from the URL and merge with any provided headers
-    const parsedHeaders = parseCustomHeaders(tronWebUrl);
+    const { url: cleanTronWebUrl, headers: parsedHeaders } =
+      stripCustomRpcHeaders(tronWebUrl);
     const mergedHeaders = { ...parsedHeaders, ...headers };
-    let cleanTronWebUrl = tronWebUrl;
-    if (Object.keys(parsedHeaders).length > 0) {
-      const parsed = new URL(tronWebUrl);
-      parsed.searchParams.delete('custom_rpc_header');
-      cleanTronWebUrl = parsed.toString();
-    }
     super({ fullHost: cleanTronWebUrl, headers: mergedHeaders });
 
     this.tronAddress = tronAddress;
