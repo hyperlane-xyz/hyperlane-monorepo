@@ -17,6 +17,11 @@ import type { AccountInfo, ActiveChainInfo, WalletDetails } from './types.js';
 const logger = widgetLogger.child({
   module: 'walletIntegrations/radixWallet',
 });
+const radixWalletDetails: WalletDetails = {
+  name: 'Radix Wallet',
+  logoUrl:
+    'https://raw.githubusercontent.com/radixdlt/radix-dapp-toolkit/refs/heads/main/docs/radix-logo.png',
+};
 
 export function useRadixAccount(
   _multiProvider: MinimalProviderRegistry,
@@ -37,17 +42,7 @@ export function useRadixAccount(
 }
 
 export function useRadixWalletDetails(): WalletDetails {
-  const name = 'Radix Wallet';
-  const logoUrl =
-    'https://raw.githubusercontent.com/radixdlt/radix-dapp-toolkit/refs/heads/main/docs/radix-logo.png';
-
-  return useMemo(
-    () => ({
-      name,
-      logoUrl,
-    }),
-    [name, logoUrl],
-  );
+  return radixWalletDetails;
 }
 
 export function useRadixConnectFn(): () => void {

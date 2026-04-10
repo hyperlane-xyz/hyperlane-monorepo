@@ -125,6 +125,8 @@ export class WarpCore {
         const { chainName, addressOrDenom } = parseTokenConnectionId(
           connection.token,
         );
+        // If token1 has a warpRouteId, token2 must share it — disambiguates
+        // tokens at the same address (e.g. M0 Portal: mUSD, wM, USDSC)
         const token2 = tokens.find(
           (token) =>
             token.chainName === chainName &&
@@ -1625,6 +1627,9 @@ export class WarpCore {
     return destinationCandidates[0];
   }
 
+  /**
+   * Search through token list to find token with matching chain and address
+   */
   findToken(
     chainName: ChainName,
     addressOrDenom?: Address | string,
@@ -1650,14 +1655,24 @@ export class WarpCore {
     return null;
   }
 
+  /**
+   * Get the list of chains referenced by the tokens in this WarpCore
+   */
   getTokenChains(): ChainName[] {
     return [...new Set(this.tokens.map((token) => token.chainName)).values()];
   }
 
+  /**
+   * Get the subset of tokens whose chain matches the given chainName
+   */
   getTokensForChain(chainName: ChainName): Token[] {
     return this.tokens.filter((token) => token.chainName === chainName);
   }
 
+  /**
+   * Get the subset of tokens whose chain matches the given chainName
+   * and which are connected to a token on the given destination chain
+   */
   getTokensForRoute(origin: ChainName, destination: ChainName): Token[] {
     return this.tokens.filter(
       (token) =>
