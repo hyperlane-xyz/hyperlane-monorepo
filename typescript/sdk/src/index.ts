@@ -4,11 +4,10 @@ export {
   EvmTokenFeeReader,
 } from './fee/EvmTokenFeeReader.js';
 export {
-  DerivedWarpFeeControllerConfig,
-  EvmWarpFeeControllerModule,
-  WarpFeeControllerCall,
-  WarpFeeControllerConfig,
-} from './fee/WarpFeeController.js';
+  DerivedWarpFeeSplitterConfig,
+  EvmWarpFeeSplitterModule,
+  WarpFeeSplitterConfig,
+} from './fee/WarpFeeSplitter.js';
 
 export {
   buildExecuteCalldata,

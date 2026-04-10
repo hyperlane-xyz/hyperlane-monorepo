@@ -5,9 +5,6 @@ coverage:
         target: auto # strictly increasing coverage
         threshold: 3% # buffer for coverage drop
 
-ignore:
-  - solidity/contracts/test/MockWarpFeeControllerIcaRouter.sol
-
 flag_management:
   default_rules:
     carryforward: true
@@ -25,7 +22,6 @@ component_management:
     statuses:
       - type: project # in this case every component that does not have a status defined will have a project type one
         target: auto
-        threshold: 0.5%
         branches:
           - '!main'
   individual_components:
