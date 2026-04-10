@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use access_control::AccessControl;
 use account_utils::{create_pda_account, DiscriminatorDecode, SizedData};
 use hyperlane_core::{Decode, HyperlaneMessage, ModuleType};
@@ -421,6 +423,16 @@ fn validate_config_inner(node: &IsmNode, routing_found: &mut bool) -> ProgramRes
             if *threshold == 0 || *threshold as usize > validators.len() {
                 return Err(Error::InvalidConfig.into());
             }
+            // Reject duplicate validators: with [A, A, B] and threshold 2, the
+            // ascending-index scan in verify_node would accept two sigs from A as
+            // quorum, collapsing "2-of-3" into "1-of-2 unique". Matches the check
+            // in the standalone multisig-ism-message-id program.
+            let mut seen = HashSet::with_capacity(validators.len());
+            for v in validators {
+                if !seen.insert(v) {
+                    return Err(Error::InvalidConfig.into());
+                }
+            }
             Ok(())
         }
         IsmNode::AmountRouting { lower, upper, .. } => {
@@ -476,6 +488,12 @@ fn validate_domain_ism(node: &IsmNode) -> ProgramResult {
         } => {
             if *threshold == 0 || *threshold as usize > validators.len() {
                 return Err(Error::InvalidConfig.into());
+            }
+            let mut seen = HashSet::with_capacity(validators.len());
+            for v in validators {
+                if !seen.insert(v) {
+                    return Err(Error::InvalidConfig.into());
+                }
             }
             Ok(())
         }
@@ -684,6 +702,28 @@ mod test {
             validate_config(&node).unwrap_err(),
             Error::InvalidConfig.into()
         );
+    }
+
+    #[test]
+    fn test_validate_config_multisig_duplicate_validators_rejected() {
+        let v = H160::random();
+        let node = IsmNode::MultisigMessageId {
+            validators: vec![v, v],
+            threshold: 2,
+        };
+        assert_eq!(
+            validate_config(&node).unwrap_err(),
+            Error::InvalidConfig.into()
+        );
+    }
+
+    #[test]
+    fn test_validate_config_multisig_unique_validators_ok() {
+        let node = IsmNode::MultisigMessageId {
+            validators: vec![H160::random(), H160::random()],
+            threshold: 2,
+        };
+        assert!(validate_config(&node).is_ok());
     }
 
     #[test]

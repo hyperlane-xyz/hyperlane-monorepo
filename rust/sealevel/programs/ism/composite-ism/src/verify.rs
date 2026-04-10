@@ -511,6 +511,85 @@ mod test {
         );
     }
 
+    /// Regression test: Aggregation([TrustedRelayer(A), TrustedRelayer(A)]) with both
+    /// sub-ISMs active must consume two account slots positionally, matching the two
+    /// entries returned by required_accounts_for_node (no dedup).
+    #[test]
+    fn test_aggregation_duplicate_trusted_relayer_consumes_two_accounts() {
+        use crate::account_metas::required_accounts_for_node;
+
+        let relayer_key = Pubkey::new_unique();
+        let program_id = Pubkey::new_unique();
+        let metadata = encode_aggregation_metadata(&[Some(&[]), Some(&[])]);
+
+        let mut node = IsmNode::Aggregation {
+            threshold: 2,
+            sub_isms: vec![
+                IsmNode::TrustedRelayer {
+                    relayer: relayer_key,
+                },
+                IsmNode::TrustedRelayer {
+                    relayer: relayer_key,
+                },
+            ],
+        };
+
+        // Confirm account_metas returns 2 entries for this config.
+        let metas = required_accounts_for_node(
+            &node,
+            &metadata,
+            &dummy_message(ORIGIN_DOMAIN),
+            &program_id,
+            &[],
+            &mut 0,
+        );
+        assert_eq!(
+            metas.len(),
+            2,
+            "expected 2 account metas for Aggregation([TR(A), TR(A)])"
+        );
+
+        // Build two AccountInfo stubs for the same relayer key (is_signer = true).
+        // SVM provides the same account twice when a key appears twice in the
+        // instruction's accounts list.
+        let mut lamports = 0u64;
+        let mut data = vec![];
+        let owner = Pubkey::default();
+        let relayer_info_1 = AccountInfo::new(
+            &relayer_key,
+            /*is_signer=*/ true,
+            false,
+            &mut lamports,
+            &mut data,
+            &owner,
+            false,
+        );
+        let mut lamports2 = 0u64;
+        let mut data2 = vec![];
+        let relayer_info_2 = AccountInfo::new(
+            &relayer_key,
+            /*is_signer=*/ true,
+            false,
+            &mut lamports2,
+            &mut data2,
+            &owner,
+            false,
+        );
+
+        let accounts = vec![relayer_info_1, relayer_info_2];
+        let msg = dummy_message(ORIGIN_DOMAIN);
+        let mut iter = accounts.iter();
+        assert!(
+            verify_node(&mut node, &metadata, &msg, &mut iter, &program_id).is_ok(),
+            "verify_node must succeed when two account slots are provided for two TR(A) sub-ISMs"
+        );
+        // Both accounts were consumed.
+        assert!(
+            iter.next().is_none(),
+            "both account slots should have been consumed"
+        );
+    }
+
     fn encode_aggregation_metadata(sub_metas: &[Option<&[u8]>]) -> Vec<u8> {
         let header_len = (sub_metas.len() * 8) as u32;
         let mut offsets: Vec<(u32, u32)> = Vec::new();

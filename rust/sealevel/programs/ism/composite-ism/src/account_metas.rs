@@ -77,17 +77,10 @@ pub fn required_accounts_for_node(
                     extra_accounts,
                     cursor,
                 );
-                for account in sub_accounts {
-                    if let Some(existing) = accounts
-                        .iter_mut()
-                        .find(|a: &&mut SerializableAccountMeta| a.pubkey == account.pubkey)
-                    {
-                        existing.is_signer = existing.is_signer || account.is_signer;
-                        existing.is_writable = existing.is_writable || account.is_writable;
-                    } else {
-                        accounts.push(account);
-                    }
-                }
+                // No dedup: account_metas must mirror the positional consumption in
+                // verify_node. Each active sub-ISM pops its own accounts via
+                // next_account_info regardless of whether a sibling used the same key.
+                accounts.extend(sub_accounts);
             }
             accounts
         }
@@ -147,17 +140,9 @@ pub fn required_accounts_for_node(
                                 extra_accounts,
                                 cursor,
                             );
-                            for account in node_accounts {
-                                if let Some(existing) = sub_accounts.iter_mut().find(
-                                    |a: &&mut SerializableAccountMeta| a.pubkey == account.pubkey,
-                                ) {
-                                    existing.is_signer = existing.is_signer || account.is_signer;
-                                    existing.is_writable =
-                                        existing.is_writable || account.is_writable;
-                                } else {
-                                    sub_accounts.push(account);
-                                }
-                            }
+                            // No dedup: preserve positional ordering to match verify_node
+                            // consumption (same rationale as the Aggregation arm above).
+                            sub_accounts.extend(node_accounts);
                         }
                     }
                 }
@@ -313,8 +298,12 @@ mod test {
         assert_eq!(accounts[0].pubkey, relayer);
     }
 
+    /// Regression test: duplicate TrustedRelayer keys in an Aggregation must produce
+    /// two separate account meta entries (one per active sub-ISM) so that
+    /// verify_node can positionally consume both via next_account_info.
+    /// Previously, dedup collapsed them to 1, causing AccountNotFound at verify time.
     #[test]
-    fn test_deduplication() {
+    fn test_duplicate_trusted_relayer_returns_two_entries() {
         let relayer = Pubkey::new_unique();
         let program_id = Pubkey::new_unique();
         let metadata = encode_aggregation_metadata(&[Some(&[]), Some(&[])]);
@@ -328,7 +317,10 @@ mod test {
         let msg = dummy_message(ORIGIN);
         let accounts =
             required_accounts_for_node(&node, &metadata, &msg, &program_id, &no_extra(), &mut 0);
-        assert_eq!(accounts.len(), 1);
+        // Both active sub-ISMs must each contribute their own entry.
+        assert_eq!(accounts.len(), 2);
+        assert_eq!(accounts[0].pubkey, relayer);
+        assert_eq!(accounts[1].pubkey, relayer);
     }
 
     #[test]

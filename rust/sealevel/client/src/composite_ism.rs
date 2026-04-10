@@ -10,7 +10,7 @@ use crate::{
     CompositeIsmCmd, CompositeIsmSubCmd, Context,
 };
 
-use hyperlane_core::H160;
+use hyperlane_core::{H160, H256};
 use hyperlane_sealevel_composite_ism::{
     accounts::{CompositeIsmAccount, IsmNode},
     instruction::{
@@ -65,6 +65,14 @@ pub(crate) enum IsmNodeConfig {
         lower: Box<IsmNodeConfig>,
         upper: Box<IsmNodeConfig>,
     },
+    /// Config-only view of a RateLimited node.  Mutable state (`filled_level`,
+    /// `last_updated`) is omitted — it is managed on-chain and reset on each
+    /// `UpdateConfig` / `SetDomainIsm`.
+    RateLimited {
+        max_capacity: u64,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        recipient: Option<H256>,
+    },
 }
 
 impl From<IsmNodeConfig> for IsmNode {
@@ -101,6 +109,15 @@ impl From<IsmNodeConfig> for IsmNode {
                 threshold,
                 lower: Box::new(IsmNode::from(*lower)),
                 upper: Box::new(IsmNode::from(*upper)),
+            },
+            IsmNodeConfig::RateLimited {
+                max_capacity,
+                recipient,
+            } => IsmNode::RateLimited {
+                max_capacity,
+                recipient,
+                filled_level: max_capacity, // start full; reset by UpdateConfig/SetDomainIsm
+                last_updated: 0,
             },
         }
     }
@@ -147,9 +164,14 @@ impl TryFrom<IsmNode> for IsmNodeConfig {
                 lower: Box::new(IsmNodeConfig::try_from(*lower)?),
                 upper: Box::new(IsmNodeConfig::try_from(*upper)?),
             }),
-            IsmNode::RateLimited { .. } => {
-                Err("RateLimited ISM nodes have no JSON config representation".to_string())
-            }
+            IsmNode::RateLimited {
+                max_capacity,
+                recipient,
+                ..
+            } => Ok(IsmNodeConfig::RateLimited {
+                max_capacity,
+                recipient,
+            }),
         }
     }
 }
