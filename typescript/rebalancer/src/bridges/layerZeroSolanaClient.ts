@@ -52,6 +52,12 @@ function bytes32HexToBytes(bytes32Hex: string): Uint8Array {
   return Uint8Array.from(Buffer.from(normalized.slice(2), 'hex'));
 }
 
+// The USDT0 OFT program uses a custom OFTStore layout where tokenEscrow
+// is at byte offset 40 (after 8-byte discriminator + 32-byte tokenMint).
+// The standard SDK deserializer fails because the layout differs from the
+// canonical OFT program, so we read the escrow pubkey from raw account data.
+const OFT_STORE_TOKEN_ESCROW_OFFSET = 40;
+
 async function resolveAccounts(
   rpcUrl: string,
   payerAddress: string,
@@ -62,11 +68,16 @@ async function resolveAccounts(
   const umi = createUmi(connection);
   const payer = new PublicKey(payerAddress);
   const tokenMintKey = new PublicKey(tokenMint);
-  const oftStore = await oft.accounts.fetchOFTStore(
-    umi,
-    fromWeb3JsPublicKey(new PublicKey(store)),
+
+  const storeAccountInfo = await connection.getAccountInfo(
+    new PublicKey(store),
   );
-  const tokenEscrow = oftStore.tokenEscrow;
+  assert(storeAccountInfo, `OFT Store account not found: ${store}`);
+  const escrowBytes = storeAccountInfo.data.subarray(
+    OFT_STORE_TOKEN_ESCROW_OFFSET,
+    OFT_STORE_TOKEN_ESCROW_OFFSET + 32,
+  );
+  const tokenEscrow = fromWeb3JsPublicKey(new PublicKey(escrowBytes));
 
   return {
     connection,
