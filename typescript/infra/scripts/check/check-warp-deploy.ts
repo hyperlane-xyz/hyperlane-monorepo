@@ -305,21 +305,17 @@ function filterWarpConfigsByChains({
   }
 
   const requestedChains = new Set(chains);
-
-  const filteredWarpCoreConfig = {
-    ...warpCoreConfig,
-    tokens: warpCoreConfig.tokens.filter((token) =>
-      requestedChains.has(token.chainName),
-    ),
-  };
   const filteredWarpDeployConfig = objFilter(
     warpDeployConfig,
     (chain, _config): _config is WarpRouteDeployConfigMailboxRequired[string] =>
       requestedChains.has(chain),
   );
+  const matchingWarpCoreTokens = warpCoreConfig.tokens.filter((token) =>
+    requestedChains.has(token.chainName),
+  );
 
   assert(
-    filteredWarpCoreConfig.tokens.length > 0,
+    matchingWarpCoreTokens.length > 0,
     `None of the requested chains are present in the warp core config: ${chains.join(', ')}`,
   );
   assert(
@@ -328,7 +324,9 @@ function filterWarpConfigsByChains({
   );
 
   return {
-    warpCoreConfig: filteredWarpCoreConfig,
+    // Keep the full core config so expected remote router sets are preserved
+    // for the selected route members.
+    warpCoreConfig,
     warpDeployConfig: filteredWarpDeployConfig,
   };
 }

@@ -4,8 +4,6 @@ import {
   Ownable__factory,
   ProxyAdmin__factory,
 } from '@hyperlane-xyz/core';
-import { createWarpTokenReader } from '@hyperlane-xyz/deploy-sdk';
-import { hasProtocol } from '@hyperlane-xyz/provider-sdk';
 import {
   type ObjectDiff,
   assert,
@@ -20,7 +18,6 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { isProxy, proxyAdmin } from '../deploy/proxy.js';
-import { altVmChainLookup } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
 import { verifyScale } from '../utils/decimals.js';
@@ -83,22 +80,13 @@ async function getWarpRouteConfigsByCore({
   return promiseObjAll(
     objMap(addresses, async (chain, address) => {
       const protocol = multiProvider.getProtocol(chain);
-
-      if (isEVMLike(protocol)) {
-        return new EvmWarpRouteReader(
-          multiProvider,
-          chain,
-        ).deriveWarpRouteConfig(address);
-      }
-
-      if (!hasProtocol(protocol)) {
-        throw new Error(`Unsupported protocol ${protocol} for chain ${chain}`);
-      }
-
-      const chainLookup = altVmChainLookup(multiProvider);
-      const chainMetadata = chainLookup.getChainMetadata(chain);
-      const reader = createWarpTokenReader(chainMetadata, chainLookup);
-      return reader.deriveWarpConfig(address);
+      assert(
+        isEVMLike(protocol),
+        `Warp route core config fetch only supports EVM chains, got ${protocol} for ${chain}`,
+      );
+      return new EvmWarpRouteReader(multiProvider, chain).deriveWarpRouteConfig(
+        address,
+      );
     }),
   );
 }
