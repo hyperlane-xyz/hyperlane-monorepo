@@ -162,7 +162,7 @@ async function processChain(
   logger.info(chalk.gray(`  Deployer:     ${deployerAddress}`));
 
   // ── Step 1-2-3: Deploy + Init + Configure via SvmMessageIdMultisigIsmWriter
-  logger.info(chalk.yellow('\n[1-3/5] Deploy, initialize, and configure ISM'));
+  logger.info(chalk.yellow('\n[1-3/6] Deploy, initialize, and configure ISM'));
 
   const rcDir = path.resolve(
     getMonorepoRoot(),
@@ -369,12 +369,12 @@ async function main() {
 
   const results: ChainResult[] = [];
 
-  const processChainPromises = chains.map(async (chain) => {
+  for (const chain of chains) {
     try {
-      return await processChain(chain, environment, deployerKeyBase58);
+      results.push(await processChain(chain, environment, deployerKeyBase58));
     } catch (error) {
       logger.error(chalk.red(`Failed ${chain}:`), error);
-      return {
+      results.push({
         chain,
         programId: '',
         deployed: false,
@@ -382,12 +382,9 @@ async function main() {
         ownerTransferred: false,
         authTransferred: false,
         configsUpdated: false,
-      };
+      });
     }
-  });
-
-  const processedResults = await Promise.all(processChainPromises);
-  results.push(...processedResults);
+  }
 
   logger.info(chalk.cyan.bold('\n=== Summary ==='));
   console.table(
