@@ -140,7 +140,6 @@ pub struct DomainIsmStorage {
     pub ism: Option<IsmNode>,
 }
 
-
 impl SizedData for DomainIsmStorage {
     fn size(&self) -> usize {
         borsh::to_vec(self).map(|v| v.len()).unwrap_or(0)
