@@ -355,6 +355,114 @@ describe('TokenDeployer', async () => {
         expect(result.violations).to.deep.equal([]);
       });
 
+      it('should include non-EVM route members in scale validation', async () => {
+        const cosmosChain = 'testcosmos';
+        if (!multiProvider.tryGetChainMetadata(cosmosChain)) {
+          multiProvider.addChain({
+            chainId: 'testcosmos-1',
+            domainId: 919191,
+            name: cosmosChain,
+            protocol: ProtocolType.Cosmos,
+            rpcUrls: [{ http: 'https://cosmos.example.com' }],
+            bech32Prefix: 'cosmos',
+            slip44: 118,
+            restUrls: [],
+            grpcUrls: [],
+          });
+        }
+
+        const mixedWarpDeployConfig = deepCopy(config);
+        mixedWarpDeployConfig[cosmosChain] = {
+          type: TokenType.synthetic,
+          mailbox:
+            '0x0000000000000000000000000000000000000000000000000000000000000001',
+          owner: signer.address,
+          gas: 12345,
+          name: 'Test Cosmos',
+          symbol: 'TCOSM',
+          decimals: 6,
+        };
+
+        const mixedWarpCoreConfig = {
+          tokens: [
+            ...getWarpCoreConfig().tokens,
+            {
+              addressOrDenom:
+                '0x0000000000000000000000000000000000000000000000000000000000000002',
+              chainName: cosmosChain,
+            },
+          ],
+        } as WarpCoreConfig;
+
+        try {
+          await checkWarpRouteDeployConfig({
+            multiProvider,
+            warpCoreConfig: mixedWarpCoreConfig,
+            warpDeployConfig: mixedWarpDeployConfig,
+          });
+          expect.fail(
+            'Expected mixed-VM scale validation to reject inconsistent decimals',
+          );
+        } catch (error) {
+          expect((error as Error).message).to.contain(
+            'Found invalid or missing scale for inconsistent decimals',
+          );
+        }
+      });
+
+      it('should fail fast for pure non-EVM route subsets', async () => {
+        const cosmosChain = 'testcosmos';
+        if (!multiProvider.tryGetChainMetadata(cosmosChain)) {
+          multiProvider.addChain({
+            chainId: 'testcosmos-1',
+            domainId: 919191,
+            name: cosmosChain,
+            protocol: ProtocolType.Cosmos,
+            rpcUrls: [{ http: 'https://cosmos.example.com' }],
+            bech32Prefix: 'cosmos',
+            slip44: 118,
+            restUrls: [],
+            grpcUrls: [],
+          });
+        }
+
+        const cosmosOnlyWarpDeployConfig = {
+          [cosmosChain]: {
+            type: TokenType.synthetic,
+            mailbox:
+              '0x0000000000000000000000000000000000000000000000000000000000000001',
+            owner: signer.address,
+            gas: 12345,
+            name: 'Test Cosmos',
+            symbol: 'TCOSM',
+            decimals: 18,
+          },
+        } as WarpRouteDeployConfigMailboxRequired;
+
+        const cosmosOnlyWarpCoreConfig = {
+          tokens: [
+            {
+              addressOrDenom:
+                '0x0000000000000000000000000000000000000000000000000000000000000002',
+              chainName: cosmosChain,
+            },
+          ],
+        } as WarpCoreConfig;
+
+        try {
+          await checkWarpRouteDeployConfig({
+            multiProvider,
+            warpCoreConfig: cosmosOnlyWarpCoreConfig,
+            warpDeployConfig: cosmosOnlyWarpDeployConfig,
+          });
+          expect.fail('Expected pure non-EVM route subset to reject');
+        } catch (error) {
+          expect((error as Error).message).to.contain(
+            'Warp route check requires at least one EVM chain in the selected route config',
+          );
+        }
+      });
+
       it('should ignore collateral owner changes when ownerOverrides is unset', async () => {
         if (type !== TokenType.XERC20) {
           return;

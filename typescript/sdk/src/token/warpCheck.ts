@@ -118,6 +118,10 @@ export async function checkWarpRouteDeployConfig({
       isEVMLike(multiProvider.getProtocol(token.chainName)),
     ),
   };
+  assert(
+    evmWarpCoreConfig.tokens.length > 0,
+    'Warp route check requires at least one EVM chain in the selected route config',
+  );
 
   const deployedRoutersAddresses =
     getRouterAddressesFromWarpCoreConfig(warpCoreConfig);
@@ -157,7 +161,7 @@ export async function checkWarpRouteDeployConfig({
 
   const diff = keepOnlyDiffObjects(rawDiff) as Record<string, ObjectDiff>; // CAST: keepOnlyDiffObjects returns `any`; rawDiff is constructed as a chain-keyed ObjectDiff map
   const diffViolations = flattenWarpRouteCheckDiff(diff);
-  const scaleViolations = getScaleViolations(evmExpandedWarpDeployConfig);
+  const scaleViolations = getScaleViolations(expandedWarpDeployConfig);
 
   return {
     diff,
