@@ -17,6 +17,7 @@ import { WarpService } from './src/services/warpService.js';
 import { FileSystemRegistryWatcher } from './src/services/watcherService.js';
 
 export interface HttpServerOptions {
+  authToken?: string;
   writeMode?: boolean;
 }
 
@@ -24,6 +25,7 @@ export class HttpServer {
   app: Express;
   protected readonly logger: Logger;
   private registryService: RegistryService | null = null;
+  protected readonly authToken?: string;
   protected readonly writeMode: boolean;
 
   private constructor(
@@ -32,6 +34,7 @@ export class HttpServer {
     options: HttpServerOptions = {},
   ) {
     this.logger = logger;
+    this.authToken = options.authToken;
     this.writeMode = options.writeMode ?? false;
     this.app = express();
     this.app.set('trust proxy', true); // trust proxy for x-forwarded-for header
@@ -102,7 +105,7 @@ export class HttpServer {
       // add routes
       this.app.use(
         '/',
-        createRootRouter(new RootService(this.registryService)),
+        createRootRouter(new RootService(this.registryService, this.authToken)),
       );
       this.app.use(
         '/chain',

@@ -12,7 +12,10 @@ import { AbstractService } from './abstractService.js';
 import { RegistryService } from './registryService.js';
 
 export class RootService extends AbstractService {
-  constructor(registryService: RegistryService) {
+  constructor(
+    registryService: RegistryService,
+    private readonly authToken?: string,
+  ) {
     super(registryService);
   }
 
@@ -50,7 +53,7 @@ export class RootService extends AbstractService {
     return this.withRegistry(async (registry) => {
       const submitter = await resolveSubmitterMetadata(
         { type: TxSubmitterType.SUBMITTER_REF, ref: `submitters/${id}` },
-        extendRegistryWithSubmitters(registry),
+        extendRegistryWithSubmitters(registry, this.authToken),
       );
       return SubmissionStrategySchema.parse({ submitter });
     });
@@ -66,11 +69,14 @@ export type SubmitterRegistry = IRegistry & {
 
 export function extendRegistryWithSubmitters(
   registry: IRegistry,
+  authToken?: string,
 ): SubmitterRegistry {
+  // CAST: submitter lookup is attached dynamically so SDK lookup code can use
+  // plain IRegistry instances without widening the upstream registry package type.
   const extendedRegistry = registry as SubmitterRegistry;
   if (!Object.hasOwn(extendedRegistry, 'getSubmitter')) {
     extendedRegistry.getSubmitter = async (ref) =>
-      readSubmitterReference(registry, ref);
+      readSubmitterReference(registry, ref, authToken);
   }
   return extendedRegistry;
 }
@@ -78,11 +84,16 @@ export function extendRegistryWithSubmitters(
 async function readSubmitterReference(
   registry: IRegistry,
   ref: string,
+  authToken?: string,
 ): Promise<unknown> {
   const childRegistries = getRegistryChildren(registry);
   if (childRegistries?.length) {
     for (const childRegistry of childRegistries.slice().reverse()) {
-      const payload = await readSubmitterReference(childRegistry, ref);
+      const payload = await readSubmitterReference(
+        childRegistry,
+        ref,
+        authToken,
+      );
       if (payload) return payload;
     }
   }
@@ -91,7 +102,7 @@ async function readSubmitterReference(
     const source = safeGetUri(registry, itemPath);
     if (!source) continue;
 
-    const payload = await loadPayload(source);
+    const payload = await loadPayload(source, authToken);
     if (payload) return payload;
   }
 
@@ -158,9 +169,14 @@ function safeGetUri(
   }
 }
 
-async function loadPayload(source: string): Promise<unknown> {
+async function loadPayload(
+  source: string,
+  authToken?: string,
+): Promise<unknown> {
   if (isFetchableUrl(source)) {
-    const response = await fetch(source);
+    const response = await fetch(source, {
+      headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+    });
     if (response.status === 404) return null;
     if (!response.ok) {
       throw new Error(

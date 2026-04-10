@@ -197,7 +197,10 @@ export async function signerMiddleware(argv: ContextMiddlewareArgv) {
             chain,
             await resolveSubmissionStrategy(
               parseUnresolvedSubmissionStrategy(strategy),
-              extendRegistryWithSubmitters(argv.context.registry),
+              extendRegistryWithSubmitters(
+                argv.context.registry,
+                argv.context.authToken,
+              ),
               chain,
             ),
           ];
@@ -275,6 +278,7 @@ export async function getContext({
   ];
 
   return {
+    authToken,
     registry,
     requiresKey,
     chainMetadata: multiProvider.metadata,
@@ -421,6 +425,7 @@ export async function ensureEvmSignersForChains(
     key: SignerKeyProtocolMap;
     multiProvider: MultiProvider;
     multiProtocolProvider: MultiProtocolProvider;
+    authToken?: string;
     registry?: IRegistry;
     strategyPath?: string;
   },
@@ -460,7 +465,10 @@ export async function ensureEvmSignersForChains(
             await resolveSubmissionStrategy(
               parseUnresolvedSubmissionStrategy(strategy),
               context.registry
-                ? extendRegistryWithSubmitters(context.registry)
+                ? extendRegistryWithSubmitters(
+                    context.registry,
+                    context.authToken,
+                  )
                 : undefined,
               chain,
             ),

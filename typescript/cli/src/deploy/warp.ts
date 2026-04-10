@@ -1235,7 +1235,7 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
         (strategyToUse as SubmissionStrategy)
       : await resolveSubmissionStrategy(
           UnresolvedSubmissionStrategySchema.parse(strategyToUse),
-          extendRegistryWithSubmitters(registry),
+          extendRegistryWithSubmitters(registry, context.authToken),
           chain,
         );
 

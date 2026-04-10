@@ -370,6 +370,8 @@ export function extendRegistryWithSubmitters(
   registry: IRegistry,
   authToken?: string,
 ): SubmitterRegistry {
+  // CAST: submitter lookup is attached dynamically so SDK lookup code can use
+  // plain IRegistry instances without widening the upstream registry package type.
   const extendedRegistry = registry as SubmitterRegistry;
   if (!Object.hasOwn(extendedRegistry, 'getSubmitter')) {
     extendedRegistry.getSubmitter = async (ref) =>
