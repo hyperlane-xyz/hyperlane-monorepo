@@ -76,6 +76,16 @@ pub fn sub_metadata(metadata: &[u8], range: MetadataRange) -> &[u8] {
     &metadata[range.start as usize..range.end as usize]
 }
 
+/// Parses the 32-byte big-endian U256 amount from a warp-route message body.
+///
+/// Warp-route (TokenMessage) layout: `[recipient (32 bytes)][amount (32 bytes)][metadata]`.
+/// Returns `None` if the body is too short.
+pub(crate) fn parse_routing_amount(body: &[u8]) -> Option<[u8; 32]> {
+    const AMOUNT_OFFSET: usize = 32;
+    const AMOUNT_END: usize = 64;
+    body.get(AMOUNT_OFFSET..AMOUNT_END)?.try_into().ok()
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -153,5 +163,27 @@ mod test {
         let mut metadata = encode_ranges(&[(100, 200)]);
         metadata.extend_from_slice(&[0u8; 4]);
         assert!(parse_aggregation_ranges(&metadata, 1).is_err());
+    }
+
+    #[test]
+    fn test_parse_routing_amount_exact_body() {
+        let mut body = [0u8; 64];
+        body[63] = 42; // amount = 42 in the low byte
+        let amount = parse_routing_amount(&body).unwrap();
+        assert_eq!(amount[31], 42);
+    }
+
+    #[test]
+    fn test_parse_routing_amount_body_longer_than_64() {
+        let mut body = vec![0u8; 100];
+        body[32] = 1; // high byte of amount
+        let amount = parse_routing_amount(&body).unwrap();
+        assert_eq!(amount[0], 1);
+    }
+
+    #[test]
+    fn test_parse_routing_amount_body_too_short() {
+        assert!(parse_routing_amount(&[0u8; 63]).is_none());
+        assert!(parse_routing_amount(&[]).is_none());
     }
 }

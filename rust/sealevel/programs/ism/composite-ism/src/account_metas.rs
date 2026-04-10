@@ -4,7 +4,7 @@ use solana_program::{account_info::AccountInfo, instruction::AccountMeta, pubkey
 
 use crate::{
     accounts::{derive_domain_pda, DomainIsmAccount, IsmNode},
-    metadata::{parse_aggregation_ranges, sub_metadata},
+    metadata::{parse_aggregation_ranges, parse_routing_amount, sub_metadata},
 };
 
 /// Returns `true` if the ISM tree contains any `RateLimited` node.
@@ -90,14 +90,7 @@ pub fn required_accounts_for_node(
             lower,
             upper,
         } => {
-            const AMOUNT_OFFSET: usize = 32;
-            const AMOUNT_END: usize = 64;
-            if message.body.len() < AMOUNT_END {
-                return vec![];
-            }
-            let Ok(amount): Result<[u8; 32], _> =
-                message.body[AMOUNT_OFFSET..AMOUNT_END].try_into()
-            else {
+            let Some(amount) = parse_routing_amount(&message.body) else {
                 return vec![];
             };
             let sub_ism = if amount >= *threshold { upper } else { lower };

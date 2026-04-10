@@ -197,7 +197,7 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], mut root: IsmNode) 
     let (storage_pda_key, storage_pda_bump) =
         Pubkey::find_program_address(storage_pda_seeds!(), program_id);
     if *storage_pda_account.key != storage_pda_key {
-        return Err(Error::AccountOutOfOrder.into());
+        return Err(Error::InvalidStoragePda.into());
     }
 
     if let Ok(Some(_)) =
@@ -208,7 +208,7 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], mut root: IsmNode) 
 
     let system_program_account = next_account_info(accounts_iter)?;
     if system_program_account.key != &system_program::ID {
-        return Err(Error::AccountOutOfOrder.into());
+        return Err(Error::InvalidSystemProgram.into());
     }
 
     let storage = CompositeIsmAccount::from(CompositeIsmStorage {
@@ -290,7 +290,11 @@ fn set_domain_ism(
     let (expected_pda, bump) =
         Pubkey::find_program_address(&[DOMAIN_ISM_SEED, &domain_bytes], program_id);
     if *domain_pda_account.key != expected_pda {
-        return Err(Error::AccountOutOfOrder.into());
+        return Err(Error::InvalidDomainPda.into());
+    }
+
+    if system_program_account.key != &system_program::ID {
+        return Err(Error::InvalidSystemProgram.into());
     }
 
     let domain_storage = DomainIsmAccount::from(DomainIsmStorage {
@@ -344,7 +348,7 @@ fn remove_domain_ism(program_id: &Pubkey, accounts: &[AccountInfo], domain: u32)
     // Verify domain PDA address.
     let (expected_pda, _) = derive_domain_pda(program_id, domain);
     if *domain_pda_account.key != expected_pda {
-        return Err(Error::AccountOutOfOrder.into());
+        return Err(Error::InvalidDomainPda.into());
     }
 
     if domain_pda_account.owner != program_id {
@@ -549,7 +553,7 @@ fn load_storage(
     let storage_pda_key =
         Pubkey::create_program_address(storage_pda_seeds!(storage.bump_seed), program_id)?;
     if *storage_pda_account.key != storage_pda_key {
-        return Err(Error::AccountOutOfOrder.into());
+        return Err(Error::InvalidStoragePda.into());
     }
 
     Ok(storage)

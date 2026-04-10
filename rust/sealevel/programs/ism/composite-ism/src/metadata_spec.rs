@@ -5,6 +5,7 @@ use solana_program::{account_info::AccountInfo, pubkey::Pubkey};
 use crate::{
     accounts::{derive_domain_pda, load_domain_ism, IsmNode},
     error::Error,
+    metadata::parse_routing_amount,
 };
 
 /// Describes the metadata a relayer must supply for this composite ISM tree.
@@ -32,68 +33,6 @@ pub enum MetadataSpec {
 
 /// Resolves the [`MetadataSpec`] for an ISM node given the message.
 ///
-/// Routing/AmountRouting are resolved inline. `Routing` nodes require a
-/// domain PDA account to be provided; use [`spec_for_node_with_pdas`] when
-/// `Routing` nodes may be present in the tree.
-#[allow(dead_code)]
-pub(crate) fn spec_for_node(
-    node: &IsmNode,
-    message: &HyperlaneMessage,
-) -> Result<MetadataSpec, Error> {
-    match node {
-        IsmNode::MultisigMessageId {
-            validators,
-            threshold,
-        } => Ok(MetadataSpec::MultisigMessageId {
-            validators: validators.clone(),
-            threshold: *threshold,
-        }),
-
-        IsmNode::Aggregation {
-            threshold,
-            sub_isms,
-        } => {
-            let sub_specs = sub_isms
-                .iter()
-                .map(|sub| spec_for_node(sub, message))
-                .collect::<Result<Vec<_>, _>>()?;
-            Ok(MetadataSpec::Aggregation {
-                threshold: *threshold,
-                sub_specs,
-            })
-        }
-
-        IsmNode::AmountRouting {
-            threshold,
-            lower,
-            upper,
-        } => {
-            const AMOUNT_OFFSET: usize = 32;
-            const AMOUNT_END: usize = 64;
-            if message.body.len() < AMOUNT_END {
-                return Err(Error::InvalidMessageBody);
-            }
-            let amount: [u8; 32] = message.body[AMOUNT_OFFSET..AMOUNT_END]
-                .try_into()
-                .map_err(|_| Error::InvalidMessageBody)?;
-            let sub_ism = if amount >= *threshold { upper } else { lower };
-            spec_for_node(sub_ism, message)
-        }
-
-        // Routing requires domain PDA accounts — use spec_for_node_with_pdas instead.
-        IsmNode::Routing { .. } => Err(Error::NoRouteForDomain),
-
-        // Leaf nodes that need no metadata from the relayer.
-        IsmNode::TrustedRelayer { .. }
-        | IsmNode::Test { .. }
-        | IsmNode::Pausable { .. }
-        | IsmNode::RateLimited { .. } => Ok(MetadataSpec::Null),
-    }
-}
-
-/// Like [`spec_for_node`], but resolves `Routing` nodes by reading accounts
-/// from `accounts_iter`.
-///
 /// For each `Routing` encountered during depth-first traversal, the next
 /// account from `accounts_iter` must be the domain PDA for `message.origin`
 /// (or any PDA — the key is verified against the derived address).
@@ -110,12 +49,12 @@ where
     match node {
         IsmNode::Routing { default_ism } => {
             // Expect the domain PDA as the next account.
-            let domain_pda_info = accounts_iter.next().ok_or(Error::AccountOutOfOrder)?;
+            let domain_pda_info = accounts_iter.next().ok_or(Error::InvalidDomainPda)?;
 
             // Verify correct account.
             let (expected_key, _) = derive_domain_pda(program_id, message.origin);
             if *domain_pda_info.key != expected_key {
-                return Err(Error::AccountOutOfOrder);
+                return Err(Error::InvalidDomainPda);
             }
 
             // Load sub-ISM.
@@ -160,14 +99,7 @@ where
             lower,
             upper,
         } => {
-            const AMOUNT_OFFSET: usize = 32;
-            const AMOUNT_END: usize = 64;
-            if message.body.len() < AMOUNT_END {
-                return Err(Error::InvalidMessageBody);
-            }
-            let amount: [u8; 32] = message.body[AMOUNT_OFFSET..AMOUNT_END]
-                .try_into()
-                .map_err(|_| Error::InvalidMessageBody)?;
+            let amount = parse_routing_amount(&message.body).ok_or(Error::InvalidMessageBody)?;
             let sub_ism = if amount >= *threshold { upper } else { lower };
             spec_for_node_with_pdas(sub_ism, message, program_id, accounts_iter)
         }

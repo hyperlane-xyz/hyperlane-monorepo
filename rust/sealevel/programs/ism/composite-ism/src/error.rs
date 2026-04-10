@@ -43,6 +43,14 @@ pub enum Error {
     RateLimitedInDomainIsm = 19,
     #[error("Routing ISM is not allowed inside a domain PDA")]
     RoutingInDomainIsm = 20,
+    #[error("Domain PDA must be writable when ISM tree contains a RateLimited node")]
+    DomainPdaNotWritable = 21,
+    #[error("Expected system program account")]
+    InvalidSystemProgram = 22,
+    #[error("Storage PDA account does not match expected derived address")]
+    InvalidStoragePda = 23,
+    #[error("Domain PDA account does not match expected derived address for this origin")]
+    InvalidDomainPda = 24,
 }
 
 impl From<Error> for ProgramError {

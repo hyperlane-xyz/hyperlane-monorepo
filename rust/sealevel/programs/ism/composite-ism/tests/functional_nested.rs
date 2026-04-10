@@ -859,7 +859,7 @@ async fn test_rate_limited_in_domain_pda_readonly_bypass_rejected() {
         &result,
         TransactionError::InstructionError(
             0,
-            InstructionError::Custom(Error::AccountOutOfOrder as u32),
+            InstructionError::Custom(Error::DomainPdaNotWritable as u32),
         ),
     );
 }

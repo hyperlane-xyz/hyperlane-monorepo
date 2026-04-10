@@ -11,6 +11,7 @@ use crate::{
     account_metas::contains_rate_limited,
     accounts::{derive_domain_pda, load_domain_ism_storage, DomainIsmAccount, IsmNode},
     error::Error,
+    metadata::parse_routing_amount,
     metadata::{parse_aggregation_ranges, sub_metadata},
     multisig_metadata::MultisigIsmMessageIdMetadata,
     rate_limit::calculate_current_level,
@@ -115,15 +116,7 @@ where
             lower,
             upper,
         } => {
-            const AMOUNT_OFFSET: usize = 32;
-            const AMOUNT_END: usize = 64;
-            if message.body.len() < AMOUNT_END {
-                return Err(Error::InvalidMessageBody.into());
-            }
-            let amount: [u8; 32] = message.body[AMOUNT_OFFSET..AMOUNT_END]
-                .try_into()
-                .map_err(|_| Error::InvalidMessageBody)?;
-
+            let amount = parse_routing_amount(&message.body).ok_or(Error::InvalidMessageBody)?;
             let sub_ism: &mut IsmNode = if amount >= *threshold { upper } else { lower };
             verify_node(sub_ism, metadata, message, accounts_iter, program_id)
         }
@@ -135,7 +128,7 @@ where
             // Verify the caller passed the correct domain PDA for this origin.
             let (expected_key, _) = derive_domain_pda(program_id, message.origin);
             if *domain_pda_info.key != expected_key {
-                return Err(Error::AccountOutOfOrder.into());
+                return Err(Error::InvalidDomainPda.into());
             }
 
             // Load the full domain PDA storage (None if not owned by this program).
@@ -147,7 +140,7 @@ where
                     // RateLimited state must be persisted; require a writable domain PDA so a
                     // hand-crafted transaction cannot bypass the rate limit by passing it readonly.
                     if contains_rate_limited(&ism) && !domain_pda_info.is_writable {
-                        return Err(Error::AccountOutOfOrder.into());
+                        return Err(Error::DomainPdaNotWritable.into());
                     }
                     verify_node(&mut ism, metadata, message, accounts_iter, program_id)?;
                     // Write updated state back to the domain PDA (e.g. RateLimited counters).
@@ -196,6 +189,12 @@ where
                 }
             }
 
+            // Warp-route message body layout (TokenMessage): [recipient (32 bytes)][amount (32 bytes, big-endian U256)][metadata].
+            // max_capacity is u64, so we read the amount as the low 8 bytes of the U256
+            // (body[56..64]) and require the high 24 bytes (body[32..56]) to be zero.
+            // A transfer whose amount doesn't fit in u64 would exceed any realistic
+            // capacity and is rejected — AmountRouting reads the full 32 bytes because
+            // it only needs ordering, not arithmetic.
             if message.body.len() < 64 {
                 return Err(Error::InvalidMessageBody.into());
             }
