@@ -229,6 +229,9 @@ async fn metadata_build(
         .base_builder()
         .retrieve_origin_tx_hash_by_message_id(message.id())
         .await
+        .map_err(|err| {
+            warn!(error = %err, "Error retrieving origin tx hash for message {:?}", message.id());
+        })
         .ok()
         .flatten()
         .map(|h| bytes_to_hex(&h512_to_bytes(&h)));
