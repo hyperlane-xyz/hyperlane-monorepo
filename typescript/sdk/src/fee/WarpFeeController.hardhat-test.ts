@@ -6,6 +6,7 @@ import {
   ERC20Test,
   ERC20Test__factory,
   HypERC20Collateral__factory,
+  HypNative__factory,
   ITokenBridge__factory,
   MockWarpFeeRemoteBridge__factory,
   MockWarpFeeControllerIcaRouter,
@@ -235,5 +236,135 @@ describe('EvmWarpFeeControllerModule', () => {
       protocolBalanceBefore.add(amount - lpDonation),
     );
     expect(await token.balanceOf(controller.contract.address)).to.equal(0);
+  });
+
+  it('claims and distributes native fees through the ICA-routed path', async () => {
+    const remoteIca = await icaRouter.remoteIca();
+    const nativeToken = hre.ethers.constants.AddressZero;
+    const baseConfig = coreApp.getRouterConfig(signer.address)[chain];
+    const warpConfig: HypTokenRouterConfig = {
+      ...baseConfig,
+      type: TokenType.native,
+      tokenFee: {
+        type: TokenFeeType.RoutingFee,
+        owner: remoteIca,
+        feeContracts: {
+          [chain]: {
+            type: TokenFeeType.LinearFee,
+            owner: remoteIca,
+            bps: 100,
+          },
+        },
+      },
+    };
+    const warpModule = await EvmWarpModule.create({
+      chain,
+      multiProvider,
+      proxyFactoryFactories,
+      config: warpConfig,
+    });
+    for (const tx of await warpModule.update(warpConfig)) {
+      await multiProvider.sendTransaction(chain, tx);
+    }
+
+    const hubRouterAddress = warpModule.serialize().deployedTokenRoute;
+    const hubRouter = HypNative__factory.connect(hubRouterAddress, signer);
+    const routingFeeAddress = await TokenRouter__factory.connect(
+      hubRouterAddress,
+      signer,
+    ).feeRecipient();
+    const routingFee = RoutingFee__factory.connect(routingFeeAddress, signer);
+
+    expect(eqAddress(await routingFee.owner(), remoteIca)).to.be.true;
+    expect(await routingFee.token()).to.equal(nativeToken);
+
+    const controller = await EvmWarpFeeControllerModule.create({
+      multiProvider,
+      chain,
+      config: {
+        owner: signer.address,
+        interchainAccountRouter: icaRouter.address,
+        hubDomain: multiProvider.getDomainId(chain),
+        hubRouter: hubRouterAddress,
+        lpBps,
+        protocolBeneficiary: protocolBeneficiary.address,
+        feeManager: feeManager.address,
+      },
+    });
+
+    const remoteBridge = await new MockWarpFeeRemoteBridge__factory(
+      signer,
+    ).deploy(nativeToken);
+    await signer.sendTransaction({
+      to: routingFeeAddress,
+      value: paymentAmount,
+    });
+    expect(await hre.ethers.provider.getBalance(routingFeeAddress)).to.equal(
+      paymentAmount,
+    );
+    expect(await hre.ethers.provider.getBalance(remoteIca)).to.equal(0);
+    expect(
+      await hre.ethers.provider.getBalance(controller.contract.address),
+    ).to.equal(0);
+
+    await controller.collect({
+      remoteDomain,
+      feeContract: routingFeeAddress,
+      token: nativeToken,
+      remoteRouter: remoteBridge.address,
+      amount,
+      paymentAmount,
+    });
+
+    expect(await icaRouter.lastCallsLength()).to.equal(2);
+    const [claimTarget] = await icaRouter.getLastCall(0);
+    expect(bytes32ToAddress(claimTarget)).to.equal(routingFeeAddress);
+
+    const [transferTarget, transferValue, transferData] =
+      await icaRouter.getLastCall(1);
+    expect(bytes32ToAddress(transferTarget)).to.equal(remoteBridge.address);
+    expect(transferValue).to.equal(paymentAmount);
+    expect(transferData).to.equal(
+      ITokenBridge__factory.createInterface().encodeFunctionData(
+        'transferRemote(uint32,bytes32,uint256)',
+        [
+          multiProvider.getDomainId(chain),
+          addressToBytes32(controller.contract.address),
+          amount,
+        ],
+      ),
+    );
+    expect(await hre.ethers.provider.getBalance(routingFeeAddress)).to.equal(0);
+    expect(await hre.ethers.provider.getBalance(remoteIca)).to.equal(0);
+    expect(await hre.ethers.provider.getBalance(remoteBridge.address)).to.equal(
+      paymentAmount - amount,
+    );
+    expect(
+      await hre.ethers.provider.getBalance(controller.contract.address),
+    ).to.equal(amount);
+    expect(await remoteBridge.lastDestination()).to.equal(
+      multiProvider.getDomainId(chain),
+    );
+    expect(await remoteBridge.lastRecipient()).to.equal(
+      addressToBytes32(controller.contract.address),
+    );
+    expect(await remoteBridge.lastAmount()).to.equal(amount);
+
+    const lpDonation = (amount * lpBps) / 10_000;
+    const totalAssetsBefore = await hubRouter.totalAssets();
+    const protocolBalanceBefore = await hre.ethers.provider.getBalance(
+      protocolBeneficiary.address,
+    );
+    await controller.distribute(nativeToken);
+
+    expect(await hubRouter.totalAssets()).to.equal(
+      totalAssetsBefore.add(lpDonation),
+    );
+    expect(
+      await hre.ethers.provider.getBalance(protocolBeneficiary.address),
+    ).to.equal(protocolBalanceBefore.add(amount - lpDonation));
+    expect(
+      await hre.ethers.provider.getBalance(controller.contract.address),
+    ).to.equal(0);
   });
 });

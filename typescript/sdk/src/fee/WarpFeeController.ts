@@ -5,7 +5,11 @@ import {
   WarpFeeController,
   WarpFeeController__factory,
 } from '@hyperlane-xyz/core';
-import { Address, addressToBytes32 } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  AddressBytes32,
+  addressToBytes32,
+} from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId } from '../types.js';
@@ -25,7 +29,7 @@ export type DerivedWarpFeeControllerConfig = WarpFeeControllerConfig & {
 };
 
 export type WarpFeeControllerCall = {
-  to: string;
+  to: AddressBytes32;
   value: BigNumberish;
   data: string;
 };

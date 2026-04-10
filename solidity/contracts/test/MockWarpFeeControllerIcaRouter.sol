@@ -6,6 +6,7 @@ import {TypeCasts} from "../libs/TypeCasts.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 contract MockWarpFeeControllerInterchainAccount {
     using TypeCasts for bytes32;
@@ -82,6 +83,7 @@ contract MockWarpFeeControllerIcaRouter {
 
 contract MockWarpFeeRemoteBridge {
     using SafeERC20 for IERC20;
+    using Address for address payable;
     using TypeCasts for bytes32;
 
     IERC20 public immutable token;
@@ -101,11 +103,15 @@ contract MockWarpFeeRemoteBridge {
         lastDestination = _destination;
         lastRecipient = _recipient;
         lastAmount = _amount;
-        token.safeTransferFrom(
-            msg.sender,
-            _recipient.bytes32ToAddress(),
-            _amount
-        );
+        address recipient = _recipient.bytes32ToAddress();
+        if (address(token) == address(0)) {
+            require(msg.value >= _amount, "MockWarpFeeRemoteBridge: value");
+            payable(recipient).sendValue(_amount);
+        } else {
+            token.safeTransferFrom(msg.sender, recipient, _amount);
+        }
         return bytes32(uint256(0xbeef));
     }
+
+    receive() external payable {}
 }
