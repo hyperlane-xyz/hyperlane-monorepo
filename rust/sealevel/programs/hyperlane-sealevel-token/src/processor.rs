@@ -79,6 +79,7 @@ pub fn process_instruction(
         TokenIxn::TransferOwnership(new_owner) => {
             transfer_ownership(program_id, accounts, new_owner)
         }
+        _ => Err(solana_program::program_error::ProgramError::InvalidInstructionData),
     }
     .map_err(|err| {
         msg!("{}", err);
