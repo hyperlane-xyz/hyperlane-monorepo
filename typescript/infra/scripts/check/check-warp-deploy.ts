@@ -96,11 +96,13 @@ async function main() {
   );
   const {
     routesWithUnsupportedChains: getterRoutesWithUnsupportedChains,
+    warpCoreConfigMap,
     warpDeployConfigMap,
     failedWarpRouteConfigLoads,
-  } = await getWarpDeployConfigsToCheck({
+  } = await getWarpConfigsToCheck({
     envConfig,
     getterInputsMultiProvider,
+    registry,
     registryUris: registries,
     registryWarpDeployConfigMap,
     warpConfigGetterInputs,
@@ -115,10 +117,11 @@ async function main() {
   logUnsupportedRoutes(routesWithUnsupportedChains);
 
   const warpIdsToCheck = Object.keys(warpDeployConfigMap);
-  const warpConfigChains = getWarpConfigChains(
-    warpIdsToCheck,
+  const warpConfigChains = getWarpConfigChains({
+    warpCoreConfigMap,
     warpDeployConfigMap,
-  );
+    warpRouteIds: warpIdsToCheck,
+  });
 
   console.log(
     `Checking ${warpIdsToCheck.length} routes across chains: ${Array.from(warpConfigChains).join(', ')}`,
@@ -147,6 +150,7 @@ async function main() {
         registry,
         registryUris: registries,
         warpRouteId,
+        warpCoreConfig: warpCoreConfigMap[warpRouteId],
         warpDeployConfig,
       });
 
@@ -408,26 +412,32 @@ function logUnsupportedRoutes(routesWithUnsupportedChains: string[]) {
   );
 }
 
-function getWarpConfigChains(
-  warpIdsToCheck: string[],
-  registryWarpDeployConfigMap: Record<
-    string,
-    WarpRouteDeployConfigMailboxRequired
-  >,
-) {
+function getWarpConfigChains({
+  warpCoreConfigMap,
+  warpDeployConfigMap,
+  warpRouteIds,
+}: {
+  warpCoreConfigMap: Record<string, WarpCoreConfig>;
+  warpDeployConfigMap: Record<string, WarpRouteDeployConfigMailboxRequired>;
+  warpRouteIds: string[];
+}) {
   const warpConfigChains = new Set<ChainName>();
-  warpIdsToCheck.forEach((warpRouteId) => {
-    const warpRouteConfig = registryWarpDeployConfigMap[warpRouteId];
-    Object.keys(warpRouteConfig).forEach((chain) =>
+  warpRouteIds.forEach((warpRouteId) => {
+    const warpDeployConfig = warpDeployConfigMap[warpRouteId];
+    Object.keys(warpDeployConfig).forEach((chain) =>
       warpConfigChains.add(chain),
+    );
+    warpCoreConfigMap[warpRouteId].tokens.forEach((token) =>
+      warpConfigChains.add(token.chainName),
     );
   });
   return warpConfigChains;
 }
 
-async function getWarpDeployConfigsToCheck({
+async function getWarpConfigsToCheck({
   envConfig,
   getterInputsMultiProvider,
+  registry,
   registryUris,
   registryWarpDeployConfigMap,
   warpConfigGetterInputs,
@@ -435,6 +445,7 @@ async function getWarpDeployConfigsToCheck({
 }: {
   envConfig: ReturnType<typeof getEnvironmentConfig>;
   getterInputsMultiProvider: MultiProvider;
+  registry: ReturnType<typeof getRegistry>;
   registryUris: string[];
   registryWarpDeployConfigMap: Record<
     string,
@@ -446,6 +457,12 @@ async function getWarpDeployConfigsToCheck({
   const loadResults = await Promise.all(
     warpRouteIds.map(async (warpRouteId) => {
       try {
+        const warpCoreConfig = await registry.getWarpRoute(warpRouteId);
+        assert(
+          warpCoreConfig,
+          `Warp route config not found for ${warpRouteId}`,
+        );
+
         const warpDeployConfig = warpConfigGetterMap[warpRouteId]
           ? WarpRouteDeployConfigMailboxRequiredSchema.parse(
               await getWarpConfig(
@@ -459,12 +476,17 @@ async function getWarpDeployConfigsToCheck({
             )
           : registryWarpDeployConfigMap[warpRouteId];
 
-        const unsupportedChains = Object.keys(warpDeployConfig).filter(
+        const requiredChains = new Set([
+          ...Object.keys(warpDeployConfig),
+          ...warpCoreConfig.tokens.map((token) => token.chainName),
+        ]);
+        const unsupportedChains = Array.from(requiredChains).filter(
           (chain) => !envConfig.supportedChainNames.includes(chain),
         );
 
         return {
           unsupportedChains,
+          warpCoreConfig,
           warpDeployConfig,
           warpRouteId,
         };
@@ -483,6 +505,7 @@ async function getWarpDeployConfigsToCheck({
     string,
     WarpRouteDeployConfigMailboxRequired
   > = {};
+  const warpCoreConfigMap: Record<string, WarpCoreConfig> = {};
 
   for (const result of loadResults) {
     if ('error' in result) {
@@ -503,11 +526,13 @@ async function getWarpDeployConfigsToCheck({
     }
 
     warpDeployConfigMap[result.warpRouteId] = result.warpDeployConfig;
+    warpCoreConfigMap[result.warpRouteId] = result.warpCoreConfig;
   }
 
   return {
     failedWarpRouteConfigLoads,
     routesWithUnsupportedChains,
+    warpCoreConfigMap,
     warpDeployConfigMap,
   };
 }
