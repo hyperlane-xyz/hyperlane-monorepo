@@ -50,6 +50,10 @@ import {
 } from '../utils/tokenUtils.js';
 import { parseSolanaPrivateKey } from '../utils/solanaKeyParser.js';
 import { toProtocolTransaction } from '../utils/transactionUtils.js';
+import {
+  denormalizeToLocal,
+  normalizeToCanonical,
+} from '../utils/balanceUtils.js';
 
 /**
  * Buffer percentage to add when bridging inventory.
@@ -532,11 +536,15 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       {
         strategyRoute: `${origin} (surplus) → ${destination} (deficit)`,
         executionRoute: `transferRemote FROM ${destination} TO ${origin}`,
-        amount: amount.toString(),
+        canonicalAmount: amount.toString(),
         intentId: intent.id,
       },
       'Executing inventory route',
     );
+
+    const sourceToken = this.getTokenForChain(destination);
+    assert(sourceToken, `No token found for source chain: ${destination}`);
+    const localAmount = denormalizeToLocal(amount, sourceToken);
 
     // Check available inventory on the DESTINATION (deficit) chain
     // We need inventory here because transferRemote is called FROM this chain
@@ -547,8 +555,8 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         checkingChain: destination,
         availableInventory: availableInventory.toString(),
         availableInventoryEth: (Number(availableInventory) / 1e18).toFixed(6),
-        requiredAmount: amount.toString(),
-        requiredAmountEth: (Number(amount) / 1e18).toFixed(6),
+        requiredAmount: localAmount.toString(),
+        requiredAmountEth: (Number(localAmount) / 1e18).toFixed(6),
       },
       'Checking effective inventory on destination (deficit) chain',
     );
@@ -559,7 +567,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       destination, // FROM chain (where transferRemote is called)
       origin, // TO chain (where Hyperlane message goes)
       availableInventory,
-      amount,
+      localAmount,
       this.multiProvider,
       this.warpCore.multiProvider,
       this.getTokenForChain.bind(this),
@@ -578,11 +586,11 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         fromChain: destination,
         toChain: origin,
         availableInventoryEth: (Number(availableInventory) / 1e18).toFixed(6),
-        requestedAmountEth: (Number(amount) / 1e18).toFixed(6),
+        requestedAmountEth: (Number(localAmount) / 1e18).toFixed(6),
         maxTransferableEth: (Number(maxTransferable) / 1e18).toFixed(6),
         minViableTransferEth: (Number(minViableTransfer) / 1e18).toFixed(6),
         totalInventoryEth: (Number(totalInventory) / 1e18).toFixed(6),
-        canFullyFulfill: maxTransferable >= amount,
+        canFullyFulfill: maxTransferable >= localAmount,
         canPartialFulfill: maxTransferable >= minViableTransfer,
       },
       'Calculated max transferable amount with cost-based threshold',
@@ -590,11 +598,11 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
     // Early exit: If remaining amount is below minViableTransfer, complete the intent
     // This prevents infinite loops when the remaining amount is too small to economically bridge
-    if (amount < minViableTransfer) {
+    if (localAmount < minViableTransfer) {
       this.logger.info(
         {
           intentId: intent.id,
-          amount: amount.toString(),
+          amount: localAmount.toString(),
           minViableTransfer: minViableTransfer.toString(),
         },
         'Remaining amount below minViableTransfer, completing intent with acceptable loss',
@@ -615,14 +623,20 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       ...route,
       origin: destination, // transferRemote called FROM here
       destination: origin, // Hyperlane message goes TO here
+      amount: localAmount,
     };
 
-    if (maxTransferable >= amount) {
+    if (maxTransferable >= localAmount) {
       // Sufficient inventory on destination - execute transferRemote directly
+      const fulfilledCanonicalAmount = normalizeToCanonical(
+        localAmount,
+        sourceToken,
+      );
       const result = await this.executeTransferRemote(
         swappedRoute,
         intent,
         costs.gasQuote!,
+        fulfilledCanonicalAmount,
       );
       // Return original strategy route in result (not the swapped execution route)
       return { ...result, route };
@@ -632,18 +646,23 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         ...swappedRoute,
         amount: maxTransferable,
       };
+      const fulfilledCanonicalAmount = normalizeToCanonical(
+        maxTransferable,
+        sourceToken,
+      );
       const result = await this.executeTransferRemote(
         partialSwappedRoute,
         intent,
         costs.gasQuote!,
+        fulfilledCanonicalAmount,
       );
 
       this.logger.info(
         {
           intentId: intent.id,
           partialAmount: maxTransferable.toString(),
-          requestedAmount: amount.toString(),
-          remainingAmount: (amount - maxTransferable).toString(),
+          requestedAmount: localAmount.toString(),
+          remainingAmount: (localAmount - maxTransferable).toString(),
         },
         'Executed partial inventory deposit, remaining will be handled in future cycles',
       );
@@ -671,7 +690,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
           {
             origin,
             destination,
-            amount: amount.toString(),
+            amount: localAmount.toString(),
             intentId: intent.id,
           },
           'No inventory available on any monitored chain',
@@ -723,7 +742,8 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
       // Create bridge plans using VIABLE amounts (gas already accounted for)
       const targetWithBuffer =
-        ((amount + costs.totalCost) * (100n + BRIDGE_BUFFER_PERCENT)) / 100n;
+        ((localAmount + costs.totalCost) * (100n + BRIDGE_BUFFER_PERCENT)) /
+        100n;
       const bridgePlans: Array<{ chain: ChainName; amount: bigint }> = [];
       let totalPlanned = 0n;
 
@@ -829,6 +849,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
           successCount,
           totalBridged: totalBridged.toString(),
           targetAmount: amount.toString(),
+          targetAmountCanonical: route.amount.toString(),
           intentId: intent.id,
         },
         'Parallel inventory movements completed, transferRemote will execute after bridges complete',
@@ -857,6 +878,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     route: InventoryRoute,
     intent: RebalanceIntent,
     gasQuote: InterchainGasQuote,
+    fulfilledCanonicalAmount: bigint,
   ): Promise<InventoryExecutionResult> {
     const { origin, destination, amount } = route;
 
@@ -967,7 +989,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       intentId: intent.id,
       origin: this.multiProvider.getDomainId(origin),
       destination: destinationDomain,
-      amount,
+      amount: fulfilledCanonicalAmount,
       type: 'inventory_deposit',
       txHash: transferTxHash,
       messageId,

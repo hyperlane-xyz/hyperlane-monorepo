@@ -11,13 +11,7 @@ import {
   WarpCore,
   type WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import {
-  Address,
-  assert,
-  ProtocolType,
-  objMap,
-  toWei,
-} from '@hyperlane-xyz/utils';
+import { Address, assert, ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
 import { LiFiBridge } from '../bridges/LiFiBridge.js';
 import { type RebalancerConfig } from '../config/RebalancerConfig.js';
@@ -63,6 +57,10 @@ import {
   ExplorerClient,
   type IExplorerClient,
 } from '../utils/ExplorerClient.js';
+import {
+  normalizeConfiguredAmount,
+  normalizeToCanonical,
+} from '../utils/balanceUtils.js';
 import { isCollateralizedTokenEligibleForRebalancing } from '../utils/tokenUtils.js';
 
 const DEFAULT_EXPLORER_URL =
@@ -252,9 +250,10 @@ export class RebalancerContextFactory {
       );
       if (chainConfig?.bridgeMinAcceptedAmount) {
         const token = this.tokensByChainName[chainName];
-        const decimals = token?.decimals ?? 18;
-        minAmountsByChain[chainName] = BigInt(
-          toWei(chainConfig.bridgeMinAcceptedAmount, decimals),
+        if (!token) continue;
+        minAmountsByChain[chainName] = normalizeConfiguredAmount(
+          chainConfig.bridgeMinAcceptedAmount,
+          token,
         );
       }
     }
@@ -761,7 +760,10 @@ export class RebalancerContextFactory {
         ) {
           const adapter = token.getHypAdapter(this.warpCore.multiProvider);
           const bridgedSupply = await adapter.getBridgedSupply();
-          initialTotalCollateral += bridgedSupply ?? 0n;
+          initialTotalCollateral += normalizeToCanonical(
+            bridgedSupply ?? 0n,
+            token,
+          );
         }
       }),
     );

@@ -173,6 +173,7 @@ export interface MockTokenConfig {
   name?: string;
   decimals?: number;
   addressOrDenom?: string;
+  scale?: Token['scale'];
   adapter?: ReturnType<typeof createMockAdapter>;
 }
 
@@ -181,6 +182,7 @@ export function createMockToken(config: MockTokenConfig = {}) {
     name = 'TestToken',
     decimals = 18,
     addressOrDenom = TEST_ADDRESSES.token,
+    scale,
     adapter = createMockAdapter(),
   } = config;
 
@@ -188,6 +190,7 @@ export function createMockToken(config: MockTokenConfig = {}) {
     name,
     decimals,
     addressOrDenom,
+    scale,
     amount: (amt: bigint) => createMockTokenAmount(amt),
     getHypAdapter: Sinon.stub().returns(adapter),
   };

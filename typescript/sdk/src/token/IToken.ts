@@ -51,7 +51,13 @@ export const TokenConfigSchema = z.object({
     .string()
     .optional()
     .describe('The CoinGecko id of the token, used for price lookups'),
-  scale: ZUint.lt(256).optional().describe('The scaling factor of the token'),
+  scale: z
+    .union([
+      ZUint.lt(256),
+      z.object({ numerator: z.number(), denominator: z.number() }),
+    ])
+    .optional()
+    .describe('The scaling factor of the token'),
   warpRouteId: z
     .string()
     .min(1)

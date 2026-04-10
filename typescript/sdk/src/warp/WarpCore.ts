@@ -1247,15 +1247,17 @@ export class WarpCore {
     );
 
     // check for scaling factor
-    if (
-      originToken.scale &&
-      resolvedDestinationToken.scale &&
-      originToken.scale !== resolvedDestinationToken.scale
-    ) {
+    const originScale =
+      typeof originToken.scale === 'number' ? originToken.scale : undefined;
+    const destScale =
+      typeof resolvedDestinationToken.scale === 'number'
+        ? resolvedDestinationToken.scale
+        : undefined;
+    if (originScale && destScale && originScale !== destScale) {
       const precisionFactor = 100_000;
       const scaledAmount = convertToScaledAmount({
-        fromScale: originToken.scale,
-        toScale: resolvedDestinationToken.scale,
+        fromScale: originScale,
+        toScale: destScale,
         amount,
         precisionFactor,
       });

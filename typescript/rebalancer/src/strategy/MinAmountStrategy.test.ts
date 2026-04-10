@@ -64,7 +64,6 @@ describe('MinAmountStrategy', () => {
       ).to.throw('At least two chains must be configured');
     });
 
-    // eslint-disable-next-line jest/expect-expect -- testing constructor doesn't throw
     it('should create a strategy with minAmount and target using absolute values', () => {
       new MinAmountStrategy(
         {
@@ -94,7 +93,6 @@ describe('MinAmountStrategy', () => {
       );
     });
 
-    // eslint-disable-next-line jest/expect-expect -- testing constructor doesn't throw
     it('should create a strategy with minAmount and target using relative values', () => {
       new MinAmountStrategy(
         {
@@ -415,6 +413,65 @@ describe('MinAmountStrategy', () => {
       ]);
     });
 
+    it('should normalize absolute thresholds for mixed-decimal routes', () => {
+      const mixedTokensByChainName: ChainMap<Token> = {
+        [chain1]: new Token({
+          ...tokenArgs,
+          chainName: chain1,
+          decimals: 18,
+          scale: { numerator: 1, denominator: 1_000_000_000_000 },
+        }),
+        [chain2]: new Token({
+          ...tokenArgs,
+          chainName: chain2,
+          decimals: 6,
+        }),
+      };
+      const config = {
+        [chain1]: {
+          minAmount: {
+            min: '100',
+            target: '120',
+            type: RebalancerMinAmountType.Absolute,
+          },
+          bridge: AddressZero,
+          bridgeLockTime: 1,
+        },
+        [chain2]: {
+          minAmount: {
+            min: '100',
+            target: '120',
+            type: RebalancerMinAmountType.Absolute,
+          },
+          bridge: AddressZero,
+          bridgeLockTime: 1,
+        },
+      };
+
+      const strategy = new MinAmountStrategy(
+        config,
+        mixedTokensByChainName,
+        250_000_000n,
+        testLogger,
+        extractBridgeConfigs(config),
+      );
+
+      const routes = strategy.getRebalancingRoutes({
+        [chain1]: 50_000_000n,
+        [chain2]: 200_000_000n,
+      });
+
+      expect(routes).to.deep.equal([
+        {
+          origin: chain2,
+          destination: chain1,
+          amount: 70_000_000n,
+          bridge: AddressZero,
+          executionType: 'movableCollateral',
+        },
+      ]);
+    });
+
     it('should return multiple routes for multiple chains below minimum amount', () => {
       const config = {
         [chain1]: {
@@ -510,7 +567,7 @@ describe('MinAmountStrategy', () => {
             {},
           ),
       ).to.throw(
-        `Consider reducing the targets as the sum (340) is greater than sum of collaterals (300)`,
+        `Consider reducing the targets as the canonical sum (340000000000000000000) is greater than sum of collaterals (300000000000000000000)`,
       );
     });
 
