@@ -18,7 +18,7 @@ import {
   createRpc,
   fetchMailboxInboxAccount,
 } from '@hyperlane-xyz/sealevel-sdk';
-import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert, rootLogger } from '@hyperlane-xyz/utils';
 import { readJson } from '@hyperlane-xyz/utils/fs';
 import { address } from '@solana/kit';
 
@@ -361,9 +361,20 @@ async function checkAndSubmitSetDefaultIsm(
 ): Promise<'match' | 'proposed' | 'skipped' | 'unreadable'> {
   // Read on-chain default ISM from the mailbox inbox PDA
   const chainMeta = getChain(chain);
-  const rpcUrl = chainMeta.rpcUrls[0].http;
-  const rpc = createRpc(rpcUrl);
-  const inbox = await fetchMailboxInboxAccount(rpc, address(mailboxProgramId));
+  let inbox;
+  try {
+    const rpcUrl = chainMeta.rpcUrls[0]?.http;
+    assert(rpcUrl, `No HTTP RPC configured for ${chain}`);
+    const rpc = createRpc(rpcUrl);
+    inbox = await fetchMailboxInboxAccount(rpc, address(mailboxProgramId));
+  } catch (error) {
+    rootLogger.warn(
+      chalk.yellow(
+        `[${chain}] Failed to read mailbox inbox — cannot verify default ISM, skipping validator updates: ${String(error)}`,
+      ),
+    );
+    return 'unreadable';
+  }
   if (!inbox) {
     // Can't verify — treat as mismatch to be safe (don't update wrong ISM)
     rootLogger.warn(

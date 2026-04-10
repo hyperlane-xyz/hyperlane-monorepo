@@ -42,7 +42,12 @@ import {
 import type { SealevelMultisigIsmConfig } from '@hyperlane-xyz/sealevel-sdk';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainName, IsmType } from '@hyperlane-xyz/sdk';
-import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  assert,
+  eqAddressSol,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 import { readJson } from '@hyperlane-xyz/utils/fs';
 import { address } from '@solana/kit';
 import { Contexts } from '../../config/contexts.js';
@@ -132,7 +137,10 @@ async function processChain(
 
   const coreProgramIds = loadCoreProgramIds(environment, chain);
   const chainMeta = getChain(chain);
-  const rpcUrls = chainMeta.rpcUrls.map((r) => r.http);
+  const rpcUrls = chainMeta.rpcUrls
+    .map((r) => r.http)
+    .filter((url): url is string => !!url);
+  assert(rpcUrls.length > 0, `No HTTP RPC URLs configured for ${chain}`);
 
   const squadsConfig = squadsConfigs[chain];
   if (!squadsConfig) throw new Error(`No Squads config for ${chain}`);
@@ -227,7 +235,7 @@ async function processChain(
     rpc,
     programAddress,
   );
-  if (accessControl?.owner && address(accessControl.owner) === vaultAddress) {
+  if (accessControl?.owner && eqAddressSol(accessControl.owner, vaultAddress)) {
     logger.info(chalk.gray('  Already owned by vault'));
   } else {
     const transferIx = await getMultisigIsmTransferOwnershipInstruction(
@@ -251,7 +259,7 @@ async function processChain(
     rpc,
     programAddress,
   );
-  if (currentAuthority && address(currentAuthority) === vaultAddress) {
+  if (currentAuthority && eqAddressSol(currentAuthority, vaultAddress)) {
     logger.info(chalk.gray('  Already set to vault'));
   } else {
     const authIx = await getSetUpgradeAuthorityInstruction(
@@ -332,6 +340,21 @@ async function main() {
             !chainsToSkip.includes(c),
         )
       : chainsArg;
+  assert(chains.length > 0, `No Sealevel chains selected for ${environment}`);
+  for (const chain of chains) {
+    assert(
+      envConfig.supportedChainNames.includes(chain),
+      `Unsupported chain for ${environment}: ${chain}`,
+    );
+    assert(
+      chainIsProtocol(chain, ProtocolType.Sealevel),
+      `Expected Sealevel chain, got ${chain}`,
+    );
+    assert(
+      !chainsToSkip.includes(chain),
+      `Chain is skipped for Sealevel deploys: ${chain}`,
+    );
+  }
 
   logger.info(
     chalk.cyan.bold(
@@ -377,6 +400,21 @@ async function main() {
       authority: r.authTransferred ? 'ok' : 'FAIL',
       configs: r.configsUpdated ? 'ok' : 'FAIL',
     })),
+  );
+
+  const failedChains = results
+    .filter(
+      (r) =>
+        !r.deployed ||
+        !r.configured ||
+        !r.ownerTransferred ||
+        !r.authTransferred ||
+        !r.configsUpdated,
+    )
+    .map((r) => r.chain);
+  assert(
+    failedChains.length === 0,
+    `Deployment failed for chains: ${failedChains.join(', ')}`,
   );
 }
 

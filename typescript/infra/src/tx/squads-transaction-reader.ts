@@ -1277,8 +1277,8 @@ export class SquadsTransactionReader {
     const expectedConfig = this.loadMultisigConfig(chain);
     if (!expectedConfig) {
       return {
-        insight: `⚠️ No expected ISM config for ${chain}, skipping verification`,
-        issues: [],
+        insight: `Set default ISM to ${ismAddress} ❌ could not verify: missing expected config for ${chain}`,
+        issues: [`Missing expected ISM config for ${chain}`],
       };
     }
 

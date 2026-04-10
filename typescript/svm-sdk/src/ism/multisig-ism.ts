@@ -36,8 +36,18 @@ const CHUNK_SIZE = 5;
 const INIT_RETRY_ATTEMPTS = 8;
 const INIT_RETRY_BASE_MS = 1000;
 
+type ProgramDeploymentError = Error & {
+  context?: { logs?: string[] };
+  isRecoverable?: boolean;
+};
+
+function toProgramDeploymentError(error: unknown): ProgramDeploymentError {
+  if (error instanceof Error) return error;
+  return new Error(String(error));
+}
+
 function isProgramDeploymentRace(error: unknown): boolean {
-  const logs = (error as { context?: { logs?: string[] } })?.context?.logs;
+  const logs = toProgramDeploymentError(error).context?.logs;
   return !!logs?.some(
     (log) =>
       log.includes('Program is not deployed') ||
@@ -138,8 +148,10 @@ export class SvmMessageIdMultisigIsmWriter
           try {
             return await this.svmSigner.send({ instructions: [initIx] });
           } catch (error) {
-            if (isProgramDeploymentRace(error)) throw error;
-            throw Object.assign(error as Error, { isRecoverable: false });
+            const wrapped = toProgramDeploymentError(error);
+            if (isProgramDeploymentRace(wrapped)) throw wrapped;
+            wrapped.isRecoverable = false;
+            throw wrapped;
           }
         },
         INIT_RETRY_ATTEMPTS,
