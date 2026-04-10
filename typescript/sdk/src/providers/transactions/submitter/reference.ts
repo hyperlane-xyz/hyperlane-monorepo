@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { assert } from '@hyperlane-xyz/utils';
 
+import { ChainName } from '../../../types.js';
 import {
   SubmissionStrategy,
   SubmissionStrategySchema,
@@ -13,6 +14,7 @@ import {
   UnresolvedSubmitterReference,
   UnresolvedSubmitterReferenceSchema,
 } from './types.js';
+import { TxSubmitterType } from './TxSubmitterTypes.js';
 
 export interface SubmitterReferenceRegistry {
   getSubmitter?(
@@ -21,6 +23,7 @@ export interface SubmitterReferenceRegistry {
   getUri?(itemPath?: string): string;
   uri?: string;
   registries?: Array<Partial<SubmitterReferenceRegistry>>;
+  allowInsecureHttp?: boolean;
 }
 
 const SUBMITTER_DIRECTORY = 'submitters';
@@ -42,7 +45,7 @@ export type UnresolvedSubmissionStrategy = z.infer<
 function isUnresolvedSubmitterReference(
   value: SubmitterMetadata | UnresolvedSubmitterReference,
 ): value is UnresolvedSubmitterReference {
-  return value.type === 'submitter_ref';
+  return value.type === TxSubmitterType.SUBMITTER_REF;
 }
 
 function parseResolvedSubmitterPayload(
@@ -96,14 +99,22 @@ export async function resolveSubmissionStrategy(
     | SubmissionStrategy
     | Promise<UnresolvedSubmissionStrategy | SubmissionStrategy>,
   registry?: Partial<SubmitterReferenceRegistry>,
+  expectedChain?: ChainName,
 ): Promise<SubmissionStrategy> {
   const awaitedStrategy = await strategy;
+  const shouldAssertChain =
+    expectedChain && isUnresolvedSubmitterReference(awaitedStrategy.submitter);
+  const submitter = await resolveSubmitterMetadata(
+    awaitedStrategy.submitter,
+    registry,
+  );
+  assert(
+    !shouldAssertChain || submitter.chain === expectedChain,
+    `Submitter reference resolved to chain ${submitter.chain}, expected ${expectedChain}`,
+  );
   return {
     ...awaitedStrategy,
-    submitter: await resolveSubmitterMetadata(
-      awaitedStrategy.submitter,
-      registry,
-    ),
+    submitter,
   };
 }
 
@@ -138,8 +149,6 @@ async function loadSubmitterReferenceFromRegistry(
         return payload;
       }
     }
-
-    return null;
   }
 
   assert(
@@ -149,7 +158,7 @@ async function loadSubmitterReferenceFromRegistry(
 
   for (const itemPath of getCandidateItemPaths(ref, registry)) {
     for (const source of getCandidateSources(itemPath, registry)) {
-      const payload = await loadReferencePayload(source);
+      const payload = await loadReferencePayload(source, registry);
       if (payload) {
         return parseSubmitterReferencePayload(payload, source);
       }
@@ -163,7 +172,12 @@ function getCandidateItemPaths(
   ref: string,
   registry: Partial<SubmitterReferenceRegistry>,
 ): string[] {
-  const relativeRef = stripRegistryRoot(ref, registry) ?? ref;
+  const strippedRef = stripRegistryRoot(ref, registry);
+  if (!strippedRef && isAbsoluteUrl(ref)) {
+    return [];
+  }
+
+  const relativeRef = strippedRef ?? ref;
   const normalizedRef = relativeRef.replace(/^\/+/, '');
   assert(
     normalizedRef.startsWith(`${SUBMITTER_DIRECTORY}/`),
@@ -224,9 +238,12 @@ function safeGetUri(
   }
 }
 
-async function loadReferencePayload(source: string): Promise<string | null> {
+async function loadReferencePayload(
+  source: string,
+  registry: Partial<SubmitterReferenceRegistry>,
+): Promise<string | null> {
   try {
-    if (!isHttpUrl(source)) {
+    if (!isFetchableUrl(source, registry.allowInsecureHttp)) {
       return null;
     }
 
@@ -246,6 +263,23 @@ function hasSupportedExtension(value: string): boolean {
   });
 }
 
-function isHttpUrl(value: string): boolean {
-  return value.startsWith('http://') || value.startsWith('https://');
+function isFetchableUrl(value: string, allowInsecureHttp = false): boolean {
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === 'https:' ||
+      (allowInsecureHttp && url.protocol === 'http:')
+    );
+  } catch {
+    return false;
+  }
+}
+
+function isAbsoluteUrl(value: string): boolean {
+  try {
+    new URL(value);
+    return true;
+  } catch {
+    return false;
+  }
 }

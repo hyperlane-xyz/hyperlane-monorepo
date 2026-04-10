@@ -23,7 +23,7 @@ export function createSubmitterReferenceRegistry(
 async function readSubmitterReference(
   registry: IRegistry,
   ref: string,
-): Promise<unknown | null> {
+): Promise<unknown> {
   const childRegistries = (registry as IRegistry & { registries?: IRegistry[] })
     .registries;
   if (childRegistries?.length) {
@@ -31,7 +31,6 @@ async function readSubmitterReference(
       const payload = await readSubmitterReference(childRegistry, ref);
       if (payload) return payload;
     }
-    return null;
   }
 
   for (const itemPath of getCandidateItemPaths(ref, registry)) {
@@ -94,9 +93,9 @@ function safeGetUri(
   }
 }
 
-async function loadPayload(source: string): Promise<unknown | null> {
+async function loadPayload(source: string): Promise<unknown> {
   try {
-    if (source.startsWith('http://') || source.startsWith('https://')) {
+    if (isFetchableUrl(source)) {
       const response = await fetch(source);
       if (!response.ok) return null;
       return parseSubmitterReferencePayload(await response.text(), source);
@@ -105,5 +104,13 @@ async function loadPayload(source: string): Promise<unknown | null> {
     return readYamlOrJson(source);
   } catch {
     return null;
+  }
+}
+
+function isFetchableUrl(value: string): boolean {
+  try {
+    return new URL(value).protocol === 'https:';
+  } catch {
+    return false;
   }
 }

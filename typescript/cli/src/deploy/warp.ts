@@ -1234,6 +1234,7 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
       : await resolveSubmissionStrategy(
           strategyToUse as UnresolvedSubmissionStrategy,
           createSubmitterReferenceRegistry(registry),
+          chain,
         );
 
   return {
@@ -1243,7 +1244,7 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
       coreAddressesByChain: await registry.getAddresses(),
       additionalSubmitterFactories,
     }),
-    config: strategyToUse,
+    config: resolvedStrategy,
   };
 }
 

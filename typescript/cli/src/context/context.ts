@@ -173,21 +173,25 @@ export async function signerMiddleware(argv: ContextMiddlewareArgv) {
   if (!requiresKey) return;
   assert(key, 'Expected signer keys when running signer middleware');
 
+  const chainsSet = new Set(chains);
   const resolvedStrategyConfig = Object.fromEntries(
     await Promise.all(
-      Object.entries(strategyConfig).map(async ([chain, strategy]) => {
-        if (strategy.submitter.type === CustomTxSubmitterType.FILE) {
-          return [chain, strategy];
-        }
+      Object.entries(strategyConfig)
+        .filter(([chain]) => chainsSet.has(chain))
+        .map(async ([chain, strategy]) => {
+          if (strategy.submitter.type === CustomTxSubmitterType.FILE) {
+            return [chain, strategy];
+          }
 
-        return [
-          chain,
-          await resolveSubmissionStrategy(
-            strategy as UnresolvedSubmissionStrategy,
-            createSubmitterReferenceRegistry(argv.context.registry),
-          ),
-        ];
-      }),
+          return [
+            chain,
+            await resolveSubmissionStrategy(
+              strategy as UnresolvedSubmissionStrategy,
+              createSubmitterReferenceRegistry(argv.context.registry),
+              chain,
+            ),
+          ];
+        }),
     ),
   );
 
@@ -431,26 +435,30 @@ export async function ensureEvmSignersForChains(
   const strategyConfig = context.strategyPath
     ? await readChainSubmissionStrategyConfig(context.strategyPath)
     : {};
+  const missingSignerChainSet = new Set(missingSignerChains);
   const resolvedStrategyConfig = Object.fromEntries(
     await Promise.all(
-      Object.entries(strategyConfig).map(async ([chain, strategy]) => {
-        if (strategy.submitter.type === CustomTxSubmitterType.FILE) {
-          return [chain, strategy];
-        }
+      Object.entries(strategyConfig)
+        .filter(([chain]) => missingSignerChainSet.has(chain))
+        .map(async ([chain, strategy]) => {
+          if (strategy.submitter.type === CustomTxSubmitterType.FILE) {
+            return [chain, strategy];
+          }
 
-        assert(
-          context.registry,
-          'Registry is required to resolve submitter references',
-        );
+          assert(
+            context.registry,
+            'Registry is required to resolve submitter references',
+          );
 
-        return [
-          chain,
-          await resolveSubmissionStrategy(
-            strategy as UnresolvedSubmissionStrategy,
-            createSubmitterReferenceRegistry(context.registry),
-          ),
-        ];
-      }),
+          return [
+            chain,
+            await resolveSubmissionStrategy(
+              strategy as UnresolvedSubmissionStrategy,
+              createSubmitterReferenceRegistry(context.registry),
+              chain,
+            ),
+          ];
+        }),
     ),
   );
 

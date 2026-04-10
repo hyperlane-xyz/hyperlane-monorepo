@@ -20,6 +20,7 @@
  * - MONITOR_ONLY: Run in monitor-only mode without executing transactions (default: "false")
  * - LOG_LEVEL: Logging level (default: "info") - supported by pino
  * - REGISTRY_URI: Registry URI for chain metadata. Can include /tree/{commit} to pin version (default: GitHub registry)
+ * - GH_AUTH_TOKEN: GitHub auth token for private or rate-limited registry access (optional)
  * - RPC_URL_<CHAIN>: Override RPC URL for a specific chain (e.g., RPC_URL_ETHEREUM, RPC_URL_ARBITRUM)
  *
  * Usage:
@@ -133,13 +134,14 @@ async function main(): Promise<void> {
       registryUris: [registryUri],
       enableProxy: true,
       logger: rootLogger,
+      authToken: process.env.GH_AUTH_TOKEN,
     });
     logger.info({ registryUri }, '✅ Initialized registry');
 
     if (rebalancerSubmitterRef) {
       const rebalancerSubmitter = await resolveSubmitterMetadata(
-        { type: 'submitter_ref', ref: rebalancerSubmitterRef },
-        createSubmitterReferenceRegistry(registry),
+        { type: TxSubmitterType.SUBMITTER_REF, ref: rebalancerSubmitterRef },
+        createSubmitterReferenceRegistry(registry, process.env.GH_AUTH_TOKEN),
       );
       if (rebalancerSubmitter.type !== TxSubmitterType.JSON_RPC) {
         throw new Error(
@@ -171,8 +173,8 @@ async function main(): Promise<void> {
 
     if (inventorySubmitterRef) {
       const inventorySubmitter = await resolveSubmitterMetadata(
-        { type: 'submitter_ref', ref: inventorySubmitterRef },
-        createSubmitterReferenceRegistry(registry),
+        { type: TxSubmitterType.SUBMITTER_REF, ref: inventorySubmitterRef },
+        createSubmitterReferenceRegistry(registry, process.env.GH_AUTH_TOKEN),
       );
       if (inventorySubmitter.type !== TxSubmitterType.JSON_RPC) {
         throw new Error(
@@ -358,33 +360,39 @@ const SUPPORTED_EXTENSIONS = ['', '.yaml', '.yml', '.json'];
 
 function createSubmitterReferenceRegistry(
   registry: IRegistry,
+  authToken?: string,
 ): SubmitterReferenceRegistry {
   return {
     uri: registry.uri,
     getUri: (itemPath) => safeGetUri(registry, itemPath) ?? registry.uri,
-    getSubmitter: async (ref) => readSubmitterReference(registry, ref),
+    getSubmitter: async (ref) =>
+      readSubmitterReference(registry, ref, authToken),
   };
 }
 
 async function readSubmitterReference(
   registry: IRegistry,
   ref: string,
-): Promise<unknown | null> {
+  authToken?: string,
+): Promise<unknown> {
   const childRegistries = (registry as IRegistry & { registries?: IRegistry[] })
     .registries;
   if (childRegistries?.length) {
     for (const childRegistry of childRegistries) {
-      const payload = await readSubmitterReference(childRegistry, ref);
+      const payload = await readSubmitterReference(
+        childRegistry,
+        ref,
+        authToken,
+      );
       if (payload) return payload;
     }
-    return null;
   }
 
   for (const itemPath of getCandidateItemPaths(ref, registry)) {
     const source = safeGetUri(registry, itemPath);
     if (!source) continue;
 
-    const payload = await loadPayload(source);
+    const payload = await loadPayload(source, authToken);
     if (payload) return payload;
   }
 
@@ -441,10 +449,15 @@ function safeGetUri(
   }
 }
 
-async function loadPayload(source: string): Promise<unknown | null> {
+async function loadPayload(
+  source: string,
+  authToken?: string,
+): Promise<unknown> {
   try {
-    if (source.startsWith('http://') || source.startsWith('https://')) {
-      const response = await fetch(source);
+    if (isFetchableUrl(source)) {
+      const response = await fetch(source, {
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      });
       if (!response.ok) return null;
       return parseSubmitterReferencePayload(await response.text(), source);
     }
@@ -452,5 +465,13 @@ async function loadPayload(source: string): Promise<unknown | null> {
     return readYamlOrJson(source);
   } catch {
     return null;
+  }
+}
+
+function isFetchableUrl(value: string): boolean {
+  try {
+    return new URL(value).protocol === 'https:';
+  } catch {
+    return false;
   }
 }

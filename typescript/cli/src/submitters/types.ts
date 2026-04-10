@@ -52,15 +52,17 @@ export const ExtendedSubmissionStrategySchema: z.ZodType<
   submitter: ExtendedSubmitterMetadataSchema,
 });
 
-function preprocessExtendedChainSubmissionStrategy(
-  value: unknown,
-): Record<string, ExtendedSubmissionStrategy> {
-  const strategies = value as Record<string, ExtendedSubmissionStrategy>;
+function preprocessExtendedChainSubmissionStrategy(value: unknown): unknown {
+  if (!isRecord(value)) return value;
 
   return Object.fromEntries(
-    Object.entries(strategies).map(([chain, strategy]) => {
+    Object.entries(value).map(([chain, strategy]) => {
+      if (!isRecord(strategy) || !isRecord(strategy.submitter)) {
+        return [chain, strategy];
+      }
+
       const submitter = strategy.submitter;
-      if (submitter.type === 'submitter_ref') {
+      if (submitter.type === TxSubmitterType.SUBMITTER_REF) {
         return [chain, strategy];
       }
 
@@ -79,7 +81,7 @@ function preprocessExtendedChainSubmissionStrategy(
       const processed = preprocessChainSubmissionStrategy<{
         submitter: SubmitterMetadata;
       }>({
-        [chain]: { submitter },
+        [chain]: { submitter: submitter as SubmitterMetadata },
       });
       return [chain, processed[chain]];
     }),
@@ -95,7 +97,7 @@ function refineExtendedChainSubmissionStrategy(
       .filter(([, strategy]) => {
         const submitter = strategy.submitter;
         return (
-          submitter.type !== 'submitter_ref' &&
+          submitter.type !== TxSubmitterType.SUBMITTER_REF &&
           submitter.type !== CustomTxSubmitterType.FILE
         );
       })
@@ -106,6 +108,24 @@ function refineExtendedChainSubmissionStrategy(
   );
 
   refineChainSubmissionStrategy(standardStrategies, ctx);
+
+  for (const [chain, strategy] of Object.entries(value)) {
+    const { submitter } = strategy;
+    if (
+      submitter.type === CustomTxSubmitterType.FILE &&
+      submitter.chain !== chain
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `File submitter chain ${submitter.chain} must match strategy chain ${chain}`,
+        path: [chain, 'submitter', 'chain'],
+      });
+    }
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
 export const ExtendedChainSubmissionStrategySchema: z.ZodType<

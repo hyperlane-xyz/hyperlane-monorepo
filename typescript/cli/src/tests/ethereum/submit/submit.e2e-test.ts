@@ -179,7 +179,7 @@ describe('hyperlane submit', function () {
     writeYamlOrJson(strategyPath, {
       [CHAIN_NAME_2]: {
         submitter: {
-          type: 'submitter_ref',
+          type: TxSubmitterType.SUBMITTER_REF,
           ref: `${REGISTRY_PATH}/submitters/chain2-owner`,
         },
       },

@@ -28,7 +28,7 @@ describe('submitter references', () => {
   it('resolves submitter metadata from a registry payload', async () => {
     const submitter = await resolveSubmitterMetadata(
       {
-        type: 'submitter_ref',
+        type: TxSubmitterType.SUBMITTER_REF,
         ref: 'mock://registry/submitters/rebalancer',
       },
       {
@@ -55,7 +55,7 @@ describe('submitter references', () => {
     const strategy = await resolveSubmissionStrategy(
       {
         submitter: {
-          type: 'submitter_ref',
+          type: TxSubmitterType.SUBMITTER_REF,
           ref: 'mock://registry/submitters/rebalancer',
         },
       },
@@ -70,6 +70,7 @@ describe('submitter references', () => {
           },
         }),
       },
+      'ethereum',
     );
 
     expect(strategy.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
@@ -80,6 +81,31 @@ describe('submitter references', () => {
     expect(strategy.submitter.privateKey).to.equal(
       '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
     );
+  });
+
+  it('rejects submitter refs that resolve to a different chain', async () => {
+    try {
+      await resolveSubmissionStrategy(
+        {
+          submitter: {
+            type: TxSubmitterType.SUBMITTER_REF,
+            ref: 'mock://registry/submitters/rebalancer',
+          },
+        },
+        {
+          getSubmitter: async () => ({
+            type: TxSubmitterType.JSON_RPC,
+            chain: 'arbitrum',
+          }),
+        },
+        'ethereum',
+      );
+      throw new Error('Expected resolveSubmissionStrategy to fail');
+    } catch (error) {
+      expect((error as Error).message).to.include(
+        'Submitter reference resolved to chain arbitrum, expected ethereum',
+      );
+    }
   });
 
   it('resolves submitter refs from an IRegistry-compatible getUri interface', async () => {
@@ -97,7 +123,7 @@ describe('submitter references', () => {
     const strategy = await resolveSubmissionStrategy(
       {
         submitter: {
-          type: 'submitter_ref',
+          type: TxSubmitterType.SUBMITTER_REF,
           ref: 'https://registry.example/submitters/dev-ethereum',
         },
       },
@@ -109,6 +135,7 @@ describe('submitter references', () => {
             : 'https://registry.example';
         },
       },
+      'ethereum',
     );
 
     expect(strategy.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
@@ -134,7 +161,7 @@ describe('submitter references', () => {
     const strategy = await resolveSubmissionStrategy(
       {
         submitter: {
-          type: 'submitter_ref',
+          type: TxSubmitterType.SUBMITTER_REF,
           ref: 'https://registry.example/submitters/dev-ethereum',
         },
       },
@@ -154,6 +181,7 @@ describe('submitter references', () => {
           },
         ],
       },
+      'ethereum',
     );
 
     expect(strategy.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
@@ -163,5 +191,88 @@ describe('submitter references', () => {
     expect(strategy.submitter.privateKey).to.equal(
       '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd',
     );
+  });
+
+  it('checks the current registry after child registries miss', async () => {
+    fetchPayloads.set(
+      'https://registry.example/submitters/dev-ethereum.yaml',
+      [
+        'type: jsonRpc',
+        'chain: ethereum',
+        'privateKey: "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"',
+        '',
+      ].join('\n'),
+    );
+
+    const strategy = await resolveSubmissionStrategy(
+      {
+        submitter: {
+          type: TxSubmitterType.SUBMITTER_REF,
+          ref: 'https://registry.example/submitters/dev-ethereum',
+        },
+      },
+      {
+        uri: 'https://registry.example',
+        getUri(itemPath?: string) {
+          return itemPath
+            ? `https://registry.example/${itemPath}`
+            : 'https://registry.example';
+        },
+        registries: [
+          {
+            uri: 'https://empty.example',
+            getUri(itemPath?: string) {
+              return itemPath
+                ? `https://empty.example/${itemPath}`
+                : 'https://empty.example';
+            },
+          },
+        ],
+      },
+      'ethereum',
+    );
+
+    expect(strategy.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+    if (strategy.submitter.type !== TxSubmitterType.JSON_RPC) {
+      throw new Error('Expected jsonRpc submitter');
+    }
+    expect(strategy.submitter.privateKey).to.equal(
+      '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+    );
+  });
+
+  it('does not fetch submitter refs over insecure HTTP by default', async () => {
+    fetchPayloads.set(
+      'http://registry.example/submitters/dev-ethereum.yaml',
+      [
+        'type: jsonRpc',
+        'chain: ethereum',
+        'privateKey: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"',
+        '',
+      ].join('\n'),
+    );
+
+    try {
+      await resolveSubmissionStrategy(
+        {
+          submitter: {
+            type: TxSubmitterType.SUBMITTER_REF,
+            ref: 'http://registry.example/submitters/dev-ethereum',
+          },
+        },
+        {
+          uri: 'http://registry.example',
+          getUri(itemPath?: string) {
+            return itemPath
+              ? `http://registry.example/${itemPath}`
+              : 'http://registry.example';
+          },
+        },
+        'ethereum',
+      );
+      throw new Error('Expected resolveSubmissionStrategy to fail');
+    } catch (error) {
+      expect((error as Error).message).to.include('Submitter reference');
+    }
   });
 });
