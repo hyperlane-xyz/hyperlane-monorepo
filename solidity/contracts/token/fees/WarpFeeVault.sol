@@ -13,7 +13,21 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.
 /**
  * @title WarpFeeVault
  * @notice ERC4626 entrypoint for a hub router LP position with streamed fee recognition.
- * @dev The vault assumes a plain ERC20 route asset. Native, rebasing, fee-on-transfer,
+ * @dev This vault wraps the hub router LP position: deposits are forwarded into the
+ * hub router, while swept LP fee assets are held in this vault and streamed into
+ * ERC4626 `totalAssets()` over time.
+ *
+ * Direct donations or swept fees sent to this vault do not affect share price until
+ * `notify()` accounts for them. `notify()` pays the protocol share immediately and
+ * starts or extends a stream for the LP share. `totalAssets()` then recognizes only
+ * the stream value vested by `previewSettle()`, so a depositor cannot enter one block
+ * before a known fee sweep and instantly capture the whole LP fee allocation.
+ * LPs must hold shares through vesting to earn streamed fees.
+ *
+ * Streaming mitigates, but does not eliminate, deposit-timing and MEV attacks:
+ * large known fee notifications can still attract capital over the stream period.
+ *
+ * The vault assumes a plain ERC20 route asset. Native, rebasing, fee-on-transfer,
  * and ERC777 route assets are unsupported.
  */
 contract WarpFeeVault is ERC4626, Ownable, ReentrancyGuard, PackageVersioned {
@@ -82,8 +96,12 @@ contract WarpFeeVault is ERC4626, Ownable, ReentrancyGuard, PackageVersioned {
     /**
      * @notice Splits newly swept fees. Protocol share is transferred immediately;
      * LP share streams into totalAssets() while staying in this vault.
-     * @dev If fees are notified before any LP deposits, later depositors will
-     * own the streamed LP share pro rata from their deposit onward.
+     * @dev Only the vault asset balance above the current stream accounting is
+     * treated as newly swept fees. This lets fee assets arrive before notification
+     * without immediately increasing the ERC4626 share price.
+     *
+     * If fees are notified before any LP deposits, later depositors will own the
+     * streamed LP share pro rata from their deposit onward.
      */
     function notify() external nonReentrant {
         _recognizeVested();
@@ -108,6 +126,11 @@ contract WarpFeeVault is ERC4626, Ownable, ReentrancyGuard, PackageVersioned {
         emit FeesNotified(amount, lpAmount, protocolAmount);
     }
 
+    /**
+     * @notice Returns hub-router LP assets plus already recognized and currently
+     * vested streamed fees.
+     * @dev Unvested stream value is intentionally excluded from ERC4626 accounting.
+     */
     function totalAssets() public view override returns (uint256) {
         return
             hubRouter.convertToAssets(hubRouter.balanceOf(address(this))) +
@@ -119,6 +142,9 @@ contract WarpFeeVault is ERC4626, Ownable, ReentrancyGuard, PackageVersioned {
         return DECIMALS_OFFSET;
     }
 
+    /**
+     * @notice Returns the streamed fee amount that has vested since the last settle.
+     */
     function previewSettle() public view returns (uint256) {
         Stream memory current = stream;
         if (current.remaining == 0 || block.timestamp <= current.lastUpdated) {
@@ -236,6 +262,8 @@ contract WarpFeeVault is ERC4626, Ownable, ReentrancyGuard, PackageVersioned {
 
         uint256 currentTimeLeft = stream.end - block.timestamp;
         uint256 newRemaining = remaining + amount;
+        // Weight the next stream end by remaining value so small or dust notifications
+        // cannot reset the whole active stream back to the full streaming period.
         uint256 weightedTimeLeft = ((remaining * currentTimeLeft) +
             (amount * streamingPeriod)) / newRemaining;
 
