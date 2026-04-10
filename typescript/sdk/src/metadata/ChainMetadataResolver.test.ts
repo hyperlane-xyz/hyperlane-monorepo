@@ -65,6 +65,27 @@ describe(createChainMetadataResolver.name, () => {
     expect(resolver.tryGetChainMetadata(4)).to.equal(null);
   });
 
+  it('allows duplicate chain ids and treats ambiguous aliases as unresolved', () => {
+    const resolver = createChainMetadataResolver({
+      foo: {
+        ...metadata.ethereum,
+        chainId: 31337,
+        name: 'foo',
+      },
+      bar: {
+        ...metadata.sepolia,
+        chainId: '31337',
+        domainId: 9999,
+        name: 'bar',
+      },
+    });
+
+    expect(resolver.tryGetChainMetadata('foo')?.name).to.equal('foo');
+    expect(resolver.tryGetChainMetadata('bar')?.name).to.equal('bar');
+    expect(resolver.tryGetChainMetadata('31337')).to.equal(null);
+    expect(resolver.tryGetChainMetadata(31337)).to.equal(null);
+  });
+
   it('throws on duplicate domain ids', () => {
     expect(() =>
       createChainMetadataResolver({

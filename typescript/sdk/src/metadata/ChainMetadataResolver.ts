@@ -17,57 +17,58 @@ export interface ChainMetadataResolver<MetaExt = {}> {
 // Builds a lightweight lookup helper for one metadata snapshot without
 // constructing a provider-backed registry. Numeric lookups follow SDK
 // domain-id semantics; string lookups also support chain-id strings.
+// Duplicate chainIds are valid across protocols/aliases, so ambiguous
+// chain-id aliases are left unresolved instead of throwing.
 export function createChainMetadataResolver<MetaExt = {}>(
   metadata: ChainMap<ChainMetadata<MetaExt>>,
 ): ChainMetadataResolver<MetaExt> {
   const byDomainId = new Map<number, ChainMetadata<MetaExt>>();
   const byChainId = new Map<string | number, ChainMetadata<MetaExt>>();
+  const ambiguousChainIds = new Set<string | number>();
 
-  const assertUniqueIndex = (
+  const assertUniqueDomainId = (
     existing: ChainMetadata<MetaExt> | undefined,
     chainMetadata: ChainMetadata<MetaExt>,
-    key: string | number,
-    field: 'domainId' | 'chainId',
+    domainId: number,
   ) => {
     assert(
       !existing || existing.name === chainMetadata.name,
-      `Duplicate ${field} detected: ${String(key)}`,
+      `Duplicate domainId detected: ${String(domainId)}`,
     );
   };
 
+  const indexChainIdAlias = (
+    key: string | number,
+    chainMetadata: ChainMetadata<MetaExt>,
+  ) => {
+    if (ambiguousChainIds.has(key)) return;
+
+    const existing = byChainId.get(key);
+    if (!existing) {
+      byChainId.set(key, chainMetadata);
+      return;
+    }
+
+    if (existing.name === chainMetadata.name) return;
+
+    byChainId.delete(key);
+    ambiguousChainIds.add(key);
+  };
+
   Object.values(metadata).forEach((chainMetadata) => {
-    assertUniqueIndex(
+    assertUniqueDomainId(
       byDomainId.get(chainMetadata.domainId),
       chainMetadata,
       chainMetadata.domainId,
-      'domainId',
     );
     byDomainId.set(chainMetadata.domainId, chainMetadata);
     if (!isNullish(chainMetadata.chainId)) {
-      assertUniqueIndex(
-        byChainId.get(chainMetadata.chainId),
-        chainMetadata,
-        chainMetadata.chainId,
-        'chainId',
-      );
-      byChainId.set(chainMetadata.chainId, chainMetadata);
+      indexChainIdAlias(chainMetadata.chainId, chainMetadata);
 
       const numericChainId = tryNormalizeNumericChainId(chainMetadata.chainId);
       if (numericChainId !== null) {
-        assertUniqueIndex(
-          byChainId.get(numericChainId),
-          chainMetadata,
-          numericChainId,
-          'chainId',
-        );
-        byChainId.set(numericChainId, chainMetadata);
-        assertUniqueIndex(
-          byChainId.get(String(numericChainId)),
-          chainMetadata,
-          String(numericChainId),
-          'chainId',
-        );
-        byChainId.set(String(numericChainId), chainMetadata);
+        indexChainIdAlias(numericChainId, chainMetadata);
+        indexChainIdAlias(String(numericChainId), chainMetadata);
       }
     }
   });
