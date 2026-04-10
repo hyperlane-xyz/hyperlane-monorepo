@@ -608,6 +608,16 @@ export class WarpMonitor {
         continue;
       }
       const metadata = chainMetadata[token.chainName];
+      if (token.protocol === ProtocolType.Ethereum) {
+        const tokenAddress =
+          token.collateralAddressOrDenom ?? token.addressOrDenom;
+        if (
+          !ethersUtils.isAddress(token.addressOrDenom) ||
+          !ethersUtils.isAddress(tokenAddress)
+        ) {
+          continue;
+        }
+      }
 
       const domainId = metadata.domainId;
       const routerAddress = this.normalizeNodeAddress(token);

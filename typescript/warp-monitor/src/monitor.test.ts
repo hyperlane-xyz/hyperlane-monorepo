@@ -277,6 +277,71 @@ describe('WarpMonitor', () => {
     );
   });
 
+  it('skips Ethereum nodes with malformed router addresses', () => {
+    const monitor = new WarpMonitor(
+      {
+        warpRouteId: 'CROSS/ctusd',
+        checkFrequency: 10_000,
+      },
+      {} as IRegistry,
+    );
+
+    const nodes = invokeBuildRouterNodes(
+      monitor,
+      {
+        tokens: [
+          {
+            symbol: 'USDC',
+            chainName: 'ethereum',
+            addressOrDenom: 'not-an-evm-address',
+            collateralAddressOrDenom:
+              '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+            decimals: 6,
+            name: 'USD Coin',
+            protocol: ProtocolType.Ethereum,
+          } as Token,
+        ],
+      } as WarpCore,
+      {
+        ethereum: { domainId: 1 },
+      },
+    );
+
+    expect(nodes).to.have.length(0);
+  });
+
+  it('skips Ethereum nodes with malformed collateral addresses', () => {
+    const monitor = new WarpMonitor(
+      {
+        warpRouteId: 'CROSS/ctusd',
+        checkFrequency: 10_000,
+      },
+      {} as IRegistry,
+    );
+
+    const nodes = invokeBuildRouterNodes(
+      monitor,
+      {
+        tokens: [
+          {
+            symbol: 'USDC',
+            chainName: 'ethereum',
+            addressOrDenom: '0xd4463cB3c90b3F49c673310BEC9bC18311134B47',
+            collateralAddressOrDenom: 'not-an-evm-address',
+            decimals: 6,
+            name: 'USD Coin',
+            protocol: ProtocolType.Ethereum,
+          } as Token,
+        ],
+      } as WarpCore,
+      {
+        ethereum: { domainId: 1 },
+      },
+    );
+
+    expect(nodes).to.have.length(0);
+  });
+
   it('excludes Solana router nodes from explorer queries', () => {
     const monitor = new WarpMonitor(
       {

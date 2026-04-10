@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 /**
@@ -56,7 +57,11 @@ async function main(): Promise<void> {
 
   const coingeckoApiKey = process.env.COINGECKO_API_KEY;
   const explorerApiUrl = process.env.EXPLORER_API_URL;
-  const inventoryAddress = process.env.INVENTORY_ADDRESS;
+  const trimmedInventoryAddress = process.env.INVENTORY_ADDRESS?.trim();
+  const inventoryAddress =
+    trimmedInventoryAddress !== undefined && trimmedInventoryAddress.length > 0
+      ? trimmedInventoryAddress
+      : undefined;
 
   let explorerQueryLimit = 200;
   if (process.env.EXPLORER_QUERY_LIMIT) {
@@ -115,7 +120,10 @@ async function main(): Promise<void> {
   }
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+if (
+  process.argv[1] &&
+  realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1])
+) {
   main().catch((error) => {
     rootLogger.error({ error }, 'Fatal error');
     process.exit(1);
