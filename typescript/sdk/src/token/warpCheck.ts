@@ -386,18 +386,6 @@ function flattenDiffNode(
     return [];
   }
 
-  const leafViolations = isObjectDiffLeaf(value)
-    ? [
-        {
-          actual: stringifyViolationValue(value.actual),
-          chain,
-          expected: stringifyViolationValue(value.expected),
-          name: path.join('.'),
-          type: WARP_ROUTE_CHECK_TYPE,
-        },
-      ]
-    : [];
-
   if (Array.isArray(value)) {
     return value.flatMap((item, index) =>
       flattenDiffNode(chain, item, [...path, index.toString()]),
@@ -406,17 +394,30 @@ function flattenDiffNode(
 
   if (typeof value === 'object') {
     const objectValue = value as Record<string, unknown>; // CAST: runtime guard above narrows to object; Object.entries needs an indexable shape
-    return [
-      ...leafViolations,
-      ...Object.entries(objectValue)
-        .filter(([key]) => key !== 'actual' && key !== 'expected')
-        .flatMap(([key, child]) =>
-          flattenDiffNode(chain, child, [...path, key]),
-        ),
-    ];
+    const childViolations = Object.entries(objectValue)
+      .filter(([key]) => key !== 'actual' && key !== 'expected')
+      .flatMap(([key, child]) => flattenDiffNode(chain, child, [...path, key]));
+
+    if (childViolations.length > 0) {
+      return childViolations;
+    }
+
+    if (isObjectDiffLeaf(value)) {
+      return [
+        {
+          actual: stringifyViolationValue(value.actual),
+          chain,
+          expected: stringifyViolationValue(value.expected),
+          name: path.join('.'),
+          type: WARP_ROUTE_CHECK_TYPE,
+        },
+      ];
+    }
+
+    return [];
   }
 
-  return leafViolations;
+  return [];
 }
 
 function getScaleViolations(

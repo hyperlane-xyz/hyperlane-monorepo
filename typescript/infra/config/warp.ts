@@ -331,9 +331,10 @@ export async function getWarpConfig(
   warpRouteId: string,
   registryUris = [DEFAULT_REGISTRY_URI],
   forceRegistryConfig = false,
+  getterInputs?: WarpConfigGetterInputs,
 ): Promise<ChainMap<HypTokenRouterConfig>> {
   const { abacusWorksEnvOwnerConfig, routerConfigWithoutOwner } =
-    await getWarpConfigGetterInputs(multiProvider, envConfig);
+    getterInputs ?? (await getWarpConfigGetterInputs(multiProvider, envConfig));
   return getWarpConfigWithGetterInputs(
     warpRouteId,
     routerConfigWithoutOwner,
@@ -343,10 +344,15 @@ export async function getWarpConfig(
   );
 }
 
-async function getWarpConfigGetterInputs(
+export interface WarpConfigGetterInputs {
+  abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>;
+  routerConfigWithoutOwner: ChainMap<RouterConfigWithoutOwner>;
+}
+
+export async function getWarpConfigGetterInputs(
   multiProvider: MultiProvider,
   envConfig: EnvironmentConfig,
-) {
+): Promise<WarpConfigGetterInputs> {
   const routerConfig = await getRouterConfigsForAllVms(
     envConfig,
     multiProvider,

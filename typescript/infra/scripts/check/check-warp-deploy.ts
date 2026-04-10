@@ -18,6 +18,7 @@ import { WarpRouteIds } from '../../config/environments/mainnet3/warp/warpIds.js
 import { DEFAULT_REGISTRY_URI } from '../../config/registry.js';
 import {
   getWarpConfig,
+  getWarpConfigGetterInputs,
   getWarpDeployConfigFromMergedRegistry,
   getWarpConfigMapFromMergedRegistry,
 } from '../../config/warp.js';
@@ -101,6 +102,10 @@ async function main() {
     undefined,
     Array.from(warpConfigChains),
   );
+  const warpConfigGetterInputs = await getWarpConfigGetterInputs(
+    multiProvider,
+    envConfig,
+  );
 
   // TODO: consider retrying this if check throws an error
   for (const warpRouteId of warpIdsToCheck) {
@@ -108,7 +113,14 @@ async function main() {
 
     try {
       const warpDeployConfig = WarpRouteDeployConfigMailboxRequiredSchema.parse(
-        await getWarpConfig(multiProvider, envConfig, warpRouteId, registries),
+        await getWarpConfig(
+          multiProvider,
+          envConfig,
+          warpRouteId,
+          registries,
+          false,
+          warpConfigGetterInputs,
+        ),
       );
       const result = await runWarpRouteCheckFromRegistry({
         chains,
