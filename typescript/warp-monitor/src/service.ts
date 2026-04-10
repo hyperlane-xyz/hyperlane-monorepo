@@ -1,7 +1,4 @@
 #!/usr/bin/env node
-import { realpathSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-
 /**
  * Hyperlane Warp Monitor Service Entry Point
  *
@@ -120,12 +117,7 @@ async function main(): Promise<void> {
   }
 }
 
-if (
-  process.argv[1] &&
-  realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1])
-) {
-  main().catch((error) => {
-    rootLogger.error({ error }, 'Fatal error');
-    process.exit(1);
-  });
-}
+main().catch((error) => {
+  rootLogger.error({ error }, 'Fatal error');
+  process.exit(1);
+});
