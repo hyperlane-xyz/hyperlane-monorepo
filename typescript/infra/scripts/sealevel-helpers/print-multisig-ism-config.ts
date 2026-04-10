@@ -3,6 +3,7 @@ import { IsmType } from '@hyperlane-xyz/sdk';
 import { Contexts } from '../../config/contexts.js';
 import { multisigIsms } from '../../config/multisigIsm.js';
 import { getChains } from '../../config/registry.js';
+import { getDisabledChains } from '../../src/config/chain.js';
 import { multisigIsmConfigPath } from '../../src/utils/sealevel.js';
 import { writeAndFormatJsonAtPath } from '../../src/utils/utils.js';
 import { getArgs, withWrite } from '../agent-utils.js';
@@ -45,6 +46,18 @@ async function main() {
   for (const chain of Object.keys(config)) {
     // exclude forma as it's not a core chain
     if (chain === 'forma') {
+      delete config[chain];
+      continue;
+    }
+
+    // exclude eden because that's eden<>celestia only
+    if (chain === 'eden') {
+      delete config[chain];
+      continue;
+    }
+
+    if (getDisabledChains().includes(chain)) {
+      delete config[chain];
       continue;
     }
 

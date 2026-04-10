@@ -46,7 +46,7 @@
     "@solana-program/loader-v3": "^0.3.0",
     "@solana-program/system": "^0.12.0",
     "@solana/errors": "^6.1.0",
-    "@solana/kit": "^6.1.0"
+    "@solana/kit": "catalog:"
   },
   "devDependencies": {
     "@hyperlane-xyz/tsconfig": "workspace:^",

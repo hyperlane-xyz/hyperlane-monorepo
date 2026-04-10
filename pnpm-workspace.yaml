@@ -61,6 +61,7 @@ catalog:
   cosmjs-types: ^0.9.0
 
   # Solana
+  '@solana/kit': ^6.1.0
   '@solana/web3.js': ^1.98.4
   '@solana/spl-token': ^0.4.9
 

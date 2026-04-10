@@ -87,6 +87,9 @@ catalogs:
     '@safe-global/safe-deployments':
       specifier: 1.37.47
       version: 1.37.47
+    '@solana/kit':
+      specifier: ^6.1.0
+      version: 6.1.0
     '@solana/spl-token':
       specifier: ^0.4.9
       version: 0.4.14
@@ -1392,6 +1395,9 @@ importers:
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
         version: link:../sdk
+      '@hyperlane-xyz/sealevel-sdk':
+        specifier: workspace:*
+        version: link:../svm-sdk
       '@hyperlane-xyz/tron-sdk':
         specifier: workspace:*
         version: link:../tron-sdk
@@ -1422,6 +1428,9 @@ importers:
       '@safe-global/safe-deployments':
         specifier: 'catalog:'
         version: 1.37.47
+      '@solana/kit':
+        specifier: 'catalog:'
+        version: 6.1.0(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@6.0.2)(utf-8-validate@5.0.10)
       '@solana/web3.js':
         specifier: 'catalog:'
         version: 1.98.4(bufferutil@4.0.9)(typescript@6.0.2)(utf-8-validate@5.0.10)
@@ -1506,7 +1515,7 @@ importers:
         version: 2.0.6(@nomiclabs/hardhat-ethers@2.2.3(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(hardhat@2.27.0(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@24.10.9)(typescript@6.0.2))(typescript@6.0.2)(utf-8-validate@5.0.10)))(@types/sinon-chai@3.2.12)(ethereum-waffle@4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/providers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(typescript@6.0.2))(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(hardhat@2.27.0(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@24.10.9)(typescript@6.0.2))(typescript@6.0.2)(utf-8-validate@5.0.10))
       '@sqds/multisig':
         specifier: 2.1.4
-        version: 2.1.4(bufferutil@4.0.9)(typescript@6.0.2)(utf-8-validate@5.0.10)
+        version: 2.1.4(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@6.0.2)(utf-8-validate@5.0.10)
       '@types/bs58':
         specifier: ^5.0.0
         version: 5.0.0
@@ -2390,7 +2399,7 @@ importers:
         specifier: ^6.1.0
         version: 6.1.0(typescript@6.0.2)
       '@solana/kit':
-        specifier: ^6.1.0
+        specifier: 'catalog:'
         version: 6.1.0(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@6.0.2)(utf-8-validate@5.0.10)
     devDependencies:
       '@hyperlane-xyz/tsconfig':
@@ -26585,7 +26594,7 @@ snapshots:
       - fastestsmallesttextencoderdecoder
       - typescript
 
-  '@solana/spl-token@0.3.11(@solana/web3.js@1.98.4(bufferutil@4.0.9)(typescript@6.0.2)(utf-8-validate@5.0.10))(bufferutil@4.0.9)(typescript@6.0.2)(utf-8-validate@5.0.10)':
+  '@solana/spl-token@0.3.11(@solana/web3.js@1.98.4(bufferutil@4.0.9)(typescript@6.0.2)(utf-8-validate@5.0.10))(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@6.0.2)(utf-8-validate@5.0.10)':
     dependencies:
       '@solana/buffer-layout': 4.0.1
       '@solana/buffer-layout-utils': 0.2.0(bufferutil@4.0.9)(typescript@6.0.2)(utf-8-validate@5.0.10)
@@ -26916,12 +26925,12 @@ snapshots:
 
   '@solidity-parser/parser@0.20.2': {}
 
-  '@sqds/multisig@2.1.4(bufferutil@4.0.9)(typescript@6.0.2)(utf-8-validate@5.0.10)':
+  '@sqds/multisig@2.1.4(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@6.0.2)(utf-8-validate@5.0.10)':
     dependencies:
       '@metaplex-foundation/beet': 0.7.1
       '@metaplex-foundation/beet-solana': 0.4.0(bufferutil@4.0.9)(typescript@6.0.2)(utf-8-validate@5.0.10)
       '@metaplex-foundation/cusper': 0.0.2
-      '@solana/spl-token': 0.3.11(@solana/web3.js@1.98.4(bufferutil@4.0.9)(typescript@6.0.2)(utf-8-validate@5.0.10))(bufferutil@4.0.9)(typescript@6.0.2)(utf-8-validate@5.0.10)
+      '@solana/spl-token': 0.3.11(@solana/web3.js@1.98.4(bufferutil@4.0.9)(typescript@6.0.2)(utf-8-validate@5.0.10))(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@6.0.2)(utf-8-validate@5.0.10)
       '@solana/web3.js': 1.98.4(bufferutil@4.0.9)(typescript@6.0.2)(utf-8-validate@5.0.10)
       '@types/bn.js': 5.2.0
       assert: 2.1.0
