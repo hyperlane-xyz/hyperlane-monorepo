@@ -130,7 +130,7 @@ pub type CompositeIsmAccount = AccountData<CompositeIsmStorage>;
 ///
 /// Stored at `[DOMAIN_ISM_SEED, &domain.to_le_bytes()]`.
 /// `ism: None` means the account is uninitialized.
-#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default)]
 pub struct DomainIsmStorage {
     pub bump_seed: u8,
     /// Origin domain ID that owns this PDA.  Stored inline so the CLI can
@@ -140,15 +140,6 @@ pub struct DomainIsmStorage {
     pub ism: Option<IsmNode>,
 }
 
-impl Default for DomainIsmStorage {
-    fn default() -> Self {
-        Self {
-            bump_seed: 0,
-            domain: 0,
-            ism: None,
-        }
-    }
-}
 
 impl SizedData for DomainIsmStorage {
     fn size(&self) -> usize {

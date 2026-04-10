@@ -530,11 +530,13 @@ fn normalize_node(node: &mut IsmNode) {
             normalize_node(lower);
             normalize_node(upper);
         }
-        IsmNode::Routing { default_ism, .. } => {
-            if let Some(d) = default_ism {
-                normalize_node(d);
-            }
+        IsmNode::Routing {
+            default_ism: Some(d),
+            ..
+        } => {
+            normalize_node(d);
         }
+        IsmNode::Routing { .. } => {}
         _ => {}
     }
 }

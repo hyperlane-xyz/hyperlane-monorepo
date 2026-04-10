@@ -1,5 +1,4 @@
 /// Token bucket rate limiting, mirroring the algorithm in RateLimited.sol.
-
 pub const DURATION_SECS: i64 = 86_400;
 
 /// Computes the current filled level after time-based refill.
