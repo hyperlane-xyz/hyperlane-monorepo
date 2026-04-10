@@ -394,20 +394,22 @@ describe('TokenDeployer', async () => {
           ],
         } as WarpCoreConfig;
 
-        try {
-          await checkWarpRouteDeployConfig({
-            multiProvider,
-            warpCoreConfig: mixedWarpCoreConfig,
-            warpDeployConfig: mixedWarpDeployConfig,
-          });
-          expect.fail(
-            'Expected mixed-VM scale validation to reject inconsistent decimals',
-          );
-        } catch (error) {
-          expect((error as Error).message).to.contain(
-            'Found invalid or missing scale for inconsistent decimals',
-          );
-        }
+        const result = await checkWarpRouteDeployConfig({
+          multiProvider,
+          warpCoreConfig: mixedWarpCoreConfig,
+          warpDeployConfig: mixedWarpDeployConfig,
+        });
+
+        expect(result.isValid).to.equal(false);
+        expect(result.scaleViolations).to.deep.equal([
+          {
+            actual: 'invalid-or-missing',
+            chain: 'route',
+            expected: 'consistent-with-decimals',
+            name: 'scale',
+            type: 'ScaleMismatch',
+          },
+        ]);
       });
 
       it('should fail fast for pure non-EVM route subsets', async () => {

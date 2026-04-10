@@ -186,17 +186,20 @@ export async function expandWarpDeployConfig(params: {
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   deployedRoutersAddresses: ChainMap<Address>;
   expandedOnChainWarpConfig?: WarpRouteDeployConfigMailboxRequired;
+  validateScale?: boolean;
 }): Promise<WarpRouteDeployConfigMailboxRequired> {
   const {
     multiProvider,
     warpDeployConfig,
     deployedRoutersAddresses,
     expandedOnChainWarpConfig,
+    validateScale = true,
   } = params;
 
   const derivedTokenMetadata: TokenMetadataMap = await deriveTokenMetadata(
     multiProvider,
     warpDeployConfig,
+    { validateScale },
   );
 
   // If the token is on an EVM chain check if it is deployed as a proxy

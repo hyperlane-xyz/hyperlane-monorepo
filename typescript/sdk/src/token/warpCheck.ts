@@ -141,6 +141,7 @@ export async function checkWarpRouteDeployConfig({
     warpDeployConfig,
     deployedRoutersAddresses,
     expandedOnChainWarpConfig,
+    validateScale: false,
   });
   const evmExpandedWarpDeployConfig = objFilter(
     expandedWarpDeployConfig,
