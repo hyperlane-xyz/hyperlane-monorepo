@@ -22,6 +22,7 @@ import {
   getWarpConfigGetterInputs,
   getWarpDeployConfigFromMergedRegistry,
   getWarpConfigMapFromMergedRegistry,
+  warpConfigGetterMap,
 } from '../../config/warp.js';
 import { type EnvironmentConfig } from '../../src/config/environment.js';
 import { getEnvironmentConfig } from '../core-utils.js';
@@ -74,19 +75,49 @@ async function main() {
   ROUTES_TO_SKIP.forEach((route) => console.log(chalk.yellow(`- ${route}`)));
 
   const envConfig = getEnvironmentConfig(environment);
-  const { routesWithUnsupportedChains, warpIdsToCheck } =
-    await getWarpIdsToCheck({
-      environment,
-      envConfig,
-      registry,
-      registryWarpDeployConfigMap,
-    });
+  const {
+    routesWithUnsupportedChains: registryRoutesWithUnsupportedChains,
+    warpIdsToCheck: candidateWarpIdsToCheck,
+  } = await getWarpIdsToCheck({
+    environment,
+    envConfig,
+    registry,
+    registryWarpDeployConfigMap,
+  });
+  // Getter inputs only need env-wide chain metadata/core addresses, not signers.
+  // Keep the checker multiprovider narrow while avoiding missing-chain lookups in code getters.
+  const getterInputsRegistry = await envConfig.getRegistry(false);
+  const getterInputsMultiProvider = new MultiProvider(
+    await getterInputsRegistry.getMetadata(),
+  );
+  const warpConfigGetterInputs = await getWarpConfigGetterInputs(
+    getterInputsMultiProvider,
+    envConfig,
+  );
+  const {
+    routesWithUnsupportedChains: getterRoutesWithUnsupportedChains,
+    warpDeployConfigMap,
+    failedWarpRouteConfigLoads,
+  } = await getWarpDeployConfigsToCheck({
+    envConfig,
+    getterInputsMultiProvider,
+    registryUris: registries,
+    registryWarpDeployConfigMap,
+    warpConfigGetterInputs,
+    warpRouteIds: candidateWarpIdsToCheck,
+  });
+  failedWarpRoutesChecks.push(...failedWarpRouteConfigLoads);
 
+  const routesWithUnsupportedChains = [
+    ...registryRoutesWithUnsupportedChains,
+    ...getterRoutesWithUnsupportedChains,
+  ];
   logUnsupportedRoutes(routesWithUnsupportedChains);
 
+  const warpIdsToCheck = Object.keys(warpDeployConfigMap);
   const warpConfigChains = getWarpConfigChains(
     warpIdsToCheck,
-    registryWarpDeployConfigMap,
+    warpDeployConfigMap,
   );
 
   console.log(
@@ -103,32 +134,13 @@ async function main() {
     undefined,
     Array.from(warpConfigChains),
   );
-  // Getter inputs only need env-wide chain metadata/core addresses, not signers.
-  // Keep the checker multiprovider narrow while avoiding missing-chain lookups in code getters.
-  const getterInputsRegistry = await envConfig.getRegistry(false);
-  const getterInputsMultiProvider = new MultiProvider(
-    await getterInputsRegistry.getMetadata(),
-  );
-  const warpConfigGetterInputs = await getWarpConfigGetterInputs(
-    getterInputsMultiProvider,
-    envConfig,
-  );
 
   // TODO: consider retrying this if check throws an error
   for (const warpRouteId of warpIdsToCheck) {
     console.log(`\nChecking warp route ${warpRouteId}...`);
 
     try {
-      const warpDeployConfig = WarpRouteDeployConfigMailboxRequiredSchema.parse(
-        await getWarpConfig(
-          multiProvider,
-          envConfig,
-          warpRouteId,
-          registries,
-          false,
-          warpConfigGetterInputs,
-        ),
-      );
+      const warpDeployConfig = warpDeployConfigMap[warpRouteId];
       const result = await runWarpRouteCheckFromRegistry({
         chains,
         multiProvider,
@@ -411,6 +423,93 @@ function getWarpConfigChains(
     );
   });
   return warpConfigChains;
+}
+
+async function getWarpDeployConfigsToCheck({
+  envConfig,
+  getterInputsMultiProvider,
+  registryUris,
+  registryWarpDeployConfigMap,
+  warpConfigGetterInputs,
+  warpRouteIds,
+}: {
+  envConfig: ReturnType<typeof getEnvironmentConfig>;
+  getterInputsMultiProvider: MultiProvider;
+  registryUris: string[];
+  registryWarpDeployConfigMap: Record<
+    string,
+    WarpRouteDeployConfigMailboxRequired
+  >;
+  warpConfigGetterInputs: Awaited<ReturnType<typeof getWarpConfigGetterInputs>>;
+  warpRouteIds: string[];
+}) {
+  const loadResults = await Promise.all(
+    warpRouteIds.map(async (warpRouteId) => {
+      try {
+        const warpDeployConfig = warpConfigGetterMap[warpRouteId]
+          ? WarpRouteDeployConfigMailboxRequiredSchema.parse(
+              await getWarpConfig(
+                getterInputsMultiProvider,
+                envConfig,
+                warpRouteId,
+                registryUris,
+                false,
+                warpConfigGetterInputs,
+              ),
+            )
+          : registryWarpDeployConfigMap[warpRouteId];
+
+        const unsupportedChains = Object.keys(warpDeployConfig).filter(
+          (chain) => !envConfig.supportedChainNames.includes(chain),
+        );
+
+        return {
+          unsupportedChains,
+          warpDeployConfig,
+          warpRouteId,
+        };
+      } catch (error) {
+        return {
+          error,
+          warpRouteId,
+        };
+      }
+    }),
+  );
+
+  const routesWithUnsupportedChains: string[] = [];
+  const failedWarpRouteConfigLoads: string[] = [];
+  const warpDeployConfigMap: Record<
+    string,
+    WarpRouteDeployConfigMailboxRequired
+  > = {};
+
+  for (const result of loadResults) {
+    if ('error' in result) {
+      console.error(
+        chalk.red(
+          `Error loading warp config for ${result.warpRouteId}: ${result.error}`,
+        ),
+      );
+      failedWarpRouteConfigLoads.push(result.warpRouteId);
+      continue;
+    }
+
+    if (result.unsupportedChains.length > 0) {
+      routesWithUnsupportedChains.push(
+        `${result.warpRouteId} (${result.unsupportedChains.join(', ')})`,
+      );
+      continue;
+    }
+
+    warpDeployConfigMap[result.warpRouteId] = result.warpDeployConfig;
+  }
+
+  return {
+    failedWarpRouteConfigLoads,
+    routesWithUnsupportedChains,
+    warpDeployConfigMap,
+  };
 }
 
 async function isTestnetRoute(
