@@ -7,6 +7,7 @@ import { type ChainName, type Token, TokenStandard } from '@hyperlane-xyz/sdk';
 import { type MonitorEvent } from '../interfaces/IMonitor.js';
 
 import {
+  alignLocalToCanonical,
   denormalizeToLocal,
   getRawBalances,
   getTokenScale,
@@ -106,6 +107,19 @@ describe('scale helpers', () => {
     expect(denormalizeToLocal(1_000_000n, token)).to.equal(
       1_000_000_000_000_000_000n,
     );
+  });
+
+  it('aligns local amount to exact canonical progress', () => {
+    expect(alignLocalToCanonical(999_999_999_999n, token)).to.deep.equal({
+      localAmount: 0n,
+      messageAmount: 0n,
+    });
+    expect(
+      alignLocalToCanonical(1_000_000_000_000_500_000n, token),
+    ).to.deep.equal({
+      localAmount: 1_000_000_000_000_000_000n,
+      messageAmount: 1_000_000n,
+    });
   });
 
   it('returns identity scale when scale is undefined', () => {

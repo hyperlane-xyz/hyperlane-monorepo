@@ -25,11 +25,15 @@ import { MovableCollateralRoute } from '../interfaces/IStrategy.js';
 import { type Metrics } from '../metrics/Metrics.js';
 import type { IActionTracker } from '../tracking/IActionTracker.js';
 import type { RebalanceIntent } from '../tracking/types.js';
-import { denormalizeToLocal } from '../utils/balanceUtils.js';
+import {
+  denormalizeToLocal,
+  normalizeToCanonical,
+} from '../utils/balanceUtils.js';
 
 // Internal types with intentId for tracking
 type InternalExecutionResult = MovableCollateralExecutionResult & {
   intentId: string;
+  canonicalAmount?: bigint;
   localAmount?: bigint;
 };
 
@@ -155,7 +159,7 @@ export class Rebalancer implements IMovableCollateralRebalancer {
           intentId,
           origin: this.multiProvider.getDomainId(result.route.origin),
           destination: this.multiProvider.getDomainId(result.route.destination),
-          amount: result.route.amount,
+          amount: result.canonicalAmount ?? result.route.amount,
           type: 'rebalance_message',
           messageId: result.messageId,
           txHash: result.txHash,
@@ -682,6 +686,10 @@ export class Rebalancer implements IMovableCollateralRebalancer {
       success: true,
       messageId: dispatchedMessages[0].id,
       txHash: receipt.transactionHash,
+      canonicalAmount: normalizeToCanonical(
+        transaction.originTokenAmount.amount,
+        transaction.originTokenAmount.token,
+      ),
       localAmount: transaction.originTokenAmount.amount,
     };
   }
