@@ -5,6 +5,9 @@ coverage:
         target: auto # strictly increasing coverage
         threshold: 3% # buffer for coverage drop
 
+ignore:
+  - solidity/contracts/test/MockWarpFeeControllerIcaRouter.sol
+
 flag_management:
   default_rules:
     carryforward: true
