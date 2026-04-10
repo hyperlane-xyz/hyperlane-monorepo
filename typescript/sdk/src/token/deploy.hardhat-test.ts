@@ -283,6 +283,28 @@ describe('TokenDeployer', async () => {
         expect(result.violations).to.deep.equal([]);
       });
 
+      it('should ignore warp core config chains unknown to the multiprovider', async () => {
+        const unknownChain = 'deprecated-chain';
+        const unknownWarpCoreConfig = {
+          tokens: [
+            ...getWarpCoreConfig().tokens,
+            {
+              addressOrDenom: ethers.Wallet.createRandom().address,
+              chainName: unknownChain,
+            },
+          ],
+        } as WarpCoreConfig;
+
+        const result = await checkWarpRouteDeployConfig({
+          multiProvider,
+          warpCoreConfig: unknownWarpCoreConfig,
+          warpDeployConfig: config,
+        });
+
+        expect(result.isValid).to.equal(true);
+        expect(result.violations).to.deep.equal([]);
+      });
+
       it('should ignore non-EVM route members when expanding EVM configs', async () => {
         const cosmosChain = 'testcosmos';
         if (!multiProvider.tryGetChainMetadata(cosmosChain)) {

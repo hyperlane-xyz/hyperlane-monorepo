@@ -5,6 +5,7 @@ import {
   ProxyAdmin__factory,
 } from '@hyperlane-xyz/core';
 import {
+  type Address,
   type ObjectDiff,
   assert,
   deepCopy,
@@ -100,9 +101,12 @@ export async function checkWarpRouteDeployConfig({
   warpCoreConfig: WarpCoreConfig;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
 }): Promise<WarpRouteCheckResult> {
+  const knownWarpCoreTokens = warpCoreConfig.tokens.filter(
+    (token) => multiProvider.tryGetProtocol(token.chainName) !== null,
+  );
   const evmWarpCoreConfig = {
     ...warpCoreConfig,
-    tokens: warpCoreConfig.tokens.filter((token) =>
+    tokens: knownWarpCoreTokens.filter((token) =>
       isEVMLike(multiProvider.getProtocol(token.chainName)),
     ),
   };
@@ -111,8 +115,11 @@ export async function checkWarpRouteDeployConfig({
     'Warp route check requires at least one EVM chain in the selected route config',
   );
 
-  const deployedRoutersAddresses =
-    getRouterAddressesFromWarpCoreConfig(warpCoreConfig);
+  const deployedRoutersAddresses = objFilter(
+    getRouterAddressesFromWarpCoreConfig(warpCoreConfig),
+    (chain, _address): _address is Address =>
+      multiProvider.tryGetProtocol(chain) !== null,
+  );
   const onChainWarpConfig = await getWarpRouteConfigsByCore({
     multiProvider,
     warpCoreConfig: evmWarpCoreConfig,
