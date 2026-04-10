@@ -185,7 +185,7 @@ async fn build_metadata_from_spec_inner(
                 .iter()
                 .filter(|(is_null, r)| *is_null && r.is_some())
                 .count();
-            if non_null_count + null_count < threshold_usize {
+            if non_null_count.saturating_add(null_count) < threshold_usize {
                 return Err(MetadataBuildError::CouldNotFetch);
             }
 
@@ -203,7 +203,7 @@ async fn build_metadata_from_spec_inner(
                 if !is_null {
                     if let Some(bytes) = result {
                         final_results[i] = Some(bytes.clone());
-                        packed_count += 1;
+                        packed_count = packed_count.saturating_add(1);
                     }
                 }
             }
@@ -216,7 +216,7 @@ async fn build_metadata_from_spec_inner(
                     if *is_null {
                         if let Some(bytes) = result {
                             final_results[i] = Some(bytes.clone());
-                            packed_count += 1;
+                            packed_count = packed_count.saturating_add(1);
                         }
                     }
                 }

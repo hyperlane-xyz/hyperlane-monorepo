@@ -89,6 +89,11 @@ pub struct SealevelMailbox {
     /// Optional identity keypair used as the relayer's on-chain identity (e.g. for
     /// TrustedRelayer ISMs). When set it must differ from `payer`; if absent, `payer`
     /// is used and TrustedRelayer ISMs with the relayer set to `payer` will not work.
+    ///
+    /// IMPORTANT: Do NOT fund this address with SOL, tokens, or any other assets.
+    /// It is an identity-only keypair — its signature proves relayer identity but
+    /// it holds no value. Keeping it empty limits the blast radius if a malicious
+    /// ISM program ever obtains a co-signature from this key.
     signer: Option<SealevelKeypair>,
     priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
     tx_submitter: Arc<dyn TransactionSubmitter>,
@@ -251,6 +256,10 @@ impl SealevelMailbox {
         message: Vec<u8>,
     ) -> ChainResult<Vec<AccountMeta>> {
         let payer = self.get_payer()?;
+        // The identity is passed to all ISMs, including recipient-chosen ones.
+        // This is safe because the identity keypair is an identity-only key with
+        // no funds or tokens; even if a malicious ISM program obtained a
+        // co-signature via CPI, there is nothing of value to steal from it.
         let identity = self.get_signer_if_separate().map(|s| s.pubkey());
 
         let (vam_pda_key, _) = Pubkey::find_program_address(
