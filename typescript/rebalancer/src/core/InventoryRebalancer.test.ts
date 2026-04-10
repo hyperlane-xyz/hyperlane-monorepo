@@ -396,6 +396,33 @@ describe('InventoryRebalancer E2E', () => {
       const actionParams = actionTracker.createRebalanceAction.lastCall.args[0];
       expect(actionParams.txHash).to.equal('0xSolanaTxHash');
     });
+
+    it('denormalizes inventory execution amounts but records canonical deposit amount', async () => {
+      const route = createTestRoute({ amount: 1_000_000n });
+      createTestIntent({ amount: 1_000_000n });
+      warpCore.tokens.find((t: any) => t.chainName === SOLANA_CHAIN)!.scale = {
+        numerator: 1n,
+        denominator: 1_000_000_000_000n,
+      };
+
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 1_000_000_000_000_000_000n,
+        [ARBITRUM_CHAIN]: 0n,
+      });
+
+      const results = await inventoryRebalancer.rebalance([route]);
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.true;
+
+      const txParams = warpCore.getTransferRemoteTxs.firstCall.args[0];
+      expect(txParams.originTokenAmount.amount).to.equal(
+        1_000_000_000_000_000_000n,
+      );
+
+      const actionParams = actionTracker.createRebalanceAction.lastCall.args[0];
+      expect(actionParams.amount).to.equal(1_000_000n);
+    });
   });
 
   describe('Partial Fulfillment (Insufficient Inventory)', () => {

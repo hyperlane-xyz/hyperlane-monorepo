@@ -25,10 +25,12 @@ import { MovableCollateralRoute } from '../interfaces/IStrategy.js';
 import { type Metrics } from '../metrics/Metrics.js';
 import type { IActionTracker } from '../tracking/IActionTracker.js';
 import type { RebalanceIntent } from '../tracking/types.js';
+import { denormalizeToLocal } from '../utils/balanceUtils.js';
 
 // Internal types with intentId for tracking
 type InternalExecutionResult = MovableCollateralExecutionResult & {
   intentId: string;
+  localAmount?: bigint;
 };
 
 type InternalRoute = MovableCollateralRoute & { intentId: string };
@@ -104,7 +106,10 @@ export class Rebalancer implements IMovableCollateralRebalancer {
         if (token) {
           this.metrics.recordRebalanceAmount(
             result.route,
-            token.amount(result.route.amount),
+            token.amount(
+              result.localAmount ??
+                denormalizeToLocal(result.route.amount, token),
+            ),
           );
         }
       }
@@ -264,8 +269,9 @@ export class Rebalancer implements IMovableCollateralRebalancer {
     const originToken = this.tokensByChainName[origin];
     const destinationToken = this.tokensByChainName[destination];
     const destinationChainMeta = this.chainMetadata[destination];
+    const localAmount = denormalizeToLocal(amount, originToken);
 
-    const originTokenAmount = originToken.amount(amount);
+    const originTokenAmount = originToken.amount(localAmount);
     const decimalFormattedAmount =
       originTokenAmount.getDecimalFormattedAmount();
     const originHypAdapter = originToken.getHypAdapter(
@@ -281,7 +287,7 @@ export class Rebalancer implements IMovableCollateralRebalancer {
         bridge,
         destinationChainMeta.domainId,
         destinationToken.addressOrDenom,
-        amount,
+        localAmount,
       );
     } catch (error) {
       this.logger.error(
@@ -302,7 +308,7 @@ export class Rebalancer implements IMovableCollateralRebalancer {
     try {
       populatedTx = await originHypAdapter.populateRebalanceTx(
         destinationChainMeta.domainId,
-        amount,
+        localAmount,
         bridge,
         quotes,
       );
@@ -676,6 +682,7 @@ export class Rebalancer implements IMovableCollateralRebalancer {
       success: true,
       messageId: dispatchedMessages[0].id,
       txHash: receipt.transactionHash,
+      localAmount: transaction.originTokenAmount.amount,
     };
   }
 

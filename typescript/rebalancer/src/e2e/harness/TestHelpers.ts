@@ -26,7 +26,8 @@ export async function getFirstMonitorEvent(
     let settled = false;
 
     async function finalize(
-      cb: (v: any) => void, // eslint-disable-line @typescript-eslint/no-explicit-any -- accepts both resolve and reject
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      cb: (v: any) => void,
       value: unknown,
       timer: ReturnType<typeof setTimeout>,
     ) {

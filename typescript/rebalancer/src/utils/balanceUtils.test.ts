@@ -6,7 +6,13 @@ import { type ChainName, type Token, TokenStandard } from '@hyperlane-xyz/sdk';
 
 import { type MonitorEvent } from '../interfaces/IMonitor.js';
 
-import { getRawBalances } from './balanceUtils.js';
+import {
+  denormalizeToLocal,
+  getRawBalances,
+  getTokenScale,
+  normalizeConfiguredAmount,
+  normalizeToCanonical,
+} from './balanceUtils.js';
 
 const testLogger = pino({ level: 'silent' });
 
@@ -45,6 +51,16 @@ describe('getRawBalances', () => {
     });
   });
 
+  it('should normalize bridged supply to canonical units when token has scale', () => {
+    token.scale = { numerator: 1, denominator: 1_000_000_000_000 };
+    tokenBridgedSupply = 1_000_000_000_000_000_000n;
+    event.tokensInfo[0].bridgedSupply = tokenBridgedSupply;
+
+    expect(getRawBalances(chains, event, testLogger)).to.deep.equal({
+      mainnet: 1_000_000n,
+    });
+  });
+
   it('should return the bridged supply for the token (EvmHypNative)', () => {
     token.standard = TokenStandard.EvmHypNative;
 
@@ -71,5 +87,35 @@ describe('getRawBalances', () => {
     expect(() => getRawBalances(chains, event, testLogger)).to.throw(
       'bridgedSupply should not be undefined for collateralized token 0xAddress',
     );
+  });
+});
+
+describe('scale helpers', () => {
+  const token = {
+    decimals: 18,
+    scale: { numerator: 1, denominator: 1_000_000_000_000 },
+  } as unknown as Token;
+
+  it('normalizes local amount to canonical amount', () => {
+    expect(normalizeToCanonical(1_000_000_000_000_000_000n, token)).to.equal(
+      1_000_000n,
+    );
+  });
+
+  it('denormalizes canonical amount to local amount', () => {
+    expect(denormalizeToLocal(1_000_000n, token)).to.equal(
+      1_000_000_000_000_000_000n,
+    );
+  });
+
+  it('returns identity scale when scale is undefined', () => {
+    expect(getTokenScale({} as Token)).to.deep.equal({
+      numerator: 1n,
+      denominator: 1n,
+    });
+  });
+
+  it('normalizes configured amount using token decimals and scale', () => {
+    expect(normalizeConfiguredAmount('1', token)).to.equal(1_000_000n);
   });
 });
