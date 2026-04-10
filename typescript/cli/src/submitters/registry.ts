@@ -1,9 +1,5 @@
 import { type IRegistry } from '@hyperlane-xyz/registry';
-import {
-  type SubmitterReferenceRegistry,
-  getSubmitterRegistryChildren,
-  parseSubmitterReferencePayload,
-} from '@hyperlane-xyz/sdk';
+import { parseSubmitterReferencePayload } from '@hyperlane-xyz/sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson } from '../utils/files.js';
@@ -11,23 +7,28 @@ import { readYamlOrJson } from '../utils/files.js';
 const SUBMITTER_DIRECTORY = 'submitters';
 const SUPPORTED_EXTENSIONS = ['', '.yaml', '.yml', '.json'];
 
-export function createSubmitterReferenceRegistry(
+export type SubmitterRegistry = IRegistry & {
+  getSubmitter(ref: string): Promise<unknown>;
+};
+
+export function extendRegistryWithSubmitters(
   registry: IRegistry,
-): SubmitterReferenceRegistry {
-  return {
-    uri: registry.uri,
-    getUri: (itemPath) => safeGetUri(registry, itemPath) ?? registry.uri,
-    getSubmitter: async (ref) => readSubmitterReference(registry, ref),
-  };
+): SubmitterRegistry {
+  const extendedRegistry = registry as SubmitterRegistry;
+  if (!Object.hasOwn(extendedRegistry, 'getSubmitter')) {
+    extendedRegistry.getSubmitter = async (ref) =>
+      readSubmitterReference(registry, ref);
+  }
+  return extendedRegistry;
 }
 
 async function readSubmitterReference(
   registry: IRegistry,
   ref: string,
 ): Promise<unknown> {
-  const childRegistries = getSubmitterRegistryChildren(registry);
+  const childRegistries = getRegistryChildren(registry);
   if (childRegistries?.length) {
-    for (const childRegistry of childRegistries) {
+    for (const childRegistry of childRegistries.slice().reverse()) {
       const payload = await readSubmitterReference(childRegistry, ref);
       if (payload) return payload;
     }
@@ -44,11 +45,21 @@ async function readSubmitterReference(
   return null;
 }
 
-function getCandidateItemPaths(ref: string, registry: IRegistry): string[] {
-  const normalizedRef = (stripRegistryRoot(ref, registry) ?? ref).replace(
-    /^\/+/,
-    '',
+function getRegistryChildren(registry: IRegistry): IRegistry[] {
+  if (!('registries' in registry) || !Array.isArray(registry.registries)) {
+    return [];
+  }
+
+  return registry.registries.filter(
+    (child): child is IRegistry => !!child && typeof child === 'object',
   );
+}
+
+function getCandidateItemPaths(ref: string, registry: IRegistry): string[] {
+  const strippedRef = stripRegistryRoot(ref, registry);
+  if (!strippedRef && isUrl(ref)) return [];
+
+  const normalizedRef = (strippedRef ?? ref).replace(/^\/+/, '');
   assert(
     normalizedRef.startsWith(`${SUBMITTER_DIRECTORY}/`),
     `Submitter reference ${ref} must target a top-level ${SUBMITTER_DIRECTORY}/ entry`,

@@ -34,7 +34,7 @@ import {
   CustomTxSubmitterType,
   type ExtendedSubmissionStrategy,
 } from '../submitters/types.js';
-import { createSubmitterReferenceRegistry } from '../submitters/registry.js';
+import { extendRegistryWithSubmitters } from '../submitters/registry.js';
 import { detectAndConfirmOrPrompt } from '../utils/input.js';
 import { getSigner } from '../utils/keys.js';
 
@@ -197,7 +197,7 @@ export async function signerMiddleware(argv: ContextMiddlewareArgv) {
             chain,
             await resolveSubmissionStrategy(
               parseUnresolvedSubmissionStrategy(strategy),
-              createSubmitterReferenceRegistry(argv.context.registry),
+              extendRegistryWithSubmitters(argv.context.registry),
               chain,
             ),
           ];
@@ -460,7 +460,7 @@ export async function ensureEvmSignersForChains(
             await resolveSubmissionStrategy(
               parseUnresolvedSubmissionStrategy(strategy),
               context.registry
-                ? createSubmitterReferenceRegistry(context.registry)
+                ? extendRegistryWithSubmitters(context.registry)
                 : undefined,
               chain,
             ),

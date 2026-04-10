@@ -86,7 +86,7 @@ import {
 } from '../logger.js';
 import { WarpSendLogs } from '../send/transfer.js';
 import { EV5FileSubmitter } from '../submitters/EV5FileSubmitter.js';
-import { createSubmitterReferenceRegistry } from '../submitters/registry.js';
+import { extendRegistryWithSubmitters } from '../submitters/registry.js';
 import {
   CustomTxSubmitterType,
   type ExtendedChainSubmissionStrategy,
@@ -1235,7 +1235,7 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
         (strategyToUse as SubmissionStrategy)
       : await resolveSubmissionStrategy(
           UnresolvedSubmissionStrategySchema.parse(strategyToUse),
-          createSubmitterReferenceRegistry(registry),
+          extendRegistryWithSubmitters(registry),
           chain,
         );
 

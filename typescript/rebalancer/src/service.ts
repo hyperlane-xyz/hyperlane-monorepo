@@ -29,6 +29,7 @@
  */
 import { Wallet } from 'ethers';
 import { Keypair } from '@solana/web3.js';
+import { pathToFileURL } from 'url';
 
 import {
   DEFAULT_GITHUB_REGISTRY,
@@ -37,9 +38,7 @@ import {
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import {
   MultiProvider,
-  type SubmitterReferenceRegistry,
   TxSubmitterType,
-  getSubmitterRegistryChildren,
   parseSubmitterReferencePayload,
   resolveSubmitterMetadata,
 } from '@hyperlane-xyz/sdk';
@@ -142,7 +141,7 @@ async function main(): Promise<void> {
     if (rebalancerSubmitterRef) {
       const rebalancerSubmitter = await resolveSubmitterMetadata(
         { type: TxSubmitterType.SUBMITTER_REF, ref: rebalancerSubmitterRef },
-        createSubmitterReferenceRegistry(registry, process.env.GH_AUTH_TOKEN),
+        extendRegistryWithSubmitters(registry, process.env.GH_AUTH_TOKEN),
       );
       if (rebalancerSubmitter.type !== TxSubmitterType.JSON_RPC) {
         throw new Error(
@@ -175,7 +174,7 @@ async function main(): Promise<void> {
     if (inventorySubmitterRef) {
       const inventorySubmitter = await resolveSubmitterMetadata(
         { type: TxSubmitterType.SUBMITTER_REF, ref: inventorySubmitterRef },
-        createSubmitterReferenceRegistry(registry, process.env.GH_AUTH_TOKEN),
+        extendRegistryWithSubmitters(registry, process.env.GH_AUTH_TOKEN),
       );
       if (inventorySubmitter.type !== TxSubmitterType.JSON_RPC) {
         throw new Error(
@@ -349,26 +348,34 @@ async function main(): Promise<void> {
   }
 }
 
-// Run the service
-main().catch((error) => {
-  const err = error as Error;
-  rootLogger.error({ error: err.message, stack: err.stack }, 'Fatal error');
-  process.exit(1);
-});
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
+  main().catch((error) => {
+    const err = error as Error;
+    rootLogger.error({ error: err.message, stack: err.stack }, 'Fatal error');
+    process.exit(1);
+  });
+}
 
 const SUBMITTER_DIRECTORY = 'submitters';
 const SUPPORTED_EXTENSIONS = ['', '.yaml', '.yml', '.json'];
 
-function createSubmitterReferenceRegistry(
+export type SubmitterRegistry = IRegistry & {
+  getSubmitter(ref: string): Promise<unknown>;
+};
+
+export function extendRegistryWithSubmitters(
   registry: IRegistry,
   authToken?: string,
-): SubmitterReferenceRegistry {
-  return {
-    uri: registry.uri,
-    getUri: (itemPath) => safeGetUri(registry, itemPath) ?? registry.uri,
-    getSubmitter: async (ref) =>
-      readSubmitterReference(registry, ref, authToken),
-  };
+): SubmitterRegistry {
+  const extendedRegistry = registry as SubmitterRegistry;
+  if (!Object.hasOwn(extendedRegistry, 'getSubmitter')) {
+    extendedRegistry.getSubmitter = async (ref) =>
+      readSubmitterReference(registry, ref, authToken);
+  }
+  return extendedRegistry;
 }
 
 async function readSubmitterReference(
@@ -376,9 +383,9 @@ async function readSubmitterReference(
   ref: string,
   authToken?: string,
 ): Promise<unknown> {
-  const childRegistries = getSubmitterRegistryChildren(registry);
+  const childRegistries = getRegistryChildren(registry);
   if (childRegistries?.length) {
-    for (const childRegistry of childRegistries) {
+    for (const childRegistry of childRegistries.slice().reverse()) {
       const payload = await readSubmitterReference(
         childRegistry,
         ref,
@@ -399,11 +406,21 @@ async function readSubmitterReference(
   return null;
 }
 
-function getCandidateItemPaths(ref: string, registry: IRegistry): string[] {
-  const normalizedRef = (stripRegistryRoot(ref, registry) ?? ref).replace(
-    /^\/+/,
-    '',
+function getRegistryChildren(registry: IRegistry): IRegistry[] {
+  if (!('registries' in registry) || !Array.isArray(registry.registries)) {
+    return [];
+  }
+
+  return registry.registries.filter(
+    (child): child is IRegistry => !!child && typeof child === 'object',
   );
+}
+
+function getCandidateItemPaths(ref: string, registry: IRegistry): string[] {
+  const strippedRef = stripRegistryRoot(ref, registry);
+  if (!strippedRef && isUrl(ref)) return [];
+
+  const normalizedRef = (strippedRef ?? ref).replace(/^\/+/, '');
   if (!normalizedRef.startsWith(`${SUBMITTER_DIRECTORY}/`)) {
     throw new Error(
       `Submitter reference ${ref} must target a top-level ${SUBMITTER_DIRECTORY}/ entry`,

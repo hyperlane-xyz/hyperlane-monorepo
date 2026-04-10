@@ -538,10 +538,9 @@ export {
   UnresolvedSubmitterReferenceSchema,
 } from './providers/transactions/submitter/types.js';
 export {
-  SubmitterReferenceRegistry,
+  SubmitterLookup,
   UnresolvedSubmissionStrategy,
   UnresolvedSubmissionStrategySchema,
-  getSubmitterRegistryChildren,
   parseSubmitterReferencePayload,
   resolveSubmissionStrategy,
   resolveSubmitterMetadata,
