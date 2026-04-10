@@ -342,14 +342,11 @@ impl SealevelMailbox {
         let account_metas = self.get_account_metas(instruction).await?;
 
         // Ensure dynamically provided account metas are safe to prevent theft from the payer.
-        // The identity signer (if configured and distinct from payer) is allowed through as a
-        // trusted co-signer (e.g. required by TrustedRelayer ISMs).
-        let identity = self.get_signer_if_separate().map(|s| s.pubkey());
-        sanitize_dynamic_accounts(
-            account_metas,
-            &self.get_payer()?.pubkey(),
-            identity.as_ref(),
-        )
+        // Identity is NOT passed here: neither the ISM-getter nor handle paths should trust
+        // an external program to request the relayer's identity as a signer. Only the ISM
+        // verify fixpoint loop (get_ism_verify_account_metas) passes identity, after it has
+        // already converged on a stable account set from a known ISM program.
+        sanitize_dynamic_accounts(account_metas, &self.get_payer()?.pubkey(), None)
     }
 
     async fn get_process_payload(

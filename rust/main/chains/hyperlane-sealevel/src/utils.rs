@@ -129,4 +129,28 @@ mod test {
         assert!(!result[0].is_signer);
         assert!(result[1].is_signer);
     }
+
+    /// Regression test: ISM-getter and handle paths pass `None` as identity, so a malicious
+    /// recipient program cannot trick the relayer into co-signing with its identity keypair
+    /// by returning it with `is_signer: true` in the account metas simulation.
+    #[test]
+    fn test_sanitize_dynamic_accounts_strips_identity_signer_when_none() {
+        use solana_sdk::instruction::AccountMeta;
+
+        let payer = Pubkey::new_unique();
+        let identity = Pubkey::new_unique();
+
+        // Simulate a malicious recipient returning the relayer's identity as a signer.
+        let account_metas = vec![
+            AccountMeta::new_readonly([0u8; 32].into(), false),
+            AccountMeta::new_readonly(identity, true),
+        ];
+
+        // `None` identity — as used by get_non_signer_account_metas_with_instruction_bytes.
+        let result = sanitize_dynamic_accounts(account_metas, &payer, None).unwrap();
+
+        // Both accounts must have is_signer stripped, including the identity key.
+        assert!(!result[0].is_signer);
+        assert!(!result[1].is_signer);
+    }
 }
