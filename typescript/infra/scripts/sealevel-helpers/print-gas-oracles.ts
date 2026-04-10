@@ -125,6 +125,7 @@ function getChainConnections(
       ['solanamainnet', 'aleo'],
       ['solanamainnet', 'eni'],
       ['solanamainnet', 'citrea'],
+      ['solanamainnet', 'tron'],
       // For Starknet / Paradex
       ['solanamainnet', 'starknet'],
       ['solanamainnet', 'paradex'],
@@ -138,6 +139,7 @@ function getChainConnections(
       ['eclipsemainnet', 'unichain'],
       ['eclipsemainnet', 'optimism'],
       ['eclipsemainnet', 'polygon'],
+      ['eclipsemainnet', 'tron'],
       // for solaxy routes
       ['solaxy', 'solanamainnet'],
       ['solaxy', 'ethereum'],
