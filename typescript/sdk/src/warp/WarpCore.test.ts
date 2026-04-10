@@ -58,11 +58,6 @@ describe('WarpCore', () => {
   let cw20: Token;
   let cosmosIbc: Token;
 
-  // Stub MultiProvider fee estimation to avoid real network calls
-  sinon
-    .stub(multiProvider, 'estimateTransactionFee')
-    .returns(Promise.resolve(MOCK_LOCAL_QUOTE));
-
   before(() => {
     const exampleConfig = yamlParse(
       fs.readFileSync('./src/warp/test-warp-core-config.yaml', 'utf-8'),
@@ -82,6 +77,16 @@ describe('WarpCore', () => {
       cw20,
       cosmosIbc,
     ] = warpCore.tokens;
+  });
+
+  beforeEach(() => {
+    sinon
+      .stub(multiProvider, 'estimateTransactionFee')
+      .returns(Promise.resolve(MOCK_LOCAL_QUOTE));
+  });
+
+  afterEach(() => {
+    sinon.restore();
   });
 
   it('Constructs', () => {
