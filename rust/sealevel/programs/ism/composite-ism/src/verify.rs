@@ -8,6 +8,7 @@ use solana_program::{
 };
 
 use crate::{
+    account_metas::contains_rate_limited,
     accounts::{derive_domain_pda, load_domain_ism_storage, DomainIsmAccount, IsmNode},
     error::Error,
     metadata::{parse_aggregation_ranges, sub_metadata},
@@ -143,6 +144,11 @@ where
 
             if let Some(mut storage) = loaded_storage {
                 if let Some(mut ism) = storage.ism.take() {
+                    // RateLimited state must be persisted; require a writable domain PDA so a
+                    // hand-crafted transaction cannot bypass the rate limit by passing it readonly.
+                    if contains_rate_limited(&ism) && !domain_pda_info.is_writable {
+                        return Err(Error::AccountOutOfOrder.into());
+                    }
                     verify_node(&mut ism, metadata, message, accounts_iter, program_id)?;
                     // Write updated state back to the domain PDA (e.g. RateLimited counters).
                     if domain_pda_info.is_writable {

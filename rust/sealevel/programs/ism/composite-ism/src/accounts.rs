@@ -87,8 +87,8 @@ pub enum IsmNode {
     /// (see [`derive_domain_pda`]). At most one `Routing` node is allowed per ISM
     /// tree (enforced by `validate_config`), so no namespace field is needed.
     ///
-    /// `RateLimited` inside a domain PDA is disallowed by `SetDomainIsm` validation
-    /// (writeback requires the domain PDA to be writable, which is not supported).
+    /// `RateLimited` inside a domain PDA requires the domain PDA to be marked writable
+    /// in the transaction; `Verify` will reject the instruction if it is not.
     /// `TrustedRelayer` requires a two-pass `VerifyAccountMetas` call (see relayer docs).
     ///
     /// ModuleType: Routing.

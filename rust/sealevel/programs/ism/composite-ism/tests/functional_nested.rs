@@ -797,6 +797,73 @@ async fn test_rate_limited_in_domain_pda_enforces_limit() {
     );
 }
 
+#[tokio::test]
+async fn test_rate_limited_in_domain_pda_readonly_bypass_rejected() {
+    // Verify that a hand-crafted transaction cannot bypass the rate limit by
+    // presenting the domain PDA as readonly.  The program must reject such a
+    // transaction rather than silently skipping the state writeback.
+    let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
+
+    initialize(&mut banks_client, &payer, recent_blockhash, routing_root())
+        .await
+        .unwrap();
+    set_domain_ism(
+        &mut banks_client,
+        &payer,
+        recent_blockhash,
+        ORIGIN,
+        IsmNode::RateLimited {
+            max_capacity: 1_000,
+            recipient: None,
+            filled_level: 0,
+            last_updated: 0,
+        },
+    )
+    .await
+    .unwrap();
+
+    let mut msg = dummy_message();
+    msg.origin = ORIGIN;
+    msg.body = token_message_body(500);
+    let verify_ixn = VerifyInstruction {
+        metadata: vec![],
+        message: msg.to_vec(),
+    };
+
+    // Obtain the canonical account metas (domain PDA is writable).
+    let mut metas = get_all_verify_account_metas(
+        &mut banks_client,
+        &payer,
+        recent_blockhash,
+        verify_ixn.clone(),
+    )
+    .await;
+
+    // Downgrade the domain PDA to readonly — simulating a malicious caller.
+    for meta in &mut metas {
+        if meta.pubkey == domain_pda_key(ORIGIN) {
+            meta.is_writable = false;
+        }
+    }
+
+    // The program must reject this, not silently skip the writeback.
+    let result = simulate_verify(
+        &mut banks_client,
+        &payer,
+        recent_blockhash,
+        verify_ixn,
+        metas,
+    )
+    .await;
+    assert_simulation_error(
+        &result,
+        TransactionError::InstructionError(
+            0,
+            InstructionError::Custom(Error::AccountOutOfOrder as u32),
+        ),
+    );
+}
+
 // ─── Test (baseline) ─────────────────────────────────────────────────────────
 
 #[tokio::test]
