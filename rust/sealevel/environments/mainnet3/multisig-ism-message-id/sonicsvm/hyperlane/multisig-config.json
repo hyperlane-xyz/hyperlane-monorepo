@@ -323,13 +323,6 @@
       "0x5450447aee7b544c462c9352bef7cad049b0c2dc"
     ]
   },
-  "eden": {
-    "type": "messageIdMultisigIsm",
-    "threshold": 1,
-    "validators": [
-      "0x1c61e6379443e2842d3e9db28e962b6c717fdab1"
-    ]
-  },
   "electroneum": {
     "type": "messageIdMultisigIsm",
     "threshold": 2,
