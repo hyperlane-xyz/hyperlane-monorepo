@@ -42,9 +42,42 @@ async function main() {
 
   const MAX_THRESHOLD = 4;
 
+  // deprecated chains to skip
+  // copied from chainsToSkip in chain.ts
+  const deprecatedChains = [
+    'arbitrumnova',
+    'aurora',
+    'b3',
+    'bsquared',
+    'degenchain',
+    'dogechain',
+    'fantom',
+    'harmony',
+    'merlin',
+    'moonbeam',
+    'polygonzkevm',
+    'scroll',
+    'story',
+    'superpositionmainnet',
+    'tangle',
+    'zeronetwork',
+  ];
+
   for (const chain of Object.keys(config)) {
     // exclude forma as it's not a core chain
     if (chain === 'forma') {
+      delete config[chain];
+      continue;
+    }
+
+    // exclude eden because that's eden<>celestia only
+    if (chain === 'eden') {
+      delete config[chain];
+      continue;
+    }
+
+    if (deprecatedChains.includes(chain)) {
+      delete config[chain];
       continue;
     }
 
