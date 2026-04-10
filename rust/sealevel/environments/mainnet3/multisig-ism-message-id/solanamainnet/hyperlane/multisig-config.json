@@ -323,6 +323,13 @@
       "0x5450447aee7b544c462c9352bef7cad049b0c2dc"
     ]
   },
+  "eden": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x1c61e6379443e2842d3e9db28e962b6c717fdab1"
+    ]
+  },
   "electroneum": {
     "type": "messageIdMultisigIsm",
     "threshold": 2,
@@ -406,6 +413,14 @@
     "validators": [
       "0xabc8dd7594783c90a3c0fb760943f78c37ea6d75",
       "0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f",
+      "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
+    ]
+  },
+  "fluent": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 2,
+    "validators": [
+      "0xea189ae1a9c3e86bcb63597a34a8ea3b0bb83406",
       "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
     ]
   },
@@ -505,6 +520,14 @@
       "0x04d949c615c9976f89595ddcb9008c92f8ba7278"
     ]
   },
+  "igra": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 2,
+    "validators": [
+      "0x485f0739639e46d3b06b1b92debe2ade56d8bfb1",
+      "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
+    ]
+  },
   "immutablezkevmmainnet": {
     "type": "messageIdMultisigIsm",
     "threshold": 2,
@@ -548,6 +571,14 @@
     "threshold": 2,
     "validators": [
       "0xf23003ebdc6c53765d52b1fe7a65046eabb0e73b",
+      "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
+    ]
+  },
+  "kiichain": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 2,
+    "validators": [
+      "0x5513bc60f0a3a8520edc03828c1bc6111008b54e",
       "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
     ]
   },
@@ -738,6 +769,14 @@
       "0x5450447aee7b544c462c9352bef7cad049b0c2dc",
       "0x401f25ff73769ed85bdb449a4347a4fd2678acfe",
       "0x340058f071e8376c2ecff219e1e6620deea8a3c7"
+    ]
+  },
+  "mocachain": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 2,
+    "validators": [
+      "0x31ab8fc95d941defa077f8501c6800e935c3b081",
+      "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
     ]
   },
   "mode": {
@@ -1202,6 +1241,14 @@
     "validators": [
       "0x96982a325c28a842bc8cf61b63000737bb9f1f7d",
       "0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f",
+      "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
+    ]
+  },
+  "tron": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 2,
+    "validators": [
+      "0x5f059616ce75d0fe6a02ea1d9fd2b32659b52adb",
       "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
     ]
   },
