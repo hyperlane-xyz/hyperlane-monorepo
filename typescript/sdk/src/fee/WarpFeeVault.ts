@@ -224,6 +224,8 @@ export class EvmWarpFeeVaultModule extends HyperlaneModule<
   }
 
   notify(): Promise<ContractTransaction> {
-    return this.contract.notify();
+    return this.contract
+      .connect(this.multiProvider.getSigner(this.chainName))
+      .notify();
   }
 }

@@ -6,6 +6,7 @@ export {
 export {
   DerivedWarpFeeVaultConfig,
   EvmWarpFeeVaultModule,
+  WarpFeeVaultAddresses,
   WarpFeeVaultConfig,
 } from './fee/WarpFeeVault.js';
 
