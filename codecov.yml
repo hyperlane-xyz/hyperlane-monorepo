@@ -41,6 +41,12 @@ component_management:
       name: token
       paths:
         - solidity/contracts/token/**
+      statuses:
+        - type: project
+          target: auto
+          threshold: 0.2%
+          branches:
+            - '!main'
     - component_id: module_middlewares
       name: middlewares
       paths:
