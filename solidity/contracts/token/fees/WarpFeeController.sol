@@ -171,61 +171,24 @@ contract WarpFeeController is Ownable, ReentrancyGuard, PackageVersioned {
             remoteDomain,
             address(this)
         );
-        CallLib.Call[] memory calls = new CallLib.Call[](
-            token == address(0) ? 2 : 5
-        );
-
-        calls[0] = CallLib.build(
-            feeContract,
-            0,
-            tokenClaim
-                ? abi.encodeWithSelector(
-                    ITokenFeeClaimWithToken.claim.selector,
-                    remoteIca,
-                    token
-                )
-                : abi.encodeWithSelector(
-                    ITokenFeeClaim.claim.selector,
-                    remoteIca
-                )
-        );
-
-        uint256 transferIndex = 1;
-        if (token != address(0)) {
-            calls[1] = CallLib.build(
-                token,
-                0,
-                abi.encodeWithSelector(IERC20.approve.selector, remoteRouter, 0)
-            );
-            calls[2] = CallLib.build(
-                token,
-                0,
-                abi.encodeWithSelector(
-                    IERC20.approve.selector,
-                    remoteRouter,
-                    paymentAmount
-                )
-            );
-            transferIndex = 3;
-        }
-
-        calls[transferIndex] = CallLib.build(
-            remoteRouter,
-            token == address(0) ? paymentAmount : 0,
-            abi.encodeWithSelector(
-                ITokenBridge.transferRemote.selector,
-                hubDomain,
-                address(this).addressToBytes32(),
-                amount
+        CallLib.Call[] memory calls = token == address(0)
+            ? _buildNativeCollectCalls(
+                feeContract,
+                remoteIca,
+                remoteRouter,
+                amount,
+                paymentAmount,
+                tokenClaim
             )
-        );
-        if (token != address(0)) {
-            calls[4] = CallLib.build(
+            : _buildErc20CollectCalls(
+                feeContract,
+                remoteIca,
                 token,
-                0,
-                abi.encodeWithSelector(IERC20.approve.selector, remoteRouter, 0)
+                remoteRouter,
+                amount,
+                paymentAmount,
+                tokenClaim
             );
-        }
 
         messageId = icaRouter.callRemote{value: msg.value}(
             remoteDomain,
@@ -242,6 +205,98 @@ contract WarpFeeController is Ownable, ReentrancyGuard, PackageVersioned {
             paymentAmount,
             tokenClaim,
             messageId
+        );
+    }
+
+    function _buildClaimCall(
+        address feeContract,
+        address remoteIca,
+        address token,
+        bool tokenClaim
+    ) internal pure returns (CallLib.Call memory) {
+        return
+            CallLib.build(
+                feeContract,
+                0,
+                tokenClaim
+                    ? abi.encodeWithSelector(
+                        ITokenFeeClaimWithToken.claim.selector,
+                        remoteIca,
+                        token
+                    )
+                    : abi.encodeWithSelector(
+                        ITokenFeeClaim.claim.selector,
+                        remoteIca
+                    )
+            );
+    }
+
+    function _buildNativeCollectCalls(
+        address feeContract,
+        address remoteIca,
+        address remoteRouter,
+        uint256 amount,
+        uint256 paymentAmount,
+        bool tokenClaim
+    ) internal view returns (CallLib.Call[] memory calls) {
+        calls = new CallLib.Call[](2);
+        calls[0] = _buildClaimCall(
+            feeContract,
+            remoteIca,
+            address(0),
+            tokenClaim
+        );
+        calls[1] = CallLib.build(
+            remoteRouter,
+            paymentAmount,
+            abi.encodeWithSelector(
+                ITokenBridge.transferRemote.selector,
+                hubDomain,
+                address(this).addressToBytes32(),
+                amount
+            )
+        );
+    }
+
+    function _buildErc20CollectCalls(
+        address feeContract,
+        address remoteIca,
+        address token,
+        address remoteRouter,
+        uint256 amount,
+        uint256 paymentAmount,
+        bool tokenClaim
+    ) internal view returns (CallLib.Call[] memory calls) {
+        calls = new CallLib.Call[](5);
+        calls[0] = _buildClaimCall(feeContract, remoteIca, token, tokenClaim);
+        calls[1] = CallLib.build(
+            token,
+            0,
+            abi.encodeWithSelector(IERC20.approve.selector, remoteRouter, 0)
+        );
+        calls[2] = CallLib.build(
+            token,
+            0,
+            abi.encodeWithSelector(
+                IERC20.approve.selector,
+                remoteRouter,
+                paymentAmount
+            )
+        );
+        calls[3] = CallLib.build(
+            remoteRouter,
+            0,
+            abi.encodeWithSelector(
+                ITokenBridge.transferRemote.selector,
+                hubDomain,
+                address(this).addressToBytes32(),
+                amount
+            )
+        );
+        calls[4] = CallLib.build(
+            token,
+            0,
+            abi.encodeWithSelector(IERC20.approve.selector, remoteRouter, 0)
         );
     }
 
@@ -273,10 +328,7 @@ contract WarpFeeController is Ownable, ReentrancyGuard, PackageVersioned {
     ) internal pure returns (bool) {
         require(data.length >= 4, "WarpFeeController: missing selector");
 
-        bytes4 selector;
-        assembly {
-            selector := calldataload(data.offset)
-        }
+        bytes4 selector = bytes4(data[:4]);
 
         return
             selector == IRoutingFeeConfig.setFeeContract.selector ||
@@ -295,25 +347,42 @@ contract WarpFeeController is Ownable, ReentrancyGuard, PackageVersioned {
         uint256 lpAmount = (balance * lpBps) / BPS_SCALE;
         uint256 protocolAmount = balance - lpAmount;
 
+        protocolAmount = token == address(0)
+            ? _distributeNative(lpAmount, protocolAmount)
+            : _distributeErc20(token, lpAmount, protocolAmount);
+
+        emit Distributed(token, lpAmount, protocolAmount);
+    }
+
+    function _distributeNative(
+        uint256 lpAmount,
+        uint256 _protocolAmount
+    ) internal returns (uint256 protocolAmount) {
+        protocolAmount = _protocolAmount;
         if (lpAmount > 0) {
-            if (token == address(0)) {
-                ILpRouter(hubRouter).donate{value: lpAmount}(lpAmount);
-            } else {
-                IERC20(token).forceApprove(hubRouter, lpAmount);
-                ILpRouter(hubRouter).donate(lpAmount);
-                IERC20(token).forceApprove(hubRouter, 0);
-            }
+            ILpRouter(hubRouter).donate{value: lpAmount}(lpAmount);
         }
 
         if (protocolAmount > 0) {
-            if (token == address(0)) {
-                payable(protocolBeneficiary).sendValue(protocolAmount);
-            } else {
-                IERC20(token).safeTransfer(protocolBeneficiary, protocolAmount);
-            }
+            payable(protocolBeneficiary).sendValue(protocolAmount);
+        }
+    }
+
+    function _distributeErc20(
+        address token,
+        uint256 lpAmount,
+        uint256 _protocolAmount
+    ) internal returns (uint256 protocolAmount) {
+        protocolAmount = _protocolAmount;
+        if (lpAmount > 0) {
+            IERC20(token).forceApprove(hubRouter, lpAmount);
+            ILpRouter(hubRouter).donate(lpAmount);
+            IERC20(token).forceApprove(hubRouter, 0);
         }
 
-        emit Distributed(token, lpAmount, protocolAmount);
+        if (protocolAmount > 0) {
+            IERC20(token).safeTransfer(protocolBeneficiary, protocolAmount);
+        }
     }
 
     function setHubRouter(address _hubRouter) external onlyOwner {
