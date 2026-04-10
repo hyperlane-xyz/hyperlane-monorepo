@@ -407,19 +407,6 @@
       "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
     ]
   },
-  "forma": {
-    "type": "messageIdMultisigIsm",
-    "threshold": 5,
-    "validators": [
-      "0x5B19F64F04f495D3958804Ec416c165F00f74898",
-      "0x3f869C36110F00D10dC74cca3ac1FB133cf019ad",
-      "0xE74c7632aF1De54D208f1b9e18B22988dDc8C4CE",
-      "0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8",
-      "0x1734abc14f0e68cdaf64f072831f6a6c8f622c37",
-      "0xb6536d1b52969d6c66bb85533b9ab04d886b3401",
-      "0x184Fc4899a8271783C962e4841BeE74F8526bC2c"
-    ]
-  },
   "fraxtal": {
     "type": "messageIdMultisigIsm",
     "threshold": 4,
