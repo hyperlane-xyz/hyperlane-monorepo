@@ -43,5 +43,13 @@ export function createRootRouter(rootService: RootService): Router {
     },
   );
 
+  const getSubmitter = async (req: Request, res: Response) => {
+    const submitter = await rootService.getSubmitter(req.params.id);
+    res.json(submitter);
+  };
+
+  router.get('/submitters/:id', getSubmitter);
+  router.get('/submitter/:id', getSubmitter);
+
   return router;
 }

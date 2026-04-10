@@ -89,6 +89,7 @@ export async function checkMessageStatus({
           key: context.key,
           multiProtocolProvider: context.multiProtocolProvider,
           multiProvider: context.multiProvider,
+          registry: context.registry,
           strategyPath: context.strategyPath,
         },
         destinationChains,

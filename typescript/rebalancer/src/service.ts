@@ -8,9 +8,11 @@
  *
  * Environment Variables:
  * - REBALANCER_CONFIG_FILE: Path to the rebalancer configuration YAML file (required)
+ * - HYP_REBALANCER_SUBMITTER_REF: Submitter reference URI for movable collateral rebalancing operations
  * - HYP_REBALANCER_KEY: Private key for movable collateral rebalancing operations (preferred)
  * - HYP_KEY: Fallback private key for HYP_REBALANCER_KEY (optional)
  * - HYP_INVENTORY_KEY_<PROTOCOL>: Private key for inventory operations per protocol (e.g., HYP_INVENTORY_KEY_ETHEREUM, HYP_INVENTORY_KEY_SEALEVEL)
+ * - HYP_INVENTORY_SUBMITTER_REF: Submitter reference URI for inventory operations (optional)
  * - COINGECKO_API_KEY: API key for CoinGecko price fetching (optional, for metrics)
  * - HYP_INVENTORY_KEY: Backward-compatible fallback for Ethereum inventory signer (optional, use HYP_INVENTORY_KEY_ETHEREUM preferentially)
  * - CHECK_FREQUENCY: Balance check frequency in ms (default: 60000)
@@ -27,15 +29,25 @@
 import { Wallet } from 'ethers';
 import { Keypair } from '@solana/web3.js';
 
-import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
+import {
+  DEFAULT_GITHUB_REGISTRY,
+  type IRegistry,
+} from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
-import { MultiProvider } from '@hyperlane-xyz/sdk';
+import {
+  MultiProvider,
+  type SubmitterReferenceRegistry,
+  TxSubmitterType,
+  parseSubmitterReferencePayload,
+  resolveSubmitterMetadata,
+} from '@hyperlane-xyz/sdk';
 import {
   applyRpcUrlOverridesFromEnv,
   createServiceLogger,
   ProtocolType,
   rootLogger,
 } from '@hyperlane-xyz/utils';
+import { readYamlOrJson } from '@hyperlane-xyz/utils/fs';
 
 import { RebalancerConfig } from './config/RebalancerConfig.js';
 import { RebalancerService } from './core/RebalancerService.js';
@@ -51,18 +63,14 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const rebalancerPrivateKey =
+  const rebalancerSubmitterRef = process.env.HYP_REBALANCER_SUBMITTER_REF;
+  let rebalancerPrivateKey =
     process.env.HYP_REBALANCER_KEY ?? process.env.HYP_KEY;
-  if (!rebalancerPrivateKey) {
-    rootLogger.error(
-      'HYP_REBALANCER_KEY (or HYP_KEY) environment variable is required',
-    );
-    process.exit(1);
-  }
 
   // Build per-protocol private key map from env vars.
   // Naming: HYP_INVENTORY_KEY_<UPPERCASE_PROTOCOL> (e.g., HYP_INVENTORY_KEY_ETHEREUM).
   // HYP_INVENTORY_KEY (no suffix) is kept as backward-compatible fallback for Ethereum only.
+  const inventorySubmitterRef = process.env.HYP_INVENTORY_SUBMITTER_REF;
   const inventoryPrivateKeys: Partial<Record<ProtocolType, string>> = {};
   for (const protocol of Object.values(ProtocolType)) {
     const envKey = `HYP_INVENTORY_KEY_${protocol.toUpperCase()}`;
@@ -127,6 +135,67 @@ async function main(): Promise<void> {
       logger: rootLogger,
     });
     logger.info({ registryUri }, '✅ Initialized registry');
+
+    if (rebalancerSubmitterRef) {
+      const rebalancerSubmitter = await resolveSubmitterMetadata(
+        { type: 'submitter_ref', ref: rebalancerSubmitterRef },
+        createSubmitterReferenceRegistry(registry),
+      );
+      if (rebalancerSubmitter.type !== TxSubmitterType.JSON_RPC) {
+        throw new Error(
+          `HYP_REBALANCER_SUBMITTER_REF must resolve to ${TxSubmitterType.JSON_RPC}, got ${rebalancerSubmitter.type}`,
+        );
+      }
+      if (!rebalancerSubmitter.privateKey) {
+        throw new Error(
+          `HYP_REBALANCER_SUBMITTER_REF must resolve to a private-key-backed ${TxSubmitterType.JSON_RPC} submitter`,
+        );
+      }
+      rebalancerPrivateKey = rebalancerSubmitter.privateKey;
+      logger.info(
+        {
+          rebalancerAddress:
+            rebalancerSubmitter.userAddress ??
+            new Wallet(rebalancerSubmitter.privateKey).address,
+          rebalancerSubmitterRef,
+        },
+        '✅ Resolved rebalancer submitter reference',
+      );
+    }
+    if (!rebalancerPrivateKey) {
+      rootLogger.error(
+        'HYP_REBALANCER_SUBMITTER_REF or HYP_REBALANCER_KEY (or HYP_KEY) environment variable is required',
+      );
+      process.exit(1);
+    }
+
+    if (inventorySubmitterRef) {
+      const inventorySubmitter = await resolveSubmitterMetadata(
+        { type: 'submitter_ref', ref: inventorySubmitterRef },
+        createSubmitterReferenceRegistry(registry),
+      );
+      if (inventorySubmitter.type !== TxSubmitterType.JSON_RPC) {
+        throw new Error(
+          `HYP_INVENTORY_SUBMITTER_REF must resolve to ${TxSubmitterType.JSON_RPC}, got ${inventorySubmitter.type}`,
+        );
+      }
+      if (!inventorySubmitter.privateKey) {
+        throw new Error(
+          `HYP_INVENTORY_SUBMITTER_REF must resolve to a private-key-backed ${TxSubmitterType.JSON_RPC} submitter`,
+        );
+      }
+      inventoryPrivateKeys[ProtocolType.Ethereum] =
+        inventorySubmitter.privateKey;
+      logger.info(
+        {
+          inventoryAddress:
+            inventorySubmitter.userAddress ??
+            new Wallet(inventorySubmitter.privateKey).address,
+          inventorySubmitterRef,
+        },
+        '✅ Resolved inventory submitter reference',
+      );
+    }
 
     // Get chain metadata from registry
     const chainMetadata = await registry.getMetadata();
@@ -283,3 +352,105 @@ main().catch((error) => {
   rootLogger.error({ error: err.message, stack: err.stack }, 'Fatal error');
   process.exit(1);
 });
+
+const SUBMITTER_DIRECTORY = 'submitters';
+const SUPPORTED_EXTENSIONS = ['', '.yaml', '.yml', '.json'];
+
+function createSubmitterReferenceRegistry(
+  registry: IRegistry,
+): SubmitterReferenceRegistry {
+  return {
+    uri: registry.uri,
+    getUri: (itemPath) => safeGetUri(registry, itemPath) ?? registry.uri,
+    getSubmitter: async (ref) => readSubmitterReference(registry, ref),
+  };
+}
+
+async function readSubmitterReference(
+  registry: IRegistry,
+  ref: string,
+): Promise<unknown | null> {
+  const childRegistries = (registry as IRegistry & { registries?: IRegistry[] })
+    .registries;
+  if (childRegistries?.length) {
+    for (const childRegistry of childRegistries) {
+      const payload = await readSubmitterReference(childRegistry, ref);
+      if (payload) return payload;
+    }
+    return null;
+  }
+
+  for (const itemPath of getCandidateItemPaths(ref, registry)) {
+    const source = safeGetUri(registry, itemPath);
+    if (!source) continue;
+
+    const payload = await loadPayload(source);
+    if (payload) return payload;
+  }
+
+  return null;
+}
+
+function getCandidateItemPaths(ref: string, registry: IRegistry): string[] {
+  const normalizedRef = (stripRegistryRoot(ref, registry) ?? ref).replace(
+    /^\/+/,
+    '',
+  );
+  if (!normalizedRef.startsWith(`${SUBMITTER_DIRECTORY}/`)) {
+    throw new Error(
+      `Submitter reference ${ref} must target a top-level ${SUBMITTER_DIRECTORY}/ entry`,
+    );
+  }
+
+  if (
+    SUPPORTED_EXTENSIONS.some(
+      (extension) => extension && normalizedRef.endsWith(extension),
+    )
+  ) {
+    return [normalizedRef];
+  }
+
+  return SUPPORTED_EXTENSIONS.map((suffix) => `${normalizedRef}${suffix}`);
+}
+
+function stripRegistryRoot(ref: string, registry: IRegistry): string | null {
+  const roots = [registry.uri, safeGetUri(registry)]
+    .filter(
+      (value, index, values): value is string =>
+        !!value && values.indexOf(value) === index,
+    )
+    .sort((a, b) => b.length - a.length);
+
+  for (const root of roots) {
+    if (ref.startsWith(root)) {
+      return ref.slice(root.length).replace(/^\/+/, '');
+    }
+  }
+
+  return null;
+}
+
+function safeGetUri(
+  registry: IRegistry,
+  itemPath?: string,
+): string | undefined {
+  try {
+    return registry.getUri(itemPath);
+  } catch {
+    return undefined;
+  }
+}
+
+async function loadPayload(source: string): Promise<unknown | null> {
+  try {
+    if (source.startsWith('http://') || source.startsWith('https://')) {
+      const response = await fetch(source);
+      if (!response.ok) return null;
+      return parseSubmitterReferencePayload(await response.text(), source);
+    }
+
+    return readYamlOrJson(source);
+  } catch {
+    return null;
+  }
+}

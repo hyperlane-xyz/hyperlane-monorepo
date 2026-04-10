@@ -1,23 +1,17 @@
 import { password } from '@inquirer/prompts';
 import { type Signer } from 'ethers';
 
-import {
-  type MultiProtocolProvider,
-  type TxSubmitterType,
-} from '@hyperlane-xyz/sdk';
+import { type ChainName, type MultiProtocolProvider } from '@hyperlane-xyz/sdk';
 import { type Address } from '@hyperlane-xyz/utils';
-
-import { type ExtendedChainSubmissionStrategy } from '../../../submitters/types.js';
 
 export type TypedSigner = Signer;
 
-export type SignerConfig = Omit<
-  Extract<
-    ExtendedChainSubmissionStrategy[string]['submitter'],
-    { type: TxSubmitterType.JSON_RPC }
-  >,
-  'type'
->;
+export type SignerConfig = {
+  chain: ChainName;
+  extraParams?: Record<string, string>;
+  privateKey?: string;
+  userAddress?: Address;
+};
 
 export interface IMultiProtocolSigner {
   getSigner(config: SignerConfig): Promise<TypedSigner>;

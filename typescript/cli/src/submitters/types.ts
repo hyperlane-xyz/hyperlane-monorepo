@@ -4,6 +4,7 @@ import {
   type SubmitterMetadata,
   SubmitterMetadataSchema,
   TxSubmitterType,
+  UnresolvedSubmitterReferenceSchema,
   ZChainName,
   preprocessChainSubmissionStrategy,
   refineChainSubmissionStrategy,
@@ -24,29 +25,98 @@ const FileSubmitterMetadataSchema = z.object({
   ...FileTxSubmitterPropsSchema.shape,
 });
 
-type FileSubmitterMetadata = z.infer<typeof FileSubmitterMetadataSchema>;
+type ExtendedSubmitterMetadata =
+  | SubmitterMetadata
+  | z.output<typeof FileSubmitterMetadataSchema>
+  | z.output<typeof UnresolvedSubmitterReferenceSchema>;
 
-type ExtendedSubmitterMetadata = SubmitterMetadata | FileSubmitterMetadata;
+const ExtendedSubmitterMetadataSchema: z.ZodType<
+  ExtendedSubmitterMetadata,
+  z.ZodTypeDef,
+  unknown
+> = z.union([
+  SubmitterMetadataSchema,
+  FileSubmitterMetadataSchema,
+  UnresolvedSubmitterReferenceSchema,
+]);
 
-// @ts-expect-error recursive schema causes type inference errors
-const ExtendedSubmitterMetadataSchema: z.ZodSchema<ExtendedSubmitterMetadata> =
-  SubmitterMetadataSchema.or(FileSubmitterMetadataSchema);
-
-export const ExtendedSubmissionStrategySchema: z.ZodSchema<{
+export type ExtendedSubmissionStrategy = {
   submitter: ExtendedSubmitterMetadata;
-}> = z.object({
+};
+
+export const ExtendedSubmissionStrategySchema: z.ZodType<
+  ExtendedSubmissionStrategy,
+  z.ZodTypeDef,
+  unknown
+> = z.object({
   submitter: ExtendedSubmitterMetadataSchema,
 });
 
-export type ExtendedSubmissionStrategy = z.infer<
-  typeof ExtendedSubmissionStrategySchema
->;
+function preprocessExtendedChainSubmissionStrategy(
+  value: unknown,
+): Record<string, ExtendedSubmissionStrategy> {
+  const strategies = value as Record<string, ExtendedSubmissionStrategy>;
 
-export const ExtendedChainSubmissionStrategySchema = z.preprocess(
-  preprocessChainSubmissionStrategy,
+  return Object.fromEntries(
+    Object.entries(strategies).map(([chain, strategy]) => {
+      const submitter = strategy.submitter;
+      if (submitter.type === 'submitter_ref') {
+        return [chain, strategy];
+      }
+
+      if (submitter.type === CustomTxSubmitterType.FILE) {
+        return [
+          chain,
+          {
+            submitter: {
+              ...submitter,
+              chain: submitter.chain ?? chain,
+            },
+          },
+        ];
+      }
+
+      const processed = preprocessChainSubmissionStrategy<{
+        submitter: SubmitterMetadata;
+      }>({
+        [chain]: { submitter },
+      });
+      return [chain, processed[chain]];
+    }),
+  );
+}
+
+function refineExtendedChainSubmissionStrategy(
+  value: Record<string, ExtendedSubmissionStrategy>,
+  ctx: z.RefinementCtx,
+) {
+  const standardStrategies = Object.fromEntries(
+    Object.entries(value)
+      .filter(([, strategy]) => {
+        const submitter = strategy.submitter;
+        return (
+          submitter.type !== 'submitter_ref' &&
+          submitter.type !== CustomTxSubmitterType.FILE
+        );
+      })
+      .map(([chain, strategy]) => [
+        chain,
+        { submitter: strategy.submitter as SubmitterMetadata },
+      ]),
+  );
+
+  refineChainSubmissionStrategy(standardStrategies, ctx);
+}
+
+export const ExtendedChainSubmissionStrategySchema: z.ZodType<
+  Record<string, ExtendedSubmissionStrategy>,
+  z.ZodTypeDef,
+  unknown
+> = z.preprocess(
+  preprocessExtendedChainSubmissionStrategy,
   z
     .record(ZChainName, ExtendedSubmissionStrategySchema)
-    .superRefine(refineChainSubmissionStrategy),
+    .superRefine(refineExtendedChainSubmissionStrategy),
 );
 
 export type ExtendedChainSubmissionStrategy = z.infer<

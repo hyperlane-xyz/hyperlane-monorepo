@@ -36,6 +36,7 @@ import {
   type TxSubmitterBuilder,
   TxSubmitterType,
   type TypedAnnotatedTransaction,
+  type UnresolvedSubmissionStrategy,
   type WarpCoreConfig,
   WarpCoreConfigSchema,
   type WarpRouteDeployConfig,
@@ -54,6 +55,7 @@ import {
   isCrossCollateralTokenConfig,
   isXERC20TokenConfig,
   normalizeScale,
+  resolveSubmissionStrategy,
   splitWarpCoreAndExtendedConfigs,
   tokenTypeToStandard,
 } from '@hyperlane-xyz/sdk';
@@ -84,6 +86,7 @@ import {
 } from '../logger.js';
 import { WarpSendLogs } from '../send/transfer.js';
 import { EV5FileSubmitter } from '../submitters/EV5FileSubmitter.js';
+import { createSubmitterReferenceRegistry } from '../submitters/registry.js';
 import {
   CustomTxSubmitterType,
   type ExtendedChainSubmissionStrategy,
@@ -1225,14 +1228,22 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
     };
   }
 
+  const resolvedStrategy =
+    strategyToUse.submitter.type === CustomTxSubmitterType.FILE
+      ? (strategyToUse as SubmissionStrategy)
+      : await resolveSubmissionStrategy(
+          strategyToUse as UnresolvedSubmissionStrategy,
+          createSubmitterReferenceRegistry(registry),
+        );
+
   return {
     submitter: await getSubmitterBuilder<T>({
-      submissionStrategy: strategyToUse as SubmissionStrategy, // TODO: fix this
+      submissionStrategy: resolvedStrategy,
       multiProvider,
       coreAddressesByChain: await registry.getAddresses(),
       additionalSubmitterFactories,
     }),
-    config: submissionStrategy,
+    config: strategyToUse,
   };
 }
 

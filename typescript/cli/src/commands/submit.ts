@@ -1,13 +1,12 @@
 import { groupBy } from 'lodash-es';
 
-import {
-  type SubmissionStrategy,
-  SubmissionStrategySchema,
-} from '@hyperlane-xyz/sdk';
-
 import { getTransactions, runSubmit } from '../config/submit.js';
 import { type CommandModuleWithWriteContext } from '../context/types.js';
 import { logBlue, logGray, logRed } from '../logger.js';
+import {
+  type ExtendedSubmissionStrategy,
+  ExtendedSubmissionStrategySchema,
+} from '../submitters/types.js';
 import { isFile, readYamlOrJson } from '../utils/files.js';
 
 import {
@@ -81,9 +80,9 @@ export const submitCommand: CommandModuleWithWriteContext<{
  */
 export function readSubmissionStrategy(
   submissionStrategyFilepath: string,
-): SubmissionStrategy {
+): ExtendedSubmissionStrategy {
   const submissionStrategyFileContent = readYamlOrJson(
     submissionStrategyFilepath.trim(),
   );
-  return SubmissionStrategySchema.parse(submissionStrategyFileContent);
+  return ExtendedSubmissionStrategySchema.parse(submissionStrategyFileContent);
 }

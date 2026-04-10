@@ -16,17 +16,21 @@ import {
   ExplorerFamily,
   MultiProtocolProvider,
   MultiProvider,
+  type UnresolvedSubmissionStrategy,
+  resolveSubmissionStrategy,
 } from '@hyperlane-xyz/sdk';
 import {
   type Address,
   ProtocolType,
-  isEVMLike,
   assert,
+  isEVMLike,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import { isSignCommand } from '../commands/signCommands.js';
 import { readChainSubmissionStrategyConfig } from '../config/strategy.js';
+import { CustomTxSubmitterType } from '../submitters/types.js';
+import { createSubmitterReferenceRegistry } from '../submitters/registry.js';
 import { detectAndConfirmOrPrompt } from '../utils/input.js';
 import { getSigner } from '../utils/keys.js';
 
@@ -169,11 +173,29 @@ export async function signerMiddleware(argv: ContextMiddlewareArgv) {
   if (!requiresKey) return;
   assert(key, 'Expected signer keys when running signer middleware');
 
+  const resolvedStrategyConfig = Object.fromEntries(
+    await Promise.all(
+      Object.entries(strategyConfig).map(async ([chain, strategy]) => {
+        if (strategy.submitter.type === CustomTxSubmitterType.FILE) {
+          return [chain, strategy];
+        }
+
+        return [
+          chain,
+          await resolveSubmissionStrategy(
+            strategy as UnresolvedSubmissionStrategy,
+            createSubmitterReferenceRegistry(argv.context.registry),
+          ),
+        ];
+      }),
+    ),
+  );
+
   /**
    * Extracts signer config
    */
   const multiProtocolSigner = await MultiProtocolSignerManager.init(
-    strategyConfig,
+    resolvedStrategyConfig,
     chains,
     multiProtocolProvider,
     { key },
@@ -191,7 +213,7 @@ export async function signerMiddleware(argv: ContextMiddlewareArgv) {
     argv.context.multiProvider,
     chains,
     key,
-    strategyConfig,
+    resolvedStrategyConfig,
   );
 
   return;
@@ -385,6 +407,7 @@ export async function ensureEvmSignersForChains(
     key: SignerKeyProtocolMap;
     multiProvider: MultiProvider;
     multiProtocolProvider: MultiProtocolProvider;
+    registry?: IRegistry;
     strategyPath?: string;
   },
   chains: ChainName[],
@@ -408,11 +431,33 @@ export async function ensureEvmSignersForChains(
   const strategyConfig = context.strategyPath
     ? await readChainSubmissionStrategyConfig(context.strategyPath)
     : {};
+  const resolvedStrategyConfig = Object.fromEntries(
+    await Promise.all(
+      Object.entries(strategyConfig).map(async ([chain, strategy]) => {
+        if (strategy.submitter.type === CustomTxSubmitterType.FILE) {
+          return [chain, strategy];
+        }
+
+        assert(
+          context.registry,
+          'Registry is required to resolve submitter references',
+        );
+
+        return [
+          chain,
+          await resolveSubmissionStrategy(
+            strategy as UnresolvedSubmissionStrategy,
+            createSubmitterReferenceRegistry(context.registry),
+          ),
+        ];
+      }),
+    ),
+  );
 
   // Use MultiProtocolSignerManager to create signers properly
   // This handles ZkSync chains and strategy-based keys
   const signerManager = await MultiProtocolSignerManager.init(
-    strategyConfig,
+    resolvedStrategyConfig,
     missingSignerChains,
     context.multiProtocolProvider,
     { key: context.key },

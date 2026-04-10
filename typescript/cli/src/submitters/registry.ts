@@ -1,66 +1,16 @@
-import { type IRegistry, WarpRouteFilterParams } from '@hyperlane-xyz/registry';
+import { type IRegistry } from '@hyperlane-xyz/registry';
 import {
-  type SubmissionStrategy,
-  SubmissionStrategySchema,
   type SubmitterReferenceRegistry,
   parseSubmitterReferencePayload,
-  resolveSubmitterMetadata,
 } from '@hyperlane-xyz/sdk';
-import { readYamlOrJson } from '@hyperlane-xyz/utils/fs';
+import { assert } from '@hyperlane-xyz/utils';
 
-import { AbstractService } from './abstractService.js';
-import { RegistryService } from './registryService.js';
-
-export class RootService extends AbstractService {
-  constructor(registryService: RegistryService) {
-    super(registryService);
-  }
-
-  async getMetadata() {
-    return this.withRegistry(async (registry) => {
-      return registry.getMetadata();
-    });
-  }
-
-  async getAddresses() {
-    return this.withRegistry(async (registry) => {
-      return registry.getAddresses();
-    });
-  }
-
-  async getChains() {
-    return this.withRegistry(async (registry) => {
-      return registry.getChains();
-    });
-  }
-
-  async listRegistryContent() {
-    return this.withRegistry(async (registry) => {
-      return registry.listRegistryContent();
-    });
-  }
-
-  async getWarpRoutes(filter?: WarpRouteFilterParams) {
-    return this.withRegistry(async (registry) => {
-      return registry.getWarpRoutes(filter);
-    });
-  }
-
-  async getSubmitter(id: string): Promise<SubmissionStrategy> {
-    return this.withRegistry(async (registry) => {
-      const submitter = await resolveSubmitterMetadata(
-        { type: 'submitter_ref', ref: `submitters/${id}` },
-        createSubmitterReferenceRegistry(registry),
-      );
-      return SubmissionStrategySchema.parse({ submitter });
-    });
-  }
-}
+import { readYamlOrJson } from '../utils/files.js';
 
 const SUBMITTER_DIRECTORY = 'submitters';
 const SUPPORTED_EXTENSIONS = ['', '.yaml', '.yml', '.json'];
 
-function createSubmitterReferenceRegistry(
+export function createSubmitterReferenceRegistry(
   registry: IRegistry,
 ): SubmitterReferenceRegistry {
   return {
@@ -100,11 +50,10 @@ function getCandidateItemPaths(ref: string, registry: IRegistry): string[] {
     /^\/+/,
     '',
   );
-  if (!normalizedRef.startsWith(`${SUBMITTER_DIRECTORY}/`)) {
-    throw new Error(
-      `Submitter reference ${ref} must target a top-level ${SUBMITTER_DIRECTORY}/ entry`,
-    );
-  }
+  assert(
+    normalizedRef.startsWith(`${SUBMITTER_DIRECTORY}/`),
+    `Submitter reference ${ref} must target a top-level ${SUBMITTER_DIRECTORY}/ entry`,
+  );
 
   if (
     SUPPORTED_EXTENSIONS.some(
