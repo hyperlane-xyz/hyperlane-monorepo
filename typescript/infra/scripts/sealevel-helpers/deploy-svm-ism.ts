@@ -227,7 +227,7 @@ async function processChain(
     rpc,
     programAddress,
   );
-  if (accessControl?.owner === String(vaultAddress)) {
+  if (accessControl?.owner && address(accessControl.owner) === vaultAddress) {
     logger.info(chalk.gray('  Already owned by vault'));
   } else {
     const transferIx = await getMultisigIsmTransferOwnershipInstruction(
@@ -251,7 +251,7 @@ async function processChain(
     rpc,
     programAddress,
   );
-  if (currentAuthority === String(vaultAddress)) {
+  if (currentAuthority && address(currentAuthority) === vaultAddress) {
     logger.info(chalk.gray('  Already set to vault'));
   } else {
     const authIx = await getSetUpgradeAuthorityInstruction(
