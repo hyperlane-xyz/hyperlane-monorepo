@@ -3,6 +3,7 @@ import { IsmType } from '@hyperlane-xyz/sdk';
 import { Contexts } from '../../config/contexts.js';
 import { multisigIsms } from '../../config/multisigIsm.js';
 import { getChains } from '../../config/registry.js';
+import { getDisabledChains } from '../../src/config/chain.js';
 import { multisigIsmConfigPath } from '../../src/utils/sealevel.js';
 import { writeAndFormatJsonAtPath } from '../../src/utils/utils.js';
 import { getArgs, withWrite } from '../agent-utils.js';
@@ -42,27 +43,6 @@ async function main() {
 
   const MAX_THRESHOLD = 4;
 
-  // deprecated chains to skip
-  // copied from chainsToSkip in chain.ts
-  const deprecatedChains = [
-    'arbitrumnova',
-    'aurora',
-    'b3',
-    'bsquared',
-    'degenchain',
-    'dogechain',
-    'fantom',
-    'harmony',
-    'merlin',
-    'moonbeam',
-    'polygonzkevm',
-    'scroll',
-    'story',
-    'superpositionmainnet',
-    'tangle',
-    'zeronetwork',
-  ];
-
   for (const chain of Object.keys(config)) {
     // exclude forma as it's not a core chain
     if (chain === 'forma') {
@@ -76,7 +56,7 @@ async function main() {
       continue;
     }
 
-    if (deprecatedChains.includes(chain)) {
+    if (getDisabledChains().includes(chain)) {
       delete config[chain];
       continue;
     }

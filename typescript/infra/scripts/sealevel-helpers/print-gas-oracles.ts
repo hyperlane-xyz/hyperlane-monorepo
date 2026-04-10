@@ -12,6 +12,7 @@ import {
 
 import { WarpRouteIds } from '../../config/environments/mainnet3/warp/warpIds.js';
 import { getChain, getWarpAddresses } from '../../config/registry.js';
+import { getDisabledChains } from '../../src/config/chain.js';
 import { DeployEnvironment } from '../../src/config/environment.js';
 import { svmGasOracleConfigPath } from '../../src/utils/sealevel.js';
 import { writeAndFormatJsonAtPath } from '../../src/utils/utils.js';
@@ -161,12 +162,14 @@ function getChainConnections(
     throw new Error(`Unknown environment: ${environment}`);
   }
 
+  const disabledSet = new Set<string>(getDisabledChains());
   return connectedChains.reduce(
     (agg, chains) => {
       // Make sure each chain is connected to every other chain
       chains.forEach((chainA) => {
+        if (disabledSet.has(chainA)) return;
         chains.forEach((chainB) => {
-          if (chainA === chainB) {
+          if (chainA === chainB || disabledSet.has(chainB)) {
             return;
           }
           if (agg[chainA] === undefined) {
