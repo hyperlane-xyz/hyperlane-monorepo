@@ -1,4 +1,5 @@
 import {
+  CrossCollateralRouter__factory,
   IERC4626__factory,
   IXERC20Lockbox__factory,
   Ownable__factory,
@@ -8,11 +9,15 @@ import {
   type Address,
   type ObjectDiff,
   assert,
+  bytes32ToAddress,
+  concurrentMap,
   deepCopy,
   diffObjMerge,
   eqAddress,
+  isAddressEvm,
   isEVMLike,
   keepOnlyDiffObjects,
+  normalizeAddressEvm,
   objFilter,
   objMap,
   promiseObjAll,
@@ -20,6 +25,7 @@ import {
 
 import { isProxy, proxyAdmin } from '../deploy/proxy.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { resolveRouterMapConfig } from '../router/types.js';
 import { ChainName } from '../types.js';
 import { verifyScale } from '../utils/decimals.js';
 import { WarpCoreConfig } from '../warp/types.js';
@@ -35,6 +41,7 @@ import {
 import {
   DerivedWarpRouteDeployConfig,
   HypTokenRouterVirtualConfig,
+  TokenMetadata,
   WarpRouteDeployConfigMailboxRequired,
   derivedHookAddress,
   derivedIsmAddress,
@@ -63,6 +70,16 @@ export interface WarpRouteCheckResult {
   scaleViolations: WarpRouteCheckViolation[];
   violations: WarpRouteCheckViolation[];
 }
+
+type ScaleValidationWarpRouteConfig = WarpRouteDeployConfigMailboxRequired &
+  Record<string, Partial<HypTokenRouterVirtualConfig>>;
+
+type CrossCollateralRouterRef = {
+  chain: string;
+  metadataKey: string;
+  routerAddress: string;
+  routerId: string;
+};
 
 async function getWarpRouteConfigsByCore({
   multiProvider,
@@ -157,7 +174,10 @@ export async function checkWarpRouteDeployConfig({
 
   const diff = keepOnlyDiffObjects(rawDiff) as Record<string, ObjectDiff>; // CAST: keepOnlyDiffObjects returns `any`; rawDiff is constructed as a chain-keyed ObjectDiff map
   const diffViolations = flattenWarpRouteCheckDiff(diff);
-  const scaleViolations = getScaleViolations(expandedWarpDeployConfig);
+  const scaleViolations = await getScaleViolations({
+    multiProvider,
+    warpRouteConfig: expandedWarpDeployConfig,
+  });
 
   return {
     diff,
@@ -420,11 +440,141 @@ function flattenDiffNode(
   return [];
 }
 
-function getScaleViolations(
-  warpRouteConfig: WarpRouteDeployConfigMailboxRequired &
-    Record<string, Partial<HypTokenRouterVirtualConfig>>,
-): WarpRouteCheckViolation[] {
-  if (verifyScale(warpRouteConfig)) {
+function collectConfiguredCrossCollateralRouters({
+  multiProvider,
+  warpRouteConfig,
+}: {
+  multiProvider: MultiProvider;
+  warpRouteConfig: ScaleValidationWarpRouteConfig;
+}): CrossCollateralRouterRef[] {
+  const routerRefs = new Map<string, CrossCollateralRouterRef>();
+
+  for (const config of Object.values(warpRouteConfig)) {
+    if (
+      !isCrossCollateralTokenConfig(config) ||
+      !config.crossCollateralRouters
+    ) {
+      continue;
+    }
+
+    const crossCollateralRouters = resolveRouterMapConfig(
+      multiProvider,
+      config.crossCollateralRouters,
+    );
+
+    for (const [domain, routers] of Object.entries(crossCollateralRouters)) {
+      const chain = multiProvider.tryGetChainName(Number(domain));
+      if (!chain || !isEVMLike(multiProvider.getProtocol(chain))) {
+        continue;
+      }
+
+      for (const routerId of routers) {
+        const routerAddress = normalizeAddressEvm(
+          isAddressEvm(routerId) ? routerId : bytes32ToAddress(routerId),
+        );
+        const metadataKey = `${chain}:${routerAddress.toLowerCase()}`;
+        routerRefs.set(metadataKey, {
+          chain,
+          metadataKey,
+          routerAddress,
+          routerId,
+        });
+      }
+    }
+  }
+
+  return [...routerRefs.values()];
+}
+
+async function fetchConfiguredCrossCollateralRouterMetadata({
+  multiProvider,
+  readerByChain,
+  routerRef,
+}: {
+  multiProvider: MultiProvider;
+  readerByChain: Map<string, EvmWarpRouteReader>;
+  routerRef: CrossCollateralRouterRef;
+}): Promise<readonly [string, TokenMetadata]> {
+  const { chain, metadataKey, routerAddress, routerId } = routerRef;
+  const reader =
+    readerByChain.get(chain) ?? new EvmWarpRouteReader(multiProvider, chain);
+  readerByChain.set(chain, reader);
+
+  try {
+    const crossCollateralRouter = CrossCollateralRouter__factory.connect(
+      routerAddress,
+      multiProvider.getProvider(chain),
+    );
+    const [wrappedTokenAddress, scale] = await Promise.all([
+      crossCollateralRouter.wrappedToken(),
+      reader.fetchScale(routerAddress),
+    ]);
+    const metadata = await reader.fetchERC20Metadata(wrappedTokenAddress);
+
+    return [metadataKey, { ...metadata, scale }] as const;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Failed to derive configured crossCollateral router ${routerId} on ${chain}: ${message}`,
+    );
+  }
+}
+
+async function buildScaleValidationMetadataMap({
+  multiProvider,
+  warpRouteConfig,
+}: {
+  multiProvider: MultiProvider;
+  warpRouteConfig: ScaleValidationWarpRouteConfig;
+}): Promise<Map<string, TokenMetadata>> {
+  const metadataByKey = new Map<string, TokenMetadata>(
+    Object.entries(warpRouteConfig).map(([chain, config]) => [
+      chain,
+      {
+        decimals: config.decimals,
+        name: config.name ?? 'unknown',
+        scale: config.scale,
+        symbol: config.symbol ?? 'unknown',
+      },
+    ]),
+  );
+
+  const readerByChain = new Map<string, EvmWarpRouteReader>();
+  const configuredRouters = collectConfiguredCrossCollateralRouters({
+    multiProvider,
+    warpRouteConfig,
+  });
+  const configuredRouterMetadata = await concurrentMap(
+    6,
+    configuredRouters,
+    async (routerRef) =>
+      fetchConfiguredCrossCollateralRouterMetadata({
+        multiProvider,
+        readerByChain,
+        routerRef,
+      }),
+  );
+
+  for (const [metadataKey, metadata] of configuredRouterMetadata) {
+    metadataByKey.set(metadataKey, metadata);
+  }
+
+  return metadataByKey;
+}
+
+export async function getScaleViolations({
+  multiProvider,
+  warpRouteConfig,
+}: {
+  multiProvider: MultiProvider;
+  warpRouteConfig: ScaleValidationWarpRouteConfig;
+}): Promise<WarpRouteCheckViolation[]> {
+  const scaleValidationMetadata = await buildScaleValidationMetadataMap({
+    multiProvider,
+    warpRouteConfig,
+  });
+
+  if (verifyScale(scaleValidationMetadata)) {
     return [];
   }
 
