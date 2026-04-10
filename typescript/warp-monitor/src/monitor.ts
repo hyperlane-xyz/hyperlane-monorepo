@@ -411,8 +411,13 @@ export class WarpMonitor {
       return protocolInventoryAddress;
     }
 
-    return node.token.protocol === ProtocolType.Ethereum
-      ? inventoryAddress
+    if (node.token.protocol !== ProtocolType.Ethereum) {
+      return undefined;
+    }
+
+    const fallbackInventoryAddress = inventoryAddress?.trim();
+    return fallbackInventoryAddress && fallbackInventoryAddress.length > 0
+      ? fallbackInventoryAddress
       : undefined;
   }
 

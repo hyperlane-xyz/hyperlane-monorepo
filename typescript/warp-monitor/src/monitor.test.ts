@@ -612,7 +612,7 @@ describe('WarpMonitor', () => {
       'CROSS/ctusd',
       pendingTransfersClient as ExplorerPendingTransfersClient,
       200,
-      '0xEA2117b24F7947647Bec60527B68f4244AE40c01',
+      '  0xEA2117b24F7947647Bec60527B68f4244AE40c01  ',
     );
 
     expect(calls).to.deep.equal([

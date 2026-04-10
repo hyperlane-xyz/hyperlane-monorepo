@@ -54,11 +54,7 @@ async function main(): Promise<void> {
 
   const coingeckoApiKey = process.env.COINGECKO_API_KEY;
   const explorerApiUrl = process.env.EXPLORER_API_URL;
-  const trimmedInventoryAddress = process.env.INVENTORY_ADDRESS?.trim();
-  const inventoryAddress =
-    trimmedInventoryAddress !== undefined && trimmedInventoryAddress.length > 0
-      ? trimmedInventoryAddress
-      : undefined;
+  const inventoryAddress = process.env.INVENTORY_ADDRESS;
 
   let explorerQueryLimit = 200;
   if (process.env.EXPLORER_QUERY_LIMIT) {
