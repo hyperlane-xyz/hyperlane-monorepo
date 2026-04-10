@@ -34,10 +34,15 @@ export function stripCustomRpcHeaders(url: string): {
   headers: Record<string, string>;
 } {
   const headers = parseCustomHeaders(url);
-  if (Object.keys(headers).length === 0) {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
     return { url, headers };
   }
-  const parsed = new URL(url);
+  if (!parsed.searchParams.has('custom_rpc_header')) {
+    return { url, headers };
+  }
   parsed.searchParams.delete('custom_rpc_header');
   return { url: parsed.toString(), headers };
 }

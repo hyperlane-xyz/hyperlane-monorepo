@@ -184,7 +184,7 @@ export class TronTransactionBuilder extends TronWeb {
     // Use URL API so /jsonrpc goes into the pathname, not after query params.
     let rpcUrl = jsonRpcUrl;
     if (!rpcUrl) {
-      const u = new URL(cleanTronWebUrl);
+      const u = new URL(tronWebUrl);
       if (!u.pathname.endsWith('/jsonrpc')) {
         u.pathname = u.pathname.replace(/\/$/, '') + '/jsonrpc';
       }

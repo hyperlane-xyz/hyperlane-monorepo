@@ -73,4 +73,11 @@ describe('stripCustomRpcHeaders', () => {
     expect(result.url).to.equal(url);
     expect(result.headers).to.deep.equal({});
   });
+
+  it('strips malformed custom_rpc_header without colon', () => {
+    const url = 'https://host/jsonrpc?custom_rpc_header=nocolon';
+    const result = stripCustomRpcHeaders(url);
+    expect(result.url).to.equal('https://host/jsonrpc');
+    expect(result.headers).to.deep.equal({});
+  });
 });
