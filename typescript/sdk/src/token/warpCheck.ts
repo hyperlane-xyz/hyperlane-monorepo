@@ -155,7 +155,7 @@ export async function checkWarpRouteDeployConfig({
     warpRouteConfig: evmExpandedWarpDeployConfig,
   });
 
-  const diff = keepOnlyDiffObjects(rawDiff) as Record<string, ObjectDiff>;
+  const diff = keepOnlyDiffObjects(rawDiff) as Record<string, ObjectDiff>; // CAST: keepOnlyDiffObjects returns `any`; rawDiff is constructed as a chain-keyed ObjectDiff map
   const diffViolations = flattenWarpRouteCheckDiff(diff);
   const scaleViolations = getScaleViolations(evmExpandedWarpDeployConfig);
 
@@ -222,7 +222,7 @@ function buildWarpRouteDiff({
 
       return acc;
     },
-    {} as Record<string, ObjectDiff>,
+    {} as Record<string, ObjectDiff>, // CAST: reduce incrementally populates chain-keyed ObjectDiff entries
   );
 }
 
@@ -258,14 +258,17 @@ async function addOwnerOverrideDiffs({
     }
 
     if (ownerOverrides.collateralProxyAdmin) {
-      const collateralToken = await getCollateralOwnable(config, provider);
+      const collateralTokenAddress = await getCollateralTokenAddress(
+        config,
+        provider,
+      );
       if (
-        collateralToken &&
-        (await isProxy(provider, collateralToken.address))
+        collateralTokenAddress &&
+        (await isProxy(provider, collateralTokenAddress))
       ) {
         const collateralProxyAdminAddress = await proxyAdmin(
           provider,
-          collateralToken.address,
+          collateralTokenAddress,
         );
         const actualOwner = await ProxyAdmin__factory.connect(
           collateralProxyAdminAddress,
@@ -287,20 +290,18 @@ async function addOwnerOverrideDiffs({
   }
 }
 
-async function getCollateralOwnable(
+async function getCollateralTokenAddress(
   config: WarpRouteDeployConfigMailboxRequired[string],
   provider: ReturnType<MultiProvider['getProvider']>,
-) {
+): Promise<string | undefined> {
   if (isXERC20TokenConfig(config)) {
     if (config.type === TokenType.XERC20Lockbox) {
-      const xerc20Address = await IXERC20Lockbox__factory.connect(
-        config.token,
-        provider,
-      ).callStatic['XERC20()']();
-      return Ownable__factory.connect(xerc20Address, provider);
+      return IXERC20Lockbox__factory.connect(config.token, provider).callStatic[
+        'XERC20()'
+      ]();
     }
 
-    return Ownable__factory.connect(config.token, provider);
+    return config.token;
   }
 
   if (isCollateralTokenConfig(config) || isCrossCollateralTokenConfig(config)) {
@@ -308,17 +309,32 @@ async function getCollateralOwnable(
       config.type === TokenType.collateralVault ||
       config.type === TokenType.collateralVaultRebase
     ) {
-      const collateralTokenAddress = await IERC4626__factory.connect(
-        config.token,
-        provider,
-      ).asset();
-      return Ownable__factory.connect(collateralTokenAddress, provider);
+      return IERC4626__factory.connect(config.token, provider).asset();
     }
 
-    return Ownable__factory.connect(config.token, provider);
+    return config.token;
   }
 
   return undefined;
+}
+
+async function getCollateralOwnable(
+  config: WarpRouteDeployConfigMailboxRequired[string],
+  provider: ReturnType<MultiProvider['getProvider']>,
+) {
+  // Preserve legacy checker behavior: only the XERC20 collateral side is
+  // assumed to expose Ownable for explicit collateralToken override checks.
+  if (!isXERC20TokenConfig(config)) {
+    return undefined;
+  }
+
+  const collateralTokenAddress = await getCollateralTokenAddress(
+    config,
+    provider,
+  );
+  return collateralTokenAddress
+    ? Ownable__factory.connect(collateralTokenAddress, provider)
+    : undefined;
 }
 
 function addNestedDiff(
@@ -327,22 +343,25 @@ function addNestedDiff(
   path: string[],
   value: ObjectDiffLeaf,
 ) {
-  if (!isObjectDiffMap(diff[chain])) {
+  if (!diff[chain]) {
     diff[chain] = {};
   }
 
   let cursor = diff[chain];
-  assert(isObjectDiffMap(cursor), `Failed to initialize diff for ${chain}`);
+  assertObjectDiffMap(
+    cursor,
+    `Unexpected leaf diff for ${chain}; refusing to overwrite it`,
+  );
 
   for (const key of path.slice(0, -1)) {
-    if (!isObjectDiffMap(cursor[key])) {
+    if (!cursor[key]) {
       cursor[key] = {};
     }
 
-    const nextCursor = cursor[key];
-    assert(
-      isObjectDiffMap(nextCursor),
-      `Failed to initialize nested diff for ${chain}.${key}`,
+    const nextCursor: unknown = cursor[key];
+    assertObjectDiffMap(
+      nextCursor,
+      `Unexpected leaf diff for ${chain}.${key}; refusing to overwrite it`,
     );
     cursor = nextCursor;
   }
@@ -386,9 +405,10 @@ function flattenDiffNode(
   }
 
   if (typeof value === 'object') {
+    const objectValue = value as Record<string, unknown>; // CAST: runtime guard above narrows to object; Object.entries needs an indexable shape
     return [
       ...leafViolations,
-      ...Object.entries(value as Record<string, unknown>)
+      ...Object.entries(objectValue)
         .filter(([key]) => key !== 'actual' && key !== 'expected')
         .flatMap(([key, child]) =>
           flattenDiffNode(chain, child, [...path, key]),
@@ -457,4 +477,11 @@ function isObjectDiffMap(value: unknown): value is ObjectDiffMap {
     !Array.isArray(value) &&
     !isObjectDiffLeaf(value)
   );
+}
+
+function assertObjectDiffMap(
+  value: unknown,
+  message: string,
+): asserts value is ObjectDiffMap {
+  assert(isObjectDiffMap(value), message);
 }

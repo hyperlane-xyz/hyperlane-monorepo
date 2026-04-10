@@ -380,6 +380,30 @@ describe('TokenDeployer', async () => {
         ).to.equal(false);
       });
 
+      it('should skip collateralToken override checks for non-Ownable collateral tokens', async () => {
+        if (type !== TokenType.collateral) {
+          return;
+        }
+
+        const overrideConfig = addOverridesToConfig(config, {
+          collateralToken: ethers.Wallet.createRandom().address,
+        });
+
+        const result = await checkWarpRouteDeployConfig({
+          multiProvider,
+          warpCoreConfig: getWarpCoreConfig(),
+          warpDeployConfig: overrideConfig,
+        });
+
+        expect(
+          result.violations.some(
+            (violation) =>
+              violation.chain === chain &&
+              violation.name === 'ownerOverrides.collateralToken',
+          ),
+        ).to.equal(false);
+      });
+
       it('should flag explicit proxyAdmin address mismatches', async () => {
         const explicitProxyAdminConfig = deepCopy(config);
         explicitProxyAdminConfig[chain].proxyAdmin = {
