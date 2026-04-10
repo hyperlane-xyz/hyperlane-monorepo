@@ -904,12 +904,20 @@ export {
 } from './types.js';
 export { getCosmosRegistryChain } from './utils/cosmos.js';
 export {
+  alignLocalAmountToMessage,
   DEFAULT_SCALE,
+  localAmountFromMessage,
+  messageAmountFromLocal,
+  minLocalAmountForMessage,
   normalizeScale,
   scalesEqual,
   verifyScale,
 } from './utils/decimals.js';
-export type { NormalizedScale, ScaleInput } from './utils/decimals.js';
+export type {
+  NormalizedScale,
+  ScaleAlignment,
+  ScaleInput,
+} from './utils/decimals.js';
 export { filterByChains } from './utils/filter.js';
 export {
   ANVIL_RPC_METHODS,

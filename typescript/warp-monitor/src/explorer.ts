@@ -1,7 +1,7 @@
 import type { Logger } from 'pino';
 
 import {
-  normalizeScale,
+  localAmountFromMessage,
   type ChainName,
   type ScaleInput,
   type Token,
@@ -78,14 +78,7 @@ export function messageAmountToTokenBaseUnits(
   amountMessageUnits: bigint,
   tokenScale?: ScaleInput,
 ): bigint {
-  const scale = normalizeScale(tokenScale);
-  if (scale.numerator <= 0n || scale.denominator <= 0n) {
-    throw new Error(
-      `Invalid token scale ${scale.numerator.toString()}/${scale.denominator.toString()}`,
-    );
-  }
-
-  return (amountMessageUnits * scale.denominator) / scale.numerator;
+  return localAmountFromMessage(amountMessageUnits, tokenScale);
 }
 
 export class ExplorerPendingTransfersClient {

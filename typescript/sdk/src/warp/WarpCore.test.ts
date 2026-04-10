@@ -262,13 +262,29 @@ describe('WarpCore', () => {
       ).to.equal(expectedResult);
     };
 
-    await testCollateral(evmHypNativeScale1, testScale2.name, 10n, false);
-    await testCollateral(evmHypNativeScale1, testScale2.name, 1n, true);
-    await testCollateral(evmHypNativeScale2, testScale1.name, 10n, true);
-    await testCollateral(evmHypNativeScale2, testScale1.name, 100n, true);
-    await testCollateral(evmHypNativeScale2, testScale1.name, 101n, false);
+    const originalScale1 = evmHypNativeScale1.scale;
+    const originalScale2 = evmHypNativeScale2.scale;
 
-    stubs.forEach((s) => s.restore());
+    try {
+      await testCollateral(evmHypNativeScale1, testScale2.name, 10n, false);
+      await testCollateral(evmHypNativeScale1, testScale2.name, 1n, true);
+      await testCollateral(evmHypNativeScale2, testScale1.name, 10n, true);
+      await testCollateral(evmHypNativeScale2, testScale1.name, 100n, true);
+      await testCollateral(evmHypNativeScale2, testScale1.name, 101n, false);
+
+      evmHypNativeScale1.scale = { numerator: 100n, denominator: 10n };
+      evmHypNativeScale2.scale = { numerator: 10n, denominator: 10n };
+
+      await testCollateral(evmHypNativeScale1, testScale2.name, 10n, false);
+      await testCollateral(evmHypNativeScale1, testScale2.name, 1n, true);
+      await testCollateral(evmHypNativeScale2, testScale1.name, 10n, true);
+      await testCollateral(evmHypNativeScale2, testScale1.name, 100n, true);
+      await testCollateral(evmHypNativeScale2, testScale1.name, 101n, false);
+    } finally {
+      evmHypNativeScale1.scale = originalScale1;
+      evmHypNativeScale2.scale = originalScale2;
+      stubs.forEach((s) => s.restore());
+    }
   });
 
   it('Validates transfers', async () => {

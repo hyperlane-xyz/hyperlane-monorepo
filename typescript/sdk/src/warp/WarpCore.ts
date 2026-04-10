@@ -9,7 +9,6 @@ import {
   assert,
   convertDecimalsToIntegerString,
   convertToProtocolAddress,
-  convertToScaledAmount,
   isEVMLike,
   isValidAddress,
   isZeroishAddress,
@@ -56,6 +55,7 @@ import {
 import type { QuotedCallsParams } from '../quoted-calls/types.js';
 import { TokenPullMode } from '../quoted-calls/types.js';
 import { ChainName, ChainNameOrId } from '../types.js';
+import { messageAmountFromLocal } from '../utils/decimals.js';
 
 import {
   FeeConstantConfig,
@@ -1239,36 +1239,15 @@ export class WarpCore {
     const destinationBalance = await this.getTokenCollateral(
       resolvedDestinationToken,
     );
-
-    const destinationBalanceInOriginDecimals = convertDecimalsToIntegerString(
-      resolvedDestinationToken.decimals,
-      originToken.decimals,
-      destinationBalance.toString(),
+    const requiredMessageAmount = messageAmountFromLocal(
+      amount,
+      originToken.scale,
     );
-
-    // check for scaling factor
-    const originScale =
-      typeof originToken.scale === 'number' ? originToken.scale : undefined;
-    const destScale =
-      typeof resolvedDestinationToken.scale === 'number'
-        ? resolvedDestinationToken.scale
-        : undefined;
-    if (originScale && destScale && originScale !== destScale) {
-      const precisionFactor = 100_000;
-      const scaledAmount = convertToScaledAmount({
-        fromScale: originScale,
-        toScale: destScale,
-        amount,
-        precisionFactor,
-      });
-
-      return (
-        BigInt(destinationBalanceInOriginDecimals) * BigInt(precisionFactor) >=
-        scaledAmount
-      );
-    }
-
-    const isSufficient = BigInt(destinationBalanceInOriginDecimals) >= amount;
+    const availableMessageAmount = messageAmountFromLocal(
+      destinationBalance,
+      resolvedDestinationToken.scale,
+    );
+    const isSufficient = availableMessageAmount >= requiredMessageAmount;
     this.logger.debug(
       `${originTokenAmount.token.symbol} to ${destination} has ${
         isSufficient ? 'sufficient' : 'INSUFFICIENT'

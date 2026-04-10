@@ -1,9 +1,14 @@
 import { type Logger } from 'pino';
 
 import {
+  type IToken,
+  alignLocalAmountToMessage,
+  messageAmountFromLocal,
+  minLocalAmountForMessage,
   normalizeScale,
   type ChainName,
   type NormalizedScale,
+  type ScaleAlignment,
   type Token,
 } from '@hyperlane-xyz/sdk';
 import { toWei } from '@hyperlane-xyz/utils';
@@ -24,24 +29,23 @@ export function isIdentityScale(token: Token): boolean {
 
 export function normalizeToCanonical(
   localAmount: bigint,
-  tokenOrScale: Token | NormalizedScale,
+  tokenOrScale: Token | IToken | NormalizedScale,
 ): bigint {
-  const scale =
-    'numerator' in tokenOrScale && 'denominator' in tokenOrScale
-      ? tokenOrScale
-      : getTokenScale(tokenOrScale);
-  return (localAmount * scale.numerator) / scale.denominator;
+  return messageAmountFromLocal(localAmount, getScaleInput(tokenOrScale));
 }
 
 export function denormalizeToLocal(
   canonicalAmount: bigint,
-  tokenOrScale: Token | NormalizedScale,
+  tokenOrScale: Token | IToken | NormalizedScale,
 ): bigint {
-  const scale =
-    'numerator' in tokenOrScale && 'denominator' in tokenOrScale
-      ? tokenOrScale
-      : getTokenScale(tokenOrScale);
-  return (canonicalAmount * scale.denominator) / scale.numerator;
+  return minLocalAmountForMessage(canonicalAmount, getScaleInput(tokenOrScale));
+}
+
+export function alignLocalToCanonical(
+  localAmount: bigint,
+  tokenOrScale: Token | IToken | NormalizedScale,
+): ScaleAlignment {
+  return alignLocalAmountToMessage(localAmount, getScaleInput(tokenOrScale));
 }
 
 export function normalizeConfiguredAmount(
@@ -49,6 +53,12 @@ export function normalizeConfiguredAmount(
   token: Token,
 ): bigint {
   return normalizeToCanonical(BigInt(toWei(amount, token.decimals)), token);
+}
+
+function getScaleInput(tokenOrScale: Token | IToken | NormalizedScale) {
+  return 'numerator' in tokenOrScale && 'denominator' in tokenOrScale
+    ? tokenOrScale
+    : tokenOrScale.scale;
 }
 
 /**

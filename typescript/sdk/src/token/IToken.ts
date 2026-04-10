@@ -12,6 +12,7 @@ import {
   TokenConnectionConfigSchema,
 } from './TokenConnection.js';
 import { TokenStandard } from './TokenStandard.js';
+import { TokenMetadataSchema } from './types.js';
 import type {
   IHypTokenAdapter,
   ITokenAdapter,
@@ -51,11 +52,7 @@ export const TokenConfigSchema = z.object({
     .string()
     .optional()
     .describe('The CoinGecko id of the token, used for price lookups'),
-  scale: z
-    .union([
-      ZUint.lt(256),
-      z.object({ numerator: z.number(), denominator: z.number() }),
-    ])
+  scale: TokenMetadataSchema.shape.scale
     .optional()
     .describe('The scaling factor of the token'),
   warpRouteId: z

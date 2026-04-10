@@ -1498,14 +1498,19 @@ describe('InventoryRebalancer E2E', () => {
         [ARBITRUM_CHAIN]: availableInventory,
       });
 
-      // Capture the quote amount from executeInventoryMovement
-      // (calculateMaxViableBridgeAmount doesn't quote for ERC20 tokens)
-      let quotedFromAmount: bigint | undefined;
+      let quotedTargetOutput: bigint | undefined;
       bridge.quote.callsFake(async (params: any) => {
-        quotedFromAmount = params.fromAmount;
+        if (params.toAmount !== undefined) {
+          quotedTargetOutput = params.toAmount;
+        }
         return createMockBridgeQuote({
           fromAmount: params.fromAmount ?? params.toAmount,
-          toAmount: params.fromAmount ?? params.toAmount,
+          toAmount: params.toAmount ?? params.fromAmount,
+          toAmountMin: params.toAmount ?? params.fromAmount,
+          requestParams:
+            params.toAmount !== undefined
+              ? { ...params, toAmount: params.toAmount }
+              : { ...params, fromAmount: params.fromAmount },
         });
       });
       bridge.execute.resolves({
@@ -1517,10 +1522,8 @@ describe('InventoryRebalancer E2E', () => {
       await inventoryRebalancer.rebalance([route]);
 
       // Verify: 5% buffer applied (1 ETH * 1.05 = 1.05 ETH)
-      // The bridge plan uses pre-validated amounts (for ERC20, full inventory available)
-      // But the target is (amount * 105%), so if source has >= target, we bridge exactly target
       const expectedWithBuffer = (amount * 105n) / 100n;
-      expect(quotedFromAmount).to.equal(expectedWithBuffer);
+      expect(quotedTargetOutput).to.equal(expectedWithBuffer);
     });
 
     it('continues when some bridges fail', async () => {
@@ -1748,14 +1751,36 @@ describe('InventoryRebalancer E2E', () => {
       });
 
       // Quote with high gas costs (but for ERC20, this shouldn't trigger viability check)
-      bridge.quote.resolves(
-        createMockBridgeQuote({
-          fromAmount: BigInt(1.05e18),
-          toAmount: BigInt(1e18),
-          gasCosts: BigInt(1e18), // Very high gas (would fail viability if this were native)
-          feeCosts: 0n,
-        }),
-      );
+      bridge.quote
+        .onFirstCall()
+        .resolves(
+          createMockBridgeQuote({
+            fromAmount: tokenBalance,
+            toAmount: tokenBalance,
+            toAmountMin: tokenBalance,
+            gasCosts: BigInt(1e18), // Very high gas (would fail viability if this were native)
+            feeCosts: 0n,
+          }),
+        )
+        .onSecondCall()
+        .resolves(
+          createMockBridgeQuote({
+            fromAmount: tokenBalance,
+            toAmount: tokenBalance,
+            toAmountMin: tokenBalance,
+            gasCosts: BigInt(1e18),
+            feeCosts: 0n,
+            requestParams: {
+              fromChain: 42161,
+              toChain: 1399811149,
+              fromToken: '0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
+              toToken: '0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
+              fromAddress: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+              toAddress: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+              toAmount: tokenBalance,
+            },
+          }),
+        );
 
       bridge.execute.resolves({
         txHash: '0xERC20BridgeTxHash',
@@ -1769,6 +1794,7 @@ describe('InventoryRebalancer E2E', () => {
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.true;
       expect(bridge.execute.calledOnce).to.be.true;
+      expect(bridge.quote.getCall(1)?.args[0].toAmount).to.equal(tokenBalance);
     });
 
     it('calculates max viable amount as inventory minus (gasCosts * 20) for native tokens', async () => {
@@ -1804,14 +1830,47 @@ describe('InventoryRebalancer E2E', () => {
       // maxViable = 1 ETH - 0.02 ETH = 0.98 ETH
       // 10% threshold = 0.1 ETH, estimatedGas (0.02) < threshold → viable
       const gasCosts = BigInt(0.001e18); // 0.001 ETH
-      bridge.quote.resolves(
-        createMockBridgeQuote({
-          fromAmount: rawBalance,
-          toAmount: rawBalance - BigInt(1e15),
-          gasCosts,
-          feeCosts: 0n,
-        }),
-      );
+      const maxViable = rawBalance - gasCosts * 20n;
+      bridge.quote
+        .onFirstCall()
+        .resolves(
+          createMockBridgeQuote({
+            fromAmount: rawBalance,
+            toAmount: rawBalance - BigInt(1e15),
+            toAmountMin: rawBalance - BigInt(1e15),
+            gasCosts,
+            feeCosts: 0n,
+          }),
+        )
+        .onSecondCall()
+        .resolves(
+          createMockBridgeQuote({
+            fromAmount: maxViable,
+            toAmount: maxViable - BigInt(1e15),
+            toAmountMin: maxViable - BigInt(1e15),
+            gasCosts,
+            feeCosts: 0n,
+          }),
+        )
+        .onThirdCall()
+        .resolves(
+          createMockBridgeQuote({
+            fromAmount: BigInt(0.525e18),
+            toAmount: BigInt(0.525e18),
+            toAmountMin: BigInt(0.525e18),
+            gasCosts,
+            feeCosts: 0n,
+            requestParams: {
+              fromChain: 42161,
+              toChain: 1399811149,
+              fromToken: '0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
+              toToken: '0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
+              fromAddress: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+              toAddress: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+              toAmount: BigInt(0.525e18),
+            },
+          }),
+        );
 
       bridge.execute.resolves({
         txHash: '0xSuccessBridgeTxHash',
@@ -1826,18 +1885,14 @@ describe('InventoryRebalancer E2E', () => {
       expect(results[0].success).to.be.true;
       expect(bridge.execute.calledOnce).to.be.true;
 
-      // Verify: The quoted fromAmount should be the target (since maxViable > target)
-      // For the execution quote (second quote call):
-      // targetWithBuffer = (0.5 ETH) * 1.05 = 0.525 ETH (for non-inventory execution, costs are 0)
-      const executionQuoteCall = bridge.quote
-        .getCalls()
-        .find(
-          (call: any) =>
-            call.args[0].fromAmount !== undefined &&
-            call.args[0].fromAmount !== rawBalance,
-        );
-      // Since maxViable (0.98 ETH) > targetWithBuffer (0.525 ETH), we bridge exactly targetWithBuffer
-      expect(executionQuoteCall).to.exist;
+      expect(bridge.quote.getCall(1)?.args[0].fromAmount).to.equal(maxViable);
+      const executionTargetOutput = bridge.quote.getCall(2)?.args[0].toAmount;
+      expect(executionTargetOutput).to.be.a('bigint');
+      if (executionTargetOutput === undefined) {
+        throw new Error('Expected reverse quote to set toAmount');
+      }
+      expect(executionTargetOutput > amount).to.be.true;
+      expect(executionTargetOutput <= maxViable).to.be.true;
     });
 
     it('handles quote failures gracefully by skipping the source chain', async () => {
