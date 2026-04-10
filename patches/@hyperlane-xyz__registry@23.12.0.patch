@@ -1,0 +1,108 @@
+diff --git a/dist/registry/MergedRegistry.js b/dist/registry/MergedRegistry.js
+index 8115fcf..39a8013 100644
+--- a/dist/registry/MergedRegistry.js
++++ b/dist/registry/MergedRegistry.js
+@@ -1,4 +1,10 @@
+ import { objMerge } from '../utils.js';
++function isRegistrySubsetMiss(error) {
++    if (!error || typeof error !== 'object')
++        return false;
++    const status = error.status ?? error.statusCode ?? error.response?.status;
++    return Number(status) === 404;
++}
+ import { RegistryType } from './IRegistry.js';
+ /**
+  * A registry that accepts multiple sub-registries.
+@@ -22,7 +28,9 @@ export class MergedRegistry {
+         throw new Error('getUri method not applicable to MergedRegistry');
+     }
+     async listRegistryContent() {
+-        const results = await this.multiRegistryRead((r) => r.listRegistryContent());
++        const results = await this.multiRegistryRead((r) => r.listRegistryContent(), {
++            tolerateSubsetMisses: true,
++        });
+         return results.reduce((acc, content) => objMerge(acc, content), {
+             chains: {},
+             deployments: {
+@@ -35,14 +43,18 @@ export class MergedRegistry {
+         return Object.keys(await this.getMetadata());
+     }
+     async getMetadata() {
+-        const results = await this.multiRegistryRead((r) => r.getMetadata());
++        const results = await this.multiRegistryRead((r) => r.getMetadata(), {
++            tolerateSubsetMisses: true,
++        });
+         return results.reduce((acc, content) => objMerge(acc, content), {});
+     }
+     async getChainMetadata(chainName) {
+         return (await this.getMetadata())[chainName] || null;
+     }
+     async getAddresses() {
+-        const results = await this.multiRegistryRead((r) => r.getAddresses());
++        const results = await this.multiRegistryRead((r) => r.getAddresses(), {
++            tolerateSubsetMisses: true,
++        });
+         return results.reduce((acc, content) => objMerge(acc, content), {});
+     }
+     async getChainAddresses(chainName) {
+@@ -62,19 +74,27 @@ export class MergedRegistry {
+         return this.multiRegistryWrite(async (registry) => await registry.removeChain(chain), 'removeChain', `removing chain ${chain}`);
+     }
+     async getWarpRoute(id) {
+-        const results = await this.multiRegistryRead((r) => r.getWarpRoute(id));
++        const results = await this.multiRegistryRead((r) => r.getWarpRoute(id), {
++            tolerateSubsetMisses: true,
++        });
+         return results.find((r) => !!r) || null;
+     }
+     async getWarpDeployConfig(id) {
+-        const results = await this.multiRegistryRead((r) => r.getWarpDeployConfig(id));
++        const results = await this.multiRegistryRead((r) => r.getWarpDeployConfig(id), {
++            tolerateSubsetMisses: true,
++        });
+         return results.find((r) => !!r) || null;
+     }
+     async getWarpRoutes(filter) {
+-        const results = await this.multiRegistryRead((r) => r.getWarpRoutes(filter));
++        const results = await this.multiRegistryRead((r) => r.getWarpRoutes(filter), {
++            tolerateSubsetMisses: true,
++        });
+         return results.reduce((acc, content) => objMerge(acc, content), {});
+     }
+     async getWarpDeployConfigs(filter) {
+-        const results = await this.multiRegistryRead((r) => r.getWarpDeployConfigs(filter));
++        const results = await this.multiRegistryRead((r) => r.getWarpDeployConfigs(filter), {
++            tolerateSubsetMisses: true,
++        });
+         return results.reduce((acc, content) => objMerge(acc, content), {});
+     }
+     async addWarpRoute(config, options) {
+@@ -83,8 +103,26 @@ export class MergedRegistry {
+     async addWarpRouteConfig(config, options) {
+         return this.multiRegistryWrite(async (registry) => await registry.addWarpRouteConfig(config, options), 'addWarpRouteConfig', 'adding warp route deploy config');
+     }
+-    multiRegistryRead(readFn) {
+-        return Promise.all(this.registries.map(readFn));
++    async multiRegistryRead(readFn, options = {}) {
++        const { tolerateSubsetMisses = false } = options;
++        const reads = this.registries.map((registry) => Promise.resolve().then(() => readFn(registry)));
++        if (!tolerateSubsetMisses) {
++            return Promise.all(reads);
++        }
++        const results = await Promise.allSettled(reads);
++        const values = [];
++        for (const [index, result] of results.entries()) {
++            if (result.status === 'fulfilled') {
++                values.push(result.value);
++                continue;
++            }
++            if (index > 0 && isRegistrySubsetMiss(result.reason)) {
++                values.push(null);
++                continue;
++            }
++            throw result.reason;
++        }
++        return values;
+     }
+     async multiRegistryWrite(writeFn, methodName, logMsg) {
+         for (const registry of this.registries) {

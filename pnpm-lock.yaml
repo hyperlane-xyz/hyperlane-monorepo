@@ -306,6 +306,9 @@ overrides:
   xmlhttprequest-ssl: 4.0.0
 
 patchedDependencies:
+  '@hyperlane-xyz/registry@23.12.0':
+    hash: 113fd556c07dcd0ae53206e6d9681a2015667185b64da17d427fa57358b88d41
+    path: patches/@hyperlane-xyz__registry@23.12.0.patch
   bigint-buffer@1.1.5:
     hash: cd06d79b9cff13280e1a45a0f15abf67bc4ada4d7ad42bdfe120982ffa4340a2
     path: patches/bigint-buffer@1.1.5.patch
@@ -571,7 +574,7 @@ importers:
         version: link:../metrics
       '@hyperlane-xyz/registry':
         specifier: 'catalog:'
-        version: 23.12.0
+        version: 23.12.0(patch_hash=113fd556c07dcd0ae53206e6d9681a2015667185b64da17d427fa57358b88d41)
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
         version: link:../sdk
@@ -719,7 +722,7 @@ importers:
         version: link:../rebalancer
       '@hyperlane-xyz/registry':
         specifier: 'catalog:'
-        version: 23.12.0
+        version: 23.12.0(patch_hash=113fd556c07dcd0ae53206e6d9681a2015667185b64da17d427fa57358b88d41)
       '@hyperlane-xyz/relayer':
         specifier: workspace:*
         version: link:../relayer
@@ -1025,7 +1028,7 @@ importers:
     dependencies:
       '@hyperlane-xyz/registry':
         specifier: 'catalog:'
-        version: 23.12.0
+        version: 23.12.0(patch_hash=113fd556c07dcd0ae53206e6d9681a2015667185b64da17d427fa57358b88d41)
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
         version: link:../sdk
@@ -1137,7 +1140,7 @@ importers:
         version: link:../../solidity
       '@hyperlane-xyz/registry':
         specifier: 'catalog:'
-        version: 23.12.0
+        version: 23.12.0(patch_hash=113fd556c07dcd0ae53206e6d9681a2015667185b64da17d427fa57358b88d41)
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
         version: link:../sdk
@@ -1246,7 +1249,7 @@ importers:
     dependencies:
       '@hyperlane-xyz/registry':
         specifier: 'catalog:'
-        version: 23.12.0
+        version: 23.12.0(patch_hash=113fd556c07dcd0ae53206e6d9681a2015667185b64da17d427fa57358b88d41)
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
         version: link:../sdk
@@ -1385,7 +1388,7 @@ importers:
         version: link:../rebalancer
       '@hyperlane-xyz/registry':
         specifier: 'catalog:'
-        version: 23.12.0
+        version: 23.12.0(patch_hash=113fd556c07dcd0ae53206e6d9681a2015667185b64da17d427fa57358b88d41)
       '@hyperlane-xyz/relayer':
         specifier: workspace:*
         version: link:../relayer
@@ -1590,7 +1593,7 @@ importers:
         version: link:../metrics
       '@hyperlane-xyz/registry':
         specifier: 'catalog:'
-        version: 23.12.0
+        version: 23.12.0(patch_hash=113fd556c07dcd0ae53206e6d9681a2015667185b64da17d427fa57358b88d41)
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
         version: link:../sdk
@@ -1840,7 +1843,7 @@ importers:
         version: link:../provider-sdk
       '@hyperlane-xyz/registry':
         specifier: 'catalog:'
-        version: 23.12.0
+        version: 23.12.0(patch_hash=113fd556c07dcd0ae53206e6d9681a2015667185b64da17d427fa57358b88d41)
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
         version: link:../sdk
@@ -1967,7 +1970,7 @@ importers:
         version: link:../rebalancer
       '@hyperlane-xyz/registry':
         specifier: 'catalog:'
-        version: 23.12.0
+        version: 23.12.0(patch_hash=113fd556c07dcd0ae53206e6d9681a2015667185b64da17d427fa57358b88d41)
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
         version: link:../sdk
@@ -2037,7 +2040,7 @@ importers:
         version: link:../metrics
       '@hyperlane-xyz/registry':
         specifier: 'catalog:'
-        version: 23.12.0
+        version: 23.12.0(patch_hash=113fd556c07dcd0ae53206e6d9681a2015667185b64da17d427fa57358b88d41)
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
         version: link:../sdk
@@ -2455,7 +2458,7 @@ importers:
         version: link:../provider-sdk
       '@hyperlane-xyz/registry':
         specifier: 'catalog:'
-        version: 23.12.0
+        version: 23.12.0(patch_hash=113fd556c07dcd0ae53206e6d9681a2015667185b64da17d427fa57358b88d41)
       '@hyperlane-xyz/utils':
         specifier: workspace:*
         version: link:../utils
@@ -2615,7 +2618,7 @@ importers:
         version: link:../metrics
       '@hyperlane-xyz/registry':
         specifier: 'catalog:'
-        version: 23.12.0
+        version: 23.12.0(patch_hash=113fd556c07dcd0ae53206e6d9681a2015667185b64da17d427fa57358b88d41)
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
         version: link:../sdk
@@ -2818,7 +2821,7 @@ importers:
         version: 11.14.1(@emotion/react@11.14.0(@types/react@18.3.27)(react@18.3.1))(@types/react@18.3.27)(react@18.3.1)
       '@hyperlane-xyz/registry':
         specifier: 'catalog:'
-        version: 23.12.0
+        version: 23.12.0(patch_hash=113fd556c07dcd0ae53206e6d9681a2015667185b64da17d427fa57358b88d41)
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
         version: link:../tsconfig
@@ -21305,7 +21308,7 @@ snapshots:
 
   '@humanwhocodes/momoa@2.0.4': {}
 
-  '@hyperlane-xyz/registry@23.12.0':
+  '@hyperlane-xyz/registry@23.12.0(patch_hash=113fd556c07dcd0ae53206e6d9681a2015667185b64da17d427fa57358b88d41)':
     dependencies:
       jszip: 3.10.1
       yaml: 2.4.5
