@@ -35,7 +35,7 @@ export class TronJsonRpcProvider extends providers.StaticJsonRpcProvider {
   ) {
     const { url: cleanUrl, headers } = stripCustomRpcHeaders(host);
     const hasHeaders = Object.keys(headers).length > 0;
-    super(hasHeaders ? { url: cleanUrl, headers } : host, network);
+    super(hasHeaders ? { url: cleanUrl, headers } : cleanUrl, network);
     this.host = host;
     this.maxRetries = maxRetries;
     this.baseRetryMs = baseRetryMs;
