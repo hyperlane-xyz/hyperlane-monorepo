@@ -746,8 +746,6 @@ export {
   SealevelTransferRemoteInstruction,
   SealevelTransferRemoteSchema,
 } from './token/adapters/serialization.js';
-export { HypERC20App } from './token/app.js';
-export { HypERC20Checker } from './token/checker.js';
 export { DeployableTokenType, TokenType } from './token/config.js';
 export {
   expandVirtualWarpDeployConfig,
@@ -769,6 +767,15 @@ export {
 export { HypERC20Deployer, HypERC721Deployer } from './token/deploy.js';
 export { EvmWarpModule } from './token/EvmWarpModule.js';
 export { EvmWarpRouteReader } from './token/EvmWarpRouteReader.js';
+export {
+  WARP_ROUTE_CHECK_SCALE_TYPE,
+  WARP_ROUTE_CHECK_TYPE,
+  checkWarpRouteDeployConfig,
+} from './token/warpCheck.js';
+export type {
+  WarpRouteCheckResult,
+  WarpRouteCheckViolation,
+} from './token/warpCheck.js';
 export {
   EvmXERC20Reader,
   StandardXERC20Limits,

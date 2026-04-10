@@ -186,17 +186,20 @@ export async function expandWarpDeployConfig(params: {
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   deployedRoutersAddresses: ChainMap<Address>;
   expandedOnChainWarpConfig?: WarpRouteDeployConfigMailboxRequired;
+  validateScale?: boolean;
 }): Promise<WarpRouteDeployConfigMailboxRequired> {
   const {
     multiProvider,
     warpDeployConfig,
     deployedRoutersAddresses,
     expandedOnChainWarpConfig,
+    validateScale = true,
   } = params;
 
   const derivedTokenMetadata: TokenMetadataMap = await deriveTokenMetadata(
     multiProvider,
     warpDeployConfig,
+    { validateScale },
   );
 
   // If the token is on an EVM chain check if it is deployed as a proxy
@@ -239,6 +242,16 @@ export async function expandWarpDeployConfig(params: {
         // User-specified config takes precedence
         ...config,
       };
+
+      if (chainConfig.proxyAdmin) {
+        chainConfig.proxyAdmin = {
+          ...chainConfig.proxyAdmin,
+          owner:
+            config.ownerOverrides?.proxyAdmin ??
+            chainConfig.proxyAdmin.owner ??
+            config.owner,
+        };
+      }
 
       // Properly set the remote routers addresses to their 32 bytes representation
       // as that is how they are set on chain
@@ -514,12 +527,15 @@ const transformWarpDeployConfigToCheck: TransformObjectTransformer = (
 ) => {
   // Needed to check if we are currently inside the remoteRouters object
   const maybeRemoteRoutersKey = propPath[propPath.length - 3];
+  const parentObjectKey = propPath[propPath.length - 2];
   const parentKey = propPath[propPath.length - 1];
 
   // Remove the address and ownerOverrides fields if we are not inside the
   // remoteRouters property
   if (
-    (parentKey === 'address' && maybeRemoteRoutersKey !== 'remoteRouters') ||
+    (parentKey === 'address' &&
+      maybeRemoteRoutersKey !== 'remoteRouters' &&
+      parentObjectKey !== 'proxyAdmin') ||
     parentKey === 'ownerOverrides'
   ) {
     return undefined;
