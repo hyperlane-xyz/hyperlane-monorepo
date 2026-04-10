@@ -1,6 +1,11 @@
 import type { Logger } from 'pino';
 
-import type { ChainName, Token } from '@hyperlane-xyz/sdk';
+import {
+  normalizeScale,
+  type ChainName,
+  type ScaleInput,
+  type Token,
+} from '@hyperlane-xyz/sdk';
 import {
   bytes32ToAddress,
   isValidAddressEvm,
@@ -27,7 +32,7 @@ export type RouterNodeMetadata = {
   tokenName: string;
   tokenSymbol: string;
   tokenDecimals: number;
-  tokenScale?: number;
+  tokenScale?: ScaleInput;
   token: Token;
 };
 
@@ -71,14 +76,16 @@ function isValidEvmWarpRecipient(recipientBytes32: string): boolean {
 
 export function messageAmountToTokenBaseUnits(
   amountMessageUnits: bigint,
-  tokenScale?: number,
+  tokenScale?: ScaleInput,
 ): bigint {
-  const scale = BigInt(tokenScale ?? 1);
-  if (scale <= 0n) {
-    throw new Error(`Invalid token scale ${scale.toString()}`);
+  const scale = normalizeScale(tokenScale);
+  if (scale.numerator <= 0n || scale.denominator <= 0n) {
+    throw new Error(
+      `Invalid token scale ${scale.numerator.toString()}/${scale.denominator.toString()}`,
+    );
   }
 
-  return amountMessageUnits / scale;
+  return (amountMessageUnits * scale.denominator) / scale.numerator;
 }
 
 export class ExplorerPendingTransfersClient {
