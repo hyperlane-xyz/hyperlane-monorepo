@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-VALID_SERVICES="rebalancer warp-monitor ccip-server keyfunder relayer"
+VALID_SERVICES="rebalancer warp-monitor ccip-server keyfunder relayer fee-quoting"
 
 if [ -z "$SERVICE_NAME" ]; then
   echo "ERROR: SERVICE_NAME env var is required." >&2

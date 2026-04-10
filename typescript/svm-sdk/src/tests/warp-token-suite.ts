@@ -254,7 +254,7 @@ export function defineWarpTokenTests(
     );
 
     // Transfer ownership to the new keypair.
-    const current = await writer.read(deployedProgramId);
+    const current = await writer.read(deployedWithIgpAndIsmId);
     const transferTxs = await writer.update({
       ...current,
       config: makeConfig({ owner: newOwnerSigner.getSignerAddress() }),
@@ -262,7 +262,7 @@ export function defineWarpTokenTests(
     expect(transferTxs.length).to.be.greaterThan(0);
     await executeUpdateTxs(transferTxs);
 
-    const afterTransfer = await writer.read(deployedProgramId);
+    const afterTransfer = await writer.read(deployedWithIgpAndIsmId);
     expect(afterTransfer.config.owner).to.equal(
       newOwnerSigner.getSignerAddress(),
     );
@@ -270,7 +270,7 @@ export function defineWarpTokenTests(
     // Verify the BPF loader upgrade authority was also transferred.
     const upgradeAuthority = await getProgramUpgradeAuthority(
       rpc,
-      address(deployedProgramId),
+      address(deployedWithIgpAndIsmId),
     );
     expect(upgradeAuthority).to.equal(newOwnerSigner.getSignerAddress());
 
@@ -291,7 +291,7 @@ export function defineWarpTokenTests(
       await newOwnerSigner.send({ instructions: tx.instructions });
     }
 
-    const updated = await writer.read(deployedProgramId);
+    const updated = await writer.read(deployedWithIgpAndIsmId);
     expect(updated.config.interchainSecurityModule?.deployed?.address).to.equal(
       testIsmAddress,
     );

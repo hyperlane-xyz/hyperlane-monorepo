@@ -15,6 +15,11 @@ export type SvmInstruction = Instruction;
 export type SvmRpc = Rpc<SolanaRpcApi>;
 
 export interface SvmTransaction {
+  /** Fee payer for the compiled transaction.
+   *  Used to set the correct signer in the serialized transaction
+   *  output (e.g. a Squads vault instead of the local keypair).
+   */
+  feePayer?: Address;
   instructions: SvmInstruction[];
   computeUnits?: number;
   additionalSigners?: TransactionSigner[];

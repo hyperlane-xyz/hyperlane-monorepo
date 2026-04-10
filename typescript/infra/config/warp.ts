@@ -60,12 +60,17 @@ import { getEclipseStrideStTiaWarpConfig } from './environments/mainnet3/warp/co
 import {
   getEclipseUSDCSTAGEWarpConfig,
   getUSDCSTAGEEclipseFileSubmitterStrategyConfig,
+  getUSDCSTAGEEclipseImpersonatedStrategyConfig,
 } from './environments/mainnet3/warp/configGetters/getEclipseUSDCSTAGEWarpConfig.js';
 import {
   getEclipseUSDCStrategyConfig,
   getEclipseUSDCWarpConfig,
 } from './environments/mainnet3/warp/configGetters/getEclipseUSDCWarpConfig.js';
 import { getElectroneumUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getElectroneumUSDCWarpConfig.js';
+import {
+  getIgraUSDCStrategyConfig,
+  getIgraUSDCWarpConfig,
+} from './environments/mainnet3/warp/configGetters/getIgraUSDCWarpConfig.js';
 import {
   getEni1PieceWarpConfig,
   getEniEthWarpConfig,
@@ -204,6 +209,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.RadixUSDC]: getRadixUSDCWarpConfig,
   [WarpRouteIds.PulsechainUSDC]: getPulsechainUSDCWarpConfig,
   [WarpRouteIds.ElectroneumUSDC]: getElectroneumUSDCWarpConfig,
+  [WarpRouteIds.IgraUSDC]: getIgraUSDCWarpConfig,
   [WarpRouteIds.MantraUSDC]: getMantraUSDCWarpConfig,
   [WarpRouteIds.IncentivUSDC]: getIncentivUSDCWarpConfig,
   [WarpRouteIds.LitchainLITKEY]: getLitchainLITKEYWarpConfig,
@@ -236,6 +242,7 @@ export const strategyConfigGetterMap: Record<string, StrategyConfigGetter> = {
     getRezStagingGnosisSafeBuilderStrategyConfig,
   [WarpRouteIds.BsquaredUBTC]: getUbtcGnosisSafeBuilderStrategyConfigGenerator,
   [WarpRouteIds.EclipseUSDC]: getEclipseUSDCStrategyConfig,
+  [WarpRouteIds.IgraUSDC]: getIgraUSDCStrategyConfig,
   [WarpRouteIds.EclipseUSDCSTAGE]:
     getUSDCSTAGEEclipseFileSubmitterStrategyConfig,
   [WarpRouteIds.MainnetCCTPV1]: getCCTPV1StrategyConfig,
@@ -245,6 +252,15 @@ export const strategyConfigGetterMap: Record<string, StrategyConfigGetter> = {
   [WarpRouteIds.oXAUT]: getoXAUTGnosisSafeSubmitterStrategyConfig,
   [WarpRouteIds.SuperseedUSDC]: getSuperseedUSDCStrategyConfig,
   [WarpRouteIds.VictionETH]: getVictionETHStrategyConfig,
+};
+
+/** Sandbox strategy map — uses impersonated accounts for anvil fork testing */
+export const sandboxStrategyConfigGetterMap: Record<
+  string,
+  StrategyConfigGetter
+> = {
+  [WarpRouteIds.EclipseUSDCSTAGE]:
+    getUSDCSTAGEEclipseImpersonatedStrategyConfig,
 };
 
 /**

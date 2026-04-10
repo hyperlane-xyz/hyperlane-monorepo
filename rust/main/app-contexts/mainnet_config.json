@@ -41881,6 +41881,81 @@
       ]
     },
     {
+      "name": "IKAS/igra",
+      "matchingList": [
+        {
+          "originDomain": 38833,
+          "senderAddress": [
+            "0x000000000000000000000000eac17188d29665f57e31a0d9808a9173b9d9d632"
+          ],
+          "destinationDomain": 1,
+          "recipientAddress": [
+            "0x000000000000000000000000b76eaa8b8779f377248d1e9ca78550b156f5f7fb"
+          ]
+        },
+        {
+          "originDomain": 1,
+          "senderAddress": [
+            "0x000000000000000000000000b76eaa8b8779f377248d1e9ca78550b156f5f7fb"
+          ],
+          "destinationDomain": 38833,
+          "recipientAddress": [
+            "0x000000000000000000000000eac17188d29665f57e31a0d9808a9173b9d9d632"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "WSTETH/igra",
+      "matchingList": [
+        {
+          "originDomain": 38833,
+          "senderAddress": [
+            "0x000000000000000000000000c3f8b34587eb403fc30a161d6a35cb724a3b273e"
+          ],
+          "destinationDomain": 1,
+          "recipientAddress": [
+            "0x0000000000000000000000000e47f12002cbdc72e3d1080d10f44a5a94279a29"
+          ]
+        },
+        {
+          "originDomain": 1,
+          "senderAddress": [
+            "0x0000000000000000000000000e47f12002cbdc72e3d1080d10f44a5a94279a29"
+          ],
+          "destinationDomain": 38833,
+          "recipientAddress": [
+            "0x000000000000000000000000c3f8b34587eb403fc30a161d6a35cb724a3b273e"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "CBBTC/igra",
+      "matchingList": [
+        {
+          "originDomain": 38833,
+          "senderAddress": [
+            "0x000000000000000000000000f2b48b6e560af8834622203a8eeff6960d6172de"
+          ],
+          "destinationDomain": 8453,
+          "recipientAddress": [
+            "0x0000000000000000000000008de75a8a9ee436390429eefd343926b28768eab7"
+          ]
+        },
+        {
+          "originDomain": 8453,
+          "senderAddress": [
+            "0x0000000000000000000000008de75a8a9ee436390429eefd343926b28768eab7"
+          ],
+          "destinationDomain": 38833,
+          "recipientAddress": [
+            "0x000000000000000000000000f2b48b6e560af8834622203a8eeff6960d6172de"
+          ]
+        }
+      ]
+    },
+    {
       "name": "merkly_erc20",
       "matchingList": [
         {

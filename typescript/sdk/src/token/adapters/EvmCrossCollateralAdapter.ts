@@ -3,7 +3,7 @@ import { PopulatedTransaction } from 'ethers';
 import {
   CrossCollateralRouter,
   CrossCollateralRouter__factory,
-} from '@hyperlane-xyz/multicollateral';
+} from '@hyperlane-xyz/core';
 import {
   Address,
   Domain,
