@@ -103,10 +103,13 @@ contract WarpFeeController is Ownable, ReentrancyGuard, PackageVersioned {
         uint256 lpAmount,
         uint256 protocolAmount
     );
-    event HubRouterSet(address hubRouter);
-    event LpBpsSet(uint256 lpBps);
-    event ProtocolBeneficiarySet(address protocolBeneficiary);
-    event FeeManagerSet(address feeManager);
+    event HubRouterSet(address indexed operator, address indexed hubRouter);
+    event LpBpsSet(address indexed operator, uint256 lpBps);
+    event ProtocolBeneficiarySet(
+        address indexed operator,
+        address indexed protocolBeneficiary
+    );
+    event FeeManagerSet(address indexed operator, address indexed feeManager);
 
     modifier onlyFeeManager() {
         require(msg.sender == feeManager, "WarpFeeController: !feeManager");
@@ -316,13 +319,13 @@ contract WarpFeeController is Ownable, ReentrancyGuard, PackageVersioned {
     function setHubRouter(address _hubRouter) external onlyOwner {
         require(_hubRouter != address(0), "WarpFeeController: hub router zero");
         hubRouter = _hubRouter;
-        emit HubRouterSet(_hubRouter);
+        emit HubRouterSet(msg.sender, _hubRouter);
     }
 
     function setLpBps(uint256 _lpBps) external onlyOwner {
         require(_lpBps <= BPS_SCALE, "WarpFeeController: lp bps too high");
         lpBps = _lpBps;
-        emit LpBpsSet(_lpBps);
+        emit LpBpsSet(msg.sender, _lpBps);
     }
 
     function setProtocolBeneficiary(
@@ -333,7 +336,7 @@ contract WarpFeeController is Ownable, ReentrancyGuard, PackageVersioned {
             "WarpFeeController: beneficiary zero"
         );
         protocolBeneficiary = _protocolBeneficiary;
-        emit ProtocolBeneficiarySet(_protocolBeneficiary);
+        emit ProtocolBeneficiarySet(msg.sender, _protocolBeneficiary);
     }
 
     function setFeeManager(address _feeManager) external onlyOwner {
@@ -342,7 +345,7 @@ contract WarpFeeController is Ownable, ReentrancyGuard, PackageVersioned {
             "WarpFeeController: fee manager zero"
         );
         feeManager = _feeManager;
-        emit FeeManagerSet(_feeManager);
+        emit FeeManagerSet(msg.sender, _feeManager);
     }
 
     receive() external payable {}
