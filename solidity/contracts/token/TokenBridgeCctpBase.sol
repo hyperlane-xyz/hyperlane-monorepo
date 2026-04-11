@@ -13,6 +13,7 @@ import {TokenMessage} from "./libs/TokenMessage.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 import {StandardHookMetadata} from "../hooks/libs/StandardHookMetadata.sol";
 import {IMessageHandler} from "../interfaces/cctp/IMessageHandler.sol";
+import {SafeERC20Ext} from "../libs/SafeERC20Ext.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 import {MovableCollateralRouter, MovableCollateralRouterStorage} from "./libs/MovableCollateralRouter.sol";
 import {TokenRouter} from "./libs/TokenRouter.sol";
@@ -51,6 +52,7 @@ abstract contract TokenBridgeCctpBase is
     using Message for bytes;
     using TypeCasts for bytes32;
     using SafeERC20 for IERC20;
+    using SafeERC20Ext for IERC20;
 
     // using custom errors for bytecode size limitations
     // end users will not see these in their wallet (at config and process time)
@@ -105,12 +107,14 @@ abstract contract TokenBridgeCctpBase is
         IMessageTransmitter _messageTransmitter,
         ITokenMessenger _tokenMessenger
     ) TokenRouter(_SCALE, _SCALE, _mailbox) {
-        if (_messageTransmitter.version() != _getCCTPVersion())
+        if (_messageTransmitter.version() != _getCCTPVersion()) {
             revert InvalidCCTPVersion();
+        }
         messageTransmitter = _messageTransmitter;
 
-        if (_tokenMessenger.messageBodyVersion() != _getCCTPVersion())
+        if (_tokenMessenger.messageBodyVersion() != _getCCTPVersion()) {
             revert InvalidCCTPVersion();
+        }
         tokenMessenger = _tokenMessenger;
 
         wrappedToken = IERC20(_erc20);
@@ -222,8 +226,9 @@ abstract contract TokenBridgeCctpBase is
         uint32 _hyperlaneDomain
     ) public view returns (uint32) {
         Domain memory domain = _hyperlaneDomainMap[_hyperlaneDomain];
-        if (domain.hyperlane != _hyperlaneDomain)
+        if (domain.hyperlane != _hyperlaneDomain) {
             revert CircleDomainNotConfigured();
+        }
 
         return domain.circle;
     }
@@ -232,8 +237,9 @@ abstract contract TokenBridgeCctpBase is
         uint32 _circleDomain
     ) public view returns (uint32) {
         Domain memory domain = _circleDomainMap[_circleDomain];
-        if (domain.circle != _circleDomain)
+        if (domain.circle != _circleDomain) {
             revert HyperlaneDomainNotConfigured();
+        }
 
         return domain.hyperlane;
     }
@@ -284,8 +290,9 @@ abstract contract TokenBridgeCctpBase is
         if (circleRecipient == address(tokenMessenger)) {
             // prevent hyperlane message recipient configured with CCTP ISM
             // from verifying and handling token messages
-            if (_hyperlaneMessage.recipientAddress() != address(this))
+            if (_hyperlaneMessage.recipientAddress() != address(this)) {
                 revert InvalidTokenMessageRecipient();
+            }
             _validateTokenMessage(_hyperlaneMessage, cctpMessage);
         }
         // check if CCTP message is a GMP message to this contract
@@ -307,13 +314,15 @@ abstract contract TokenBridgeCctpBase is
         bytes32 circleSender,
         bytes32 messageId
     ) internal returns (bool) {
-        if (msg.sender != address(messageTransmitter))
+        if (msg.sender != address(messageTransmitter)) {
             revert NotMessageTransmitter();
+        }
 
         // ensure that the message was sent from the hook on the origin chain
         uint32 origin = circleDomainToHyperlaneDomain(circleSource);
-        if (_mustHaveRemoteRouter(origin) != circleSender)
+        if (_mustHaveRemoteRouter(origin) != circleSender) {
             revert UnauthorizedCircleSender();
+        }
 
         isVerified[messageId] = true;
 
@@ -333,7 +342,8 @@ abstract contract TokenBridgeCctpBase is
 
     /// @inheritdoc AbstractPostDispatchHook
     function _quoteDispatch(
-        bytes calldata /*metadata*/,
+        bytes calldata,
+        /*metadata*/
         bytes calldata /*message*/
     ) internal pure override returns (uint256) {
         return 0;
@@ -392,7 +402,7 @@ abstract contract TokenBridgeCctpBase is
         address _recipient,
         uint256 _amount
     ) internal override {
-        wrappedToken.safeTransfer(_recipient, _amount);
+        wrappedToken.safeTransferWithBalanceCheck(_recipient, _amount);
     }
 
     function _bridgeViaCircle(

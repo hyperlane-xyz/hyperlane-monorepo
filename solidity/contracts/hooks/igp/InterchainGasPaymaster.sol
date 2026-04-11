@@ -23,6 +23,7 @@ import {AbstractPostDispatchHook} from "../libs/AbstractPostDispatchHook.sol";
 import {OffchainQuotedIGP} from "./OffchainQuotedIGP.sol";
 import {Indexed} from "../../libs/Indexed.sol";
 import {EnumerableDomainSet} from "../../libs/EnumerableDomainSet.sol";
+import {SafeERC20Ext} from "../../libs/SafeERC20Ext.sol";
 
 // ============ External Imports ============
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
@@ -50,6 +51,7 @@ contract InterchainGasPaymaster is
 {
     using Address for address payable;
     using SafeERC20 for IERC20;
+    using SafeERC20Ext for IERC20;
     using Message for bytes;
     using StandardHookMetadata for bytes;
     // ============ Constants ============
@@ -151,7 +153,7 @@ contract InterchainGasPaymaster is
      */
     function claimToken(address _token) external {
         uint256 _balance = IERC20(_token).balanceOf(address(this));
-        IERC20(_token).safeTransfer(beneficiary, _balance);
+        IERC20(_token).safeTransferWithBalanceCheck(beneficiary, _balance);
     }
 
     /**

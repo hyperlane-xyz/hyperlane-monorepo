@@ -309,12 +309,29 @@ contract XERC20LockboxTest is IXERC20Lockbox {
 
 contract NonCompliantERC20Test {
     // Returns returns void, instead of bool of an ERC20 compliant token
-    function approve(address _to, uint _value) public {}
+    function approve(address _to, uint256 _value) public {}
 
     function allowance(
         address owner,
         address spender
     ) public view virtual returns (uint256) {
         return 0;
+    }
+}
+
+contract FalseReturnERC20Test is ERC20Test {
+    constructor(
+        string memory name,
+        string memory symbol,
+        uint256 totalSupply,
+        uint8 __decimals
+    ) ERC20Test(name, symbol, totalSupply, __decimals) {}
+
+    function transfer(
+        address to,
+        uint256 amount
+    ) public override returns (bool) {
+        super.transfer(to, amount);
+        return false;
     }
 }
