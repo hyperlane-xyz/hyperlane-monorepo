@@ -154,4 +154,99 @@ describe('inferWarpFeeVaultDeployConfig', () => {
       'Warp fee vault deploy only supports EVM-like chains',
     );
   });
+
+  it('rejects unsupported but EVM synthetic members before probing asset()', async () => {
+    let readRouterAssetCalled = false;
+    let thrown: Error | undefined;
+
+    try {
+      await inferWarpFeeVaultDeployConfig({
+        chain: 'ethereum',
+        multiProvider,
+        warpCoreConfig: {
+          tokens: [
+            {
+              chainName: 'ethereum',
+              standard: TokenStandard.EvmHypSynthetic,
+              decimals: 18,
+              symbol: 'USDC',
+              name: 'USD Coin',
+              addressOrDenom: hubRouter,
+            },
+          ],
+        },
+        warpDeployConfig: {
+          ethereum: {
+            type: TokenType.synthetic,
+            owner,
+          },
+        } as any,
+        owner,
+        protocolBeneficiary,
+        lpBps: '2500',
+        streamingPeriod: '86400',
+        readRouterAsset: async () => {
+          readRouterAssetCalled = true;
+          return asset;
+        },
+      });
+    } catch (error) {
+      thrown = error as Error;
+    }
+
+    expect(readRouterAssetCalled).to.equal(false);
+    expect(thrown?.message).to.include(
+      'Warp fee vault deploy only supports ERC20 collateral warp members on EVM chains',
+    );
+    expect(thrown?.message).to.include('EvmHypSynthetic');
+    expect(thrown?.message).to.include('synthetic');
+  });
+
+  it('rejects unsupported but EVM ERC4626 collateral members before probing asset()', async () => {
+    let readRouterAssetCalled = false;
+    let thrown: Error | undefined;
+
+    try {
+      await inferWarpFeeVaultDeployConfig({
+        chain: 'ethereum',
+        multiProvider,
+        warpCoreConfig: {
+          tokens: [
+            {
+              chainName: 'ethereum',
+              standard: TokenStandard.EvmHypCollateralVault,
+              decimals: 18,
+              symbol: 'USDC',
+              name: 'USD Coin',
+              addressOrDenom: hubRouter,
+              collateralAddressOrDenom: asset,
+            },
+          ],
+        },
+        warpDeployConfig: {
+          ethereum: {
+            type: TokenType.collateralVault,
+            owner,
+            token: asset,
+          },
+        } as any,
+        owner,
+        protocolBeneficiary,
+        lpBps: '2500',
+        streamingPeriod: '86400',
+        readRouterAsset: async () => {
+          readRouterAssetCalled = true;
+          return asset;
+        },
+      });
+    } catch (error) {
+      thrown = error as Error;
+    }
+
+    expect(readRouterAssetCalled).to.equal(false);
+    expect(thrown?.message).to.include(
+      'Warp fee vault deploy only supports ERC20 collateral warp members on EVM chains',
+    );
+    expect(thrown?.message).to.include('collateralVault');
+  });
 });

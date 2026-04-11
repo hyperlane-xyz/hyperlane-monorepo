@@ -5,6 +5,8 @@ import { stringify as yamlStringify } from 'yaml';
 import { GasAction } from '@hyperlane-xyz/provider-sdk';
 import {
   EvmWarpFeeVaultModule,
+  TokenStandard,
+  TokenType,
   type WarpCoreConfig,
   type WarpFeeVaultConfig,
   type WarpRouteDeployConfigMailboxRequired,
@@ -64,6 +66,26 @@ function formatBigNumberish(value: WarpFeeVaultConfig['lpBps']): string {
   return BigNumber.from(value).toString();
 }
 
+function assertSupportedWarpFeeVaultMember({
+  chain,
+  tokenStandard,
+  deployConfigType,
+}: {
+  chain: string;
+  tokenStandard: WarpCoreConfig['tokens'][number]['standard'];
+  deployConfigType: WarpRouteDeployConfigMailboxRequired[string]['type'];
+}): void {
+  const isSupportedMember =
+    tokenStandard === TokenStandard.EvmHypCollateral &&
+    deployConfigType === TokenType.collateral;
+
+  assert(
+    isSupportedMember,
+    `Warp fee vault deploy only supports ERC20 collateral warp members on EVM chains. ` +
+      `Chain ${chain} has token standard "${tokenStandard}" and deploy config type "${deployConfigType}".`,
+  );
+}
+
 export async function readWarpRouteAsset({
   chain,
   hubRouter,
@@ -121,6 +143,11 @@ export async function inferWarpFeeVaultDeployConfig({
     warpDeployConfig[chain],
     `Chain ${chain} is not present in the selected warp deploy config`,
   );
+  assertSupportedWarpFeeVaultMember({
+    chain,
+    tokenStandard: token.standard,
+    deployConfigType: warpDeployConfig[chain].type,
+  });
 
   const hubRouter = token.addressOrDenom;
   const asset = await readRouterAsset({ chain, hubRouter, multiProvider });
