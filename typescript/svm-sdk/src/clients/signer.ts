@@ -1,4 +1,5 @@
 import {
+  type Keypair as Web3Keypair,
   type Address,
   type Base64EncodedWireTransaction,
   type KeyPairSigner,
@@ -76,6 +77,8 @@ class SvmTransactionError extends Error {
 
 const base58Encoder = getBase58Encoder();
 
+type Web3KeypairLike = Pick<Web3Keypair, 'publicKey' | 'secretKey'>;
+
 function parseKeyBytes(privateKey: string): ReadonlyUint8Array {
   // Try hex (32 bytes = 64 hex chars, 64 bytes = 128 hex chars)
   const stripped = strip0x(privateKey);
@@ -132,6 +135,29 @@ function isBlockhashNotFoundError(error: unknown): boolean {
   }
 
   return false;
+}
+
+function isWeb3KeypairLike(value: unknown): value is Web3KeypairLike {
+  return (
+    !!value &&
+    typeof value === 'object' &&
+    'publicKey' in value &&
+    'secretKey' in value
+  );
+}
+
+async function normalizeAdditionalSigners(
+  signers?: readonly (TransactionSigner | Web3KeypairLike)[],
+): Promise<TransactionSigner[] | undefined> {
+  if (!signers?.length) return undefined;
+
+  return Promise.all(
+    signers.map((signer) =>
+      isWeb3KeypairLike(signer)
+        ? createKeyPairSignerFromBytes(signer.secretKey)
+        : signer,
+    ),
+  );
 }
 
 type HistoryCheckResult =
@@ -310,6 +336,9 @@ export class SvmSigner
    */
   async send(tx: SendableSvmCompatTransaction): Promise<SvmReceipt> {
     const normalizedTx = normalizeTransaction(tx);
+    normalizedTx.additionalSigners = await normalizeAdditionalSigners(
+      normalizedTx.additionalSigners,
+    );
     const maxBlockhashAttempts = 3;
     const pollIntervalMs = 2000;
 

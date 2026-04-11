@@ -136,6 +136,14 @@ export function getComputeBudgetInstructions(
   return instructions;
 }
 
+function hasComputeBudgetInstruction(
+  instructions: readonly SvmInstruction[],
+): boolean {
+  return instructions.some(
+    (instruction) => instruction.programAddress === COMPUTE_BUDGET_PROGRAM_ID,
+  );
+}
+
 export function buildTransactionMessage(params: {
   instructions: SvmInstruction[];
   feePayer: TransactionSigner;
@@ -153,14 +161,11 @@ export function buildTransactionMessage(params: {
     priorityFeeMicroLamports,
   } = params;
 
-  const computeBudgetIxs = getComputeBudgetInstructions(
-    computeUnits,
-    priorityFeeMicroLamports,
-  );
-  const allInstructions = [
-    ...computeBudgetIxs,
-    ...instructions.map(normalizeInstruction),
-  ];
+  const normalizedInstructions = instructions.map(normalizeInstruction);
+  const computeBudgetIxs = hasComputeBudgetInstruction(normalizedInstructions)
+    ? []
+    : getComputeBudgetInstructions(computeUnits, priorityFeeMicroLamports);
+  const allInstructions = [...computeBudgetIxs, ...normalizedInstructions];
 
   const txMessage = createTransactionMessage({ version: 0 });
   const withFeePayer = setTransactionMessageFeePayerSigner(feePayer, txMessage);
@@ -176,7 +181,11 @@ export function transactionToInstructions(
 ): SvmInstruction[] {
   const normalizedTx = normalizeTransaction(tx);
   const computeUnits = tx.computeUnits ?? DEFAULT_COMPUTE_UNITS;
-  const computeBudgetIxs = getComputeBudgetInstructions(computeUnits);
+  const computeBudgetIxs = hasComputeBudgetInstruction(
+    normalizedTx.instructions,
+  )
+    ? []
+    : getComputeBudgetInstructions(computeUnits);
   return [...computeBudgetIxs, ...normalizedTx.instructions];
 }
 
