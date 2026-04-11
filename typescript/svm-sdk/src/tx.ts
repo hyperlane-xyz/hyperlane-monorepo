@@ -1,4 +1,5 @@
 import {
+  AccountRole,
   type Address,
   type Blockhash,
   type Instruction,
@@ -18,6 +19,78 @@ import {
 
 import type { SvmInstruction, SvmTransaction } from './types.js';
 import { DEFAULT_COMPUTE_UNITS } from './constants.js';
+
+type Web3PublicKeyLike = { toBase58(): string };
+
+export type Web3InstructionLike = {
+  programId: Web3PublicKeyLike;
+  keys?: readonly {
+    pubkey: Web3PublicKeyLike;
+    isSigner: boolean;
+    isWritable: boolean;
+  }[];
+  data?: Uint8Array;
+};
+
+export type Web3TransactionLike = {
+  instructions: readonly (SvmInstruction | Web3InstructionLike)[];
+  feePayer?: Address | Web3PublicKeyLike | null;
+  computeUnits?: number;
+  additionalSigners?: TransactionSigner[];
+  skipPreflight?: boolean;
+};
+
+function isSvmInstruction(
+  instruction: SvmInstruction | Web3InstructionLike,
+): instruction is SvmInstruction {
+  return 'programAddress' in instruction;
+}
+
+function isWeb3PublicKeyLike(
+  value: Address | Web3PublicKeyLike | null | undefined,
+): value is Web3PublicKeyLike {
+  return !!value && typeof value === 'object' && 'toBase58' in value;
+}
+
+function accountRoleFromWeb3Meta(meta: {
+  isSigner: boolean;
+  isWritable: boolean;
+}): AccountRole {
+  if (meta.isSigner) {
+    return meta.isWritable
+      ? AccountRole.WRITABLE_SIGNER
+      : AccountRole.READONLY_SIGNER;
+  }
+
+  return meta.isWritable ? AccountRole.WRITABLE : AccountRole.READONLY;
+}
+
+export function normalizeInstruction(
+  instruction: SvmInstruction | Web3InstructionLike,
+): SvmInstruction {
+  if (isSvmInstruction(instruction)) return instruction;
+
+  return {
+    programAddress: instruction.programId.toBase58() as Address,
+    accounts: (instruction.keys ?? []).map((key) => ({
+      address: key.pubkey.toBase58() as Address,
+      role: accountRoleFromWeb3Meta(key),
+    })),
+    data: instruction.data ? new Uint8Array(instruction.data) : undefined,
+  };
+}
+
+export function normalizeTransaction(
+  tx: SvmTransaction | Web3TransactionLike,
+): SvmTransaction {
+  return {
+    ...tx,
+    feePayer: isWeb3PublicKeyLike(tx.feePayer)
+      ? (tx.feePayer.toBase58() as Address)
+      : (tx.feePayer ?? undefined),
+    instructions: tx.instructions.map(normalizeInstruction),
+  };
+}
 
 // Max data per BPFLoaderUpgradeable Write tx: 1232 packet limit minus tx
 // overhead. With 2 signers (payer != authority) overhead is ~355 bytes,
@@ -84,7 +157,10 @@ export function buildTransactionMessage(params: {
     computeUnits,
     priorityFeeMicroLamports,
   );
-  const allInstructions = [...computeBudgetIxs, ...instructions];
+  const allInstructions = [
+    ...computeBudgetIxs,
+    ...instructions.map(normalizeInstruction),
+  ];
 
   const txMessage = createTransactionMessage({ version: 0 });
   const withFeePayer = setTransactionMessageFeePayerSigner(feePayer, txMessage);
@@ -98,9 +174,10 @@ export function buildTransactionMessage(params: {
 export function transactionToInstructions(
   tx: SvmTransaction,
 ): SvmInstruction[] {
+  const normalizedTx = normalizeTransaction(tx);
   const computeUnits = tx.computeUnits ?? DEFAULT_COMPUTE_UNITS;
   const computeBudgetIxs = getComputeBudgetInstructions(computeUnits);
-  return [...computeBudgetIxs, ...tx.instructions];
+  return [...computeBudgetIxs, ...normalizedTx.instructions];
 }
 
 // ---------------------------------------------------------------------------
@@ -156,7 +233,7 @@ export function serializeUnsignedTransaction(
     withFeePayer,
   );
   const withInstructions = appendTransactionMessageInstructions(
-    instructions,
+    instructions.map(normalizeInstruction),
     withLifetime,
   );
 

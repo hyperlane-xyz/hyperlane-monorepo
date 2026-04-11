@@ -28,6 +28,7 @@ import type { InstructionAccountMeta } from '../instructions/utils.js';
 import { createRpc } from '../rpc.js';
 import {
   buildTransactionMessage,
+  normalizeTransaction,
   serializeUnsignedTransaction,
 } from '../tx.js';
 import type {
@@ -42,6 +43,7 @@ import { DEFAULT_COMPUTE_UNITS } from '../constants.js';
 
 /** Transaction input for `send()` — feePayer is excluded since the signer provides it. */
 type SendableSvmTransaction = Omit<SvmTransaction, 'feePayer'>;
+type SendableSvmCompatTransaction = Parameters<typeof normalizeTransaction>[0];
 
 /** Shape returned by `transactionToPrintableJson`. */
 export interface PrintableSvmTransaction {
@@ -187,19 +189,20 @@ export class SvmSigner
   async transactionToPrintableJson(
     transaction: AnnotatedSvmTransaction,
   ): Promise<PrintableSvmTransaction> {
+    const normalizedTransaction = normalizeTransaction(transaction);
     const { transactionBase58, messageBase58 } = serializeUnsignedTransaction(
-      transaction.instructions,
-      transaction.feePayer ?? this.signer.address,
+      normalizedTransaction.instructions,
+      normalizedTransaction.feePayer ?? this.signer.address,
     );
 
     return {
       annotation: transaction.annotation,
-      instructions: transaction.instructions.map((ix) => ({
+      instructions: normalizedTransaction.instructions.map((ix) => ({
         programAddress: ix.programAddress,
         accounts: ix.accounts,
         data: ix.data ? Buffer.from(ix.data).toString('hex') : undefined,
       })),
-      computeUnits: transaction.computeUnits,
+      computeUnits: normalizedTransaction.computeUnits,
       transaction_base58: transactionBase58,
       message_base58: messageBase58,
     };
@@ -305,7 +308,8 @@ export class SvmSigner
    * Sends a transaction and polls for confirmation. On blockhash expiry,
    * checks transaction history before resubmitting to prevent double-execution.
    */
-  async send(tx: SendableSvmTransaction): Promise<SvmReceipt> {
+  async send(tx: SendableSvmCompatTransaction): Promise<SvmReceipt> {
+    const normalizedTx = normalizeTransaction(tx);
     const maxBlockhashAttempts = 3;
     const pollIntervalMs = 2000;
 
@@ -316,7 +320,7 @@ export class SvmSigner
       blockhashAttempt++
     ) {
       const { signature, rawTx, lastValidBlockHeight } =
-        await this.signAndSend(tx);
+        await this.signAndSend(normalizedTx);
       lastSignature = signature;
 
       // Poll while blockhash is valid

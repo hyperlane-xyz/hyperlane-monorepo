@@ -36,6 +36,10 @@ function noopTx(): SvmTransaction {
   return { instructions: [] };
 }
 
+function fakePublicKey(value: string) {
+  return { toBase58: () => value };
+}
+
 type RpcMethodStub = (...args: unknown[]) => { send: () => Promise<unknown> };
 
 interface MockRpcConfig {
@@ -857,6 +861,75 @@ describe('SvmSigner', () => {
       expect(feePayerFromMessageBase58(json.message_base58)).to.equal(
         signerAddress,
       );
+    });
+
+    it('normalizes web3 instruction/account shapes before serialization', async () => {
+      const rpc = createMockRpc();
+      const signer = await createTestSigner(rpc);
+
+      const tx = {
+        feePayer: fakePublicKey(SQUADS_VAULT_ADDRESS),
+        instructions: [
+          {
+            programId: fakePublicKey(PROGRAM_ADDRESS),
+            keys: [
+              {
+                pubkey: fakePublicKey(TOKEN_PDA_ADDRESS),
+                isSigner: false,
+                isWritable: true,
+              },
+              {
+                pubkey: fakePublicKey(OWNER_ADDRESS),
+                isSigner: true,
+                isWritable: false,
+              },
+            ],
+            data: new Uint8Array([1, 2, 3]),
+          },
+        ],
+      } as unknown as SvmTransaction;
+
+      const json = await signer.transactionToPrintableJson(tx);
+
+      expect(feePayerFromMessageBase58(json.message_base58)).to.equal(
+        SQUADS_VAULT_ADDRESS,
+      );
+      expect(json.instructions).to.deep.equal([
+        {
+          programAddress: PROGRAM_ADDRESS,
+          accounts: [
+            { address: TOKEN_PDA_ADDRESS, role: AccountRole.WRITABLE },
+            { address: OWNER_ADDRESS, role: AccountRole.READONLY_SIGNER },
+          ],
+          data: '010203',
+        },
+      ]);
+    });
+  });
+
+  describe('send — web3 compatibility', () => {
+    it('normalizes web3 instruction/account shapes before signing', async () => {
+      const rpc = createMockRpc();
+      const signer = await createTestSigner(rpc);
+
+      const receipt = await signer.send({
+        instructions: [
+          {
+            programId: fakePublicKey(PROGRAM_ADDRESS),
+            keys: [
+              {
+                pubkey: fakePublicKey(TOKEN_PDA_ADDRESS),
+                isSigner: false,
+                isWritable: true,
+              },
+            ],
+            data: new Uint8Array([9]),
+          },
+        ],
+      } as unknown as SvmTransaction);
+
+      expect(receipt.slot).to.equal(42n);
+      expect(receipt.signature).to.be.a('string').and.not.empty;
     });
   });
 });
