@@ -109,7 +109,9 @@ export class EvmTokenFeeReader extends HyperlaneReader {
         });
         break;
       default:
-        throw new Error(`Unsupported token fee type: ${onchainFeeType}`);
+        throw new Error(
+          `Unsupported token fee type: ${String(onchainFeeType)}`,
+        );
     }
 
     return derivedConfig;
@@ -203,7 +205,7 @@ export class EvmTokenFeeReader extends HyperlaneReader {
   ): Promise<DerivedTokenFeeConfig> {
     const { address, routingDestinations } = params;
     const routingFeeInterface = RoutingFee__factory.createInterface();
-    const [token, owner, maxFee, halfAmount] = (await this.readContractBatch([
+    const [token, owner] = (await this.readContractBatch([
       {
         target: address,
         contractInterface: routingFeeInterface,
@@ -214,17 +216,7 @@ export class EvmTokenFeeReader extends HyperlaneReader {
         contractInterface: routingFeeInterface,
         method: 'owner',
       },
-      {
-        target: address,
-        contractInterface: routingFeeInterface,
-        method: 'maxFee',
-      },
-      {
-        target: address,
-        contractInterface: routingFeeInterface,
-        method: 'halfAmount',
-      },
-    ])) as [Address, Address, BigNumber, BigNumber];
+    ])) as [Address, Address];
 
     const feeContracts: Record<ChainName, DerivedTokenFeeConfig> = {};
 

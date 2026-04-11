@@ -408,9 +408,20 @@ export class EvmWarpRouteReader extends EvmRouterReader {
   public async fetchTokenFee(
     routerAddress: Address,
     destinations?: number[],
-    crossCollateralRouters?: Record<string, string[]>,
+    crossCollateralRoutersOrGetDestinations?:
+      | Record<string, string[]>
+      | (() => Promise<number[] | undefined>),
     getDestinationsPromise?: () => Promise<number[] | undefined>,
   ): Promise<DerivedTokenFeeConfig | undefined> {
+    const crossCollateralRouters =
+      typeof crossCollateralRoutersOrGetDestinations === 'function'
+        ? undefined
+        : crossCollateralRoutersOrGetDestinations;
+    const effectiveGetDestinationsPromise =
+      typeof crossCollateralRoutersOrGetDestinations === 'function'
+        ? crossCollateralRoutersOrGetDestinations
+        : getDestinationsPromise;
+
     const TokenRouter = TokenRouter__factory.connect(
       routerAddress,
       this.provider,
@@ -446,7 +457,10 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
     const routingDestinations =
       destinations ??
-      (await this.fetchTokenRouterDomains(TokenRouter, getDestinationsPromise));
+      (await this.fetchTokenRouterDomains(
+        TokenRouter,
+        effectiveGetDestinationsPromise,
+      ));
 
     const normalizedCrossCollateralRouters = crossCollateralRouters
       ? Object.fromEntries(
@@ -459,7 +473,9 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     return this.evmTokenFeeReader.deriveTokenFeeConfig({
       address: tokenFee,
       routingDestinations,
-      crossCollateralRouters: normalizedCrossCollateralRouters,
+      ...(normalizedCrossCollateralRouters
+        ? { crossCollateralRouters: normalizedCrossCollateralRouters }
+        : {}),
     });
   }
 
