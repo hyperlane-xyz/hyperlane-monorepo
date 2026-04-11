@@ -129,6 +129,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
   private readonly depositAddressDomainConfigsCache = new Map<
     Address,
     DepositAddressDomainConfigs
+  >();
   protected readonly packageVersionCache = new Map<string, string>();
   protected readonly packageVersionInflight = new Map<
     string,
