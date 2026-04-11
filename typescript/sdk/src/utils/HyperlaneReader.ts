@@ -1,5 +1,6 @@
 import { BigNumber, errors as EthersError, providers, utils } from 'ethers';
 import { LevelWithSilentOrString } from 'pino';
+import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
 import {
@@ -8,6 +9,14 @@ import {
   isDeterministicCallException,
 } from '../providers/SmartProvider/SmartProvider.js';
 import { ChainNameOrId } from '../types.js';
+import {
+  MULTICALL3_ADDRESS,
+  MULTICALL3_INTERFACE,
+  ReadContractCall,
+  normalizeDecodedResult,
+  readContractsWithMulticall,
+  supportsMulticall,
+} from './multicall.js';
 
 type NestedError = {
   cause?: unknown;
@@ -78,12 +87,17 @@ export async function performProbeEstimateGas(
 
 export class HyperlaneReader {
   provider: providers.Provider;
+  protected readonly logger = rootLogger.child({ module: 'HyperlaneReader' });
 
   constructor(
     protected readonly multiProvider: MultiProvider,
     protected readonly chain: ChainNameOrId,
   ) {
     this.provider = this.multiProvider.getProvider(chain);
+  }
+
+  private getBatchContractAddress(): string | undefined {
+    return this.multiProvider.getChainMetadata(this.chain).batchContractAddress;
   }
 
   /**
@@ -203,5 +217,96 @@ export class HyperlaneReader {
     }
 
     return isDeterministicCallException(callException);
+  }
+
+  protected async readContractBatch<T>(
+    calls: ReadContractCall<T>[],
+    blockTag: providers.BlockTag = 'latest',
+  ): Promise<T[]> {
+    return readContractsWithMulticall(
+      this.provider,
+      calls,
+      blockTag,
+      this.getBatchContractAddress(),
+      this.multiProvider.getChainName(this.chain),
+    );
+  }
+
+  protected async tryProbeContractBatch<T>(
+    calls: ReadContractCall<T>[],
+    blockTag: providers.BlockTag = 'latest',
+  ): Promise<Array<T | undefined> | undefined> {
+    if (!calls.length) {
+      return [];
+    }
+
+    const batchContractAddress = this.getBatchContractAddress();
+    if (!(await supportsMulticall(this.provider, batchContractAddress))) {
+      return undefined;
+    }
+
+    let results: Array<{ success: boolean; returnData: string }>;
+    try {
+      const response = await this.probeCall(
+        {
+          to: batchContractAddress ?? MULTICALL3_ADDRESS,
+          data: MULTICALL3_INTERFACE.encodeFunctionData('aggregate3', [
+            calls.map((call) => ({
+              target: call.target,
+              allowFailure: true,
+              callData: call.contractInterface.encodeFunctionData(
+                call.method,
+                call.args ?? [],
+              ),
+            })),
+          ]),
+        },
+        blockTag,
+      );
+
+      if (response === '0x') {
+        return undefined;
+      }
+
+      [results] = MULTICALL3_INTERFACE.decodeFunctionResult(
+        'aggregate3',
+        response,
+      );
+    } catch (error) {
+      // Batched probe reads are an optimization only. If the wrapper call itself
+      // is unavailable or returns unusable data, fall back to individual probes.
+      this.logger.debug(
+        { error, chain: this.chain, batchContractAddress },
+        'Failed to batch probe calls; falling back to individual probes',
+      );
+      return undefined;
+    }
+
+    return calls.map((call, index) => {
+      const result = results[index];
+      if (!result.success || result.returnData === '0x') {
+        return undefined;
+      }
+
+      try {
+        return normalizeDecodedResult(
+          call.contractInterface.decodeFunctionResult(
+            call.method,
+            result.returnData,
+          ),
+          call.decode,
+        );
+      } catch (error) {
+        if (
+          getNestedErrorWithCode(error, EthersError.INVALID_ARGUMENT) ||
+          getNestedErrorWithCode(error, EthersError.BUFFER_OVERRUN) ||
+          this.isProbeMissError(error)
+        ) {
+          return undefined;
+        }
+
+        throw error;
+      }
+    });
   }
 }

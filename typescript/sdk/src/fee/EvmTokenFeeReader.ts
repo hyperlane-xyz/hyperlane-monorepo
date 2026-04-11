@@ -1,4 +1,4 @@
-import { constants } from 'ethers';
+import { BigNumber, constants } from 'ethers';
 
 import {
   BaseFee__factory,
@@ -109,7 +109,9 @@ export class EvmTokenFeeReader extends HyperlaneReader {
         });
         break;
       default:
-        throw new Error(`Unsupported token fee type: ${onchainFeeType}`);
+        throw new Error(
+          `Unsupported token fee type: ${String(onchainFeeType)}`,
+        );
     }
 
     return derivedConfig;
@@ -118,13 +120,29 @@ export class EvmTokenFeeReader extends HyperlaneReader {
   private async deriveLinearFeeConfig(
     address: Address,
   ): Promise<DerivedTokenFeeConfig> {
-    const tokenFee = LinearFee__factory.connect(address, this.provider);
-    const [token, owner, maxFee, halfAmount] = await Promise.all([
-      tokenFee.token(),
-      tokenFee.owner(),
-      tokenFee.maxFee(),
-      tokenFee.halfAmount(),
-    ]);
+    const linearFeeInterface = LinearFee__factory.createInterface();
+    const [token, owner, maxFee, halfAmount] = (await this.readContractBatch([
+      {
+        target: address,
+        contractInterface: linearFeeInterface,
+        method: 'token',
+      },
+      {
+        target: address,
+        contractInterface: linearFeeInterface,
+        method: 'owner',
+      },
+      {
+        target: address,
+        contractInterface: linearFeeInterface,
+        method: 'maxFee',
+      },
+      {
+        target: address,
+        contractInterface: linearFeeInterface,
+        method: 'halfAmount',
+      },
+    ])) as [Address, Address, BigNumber, BigNumber];
     const maxFeeBn = BigInt(maxFee.toString());
     const halfAmountBn = BigInt(halfAmount.toString());
     const bps = convertToBps(maxFeeBn, halfAmountBn);
@@ -186,18 +204,35 @@ export class EvmTokenFeeReader extends HyperlaneReader {
     params: TokenFeeReaderParams,
   ): Promise<DerivedTokenFeeConfig> {
     const { address, routingDestinations } = params;
-    const routingFee = RoutingFee__factory.connect(address, this.provider);
-    const [token, owner] = await Promise.all([
-      routingFee.token(),
-      routingFee.owner(),
-    ]);
+    const routingFeeInterface = RoutingFee__factory.createInterface();
+    const [token, owner] = (await this.readContractBatch([
+      {
+        target: address,
+        contractInterface: routingFeeInterface,
+        method: 'token',
+      },
+      {
+        target: address,
+        contractInterface: routingFeeInterface,
+        method: 'owner',
+      },
+    ])) as [Address, Address];
 
     const feeContracts: Record<ChainName, DerivedTokenFeeConfig> = {};
 
-    if (routingDestinations)
+    if (routingDestinations) {
+      const subFeeAddresses = await this.readContractBatch<Address>(
+        routingDestinations.map((destination) => ({
+          target: address,
+          contractInterface: routingFeeInterface,
+          method: 'feeContracts',
+          args: [destination],
+        })),
+      );
+
       await Promise.all(
-        routingDestinations.map(async (destination) => {
-          const subFeeAddress = await routingFee.feeContracts(destination);
+        routingDestinations.map(async (destination, index) => {
+          const subFeeAddress = subFeeAddresses[index];
           if (subFeeAddress === constants.AddressZero) return;
           const chainName = this.multiProvider.tryGetChainName(destination);
           if (!chainName) return;
@@ -206,6 +241,7 @@ export class EvmTokenFeeReader extends HyperlaneReader {
           });
         }),
       );
+    }
     return {
       type: TokenFeeType.RoutingFee,
       address,

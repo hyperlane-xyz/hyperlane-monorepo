@@ -7,6 +7,7 @@ import {
 import { isEVMLike } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { readContractsWithMulticall } from '../utils/multicall.js';
 
 import { TokenMetadataMap } from './TokenMetadataMap.js';
 import { TokenType } from './config.js';
@@ -57,92 +58,127 @@ export async function deriveTokenMetadata(
     if (isTokenMetadata(config)) {
       metadataMap.set(chain, TokenMetadataSchema.parse(config));
     }
+  }
 
-    if (!isEVMLike(multiProvider.getProtocol(chain))) {
-      continue;
-    }
-
-    if (
-      isNativeTokenConfig(config) ||
-      isEverclearEthBridgeTokenConfig(config)
-    ) {
-      const nativeToken = multiProvider.getChainMetadata(chain).nativeToken;
-      if (nativeToken) {
-        metadataMap.update(
-          chain,
-          TokenMetadataSchema.parse({
-            ...nativeToken,
-          }),
-        );
-        continue;
+  await Promise.all(
+    sortedEntries.map(async ([chain, config]) => {
+      if (!isEVMLike(multiProvider.getProtocol(chain))) {
+        return;
       }
-    }
 
-    if (
-      isCollateralTokenConfig(config) ||
-      isCrossCollateralTokenConfig(config) ||
-      isXERC20TokenConfig(config) ||
-      isCctpTokenConfig(config) ||
-      isDepositAddressTokenConfig(config) ||
-      isEverclearCollateralTokenConfig(config)
-    ) {
-      const provider = multiProvider.getProvider(chain);
+      if (
+        isNativeTokenConfig(config) ||
+        isEverclearEthBridgeTokenConfig(config)
+      ) {
+        const nativeToken = multiProvider.getChainMetadata(chain).nativeToken;
+        if (nativeToken) {
+          metadataMap.update(
+            chain,
+            TokenMetadataSchema.parse({
+              ...nativeToken,
+            }),
+          );
+        }
+        return;
+      }
 
-      if (config.isNft) {
-        const erc721 = ERC721Enumerable__factory.connect(
-          config.token,
+      if (
+        isCollateralTokenConfig(config) ||
+        isCrossCollateralTokenConfig(config) ||
+        isXERC20TokenConfig(config) ||
+        isCctpTokenConfig(config) ||
+        isDepositAddressTokenConfig(config) ||
+        isEverclearCollateralTokenConfig(config)
+      ) {
+        const provider = multiProvider.getProvider(chain);
+        const batchContractAddress =
+          multiProvider.getChainMetadata(chain).batchContractAddress;
+
+        if (config.isNft) {
+          const erc721Interface = ERC721Enumerable__factory.createInterface();
+          const [name, symbol] = (await readContractsWithMulticall(
+            provider,
+            [
+              {
+                target: config.token,
+                contractInterface: erc721Interface,
+                method: 'name',
+              },
+              {
+                target: config.token,
+                contractInterface: erc721Interface,
+                method: 'symbol',
+              },
+            ],
+            'latest',
+            batchContractAddress,
+            chain,
+          )) as [string, string];
+          metadataMap.update(
+            chain,
+            TokenMetadataSchema.parse({
+              name,
+              symbol,
+            }),
+          );
+          return;
+        }
+
+        let token: string;
+        switch (config.type) {
+          case TokenType.XERC20Lockbox:
+            token = await IXERC20Lockbox__factory.connect(
+              config.token,
+              provider,
+            ).callStatic.ERC20();
+            break;
+          case TokenType.collateralVault:
+            token = await IERC4626__factory.connect(
+              config.token,
+              provider,
+            ).callStatic.asset();
+            break;
+          default:
+            token = config.token;
+            break;
+        }
+
+        const erc20Interface = ERC20__factory.createInterface();
+        const [name, symbol, decimals] = (await readContractsWithMulticall(
           provider,
-        );
-        const [name, symbol] = await Promise.all([
-          erc721.name(),
-          erc721.symbol(),
-        ]);
+          [
+            {
+              target: token,
+              contractInterface: erc20Interface,
+              method: 'name',
+            },
+            {
+              target: token,
+              contractInterface: erc20Interface,
+              method: 'symbol',
+            },
+            {
+              target: token,
+              contractInterface: erc20Interface,
+              method: 'decimals',
+            },
+          ],
+          'latest',
+          batchContractAddress,
+          chain,
+        )) as [string, string, number];
+
         metadataMap.update(
           chain,
           TokenMetadataSchema.parse({
             name,
             symbol,
+            decimals,
           }),
         );
-        continue;
       }
-
-      let token: string;
-      switch (config.type) {
-        case TokenType.XERC20Lockbox:
-          token = await IXERC20Lockbox__factory.connect(
-            config.token,
-            provider,
-          ).callStatic.ERC20();
-          break;
-        case TokenType.collateralVault:
-          token = await IERC4626__factory.connect(
-            config.token,
-            provider,
-          ).callStatic.asset();
-          break;
-        default:
-          token = config.token;
-          break;
-      }
-
-      const erc20 = ERC20__factory.connect(token, provider);
-      const [name, symbol, decimals] = await Promise.all([
-        erc20.name(),
-        erc20.symbol(),
-        erc20.decimals(),
-      ]);
-
-      metadataMap.update(
-        chain,
-        TokenMetadataSchema.parse({
-          name,
-          symbol,
-          decimals,
-        }),
-      );
-    }
-  }
+    }),
+  );
 
   metadataMap.finalize(validateScale);
   return metadataMap;

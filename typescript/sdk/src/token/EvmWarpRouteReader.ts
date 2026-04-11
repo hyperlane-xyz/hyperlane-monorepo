@@ -1,5 +1,5 @@
 import { compareVersions } from 'compare-versions';
-import { BigNumber, Contract, constants } from 'ethers';
+import { BigNumber, Contract, constants, utils } from 'ethers';
 
 import {
   CrossCollateralRouter__factory,
@@ -108,6 +108,20 @@ type DepositAddressDomainConfigs = [
   BigNumber[],
 ];
 
+function decodeBigNumberResult(decoded: utils.Result): BigNumber {
+  return BigNumber.from(decoded[0]);
+}
+
+function decodeUint32Result(decoded: utils.Result): number {
+  return decodeBigNumberResult(decoded).toNumber();
+}
+
+function decodeUint32ArrayResult(decoded: utils.Result): number[] {
+  return (decoded[0] as ReadonlyArray<BigNumber | number | string>).map(
+    (value) => BigNumber.from(value).toNumber(),
+  );
+}
+
 export class EvmWarpRouteReader extends EvmRouterReader {
   protected readonly logger = rootLogger.child({
     module: 'EvmWarpRouteReader',
@@ -206,6 +220,14 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     const isOft = type === TokenType.collateralOft;
     const usesSentinelRouterConfig = isDepositAddressBridge || isOft;
     const tokenConfigPromise = this.fetchTokenConfig(type, warpRouteAddress);
+    let tokenRouterDomainsPromise: Promise<number[]> | undefined;
+    const getTokenRouterDomainsPromise = usesSentinelRouterConfig
+      ? undefined
+      : () =>
+          (tokenRouterDomainsPromise ??= TokenRouter__factory.connect(
+            warpRouteAddress,
+            this.provider,
+          ).domains());
     const routerConfigPromise = usesSentinelRouterConfig
       ? Ownable__factory.connect(warpRouteAddress, this.provider)
           .owner()
@@ -288,7 +310,15 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       }
 
       try {
-        domains = await movableToken.domains();
+        const tokenRouterDomains = await this.fetchTokenRouterDomains(
+          movableToken,
+          getTokenRouterDomainsPromise,
+        );
+        assert(
+          tokenRouterDomains,
+          `Failed to derive token router domains for allowed rebalancer bridges on "${this.chain}"`,
+        );
+        domains = tokenRouterDomains;
         const allowedBridgesByDomain = await promiseObjAll(
           objMap(
             arrayToObject(domains.map((domain) => domain.toString())),
@@ -324,8 +354,8 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       isCrossCollateralTokenConfig(tokenConfig)
         ? tokenConfig.crossCollateralRouters
         : undefined,
+      getTokenRouterDomainsPromise,
     );
-
     // CCTP tokens implement their own ISM (the contract itself acts as the ISM via AbstractCcipReadIsm).
     // The ISM is hardcoded and not configurable, so we return zero address to match deploy config expectations.
     if (
@@ -347,11 +377,51 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     return derivedConfig;
   }
 
+  private async fetchTokenRouterDomains(
+    tokenRouter: { domains: () => Promise<number[]> },
+    getDomainsPromise?: () => Promise<number[] | undefined>,
+  ): Promise<number[] | undefined> {
+    const domainsPromise = getDomainsPromise?.();
+    if (domainsPromise) {
+      try {
+        const domains = await domainsPromise;
+        if (domains) return domains;
+      } catch (error) {
+        this.logger.debug(
+          `Failed to derive token router domains from shared read on "${this.chain}"`,
+          error,
+        );
+      }
+    }
+
+    try {
+      return await tokenRouter.domains();
+    } catch (error) {
+      this.logger.debug(
+        `Failed to derive token router domains on "${this.chain}"`,
+        error,
+      );
+      return undefined;
+    }
+  }
+
   public async fetchTokenFee(
     routerAddress: Address,
     destinations?: number[],
-    crossCollateralRouters?: Record<string, string[]>,
+    crossCollateralRoutersOrGetDestinations?:
+      | Record<string, string[]>
+      | (() => Promise<number[] | undefined>),
+    getDestinationsPromise?: () => Promise<number[] | undefined>,
   ): Promise<DerivedTokenFeeConfig | undefined> {
+    const crossCollateralRouters =
+      typeof crossCollateralRoutersOrGetDestinations === 'function'
+        ? undefined
+        : crossCollateralRoutersOrGetDestinations;
+    const effectiveGetDestinationsPromise =
+      typeof crossCollateralRoutersOrGetDestinations === 'function'
+        ? crossCollateralRoutersOrGetDestinations
+        : getDestinationsPromise;
+
     const TokenRouter = TokenRouter__factory.connect(
       routerAddress,
       this.provider,
@@ -387,13 +457,10 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
     const routingDestinations =
       destinations ??
-      (await TokenRouter.domains().catch((error) => {
-        this.logger.debug(
-          `Failed to derive token router domains for routing fee config on "${this.chain}"`,
-          error,
-        );
-        return undefined;
-      }));
+      (await this.fetchTokenRouterDomains(
+        TokenRouter,
+        effectiveGetDestinationsPromise,
+      ));
 
     const normalizedCrossCollateralRouters = crossCollateralRouters
       ? Object.fromEntries(
@@ -406,7 +473,9 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     return this.evmTokenFeeReader.deriveTokenFeeConfig({
       address: tokenFee,
       routingDestinations,
-      crossCollateralRouters: normalizedCrossCollateralRouters,
+      ...(normalizedCrossCollateralRouters
+        ? { crossCollateralRouters: normalizedCrossCollateralRouters }
+        : {}),
     });
   }
 
@@ -530,141 +599,93 @@ export class EvmWarpRouteReader extends EvmRouterReader {
    * @returns The derived token type, which can be one of: collateralVault, collateral, native, or synthetic.
    */
   async deriveTokenType(warpRouteAddress: Address): Promise<TokenType> {
-    const contractTypes: Partial<
-      Record<TokenType, { factory: any; method: string }>
-    > = {
-      [TokenType.collateralVault]: {
+    const contractTypes = [
+      {
+        tokenType: TokenType.collateralVault,
         factory: HypERC4626OwnerCollateral__factory,
         method: 'assetDeposited',
       },
-      [TokenType.collateralVaultRebase]: {
+      {
+        tokenType: TokenType.collateralVaultRebase,
         factory: HypERC4626Collateral__factory,
         method: 'NULL_RECIPIENT',
       },
-      [TokenType.XERC20Lockbox]: {
+      {
+        tokenType: TokenType.XERC20Lockbox,
         factory: HypXERC20Lockbox__factory,
         method: 'lockbox',
       },
-      [TokenType.collateralDepositAddress]: {
+      {
+        tokenType: TokenType.collateralDepositAddress,
         factory: TokenBridgeDepositAddress__factory,
         method: 'getDomainConfigs',
       },
-      [TokenType.collateralOft]: {
+      {
+        tokenType: TokenType.collateralOft,
         factory: TokenBridgeOft__factory,
         method: 'oft',
       },
-      [TokenType.collateralCctp]: {
+      {
+        tokenType: TokenType.collateralCctp,
         factory: TokenBridgeCctpBase__factory,
         method: 'messageTransmitter',
       },
-      [TokenType.collateral]: {
+      {
+        tokenType: TokenType.collateral,
         factory: HypERC20Collateral__factory,
         method: 'wrappedToken',
       },
-      [TokenType.syntheticRebase]: {
+      {
+        tokenType: TokenType.syntheticRebase,
         factory: HypERC4626__factory,
         method: 'collateralDomain',
       },
-    };
+    ] as const;
+    const packageVersionPromise = this.fetchPackageVersion(warpRouteAddress);
 
     // Temporarily turn off SmartProvider logging
     // Provider errors are expected because deriving will call methods that may not exist in the Bytecode
     this.setSmartProviderLogLevel('silent');
 
     try {
-      // Use probe helpers so expected ABI misses do not enter SmartProvider's
-      // normal retry path during type inference.
-      for (const [tokenType, { factory, method }] of Object.entries(
-        contractTypes,
-      )) {
-        const probeResult = await this.probeContractCall(
-          warpRouteAddress,
-          factory.createInterface(),
+      const batchedProbeResults = await this.tryProbeContractBatch(
+        contractTypes.map(({ factory, method }) => ({
+          target: warpRouteAddress,
+          contractInterface: factory.createInterface(),
           method,
-        );
+        })),
+      );
+
+      for (let i = 0; i < contractTypes.length; i += 1) {
+        const { tokenType, factory, method } = contractTypes[i];
+        const probeResult =
+          batchedProbeResults !== undefined
+            ? batchedProbeResults[i]
+            : await this.probeContractCall(
+                warpRouteAddress,
+                factory.createInterface(),
+                method,
+              );
         if (probeResult === undefined) {
           continue;
         }
 
         if (tokenType === TokenType.collateral) {
-          const wrappedToken = probeResult as Address;
-
-          const xerc20Limit = await this.probeContractCall(
-            wrappedToken,
-            IXERC20__factory.createInterface(),
-            'mintingCurrentLimitOf(address)',
-            [warpRouteAddress],
-          );
-          if (xerc20Limit !== undefined) {
-            return TokenType.XERC20;
-          }
-
-          const fiatMintProbe = await this.probeContractCall(
-            wrappedToken,
-            IFiatToken__factory.createInterface(),
-            'mint',
-            [NON_ZERO_SENDER_ADDRESS, 1],
-            { from: warpRouteAddress },
-          );
-          if (fiatMintProbe !== undefined) {
-            return TokenType.collateralFiat;
-          }
-
-          const everclearAdapter = await this.probeContractCall(
+          return this.deriveCollateralSubtype(
             warpRouteAddress,
-            EverclearTokenBridge__factory.createInterface(),
-            'everclearAdapter',
+            probeResult as Address,
           );
-          if (everclearAdapter !== undefined) {
-            let everclearTokenType: TokenType = TokenType.collateralEverclear;
-            const depositGas = await this.probeContractEstimateGas({
-              from: NON_ZERO_SENDER_ADDRESS,
-              to: wrappedToken,
-              data: IWETH__factory.createInterface().encodeFunctionData(
-                'deposit',
-              ),
-              value: 0,
-            });
-
-            if (depositGas !== undefined) {
-              everclearTokenType = TokenType.ethEverclear;
-            }
-
-            return everclearTokenType;
-          }
-
-          const crossCollateralRouters = await this.probeContractCall(
-            warpRouteAddress,
-            CrossCollateralRouter__factory.createInterface(),
-            'getCrossCollateralRouters',
-            [0],
-          );
-          if (crossCollateralRouters !== undefined) {
-            return TokenType.crossCollateral;
-          }
         }
 
-        return tokenType as TokenType;
+        return tokenType;
       }
 
-      const packageVersion = await this.fetchPackageVersion(warpRouteAddress);
-      const hasTokenFeeInterface =
-        compareVersions(packageVersion, TOKEN_FEE_CONTRACT_VERSION) >= 0;
-
-      const isNativeToken = await this.isNativeWarpToken(
+      const fallbackTokenType = await this.deriveNativeOrSyntheticTokenType(
         warpRouteAddress,
-        hasTokenFeeInterface,
+        await packageVersionPromise,
       );
-      if (isNativeToken) {
-        return TokenType.native;
-      }
-
-      const isSyntheticToken = await this.isSyntheticWarpToken(
-        warpRouteAddress,
-        hasTokenFeeInterface,
-      );
-      if (isSyntheticToken) {
-        return TokenType.synthetic;
+      if (fallbackTokenType !== undefined) {
+        return fallbackTokenType;
       }
 
       throw new Error(
@@ -675,38 +696,103 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     }
   }
 
-  private async isNativeWarpToken(
+  private async deriveCollateralSubtype(
     warpRouteAddress: Address,
-    hasTokenFeeInterface: boolean,
-  ): Promise<boolean> {
-    if (hasTokenFeeInterface) {
-      const tokenAddress = await this.probeContractCall<Address>(
-        warpRouteAddress,
-        TokenRouter__factory.createInterface(),
-        'token',
-      );
+    wrappedToken: Address,
+  ): Promise<TokenType> {
+    const batchedSubtypeProbes = await this.tryProbeContractBatch([
+      {
+        target: wrappedToken,
+        contractInterface: IXERC20__factory.createInterface(),
+        method: 'mintingCurrentLimitOf(address)',
+        args: [warpRouteAddress],
+      },
+      {
+        target: warpRouteAddress,
+        contractInterface: EverclearTokenBridge__factory.createInterface(),
+        method: 'everclearAdapter',
+      },
+      {
+        target: warpRouteAddress,
+        contractInterface: CrossCollateralRouter__factory.createInterface(),
+        method: 'getCrossCollateralRouters',
+        args: [0],
+      },
+    ]);
 
-      return tokenAddress !== undefined && isZeroishAddress(tokenAddress);
+    const xerc20Limit =
+      batchedSubtypeProbes !== undefined
+        ? batchedSubtypeProbes[0]
+        : await this.probeContractCall(
+            wrappedToken,
+            IXERC20__factory.createInterface(),
+            'mintingCurrentLimitOf(address)',
+            [warpRouteAddress],
+          );
+    if (xerc20Limit !== undefined) {
+      return TokenType.XERC20;
     }
 
-    const gasEstimate = await this.probeContractEstimateGas(
-      await this.multiProvider.prepareTx(
-        this.chain,
-        {
-          to: warpRouteAddress,
-          value: BigNumber.from(0),
-        },
-        NON_ZERO_SENDER_ADDRESS,
-      ),
+    // This probe needs `{ from: warpRouteAddress }`, which the batched probe
+    // wrapper cannot express today.
+    const fiatMintProbe = await this.probeContractCall(
+      wrappedToken,
+      IFiatToken__factory.createInterface(),
+      'mint',
+      [NON_ZERO_SENDER_ADDRESS, 1],
+      { from: warpRouteAddress },
     );
+    if (fiatMintProbe !== undefined) {
+      return TokenType.collateralFiat;
+    }
 
-    return gasEstimate !== undefined;
+    const everclearAdapter =
+      batchedSubtypeProbes !== undefined
+        ? batchedSubtypeProbes[1]
+        : await this.probeContractCall(
+            warpRouteAddress,
+            EverclearTokenBridge__factory.createInterface(),
+            'everclearAdapter',
+          );
+    if (everclearAdapter !== undefined) {
+      let everclearTokenType: TokenType = TokenType.collateralEverclear;
+      const depositGas = await this.probeContractEstimateGas({
+        from: NON_ZERO_SENDER_ADDRESS,
+        to: wrappedToken,
+        data: IWETH__factory.createInterface().encodeFunctionData('deposit'),
+        value: 0,
+      });
+
+      if (depositGas !== undefined) {
+        everclearTokenType = TokenType.ethEverclear;
+      }
+
+      return everclearTokenType;
+    }
+
+    const crossCollateralRouters =
+      batchedSubtypeProbes !== undefined
+        ? batchedSubtypeProbes[2]
+        : await this.probeContractCall(
+            warpRouteAddress,
+            CrossCollateralRouter__factory.createInterface(),
+            'getCrossCollateralRouters',
+            [0],
+          );
+    if (crossCollateralRouters !== undefined) {
+      return TokenType.crossCollateral;
+    }
+
+    return TokenType.collateral;
   }
 
-  private async isSyntheticWarpToken(
+  private async deriveNativeOrSyntheticTokenType(
     warpRouteAddress: Address,
-    hasTokenFeeInterface: boolean,
-  ): Promise<boolean> {
+    packageVersion: string,
+  ): Promise<TokenType | undefined> {
+    const hasTokenFeeInterface =
+      compareVersions(packageVersion, TOKEN_FEE_CONTRACT_VERSION) >= 0;
+
     if (hasTokenFeeInterface) {
       const tokenAddress = await this.probeContractCall<Address>(
         warpRouteAddress,
@@ -714,18 +800,47 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         'token',
       );
 
-      return (
-        tokenAddress !== undefined && eqAddress(tokenAddress, warpRouteAddress)
-      );
+      if (tokenAddress === undefined) {
+        return undefined;
+      }
+      if (isZeroishAddress(tokenAddress)) {
+        return TokenType.native;
+      }
+      if (eqAddress(tokenAddress, warpRouteAddress)) {
+        return TokenType.synthetic;
+      }
+
+      return undefined;
     }
 
-    const decimals = await this.probeContractCall(
-      warpRouteAddress,
-      HypERC20__factory.createInterface(),
-      'decimals',
-    );
+    const [gasEstimateResult, decimalsResult] = await Promise.allSettled([
+      this.probeContractEstimateGas({
+        from: NON_ZERO_SENDER_ADDRESS,
+        to: warpRouteAddress,
+        value: BigNumber.from(0),
+      }),
+      this.probeContractCall(
+        warpRouteAddress,
+        HypERC20__factory.createInterface(),
+        'decimals',
+      ),
+    ]);
 
-    return decimals !== undefined;
+    if (gasEstimateResult.status === 'rejected') {
+      throw gasEstimateResult.reason;
+    }
+    if (gasEstimateResult.value !== undefined) {
+      return TokenType.native;
+    }
+
+    if (decimalsResult.status === 'rejected') {
+      throw decimalsResult.reason;
+    }
+    if (decimalsResult.value !== undefined) {
+      return TokenType.synthetic;
+    }
+
+    return undefined;
   }
 
   async fetchXERC20Config(
@@ -860,16 +975,25 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     const collateralConfig =
       await this.deriveHypCollateralTokenConfig(hypToken);
 
-    const tokenBridge = TokenBridgeCctpBase__factory.connect(
-      hypToken,
-      this.provider,
-    );
-
-    const [messageTransmitter, tokenMessenger, urls] = await Promise.all([
-      tokenBridge.messageTransmitter(),
-      tokenBridge.tokenMessenger(),
-      tokenBridge.urls(),
-    ]);
+    const tokenBridgeInterface = TokenBridgeCctpBase__factory.createInterface();
+    const [messageTransmitter, tokenMessenger, urls] =
+      (await this.readContractBatch([
+        {
+          target: hypToken,
+          contractInterface: tokenBridgeInterface,
+          method: 'messageTransmitter',
+        },
+        {
+          target: hypToken,
+          contractInterface: tokenBridgeInterface,
+          method: 'tokenMessenger',
+        },
+        {
+          target: hypToken,
+          contractInterface: tokenBridgeInterface,
+          method: 'urls',
+        },
+      ])) as [Address, Address, string[]];
 
     const onchainCctpVersion = await IMessageTransmitter__factory.connect(
       messageTransmitter,
@@ -886,29 +1010,43 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         urls,
       };
     } else if (onchainCctpVersion === 1) {
-      const tokenBridgeV2 = TokenBridgeCctpV2__factory.connect(
-        hypToken,
-        this.provider,
-      );
-
-      // Version-gate: >= 11.0.0 uses maxFeePpm(), older uses maxFeeBps()
+      const tokenBridgeV2Interface =
+        TokenBridgeCctpV2__factory.createInterface();
       const contractVersion = await this.fetchPackageVersion(hypToken);
       const usesPpmName =
         contractVersion !== undefined &&
         compareVersions(contractVersion, CCTP_PPM_PRECISION_VERSION) >= 0;
+      const minFinalityThresholdCall = {
+        target: hypToken,
+        contractInterface: tokenBridgeV2Interface,
+        method: 'minFinalityThreshold',
+      };
 
-      const [minFinalityThreshold, maxFeePpm] = await Promise.all([
-        tokenBridgeV2.minFinalityThreshold(),
-        usesPpmName
-          ? tokenBridgeV2.maxFeePpm()
-          : tokenBridgeV2.provider
-              .call({
+      const [minFinalityThreshold, maxFeePpm] = usesPpmName
+        ? ((await this.readContractBatch<unknown>([
+            {
+              ...minFinalityThresholdCall,
+              decode: decodeUint32Result,
+            },
+            {
+              target: hypToken,
+              contractInterface: tokenBridgeV2Interface,
+              method: 'maxFeePpm',
+              decode: decodeBigNumberResult,
+            },
+          ])) as [number, BigNumber])
+        : await Promise.all([
+            this.readContractBatch<number>([minFinalityThresholdCall]).then(
+              ([result]) => result,
+            ),
+            TokenBridgeCctpV2__factory.connect(hypToken, this.provider)
+              .provider.call({
                 to: hypToken,
-                // maxFeeBps() selector
                 data: '0xbf769a3f',
               })
               .then((result) => BigNumber.from(result)),
-      ]);
+          ]);
+
       return {
         ...collateralConfig,
         type: TokenType.collateralCctp,
@@ -966,17 +1104,35 @@ export class EvmWarpRouteReader extends EvmRouterReader {
   private async deriveHypCollateralOftTokenConfig(
     hypToken: Address,
   ): Promise<OftTokenConfig> {
-    const tokenBridge = TokenBridgeOft__factory.connect(
-      hypToken,
-      this.provider,
-    );
-
-    const [oft, token, extraOptions, domainMappingsRaw] = await Promise.all([
-      tokenBridge.oft(),
-      tokenBridge.token(),
-      tokenBridge.extraOptions(),
-      tokenBridge.getDomainMappings(),
-    ]);
+    const tokenBridgeInterface = TokenBridgeOft__factory.createInterface();
+    const [oft, token, extraOptions, domainMappingsRaw] =
+      (await this.readContractBatch([
+        {
+          target: hypToken,
+          contractInterface: tokenBridgeInterface,
+          method: 'oft',
+        },
+        {
+          target: hypToken,
+          contractInterface: tokenBridgeInterface,
+          method: 'token',
+        },
+        {
+          target: hypToken,
+          contractInterface: tokenBridgeInterface,
+          method: 'extraOptions',
+        },
+        {
+          target: hypToken,
+          contractInterface: tokenBridgeInterface,
+          method: 'getDomainMappings',
+        },
+      ])) as [
+        string,
+        Address,
+        string,
+        [Array<{ toString(): string }>, number[]],
+      ];
 
     const erc20Metadata = await this.fetchERC20Metadata(token);
 
@@ -1288,26 +1444,43 @@ export class EvmWarpRouteReader extends EvmRouterReader {
   private async deriveCrossCollateralTokenConfig(
     hypTokenAddress: Address,
   ): Promise<HypTokenConfig> {
-    const crossCollateralRouter = CrossCollateralRouter__factory.connect(
-      hypTokenAddress,
-      this.provider,
-    );
-    const tokenRouter = TokenRouter__factory.connect(
-      hypTokenAddress,
-      this.provider,
-    );
-
+    const crossCollateralRouterInterface =
+      CrossCollateralRouter__factory.createInterface();
+    const tokenRouterInterface = TokenRouter__factory.createInterface();
     const [
-      collateralTokenAddress,
-      remoteDomains,
-      crossCollateralDomains,
-      localDomain,
+      [
+        collateralTokenAddress,
+        remoteDomains,
+        crossCollateralDomains,
+        localDomain,
+      ],
       scale,
     ] = await Promise.all([
-      crossCollateralRouter.wrappedToken(),
-      tokenRouter.domains(),
-      crossCollateralRouter.getCrossCollateralDomains(),
-      crossCollateralRouter.localDomain(),
+      this.readContractBatch<unknown>([
+        {
+          target: hypTokenAddress,
+          contractInterface: crossCollateralRouterInterface,
+          method: 'wrappedToken',
+        },
+        {
+          target: hypTokenAddress,
+          contractInterface: tokenRouterInterface,
+          method: 'domains',
+          decode: decodeUint32ArrayResult,
+        },
+        {
+          target: hypTokenAddress,
+          contractInterface: crossCollateralRouterInterface,
+          method: 'getCrossCollateralDomains',
+          decode: decodeUint32ArrayResult,
+        },
+        {
+          target: hypTokenAddress,
+          contractInterface: crossCollateralRouterInterface,
+          method: 'localDomain',
+          decode: decodeUint32Result,
+        },
+      ]) as Promise<[Address, number[], number[], number]>,
       this.fetchScale(hypTokenAddress),
     ]);
 
@@ -1317,22 +1490,20 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
     // Merge Router._routers domains, MC-enrolled domains, and localDomain
     const allDomains = [
-      ...new Set([
-        ...remoteDomains.map(Number),
-        ...crossCollateralDomains.map(Number),
-        localDomain,
-      ]),
+      ...new Set([...remoteDomains, ...crossCollateralDomains, localDomain]),
     ];
-    const crossCollateralRouters: Record<string, string[]> = {};
-
-    await Promise.all(
-      allDomains.map(async (domain) => {
-        const routers =
-          await crossCollateralRouter.getCrossCollateralRouters(domain);
-        if (routers.length > 0) {
-          crossCollateralRouters[domain.toString()] = [...routers];
-        }
-      }),
+    const routersByDomain = await this.readContractBatch<string[]>(
+      allDomains.map((domain) => ({
+        target: hypTokenAddress,
+        contractInterface: crossCollateralRouterInterface,
+        method: 'getCrossCollateralRouters',
+        args: [domain],
+      })),
+    );
+    const crossCollateralRouters = Object.fromEntries(
+      allDomains
+        .map((domain, index) => [domain.toString(), routersByDomain[index]])
+        .filter(([, routers]) => routers.length > 0),
     );
 
     return {
@@ -1348,12 +1519,24 @@ export class EvmWarpRouteReader extends EvmRouterReader {
   }
 
   async fetchERC20Metadata(tokenAddress: Address): Promise<TokenMetadata> {
-    const erc20 = HypERC20__factory.connect(tokenAddress, this.provider);
-    const [name, symbol, decimals] = await Promise.all([
-      erc20.name(),
-      erc20.symbol(),
-      erc20.decimals(),
-    ]);
+    const erc20Interface = HypERC20__factory.createInterface();
+    const [name, symbol, decimals] = (await this.readContractBatch([
+      {
+        target: tokenAddress,
+        contractInterface: erc20Interface,
+        method: 'name',
+      },
+      {
+        target: tokenAddress,
+        contractInterface: erc20Interface,
+        method: 'symbol',
+      },
+      {
+        target: tokenAddress,
+        contractInterface: erc20Interface,
+        method: 'decimals',
+      },
+    ])) as [string, string, number];
 
     return { name, symbol, decimals, isNft: false };
   }
@@ -1379,18 +1562,23 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       return;
     }
 
-    const tokenRouter = TokenRouter__factory.connect(
-      tokenRouterAddress,
-      this.provider,
-    );
-
     let result: NormalizedScale;
     if (hasScaleFractionInterface) {
-      // Read new format (scaleNumerator and scaleDenominator)
-      const [numerator, denominator] = await Promise.all([
-        tokenRouter.scaleNumerator(),
-        tokenRouter.scaleDenominator(),
-      ]);
+      const tokenRouterInterface = TokenRouter__factory.createInterface();
+      const [numerator, denominator] = (await this.readContractBatch<BigNumber>(
+        [
+          {
+            target: tokenRouterAddress,
+            contractInterface: tokenRouterInterface,
+            method: 'scaleNumerator',
+          },
+          {
+            target: tokenRouterAddress,
+            contractInterface: tokenRouterInterface,
+            method: 'scaleDenominator',
+          },
+        ],
+      )) as [BigNumber, BigNumber];
 
       result = {
         numerator: numerator.toBigInt(),
@@ -1500,13 +1688,18 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     const allDomains = [
       ...new Set([...routerDomains.map(Number), ...additionalDomains]),
     ].filter((domain) => domain !== selfDomain);
+    const routerInterface = TokenRouter__factory.createInterface();
+    const gasValues = await this.readContractBatch<BigNumber>(
+      allDomains.map((domain) => ({
+        target: warpRouteAddress,
+        contractInterface: routerInterface,
+        method: 'destinationGas',
+        args: [domain],
+      })),
+    );
 
     return Object.fromEntries(
-      await Promise.all(
-        allDomains.map(async (domain) => {
-          return [domain, (await warpRoute.destinationGas(domain)).toString()];
-        }),
-      ),
+      allDomains.map((domain, index) => [domain, gasValues[index].toString()]),
     );
   }
 }
