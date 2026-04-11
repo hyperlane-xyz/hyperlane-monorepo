@@ -36,7 +36,15 @@ import { requestAndSaveApiKeys } from '../../context.js';
 export async function resolveChains(
   argv: Record<string, any>,
 ): Promise<ChainName[]> {
+  const commandPath = Array.isArray(argv._)
+    ? argv._.map((segment: unknown) => String(segment))
+    : [];
+  const fullCommandKey = commandPath.join(':');
   const commandKey = `${argv._[0]}:${argv._[1] || ''}`.trim() as CommandType;
+
+  if (fullCommandKey === 'warp:fee-vault:deploy') {
+    return resolveChain(argv);
+  }
 
   switch (commandKey) {
     case CommandType.WARP_DEPLOY:
@@ -312,9 +320,8 @@ async function resolveCoreApplyChains(
     }
 
     const addresses = await argv.context.registry.getChainAddresses(argv.chain);
-    const coreAddresses = DeployedCoreAddressesSchema.parse(
-      addresses,
-    ) as DeployedCoreAddresses;
+    const coreAddresses: DeployedCoreAddresses =
+      DeployedCoreAddressesSchema.parse(addresses);
 
     const protocolType = argv.context.multiProvider.getProtocol(argv.chain);
 

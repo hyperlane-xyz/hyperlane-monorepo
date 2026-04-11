@@ -16,21 +16,20 @@ export const SIGN_COMMANDS = [
 export const CONDITIONAL_SIGN_COMMANDS = ['status'];
 
 export function isSignCommand(argv: any): boolean {
-  const command = argv._[0];
-  const subCommand = argv._.length > 1 ? argv._[1] : undefined;
+  const commandPath = Array.isArray(argv._) ? argvPathToStrings(argv._) : [];
 
   // Check if it's a conditional command that only needs keys with --relay
   if (
-    CONDITIONAL_SIGN_COMMANDS.includes(command) ||
-    (subCommand && CONDITIONAL_SIGN_COMMANDS.includes(subCommand))
+    commandPath.some((segment) => CONDITIONAL_SIGN_COMMANDS.includes(segment))
   ) {
     return !!argv.relay;
   }
 
-  return !!(
-    SIGN_COMMANDS.includes(command) ||
-    (subCommand && SIGN_COMMANDS.includes(subCommand))
-  );
+  return commandPath.some((segment) => SIGN_COMMANDS.includes(segment));
+}
+
+function argvPathToStrings(argvPath: unknown[]): string[] {
+  return argvPath.map((segment) => String(segment));
 }
 
 export enum CommandType {
