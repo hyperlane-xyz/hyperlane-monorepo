@@ -2099,9 +2099,6 @@ importers:
       '@layerzerolabs/lz-v2-utilities':
         specifier: 'catalog:'
         version: 3.0.167
-      '@layerzerolabs/oft-v2-solana-sdk':
-        specifier: 'catalog:'
-        version: 3.0.167(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(got@13.0.0)(typescript@6.0.2)(utf-8-validate@5.0.10)
       '@lifi/sdk':
         specifier: 'catalog:'
         version: 3.15.4(@solana/wallet-adapter-base@0.9.27(@solana/web3.js@1.98.4(bufferutil@4.0.9)(typescript@6.0.2)(utf-8-validate@5.0.10)))(@solana/web3.js@1.98.4(bufferutil@4.0.9)(typescript@6.0.2)(utf-8-validate@5.0.10))(@types/react@18.3.27)(bufferutil@4.0.9)(immer@10.2.0)(react@18.3.1)(typescript@6.0.2)(use-sync-external-store@1.6.0(react@18.3.1))(utf-8-validate@5.0.10)(viem@2.39.3(bufferutil@4.0.9)(typescript@6.0.2)(utf-8-validate@5.0.10)(zod@3.25.76))(zod@3.25.76)
