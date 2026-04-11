@@ -202,7 +202,7 @@ describe('inferWarpFeeVaultDeployConfig', () => {
     expect(thrown?.message).to.include('synthetic');
   });
 
-  it('rejects unsupported but EVM ERC4626 collateral members before probing asset()', async () => {
+  it('rejects unsupported but EVM collateral-vault members before probing asset()', async () => {
     let readRouterAssetCalled = false;
     let thrown: Error | undefined;
 
@@ -214,7 +214,7 @@ describe('inferWarpFeeVaultDeployConfig', () => {
           tokens: [
             {
               chainName: 'ethereum',
-              standard: TokenStandard.EvmHypCollateralVault,
+              standard: TokenStandard.EvmHypOwnerCollateral,
               decimals: 18,
               symbol: 'USDC',
               name: 'USD Coin',
