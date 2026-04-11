@@ -60,6 +60,21 @@ pnpm --filter @hyperlane-xyz/rebalancer start
 node dist/service.js
 ```
 
+The service also supports registry-backed submitter references:
+
+- `HYP_REBALANCER_SUBMITTER_REF`: resolves the movable-collateral submitter from the registry.
+- `HYP_INVENTORY_SUBMITTER_REF`: resolves the inventory submitter from the registry.
+- `GH_AUTH_TOKEN`: optional bearer token forwarded when the referenced submitter lives behind an authenticated HTTPS registry.
+
+Refs should point at top-level `submitters/...` registry entries and currently must resolve to private-key-backed `jsonRpc` submitters. Example:
+
+```bash
+export REGISTRY_URI=https://github.com/hyperlane-xyz/hyperlane-registry
+export GH_AUTH_TOKEN=...
+export HYP_REBALANCER_SUBMITTER_REF=submitters/prod-ethereum-rebalancer
+export HYP_INVENTORY_SUBMITTER_REF=submitters/prod-ethereum-inventory
+```
+
 ### Programmatic Usage
 
 ```typescript

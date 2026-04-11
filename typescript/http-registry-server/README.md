@@ -4,7 +4,7 @@ An HTTP server that provides a RESTful API for accessing data from the Hyperlane
 
 ## Features
 
-- **RESTful API**: Exposes Hyperlane registry data (chains, addresses, warp routes) via a simple and consistent API.
+- **RESTful API**: Exposes Hyperlane registry data (chains, addresses, warp routes, submitters) via a simple and consistent API.
 - **Auto-Refresh**: Periodically fetches the latest registry data to stay up-to-date.
 - **Configurable**: Easily configure the server's port, host, and data refresh interval via environment variables.
 - **Structured Logging**: Uses `pino` for structured, performant logging, with pretty-printing for development environments.
@@ -31,6 +31,8 @@ The server is configured using environment variables. You can place these in a `
 | `REFRESH_INTERVAL` | The interval (in ms) to refresh registry data.   | `60000` (60 seconds) |
 | `LOG_LEVEL`        | The minimum log level to output.                 | `info`               |
 | `LOG_FORMAT`       | The log format. Set to `pretty` for development. | `json`               |
+
+If you start the server with `--authToken`, that token is also forwarded as `Authorization: Bearer <token>` when resolving remote `submitter_ref` entries from HTTPS registries.
 
 ## Usage
 
@@ -78,6 +80,22 @@ The server is configured using environment variables. You can place these in a `
 - **`GET /warp-routes`**
   - Retrieves a list of all warp routes, with optional filtering.
   - **Query Parameters**: Based on `WarpRouteFilterSchema` from `@hyperlane-xyz/registry`.
+- **`GET /submitters/:id`**
+  - Resolves a top-level registry submitter entry from `submitters/:id`.
+  - Returns a normalized submission strategy payload in the form `{ "submitter": ... }`.
+  - Useful for clients that store `type: submitter_ref` in config and want the server to resolve the backing submitter metadata.
+- **`GET /submitter/:id`**
+  - Singular alias for `GET /submitters/:id`.
+
+`submitter_ref` is a registry-backed submitter pointer:
+
+```yaml
+submitter:
+  type: submitter_ref
+  ref: submitters/dev-ethereum
+```
+
+The referenced entry must live at the registry top level under `submitters/`, for example `submitters/dev-ethereum.yaml`. The server resolves that ref by checking the served registry, reading local files directly, or fetching HTTPS-backed entries with the configured auth token. The response contains the resolved submitter metadata, not the unresolved ref.
 
 ### Chains
 
