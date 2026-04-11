@@ -1,5 +1,17 @@
 # @hyperlane-xyz/cli
 
+## 31.0.0
+
+### Minor Changes
+
+- 44626fb: Enabled SVM cross-collateral token deployments in the CLI. Added `crossCollateral` to supported Alt-VM token types, allowing `warp deploy`, `warp combine`, and `warp apply` to work with SVM CC routes. Extracted `computeCrossCollateralRouterUpdates` into provider-sdk for cross-protocol reuse. Fixed CC-only gas preservation for domains transitioning from remote routers.
+
+### Patch Changes
+
+- 69e6b3f: Warp route checks were unified onto the shared CLI comparison flow, including explicit proxyAdmin address checks and owner override ownership checks. The legacy `HypERC20App` and `HypERC20Checker` SDK exports were removed.
+- d34af7c: The registry dependency was bumped to 24.3.0 so CLI consumers pick up tolerant merged-registry overlay reads.
+- 44ea0ec: fix: warp send tx prepare
+
 ## 30.1.1
 
 ### Patch Changes

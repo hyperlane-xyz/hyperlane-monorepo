@@ -1,5 +1,15 @@
 # @hyperlane-xyz/sealevel-sdk
 
+## 31.0.0
+
+### Patch Changes
+
+- 44626fb: Enabled SVM cross-collateral token deployments in the CLI. Added `crossCollateral` to supported Alt-VM token types, allowing `warp deploy`, `warp combine`, and `warp apply` to work with SVM CC routes. Extracted `computeCrossCollateralRouterUpdates` into provider-sdk for cross-protocol reuse. Fixed CC-only gas preservation for domains transitioning from remote routers.
+- eaac4ab: The sealevel ISM deploy flow was hardened by waiting for deployed programs to become visible and retrying initialization on chains that acknowledge deploys before the program is invokable.
+- Updated dependencies [44626fb]
+  - @hyperlane-xyz/provider-sdk@4.3.0
+  - @hyperlane-xyz/utils@31.0.0
+
 ## 30.1.1
 
 ### Patch Changes
