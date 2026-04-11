@@ -1,5 +1,16 @@
 # @hyperlane-xyz/tron-sdk
 
+## 22.1.10
+
+### Patch Changes
+
+- 1dac3b0: TronJsonRpcProvider and TronTransactionBuilder were updated to parse custom_rpc_header query params into HTTP headers, fixing auth with third-party RPC providers like Tatum.
+- Updated dependencies [44626fb]
+- Updated dependencies [7ad1f9e]
+  - @hyperlane-xyz/provider-sdk@4.3.0
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/utils@31.0.0
+
 ## 22.1.9
 
 ### Patch Changes
