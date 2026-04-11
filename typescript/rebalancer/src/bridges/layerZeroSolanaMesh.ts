@@ -657,8 +657,8 @@ export async function quoteUsdt0Send(
     umiPublicKey(accounts.endpointProgram.toBase58()),
   );
   const remainingAccounts = await sendHelper.getQuoteAccounts(rpc, {
-    payer,
-    sender: accounts.oftStore,
+    payer: umiPublicKey(payer.toBase58()),
+    sender: umiPublicKey(accounts.oftStore.toBase58()),
     dstEid: params.dstEid,
     receiver: accounts.peerAddress,
   });
@@ -696,8 +696,8 @@ export async function sendUsdt0Transfer(
     umiPublicKey(accounts.endpointProgram.toBase58()),
   );
   const remainingAccounts = await sendHelper.getSendAccounts(rpc, {
-    payer: signer.publicKey,
-    sender: accounts.oftStore,
+    payer: umiPublicKey(signer.publicKey.toBase58()),
+    sender: umiPublicKey(accounts.oftStore.toBase58()),
     dstEid: params.dstEid,
     receiver: accounts.peerAddress,
   });
