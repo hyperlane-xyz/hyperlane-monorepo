@@ -86,6 +86,7 @@ export class LayerZeroBridge implements IExternalBridge {
       fromAmount !== undefined || toAmount !== undefined,
       'Must specify either fromAmount or toAmount',
     );
+    this.assertUsdtRoute(params);
 
     const network = getRouteNetwork(fromChain, toChain);
     assert(network, `Unsupported route: ${fromChain} -> ${toChain}`);
@@ -743,5 +744,31 @@ export class LayerZeroBridge implements IExternalBridge {
     const rpcUrl = this.chainMetadataByChainId.get(chainId)?.rpcUrls?.[0]?.http;
     assert(rpcUrl, `No RPC URL configured for chain ${chainId}`);
     return rpcUrl;
+  }
+
+  private assertUsdtRoute(params: BridgeQuoteParams): void {
+    const { fromChain, toChain, fromToken, toToken } = params;
+    const expectedFromToken = getUSDTAddress(fromChain);
+    const expectedToToken = getUSDTAddress(toChain);
+
+    assert(
+      this.matchesBridgeToken(fromToken, expectedFromToken),
+      `LayerZero bridge is USDT-only: fromToken ${fromToken} does not match USDT ${expectedFromToken} on chain ${fromChain}`,
+    );
+    assert(
+      this.matchesBridgeToken(toToken, expectedToToken),
+      `LayerZero bridge is USDT-only: toToken ${toToken} does not match USDT ${expectedToToken} on chain ${toChain}`,
+    );
+  }
+
+  private matchesBridgeToken(
+    actualToken: string,
+    expectedToken: string,
+  ): boolean {
+    if (/^0x/i.test(actualToken) && /^0x/i.test(expectedToken)) {
+      return actualToken.toLowerCase() === expectedToken.toLowerCase();
+    }
+
+    return actualToken === expectedToken;
   }
 }
