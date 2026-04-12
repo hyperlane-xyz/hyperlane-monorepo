@@ -11,6 +11,7 @@ import {
   ARB_HUB_EID,
   getRouteNetwork,
   getOFTContractForRoute,
+  getUSDTAddress,
   getEID,
   SOLANA_CHAIN_ID,
   SOLANA_OFT_PROGRAM,
@@ -247,11 +248,72 @@ describe('LayerZeroBridge', function () {
       expect(quote.toAmount).to.equal(9997000n);
     });
 
+    it('rejects non-USDT fromToken params', async () => {
+      let threw = false;
+      try {
+        await bridge.quote({
+          ...BASE_PARAMS,
+          fromToken: '0x1111111111111111111111111111111111111111',
+          fromAmount: 10000000000n,
+        });
+      } catch (error) {
+        threw = true;
+        expect((error as Error).message).to.match(/USDT-only.*fromToken/i);
+      }
+      expect(threw).to.equal(true);
+    });
+
+    it('rejects non-USDT toToken params', async () => {
+      let threw = false;
+      try {
+        await bridge.quote({
+          ...BASE_PARAMS,
+          toToken: '0x1111111111111111111111111111111111111111',
+          fromAmount: 10000000000n,
+        });
+      } catch (error) {
+        threw = true;
+        expect((error as Error).message).to.match(/USDT-only.*toToken/i);
+      }
+      expect(threw).to.equal(true);
+    });
+
+    it('accepts mixed-case EVM USDT token params', async () => {
+      const quoteOFTResponse = createMockQuoteOFTResponse();
+      const quoteSendResponse = createMockQuoteSendResponse();
+
+      const quoteOFTStub = sinon
+        .stub()
+        .resolves([
+          quoteOFTResponse.oftLimit,
+          quoteOFTResponse.oftFeeDetails,
+          quoteOFTResponse.oftReceipt,
+        ]);
+      const quoteSendStub = sinon.stub().resolves([quoteSendResponse]);
+      stubContractConstructor(() => ({
+        quoteOFT: quoteOFTStub,
+        quoteSend: quoteSendStub,
+      }));
+
+      const quote = await bridge.quote({
+        ...BASE_PARAMS,
+        fromToken: BASE_PARAMS.fromToken.toUpperCase(),
+        toToken: BASE_PARAMS.toToken.toUpperCase(),
+        fromAmount: 10000000000n,
+      });
+
+      expect(quote.tool).to.equal('layerzero');
+      expect(quoteOFTStub.calledOnce).to.equal(true);
+      expect(quoteSendStub.calledOnce).to.equal(true);
+    });
+
     it('quotes non-Solana compose routes through the Arbitrum hub', async () => {
       const composeParams = {
         ...BASE_PARAMS,
         fromChain: TRON_CHAIN_ID,
         toChain: 9745,
+        fromToken: getUSDTAddress(TRON_CHAIN_ID),
+        toToken: getUSDTAddress(9745),
         fromAmount: 10000000000n,
       };
       const { firstHopOFT, secondHopOFT } = getComposeHopContracts(
@@ -327,6 +389,8 @@ describe('LayerZeroBridge', function () {
         ...BASE_PARAMS,
         fromChain: TRON_CHAIN_ID,
         toChain: 9745,
+        fromToken: getUSDTAddress(TRON_CHAIN_ID),
+        toToken: getUSDTAddress(9745),
         fromAmount: 10000000000n,
       };
       const { firstHopOFT, secondHopOFT } = getComposeHopContracts(
