@@ -381,15 +381,6 @@ export const RebalancerConfigSchema = z
           // Other protocols: accept any non-empty string (future-proof)
         }
       }
-
-      if (!config.externalBridges?.lifi?.integrator) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message:
-            'externalBridges.lifi is required when using inventory execution',
-          path: ['externalBridges', 'lifi'],
-        });
-      }
     }
 
     for (
