@@ -8,8 +8,10 @@ import { ethers } from 'ethers';
 import type { ExternalBridgeConfig } from '../interfaces/IExternalBridge.js';
 import { LayerZeroBridge } from './LayerZeroBridge.js';
 import {
+  ARB_HUB_EID,
   getRouteNetwork,
   getOFTContractForRoute,
+  getEID,
   SOLANA_CHAIN_ID,
   SOLANA_OFT_PROGRAM,
   TRON_CHAIN_ID,
@@ -45,6 +47,13 @@ const BRIDGE_CONFIG: ExternalBridgeConfig = {
       domainId: 42161,
       protocol: ProtocolType.Ethereum,
       rpcUrls: [{ http: 'https://arb-rpc.example.com' }],
+    },
+    tron: {
+      chainId: TRON_CHAIN_ID,
+      name: 'tron',
+      domainId: TRON_CHAIN_ID,
+      protocol: ProtocolType.Tron,
+      rpcUrls: [{ http: 'https://tron-rpc.example.com' }],
     },
     plasma: {
       chainId: 9745,
@@ -236,6 +245,256 @@ describe('LayerZeroBridge', function () {
       expect(quote.route.kind).to.equal('solana');
       expect(quote.route.network).to.equal('legacy');
       expect(quote.toAmount).to.equal(9997000n);
+    });
+
+    it('quotes non-Solana compose routes through the Arbitrum hub', async () => {
+      const composeParams = {
+        ...BASE_PARAMS,
+        fromChain: TRON_CHAIN_ID,
+        toChain: 9745,
+        fromAmount: 10000000000n,
+      };
+      const { firstHopOFT, secondHopOFT } = getComposeHopContracts(
+        composeParams.fromChain,
+        composeParams.toChain,
+      );
+      const firstHopQuoteOFTStub = sinon.stub().callsFake((sendParam) => {
+        expect(sendParam.dstEid).to.equal(ARB_HUB_EID);
+        return Promise.resolve([
+          createMockQuoteOFTResponse().oftLimit,
+          createMockQuoteOFTResponse().oftFeeDetails,
+          createMockQuoteOFTResponse().oftReceipt,
+        ]);
+      });
+      const firstHopQuoteSendStub = sinon.stub().resolves([
+        createMockQuoteSendResponse({
+          nativeFee: 2222n,
+        }),
+      ]);
+      const secondHopQuoteOFTStub = sinon.stub().resolves([
+        createMockQuoteOFTResponse({
+          oftFeeDetails: [],
+          oftReceipt: {
+            amountSentLD: 9997000000n,
+            amountReceivedLD: 9997000000n,
+          },
+        }).oftLimit,
+        [],
+        {
+          amountSentLD: 9997000000n,
+          amountReceivedLD: 9997000000n,
+        },
+      ]);
+      const secondHopQuoteSendStub = sinon.stub().resolves([
+        createMockQuoteSendResponse({
+          nativeFee: 1111n,
+        }),
+      ]);
+
+      stubContractConstructor((address) => {
+        if (address === firstHopOFT) {
+          return {
+            quoteOFT: firstHopQuoteOFTStub,
+            quoteSend: firstHopQuoteSendStub,
+          };
+        }
+        if (address === secondHopOFT) {
+          return {
+            quoteOFT: secondHopQuoteOFTStub,
+            quoteSend: secondHopQuoteSendStub,
+          };
+        }
+        throw new Error(`Unexpected contract address ${String(address)}`);
+      });
+
+      const quote = await bridge.quote(composeParams);
+
+      expect(firstHopQuoteOFTStub.calledOnce).to.equal(true);
+      expect(firstHopQuoteSendStub.calledOnce).to.equal(true);
+      expect(secondHopQuoteOFTStub.calledOnce).to.equal(true);
+      expect(secondHopQuoteSendStub.calledOnce).to.equal(true);
+      expect(quote.route.network).to.equal('compose');
+      expect(quote.route.kind).to.not.equal('solana');
+      if (quote.route.kind === 'solana') {
+        throw new Error('Expected EVM/Tron compose route');
+      }
+      expect(quote.route.sendParam.dstEid).to.equal(ARB_HUB_EID);
+      expect(quote.toAmount).to.equal(9997000000n);
+    });
+
+    it('quotes compose second hop from the first-hop output for legacy-origin routes', async () => {
+      const composeParams = {
+        ...BASE_PARAMS,
+        fromChain: TRON_CHAIN_ID,
+        toChain: 9745,
+        fromAmount: 10000000000n,
+      };
+      const { firstHopOFT, secondHopOFT } = getComposeHopContracts(
+        composeParams.fromChain,
+        composeParams.toChain,
+      );
+      const firstHopReceivedLD = 9997000000n;
+      const secondHopReceivedLD = 9997000000n;
+      const abiCoder = new ethers.utils.AbiCoder();
+
+      const firstHopQuoteOFTStub = sinon.stub().resolves([
+        createMockQuoteOFTResponse({
+          oftReceipt: {
+            amountSentLD: composeParams.fromAmount,
+            amountReceivedLD: firstHopReceivedLD,
+          },
+        }).oftLimit,
+        createMockQuoteOFTResponse().oftFeeDetails,
+        {
+          amountSentLD: composeParams.fromAmount,
+          amountReceivedLD: firstHopReceivedLD,
+        },
+      ]);
+      const firstHopQuoteSendStub = sinon.stub().resolves([
+        createMockQuoteSendResponse({
+          nativeFee: 1234n,
+        }),
+      ]);
+      const secondHopQuoteOFTStub = sinon.stub().callsFake((sendParam) => {
+        expect(sendParam.dstEid).to.equal(getEID(composeParams.toChain));
+        expect(sendParam.amountLD).to.equal(firstHopReceivedLD);
+        return Promise.resolve([
+          createMockQuoteOFTResponse({
+            oftFeeDetails: [],
+            oftReceipt: {
+              amountSentLD: firstHopReceivedLD,
+              amountReceivedLD: secondHopReceivedLD,
+            },
+          }).oftLimit,
+          [],
+          {
+            amountSentLD: firstHopReceivedLD,
+            amountReceivedLD: secondHopReceivedLD,
+          },
+        ]);
+      });
+      const secondHopQuoteSendStub = sinon.stub().resolves([
+        createMockQuoteSendResponse({
+          nativeFee: 4321n,
+        }),
+      ]);
+
+      stubContractConstructor((address) => {
+        if (address === firstHopOFT) {
+          return {
+            quoteOFT: firstHopQuoteOFTStub,
+            quoteSend: firstHopQuoteSendStub,
+          };
+        }
+        if (address === secondHopOFT) {
+          return {
+            quoteOFT: secondHopQuoteOFTStub,
+            quoteSend: secondHopQuoteSendStub,
+          };
+        }
+        throw new Error(`Unexpected contract address ${String(address)}`);
+      });
+
+      const quote = await bridge.quote(composeParams);
+      expect(quote.route.kind).to.not.equal('solana');
+      if (quote.route.kind === 'solana') {
+        throw new Error('Expected EVM/Tron compose route');
+      }
+      expect(quote.route.composeSendParam?.amountLD).to.equal(
+        firstHopReceivedLD,
+      );
+      expect(quote.toAmount).to.equal(secondHopReceivedLD);
+
+      const [decodedComposeSendParam] = abiCoder.decode(
+        ['tuple(uint32,bytes32,uint256,uint256,bytes,bytes,bytes)'],
+        quote.route.sendParam.composeMsg,
+      ) as [[number, string, bigint, bigint, string, string, string]];
+      expect(BigInt(decodedComposeSendParam[2].toString())).to.equal(
+        firstHopReceivedLD,
+      );
+      expect(BigInt(decodedComposeSendParam[3].toString())).to.equal(
+        secondHopReceivedLD,
+      );
+    });
+
+    it('quotes Solana compose second hop from the first-hop output', async () => {
+      const firstHopReceivedLD = 9997000n;
+      const secondHopReceivedLD = 9997000n;
+      const abiCoder = new ethers.utils.AbiCoder();
+      const solanaQuoteStub = sinon
+        .stub(solanaLayerZeroClient, 'quoteSolanaTransfer')
+        .onFirstCall()
+        .resolves({
+          amountReceivedLd: firstHopReceivedLD,
+          feeCosts: 3000n,
+          messagingFee: { nativeFee: 5000n, lzTokenFee: 0n },
+        })
+        .onSecondCall()
+        .resolves({
+          amountReceivedLd: firstHopReceivedLD,
+          feeCosts: 3000n,
+          messagingFee: { nativeFee: 7000n, lzTokenFee: 0n },
+        });
+      const { secondHopOFT } = getComposeHopContracts(SOLANA_CHAIN_ID, 9745);
+      const secondHopQuoteOFTStub = sinon.stub().callsFake((sendParam) => {
+        expect(sendParam.amountLD).to.equal(firstHopReceivedLD);
+        return Promise.resolve([
+          createMockQuoteOFTResponse({
+            oftFeeDetails: [],
+            oftReceipt: {
+              amountSentLD: firstHopReceivedLD,
+              amountReceivedLD: secondHopReceivedLD,
+            },
+          }).oftLimit,
+          [],
+          {
+            amountSentLD: firstHopReceivedLD,
+            amountReceivedLD: secondHopReceivedLD,
+          },
+        ]);
+      });
+      const secondHopQuoteSendStub = sinon.stub().resolves([
+        createMockQuoteSendResponse({
+          nativeFee: 2222n,
+        }),
+      ]);
+      stubContractConstructor((address) => {
+        if (address === secondHopOFT) {
+          return {
+            quoteOFT: secondHopQuoteOFTStub,
+            quoteSend: secondHopQuoteSendStub,
+          };
+        }
+        throw new Error(`Unexpected contract address ${String(address)}`);
+      });
+
+      const quote = await bridge.quote({
+        fromChain: SOLANA_CHAIN_ID,
+        toChain: 9745,
+        fromToken: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
+        toToken: '0xB8CE59FC3717ada4C02eaDF9682A9e934F625ebb',
+        fromAmount: 10000000n,
+        fromAddress: 'mZhPGteS36G7FhMTcRofLQU8ocBNAsGq7u8SKSHfL2X',
+      });
+
+      expect(solanaQuoteStub.calledTwice).to.equal(true);
+      expect(secondHopQuoteOFTStub.calledOnce).to.equal(true);
+      expect(quote.toAmount).to.equal(secondHopReceivedLD);
+      expect(quote.route.kind).to.equal('solana');
+      if (quote.route.kind !== 'solana') {
+        throw new Error('Expected Solana compose route');
+      }
+
+      const [decodedComposeSendParam] = abiCoder.decode(
+        ['tuple(uint32,bytes32,uint256,uint256,bytes,bytes,bytes)'],
+        quote.route.composeMsgHex,
+      ) as [[number, string, bigint, bigint, string, string, string]];
+      expect(BigInt(decodedComposeSendParam[2].toString())).to.equal(
+        firstHopReceivedLD,
+      );
+      expect(BigInt(decodedComposeSendParam[3].toString())).to.equal(
+        secondHopReceivedLD,
+      );
     });
   });
 
