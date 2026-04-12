@@ -788,8 +788,8 @@ describe('per-chain bridge configuration', () => {
     });
   });
 
-  it('should require externalBridges.lifi when executionType is inventory', () => {
-    const data = {
+  it('should accept externalBridges.layerzero for inventory execution', () => {
+    const data: RebalancerConfigFileInput = {
       warpRouteId: 'test-route',
       strategy: [
         {
@@ -798,6 +798,7 @@ describe('per-chain bridge configuration', () => {
             ethereum: {
               weighted: { weight: 100, tolerance: 5 },
               executionType: ExecutionType.Inventory,
+              externalBridge: ExternalBridgeType.LayerZero,
             },
           },
         },
@@ -805,13 +806,18 @@ describe('per-chain bridge configuration', () => {
       inventorySigners: {
         ethereum: '0x1234567890123456789012345678901234567890',
       },
+      externalBridges: {
+        layerzero: {},
+      },
     };
 
     writeYamlOrJson(TEST_CONFIG_PATH_BRIDGE, data);
+    const config = RebalancerConfig.load(TEST_CONFIG_PATH_BRIDGE);
 
-    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH_BRIDGE)).to.throw(
-      /externalBridges\.lifi.*required/i,
+    expect(config.strategyConfig[0].chains.ethereum.externalBridge).to.equal(
+      ExternalBridgeType.LayerZero,
     );
+    expect(config.externalBridges?.layerzero).to.deep.equal({});
   });
 
   it('should require externalBridges.lifi when externalBridge is lifi', () => {
@@ -841,6 +847,76 @@ describe('per-chain bridge configuration', () => {
     );
   });
 
+  it('should require externalBridges.layerzero when externalBridge is layerzero', () => {
+    const data = {
+      warpRouteId: 'test-route',
+      strategy: [
+        {
+          rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+          chains: {
+            ethereum: {
+              weighted: { weight: 100, tolerance: 5 },
+              executionType: ExecutionType.Inventory,
+              externalBridge: ExternalBridgeType.LayerZero,
+            },
+          },
+        },
+      ],
+      inventorySigners: {
+        ethereum: '0x1234567890123456789012345678901234567890',
+      },
+    };
+
+    writeYamlOrJson(TEST_CONFIG_PATH_BRIDGE, data);
+
+    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH_BRIDGE)).to.throw(
+      /externalBridges\.layerzero.*required|layerzero.*not configured/i,
+    );
+  });
+
+  it('should accept override-only layerzero inventory config without lifi', () => {
+    const data: RebalancerConfigFileInput = {
+      warpRouteId: 'test-route',
+      strategy: [
+        {
+          rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+          chains: {
+            ethereum: {
+              weighted: { weight: 50, tolerance: 5 },
+              bridge: ethers.constants.AddressZero,
+              override: {
+                arbitrum: {
+                  executionType: ExecutionType.Inventory,
+                  externalBridge: ExternalBridgeType.LayerZero,
+                },
+              },
+            },
+            arbitrum: {
+              weighted: { weight: 50, tolerance: 5 },
+              bridge: ethers.constants.AddressZero,
+            },
+          },
+        },
+      ],
+      inventorySigners: {
+        ethereum: '0x1234567890123456789012345678901234567890',
+      },
+      externalBridges: {
+        layerzero: {},
+      },
+    };
+
+    writeYamlOrJson(TEST_CONFIG_PATH_BRIDGE, data);
+    const config = RebalancerConfig.load(TEST_CONFIG_PATH_BRIDGE);
+
+    expect(
+      config.strategyConfig[0].chains.ethereum.override?.arbitrum
+        ?.externalBridge,
+    ).to.equal(ExternalBridgeType.LayerZero);
+    expect(config.externalBridges?.lifi).to.equal(undefined);
+    expect(config.externalBridges?.layerzero).to.deep.equal({});
+  });
+
   it('should require externalBridge field when executionType is inventory', () => {
     const data = {
       warpRouteId: 'test-route',
@@ -859,9 +935,7 @@ describe('per-chain bridge configuration', () => {
         ethereum: '0x1234567890123456789012345678901234567890',
       },
       externalBridges: {
-        lifi: {
-          integrator: 'test-app',
-        },
+        layerzero: {},
       },
     };
 
