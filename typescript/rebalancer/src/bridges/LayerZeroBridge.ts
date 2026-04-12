@@ -89,7 +89,6 @@ export class LayerZeroBridge implements IExternalBridge {
 
     const network = getRouteNetwork(fromChain, toChain);
     assert(network, `Unsupported route: ${fromChain} -> ${toChain}`);
-    const dstEid = getEID(toChain);
     const targetAddress = toAddress ?? fromAddress;
     const amountLD = fromAmount ?? (toAmount! * 10000n) / 9970n;
 
@@ -102,10 +101,16 @@ export class LayerZeroBridge implements IExternalBridge {
           toChain,
         );
       }
+      const dstEid = getEID(toChain);
       return this.quoteSolanaDirect(params, amountLD, targetAddress, dstEid);
     }
 
+    if (network === 'compose') {
+      return this.quoteCompose(params, amountLD, targetAddress);
+    }
+
     const { address: oftContract } = getOFTContractForRoute(fromChain, toChain);
+    const dstEid = getEID(toChain);
     const sendParam: SendParam = {
       dstEid,
       to: addressToBytes32(targetAddress),
@@ -158,11 +163,6 @@ export class LayerZeroBridge implements IExternalBridge {
     );
     const gasCosts = messagingFee.nativeFee;
 
-    // ── Compose route: two-step fee estimation ────────────────────────────────
-    if (network === 'compose') {
-      return this.quoteCompose(params, sendParam, oftReceipt, feeCosts);
-    }
-
     return {
       id: crypto.randomUUID(),
       tool: 'layerzero',
@@ -197,19 +197,47 @@ export class LayerZeroBridge implements IExternalBridge {
    */
   private async quoteCompose(
     params: BridgeQuoteParams,
-    _firstHopSendParam: SendParam,
-    _firstHopReceipt: { amountReceivedLD: bigint },
-    _feeCosts: bigint,
+    amountLD: bigint,
+    targetAddress: string,
   ): Promise<BridgeQuote<LayerZeroBridgeRoute>> {
-    const { fromChain, toChain, fromAddress, toAddress } = params;
-    const amountLD = _firstHopSendParam.amountLD;
+    const { fromChain, toChain } = params;
     const { firstHopOFT, secondHopOFT } = getComposeHopContracts(
       fromChain,
       toChain,
     );
-    const targetAddress = toAddress ?? fromAddress;
+    const composerBytes32 = addressToBytes32(MULTIHOP_COMPOSER);
 
-    // ── Step 1: Quote second hop (Arbitrum → destination) ──────────────────
+    // ── Step 1: Pre-quote first hop (source → Arbitrum composer) ───────────
+    const sourceProvider = new ethers.providers.StaticJsonRpcProvider(
+      this.getRpcUrl(fromChain),
+      fromChain,
+    );
+    const firstHopOFTContract = new ethers.Contract(
+      firstHopOFT,
+      OFT_ABI,
+      sourceProvider,
+    );
+    const firstHopPrequoteSendParam: SendParam = {
+      dstEid: ARB_HUB_EID,
+      to: composerBytes32,
+      amountLD,
+      minAmountLD: 0n,
+      extraOptions: '0x',
+      composeMsg: '0x',
+      oftCmd: '0x',
+    };
+    const firstHopPrequoteResult = await firstHopOFTContract.quoteOFT(
+      firstHopPrequoteSendParam,
+    );
+    const firstHopReceivedLD = BigInt(
+      (
+        firstHopPrequoteResult.oftReceipt?.amountReceivedLD ??
+        firstHopPrequoteResult[2]?.amountReceivedLD ??
+        amountLD
+      ).toString(),
+    );
+
+    // ── Step 2: Quote second hop (Arbitrum → destination) ──────────────────
     const arbProvider = new ethers.providers.StaticJsonRpcProvider(
       this.getRpcUrl(ARB_HUB_CHAIN_ID),
       ARB_HUB_CHAIN_ID,
@@ -222,7 +250,7 @@ export class LayerZeroBridge implements IExternalBridge {
     const secondHopSendParam: SendParam = {
       dstEid: getEID(toChain),
       to: addressToBytes32(targetAddress),
-      amountLD,
+      amountLD: firstHopReceivedLD,
       minAmountLD: 0n,
       extraOptions: '0x',
       composeMsg: '0x',
@@ -252,7 +280,7 @@ export class LayerZeroBridge implements IExternalBridge {
       ).toString(),
     );
 
-    // ── Step 2: Encode composeMsg = abi.encode(nextHopSendParam) ───────────
+    // ── Step 3: Encode composeMsg = abi.encode(nextHopSendParam) ───────────
     const abiCoder = new ethers.utils.AbiCoder();
     const composeMsg = abiCoder.encode(
       ['tuple(uint32,bytes32,uint256,uint256,bytes,bytes,bytes)'],
@@ -269,44 +297,21 @@ export class LayerZeroBridge implements IExternalBridge {
       ],
     );
 
-    // ── Step 3: Build first hop options with compose gas + packed fee ───────
+    // ── Step 4: Build first hop options with compose gas + packed fee ───────
     const firstHopOptions = Options.newOptions()
       .addExecutorLzReceiveOption(65_000, 0)
       .addExecutorComposeOption(0, 500_000, nextHopNativeFee);
-
-    const composerBytes32 = addressToBytes32(MULTIHOP_COMPOSER);
     const firstHopSendParam: SendParam = {
       dstEid: ARB_HUB_EID,
       to: composerBytes32,
       amountLD,
-      minAmountLD: 0n,
+      minAmountLD: firstHopReceivedLD,
       extraOptions: firstHopOptions.toHex(),
       composeMsg,
       oftCmd: '0x',
     };
 
-    // ── Step 4: Quote first hop (source → Arbitrum Composer) ───────────────
-    const sourceProvider = new ethers.providers.StaticJsonRpcProvider(
-      this.getRpcUrl(fromChain),
-      fromChain,
-    );
-    const firstHopOFTContract = new ethers.Contract(
-      firstHopOFT,
-      OFT_ABI,
-      sourceProvider,
-    );
-    // quoteOFT for first hop (0.03% fee if legacy source)
-    const firstHopOFTResult =
-      await firstHopOFTContract.quoteOFT(firstHopSendParam);
-    const firstHopReceivedLD = BigInt(
-      (
-        firstHopOFTResult.oftReceipt?.amountReceivedLD ??
-        firstHopOFTResult[2]?.amountReceivedLD ??
-        amountLD
-      ).toString(),
-    );
-    firstHopSendParam.minAmountLD = firstHopReceivedLD;
-
+    // ── Step 5: Quote first hop fee (source → Arbitrum Composer) ───────────
     const firstHopFeeResult = await firstHopOFTContract.quoteSend(
       firstHopSendParam,
       false,
@@ -408,6 +413,19 @@ export class LayerZeroBridge implements IExternalBridge {
     const { fromChain, fromAddress } = params;
     const { secondHopOFT } = getComposeHopContracts(fromChain, toChain);
     const targetBytes32 = addressToBytes32(targetAddress);
+    const composerBytes32 = addressToBytes32(MULTIHOP_COMPOSER);
+
+    const prequote = await solanaLayerZeroClient.quoteSolanaTransfer({
+      rpcUrl: this.getRpcUrl(fromChain),
+      fromAddress,
+      programId: SOLANA_OFT_PROGRAM,
+      store: SOLANA_OFT_STORE,
+      tokenMint: getUSDTAddress(fromChain),
+      dstEid: ARB_HUB_EID,
+      toBytes32: composerBytes32,
+      amountLd: amountLD,
+      minAmountLd: 0n,
+    });
 
     const arbProvider = new ethers.providers.StaticJsonRpcProvider(
       this.getRpcUrl(ARB_HUB_CHAIN_ID),
@@ -421,7 +439,7 @@ export class LayerZeroBridge implements IExternalBridge {
     const secondHopSendParam: SendParam = {
       dstEid: getEID(toChain),
       to: targetBytes32,
-      amountLD,
+      amountLD: prequote.amountReceivedLd,
       minAmountLD: 0n,
       extraOptions: '0x',
       composeMsg: '0x',
@@ -468,7 +486,6 @@ export class LayerZeroBridge implements IExternalBridge {
     const firstHopOptions = Options.newOptions()
       .addExecutorLzReceiveOption(65_000, 0)
       .addExecutorComposeOption(0, 500_000, nextHopNativeFee);
-    const composerBytes32 = addressToBytes32(MULTIHOP_COMPOSER);
 
     const quote = await solanaLayerZeroClient.quoteSolanaTransfer({
       rpcUrl: this.getRpcUrl(fromChain),
