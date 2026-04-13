@@ -38,6 +38,8 @@ export function denormalizeToLocal(
   canonicalAmount: bigint,
   tokenOrScale: Token | IToken | NormalizedScale,
 ): bigint {
+  // Use ceil semantics so the returned local amount always produces at least
+  // the requested canonical progress once the token router floors on outbound.
   return minLocalAmountForMessage(canonicalAmount, getScaleInput(tokenOrScale));
 }
 
