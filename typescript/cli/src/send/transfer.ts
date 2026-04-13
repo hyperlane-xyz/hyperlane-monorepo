@@ -108,14 +108,22 @@ export async function fetchSealevelReceiptWithLogs(
   pollIntervalMs = SEALEVEL_RECEIPT_POLL_INTERVAL_MS,
   maxAttempts = SEALEVEL_RECEIPT_MAX_ATTEMPTS,
 ): Promise<TypedTransactionReceipt> {
+  assert(Number.isFinite(pollIntervalMs) && pollIntervalMs >= 0);
+  assert(Number.isInteger(maxAttempts) && maxAttempts > 0);
   const connection = context.multiProvider.getSolanaWeb3Provider(origin);
   let receipt = null;
+  let lastError: unknown;
 
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    receipt = await connection.getTransaction(signature, {
-      commitment: 'confirmed',
-      maxSupportedTransactionVersion: 0,
-    });
+    try {
+      receipt = await connection.getTransaction(signature, {
+        commitment: 'confirmed',
+        maxSupportedTransactionVersion: 0,
+      });
+      lastError = undefined;
+    } catch (error) {
+      lastError = error;
+    }
 
     if (receipt?.meta?.logMessages?.length) {
       return {
@@ -129,8 +137,12 @@ export async function fetchSealevelReceiptWithLogs(
     }
   }
 
+  const suffix =
+    lastError === undefined
+      ? ''
+      : ` (last getTransaction error: ${lastError instanceof Error ? lastError.message : String(lastError)})`;
   throw new Error(
-    `Transaction logs unavailable for Solana transaction ${signature}`,
+    `Transaction logs unavailable for Solana transaction ${signature}${suffix}`,
   );
 }
 
@@ -499,6 +511,13 @@ async function executeDelivery({
               context,
               origin,
               txReceipt.signature,
+              SEALEVEL_RECEIPT_POLL_INTERVAL_MS,
+              Math.max(
+                SEALEVEL_RECEIPT_MAX_ATTEMPTS,
+                Math.ceil(
+                  (timeoutSec * 1000) / SEALEVEL_RECEIPT_POLL_INTERVAL_MS,
+                ),
+              ),
             )
           : toTypedAltVmReceipt(tx.type, txReceipt);
       txReceipts.push(typedReceipt);
