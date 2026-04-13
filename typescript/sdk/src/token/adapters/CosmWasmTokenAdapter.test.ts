@@ -19,7 +19,7 @@ import {
   OwnerResponse,
 } from '../../cw-types/HookMerkle.types.js';
 import { CosmWasmMultisigAdapter } from '../../ism/adapters/CosmWasmMultisigAdapter.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { createTestMultiProtocolProvider } from '../../test/multiProtocolProvider.js';
 
 const neutronAddresses = {
   mailbox: 'neutron1sjzzd4gwkggy6hrrs8kxxatexzcuz3jecsxm3wqgregkulzj8r7qlnuef4',
@@ -27,8 +27,7 @@ const neutronAddresses = {
     'neutron17w4q6efzym3p4c6umyp4cjf2ustjtmwfqdhd7rt2fpcpk9fmjzsq0kj0f8',
 };
 
-const multiProtocolProvider =
-  MultiProtocolProvider.createTestMultiProtocolProvider();
+const multiProtocolProvider = createTestMultiProtocolProvider();
 
 const adapter = new CosmWasmCoreAdapter(
   testCosmosChain.name,
