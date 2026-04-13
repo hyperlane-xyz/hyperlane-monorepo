@@ -10,6 +10,7 @@ import {
   alignLocalToCanonical,
   denormalizeToLocal,
   getRawBalances,
+  isIdentityScale,
   getTokenScale,
   normalizeConfiguredAmount,
   normalizeToCanonical,
@@ -127,6 +128,25 @@ describe('scale helpers', () => {
       numerator: 1n,
       denominator: 1n,
     });
+  });
+
+  it('treats equivalent ratios as identity scale', () => {
+    expect(isIdentityScale({} as Token)).to.be.true;
+    expect(
+      isIdentityScale({
+        scale: { numerator: 1, denominator: 1 },
+      } as Token),
+    ).to.be.true;
+    expect(
+      isIdentityScale({
+        scale: { numerator: 5, denominator: 5 },
+      } as Token),
+    ).to.be.true;
+    expect(
+      isIdentityScale({
+        scale: { numerator: 10, denominator: 20 },
+      } as Token),
+    ).to.be.false;
   });
 
   it('normalizes configured amount using token decimals and scale', () => {

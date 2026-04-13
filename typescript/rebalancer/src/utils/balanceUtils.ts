@@ -6,6 +6,7 @@ import {
   messageAmountFromLocal,
   minLocalAmountForMessage,
   normalizeScale,
+  scalesEqual,
   type ChainName,
   type NormalizedScale,
   type ScaleAlignment,
@@ -23,8 +24,7 @@ export function getTokenScale(token: Token): NormalizedScale {
 }
 
 export function isIdentityScale(token: Token): boolean {
-  const scale = getTokenScale(token);
-  return scale.numerator === 1n && scale.denominator === 1n;
+  return scalesEqual(token.scale, undefined);
 }
 
 export function normalizeToCanonical(
