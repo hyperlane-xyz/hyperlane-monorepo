@@ -48,9 +48,6 @@ catalogs:
     '@google-cloud/pino-logging-gcp-config':
       specifier: ^1.3.0
       version: 1.3.0
-    '@hyperlane-xyz/registry':
-      specifier: 24.3.0
-      version: 24.3.0
     '@inquirer/prompts':
       specifier: 3.3.2
       version: 3.3.2
@@ -573,7 +570,7 @@ importers:
         specifier: workspace:*
         version: link:../metrics
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
+        specifier: 24.3.0
         version: 24.3.0
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
@@ -721,7 +718,7 @@ importers:
         specifier: workspace:*
         version: link:../rebalancer
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
+        specifier: 24.3.0
         version: 24.3.0
       '@hyperlane-xyz/relayer':
         specifier: workspace:*
@@ -1027,7 +1024,7 @@ importers:
   typescript/fee-quoting:
     dependencies:
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
+        specifier: 24.3.0
         version: 24.3.0
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
@@ -1139,7 +1136,7 @@ importers:
         specifier: workspace:*
         version: link:../../solidity
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
+        specifier: 24.3.0
         version: 24.3.0
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
@@ -1248,7 +1245,7 @@ importers:
   typescript/http-registry-server:
     dependencies:
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
+        specifier: 24.3.0
         version: 24.3.0
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
@@ -1387,7 +1384,7 @@ importers:
         specifier: workspace:*
         version: link:../rebalancer
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
+        specifier: 24.3.0
         version: 24.3.0
       '@hyperlane-xyz/relayer':
         specifier: workspace:*
@@ -1598,7 +1595,7 @@ importers:
         specifier: workspace:*
         version: link:../metrics
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
+        specifier: 24.3.0
         version: 24.3.0
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
@@ -1848,7 +1845,7 @@ importers:
         specifier: workspace:*
         version: link:../provider-sdk
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
+        specifier: 24.3.0
         version: 24.3.0
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
@@ -1975,7 +1972,7 @@ importers:
         specifier: workspace:*
         version: link:../rebalancer
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
+        specifier: 24.3.0
         version: 24.3.0
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
@@ -2045,7 +2042,7 @@ importers:
         specifier: workspace:*
         version: link:../metrics
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
+        specifier: 24.3.0
         version: 24.3.0
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
@@ -2463,7 +2460,7 @@ importers:
         specifier: workspace:*
         version: link:../provider-sdk
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
+        specifier: 24.3.0
         version: 24.3.0
       '@hyperlane-xyz/utils':
         specifier: workspace:*
@@ -2623,7 +2620,7 @@ importers:
         specifier: workspace:*
         version: link:../metrics
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
+        specifier: 24.3.0
         version: 24.3.0
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
@@ -2826,7 +2823,7 @@ importers:
         specifier: ^11.13.0
         version: 11.14.1(@emotion/react@11.14.0(@types/react@18.3.27)(react@18.3.1))(@types/react@18.3.27)(react@18.3.1)
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
+        specifier: 24.3.0
         version: 24.3.0
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
