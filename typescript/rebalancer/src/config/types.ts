@@ -1,5 +1,9 @@
 import { z } from 'zod';
-import { ProtocolType, isAddressEvm } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  isAddressEvm,
+  isValidAddressTron,
+} from '@hyperlane-xyz/utils';
 
 export enum RebalancerStrategyOptions {
   Weighted = 'weighted',
@@ -358,6 +362,14 @@ export const RebalancerConfigSchema = z
               ctx.addIssue({
                 code: z.ZodIssueCode.custom,
                 message: `inventorySigners.${protocol} must be a valid Solana base58 address (32-44 chars), got: ${signerConfig.address}`,
+                path: ['inventorySigners', protocol],
+              });
+            }
+          } else if (protocol === ProtocolType.Tron) {
+            if (!isValidAddressTron(signerConfig.address)) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: `inventorySigners.${protocol} must be a valid Tron address (T-prefix base58 or 0x hex), got: ${signerConfig.address}`,
                 path: ['inventorySigners', protocol],
               });
             }

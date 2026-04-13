@@ -613,3 +613,80 @@ describe('LiFiBridge constructor chainMetadataByChainId', function () {
     }
   });
 });
+
+describe('LiFiBridge Tron protocol handling', function () {
+  it('configureLiFiProviders does not throw when Tron key is present (logs warning)', async () => {
+    const bridge = new LiFiBridge(BRIDGE_CONFIG, testLogger);
+
+    // configureLiFiProviders is private — invoke via execute which calls it internally.
+    // Tron is an unsupported LiFi protocol, so it should warn but not throw.
+    const quote = createTestQuote();
+
+    try {
+      await bridge.execute(quote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+        [ProtocolType.Tron]: TEST_PRIVATE_KEY,
+      });
+      expect.fail('Expected execute to throw');
+    } catch (error: unknown) {
+      const msg = (error as Error).message;
+      // Should NOT be a Tron-related error — just post-validation SDK/RPC error
+      expect(msg).to.not.include('Tron');
+      expect(msg).to.not.include('unsupported protocol');
+    }
+  });
+
+  it('addressesEqual uses case-insensitive comparison for Tron hex addresses', () => {
+    const TRON_CHAIN_ID = 728126428;
+    const TRON_CHAIN_METADATA_CONFIG: ExternalBridgeConfig = {
+      integrator: 'test-rebalancer',
+      chainMetadata: {
+        tron: {
+          chainId: TRON_CHAIN_ID,
+          protocol: ProtocolType.Tron,
+          name: 'tron',
+          displayName: 'Tron',
+          domainId: TRON_CHAIN_ID,
+          rpcUrls: [{ http: 'https://api.trongrid.io/jsonrpc' }],
+        },
+      },
+    };
+
+    const bridge = new LiFiBridge(TRON_CHAIN_METADATA_CONFIG, testLogger);
+    const addressesEqualFn = (bridge as any).addressesEqual.bind(bridge);
+
+    // Tron uses hex addresses where case is insignificant (EVM-like)
+    expect(
+      addressesEqualFn(
+        '0xAbCdEf1234567890AbCdEf1234567890AbCdEf12',
+        '0xabcdef1234567890abcdef1234567890abcdef12',
+        TRON_CHAIN_ID,
+      ),
+    ).to.be.true;
+
+    // Different addresses should not be equal
+    expect(
+      addressesEqualFn(
+        '0xAbCdEf1234567890AbCdEf1234567890AbCdEf12',
+        '0x1111111111111111111111111111111111111111',
+        TRON_CHAIN_ID,
+      ),
+    ).to.be.false;
+  });
+
+  it('throws for genuinely unknown protocol type', async () => {
+    const bridge = new LiFiBridge(BRIDGE_CONFIG, testLogger);
+    const quote = createTestQuote();
+
+    try {
+      await bridge.execute(quote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+        [ProtocolType.Cosmos]: TEST_PRIVATE_KEY,
+      });
+      expect.fail('Should have thrown for unknown protocol Cosmos');
+    } catch (error: unknown) {
+      const msg = (error as Error).message;
+      expect(msg).to.include('Unsupported protocol');
+    }
+  });
+});

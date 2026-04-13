@@ -1,0 +1,50 @@
+warpRouteId: USDC/tron
+
+# Tron inventory signer address
+# Note: Rebalancer requires 0x-prefixed hex addresses (not base58 'T...' format)
+inventorySigners:
+  tron: "0x0000000000000000000000000000000000000001"
+
+externalBridges:
+  lifi:
+    integrator: rebalancer
+
+strategy:
+  rebalanceStrategy: weighted
+  chains:
+    # Tron is treated as EVM-like for:
+    # - Signer creation (uses ethers-compatible wallet)
+    # - Block tag resolution (reorgPeriod must be numeric, not 'finalized')
+    # - Gas estimation and transaction receipt parsing
+    # - LiFi bridge gracefully skips Tron (no Tron-compatible aggregator yet)
+    tron:
+      weighted:
+        weight: 15
+        tolerance: 5
+      # reorgPeriod: Use numeric block count instead of named tags like 'finalized'
+      # Tron produces blocks every ~3 seconds, so 100 blocks ≈ 5 minutes
+      reorgPeriod: 100
+      bridgeLockTime: 1800
+      bridgeMinAcceptedAmount: 3500
+      # Placeholder bridge address (would be actual Tron contract address in production)
+      bridge: "0x0000000000000000000000000000000000000001"
+      # Note: LiFi bridge will skip Tron chains as there is no Tron-compatible aggregator yet
+      # The rebalancer will gracefully handle this by using inventory-based rebalancing
+      override: {}
+
+# IMPORTANT: Tron-specific considerations
+# 1. Gas Limit Buffering (Double-Buffering):
+#    - Rebalancer's addBufferToGasLimit() adds a multiplier (e.g., 1.2x)
+#    - TronWallet independently applies 1.5x multiplier to feeLimit
+#    - Combined effect: gas estimates are multiplied by ~1.8x
+#    - See: typescript/tron-sdk/src/ethers/TronWallet.ts:34-38
+#
+# 2. Block Tags:
+#    - Tron does not support named block tags like 'finalized' or 'safe'
+#    - Always use numeric reorgPeriod (block count) instead
+#    - Example: reorgPeriod: 100 means wait 100 blocks for finality
+#
+# 3. LiFi Bridge Support:
+#    - LiFi does not currently support Tron as a destination/source chain
+#    - Rebalancer will skip LiFi bridge for Tron and fall back to inventory-based rebalancing
+#    - This is handled gracefully in the bridge execution logic
