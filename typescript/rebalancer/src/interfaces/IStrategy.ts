@@ -2,6 +2,7 @@ import { type ChainMap, type ChainName } from '@hyperlane-xyz/sdk';
 import type { Address } from '@hyperlane-xyz/utils';
 
 import { ExternalBridgeType } from '../config/types.js';
+import type { ExternalBridgeQuoteOverridesMap } from './IExternalBridge.js';
 import { ExecutionMethod } from '../tracking/types.js';
 
 export type RawBalances = ChainMap<bigint>;
@@ -29,13 +30,14 @@ export interface MovableCollateralRoute extends Route {
   bridge: Address;
 }
 
-/**
- * Route using inventory execution (external bridge + transferRemote)
- */
-export interface InventoryRoute extends Route {
-  executionType: 'inventory';
-  externalBridge: ExternalBridgeType;
-}
+export type InventoryRoute<T extends ExternalBridgeType = ExternalBridgeType> =
+  {
+    [B in T]: Route & {
+      executionType: 'inventory';
+      externalBridge: B;
+      quoteOverrides?: ExternalBridgeQuoteOverridesMap[B];
+    };
+  }[T];
 
 /**
  * Discriminated union of route types by executionType
