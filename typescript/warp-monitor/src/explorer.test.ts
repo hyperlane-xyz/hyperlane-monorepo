@@ -50,11 +50,11 @@ describe('Explorer Pending Transfers', () => {
 
     it('throws on invalid scale', () => {
       expect(() => messageAmountToTokenBaseUnits(1n, 0)).to.throw(
-        'Invalid token scale',
+        'Scale must be positive',
       );
       expect(() =>
         messageAmountToTokenBaseUnits(1n, { numerator: 0, denominator: 1 }),
-      ).to.throw('Invalid token scale');
+      ).to.throw('Scale must be positive');
     });
   });
 
