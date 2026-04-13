@@ -152,4 +152,10 @@ describe('scale helpers', () => {
   it('normalizes configured amount using token decimals and scale', () => {
     expect(normalizeConfiguredAmount('1', token)).to.equal(1_000_000n);
   });
+
+  it('normalizes sub-unit local dust to zero canonical amount', () => {
+    expect(normalizeConfiguredAmount('0.000000000000000001', token)).to.equal(
+      0n,
+    );
+  });
 });
