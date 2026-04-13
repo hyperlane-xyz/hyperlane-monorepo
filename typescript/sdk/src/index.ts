@@ -1,3 +1,7 @@
+import { registerAllRuntimeAdapters } from './register/all.js';
+
+registerAllRuntimeAdapters();
+
 export {
   DerivedRoutingFeeConfig,
   DerivedTokenFeeConfig,
