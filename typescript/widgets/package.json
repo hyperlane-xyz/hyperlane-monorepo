@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/widgets",
-  "version": "31.0.0",
+  "version": "31.0.1",
   "description": "Common react components for Hyperlane projects",
   "keywords": [
     "Components",

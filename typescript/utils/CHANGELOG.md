@@ -1,5 +1,11 @@
 # @hyperlane-xyz/utils
 
+## 31.0.1
+
+### Patch Changes
+
+- d5168fc: Fixed `parseMessage` crash in browser environments by using `readUInt8` instead of the Node.js 16+ `readUint8` alias, which is missing from common Buffer polyfills.
+
 ## 31.0.0
 
 ## 30.1.1
