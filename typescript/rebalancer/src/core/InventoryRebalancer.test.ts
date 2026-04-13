@@ -1526,6 +1526,48 @@ describe('InventoryRebalancer E2E', () => {
       expect(quotedTargetOutput).to.equal(expectedWithBuffer);
     });
 
+    it('plans LiFi target output in destination-local units for mixed-decimal routes', async () => {
+      const canonicalAmount = 1_000_000n;
+      const availableInventory = BigInt(2e18);
+      warpCore.tokens.find((t: any) => t.chainName === SOLANA_CHAIN)!.scale = {
+        numerator: 1n,
+        denominator: 1_000_000_000_000n,
+      };
+
+      const route = createTestRoute({ amount: canonicalAmount });
+      createTestIntent({ amount: canonicalAmount });
+
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 0n,
+        [ARBITRUM_CHAIN]: availableInventory,
+      });
+
+      let quotedTargetOutput: bigint | undefined;
+      bridge.quote.callsFake(async (params: any) => {
+        if (params.toAmount !== undefined) {
+          quotedTargetOutput = params.toAmount;
+        }
+        return createMockBridgeQuote({
+          fromAmount: params.fromAmount ?? params.toAmount,
+          toAmount: params.toAmount ?? params.fromAmount,
+          toAmountMin: params.toAmount ?? params.fromAmount,
+          requestParams:
+            params.toAmount !== undefined
+              ? { ...params, toAmount: params.toAmount }
+              : { ...params, fromAmount: params.fromAmount },
+        });
+      });
+      bridge.execute.resolves({
+        txHash: '0xBridgeTxHash',
+        fromChain: 42161,
+        toChain: 1399811149,
+      });
+
+      await inventoryRebalancer.rebalance([route]);
+
+      expect(quotedTargetOutput).to.equal(1_050_000_000_000_000_000n);
+    });
+
     it('continues when some bridges fail', async () => {
       const amount = BigInt(1e18);
       const perChainInventory = BigInt(0.6e18);
