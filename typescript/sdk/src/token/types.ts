@@ -290,6 +290,7 @@ export const DepositAddressTokenConfigSchema =
       RemoteRouterDomainOrChainNameSchema,
       DepositAddressDestinationConfigSchema,
     ),
+    predicateWrapper: PredicateWrapperConfigSchema.optional(),
   });
 export type DepositAddressTokenConfig = z.infer<
   typeof DepositAddressTokenConfigSchema
@@ -312,6 +313,7 @@ export const OftTokenConfigSchema = TokenMetadataSchema.partial().extend({
       'Mapping of Hyperlane domain (or chain name) to LayerZero endpoint ID',
     ),
   extraOptions: z.string().optional().describe('LayerZero extra options (hex)'),
+  predicateWrapper: PredicateWrapperConfigSchema.optional(),
 });
 export type OftTokenConfig = z.infer<typeof OftTokenConfigSchema>;
 export const isOftTokenConfig = isCompliant(OftTokenConfigSchema);
@@ -435,6 +437,7 @@ export type HypTokenRouterVirtualConfig = z.infer<
 export const UnknownTokenConfigSchema = TokenMetadataSchema.partial()
   .extend({
     type: z.literal(TokenType.unknown),
+    predicateWrapper: PredicateWrapperConfigSchema.optional(),
   })
   .passthrough();
 export type UnknownTokenConfig = z.infer<typeof UnknownTokenConfigSchema>;

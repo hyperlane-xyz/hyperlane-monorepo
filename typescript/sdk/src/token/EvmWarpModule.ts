@@ -60,6 +60,7 @@ import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { EvmTokenFeeModule } from '../fee/EvmTokenFeeModule.js';
 import { TokenFeeReaderParams } from '../fee/EvmTokenFeeReader.js';
 import { getEvmHookUpdateTransactions } from '../hook/updates.js';
+import { OnchainHookType } from '../hook/types.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { PredicateWrapperDeployer } from '../predicate/PredicateDeployer.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -1220,11 +1221,9 @@ export class EvmWarpModule extends HyperlaneModule<
             predicateWrapper.hookType(),
           ]);
 
-          // HookType for PREDICATE_ROUTER_WRAPPER is defined in the contract
-          const PREDICATE_ROUTER_WRAPPER_TYPE = 16; // From IPostDispatchHook.HookTypes
           if (
             eqAddress(warpRoute, this.args.addresses.deployedTokenRoute) &&
-            hookType === PREDICATE_ROUTER_WRAPPER_TYPE
+            hookType === OnchainHookType.PREDICATE_ROUTER_WRAPPER
           ) {
             // Found matching PredicateRouterWrapper
             // Note: We assume if it exists, the config is correct
