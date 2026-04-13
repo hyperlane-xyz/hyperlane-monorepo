@@ -5,6 +5,47 @@ export {
 } from './fee/EvmTokenFeeReader.js';
 
 export {
+  buildExecuteCalldata,
+  buildQuoteCalldata,
+  type QuotedCallsTransaction,
+  type QuotedTransferParams,
+} from './quoted-calls/builder.js';
+export { FeeQuotingClient } from './quoted-calls/client.js';
+export type {
+  FeeQuotingClientOptions,
+  QuoteParams as FeeQuotingQuoteParams,
+} from './quoted-calls/client.js';
+export {
+  CONTRACT_BALANCE,
+  type Quote as QuotedCallsQuote,
+  computeScopedSalt,
+  decodeQuoteExecuteResult,
+  encodeExecuteCalldata,
+  encodePermit2PermitInput,
+  encodePermit2TransferFromInput,
+  encodeQuoteExecuteCalldata,
+  encodeSubmitQuoteInput,
+  encodeSweepInput,
+  encodeTransferFromInput,
+  encodeTransferRemoteInput,
+  encodeTransferRemoteToInput,
+  extractQuoteTotals,
+  quotedCallsAbi,
+  sumQuotesByToken,
+} from './quoted-calls/codec.js';
+export {
+  FeeQuotingCommand,
+  type FeeQuotingQuoteResponse,
+  type Permit2Data,
+  type QuotedCallsParams,
+  QuotedCallsCommand,
+  type SignedQuoteData,
+  type SubmitQuoteCommand,
+  TokenPullMode,
+  WARP_FEE_COMMANDS,
+} from './quoted-calls/types.js';
+
+export {
   isAddressActive,
   isContractAddress,
   assertIsContractAddress,
@@ -78,6 +119,7 @@ export { ICoreAdapter } from './core/adapters/types.js';
 export {
   CoreAddresses,
   CoreFactories,
+  PERMIT2_ADDRESS,
   coreFactories,
 } from './core/contracts.js';
 export { HyperlaneLifecyleEvent } from './core/events.js';
@@ -368,11 +410,15 @@ export {
 } from './middleware/account/contracts.js';
 export {
   commitmentFromIcaCalls,
+  commitmentFromRevealMessage,
   encodeIcaCalls,
   InterchainAccount,
   normalizeCalls,
   PostCallsSchema,
   PostCallsType,
+  PostCallsLegacyType,
+  PostCallsIcaType,
+  isPostCallsIca,
   RawCallData,
   shareCallsWithPrivateRelayer,
 } from './middleware/account/InterchainAccount.js';
@@ -700,8 +746,6 @@ export {
   SealevelTransferRemoteInstruction,
   SealevelTransferRemoteSchema,
 } from './token/adapters/serialization.js';
-export { HypERC20App } from './token/app.js';
-export { HypERC20Checker } from './token/checker.js';
 export { DeployableTokenType, TokenType } from './token/config.js';
 export {
   expandVirtualWarpDeployConfig,
@@ -723,6 +767,15 @@ export {
 export { HypERC20Deployer, HypERC721Deployer } from './token/deploy.js';
 export { EvmWarpModule } from './token/EvmWarpModule.js';
 export { EvmWarpRouteReader } from './token/EvmWarpRouteReader.js';
+export {
+  WARP_ROUTE_CHECK_SCALE_TYPE,
+  WARP_ROUTE_CHECK_TYPE,
+  checkWarpRouteDeployConfig,
+} from './token/warpCheck.js';
+export type {
+  WarpRouteCheckResult,
+  WarpRouteCheckViolation,
+} from './token/warpCheck.js';
 export {
   EvmXERC20Reader,
   StandardXERC20Limits,
@@ -758,6 +811,7 @@ export {
   PROTOCOL_TO_NATIVE_STANDARD,
   PROTOCOL_TO_HYP_NATIVE_STANDARD,
   TOKEN_COLLATERALIZED_STANDARDS,
+  TOKEN_CROSS_COLLATERAL_STANDARDS,
   TOKEN_COSMWASM_STANDARDS,
   TOKEN_HYP_STANDARDS,
   TOKEN_MULTI_CHAIN_STANDARDS,
@@ -772,6 +826,10 @@ export {
   XERC20LimitsTokenConfig,
   CctpTokenConfig,
   CctpTokenConfigSchema,
+  DepositAddressDestinationConfig,
+  DepositAddressDestinationConfigSchema,
+  DepositAddressTokenConfig,
+  DepositAddressTokenConfigSchema,
   CollateralRebaseTokenConfigSchema,
   CollateralTokenConfig,
   CollateralTokenConfigSchema,
@@ -797,6 +855,7 @@ export {
   isEverclearCollateralTokenConfig,
   isEverclearEthBridgeTokenConfig,
   isEverclearTokenBridgeConfig,
+  isDepositAddressTokenConfig,
   EverclearCollateralTokenConfig,
   EverclearEthBridgeTokenConfig,
   isXERC20TokenConfig,
@@ -957,6 +1016,7 @@ export {
 } from './signers/svm/solana-web3js.js';
 
 export {
+  DEFAULT_ROUTER_KEY,
   OnchainTokenFeeType,
   onChainTypeToTokenFeeTypeMap,
   TokenFeeType,
@@ -965,6 +1025,11 @@ export {
   TokenFeeConfigInputSchema,
   TokenFeeConfigInput,
   LinearFeeConfig,
+  OffchainQuotedLinearFeeConfig,
+  OffchainQuotedLinearFeeConfigSchema,
+  OffchainQuotedLinearFeeInputConfigSchema,
+  QuoteSignersSchema,
+  QuoteSignersConfig,
 } from './fee/types.js';
 export { convertToBps } from './fee/utils.js';
 

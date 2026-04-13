@@ -1,5 +1,35 @@
 # @hyperlane-xyz/provider-sdk
 
+## 4.3.0
+
+### Minor Changes
+
+- 44626fb: Enabled SVM cross-collateral token deployments in the CLI. Added `crossCollateral` to supported Alt-VM token types, allowing `warp deploy`, `warp combine`, and `warp apply` to work with SVM CC routes. Extracted `computeCrossCollateralRouterUpdates` into provider-sdk for cross-protocol reuse. Fixed CC-only gas preservation for domains transitioning from remote routers.
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@31.0.0
+
+## 4.2.5
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@30.1.1
+
+## 4.2.4
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@30.1.0
+
+## 4.2.3
+
+### Patch Changes
+
+- 37255ba: Starknet AltVM follow-up behavior was fixed across the CLI toolchain. Warp apply/update paths now preserve existing Starknet hook and ISM settings when config leaves them unset or uses empty addresses, zero-address hook and ISM references are normalized as unset during provider artifact conversion, and core mailbox bootstrap only passes through existing hook addresses for Starknet while other AltVMs keep zero-address placeholders.
+- Updated dependencies [7646819]
+  - @hyperlane-xyz/utils@30.0.0
+
 ## 4.2.2
 
 ### Patch Changes

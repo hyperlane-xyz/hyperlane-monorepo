@@ -22,6 +22,7 @@ import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.so
 import {HypNative} from "../../contracts/token/HypNative.sol";
 import {HypERC20} from "../../contracts/token/HypERC20.sol";
 import {PredicateRouterWrapper} from "../../contracts/token/extensions/PredicateRouterWrapper.sol";
+import {IPredicateWrapper} from "../../contracts/interfaces/IPredicateWrapper.sol";
 import {Statement, Attestation} from "@predicate/interfaces/IPredicateRegistry.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
@@ -80,7 +81,7 @@ contract PredicateRouterWrapperNativeTest is Test {
         remoteMailbox.setRequiredHook(address(noopHook));
 
         // Deploy native router
-        nativeRouter = new HypNative(SCALE, address(localMailbox));
+        nativeRouter = new HypNative(SCALE, SCALE, address(localMailbox));
         nativeRouter.initialize(
             address(noopHook),
             address(0), // ISM
@@ -90,6 +91,7 @@ contract PredicateRouterWrapperNativeTest is Test {
         // Deploy remote synthetic token
         HypERC20 implementation = new HypERC20(
             DECIMALS,
+            SCALE,
             SCALE,
             address(remoteMailbox)
         );
@@ -260,9 +262,7 @@ contract PredicateRouterWrapperNativeTest is Test {
 
         vm.prank(ALICE);
         vm.expectRevert(
-            PredicateRouterWrapper
-                .PredicateRouterWrapper__InsufficientValue
-                .selector
+            IPredicateWrapper.PredicateRouterWrapper__InsufficientValue.selector
         );
         predicateWrapper.transferRemoteWithAttestation{
             value: insufficientValue
@@ -287,8 +287,9 @@ contract PredicateRouterWrapperNativeTest is Test {
         }(attestation, DESTINATION, BOB.addressToBytes32(), TRANSFER_AMT);
 
         assertTrue(messageId != bytes32(0));
-        // Alice pays the full excess amount
-        assertEq(ALICE.balance, aliceBalanceBefore - excessValue);
+        // Alice is refunded the excess; only pays the required amount
+        uint256 totalRequired = TRANSFER_AMT + gasValue;
+        assertEq(ALICE.balance, aliceBalanceBefore - totalRequired);
     }
 
     function test_native_bypassPrevention_directTransferRemoteReverts() public {
@@ -297,7 +298,7 @@ contract PredicateRouterWrapperNativeTest is Test {
 
         vm.prank(ALICE);
         vm.expectRevert(
-            PredicateRouterWrapper
+            IPredicateWrapper
                 .PredicateRouterWrapper__UnauthorizedTransfer
                 .selector
         );
@@ -309,6 +310,31 @@ contract PredicateRouterWrapperNativeTest is Test {
     }
 
     // ============ Fuzz Tests ============
+
+    function test_native_refundFailed_revertsIfCallerRejectsETH() public {
+        // Deploy a contract that rejects ETH to simulate refund failure
+        RefundRejecter rejecter = new RefundRejecter(predicateWrapper);
+        vm.deal(address(rejecter), 10 ether);
+
+        Attestation memory attestation = _createAttestation(
+            "native-refund-fail",
+            block.timestamp + 1 hours
+        );
+
+        uint256 gasValue = noopHook.quoteDispatch("", "");
+        // Send excess so a refund is attempted
+        uint256 excessValue = TRANSFER_AMT + gasValue + 1 ether;
+
+        vm.expectRevert(
+            IPredicateWrapper.PredicateRouterWrapper__RefundFailed.selector
+        );
+        rejecter.doTransfer{value: excessValue}(
+            attestation,
+            DESTINATION,
+            BOB.addressToBytes32(),
+            TRANSFER_AMT
+        );
+    }
 
     function testFuzz_native_transferRemoteWithAttestation_variableAmounts(
         uint256 amount
@@ -335,4 +361,29 @@ contract PredicateRouterWrapperNativeTest is Test {
 
         assertEq(ALICE.balance, aliceBalanceBefore - totalValue);
     }
+}
+
+/// @notice Helper contract that rejects ETH refunds to test RefundFailed path
+contract RefundRejecter {
+    PredicateRouterWrapper public wrapper;
+
+    constructor(PredicateRouterWrapper _wrapper) {
+        wrapper = _wrapper;
+    }
+
+    function doTransfer(
+        Attestation calldata _attestation,
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) external payable {
+        wrapper.transferRemoteWithAttestation{value: msg.value}(
+            _attestation,
+            _destination,
+            _recipient,
+            _amount
+        );
+    }
+
+    // No receive() or fallback() — ETH refunds will fail
 }

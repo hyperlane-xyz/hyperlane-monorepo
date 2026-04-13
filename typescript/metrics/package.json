@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/metrics",
-  "version": "0.2.7",
+  "version": "0.2.11",
   "description": "Shared Prometheus metrics utilities for Hyperlane monitoring",
   "keywords": [
     "hyperlane",
@@ -23,7 +23,7 @@
     "build": "tsc",
     "clean": "rm -rf dist",
     "dev": "tsc --watch",
-    "lint": "eslint -c ./eslint.config.mjs ./src",
+    "lint": "oxlint -c ../../oxlint.json",
     "format": "oxfmt --write ./src",
     "test": "mocha --config .mocharc.json './src/**/*.test.ts' --exit",
     "test:ci": "pnpm test"
@@ -37,14 +37,12 @@
     "prom-client": "catalog:"
   },
   "devDependencies": {
-    "@hyperlane-xyz/eslint-config": "workspace:^",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@types/chai": "catalog:",
     "@types/mocha": "catalog:",
     "@types/node": "catalog:",
     "@types/sinon": "catalog:",
     "chai": "catalog:",
-    "eslint": "catalog:",
     "mocha": "catalog:",
     "oxfmt": "catalog:",
     "sinon": "catalog:",

@@ -2,15 +2,13 @@ import { constants } from 'ethers';
 import { Logger } from 'pino';
 
 import {
+  CrossCollateralRouter__factory,
   Mailbox__factory,
+  PredicateCrossCollateralRouterWrapper__factory,
   PredicateRouterWrapper__factory,
   StaticAggregationHookFactory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
-import {
-  CrossCollateralRouter__factory,
-  PredicateCrossCollateralRouterWrapper__factory,
-} from '@hyperlane-xyz/multicollateral';
 import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';

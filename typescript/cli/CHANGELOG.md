@@ -1,5 +1,36 @@
 # @hyperlane-xyz/cli
 
+## 31.0.0
+
+### Minor Changes
+
+- 44626fb: Enabled SVM cross-collateral token deployments in the CLI. Added `crossCollateral` to supported Alt-VM token types, allowing `warp deploy`, `warp combine`, and `warp apply` to work with SVM CC routes. Extracted `computeCrossCollateralRouterUpdates` into provider-sdk for cross-protocol reuse. Fixed CC-only gas preservation for domains transitioning from remote routers.
+
+### Patch Changes
+
+- 69e6b3f: Warp route checks were unified onto the shared CLI comparison flow, including explicit proxyAdmin address checks and owner override ownership checks. The legacy `HypERC20App` and `HypERC20Checker` SDK exports were removed.
+- d34af7c: The registry dependency was bumped to 24.3.0 so CLI consumers pick up tolerant merged-registry overlay reads.
+- 44ea0ec: fix: warp send tx prepare
+
+## 30.1.1
+
+### Patch Changes
+
+- 26d682b: Fee quoting client and shared types were moved from @hyperlane-xyz/fee-quoting into @hyperlane-xyz/sdk. The fee-quoting package was marked as private since it is a deployable service, not a published library.
+
+## 30.1.0
+
+### Patch Changes
+
+- e1f35a7: The offchain fee quoting service and client were added, with CLI integration for quoted transfers and SDK export of DEFAULT_ROUTER_KEY.
+
+## 30.0.0
+
+### Patch Changes
+
+- e1ed158: User-specified remoteRouters and destinationGas in warp deploy configs were ignored during router enrollment when the remote chains were not part of the deployment. enrollCrossChainRouters now merges user-specified entries with auto-discovered routers from deployed contracts.
+- 37255ba: Starknet AltVM follow-up behavior was fixed across the CLI toolchain. Warp apply/update paths now preserve existing Starknet hook and ISM settings when config leaves them unset or uses empty addresses, zero-address hook and ISM references are normalized as unset during provider artifact conversion, and core mailbox bootstrap only passes through existing hook addresses for Starknet while other AltVMs keep zero-address placeholders.
+
 ## 29.1.0
 
 ### Minor Changes

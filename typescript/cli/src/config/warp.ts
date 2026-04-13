@@ -70,6 +70,8 @@ const TYPE_DESCRIPTIONS: Record<DeployableTokenType, string> = {
     'A collateral token that can be transferred via Everclear intents',
   [TokenType.ethEverclear]:
     'An ETH token that can be transferred via Everclear intents',
+  [TokenType.collateralDepositAddress]:
+    'A collateral token that bridges by depositing into a configured address',
   // TODO: describe
   [TokenType.syntheticUri]: '',
   [TokenType.collateralUri]: '',
@@ -84,6 +86,7 @@ const TYPE_DESCRIPTIONS: Record<DeployableTokenType, string> = {
 const YAML_ONLY_TYPES: TokenType[] = [
   TokenType.collateralOft,
   TokenType.collateralCctp,
+  TokenType.collateralDepositAddress,
 ];
 
 const TYPE_CHOICES = Object.values(TokenType)

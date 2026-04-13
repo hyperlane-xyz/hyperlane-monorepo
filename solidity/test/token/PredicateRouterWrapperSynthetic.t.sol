@@ -23,6 +23,7 @@ import {HypERC20} from "../../contracts/token/HypERC20.sol";
 import {HypERC20Collateral} from "../../contracts/token/HypERC20Collateral.sol";
 import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
 import {PredicateRouterWrapper} from "../../contracts/token/extensions/PredicateRouterWrapper.sol";
+import {IPredicateWrapper} from "../../contracts/interfaces/IPredicateWrapper.sol";
 import {Statement, Attestation} from "@predicate/interfaces/IPredicateRegistry.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
@@ -88,6 +89,7 @@ contract PredicateRouterWrapperSyntheticTest is Test {
         HypERC20 implementation = new HypERC20(
             DECIMALS,
             SCALE,
+            SCALE,
             address(localMailbox)
         );
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
@@ -109,6 +111,7 @@ contract PredicateRouterWrapperSyntheticTest is Test {
         primaryToken = new ERC20Test(NAME, SYMBOL, TOTAL_SUPPLY, DECIMALS);
         remoteCollateralRouter = new HypERC20Collateral(
             address(primaryToken),
+            SCALE,
             SCALE,
             address(remoteMailbox)
         );
@@ -349,7 +352,7 @@ contract PredicateRouterWrapperSyntheticTest is Test {
 
         vm.prank(ALICE);
         vm.expectRevert(
-            PredicateRouterWrapper
+            IPredicateWrapper
                 .PredicateRouterWrapper__UnauthorizedTransfer
                 .selector
         );

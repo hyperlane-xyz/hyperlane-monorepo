@@ -167,6 +167,10 @@ export class SvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
 
     transaction.recentBlockhash = blockhash;
 
+    if (!transaction.feePayer) {
+      transaction.feePayer = this.signer.publicKey;
+    }
+
     // Sign with extra signers first (e.g., randomWallet for Sealevel transferRemote).
     // Uses partialSign to avoid clearing any existing signatures.
     // This re-signs with the fresh blockhash, overwriting the adapter's pre-sign.

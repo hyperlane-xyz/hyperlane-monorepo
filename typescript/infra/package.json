@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/infra",
-  "version": "29.1.0",
+  "version": "31.0.0",
   "private": true,
   "description": "Infrastructure utilities for the Hyperlane Network",
   "keywords": [
@@ -58,6 +58,7 @@
     "@hyperlane-xyz/registry": "catalog:",
     "@hyperlane-xyz/relayer": "workspace:*",
     "@hyperlane-xyz/sdk": "workspace:*",
+    "@hyperlane-xyz/sealevel-sdk": "workspace:*",
     "@hyperlane-xyz/tron-sdk": "workspace:*",
     "@hyperlane-xyz/utils": "workspace:*",
     "@inquirer/input": "^1.0.0",
@@ -68,6 +69,7 @@
     "@safe-global/protocol-kit": "catalog:",
     "@safe-global/safe-core-sdk-types": "catalog:",
     "@safe-global/safe-deployments": "catalog:",
+    "@solana/kit": "catalog:",
     "@solana/web3.js": "catalog:",
     "@turnkey/api-key-stamper": "catalog:",
     "@turnkey/sdk-server": "catalog:",

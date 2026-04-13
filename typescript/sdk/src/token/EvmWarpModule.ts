@@ -4,6 +4,7 @@ import { BigNumberish, constants } from 'ethers';
 import { UINT_256_MAX } from 'starknet';
 
 import {
+  CrossCollateralRouter__factory,
   EverclearTokenBridge__factory,
   GasRouter__factory,
   IERC20__factory,
@@ -13,10 +14,10 @@ import {
   ProxyAdmin__factory,
   StaticAggregationHook__factory,
   StaticAggregationHookFactory__factory,
+  TokenBridgeCctpV2__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
-import { CrossCollateralRouter__factory } from '@hyperlane-xyz/multicollateral';
 import {
   Address,
   Domain,
@@ -68,7 +69,10 @@ import { ChainName, ChainNameOrId } from '../types.js';
 import { scalesEqual } from '../utils/decimals.js';
 import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
 
-import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
+import {
+  CCTP_PPM_STORAGE_VERSION,
+  EvmWarpRouteReader,
+} from './EvmWarpRouteReader.js';
 import { EvmXERC20Module } from './EvmXERC20Module.js';
 import { DeployableTokenType, TokenType } from './config.js';
 import { resolveTokenFeeAddress } from './configUtils.js';
@@ -84,6 +88,7 @@ import {
   contractVersionMatchesDependency,
   derivedHookAddress,
   derivedIsmAddress,
+  isCctpTokenConfig,
   isEverclearTokenBridgeConfig,
   isMovableCollateralTokenConfig,
   isCrossCollateralTokenConfig,
@@ -234,6 +239,7 @@ export class EvmWarpModule extends HyperlaneModule<
 
       ...this.createUpdateEverclearFeeParamsTxs(actualConfig, expectedConfig),
       ...this.createRemoveEverclearFeeParamsTxs(actualConfig, expectedConfig),
+      ...this.createSetMaxFeePpmTxs(actualConfig, expectedConfig),
       ...xerc20Txs,
 
       ...this.createOwnershipUpdateTxs(actualConfig, expectedConfig),
@@ -1418,7 +1424,6 @@ export class EvmWarpModule extends HyperlaneModule<
       },
       this.contractVerifier,
     );
-
     const updateTransactions = await tokenFeeModule.update(
       resolvedTokenFee,
       tokenReaderParams,
@@ -1610,6 +1615,55 @@ export class EvmWarpModule extends HyperlaneModule<
     });
 
     return updateTransactions;
+  }
+
+  createSetMaxFeePpmTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): AnnotatedEV5Transaction[] {
+    if (
+      !isCctpTokenConfig(expectedConfig) ||
+      expectedConfig.cctpVersion !== 'V2' ||
+      expectedConfig.maxFeeBps === undefined
+    ) {
+      return [];
+    }
+
+    const actualMaxFeeBps = isCctpTokenConfig(actualConfig)
+      ? actualConfig.maxFeeBps
+      : undefined;
+
+    // When upgrading across the CCTP_PPM_STORAGE_VERSION boundary, the
+    // pre-upgrade contract stores the fee in integer bps while the
+    // post-upgrade contract expects ppm. The reader normalises to bps so the
+    // values look equal, but the raw on-chain slot will be wrong after the
+    // proxy upgrade. Always emit setMaxFeePpm in this case.
+    const crossingPpmBoundary =
+      actualConfig.contractVersion &&
+      expectedConfig.contractVersion &&
+      compareVersions(actualConfig.contractVersion, CCTP_PPM_STORAGE_VERSION) <
+        0 &&
+      compareVersions(
+        expectedConfig.contractVersion,
+        CCTP_PPM_STORAGE_VERSION,
+      ) >= 0;
+
+    if (!crossingPpmBoundary && actualMaxFeeBps === expectedConfig.maxFeeBps) {
+      return [];
+    }
+
+    const maxFeePpm = Math.round(expectedConfig.maxFeeBps * 100);
+    return [
+      {
+        chainId: this.chainId,
+        annotation: `Setting maxFeePpm to ${maxFeePpm} on ${this.args.chain}`,
+        to: this.args.addresses.deployedTokenRoute,
+        data: TokenBridgeCctpV2__factory.createInterface().encodeFunctionData(
+          'setMaxFeePpm',
+          [maxFeePpm],
+        ),
+      },
+    ];
   }
 
   /**

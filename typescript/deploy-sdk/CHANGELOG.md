@@ -1,5 +1,67 @@
 # @hyperlane-xyz/deploy-sdk
 
+## 4.3.0
+
+### Patch Changes
+
+- Updated dependencies [44626fb]
+- Updated dependencies [eaac4ab]
+- Updated dependencies [1dac3b0]
+  - @hyperlane-xyz/sealevel-sdk@31.0.0
+  - @hyperlane-xyz/provider-sdk@4.3.0
+  - @hyperlane-xyz/tron-sdk@22.1.10
+  - @hyperlane-xyz/aleo-sdk@31.0.0
+  - @hyperlane-xyz/cosmos-sdk@31.0.0
+  - @hyperlane-xyz/radix-sdk@31.0.0
+  - @hyperlane-xyz/starknet-sdk@27.2.6
+  - @hyperlane-xyz/utils@31.0.0
+
+## 4.2.5
+
+### Patch Changes
+
+- @hyperlane-xyz/aleo-sdk@30.1.1
+- @hyperlane-xyz/cosmos-sdk@30.1.1
+- @hyperlane-xyz/radix-sdk@30.1.1
+- @hyperlane-xyz/sealevel-sdk@30.1.1
+- @hyperlane-xyz/utils@30.1.1
+- @hyperlane-xyz/starknet-sdk@27.2.5
+- @hyperlane-xyz/provider-sdk@4.2.5
+- @hyperlane-xyz/tron-sdk@22.1.9
+
+## 4.2.4
+
+### Patch Changes
+
+- Updated dependencies [95c331e]
+- Updated dependencies [b643062]
+  - @hyperlane-xyz/sealevel-sdk@30.1.0
+  - @hyperlane-xyz/tron-sdk@22.1.8
+  - @hyperlane-xyz/aleo-sdk@30.1.0
+  - @hyperlane-xyz/cosmos-sdk@30.1.0
+  - @hyperlane-xyz/radix-sdk@30.1.0
+  - @hyperlane-xyz/utils@30.1.0
+  - @hyperlane-xyz/starknet-sdk@27.2.4
+  - @hyperlane-xyz/provider-sdk@4.2.4
+
+## 4.2.3
+
+### Patch Changes
+
+- 37255ba: Starknet AltVM follow-up behavior was fixed across the CLI toolchain. Warp apply/update paths now preserve existing Starknet hook and ISM settings when config leaves them unset or uses empty addresses, zero-address hook and ISM references are normalized as unset during provider artifact conversion, and core mailbox bootstrap only passes through existing hook addresses for Starknet while other AltVMs keep zero-address placeholders.
+- Updated dependencies [516c829]
+- Updated dependencies [37255ba]
+- Updated dependencies [2a9b135]
+- Updated dependencies [7646819]
+  - @hyperlane-xyz/starknet-sdk@27.2.3
+  - @hyperlane-xyz/provider-sdk@4.2.3
+  - @hyperlane-xyz/sealevel-sdk@30.0.0
+  - @hyperlane-xyz/utils@30.0.0
+  - @hyperlane-xyz/tron-sdk@22.1.7
+  - @hyperlane-xyz/aleo-sdk@30.0.0
+  - @hyperlane-xyz/cosmos-sdk@30.0.0
+  - @hyperlane-xyz/radix-sdk@30.0.0
+
 ## 4.2.2
 
 ### Patch Changes

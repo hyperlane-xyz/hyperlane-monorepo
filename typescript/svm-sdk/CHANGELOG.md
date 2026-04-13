@@ -1,5 +1,47 @@
 # @hyperlane-xyz/sealevel-sdk
 
+## 31.0.0
+
+### Patch Changes
+
+- 44626fb: Enabled SVM cross-collateral token deployments in the CLI. Added `crossCollateral` to supported Alt-VM token types, allowing `warp deploy`, `warp combine`, and `warp apply` to work with SVM CC routes. Extracted `computeCrossCollateralRouterUpdates` into provider-sdk for cross-protocol reuse. Fixed CC-only gas preservation for domains transitioning from remote routers.
+- eaac4ab: The sealevel ISM deploy flow was hardened by waiting for deployed programs to become visible and retrying initialization on chains that acknowledge deploys before the program is invokable.
+- Updated dependencies [44626fb]
+  - @hyperlane-xyz/provider-sdk@4.3.0
+  - @hyperlane-xyz/utils@31.0.0
+
+## 30.1.1
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@30.1.1
+- @hyperlane-xyz/provider-sdk@4.2.5
+
+## 30.1.0
+
+### Minor Changes
+
+- 95c331e: Added cross-collateral token support to the SVM SDK, including create, read, and update operations for cross-collateral warp routes.
+
+### Patch Changes
+
+- b643062: Fixed serialized transaction output using the local keypair as fee payer instead of the actual authority (e.g. Squads vault). Added explicit feePayer field to SvmTransaction and set it on all update paths. Refactored IGP instruction builders to accept Address instead of TransactionSigner so the on-chain owner is used in serialized transactions.
+  - @hyperlane-xyz/utils@30.1.0
+  - @hyperlane-xyz/provider-sdk@4.2.4
+
+## 30.0.0
+
+### Major Changes
+
+- 2a9b135: SvmSigner send/confirm flow was refactored with block-height-based polling, client-side rebroadcast, structured blockhash error detection via @solana/errors, and double-execution prevention for processed transactions. Program deployment write stages are now sent in parallel batches with retry on failure. Breaking: DeployStage requires a new `kind` field (DeployStageKind discriminant).
+
+### Patch Changes
+
+- Updated dependencies [37255ba]
+- Updated dependencies [7646819]
+  - @hyperlane-xyz/provider-sdk@4.2.3
+  - @hyperlane-xyz/utils@30.0.0
+
 ## 29.1.0
 
 ### Patch Changes

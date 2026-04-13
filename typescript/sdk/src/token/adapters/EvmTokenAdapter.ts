@@ -46,6 +46,7 @@ import {
   assert,
   bytes32ToAddress,
   convertToProtocolAddress,
+  eqAddress,
   isNullish,
   isZeroishAddress,
   normalizeAddress,
@@ -256,7 +257,7 @@ export class EvmHypSyntheticAdapter
 
   override async isApproveRequired(
     owner: Address,
-    _spender: Address,
+    spender: Address,
     weiAmountOrId: Numberish,
   ): Promise<boolean> {
     // Synthetics with PredicateWrapper need approval to the wrapper
@@ -266,16 +267,18 @@ export class EvmHypSyntheticAdapter
       return allowance.lt(weiAmountOrId);
     }
 
-    // Normal synthetics don't need approval
-    return false;
+    // transferRemote burns directly from msg.sender — no approval needed.
+    // External spenders (e.g. QuotedCalls) need standard ERC20 approval.
+    if (eqAddress(spender, this.addresses.token)) return false;
+    return super.isApproveRequired(owner, spender, weiAmountOrId);
   }
 
-  async isRevokeApprovalRequired(
-    _owner: Address,
-    _spender: Address,
+  override async isRevokeApprovalRequired(
+    owner: Address,
+    spender: Address,
   ): Promise<boolean> {
-    // Synthetics are standard ERC20s - no revoke required before approve
-    return false;
+    if (eqAddress(spender, this.addresses.token)) return false;
+    return super.isRevokeApprovalRequired(owner, spender);
   }
 
   override async populateApproveTx(

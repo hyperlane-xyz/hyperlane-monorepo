@@ -24,6 +24,17 @@ export interface TransferRemoteParams extends TransferParams {
   extraSigners?: Keypair[];
 }
 
+export interface TransferRemoteToParams {
+  destination: Domain;
+  recipient: Address;
+  amount: Numberish;
+  targetRouter: Address;
+  interchainGas?: InterchainGasQuote;
+  // Required for Sealevel
+  fromAccountOwner?: Address;
+  extraSigners?: Keypair[];
+}
+
 export interface QuoteTransferRemoteParams {
   destination: Domain;
   sender?: Address;
@@ -143,6 +154,28 @@ export interface IXERC20VSAdapter<Tx> extends ITokenAdapter<Tx> {
 
 export interface IXERC20Adapter<Tx> extends ITokenAdapter<Tx> {
   getLimits(bridge: Address): Promise<xERC20Limits>;
+}
+
+export interface IHypCrossCollateralAdapter<Tx> extends IHypTokenAdapter<Tx> {
+  quoteTransferRemoteToGas(params: {
+    destination: Domain;
+    recipient: Address;
+    amount: Numberish;
+    targetRouter: Address;
+    sender?: Address;
+  }): Promise<InterchainGasQuote>;
+  populateTransferRemoteToTx(params: TransferRemoteToParams): Promise<Tx>;
+}
+
+export function isHypCrossCollateralAdapter(
+  adapter: IHypTokenAdapter<unknown>,
+): adapter is IHypCrossCollateralAdapter<unknown> {
+  return (
+    'populateTransferRemoteToTx' in adapter &&
+    typeof adapter.populateTransferRemoteToTx === 'function' &&
+    'quoteTransferRemoteToGas' in adapter &&
+    typeof adapter.quoteTransferRemoteToGas === 'function'
+  );
 }
 
 export interface IHypCollateralFiatAdapter<Tx> extends IHypTokenAdapter<Tx> {

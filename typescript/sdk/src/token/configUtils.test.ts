@@ -1,7 +1,13 @@
 import { expect } from 'chai';
 import { constants } from 'ethers';
 
-import { ResolvedRoutingFeeConfigInput, TokenFeeType } from '../fee/types.js';
+import {
+  DEFAULT_ROUTER_KEY,
+  ResolvedCrossCollateralRoutingFeeConfigInput,
+  ResolvedLinearFeeConfigInput,
+  ResolvedRoutingFeeConfigInput,
+  TokenFeeType,
+} from '../fee/types.js';
 import { HookType } from '../hook/types.js';
 import { IsmType } from '../ism/types.js';
 import type { WarpCoreConfig } from '../warp/types.js';
@@ -89,6 +95,28 @@ describe('configUtils', () => {
             '1': {
               address: ADDRESS,
             },
+          },
+        },
+      },
+      {
+        msg: 'It should preserve the proxyAdmin address property for explicit checks',
+        input: {
+          hook: {
+            address: ADDRESS,
+            type: HookType.MERKLE_TREE,
+          },
+          proxyAdmin: {
+            address: ADDRESS,
+            owner: ADDRESS,
+          },
+        },
+        expected: {
+          hook: {
+            type: HookType.MERKLE_TREE,
+          },
+          proxyAdmin: {
+            address: ADDRESS,
+            owner: ADDRESS,
           },
         },
       },
@@ -200,6 +228,238 @@ describe('configUtils', () => {
         expect(transformedObj).to.eql(expected);
       });
     }
+
+    it('normalizes LinearFee maxFee/halfAmount so equivalent bps configs compare equal', () => {
+      const transformedObj = transformConfigToCheck({
+        type: TokenType.collateral,
+        token: ADDRESS,
+        tokenFee: {
+          type: TokenFeeType.LinearFee,
+          owner: ADDRESS,
+          token: ADDRESS,
+          bps: 300n,
+          maxFee: 999n,
+          halfAmount: 123n,
+        },
+      } as any);
+
+      expect(transformedObj).to.eql({
+        type: TokenType.collateral,
+        token: ADDRESS,
+        tokenFee: {
+          type: TokenFeeType.LinearFee,
+          owner: ADDRESS,
+          token: ADDRESS,
+          bps: 300n,
+        },
+      });
+    });
+
+    it('normalizes OffchainQuotedLinearFee maxFee/halfAmount so equivalent bps configs compare equal', () => {
+      const transformedObj = transformConfigToCheck({
+        type: TokenType.collateral,
+        token: ADDRESS,
+        tokenFee: {
+          type: TokenFeeType.OffchainQuotedLinearFee,
+          owner: ADDRESS,
+          token: ADDRESS,
+          bps: 300n,
+          maxFee: 999n,
+          halfAmount: 123n,
+          quoteSigners: [ADDRESS],
+        },
+      } as any);
+
+      expect(transformedObj).to.eql({
+        type: TokenType.collateral,
+        token: ADDRESS,
+        tokenFee: {
+          type: TokenFeeType.OffchainQuotedLinearFee,
+          owner: ADDRESS,
+          token: ADDRESS,
+          bps: 300n,
+          quoteSigners: [ADDRESS],
+        },
+      });
+    });
+
+    it('normalizes RoutingFee maxFee/halfAmount recursively for feeContracts', () => {
+      const transformedObj = transformConfigToCheck({
+        type: TokenType.collateral,
+        token: ADDRESS,
+        tokenFee: {
+          type: TokenFeeType.RoutingFee,
+          owner: ADDRESS,
+          token: ADDRESS,
+          maxFee: 1n,
+          halfAmount: 2n,
+          feeContracts: {
+            ethereum: {
+              type: TokenFeeType.LinearFee,
+              owner: ADDRESS,
+              token: ADDRESS,
+              bps: 300n,
+              maxFee: 3n,
+              halfAmount: 4n,
+            },
+          },
+        },
+      } as any);
+
+      expect(transformedObj).to.eql({
+        type: TokenType.collateral,
+        token: ADDRESS,
+        tokenFee: {
+          type: TokenFeeType.RoutingFee,
+          owner: ADDRESS,
+          token: ADDRESS,
+          feeContracts: {
+            ethereum: {
+              type: TokenFeeType.LinearFee,
+              owner: ADDRESS,
+              token: ADDRESS,
+              bps: 300n,
+            },
+          },
+        },
+      });
+    });
+
+    it('normalizes CCRF router-keyed fee contracts recursively', () => {
+      const ROUTER_KEY =
+        '0x1111111111111111111111111111111111111111111111111111111111111111';
+      const transformedObj = transformConfigToCheck({
+        type: TokenType.collateral,
+        token: ADDRESS,
+        tokenFee: {
+          type: TokenFeeType.CrossCollateralRoutingFee,
+          owner: ADDRESS,
+          feeContracts: {
+            ethereum: {
+              [DEFAULT_ROUTER_KEY]: {
+                type: TokenFeeType.LinearFee,
+                owner: ADDRESS,
+                token: ADDRESS,
+                bps: 200n,
+                maxFee: 3n,
+                halfAmount: 4n,
+              },
+              [ROUTER_KEY]: {
+                type: TokenFeeType.LinearFee,
+                owner: ADDRESS,
+                token: ADDRESS,
+                bps: 300n,
+                maxFee: 5n,
+                halfAmount: 6n,
+              },
+            },
+          },
+        },
+      } as any);
+
+      expect(transformedObj).to.eql({
+        type: TokenType.collateral,
+        token: ADDRESS,
+        tokenFee: {
+          type: TokenFeeType.CrossCollateralRoutingFee,
+          owner: ADDRESS,
+          feeContracts: {
+            ethereum: {
+              [DEFAULT_ROUTER_KEY]: {
+                type: TokenFeeType.LinearFee,
+                owner: ADDRESS,
+                token: ADDRESS,
+                bps: 200n,
+              },
+              [ROUTER_KEY]: {
+                type: TokenFeeType.LinearFee,
+                owner: ADDRESS,
+                token: ADDRESS,
+                bps: 300n,
+              },
+            },
+          },
+        },
+      });
+    });
+
+    it('keeps only populated CCRF router entries during normalization', () => {
+      const transformedObj = transformConfigToCheck({
+        type: TokenType.collateral,
+        token: ADDRESS,
+        tokenFee: {
+          type: TokenFeeType.CrossCollateralRoutingFee,
+          owner: ADDRESS,
+          feeContracts: {
+            ethereum: {
+              [DEFAULT_ROUTER_KEY]: {
+                type: TokenFeeType.LinearFee,
+                owner: ADDRESS,
+                token: ADDRESS,
+                bps: 200n,
+              },
+            },
+          },
+        },
+      } as any);
+
+      expect(transformedObj).to.eql({
+        type: TokenType.collateral,
+        token: ADDRESS,
+        tokenFee: {
+          type: TokenFeeType.CrossCollateralRoutingFee,
+          owner: ADDRESS,
+          feeContracts: {
+            ethereum: {
+              [DEFAULT_ROUTER_KEY]: {
+                type: TokenFeeType.LinearFee,
+                owner: ADDRESS,
+                token: ADDRESS,
+                bps: 200n,
+              },
+            },
+          },
+        },
+      });
+    });
+
+    it('normalizes RoutingFee feeContracts when both destination and nested fee contracts are provided', () => {
+      const transformedObj = transformConfigToCheck({
+        type: TokenType.collateral,
+        token: ADDRESS,
+        tokenFee: {
+          type: TokenFeeType.RoutingFee,
+          owner: ADDRESS,
+          token: ADDRESS,
+          feeContracts: {
+            ethereum: {
+              type: TokenFeeType.LinearFee,
+              owner: ADDRESS,
+              token: ADDRESS,
+              bps: 100n,
+            },
+          },
+        },
+      } as any);
+
+      expect(transformedObj).to.eql({
+        type: TokenType.collateral,
+        token: ADDRESS,
+        tokenFee: {
+          type: TokenFeeType.RoutingFee,
+          owner: ADDRESS,
+          token: ADDRESS,
+          feeContracts: {
+            ethereum: {
+              type: TokenFeeType.LinearFee,
+              owner: ADDRESS,
+              token: ADDRESS,
+              bps: 100n,
+            },
+          },
+        },
+      });
+    });
   });
 
   describe(resolveTokenFeeAddress.name, () => {
@@ -231,7 +491,7 @@ describe('configUtils', () => {
         input,
         ROUTER_ADDRESS,
         syntheticConfig,
-      );
+      ) as ResolvedLinearFeeConfigInput;
 
       expect(result.token).to.equal(ROUTER_ADDRESS);
       expect(result.owner).to.equal(OWNER_ADDRESS);
@@ -248,7 +508,7 @@ describe('configUtils', () => {
         input,
         ROUTER_ADDRESS,
         collateralConfig,
-      );
+      ) as ResolvedLinearFeeConfigInput;
 
       expect(result.token).to.equal(COLLATERAL_TOKEN);
     });
@@ -264,7 +524,7 @@ describe('configUtils', () => {
         input,
         ROUTER_ADDRESS,
         nativeConfig,
-      );
+      ) as ResolvedLinearFeeConfigInput;
 
       expect(result.token).to.equal(constants.AddressZero);
     });
@@ -291,34 +551,71 @@ describe('configUtils', () => {
         input,
         ROUTER_ADDRESS,
         syntheticConfig,
-      );
+      ) as ResolvedRoutingFeeConfigInput;
 
       expect(result.token).to.equal(ROUTER_ADDRESS);
       expect(result.type).to.equal(TokenFeeType.RoutingFee);
 
       const routingResult = result as ResolvedRoutingFeeConfigInput;
-      expect(routingResult.feeContracts?.ethereum?.token).to.equal(
+      expect(routingResult.feeContracts.ethereum.token).to.equal(
         ROUTER_ADDRESS,
       );
-      expect(routingResult.feeContracts?.arbitrum?.token).to.equal(
+      expect(routingResult.feeContracts.arbitrum.token).to.equal(
         ROUTER_ADDRESS,
       );
     });
 
-    it('should handle RoutingFee without feeContracts', () => {
+    it('should handle RoutingFee with empty feeContracts', () => {
       const input = {
         type: TokenFeeType.RoutingFee as const,
         owner: OWNER_ADDRESS,
+        feeContracts: {},
       };
 
       const result = resolveTokenFeeAddress(
         input,
         ROUTER_ADDRESS,
         syntheticConfig,
-      );
+      ) as ResolvedRoutingFeeConfigInput;
 
       expect(result.token).to.equal(ROUTER_ADDRESS);
       expect(result.type).to.equal(TokenFeeType.RoutingFee);
+    });
+
+    it('should resolve token for nested cross collateral feeContracts', () => {
+      const ROUTER_KEY =
+        '0x1111111111111111111111111111111111111111111111111111111111111111';
+      const input = {
+        type: TokenFeeType.CrossCollateralRoutingFee as const,
+        owner: OWNER_ADDRESS,
+        feeContracts: {
+          ethereum: {
+            [DEFAULT_ROUTER_KEY]: {
+              type: TokenFeeType.LinearFee as const,
+              owner: OWNER_ADDRESS,
+              bps: 100n,
+            },
+            [ROUTER_KEY]: {
+              type: TokenFeeType.LinearFee as const,
+              owner: OWNER_ADDRESS,
+              bps: 200n,
+            },
+          },
+        },
+      };
+
+      const result = resolveTokenFeeAddress(
+        input,
+        ROUTER_ADDRESS,
+        syntheticConfig,
+      ) as ResolvedCrossCollateralRoutingFeeConfigInput;
+
+      expect(result.feeContracts.ethereum[DEFAULT_ROUTER_KEY]?.token).to.equal(
+        ROUTER_ADDRESS,
+      );
+      expect(result.feeContracts.ethereum[ROUTER_KEY]?.token).to.equal(
+        ROUTER_ADDRESS,
+      );
     });
   });
 

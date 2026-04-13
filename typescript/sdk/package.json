@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/sdk",
-  "version": "29.1.0",
+  "version": "31.0.0",
   "description": "The official SDK for the Hyperlane Network",
   "keywords": [
     "Hyperlane",
@@ -24,7 +24,7 @@
     "dev": "tsc --watch",
     "check": "tsc --noEmit",
     "clean": "rm -rf ./dist ./cache",
-    "lint": "eslint -c ./eslint.config.mjs",
+    "lint": "oxlint -c ../../oxlint.json",
     "prepublishOnly": "pnpm build",
     "format": "oxfmt --write ./src",
     "test": "pnpm test:unit && pnpm test:hardhat && pnpm test:foundry",
@@ -49,7 +49,6 @@
     "@hyperlane-xyz/core": "workspace:*",
     "@hyperlane-xyz/cosmos-sdk": "workspace:*",
     "@hyperlane-xyz/deploy-sdk": "workspace:*",
-    "@hyperlane-xyz/multicollateral": "workspace:*",
     "@hyperlane-xyz/provider-sdk": "workspace:*",
     "@hyperlane-xyz/radix-sdk": "workspace:*",
     "@hyperlane-xyz/starknet-core": "workspace:*",
@@ -79,7 +78,6 @@
   },
   "devDependencies": {
     "@ethersproject/providers": "*",
-    "@hyperlane-xyz/eslint-config": "workspace:^",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@nomiclabs/hardhat-ethers": "catalog:",
     "@nomiclabs/hardhat-waffle": "catalog:",
@@ -93,7 +91,6 @@
     "chai": "catalog:",
     "chai-as-promised": "catalog:",
     "dotenv": "catalog:",
-    "eslint": "catalog:",
     "ethereum-waffle": "catalog:",
     "hardhat": "catalog:",
     "hardhat-gas-reporter": "catalog:",

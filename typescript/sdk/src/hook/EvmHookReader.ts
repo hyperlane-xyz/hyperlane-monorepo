@@ -384,10 +384,17 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     );
 
     // Parallelize initial RPC calls
-    const [hookType, owner, beneficiary] = await Promise.all([
+    const [hookType, owner, beneficiary, quoteSigners] = await Promise.all([
       hook.hookType(),
       hook.owner(),
       hook.beneficiary(),
+      // quoteSigners() not available on IGP versions before offchain fee quoting
+      hook.quoteSigners().catch(() => {
+        this.logger.debug(
+          'quoteSigners() not available on this IGP version, skipping',
+        );
+        return [] as string[];
+      }),
     ]);
 
     this.assertHookType(hookType, OnchainHookType.INTERCHAIN_GAS_PAYMASTER);
@@ -452,6 +459,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       oracleKey: oracleKey ?? owner,
       overhead,
       oracleConfig,
+      ...(quoteSigners.length > 0 ? { quoteSigners: [...quoteSigners] } : {}),
     };
 
     this._cache.set(address, config);

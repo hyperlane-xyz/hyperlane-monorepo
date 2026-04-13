@@ -59,16 +59,17 @@ impl NonceManagerState {
     ) -> Result<U256, NonceError> {
         use NonceStatus::Freed;
 
-        let Some(finalized_nonce) = finalized_nonce else {
-            // If there is no finalized nonce, we use upper nonce as the next nonce.
-            return Ok(upper_nonce);
+        // finalized_nonce is the last committed nonce on-chain.
+        // When Some, nonces [0..=finalized] are committed, so scan from finalized+1.
+        // When None (fresh account, 0 txs on-chain), scan from nonce 0.
+        let scan_start = match finalized_nonce {
+            Some(f) => f.saturating_add(U256::one()),
+            None => U256::zero(),
         };
 
-        let mut next_nonce = finalized_nonce;
+        let mut next_nonce = scan_start;
 
         while next_nonce < upper_nonce {
-            next_nonce = next_nonce.saturating_add(U256::one());
-
             let tracked_tx_uuid = self.get_tracked_tx_uuid(&next_nonce).await?;
             if tracked_tx_uuid == TransactionUuid::default() {
                 // If the nonce is not tracked, we can use it.
@@ -76,7 +77,7 @@ impl NonceManagerState {
                     ?next_nonce,
                     "There is no tracked transaction for nonce, reusing it"
                 );
-                break;
+                return Ok(next_nonce);
             }
 
             let Some(tx) = self.get_tracked_tx(&tracked_tx_uuid).await? else {
@@ -87,7 +88,7 @@ impl NonceManagerState {
                     ?tracked_tx_uuid,
                     "Nonce was assigned to a non-existing transaction, assigning new nonce"
                 );
-                break;
+                return Ok(next_nonce);
             };
 
             let tx_status = tx.status;
@@ -101,8 +102,10 @@ impl NonceManagerState {
                 );
                 // If the transaction, which is tracked by the nonce, was dropped,
                 // we can re-use the nonce.
-                break;
+                return Ok(next_nonce);
             }
+
+            next_nonce = next_nonce.saturating_add(U256::one());
         }
 
         Ok(next_nonce)

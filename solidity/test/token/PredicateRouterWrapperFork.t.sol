@@ -22,6 +22,7 @@ import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.so
 import {HypERC20Collateral} from "../../contracts/token/HypERC20Collateral.sol";
 import {HypERC20} from "../../contracts/token/HypERC20.sol";
 import {PredicateRouterWrapper} from "../../contracts/token/extensions/PredicateRouterWrapper.sol";
+import {IPredicateWrapper} from "../../contracts/interfaces/IPredicateWrapper.sol";
 import {IPredicateRegistry, Statement, Attestation} from "@predicate/interfaces/IPredicateRegistry.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
@@ -127,6 +128,7 @@ contract PredicateRouterWrapperForkTest is Test {
         collateralRouter = new HypERC20Collateral(
             address(primaryToken),
             SCALE,
+            SCALE,
             address(localMailbox)
         );
         collateralRouter.initialize(
@@ -138,6 +140,7 @@ contract PredicateRouterWrapperForkTest is Test {
         // Deploy remote synthetic token
         HypERC20 implementation = new HypERC20(
             DECIMALS,
+            SCALE,
             SCALE,
             address(remoteMailbox)
         );
@@ -282,7 +285,7 @@ contract PredicateRouterWrapperForkTest is Test {
         address owner = IPredicateRegistryAdmin(PREDICATE_REGISTRY).owner();
         assertEq(
             owner,
-            0x62ca17e47cC2EFF4a81FC0E173cAfCb1B840635F,
+            0x8A3c2193521Cf895D77c8Dedb290fC5E19126fdE,
             "Owner should match expected"
         );
     }
@@ -525,7 +528,7 @@ contract PredicateRouterWrapperForkTest is Test {
 
         vm.prank(ALICE);
         vm.expectRevert(
-            PredicateRouterWrapper
+            IPredicateWrapper
                 .PredicateRouterWrapper__UnauthorizedTransfer
                 .selector
         );
@@ -560,7 +563,7 @@ contract PredicateRouterWrapperForkTest is Test {
 
         vm.prank(ALICE);
         vm.expectRevert(
-            PredicateRouterWrapper
+            IPredicateWrapper
                 .PredicateRouterWrapper__UnauthorizedTransfer
                 .selector
         );

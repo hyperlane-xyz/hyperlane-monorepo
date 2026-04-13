@@ -31,8 +31,8 @@ interface IPostDispatchHook {
         MAILBOX_DEFAULT_HOOK,
         AMOUNT_ROUTING,
         CCTP,
-        PREDICATE_ROUTER_WRAPPER,
-        TIMELOCK_ROUTING
+        TIMELOCK_ROUTING,
+        PREDICATE_ROUTER_WRAPPER
     }
 
     /**

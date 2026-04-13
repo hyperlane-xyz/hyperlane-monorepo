@@ -4,6 +4,7 @@ export const DockerImageNames = {
   AGENT: 'hyperlane-agent',
   MONOREPO: 'hyperlane-monorepo',
   NODE_SERVICES: 'hyperlane-node-services',
+  FEE_QUOTING: 'hyperlane-fee-quoting',
 } as const;
 
 type DockerImageReposType = {
@@ -34,32 +35,34 @@ interface MainnetDockerTags extends BaseDockerTags {
   checkWarpDeploy: string;
   warpMonitor: string;
   rebalancer: string;
+  feeQuoting: string;
 }
 
 export const mainnetDockerTags: MainnetDockerTags = {
   // rust agents
-  relayer: '6bbc7b5-20260326-002348',
-  relayerRC: '6bbc7b5-20260326-002348',
-  relayerFastPath: '3754d4f-20260326-130321',
-  validator: '910e8e8-20260318-204227',
-  validatorRC: '910e8e8-20260318-204227',
-  scraper: '910e8e8-20260318-204227',
+  relayer: '7eb690c-20260406-142107',
+  relayerRC: '7eb690c-20260406-142107',
+  relayerFastPath: '7eb690c-20260406-142107',
+  validator: '7eb690c-20260406-142107',
+  validatorRC: '7eb690c-20260406-142107',
+  scraper: 'caa8162-20260409-132508',
   // monorepo services
   checkWarpDeploy: 'main',
   // standalone services
   keyFunder: '3b17358-20260315-183126',
   warpMonitor: '3b17358-20260315-183126',
   rebalancer: '3b17358-20260315-183126',
+  feeQuoting: '12d899d-20260325-184337',
 };
 
 export const testnetDockerTags: BaseDockerTags = {
   // rust agents
-  relayer: '6bbc7b5-20260326-002348',
-  relayerRC: '6bbc7b5-20260326-002348',
-  relayerFastPath: '3754d4f-20260326-130321',
-  validator: '910e8e8-20260318-204227',
-  validatorRC: '910e8e8-20260318-204227',
-  scraper: '910e8e8-20260318-204227',
+  relayer: '7eb690c-20260406-142107',
+  relayerRC: '7eb690c-20260406-142107',
+  relayerFastPath: '7eb690c-20260406-142107',
+  validator: '7eb690c-20260406-142107',
+  validatorRC: '7eb690c-20260406-142107',
+  scraper: 'caa8162-20260409-132508',
   // standalone services
   keyFunder: '3b17358-20260315-183126',
 };

@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/warp-widget",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Embed the Hyperlane Warp bridge widget in any web app",
   "keywords": [
     "Bridge",
@@ -26,16 +26,13 @@
   "scripts": {
     "build": "tsc",
     "clean": "rm -rf ./dist ./cache",
-    "lint": "eslint -c ./eslint.config.mjs",
+    "lint": "oxlint -c ../../oxlint.json",
     "format": "oxfmt --write ./src"
   },
   "devDependencies": {
-    "@hyperlane-xyz/eslint-config": "workspace:*",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@types/node": "catalog:",
     "@types/react": "^18.0.27",
-    "eslint": "catalog:",
-    "eslint-plugin-react": "^7.37.2",
     "react": "^18.2.0",
     "typescript": "catalog:"
   },
