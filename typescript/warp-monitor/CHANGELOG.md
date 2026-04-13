@@ -1,5 +1,15 @@
 # @hyperlane-xyz/warp-monitor
 
+## 0.3.9
+
+### Patch Changes
+
+- Updated dependencies [d5168fc]
+  - @hyperlane-xyz/utils@31.0.1
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/metrics@0.2.12
+  - @hyperlane-xyz/sdk@31.0.1
+
 ## 0.3.8
 
 ### Patch Changes
