@@ -619,6 +619,54 @@ describe('MinAmountStrategy', () => {
       );
     });
 
+    it('should keep fractional minAmount validation errors human-readable across heterogeneous decimals', () => {
+      const mixedTokensByChainName: ChainMap<Token> = {
+        [chain1]: new Token({
+          ...tokenArgs,
+          chainName: chain1,
+          decimals: 6,
+        }),
+        [chain2]: new Token({
+          ...tokenArgs,
+          chainName: chain2,
+          decimals: 18,
+          scale: { numerator: 1, denominator: 1_000_000_000_000 },
+        }),
+      };
+
+      expect(
+        () =>
+          new MinAmountStrategy(
+            {
+              [chain1]: {
+                minAmount: {
+                  min: '100',
+                  target: '120.25',
+                  type: RebalancerMinAmountType.Absolute,
+                },
+                bridge: AddressZero,
+                bridgeLockTime: 1,
+              },
+              [chain2]: {
+                minAmount: {
+                  min: '100',
+                  target: '120.25',
+                  type: RebalancerMinAmountType.Absolute,
+                },
+                bridge: AddressZero,
+                bridgeLockTime: 1,
+              },
+            },
+            mixedTokensByChainName,
+            230_500_000n,
+            testLogger,
+            {},
+          ),
+      ).to.throw(
+        `Consider reducing the targets as the sum (240.5) is greater than sum of collaterals (230.5)`,
+      );
+    });
+
     it('should handle case where there is not enough surplus to meet all minimum requirements by scaling down deficits', () => {
       const config = {
         [chain1]: {
