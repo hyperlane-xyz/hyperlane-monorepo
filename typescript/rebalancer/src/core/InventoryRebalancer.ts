@@ -22,6 +22,7 @@ import {
   ProtocolType,
   assert,
   ensure0x,
+  fromWei,
   isZeroishAddress,
 } from '@hyperlane-xyz/utils';
 
@@ -298,6 +299,10 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     return total;
   }
 
+  private formatLocalAmount(amount: bigint, token: Token): string {
+    return fromWei(amount.toString(), token.decimals);
+  }
+
   /**
    * Get the effective available inventory for a chain, accounting for
    * inventory already consumed during this execution cycle.
@@ -561,9 +566,15 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       {
         checkingChain: destination,
         availableInventory: availableInventory.toString(),
-        availableInventoryEth: (Number(availableInventory) / 1e18).toFixed(6),
+        availableInventoryFormatted: this.formatLocalAmount(
+          availableInventory,
+          sourceToken,
+        ),
         requiredAmount: requestedLocalAmount.toString(),
-        requiredAmountEth: (Number(requestedLocalAmount) / 1e18).toFixed(6),
+        requiredAmountFormatted: this.formatLocalAmount(
+          requestedLocalAmount,
+          sourceToken,
+        ),
       },
       'Checking effective inventory on destination (deficit) chain',
     );
@@ -592,13 +603,25 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       {
         fromChain: destination,
         toChain: origin,
-        availableInventoryEth: (Number(availableInventory) / 1e18).toFixed(6),
-        requestedAmountEth: (Number(requestedLocalAmount) / 1e18).toFixed(6),
-        maxTransferableEth: (Number(maxTransferable) / 1e18).toFixed(6),
-        minViableTransferEth: (Number(minViableTransfer) / 1e18).toFixed(6),
-        totalInventoryEth: (Number(totalInventory) / 1e18).toFixed(6),
+        availableInventoryFormatted: this.formatLocalAmount(
+          availableInventory,
+          sourceToken,
+        ),
+        requestedAmountFormatted: this.formatLocalAmount(
+          requestedLocalAmount,
+          sourceToken,
+        ),
+        maxTransferableFormatted: this.formatLocalAmount(
+          maxTransferable,
+          sourceToken,
+        ),
+        minViableTransferFormatted: this.formatLocalAmount(
+          minViableTransfer,
+          sourceToken,
+        ),
         canFullyFulfill: maxTransferable >= requestedLocalAmount,
         canPartialFulfill: maxTransferable >= minViableTransfer,
+        totalInventory: totalInventory.toString(),
       },
       'Calculated max transferable amount with cost-based threshold',
     );
@@ -1395,9 +1418,18 @@ export class InventoryRebalancer implements IInventoryRebalancer {
           originalAmount: targetOutputAmount.toString(),
           effectiveAmount: effectiveTargetOutput.toString(),
           minViableTransfer: minViableTransfer.toString(),
-          originalAmountEth: (Number(targetOutputAmount) / 1e18).toFixed(6),
-          effectiveAmountEth: (Number(effectiveTargetOutput) / 1e18).toFixed(6),
-          minViableTransferEth: (Number(minViableTransfer) / 1e18).toFixed(6),
+          originalAmountFormatted: this.formatLocalAmount(
+            targetOutputAmount,
+            targetToken,
+          ),
+          effectiveAmountFormatted: this.formatLocalAmount(
+            effectiveTargetOutput,
+            targetToken,
+          ),
+          minViableTransferFormatted: this.formatLocalAmount(
+            minViableTransfer,
+            targetToken,
+          ),
           adjustedUp: true,
           intentId: intent.id,
         },
@@ -1432,17 +1464,26 @@ export class InventoryRebalancer implements IInventoryRebalancer {
           sourceChainId,
           targetChainId,
           requestedTargetOutput: targetOutputAmount.toString(),
-          requestedTargetOutputEth: (Number(targetOutputAmount) / 1e18).toFixed(
-            6,
+          requestedTargetOutputFormatted: this.formatLocalAmount(
+            targetOutputAmount,
+            targetToken,
           ),
           effectiveTargetOutput: effectiveTargetOutput.toString(),
-          effectiveTargetOutputEth: (
-            Number(effectiveTargetOutput) / 1e18
-          ).toFixed(6),
+          effectiveTargetOutputFormatted: this.formatLocalAmount(
+            effectiveTargetOutput,
+            targetToken,
+          ),
           inputRequired: inputRequired.toString(),
+          inputRequiredFormatted: this.formatLocalAmount(
+            inputRequired,
+            sourceToken,
+          ),
           expectedOutput: quote.toAmount.toString(),
           expectedOutputMin: quote.toAmountMin.toString(),
-          expectedOutputEth: (Number(quote.toAmount) / 1e18).toFixed(6),
+          expectedOutputFormatted: this.formatLocalAmount(
+            quote.toAmount,
+            targetToken,
+          ),
           gasCosts: quote.gasCosts.toString(),
           feeCosts: quote.feeCosts.toString(),
           intentId: intent.id,
