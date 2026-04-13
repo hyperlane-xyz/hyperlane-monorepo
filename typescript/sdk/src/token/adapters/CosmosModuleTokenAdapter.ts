@@ -1,6 +1,6 @@
 import { MsgSendEncodeObject } from '@cosmjs/stargate';
 
-import { MsgRemoteTransferEncodeObject } from '@hyperlane-xyz/cosmos-sdk';
+import type { MsgRemoteTransferEncodeObject } from '@hyperlane-xyz/cosmos-sdk/runtime';
 import {
   Address,
   Domain,
