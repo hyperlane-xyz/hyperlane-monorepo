@@ -25,6 +25,14 @@ export interface WalletDetails {
   logoUrl?: string;
 }
 
+export type ProtocolConnectFns = Partial<Record<ProtocolType, () => void>>;
+export type ProtocolDisconnectFns = Partial<
+  Record<ProtocolType, () => Promise<void>>
+>;
+export type ProtocolWalletDetailsMap = Partial<
+  Record<ProtocolType, WalletDetails>
+>;
+
 export interface ActiveChainInfo {
   chainDisplayName?: string;
   chainName?: ChainName;

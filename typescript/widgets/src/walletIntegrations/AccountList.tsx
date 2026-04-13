@@ -3,7 +3,7 @@ import React, { ButtonHTMLAttributes } from 'react';
 
 import type { MinimalProviderRegistry } from '@hyperlane-xyz/sdk/providers/MinimalProviderRegistry';
 import type { ChainName } from '@hyperlane-xyz/sdk/types';
-import { ProtocolType, objKeys } from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { Button } from '../components/Button.js';
 import { IconButton } from '../components/IconButton.js';
@@ -18,27 +18,42 @@ import { useAccounts } from '../walletIntegrations/accounts.js';
 import { useDisconnectFns } from '../walletIntegrations/disconnectFns.js';
 import { useWalletDetails } from '../walletIntegrations/walletDetails.js';
 
-import { AccountInfo, WalletDetails } from './types.js';
+import {
+  AccountInfo,
+  ProtocolDisconnectFns,
+  ProtocolWalletDetailsMap,
+  WalletDetails,
+} from './types.js';
 
 const logger = widgetLogger.child({ module: 'walletIntegrations/AccountList' });
+const EMPTY_WALLET_DETAILS: WalletDetails = {};
 
-export function AccountList({
-  multiProvider,
+type SharedAccountListProps = {
+  onClickConnectWallet: () => void;
+  onCopySuccess?: () => void;
+  className?: string;
+  chainName?: ChainName;
+};
+
+export type BaseAccountListProps = SharedAccountListProps & {
+  readyAccounts: AccountInfo[];
+  disconnectFns: ProtocolDisconnectFns;
+  walletDetails: ProtocolWalletDetailsMap;
+};
+
+export type AccountListProps = SharedAccountListProps & {
+  multiProvider: MinimalProviderRegistry;
+};
+
+export function BaseAccountList({
+  readyAccounts,
+  disconnectFns,
+  walletDetails,
   onClickConnectWallet,
   onCopySuccess,
   className,
   chainName,
-}: {
-  multiProvider: MinimalProviderRegistry;
-  onClickConnectWallet: () => void;
-  onCopySuccess?: () => void;
-  className?: string;
-  chainName?: string;
-}) {
-  const { readyAccounts } = useAccounts(multiProvider);
-  const disconnectFns = useDisconnectFns();
-  const walletDetails = useWalletDetails();
-
+}: BaseAccountListProps) {
   const onClickDisconnect = async (protocol: ProtocolType) => {
     try {
       const disconnectFn = disconnectFns[protocol];
@@ -49,7 +64,7 @@ export function AccountList({
   };
 
   const onClickDisconnectAll = async () => {
-    for (const protocol of objKeys(disconnectFns)) {
+    for (const protocol of Object.keys(disconnectFns) as ProtocolType[]) {
       await onClickDisconnect(protocol);
     }
   };
@@ -60,7 +75,7 @@ export function AccountList({
         <AccountSummary
           key={i}
           account={acc}
-          walletDetails={walletDetails[acc.protocol]}
+          walletDetails={walletDetails[acc.protocol] ?? EMPTY_WALLET_DETAILS}
           onCopySuccess={onCopySuccess}
           onClickDisconnect={() => onClickDisconnect(acc.protocol)}
           chainName={chainName}
@@ -81,6 +96,23 @@ export function AccountList({
         <div className="htw-ml-2 htw-text-sm">Disconnect all wallets</div>
       </Button>
     </div>
+  );
+}
+
+// Full-matrix convenience wrapper. Selective consumers should use
+// BaseAccountList with protocol-specific hooks and injected state.
+export function AccountList({ multiProvider, ...props }: AccountListProps) {
+  const { readyAccounts } = useAccounts(multiProvider);
+  const disconnectFns = useDisconnectFns();
+  const walletDetails = useWalletDetails();
+
+  return (
+    <BaseAccountList
+      readyAccounts={readyAccounts}
+      disconnectFns={disconnectFns}
+      walletDetails={walletDetails}
+      {...props}
+    />
   );
 }
 

@@ -13,9 +13,25 @@ import { useIsSsr } from '../utils/ssr.js';
 import { WalletLogo } from './WalletLogo.js';
 import { getAddressFromAccountAndChain } from './accountUtils.js';
 import { useAccounts } from './accounts.js';
+import type {
+  AccountInfo,
+  ProtocolWalletDetailsMap,
+  WalletDetails,
+} from './types.js';
 import { useWalletDetails } from './walletDetails.js';
 
-type Props = {
+const EMPTY_WALLET_DETAILS: WalletDetails = {};
+
+export type BaseConnectWalletButtonProps = {
+  readyAccounts: AccountInfo[];
+  walletDetails: ProtocolWalletDetailsMap;
+  onClickWhenConnected: () => void;
+  onClickWhenUnconnected: () => void;
+  countClassName?: string;
+  chainName?: ChainName;
+} & ButtonHTMLAttributes<HTMLButtonElement>;
+
+export type ConnectWalletButtonProps = {
   multiProvider: MinimalProviderRegistry;
   onClickWhenConnected: () => void;
   onClickWhenUnconnected: () => void;
@@ -23,19 +39,17 @@ type Props = {
   chainName?: ChainName;
 } & ButtonHTMLAttributes<HTMLButtonElement>;
 
-export function ConnectWalletButton({
-  multiProvider,
+export function BaseConnectWalletButton({
+  readyAccounts,
+  walletDetails,
   onClickWhenConnected,
   onClickWhenUnconnected,
   className,
   countClassName,
   chainName,
   ...rest
-}: Props) {
+}: BaseConnectWalletButtonProps) {
   const isSsr = useIsSsr();
-
-  const { readyAccounts } = useAccounts(multiProvider);
-  const walletDetails = useWalletDetails();
 
   const numReady = readyAccounts.length;
   const firstAccount = readyAccounts[0];
@@ -46,7 +60,9 @@ export function ConnectWalletButton({
   );
 
   const firstWallet =
-    walletDetails[firstAccount?.protocol || ProtocolType.Ethereum];
+    (firstAccount && walletDetails[firstAccount.protocol]) ||
+    walletDetails[ProtocolType.Ethereum] ||
+    EMPTY_WALLET_DETAILS;
 
   if (isSsr) {
     // https://github.com/wagmi-dev/wagmi/issues/542#issuecomment-1144178142
@@ -115,5 +131,23 @@ export function ConnectWalletButton({
         )}
       </div>
     </div>
+  );
+}
+
+// Full-matrix convenience wrapper. Selective consumers should use
+// BaseConnectWalletButton with protocol-specific hooks and injected state.
+export function ConnectWalletButton({
+  multiProvider,
+  ...props
+}: ConnectWalletButtonProps) {
+  const { readyAccounts } = useAccounts(multiProvider);
+  const walletDetails = useWalletDetails();
+
+  return (
+    <BaseConnectWalletButton
+      readyAccounts={readyAccounts}
+      walletDetails={walletDetails}
+      {...props}
+    />
   );
 }
