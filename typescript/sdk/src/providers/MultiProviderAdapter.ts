@@ -1,4 +1,11 @@
-import { ProtocolType, objFilter, objMap, pick } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  HexString,
+  ProtocolType,
+  objFilter,
+  objMap,
+  pick,
+} from '@hyperlane-xyz/utils';
 
 import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import type { ChainMetadata } from '../metadata/chainMetadataTypes.js';
@@ -13,10 +20,15 @@ import {
   EthersV5Provider,
   PROTOCOL_TO_DEFAULT_PROVIDER_TYPE,
   ProviderType,
+  TypedTransaction,
   TypedProvider,
 } from './ProviderType.js';
 import { defaultZKSyncProviderBuilder } from './builders/zksync.js';
 import type { ProviderBuilderFn } from './providerBuilders.js';
+import {
+  TransactionFeeEstimate,
+  estimateTransactionFee,
+} from './transactionFeeEstimators.js';
 
 export interface MultiProviderAdapterOptions extends MinimalProviderRegistryOptions {}
 
@@ -180,5 +192,27 @@ export class MultiProviderAdapter<
         providerBuilders: this.providerBuilders,
       }),
     };
+  }
+
+  estimateTransactionFee({
+    chainNameOrId,
+    transaction,
+    sender,
+    senderPubKey,
+  }: {
+    chainNameOrId: ChainNameOrId;
+    transaction: TypedTransaction;
+    sender: Address;
+    senderPubKey?: HexString;
+  }): Promise<TransactionFeeEstimate> {
+    const provider = this.getProvider(chainNameOrId, transaction.type);
+    const chainMetadata = this.getChainMetadata(chainNameOrId);
+    return estimateTransactionFee({
+      transaction,
+      provider,
+      chainMetadata,
+      sender,
+      senderPubKey,
+    });
   }
 }

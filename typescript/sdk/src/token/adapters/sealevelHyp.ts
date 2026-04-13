@@ -25,24 +25,17 @@ export function createSealevelHypAdapter(
     return undefined;
   }
 
-  if (
-    standard !== TokenStandard.SealevelHypNative &&
-    standard !== TokenStandard.SealevelHypCollateral &&
-    standard !== TokenStandard.SealevelHypSynthetic
-  ) {
-    return undefined;
-  }
-
   const mailbox = multiProvider.getChainMetadata(chainName).mailbox;
-  assert(mailbox, 'Mailbox required for Sealevel hyp tokens');
 
   switch (standard) {
     case TokenStandard.SealevelHypNative:
+      assert(mailbox, 'Mailbox required for Sealevel hyp tokens');
       return new SealevelHypNativeAdapter(chainName, multiProvider, {
         warpRouter: addressOrDenom,
         mailbox,
       });
     case TokenStandard.SealevelHypCollateral:
+      assert(mailbox, 'Mailbox required for Sealevel hyp tokens');
       assert(
         collateralAddressOrDenom,
         'collateralAddressOrDenom required for Sealevel hyp collateral tokens',
@@ -53,6 +46,7 @@ export function createSealevelHypAdapter(
         mailbox,
       });
     case TokenStandard.SealevelHypSynthetic:
+      assert(mailbox, 'Mailbox required for Sealevel hyp tokens');
       assert(
         collateralAddressOrDenom,
         'collateralAddressOrDenom required for Sealevel hyp synthetic tokens',

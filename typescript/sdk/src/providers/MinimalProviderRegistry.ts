@@ -1,12 +1,6 @@
 import { Logger } from 'pino';
 
-import {
-  Address,
-  HexString,
-  ProtocolType,
-  pick,
-  rootLogger,
-} from '@hyperlane-xyz/utils';
+import { ProtocolType, pick, rootLogger } from '@hyperlane-xyz/utils';
 
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import type { ChainMetadata } from '../metadata/chainMetadataTypes.js';
@@ -26,17 +20,12 @@ import {
   StarknetJsProvider,
   TronProvider,
   TypedProvider,
-  TypedTransaction,
   ViemProvider,
 } from './ProviderType.js';
 import type {
   ProviderBuilderFn,
   ProviderBuilderMap,
 } from './providerBuilders.js';
-import {
-  TransactionFeeEstimate,
-  estimateTransactionFee,
-} from './transactionFeeEstimators.js';
 
 export interface MinimalProviderRegistryOptions {
   logger?: Logger;
@@ -227,28 +216,6 @@ export class MinimalProviderRegistry<
     for (const chain of Object.keys(providers)) {
       this.setProvider(chain, providers[chain]);
     }
-  }
-
-  estimateTransactionFee({
-    chainNameOrId,
-    transaction,
-    sender,
-    senderPubKey,
-  }: {
-    chainNameOrId: ChainNameOrId;
-    transaction: TypedTransaction;
-    sender: Address;
-    senderPubKey?: HexString;
-  }): Promise<TransactionFeeEstimate> {
-    const provider = this.getProvider(chainNameOrId, transaction.type);
-    const chainMetadata = this.getChainMetadata(chainNameOrId);
-    return estimateTransactionFee({
-      transaction,
-      provider,
-      chainMetadata,
-      sender,
-      senderPubKey,
-    });
   }
 
   override intersect(
