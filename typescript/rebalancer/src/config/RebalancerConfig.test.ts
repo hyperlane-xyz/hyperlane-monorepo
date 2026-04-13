@@ -653,7 +653,7 @@ describe('per-chain bridge configuration', () => {
     });
   });
 
-  it('should require externalBridges.lifi when executionType is inventory', () => {
+  it('should require externalBridge when executionType is inventory', () => {
     const data = {
       warpRouteId: 'test-route',
       strategy: [
@@ -663,6 +663,7 @@ describe('per-chain bridge configuration', () => {
             ethereum: {
               weighted: { weight: 100, tolerance: 5 },
               executionType: ExecutionType.Inventory,
+              externalBridge: ExternalBridgeType.LiFi,
             },
           },
         },
@@ -675,7 +676,7 @@ describe('per-chain bridge configuration', () => {
     writeYamlOrJson(TEST_CONFIG_PATH_BRIDGE, data);
 
     expect(() => RebalancerConfig.load(TEST_CONFIG_PATH_BRIDGE)).to.throw(
-      /externalBridges\.lifi.*required/i,
+      /externalBridge/i,
     );
   });
 
@@ -706,7 +707,68 @@ describe('per-chain bridge configuration', () => {
     );
   });
 
-  it('should require externalBridge field when executionType is inventory', () => {
+  it('should accept externalBridges.cctpWarp when externalBridge is cctpWarp', () => {
+    const data: RebalancerConfigFileInput = {
+      warpRouteId: 'test-route',
+      strategy: [
+        {
+          rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+          chains: {
+            ethereum: {
+              weighted: { weight: 100, tolerance: 5 },
+              executionType: ExecutionType.Inventory,
+              externalBridge: ExternalBridgeType.CctpWarp,
+            },
+          },
+        },
+      ],
+      inventorySigners: {
+        ethereum: '0x1234567890123456789012345678901234567890',
+      },
+      externalBridges: {
+        cctpWarp: {
+          mode: 'fast',
+        },
+      },
+    };
+
+    writeYamlOrJson(TEST_CONFIG_PATH_BRIDGE, data);
+    const config = RebalancerConfig.load(TEST_CONFIG_PATH_BRIDGE);
+
+    expect(config.strategyConfig[0].chains.ethereum.externalBridge).to.equal(
+      ExternalBridgeType.CctpWarp,
+    );
+    expect(config.externalBridges?.cctpWarp?.mode).to.equal('fast');
+  });
+
+  it('should require externalBridges.cctpWarp when externalBridge is cctpWarp', () => {
+    const data = {
+      warpRouteId: 'test-route',
+      strategy: [
+        {
+          rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+          chains: {
+            ethereum: {
+              weighted: { weight: 100, tolerance: 5 },
+              executionType: ExecutionType.Inventory,
+              externalBridge: ExternalBridgeType.CctpWarp,
+            },
+          },
+        },
+      ],
+      inventorySigners: {
+        ethereum: '0x1234567890123456789012345678901234567890',
+      },
+    };
+
+    writeYamlOrJson(TEST_CONFIG_PATH_BRIDGE, data);
+
+    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH_BRIDGE)).to.throw(
+      /externalBridges\.cctpWarp.*required|cctpWarp.*not configured/i,
+    );
+  });
+
+  it('should require externalBridge field when executionType is inventory even when externalBridges are configured', () => {
     const data = {
       warpRouteId: 'test-route',
       strategy: [
