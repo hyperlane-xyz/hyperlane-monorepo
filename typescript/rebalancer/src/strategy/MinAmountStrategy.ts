@@ -1,7 +1,12 @@
 import { BigNumber } from 'bignumber.js';
 import { type Logger } from 'pino';
 
-import { type ChainMap, type Token } from '@hyperlane-xyz/sdk';
+import {
+  localAmountFromMessage,
+  type ChainMap,
+  type Token,
+} from '@hyperlane-xyz/sdk';
+import { fromWei } from '@hyperlane-xyz/utils';
 
 import {
   type MinAmountStrategyConfig,
@@ -176,6 +181,7 @@ export class MinAmountStrategy extends BaseStrategy {
 
     if (minAmountType === RebalancerMinAmountType.Absolute) {
       let totalTargets = 0n;
+      const displayToken = this.getTokenByChainName(this.chains[0]);
 
       for (const chainName of this.chains) {
         const token = this.getTokenByChainName(chainName);
@@ -187,9 +193,20 @@ export class MinAmountStrategy extends BaseStrategy {
 
       if (totalTargets > totalCollateral) {
         throw new Error(
-          `Consider reducing the targets as the canonical sum (${totalTargets}) is greater than sum of collaterals (${totalCollateral})`,
+          `Consider reducing the targets as the sum (${this.formatCanonicalAmount(
+            totalTargets,
+            displayToken,
+          )}) is greater than sum of collaterals (${this.formatCanonicalAmount(
+            totalCollateral,
+            displayToken,
+          )})`,
         );
       }
     }
+  }
+
+  private formatCanonicalAmount(amount: bigint, token: Token): string {
+    const localAmount = localAmountFromMessage(amount, token.scale);
+    return fromWei(localAmount.toString(), token.decimals);
   }
 }

@@ -567,7 +567,55 @@ describe('MinAmountStrategy', () => {
             {},
           ),
       ).to.throw(
-        `Consider reducing the targets as the canonical sum (340000000000000000000) is greater than sum of collaterals (300000000000000000000)`,
+        `Consider reducing the targets as the sum (340) is greater than sum of collaterals (300)`,
+      );
+    });
+
+    it('should keep minAmount validation errors human-readable for mixed-decimal routes', () => {
+      const mixedTokensByChainName: ChainMap<Token> = {
+        [chain1]: new Token({
+          ...tokenArgs,
+          chainName: chain1,
+          decimals: 18,
+          scale: { numerator: 1, denominator: 1_000_000_000_000 },
+        }),
+        [chain2]: new Token({
+          ...tokenArgs,
+          chainName: chain2,
+          decimals: 6,
+        }),
+      };
+
+      expect(
+        () =>
+          new MinAmountStrategy(
+            {
+              [chain1]: {
+                minAmount: {
+                  min: '100',
+                  target: '120',
+                  type: RebalancerMinAmountType.Absolute,
+                },
+                bridge: AddressZero,
+                bridgeLockTime: 1,
+              },
+              [chain2]: {
+                minAmount: {
+                  min: '100',
+                  target: '120',
+                  type: RebalancerMinAmountType.Absolute,
+                },
+                bridge: AddressZero,
+                bridgeLockTime: 1,
+              },
+            },
+            mixedTokensByChainName,
+            230_000_000n,
+            testLogger,
+            {},
+          ),
+      ).to.throw(
+        `Consider reducing the targets as the sum (240) is greater than sum of collaterals (230)`,
       );
     });
 
