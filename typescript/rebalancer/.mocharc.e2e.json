@@ -1,8 +1,7 @@
 {
-  "import": ["./src/test/registerRuntime.ts"],
+  "import": ["tsx", "./src/test/registerRuntime.ts"],
   "extensions": ["ts"],
   "spec": ["src/e2e/**/*.e2e-test.ts"],
-  "node-option": ["import=tsx/esm"],
   "timeout": 300000,
   "exit": true
 }
