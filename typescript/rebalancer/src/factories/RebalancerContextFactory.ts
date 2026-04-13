@@ -17,7 +17,6 @@ import {
   isEVMLike,
   ProtocolType,
   objMap,
-  toWei,
 } from '@hyperlane-xyz/utils';
 
 import { LiFiBridge } from '../bridges/LiFiBridge.js';
