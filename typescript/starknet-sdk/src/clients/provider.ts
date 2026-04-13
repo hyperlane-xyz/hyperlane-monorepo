@@ -20,6 +20,7 @@ import {
   addressToBytes32,
   assert,
   ensure0x,
+  isNullish,
   isZeroishAddress,
 } from '@hyperlane-xyz/utils';
 
@@ -105,8 +106,9 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
     const metadata = extraParams.metadata;
     assert(rpcUrls.length > 0, 'at least one rpc url is required');
 
-    const blockTime = metadata.blocks?.estimateBlockTime ?? 0;
-    const transactionRetryIntervalFallback = blockTime <= 1 ? 1000 : undefined;
+    const blockTime = metadata.blocks?.estimateBlockTime;
+    const transactionRetryIntervalFallback =
+      !isNullish(blockTime) && blockTime <= 1 ? 1000 : undefined;
 
     const provider = new RpcProvider({
       nodeUrl: rpcUrls[0],
