@@ -210,11 +210,20 @@ export class ContractVerifier extends BaseContractVerifier {
         `Fetching contract ABI for ${chain} address ${address}`,
       );
       const sourceCodeResults = await retryAsync(
-        () =>
-          getContractSourceCode(
-            { apiUrl, apiKey },
-            { contractAddress: address },
-          ),
+        async () => {
+          try {
+            return await getContractSourceCode(
+              { apiUrl, apiKey },
+              { contractAddress: address },
+            );
+          } catch (e) {
+            const error = e as Error & { isRecoverable?: boolean };
+            error.isRecoverable = error.message
+              .toLowerCase()
+              .includes('rate limit');
+            throw error;
+          }
+        },
         5,
         1500,
       );

@@ -102,11 +102,9 @@ async function handleEtherscanResponse<T>(response: Response): Promise<T> {
     body.message !== EtherscanLikeExplorerApiErrors.NO_RECORD &&
     body.message !== EtherscanLikeExplorerApiErrors.NO_LOGS_FOUND
   ) {
-    const errorMessage = `Error while performing request to Etherscan like API at ${explorerUrl.host}: ${body.message} ${body.result}`;
-    const error: Error & { isRecoverable?: boolean } = new Error(errorMessage);
-    const resultStr = String(body.result ?? '').toLowerCase();
-    error.isRecoverable = resultStr.includes('rate limit');
-    throw error;
+    throw new Error(
+      `Error while performing request to Etherscan like API at ${explorerUrl.host}: ${body.message} ${body.result}`,
+    );
   }
 
   return body.result;
