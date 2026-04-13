@@ -619,8 +619,12 @@ export class RebalancerContextFactory {
           if (lifiConfig?.integrator) {
             registry[ExternalBridgeType.LiFi] = new LiFiBridge(
               {
-                integrator: lifiConfig.integrator,
-                defaultSlippage: lifiConfig.defaultSlippage,
+                bridgeOptions: {
+                  integrator: lifiConfig.integrator,
+                  apiKey: lifiConfig.apiKey,
+                  defaultSlippage: lifiConfig.defaultSlippage,
+                  routeOrder: lifiConfig.routeOrder,
+                },
                 chainMetadata: this.multiProvider.metadata,
               },
               this.logger,

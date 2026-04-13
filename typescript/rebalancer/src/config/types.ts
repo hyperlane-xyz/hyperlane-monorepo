@@ -38,6 +38,14 @@ export enum ExternalBridgeType {
   LiFi = 'lifi',
 }
 
+export const RouteOrderSchema = z.enum([
+  'RECOMMENDED',
+  'FASTEST',
+  'CHEAPEST',
+  'SAFEST',
+]);
+export type RouteOrder = z.infer<typeof RouteOrderSchema>;
+
 export const RebalancerMinAmountConfigSchema = z.object({
   min: z.string().or(z.number()),
   target: z.string().or(z.number()),
@@ -80,18 +88,37 @@ const CollateralDeficitChainConfigSchema =
     buffer: z.string().or(z.number()),
   });
 
+// External bridge strategy overrides (defined before strategy schemas to avoid forward reference)
+export const LiFiBridgeOptionsSchema = z.object({
+  integrator: z.string(),
+  apiKey: z.string().optional(),
+  defaultSlippage: z.number().optional(),
+  routeOrder: RouteOrderSchema.optional(),
+});
+
+export const LiFiStrategyOverrideSchema = LiFiBridgeOptionsSchema.pick({
+  routeOrder: true,
+});
+
+export const ExternalBridgeStrategyOverridesSchema = z.object({
+  lifi: LiFiStrategyOverrideSchema.optional(),
+});
+
 const WeightedStrategySchema = z.object({
   rebalanceStrategy: z.literal(RebalancerStrategyOptions.Weighted),
+  externalBridgeConfig: ExternalBridgeStrategyOverridesSchema.optional(),
   chains: z.record(z.string(), WeightedChainConfigSchema),
 });
 
 const MinAmountStrategySchema = z.object({
   rebalanceStrategy: z.literal(RebalancerStrategyOptions.MinAmount),
+  externalBridgeConfig: ExternalBridgeStrategyOverridesSchema.optional(),
   chains: z.record(z.string(), MinAmountChainConfigSchema),
 });
 
 const CollateralDeficitStrategySchema = z.object({
   rebalanceStrategy: z.literal(RebalancerStrategyOptions.CollateralDeficit),
+  externalBridgeConfig: ExternalBridgeStrategyOverridesSchema.optional(),
   chains: z.record(z.string(), CollateralDeficitChainConfigSchema),
 });
 
@@ -123,7 +150,9 @@ export const DEFAULT_MOVEMENT_STALENESS_MS = 30 * 60 * 1_000; // 30 minutes
 
 export const LiFiBridgeConfigSchema = z.object({
   integrator: z.string(),
+  apiKey: z.string().optional(),
   defaultSlippage: z.number().optional(),
+  routeOrder: RouteOrderSchema.optional(),
 });
 
 export const ExternalBridgesConfigSchema = z.object({
