@@ -40,10 +40,14 @@ describe('fetchSealevelReceiptWithLogs', () => {
   });
 
   it('throws when Solana logs never become available', async () => {
+    let calls = 0;
     const context = {
       multiProtocolProvider: {
         getSolanaWeb3Provider: () => ({
-          getTransaction: async () => ({ meta: { logMessages: [] } }),
+          getTransaction: async () => {
+            calls += 1;
+            return { meta: { logMessages: [] } };
+          },
         }),
       },
     } as any;
@@ -63,6 +67,39 @@ describe('fetchSealevelReceiptWithLogs', () => {
         'Transaction logs unavailable for Solana transaction missing-logs-signature',
       );
     }
+    expect(calls).to.equal(2);
+  });
+
+  it('retries through transient getTransaction errors', async () => {
+    let calls = 0;
+    const receipt = {
+      meta: { logMessages: ['Dispatched message to 1234, ID deadbeef'] },
+    };
+    const context = {
+      multiProtocolProvider: {
+        getSolanaWeb3Provider: () => ({
+          getTransaction: async () => {
+            calls += 1;
+            if (calls === 1) throw new Error('temporary rpc failure');
+            return receipt;
+          },
+        }),
+      },
+    } as any;
+
+    const typedReceipt = await fetchSealevelReceiptWithLogs(
+      context,
+      'solanamainnet',
+      'transient-signature',
+      0,
+      2,
+    );
+
+    expect(calls).to.equal(2);
+    expect(typedReceipt).to.deep.equal({
+      type: ProviderType.SolanaWeb3,
+      receipt,
+    });
   });
 });
 
@@ -108,6 +145,7 @@ describe('submitAltVmTransferTx', () => {
         transaction,
         extraSigners: [extraSigner],
       },
+      timeoutSec: 30,
     });
 
     expect(signerCalls).to.deep.equal([

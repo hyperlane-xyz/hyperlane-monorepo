@@ -108,15 +108,29 @@ export async function fetchSealevelReceiptWithLogs(
   pollIntervalMs = SEALEVEL_RECEIPT_POLL_INTERVAL_MS,
   maxAttempts = SEALEVEL_RECEIPT_MAX_ATTEMPTS,
 ): Promise<TypedTransactionReceipt> {
+  assert(
+    Number.isFinite(pollIntervalMs) && pollIntervalMs >= 0,
+    `Invalid Sealevel receipt poll interval: ${pollIntervalMs}`,
+  );
+  assert(
+    Number.isInteger(maxAttempts) && maxAttempts > 0,
+    `Invalid Sealevel receipt maxAttempts: ${maxAttempts}`,
+  );
   const connection =
     context.multiProtocolProvider.getSolanaWeb3Provider(origin);
   let receipt = null;
+  let lastError: unknown;
 
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    receipt = await connection.getTransaction(signature, {
-      commitment: 'confirmed',
-      maxSupportedTransactionVersion: 0,
-    });
+    try {
+      receipt = await connection.getTransaction(signature, {
+        commitment: 'confirmed',
+        maxSupportedTransactionVersion: 0,
+      });
+      lastError = undefined;
+    } catch (error) {
+      lastError = error;
+    }
 
     if (receipt?.meta?.logMessages?.length) {
       return {
@@ -130,8 +144,12 @@ export async function fetchSealevelReceiptWithLogs(
     }
   }
 
+  const suffix =
+    lastError === undefined
+      ? ''
+      : ` (last getTransaction error: ${lastError instanceof Error ? lastError.message : String(lastError)})`;
   throw new Error(
-    `Transaction logs unavailable for Solana transaction ${signature}`,
+    `Transaction logs unavailable for Solana transaction ${signature}${suffix}`,
   );
 }
 
@@ -150,11 +168,13 @@ export async function submitAltVmTransferTx({
   signer,
   origin,
   tx,
+  timeoutSec,
 }: {
   context: Pick<WriteCommandContext, 'multiProtocolProvider'>;
   signer: AltVmTransferSigner;
   origin: ChainName;
   tx: ExecutableAltVmTransfer;
+  timeoutSec: number;
 }): Promise<TypedTransactionReceipt> {
   if (!isAnnotatedTx(tx.transaction)) {
     throw new Error(
@@ -169,7 +189,16 @@ export async function submitAltVmTransferTx({
   );
 
   return tx.type === ProviderType.SolanaWeb3
-    ? fetchSealevelReceiptWithLogs(context, origin, txReceipt.signature)
+    ? fetchSealevelReceiptWithLogs(
+        context,
+        origin,
+        txReceipt.signature,
+        SEALEVEL_RECEIPT_POLL_INTERVAL_MS,
+        Math.max(
+          SEALEVEL_RECEIPT_MAX_ATTEMPTS,
+          Math.ceil((timeoutSec * 1000) / SEALEVEL_RECEIPT_POLL_INTERVAL_MS),
+        ),
+      )
     : toTypedAltVmReceipt(tx.type, txReceipt);
 }
 
@@ -531,6 +560,7 @@ async function executeDelivery({
         signer,
         origin,
         tx,
+        timeoutSec,
       });
       txReceipts.push(typedReceipt);
       if (tx.category === WarpTxCategory.Transfer) {
