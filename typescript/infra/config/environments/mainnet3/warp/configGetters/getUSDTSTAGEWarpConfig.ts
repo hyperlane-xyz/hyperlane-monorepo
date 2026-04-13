@@ -71,7 +71,7 @@ export async function getUSDTSTAGEWarpConfig(
       gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
       owner: SOLANA_OWNER,
       decimals: 6,
-      hook: 'AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF',
+      hook: 'BhNcatUDC2D5JTyeaqrdSukiVFsEHK7e3hVmKMztwefv',
     },
     mode: {
       ...routerConfig.mode,
