@@ -157,4 +157,7 @@ export enum WarpRouteIds {
   IgraIKAS = 'IKAS/igra',
   IgraWSTETH = 'WSTETH/igra',
   IgraCBBTC = 'CBBTC/igra',
+  EthereumIgraUSDS = 'USDS/ethereum-igra',
+  EthereumIgraWETH = 'WETH/ethereum-igra',
+  EthereumIgraUSDT = 'USDT/ethereum-igra',
 }
