@@ -1,11 +1,11 @@
-import type { MultiProvider } from '@hyperlane-xyz/sdk';
+import type { ChainMetadataManager } from '@hyperlane-xyz/sdk/metadata/ChainMetadataManager';
 
 import { useMessage } from './useMessage.js';
 import { useMessageStage } from './useMessageStage.js';
 
 interface Params {
   messageId?: string;
-  multiProvider: MultiProvider;
+  multiProvider: ChainMetadataManager;
   originTxHash?: string;
   explorerApiUrl?: string;
   retryInterval?: number;
