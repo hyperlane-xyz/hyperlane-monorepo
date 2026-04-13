@@ -346,6 +346,14 @@
       },
       "overhead": 166460
     },
+    "bsc": {
+      "oracleConfig": {
+        "tokenExchangeRate": "4079824281450053504",
+        "gasPrice": "1062892149",
+        "tokenDecimals": 18
+      },
+      "overhead": 166460
+    },
     "celestia": {
       "oracleConfig": {
         "tokenExchangeRate": "200440939042",
@@ -406,6 +414,14 @@
       "oracleConfig": {
         "tokenExchangeRate": "15000000000000000000",
         "gasPrice": "72272014",
+        "tokenDecimals": 18
+      },
+      "overhead": 166460
+    },
+    "plasma": {
+      "oracleConfig": {
+        "tokenExchangeRate": "761144329509827",
+        "gasPrice": "5697228536034",
         "tokenDecimals": 18
       },
       "overhead": 166460
