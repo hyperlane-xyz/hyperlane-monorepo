@@ -14,7 +14,10 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import type { RebalancerConfig } from '../config/RebalancerConfig.js';
-import { RebalancerStrategyOptions } from '../config/types.js';
+import {
+  ExternalBridgeType,
+  RebalancerStrategyOptions,
+} from '../config/types.js';
 import type {
   ExecutionResult,
   IRebalancer,
@@ -25,6 +28,7 @@ import type {
 import type {
   MovableCollateralRoute,
   StrategyRoute,
+  InventoryRoute,
 } from '../interfaces/IStrategy.js';
 import type { BridgeConfigWithOverride } from '../utils/bridgeUtils.js';
 
@@ -50,9 +54,9 @@ export function buildTestRoute(
       destination: 'arbitrum',
       amount: ethers.utils.parseEther('100').toBigInt(),
       executionType: 'inventory',
-      externalBridge: 'lifi',
+      externalBridge: ExternalBridgeType.LiFi,
       ...overrides,
-    } as StrategyRoute;
+    } as InventoryRoute;
   }
   return {
     origin: 'ethereum',

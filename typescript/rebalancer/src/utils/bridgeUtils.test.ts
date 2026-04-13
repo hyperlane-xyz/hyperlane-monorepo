@@ -5,8 +5,10 @@ import { expect } from 'chai';
 import { type ChainMap } from '@hyperlane-xyz/sdk';
 
 import { ExecutionType, ExternalBridgeType } from '../config/types.js';
+import { isInventoryRoute } from '../interfaces/IStrategy.js';
 import {
   type BridgeConfigWithOverride,
+  createStrategyRoute,
   getBridgeConfig,
   isInventoryConfig,
   isMovableCollateralConfig,
@@ -189,5 +191,34 @@ describe('bridgeConfig', () => {
     expect(result.bridge).to.equal(
       '0x1234567890123456789012345678901234567890',
     );
+  });
+
+  it('should select quoteOverrides from the final merged inventory config', () => {
+    const bridges: ChainMap<BridgeConfigWithOverride> = {
+      chain1: {
+        executionType: ExecutionType.MovableCollateral,
+        bridge: '0x1234567890123456789012345678901234567890',
+        strategyExternalBridgeConfig: {
+          lifi: { routeOrder: 'FASTEST' },
+        },
+        override: {
+          chain2: {
+            executionType: ExecutionType.Inventory,
+            externalBridge: ExternalBridgeType.LiFi,
+          },
+        },
+      },
+      chain2: {
+        executionType: ExecutionType.MovableCollateral,
+        bridge: '0x0987654321098765432109876543210987654321',
+      },
+    };
+
+    const result = getBridgeConfig(bridges, 'chain1', 'chain2');
+    const route = createStrategyRoute(result, 'chain1', 'chain2', 10n);
+
+    assert(isInventoryRoute(route));
+    expect(route.externalBridge).to.equal(ExternalBridgeType.LiFi);
+    expect(route.quoteOverrides).to.deep.equal({ routeOrder: 'FASTEST' });
   });
 });

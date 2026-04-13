@@ -127,13 +127,13 @@ function createMockInventoryRebalancer(): IRebalancer & {
   };
 }
 
-function createMockBridge(): IExternalBridge {
+function createMockBridge(): IExternalBridge<unknown> {
   return {
     bridgeId: 'lifi',
     quote: Sinon.stub().resolves({}),
     execute: Sinon.stub().resolves({}),
     getStatus: Sinon.stub().resolves({}),
-  } as unknown as IExternalBridge;
+  } as unknown as IExternalBridge<unknown>;
 }
 
 function createMockMetrics(): Metrics {
