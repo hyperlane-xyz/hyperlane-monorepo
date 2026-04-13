@@ -1,9 +1,7 @@
 import { BigNumber } from 'bignumber.js';
 
-import {
-  RadixProvider,
-  RadixSDKTransaction,
-} from '@hyperlane-xyz/radix-sdk/runtime';
+import { RadixProvider } from '@hyperlane-xyz/radix-sdk/runtime';
+import type { RadixSDKTransaction } from '@hyperlane-xyz/radix-sdk/runtime';
 import {
   Address,
   Domain,

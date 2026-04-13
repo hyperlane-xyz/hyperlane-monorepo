@@ -1,8 +1,8 @@
 import {
   ALEO_NATIVE_DENOM,
   AleoProvider,
-  AleoTransaction,
 } from '@hyperlane-xyz/aleo-sdk/runtime';
+import type { AleoTransaction } from '@hyperlane-xyz/aleo-sdk/runtime';
 import {
   Address,
   Domain,
