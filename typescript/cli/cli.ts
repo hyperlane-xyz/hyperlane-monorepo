@@ -2,6 +2,7 @@
 import chalk from 'chalk';
 import yargs from 'yargs';
 
+import { registerAllRuntimeAdapters } from '@hyperlane-xyz/sdk/runtime';
 import type { LogFormat, LogLevel } from '@hyperlane-xyz/utils';
 
 import { avsCommand } from './src/commands/avs.js';
@@ -36,6 +37,8 @@ import { contextMiddleware, signerMiddleware } from './src/context/context.js';
 import { configureLogger, errorRed } from './src/logger.js';
 import { checkVersion } from './src/utils/version-check.js';
 import { VERSION } from './src/version.js';
+
+registerAllRuntimeAdapters();
 
 function ignoreBrokenPipe(stream: NodeJS.WriteStream) {
   stream.on('error', (err: NodeJS.ErrnoException) => {

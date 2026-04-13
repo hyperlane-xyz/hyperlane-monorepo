@@ -13,6 +13,7 @@ import {
   MultiProvider,
   collectValidators,
 } from '@hyperlane-xyz/sdk';
+import { registerAllRuntimeAdapters } from '@hyperlane-xyz/sdk/runtime';
 import {
   Address,
   ProtocolType,
@@ -58,6 +59,8 @@ import {
   filterRemoteDomainMetadata,
   getInfraPath,
 } from '../src/utils/utils.js';
+
+registerAllRuntimeAdapters();
 
 const logger = rootLogger.child({ module: 'infra:scripts:agent-utils' });
 

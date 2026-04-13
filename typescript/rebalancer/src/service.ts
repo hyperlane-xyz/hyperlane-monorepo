@@ -30,6 +30,7 @@ import { Keypair } from '@solana/web3.js';
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import { MultiProvider } from '@hyperlane-xyz/sdk';
+import { registerAllRuntimeAdapters } from '@hyperlane-xyz/sdk/runtime';
 import {
   applyRpcUrlOverridesFromEnv,
   createServiceLogger,
@@ -41,6 +42,8 @@ import { RebalancerConfig } from './config/RebalancerConfig.js';
 import { RebalancerService } from './core/RebalancerService.js';
 import { parseSolanaPrivateKey } from './utils/solanaKeyParser.js';
 import type { InventorySignerConfig } from './core/InventoryRebalancer.js';
+
+registerAllRuntimeAdapters();
 
 async function main(): Promise<void> {
   const VERSION = process.env.SERVICE_VERSION || 'dev';
