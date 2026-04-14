@@ -11,6 +11,7 @@ import {
   type DeployedIsmAddress,
   type IsmType,
   type MultisigIsmConfig,
+  type RawIsmArtifactConfig,
   type RawRoutingIsmArtifactConfig,
   type TestIsmConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
@@ -52,7 +53,7 @@ describe('Cosmos ISM Artifact API (e2e)', function () {
       name: string;
       type: IsmType;
       config: TestIsmConfig | MultisigIsmConfig;
-      verifyConfig?: (config: any) => void;
+      verifyConfig?: (config: RawIsmArtifactConfig) => void;
     }> = [
       {
         name: 'Test ISM',
@@ -67,7 +68,7 @@ describe('Cosmos ISM Artifact API (e2e)', function () {
           validators,
           threshold: 2,
         },
-        verifyConfig: (config: MultisigIsmConfig) => {
+        verifyConfig: (config) => {
           expect(normalizeConfig(config)).to.deep.equal(
             normalizeConfig({
               type: AltVM.IsmType.MESSAGE_ID_MULTISIG,
@@ -85,7 +86,7 @@ describe('Cosmos ISM Artifact API (e2e)', function () {
           validators,
           threshold: 2,
         },
-        verifyConfig: (config: MultisigIsmConfig) => {
+        verifyConfig: (config) => {
           expect(normalizeConfig(config)).to.deep.equal(
             normalizeConfig({
               type: AltVM.IsmType.MERKLE_ROOT_MULTISIG,

@@ -2,11 +2,18 @@ import { expect } from 'chai';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { type ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
-import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import {
+  type ArtifactDeployed,
+  ArtifactState,
+} from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type AnnotatedTx,
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
+import {
+  type DeployedWarpAddress,
+  type RawWarpArtifactConfig,
+} from '@hyperlane-xyz/provider-sdk/warp';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { StarknetSigner } from '../clients/signer.js';
@@ -69,12 +76,16 @@ describe('5b. starknet sdk warp transfer e2e tests', function () {
     return mailbox.deployed.address;
   }
 
-  async function assertRemoteTransfer(
+  async function assertRemoteTransfer<C extends RawWarpArtifactConfig>(
     tokenAddress: string,
     mailboxAddress: string,
     warpWriter: {
-      update: (artifact: any) => Promise<AnnotatedTx[]>;
-      read: (address: string) => Promise<any>;
+      update: (
+        artifact: ArtifactDeployed<C, DeployedWarpAddress>,
+      ) => Promise<AnnotatedTx[]>;
+      read: (
+        address: string,
+      ) => Promise<ArtifactDeployed<C, DeployedWarpAddress>>;
     },
   ) {
     // Enroll remote router via artifact writer

@@ -167,6 +167,8 @@ export class CosmosRoutingIsmRawWriter
       ) {
         // Cosmos module's MsgSetRoutingIsmDomain only adds new domains;
         // to change an existing domain's ISM, remove first then re-add.
+        // Note: if submission fails between remove and re-add, the domain
+        // is left without an ISM until retried.
         if (!isNullish(currentIsmAddress)) {
           const removeTx = await getRemoveRoutingIsmRouteTx(
             currentOwnerAddress,

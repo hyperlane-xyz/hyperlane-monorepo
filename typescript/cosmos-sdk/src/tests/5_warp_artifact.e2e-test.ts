@@ -51,7 +51,7 @@ describe('Cosmos Warp Artifacts (e2e)', function () {
   const DOMAIN_2 = 96;
 
   before(async () => {
-    cosmosSigner = (await createSigner('alice')) as CosmosNativeSigner;
+    cosmosSigner = await createSigner('alice');
     providerSdkSigner = cosmosSigner;
     deployerAddress = cosmosSigner.getSignerAddress();
 
