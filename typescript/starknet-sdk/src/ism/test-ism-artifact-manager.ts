@@ -18,6 +18,7 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import { StarknetProvider } from '../clients/provider.js';
 import { StarknetSigner } from '../clients/signer.js';
+import { getCreateNoopIsmTx } from './ism-tx.js';
 
 export class StarknetTestIsmReader implements ArtifactReader<
   RawIsmArtifactConfigs['testIsm'],
@@ -59,9 +60,7 @@ export class StarknetTestIsmWriter
       TxReceipt[],
     ]
   > {
-    const tx = await this.signer.getCreateNoopIsmTransaction({
-      signer: this.signer.getSignerAddress(),
-    });
+    const tx = getCreateNoopIsmTx();
     const receipt = await this.signer.sendAndConfirmTransaction(tx);
     const ismAddress = receipt.contractAddress;
     assert(ismAddress, 'failed to deploy Starknet noop ISM');
