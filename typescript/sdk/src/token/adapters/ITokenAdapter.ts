@@ -33,6 +33,8 @@ export interface TransferRemoteToParams {
   // Required for Sealevel
   fromAccountOwner?: Address;
   extraSigners?: Keypair[];
+  /** Optional Predicate attestation for compliance-gated warp routes */
+  attestation?: PredicateAttestation;
 }
 
 export interface QuoteTransferRemoteParams {

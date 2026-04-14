@@ -4,7 +4,10 @@ import { type TransactionReceipt } from '@ethersproject/providers';
 import { stringify as yamlStringify } from 'yaml';
 import { type Address, type Hex } from 'viem';
 
-import { TokenRouter__factory } from '@hyperlane-xyz/core';
+import {
+  CrossCollateralRouter__factory,
+  TokenRouter__factory,
+} from '@hyperlane-xyz/core';
 import { GasAction } from '@hyperlane-xyz/provider-sdk';
 import {
   type AnnotatedTx,
@@ -369,6 +372,16 @@ async function executeDelivery({
     | undefined;
   let tokenAmount = token.amount(amount); // Hoist to reuse for transaction
 
+  let destToken: Token | undefined;
+  if (destTokenAddr) {
+    const found = warpCore.findToken(destination, destTokenAddr);
+    assert(
+      found,
+      `Destination token ${destTokenAddr} not found on ${destination}`,
+    );
+    destToken = found;
+  }
+
   if (attestation) {
     finalAttestation = attestation;
   } else if (predicateApiKey) {
@@ -380,16 +393,38 @@ async function executeDelivery({
       addressToByteHexString(recipientAddress),
     );
 
-    const calldata = TokenRouter__factory.createInterface().encodeFunctionData(
-      'transferRemote(uint32,bytes32,uint256)',
-      [destinationDomain, recipientBytes32, tokenAmount.amount],
+    const isCrossCollateral = warpCore.isCrossCollateralTransfer(
+      token,
+      destToken,
     );
+
+    let calldata: string;
+    if (isCrossCollateral) {
+      assert(destToken, 'destToken required for cross-collateral attestation');
+      const targetRouterBytes32 = addressToBytes32(destToken.addressOrDenom);
+      calldata =
+        CrossCollateralRouter__factory.createInterface().encodeFunctionData(
+          'transferRemoteTo',
+          [
+            destinationDomain,
+            recipientBytes32,
+            tokenAmount.amount,
+            targetRouterBytes32,
+          ],
+        );
+    } else {
+      calldata = TokenRouter__factory.createInterface().encodeFunctionData(
+        'transferRemote(uint32,bytes32,uint256)',
+        [destinationDomain, recipientBytes32, tokenAmount.amount],
+      );
+    }
 
     quote = await warpCore.getInterchainTransferFee({
       originTokenAmount: tokenAmount,
       destination,
       sender: signerAddress,
       recipient: recipientAddress,
+      destinationToken: destToken,
     });
 
     const hypAdapter = token.getHypAdapter(
@@ -430,16 +465,6 @@ async function executeDelivery({
 
     finalAttestation = response.attestation;
     logGreen('Predicate attestation obtained successfully');
-  }
-
-  let destToken: Token | undefined;
-  if (destTokenAddr) {
-    const found = warpCore.findToken(destination, destTokenAddr);
-    assert(
-      found,
-      `Destination token ${destTokenAddr} not found on ${destination}`,
-    );
-    destToken = found;
   }
 
   const isCosmosOrigin =

@@ -470,6 +470,7 @@ export class WarpCore {
         sender,
         recipient,
         destinationToken,
+        attestation,
       });
     }
 
@@ -624,7 +625,7 @@ export class WarpCore {
    * Check if this is a CrossCollateralRouter transfer.
    * Returns true if both tokens are CrossCollateralRouter tokens.
    */
-  protected isCrossCollateralTransfer(
+  isCrossCollateralTransfer(
     originToken: IToken,
     destinationToken?: IToken,
   ): destinationToken is IToken {
@@ -646,12 +647,14 @@ export class WarpCore {
     sender,
     recipient,
     destinationToken,
+    attestation,
   }: {
     originTokenAmount: TokenAmount;
     destination: ChainNameOrId;
     sender: Address;
     recipient: Address;
     destinationToken: IToken;
+    attestation?: PredicateAttestation;
   }): Promise<Array<WarpTypedTransaction>> {
     const transactions: Array<WarpTypedTransaction> = [];
     const { token: originToken, amount } = originTokenAmount;
@@ -746,6 +749,7 @@ export class WarpCore {
       interchainGas: transferQuote,
       fromAccountOwner: sender,
       extraSigners: extraSignerKeypairs,
+      attestation,
     });
     transactions.push({
       category: WarpTxCategory.Transfer,
