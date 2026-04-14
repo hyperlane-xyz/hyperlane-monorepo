@@ -154,6 +154,9 @@ describe('InventoryRebalancer E2E', () => {
         }),
       },
       findToken: Sinon.stub().returns(null),
+      getMaxTransferAmount: Sinon.stub().callsFake(
+        async ({ balance }) => balance,
+      ),
       getTransferRemoteTxs: Sinon.stub().resolves([
         {
           category: 'transfer',
@@ -597,8 +600,9 @@ describe('InventoryRebalancer E2E', () => {
   });
 
   describe('Partial Fulfillment (Insufficient Inventory)', () => {
-    // Partial transfers happen when maxTransferable >= minViableTransfer
-    // For non-native tokens (EvmHypCollateral), minViableTransfer = 0, so partial always viable
+    // Partial transfers happen when maxTransferable >= minViableTransfer.
+    // For non-native tokens (EvmHypCollateral), minViableTransfer = 0, so any
+    // positive fee-aware maxTransferable remains viable.
     const PARTIAL_AMOUNT = BigInt(5e15); // 0.005 ETH - above threshold
     const FULL_AMOUNT = BigInt(1e16); // 0.01 ETH
 
@@ -629,6 +633,65 @@ describe('InventoryRebalancer E2E', () => {
       const actionParams =
         actionTracker.createRebalanceAction.firstCall.args[0];
       expect(actionParams.amount).to.equal(PARTIAL_AMOUNT);
+    });
+
+    it('uses fee-aware maxTransferable for non-native token fees', async () => {
+      const requestedAmount = 19998000000n;
+      const availableInventory = 102466n;
+      const safeTransferAmount = 102400n;
+
+      warpCore.getMaxTransferAmount.resolves({ amount: safeTransferAmount });
+
+      const route = createTestRoute({ amount: requestedAmount });
+      createTestIntent({ amount: requestedAmount });
+
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: availableInventory,
+        [ARBITRUM_CHAIN]: 0n,
+      });
+
+      const results = await inventoryRebalancer.rebalance([route]);
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.true;
+      expect(warpCore.getMaxTransferAmount.calledOnce).to.be.true;
+
+      const maxTransferArgs = warpCore.getMaxTransferAmount.firstCall.args[0];
+      expect(maxTransferArgs.balance.amount).to.equal(availableInventory);
+      expect(maxTransferArgs.destination).to.equal(ARBITRUM_CHAIN);
+
+      const txParams = warpCore.getTransferRemoteTxs.lastCall.args[0];
+      expect(txParams.originTokenAmount.amount).to.equal(safeTransferAmount);
+      expect(txParams).to.not.have.property('interchainFee');
+      expect(txParams).to.not.have.property('tokenFeeQuote');
+
+      const actionParams = actionTracker.createRebalanceAction.lastCall.args[0];
+      expect(actionParams.amount).to.equal(safeTransferAmount);
+    });
+
+    it('downgrades full non-native transfers to partial when fee headroom is missing', async () => {
+      const requestedAmount = 102466n;
+      const safeTransferAmount = 102400n;
+
+      warpCore.getMaxTransferAmount.resolves({ amount: safeTransferAmount });
+
+      const route = createTestRoute({ amount: requestedAmount });
+      createTestIntent({ amount: requestedAmount });
+
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: requestedAmount,
+        [ARBITRUM_CHAIN]: 0n,
+      });
+
+      const results = await inventoryRebalancer.rebalance([route]);
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.true;
+      expect(bridge.execute.called).to.be.false;
+
+      const txParams = warpCore.getTransferRemoteTxs.lastCall.args[0];
+      expect(txParams.originTokenAmount.amount).to.equal(safeTransferAmount);
+      expect(txParams.originTokenAmount.amount).to.not.equal(requestedAmount);
     });
 
     it('intent remains in_progress after partial fulfillment', async () => {
@@ -1422,7 +1485,8 @@ describe('InventoryRebalancer E2E', () => {
 
   describe('Smart Partial Transfer Threshold', () => {
     // Test the 90% consolidation threshold for partial transfers
-    // Tests use non-native tokens (EvmHypCollateral) so minViableTransfer = 0
+    // Tests use non-native tokens (EvmHypCollateral) so minViableTransfer = 0.
+    // Fee-aware maxTransferable still controls the actual partial amount.
 
     it('does partial transfer when inventory is available on destination', async () => {
       // amount = 1 ETH, availableOnDestination = 0.5 ETH
@@ -1899,6 +1963,7 @@ describe('InventoryRebalancer E2E', () => {
         addressOrDenom: '0xArbitrumToken',
         collateralAddressOrDenom: '0xArbitrumCollateralERC20',
         getHypAdapter: Sinon.stub().returns(adapterStub),
+        amount: Sinon.stub().callsFake((amt: bigint) => ({ amount: amt })),
       };
       const solanaToken = {
         chainName: SOLANA_CHAIN,
@@ -1906,6 +1971,7 @@ describe('InventoryRebalancer E2E', () => {
         addressOrDenom: '0xSolanaToken',
         collateralAddressOrDenom: '0xSolanaCollateralERC20',
         getHypAdapter: Sinon.stub().returns(adapterStub),
+        amount: Sinon.stub().callsFake((amt: bigint) => ({ amount: amt })),
       };
       warpCore.tokens = [arbitrumToken, solanaToken];
 

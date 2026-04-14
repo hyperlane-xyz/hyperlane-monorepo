@@ -3,14 +3,11 @@ import type { Logger } from 'pino';
 import {
   type ChainName,
   HyperlaneCore,
-  type InterchainGasQuote,
   type MultiProtocolSignerSignerAccountInfo,
   type MultiProvider,
-  Token,
   ProviderType,
   SealevelCoreAdapter,
   TOKEN_COLLATERALIZED_STANDARDS,
-  TokenAmount,
   type WarpTypedTransaction,
   type WarpCore,
   WarpTxCategory,
@@ -22,7 +19,6 @@ import {
   assert,
   ensure0x,
   isEVMLike,
-  isZeroishAddress,
 } from '@hyperlane-xyz/utils';
 
 import type { ExternalBridgeType } from '../config/types.js';
@@ -552,6 +548,8 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     const sourceToken = this.getTokenForChain(destination);
     assert(sourceToken, `No token found for source chain: ${destination}`);
     const requestedLocalAmount = denormalizeToLocal(amount, sourceToken);
+    const executionSender = this.getInventorySignerAddress(destination);
+    const executionRecipient = this.getInventorySignerAddress(origin);
 
     // Check available inventory on the DESTINATION (deficit) chain
     // We need inventory here because transferRemote is called FROM this chain
@@ -578,11 +576,37 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       this.multiProvider,
       this.warpCore.multiProvider,
       this.getTokenForChain.bind(this),
-      this.getInventorySignerAddress(destination),
+      executionSender,
       isNativeTokenStandard,
       this.logger,
     );
-    const { maxTransferable, minViableTransfer } = costs;
+    const { minViableTransfer } = costs;
+    let maxTransferable = costs.maxTransferable;
+
+    if (!isNativeTokenStandard(sourceToken.standard)) {
+      const feeAwareMaxTransfer = await this.warpCore.getMaxTransferAmount({
+        balance: sourceToken.amount(availableInventory),
+        destination: origin,
+        sender: executionSender,
+        recipient: executionRecipient,
+      });
+
+      maxTransferable =
+        feeAwareMaxTransfer.amount < requestedLocalAmount
+          ? feeAwareMaxTransfer.amount
+          : requestedLocalAmount;
+
+      this.logger.debug(
+        {
+          fromChain: destination,
+          toChain: origin,
+          availableInventory: availableInventory.toString(),
+          requestedAmount: requestedLocalAmount.toString(),
+          feeAwareMaxTransferable: maxTransferable.toString(),
+        },
+        'Calculated fee-aware max transferable amount for non-native route',
+      );
+    }
 
     // Calculate total inventory across all chains
     // Note: consumedInventory tracking is handled separately within this cycle
@@ -642,7 +666,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       const result = await this.executeTransferRemote(
         swappedRoute,
         intent,
-        costs.gasQuote!,
         fulfilledCanonicalAmount,
       );
       // Return original strategy route in result (not the swapped execution route)
@@ -669,7 +692,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         const result = await this.executeTransferRemote(
           partialSwappedRoute,
           intent,
-          costs.gasQuote!,
           alignedExecution.messageAmount,
         );
 
@@ -908,12 +930,10 @@ export class InventoryRebalancer implements IInventoryRebalancer {
    *
    * @param route - The transfer route (swapped direction)
    * @param intent - The rebalance intent being executed
-   * @param gasQuote - Pre-calculated gas quote from calculateTransferCosts
    */
   private async executeTransferRemote(
     route: InventoryRoute,
     intent: RebalanceIntent,
-    gasQuote: InterchainGasQuote,
     fulfilledCanonicalAmount: bigint,
   ): Promise<InventoryExecutionResult> {
     const { origin, destination, amount } = route;
@@ -926,37 +946,9 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     const destinationDomain = this.multiProvider.getDomainId(destination);
 
     this.logger.debug(
-      {
-        origin,
-        destination,
-        amount: amount.toString(),
-        gasQuote: {
-          igpQuote: gasQuote.igpQuote.amount.toString(),
-          tokenFeeQuote: gasQuote.tokenFeeQuote?.amount?.toString() ?? 'none',
-        },
-      },
-      'Using pre-calculated gas quote for transferRemote',
+      { origin, destination, amount: amount.toString() },
+      'Building transferRemote transactions for exact execution amount',
     );
-
-    // Convert pre-calculated gas quote to TokenAmount for WarpCore
-    const originChainMetadata = this.multiProvider.getChainMetadata(origin);
-    const igpAddressOrDenom = gasQuote.igpQuote.addressOrDenom;
-    const igpToken =
-      !igpAddressOrDenom || isZeroishAddress(igpAddressOrDenom)
-        ? Token.FromChainMetadataNativeToken(originChainMetadata)
-        : this.warpCore.findToken(origin, igpAddressOrDenom);
-    assert(igpToken, `IGP fee token ${igpAddressOrDenom} is unknown`);
-    const interchainFee = new TokenAmount(gasQuote.igpQuote.amount, igpToken);
-
-    let tokenFeeQuote: TokenAmount | undefined;
-    if (gasQuote.tokenFeeQuote?.amount) {
-      const feeAddress = gasQuote.tokenFeeQuote.addressOrDenom;
-      const feeToken =
-        !feeAddress || isZeroishAddress(feeAddress)
-          ? Token.FromChainMetadataNativeToken(originChainMetadata)
-          : originToken;
-      tokenFeeQuote = new TokenAmount(gasQuote.tokenFeeQuote.amount, feeToken);
-    }
 
     const originTokenAmount = originToken.amount(amount);
     const transferTxs = await this.warpCore.getTransferRemoteTxs({
@@ -964,8 +956,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       destination,
       sender: this.getInventorySignerAddress(origin),
       recipient: this.getInventorySignerAddress(destination),
-      interchainFee,
-      tokenFeeQuote,
     });
     assert(
       transferTxs.length > 0,
