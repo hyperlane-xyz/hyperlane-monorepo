@@ -11,6 +11,8 @@ hyperlane:
   withMetrics: true
   # Used for fetching private RPC secrets
   chains: []
+  # Used for fetching protocol-specific inventory signer keys
+  inventorySignerProtocols: []
 nameOverride: ''
 fullnameOverride: ''
 externalSecrets:

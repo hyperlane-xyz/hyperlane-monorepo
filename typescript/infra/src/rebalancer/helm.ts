@@ -37,6 +37,7 @@ export class RebalancerHelmManager extends HelmManager {
 
   private rebalancerConfigContent: string = '';
   private rebalancerChains: string[] = [];
+  private inventorySignerProtocols: string[] = [];
 
   constructor(
     readonly warpRouteId: string,
@@ -67,6 +68,10 @@ export class RebalancerHelmManager extends HelmManager {
     if (!validationResult.success) {
       throw new Error(fromZodError(validationResult.error).message);
     }
+
+    this.inventorySignerProtocols = Object.keys(
+      validationResult.data.inventorySigners ?? {},
+    );
 
     const chainNames = getStrategyChainNames(validationResult.data.strategy);
     if (chainNames.length === 0) {
@@ -109,6 +114,8 @@ export class RebalancerHelmManager extends HelmManager {
         withMetrics: this.withMetrics,
         // Used for fetching private RPC secrets
         chains: this.rebalancerChains,
+        // Used for fetching protocol-specific inventory signer keys
+        inventorySignerProtocols: this.inventorySignerProtocols,
       },
     };
   }
