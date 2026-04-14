@@ -1,7 +1,11 @@
 import select from '@inquirer/select';
 
 import { type IRegistry } from '@hyperlane-xyz/registry';
-import { type Token, type WarpCoreConfig } from '@hyperlane-xyz/sdk';
+import {
+  type Token,
+  type WarpCoreConfig,
+  WarpCoreConfigSchema,
+} from '@hyperlane-xyz/sdk';
 
 import { logGreen, logRed } from '../logger.js';
 
@@ -35,7 +39,7 @@ export async function selectRegistryWarpRoute(
     logRed(`No warp routes found for symbol ${symbol}`);
     process.exit(0);
   } else if (routes.length === 1) {
-    warpCoreConfig = routes[0][1];
+    warpCoreConfig = WarpCoreConfigSchema.parse(routes[0][1]);
   } else {
     logGreen(`Multiple warp routes found for symbol ${symbol}`);
     const chosenRouteId = await select({
@@ -44,7 +48,7 @@ export async function selectRegistryWarpRoute(
         value: routeId,
       })),
     });
-    warpCoreConfig = matching[chosenRouteId];
+    warpCoreConfig = WarpCoreConfigSchema.parse(matching[chosenRouteId]);
   }
 
   return warpCoreConfig;

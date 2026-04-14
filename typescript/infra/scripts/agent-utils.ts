@@ -621,7 +621,7 @@ export async function getMultiProtocolProvider(
   registry: IRegistry,
 ): Promise<MultiProtocolProvider> {
   const chainMetadata = await registry.getMetadata();
-  return new MultiProtocolProvider(chainMetadata);
+  return new MultiProtocolProvider<object>(chainMetadata);
 }
 
 export async function getMultiProviderForRole(
@@ -634,7 +634,7 @@ export async function getMultiProviderForRole(
 ): Promise<MultiProvider> {
   const chainMetadata = await registry.getMetadata();
   logger.debug(`Getting multiprovider for ${role} role`);
-  const multiProvider = new MultiProvider(chainMetadata);
+  const multiProvider = new MultiProvider<object>(chainMetadata);
   if (inCIMode()) {
     logger.debug('Running in CI, returning multiprovider without secret keys');
     return multiProvider;

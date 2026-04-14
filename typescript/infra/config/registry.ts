@@ -17,10 +17,11 @@ import {
   ChainMetadata,
   ChainName,
   WarpCoreConfig,
+  WarpCoreConfigSchema,
   getDomainId as resolveDomainId,
   getReorgPeriod as resolveReorgPeriod,
 } from '@hyperlane-xyz/sdk';
-import { assert, objFilter, rootLogger } from '@hyperlane-xyz/utils';
+import { assert, objFilter, objMap, rootLogger } from '@hyperlane-xyz/utils';
 
 import type { DeployEnvironment } from '../src/config/environment.js';
 
@@ -117,6 +118,20 @@ export function warpRouteExistsInRegistry(warpRouteId: string): boolean {
   return !!getRegistry().getWarpRoute(warpRouteId);
 }
 
+export function normalizeWarpCoreConfig(
+  warpRouteConfig: unknown,
+): WarpCoreConfig {
+  return WarpCoreConfigSchema.parse(warpRouteConfig);
+}
+
+export function normalizeWarpCoreConfigMap(
+  warpRouteConfigMap: Record<string, unknown>,
+): Record<string, WarpCoreConfig> {
+  return objMap(warpRouteConfigMap, (_, warpRouteConfig) =>
+    normalizeWarpCoreConfig(warpRouteConfig),
+  );
+}
+
 export function getWarpCoreConfig(warpRouteId: string): WarpCoreConfig {
   const registry = getRegistry();
   const warpRouteConfig = registry.getWarpRoute(warpRouteId);
@@ -126,7 +141,7 @@ export function getWarpCoreConfig(warpRouteId: string): WarpCoreConfig {
       `Warp route config for ${warpRouteId} not found in registry`,
     );
   }
-  return warpRouteConfig;
+  return normalizeWarpCoreConfig(warpRouteConfig);
 }
 
 export function getWarpAddresses(
@@ -147,7 +162,7 @@ export async function getWarpAddressesFrom(
       `Warp route config for ${warpRouteId} not found in ${registry.uri}`,
     );
   }
-  return warpConfigToWarpAddresses(warpRouteConfig);
+  return warpConfigToWarpAddresses(normalizeWarpCoreConfig(warpRouteConfig));
 }
 
 export function getEnvChains(env: DeployEnvironment): ChainName[] {

@@ -66,7 +66,7 @@ export abstract class BaseService {
   ): Promise<MultiProvider> {
     const registry = await this.getRegistry(registryUri);
     const metadata = await registry.getMetadata();
-    const multiProvider = new MultiProvider({ ...metadata });
+    const multiProvider = new MultiProvider<object>({ ...metadata });
     return multiProvider;
   }
 }

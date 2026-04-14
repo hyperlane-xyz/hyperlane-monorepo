@@ -65,7 +65,7 @@ async function main() {
         };
 
   const chainMetadata = await registry.getMetadata();
-  const mpp = new MultiProtocolProvider(chainMetadata);
+  const mpp = new MultiProtocolProvider<object>(chainMetadata);
 
   const prices: ChainMap<GasPriceConfig> = Object.fromEntries(
     await Promise.all(

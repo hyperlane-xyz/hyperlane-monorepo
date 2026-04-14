@@ -16,7 +16,10 @@ import {
 import { assert, objFilter } from '@hyperlane-xyz/utils';
 
 import { WarpRouteIds } from '../../config/environments/mainnet3/warp/warpIds.js';
-import { DEFAULT_REGISTRY_URI } from '../../config/registry.js';
+import {
+  DEFAULT_REGISTRY_URI,
+  normalizeWarpCoreConfig,
+} from '../../config/registry.js';
 import {
   getWarpConfig,
   getWarpConfigGetterInputs,
@@ -87,7 +90,7 @@ async function main() {
   // Getter inputs only need env-wide chain metadata/core addresses, not signers.
   // Keep the checker multiprovider narrow while avoiding missing-chain lookups in code getters.
   const getterInputsRegistry = await envConfig.getRegistry(false);
-  const getterInputsMultiProvider = new MultiProvider(
+  const getterInputsMultiProvider = new MultiProvider<object>(
     await getterInputsRegistry.getMetadata(),
   );
   const warpConfigGetterInputs = await getWarpConfigGetterInputs(
@@ -302,7 +305,7 @@ async function loadWarpConfigsFromRegistry({
   );
 
   return {
-    warpCoreConfig: resolvedWarpCoreConfig,
+    warpCoreConfig: normalizeWarpCoreConfig(resolvedWarpCoreConfig),
     warpDeployConfig: resolvedWarpDeployConfig,
   };
 }
@@ -457,11 +460,12 @@ async function getWarpConfigsToCheck({
   const loadResults = await Promise.all(
     warpRouteIds.map(async (warpRouteId) => {
       try {
-        const warpCoreConfig = await registry.getWarpRoute(warpRouteId);
+        const rawWarpCoreConfig = await registry.getWarpRoute(warpRouteId);
         assert(
-          warpCoreConfig,
+          rawWarpCoreConfig,
           `Warp route config not found for ${warpRouteId}`,
         );
+        const warpCoreConfig = normalizeWarpCoreConfig(rawWarpCoreConfig);
 
         const warpDeployConfig = warpConfigGetterMap[warpRouteId]
           ? WarpRouteDeployConfigMailboxRequiredSchema.parse(

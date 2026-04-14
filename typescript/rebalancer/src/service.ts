@@ -141,7 +141,7 @@ async function main(): Promise<void> {
     applyRpcUrlOverridesFromEnv(chainMetadata);
 
     // Create MultiProvider with signer
-    const multiProvider = new MultiProvider(chainMetadata);
+    const multiProvider = new MultiProvider<object>(chainMetadata);
     const rebalancerSigner = new Wallet(rebalancerPrivateKey);
     multiProvider.setSharedSigner(rebalancerSigner);
     logger.info(

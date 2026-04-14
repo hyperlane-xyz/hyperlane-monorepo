@@ -10,7 +10,10 @@ import {
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { WarpRouteIds } from '../../../config/environments/mainnet3/warp/warpIds.js';
-import { getRegistry } from '../../../config/registry.js';
+import {
+  getRegistry,
+  normalizeWarpCoreConfig,
+} from '../../../config/registry.js';
 
 const collateralChains = ['celo', 'ethereum'];
 const chainsToPrune = ['worldchain', 'linea'];
@@ -60,7 +63,10 @@ async function main() {
     throw new Error(`Warp route ${warpRouteId} not found`);
   }
 
-  const prunedWarpRoute = isStaging ? warpRoute : pruneProdConfig(warpRoute);
+  const normalizedWarpRoute = normalizeWarpCoreConfig(warpRoute);
+  const prunedWarpRoute = isStaging
+    ? normalizedWarpRoute
+    : pruneProdConfig(normalizedWarpRoute);
 
   // Ensure the token configs are set
   prunedWarpRoute.tokens.forEach((token) => {

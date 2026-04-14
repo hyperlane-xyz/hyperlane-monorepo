@@ -67,7 +67,7 @@ async function main(): Promise<void> {
       `Loaded metadata for ${Object.keys(chainMetadata).length} chains`,
     );
 
-    const multiProvider = new MultiProvider(chainMetadata);
+    const multiProvider = new MultiProvider<object>(chainMetadata);
     const signer = new Wallet(privateKey);
     multiProvider.setSharedSigner(signer);
     logger.info('Initialized MultiProvider with signer');
