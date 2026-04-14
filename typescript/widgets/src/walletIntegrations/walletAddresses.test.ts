@@ -1,13 +1,12 @@
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { getAddressForChain } from './walletAddresses.js';
 
-void describe('walletAddresses', () => {
-  void describe('getAddressForChain', () => {
-    void it('returns undefined for missing addresses', () => {
+describe('walletAddresses', () => {
+  describe('getAddressForChain', () => {
+    it('returns undefined for missing addresses', () => {
       assert.equal(
         getAddressForChain(undefined, ProtocolType.Ethereum, 'ethereum'),
         undefined,
@@ -18,7 +17,7 @@ void describe('walletAddresses', () => {
       );
     });
 
-    void it('returns exact chain match when present', () => {
+    it('returns exact chain match when present', () => {
       assert.equal(
         getAddressForChain(
           [
@@ -32,7 +31,7 @@ void describe('walletAddresses', () => {
       );
     });
 
-    void it('falls back to first address for non-Cosmos protocols', () => {
+    it('falls back to first address for non-Cosmos protocols', () => {
       assert.equal(
         getAddressForChain(
           [
@@ -46,7 +45,7 @@ void describe('walletAddresses', () => {
       );
     });
 
-    void it('does not fall back across Cosmos chains', () => {
+    it('does not fall back across Cosmos chains', () => {
       assert.equal(
         getAddressForChain(
           [
@@ -69,7 +68,7 @@ void describe('walletAddresses', () => {
       );
     });
 
-    void it('still returns exact Cosmos chain match when present', () => {
+    it('still returns exact Cosmos chain match when present', () => {
       assert.equal(
         getAddressForChain(
           [
