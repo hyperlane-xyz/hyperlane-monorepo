@@ -76,10 +76,10 @@ export class PredicateWrapperDeployer {
     // Transfer wrapper ownership to the warp route owner so that admin functions
     // (setPolicyID, setRegistry, withdrawETH) are controlled by the same key/multisig
     // that owns the warp route, not the ephemeral deployer key.
-    const routeOwner = await TokenRouter__factory.connect(
-      warpRouteAddress,
-      signer,
-    ).owner();
+    // Use the explicit owner from config rather than reading from on-chain, because
+    // during initial deployment the on-chain owner is still the deployer signer
+    // (transferOwnership hasn't run yet).
+    const routeOwner = config.owner;
     await this.multiProvider.handleTx(
       chain,
       wrapper.transferOwnership(routeOwner),

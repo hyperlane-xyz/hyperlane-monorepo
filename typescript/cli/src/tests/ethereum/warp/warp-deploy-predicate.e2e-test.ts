@@ -106,6 +106,7 @@ describe('hyperlane warp deploy with Predicate e2e tests', async function () {
           predicateWrapper: {
             predicateRegistry: mockPredicateRegistryAddress,
             policyId: MOCK_POLICY_ID,
+            owner: ownerAddress,
           },
         },
         [CHAIN_NAME_3]: {
@@ -221,6 +222,7 @@ describe('hyperlane warp deploy with Predicate e2e tests', async function () {
           predicateWrapper: {
             predicateRegistry: mockPredicateRegistryChain3,
             policyId: MOCK_POLICY_ID,
+            owner: ownerAddress,
           },
         },
       };
@@ -303,6 +305,7 @@ describe('hyperlane warp deploy with Predicate e2e tests', async function () {
           predicateWrapper: {
             predicateRegistry: mockPredicateRegistryAddress,
             policyId: MOCK_POLICY_ID,
+            owner: ownerAddress,
           },
         },
         [CHAIN_NAME_3]: {

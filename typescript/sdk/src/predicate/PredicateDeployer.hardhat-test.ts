@@ -108,6 +108,7 @@ describe('PredicateWrapperDeployer', async () => {
         {
           predicateRegistry: mockPredicateRegistry.address,
           policyId: MOCK_POLICY_ID,
+          owner: signerAddress,
         },
       );
 
@@ -133,6 +134,7 @@ describe('PredicateWrapperDeployer', async () => {
         {
           predicateRegistry: mockPredicateRegistry.address,
           policyId: MOCK_POLICY_ID,
+          owner: signerAddress,
         },
       );
 
@@ -176,6 +178,7 @@ describe('PredicateWrapperDeployer', async () => {
         {
           predicateRegistry: mockPredicateRegistry.address,
           policyId: MOCK_POLICY_ID,
+          owner: signerAddress,
         },
       );
       await signer.sendTransaction(result.setHookTx);
@@ -224,6 +227,7 @@ describe('PredicateWrapperDeployer', async () => {
         {
           predicateRegistry: mockPredicateRegistry.address,
           policyId: MOCK_POLICY_ID,
+          owner: signerAddress,
         },
       );
       await signer.sendTransaction(result.setHookTx);
@@ -268,6 +272,7 @@ describe('PredicateWrapperDeployer', async () => {
         {
           predicateRegistry: mockPredicateRegistry.address,
           policyId: MOCK_POLICY_ID,
+          owner: signerAddress,
         },
       );
       await signer.sendTransaction(result.setHookTx);

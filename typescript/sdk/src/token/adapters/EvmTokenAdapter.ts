@@ -265,7 +265,10 @@ export class EvmHypSyntheticAdapter
       // Without a wrapper, transferRemote burns directly from msg.sender — no approval needed.
       const predicateWrapper = await this.getPredicateWrapperAddress();
       if (!predicateWrapper) return false;
-      const allowance = await this.contract.allowance(owner, predicateWrapper);
+      const allowance = await this.contract.allowance(
+        toEvmAddress(owner),
+        predicateWrapper,
+      );
       return allowance.lt(weiAmountOrId);
     }
 

@@ -100,6 +100,7 @@ describe('hyperlane warp send with Predicate e2e tests', async function () {
           predicateWrapper: {
             predicateRegistry: mockPredicateRegistryAddress,
             policyId: MOCK_POLICY_ID,
+            owner: ownerAddress,
           },
         },
         [CHAIN_NAME_3]: {
@@ -156,6 +157,7 @@ describe('hyperlane warp send with Predicate e2e tests', async function () {
           predicateWrapper: {
             predicateRegistry: mockPredicateRegistryAddress,
             policyId: MOCK_POLICY_ID,
+            owner: ownerAddress,
           },
         },
         [CHAIN_NAME_3]: {

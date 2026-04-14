@@ -1222,35 +1222,25 @@ export class EvmWarpModule extends HyperlaneModule<
   }
 
   /**
-   * Check if predicate wrapper is already deployed with matching config.
-   *
-   * @param actualConfig - The on-chain router configuration.
-   * @param expectedPredicateConfig - The expected predicate wrapper configuration.
-   * @returns True if wrapper is deployed, false otherwise.
+   * Searches the current on-chain aggregation hook for a PredicateRouterWrapper that
+   * matches by registry and policyId. Returns the wrapper address and its current
+   * on-chain owner when found, undefined otherwise.
    */
-  async isPredicateWrapperDeployed(
+  private async findDeployedPredicateWrapper(
     actualConfig: DerivedTokenRouterConfig,
     expectedPredicateConfig: { predicateRegistry: string; policyId: string },
-  ): Promise<boolean> {
+  ): Promise<{ address: Address; onchainOwner: Address } | undefined> {
     const hookAddress = derivedHookAddress(actualConfig);
-    if (!hookAddress || isZeroishAddress(hookAddress)) {
-      return false;
-    }
+    if (!hookAddress || isZeroishAddress(hookAddress)) return undefined;
 
     try {
       const provider = this.multiProvider.getProvider(this.domainId);
-      const hook = StaticAggregationHook__factory.connect(
+      const hooksAddresses = await StaticAggregationHook__factory.connect(
         hookAddress,
         provider,
-      );
+      ).hooks('0x');
+      if (!hooksAddresses || hooksAddresses.length === 0) return undefined;
 
-      // Check if this is an aggregation hook
-      const hooksAddresses = await hook.hooks('0x');
-      if (!hooksAddresses || hooksAddresses.length === 0) {
-        return false;
-      }
-
-      // Check each hook in the aggregation to find a matching PredicateRouterWrapper
       for (const hookAddr of hooksAddresses) {
         try {
           const predicateWrapper = PredicateRouterWrapper__factory.connect(
@@ -1261,13 +1251,19 @@ export class EvmWarpModule extends HyperlaneModule<
           // Verify identity: warpRoute + hookType confirm it's a PredicateRouterWrapper
           // for this route. Then compare registry + policyId so config rotations
           // (e.g. changing compliance policy) trigger a redeploy rather than silently no-op.
-          const [warpRoute, hookType, onchainRegistry, onchainPolicyId] =
-            await Promise.all([
-              predicateWrapper.warpRoute(),
-              predicateWrapper.hookType(),
-              predicateWrapper.getRegistry(),
-              predicateWrapper.getPolicyID(),
-            ]);
+          const [
+            warpRoute,
+            hookType,
+            onchainRegistry,
+            onchainPolicyId,
+            onchainOwner,
+          ] = await Promise.all([
+            predicateWrapper.warpRoute(),
+            predicateWrapper.hookType(),
+            predicateWrapper.getRegistry(),
+            predicateWrapper.getPolicyID(),
+            predicateWrapper.owner(),
+          ]);
 
           if (
             eqAddress(warpRoute, this.args.addresses.deployedTokenRoute) &&
@@ -1278,7 +1274,7 @@ export class EvmWarpModule extends HyperlaneModule<
             ) &&
             onchainPolicyId === expectedPredicateConfig.policyId
           ) {
-            return true;
+            return { address: hookAddr, onchainOwner };
           }
         } catch {
           // Not a PredicateRouterWrapper, continue checking other hooks
@@ -1286,14 +1282,38 @@ export class EvmWarpModule extends HyperlaneModule<
         }
       }
     } catch (error) {
-      // Hook is not an aggregation hook or error reading config
       this.logger.debug(
         { chain: this.chainName, error },
         'Error checking predicate wrapper deployment',
       );
     }
+    return undefined;
+  }
 
-    return false;
+  /**
+   * Check if predicate wrapper is already deployed with fully matching config
+   * (registry, policyId, and owner).
+   *
+   * @param actualConfig - The on-chain router configuration.
+   * @param expectedPredicateConfig - The expected predicate wrapper configuration.
+   * @returns True if wrapper is deployed with all fields matching, false otherwise.
+   */
+  async isPredicateWrapperDeployed(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedPredicateConfig: {
+      predicateRegistry: string;
+      policyId: string;
+      owner: string;
+    },
+  ): Promise<boolean> {
+    const found = await this.findDeployedPredicateWrapper(
+      actualConfig,
+      expectedPredicateConfig,
+    );
+    return (
+      found !== undefined &&
+      eqAddress(found.onchainOwner, expectedPredicateConfig.owner)
+    );
   }
 
   /**
@@ -1321,18 +1341,40 @@ export class EvmWarpModule extends HyperlaneModule<
     const predicateWrapperConfig: PredicateWrapperConfig =
       PredicateWrapperConfigSchema.parse(expectedConfig.predicateWrapper);
 
-    // Check if predicate wrapper is already deployed with matching config
-    const isAlreadyDeployed = await this.isPredicateWrapperDeployed(
+    // Check if a wrapper matching by registry+policyId already exists on-chain.
+    // If so, only a transferOwnership tx is needed (not a full redeploy).
+    const existingWrapper = await this.findDeployedPredicateWrapper(
       actualConfig,
       predicateWrapperConfig,
     );
 
-    if (isAlreadyDeployed) {
+    if (existingWrapper) {
+      if (
+        eqAddress(existingWrapper.onchainOwner, predicateWrapperConfig.owner)
+      ) {
+        this.logger.debug(
+          { chain: this.chainName },
+          'Predicate wrapper already deployed with matching config, skipping',
+        );
+        return [];
+      }
+
+      // Owner changed — generate a transferOwnership tx without redeploying.
       this.logger.debug(
-        { chain: this.chainName },
-        'Predicate wrapper already deployed with matching config, skipping',
+        { chain: this.chainName, wrapper: existingWrapper.address },
+        'Predicate wrapper owner changed, generating transferOwnership transaction',
       );
-      return [];
+      const transferOwnershipTx = await PredicateRouterWrapper__factory.connect(
+        existingWrapper.address,
+        this.multiProvider.getProvider(this.domainId),
+      ).populateTransaction.transferOwnership(predicateWrapperConfig.owner);
+      return [
+        {
+          ...transferOwnershipTx,
+          chainId: this.domainId,
+          annotation: `Transferring predicate wrapper ownership to ${predicateWrapperConfig.owner}`,
+        },
+      ];
     }
 
     const staticAggregationHookFactory =

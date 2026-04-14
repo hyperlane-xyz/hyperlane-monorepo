@@ -788,11 +788,10 @@ abstract class TokenDeployer<
         const router = this.router(deployedContractsMap[chain]);
 
         const factoryContracts = this.options.ismFactory?.getContracts(chain);
-        if (!factoryContracts?.staticAggregationHookFactory) {
-          throw new Error(
-            `staticAggregationHookFactory not found for ${chain}. Ensure proxy factories are deployed.`,
-          );
-        }
+        assert(
+          factoryContracts?.staticAggregationHookFactory,
+          `staticAggregationHookFactory not found for ${chain}. Ensure proxy factories are deployed.`,
+        );
 
         const predicateDeployer = new PredicateWrapperDeployer(
           this.multiProvider,
@@ -800,7 +799,10 @@ abstract class TokenDeployer<
           this.logger,
         );
 
-        // Token address is fetched from router.token() in PredicateRouterWrapper constructor
+        // Token address is fetched from router.token() in PredicateRouterWrapper constructor.
+        // config.predicateWrapper.owner (from the original configMap) is used for wrapper
+        // ownership — it's explicit in the schema rather than read from on-chain, so it
+        // correctly points to the intended final owner even before transferOwnership runs.
         const result = await predicateDeployer.deployAndConfigure(
           chain,
           router.address,
@@ -879,6 +881,17 @@ abstract class TokenDeployer<
   async deploy(
     configMap: ChainMap<HypTokenRouterConfig>,
   ): Promise<HyperlaneContractsMap<Factories & ProxiedFactories>> {
+    // Fail fast if any chain requires a predicate wrapper but lacks the factory.
+    // Checked before any on-chain work to avoid partial deployments.
+    for (const [chain, config] of Object.entries(configMap)) {
+      if (!('predicateWrapper' in config) || !config.predicateWrapper) continue;
+      const factoryContracts = this.options.ismFactory?.getContracts(chain);
+      assert(
+        factoryContracts?.staticAggregationHookFactory,
+        `staticAggregationHookFactory not found for ${chain}. Ensure proxy factories are deployed.`,
+      );
+    }
+
     let tokenMetadataMap: TokenMetadataMap;
     try {
       tokenMetadataMap = await TokenDeployer.deriveTokenMetadata(

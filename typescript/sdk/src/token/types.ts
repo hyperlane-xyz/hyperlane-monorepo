@@ -101,6 +101,9 @@ export const PredicateWrapperConfigSchema = z.object({
     .string()
     .min(1)
     .describe('Predicate policy ID for attestation validation'),
+  owner: ZHash.describe(
+    'Owner of the predicate wrapper contract (controls setPolicyID, setRegistry, withdrawETH)',
+  ),
 });
 
 export type PredicateWrapperConfig = z.infer<
