@@ -18,10 +18,12 @@ import {
   type AnnotatedTx,
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
-import { assert } from '@hyperlane-xyz/utils';
+import { ZERO_ADDRESS_HEX_32, assert } from '@hyperlane-xyz/utils';
 
 import { type CosmosNativeSigner } from '../clients/signer.js';
 import { CosmosHookArtifactManager } from '../hook/hook-artifact-manager.js';
+import { CosmosIsmArtifactManager } from '../ism/ism-artifact-manager.js';
+import { CosmosMailboxArtifactManager } from '../mailbox/mailbox-artifact-manager.js';
 import { createSigner } from '../testing/utils.js';
 
 chai.use(chaiAsPromised);
@@ -39,20 +41,49 @@ describe('Cosmos Hooks Artifact API (e2e)', function () {
     cosmosSigner = await createSigner('alice');
     signer = cosmosSigner;
 
-    // Setup: Create a mailbox for hook tests
-    const { ismAddress } = await cosmosSigner.createNoopIsm({});
-    const domainId = 1234;
-    const mailboxResult = await cosmosSigner.createMailbox({
-      domainId,
-      defaultIsmAddress: ismAddress,
-    });
-    mailboxAddress = mailboxResult.mailboxAddress;
     denom = 'uhyp';
-
+    const domainId = 1234;
     const [rpc, ...otherRpcUrls] = cosmosSigner.getRpcUrls();
     assert(rpc, 'At least one rpc is required');
 
-    // Create artifact manager
+    // Setup: Create ISM and mailbox using artifact managers
+    const ismArtifactManager = new CosmosIsmArtifactManager([
+      rpc,
+      ...otherRpcUrls,
+    ]);
+    const ismWriter = ismArtifactManager.createWriter(
+      AltVM.IsmType.TEST_ISM,
+      cosmosSigner,
+    );
+    const [testIsm] = await ismWriter.create({
+      config: { type: AltVM.IsmType.TEST_ISM },
+    });
+
+    const mailboxArtifactManager = new CosmosMailboxArtifactManager({
+      rpcUrls: [rpc, ...otherRpcUrls],
+      domainId,
+    });
+    const mailboxWriter = mailboxArtifactManager.createWriter(
+      'mailbox',
+      cosmosSigner,
+    );
+    const [mailbox] = await mailboxWriter.create({
+      config: {
+        owner: cosmosSigner.getSignerAddress(),
+        defaultIsm: testIsm,
+        defaultHook: {
+          deployed: { address: ZERO_ADDRESS_HEX_32 },
+          artifactState: ArtifactState.UNDERIVED,
+        },
+        requiredHook: {
+          deployed: { address: ZERO_ADDRESS_HEX_32 },
+          artifactState: ArtifactState.UNDERIVED,
+        },
+      },
+    });
+    mailboxAddress = mailbox.deployed.address;
+
+    // Create hook artifact manager
     artifactManager = new CosmosHookArtifactManager({
       rpcUrls: [rpc, ...otherRpcUrls],
       mailboxAddress,

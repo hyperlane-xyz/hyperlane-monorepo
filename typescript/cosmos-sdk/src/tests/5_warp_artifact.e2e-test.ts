@@ -19,9 +19,15 @@ import {
   type WarpArtifactConfig,
   type WarpType,
 } from '@hyperlane-xyz/provider-sdk/warp';
-import { assert, eqAddressCosmos } from '@hyperlane-xyz/utils';
+import {
+  ZERO_ADDRESS_HEX_32,
+  assert,
+  eqAddressCosmos,
+} from '@hyperlane-xyz/utils';
 
 import { type CosmosNativeSigner } from '../clients/signer.js';
+import { CosmosIsmArtifactManager } from '../ism/ism-artifact-manager.js';
+import { CosmosMailboxArtifactManager } from '../mailbox/mailbox-artifact-manager.js';
 import { DEFAULT_E2E_TEST_TIMEOUT } from '../testing/constants.js';
 import { createSigner } from '../testing/utils.js';
 import { CosmosWarpArtifactManager } from '../warp/warp-artifact-manager.js';
@@ -58,19 +64,51 @@ describe('Cosmos Warp Artifacts (e2e)', function () {
 
     artifactManager = new CosmosWarpArtifactManager(rpcUrls);
 
-    // Create ISM addresses for tests
-    const ism1 = await cosmosSigner.createNoopIsm({});
-    testIsmAddress = ism1.ismAddress;
-
-    const ism2 = await cosmosSigner.createNoopIsm({});
-    secondIsmAddress = ism2.ismAddress;
-
-    // Set up mailbox for tests
-    const mailboxResponse = await cosmosSigner.createMailbox({
-      domainId: 1234,
-      defaultIsmAddress: testIsmAddress,
+    // Create ISM addresses for tests using artifact manager
+    const ismArtifactManager = new CosmosIsmArtifactManager(rpcUrls);
+    const ismWriter = ismArtifactManager.createWriter(
+      AltVM.IsmType.TEST_ISM,
+      cosmosSigner,
+    );
+    const [ism1] = await ismWriter.create({
+      config: { type: AltVM.IsmType.TEST_ISM },
     });
-    mailboxAddress = mailboxResponse.mailboxAddress;
+    testIsmAddress = ism1.deployed.address;
+
+    const [ism2] = await ismWriter.create({
+      config: { type: AltVM.IsmType.TEST_ISM },
+    });
+    secondIsmAddress = ism2.deployed.address;
+
+    // Set up mailbox for tests using artifact manager
+    const [firstRpc, ...restRpcs] = rpcUrls;
+    assert(firstRpc, 'Expected at least 1 rpc url');
+    const mailboxArtifactManager = new CosmosMailboxArtifactManager({
+      rpcUrls: [firstRpc, ...restRpcs],
+      domainId: 1234,
+    });
+    const mailboxWriter = mailboxArtifactManager.createWriter(
+      'mailbox',
+      cosmosSigner,
+    );
+    const [mailbox] = await mailboxWriter.create({
+      config: {
+        owner: deployerAddress,
+        defaultIsm: {
+          deployed: { address: testIsmAddress },
+          artifactState: ArtifactState.UNDERIVED,
+        },
+        defaultHook: {
+          deployed: { address: ZERO_ADDRESS_HEX_32 },
+          artifactState: ArtifactState.UNDERIVED,
+        },
+        requiredHook: {
+          deployed: { address: ZERO_ADDRESS_HEX_32 },
+          artifactState: ArtifactState.UNDERIVED,
+        },
+      },
+    });
+    mailboxAddress = mailbox.deployed.address;
   });
 
   // Table-driven tests for both token types

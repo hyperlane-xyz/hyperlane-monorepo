@@ -165,6 +165,19 @@ export class CosmosRoutingIsmRawWriter
         isNullish(currentIsmAddress) ||
         !eqAddressCosmos(currentIsmAddress, expectedIsmAddress)
       ) {
+        // Cosmos module's MsgSetRoutingIsmDomain only adds new domains;
+        // to change an existing domain's ISM, remove first then re-add.
+        if (!isNullish(currentIsmAddress)) {
+          const removeTx = await getRemoveRoutingIsmRouteTx(
+            currentOwnerAddress,
+            {
+              ismAddress: deployed.address,
+              domainId: domain,
+            },
+          );
+          transactions.push(removeTx);
+        }
+
         const transaction = await getSetRoutingIsmRouteTx(currentOwnerAddress, {
           ismAddress: deployed.address,
           domainIsm: { domainId: domain, ismAddress: expectedIsmAddress },
