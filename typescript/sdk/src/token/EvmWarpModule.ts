@@ -1148,11 +1148,7 @@ export class EvmWarpModule extends HyperlaneModule<
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
-    const { transactions } = await this.createHookAndPredicateUpdateTxs(
-      actualConfig,
-      expectedConfig,
-    );
-    return transactions;
+    return this.createHookAndPredicateUpdateTxs(actualConfig, expectedConfig);
   }
 
   /**
