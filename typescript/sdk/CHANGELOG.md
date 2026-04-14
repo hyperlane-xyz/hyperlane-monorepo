@@ -1,5 +1,23 @@
 # @hyperlane-xyz/sdk
 
+## 31.2.0
+
+### Minor Changes
+
+- 35fb5c8: Shared scale conversion helpers were exported, and WarpCore preserved legacy collateral checks for mixed-decimal routes when scale metadata is missing.
+
+### Patch Changes
+
+- @hyperlane-xyz/aleo-sdk@31.2.0
+- @hyperlane-xyz/starknet-core@31.2.0
+- @hyperlane-xyz/cosmos-sdk@31.2.0
+- @hyperlane-xyz/radix-sdk@31.2.0
+- @hyperlane-xyz/utils@31.2.0
+- @hyperlane-xyz/deploy-sdk@4.3.3
+- @hyperlane-xyz/core@11.3.1
+- @hyperlane-xyz/provider-sdk@4.3.3
+- @hyperlane-xyz/tron-sdk@22.1.13
+
 ## 31.1.0
 
 ### Minor Changes
