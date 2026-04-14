@@ -223,7 +223,59 @@ describe('hyperlane warp send with Predicate e2e tests', async function () {
     });
   });
 
-  describe('native token with predicate should fail', () => {
+  describe('native token with predicate wrapper', () => {
+    const warpDeployPath = `${TEMP_PATH}/warp-deploy-predicate-native-send.yaml`;
+    const warpCoreConfigPath = getCombinedWarpRoutePath('PREDNATIVESEND', [
+      CHAIN_NAME_2,
+      CHAIN_NAME_3,
+    ]);
+
+    before(async function () {
+      const warpConfig: WarpRouteDeployConfig = {
+        [CHAIN_NAME_2]: {
+          type: TokenType.native,
+          mailbox: chain2Addresses.mailbox,
+          owner: ownerAddress,
+          predicateWrapper: {
+            predicateRegistry: mockPredicateRegistryAddress,
+            policyId: MOCK_POLICY_ID,
+            owner: ownerAddress,
+          },
+        },
+        [CHAIN_NAME_3]: {
+          type: TokenType.synthetic,
+          mailbox: chain3Addresses.mailbox,
+          owner: ownerAddress,
+        },
+      };
+
+      writeYamlOrJson(warpDeployPath, warpConfig);
+      await hyperlaneWarpDeploy(warpDeployPath, 'PREDNATIVESEND/anvil2-anvil3');
+    });
+
+    it('should transfer native token using --attestation flag', async function () {
+      const mockAttestation = JSON.stringify({
+        uuid: '550e8400-e29b-41d4-a716-446655440002',
+        expiration: Math.floor(Date.now() / 1000) + 3600,
+        attester: mockPredicateRegistryAddress,
+        signature:
+          '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12',
+      });
+
+      const { exitCode, stdout } = await hyperlaneWarpSendRelay({
+        origin: CHAIN_NAME_2,
+        destination: CHAIN_NAME_3,
+        warpRouteId: warpCoreConfigPath,
+        value: 1,
+        attestation: mockAttestation,
+      });
+
+      expect(exitCode).to.equal(0);
+      expect(stdout).to.include(WarpSendLogs.SUCCESS);
+    });
+  });
+
+  describe('native token without predicate wrapper should fail', () => {
     const warpDeployPath = `${TEMP_PATH}/warp-deploy-native-send.yaml`;
     const warpCoreConfigPath = getCombinedWarpRoutePath('NATIVESEND', [
       CHAIN_NAME_2,
@@ -248,7 +300,7 @@ describe('hyperlane warp send with Predicate e2e tests', async function () {
       await hyperlaneWarpDeploy(warpDeployPath, 'NATIVESEND/anvil2-anvil3');
     });
 
-    it('should fail with helpful error message when using attestation with native token', async function () {
+    it('should fail when attestation is used without a configured wrapper', async function () {
       const mockAttestation = JSON.stringify({
         uuid: '550e8400-e29b-41d4-a716-446655440000',
         expiration: Math.floor(Date.now() / 1000) + 3600,
@@ -265,7 +317,7 @@ describe('hyperlane warp send with Predicate e2e tests', async function () {
       }).nothrow();
 
       expect(exitCode).to.not.equal(0);
-      expect(stderr).to.include('native token');
+      expect(stderr).to.include('PredicateRouterWrapper');
     });
   });
 

@@ -1891,17 +1891,12 @@ export class WarpCore {
     token: IToken,
     destination?: ChainName,
   ): Promise<boolean> {
-    try {
-      const adapter = token.getHypAdapter(this.multiProvider, destination);
+    const adapter = token.getHypAdapter(this.multiProvider, destination);
 
-      if (!isPredicateCapableAdapter(adapter)) {
-        return false;
-      }
-
-      return await adapter.supportsAttestation();
-    } catch (error) {
-      this.logger.debug('Error checking predicate support', { error });
+    if (!isPredicateCapableAdapter(adapter)) {
       return false;
     }
+
+    return adapter.supportsAttestation();
   }
 }
