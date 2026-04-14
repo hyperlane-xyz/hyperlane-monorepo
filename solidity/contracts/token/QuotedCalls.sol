@@ -111,17 +111,66 @@ library CalldataHeadLib {
         bytes calldata input,
         uint256 slot
     ) internal pure returns (address) {
-        return
-            address(
-                uint160(uint256(bytes32(input[slot * 32:(slot + 1) * 32])))
-            );
+        return address(uint160(readUint256(input, slot)));
     }
 
     function readUint256(
         bytes calldata input,
         uint256 slot
     ) internal pure returns (uint256) {
-        return uint256(bytes32(input[slot * 32:(slot + 1) * 32]));
+        uint256 value;
+        assembly {
+            value := calldataload(add(input.offset, mul(slot, 0x20)))
+        }
+        return value;
+    }
+
+    function readUint32(
+        bytes calldata input,
+        uint256 slot
+    ) internal pure returns (uint32) {
+        return uint32(readUint256(input, slot));
+    }
+
+    function readBytes32(
+        bytes calldata input,
+        uint256 slot
+    ) internal pure returns (bytes32 value) {
+        assembly {
+            value := calldataload(add(input.offset, mul(slot, 0x20)))
+        }
+    }
+
+    function readBytes32At(
+        bytes calldata input,
+        uint256 byteOffset
+    ) internal pure returns (bytes32 value) {
+        assembly {
+            value := calldataload(add(input.offset, byteOffset))
+        }
+    }
+
+    function readBytes(
+        bytes calldata input,
+        uint256 slot
+    ) internal pure returns (bytes memory out) {
+        uint256 offset = readUint256(input, slot);
+        assert(offset + 0x20 <= input.length);
+
+        uint256 start;
+        assembly {
+            start := add(input.offset, offset)
+        }
+        uint256 length;
+        assembly {
+            length := calldataload(start)
+        }
+        assert(offset + 0x20 + length <= input.length);
+
+        out = new bytes(length);
+        assembly {
+            calldatacopy(add(out, 0x20), add(start, 0x20), length)
+        }
     }
 
     function resolveAmount(
@@ -190,6 +239,19 @@ contract QuotedCalls is PackageVersioned, ReentrancyGuardTransient {
     // ============ Immutables ============
 
     IAllowanceTransfer public immutable PERMIT2;
+
+    bytes4 private constant PERMIT2_PERMIT_SELECTOR =
+        bytes4(
+            keccak256(
+                "permit(address,((address,uint160,uint48,uint48),address,uint256),bytes)"
+            )
+        );
+    bytes4 private constant SUBMIT_QUOTE_SELECTOR =
+        IOffchainQuoter.submitQuote.selector;
+    bytes4 private constant CALL_REMOTE_WITH_OVERRIDES_SELECTOR =
+        IInterchainAccountRouter.callRemoteWithOverrides.selector;
+    bytes4 private constant CALL_REMOTE_COMMIT_REVEAL_SELECTOR =
+        IInterchainAccountRouter.callRemoteCommitReveal.selector;
 
     // ============ Constants ============
 
@@ -368,15 +430,17 @@ contract QuotedCalls is PackageVersioned, ReentrancyGuardTransient {
     }
 
     function _submitQuote(bytes calldata input) internal {
-        (
-            address quoter,
-            SignedQuote memory quote,
-            bytes memory signature,
-            bytes32 clientSalt
-        ) = abi.decode(input, (address, SignedQuote, bytes, bytes32));
-        bytes32 scopedSalt = _scopeSalt(msg.sender, clientSalt);
-        if (quote.salt != scopedSalt) revert InvalidSalt();
-        IOffchainQuoter(quoter).submitQuote(quote, signature);
+        address quoter = CalldataHeadLib.readAddress(input, 0);
+        uint256 quoteOffset = CalldataHeadLib.readUint256(input, 1);
+        uint256 signatureOffset = CalldataHeadLib.readUint256(input, 2);
+        bytes32 clientSalt = CalldataHeadLib.readBytes32(input, 3);
+
+        if (
+            CalldataHeadLib.readBytes32At(input, quoteOffset + 4 * 32) !=
+            _scopeSalt(msg.sender, clientSalt)
+        ) revert InvalidSalt();
+
+        _submitQuoteRaw(quoter, input, quoteOffset, signatureOffset);
     }
 
     // ============ Internal: execute dispatch ============
@@ -385,26 +449,18 @@ contract QuotedCalls is PackageVersioned, ReentrancyGuardTransient {
         if (command == SUBMIT_QUOTE) {
             _submitQuote(input);
         } else if (command == PERMIT2_PERMIT) {
-            (
-                IAllowanceTransfer.PermitSingle memory permitSingle,
-                bytes memory signature
-            ) = abi.decode(input, (IAllowanceTransfer.PermitSingle, bytes));
             // Use try/catch to handle front-running: if an attacker submits
             // the same permit signature first, the permit is already consumed
             // and this call reverts. Gracefully continue since the allowance
             // was already set by the front-runner's submission.
-            try PERMIT2.permit(msg.sender, permitSingle, signature) {} catch {}
+            _permit2PermitRaw(input);
         } else if (command == PERMIT2_TRANSFER_FROM) {
-            (address token, uint160 amount) = abi.decode(
-                input,
-                (address, uint160)
-            );
+            address token = CalldataHeadLib.readAddress(input, 0);
+            uint160 amount = uint160(CalldataHeadLib.readUint256(input, 1));
             PERMIT2.transferFrom(msg.sender, address(this), amount, token);
         } else if (command == TRANSFER_FROM) {
-            (address token, uint256 amount) = abi.decode(
-                input,
-                (address, uint256)
-            );
+            address token = CalldataHeadLib.readAddress(input, 0);
+            uint256 amount = CalldataHeadLib.readUint256(input, 1);
             IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
         } else if (command == TRANSFER_REMOTE) {
             _dispatchTransferRemote(input);
@@ -415,7 +471,7 @@ contract QuotedCalls is PackageVersioned, ReentrancyGuardTransient {
         } else if (command == CALL_REMOTE_COMMIT_REVEAL) {
             _dispatchCallRemoteCommitReveal(input);
         } else if (command == SWEEP) {
-            address token = abi.decode(input, (address));
+            address token = CalldataHeadLib.readAddress(input, 0);
             if (token != address(0)) {
                 uint256 tokenBalance = IERC20(token).balanceOf(address(this));
                 if (tokenBalance > 0) {
@@ -456,41 +512,17 @@ contract QuotedCalls is PackageVersioned, ReentrancyGuardTransient {
 
     function _dispatchCallRemoteWithOverrides(bytes calldata input) internal {
         CalldataHeadLib.approveFromHead(input, 10);
-        (
-            address icaRouter,
-            uint32 destination,
-            bytes32 router,
-            bytes32 ism,
-            CallLib.Call[] memory calls,
-            bytes memory hookMetadata,
-            bytes32 userSalt,
-            uint256 value,
-            ,
-
-        ) = abi.decode(
-                input,
-                (
-                    address,
-                    uint32,
-                    bytes32,
-                    bytes32,
-                    CallLib.Call[],
-                    bytes,
-                    bytes32,
-                    uint256,
-                    address,
-                    uint256
-                )
-            );
-        IInterchainAccountRouter(icaRouter).callRemoteWithOverrides{
-            value: _resolveAmount(address(0), value)
-        }(
-            destination,
-            router,
-            ism,
-            calls,
-            hookMetadata,
-            _scopeSalt(msg.sender, userSalt)
+        _callRouterWithPatchedInput(
+            CalldataHeadLib.readAddress(input, 0),
+            CALL_REMOTE_WITH_OVERRIDES_SELECTOR,
+            input,
+            _resolveAmount(address(0), CalldataHeadLib.readUint256(input, 7)),
+            3,
+            CalldataHeadLib.readUint256(input, 4) - 32,
+            4,
+            CalldataHeadLib.readUint256(input, 5) - 32,
+            5,
+            _scopeSalt(msg.sender, CalldataHeadLib.readBytes32(input, 6))
         );
     }
 
@@ -499,48 +531,149 @@ contract QuotedCalls is PackageVersioned, ReentrancyGuardTransient {
         _executeCommitReveal(input);
     }
 
-    /// @dev Decode + external call in its own stack frame so abi.decode locals
-    ///      don't share the stack with _approveFromCalldata's frame.
+    /// @dev Keep commit-reveal forwarding in its own stack frame to avoid
+    ///      stack pressure around the approval + patched calldata path.
     function _executeCommitReveal(bytes calldata input) internal {
-        (
-            address icaRouter,
-            uint32 destination,
-            bytes32 router,
-            bytes32 ism,
-            bytes memory hookMetadata,
-            address hook,
-            bytes32 salt,
-            bytes32 commitment,
-            uint256 value,
-            ,
-
-        ) = abi.decode(
-                input,
-                (
-                    address,
-                    uint32,
-                    bytes32,
-                    bytes32,
-                    bytes,
-                    address,
-                    bytes32,
-                    bytes32,
-                    uint256,
-                    address,
-                    uint256
-                )
-            );
-        IInterchainAccountRouter(icaRouter).callRemoteCommitReveal{
-            value: _resolveAmount(address(0), value)
-        }(
-            destination,
-            router,
-            ism,
-            hookMetadata,
-            IPostDispatchHook(hook),
-            _scopeSalt(msg.sender, salt),
-            commitment
+        _callRouterWithPatchedInput(
+            CalldataHeadLib.readAddress(input, 0),
+            CALL_REMOTE_COMMIT_REVEAL_SELECTOR,
+            input,
+            _resolveAmount(address(0), CalldataHeadLib.readUint256(input, 8)),
+            3,
+            CalldataHeadLib.readUint256(input, 4) - 32,
+            5,
+            _scopeSalt(msg.sender, CalldataHeadLib.readBytes32(input, 6))
         );
+    }
+
+    function _callRouterWithPatchedInput(
+        address target,
+        bytes4 selector,
+        bytes calldata input,
+        uint256 value,
+        uint256 patchedSlotA,
+        uint256 patchedValueA,
+        uint256 patchedSlotB,
+        bytes32 patchedValueB
+    ) internal {
+        bytes memory data = new bytes(4 + input.length - 32);
+        assembly {
+            let dataPtr := add(data, 0x20)
+            mstore(dataPtr, selector)
+            calldatacopy(
+                add(dataPtr, 4),
+                add(input.offset, 0x20),
+                sub(input.length, 0x20)
+            )
+        }
+        _writeWord(data, patchedSlotA, bytes32(patchedValueA));
+        _writeWord(data, patchedSlotB, patchedValueB);
+        _call(target, data, value);
+    }
+
+    function _permit2PermitRaw(bytes calldata input) internal {
+        bytes4 selector = PERMIT2_PERMIT_SELECTOR;
+        bytes memory data = new bytes(4 + 32 + input.length);
+        assembly {
+            let dataPtr := add(data, 0x20)
+            mstore(dataPtr, selector)
+            mstore(add(dataPtr, 4), caller())
+            calldatacopy(add(dataPtr, 0x24), input.offset, input.length)
+        }
+        _writeWord(
+            data,
+            7,
+            bytes32(CalldataHeadLib.readUint256(input, 6) + 32)
+        );
+        _callIgnoreFailure(address(PERMIT2), data, 0);
+    }
+
+    function _submitQuoteRaw(
+        address quoter,
+        bytes calldata input,
+        uint256 quoteOffset,
+        uint256 signatureOffset
+    ) internal {
+        assert(quoteOffset < signatureOffset);
+        uint256 quoteLength = signatureOffset - quoteOffset;
+        uint256 signatureLength = input.length - signatureOffset;
+
+        bytes4 selector = SUBMIT_QUOTE_SELECTOR;
+        bytes memory data = new bytes(4 + 64 + quoteLength + signatureLength);
+        assembly {
+            let dataPtr := add(data, 0x20)
+            mstore(dataPtr, selector)
+            mstore(add(dataPtr, 0x04), 0x40)
+            mstore(add(dataPtr, 0x24), add(0x40, quoteLength))
+            calldatacopy(
+                add(dataPtr, 0x44),
+                add(input.offset, quoteOffset),
+                quoteLength
+            )
+            calldatacopy(
+                add(add(dataPtr, 0x44), quoteLength),
+                add(input.offset, signatureOffset),
+                signatureLength
+            )
+        }
+        _call(quoter, data, 0);
+    }
+
+    function _callRouterWithPatchedInput(
+        address target,
+        bytes4 selector,
+        bytes calldata input,
+        uint256 value,
+        uint256 patchedSlotA,
+        uint256 patchedValueA,
+        uint256 patchedSlotB,
+        uint256 patchedValueB,
+        uint256 patchedSlotC,
+        bytes32 patchedValueC
+    ) internal {
+        bytes memory data = new bytes(4 + input.length - 32);
+        assembly {
+            let dataPtr := add(data, 0x20)
+            mstore(dataPtr, selector)
+            calldatacopy(
+                add(dataPtr, 4),
+                add(input.offset, 0x20),
+                sub(input.length, 0x20)
+            )
+        }
+        _writeWord(data, patchedSlotA, bytes32(patchedValueA));
+        _writeWord(data, patchedSlotB, bytes32(patchedValueB));
+        _writeWord(data, patchedSlotC, patchedValueC);
+        _call(target, data, value);
+    }
+
+    function _writeWord(
+        bytes memory data,
+        uint256 slot,
+        bytes32 value
+    ) private pure {
+        assembly {
+            mstore(add(add(data, 0x24), mul(slot, 0x20)), value)
+        }
+    }
+
+    function _call(address target, bytes memory data, uint256 value) private {
+        (bool success, bytes memory returndata) = target.call{value: value}(
+            data
+        );
+        if (!success) {
+            assembly {
+                revert(add(returndata, 0x20), mload(returndata))
+            }
+        }
+    }
+
+    function _callIgnoreFailure(
+        address target,
+        bytes memory data,
+        uint256 value
+    ) private {
+        target.call{value: value}(data);
     }
 
     // ============ Internal: quote dispatch ============
@@ -599,7 +732,13 @@ contract QuotedCalls is PackageVersioned, ReentrancyGuardTransient {
     function _prepareTransferRemoteParams(
         bytes calldata input
     ) private view returns (TransferRemoteParams memory p) {
-        p = abi.decode(input, (TransferRemoteParams));
+        p.warpRoute = CalldataHeadLib.readAddress(input, 0);
+        p.destination = CalldataHeadLib.readUint32(input, 1);
+        p.recipient = CalldataHeadLib.readBytes32(input, 2);
+        p.amount = CalldataHeadLib.readUint256(input, 3);
+        p.value = CalldataHeadLib.readUint256(input, 4);
+        p.token = CalldataHeadLib.readAddress(input, 5);
+        p.approval = CalldataHeadLib.readUint256(input, 6);
         if (p.amount != BRIDGE_EXACT_IN) {
             p.amount = _resolveAmount(p.token, p.amount);
             return p;
@@ -617,7 +756,14 @@ contract QuotedCalls is PackageVersioned, ReentrancyGuardTransient {
     function _prepareTransferRemoteToParams(
         bytes calldata input
     ) private view returns (TransferRemoteToParams memory p) {
-        p = abi.decode(input, (TransferRemoteToParams));
+        p.router = CalldataHeadLib.readAddress(input, 0);
+        p.destination = CalldataHeadLib.readUint32(input, 1);
+        p.recipient = CalldataHeadLib.readBytes32(input, 2);
+        p.amount = CalldataHeadLib.readUint256(input, 3);
+        p.targetRouter = CalldataHeadLib.readBytes32(input, 4);
+        p.value = CalldataHeadLib.readUint256(input, 5);
+        p.token = CalldataHeadLib.readAddress(input, 6);
+        p.approval = CalldataHeadLib.readUint256(input, 7);
         if (p.amount != BRIDGE_EXACT_IN) {
             p.amount = _resolveAmount(p.token, p.amount);
             return p;
@@ -673,66 +819,20 @@ contract QuotedCalls is PackageVersioned, ReentrancyGuardTransient {
     function _quoteCallRemoteWithOverrides(
         bytes calldata input
     ) internal view returns (Quote[] memory) {
-        (
-            address icaRouter,
-            uint32 destination,
-            ,
-            ,
-            ,
-            bytes memory hookMetadata,
-            ,
-            ,
-            address token,
-
-        ) = abi.decode(
-                input,
-                (
-                    address,
-                    uint32,
-                    bytes32,
-                    bytes32,
-                    CallLib.Call[],
-                    bytes,
-                    bytes32,
-                    uint256,
-                    address,
-                    uint256
-                )
-            );
+        address icaRouter = CalldataHeadLib.readAddress(input, 0);
+        uint32 destination = CalldataHeadLib.readUint32(input, 1);
+        bytes memory hookMetadata = CalldataHeadLib.readBytes(input, 5);
+        address token = CalldataHeadLib.readAddress(input, 8);
         return _quoteIcaGasPayment(icaRouter, destination, hookMetadata, token);
     }
 
     function _quoteCallRemoteCommitReveal(
         bytes calldata input
     ) internal view returns (Quote[] memory quotes) {
-        (
-            address icaRouter,
-            uint32 destination,
-            ,
-            ,
-            bytes memory hookMetadata,
-            ,
-            ,
-            ,
-            ,
-            address token,
-
-        ) = abi.decode(
-                input,
-                (
-                    address,
-                    uint32,
-                    bytes32,
-                    bytes32,
-                    bytes,
-                    address,
-                    bytes32,
-                    bytes32,
-                    uint256,
-                    address,
-                    uint256
-                )
-            );
+        address icaRouter = CalldataHeadLib.readAddress(input, 0);
+        uint32 destination = CalldataHeadLib.readUint32(input, 1);
+        bytes memory hookMetadata = CalldataHeadLib.readBytes(input, 4);
+        address token = CalldataHeadLib.readAddress(input, 9);
         // Commit-reveal pays for two dispatches (commit + reveal).
         // quoteGasForCommitReveal returns the combined cost.
         quotes = new Quote[](1);
