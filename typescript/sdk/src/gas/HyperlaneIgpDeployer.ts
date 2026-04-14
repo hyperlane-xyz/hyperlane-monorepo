@@ -15,6 +15,7 @@ import { TOKEN_EXCHANGE_RATE_SCALE_ETHEREUM } from '../consts/igp.js';
 import { HyperlaneContracts } from '../contracts/types.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
+import { submitBatched } from '../hook/utils.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
 
@@ -88,14 +89,22 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
 
     if (gasParamsToSet.length > 0) {
       await this.runIfOwner(chain, igp, async () => {
-        const estimatedGas =
-          await igp.estimateGas.setDestinationGasConfigs(gasParamsToSet);
-        return this.multiProvider.handleTx(
+        await submitBatched(
           chain,
-          igp.setDestinationGasConfigs(gasParamsToSet, {
-            gasLimit: addBufferToGasLimit(estimatedGas),
-            ...this.multiProvider.getTransactionOverrides(chain),
-          }),
+          gasParamsToSet,
+          async (batch) => {
+            const estimatedGas =
+              await igp.estimateGas.setDestinationGasConfigs(batch);
+            await this.multiProvider.handleTx(
+              chain,
+              igp.setDestinationGasConfigs(batch, {
+                gasLimit: addBufferToGasLimit(estimatedGas),
+                ...this.multiProvider.getTransactionOverrides(chain),
+              }),
+            );
+          },
+          this.logger,
+          'gas configs',
         );
       });
     }
@@ -177,14 +186,22 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
 
     if (configsToSet.length > 0) {
       await this.runIfOwner(chain, gasOracle, async () => {
-        const estimatedGas =
-          await gasOracle.estimateGas.setRemoteGasDataConfigs(configsToSet);
-        return this.multiProvider.handleTx(
+        await submitBatched(
           chain,
-          gasOracle.setRemoteGasDataConfigs(configsToSet, {
-            gasLimit: addBufferToGasLimit(estimatedGas),
-            ...this.multiProvider.getTransactionOverrides(chain),
-          }),
+          configsToSet,
+          async (batch) => {
+            const estimatedGas =
+              await gasOracle.estimateGas.setRemoteGasDataConfigs(batch);
+            await this.multiProvider.handleTx(
+              chain,
+              gasOracle.setRemoteGasDataConfigs(batch, {
+                gasLimit: addBufferToGasLimit(estimatedGas),
+                ...this.multiProvider.getTransactionOverrides(chain),
+              }),
+            );
+          },
+          this.logger,
+          'gas oracle configs',
         );
       });
     }
