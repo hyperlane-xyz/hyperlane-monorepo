@@ -132,13 +132,20 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     let derivedHookConfig: DerivedHookConfig;
 
     try {
-      const hook = IPostDispatchHook__factory.connect(address, this.provider);
       this.logger.debug('Deriving HookConfig:', { address });
 
       // Temporarily turn off SmartProvider logging
       // Provider errors are expected because deriving will call methods that may not exist in the Bytecode
       this.setSmartProviderLogLevel('silent');
-      onchainHookType = await hook.hookType();
+      onchainHookType = await this.probeContractCall<OnchainHookType>(
+        address,
+        IPostDispatchHook__factory.createInterface(),
+        'hookType',
+      );
+      assert(
+        onchainHookType !== undefined,
+        'The provided hook contract might be outdated and not support hookType()',
+      );
 
       switch (onchainHookType) {
         case OnchainHookType.ROUTING:
@@ -181,18 +188,8 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
           );
       }
     } catch (e: any) {
-      let customMessage: string = `Failed to derive ${onchainHookType} hook (${address})`;
-      if (
-        !onchainHookType &&
-        e.message.includes('Invalid response from provider')
-      ) {
-        customMessage = customMessage.concat(
-          ` [The provided hook contract might be outdated and not support hookType()]`,
-        );
-        this.logger.info(`${customMessage}:\n\t${e}`);
-      } else {
-        this.logger.debug(`${customMessage}:\n\t${e}`);
-      }
+      const customMessage = `Failed to derive ${onchainHookType} hook (${address})`;
+      this.logger.debug(`${customMessage}:\n\t${e}`);
       throw new Error(`${customMessage}:\n\t${e}`);
     } finally {
       this.setSmartProviderLogLevel(getLogLevel()); // returns to original level defined by rootLogger
@@ -269,28 +266,27 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
   }
 
   async deriveIdAuthIsmConfig(address: Address): Promise<DerivedHookConfig> {
-    // First check if it's a CCIP hook
-    try {
-      const ccipHook = CCIPHook__factory.connect(address, this.provider);
-      // This method only exists on CCIPHook
-      await ccipHook.ccipDestination();
+    const ccipDestination = await this.probeContractCall(
+      address,
+      CCIPHook__factory.createInterface(),
+      'ccipDestination',
+    );
+    if (ccipDestination !== undefined) {
       return this.deriveCcipConfig(address);
-    } catch {
-      // Not a CCIP hook, try OPStack
-      try {
-        const opStackHook = OPStackHook__factory.connect(
-          address,
-          this.provider,
-        );
-        // This method only exists on OPStackHook
-        await opStackHook.l1Messenger();
-        return this.deriveOpStackConfig(address);
-      } catch {
-        throw new Error(
-          `Could not determine hook type - neither CCIP nor OPStack methods found`,
-        );
-      }
     }
+
+    const l1Messenger = await this.probeContractCall(
+      address,
+      OPStackHook__factory.createInterface(),
+      'l1Messenger',
+    );
+    if (l1Messenger !== undefined) {
+      return this.deriveOpStackConfig(address);
+    }
+
+    throw new Error(
+      `Could not determine hook type - neither CCIP nor OPStack methods found`,
+    );
   }
 
   async deriveCcipConfig(

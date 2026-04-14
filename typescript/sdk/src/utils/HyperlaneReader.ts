@@ -1,9 +1,80 @@
-import { providers } from 'ethers';
+import { BigNumber, errors as EthersError, providers, utils } from 'ethers';
 import { LevelWithSilentOrString } from 'pino';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { HyperlaneSmartProvider } from '../providers/SmartProvider/SmartProvider.js';
+import {
+  HyperlaneSmartProvider,
+  ProbeMissError,
+  isDeterministicCallException,
+} from '../providers/SmartProvider/SmartProvider.js';
 import { ChainNameOrId } from '../types.js';
+
+type NestedError = {
+  cause?: unknown;
+  error?: unknown;
+};
+
+function getNestedErrorWithCode(
+  error: unknown,
+  code: string,
+): { code: string } | undefined {
+  const queue: unknown[] = [error];
+  const visited = new Set<unknown>();
+
+  while (queue.length > 0) {
+    const candidate = queue.shift();
+    if (candidate == null || typeof candidate !== 'object') {
+      continue;
+    }
+    if (visited.has(candidate)) {
+      continue;
+    }
+    visited.add(candidate);
+
+    if (
+      'code' in candidate &&
+      (candidate as { code?: unknown }).code === code
+    ) {
+      return candidate as { code: string };
+    }
+
+    const nested = candidate as NestedError;
+    queue.push(nested.cause, nested.error);
+  }
+
+  return undefined;
+}
+
+function buildProbeTransactionRequest(
+  multiProvider: MultiProvider,
+  chain: ChainNameOrId,
+  transaction: providers.TransactionRequest,
+): providers.TransactionRequest {
+  return {
+    ...multiProvider.getTransactionOverrides(chain),
+    ...transaction,
+  };
+}
+
+export async function performProbeEstimateGas(
+  multiProvider: MultiProvider,
+  chain: ChainNameOrId,
+  provider: providers.Provider,
+  transaction: providers.TransactionRequest,
+): Promise<BigNumber> {
+  const txReq = {
+    ...buildProbeTransactionRequest(multiProvider, chain, transaction),
+    gasLimit: undefined,
+    gasPrice: undefined,
+    maxPriorityFeePerGas: undefined,
+    maxFeePerGas: undefined,
+  };
+  if (provider instanceof HyperlaneSmartProvider) {
+    return provider.probeEstimateGas(txReq);
+  }
+
+  return provider.estimateGas(txReq);
+}
 
 export class HyperlaneReader {
   provider: providers.Provider;
@@ -24,5 +95,113 @@ export class HyperlaneReader {
     if (this.provider instanceof HyperlaneSmartProvider) {
       this.provider.setLogLevel(level);
     }
+  }
+
+  protected async probeCall(
+    transaction: providers.TransactionRequest,
+    blockTag: providers.BlockTag = 'latest',
+  ): Promise<string> {
+    const txReq = buildProbeTransactionRequest(
+      this.multiProvider,
+      this.chain,
+      transaction,
+    );
+    if (this.provider instanceof HyperlaneSmartProvider) {
+      return this.provider.probeCall(txReq, blockTag);
+    }
+
+    return this.provider.call(txReq, blockTag);
+  }
+
+  protected async probeEstimateGas(
+    transaction: providers.TransactionRequest,
+  ): Promise<BigNumber> {
+    return performProbeEstimateGas(
+      this.multiProvider,
+      this.chain,
+      this.provider,
+      transaction,
+    );
+  }
+
+  protected async probeContractCall<T>(
+    address: string,
+    contractInterface: utils.Interface,
+    method: string,
+    args: unknown[] = [],
+    txOverrides: providers.TransactionRequest = {},
+    blockTag: providers.BlockTag = 'latest',
+  ): Promise<T | undefined> {
+    let result: string;
+
+    try {
+      result = await this.probeCall(
+        {
+          ...txOverrides,
+          to: address,
+          data: contractInterface.encodeFunctionData(method, args),
+        },
+        blockTag,
+      );
+    } catch (error) {
+      if (this.isProbeMissError(error)) {
+        return undefined;
+      }
+
+      throw error;
+    }
+
+    if (result === '0x') {
+      return undefined;
+    }
+
+    try {
+      const decoded = contractInterface.decodeFunctionResult(method, result);
+      return (decoded.length === 1 ? decoded[0] : decoded) as T;
+    } catch (error) {
+      if (
+        getNestedErrorWithCode(error, EthersError.INVALID_ARGUMENT) ||
+        getNestedErrorWithCode(error, EthersError.BUFFER_OVERRUN) ||
+        this.isProbeMissError(error)
+      ) {
+        return undefined;
+      }
+
+      throw error;
+    }
+  }
+
+  protected async probeContractEstimateGas(
+    transaction: providers.TransactionRequest,
+  ): Promise<BigNumber | undefined> {
+    try {
+      return await this.probeEstimateGas(transaction);
+    } catch (error) {
+      if (this.isProbeMissError(error)) {
+        return undefined;
+      }
+
+      throw error;
+    }
+  }
+
+  protected isProbeMissError(error: unknown): boolean {
+    if (error instanceof ProbeMissError) {
+      return true;
+    }
+
+    if (getNestedErrorWithCode(error, EthersError.UNPREDICTABLE_GAS_LIMIT)) {
+      return true;
+    }
+
+    const callException = getNestedErrorWithCode(
+      error,
+      EthersError.CALL_EXCEPTION,
+    );
+    if (!callException) {
+      return false;
+    }
+
+    return isDeterministicCallException(callException);
   }
 }

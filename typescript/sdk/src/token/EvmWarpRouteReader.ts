@@ -116,6 +116,11 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     Address,
     DepositAddressDomainConfigs
   >();
+  protected readonly packageVersionCache = new Map<string, string>();
+  protected readonly packageVersionInflight = new Map<
+    string,
+    Promise<string>
+  >();
 
   // Using null instead of undefined to force
   // a compile error when adding a new token type
@@ -197,28 +202,31 @@ export class EvmWarpRouteReader extends EvmRouterReader {
   ): Promise<DerivedTokenRouterConfig> {
     // Derive the config type
     const type = await this.deriveTokenType(warpRouteAddress);
-    const tokenConfig = await this.fetchTokenConfig(type, warpRouteAddress);
     const isDepositAddressBridge = type === TokenType.collateralDepositAddress;
-    // OFT and deposit-address bridges don't expose Router/MailboxClient interfaces.
     const isOft = type === TokenType.collateralOft;
     const usesSentinelRouterConfig = isDepositAddressBridge || isOft;
-    const routerConfig = usesSentinelRouterConfig
-      ? {
-          mailbox: constants.AddressZero,
-          owner: await Ownable__factory.connect(
-            warpRouteAddress,
-            this.provider,
-          ).owner(),
-          hook: constants.AddressZero,
-          interchainSecurityModule: constants.AddressZero,
-          remoteRouters: {},
-        }
-      : await this.readRouterConfig(warpRouteAddress);
-    // if the token has not been deployed as a proxy do not derive the config
-    // inevm warp routes are an example
-    const proxyAdmin = (await isProxy(this.provider, warpRouteAddress))
-      ? await this.fetchProxyAdminConfig(warpRouteAddress)
-      : undefined;
+    const tokenConfigPromise = this.fetchTokenConfig(type, warpRouteAddress);
+    const routerConfigPromise = usesSentinelRouterConfig
+      ? Ownable__factory.connect(warpRouteAddress, this.provider)
+          .owner()
+          .then((owner) => ({
+            mailbox: constants.AddressZero,
+            owner,
+            hook: constants.AddressZero,
+            interchainSecurityModule: constants.AddressZero,
+            remoteRouters: {},
+          }))
+      : this.readRouterConfig(warpRouteAddress);
+    const proxyAdminPromise = (async () =>
+      (await isProxy(this.provider, warpRouteAddress))
+        ? this.fetchProxyAdminConfig(warpRouteAddress)
+        : undefined)();
+    const [tokenConfig, routerConfig, proxyAdmin] = await Promise.all([
+      tokenConfigPromise,
+      routerConfigPromise,
+      proxyAdminPromise,
+    ]);
+
     const ccrEnrolledDomains: number[] = [];
     if (
       isCrossCollateralTokenConfig(tokenConfig) &&
@@ -228,6 +236,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         ccrEnrolledDomains.push(Number(domain));
       }
     }
+
     // OFT contracts don't have destination gas config
     // For CrossCollateralRouter tokens, include domains from crossCollateralRouters so
     // fetchDestinationGas also reads gas for MC-only enrolled domains.
@@ -563,108 +572,79 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     this.setSmartProviderLogLevel('silent');
 
     try {
-      // First, try checking token specific methods
+      // Use probe helpers so expected ABI misses do not enter SmartProvider's
+      // normal retry path during type inference.
       for (const [tokenType, { factory, method }] of Object.entries(
         contractTypes,
       )) {
-        try {
-          const warpRoute = factory.connect(warpRouteAddress, this.provider);
-          const result = await warpRoute[method]();
-          if (tokenType === TokenType.collateralDepositAddress) {
-            this.depositAddressDomainConfigsCache.set(warpRouteAddress, result);
-          }
-          if (tokenType === TokenType.collateral) {
-            const wrappedToken = await warpRoute.wrappedToken();
-            try {
-              const xerc20 = IXERC20__factory.connect(
-                wrappedToken,
-                this.provider,
-              );
-              await xerc20['mintingCurrentLimitOf(address)'](warpRouteAddress);
-              return TokenType.XERC20;
-            } catch (error) {
-              this.logger.debug(
-                `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.XERC20}`,
-                error,
-              );
-            }
-
-            try {
-              const fiatToken = IFiatToken__factory.connect(
-                wrappedToken,
-                this.provider,
-              );
-
-              // Simulate minting tokens from the warp route contract
-              await fiatToken.callStatic.mint(NON_ZERO_SENDER_ADDRESS, 1, {
-                from: warpRouteAddress,
-              });
-
-              return TokenType.collateralFiat;
-            } catch (error) {
-              this.logger.debug(
-                `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.collateralFiat}`,
-                error,
-              );
-            }
-
-            try {
-              const maybeEverclearTokenBridge =
-                EverclearTokenBridge__factory.connect(
-                  warpRouteAddress,
-                  this.provider,
-                );
-
-              await maybeEverclearTokenBridge.callStatic.everclearAdapter();
-
-              let everclearTokenType: TokenType = TokenType.collateralEverclear;
-              try {
-                // if simulating an ETH transfer works this should be the WETH contract
-                await this.provider.estimateGas({
-                  from: NON_ZERO_SENDER_ADDRESS,
-                  to: wrappedToken,
-                  data: IWETH__factory.createInterface().encodeFunctionData(
-                    'deposit',
-                  ),
-                  value: 0,
-                });
-
-                everclearTokenType = TokenType.ethEverclear;
-              } catch (error) {
-                this.logger.debug(
-                  `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.collateralEverclear}`,
-                  error,
-                );
-              }
-
-              return everclearTokenType;
-            } catch (error) {
-              this.logger.debug(
-                `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.collateralEverclear}`,
-                error,
-              );
-            }
-
-            try {
-              const crossCollateralRouter =
-                CrossCollateralRouter__factory.connect(
-                  warpRouteAddress,
-                  this.provider,
-                );
-              await crossCollateralRouter.getCrossCollateralRouters(0);
-              return TokenType.crossCollateral;
-            } catch (error) {
-              this.logger.debug(
-                `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.crossCollateral}`,
-                error,
-              );
-            }
-          }
-
-          return tokenType as TokenType;
-        } catch {
+        const probeResult = await this.probeContractCall(
+          warpRouteAddress,
+          factory.createInterface(),
+          method,
+        );
+        if (probeResult === undefined) {
           continue;
         }
+
+        if (tokenType === TokenType.collateral) {
+          const wrappedToken = probeResult as Address;
+
+          const xerc20Limit = await this.probeContractCall(
+            wrappedToken,
+            IXERC20__factory.createInterface(),
+            'mintingCurrentLimitOf(address)',
+            [warpRouteAddress],
+          );
+          if (xerc20Limit !== undefined) {
+            return TokenType.XERC20;
+          }
+
+          const fiatMintProbe = await this.probeContractCall(
+            wrappedToken,
+            IFiatToken__factory.createInterface(),
+            'mint',
+            [NON_ZERO_SENDER_ADDRESS, 1],
+            { from: warpRouteAddress },
+          );
+          if (fiatMintProbe !== undefined) {
+            return TokenType.collateralFiat;
+          }
+
+          const everclearAdapter = await this.probeContractCall(
+            warpRouteAddress,
+            EverclearTokenBridge__factory.createInterface(),
+            'everclearAdapter',
+          );
+          if (everclearAdapter !== undefined) {
+            let everclearTokenType: TokenType = TokenType.collateralEverclear;
+            const depositGas = await this.probeContractEstimateGas({
+              from: NON_ZERO_SENDER_ADDRESS,
+              to: wrappedToken,
+              data: IWETH__factory.createInterface().encodeFunctionData(
+                'deposit',
+              ),
+              value: 0,
+            });
+
+            if (depositGas !== undefined) {
+              everclearTokenType = TokenType.ethEverclear;
+            }
+
+            return everclearTokenType;
+          }
+
+          const crossCollateralRouters = await this.probeContractCall(
+            warpRouteAddress,
+            CrossCollateralRouter__factory.createInterface(),
+            'getCrossCollateralRouters',
+            [0],
+          );
+          if (crossCollateralRouters !== undefined) {
+            return TokenType.crossCollateral;
+          }
+        }
+
+        return tokenType as TokenType;
       }
 
       const packageVersion = await this.fetchPackageVersion(warpRouteAddress);
@@ -699,70 +679,53 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     warpRouteAddress: Address,
     hasTokenFeeInterface: boolean,
   ): Promise<boolean> {
-    try {
-      if (hasTokenFeeInterface) {
-        const tokenRouter = TokenRouter__factory.connect(
-          warpRouteAddress,
-          this.provider,
-        );
-        const tokenAddress = await tokenRouter.token();
-
-        // Native token returns address(0)
-        return isZeroishAddress(tokenAddress);
-      } else {
-        // Check native using estimateGas to send 0 wei. Success implies that the Warp Route has a receive() function
-        await this.multiProvider.estimateGas(
-          this.chain,
-          {
-            to: warpRouteAddress,
-            value: BigNumber.from(0),
-          },
-          NON_ZERO_SENDER_ADDRESS, // Use non-zero address as signer is not provided for read commands
-        );
-        return true;
-      }
-    } catch (e) {
-      this.logger.debug(
-        `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.native}`,
-        e,
+    if (hasTokenFeeInterface) {
+      const tokenAddress = await this.probeContractCall<Address>(
+        warpRouteAddress,
+        TokenRouter__factory.createInterface(),
+        'token',
       );
 
-      return false;
+      return tokenAddress !== undefined && isZeroishAddress(tokenAddress);
     }
+
+    const gasEstimate = await this.probeContractEstimateGas(
+      await this.multiProvider.prepareTx(
+        this.chain,
+        {
+          to: warpRouteAddress,
+          value: BigNumber.from(0),
+        },
+        NON_ZERO_SENDER_ADDRESS,
+      ),
+    );
+
+    return gasEstimate !== undefined;
   }
 
   private async isSyntheticWarpToken(
     warpRouteAddress: Address,
     hasTokenFeeInterface: boolean,
   ): Promise<boolean> {
-    try {
-      if (hasTokenFeeInterface) {
-        const tokenRouter = TokenRouter__factory.connect(
-          warpRouteAddress,
-          this.provider,
-        );
-        const tokenAddress = await tokenRouter.token();
-
-        // HypERC20.token() returns address(this)
-        return eqAddress(tokenAddress, warpRouteAddress);
-      } else {
-        const tokenRouter = HypERC20__factory.connect(
-          warpRouteAddress,
-          this.provider,
-        );
-
-        await tokenRouter.decimals();
-
-        return true;
-      }
-    } catch (error) {
-      this.logger.debug(
-        `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.synthetic}`,
-        error,
+    if (hasTokenFeeInterface) {
+      const tokenAddress = await this.probeContractCall<Address>(
+        warpRouteAddress,
+        TokenRouter__factory.createInterface(),
+        'token',
       );
 
-      return false;
+      return (
+        tokenAddress !== undefined && eqAddress(tokenAddress, warpRouteAddress)
+      );
     }
+
+    const decimals = await this.probeContractCall(
+      warpRouteAddress,
+      HypERC20__factory.createInterface(),
+      'decimals',
+    );
+
+    return decimals !== undefined;
   }
 
   async fetchXERC20Config(
@@ -1456,24 +1419,44 @@ export class EvmWarpRouteReader extends EvmRouterReader {
   }
 
   async fetchPackageVersion(address: Address) {
-    const contractWithVersion = PackageVersioned__factory.connect(
-      address,
-      this.provider,
-    );
+    const cacheKey = address.toLowerCase();
+    const cachedVersion = this.packageVersionCache.get(cacheKey);
+    if (cachedVersion) return cachedVersion;
 
-    try {
-      return await contractWithVersion.PACKAGE_VERSION();
-    } catch (err: any) {
-      if (err.cause?.code && err.cause?.code === 'CALL_EXCEPTION') {
-        // PACKAGE_VERSION was introduced in @hyperlane-xyz/core@5.4.0
-        // See https://github.com/hyperlane-xyz/hyperlane-monorepo/releases/tag/%40hyperlane-xyz%2Fcore%405.4.0
-        // The real version of a contract without this function is below 5.4.0
-        return '5.3.9';
-      } else {
-        this.logger.error(`Error when fetching package version ${err}`);
-        return '0.0.0';
+    const inFlight = this.packageVersionInflight.get(cacheKey);
+    if (inFlight) return inFlight;
+
+    const versionPromise = (async () => {
+      const contractWithVersion = PackageVersioned__factory.connect(
+        address,
+        this.provider,
+      );
+
+      try {
+        const version = await contractWithVersion.PACKAGE_VERSION();
+        this.packageVersionCache.set(cacheKey, version);
+        return version;
+      } catch (err: any) {
+        if (err.cause?.code && err.cause?.code === 'CALL_EXCEPTION') {
+          // PACKAGE_VERSION was introduced in @hyperlane-xyz/core@5.4.0
+          // See https://github.com/hyperlane-xyz/hyperlane-monorepo/releases/tag/%40hyperlane-xyz%2Fcore%405.4.0
+          // The real version of a contract without this function is below 5.4.0
+          const legacyVersion = '5.3.9';
+          this.packageVersionCache.set(cacheKey, legacyVersion);
+          return legacyVersion;
+        } else {
+          this.logger.error(`Error when fetching package version ${err}`);
+          const unknownVersion = '0.0.0';
+          this.packageVersionCache.set(cacheKey, unknownVersion);
+          return unknownVersion;
+        }
+      } finally {
+        this.packageVersionInflight.delete(cacheKey);
       }
-    }
+    })();
+
+    this.packageVersionInflight.set(cacheKey, versionPromise);
+    return versionPromise;
   }
 
   async fetchProxyAdminConfig(

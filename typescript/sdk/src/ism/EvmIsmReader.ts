@@ -104,16 +104,20 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     let moduleType: ModuleType | undefined = undefined;
     let derivedIsmConfig: DerivedIsmConfig;
     try {
-      const ism = IInterchainSecurityModule__factory.connect(
-        address,
-        this.provider,
-      );
       this.logger.debug('Deriving IsmConfig:', { address });
 
       // Temporarily turn off SmartProvider logging
       // Provider errors are expected because deriving will call methods that may not exist in the Bytecode
       this.setSmartProviderLogLevel('silent');
-      moduleType = await ism.moduleType();
+      moduleType = await this.probeContractCall<ModuleType>(
+        address,
+        IInterchainSecurityModule__factory.createInterface(),
+        'moduleType',
+      );
+      assert(
+        moduleType !== undefined,
+        'The provided ISM contract might be outdated and not support moduleType()',
+      );
 
       switch (moduleType) {
         case ModuleType.UNUSED:
