@@ -311,13 +311,44 @@ export class PredicateWrapperDeployer {
         return nonPredicateHooks[0];
       }
 
-      // Multiple non-predicate sub-hooks: would need a new CREATE2 aggregation to
-      // re-combine them. Accept the stack rather than silently corrupt the structure.
-      this.logger.warn(
+      // Multiple non-predicate sub-hooks remain after removing the predicate wrapper.
+      // Re-aggregate them via CREATE2 (idempotent) so the caller produces:
+      //   outerAgg([newWrapper, innerAgg([hookA, hookB])])
+      // instead of the stacking anti-pattern:
+      //   newAgg([newWrapper, oldAgg([oldWrapper, hookA, hookB])])
+      this.logger.debug(
         { chain, nonPredicateHooks },
-        'Multiple non-predicate sub-hooks found — cannot safely unwrap; using existing hook as-is',
+        'Multiple non-predicate sub-hooks found — re-aggregating without predicate wrapper',
       );
-      return hookAddress;
+      const signer = this.multiProvider.getSigner(chain);
+      const overrides = this.multiProvider.getTransactionOverrides(chain);
+      const factory = this.staticAggregationHookFactory.connect(signer);
+      const threshold = nonPredicateHooks.length;
+      const innerAggAddress = await factory['getAddress(address[],uint8)'](
+        nonPredicateHooks,
+        threshold,
+      );
+      const code = await this.multiProvider
+        .getProvider(chain)
+        .getCode(innerAggAddress);
+      if (code === '0x') {
+        const tx = await factory['deploy(address[],uint8)'](
+          nonPredicateHooks,
+          threshold,
+          overrides,
+        );
+        await this.multiProvider.handleTx(chain, tx);
+        this.logger.info(
+          { chain, innerAgg: innerAggAddress, hooks: nonPredicateHooks },
+          'Inner aggregation hook deployed for predicate-stripped sub-hooks',
+        );
+      } else {
+        this.logger.debug(
+          { chain, innerAgg: innerAggAddress },
+          'Recovered existing inner aggregation hook',
+        );
+      }
+      return innerAggAddress;
     } catch {
       // Not a StaticAggregationHook or call failed — use hook as-is
       return hookAddress;

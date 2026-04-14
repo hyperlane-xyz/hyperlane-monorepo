@@ -1,6 +1,6 @@
 // import { expect } from 'chai';
 import { compareVersions } from 'compare-versions';
-import { BigNumberish, constants } from 'ethers';
+import { BigNumberish, constants, providers } from 'ethers';
 import { UINT_256_MAX } from 'starknet';
 
 import {
@@ -1260,43 +1260,34 @@ export class EvmWarpModule extends HyperlaneModule<
       if (!hooksAddresses || hooksAddresses.length === 0) return undefined;
 
       for (const hookAddr of hooksAddresses) {
+        const match = await this.matchPredicateWrapper(
+          hookAddr,
+          provider,
+          expectedPredicateConfig,
+        );
+        if (match) return match;
+      }
+
+      // Recurse one level into any inner aggregations to detect wrappers that were
+      // nested by a previous stripPredicateFromHook fallback (e.g. agg([oldWrapper,
+      // hookA, hookB]) carried forward as innerAgg inside the outer aggregation).
+      for (const hookAddr of hooksAddresses) {
         try {
-          const predicateWrapper = PredicateRouterWrapper__factory.connect(
+          const innerHooks = await StaticAggregationHook__factory.connect(
             hookAddr,
             provider,
-          );
-
-          // Verify identity: warpRoute + hookType confirm it's a PredicateRouterWrapper
-          // for this route. Then compare registry + policyId so config rotations
-          // (e.g. changing compliance policy) trigger a redeploy rather than silently no-op.
-          const [
-            warpRoute,
-            hookType,
-            onchainRegistry,
-            onchainPolicyId,
-            onchainOwner,
-          ] = await Promise.all([
-            predicateWrapper.warpRoute(),
-            predicateWrapper.hookType(),
-            predicateWrapper.getRegistry(),
-            predicateWrapper.getPolicyID(),
-            predicateWrapper.owner(),
-          ]);
-
-          if (
-            eqAddress(warpRoute, this.args.addresses.deployedTokenRoute) &&
-            hookType === OnchainHookType.PREDICATE_ROUTER_WRAPPER &&
-            eqAddress(
-              onchainRegistry,
-              expectedPredicateConfig.predicateRegistry,
-            ) &&
-            onchainPolicyId === expectedPredicateConfig.policyId
-          ) {
-            return { address: hookAddr, onchainOwner };
+          ).hooks('0x');
+          if (!innerHooks || innerHooks.length === 0) continue;
+          for (const innerAddr of innerHooks) {
+            const match = await this.matchPredicateWrapper(
+              innerAddr,
+              provider,
+              expectedPredicateConfig,
+            );
+            if (match) return match;
           }
         } catch {
-          // Not a PredicateRouterWrapper, continue checking other hooks
-          continue;
+          // hookAddr is not a StaticAggregationHook — skip
         }
       }
     } catch (error) {
@@ -1304,6 +1295,52 @@ export class EvmWarpModule extends HyperlaneModule<
         { chain: this.chainName, error },
         'Error checking predicate wrapper deployment',
       );
+    }
+    return undefined;
+  }
+
+  /**
+   * Checks whether a single hook address is a PredicateRouterWrapper matching
+   * the warp route and expected config. Returns the match or undefined.
+   */
+  private async matchPredicateWrapper(
+    hookAddr: Address,
+    provider: providers.Provider,
+    expectedPredicateConfig: { predicateRegistry: string; policyId: string },
+  ): Promise<{ address: Address; onchainOwner: Address } | undefined> {
+    try {
+      const predicateWrapper = PredicateRouterWrapper__factory.connect(
+        hookAddr,
+        provider,
+      );
+
+      // Verify identity: warpRoute + hookType confirm it's a PredicateRouterWrapper
+      // for this route. Then compare registry + policyId so config rotations
+      // (e.g. changing compliance policy) trigger a redeploy rather than silently no-op.
+      const [
+        warpRoute,
+        hookType,
+        onchainRegistry,
+        onchainPolicyId,
+        onchainOwner,
+      ] = await Promise.all([
+        predicateWrapper.warpRoute(),
+        predicateWrapper.hookType(),
+        predicateWrapper.getRegistry(),
+        predicateWrapper.getPolicyID(),
+        predicateWrapper.owner(),
+      ]);
+
+      if (
+        eqAddress(warpRoute, this.args.addresses.deployedTokenRoute) &&
+        hookType === OnchainHookType.PREDICATE_ROUTER_WRAPPER &&
+        eqAddress(onchainRegistry, expectedPredicateConfig.predicateRegistry) &&
+        onchainPolicyId === expectedPredicateConfig.policyId
+      ) {
+        return { address: hookAddr, onchainOwner };
+      }
+    } catch {
+      // Not a PredicateRouterWrapper — caller continues
     }
     return undefined;
   }
