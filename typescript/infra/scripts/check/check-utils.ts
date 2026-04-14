@@ -1,7 +1,9 @@
+import { providers, Signer } from 'ethers';
 import { Registry } from 'prom-client';
 
 import {
   CheckerViolation,
+  defaultEthersV5ProviderBuilder,
   HyperlaneCoreChecker,
   HyperlaneIgp,
   HyperlaneIgpChecker,
@@ -59,6 +61,57 @@ export function getCheckDeployArgs() {
 
 const ICA_ENABLED_MODULES = [Modules.INTERCHAIN_ACCOUNTS, Modules.HAAS];
 
+const HAAS_SMART_PROVIDER_OPTIONS = {
+  maxRetries: 4,
+  baseRetryDelayMs: 100,
+  fallbackStaggerMs: 2_000,
+};
+
+function reconnectSigner(signer: Signer, provider: providers.Provider): Signer {
+  try {
+    return signer.connect(provider);
+  } catch (error: unknown) {
+    const code =
+      typeof error === 'object' && error !== null && 'code' in error
+        ? String((error as Record<string, unknown>).code)
+        : undefined;
+    if (code === 'UNSUPPORTED_OPERATION') {
+      return signer;
+    }
+    throw error;
+  }
+}
+
+function getHaasMultiProvider(baseMultiProvider: MultiProvider): MultiProvider {
+  const haasMultiProvider = new MultiProvider(baseMultiProvider.metadata, {
+    ...baseMultiProvider.options,
+    providerBuilder: (rpcUrls, network) =>
+      defaultEthersV5ProviderBuilder(
+        rpcUrls,
+        network,
+        HAAS_SMART_PROVIDER_OPTIONS,
+      ).provider,
+  });
+
+  if (baseMultiProvider.useSharedSigner) {
+    const sharedSigner = Object.values(baseMultiProvider.signers)[0];
+    if (sharedSigner) {
+      haasMultiProvider.setSharedSigner(sharedSigner);
+    }
+    return haasMultiProvider;
+  }
+
+  for (const [chain, signer] of Object.entries(baseMultiProvider.signers)) {
+    const provider = haasMultiProvider.tryGetProvider(chain);
+    haasMultiProvider.setSigner(
+      chain,
+      provider ? reconnectSigner(signer, provider) : signer,
+    );
+  }
+
+  return haasMultiProvider;
+}
+
 export async function getGovernor(
   module: Modules,
   context: Contexts,
@@ -73,6 +126,10 @@ export async function getGovernor(
   // If the multiProvider is not passed in, get it from the environment
   if (!multiProvider) {
     multiProvider = await envConfig.getMultiProvider();
+  }
+
+  if (module === Modules.HAAS) {
+    multiProvider = getHaasMultiProvider(multiProvider);
   }
 
   // must rotate to forked provider before building core contracts
