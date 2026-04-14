@@ -146,6 +146,13 @@ describe('hyperlane status e2e tests', async function () {
       });
 
       expect(exitCode).to.equal(0);
+
+      // Verify the message is now delivered
+      const { stdout } = await hyperlaneStatus({
+        origin: CHAIN_NAME_2,
+        messageId,
+      });
+      expect(stdout).to.include('was delivered');
     });
 
     it('should prompt for key when using --relay without providing key', async () => {

@@ -150,7 +150,9 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     hook?: Address,
     metadata?: string,
   ): Promise<{ dispatchTx: TransactionReceipt; message: DispatchedMessage }> {
-    const mailbox = this.getContracts(origin).mailbox;
+    const mailbox = this.getContracts(origin).mailbox.connect(
+      this.multiProvider.getSigner(origin),
+    );
     const destinationDomain = this.multiProvider.getDomainId(destination);
     const recipientBytes32 = addressToBytes32(recipient);
     const quote = await this.quoteGasPayment(
