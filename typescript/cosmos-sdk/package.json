@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/cosmos-sdk",
-  "version": "31.0.0",
+  "version": "31.0.1",
   "description": "Hyperlane TypeScript SDK for the Cosmos Hyperlane SDK module",
   "keywords": [
     "blockchain",
@@ -20,6 +20,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./runtime": {
+      "types": "./dist/runtime.d.ts",
+      "default": "./dist/runtime.js"
     },
     "./testing": {
       "types": "./dist/testing/index.d.ts",

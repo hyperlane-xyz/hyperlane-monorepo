@@ -141,6 +141,8 @@ function getChainConnections(
       ['eclipsemainnet', 'optimism'],
       ['eclipsemainnet', 'polygon'],
       ['eclipsemainnet', 'tron'],
+      ['eclipsemainnet', 'bsc'],
+      ['eclipsemainnet', 'plasma'],
       // for solaxy routes
       ['solaxy', 'solanamainnet'],
       ['solaxy', 'ethereum'],

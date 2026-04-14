@@ -18,7 +18,7 @@ import {
 import { Keypair } from '@solana/web3.js';
 
 import type { PredicateAttestation } from '../predicate/PredicateApiClient.js';
-import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
+import type { MultiProviderAdapter } from '../providers/MultiProviderAdapter.js';
 import { ProviderType } from '../providers/ProviderType.js';
 import {
   TransactionFeeEstimate,
@@ -28,6 +28,7 @@ import { IToken } from '../token/IToken.js';
 import { Token } from '../token/Token.js';
 import { TokenAmount } from '../token/TokenAmount.js';
 import { parseTokenConnectionId } from '../token/TokenConnection.js';
+import { tokenIdentifiersEqual } from '../token/TokenMetadata.js';
 import {
   LOCKBOX_STANDARDS,
   MINT_LIMITED_STANDARDS,
@@ -75,7 +76,7 @@ export interface WarpCoreOptions {
 }
 
 export class WarpCore {
-  public readonly multiProvider: MultiProtocolProvider<{ mailbox?: Address }>;
+  public readonly multiProvider: MultiProviderAdapter<{ mailbox?: Address }>;
   public readonly tokens: Token[];
   public readonly localFeeConstants: FeeConstantConfig;
   public readonly interchainFeeConstants: FeeConstantConfig;
@@ -83,7 +84,7 @@ export class WarpCore {
   public readonly logger: Logger;
 
   constructor(
-    multiProvider: MultiProtocolProvider<{ mailbox?: Address }>,
+    multiProvider: MultiProviderAdapter<{ mailbox?: Address }>,
     tokens: Token[],
     options?: WarpCoreOptions,
   ) {
@@ -101,38 +102,37 @@ export class WarpCore {
 
   /**
    * Takes the serialized representation of a warp config and returns a WarpCore instance
-   * @param multiProvider the MultiProtocolProvider containing chain metadata
+   * @param multiProvider the MultiProviderAdapter containing chain metadata
    * @param config the config object of type WarpCoreConfig
    */
   static FromConfig(
-    multiProvider: MultiProtocolProvider<{ mailbox?: Address }>,
+    multiProvider: MultiProviderAdapter<{ mailbox?: Address }>,
     config: unknown,
   ): WarpCore {
-    // Validate and parse config data
     const parsedConfig = WarpCoreConfigSchema.parse(config);
-    // Instantiate all tokens
     const tokens = parsedConfig.tokens.map(
-      (t) =>
+      (token) =>
         new Token({
-          ...t,
-          addressOrDenom: t.addressOrDenom || '',
+          ...token,
+          addressOrDenom: token.addressOrDenom || '',
           connections: undefined,
         }),
     );
-    // Connect tokens together
+
     parsedConfig.tokens.forEach((config, i) => {
       for (const connection of config.connections || []) {
         const token1 = tokens[i];
+        assert(token1, `Token config missing at index ${i}`);
         const { chainName, addressOrDenom } = parseTokenConnectionId(
           connection.token,
         );
         // If token1 has a warpRouteId, token2 must share it — disambiguates
         // tokens at the same address (e.g. M0 Portal: mUSD, wM, USDSC)
         const token2 = tokens.find(
-          (t) =>
-            t.chainName === chainName &&
-            t.addressOrDenom === addressOrDenom &&
-            (!token1.warpRouteId || t.warpRouteId === token1.warpRouteId),
+          (token) =>
+            token.chainName === chainName &&
+            tokenIdentifiersEqual(token.addressOrDenom, addressOrDenom) &&
+            (!token1.warpRouteId || token.warpRouteId === token1.warpRouteId),
         );
         assert(
           token2,
@@ -144,7 +144,7 @@ export class WarpCore {
         });
       }
     });
-    // Create new Warp
+
     return new WarpCore(multiProvider, tokens, parsedConfig.options);
   }
 
@@ -160,12 +160,15 @@ export class WarpCore {
     recipient,
     destinationToken,
   }: {
-    originTokenAmount: TokenAmount;
+    originTokenAmount: TokenAmount<IToken>;
     destination: ChainNameOrId;
     sender?: Address;
     recipient: Address;
     destinationToken?: IToken;
-  }): Promise<{ igpQuote: TokenAmount; tokenFeeQuote?: TokenAmount }> {
+  }): Promise<{
+    igpQuote: TokenAmount<IToken>;
+    tokenFeeQuote?: TokenAmount<IToken>;
+  }> {
     this.logger.debug(`Fetching interchain transfer quote to ${destination}`);
     const { amount, token: originToken } = originTokenAmount;
     const originName = originToken.chainName;
@@ -242,7 +245,7 @@ export class WarpCore {
       igpToken = searchResult;
     }
 
-    let feeTokenAmount: TokenAmount | undefined;
+    let feeTokenAmount: TokenAmount<IToken> | undefined;
     if (feeAmount) {
       // empty address or zero address is native route
       if (!feeTokenAddress || isZeroishAddress(feeTokenAddress)) {
@@ -283,8 +286,8 @@ export class WarpCore {
     destination: ChainNameOrId;
     sender: Address;
     senderPubKey?: HexString;
-    interchainFee?: TokenAmount;
-    tokenFeeQuote?: TokenAmount;
+    interchainFee?: TokenAmount<IToken>;
+    tokenFeeQuote?: TokenAmount<IToken>;
     attestation?: PredicateAttestation;
     amount: bigint;
     destinationToken?: IToken;
@@ -384,12 +387,12 @@ export class WarpCore {
     destination: ChainNameOrId;
     sender: Address;
     senderPubKey?: HexString;
-    interchainFee?: TokenAmount;
-    tokenFeeQuote?: TokenAmount;
+    interchainFee?: TokenAmount<IToken>;
+    tokenFeeQuote?: TokenAmount<IToken>;
     attestation?: PredicateAttestation;
     amount: bigint;
     destinationToken?: IToken;
-  }): Promise<TokenAmount> {
+  }): Promise<TokenAmount<IToken>> {
     const originMetadata = this.multiProvider.getChainMetadata(
       originToken.chainName,
     );
@@ -434,12 +437,12 @@ export class WarpCore {
     destinationToken,
     quotedCalls,
   }: {
-    originTokenAmount: TokenAmount;
+    originTokenAmount: TokenAmount<IToken>;
     destination: ChainNameOrId;
     sender: Address;
     recipient: Address;
-    interchainFee?: TokenAmount;
-    tokenFeeQuote?: TokenAmount;
+    interchainFee?: TokenAmount<IToken>;
+    tokenFeeQuote?: TokenAmount<IToken>;
     /** Optional Predicate attestation for compliance-gated warp routes */
     attestation?: PredicateAttestation;
     destinationToken?: IToken;
@@ -649,7 +652,7 @@ export class WarpCore {
     destinationToken,
     attestation,
   }: {
-    originTokenAmount: TokenAmount;
+    originTokenAmount: TokenAmount<IToken>;
     destination: ChainNameOrId;
     sender: Address;
     recipient: Address;
@@ -771,7 +774,7 @@ export class WarpCore {
     quotedCalls,
     destinationToken,
   }: {
-    originTokenAmount: TokenAmount;
+    originTokenAmount: TokenAmount<IToken>;
     destination: ChainNameOrId;
     recipient: Address;
     quotedCalls: QuotedCallsParams;
@@ -840,15 +843,15 @@ export class WarpCore {
     quotedCalls,
     destinationToken,
   }: {
-    originTokenAmount: TokenAmount;
+    originTokenAmount: TokenAmount<IToken>;
     destination: ChainNameOrId;
     sender: Address;
     recipient: Address;
     quotedCalls: QuotedCallsParams;
     destinationToken?: IToken;
   }): Promise<{
-    igpQuote: TokenAmount;
-    tokenFeeQuote?: TokenAmount;
+    igpQuote: TokenAmount<IToken>;
+    tokenFeeQuote?: TokenAmount<IToken>;
     /** Raw per-command quotes — pass to getTransferRemoteTxs */
     feeQuotes: Quote[][];
   }> {
@@ -892,7 +895,7 @@ export class WarpCore {
       tokenTotals.size <= 1,
       `Unexpected multi-token fee quotes: ${[...tokenTotals.keys()].join(', ')}`,
     );
-    let tokenFeeQuote: TokenAmount | undefined;
+    let tokenFeeQuote: TokenAmount<IToken> | undefined;
     const totalTokenQuoted = tokenTotals.get(tokenKey);
     if (totalTokenQuoted != null) {
       const feeOnly = totalTokenQuoted - originTokenAmount.amount;
@@ -924,7 +927,7 @@ export class WarpCore {
     destinationToken,
     feeQuotes,
   }: {
-    originTokenAmount: TokenAmount;
+    originTokenAmount: TokenAmount<IToken>;
     destination: ChainNameOrId;
     sender: Address;
     recipient: Address;
@@ -1038,7 +1041,7 @@ export class WarpCore {
     attestation,
     destinationToken,
   }: {
-    originTokenAmount: TokenAmount;
+    originTokenAmount: TokenAmount<IToken>;
     destination: ChainNameOrId;
     recipient: Address;
     sender: Address;
@@ -1101,7 +1104,7 @@ export class WarpCore {
     sender,
     senderPubKey,
   }: {
-    originTokenAmount: TokenAmount;
+    originTokenAmount: TokenAmount<IToken>;
     destination: ChainNameOrId;
     destinationToken: IToken;
     recipient: Address;
@@ -1155,14 +1158,14 @@ export class WarpCore {
     feeEstimate,
     destinationToken,
   }: {
-    balance: TokenAmount;
+    balance: TokenAmount<IToken>;
     destination: ChainNameOrId;
     recipient: Address;
     sender: Address;
     senderPubKey?: HexString;
     feeEstimate?: WarpCoreFeeEstimate;
     destinationToken?: IToken;
-  }): Promise<TokenAmount> {
+  }): Promise<TokenAmount<IToken>> {
     const originToken = balance.token;
 
     if (!feeEstimate) {
@@ -1226,7 +1229,7 @@ export class WarpCore {
     destination,
     destinationToken,
   }: {
-    originTokenAmount: TokenAmount;
+    originTokenAmount: TokenAmount<IToken>;
     destination: ChainNameOrId;
     destinationToken?: IToken;
   }): Promise<boolean> {
@@ -1298,7 +1301,7 @@ export class WarpCore {
     originTokenAmount,
     owner,
   }: {
-    originTokenAmount: TokenAmount;
+    originTokenAmount: TokenAmount<IToken>;
     owner: Address;
   }): Promise<boolean> {
     const { token, amount } = originTokenAmount;
@@ -1328,7 +1331,7 @@ export class WarpCore {
     attestation,
     destinationToken,
   }: {
-    originTokenAmount: TokenAmount;
+    originTokenAmount: TokenAmount<IToken>;
     destination: ChainNameOrId;
     recipient: Address;
     sender: Address;
@@ -1463,7 +1466,7 @@ export class WarpCore {
    * Ensure token amount is valid
    */
   protected async validateAmount(
-    originTokenAmount: TokenAmount,
+    originTokenAmount: TokenAmount<IToken>,
     destination: ChainNameOrId,
     recipient: Address,
     destinationToken?: IToken,
@@ -1514,7 +1517,7 @@ export class WarpCore {
    * Ensure the sender has sufficient balances for transfer and interchain gas
    */
   protected async validateTokenBalances(
-    originTokenAmount: TokenAmount,
+    originTokenAmount: TokenAmount<IToken>,
     destination: ChainNameOrId,
     sender: Address,
     recipient: Address,
@@ -1603,7 +1606,7 @@ export class WarpCore {
    * Ensure the sender has sufficient balances for transfer and interchain gas
    */
   protected async validateDestinationCollateral(
-    originTokenAmount: TokenAmount,
+    originTokenAmount: TokenAmount<IToken>,
     destination: ChainNameOrId,
     destinationToken?: IToken,
   ): Promise<Record<string, string> | null> {
@@ -1623,7 +1626,7 @@ export class WarpCore {
    * Ensure the sender has sufficient balances for minting
    */
   protected async validateDestinationRateLimit(
-    originTokenAmount: TokenAmount,
+    originTokenAmount: TokenAmount<IToken>,
     destination: ChainNameOrId,
     destinationToken?: IToken,
   ): Promise<Record<string, string> | null> {
@@ -1697,7 +1700,7 @@ export class WarpCore {
    * Ensure the sender has sufficient balances for transfer and interchain gas
    */
   protected async validateOriginCollateral(
-    originTokenAmount: TokenAmount,
+    originTokenAmount: TokenAmount<IToken>,
   ): Promise<Record<string, string> | null> {
     const adapter = originTokenAmount.token.getAdapter(this.multiProvider);
 

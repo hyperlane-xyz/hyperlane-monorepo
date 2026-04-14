@@ -15,7 +15,7 @@ import {
   isZeroishAddress,
 } from '@hyperlane-xyz/utils';
 
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
 import { ChainName } from '../../types.js';
 
 import { InterchainGasQuote, TransferRemoteToParams } from './ITokenAdapter.js';
@@ -30,7 +30,7 @@ export class EvmHypCrossCollateralAdapter extends EvmHypCollateralAdapter {
 
   constructor(
     public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider,
+    public readonly multiProvider: MultiProviderAdapter,
     public readonly addresses: {
       token: Address; // router address
       collateralToken?: Address; // optional hint for callers; resolved onchain
