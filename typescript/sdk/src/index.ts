@@ -708,11 +708,13 @@ export {
   IHypVSXERC20Adapter,
   IHypXERC20Adapter,
   InterchainGasQuote,
+  IPredicateAwareAdapter,
   ITokenAdapter,
   TransferParams,
   TransferRemoteParams,
   Quote,
   QuoteTransferRemoteParams,
+  isPredicateCapableAdapter,
 } from './token/adapters/ITokenAdapter.js';
 export {
   SealevelHypCollateralAdapter,

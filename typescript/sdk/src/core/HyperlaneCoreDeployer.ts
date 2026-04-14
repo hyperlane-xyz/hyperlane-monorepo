@@ -232,13 +232,12 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
         config.type !== HookType.UNKNOWN,
         `Cannot deploy unknown hook type`,
       );
-      const hookType = config.type as DeployableHookType;
-
-      if (hookType === HookType.PREDICATE) {
+      if (config.type === HookType.PREDICATE) {
         throw new Error(
           'Predicate hooks cannot be deployed via HyperlaneCoreDeployer, they must be pre-deployed',
         );
       }
+      const hookType = config.type as DeployableHookType;
       return hooks[hookType];
     }
   }

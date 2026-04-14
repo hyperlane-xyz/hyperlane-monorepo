@@ -34,6 +34,7 @@ export enum OnchainHookType {
 }
 
 export const HookType = {
+  CUSTOM: 'custom',
   MERKLE_TREE: 'merkleTreeHook',
   INTERCHAIN_GAS_PAYMASTER: 'interchainGasPaymaster',
   AGGREGATION: 'aggregationHook',
@@ -52,12 +53,12 @@ export const HookType = {
 
 export type HookType = (typeof HookType)[keyof typeof HookType];
 
-export type DeployableHookType = Exclude<HookType, typeof HookType.UNKNOWN>;
+export type DeployableHookType = Exclude<
+  HookType,
+  typeof HookType.CUSTOM | typeof HookType.PREDICATE | typeof HookType.UNKNOWN
+>;
 
-export const HookTypeToContractNameMap: Record<
-  Exclude<HookType, typeof HookType.PREDICATE | typeof HookType.UNKNOWN>,
-  string
-> = {
+export const HookTypeToContractNameMap: Record<DeployableHookType, string> = {
   [HookType.MERKLE_TREE]: 'merkleTreeHook',
   [HookType.INTERCHAIN_GAS_PAYMASTER]: 'interchainGasPaymaster',
   [HookType.AGGREGATION]: 'staticAggregationHook',
@@ -129,6 +130,7 @@ export const MerkleTreeSchema = z.object({
 
 export const PredicateHookSchema = z.object({
   type: z.literal(HookType.PREDICATE),
+  address: z.string().optional(),
 });
 export type PredicateHookConfig = z.infer<typeof PredicateHookSchema>;
 

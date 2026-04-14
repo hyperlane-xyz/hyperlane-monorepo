@@ -461,8 +461,12 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
 
       const contracts = await this.deployContracts(
         chain,
-        hookConfig.type,
+        hookConfig,
         this.core[chain],
+      );
+      assert(
+        hookConfig.type !== HookType.UNKNOWN,
+        `Cannot deploy unknown hook type in amount routing`,
       );
       hooks.push(contracts[hookConfig.type as keyof HookFactories].address);
     }

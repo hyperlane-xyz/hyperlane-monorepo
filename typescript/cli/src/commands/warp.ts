@@ -350,6 +350,7 @@ const send: CommandModuleWithWriteContext<
       chains?: string[];
       skipValidation?: boolean;
       predicateApiKey?: string;
+      predicateApiUrl?: string;
       attestation?: string;
       sourceToken?: string;
       destinationToken?: string;
@@ -385,6 +386,13 @@ const send: CommandModuleWithWriteContext<
     'predicate-api-key': {
       type: 'string',
       description: 'Predicate API key for fetching attestations automatically',
+      conflicts: 'attestation',
+    },
+    'predicate-api-url': {
+      type: 'string',
+      description:
+        'Predicate API base URL (overrides default; useful for testing)',
+      default: process.env.PREDICATE_API_URL,
     },
     attestation: {
       type: 'string',
@@ -418,8 +426,8 @@ const send: CommandModuleWithWriteContext<
     timeout,
     quick,
     relay,
-    symbol,
-    warp,
+    symbol: _symbol,
+    warp: _warp,
     warpRouteId,
     amount,
     recipient,
@@ -427,6 +435,7 @@ const send: CommandModuleWithWriteContext<
     chains: chainsArg,
     skipValidation,
     predicateApiKey,
+    predicateApiUrl,
     attestation,
     sourceToken,
     destinationToken,
@@ -510,6 +519,7 @@ const send: CommandModuleWithWriteContext<
       selfRelay: relay,
       skipValidation,
       predicateApiKey,
+      predicateApiUrl,
       attestation,
       sourceToken,
       destinationToken,

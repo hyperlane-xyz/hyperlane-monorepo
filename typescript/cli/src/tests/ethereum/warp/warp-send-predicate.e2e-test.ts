@@ -1,8 +1,10 @@
+import * as http from 'node:http';
+import type { AddressInfo } from 'node:net';
+
 import { JsonRpcProvider } from '@ethersproject/providers';
 import * as chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { Wallet } from 'ethers';
-import sinon from 'sinon';
 
 import {
   ERC20Test__factory,
@@ -140,7 +142,9 @@ describe('hyperlane warp send with Predicate e2e tests', async function () {
       CHAIN_NAME_3,
     ]);
 
-    let fetchStub: sinon.SinonStub;
+    let mockServer: http.Server;
+    let mockServerUrl: string;
+    let capturedApiKey: string | undefined;
 
     before(async function () {
       const warpConfig: WarpRouteDeployConfig = {
@@ -163,30 +167,42 @@ describe('hyperlane warp send with Predicate e2e tests', async function () {
 
       writeYamlOrJson(warpDeployPath, warpConfig);
       await hyperlaneWarpDeploy(warpDeployPath, 'PREDSENDAPI/anvil2-anvil3');
+
+      // Start a local mock HTTP server so subprocess fetch calls are intercepted
+      mockServer = http.createServer((req, res) => {
+        capturedApiKey = req.headers['x-api-key'] as string | undefined;
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            policy_id: MOCK_POLICY_ID,
+            policy_name: 'Test Policy',
+            verification_hash: 'x-test-hash',
+            is_compliant: true,
+            attestation: {
+              uuid: '550e8400-e29b-41d4-a716-446655440001',
+              expiration: Math.floor(Date.now() / 1000) + 3600,
+              attester: mockPredicateRegistryAddress,
+              signature:
+                '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12',
+            },
+          }),
+        );
+      });
+      await new Promise<void>((resolve) =>
+        mockServer.listen(0, '127.0.0.1', resolve),
+      );
+      const { port } = mockServer.address() as AddressInfo;
+      mockServerUrl = `http://127.0.0.1:${port}`;
+    });
+
+    after(async function () {
+      await new Promise<void>((resolve, reject) =>
+        mockServer.close((err) => (err ? reject(err) : resolve())),
+      );
     });
 
     beforeEach(() => {
-      fetchStub = sinon.stub(global, 'fetch');
-      fetchStub.resolves({
-        ok: true,
-        json: async () => ({
-          policy_id: MOCK_POLICY_ID,
-          policy_name: 'Test Policy',
-          verification_hash: 'x-test-hash',
-          is_compliant: true,
-          attestation: {
-            uuid: '550e8400-e29b-41d4-a716-446655440001',
-            expiration: Math.floor(Date.now() / 1000) + 3600,
-            attester: mockPredicateRegistryAddress,
-            signature:
-              '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12',
-          },
-        }),
-      } as Response);
-    });
-
-    afterEach(() => {
-      fetchStub.restore();
+      capturedApiKey = undefined;
     });
 
     it('should fetch attestation and transfer using --predicate-api-key flag', async function () {
@@ -196,16 +212,12 @@ describe('hyperlane warp send with Predicate e2e tests', async function () {
         warpRouteId: warpCoreConfigPath,
         value: 1,
         predicateApiKey: 'test-api-key',
+        predicateApiUrl: mockServerUrl,
       });
 
       expect(exitCode).to.equal(0);
       expect(stdout).to.include(WarpSendLogs.SUCCESS);
-      expect(fetchStub.calledOnce).to.be.true;
-
-      const callArgs = fetchStub.firstCall.args[1] as RequestInit;
-      expect(
-        (callArgs.headers as Record<string, string>)['x-api-key'],
-      ).to.equal('test-api-key');
+      expect(capturedApiKey).to.equal('test-api-key');
     });
   });
 

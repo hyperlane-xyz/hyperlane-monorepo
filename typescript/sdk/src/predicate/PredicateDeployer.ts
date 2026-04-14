@@ -1,4 +1,4 @@
-import { constants } from 'ethers';
+import { PopulatedTransaction, constants } from 'ethers';
 import { Logger } from 'pino';
 
 import {
@@ -19,6 +19,7 @@ import { ChainName } from '../types.js';
 export interface PredicateWrapperDeploymentResult {
   wrapperAddress: Address;
   aggregationHookAddress: Address;
+  setHookTx: PopulatedTransaction;
 }
 
 export class PredicateWrapperDeployer {
@@ -175,16 +176,14 @@ export class PredicateWrapperDeployer {
       hookToAggregateWith,
     );
 
-    this.logger.info(
-      { chain, hook: aggregationHookAddress },
-      'Setting hook on warp route',
+    const setHookTx = await warpRoute.populateTransaction.setHook(
+      aggregationHookAddress,
     );
-    const tx = await warpRoute.setHook(aggregationHookAddress);
-    await this.multiProvider.handleTx(chain, tx);
 
     return {
       wrapperAddress,
       aggregationHookAddress,
+      setHookTx,
     };
   }
 }

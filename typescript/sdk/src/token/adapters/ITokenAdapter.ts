@@ -169,6 +169,24 @@ export interface IHypCrossCollateralAdapter<Tx> extends IHypTokenAdapter<Tx> {
   populateTransferRemoteToTx(params: TransferRemoteToParams): Promise<Tx>;
 }
 
+export interface IPredicateAwareAdapter {
+  getPredicateWrapperAddress(): Promise<Address | null>;
+  supportsAttestation(): Promise<boolean>;
+}
+
+export function isPredicateCapableAdapter(
+  adapter: IHypTokenAdapter<unknown>,
+): adapter is IHypTokenAdapter<unknown> & IPredicateAwareAdapter {
+  return (
+    'getPredicateWrapperAddress' in adapter &&
+    typeof (adapter as { getPredicateWrapperAddress?: unknown })
+      .getPredicateWrapperAddress === 'function' &&
+    'supportsAttestation' in adapter &&
+    typeof (adapter as { supportsAttestation?: unknown })
+      .supportsAttestation === 'function'
+  );
+}
+
 export function isHypCrossCollateralAdapter(
   adapter: IHypTokenAdapter<unknown>,
 ): adapter is IHypCrossCollateralAdapter<unknown> {

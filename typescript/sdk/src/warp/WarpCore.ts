@@ -45,6 +45,7 @@ import {
   IHypXERC20Adapter,
   InterchainGasQuote,
   isHypCrossCollateralAdapter,
+  isPredicateCapableAdapter,
 } from '../token/adapters/ITokenAdapter.js';
 import {
   buildExecuteCalldata,
@@ -289,7 +290,7 @@ export class WarpCore {
     interchainFee?: TokenAmount<IToken>;
     tokenFeeQuote?: TokenAmount<IToken>;
     attestation?: PredicateAttestation;
-    amount: bigint;
+    amount?: bigint;
     destinationToken?: IToken;
   }): Promise<TransactionFeeEstimate> {
     this.logger.debug(`Estimating local transfer gas to ${destination}`);
@@ -316,8 +317,24 @@ export class WarpCore {
       destinationMetadata.bech32Prefix,
     );
 
+    // Use a small but viable amount for gas estimation when none is provided.
+    // Must survive on-chain decimal truncation (e.g. 18→6 decimals) to avoid
+    // reverts like "HypNativeMinter: destination amount < 1". Compute minimum
+    // as 10^(originDecimals - destDecimals) so destination gets exactly 1 unit.
+    const estimationAmount =
+      amount ??
+      (() => {
+        const destToken = originToken.getConnectionForChain(
+          destinationMetadata.name,
+        )?.token;
+        const decimalDiff = destToken
+          ? Math.max(0, originToken.decimals - destToken.decimals)
+          : 0;
+        return BigInt(10) ** BigInt(decimalDiff);
+      })();
+
     const txs = await this.getTransferRemoteTxs({
-      originTokenAmount: originToken.amount(amount),
+      originTokenAmount: originToken.amount(estimationAmount),
       destination,
       sender,
       recipient,
@@ -390,7 +407,7 @@ export class WarpCore {
     interchainFee?: TokenAmount<IToken>;
     tokenFeeQuote?: TokenAmount<IToken>;
     attestation?: PredicateAttestation;
-    amount: bigint;
+    amount?: bigint;
     destinationToken?: IToken;
   }): Promise<TokenAmount<IToken>> {
     const originMetadata = this.multiProvider.getChainMetadata(
@@ -1831,12 +1848,11 @@ export class WarpCore {
     try {
       const adapter = token.getHypAdapter(this.multiProvider, destination);
 
-      // Only EVM adapters support predicate currently
-      if (!('supportsAttestation' in adapter)) {
+      if (!isPredicateCapableAdapter(adapter)) {
         return false;
       }
 
-      return await (adapter as any).supportsAttestation();
+      return await adapter.supportsAttestation();
     } catch (error) {
       this.logger.debug('Error checking predicate support', { error });
       return false;

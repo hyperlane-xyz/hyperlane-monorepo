@@ -298,7 +298,7 @@ export class EvmHypSyntheticAdapter
     );
   }
 
-  protected async getPredicateWrapperAddress(): Promise<Address | null> {
+  async getPredicateWrapperAddress(): Promise<Address | null> {
     if (this.predicateWrapperAddress !== undefined) {
       return this.predicateWrapperAddress;
     }
@@ -322,6 +322,7 @@ export class EvmHypSyntheticAdapter
 
       this.predicateWrapperAddress = foundWrapper;
     } catch (error) {
+      this.logger.debug('Error detecting predicate wrapper', { error });
       this.predicateWrapperAddress = null;
     }
     return this.predicateWrapperAddress;
@@ -472,6 +473,61 @@ export class EvmHypSyntheticAdapter
     return wrapperAddress !== null;
   }
 
+  protected async populatePredicateTransferRemoteTx(
+    params: TransferRemoteParams,
+    nativeValue: bigint,
+  ): Promise<PopulatedTransaction> {
+    const { weiAmountOrId, destination, recipient, attestation } = params;
+    assert(attestation, 'attestation is required');
+
+    const predicateWrapperAddress = await this.getPredicateWrapperAddress();
+    if (!predicateWrapperAddress) {
+      throw new Error(
+        'Attestation provided but no PredicateRouterWrapper detected on warp route hook. ' +
+          'Attestations can only be used with routes that have a PredicateRouterWrapper configured.',
+      );
+    }
+
+    let { interchainGas } = params;
+    if (!interchainGas) {
+      interchainGas = await this.quoteTransferRemoteGas({
+        destination,
+        recipient,
+        amount: BigInt(weiAmountOrId),
+      });
+    }
+
+    nativeValue += interchainGas.igpQuote.amount;
+    if (
+      !interchainGas.tokenFeeQuote?.addressOrDenom ||
+      isZeroishAddress(interchainGas.tokenFeeQuote?.addressOrDenom)
+    ) {
+      nativeValue += interchainGas.tokenFeeQuote?.amount ?? 0n;
+    }
+
+    const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
+
+    const predicateWrapper = PredicateRouterWrapper__factory.connect(
+      predicateWrapperAddress,
+      this.getProvider(),
+    );
+
+    const contractAttestation = {
+      uuid: attestation.uuid,
+      expiration: attestation.expiration,
+      attester: attestation.attester,
+      signature: attestation.signature,
+    };
+
+    return predicateWrapper.populateTransaction.transferRemoteWithAttestation(
+      contractAttestation,
+      destination,
+      recipBytes32,
+      weiAmountOrId,
+      { value: nativeValue.toString() },
+    );
+  }
+
   async populateTransferRemoteTx(
     params: TransferRemoteParams,
     nativeValue = 0n,
@@ -479,52 +535,7 @@ export class EvmHypSyntheticAdapter
     const { weiAmountOrId, destination, recipient, attestation } = params;
 
     if (attestation) {
-      const predicateWrapperAddress = await this.getPredicateWrapperAddress();
-      if (!predicateWrapperAddress) {
-        throw new Error(
-          'Attestation provided but no PredicateRouterWrapper detected on warp route hook. ' +
-            'Attestations can only be used with routes that have a PredicateRouterWrapper configured.',
-        );
-      }
-
-      let { interchainGas } = params;
-      if (!interchainGas) {
-        interchainGas = await this.quoteTransferRemoteGas({
-          destination,
-          recipient,
-          amount: BigInt(weiAmountOrId),
-        });
-      }
-
-      nativeValue += interchainGas.igpQuote.amount;
-      if (
-        !interchainGas.tokenFeeQuote?.addressOrDenom ||
-        isZeroishAddress(interchainGas.tokenFeeQuote?.addressOrDenom)
-      ) {
-        nativeValue += interchainGas.tokenFeeQuote?.amount ?? 0n;
-      }
-
-      const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
-
-      const predicateWrapper = PredicateRouterWrapper__factory.connect(
-        predicateWrapperAddress,
-        this.getProvider(),
-      );
-
-      const contractAttestation = {
-        uuid: attestation.uuid,
-        expiration: attestation.expiration,
-        attester: attestation.attester,
-        signature: attestation.signature,
-      };
-
-      return predicateWrapper.populateTransaction.transferRemoteWithAttestation(
-        contractAttestation,
-        destination,
-        recipBytes32,
-        weiAmountOrId,
-        { value: nativeValue.toString() },
-      );
+      return this.populatePredicateTransferRemoteTx(params, nativeValue);
     }
 
     let { interchainGas } = params;
@@ -668,57 +679,8 @@ class BaseEvmHypCollateralAdapter
     params: TransferRemoteParams,
     nativeValue = 0n,
   ): Promise<PopulatedTransaction> {
-    const { attestation } = params;
-
-    if (attestation) {
-      const predicateWrapperAddress = await this.getPredicateWrapperAddress();
-      if (!predicateWrapperAddress) {
-        throw new Error(
-          'Attestation provided but no PredicateRouterWrapper detected on warp route hook. ' +
-            'Attestations can only be used with routes that have a PredicateRouterWrapper configured.',
-        );
-      }
-
-      let { interchainGas } = params;
-      if (!interchainGas) {
-        interchainGas = await this.quoteTransferRemoteGas({
-          destination: params.destination,
-          recipient: params.recipient,
-          amount: BigInt(params.weiAmountOrId),
-        });
-      }
-
-      nativeValue += interchainGas.igpQuote.amount;
-      if (
-        !interchainGas.tokenFeeQuote?.addressOrDenom ||
-        isZeroishAddress(interchainGas.tokenFeeQuote?.addressOrDenom)
-      ) {
-        nativeValue += interchainGas.tokenFeeQuote?.amount ?? 0n;
-      }
-
-      const recipBytes32 = addressToBytes32(
-        addressToByteHexString(params.recipient),
-      );
-
-      const predicateWrapper = PredicateRouterWrapper__factory.connect(
-        predicateWrapperAddress,
-        this.getProvider(),
-      );
-
-      const contractAttestation = {
-        uuid: attestation.uuid,
-        expiration: attestation.expiration,
-        attester: attestation.attester,
-        signature: attestation.signature,
-      };
-
-      return predicateWrapper.populateTransaction.transferRemoteWithAttestation(
-        contractAttestation,
-        params.destination,
-        recipBytes32,
-        params.weiAmountOrId,
-        { value: nativeValue.toString() },
-      );
+    if (params.attestation) {
+      return this.populatePredicateTransferRemoteTx(params, nativeValue);
     }
 
     return super.populateTransferRemoteTx(params, nativeValue);
@@ -1268,13 +1230,17 @@ export class EvmHypNativeAdapter
     interchainGas,
     attestation,
   }: TransferRemoteParams): Promise<PopulatedTransaction> {
+    if (attestation) {
+      throw new Error(
+        'Predicate attestations are not supported for native token warp routes',
+      );
+    }
     return super.populateTransferRemoteTx(
       {
         weiAmountOrId,
         destination,
         recipient,
         interchainGas,
-        attestation,
       },
       // Pass the amount as initial native value to the parent class
       BigInt(weiAmountOrId),

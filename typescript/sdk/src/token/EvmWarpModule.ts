@@ -85,6 +85,8 @@ import {
   HypTokenRouterConfig,
   HypTokenRouterConfigSchema,
   MovableTokenConfig,
+  PredicateWrapperConfig,
+  PredicateWrapperConfigSchema,
   VERSION_ERROR_MESSAGE,
   contractVersionMatchesDependency,
   derivedHookAddress,
@@ -1187,7 +1189,7 @@ export class EvmWarpModule extends HyperlaneModule<
    */
   async isPredicateWrapperDeployed(
     actualConfig: DerivedTokenRouterConfig,
-    expectedPredicateConfig: { predicateRegistry: string; policyId: string },
+    _expectedPredicateConfig: { predicateRegistry: string; policyId: string },
   ): Promise<boolean> {
     const hookAddress = derivedHookAddress(actualConfig);
     if (!hookAddress || isZeroishAddress(hookAddress)) {
@@ -1202,7 +1204,7 @@ export class EvmWarpModule extends HyperlaneModule<
       );
 
       // Check if this is an aggregation hook
-      const hooksAddresses = await hook.hooks(constants.AddressZero);
+      const hooksAddresses = await hook.hooks('0x');
       if (!hooksAddresses || hooksAddresses.length === 0) {
         return false;
       }
@@ -1225,9 +1227,12 @@ export class EvmWarpModule extends HyperlaneModule<
             eqAddress(warpRoute, this.args.addresses.deployedTokenRoute) &&
             hookType === OnchainHookType.PREDICATE_ROUTER_WRAPPER
           ) {
-            // Found matching PredicateRouterWrapper
-            // Note: We assume if it exists, the config is correct
-            // TODO: Read and compare predicateRegistry and policyId from PredicateClient
+            // Known limitation: we only verify a PredicateRouterWrapper exists for
+            // this warp route — we do not compare predicateRegistry or policyId
+            // against expectedPredicateConfig. Changing those fields in config is
+            // therefore a silent no-op; a new wrapper will not be redeployed.
+            // Fixing this requires the wrapper contract to expose registry/policyId
+            // as public getters so they can be read back and compared here.
             return true;
           }
         } catch {
@@ -1267,16 +1272,8 @@ export class EvmWarpModule extends HyperlaneModule<
       return [];
     }
 
-    // Type guard to ensure predicateWrapper has required fields
-    const predicateWrapperConfig = expectedConfig.predicateWrapper as {
-      predicateRegistry: string;
-      policyId: string;
-    };
-    assert(
-      predicateWrapperConfig.predicateRegistry &&
-        predicateWrapperConfig.policyId,
-      'predicateWrapper must have predicateRegistry and policyId',
-    );
+    const predicateWrapperConfig: PredicateWrapperConfig =
+      PredicateWrapperConfigSchema.parse(expectedConfig.predicateWrapper);
 
     // Check if predicate wrapper is already deployed with matching config
     const isAlreadyDeployed = await this.isPredicateWrapperDeployed(
@@ -1327,12 +1324,16 @@ export class EvmWarpModule extends HyperlaneModule<
         wrapper: result.wrapperAddress,
         aggregationHook: result.aggregationHookAddress,
       },
-      'Predicate wrapper deployed and configured',
+      'Predicate wrapper deployed, returning setHook transaction',
     );
 
-    // The deployAndConfigure method already sets the hook, but we return empty
-    // transactions since the hook was already set during deployment
-    // In the future, we could refactor to return the setHook transaction instead
+    updateTransactions.push({
+      annotation:
+        'Set aggregation hook wrapping PredicateRouterWrapper on warp route',
+      chainId: this.chainId,
+      ...result.setHookTx,
+    });
+
     return updateTransactions;
   }
 

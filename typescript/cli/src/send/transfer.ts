@@ -34,11 +34,13 @@ import {
   type WarpCoreConfig,
   WarpTxCategory,
   computeScopedSalt,
+  isPredicateCapableAdapter,
 } from '@hyperlane-xyz/sdk';
 import {
   addressToByteHexString,
   addressToBytes32,
   isEVMLike,
+  isZeroishAddress,
   ProtocolType,
   assert,
   mustGet,
@@ -118,6 +120,7 @@ export async function sendTestTransfer({
   selfRelay,
   skipValidation,
   predicateApiKey,
+  predicateApiUrl,
   attestation,
   sourceToken,
   destinationToken,
@@ -134,6 +137,7 @@ export async function sendTestTransfer({
   selfRelay?: boolean;
   skipValidation?: boolean;
   predicateApiKey?: string;
+  predicateApiUrl?: string;
   attestation?: string;
   sourceToken?: string;
   destinationToken?: string;
@@ -236,6 +240,7 @@ export async function sendTestTransfer({
           selfRelay,
           skipValidation,
           predicateApiKey,
+          predicateApiUrl,
           attestation: parsedAttestation,
           timeoutSec,
           sourceToken: i === 0 ? sourceToken : undefined,
@@ -262,6 +267,7 @@ async function executeDelivery({
   selfRelay,
   skipValidation,
   predicateApiKey,
+  predicateApiUrl,
   attestation,
   timeoutSec,
   sourceToken: sourceTokenAddr,
@@ -279,6 +285,7 @@ async function executeDelivery({
   selfRelay?: boolean;
   skipValidation?: boolean;
   predicateApiKey?: string;
+  predicateApiUrl?: string;
   attestation?: PredicateAttestation;
   timeoutSec: number;
   sourceToken?: string;
@@ -386,12 +393,25 @@ async function executeDelivery({
     finalAttestation = attestation;
   } else if (predicateApiKey) {
     logBlue('Fetching Predicate attestation...');
-    const predicateClient = new PredicateApiClient(predicateApiKey);
+    const predicateClient = new PredicateApiClient(
+      predicateApiKey,
+      predicateApiUrl,
+    );
 
     const destinationDomain = multiProvider.getDomainId(destination);
     const recipientBytes32 = addressToBytes32(
       addressToByteHexString(recipientAddress),
     );
+
+    // Auto-resolve destToken for cross-collateral routes when not explicitly provided
+    if (!destToken && token.isCrossCollateralToken()) {
+      const connection = token.getConnectionForChain(destination);
+      if (connection) {
+        destToken =
+          warpCore.findToken(destination, connection.token.addressOrDenom) ??
+          undefined;
+      }
+    }
 
     const isCrossCollateral = warpCore.isCrossCollateralTransfer(
       token,
@@ -432,26 +452,27 @@ async function executeDelivery({
       origin,
     );
     let predicateTarget = token.addressOrDenom;
-    if ('getPredicateWrapperAddress' in hypAdapter) {
-      const wrapperAddress = await (
-        hypAdapter as {
-          getPredicateWrapperAddress: () => Promise<string | null>;
-        }
-      ).getPredicateWrapperAddress();
+    if (isPredicateCapableAdapter(hypAdapter)) {
+      const wrapperAddress = await hypAdapter.getPredicateWrapperAddress();
       if (wrapperAddress) {
         predicateTarget = wrapperAddress;
         log(`Using PredicateRouterWrapper address: ${wrapperAddress}`);
       }
     }
 
-    // For native/HypNative tokens, msg_value = amount + gas fees
-    // For ERC20 tokens, msg_value = gas fees only
-    const msgValue =
-      token.isNative() || token.isHypNative()
-        ? (
-            BigInt(tokenAmount.amount.toString()) + quote.igpQuote.amount
-          ).toString()
-        : quote.igpQuote.amount.toString();
+    // Mirror adapter logic: igpQuote + tokenFeeQuote (when native denom) + token amount (when native token)
+    const tokenFeeDenom = quote.tokenFeeQuote?.token.addressOrDenom;
+    const nativeTokenFee =
+      quote.tokenFeeQuote && (!tokenFeeDenom || isZeroishAddress(tokenFeeDenom))
+        ? quote.tokenFeeQuote.amount
+        : 0n;
+    const msgValue = (
+      (token.isNative() || token.isHypNative()
+        ? BigInt(tokenAmount.amount.toString())
+        : 0n) +
+      quote.igpQuote.amount +
+      nativeTokenFee
+    ).toString();
 
     const attestationRequest = {
       to: predicateTarget,
