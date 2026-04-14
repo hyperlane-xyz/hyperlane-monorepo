@@ -1581,7 +1581,8 @@ describe('InventoryRebalancer E2E', () => {
 
   describe('Smart Partial Transfer Threshold', () => {
     // Test the 90% consolidation threshold for partial transfers
-    // Tests use non-native tokens (EvmHypCollateral) so minViableTransfer = 0
+    // Tests use non-native tokens (EvmHypCollateral) so minViableTransfer = 0.
+    // Fee-aware maxTransferable still controls the actual partial amount.
 
     it('does partial transfer when inventory is available on destination', async () => {
       // amount = 1 ETH, availableOnDestination = 0.5 ETH
@@ -2592,6 +2593,7 @@ describe('InventoryRebalancer E2E', () => {
         addressOrDenom: '0xArbitrumToken',
         collateralAddressOrDenom: '0xArbitrumCollateralERC20',
         getHypAdapter: Sinon.stub().returns(adapterStub),
+        amount: Sinon.stub().callsFake((amt: bigint) => ({ amount: amt })),
       };
       const solanaToken = {
         chainName: SOLANA_CHAIN,
@@ -2599,6 +2601,7 @@ describe('InventoryRebalancer E2E', () => {
         addressOrDenom: '0xSolanaToken',
         collateralAddressOrDenom: '0xSolanaCollateralERC20',
         getHypAdapter: Sinon.stub().returns(adapterStub),
+        amount: Sinon.stub().callsFake((amt: bigint) => ({ amount: amt })),
       };
       warpCore.tokens = [arbitrumToken, solanaToken];
 

@@ -39,6 +39,7 @@
   "packageManager": "pnpm@10.30.2",
   "pnpm": {
     "overrides": {
+      "@ethersproject/abi": "5.8.0",
       "async": "^2.6.4",
       "fetch-ponyfill": "^7.1",
       "flat": "^5.0.2",
