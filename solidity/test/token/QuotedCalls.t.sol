@@ -3,7 +3,9 @@ pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
 
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
@@ -30,6 +32,7 @@ import {CallLib} from "../../contracts/middleware/libs/Call.sol";
 import {Quote} from "../../contracts/interfaces/ITokenBridge.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ReentrancyGuardTransient} from "../../contracts/libs/ReentrancyGuardTransient.sol";
+import {Quotes} from "../../contracts/token/libs/Quotes.sol";
 
 /// @dev Contract that attempts reentrancy via the SWEEP ETH callback.
 contract ReentrantAttacker {
@@ -130,8 +133,65 @@ contract MockPermit2 {
     }
 }
 
+contract MockOptionalTargetBridge {
+    using SafeERC20 for IERC20;
+
+    IERC20 public immutable token;
+    uint256 public fee;
+    bytes32 public lastTargetRouter;
+    bool public usedTransferRemoteTo;
+
+    constructor(IERC20 _token, uint256 _fee) {
+        token = _token;
+        fee = _fee;
+    }
+
+    function transferRemote(
+        uint32,
+        bytes32,
+        uint256 amount
+    ) external payable returns (bytes32) {
+        usedTransferRemoteTo = false;
+        lastTargetRouter = bytes32(0);
+        token.safeTransferFrom(msg.sender, address(this), amount + fee);
+        return bytes32("remote");
+    }
+
+    function transferRemoteTo(
+        uint32,
+        bytes32,
+        uint256 amount,
+        bytes32 targetRouter
+    ) external payable returns (bytes32) {
+        usedTransferRemoteTo = true;
+        lastTargetRouter = targetRouter;
+        token.safeTransferFrom(msg.sender, address(this), amount + fee);
+        return bytes32("remoteTo");
+    }
+
+    function quoteTransferRemote(
+        uint32,
+        bytes32,
+        uint256 amount
+    ) external view returns (Quote[] memory quotes) {
+        quotes = new Quote[](1);
+        quotes[0] = Quote(address(token), amount + fee);
+    }
+
+    function quoteTransferRemoteTo(
+        uint32,
+        bytes32,
+        uint256 amount,
+        bytes32
+    ) external view returns (Quote[] memory quotes) {
+        quotes = new Quote[](1);
+        quotes[0] = Quote(address(token), amount + fee);
+    }
+}
+
 contract QuotedCallsTest is Test {
     using TypeCasts for address;
+    using Quotes for Quote[];
 
     uint32 constant ORIGIN = 11;
     uint32 constant DESTINATION = 12;
@@ -165,6 +225,7 @@ contract QuotedCallsTest is Test {
     StorageGasOracle gasOracle;
     OffchainQuotedLinearFee quotedFee;
     QuotedCalls quotedCalls;
+    MockOptionalTargetBridge optionalTargetBridge;
 
     function setUp() public {
         signer = vm.addr(signerPk);
@@ -280,6 +341,10 @@ contract QuotedCallsTest is Test {
         primaryToken.transfer(address(localToken), 1000e18);
 
         quotedCalls = new QuotedCalls(IAllowanceTransfer(address(permit2)));
+        optionalTargetBridge = new MockOptionalTargetBridge(
+            IERC20(address(primaryToken)),
+            1e18
+        );
 
         // ALICE approves MockPermit2 for token pulls (one-time)
         vm.prank(ALICE);
@@ -869,6 +934,58 @@ contract QuotedCallsTest is Test {
         assertEq(address(quotedCalls).balance, 0);
     }
 
+    /// @dev Use BRIDGE_MAX_AVAILABLE_EXACT_IN to invert amount from total token budget.
+    function test_transferRemote_withBridgeMaxAvailableExactIn() public {
+        uint256 CONTRACT_BAL = quotedCalls.CONTRACT_BALANCE();
+        uint256 EXACT_IN = quotedCalls.BRIDGE_MAX_AVAILABLE_EXACT_IN();
+        uint256 totalTokens = 0.1 ether;
+        uint256 expectedAmount = Math.mulDiv(
+            totalTokens,
+            totalTokens,
+            localToken
+                .quoteTransferRemote(
+                    DESTINATION,
+                    BOB.addressToBytes32(),
+                    totalTokens
+                )
+                .extract(address(primaryToken))
+        );
+        bytes1[] memory cmds = new bytes1[](3);
+        bytes[] memory ins = new bytes[](3);
+        (cmds[0], ins[0]) = _cmdSubmitQuote(_buildFeeQuote(ALICE));
+        (cmds[1], ins[1]) = _cmdTransferFrom(
+            address(primaryToken),
+            totalTokens
+        );
+        (cmds[2], ins[2]) = _cmdTransferRemote(
+            address(localToken),
+            DESTINATION,
+            BOB.addressToBytes32(),
+            EXACT_IN,
+            0,
+            address(primaryToken),
+            CONTRACT_BAL
+        );
+
+        (bytes memory commands, bytes[] memory inputs) = _pack(cmds, ins);
+
+        vm.startPrank(ALICE);
+        primaryToken.approve(address(quotedCalls), totalTokens);
+        quotedCalls.execute(commands, inputs);
+        vm.stopPrank();
+
+        remoteMailbox.processNextInboundMessage();
+
+        assertEq(primaryToken.balanceOf(ALICE), 1000e18 - totalTokens);
+        assertApproxEqAbs(
+            primaryToken.balanceOf(address(quotedFee)),
+            totalTokens - expectedAmount,
+            1
+        );
+        assertLe(primaryToken.balanceOf(address(quotedCalls)), 1);
+        assertApproxEqAbs(remoteToken.balanceOf(BOB), expectedAmount, 1);
+    }
+
     // ============ Tests: No Quotes Reverts ============
 
     function test_execute_noQuotes_reverts() public {
@@ -895,6 +1012,43 @@ contract QuotedCallsTest is Test {
         vm.expectRevert();
         quotedCalls.execute(commands, inputs);
         vm.stopPrank();
+    }
+
+    function test_transferRemoteTo_zeroTargetRouter_usesTransferRemoteTo()
+        public
+    {
+        uint256 totalTokens = TRANSFER_AMT + 1e18;
+
+        bytes1[] memory cmds = new bytes1[](2);
+        bytes[] memory ins = new bytes[](2);
+        (cmds[0], ins[0]) = _cmdTransferFrom(
+            address(primaryToken),
+            totalTokens
+        );
+        (cmds[1], ins[1]) = _cmdTransferRemoteTo(
+            address(optionalTargetBridge),
+            DESTINATION,
+            BOB.addressToBytes32(),
+            TRANSFER_AMT,
+            bytes32(0),
+            0,
+            address(primaryToken),
+            totalTokens
+        );
+
+        (bytes memory commands, bytes[] memory inputs) = _pack(cmds, ins);
+
+        vm.startPrank(ALICE);
+        primaryToken.approve(address(quotedCalls), totalTokens);
+        quotedCalls.execute(commands, inputs);
+        vm.stopPrank();
+
+        assertTrue(optionalTargetBridge.usedTransferRemoteTo());
+        assertEq(optionalTargetBridge.lastTargetRouter(), bytes32(0));
+        assertEq(
+            primaryToken.balanceOf(address(optionalTargetBridge)),
+            totalTokens
+        );
     }
 
     // ============ Tests: IGP + Fee Quote ============
@@ -1460,6 +1614,65 @@ contract QuotedCallsTest is Test {
         assertEq(results[1].length, 3, "TRANSFER_REMOTE returns 3 quotes");
         (, uint256 tokenTotal, ) = _sumQuotes(results);
         assertGt(tokenTotal, TRANSFER_AMT, "token total should include fee");
+    }
+
+    /// @dev quoteExecute resolves BRIDGE_MAX_AVAILABLE_EXACT_IN from prefunded balance.
+    function test_quoteExecute_transferRemote_bridgeMaxAvailableExactIn()
+        public
+    {
+        uint256 EXACT_IN = quotedCalls.BRIDGE_MAX_AVAILABLE_EXACT_IN();
+        uint256 totalTokens = 0.1 ether;
+        uint256 expectedAmount = Math.mulDiv(
+            totalTokens,
+            totalTokens,
+            localToken
+                .quoteTransferRemote(
+                    DESTINATION,
+                    BOB.addressToBytes32(),
+                    totalTokens
+                )
+                .extract(address(primaryToken))
+        );
+        uint256 expectedSpend = localToken
+            .quoteTransferRemote(
+                DESTINATION,
+                BOB.addressToBytes32(),
+                expectedAmount
+            )
+            .extract(address(primaryToken));
+
+        primaryToken.transfer(address(quotedCalls), totalTokens);
+
+        bytes1[] memory cmds = new bytes1[](2);
+        bytes[] memory ins = new bytes[](2);
+        (cmds[0], ins[0]) = _cmdSubmitQuote(_buildFeeQuote(address(this)));
+        (cmds[1], ins[1]) = _cmdTransferRemote(
+            address(localToken),
+            DESTINATION,
+            BOB.addressToBytes32(),
+            EXACT_IN,
+            0,
+            address(primaryToken),
+            0
+        );
+        (bytes memory commands, bytes[] memory inputs) = _pack(cmds, ins);
+
+        Quote[][] memory results = quotedCalls.quoteExecute(commands, inputs);
+
+        assertEq(results[1].length, 3, "TRANSFER_REMOTE returns 3 quotes");
+        (, uint256 tokenTotal, ) = _sumQuotes(results);
+        assertLe(tokenTotal, totalTokens, "quote should fit available balance");
+        assertLe(
+            results[1][1].amount,
+            totalTokens,
+            "bridge quote should fit within available balance"
+        );
+        assertApproxEqAbs(
+            results[1][1].amount,
+            expectedSpend,
+            1,
+            "resolved spend mismatch"
+        );
     }
 
     /// @dev quoteExecute with TRANSFER_REMOTE using ERC20 IGP fee token

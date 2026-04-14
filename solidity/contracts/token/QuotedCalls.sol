@@ -16,6 +16,7 @@ pragma solidity >=0.8.0;
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {ReentrancyGuardTransient} from "../libs/ReentrancyGuardTransient.sol";
 import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
 
@@ -25,14 +26,27 @@ import {Quote, ITokenBridge} from "../interfaces/ITokenBridge.sol";
 import {StandardHookMetadata} from "../hooks/libs/StandardHookMetadata.sol";
 import {CallLib} from "../middleware/libs/Call.sol";
 import {PackageVersioned} from "../PackageVersioned.sol";
+import {Quotes} from "./libs/Quotes.sol";
 
 interface ICrossCollateralRouter {
+    function transferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) external payable returns (bytes32);
+
     function transferRemoteTo(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount,
         bytes32 _targetRouter
     ) external payable returns (bytes32);
+
+    function quoteTransferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) external view returns (Quote[] memory);
 
     function quoteTransferRemoteTo(
         uint32 _destination,
@@ -88,6 +102,10 @@ library CalldataHeadLib {
     /// @dev Sentinel: resolve to the contract's entire token/ETH balance.
     uint256 internal constant CONTRACT_BALANCE =
         0x8000000000000000000000000000000000000000000000000000000000000000;
+
+    /// @dev Sentinel: infer max exact-in bridge amount from contract balance.
+    uint256 internal constant BRIDGE_MAX_AVAILABLE_EXACT_IN =
+        0x8000000000000000000000000000000000000000000000000000000000000001;
 
     function readAddress(
         bytes calldata input,
@@ -167,6 +185,7 @@ library CalldataHeadLib {
  */
 contract QuotedCalls is PackageVersioned, ReentrancyGuardTransient {
     using SafeERC20 for IERC20;
+    using Quotes for Quote[];
 
     // ============ Immutables ============
 
@@ -177,11 +196,19 @@ contract QuotedCalls is PackageVersioned, ReentrancyGuardTransient {
     /// @notice Sentinel: resolve amount to this contract's entire token balance
     uint256 public constant CONTRACT_BALANCE = CalldataHeadLib.CONTRACT_BALANCE;
 
+    /// @notice Sentinel: infer max exact-in bridge amount from current balance
+    uint256 public constant BRIDGE_MAX_AVAILABLE_EXACT_IN =
+        CalldataHeadLib.BRIDGE_MAX_AVAILABLE_EXACT_IN;
+
     // ============ Command Types ============
     //
     // Amount/value fields support CONTRACT_BALANCE sentinel to resolve at
     // execution time. For ERC20 amounts this resolves to the contract's token
     // balance; for native value it resolves to address(this).balance.
+    //
+    // TRANSFER_REMOTE / TRANSFER_REMOTE_TO amount additionally support
+    // BRIDGE_MAX_AVAILABLE_EXACT_IN, which infers the largest transfer amount
+    // spendable from current contract balance under a linear-fee assumption.
     //
     // SAFETY INVARIANT: users may hold standing ERC-20 approvals to
     // this contract (used by TRANSFER_FROM / PERMIT2_TRANSFER_FROM).
@@ -215,13 +242,15 @@ contract QuotedCalls is PackageVersioned, ReentrancyGuardTransient {
     uint256 public constant TRANSFER_FROM = 0x03;
 
     /// @notice Execute a warp route transferRemote, approving the route first.
-    /// @dev amount and approval resolve via _resolveAmount (supports CONTRACT_BALANCE).
+    /// @dev amount supports CONTRACT_BALANCE and BRIDGE_MAX_AVAILABLE_EXACT_IN.
+    ///      approval resolves via _resolveAmount (supports CONTRACT_BALANCE).
     ///      value resolves native ETH to forward (supports CONTRACT_BALANCE).
     /// inputs: abi.encode(address warpRoute, uint32 destination, bytes32 recipient, uint256 amount, uint256 value, address token, uint256 approval)
     uint256 public constant TRANSFER_REMOTE = 0x04;
 
     /// @notice Execute a cross-collateral transferRemoteTo, approving the router first.
-    /// @dev Same resolution semantics as TRANSFER_REMOTE.
+    /// @dev amount supports CONTRACT_BALANCE and BRIDGE_MAX_AVAILABLE_EXACT_IN.
+    ///      Other fields mirror TRANSFER_REMOTE resolution semantics.
     /// inputs: abi.encode(address router, uint32 destination, bytes32 recipient, uint256 amount, bytes32 targetRouter, uint256 value, address token, uint256 approval)
     uint256 public constant TRANSFER_REMOTE_TO = 0x05;
 
@@ -400,11 +429,7 @@ contract QuotedCalls is PackageVersioned, ReentrancyGuardTransient {
     }
 
     function _dispatchTransferRemote(bytes calldata input) internal {
-        TransferRemoteParams memory p = abi.decode(
-            input,
-            (TransferRemoteParams)
-        );
-        p.amount = _resolveAmount(p.token, p.amount);
+        TransferRemoteParams memory p = _prepareTransferRemoteParams(input);
         p.value = _resolveAmount(address(0), p.value);
         _approve(p.token, p.warpRoute, _resolveAmount(p.token, p.approval));
         ITokenBridge(p.warpRoute).transferRemote{value: p.value}(
@@ -415,11 +440,7 @@ contract QuotedCalls is PackageVersioned, ReentrancyGuardTransient {
     }
 
     function _dispatchTransferRemoteTo(bytes calldata input) internal {
-        TransferRemoteToParams memory p = abi.decode(
-            input,
-            (TransferRemoteToParams)
-        );
-        p.amount = _resolveAmount(p.token, p.amount);
+        TransferRemoteToParams memory p = _prepareTransferRemoteToParams(input);
         p.value = _resolveAmount(address(0), p.value);
         _approve(p.token, p.router, _resolveAmount(p.token, p.approval));
         ICrossCollateralRouter(p.router).transferRemoteTo{value: p.value}(
@@ -549,59 +570,84 @@ contract QuotedCalls is PackageVersioned, ReentrancyGuardTransient {
 
     function _quoteTransferRemote(
         bytes calldata input
-    ) internal view returns (Quote[] memory) {
-        (
-            address warpRoute,
-            uint32 destination,
-            bytes32 recipient,
-            uint256 amount,
-            ,
-            ,
-
-        ) = abi.decode(
-                input,
-                (address, uint32, bytes32, uint256, uint256, address, uint256)
-            );
+    ) private view returns (Quote[] memory) {
+        TransferRemoteParams memory p = _prepareTransferRemoteParams(input);
         return
-            ITokenBridge(warpRoute).quoteTransferRemote(
-                destination,
-                recipient,
-                amount
+            ITokenBridge(p.warpRoute).quoteTransferRemote(
+                p.destination,
+                p.recipient,
+                p.amount
             );
     }
 
     function _quoteTransferRemoteTo(
         bytes calldata input
-    ) internal view returns (Quote[] memory) {
-        (
-            address router,
-            uint32 destination,
-            bytes32 recipient,
-            uint256 amount,
-            bytes32 targetRouter,
-            ,
-            ,
-
-        ) = abi.decode(
-                input,
-                (
-                    address,
-                    uint32,
-                    bytes32,
-                    uint256,
-                    bytes32,
-                    uint256,
-                    address,
-                    uint256
-                )
-            );
+    ) private view returns (Quote[] memory) {
+        TransferRemoteToParams memory p = _prepareTransferRemoteToParams(input);
         return
-            ICrossCollateralRouter(router).quoteTransferRemoteTo(
-                destination,
-                recipient,
-                amount,
-                targetRouter
+            ICrossCollateralRouter(p.router).quoteTransferRemoteTo(
+                p.destination,
+                p.recipient,
+                p.amount,
+                p.targetRouter
             );
+    }
+
+    function _prepareTransferRemoteParams(
+        bytes calldata input
+    ) private view returns (TransferRemoteParams memory p) {
+        p = abi.decode(input, (TransferRemoteParams));
+        if (p.amount != BRIDGE_MAX_AVAILABLE_EXACT_IN) {
+            p.amount = _resolveAmount(p.token, p.amount);
+            return p;
+        }
+
+        uint256 available = _resolveAmount(p.token, CONTRACT_BALANCE);
+        p.amount = _resolveBridgeAmount(
+            available,
+            ITokenBridge(p.warpRoute)
+                .quoteTransferRemote(p.destination, p.recipient, available)
+                .extract(p.token)
+        );
+    }
+
+    function _prepareTransferRemoteToParams(
+        bytes calldata input
+    ) private view returns (TransferRemoteToParams memory p) {
+        p = abi.decode(input, (TransferRemoteToParams));
+        if (p.amount != BRIDGE_MAX_AVAILABLE_EXACT_IN) {
+            p.amount = _resolveAmount(p.token, p.amount);
+            return p;
+        }
+
+        uint256 available = _resolveAmount(p.token, CONTRACT_BALANCE);
+        p.amount = _resolveBridgeAmount(
+            available,
+            ICrossCollateralRouter(p.router)
+                .quoteTransferRemoteTo(
+                    p.destination,
+                    p.recipient,
+                    available,
+                    p.targetRouter
+                )
+                .extract(p.token)
+        );
+    }
+
+    function _resolveBridgeAmount(
+        uint256 available,
+        uint256 quotedTotal
+    ) private pure returns (uint256) {
+        if (available == 0) return 0;
+        return _invertBridgeExactIn(available, quotedTotal);
+    }
+
+    function _invertBridgeExactIn(
+        uint256 available,
+        uint256 totalQuoted
+    ) private pure returns (uint256) {
+        if (totalQuoted <= available) return available;
+        return Math.mulDiv(available, available, totalQuoted);
     }
 
     function _quoteIcaGasPayment(
