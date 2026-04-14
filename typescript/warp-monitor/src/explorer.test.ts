@@ -38,14 +38,23 @@ describe('Explorer Pending Transfers', () => {
       expect(
         messageAmountToTokenBaseUnits(messageAmount, 1_000_000_000_000),
       ).to.equal(1234567n);
+      expect(
+        messageAmountToTokenBaseUnits(messageAmount, {
+          numerator: 1,
+          denominator: 1_000_000_000_000,
+        }),
+      ).to.equal(messageAmount * 1_000_000_000_000n);
       expect(messageAmountToTokenBaseUnits(100n, 1)).to.equal(100n);
       expect(messageAmountToTokenBaseUnits(100n, 10)).to.equal(10n);
     });
 
     it('throws on invalid scale', () => {
       expect(() => messageAmountToTokenBaseUnits(1n, 0)).to.throw(
-        'Invalid token scale',
+        'Scale must be positive',
       );
+      expect(() =>
+        messageAmountToTokenBaseUnits(1n, { numerator: 0, denominator: 1 }),
+      ).to.throw('Scale must be positive');
     });
   });
 
