@@ -26,7 +26,7 @@ export interface PredicateAttestationRequest {
   chain: string;
 }
 
-const PredicateAttestationSchema = z.object({
+export const PredicateAttestationSchema = z.object({
   uuid: z.string(),
   expiration: z.number(),
   attester: z.string(),

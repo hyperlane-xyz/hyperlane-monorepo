@@ -24,6 +24,7 @@ import {
   MultiProtocolProvider,
   PredicateApiClient,
   type PredicateAttestation,
+  PredicateAttestationSchema,
   ProviderType,
   type QuotedCallsParams,
   type Token,
@@ -213,7 +214,9 @@ export async function sendTestTransfer({
     }
     if (attestation) {
       try {
-        parsedAttestation = JSON.parse(attestation);
+        parsedAttestation = PredicateAttestationSchema.parse(
+          JSON.parse(attestation),
+        );
       } catch (e) {
         throw new Error(`Invalid attestation JSON: ${e}`);
       }
@@ -601,11 +604,11 @@ async function executeDelivery({
     destination,
     sender: signerAddress,
     attestation: finalAttestation,
-    ...(finalAttestation &&
-      quote && {
-        interchainFee: quote.igpQuote,
-        tokenFeeQuote: quote.tokenFeeQuote,
-      }),
+    // Always pin the pre-computed fees when available so WarpCore doesn't re-quote.
+    // tokenFeeQuote is intentionally omitted when undefined (valid for routes with no
+    // token fee) — passing undefined would wrongly trigger a re-fetch in WarpCore.
+    ...(quote && { interchainFee: quote.igpQuote }),
+    ...(quote?.tokenFeeQuote && { tokenFeeQuote: quote.tokenFeeQuote }),
     recipient: recipientAddress,
     destinationToken: destToken,
     quotedCalls,

@@ -73,9 +73,26 @@ export class PredicateWrapperDeployer {
         );
     await wrapper.deployed();
 
+    // Transfer wrapper ownership to the warp route owner so that admin functions
+    // (setPolicyID, setRegistry, withdrawETH) are controlled by the same key/multisig
+    // that owns the warp route, not the ephemeral deployer key.
+    const routeOwner = await TokenRouter__factory.connect(
+      warpRouteAddress,
+      signer,
+    ).owner();
+    await this.multiProvider.handleTx(
+      chain,
+      wrapper.transferOwnership(routeOwner),
+    );
+
     this.logger.info(
-      { chain, address: wrapper.address, wrapperType: wrapperName },
-      `${wrapperName} deployed`,
+      {
+        chain,
+        address: wrapper.address,
+        owner: routeOwner,
+        wrapperType: wrapperName,
+      },
+      `${wrapperName} deployed and ownership transferred`,
     );
     return wrapper.address;
   }
@@ -134,6 +151,22 @@ export class PredicateWrapperDeployer {
     return aggregationHookAddress;
   }
 
+  /**
+   * Deploys the predicate wrapper and aggregation hook on-chain as a side effect, then
+   * returns the populated setHook transaction for the caller to include in its transaction
+   * array. This intentionally mirrors the pattern used by EvmHookModule and EvmIsmModule,
+   * where contract deployments happen eagerly during update planning.
+   *
+   * Known limitation: if the returned setHookTx is never submitted (e.g. dry-run or
+   * cancellation), the deployed PredicateRouterWrapper is orphaned. The aggregation hook
+   * is safe because StaticAggregationHookFactory uses CREATE2 (idempotent). Eliminating
+   * the wrapper orphan risk requires a CREATE2 factory for PredicateRouterWrapper, which
+   * is a future contract-level improvement.
+   *
+   * @param existingHookOverride - When provided, skips the on-chain hook() read and uses
+   *   this address instead. Pass the pending new hook address when a hook update is being
+   *   applied in the same update() call to avoid wrapping a stale on-chain hook.
+   */
   async deployAndConfigure(
     chain: ChainName,
     warpRouteAddress: Address,

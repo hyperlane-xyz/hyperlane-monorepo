@@ -491,6 +491,8 @@ export class WarpCore {
         recipient,
         destinationToken,
         attestation,
+        interchainFee,
+        tokenFeeQuote,
       });
     }
 
@@ -503,7 +505,10 @@ export class WarpCore {
     const providerType = TOKEN_STANDARD_TO_PROVIDER_TYPE[token.standard];
     const hypAdapter = token.getHypAdapter(this.multiProvider, destinationName);
 
-    if (!interchainFee || !tokenFeeQuote) {
+    if (!interchainFee) {
+      // Only re-fetch when the IGP quote is missing. tokenFeeQuote may legitimately
+      // be undefined for routes that have no token fee — treating its absence as a
+      // reason to re-fetch would overwrite a valid pinned interchainFee.
       const transferFee = await this.getInterchainTransferFee({
         originTokenAmount,
         destination,
@@ -668,6 +673,8 @@ export class WarpCore {
     recipient,
     destinationToken,
     attestation,
+    interchainFee,
+    tokenFeeQuote,
   }: {
     originTokenAmount: TokenAmount<IToken>;
     destination: ChainNameOrId;
@@ -675,6 +682,8 @@ export class WarpCore {
     recipient: Address;
     destinationToken: IToken;
     attestation?: PredicateAttestation;
+    interchainFee?: TokenAmount<IToken>;
+    tokenFeeQuote?: TokenAmount<IToken>;
   }): Promise<Array<WarpTypedTransaction>> {
     const transactions: Array<WarpTypedTransaction> = [];
     const { token: originToken, amount } = originTokenAmount;
@@ -705,13 +714,30 @@ export class WarpCore {
       'Adapter does not implement IHypCrossCollateralAdapter',
     );
 
-    const transferQuote = await adapter.quoteTransferRemoteToGas({
-      destination: this.multiProvider.getDomainId(destination),
-      recipient,
-      amount,
-      targetRouter: resolvedDestinationToken.addressOrDenom,
-      sender,
-    });
+    // Use pre-computed fees when provided (e.g. when attestation is present and the
+    // msg_value was signed over the original quote). Re-quoting could produce a
+    // different value and cause the attestation check to fail on-chain.
+    let transferQuote: InterchainGasQuote;
+    if (interchainFee && tokenFeeQuote !== undefined) {
+      transferQuote = {
+        igpQuote: {
+          amount: interchainFee.amount,
+          addressOrDenom: interchainFee.token.addressOrDenom,
+        },
+        tokenFeeQuote: {
+          amount: tokenFeeQuote.amount,
+          addressOrDenom: tokenFeeQuote.token.addressOrDenom,
+        },
+      };
+    } else {
+      transferQuote = await adapter.quoteTransferRemoteToGas({
+        destination: this.multiProvider.getDomainId(destination),
+        recipient,
+        amount,
+        targetRouter: resolvedDestinationToken.addressOrDenom,
+        sender,
+      });
+    }
     assert(
       !transferQuote.igpQuote.addressOrDenom ||
         isZeroishAddress(transferQuote.igpQuote.addressOrDenom),

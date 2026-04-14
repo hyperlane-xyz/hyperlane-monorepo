@@ -904,9 +904,12 @@ export {
   PredicateAttestation,
   PredicateAttestationRequest,
   PredicateAttestationResponse,
+  PredicateAttestationSchema,
+} from './predicate/PredicateApiClient.js';
+export {
   PredicateWrapperDeployer,
   PredicateWrapperDeploymentResult,
-} from './predicate/index.js';
+} from './predicate/PredicateDeployer.js';
 export {
   ChainMap,
   ChainName,

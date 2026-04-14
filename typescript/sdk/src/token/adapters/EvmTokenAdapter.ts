@@ -309,28 +309,26 @@ export class EvmHypSyntheticAdapter
       return this.predicateWrapperAddress;
     }
 
-    try {
-      const hookAddress = await this.contract.hook();
+    const hookAddress = await this.contract.hook();
 
-      if (hookAddress === ethersConstants.AddressZero) {
-        this.predicateWrapperAddress = null;
-        return null;
-      }
-
-      const provider = this.getProvider();
-      const warpRouteAddress = this.addresses.token.toLowerCase();
-
-      const foundWrapper = await this.findPredicateWrapperInHook(
-        hookAddress,
-        warpRouteAddress,
-        provider,
-      );
-
-      this.predicateWrapperAddress = foundWrapper;
-    } catch (error) {
-      this.logger.debug('Error detecting predicate wrapper', { error });
+    if (hookAddress === ethersConstants.AddressZero) {
       this.predicateWrapperAddress = null;
+      return null;
     }
+
+    const provider = this.getProvider();
+    const warpRouteAddress = this.addresses.token.toLowerCase();
+
+    // findPredicateWrapperInHook returns null when the hook structure contains no
+    // matching wrapper (a confirmed structural absence). Any exception here is an
+    // unexpected RPC/network failure — don't cache null so the next call can retry.
+    const foundWrapper = await this.findPredicateWrapperInHook(
+      hookAddress,
+      warpRouteAddress,
+      provider,
+    );
+
+    this.predicateWrapperAddress = foundWrapper;
     return this.predicateWrapperAddress;
   }
 
@@ -340,7 +338,17 @@ export class EvmHypSyntheticAdapter
     provider: ReturnType<typeof this.getProvider>,
   ): Promise<Address | null> {
     const hook = IPostDispatchHook__factory.connect(hookAddress, provider);
-    const hookType = await hook.hookType();
+
+    let hookType: number;
+    try {
+      hookType = await hook.hookType();
+    } catch (error: any) {
+      // CALL_EXCEPTION means the contract at hookAddress doesn't implement hookType()
+      // (e.g. an old or incompatible hook). Treat as "no wrapper here".
+      // Any other error (network timeout, RPC failure) is unexpected — rethrow.
+      if (error?.code === 'CALL_EXCEPTION') return null;
+      throw error;
+    }
 
     if (hookType === OnchainHookType.PREDICATE_ROUTER_WRAPPER) {
       const wrapper = PredicateRouterWrapper__factory.connect(
@@ -372,6 +380,11 @@ export class EvmHypSyntheticAdapter
       }
     }
 
+    // Known constraint: recursion only descends into AGGREGATION hooks.
+    // FALLBACK_ROUTING, DOMAIN_ROUTING, and AMOUNT_ROUTING hooks are not traversed.
+    // In practice this is fine because PredicateWrapperDeployer always places the
+    // wrapper inside a StaticAggregationHook. A wrapper nested inside a routing hook
+    // would not be detected and predicate support would silently degrade to disabled.
     return null;
   }
 
@@ -1236,20 +1249,21 @@ export class EvmHypNativeAdapter
     interchainGas,
     attestation,
   }: TransferRemoteParams): Promise<PopulatedTransaction> {
+    // For native tokens the token amount is itself msg.value, so pass it as the
+    // initial nativeValue. populatePredicateTransferRemoteTx / super both add
+    // IGP fees on top of this base value.
+    const nativeValue = BigInt(weiAmountOrId);
+
     if (attestation) {
-      throw new Error(
-        'Predicate attestations are not supported for native token warp routes',
+      return this.populatePredicateTransferRemoteTx(
+        { weiAmountOrId, destination, recipient, interchainGas, attestation },
+        nativeValue,
       );
     }
+
     return super.populateTransferRemoteTx(
-      {
-        weiAmountOrId,
-        destination,
-        recipient,
-        interchainGas,
-      },
-      // Pass the amount as initial native value to the parent class
-      BigInt(weiAmountOrId),
+      { weiAmountOrId, destination, recipient, interchainGas },
+      nativeValue,
     );
   }
 
