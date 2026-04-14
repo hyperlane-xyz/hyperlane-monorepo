@@ -1377,6 +1377,9 @@ importers:
       '@hyperlane-xyz/metrics':
         specifier: workspace:*
         version: link:../metrics
+      '@hyperlane-xyz/multicollateral':
+        specifier: workspace:*
+        version: link:../../solidity/multicollateral
       '@hyperlane-xyz/provider-sdk':
         specifier: workspace:*
         version: link:../provider-sdk
