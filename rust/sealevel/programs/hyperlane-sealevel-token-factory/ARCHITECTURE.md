@@ -37,6 +37,16 @@ Stores `HyperlaneTokenFactory { bump, owner, interchain_security_module }`.
 
 Created once via `InitFactory`. Holds the global ISM and owner for the factory. All routes in the factory share this ISM unless overridden per-route.
 
+### Route PDA
+
+```
+PDA(program_id, ["hyperlane_token_route", salt: [u8; 32]])
+```
+
+Stores `HyperlaneTokenRoute<T> { salt, token: HyperlaneToken<T> }`.
+
+One per warp route. Contains the full token configuration: mailbox, owner, decimals, remote routers, ISM/IGP overrides, and plugin-specific data (mint pubkey, escrow pubkey, etc.).
+
 ```
 Old model (per-program):
   Program A = USDC route
@@ -49,16 +59,6 @@ New factory model (one program, multiple routes):
     ├── Route PDA [b"hyperlane_token_route", salt_B] = ETH route
     └── Route PDA [b"hyperlane_token_route", salt_C] = wBTC route
 ```
-
-### Route PDA
-
-```
-PDA(program_id, ["hyperlane_token_route", salt: [u8; 32]])
-```
-
-Stores `HyperlaneTokenRoute<T> { salt, token: HyperlaneToken<T> }`.
-
-One per warp route. Contains the full token configuration: mailbox, owner, decimals, remote routers, ISM/IGP overrides, and plugin-specific data (mint pubkey, escrow pubkey, etc.).
 
 ### Plugin PDAs
 
