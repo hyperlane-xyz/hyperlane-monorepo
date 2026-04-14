@@ -78,6 +78,8 @@ type BridgeCapacity = {
   maxTargetOutput: bigint;
 };
 
+type BridgeQuoteMode = 'forward' | 'reverse';
+
 const RECOVERABLE_MAX_TRANSFER_ERROR_MESSAGES = [
   'balance may be insufficient',
   'transfer amount exceeds balance',
@@ -890,6 +892,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       chain: ChainName;
       maxSourceInput: bigint;
       targetOutput: bigint;
+      quoteMode: BridgeQuoteMode;
     }> = [];
     let totalPlanned = 0n;
 
@@ -901,11 +904,14 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         source.maxTargetOutput >= remaining
           ? remaining
           : source.maxTargetOutput;
+      const quoteMode: BridgeQuoteMode =
+        source.maxTargetOutput > remaining ? 'reverse' : 'forward';
 
       bridgePlans.push({
         chain: source.chain,
         maxSourceInput: source.maxSourceInput,
         targetOutput,
+        quoteMode,
       });
       totalPlanned += targetOutput;
     }
@@ -922,6 +928,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
           chain: p.chain,
           maxSourceInput: p.maxSourceInput.toString(),
           targetOutput: p.targetOutput.toString(),
+          quoteMode: p.quoteMode,
         })),
         totalPlanned: totalPlanned.toString(),
         targetWithBuffer: targetWithBuffer.toString(),
@@ -938,6 +945,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
           destination,
           plan.targetOutput,
           plan.maxSourceInput,
+          plan.quoteMode,
           intent,
           route.externalBridge,
         ),
@@ -1377,13 +1385,15 @@ export class InventoryRebalancer implements IInventoryRebalancer {
   /**
    * Execute inventory movement from source chain to target chain via LiFi bridge.
    *
-   * Uses reverse quotes (`toAmount`) so plans are expressed in target-chain local
-   * units and source-local spend is discovered by the bridge quote.
+   * Quote mode is chosen during planning:
+   * - `reverse`: request an exact target-chain output when the source has headroom
+   * - `forward`: spend the source cap directly when source inventory is the limiter
    *
    * @param sourceChain - Chain to move inventory from
    * @param targetChain - Chain to move inventory to (origin chain for rebalancing)
    * @param targetOutputAmount - Destination-local amount to receive
    * @param maxSourceInput - Maximum source-local amount available for this plan
+   * @param quoteMode - Whether to execute this bridge plan as exact-input or exact-output
    * @param intent - Rebalance intent for tracking
    * @param externalBridgeType - External bridge type to use
    * @returns Result with success status and optional txHash/error
@@ -1393,6 +1403,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     targetChain: ChainName,
     targetOutputAmount: bigint,
     maxSourceInput: bigint,
+    quoteMode: BridgeQuoteMode,
     intent: RebalanceIntent,
     externalBridgeType: ExternalBridgeType,
   ): Promise<{ success: boolean; txHash?: string; error?: string }> {
@@ -1483,15 +1494,42 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
     try {
       const externalBridge = this.getExternalBridge(externalBridgeType);
-      const quote = await externalBridge.quote({
-        fromChain: sourceChainId,
-        toChain: targetChainId,
-        fromToken: fromTokenAddress,
-        toToken: toTokenAddress,
-        toAmount: effectiveTargetOutput,
-        fromAddress: this.getInventorySignerAddress(sourceChain),
-        toAddress: this.getInventorySignerAddress(targetChain),
-      });
+      const fromAddress = this.getInventorySignerAddress(sourceChain);
+      const toAddress = this.getInventorySignerAddress(targetChain);
+      const quoteWithMode = async (mode: BridgeQuoteMode) =>
+        externalBridge.quote({
+          fromChain: sourceChainId,
+          toChain: targetChainId,
+          fromToken: fromTokenAddress,
+          toToken: toTokenAddress,
+          ...(mode === 'forward'
+            ? { fromAmount: maxSourceInput }
+            : { toAmount: effectiveTargetOutput }),
+          fromAddress,
+          toAddress,
+        });
+
+      let quoteModeUsed = quoteMode;
+      let quote = await quoteWithMode(quoteModeUsed);
+
+      if (quoteModeUsed === 'reverse' && quote.fromAmount > maxSourceInput) {
+        this.logger.warn(
+          {
+            sourceChain,
+            targetChain,
+            plannedQuoteMode: quoteMode,
+            requestedTargetOutput: targetOutputAmount.toString(),
+            effectiveTargetOutput: effectiveTargetOutput.toString(),
+            quotedInput: quote.fromAmount.toString(),
+            maxSourceInput: maxSourceInput.toString(),
+            intentId: intent.id,
+          },
+          'Reverse bridge quote exceeded source capacity, retrying with forward quote',
+        );
+
+        quoteModeUsed = 'forward';
+        quote = await quoteWithMode(quoteModeUsed);
+      }
 
       const inputRequired = quote.fromAmount;
       if (inputRequired > maxSourceInput) {
@@ -1511,6 +1549,8 @@ export class InventoryRebalancer implements IInventoryRebalancer {
           requestedTargetOutputEth: (Number(targetOutputAmount) / 1e18).toFixed(
             6,
           ),
+          quoteModePlanned: quoteMode,
+          quoteModeUsed,
           effectiveTargetOutput: effectiveTargetOutput.toString(),
           effectiveTargetOutputEth: (
             Number(effectiveTargetOutput) / 1e18
@@ -1524,7 +1564,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
           intentId: intent.id,
           adjustedForMinViable: effectiveTargetOutput > targetOutputAmount,
         },
-        'Executing inventory movement via LiFi reverse quote',
+        'Executing inventory movement via bridge quote',
       );
 
       this.logger.debug(
