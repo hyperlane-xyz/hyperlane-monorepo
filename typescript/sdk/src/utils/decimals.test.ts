@@ -7,7 +7,15 @@ import {
   WarpRouteDeployConfigMailboxRequired,
 } from '../token/types.js';
 
-import { normalizeScale, scalesEqual, verifyScale } from './decimals.js';
+import {
+  alignLocalAmountToMessage,
+  localAmountFromMessage,
+  messageAmountFromLocal,
+  minLocalAmountForMessage,
+  normalizeScale,
+  scalesEqual,
+  verifyScale,
+} from './decimals.js';
 
 describe(normalizeScale.name, () => {
   it('should normalize undefined to DEFAULT_SCALE', () => {
@@ -102,6 +110,92 @@ describe(scalesEqual.name, () => {
     const slightlyDifferent = { numerator: 10n ** 18n + 1n, denominator: 1n };
     expect(scalesEqual(large, large)).to.be.true;
     expect(scalesEqual(large, slightlyDifferent)).to.be.false;
+  });
+});
+
+describe('scale conversion helpers', () => {
+  it('converts local amount to message amount using floor rounding', () => {
+    expect(
+      messageAmountFromLocal(5n, { numerator: 1n, denominator: 3n }),
+    ).to.equal(1n);
+    expect(
+      messageAmountFromLocal(2n, { numerator: 3n, denominator: 2n }),
+    ).to.equal(3n);
+  });
+
+  it('converts message amount to local amount using inbound floor rounding', () => {
+    expect(
+      localAmountFromMessage(7n, { numerator: 3n, denominator: 2n }),
+    ).to.equal(4n);
+    expect(
+      localAmountFromMessage(1n, { numerator: 1n, denominator: 3n }),
+    ).to.equal(3n);
+  });
+
+  it('computes the minimum local amount needed to reach a message amount', () => {
+    expect(
+      minLocalAmountForMessage(7n, { numerator: 3n, denominator: 2n }),
+    ).to.equal(5n);
+    expect(
+      minLocalAmountForMessage(2n, { numerator: 1n, denominator: 3n }),
+    ).to.equal(6n);
+  });
+
+  it('rejects negative message amounts for ceil local conversion', () => {
+    expect(() =>
+      minLocalAmountForMessage(-1n, { numerator: 1n, denominator: 3n }),
+    ).to.throw('Message amount must be non-negative');
+  });
+
+  it('aligns local amounts to exact message progress without leaking local dust', () => {
+    expect(
+      alignLocalAmountToMessage(5n, { numerator: 1n, denominator: 3n }),
+    ).to.deep.equal({
+      localAmount: 3n,
+      messageAmount: 1n,
+    });
+    expect(
+      alignLocalAmountToMessage(5n, { numerator: 3n, denominator: 2n }),
+    ).to.deep.equal({
+      localAmount: 5n,
+      messageAmount: 7n,
+    });
+    expect(
+      alignLocalAmountToMessage(999_999_999_999n, {
+        numerator: 1n,
+        denominator: 1_000_000_000_000n,
+      }),
+    ).to.deep.equal({
+      localAmount: 0n,
+      messageAmount: 0n,
+    });
+  });
+
+  it('rejects negative local amounts for alignment', () => {
+    expect(() =>
+      alignLocalAmountToMessage(-1n, { numerator: 1n, denominator: 3n }),
+    ).to.throw('Local amount must be non-negative');
+  });
+
+  it('returns identity for undefined scale', () => {
+    expect(messageAmountFromLocal(42n, undefined)).to.equal(42n);
+    expect(localAmountFromMessage(42n, undefined)).to.equal(42n);
+  });
+
+  it('handles zero amounts', () => {
+    expect(
+      messageAmountFromLocal(0n, { numerator: 1n, denominator: 3n }),
+    ).to.equal(0n);
+    expect(
+      localAmountFromMessage(0n, { numerator: 3n, denominator: 2n }),
+    ).to.equal(0n);
+  });
+
+  it('round-trips exact-divisible amounts', () => {
+    const scale = { numerator: 3n, denominator: 2n };
+    const local = 6n;
+    const message = messageAmountFromLocal(local, scale);
+    expect(localAmountFromMessage(message, scale)).to.equal(local);
   });
 });
 
