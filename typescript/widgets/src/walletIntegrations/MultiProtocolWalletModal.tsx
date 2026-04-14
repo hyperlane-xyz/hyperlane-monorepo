@@ -6,20 +6,23 @@ import { Modal } from '../layout/Modal.js';
 import { PROTOCOL_TO_LOGO } from '../logos/protocols.js';
 
 import { useConnectFns } from './multiProtocol.js';
+import type { ProtocolConnectFns } from './types.js';
 
-export function MultiProtocolWalletModal({
-  isOpen,
-  close,
-  protocols,
-  onProtocolSelected,
-}: {
+export type BaseMultiProtocolWalletModalProps = {
+  connectFns: ProtocolConnectFns;
   isOpen: boolean;
   close: () => void;
   protocols?: ProtocolType[]; // defaults to all protocols if not provided
   onProtocolSelected?: (protocol: ProtocolType) => void;
-}) {
-  const connectFns = useConnectFns();
+};
 
+export function BaseMultiProtocolWalletModal({
+  connectFns,
+  isOpen,
+  close,
+  protocols,
+  onProtocolSelected,
+}: BaseMultiProtocolWalletModalProps) {
   const onClickProtocol = (protocol: ProtocolType) => {
     close();
     const connectFn = connectFns[protocol];
@@ -99,6 +102,18 @@ export function MultiProtocolWalletModal({
       </div>
     </Modal>
   );
+}
+
+export type MultiProtocolWalletModalProps = Omit<
+  BaseMultiProtocolWalletModalProps,
+  'connectFns'
+>;
+
+// Full-matrix convenience wrapper. Selective consumers should use
+// BaseMultiProtocolWalletModal with protocol-specific hooks and injected state.
+export function MultiProtocolWalletModal(props: MultiProtocolWalletModalProps) {
+  const connectFns = useConnectFns();
+  return <BaseMultiProtocolWalletModal connectFns={connectFns} {...props} />;
 }
 
 function ProtocolButton({
