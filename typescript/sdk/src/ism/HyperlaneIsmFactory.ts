@@ -84,7 +84,7 @@ const ismFactories = {
   [IsmType.CCIP]: new CCIPIsm__factory(),
 };
 
-const domainRoutingIntializationSize = (destination: ChainName) => {
+const domainRoutingInitializationSize = (destination: ChainName) => {
   if (destination === 'tempo') {
     return 30;
   }
@@ -647,7 +647,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
 
         // estimate gas
         const signerAddress = await signer.getAddress();
-        const batchSize = domainRoutingIntializationSize(destination);
+        const batchSize = domainRoutingInitializationSize(destination);
 
         // Deploy initial batch of domains
         const initialBatchSize = Math.min(batchSize, safeConfigDomains.length);
