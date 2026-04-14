@@ -103,7 +103,7 @@ The rebalancer container
   - name: WITH_METRICS
     value: "true"
   - name: MONITOR_ONLY
-    value: "false"
+    value: "true"
   envFrom:
   - secretRef:
       name: {{ include "hyperlane.fullname" . }}-secret
