@@ -11,6 +11,8 @@ import type { ITokenMetadata } from '@hyperlane-xyz/sdk/token/ITokenMetadata';
 import type { ChainName } from '@hyperlane-xyz/sdk/types';
 import type { WarpTypedTransaction } from '@hyperlane-xyz/sdk/warp/types';
 
+import { sleep } from '@hyperlane-xyz/utils';
+
 import { widgetLogger } from '../logger.js';
 
 import {
@@ -119,7 +121,7 @@ export function useSolanaTransactionFns(
             // Tolerate transient RPC errors (timeouts, rate limits)
             logger.warn('Transient error polling tx confirmation', error);
           }
-          await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+          await sleep(POLL_INTERVAL_MS);
         }
         const tx = await connection.getTransaction(signature, {
           commitment: 'confirmed',
