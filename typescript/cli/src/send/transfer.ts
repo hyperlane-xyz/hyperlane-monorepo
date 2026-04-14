@@ -504,7 +504,11 @@ async function executeDelivery({
           `Expected AnnotatedTx for non-EVM transfer execution, got ${typeof tx.transaction}`,
         );
       }
-      const txReceipt = await signer.sendAndConfirmTransaction(tx.transaction);
+      const txReceipt = await signer.sendAndConfirmTransaction(
+        tx.type === ProviderType.SolanaWeb3 && 'extraSigners' in tx
+          ? { ...tx.transaction, extraSigners: tx.extraSigners }
+          : tx.transaction,
+      );
       const typedReceipt =
         tx.type === ProviderType.SolanaWeb3
           ? await fetchSealevelReceiptWithLogs(

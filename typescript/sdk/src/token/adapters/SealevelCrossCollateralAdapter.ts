@@ -514,13 +514,7 @@ export class SealevelHypCrossCollateralAdapter
       .add(transferInstruction);
 
     if (randomWallet) {
-      Object.assign(tx, {
-        additionalSigners: [
-          ...(((tx as Transaction & { additionalSigners?: Keypair[] })
-            .additionalSigners as Keypair[] | undefined) ?? []),
-          randomWallet,
-        ],
-      });
+      tx.partialSign(randomWallet);
     }
 
     return tx;

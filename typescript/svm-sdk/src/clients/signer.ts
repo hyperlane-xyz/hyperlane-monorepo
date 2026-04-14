@@ -1,5 +1,4 @@
 import {
-  type Keypair as Web3Keypair,
   type Address,
   type Base64EncodedWireTransaction,
   type KeyPairSigner,
@@ -42,9 +41,10 @@ import type {
 import { SvmProvider } from './provider.js';
 import { DEFAULT_COMPUTE_UNITS } from '../constants.js';
 
-/** Transaction input for `send()` — feePayer is excluded since the signer provides it. */
-type SendableSvmTransaction = Omit<SvmTransaction, 'feePayer'>;
 type SendableSvmCompatTransaction = Parameters<typeof normalizeTransaction>[0];
+type SendableSvmExtraSignerTransaction = SendableSvmCompatTransaction & {
+  extraSigners?: readonly (TransactionSigner | Web3KeypairLike)[];
+};
 
 /** Shape returned by `transactionToPrintableJson`. */
 export interface PrintableSvmTransaction {
@@ -77,7 +77,10 @@ class SvmTransactionError extends Error {
 
 const base58Encoder = getBase58Encoder();
 
-type Web3KeypairLike = Pick<Web3Keypair, 'publicKey' | 'secretKey'>;
+type Web3KeypairLike = {
+  publicKey: unknown;
+  secretKey: ReadonlyUint8Array;
+};
 
 function parseKeyBytes(privateKey: string): ReadonlyUint8Array {
   // Try hex (32 bytes = 64 hex chars, 64 bytes = 128 hex chars)
@@ -334,11 +337,12 @@ export class SvmSigner
    * Sends a transaction and polls for confirmation. On blockhash expiry,
    * checks transaction history before resubmitting to prevent double-execution.
    */
-  async send(tx: SendableSvmCompatTransaction): Promise<SvmReceipt> {
-    const normalizedTx = normalizeTransaction(tx);
-    normalizedTx.additionalSigners = await normalizeAdditionalSigners(
-      normalizedTx.additionalSigners,
+  async send(tx: SendableSvmExtraSignerTransaction): Promise<SvmReceipt> {
+    const compatAdditionalSigners = await normalizeAdditionalSigners(
+      tx.additionalSigners ?? tx.extraSigners,
     );
+    const normalizedTx = normalizeTransaction(tx);
+    normalizedTx.additionalSigners = compatAdditionalSigners;
     const maxBlockhashAttempts = 3;
     const pollIntervalMs = 2000;
 
@@ -501,13 +505,13 @@ export class SvmSigner
   }
 
   async sendAndConfirmTransaction(
-    transaction: SendableSvmTransaction,
+    transaction: SendableSvmExtraSignerTransaction,
   ): Promise<SvmReceipt> {
     return this.send(transaction);
   }
 
   async sendAndConfirmBatchTransactions(
-    _transactions: SendableSvmTransaction[],
+    _transactions: SendableSvmExtraSignerTransaction[],
   ): Promise<SvmReceipt> {
     throw new Error('Sealevel does not support transaction batching');
   }
