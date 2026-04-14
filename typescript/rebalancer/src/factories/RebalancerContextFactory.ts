@@ -250,7 +250,10 @@ export class RebalancerContextFactory {
       );
       if (chainConfig?.bridgeMinAcceptedAmount) {
         const token = this.tokensByChainName[chainName];
-        if (!token) continue;
+        assert(
+          token,
+          `No token found for configured strategy chain ${chainName} in warp route ${this.config.warpRouteId}`,
+        );
         minAmountsByChain[chainName] = normalizeConfiguredAmount(
           chainConfig.bridgeMinAcceptedAmount,
           token,
