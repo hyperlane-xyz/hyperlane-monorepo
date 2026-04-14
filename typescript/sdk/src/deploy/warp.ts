@@ -258,16 +258,18 @@ export async function executeWarpDeploy(
     switch (protocol) {
       case ProtocolType.Tron:
       case ProtocolType.Ethereum: {
-        const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
-          registryAddresses,
-          multiProvider,
-          undefined,
-          contractVerifier,
-        );
-
         const deployer = warpDeployConfig.isNft
           ? new HypERC721Deployer(multiProvider)
-          : new HypERC20Deployer(multiProvider, ismFactory, contractVerifier); // TODO: replace with EvmERC20WarpModule
+          : new HypERC20Deployer( // TODO: replace with EvmERC20WarpModule
+              multiProvider,
+              HyperlaneIsmFactory.fromAddressesMap(
+                registryAddresses,
+                multiProvider,
+                undefined,
+                contractVerifier,
+              ),
+              contractVerifier,
+            );
 
         const evmContracts = await deployer.deploy(protocolSpecificConfig);
         deployedContracts = {

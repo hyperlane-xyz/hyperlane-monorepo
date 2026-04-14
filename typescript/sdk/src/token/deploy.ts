@@ -16,6 +16,7 @@ import {
   TokenBridgeCctpV2__factory,
   TokenBridgeDepositAddress__factory,
   TokenRouter,
+  TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import {
   Address,
@@ -800,11 +801,20 @@ abstract class TokenDeployer<
         );
 
         // Token address is fetched from router.token() in PredicateRouterWrapper constructor
-        await predicateDeployer.deployAndConfigure(
+        const result = await predicateDeployer.deployAndConfigure(
           chain,
           router.address,
           config.predicateWrapper,
           config.type,
+        );
+
+        const signerRouter = TokenRouter__factory.connect(
+          router.address,
+          this.multiProvider.getSigner(chain),
+        );
+        await this.multiProvider.handleTx(
+          chain,
+          signerRouter.setHook(result.aggregationHookAddress),
         );
       }),
     );

@@ -34,6 +34,12 @@ export enum OnchainHookType {
 }
 
 export const HookType = {
+  /**
+   * @deprecated CUSTOM is retained for backwards compatibility with pre-deployed
+   * hooks that don't fit a named type. It is excluded from `DeployableHookType`
+   * and cannot be deployed via `HyperlaneHookDeployer`. New code should use a
+   * specific named hook type instead.
+   */
   CUSTOM: 'custom',
   MERKLE_TREE: 'merkleTreeHook',
   INTERCHAIN_GAS_PAYMASTER: 'interchainGasPaymaster',
@@ -55,7 +61,7 @@ export type HookType = (typeof HookType)[keyof typeof HookType];
 
 export type DeployableHookType = Exclude<
   HookType,
-  typeof HookType.CUSTOM | typeof HookType.PREDICATE | typeof HookType.UNKNOWN
+  'custom' | typeof HookType.PREDICATE | typeof HookType.UNKNOWN
 >;
 
 export const HookTypeToContractNameMap: Record<DeployableHookType, string> = {

@@ -6,12 +6,15 @@ import { Wallet, ethers } from 'ethers';
 import {
   ERC20Test__factory,
   MockPredicateRegistry__factory,
+  PredicateRouterWrapper__factory,
+  StaticAggregationHook__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   type ChainMetadata,
   type CollateralTokenConfig,
+  OnchainHookType,
   TokenType,
   type WarpCoreConfig,
   type WarpRouteDeployConfig,
@@ -144,6 +147,44 @@ describe('hyperlane warp deploy with Predicate e2e tests', async function () {
       expect(hookAddress).to.not.equal(
         '0x0000000000000000000000000000000000000000',
       );
+
+      // Verify the aggregation hook contains a correctly-wired PredicateRouterWrapper
+      const aggregationHook = StaticAggregationHook__factory.connect(
+        hookAddress,
+        walletChain2,
+      );
+      const hookAddresses = await aggregationHook.hooks('0x');
+      let predicateWrapperAddress: string | undefined;
+      for (const addr of hookAddresses) {
+        try {
+          const candidate = PredicateRouterWrapper__factory.connect(
+            addr,
+            walletChain2,
+          );
+          if (
+            (await candidate.hookType()) ===
+            OnchainHookType.PREDICATE_ROUTER_WRAPPER
+          ) {
+            predicateWrapperAddress = addr;
+            break;
+          }
+        } catch {
+          // not a PredicateRouterWrapper
+        }
+      }
+      expect(predicateWrapperAddress).to.exist;
+
+      const predicateWrapper = PredicateRouterWrapper__factory.connect(
+        predicateWrapperAddress!,
+        walletChain2,
+      );
+      expect(await predicateWrapper.warpRoute()).to.equal(
+        chain2Token!.addressOrDenom,
+      );
+      expect(await predicateWrapper.getRegistry()).to.equal(
+        mockPredicateRegistryAddress,
+      );
+      expect(await predicateWrapper.getPolicyID()).to.equal(MOCK_POLICY_ID);
     });
   });
 
@@ -205,6 +246,44 @@ describe('hyperlane warp deploy with Predicate e2e tests', async function () {
       expect(hookAddress).to.not.equal(
         '0x0000000000000000000000000000000000000000',
       );
+
+      // Verify the aggregation hook contains a correctly-wired PredicateRouterWrapper
+      const aggregationHook = StaticAggregationHook__factory.connect(
+        hookAddress,
+        walletChain3,
+      );
+      const hookAddresses = await aggregationHook.hooks('0x');
+      let predicateWrapperAddress: string | undefined;
+      for (const addr of hookAddresses) {
+        try {
+          const candidate = PredicateRouterWrapper__factory.connect(
+            addr,
+            walletChain3,
+          );
+          if (
+            (await candidate.hookType()) ===
+            OnchainHookType.PREDICATE_ROUTER_WRAPPER
+          ) {
+            predicateWrapperAddress = addr;
+            break;
+          }
+        } catch {
+          // not a PredicateRouterWrapper
+        }
+      }
+      expect(predicateWrapperAddress).to.exist;
+
+      const predicateWrapper = PredicateRouterWrapper__factory.connect(
+        predicateWrapperAddress!,
+        walletChain3,
+      );
+      expect(await predicateWrapper.warpRoute()).to.equal(
+        chain3Token!.addressOrDenom,
+      );
+      expect(await predicateWrapper.getRegistry()).to.equal(
+        mockPredicateRegistryChain3,
+      );
+      expect(await predicateWrapper.getPolicyID()).to.equal(MOCK_POLICY_ID);
     });
   });
 
@@ -225,7 +304,7 @@ describe('hyperlane warp deploy with Predicate e2e tests', async function () {
             predicateRegistry: mockPredicateRegistryAddress,
             policyId: MOCK_POLICY_ID,
           },
-        } as any,
+        },
         [CHAIN_NAME_3]: {
           type: TokenType.synthetic,
           mailbox: chain3Addresses.mailbox,
@@ -253,6 +332,44 @@ describe('hyperlane warp deploy with Predicate e2e tests', async function () {
       expect(hookAddress).to.not.equal(
         '0x0000000000000000000000000000000000000000',
       );
+
+      // Verify the aggregation hook contains a correctly-wired PredicateRouterWrapper
+      const aggregationHook = StaticAggregationHook__factory.connect(
+        hookAddress,
+        walletChain2,
+      );
+      const hookAddresses = await aggregationHook.hooks('0x');
+      let predicateWrapperAddress: string | undefined;
+      for (const addr of hookAddresses) {
+        try {
+          const candidate = PredicateRouterWrapper__factory.connect(
+            addr,
+            walletChain2,
+          );
+          if (
+            (await candidate.hookType()) ===
+            OnchainHookType.PREDICATE_ROUTER_WRAPPER
+          ) {
+            predicateWrapperAddress = addr;
+            break;
+          }
+        } catch {
+          // not a PredicateRouterWrapper
+        }
+      }
+      expect(predicateWrapperAddress).to.exist;
+
+      const predicateWrapper = PredicateRouterWrapper__factory.connect(
+        predicateWrapperAddress!,
+        walletChain2,
+      );
+      expect(await predicateWrapper.warpRoute()).to.equal(
+        chain2Token!.addressOrDenom,
+      );
+      expect(await predicateWrapper.getRegistry()).to.equal(
+        mockPredicateRegistryAddress,
+      );
+      expect(await predicateWrapper.getPolicyID()).to.equal(MOCK_POLICY_ID);
     });
   });
 });

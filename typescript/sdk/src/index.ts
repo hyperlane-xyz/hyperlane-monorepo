@@ -50,7 +50,7 @@ export {
   isContractAddress,
   assertIsContractAddress,
 } from './contracts/contracts.js';
-export { MUTABLE_HOOK_TYPE } from './hook/types.js';
+export { MUTABLE_HOOK_TYPE, OnchainHookType } from './hook/types.js';
 export { MUTABLE_ISM_TYPE } from './ism/types.js';
 
 export { HyperlaneApp } from './app/HyperlaneApp.js';

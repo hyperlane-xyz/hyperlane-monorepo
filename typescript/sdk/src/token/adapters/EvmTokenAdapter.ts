@@ -284,7 +284,7 @@ export class EvmHypSyntheticAdapter
   override async populateApproveTx(
     params: TransferParams,
   ): Promise<PopulatedTransaction> {
-    // Synthetics with PredicateWrapper approve the wrapper
+    // Synthetics with PredicateWrapper approve the wrapper, not the route contract
     const predicateWrapper = await this.getPredicateWrapperAddress();
     if (predicateWrapper) {
       return this.contract.populateTransaction.approve(
@@ -293,9 +293,8 @@ export class EvmHypSyntheticAdapter
       );
     }
 
-    throw new Error(
-      'Approve not required for synthetic tokens without wrapper',
-    );
+    // No predicate wrapper — fall back to standard ERC20 approve (e.g. for external spenders)
+    return super.populateApproveTx(params);
   }
 
   async getPredicateWrapperAddress(): Promise<Address | null> {

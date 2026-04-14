@@ -2,15 +2,15 @@
 '@hyperlane-xyz/sdk': minor
 ---
 
-Add Predicate integration for compliance-gated warp route transfers
+Added Predicate integration for compliance-gated warp route transfers
 
-- Add `PredicateWrapperConfigSchema` for configuring predicate wrapper deployment
-- Add `PredicateApiClient` for fetching attestations from Predicate API
-- Add `PredicateWrapperDeployer` for deploying and configuring PredicateRouterWrapper contracts
-- Integrate predicate wrapper deployment into warp route deployment flow
-- Support aggregation hooks with predicate wrapper (wrapper executes first)
-- Always aggregate predicate wrapper with mailbox default hook to ensure gas quoting works correctly
-- Detect PredicateRouterWrapper recursively inside nested aggregation hooks
+- Added `PredicateWrapperConfigSchema` for configuring predicate wrapper deployment
+- Added `PredicateApiClient` for fetching attestations from Predicate API
+- Added `PredicateWrapperDeployer` for deploying and configuring PredicateRouterWrapper contracts
+- Integrated predicate wrapper deployment into warp route deployment flow
+- Supported aggregation hooks with predicate wrapper (wrapper executes first)
+- Always aggregated predicate wrapper with mailbox default hook to ensure gas quoting works correctly
+- Detected PredicateRouterWrapper recursively inside nested aggregation hooks
 
 Example configuration:
 ```yaml

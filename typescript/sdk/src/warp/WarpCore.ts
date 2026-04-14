@@ -1764,8 +1764,10 @@ export class WarpCore {
       const matchedToken = destinationCandidates.find(
         (candidate) =>
           candidate.equals(destinationToken) ||
-          candidate.addressOrDenom.toLowerCase() ===
-            destinationToken.addressOrDenom.toLowerCase(),
+          tokenIdentifiersEqual(
+            candidate.addressOrDenom,
+            destinationToken.addressOrDenom,
+          ),
       );
       assert(
         matchedToken,
@@ -1793,7 +1795,7 @@ export class WarpCore {
     const results = this.tokens.filter(
       (token) =>
         token.chainName === chainName &&
-        token.addressOrDenom.toLowerCase() === addressOrDenom.toLowerCase(),
+        tokenIdentifiersEqual(token.addressOrDenom, addressOrDenom),
     );
 
     if (results.length === 1) return results[0];

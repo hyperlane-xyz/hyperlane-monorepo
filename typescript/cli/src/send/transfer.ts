@@ -204,11 +204,19 @@ export async function sendTestTransfer({
 
   // Parse attestation if provided as JSON string
   let parsedAttestation: PredicateAttestation | undefined;
-  if (attestation) {
-    try {
-      parsedAttestation = JSON.parse(attestation);
-    } catch (e) {
-      throw new Error(`Invalid attestation JSON: ${e}`);
+  if (attestation || predicateApiKey) {
+    if (chains.length > 2) {
+      throw new Error(
+        'Predicate attestations are not supported for multi-hop routes. ' +
+          'Provide a single origin and destination chain.',
+      );
+    }
+    if (attestation) {
+      try {
+        parsedAttestation = JSON.parse(attestation);
+      } catch (e) {
+        throw new Error(`Invalid attestation JSON: ${e}`);
+      }
     }
   }
 
@@ -391,6 +399,15 @@ async function executeDelivery({
 
   if (attestation) {
     finalAttestation = attestation;
+    // Pre-compute fees so getTransferRemoteTxs uses the same msg_value the
+    // attestation was signed over rather than re-quoting at submission time.
+    quote = await warpCore.getInterchainTransferFee({
+      originTokenAmount: tokenAmount,
+      destination,
+      sender: signerAddress,
+      recipient: recipientAddress,
+      destinationToken: destToken,
+    });
   } else if (predicateApiKey) {
     logBlue('Fetching Predicate attestation...');
     const predicateClient = new PredicateApiClient(
