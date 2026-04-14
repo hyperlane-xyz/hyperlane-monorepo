@@ -167,6 +167,11 @@ export class EvmWarpModule extends HyperlaneModule<
   /**
    * Updates the Warp Route contract with the provided configuration.
    *
+   * IMPORTANT — irreversible side effects when expectedConfig includes `predicateWrapper`:
+   * The PredicateRouterWrapper contract is deployed on-chain during planning (before this
+   * method returns). If the returned transactions are never submitted, the wrapper is
+   * orphaned. See PredicateWrapperDeployer.deployAndConfigure for details.
+   *
    * @param expectedConfig - The configuration for the token router to be updated.
    * @returns An array of Ethereum transactions that were executed to update the contract, or an error if the update failed.
    */
@@ -1366,12 +1371,12 @@ export class EvmWarpModule extends HyperlaneModule<
       );
       const transferOwnershipTx = await PredicateRouterWrapper__factory.connect(
         existingWrapper.address,
-        this.multiProvider.getProvider(this.domainId),
+        this.multiProvider.getProvider(this.chainName),
       ).populateTransaction.transferOwnership(predicateWrapperConfig.owner);
       return [
         {
           ...transferOwnershipTx,
-          chainId: this.domainId,
+          chainId: this.chainId,
           annotation: `Transferring predicate wrapper ownership to ${predicateWrapperConfig.owner}`,
         },
       ];

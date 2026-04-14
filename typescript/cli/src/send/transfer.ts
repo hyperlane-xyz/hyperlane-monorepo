@@ -395,6 +395,27 @@ async function executeDelivery({
     destToken = found;
   }
 
+  // Auto-resolve destToken for cross-collateral routes when not explicitly provided.
+  // Must happen before both attestation branches so that the manual --attestation path
+  // uses transferRemoteTo (not transferRemote) and doesn't produce a calldata mismatch.
+  if (!destToken && token.isCrossCollateralToken()) {
+    const connectionsForDest = token
+      .getConnections()
+      .filter((c) => c.token.chainName === destination);
+    assert(
+      connectionsForDest.length <= 1,
+      `Multiple cross-collateral connections exist from ${token.chainName} to ${destination}. ` +
+        `Use --destination-token to specify which one.`,
+    );
+    if (connectionsForDest.length === 1) {
+      destToken =
+        warpCore.findToken(
+          destination,
+          connectionsForDest[0].token.addressOrDenom,
+        ) ?? undefined;
+    }
+  }
+
   if (attestation) {
     finalAttestation = attestation;
     // Pre-compute fees so getTransferRemoteTxs uses the same msg_value the
@@ -417,16 +438,6 @@ async function executeDelivery({
     const recipientBytes32 = addressToBytes32(
       addressToByteHexString(recipientAddress),
     );
-
-    // Auto-resolve destToken for cross-collateral routes when not explicitly provided
-    if (!destToken && token.isCrossCollateralToken()) {
-      const connection = token.getConnectionForChain(destination);
-      if (connection) {
-        destToken =
-          warpCore.findToken(destination, connection.token.addressOrDenom) ??
-          undefined;
-      }
-    }
 
     const isCrossCollateral = warpCore.isCrossCollateralTransfer(
       token,
@@ -596,6 +607,13 @@ async function executeDelivery({
       destinationToken: destToken,
     });
     quotedCalls.feeQuotes = feeQuotes;
+  }
+
+  if (finalAttestation && quotedCalls) {
+    throw new Error(
+      'Predicate attestation (--attestation / --predicate-api-key) and fee quoting (--fee-quoting-url) cannot be used together. ' +
+        'The QuotedCalls path does not support attestation-gated transfers.',
+    );
   }
 
   // TODO: override hook address for self-relay

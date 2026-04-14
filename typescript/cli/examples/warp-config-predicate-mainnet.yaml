@@ -6,6 +6,7 @@ base:
   predicateWrapper:
     predicateRegistry: '0xe15a8Ca5BD8464283818088c1760d8f23B6a216E'
     policyId: 'x-managed-policy-157b68744498ccac3201a806ef6036ac'
+    owner: '0x380ad2e410688e0153125d01a6af9c4C27F7F0eC'
 
 ethereum:
   type: synthetic

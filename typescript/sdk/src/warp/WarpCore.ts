@@ -466,6 +466,15 @@ export class WarpCore {
     /** When provided, builds an atomic QuotedCalls.execute() tx instead of separate approve+transfer */
     quotedCalls?: QuotedCallsParams;
   }): Promise<Array<WarpTypedTransaction>> {
+    // QuotedCalls and attestation are mutually exclusive: the QuotedCalls.execute() path
+    // calls transferRemote, not transferRemoteWithAttestation. Composing them would require
+    // new contract support; for now, surface a clear error rather than silently dropping
+    // the attestation.
+    assert(
+      !(quotedCalls && attestation),
+      'quotedCalls and attestation cannot be used together. The QuotedCalls path does not support attestation-gated transfers.',
+    );
+
     // QuotedCalls atomic path — single execute() tx with quotes + token pull + transfer + sweep
     if (quotedCalls) {
       return this.getQuotedCallsTransferTxs({
@@ -717,17 +726,22 @@ export class WarpCore {
     // Use pre-computed fees when provided (e.g. when attestation is present and the
     // msg_value was signed over the original quote). Re-quoting could produce a
     // different value and cause the attestation check to fail on-chain.
+    // Mirror the standard path (line ~517): only re-quote when interchainFee is absent.
+    // tokenFeeQuote may legitimately be undefined (no token fee on this route) and that
+    // is not a reason to re-quote — doing so would overwrite a valid pinned interchainFee.
     let transferQuote: InterchainGasQuote;
-    if (interchainFee && tokenFeeQuote !== undefined) {
+    if (interchainFee) {
       transferQuote = {
         igpQuote: {
           amount: interchainFee.amount,
           addressOrDenom: interchainFee.token.addressOrDenom,
         },
-        tokenFeeQuote: {
-          amount: tokenFeeQuote.amount,
-          addressOrDenom: tokenFeeQuote.token.addressOrDenom,
-        },
+        ...(tokenFeeQuote && {
+          tokenFeeQuote: {
+            amount: tokenFeeQuote.amount,
+            addressOrDenom: tokenFeeQuote.token.addressOrDenom,
+          },
+        }),
       };
     } else {
       transferQuote = await adapter.quoteTransferRemoteToGas({
@@ -1105,6 +1119,7 @@ export class WarpCore {
         recipient,
         sender,
         senderPubKey,
+        attestation,
       });
     }
 
@@ -1146,6 +1161,7 @@ export class WarpCore {
     recipient,
     sender,
     senderPubKey,
+    attestation,
   }: {
     originTokenAmount: TokenAmount<IToken>;
     destination: ChainNameOrId;
@@ -1153,6 +1169,7 @@ export class WarpCore {
     recipient: Address;
     sender: Address;
     senderPubKey?: HexString;
+    attestation?: PredicateAttestation;
   }): Promise<WarpCoreFeeEstimate> {
     const { token: originToken } = originTokenAmount;
     const resolvedDestinationToken = this.resolveDestinationToken({
@@ -1177,6 +1194,7 @@ export class WarpCore {
       senderPubKey,
       interchainFee: interchainQuote,
       tokenFeeQuote,
+      attestation,
       amount: originTokenAmount.amount,
       destinationToken: resolvedDestinationToken,
     });

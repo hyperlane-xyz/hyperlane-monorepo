@@ -154,14 +154,19 @@ export class PredicateWrapperDeployer {
   /**
    * Deploys the predicate wrapper and aggregation hook on-chain as a side effect, then
    * returns the populated setHook transaction for the caller to include in its transaction
-   * array. This intentionally mirrors the pattern used by EvmHookModule and EvmIsmModule,
-   * where contract deployments happen eagerly during update planning.
+   * array.
    *
-   * Known limitation: if the returned setHookTx is never submitted (e.g. dry-run or
-   * cancellation), the deployed PredicateRouterWrapper is orphaned. The aggregation hook
-   * is safe because StaticAggregationHookFactory uses CREATE2 (idempotent). Eliminating
-   * the wrapper orphan risk requires a CREATE2 factory for PredicateRouterWrapper, which
-   * is a future contract-level improvement.
+   * IMPORTANT — irreversible side effects: deployPredicateWrapper submits a real on-chain
+   * transaction before this method returns. If the caller discards the returned setHookTx
+   * (dry-run, cancellation, error), the PredicateRouterWrapper is orphaned — deployed but
+   * unreferenced by any warp route. The aggregation hook is safe because
+   * StaticAggregationHookFactory uses CREATE2 (idempotent). Eliminating the wrapper orphan
+   * risk requires a CREATE2 factory for PredicateRouterWrapper (future contract work).
+   *
+   * This differs from EvmHookModule/EvmIsmModule: those modules own the full configuration
+   * lifecycle (deploy + configure in one atomic step). Here, deployment is eager but the
+   * final wiring (setHook) is deferred to EvmWarpModule.update(), which may choose not to
+   * submit it.
    *
    * @param existingHookOverride - When provided, skips the on-chain hook() read and uses
    *   this address instead. Pass the pending new hook address when a hook update is being
@@ -186,6 +191,13 @@ export class PredicateWrapperDeployer {
     // update() call and the on-chain value would be stale).
     const existingHook = existingHookOverride ?? (await warpRoute.hook());
 
+    // WARNING: deployPredicateWrapper submits a real on-chain transaction here.
+    // If the caller discards the returned setHookTx, this wrapper will be orphaned.
+    this.logger.warn(
+      { chain, warpRoute: warpRouteAddress },
+      'Deploying PredicateRouterWrapper — this on-chain deployment is irreversible. ' +
+        'Submit the returned setHookTx to complete wiring; discarding it will leave the wrapper orphaned.',
+    );
     const wrapperAddress = await this.deployPredicateWrapper(
       chain,
       warpRouteAddress,
