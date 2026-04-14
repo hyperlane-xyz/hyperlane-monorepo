@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/rebalancer",
-  "version": "27.2.6",
+  "version": "27.2.7",
   "description": "Hyperlane Warp Route Collateral Rebalancer Service",
   "keywords": [
     "blockchain",

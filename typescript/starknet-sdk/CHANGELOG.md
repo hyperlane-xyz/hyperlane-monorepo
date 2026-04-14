@@ -1,5 +1,14 @@
 # @hyperlane-xyz/starknet-sdk
 
+## 27.2.8
+
+### Patch Changes
+
+- cf3f11c: Starknet devnet switched to instant per-transaction block mining and starknet.js polling interval reduced for fast block times, speeding up e2e tests ~5x.
+  - @hyperlane-xyz/starknet-core@31.1.0
+  - @hyperlane-xyz/utils@31.1.0
+  - @hyperlane-xyz/provider-sdk@4.3.2
+
 ## 27.2.7
 
 ### Patch Changes

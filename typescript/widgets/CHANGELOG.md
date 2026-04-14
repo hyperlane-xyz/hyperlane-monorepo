@@ -1,5 +1,22 @@
 # @hyperlane-xyz/widgets
 
+## 31.1.0
+
+### Patch Changes
+
+- 8a082af: Added light subpath exports for SDK provider and warp modules, plus lean widget subpath exports.
+- 8a082af: Added runtime entrypoints for non-EVM SDKs and avoided bundling heavy deploy-time modules in UI wallet integrations.
+- Updated dependencies [8a082af]
+- Updated dependencies [c8fe242]
+- Updated dependencies [8a082af]
+  - @hyperlane-xyz/sdk@31.1.0
+  - @hyperlane-xyz/aleo-sdk@31.1.0
+  - @hyperlane-xyz/cosmos-sdk@31.1.0
+  - @hyperlane-xyz/radix-sdk@31.1.0
+  - @hyperlane-xyz/tron-sdk@22.1.12
+  - @hyperlane-xyz/utils@31.1.0
+  - @hyperlane-xyz/provider-sdk@4.3.2
+
 ## 31.0.1
 
 ### Patch Changes
