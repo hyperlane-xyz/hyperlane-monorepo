@@ -1224,10 +1224,8 @@ export class InventoryRebalancer implements IInventoryRebalancer {
   ): Promise<BridgeCapacity> {
     const sourceToken = this.getTokenForChain(sourceChain);
     const targetToken = this.getTokenForChain(targetChain);
-
-    if (!sourceToken || !targetToken) {
-      return { maxSourceInput: 0n, maxTargetOutput: 0n };
-    }
+    assert(sourceToken, `No token found for source chain: ${sourceChain}`);
+    assert(targetToken, `No token found for target chain: ${targetChain}`);
 
     // Convert HypNative token addresses to the external bridge's native token representation
     const fromTokenAddress = getExternalBridgeTokenAddress(

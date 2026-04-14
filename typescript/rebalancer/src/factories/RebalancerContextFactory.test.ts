@@ -340,10 +340,67 @@ describe('RebalancerContextFactory', () => {
             : ProtocolType.Ethereum,
       }));
 
-      await expect(
-        (factory as any).createInventoryRebalancerAndConfig({} as any, {}),
-      ).to.be.rejectedWith(
+      let error: Error | undefined;
+      try {
+        await (factory as any).createInventoryRebalancerAndConfig(
+          {} as any,
+          {},
+        );
+      } catch (caught) {
+        error = caught as Error;
+      }
+
+      expect(error?.message).to.contain(
         `Missing inventory signer key for protocol ${ProtocolType.Sealevel}`,
+      );
+    });
+
+    it('should fail early when an inventory-relevant chain has no token', async () => {
+      const { multiProvider } = createMockMultiProvider([
+        { name: 'ethereum', protocol: ProtocolType.Ethereum },
+        { name: 'arbitrum', protocol: ProtocolType.Ethereum },
+      ]);
+
+      const config = {
+        ...createMockConfig(),
+        inventorySigners: {
+          [ProtocolType.Ethereum]: {
+            address: TEST_ADDRESSES.ethereum,
+            key: '0xabc123',
+          },
+        },
+      } as RebalancerConfig;
+      config.strategyConfig[0].chains.arbitrum.executionType =
+        ExecutionType.Inventory;
+
+      const factory = await createFactory(config, multiProvider, {
+        tokens: [
+          createToken(
+            'ethereum',
+            TEST_ADDRESSES.ethereum,
+            TokenStandard.EvmHypCollateral,
+          ),
+        ],
+      });
+
+      const getChainMetadataStub = factory.getWarpCore().multiProvider
+        .getChainMetadata as Sinon.SinonStub;
+      getChainMetadataStub.callsFake(() => ({
+        protocol: ProtocolType.Ethereum,
+      }));
+
+      let error: Error | undefined;
+      try {
+        await (factory as any).createInventoryRebalancerAndConfig(
+          {} as any,
+          {},
+        );
+      } catch (caught) {
+        error = caught as Error;
+      }
+
+      expect(error?.message).to.equal(
+        'No token found for inventory-relevant chain arbitrum in warp route USDC/paradex',
       );
     });
 
@@ -414,9 +471,17 @@ describe('RebalancerContextFactory', () => {
             : ProtocolType.Ethereum,
       }));
 
-      await expect(
-        (factory as any).createInventoryRebalancerAndConfig({} as any, {}),
-      ).to.be.rejectedWith(
+      let error: Error | undefined;
+      try {
+        await (factory as any).createInventoryRebalancerAndConfig(
+          {} as any,
+          {},
+        );
+      } catch (caught) {
+        error = caught as Error;
+      }
+
+      expect(error?.message).to.contain(
         `Inventory rebalancing does not support protocol '${ProtocolType.Cosmos}'`,
       );
     });

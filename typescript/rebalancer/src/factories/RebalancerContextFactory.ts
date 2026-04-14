@@ -461,6 +461,13 @@ export class RebalancerContextFactory {
       return null;
     }
 
+    for (const chain of allRelevantChains) {
+      assert(
+        this.tokensByChainName[chain],
+        `No token found for inventory-relevant chain ${chain} in warp route ${this.config.warpRouteId}`,
+      );
+    }
+
     const requiredProtocols = new Set(
       allRelevantChains.map((chain) => {
         const metadata = this.warpCore.multiProvider.getChainMetadata(chain);
