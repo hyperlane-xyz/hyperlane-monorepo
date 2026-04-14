@@ -1388,55 +1388,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       'Resolved token addresses for LiFi bridge',
     );
 
-    // Calculate minViableTransfer for the target chain
-    // If bridging less than this, the received amount won't be enough to execute transferRemote
-    // So we over-bridge to ensure we can complete the intent in the next cycle
-    const costs = await calculateTransferCosts(
-      targetChain, // FROM chain for transferRemote (the target of this bridge)
-      sourceChain, // TO chain for transferRemote (Hyperlane message destination)
-      targetOutputAmount, // availableInventory (not used for minViableTransfer calculation)
-      targetOutputAmount, // requestedAmount
-      this.multiProvider,
-      this.warpCore.multiProvider,
-      this.getTokenForChain.bind(this),
-      this.getInventorySignerAddress(targetChain),
-      isNativeTokenStandard,
-      this.logger,
-    );
-    const { minViableTransfer } = costs;
-
-    // If the requested amount is below minViableTransfer, adjust it up
-    // This ensures we bridge enough to actually complete the final transferRemote
-    const effectiveTargetOutput =
-      targetOutputAmount < minViableTransfer
-        ? minViableTransfer
-        : targetOutputAmount;
-
-    if (effectiveTargetOutput !== targetOutputAmount) {
-      this.logger.info(
-        {
-          originalAmount: targetOutputAmount.toString(),
-          effectiveAmount: effectiveTargetOutput.toString(),
-          minViableTransfer: minViableTransfer.toString(),
-          originalAmountFormatted: this.formatLocalAmount(
-            targetOutputAmount,
-            targetToken,
-          ),
-          effectiveAmountFormatted: this.formatLocalAmount(
-            effectiveTargetOutput,
-            targetToken,
-          ),
-          minViableTransferFormatted: this.formatLocalAmount(
-            minViableTransfer,
-            targetToken,
-          ),
-          adjustedUp: true,
-          intentId: intent.id,
-        },
-        'Over-bridging to minViableTransfer to ensure final transferRemote can complete',
-      );
-    }
-
     try {
       const externalBridge = this.getExternalBridge(externalBridgeType);
       const quote = await externalBridge.quote({
@@ -1444,7 +1395,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         toChain: targetChainId,
         fromToken: fromTokenAddress,
         toToken: toTokenAddress,
-        toAmount: effectiveTargetOutput,
+        toAmount: targetOutputAmount,
         fromAddress: this.getInventorySignerAddress(sourceChain),
         toAddress: this.getInventorySignerAddress(targetChain),
       });
@@ -1468,11 +1419,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
             targetOutputAmount,
             targetToken,
           ),
-          effectiveTargetOutput: effectiveTargetOutput.toString(),
-          effectiveTargetOutputFormatted: this.formatLocalAmount(
-            effectiveTargetOutput,
-            targetToken,
-          ),
           inputRequired: inputRequired.toString(),
           inputRequiredFormatted: this.formatLocalAmount(
             inputRequired,
@@ -1487,7 +1433,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
           gasCosts: quote.gasCosts.toString(),
           feeCosts: quote.feeCosts.toString(),
           intentId: intent.id,
-          adjustedForMinViable: effectiveTargetOutput > targetOutputAmount,
         },
         'Executing inventory movement via LiFi reverse quote',
       );

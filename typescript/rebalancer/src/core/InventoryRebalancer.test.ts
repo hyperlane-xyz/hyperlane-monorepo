@@ -1484,6 +1484,53 @@ describe('InventoryRebalancer E2E', () => {
       expect(bridge.execute.callCount).to.equal(2);
     });
 
+    it('does not inflate each split bridge plan to minViableTransfer', async () => {
+      const amount = 10_000_000_000_000_000n;
+      const perChainInventory = 6_000_000_000_000_000n;
+
+      for (const token of warpCore.tokens) {
+        if (
+          token.chainName === ARBITRUM_CHAIN ||
+          token.chainName === SOLANA_CHAIN ||
+          token.chainName === BASE_CHAIN
+        ) {
+          token.standard = TokenStandard.EvmHypNative;
+        }
+      }
+
+      const route = createTestRoute({ amount });
+      createTestIntent({ amount });
+
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 0n,
+        [ARBITRUM_CHAIN]: perChainInventory,
+        [BASE_CHAIN]: perChainInventory,
+      });
+
+      bridge.quote.callsFake(async (params: any) =>
+        createMockBridgeQuote({
+          fromAmount: params.fromAmount ?? params.toAmount,
+          toAmount: params.toAmount ?? params.fromAmount,
+          toAmountMin: params.toAmount ?? params.fromAmount,
+          requestParams:
+            params.toAmount !== undefined
+              ? { ...params, toAmount: params.toAmount }
+              : { ...params, fromAmount: params.fromAmount },
+        }),
+      );
+      bridge.execute.resolves({
+        txHash: '0xBridgeTxHash',
+        fromChain: 42161,
+        toChain: 1399811149,
+      });
+
+      const results = await inventoryRebalancer.rebalance([route]);
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.true;
+      expect(bridge.execute.callCount).to.equal(2);
+    });
+
     it('applies 5% buffer to total bridge amount', async () => {
       // Need 1 ETH -> should plan to bridge 1.05 ETH total (with 5% buffer)
       const amount = BigInt(1e18); // 1 ETH
