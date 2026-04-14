@@ -1,5 +1,21 @@
 # @hyperlane-xyz/widgets
 
+## 31.2.0
+
+### Patch Changes
+
+- fcb087d: Replaced WebSocket-based `confirmTransaction` with HTTP polling (`getSignatureStatuses`) for Solana transaction confirmation. Fixed hangs with RPC providers that don't support `signatureSubscribe`.
+- f89d6bd: Added reusable wallet address helpers for protocol-scoped consumers.
+- 3d52b1a: Added `@hyperlane-xyz/widgets/animations/*` subpath exports.
+- Updated dependencies [35fb5c8]
+  - @hyperlane-xyz/sdk@31.2.0
+  - @hyperlane-xyz/aleo-sdk@31.2.0
+  - @hyperlane-xyz/cosmos-sdk@31.2.0
+  - @hyperlane-xyz/radix-sdk@31.2.0
+  - @hyperlane-xyz/utils@31.2.0
+  - @hyperlane-xyz/provider-sdk@4.3.3
+  - @hyperlane-xyz/tron-sdk@22.1.13
+
 ## 31.1.0
 
 ### Patch Changes
