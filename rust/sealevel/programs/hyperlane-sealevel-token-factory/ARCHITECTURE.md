@@ -37,6 +37,19 @@ Stores `HyperlaneTokenFactory { bump, owner, interchain_security_module }`.
 
 Created once via `InitFactory`. Holds the global ISM and owner for the factory. All routes in the factory share this ISM unless overridden per-route.
 
+```
+Old model (per-program):
+  Program A = USDC route
+  Program B = ETH route
+  Program C = wBTC route
+
+New factory model (one program, multiple routes):
+  Factory Program
+    ├── Route PDA [b"hyperlane_token_route", salt_A] = USDC route
+    ├── Route PDA [b"hyperlane_token_route", salt_B] = ETH route
+    └── Route PDA [b"hyperlane_token_route", salt_C] = wBTC route
+```
+
 ### Route PDA
 
 ```
