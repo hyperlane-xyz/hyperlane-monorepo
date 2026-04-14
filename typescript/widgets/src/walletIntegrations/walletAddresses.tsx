@@ -7,17 +7,34 @@ import { type KnownProtocolType, ProtocolType } from '@hyperlane-xyz/utils';
 import { useAccounts } from './accounts.js';
 import { type AccountInfo, type ChainAddress } from './types.js';
 
+const WALLET_ADDRESS_PROTOCOLS: ReadonlyArray<KnownProtocolType> = [
+  ProtocolType.Ethereum,
+  ProtocolType.Sealevel,
+  ProtocolType.Cosmos,
+  ProtocolType.CosmosNative,
+  ProtocolType.Starknet,
+  ProtocolType.Radix,
+  ProtocolType.Aleo,
+  ProtocolType.Tron,
+];
+
 export function getAddressForChain(
   addresses: ChainAddress[] | undefined,
+  protocol?: ProtocolType,
   chainName?: ChainName,
 ) {
   if (!addresses?.length) return undefined;
-  // Intentional fallback: same-protocol wallets often reuse one address across chains.
-  // Callers should filter by protocol before using this helper.
-  return (
-    addresses.find((address) => address.chainName === chainName)?.address ??
-    addresses[0]?.address
-  );
+  const chainAddress = addresses.find(
+    (address) => address.chainName === chainName,
+  )?.address;
+  if (
+    protocol === ProtocolType.Cosmos ||
+    protocol === ProtocolType.CosmosNative
+  ) {
+    return chainAddress;
+  }
+  // Intentional fallback: non-Cosmos wallets often reuse one address across chains.
+  return chainAddress ?? addresses[0]?.address;
 }
 
 export function useWalletAddressesByProtocol(
@@ -27,14 +44,10 @@ export function useWalletAddressesByProtocol(
 
   return useMemo(() => {
     const map = new Map<ProtocolType, ChainAddress[]>();
-    for (const [protocol, account] of Object.entries(accounts) as Array<
-      [KnownProtocolType, AccountInfo]
-    >) {
+    for (const protocol of WALLET_ADDRESS_PROTOCOLS) {
+      const account: AccountInfo = accounts[protocol];
       if (!account.addresses.length) continue;
       map.set(protocol, account.addresses);
-      if (protocol === ProtocolType.Cosmos) {
-        map.set(ProtocolType.CosmosNative, account.addresses);
-      }
     }
     return map;
   }, [accounts]);
@@ -48,6 +61,10 @@ export function useWalletAddressForChainAndProtocol(
   const walletAddresses = useWalletAddressesByProtocol(multiProvider);
   return useMemo(() => {
     if (!chainName || !protocol) return undefined;
-    return getAddressForChain(walletAddresses.get(protocol), chainName);
+    return getAddressForChain(
+      walletAddresses.get(protocol),
+      protocol,
+      chainName,
+    );
   }, [chainName, protocol, walletAddresses]);
 }
