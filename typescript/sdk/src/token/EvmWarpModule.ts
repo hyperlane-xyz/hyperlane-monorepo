@@ -1208,19 +1208,32 @@ export class EvmWarpModule extends HyperlaneModule<
     // router hook and already incorporates newHookAddress inside the aggregation.
     // Drop the intermediate setHook(newHookAddress) from hookTransactions to avoid a
     // redundant write that would be immediately overwritten.
+    //
+    // IMPORTANT: only drop when a NEW wrapper is being deployed — detected by the presence
+    // of a setHook call targeting the warp route in predicateTransactions. The ownership-only
+    // path returns a transferOwnership tx (not a setHook), so it must not suppress the
+    // hook update even though predicateTransactions is non-empty.
     let effectiveHookTransactions = hookTransactions;
-    if (predicateTransactions.length > 0 && hookTransactions.length > 0) {
+    if (hookTransactions.length > 0) {
       const iface = MailboxClient__factory.createInterface();
       const setHookSelector = iface.getSighash('setHook');
       const warpRouteAddress = this.args.addresses.deployedTokenRoute;
-      effectiveHookTransactions = hookTransactions.filter(
+      const predicateDeploysNewWrapper = predicateTransactions.some(
         (tx) =>
-          !(
-            tx.to &&
-            eqAddress(tx.to, warpRouteAddress) &&
-            tx.data?.startsWith(setHookSelector)
-          ),
+          tx.to &&
+          eqAddress(tx.to, warpRouteAddress) &&
+          tx.data?.startsWith(setHookSelector),
       );
+      if (predicateDeploysNewWrapper) {
+        effectiveHookTransactions = hookTransactions.filter(
+          (tx) =>
+            !(
+              tx.to &&
+              eqAddress(tx.to, warpRouteAddress) &&
+              tx.data?.startsWith(setHookSelector)
+            ),
+        );
+      }
     }
 
     return [...effectiveHookTransactions, ...predicateTransactions];

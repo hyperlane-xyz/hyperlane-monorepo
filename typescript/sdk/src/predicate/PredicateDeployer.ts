@@ -6,11 +6,13 @@ import {
   Mailbox__factory,
   PredicateCrossCollateralRouterWrapper__factory,
   PredicateRouterWrapper__factory,
+  StaticAggregationHook__factory,
   StaticAggregationHookFactory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
+import { OnchainHookType } from '../hook/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { TokenType } from '../token/config.js';
 import { PredicateWrapperConfig } from '../token/types.js';
@@ -58,6 +60,8 @@ export class PredicateWrapperDeployer {
       `Deploying ${wrapperName}`,
     );
 
+    const overrides = this.multiProvider.getTransactionOverrides(chain);
+
     // Deploy the appropriate wrapper based on token type
     // Token address is fetched from warpRoute.token() in constructor
     const wrapper = isCrossCollateral
@@ -65,11 +69,13 @@ export class PredicateWrapperDeployer {
           warpRouteAddress,
           config.predicateRegistry,
           config.policyId,
+          overrides,
         )
       : await new PredicateRouterWrapper__factory(signer).deploy(
           warpRouteAddress,
           config.predicateRegistry,
           config.policyId,
+          overrides,
         );
     await wrapper.deployed();
 
@@ -82,7 +88,7 @@ export class PredicateWrapperDeployer {
     const routeOwner = config.owner;
     await this.multiProvider.handleTx(
       chain,
-      wrapper.transferOwnership(routeOwner),
+      wrapper.transferOwnership(routeOwner, overrides),
     );
 
     this.logger.info(
@@ -189,7 +195,18 @@ export class PredicateWrapperDeployer {
 
     // Use the override when provided (e.g. when a hook update is pending in the same
     // update() call and the on-chain value would be stale).
-    const existingHook = existingHookOverride ?? (await warpRoute.hook());
+    const rawExistingHook = existingHookOverride ?? (await warpRoute.hook());
+
+    // If the existing hook is already an aggregation containing a predicate wrapper,
+    // unwrap it to the base (non-predicate) hook before re-aggregating. Without this,
+    // updating a predicate config would stack wrappers:
+    //   newAggregation([newWrapper, oldAggregation([oldWrapper, IGP])])
+    // instead of the correct:
+    //   newAggregation([newWrapper, IGP])
+    const existingHook = await this.stripPredicateFromHook(
+      chain,
+      rawExistingHook,
+    );
 
     // WARNING: deployPredicateWrapper submits a real on-chain transaction here.
     // If the caller discards the returned setHookTx, this wrapper will be orphaned.
@@ -233,5 +250,77 @@ export class PredicateWrapperDeployer {
       aggregationHookAddress,
       setHookTx,
     };
+  }
+
+  /**
+   * If hookAddress is a StaticAggregationHook that contains a predicate wrapper,
+   * returns the single non-predicate sub-hook so the caller can aggregate against
+   * the base hook directly (avoiding stacked wrappers on config updates).
+   *
+   * Falls back to hookAddress unchanged when:
+   * - The address is zero / not an aggregation hook
+   * - No predicate wrapper is found among sub-hooks
+   * - Multiple non-predicate sub-hooks remain (cannot safely re-aggregate here)
+   */
+  private async stripPredicateFromHook(
+    chain: ChainName,
+    hookAddress: Address,
+  ): Promise<Address> {
+    if (!hookAddress || hookAddress === constants.AddressZero) {
+      return hookAddress;
+    }
+
+    const provider = this.multiProvider.getProvider(chain);
+
+    try {
+      const subHooks = await StaticAggregationHook__factory.connect(
+        hookAddress,
+        provider,
+      ).hooks('0x');
+
+      if (!subHooks || subHooks.length === 0) return hookAddress;
+
+      const nonPredicateHooks: Address[] = [];
+      for (const sub of subHooks) {
+        try {
+          const hookType = await PredicateRouterWrapper__factory.connect(
+            sub,
+            provider,
+          ).hookType();
+          if (hookType === OnchainHookType.PREDICATE_ROUTER_WRAPPER) {
+            this.logger.debug(
+              { chain, predicateWrapper: sub },
+              'Stripping existing predicate wrapper from aggregation to avoid stacking',
+            );
+          } else {
+            nonPredicateHooks.push(sub);
+          }
+        } catch {
+          // hookType() failed — not a recognisable hook; keep it
+          nonPredicateHooks.push(sub);
+        }
+      }
+
+      if (nonPredicateHooks.length === subHooks.length) {
+        // No predicate wrapper found — use hook as-is
+        return hookAddress;
+      }
+
+      if (nonPredicateHooks.length === 1) {
+        // Happy path: exactly one base hook remains
+        return nonPredicateHooks[0];
+      }
+
+      // Multiple non-predicate sub-hooks: would need a new CREATE2 aggregation to
+      // re-combine them. Accept the stack rather than silently corrupt the structure.
+      this.logger.warn(
+        { chain, nonPredicateHooks },
+        'Multiple non-predicate sub-hooks found — cannot safely unwrap; using existing hook as-is',
+      );
+      return hookAddress;
+    } catch {
+      // Not a StaticAggregationHook or call failed — use hook as-is
+      return hookAddress;
+    }
   }
 }

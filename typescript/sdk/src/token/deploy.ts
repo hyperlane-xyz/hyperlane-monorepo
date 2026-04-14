@@ -814,9 +814,10 @@ abstract class TokenDeployer<
           router.address,
           this.multiProvider.getSigner(chain),
         );
+        const txOverrides = this.multiProvider.getTransactionOverrides(chain);
         await this.multiProvider.handleTx(
           chain,
-          signerRouter.setHook(result.aggregationHookAddress),
+          signerRouter.setHook(result.aggregationHookAddress, txOverrides),
         );
       }),
     );
