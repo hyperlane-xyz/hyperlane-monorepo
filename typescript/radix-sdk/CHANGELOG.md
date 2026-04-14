@@ -1,5 +1,13 @@
 # @hyperlane-xyz/radix-sdk
 
+## 31.1.0
+
+### Patch Changes
+
+- 8a082af: Added runtime entrypoints for non-EVM SDKs and avoided bundling heavy deploy-time modules in UI wallet integrations.
+  - @hyperlane-xyz/utils@31.1.0
+  - @hyperlane-xyz/provider-sdk@4.3.2
+
 ## 31.0.1
 
 ### Patch Changes
