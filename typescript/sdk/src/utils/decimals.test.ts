@@ -144,7 +144,7 @@ describe('scale conversion helpers', () => {
   it('rejects negative message amounts for ceil local conversion', () => {
     expect(() =>
       minLocalAmountForMessage(-1n, { numerator: 1n, denominator: 3n }),
-    ).to.throw('Numerator must be non-negative');
+    ).to.throw('Message amount must be non-negative');
   });
 
   it('aligns local amounts to exact message progress without leaking local dust', () => {

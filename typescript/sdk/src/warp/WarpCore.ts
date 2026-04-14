@@ -1248,7 +1248,7 @@ export class WarpCore {
     // decimal spaces. Fall back to decimal conversion instead.
     // Well-configured routes should have scale set — verifyScale() catches
     // this at deploy time. Misconfigured routes that reach the message-space
-    // path below will safely return false (insufficient).
+    // path below may produce incorrect results.
     if (
       originToken.decimals !== resolvedDestinationToken.decimals &&
       originToken.scale === undefined &&

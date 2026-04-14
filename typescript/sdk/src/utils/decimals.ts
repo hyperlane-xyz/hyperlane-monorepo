@@ -82,6 +82,7 @@ export function minLocalAmountForMessage(
   messageAmount: bigint,
   scale: ScaleInput | undefined,
 ): bigint {
+  assert(messageAmount >= 0n, 'Message amount must be non-negative');
   const normalized = normalizeScale(scale);
   assertValidScale(normalized);
   return ceilDiv(messageAmount * normalized.denominator, normalized.numerator);
