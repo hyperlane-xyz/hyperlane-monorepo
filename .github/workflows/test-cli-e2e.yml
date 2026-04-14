@@ -90,6 +90,7 @@ jobs:
           - warp-apply-hook-updates
           - warp-apply-ism-updates
           - warp-apply-ownership-updates
+          - warp-apply-predicate-updates
           - warp-apply-rebalancing-config
           - warp-apply-simple-updates
           - warp-apply-submitters

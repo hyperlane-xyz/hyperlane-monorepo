@@ -60,7 +60,12 @@ import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { EvmTokenFeeModule } from '../fee/EvmTokenFeeModule.js';
 import { TokenFeeReaderParams } from '../fee/EvmTokenFeeReader.js';
 import { getEvmHookUpdateTransactions } from '../hook/updates.js';
-import { OnchainHookType } from '../hook/types.js';
+import {
+  AggregationHookConfig,
+  DerivedHookConfig,
+  HookType,
+  OnchainHookType,
+} from '../hook/types.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { PredicateWrapperDeployer } from '../predicate/PredicateDeployer.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -1167,15 +1172,44 @@ export class EvmWarpModule extends HyperlaneModule<
     let hookTransactions: AnnotatedEV5Transaction[] = [];
     let newHookAddress: Address | undefined;
 
-    if (expectedConfig.hook) {
+    // Explicit type annotation narrows away the undefined that TypeScript infers
+    // from the RouterConfig & DerivedMailboxClientConfig intersection.
+    const actualHook: DerivedHookConfig | string = actualConfig.hook;
+
+    // Predicate removal: on-chain wrapper exists but expected config omits it.
+    // When the user provides an explicit expectedConfig.hook the normal hook-diff
+    // path handles removal (the new hook replaces the aggregation). When no hook
+    // is provided we must generate a setHook call to unwrap the aggregation and
+    // restore the bare underlying hook.
+    const needsPredicateRemoval =
+      actualConfig.predicateWrapper != null && !expectedConfig.predicateWrapper;
+
+    // Treat a zero-address hook the same as "no explicit hook": expandWarpDeployConfig
+    // sets hook: zeroAddress as a default when the user config omits the hook field.
+    // EvmHookModule.update(zeroAddress) returns [] early without updating deployedHook,
+    // so a zero-address target produces no setHook tx and the predicate removal branch
+    // would never be reached. Exclude zero addresses so needsPredicateRemoval can fire.
+    if (
+      expectedConfig.hook &&
+      (typeof expectedConfig.hook !== 'string' ||
+        !isZeroishAddress(expectedConfig.hook))
+    ) {
       const proxyAdminAddress =
         expectedConfig.proxyAdmin?.address ?? actualConfig.proxyAdmin?.address;
       assert(proxyAdminAddress, 'ProxyAdmin address is undefined');
 
+      // The reader extracts predicateWrapper into its own field but leaves the
+      // PREDICATE sub-hook inside actualConfig.hook (e.g. Agg([Predicate, IGP])).
+      // Strip it before comparing so the hook diff sees the bare hook (IGP) on both
+      // sides — preventing a spurious setHook(IGP) that would strip the wrapper.
+      const actualHookForComparison = expectedConfig.predicateWrapper
+        ? stripPredicateSubHook(actualHook)
+        : actualHook;
+
       const result = await getEvmHookUpdateTransactions(
         this.args.addresses.deployedTokenRoute,
         {
-          actualConfig: actualConfig.hook,
+          actualConfig: actualHookForComparison,
           expectedConfig: expectedConfig.hook,
           ccipContractCache: this.ccipContractCache,
           contractVerifier: this.contractVerifier,
@@ -1196,45 +1230,64 @@ export class EvmWarpModule extends HyperlaneModule<
       );
       hookTransactions = result.transactions;
       newHookAddress = result.newHookAddress;
+    } else if (needsPredicateRemoval) {
+      // No explicit target hook. Restore the bare underlying hook by stripping
+      // the predicate sub-hook from the current aggregation and calling setHook
+      // with the resulting address.
+      const strippedHook = stripPredicateSubHook(actualHook);
+      const underlyingAddress =
+        typeof strippedHook === 'string' ? strippedHook : strippedHook.address;
+      const currentAddress =
+        typeof actualHook === 'string' ? actualHook : actualHook.address;
+
+      if (underlyingAddress !== currentAddress) {
+        this.logger.debug(
+          { chain: this.chainName, underlyingAddress },
+          'Removing predicate wrapper: generating setHook to restore bare underlying hook',
+        );
+        hookTransactions.push({
+          annotation:
+            'Remove predicate wrapper: restore router hook to bare underlying hook',
+          chainId: this.chainId,
+          to: this.args.addresses.deployedTokenRoute,
+          data: MailboxClient__factory.createInterface().encodeFunctionData(
+            'setHook',
+            [underlyingAddress],
+          ),
+        });
+      }
     }
 
-    const predicateTransactions = await this.createPredicateWrapperUpdateTxs(
-      actualConfig,
-      expectedConfig,
-      newHookAddress,
-    );
+    const { transactions: predicateTransactions, deploysNewWrapper } =
+      await this.createPredicateWrapperUpdateTxs(
+        actualConfig,
+        expectedConfig,
+        newHookAddress,
+      );
 
     // When predicate wrapper is being deployed, its setHook(aggregation) sets the final
     // router hook and already incorporates newHookAddress inside the aggregation.
     // Drop the intermediate setHook(newHookAddress) from hookTransactions to avoid a
     // redundant write that would be immediately overwritten.
     //
-    // IMPORTANT: only drop when a NEW wrapper is being deployed — detected by the presence
-    // of a setHook call targeting the warp route in predicateTransactions. The ownership-only
-    // path returns a transferOwnership tx (not a setHook), so it must not suppress the
-    // hook update even though predicateTransactions is non-empty.
-    let effectiveHookTransactions = hookTransactions;
-    if (hookTransactions.length > 0) {
-      const iface = MailboxClient__factory.createInterface();
-      const setHookSelector = iface.getSighash('setHook');
-      const warpRouteAddress = this.args.addresses.deployedTokenRoute;
-      const predicateDeploysNewWrapper = predicateTransactions.some(
-        (tx) =>
-          tx.to &&
-          eqAddress(tx.to, warpRouteAddress) &&
-          tx.data?.startsWith(setHookSelector),
-      );
-      if (predicateDeploysNewWrapper) {
-        effectiveHookTransactions = hookTransactions.filter(
-          (tx) =>
-            !(
-              tx.to &&
-              eqAddress(tx.to, warpRouteAddress) &&
-              tx.data?.startsWith(setHookSelector)
-            ),
-        );
-      }
-    }
+    // IMPORTANT: only drop when a NEW wrapper is being deployed. The ownership-only
+    // path (deploysNewWrapper=false) must not suppress the hook update even though
+    // predicateTransactions is non-empty.
+    const effectiveHookTransactions =
+      hookTransactions.length > 0 && deploysNewWrapper
+        ? hookTransactions.filter(
+            (tx) =>
+              !(
+                tx.to &&
+                eqAddress(tx.to, this.args.addresses.deployedTokenRoute) &&
+                tx.data?.startsWith(
+                  MailboxClient__factory.createInterface().getSighash(
+                    'setHook',
+                  ),
+                )
+              ),
+          )
+        : hookTransactions;
 
     return [...effectiveHookTransactions, ...predicateTransactions];
   }
@@ -1376,21 +1429,24 @@ export class EvmWarpModule extends HyperlaneModule<
    *
    * @param actualConfig - The on-chain router configuration.
    * @param expectedConfig - The expected token router configuration.
-   * @returns Ethereum transactions that need to be executed to deploy predicate wrapper.
+   * @returns transactions to execute and whether a new wrapper is being deployed.
+   *   deploysNewWrapper=true means the predicate emits its own setHook(aggregation)
+   *   that supersedes any hook update in the same batch.
    */
   async createPredicateWrapperUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
     pendingHookAddress?: Address,
-  ): Promise<AnnotatedEV5Transaction[]> {
-    const updateTransactions: AnnotatedEV5Transaction[] = [];
-
+  ): Promise<{
+    transactions: AnnotatedEV5Transaction[];
+    deploysNewWrapper: boolean;
+  }> {
     // Only proceed if expectedConfig has predicateWrapper
     if (
       !('predicateWrapper' in expectedConfig) ||
       !expectedConfig.predicateWrapper
     ) {
-      return [];
+      return { transactions: [], deploysNewWrapper: false };
     }
 
     const predicateWrapperConfig: PredicateWrapperConfig =
@@ -1411,7 +1467,7 @@ export class EvmWarpModule extends HyperlaneModule<
           { chain: this.chainName },
           'Predicate wrapper already deployed with matching config, skipping',
         );
-        return [];
+        return { transactions: [], deploysNewWrapper: false };
       }
 
       // Owner changed — generate a transferOwnership tx without redeploying.
@@ -1423,13 +1479,16 @@ export class EvmWarpModule extends HyperlaneModule<
         existingWrapper.address,
         this.multiProvider.getProvider(this.chainName),
       ).populateTransaction.transferOwnership(predicateWrapperConfig.owner);
-      return [
-        {
-          ...transferOwnershipTx,
-          chainId: this.chainId,
-          annotation: `Transferring predicate wrapper ownership to ${predicateWrapperConfig.owner}`,
-        },
-      ];
+      return {
+        transactions: [
+          {
+            ...transferOwnershipTx,
+            chainId: this.chainId,
+            annotation: `Transferring predicate wrapper ownership to ${predicateWrapperConfig.owner}`,
+          },
+        ],
+        deploysNewWrapper: false,
+      };
     }
 
     const staticAggregationHookFactory =
@@ -1474,14 +1533,17 @@ export class EvmWarpModule extends HyperlaneModule<
       'Predicate wrapper deployed, returning setHook transaction',
     );
 
-    updateTransactions.push({
-      annotation:
-        'Set aggregation hook wrapping PredicateRouterWrapper on warp route',
-      chainId: this.chainId,
-      ...result.setHookTx,
-    });
-
-    return updateTransactions;
+    return {
+      transactions: [
+        {
+          annotation:
+            'Set aggregation hook wrapping PredicateRouterWrapper on warp route',
+          chainId: this.chainId,
+          ...result.setHookTx,
+        },
+      ],
+      deploysNewWrapper: true,
+    };
   }
 
   /**
@@ -1932,4 +1994,40 @@ export class EvmWarpModule extends HyperlaneModule<
 
     return warpModule;
   }
+}
+
+/**
+ * Strips any PREDICATE sub-hook from an aggregation hook config.
+ *
+ * The warp route reader extracts predicateWrapper into its own field but leaves
+ * the PREDICATE sub-hook inside the aggregation (e.g. Agg([Predicate, IGP])).
+ * Before comparing actual vs expected hooks, callers should use this to obtain
+ * the bare hook (IGP) so the diff doesn't generate a spurious setHook that
+ * would overwrite and discard the predicate wrapper.
+ *
+ * Returns:
+ * - The single remaining sub-hook when exactly one non-predicate hook remains.
+ * - The original hook unchanged when no PREDICATE sub-hook is found or when
+ *   multiple non-predicate sub-hooks remain (can't construct a DerivedHookConfig
+ *   without an on-chain address for a synthetic aggregation).
+ */
+function stripPredicateSubHook(
+  hook: DerivedHookConfig | string,
+): DerivedHookConfig | string {
+  if (typeof hook === 'string' || hook.type !== HookType.AGGREGATION)
+    return hook;
+
+  const agg = hook as AggregationHookConfig;
+  const remaining = agg.hooks.filter(
+    (h) =>
+      typeof h === 'string' ||
+      (h as DerivedHookConfig).type !== HookType.PREDICATE,
+  );
+
+  if (remaining.length === agg.hooks.length) return hook; // no predicate found
+  // Exactly one non-predicate hook — unwrap the aggregation.
+  if (remaining.length === 1) return remaining[0] as DerivedHookConfig | string;
+  // Multiple non-predicate hooks remain — can't construct a DerivedHookConfig
+  // without an on-chain address; return the original unchanged.
+  return hook;
 }
