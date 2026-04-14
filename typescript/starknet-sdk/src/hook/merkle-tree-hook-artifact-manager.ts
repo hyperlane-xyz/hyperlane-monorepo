@@ -18,6 +18,7 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import { StarknetSigner } from '../clients/signer.js';
 import { normalizeStarknetAddressSafe } from '../contracts.js';
+import { getCreateMerkleTreeHookTx } from './hook-tx.js';
 
 export class StarknetMerkleTreeHookReader implements ArtifactReader<
   RawHookArtifactConfigs['merkleTreeHook'],
@@ -65,10 +66,10 @@ export class StarknetMerkleTreeHookWriter
       TxReceipt[],
     ]
   > {
-    const tx = await this.signer.getCreateMerkleTreeHookTransaction({
-      signer: this.signer.getSignerAddress(),
-      mailboxAddress: this.mailboxAddress,
-    });
+    const tx = getCreateMerkleTreeHookTx(
+      this.mailboxAddress,
+      this.signer.getSignerAddress(),
+    );
     const receipt = await this.signer.sendAndConfirmTransaction(tx);
     const hookAddress = receipt.contractAddress;
     assert(hookAddress, 'failed to deploy Starknet merkle tree hook');

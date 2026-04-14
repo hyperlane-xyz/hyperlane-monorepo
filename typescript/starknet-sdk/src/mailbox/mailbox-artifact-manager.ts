@@ -24,6 +24,7 @@ import {
 import { StarknetProvider } from '../clients/provider.js';
 import { StarknetSigner } from '../clients/signer.js';
 import { normalizeStarknetAddressSafe } from '../contracts.js';
+import { getCreateNoopHookTx } from '../hook/hook-tx.js';
 import {
   getCreateMailboxTx,
   getSetDefaultHookTx,
@@ -108,10 +109,7 @@ class StarknetMailboxWriter
     }
 
     if (!placeholderRef.address) {
-      const tx = await this.signer.getCreateNoopHookTransaction({
-        signer: this.signer.getSignerAddress(),
-        mailboxAddress: '',
-      });
+      const tx = getCreateNoopHookTx();
       const receipt = await this.signer.sendAndConfirmTransaction(tx);
       receipts.push(receipt);
       assert(
