@@ -5,6 +5,7 @@ import {
 } from '@solana/errors';
 import {
   AccountRole,
+  type Address,
   address,
   blockhash,
   getBase58Encoder,
@@ -972,12 +973,12 @@ describe('SvmSigner', () => {
         computeUnits: 123456,
         instructions: [
           {
-            programAddress: COMPUTE_BUDGET_PROGRAM_ADDRESS,
+            programAddress: COMPUTE_BUDGET_PROGRAM_ADDRESS as Address,
             accounts: [],
             data: new Uint8Array([2, 0, 0, 0, 0]),
           },
           {
-            programAddress: PROGRAM_ADDRESS,
+            programAddress: PROGRAM_ADDRESS as Address,
             accounts: [],
             data: new Uint8Array([1]),
           },

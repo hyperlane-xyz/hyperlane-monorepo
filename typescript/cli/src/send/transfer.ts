@@ -102,15 +102,22 @@ function toTypedAltVmReceipt(
 }
 
 export async function fetchSealevelReceiptWithLogs(
-  context: Pick<WriteCommandContext, 'multiProvider'>,
+  context: Pick<WriteCommandContext, 'multiProtocolProvider'>,
   origin: ChainName,
   signature: string,
   pollIntervalMs = SEALEVEL_RECEIPT_POLL_INTERVAL_MS,
   maxAttempts = SEALEVEL_RECEIPT_MAX_ATTEMPTS,
 ): Promise<TypedTransactionReceipt> {
-  assert(Number.isFinite(pollIntervalMs) && pollIntervalMs >= 0);
-  assert(Number.isInteger(maxAttempts) && maxAttempts > 0);
-  const connection = context.multiProvider.getSolanaWeb3Provider(origin);
+  assert(
+    Number.isFinite(pollIntervalMs) && pollIntervalMs >= 0,
+    `Invalid Sealevel receipt poll interval: ${pollIntervalMs}`,
+  );
+  assert(
+    Number.isInteger(maxAttempts) && maxAttempts > 0,
+    `Invalid Sealevel receipt maxAttempts: ${maxAttempts}`,
+  );
+  const connection =
+    context.multiProtocolProvider.getSolanaWeb3Provider(origin);
   let receipt = null;
   let lastError: unknown;
 

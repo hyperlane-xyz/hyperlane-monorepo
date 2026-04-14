@@ -50,6 +50,7 @@
   },
   "devDependencies": {
     "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@solana/web3.js": "catalog:",
     "@types/chai": "^4.3.14",
     "@types/chai-as-promised": "catalog:",
     "@types/mocha": "^10.0.6",

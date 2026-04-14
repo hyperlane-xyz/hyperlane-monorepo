@@ -11,7 +11,7 @@ describe('fetchSealevelReceiptWithLogs', () => {
       meta: { logMessages: ['Dispatched message to 1234, ID deadbeef'] },
     };
     const context = {
-      multiProvider: {
+      multiProtocolProvider: {
         getSolanaWeb3Provider: () => ({
           getTransaction: async (signature: string) => {
             calls.push(signature);
@@ -39,7 +39,7 @@ describe('fetchSealevelReceiptWithLogs', () => {
   it('throws when Solana logs never become available', async () => {
     let calls = 0;
     const context = {
-      multiProvider: {
+      multiProtocolProvider: {
         getSolanaWeb3Provider: () => ({
           getTransaction: async () => {
             calls += 1;
@@ -49,17 +49,21 @@ describe('fetchSealevelReceiptWithLogs', () => {
       },
     } as any;
 
-    await expect(
-      fetchSealevelReceiptWithLogs(
+    try {
+      await fetchSealevelReceiptWithLogs(
         context,
         'solanamainnet',
         'missing-logs-signature',
         0,
         2,
-      ),
-    ).to.be.rejectedWith(
-      'Transaction logs unavailable for Solana transaction missing-logs-signature',
-    );
+      );
+      throw new Error('expected fetchSealevelReceiptWithLogs to throw');
+    } catch (error) {
+      expect(error).to.be.instanceOf(Error);
+      expect((error as Error).message).to.equal(
+        'Transaction logs unavailable for Solana transaction missing-logs-signature',
+      );
+    }
     expect(calls).to.equal(2);
   });
 
@@ -69,7 +73,7 @@ describe('fetchSealevelReceiptWithLogs', () => {
       meta: { logMessages: ['Dispatched message to 1234, ID deadbeef'] },
     };
     const context = {
-      multiProvider: {
+      multiProtocolProvider: {
         getSolanaWeb3Provider: () => ({
           getTransaction: async () => {
             calls += 1;

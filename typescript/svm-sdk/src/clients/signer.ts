@@ -41,6 +41,7 @@ import type {
 import { SvmProvider } from './provider.js';
 import { DEFAULT_COMPUTE_UNITS } from '../constants.js';
 
+type SendableSvmTransaction = Omit<SvmTransaction, 'feePayer'>;
 type SendableSvmCompatTransaction = Parameters<typeof normalizeTransaction>[0];
 type SendableSvmExtraSignerTransaction = SendableSvmCompatTransaction & {
   extraSigners?: readonly (TransactionSigner | Web3KeypairLike)[];
@@ -341,7 +342,7 @@ export class SvmSigner
     const compatAdditionalSigners = await normalizeAdditionalSigners(
       tx.additionalSigners ?? tx.extraSigners,
     );
-    const normalizedTx = normalizeTransaction(tx);
+    const normalizedTx: SendableSvmTransaction = normalizeTransaction(tx);
     normalizedTx.additionalSigners = compatAdditionalSigners;
     const maxBlockhashAttempts = 3;
     const pollIntervalMs = 2000;
