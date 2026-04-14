@@ -139,6 +139,7 @@ export class PredicateWrapperDeployer {
     warpRouteAddress: Address,
     config: PredicateWrapperConfig,
     tokenType?: TokenType,
+    existingHookOverride?: Address,
   ): Promise<PredicateWrapperDeploymentResult> {
     const signer = this.multiProvider.getSigner(chain);
 
@@ -148,7 +149,9 @@ export class PredicateWrapperDeployer {
       ? CrossCollateralRouter__factory.connect(warpRouteAddress, signer)
       : TokenRouter__factory.connect(warpRouteAddress, signer);
 
-    const existingHook = await warpRoute.hook();
+    // Use the override when provided (e.g. when a hook update is pending in the same
+    // update() call and the on-chain value would be stale).
+    const existingHook = existingHookOverride ?? (await warpRoute.hook());
 
     const wrapperAddress = await this.deployPredicateWrapper(
       chain,

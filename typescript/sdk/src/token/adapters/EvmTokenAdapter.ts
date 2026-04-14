@@ -277,7 +277,14 @@ export class EvmHypSyntheticAdapter
     owner: Address,
     spender: Address,
   ): Promise<boolean> {
-    if (eqAddress(spender, this.addresses.token)) return false;
+    if (eqAddress(spender, this.addresses.token)) {
+      // When a predicate wrapper is present, allowance was granted to the wrapper.
+      // Check whether the wrapper has a non-zero allowance that must be revoked first
+      // (relevant for USDT-like tokens that require zeroing before re-approval).
+      const predicateWrapper = await this.getPredicateWrapperAddress();
+      if (!predicateWrapper) return false;
+      return super.isRevokeApprovalRequired(owner, predicateWrapper);
+    }
     return super.isRevokeApprovalRequired(owner, spender);
   }
 

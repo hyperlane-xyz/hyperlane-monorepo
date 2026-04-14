@@ -328,20 +328,15 @@ async function executeDelivery({
   }
 
   const chainAddresses = await registry.getAddresses();
-  let filteredChainAddresses: ChainMap<Record<string, string>> = {};
 
-  // if both origin and destination are specified we only load these two chains
-  if (origin && destination) {
-    // Only load core contracts for chains we're actually using (origin + destination)
-    const relevantChains = [origin, destination];
-    filteredChainAddresses = Object.fromEntries(
+  // Only load core contracts for chains we're actually using (origin + destination)
+  const relevantChains = [origin, destination];
+  const filteredChainAddresses: ChainMap<Record<string, string>> =
+    Object.fromEntries(
       Object.entries(chainAddresses).filter(([chain]) =>
         relevantChains.includes(chain),
       ),
     );
-  } else {
-    filteredChainAddresses = chainAddresses;
-  }
 
   const mailboxes = objMap(
     objFilter(
@@ -491,6 +486,12 @@ async function executeDelivery({
       nativeTokenFee
     ).toString();
 
+    // The Predicate API validates transfer intent, not exact on-chain calldata.
+    // `to` is the wrapper address (the contract that will execute the attestation-gated call),
+    // and `data` is the underlying transferRemote / transferRemoteTo calldata so the API
+    // can parse the destination, recipient, and amount.
+    // The actual on-chain tx will call transferRemoteWithAttestation on the wrapper,
+    // but the API does not need to match the wrapping layer — only the transfer intent.
     const attestationRequest = {
       to: predicateTarget,
       from: signerAddress,

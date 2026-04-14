@@ -195,7 +195,8 @@ export class EvmWarpModule extends HyperlaneModule<
      * 1. createOwnershipUpdateTxs() must always be LAST because no updates possible after ownership transferred
      * 2. createEnrollRemoteRoutersUpdateTxs() must be BEFORE createSetDestinationGasUpdateTxs()
      *    because GasRouter requires routers to be enrolled before setting destination gas
-     * 3. createPredicateWrapperUpdateTxs() must be AFTER createHookUpdateTxs() so it wraps the updated hook
+     * 3. createHookAndPredicateUpdateTxs() handles hook + predicate wrapper together so the
+     *    pending new hook address is threaded through without leaking into other method signatures
      */
     transactions.push(
       ...(await this.upgradeWarpRouteImplementationTx(
@@ -203,8 +204,7 @@ export class EvmWarpModule extends HyperlaneModule<
         expectedConfig,
       )),
       ...(await this.createIsmUpdateTxs(actualConfig, expectedConfig)),
-      ...(await this.createHookUpdateTxs(actualConfig, expectedConfig)),
-      ...(await this.createPredicateWrapperUpdateTxs(
+      ...(await this.createHookAndPredicateUpdateTxs(
         actualConfig,
         expectedConfig,
       )),
@@ -1148,36 +1148,62 @@ export class EvmWarpModule extends HyperlaneModule<
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
-    if (!expectedConfig.hook) {
-      return [];
+    const { transactions } = await this.createHookAndPredicateUpdateTxs(
+      actualConfig,
+      expectedConfig,
+    );
+    return transactions;
+  }
+
+  /**
+   * Deploys hook updates and predicate wrapper together so the post-update hook address
+   * is available to deployAndConfigure without a stale on-chain read.
+   */
+  async createHookAndPredicateUpdateTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): Promise<AnnotatedEV5Transaction[]> {
+    let hookTransactions: AnnotatedEV5Transaction[] = [];
+    let newHookAddress: Address | undefined;
+
+    if (expectedConfig.hook) {
+      const proxyAdminAddress =
+        expectedConfig.proxyAdmin?.address ?? actualConfig.proxyAdmin?.address;
+      assert(proxyAdminAddress, 'ProxyAdmin address is undefined');
+
+      const result = await getEvmHookUpdateTransactions(
+        this.args.addresses.deployedTokenRoute,
+        {
+          actualConfig: actualConfig.hook,
+          expectedConfig: expectedConfig.hook,
+          ccipContractCache: this.ccipContractCache,
+          contractVerifier: this.contractVerifier,
+          evmChainName: this.chainName,
+          hookAndIsmFactories: extractIsmAndHookFactoryAddresses(
+            this.args.addresses,
+          ),
+          setHookFunctionCallEncoder: (addr: string) =>
+            MailboxClient__factory.createInterface().encodeFunctionData(
+              'setHook',
+              [addr],
+            ),
+          logger: this.logger,
+          mailbox: actualConfig.mailbox,
+          multiProvider: this.multiProvider,
+          proxyAdminAddress,
+        },
+      );
+      hookTransactions = result.transactions;
+      newHookAddress = result.newHookAddress;
     }
 
-    const proxyAdminAddress =
-      expectedConfig.proxyAdmin?.address ?? actualConfig.proxyAdmin?.address;
-    assert(proxyAdminAddress, 'ProxyAdmin address is undefined');
-
-    return getEvmHookUpdateTransactions(
-      this.args.addresses.deployedTokenRoute,
-      {
-        actualConfig: actualConfig.hook,
-        expectedConfig: expectedConfig.hook,
-        ccipContractCache: this.ccipContractCache,
-        contractVerifier: this.contractVerifier,
-        evmChainName: this.chainName,
-        hookAndIsmFactories: extractIsmAndHookFactoryAddresses(
-          this.args.addresses,
-        ),
-        setHookFunctionCallEncoder: (newHookAddress: string) =>
-          MailboxClient__factory.createInterface().encodeFunctionData(
-            'setHook',
-            [newHookAddress],
-          ),
-        logger: this.logger,
-        mailbox: actualConfig.mailbox,
-        multiProvider: this.multiProvider,
-        proxyAdminAddress,
-      },
+    const predicateTransactions = await this.createPredicateWrapperUpdateTxs(
+      actualConfig,
+      expectedConfig,
+      newHookAddress,
     );
+
+    return [...hookTransactions, ...predicateTransactions];
   }
 
   /**
@@ -1261,6 +1287,7 @@ export class EvmWarpModule extends HyperlaneModule<
   async createPredicateWrapperUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
+    pendingHookAddress?: Address,
   ): Promise<AnnotatedEV5Transaction[]> {
     const updateTransactions: AnnotatedEV5Transaction[] = [];
 
@@ -1309,13 +1336,17 @@ export class EvmWarpModule extends HyperlaneModule<
       this.logger,
     );
 
-    // Deploy predicate wrapper and get addresses
-    // Pass token type to deploy the appropriate wrapper
+    // Deploy predicate wrapper and get addresses.
+    // Pass token type to deploy the appropriate wrapper.
+    // Pass pendingHookAddress (if any) so deployAndConfigure uses the post-update hook
+    // instead of reading the stale on-chain value when hook and predicate wrapper are
+    // both being changed in the same update() call.
     const result = await predicateDeployer.deployAndConfigure(
       this.chainName,
       this.args.addresses.deployedTokenRoute,
       predicateWrapperConfig,
       expectedConfig.type,
+      pendingHookAddress,
     );
 
     this.logger.info(
