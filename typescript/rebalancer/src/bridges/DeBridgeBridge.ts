@@ -85,16 +85,18 @@ export class DeBridgeBridge implements IExternalBridge {
     const srcToken = formatAddressForDebridge(fromToken, srcDebridgeChainId);
     const dstToken = formatAddressForDebridge(toToken, dstDebridgeChainId);
 
-    const amountStr = (fromAmount ?? toAmount!).toString();
+    const isForwardQuote = fromAmount !== undefined;
+    const srcAmountParam = isForwardQuote ? fromAmount!.toString() : 'auto';
+    const dstAmountParam = isForwardQuote ? 'auto' : toAmount!.toString();
 
     const url =
       `${this.apiUrl}/dln/order/quote` +
       `?srcChainId=${srcDebridgeChainId}` +
       `&srcChainTokenIn=${srcToken}` +
-      `&srcChainTokenInAmount=${amountStr}` +
+      `&srcChainTokenInAmount=${srcAmountParam}` +
       `&dstChainId=${dstDebridgeChainId}` +
       `&dstChainTokenOut=${dstToken}` +
-      `&dstChainTokenOutAmount=auto` +
+      `&dstChainTokenOutAmount=${dstAmountParam}` +
       `&prependOperatingExpenses=false`;
 
     this.logger.debug(
