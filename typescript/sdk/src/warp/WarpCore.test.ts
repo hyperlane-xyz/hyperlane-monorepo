@@ -267,13 +267,138 @@ describe('WarpCore', () => {
       ).to.equal(expectedResult);
     };
 
-    await testCollateral(evmHypNativeScale1, testScale2.name, 10n, false);
-    await testCollateral(evmHypNativeScale1, testScale2.name, 1n, true);
-    await testCollateral(evmHypNativeScale2, testScale1.name, 10n, true);
-    await testCollateral(evmHypNativeScale2, testScale1.name, 100n, true);
-    await testCollateral(evmHypNativeScale2, testScale1.name, 101n, false);
+    const originalScale1 = evmHypNativeScale1.scale;
+    const originalScale2 = evmHypNativeScale2.scale;
 
-    stubs.forEach((s) => s.restore());
+    try {
+      await testCollateral(evmHypNativeScale1, testScale2.name, 10n, false);
+      await testCollateral(evmHypNativeScale1, testScale2.name, 1n, true);
+      await testCollateral(evmHypNativeScale2, testScale1.name, 10n, true);
+      await testCollateral(evmHypNativeScale2, testScale1.name, 100n, true);
+      await testCollateral(evmHypNativeScale2, testScale1.name, 101n, false);
+
+      evmHypNativeScale1.scale = { numerator: 100n, denominator: 10n };
+      evmHypNativeScale2.scale = { numerator: 10n, denominator: 10n };
+
+      await testCollateral(evmHypNativeScale1, testScale2.name, 10n, false);
+      await testCollateral(evmHypNativeScale1, testScale2.name, 1n, true);
+      await testCollateral(evmHypNativeScale2, testScale1.name, 10n, true);
+      await testCollateral(evmHypNativeScale2, testScale1.name, 100n, true);
+      await testCollateral(evmHypNativeScale2, testScale1.name, 101n, false);
+    } finally {
+      evmHypNativeScale1.scale = originalScale1;
+      evmHypNativeScale2.scale = originalScale2;
+      stubs.forEach((s) => s.restore());
+    }
+  });
+
+  it('Preserves decimals fallback for mixed-decimal routes missing scale', async () => {
+    const originToken = new Token({
+      chainName: test1.name,
+      standard: TokenStandard.EvmHypCollateral,
+      addressOrDenom: zeroAddress,
+      decimals: 18,
+      symbol: 'TEST',
+      name: 'Test Token',
+      connections: [],
+    });
+    const destinationToken = new Token({
+      chainName: test2.name,
+      standard: TokenStandard.EvmHypCollateral,
+      addressOrDenom: zeroAddress,
+      decimals: 6,
+      symbol: 'TEST',
+      name: 'Test Token',
+      connections: [],
+    });
+    originToken.connections!.push({ token: destinationToken });
+    const mixedDecimalWarpCore = new WarpCore(multiProvider, [
+      originToken,
+      destinationToken,
+    ]);
+    const originStub = sinon.stub(originToken, 'getHypAdapter').returns({
+      getBalance: () => Promise.resolve(1_000_000n),
+      getBridgedSupply: () => Promise.resolve(1_000_000n),
+    } as any);
+    const destinationStub = sinon
+      .stub(destinationToken, 'getHypAdapter')
+      .returns({
+        getBalance: () => Promise.resolve(1_000_000n),
+        getBridgedSupply: () => Promise.resolve(1_000_000n),
+      } as any);
+
+    try {
+      expect(
+        await mixedDecimalWarpCore.isDestinationCollateralSufficient({
+          originTokenAmount: originToken.amount(1_000_000_000_000_000_000n),
+          destination: test2.name,
+        }),
+      ).to.be.true;
+      expect(
+        await mixedDecimalWarpCore.isDestinationCollateralSufficient({
+          originTokenAmount: originToken.amount(1_000_000_000_000_000_001n),
+          destination: test2.name,
+        }),
+      ).to.be.false;
+    } finally {
+      originStub.restore();
+      destinationStub.restore();
+    }
+  });
+
+  it('Uses message-space collateral checks when one side has rational scale and the other uses implicit identity', async () => {
+    const originToken = new Token({
+      chainName: test1.name,
+      standard: TokenStandard.EvmHypCollateral,
+      addressOrDenom: zeroAddress,
+      decimals: 18,
+      scale: { numerator: 2, denominator: 1_000_000_000_000 },
+      symbol: 'TEST',
+      name: 'Test Token',
+      connections: [],
+    });
+    const destinationToken = new Token({
+      chainName: test2.name,
+      standard: TokenStandard.EvmHypCollateral,
+      addressOrDenom: zeroAddress,
+      decimals: 6,
+      symbol: 'TEST',
+      name: 'Test Token',
+      connections: [],
+    });
+    originToken.connections!.push({ token: destinationToken });
+    const scaledWarpCore = new WarpCore(multiProvider, [
+      originToken,
+      destinationToken,
+    ]);
+    const originStub = sinon.stub(originToken, 'getHypAdapter').returns({
+      getBalance: () => Promise.resolve(1_000_000n),
+      getBridgedSupply: () => Promise.resolve(1_000_000n),
+    } as any);
+    const destinationStub = sinon
+      .stub(destinationToken, 'getHypAdapter')
+      .returns({
+        getBalance: () => Promise.resolve(1_000_000n),
+        getBridgedSupply: () => Promise.resolve(1_000_000n),
+      } as any);
+
+    try {
+      expect(
+        await scaledWarpCore.isDestinationCollateralSufficient({
+          originTokenAmount: originToken.amount(500_000_000_000_000_000n),
+          destination: test2.name,
+        }),
+      ).to.be.true;
+      expect(
+        await scaledWarpCore.isDestinationCollateralSufficient({
+          originTokenAmount: originToken.amount(750_000_000_000_000_000n),
+          destination: test2.name,
+        }),
+      ).to.be.false;
+    } finally {
+      originStub.restore();
+      destinationStub.restore();
+    }
   });
 
   it('Validates transfers', async () => {

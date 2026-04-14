@@ -25,6 +25,11 @@ export const DEFAULT_SCALE: NormalizedScale = {
   denominator: 1n,
 };
 
+export type ScaleAlignment = {
+  localAmount: bigint;
+  messageAmount: bigint;
+};
+
 /**
  * Converts any accepted scale variant to NormalizedScale (bigint).
  */
@@ -36,6 +41,66 @@ export function normalizeScale(scale: ScaleInput | undefined): NormalizedScale {
   return {
     numerator: BigInt(scale.numerator),
     denominator: BigInt(scale.denominator),
+  };
+}
+
+function assertValidScale(scale: NormalizedScale): void {
+  assert(
+    scale.numerator > 0n && scale.denominator > 0n,
+    `Scale must be positive, got ${scale.numerator}/${scale.denominator}`,
+  );
+}
+
+function ceilDiv(numerator: bigint, denominator: bigint): bigint {
+  assert(denominator > 0n, 'Denominator must be positive');
+  assert(numerator >= 0n, 'Numerator must be non-negative');
+  if (numerator === 0n) return 0n;
+  return (numerator + denominator - 1n) / denominator;
+}
+
+export function messageAmountFromLocal(
+  localAmount: bigint,
+  scale: ScaleInput | undefined,
+): bigint {
+  const normalized = normalizeScale(scale);
+  assertValidScale(normalized);
+  return (localAmount * normalized.numerator) / normalized.denominator;
+}
+
+export function localAmountFromMessage(
+  messageAmount: bigint,
+  scale: ScaleInput | undefined,
+): bigint {
+  const normalized = normalizeScale(scale);
+  assertValidScale(normalized);
+  return (messageAmount * normalized.denominator) / normalized.numerator;
+}
+
+export function minLocalAmountForMessage(
+  messageAmount: bigint,
+  scale: ScaleInput | undefined,
+): bigint {
+  const normalized = normalizeScale(scale);
+  assertValidScale(normalized);
+  return ceilDiv(messageAmount * normalized.denominator, normalized.numerator);
+}
+
+export function alignLocalAmountToMessage(
+  localAmount: bigint,
+  scale: ScaleInput | undefined,
+): ScaleAlignment {
+  assert(localAmount >= 0n, 'Local amount must be non-negative');
+  const messageAmount = messageAmountFromLocal(localAmount, scale);
+  if (messageAmount === 0n) {
+    return {
+      localAmount: 0n,
+      messageAmount: 0n,
+    };
+  }
+
+  return {
+    localAmount: minLocalAmountForMessage(messageAmount, scale),
+    messageAmount,
   };
 }
 

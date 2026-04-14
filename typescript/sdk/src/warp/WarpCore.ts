@@ -9,7 +9,6 @@ import {
   assert,
   convertDecimalsToIntegerString,
   convertToProtocolAddress,
-  convertToScaledAmount,
   isEVMLike,
   isValidAddress,
   isZeroishAddress,
@@ -57,6 +56,7 @@ import {
 import type { QuotedCallsParams } from '../quoted-calls/types.js';
 import { TokenPullMode } from '../quoted-calls/types.js';
 import { ChainName, ChainNameOrId } from '../types.js';
+import { messageAmountFromLocal } from '../utils/decimals.js';
 
 import {
   FeeConstantConfig,
@@ -1242,34 +1242,36 @@ export class WarpCore {
     const destinationBalance = await this.getTokenCollateral(
       resolvedDestinationToken,
     );
-
-    const destinationBalanceInOriginDecimals = convertDecimalsToIntegerString(
-      resolvedDestinationToken.decimals,
-      originToken.decimals,
-      destinationBalance.toString(),
-    );
-
-    // check for scaling factor
     if (
-      originToken.scale &&
-      resolvedDestinationToken.scale &&
-      originToken.scale !== resolvedDestinationToken.scale
+      originToken.decimals !== resolvedDestinationToken.decimals &&
+      originToken.scale === undefined &&
+      resolvedDestinationToken.scale === undefined
     ) {
-      const precisionFactor = 100_000;
-      const scaledAmount = convertToScaledAmount({
-        fromScale: originToken.scale,
-        toScale: resolvedDestinationToken.scale,
-        amount,
-        precisionFactor,
-      });
-
-      return (
-        BigInt(destinationBalanceInOriginDecimals) * BigInt(precisionFactor) >=
-        scaledAmount
+      const destinationBalanceInOriginDecimals = BigInt(
+        convertDecimalsToIntegerString(
+          resolvedDestinationToken.decimals,
+          originToken.decimals,
+          destinationBalance.toString(),
+        ),
       );
+      const isSufficient = destinationBalanceInOriginDecimals >= amount;
+      this.logger.debug(
+        `${originTokenAmount.token.symbol} to ${destination} has ${
+          isSufficient ? 'sufficient' : 'INSUFFICIENT'
+        } collateral`,
+      );
+      return isSufficient;
     }
 
-    const isSufficient = BigInt(destinationBalanceInOriginDecimals) >= amount;
+    const requiredMessageAmount = messageAmountFromLocal(
+      amount,
+      originToken.scale,
+    );
+    const availableMessageAmount = messageAmountFromLocal(
+      destinationBalance,
+      resolvedDestinationToken.scale,
+    );
+    const isSufficient = availableMessageAmount >= requiredMessageAmount;
     this.logger.debug(
       `${originTokenAmount.token.symbol} to ${destination} has ${
         isSufficient ? 'sufficient' : 'INSUFFICIENT'
