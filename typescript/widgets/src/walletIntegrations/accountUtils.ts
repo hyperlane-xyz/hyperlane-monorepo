@@ -9,6 +9,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import type { AccountInfo } from './types.js';
+import { getAddressForChain } from './walletAddresses.js';
 
 export function getAccountAddressForChain(
   multiProvider: MinimalProviderRegistry,
@@ -18,15 +19,7 @@ export function getAccountAddressForChain(
   if (!chainName || !accounts) return undefined;
   const protocol = multiProvider.getProtocol(chainName);
   const account = accounts[protocol];
-  if (
-    protocol === ProtocolType.Cosmos ||
-    protocol === ProtocolType.CosmosNative
-  ) {
-    return account?.addresses.find((a) => a.chainName === chainName)?.address;
-  } else {
-    // Use first because only cosmos has the notion of per-chain addresses
-    return account?.addresses[0]?.address;
-  }
+  return getAddressForChain(account?.addresses, protocol, chainName);
 }
 
 export function getAddressFromAccountAndChain(
