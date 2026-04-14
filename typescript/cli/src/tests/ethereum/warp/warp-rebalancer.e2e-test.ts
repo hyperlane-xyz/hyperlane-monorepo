@@ -369,6 +369,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     return new Promise((resolve, reject) => {
       let settled = false;
       const observedLines: string[] = [];
+      let stdoutCarry = '';
+      let stderrCarry = '';
 
       const settleSuccess = () => {
         if (settled) return;
@@ -384,15 +386,16 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         reject(error);
       };
 
-      const consumeOutput = (output: string) => {
-        const lines = output.split('\n').filter(Boolean);
-
+      const consumeLines = (lines: string[]) => {
         for (const line of lines) {
           observedLines.push(line);
           if (!expectedLogs.length) break;
           try {
-            const logJson = JSON.parse(line);
-            if (logJson.msg?.includes(expectedLogs[0])) {
+            const logJson = JSON.parse(line) as { msg?: unknown };
+            if (
+              typeof logJson.msg === 'string' &&
+              logJson.msg.includes(expectedLogs[0])
+            ) {
               expectedLogs.shift();
             }
           } catch (_e) {
@@ -407,15 +410,64 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         }
       };
 
-      const getProcessErrorOutput = (error: any): string => {
-        const outputs = [
-          observedLines.join('\n'),
-          typeof error.lines === 'function' ? error.lines().join('\n') : '',
-          typeof error.stdout === 'string' ? error.stdout : '',
-          typeof error.stderr === 'string' ? error.stderr : '',
-          error?.message ?? '',
-          error?.stack ?? '',
-        ];
+      const consumeChunk = (
+        output: string,
+        stream: 'stdout' | 'stderr',
+        flush = false,
+      ) => {
+        const buffered =
+          (stream === 'stdout' ? stdoutCarry : stderrCarry) + output;
+        const parts = buffered.split('\n');
+        const carry = flush ? '' : (parts.pop() ?? '');
+
+        if (stream === 'stdout') {
+          stdoutCarry = carry;
+        } else {
+          stderrCarry = carry;
+        }
+
+        consumeLines(parts.filter(Boolean));
+      };
+
+      const getErrorLines = (error: unknown): string[] => {
+        if (typeof error !== 'object' || error === null) return [];
+        const maybeError = error as { lines?: unknown };
+        if (typeof maybeError.lines !== 'function') return [];
+
+        const lines = maybeError.lines();
+        return Array.isArray(lines)
+          ? lines.filter((line): line is string => typeof line === 'string')
+          : [];
+      };
+
+      const getProcessErrorOutput = (error: unknown): string => {
+        const outputs = [observedLines.join('\n')];
+
+        outputs.push(getErrorLines(error).join('\n'));
+
+        if (typeof error === 'object' && error !== null) {
+          const maybeError = error as {
+            stdout?: unknown;
+            stderr?: unknown;
+            message?: unknown;
+            stack?: unknown;
+          };
+
+          if (typeof maybeError.stdout === 'string') {
+            outputs.push(maybeError.stdout);
+          }
+          if (typeof maybeError.stderr === 'string') {
+            outputs.push(maybeError.stderr);
+          }
+          if (typeof maybeError.message === 'string') {
+            outputs.push(maybeError.message);
+          }
+          if (typeof maybeError.stack === 'string') {
+            outputs.push(maybeError.stack);
+          }
+        } else if (typeof error === 'string') {
+          outputs.push(error);
+        }
 
         return outputs.filter(Boolean).join('\n');
       };
@@ -426,18 +478,17 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       }, timeout);
 
       // Handle when the process exits due to an error that is not the expected log
-      rebalancer.catch((e) => {
+      rebalancer.catch((e: unknown) => {
+        consumeChunk('', 'stdout', true);
+        consumeChunk('', 'stderr', true);
         const combined = getProcessErrorOutput(e);
-        consumeOutput(combined);
+        consumeLines(combined.split('\n').filter(Boolean));
 
         if (!expectedLogs.length) {
           settleSuccess();
         } else {
-          const lines = typeof e.lines === 'function' ? e.lines() : [];
-          const lastLine =
-            Array.isArray(lines) && lines.length
-              ? lines[lines.length - 1]
-              : String(e);
+          const lines = getErrorLines(e);
+          const lastLine = lines.length ? lines[lines.length - 1] : String(e);
           settleError(
             new Error(
               `Process failed before logging: "${expectedLogs[0]}" with error: ${lastLine}`,
@@ -448,14 +499,16 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       (async () => {
         for await (let chunk of rebalancer.stdout) {
           chunk = typeof chunk === 'string' ? chunk : chunk.toString();
-          consumeOutput(chunk);
+          consumeChunk(chunk, 'stdout');
         }
+        consumeChunk('', 'stdout', true);
       })().catch(settleError);
       (async () => {
         for await (let chunk of rebalancer.stderr) {
           chunk = typeof chunk === 'string' ? chunk : chunk.toString();
-          consumeOutput(chunk);
+          consumeChunk(chunk, 'stderr');
         }
+        consumeChunk('', 'stderr', true);
       })().catch(settleError);
     }).finally(async () => {
       // Perform a cleanup at the end
