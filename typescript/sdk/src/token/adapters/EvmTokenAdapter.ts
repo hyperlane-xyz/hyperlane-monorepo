@@ -260,16 +260,16 @@ export class EvmHypSyntheticAdapter
     spender: Address,
     weiAmountOrId: Numberish,
   ): Promise<boolean> {
-    // Synthetics with PredicateWrapper need approval to the wrapper
-    const predicateWrapper = await this.getPredicateWrapperAddress();
-    if (predicateWrapper) {
+    if (eqAddress(spender, this.addresses.token)) {
+      // Synthetics with PredicateWrapper need approval to the wrapper instead.
+      // Without a wrapper, transferRemote burns directly from msg.sender — no approval needed.
+      const predicateWrapper = await this.getPredicateWrapperAddress();
+      if (!predicateWrapper) return false;
       const allowance = await this.contract.allowance(owner, predicateWrapper);
       return allowance.lt(weiAmountOrId);
     }
 
-    // transferRemote burns directly from msg.sender — no approval needed.
-    // External spenders (e.g. QuotedCalls) need standard ERC20 approval.
-    if (eqAddress(spender, this.addresses.token)) return false;
+    // External spenders (e.g. QuotedCalls) get the standard ERC20 allowance check.
     return super.isApproveRequired(owner, spender, weiAmountOrId);
   }
 

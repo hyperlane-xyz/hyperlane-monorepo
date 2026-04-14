@@ -177,6 +177,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
           break;
         case OnchainHookType.PREDICATE_ROUTER_WRAPPER:
           derivedHookConfig = { type: HookType.PREDICATE, address };
+          this._cache.set(address, derivedHookConfig);
           break;
         default:
           throw new Error(
