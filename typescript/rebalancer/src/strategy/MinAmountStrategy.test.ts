@@ -10,8 +10,10 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { RebalancerMinAmountType } from '../config/types.js';
+import { type MonitorEvent } from '../interfaces/IMonitor.js';
 import type { RawBalances } from '../interfaces/IStrategy.js';
 import { extractBridgeConfigs } from '../test/helpers.js';
+import { getRawBalances } from '../utils/balanceUtils.js';
 
 import { MinAmountStrategy } from './MinAmountStrategy.js';
 
@@ -460,6 +462,87 @@ describe('MinAmountStrategy', () => {
         [chain1]: 50_000_000n,
         [chain2]: 200_000_000n,
       });
+
+      expect(routes).to.deep.equal([
+        {
+          origin: chain2,
+          destination: chain1,
+          amount: 70_000_000n,
+          bridge: AddressZero,
+          executionType: 'movableCollateral',
+        },
+      ]);
+    });
+
+    it('normalizes mixed-decimal local balances before routing', () => {
+      const mixedTokensByChainName: ChainMap<Token> = {
+        [chain1]: new Token({
+          ...tokenArgs,
+          chainName: chain1,
+          standard: TokenStandard.EvmHypCollateral,
+          decimals: 18,
+          scale: { numerator: 1, denominator: 1_000_000_000_000 },
+        }),
+        [chain2]: new Token({
+          ...tokenArgs,
+          chainName: chain2,
+          standard: TokenStandard.EvmHypCollateral,
+          decimals: 6,
+        }),
+      };
+      const config = {
+        [chain1]: {
+          minAmount: {
+            min: '100',
+            target: '120',
+            type: RebalancerMinAmountType.Absolute,
+          },
+          bridge: AddressZero,
+          bridgeLockTime: 1,
+        },
+        [chain2]: {
+          minAmount: {
+            min: '100',
+            target: '120',
+            type: RebalancerMinAmountType.Absolute,
+          },
+          bridge: AddressZero,
+          bridgeLockTime: 1,
+        },
+      };
+
+      const strategy = new MinAmountStrategy(
+        config,
+        mixedTokensByChainName,
+        250_000_000n,
+        testLogger,
+        extractBridgeConfigs(config),
+      );
+
+      const event: MonitorEvent = {
+        tokensInfo: [
+          {
+            token: mixedTokensByChainName[chain1],
+            bridgedSupply: 50_000_000_000_000_000_000n,
+          },
+          {
+            token: mixedTokensByChainName[chain2],
+            bridgedSupply: 200_000_000n,
+          },
+        ],
+        confirmedBlockTags: {
+          [chain1]: 1,
+          [chain2]: 1,
+        },
+      };
+
+      const rawBalances = getRawBalances([chain1, chain2], event, testLogger);
+      expect(rawBalances).to.deep.equal({
+        [chain1]: 50_000_000n,
+        [chain2]: 200_000_000n,
+      });
+
+      const routes = strategy.getRebalancingRoutes(rawBalances);
 
       expect(routes).to.deep.equal([
         {
