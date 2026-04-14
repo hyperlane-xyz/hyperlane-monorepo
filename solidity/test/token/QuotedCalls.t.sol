@@ -137,13 +137,20 @@ contract MockOptionalTargetBridge {
     using SafeERC20 for IERC20;
 
     IERC20 public immutable token;
-    uint256 public fee;
+    uint256 public feeNumerator;
+    uint256 public feeDenominator;
+    uint256 public lastAmount;
     bytes32 public lastTargetRouter;
     bool public usedTransferRemoteTo;
 
-    constructor(IERC20 _token, uint256 _fee) {
+    constructor(IERC20 _token, uint256 _feeNumerator, uint256 _feeDenominator) {
         token = _token;
-        fee = _fee;
+        feeNumerator = _feeNumerator;
+        feeDenominator = _feeDenominator;
+    }
+
+    function _fee(uint256 amount) internal view returns (uint256) {
+        return Math.mulDiv(amount, feeNumerator, feeDenominator);
     }
 
     function transferRemote(
@@ -152,8 +159,13 @@ contract MockOptionalTargetBridge {
         uint256 amount
     ) external payable returns (bytes32) {
         usedTransferRemoteTo = false;
+        lastAmount = amount;
         lastTargetRouter = bytes32(0);
-        token.safeTransferFrom(msg.sender, address(this), amount + fee);
+        token.safeTransferFrom(
+            msg.sender,
+            address(this),
+            amount + _fee(amount)
+        );
         return bytes32("remote");
     }
 
@@ -164,8 +176,13 @@ contract MockOptionalTargetBridge {
         bytes32 targetRouter
     ) external payable returns (bytes32) {
         usedTransferRemoteTo = true;
+        lastAmount = amount;
         lastTargetRouter = targetRouter;
-        token.safeTransferFrom(msg.sender, address(this), amount + fee);
+        token.safeTransferFrom(
+            msg.sender,
+            address(this),
+            amount + _fee(amount)
+        );
         return bytes32("remoteTo");
     }
 
@@ -175,7 +192,7 @@ contract MockOptionalTargetBridge {
         uint256 amount
     ) external view returns (Quote[] memory quotes) {
         quotes = new Quote[](1);
-        quotes[0] = Quote(address(token), amount + fee);
+        quotes[0] = Quote(address(token), amount + _fee(amount));
     }
 
     function quoteTransferRemoteTo(
@@ -185,7 +202,7 @@ contract MockOptionalTargetBridge {
         bytes32
     ) external view returns (Quote[] memory quotes) {
         quotes = new Quote[](1);
-        quotes[0] = Quote(address(token), amount + fee);
+        quotes[0] = Quote(address(token), amount + _fee(amount));
     }
 }
 
@@ -343,7 +360,8 @@ contract QuotedCallsTest is Test {
         quotedCalls = new QuotedCalls(IAllowanceTransfer(address(permit2)));
         optionalTargetBridge = new MockOptionalTargetBridge(
             IERC20(address(primaryToken)),
-            1e18
+            1,
+            100
         );
 
         // ALICE approves MockPermit2 for token pulls (one-time)
@@ -1073,10 +1091,25 @@ contract QuotedCallsTest is Test {
         vm.stopPrank();
     }
 
-    function test_transferRemoteTo_zeroTargetRouter_usesTransferRemoteTo()
+    function test_transferRemoteTo_withBridgeExactInFromApprovalBudget()
         public
     {
-        uint256 totalTokens = TRANSFER_AMT + 1e18;
+        uint256 EXACT_IN = quotedCalls.BRIDGE_EXACT_IN();
+        uint256 totalTokens = 200e18;
+        uint256 budget = TRANSFER_AMT + 1e18;
+        bytes32 targetRouter = bytes32(uint256(0xBEEF));
+        uint256 expectedAmount = Math.mulDiv(
+            budget,
+            budget,
+            optionalTargetBridge
+                .quoteTransferRemoteTo(
+                    DESTINATION,
+                    BOB.addressToBytes32(),
+                    budget,
+                    targetRouter
+                )
+                .extract(address(primaryToken))
+        );
 
         bytes1[] memory cmds = new bytes1[](2);
         bytes[] memory ins = new bytes[](2);
@@ -1088,11 +1121,11 @@ contract QuotedCallsTest is Test {
             address(optionalTargetBridge),
             DESTINATION,
             BOB.addressToBytes32(),
-            TRANSFER_AMT,
-            bytes32(0),
+            EXACT_IN,
+            targetRouter,
             0,
             address(primaryToken),
-            totalTokens
+            budget
         );
 
         (bytes memory commands, bytes[] memory inputs) = _pack(cmds, ins);
@@ -1103,11 +1136,18 @@ contract QuotedCallsTest is Test {
         vm.stopPrank();
 
         assertTrue(optionalTargetBridge.usedTransferRemoteTo());
-        assertEq(optionalTargetBridge.lastTargetRouter(), bytes32(0));
-        assertEq(
+        assertEq(optionalTargetBridge.lastTargetRouter(), targetRouter);
+        assertApproxEqAbs(
             primaryToken.balanceOf(address(optionalTargetBridge)),
-            totalTokens
+            budget,
+            1
         );
+        assertApproxEqAbs(
+            primaryToken.balanceOf(address(quotedCalls)),
+            totalTokens - budget,
+            1
+        );
+        assertApproxEqAbs(optionalTargetBridge.lastAmount(), expectedAmount, 1);
     }
 
     // ============ Tests: IGP + Fee Quote ============
