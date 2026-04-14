@@ -23,9 +23,9 @@
       "default": "./dist/index.js"
     },
     "./styles.css": "./dist/styles.css",
-    "./animations/Skeleton": {
-      "types": "./dist/animations/Skeleton.d.ts",
-      "default": "./dist/animations/Skeleton.js"
+    "./animations/*": {
+      "types": "./dist/animations/*.d.ts",
+      "default": "./dist/animations/*.js"
     },
     "./chains/*": {
       "types": "./dist/chains/*.d.ts",
