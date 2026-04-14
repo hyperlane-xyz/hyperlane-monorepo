@@ -2,6 +2,7 @@ import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { type ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   type ArtifactDeployed,
   ArtifactState,
@@ -28,20 +29,20 @@ chai.use(chaiAsPromised);
 describe('Cosmos Hooks Artifact API (e2e)', function () {
   this.timeout(100_000);
 
-  let signer: AltVM.ISigner<AnnotatedTx, TxReceipt>;
+  let signer: ISigner<AnnotatedTx, TxReceipt>;
   let cosmosSigner: CosmosNativeSigner;
   let artifactManager: CosmosHookArtifactManager;
   let mailboxAddress: string;
   let denom: string;
 
   before(async () => {
-    signer = await createSigner('alice');
-    cosmosSigner = signer as CosmosNativeSigner;
+    cosmosSigner = await createSigner('alice');
+    signer = cosmosSigner;
 
     // Setup: Create a mailbox for hook tests
-    const { ismAddress } = await signer.createNoopIsm({});
+    const { ismAddress } = await cosmosSigner.createNoopIsm({});
     const domainId = 1234;
-    const mailboxResult = await signer.createMailbox({
+    const mailboxResult = await cosmosSigner.createMailbox({
       domainId,
       defaultIsmAddress: ismAddress,
     });

@@ -40,7 +40,7 @@ export class CosmosNativeSigner
     rpcUrls: string[],
     privateKey: string | OfflineSigner,
     extraParams?: Record<string, any>,
-  ): Promise<AltVM.ISigner<EncodeObject, DeliverTxResponse>> {
+  ): Promise<CosmosNativeSigner> {
     assert(rpcUrls.length > 0, `got no rpcUrls`);
     assert(
       rpcUrls.every((rpc) => isUrl(rpc)),
