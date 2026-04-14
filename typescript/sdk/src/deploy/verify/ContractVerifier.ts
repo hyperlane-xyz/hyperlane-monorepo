@@ -209,12 +209,23 @@ export class ContractVerifier extends BaseContractVerifier {
       verificationLogger.trace(
         `Fetching contract ABI for ${chain} address ${address}`,
       );
-      const sourceCodeResults = await getContractSourceCode(
-        {
-          apiUrl,
-          apiKey,
+      const sourceCodeResults = await retryAsync(
+        async () => {
+          try {
+            return await getContractSourceCode(
+              { apiUrl, apiKey },
+              { contractAddress: address },
+            );
+          } catch (e) {
+            const error = e as Error & { isRecoverable?: boolean };
+            error.isRecoverable = error.message
+              .toLowerCase()
+              .includes('rate limit');
+            throw error;
+          }
         },
-        { contractAddress: address },
+        5,
+        1500,
       );
 
       // Explorer won't return ContractName if unverified

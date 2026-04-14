@@ -14,7 +14,7 @@ import {
   RouteResponseForAddr,
   RoutesResponseForAddr,
 } from '../../cw-types/Igp.types.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
 import { ChainMap, ChainName } from '../../types.js';
 
 // TODO: import more
@@ -31,7 +31,7 @@ type IgpResponse =
 export class CosmWasmIgpAdapter extends BaseCosmWasmAdapter {
   constructor(
     public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider<any>,
+    public readonly multiProvider: MultiProviderAdapter<any>,
     public readonly addresses: { igp: Address },
   ) {
     super(chainName, multiProvider, addresses);

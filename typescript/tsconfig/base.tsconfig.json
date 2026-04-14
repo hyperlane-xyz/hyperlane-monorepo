@@ -12,6 +12,7 @@
     "module": "nodenext",
     "moduleResolution": "nodenext",
     "resolveJsonModule": true,
+    "types": ["node"],
 
     // Output formatting
     "preserveWatchOutput": true,

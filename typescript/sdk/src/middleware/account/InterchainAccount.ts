@@ -14,12 +14,14 @@ import {
   arrayToObject,
   bytes32ToAddress,
   eqAddress,
+  fromHexString,
   formatStandardHookMetadata,
   isZeroishAddress,
   objFilter,
   objMap,
   parseStandardHookMetadata,
   promiseObjAll,
+  toHexString,
 } from '@hyperlane-xyz/utils';
 
 import { appFromAddressesMapHelper } from '../../contracts/contracts.js';
@@ -83,6 +85,8 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     return new InterchainAccount(helper.contractsMap, helper.multiProvider);
   }
 
+  static EMPTY_SALT = '0x' + '00'.repeat(32);
+
   async getAccount(
     destinationChain: ChainName,
     config: AccountConfig,
@@ -102,6 +106,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     destinationChain: ChainName,
     config: AccountConfig,
   ): Promise<Address> {
+    const userSalt = config.userSalt ?? InterchainAccount.EMPTY_SALT;
     const originDomain = this.multiProvider.tryGetDomainId(config.origin);
     if (!originDomain) {
       throw new Error(
@@ -124,8 +129,14 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       ),
     );
     const destinationAccount = await destinationRouter[
-      'getLocalInterchainAccount(uint32,address,address,address)'
-    ](originDomain, config.owner, originRouterAddress, destinationIsmAddress);
+      'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
+    ](
+      originDomain,
+      addressToBytes32(config.owner),
+      addressToBytes32(originRouterAddress),
+      destinationIsmAddress,
+      userSalt,
+    );
 
     // If not deploying anything, return the account address.
     if (!deployIfNotExists) {
@@ -143,8 +154,14 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
 
       // Estimate gas for deployment
       const gasEstimate = await destinationRouter.estimateGas[
-        'getDeployedInterchainAccount(uint32,address,address,address)'
-      ](originDomain, config.owner, originRouterAddress, destinationIsmAddress);
+        'getDeployedInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
+      ](
+        originDomain,
+        addressToBytes32(config.owner),
+        addressToBytes32(originRouterAddress),
+        destinationIsmAddress,
+        userSalt,
+      );
 
       // Add buffer to gas estimate
       const gasWithBuffer = addBufferToGasLimit(gasEstimate);
@@ -153,12 +170,13 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       await this.multiProvider.handleTx(
         destinationChain,
         destinationRouter[
-          'getDeployedInterchainAccount(uint32,address,address,address)'
+          'getDeployedInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
         ](
           originDomain,
-          config.owner,
-          originRouterAddress,
+          addressToBytes32(config.owner),
+          addressToBytes32(originRouterAddress),
           destinationIsmAddress,
+          userSalt,
           {
             gasLimit: gasWithBuffer,
             ...txOverrides,
@@ -542,7 +560,29 @@ export function commitmentFromIcaCalls(
   return utils.keccak256(encodeIcaCalls(calls, salt));
 }
 
-export const PostCallsSchema = z.object({
+/**
+ * Format of REVEAL message:
+ * [   0:  1] MessageType.REVEAL (uint8)
+ * [   1: 33] ICA ISM (bytes32)
+ * [  33: 65] Commitment (bytes32)
+ */
+export function commitmentFromRevealMessage(message: string): string {
+  const messageBuffer = fromHexString(message);
+
+  // Validate minimum length (65 bytes: 1 byte type + 32 bytes ISM + 32 bytes commitment)
+  if (messageBuffer.length < 65) {
+    throw new Error(
+      `Invalid reveal message: expected at least 65 bytes, got ${messageBuffer.length} bytes`,
+    );
+  }
+
+  // Extract commitment from bytes 33-65 (32 bytes)
+  const commitment = messageBuffer.subarray(33, 65);
+
+  return toHexString(commitment);
+}
+
+const PostCallsBaseSchema = z.object({
   calls: z
     .array(
       z.object({
@@ -553,12 +593,35 @@ export const PostCallsSchema = z.object({
     )
     .min(1),
   relayers: z.array(ZHash),
-  salt: z.string(),
-  commitmentDispatchTx: z.string(),
+  salt: ZHash,
+  ismOverride: ZHash.optional(),
   originDomain: z.number(),
 });
 
+// Legacy shape: ICA derived from dispatch tx receipt events
+const PostCallsLegacySchema = PostCallsBaseSchema.extend({
+  commitmentDispatchTx: ZHash,
+});
+
+// New shape: ICA derived directly from destination + owner
+const PostCallsIcaSchema = PostCallsBaseSchema.extend({
+  destinationDomain: z.number(),
+  owner: ZHash,
+  userSalt: ZHash.optional(),
+});
+
+export const PostCallsSchema = z.union([
+  PostCallsIcaSchema,
+  PostCallsLegacySchema,
+]);
+
 export type PostCallsType = z.infer<typeof PostCallsSchema>;
+export type PostCallsLegacyType = z.infer<typeof PostCallsLegacySchema>;
+export type PostCallsIcaType = z.infer<typeof PostCallsIcaSchema>;
+
+export function isPostCallsIca(data: PostCallsType): data is PostCallsIcaType {
+  return 'destinationDomain' in data && 'owner' in data;
+}
 
 export async function shareCallsWithPrivateRelayer(
   serverUrl: string,

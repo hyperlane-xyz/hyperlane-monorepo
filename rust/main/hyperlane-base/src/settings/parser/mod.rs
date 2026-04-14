@@ -30,7 +30,7 @@ use crate::settings::{
     chains::IndexSettings,
     parser::connection_parser::{build_connection_conf, is_protocol_supported},
     trace::TracingConfig,
-    ChainConf, ChainConnectionConf, CoreContractAddresses, Settings, SignerConf,
+    ChainConf, CoreContractAddresses, Settings, SignerConf,
 };
 
 pub use super::envs::*;
@@ -326,16 +326,6 @@ fn parse_chain(
             max_submit_queue_length,
         },
     );
-
-    // Convert Ethereum → Tron when techstack indicates Tron
-    let connection = connection.and_then(|conn| {
-        if domain.domain_technical_stack() == HyperlaneDomainTechnicalStack::Tron {
-            if let ChainConnectionConf::Ethereum(eth_conf) = conn {
-                return ethereum_to_tron_connection_conf(eth_conf, &chain.cwp, &mut err);
-            }
-        }
-        Some(conn)
-    });
 
     cfg_unwrap_all!(&chain.cwp, err: [connection, mailbox, interchain_gas_paymaster, validator_announce, merkle_tree_hook]);
 
@@ -735,41 +725,6 @@ fn parse_base_and_override_urls(
         );
     }
     combined
-}
-
-/// Convert an Ethereum connection conf to a Tron connection conf.
-/// Used when a chain has `protocol: "ethereum"` + `technicalStack: "tron"`.
-fn ethereum_to_tron_connection_conf(
-    eth_conf: hyperlane_ethereum::ConnectionConf,
-    cwp: &ConfigPath,
-    err: &mut ConfigParsingError,
-) -> Option<ChainConnectionConf> {
-    let rpc_urls = eth_conf.rpc_urls();
-    let wallet_urls = eth_conf.wallet_urls.unwrap_or_default();
-    let wallet_solidity_urls = eth_conf.wallet_solidity_urls.unwrap_or_default();
-    if wallet_urls.is_empty() {
-        err.push(
-            cwp.join("walletUrls"),
-            eyre::eyre!("Tron requires walletUrls"),
-        );
-    }
-    if wallet_solidity_urls.is_empty() {
-        err.push(
-            cwp.join("walletSolidityUrls"),
-            eyre::eyre!("Tron requires walletSolidityUrls"),
-        );
-    }
-    if wallet_urls.is_empty() || wallet_solidity_urls.is_empty() {
-        return None;
-    }
-    Some(ChainConnectionConf::Tron(
-        hyperlane_tron::ConnectionConf::new(
-            rpc_urls,
-            wallet_urls,
-            wallet_solidity_urls,
-            eth_conf.energy_multiplier,
-        ),
-    ))
 }
 
 #[cfg(test)]

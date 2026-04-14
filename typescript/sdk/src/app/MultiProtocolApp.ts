@@ -10,7 +10,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
-import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
+import type { MultiProviderAdapter } from '../providers/MultiProviderAdapter.js';
 import {
   AleoProvider,
   CosmJsNativeProvider,
@@ -36,7 +36,7 @@ export abstract class BaseAppAdapter {
   public abstract readonly protocol: ProtocolType;
   constructor(
     public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider<any>,
+    public readonly multiProvider: MultiProviderAdapter<any>,
     public readonly addresses: Record<string, Address>,
     public readonly logger = rootLogger.child({ module: `AppAdapter` }),
   ) {}
@@ -44,7 +44,7 @@ export abstract class BaseAppAdapter {
 
 export type AdapterClassType<API> = new (
   chainName: ChainName,
-  multiProvider: MultiProtocolProvider<any>,
+  multiProvider: MultiProviderAdapter<any>,
   addresses: any,
   ...args: any
 ) => API;
@@ -165,7 +165,7 @@ export class BaseTronAdapter extends BaseAppAdapter {
  * @typeParam IAdapterApi - The type of the adapters for implementing the app's
  *   functionality across different protocols.
  *
- * @param multiProvider - A MultiProtocolProvider instance that MUST include the app's
+ * @param multiProvider - A MultiProviderAdapter instance that MUST include the app's
  *   contract addresses in its chain metadata
  * @param logger - A logger instance
  *
@@ -176,7 +176,7 @@ export abstract class MultiProtocolApp<
   ContractAddrs extends Record<string, Address> = {},
 > extends MultiGeneric<ChainMetadata> {
   constructor(
-    public readonly multiProvider: MultiProtocolProvider,
+    public readonly multiProvider: MultiProviderAdapter,
     public readonly addresses: ChainMap<ContractAddrs>,
     public readonly logger = rootLogger.child({ module: 'MultiProtocolApp' }),
   ) {
@@ -188,7 +188,7 @@ export abstract class MultiProtocolApp<
     );
     if (setDifference.size > 0) {
       throw new Error(
-        `MultiProtocolProvider and addresses must have the same chains. Provider chains: ${multiProviderChains.join(
+        `MultiProviderAdapter and addresses must have the same chains. Provider chains: ${multiProviderChains.join(
           ', ',
         )}. Addresses chains: ${addressesChains.join(
           ', ',

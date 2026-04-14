@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/radix-sdk",
-  "version": "28.1.0",
+  "version": "31.1.0",
   "description": "Hyperlane TypeScript SDK for the Radix Hyperlane SDK module",
   "keywords": [
     "blockchain",
@@ -22,6 +22,10 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./runtime": {
+      "types": "./dist/runtime.d.ts",
+      "default": "./dist/runtime.js"
+    },
     "./testing": {
       "types": "./dist/testing/index.d.ts",
       "default": "./dist/testing/index.js"
@@ -30,7 +34,7 @@
   "scripts": {
     "build": "rm -rf ./dist && tsc",
     "format": "oxfmt --write ./src",
-    "lint": "eslint -c ./eslint.config.mjs",
+    "lint": "oxlint -c ../../oxlint.json",
     "clean": "rm -rf ./dist ./cache",
     "dev": "tsc --watch",
     "test": "echo \"no tests in radix-sdk\"",
@@ -49,27 +53,19 @@
     "ethers": "catalog:"
   },
   "devDependencies": {
-    "@eslint/js": "catalog:",
-    "@hyperlane-xyz/eslint-config": "workspace:^",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@types/chai": "catalog:",
     "@types/chai-as-promised": "catalog:",
     "@types/mocha": "catalog:",
-    "@typescript-eslint/eslint-plugin": "catalog:",
-    "@typescript-eslint/parser": "catalog:",
+    "@types/node": "catalog:",
     "chai": "catalog:",
     "chai-as-promised": "catalog:",
-    "eslint": "catalog:",
-    "eslint-config-prettier": "catalog:",
-    "eslint-import-resolver-typescript": "catalog:",
-    "eslint-plugin-import": "catalog:",
     "mocha": "catalog:",
     "mocha-steps": "catalog:",
     "oxfmt": "catalog:",
     "testcontainers": "catalog:",
     "ts-node": "catalog:",
     "tsx": "catalog:",
-    "typescript": "catalog:",
-    "typescript-eslint": "catalog:"
+    "typescript": "catalog:"
   }
 }

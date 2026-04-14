@@ -36,7 +36,7 @@ export class KeyFunder {
     );
 
     const results = await Promise.allSettled(
-      chains.map((chain) => this.fundChainWithTimeout(chain)),
+      chains.map(async (chain) => this.fundChainWithTimeout(chain)),
     );
 
     const failures = results
@@ -78,11 +78,11 @@ export class KeyFunder {
   }
 
   async fundChain(chain: string): Promise<void> {
-    const chainConfig = this.config.chains[chain];
-    if (!chainConfig) {
+    if (!Object.prototype.hasOwnProperty.call(this.config.chains, chain)) {
       this.options.logger.warn({ chain }, 'No config for chain, skipping');
       return;
     }
+    const chainConfig = this.config.chains[chain];
 
     const startTime = Date.now();
     const logger = this.options.logger.child({ chain });
@@ -143,14 +143,14 @@ export class KeyFunder {
     for (const [roleName, desiredBalance] of Object.entries(
       chainConfig.balances,
     )) {
-      const roleConfig = this.config.roles[roleName];
-      if (!roleConfig) {
+      if (!Object.prototype.hasOwnProperty.call(this.config.roles, roleName)) {
         this.options.logger.warn(
           { chain, role: roleName },
           'Role not found in config, skipping',
         );
         continue;
       }
+      const roleConfig = this.config.roles[roleName];
 
       resolvedKeys.push({
         address: roleConfig.address,
@@ -406,10 +406,14 @@ function createTimeoutPromise(
 ): { promise: Promise<never>; cleanup: () => void } {
   let timeoutId: NodeJS.Timeout;
   const promise = new Promise<never>((_, reject) => {
-    timeoutId = setTimeout(() => reject(new Error(errorMessage)), timeoutMs);
+    timeoutId = setTimeout(() => {
+      reject(new Error(errorMessage));
+    }, timeoutMs);
   });
   return {
     promise,
-    cleanup: () => clearTimeout(timeoutId),
+    cleanup: () => {
+      clearTimeout(timeoutId);
+    },
   };
 }

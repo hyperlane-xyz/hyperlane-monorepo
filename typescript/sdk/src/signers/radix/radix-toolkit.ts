@@ -1,11 +1,11 @@
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
-import {
+import type {
   RadixSDKReceipt,
   RadixSDKTransaction,
-  RadixSigner,
-} from '@hyperlane-xyz/radix-sdk';
+} from '@hyperlane-xyz/radix-sdk/runtime';
+import { RadixSigner } from '@hyperlane-xyz/radix-sdk/runtime';
 
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
 import { SendTransactionOptions } from '../../providers/MultiProvider.js';
 import { RadixTransaction } from '../../providers/ProviderType.js';
 import { ChainName } from '../../types.js';
@@ -23,7 +23,7 @@ export class RadixMultiProtocolSignerAdapter implements IMultiProtocolSigner<Pro
   static async init(
     chainName: ChainName,
     privateKey: string,
-    multiProtocolProvider: MultiProtocolProvider,
+    multiProtocolProvider: MultiProviderAdapter,
   ): Promise<RadixMultiProtocolSignerAdapter> {
     const metadata = multiProtocolProvider.getChainMetadata(chainName);
 

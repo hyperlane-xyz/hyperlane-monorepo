@@ -71,7 +71,6 @@ export enum Modules {
   INTERCHAIN_QUERY_SYSTEM = 'iqs',
   TEST_QUERY_SENDER = 'testquerysender',
   TEST_RECIPIENT = 'testrecipient',
-  WARP = 'warp',
   HAAS = 'haas',
   CCIP = 'ccip',
 }
@@ -496,6 +495,7 @@ export async function getAgentConfigsBasedOnArgs(argv?: {
       [Contexts.Hyperlane]: [],
       [Contexts.ReleaseCandidate]: [],
       [Contexts.Neutron]: [],
+      [Contexts.FastPath]: [],
     };
     // supplementing with dummy addresses for validator as part of missingChains
     const validatorsConfig = validatorBaseConfigsFn(environment, context);

@@ -9,7 +9,7 @@ import {
 import { ZKSyncArtifact } from '@hyperlane-xyz/core';
 import { assert } from '@hyperlane-xyz/utils';
 
-import { defaultZKProviderBuilder } from '../providers/providerBuilders.js';
+import { defaultZKProviderBuilder } from '../providers/builders/zksync.js';
 import { getZKSyncArtifactByContractName } from '../utils/zksync.js';
 
 /**

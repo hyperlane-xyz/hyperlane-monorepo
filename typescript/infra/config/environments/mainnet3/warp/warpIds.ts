@@ -132,6 +132,8 @@ export enum WarpRouteIds {
   EniWBTC = 'WBTC/eni',
   EniUSDC = 'USDC/eni',
   EniUSDT = 'USDT/eni',
+  EniBNB = 'BNB/eni',
+  Eni1Piece = '1Piece/eni',
 
   ModeUSDTSTAGE = 'USDTSTAGE/mode',
 
@@ -146,4 +148,16 @@ export enum WarpRouteIds {
 
   // ctUSD
   CitreaUSD = 'ctUSD/citrea',
+
+  // RISE routes
+  BscEthereumRISE = 'RISE/bsc-ethereum',
+
+  // Igra routes
+  IgraUSDC = 'USDC/igra',
+  IgraIKAS = 'IKAS/igra',
+  IgraWSTETH = 'WSTETH/igra',
+  IgraCBBTC = 'CBBTC/igra',
+  EthereumIgraUSDS = 'USDS/ethereum-igra',
+  EthereumIgraWETH = 'WETH/ethereum-igra',
+  EthereumIgraUSDT = 'USDT/ethereum-igra',
 }

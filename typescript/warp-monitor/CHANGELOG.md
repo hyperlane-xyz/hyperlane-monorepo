@@ -1,5 +1,138 @@
 # @hyperlane-xyz/warp-monitor
 
+## 0.3.10
+
+### Patch Changes
+
+- Updated dependencies [8a082af]
+- Updated dependencies [c8fe242]
+- Updated dependencies [8a082af]
+  - @hyperlane-xyz/sdk@31.1.0
+  - @hyperlane-xyz/metrics@0.2.13
+  - @hyperlane-xyz/utils@31.1.0
+  - @hyperlane-xyz/core@11.3.1
+
+## 0.3.9
+
+### Patch Changes
+
+- Updated dependencies [d5168fc]
+  - @hyperlane-xyz/utils@31.0.1
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/metrics@0.2.12
+  - @hyperlane-xyz/sdk@31.0.1
+
+## 0.3.8
+
+### Patch Changes
+
+- Updated dependencies [44626fb]
+- Updated dependencies [df33d41]
+- Updated dependencies [4963b32]
+- Updated dependencies [9003721]
+- Updated dependencies [7ad1f9e]
+- Updated dependencies [69e6b3f]
+- Updated dependencies [fc0a1cf]
+  - @hyperlane-xyz/sdk@31.0.0
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/metrics@0.2.11
+  - @hyperlane-xyz/utils@31.0.0
+
+## 0.3.7
+
+### Patch Changes
+
+- Updated dependencies [26d682b]
+  - @hyperlane-xyz/sdk@30.1.1
+  - @hyperlane-xyz/metrics@0.2.10
+  - @hyperlane-xyz/utils@30.1.1
+  - @hyperlane-xyz/core@11.3.0
+
+## 0.3.6
+
+### Patch Changes
+
+- Updated dependencies [9ac480a]
+- Updated dependencies [9eefa2d]
+- Updated dependencies [4c4462f]
+- Updated dependencies [696da11]
+- Updated dependencies [71f0ca4]
+- Updated dependencies [46dda6c]
+- Updated dependencies [ac1acbb]
+- Updated dependencies [d38fad1]
+- Updated dependencies [cfed1d2]
+- Updated dependencies [9061916]
+- Updated dependencies [2057d1a]
+- Updated dependencies [d41d088]
+- Updated dependencies [e1f35a7]
+- Updated dependencies [b691b87]
+- Updated dependencies [7018cc6]
+- Updated dependencies [ef4399b]
+- Updated dependencies [3fef31c]
+- Updated dependencies [d98726f]
+- Updated dependencies [40356c6]
+- Updated dependencies [6f8c503]
+- Updated dependencies [f2749a6]
+- Updated dependencies [5eae48e]
+- Updated dependencies [6bd4fd1]
+- Updated dependencies [57e46b1]
+- Updated dependencies [993de2b]
+- Updated dependencies [b5f897c]
+- Updated dependencies [9515191]
+  - @hyperlane-xyz/core@11.3.0
+  - @hyperlane-xyz/sdk@30.1.0
+  - @hyperlane-xyz/metrics@0.2.9
+  - @hyperlane-xyz/utils@30.1.0
+
+## 0.3.5
+
+### Patch Changes
+
+- Updated dependencies [ac297da]
+- Updated dependencies [77db719]
+- Updated dependencies [e1ed158]
+- Updated dependencies [d0dbf1a]
+- Updated dependencies [7646819]
+- Updated dependencies [95c2891]
+- Updated dependencies [7646819]
+  - @hyperlane-xyz/core@11.2.0
+  - @hyperlane-xyz/sdk@30.0.0
+  - @hyperlane-xyz/metrics@0.2.8
+  - @hyperlane-xyz/utils@30.0.0
+
+## 0.3.4
+
+### Patch Changes
+
+- Updated dependencies [a8192d7]
+- Updated dependencies [a891402]
+  - @hyperlane-xyz/sdk@29.1.0
+  - @hyperlane-xyz/metrics@0.2.7
+  - @hyperlane-xyz/utils@29.1.0
+  - @hyperlane-xyz/core@11.1.0
+
+## 0.3.3
+
+### Patch Changes
+
+- Updated dependencies [96508ed]
+  - @hyperlane-xyz/sdk@29.0.1
+  - @hyperlane-xyz/metrics@0.2.6
+  - @hyperlane-xyz/utils@29.0.1
+  - @hyperlane-xyz/core@11.1.0
+
+## 0.3.2
+
+### Patch Changes
+
+- Updated dependencies [cc6d57b]
+- Updated dependencies [3c6b1ad]
+- Updated dependencies [084c6b6]
+  - @hyperlane-xyz/sdk@29.0.0
+  - @hyperlane-xyz/utils@29.0.0
+  - @hyperlane-xyz/metrics@0.2.5
+  - @hyperlane-xyz/core@11.1.0
+
 ## 0.3.1
 
 ### Patch Changes

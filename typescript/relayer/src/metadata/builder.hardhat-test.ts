@@ -144,7 +144,7 @@ describe('BaseMetadataBuilder', () => {
       );
   });
 
-  // FIXME: migrate to mocha rules: eslint-disable-next-line jest/no-disabled-tests
+  // eslint-disable-next-line jest/no-disabled-tests -- intentionally skipped until deterministic fixtures are stabilized
   describe.skip('#build', () => {
     let origin: ChainName;
     let destination: ChainName;

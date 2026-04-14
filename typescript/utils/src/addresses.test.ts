@@ -74,11 +74,13 @@ describe('Address utilities', () => {
 
   describe('padBytesToLength', () => {
     it('Pads bytes to a given length', () => {
-      const bytes = Buffer.from([1, 2, 3]);
-      expect(padBytesToLength(bytes, 5).equals(Buffer.from([0, 0, 1, 2, 3])));
+      const bytes = new Uint8Array([1, 2, 3]);
+      expect(Array.from(padBytesToLength(bytes, 5))).to.deep.equal([
+        0, 0, 1, 2, 3,
+      ]);
     });
     it('Rejects bytes that exceed the target length', () => {
-      const bytes = Buffer.from([1, 2, 3]);
+      const bytes = new Uint8Array([1, 2, 3]);
       expect(() => padBytesToLength(bytes, 2)).to.throw(Error);
     });
   });

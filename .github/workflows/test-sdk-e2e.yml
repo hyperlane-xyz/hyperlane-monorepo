@@ -9,6 +9,8 @@ on:
         type: string
       has_radix:
         type: string
+      has_starknet:
+        type: string
       has_tron:
         type: string
       has_svm:
@@ -92,6 +94,41 @@ jobs:
       - name: Radix SDK e2e tests
         run: pnpm -C typescript/radix-sdk test:e2e
 
+  starknet-sdk-e2e-matrix:
+    runs-on: depot-ubuntu-24.04
+    if: inputs.has_starknet == 'true'
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - ism
+          - mailbox
+          - hook
+          - validator_announce
+          - warp_core
+          - warp_transfer
+          - read-warp-token
+        include:
+          - test: read-warp-token
+            continue-on-error: true
+    continue-on-error: ${{ matrix.continue-on-error || false }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: pnpm-build
+        uses: ./.github/actions/pnpm-build-with-cache
+        with:
+          build-filter: '@hyperlane-xyz/starknet-sdk...'
+
+      - name: Starknet SDK e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/starknet-sdk test:e2e
+        env:
+          STARKNET_SDK_E2E_TEST: ${{ matrix.test }}
+
   tron-sdk-e2e-run:
     runs-on: depot-ubuntu-24.04
     if: inputs.has_tron == 'true'
@@ -129,9 +166,12 @@ jobs:
         test:
           - ism
           - hook
+          - mailbox
+          - validator-announce
           - native-token
           - synthetic-token
           - collateral-token
+          - cross-collateral-token
           - provider
           - read-token
         include:
