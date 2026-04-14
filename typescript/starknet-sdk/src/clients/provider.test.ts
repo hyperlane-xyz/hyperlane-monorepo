@@ -9,6 +9,7 @@ import {
 } from '@hyperlane-xyz/starknet-core';
 
 import { StarknetContractName } from '../contracts.js';
+import { getCreateMailboxTx } from '../mailbox/mailbox-tx.js';
 import { StarknetAnnotatedTx } from '../types.js';
 import { StarknetProvider } from './provider.js';
 
@@ -448,11 +449,9 @@ describe('StarknetProvider getBalance', () => {
   });
 });
 
-describe('StarknetProvider getCreateMailboxTransaction', () => {
-  it('passes hook addresses through mailbox constructor args', async () => {
-    const provider = new StarknetProviderTestHarness();
-
-    const tx = await provider.getCreateMailboxTransaction({
+describe('getCreateMailboxTx', () => {
+  it('passes hook addresses through mailbox constructor args', () => {
+    const tx = getCreateMailboxTx({
       signer:
         '0x1111111111111111111111111111111111111111111111111111111111111111',
       domainId: TEST_METADATA.domainId,

@@ -24,6 +24,13 @@ import {
 import { StarknetProvider } from '../clients/provider.js';
 import { StarknetSigner } from '../clients/signer.js';
 import { normalizeStarknetAddressSafe } from '../contracts.js';
+import {
+  getCreateMailboxTx,
+  getSetDefaultHookTx,
+  getSetDefaultIsmTx,
+  getSetMailboxOwnerTx,
+  getSetRequiredHookTx,
+} from './mailbox-tx.js';
 
 class StarknetMailboxReader implements ArtifactReader<
   RawMailboxArtifactConfigs['mailbox'],
@@ -145,30 +152,18 @@ class StarknetMailboxWriter
       placeholderHookRef,
     );
 
-    const createTx = await this.signer.getCreateMailboxTransaction({
+    const createTx = getCreateMailboxTx({
       signer: this.signer.getSignerAddress(),
       domainId: this.chainMetadata.domainId,
       defaultIsmAddress,
       defaultHookAddress,
       requiredHookAddress,
-      proxyAdminAddress: undefined,
     });
     const createReceipt = await this.signer.sendAndConfirmTransaction(createTx);
     receipts.push(createReceipt);
 
     assert(createReceipt.contractAddress, 'failed to deploy Starknet mailbox');
     const mailboxAddress = createReceipt.contractAddress;
-
-    if (
-      !eqAddressStarknet(artifact.config.owner, this.signer.getSignerAddress())
-    ) {
-      const tx = await this.signer.getSetMailboxOwnerTransaction({
-        signer: this.signer.getSignerAddress(),
-        mailboxAddress,
-        newOwner: artifact.config.owner,
-      });
-      receipts.push(await this.signer.sendAndConfirmTransaction(tx));
-    }
 
     return [
       {
@@ -211,10 +206,12 @@ class StarknetMailboxWriter
       current.config.requiredHook,
     );
 
+    const rawProvider = this.signer.getRawProvider();
+
     if (!eqAddressStarknet(currentDefaultIsm, expectedDefaultIsm)) {
       updateTxs.push({
         annotation: `Setting mailbox default ISM`,
-        ...(await this.signer.getSetDefaultIsmTransaction({
+        ...(await getSetDefaultIsmTx(rawProvider, {
           signer: this.signer.getSignerAddress(),
           mailboxAddress,
           ismAddress: expectedDefaultIsm,
@@ -225,7 +222,7 @@ class StarknetMailboxWriter
     if (!eqAddressStarknet(currentDefaultHook, expectedDefaultHook)) {
       updateTxs.push({
         annotation: `Setting mailbox default hook`,
-        ...(await this.signer.getSetDefaultHookTransaction({
+        ...(await getSetDefaultHookTx(rawProvider, {
           signer: this.signer.getSignerAddress(),
           mailboxAddress,
           hookAddress: expectedDefaultHook,
@@ -236,7 +233,7 @@ class StarknetMailboxWriter
     if (!eqAddressStarknet(currentRequiredHook, expectedRequiredHook)) {
       updateTxs.push({
         annotation: `Setting mailbox required hook`,
-        ...(await this.signer.getSetRequiredHookTransaction({
+        ...(await getSetRequiredHookTx(rawProvider, {
           signer: this.signer.getSignerAddress(),
           mailboxAddress,
           hookAddress: expectedRequiredHook,
@@ -247,7 +244,7 @@ class StarknetMailboxWriter
     if (!eqAddressStarknet(current.config.owner, artifact.config.owner)) {
       updateTxs.push({
         annotation: `Setting mailbox owner`,
-        ...(await this.signer.getSetMailboxOwnerTransaction({
+        ...(await getSetMailboxOwnerTx(rawProvider, {
           signer: this.signer.getSignerAddress(),
           mailboxAddress,
           newOwner: artifact.config.owner,
