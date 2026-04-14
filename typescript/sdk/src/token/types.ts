@@ -40,7 +40,23 @@ export const VERSION_ERROR_MESSAGE = `Contract version must match the @hyperlane
  * .positive() to avoid bigint values in zod-to-json-schema output.
  */
 const PositiveBigIntFromString = z
-  .union([z.bigint(), z.string().transform((s) => BigInt(s))])
+  .union([
+    z.bigint(),
+    z
+      .string()
+      .refine(
+        (s) => {
+          try {
+            BigInt(s);
+            return true;
+          } catch {
+            return false;
+          }
+        },
+        { message: 'Must be a bigint-compatible string' },
+      )
+      .transform((s) => BigInt(s)),
+  ])
   .pipe(z.bigint())
   .refine((n) => n > 0n, { message: 'Must be positive' });
 
