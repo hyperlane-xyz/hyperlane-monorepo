@@ -1,0 +1,81 @@
+warpRouteId: USDT/eclipsemainnet
+
+inventorySigners:
+  ethereum:
+    address: "0x6056e8E8e5Db30ffa9d721e3D73b3D558011FdA9"
+  tron:
+    address: "0x6056e8E8e5Db30ffa9d721e3D73b3D558011FdA9"
+  # sealevel:
+  #   address: "5seKh2p3B8Kq9nAE7X4svfX9uLt81wWAiDJuLK1XNgXf"
+
+externalBridges:
+  lifi:
+    integrator: "rebalancer"
+  layerzero: {}
+  debridge: {}
+
+strategy:
+  rebalanceStrategy: minAmount
+  chains:
+    ethereum:
+      minAmount:
+        min: 2
+        target: 2
+        type: 'absolute'
+      executionType: inventory
+      externalBridge: layerzero
+      override:
+        bsc:
+          externalBridge: debridge
+
+    arbitrum:
+      minAmount:
+        min: 2
+        target: 2
+        type: 'absolute'
+      executionType: inventory
+      externalBridge: layerzero
+      override:
+        bsc:
+          externalBridge: debridge
+
+    plasma:
+      minAmount:
+        min: 2
+        target: 2
+        type: 'absolute'
+      executionType: inventory
+      externalBridge: layerzero
+      override:
+        bsc:
+          externalBridge: debridge
+
+    bsc:
+      minAmount:
+        min: 2
+        target: 2
+        type: 'absolute'
+      executionType: inventory
+      externalBridge: debridge
+
+    # solanamainnet:
+    #   minAmount:
+    #     min: 15583
+    #     target: 15583
+    #     type: 'absolute'
+    #   executionType: inventory
+    #   externalBridge: layerzero
+    #   override:
+    #     bsc:
+    #       externalBridge: debridge
+
+    tron:
+      minAmount:
+        min: 2
+        target: 2
+        type: 'absolute'
+      executionType: inventory
+      externalBridge: layerzero
+      override:
+        bsc:
+          externalBridge: debridge
