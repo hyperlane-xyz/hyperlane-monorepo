@@ -342,11 +342,16 @@ export class EvmHypSyntheticAdapter
     let hookType: number;
     try {
       hookType = await hook.hookType();
-    } catch (error: any) {
+    } catch (error: unknown) {
       // CALL_EXCEPTION means the contract at hookAddress doesn't implement hookType()
       // (e.g. an old or incompatible hook). Treat as "no wrapper here".
       // Any other error (network timeout, RPC failure) is unexpected — rethrow.
-      if (error?.code === 'CALL_EXCEPTION') return null;
+      if (
+        error instanceof Error &&
+        'code' in error &&
+        error.code === 'CALL_EXCEPTION'
+      )
+        return null;
       throw error;
     }
 
@@ -651,9 +656,11 @@ class BaseEvmHypCollateralAdapter
     weiAmountOrId: Numberish,
   ): Promise<boolean> {
     const wrappedTokenAdapter = await this.getWrappedTokenAdapter();
-    const predicateWrapper = await this.getPredicateWrapperAddress();
-    const effectiveSpender = predicateWrapper ?? spender;
-
+    let effectiveSpender = spender;
+    if (eqAddress(spender, this.addresses.token)) {
+      const predicateWrapper = await this.getPredicateWrapperAddress();
+      if (predicateWrapper) effectiveSpender = predicateWrapper;
+    }
     return wrappedTokenAdapter.isApproveRequired(
       owner,
       effectiveSpender,
@@ -666,9 +673,11 @@ class BaseEvmHypCollateralAdapter
     spender: Address,
   ): Promise<boolean> {
     const collateral = await this.getWrappedTokenAdapter();
-    const predicateWrapper = await this.getPredicateWrapperAddress();
-    const effectiveSpender = predicateWrapper ?? spender;
-
+    let effectiveSpender = spender;
+    if (eqAddress(spender, this.addresses.token)) {
+      const predicateWrapper = await this.getPredicateWrapperAddress();
+      if (predicateWrapper) effectiveSpender = predicateWrapper;
+    }
     return collateral.isRevokeApprovalRequired(owner, effectiveSpender);
   }
 
@@ -676,9 +685,11 @@ class BaseEvmHypCollateralAdapter
     params: TransferParams,
   ): Promise<PopulatedTransaction> {
     const wrappedTokenAdapter = await this.getWrappedTokenAdapter();
-    const predicateWrapper = await this.getPredicateWrapperAddress();
-    const effectiveRecipient = predicateWrapper ?? params.recipient;
-
+    let effectiveRecipient = params.recipient;
+    if (eqAddress(params.recipient, this.addresses.token)) {
+      const predicateWrapper = await this.getPredicateWrapperAddress();
+      if (predicateWrapper) effectiveRecipient = predicateWrapper;
+    }
     return wrappedTokenAdapter.populateApproveTx({
       ...params,
       recipient: effectiveRecipient,

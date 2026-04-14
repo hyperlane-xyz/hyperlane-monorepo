@@ -464,7 +464,7 @@ async function executeDelivery({
 
     const hypAdapter = token.getHypAdapter(
       MultiProtocolProvider.fromMultiProvider(multiProvider),
-      origin,
+      destination,
     );
     let predicateTarget = token.addressOrDenom;
     if (isPredicateCapableAdapter(hypAdapter)) {
