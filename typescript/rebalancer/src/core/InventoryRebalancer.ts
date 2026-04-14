@@ -78,6 +78,66 @@ type BridgeCapacity = {
   maxTargetOutput: bigint;
 };
 
+const RECOVERABLE_MAX_TRANSFER_ERROR_MESSAGES = [
+  'balance may be insufficient',
+  'transfer amount exceeds balance',
+  'insufficient balance',
+];
+
+function hasRecoverableMaxTransferErrorMessage(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes('unpredictable_gas_limit') ||
+    RECOVERABLE_MAX_TRANSFER_ERROR_MESSAGES.some((pattern) =>
+      normalized.includes(pattern),
+    )
+  );
+}
+
+function isRecoverableMaxTransferProbeError(error: unknown): boolean {
+  const seen = new Set<unknown>();
+  const stack: unknown[] = [error];
+
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (current == null) continue;
+
+    if (typeof current === 'string') {
+      if (hasRecoverableMaxTransferErrorMessage(current)) return true;
+      continue;
+    }
+
+    if (typeof current !== 'object') continue;
+    if (seen.has(current)) continue;
+    seen.add(current);
+
+    const candidate = current as {
+      code?: unknown;
+      message?: unknown;
+      cause?: unknown;
+      error?: unknown;
+    };
+
+    if (
+      typeof candidate.code === 'string' &&
+      candidate.code.toUpperCase() === 'UNPREDICTABLE_GAS_LIMIT'
+    ) {
+      return true;
+    }
+
+    if (
+      typeof candidate.message === 'string' &&
+      hasRecoverableMaxTransferErrorMessage(candidate.message)
+    ) {
+      return true;
+    }
+
+    stack.push(candidate.cause, candidate.error);
+  }
+
+  return false;
+}
+
 /**
  * Configuration for the InventoryRebalancer.
  */
@@ -584,28 +644,59 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     let maxTransferable = costs.maxTransferable;
 
     if (!isNativeTokenStandard(sourceToken.standard)) {
-      const feeAwareMaxTransfer = await this.warpCore.getMaxTransferAmount({
-        balance: sourceToken.amount(availableInventory),
-        destination: origin,
-        sender: executionSender,
-        recipient: executionRecipient,
-      });
+      if (availableInventory === 0n) {
+        maxTransferable = 0n;
+        this.logger.debug(
+          {
+            fromChain: destination,
+            toChain: origin,
+            requestedAmount: requestedLocalAmount.toString(),
+          },
+          'Skipping fee-aware max transferable probe because destination inventory is zero',
+        );
+      } else {
+        try {
+          const feeAwareMaxTransfer = await this.warpCore.getMaxTransferAmount({
+            balance: sourceToken.amount(availableInventory),
+            destination: origin,
+            sender: executionSender,
+            recipient: executionRecipient,
+          });
 
-      maxTransferable =
-        feeAwareMaxTransfer.amount < requestedLocalAmount
-          ? feeAwareMaxTransfer.amount
-          : requestedLocalAmount;
+          maxTransferable =
+            feeAwareMaxTransfer.amount < requestedLocalAmount
+              ? feeAwareMaxTransfer.amount
+              : requestedLocalAmount;
 
-      this.logger.debug(
-        {
-          fromChain: destination,
-          toChain: origin,
-          availableInventory: availableInventory.toString(),
-          requestedAmount: requestedLocalAmount.toString(),
-          feeAwareMaxTransferable: maxTransferable.toString(),
-        },
-        'Calculated fee-aware max transferable amount for non-native route',
-      );
+          this.logger.debug(
+            {
+              fromChain: destination,
+              toChain: origin,
+              availableInventory: availableInventory.toString(),
+              requestedAmount: requestedLocalAmount.toString(),
+              feeAwareMaxTransferable: maxTransferable.toString(),
+            },
+            'Calculated fee-aware max transferable amount for non-native route',
+          );
+        } catch (error) {
+          if (!isRecoverableMaxTransferProbeError(error)) {
+            throw error;
+          }
+
+          maxTransferable = 0n;
+          this.logger.warn(
+            {
+              fromChain: destination,
+              toChain: origin,
+              availableInventory: availableInventory.toString(),
+              requestedAmount: requestedLocalAmount.toString(),
+              error: error instanceof Error ? error.message : String(error),
+              intentId: intent.id,
+            },
+            'Fee-aware max transferable probe failed due to insufficient balance, falling back to external bridge',
+          );
+        }
+      }
     }
 
     // Calculate total inventory across all chains

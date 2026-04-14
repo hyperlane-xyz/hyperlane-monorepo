@@ -280,6 +280,21 @@ describe('InventoryRebalancer E2E', () => {
     return intent;
   }
 
+  function mockSuccessfulBridge(fromAmount: bigint, toAmount: bigint): void {
+    bridge.quote.resolves(
+      createMockBridgeQuote({
+        fromAmount,
+        toAmount,
+        toAmountMin: toAmount,
+      }),
+    );
+    bridge.execute.resolves({
+      txHash: '0xBridgeTxHash',
+      fromChain: 42161,
+      toChain: 1399811149,
+    });
+  }
+
   describe('Basic Inventory Rebalance (Sufficient Inventory)', () => {
     // NOTE: Strategy route is arbitrum (surplus) → solana (deficit)
     // But execution calls transferRemote FROM solana TO arbitrum (swapped direction)
@@ -737,6 +752,52 @@ describe('InventoryRebalancer E2E', () => {
     });
   });
 
+  describe('Fee-Aware Probe Fallback', () => {
+    it('bridges when non-native destination inventory is zero', async () => {
+      const requestedAmount = 10000000000n;
+      const bufferedBridgeAmount = (requestedAmount * 105n) / 100n;
+      const route = createTestRoute({ amount: requestedAmount });
+      createTestIntent({ amount: requestedAmount });
+
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 0n,
+        [ARBITRUM_CHAIN]: 20000000000n,
+      });
+      mockSuccessfulBridge(bufferedBridgeAmount, bufferedBridgeAmount);
+
+      const results = await inventoryRebalancer.rebalance([route]);
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.true;
+      expect(warpCore.getMaxTransferAmount.called).to.be.false;
+      expect(warpCore.getTransferRemoteTxs.called).to.be.false;
+      expect(bridge.execute.calledOnce).to.be.true;
+
+      const actionParams =
+        actionTracker.createRebalanceAction.firstCall.args[0];
+      expect(actionParams.type).to.equal('inventory_movement');
+    });
+
+    it('returns failure for unrelated fee-aware probe errors', async () => {
+      const route = createTestRoute();
+      createTestIntent();
+
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 1n,
+        [ARBITRUM_CHAIN]: 20000000000n,
+      });
+      warpCore.getMaxTransferAmount.rejects(new Error('RPC down'));
+
+      const results = await inventoryRebalancer.rebalance([route]);
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.false;
+      expect(results[0].error).to.include('RPC down');
+      expect(bridge.execute.called).to.be.false;
+      expect(actionTracker.createRebalanceAction.called).to.be.false;
+    });
+  });
+
   describe('Single Intent Architecture', () => {
     it('takes only first route when multiple routes provided', async () => {
       // Route 1: arbitrum → solana (check inventory on solana)
@@ -776,6 +837,7 @@ describe('InventoryRebalancer E2E', () => {
         id: 'existing-intent',
         status: 'in_progress',
         amount: 10000000000n,
+        externalBridge: ExternalBridgeType.LiFi,
       });
 
       // Configure mock to return existing partial intent
@@ -806,6 +868,51 @@ describe('InventoryRebalancer E2E', () => {
 
       // Verify: No new intent was created (existing was used)
       expect(actionTracker.createRebalanceIntent.called).to.be.false;
+    });
+
+    it('continues existing intent by bridging after recoverable fee-aware probe failure', async () => {
+      const existingIntent = createTestIntent({
+        id: 'existing-intent',
+        status: 'in_progress',
+        amount: 10000000000n,
+        externalBridge: ExternalBridgeType.LiFi,
+      });
+      const recoverableProbeError = new Error('Fee probe failed') as Error & {
+        cause?: unknown;
+      };
+      recoverableProbeError.cause = {
+        code: 'UNPREDICTABLE_GAS_LIMIT',
+        message: 'execution reverted: ERC20: transfer amount exceeds balance',
+      };
+
+      actionTracker.getPartiallyFulfilledInventoryIntents.resolves([
+        {
+          intent: existingIntent,
+          completedAmount: 0n,
+          remaining: 10000000000n,
+          hasInflightDeposit: false,
+        },
+      ]);
+
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 1n,
+        [ARBITRUM_CHAIN]: 20000000000n,
+      });
+      warpCore.getMaxTransferAmount.rejects(recoverableProbeError);
+      mockSuccessfulBridge(10500000000n, 10500000000n);
+
+      const results = await inventoryRebalancer.rebalance([
+        createTestRoute({ amount: 5000000000n }),
+      ]);
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.true;
+      expect(bridge.execute.calledOnce).to.be.true;
+      expect(actionTracker.createRebalanceIntent.called).to.be.false;
+
+      const actionParams =
+        actionTracker.createRebalanceAction.firstCall.args[0];
+      expect(actionParams.type).to.equal('inventory_movement');
     });
 
     it('returns empty when active intent has in-flight deposit (prevents oscillation)', async () => {
