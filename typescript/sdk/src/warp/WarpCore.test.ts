@@ -401,6 +401,145 @@ describe('WarpCore', () => {
     }
   });
 
+  it('Uses message-space collateral checks when destination has scale and origin uses implicit identity', async () => {
+    // Reverse of the previous test: origin is the "simple" 6-dec side,
+    // destination is 18-dec with a rational scale.
+    const originToken = new Token({
+      chainName: test1.name,
+      standard: TokenStandard.EvmHypCollateral,
+      addressOrDenom: zeroAddress,
+      decimals: 6,
+      symbol: 'TEST',
+      name: 'Test Token',
+      connections: [],
+    });
+    const destinationToken = new Token({
+      chainName: test2.name,
+      standard: TokenStandard.EvmHypCollateral,
+      addressOrDenom: zeroAddress,
+      decimals: 18,
+      scale: { numerator: 2, denominator: 1_000_000_000_000 },
+      symbol: 'TEST',
+      name: 'Test Token',
+      connections: [],
+    });
+    originToken.connections!.push({ token: destinationToken });
+    const scaledWarpCore = new WarpCore(multiProvider, [
+      originToken,
+      destinationToken,
+    ]);
+    // dest has 1_000_000 local units; scale {2, 1e12} → message = 1_000_000 * 2 / 1e12 = 0
+    // So even a small origin amount should be insufficient.
+    const originStub = sinon.stub(originToken, 'getHypAdapter').returns({
+      getBalance: () => Promise.resolve(1_000_000n),
+      getBridgedSupply: () => Promise.resolve(1_000_000n),
+    } as any);
+    const destinationStub = sinon
+      .stub(destinationToken, 'getHypAdapter')
+      .returns({
+        getBalance: () => Promise.resolve(1_000_000n),
+        getBridgedSupply: () => Promise.resolve(1_000_000n),
+      } as any);
+
+    try {
+      // origin 1_000_000 (6-dec, identity scale) → message = 1_000_000
+      // dest 1_000_000 (18-dec, scale 2/1e12) → message = 0 (floor)
+      expect(
+        await scaledWarpCore.isDestinationCollateralSufficient({
+          originTokenAmount: originToken.amount(1n),
+          destination: test2.name,
+        }),
+      ).to.be.false;
+
+      // Give dest enough balance: 500_000_000_000_000_000 * 2 / 1e12 = 1_000_000
+      destinationStub.restore();
+      const destinationStub2 = sinon
+        .stub(destinationToken, 'getHypAdapter')
+        .returns({
+          getBalance: () => Promise.resolve(500_000_000_000_000_000n),
+          getBridgedSupply: () => Promise.resolve(500_000_000_000_000_000n),
+        } as any);
+
+      expect(
+        await scaledWarpCore.isDestinationCollateralSufficient({
+          originTokenAmount: originToken.amount(1_000_000n),
+          destination: test2.name,
+        }),
+      ).to.be.true;
+
+      destinationStub2.restore();
+    } finally {
+      originStub.restore();
+    }
+  });
+
+  it('Uses message-space collateral checks when both tokens have non-trivial scale and different decimals', async () => {
+    // Production-realistic: origin 18-dec with scale-down {1, 1e12},
+    // dest 6-dec with scale-up {2, 1}.
+    // origin message amount = localAmount * 1 / 1e12
+    // dest message amount = localAmount * 2 / 1
+    const originToken = new Token({
+      chainName: test1.name,
+      standard: TokenStandard.EvmHypCollateral,
+      addressOrDenom: zeroAddress,
+      decimals: 18,
+      scale: { numerator: 1, denominator: 1_000_000_000_000 },
+      symbol: 'TEST',
+      name: 'Test Token',
+      connections: [],
+    });
+    const destinationToken = new Token({
+      chainName: test2.name,
+      standard: TokenStandard.EvmHypCollateral,
+      addressOrDenom: zeroAddress,
+      decimals: 6,
+      scale: { numerator: 2, denominator: 1 },
+      symbol: 'TEST',
+      name: 'Test Token',
+      connections: [],
+    });
+    originToken.connections!.push({ token: destinationToken });
+    const scaledWarpCore = new WarpCore(multiProvider, [
+      originToken,
+      destinationToken,
+    ]);
+    const originStub = sinon.stub(originToken, 'getHypAdapter').returns({
+      getBalance: () => Promise.resolve(1_000_000n),
+      getBridgedSupply: () => Promise.resolve(1_000_000n),
+    } as any);
+    // dest balance 500_000: message = 500_000 * 2 = 1_000_000
+    const destinationStub = sinon
+      .stub(destinationToken, 'getHypAdapter')
+      .returns({
+        getBalance: () => Promise.resolve(500_000n),
+        getBridgedSupply: () => Promise.resolve(500_000n),
+      } as any);
+
+    try {
+      // origin 1_000_000_000_000_000_000 (1 token in 18-dec)
+      // → message = 1e18 * 1 / 1e12 = 1_000_000
+      // dest message = 500_000 * 2 = 1_000_000 → sufficient
+      expect(
+        await scaledWarpCore.isDestinationCollateralSufficient({
+          originTokenAmount: originToken.amount(1_000_000_000_000_000_000n),
+          destination: test2.name,
+        }),
+      ).to.be.true;
+
+      // origin 2e18 → message = 2_000_000
+      // dest message = 1_000_000 → insufficient
+      expect(
+        await scaledWarpCore.isDestinationCollateralSufficient({
+          originTokenAmount: originToken.amount(2_000_000_000_000_000_000n),
+          destination: test2.name,
+        }),
+      ).to.be.false;
+    } finally {
+      originStub.restore();
+      destinationStub.restore();
+    }
+  });
+
   it('Validates transfers', async () => {
     const balanceStubs = warpCore.tokens.map((t) =>
       sinon.stub(t, 'getBalance').resolves({ amount: MOCK_BALANCE } as any),

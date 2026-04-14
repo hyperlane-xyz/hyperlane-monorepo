@@ -50,9 +50,9 @@ export const TokenConfigSchema = z.object({
     .string()
     .optional()
     .describe('The CoinGecko id of the token, used for price lookups'),
-  scale: TokenMetadataSchema.shape.scale
-    .optional()
-    .describe('The scaling factor of the token'),
+  scale: TokenMetadataSchema.shape.scale.describe(
+    'The scaling factor of the token',
+  ),
   warpRouteId: z
     .string()
     .min(1)

@@ -176,6 +176,27 @@ describe('scale conversion helpers', () => {
       alignLocalAmountToMessage(-1n, { numerator: 1n, denominator: 3n }),
     ).to.throw('Local amount must be non-negative');
   });
+
+  it('returns identity for undefined scale', () => {
+    expect(messageAmountFromLocal(42n, undefined)).to.equal(42n);
+    expect(localAmountFromMessage(42n, undefined)).to.equal(42n);
+  });
+
+  it('handles zero amounts', () => {
+    expect(
+      messageAmountFromLocal(0n, { numerator: 1n, denominator: 3n }),
+    ).to.equal(0n);
+    expect(
+      localAmountFromMessage(0n, { numerator: 3n, denominator: 2n }),
+    ).to.equal(0n);
+  });
+
+  it('round-trips exact-divisible amounts', () => {
+    const scale = { numerator: 3n, denominator: 2n };
+    const local = 6n;
+    const message = messageAmountFromLocal(local, scale);
+    expect(localAmountFromMessage(message, scale)).to.equal(local);
+  });
 });
 
 describe(verifyScale.name, () => {

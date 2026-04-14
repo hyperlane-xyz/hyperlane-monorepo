@@ -1242,6 +1242,13 @@ export class WarpCore {
     const destinationBalance = await this.getTokenCollateral(
       resolvedDestinationToken,
     );
+    // Legacy fallback: when both scales are undefined but decimals differ,
+    // we can't use message-space comparison because messageAmountFromLocal
+    // with identity scale would compare raw local units across different
+    // decimal spaces. Fall back to decimal conversion instead.
+    // Well-configured routes should have scale set — verifyScale() catches
+    // this at deploy time. Misconfigured routes that reach the message-space
+    // path below will safely return false (insufficient).
     if (
       originToken.decimals !== resolvedDestinationToken.decimals &&
       originToken.scale === undefined &&
