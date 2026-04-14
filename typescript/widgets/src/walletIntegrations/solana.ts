@@ -73,7 +73,7 @@ export function useSolanaTransactionFns(
       const connection = new Connection(rpcUrl, 'confirmed');
       const {
         context: { slot: minContextSlot },
-        value: { blockhash, lastValidBlockHeight },
+        value: { lastValidBlockHeight },
       } = await connection.getLatestBlockhashAndContext();
 
       logger.debug(`Sending tx on chain ${chainName}`);
@@ -81,14 +81,37 @@ export function useSolanaTransactionFns(
         minContextSlot,
       });
 
-      const confirm = (): Promise<TypedTransactionReceipt> =>
-        connection
-          .confirmTransaction({ blockhash, lastValidBlockHeight, signature })
-          .then(() => connection.getTransaction(signature))
-          .then((r) => ({
-            type: ProviderType.SolanaWeb3,
-            receipt: r!,
-          }));
+      const confirm = async (): Promise<TypedTransactionReceipt> => {
+        // Poll via HTTP instead of connection.confirmTransaction which
+        // relies on signatureSubscribe (WebSocket) — many RPC providers
+        // (e.g. Alchemy) don't support that method.
+        const POLL_INTERVAL_MS = 2000;
+        while (true) {
+          const { value } = await connection.getSignatureStatuses([signature]);
+          const status = value?.[0];
+          if (status?.err) {
+            throw new Error(
+              `Transaction failed: ${JSON.stringify(status.err)}`,
+            );
+          }
+          if (
+            status?.confirmationStatus === 'confirmed' ||
+            status?.confirmationStatus === 'finalized'
+          ) {
+            break;
+          }
+          const blockHeight = await connection.getBlockHeight();
+          if (blockHeight > lastValidBlockHeight) {
+            throw new Error('Transaction expired: block height exceeded');
+          }
+          await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+        }
+        const tx = await connection.getTransaction(signature, {
+          commitment: 'confirmed',
+          maxSupportedTransactionVersion: 0,
+        });
+        return { type: ProviderType.SolanaWeb3, receipt: tx! };
+      };
 
       return { hash: signature, confirm };
     },
