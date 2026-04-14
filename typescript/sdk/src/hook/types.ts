@@ -135,7 +135,7 @@ export const MerkleTreeSchema = z.object({
 
 export const PredicateHookSchema = z.object({
   type: z.literal(HookType.PREDICATE),
-  address: z.string().optional(),
+  address: z.string(),
 });
 export type PredicateHookConfig = z.infer<typeof PredicateHookSchema>;
 
