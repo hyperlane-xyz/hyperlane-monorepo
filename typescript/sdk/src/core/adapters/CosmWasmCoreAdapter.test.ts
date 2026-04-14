@@ -5,8 +5,8 @@ import {
   test1,
   testCosmosChain,
 } from '../../consts/testChains.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import { ProviderType } from '../../providers/ProviderType.js';
+import { createTestMultiProtocolProvider } from '../../test/multiProtocolProvider.js';
 
 import { CosmWasmCoreAdapter } from './CosmWasmCoreAdapter.js';
 
@@ -20,7 +20,7 @@ describe('CosmWasmCoreAdapter', () => {
   it('constructs', () => {
     adapter = new CosmWasmCoreAdapter(
       testCosmosChain.name,
-      MultiProtocolProvider.createTestMultiProtocolProvider({
+      createTestMultiProtocolProvider({
         ...multiProtocolTestChainMetadata,
         legacychain: {
           ...test1,

@@ -305,14 +305,14 @@ async function getSignerKeyMap(
  */
 async function getMultiProvider(registry: IRegistry, signer?: ethers.Signer) {
   const chainMetadata = await registry.getMetadata();
-  const multiProvider = new MultiProvider(chainMetadata);
+  const multiProvider = new MultiProvider<object>(chainMetadata);
   if (signer) multiProvider.setSharedSigner(signer);
   return multiProvider;
 }
 
 async function getMultiProtocolProvider(registry: IRegistry) {
   const chainMetadata = await registry.getMetadata();
-  return new MultiProtocolProvider(chainMetadata);
+  return new MultiProtocolProvider<object>(chainMetadata);
 }
 
 /**

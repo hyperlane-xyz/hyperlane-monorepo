@@ -4,7 +4,7 @@ import sinon from 'sinon';
 import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { test1, test2 } from '../../consts/testChains.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { createTestMultiProtocolProvider } from '../../test/multiProtocolProvider.js';
 
 import { M0PortalTokenAdapter } from './M0PortalTokenAdapter.js';
 
@@ -22,8 +22,7 @@ describe('M0PortalTokenAdapter', () => {
 
   beforeEach(() => {
     sandbox = sinon.createSandbox();
-    const multiProvider =
-      MultiProtocolProvider.createTestMultiProtocolProvider();
+    const multiProvider = createTestMultiProtocolProvider();
     adapter = new M0PortalTokenAdapter(
       multiProvider,
       test1.name,

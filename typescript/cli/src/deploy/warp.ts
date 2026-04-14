@@ -1349,7 +1349,9 @@ export async function runWarpRouteCombine({
   const routes: CombineRouteConfig[] = [];
 
   for (const id of routeIds) {
-    const coreConfig = await context.registry.getWarpRoute(id);
+    const coreConfigRaw = await context.registry.getWarpRoute(id);
+    const coreConfig =
+      coreConfigRaw && WarpCoreConfigSchema.parse(coreConfigRaw);
     assert(coreConfig, `Warp route "${id}" not found in registry`);
     const deployConfigRaw = await context.registry.getWarpDeployConfig(id);
     const deployConfig = WarpRouteDeployConfigSchema.parse(deployConfigRaw);

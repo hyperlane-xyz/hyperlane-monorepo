@@ -13,12 +13,19 @@ import {
   testSealevelChain,
 } from '../consts/testChains.js';
 import type { ChainMetadata } from '../metadata/chainMetadataTypes.js';
-import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
+import {
+  clearRegisteredCollateralTokenAdapterFactories,
+  clearRegisteredHypTokenAdapterFactories,
+  clearRegisteredTokenAdapterFactories,
+  registerAllRuntimeAdapters,
+  registerEvmRuntimeAdapters,
+} from '../runtime.js';
 import { stubMultiProtocolProvider } from '../test/multiProviderStubs.js';
+import { createTestMultiProtocolProvider } from '../test/multiProtocolProvider.js';
 import type { ChainMap } from '../types.js';
 
 import { TokenArgs } from './IToken.js';
-import { Token } from './Token.js';
+import { getCollateralTokenAdapter, Token } from './Token.js';
 import { TokenConnectionType } from './TokenConnection.js';
 import { TokenStandard } from './TokenStandard.js';
 
@@ -313,10 +320,9 @@ describe('Token', () => {
   for (const tokenArgs of Object.values(STANDARD_TO_TOKEN)) {
     if (!tokenArgs) continue;
     it(`Handles ${tokenArgs.standard} standard`, async () => {
-      const multiProvider =
-        MultiProtocolProvider.createTestMultiProtocolProvider(
-          createMailboxTestMetadata(),
-        );
+      const multiProvider = createTestMultiProtocolProvider(
+        createMailboxTestMetadata(),
+      );
 
       console.debug('Testing token standard', tokenArgs.standard);
       const token = new Token(tokenArgs);
@@ -347,10 +353,9 @@ describe('Token', () => {
 
   describe('getHypAdapter', () => {
     it('returns EvmHypNativeAdapter for EvmNative with connections', () => {
-      const multiProvider =
-        MultiProtocolProvider.createTestMultiProtocolProvider(
-          createMailboxTestMetadata(),
-        );
+      const multiProvider = createTestMultiProtocolProvider(
+        createMailboxTestMetadata(),
+      );
 
       const evmNativeToken = new Token(
         Token.FromChainMetadataNativeToken(test1),
@@ -373,10 +378,9 @@ describe('Token', () => {
     });
 
     it('returns EvmHypNativeAdapter for EvmNative with untyped connection', () => {
-      const multiProvider =
-        MultiProtocolProvider.createTestMultiProtocolProvider(
-          createMailboxTestMetadata(),
-        );
+      const multiProvider = createTestMultiProtocolProvider(
+        createMailboxTestMetadata(),
+      );
 
       const evmNativeToken = new Token(
         Token.FromChainMetadataNativeToken(test1),
@@ -396,19 +400,18 @@ describe('Token', () => {
     });
 
     it('returns EvmHypNativeAdapter for TronNative with connections', () => {
-      const multiProvider =
-        MultiProtocolProvider.createTestMultiProtocolProvider<{
-          mailbox?: string;
-        }>({
-          ...multiProtocolTestChainMetadata,
-          tron: {
-            ...test1,
-            chainId: 9913388,
-            domainId: 9913388,
-            name: 'tron',
-            protocol: ProtocolType.Tron,
-          },
-        });
+      const multiProvider = createTestMultiProtocolProvider<{
+        mailbox?: string;
+      }>({
+        ...multiProtocolTestChainMetadata,
+        tron: {
+          ...test1,
+          chainId: 9913388,
+          domainId: 9913388,
+          name: 'tron',
+          protocol: ProtocolType.Tron,
+        },
+      });
 
       const tronNativeToken = new Token({
         chainName: 'tron',
@@ -436,10 +439,9 @@ describe('Token', () => {
     });
 
     it('throws for EvmNative without connections', () => {
-      const multiProvider =
-        MultiProtocolProvider.createTestMultiProtocolProvider(
-          createMailboxTestMetadata(),
-        );
+      const multiProvider = createTestMultiProtocolProvider(
+        createMailboxTestMetadata(),
+      );
 
       const evmNativeToken = new Token(
         Token.FromChainMetadataNativeToken(test1),
@@ -451,10 +453,9 @@ describe('Token', () => {
     });
 
     it('throws for EvmNative with IBC connections', () => {
-      const multiProvider =
-        MultiProtocolProvider.createTestMultiProtocolProvider(
-          createMailboxTestMetadata(),
-        );
+      const multiProvider = createTestMultiProtocolProvider(
+        createMailboxTestMetadata(),
+      );
 
       const evmNativeToken = new Token(
         Token.FromChainMetadataNativeToken(test1),
@@ -480,10 +481,9 @@ describe('Token', () => {
     });
 
     it('throws for EvmNative with chain not in multiProvider', () => {
-      const multiProvider =
-        MultiProtocolProvider.createTestMultiProtocolProvider(
-          createMailboxTestMetadata(),
-        );
+      const multiProvider = createTestMultiProtocolProvider(
+        createMailboxTestMetadata(),
+      );
 
       const evmNativeToken = new Token({
         chainName: 'nonexistent',
@@ -508,6 +508,73 @@ describe('Token', () => {
 
       expect(() => evmNativeToken.getHypAdapter(multiProvider)).to.throw(
         'not found in multiProvider',
+      );
+    });
+  });
+
+  describe('runtime registration', () => {
+    afterEach(() => {
+      clearRegisteredTokenAdapterFactories();
+      clearRegisteredHypTokenAdapterFactories();
+      clearRegisteredCollateralTokenAdapterFactories();
+      registerAllRuntimeAdapters();
+    });
+
+    it('supports selective token adapter registration', () => {
+      clearRegisteredTokenAdapterFactories();
+      clearRegisteredHypTokenAdapterFactories();
+      clearRegisteredCollateralTokenAdapterFactories();
+      registerEvmRuntimeAdapters();
+
+      const multiProvider = createTestMultiProtocolProvider(
+        createMailboxTestMetadata(),
+      );
+
+      const evmToken = new Token(STANDARD_TO_TOKEN[TokenStandard.ERC20]!);
+      const sealevelToken = new Token(
+        STANDARD_TO_TOKEN[TokenStandard.SealevelSpl]!,
+      );
+
+      expect(evmToken.getAdapter(multiProvider).constructor.name).to.equal(
+        'EvmTokenAdapter',
+      );
+      expect(() => sealevelToken.getAdapter(multiProvider)).to.throw(
+        'No adapter found for token standard: SealevelSpl',
+      );
+    });
+
+    it('supports selective hyp and collateral adapter registration', () => {
+      clearRegisteredTokenAdapterFactories();
+      clearRegisteredHypTokenAdapterFactories();
+      clearRegisteredCollateralTokenAdapterFactories();
+      registerEvmRuntimeAdapters();
+
+      const multiProvider = createTestMultiProtocolProvider(
+        createMailboxTestMetadata(),
+      );
+
+      const evmHypToken = new Token(
+        STANDARD_TO_TOKEN[TokenStandard.EvmHypSynthetic]!,
+      );
+
+      expect(
+        evmHypToken.getHypAdapter(multiProvider).constructor.name,
+      ).to.equal('EvmHypSyntheticAdapter');
+      expect(
+        getCollateralTokenAdapter({
+          chainName: TestChainName.test1,
+          multiProvider,
+          tokenAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+        }).constructor.name,
+      ).to.equal('EvmTokenAdapter');
+      expect(() =>
+        getCollateralTokenAdapter({
+          chainName: testSealevelChain.name,
+          multiProvider,
+          tokenAddress: 'So11111111111111111111111111111111111111112',
+        }),
+      ).to.throw(
+        `Unsupported protocol ${ProtocolType.Sealevel} for retrieving collateral token adapter on chain ${testSealevelChain.name}`,
       );
     });
   });

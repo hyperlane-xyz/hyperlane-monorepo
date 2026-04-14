@@ -3,7 +3,7 @@ import { BigNumber } from 'ethers';
 import sinon from 'sinon';
 
 import { test1 } from '../../consts/testChains.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { createTestMultiProtocolProvider } from '../../test/multiProtocolProvider.js';
 
 import { EvmHypCrossCollateralAdapter } from './EvmCrossCollateralAdapter.js';
 
@@ -19,8 +19,7 @@ describe('EvmHypCrossCollateralAdapter', () => {
 
   beforeEach(() => {
     sandbox = sinon.createSandbox();
-    const multiProvider =
-      MultiProtocolProvider.createTestMultiProtocolProvider();
+    const multiProvider = createTestMultiProtocolProvider();
     adapter = new EvmHypCrossCollateralAdapter(test1.name, multiProvider, {
       token: ROUTER_ADDRESS,
       collateralToken: COLLATERAL_ADDRESS,

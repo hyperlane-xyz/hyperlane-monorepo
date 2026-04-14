@@ -4,12 +4,14 @@ import { filterWarpRoutesIds } from '@hyperlane-xyz/registry';
 import {
   filterWarpCoreConfigMapByChains,
   type WarpCoreConfig,
+  WarpCoreConfigSchema,
   type WarpRouteDeployConfigMailboxRequired,
 } from '@hyperlane-xyz/sdk';
 import {
   assert,
   intersection,
   objFilter,
+  objMap,
   setEquality,
 } from '@hyperlane-xyz/utils';
 
@@ -49,7 +51,7 @@ export async function getWarpCoreConfigOrExit({
   });
   const config = await context.registry.getWarpRoute(resolvedWarpRouteId);
   assert(config, `No warp route found with ID "${resolvedWarpRouteId}"`);
-  return config;
+  return WarpCoreConfigSchema.parse(config);
 }
 
 /**
@@ -111,7 +113,10 @@ export async function resolveWarpRouteId(args: {
     let matchingIds = symbolMatchedIds;
 
     if (chains && chains.length > 0) {
-      const warpConfigs = await context.registry.getWarpRoutes({ symbol });
+      const warpConfigs = objMap(
+        await context.registry.getWarpRoutes({ symbol }),
+        (_, config) => WarpCoreConfigSchema.parse(config),
+      );
       const filtered = filterWarpCoreConfigMapByChains(warpConfigs, chains);
       const chainFilteredIds = new Set(Object.keys(filtered));
       matchingIds = matchingIds.filter((id) => chainFilteredIds.has(id));
@@ -163,7 +168,10 @@ export async function resolveWarpRouteId(args: {
   let routeIds: string[];
 
   if (chains && chains.length > 0) {
-    const warpConfigs = await context.registry.getWarpRoutes();
+    const warpConfigs = objMap(
+      await context.registry.getWarpRoutes(),
+      (_, config) => WarpCoreConfigSchema.parse(config),
+    );
     const filtered = filterWarpCoreConfigMapByChains(warpConfigs, chains);
     const sourceIds = new Set(Object.keys(source));
     routeIds = Object.keys(filtered).filter((id) => sourceIds.has(id));

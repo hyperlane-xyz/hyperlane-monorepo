@@ -3,7 +3,7 @@ import { expect } from 'chai';
 import { ProtocolType, isEVMLike } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
-import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
+import { createTestMultiProtocolProvider } from '../test/multiProtocolProvider.js';
 
 import {
   BaseAppAdapter,
@@ -23,7 +23,7 @@ class TestMultiProtocolApp extends MultiProtocolApp<BaseAppAdapter> {
 }
 
 describe('MultiProtocolApp', () => {
-  const multiProvider = MultiProtocolProvider.createTestMultiProtocolProvider();
+  const multiProvider = createTestMultiProtocolProvider();
   it('creates an app class and gleans types from generic', async () => {
     const addresses = {
       test1: {},

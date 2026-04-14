@@ -1,3 +1,3 @@
 {
-  "import": ["tsx"]
+  "import": ["tsx", "./src/test/registerRuntime.ts"]
 }

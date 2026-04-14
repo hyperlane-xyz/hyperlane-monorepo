@@ -2,15 +2,14 @@ import { expect } from 'chai';
 import { ethers } from 'ethers';
 
 import { TestChainName } from '../consts/testChains.js';
-import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
+import { createTestMultiProtocolProvider } from '../test/multiProtocolProvider.js';
 
 import { MultiProtocolRouterApp } from './MultiProtocolRouterApps.js';
 import { EvmRouterAdapter } from './adapters/EvmRouterAdapter.js';
 
 describe('MultiProtocolRouterApp', () => {
   describe('constructs', () => {
-    const multiProvider =
-      MultiProtocolProvider.createTestMultiProtocolProvider();
+    const multiProvider = createTestMultiProtocolProvider();
     it('creates an app class', async () => {
       const addresses = {
         test1: { router: ethers.constants.AddressZero },

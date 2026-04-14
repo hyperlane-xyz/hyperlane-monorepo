@@ -7,6 +7,10 @@
  * across Hyperlane warp routes to maintain optimal token distribution.
  */
 
+import { registerAllRuntimeAdapters } from '@hyperlane-xyz/sdk/runtime';
+
+registerAllRuntimeAdapters();
+
 // Core service
 export { RebalancerService } from './core/RebalancerService.js';
 export type {

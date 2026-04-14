@@ -38,7 +38,7 @@ async function main() {
 
   // Intentionally use public RPC providers to avoid requiring access to our GCP secrets
   // to run this script
-  const multiProvider = new MultiProvider(getChainMetadata());
+  const multiProvider = new MultiProvider<object>(getChainMetadata());
   const { core } = await getHyperlaneCore(argv.environment, multiProvider);
 
   const originProvider = multiProvider.getProvider(argv.originChain);

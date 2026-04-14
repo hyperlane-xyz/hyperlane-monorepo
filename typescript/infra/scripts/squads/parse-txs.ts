@@ -18,6 +18,7 @@ import {
   getPendingProposalsForChains,
   logProposals,
 } from '../../src/utils/squads.js';
+import { normalizeWarpCoreConfigMap } from '../../config/registry.js';
 import { withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
@@ -36,7 +37,7 @@ async function main() {
 
   // Load warp routes from registry
   const registry = await config.getRegistry();
-  const warpRoutes = await registry.getWarpRoutes();
+  const warpRoutes = normalizeWarpCoreConfigMap(await registry.getWarpRoutes());
 
   // Initialize the transaction reader
   const reader = new SquadsTransactionReader(environment, mpp);

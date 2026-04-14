@@ -78,6 +78,7 @@ import {
 import { legacyEthIcaRouter } from '../config/chain.js';
 import { DeployEnvironment } from '../config/environment.js';
 import { tokens } from '../config/warp.js';
+import { normalizeWarpCoreConfigMap } from '../../config/registry.js';
 import {
   GovernanceType,
   Owner,
@@ -297,7 +298,9 @@ export class GovernTransactionReader {
       multiProvider,
     );
     const registry = await config.getRegistry();
-    const warpRoutes = await registry.getWarpRoutes();
+    const warpRoutes = normalizeWarpCoreConfigMap(
+      await registry.getWarpRoutes(),
+    );
     const safes = getGovernanceSafes(governanceType);
     const icas = getGovernanceIcas(governanceType);
     const legacyIcas = getLegacyGovernanceIcas(governanceType);

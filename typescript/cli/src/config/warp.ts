@@ -401,7 +401,7 @@ export async function readWarpCoreConfig(
         filePath: string;
       },
 ): Promise<WarpCoreConfig> {
-  let config: WarpCoreConfig | null = null;
+  let config: unknown = null;
   const readWithFilePath = 'filePath' in args;
   if (readWithFilePath) {
     config = readYamlOrJson(args.filePath);

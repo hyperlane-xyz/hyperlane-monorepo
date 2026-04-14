@@ -14,8 +14,8 @@ import {
   testXERC20,
   testXERC20Lockbox,
 } from '../consts/testChains.js';
-import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { ProviderType } from '../providers/ProviderType.js';
+import { createTestMultiProtocolProvider } from '../test/multiProtocolProvider.js';
 import { Token } from '../token/Token.js';
 import { TokenAmount } from '../token/TokenAmount.js';
 import { TokenStandard } from '../token/TokenStandard.js';
@@ -43,7 +43,7 @@ const MEDIUM_MOCK_BALANCE = BigInt('50000000000000000000'); // 50 units at @ 18 
 const MOCK_ADDRESS = '0x0000000000000000000000000000000000000001';
 
 describe('WarpCore', () => {
-  const multiProvider = MultiProtocolProvider.createTestMultiProtocolProvider();
+  const multiProvider = createTestMultiProtocolProvider();
   let warpCore: WarpCore;
   let evmHypNative: Token;
   let evmHypNativeScale1: Token;

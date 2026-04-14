@@ -23,10 +23,13 @@
  */
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
+import { registerAllRuntimeAdapters } from '@hyperlane-xyz/sdk/runtime';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { WarpMonitor } from './monitor.js';
 import { initializeLogger } from './utils.js';
+
+registerAllRuntimeAdapters();
 
 async function main(): Promise<void> {
   const VERSION = process.env.SERVICE_VERSION ?? 'dev';

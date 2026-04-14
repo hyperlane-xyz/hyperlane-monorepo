@@ -8,6 +8,7 @@ import {
   type MultiProvider,
   type WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
+import { registerAllRuntimeAdapters } from '@hyperlane-xyz/sdk/runtime';
 import { ProtocolType, addressToBytes32, assert } from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from '../../config/RebalancerConfig.js';
@@ -54,6 +55,8 @@ import {
   type MockExplorerConfig,
 } from './MockExplorerClient.js';
 import { MockExternalBridge } from './MockExternalBridge.js';
+
+registerAllRuntimeAdapters();
 
 function encodeWarpRouteMessageBody(
   recipient: string,

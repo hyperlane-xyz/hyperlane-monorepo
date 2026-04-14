@@ -12,12 +12,17 @@ import { NotFoundError } from '../errors/ApiError.js';
 import { AbstractService } from './abstractService.js';
 import { RegistryService } from './registryService.js';
 
+type RegistryWarpCoreConfig = NonNullable<
+  Awaited<ReturnType<IRegistry['getWarpRoute']>>
+>;
+type RegistryWarpCoreConfigs = Awaited<ReturnType<IRegistry['getWarpRoutes']>>;
+
 export class WarpService extends AbstractService {
   constructor(registryService: RegistryService) {
     super(registryService);
   }
 
-  async getWarpCoreConfig(id: WarpRouteId): Promise<WarpCoreConfig> {
+  async getWarpCoreConfig(id: WarpRouteId): Promise<RegistryWarpCoreConfig> {
     return this.withRegistry(async (registry) => {
       const warpRoute = await registry.getWarpRoute(id);
       if (!warpRoute) {
@@ -29,7 +34,7 @@ export class WarpService extends AbstractService {
 
   async getWarpCoreConfigs(
     filter?: WarpRouteFilterParams,
-  ): Promise<ReturnType<IRegistry['getWarpRoutes']>> {
+  ): Promise<RegistryWarpCoreConfigs> {
     return this.withRegistry(async (registry) => {
       return registry.getWarpRoutes(filter);
     });

@@ -7,6 +7,7 @@ import {
   MultiProvider,
   test1,
 } from '@hyperlane-xyz/sdk';
+import { registerAllRuntimeAdapters } from '@hyperlane-xyz/sdk/runtime';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { ensureEvmSignersForChains } from '../../context/context.js';
@@ -14,6 +15,10 @@ import { type SignerKeyProtocolMap } from '../../context/types.js';
 import { ANVIL_KEY } from '../ethereum/consts.js';
 
 describe('ensureEvmSignersForChains', () => {
+  before(() => {
+    registerAllRuntimeAdapters();
+  });
+
   it('uses ZkSync wallet for ZkSync chains', async () => {
     const chainMetadata = {
       test1: {
