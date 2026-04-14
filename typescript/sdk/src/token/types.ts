@@ -33,6 +33,17 @@ export const contractVersionMatchesDependency = (version: string) => {
 
 export const VERSION_ERROR_MESSAGE = `Contract version must match the @hyperlane-xyz/core dependency version (${CONTRACTS_PACKAGE_VERSION})`;
 
+/**
+ * Coerces bigint or string to bigint with positivity check.
+ * Needed because bigints are serialised as strings in JSON/YAML
+ * and must be converted back on parse. Uses .refine() instead of
+ * .positive() to avoid bigint values in zod-to-json-schema output.
+ */
+const PositiveBigIntFromString = z
+  .union([z.bigint(), z.string().transform((s) => BigInt(s))])
+  .pipe(z.bigint())
+  .refine((n) => n > 0n, { message: 'Must be positive' });
+
 export const TokenMetadataSchema = z.object({
   name: z.string(),
   symbol: z.string(),
@@ -45,8 +56,8 @@ export const TokenMetadataSchema = z.object({
         denominator: z.number().int().gt(0),
       }),
       z.object({
-        numerator: z.coerce.bigint().positive(),
-        denominator: z.coerce.bigint().positive(),
+        numerator: PositiveBigIntFromString,
+        denominator: PositiveBigIntFromString,
       }),
     ])
     .optional(),
