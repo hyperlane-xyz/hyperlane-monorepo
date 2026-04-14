@@ -178,6 +178,7 @@ describe('PredicateWrapperDeployer', async () => {
           policyId: MOCK_POLICY_ID,
         },
       );
+      await signer.sendTransaction(result.setHookTx);
 
       expect(result.wrapperAddress).to.be.properAddress;
       expect(result.aggregationHookAddress).to.be.properAddress;
@@ -225,6 +226,7 @@ describe('PredicateWrapperDeployer', async () => {
           policyId: MOCK_POLICY_ID,
         },
       );
+      await signer.sendTransaction(result.setHookTx);
 
       expect(result.wrapperAddress).to.not.equal(result.aggregationHookAddress);
 
@@ -268,6 +270,7 @@ describe('PredicateWrapperDeployer', async () => {
           policyId: MOCK_POLICY_ID,
         },
       );
+      await signer.sendTransaction(result.setHookTx);
       wrapperAddress = result.wrapperAddress;
     });
 
