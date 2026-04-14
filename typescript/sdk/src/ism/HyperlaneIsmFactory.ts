@@ -15,10 +15,10 @@ import {
   IInterchainSecurityModule__factory,
   IMultisigIsm,
   IMultisigIsm__factory,
-  IRoutingIsm,
-  IStaticWeightedMultisigIsm,
   IncrementalDomainRoutingIsm,
   IncrementalDomainRoutingIsm__factory,
+  IRoutingIsm,
+  IStaticWeightedMultisigIsm,
   OPStackIsm__factory,
   PausableIsm__factory,
   StaticAddressSetFactory,
@@ -82,6 +82,42 @@ const ismFactories = {
   [IsmType.OP_STACK]: new OPStackIsm__factory(),
   [IsmType.ARB_L2_TO_L1]: new ArbL2ToL1Ism__factory(),
   [IsmType.CCIP]: new CCIPIsm__factory(),
+};
+
+const domainRoutingIntializationSize = (destination: ChainName) => {
+  if (destination === 'tempo') {
+    return 30;
+  }
+
+  if (destination === 'mitosis') {
+    return 30;
+  }
+
+  if (destination === 'shibarium' || destination === 'citrea') {
+    return 50;
+  }
+
+  if (destination === 'flare') {
+    return 90;
+  }
+
+  if (
+    destination === 'sei' ||
+    destination === 'scroll' ||
+    destination === 'cyber' ||
+    destination === 'xlayer' ||
+    destination === 'zircuit' ||
+    destination === 'flowmainnet' ||
+    destination === 'nibiru' ||
+    destination === 'eni' ||
+    destination === 'merlin' ||
+    destination === 'megaeth' ||
+    destination === 'pulsechain'
+  ) {
+    return 120;
+  }
+
+  return 300;
 };
 
 class IsmDeployer extends HyperlaneDeployer<{}, typeof ismFactories> {
@@ -610,19 +646,30 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         }
 
         // estimate gas
+        const signerAddress = await signer.getAddress();
+        const batchSize = domainRoutingIntializationSize(destination);
+
+        // Deploy initial batch of domains
+        const initialBatchSize = Math.min(batchSize, safeConfigDomains.length);
+        const initialDomains = safeConfigDomains.slice(0, initialBatchSize);
+        const initialAddresses = submoduleAddresses.slice(0, initialBatchSize);
+
         const estimatedGas = await domainRoutingIsmFactory.estimateGas.deploy(
-          owner,
-          safeConfigDomains,
-          submoduleAddresses,
+          signerAddress,
+          initialDomains,
+          initialAddresses,
           overrides,
+        );
+        this.logger.debug(
+          `Deploying routing ISM with initial ${initialBatchSize} domains on ${destination}`,
         );
         // add gas buffer
         const tx = await domainRoutingIsmFactory.deploy(
-          owner,
-          safeConfigDomains,
-          submoduleAddresses,
+          signerAddress,
+          initialDomains,
+          initialAddresses,
           {
-            gasLimit: addBufferToGasLimit(estimatedGas),
+            gasLimit: addBufferToGasLimit(estimatedGas, 15),
             ...overrides,
           },
         );
@@ -654,6 +701,43 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           moduleAddress,
           this.multiProvider.getSigner(destination),
         );
+
+        // Enroll remaining domains and addresses
+        // If all domains are enrolled already, this is a no-op
+        for (let i = initialBatchSize; i < safeConfigDomains.length; i++) {
+          const estimatedGas = await routingIsm.estimateGas.set(
+            safeConfigDomains[i],
+            submoduleAddresses[i],
+            overrides,
+          );
+          const chainName = this.multiProvider.getChainName(
+            safeConfigDomains[i],
+          );
+          this.logger.debug(
+            `Enrolling ${chainName} (${safeConfigDomains[i]}) ISM at ${submoduleAddresses[i]} on Domain Routing ISM ${moduleAddress}`,
+          );
+          const enrollTx = await routingIsm.set(
+            safeConfigDomains[i],
+            submoduleAddresses[i],
+            {
+              gasLimit: addBufferToGasLimit(estimatedGas, 15),
+              ...overrides,
+            },
+          );
+          await this.multiProvider.handleTx(destination, enrollTx);
+        }
+
+        // Transfer ownership after all enrollments are complete
+        const transferTxEstimatedGas =
+          await routingIsm.estimateGas.transferOwnership(
+            config.owner,
+            overrides,
+          );
+        const transferTx = await routingIsm.transferOwnership(config.owner, {
+          gasLimit: addBufferToGasLimit(transferTxEstimatedGas, 15),
+          ...overrides,
+        });
+        await this.multiProvider.handleTx(destination, transferTx);
       }
     }
     return routingIsm;
@@ -745,7 +829,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       );
       // add gas buffer
       const hash = await factory['deploy(address[],uint8)'](sorted, threshold, {
-        gasLimit: addBufferToGasLimit(estimatedGas),
+        gasLimit: addBufferToGasLimit(estimatedGas, 15),
         ...overrides,
       });
 
@@ -799,7 +883,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         sorted,
         thresholdWeight,
         {
-          gasLimit: addBufferToGasLimit(estimatedGas),
+          gasLimit: addBufferToGasLimit(estimatedGas, 15),
           ...overrides,
         },
       );
