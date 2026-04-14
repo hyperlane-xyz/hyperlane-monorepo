@@ -103,8 +103,8 @@ library CalldataHeadLib {
     uint256 internal constant CONTRACT_BALANCE =
         0x8000000000000000000000000000000000000000000000000000000000000000;
 
-    /// @dev Sentinel: infer max exact-in bridge amount from contract balance.
-    uint256 internal constant BRIDGE_MAX_AVAILABLE_EXACT_IN =
+    /// @dev Sentinel: infer bridge exact-in amount from the resolved approval budget.
+    uint256 internal constant BRIDGE_EXACT_IN =
         0x8000000000000000000000000000000000000000000000000000000000000001;
 
     function readAddress(
@@ -196,9 +196,8 @@ contract QuotedCalls is PackageVersioned, ReentrancyGuardTransient {
     /// @notice Sentinel: resolve amount to this contract's entire token balance
     uint256 public constant CONTRACT_BALANCE = CalldataHeadLib.CONTRACT_BALANCE;
 
-    /// @notice Sentinel: infer max exact-in bridge amount from current balance
-    uint256 public constant BRIDGE_MAX_AVAILABLE_EXACT_IN =
-        CalldataHeadLib.BRIDGE_MAX_AVAILABLE_EXACT_IN;
+    /// @notice Sentinel: infer bridge exact-in amount from resolved approval budget
+    uint256 public constant BRIDGE_EXACT_IN = CalldataHeadLib.BRIDGE_EXACT_IN;
 
     // ============ Command Types ============
     //
@@ -207,8 +206,10 @@ contract QuotedCalls is PackageVersioned, ReentrancyGuardTransient {
     // balance; for native value it resolves to address(this).balance.
     //
     // TRANSFER_REMOTE / TRANSFER_REMOTE_TO amount additionally support
-    // BRIDGE_MAX_AVAILABLE_EXACT_IN, which infers the largest transfer amount
-    // spendable from current contract balance under a linear-fee assumption.
+    // BRIDGE_EXACT_IN, which infers the largest transfer amount
+    // spendable from the resolved approval budget under a linear-fee assumption.
+    // Using approval = CONTRACT_BALANCE preserves the "max available exact-in"
+    // behavior from current contract balance.
     //
     // SAFETY INVARIANT: users may hold standing ERC-20 approvals to
     // this contract (used by TRANSFER_FROM / PERMIT2_TRANSFER_FROM).
@@ -242,14 +243,16 @@ contract QuotedCalls is PackageVersioned, ReentrancyGuardTransient {
     uint256 public constant TRANSFER_FROM = 0x03;
 
     /// @notice Execute a warp route transferRemote, approving the route first.
-    /// @dev amount supports CONTRACT_BALANCE and BRIDGE_MAX_AVAILABLE_EXACT_IN.
+    /// @dev amount supports CONTRACT_BALANCE and BRIDGE_EXACT_IN.
+    ///      For the exact-in sentinel, approval is the gross spend budget.
     ///      approval resolves via _resolveAmount (supports CONTRACT_BALANCE).
     ///      value resolves native ETH to forward (supports CONTRACT_BALANCE).
     /// inputs: abi.encode(address warpRoute, uint32 destination, bytes32 recipient, uint256 amount, uint256 value, address token, uint256 approval)
     uint256 public constant TRANSFER_REMOTE = 0x04;
 
     /// @notice Execute a cross-collateral transferRemoteTo, approving the router first.
-    /// @dev amount supports CONTRACT_BALANCE and BRIDGE_MAX_AVAILABLE_EXACT_IN.
+    /// @dev amount supports CONTRACT_BALANCE and BRIDGE_EXACT_IN.
+    ///      For the exact-in sentinel, approval is the gross spend budget.
     ///      Other fields mirror TRANSFER_REMOTE resolution semantics.
     /// inputs: abi.encode(address router, uint32 destination, bytes32 recipient, uint256 amount, bytes32 targetRouter, uint256 value, address token, uint256 approval)
     uint256 public constant TRANSFER_REMOTE_TO = 0x05;
@@ -597,12 +600,12 @@ contract QuotedCalls is PackageVersioned, ReentrancyGuardTransient {
         bytes calldata input
     ) private view returns (TransferRemoteParams memory p) {
         p = abi.decode(input, (TransferRemoteParams));
-        if (p.amount != BRIDGE_MAX_AVAILABLE_EXACT_IN) {
+        if (p.amount != BRIDGE_EXACT_IN) {
             p.amount = _resolveAmount(p.token, p.amount);
             return p;
         }
 
-        uint256 available = _resolveAmount(p.token, CONTRACT_BALANCE);
+        uint256 available = _resolveAmount(p.token, p.approval);
         p.amount = _resolveBridgeAmount(
             available,
             ITokenBridge(p.warpRoute)
@@ -615,12 +618,12 @@ contract QuotedCalls is PackageVersioned, ReentrancyGuardTransient {
         bytes calldata input
     ) private view returns (TransferRemoteToParams memory p) {
         p = abi.decode(input, (TransferRemoteToParams));
-        if (p.amount != BRIDGE_MAX_AVAILABLE_EXACT_IN) {
+        if (p.amount != BRIDGE_EXACT_IN) {
             p.amount = _resolveAmount(p.token, p.amount);
             return p;
         }
 
-        uint256 available = _resolveAmount(p.token, CONTRACT_BALANCE);
+        uint256 available = _resolveAmount(p.token, p.approval);
         p.amount = _resolveBridgeAmount(
             available,
             ICrossCollateralRouter(p.router)
