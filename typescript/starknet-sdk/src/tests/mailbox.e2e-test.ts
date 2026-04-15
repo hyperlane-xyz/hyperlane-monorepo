@@ -2,7 +2,7 @@ import { expect } from 'chai';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
-import { eqAddressStarknet } from '@hyperlane-xyz/utils';
+import { assert, eqAddressStarknet } from '@hyperlane-xyz/utils';
 
 import { StarknetSigner } from '../clients/signer.js';
 import { StarknetIsmArtifactManager } from '../ism/ism-artifact-manager.js';
@@ -37,11 +37,16 @@ describe('2. starknet sdk mailbox e2e tests', function () {
       .create({
         config: { type: AltVM.IsmType.TEST_ISM },
       });
-    const hook = await signer.createNoopHook({ mailboxAddress: '' });
+    const hookTx = await signer.getCreateNoopHookTransaction({
+      signer: signer.getSignerAddress(),
+      mailboxAddress: '',
+    });
+    const hookReceipt = await signer.sendAndConfirmTransaction(hookTx);
+    assert(hookReceipt.contractAddress, 'failed to deploy noop hook');
 
     return {
       ismAddress: ism.deployed.address,
-      hookAddress: hook.hookAddress,
+      hookAddress: hookReceipt.contractAddress,
     };
   }
 

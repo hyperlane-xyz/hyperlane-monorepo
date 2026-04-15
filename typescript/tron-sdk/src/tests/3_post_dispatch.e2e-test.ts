@@ -2,17 +2,14 @@ import { expect } from 'chai';
 import { step } from 'mocha-steps';
 import { TronWeb } from 'tronweb';
 
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
-
 import { TronSigner } from '../clients/signer.js';
-import { TronReceipt, TronTransaction } from '../utils/types.js';
 
 describe('3. tron sdk post dispatch e2e tests', async function () {
   this.timeout(100_000);
 
   const localnetRpc = 'http://127.0.0.1:9090';
 
-  let signer: AltVM.ISigner<TronTransaction, TronReceipt>;
+  let signer: TronSigner;
   let proxyAdminAddress: string;
 
   let mailboxAddress: string;

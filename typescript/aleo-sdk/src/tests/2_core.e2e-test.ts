@@ -2,15 +2,12 @@ import { Account } from '@provablehq/sdk';
 import { expect } from 'chai';
 import { step } from 'mocha-steps';
 
-import { type AltVM } from '@hyperlane-xyz/provider-sdk';
-
 import { AleoSigner } from '../clients/signer.js';
-import { type AleoReceipt, type AleoTransaction } from '../utils/types.js';
 
 describe('2. aleo sdk core e2e tests', async function () {
   this.timeout(100_000);
 
-  let signer: AltVM.ISigner<AleoTransaction, AleoReceipt>;
+  let signer: AleoSigner;
 
   let mailboxAddress: string;
   let ismAddress: string;

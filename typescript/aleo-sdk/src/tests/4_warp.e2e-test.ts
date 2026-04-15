@@ -21,12 +21,11 @@ import {
   fromAleoAddress,
   stringToU128,
 } from '../utils/helper.js';
-import { type AleoReceipt, type AleoTransaction } from '../utils/types.js';
 
 describe('4. aleo sdk warp e2e tests', async function () {
   this.timeout(100_000);
 
-  let signer: AltVM.ISigner<AleoTransaction, AleoReceipt>;
+  let signer: AleoSigner;
 
   let mailboxAddress: string;
   let collateralDenom: string;

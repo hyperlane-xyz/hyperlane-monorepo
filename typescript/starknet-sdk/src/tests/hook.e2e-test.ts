@@ -1,10 +1,13 @@
 import { expect } from 'chai';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { eqAddressStarknet } from '@hyperlane-xyz/utils';
+import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import { assert, eqAddressStarknet } from '@hyperlane-xyz/utils';
 
 import { StarknetSigner } from '../clients/signer.js';
 import { StarknetHookArtifactManager } from '../hook/hook-artifact-manager.js';
+import { StarknetIsmArtifactManager } from '../ism/ism-artifact-manager.js';
+import { StarknetMailboxArtifactManager } from '../mailbox/mailbox-artifact-manager.js';
 import {
   DEFAULT_E2E_TEST_TIMEOUT,
   TEST_STARKNET_CHAIN_METADATA,
@@ -21,17 +24,45 @@ describe('3. starknet sdk hook e2e tests', function () {
 
   before(async () => {
     signer = await createSigner();
-    const { ismAddress } = await signer.createNoopIsm({});
-    const { hookAddress } = await signer.createNoopHook({
+
+    const ismArtifactManager = new StarknetIsmArtifactManager(
+      TEST_STARKNET_CHAIN_METADATA,
+    );
+    const [ism] = await ismArtifactManager
+      .createWriter(AltVM.IsmType.TEST_ISM, signer)
+      .create({ config: { type: AltVM.IsmType.TEST_ISM } });
+
+    const hookTx = await signer.getCreateNoopHookTransaction({
+      signer: signer.getSignerAddress(),
       mailboxAddress: signer.getSignerAddress(),
     });
-    const mailbox = await signer.createMailbox({
-      domainId: TEST_STARKNET_CHAIN_METADATA.domainId,
-      defaultIsmAddress: ismAddress,
-      defaultHookAddress: hookAddress,
-      requiredHookAddress: hookAddress,
-    });
-    mailboxAddress = mailbox.mailboxAddress;
+    const hookReceipt = await signer.sendAndConfirmTransaction(hookTx);
+    assert(hookReceipt.contractAddress, 'failed to deploy noop hook');
+    const hookAddress = hookReceipt.contractAddress;
+
+    const mailboxArtifactManager = new StarknetMailboxArtifactManager(
+      TEST_STARKNET_CHAIN_METADATA,
+    );
+    const [mailbox] = await mailboxArtifactManager
+      .createWriter('mailbox', signer)
+      .create({
+        config: {
+          owner: signer.getSignerAddress(),
+          defaultIsm: {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: ism.deployed.address },
+          },
+          defaultHook: {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: hookAddress },
+          },
+          requiredHook: {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: hookAddress },
+          },
+        },
+      });
+    mailboxAddress = mailbox.deployed.address;
     artifactManager = new StarknetHookArtifactManager(
       TEST_STARKNET_CHAIN_METADATA,
       {
