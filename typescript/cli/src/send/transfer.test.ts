@@ -20,7 +20,7 @@ function mockSealevelContext(
       }),
     },
     // CAST: test only provides the one WriteCommandContext field these helpers read.
-  } as Pick<WriteCommandContext, 'multiProtocolProvider'>;
+  } as unknown as Pick<WriteCommandContext, 'multiProtocolProvider'>;
 }
 
 describe('fetchSealevelReceiptWithLogs', () => {

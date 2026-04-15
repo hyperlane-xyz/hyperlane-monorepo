@@ -339,6 +339,9 @@ export class SvmSigner
    * checks transaction history before resubmitting to prevent double-execution.
    */
   async send(tx: SendableSvmExtraSignerTransaction): Promise<SvmReceipt> {
+    // Web3-shaped tx inputs can carry signer metadata outside the normalized
+    // message fields. Convert those signers first, then rebuild a clean
+    // SvmTransaction that can safely survive blockhash refresh and re-signing.
     const compatAdditionalSigners = await normalizeAdditionalSigners([
       ...(tx.additionalSigners ?? []),
       ...(tx.extraSigners ?? []),

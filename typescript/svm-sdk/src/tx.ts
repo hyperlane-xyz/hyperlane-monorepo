@@ -41,7 +41,10 @@ export type Web3TransactionLike = {
   instructions: readonly (SvmInstruction | Web3InstructionLike)[];
   feePayer?: Address | Web3PublicKeyLike | null;
   computeUnits?: number;
+  // Compat for callers that still attach web3 keypairs/signers to raw web3 txs.
+  // `SvmSigner.send()` consumes this before rebuilding the normalized tx message.
   additionalSigners?: readonly (TransactionSigner | Web3KeypairLike)[];
+  // CLI forwards this sibling field today; signer compat treats it the same way.
   extraSigners?: readonly unknown[];
   skipPreflight?: boolean;
 };
@@ -91,6 +94,8 @@ export function normalizeTransaction(
 ): SvmTransaction {
   const { computeUnits, instructions, skipPreflight } = tx;
   return {
+    // Normalize only the message fields that survive blockhash refresh + re-sign.
+    // Extra signer metadata is handled separately at the signer boundary.
     computeUnits,
     feePayer: isWeb3PublicKeyLike(tx.feePayer)
       ? address(tx.feePayer.toBase58())
