@@ -347,7 +347,8 @@ export class Rebalancer implements IMovableCollateralRebalancer {
       return false;
     }
 
-    const originTokenAmount = originToken.amount(amount);
+    const localAmount = denormalizeToLocal(amount, originToken);
+    const originTokenAmount = originToken.amount(localAmount);
     const decimalFormattedAmount =
       originTokenAmount.getDecimalFormattedAmount();
 
