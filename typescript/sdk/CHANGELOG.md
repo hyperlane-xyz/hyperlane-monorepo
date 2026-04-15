@@ -1,5 +1,20 @@
 # @hyperlane-xyz/sdk
 
+## 31.2.1
+
+### Patch Changes
+
+- f9c8f83: Replaced z.coerce.bigint().positive() with pipe-based coercion in TokenMetadataSchema scale field to fix zod-to-json-schema compatibility in the registry build.
+  - @hyperlane-xyz/aleo-sdk@31.2.1
+  - @hyperlane-xyz/starknet-core@31.2.1
+  - @hyperlane-xyz/cosmos-sdk@31.2.1
+  - @hyperlane-xyz/radix-sdk@31.2.1
+  - @hyperlane-xyz/utils@31.2.1
+  - @hyperlane-xyz/deploy-sdk@4.3.4
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/provider-sdk@4.3.4
+  - @hyperlane-xyz/tron-sdk@22.1.14
+
 ## 31.2.0
 
 ### Minor Changes

@@ -1,5 +1,7 @@
 # @hyperlane-xyz/github-proxy
 
+## 31.2.1
+
 ## 31.2.0
 
 ## 31.1.0
