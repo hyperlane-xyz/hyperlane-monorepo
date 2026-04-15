@@ -1,92 +1,34 @@
-import { useConnection, useWallet } from '@solana/wallet-adapter-react';
-import { useWalletModal } from '@solana/wallet-adapter-react-ui';
+import { useWallet } from '@solana/wallet-adapter-react';
 import { Connection } from '@solana/web3.js';
-import { useCallback, useMemo } from 'react';
+import { useCallback } from 'react';
 
 import {
-  ChainName,
-  IToken,
-  MultiProtocolProvider,
   ProviderType,
-  TypedTransactionReceipt,
-  WarpTypedTransaction,
-} from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+  type TypedTransactionReceipt,
+} from '@hyperlane-xyz/sdk/providers/ProviderType';
+import type { MultiProviderAdapter } from '@hyperlane-xyz/sdk/providers/MultiProviderAdapter';
+import type { ITokenMetadata } from '@hyperlane-xyz/sdk/token/ITokenMetadata';
+import type { ChainName } from '@hyperlane-xyz/sdk/types';
+import type { WarpTypedTransaction } from '@hyperlane-xyz/sdk/warp/types';
+
+import { sleep } from '@hyperlane-xyz/utils';
 
 import { widgetLogger } from '../logger.js';
 
 import {
-  AccountInfo,
-  ActiveChainInfo,
   ChainTransactionFns,
   SwitchNetworkFns,
-  WalletDetails,
   WatchAssetFns,
 } from './types.js';
-import { findChainByRpcUrl } from './utils.js';
 
 const logger = widgetLogger.child({ module: 'walletIntegrations/solana' });
-
-export function useSolanaAccount(
-  _multiProvider: MultiProtocolProvider,
-): AccountInfo {
-  const { publicKey, connected, wallet } = useWallet();
-  const isReady = !!(publicKey && wallet && connected);
-  const address = publicKey?.toBase58();
-
-  return useMemo<AccountInfo>(
-    () => ({
-      protocol: ProtocolType.Sealevel,
-      addresses: address ? [{ address: address }] : [],
-      isReady: isReady,
-    }),
-    [address, isReady],
-  );
-}
-
-export function useSolanaWalletDetails() {
-  const { wallet } = useWallet();
-  const { name, icon } = wallet?.adapter || {};
-
-  return useMemo<WalletDetails>(
-    () => ({
-      name,
-      logoUrl: icon,
-    }),
-    [name, icon],
-  );
-}
-
-export function useSolanaConnectFn(): () => void {
-  const { setVisible } = useWalletModal();
-  return useCallback(() => setVisible(true), [setVisible]);
-}
-
-export function useSolanaDisconnectFn(): () => Promise<void> {
-  const { disconnect } = useWallet();
-  return disconnect;
-}
-
-export function useSolanaActiveChain(
-  multiProvider: MultiProtocolProvider,
-): ActiveChainInfo {
-  const { connection } = useConnection();
-  const connectionEndpoint = connection?.rpcEndpoint;
-  return useMemo<ActiveChainInfo>(() => {
-    try {
-      const hostname = new URL(connectionEndpoint).hostname;
-      const metadata = findChainByRpcUrl(multiProvider, hostname);
-      if (!metadata) return {};
-      return {
-        chainDisplayName: metadata.displayName,
-        chainName: metadata.name,
-      };
-    } catch (error) {
-      logger.warn('Error finding sol active chain', error);
-      return {};
-    }
-  }, [connectionEndpoint, multiProvider]);
-}
+export {
+  useSolanaAccount,
+  useSolanaActiveChain,
+  useSolanaConnectFn,
+  useSolanaDisconnectFn,
+  useSolanaWalletDetails,
+} from './solanaWallet.js';
 
 export function useSolanaSwitchNetwork(): SwitchNetworkFns {
   const onSwitchNetwork = useCallback(async (chainName: ChainName) => {
@@ -97,10 +39,10 @@ export function useSolanaSwitchNetwork(): SwitchNetworkFns {
 }
 
 export function useSolanaWatchAsset(
-  _multiProvider: MultiProtocolProvider,
+  _multiProvider: MultiProviderAdapter,
 ): WatchAssetFns {
   const onAddAsset = useCallback(
-    async (_token: IToken, _activeChainName: ChainName) => {
+    async (_token: ITokenMetadata, _activeChainName: ChainName) => {
       throw new Error('Watch asset not available for solana');
     },
     [],
@@ -110,7 +52,7 @@ export function useSolanaWatchAsset(
 }
 
 export function useSolanaTransactionFns(
-  multiProvider: MultiProtocolProvider,
+  multiProvider: MultiProviderAdapter,
 ): ChainTransactionFns {
   const { sendTransaction: sendSolTransaction } = useWallet();
   const { switchNetwork } = useSolanaSwitchNetwork();
@@ -133,7 +75,7 @@ export function useSolanaTransactionFns(
       const connection = new Connection(rpcUrl, 'confirmed');
       const {
         context: { slot: minContextSlot },
-        value: { blockhash, lastValidBlockHeight },
+        value: { lastValidBlockHeight },
       } = await connection.getLatestBlockhashAndContext();
 
       logger.debug(`Sending tx on chain ${chainName}`);
@@ -141,14 +83,55 @@ export function useSolanaTransactionFns(
         minContextSlot,
       });
 
-      const confirm = (): Promise<TypedTransactionReceipt> =>
-        connection
-          .confirmTransaction({ blockhash, lastValidBlockHeight, signature })
-          .then(() => connection.getTransaction(signature))
-          .then((r) => ({
-            type: ProviderType.SolanaWeb3,
-            receipt: r!,
-          }));
+      const confirm = async (): Promise<TypedTransactionReceipt> => {
+        // Poll via HTTP instead of connection.confirmTransaction which
+        // relies on signatureSubscribe (WebSocket) — many RPC providers
+        // (e.g. Alchemy) don't support that method.
+        const POLL_INTERVAL_MS = 2000;
+        while (true) {
+          try {
+            const { value } = await connection.getSignatureStatuses([
+              signature,
+            ]);
+            const status = value?.[0];
+            if (status?.err) {
+              throw new Error(
+                `Transaction failed: ${JSON.stringify(status.err)}`,
+              );
+            }
+            if (
+              status?.confirmationStatus === 'confirmed' ||
+              status?.confirmationStatus === 'finalized'
+            ) {
+              break;
+            }
+            const blockHeight = await connection.getBlockHeight();
+            if (blockHeight > lastValidBlockHeight) {
+              throw new Error('Transaction expired: block height exceeded');
+            }
+          } catch (error) {
+            // Re-throw definitive failures (tx error, expiry)
+            if (
+              error instanceof Error &&
+              (error.message.startsWith('Transaction failed') ||
+                error.message.startsWith('Transaction expired'))
+            ) {
+              throw error;
+            }
+            // Tolerate transient RPC errors (timeouts, rate limits)
+            logger.warn('Transient error polling tx confirmation', error);
+          }
+          await sleep(POLL_INTERVAL_MS);
+        }
+        const tx = await connection.getTransaction(signature, {
+          commitment: 'confirmed',
+          maxSupportedTransactionVersion: 0,
+        });
+        if (!tx) {
+          throw new Error(`Transaction ${signature} confirmed but not found`);
+        }
+        return { type: ProviderType.SolanaWeb3, receipt: tx };
+      };
 
       return { hash: signature, confirm };
     },

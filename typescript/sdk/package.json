@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/sdk",
-  "version": "30.1.1",
+  "version": "31.2.1",
   "description": "The official SDK for the Hyperlane Network",
   "keywords": [
     "Hyperlane",
@@ -17,7 +17,94 @@
   "sideEffects": false,
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./dist/index.js"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./metadata/*": {
+      "types": "./dist/metadata/*.d.ts",
+      "default": "./dist/metadata/*.js"
+    },
+    "./providers/builders/*": {
+      "types": "./dist/providers/builders/*.d.ts",
+      "default": "./dist/providers/builders/*.js"
+    },
+    "./providers/MinimalProviderRegistry": {
+      "types": "./dist/providers/MinimalProviderRegistry.d.ts",
+      "default": "./dist/providers/MinimalProviderRegistry.js"
+    },
+    "./providers/MultiProvider": {
+      "types": "./dist/providers/MultiProvider.d.ts",
+      "default": "./dist/providers/MultiProvider.js"
+    },
+    "./providers/MultiProviderAdapter": {
+      "types": "./dist/providers/MultiProviderAdapter.d.ts",
+      "default": "./dist/providers/MultiProviderAdapter.js"
+    },
+    "./providers/MultiProtocolProvider": {
+      "types": "./dist/providers/MultiProtocolProvider.d.ts",
+      "default": "./dist/providers/MultiProtocolProvider.js"
+    },
+    "./providers/ProviderType": {
+      "types": "./dist/providers/ProviderType.d.ts",
+      "default": "./dist/providers/ProviderType.js"
+    },
+    "./providers/defaultProviderBuilderMaps": {
+      "types": "./dist/providers/defaultProviderBuilderMaps.d.ts",
+      "default": "./dist/providers/defaultProviderBuilderMaps.js"
+    },
+    "./providers/explorerHealthTest": {
+      "types": "./dist/providers/explorerHealthTest.d.ts",
+      "default": "./dist/providers/explorerHealthTest.js"
+    },
+    "./providers/providerBuilders": {
+      "types": "./dist/providers/providerBuilders.d.ts",
+      "default": "./dist/providers/providerBuilders.js"
+    },
+    "./providers/rpcHealthTest": {
+      "types": "./dist/providers/rpcHealthTest.d.ts",
+      "default": "./dist/providers/rpcHealthTest.js"
+    },
+    "./providers/runtime/*": {
+      "types": "./dist/providers/runtime/*.d.ts",
+      "default": "./dist/providers/runtime/*.js"
+    },
+    "./providers/transactions/types": {
+      "types": "./dist/providers/transactions/types.d.ts",
+      "default": "./dist/providers/transactions/types.js"
+    },
+    "./providers/SmartProvider/HyperlaneEtherscanProvider": {
+      "types": "./dist/providers/SmartProvider/HyperlaneEtherscanProvider.d.ts",
+      "default": "./dist/providers/SmartProvider/HyperlaneEtherscanProvider.js"
+    },
+    "./providers/SmartProvider/HyperlaneJsonRpcProvider": {
+      "types": "./dist/providers/SmartProvider/HyperlaneJsonRpcProvider.d.ts",
+      "default": "./dist/providers/SmartProvider/HyperlaneJsonRpcProvider.js"
+    },
+    "./providers/SmartProvider/ProviderMethods": {
+      "types": "./dist/providers/SmartProvider/ProviderMethods.d.ts",
+      "default": "./dist/providers/SmartProvider/ProviderMethods.js"
+    },
+    "./providers/SmartProvider/SmartProvider": {
+      "types": "./dist/providers/SmartProvider/SmartProvider.d.ts",
+      "default": "./dist/providers/SmartProvider/SmartProvider.js"
+    },
+    "./providers/SmartProvider/types": {
+      "types": "./dist/providers/SmartProvider/types.d.ts",
+      "default": "./dist/providers/SmartProvider/types.js"
+    },
+    "./token/*": {
+      "types": "./dist/token/*.d.ts",
+      "default": "./dist/token/*.js"
+    },
+    "./types": {
+      "types": "./dist/types.d.ts",
+      "default": "./dist/types.js"
+    },
+    "./warp/*": {
+      "types": "./dist/warp/*.d.ts",
+      "default": "./dist/warp/*.js"
+    }
   },
   "scripts": {
     "build": "tsc",

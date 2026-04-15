@@ -3,10 +3,7 @@ import chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { step } from 'mocha-steps';
 
-import { type AltVM } from '@hyperlane-xyz/provider-sdk';
-
 import { AleoSigner } from '../clients/signer.js';
-import { type AleoReceipt, type AleoTransaction } from '../utils/types.js';
 
 chai.use(chaiAsPromised);
 const { expect } = chai;
@@ -14,7 +11,7 @@ const { expect } = chai;
 describe('1. aleo sdk interchain security e2e tests', async function () {
   this.timeout(100_000);
 
-  let signer: AltVM.ISigner<AleoTransaction, AleoReceipt>;
+  let signer: AleoSigner;
 
   let noop_ism: string;
   let routing_ism: string;

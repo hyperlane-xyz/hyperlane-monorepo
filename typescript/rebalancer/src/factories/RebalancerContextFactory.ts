@@ -11,6 +11,7 @@ import {
   WarpCore,
   type WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
+import type { MultiProviderAdapter } from '@hyperlane-xyz/sdk/providers/MultiProviderAdapter';
 import {
   Address,
   assert,
@@ -74,7 +75,7 @@ export class RebalancerContextFactory {
    * @param warpCore - An instance of `WarpCore` configured for the specified `warpRouteId`.
    * @param tokensByChainName - A map of chain->token to ease the lookup of token by chain
    * @param multiProvider - MultiProvider instance (for movable collateral operations)
-   * @param multiProtocolProvider - MultiProtocolProvider instance (with mailbox metadata)
+   * @param multiProtocolProvider - MultiProviderAdapter instance (with mailbox metadata)
    * @param registry - IRegistry instance
    * @param logger - Logger instance
    */
@@ -83,7 +84,7 @@ export class RebalancerContextFactory {
     private readonly warpCore: WarpCore,
     private readonly tokensByChainName: ChainMap<Token>,
     private readonly multiProvider: MultiProvider,
-    private readonly multiProtocolProvider: MultiProtocolProvider,
+    private readonly multiProtocolProvider: MultiProviderAdapter,
     private readonly registry: IRegistry,
     private readonly logger: Logger,
     private readonly inventorySignerKeysByProtocol?: Partial<
@@ -94,14 +95,14 @@ export class RebalancerContextFactory {
   /**
    * @param config - The rebalancer config
    * @param multiProvider - MultiProvider instance (for movable collateral operations)
-   * @param multiProtocolProvider - MultiProtocolProvider instance (optional, created from multiProvider if not provided)
+   * @param multiProtocolProvider - MultiProviderAdapter instance (optional, created from multiProvider if not provided)
    * @param registry - IRegistry instance
    * @param logger - Logger instance
    */
   public static async create(
     config: RebalancerConfig,
     multiProvider: MultiProvider,
-    multiProtocolProvider: MultiProtocolProvider | undefined,
+    multiProtocolProvider: MultiProviderAdapter | undefined,
     registry: IRegistry,
     logger: Logger,
     inventorySignerKeysByProtocol?: Partial<Record<ProtocolType, string>>,
@@ -146,7 +147,7 @@ export class RebalancerContextFactory {
       multiProvider.getProvider(chain);
     }
 
-    // Create MultiProtocolProvider (convert from MultiProvider if not provided)
+    // Create MultiProviderAdapter (convert from MultiProvider if not provided)
     const mpp =
       multiProtocolProvider ??
       MultiProtocolProvider.fromMultiProvider(multiProvider);

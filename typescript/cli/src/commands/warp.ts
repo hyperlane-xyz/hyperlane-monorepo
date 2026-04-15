@@ -6,16 +6,13 @@ import { RebalancerConfig, RebalancerService } from '@hyperlane-xyz/rebalancer';
 import {
   type RawForkedChainConfigByChain,
   RawForkedChainConfigByChainSchema,
-  expandVirtualWarpDeployConfig,
-  expandWarpDeployConfig,
-  getRouterAddressesFromWarpCoreConfig,
+  checkWarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
 import {
   assert,
   difference,
   intersection,
   isEVMLike,
-  objFilter,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -42,7 +39,7 @@ import {
   logCommandHeader,
   logGreen,
 } from '../logger.js';
-import { getWarpRouteConfigsByCore, runWarpRouteRead } from '../read/warp.js';
+import { runWarpRouteRead } from '../read/warp.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { ExtendedChainSubmissionStrategySchema } from '../submitters/types.js';
 import {
@@ -584,44 +581,14 @@ export const check: CommandModuleWithContext<
       warpCoreConfig,
     ));
 
-    const deployedRoutersAddresses =
-      getRouterAddressesFromWarpCoreConfig(warpCoreConfig);
-
-    // Remove any non EVM chain configs to avoid the checker crashing
-    warpCoreConfig.tokens = warpCoreConfig.tokens.filter((config) =>
-      isEVMLike(
-        context.multiProvider.getChainMetadata(config.chainName).protocol,
-      ),
-    );
-
-    // Get on-chain config
-    const onChainWarpConfig = await getWarpRouteConfigsByCore({
-      context,
+    const result = await checkWarpRouteDeployConfig({
+      multiProvider: context.multiProvider,
       warpCoreConfig,
-    });
-
-    // get virtual on-chain config
-    const expandedOnChainWarpConfig = await expandVirtualWarpDeployConfig({
-      multiProvider: context.multiProvider,
-      onChainWarpConfig,
-      deployedRoutersAddresses,
-    });
-
-    let expandedWarpDeployConfig = await expandWarpDeployConfig({
-      multiProvider: context.multiProvider,
       warpDeployConfig,
-      deployedRoutersAddresses,
-      expandedOnChainWarpConfig,
     });
-    expandedWarpDeployConfig = objFilter(
-      expandedWarpDeployConfig,
-      (chain, _config): _config is any =>
-        isEVMLike(context.multiProvider.getChainMetadata(chain).protocol),
-    );
 
     await runWarpRouteCheck({
-      onChainWarpConfig: expandedOnChainWarpConfig,
-      warpRouteConfig: expandedWarpDeployConfig,
+      result,
     });
 
     process.exit(0);

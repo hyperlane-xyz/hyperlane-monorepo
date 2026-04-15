@@ -1,105 +1,42 @@
 import type { AssetList, Chain as CosmosChain } from '@chain-registry/types';
 import type { DeliverTxResponse } from '@cosmjs/cosmwasm-stargate';
-import { useChain, useChains } from '@cosmos-kit/react';
-import { useCallback, useMemo } from 'react';
+import { useChains } from '@cosmos-kit/react';
+import { useCallback } from 'react';
 
-import { CosmosNativeSigner } from '@hyperlane-xyz/cosmos-sdk';
-import { cosmoshub } from '@hyperlane-xyz/registry';
+import { CosmosNativeSigner } from '@hyperlane-xyz/cosmos-sdk/runtime';
+import { chainMetadataToCosmosChain } from '@hyperlane-xyz/sdk/metadata/chainMetadataConversion';
 import {
-  ChainMetadata,
-  ChainName,
-  IToken,
-  MultiProtocolProvider,
+  type TypedTransactionReceipt,
   ProviderType,
-  TypedTransactionReceipt,
-  WarpTypedTransaction,
-  chainMetadataToCosmosChain,
-} from '@hyperlane-xyz/sdk';
-import { HexString, ProtocolType, assert } from '@hyperlane-xyz/utils';
+} from '@hyperlane-xyz/sdk/providers/ProviderType';
+import type { MultiProviderAdapter } from '@hyperlane-xyz/sdk/providers/MultiProviderAdapter';
+import type { ITokenMetadata } from '@hyperlane-xyz/sdk/token/ITokenMetadata';
+import type { ChainName } from '@hyperlane-xyz/sdk/types';
+import type { WarpTypedTransaction } from '@hyperlane-xyz/sdk/warp/types';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { widgetLogger } from '../logger.js';
 
 import {
-  AccountInfo,
-  ActiveChainInfo,
-  ChainAddress,
   ChainTransactionFns,
   SwitchNetworkFns,
-  WalletDetails,
   WatchAssetFns,
 } from './types.js';
-import { getChainsForProtocol } from './utils.js';
-
-// Used because the CosmosKit hooks always require a chain name
-const PLACEHOLDER_COSMOS_CHAIN = cosmoshub.name;
+import { getCosmosChainNames, getCosmosChains } from './cosmosWallet.js';
 
 const logger = widgetLogger.child({
   module: 'widgets/walletIntegrations/cosmos',
 });
-
-export function useCosmosAccount(
-  multiProvider: MultiProtocolProvider,
-): AccountInfo {
-  const cosmosChains = getCosmosChainNames(multiProvider);
-  const chainToContext = useChains(cosmosChains);
-  return useMemo<AccountInfo>(() => {
-    const addresses: Array<ChainAddress> = [];
-    let publicKey: Promise<HexString> | undefined = undefined;
-    let _connectorName: string | undefined = undefined;
-    let isReady = false;
-    for (const [chainName, context] of Object.entries(chainToContext)) {
-      if (!context.address) continue;
-      addresses.push({ address: context.address, chainName });
-      publicKey = context
-        .getAccount()
-        .then((acc) => Buffer.from(acc.pubkey).toString('hex'));
-      isReady = true;
-      _connectorName ||= context.wallet?.prettyName;
-    }
-    return {
-      protocol: ProtocolType.Cosmos,
-      addresses,
-      publicKey,
-      isReady,
-    };
-  }, [chainToContext]);
-}
-
-export function useCosmosWalletDetails() {
-  const { wallet } = useChain(PLACEHOLDER_COSMOS_CHAIN);
-  const { logo, prettyName } = wallet || {};
-
-  return useMemo<WalletDetails>(
-    () => ({
-      name: prettyName,
-      logoUrl: typeof logo === 'string' ? logo : undefined,
-    }),
-    [prettyName, logo],
-  );
-}
-
-export function useCosmosConnectFn(): () => void {
-  const { openView } = useChain(PLACEHOLDER_COSMOS_CHAIN);
-  return openView;
-}
-
-export function useCosmosDisconnectFn(): () => Promise<void> {
-  const { disconnect, address } = useChain(PLACEHOLDER_COSMOS_CHAIN);
-  const safeDisconnect = async () => {
-    if (address) await disconnect();
-  };
-  return safeDisconnect;
-}
-
-export function useCosmosActiveChain(
-  _multiProvider: MultiProtocolProvider,
-): ActiveChainInfo {
-  // Cosmoskit doesn't have the concept of an active chain
-  return useMemo(() => ({}) as ActiveChainInfo, []);
-}
+export {
+  useCosmosAccount,
+  useCosmosActiveChain,
+  useCosmosConnectFn,
+  useCosmosDisconnectFn,
+  useCosmosWalletDetails,
+} from './cosmosWallet.js';
 
 export function useCosmosSwitchNetwork(
-  multiProvider: MultiProtocolProvider,
+  multiProvider: MultiProviderAdapter,
 ): SwitchNetworkFns {
   const onSwitchNetwork = useCallback(
     async (chainName: ChainName) => {
@@ -117,10 +54,10 @@ export function useCosmosSwitchNetwork(
 }
 
 export function useCosmosWatchAsset(
-  _multiProvider: MultiProtocolProvider,
+  _multiProvider: MultiProviderAdapter,
 ): WatchAssetFns {
   const onAddAsset = useCallback(
-    async (_token: IToken, _activeChainName: ChainName) => {
+    async (_token: ITokenMetadata, _activeChainName: ChainName) => {
       throw new Error('Watch asset not available for cosmos');
     },
     [],
@@ -130,7 +67,7 @@ export function useCosmosWatchAsset(
 }
 
 export function useCosmosTransactionFns(
-  multiProvider: MultiProtocolProvider,
+  multiProvider: MultiProviderAdapter,
 ): ChainTransactionFns {
   const cosmosChains = getCosmosChainNames(multiProvider);
   const chainToContext = useChains(cosmosChains);
@@ -245,26 +182,8 @@ export function useCosmosTransactionFns(
   };
 }
 
-function getCosmosChains(
-  multiProvider: MultiProtocolProvider,
-): ChainMetadata[] {
-  return [
-    ...getChainsForProtocol(multiProvider, ProtocolType.Cosmos),
-    ...getChainsForProtocol(multiProvider, ProtocolType.CosmosNative),
-    cosmoshub,
-  ];
-}
-
-function getCosmosChainNames(
-  multiProvider: MultiProtocolProvider,
-): ChainName[] {
-  return getCosmosChains(multiProvider).map((c) => c.name);
-}
-
 // Metadata formatted for use in Wagmi config
-export function getCosmosKitChainConfigs(
-  multiProvider: MultiProtocolProvider,
-): {
+export function getCosmosKitChainConfigs(multiProvider: MultiProviderAdapter): {
   chains: CosmosChain[];
   assets: AssetList[];
 } {

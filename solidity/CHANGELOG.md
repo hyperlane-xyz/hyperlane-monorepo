@@ -1,5 +1,11 @@
 # @hyperlane-xyz/core
 
+## 11.3.1
+
+### Patch Changes
+
+- 7ad1f9e: The prepublishOnly script is replaced with a prepack script that validates dist/ exists.
+
 ## 11.3.0
 
 ### Minor Changes
