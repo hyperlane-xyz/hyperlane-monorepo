@@ -14,11 +14,15 @@ on:
         type: string
       has_radix:
         type: string
+      has_starknet:
+        type: string
       has_tron:
         type: string
       has_relayer:
         type: string
       has_rebalancer:
+        type: string
+      has_svm:
         type: string
 
 env:
@@ -98,6 +102,7 @@ jobs:
           - warp-bridge-2
           - warp-deploy-1
           - warp-deploy-2
+          - warp-deploy-remote-routers
           # check
           - warp-check-1
           - warp-check-2
@@ -259,6 +264,83 @@ jobs:
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
 
+  # ── Starknet ─────────────────────────────────────────
+
+  cli-starknet-e2e-smoke:
+    runs-on: depot-ubuntu-24.04
+    if: (inputs.run_cli_e2e == 'true' || inputs.has_starknet == 'true') && inputs.ci_tier == 'smoke'
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - core-deploy
+          - warp-deploy
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: install-hyperlane-cli
+        uses: ./.github/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout registry
+        uses: ./.github/actions/checkout-registry
+      - name: CLI starknet e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/cli test:starknet:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+          CLI_E2E_TIER: ${{ inputs.ci_tier }}
+
+  cli-starknet-e2e-matrix:
+    runs-on: depot-ubuntu-24.04
+    if: (inputs.run_cli_e2e == 'true' || inputs.has_starknet == 'true') && inputs.ci_tier == 'full'
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - core-apply-mailbox-owner
+          - core-apply-default-hook-protocol-fee
+          - core-apply-default-ism-redeploy
+          - core-apply-routing-ism-owner
+          - core-deploy
+          - core-read
+          - ism
+          - warp-apply-hook-add-merkle
+          - warp-apply-hook-replace-with-protocol-fee
+          - warp-apply-hook-update-protocol-fee-config
+          - warp-apply-hook-same-config
+          - warp-apply-ism-add-test-ism
+          - warp-apply-ism-replace-with-message-id-multisig
+          - warp-apply-ism-same-config
+          - warp-apply-ownership-preserve
+          - warp-apply-ownership-starknet1
+          - warp-apply-ownership-starknet2
+          - warp-apply-ownership-all
+          - warp-apply-route-extension
+          - warp-deploy
+          - warp-read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: install-hyperlane-cli
+        uses: ./.github/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout registry
+        uses: ./.github/actions/checkout-registry
+      - name: CLI starknet e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/cli test:starknet:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+          CLI_E2E_TIER: ${{ inputs.ci_tier }}
+
   # ── Tron (small — always full) ──────────────────────
 
   cli-tron-e2e-matrix:
@@ -289,7 +371,7 @@ jobs:
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
 
-  # ── Cross-chain (small — always full) ───────────────
+  # ── Cross-chain ─────────────────────────────────────
 
   cli-cross-chain-e2e-matrix:
     runs-on: depot-ubuntu-24.04
@@ -300,8 +382,36 @@ jobs:
       matrix:
         test:
           - warp-apply
+          - warp-cc-evm-svm
           - warp-deploy
           - warp-send
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: install-hyperlane-cli
+        uses: ./.github/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout registry
+        uses: ./.github/actions/checkout-registry
+      - name: CLI cross chain e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/cli test:cross-chain:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+
+  cli-cross-chain-starknet-e2e-matrix:
+    runs-on: depot-ubuntu-24.04
+    if: inputs.run_cli_e2e == 'true' || inputs.has_starknet == 'true'
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - warp-apply-starknet
+          - warp-deploy-starknet
     steps:
       - uses: actions/checkout@v6
         with:
@@ -386,6 +496,62 @@ jobs:
         uses: ./.github/actions/checkout-registry
       - name: CLI aleo e2e tests (${{ matrix.test }})
         run: pnpm -C typescript/cli test:aleo:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+
+  # ── SVM (Sealevel) ──────────────────────────────────
+
+  cli-svm-e2e-smoke:
+    runs-on: depot-ubuntu-24.04
+    if: (inputs.run_cli_e2e == 'true' || inputs.has_svm == 'true') && inputs.ci_tier == 'smoke'
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - core-deploy
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: install-hyperlane-cli
+        uses: ./.github/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout registry
+        uses: ./.github/actions/checkout-registry
+      - name: CLI sealevel e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/cli test:sealevel:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+
+  cli-svm-e2e-matrix:
+    runs-on: depot-ubuntu-24.04
+    if: (inputs.run_cli_e2e == 'true' || inputs.has_svm == 'true') && inputs.ci_tier == 'full'
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - core-deploy
+          - core-apply
+          - warp-cross-collateral
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: install-hyperlane-cli
+        uses: ./.github/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout registry
+        uses: ./.github/actions/checkout-registry
+      - name: CLI sealevel e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/cli test:sealevel:e2e
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
 

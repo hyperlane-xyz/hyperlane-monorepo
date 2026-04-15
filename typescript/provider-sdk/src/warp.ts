@@ -1,4 +1,11 @@
-import { type Logger, assert, isNullish } from '@hyperlane-xyz/utils';
+import {
+  type Logger,
+  addressToBytes32,
+  assert,
+  difference,
+  isNullish,
+  objMap,
+} from '@hyperlane-xyz/utils';
 
 import {
   Artifact,
@@ -7,6 +14,7 @@ import {
   ArtifactState,
   ConfigOnChain,
   IArtifactManager,
+  addressToUnderivedArtifact,
   isArtifactDeployed,
   isArtifactNew,
 } from './artifact.js';
@@ -271,8 +279,6 @@ export interface IRawWarpArtifactManager extends IArtifactManager<
   supportsHookUpdates(): boolean;
 }
 
-// Warp Config Utilities
-
 /**
  * Converts WarpConfig (Config API) to WarpArtifactConfig (Artifact API).
  *
@@ -294,11 +300,8 @@ export function warpConfigToArtifact(
   let ismArtifact: Artifact<IsmArtifactConfig, DeployedIsmAddress> | undefined;
   if (config.interchainSecurityModule) {
     if (typeof config.interchainSecurityModule === 'string') {
-      // Address reference - create UNDERIVED artifact
-      ismArtifact = {
-        artifactState: ArtifactState.UNDERIVED,
-        deployed: { address: config.interchainSecurityModule },
-      };
+      // Normalize zero-address references to "unset" before artifact conversion.
+      ismArtifact = addressToUnderivedArtifact(config.interchainSecurityModule);
     } else {
       // ISM config - convert using ismConfigToArtifact
       ismArtifact = ismConfigToArtifact(
@@ -314,11 +317,8 @@ export function warpConfigToArtifact(
     | undefined;
   if (config.hook) {
     if (typeof config.hook === 'string') {
-      // Address reference - create UNDERIVED artifact
-      hookArtifact = {
-        artifactState: ArtifactState.UNDERIVED,
-        deployed: { address: config.hook },
-      };
+      // Normalize zero-address references to "unset" before artifact conversion.
+      hookArtifact = addressToUnderivedArtifact(config.hook);
     } else {
       // Hook config - convert using hookConfigToArtifact
       hookArtifact = hookConfigToArtifact(config.hook, chainLookup);
@@ -659,16 +659,18 @@ export function computeRemoteRoutersUpdates(
       !isNullish(expectedDestinationGas),
       `Missing destination gas for domain ${domainId} in expected router configuration`,
     );
-    const currentRouterAddress = currentRoutersConfig.remoteRouters[domainId];
+    const currentRouterAddress = Object.prototype.hasOwnProperty.call(
+      currentRoutersConfig.remoteRouters,
+      domainId,
+    )
+      ? currentRoutersConfig.remoteRouters[domainId].address
+      : undefined;
     const currentDestinationGas =
       currentRoutersConfig.destinationGas[domainId] ?? '0';
 
     const needsUpdate =
       !currentRouterAddress ||
-      !compareAddresses(
-        currentRouterAddress.address,
-        expectedRemoteRouter.address,
-      ) ||
+      !compareAddresses(currentRouterAddress, expectedRemoteRouter.address) ||
       currentDestinationGas !== expectedDestinationGas;
 
     if (needsUpdate) {
@@ -677,6 +679,102 @@ export function computeRemoteRoutersUpdates(
         routerAddress: expectedRemoteRouter.address,
         gas: expectedDestinationGas,
       });
+    }
+  }
+
+  return { toEnroll, toUnenroll };
+}
+
+export interface CrossCollateralRouterDiff {
+  /** Per-domain routers to enroll */
+  toEnroll: Record<number, Set<string>>;
+  /** Per-domain routers to unenroll (null = bulk-remove entire domain) */
+  toUnenroll: Record<number, Set<string> | null>;
+}
+
+/**
+ * Computes which cross-collateral routers need enrollment/unenrollment by
+ * diffing current and expected CC router maps.
+ * Pure function — protocol-agnostic. Addresses are canonicalized to lowercase
+ * hex32 before comparison so callers don't need to normalize beforehand.
+ */
+export function computeCrossCollateralRouterUpdates(
+  current: Readonly<Record<number, Set<string>>>,
+  expected: Readonly<Record<number, Set<string>>>,
+): CrossCollateralRouterDiff {
+  const canonicalize = (routers: Readonly<Record<number, Set<string>>>) =>
+    objMap(
+      routers,
+      (_domain, routerSet) =>
+        new Set([...routerSet].map((r) => addressToBytes32(r).toLowerCase())),
+    );
+
+  const canonicalCurrent = canonicalize(current);
+  const canonicalExpected = canonicalize(expected);
+
+  const toUnenroll: Record<number, Set<string> | null> = {};
+  for (const [domainStr, currentSet] of Object.entries(canonicalCurrent)) {
+    const domain = Number(domainStr);
+    const expectedSet = canonicalExpected[domain];
+    if (isNullish(expectedSet) || expectedSet.size === 0) {
+      toUnenroll[domain] = null;
+    } else {
+      const removed = difference(currentSet, expectedSet);
+      if (removed.size > 0) {
+        toUnenroll[domain] = removed;
+      }
+    }
+  }
+
+  const toEnroll: Record<number, Set<string>> = {};
+  for (const [domainStr, expectedSet] of Object.entries(canonicalExpected)) {
+    const domain = Number(domainStr);
+    const currentSet = canonicalCurrent[domain] ?? new Set();
+    const added = difference(expectedSet, currentSet);
+    if (added.size > 0) {
+      toEnroll[domain] = added;
+    }
+  }
+
+  return { toEnroll, toUnenroll };
+}
+
+export interface CCGasConfigDiff {
+  toEnroll: Array<{ domain: number; gas: string }>;
+  toUnenroll: number[];
+}
+
+/**
+ * Computes destination gas updates for CC-only domains — domains present in
+ * crossCollateralRouters but NOT in remoteRouters.
+ * Pure function — protocol-agnostic.
+ */
+export function computeCCRouterGasConfigUpdates(
+  currentDestinationGas: Readonly<Record<number, string>>,
+  expectedDestinationGas: Readonly<Record<number, string>>,
+  expectedRemoteRouterDomains: ReadonlySet<number>,
+  currentCCRouters: Readonly<Record<number, Set<string>>>,
+  expectedCCRouters: Readonly<Record<number, Set<string>>>,
+): CCGasConfigDiff {
+  const allCCDomains = new Set([
+    ...Object.keys(currentCCRouters).map(Number),
+    ...Object.keys(expectedCCRouters).map(Number),
+  ]);
+
+  const toEnroll: CCGasConfigDiff['toEnroll'] = [];
+  const toUnenroll: number[] = [];
+
+  for (const domain of allCCDomains) {
+    if (expectedRemoteRouterDomains.has(domain)) continue;
+
+    const currentGas = currentDestinationGas[domain];
+    const expectedGas = expectedDestinationGas[domain];
+    const hasExpectedCCRouters = (expectedCCRouters[domain]?.size ?? 0) > 0;
+
+    if (hasExpectedCCRouters && expectedGas && currentGas !== expectedGas) {
+      toEnroll.push({ domain, gas: expectedGas });
+    } else if (!hasExpectedCCRouters && currentGas) {
+      toUnenroll.push(domain);
     }
   }
 

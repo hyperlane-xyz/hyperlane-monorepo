@@ -1,67 +1,32 @@
-/* eslint-disable @typescript-eslint/no-unsafe-declaration-merging */
 import { MsgTransferEncodeObject } from '@cosmjs/stargate';
 
 import {
   Address,
-  KnownProtocolType,
   Numberish,
   ProtocolType,
   assert,
-  eqAddress,
   isEVMLike,
 } from '@hyperlane-xyz/utils';
 
-import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
-import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
+import type { MultiProviderAdapter } from '../providers/MultiProviderAdapter.js';
 import { ChainName } from '../types.js';
-import { isStarknetFeeToken } from '../utils/starknet.js';
 
-import type { IToken, TokenArgs } from './IToken.js';
+import type { IToken } from './IToken.js';
 import { TokenAmount } from './TokenAmount.js';
 import { TokenConnection, TokenConnectionType } from './TokenConnection.js';
+import { TokenStandard } from './TokenStandard.js';
+import { TokenMetadata } from './TokenMetadata.js';
+import { AleoNativeTokenAdapter } from './adapters/AleoTokenAdapter.js';
 import {
-  PROTOCOL_TO_HYP_NATIVE_STANDARD,
-  PROTOCOL_TO_NATIVE_STANDARD,
-  TOKEN_COLLATERALIZED_STANDARDS,
-  TOKEN_HYP_STANDARDS,
-  TOKEN_MULTI_CHAIN_STANDARDS,
-  TOKEN_NFT_STANDARDS,
-  TOKEN_STANDARD_TO_PROTOCOL,
-  TokenStandard,
-  XERC20_STANDARDS,
-} from './TokenStandard.js';
-import {
-  AleoHypCollateralAdapter,
-  AleoHypNativeAdapter,
-  AleoHypSyntheticAdapter,
-  AleoNativeTokenAdapter,
-} from './adapters/AleoTokenAdapter.js';
-import {
-  CwHypCollateralAdapter,
-  CwHypNativeAdapter,
-  CwHypSyntheticAdapter,
   CwNativeTokenAdapter,
   CwTokenAdapter,
 } from './adapters/CosmWasmTokenAdapter.js';
-import {
-  CosmNativeHypCollateralAdapter,
-  CosmNativeHypSyntheticAdapter,
-} from './adapters/CosmosModuleTokenAdapter.js';
 import {
   CosmIbcToWarpTokenAdapter,
   CosmIbcTokenAdapter,
   CosmNativeTokenAdapter,
 } from './adapters/CosmosTokenAdapter.js';
-import { EvmHypCrossCollateralAdapter } from './adapters/EvmCrossCollateralAdapter.js';
 import {
-  EvmHypCollateralFiatAdapter,
-  EvmHypNativeAdapter,
-  EvmHypRebaseCollateralAdapter,
-  EvmHypSyntheticAdapter,
-  EvmHypSyntheticRebaseAdapter,
-  EvmHypXERC20Adapter,
-  EvmHypXERC20LockboxAdapter,
-  EvmMovableCollateralAdapter,
   EvmNativeTokenAdapter,
   EvmTokenAdapter,
 } from './adapters/EvmTokenAdapter.js';
@@ -70,71 +35,50 @@ import type {
   ITokenAdapter,
 } from './adapters/ITokenAdapter.js';
 import { M0PortalLiteTokenAdapter } from './adapters/M0PortalLiteTokenAdapter.js';
+import { M0PortalTokenAdapter } from './adapters/M0PortalTokenAdapter.js';
 import {
-  RadixHypCollateralAdapter,
-  RadixHypSyntheticAdapter,
   RadixNativeTokenAdapter,
   RadixTokenAdapter,
 } from './adapters/RadixTokenAdapter.js';
 import {
-  SealevelHypCollateralAdapter,
-  SealevelHypNativeAdapter,
-  SealevelHypSyntheticAdapter,
   SealevelNativeTokenAdapter,
   SealevelTokenAdapter,
 } from './adapters/SealevelTokenAdapter.js';
-import {
-  StarknetHypCollateralAdapter,
-  StarknetHypFeeAdapter,
-  StarknetHypNativeAdapter,
-  StarknetHypSyntheticAdapter,
-  StarknetTokenAdapter,
-} from './adapters/StarknetTokenAdapter.js';
-import { PROTOCOL_TO_DEFAULT_NATIVE_TOKEN } from './nativeTokenMetadata.js';
+import { StarknetTokenAdapter } from './adapters/StarknetTokenAdapter.js';
+import { createAleoHypAdapter } from './adapters/aleoHyp.js';
+import { createCosmosHypAdapter } from './adapters/cosmosHyp.js';
+import { createEvmHypAdapter } from './adapters/evmHyp.js';
+import { hasOnlyHyperlaneConnections } from './adapters/hypTokenAdapterUtils.js';
+import { createRadixHypAdapter } from './adapters/radixHyp.js';
+import { createSealevelHypAdapter } from './adapters/sealevelHyp.js';
+import { createStarknetHypAdapter } from './adapters/starknetHyp.js';
+import { createTronHypAdapter } from './adapters/tronHyp.js';
 
-// Declaring the interface in addition to class allows
-// Typescript to infer the members vars from TokenArgs
-export interface Token extends TokenArgs {}
-
-export class Token implements IToken {
-  public readonly protocol: ProtocolType;
-
-  constructor(args: TokenArgs) {
-    Object.assign(this, args);
-    this.protocol = TOKEN_STANDARD_TO_PROTOCOL[this.standard];
+export class Token extends TokenMetadata implements IToken {
+  override amount(amount: Numberish): TokenAmount<this> {
+    return new TokenAmount(amount, this);
   }
 
-  /**
-   * Creates a Token for the native currency on the given chain.
-   * Will use the default native token for the given protocol if
-   * nothing specific is set in the ChainMetadata.
-   */
-  static FromChainMetadataNativeToken(chainMetadata: ChainMetadata): Token {
-    const {
-      protocol,
-      name: chainName,
-      logoURI,
-      gasCurrencyCoinGeckoId,
-    } = chainMetadata;
-    assert(
-      protocol !== ProtocolType.Unknown,
-      'Cannot create native token for unknown protocol',
-    );
-    const knownProtocol = protocol as KnownProtocolType;
-    const nativeToken =
-      chainMetadata.nativeToken ||
-      PROTOCOL_TO_DEFAULT_NATIVE_TOKEN[knownProtocol];
+  override getConnections(): TokenConnection<IToken>[] {
+    // CAST: Token instances only store TokenConnection<IToken>; the base
+    // TokenMetadata type widens this to ITokenMetadata for shared read paths.
+    return (this.connections || []) as TokenConnection<IToken>[];
+  }
 
-    return new Token({
-      chainName,
-      standard: PROTOCOL_TO_NATIVE_STANDARD[knownProtocol],
-      addressOrDenom: nativeToken.denom ?? '',
-      decimals: nativeToken.decimals,
-      symbol: nativeToken.symbol,
-      name: nativeToken.name,
-      logoURI,
-      coinGeckoId: gasCurrencyCoinGeckoId,
-    });
+  override getConnectionForChain(
+    chain: ChainName,
+  ): TokenConnection<IToken> | undefined {
+    return this.getConnections().filter((t) => t.token.chainName === chain)[0];
+  }
+
+  override addConnection(connection: TokenConnection<IToken>): Token {
+    this.connections = [...(this.connections || []), connection];
+    return this;
+  }
+
+  override removeConnection(token: IToken): Token {
+    super.removeConnection(token);
+    return this;
   }
 
   /**
@@ -142,7 +86,7 @@ export class Token implements IToken {
    * @throws If multiProvider does not contain this token's chain.
    * @throws If token is an NFT (TODO NFT Adapter support)
    */
-  getAdapter(multiProvider: MultiProtocolProvider): ITokenAdapter<unknown> {
+  getAdapter(multiProvider: MultiProviderAdapter): ITokenAdapter<unknown> {
     const { standard, chainName, addressOrDenom } = this;
 
     assert(!this.isNft(), 'NFT adapters not yet supported');
@@ -224,32 +168,19 @@ export class Token implements IToken {
    * @throws If token is an NFT (TODO NFT Adapter support)
    */
   getHypAdapter(
-    multiProvider: MultiProtocolProvider<{ mailbox?: Address }>,
+    multiProvider: MultiProviderAdapter<{ mailbox?: Address }>,
     destination?: ChainName,
   ): IHypTokenAdapter<unknown> {
     const { standard, chainName, addressOrDenom, collateralAddressOrDenom } =
       this;
     const chainMetadata = multiProvider.tryGetChainMetadata(chainName);
-    const mailbox = chainMetadata?.mailbox;
-
-    if (
-      standard === TokenStandard.EvmNative &&
-      this.connections?.length &&
-      this.connections.every(
-        (c) => !c.type || c.type === TokenConnectionType.Hyperlane,
-      )
-    ) {
-      assert(
-        chainMetadata,
-        `Token chain ${chainName} not found in multiProvider`,
-      );
-      return new EvmHypNativeAdapter(chainName, multiProvider, {
-        token: addressOrDenom,
-      });
-    }
+    const isConnectedNativeToken =
+      (standard === TokenStandard.EvmNative ||
+        standard === TokenStandard.TronNative) &&
+      hasOnlyHyperlaneConnections(this);
 
     assert(
-      this.isMultiChainToken(),
+      this.isMultiChainToken() || isConnectedNativeToken,
       `Token standard ${standard} not applicable to hyp adapter`,
     );
     assert(!this.isNft(), 'NFT adapters not yet supported');
@@ -258,176 +189,22 @@ export class Token implements IToken {
       `Token chain ${chainName} not found in multiProvider`,
     );
 
-    if (
-      standard === TokenStandard.EvmHypNative ||
-      standard === TokenStandard.TronHypNative
-    ) {
-      return new EvmHypNativeAdapter(chainName, multiProvider, {
-        token: addressOrDenom,
-      });
-    } else if (
-      standard === TokenStandard.EvmHypCollateral ||
-      standard === TokenStandard.EvmHypOwnerCollateral ||
-      standard === TokenStandard.TronHypCollateral ||
-      standard === TokenStandard.TronHypOwnerCollateral
-    ) {
-      return new EvmMovableCollateralAdapter(chainName, multiProvider, {
-        token: addressOrDenom,
-      });
-    } else if (
-      standard === TokenStandard.EvmHypCrossCollateralRouter ||
-      standard === TokenStandard.TronHypCrossCollateralRouter
-    ) {
-      return new EvmHypCrossCollateralAdapter(chainName, multiProvider, {
-        token: addressOrDenom,
-      });
-    } else if (
-      standard === TokenStandard.EvmHypRebaseCollateral ||
-      standard === TokenStandard.TronHypRebaseCollateral
-    ) {
-      return new EvmHypRebaseCollateralAdapter(chainName, multiProvider, {
-        token: addressOrDenom,
-      });
-    } else if (
-      standard === TokenStandard.EvmHypCollateralFiat ||
-      standard === TokenStandard.TronHypCollateralFiat
-    ) {
-      return new EvmHypCollateralFiatAdapter(chainName, multiProvider, {
-        token: addressOrDenom,
-      });
-    } else if (
-      standard === TokenStandard.EvmHypSynthetic ||
-      standard === TokenStandard.TronHypSynthetic
-    ) {
-      return new EvmHypSyntheticAdapter(chainName, multiProvider, {
-        token: addressOrDenom,
-      });
-    } else if (
-      standard === TokenStandard.EvmHypSyntheticRebase ||
-      standard === TokenStandard.TronHypSyntheticRebase
-    ) {
-      return new EvmHypSyntheticRebaseAdapter(chainName, multiProvider, {
-        token: addressOrDenom,
-      });
-    } else if (
-      standard === TokenStandard.EvmHypXERC20 ||
-      standard === TokenStandard.EvmHypVSXERC20 ||
-      standard === TokenStandard.TronHypXERC20 ||
-      standard === TokenStandard.TronHypVSXERC20
-    ) {
-      return new EvmHypXERC20Adapter(chainName, multiProvider, {
-        token: addressOrDenom,
-      });
-    } else if (
-      standard === TokenStandard.EvmHypXERC20Lockbox ||
-      standard === TokenStandard.EvmHypVSXERC20Lockbox ||
-      standard === TokenStandard.TronHypXERC20Lockbox ||
-      standard === TokenStandard.TronHypVSXERC20Lockbox
-    ) {
-      return new EvmHypXERC20LockboxAdapter(chainName, multiProvider, {
-        token: addressOrDenom,
-      });
-    } else if (standard === TokenStandard.SealevelHypNative) {
-      assert(mailbox, `Mailbox required for Sealevel hyp tokens`);
-      return new SealevelHypNativeAdapter(chainName, multiProvider, {
-        warpRouter: addressOrDenom,
-        mailbox,
-      });
-    } else if (standard === TokenStandard.SealevelHypCollateral) {
-      assert(mailbox, `Mailbox required for Sealevel hyp tokens`);
-      assert(
-        collateralAddressOrDenom,
-        `collateralAddressOrDenom required for Sealevel hyp collateral tokens`,
-      );
+    const hypAdapter =
+      createEvmHypAdapter(multiProvider, this) ||
+      createTronHypAdapter(multiProvider, this) ||
+      createSealevelHypAdapter(multiProvider, this) ||
+      createCosmosHypAdapter(multiProvider, this) ||
+      createStarknetHypAdapter(multiProvider, this) ||
+      createRadixHypAdapter(multiProvider, this) ||
+      createAleoHypAdapter(multiProvider, this);
 
-      return new SealevelHypCollateralAdapter(chainName, multiProvider, {
-        warpRouter: addressOrDenom,
-        token: collateralAddressOrDenom,
-        mailbox,
-      });
-    } else if (standard === TokenStandard.SealevelHypSynthetic) {
-      assert(mailbox, `Mailbox required for Sealevel hyp tokens`);
-      assert(
-        collateralAddressOrDenom,
-        `collateralAddressOrDenom required for Sealevel hyp collateral tokens`,
-      );
-
-      return new SealevelHypSyntheticAdapter(chainName, multiProvider, {
-        warpRouter: addressOrDenom,
-        token: collateralAddressOrDenom,
-        mailbox,
-      });
-    } else if (standard === TokenStandard.CwHypNative) {
-      return new CwHypNativeAdapter(chainName, multiProvider, {
-        warpRouter: addressOrDenom,
-      });
-    } else if (standard === TokenStandard.CwHypCollateral) {
-      assert(
-        collateralAddressOrDenom,
-        'collateralAddressOrDenom required for CwHypCollateral',
-      );
-      return new CwHypCollateralAdapter(chainName, multiProvider, {
-        warpRouter: addressOrDenom,
-        token: collateralAddressOrDenom,
-      });
-    } else if (standard === TokenStandard.CwHypSynthetic) {
-      assert(
-        collateralAddressOrDenom,
-        'collateralAddressOrDenom required for CwHypSyntheticAdapter',
-      );
-      return new CwHypSyntheticAdapter(chainName, multiProvider, {
-        warpRouter: addressOrDenom,
-        token: collateralAddressOrDenom,
-      });
+    if (hypAdapter) {
+      return hypAdapter;
     } else if (standard === TokenStandard.CosmosIbc) {
       assert(destination, 'destination required for IBC token adapters');
       const connection = this.getConnectionForChain(destination);
       assert(connection, `No connection found for chain ${destination}`);
       return this.getIbcAdapter(multiProvider, connection);
-    } else if (standard === TokenStandard.CosmNativeHypCollateral) {
-      return new CosmNativeHypCollateralAdapter(chainName, multiProvider, {
-        token: addressOrDenom,
-      });
-    } else if (standard === TokenStandard.CosmNativeHypSynthetic) {
-      return new CosmNativeHypSyntheticAdapter(chainName, multiProvider, {
-        token: addressOrDenom,
-      });
-    } else if (isStarknetFeeToken(chainName, addressOrDenom)) {
-      return new StarknetHypFeeAdapter(chainName, multiProvider, {
-        warpRouter: addressOrDenom,
-      });
-    } else if (standard === TokenStandard.StarknetHypNative) {
-      return new StarknetHypNativeAdapter(chainName, multiProvider, {
-        warpRouter: addressOrDenom,
-      });
-    } else if (standard === TokenStandard.StarknetHypSynthetic) {
-      return new StarknetHypSyntheticAdapter(chainName, multiProvider, {
-        warpRouter: addressOrDenom,
-      });
-    } else if (standard === TokenStandard.StarknetHypCollateral) {
-      return new StarknetHypCollateralAdapter(chainName, multiProvider, {
-        warpRouter: addressOrDenom,
-      });
-    } else if (standard === TokenStandard.RadixHypCollateral) {
-      return new RadixHypCollateralAdapter(chainName, multiProvider, {
-        token: addressOrDenom,
-      });
-    } else if (standard === TokenStandard.RadixHypSynthetic) {
-      return new RadixHypSyntheticAdapter(chainName, multiProvider, {
-        token: addressOrDenom,
-      });
-    } else if (standard === TokenStandard.AleoHypNative) {
-      return new AleoHypNativeAdapter(chainName, multiProvider, {
-        token: addressOrDenom,
-      });
-    } else if (standard === TokenStandard.AleoHypCollateral) {
-      return new AleoHypCollateralAdapter(chainName, multiProvider, {
-        token: addressOrDenom,
-      });
-    } else if (standard === TokenStandard.AleoHypSynthetic) {
-      return new AleoHypSyntheticAdapter(chainName, multiProvider, {
-        token: addressOrDenom,
-      });
     } else if (
       standard === TokenStandard.EvmM0PortalLite ||
       standard === TokenStandard.TronM0PortalLite
@@ -442,13 +219,24 @@ export class Token implements IToken {
         addressOrDenom, // portal address
         collateralAddressOrDenom, // mToken address
       );
+    } else if (standard === TokenStandard.EvmM0Portal) {
+      assert(
+        collateralAddressOrDenom,
+        'collateralAddressOrDenom (mToken address) required for M0Portal',
+      );
+      return new M0PortalTokenAdapter(
+        multiProvider,
+        chainName,
+        addressOrDenom, // portal address
+        collateralAddressOrDenom, // mToken address
+      );
     } else {
       throw new Error(`No hyp adapter found for token standard: ${standard}`);
     }
   }
 
   protected getIbcAdapter(
-    multiProvider: MultiProtocolProvider,
+    multiProvider: MultiProviderAdapter,
     connection: TokenConnection,
   ): IHypTokenAdapter<MsgTransferEncodeObject> {
     if (connection.type === TokenConnectionType.Ibc) {
@@ -492,141 +280,17 @@ export class Token implements IToken {
    * Convenience method to create an adapter and return an account balance
    */
   async getBalance(
-    multiProvider: MultiProtocolProvider,
+    multiProvider: MultiProviderAdapter,
     address: Address,
-  ): Promise<TokenAmount> {
+  ): Promise<TokenAmount<IToken>> {
     const adapter = this.getAdapter(multiProvider);
     const balance = await adapter.getBalance(address);
     return new TokenAmount(balance, this);
   }
-
-  amount(amount: Numberish): TokenAmount {
-    return new TokenAmount(amount, this);
-  }
-
-  isNft(): boolean {
-    return TOKEN_NFT_STANDARDS.includes(this.standard);
-  }
-
-  isNative(): boolean {
-    return Object.values(PROTOCOL_TO_NATIVE_STANDARD).includes(this.standard);
-  }
-
-  isHypNative(): boolean {
-    return Object.values(PROTOCOL_TO_HYP_NATIVE_STANDARD).includes(
-      this.standard,
-    );
-  }
-
-  isCollateralized(): boolean {
-    return TOKEN_COLLATERALIZED_STANDARDS.includes(this.standard);
-  }
-
-  isHypToken(): boolean {
-    return TOKEN_HYP_STANDARDS.includes(this.standard);
-  }
-
-  isXerc20(): boolean {
-    return XERC20_STANDARDS.includes(this.standard);
-  }
-
-  isIbcToken(): boolean {
-    return this.standard === TokenStandard.CosmosIbc;
-  }
-
-  isMultiChainToken(): boolean {
-    return TOKEN_MULTI_CHAIN_STANDARDS.includes(this.standard);
-  }
-
-  isCrossCollateralToken(): boolean {
-    return (
-      this.standard === TokenStandard.EvmHypCrossCollateralRouter ||
-      this.standard === TokenStandard.TronHypCrossCollateralRouter
-    );
-  }
-
-  getConnections(): TokenConnection[] {
-    return this.connections || [];
-  }
-
-  getConnectionForChain(chain: ChainName): TokenConnection | undefined {
-    // A token cannot have > 1 connected token for the same chain
-    return this.getConnections().filter((t) => t.token.chainName === chain)[0];
-  }
-
-  addConnection(connection: TokenConnection): Token {
-    this.connections = [...(this.connections || []), connection];
-    return this;
-  }
-
-  removeConnection(token: IToken): Token {
-    const index = this.connections?.findIndex((t) => t.token.equals(token));
-    if (index && index >= 0) this.connections?.splice(index, 1);
-    return this;
-  }
-
-  /**
-   * Returns true if tokens refer to the same asset
-   */
-  equals(token?: IToken): boolean {
-    if (!token) return false;
-    return (
-      this.protocol === token.protocol &&
-      this.chainName === token.chainName &&
-      this.standard === token.standard &&
-      this.decimals === token.decimals &&
-      this.addressOrDenom.toLowerCase() ===
-        token.addressOrDenom.toLowerCase() &&
-      this.collateralAddressOrDenom?.toLowerCase() ===
-        token.collateralAddressOrDenom?.toLowerCase()
-    );
-  }
-
-  /**
-   * Two tokens may not be equal but may still represent the same underlying asset
-   * The cases for this include:
-   *   1) A HypCollateral contract token and its wrapped token (eg. EvmHypCollateral and ERC20)
-   *   2) A HypNative contract and its native currency (eg. EvmHypNative and Ether)
-   *   3) An IBC token and its native equivalent
-   * This is useful during fee estimation to determine if a TokenAmount for the transfer and the fee
-   * are actually fungible (represent the same asset).
-   * @returns true if the tokens represent the same underlying asset
-   */
-  isFungibleWith(token?: IToken): boolean {
-    if (!token || token.chainName !== this.chainName) return false;
-
-    if (this.equals(token)) return true;
-
-    if (this.isCollateralized()) {
-      if (
-        this.collateralAddressOrDenom &&
-        eqAddress(this.collateralAddressOrDenom, token.addressOrDenom)
-      ) {
-        return true;
-      }
-
-      if (
-        !this.collateralAddressOrDenom &&
-        (token.isNative() || token.isHypNative())
-      ) {
-        return true;
-      }
-    }
-
-    if (
-      this.standard === TokenStandard.CosmosIbc &&
-      token.standard === TokenStandard.CosmosNative &&
-      this.addressOrDenom.toLowerCase() === token.addressOrDenom.toLowerCase()
-    ) {
-      return true;
-    }
-
-    return false;
-  }
 }
 
 interface GetCollateralTokenAdapterOptions {
-  multiProvider: MultiProtocolProvider;
+  multiProvider: MultiProviderAdapter;
   chainName: ChainName;
   tokenAddress: Address;
 }

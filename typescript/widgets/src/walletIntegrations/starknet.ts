@@ -1,35 +1,28 @@
 import { Chain } from '@starknet-react/chains';
 import {
   useAccount,
-  useConnect,
-  useDisconnect,
-  useNetwork,
   useSendTransaction,
   useSwitchChain,
 } from '@starknet-react/core';
-import { useCallback, useMemo } from 'react';
+import { useCallback } from 'react';
 import { Call } from 'starknet';
-import { StarknetkitConnector, useStarknetkitConnectModal } from 'starknetkit';
 
+import { chainMetadataToStarknetChain } from '@hyperlane-xyz/sdk/metadata/chainMetadataConversion';
 import {
-  ChainName,
-  IToken,
-  MultiProtocolProvider,
   ProviderType,
-  TypedTransactionReceipt,
-  WarpTypedTransaction,
-  chainMetadataToStarknetChain,
-} from '@hyperlane-xyz/sdk';
+  type TypedTransactionReceipt,
+} from '@hyperlane-xyz/sdk/providers/ProviderType';
+import type { MultiProviderAdapter } from '@hyperlane-xyz/sdk/providers/MultiProviderAdapter';
+import type { ITokenMetadata } from '@hyperlane-xyz/sdk/token/ITokenMetadata';
+import type { ChainName } from '@hyperlane-xyz/sdk/types';
+import type { WarpTypedTransaction } from '@hyperlane-xyz/sdk/warp/types';
 import { ProtocolType, assert, sleep } from '@hyperlane-xyz/utils';
 
 import { widgetLogger } from '../logger.js';
 
 import {
-  AccountInfo,
-  ActiveChainInfo,
   ChainTransactionFns,
   SwitchNetworkFns,
-  WalletDetails,
   WatchAssetFns,
 } from './types.js';
 import { getChainsForProtocol } from './utils.js';
@@ -37,79 +30,16 @@ import { getChainsForProtocol } from './utils.js';
 const logger = widgetLogger.child({
   module: 'widgets/walletIntegrations/starknet',
 });
-
-export function useStarknetAccount(
-  _multiProvider: MultiProtocolProvider,
-): AccountInfo {
-  const { address, isConnected } = useAccount();
-
-  return useMemo<AccountInfo>(
-    () => ({
-      protocol: ProtocolType.Starknet,
-      addresses: address ? [{ address }] : [],
-      isReady: !!isConnected,
-    }),
-    [address, isConnected],
-  );
-}
-
-export function useStarknetWalletDetails(): WalletDetails {
-  const { connector } = useAccount();
-
-  return useMemo<WalletDetails>(
-    () => ({
-      name:
-        connector?.id === 'argentX'
-          ? 'Ready Wallet'
-          : connector?.name || 'Starknet Wallet',
-      logoUrl:
-        typeof connector?.icon === 'string'
-          ? connector.icon
-          : connector?.icon?.light,
-    }),
-    [connector],
-  );
-}
-
-export function useStarknetConnectFn(): () => void {
-  const { connectAsync, connectors } = useConnect();
-
-  // This is how they do it: https://github.com/argentlabs/starknetkit-example-dapp/blob/d1d5ba8b5e06eef76b9df9b01832b57d2f22c649/src/components/connect/ConnectStarknetReactNext.tsx#L21
-  const { starknetkitConnectModal } = useStarknetkitConnectModal({
-    connectors: connectors as StarknetkitConnector[],
-  });
-
-  return useCallback(async () => {
-    const { connector } = await starknetkitConnectModal();
-    if (connector) {
-      await connectAsync({ connector });
-    } else {
-      logger.error('No Starknet wallet connectors available');
-    }
-  }, [connectAsync, starknetkitConnectModal]);
-}
-
-export function useStarknetDisconnectFn(): () => Promise<void> {
-  const { disconnectAsync } = useDisconnect();
-  return disconnectAsync;
-}
-
-export function useStarknetActiveChain(
-  _multiProvider: MultiProtocolProvider,
-): ActiveChainInfo {
-  const { chain } = useNetwork();
-
-  return useMemo<ActiveChainInfo>(
-    () => ({
-      chainDisplayName: chain?.name,
-      chainName: chain?.id ? chain.id.toString() : undefined,
-    }),
-    [chain],
-  );
-}
+export {
+  useStarknetAccount,
+  useStarknetActiveChain,
+  useStarknetConnectFn,
+  useStarknetDisconnectFn,
+  useStarknetWalletDetails,
+} from './starknetWallet.js';
 
 export function useStarknetSwitchNetwork(
-  multiProvider: MultiProtocolProvider,
+  multiProvider: MultiProviderAdapter,
 ): SwitchNetworkFns {
   const { switchChainAsync } = useSwitchChain({});
 
@@ -134,10 +64,10 @@ export function useStarknetSwitchNetwork(
 }
 
 export function useStarknetWatchAsset(
-  _multiProvider: MultiProtocolProvider,
+  _multiProvider: MultiProviderAdapter,
 ): WatchAssetFns {
   const onAddAsset = useCallback(
-    async (_token: IToken, _activeChainName: ChainName) => {
+    async (_token: ITokenMetadata, _activeChainName: ChainName) => {
       throw new Error('Watch asset not available for starknet');
     },
     [],
@@ -147,7 +77,7 @@ export function useStarknetWatchAsset(
 }
 
 export function useStarknetTransactionFns(
-  multiProvider: MultiProtocolProvider,
+  multiProvider: MultiProviderAdapter,
 ): ChainTransactionFns {
   const { account } = useAccount();
 
@@ -233,7 +163,7 @@ export function useStarknetTransactionFns(
 }
 
 export function getStarknetChains(
-  multiProvider: MultiProtocolProvider,
+  multiProvider: MultiProviderAdapter,
 ): Chain[] {
   return getChainsForProtocol(multiProvider, ProtocolType.Starknet).map(
     chainMetadataToStarknetChain,

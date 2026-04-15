@@ -7,7 +7,15 @@ import {
   WarpRouteDeployConfigMailboxRequired,
 } from '../token/types.js';
 
-import { normalizeScale, scalesEqual, verifyScale } from './decimals.js';
+import {
+  alignLocalAmountToMessage,
+  localAmountFromMessage,
+  messageAmountFromLocal,
+  minLocalAmountForMessage,
+  normalizeScale,
+  scalesEqual,
+  verifyScale,
+} from './decimals.js';
 
 describe(normalizeScale.name, () => {
   it('should normalize undefined to DEFAULT_SCALE', () => {
@@ -105,6 +113,92 @@ describe(scalesEqual.name, () => {
   });
 });
 
+describe('scale conversion helpers', () => {
+  it('converts local amount to message amount using floor rounding', () => {
+    expect(
+      messageAmountFromLocal(5n, { numerator: 1n, denominator: 3n }),
+    ).to.equal(1n);
+    expect(
+      messageAmountFromLocal(2n, { numerator: 3n, denominator: 2n }),
+    ).to.equal(3n);
+  });
+
+  it('converts message amount to local amount using inbound floor rounding', () => {
+    expect(
+      localAmountFromMessage(7n, { numerator: 3n, denominator: 2n }),
+    ).to.equal(4n);
+    expect(
+      localAmountFromMessage(1n, { numerator: 1n, denominator: 3n }),
+    ).to.equal(3n);
+  });
+
+  it('computes the minimum local amount needed to reach a message amount', () => {
+    expect(
+      minLocalAmountForMessage(7n, { numerator: 3n, denominator: 2n }),
+    ).to.equal(5n);
+    expect(
+      minLocalAmountForMessage(2n, { numerator: 1n, denominator: 3n }),
+    ).to.equal(6n);
+  });
+
+  it('rejects negative message amounts for ceil local conversion', () => {
+    expect(() =>
+      minLocalAmountForMessage(-1n, { numerator: 1n, denominator: 3n }),
+    ).to.throw('Message amount must be non-negative');
+  });
+
+  it('aligns local amounts to exact message progress without leaking local dust', () => {
+    expect(
+      alignLocalAmountToMessage(5n, { numerator: 1n, denominator: 3n }),
+    ).to.deep.equal({
+      localAmount: 3n,
+      messageAmount: 1n,
+    });
+    expect(
+      alignLocalAmountToMessage(5n, { numerator: 3n, denominator: 2n }),
+    ).to.deep.equal({
+      localAmount: 5n,
+      messageAmount: 7n,
+    });
+    expect(
+      alignLocalAmountToMessage(999_999_999_999n, {
+        numerator: 1n,
+        denominator: 1_000_000_000_000n,
+      }),
+    ).to.deep.equal({
+      localAmount: 0n,
+      messageAmount: 0n,
+    });
+  });
+
+  it('rejects negative local amounts for alignment', () => {
+    expect(() =>
+      alignLocalAmountToMessage(-1n, { numerator: 1n, denominator: 3n }),
+    ).to.throw('Local amount must be non-negative');
+  });
+
+  it('returns identity for undefined scale', () => {
+    expect(messageAmountFromLocal(42n, undefined)).to.equal(42n);
+    expect(localAmountFromMessage(42n, undefined)).to.equal(42n);
+  });
+
+  it('handles zero amounts', () => {
+    expect(
+      messageAmountFromLocal(0n, { numerator: 1n, denominator: 3n }),
+    ).to.equal(0n);
+    expect(
+      localAmountFromMessage(0n, { numerator: 3n, denominator: 2n }),
+    ).to.equal(0n);
+  });
+
+  it('round-trips exact-divisible amounts', () => {
+    const scale = { numerator: 3n, denominator: 2n };
+    const local = 6n;
+    const message = messageAmountFromLocal(local, scale);
+    expect(localAmountFromMessage(message, scale)).to.equal(local);
+  });
+});
+
 describe(verifyScale.name, () => {
   const TOKEN_NAME = 'TOKEN';
   const ETH_DECIMALS = 18;
@@ -138,6 +232,26 @@ describe(verifyScale.name, () => {
     ]);
 
     expect(verifyScale(configMap)).to.be.true;
+  });
+
+  it('should return false when decimals are uniform but scales are mismatched', () => {
+    const configMap: Map<string, TokenMetadata> = new Map([
+      [
+        'chain1',
+        {
+          name: TOKEN_NAME,
+          symbol: TOKEN_NAME,
+          decimals: ETH_DECIMALS,
+          scale: 1000,
+        },
+      ],
+      [
+        'chain2',
+        { name: TOKEN_NAME, symbol: TOKEN_NAME, decimals: ETH_DECIMALS },
+      ],
+    ]);
+
+    expect(verifyScale(configMap)).to.be.false;
   });
 
   it('should return true with plain number scale (backwards compat)', () => {
@@ -317,5 +431,238 @@ describe(verifyScale.name, () => {
       () => verifyScale(config),
       'Decimals must be defined for token config on chain chain2',
     );
+  });
+
+  // --- Scale-down (BSC-style) tests ---
+  // Convention: max-decimal chain carries {numerator:1, denominator:N}, others carry no scale.
+  // This keeps message encoding at the lower decimal precision.
+
+  it('should return true with scale-down on the high-decimal chain', () => {
+    // BSC (18 dec) scales down by 1/1e12, ETH (6 dec) carries no scale.
+    // Effective message amount: BSC = 1/1e12 * 10^18 = 10^6, ETH = 1 * 10^6 = 10^6 ✓
+    const configMap: Map<string, TokenMetadata> = new Map([
+      [
+        'bsc',
+        {
+          name: TOKEN_NAME,
+          symbol: TOKEN_NAME,
+          decimals: ETH_DECIMALS,
+          scale: { numerator: 1, denominator: 1_000_000_000_000 },
+        },
+      ],
+      [
+        'eth',
+        { name: TOKEN_NAME, symbol: TOKEN_NAME, decimals: USDC_DECIMALS },
+      ],
+    ]);
+
+    expect(verifyScale(configMap)).to.be.true;
+  });
+
+  it('should return false when scale-down ratio is incorrect', () => {
+    // BSC uses wrong denominator (100 instead of 1e12)
+    const configMap: Map<string, TokenMetadata> = new Map([
+      [
+        'bsc',
+        {
+          name: TOKEN_NAME,
+          symbol: TOKEN_NAME,
+          decimals: ETH_DECIMALS,
+          scale: { numerator: 1, denominator: 100 },
+        },
+      ],
+      [
+        'eth',
+        { name: TOKEN_NAME, symbol: TOKEN_NAME, decimals: USDC_DECIMALS },
+      ],
+    ]);
+
+    expect(verifyScale(configMap)).to.be.false;
+  });
+
+  it('should return true with mixed scale-up and scale-down reaching the same effective amount', () => {
+    // chain1 (18 dec) scales down by 1/1e6, chain2 (6 dec) scales up by 1e6.
+    // Both reach 10^12 effective message encoding.
+    const configMap: Map<string, TokenMetadata> = new Map([
+      [
+        'chain1',
+        {
+          name: TOKEN_NAME,
+          symbol: TOKEN_NAME,
+          decimals: ETH_DECIMALS,
+          scale: { numerator: 1, denominator: 1_000_000 },
+        },
+      ],
+      [
+        'chain2',
+        {
+          name: TOKEN_NAME,
+          symbol: TOKEN_NAME,
+          decimals: USDC_DECIMALS,
+          scale: 1_000_000,
+        },
+      ],
+    ]);
+
+    expect(verifyScale(configMap)).to.be.true;
+  });
+
+  it('should return true with scale-down across three chains', () => {
+    // BSC (18), ETH (6), and a third 6-decimal chain — all consistent with BSC scale-down
+    const configMap: Map<string, TokenMetadata> = new Map([
+      [
+        'bsc',
+        {
+          name: TOKEN_NAME,
+          symbol: TOKEN_NAME,
+          decimals: ETH_DECIMALS,
+          scale: { numerator: 1, denominator: 1_000_000_000_000 },
+        },
+      ],
+      [
+        'eth',
+        { name: TOKEN_NAME, symbol: TOKEN_NAME, decimals: USDC_DECIMALS },
+      ],
+      [
+        'arbitrum',
+        { name: TOKEN_NAME, symbol: TOKEN_NAME, decimals: USDC_DECIMALS },
+      ],
+    ]);
+
+    expect(verifyScale(configMap)).to.be.true;
+  });
+
+  it('should return true with scale-down using WarpRouteDeployConfigMailboxRequired', () => {
+    // BSC (18dec) scales down by 1/1e12 to match ETH (6dec) — via deploy config input type
+    const config: WarpRouteDeployConfigMailboxRequired = {
+      bsc: {
+        type: TokenType.collateral,
+        token: randomAddress(),
+        owner: randomAddress(),
+        decimals: ETH_DECIMALS,
+        scale: { numerator: 1, denominator: 1_000_000_000_000 },
+        mailbox: randomAddress(),
+      },
+      eth: {
+        type: TokenType.collateral,
+        token: randomAddress(),
+        owner: randomAddress(),
+        decimals: USDC_DECIMALS,
+        mailbox: randomAddress(),
+      },
+    };
+
+    expect(verifyScale(config)).to.be.true;
+  });
+
+  it('should return true when two chains both use scale-down to the same effective amount', () => {
+    // chain1 (18dec) with 1/1e12 → effective 10^6
+    // chain2 (12dec) with 1/1e6 → effective 10^6
+    const configMap: Map<string, TokenMetadata> = new Map([
+      [
+        'chain1',
+        {
+          name: TOKEN_NAME,
+          symbol: TOKEN_NAME,
+          decimals: ETH_DECIMALS,
+          scale: { numerator: 1, denominator: 1_000_000_000_000 },
+        },
+      ],
+      [
+        'chain2',
+        {
+          name: TOKEN_NAME,
+          symbol: TOKEN_NAME,
+          decimals: 12,
+          scale: { numerator: 1, denominator: 1_000_000 },
+        },
+      ],
+    ]);
+
+    expect(verifyScale(configMap)).to.be.true;
+  });
+
+  it('should return true for non-reduced equivalent fractions (uniform decimals)', () => {
+    // Both 18dec: one with 2/2e12 (non-reduced), one with 1/1e12 (reduced) — equivalent
+    // Cross-multiply check: 2 * 1e12 === 1 * 2e12 → 2e12 === 2e12 ✓
+    const configMap: Map<string, TokenMetadata> = new Map([
+      [
+        'chain1',
+        {
+          name: TOKEN_NAME,
+          symbol: TOKEN_NAME,
+          decimals: ETH_DECIMALS,
+          scale: { numerator: 2, denominator: 2_000_000_000_000 },
+        },
+      ],
+      [
+        'chain2',
+        {
+          name: TOKEN_NAME,
+          symbol: TOKEN_NAME,
+          decimals: ETH_DECIMALS,
+          scale: { numerator: 1, denominator: 1_000_000_000_000 },
+        },
+      ],
+    ]);
+
+    expect(verifyScale(configMap)).to.be.true;
+  });
+
+  it('should return true for a single-chain config', () => {
+    // Single chain — no pairs to compare, trivially consistent
+    const configMap: Map<string, TokenMetadata> = new Map([
+      [
+        'chain1',
+        { name: TOKEN_NAME, symbol: TOKEN_NAME, decimals: ETH_DECIMALS },
+      ],
+    ]);
+
+    expect(verifyScale(configMap)).to.be.true;
+  });
+
+  it('should return false when three chains have the third inconsistent', () => {
+    // chain1 (18dec, no scale), chain2 (6dec, scale 1e12 ✓), chain3 (6dec, scale 100 ✗)
+    const configMap: Map<string, TokenMetadata> = new Map([
+      [
+        'chain1',
+        { name: TOKEN_NAME, symbol: TOKEN_NAME, decimals: ETH_DECIMALS },
+      ],
+      [
+        'chain2',
+        {
+          name: TOKEN_NAME,
+          symbol: TOKEN_NAME,
+          decimals: USDC_DECIMALS,
+          scale: 1_000_000_000_000,
+        },
+      ],
+      [
+        'chain3',
+        {
+          name: TOKEN_NAME,
+          symbol: TOKEN_NAME,
+          decimals: USDC_DECIMALS,
+          scale: 100,
+        },
+      ],
+    ]);
+
+    expect(verifyScale(configMap)).to.be.false;
+  });
+
+  it('should return true for an empty config', () => {
+    const configMap: Map<string, TokenMetadata> = new Map();
+    expect(verifyScale(configMap)).to.be.true;
+  });
+
+  it('should treat decimals: 0 as defined (not falsy)', () => {
+    // Exercises the nullish check fix (config.decimals != null).
+    // decimals: 0 is falsy but defined — should not throw.
+    const configMap: Map<string, TokenMetadata> = new Map([
+      ['chain1', { name: TOKEN_NAME, symbol: TOKEN_NAME, decimals: 0 }],
+    ]);
+
+    expect(verifyScale(configMap)).to.be.true;
   });
 });

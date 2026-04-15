@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/sealevel-sdk",
-  "version": "28.1.0",
+  "version": "31.2.1",
   "description": "Hand-crafted Solana/SVM client for Hyperlane Sealevel programs",
   "keywords": [
     "hyperlane",
@@ -27,15 +27,15 @@
     }
   },
   "scripts": {
-    "build": "rm -rf ./dist && tsc",
+    "build": "rm -rf ./dist && tsc && cp -r ./src/testing/fixtures ./dist/testing/fixtures",
     "program:build": "(cd ../../rust/sealevel/programs && bash build-programs.sh)",
     "program:generate": "node scripts/generate-program-bytes.mjs",
     "program:check": "node scripts/check-program-bytes-hash.mjs",
     "format": "oxfmt --write ./src",
-    "lint": "eslint -c ./eslint.config.mjs",
+    "lint": "oxlint -c ../../oxlint.json",
     "clean": "rm -rf ./dist ./cache",
     "dev": "tsc --watch",
-    "test": "echo \"no tests in svm-sdk\"",
+    "test": "pnpm test:unit",
     "test:e2e": "./scripts/run-e2e-test.sh",
     "test:unit": "mocha --require tsx --timeout 10000 'src/tests/**/*.unit-test.ts'"
   },
@@ -45,27 +45,24 @@
     "@noble/hashes": "^1.7.1",
     "@solana-program/loader-v3": "^0.3.0",
     "@solana-program/system": "^0.12.0",
-    "@solana/kit": "^6.1.0"
+    "@solana/errors": "^6.1.0",
+    "@solana/kit": "catalog:"
   },
   "devDependencies": {
-    "@eslint/js": "catalog:",
-    "@hyperlane-xyz/eslint-config": "workspace:^",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@types/chai": "^4.3.14",
+    "@types/chai-as-promised": "catalog:",
     "@types/mocha": "^10.0.6",
     "@types/node": "catalog:",
-    "@typescript-eslint/eslint-plugin": "catalog:",
-    "@typescript-eslint/parser": "catalog:",
+    "@types/sinon": "catalog:",
     "chai": "^4.4.1",
-    "eslint": "catalog:",
-    "eslint-config-prettier": "catalog:",
-    "eslint-import-resolver-typescript": "catalog:",
-    "eslint-plugin-import": "catalog:",
+    "chai-as-promised": "catalog:",
     "mocha": "^10.4.0",
+    "mocha-steps": "catalog:",
     "oxfmt": "catalog:",
+    "sinon": "catalog:",
     "testcontainers": "catalog:",
     "tsx": "catalog:",
-    "typescript": "catalog:",
-    "typescript-eslint": "catalog:"
+    "typescript": "catalog:"
   }
 }

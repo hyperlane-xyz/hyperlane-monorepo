@@ -16,6 +16,21 @@ import {
 } from '../utils/constants.js';
 import { Receipt } from '../utils/types.js';
 
+function isReceipt(value: unknown): value is Receipt {
+  if (typeof value !== 'object' || value === null) return false;
+  return Array.isArray(Reflect.get(value, 'output'));
+}
+
+function getBooleanOutput(value: unknown): boolean | undefined {
+  if (typeof value !== 'object' || value === null) return undefined;
+  const raw = Reflect.get(value, 'value');
+  if (typeof raw === 'boolean') return raw;
+  if (raw === 0n || raw === 1n) return raw === 1n;
+  if (raw === 0 || raw === '0' || raw === 'false') return false;
+  if (raw === 1 || raw === '1' || raw === 'true') return true;
+  return undefined;
+}
+
 export async function getMailboxConfig(
   gateway: Readonly<GatewayApiClient>,
   mailboxAddress: string,
@@ -104,13 +119,16 @@ export async function isMessageDelivered(
     },
   });
 
-  assert(
-    !(response.receipt as Receipt).error_message,
-    `${(response.receipt as Receipt).error_message}`,
-  );
+  const { receipt } = response;
+  assert(isReceipt(receipt), 'Unexpected transaction preview receipt shape');
+  assert(!receipt.error_message, `${receipt.error_message}`);
 
-  const output = (response.receipt as Receipt).output;
+  const output = receipt.output;
   assert(output.length, `found no output for delivered method`);
-
-  return (output[0].programmatic_json as { value: boolean }).value;
+  const delivered = getBooleanOutput(output[0]?.programmatic_json);
+  assert(
+    delivered !== undefined,
+    'Unexpected delivered() output shape from transaction preview',
+  );
+  return delivered;
 }

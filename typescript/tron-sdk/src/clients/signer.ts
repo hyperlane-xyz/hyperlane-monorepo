@@ -32,7 +32,7 @@ export class TronSigner
     rpcUrls: string[],
     privateKey: string,
     extraParams?: Record<string, any>,
-  ): Promise<AltVM.ISigner<TronTransaction, TronReceipt>> {
+  ): Promise<TronSigner> {
     assert(extraParams, `extra params not defined`);
 
     const metadata = extraParams.metadata as Record<string, unknown>;

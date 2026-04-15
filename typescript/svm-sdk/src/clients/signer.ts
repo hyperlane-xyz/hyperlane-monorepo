@@ -1,4 +1,5 @@
 import {
+  type Address,
   type Base64EncodedWireTransaction,
   type KeyPairSigner,
   type ReadonlyUint8Array,
@@ -12,16 +13,50 @@ import {
   getBase64EncodedWireTransaction,
   getSignatureFromTransaction,
   signTransactionMessageWithSigners,
+  type Commitment,
 } from '@solana/kit';
+import {
+  isSolanaError,
+  SOLANA_ERROR__JSON_RPC__SERVER_ERROR_SEND_TRANSACTION_PREFLIGHT_FAILURE,
+  SOLANA_ERROR__TRANSACTION_ERROR__BLOCKHASH_NOT_FOUND,
+} from '@solana/errors';
 
 import { type AltVM } from '@hyperlane-xyz/provider-sdk';
-import { assert, rootLogger, strip0x } from '@hyperlane-xyz/utils';
+import { assert, rootLogger, sleep, strip0x } from '@hyperlane-xyz/utils';
+import type { InstructionAccountMeta } from '../instructions/utils.js';
 
 import { createRpc } from '../rpc.js';
-import { DEFAULT_COMPUTE_UNITS, buildTransactionMessage } from '../tx.js';
-import type { SvmReceipt, SvmRpc, SvmTransaction } from '../types.js';
+import {
+  buildTransactionMessage,
+  serializeUnsignedTransaction,
+} from '../tx.js';
+import type {
+  AnnotatedSvmTransaction,
+  SvmReceipt,
+  SvmRpc,
+  SvmTransaction,
+} from '../types.js';
 
 import { SvmProvider } from './provider.js';
+import { DEFAULT_COMPUTE_UNITS } from '../constants.js';
+
+/** Transaction input for `send()` — feePayer is excluded since the signer provides it. */
+type SendableSvmTransaction = Omit<SvmTransaction, 'feePayer'>;
+
+/** Shape returned by `transactionToPrintableJson`. */
+export interface PrintableSvmTransaction {
+  annotation?: string;
+  instructions: PrintableSvmInstruction[];
+  computeUnits?: number;
+  transaction_base58: string;
+  message_base58: string;
+}
+
+export interface PrintableSvmInstruction {
+  programAddress: Address;
+  accounts?: readonly InstructionAccountMeta[];
+  data?: string;
+}
 
 type SignatureStatusResponse = Awaited<
   ReturnType<GetSignatureStatusesApi['getSignatureStatuses']>
@@ -67,6 +102,40 @@ function parseKeyBytes(privateKey: string): ReadonlyUint8Array {
   }
   return keyBytes;
 }
+
+const RPC_COMMITMENT_LEVEL: Commitment = 'confirmed';
+
+/**
+ * Detects blockhash-not-found errors from sendTransaction.
+ * The RPC wraps it as a preflight failure (-32002) with the
+ * BlockhashNotFound error as its cause.
+ */
+function isBlockhashNotFoundError(error: unknown): boolean {
+  if (
+    isSolanaError(error, SOLANA_ERROR__TRANSACTION_ERROR__BLOCKHASH_NOT_FOUND)
+  ) {
+    return true;
+  }
+
+  if (
+    isSolanaError(
+      error,
+      SOLANA_ERROR__JSON_RPC__SERVER_ERROR_SEND_TRANSACTION_PREFLIGHT_FAILURE,
+    )
+  ) {
+    return isSolanaError(
+      error.cause,
+      SOLANA_ERROR__TRANSACTION_ERROR__BLOCKHASH_NOT_FOUND,
+    );
+  }
+
+  return false;
+}
+
+type HistoryCheckResult =
+  | { confirmed: true; slot: bigint }
+  | { confirmed: false }
+  | null;
 
 export class SvmSigner
   extends SvmProvider
@@ -116,27 +185,34 @@ export class SvmSigner
   }
 
   async transactionToPrintableJson(
-    transaction: SvmTransaction,
-  ): Promise<object> {
+    transaction: AnnotatedSvmTransaction,
+  ): Promise<PrintableSvmTransaction> {
+    const { transactionBase58, messageBase58 } = serializeUnsignedTransaction(
+      transaction.instructions,
+      transaction.feePayer ?? this.signer.address,
+    );
+
     return {
+      annotation: transaction.annotation,
       instructions: transaction.instructions.map((ix) => ({
         programAddress: ix.programAddress,
         accounts: ix.accounts,
         data: ix.data ? Buffer.from(ix.data).toString('hex') : undefined,
       })),
       computeUnits: transaction.computeUnits,
+      transaction_base58: transactionBase58,
+      message_base58: messageBase58,
     };
   }
 
   /**
    * Builds, signs, and sends a transaction with a confirmed blockhash.
-   * Retries on blockhash-not-found errors from the RPC.
-   * Returns the raw transaction bytes for rebroadcasting and the
-   * lastValidBlockHeight for block-height-based expiry detection.
+   * Retries on blockhash-not-found errors with backoff to handle
+   * load-balanced RPC node desync.
    */
   private async signAndSend(
-    tx: SvmTransaction,
-    maxAttempts = 3,
+    tx: SendableSvmTransaction,
+    maxAttempts = 5,
   ): Promise<{
     signature: Signature;
     rawTx: Base64EncodedWireTransaction;
@@ -144,7 +220,7 @@ export class SvmSigner
   }> {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const { value: latestBlockhash } = await this.rpc
-        .getLatestBlockhash({ commitment: 'confirmed' })
+        .getLatestBlockhash({ commitment: RPC_COMMITMENT_LEVEL })
         .send();
 
       let txMessage = buildTransactionMessage({
@@ -171,6 +247,11 @@ export class SvmSigner
           .sendTransaction(rawTx, {
             encoding: 'base64',
             skipPreflight: tx.skipPreflight ?? false,
+            // Set to 0 to avoid conflicts between the rpc/provider
+            // retrying and the signer as it tracks and retries
+            // pending txs manually
+            maxRetries: 0n,
+            preflightCommitment: RPC_COMMITMENT_LEVEL,
           })
           .send();
 
@@ -180,17 +261,19 @@ export class SvmSigner
           lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
         };
       } catch (error) {
-        const msg = error instanceof Error ? error.message : String(error);
-        if (msg.includes('Blockhash not found') && attempt < maxAttempts - 1) {
-          this.logger.warn(
-            `Blockhash not found on send attempt ${attempt + 1}, retrying with fresh blockhash`,
+        if (isBlockhashNotFoundError(error) && attempt < maxAttempts - 1) {
+          const delay = 500 * (attempt + 1);
+          this.logger.debug(
+            `Blockhash not found on attempt ${attempt + 1}, retrying in ${delay}ms`,
           );
+          await sleep(delay);
           continue;
         }
         throw error;
       }
     }
-    throw new Error('signAndSend: all attempts exhausted');
+    // Unreachable: the loop always either returns or throws
+    throw new Error('signAndSend: unreachable');
   }
 
   /**
@@ -201,7 +284,7 @@ export class SvmSigner
   private checkSignatureResult(
     signature: Signature,
     result: SignatureStatusResponse,
-  ): { confirmed: true; slot: bigint } | { confirmed: false } | null {
+  ): HistoryCheckResult {
     if (!result) return null;
 
     if (result.err) {
@@ -209,7 +292,7 @@ export class SvmSigner
     }
 
     if (
-      result.confirmationStatus === 'confirmed' ||
+      result.confirmationStatus === RPC_COMMITMENT_LEVEL ||
       result.confirmationStatus === 'finalized'
     ) {
       return { confirmed: true, slot: result.slot };
@@ -218,318 +301,181 @@ export class SvmSigner
     return { confirmed: false };
   }
 
-  async send(tx: SvmTransaction): Promise<SvmReceipt> {
-    let { signature, rawTx, lastValidBlockHeight } = await this.signAndSend(tx);
+  /**
+   * Sends a transaction and polls for confirmation. On blockhash expiry,
+   * checks transaction history before resubmitting to prevent double-execution.
+   */
+  async send(tx: SendableSvmTransaction): Promise<SvmReceipt> {
+    const maxBlockhashAttempts = 3;
+    const pollIntervalMs = 2000;
 
-    let confirmed = false;
-    let slot: bigint = 0n;
-    const maxPolls = 60;
-    let delay = 500;
-    for (let i = 0; i < maxPolls && !confirmed; i++) {
-      await new Promise((resolve) => setTimeout(resolve, delay));
-      delay = Math.min(delay * 1.5, 4000);
+    let lastSignature: string | undefined;
+    for (
+      let blockhashAttempt = 0;
+      blockhashAttempt < maxBlockhashAttempts;
+      blockhashAttempt++
+    ) {
+      const { signature, rawTx, lastValidBlockHeight } =
+        await this.signAndSend(tx);
+      lastSignature = signature;
+
+      // Poll while blockhash is valid
+      const result = await this.pollForConfirmation(
+        signature,
+        rawTx,
+        lastValidBlockHeight,
+        pollIntervalMs,
+      );
+      if (result) {
+        return result;
+      }
+
+      // Blockhash expired — check history before resubmitting
+      let historyCheck: HistoryCheckResult = null;
       try {
-        // Check signature status
-        const status = await this.rpc.getSignatureStatuses([signature]).send();
-        const check = this.checkSignatureResult(signature, status.value[0]);
-
-        if (check?.confirmed) {
-          confirmed = true;
-          slot = check.slot;
-          break;
-        }
-
-        if (check) {
-          // Transaction seen (e.g. 'processed') — keep polling, do NOT resubmit
-          continue;
-        }
-
-        // Transaction not found — check if blockhash expired via block height
-        const currentBlockHeight = await this.rpc
-          .getBlockHeight({ commitment: 'confirmed' })
-          .send();
-
-        if (currentBlockHeight <= lastValidBlockHeight) {
-          // Blockhash still valid — rebroadcast same signed transaction
-          this.logger.debug('Rebroadcasting transaction');
-          await this.rpc
-            .sendTransaction(rawTx, {
-              encoding: 'base64',
-              skipPreflight: tx.skipPreflight ?? false,
-            })
-            .send();
-          continue;
-        }
-
-        // Blockhash expired — deep check with transaction history search
         const historyStatus = await this.rpc
           .getSignatureStatuses([signature], {
             searchTransactionHistory: true,
           })
           .send();
-        const historyCheck = this.checkSignatureResult(
+
+        historyCheck = this.checkSignatureResult(
           signature,
           historyStatus.value[0],
         );
-
-        if (historyCheck?.confirmed) {
-          confirmed = true;
-          slot = historyCheck.slot;
-          break;
-        }
-
-        if (historyCheck) {
-          // Found in history but still progressing — keep polling
-          continue;
-        }
-
-        // Blockhash expired and signature never seen — safe to resubmit
-        this.logger.warn(
-          'Blockhash expired and transaction not found, resubmitting',
-        );
-        ({ signature, rawTx, lastValidBlockHeight } =
-          await this.signAndSend(tx));
-        delay = 500;
       } catch (error) {
-        if (error instanceof SvmTransactionError) {
-          throw error;
-        }
-        this.logger.warn(`Polling attempt ${i + 1} failed`, { error });
+        if (error instanceof SvmTransactionError) throw error;
+
+        throw new Error(
+          `Cannot safely resubmit: history lookup failed for ${signature}, aborting to prevent double-execution.`,
+          { cause: error },
+        );
+      }
+
+      if (historyCheck?.confirmed) {
+        return { signature, slot: historyCheck.slot };
+      }
+
+      if (historyCheck) {
+        // Tx still progressing (e.g. 'processed') — keep polling same
+        // signature with a fresh block height ceiling
+        const { value: freshBlockhash } = await this.rpc
+          .getLatestBlockhash({ commitment: RPC_COMMITMENT_LEVEL })
+          .send();
+
+        const retry = await this.pollForConfirmation(
+          signature,
+          rawTx,
+          freshBlockhash.lastValidBlockHeight,
+          pollIntervalMs,
+        );
+
+        if (retry) return retry;
+
+        throw new Error(
+          `Transaction ${signature} was observed at 'processed' but never confirmed`,
+        );
+      }
+
+      if (blockhashAttempt < maxBlockhashAttempts - 1) {
+        this.logger.debug(
+          `Blockhash expired and tx not found, resubmitting (attempt ${blockhashAttempt + 2}/${maxBlockhashAttempts})`,
+        );
       }
     }
 
-    if (!confirmed) {
-      throw new Error(
-        `Transaction not confirmed within polling timeout: ${signature}`,
-      );
+    throw new Error(
+      `Transaction not confirmed after ${maxBlockhashAttempts} blockhash attempts (last signature: ${lastSignature})`,
+    );
+  }
+
+  /**
+   * Polls getSignatureStatuses while the blockhash is still valid.
+   * Rebroadcasts the same signed tx periodically (fire-and-forget).
+   * Returns the receipt if confirmed, or null if the blockhash expired.
+   */
+  private async pollForConfirmation(
+    signature: Signature,
+    rawTx: Base64EncodedWireTransaction,
+    lastValidBlockHeight: bigint,
+    pollIntervalMs: number,
+  ): Promise<SvmReceipt | null> {
+    const maxBlockHeightFailures = 3;
+    const wallClockDeadline = Date.now() + 2 * 60 * 1000;
+    let blockHeightFailures = 0;
+    let delay = Math.max(Math.floor(pollIntervalMs / 4), 250);
+
+    while (Date.now() < wallClockDeadline) {
+      await sleep(delay);
+      delay = Math.min(Math.floor(delay * 1.5), pollIntervalMs);
+
+      // Check confirmation status
+      try {
+        const status = await this.rpc.getSignatureStatuses([signature]).send();
+        const check = this.checkSignatureResult(signature, status.value[0]);
+
+        if (check?.confirmed) {
+          return { signature, slot: check.slot };
+        }
+
+        // Transaction seen (e.g. 'processed') — keep polling, don't rebroadcast
+        if (check) continue;
+      } catch (error) {
+        if (error instanceof SvmTransactionError) throw error;
+        this.logger.debug('Status poll failed', { error });
+      }
+
+      // Check if blockhash expired
+      try {
+        const currentBlockHeight = await this.rpc
+          .getBlockHeight({ commitment: RPC_COMMITMENT_LEVEL })
+          .send();
+
+        // Reset on successful fetch
+        blockHeightFailures = 0;
+        if (currentBlockHeight > lastValidBlockHeight) {
+          return null;
+        }
+      } catch (error) {
+        blockHeightFailures++;
+        this.logger.debug('Block height check failed', { error });
+        if (blockHeightFailures >= maxBlockHeightFailures) {
+          this.logger.warn(
+            `Block height check failed ${maxBlockHeightFailures} times, treating as expired`,
+          );
+          return null;
+        }
+      }
+
+      // Rebroadcast same signed tx (fire-and-forget, always skip preflight)
+      try {
+        await this.rpc
+          .sendTransaction(rawTx, {
+            encoding: 'base64',
+            skipPreflight: true,
+            maxRetries: 0n,
+          })
+          .send();
+      } catch (error) {
+        this.logger.debug('Rebroadcast failed', { error, signature });
+      }
     }
 
-    return { signature, slot };
+    // Wall-clock timeout exceeded — tx fate unknown, unsafe to resubmit
+    throw new Error(
+      `Poll timeout exceeded for ${signature}, aborting to prevent potential double-execution`,
+    );
   }
 
   async sendAndConfirmTransaction(
-    transaction: SvmTransaction,
+    transaction: SendableSvmTransaction,
   ): Promise<SvmReceipt> {
     return this.send(transaction);
   }
 
   async sendAndConfirmBatchTransactions(
-    _transactions: SvmTransaction[],
+    _transactions: SendableSvmTransaction[],
   ): Promise<SvmReceipt> {
     throw new Error('Sealevel does not support transaction batching');
-  }
-
-  // ### TX CORE ###
-
-  async createMailbox(
-    _req: Omit<AltVM.ReqCreateMailbox, 'signer'>,
-  ): Promise<AltVM.ResCreateMailbox> {
-    throw new Error('createMailbox not supported on Sealevel');
-  }
-
-  async setDefaultIsm(
-    _req: Omit<AltVM.ReqSetDefaultIsm, 'signer'>,
-  ): Promise<AltVM.ResSetDefaultIsm> {
-    throw new Error('setDefaultIsm not supported on Sealevel');
-  }
-
-  async setDefaultHook(
-    _req: Omit<AltVM.ReqSetDefaultHook, 'signer'>,
-  ): Promise<AltVM.ResSetDefaultHook> {
-    throw new Error('setDefaultHook not supported on Sealevel');
-  }
-
-  async setRequiredHook(
-    _req: Omit<AltVM.ReqSetRequiredHook, 'signer'>,
-  ): Promise<AltVM.ResSetRequiredHook> {
-    throw new Error('setRequiredHook not supported on Sealevel');
-  }
-
-  async setMailboxOwner(
-    _req: Omit<AltVM.ReqSetMailboxOwner, 'signer'>,
-  ): Promise<AltVM.ResSetMailboxOwner> {
-    throw new Error('setMailboxOwner not supported on Sealevel');
-  }
-
-  async createMerkleRootMultisigIsm(
-    _req: Omit<AltVM.ReqCreateMerkleRootMultisigIsm, 'signer'>,
-  ): Promise<AltVM.ResCreateMerkleRootMultisigIsm> {
-    throw new Error('createMerkleRootMultisigIsm not supported on Sealevel');
-  }
-
-  async createMessageIdMultisigIsm(
-    _req: Omit<AltVM.ReqCreateMessageIdMultisigIsm, 'signer'>,
-  ): Promise<AltVM.ResCreateMessageIdMultisigIsm> {
-    throw new Error('createMessageIdMultisigIsm not supported on Sealevel');
-  }
-
-  async createRoutingIsm(
-    _req: Omit<AltVM.ReqCreateRoutingIsm, 'signer'>,
-  ): Promise<AltVM.ResCreateRoutingIsm> {
-    throw new Error('createRoutingIsm not supported on Sealevel');
-  }
-
-  async setRoutingIsmRoute(
-    _req: Omit<AltVM.ReqSetRoutingIsmRoute, 'signer'>,
-  ): Promise<AltVM.ResSetRoutingIsmRoute> {
-    throw new Error('setRoutingIsmRoute not supported on Sealevel');
-  }
-
-  async removeRoutingIsmRoute(
-    _req: Omit<AltVM.ReqRemoveRoutingIsmRoute, 'signer'>,
-  ): Promise<AltVM.ResRemoveRoutingIsmRoute> {
-    throw new Error('removeRoutingIsmRoute not supported on Sealevel');
-  }
-
-  async setRoutingIsmOwner(
-    _req: Omit<AltVM.ReqSetRoutingIsmOwner, 'signer'>,
-  ): Promise<AltVM.ResSetRoutingIsmOwner> {
-    throw new Error('setRoutingIsmOwner not supported on Sealevel');
-  }
-
-  async createNoopIsm(
-    _req: Omit<AltVM.ReqCreateNoopIsm, 'signer'>,
-  ): Promise<AltVM.ResCreateNoopIsm> {
-    throw new Error('createNoopIsm not supported on Sealevel');
-  }
-
-  async createMerkleTreeHook(
-    _req: Omit<AltVM.ReqCreateMerkleTreeHook, 'signer'>,
-  ): Promise<AltVM.ResCreateMerkleTreeHook> {
-    throw new Error('createMerkleTreeHook not supported on Sealevel');
-  }
-
-  async createInterchainGasPaymasterHook(
-    _req: Omit<AltVM.ReqCreateInterchainGasPaymasterHook, 'signer'>,
-  ): Promise<AltVM.ResCreateInterchainGasPaymasterHook> {
-    throw new Error(
-      'createInterchainGasPaymasterHook not supported on Sealevel',
-    );
-  }
-
-  async setInterchainGasPaymasterHookOwner(
-    _req: Omit<AltVM.ReqSetInterchainGasPaymasterHookOwner, 'signer'>,
-  ): Promise<AltVM.ResSetInterchainGasPaymasterHookOwner> {
-    throw new Error(
-      'setInterchainGasPaymasterHookOwner not supported on Sealevel',
-    );
-  }
-
-  async setDestinationGasConfig(
-    _req: Omit<AltVM.ReqSetDestinationGasConfig, 'signer'>,
-  ): Promise<AltVM.ResSetDestinationGasConfig> {
-    throw new Error('setDestinationGasConfig not supported on Sealevel');
-  }
-
-  async removeDestinationGasConfig(
-    _req: Omit<AltVM.ReqRemoveDestinationGasConfig, 'signer'>,
-  ): Promise<AltVM.ResRemoveDestinationGasConfig> {
-    throw new Error('removeDestinationGasConfig not supported on Sealevel');
-  }
-
-  async createNoopHook(
-    _req: Omit<AltVM.ReqCreateNoopHook, 'signer'>,
-  ): Promise<AltVM.ResCreateNoopHook> {
-    throw new Error('createNoopHook not supported on Sealevel');
-  }
-
-  async createValidatorAnnounce(
-    _req: Omit<AltVM.ReqCreateValidatorAnnounce, 'signer'>,
-  ): Promise<AltVM.ResCreateValidatorAnnounce> {
-    throw new Error('createValidatorAnnounce not supported on Sealevel');
-  }
-
-  async createProxyAdmin(
-    _req: Omit<AltVM.ReqCreateProxyAdmin, 'signer'>,
-  ): Promise<AltVM.ResCreateProxyAdmin> {
-    throw new Error('createProxyAdmin not supported on Sealevel');
-  }
-
-  async setProxyAdminOwner(
-    _req: Omit<AltVM.ReqSetProxyAdminOwner, 'signer'>,
-  ): Promise<AltVM.ResSetProxyAdminOwner> {
-    throw new Error('setProxyAdminOwner not supported on Sealevel');
-  }
-
-  // ### TX WARP ###
-
-  async createNativeToken(
-    _req: Omit<AltVM.ReqCreateNativeToken, 'signer'>,
-  ): Promise<AltVM.ResCreateNativeToken> {
-    throw new Error(
-      'createNativeToken not supported on Sealevel, use the Artifact API instead',
-    );
-  }
-
-  async createCollateralToken(
-    _req: Omit<AltVM.ReqCreateCollateralToken, 'signer'>,
-  ): Promise<AltVM.ResCreateCollateralToken> {
-    throw new Error(
-      'createCollateralToken not supported on Sealevel, use the Artifact API instead',
-    );
-  }
-
-  async createSyntheticToken(
-    _req: Omit<AltVM.ReqCreateSyntheticToken, 'signer'>,
-  ): Promise<AltVM.ResCreateSyntheticToken> {
-    throw new Error(
-      'createSyntheticToken not supported on Sealevel, use the Artifact API instead',
-    );
-  }
-
-  async setTokenOwner(
-    _req: Omit<AltVM.ReqSetTokenOwner, 'signer'>,
-  ): Promise<AltVM.ResSetTokenOwner> {
-    throw new Error(
-      'setTokenOwner not supported on Sealevel, use the Artifact API instead',
-    );
-  }
-
-  async setTokenIsm(
-    _req: Omit<AltVM.ReqSetTokenIsm, 'signer'>,
-  ): Promise<AltVM.ResSetTokenIsm> {
-    throw new Error(
-      'setTokenIsm not supported on Sealevel, use the Artifact API instead',
-    );
-  }
-
-  async setTokenHook(
-    _req: Omit<AltVM.ReqSetTokenHook, 'signer'>,
-  ): Promise<AltVM.ResSetTokenHook> {
-    throw new Error(
-      'setTokenHook not supported on Sealevel, use the Artifact API instead',
-    );
-  }
-
-  async enrollRemoteRouter(
-    _req: Omit<AltVM.ReqEnrollRemoteRouter, 'signer'>,
-  ): Promise<AltVM.ResEnrollRemoteRouter> {
-    throw new Error(
-      'enrollRemoteRouter not supported on Sealevel, use the Artifact API instead',
-    );
-  }
-
-  async unenrollRemoteRouter(
-    _req: Omit<AltVM.ReqUnenrollRemoteRouter, 'signer'>,
-  ): Promise<AltVM.ResUnenrollRemoteRouter> {
-    throw new Error(
-      'unenrollRemoteRouter not supported on Sealevel, use the Artifact API instead',
-    );
-  }
-
-  async transfer(
-    _req: Omit<AltVM.ReqTransfer, 'signer'>,
-  ): Promise<AltVM.ResTransfer> {
-    throw new Error(
-      'transfer not supported on Sealevel, use the Artifact API instead',
-    );
-  }
-
-  async remoteTransfer(
-    _req: Omit<AltVM.ReqRemoteTransfer, 'signer'>,
-  ): Promise<AltVM.ResRemoteTransfer> {
-    throw new Error(
-      'remoteTransfer not supported on Sealevel, use the Artifact API instead',
-    );
   }
 }

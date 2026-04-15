@@ -19,52 +19,19 @@ import {
   getIgpHookConfig,
   getMerkleTreeHookConfig,
 } from '../hook/hook-query.js';
-import {
-  getCreateIgpTx,
-  getCreateMerkleTreeHookTx,
-  getSetIgpDestinationGasConfigTx,
-  getSetIgpOwnerTx,
-} from '../hook/hook-tx.js';
-import {
-  type MsgCreateMailboxEncodeObject,
-  type MsgSetMailboxEncodeObject,
-} from '../hyperlane/core/messages.js';
+import { type MsgRemoteTransferEncodeObject } from '../hyperlane/warp/messages.js';
 import {
   type CoreExtension,
   setupCoreExtension,
 } from '../hyperlane/core/query.js';
 import {
-  type MsgCreateMerkleRootMultisigIsmEncodeObject,
-  type MsgCreateMessageIdMultisigIsmEncodeObject,
-  type MsgCreateNoopIsmEncodeObject,
-  type MsgCreateRoutingIsmEncodeObject,
-  type MsgRemoveRoutingIsmDomainEncodeObject,
-  type MsgSetRoutingIsmDomainEncodeObject,
-  type MsgUpdateRoutingIsmOwnerEncodeObject,
-} from '../hyperlane/interchain_security/messages.js';
-import {
   type InterchainSecurityExtension,
   setupInterchainSecurityExtension,
 } from '../hyperlane/interchain_security/query.js';
 import {
-  type MsgCreateIgpEncodeObject,
-  type MsgCreateMerkleTreeHookEncodeObject,
-  type MsgCreateNoopHookEncodeObject,
-  type MsgSetDestinationGasConfigEncodeObject,
-  type MsgSetIgpOwnerEncodeObject,
-} from '../hyperlane/post_dispatch/messages.js';
-import {
   type PostDispatchExtension,
   setupPostDispatchExtension,
 } from '../hyperlane/post_dispatch/query.js';
-import {
-  type MsgCreateCollateralTokenEncodeObject,
-  type MsgCreateSyntheticTokenEncodeObject,
-  type MsgEnrollRemoteRouterEncodeObject,
-  type MsgRemoteTransferEncodeObject,
-  type MsgSetTokenEncodeObject,
-  type MsgUnrollRemoteRouterEncodeObject,
-} from '../hyperlane/warp/messages.js';
 import {
   type WarpExtension,
   setupWarpExtension,
@@ -76,25 +43,8 @@ import {
   getNoopIsmConfig,
   getRoutingIsmConfig,
 } from '../ism/ism-query.js';
-import {
-  getCreateMerkleRootMultisigIsmTx,
-  getCreateMessageIdMultisigIsmTx,
-  getCreateRoutingIsmTx,
-  getCreateTestIsmTx,
-  getRemoveRoutingIsmRouteTx,
-  getSetRoutingIsmOwnerTx,
-  getSetRoutingIsmRouteTx,
-} from '../ism/ism-tx.js';
 import { COSMOS_MODULE_MESSAGE_REGISTRY as R } from '../registry.js';
 import { getWarpTokenType } from '../warp/warp-query.js';
-import {
-  getCreateCollateralTokenTx,
-  getCreateSyntheticTokenTx,
-  getEnrollRemoteRouterTx,
-  getSetTokenIsmTx,
-  getSetTokenOwnerTx,
-  getUnenrollRemoteRouterTx,
-} from '../warp/warp-tx.js';
 
 export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
   private readonly query: QueryClient &
@@ -368,275 +318,6 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
       denom: gas_payment[0].denom,
       amount: BigInt(gas_payment[0].amount),
     };
-  }
-
-  // ### GET CORE TXS ###
-
-  async getCreateMailboxTransaction(
-    req: AltVM.ReqCreateMailbox,
-  ): Promise<MsgCreateMailboxEncodeObject> {
-    assert(
-      req.defaultIsmAddress,
-      `defaultIsmAddress required in Cosmos Native`,
-    );
-
-    return {
-      typeUrl: R.MsgCreateMailbox.proto.type,
-      value: R.MsgCreateMailbox.proto.converter.create({
-        local_domain: req.domainId,
-        owner: req.signer,
-        default_ism: req.defaultIsmAddress,
-      }),
-    };
-  }
-
-  async getSetDefaultIsmTransaction(
-    req: AltVM.ReqSetDefaultIsm,
-  ): Promise<MsgSetMailboxEncodeObject> {
-    return {
-      typeUrl: R.MsgSetMailbox.proto.type,
-      value: R.MsgSetMailbox.proto.converter.create({
-        mailbox_id: req.mailboxAddress,
-        default_ism: req.ismAddress,
-        owner: req.signer,
-      }),
-    };
-  }
-
-  async getSetDefaultHookTransaction(
-    req: AltVM.ReqSetDefaultHook,
-  ): Promise<MsgSetMailboxEncodeObject> {
-    return {
-      typeUrl: R.MsgSetMailbox.proto.type,
-      value: R.MsgSetMailbox.proto.converter.create({
-        mailbox_id: req.mailboxAddress,
-        default_hook: req.hookAddress,
-        owner: req.signer,
-      }),
-    };
-  }
-
-  async getSetRequiredHookTransaction(
-    req: AltVM.ReqSetRequiredHook,
-  ): Promise<MsgSetMailboxEncodeObject> {
-    return {
-      typeUrl: R.MsgSetMailbox.proto.type,
-      value: R.MsgSetMailbox.proto.converter.create({
-        mailbox_id: req.mailboxAddress,
-        required_hook: req.hookAddress,
-        owner: req.signer,
-      }),
-    };
-  }
-
-  async getSetMailboxOwnerTransaction(
-    req: AltVM.ReqSetMailboxOwner,
-  ): Promise<MsgSetMailboxEncodeObject> {
-    return {
-      typeUrl: R.MsgSetMailbox.proto.type,
-      value: R.MsgSetMailbox.proto.converter.create({
-        owner: req.signer,
-        mailbox_id: req.mailboxAddress,
-        new_owner: req.newOwner,
-        renounce_ownership: !req.newOwner,
-      }),
-    };
-  }
-
-  async getCreateMerkleRootMultisigIsmTransaction(
-    req: AltVM.ReqCreateMerkleRootMultisigIsm,
-  ): Promise<MsgCreateMerkleRootMultisigIsmEncodeObject> {
-    return getCreateMerkleRootMultisigIsmTx(req.signer, {
-      threshold: req.threshold,
-      validators: req.validators,
-    });
-  }
-
-  async getCreateMessageIdMultisigIsmTransaction(
-    req: AltVM.ReqCreateMessageIdMultisigIsm,
-  ): Promise<MsgCreateMessageIdMultisigIsmEncodeObject> {
-    return getCreateMessageIdMultisigIsmTx(req.signer, {
-      threshold: req.threshold,
-      validators: req.validators,
-    });
-  }
-
-  async getCreateRoutingIsmTransaction(
-    req: AltVM.ReqCreateRoutingIsm,
-  ): Promise<MsgCreateRoutingIsmEncodeObject> {
-    return getCreateRoutingIsmTx(req.signer, req.routes);
-  }
-
-  async getSetRoutingIsmRouteTransaction(
-    req: AltVM.ReqSetRoutingIsmRoute,
-  ): Promise<MsgSetRoutingIsmDomainEncodeObject> {
-    return getSetRoutingIsmRouteTx(req.signer, {
-      ismAddress: req.ismAddress,
-      domainIsm: req.route,
-    });
-  }
-
-  async getRemoveRoutingIsmRouteTransaction(
-    req: AltVM.ReqRemoveRoutingIsmRoute,
-  ): Promise<MsgRemoveRoutingIsmDomainEncodeObject> {
-    return getRemoveRoutingIsmRouteTx(req.signer, {
-      domainId: req.domainId,
-      ismAddress: req.ismAddress,
-    });
-  }
-
-  async getSetRoutingIsmOwnerTransaction(
-    req: AltVM.ReqSetRoutingIsmOwner,
-  ): Promise<MsgUpdateRoutingIsmOwnerEncodeObject> {
-    return getSetRoutingIsmOwnerTx(req.signer, {
-      ismAddress: req.ismAddress,
-      newOwner: req.newOwner,
-    });
-  }
-
-  async getCreateNoopIsmTransaction(
-    req: AltVM.ReqCreateNoopIsm,
-  ): Promise<MsgCreateNoopIsmEncodeObject> {
-    return getCreateTestIsmTx(req.signer);
-  }
-
-  async getCreateMerkleTreeHookTransaction(
-    req: AltVM.ReqCreateMerkleTreeHook,
-  ): Promise<MsgCreateMerkleTreeHookEncodeObject> {
-    return getCreateMerkleTreeHookTx(req.signer, req.mailboxAddress);
-  }
-
-  async getCreateInterchainGasPaymasterHookTransaction(
-    req: AltVM.ReqCreateInterchainGasPaymasterHook,
-  ): Promise<MsgCreateIgpEncodeObject> {
-    assert(req.denom, `denom required by ${CosmosNativeProvider.name}`);
-    return getCreateIgpTx(req.signer, req.denom);
-  }
-
-  async getSetInterchainGasPaymasterHookOwnerTransaction(
-    req: AltVM.ReqSetInterchainGasPaymasterHookOwner,
-  ): Promise<MsgSetIgpOwnerEncodeObject> {
-    return getSetIgpOwnerTx(req.signer, {
-      igpAddress: req.hookAddress,
-      newOwner: req.newOwner,
-    });
-  }
-
-  async getSetDestinationGasConfigTransaction(
-    req: AltVM.ReqSetDestinationGasConfig,
-  ): Promise<MsgSetDestinationGasConfigEncodeObject> {
-    return getSetIgpDestinationGasConfigTx(req.signer, {
-      igpAddress: req.hookAddress,
-      destinationGasConfig: req.destinationGasConfig,
-    });
-  }
-
-  async getRemoveDestinationGasConfigTransaction(
-    _req: AltVM.ReqRemoveDestinationGasConfig,
-  ): Promise<EncodeObject> {
-    throw new Error(
-      `RemoveDestinationGasConfig is currently not supported on Cosmos Native`,
-    );
-  }
-
-  async getCreateNoopHookTransaction(
-    req: AltVM.ReqCreateNoopHook,
-  ): Promise<MsgCreateNoopHookEncodeObject> {
-    return {
-      typeUrl: R.MsgCreateNoopHook.proto.type,
-      value: R.MsgCreateNoopHook.proto.converter.create({
-        owner: req.signer,
-      }),
-    };
-  }
-
-  async getCreateValidatorAnnounceTransaction(
-    _req: AltVM.ReqCreateValidatorAnnounce,
-  ): Promise<EncodeObject> {
-    throw new Error(
-      'Cosmos Native does not support populateCreateValidatorAnnounce',
-    );
-  }
-
-  async getCreateProxyAdminTransaction(
-    _req: AltVM.ReqCreateProxyAdmin,
-  ): Promise<EncodeObject> {
-    throw new Error('ProxyAdmin is not supported on Cosmos Native');
-  }
-
-  async getSetProxyAdminOwnerTransaction(
-    _req: AltVM.ReqSetProxyAdminOwner,
-  ): Promise<EncodeObject> {
-    throw new Error('ProxyAdmin is not supported on Cosmos Native');
-  }
-
-  // ### GET WARP TXS ###
-
-  async getCreateNativeTokenTransaction(
-    _req: AltVM.ReqCreateNativeToken,
-  ): Promise<EncodeObject> {
-    throw new Error(`Native Token is not supported on Cosmos Native`);
-  }
-
-  async getCreateCollateralTokenTransaction(
-    req: AltVM.ReqCreateCollateralToken,
-  ): Promise<MsgCreateCollateralTokenEncodeObject> {
-    return getCreateCollateralTokenTx(req.signer, {
-      mailboxAddress: req.mailboxAddress,
-      collateralDenom: req.collateralDenom,
-    });
-  }
-
-  async getCreateSyntheticTokenTransaction(
-    req: AltVM.ReqCreateSyntheticToken,
-  ): Promise<MsgCreateSyntheticTokenEncodeObject> {
-    return getCreateSyntheticTokenTx(req.signer, {
-      mailboxAddress: req.mailboxAddress,
-    });
-  }
-
-  async getSetTokenOwnerTransaction(
-    req: AltVM.ReqSetTokenOwner,
-  ): Promise<MsgSetTokenEncodeObject> {
-    return getSetTokenOwnerTx(req.signer, {
-      tokenAddress: req.tokenAddress,
-      newOwner: req.newOwner,
-    });
-  }
-
-  async getSetTokenIsmTransaction(
-    req: AltVM.ReqSetTokenIsm,
-  ): Promise<MsgSetTokenEncodeObject> {
-    return getSetTokenIsmTx(req.signer, {
-      tokenAddress: req.tokenAddress,
-      ismAddress: req.ismAddress,
-    });
-  }
-
-  async getSetTokenHookTransaction(
-    _req: AltVM.ReqSetTokenHook,
-  ): Promise<MsgSetTokenEncodeObject> {
-    throw new Error(`SetTokenHook is currently not supported on Cosmos Native`);
-  }
-
-  async getEnrollRemoteRouterTransaction(
-    req: AltVM.ReqEnrollRemoteRouter,
-  ): Promise<MsgEnrollRemoteRouterEncodeObject> {
-    return getEnrollRemoteRouterTx(req.signer, {
-      tokenAddress: req.tokenAddress,
-      remoteDomainId: req.remoteRouter.receiverDomainId,
-      remoteRouterAddress: req.remoteRouter.receiverAddress,
-      gas: req.remoteRouter.gas,
-    });
-  }
-
-  async getUnenrollRemoteRouterTransaction(
-    req: AltVM.ReqUnenrollRemoteRouter,
-  ): Promise<MsgUnrollRemoteRouterEncodeObject> {
-    return getUnenrollRemoteRouterTx(req.signer, {
-      tokenAddress: req.tokenAddress,
-      remoteDomainId: req.receiverDomainId,
-    });
   }
 
   async getTransferTransaction(

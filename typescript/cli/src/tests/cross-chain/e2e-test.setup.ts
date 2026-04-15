@@ -27,6 +27,12 @@ let originalRadixTestMetadata:
 // Store the Radix node instance to tear it down in the after hook
 let radixNodeInstance: StartedDockerComposeEnvironment;
 
+const TESTS_WITHOUT_RADIX_SETUP = new Set([
+  'warp-apply-starknet',
+  'warp-deploy-starknet',
+  'warp-cc-evm-svm',
+]);
+
 before(async function () {
   this.timeout(CROSS_CHAIN_E2E_TEST_TIMEOUT);
 
@@ -42,6 +48,10 @@ before(async function () {
       });
     },
   );
+
+  if (TESTS_WITHOUT_RADIX_SETUP.has(process.env.CLI_E2E_TEST ?? '')) {
+    return;
+  }
 
   const { code, packageDefinition } = await downloadRadixContracts();
 

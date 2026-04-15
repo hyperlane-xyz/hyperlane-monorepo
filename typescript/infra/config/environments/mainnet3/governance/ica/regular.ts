@@ -163,6 +163,12 @@ export const regularIcas: ChainMap<Address> = {
 
   // Mar 16, 2026
   // ----------------------------------------------------------
-  // igra: '0x2EA494A9Df761F8c9D619d7C130203AE31a01bC4',
-  // tron: '0x2839B41900b59dEBb43E7d70630BF92d10b86D21',
+  igra: '0x2EA494A9Df761F8c9D619d7C130203AE31a01bC4',
+  tron: '0x2839B41900b59dEBb43E7d70630BF92d10b86D21',
+
+  // Apr 2, 2026
+  // ----------------------------------------------------------
+  mocachain: '0x50c0D2A50A9d4143c856D9323228F2C7fa63906f',
+  fluent: '0x50c0D2A50A9d4143c856D9323228F2C7fa63906f',
+  kiichain: '0x50c0D2A50A9d4143c856D9323228F2C7fa63906f',
 } as const;

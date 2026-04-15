@@ -205,6 +205,8 @@ export type ReqCreateMailbox = {
   signer: string;
   domainId: number;
   defaultIsmAddress?: string;
+  defaultHookAddress?: string;
+  requiredHookAddress?: string;
   proxyAdminAddress?: string;
 };
 export type ResCreateMailbox = {
@@ -568,90 +570,6 @@ export interface IProvider<T = any> {
   quoteRemoteTransfer(
     req: ReqQuoteRemoteTransfer,
   ): Promise<ResQuoteRemoteTransfer>;
-
-  // ### GET CORE TXS ###
-
-  getCreateMailboxTransaction(req: ReqCreateMailbox): Promise<T>;
-
-  getSetDefaultIsmTransaction(req: ReqSetDefaultIsm): Promise<T>;
-
-  getSetDefaultHookTransaction(req: ReqSetDefaultHook): Promise<T>;
-
-  getSetRequiredHookTransaction(req: ReqSetRequiredHook): Promise<T>;
-
-  getSetMailboxOwnerTransaction(req: ReqSetMailboxOwner): Promise<T>;
-
-  getCreateMerkleRootMultisigIsmTransaction(
-    req: ReqCreateMerkleRootMultisigIsm,
-  ): Promise<T>;
-
-  getCreateMessageIdMultisigIsmTransaction(
-    req: ReqCreateMessageIdMultisigIsm,
-  ): Promise<T>;
-
-  getCreateRoutingIsmTransaction(req: ReqCreateRoutingIsm): Promise<T>;
-
-  getSetRoutingIsmRouteTransaction(req: ReqSetRoutingIsmRoute): Promise<T>;
-
-  getRemoveRoutingIsmRouteTransaction(
-    req: ReqRemoveRoutingIsmRoute,
-  ): Promise<T>;
-
-  getSetRoutingIsmOwnerTransaction(req: ReqSetRoutingIsmOwner): Promise<T>;
-
-  getCreateNoopIsmTransaction(req: ReqCreateNoopIsm): Promise<T>;
-
-  getCreateMerkleTreeHookTransaction(req: ReqCreateMerkleTreeHook): Promise<T>;
-
-  getCreateInterchainGasPaymasterHookTransaction(
-    req: ReqCreateInterchainGasPaymasterHook,
-  ): Promise<T>;
-
-  getSetInterchainGasPaymasterHookOwnerTransaction(
-    req: ReqSetInterchainGasPaymasterHookOwner,
-  ): Promise<T>;
-
-  getSetDestinationGasConfigTransaction(
-    req: ReqSetDestinationGasConfig,
-  ): Promise<T>;
-
-  getRemoveDestinationGasConfigTransaction(
-    req: ReqRemoveDestinationGasConfig,
-  ): Promise<T>;
-
-  getCreateNoopHookTransaction(req: ReqCreateNoopHook): Promise<T>;
-
-  getCreateValidatorAnnounceTransaction(
-    req: ReqCreateValidatorAnnounce,
-  ): Promise<T>;
-
-  getCreateProxyAdminTransaction(req: ReqCreateProxyAdmin): Promise<T>;
-
-  getSetProxyAdminOwnerTransaction(req: ReqSetProxyAdminOwner): Promise<T>;
-
-  // ### GET WARP TXS ###
-
-  getCreateNativeTokenTransaction(req: ReqCreateNativeToken): Promise<T>;
-
-  getCreateCollateralTokenTransaction(
-    req: ReqCreateCollateralToken,
-  ): Promise<T>;
-
-  getCreateSyntheticTokenTransaction(req: ReqCreateSyntheticToken): Promise<T>;
-
-  getSetTokenOwnerTransaction(req: ReqSetTokenOwner): Promise<T>;
-
-  getSetTokenIsmTransaction(req: ReqSetTokenIsm): Promise<T>;
-
-  getSetTokenHookTransaction(req: ReqSetTokenHook): Promise<T>;
-
-  getEnrollRemoteRouterTransaction(req: ReqEnrollRemoteRouter): Promise<T>;
-
-  getUnenrollRemoteRouterTransaction(req: ReqUnenrollRemoteRouter): Promise<T>;
-
-  getTransferTransaction(req: ReqTransfer): Promise<T>;
-
-  getRemoteTransferTransaction(req: ReqRemoteTransfer): Promise<T>;
 }
 
 export interface ISigner<T, R> extends IProvider<T> {
@@ -664,128 +582,6 @@ export interface ISigner<T, R> extends IProvider<T> {
   sendAndConfirmTransaction(transaction: T): Promise<R>;
 
   sendAndConfirmBatchTransactions(transactions: T[]): Promise<R>;
-
-  // ### TX CORE ###
-
-  createMailbox(
-    req: Omit<ReqCreateMailbox, 'signer'>,
-  ): Promise<ResCreateMailbox>;
-
-  setDefaultIsm(
-    req: Omit<ReqSetDefaultIsm, 'signer'>,
-  ): Promise<ResSetDefaultIsm>;
-
-  setDefaultHook(
-    req: Omit<ReqSetDefaultHook, 'signer'>,
-  ): Promise<ResSetDefaultHook>;
-
-  setRequiredHook(
-    req: Omit<ReqSetRequiredHook, 'signer'>,
-  ): Promise<ResSetRequiredHook>;
-
-  setMailboxOwner(
-    req: Omit<ReqSetMailboxOwner, 'signer'>,
-  ): Promise<ResSetMailboxOwner>;
-
-  createMerkleRootMultisigIsm(
-    req: Omit<ReqCreateMerkleRootMultisigIsm, 'signer'>,
-  ): Promise<ResCreateMerkleRootMultisigIsm>;
-
-  createMessageIdMultisigIsm(
-    req: Omit<ReqCreateMessageIdMultisigIsm, 'signer'>,
-  ): Promise<ResCreateMessageIdMultisigIsm>;
-
-  createRoutingIsm(
-    req: Omit<ReqCreateRoutingIsm, 'signer'>,
-  ): Promise<ResCreateRoutingIsm>;
-
-  setRoutingIsmRoute(
-    req: Omit<ReqSetRoutingIsmRoute, 'signer'>,
-  ): Promise<ResSetRoutingIsmRoute>;
-
-  removeRoutingIsmRoute(
-    req: Omit<ReqRemoveRoutingIsmRoute, 'signer'>,
-  ): Promise<ResRemoveRoutingIsmRoute>;
-
-  setRoutingIsmOwner(
-    req: Omit<ReqSetRoutingIsmOwner, 'signer'>,
-  ): Promise<ResSetRoutingIsmOwner>;
-
-  createNoopIsm(
-    req: Omit<ReqCreateNoopIsm, 'signer'>,
-  ): Promise<ResCreateNoopIsm>;
-
-  createMerkleTreeHook(
-    req: Omit<ReqCreateMerkleTreeHook, 'signer'>,
-  ): Promise<ResCreateMerkleTreeHook>;
-
-  createInterchainGasPaymasterHook(
-    req: Omit<ReqCreateInterchainGasPaymasterHook, 'signer'>,
-  ): Promise<ResCreateInterchainGasPaymasterHook>;
-
-  setInterchainGasPaymasterHookOwner(
-    req: Omit<ReqSetInterchainGasPaymasterHookOwner, 'signer'>,
-  ): Promise<ResSetInterchainGasPaymasterHookOwner>;
-
-  setDestinationGasConfig(
-    req: Omit<ReqSetDestinationGasConfig, 'signer'>,
-  ): Promise<ResSetDestinationGasConfig>;
-
-  removeDestinationGasConfig(
-    req: Omit<ReqRemoveDestinationGasConfig, 'signer'>,
-  ): Promise<ResRemoveDestinationGasConfig>;
-
-  createNoopHook(
-    req: Omit<ReqCreateNoopHook, 'signer'>,
-  ): Promise<ResCreateNoopHook>;
-
-  createValidatorAnnounce(
-    req: Omit<ReqCreateValidatorAnnounce, 'signer'>,
-  ): Promise<ResCreateValidatorAnnounce>;
-
-  createProxyAdmin(
-    req: Omit<ReqCreateProxyAdmin, 'signer'>,
-  ): Promise<ResCreateProxyAdmin>;
-
-  setProxyAdminOwner(
-    req: Omit<ReqSetProxyAdminOwner, 'signer'>,
-  ): Promise<ResSetProxyAdminOwner>;
-
-  // ### TX WARP ###
-
-  createNativeToken(
-    req: Omit<ReqCreateNativeToken, 'signer'>,
-  ): Promise<ResCreateNativeToken>;
-
-  createCollateralToken(
-    req: Omit<ReqCreateCollateralToken, 'signer'>,
-  ): Promise<ResCreateCollateralToken>;
-
-  createSyntheticToken(
-    req: Omit<ReqCreateSyntheticToken, 'signer'>,
-  ): Promise<ResCreateSyntheticToken>;
-
-  setTokenOwner(
-    req: Omit<ReqSetTokenOwner, 'signer'>,
-  ): Promise<ResSetTokenOwner>;
-
-  setTokenIsm(req: Omit<ReqSetTokenIsm, 'signer'>): Promise<ResSetTokenIsm>;
-
-  setTokenHook(req: Omit<ReqSetTokenHook, 'signer'>): Promise<ResSetTokenHook>;
-
-  enrollRemoteRouter(
-    req: Omit<ReqEnrollRemoteRouter, 'signer'>,
-  ): Promise<ResEnrollRemoteRouter>;
-
-  unenrollRemoteRouter(
-    req: Omit<ReqUnenrollRemoteRouter, 'signer'>,
-  ): Promise<ResUnenrollRemoteRouter>;
-
-  transfer(req: Omit<ReqTransfer, 'signer'>): Promise<ResTransfer>;
-
-  remoteTransfer(
-    req: Omit<ReqRemoteTransfer, 'signer'>,
-  ): Promise<ResRemoteTransfer>;
 }
 
 export interface IProviderConnect {

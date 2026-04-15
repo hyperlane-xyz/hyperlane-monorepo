@@ -2,6 +2,8 @@ import { BigNumber, providers } from 'ethers';
 
 import { retryAsync } from '@hyperlane-xyz/utils';
 
+import { stripCustomRpcHeaders } from './urlUtils.js';
+
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_BASE_RETRY_MS = 250;
 
@@ -31,7 +33,9 @@ export class TronJsonRpcProvider extends providers.StaticJsonRpcProvider {
     maxRetries = DEFAULT_MAX_RETRIES,
     baseRetryMs = DEFAULT_BASE_RETRY_MS,
   ) {
-    super(host, network);
+    const { url: cleanUrl, headers } = stripCustomRpcHeaders(host);
+    const hasHeaders = Object.keys(headers).length > 0;
+    super(hasHeaders ? { url: cleanUrl, headers } : cleanUrl, network);
     this.host = host;
     this.maxRetries = maxRetries;
     this.baseRetryMs = baseRetryMs;
@@ -72,7 +76,12 @@ export class TronJsonRpcProvider extends providers.StaticJsonRpcProvider {
   async estimateGas(
     _transaction: providers.TransactionRequest,
   ): Promise<BigNumber> {
-    return BigNumber.from(MAX_TRON_ORIGIN_ENERGY_LIMIT);
+    try {
+      return await super.estimateGas(_transaction);
+    } catch {
+      // Return a default gas limit for Tron transactions since estimation is unreliable.
+      return BigNumber.from(MAX_TRON_ORIGIN_ENERGY_LIMIT);
+    }
   }
 
   /**

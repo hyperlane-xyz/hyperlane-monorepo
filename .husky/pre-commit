@@ -20,7 +20,7 @@ if [ "$GITHUB_ACTIONS" != "true" ]; then
     fi
 fi
 
-pnpm lint-staged
+pnpm lint-staged --concurrent false
 
 echo "📝 If you haven't yet, please add a changeset for your changes via 'pnpm changeset'"
 

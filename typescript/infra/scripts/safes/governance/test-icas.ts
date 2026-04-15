@@ -17,14 +17,20 @@ import {
 import { SafeMultiSend } from '../../../src/govern/multisend.js';
 import { withGovernanceType } from '../../../src/governance.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../../core-utils.js';
+import { withChains } from '../../agent-utils.js';
 
 const originChain = 'ethereum';
 
 // Main function to execute the script
 async function main() {
-  const { governanceType } = await withGovernanceType(
-    yargs(process.argv.slice(2)),
+  const { governanceType, chains } = await withGovernanceType(
+    withChains(yargs(process.argv.slice(2)), supportedChainNames),
   ).argv;
+
+  if (!chains || chains.length === 0) {
+    rootLogger.error('No chains provided');
+    process.exit(1);
+  }
 
   const owner = getGovernanceSafes(governanceType)[originChain];
   assert(owner, `No ${governanceType} safe configured for ${originChain}`);
@@ -55,7 +61,7 @@ async function main() {
 
   const remoteCalls = [];
 
-  for (const chain of supportedChainNames) {
+  for (const chain of chains) {
     if (
       chain === 'arcadia' ||
       chain === originChain ||

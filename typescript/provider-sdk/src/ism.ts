@@ -12,13 +12,17 @@ import {
   ArtifactDeployed,
   ArtifactNew,
   ArtifactState,
+  ConfigOnChain,
   IArtifactManager,
-  RawArtifact,
   isArtifactDeployed,
   isArtifactNew,
   isArtifactUnderived,
 } from './artifact.js';
 import { ChainLookup } from './chain.js';
+
+function assertNever(value: never, context: string): never {
+  throw new Error(`Unhandled ISM type in ${context}: ${JSON.stringify(value)}`);
+}
 
 export type IsmModuleType = {
   config: IsmConfig;
@@ -107,10 +111,8 @@ export interface RoutingIsmArtifactConfig {
   domains: Record<number, Artifact<IsmArtifactConfig, DeployedIsmAddress>>;
 }
 
-export type RawRoutingIsmArtifactConfig = RawArtifact<
-  RoutingIsmArtifactConfig,
-  DeployedIsmAddress
->;
+export type RawRoutingIsmArtifactConfig =
+  ConfigOnChain<RoutingIsmArtifactConfig>;
 
 export interface RawIsmArtifactConfigs {
   domainRoutingIsm: RawRoutingIsmArtifactConfig;
@@ -251,7 +253,12 @@ export function mergeIsmArtifacts(
     expectedConfig.domains,
   )) {
     const domainId = parseInt(domainIdStr);
-    const currentDomainIsm = currentConfig.domains[domainId];
+    const currentDomainIsm = Object.prototype.hasOwnProperty.call(
+      currentConfig.domains,
+      domainId,
+    )
+      ? currentConfig.domains[domainId]
+      : undefined;
 
     let currentDeployedIsm: DeployedIsmArtifact | undefined;
     if (currentDomainIsm && isArtifactDeployed(currentDomainIsm)) {
@@ -289,22 +296,20 @@ export function mergeIsmArtifacts(
 export function altVMIsmTypeToProviderSdkType(
   altVMType: AltVMIsmType,
 ): IsmType {
-  const supportedTypes: AltVMIsmType[] = [
-    AltVMIsmType.TEST_ISM,
-    AltVMIsmType.MERKLE_ROOT_MULTISIG,
-    AltVMIsmType.MESSAGE_ID_MULTISIG,
-    AltVMIsmType.ROUTING,
-  ];
-
-  if (!supportedTypes.includes(altVMType)) {
-    throw new Error(
-      `Unsupported ISM type: AltVM ISM type ${altVMType} is not supported by the provider sdk`,
-    );
+  switch (altVMType) {
+    case AltVMIsmType.TEST_ISM:
+      return 'testIsm';
+    case AltVMIsmType.MERKLE_ROOT_MULTISIG:
+      return 'merkleRootMultisigIsm';
+    case AltVMIsmType.MESSAGE_ID_MULTISIG:
+      return 'messageIdMultisigIsm';
+    case AltVMIsmType.ROUTING:
+      return 'domainRoutingIsm';
+    default:
+      throw new Error(
+        `Unsupported ISM type: AltVM ISM type ${altVMType} is not supported by the provider sdk`,
+      );
   }
-
-  // After validation, we know altVMType is one of the supported types
-  // which map directly to IsmType string literals
-  return altVMType as IsmType;
 }
 
 export function ismArtifactToDerivedConfig(
@@ -370,8 +375,7 @@ export function ismArtifactToDerivedConfig(
       };
 
     default: {
-      const invalidConfig: never = config;
-      throw new Error(`Unhandled ISM type: ${(invalidConfig as any).type}`);
+      return assertNever(config, 'ismArtifactToDerivedConfig');
     }
   }
 }

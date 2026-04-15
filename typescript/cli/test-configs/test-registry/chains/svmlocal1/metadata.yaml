@@ -1,0 +1,23 @@
+# yaml-language-server: $schema=../schema.json
+blockExplorers:
+  - apiUrl: http://127.0.0.1:8899
+    family: other
+    name: Solana Explorer
+    url: http://127.0.0.1:8899
+blocks:
+  confirmations: 1
+  estimateBlockTime: 0.4
+  reorgPeriod: 0
+chainId: 1399811150
+displayName: Solana Local 1
+domainId: 1399811150
+name: svmlocal1
+nativeToken:
+  decimals: 9
+  denom: SOL
+  name: Solana
+  symbol: SOL
+protocol: sealevel
+rpcUrls:
+  - http: http://127.0.0.1:8899
+technicalStack: other

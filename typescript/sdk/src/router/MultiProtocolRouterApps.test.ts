@@ -6,12 +6,11 @@ import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 
 import { MultiProtocolRouterApp } from './MultiProtocolRouterApps.js';
 import { EvmRouterAdapter } from './adapters/EvmRouterAdapter.js';
-import { RouterAddress } from './types.js';
 
 describe('MultiProtocolRouterApp', () => {
   describe('constructs', () => {
     const multiProvider =
-      MultiProtocolProvider.createTestMultiProtocolProvider<RouterAddress>();
+      MultiProtocolProvider.createTestMultiProtocolProvider();
     it('creates an app class', async () => {
       const addresses = {
         test1: { router: ethers.constants.AddressZero },

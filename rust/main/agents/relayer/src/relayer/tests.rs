@@ -82,9 +82,6 @@ fn generate_test_chain_conf(
                 ..Default::default()
             },
             consider_null_transaction_receipt: false,
-            wallet_urls: None,
-            wallet_solidity_urls: None,
-            energy_multiplier: None,
         }),
         metrics_conf: PrometheusMiddlewareConf {
             contracts: HashMap::new(),

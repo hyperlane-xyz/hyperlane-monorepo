@@ -23,7 +23,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { BaseStarknetAdapter } from '../../app/MultiProtocolApp.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
 import { ChainName } from '../../types.js';
 import {
   getStarknetEtherContract,
@@ -55,7 +55,7 @@ export class StarknetTokenAdapter
 
   constructor(
     public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider,
+    public readonly multiProvider: MultiProviderAdapter,
     public readonly addresses: { tokenAddress: Address },
   ) {
     super(chainName, multiProvider, addresses);
@@ -179,7 +179,7 @@ class BaseStarknetHypTokenAdapter
 
   constructor(
     public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider,
+    public readonly multiProvider: MultiProviderAdapter,
     public readonly addresses: { warpRouter: Address },
   ) {
     super(chainName, multiProvider, addresses);
@@ -251,7 +251,7 @@ export class StarknetHypSyntheticAdapter
 {
   constructor(
     public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider,
+    public readonly multiProvider: MultiProviderAdapter,
     public readonly addresses: { warpRouter: Address },
   ) {
     super(chainName, multiProvider, addresses);
@@ -327,7 +327,7 @@ export class StarknetHypCollateralAdapter extends StarknetHypSyntheticAdapter {
 
   constructor(
     chainName: ChainName,
-    multiProvider: MultiProtocolProvider,
+    multiProvider: MultiProviderAdapter,
     addresses: { warpRouter: Address },
   ) {
     super(chainName, multiProvider, addresses);
@@ -386,7 +386,7 @@ export class StarknetHypNativeAdapter extends StarknetHypSyntheticAdapter {
 
   constructor(
     chainName: ChainName,
-    multiProvider: MultiProtocolProvider,
+    multiProvider: MultiProviderAdapter,
     addresses: { warpRouter: Address },
   ) {
     super(chainName, multiProvider, addresses);
@@ -440,12 +440,11 @@ export class StarknetHypNativeAdapter extends StarknetHypSyntheticAdapter {
     const nonOption = new CairoOption(CairoOptionVariant.None);
     const amount = BigInt(weiAmountOrId.toString());
     const gasAmount = BigInt(interchainGas?.igpQuote.amount.toString() ?? '0');
-    const totalAmount = amount + gasAmount;
     return this.collateralContract.populateTransaction.transfer_remote(
       destination,
       cairo.uint256(addressToBytes32(recipient)),
       cairo.uint256(amount),
-      cairo.uint256(totalAmount),
+      cairo.uint256(gasAmount),
       nonOption,
       nonOption,
     );
@@ -458,7 +457,7 @@ export class StarknetHypFeeAdapter extends StarknetHypSyntheticAdapter {
 
   constructor(
     chainName: ChainName,
-    multiProvider: MultiProtocolProvider,
+    multiProvider: MultiProviderAdapter,
     addresses: { warpRouter: Address },
   ) {
     super(chainName, multiProvider, addresses);
@@ -508,12 +507,11 @@ export class StarknetHypFeeAdapter extends StarknetHypSyntheticAdapter {
     const nonOption = new CairoOption(CairoOptionVariant.None);
     const amount = BigInt(weiAmountOrId.toString());
     const gasAmount = BigInt(interchainGas?.igpQuote.amount.toString() ?? '0');
-    const totalAmount = amount + gasAmount;
     return this.collateralContract.populateTransaction.transfer_remote(
       destination,
       cairo.uint256(addressToBytes32(recipient)),
       cairo.uint256(amount),
-      cairo.uint256(totalAmount),
+      cairo.uint256(gasAmount),
       nonOption,
       nonOption,
     );

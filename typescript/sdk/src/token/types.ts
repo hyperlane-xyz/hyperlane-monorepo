@@ -2,7 +2,7 @@ import { compareVersions } from 'compare-versions';
 import { z } from 'zod';
 
 import { CONTRACTS_PACKAGE_VERSION } from '@hyperlane-xyz/core';
-import { objMap } from '@hyperlane-xyz/utils';
+import { isAddressEvm, objMap } from '@hyperlane-xyz/utils';
 
 import { TokenFeeConfigInput, TokenFeeType } from '../fee/types.js';
 import { HookConfig, HookType } from '../hook/types.js';
@@ -33,6 +33,33 @@ export const contractVersionMatchesDependency = (version: string) => {
 
 export const VERSION_ERROR_MESSAGE = `Contract version must match the @hyperlane-xyz/core dependency version (${CONTRACTS_PACKAGE_VERSION})`;
 
+/**
+ * Coerces bigint or string to bigint with positivity check.
+ * Needed because bigints are serialised as strings in JSON/YAML
+ * and must be converted back on parse. Uses .refine() instead of
+ * .positive() to avoid bigint values in zod-to-json-schema output.
+ */
+const PositiveBigIntFromString = z
+  .union([
+    z.bigint(),
+    z
+      .string()
+      .refine(
+        (s) => {
+          try {
+            BigInt(s);
+            return true;
+          } catch {
+            return false;
+          }
+        },
+        { message: 'Must be a bigint-compatible string' },
+      )
+      .transform((s) => BigInt(s)),
+  ])
+  .pipe(z.bigint())
+  .refine((n) => n > 0n, { message: 'Must be positive' });
+
 export const TokenMetadataSchema = z.object({
   name: z.string(),
   symbol: z.string(),
@@ -45,8 +72,8 @@ export const TokenMetadataSchema = z.object({
         denominator: z.number().int().gt(0),
       }),
       z.object({
-        numerator: z.coerce.bigint(),
-        denominator: z.coerce.bigint(),
+        numerator: PositiveBigIntFromString,
+        denominator: PositiveBigIntFromString,
       }),
     ])
     .optional(),
@@ -226,6 +253,58 @@ export const CctpTokenConfigSchema = TokenMetadataSchema.partial()
 export type CctpTokenConfig = z.infer<typeof CctpTokenConfigSchema>;
 export const isCctpTokenConfig = isCompliant(CctpTokenConfigSchema);
 
+export const DepositAddressRecipientConfigSchema = z.object({
+  depositAddress: z
+    .string()
+    .refine(isAddressEvm, 'depositAddress must be a valid EVM address'),
+  feeBps: z
+    .string()
+    .or(z.number())
+    .optional()
+    .refine(
+      (value) => {
+        if (value === undefined) return true;
+        if (typeof value === 'string' && value.trim() === '') return false;
+        try {
+          const feeBps = BigInt(value);
+          return feeBps >= 0n && feeBps < 10_000n;
+        } catch {
+          return false;
+        }
+      },
+      {
+        message: 'feeBps must be a valid number >= 0 and < 10000',
+      },
+    )
+    .describe('Bridge fee in basis points for this destination'),
+});
+export type DepositAddressRecipientConfig = z.infer<
+  typeof DepositAddressRecipientConfigSchema
+>;
+
+export const DepositAddressDestinationConfigSchema = z.record(
+  ZHash.describe('Expected destination recipient as bytes32'),
+  DepositAddressRecipientConfigSchema,
+);
+export type DepositAddressDestinationConfig = z.infer<
+  typeof DepositAddressDestinationConfigSchema
+>;
+
+export const DepositAddressTokenConfigSchema =
+  TokenMetadataSchema.partial().extend({
+    type: z.literal(TokenType.collateralDepositAddress),
+    token: z.string().describe('Underlying ERC20 token address'),
+    destinationConfigs: z.record(
+      RemoteRouterDomainOrChainNameSchema,
+      DepositAddressDestinationConfigSchema,
+    ),
+  });
+export type DepositAddressTokenConfig = z.infer<
+  typeof DepositAddressTokenConfigSchema
+>;
+export const isDepositAddressTokenConfig = isCompliant(
+  DepositAddressTokenConfigSchema,
+);
 export const OftTokenConfigSchema = TokenMetadataSchema.partial().extend({
   type: z.literal(TokenType.collateralOft),
   token: z
@@ -382,6 +461,7 @@ const AllHypTokenConfigSchema = z.discriminatedUnion('type', [
   OftTokenConfigSchema,
   EverclearCollateralTokenConfigSchema,
   EverclearEthBridgeTokenConfigSchema,
+  DepositAddressTokenConfigSchema,
   CrossCollateralTokenConfigSchema,
   UnknownTokenConfigSchema,
 ]);
@@ -462,15 +542,32 @@ function preprocessWarpRouteDeployConfig(value: unknown) {
 function populateFeeOwner(params: {
   tokenConfig: HypTokenRouterConfigMailboxOptionalBase;
   feeConfig?: TokenFeeConfigInput;
+  inheritedOwner?: string;
 }) {
-  const { tokenConfig, feeConfig } = params;
+  const { tokenConfig, feeConfig, inheritedOwner } = params;
   if (!feeConfig) return tokenConfig;
 
-  feeConfig.owner = feeConfig.owner ?? tokenConfig.owner;
+  const resolvedOwner = feeConfig.owner ?? inheritedOwner ?? tokenConfig.owner;
+  feeConfig.owner = resolvedOwner;
 
-  if (feeConfig.type === TokenFeeType.RoutingFee && feeConfig.feeContracts) {
+  if (feeConfig.type === TokenFeeType.RoutingFee) {
     objMap(feeConfig.feeContracts, (_, innerConfig) => {
-      populateFeeOwner({ tokenConfig, feeConfig: innerConfig });
+      populateFeeOwner({
+        tokenConfig,
+        feeConfig: innerConfig,
+        inheritedOwner: resolvedOwner,
+      });
+    });
+  }
+  if (feeConfig.type === TokenFeeType.CrossCollateralRoutingFee) {
+    objMap(feeConfig.feeContracts, (_, destinationConfig) => {
+      objMap(destinationConfig, (_, innerConfig) => {
+        populateFeeOwner({
+          tokenConfig,
+          feeConfig: innerConfig,
+          inheritedOwner: resolvedOwner,
+        });
+      });
     });
   }
   return tokenConfig;
@@ -489,6 +586,7 @@ export const WarpRouteDeployConfigSchema = z
           isXERC20TokenConfig(config) ||
           isNativeTokenConfig(config) ||
           isEverclearTokenBridgeConfig(config) ||
+          isDepositAddressTokenConfig(config) ||
           isCrossCollateralTokenConfig(config) ||
           isOftTokenConfig(config),
       ) || entries.every(([_, config]) => isTokenMetadata(config))
