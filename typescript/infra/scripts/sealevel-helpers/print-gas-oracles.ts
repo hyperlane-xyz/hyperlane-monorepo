@@ -127,6 +127,7 @@ function getChainConnections(
       ['solanamainnet', 'eni'],
       ['solanamainnet', 'citrea'],
       ['solanamainnet', 'tron'],
+      ['solanamainnet', 'igra'],
       // For Starknet / Paradex
       ['solanamainnet', 'starknet'],
       ['solanamainnet', 'paradex'],
