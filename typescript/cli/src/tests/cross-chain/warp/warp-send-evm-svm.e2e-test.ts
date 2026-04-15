@@ -117,10 +117,9 @@ describe('hyperlane warp send EVM+SVM e2e tests', function () {
       svmCore.deploy(SVM_KEY),
     ]);
 
-    // CAST: readYamlOrJson returns unknown; the file is written by core deploy and contains ChainAddresses.
-    svmCoreAddresses = readYamlOrJson(
+    svmCoreAddresses = readYamlOrJson<ChainAddresses>(
       CORE_ADDRESSES_PATH_BY_PROTOCOL.sealevel.CHAIN_NAME_1,
-    ) as ChainAddresses;
+    );
   });
 
   after(async function () {

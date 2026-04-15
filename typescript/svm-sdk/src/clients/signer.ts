@@ -501,9 +501,16 @@ export class SvmSigner
         })
         .send();
 
+      if (!fullTx?.meta?.logMessages) {
+        this.logger.warn('Transaction meta not yet available', {
+          signature: receipt.signature,
+        });
+        return receipt;
+      }
+
       return {
         ...receipt,
-        meta: { logMessages: fullTx?.meta?.logMessages ?? [] },
+        meta: { logMessages: fullTx.meta.logMessages },
       };
     } catch (error) {
       this.logger.warn('Failed to fetch transaction meta', { error });

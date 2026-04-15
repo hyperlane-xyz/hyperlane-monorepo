@@ -125,8 +125,9 @@ export function isLegacySolanaTransaction(
   tx: unknown,
 ): tx is LegacyTransaction {
   if (typeof tx !== 'object' || tx === null) return false;
-  // CAST: tx is narrowed to non-null object above; cast needed to access properties on unknown.
-  const maybeIx = (tx as Record<string, unknown>).instructions;
+  // CAST: tx is narrowed to non-null object above; Partial<LegacyTransaction> ensures
+  // property access stays in sync with the interface.
+  const maybeIx = (tx as Partial<LegacyTransaction>).instructions;
   if (!Array.isArray(maybeIx) || maybeIx.length === 0) return false;
   const first = maybeIx[0];
   return (
