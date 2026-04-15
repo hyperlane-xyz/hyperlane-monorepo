@@ -645,6 +645,17 @@ export async function enrollCrossChainRouters(
             owner: resolvedConfigMap[currentChain].owner,
             remoteRouters,
             destinationGas,
+            // For cross-protocol routes (EVM+SVM/Cosmos), the EVM deployer
+            // never enrolls non-EVM remote routers, so TokenRouter.domains()=[]
+            // at this point. The reader derives RoutingFee.feeContracts from
+            // enrolled domains, returning {} which fails
+            // RoutingFeeInputConfigSchema validation. Use the deploy config's
+            // tokenFee (non-empty feeContracts) so validation passes.
+            // EvmTokenFeeModule.update() reads actual on-chain state via
+            // routingDestinations and confirms no change is needed.
+            ...(resolvedConfigMap[currentChain].tokenFee && {
+              tokenFee: resolvedConfigMap[currentChain].tokenFee,
+            }),
           };
 
           transactions = await evmWarpModule.update(expectedConfig, {
