@@ -149,10 +149,6 @@ export enum WarpRouteIds {
   // ctUSD
   CitreaUSD = 'ctUSD/citrea',
 
-  // USDT OFT
-  USDTOft = 'USDT/oft',
-  USDTOftLegacy = 'USDT/oft-legacy',
-
   // RISE routes
   BscEthereumRISE = 'RISE/bsc-ethereum',
 
