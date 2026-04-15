@@ -88,21 +88,11 @@ export function useCosmosDisconnectFn(): () => Promise<void> {
 }
 
 export function useCosmosActiveChain(
-  multiProvider: MinimalProviderRegistry,
+  _multiProvider: MinimalProviderRegistry,
 ): ActiveChainInfo {
-  const chainToContext = useChains(getCosmosChainNames(multiProvider));
-  const activeChainName = Object.entries(chainToContext).find(
-    ([, context]) => !!context.address,
-  )?.[0];
-
-  return useMemo<ActiveChainInfo>(() => {
-    if (!activeChainName) return {};
-    const chainMetadata = multiProvider.tryGetChainMetadata(activeChainName);
-    return {
-      chainName: activeChainName,
-      chainDisplayName: chainMetadata?.displayName || activeChainName,
-    };
-  }, [activeChainName, multiProvider]);
+  // CosmosKit doesn't have the concept of an active chain;
+  // wallets connect to each chain independently.
+  return useMemo(() => ({}) as ActiveChainInfo, []);
 }
 
 export function getCosmosChains(
