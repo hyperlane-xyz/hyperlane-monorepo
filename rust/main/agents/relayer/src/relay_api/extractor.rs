@@ -1,7 +1,7 @@
 use eyre::{eyre, Result};
 use hyperlane_core::{HyperlaneMessage, Indexer, H256};
 use std::{collections::HashMap, sync::Arc};
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
 
 /// Extract all Hyperlane messages from a transaction hash on a specific chain
 pub async fn extract_messages(
@@ -61,6 +61,25 @@ pub async fn extract_messages(
         "Successfully extracted messages from transaction"
     );
 
+    // Check once per tx whether this is a CCTP fast transfer.
+    // Errors are treated as false — the relay API will reject the request below.
+    let is_cctp_v2 = indexer.is_cctp_v2(tx_hash_512).await.unwrap_or_else(|e| {
+        warn!(
+            chain = %chain_name,
+            tx_hash = %tx_hash,
+            error = ?e,
+            "Failed to check for CCTP V2 burn event, treating as non-CCTP"
+        );
+        false
+    });
+
+    debug!(
+        chain = %chain_name,
+        tx_hash = %tx_hash,
+        is_cctp_v2,
+        "CCTP V2 burn event check result"
+    );
+
     // Convert all messages to ExtractedMessage structs
     let extracted_messages: Vec<ExtractedMessage> = messages
         .into_iter()
@@ -83,6 +102,7 @@ pub async fn extract_messages(
                 origin_domain,
                 destination_domain,
                 message_id,
+                is_cctp_v2,
             }
         })
         .collect();
@@ -96,4 +116,6 @@ pub struct ExtractedMessage {
     pub origin_domain: u32,
     pub destination_domain: u32,
     pub message_id: H256,
+    /// True when the transaction contains a Circle CCTP V2 `DepositForBurn` event.
+    pub is_cctp_v2: bool,
 }

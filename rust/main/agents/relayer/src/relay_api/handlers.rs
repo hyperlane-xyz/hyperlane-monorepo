@@ -6,7 +6,7 @@ use axum::{
     Json, Router,
 };
 use derive_new::new;
-use hyperlane_base::db::{HyperlaneDb, HyperlaneRocksDB};
+use hyperlane_base::db::HyperlaneRocksDB;
 use hyperlane_core::{HyperlaneMessage, Indexer, PendingOperationStatus, QueueOperation};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -399,11 +399,6 @@ async fn create_relay(
     );
 
     // 2. Get shared resources once
-    let dbs = state
-        .dbs
-        .as_ref()
-        .ok_or_else(|| ServerError::InternalError("Databases not configured".to_string()))?;
-
     let msg_ctxs = state
         .msg_ctxs
         .as_ref()
@@ -425,6 +420,16 @@ async fn create_relay(
             nonce = extracted.message.nonce,
             "Processing message"
         );
+
+        // Only CCTP V2 messages are eligible for the relay API fast path.
+        if !extracted.is_cctp_v2 {
+            if let Some(ref metrics) = state.metrics {
+                metrics.inc_failure("not_cctp_v2");
+            }
+            return Err(ServerError::InvalidRequest(
+                "Only CCTP V2 messages are supported via the relay API".to_string(),
+            ));
+        }
 
         // Get message context for (origin, destination)
         let msg_ctx = msg_ctxs
@@ -583,53 +588,11 @@ async fn create_relay(
             "Successfully sent message to processor channel"
         );
 
-        // Now persist to DB for metrics/audit (after successful channel send)
-        let origin_db = dbs.get(&extracted.origin_domain).ok_or_else(|| {
-            ServerError::InternalError(format!(
-                "No database configured for origin domain {}",
-                extracted.origin_domain
-            ))
-        })?;
-
-        // Store message by ID
-        if let Err(e) = origin_db.store_message_by_id(&extracted.message_id, &extracted.message) {
-            warn!(
-                message_id = ?extracted.message_id,
-                error = %e,
-                "Failed to persist message to DB (message already in processor queue)"
-            );
-        }
-
-        // Store nonce -> message_id mapping
-        if let Err(e) =
-            origin_db.store_message_id_by_nonce(&extracted.message.nonce, &extracted.message_id)
-        {
-            warn!(
-                message_id = ?extracted.message_id,
-                error = %e,
-                "Failed to persist nonce mapping to DB"
-            );
-        }
-
-        // Note: We don't update max_seen_nonce here because relay API bypasses indexer.
-        // The indexer will update max_seen_nonce when it catches up (even for duplicates).
-
-        // Store dispatched block number (0 = relay API, real block number set by indexer later)
-        if let Err(e) =
-            origin_db.store_dispatched_block_number_by_nonce(&extracted.message.nonce, &0)
-        {
-            warn!(
-                message_id = ?extracted.message_id,
-                error = %e,
-                "Failed to persist block number to DB"
-            );
-        }
-
-        debug!(
-            message_id = ?extracted.message_id,
-            nonce = extracted.message.nonce,
-            "Persisted message to database"
-        );
+        // Intentionally no DB writes here. The relay API is a pure fast-path signal to
+        // the processor. Writing nonce→messageId mappings before the origin tx is confirmed
+        // would corrupt the DB on reorgs. The contracts indexer writes to the DB once the
+        // tx is finalized; if the message was already delivered by then, prepare() will
+        // detect it via mailbox.delivered() and skip resubmission without wasting gas.
 
         // Add to response
         processed_messages.push(MessageInfo {

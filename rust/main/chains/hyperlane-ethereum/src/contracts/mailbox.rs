@@ -192,6 +192,30 @@ where
             .collect();
         Ok(logs)
     }
+
+    async fn is_cctp_v2(&self, tx_hash: H512) -> ChainResult<bool> {
+        use ethers::types::H256 as EthersH256;
+        use ethers_core::utils::keccak256;
+
+        // keccak256("DepositForBurn(address,uint256,address,bytes32,uint32,bytes32,bytes32,uint256,uint32,bytes)")
+        // Distinct from V1 whose first param is `uint64 indexed nonce`.
+        let cctp_v2_topic = EthersH256::from(keccak256(
+            b"DepositForBurn(address,uint256,address,bytes32,uint32,bytes32,bytes32,uint256,uint32,bytes)",
+        ));
+
+        let ethers_tx_hash: EthersH256 = tx_hash.into();
+        let receipt = self
+            .provider
+            .get_transaction_receipt(ethers_tx_hash)
+            .await
+            .map_err(ChainCommunicationError::from_other)?;
+
+        Ok(receipt.map_or(false, |r| {
+            r.logs
+                .iter()
+                .any(|log| log.topics.first() == Some(&cctp_v2_topic))
+        }))
+    }
 }
 
 #[async_trait]

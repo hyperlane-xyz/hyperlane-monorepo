@@ -76,6 +76,12 @@ pub trait Indexer<T: Sized>: Send + Sync + Debug {
     ) -> ChainResult<Vec<(Indexed<T>, LogMeta)>> {
         Ok(vec![])
     }
+
+    /// Check whether a transaction originates from a CCTP V2 fast transfer.
+    /// Returns false by default (non-EVM chains don't support CCTP).
+    async fn is_cctp_v2(&self, _tx_hash: H512) -> ChainResult<bool> {
+        Ok(false)
+    }
 }
 
 /// Interface for indexing data in sequence.
