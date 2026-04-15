@@ -9,11 +9,11 @@ import {
 } from '@solana/kit';
 import type {
   AccountMeta as KitAccountMeta,
-  Address,
   Instruction,
   TransactionSigner,
 } from '@solana/kit';
 
+import { COMPUTE_BUDGET_PROGRAM_ID } from './constants.js';
 import type { SvmTransaction } from './types.js';
 
 // -- Structural interfaces for legacy @solana/web3.js types --
@@ -41,8 +41,6 @@ export interface LegacyKeypair {
   secretKey: Uint8Array;
 }
 
-const COMPUTE_BUDGET_PROGRAM =
-  'ComputeBudget111111111111111111111111111111' as Address;
 const SET_COMPUTE_UNIT_LIMIT_DISCRIMINATOR = 2;
 
 function convertAccountMeta(meta: LegacyAccountMeta): KitAccountMeta {
@@ -83,7 +81,8 @@ export async function convertLegacySolanaTransaction(
   const instructions: Instruction[] = [];
 
   for (const ix of legacyTx.instructions) {
-    const isComputeBudget = ix.programId.toBase58() === COMPUTE_BUDGET_PROGRAM;
+    const isComputeBudget =
+      ix.programId.toBase58() === COMPUTE_BUDGET_PROGRAM_ID;
 
     if (
       isComputeBudget &&
@@ -126,6 +125,7 @@ export function isLegacySolanaTransaction(
   tx: unknown,
 ): tx is LegacyTransaction {
   if (typeof tx !== 'object' || tx === null) return false;
+  // CAST: tx is narrowed to non-null object above; cast needed to access properties on unknown.
   const maybeIx = (tx as Record<string, unknown>).instructions;
   if (!Array.isArray(maybeIx) || maybeIx.length === 0) return false;
   const first = maybeIx[0];
