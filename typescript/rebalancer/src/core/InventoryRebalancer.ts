@@ -11,7 +11,6 @@ import {
   ProviderType,
   SealevelCoreAdapter,
   TOKEN_COLLATERALIZED_STANDARDS,
-  TokenAmount,
   type WarpTypedTransaction,
   type WarpCore,
   WarpTxCategory,
@@ -964,27 +963,24 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     // Convert pre-calculated gas quote to TokenAmount for WarpCore
     const originChainMetadata = this.multiProvider.getChainMetadata(origin);
     const igpAddressOrDenom = gasQuote.igpQuote.addressOrDenom;
-    const igpToken =
-      !igpAddressOrDenom || isZeroishAddress(igpAddressOrDenom)
-        ? Token.FromChainMetadataNativeToken(originChainMetadata)
-        : this.warpCore.findToken(origin, igpAddressOrDenom);
-    assert(igpToken, `IGP fee token ${igpAddressOrDenom} is unknown`);
-    const interchainFee = new TokenAmount(
-      gasQuote.igpQuote.amount,
-      igpToken,
-    ) as TokenAmount & { token: IToken };
+    let igpToken: IToken;
+    if (!igpAddressOrDenom || isZeroishAddress(igpAddressOrDenom)) {
+      igpToken = Token.FromChainMetadataNativeToken(originChainMetadata);
+    } else {
+      const searchResult = this.warpCore.findToken(origin, igpAddressOrDenom);
+      assert(searchResult, `IGP fee token ${igpAddressOrDenom} is unknown`);
+      igpToken = searchResult;
+    }
+    const interchainFee = igpToken.amount(gasQuote.igpQuote.amount);
 
-    let tokenFeeQuote: (TokenAmount & { token: IToken }) | undefined;
+    let tokenFeeQuote: ReturnType<IToken['amount']> | undefined;
     if (gasQuote.tokenFeeQuote?.amount) {
       const feeAddress = gasQuote.tokenFeeQuote.addressOrDenom;
-      const feeToken =
+      const feeToken: IToken =
         !feeAddress || isZeroishAddress(feeAddress)
           ? Token.FromChainMetadataNativeToken(originChainMetadata)
           : originToken;
-      tokenFeeQuote = new TokenAmount(
-        gasQuote.tokenFeeQuote.amount,
-        feeToken,
-      ) as TokenAmount & { token: IToken };
+      tokenFeeQuote = feeToken.amount(gasQuote.tokenFeeQuote.amount);
     }
 
     const originTokenAmount = originToken.amount(amount);
