@@ -805,32 +805,32 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
   ];
 };
 
-// Resource requests are based on observed usage found in https://abacusworks.grafana.net/d/FSR9YWr7k
+// Resource requests are based on a Grafana Cloud review from January 15, 2026 to April 15, 2026.
 const relayerResources = {
   requests: {
-    cpu: '20000m',
-    memory: '55G',
+    cpu: '10000m',
+    memory: '52G',
   },
 };
 
 const fastPathRelayerResources = {
   requests: {
-    cpu: '8000m',
-    memory: '16G',
+    cpu: '1000m',
+    memory: '4Gi',
   },
 };
 
 const validatorResources = {
   requests: {
-    cpu: '500m',
-    memory: '1G',
+    cpu: '350m',
+    memory: '512Mi',
   },
 };
 
 const scraperResources = {
   requests: {
-    cpu: '2000m',
-    memory: '4G',
+    cpu: '1500m',
+    memory: '1Gi',
   },
 };
 
