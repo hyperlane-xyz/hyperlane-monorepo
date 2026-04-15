@@ -140,6 +140,14 @@ export class SvmProvider implements AltVM.IProvider<SvmTransaction> {
     return LAMPORTS_PER_SIGNATURE;
   }
 
+  async isMessageDelivered(
+    _req: AltVM.ReqIsMessageDelivered,
+  ): Promise<boolean> {
+    throw new Error(
+      'isMessageDelivered not supported on Sealevel, use the Artifact API instead',
+    );
+  }
+
   // ### QUERY WARP ###
 
   async getToken(_req: AltVM.ReqGetToken): Promise<AltVM.ResGetToken> {

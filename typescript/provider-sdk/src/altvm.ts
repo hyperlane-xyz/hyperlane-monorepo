@@ -180,6 +180,10 @@ export interface IProvider<T = any> {
     req: ReqEstimateTransactionFee<T>,
   ): Promise<ResEstimateTransactionFee>;
 
+  // ### QUERY CORE ###
+
+  isMessageDelivered(req: ReqIsMessageDelivered): Promise<boolean>;
+
   // ### QUERY WARP ###
 
   getToken(req: ReqGetToken): Promise<ResGetToken>;

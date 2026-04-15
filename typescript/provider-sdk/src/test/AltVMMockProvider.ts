@@ -35,6 +35,14 @@ export class MockProvider implements AltVM.IProvider {
     throw new Error(`not implemented`);
   }
 
+  // ### QUERY CORE ###
+
+  async isMessageDelivered(
+    _req: AltVM.ReqIsMessageDelivered,
+  ): Promise<boolean> {
+    throw new Error(`not implemented`);
+  }
+
   // ### QUERY WARP ###
 
   async getToken(_req: AltVM.ReqGetToken): Promise<AltVM.ResGetToken> {

@@ -34,6 +34,7 @@ import {
   toBigInt,
   toNumber,
 } from '../contracts.js';
+import { isMessageDelivered } from '../mailbox/mailbox-query.js';
 import { StarknetAnnotatedTx } from '../types.js';
 
 let tokenTypeByClassHash: Map<string, AltVM.TokenType> | undefined;
@@ -383,6 +384,10 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
     throw new Error(
       'Starknet transaction fee estimation is unsupported without an account-backed signer',
     );
+  }
+
+  async isMessageDelivered(req: AltVM.ReqIsMessageDelivered): Promise<boolean> {
+    return isMessageDelivered(this.provider, req.mailboxAddress, req.messageId);
   }
 
   // ### QUERY WARP ###
