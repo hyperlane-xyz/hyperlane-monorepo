@@ -2,7 +2,10 @@ import { expect } from 'chai';
 
 import { ProviderType } from '@hyperlane-xyz/sdk';
 
-import { fetchSealevelReceiptWithLogs } from './transfer.js';
+import {
+  fetchSealevelReceiptWithLogs,
+  submitAltVmTransferTx,
+} from './transfer.js';
 
 describe('fetchSealevelReceiptWithLogs', () => {
   it('polls until Solana transaction logs are available', async () => {
@@ -93,6 +96,64 @@ describe('fetchSealevelReceiptWithLogs', () => {
     );
 
     expect(calls).to.equal(2);
+    expect(typedReceipt).to.deep.equal({
+      type: ProviderType.SolanaWeb3,
+      receipt,
+    });
+  });
+});
+
+describe('submitAltVmTransferTx', () => {
+  it('forwards Solana extraSigners through the CLI signer path', async () => {
+    const signerCalls: unknown[] = [];
+    const extraSigner = {
+      publicKey: { toBase58: () => 'extra' },
+      secretKey: new Uint8Array([1]),
+    };
+    const receipt = {
+      meta: { logMessages: ['Dispatched message to 1234, ID deadbeef'] },
+    };
+    const context = {
+      multiProtocolProvider: {
+        getSolanaWeb3Provider: () => ({
+          getTransaction: async () => receipt,
+        }),
+      },
+    } as any;
+    const signer = {
+      sendAndConfirmTransaction: async (transaction: unknown) => {
+        signerCalls.push(transaction);
+        return { signature: 'solana-signature' };
+      },
+    };
+    const transaction = {
+      instructions: [
+        {
+          programId: { toBase58: () => 'program' },
+          keys: [],
+          data: new Uint8Array([1]),
+        },
+      ],
+    };
+
+    const typedReceipt = await submitAltVmTransferTx({
+      context,
+      signer,
+      origin: 'solanamainnet',
+      tx: {
+        type: ProviderType.SolanaWeb3,
+        transaction,
+        extraSigners: [extraSigner],
+      },
+      timeoutSec: 30,
+    });
+
+    expect(signerCalls).to.deep.equal([
+      {
+        ...transaction,
+        extraSigners: [extraSigner],
+      },
+    ]);
     expect(typedReceipt).to.deep.equal({
       type: ProviderType.SolanaWeb3,
       receipt,

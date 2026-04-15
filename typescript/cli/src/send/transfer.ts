@@ -153,6 +153,55 @@ export async function fetchSealevelReceiptWithLogs(
   );
 }
 
+type AltVmTransferSigner = {
+  sendAndConfirmTransaction(transaction: unknown): Promise<TxReceipt>;
+};
+
+type ExecutableAltVmTransfer = {
+  type: ProviderType;
+  transaction: unknown;
+  extraSigners?: unknown[];
+};
+
+export async function submitAltVmTransferTx({
+  context,
+  signer,
+  origin,
+  tx,
+  timeoutSec,
+}: {
+  context: Pick<WriteCommandContext, 'multiProtocolProvider'>;
+  signer: AltVmTransferSigner;
+  origin: ChainName;
+  tx: ExecutableAltVmTransfer;
+  timeoutSec: number;
+}): Promise<TypedTransactionReceipt> {
+  if (!isAnnotatedTx(tx.transaction)) {
+    throw new Error(
+      `Expected AnnotatedTx for non-EVM transfer execution, got ${typeof tx.transaction}`,
+    );
+  }
+
+  const txReceipt = await signer.sendAndConfirmTransaction(
+    tx.type === ProviderType.SolanaWeb3 && 'extraSigners' in tx
+      ? { ...tx.transaction, extraSigners: tx.extraSigners }
+      : tx.transaction,
+  );
+
+  return tx.type === ProviderType.SolanaWeb3
+    ? fetchSealevelReceiptWithLogs(
+        context,
+        origin,
+        txReceipt.signature,
+        SEALEVEL_RECEIPT_POLL_INTERVAL_MS,
+        Math.max(
+          SEALEVEL_RECEIPT_MAX_ATTEMPTS,
+          Math.ceil((timeoutSec * 1000) / SEALEVEL_RECEIPT_POLL_INTERVAL_MS),
+        ),
+      )
+    : toTypedAltVmReceipt(tx.type, txReceipt);
+}
+
 export async function sendTestTransfer({
   context,
   warpCoreConfig,
@@ -506,31 +555,13 @@ async function executeDelivery({
       }
     } else {
       const signer = mustGet(altVmSigners, origin);
-      if (!isAnnotatedTx(tx.transaction)) {
-        throw new Error(
-          `Expected AnnotatedTx for non-EVM transfer execution, got ${typeof tx.transaction}`,
-        );
-      }
-      const txReceipt = await signer.sendAndConfirmTransaction(
-        tx.type === ProviderType.SolanaWeb3 && 'extraSigners' in tx
-          ? { ...tx.transaction, extraSigners: tx.extraSigners }
-          : tx.transaction,
-      );
-      const typedReceipt =
-        tx.type === ProviderType.SolanaWeb3
-          ? await fetchSealevelReceiptWithLogs(
-              context,
-              origin,
-              txReceipt.signature,
-              SEALEVEL_RECEIPT_POLL_INTERVAL_MS,
-              Math.max(
-                SEALEVEL_RECEIPT_MAX_ATTEMPTS,
-                Math.ceil(
-                  (timeoutSec * 1000) / SEALEVEL_RECEIPT_POLL_INTERVAL_MS,
-                ),
-              ),
-            )
-          : toTypedAltVmReceipt(tx.type, txReceipt);
+      const typedReceipt = await submitAltVmTransferTx({
+        context,
+        signer,
+        origin,
+        tx,
+        timeoutSec,
+      });
       txReceipts.push(typedReceipt);
       if (tx.category === WarpTxCategory.Transfer) {
         transferReceipt = typedReceipt;
