@@ -122,12 +122,13 @@ async function main(): Promise<void> {
     // Initialize registry (uses env var or defaults to GitHub registry)
     // For GitHub registries, REGISTRY_URI can include /tree/{commit} to pin to a specific version
     const registryUri = process.env.REGISTRY_URI || DEFAULT_GITHUB_REGISTRY;
+    const registryUris = registryUri.split(',').map((u) => u.trim());
     const registry = getRegistry({
-      registryUris: [registryUri],
+      registryUris,
       enableProxy: true,
       logger: rootLogger,
     });
-    logger.info({ registryUri }, '✅ Initialized registry');
+    logger.info({ registryUris }, '✅ Initialized registry');
 
     // Get chain metadata from registry
     const chainMetadata = await registry.getMetadata();

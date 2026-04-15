@@ -3,14 +3,11 @@ import type { Logger } from 'pino';
 import {
   type ChainName,
   HyperlaneCore,
-  type InterchainGasQuote,
   type MultiProtocolSignerSignerAccountInfo,
   type MultiProvider,
-  Token,
   ProviderType,
   SealevelCoreAdapter,
   TOKEN_COLLATERALIZED_STANDARDS,
-  TokenAmount,
   type WarpTypedTransaction,
   type WarpCore,
   WarpTxCategory,
@@ -22,7 +19,6 @@ import {
   assert,
   ensure0x,
   isEVMLike,
-  isZeroishAddress,
 } from '@hyperlane-xyz/utils';
 
 import type { ExternalBridgeType } from '../config/types.js';
@@ -81,6 +77,68 @@ type BridgeCapacity = {
   maxSourceInput: bigint;
   maxTargetOutput: bigint;
 };
+
+type BridgeQuoteMode = 'forward' | 'reverse';
+
+const RECOVERABLE_MAX_TRANSFER_ERROR_MESSAGES = [
+  'balance may be insufficient',
+  'transfer amount exceeds balance',
+  'insufficient balance',
+];
+
+function hasRecoverableMaxTransferErrorMessage(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes('unpredictable_gas_limit') ||
+    RECOVERABLE_MAX_TRANSFER_ERROR_MESSAGES.some((pattern) =>
+      normalized.includes(pattern),
+    )
+  );
+}
+
+function isRecoverableMaxTransferProbeError(error: unknown): boolean {
+  const seen = new Set<unknown>();
+  const stack: unknown[] = [error];
+
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (current == null) continue;
+
+    if (typeof current === 'string') {
+      if (hasRecoverableMaxTransferErrorMessage(current)) return true;
+      continue;
+    }
+
+    if (typeof current !== 'object') continue;
+    if (seen.has(current)) continue;
+    seen.add(current);
+
+    const candidate = current as {
+      code?: unknown;
+      message?: unknown;
+      cause?: unknown;
+      error?: unknown;
+    };
+
+    if (
+      typeof candidate.code === 'string' &&
+      candidate.code.toUpperCase() === 'UNPREDICTABLE_GAS_LIMIT'
+    ) {
+      return true;
+    }
+
+    if (
+      typeof candidate.message === 'string' &&
+      hasRecoverableMaxTransferErrorMessage(candidate.message)
+    ) {
+      return true;
+    }
+
+    stack.push(candidate.cause, candidate.error);
+  }
+
+  return false;
+}
 
 /**
  * Configuration for the InventoryRebalancer.
@@ -552,6 +610,8 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     const sourceToken = this.getTokenForChain(destination);
     assert(sourceToken, `No token found for source chain: ${destination}`);
     const requestedLocalAmount = denormalizeToLocal(amount, sourceToken);
+    const executionSender = this.getInventorySignerAddress(destination);
+    const executionRecipient = this.getInventorySignerAddress(origin);
 
     // Check available inventory on the DESTINATION (deficit) chain
     // We need inventory here because transferRemote is called FROM this chain
@@ -578,11 +638,68 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       this.multiProvider,
       this.warpCore.multiProvider,
       this.getTokenForChain.bind(this),
-      this.getInventorySignerAddress(destination),
+      executionSender,
       isNativeTokenStandard,
       this.logger,
     );
-    const { maxTransferable, minViableTransfer } = costs;
+    const { minViableTransfer } = costs;
+    let maxTransferable = costs.maxTransferable;
+
+    if (!isNativeTokenStandard(sourceToken.standard)) {
+      if (availableInventory === 0n) {
+        maxTransferable = 0n;
+        this.logger.debug(
+          {
+            fromChain: destination,
+            toChain: origin,
+            requestedAmount: requestedLocalAmount.toString(),
+          },
+          'Skipping fee-aware max transferable probe because destination inventory is zero',
+        );
+      } else {
+        try {
+          const feeAwareMaxTransfer = await this.warpCore.getMaxTransferAmount({
+            balance: sourceToken.amount(availableInventory),
+            destination: origin,
+            sender: executionSender,
+            recipient: executionRecipient,
+          });
+
+          maxTransferable =
+            feeAwareMaxTransfer.amount < requestedLocalAmount
+              ? feeAwareMaxTransfer.amount
+              : requestedLocalAmount;
+
+          this.logger.debug(
+            {
+              fromChain: destination,
+              toChain: origin,
+              availableInventory: availableInventory.toString(),
+              requestedAmount: requestedLocalAmount.toString(),
+              feeAwareMaxTransferable: maxTransferable.toString(),
+            },
+            'Calculated fee-aware max transferable amount for non-native route',
+          );
+        } catch (error) {
+          if (!isRecoverableMaxTransferProbeError(error)) {
+            throw error;
+          }
+
+          maxTransferable = 0n;
+          this.logger.warn(
+            {
+              fromChain: destination,
+              toChain: origin,
+              availableInventory: availableInventory.toString(),
+              requestedAmount: requestedLocalAmount.toString(),
+              error: error instanceof Error ? error.message : String(error),
+              intentId: intent.id,
+            },
+            'Fee-aware max transferable probe failed due to insufficient balance, falling back to external bridge',
+          );
+        }
+      }
+    }
 
     // Calculate total inventory across all chains
     // Note: consumedInventory tracking is handled separately within this cycle
@@ -642,7 +759,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       const result = await this.executeTransferRemote(
         swappedRoute,
         intent,
-        costs.gasQuote!,
         fulfilledCanonicalAmount,
       );
       // Return original strategy route in result (not the swapped execution route)
@@ -669,7 +785,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         const result = await this.executeTransferRemote(
           partialSwappedRoute,
           intent,
-          costs.gasQuote!,
           alignedExecution.messageAmount,
         );
 
@@ -777,6 +892,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       chain: ChainName;
       maxSourceInput: bigint;
       targetOutput: bigint;
+      quoteMode: BridgeQuoteMode;
     }> = [];
     let totalPlanned = 0n;
 
@@ -788,11 +904,14 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         source.maxTargetOutput >= remaining
           ? remaining
           : source.maxTargetOutput;
+      const quoteMode: BridgeQuoteMode =
+        source.maxTargetOutput > remaining ? 'reverse' : 'forward';
 
       bridgePlans.push({
         chain: source.chain,
         maxSourceInput: source.maxSourceInput,
         targetOutput,
+        quoteMode,
       });
       totalPlanned += targetOutput;
     }
@@ -809,6 +928,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
           chain: p.chain,
           maxSourceInput: p.maxSourceInput.toString(),
           targetOutput: p.targetOutput.toString(),
+          quoteMode: p.quoteMode,
         })),
         totalPlanned: totalPlanned.toString(),
         targetWithBuffer: targetWithBuffer.toString(),
@@ -825,6 +945,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
           destination,
           plan.targetOutput,
           plan.maxSourceInput,
+          plan.quoteMode,
           intent,
           route.externalBridge,
         ),
@@ -908,12 +1029,10 @@ export class InventoryRebalancer implements IInventoryRebalancer {
    *
    * @param route - The transfer route (swapped direction)
    * @param intent - The rebalance intent being executed
-   * @param gasQuote - Pre-calculated gas quote from calculateTransferCosts
    */
   private async executeTransferRemote(
     route: InventoryRoute,
     intent: RebalanceIntent,
-    gasQuote: InterchainGasQuote,
     fulfilledCanonicalAmount: bigint,
   ): Promise<InventoryExecutionResult> {
     const { origin, destination, amount } = route;
@@ -926,37 +1045,9 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     const destinationDomain = this.multiProvider.getDomainId(destination);
 
     this.logger.debug(
-      {
-        origin,
-        destination,
-        amount: amount.toString(),
-        gasQuote: {
-          igpQuote: gasQuote.igpQuote.amount.toString(),
-          tokenFeeQuote: gasQuote.tokenFeeQuote?.amount?.toString() ?? 'none',
-        },
-      },
-      'Using pre-calculated gas quote for transferRemote',
+      { origin, destination, amount: amount.toString() },
+      'Building transferRemote transactions for exact execution amount',
     );
-
-    // Convert pre-calculated gas quote to TokenAmount for WarpCore
-    const originChainMetadata = this.multiProvider.getChainMetadata(origin);
-    const igpAddressOrDenom = gasQuote.igpQuote.addressOrDenom;
-    const igpToken =
-      !igpAddressOrDenom || isZeroishAddress(igpAddressOrDenom)
-        ? Token.FromChainMetadataNativeToken(originChainMetadata)
-        : this.warpCore.findToken(origin, igpAddressOrDenom);
-    assert(igpToken, `IGP fee token ${igpAddressOrDenom} is unknown`);
-    const interchainFee = new TokenAmount(gasQuote.igpQuote.amount, igpToken);
-
-    let tokenFeeQuote: TokenAmount | undefined;
-    if (gasQuote.tokenFeeQuote?.amount) {
-      const feeAddress = gasQuote.tokenFeeQuote.addressOrDenom;
-      const feeToken =
-        !feeAddress || isZeroishAddress(feeAddress)
-          ? Token.FromChainMetadataNativeToken(originChainMetadata)
-          : originToken;
-      tokenFeeQuote = new TokenAmount(gasQuote.tokenFeeQuote.amount, feeToken);
-    }
 
     const originTokenAmount = originToken.amount(amount);
     const transferTxs = await this.warpCore.getTransferRemoteTxs({
@@ -964,8 +1055,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       destination,
       sender: this.getInventorySignerAddress(origin),
       recipient: this.getInventorySignerAddress(destination),
-      interchainFee,
-      tokenFeeQuote,
     });
     assert(
       transferTxs.length > 0,
@@ -1296,13 +1385,15 @@ export class InventoryRebalancer implements IInventoryRebalancer {
   /**
    * Execute inventory movement from source chain to target chain via LiFi bridge.
    *
-   * Uses reverse quotes (`toAmount`) so plans are expressed in target-chain local
-   * units and source-local spend is discovered by the bridge quote.
+   * Quote mode is chosen during planning:
+   * - `reverse`: request an exact target-chain output when the source has headroom
+   * - `forward`: spend the source cap directly when source inventory is the limiter
    *
    * @param sourceChain - Chain to move inventory from
    * @param targetChain - Chain to move inventory to (origin chain for rebalancing)
    * @param targetOutputAmount - Destination-local amount to receive
    * @param maxSourceInput - Maximum source-local amount available for this plan
+   * @param quoteMode - Whether to execute this bridge plan as exact-input or exact-output
    * @param intent - Rebalance intent for tracking
    * @param externalBridgeType - External bridge type to use
    * @returns Result with success status and optional txHash/error
@@ -1312,6 +1403,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     targetChain: ChainName,
     targetOutputAmount: bigint,
     maxSourceInput: bigint,
+    quoteMode: BridgeQuoteMode,
     intent: RebalanceIntent,
     externalBridgeType: ExternalBridgeType,
   ): Promise<{ success: boolean; txHash?: string; error?: string }> {
@@ -1402,15 +1494,42 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
     try {
       const externalBridge = this.getExternalBridge(externalBridgeType);
-      const quote = await externalBridge.quote({
-        fromChain: sourceChainId,
-        toChain: targetChainId,
-        fromToken: fromTokenAddress,
-        toToken: toTokenAddress,
-        toAmount: effectiveTargetOutput,
-        fromAddress: this.getInventorySignerAddress(sourceChain),
-        toAddress: this.getInventorySignerAddress(targetChain),
-      });
+      const fromAddress = this.getInventorySignerAddress(sourceChain);
+      const toAddress = this.getInventorySignerAddress(targetChain);
+      const quoteWithMode = async (mode: BridgeQuoteMode) =>
+        externalBridge.quote({
+          fromChain: sourceChainId,
+          toChain: targetChainId,
+          fromToken: fromTokenAddress,
+          toToken: toTokenAddress,
+          ...(mode === 'forward'
+            ? { fromAmount: maxSourceInput }
+            : { toAmount: effectiveTargetOutput }),
+          fromAddress,
+          toAddress,
+        });
+
+      let quoteModeUsed = quoteMode;
+      let quote = await quoteWithMode(quoteModeUsed);
+
+      if (quoteModeUsed === 'reverse' && quote.fromAmount > maxSourceInput) {
+        this.logger.warn(
+          {
+            sourceChain,
+            targetChain,
+            plannedQuoteMode: quoteMode,
+            requestedTargetOutput: targetOutputAmount.toString(),
+            effectiveTargetOutput: effectiveTargetOutput.toString(),
+            quotedInput: quote.fromAmount.toString(),
+            maxSourceInput: maxSourceInput.toString(),
+            intentId: intent.id,
+          },
+          'Reverse bridge quote exceeded source capacity, retrying with forward quote',
+        );
+
+        quoteModeUsed = 'forward';
+        quote = await quoteWithMode(quoteModeUsed);
+      }
 
       const inputRequired = quote.fromAmount;
       if (inputRequired > maxSourceInput) {
@@ -1430,6 +1549,8 @@ export class InventoryRebalancer implements IInventoryRebalancer {
           requestedTargetOutputEth: (Number(targetOutputAmount) / 1e18).toFixed(
             6,
           ),
+          quoteModePlanned: quoteMode,
+          quoteModeUsed,
           effectiveTargetOutput: effectiveTargetOutput.toString(),
           effectiveTargetOutputEth: (
             Number(effectiveTargetOutput) / 1e18
@@ -1443,7 +1564,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
           intentId: intent.id,
           adjustedForMinViable: effectiveTargetOutput > targetOutputAmount,
         },
-        'Executing inventory movement via LiFi reverse quote',
+        'Executing inventory movement via bridge quote',
       );
 
       this.logger.debug(

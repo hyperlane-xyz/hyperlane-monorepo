@@ -308,6 +308,7 @@ catalogs:
       version: 3.5.4
 
 overrides:
+  '@ethersproject/abi': 5.8.0
   async: ^2.6.4
   fetch-ponyfill: ^7.1
   flat: ^5.0.2
@@ -379,7 +380,7 @@ importers:
         version: 3.2.12
     devDependencies:
       '@ethersproject/abi':
-        specifier: '*'
+        specifier: 5.8.0
         version: 5.8.0
       '@ethersproject/providers':
         specifier: '*'
@@ -570,7 +571,7 @@ importers:
         specifier: 'catalog:'
         version: 3.3.3(bufferutil@4.0.9)(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(utf-8-validate@5.0.10)
       '@ethersproject/abi':
-        specifier: '*'
+        specifier: 5.8.0
         version: 5.8.0
       '@ethersproject/providers':
         specifier: '*'
@@ -700,7 +701,7 @@ importers:
         specifier: 'catalog:'
         version: 0.32.4(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       '@ethersproject/abi':
-        specifier: '*'
+        specifier: 5.8.0
         version: 5.8.0
       '@ethersproject/constants':
         specifier: '*'
@@ -1182,7 +1183,7 @@ importers:
         specifier: ^4.0.10
         version: 4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))
       '@ethersproject/abi':
-        specifier: '*'
+        specifier: 5.8.0
         version: 5.8.0
       '@ethersproject/providers':
         specifier: '*'
@@ -1360,7 +1361,7 @@ importers:
         specifier: 'catalog:'
         version: 3.3.3(bufferutil@4.0.9)(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(utf-8-validate@5.0.10)
       '@ethersproject/abi':
-        specifier: '*'
+        specifier: 5.8.0
         version: 5.8.0
       '@ethersproject/experimental':
         specifier: ^5.7.0
@@ -2199,7 +2200,7 @@ importers:
         specifier: 'catalog:'
         version: 0.32.4(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       '@ethersproject/abi':
-        specifier: '*'
+        specifier: 5.8.0
         version: 5.8.0
       '@hyperlane-xyz/aleo-sdk':
         specifier: workspace:*
@@ -2481,7 +2482,7 @@ importers:
   typescript/tron-sdk:
     dependencies:
       '@ethersproject/abi':
-        specifier: '*'
+        specifier: 5.8.0
         version: 5.8.0
       '@ethersproject/providers':
         specifier: '*'
@@ -4893,9 +4894,6 @@ packages:
 
   '@ethereumjs/vm@5.6.0':
     resolution: {integrity: sha512-J2m/OgjjiGdWF2P9bj/4LnZQ1zRoZhY8mRNVw/N3tXliGI8ai1sI1mlDPkLpeUUM4vq54gH6n0ZlSpz8U/qlYQ==}
-
-  '@ethersproject/abi@5.0.9':
-    resolution: {integrity: sha512-ily2OufA2DTrxkiHQw5GqbkMSnNKuwZBqKsajtT0ERhZy1r9w2CpW1bmtRMIGzaqQxCdn/GEoFogexk72cBBZQ==}
 
   '@ethersproject/abi@5.8.0':
     resolution: {integrity: sha512-b9YS/43ObplgyV6SlyQsG53/vkSal0MNA1fskSC4mbnCMi8R+NkcH8K9FPYNESf6jUefBUniE4SOKms0E/KK1Q==}
@@ -9557,7 +9555,7 @@ packages:
   '@typechain/ethers-v5@11.1.2':
     resolution: {integrity: sha512-ID6pqWkao54EuUQa0P5RgjvfA3MYqxUQKpbGKERbsjBW5Ra7EIXvbMlPp2pcP5IAdUkyMCFYsP2SN5q7mPdLDQ==}
     peerDependencies:
-      '@ethersproject/abi': ^5.0.0
+      '@ethersproject/abi': 5.8.0
       '@ethersproject/providers': ^5.0.0
       ethers: ^5.1.3
       typechain: ^8.3.2
@@ -21196,18 +21194,6 @@ snapshots:
       rustbn.js: 0.2.0
     transitivePeerDependencies:
       - supports-color
-
-  '@ethersproject/abi@5.0.9':
-    dependencies:
-      '@ethersproject/address': 5.8.0
-      '@ethersproject/bignumber': 5.8.0
-      '@ethersproject/bytes': 5.8.0
-      '@ethersproject/constants': 5.8.0
-      '@ethersproject/hash': 5.8.0
-      '@ethersproject/keccak256': 5.8.0
-      '@ethersproject/logger': 5.8.0
-      '@ethersproject/properties': 5.8.0
-      '@ethersproject/strings': 5.8.0
 
   '@ethersproject/abi@5.8.0':
     dependencies:
@@ -39452,7 +39438,7 @@ snapshots:
   tronweb@5.3.5(bufferutil@4.0.9)(utf-8-validate@5.0.10):
     dependencies:
       '@babel/runtime': 7.28.6
-      '@ethersproject/abi': 5.0.9
+      '@ethersproject/abi': 5.8.0
       '@tronweb3/google-protobuf': 3.21.2
       axios: 1.13.6
       bignumber.js: 9.0.1
