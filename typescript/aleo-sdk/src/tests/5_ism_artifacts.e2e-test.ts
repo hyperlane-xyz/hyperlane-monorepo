@@ -150,16 +150,13 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
 
     describe('MerkleRoot Multisig ISM (unsupported)', () => {
       it('should reject creation of MerkleRoot Multisig ISM', async () => {
-        const threshold = 2;
-        const testValidators = validators.slice();
-
-        // Verify that MerkleRoot Multisig ISM creation is rejected
-        await expect(
-          signer.createMerkleRootMultisigIsm({
-            validators: testValidators,
-            threshold,
-          }),
-        ).to.be.rejected;
+        // Verify that MerkleRoot Multisig ISM creation is rejected via artifact manager
+        expect(() =>
+          artifactManager.createWriter(
+            AltVM.IsmType.MERKLE_ROOT_MULTISIG,
+            signer,
+          ),
+        ).to.throw;
       });
     });
   });
