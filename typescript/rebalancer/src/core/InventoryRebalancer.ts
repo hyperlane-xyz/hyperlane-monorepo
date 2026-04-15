@@ -4,7 +4,6 @@ import {
   type ChainName,
   HyperlaneCore,
   type InterchainGasQuote,
-  type IToken,
   type MultiProtocolSignerSignerAccountInfo,
   type MultiProvider,
   Token,
@@ -969,22 +968,16 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         ? Token.FromChainMetadataNativeToken(originChainMetadata)
         : this.warpCore.findToken(origin, igpAddressOrDenom);
     assert(igpToken, `IGP fee token ${igpAddressOrDenom} is unknown`);
-    const interchainFee = new TokenAmount<IToken>(
-      gasQuote.igpQuote.amount,
-      igpToken,
-    );
+    const interchainFee = new TokenAmount(gasQuote.igpQuote.amount, igpToken);
 
-    let tokenFeeQuote: TokenAmount<IToken> | undefined;
+    let tokenFeeQuote: TokenAmount | undefined;
     if (gasQuote.tokenFeeQuote?.amount) {
       const feeAddress = gasQuote.tokenFeeQuote.addressOrDenom;
       const feeToken =
         !feeAddress || isZeroishAddress(feeAddress)
           ? Token.FromChainMetadataNativeToken(originChainMetadata)
           : originToken;
-      tokenFeeQuote = new TokenAmount<IToken>(
-        gasQuote.tokenFeeQuote.amount,
-        feeToken,
-      );
+      tokenFeeQuote = new TokenAmount(gasQuote.tokenFeeQuote.amount, feeToken);
     }
 
     const originTokenAmount = originToken.amount(amount);
