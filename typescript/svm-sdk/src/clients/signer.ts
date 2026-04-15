@@ -27,6 +27,7 @@ import type { InstructionAccountMeta } from '../instructions/utils.js';
 
 import { createRpc } from '../rpc.js';
 import {
+  type Web3TransactionLike,
   buildTransactionMessage,
   normalizeTransaction,
   serializeUnsignedTransaction,
@@ -42,10 +43,13 @@ import { SvmProvider } from './provider.js';
 import { DEFAULT_COMPUTE_UNITS } from '../constants.js';
 
 type SendableSvmTransaction = Omit<SvmTransaction, 'feePayer'>;
-type SendableSvmCompatTransaction = Parameters<typeof normalizeTransaction>[0];
+type SendableSvmCompatTransaction = SvmTransaction | Web3TransactionLike;
 type SendableSvmExtraSignerTransaction = SendableSvmCompatTransaction & {
   extraSigners?: readonly (TransactionSigner | Web3KeypairLike)[];
 };
+type AnnotatedSvmCompatTransaction =
+  | AnnotatedSvmTransaction
+  | (Web3TransactionLike & { annotation?: string });
 
 /** Shape returned by `transactionToPrintableJson`. */
 export interface PrintableSvmTransaction {
@@ -217,7 +221,7 @@ export class SvmSigner
   }
 
   async transactionToPrintableJson(
-    transaction: AnnotatedSvmTransaction,
+    transaction: AnnotatedSvmCompatTransaction,
   ): Promise<PrintableSvmTransaction> {
     const normalizedTransaction = normalizeTransaction(transaction);
     const { transactionBase58, messageBase58 } = serializeUnsignedTransaction(
@@ -339,9 +343,10 @@ export class SvmSigner
    * checks transaction history before resubmitting to prevent double-execution.
    */
   async send(tx: SendableSvmExtraSignerTransaction): Promise<SvmReceipt> {
-    const compatAdditionalSigners = await normalizeAdditionalSigners(
-      tx.additionalSigners ?? tx.extraSigners,
-    );
+    const compatAdditionalSigners = await normalizeAdditionalSigners([
+      ...(tx.additionalSigners ?? []),
+      ...(tx.extraSigners ?? []),
+    ]);
     const normalizedTx: SendableSvmTransaction = normalizeTransaction(tx);
     normalizedTx.additionalSigners = compatAdditionalSigners;
     const maxBlockhashAttempts = 3;

@@ -21,7 +21,7 @@ import sinon from 'sinon';
 chai.use(chaiAsPromised);
 
 import { SvmSigner } from '../clients/signer.js';
-import { transactionToInstructions } from '../tx.js';
+import { type Web3TransactionLike, transactionToInstructions } from '../tx.js';
 import type { SvmRpc, SvmTransaction } from '../types.js';
 
 // ---------------------------------------------------------------------------
@@ -872,7 +872,7 @@ describe('SvmSigner', () => {
       const rpc = createMockRpc();
       const signer = await createTestSigner(rpc);
 
-      const tx = {
+      const tx: Web3TransactionLike & { annotation?: string } = {
         feePayer: fakePublicKey(SQUADS_VAULT_ADDRESS),
         instructions: [
           {
@@ -892,7 +892,7 @@ describe('SvmSigner', () => {
             data: new Uint8Array([1, 2, 3]),
           },
         ],
-      } as unknown as SvmTransaction;
+      };
 
       const json = await signer.transactionToPrintableJson(tx);
 
@@ -931,7 +931,7 @@ describe('SvmSigner', () => {
             data: new Uint8Array([9]),
           },
         ],
-      } as unknown as SvmTransaction);
+      });
 
       expect(receipt.slot).to.equal(42n);
       expect(receipt.signature).to.be.a('string').and.not.empty;
@@ -962,13 +962,13 @@ describe('SvmSigner', () => {
           },
         ],
         additionalSigners: [extraSigner],
-      } as unknown as SvmTransaction);
+      });
 
       expect(receipt.slot).to.equal(42n);
       expect(receipt.signature).to.be.a('string').and.not.empty;
     });
 
-    it('does not prepend duplicate compute budget instructions', () => {
+    it('does not prepend duplicate compute unit limit instructions', () => {
       const instructions = transactionToInstructions({
         computeUnits: 123456,
         instructions: [
@@ -991,6 +991,33 @@ describe('SvmSigner', () => {
             instruction.programAddress === COMPUTE_BUDGET_PROGRAM_ADDRESS,
         ),
       ).to.have.length(1);
+    });
+
+    it('prepends missing compute unit limit when only price is present', () => {
+      const instructions = transactionToInstructions({
+        computeUnits: 123456,
+        instructions: [
+          {
+            programAddress: COMPUTE_BUDGET_PROGRAM_ADDRESS as Address,
+            accounts: [],
+            data: new Uint8Array([3, 1, 0, 0, 0, 0, 0, 0, 0]),
+          },
+          {
+            programAddress: PROGRAM_ADDRESS as Address,
+            accounts: [],
+            data: new Uint8Array([1]),
+          },
+        ],
+      });
+
+      const computeBudgetInstructions = instructions.filter(
+        (instruction) =>
+          instruction.programAddress === COMPUTE_BUDGET_PROGRAM_ADDRESS,
+      );
+
+      expect(
+        computeBudgetInstructions.map((instruction) => instruction.data?.[0]),
+      ).to.deep.equal([2, 3]);
     });
   });
 });

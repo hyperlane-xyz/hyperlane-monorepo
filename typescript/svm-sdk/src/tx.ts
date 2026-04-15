@@ -6,6 +6,7 @@ import {
   type ReadonlyUint8Array,
   type TransactionSigner,
   appendTransactionMessageInstructions,
+  address,
   blockhash,
   compileTransactionMessage,
   createTransactionMessage,
@@ -37,6 +38,7 @@ export type Web3TransactionLike = {
   feePayer?: Address | Web3PublicKeyLike | null;
   computeUnits?: number;
   additionalSigners?: TransactionSigner[];
+  extraSigners?: readonly unknown[];
   skipPreflight?: boolean;
 };
 
@@ -71,9 +73,9 @@ export function normalizeInstruction(
   if (isSvmInstruction(instruction)) return instruction;
 
   return {
-    programAddress: instruction.programId.toBase58() as Address,
+    programAddress: address(instruction.programId.toBase58()),
     accounts: (instruction.keys ?? []).map((key) => ({
-      address: key.pubkey.toBase58() as Address,
+      address: address(key.pubkey.toBase58()),
       role: accountRoleFromWeb3Meta(key),
     })),
     data: instruction.data ? new Uint8Array(instruction.data) : undefined,
@@ -86,7 +88,7 @@ export function normalizeTransaction(
   return {
     ...tx,
     feePayer: isWeb3PublicKeyLike(tx.feePayer)
-      ? (tx.feePayer.toBase58() as Address)
+      ? address(tx.feePayer.toBase58())
       : (tx.feePayer ?? undefined),
     instructions: tx.instructions.map(normalizeInstruction),
   };
@@ -122,12 +124,13 @@ function createSetComputeUnitPriceInstruction(
 }
 
 export function getComputeBudgetInstructions(
-  units: number = DEFAULT_COMPUTE_UNITS,
+  units?: number,
   microLamports?: number,
 ): SvmInstruction[] {
-  const instructions: SvmInstruction[] = [
-    createSetComputeUnitLimitInstruction(units),
-  ];
+  const instructions: SvmInstruction[] = [];
+  if (units !== undefined) {
+    instructions.push(createSetComputeUnitLimitInstruction(units));
+  }
   if (microLamports !== undefined && microLamports > 0) {
     instructions.push(
       createSetComputeUnitPriceInstruction(BigInt(microLamports)),
@@ -136,11 +139,14 @@ export function getComputeBudgetInstructions(
   return instructions;
 }
 
-function hasComputeBudgetInstruction(
+function hasComputeBudgetInstructionKind(
   instructions: readonly SvmInstruction[],
+  discriminator: number,
 ): boolean {
   return instructions.some(
-    (instruction) => instruction.programAddress === COMPUTE_BUDGET_PROGRAM_ID,
+    (instruction) =>
+      instruction.programAddress === COMPUTE_BUDGET_PROGRAM_ID &&
+      instruction.data?.[0] === discriminator,
   );
 }
 
@@ -162,9 +168,14 @@ export function buildTransactionMessage(params: {
   } = params;
 
   const normalizedInstructions = instructions.map(normalizeInstruction);
-  const computeBudgetIxs = hasComputeBudgetInstruction(normalizedInstructions)
-    ? []
-    : getComputeBudgetInstructions(computeUnits, priorityFeeMicroLamports);
+  const computeBudgetIxs = getComputeBudgetInstructions(
+    hasComputeBudgetInstructionKind(normalizedInstructions, 2)
+      ? undefined
+      : computeUnits,
+    hasComputeBudgetInstructionKind(normalizedInstructions, 3)
+      ? undefined
+      : priorityFeeMicroLamports,
+  );
   const allInstructions = [...computeBudgetIxs, ...normalizedInstructions];
 
   const txMessage = createTransactionMessage({ version: 0 });
@@ -177,15 +188,15 @@ export function buildTransactionMessage(params: {
 }
 
 export function transactionToInstructions(
-  tx: SvmTransaction,
+  tx: SvmTransaction | Web3TransactionLike,
 ): SvmInstruction[] {
   const normalizedTx = normalizeTransaction(tx);
-  const computeUnits = tx.computeUnits ?? DEFAULT_COMPUTE_UNITS;
-  const computeBudgetIxs = hasComputeBudgetInstruction(
-    normalizedTx.instructions,
-  )
-    ? []
-    : getComputeBudgetInstructions(computeUnits);
+  const computeUnits = normalizedTx.computeUnits ?? DEFAULT_COMPUTE_UNITS;
+  const computeBudgetIxs = getComputeBudgetInstructions(
+    hasComputeBudgetInstructionKind(normalizedTx.instructions, 2)
+      ? undefined
+      : computeUnits,
+  );
   return [...computeBudgetIxs, ...normalizedTx.instructions];
 }
 
