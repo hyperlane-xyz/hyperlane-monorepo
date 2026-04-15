@@ -5,23 +5,12 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert, strip0x } from '@hyperlane-xyz/utils';
 
 import {
-  getHookType,
-  getIgpHookConfig,
-  getMerkleTreeHookConfig,
-} from '../hook/hook-query.js';
-import {
   getCreateIgpHookTx,
   getCreateMerkleTreeHookTx,
   getRemoveDestinationGasConfigTx,
   getSetDestinationGasConfigTx,
   getSetIgpHookOwnerTx,
 } from '../hook/hook-tx.js';
-import {
-  getIsmType,
-  getMessageIdMultisigIsmConfig,
-  getRoutingIsmConfig,
-  getTestIsmConfig,
-} from '../ism/ism-query.js';
 import {
   getCreateMessageIdMultisigIsmTx,
   getCreateRoutingIsmTx,
@@ -47,11 +36,7 @@ import {
   stringToU128,
   toAleoAddress,
 } from '../utils/helper.js';
-import {
-  AleoIsmType,
-  AleoTokenType,
-  type AleoTransaction,
-} from '../utils/types.js';
+import { AleoTokenType, type AleoTransaction } from '../utils/types.js';
 import { getRemoteRouters } from '../warp/warp-query.js';
 import {
   getEnrollRemoteRouterTx,
@@ -241,105 +226,6 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     );
 
     return !!result;
-  }
-
-  async getIsmType(req: AltVM.ReqGetIsmType): Promise<AltVM.IsmType> {
-    const aleoIsmType = await getIsmType(this.aleoClient, req.ismAddress);
-
-    switch (aleoIsmType) {
-      case AleoIsmType.TEST_ISM:
-        return AltVM.IsmType.TEST_ISM;
-      case AleoIsmType.ROUTING:
-        return AltVM.IsmType.ROUTING;
-      case AleoIsmType.MERKLE_ROOT_MULTISIG:
-        return AltVM.IsmType.MERKLE_ROOT_MULTISIG;
-      case AleoIsmType.MESSAGE_ID_MULTISIG:
-        return AltVM.IsmType.MESSAGE_ID_MULTISIG;
-      default:
-        throw new Error(`Unknown ISM type for address: ${req.ismAddress}`);
-    }
-  }
-
-  async getMessageIdMultisigIsm(
-    req: AltVM.ReqMessageIdMultisigIsm,
-  ): Promise<AltVM.ResMessageIdMultisigIsm> {
-    const { address, threshold, validators } =
-      await getMessageIdMultisigIsmConfig(this.aleoClient, req.ismAddress);
-
-    return {
-      address,
-      validators,
-      threshold,
-    };
-  }
-
-  async getMerkleRootMultisigIsm(
-    _req: AltVM.ReqMerkleRootMultisigIsm,
-  ): Promise<AltVM.ResMerkleRootMultisigIsm> {
-    throw new Error(`MerkleRootMultisigIsm is currently not supported on Aleo`);
-  }
-
-  async getRoutingIsm(req: AltVM.ReqRoutingIsm): Promise<AltVM.ResRoutingIsm> {
-    const { owner, routes } = await getRoutingIsmConfig(
-      this.aleoClient,
-      req.ismAddress,
-    );
-
-    return {
-      address: req.ismAddress,
-      owner,
-      routes,
-    };
-  }
-
-  async getNoopIsm(req: AltVM.ReqNoopIsm): Promise<AltVM.ResNoopIsm> {
-    const { address } = await getTestIsmConfig(this.aleoClient, req.ismAddress);
-
-    return {
-      address,
-    };
-  }
-
-  async getHookType(req: AltVM.ReqGetHookType): Promise<AltVM.HookType> {
-    return getHookType(this.aleoClient, req.hookAddress);
-  }
-
-  async getInterchainGasPaymasterHook(
-    req: AltVM.ReqGetInterchainGasPaymasterHook,
-  ): Promise<AltVM.ResGetInterchainGasPaymasterHook> {
-    const config = await getIgpHookConfig(this.aleoClient, req.hookAddress);
-
-    return {
-      address: config.address,
-      owner: config.owner,
-      destinationGasConfigs: config.destinationGasConfigs,
-    };
-  }
-
-  async getMerkleTreeHook(
-    req: AltVM.ReqGetMerkleTreeHook,
-  ): Promise<AltVM.ResGetMerkleTreeHook> {
-    const config = await getMerkleTreeHookConfig(
-      this.aleoClient,
-      req.hookAddress,
-    );
-
-    return {
-      address: config.address,
-    };
-  }
-
-  async getNoopHook(
-    req: AltVM.ReqGetMerkleTreeHook,
-  ): Promise<AltVM.ResGetMerkleTreeHook> {
-    const { programId, address } = fromAleoAddress(req.hookAddress);
-
-    const hook = await this.queryMappingValue(programId, 'hooks', address);
-    assert(hook === 0, `hook of address ${req.hookAddress} is no noop hook`);
-
-    return {
-      address: req.hookAddress,
-    };
   }
 
   // ### QUERY WARP ###

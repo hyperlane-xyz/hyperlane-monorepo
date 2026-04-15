@@ -14,23 +14,11 @@ import PausableHookAbi from '@hyperlane-xyz/core/tron/abi/contracts/hooks/Pausab
 import ProxyAdminAbi from '@hyperlane-xyz/core/tron/abi/@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol/ProxyAdmin.json' with { type: 'json' };
 import ValidatorAnnounceAbi from '@hyperlane-xyz/core/tron/abi/contracts/isms/multisig/ValidatorAnnounce.sol/ValidatorAnnounce.json' with { type: 'json' };
 import {
-  getHookType,
-  getIgpHookConfig,
-  getMerkleTreeHookConfig,
-} from '../hook/hook-query.js';
-import {
   getCreateIgpTx,
   getRemoveIgpDestinationGasConfigTx,
   getSetIgpDestinationGasConfigTx,
   getSetIgpOwnerTx,
 } from '../hook/hook-tx.js';
-import {
-  getIsmType,
-  getMerkleRootMultisigIsmConfig,
-  getMessageIdMultisigIsmConfig,
-  getNoopIsmConfig,
-  getRoutingIsmConfig,
-} from '../ism/ism-query.js';
 import {
   getCreateMerkleRootMultisigIsmImplementationTx,
   getCreateMessageIdMultisigIsmImplementationTx,
@@ -46,12 +34,7 @@ import {
   createDeploymentTransaction,
   decodeRevertReason,
 } from '../utils/index.js';
-import {
-  TronHookTypes,
-  TronIsmTypes,
-  TronReceipt,
-  TronTransaction,
-} from '../utils/types.js';
+import { TronReceipt, TronTransaction } from '../utils/types.js';
 
 export class TronProvider implements AltVM.IProvider {
   protected readonly rpcUrls: string[];
@@ -251,124 +234,6 @@ export class TronProvider implements AltVM.IProvider {
       gasUnits: energy,
       gasPrice: parseInt(energyPrice),
       fee: totalFeeSun,
-    };
-  }
-
-  // ### QUERY CORE ###
-
-  async getMailbox(req: AltVM.ReqGetMailbox): Promise<AltVM.ResGetMailbox> {
-    const mailbox = this.tronweb.contract(MailboxAbi.abi, req.mailboxAddress);
-
-    const defaultIsm = this.tronweb.address.fromHex(
-      await mailbox.defaultIsm().call(),
-    );
-
-    const defaultHook = this.tronweb.address.fromHex(
-      await mailbox.defaultHook().call(),
-    );
-
-    const requiredHook = this.tronweb.address.fromHex(
-      await mailbox.requiredHook().call(),
-    );
-
-    const proxyAdmin = await this.getProxyAdmin(req.mailboxAddress);
-
-    return {
-      address: req.mailboxAddress,
-      owner: this.tronweb.address.fromHex(await mailbox.owner().call()),
-      localDomain: Number(await mailbox.localDomain().call()),
-      defaultIsm: defaultIsm === req.mailboxAddress ? '' : defaultIsm,
-      defaultHook: defaultHook === req.mailboxAddress ? '' : defaultHook,
-      requiredHook: requiredHook === req.mailboxAddress ? '' : requiredHook,
-      nonce: Number(await mailbox.nonce().call()),
-      proxyAdmin,
-    };
-  }
-
-  async isMessageDelivered(req: AltVM.ReqIsMessageDelivered): Promise<boolean> {
-    const mailbox = this.tronweb.contract(MailboxAbi.abi, req.mailboxAddress);
-    return mailbox.delivered(req.messageId).call();
-  }
-
-  async getIsmType(req: AltVM.ReqGetIsmType): Promise<AltVM.IsmType> {
-    const ismType = await getIsmType(this.tronweb, req.ismAddress);
-
-    switch (ismType) {
-      case TronIsmTypes.MERKLE_ROOT_MULTISIG: {
-        return AltVM.IsmType.MERKLE_ROOT_MULTISIG;
-      }
-      case TronIsmTypes.MESSAGE_ID_MULTISIG: {
-        return AltVM.IsmType.MESSAGE_ID_MULTISIG;
-      }
-      case TronIsmTypes.ROUTING_ISM: {
-        return AltVM.IsmType.ROUTING;
-      }
-      case TronIsmTypes.NOOP_ISM: {
-        return AltVM.IsmType.TEST_ISM;
-      }
-      default:
-        throw new Error(`Unknown ISM ModuleType: ${ismType}`);
-    }
-  }
-
-  async getMessageIdMultisigIsm(
-    req: AltVM.ReqMessageIdMultisigIsm,
-  ): Promise<AltVM.ResMessageIdMultisigIsm> {
-    return getMessageIdMultisigIsmConfig(this.tronweb, req.ismAddress);
-  }
-
-  async getMerkleRootMultisigIsm(
-    req: AltVM.ReqMerkleRootMultisigIsm,
-  ): Promise<AltVM.ResMerkleRootMultisigIsm> {
-    return getMerkleRootMultisigIsmConfig(this.tronweb, req.ismAddress);
-  }
-
-  async getRoutingIsm(req: AltVM.ReqRoutingIsm): Promise<AltVM.ResRoutingIsm> {
-    return getRoutingIsmConfig(this.tronweb, req.ismAddress);
-  }
-
-  async getNoopIsm(req: AltVM.ReqNoopIsm): Promise<AltVM.ResNoopIsm> {
-    return getNoopIsmConfig(this.tronweb, req.ismAddress);
-  }
-
-  async getHookType(req: AltVM.ReqGetHookType): Promise<AltVM.HookType> {
-    const hookType = await getHookType(this.tronweb, req.hookAddress);
-
-    switch (hookType) {
-      case TronHookTypes.MERKLE_TREE: {
-        return AltVM.HookType.MERKLE_TREE;
-      }
-      case TronHookTypes.INTERCHAIN_GAS_PAYMASTER: {
-        return AltVM.HookType.INTERCHAIN_GAS_PAYMASTER;
-      }
-      default:
-        throw new Error(`Unknown ISM ModuleType: ${hookType}`);
-    }
-  }
-
-  async getInterchainGasPaymasterHook(
-    req: AltVM.ReqGetInterchainGasPaymasterHook,
-  ): Promise<AltVM.ResGetInterchainGasPaymasterHook> {
-    return getIgpHookConfig(this.tronweb, req.hookAddress);
-  }
-
-  async getMerkleTreeHook(
-    req: AltVM.ReqGetMerkleTreeHook,
-  ): Promise<AltVM.ResGetMerkleTreeHook> {
-    return getMerkleTreeHookConfig(this.tronweb, req.hookAddress);
-  }
-
-  async getNoopHook(req: AltVM.ReqGetNoopHook): Promise<AltVM.ResGetNoopHook> {
-    const contract = this.tronweb.contract(
-      PausableHookAbi.abi,
-      req.hookAddress,
-    );
-
-    const hookType = await contract.hookType().call();
-    assert(Number(hookType) === 7, `hook type does not equal PAUSABLE_HOOK`);
-
-    return {
-      address: req.hookAddress,
     };
   }
 
