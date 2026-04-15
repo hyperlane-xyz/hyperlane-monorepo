@@ -16,12 +16,10 @@ import {
   getCompiledContract,
 } from '@hyperlane-xyz/starknet-core';
 import {
-  ZERO_ADDRESS_HEX_32,
   addressToBytes32,
   assert,
   ensure0x,
   isNullish,
-  isZeroishAddress,
 } from '@hyperlane-xyz/utils';
 
 import {
@@ -150,6 +148,10 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
       chainName: this.metadata.name,
       nativeDenom: this.metadata.nativeToken?.denom,
     });
+  }
+
+  getFeeTokenAddress(): string {
+    return this.feeTokenAddress;
   }
 
   protected parseString(value: unknown): string {
@@ -705,171 +707,7 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
     };
   }
 
-  // ### GET WARP TXS ###
-
-  async getCreateNativeTokenTransaction(
-    req: AltVM.ReqCreateNativeToken,
-  ): Promise<StarknetAnnotatedTx> {
-    const mailbox = await this.getMailbox({
-      mailboxAddress: req.mailboxAddress,
-    });
-    return {
-      kind: 'deploy',
-      contractName: StarknetContractName.HYP_NATIVE,
-      contractType: ContractType.TOKEN,
-      constructorArgs: [
-        normalizeStarknetAddressSafe(req.mailboxAddress),
-        this.feeTokenAddress,
-        normalizeStarknetAddressSafe(mailbox.defaultHook),
-        normalizeStarknetAddressSafe(mailbox.defaultIsm),
-        normalizeStarknetAddressSafe(req.signer),
-      ],
-    };
-  }
-
-  async getCreateCollateralTokenTransaction(
-    req: AltVM.ReqCreateCollateralToken,
-  ): Promise<StarknetAnnotatedTx> {
-    const mailbox = await this.getMailbox({
-      mailboxAddress: req.mailboxAddress,
-    });
-    return {
-      kind: 'deploy',
-      contractName: StarknetContractName.HYP_ERC20_COLLATERAL,
-      contractType: ContractType.TOKEN,
-      constructorArgs: [
-        normalizeStarknetAddressSafe(req.mailboxAddress),
-        normalizeStarknetAddressSafe(req.collateralDenom),
-        normalizeStarknetAddressSafe(req.signer),
-        normalizeStarknetAddressSafe(mailbox.defaultHook),
-        normalizeStarknetAddressSafe(mailbox.defaultIsm),
-      ],
-    };
-  }
-
-  async getCreateSyntheticTokenTransaction(
-    req: AltVM.ReqCreateSyntheticToken,
-  ): Promise<StarknetAnnotatedTx> {
-    const mailbox = await this.getMailbox({
-      mailboxAddress: req.mailboxAddress,
-    });
-    return {
-      kind: 'deploy',
-      contractName: StarknetContractName.HYP_ERC20,
-      contractType: ContractType.TOKEN,
-      constructorArgs: [
-        req.decimals,
-        normalizeStarknetAddressSafe(req.mailboxAddress),
-        0,
-        req.name,
-        req.denom,
-        normalizeStarknetAddressSafe(mailbox.defaultHook),
-        normalizeStarknetAddressSafe(mailbox.defaultIsm),
-        normalizeStarknetAddressSafe(req.signer),
-      ],
-    };
-  }
-
-  async getSetTokenOwnerTransaction(
-    req: AltVM.ReqSetTokenOwner,
-  ): Promise<StarknetAnnotatedTx> {
-    const token = this.withContract(
-      StarknetContractName.HYP_ERC20,
-      req.tokenAddress,
-      this.provider,
-      ContractType.TOKEN,
-    );
-    return populateInvokeTx(token, 'transfer_ownership', [
-      normalizeStarknetAddressSafe(req.newOwner),
-    ]);
-  }
-
-  async getSetTokenIsmTransaction(
-    req: AltVM.ReqSetTokenIsm,
-  ): Promise<StarknetAnnotatedTx> {
-    const token = this.withContract(
-      StarknetContractName.HYP_ERC20,
-      req.tokenAddress,
-      this.provider,
-      ContractType.TOKEN,
-    );
-    return populateInvokeTx(token, 'set_interchain_security_module', [
-      normalizeStarknetAddressSafe(req.ismAddress ?? ZERO_ADDRESS_HEX_32),
-    ]);
-  }
-
-  async getSetTokenHookTransaction(
-    req: AltVM.ReqSetTokenHook,
-  ): Promise<StarknetAnnotatedTx> {
-    const token = this.withContract(
-      StarknetContractName.HYP_ERC20,
-      req.tokenAddress,
-      this.provider,
-      ContractType.TOKEN,
-    );
-    return populateInvokeTx(token, 'set_hook', [
-      normalizeStarknetAddressSafe(req.hookAddress ?? ZERO_ADDRESS_HEX_32),
-    ]);
-  }
-
-  async getEnrollRemoteRouterTransaction(
-    req: AltVM.ReqEnrollRemoteRouter,
-  ): Promise<StarknetAnnotatedTx> {
-    const token = this.withContract(
-      StarknetContractName.HYP_ERC20,
-      req.tokenAddress,
-      this.provider,
-      ContractType.TOKEN,
-    );
-
-    const receiverAddress = isZeroishAddress(req.remoteRouter.receiverAddress)
-      ? ZERO_ADDRESS_HEX_32
-      : ensure0x(req.remoteRouter.receiverAddress);
-
-    const noneOption = new CairoOption(CairoOptionVariant.None);
-    const domainOption = new CairoOption(
-      CairoOptionVariant.Some,
-      req.remoteRouter.receiverDomainId,
-    );
-    const gasOption = new CairoOption(
-      CairoOptionVariant.Some,
-      req.remoteRouter.gas,
-    );
-
-    const [enrollCall, gasCall] = await Promise.all([
-      this.populateInvokeCall(token, 'enroll_remote_router', [
-        req.remoteRouter.receiverDomainId,
-        receiverAddress,
-      ]),
-      this.populateInvokeCall(token, 'set_destination_gas', [
-        noneOption,
-        domainOption,
-        gasOption,
-      ]),
-    ]);
-
-    return {
-      kind: 'invoke',
-      contractAddress: enrollCall.contractAddress,
-      entrypoint: enrollCall.entrypoint,
-      calldata: enrollCall.calldata,
-      calls: [enrollCall, gasCall],
-    };
-  }
-
-  async getUnenrollRemoteRouterTransaction(
-    req: AltVM.ReqUnenrollRemoteRouter,
-  ): Promise<StarknetAnnotatedTx> {
-    const token = this.withContract(
-      StarknetContractName.HYP_ERC20,
-      req.tokenAddress,
-      this.provider,
-      ContractType.TOKEN,
-    );
-    return populateInvokeTx(token, 'unenroll_remote_router', [
-      req.receiverDomainId,
-    ]);
-  }
+  // ### TRANSFER TXS ###
 
   async getTransferTransaction(
     req: AltVM.ReqTransfer,

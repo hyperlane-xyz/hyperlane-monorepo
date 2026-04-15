@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { RpcProvider } from 'starknet';
 
-import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
 import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
@@ -63,10 +63,23 @@ describe('StarknetWarpArtifactManager', () => {
     const signer = new MockStarknetSigner();
     const provider = Reflect.get(manager, 'provider') as {
       getToken: () => Promise<never>;
+      getMailbox: () => Promise<AltVM.ResGetMailbox>;
+      getFeeTokenAddress: () => string;
     };
     provider.getToken = async () => {
       throw new Error('unexpected token read');
     };
+    provider.getMailbox = async () => ({
+      address: '0x111',
+      owner: signer.getSignerAddress(),
+      localDomain: chainMetadata.domainId,
+      defaultIsm: '0x0',
+      defaultHook: '0x0',
+      requiredHook: '0x0',
+      nonce: 0,
+    });
+    provider.getFeeTokenAddress = () =>
+      '0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7';
 
     const writer = manager.createWriter('native', signer);
     const [artifact, receipts] = await writer.create({

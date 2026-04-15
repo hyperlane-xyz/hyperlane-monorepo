@@ -30,6 +30,13 @@ import { StarknetProvider } from '../clients/provider.js';
 import { StarknetSigner } from '../clients/signer.js';
 import { normalizeStarknetAddressSafe } from '../contracts.js';
 import { type StarknetAnnotatedTx, type StarknetTxReceipt } from '../types.js';
+import {
+  getEnrollRemoteRouterTx,
+  getSetTokenHookTx,
+  getSetTokenIsmTx,
+  getSetTokenOwnerTx,
+  getUnenrollRemoteRouterTx,
+} from './warp-tx.js';
 
 export type StarknetWarpTokenOnChain = Awaited<
   ReturnType<StarknetProvider['getToken']>
@@ -200,7 +207,7 @@ export abstract class StarknetWarpTokenWriterBase<
     if (!eqAddressStarknet(currentOwner, expectedConfig.owner)) {
       ownerTx = {
         annotation: 'Setting warp token owner',
-        ...(await this.signer.getSetTokenOwnerTransaction({
+        ...(await getSetTokenOwnerTx(this.provider.getRawProvider(), {
           signer: this.signer.getSignerAddress(),
           tokenAddress,
           newOwner: expectedConfig.owner,
@@ -224,7 +231,7 @@ export abstract class StarknetWarpTokenWriterBase<
     ) {
       txs.push({
         annotation: 'Setting warp token ISM',
-        ...(await this.signer.getSetTokenIsmTransaction({
+        ...(await getSetTokenIsmTx(this.provider.getRawProvider(), {
           signer: this.signer.getSignerAddress(),
           tokenAddress,
           ismAddress: expectedIsm,
@@ -248,7 +255,7 @@ export abstract class StarknetWarpTokenWriterBase<
     ) {
       txs.push({
         annotation: 'Setting warp token hook',
-        ...(await this.signer.getSetTokenHookTransaction({
+        ...(await getSetTokenHookTx(this.provider.getRawProvider(), {
           signer: this.signer.getSignerAddress(),
           tokenAddress,
           hookAddress: expectedHook,
@@ -271,7 +278,7 @@ export abstract class StarknetWarpTokenWriterBase<
     for (const domain of routerUpdates.toUnenroll.sort((a, b) => a - b)) {
       txs.push({
         annotation: `Unenrolling remote router for domain ${domain}`,
-        ...(await this.signer.getUnenrollRemoteRouterTransaction({
+        ...(await getUnenrollRemoteRouterTx(this.provider.getRawProvider(), {
           signer: this.signer.getSignerAddress(),
           tokenAddress,
           receiverDomainId: domain,
@@ -284,7 +291,7 @@ export abstract class StarknetWarpTokenWriterBase<
     )) {
       txs.push({
         annotation: `Enrolling remote router for domain ${route.domainId}`,
-        ...(await this.signer.getEnrollRemoteRouterTransaction({
+        ...(await getEnrollRemoteRouterTx(this.provider.getRawProvider(), {
           signer: this.signer.getSignerAddress(),
           tokenAddress,
           remoteRouter: {
@@ -363,7 +370,7 @@ export abstract class StarknetWarpTokenWriterBase<
       normalizeStarknetAddressSafe,
     );
     if (expectedIsm) {
-      const tx = await this.signer.getSetTokenIsmTransaction({
+      const tx = await getSetTokenIsmTx(this.provider.getRawProvider(), {
         signer: this.signer.getSignerAddress(),
         tokenAddress,
         ismAddress: expectedIsm,
@@ -376,7 +383,7 @@ export abstract class StarknetWarpTokenWriterBase<
       normalizeStarknetAddressSafe,
     );
     if (expectedHook) {
-      const tx = await this.signer.getSetTokenHookTransaction({
+      const tx = await getSetTokenHookTx(this.provider.getRawProvider(), {
         signer: this.signer.getSignerAddress(),
         tokenAddress,
         hookAddress: expectedHook,
@@ -392,7 +399,7 @@ export abstract class StarknetWarpTokenWriterBase<
         remoteRouter,
         `Missing remote router for Starknet domain ${domain}`,
       );
-      const tx = await this.signer.getEnrollRemoteRouterTransaction({
+      const tx = await getEnrollRemoteRouterTx(this.provider.getRawProvider(), {
         signer: this.signer.getSignerAddress(),
         tokenAddress,
         remoteRouter: {
@@ -406,7 +413,7 @@ export abstract class StarknetWarpTokenWriterBase<
 
     const currentOwner = current.owner;
     if (!eqAddressStarknet(currentOwner, expected.owner)) {
-      ownerTx = await this.signer.getSetTokenOwnerTransaction({
+      ownerTx = await getSetTokenOwnerTx(this.provider.getRawProvider(), {
         signer: this.signer.getSignerAddress(),
         tokenAddress,
         newOwner: expected.owner,
