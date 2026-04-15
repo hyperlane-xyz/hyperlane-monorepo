@@ -144,6 +144,14 @@
       },
       "overhead": 166887
     },
+    "igra": {
+      "oracleConfig": {
+        "tokenExchangeRate": "191375350854809900",
+        "gasPrice": "1000000000000",
+        "tokenDecimals": 18
+      },
+      "overhead": 166887
+    },
     "incentiv": {
       "oracleConfig": {
         "tokenExchangeRate": "574126052564429",
