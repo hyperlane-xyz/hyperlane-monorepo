@@ -92,7 +92,7 @@ export function useCosmosActiveChain(
 ): ActiveChainInfo {
   // CosmosKit doesn't have the concept of an active chain;
   // wallets connect to each chain independently.
-  return useMemo(() => ({}) as ActiveChainInfo, []);
+  return useMemo<ActiveChainInfo>(() => ({}), []);
 }
 
 export function getCosmosChains(
