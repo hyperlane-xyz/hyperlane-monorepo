@@ -81,6 +81,11 @@ export {
   buildTransactionMessage,
   serializeUnsignedTransaction,
 } from './tx.js';
+export type {
+  Web3InstructionLike,
+  Web3KeypairLike,
+  Web3TransactionLike,
+} from './tx.js';
 
 // PDA derivation
 export {

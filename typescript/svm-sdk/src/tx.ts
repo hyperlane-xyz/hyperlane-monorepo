@@ -89,12 +89,14 @@ export function normalizeInstruction(
 export function normalizeTransaction(
   tx: SvmTransaction | Web3TransactionLike,
 ): SvmTransaction {
+  const { computeUnits, instructions, skipPreflight } = tx;
   return {
-    ...tx,
+    computeUnits,
     feePayer: isWeb3PublicKeyLike(tx.feePayer)
       ? address(tx.feePayer.toBase58())
       : (tx.feePayer ?? undefined),
-    instructions: tx.instructions.map(normalizeInstruction),
+    instructions: instructions.map(normalizeInstruction),
+    skipPreflight,
   };
 }
 
