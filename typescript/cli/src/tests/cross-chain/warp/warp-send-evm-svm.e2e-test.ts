@@ -3,13 +3,7 @@ import {
   createMintToInstruction,
   getAssociatedTokenAddressSync,
 } from '@solana/spl-token';
-import {
-  Connection,
-  Keypair,
-  PublicKey,
-  Transaction,
-  sendAndConfirmTransaction,
-} from '@solana/web3.js';
+import { Connection, Keypair, PublicKey, Transaction } from '@solana/web3.js';
 import { expect } from 'chai';
 import { Wallet } from 'ethers';
 import { type StartedTestContainer } from 'testcontainers';
@@ -27,7 +21,7 @@ import {
   runSolanaNode,
 } from '@hyperlane-xyz/sealevel-sdk/testing';
 import { TokenType, type WarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert, strip0x } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert, sleep, strip0x } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
@@ -244,5 +238,56 @@ async function mintSplToSigner({
   );
 
   const connection = new Connection(rpcUrl, 'confirmed');
-  await sendAndConfirmTransaction(connection, tx, [web3Keypair]);
+  await sendAndConfirmWeb3Transaction(connection, tx, web3Keypair);
+}
+
+async function sendAndConfirmWeb3Transaction(
+  connection: Connection,
+  transaction: Transaction,
+  signer: Keypair,
+) {
+  const latestBlockhash = await connection.getLatestBlockhash('confirmed');
+  transaction.recentBlockhash = latestBlockhash.blockhash;
+  transaction.feePayer = signer.publicKey;
+  transaction.sign(signer);
+
+  const signature = await connection.sendRawTransaction(
+    transaction.serialize(),
+    {
+      maxRetries: 0,
+      preflightCommitment: 'confirmed',
+    },
+  );
+
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    const [status] = (
+      await connection.getSignatureStatuses([signature], {
+        searchTransactionHistory: true,
+      })
+    ).value;
+
+    if (status?.err) {
+      throw new Error(
+        `Setup transaction failed: ${JSON.stringify(status.err)}`,
+      );
+    }
+
+    if (
+      status?.confirmationStatus === 'confirmed' ||
+      status?.confirmationStatus === 'finalized'
+    ) {
+      return signature;
+    }
+
+    const blockHeight = await connection.getBlockHeight('confirmed');
+    if (blockHeight > latestBlockhash.lastValidBlockHeight) {
+      throw new Error(
+        `Setup transaction expired before confirmation: ${signature}`,
+      );
+    }
+
+    await sleep(500);
+  }
+
+  throw new Error(`Setup transaction not confirmed in time: ${signature}`);
 }
