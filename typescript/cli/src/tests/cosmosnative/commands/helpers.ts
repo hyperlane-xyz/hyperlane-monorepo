@@ -1,8 +1,12 @@
 import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
 import path from 'path';
 
-import { CosmosNativeSigner } from '@hyperlane-xyz/cosmos-sdk';
-import { type Address } from '@hyperlane-xyz/utils';
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import {
+  CosmosNativeSigner,
+  CosmosWarpArtifactManager,
+} from '@hyperlane-xyz/cosmos-sdk';
+import { type Address, assert } from '@hyperlane-xyz/utils';
 
 import { getContext } from '../../../context/context.js';
 import { REGISTRY_PATH, getCombinedWarpRoutePath } from '../consts.js';
@@ -44,12 +48,27 @@ export async function deployCollateralToken(
     },
   );
 
-  const { tokenAddress } = await signer.createCollateralToken({
-    mailboxAddress: mailbox,
-    collateralDenom: metadata.nativeToken?.denom ?? '',
+  const denom = metadata.nativeToken?.denom;
+  assert(denom, `Missing nativeToken denom for chain ${chain}`);
+
+  const rpcUrls = signer.getRpcUrls();
+  const artifactManager = new CosmosWarpArtifactManager(rpcUrls);
+  const writer = artifactManager.createWriter(
+    AltVM.TokenType.collateral,
+    signer,
+  );
+  const [result] = await writer.create({
+    config: {
+      type: AltVM.TokenType.collateral,
+      owner: signer.getSignerAddress(),
+      mailbox,
+      token: denom,
+      remoteRouters: {},
+      destinationGas: {},
+    },
   });
 
-  return tokenAddress;
+  return result.deployed.address;
 }
 
 export async function deploySyntheticToken(
@@ -77,12 +96,24 @@ export async function deploySyntheticToken(
     },
   );
 
-  const { tokenAddress } = await signer.createSyntheticToken({
-    mailboxAddress: mailbox,
-    name: '',
-    denom: '',
-    decimals: 0,
+  const rpcUrls = signer.getRpcUrls();
+  const artifactManager = new CosmosWarpArtifactManager(rpcUrls);
+  const writer = artifactManager.createWriter(
+    AltVM.TokenType.synthetic,
+    signer,
+  );
+  const [result] = await writer.create({
+    config: {
+      type: AltVM.TokenType.synthetic,
+      owner: signer.getSignerAddress(),
+      mailbox,
+      name: '',
+      symbol: '',
+      decimals: 0,
+      remoteRouters: {},
+      destinationGas: {},
+    },
   });
 
-  return tokenAddress;
+  return result.deployed.address;
 }

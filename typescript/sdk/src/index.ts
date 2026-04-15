@@ -448,15 +448,17 @@ export {
   SendTransactionOptions,
 } from './providers/MultiProvider.js';
 export {
+  defaultProviderBuilderMap,
+  protocolToDefaultProviderBuilder,
+  ProviderBuilderMap,
+} from './providers/defaultProviderBuilderMaps.js';
+export {
   defaultEthersV5ProviderBuilder,
   defaultFuelProviderBuilder,
   defaultProviderBuilder,
-  defaultProviderBuilderMap,
   defaultSolProviderBuilder,
   defaultViemProviderBuilder,
-  protocolToDefaultProviderBuilder,
   ProviderBuilderFn,
-  ProviderBuilderMap,
   TypedProviderBuilderFn,
 } from './providers/providerBuilders.js';
 export {
@@ -746,8 +748,6 @@ export {
   SealevelTransferRemoteInstruction,
   SealevelTransferRemoteSchema,
 } from './token/adapters/serialization.js';
-export { HypERC20App } from './token/app.js';
-export { HypERC20Checker } from './token/checker.js';
 export { DeployableTokenType, TokenType } from './token/config.js';
 export {
   expandVirtualWarpDeployConfig,
@@ -769,6 +769,15 @@ export {
 export { HypERC20Deployer, HypERC721Deployer } from './token/deploy.js';
 export { EvmWarpModule } from './token/EvmWarpModule.js';
 export { EvmWarpRouteReader } from './token/EvmWarpRouteReader.js';
+export {
+  WARP_ROUTE_CHECK_SCALE_TYPE,
+  WARP_ROUTE_CHECK_TYPE,
+  checkWarpRouteDeployConfig,
+} from './token/warpCheck.js';
+export type {
+  WarpRouteCheckResult,
+  WarpRouteCheckViolation,
+} from './token/warpCheck.js';
 export {
   EvmXERC20Reader,
   StandardXERC20Limits,
@@ -804,6 +813,7 @@ export {
   PROTOCOL_TO_NATIVE_STANDARD,
   PROTOCOL_TO_HYP_NATIVE_STANDARD,
   TOKEN_COLLATERALIZED_STANDARDS,
+  TOKEN_CROSS_COLLATERAL_STANDARDS,
   TOKEN_COSMWASM_STANDARDS,
   TOKEN_HYP_STANDARDS,
   TOKEN_MULTI_CHAIN_STANDARDS,
@@ -903,12 +913,20 @@ export {
 } from './types.js';
 export { getCosmosRegistryChain } from './utils/cosmos.js';
 export {
+  alignLocalAmountToMessage,
   DEFAULT_SCALE,
+  localAmountFromMessage,
+  messageAmountFromLocal,
+  minLocalAmountForMessage,
   normalizeScale,
   scalesEqual,
   verifyScale,
 } from './utils/decimals.js';
-export type { NormalizedScale, ScaleInput } from './utils/decimals.js';
+export type {
+  NormalizedScale,
+  ScaleAlignment,
+  ScaleInput,
+} from './utils/decimals.js';
 export { filterByChains } from './utils/filter.js';
 export {
   ANVIL_RPC_METHODS,

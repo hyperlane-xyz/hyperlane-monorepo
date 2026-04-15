@@ -5,7 +5,7 @@ import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
 import { ZChainName } from '../metadata/customZodTypes.js';
 import { ChainName } from '../types.js';
 
-import type { IToken } from './IToken.js';
+import type { ITokenMetadata } from './ITokenMetadata.js';
 
 export enum TokenConnectionType {
   Hyperlane = 'hyperlane',
@@ -13,22 +13,28 @@ export enum TokenConnectionType {
   IbcHyperlane = 'ibc-hyperlane', // a.k.a. one-click two-hop
 }
 
-interface TokenConnectionBase {
+interface TokenConnectionBase<TToken extends ITokenMetadata = ITokenMetadata> {
   type?: TokenConnectionType;
-  token: IToken; // the token that is being connected to
+  token: TToken; // the token that is being connected to
 }
 
-export interface HyperlaneTokenConnection extends TokenConnectionBase {
+export interface HyperlaneTokenConnection<
+  TToken extends ITokenMetadata = ITokenMetadata,
+> extends TokenConnectionBase<TToken> {
   type?: TokenConnectionType.Hyperlane;
 }
 
-export interface IbcTokenConnection extends TokenConnectionBase {
+export interface IbcTokenConnection<
+  TToken extends ITokenMetadata = ITokenMetadata,
+> extends TokenConnectionBase<TToken> {
   type: TokenConnectionType.Ibc;
   sourcePort: string;
   sourceChannel: string;
 }
 
-export interface IbcToHyperlaneTokenConnection extends TokenConnectionBase {
+export interface IbcToHyperlaneTokenConnection<
+  TToken extends ITokenMetadata = ITokenMetadata,
+> extends TokenConnectionBase<TToken> {
   type: TokenConnectionType.IbcHyperlane;
   sourcePort: string;
   sourceChannel: string;
@@ -37,12 +43,12 @@ export interface IbcToHyperlaneTokenConnection extends TokenConnectionBase {
   intermediateRouterAddress: Address;
 }
 
-export type TokenConnection =
-  | HyperlaneTokenConnection
-  | IbcTokenConnection
-  | IbcToHyperlaneTokenConnection;
+export type TokenConnection<TToken extends ITokenMetadata = ITokenMetadata> =
+  | HyperlaneTokenConnection<TToken>
+  | IbcTokenConnection<TToken>
+  | IbcToHyperlaneTokenConnection<TToken>;
 
-const TokenConnectionRegex = /^(.+)|(.+)|(.+)$/;
+const TokenConnectionRegex = /^(.+)\|(.+)\|(.+)$/;
 
 // Distinct from type above in that it uses a
 // serialized representation of the tokens instead

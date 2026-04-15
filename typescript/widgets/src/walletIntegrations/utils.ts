@@ -4,7 +4,8 @@ import {
   BigNumber as EthersBN,
 } from 'ethers';
 
-import { ChainMetadata, MultiProtocolProvider } from '@hyperlane-xyz/sdk';
+import type { ChainMetadata } from '@hyperlane-xyz/sdk/metadata/chainMetadataTypes';
+import type { ChainMetadataManager } from '@hyperlane-xyz/sdk/metadata/ChainMetadataManager';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 export function ethers5TxToWagmiTx(
@@ -33,20 +34,20 @@ function ethersBnToBigInt(bn: EthersBN): bigint {
 }
 
 export function getChainsForProtocol(
-  multiProvider: MultiProtocolProvider,
+  chainMetadata: ChainMetadataManager,
   protocol: ProtocolType,
 ): ChainMetadata[] {
-  return Object.values(multiProvider.metadata).filter(
+  return Object.values(chainMetadata.metadata).filter(
     (c) => c.protocol === protocol,
   );
 }
 
 export function findChainByRpcUrl(
-  multiProvider: MultiProtocolProvider,
+  chainMetadata: ChainMetadataManager,
   url?: string,
 ) {
   if (!url) return undefined;
-  const allMetadata = Object.values(multiProvider.metadata);
+  const allMetadata = Object.values(chainMetadata.metadata);
   const searchUrl = url.toLowerCase();
   return allMetadata.find(
     (m) =>

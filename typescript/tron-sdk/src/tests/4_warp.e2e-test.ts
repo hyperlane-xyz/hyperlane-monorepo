@@ -7,14 +7,13 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import ERC20TestAbi from '@hyperlane-xyz/core/tron/abi/contracts/test/ERC20Test.sol/ERC20Test.json' with { type: 'json' };
 import { TronSigner } from '../clients/signer.js';
 import { MAX_TRON_ORIGIN_ENERGY_LIMIT } from '../ethers/TronJsonRpcProvider.js';
-import { TronReceipt, TronTransaction } from '../utils/types.js';
 
 describe('4. tron sdk warp e2e tests', async function () {
   this.timeout(100_000);
 
   const localnetRpc = 'http://127.0.0.1:9090';
 
-  let signer: AltVM.ISigner<TronTransaction, TronReceipt>;
+  let signer: TronSigner;
   let proxyAdminAddress: string;
 
   let mailboxAddress: string;

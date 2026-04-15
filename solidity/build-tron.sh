@@ -52,7 +52,9 @@ backup_files() {
 
 restore_files() {
   for_each_patch _restore_patch
-  for f in $ISCONTRACT_FILES; do mv "$f.bak" "$f"; done
+  for f in $ISCONTRACT_FILES; do
+    [ -f "$f.bak" ] && mv "$f.bak" "$f"
+  done
 }
 
 # Ensure restoration even on failure
