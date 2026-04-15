@@ -32,6 +32,9 @@ export interface SvmTransaction {
 export interface SvmReceipt {
   signature: string;
   slot?: bigint;
+  meta?: {
+    logMessages?: readonly string[];
+  };
 }
 
 export type AnnotatedSvmTransaction = SvmTransaction & {

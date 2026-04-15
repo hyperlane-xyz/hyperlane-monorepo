@@ -93,6 +93,13 @@ export {
   serializeUnsignedTransaction,
 } from './tx.js';
 
+// Legacy @solana/web3.js compatibility
+export {
+  convertLegacySolanaTransaction,
+  isLegacySolanaTransaction,
+} from './legacy-compat.js';
+export type { LegacyKeypair, LegacyTransaction } from './legacy-compat.js';
+
 // PDA derivation
 export {
   deriveMultisigIsmAccessControlPda,

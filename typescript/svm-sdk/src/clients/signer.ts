@@ -7,6 +7,7 @@ import {
   type TransactionSigner,
   type GetSignatureStatusesApi,
   addSignersToTransactionMessage,
+  assertIsSignature,
   createKeyPairSignerFromBytes,
   createKeyPairSignerFromPrivateKeyBytes,
   getBase58Encoder,
@@ -470,7 +471,33 @@ export class SvmSigner
   async sendAndConfirmTransaction(
     transaction: SendableSvmTransaction,
   ): Promise<SvmReceipt> {
-    return this.send(transaction);
+    const receipt = await this.send(transaction);
+    return this.fetchTransactionMeta(receipt);
+  }
+
+  /**
+   * Fetches full transaction to populate meta (including logs) on the receipt.
+   * Best-effort: returns the receipt unchanged if the fetch fails.
+   */
+  private async fetchTransactionMeta(receipt: SvmReceipt): Promise<SvmReceipt> {
+    try {
+      assertIsSignature(receipt.signature);
+      const fullTx = await this.rpc
+        .getTransaction(receipt.signature, {
+          commitment: RPC_COMMITMENT_LEVEL,
+          maxSupportedTransactionVersion: 0,
+          encoding: 'jsonParsed',
+        })
+        .send();
+
+      receipt.meta = { logMessages: fullTx?.meta?.logMessages ?? [] };
+
+      return receipt;
+    } catch (error) {
+      this.logger.debug('Failed to fetch transaction meta', { error });
+
+      return receipt;
+    }
   }
 
   async sendAndConfirmBatchTransactions(

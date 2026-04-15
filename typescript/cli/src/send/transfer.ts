@@ -41,6 +41,11 @@ import {
   timeout,
 } from '@hyperlane-xyz/utils';
 
+import {
+  convertLegacySolanaTransaction,
+  isLegacySolanaTransaction,
+} from '@hyperlane-xyz/sealevel-sdk';
+
 import { EXPLORER_URL } from '../consts.js';
 import { type WriteCommandContext } from '../context/types.js';
 import { runPreflightChecksForChains } from '../deploy/utils.js';
@@ -457,7 +462,21 @@ async function executeDelivery({
           `Expected AnnotatedTx for non-EVM transfer execution, got ${typeof tx.transaction}`,
         );
       }
-      const txReceipt = await signer.sendAndConfirmTransaction(tx.transaction);
+      // SDK adapters return legacy @solana/web3.js Transactions but SvmSigner
+      // expects @solana/kit SvmTransaction format. Convert if needed.
+      let txReceipt;
+      if (
+        tx.type === ProviderType.SolanaWeb3 &&
+        isLegacySolanaTransaction(tx.transaction)
+      ) {
+        const svmTx = await convertLegacySolanaTransaction(
+          tx.transaction,
+          tx.extraSigners,
+        );
+        txReceipt = await signer.sendAndConfirmTransaction(svmTx);
+      } else {
+        txReceipt = await signer.sendAndConfirmTransaction(tx.transaction);
+      }
       const typedReceipt = toTypedAltVmReceipt(tx.type, txReceipt);
       txReceipts.push(typedReceipt);
       if (tx.category === WarpTxCategory.Transfer) {

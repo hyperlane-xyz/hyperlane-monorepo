@@ -73,6 +73,8 @@
     "@inquirer/search": "^3.0.1",
     "@inquirer/select": "catalog:",
     "@inquirer/type": "^1.0.0",
+    "@solana/spl-token": "catalog:",
+    "@solana/web3.js": "catalog:",
     "@types/chai": "catalog:",
     "@types/chai-as-promised": "catalog:",
     "@types/lodash-es": "catalog:",
