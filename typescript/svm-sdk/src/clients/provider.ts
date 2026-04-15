@@ -140,64 +140,6 @@ export class SvmProvider implements AltVM.IProvider<SvmTransaction> {
     return LAMPORTS_PER_SIGNATURE;
   }
 
-  // ### QUERY CORE ###
-
-  async getMailbox(_req: AltVM.ReqGetMailbox): Promise<AltVM.ResGetMailbox> {
-    throw new Error('getMailbox not supported on Sealevel');
-  }
-
-  async isMessageDelivered(
-    _req: AltVM.ReqIsMessageDelivered,
-  ): Promise<boolean> {
-    throw new Error('isMessageDelivered not supported on Sealevel');
-  }
-
-  async getIsmType(_req: AltVM.ReqGetIsmType): Promise<AltVM.IsmType> {
-    throw new Error('getIsmType not supported on Sealevel');
-  }
-
-  async getMessageIdMultisigIsm(
-    _req: AltVM.ReqMessageIdMultisigIsm,
-  ): Promise<AltVM.ResMessageIdMultisigIsm> {
-    throw new Error('getMessageIdMultisigIsm not supported on Sealevel');
-  }
-
-  async getMerkleRootMultisigIsm(
-    _req: AltVM.ReqMerkleRootMultisigIsm,
-  ): Promise<AltVM.ResMerkleRootMultisigIsm> {
-    throw new Error('getMerkleRootMultisigIsm not supported on Sealevel');
-  }
-
-  async getRoutingIsm(_req: AltVM.ReqRoutingIsm): Promise<AltVM.ResRoutingIsm> {
-    throw new Error('getRoutingIsm not supported on Sealevel');
-  }
-
-  async getNoopIsm(_req: AltVM.ReqNoopIsm): Promise<AltVM.ResNoopIsm> {
-    throw new Error('getNoopIsm not supported on Sealevel');
-  }
-
-  // ### QUERY HOOK ###
-
-  async getHookType(_req: AltVM.ReqGetHookType): Promise<AltVM.HookType> {
-    throw new Error('getHookType not supported on Sealevel');
-  }
-
-  async getInterchainGasPaymasterHook(
-    _req: AltVM.ReqGetInterchainGasPaymasterHook,
-  ): Promise<AltVM.ResGetInterchainGasPaymasterHook> {
-    throw new Error('getInterchainGasPaymasterHook not supported on Sealevel');
-  }
-
-  async getMerkleTreeHook(
-    _req: AltVM.ReqGetMerkleTreeHook,
-  ): Promise<AltVM.ResGetMerkleTreeHook> {
-    throw new Error('getMerkleTreeHook not supported on Sealevel');
-  }
-
-  async getNoopHook(_req: AltVM.ReqGetNoopHook): Promise<AltVM.ResGetNoopHook> {
-    throw new Error('getNoopHook not supported on Sealevel');
-  }
-
   // ### QUERY WARP ###
 
   async getToken(_req: AltVM.ReqGetToken): Promise<AltVM.ResGetToken> {

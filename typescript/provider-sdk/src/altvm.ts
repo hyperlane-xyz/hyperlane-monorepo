@@ -529,36 +529,6 @@ export interface IProvider<T = any> {
     req: ReqEstimateTransactionFee<T>,
   ): Promise<ResEstimateTransactionFee>;
 
-  // ### QUERY CORE ###
-
-  getMailbox(req: ReqGetMailbox): Promise<ResGetMailbox>;
-
-  isMessageDelivered(req: ReqIsMessageDelivered): Promise<boolean>;
-
-  getIsmType(req: ReqGetIsmType): Promise<IsmType>;
-
-  getMessageIdMultisigIsm(
-    req: ReqMessageIdMultisigIsm,
-  ): Promise<ResMessageIdMultisigIsm>;
-
-  getMerkleRootMultisigIsm(
-    req: ReqMerkleRootMultisigIsm,
-  ): Promise<ResMerkleRootMultisigIsm>;
-
-  getRoutingIsm(req: ReqRoutingIsm): Promise<ResRoutingIsm>;
-
-  getNoopIsm(req: ReqNoopIsm): Promise<ResNoopIsm>;
-
-  getHookType(req: ReqGetHookType): Promise<HookType>;
-
-  getInterchainGasPaymasterHook(
-    req: ReqGetInterchainGasPaymasterHook,
-  ): Promise<ResGetInterchainGasPaymasterHook>;
-
-  getMerkleTreeHook(req: ReqGetMerkleTreeHook): Promise<ResGetMerkleTreeHook>;
-
-  getNoopHook(req: ReqGetNoopHook): Promise<ResGetNoopHook>;
-
   // ### QUERY WARP ###
 
   getToken(req: ReqGetToken): Promise<ResGetToken>;
