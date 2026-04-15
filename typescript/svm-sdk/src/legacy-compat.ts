@@ -77,18 +77,18 @@ function convertInstruction(ix: LegacyTransactionInstruction): Instruction {
  */
 export async function convertLegacySolanaTransaction(
   legacyTx: LegacyTransaction,
-  extraSigners?: LegacyKeypair[],
+  extraSigners?: readonly LegacyKeypair[],
 ): Promise<SvmTransaction> {
   let computeUnits: number | undefined;
   const instructions: Instruction[] = [];
 
   for (const ix of legacyTx.instructions) {
-    const isComputeBudget =
-      ix.programId.toBase58() === (COMPUTE_BUDGET_PROGRAM as string);
+    const isComputeBudget = ix.programId.toBase58() === COMPUTE_BUDGET_PROGRAM;
 
     if (
       isComputeBudget &&
-      ix.data[0] === SET_COMPUTE_UNIT_LIMIT_DISCRIMINATOR
+      ix.data[0] === SET_COMPUTE_UNIT_LIMIT_DISCRIMINATOR &&
+      ix.data.length >= 5
     ) {
       // Extract compute unit limit — SvmSigner recreates this instruction
       // from the `computeUnits` field via buildTransactionMessage.

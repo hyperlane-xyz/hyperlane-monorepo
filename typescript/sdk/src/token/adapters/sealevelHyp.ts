@@ -61,7 +61,7 @@ export function createSealevelHypAdapter(
       assert(mailbox, 'Mailbox required for Sealevel hyp tokens');
       assert(
         collateralAddressOrDenom,
-        'collateralAddressOrDenom required for Sealevel hyp synthetic tokens',
+        'collateralAddressOrDenom required for Sealevel hyp cross-collateral tokens',
       );
       return new SealevelHypCrossCollateralAdapter(chainName, multiProvider, {
         warpRouter: addressOrDenom,

@@ -26,6 +26,10 @@ import { type AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert, rootLogger, sleep, strip0x } from '@hyperlane-xyz/utils';
 import type { InstructionAccountMeta } from '../instructions/utils.js';
 
+import {
+  convertLegacySolanaTransaction,
+  isLegacySolanaTransaction,
+} from '../legacy-compat.js';
 import { createRpc } from '../rpc.js';
 import {
   buildTransactionMessage,
@@ -36,6 +40,7 @@ import type {
   SvmReceipt,
   SvmRpc,
   SvmTransaction,
+  WithExtraSigners,
 } from '../types.js';
 
 import { SvmProvider } from './provider.js';
@@ -469,15 +474,21 @@ export class SvmSigner
   }
 
   async sendAndConfirmTransaction(
-    transaction: SendableSvmTransaction,
+    transaction: WithExtraSigners<SendableSvmTransaction>,
   ): Promise<SvmReceipt> {
-    const receipt = await this.send(transaction);
+    const tx = isLegacySolanaTransaction(transaction)
+      ? await convertLegacySolanaTransaction(
+          transaction,
+          transaction.extraSigners,
+        )
+      : transaction;
+
+    const receipt = await this.send(tx);
     return this.fetchTransactionMeta(receipt);
   }
 
   /**
    * Fetches full transaction to populate meta (including logs) on the receipt.
-   * Best-effort: returns the receipt unchanged if the fetch fails.
    */
   private async fetchTransactionMeta(receipt: SvmReceipt): Promise<SvmReceipt> {
     try {
@@ -490,12 +501,12 @@ export class SvmSigner
         })
         .send();
 
-      receipt.meta = { logMessages: fullTx?.meta?.logMessages ?? [] };
-
-      return receipt;
+      return {
+        ...receipt,
+        meta: { logMessages: fullTx?.meta?.logMessages ?? [] },
+      };
     } catch (error) {
-      this.logger.debug('Failed to fetch transaction meta', { error });
-
+      this.logger.warn('Failed to fetch transaction meta', { error });
       return receipt;
     }
   }

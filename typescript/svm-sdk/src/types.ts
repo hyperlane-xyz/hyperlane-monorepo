@@ -7,6 +7,8 @@ import type {
   TransactionSigner,
 } from '@solana/kit';
 
+import type { LegacyKeypair } from './legacy-compat.js';
+
 import type { DeployedHookAddress } from '@hyperlane-xyz/provider-sdk/hook';
 import type { DeployedIsmAddress } from '@hyperlane-xyz/provider-sdk/ism';
 
@@ -36,6 +38,15 @@ export interface SvmReceipt {
     logMessages?: readonly string[];
   };
 }
+
+/**
+ * Mixin for legacy @solana/web3.js Keypair extra signers.
+ * Used at the signer boundary to accept extra signers from SDK adapters
+ * that still use the legacy Transaction format.
+ */
+export type WithExtraSigners<T> = T & {
+  extraSigners?: readonly LegacyKeypair[];
+};
 
 export type AnnotatedSvmTransaction = SvmTransaction & {
   annotation?: string;
