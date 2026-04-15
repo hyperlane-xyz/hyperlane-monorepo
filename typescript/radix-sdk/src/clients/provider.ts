@@ -2,30 +2,11 @@ import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 import { NetworkId } from '@radixdlt/radix-engine-toolkit';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { ZERO_ADDRESS_HEX_32, assert } from '@hyperlane-xyz/utils';
+import { assert } from '@hyperlane-xyz/utils';
 
-import {
-  getHookType,
-  getIgpHookConfig,
-  getMerkleTreeHookConfig,
-} from '../hook/hook-query.js';
-import {
-  getDomainRoutingIsmConfig,
-  getIsmType,
-  getMultisigIsmConfig,
-  getTestIsmConfig,
-} from '../ism/ism-query.js';
-import {
-  getMailboxConfig,
-  isMessageDelivered,
-} from '../mailbox/mailbox-query.js';
+import { isMessageDelivered } from '../mailbox/mailbox-query.js';
 import { RadixBase } from '../utils/base.js';
-import {
-  RadixHookTypes,
-  RadixIsmTypes,
-  RadixSDKOptions,
-  RadixSDKTransaction,
-} from '../utils/types.js';
+import { RadixSDKOptions, RadixSDKTransaction } from '../utils/types.js';
 import { RadixWarpPopulate } from '../warp/populate.js';
 import { RadixWarpQuery } from '../warp/query.js';
 
@@ -183,138 +164,8 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
     });
   }
 
-  // ### QUERY CORE ###
-
-  async getMailbox(req: AltVM.ReqGetMailbox): Promise<AltVM.ResGetMailbox> {
-    const config = await getMailboxConfig(this.gateway, req.mailboxAddress);
-    return {
-      ...config,
-      defaultIsm: config.defaultIsm ?? ZERO_ADDRESS_HEX_32,
-      defaultHook: config.defaultHook ?? ZERO_ADDRESS_HEX_32,
-      requiredHook: config.requiredHook ?? ZERO_ADDRESS_HEX_32,
-    };
-  }
-
   async isMessageDelivered(req: AltVM.ReqIsMessageDelivered): Promise<boolean> {
     return isMessageDelivered(this.gateway, req.mailboxAddress, req.messageId);
-  }
-
-  async getIsmType(req: AltVM.ReqGetIsmType): Promise<AltVM.IsmType> {
-    const ismType = await getIsmType(this.gateway, req.ismAddress);
-
-    switch (ismType) {
-      case RadixIsmTypes.MERKLE_ROOT_MULTISIG: {
-        return AltVM.IsmType.MERKLE_ROOT_MULTISIG;
-      }
-      case RadixIsmTypes.MESSAGE_ID_MULTISIG: {
-        return AltVM.IsmType.MESSAGE_ID_MULTISIG;
-      }
-      case RadixIsmTypes.ROUTING_ISM: {
-        return AltVM.IsmType.ROUTING;
-      }
-      case RadixIsmTypes.NOOP_ISM: {
-        return AltVM.IsmType.TEST_ISM;
-      }
-      default:
-        throw new Error(`Unknown ISM ModuleType: ${ismType}`);
-    }
-  }
-
-  async getMessageIdMultisigIsm(
-    req: AltVM.ReqMessageIdMultisigIsm,
-  ): Promise<AltVM.ResMessageIdMultisigIsm> {
-    const ism = await getMultisigIsmConfig(this.gateway, req.ismAddress);
-    assert(
-      ism.type === RadixIsmTypes.MESSAGE_ID_MULTISIG,
-      `ism with address ${req.ismAddress} is no ${RadixIsmTypes.MESSAGE_ID_MULTISIG}`,
-    );
-
-    return {
-      address: ism.address,
-      validators: ism.validators,
-      threshold: ism.threshold,
-    };
-  }
-
-  async getMerkleRootMultisigIsm(
-    req: AltVM.ReqMerkleRootMultisigIsm,
-  ): Promise<AltVM.ResMerkleRootMultisigIsm> {
-    const ism = await getMultisigIsmConfig(this.gateway, req.ismAddress);
-    assert(
-      ism.type === RadixIsmTypes.MERKLE_ROOT_MULTISIG,
-      `ism with address ${req.ismAddress} is no ${RadixIsmTypes.MERKLE_ROOT_MULTISIG}`,
-    );
-
-    return {
-      address: ism.address,
-      validators: ism.validators,
-      threshold: ism.threshold,
-    };
-  }
-
-  async getRoutingIsm(req: AltVM.ReqRoutingIsm): Promise<AltVM.ResRoutingIsm> {
-    const ism = await getDomainRoutingIsmConfig(this.gateway, req.ismAddress);
-
-    return {
-      address: ism.address,
-      owner: ism.owner,
-      routes: ism.routes,
-    };
-  }
-
-  async getNoopIsm(req: AltVM.ReqNoopIsm): Promise<AltVM.ResNoopIsm> {
-    const ism = await getTestIsmConfig(this.gateway, req.ismAddress);
-
-    return {
-      address: ism.address,
-    };
-  }
-
-  async getHookType(req: AltVM.ReqGetHookType): Promise<AltVM.HookType> {
-    const hookType = await getHookType(this.gateway, req.hookAddress);
-
-    switch (hookType) {
-      case RadixHookTypes.IGP: {
-        return AltVM.HookType.INTERCHAIN_GAS_PAYMASTER;
-      }
-      case RadixHookTypes.MERKLE_TREE: {
-        return AltVM.HookType.MERKLE_TREE;
-      }
-      default:
-        throw new Error(`Unknown Hook Type: ${hookType}`);
-    }
-  }
-
-  async getInterchainGasPaymasterHook(
-    req: AltVM.ReqGetInterchainGasPaymasterHook,
-  ): Promise<AltVM.ResGetInterchainGasPaymasterHook> {
-    const { address, destinationGasConfigs, owner } = await getIgpHookConfig(
-      this.gateway,
-      req.hookAddress,
-    );
-
-    return {
-      address,
-      destinationGasConfigs,
-      owner,
-    };
-  }
-
-  async getMerkleTreeHook(
-    req: AltVM.ReqGetMerkleTreeHook,
-  ): Promise<AltVM.ResGetMerkleTreeHook> {
-    const { address } = await getMerkleTreeHookConfig(
-      this.gateway,
-      req.hookAddress,
-    );
-
-    return {
-      address,
-    };
-  }
-
-  async getNoopHook(_req: AltVM.ReqGetNoopHook): Promise<AltVM.ResGetNoopHook> {
-    throw new Error(`Noop Hook is currently not supported on Radix`);
   }
 
   // ### QUERY WARP ###

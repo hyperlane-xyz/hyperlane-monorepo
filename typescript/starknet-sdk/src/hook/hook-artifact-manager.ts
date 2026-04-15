@@ -21,6 +21,7 @@ import { assert } from '@hyperlane-xyz/utils';
 import { StarknetProvider } from '../clients/provider.js';
 import { StarknetSigner } from '../clients/signer.js';
 import { normalizeStarknetAddressSafe } from '../contracts.js';
+import { getHookType } from './hook-query.js';
 import {
   createStarknetInterchainGasPaymasterHookReader,
   createStarknetInterchainGasPaymasterHookWriter,
@@ -64,9 +65,7 @@ export class StarknetHookArtifactManager implements IRawHookArtifactManager {
   }
 
   async readHook(address: string): Promise<DeployedHookArtifact> {
-    const hookType = await this.provider.getHookType({
-      hookAddress: address,
-    });
+    const hookType = await getHookType(this.provider.getRawProvider(), address);
 
     switch (hookType) {
       case AltVM.HookType.CUSTOM:

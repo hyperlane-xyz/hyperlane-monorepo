@@ -24,6 +24,15 @@ import {
 import { StarknetProvider } from '../clients/provider.js';
 import { StarknetSigner } from '../clients/signer.js';
 import { normalizeStarknetAddressSafe } from '../contracts.js';
+import { getCreateNoopHookTx } from '../hook/hook-tx.js';
+import { getMailboxConfig } from './mailbox-query.js';
+import {
+  getCreateMailboxTx,
+  getSetDefaultHookTx,
+  getSetDefaultIsmTx,
+  getSetMailboxOwnerTx,
+  getSetRequiredHookTx,
+} from './mailbox-tx.js';
 
 class StarknetMailboxReader implements ArtifactReader<
   RawMailboxArtifactConfigs['mailbox'],
@@ -39,9 +48,10 @@ class StarknetMailboxReader implements ArtifactReader<
       DeployedMailboxAddress
     >
   > {
-    const mailbox = await this.provider.getMailbox({
-      mailboxAddress: address,
-    });
+    const mailbox = await getMailboxConfig(
+      this.provider.getRawProvider(),
+      address,
+    );
 
     return {
       artifactState: ArtifactState.DEPLOYED,
@@ -101,10 +111,7 @@ class StarknetMailboxWriter
     }
 
     if (!placeholderRef.address) {
-      const tx = await this.signer.getCreateNoopHookTransaction({
-        signer: this.signer.getSignerAddress(),
-        mailboxAddress: '',
-      });
+      const tx = getCreateNoopHookTx();
       const receipt = await this.signer.sendAndConfirmTransaction(tx);
       receipts.push(receipt);
       assert(
@@ -145,30 +152,17 @@ class StarknetMailboxWriter
       placeholderHookRef,
     );
 
-    const createTx = await this.signer.getCreateMailboxTransaction({
-      signer: this.signer.getSignerAddress(),
+    const createTx = getCreateMailboxTx(this.signer.getSignerAddress(), {
       domainId: this.chainMetadata.domainId,
       defaultIsmAddress,
       defaultHookAddress,
       requiredHookAddress,
-      proxyAdminAddress: undefined,
     });
     const createReceipt = await this.signer.sendAndConfirmTransaction(createTx);
     receipts.push(createReceipt);
 
     assert(createReceipt.contractAddress, 'failed to deploy Starknet mailbox');
     const mailboxAddress = createReceipt.contractAddress;
-
-    if (
-      !eqAddressStarknet(artifact.config.owner, this.signer.getSignerAddress())
-    ) {
-      const tx = await this.signer.getSetMailboxOwnerTransaction({
-        signer: this.signer.getSignerAddress(),
-        mailboxAddress,
-        newOwner: artifact.config.owner,
-      });
-      receipts.push(await this.signer.sendAndConfirmTransaction(tx));
-    }
 
     return [
       {
@@ -211,11 +205,12 @@ class StarknetMailboxWriter
       current.config.requiredHook,
     );
 
+    const rawProvider = this.signer.getRawProvider();
+
     if (!eqAddressStarknet(currentDefaultIsm, expectedDefaultIsm)) {
       updateTxs.push({
         annotation: `Setting mailbox default ISM`,
-        ...(await this.signer.getSetDefaultIsmTransaction({
-          signer: this.signer.getSignerAddress(),
+        ...(await getSetDefaultIsmTx(rawProvider, {
           mailboxAddress,
           ismAddress: expectedDefaultIsm,
         })),
@@ -225,8 +220,7 @@ class StarknetMailboxWriter
     if (!eqAddressStarknet(currentDefaultHook, expectedDefaultHook)) {
       updateTxs.push({
         annotation: `Setting mailbox default hook`,
-        ...(await this.signer.getSetDefaultHookTransaction({
-          signer: this.signer.getSignerAddress(),
+        ...(await getSetDefaultHookTx(rawProvider, {
           mailboxAddress,
           hookAddress: expectedDefaultHook,
         })),
@@ -236,8 +230,7 @@ class StarknetMailboxWriter
     if (!eqAddressStarknet(currentRequiredHook, expectedRequiredHook)) {
       updateTxs.push({
         annotation: `Setting mailbox required hook`,
-        ...(await this.signer.getSetRequiredHookTransaction({
-          signer: this.signer.getSignerAddress(),
+        ...(await getSetRequiredHookTx(rawProvider, {
           mailboxAddress,
           hookAddress: expectedRequiredHook,
         })),
@@ -247,8 +240,7 @@ class StarknetMailboxWriter
     if (!eqAddressStarknet(current.config.owner, artifact.config.owner)) {
       updateTxs.push({
         annotation: `Setting mailbox owner`,
-        ...(await this.signer.getSetMailboxOwnerTransaction({
-          signer: this.signer.getSignerAddress(),
+        ...(await getSetMailboxOwnerTx(rawProvider, {
           mailboxAddress,
           newOwner: artifact.config.owner,
         })),

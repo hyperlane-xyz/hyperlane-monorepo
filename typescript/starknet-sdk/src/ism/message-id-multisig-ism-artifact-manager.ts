@@ -18,6 +18,8 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import { StarknetProvider } from '../clients/provider.js';
 import { StarknetSigner } from '../clients/signer.js';
+import { getMessageIdMultisigIsmConfig } from './ism-query.js';
+import { getCreateMessageIdMultisigIsmTx } from './ism-tx.js';
 
 export class StarknetMessageIdMultisigIsmReader implements ArtifactReader<
   RawIsmArtifactConfigs['messageIdMultisigIsm'],
@@ -33,9 +35,10 @@ export class StarknetMessageIdMultisigIsmReader implements ArtifactReader<
       DeployedIsmAddress
     >
   > {
-    const ism = await this.provider.getMessageIdMultisigIsm({
-      ismAddress: address,
-    });
+    const ism = await getMessageIdMultisigIsmConfig(
+      this.provider.getRawProvider(),
+      address,
+    );
     return {
       artifactState: ArtifactState.DEPLOYED,
       config: {
@@ -74,8 +77,7 @@ export class StarknetMessageIdMultisigIsmWriter
       TxReceipt[],
     ]
   > {
-    const tx = await this.signer.getCreateMessageIdMultisigIsmTransaction({
-      signer: this.signer.getSignerAddress(),
+    const tx = getCreateMessageIdMultisigIsmTx(this.signer.getSignerAddress(), {
       validators: artifact.config.validators,
       threshold: artifact.config.threshold,
     });

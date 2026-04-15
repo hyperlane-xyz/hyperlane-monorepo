@@ -11,6 +11,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/module';
 
 import { StarknetSigner } from '../clients/signer.js';
+import { getCreateNoopHookTx } from '../hook/hook-tx.js';
 import { StarknetIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 import { StarknetMailboxArtifactManager } from '../mailbox/mailbox-artifact-manager.js';
 import { StarknetWarpArtifactManager } from '../warp/warp-artifact-manager.js';
@@ -37,10 +38,7 @@ describe('5a. starknet sdk warp core e2e tests', function () {
       .createWriter(AltVM.IsmType.TEST_ISM, signer)
       .create({ config: { type: AltVM.IsmType.TEST_ISM } });
 
-    const hookTx = await signer.getCreateNoopHookTransaction({
-      signer: signer.getSignerAddress(),
-      mailboxAddress: signer.getSignerAddress(),
-    });
+    const hookTx = getCreateNoopHookTx();
     const hookReceipt = await signer.sendAndConfirmTransaction(hookTx);
     assert(hookReceipt.contractAddress, 'failed to deploy noop hook');
     const hookAddress = hookReceipt.contractAddress;
@@ -192,10 +190,7 @@ describe('5a. starknet sdk warp core e2e tests', function () {
       .create({ config: { type: AltVM.IsmType.TEST_ISM } });
     const ismAddress = ismResult.deployed.address;
 
-    const hookTx = await signer.getCreateNoopHookTransaction({
-      signer: signer.getSignerAddress(),
-      mailboxAddress,
-    });
+    const hookTx = getCreateNoopHookTx();
     const hookReceipt = await signer.sendAndConfirmTransaction(hookTx);
     assert(hookReceipt.contractAddress, 'failed to deploy noop hook');
     const hookAddress = hookReceipt.contractAddress;
