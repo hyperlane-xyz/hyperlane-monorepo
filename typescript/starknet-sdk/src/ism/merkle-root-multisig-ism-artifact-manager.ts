@@ -18,6 +18,7 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import { StarknetProvider } from '../clients/provider.js';
 import { StarknetSigner } from '../clients/signer.js';
+import { getMerkleRootMultisigIsmConfig } from './ism-query.js';
 import { getCreateMerkleRootMultisigIsmTx } from './ism-tx.js';
 
 export class StarknetMerkleRootMultisigIsmReader implements ArtifactReader<
@@ -34,9 +35,10 @@ export class StarknetMerkleRootMultisigIsmReader implements ArtifactReader<
       DeployedIsmAddress
     >
   > {
-    const ism = await this.provider.getMerkleRootMultisigIsm({
-      ismAddress: address,
-    });
+    const ism = await getMerkleRootMultisigIsmConfig(
+      this.provider.getRawProvider(),
+      address,
+    );
     return {
       artifactState: ArtifactState.DEPLOYED,
       config: {

@@ -14,6 +14,7 @@ import {
   StarknetWarpTokenWriterBase,
 } from './token-artifact-manager.js';
 import { getCreateCollateralTokenTx } from './warp-tx.js';
+import { getMailboxConfig } from '../mailbox/mailbox-query.js';
 
 export class StarknetCollateralTokenReader extends StarknetWarpTokenReaderBase<
   'collateral',
@@ -59,9 +60,10 @@ export class StarknetCollateralTokenWriter extends StarknetWarpTokenWriterBase<
   protected async createToken(
     artifact: ArtifactNew<RawWarpArtifactConfigs['collateral']>,
   ) {
-    const mailbox = await this.provider.getMailbox({
-      mailboxAddress: artifact.config.mailbox,
-    });
+    const mailbox = await getMailboxConfig(
+      this.provider.getRawProvider(),
+      artifact.config.mailbox,
+    );
     const tx = getCreateCollateralTokenTx(this.signer.getSignerAddress(), {
       mailboxAddress: artifact.config.mailbox,
       collateralDenom: artifact.config.token,

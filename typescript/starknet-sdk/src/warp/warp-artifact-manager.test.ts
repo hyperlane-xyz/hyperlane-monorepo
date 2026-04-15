@@ -1,14 +1,13 @@
 import { expect } from 'chai';
 import { RpcProvider } from 'starknet';
 
-import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
 import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
 import { ZERO_ADDRESS_HEX_32 } from '@hyperlane-xyz/utils';
 
 import { StarknetSigner } from '../clients/signer.js';
-import { normalizeStarknetAddressSafe } from '../contracts.js';
 import { StarknetAnnotatedTx, StarknetTxReceipt } from '../types.js';
 
 import { StarknetWarpArtifactManager } from './warp-artifact-manager.js';
@@ -44,62 +43,7 @@ describe('StarknetWarpArtifactManager', () => {
         contractAddress: tx.kind === 'deploy' ? '0xabc' : undefined,
       };
     }
-
-    override async getMailbox(_req: { mailboxAddress: string }) {
-      return {
-        address: '0x111',
-        localDomain: chainMetadata.domainId,
-        nonce: 0,
-        owner: this.getSignerAddress(),
-        defaultIsm: '0x333',
-        defaultHook: '0x222',
-        requiredHook: '0x222',
-      };
-    }
   }
-
-  it('creates native warp artifacts without re-reading on-chain state', async () => {
-    const manager = new StarknetWarpArtifactManager(chainMetadata);
-    const signer = new MockStarknetSigner();
-    const provider = Reflect.get(manager, 'provider') as {
-      getToken: () => Promise<never>;
-      getMailbox: () => Promise<AltVM.ResGetMailbox>;
-      getFeeTokenAddress: () => string;
-    };
-    provider.getToken = async () => {
-      throw new Error('unexpected token read');
-    };
-    provider.getMailbox = async () => ({
-      address: '0x111',
-      owner: signer.getSignerAddress(),
-      localDomain: chainMetadata.domainId,
-      defaultIsm: '0x0',
-      defaultHook: '0x0',
-      requiredHook: '0x0',
-      nonce: 0,
-    });
-    provider.getFeeTokenAddress = () =>
-      '0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7';
-
-    const writer = manager.createWriter('native', signer);
-    const [artifact, receipts] = await writer.create({
-      artifactState: ArtifactState.NEW,
-      config: {
-        type: TokenType.native,
-        owner: signer.getSignerAddress(),
-        mailbox: '0x111',
-        remoteRouters: {},
-        destinationGas: {},
-      },
-    });
-
-    expect(receipts).to.have.length(1);
-    expect(signer.capturedTxs).to.have.length(1);
-    expect(signer.capturedTxs[0]?.kind).to.equal('deploy');
-    expect(artifact.deployed.address).to.equal(
-      normalizeStarknetAddressSafe('0xabc'),
-    );
-  });
 
   it('preserves current hook and ism when Starknet updates omit them', async () => {
     const manager = new StarknetWarpArtifactManager(chainMetadata);

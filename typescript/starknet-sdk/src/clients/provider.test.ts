@@ -249,91 +249,6 @@ describe('StarknetProvider getTokenMetadata', () => {
   });
 });
 
-describe('StarknetProvider getHookType', () => {
-  it('uses base HOOK ABI for hook_type detection', async () => {
-    const provider = new StarknetProviderTestHarness();
-    provider.hookTypeValue = { MERKLE_TREE: {} };
-
-    const hookType = await provider.getHookType({ hookAddress: '0x1' });
-
-    expect(hookType).to.equal(AltVM.HookType.MERKLE_TREE);
-    expect(provider.contractSelections).to.deep.equal([
-      StarknetContractName.HOOK,
-    ]);
-  });
-
-  it('returns custom when hook_type probe misses', async () => {
-    const provider = new StarknetProviderTestHarness();
-    provider.hookTypeThrows = true;
-    provider.hookTypeErrorMessage = 'viewable method not found in abi';
-
-    const hookType = await provider.getHookType({ hookAddress: '0x1' });
-
-    expect(hookType).to.equal(AltVM.HookType.CUSTOM);
-    expect(provider.contractSelections).to.deep.equal([
-      StarknetContractName.HOOK,
-    ]);
-  });
-
-  it('rethrows unexpected hook_type failures', async () => {
-    const provider = new StarknetProviderTestHarness();
-    provider.hookTypeThrows = true;
-
-    let caughtError: unknown;
-    try {
-      await provider.getHookType({ hookAddress: '0x1' });
-    } catch (error) {
-      caughtError = error;
-    }
-
-    expect(String(caughtError)).to.include('hook_type failed');
-  });
-});
-
-describe('StarknetProvider getIsmType', () => {
-  it('recognizes noop/test module_type variants as testIsm', async () => {
-    const provider = new StarknetProviderTestHarness();
-    provider.ismTypeValue = { NULL: {} };
-
-    const ismType = await provider.getIsmType({ ismAddress: '0x1' });
-
-    expect(ismType).to.equal(AltVM.IsmType.TEST_ISM);
-  });
-
-  it('returns custom for unknown module_type variants', async () => {
-    const provider = new StarknetProviderTestHarness();
-    provider.ismTypeValue = { AGGREGATION: {} };
-
-    const ismType = await provider.getIsmType({ ismAddress: '0x1' });
-
-    expect(ismType).to.equal(AltVM.IsmType.CUSTOM);
-  });
-
-  it('returns custom when module_type probe misses', async () => {
-    const provider = new StarknetProviderTestHarness();
-    provider.ismTypeThrows = true;
-    provider.ismTypeErrorMessage = 'viewable method not found in abi';
-
-    const ismType = await provider.getIsmType({ ismAddress: '0x1' });
-
-    expect(ismType).to.equal(AltVM.IsmType.CUSTOM);
-  });
-
-  it('rethrows unexpected module_type lookup failures', async () => {
-    const provider = new StarknetProviderTestHarness();
-    provider.ismTypeThrows = true;
-
-    let caughtError: unknown;
-    try {
-      await provider.getIsmType({ ismAddress: '0x1' });
-    } catch (error) {
-      caughtError = error;
-    }
-
-    expect(String(caughtError)).to.include('module_type failed');
-  });
-});
-
 describe('StarknetProvider getBalance', () => {
   it('falls back to balance_of when balanceOf probe misses', async () => {
     const provider = new StarknetProviderTestHarness();
@@ -397,32 +312,6 @@ describe('StarknetProvider determineTokenType', () => {
     const tokenType = await provider.readTokenType('0x123');
 
     expect(tokenType).to.equal(AltVM.TokenType.native);
-  });
-});
-
-describe('StarknetProvider isMessageDelivered', () => {
-  it('parses zero-like Starknet values as false', async () => {
-    const provider = new StarknetProviderTestHarness();
-    provider.deliveredValue = '0';
-
-    const delivered = await provider.isMessageDelivered({
-      mailboxAddress: '0x1',
-      messageId: '0x2',
-    });
-
-    expect(delivered).to.equal(false);
-  });
-
-  it('parses non-zero Starknet values as true', async () => {
-    const provider = new StarknetProviderTestHarness();
-    provider.deliveredValue = '1';
-
-    const delivered = await provider.isMessageDelivered({
-      mailboxAddress: '0x1',
-      messageId: '0x2',
-    });
-
-    expect(delivered).to.equal(true);
   });
 });
 

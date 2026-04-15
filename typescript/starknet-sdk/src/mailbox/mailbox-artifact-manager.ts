@@ -25,6 +25,7 @@ import { StarknetProvider } from '../clients/provider.js';
 import { StarknetSigner } from '../clients/signer.js';
 import { normalizeStarknetAddressSafe } from '../contracts.js';
 import { getCreateNoopHookTx } from '../hook/hook-tx.js';
+import { getMailboxConfig } from './mailbox-query.js';
 import {
   getCreateMailboxTx,
   getSetDefaultHookTx,
@@ -47,9 +48,10 @@ class StarknetMailboxReader implements ArtifactReader<
       DeployedMailboxAddress
     >
   > {
-    const mailbox = await this.provider.getMailbox({
-      mailboxAddress: address,
-    });
+    const mailbox = await getMailboxConfig(
+      this.provider.getRawProvider(),
+      address,
+    );
 
     return {
       artifactState: ArtifactState.DEPLOYED,

@@ -18,6 +18,7 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import { StarknetProvider } from '../clients/provider.js';
 import { StarknetSigner } from '../clients/signer.js';
+import { getNoopIsmConfig } from './ism-query.js';
 import { getCreateNoopIsmTx } from './ism-tx.js';
 
 export class StarknetTestIsmReader implements ArtifactReader<
@@ -31,7 +32,7 @@ export class StarknetTestIsmReader implements ArtifactReader<
   ): Promise<
     ArtifactDeployed<RawIsmArtifactConfigs['testIsm'], DeployedIsmAddress>
   > {
-    const noop = await this.provider.getNoopIsm({ ismAddress: address });
+    const noop = getNoopIsmConfig(address);
     return {
       artifactState: ArtifactState.DEPLOYED,
       config: { type: AltVM.IsmType.TEST_ISM },

@@ -21,6 +21,7 @@ import { assert, eqAddressStarknet } from '@hyperlane-xyz/utils';
 import { StarknetProvider } from '../clients/provider.js';
 import { StarknetSigner } from '../clients/signer.js';
 import { normalizeStarknetAddressSafe } from '../contracts.js';
+import { getRoutingIsmConfig } from './ism-query.js';
 import {
   getCreateRoutingIsmTx,
   getRemoveRoutingIsmRouteTx,
@@ -42,9 +43,10 @@ export class StarknetRoutingIsmReader implements ArtifactReader<
       DeployedIsmAddress
     >
   > {
-    const routing = await this.provider.getRoutingIsm({
-      ismAddress: address,
-    });
+    const routing = await getRoutingIsmConfig(
+      this.provider.getRawProvider(),
+      address,
+    );
     const domains: RawIsmArtifactConfigs['domainRoutingIsm']['domains'] = {};
 
     for (const route of routing.routes) {
