@@ -565,7 +565,7 @@ async fn create_relay(
             msg_ctx.clone(),
             PendingOperationStatus::FirstPrepareAttempt,
             app_context.clone(),
-            0, // Max retries - relay API messages fail fast, no retries
+            3, // Safety net for hard failures; pending attestation is handled inside ccip_read
         );
 
         // CRITICAL: Send to channel FIRST, before persisting to DB
@@ -588,9 +588,28 @@ async fn create_relay(
             "Successfully sent message to processor channel"
         );
 
-        // Intentionally no DB writes here. The relay API is a pure fast-path signal to
-        // the processor. Writing nonce→messageId mappings before the origin tx is confirmed
-        // would corrupt the DB on reorgs. The contracts indexer writes to the DB once the
+        // Store messageId→txHash so the CCIP-read builder can pass the tx hash to the
+        // offchain lookup server, allowing it to skip the GraphQL/scraper lookup and query
+        // Circle directly. This is safe on reorgs: worst case Circle returns no attestation
+        // for a reorged tx hash, which just causes a retry.
+        // We do NOT write nonce→messageId mappings (that would corrupt the DB on reorgs).
+        if let Some(dbs) = &state.dbs {
+            if let Some(db) = dbs.get(&extracted.origin_domain) {
+                use hyperlane_base::db::HyperlaneDb;
+                if let Err(e) = db.store_dispatched_tx_hash_by_message_id(
+                    &extracted.message_id,
+                    &extracted.tx_hash,
+                ) {
+                    warn!(
+                        message_id = ?extracted.message_id,
+                        error = %e,
+                        "Failed to store tx hash for message — ccip-server will fall back to GraphQL"
+                    );
+                }
+            }
+        }
+
+        // The contracts indexer writes to the DB once the
         // tx is finalized; if the message was already delivered by then, prepare() will
         // detect it via mailbox.delivered() and skip resubmission without wasting gas.
 

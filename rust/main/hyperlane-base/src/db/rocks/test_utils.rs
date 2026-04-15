@@ -41,7 +41,7 @@ mod test {
         RawHyperlaneMessage, H256, H512, U256,
     };
 
-    use crate::db::HyperlaneRocksDB;
+    use crate::db::{HyperlaneDb, HyperlaneRocksDB};
 
     use super::*;
 
@@ -80,6 +80,46 @@ mod test {
                 RawHyperlaneMessage::from(&by_nonce),
                 RawHyperlaneMessage::from(&m)
             );
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn db_stores_and_retrieves_dispatched_tx_hash() {
+        run_test_db(|db| async move {
+            let db = HyperlaneRocksDB::new(
+                &HyperlaneDomain::new_test_domain("db_stores_and_retrieves_dispatched_tx_hash"),
+                db,
+            );
+
+            let m = HyperlaneMessage {
+                nonce: 42,
+                version: 3,
+                origin: 10,
+                sender: H256::from_low_u64_be(4),
+                destination: 12,
+                recipient: H256::from_low_u64_be(5),
+                body: vec![],
+            };
+            let tx_hash = H512::from_low_u64_be(0xdeadbeef);
+            let meta = LogMeta {
+                address: H256::from_low_u64_be(1),
+                block_number: 1,
+                block_hash: H256::from_low_u64_be(1),
+                transaction_id: tx_hash,
+                transaction_index: 0,
+                log_index: U256::from(0),
+            };
+
+            db.store_logs(&vec![(Indexed::new(m.clone()), meta)])
+                .await
+                .unwrap();
+
+            let retrieved = db
+                .retrieve_dispatched_tx_hash_by_message_id(&m.id())
+                .unwrap()
+                .unwrap();
+            assert_eq!(retrieved, tx_hash);
         })
         .await;
     }

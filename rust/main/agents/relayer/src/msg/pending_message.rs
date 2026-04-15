@@ -1062,6 +1062,10 @@ impl PendingMessage {
                 warn!(?root, ?canonical_root, "Merkle root mismatch");
                 self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
             }
+            // Handled inside the ccip_read retry loop; should not propagate here
+            MetadataBuildError::AttestationPending => {
+                self.on_reprepare(Some(err), ReprepareReason::CouldNotFetchMetadata)
+            }
         });
         let build_metadata_end = Instant::now();
 

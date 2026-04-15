@@ -1,5 +1,5 @@
 use eyre::{eyre, Result};
-use hyperlane_core::{HyperlaneMessage, Indexer, H256};
+use hyperlane_core::{HyperlaneMessage, Indexer, H256, H512};
 use std::{collections::HashMap, sync::Arc};
 use tracing::{debug, error, warn};
 
@@ -103,6 +103,7 @@ pub async fn extract_messages(
                 destination_domain,
                 message_id,
                 is_cctp_v2,
+                tx_hash: tx_hash_512,
             }
         })
         .collect();
@@ -118,4 +119,6 @@ pub struct ExtractedMessage {
     pub message_id: H256,
     /// True when the transaction contains a Circle CCTP V2 `DepositForBurn` event.
     pub is_cctp_v2: bool,
+    /// The origin transaction hash, used by the ccip-server to skip GraphQL lookup.
+    pub tx_hash: H512,
 }

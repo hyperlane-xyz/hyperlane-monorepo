@@ -1,50 +1,171 @@
 {
   "chains": {
-    "ethereumlocal1": {
-      "name": "ethereumlocal1",
-      "protocol": "ethereum",
-      "chainId": 31337,
-      "domainId": 31337,
-      "rpcUrls": [{"http": "http://127.0.0.1:8545"}],
-      "mailbox": "0x610178dA211FEF7D417bC0e6FeD39F05609AD788",
-      "interchainGasPaymaster": "0x0000000000000000000000000000000000000000",
-      "merkleTreeHook": "0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0",
-      "validatorAnnounce": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+    "arbitrumsepolia": {
+      "aggregationHook": "0xD2670EedcD21116c6F0B331Ce391eA4B3Bf1aB19",
+      "blockExplorers": [
+        {
+          "apiKey": "QAI5SWBNHJSFAN6KMS9RC5JGFKV2IYD2Z5",
+          "apiUrl": "https://api-sepolia.arbiscan.io/api",
+          "family": "etherscan",
+          "name": "Arbiscan",
+          "url": "https://sepolia.arbiscan.io"
+        }
+      ],
       "blocks": {
         "confirmations": 1,
-        "reorgPeriod": 0,
-        "estimateBlockTime": 3
+        "estimateBlockTime": 3,
+        "reorgPeriod": 0
       },
+      "chainId": 421614,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
+      "displayName": "Arbitrum Sepolia",
+      "domainId": 421614,
+      "domainRoutingIsm": "0xaCA2f65aFDa2cbC8BF28DdE096eCF83aCd121c0b",
+      "domainRoutingIsmFactory": "0xd785272D240B07719e417622cbd2cfA0E584d1bd",
+      "fallbackRoutingHook": "0xAb9B273366D794B7F80B4378bc8Aaca75C6178E2",
+      "index": {
+        "from": 259766442
+      },
+      "interchainGasPaymaster": "0xc756cFc1b7d0d4646589EDf10eD54b201237F5e8",
+      "interchainSecurityModule": "0x9440f5bB0CF08aa8E2e4f0B36Edfe3E437382947",
+      "isTestnet": true,
+      "mailbox": "0x598facE78a4302f11E3de0bee1894Da0b2Cb71F8",
+      "merkleTreeHook": "0xAD34A66Bf6dB18E858F6B686557075568c6E031C",
+      "name": "arbitrumsepolia",
+      "nativeToken": {
+        "decimals": 18,
+        "name": "Ether",
+        "symbol": "ETH"
+      },
+      "pausableHook": "0x86fb9F1c124fB20ff130C41a79a432F770f67AFD",
+      "pausableIsm": "0x54ba950390670f27892AFFC670Ba6ed598E5B8Df",
+      "protocol": "ethereum",
+      "protocolFee": "0x75f3E2a4f424401195A5E176246Ecc9f7e7680ff",
+      "proxyAdmin": "0x666a24F62f7A97BA33c151776Eb3D9441a059eB8",
+      "rpcUrls": [
+        {
+          "http": "https://arbitrum-sepolia.drpc.org"
+        },
+        {
+          "http": "https://arbitrum-sepolia.gateway.tenderly.co"
+        },
+        {
+          "http": "https://sepolia-rollup.arbitrum.io/rpc"
+        }
+      ],
+      "staticAggregationHookFactory": "0x0526E47C49742C15F8817ef8cf0d8FFc72139D4F",
+      "staticAggregationIsm": "0x29cEAFEE1F76B9CE271750f86B2bD12C23F9dDb6",
+      "staticAggregationIsmFactory": "0xfc8d0D2E15A36f1A3F3aE3Cb127B706c1f23Aadc",
+      "staticMerkleRootMultisigIsmFactory": "0x1D5EbC3e15e9ECDe0e3530C85899556797eeaea5",
+      "staticMessageIdMultisigIsmFactory": "0xF7F0DaB0BECE4498dAc7eb616e288809D4499371",
+      "storageGasOracle": "0xddf4C3e791caCaFd26D7fb275549739B38ae6e75",
+      "technicalStack": "arbitrumnitro",
+      "testRecipient": "0x6c13643B3927C57DB92c790E4E3E7Ee81e13f78C",
+      "validatorAnnounce": "0x1b33611fCc073aB0737011d5512EF673Bff74962",
+      "staticMerkleRootWeightedMultisigIsmFactory": "0x1aFD5191738d365C8079e955E4cEdDfe7e01C62d",
+      "staticMessageIdWeightedMultisigIsmFactory": "0xC81e6D1070aFA48DA4e4f35E744CC1aE43532a10",
+      "gasCurrencyCoinGeckoId": "ethereum",
+      "interchainAccountIsm": "0xaec6382e1e16Ee12DBEf0e7EA5ADa51217813Fc3",
+      "interchainAccountRouter": "0x20cC3a33C49fa13627303669edf2DcA7F1E76a50",
+      "timelockController": "0x0000000000000000000000000000000000000000",
       "signer": {
         "type": "hexKey",
-        "key": "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-      },
-      "index": {
-        "from": 1
+        "key": "0x34717a4d182df9a114a6a3f609efc7339068a2036190e1c0c59ff5366c5f5ce1"
       }
     },
-    "ethereumlocal2": {
-      "name": "ethereumlocal2",
-      "protocol": "ethereum",
-      "chainId": 31338,
-      "domainId": 31338,
-      "rpcUrls": [{"http": "http://127.0.0.1:8546"}],
-      "mailbox": "0x610178dA211FEF7D417bC0e6FeD39F05609AD788",
-      "interchainGasPaymaster": "0x0000000000000000000000000000000000000000",
-      "merkleTreeHook": "0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0",
-      "validatorAnnounce": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+    "sepolia": {
+      "aggregationHook": "0xe3147d5618f5e2e100690B50ec923009a4cde14A",
+      "blockExplorers": [
+        {
+          "apiKey": "CYUPN3Q66JIMRGQWYUDXJKQH4SX8YIYZMW",
+          "apiUrl": "https://api-sepolia.etherscan.io/api",
+          "family": "etherscan",
+          "name": "Etherscan",
+          "url": "https://sepolia.etherscan.io"
+        }
+      ],
       "blocks": {
         "confirmations": 1,
-        "reorgPeriod": 0,
-        "estimateBlockTime": 3
+        "estimateBlockTime": 13,
+        "reorgPeriod": 2
       },
+      "chainId": 11155111,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
+      "displayName": "Sepolia",
+      "domainId": 11155111,
+      "domainRoutingIsm": "0xfa9a26cCc5417d1C1D03C949b5013Bb5898dA905",
+      "domainRoutingIsmFactory": "0x3F100cBBE5FD5466BdB4B3a15Ac226957e7965Ad",
+      "fallbackRoutingHook": "0x17Dc724B7a2F09141C13b8AC33B396073785c2BC",
+      "gnosisSafeTransactionServiceUrl": "https://safe-transaction-sepolia.safe.global",
+      "index": {
+        "from": 10663313
+      },
+      "interchainAccountIsm": "0x83a3068B719F764d413625dA77468ED74789ae02",
+      "interchainAccountRouter": "0x8e131c8aE5BF1Ed38D05a00892b6001a7d37739d",
+      "interchainGasPaymaster": "0x6f2756380FD49228ae25Aa7F2817993cB74Ecc56",
+      "interchainSecurityModule": "0x899D470e1251770eBa1b426c48aF614bdC55D583",
+      "isTestnet": true,
+      "mailbox": "0xfFAEF09B3cd11D9b20d1a19bECca54EEC2884766",
+      "merkleTreeHook": "0x4917a9746A7B6E0A57159cCb7F5a6744247f2d0d",
+      "name": "sepolia",
+      "nativeToken": {
+        "decimals": 18,
+        "name": "Ether",
+        "symbol": "ETH"
+      },
+      "pausableHook": "0xa68022e53Fd28119D07C8336a8eC84A298Fd38Fd",
+      "pausableIsm": "0x21bdaB116d9DA77E312910fB53aD35dD82C8a76c",
+      "protocol": "ethereum",
+      "protocolFee": "0x13AC3349Cb159fE86A22cf42DdA803D9f7309DB5",
+      "proxyAdmin": "0x97Bbc6bBaFa5Ce3b2FA966c121Af63bD09e940f8",
+      "rpcUrls": [
+        {
+          "http": "https://ethereum-sepolia.publicnode.com"
+        },
+        {
+          "http": "https://gateway.tenderly.co/public/sepolia"
+        },
+        {
+          "http": "https://sepolia.drpc.org"
+        },
+        {
+          "http": "https://1rpc.io/sepolia"
+        }
+      ],
+      "staticAggregationHookFactory": "0x160C28C92cA453570aD7C031972b58d5Dd128F72",
+      "staticAggregationIsm": "0x7856078C4881e236660Be82fdb12473B4a33cCFf",
+      "staticAggregationIsmFactory": "0xC83e12EF2627ACE445C298e6eC418684918a6002",
+      "staticMerkleRootMultisigIsmFactory": "0x0a71AcC99967829eE305a285750017C4916Ca269",
+      "staticMessageIdMultisigIsmFactory": "0xFEb9585b2f948c1eD74034205a7439261a9d27DD",
+      "storageGasOracle": "0x71775B071F77F1ce52Ece810ce084451a3045FFe",
+      "testRecipient": "0xeDc1A3EDf87187085A3ABb7A9a65E1e7aE370C07",
+      "testTokenRecipient": "0x031AD9c560D37baC7d6Bd2d27A2443bAfd10101A",
+      "timelockController": "0x0000000000000000000000000000000000000000",
+      "validatorAnnounce": "0xE6105C59480a1B7DD3E4f28153aFdbE12F4CfCD9",
+      "staticMerkleRootWeightedMultisigIsmFactory": "0x4afB48e864d308409d0D80E98fB7d5d6aA5b245f",
+      "staticMessageIdWeightedMultisigIsmFactory": "0x196Ce28ED1Afdf015849ddEE82F03a903Bee9E94",
+      "gasCurrencyCoinGeckoId": "ethereum",
       "signer": {
         "type": "hexKey",
-        "key": "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-      },
-      "index": {
-        "from": 1
+        "key": "0x34717a4d182df9a114a6a3f609efc7339068a2036190e1c0c59ff5366c5f5ce1"
       }
     }
+  },
+  "defaultSigner": {
+    "type": "hexKey",
+    "key": "0x34717a4d182df9a114a6a3f609efc7339068a2036190e1c0c59ff5366c5f5ce1"
+  },
+  "allowLocalCheckpointSyncers": true,
+  "relayChains": "sepolia,arbitrumsepolia",
+  "db": "/tmp/relayer-db",
+  "tracing": {
+    "level": "info",
+    "fmt": "compact"
   }
 }
