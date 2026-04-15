@@ -75,11 +75,13 @@ export class StarknetMerkleRootMultisigIsmWriter
       TxReceipt[],
     ]
   > {
-    const tx = getCreateMerkleRootMultisigIsmTx({
-      signer: this.signer.getSignerAddress(),
-      validators: artifact.config.validators,
-      threshold: artifact.config.threshold,
-    });
+    const tx = getCreateMerkleRootMultisigIsmTx(
+      this.signer.getSignerAddress(),
+      {
+        validators: artifact.config.validators,
+        threshold: artifact.config.threshold,
+      },
+    );
     const receipt = await this.signer.sendAndConfirmTransaction(tx);
     const ismAddress = receipt.contractAddress;
     assert(ismAddress, 'failed to deploy Starknet merkle root multisig ISM');

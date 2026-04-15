@@ -62,17 +62,12 @@ export class StarknetCollateralTokenWriter extends StarknetWarpTokenWriterBase<
     const mailbox = await this.provider.getMailbox({
       mailboxAddress: artifact.config.mailbox,
     });
-    const tx = getCreateCollateralTokenTx(
-      {
-        signer: this.signer.getSignerAddress(),
-        mailboxAddress: artifact.config.mailbox,
-        collateralDenom: artifact.config.token,
-      },
-      {
-        defaultHook: mailbox.defaultHook,
-        defaultIsm: mailbox.defaultIsm,
-      },
-    );
+    const tx = getCreateCollateralTokenTx(this.signer.getSignerAddress(), {
+      mailboxAddress: artifact.config.mailbox,
+      collateralDenom: artifact.config.token,
+      defaultHook: mailbox.defaultHook,
+      defaultIsm: mailbox.defaultIsm,
+    });
     return this.signer.sendAndConfirmTransaction(tx);
   }
 

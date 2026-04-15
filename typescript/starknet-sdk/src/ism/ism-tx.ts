@@ -1,6 +1,5 @@
 import { type RpcProvider } from 'starknet';
 
-import { type AltVM } from '@hyperlane-xyz/provider-sdk';
 import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import {
@@ -12,81 +11,96 @@ import {
 import { type StarknetAnnotatedTx } from '../types.js';
 
 export function getCreateMerkleRootMultisigIsmTx(
-  req: AltVM.ReqCreateMerkleRootMultisigIsm,
+  signer: string,
+  config: {
+    validators: string[];
+    threshold: number;
+  },
 ): StarknetAnnotatedTx {
   return {
     kind: 'deploy',
     contractName: StarknetContractName.MERKLE_ROOT_MULTISIG_ISM,
     constructorArgs: [
-      normalizeStarknetAddressSafe(req.signer),
-      req.validators.map((validator) => addressToBytes32(validator)),
-      req.threshold,
+      normalizeStarknetAddressSafe(signer),
+      config.validators.map((validator) => addressToBytes32(validator)),
+      config.threshold,
     ],
   };
 }
 
 export function getCreateMessageIdMultisigIsmTx(
-  req: AltVM.ReqCreateMessageIdMultisigIsm,
+  signer: string,
+  config: {
+    validators: string[];
+    threshold: number;
+  },
 ): StarknetAnnotatedTx {
   return {
     kind: 'deploy',
     contractName: StarknetContractName.MESSAGE_ID_MULTISIG_ISM,
     constructorArgs: [
-      normalizeStarknetAddressSafe(req.signer),
-      req.validators.map((validator) => addressToBytes32(validator)),
-      req.threshold,
+      normalizeStarknetAddressSafe(signer),
+      config.validators.map((validator) => addressToBytes32(validator)),
+      config.threshold,
     ],
   };
 }
 
-export function getCreateRoutingIsmTx(
-  req: AltVM.ReqCreateRoutingIsm,
-): StarknetAnnotatedTx {
+export function getCreateRoutingIsmTx(signer: string): StarknetAnnotatedTx {
   return {
     kind: 'deploy',
     contractName: StarknetContractName.ROUTING_ISM,
-    constructorArgs: [normalizeStarknetAddressSafe(req.signer)],
+    constructorArgs: [normalizeStarknetAddressSafe(signer)],
   };
 }
 
 export async function getSetRoutingIsmRouteTx(
   provider: RpcProvider,
-  req: AltVM.ReqSetRoutingIsmRoute,
+  config: {
+    ismAddress: string;
+    route: { domainId: number; ismAddress: string };
+  },
 ): Promise<StarknetAnnotatedTx> {
   const routing = getStarknetContract(
     StarknetContractName.ROUTING_ISM,
-    req.ismAddress,
+    config.ismAddress,
     provider,
   );
   return populateInvokeTx(routing, 'set', [
-    req.route.domainId,
-    normalizeStarknetAddressSafe(req.route.ismAddress),
+    config.route.domainId,
+    normalizeStarknetAddressSafe(config.route.ismAddress),
   ]);
 }
 
 export async function getRemoveRoutingIsmRouteTx(
   provider: RpcProvider,
-  req: AltVM.ReqRemoveRoutingIsmRoute,
+  config: {
+    ismAddress: string;
+    domainId: number;
+  },
 ): Promise<StarknetAnnotatedTx> {
   const routing = getStarknetContract(
     StarknetContractName.ROUTING_ISM,
-    req.ismAddress,
+    config.ismAddress,
     provider,
   );
-  return populateInvokeTx(routing, 'remove', [req.domainId]);
+  return populateInvokeTx(routing, 'remove', [config.domainId]);
 }
 
 export async function getSetRoutingIsmOwnerTx(
   provider: RpcProvider,
-  req: AltVM.ReqSetRoutingIsmOwner,
+  config: {
+    ismAddress: string;
+    newOwner: string;
+  },
 ): Promise<StarknetAnnotatedTx> {
   const routing = getStarknetContract(
     StarknetContractName.ROUTING_ISM,
-    req.ismAddress,
+    config.ismAddress,
     provider,
   );
   return populateInvokeTx(routing, 'transfer_ownership', [
-    normalizeStarknetAddressSafe(req.newOwner),
+    normalizeStarknetAddressSafe(config.newOwner),
   ]);
 }
 

@@ -150,8 +150,7 @@ class StarknetMailboxWriter
       placeholderHookRef,
     );
 
-    const createTx = getCreateMailboxTx({
-      signer: this.signer.getSignerAddress(),
+    const createTx = getCreateMailboxTx(this.signer.getSignerAddress(), {
       domainId: this.chainMetadata.domainId,
       defaultIsmAddress,
       defaultHookAddress,
@@ -210,7 +209,6 @@ class StarknetMailboxWriter
       updateTxs.push({
         annotation: `Setting mailbox default ISM`,
         ...(await getSetDefaultIsmTx(rawProvider, {
-          signer: this.signer.getSignerAddress(),
           mailboxAddress,
           ismAddress: expectedDefaultIsm,
         })),
@@ -221,7 +219,6 @@ class StarknetMailboxWriter
       updateTxs.push({
         annotation: `Setting mailbox default hook`,
         ...(await getSetDefaultHookTx(rawProvider, {
-          signer: this.signer.getSignerAddress(),
           mailboxAddress,
           hookAddress: expectedDefaultHook,
         })),
@@ -232,7 +229,6 @@ class StarknetMailboxWriter
       updateTxs.push({
         annotation: `Setting mailbox required hook`,
         ...(await getSetRequiredHookTx(rawProvider, {
-          signer: this.signer.getSignerAddress(),
           mailboxAddress,
           hookAddress: expectedRequiredHook,
         })),
@@ -243,7 +239,6 @@ class StarknetMailboxWriter
       updateTxs.push({
         annotation: `Setting mailbox owner`,
         ...(await getSetMailboxOwnerTx(rawProvider, {
-          signer: this.signer.getSignerAddress(),
           mailboxAddress,
           newOwner: artifact.config.owner,
         })),

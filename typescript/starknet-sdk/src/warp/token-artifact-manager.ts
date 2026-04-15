@@ -208,7 +208,6 @@ export abstract class StarknetWarpTokenWriterBase<
       ownerTx = {
         annotation: 'Setting warp token owner',
         ...(await getSetTokenOwnerTx(this.provider.getRawProvider(), {
-          signer: this.signer.getSignerAddress(),
           tokenAddress,
           newOwner: expectedConfig.owner,
         })),
@@ -232,7 +231,6 @@ export abstract class StarknetWarpTokenWriterBase<
       txs.push({
         annotation: 'Setting warp token ISM',
         ...(await getSetTokenIsmTx(this.provider.getRawProvider(), {
-          signer: this.signer.getSignerAddress(),
           tokenAddress,
           ismAddress: expectedIsm,
         })),
@@ -256,7 +254,6 @@ export abstract class StarknetWarpTokenWriterBase<
       txs.push({
         annotation: 'Setting warp token hook',
         ...(await getSetTokenHookTx(this.provider.getRawProvider(), {
-          signer: this.signer.getSignerAddress(),
           tokenAddress,
           hookAddress: expectedHook,
         })),
@@ -279,7 +276,6 @@ export abstract class StarknetWarpTokenWriterBase<
       txs.push({
         annotation: `Unenrolling remote router for domain ${domain}`,
         ...(await getUnenrollRemoteRouterTx(this.provider.getRawProvider(), {
-          signer: this.signer.getSignerAddress(),
           tokenAddress,
           receiverDomainId: domain,
         })),
@@ -292,7 +288,6 @@ export abstract class StarknetWarpTokenWriterBase<
       txs.push({
         annotation: `Enrolling remote router for domain ${route.domainId}`,
         ...(await getEnrollRemoteRouterTx(this.provider.getRawProvider(), {
-          signer: this.signer.getSignerAddress(),
           tokenAddress,
           remoteRouter: {
             receiverDomainId: route.domainId,
@@ -371,7 +366,6 @@ export abstract class StarknetWarpTokenWriterBase<
     );
     if (expectedIsm) {
       const tx = await getSetTokenIsmTx(this.provider.getRawProvider(), {
-        signer: this.signer.getSignerAddress(),
         tokenAddress,
         ismAddress: expectedIsm,
       });
@@ -384,7 +378,6 @@ export abstract class StarknetWarpTokenWriterBase<
     );
     if (expectedHook) {
       const tx = await getSetTokenHookTx(this.provider.getRawProvider(), {
-        signer: this.signer.getSignerAddress(),
         tokenAddress,
         hookAddress: expectedHook,
       });
@@ -400,7 +393,6 @@ export abstract class StarknetWarpTokenWriterBase<
         `Missing remote router for Starknet domain ${domain}`,
       );
       const tx = await getEnrollRemoteRouterTx(this.provider.getRawProvider(), {
-        signer: this.signer.getSignerAddress(),
         tokenAddress,
         remoteRouter: {
           receiverDomainId: domain,
@@ -414,7 +406,6 @@ export abstract class StarknetWarpTokenWriterBase<
     const currentOwner = current.owner;
     if (!eqAddressStarknet(currentOwner, expected.owner)) {
       ownerTx = await getSetTokenOwnerTx(this.provider.getRawProvider(), {
-        signer: this.signer.getSignerAddress(),
         tokenAddress,
         newOwner: expected.owner,
       });

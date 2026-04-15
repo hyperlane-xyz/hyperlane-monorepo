@@ -91,19 +91,14 @@ export class StarknetSyntheticTokenWriter extends StarknetWarpTokenWriterBase<
     const mailbox = await this.provider.getMailbox({
       mailboxAddress: artifact.config.mailbox,
     });
-    const tx = getCreateSyntheticTokenTx(
-      {
-        signer: this.signer.getSignerAddress(),
-        mailboxAddress: artifact.config.mailbox,
-        name: artifact.config.name,
-        denom: artifact.config.symbol,
-        decimals: artifact.config.decimals,
-      },
-      {
-        defaultHook: mailbox.defaultHook,
-        defaultIsm: mailbox.defaultIsm,
-      },
-    );
+    const tx = getCreateSyntheticTokenTx(this.signer.getSignerAddress(), {
+      mailboxAddress: artifact.config.mailbox,
+      name: artifact.config.name,
+      denom: artifact.config.symbol,
+      decimals: artifact.config.decimals,
+      defaultHook: mailbox.defaultHook,
+      defaultIsm: mailbox.defaultIsm,
+    });
     return this.signer.sendAndConfirmTransaction(tx);
   }
 }

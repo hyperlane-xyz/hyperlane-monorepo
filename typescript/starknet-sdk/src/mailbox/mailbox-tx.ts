@@ -1,6 +1,5 @@
 import { type RpcProvider } from 'starknet';
 
-import { type AltVM } from '@hyperlane-xyz/provider-sdk';
 import { ZERO_ADDRESS_HEX_32 } from '@hyperlane-xyz/utils';
 
 import {
@@ -12,22 +11,28 @@ import {
 import { type StarknetAnnotatedTx } from '../types.js';
 
 export function getCreateMailboxTx(
-  req: AltVM.ReqCreateMailbox,
+  signer: string,
+  config: {
+    domainId: number;
+    defaultIsmAddress?: string;
+    defaultHookAddress?: string;
+    requiredHookAddress?: string;
+  },
 ): StarknetAnnotatedTx {
   return {
     kind: 'deploy',
     contractName: StarknetContractName.MAILBOX,
     constructorArgs: [
-      req.domainId,
-      normalizeStarknetAddressSafe(req.signer),
+      config.domainId,
+      normalizeStarknetAddressSafe(signer),
       normalizeStarknetAddressSafe(
-        req.defaultIsmAddress ?? ZERO_ADDRESS_HEX_32,
+        config.defaultIsmAddress ?? ZERO_ADDRESS_HEX_32,
       ),
       normalizeStarknetAddressSafe(
-        req.defaultHookAddress ?? ZERO_ADDRESS_HEX_32,
+        config.defaultHookAddress ?? ZERO_ADDRESS_HEX_32,
       ),
       normalizeStarknetAddressSafe(
-        req.requiredHookAddress ?? ZERO_ADDRESS_HEX_32,
+        config.requiredHookAddress ?? ZERO_ADDRESS_HEX_32,
       ),
     ],
   };
@@ -35,56 +40,68 @@ export function getCreateMailboxTx(
 
 export async function getSetDefaultIsmTx(
   provider: RpcProvider,
-  req: AltVM.ReqSetDefaultIsm,
+  config: {
+    mailboxAddress: string;
+    ismAddress: string;
+  },
 ): Promise<StarknetAnnotatedTx> {
   const mailbox = getStarknetContract(
     StarknetContractName.MAILBOX,
-    req.mailboxAddress,
+    config.mailboxAddress,
     provider,
   );
   return populateInvokeTx(mailbox, 'set_default_ism', [
-    normalizeStarknetAddressSafe(req.ismAddress),
+    normalizeStarknetAddressSafe(config.ismAddress),
   ]);
 }
 
 export async function getSetDefaultHookTx(
   provider: RpcProvider,
-  req: AltVM.ReqSetDefaultHook,
+  config: {
+    mailboxAddress: string;
+    hookAddress: string;
+  },
 ): Promise<StarknetAnnotatedTx> {
   const mailbox = getStarknetContract(
     StarknetContractName.MAILBOX,
-    req.mailboxAddress,
+    config.mailboxAddress,
     provider,
   );
   return populateInvokeTx(mailbox, 'set_default_hook', [
-    normalizeStarknetAddressSafe(req.hookAddress),
+    normalizeStarknetAddressSafe(config.hookAddress),
   ]);
 }
 
 export async function getSetRequiredHookTx(
   provider: RpcProvider,
-  req: AltVM.ReqSetRequiredHook,
+  config: {
+    mailboxAddress: string;
+    hookAddress: string;
+  },
 ): Promise<StarknetAnnotatedTx> {
   const mailbox = getStarknetContract(
     StarknetContractName.MAILBOX,
-    req.mailboxAddress,
+    config.mailboxAddress,
     provider,
   );
   return populateInvokeTx(mailbox, 'set_required_hook', [
-    normalizeStarknetAddressSafe(req.hookAddress),
+    normalizeStarknetAddressSafe(config.hookAddress),
   ]);
 }
 
 export async function getSetMailboxOwnerTx(
   provider: RpcProvider,
-  req: AltVM.ReqSetMailboxOwner,
+  config: {
+    mailboxAddress: string;
+    newOwner: string;
+  },
 ): Promise<StarknetAnnotatedTx> {
   const mailbox = getStarknetContract(
     StarknetContractName.MAILBOX,
-    req.mailboxAddress,
+    config.mailboxAddress,
     provider,
   );
   return populateInvokeTx(mailbox, 'transfer_ownership', [
-    normalizeStarknetAddressSafe(req.newOwner),
+    normalizeStarknetAddressSafe(config.newOwner),
   ]);
 }

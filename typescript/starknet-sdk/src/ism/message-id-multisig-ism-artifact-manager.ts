@@ -75,8 +75,7 @@ export class StarknetMessageIdMultisigIsmWriter
       TxReceipt[],
     ]
   > {
-    const tx = getCreateMessageIdMultisigIsmTx({
-      signer: this.signer.getSignerAddress(),
+    const tx = getCreateMessageIdMultisigIsmTx(this.signer.getSignerAddress(), {
       validators: artifact.config.validators,
       threshold: artifact.config.threshold,
     });

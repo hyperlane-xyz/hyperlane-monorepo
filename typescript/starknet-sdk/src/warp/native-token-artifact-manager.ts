@@ -51,17 +51,12 @@ export class StarknetNativeTokenWriter extends StarknetWarpTokenWriterBase<
     const mailbox = await this.provider.getMailbox({
       mailboxAddress: artifact.config.mailbox,
     });
-    const tx = getCreateNativeTokenTx(
-      {
-        signer: this.signer.getSignerAddress(),
-        mailboxAddress: artifact.config.mailbox,
-      },
-      {
-        defaultHook: mailbox.defaultHook,
-        defaultIsm: mailbox.defaultIsm,
-      },
-      this.provider.getFeeTokenAddress(),
-    );
+    const tx = getCreateNativeTokenTx(this.signer.getSignerAddress(), {
+      mailboxAddress: artifact.config.mailbox,
+      feeTokenAddress: this.provider.getFeeTokenAddress(),
+      defaultHook: mailbox.defaultHook,
+      defaultIsm: mailbox.defaultIsm,
+    });
     return this.signer.sendAndConfirmTransaction(tx);
   }
 }

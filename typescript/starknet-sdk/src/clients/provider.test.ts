@@ -362,17 +362,18 @@ describe('StarknetProvider getBalance', () => {
 
 describe('getCreateMailboxTx', () => {
   it('passes hook addresses through mailbox constructor args', () => {
-    const tx = getCreateMailboxTx({
-      signer:
-        '0x1111111111111111111111111111111111111111111111111111111111111111',
-      domainId: TEST_METADATA.domainId,
-      defaultIsmAddress:
-        '0x2222222222222222222222222222222222222222222222222222222222222222',
-      defaultHookAddress:
-        '0x3333333333333333333333333333333333333333333333333333333333333333',
-      requiredHookAddress:
-        '0x4444444444444444444444444444444444444444444444444444444444444444',
-    });
+    const tx = getCreateMailboxTx(
+      '0x1111111111111111111111111111111111111111111111111111111111111111',
+      {
+        domainId: TEST_METADATA.domainId,
+        defaultIsmAddress:
+          '0x2222222222222222222222222222222222222222222222222222222222222222',
+        defaultHookAddress:
+          '0x3333333333333333333333333333333333333333333333333333333333333333',
+        requiredHookAddress:
+          '0x4444444444444444444444444444444444444444444444444444444444444444',
+      },
+    );
 
     expect(tx.kind).to.equal('deploy');
     expect(tx.constructorArgs).to.deep.equal([

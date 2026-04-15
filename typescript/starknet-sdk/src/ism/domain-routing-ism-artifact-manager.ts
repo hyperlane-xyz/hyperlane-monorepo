@@ -110,10 +110,7 @@ export class StarknetRoutingIsmWriter
     );
 
     const receipts: TxReceipt[] = [];
-    const createTx = getCreateRoutingIsmTx({
-      signer: this.signer.getSignerAddress(),
-      routes,
-    });
+    const createTx = getCreateRoutingIsmTx(this.signer.getSignerAddress());
     const createReceipt = await this.signer.sendAndConfirmTransaction(createTx);
     receipts.push(createReceipt);
     const ismAddress = createReceipt.contractAddress;
@@ -122,7 +119,6 @@ export class StarknetRoutingIsmWriter
     const rawProvider = this.signer.getRawProvider();
     for (const route of routes) {
       const tx = await getSetRoutingIsmRouteTx(rawProvider, {
-        signer: this.signer.getSignerAddress(),
         ismAddress,
         route,
       });
@@ -133,7 +129,6 @@ export class StarknetRoutingIsmWriter
       !eqAddressStarknet(artifact.config.owner, this.signer.getSignerAddress())
     ) {
       const ownerTx = await getSetRoutingIsmOwnerTx(rawProvider, {
-        signer: this.signer.getSignerAddress(),
         ismAddress,
         newOwner: artifact.config.owner,
       });
@@ -196,7 +191,6 @@ export class StarknetRoutingIsmWriter
         updateTxs.push({
           annotation: `Setting routing ISM route ${route.domainId}`,
           ...(await getSetRoutingIsmRouteTx(rawProvider, {
-            signer: this.signer.getSignerAddress(),
             ismAddress: artifact.deployed.address,
             route,
           })),
@@ -209,7 +203,6 @@ export class StarknetRoutingIsmWriter
         updateTxs.push({
           annotation: `Removing routing ISM route ${domainId}`,
           ...(await getRemoveRoutingIsmRouteTx(rawProvider, {
-            signer: this.signer.getSignerAddress(),
             ismAddress: artifact.deployed.address,
             domainId,
           })),
@@ -221,7 +214,6 @@ export class StarknetRoutingIsmWriter
       updateTxs.push({
         annotation: `Updating routing ISM owner`,
         ...(await getSetRoutingIsmOwnerTx(rawProvider, {
-          signer: this.signer.getSignerAddress(),
           ismAddress: artifact.deployed.address,
           newOwner: artifact.config.owner,
         })),
