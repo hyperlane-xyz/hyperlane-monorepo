@@ -384,6 +384,7 @@ jobs:
           - warp-apply
           - warp-cc-evm-svm
           - warp-deploy
+          - warp-send-evm-svm
           - warp-send
     steps:
       - uses: actions/checkout@v6
