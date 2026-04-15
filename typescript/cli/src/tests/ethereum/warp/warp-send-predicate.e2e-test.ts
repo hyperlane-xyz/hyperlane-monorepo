@@ -10,10 +10,14 @@ import {
   ERC20Test__factory,
   MockPredicateRegistry__factory,
 } from '@hyperlane-xyz/core';
-import { type ChainAddresses } from '@hyperlane-xyz/registry';
+import {
+  type ChainAddresses,
+  createWarpRouteConfigId,
+} from '@hyperlane-xyz/registry';
 import {
   type ChainMetadata,
   TokenType,
+  type WarpCoreConfig,
   type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
 import { type Address } from '@hyperlane-xyz/utils';
@@ -89,6 +93,9 @@ describe('hyperlane warp send with Predicate e2e tests', async function () {
       CHAIN_NAME_2,
       CHAIN_NAME_3,
     ]);
+    const warpId = createWarpRouteConfigId('PREDSEND', 'anvil2-anvil3');
+
+    let savedCoreConfig: WarpCoreConfig;
 
     before(async function () {
       const warpConfig: WarpRouteDeployConfig = {
@@ -111,7 +118,15 @@ describe('hyperlane warp send with Predicate e2e tests', async function () {
       };
 
       writeYamlOrJson(warpDeployPath, warpConfig);
-      await hyperlaneWarpDeploy(warpDeployPath, 'PREDSEND/anvil2-anvil3');
+      await hyperlaneWarpDeploy(warpDeployPath, warpId);
+      savedCoreConfig = readYamlOrJson(warpCoreConfigPath);
+    });
+
+    // The global e2e-test.setup.ts beforeEach deletes the entire warp_routes directory
+    // before each test. Restore the core config so warp send can resolve the route.
+    beforeEach(function () {
+      if (!savedCoreConfig) return;
+      writeYamlOrJson(warpCoreConfigPath, savedCoreConfig);
     });
 
     it('should transfer using --attestation flag', async function () {
@@ -126,7 +141,7 @@ describe('hyperlane warp send with Predicate e2e tests', async function () {
       const { exitCode, stdout } = await hyperlaneWarpSendRelay({
         origin: CHAIN_NAME_2,
         destination: CHAIN_NAME_3,
-        warpRouteId: warpCoreConfigPath,
+        warpRouteId: warpId,
         value: 1,
         attestation: mockAttestation,
       });
@@ -142,10 +157,12 @@ describe('hyperlane warp send with Predicate e2e tests', async function () {
       CHAIN_NAME_2,
       CHAIN_NAME_3,
     ]);
+    const warpId = createWarpRouteConfigId('PREDSENDAPI', 'anvil2-anvil3');
 
     let mockServer: http.Server;
     let mockServerUrl: string;
     let capturedApiKey: string | undefined;
+    let savedCoreConfig: WarpCoreConfig;
 
     before(async function () {
       const warpConfig: WarpRouteDeployConfig = {
@@ -168,7 +185,8 @@ describe('hyperlane warp send with Predicate e2e tests', async function () {
       };
 
       writeYamlOrJson(warpDeployPath, warpConfig);
-      await hyperlaneWarpDeploy(warpDeployPath, 'PREDSENDAPI/anvil2-anvil3');
+      await hyperlaneWarpDeploy(warpDeployPath, warpId);
+      savedCoreConfig = readYamlOrJson(warpCoreConfigPath);
 
       // Start a local mock HTTP server so subprocess fetch calls are intercepted
       mockServer = http.createServer((req, res) => {
@@ -205,13 +223,17 @@ describe('hyperlane warp send with Predicate e2e tests', async function () {
 
     beforeEach(() => {
       capturedApiKey = undefined;
+      // The global e2e-test.setup.ts beforeEach deletes the entire warp_routes
+      // directory before each test. Restore the core config so warp send can
+      // resolve the route.
+      if (savedCoreConfig) writeYamlOrJson(warpCoreConfigPath, savedCoreConfig);
     });
 
     it('should fetch attestation and transfer using --predicate-api-key flag', async function () {
       const { exitCode, stdout } = await hyperlaneWarpSendRelay({
         origin: CHAIN_NAME_2,
         destination: CHAIN_NAME_3,
-        warpRouteId: warpCoreConfigPath,
+        warpRouteId: warpId,
         value: 1,
         predicateApiKey: 'test-api-key',
         predicateApiUrl: mockServerUrl,
@@ -229,6 +251,9 @@ describe('hyperlane warp send with Predicate e2e tests', async function () {
       CHAIN_NAME_2,
       CHAIN_NAME_3,
     ]);
+    const warpId = createWarpRouteConfigId('PREDNATIVESEND', 'anvil2-anvil3');
+
+    let savedCoreConfig: WarpCoreConfig;
 
     before(async function () {
       const warpConfig: WarpRouteDeployConfig = {
@@ -250,7 +275,15 @@ describe('hyperlane warp send with Predicate e2e tests', async function () {
       };
 
       writeYamlOrJson(warpDeployPath, warpConfig);
-      await hyperlaneWarpDeploy(warpDeployPath, 'PREDNATIVESEND/anvil2-anvil3');
+      await hyperlaneWarpDeploy(warpDeployPath, warpId);
+      savedCoreConfig = readYamlOrJson(warpCoreConfigPath);
+    });
+
+    // The global e2e-test.setup.ts beforeEach deletes the entire warp_routes directory
+    // before each test. Restore the core config so warp send can resolve the route.
+    beforeEach(function () {
+      if (!savedCoreConfig) return;
+      writeYamlOrJson(warpCoreConfigPath, savedCoreConfig);
     });
 
     it('should transfer native token using --attestation flag', async function () {
@@ -265,7 +298,7 @@ describe('hyperlane warp send with Predicate e2e tests', async function () {
       const { exitCode, stdout } = await hyperlaneWarpSendRelay({
         origin: CHAIN_NAME_2,
         destination: CHAIN_NAME_3,
-        warpRouteId: warpCoreConfigPath,
+        warpRouteId: warpId,
         value: 1,
         attestation: mockAttestation,
       });
@@ -281,6 +314,9 @@ describe('hyperlane warp send with Predicate e2e tests', async function () {
       CHAIN_NAME_2,
       CHAIN_NAME_3,
     ]);
+    const warpId = createWarpRouteConfigId('NATIVESEND', 'anvil2-anvil3');
+
+    let savedCoreConfig: WarpCoreConfig;
 
     before(async function () {
       const warpConfig: WarpRouteDeployConfig = {
@@ -297,7 +333,15 @@ describe('hyperlane warp send with Predicate e2e tests', async function () {
       };
 
       writeYamlOrJson(warpDeployPath, warpConfig);
-      await hyperlaneWarpDeploy(warpDeployPath, 'NATIVESEND/anvil2-anvil3');
+      await hyperlaneWarpDeploy(warpDeployPath, warpId);
+      savedCoreConfig = readYamlOrJson(warpCoreConfigPath);
+    });
+
+    // The global e2e-test.setup.ts beforeEach deletes the entire warp_routes directory
+    // before each test. Restore the core config so warp send can resolve the route.
+    beforeEach(function () {
+      if (!savedCoreConfig) return;
+      writeYamlOrJson(warpCoreConfigPath, savedCoreConfig);
     });
 
     it('should fail when attestation is used without a configured wrapper', async function () {
@@ -311,7 +355,7 @@ describe('hyperlane warp send with Predicate e2e tests', async function () {
       const { exitCode, stderr } = await hyperlaneWarpSendRelay({
         origin: CHAIN_NAME_2,
         destination: CHAIN_NAME_3,
-        warpRouteId: warpCoreConfigPath,
+        warpRouteId: warpId,
         value: 1,
         attestation: mockAttestation,
       }).nothrow();
@@ -327,6 +371,9 @@ describe('hyperlane warp send with Predicate e2e tests', async function () {
       CHAIN_NAME_2,
       CHAIN_NAME_3,
     ]);
+    const warpId = createWarpRouteConfigId('NOPRED', 'anvil2-anvil3');
+
+    let savedCoreConfig: WarpCoreConfig;
 
     before(async function () {
       const warpConfig: WarpRouteDeployConfig = {
@@ -344,7 +391,15 @@ describe('hyperlane warp send with Predicate e2e tests', async function () {
       };
 
       writeYamlOrJson(warpDeployPath, warpConfig);
-      await hyperlaneWarpDeploy(warpDeployPath, 'NOPRED/anvil2-anvil3');
+      await hyperlaneWarpDeploy(warpDeployPath, warpId);
+      savedCoreConfig = readYamlOrJson(warpCoreConfigPath);
+    });
+
+    // The global e2e-test.setup.ts beforeEach deletes the entire warp_routes directory
+    // before each test. Restore the core config so warp send can resolve the route.
+    beforeEach(function () {
+      if (!savedCoreConfig) return;
+      writeYamlOrJson(warpCoreConfigPath, savedCoreConfig);
     });
 
     it('should fail when route has no PredicateRouterWrapper', async function () {
@@ -358,7 +413,7 @@ describe('hyperlane warp send with Predicate e2e tests', async function () {
       const { exitCode, stderr } = await hyperlaneWarpSendRelay({
         origin: CHAIN_NAME_2,
         destination: CHAIN_NAME_3,
-        warpRouteId: warpCoreConfigPath,
+        warpRouteId: warpId,
         value: 1,
         attestation: mockAttestation,
       }).nothrow();

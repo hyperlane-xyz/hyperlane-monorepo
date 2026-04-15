@@ -1,5 +1,5 @@
 ---
-'@hyperlane-xyz/sdk': minor
+'@hyperlane-xyz/sdk': major
 ---
 
 Added Predicate integration for compliance-gated warp route transfers

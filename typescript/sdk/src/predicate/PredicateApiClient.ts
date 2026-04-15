@@ -60,14 +60,22 @@ export class PredicateApiClient {
       request,
     });
 
-    const response = await fetch(this.baseUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': this.apiKey,
-      },
-      body: JSON.stringify(request),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30_000);
+    let response: Response;
+    try {
+      response = await fetch(this.baseUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': this.apiKey,
+        },
+        body: JSON.stringify(request),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -81,6 +89,13 @@ export class PredicateApiClient {
     if (!result.is_compliant) {
       throw new Error(
         `Transaction not compliant: policy=${result.policy_id}, hash=${result.verification_hash}`,
+      );
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    if (result.attestation.expiration <= now) {
+      throw new Error(
+        `Attestation already expired (expiration=${result.attestation.expiration}, now=${now})`,
       );
     }
 

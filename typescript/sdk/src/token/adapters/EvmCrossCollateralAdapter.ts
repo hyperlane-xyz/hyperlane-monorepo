@@ -72,9 +72,16 @@ export class EvmHypCrossCollateralAdapter extends EvmHypCollateralAdapter {
     const targetRouterBytes32 = addressToBytes32(params.targetRouter);
     const quote =
       params.interchainGas ?? (await this.quoteTransferRemoteToGas(params));
-    const nativeGas = !quote.igpQuote.addressOrDenom
-      ? quote.igpQuote.amount.toString()
-      : '0';
+    let nativeValue = !quote.igpQuote.addressOrDenom
+      ? quote.igpQuote.amount
+      : 0n;
+    if (
+      !quote.tokenFeeQuote?.addressOrDenom ||
+      isZeroishAddress(quote.tokenFeeQuote.addressOrDenom)
+    ) {
+      nativeValue += quote.tokenFeeQuote?.amount ?? 0n;
+    }
+    const nativeGas = nativeValue.toString();
 
     if (params.attestation) {
       const predicateWrapperAddress = await this.getPredicateWrapperAddress();

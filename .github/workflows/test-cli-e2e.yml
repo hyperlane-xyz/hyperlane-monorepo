@@ -44,7 +44,9 @@ jobs:
         test:
           - core-deploy
           - warp-deploy-1
+          - warp-deploy-predicate
           - warp-apply-simple-updates
+          - warp-apply-predicate-updates
           - warp-check-1
           - warp-send
     steps:
@@ -103,6 +105,7 @@ jobs:
           - warp-bridge-2
           - warp-deploy-1
           - warp-deploy-2
+          - warp-deploy-predicate
           - warp-deploy-remote-routers
           # check
           - warp-check-1
@@ -116,6 +119,7 @@ jobs:
           - warp-read
           - warp-rebalancer
           - warp-send
+          - warp-send-predicate
           # xerc20
           - xerc20
     steps:

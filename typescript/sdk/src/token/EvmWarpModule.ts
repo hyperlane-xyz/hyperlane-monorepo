@@ -60,12 +60,8 @@ import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { EvmTokenFeeModule } from '../fee/EvmTokenFeeModule.js';
 import { TokenFeeReaderParams } from '../fee/EvmTokenFeeReader.js';
 import { getEvmHookUpdateTransactions } from '../hook/updates.js';
-import {
-  AggregationHookConfig,
-  DerivedHookConfig,
-  HookType,
-  OnchainHookType,
-} from '../hook/types.js';
+import { stripPredicateSubHook } from '../hook/utils.js';
+import { DerivedHookConfig, OnchainHookType } from '../hook/types.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { PredicateWrapperDeployer } from '../predicate/PredicateDeployer.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -1198,19 +1194,27 @@ export class EvmWarpModule extends HyperlaneModule<
         expectedConfig.proxyAdmin?.address ?? actualConfig.proxyAdmin?.address;
       assert(proxyAdminAddress, 'ProxyAdmin address is undefined');
 
-      // The reader extracts predicateWrapper into its own field but leaves the
-      // PREDICATE sub-hook inside actualConfig.hook (e.g. Agg([Predicate, IGP])).
-      // Strip it before comparing so the hook diff sees the bare hook (IGP) on both
-      // sides — preventing a spurious setHook(IGP) that would strip the wrapper.
+      // The reader leaves the PREDICATE sub-hook inside actualConfig.hook
+      // (e.g. Agg([Predicate, IGP])). When expectedConfig is derived from
+      // actualConfig (e.g. during the enrollment step after initial deploy),
+      // expectedConfig.hook carries the same aggregation. Strip the predicate
+      // from BOTH sides so the hook diff sees the bare hook (IGP) on both sides
+      // and doesn't generate a spurious setHook.
       const actualHookForComparison = expectedConfig.predicateWrapper
         ? stripPredicateSubHook(actualHook)
         : actualHook;
+      const expectedHookForComparison =
+        expectedConfig.predicateWrapper && expectedConfig.hook
+          ? stripPredicateSubHook(
+              expectedConfig.hook as DerivedHookConfig | string,
+            )
+          : expectedConfig.hook;
 
       const result = await getEvmHookUpdateTransactions(
         this.args.addresses.deployedTokenRoute,
         {
           actualConfig: actualHookForComparison,
-          expectedConfig: expectedConfig.hook,
+          expectedConfig: expectedHookForComparison,
           ccipContractCache: this.ccipContractCache,
           contractVerifier: this.contractVerifier,
           evmChainName: this.chainName,
@@ -1293,9 +1297,12 @@ export class EvmWarpModule extends HyperlaneModule<
   }
 
   /**
-   * Searches the current on-chain aggregation hook for a PredicateRouterWrapper that
+   * Searches the current on-chain hook tree for a PredicateRouterWrapper that
    * matches by registry and policyId. Returns the wrapper address and its current
    * on-chain owner when found, undefined otherwise.
+   *
+   * Uses unbounded recursion into aggregation hooks (consistent with
+   * EvmTokenAdapter.findPredicateWrapperInHook and EvmWarpRouteReader.findPredicateAddressInHook).
    */
   private async findDeployedPredicateWrapper(
     actualConfig: DerivedTokenRouterConfig,
@@ -1306,48 +1313,56 @@ export class EvmWarpModule extends HyperlaneModule<
 
     try {
       const provider = this.multiProvider.getProvider(this.domainId);
-      const hooksAddresses = await StaticAggregationHook__factory.connect(
+      return await this.searchPredicateInHook(
         hookAddress,
         provider,
-      ).hooks('0x');
-      if (!hooksAddresses || hooksAddresses.length === 0) return undefined;
-
-      for (const hookAddr of hooksAddresses) {
-        const match = await this.matchPredicateWrapper(
-          hookAddr,
-          provider,
-          expectedPredicateConfig,
-        );
-        if (match) return match;
-      }
-
-      // Recurse one level into any inner aggregations to detect wrappers that were
-      // nested by a previous stripPredicateFromHook fallback (e.g. agg([oldWrapper,
-      // hookA, hookB]) carried forward as innerAgg inside the outer aggregation).
-      for (const hookAddr of hooksAddresses) {
-        try {
-          const innerHooks = await StaticAggregationHook__factory.connect(
-            hookAddr,
-            provider,
-          ).hooks('0x');
-          if (!innerHooks || innerHooks.length === 0) continue;
-          for (const innerAddr of innerHooks) {
-            const match = await this.matchPredicateWrapper(
-              innerAddr,
-              provider,
-              expectedPredicateConfig,
-            );
-            if (match) return match;
-          }
-        } catch {
-          // hookAddr is not a StaticAggregationHook — skip
-        }
-      }
+        expectedPredicateConfig,
+      );
     } catch (error) {
       this.logger.debug(
         { chain: this.chainName, error },
         'Error checking predicate wrapper deployment',
       );
+    }
+    return undefined;
+  }
+
+  /**
+   * Recursively searches a hook tree for a matching PredicateRouterWrapper.
+   * Descends into StaticAggregationHook sub-hooks without depth limit.
+   */
+  private async searchPredicateInHook(
+    hookAddr: Address,
+    provider: providers.Provider,
+    expectedPredicateConfig: { predicateRegistry: string; policyId: string },
+  ): Promise<{ address: Address; onchainOwner: Address } | undefined> {
+    const match = await this.matchPredicateWrapper(
+      hookAddr,
+      provider,
+      expectedPredicateConfig,
+    );
+    if (match) return match;
+
+    let subHooks: string[];
+    try {
+      subHooks = await StaticAggregationHook__factory.connect(
+        hookAddr,
+        provider,
+      ).hooks('0x');
+    } catch {
+      // Any call failure means hookAddr is not a StaticAggregationHook.
+      // HyperlaneSmartProvider wraps CALL_EXCEPTION as "Invalid response from provider"
+      // with code: undefined, so checking error.code is insufficient.
+      return undefined;
+    }
+
+    for (const subHook of subHooks) {
+      const found = await this.searchPredicateInHook(
+        subHook,
+        provider,
+        expectedPredicateConfig,
+      );
+      if (found) return found;
     }
     return undefined;
   }
@@ -1393,7 +1408,10 @@ export class EvmWarpModule extends HyperlaneModule<
         return { address: hookAddr, onchainOwner };
       }
     } catch {
-      // Not a PredicateRouterWrapper — caller continues
+      // Any call failure means hookAddr is not a PredicateRouterWrapper.
+      // HyperlaneSmartProvider wraps CALL_EXCEPTION as "Invalid response from provider"
+      // with code: undefined, so checking error.code === 'CALL_EXCEPTION' is insufficient.
+      return undefined;
     }
     return undefined;
   }
@@ -1994,40 +2012,4 @@ export class EvmWarpModule extends HyperlaneModule<
 
     return warpModule;
   }
-}
-
-/**
- * Strips any PREDICATE sub-hook from an aggregation hook config.
- *
- * The warp route reader extracts predicateWrapper into its own field but leaves
- * the PREDICATE sub-hook inside the aggregation (e.g. Agg([Predicate, IGP])).
- * Before comparing actual vs expected hooks, callers should use this to obtain
- * the bare hook (IGP) so the diff doesn't generate a spurious setHook that
- * would overwrite and discard the predicate wrapper.
- *
- * Returns:
- * - The single remaining sub-hook when exactly one non-predicate hook remains.
- * - The original hook unchanged when no PREDICATE sub-hook is found or when
- *   multiple non-predicate sub-hooks remain (can't construct a DerivedHookConfig
- *   without an on-chain address for a synthetic aggregation).
- */
-function stripPredicateSubHook(
-  hook: DerivedHookConfig | string,
-): DerivedHookConfig | string {
-  if (typeof hook === 'string' || hook.type !== HookType.AGGREGATION)
-    return hook;
-
-  const agg = hook as AggregationHookConfig;
-  const remaining = agg.hooks.filter(
-    (h) =>
-      typeof h === 'string' ||
-      (h as DerivedHookConfig).type !== HookType.PREDICATE,
-  );
-
-  if (remaining.length === agg.hooks.length) return hook; // no predicate found
-  // Exactly one non-predicate hook — unwrap the aggregation.
-  if (remaining.length === 1) return remaining[0] as DerivedHookConfig | string;
-  // Multiple non-predicate hooks remain — can't construct a DerivedHookConfig
-  // without an on-chain address; return the original unchanged.
-  return hook;
 }

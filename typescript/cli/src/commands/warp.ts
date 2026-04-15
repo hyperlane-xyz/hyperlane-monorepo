@@ -386,12 +386,14 @@ const send: CommandModuleWithWriteContext<
     'predicate-api-key': {
       type: 'string',
       description: 'Predicate API key for fetching attestations automatically',
+      default: process.env.PREDICATE_API_KEY,
       conflicts: 'attestation',
     },
     'predicate-api-url': {
       type: 'string',
       description:
         'Predicate API base URL (overrides default; useful for testing)',
+      default: process.env.PREDICATE_API_URL,
       implies: 'predicate-api-key',
     },
     attestation: {
@@ -519,7 +521,7 @@ const send: CommandModuleWithWriteContext<
       selfRelay: relay,
       skipValidation,
       predicateApiKey,
-      predicateApiUrl: predicateApiUrl ?? process.env.PREDICATE_API_URL,
+      predicateApiUrl,
       attestation,
       sourceToken,
       destinationToken,

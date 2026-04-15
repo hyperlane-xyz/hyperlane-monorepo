@@ -68,6 +68,7 @@ import {
   IHypVSXERC20Adapter,
   IHypXERC20Adapter,
   IMovableCollateralRouterAdapter,
+  IPredicateAwareAdapter,
   ITokenAdapter,
   IXERC20Adapter,
   IXERC20VSAdapter,
@@ -242,9 +243,13 @@ export class EvmTokenAdapter<T extends ERC20 = ERC20>
 // Interacts with Hyp Synthetic token contracts (aka 'HypTokens')
 export class EvmHypSyntheticAdapter
   extends EvmTokenAdapter<HypERC20>
-  implements IHypTokenAdapter<PopulatedTransaction>
+  implements IHypTokenAdapter<PopulatedTransaction>, IPredicateAwareAdapter
 {
   protected predicateWrapperAddress: Address | null | undefined;
+
+  clearPredicateCache(): void {
+    this.predicateWrapperAddress = undefined;
+  }
 
   constructor(
     public readonly chainName: ChainName,

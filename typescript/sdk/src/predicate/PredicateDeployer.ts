@@ -203,7 +203,7 @@ export class PredicateWrapperDeployer {
     //   newAggregation([newWrapper, oldAggregation([oldWrapper, IGP])])
     // instead of the correct:
     //   newAggregation([newWrapper, IGP])
-    const existingHook = await this.stripPredicateFromHook(
+    const existingHook = await this.stripPredicateAndReaggregateHook(
       chain,
       rawExistingHook,
     );
@@ -254,15 +254,16 @@ export class PredicateWrapperDeployer {
 
   /**
    * If hookAddress is a StaticAggregationHook that contains a predicate wrapper,
-   * returns the single non-predicate sub-hook so the caller can aggregate against
-   * the base hook directly (avoiding stacked wrappers on config updates).
+   * strips it and (when multiple non-predicate sub-hooks remain) re-aggregates
+   * them via CREATE2 before returning, so the caller can safely wrap the result
+   * in a new aggregation without stacking wrappers.
    *
    * Falls back to hookAddress unchanged when:
    * - The address is zero / not an aggregation hook
    * - No predicate wrapper is found among sub-hooks
    * - Multiple non-predicate sub-hooks remain (cannot safely re-aggregate here)
    */
-  private async stripPredicateFromHook(
+  private async stripPredicateAndReaggregateHook(
     chain: ChainName,
     hookAddress: Address,
   ): Promise<Address> {
@@ -272,86 +273,89 @@ export class PredicateWrapperDeployer {
 
     const provider = this.multiProvider.getProvider(chain);
 
+    let subHooks: string[];
     try {
-      const subHooks = await StaticAggregationHook__factory.connect(
+      subHooks = await StaticAggregationHook__factory.connect(
         hookAddress,
         provider,
       ).hooks('0x');
-
-      if (!subHooks || subHooks.length === 0) return hookAddress;
-
-      const nonPredicateHooks: Address[] = [];
-      for (const sub of subHooks) {
-        try {
-          const hookType = await PredicateRouterWrapper__factory.connect(
-            sub,
-            provider,
-          ).hookType();
-          if (hookType === OnchainHookType.PREDICATE_ROUTER_WRAPPER) {
-            this.logger.debug(
-              { chain, predicateWrapper: sub },
-              'Stripping existing predicate wrapper from aggregation to avoid stacking',
-            );
-          } else {
-            nonPredicateHooks.push(sub);
-          }
-        } catch {
-          // hookType() failed — not a recognisable hook; keep it
-          nonPredicateHooks.push(sub);
-        }
-      }
-
-      if (nonPredicateHooks.length === subHooks.length) {
-        // No predicate wrapper found — use hook as-is
-        return hookAddress;
-      }
-
-      if (nonPredicateHooks.length === 1) {
-        // Happy path: exactly one base hook remains
-        return nonPredicateHooks[0];
-      }
-
-      // Multiple non-predicate sub-hooks remain after removing the predicate wrapper.
-      // Re-aggregate them via CREATE2 (idempotent) so the caller produces:
-      //   outerAgg([newWrapper, innerAgg([hookA, hookB])])
-      // instead of the stacking anti-pattern:
-      //   newAgg([newWrapper, oldAgg([oldWrapper, hookA, hookB])])
-      this.logger.debug(
-        { chain, nonPredicateHooks },
-        'Multiple non-predicate sub-hooks found — re-aggregating without predicate wrapper',
-      );
-      const signer = this.multiProvider.getSigner(chain);
-      const overrides = this.multiProvider.getTransactionOverrides(chain);
-      const factory = this.staticAggregationHookFactory.connect(signer);
-      const threshold = nonPredicateHooks.length;
-      const innerAggAddress = await factory['getAddress(address[],uint8)'](
-        nonPredicateHooks,
-        threshold,
-      );
-      const code = await this.multiProvider
-        .getProvider(chain)
-        .getCode(innerAggAddress);
-      if (code === '0x') {
-        const tx = await factory['deploy(address[],uint8)'](
-          nonPredicateHooks,
-          threshold,
-          overrides,
-        );
-        await this.multiProvider.handleTx(chain, tx);
-        this.logger.info(
-          { chain, innerAgg: innerAggAddress, hooks: nonPredicateHooks },
-          'Inner aggregation hook deployed for predicate-stripped sub-hooks',
-        );
-      } else {
-        this.logger.debug(
-          { chain, innerAgg: innerAggAddress },
-          'Recovered existing inner aggregation hook',
-        );
-      }
-      return innerAggAddress;
     } catch {
-      // Not a StaticAggregationHook or call failed — use hook as-is
+      // Any failure means hookAddress is not a StaticAggregationHook.
+      // SmartProvider wraps CALL_EXCEPTION as "Invalid response from provider" with code: undefined.
       return hookAddress;
     }
+
+    if (!subHooks || subHooks.length === 0) return hookAddress;
+
+    const nonPredicateHooks: Address[] = [];
+    for (const sub of subHooks) {
+      try {
+        const hookType = await PredicateRouterWrapper__factory.connect(
+          sub,
+          provider,
+        ).hookType();
+        if (hookType === OnchainHookType.PREDICATE_ROUTER_WRAPPER) {
+          this.logger.debug(
+            { chain, predicateWrapper: sub },
+            'Stripping existing predicate wrapper from aggregation to avoid stacking',
+          );
+        } else {
+          nonPredicateHooks.push(sub);
+        }
+      } catch {
+        // hookType() failed — not a recognisable hook (or SmartProvider wrapped the
+        // revert as "Invalid response from provider" with code: undefined); keep it.
+        nonPredicateHooks.push(sub);
+      }
+    }
+
+    if (nonPredicateHooks.length === subHooks.length) {
+      // No predicate wrapper found — use hook as-is
+      return hookAddress;
+    }
+
+    if (nonPredicateHooks.length === 1) {
+      // Happy path: exactly one base hook remains
+      return nonPredicateHooks[0];
+    }
+
+    // Multiple non-predicate sub-hooks remain after removing the predicate wrapper.
+    // Re-aggregate them via CREATE2 (idempotent) so the caller produces:
+    //   outerAgg([newWrapper, innerAgg([hookA, hookB])])
+    // instead of the stacking anti-pattern:
+    //   newAgg([newWrapper, oldAgg([oldWrapper, hookA, hookB])])
+    this.logger.debug(
+      { chain, nonPredicateHooks },
+      'Multiple non-predicate sub-hooks found — re-aggregating without predicate wrapper',
+    );
+    const signer = this.multiProvider.getSigner(chain);
+    const overrides = this.multiProvider.getTransactionOverrides(chain);
+    const factory = this.staticAggregationHookFactory.connect(signer);
+    const threshold = nonPredicateHooks.length;
+    const innerAggAddress = await factory['getAddress(address[],uint8)'](
+      nonPredicateHooks,
+      threshold,
+    );
+    const code = await this.multiProvider
+      .getProvider(chain)
+      .getCode(innerAggAddress);
+    if (code === '0x') {
+      const tx = await factory['deploy(address[],uint8)'](
+        nonPredicateHooks,
+        threshold,
+        overrides,
+      );
+      await this.multiProvider.handleTx(chain, tx);
+      this.logger.info(
+        { chain, innerAgg: innerAggAddress, hooks: nonPredicateHooks },
+        'Inner aggregation hook deployed for predicate-stripped sub-hooks',
+      );
+    } else {
+      this.logger.debug(
+        { chain, innerAgg: innerAggAddress },
+        'Recovered existing inner aggregation hook',
+      );
+    }
+    return innerAggAddress;
   }
 }

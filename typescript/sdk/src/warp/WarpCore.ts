@@ -631,6 +631,13 @@ export class WarpCore {
       providerType === ProviderType.SolanaWeb3
         ? [Keypair.generate()]
         : undefined;
+    if (attestation) {
+      assert(
+        isPredicateCapableAdapter(hypAdapter),
+        'Attestation provided but adapter does not support predicate transfers',
+      );
+    }
+
     const transferTxReq = await hypAdapter.populateTransferRemoteTx({
       weiAmountOrId: amount.toString(),
       destination: destinationDomainId,
