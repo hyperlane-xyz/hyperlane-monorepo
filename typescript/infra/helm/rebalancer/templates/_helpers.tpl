@@ -90,6 +90,10 @@ The rebalancer container
     value: $(HYP_INVENTORY_KEY)
   - name: HYP_INVENTORY_KEY_ETHEREUM
     value: $(HYP_INVENTORY_KEY_ETHEREUM)
+  {{- if has "tron" .Values.hyperlane.inventorySignerProtocols }}
+  - name: HYP_INVENTORY_KEY_TRON
+    value: $(HYP_INVENTORY_KEY_TRON)
+  {{- end }}
   {{- if has "sealevel" .Values.hyperlane.inventorySignerProtocols }}
   - name: HYP_INVENTORY_KEY_SEALEVEL
     value: $(HYP_INVENTORY_KEY_SEALEVEL)
@@ -103,7 +107,7 @@ The rebalancer container
   - name: WITH_METRICS
     value: "true"
   - name: MONITOR_ONLY
-    value: "true"
+    value: "false"
   envFrom:
   - secretRef:
       name: {{ include "hyperlane.fullname" . }}-secret
