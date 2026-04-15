@@ -49,7 +49,7 @@ export type IInventoryRebalancer = IRebalancer<
   InventoryExecutionResult
 >;
 
-type PreparedOriginTokenAmount = TokenAmount & { token: IToken };
+type PreparedOriginTokenAmount = TokenAmount<IToken>;
 
 export type PreparedTransaction = {
   populatedTx: Awaited<

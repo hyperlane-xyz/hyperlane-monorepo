@@ -11,6 +11,7 @@ import {
   ProviderType,
   SealevelCoreAdapter,
   TOKEN_COLLATERALIZED_STANDARDS,
+  type TokenAmount,
   type WarpTypedTransaction,
   type WarpCore,
   WarpTxCategory,
@@ -971,9 +972,11 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       assert(searchResult, `IGP fee token ${igpAddressOrDenom} is unknown`);
       igpToken = searchResult;
     }
-    const interchainFee = igpToken.amount(gasQuote.igpQuote.amount);
+    const interchainFee: TokenAmount<IToken> = igpToken.amount(
+      gasQuote.igpQuote.amount,
+    );
 
-    let tokenFeeQuote: ReturnType<IToken['amount']> | undefined;
+    let tokenFeeQuote: TokenAmount<IToken> | undefined;
     if (gasQuote.tokenFeeQuote?.amount) {
       const feeAddress = gasQuote.tokenFeeQuote.addressOrDenom;
       const feeToken: IToken =

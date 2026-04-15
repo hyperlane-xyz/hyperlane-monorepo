@@ -10,7 +10,7 @@ import {
   type InterchainGasQuote,
   type MultiProvider,
   type Token,
-  type TokenAmount,
+  TokenAmount,
   type WarpCore,
 } from '@hyperlane-xyz/sdk';
 
@@ -116,19 +116,14 @@ export function buildTestPreparedTransaction(
 
 // === Mock Factories ===
 
-export function createMockTokenAmount(
-  amount: bigint,
-): TokenAmount & { token: IToken } {
-  return {
-    amount,
-    token: {
-      name: 'TestToken',
-      symbol: 'TEST',
-      decimals: 18,
-      addressOrDenom: TEST_ADDRESSES.token,
-    },
-    getDecimalFormattedAmount: () => ethers.utils.formatEther(amount),
-  } as unknown as TokenAmount & { token: IToken };
+export function createMockTokenAmount(amount: bigint): TokenAmount<IToken> {
+  const token = {
+    name: 'TestToken',
+    symbol: 'TEST',
+    decimals: 18,
+    addressOrDenom: TEST_ADDRESSES.token,
+  } as IToken;
+  return new TokenAmount(amount, token);
 }
 
 export interface MockAdapterConfig {

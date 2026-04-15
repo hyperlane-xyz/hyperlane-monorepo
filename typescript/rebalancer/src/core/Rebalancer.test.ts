@@ -270,7 +270,7 @@ describe('Rebalancer', () => {
             'Route validation failed: destination token not found.',
         );
       expect(validationErrorCall).to.not.be.undefined;
-      expect(validationErrorCall!.args[0].amount).to.equal('1.0');
+      expect(validationErrorCall!.args[0].amount).to.equal(1);
       expect(validationErrorCall!.args[1]).to.equal(
         'Route validation failed: destination token not found.',
       );
