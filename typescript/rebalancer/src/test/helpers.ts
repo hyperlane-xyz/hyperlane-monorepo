@@ -6,6 +6,7 @@ import {
   type ChainMetadata,
   type ChainName,
   EvmMovableCollateralAdapter,
+  type IToken,
   type InterchainGasQuote,
   type MultiProvider,
   type Token,
@@ -115,7 +116,9 @@ export function buildTestPreparedTransaction(
 
 // === Mock Factories ===
 
-export function createMockTokenAmount(amount: bigint): TokenAmount {
+export function createMockTokenAmount(
+  amount: bigint,
+): TokenAmount & { token: IToken } {
   return {
     amount,
     token: {
@@ -125,7 +128,7 @@ export function createMockTokenAmount(amount: bigint): TokenAmount {
       addressOrDenom: TEST_ADDRESSES.token,
     },
     getDecimalFormattedAmount: () => ethers.utils.formatEther(amount),
-  } as unknown as TokenAmount;
+  } as unknown as TokenAmount & { token: IToken };
 }
 
 export interface MockAdapterConfig {

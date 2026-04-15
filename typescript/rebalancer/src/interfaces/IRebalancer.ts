@@ -1,5 +1,6 @@
 import {
   type EvmMovableCollateralAdapter,
+  type IToken,
   type TokenAmount,
 } from '@hyperlane-xyz/sdk';
 
@@ -48,10 +49,12 @@ export type IInventoryRebalancer = IRebalancer<
   InventoryExecutionResult
 >;
 
+type PreparedOriginTokenAmount = TokenAmount & { token: IToken };
+
 export type PreparedTransaction = {
   populatedTx: Awaited<
     ReturnType<EvmMovableCollateralAdapter['populateRebalanceTx']>
   >;
   route: MovableCollateralRoute & { intentId: string };
-  originTokenAmount: TokenAmount;
+  originTokenAmount: PreparedOriginTokenAmount;
 };
