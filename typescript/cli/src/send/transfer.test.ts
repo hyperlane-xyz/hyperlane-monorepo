@@ -2,10 +2,26 @@ import { expect } from 'chai';
 
 import { ProviderType } from '@hyperlane-xyz/sdk';
 
+import type { WriteCommandContext } from '../context/types.js';
 import {
   fetchSealevelReceiptWithLogs,
   submitAltVmTransferTx,
 } from './transfer.js';
+
+function mockSealevelContext(
+  getTransaction: (
+    signature: string,
+  ) => Promise<{ meta?: { logMessages?: string[] } } | null>,
+): Pick<WriteCommandContext, 'multiProtocolProvider'> {
+  return {
+    multiProtocolProvider: {
+      getSolanaWeb3Provider: () => ({
+        getTransaction,
+      }),
+    },
+    // CAST: test only provides the one WriteCommandContext field these helpers read.
+  } as Pick<WriteCommandContext, 'multiProtocolProvider'>;
+}
 
 describe('fetchSealevelReceiptWithLogs', () => {
   it('polls until Solana transaction logs are available', async () => {
@@ -13,16 +29,10 @@ describe('fetchSealevelReceiptWithLogs', () => {
     const receipt = {
       meta: { logMessages: ['Dispatched message to 1234, ID deadbeef'] },
     };
-    const context = {
-      multiProtocolProvider: {
-        getSolanaWeb3Provider: () => ({
-          getTransaction: async (signature: string) => {
-            calls.push(signature);
-            return calls.length === 1 ? null : receipt;
-          },
-        }),
-      },
-    } as any;
+    const context = mockSealevelContext(async (signature: string) => {
+      calls.push(signature);
+      return calls.length === 1 ? null : receipt;
+    });
 
     const typedReceipt = await fetchSealevelReceiptWithLogs(
       context,
@@ -40,13 +50,9 @@ describe('fetchSealevelReceiptWithLogs', () => {
   });
 
   it('throws when Solana logs never become available', async () => {
-    const context = {
-      multiProtocolProvider: {
-        getSolanaWeb3Provider: () => ({
-          getTransaction: async () => ({ meta: { logMessages: [] } }),
-        }),
-      },
-    } as any;
+    const context = mockSealevelContext(async () => ({
+      meta: { logMessages: [] },
+    }));
 
     try {
       await fetchSealevelReceiptWithLogs(
@@ -76,13 +82,7 @@ describe('submitAltVmTransferTx', () => {
     const receipt = {
       meta: { logMessages: ['Dispatched message to 1234, ID deadbeef'] },
     };
-    const context = {
-      multiProtocolProvider: {
-        getSolanaWeb3Provider: () => ({
-          getTransaction: async () => receipt,
-        }),
-      },
-    } as any;
+    const context = mockSealevelContext(async () => receipt);
     const signer = {
       sendAndConfirmTransaction: async (transaction: unknown) => {
         signerCalls.push(transaction);

@@ -22,6 +22,10 @@ import type { SvmInstruction, SvmTransaction } from './types.js';
 import { DEFAULT_COMPUTE_UNITS } from './constants.js';
 
 type Web3PublicKeyLike = { toBase58(): string };
+export type Web3KeypairLike = {
+  publicKey: Web3PublicKeyLike;
+  secretKey: Uint8Array;
+};
 
 export type Web3InstructionLike = {
   programId: Web3PublicKeyLike;
@@ -37,7 +41,7 @@ export type Web3TransactionLike = {
   instructions: readonly (SvmInstruction | Web3InstructionLike)[];
   feePayer?: Address | Web3PublicKeyLike | null;
   computeUnits?: number;
-  additionalSigners?: TransactionSigner[];
+  additionalSigners?: readonly (TransactionSigner | Web3KeypairLike)[];
   extraSigners?: readonly unknown[];
   skipPreflight?: boolean;
 };
@@ -127,9 +131,10 @@ export function getComputeBudgetInstructions(
   units?: number,
   microLamports?: number,
 ): SvmInstruction[] {
+  const resolvedUnits = arguments.length === 0 ? DEFAULT_COMPUTE_UNITS : units;
   const instructions: SvmInstruction[] = [];
-  if (units !== undefined) {
-    instructions.push(createSetComputeUnitLimitInstruction(units));
+  if (resolvedUnits !== undefined) {
+    instructions.push(createSetComputeUnitLimitInstruction(resolvedUnits));
   }
   if (microLamports !== undefined && microLamports > 0) {
     instructions.push(

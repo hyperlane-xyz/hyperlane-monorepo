@@ -21,7 +21,11 @@ import sinon from 'sinon';
 chai.use(chaiAsPromised);
 
 import { SvmSigner } from '../clients/signer.js';
-import { type Web3TransactionLike, transactionToInstructions } from '../tx.js';
+import {
+  getComputeBudgetInstructions,
+  type Web3TransactionLike,
+  transactionToInstructions,
+} from '../tx.js';
 import type { SvmRpc, SvmTransaction } from '../types.js';
 
 // ---------------------------------------------------------------------------
@@ -913,6 +917,16 @@ describe('SvmSigner', () => {
   });
 
   describe('send — web3 compatibility', () => {
+    it('preserves zero-arg compute budget helper behavior', () => {
+      const instructions = getComputeBudgetInstructions();
+
+      expect(instructions).to.have.length(1);
+      expect(instructions[0].programAddress).to.equal(
+        COMPUTE_BUDGET_PROGRAM_ADDRESS,
+      );
+      expect(instructions[0].data?.[0]).to.equal(2);
+    });
+
     it('normalizes web3 instruction/account shapes before signing', async () => {
       const rpc = createMockRpc();
       const signer = await createTestSigner(rpc);

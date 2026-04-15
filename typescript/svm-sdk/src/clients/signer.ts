@@ -27,6 +27,7 @@ import type { InstructionAccountMeta } from '../instructions/utils.js';
 
 import { createRpc } from '../rpc.js';
 import {
+  type Web3KeypairLike,
   type Web3TransactionLike,
   buildTransactionMessage,
   normalizeTransaction,
@@ -81,11 +82,6 @@ class SvmTransactionError extends Error {
 }
 
 const base58Encoder = getBase58Encoder();
-
-type Web3KeypairLike = {
-  publicKey: unknown;
-  secretKey: ReadonlyUint8Array;
-};
 
 function parseKeyBytes(privateKey: string): ReadonlyUint8Array {
   // Try hex (32 bytes = 64 hex chars, 64 bytes = 128 hex chars)
