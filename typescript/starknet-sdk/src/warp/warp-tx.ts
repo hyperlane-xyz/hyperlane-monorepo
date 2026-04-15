@@ -36,7 +36,7 @@ export function getCreateNativeTokenTx(
     contractType: ContractType.TOKEN,
     constructorArgs: [
       normalizeStarknetAddressSafe(config.mailboxAddress),
-      config.feeTokenAddress,
+      normalizeStarknetAddressSafe(config.feeTokenAddress),
       normalizeStarknetAddressSafe(config.defaultHook),
       normalizeStarknetAddressSafe(config.defaultIsm),
       normalizeStarknetAddressSafe(signer),
@@ -85,7 +85,7 @@ export function getCreateSyntheticTokenTx(
     constructorArgs: [
       config.decimals,
       normalizeStarknetAddressSafe(config.mailboxAddress),
-      0,
+      0, // initial supply
       config.name,
       config.denom,
       normalizeStarknetAddressSafe(config.defaultHook),

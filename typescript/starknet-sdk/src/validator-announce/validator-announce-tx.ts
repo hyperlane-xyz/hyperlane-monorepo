@@ -5,8 +5,8 @@ import {
 import { type StarknetAnnotatedTx } from '../types.js';
 
 export function getCreateValidatorAnnounceTx(
-  mailboxAddress: string,
   signer: string,
+  mailboxAddress: string,
 ): StarknetAnnotatedTx {
   return {
     kind: 'deploy',

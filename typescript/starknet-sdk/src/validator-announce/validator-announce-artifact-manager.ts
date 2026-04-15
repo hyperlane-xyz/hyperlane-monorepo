@@ -155,8 +155,8 @@ class StarknetValidatorAnnounceWriter
     ]
   > {
     const tx = getCreateValidatorAnnounceTx(
-      artifact.config.mailboxAddress,
       this.signer.getSignerAddress(),
+      artifact.config.mailboxAddress,
     );
     const receipt = await this.signer.sendAndConfirmTransaction(tx);
     const validatorAnnounceId = receipt.contractAddress;

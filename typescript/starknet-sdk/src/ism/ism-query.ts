@@ -9,21 +9,10 @@ import {
   callContract,
   extractEnumVariant,
   getStarknetContract,
+  isProbeMiss,
   normalizeStarknetAddressSafe,
   toNumber,
 } from '../contracts.js';
-
-function isProbeMiss(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return [
-    'entry point',
-    'entrypoint',
-    'viewable method not found in abi',
-    'not found in abi',
-    'not found in contract',
-    'invalid message selector',
-  ].some((needle) => message.toLowerCase().includes(needle));
-}
 
 function parseIsmVariant(variant: string): AltVM.IsmType {
   const upper = variant.toUpperCase();
@@ -71,15 +60,12 @@ export interface MultisigIsmConfig {
   validators: string[];
 }
 
-export async function getMessageIdMultisigIsmConfig(
+async function getMultisigIsmConfig(
   provider: RpcProvider,
   ismAddress: string,
+  contractName: StarknetContractName,
 ): Promise<MultisigIsmConfig> {
-  const ism = getStarknetContract(
-    StarknetContractName.MESSAGE_ID_MULTISIG_ISM,
-    ismAddress,
-    provider,
-  );
+  const ism = getStarknetContract(contractName, ismAddress, provider);
   const [validators, threshold] = await Promise.all([
     callContract(ism, 'get_validators'),
     callContract(ism, 'get_threshold'),
@@ -94,27 +80,26 @@ export async function getMessageIdMultisigIsmConfig(
   };
 }
 
+export async function getMessageIdMultisigIsmConfig(
+  provider: RpcProvider,
+  ismAddress: string,
+): Promise<MultisigIsmConfig> {
+  return getMultisigIsmConfig(
+    provider,
+    ismAddress,
+    StarknetContractName.MESSAGE_ID_MULTISIG_ISM,
+  );
+}
+
 export async function getMerkleRootMultisigIsmConfig(
   provider: RpcProvider,
   ismAddress: string,
 ): Promise<MultisigIsmConfig> {
-  const ism = getStarknetContract(
-    StarknetContractName.MERKLE_ROOT_MULTISIG_ISM,
-    ismAddress,
+  return getMultisigIsmConfig(
     provider,
+    ismAddress,
+    StarknetContractName.MERKLE_ROOT_MULTISIG_ISM,
   );
-  const [validators, threshold] = await Promise.all([
-    callContract(ism, 'get_validators'),
-    callContract(ism, 'get_threshold'),
-  ]);
-
-  assert(Array.isArray(validators), 'Expected Starknet validators array');
-
-  return {
-    address: normalizeStarknetAddressSafe(ismAddress),
-    threshold: toNumber(threshold),
-    validators: validators.map((v) => addressToEvmAddress(v)),
-  };
 }
 
 export interface RoutingIsmConfig {

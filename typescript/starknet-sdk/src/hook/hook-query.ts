@@ -7,20 +7,9 @@ import {
   callContract,
   extractEnumVariant,
   getStarknetContract,
+  isProbeMiss,
   normalizeStarknetAddressSafe,
 } from '../contracts.js';
-
-function isProbeMiss(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return [
-    'entry point',
-    'entrypoint',
-    'viewable method not found in abi',
-    'not found in abi',
-    'not found in contract',
-    'invalid message selector',
-  ].some((needle) => message.toLowerCase().includes(needle));
-}
 
 function parseHookVariant(variant: string): AltVM.HookType {
   const upper = variant.toUpperCase();

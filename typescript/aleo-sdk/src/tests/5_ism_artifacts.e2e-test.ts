@@ -156,7 +156,7 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
             AltVM.IsmType.MERKLE_ROOT_MULTISIG,
             signer,
           ),
-        ).to.throw;
+        ).to.throw();
       });
     });
   });

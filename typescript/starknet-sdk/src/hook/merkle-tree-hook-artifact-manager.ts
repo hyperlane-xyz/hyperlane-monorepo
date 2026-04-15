@@ -67,8 +67,8 @@ export class StarknetMerkleTreeHookWriter
     ]
   > {
     const tx = getCreateMerkleTreeHookTx(
-      this.mailboxAddress,
       this.signer.getSignerAddress(),
+      this.mailboxAddress,
     );
     const receipt = await this.signer.sendAndConfirmTransaction(tx);
     const hookAddress = receipt.contractAddress;
