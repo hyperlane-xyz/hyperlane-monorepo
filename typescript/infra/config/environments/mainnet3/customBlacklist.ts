@@ -237,4 +237,7 @@ export const blacklistedMessageIds = [
 
   // USDC/eclipsemainnet warp transfer to USDC contract itself [2026-01-30]
   '0x4190cf8c0419cd966fc96fcb9050be3d941cb06974667bd768f22e90abcec6a6',
+
+  // superswap_ica_v2 orphaned reveal — commitment never persisted to offchain-lookup-server [2026-04-15]
+  '0x5376b3ae4771f09304c3eb46eee9f1c7107ff54735ca1a96ac2ff5186ddeac52',
 ];
