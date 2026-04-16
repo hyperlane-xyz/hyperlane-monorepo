@@ -3461,6 +3461,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-sealevel-fee"
+version = "0.1.0"
+dependencies = [
+ "borsh 1.6.0",
+ "getrandom 0.2.17",
+ "hyperlane-core",
+ "num-derive",
+ "num-traits",
+ "solana-program 3.0.0",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "hyperlane-sealevel-hello-world"
 version = "0.1.0"
 dependencies = [
