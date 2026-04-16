@@ -5,6 +5,9 @@ name = "hyperlane-sealevel-fee"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+no-entrypoint = []
+
 [dependencies]
 access-control = { path = "../../libraries/access-control" }
 account-utils = { path = "../../libraries/account-utils" }
@@ -18,6 +21,9 @@ thiserror.workspace = true
 # Required to allow dependencies `getrandom` but to preserve determinism required by programs, see
 # https://solana.com/news/rust-to-solana
 getrandom = { workspace = true, features = ["custom"] }
+
+[lints]
+workspace = true
 
 [lib]
 crate-type = ["cdylib", "lib"]

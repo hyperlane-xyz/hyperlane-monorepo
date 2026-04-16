@@ -7,6 +7,9 @@ pub enum Error {
     /// Fee computation resulted in an overflow.
     #[error("Fee computation overflow")]
     FeeComputationOverflow = 1,
+    /// Instruction requires the fee account to be FeeData::Leaf.
+    #[error("Fee account is not a Leaf type")]
+    NotLeafFeeData = 2,
 }
 
 impl From<Error> for ProgramError {
