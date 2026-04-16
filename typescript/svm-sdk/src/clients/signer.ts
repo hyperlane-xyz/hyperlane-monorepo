@@ -27,7 +27,10 @@ import type { InstructionAccountMeta } from '../instructions/utils.js';
 
 import { createRpc } from '../rpc.js';
 import {
+  type Web3KeypairLike,
+  type Web3TransactionLike,
   buildTransactionMessage,
+  normalizeTransaction,
   serializeUnsignedTransaction,
 } from '../tx.js';
 import type {
@@ -40,8 +43,14 @@ import type {
 import { SvmProvider } from './provider.js';
 import { DEFAULT_COMPUTE_UNITS } from '../constants.js';
 
-/** Transaction input for `send()` — feePayer is excluded since the signer provides it. */
 type SendableSvmTransaction = Omit<SvmTransaction, 'feePayer'>;
+type SendableSvmCompatTransaction = SvmTransaction | Web3TransactionLike;
+type SendableSvmExtraSignerTransaction = SendableSvmCompatTransaction & {
+  extraSigners?: readonly (TransactionSigner | Web3KeypairLike)[];
+};
+type AnnotatedSvmCompatTransaction =
+  | AnnotatedSvmTransaction
+  | (Web3TransactionLike & { annotation?: string });
 
 /** Shape returned by `transactionToPrintableJson`. */
 export interface PrintableSvmTransaction {
@@ -132,6 +141,29 @@ function isBlockhashNotFoundError(error: unknown): boolean {
   return false;
 }
 
+function isWeb3KeypairLike(value: unknown): value is Web3KeypairLike {
+  return (
+    !!value &&
+    typeof value === 'object' &&
+    'publicKey' in value &&
+    'secretKey' in value
+  );
+}
+
+async function normalizeAdditionalSigners(
+  signers?: readonly (TransactionSigner | Web3KeypairLike)[],
+): Promise<TransactionSigner[] | undefined> {
+  if (!signers?.length) return undefined;
+
+  return Promise.all(
+    signers.map((signer) =>
+      isWeb3KeypairLike(signer)
+        ? createKeyPairSignerFromBytes(signer.secretKey)
+        : signer,
+    ),
+  );
+}
+
 type HistoryCheckResult =
   | { confirmed: true; slot: bigint }
   | { confirmed: false }
@@ -185,21 +217,22 @@ export class SvmSigner
   }
 
   async transactionToPrintableJson(
-    transaction: AnnotatedSvmTransaction,
+    transaction: AnnotatedSvmCompatTransaction,
   ): Promise<PrintableSvmTransaction> {
+    const normalizedTransaction = normalizeTransaction(transaction);
     const { transactionBase58, messageBase58 } = serializeUnsignedTransaction(
-      transaction.instructions,
-      transaction.feePayer ?? this.signer.address,
+      normalizedTransaction.instructions,
+      normalizedTransaction.feePayer ?? this.signer.address,
     );
 
     return {
       annotation: transaction.annotation,
-      instructions: transaction.instructions.map((ix) => ({
+      instructions: normalizedTransaction.instructions.map((ix) => ({
         programAddress: ix.programAddress,
         accounts: ix.accounts,
         data: ix.data ? Buffer.from(ix.data).toString('hex') : undefined,
       })),
-      computeUnits: transaction.computeUnits,
+      computeUnits: normalizedTransaction.computeUnits,
       transaction_base58: transactionBase58,
       message_base58: messageBase58,
     };
@@ -305,7 +338,16 @@ export class SvmSigner
    * Sends a transaction and polls for confirmation. On blockhash expiry,
    * checks transaction history before resubmitting to prevent double-execution.
    */
-  async send(tx: SendableSvmTransaction): Promise<SvmReceipt> {
+  async send(tx: SendableSvmExtraSignerTransaction): Promise<SvmReceipt> {
+    // Web3-shaped tx inputs can carry signer metadata outside the normalized
+    // message fields. Convert those signers first, then rebuild a clean
+    // SvmTransaction that can safely survive blockhash refresh and re-signing.
+    const compatAdditionalSigners = await normalizeAdditionalSigners([
+      ...(tx.additionalSigners ?? []),
+      ...(tx.extraSigners ?? []),
+    ]);
+    const normalizedTx: SendableSvmTransaction = normalizeTransaction(tx);
+    normalizedTx.additionalSigners = compatAdditionalSigners;
     const maxBlockhashAttempts = 3;
     const pollIntervalMs = 2000;
 
@@ -316,7 +358,7 @@ export class SvmSigner
       blockhashAttempt++
     ) {
       const { signature, rawTx, lastValidBlockHeight } =
-        await this.signAndSend(tx);
+        await this.signAndSend(normalizedTx);
       lastSignature = signature;
 
       // Poll while blockhash is valid
@@ -468,13 +510,13 @@ export class SvmSigner
   }
 
   async sendAndConfirmTransaction(
-    transaction: SendableSvmTransaction,
+    transaction: SendableSvmExtraSignerTransaction,
   ): Promise<SvmReceipt> {
     return this.send(transaction);
   }
 
   async sendAndConfirmBatchTransactions(
-    _transactions: SendableSvmTransaction[],
+    _transactions: SendableSvmExtraSignerTransaction[],
   ): Promise<SvmReceipt> {
     throw new Error('Sealevel does not support transaction batching');
   }

@@ -1,10 +1,12 @@
 import {
+  AccountRole,
   type Address,
   type Blockhash,
   type Instruction,
   type ReadonlyUint8Array,
   type TransactionSigner,
   appendTransactionMessageInstructions,
+  address,
   blockhash,
   compileTransactionMessage,
   createTransactionMessage,
@@ -18,6 +20,90 @@ import {
 
 import type { SvmInstruction, SvmTransaction } from './types.js';
 import { DEFAULT_COMPUTE_UNITS } from './constants.js';
+
+type Web3PublicKeyLike = { toBase58(): string };
+export type Web3KeypairLike = {
+  publicKey: Web3PublicKeyLike;
+  secretKey: Uint8Array;
+};
+
+export type Web3InstructionLike = {
+  programId: Web3PublicKeyLike;
+  keys?: readonly {
+    pubkey: Web3PublicKeyLike;
+    isSigner: boolean;
+    isWritable: boolean;
+  }[];
+  data?: Uint8Array;
+};
+
+export type Web3TransactionLike = {
+  instructions: readonly (SvmInstruction | Web3InstructionLike)[];
+  feePayer?: Address | Web3PublicKeyLike | null;
+  computeUnits?: number;
+  // Compat for callers that still attach web3 keypairs/signers to raw web3 txs.
+  // `SvmSigner.send()` consumes this before rebuilding the normalized tx message.
+  additionalSigners?: readonly (TransactionSigner | Web3KeypairLike)[];
+  // CLI forwards this sibling field today; signer compat treats it the same way.
+  extraSigners?: readonly unknown[];
+  skipPreflight?: boolean;
+};
+
+function isSvmInstruction(
+  instruction: SvmInstruction | Web3InstructionLike,
+): instruction is SvmInstruction {
+  return 'programAddress' in instruction;
+}
+
+function isWeb3PublicKeyLike(
+  value: Address | Web3PublicKeyLike | null | undefined,
+): value is Web3PublicKeyLike {
+  return !!value && typeof value === 'object' && 'toBase58' in value;
+}
+
+function accountRoleFromWeb3Meta(meta: {
+  isSigner: boolean;
+  isWritable: boolean;
+}): AccountRole {
+  if (meta.isSigner) {
+    return meta.isWritable
+      ? AccountRole.WRITABLE_SIGNER
+      : AccountRole.READONLY_SIGNER;
+  }
+
+  return meta.isWritable ? AccountRole.WRITABLE : AccountRole.READONLY;
+}
+
+export function normalizeInstruction(
+  instruction: SvmInstruction | Web3InstructionLike,
+): SvmInstruction {
+  if (isSvmInstruction(instruction)) return instruction;
+
+  return {
+    programAddress: address(instruction.programId.toBase58()),
+    accounts: (instruction.keys ?? []).map((key) => ({
+      address: address(key.pubkey.toBase58()),
+      role: accountRoleFromWeb3Meta(key),
+    })),
+    data: instruction.data ? new Uint8Array(instruction.data) : undefined,
+  };
+}
+
+export function normalizeTransaction(
+  tx: SvmTransaction | Web3TransactionLike,
+): SvmTransaction {
+  const { computeUnits, instructions, skipPreflight } = tx;
+  return {
+    // Normalize only the message fields that survive blockhash refresh + re-sign.
+    // Extra signer metadata is handled separately at the signer boundary.
+    computeUnits,
+    feePayer: isWeb3PublicKeyLike(tx.feePayer)
+      ? address(tx.feePayer.toBase58())
+      : (tx.feePayer ?? undefined),
+    instructions: instructions.map(normalizeInstruction),
+    skipPreflight,
+  };
+}
 
 // Max data per BPFLoaderUpgradeable Write tx: 1232 packet limit minus tx
 // overhead. With 2 signers (payer != authority) overhead is ~355 bytes,
@@ -49,18 +135,31 @@ function createSetComputeUnitPriceInstruction(
 }
 
 export function getComputeBudgetInstructions(
-  units: number = DEFAULT_COMPUTE_UNITS,
+  units?: number,
   microLamports?: number,
 ): SvmInstruction[] {
-  const instructions: SvmInstruction[] = [
-    createSetComputeUnitLimitInstruction(units),
-  ];
+  const resolvedUnits = arguments.length === 0 ? DEFAULT_COMPUTE_UNITS : units;
+  const instructions: SvmInstruction[] = [];
+  if (resolvedUnits !== undefined) {
+    instructions.push(createSetComputeUnitLimitInstruction(resolvedUnits));
+  }
   if (microLamports !== undefined && microLamports > 0) {
     instructions.push(
       createSetComputeUnitPriceInstruction(BigInt(microLamports)),
     );
   }
   return instructions;
+}
+
+function hasComputeBudgetInstructionKind(
+  instructions: readonly SvmInstruction[],
+  discriminator: number,
+): boolean {
+  return instructions.some(
+    (instruction) =>
+      instruction.programAddress === COMPUTE_BUDGET_PROGRAM_ID &&
+      instruction.data?.[0] === discriminator,
+  );
 }
 
 export function buildTransactionMessage(params: {
@@ -80,11 +179,16 @@ export function buildTransactionMessage(params: {
     priorityFeeMicroLamports,
   } = params;
 
+  const normalizedInstructions = instructions.map(normalizeInstruction);
   const computeBudgetIxs = getComputeBudgetInstructions(
-    computeUnits,
-    priorityFeeMicroLamports,
+    hasComputeBudgetInstructionKind(normalizedInstructions, 2)
+      ? undefined
+      : computeUnits,
+    hasComputeBudgetInstructionKind(normalizedInstructions, 3)
+      ? undefined
+      : priorityFeeMicroLamports,
   );
-  const allInstructions = [...computeBudgetIxs, ...instructions];
+  const allInstructions = [...computeBudgetIxs, ...normalizedInstructions];
 
   const txMessage = createTransactionMessage({ version: 0 });
   const withFeePayer = setTransactionMessageFeePayerSigner(feePayer, txMessage);
@@ -96,11 +200,16 @@ export function buildTransactionMessage(params: {
 }
 
 export function transactionToInstructions(
-  tx: SvmTransaction,
+  tx: SvmTransaction | Web3TransactionLike,
 ): SvmInstruction[] {
-  const computeUnits = tx.computeUnits ?? DEFAULT_COMPUTE_UNITS;
-  const computeBudgetIxs = getComputeBudgetInstructions(computeUnits);
-  return [...computeBudgetIxs, ...tx.instructions];
+  const normalizedTx = normalizeTransaction(tx);
+  const computeUnits = normalizedTx.computeUnits ?? DEFAULT_COMPUTE_UNITS;
+  const computeBudgetIxs = getComputeBudgetInstructions(
+    hasComputeBudgetInstructionKind(normalizedTx.instructions, 2)
+      ? undefined
+      : computeUnits,
+  );
+  return [...computeBudgetIxs, ...normalizedTx.instructions];
 }
 
 // ---------------------------------------------------------------------------
@@ -156,7 +265,7 @@ export function serializeUnsignedTransaction(
     withFeePayer,
   );
   const withInstructions = appendTransactionMessageInstructions(
-    instructions,
+    instructions.map(normalizeInstruction),
     withLifetime,
   );
 

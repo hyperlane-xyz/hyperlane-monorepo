@@ -69,6 +69,8 @@ const EXPLORER_GRAPHQL_URL =
   'https://explorer4.hasura.app/v1/graphql';
 const EXPLORER_POLL_INTERVAL_MS = 5000;
 const EXPLORER_NO_RESULT_FALLBACK_COUNT = 3;
+const SEALEVEL_RECEIPT_POLL_INTERVAL_MS = 1000;
+const SEALEVEL_RECEIPT_MAX_ATTEMPTS = 10;
 
 function isAnnotatedTx(value: unknown): value is AnnotatedTx {
   return typeof value === 'object' && value !== null;
@@ -97,6 +99,78 @@ function toTypedAltVmReceipt(
         `Unsupported provider type for non-EVM transfer execution: ${providerType}`,
       );
   }
+}
+
+export async function fetchSealevelReceiptWithLogs(
+  context: Pick<WriteCommandContext, 'multiProtocolProvider'>,
+  origin: ChainName,
+  signature: string,
+  pollIntervalMs = SEALEVEL_RECEIPT_POLL_INTERVAL_MS,
+  maxAttempts = SEALEVEL_RECEIPT_MAX_ATTEMPTS,
+): Promise<TypedTransactionReceipt> {
+  const connection =
+    context.multiProtocolProvider.getSolanaWeb3Provider(origin);
+  let receipt = null;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    receipt = await connection.getTransaction(signature, {
+      commitment: 'confirmed',
+      maxSupportedTransactionVersion: 0,
+    });
+
+    if (receipt?.meta?.logMessages?.length) {
+      return {
+        type: ProviderType.SolanaWeb3,
+        receipt,
+      };
+    }
+
+    if (attempt < maxAttempts - 1) {
+      await sleep(pollIntervalMs);
+    }
+  }
+
+  throw new Error(
+    `Transaction logs unavailable for Solana transaction ${signature}`,
+  );
+}
+
+type AltVmTransferSigner = {
+  sendAndConfirmTransaction(transaction: unknown): Promise<TxReceipt>;
+};
+
+type ExecutableAltVmTransfer = {
+  type: ProviderType;
+  transaction: unknown;
+  extraSigners?: unknown[];
+};
+
+export async function submitAltVmTransferTx({
+  context,
+  signer,
+  origin,
+  tx,
+}: {
+  context: Pick<WriteCommandContext, 'multiProtocolProvider'>;
+  signer: AltVmTransferSigner;
+  origin: ChainName;
+  tx: ExecutableAltVmTransfer;
+}): Promise<TypedTransactionReceipt> {
+  if (!isAnnotatedTx(tx.transaction)) {
+    throw new Error(
+      `Expected AnnotatedTx for non-EVM transfer execution, got ${typeof tx.transaction}`,
+    );
+  }
+
+  const txReceipt = await signer.sendAndConfirmTransaction(
+    tx.type === ProviderType.SolanaWeb3 && 'extraSigners' in tx
+      ? { ...tx.transaction, extraSigners: tx.extraSigners }
+      : tx.transaction,
+  );
+
+  return tx.type === ProviderType.SolanaWeb3
+    ? fetchSealevelReceiptWithLogs(context, origin, txReceipt.signature)
+    : toTypedAltVmReceipt(tx.type, txReceipt);
 }
 
 export async function sendTestTransfer({
@@ -452,13 +526,12 @@ async function executeDelivery({
       }
     } else {
       const signer = mustGet(altVmSigners, origin);
-      if (!isAnnotatedTx(tx.transaction)) {
-        throw new Error(
-          `Expected AnnotatedTx for non-EVM transfer execution, got ${typeof tx.transaction}`,
-        );
-      }
-      const txReceipt = await signer.sendAndConfirmTransaction(tx.transaction);
-      const typedReceipt = toTypedAltVmReceipt(tx.type, txReceipt);
+      const typedReceipt = await submitAltVmTransferTx({
+        context,
+        signer,
+        origin,
+        tx,
+      });
       txReceipts.push(typedReceipt);
       if (tx.category === WarpTxCategory.Transfer) {
         transferReceipt = typedReceipt;

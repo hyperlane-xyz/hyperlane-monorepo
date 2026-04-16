@@ -5,12 +5,14 @@ import {
 } from '@solana/errors';
 import {
   AccountRole,
+  type Address,
   address,
   blockhash,
   getBase58Encoder,
   getCompiledTransactionMessageDecoder,
   signature as toSignature,
 } from '@solana/kit';
+import { Keypair } from '@solana/web3.js';
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { afterEach, describe, it } from 'mocha';
@@ -19,6 +21,11 @@ import sinon from 'sinon';
 chai.use(chaiAsPromised);
 
 import { SvmSigner } from '../clients/signer.js';
+import {
+  getComputeBudgetInstructions,
+  type Web3TransactionLike,
+  transactionToInstructions,
+} from '../tx.js';
 import type { SvmRpc, SvmTransaction } from '../types.js';
 
 // ---------------------------------------------------------------------------
@@ -34,6 +41,10 @@ const FAKE_SIGNATURE = toSignature(
 
 function noopTx(): SvmTransaction {
   return { instructions: [] };
+}
+
+function fakePublicKey(value: string) {
+  return { toBase58: () => value };
 }
 
 type RpcMethodStub = (...args: unknown[]) => { send: () => Promise<unknown> };
@@ -103,6 +114,8 @@ function createMockRpc(config: MockRpcConfig = {}): SvmRpc {
 
 const TEST_PRIVATE_KEY =
   '0x0000000000000000000000000000000000000000000000000000000000000001';
+const COMPUTE_BUDGET_PROGRAM_ADDRESS =
+  'ComputeBudget111111111111111111111111111111';
 
 async function createTestSigner(rpc: SvmRpc): Promise<SvmSigner> {
   const signer = await SvmSigner.connectWithSigner(
@@ -857,6 +870,168 @@ describe('SvmSigner', () => {
       expect(feePayerFromMessageBase58(json.message_base58)).to.equal(
         signerAddress,
       );
+    });
+
+    it('normalizes web3 instruction/account shapes before serialization', async () => {
+      const rpc = createMockRpc();
+      const signer = await createTestSigner(rpc);
+
+      const tx: Web3TransactionLike & { annotation?: string } = {
+        feePayer: fakePublicKey(SQUADS_VAULT_ADDRESS),
+        instructions: [
+          {
+            programId: fakePublicKey(PROGRAM_ADDRESS),
+            keys: [
+              {
+                pubkey: fakePublicKey(TOKEN_PDA_ADDRESS),
+                isSigner: false,
+                isWritable: true,
+              },
+              {
+                pubkey: fakePublicKey(OWNER_ADDRESS),
+                isSigner: true,
+                isWritable: false,
+              },
+            ],
+            data: new Uint8Array([1, 2, 3]),
+          },
+        ],
+      };
+
+      const json = await signer.transactionToPrintableJson(tx);
+
+      expect(feePayerFromMessageBase58(json.message_base58)).to.equal(
+        SQUADS_VAULT_ADDRESS,
+      );
+      expect(json.instructions).to.deep.equal([
+        {
+          programAddress: PROGRAM_ADDRESS,
+          accounts: [
+            { address: TOKEN_PDA_ADDRESS, role: AccountRole.WRITABLE },
+            { address: OWNER_ADDRESS, role: AccountRole.READONLY_SIGNER },
+          ],
+          data: '010203',
+        },
+      ]);
+    });
+  });
+
+  describe('send — web3 compatibility', () => {
+    it('preserves zero-arg compute budget helper behavior', () => {
+      const instructions = getComputeBudgetInstructions();
+
+      expect(instructions).to.have.length(1);
+      expect(instructions[0].programAddress).to.equal(
+        COMPUTE_BUDGET_PROGRAM_ADDRESS,
+      );
+      expect(instructions[0].data?.[0]).to.equal(2);
+    });
+
+    it('normalizes web3 instruction/account shapes before signing', async () => {
+      const rpc = createMockRpc();
+      const signer = await createTestSigner(rpc);
+
+      const receipt = await signer.send({
+        instructions: [
+          {
+            programId: fakePublicKey(PROGRAM_ADDRESS),
+            keys: [
+              {
+                pubkey: fakePublicKey(TOKEN_PDA_ADDRESS),
+                isSigner: false,
+                isWritable: true,
+              },
+            ],
+            data: new Uint8Array([9]),
+          },
+        ],
+      });
+
+      expect(receipt.slot).to.equal(42n);
+      expect(receipt.signature).to.be.a('string').and.not.empty;
+    });
+
+    it('converts web3 extra signers before signing', async () => {
+      const rpc = createMockRpc();
+      const signer = await createTestSigner(rpc);
+      const extraSigner = Keypair.generate();
+
+      const receipt = await signer.send({
+        instructions: [
+          {
+            programId: fakePublicKey(PROGRAM_ADDRESS),
+            keys: [
+              {
+                pubkey: fakePublicKey(TOKEN_PDA_ADDRESS),
+                isSigner: false,
+                isWritable: true,
+              },
+              {
+                pubkey: extraSigner.publicKey,
+                isSigner: true,
+                isWritable: false,
+              },
+            ],
+            data: new Uint8Array([7]),
+          },
+        ],
+        additionalSigners: [extraSigner],
+      });
+
+      expect(receipt.slot).to.equal(42n);
+      expect(receipt.signature).to.be.a('string').and.not.empty;
+    });
+
+    it('does not prepend duplicate compute unit limit instructions', () => {
+      const instructions = transactionToInstructions({
+        computeUnits: 123456,
+        instructions: [
+          {
+            programAddress: COMPUTE_BUDGET_PROGRAM_ADDRESS as Address,
+            accounts: [],
+            data: new Uint8Array([2, 0, 0, 0, 0]),
+          },
+          {
+            programAddress: PROGRAM_ADDRESS as Address,
+            accounts: [],
+            data: new Uint8Array([1]),
+          },
+        ],
+      });
+
+      expect(
+        instructions.filter(
+          (instruction) =>
+            instruction.programAddress === COMPUTE_BUDGET_PROGRAM_ADDRESS,
+        ),
+      ).to.have.length(1);
+    });
+
+    it('prepends missing compute unit limit when only price is present', () => {
+      const instructions = transactionToInstructions({
+        computeUnits: 123456,
+        instructions: [
+          {
+            programAddress: COMPUTE_BUDGET_PROGRAM_ADDRESS as Address,
+            accounts: [],
+            data: new Uint8Array([3, 1, 0, 0, 0, 0, 0, 0, 0]),
+          },
+          {
+            programAddress: PROGRAM_ADDRESS as Address,
+            accounts: [],
+            data: new Uint8Array([1]),
+          },
+        ],
+      });
+
+      const computeBudgetInstructions = instructions.filter(
+        (instruction) =>
+          instruction.programAddress === COMPUTE_BUDGET_PROGRAM_ADDRESS,
+      );
+
+      expect(
+        computeBudgetInstructions.map((instruction) => instruction.data?.[0]),
+      ).to.deep.equal([2, 3]);
     });
   });
 });
