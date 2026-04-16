@@ -95,20 +95,17 @@ where
             threshold,
             sub_isms,
         } => {
-            let provided = (0..sub_isms.len())
-                .filter(|&i| sub_metadata_at(metadata, i).ok().flatten().is_some())
-                .count();
-            if provided < *threshold as usize {
-                return Err(Error::ThresholdNotMet.into());
-            }
-
+            let mut verified = 0usize;
             for (i, sub_ism) in sub_isms.iter_mut().enumerate() {
                 let Some(sub_meta) = sub_metadata_at(metadata, i)? else {
                     continue;
                 };
                 verify_node(sub_ism, sub_meta, message, accounts_iter, program_id)?;
+                verified += 1;
             }
-
+            if verified < *threshold as usize {
+                return Err(Error::ThresholdNotMet.into());
+            }
             Ok(())
         }
 
