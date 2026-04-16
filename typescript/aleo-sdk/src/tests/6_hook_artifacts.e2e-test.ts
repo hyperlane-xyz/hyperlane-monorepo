@@ -19,6 +19,10 @@ import { assert, normalizeConfig } from '@hyperlane-xyz/utils';
 
 import { AleoSigner } from '../clients/signer.js';
 import { AleoHookArtifactManager } from '../hook/hook-artifact-manager.js';
+import { AleoIsmArtifactManager } from '../ism/ism-artifact-manager.js';
+import { AleoMailboxArtifactManager } from '../mailbox/mailbox-artifact-manager.js';
+import { ALEO_NULL_ADDRESS } from '../utils/helper.js';
+import { AleoNetworkId } from '../utils/types.js';
 
 describe('6. aleo sdk Hook artifacts e2e tests', async function () {
   this.timeout(100_000);
@@ -33,6 +37,7 @@ describe('6. aleo sdk Hook artifacts e2e tests', async function () {
     // test private key with funds
     const privateKey =
       'APrivateKey1zkp8CZNn3yeCseEtxuVPbDCwSyhGW6yZKUYKfgXmcpoGPWH';
+    const domainId = 1234;
 
     aleoSigner = await AleoSigner.connectWithSigner([localnetRpc], privateKey, {
       metadata: {
@@ -41,15 +46,46 @@ describe('6. aleo sdk Hook artifacts e2e tests', async function () {
     });
     signer = aleoSigner;
 
-    // Create a mailbox for hook testing
-    const domainId = 1234;
-    const mailbox = await aleoSigner.createMailbox({
-      domainId: domainId,
-    });
-    mailboxAddress = mailbox.mailboxAddress;
-
-    // Access the aleoClient from the signer to create the artifact manager
     const aleoClient = aleoSigner.getAleoClient();
+
+    // Create ISM for mailbox
+    const ismArtifactManager = new AleoIsmArtifactManager(aleoClient);
+    const ismWriter = ismArtifactManager.createWriter(
+      AltVM.IsmType.TEST_ISM,
+      aleoSigner,
+    );
+    const [ism] = await ismWriter.create({
+      config: { type: AltVM.IsmType.TEST_ISM },
+    });
+
+    // Create a mailbox for hook testing using artifact manager
+    const mailboxArtifactManager = new AleoMailboxArtifactManager(
+      { domainId, aleoNetworkId: AleoNetworkId.TESTNET },
+      aleoClient,
+    );
+    const mailboxWriter = mailboxArtifactManager.createWriter(
+      'mailbox',
+      aleoSigner,
+    );
+    const [deployedMailbox] = await mailboxWriter.create({
+      config: {
+        owner: aleoSigner.getSignerAddress(),
+        defaultIsm: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: ism.deployed.address },
+        },
+        defaultHook: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: ALEO_NULL_ADDRESS },
+        },
+        requiredHook: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: ALEO_NULL_ADDRESS },
+        },
+      },
+    });
+    mailboxAddress = deployedMailbox.deployed.address;
+
     artifactManager = new AleoHookArtifactManager(aleoClient, mailboxAddress);
   });
 

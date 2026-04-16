@@ -25,9 +25,6 @@ const TEST_METADATA = {
 class StarknetSignerTestHarness extends StarknetSigner {
   capturedBatch?: StarknetAnnotatedTx[];
   capturedTx?: StarknetAnnotatedTx;
-  capturedCreateMailboxReq?: Omit<AltVM.ReqCreateMailbox, 'signer'> & {
-    signer: string;
-  };
   capturedRemoteTransferToken?: AltVM.ResGetToken;
   getTokenCalls = 0;
   testTokenType: AltVM.TokenType = AltVM.TokenType.native;
@@ -84,17 +81,6 @@ class StarknetSignerTestHarness extends StarknetSigner {
   ): Promise<StarknetTxReceipt> {
     this.capturedTx = transaction;
     return { transactionHash: '0x1', contractAddress: '0xabc' };
-  }
-
-  override async getCreateMailboxTransaction(
-    req: AltVM.ReqCreateMailbox,
-  ): Promise<StarknetAnnotatedTx> {
-    this.capturedCreateMailboxReq = req;
-    return {
-      kind: 'deploy',
-      contractName: 'mailbox',
-      constructorArgs: [],
-    };
   }
 }
 

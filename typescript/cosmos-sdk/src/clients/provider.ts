@@ -14,51 +14,26 @@ import { type CometClient, connectComet } from '@cosmjs/tendermint-rpc';
 import { type AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert, strip0x } from '@hyperlane-xyz/utils';
 
-import {
-  getHookType,
-  getIgpHookConfig,
-  getMerkleTreeHookConfig,
-} from '../hook/hook-query.js';
 import { type MsgRemoteTransferEncodeObject } from '../hyperlane/warp/messages.js';
 import {
   type CoreExtension,
   setupCoreExtension,
 } from '../hyperlane/core/query.js';
 import {
-  type InterchainSecurityExtension,
-  setupInterchainSecurityExtension,
-} from '../hyperlane/interchain_security/query.js';
-import {
-  type PostDispatchExtension,
-  setupPostDispatchExtension,
-} from '../hyperlane/post_dispatch/query.js';
-import {
   type WarpExtension,
   setupWarpExtension,
 } from '../hyperlane/warp/query.js';
-import {
-  getIsmType,
-  getMerkleRootMultisigIsmConfig,
-  getMessageIdMultisigIsmConfig,
-  getNoopIsmConfig,
-  getRoutingIsmConfig,
-} from '../ism/ism-query.js';
 import { COSMOS_MODULE_MESSAGE_REGISTRY as R } from '../registry.js';
 import { getWarpTokenType } from '../warp/warp-query.js';
 
 export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
   private readonly query: QueryClient &
     BankExtension &
-    WarpExtension &
     CoreExtension &
-    InterchainSecurityExtension &
-    PostDispatchExtension;
+    WarpExtension;
   private readonly registry: Registry;
   private readonly cometClient: CometClient;
   private readonly rpcUrls: string[];
-
-  private static NULL_ADDRESS =
-    '0x0000000000000000000000000000000000000000000000000000000000000000';
 
   static async connect(
     rpcUrls: string[],
@@ -75,8 +50,6 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
       cometClient,
       setupBankExtension,
       setupCoreExtension,
-      setupInterchainSecurityExtension,
-      setupPostDispatchExtension,
       setupWarpExtension,
     );
 
@@ -165,86 +138,12 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     };
   }
 
-  // ### QUERY CORE ###
-
-  async getMailbox(req: AltVM.ReqGetMailbox): Promise<AltVM.ResGetMailbox> {
-    const { mailbox } = await this.query.core.Mailbox({
-      id: req.mailboxAddress,
-    });
-    assert(mailbox, `found no mailbox for id ${req.mailboxAddress}`);
-
-    if (mailbox.default_ism === CosmosNativeProvider.NULL_ADDRESS) {
-      mailbox.default_ism = '';
-    }
-
-    return {
-      address: mailbox.id,
-      owner: mailbox.owner,
-      localDomain: mailbox.local_domain,
-      defaultIsm: mailbox.default_ism,
-      defaultHook: mailbox.default_hook,
-      requiredHook: mailbox.required_hook,
-      nonce: mailbox.message_sent,
-    };
-  }
-
   async isMessageDelivered(req: AltVM.ReqIsMessageDelivered): Promise<boolean> {
     const { delivered } = await this.query.core.Delivered({
       id: req.mailboxAddress,
       message_id: req.messageId,
     });
     return delivered;
-  }
-
-  async getIsmType(req: AltVM.ReqGetIsmType): Promise<AltVM.IsmType> {
-    return getIsmType(this.query, req.ismAddress);
-  }
-
-  async getMessageIdMultisigIsm(
-    req: AltVM.ReqMessageIdMultisigIsm,
-  ): Promise<AltVM.ResMessageIdMultisigIsm> {
-    return getMessageIdMultisigIsmConfig(this.query, req.ismAddress);
-  }
-
-  async getMerkleRootMultisigIsm(
-    req: AltVM.ReqMerkleRootMultisigIsm,
-  ): Promise<AltVM.ResMerkleRootMultisigIsm> {
-    return getMerkleRootMultisigIsmConfig(this.query, req.ismAddress);
-  }
-
-  async getRoutingIsm(req: AltVM.ReqRoutingIsm): Promise<AltVM.ResRoutingIsm> {
-    return getRoutingIsmConfig(this.query, req.ismAddress);
-  }
-
-  async getNoopIsm(req: AltVM.ReqNoopIsm): Promise<AltVM.ResNoopIsm> {
-    return getNoopIsmConfig(this.query, req.ismAddress);
-  }
-
-  async getHookType(req: AltVM.ReqGetHookType): Promise<AltVM.HookType> {
-    return getHookType(this.query, req.hookAddress);
-  }
-
-  async getInterchainGasPaymasterHook(
-    req: AltVM.ReqGetInterchainGasPaymasterHook,
-  ): Promise<AltVM.ResGetInterchainGasPaymasterHook> {
-    return getIgpHookConfig(this.query, req.hookAddress);
-  }
-
-  async getMerkleTreeHook(
-    req: AltVM.ReqGetMerkleTreeHook,
-  ): Promise<AltVM.ResGetMerkleTreeHook> {
-    return getMerkleTreeHookConfig(this.query, req.hookAddress);
-  }
-
-  async getNoopHook(req: AltVM.ReqGetNoopHook): Promise<AltVM.ResGetNoopHook> {
-    const { noop_hook } = await this.query.postDispatch.NoopHook({
-      id: req.hookAddress,
-    });
-    assert(noop_hook, `found no noop hook for id ${req.hookAddress}`);
-
-    return {
-      address: noop_hook.id,
-    };
   }
 
   // ### QUERY WARP ###

@@ -21,6 +21,13 @@ import { assert, eqAddressStarknet } from '@hyperlane-xyz/utils';
 import { StarknetProvider } from '../clients/provider.js';
 import { StarknetSigner } from '../clients/signer.js';
 import { normalizeStarknetAddressSafe } from '../contracts.js';
+import { getRoutingIsmConfig } from './ism-query.js';
+import {
+  getCreateRoutingIsmTx,
+  getRemoveRoutingIsmRouteTx,
+  getSetRoutingIsmOwnerTx,
+  getSetRoutingIsmRouteTx,
+} from './ism-tx.js';
 
 export class StarknetRoutingIsmReader implements ArtifactReader<
   RawIsmArtifactConfigs['domainRoutingIsm'],
@@ -36,9 +43,10 @@ export class StarknetRoutingIsmReader implements ArtifactReader<
       DeployedIsmAddress
     >
   > {
-    const routing = await this.provider.getRoutingIsm({
-      ismAddress: address,
-    });
+    const routing = await getRoutingIsmConfig(
+      this.provider.getRawProvider(),
+      address,
+    );
     const domains: RawIsmArtifactConfigs['domainRoutingIsm']['domains'] = {};
 
     for (const route of routing.routes) {
@@ -104,18 +112,15 @@ export class StarknetRoutingIsmWriter
     );
 
     const receipts: TxReceipt[] = [];
-    const createTx = await this.signer.getCreateRoutingIsmTransaction({
-      signer: this.signer.getSignerAddress(),
-      routes,
-    });
+    const createTx = getCreateRoutingIsmTx(this.signer.getSignerAddress());
     const createReceipt = await this.signer.sendAndConfirmTransaction(createTx);
     receipts.push(createReceipt);
     const ismAddress = createReceipt.contractAddress;
     assert(ismAddress, 'failed to get Starknet routing ISM address');
 
+    const rawProvider = this.signer.getRawProvider();
     for (const route of routes) {
-      const tx = await this.signer.getSetRoutingIsmRouteTransaction({
-        signer: this.signer.getSignerAddress(),
+      const tx = await getSetRoutingIsmRouteTx(rawProvider, {
         ismAddress,
         route,
       });
@@ -125,8 +130,7 @@ export class StarknetRoutingIsmWriter
     if (
       !eqAddressStarknet(artifact.config.owner, this.signer.getSignerAddress())
     ) {
-      const ownerTx = await this.signer.getSetRoutingIsmOwnerTransaction({
-        signer: this.signer.getSignerAddress(),
+      const ownerTx = await getSetRoutingIsmOwnerTx(rawProvider, {
         ismAddress,
         newOwner: artifact.config.owner,
       });
@@ -178,6 +182,7 @@ export class StarknetRoutingIsmWriter
     );
 
     const updateTxs: AnnotatedTx[] = [];
+    const rawProvider = this.signer.getRawProvider();
 
     for (const route of expectedRoutes) {
       const actualAddress = actualByDomain.get(route.domainId);
@@ -187,8 +192,7 @@ export class StarknetRoutingIsmWriter
       ) {
         updateTxs.push({
           annotation: `Setting routing ISM route ${route.domainId}`,
-          ...(await this.signer.getSetRoutingIsmRouteTransaction({
-            signer: this.signer.getSignerAddress(),
+          ...(await getSetRoutingIsmRouteTx(rawProvider, {
             ismAddress: artifact.deployed.address,
             route,
           })),
@@ -200,8 +204,7 @@ export class StarknetRoutingIsmWriter
       if (!expectedByDomain.has(domainId)) {
         updateTxs.push({
           annotation: `Removing routing ISM route ${domainId}`,
-          ...(await this.signer.getRemoveRoutingIsmRouteTransaction({
-            signer: this.signer.getSignerAddress(),
+          ...(await getRemoveRoutingIsmRouteTx(rawProvider, {
             ismAddress: artifact.deployed.address,
             domainId,
           })),
@@ -212,8 +215,7 @@ export class StarknetRoutingIsmWriter
     if (!eqAddressStarknet(current.config.owner, artifact.config.owner)) {
       updateTxs.push({
         annotation: `Updating routing ISM owner`,
-        ...(await this.signer.getSetRoutingIsmOwnerTransaction({
-          signer: this.signer.getSignerAddress(),
+        ...(await getSetRoutingIsmOwnerTx(rawProvider, {
           ismAddress: artifact.deployed.address,
           newOwner: artifact.config.owner,
         })),
