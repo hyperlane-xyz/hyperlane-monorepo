@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import { constants } from 'ethers';
+import { zeroAddress } from 'viem';
 
 import {
   DEFAULT_ROUTER_KEY,
@@ -665,9 +666,9 @@ describe('configUtils', () => {
         destinationGas: undefined,
         domainMappings: { [test2.domainId]: 30110 },
         extraOptions: undefined,
-        hook: constants.AddressZero,
-        interchainSecurityModule: constants.AddressZero,
-        mailbox: constants.AddressZero,
+        hook: zeroAddress,
+        interchainSecurityModule: zeroAddress,
+        mailbox: zeroAddress,
         name: 'USDT',
         oft: OTHER_ADDRESS,
         owner: ADDRESS,
@@ -676,6 +677,32 @@ describe('configUtils', () => {
         token: ADDRESS,
         type: TokenType.collateralOft,
       });
+    });
+
+    it('preserves non-empty OFT extraOptions', () => {
+      const warpDeployConfig: WarpRouteDeployConfigMailboxRequired = {
+        [test1.name]: {
+          decimals: 6,
+          domainMappings: { [test2.name]: 30110 },
+          extraOptions: '0xdeadbeef',
+          hook: OTHER_ADDRESS,
+          interchainSecurityModule: OTHER_ADDRESS,
+          mailbox: ADDRESS,
+          name: 'USDT',
+          oft: OTHER_ADDRESS,
+          owner: ADDRESS,
+          symbol: 'USDT',
+          token: ADDRESS,
+          type: TokenType.collateralOft,
+        },
+      };
+
+      const normalized = normalizeWarpDeployConfigForCheck({
+        multiProvider: buildMultiProvider(),
+        warpDeployConfig,
+      });
+
+      expect(normalized[test1.name]?.extraOptions).to.equal('0xdeadbeef');
     });
 
     it('leaves non-OFT configs unchanged', () => {
