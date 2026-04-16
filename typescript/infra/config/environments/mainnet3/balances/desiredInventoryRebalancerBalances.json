@@ -2,8 +2,11 @@
   "arbitrum": 0.01,
   "avalanche": 0.5,
   "base": 0.01,
+  "bsc": 0.01,
   "ethereum": 0.01,
   "optimism": 0.01,
+  "plasma": 15,
   "polygon": 20,
+  "tron": 100,
   "unichain": 0.01
 }
