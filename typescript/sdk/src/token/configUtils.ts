@@ -688,15 +688,9 @@ export function transformConfigToCheck(
     );
   }
 
-  // Normalize scale so plain numbers and {numerator, denominator} objects compare equal.
-  // Uses !== null so undefined passes through to normalizeScale as identity {1n,1n}.
-  if (clonedTokenConfig.scale !== null) {
-    const normalized = normalizeScale(clonedTokenConfig.scale);
-    clonedTokenConfig.scale = {
-      numerator: normalized.numerator,
-      denominator: normalized.denominator,
-    };
-  }
+  // normalizeScale(undefined) -> {1n,1n}, matching EvmWarpRouteReader.fetchScale's
+  // identity-collapse so both sides of the diff agree symmetrically.
+  clonedTokenConfig.scale = normalizeScale(clonedTokenConfig.scale);
 
   return sortArraysInObject(
     transformObj(clonedTokenConfig, transformWarpDeployConfigToCheck),

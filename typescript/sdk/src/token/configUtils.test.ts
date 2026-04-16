@@ -233,6 +233,44 @@ describe('configUtils', () => {
       });
     }
 
+    it('normalizes plain number scale to {numerator, denominator} bigint', () => {
+      const transformedObj = transformConfigToCheck({
+        type: TokenType.collateral,
+        token: ADDRESS,
+        scale: 1000000000000,
+      } as any);
+
+      expect(transformedObj.scale).to.eql({
+        numerator: 1000000000000n,
+        denominator: 1n,
+      });
+    });
+
+    it('normalizes {number, number} scale to {bigint, bigint}', () => {
+      const transformedObj = transformConfigToCheck({
+        type: TokenType.collateral,
+        token: ADDRESS,
+        scale: { numerator: 1, denominator: 1000000000000 },
+      } as any);
+
+      expect(transformedObj.scale).to.eql({
+        numerator: 1n,
+        denominator: 1000000000000n,
+      });
+    });
+
+    it('normalizes undefined scale to identity {1n, 1n}', () => {
+      const transformedObj = transformConfigToCheck({
+        type: TokenType.collateral,
+        token: ADDRESS,
+      } as any);
+
+      expect(transformedObj.scale).to.eql({
+        numerator: 1n,
+        denominator: 1n,
+      });
+    });
+
     it('normalizes LinearFee maxFee/halfAmount so equivalent bps configs compare equal', () => {
       const transformedObj = transformConfigToCheck({
         type: TokenType.collateral,
