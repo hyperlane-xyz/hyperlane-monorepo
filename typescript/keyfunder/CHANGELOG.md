@@ -1,5 +1,18 @@
 # @hyperlane-xyz/keyfunder
 
+## 0.1.23
+
+### Patch Changes
+
+- Updated dependencies [e4da110]
+- Updated dependencies [d588eb5]
+- Updated dependencies [ab17263]
+- Updated dependencies [ebde778]
+  - @hyperlane-xyz/sdk@32.0.0
+  - @hyperlane-xyz/metrics@0.2.16
+  - @hyperlane-xyz/utils@32.0.0
+  - @hyperlane-xyz/core@11.3.1
+
 ## 0.1.22
 
 ### Patch Changes

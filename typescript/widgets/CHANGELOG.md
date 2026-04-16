@@ -1,5 +1,24 @@
 # @hyperlane-xyz/widgets
 
+## 32.0.0
+
+### Patch Changes
+
+- d9096f4: Fixed Cosmos transfers failing with "must be connected to origin chain" by reverting useCosmosActiveChain to return empty ActiveChainInfo, since CosmosKit doesn't have the concept of an active chain
+- Updated dependencies [e4da110]
+- Updated dependencies [d588eb5]
+- Updated dependencies [3dc6367]
+- Updated dependencies [ab17263]
+- Updated dependencies [ebde778]
+- Updated dependencies [fa08f2a]
+  - @hyperlane-xyz/sdk@32.0.0
+  - @hyperlane-xyz/provider-sdk@5.0.0
+  - @hyperlane-xyz/aleo-sdk@32.0.0
+  - @hyperlane-xyz/tron-sdk@23.0.0
+  - @hyperlane-xyz/cosmos-sdk@32.0.0
+  - @hyperlane-xyz/radix-sdk@32.0.0
+  - @hyperlane-xyz/utils@32.0.0
+
 ## 31.2.1
 
 ### Patch Changes
