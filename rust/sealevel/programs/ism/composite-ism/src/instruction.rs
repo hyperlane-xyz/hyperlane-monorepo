@@ -81,15 +81,9 @@ pub enum Instruction {
 }
 
 impl DiscriminatorData for Instruction {
+    // `DiscriminatorDecode::decode` (blanket impl) checks this prefix before
+    // deserializing, so every call to `Instruction::decode` is discriminator-guarded.
     const DISCRIMINATOR: [u8; Self::DISCRIMINATOR_LENGTH] = PROGRAM_INSTRUCTION_DISCRIMINATOR;
-}
-
-impl TryFrom<&[u8]> for Instruction {
-    type Error = ProgramError;
-
-    fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
-        Self::try_from_slice(data).map_err(|_| ProgramError::InvalidInstructionData)
-    }
 }
 
 /// Creates an Initialize instruction.
