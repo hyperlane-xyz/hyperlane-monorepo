@@ -23,8 +23,9 @@ use quote_verifier::SvmSignedQuote;
 
 use crate::{
     accounts::{
-        CrossCollateralRoute, CrossCollateralRouteAccount, FeeAccount, FeeAccountData, FeeData,
-        RouteDomain, RouteDomainAccount, TransientQuote, TransientQuoteAccount, DEFAULT_ROUTER,
+        CcFeeQuoteContext, CrossCollateralRoute, CrossCollateralRouteAccount, FeeAccount,
+        FeeAccountData, FeeData, FeeQuoteContext, FeeQuoteData, RouteDomain, RouteDomainAccount,
+        TransientQuote, TransientQuoteAccount, DEFAULT_ROUTER,
     },
     cc_route_pda_seeds,
     error::Error,
@@ -214,24 +215,12 @@ fn process_quote_fee(
     verify_optional_pda_owner(domain_quotes_info, program_id)?;
     verify_optional_pda_owner(wildcard_quotes_info, program_id)?;
 
-    // --- Quote cascade ---
+    // --- Resolve on-chain curve type (always needed) ---
 
-    // Step 1: Transient quote.
-    if let Some(_transient) = transient_info {
-        // TODO: validate transient quote context/expiry/payer, autoclose, return fee.
-    }
-
-    // Step 2: Domain standing quote.
-    // TODO: check domain_quotes_info for matching recipient, validate expiry/min_issued_at.
-
-    // Step 3: Wildcard standing quote.
-    // TODO: check wildcard_quotes_info for matching recipient, validate expiry/min_issued_at.
-
-    // Step 4: On-chain fallback.
-    let fee = match &fee_account.fee_data {
+    let strategy = match &fee_account.fee_data {
         FeeData::Leaf(strategy) => {
             ensure_no_extraneous_accounts(accounts_iter)?;
-            strategy.compute_fee(data.amount)?
+            strategy.clone()
         }
         FeeData::Routing => {
             let strategy = resolve_routing(
@@ -241,7 +230,7 @@ fn process_quote_fee(
                 data.destination_domain,
             )?;
             ensure_no_extraneous_accounts(accounts_iter)?;
-            strategy.compute_fee(data.amount)?
+            strategy
         }
         FeeData::CrossCollateralRouting => {
             let strategy = resolve_cc_routing(
@@ -252,12 +241,51 @@ fn process_quote_fee(
                 &data.target_router,
             )?;
             ensure_no_extraneous_accounts(accounts_iter)?;
-            strategy.compute_fee(data.amount)?
+            strategy
         }
     };
 
+    // --- Quote cascade: transient → standing → on-chain fallback ---
+
+    // Step 1: Transient quote — override params, compute fee, autoclose.
+    // Dispatch the correct context type based on fee data variant.
+    if let Some(transient_acct) = transient_info {
+        let fee = match &fee_account.fee_data {
+            FeeData::CrossCollateralRouting => try_consume_transient_quote::<CcFeeQuoteContext>(
+                program_id,
+                transient_acct,
+                _payer_info,
+                fee_account_info.key,
+                &strategy,
+                &data,
+            )?,
+            _ => try_consume_transient_quote::<FeeQuoteContext>(
+                program_id,
+                transient_acct,
+                _payer_info,
+                fee_account_info.key,
+                &strategy,
+                &data,
+            )?,
+        };
+        if let Some(fee) = fee {
+            set_return_data(&fee.to_le_bytes());
+            msg!("QuoteFee (transient): {} for amount {}", fee, data.amount);
+            return Ok(());
+        }
+    }
+
+    // Step 2: Domain standing quote.
+    // TODO: check domain_quotes_info for matching recipient.
+
+    // Step 3: Wildcard standing quote.
+    // TODO: check wildcard_quotes_info for matching recipient.
+
+    // Step 4: On-chain fallback — use resolved curve with on-chain params.
+    let fee = strategy.compute_fee(data.amount)?;
+
     set_return_data(&fee.to_le_bytes());
-    msg!("QuoteFee: {} for amount {}", fee, data.amount);
+    msg!("QuoteFee (on-chain): {} for amount {}", fee, data.amount);
 
     Ok(())
 }
@@ -291,6 +319,68 @@ fn is_transient_quote(
         .map_err(|_| ProgramError::InvalidAccountData)?;
 
     Ok(discriminator == TRANSIENT_QUOTE_DISCRIMINATOR)
+}
+
+/// Attempts to consume a transient quote PDA.
+/// Generic over the context type (FeeQuoteContext or CcFeeQuoteContext).
+/// Validates context match, payer binding, PDA derivation, and expiry.
+/// On success: computes fee using on-chain curve + quoted params, autocloses PDA.
+fn try_consume_transient_quote<C: crate::accounts::QuoteContext>(
+    program_id: &Pubkey,
+    transient_acct: &AccountInfo,
+    payer_info: &AccountInfo,
+    fee_account_key: &Pubkey,
+    strategy: &crate::fee_math::FeeDataStrategy,
+    quote_fee_data: &QuoteFee,
+) -> Result<Option<u64>, ProgramError> {
+    let transient = TransientQuoteAccount::fetch(&mut &transient_acct.data.borrow()[..])?
+        .into_inner()
+        .data;
+
+    // Verify payer binding.
+    if transient.payer != *payer_info.key {
+        return Err(Error::TransientPayerMismatch.into());
+    }
+
+    // Re-derive PDA from stored scoped_salt and verify key matches.
+    let (expected_key, _) = Pubkey::find_program_address(
+        transient_quote_pda_seeds!(fee_account_key, transient.scoped_salt),
+        program_id,
+    );
+    if *transient_acct.key != expected_key {
+        return Err(Error::TransientPdaMismatch.into());
+    }
+
+    // Validate expiry against on-chain clock.
+    let clock = Clock::get()?;
+    if clock.unix_timestamp > transient.expiry {
+        return Err(Error::QuoteExpired.into());
+    }
+
+    // Parse and validate context using the generic context type.
+    let ctx = C::try_from_bytes(&transient.context).map_err(|_| Error::TransientContextMismatch)?;
+    ctx.validate(quote_fee_data)?;
+
+    // Parse quote data and compute fee using on-chain curve with quoted params.
+    let quote_data = FeeQuoteData::try_from(transient.data.as_slice())
+        .map_err(|_| Error::InvalidTransientData)?;
+
+    let mut quoted_strategy = strategy.clone();
+    *quoted_strategy.params_mut() = FeeParams {
+        max_fee: quote_data.max_fee,
+        half_amount: quote_data.half_amount,
+    };
+    let fee = quoted_strategy.compute_fee(quote_fee_data.amount)?;
+
+    // Transient PDA must be writable for autoclose.
+    if !transient_acct.is_writable {
+        return Err(ProgramError::InvalidAccountData);
+    }
+
+    // Autoclose: drain lamports to payer, zero data, reassign to system program.
+    close_pda(transient_acct, payer_info)?;
+
+    Ok(Some(fee))
 }
 
 /// Resolves the fee strategy for Routing mode by reading the RouteDomain PDA.

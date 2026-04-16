@@ -223,6 +223,137 @@ impl SizedData for TransientQuote {
 
 // --- Standing quote PDA ---
 
+// --- Quote context and data parsing ---
+
+/// Trait for quote context types. Implementations parse from raw bytes
+/// and validate against the QuoteFee instruction data.
+pub trait QuoteContext: Sized {
+    fn try_from_bytes(bytes: &[u8]) -> Result<Self, ProgramError>;
+    fn validate(&self, quote_fee: &crate::instruction::QuoteFee) -> Result<(), ProgramError>;
+}
+
+/// Quote context for Leaf and Routing fee accounts.
+/// Wire format (44 bytes): dest_domain (u32 LE) + recipient (H256) + amount (u64 LE).
+#[derive(Debug, PartialEq)]
+pub struct FeeQuoteContext {
+    pub destination_domain: u32,
+    pub recipient: H256,
+    pub amount: u64,
+}
+
+impl QuoteContext for FeeQuoteContext {
+    fn try_from_bytes(bytes: &[u8]) -> Result<Self, ProgramError> {
+        if bytes.len() != std::mem::size_of::<u32>() + 32 + std::mem::size_of::<u64>() {
+            return Err(ProgramError::InvalidInstructionData);
+        }
+        Ok(Self {
+            destination_domain: u32::from_le_bytes(
+                bytes[0..4]
+                    .try_into()
+                    .map_err(|_| ProgramError::InvalidInstructionData)?,
+            ),
+            recipient: H256::from_slice(&bytes[4..36]),
+            amount: u64::from_le_bytes(
+                bytes[36..44]
+                    .try_into()
+                    .map_err(|_| ProgramError::InvalidInstructionData)?,
+            ),
+        })
+    }
+
+    fn validate(&self, quote_fee: &crate::instruction::QuoteFee) -> Result<(), ProgramError> {
+        if self.destination_domain != quote_fee.destination_domain
+            || self.recipient != quote_fee.recipient
+            || self.amount != quote_fee.amount
+        {
+            return Err(crate::error::Error::TransientContextMismatch.into());
+        }
+        Ok(())
+    }
+}
+
+/// Quote context for CrossCollateralRouting fee accounts.
+/// Wire format (76 bytes): dest_domain (u32 LE) + recipient (H256) + amount (u64 LE) + target_router (H256).
+#[derive(Debug, PartialEq)]
+pub struct CcFeeQuoteContext {
+    pub destination_domain: u32,
+    pub recipient: H256,
+    pub amount: u64,
+    pub target_router: H256,
+}
+
+impl QuoteContext for CcFeeQuoteContext {
+    fn try_from_bytes(bytes: &[u8]) -> Result<Self, ProgramError> {
+        if bytes.len() != std::mem::size_of::<u32>() + 32 + std::mem::size_of::<u64>() + 32 {
+            return Err(ProgramError::InvalidInstructionData);
+        }
+        Ok(Self {
+            destination_domain: u32::from_le_bytes(
+                bytes[0..4]
+                    .try_into()
+                    .map_err(|_| ProgramError::InvalidInstructionData)?,
+            ),
+            recipient: H256::from_slice(&bytes[4..36]),
+            amount: u64::from_le_bytes(
+                bytes[36..44]
+                    .try_into()
+                    .map_err(|_| ProgramError::InvalidInstructionData)?,
+            ),
+            target_router: H256::from_slice(&bytes[44..76]),
+        })
+    }
+
+    fn validate(&self, quote_fee: &crate::instruction::QuoteFee) -> Result<(), ProgramError> {
+        if self.destination_domain != quote_fee.destination_domain
+            || self.recipient != quote_fee.recipient
+            || self.amount != quote_fee.amount
+            || self.target_router != quote_fee.target_router
+        {
+            return Err(crate::error::Error::TransientContextMismatch.into());
+        }
+        Ok(())
+    }
+}
+
+/// Parsed quote data containing fee curve parameters.
+/// Wire format: max_fee (u64 LE, 8 bytes) + half_amount (u64 LE, 8 bytes).
+#[derive(Debug, Default, PartialEq)]
+pub struct FeeQuoteData {
+    pub max_fee: u64,
+    pub half_amount: u64,
+}
+
+impl SizedData for FeeQuoteData {
+    fn size(&self) -> usize {
+        std::mem::size_of::<u64>() // max_fee
+        + std::mem::size_of::<u64>() // half_amount
+    }
+}
+
+impl TryFrom<&[u8]> for FeeQuoteData {
+    type Error = ProgramError;
+
+    fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
+        if bytes.len() != SizedData::size(&FeeQuoteData::default()) {
+            return Err(ProgramError::InvalidInstructionData);
+        }
+        Ok(Self {
+            max_fee: u64::from_le_bytes(
+                bytes[0..8]
+                    .try_into()
+                    .map_err(|_| ProgramError::InvalidInstructionData)?,
+            ),
+            half_amount: u64::from_le_bytes(
+                bytes[8..16]
+                    .try_into()
+                    .map_err(|_| ProgramError::InvalidInstructionData)?,
+            ),
+        })
+    }
+}
+
+// --- Standing quote PDA ---
+
 pub type FeeStandingQuotePdaAccount = AccountData<DiscriminatorPrefixed<FeeStandingQuotePda>>;
 
 impl DiscriminatorData for FeeStandingQuotePda {
