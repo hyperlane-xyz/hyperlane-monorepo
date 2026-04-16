@@ -20,6 +20,7 @@ use solana_system_interface::program as system_program;
 use access_control::AccessControl;
 use account_utils::{create_pda_account, verify_account_uninitialized, SizedData};
 use quote_verifier::SvmSignedQuote;
+use serializable_account_meta::SimulationReturnData;
 
 use crate::{
     accounts::{
@@ -271,22 +272,61 @@ fn process_quote_fee(
             )?,
         };
         if let Some(fee) = fee {
-            set_return_data(&fee.to_le_bytes());
+            set_return_data(
+                &borsh::to_vec(&SimulationReturnData::new(fee))
+                    .map_err(|_| ProgramError::BorshIoError)?,
+            );
             msg!("QuoteFee (transient): {} for amount {}", fee, data.amount);
             return Ok(());
         }
     }
 
-    // Step 2: Domain standing quote.
-    // TODO: check domain_quotes_info for matching recipient.
+    // Step 2: Domain standing quote — exact recipient then wildcard recipient.
+    if let Some(fee) = try_resolve_standing_quote(
+        program_id,
+        domain_quotes_info,
+        &strategy,
+        &data,
+        fee_account.min_issued_at,
+    )? {
+        set_return_data(
+            &borsh::to_vec(&SimulationReturnData::new(fee))
+                .map_err(|_| ProgramError::BorshIoError)?,
+        );
+        msg!(
+            "QuoteFee (standing domain): {} for amount {}",
+            fee,
+            data.amount
+        );
+        return Ok(());
+    }
 
-    // Step 3: Wildcard standing quote.
-    // TODO: check wildcard_quotes_info for matching recipient.
+    // Step 3: Wildcard domain standing quote — exact recipient only.
+    if let Some(fee) = try_resolve_standing_quote(
+        program_id,
+        wildcard_quotes_info,
+        &strategy,
+        &data,
+        fee_account.min_issued_at,
+    )? {
+        set_return_data(
+            &borsh::to_vec(&SimulationReturnData::new(fee))
+                .map_err(|_| ProgramError::BorshIoError)?,
+        );
+        msg!(
+            "QuoteFee (standing wildcard): {} for amount {}",
+            fee,
+            data.amount
+        );
+        return Ok(());
+    }
 
     // Step 4: On-chain fallback — use resolved curve with on-chain params.
     let fee = strategy.compute_fee(data.amount)?;
 
-    set_return_data(&fee.to_le_bytes());
+    set_return_data(
+        &borsh::to_vec(&SimulationReturnData::new(fee)).map_err(|_| ProgramError::BorshIoError)?,
+    );
     msg!("QuoteFee (on-chain): {} for amount {}", fee, data.amount);
 
     Ok(())
@@ -383,6 +423,59 @@ fn try_consume_transient_quote<C: crate::accounts::QuoteContext>(
     close_pda(transient_acct, payer_info)?;
 
     Ok(Some(fee))
+}
+
+/// Attempts to resolve a fee from a standing quote PDA.
+/// Scans for exact recipient match, then wildcard recipient.
+/// Validates expiry and min_issued_at. Returns None if PDA is uninitialized
+/// or no matching entry found.
+fn try_resolve_standing_quote(
+    program_id: &Pubkey,
+    standing_pda_info: &AccountInfo,
+    strategy: &crate::fee_math::FeeDataStrategy,
+    quote_fee_data: &QuoteFee,
+    min_issued_at: i64,
+) -> Result<Option<u64>, ProgramError> {
+    use crate::accounts::WILDCARD_RECIPIENT;
+
+    // Uninitialized PDA → no standing quotes for this domain.
+    if standing_pda_info.owner == &system_program::ID && standing_pda_info.data_is_empty() {
+        return Ok(None);
+    }
+    if standing_pda_info.owner != program_id {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+
+    let standing = FeeStandingQuotePdaAccount::fetch(&mut &standing_pda_info.data.borrow()[..])?
+        .into_inner()
+        .data;
+
+    let clock = Clock::get()?;
+
+    // Try exact recipient match first, then wildcard.
+    let candidates = [quote_fee_data.recipient, WILDCARD_RECIPIENT];
+    for recipient_key in &candidates {
+        if let Some(value) = standing.quotes.get(recipient_key) {
+            // Validate issued_at >= min_issued_at.
+            if value.issued_at < min_issued_at {
+                continue;
+            }
+            // Validate not expired.
+            if clock.unix_timestamp > value.expiry {
+                continue;
+            }
+            // Compute fee using on-chain curve with standing quote params.
+            let mut quoted_strategy = strategy.clone();
+            *quoted_strategy.params_mut() = FeeParams {
+                max_fee: value.max_fee,
+                half_amount: value.half_amount,
+            };
+            let fee = quoted_strategy.compute_fee(quote_fee_data.amount)?;
+            return Ok(Some(fee));
+        }
+    }
+
+    Ok(None)
 }
 
 /// Resolves the fee strategy for Routing mode by reading the RouteDomain PDA.

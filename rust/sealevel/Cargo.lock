@@ -3474,6 +3474,7 @@ dependencies = [
  "num-traits",
  "quote-verifier",
  "rand 0.8.5",
+ "serializable-account-meta",
  "solana-program 3.0.0",
  "solana-program-test",
  "solana-sdk",
