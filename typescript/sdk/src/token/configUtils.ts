@@ -29,7 +29,11 @@ import {
 import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { DestinationGas, RemoteRouters } from '../router/types.js';
+import {
+  DestinationGas,
+  RemoteRouters,
+  resolveRouterMapConfig,
+} from '../router/types.js';
 import { ChainMap } from '../types.js';
 import { WarpCoreConfig } from '../warp/types.js';
 
@@ -50,6 +54,7 @@ import {
   isCrossCollateralTokenConfig,
   isMovableCollateralTokenConfig,
   isNativeTokenConfig,
+  isOftTokenConfig,
   isSyntheticRebaseTokenConfig,
   isSyntheticTokenConfig,
 } from './types.js';
@@ -408,6 +413,34 @@ export async function expandWarpDeployConfig(params: {
       return chainConfig;
     }),
   );
+}
+
+export function normalizeWarpDeployConfigForCheck(params: {
+  multiProvider: MultiProvider;
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+}): WarpRouteDeployConfigMailboxRequired {
+  const { multiProvider, warpDeployConfig } = params;
+
+  return objMap(warpDeployConfig, (_chain, config) => {
+    if (!isOftTokenConfig(config)) {
+      return config;
+    }
+
+    return {
+      ...config,
+      mailbox: constants.AddressZero,
+      hook: constants.AddressZero,
+      interchainSecurityModule: constants.AddressZero,
+      remoteRouters: {},
+      destinationGas: undefined,
+      domainMappings: resolveRouterMapConfig(
+        multiProvider,
+        config.domainMappings,
+      ),
+      extraOptions:
+        config.extraOptions === '0x' ? undefined : config.extraOptions,
+    };
+  });
 }
 
 /**
