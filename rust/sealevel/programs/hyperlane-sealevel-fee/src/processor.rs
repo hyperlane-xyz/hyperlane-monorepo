@@ -6,6 +6,7 @@ use hyperlane_core::H160;
 
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
+    clock::Clock,
     entrypoint::ProgramResult,
     msg,
     program::set_return_data,
@@ -18,11 +19,12 @@ use solana_system_interface::program as system_program;
 
 use access_control::AccessControl;
 use account_utils::{create_pda_account, verify_account_uninitialized, SizedData};
+use quote_verifier::SvmSignedQuote;
 
 use crate::{
     accounts::{
         CrossCollateralRoute, CrossCollateralRouteAccount, FeeAccount, FeeAccountData, FeeData,
-        RouteDomain, RouteDomainAccount, DEFAULT_ROUTER,
+        RouteDomain, RouteDomainAccount, TransientQuote, TransientQuoteAccount, DEFAULT_ROUTER,
     },
     cc_route_pda_seeds,
     error::Error,
@@ -32,7 +34,7 @@ use crate::{
         InitFee, Instruction, QuoteFee, RemoveCrossCollateralRoute, SetCrossCollateralRoute,
         SetRoute,
     },
-    route_domain_pda_seeds,
+    route_domain_pda_seeds, transient_quote_pda_seeds,
 };
 
 #[cfg(not(feature = "no-entrypoint"))]
@@ -73,7 +75,7 @@ pub fn process_instruction(
         Instruction::SetMinIssuedAt { min_issued_at } => {
             process_set_min_issued_at(program_id, accounts, min_issued_at)
         }
-        Instruction::SubmitQuote(_) => todo!("SubmitQuote"),
+        Instruction::SubmitQuote(quote) => process_submit_quote(program_id, accounts, quote),
         Instruction::CloseTransientQuote => todo!("CloseTransientQuote"),
         Instruction::PruneExpiredQuotes { .. } => todo!("PruneExpiredQuotes"),
         Instruction::GetQuoteAccountMetas(_) => todo!("GetQuoteAccountMetas"),
@@ -550,6 +552,114 @@ fn process_set_min_issued_at(
     FeeAccountData::new(fee_account.into()).store(fee_account_info, false)?;
 
     msg!("Set min_issued_at: {}", min_issued_at);
+
+    Ok(())
+}
+
+/// Submit a signed offchain quote. Creates a transient or standing quote PDA.
+/// For now, only transient quotes are implemented.
+///
+/// Transient quote accounts:
+/// 0. `[executable]` System program.
+/// 1. `[signer, writable]` Payer (bound to scoped_salt).
+/// 2. `[]` Fee account.
+/// 3. `[writable]` Transient quote PDA.
+fn process_submit_quote(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    quote: SvmSignedQuote,
+) -> ProgramResult {
+    let expiry_ts = quote.expiry_timestamp();
+    let issued_at_ts = quote.issued_at_timestamp();
+
+    // Validate expiry >= issued_at.
+    if expiry_ts < issued_at_ts {
+        return Err(Error::InvalidQuoteExpiry.into());
+    }
+
+    // Validate quote hasn't expired.
+    let clock = Clock::get()?;
+    if clock.unix_timestamp > expiry_ts {
+        return Err(Error::QuoteExpired.into());
+    }
+
+    let accounts_iter = &mut accounts.iter();
+
+    // Account 0: System program.
+    let system_program_info = next_account_info(accounts_iter)?;
+    if *system_program_info.key != system_program::ID {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+
+    // Account 1: Payer (must be signer — binds the scoped salt).
+    let payer_info = next_account_info(accounts_iter)?;
+    if !payer_info.is_signer {
+        return Err(ProgramError::MissingRequiredSignature);
+    }
+
+    // Account 2: Fee account (read-only, for signer verification).
+    let fee_account_info = next_account_info(accounts_iter)?;
+    if fee_account_info.owner != program_id {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+    let fee_account = FeeAccountData::fetch(&mut &fee_account_info.data.borrow()[..])?.into_inner();
+
+    // Verify the quote signature against authorized signers.
+    quote
+        .verify_signer(
+            fee_account_info.key,
+            fee_account.domain_id,
+            payer_info.key,
+            &fee_account.signers,
+        )
+        .map_err(|_| Error::InvalidQuoteSignature)?;
+
+    if quote.is_transient() {
+        // Account 3: Transient quote PDA.
+        let transient_pda_info = next_account_info(accounts_iter)?;
+
+        let scoped_salt = quote.compute_scoped_salt(payer_info.key);
+        let (expected_key, transient_bump) = Pubkey::find_program_address(
+            transient_quote_pda_seeds!(fee_account_info.key, scoped_salt),
+            program_id,
+        );
+        if *transient_pda_info.key != expected_key {
+            return Err(ProgramError::InvalidSeeds);
+        }
+        verify_account_uninitialized(transient_pda_info)?;
+
+        ensure_no_extraneous_accounts(accounts_iter)?;
+
+        let transient = TransientQuoteAccount::new(
+            TransientQuote {
+                bump: transient_bump,
+                payer: *payer_info.key,
+                scoped_salt,
+                context: quote.context,
+                data: quote.data,
+                expiry: expiry_ts,
+            }
+            .into(),
+        );
+
+        let rent = Rent::get()?;
+        create_pda_account(
+            payer_info,
+            &rent,
+            SizedData::size(&transient),
+            program_id,
+            system_program_info,
+            transient_pda_info,
+            transient_quote_pda_seeds!(fee_account_info.key, scoped_salt, transient_bump),
+        )?;
+
+        transient.store(transient_pda_info, false)?;
+
+        msg!("Submitted transient quote");
+    } else {
+        // Standing quotes — to be implemented in commit 1l.
+        todo!("Standing quote submission");
+    }
 
     Ok(())
 }

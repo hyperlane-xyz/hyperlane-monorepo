@@ -22,6 +22,15 @@ pub enum Error {
     /// Extra accounts were provided beyond what the instruction expects.
     #[error("Extraneous account")]
     ExtraneousAccount = 6,
+    /// Quote signature verification failed (invalid or unauthorized signer).
+    #[error("Invalid quote signature")]
+    InvalidQuoteSignature = 7,
+    /// Quote expiry is before issued_at.
+    #[error("Invalid quote: expiry before issued_at")]
+    InvalidQuoteExpiry = 8,
+    /// Quote has expired (Clock::unix_timestamp > expiry).
+    #[error("Quote expired")]
+    QuoteExpired = 9,
 }
 
 impl From<Error> for ProgramError {
