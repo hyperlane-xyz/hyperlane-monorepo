@@ -99,6 +99,32 @@ function toTypedAltVmReceipt(
   }
 }
 
+type AltVmTransferSigner = {
+  sendAndConfirmTransaction(transaction: unknown): Promise<TxReceipt>;
+};
+
+type ExecutableAltVmTransfer = {
+  type: ProviderType;
+  transaction: unknown;
+  extraSigners?: unknown[];
+};
+
+export async function submitAltVmTransferTx({
+  signer,
+  tx,
+}: {
+  signer: AltVmTransferSigner;
+  tx: ExecutableAltVmTransfer;
+}): Promise<TypedTransactionReceipt> {
+  if (!isAnnotatedTx(tx.transaction)) {
+    throw new Error(
+      `Expected AnnotatedTx for non-EVM transfer execution, got ${typeof tx.transaction}`,
+    );
+  }
+  const txReceipt = await signer.sendAndConfirmTransaction(tx.transaction);
+  return toTypedAltVmReceipt(tx.type, txReceipt);
+}
+
 export async function sendTestTransfer({
   context,
   warpCoreConfig,
