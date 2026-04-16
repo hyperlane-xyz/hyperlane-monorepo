@@ -72,6 +72,7 @@ describe('configUtils', () => {
               },
             ],
           },
+          scale: { numerator: 1n, denominator: 1n },
         },
       },
       {
@@ -96,6 +97,7 @@ describe('configUtils', () => {
               address: ADDRESS,
             },
           },
+          scale: { numerator: 1n, denominator: 1n },
         },
       },
       {
@@ -118,6 +120,7 @@ describe('configUtils', () => {
             address: ADDRESS,
             owner: ADDRESS,
           },
+          scale: { numerator: 1n, denominator: 1n },
         },
       },
       {
@@ -169,6 +172,7 @@ describe('configUtils', () => {
             owner: 'milk169dcaz397j75tjfpl6ykm23dfrv39dqd58lsag',
             type: 'native',
           },
+          scale: { numerator: 1n, denominator: 1n },
         },
         input: {
           bsc: {
@@ -246,6 +250,7 @@ describe('configUtils', () => {
       expect(transformedObj).to.eql({
         type: TokenType.collateral,
         token: ADDRESS,
+        scale: { numerator: 1n, denominator: 1n },
         tokenFee: {
           type: TokenFeeType.LinearFee,
           owner: ADDRESS,
@@ -273,6 +278,7 @@ describe('configUtils', () => {
       expect(transformedObj).to.eql({
         type: TokenType.collateral,
         token: ADDRESS,
+        scale: { numerator: 1n, denominator: 1n },
         tokenFee: {
           type: TokenFeeType.OffchainQuotedLinearFee,
           owner: ADDRESS,
@@ -309,6 +315,7 @@ describe('configUtils', () => {
       expect(transformedObj).to.eql({
         type: TokenType.collateral,
         token: ADDRESS,
+        scale: { numerator: 1n, denominator: 1n },
         tokenFee: {
           type: TokenFeeType.RoutingFee,
           owner: ADDRESS,
@@ -360,6 +367,7 @@ describe('configUtils', () => {
       expect(transformedObj).to.eql({
         type: TokenType.collateral,
         token: ADDRESS,
+        scale: { numerator: 1n, denominator: 1n },
         tokenFee: {
           type: TokenFeeType.CrossCollateralRoutingFee,
           owner: ADDRESS,
@@ -406,6 +414,7 @@ describe('configUtils', () => {
       expect(transformedObj).to.eql({
         type: TokenType.collateral,
         token: ADDRESS,
+        scale: { numerator: 1n, denominator: 1n },
         tokenFee: {
           type: TokenFeeType.CrossCollateralRoutingFee,
           owner: ADDRESS,
@@ -445,6 +454,7 @@ describe('configUtils', () => {
       expect(transformedObj).to.eql({
         type: TokenType.collateral,
         token: ADDRESS,
+        scale: { numerator: 1n, denominator: 1n },
         tokenFee: {
           type: TokenFeeType.RoutingFee,
           owner: ADDRESS,
