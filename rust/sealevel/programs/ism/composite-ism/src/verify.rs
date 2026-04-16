@@ -464,10 +464,8 @@ mod test {
     }
 
     fn amount_routing_node(threshold_value: u64) -> IsmNode {
-        let mut threshold = [0u8; 32];
-        threshold[24..32].copy_from_slice(&threshold_value.to_be_bytes());
         IsmNode::AmountRouting {
-            threshold,
+            threshold: hyperlane_core::U256::from(threshold_value),
             lower: Box::new(IsmNode::Test { accept: true }),
             upper: Box::new(IsmNode::Test { accept: false }),
         }

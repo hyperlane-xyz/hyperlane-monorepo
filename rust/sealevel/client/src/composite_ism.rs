@@ -10,7 +10,7 @@ use crate::{
     CompositeIsmCmd, CompositeIsmSubCmd, Context,
 };
 
-use hyperlane_core::{H160, H256};
+use hyperlane_core::{H160, H256, U256};
 use hyperlane_sealevel_composite_ism::{
     accounts::{CompositeIsmAccount, DomainIsmAccount, IsmNode},
     instruction::{
@@ -106,7 +106,7 @@ impl From<IsmNodeConfig> for IsmNode {
                 lower,
                 upper,
             } => IsmNode::AmountRouting {
-                threshold,
+                threshold: U256::from_big_endian(&threshold),
                 lower: Box::new(IsmNode::from(*lower)),
                 upper: Box::new(IsmNode::from(*upper)),
             },
@@ -159,11 +159,15 @@ impl TryFrom<IsmNode> for IsmNodeConfig {
                 threshold,
                 lower,
                 upper,
-            } => Ok(IsmNodeConfig::AmountRouting {
-                threshold,
-                lower: Box::new(IsmNodeConfig::try_from(*lower)?),
-                upper: Box::new(IsmNodeConfig::try_from(*upper)?),
-            }),
+            } => {
+                let mut threshold_bytes = [0u8; 32];
+                threshold.to_big_endian(&mut threshold_bytes);
+                Ok(IsmNodeConfig::AmountRouting {
+                    threshold: threshold_bytes,
+                    lower: Box::new(IsmNodeConfig::try_from(*lower)?),
+                    upper: Box::new(IsmNodeConfig::try_from(*upper)?),
+                })
+            }
             IsmNode::RateLimited {
                 max_capacity,
                 recipient,

@@ -1,7 +1,7 @@
 use access_control::AccessControl;
 use account_utils::{AccountData, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
-use hyperlane_core::{H160, H256};
+use hyperlane_core::{H160, H256, U256};
 use solana_program::{account_info::AccountInfo, program_error::ProgramError, pubkey::Pubkey};
 
 /// Seed prefix for per-domain PDA accounts under a `Routing` node.
@@ -47,8 +47,8 @@ pub enum IsmNode {
     /// Routes to `upper` if `amount >= threshold`, else `lower`.
     /// ModuleType: Routing.
     AmountRouting {
-        /// Big-endian u256 threshold (32 bytes).
-        threshold: [u8; 32],
+        /// U256 threshold; routes to `upper` if amount >= threshold, else `lower`.
+        threshold: U256,
         lower: Box<IsmNode>,
         upper: Box<IsmNode>,
     },

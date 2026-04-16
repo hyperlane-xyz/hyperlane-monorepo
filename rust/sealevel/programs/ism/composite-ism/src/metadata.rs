@@ -7,6 +7,7 @@
 /// Sub-ISMs with metadata (start > 0) must all verify successfully.
 /// The number of sub-ISMs with metadata must be >= the aggregation threshold.
 use crate::error::Error;
+use hyperlane_core::U256;
 use solana_program::program_error::ProgramError;
 
 const RANGE_SIZE: usize = 4;
@@ -76,14 +77,15 @@ pub fn sub_metadata(metadata: &[u8], range: MetadataRange) -> &[u8] {
     &metadata[range.start as usize..range.end as usize]
 }
 
-/// Parses the 32-byte big-endian U256 amount from a warp-route message body.
+/// Parses the big-endian U256 amount from a warp-route message body.
 ///
 /// Warp-route (TokenMessage) layout: `[recipient (32 bytes)][amount (32 bytes)][metadata]`.
 /// Returns `None` if the body is too short.
-pub(crate) fn parse_routing_amount(body: &[u8]) -> Option<[u8; 32]> {
+pub(crate) fn parse_routing_amount(body: &[u8]) -> Option<U256> {
     const AMOUNT_OFFSET: usize = 32;
     const AMOUNT_END: usize = 64;
-    body.get(AMOUNT_OFFSET..AMOUNT_END)?.try_into().ok()
+    let bytes: [u8; 32] = body.get(AMOUNT_OFFSET..AMOUNT_END)?.try_into().ok()?;
+    Some(U256::from_big_endian(&bytes))
 }
 
 #[cfg(test)]

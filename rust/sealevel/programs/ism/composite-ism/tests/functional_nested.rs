@@ -17,7 +17,7 @@
 mod common;
 
 use ecdsa_signature::EcdsaSignature;
-use hyperlane_core::{Checkpoint, CheckpointWithMessageId, Encode, H160, H256};
+use hyperlane_core::{Checkpoint, CheckpointWithMessageId, Encode, H160, H256, U256};
 use hyperlane_sealevel_composite_ism::{
     accounts::{DomainIsmAccount, IsmNode},
     error::Error,
@@ -431,15 +431,13 @@ async fn test_amount_routing_in_domain_pda_routes_lower() {
         .unwrap();
 
     // Threshold 1000: lower accepts, upper rejects.
-    let mut threshold = [0u8; 32];
-    threshold[24..32].copy_from_slice(&1000u64.to_be_bytes());
     set_domain_ism(
         &mut banks_client,
         &payer,
         recent_blockhash,
         ORIGIN,
         IsmNode::AmountRouting {
-            threshold,
+            threshold: U256::from(1000u64),
             lower: Box::new(IsmNode::Test { accept: true }),
             upper: Box::new(IsmNode::Test { accept: false }),
         },
@@ -480,15 +478,13 @@ async fn test_amount_routing_in_domain_pda_routes_upper() {
         .await
         .unwrap();
 
-    let mut threshold = [0u8; 32];
-    threshold[24..32].copy_from_slice(&1000u64.to_be_bytes());
     set_domain_ism(
         &mut banks_client,
         &payer,
         recent_blockhash,
         ORIGIN,
         IsmNode::AmountRouting {
-            threshold,
+            threshold: U256::from(1000u64),
             lower: Box::new(IsmNode::Test { accept: true }),
             upper: Box::new(IsmNode::Test { accept: false }),
         },

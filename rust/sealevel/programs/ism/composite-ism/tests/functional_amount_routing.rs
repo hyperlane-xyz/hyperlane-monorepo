@@ -17,7 +17,7 @@
 
 mod common;
 
-use hyperlane_core::Encode;
+use hyperlane_core::{Encode, U256};
 use hyperlane_sealevel_composite_ism::{
     accounts::{CompositeIsmAccount, IsmNode},
     error::Error,
@@ -35,10 +35,8 @@ use common::{
 
 /// Builds an AmountRouting node with `lower = Test{accept:true}`, `upper = Test{accept:false}`.
 fn amount_routing_node(threshold_value: u64) -> IsmNode {
-    let mut threshold = [0u8; 32];
-    threshold[24..32].copy_from_slice(&threshold_value.to_be_bytes());
     IsmNode::AmountRouting {
-        threshold,
+        threshold: U256::from(threshold_value),
         lower: Box::new(IsmNode::Test { accept: true }),
         upper: Box::new(IsmNode::Test { accept: false }),
     }
@@ -255,15 +253,13 @@ async fn test_verify_account_metas_lower_branch() {
     let relayer_lower = Keypair::new();
     let relayer_upper = Keypair::new();
     let threshold = 1000u64;
-    let mut threshold_bytes = [0u8; 32];
-    threshold_bytes[24..32].copy_from_slice(&threshold.to_be_bytes());
 
     initialize(
         &mut banks_client,
         &payer,
         recent_blockhash,
         IsmNode::AmountRouting {
-            threshold: threshold_bytes,
+            threshold: U256::from(threshold),
             lower: Box::new(IsmNode::TrustedRelayer {
                 relayer: relayer_lower.pubkey(),
             }),
@@ -299,15 +295,13 @@ async fn test_verify_account_metas_upper_branch() {
     let relayer_lower = Keypair::new();
     let relayer_upper = Keypair::new();
     let threshold = 1000u64;
-    let mut threshold_bytes = [0u8; 32];
-    threshold_bytes[24..32].copy_from_slice(&threshold.to_be_bytes());
 
     initialize(
         &mut banks_client,
         &payer,
         recent_blockhash,
         IsmNode::AmountRouting {
-            threshold: threshold_bytes,
+            threshold: U256::from(threshold),
             lower: Box::new(IsmNode::TrustedRelayer {
                 relayer: relayer_lower.pubkey(),
             }),
