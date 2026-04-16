@@ -1,9 +1,11 @@
 use hyperlane_core::HyperlaneMessage;
+use hyperlane_sealevel_interchain_security_module_interface::VERIFY_ACCOUNT_METAS_PDA_SEEDS;
+use hyperlane_sealevel_mailbox::accounts::InboxAccount;
 use serializable_account_meta::SerializableAccountMeta;
 use solana_program::{account_info::AccountInfo, instruction::AccountMeta, pubkey::Pubkey};
 
 use crate::{
-    accounts::{derive_domain_pda, DomainIsmAccount, IsmNode},
+    accounts::{derive_domain_pda, CompositeIsmAccount, DomainIsmAccount, IsmNode},
     metadata::{parse_routing_amount, sub_metadata_at},
 };
 
@@ -19,11 +21,9 @@ pub(crate) fn contains_rate_limited(node: &IsmNode) -> bool {
         IsmNode::AmountRouting { lower, upper, .. } => {
             contains_rate_limited(lower) || contains_rate_limited(upper)
         }
-        // For Routing, only the default_ism matters here — domain PDAs handle their own
-        // writable marking (see the Routing arm in required_accounts_for_node).
-        IsmNode::Routing { default_ism } => {
-            default_ism.as_deref().is_some_and(contains_rate_limited)
-        }
+        // Routing/FallbackRouting: domain PDAs handle their own writable marking.
+        // The fallback ISM's state is managed by the fallback program itself.
+        IsmNode::Routing | IsmNode::FallbackRouting { .. } => false,
         _ => false,
     }
 }
@@ -98,7 +98,7 @@ pub fn required_accounts_for_node(
             )
         }
 
-        IsmNode::Routing { default_ism } => {
+        IsmNode::Routing => {
             let (domain_pda_key, _) = derive_domain_pda(program_id, message.origin);
 
             // Pass 2: if the domain PDA was provided as an extra input account,
@@ -111,7 +111,6 @@ pub fn required_accounts_for_node(
                 let domain_acc = extra_accounts[*cursor];
                 *cursor += 1;
 
-                let mut used_domain_ism = false;
                 if domain_acc.owner == program_id {
                     if let Ok(Some(storage)) =
                         DomainIsmAccount::fetch_data(&mut &domain_acc.data.borrow()[..])
@@ -131,29 +130,7 @@ pub fn required_accounts_for_node(
                             // No dedup: preserve positional ordering to match verify_node
                             // consumption (same rationale as the Aggregation arm above).
                             sub_accounts.extend(node_accounts);
-                            used_domain_ism = true;
                         }
-                        // ism is None — domain PDA exists but holds no ISM; fall through to default.
-                    }
-                    // fetch_data failed — treat as no ISM; fall through to default.
-                }
-                // domain_acc not owned by this program — fall through to default.
-
-                if !used_domain_ism {
-                    // Mirror verify_node's fallback: when the domain PDA is present but
-                    // yields no ISM (not owned, empty, or ism field None), verify_node
-                    // delegates to default_ism.  Collect its accounts here so they appear
-                    // in the transaction when verify runs.
-                    if let Some(ref default) = default_ism {
-                        let default_accounts = required_accounts_for_node(
-                            default,
-                            metadata,
-                            message,
-                            program_id,
-                            extra_accounts,
-                            cursor,
-                        );
-                        sub_accounts.extend(default_accounts);
                     }
                 }
             }
@@ -168,6 +145,140 @@ pub fn required_accounts_for_node(
             };
             let mut result: Vec<SerializableAccountMeta> = vec![domain_meta.into()];
             result.extend(sub_accounts);
+            result
+        }
+
+        IsmNode::FallbackRouting { mailbox } => {
+            let (domain_pda_key, _) = derive_domain_pda(program_id, message.origin);
+            let (inbox_pda_key, _) =
+                Pubkey::find_program_address(&[b"hyperlane", b"-", b"inbox"], mailbox);
+
+            // Check whether the domain PDA has been supplied yet.
+            let domain_provided =
+                *cursor < extra_accounts.len() && *extra_accounts[*cursor].key == domain_pda_key;
+
+            if !domain_provided {
+                // Pass 1: client hasn't fetched anything yet.
+                // Return the domain PDA and inbox PDA so both can be fetched at once.
+                return vec![
+                    AccountMeta::new_readonly(domain_pda_key, false).into(),
+                    AccountMeta::new_readonly(inbox_pda_key, false).into(),
+                ];
+            }
+
+            let domain_acc = extra_accounts[*cursor];
+            *cursor += 1;
+
+            // Check whether the domain PDA holds an ISM for this origin.
+            let mut domain_pda_writable = false;
+            let mut used_domain_ism = false;
+            let mut domain_sub_accounts: Vec<SerializableAccountMeta> = vec![];
+
+            if domain_acc.owner == program_id {
+                if let Ok(Some(storage)) =
+                    DomainIsmAccount::fetch_data(&mut &domain_acc.data.borrow()[..])
+                {
+                    if let Some(ref ism) = storage.ism {
+                        if contains_rate_limited(ism) {
+                            domain_pda_writable = true;
+                        }
+                        domain_sub_accounts = required_accounts_for_node(
+                            ism,
+                            metadata,
+                            message,
+                            program_id,
+                            extra_accounts,
+                            cursor,
+                        );
+                        used_domain_ism = true;
+                    }
+                }
+            }
+
+            if used_domain_ism {
+                let domain_meta = if domain_pda_writable {
+                    AccountMeta::new(domain_pda_key, false)
+                } else {
+                    AccountMeta::new_readonly(domain_pda_key, false)
+                };
+                let mut result: Vec<SerializableAccountMeta> = vec![domain_meta.into()];
+                result.extend(domain_sub_accounts);
+                return result;
+            }
+
+            // No domain ISM — fallback path.
+
+            // Check whether the inbox PDA has been supplied.
+            let inbox_provided =
+                *cursor < extra_accounts.len() && *extra_accounts[*cursor].key == inbox_pda_key;
+
+            if !inbox_provided {
+                // Pass 2: domain PDA is present but has no ISM; request inbox PDA.
+                return vec![
+                    AccountMeta::new_readonly(domain_pda_key, false).into(),
+                    AccountMeta::new_readonly(inbox_pda_key, false).into(),
+                ];
+            }
+
+            let inbox_acc = extra_accounts[*cursor];
+            *cursor += 1;
+
+            // Read default_ism (fallback program ID) from the Inbox PDA.
+            let Ok(Some(inbox)) = InboxAccount::fetch_data(&mut &inbox_acc.data.borrow()[..])
+            else {
+                // Inbox unreadable — return what we have so far; verify will error properly.
+                return vec![
+                    AccountMeta::new_readonly(domain_pda_key, false).into(),
+                    AccountMeta::new_readonly(inbox_pda_key, false).into(),
+                ];
+            };
+            let fallback_program_id = inbox.default_ism;
+
+            // Derive the fallback composite ISM's storage PDA.
+            let (fallback_storage_key, _) =
+                Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, &fallback_program_id);
+
+            // Check whether the fallback storage PDA has been supplied.
+            let fallback_provided = *cursor < extra_accounts.len()
+                && *extra_accounts[*cursor].key == fallback_storage_key;
+
+            if !fallback_provided {
+                // Pass 3: inbox is present; request the fallback ISM's storage PDA.
+                return vec![
+                    AccountMeta::new_readonly(domain_pda_key, false).into(),
+                    AccountMeta::new_readonly(inbox_pda_key, false).into(),
+                    AccountMeta::new_readonly(fallback_storage_key, false).into(),
+                ];
+            }
+
+            let fallback_storage_acc = extra_accounts[*cursor];
+            *cursor += 1;
+
+            // Load the fallback ISM's root and recursively resolve its accounts.
+            // Use `fallback_program_id` so domain PDAs inside the fallback are derived correctly.
+            let mut fallback_sub_accounts: Vec<SerializableAccountMeta> = vec![];
+            if let Ok(Some(fallback_storage)) =
+                CompositeIsmAccount::fetch_data(&mut &fallback_storage_acc.data.borrow()[..])
+            {
+                if let Some(ref root) = fallback_storage.root {
+                    fallback_sub_accounts = required_accounts_for_node(
+                        root,
+                        metadata,
+                        message,
+                        &fallback_program_id,
+                        extra_accounts,
+                        cursor,
+                    );
+                }
+            }
+
+            // Pass 4 (final): return the full flat account list for this fallback path.
+            let mut result: Vec<SerializableAccountMeta> = vec![
+                AccountMeta::new_readonly(domain_pda_key, false).into(),
+                AccountMeta::new_readonly(inbox_pda_key, false).into(),
+                AccountMeta::new_readonly(fallback_storage_key, false).into(),
+            ];
+            result.extend(fallback_sub_accounts);
             result
         }
 
@@ -354,7 +465,7 @@ mod test {
     #[test]
     fn test_routing_returns_domain_pda_key() {
         let program_id = Pubkey::new_unique();
-        let node = IsmNode::Routing { default_ism: None };
+        let node = IsmNode::Routing;
         let msg = dummy_message(ORIGIN);
         let accounts =
             required_accounts_for_node(&node, &[], &msg, &program_id, &no_extra(), &mut 0);
@@ -365,26 +476,20 @@ mod test {
         assert!(!accounts[0].is_writable);
     }
 
-    /// Regression: when the domain PDA is in extra_accounts but is not owned by the
-    /// program (e.g. the PDA was never initialised for this origin), verify_node falls
-    /// back to default_ism.  required_accounts_for_node must include the default_ism
-    /// accounts so the Verify transaction has them available.
+    /// When the domain PDA is present but not owned by the program, Routing returns
+    /// only the domain PDA key (no fallback accounts — Routing fails with
+    /// NoRouteForDomain when no domain ISM is found).
     #[test]
-    fn test_routing_fallback_to_default_ism_when_domain_pda_unowned() {
+    fn test_routing_unowned_domain_pda_returns_only_domain_key() {
         use solana_program::account_info::AccountInfo;
 
         let program_id = Pubkey::new_unique();
-        let relayer = Pubkey::new_unique();
-        let node = IsmNode::Routing {
-            default_ism: Some(Box::new(IsmNode::TrustedRelayer { relayer })),
-        };
+        let node = IsmNode::Routing;
         let msg = dummy_message(ORIGIN);
 
         let (domain_pda_key, _) = derive_domain_pda(&program_id, ORIGIN);
 
-        // Build an AccountInfo for the domain PDA that is owned by the system program
-        // (i.e. the domain PDA was never initialised for this origin — the common case).
-        let foreign_owner = Pubkey::default(); // system program / wrong owner
+        let foreign_owner = Pubkey::default();
         let mut lamports = 0u64;
         let mut data: Vec<u8> = vec![];
         let domain_pda_info = AccountInfo::new(
@@ -397,22 +502,16 @@ mod test {
             false,
         );
 
-        // Pass 1 (no extra_accounts): only the domain PDA key is returned.
+        // Pass 1: only the domain PDA key is returned.
         let pass1 = required_accounts_for_node(&node, &[], &msg, &program_id, &no_extra(), &mut 0);
         assert_eq!(pass1.len(), 1);
         assert_eq!(pass1[0].pubkey, domain_pda_key);
 
-        // Pass 2 (domain PDA provided but not owned by program): must also include
-        // the default_ism (TrustedRelayer) account so Verify can find it.
+        // Pass 2 (domain PDA present but unowned): still only the domain PDA — no fallback.
         let extra = vec![&domain_pda_info];
         let accounts = required_accounts_for_node(&node, &[], &msg, &program_id, &extra, &mut 0);
-        assert_eq!(accounts.len(), 2, "expected domain_pda + relayer");
+        assert_eq!(accounts.len(), 1, "expected only domain_pda, no fallback");
         assert_eq!(accounts[0].pubkey, domain_pda_key);
-        assert_eq!(accounts[1].pubkey, relayer);
-        assert!(
-            accounts[1].is_signer,
-            "TrustedRelayer account must be marked as signer"
-        );
     }
 
     #[test]
@@ -445,7 +544,7 @@ mod test {
 
     #[test]
     fn test_contains_rate_limited_false_for_routing() {
-        let node = IsmNode::Routing { default_ism: None };
+        let node = IsmNode::Routing;
         assert!(!contains_rate_limited(&node));
     }
 

@@ -51,6 +51,14 @@ pub enum Error {
     InvalidStoragePda = 23,
     #[error("Domain PDA account does not match expected derived address for this origin")]
     InvalidDomainPda = 24,
+    #[error("FallbackRouting ISM is not allowed inside a domain PDA")]
+    FallbackRoutingInDomainIsm = 25,
+    #[error("Mailbox Inbox PDA is invalid or does not match the configured mailbox")]
+    InvalidMailboxAccount = 26,
+    #[error("Fallback ISM storage account is invalid or not a composite ISM")]
+    InvalidFallbackIsmAccount = 27,
+    #[error("FallbackRouting node requires a mailbox address configured in storage")]
+    MailboxNotConfigured = 28,
 }
 
 impl From<Error> for ProgramError {

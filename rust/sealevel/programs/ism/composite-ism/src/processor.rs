@@ -449,14 +449,21 @@ fn validate_config_inner(node: &IsmNode, routing_found: &mut bool) -> ProgramRes
             }
             Ok(())
         }
-        IsmNode::Routing { default_ism } => {
+        IsmNode::Routing => {
             if *routing_found {
                 return Err(Error::MultipleRoutingNodes.into());
             }
             *routing_found = true;
-            if let Some(d) = default_ism {
-                validate_config_inner(d, routing_found)?;
+            Ok(())
+        }
+        IsmNode::FallbackRouting { mailbox } => {
+            if *mailbox == Pubkey::default() {
+                return Err(Error::InvalidConfig.into());
             }
+            if *routing_found {
+                return Err(Error::MultipleRoutingNodes.into());
+            }
+            *routing_found = true;
             Ok(())
         }
         IsmNode::TrustedRelayer { .. } | IsmNode::Test { .. } | IsmNode::Pausable { .. } => Ok(()),
@@ -506,6 +513,7 @@ fn validate_domain_ism(node: &IsmNode) -> ProgramResult {
             validate_domain_ism(upper)
         }
         IsmNode::Routing { .. } => Err(Error::RoutingInDomainIsm.into()),
+        IsmNode::FallbackRouting { .. } => Err(Error::FallbackRoutingInDomainIsm.into()),
         IsmNode::TrustedRelayer { .. } | IsmNode::Test { .. } | IsmNode::Pausable { .. } => Ok(()),
     }
 }
@@ -530,13 +538,7 @@ fn normalize_node(node: &mut IsmNode) {
             normalize_node(lower);
             normalize_node(upper);
         }
-        IsmNode::Routing {
-            default_ism: Some(d),
-            ..
-        } => {
-            normalize_node(d);
-        }
-        IsmNode::Routing { .. } => {}
+        IsmNode::Routing | IsmNode::FallbackRouting { .. } => {}
         _ => {}
     }
 }
@@ -750,10 +752,7 @@ mod test {
     fn test_validate_config_multiple_routing_nodes() {
         let node = IsmNode::Aggregation {
             threshold: 2,
-            sub_isms: vec![
-                IsmNode::Routing { default_ism: None },
-                IsmNode::Routing { default_ism: None },
-            ],
+            sub_isms: vec![IsmNode::Routing, IsmNode::Routing],
         };
         assert_eq!(
             validate_config(&node).unwrap_err(),
@@ -765,17 +764,14 @@ mod test {
     fn test_validate_config_single_routing_node_ok() {
         let node = IsmNode::Aggregation {
             threshold: 2,
-            sub_isms: vec![
-                IsmNode::Routing { default_ism: None },
-                IsmNode::Test { accept: true },
-            ],
+            sub_isms: vec![IsmNode::Routing, IsmNode::Test { accept: true }],
         };
         assert!(validate_config(&node).is_ok());
     }
 
     #[test]
     fn test_validate_domain_ism_rejects_routing() {
-        let node = IsmNode::Routing { default_ism: None };
+        let node = IsmNode::Routing;
         assert_eq!(
             validate_domain_ism(&node).unwrap_err(),
             Error::RoutingInDomainIsm.into()
@@ -786,7 +782,7 @@ mod test {
     fn test_validate_domain_ism_rejects_routing_nested_in_aggregation() {
         let node = IsmNode::Aggregation {
             threshold: 1,
-            sub_isms: vec![IsmNode::Routing { default_ism: None }],
+            sub_isms: vec![IsmNode::Routing],
         };
         assert_eq!(
             validate_domain_ism(&node).unwrap_err(),

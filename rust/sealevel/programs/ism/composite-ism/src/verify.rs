@@ -1,4 +1,6 @@
 use hyperlane_core::{Checkpoint, CheckpointWithMessageId, HyperlaneMessage, Signable};
+use hyperlane_sealevel_interchain_security_module_interface::VERIFY_ACCOUNT_METAS_PDA_SEEDS;
+use hyperlane_sealevel_mailbox::accounts::InboxAccount;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     clock::Clock,
@@ -12,7 +14,8 @@ use multisig_ism::MultisigIsmMessageIdMetadata;
 use crate::{
     account_metas::contains_rate_limited,
     accounts::{
-        derive_domain_pda, load_and_validate_domain_ism_storage, DomainIsmAccount, IsmNode,
+        derive_domain_pda, load_and_validate_domain_ism_storage, CompositeIsmAccount,
+        DomainIsmAccount, IsmNode,
     },
     error::Error,
     metadata::{parse_routing_amount, sub_metadata_at},
@@ -27,7 +30,8 @@ use crate::{
 ///
 /// `accounts_iter` is advanced for nodes that require on-chain accounts:
 /// - `TrustedRelayer`: pops the relayer signer account.
-/// - `Routing`: pops the domain PDA account, then may pop sub-accounts.
+/// - `Routing`/`FallbackRouting`: pops the domain PDA account, then may pop
+///   sub-accounts.
 pub(crate) fn verify_node<'a, 'b, I>(
     node: &mut IsmNode,
     metadata: &[u8],
@@ -119,7 +123,7 @@ where
             verify_node(sub_ism, metadata, message, accounts_iter, program_id)
         }
 
-        IsmNode::Routing { default_ism } => {
+        IsmNode::Routing => {
             // Pop the domain PDA from the accounts iterator.
             let domain_pda_info = next_account_info(accounts_iter)?;
 
@@ -148,12 +152,6 @@ where
                     }
                     return Ok(());
                 }
-                // ism is None — domain PDA exists but holds no ISM; fall through to default.
-            }
-
-            // No domain PDA (or empty) — fall back to default_ism.
-            if let Some(d) = default_ism {
-                return verify_node(d.as_mut(), metadata, message, accounts_iter, program_id);
             }
 
             Err(Error::NoRouteForDomain.into())
@@ -173,6 +171,81 @@ where
             } else {
                 Ok(())
             }
+        }
+
+        IsmNode::FallbackRouting { mailbox } => {
+            // Pop the domain PDA (same as Routing).
+            let domain_pda_info = next_account_info(accounts_iter)?;
+            let (expected_key, _) = derive_domain_pda(program_id, message.origin);
+            if *domain_pda_info.key != expected_key {
+                return Err(Error::InvalidDomainPda.into());
+            }
+
+            // Load the full domain PDA storage (None if not owned by this program).
+            let loaded =
+                load_and_validate_domain_ism_storage(program_id, message.origin, domain_pda_info)?;
+
+            if let Some(mut storage) = loaded {
+                if let Some(mut ism) = storage.ism.take() {
+                    if contains_rate_limited(&ism) && !domain_pda_info.is_writable {
+                        return Err(Error::DomainPdaNotWritable.into());
+                    }
+                    verify_node(&mut ism, metadata, message, accounts_iter, program_id)?;
+                    if domain_pda_info.is_writable {
+                        storage.ism = Some(ism);
+                        DomainIsmAccount::from(storage).store(domain_pda_info, false)?;
+                    }
+                    return Ok(());
+                }
+                // ism is None — domain PDA exists but holds no ISM; fall through.
+            }
+            // domain_pda not owned by this program — fall through.
+
+            // No domain ISM — fall back to the Mailbox's current default ISM.
+
+            // Pop the Mailbox Inbox PDA.
+            let inbox_pda_info = next_account_info(accounts_iter)?;
+            let (expected_inbox_key, _) =
+                Pubkey::find_program_address(&[b"hyperlane", b"-", b"inbox"], mailbox);
+            if *inbox_pda_info.key != expected_inbox_key {
+                return Err(Error::InvalidMailboxAccount.into());
+            }
+            if inbox_pda_info.owner != mailbox {
+                return Err(Error::InvalidMailboxAccount.into());
+            }
+
+            // Read default_ism (= fallback ISM program ID) from the Inbox.
+            let inbox = InboxAccount::fetch_data(&mut &inbox_pda_info.data.borrow()[..])?
+                .ok_or(Error::InvalidMailboxAccount)?;
+            let fallback_program_id = inbox.default_ism;
+
+            // Pop the fallback composite ISM's storage PDA.
+            let fallback_storage_info = next_account_info(accounts_iter)?;
+            let (expected_fallback_key, _) =
+                Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, &fallback_program_id);
+            if *fallback_storage_info.key != expected_fallback_key {
+                return Err(Error::InvalidFallbackIsmAccount.into());
+            }
+            if fallback_storage_info.owner != &fallback_program_id {
+                return Err(Error::InvalidFallbackIsmAccount.into());
+            }
+
+            // Load the fallback ISM's root IsmNode and verify inline.
+            // Recursing with fallback_program_id means any FallbackRouting node
+            // inside the fallback ISM uses its own mailbox field independently.
+            let fallback_storage =
+                CompositeIsmAccount::fetch_data(&mut &fallback_storage_info.data.borrow()[..])?
+                    .ok_or(Error::InvalidFallbackIsmAccount)?;
+            let mut fallback_root = fallback_storage.root.ok_or(Error::ConfigNotSet)?;
+
+            // Recurse with the fallback program's ID so its domain PDAs are derived correctly.
+            verify_node(
+                &mut fallback_root,
+                metadata,
+                message,
+                accounts_iter,
+                &fallback_program_id,
+            )
         }
 
         IsmNode::RateLimited {

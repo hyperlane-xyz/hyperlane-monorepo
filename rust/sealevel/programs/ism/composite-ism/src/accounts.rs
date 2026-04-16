@@ -91,10 +91,31 @@ pub enum IsmNode {
     /// in the transaction; `Verify` will reject the instruction if it is not.
     /// `TrustedRelayer` requires a two-pass `VerifyAccountMetas` call (see relayer docs).
     ///
+    /// Returns `NoRouteForDomain` if no domain PDA is configured for the origin.
+    ///
     /// ModuleType: Routing.
-    Routing {
-        /// Fallback ISM used when no domain PDA exists for the message's origin.
-        default_ism: Option<Box<IsmNode>>,
+    Routing,
+
+    /// Routes to a per-domain PDA first (like `Routing`), then falls back to the
+    /// Mailbox's **current** default ISM when no domain-specific ISM is configured.
+    ///
+    /// Mirrors `DefaultFallbackRoutingIsm.sol`. At verify time, if no domain ISM is
+    /// found, the caller must provide (in order after the domain PDA):
+    /// 1. The Mailbox Inbox PDA (seeds `["hyperlane", "-", "inbox"]` under `mailbox`).
+    /// 2. The fallback ISM's storage PDA (at `VERIFY_ACCOUNT_METAS_PDA_SEEDS` under
+    ///    the program ID read from the Inbox's `default_ism` field).
+    /// 3. Any additional accounts required by the fallback ISM.
+    ///
+    /// The fallback ISM must be another composite ISM deployment; other types are not
+    /// supported and will return `InvalidFallbackIsmAccount`.
+    ///
+    /// `FallbackRouting` is not allowed inside a domain PDA (enforced by
+    /// `validate_domain_ism`), and at most one routing-type node is allowed per tree.
+    ///
+    /// ModuleType: Routing.
+    FallbackRouting {
+        /// The Mailbox program ID. Used to derive the Inbox PDA at verify time.
+        mailbox: Pubkey,
     },
 }
 
@@ -208,9 +229,7 @@ mod test {
 
     #[test]
     fn test_routing_borsh_roundtrip() {
-        let node = IsmNode::Routing {
-            default_ism: Some(Box::new(IsmNode::Test { accept: false })),
-        };
+        let node = IsmNode::Routing;
         let encoded = borsh::to_vec(&node).unwrap();
         let decoded: IsmNode = BorshDeserialize::try_from_slice(&encoded).unwrap();
         assert_eq!(node, decoded);

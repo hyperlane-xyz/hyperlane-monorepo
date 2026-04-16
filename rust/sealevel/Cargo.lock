@@ -3462,6 +3462,7 @@ dependencies = [
  "hex",
  "hyperlane-core",
  "hyperlane-sealevel-interchain-security-module-interface",
+ "hyperlane-sealevel-mailbox",
  "hyperlane-test-utils",
  "multisig-ism",
  "num-derive",
