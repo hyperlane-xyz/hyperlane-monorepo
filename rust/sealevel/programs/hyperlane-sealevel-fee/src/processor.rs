@@ -2,6 +2,8 @@
 
 use std::collections::BTreeSet;
 
+use hyperlane_core::H160;
+
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
@@ -62,9 +64,15 @@ pub fn process_instruction(
         Instruction::TransferOwnership(new_owner) => {
             process_transfer_ownership(program_id, accounts, new_owner)
         }
-        Instruction::AddQuoteSigner { .. } => todo!("AddQuoteSigner"),
-        Instruction::RemoveQuoteSigner { .. } => todo!("RemoveQuoteSigner"),
-        Instruction::SetMinIssuedAt { .. } => todo!("SetMinIssuedAt"),
+        Instruction::AddQuoteSigner { signer } => {
+            process_add_quote_signer(program_id, accounts, signer)
+        }
+        Instruction::RemoveQuoteSigner { signer } => {
+            process_remove_quote_signer(program_id, accounts, signer)
+        }
+        Instruction::SetMinIssuedAt { min_issued_at } => {
+            process_set_min_issued_at(program_id, accounts, min_issued_at)
+        }
         Instruction::SubmitQuote(_) => todo!("SubmitQuote"),
         Instruction::CloseTransientQuote => todo!("CloseTransientQuote"),
         Instruction::PruneExpiredQuotes { .. } => todo!("PruneExpiredQuotes"),
@@ -446,6 +454,102 @@ fn process_update_fee_params(
     FeeAccountData::new(fee_account.into()).store(fee_account_info, false)?;
 
     msg!("Updated fee params");
+
+    Ok(())
+}
+
+/// Add an authorized offchain quote signer (owner-only).
+/// Reallocs the fee account if it grows.
+///
+/// Accounts:
+/// 0. `[executable]` System program.
+/// 1. `[writable]` Fee account.
+/// 2. `[signer, writable]` Owner.
+fn process_add_quote_signer(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    signer: H160,
+) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    let system_program_info = next_account_info(accounts_iter)?;
+    if *system_program_info.key != system_program::ID {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+
+    let (fee_account_info, mut fee_account) =
+        fetch_fee_account_and_verify_owner(program_id, accounts_iter)?;
+
+    ensure_no_extraneous_accounts(accounts_iter)?;
+
+    fee_account.signers.insert(signer);
+
+    let owner_info = &accounts[2];
+    FeeAccountData::new(fee_account.into()).store_with_rent_exempt_realloc(
+        fee_account_info,
+        &Rent::get()?,
+        owner_info,
+        system_program_info,
+    )?;
+
+    msg!("Added quote signer: {}", signer);
+
+    Ok(())
+}
+
+/// Remove an offchain quote signer (owner-only).
+///
+/// Accounts:
+/// 0. `[executable]` System program.
+/// 1. `[writable]` Fee account.
+/// 2. `[signer, writable]` Owner.
+fn process_remove_quote_signer(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    signer: H160,
+) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    let system_program_info = next_account_info(accounts_iter)?;
+    if *system_program_info.key != system_program::ID {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+
+    let (fee_account_info, mut fee_account) =
+        fetch_fee_account_and_verify_owner(program_id, accounts_iter)?;
+
+    ensure_no_extraneous_accounts(accounts_iter)?;
+
+    fee_account.signers.remove(&signer);
+
+    FeeAccountData::new(fee_account.into()).store(fee_account_info, false)?;
+
+    msg!("Removed quote signer: {}", signer);
+
+    Ok(())
+}
+
+/// Set the minimum issued_at threshold for standing quote validation (owner-only).
+///
+/// Accounts:
+/// 0. `[writable]` Fee account.
+/// 1. `[signer]` Owner.
+fn process_set_min_issued_at(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    min_issued_at: i64,
+) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+    let (fee_account_info, mut fee_account) =
+        fetch_fee_account_and_verify_owner(program_id, accounts_iter)?;
+
+    ensure_no_extraneous_accounts(accounts_iter)?;
+
+    fee_account.min_issued_at = min_issued_at;
+
+    FeeAccountData::new(fee_account.into()).store(fee_account_info, false)?;
+
+    msg!("Set min_issued_at: {}", min_issued_at);
 
     Ok(())
 }
