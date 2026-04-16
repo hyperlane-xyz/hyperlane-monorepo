@@ -22,6 +22,10 @@ thiserror.workspace = true
 # https://solana.com/news/rust-to-solana
 getrandom = { workspace = true, features = ["custom"] }
 
+[dev-dependencies]
+solana-program-test.workspace = true
+solana-sdk.workspace = true
+
 [lints]
 workspace = true
 
