@@ -35,6 +35,7 @@ import {
   resolveRouterMapConfig,
 } from '../router/types.js';
 import { ChainMap } from '../types.js';
+import { normalizeScale } from '../utils/decimals.js';
 import { WarpCoreConfig } from '../warp/types.js';
 
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
@@ -719,6 +720,10 @@ export function transformConfigToCheck(
       clonedTokenConfig.tokenFee,
     );
   }
+
+  // normalizeScale(undefined) -> {1n,1n}, matching EvmWarpRouteReader.fetchScale's
+  // identity-collapse so both sides of the diff agree symmetrically.
+  clonedTokenConfig.scale = normalizeScale(clonedTokenConfig.scale);
 
   return sortArraysInObject(
     transformObj(clonedTokenConfig, transformWarpDeployConfigToCheck),
