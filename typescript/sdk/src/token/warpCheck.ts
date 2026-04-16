@@ -36,6 +36,7 @@ import {
   expandVirtualWarpDeployConfig,
   expandWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
+  normalizeWarpDeployConfigForCheck,
   transformConfigToCheck,
 } from './configUtils.js';
 import {
@@ -155,8 +156,12 @@ export async function checkWarpRouteDeployConfig({
     expandedOnChainWarpConfig,
     validateScale: false,
   });
+  const normalizedWarpDeployConfig = normalizeWarpDeployConfigForCheck({
+    multiProvider,
+    warpDeployConfig: expandedWarpDeployConfig,
+  });
   const evmExpandedWarpDeployConfig = objFilter(
-    expandedWarpDeployConfig,
+    normalizedWarpDeployConfig,
     (chain, _config): _config is (typeof expandedWarpDeployConfig)[string] =>
       isEVMLike(multiProvider.getProtocol(chain)),
   );
@@ -176,7 +181,7 @@ export async function checkWarpRouteDeployConfig({
   const diffViolations = flattenWarpRouteCheckDiff(diff);
   const scaleViolations = await getScaleViolations({
     multiProvider,
-    warpRouteConfig: expandedWarpDeployConfig,
+    warpRouteConfig: normalizedWarpDeployConfig,
   });
 
   return {
@@ -598,8 +603,21 @@ function stringifyViolationValue(value: unknown): string {
     return '';
   }
 
-  if (value === null || typeof value !== 'object') {
-    return String(value);
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  if (value === null) {
+    return 'null';
+  }
+
+  if (
+    typeof value === 'number' ||
+    typeof value === 'boolean' ||
+    typeof value === 'bigint' ||
+    typeof value === 'symbol'
+  ) {
+    return value.toString();
   }
 
   if (Array.isArray(value)) {
