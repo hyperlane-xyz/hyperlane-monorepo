@@ -86,7 +86,7 @@ pub fn process_instruction(
 fn ism_type(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
     let storage_info = next_account_info(accounts_iter)?;
-    let _storage = load_storage(program_id, storage_info)?;
+    let _storage = load_and_verify_storage(program_id, storage_info)?;
 
     let bytes = borsh::to_vec(&SimulationReturnData::new(ModuleType::Composite as u32))
         .map_err(|_| ProgramError::BorshIoError)?;
@@ -107,7 +107,7 @@ fn verify(
 ) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
     let storage_info = next_account_info(accounts_iter)?;
-    let mut storage = load_storage(program_id, storage_info)?;
+    let mut storage = load_and_verify_storage(program_id, storage_info)?;
 
     let needs_writeback = contains_rate_limited(storage.root.as_ref().ok_or(Error::ConfigNotSet)?);
 
@@ -134,7 +134,7 @@ fn verify_account_metas(
 ) -> Result<Vec<serializable_account_meta::SerializableAccountMeta>, ProgramError> {
     let accounts_iter = &mut accounts.iter();
     let storage_info = next_account_info(accounts_iter)?;
-    let storage = load_storage(program_id, storage_info)?;
+    let storage = load_and_verify_storage(program_id, storage_info)?;
 
     let root = storage.root.as_ref().ok_or(Error::ConfigNotSet)?;
 
@@ -165,7 +165,7 @@ fn get_metadata_spec(
 ) -> Result<MetadataSpec, ProgramError> {
     let accounts_iter = &mut accounts.iter();
     let storage_info = next_account_info(accounts_iter)?;
-    let storage = load_storage(program_id, storage_info)?;
+    let storage = load_and_verify_storage(program_id, storage_info)?;
 
     let root = storage.root.as_ref().ok_or(Error::ConfigNotSet)?;
 
@@ -250,7 +250,7 @@ fn update_config(
     let owner_account = next_account_info(accounts_iter)?;
     let storage_pda_account = next_account_info(accounts_iter)?;
 
-    let mut storage = load_storage(program_id, storage_pda_account)?;
+    let mut storage = load_and_verify_storage(program_id, storage_pda_account)?;
     storage.ensure_owner_signer(owner_account)?;
     storage.root = Some(root);
 
@@ -282,7 +282,7 @@ fn set_domain_ism(
     let system_program_account = next_account_info(accounts_iter)?;
 
     // Verify owner via VAM PDA.
-    let storage = load_storage(program_id, storage_pda_account)?;
+    let storage = load_and_verify_storage(program_id, storage_pda_account)?;
     storage.ensure_owner_signer(owner_account)?;
 
     // Derive and verify the domain PDA address.
@@ -342,7 +342,7 @@ fn remove_domain_ism(program_id: &Pubkey, accounts: &[AccountInfo], domain: u32)
     let domain_pda_account = next_account_info(accounts_iter)?;
 
     // Verify owner.
-    let storage = load_storage(program_id, storage_pda_account)?;
+    let storage = load_and_verify_storage(program_id, storage_pda_account)?;
     storage.ensure_owner_signer(owner_account)?;
 
     // Verify domain PDA address.
@@ -370,7 +370,7 @@ fn remove_domain_ism(program_id: &Pubkey, accounts: &[AccountInfo], domain: u32)
 fn get_owner(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
     let storage_pda_account = next_account_info(accounts_iter)?;
-    let storage = load_storage(program_id, storage_pda_account)?;
+    let storage = load_and_verify_storage(program_id, storage_pda_account)?;
 
     let bytes = borsh::to_vec(&SimulationReturnData::new(storage.owner))
         .map_err(|_| ProgramError::BorshIoError)?;
@@ -387,7 +387,7 @@ fn transfer_ownership(
     let owner_account = next_account_info(accounts_iter)?;
     let storage_pda_account = next_account_info(accounts_iter)?;
 
-    let mut storage = load_storage(program_id, storage_pda_account)?;
+    let mut storage = load_and_verify_storage(program_id, storage_pda_account)?;
     storage.transfer_ownership(owner_account, new_owner)?;
     CompositeIsmAccount::from(*storage).store(storage_pda_account, false)?;
 
@@ -541,7 +541,7 @@ fn normalize_node(node: &mut IsmNode) {
     }
 }
 
-fn load_storage(
+fn load_and_verify_storage(
     program_id: &Pubkey,
     storage_pda_account: &AccountInfo,
 ) -> Result<Box<CompositeIsmStorage>, ProgramError> {
