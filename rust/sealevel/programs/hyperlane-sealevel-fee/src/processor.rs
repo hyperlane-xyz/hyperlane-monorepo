@@ -190,8 +190,11 @@ fn process_quote_fee(
     }
     let fee_account = FeeAccountData::fetch(&mut &fee_account_info.data.borrow()[..])?.into_inner();
 
-    // Account 2: Payer (for transient quote autoclose).
+    // Account 2: Payer (must be signer — receives lamports on transient autoclose).
     let _payer_info = next_account_info(accounts_iter)?;
+    if !_payer_info.is_signer {
+        return Err(ProgramError::MissingRequiredSignature);
+    }
 
     // Account 3: Either transient quote PDA or domain standing quote PDA.
     // Peek at discriminator to determine which.
