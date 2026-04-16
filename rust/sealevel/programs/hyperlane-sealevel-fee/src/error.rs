@@ -43,6 +43,18 @@ pub enum Error {
     /// Transient quote data is invalid (wrong length or format).
     #[error("Invalid transient quote data")]
     InvalidTransientData = 13,
+    /// Standing quote has older issued_at than existing quote for the same key.
+    #[error("Stale standing quote")]
+    StaleStandingQuote = 14,
+    /// Standing quote amount must be wildcard (u64::MAX).
+    #[error("Standing quote amount must be wildcard")]
+    StandingQuoteAmountNotWildcard = 15,
+    /// Standing quote context is invalid.
+    #[error("Invalid standing quote context")]
+    InvalidStandingQuoteContext = 16,
+    /// Standing quote data is invalid.
+    #[error("Invalid standing quote data")]
+    InvalidStandingQuoteData = 17,
 }
 
 impl From<Error> for ProgramError {

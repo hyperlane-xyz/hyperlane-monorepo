@@ -3223,3 +3223,627 @@ mod quote_fee_transient {
         );
     }
 }
+
+mod submit_standing_quote {
+    use super::*;
+    use hyperlane_sealevel_fee::accounts::{
+        FeeStandingQuotePda, FeeStandingQuotePdaAccount, FeeStandingQuoteValue,
+    };
+
+    fn encode_u48(ts: i64) -> [u8; 6] {
+        let bytes = ts.to_be_bytes();
+        let mut out = [0u8; 6];
+        out.copy_from_slice(&bytes[2..8]);
+        out
+    }
+
+    fn encode_standing_context(dest: u32, recipient: H256) -> Vec<u8> {
+        let mut buf = Vec::with_capacity(44);
+        buf.extend_from_slice(&dest.to_le_bytes());
+        buf.extend_from_slice(recipient.as_bytes());
+        buf.extend_from_slice(&u64::MAX.to_le_bytes()); // wildcard amount
+        buf
+    }
+
+    fn encode_data(max_fee: u64, half_amount: u64) -> Vec<u8> {
+        let mut buf = Vec::with_capacity(16);
+        buf.extend_from_slice(&max_fee.to_le_bytes());
+        buf.extend_from_slice(&half_amount.to_le_bytes());
+        buf
+    }
+
+    fn make_signed_standing_quote(
+        signing_key: &SigningKey,
+        fee_account: &Pubkey,
+        domain_id: u32,
+        payer: &Pubkey,
+        context: Vec<u8>,
+        data: Vec<u8>,
+        issued_at: [u8; 6],
+        expiry: [u8; 6],
+    ) -> SvmSignedQuote {
+        let client_salt = H256::random();
+        let mut quote = SvmSignedQuote {
+            context,
+            data,
+            issued_at,
+            expiry,
+            client_salt,
+            signature: [0u8; 65],
+        };
+        let scoped_salt = quote.compute_scoped_salt(payer);
+        let message_hash = quote.build_message_hash(fee_account, domain_id, &scoped_salt);
+        quote.signature = sign_hash(signing_key, message_hash.as_fixed_bytes());
+        quote
+    }
+
+    fn build_submit_standing_ix(
+        fee_account: &Pubkey,
+        payer: &Pubkey,
+        quote: &SvmSignedQuote,
+        dest_domain: u32,
+    ) -> Instruction {
+        let domain_le = dest_domain.to_le_bytes();
+        let (domain_pda, _) = Pubkey::find_program_address(
+            fee_standing_quote_pda_seeds!(fee_account, &domain_le),
+            &fee_program_id(),
+        );
+
+        Instruction::new_with_borsh(
+            fee_program_id(),
+            &FeeInstruction::SubmitQuote(quote.clone()),
+            vec![
+                AccountMeta::new_readonly(system_program::ID, false),
+                AccountMeta::new(*payer, true),
+                AccountMeta::new(*fee_account, false),
+                AccountMeta::new(domain_pda, false),
+            ],
+        )
+    }
+
+    async fn fetch_standing_pda(
+        banks_client: &mut BanksClient,
+        key: Pubkey,
+    ) -> FeeStandingQuotePda {
+        let account = banks_client.get_account(key).await.unwrap().unwrap();
+        FeeStandingQuotePdaAccount::fetch(&mut &account.data[..])
+            .unwrap()
+            .into_inner()
+            .data
+    }
+
+    #[tokio::test]
+    async fn test_submit_standing_quote() {
+        let (mut banks_client, payer) = setup_client().await;
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let signer_address = eth_address(&signing_key);
+
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let dest = 42u32;
+        let recipient = H256::zero();
+        let context = encode_standing_context(dest, recipient);
+        let data = encode_data(2000, 1000);
+        let issued_at = encode_u48(100);
+        let expiry = encode_u48(9999999999);
+
+        let quote = make_signed_standing_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            context,
+            data,
+            issued_at,
+            expiry,
+        );
+
+        let ix = build_submit_standing_ix(&fee_key, &payer.pubkey(), &quote, dest);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Verify domain PDA was created with the quote.
+        let domain_pda = standing_quote_pda_for(&fee_key, dest);
+        let standing = fetch_standing_pda(&mut banks_client, domain_pda).await;
+        assert_eq!(standing.quotes.len(), 1);
+        let value = standing.quotes.get(&recipient).unwrap();
+        assert_eq!(value.max_fee, 2000);
+        assert_eq!(value.half_amount, 1000);
+        assert_eq!(value.issued_at, 100);
+
+        // Verify domain was added to standing_quote_domains.
+        let fee_acct = fetch_fee_account(&mut banks_client, fee_key).await;
+        assert!(fee_acct.standing_quote_domains.contains(&dest));
+    }
+
+    #[tokio::test]
+    async fn test_replacement_with_newer_issued_at() {
+        let (mut banks_client, payer) = setup_client().await;
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let signer_address = eth_address(&signing_key);
+
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let dest = 42u32;
+        let recipient = H256::zero();
+
+        // First quote: issued_at=100, max_fee=1000.
+        let context = encode_standing_context(dest, recipient);
+        let data = encode_data(1000, 500);
+        let quote1 = make_signed_standing_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            context.clone(),
+            data,
+            encode_u48(100),
+            encode_u48(9999999999),
+        );
+        let ix = build_submit_standing_ix(&fee_key, &payer.pubkey(), &quote1, dest);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Second quote: issued_at=200 (newer), max_fee=2000. Should replace.
+        let data2 = encode_data(2000, 1000);
+        let quote2 = make_signed_standing_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            context,
+            data2,
+            encode_u48(200),
+            encode_u48(9999999999),
+        );
+        let ix = build_submit_standing_ix(&fee_key, &payer.pubkey(), &quote2, dest);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let domain_pda = standing_quote_pda_for(&fee_key, dest);
+        let standing = fetch_standing_pda(&mut banks_client, domain_pda).await;
+        assert_eq!(standing.quotes.len(), 1);
+        let value = standing.quotes.get(&recipient).unwrap();
+        assert_eq!(value.max_fee, 2000);
+        assert_eq!(value.issued_at, 200);
+    }
+
+    #[tokio::test]
+    async fn test_stale_quote_rejected() {
+        let (mut banks_client, payer) = setup_client().await;
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let signer_address = eth_address(&signing_key);
+
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let dest = 42u32;
+        let recipient = H256::zero();
+        let context = encode_standing_context(dest, recipient);
+
+        // First quote: issued_at=200.
+        let quote1 = make_signed_standing_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            context.clone(),
+            encode_data(1000, 500),
+            encode_u48(200),
+            encode_u48(9999999999),
+        );
+        let ix = build_submit_standing_ix(&fee_key, &payer.pubkey(), &quote1, dest);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Second quote: issued_at=100 (stale). Should be rejected.
+        let quote2 = make_signed_standing_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            context,
+            encode_data(2000, 1000),
+            encode_u48(100),
+            encode_u48(9999999999),
+        );
+        let ix = build_submit_standing_ix(&fee_key, &payer.pubkey(), &quote2, dest);
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::StaleStandingQuote as u32),
+            ),
+        );
+    }
+
+    #[tokio::test]
+    async fn test_equal_issued_at_is_noop() {
+        let (mut banks_client, payer) = setup_client().await;
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let signer_address = eth_address(&signing_key);
+
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let dest = 42u32;
+        let recipient = H256::zero();
+        let context = encode_standing_context(dest, recipient);
+
+        // First quote: issued_at=100, max_fee=1000.
+        let quote1 = make_signed_standing_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            context.clone(),
+            encode_data(1000, 500),
+            encode_u48(100),
+            encode_u48(9999999999),
+        );
+        let ix = build_submit_standing_ix(&fee_key, &payer.pubkey(), &quote1, dest);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Second quote: same issued_at=100 but max_fee=9999. Should be no-op.
+        let quote2 = make_signed_standing_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            context,
+            encode_data(9999, 5000),
+            encode_u48(100),
+            encode_u48(9999999999),
+        );
+        let ix = build_submit_standing_ix(&fee_key, &payer.pubkey(), &quote2, dest);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Verify original value is unchanged.
+        let domain_pda = standing_quote_pda_for(&fee_key, dest);
+        let standing = fetch_standing_pda(&mut banks_client, domain_pda).await;
+        let value = standing.quotes.get(&recipient).unwrap();
+        assert_eq!(value.max_fee, 1000); // not 9999
+    }
+
+    #[tokio::test]
+    async fn test_non_wildcard_amount_rejected() {
+        let (mut banks_client, payer) = setup_client().await;
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let signer_address = eth_address(&signing_key);
+
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Context with specific amount (not wildcard).
+        let mut context = Vec::with_capacity(44);
+        context.extend_from_slice(&42u32.to_le_bytes());
+        context.extend_from_slice(H256::zero().as_bytes());
+        context.extend_from_slice(&1000u64.to_le_bytes()); // not u64::MAX
+
+        let quote = make_signed_standing_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            context,
+            encode_data(1000, 500),
+            encode_u48(100),
+            encode_u48(9999999999),
+        );
+
+        let ix = build_submit_standing_ix(&fee_key, &payer.pubkey(), &quote, 42);
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::StandingQuoteAmountNotWildcard as u32),
+            ),
+        );
+    }
+
+    #[tokio::test]
+    async fn test_multiple_recipients_per_domain() {
+        let (mut banks_client, payer) = setup_client().await;
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let signer_address = eth_address(&signing_key);
+
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let dest = 42u32;
+        let recipient_a = H256::random();
+        let recipient_b = H256::random();
+
+        // Quote for recipient A.
+        let quote_a = make_signed_standing_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            encode_standing_context(dest, recipient_a),
+            encode_data(1000, 500),
+            encode_u48(100),
+            encode_u48(9999999999),
+        );
+        let ix = build_submit_standing_ix(&fee_key, &payer.pubkey(), &quote_a, dest);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Quote for recipient B.
+        let quote_b = make_signed_standing_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            encode_standing_context(dest, recipient_b),
+            encode_data(2000, 1000),
+            encode_u48(100),
+            encode_u48(9999999999),
+        );
+        let ix = build_submit_standing_ix(&fee_key, &payer.pubkey(), &quote_b, dest);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Verify both entries exist.
+        let domain_pda = standing_quote_pda_for(&fee_key, dest);
+        let standing = fetch_standing_pda(&mut banks_client, domain_pda).await;
+        assert_eq!(standing.quotes.len(), 2);
+        assert_eq!(standing.quotes.get(&recipient_a).unwrap().max_fee, 1000);
+        assert_eq!(standing.quotes.get(&recipient_b).unwrap().max_fee, 2000);
+    }
+
+    #[tokio::test]
+    async fn test_wildcard_recipient() {
+        let (mut banks_client, payer) = setup_client().await;
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let signer_address = eth_address(&signing_key);
+
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let dest = 42u32;
+        let context =
+            encode_standing_context(dest, hyperlane_sealevel_fee::accounts::WILDCARD_RECIPIENT);
+        let data = encode_data(3000, 1500);
+
+        let quote = make_signed_standing_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            context,
+            data,
+            encode_u48(100),
+            encode_u48(9999999999),
+        );
+
+        let ix = build_submit_standing_ix(&fee_key, &payer.pubkey(), &quote, dest);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let domain_pda = standing_quote_pda_for(&fee_key, dest);
+        let standing = fetch_standing_pda(&mut banks_client, domain_pda).await;
+        assert!(standing
+            .quotes
+            .contains_key(&hyperlane_sealevel_fee::accounts::WILDCARD_RECIPIENT));
+        assert_eq!(
+            standing
+                .quotes
+                .get(&hyperlane_sealevel_fee::accounts::WILDCARD_RECIPIENT)
+                .unwrap()
+                .max_fee,
+            3000
+        );
+    }
+
+    #[tokio::test]
+    async fn test_zero_fee_params_standing() {
+        let (mut banks_client, payer) = setup_client().await;
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let signer_address = eth_address(&signing_key);
+
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let dest = 42u32;
+        let recipient = H256::zero();
+        let context = encode_standing_context(dest, recipient);
+        let data = encode_data(0, 0); // zero fee
+
+        let quote = make_signed_standing_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            context,
+            data,
+            encode_u48(100),
+            encode_u48(9999999999),
+        );
+
+        let ix = build_submit_standing_ix(&fee_key, &payer.pubkey(), &quote, dest);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let domain_pda = standing_quote_pda_for(&fee_key, dest);
+        let standing = fetch_standing_pda(&mut banks_client, domain_pda).await;
+        let value = standing.quotes.get(&recipient).unwrap();
+        assert_eq!(value.max_fee, 0);
+        assert_eq!(value.half_amount, 0);
+    }
+
+    #[tokio::test]
+    async fn test_extraneous_account_rejected() {
+        let (mut banks_client, payer) = setup_client().await;
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let signer_address = eth_address(&signing_key);
+
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let dest = 42u32;
+        let context = encode_standing_context(dest, H256::zero());
+        let data = encode_data(1000, 500);
+
+        let quote = make_signed_standing_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            context,
+            data,
+            encode_u48(100),
+            encode_u48(9999999999),
+        );
+
+        let domain_le = dest.to_le_bytes();
+        let (domain_pda, _) = Pubkey::find_program_address(
+            fee_standing_quote_pda_seeds!(fee_key, &domain_le),
+            &fee_program_id(),
+        );
+
+        let ix = Instruction::new_with_borsh(
+            fee_program_id(),
+            &FeeInstruction::SubmitQuote(quote),
+            vec![
+                AccountMeta::new_readonly(system_program::ID, false),
+                AccountMeta::new(payer.pubkey(), true),
+                AccountMeta::new(fee_key, false),
+                AccountMeta::new(domain_pda, false),
+                AccountMeta::new_readonly(Pubkey::new_unique(), false), // extraneous
+            ],
+        );
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::ExtraneousAccount as u32),
+            ),
+        );
+    }
+}

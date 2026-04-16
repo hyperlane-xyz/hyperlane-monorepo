@@ -24,13 +24,15 @@ use quote_verifier::SvmSignedQuote;
 use crate::{
     accounts::{
         CcFeeQuoteContext, CrossCollateralRoute, CrossCollateralRouteAccount, FeeAccount,
-        FeeAccountData, FeeData, FeeQuoteContext, FeeQuoteData, RouteDomain, RouteDomainAccount,
-        TransientQuote, TransientQuoteAccount, DEFAULT_ROUTER,
+        FeeAccountData, FeeData, FeeQuoteContext, FeeQuoteData, FeeStandingQuotePda,
+        FeeStandingQuotePdaAccount, FeeStandingQuoteValue, QuoteContext, RouteDomain,
+        RouteDomainAccount, TransientQuote, TransientQuoteAccount, DEFAULT_ROUTER,
     },
     cc_route_pda_seeds,
     error::Error,
     fee_account_pda_seeds,
     fee_math::FeeParams,
+    fee_standing_quote_pda_seeds,
     instruction::{
         InitFee, Instruction, QuoteFee, RemoveCrossCollateralRoute, SetCrossCollateralRoute,
         SetRoute,
@@ -750,8 +752,113 @@ fn process_submit_quote(
 
         msg!("Submitted transient quote");
     } else {
-        // Standing quotes — to be implemented in commit 1l.
-        todo!("Standing quote submission");
+        // Standing quote: expiry > issued_at. Store in per-domain PDA.
+
+        // Parse context to get destination domain and recipient (BTreeMap key).
+        // Standing quotes use the base context (44B) — recipient is the map key.
+        // Amount must be wildcard (u64::MAX) for standing quotes.
+        let ctx = FeeQuoteContext::try_from_bytes(&quote.context)
+            .map_err(|_| Error::InvalidStandingQuoteContext)?;
+        if ctx.amount != u64::MAX {
+            return Err(Error::StandingQuoteAmountNotWildcard.into());
+        }
+
+        // Parse quote data.
+        let quote_data = FeeQuoteData::try_from(quote.data.as_slice())
+            .map_err(|_| Error::InvalidStandingQuoteData)?;
+
+        // Account 3: Domain standing quote PDA.
+        let domain_pda_info = next_account_info(accounts_iter)?;
+        let domain_le = ctx.destination_domain.to_le_bytes();
+        let (expected_domain_key, domain_bump) = Pubkey::find_program_address(
+            fee_standing_quote_pda_seeds!(fee_account_info.key, &domain_le),
+            program_id,
+        );
+        if *domain_pda_info.key != expected_domain_key {
+            return Err(ProgramError::InvalidSeeds);
+        }
+
+        ensure_no_extraneous_accounts(accounts_iter)?;
+
+        let is_new_pda =
+            domain_pda_info.data_is_empty() && domain_pda_info.owner == &system_program::ID;
+
+        let mut standing_pda = if is_new_pda {
+            FeeStandingQuotePda {
+                bump: domain_bump,
+                quotes: std::collections::BTreeMap::new(),
+            }
+        } else {
+            if domain_pda_info.owner != program_id {
+                return Err(ProgramError::IncorrectProgramId);
+            }
+            FeeStandingQuotePdaAccount::fetch(&mut &domain_pda_info.data.borrow()[..])?
+                .into_inner()
+                .data
+        };
+
+        // Insert or update the quote for this recipient.
+        let recipient_key = ctx.recipient;
+        let new_value = FeeStandingQuoteValue {
+            issued_at: issued_at_ts,
+            expiry: expiry_ts,
+            max_fee: quote_data.max_fee,
+            half_amount: quote_data.half_amount,
+        };
+
+        if let Some(existing) = standing_pda.quotes.get(&recipient_key) {
+            if issued_at_ts < existing.issued_at {
+                return Err(Error::StaleStandingQuote.into());
+            }
+            // Equal issued_at → no-op (don't update, don't error).
+            if issued_at_ts == existing.issued_at {
+                msg!("Standing quote no-op (equal issued_at)");
+                return Ok(());
+            }
+        }
+
+        standing_pda.quotes.insert(recipient_key, new_value);
+
+        let standing_account = FeeStandingQuotePdaAccount::new(standing_pda.into());
+
+        if is_new_pda {
+            let rent = Rent::get()?;
+            create_pda_account(
+                payer_info,
+                &rent,
+                SizedData::size(&standing_account),
+                program_id,
+                system_program_info,
+                domain_pda_info,
+                fee_standing_quote_pda_seeds!(fee_account_info.key, &domain_le, domain_bump),
+            )?;
+            standing_account.store(domain_pda_info, false)?;
+
+            // Update standing_quote_domains on fee account.
+            let mut fee_account_mut = fee_account.data;
+            fee_account_mut
+                .standing_quote_domains
+                .insert(ctx.destination_domain);
+            FeeAccountData::new(fee_account_mut.into()).store_with_rent_exempt_realloc(
+                fee_account_info,
+                &Rent::get()?,
+                payer_info,
+                system_program_info,
+            )?;
+        } else {
+            standing_account.store_with_rent_exempt_realloc(
+                domain_pda_info,
+                &Rent::get()?,
+                payer_info,
+                system_program_info,
+            )?;
+        }
+
+        msg!(
+            "Submitted standing quote for domain {} recipient {}",
+            ctx.destination_domain,
+            recipient_key
+        );
     }
 
     Ok(())
