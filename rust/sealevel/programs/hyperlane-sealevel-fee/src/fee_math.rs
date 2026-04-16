@@ -1,3 +1,4 @@
+use account_utils::SizedData;
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::U256;
 use solana_program::program_error::ProgramError;
@@ -27,6 +28,20 @@ pub enum FeeDataStrategy {
 impl Default for FeeDataStrategy {
     fn default() -> Self {
         Self::Linear(FeeParams::default())
+    }
+}
+
+impl SizedData for FeeParams {
+    fn size(&self) -> usize {
+        std::mem::size_of::<u64>()  // max_fee
+        + std::mem::size_of::<u64>() // half_amount
+    }
+}
+
+impl SizedData for FeeDataStrategy {
+    fn size(&self) -> usize {
+        // 1 byte enum variant tag + FeeParams (all variants have the same inner type)
+        1 + SizedData::size(self.params())
     }
 }
 
@@ -571,6 +586,41 @@ mod tests {
     }
 
     // --- Borsh round-trip tests ---
+
+    #[test]
+    fn test_fee_params_borsh_size() {
+        let params = FeeParams {
+            max_fee: 1,
+            half_amount: 2,
+        };
+        assert_eq!(
+            SizedData::size(&params),
+            borsh::to_vec(&params).unwrap().len()
+        );
+    }
+
+    #[test]
+    fn test_fee_data_strategy_borsh_size() {
+        for strategy in [
+            FeeDataStrategy::Linear(FeeParams {
+                max_fee: 1,
+                half_amount: 2,
+            }),
+            FeeDataStrategy::Regressive(FeeParams {
+                max_fee: 3,
+                half_amount: 4,
+            }),
+            FeeDataStrategy::Progressive(FeeParams {
+                max_fee: 5,
+                half_amount: 6,
+            }),
+        ] {
+            assert_eq!(
+                SizedData::size(&strategy),
+                borsh::to_vec(&strategy).unwrap().len()
+            );
+        }
+    }
 
     #[test]
     fn test_borsh_roundtrip_fee_params() {
