@@ -4345,3 +4345,517 @@ mod quote_fee_standing {
         assert_eq!(fee, 100);
     }
 }
+
+mod close_transient_quote {
+    use super::*;
+
+    fn encode_u48(ts: i64) -> [u8; 6] {
+        let bytes = ts.to_be_bytes();
+        let mut out = [0u8; 6];
+        out.copy_from_slice(&bytes[2..8]);
+        out
+    }
+
+    async fn setup_and_submit_transient(
+        banks_client: &mut BanksClient,
+        payer: &Keypair,
+    ) -> (Pubkey, Pubkey) {
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let signer_address = eth_address(&signing_key);
+
+        let fee_key = init_fee_account(
+            banks_client,
+            payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
+        process_tx(banks_client, payer, ix, &[]).await.unwrap();
+
+        let quote = make_signed_transient_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            vec![1, 2, 3, 4],
+            vec![5, 6, 7, 8],
+            encode_u48(9999999999),
+        );
+
+        let scoped_salt = quote.compute_scoped_salt(&payer.pubkey());
+        let (transient_pda, _) = Pubkey::find_program_address(
+            transient_quote_pda_seeds!(fee_key, scoped_salt),
+            &fee_program_id(),
+        );
+
+        let submit_ix = Instruction::new_with_borsh(
+            fee_program_id(),
+            &FeeInstruction::SubmitQuote(quote),
+            vec![
+                AccountMeta::new_readonly(system_program::ID, false),
+                AccountMeta::new(payer.pubkey(), true),
+                AccountMeta::new_readonly(fee_key, false),
+                AccountMeta::new(transient_pda, false),
+            ],
+        );
+        process_tx(banks_client, payer, submit_ix, &[])
+            .await
+            .unwrap();
+
+        (fee_key, transient_pda)
+    }
+
+    fn build_close_ix(
+        fee_key: &Pubkey,
+        transient_pda: &Pubkey,
+        payer_refund: &Pubkey,
+    ) -> Instruction {
+        Instruction::new_with_borsh(
+            fee_program_id(),
+            &FeeInstruction::CloseTransientQuote,
+            vec![
+                AccountMeta::new_readonly(system_program::ID, false),
+                AccountMeta::new_readonly(*fee_key, false),
+                AccountMeta::new(*transient_pda, false),
+                AccountMeta::new(*payer_refund, true),
+            ],
+        )
+    }
+
+    #[tokio::test]
+    async fn test_close_by_payer() {
+        let (mut banks_client, payer) = setup_client().await;
+        let (fee_key, transient_pda) = setup_and_submit_transient(&mut banks_client, &payer).await;
+
+        let ix = build_close_ix(&fee_key, &transient_pda, &payer.pubkey());
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let account = banks_client.get_account(transient_pda).await.unwrap();
+        assert!(account.is_none() || account.unwrap().data.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_close_by_wrong_payer_fails() {
+        let (mut banks_client, payer) = setup_client().await;
+        let (fee_key, transient_pda) = setup_and_submit_transient(&mut banks_client, &payer).await;
+
+        let wrong_payer = Keypair::new();
+        fund_keypair(&mut banks_client, &payer, &wrong_payer).await;
+
+        let ix = build_close_ix(&fee_key, &transient_pda, &wrong_payer.pubkey());
+        let result = process_tx(&mut banks_client, &wrong_payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::TransientPayerMismatch as u32),
+            ),
+        );
+    }
+
+    #[tokio::test]
+    async fn test_extraneous_account_rejected() {
+        let (mut banks_client, payer) = setup_client().await;
+        let (fee_key, transient_pda) = setup_and_submit_transient(&mut banks_client, &payer).await;
+
+        let ix = Instruction::new_with_borsh(
+            fee_program_id(),
+            &FeeInstruction::CloseTransientQuote,
+            vec![
+                AccountMeta::new_readonly(system_program::ID, false),
+                AccountMeta::new_readonly(fee_key, false),
+                AccountMeta::new(transient_pda, false),
+                AccountMeta::new(payer.pubkey(), true),
+                AccountMeta::new_readonly(Pubkey::new_unique(), false), // extraneous
+            ],
+        );
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::ExtraneousAccount as u32),
+            ),
+        );
+    }
+}
+
+mod prune_expired_quotes {
+    use super::*;
+    use hyperlane_sealevel_fee::accounts::{FeeStandingQuotePda, FeeStandingQuotePdaAccount};
+
+    fn encode_u48(ts: i64) -> [u8; 6] {
+        let bytes = ts.to_be_bytes();
+        let mut out = [0u8; 6];
+        out.copy_from_slice(&bytes[2..8]);
+        out
+    }
+
+    fn encode_standing_context(dest: u32, recipient: H256) -> Vec<u8> {
+        let mut buf = Vec::with_capacity(44);
+        buf.extend_from_slice(&dest.to_le_bytes());
+        buf.extend_from_slice(recipient.as_bytes());
+        buf.extend_from_slice(&u64::MAX.to_le_bytes());
+        buf
+    }
+
+    fn encode_data(max_fee: u64, half_amount: u64) -> Vec<u8> {
+        let mut buf = Vec::with_capacity(16);
+        buf.extend_from_slice(&max_fee.to_le_bytes());
+        buf.extend_from_slice(&half_amount.to_le_bytes());
+        buf
+    }
+
+    fn make_signed_standing_quote(
+        signing_key: &SigningKey,
+        fee_account: &Pubkey,
+        domain_id: u32,
+        payer: &Pubkey,
+        context: Vec<u8>,
+        data: Vec<u8>,
+        issued_at: [u8; 6],
+        expiry: [u8; 6],
+    ) -> SvmSignedQuote {
+        let client_salt = H256::random();
+        let mut quote = SvmSignedQuote {
+            context,
+            data,
+            issued_at,
+            expiry,
+            client_salt,
+            signature: [0u8; 65],
+        };
+        let scoped_salt = quote.compute_scoped_salt(payer);
+        let message_hash = quote.build_message_hash(fee_account, domain_id, &scoped_salt);
+        quote.signature = sign_hash(signing_key, message_hash.as_fixed_bytes());
+        quote
+    }
+
+    fn build_submit_standing_ix(
+        fee_account: &Pubkey,
+        payer: &Pubkey,
+        quote: &SvmSignedQuote,
+        dest: u32,
+    ) -> Instruction {
+        let domain_le = dest.to_le_bytes();
+        let (domain_pda, _) = Pubkey::find_program_address(
+            fee_standing_quote_pda_seeds!(fee_account, &domain_le),
+            &fee_program_id(),
+        );
+        Instruction::new_with_borsh(
+            fee_program_id(),
+            &FeeInstruction::SubmitQuote(quote.clone()),
+            vec![
+                AccountMeta::new_readonly(system_program::ID, false),
+                AccountMeta::new(*payer, true),
+                AccountMeta::new(*fee_account, false),
+                AccountMeta::new(domain_pda, false),
+            ],
+        )
+    }
+
+    fn build_prune_ix(fee_account: &Pubkey, owner: &Pubkey, domain: u32) -> Instruction {
+        let domain_le = domain.to_le_bytes();
+        let (domain_pda, _) = Pubkey::find_program_address(
+            fee_standing_quote_pda_seeds!(fee_account, &domain_le),
+            &fee_program_id(),
+        );
+        Instruction::new_with_borsh(
+            fee_program_id(),
+            &FeeInstruction::PruneExpiredQuotes { domain },
+            vec![
+                AccountMeta::new_readonly(system_program::ID, false),
+                AccountMeta::new(*fee_account, false),
+                AccountMeta::new(*owner, true),
+                AccountMeta::new(domain_pda, false),
+            ],
+        )
+    }
+
+    async fn fetch_standing_pda(
+        banks_client: &mut BanksClient,
+        key: Pubkey,
+    ) -> FeeStandingQuotePda {
+        let account = banks_client.get_account(key).await.unwrap().unwrap();
+        FeeStandingQuotePdaAccount::fetch(&mut &account.data[..])
+            .unwrap()
+            .into_inner()
+            .data
+    }
+
+    async fn setup_fee_with_signer(
+        banks_client: &mut BanksClient,
+        payer: &Keypair,
+        signing_key: &SigningKey,
+    ) -> Pubkey {
+        let signer_address = eth_address(signing_key);
+        let fee_key = init_fee_account(
+            banks_client,
+            payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
+        process_tx(banks_client, payer, ix, &[]).await.unwrap();
+        fee_key
+    }
+
+    #[tokio::test]
+    async fn test_prune_all_expired_closes_pda() {
+        // Use ProgramTestContext to manipulate the clock.
+        let program_id = fee_program_id();
+        let program_test = ProgramTest::new(
+            "hyperlane_sealevel_fee",
+            program_id,
+            processor!(fee_process_instruction),
+        );
+        let mut ctx = program_test.start_with_context().await;
+        let payer = ctx.payer.insecure_clone();
+        let banks_client = &mut ctx.banks_client;
+
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let fee_key = setup_fee_with_signer(banks_client, &payer, &signing_key).await;
+
+        let dest = 42u32;
+        // Submit with expiry=1000 (valid now, will be expired after clock warp).
+        let quote = make_signed_standing_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            encode_standing_context(dest, H256::zero()),
+            encode_data(1000, 500),
+            encode_u48(100),
+            encode_u48(9999999999),
+        );
+        process_tx(
+            banks_client,
+            &payer,
+            build_submit_standing_ix(&fee_key, &payer.pubkey(), &quote, dest),
+            &[],
+        )
+        .await
+        .unwrap();
+
+        // Warp clock past expiry.
+        let mut clock = banks_client
+            .get_sysvar::<solana_program::clock::Clock>()
+            .await
+            .unwrap();
+        clock.unix_timestamp = 99999999999;
+        ctx.set_sysvar(&clock);
+
+        let banks_client = &mut ctx.banks_client;
+
+        let ix = build_prune_ix(&fee_key, &payer.pubkey(), dest);
+        process_tx(banks_client, &payer, ix, &[]).await.unwrap();
+
+        // PDA should be closed.
+        let domain_pda = standing_quote_pda_for(&fee_key, dest);
+        let account = banks_client.get_account(domain_pda).await.unwrap();
+        assert!(account.is_none() || account.unwrap().data.is_empty());
+
+        // Domain removed from standing_quote_domains.
+        let fee_acct = fetch_fee_account(banks_client, fee_key).await;
+        assert!(!fee_acct.standing_quote_domains.contains(&dest));
+    }
+
+    #[tokio::test]
+    async fn test_prune_keeps_non_expired_entries() {
+        let program_id = fee_program_id();
+        let program_test = ProgramTest::new(
+            "hyperlane_sealevel_fee",
+            program_id,
+            processor!(fee_process_instruction),
+        );
+        let mut ctx = program_test.start_with_context().await;
+        let payer = ctx.payer.insecure_clone();
+        let banks_client = &mut ctx.banks_client;
+
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let fee_key = setup_fee_with_signer(banks_client, &payer, &signing_key).await;
+
+        let dest = 42u32;
+        let expired_recipient = H256::random();
+        let valid_recipient = H256::random();
+
+        // Submit entry that will expire at 50000000000 (before warp target).
+        let q1 = make_signed_standing_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            encode_standing_context(dest, expired_recipient),
+            encode_data(1000, 500),
+            encode_u48(100),
+            encode_u48(50000000000),
+        );
+        process_tx(
+            banks_client,
+            &payer,
+            build_submit_standing_ix(&fee_key, &payer.pubkey(), &q1, dest),
+            &[],
+        )
+        .await
+        .unwrap();
+
+        // Submit entry that won't expire until 200000000000 (after warp target).
+        let q2 = make_signed_standing_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            encode_standing_context(dest, valid_recipient),
+            encode_data(2000, 1000),
+            encode_u48(100),
+            encode_u48(200000000000),
+        );
+        process_tx(
+            banks_client,
+            &payer,
+            build_submit_standing_ix(&fee_key, &payer.pubkey(), &q2, dest),
+            &[],
+        )
+        .await
+        .unwrap();
+
+        // Warp clock past first entry's expiry but before second's.
+        let mut clock = banks_client
+            .get_sysvar::<solana_program::clock::Clock>()
+            .await
+            .unwrap();
+        clock.unix_timestamp = 99999999999;
+        ctx.set_sysvar(&clock);
+        let banks_client = &mut ctx.banks_client;
+
+        // Prune.
+        let ix = build_prune_ix(&fee_key, &payer.pubkey(), dest);
+        process_tx(banks_client, &payer, ix, &[]).await.unwrap();
+
+        // PDA should still exist with only the valid entry.
+        let domain_pda = standing_quote_pda_for(&fee_key, dest);
+        let standing = fetch_standing_pda(banks_client, domain_pda).await;
+        assert_eq!(standing.quotes.len(), 1);
+        assert!(!standing.quotes.contains_key(&expired_recipient));
+        assert!(standing.quotes.contains_key(&valid_recipient));
+
+        // Domain still in standing_quote_domains.
+        let fee_acct = fetch_fee_account(banks_client, fee_key).await;
+        assert!(fee_acct.standing_quote_domains.contains(&dest));
+    }
+
+    #[tokio::test]
+    async fn test_prune_nonexistent_domain_fails() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let ix = build_prune_ix(&fee_key, &payer.pubkey(), 99);
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::RouteNotFound as u32),
+            ),
+        );
+    }
+
+    #[tokio::test]
+    async fn test_prune_non_owner_fails() {
+        let (mut banks_client, payer) = setup_client().await;
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let fee_key = setup_fee_with_signer(&mut banks_client, &payer, &signing_key).await;
+
+        let dest = 42u32;
+        let quote = make_signed_standing_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            encode_standing_context(dest, H256::zero()),
+            encode_data(1000, 500),
+            encode_u48(100),
+            encode_u48(9999999999),
+        );
+        let ix = build_submit_standing_ix(&fee_key, &payer.pubkey(), &quote, dest);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let non_owner = Keypair::new();
+        fund_keypair(&mut banks_client, &payer, &non_owner).await;
+
+        let ix = build_prune_ix(&fee_key, &non_owner.pubkey(), dest);
+        let result = process_tx(&mut banks_client, &non_owner, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+        );
+    }
+
+    #[tokio::test]
+    async fn test_prune_extraneous_account_rejected() {
+        let (mut banks_client, payer) = setup_client().await;
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let fee_key = setup_fee_with_signer(&mut banks_client, &payer, &signing_key).await;
+
+        let dest = 42u32;
+        let quote = make_signed_standing_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            encode_standing_context(dest, H256::zero()),
+            encode_data(1000, 500),
+            encode_u48(100),
+            encode_u48(9999999999),
+        );
+        let ix = build_submit_standing_ix(&fee_key, &payer.pubkey(), &quote, dest);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let domain_le = dest.to_le_bytes();
+        let (domain_pda, _) = Pubkey::find_program_address(
+            fee_standing_quote_pda_seeds!(fee_key, &domain_le),
+            &fee_program_id(),
+        );
+
+        let ix = Instruction::new_with_borsh(
+            fee_program_id(),
+            &FeeInstruction::PruneExpiredQuotes { domain: dest },
+            vec![
+                AccountMeta::new_readonly(system_program::ID, false),
+                AccountMeta::new(fee_key, false),
+                AccountMeta::new(payer.pubkey(), true),
+                AccountMeta::new(domain_pda, false),
+                AccountMeta::new_readonly(Pubkey::new_unique(), false), // extraneous
+            ],
+        );
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::ExtraneousAccount as u32),
+            ),
+        );
+    }
+}
