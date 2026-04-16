@@ -1,0 +1,12 @@
+cargo-features = ["workspace-inheritance"]
+
+[package]
+name = "package-versioned"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+solana-program.workspace = true
+
+[lib]
+crate-type = ["cdylib", "lib"]
