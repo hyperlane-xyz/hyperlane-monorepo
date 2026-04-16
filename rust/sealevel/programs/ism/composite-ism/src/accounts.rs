@@ -158,7 +158,7 @@ pub fn derive_domain_pda(program_id: &Pubkey, domain: u32) -> (Pubkey, u8) {
 ///
 /// Returns `None` if the account is not owned by this program. Returns the
 /// boxed `DomainIsmStorage` (including `bump_seed` and `ism`) otherwise.
-pub fn load_domain_ism_storage(
+pub fn load_and_validate_domain_ism_storage(
     program_id: &Pubkey,
     domain: u32,
     account: &AccountInfo,
@@ -181,38 +181,6 @@ pub fn load_domain_ism_storage(
     }
 
     Ok(Some(storage))
-}
-
-/// Loads and validates a domain ISM account.
-///
-/// Returns the stored `IsmNode` if the account is initialized, or `None` if the
-/// account is not owned by this program (i.e. no domain config has been set).
-/// Returns an error if the account belongs to the program but fails PDA
-/// verification or deserialization.
-pub fn load_domain_ism(
-    program_id: &Pubkey,
-    domain: u32,
-    account: &AccountInfo,
-) -> Result<Option<IsmNode>, ProgramError> {
-    if account.owner != program_id {
-        return Ok(None);
-    }
-
-    let storage = DomainIsmAccount::fetch_data(&mut &account.data.borrow()[..])?
-        .ok_or(ProgramError::UninitializedAccount)?;
-
-    // Verify PDA derivation using the bump stored in the account.
-    let domain_bytes = domain.to_le_bytes();
-    let expected_key = Pubkey::create_program_address(
-        &[DOMAIN_ISM_SEED, &domain_bytes, &[storage.bump_seed]],
-        program_id,
-    )
-    .map_err(|_| ProgramError::InvalidSeeds)?;
-    if *account.key != expected_key {
-        return Err(ProgramError::InvalidAccountData);
-    }
-
-    Ok(storage.ism.clone())
 }
 
 #[cfg(test)]

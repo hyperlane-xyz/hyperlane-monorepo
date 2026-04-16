@@ -9,7 +9,9 @@ use solana_program::{
 
 use crate::{
     account_metas::contains_rate_limited,
-    accounts::{derive_domain_pda, load_domain_ism_storage, DomainIsmAccount, IsmNode},
+    accounts::{
+        derive_domain_pda, load_and_validate_domain_ism_storage, DomainIsmAccount, IsmNode,
+    },
     error::Error,
     metadata::parse_routing_amount,
     metadata::{parse_aggregation_ranges, sub_metadata},
@@ -133,7 +135,7 @@ where
 
             // Load the full domain PDA storage (None if not owned by this program).
             let loaded_storage =
-                load_domain_ism_storage(program_id, message.origin, domain_pda_info)?;
+                load_and_validate_domain_ism_storage(program_id, message.origin, domain_pda_info)?;
 
             if let Some(mut storage) = loaded_storage {
                 if let Some(mut ism) = storage.ism.take() {

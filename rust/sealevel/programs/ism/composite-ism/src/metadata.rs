@@ -91,6 +91,7 @@ pub(crate) fn parse_routing_amount(body: &[u8]) -> Option<U256> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use hyperlane_core::U256;
 
     fn encode_ranges(ranges: &[(u32, u32)]) -> Vec<u8> {
         let mut buf = Vec::new();
@@ -172,15 +173,15 @@ mod test {
         let mut body = [0u8; 64];
         body[63] = 42; // amount = 42 in the low byte
         let amount = parse_routing_amount(&body).unwrap();
-        assert_eq!(amount[31], 42);
+        assert_eq!(amount, U256::from(42u64));
     }
 
     #[test]
     fn test_parse_routing_amount_body_longer_than_64() {
         let mut body = vec![0u8; 100];
-        body[32] = 1; // high byte of amount
+        body[32] = 1; // high byte of amount = 1 << 248
         let amount = parse_routing_amount(&body).unwrap();
-        assert_eq!(amount[0], 1);
+        assert_eq!(amount, U256::from(1u64) << 248);
     }
 
     #[test]
