@@ -154,6 +154,9 @@ describe('InventoryRebalancer E2E', () => {
         }),
       },
       findToken: Sinon.stub().returns(null),
+      getMaxTransferAmount: Sinon.stub().callsFake(
+        async ({ balance }) => balance,
+      ),
       getTransferRemoteTxs: Sinon.stub().resolves([
         {
           category: 'transfer',
@@ -275,6 +278,21 @@ describe('InventoryRebalancer E2E', () => {
     actionTracker.createRebalanceIntent.resolves(intent);
 
     return intent;
+  }
+
+  function mockSuccessfulBridge(fromAmount: bigint, toAmount: bigint): void {
+    bridge.quote.resolves(
+      createMockBridgeQuote({
+        fromAmount,
+        toAmount,
+        toAmountMin: toAmount,
+      }),
+    );
+    bridge.execute.resolves({
+      txHash: '0xBridgeTxHash',
+      fromChain: 42161,
+      toChain: 1399811149,
+    });
   }
 
   describe('Basic Inventory Rebalance (Sufficient Inventory)', () => {
@@ -426,8 +444,9 @@ describe('InventoryRebalancer E2E', () => {
   });
 
   describe('Partial Fulfillment (Insufficient Inventory)', () => {
-    // Partial transfers happen when maxTransferable >= minViableTransfer
-    // For non-native tokens (EvmHypCollateral), minViableTransfer = 0, so partial always viable
+    // Partial transfers happen when maxTransferable >= minViableTransfer.
+    // For non-native tokens (EvmHypCollateral), minViableTransfer = 0, so any
+    // positive fee-aware maxTransferable remains viable.
     const PARTIAL_AMOUNT = BigInt(5e15); // 0.005 ETH - above threshold
     const FULL_AMOUNT = BigInt(1e16); // 0.01 ETH
 
@@ -460,6 +479,65 @@ describe('InventoryRebalancer E2E', () => {
       expect(actionParams.amount).to.equal(PARTIAL_AMOUNT);
     });
 
+    it('uses fee-aware maxTransferable for non-native token fees', async () => {
+      const requestedAmount = 19998000000n;
+      const availableInventory = 102466n;
+      const safeTransferAmount = 102400n;
+
+      warpCore.getMaxTransferAmount.resolves({ amount: safeTransferAmount });
+
+      const route = createTestRoute({ amount: requestedAmount });
+      createTestIntent({ amount: requestedAmount });
+
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: availableInventory,
+        [ARBITRUM_CHAIN]: 0n,
+      });
+
+      const results = await inventoryRebalancer.rebalance([route]);
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.true;
+      expect(warpCore.getMaxTransferAmount.calledOnce).to.be.true;
+
+      const maxTransferArgs = warpCore.getMaxTransferAmount.firstCall.args[0];
+      expect(maxTransferArgs.balance.amount).to.equal(availableInventory);
+      expect(maxTransferArgs.destination).to.equal(ARBITRUM_CHAIN);
+
+      const txParams = warpCore.getTransferRemoteTxs.lastCall.args[0];
+      expect(txParams.originTokenAmount.amount).to.equal(safeTransferAmount);
+      expect(txParams).to.not.have.property('interchainFee');
+      expect(txParams).to.not.have.property('tokenFeeQuote');
+
+      const actionParams = actionTracker.createRebalanceAction.lastCall.args[0];
+      expect(actionParams.amount).to.equal(safeTransferAmount);
+    });
+
+    it('downgrades full non-native transfers to partial when fee headroom is missing', async () => {
+      const requestedAmount = 102466n;
+      const safeTransferAmount = 102400n;
+
+      warpCore.getMaxTransferAmount.resolves({ amount: safeTransferAmount });
+
+      const route = createTestRoute({ amount: requestedAmount });
+      createTestIntent({ amount: requestedAmount });
+
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: requestedAmount,
+        [ARBITRUM_CHAIN]: 0n,
+      });
+
+      const results = await inventoryRebalancer.rebalance([route]);
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.true;
+      expect(bridge.execute.called).to.be.false;
+
+      const txParams = warpCore.getTransferRemoteTxs.lastCall.args[0];
+      expect(txParams.originTokenAmount.amount).to.equal(safeTransferAmount);
+      expect(txParams.originTokenAmount.amount).to.not.equal(requestedAmount);
+    });
+
     it('intent remains in_progress after partial fulfillment', async () => {
       const route = createTestRoute({ amount: FULL_AMOUNT });
       createTestIntent({ amount: FULL_AMOUNT });
@@ -474,6 +552,52 @@ describe('InventoryRebalancer E2E', () => {
 
       // Verify: Partial transfer succeeded
       expect(results[0].success).to.be.true;
+    });
+  });
+
+  describe('Fee-Aware Probe Fallback', () => {
+    it('bridges when non-native destination inventory is zero', async () => {
+      const requestedAmount = 10000000000n;
+      const bufferedBridgeAmount = (requestedAmount * 105n) / 100n;
+      const route = createTestRoute({ amount: requestedAmount });
+      createTestIntent({ amount: requestedAmount });
+
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 0n,
+        [ARBITRUM_CHAIN]: 20000000000n,
+      });
+      mockSuccessfulBridge(bufferedBridgeAmount, bufferedBridgeAmount);
+
+      const results = await inventoryRebalancer.rebalance([route]);
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.true;
+      expect(warpCore.getMaxTransferAmount.called).to.be.false;
+      expect(warpCore.getTransferRemoteTxs.called).to.be.false;
+      expect(bridge.execute.calledOnce).to.be.true;
+
+      const actionParams =
+        actionTracker.createRebalanceAction.firstCall.args[0];
+      expect(actionParams.type).to.equal('inventory_movement');
+    });
+
+    it('returns failure for unrelated fee-aware probe errors', async () => {
+      const route = createTestRoute();
+      createTestIntent();
+
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 1n,
+        [ARBITRUM_CHAIN]: 20000000000n,
+      });
+      warpCore.getMaxTransferAmount.rejects(new Error('RPC down'));
+
+      const results = await inventoryRebalancer.rebalance([route]);
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.false;
+      expect(results[0].error).to.include('RPC down');
+      expect(bridge.execute.called).to.be.false;
+      expect(actionTracker.createRebalanceAction.called).to.be.false;
     });
   });
 
@@ -652,6 +776,51 @@ describe('InventoryRebalancer E2E', () => {
 
       // Verify: No new intent was created (existing was continued)
       expect(actionTracker.createRebalanceIntent.called).to.be.false;
+    });
+
+    it('continues existing intent by bridging after recoverable fee-aware probe failure', async () => {
+      const existingIntent = createTestIntent({
+        id: 'existing-intent',
+        status: 'in_progress',
+        amount: 10000000000n,
+        externalBridge: ExternalBridgeType.LiFi,
+      });
+      const recoverableProbeError = new Error('Fee probe failed') as Error & {
+        cause?: unknown;
+      };
+      recoverableProbeError.cause = {
+        code: 'UNPREDICTABLE_GAS_LIMIT',
+        message: 'execution reverted: ERC20: transfer amount exceeds balance',
+      };
+
+      actionTracker.getPartiallyFulfilledInventoryIntents.resolves([
+        {
+          intent: existingIntent,
+          completedAmount: 0n,
+          remaining: 10000000000n,
+          hasInflightDeposit: false,
+        },
+      ]);
+
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 1n,
+        [ARBITRUM_CHAIN]: 20000000000n,
+      });
+      warpCore.getMaxTransferAmount.rejects(recoverableProbeError);
+      mockSuccessfulBridge(10500000000n, 10500000000n);
+
+      const results = await inventoryRebalancer.rebalance([
+        createTestRoute({ amount: 5000000000n }),
+      ]);
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.true;
+      expect(bridge.execute.calledOnce).to.be.true;
+      expect(actionTracker.createRebalanceIntent.called).to.be.false;
+
+      const actionParams =
+        actionTracker.createRebalanceAction.firstCall.args[0];
+      expect(actionParams.type).to.equal('inventory_movement');
     });
   });
 

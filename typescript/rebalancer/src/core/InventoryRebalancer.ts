@@ -3,28 +3,19 @@ import type { Logger } from 'pino';
 import {
   type ChainName,
   HyperlaneCore,
-  type InterchainGasQuote,
-  type IToken,
   type MultiProtocolSignerSignerAccountInfo,
   type MultiProvider,
-  Token,
   ProviderType,
   SealevelCoreAdapter,
   TOKEN_COLLATERALIZED_STANDARDS,
-  type TokenAmount,
+  type Token,
   type WarpTypedTransaction,
   type WarpCore,
   WarpTxCategory,
   getSignerForChain,
   type TypedTransactionReceipt,
 } from '@hyperlane-xyz/sdk';
-import {
-  ProtocolType,
-  assert,
-  ensure0x,
-  fromWei,
-  isZeroishAddress,
-} from '@hyperlane-xyz/utils';
+import { ProtocolType, assert, ensure0x, fromWei } from '@hyperlane-xyz/utils';
 
 import type { ExternalBridgeType } from '../config/types.js';
 import type {
@@ -82,6 +73,66 @@ type BridgeCapacity = {
   maxSourceInput: bigint;
   maxTargetOutput: bigint;
 };
+
+const RECOVERABLE_MAX_TRANSFER_ERROR_MESSAGES = [
+  'balance may be insufficient',
+  'transfer amount exceeds balance',
+  'insufficient balance',
+];
+
+function hasRecoverableMaxTransferErrorMessage(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes('unpredictable_gas_limit') ||
+    RECOVERABLE_MAX_TRANSFER_ERROR_MESSAGES.some((pattern) =>
+      normalized.includes(pattern),
+    )
+  );
+}
+
+function isRecoverableMaxTransferProbeError(error: unknown): boolean {
+  const seen = new Set<unknown>();
+  const stack: unknown[] = [error];
+
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (current == null) continue;
+
+    if (typeof current === 'string') {
+      if (hasRecoverableMaxTransferErrorMessage(current)) return true;
+      continue;
+    }
+
+    if (typeof current !== 'object') continue;
+    if (seen.has(current)) continue;
+    seen.add(current);
+
+    const candidate = current as {
+      code?: unknown;
+      message?: unknown;
+      cause?: unknown;
+      error?: unknown;
+    };
+
+    if (
+      typeof candidate.code === 'string' &&
+      candidate.code.toUpperCase() === 'UNPREDICTABLE_GAS_LIMIT'
+    ) {
+      return true;
+    }
+
+    if (
+      typeof candidate.message === 'string' &&
+      hasRecoverableMaxTransferErrorMessage(candidate.message)
+    ) {
+      return true;
+    }
+
+    stack.push(candidate.cause, candidate.error);
+  }
+
+  return false;
+}
 
 /**
  * Configuration for the InventoryRebalancer.
@@ -557,6 +608,8 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     const sourceToken = this.getTokenForChain(destination);
     assert(sourceToken, `No token found for source chain: ${destination}`);
     const requestedLocalAmount = denormalizeToLocal(amount, sourceToken);
+    const executionSender = this.getInventorySignerAddress(destination);
+    const executionRecipient = this.getInventorySignerAddress(origin);
 
     // Check available inventory on the DESTINATION (deficit) chain
     // We need inventory here because transferRemote is called FROM this chain
@@ -589,11 +642,68 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       this.multiProvider,
       this.warpCore.multiProvider,
       this.getTokenForChain.bind(this),
-      this.getInventorySignerAddress(destination),
+      executionSender,
       isNativeTokenStandard,
       this.logger,
     );
-    const { maxTransferable, minViableTransfer } = costs;
+    const { minViableTransfer } = costs;
+    let maxTransferable = costs.maxTransferable;
+
+    if (!isNativeTokenStandard(sourceToken.standard)) {
+      if (availableInventory === 0n) {
+        maxTransferable = 0n;
+        this.logger.debug(
+          {
+            fromChain: destination,
+            toChain: origin,
+            requestedAmount: requestedLocalAmount.toString(),
+          },
+          'Skipping fee-aware max transferable probe because destination inventory is zero',
+        );
+      } else {
+        try {
+          const feeAwareMaxTransfer = await this.warpCore.getMaxTransferAmount({
+            balance: sourceToken.amount(availableInventory),
+            destination: origin,
+            sender: executionSender,
+            recipient: executionRecipient,
+          });
+
+          maxTransferable =
+            feeAwareMaxTransfer.amount < requestedLocalAmount
+              ? feeAwareMaxTransfer.amount
+              : requestedLocalAmount;
+
+          this.logger.debug(
+            {
+              fromChain: destination,
+              toChain: origin,
+              availableInventory: availableInventory.toString(),
+              requestedAmount: requestedLocalAmount.toString(),
+              feeAwareMaxTransferable: maxTransferable.toString(),
+            },
+            'Calculated fee-aware max transferable amount for non-native route',
+          );
+        } catch (error) {
+          if (!isRecoverableMaxTransferProbeError(error)) {
+            throw error;
+          }
+
+          maxTransferable = 0n;
+          this.logger.warn(
+            {
+              fromChain: destination,
+              toChain: origin,
+              availableInventory: availableInventory.toString(),
+              requestedAmount: requestedLocalAmount.toString(),
+              error: error instanceof Error ? error.message : String(error),
+              intentId: intent.id,
+            },
+            'Fee-aware max transferable probe failed due to insufficient balance, falling back to external bridge',
+          );
+        }
+      }
+    }
 
     // Calculate total inventory across all chains
     // Note: consumedInventory tracking is handled separately within this cycle
@@ -665,7 +775,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       const result = await this.executeTransferRemote(
         swappedRoute,
         intent,
-        costs.gasQuote!,
         fulfilledCanonicalAmount,
       );
       // Return original strategy route in result (not the swapped execution route)
@@ -692,7 +801,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         const result = await this.executeTransferRemote(
           partialSwappedRoute,
           intent,
-          costs.gasQuote!,
           alignedExecution.messageAmount,
         );
 
@@ -931,12 +1039,10 @@ export class InventoryRebalancer implements IInventoryRebalancer {
    *
    * @param route - The transfer route (swapped direction)
    * @param intent - The rebalance intent being executed
-   * @param gasQuote - Pre-calculated gas quote from calculateTransferCosts
    */
   private async executeTransferRemote(
     route: InventoryRoute,
     intent: RebalanceIntent,
-    gasQuote: InterchainGasQuote,
     fulfilledCanonicalAmount: bigint,
   ): Promise<InventoryExecutionResult> {
     const { origin, destination, amount } = route;
@@ -949,42 +1055,9 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     const destinationDomain = this.multiProvider.getDomainId(destination);
 
     this.logger.debug(
-      {
-        origin,
-        destination,
-        amount: amount.toString(),
-        gasQuote: {
-          igpQuote: gasQuote.igpQuote.amount.toString(),
-          tokenFeeQuote: gasQuote.tokenFeeQuote?.amount?.toString() ?? 'none',
-        },
-      },
-      'Using pre-calculated gas quote for transferRemote',
+      { origin, destination, amount: amount.toString() },
+      'Building transferRemote transactions for exact execution amount',
     );
-
-    // Convert pre-calculated gas quote to TokenAmount for WarpCore
-    const originChainMetadata = this.multiProvider.getChainMetadata(origin);
-    const igpAddressOrDenom = gasQuote.igpQuote.addressOrDenom;
-    let igpToken: IToken;
-    if (!igpAddressOrDenom || isZeroishAddress(igpAddressOrDenom)) {
-      igpToken = Token.FromChainMetadataNativeToken(originChainMetadata);
-    } else {
-      const searchResult = this.warpCore.findToken(origin, igpAddressOrDenom);
-      assert(searchResult, `IGP fee token ${igpAddressOrDenom} is unknown`);
-      igpToken = searchResult;
-    }
-    const interchainFee: TokenAmount<IToken> = igpToken.amount(
-      gasQuote.igpQuote.amount,
-    );
-
-    let tokenFeeQuote: TokenAmount<IToken> | undefined;
-    if (gasQuote.tokenFeeQuote?.amount) {
-      const feeAddress = gasQuote.tokenFeeQuote.addressOrDenom;
-      const feeToken: IToken =
-        !feeAddress || isZeroishAddress(feeAddress)
-          ? Token.FromChainMetadataNativeToken(originChainMetadata)
-          : originToken;
-      tokenFeeQuote = feeToken.amount(gasQuote.tokenFeeQuote.amount);
-    }
 
     const originTokenAmount = originToken.amount(amount);
     const transferTxs = await this.warpCore.getTransferRemoteTxs({
@@ -992,8 +1065,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       destination,
       sender: this.getInventorySignerAddress(origin),
       recipient: this.getInventorySignerAddress(destination),
-      interchainFee,
-      tokenFeeQuote,
     });
     assert(
       transferTxs.length > 0,
