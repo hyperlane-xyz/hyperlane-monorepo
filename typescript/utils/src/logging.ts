@@ -146,8 +146,11 @@ export async function tryInitializeGcpLogger(options?: {
   if (!inKubernetes()) return null;
 
   try {
+    // Keep this import runtime-only so root utils consumers don't need the
+    // GCP logger package present unless they actually use this code path.
+    const gcpLoggerModule = '@google-cloud/pino-logging-gcp-config';
     const { createGcpLoggingPinoConfig } = await import(
-      /* webpackIgnore: true */ '@google-cloud/pino-logging-gcp-config'
+      /* webpackIgnore: true */ gcpLoggerModule
     );
     const serviceContext = options
       ? {
