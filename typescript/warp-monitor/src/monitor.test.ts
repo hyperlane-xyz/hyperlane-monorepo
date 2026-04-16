@@ -340,7 +340,8 @@ describe('WarpMonitor', () => {
       chainMetadata: Record<string, { domainId: number }>,
     ) => RouterNodeMetadata[];
 
-    const routerNodes = buildRouterNodes(
+    const routerNodes = buildRouterNodes.call(
+      monitor,
       {
         tokens: [
           {
