@@ -1,5 +1,43 @@
 # @hyperlane-xyz/aleo-sdk
 
+## 31.2.1
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@31.2.1
+- @hyperlane-xyz/provider-sdk@4.3.4
+
+## 31.2.0
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@31.2.0
+- @hyperlane-xyz/provider-sdk@4.3.3
+
+## 31.1.0
+
+### Patch Changes
+
+- 8a082af: Added runtime entrypoints for non-EVM SDKs and avoided bundling heavy deploy-time modules in UI wallet integrations.
+  - @hyperlane-xyz/utils@31.1.0
+  - @hyperlane-xyz/provider-sdk@4.3.2
+
+## 31.0.1
+
+### Patch Changes
+
+- Updated dependencies [d5168fc]
+  - @hyperlane-xyz/utils@31.0.1
+  - @hyperlane-xyz/provider-sdk@4.3.1
+
+## 31.0.0
+
+### Patch Changes
+
+- Updated dependencies [44626fb]
+  - @hyperlane-xyz/provider-sdk@4.3.0
+  - @hyperlane-xyz/utils@31.0.0
+
 ## 30.1.1
 
 ### Patch Changes

@@ -16,7 +16,7 @@ export enum WarpRouteIds {
   EclipseUSDC = 'USDC/eclipsemainnet',
   EclipseUSDCSTAGE = 'USDCSTAGE/eclipsemainnet',
   ETHSTAGEStage = 'ETHSTAGE/stage',
-  EclipseEthereumSolanaUSDT = 'USDT/eclipsemainnet-ethereum-solanamainnet',
+  EclipseUSDT = 'USDT/eclipsemainnet',
   EclipseEthereumTETH = 'tETH/eclipsemainnet-ethereum',
   EclipseEthereumWBTC = 'WBTC/eclipsemainnet-ethereum',
   EclipseEthereumWeETHs = 'weETHs/eclipsemainnet-ethereum',
@@ -149,6 +149,11 @@ export enum WarpRouteIds {
   // ctUSD
   CitreaUSD = 'ctUSD/citrea',
 
+  // TODO: uncomment when USDTOft warp routes are in the registry
+  // USDT OFT
+  // USDTOft = 'USDT/oft',
+  // USDTOftLegacy = 'USDT/oft-legacy',
+
   // RISE routes
   BscEthereumRISE = 'RISE/bsc-ethereum',
 
@@ -157,4 +162,7 @@ export enum WarpRouteIds {
   IgraIKAS = 'IKAS/igra',
   IgraWSTETH = 'WSTETH/igra',
   IgraCBBTC = 'CBBTC/igra',
+  EthereumIgraUSDS = 'USDS/ethereum-igra',
+  EthereumIgraWETH = 'WETH/ethereum-igra',
+  EthereumIgraUSDT = 'USDT/ethereum-igra',
 }

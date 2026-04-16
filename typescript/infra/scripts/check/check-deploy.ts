@@ -1,3 +1,5 @@
+import { assert } from '@hyperlane-xyz/utils';
+
 import {
   getCheckDeployArgs,
   getGovernor,
@@ -5,31 +7,18 @@ import {
 } from './check-utils.js';
 
 async function main() {
-  const {
-    module,
-    context,
-    environment,
-    asDeployer,
-    chains,
-    fork,
-    govern,
-    warpRouteId,
-    registry,
-    forceRegistryConfig,
-  } = await getCheckDeployArgs().argv;
+  const { module, context, environment, asDeployer, chains, fork, govern } =
+    await getCheckDeployArgs().argv;
+  assert(module, 'Module is required');
 
   const governor = await getGovernor(
     module,
     context,
     environment,
     asDeployer,
-    warpRouteId,
     chains,
     fork,
     govern,
-    undefined,
-    registry,
-    forceRegistryConfig,
   );
 
   if (fork) {

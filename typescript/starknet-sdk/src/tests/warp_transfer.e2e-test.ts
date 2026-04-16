@@ -1,45 +1,109 @@
 import { expect } from 'chai';
 
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { type ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
+import {
+  type ArtifactDeployed,
+  ArtifactState,
+} from '@hyperlane-xyz/provider-sdk/artifact';
+import {
+  type AnnotatedTx,
+  type TxReceipt,
+} from '@hyperlane-xyz/provider-sdk/module';
+import {
+  type DeployedWarpAddress,
+  type RawWarpArtifactConfig,
+} from '@hyperlane-xyz/provider-sdk/warp';
+import { assert } from '@hyperlane-xyz/utils';
+
 import { StarknetSigner } from '../clients/signer.js';
+import { getCreateNoopHookTx } from '../hook/hook-tx.js';
+import { StarknetIsmArtifactManager } from '../ism/ism-artifact-manager.js';
+import { getMailboxConfig } from '../mailbox/mailbox-query.js';
+import { StarknetMailboxArtifactManager } from '../mailbox/mailbox-artifact-manager.js';
 import { DEFAULT_E2E_TEST_TIMEOUT } from '../testing/constants.js';
 import { TEST_STARKNET_CHAIN_METADATA } from '../testing/index.js';
 import { createSigner } from '../testing/utils.js';
+import { StarknetWarpArtifactManager } from '../warp/warp-artifact-manager.js';
 
 describe('5b. starknet sdk warp transfer e2e tests', function () {
   this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
 
   let signer: StarknetSigner;
+  let genericSigner: ISigner<AnnotatedTx, TxReceipt>;
 
   before(async () => {
     signer = await createSigner();
+    genericSigner = signer;
   });
 
   async function createMailbox() {
-    const { ismAddress } = await signer.createNoopIsm({});
-    const { hookAddress } = await signer.createNoopHook({
-      mailboxAddress: signer.getSignerAddress(),
-    });
-    const mailbox = await signer.createMailbox({
-      domainId: 1234,
-      defaultIsmAddress: ismAddress,
-      defaultHookAddress: hookAddress,
-      requiredHookAddress: hookAddress,
-    });
-    return mailbox.mailboxAddress;
+    const ismArtifactManager = new StarknetIsmArtifactManager(
+      TEST_STARKNET_CHAIN_METADATA,
+    );
+    const [ism] = await ismArtifactManager
+      .createWriter(AltVM.IsmType.TEST_ISM, signer)
+      .create({ config: { type: AltVM.IsmType.TEST_ISM } });
+
+    const hookTx = getCreateNoopHookTx();
+    const hookReceipt = await signer.sendAndConfirmTransaction(hookTx);
+    assert(hookReceipt.contractAddress, 'failed to deploy noop hook');
+    const hookAddress = hookReceipt.contractAddress;
+
+    const mailboxArtifactManager = new StarknetMailboxArtifactManager(
+      TEST_STARKNET_CHAIN_METADATA,
+    );
+    const [mailbox] = await mailboxArtifactManager
+      .createWriter('mailbox', signer)
+      .create({
+        config: {
+          owner: signer.getSignerAddress(),
+          defaultIsm: {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: ism.deployed.address },
+          },
+          defaultHook: {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: hookAddress },
+          },
+          requiredHook: {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: hookAddress },
+          },
+        },
+      });
+    return mailbox.deployed.address;
   }
 
-  async function assertRemoteTransfer(
+  async function assertRemoteTransfer<C extends RawWarpArtifactConfig>(
     tokenAddress: string,
     mailboxAddress: string,
+    warpWriter: {
+      update: (
+        artifact: ArtifactDeployed<C, DeployedWarpAddress>,
+      ) => Promise<AnnotatedTx[]>;
+      read: (
+        address: string,
+      ) => Promise<ArtifactDeployed<C, DeployedWarpAddress>>;
+    },
   ) {
-    await signer.enrollRemoteRouter({
-      tokenAddress,
-      remoteRouter: {
-        receiverDomainId: 1234,
-        receiverAddress: signer.getSignerAddress(),
-        gas: '200000',
+    // Enroll remote router via artifact writer
+    const currentToken = await warpWriter.read(tokenAddress);
+    const enrollTxs = await warpWriter.update({
+      ...currentToken,
+      config: {
+        ...currentToken.config,
+        remoteRouters: {
+          1234: { address: signer.getSignerAddress() },
+        },
+        destinationGas: {
+          1234: '200000',
+        },
       },
     });
+    for (const tx of enrollTxs) {
+      await genericSigner.sendAndConfirmTransaction(tx);
+    }
 
     const quote = await signer.quoteRemoteTransfer({
       tokenAddress,
@@ -51,7 +115,7 @@ describe('5b. starknet sdk warp transfer e2e tests', function () {
 
     const [beforeMailbox, beforeSenderBalance, beforeEscrowBalance] =
       await Promise.all([
-        signer.getMailbox({ mailboxAddress }),
+        getMailboxConfig(signer.getRawProvider(), mailboxAddress),
         signer.getBalance({
           denom: token.denom,
           address: signer.getSignerAddress(),
@@ -61,6 +125,8 @@ describe('5b. starknet sdk warp transfer e2e tests', function () {
           address: tokenAddress,
         }),
       ]);
+
+    // remoteTransfer kept as action method — it batches token approvals
     await signer.remoteTransfer({
       tokenAddress,
       destinationDomainId: 1234,
@@ -72,9 +138,10 @@ describe('5b. starknet sdk warp transfer e2e tests', function () {
         amount: quote.amount.toString(),
       },
     });
+
     const [afterMailbox, afterSenderBalance, afterEscrowBalance] =
       await Promise.all([
-        signer.getMailbox({ mailboxAddress }),
+        getMailboxConfig(signer.getRawProvider(), mailboxAddress),
         signer.getBalance({
           denom: token.denom,
           address: signer.getSignerAddress(),
@@ -91,23 +158,51 @@ describe('5b. starknet sdk warp transfer e2e tests', function () {
 
   it('quotes and executes native remote transfer', async () => {
     const mailboxAddress = await createMailbox();
-    const { tokenAddress } = await signer.createNativeToken({ mailboxAddress });
+    const warpArtifactManager = new StarknetWarpArtifactManager(
+      TEST_STARKNET_CHAIN_METADATA,
+    );
+    const writer = warpArtifactManager.createWriter('native', signer);
+    const [nativeToken] = await writer.create({
+      config: {
+        type: AltVM.TokenType.native,
+        owner: signer.getSignerAddress(),
+        mailbox: mailboxAddress,
+        remoteRouters: {},
+        destinationGas: {},
+      },
+    });
 
-    await assertRemoteTransfer(tokenAddress, mailboxAddress);
+    await assertRemoteTransfer(
+      nativeToken.deployed.address,
+      mailboxAddress,
+      writer,
+    );
   });
 
   it('quotes and executes collateral remote transfer', async () => {
     const mailboxAddress = await createMailbox();
     const collateralDenom = TEST_STARKNET_CHAIN_METADATA.nativeToken?.denom;
-    if (!collateralDenom) {
-      throw new Error('Expected Starknet test collateral denom');
-    }
+    assert(collateralDenom, 'Expected Starknet test collateral denom');
 
-    const { tokenAddress } = await signer.createCollateralToken({
-      mailboxAddress,
-      collateralDenom,
+    const warpArtifactManager = new StarknetWarpArtifactManager(
+      TEST_STARKNET_CHAIN_METADATA,
+    );
+    const writer = warpArtifactManager.createWriter('collateral', signer);
+    const [collateralToken] = await writer.create({
+      config: {
+        type: AltVM.TokenType.collateral,
+        owner: signer.getSignerAddress(),
+        mailbox: mailboxAddress,
+        token: collateralDenom,
+        remoteRouters: {},
+        destinationGas: {},
+      },
     });
 
-    await assertRemoteTransfer(tokenAddress, mailboxAddress);
+    await assertRemoteTransfer(
+      collateralToken.deployed.address,
+      mailboxAddress,
+      writer,
+    );
   });
 });

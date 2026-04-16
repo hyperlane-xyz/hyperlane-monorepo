@@ -1,5 +1,50 @@
 # @hyperlane-xyz/tron-sdk
 
+## 22.1.14
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@31.2.1
+- @hyperlane-xyz/core@11.3.1
+- @hyperlane-xyz/provider-sdk@4.3.4
+
+## 22.1.13
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@31.2.0
+- @hyperlane-xyz/core@11.3.1
+- @hyperlane-xyz/provider-sdk@4.3.3
+
+## 22.1.12
+
+### Patch Changes
+
+- 8a082af: Added runtime entrypoints for non-EVM SDKs and avoided bundling heavy deploy-time modules in UI wallet integrations.
+  - @hyperlane-xyz/utils@31.1.0
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/provider-sdk@4.3.2
+
+## 22.1.11
+
+### Patch Changes
+
+- Updated dependencies [d5168fc]
+  - @hyperlane-xyz/utils@31.0.1
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/provider-sdk@4.3.1
+
+## 22.1.10
+
+### Patch Changes
+
+- 1dac3b0: TronJsonRpcProvider and TronTransactionBuilder were updated to parse custom_rpc_header query params into HTTP headers, fixing auth with third-party RPC providers like Tatum.
+- Updated dependencies [44626fb]
+- Updated dependencies [7ad1f9e]
+  - @hyperlane-xyz/provider-sdk@4.3.0
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/utils@31.0.0
+
 ## 22.1.9
 
 ### Patch Changes

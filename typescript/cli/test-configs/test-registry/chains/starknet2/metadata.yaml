@@ -5,7 +5,7 @@ blockExplorers:
     url: http://127.0.0.1:5051
 blocks:
   confirmations: 0
-  estimateBlockTime: 5
+  estimateBlockTime: 0.25
   reorgPeriod: 0
 chainId: '0x534e5f5345504f4c4941'
 displayName: Starknet2

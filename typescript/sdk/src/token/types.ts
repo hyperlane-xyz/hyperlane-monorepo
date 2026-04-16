@@ -11,7 +11,7 @@ import {
   IsmType,
   OffchainLookupIsmConfigSchema,
 } from '../ism/types.js';
-import { ZHash } from '../metadata/customZodTypes.js';
+import { ZBigNumberish, ZHash } from '../metadata/customZodTypes.js';
 import {
   DerivedRouterConfig,
   GasRouterConfigSchema,
@@ -33,6 +33,15 @@ export const contractVersionMatchesDependency = (version: string) => {
 
 export const VERSION_ERROR_MESSAGE = `Contract version must match the @hyperlane-xyz/core dependency version (${CONTRACTS_PACKAGE_VERSION})`;
 
+/**
+ * Coerces string to bigint at runtime with positivity check.
+ * Needed because bigints are serialized as strings in JSON/YAML
+ * and must be converted back on parse.
+ */
+const PositiveZBigNumberish = ZBigNumberish.refine((n) => n > 0n, {
+  message: 'Must be positive',
+});
+
 export const TokenMetadataSchema = z.object({
   name: z.string(),
   symbol: z.string(),
@@ -45,8 +54,8 @@ export const TokenMetadataSchema = z.object({
         denominator: z.number().int().gt(0),
       }),
       z.object({
-        numerator: z.coerce.bigint().positive(),
-        denominator: z.coerce.bigint().positive(),
+        numerator: PositiveZBigNumberish,
+        denominator: PositiveZBigNumberish,
       }),
     ])
     .optional(),

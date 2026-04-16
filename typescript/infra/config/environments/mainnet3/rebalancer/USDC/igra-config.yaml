@@ -1,52 +1,58 @@
 warpRouteId: USDC/igra
 
 strategy:
-  rebalanceStrategy: weighted
+  rebalanceStrategy: minAmount
   chains:
     ethereum:
-      weighted:
-        weight: 35
-        tolerance: 5
-      bridgeLockTime: 1800 # 30 mins in seconds (required for CCTP latency)
-      bridgeMinAcceptedAmount: 1000
+      minAmount:
+        type: 'absolute'
+        min: 100
+        target: 150
+      bridgeLockTime: 1800
+      bridgeMinAcceptedAmount: 50
       bridge: '0x8c8D831E1e879604b4B304a2c951B8AEe3aB3a23'
 
     arbitrum:
-      weighted:
-        weight: 20
-        tolerance: 5
+      minAmount:
+        type: 'absolute'
+        min: 100
+        target: 150
       bridgeLockTime: 1800
-      bridgeMinAcceptedAmount: 1000
+      bridgeMinAcceptedAmount: 50
       bridge: '0x4c19c653a8419A475d9B6735511cB81C15b8d9b2'
 
     base:
-      weighted:
-        weight: 20
-        tolerance: 5
+      minAmount:
+        type: 'absolute'
+        min: 100
+        target: 150
       bridgeLockTime: 1800
-      bridgeMinAcceptedAmount: 1000
+      bridgeMinAcceptedAmount: 50
       bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
 
     polygon:
-      weighted:
-        weight: 10
-        tolerance: 5
+      minAmount:
+        type: 'absolute'
+        min: 100
+        target: 150
       bridgeLockTime: 1800
-      bridgeMinAcceptedAmount: 1000
+      bridgeMinAcceptedAmount: 50
       bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
 
     optimism:
-      weighted:
-        weight: 10
-        tolerance: 5
+      minAmount:
+        type: 'absolute'
+        min: 100
+        target: 150
       bridgeLockTime: 1800
-      bridgeMinAcceptedAmount: 1000
+      bridgeMinAcceptedAmount: 50
       bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
 
     avalanche:
-      weighted:
-        weight: 5
-        tolerance: 5
+      minAmount:
+        type: 'absolute'
+        min: 100
+        target: 150
       bridgeLockTime: 1800
-      bridgeMinAcceptedAmount: 1000
+      bridgeMinAcceptedAmount: 50
       bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'

@@ -1,5 +1,40 @@
 # @hyperlane-xyz/provider-sdk
 
+## 4.3.4
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@31.2.1
+
+## 4.3.3
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@31.2.0
+
+## 4.3.2
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@31.1.0
+
+## 4.3.1
+
+### Patch Changes
+
+- Updated dependencies [d5168fc]
+  - @hyperlane-xyz/utils@31.0.1
+
+## 4.3.0
+
+### Minor Changes
+
+- 44626fb: Enabled SVM cross-collateral token deployments in the CLI. Added `crossCollateral` to supported Alt-VM token types, allowing `warp deploy`, `warp combine`, and `warp apply` to work with SVM CC routes. Extracted `computeCrossCollateralRouterUpdates` into provider-sdk for cross-protocol reuse. Fixed CC-only gas preservation for domains transitioning from remote routers.
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@31.0.0
+
 ## 4.2.5
 
 ### Patch Changes

@@ -5,6 +5,7 @@ import {
   ChainMap,
   ChainMetadata,
   ChainName,
+  ChainStatus,
   HyperlaneSmartProvider,
   ProviderRetryOptions,
   safeApiKeyRequired,
@@ -19,7 +20,11 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { getChain, getRegistryWithOverrides } from '../../config/registry.js';
+import {
+  getChain,
+  getChainMetadata,
+  getRegistryWithOverrides,
+} from '../../config/registry.js';
 import { getSecretRpcEndpoints } from '../agents/index.js';
 import { getSafeApiKey } from '../utils/safe.js';
 
@@ -46,6 +51,14 @@ export const legacyEthIcaRouter = '0x5E532F7B610618eE73C2B462978e94CB1F7995Ce';
 // Chains that require MinimalInterchainAccountRouter due to deployment size limits
 export const minimalIcaChains: ChainName[] = ['igra'];
 
+// Chains marked as disabled in registry metadata.
+// Derived programmatically from chain availability status.
+export function getDisabledChains(): ChainName[] {
+  return Object.entries(getChainMetadata())
+    .filter(([_, meta]) => meta.availability?.status === ChainStatus.Disabled)
+    .map(([name]) => name);
+}
+
 // A list of chains to skip during deploy, check-deploy and ICA operations.
 // Used by scripts like check-owner-ica.ts to exclude chains that are temporarily
 // unsupported (e.g. zksync, zeronetwork) or have known issues
@@ -63,24 +76,7 @@ export const chainsToSkip: ChainName[] = [
   'abstract',
   'sophon',
 
-  // deprecated chains
-  'arcadiatestnet2',
-  'arbitrumnova',
-  'aurora',
-  'b3',
-  'bsquared',
-  'degenchain',
-  'dogechain',
-  'fantom',
-  'harmony',
-  'merlin',
-  'moonbeam',
-  'polygonzkevm',
-  'scroll',
-  'story',
-  'superpositionmainnet',
-  'tangle',
-  'zeronetwork',
+  ...getDisabledChains(),
 ];
 
 export const defaultRetry: ProviderRetryOptions = {

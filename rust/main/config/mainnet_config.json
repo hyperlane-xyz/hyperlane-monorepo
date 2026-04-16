@@ -790,7 +790,7 @@
         }
       ],
       "validatorAnnounce": "Hqnn593pqDZWLy6bKZ4NbY767wFhUNBShDrLktuQa3Q2",
-      "interchainSecurityModule": "CMtST8GBWTTzBgYCdAm7Kfh4aVhM2KAeVvTo2gNoDgNU",
+      "interchainSecurityModule": "Gb4bVL48WxFkbfigfrGyVvShHFBC5FNjm8LG1gKqcKrG",
       "technicalStack": "other"
     },
     "endurance": {
@@ -5877,7 +5877,7 @@
       ],
       "technicalStack": "other",
       "interchainGasPaymaster": "Dsem8R6mkrpNoNb6CRUEjEZRP2hKRC24thyCkVr8cNYZ",
-      "interchainSecurityModule": "CJVdkLzopJvaZgsJovieA6umHvcifKKVNSBH7ssJ9sX8",
+      "interchainSecurityModule": "DYh3XKE31zPV8X3bbQPJZaVP6BQuYcHhRB5gEBYWqPaL",
       "mailbox": "Mj7GE6LZiJUZFTgabmNkFoY2o6JCEwCMKopSUUC3kqj",
       "merkleTreeHook": "Mj7GE6LZiJUZFTgabmNkFoY2o6JCEwCMKopSUUC3kqj",
       "validatorAnnounce": "GFqF38mSacfvbJRKkhmjJvSkzTEKemSNVoWi4Q94ZPvz"
@@ -6363,7 +6363,7 @@
       ],
       "technicalStack": "other",
       "interchainGasPaymaster": "Bxof4ZpgLtoHoxBq6AGDCJUtVxUoE9LXkx8iizkDGQPz",
-      "interchainSecurityModule": "2sCw3FozxoNinZV923Q6XNvaMjRsmPSFAKnNYYnWsqD3",
+      "interchainSecurityModule": "6YxzXBNn9CyhzQrFPswpGR6ohiPEzxJbmoNJwwKzNHBx",
       "mailbox": "4MaM9GQZ753NhUcXH1pPsQwof1Mf3ZnjeNF4yx6S3p3N",
       "merkleTreeHook": "4MaM9GQZ753NhUcXH1pPsQwof1Mf3ZnjeNF4yx6S3p3N",
       "validatorAnnounce": "4LxdrQjqUzueko4MEn3cYCniEtcAZ6AxuHot2Fp3jskH"
@@ -6763,7 +6763,7 @@
     "hyperevm": {
       "blockExplorers": [
         {
-          "apiUrl": "https://www.hyperscan.com/api/v2",
+          "apiUrl": "https://www.hyperscan.com/api",
           "family": "blockscout",
           "name": "HyperEVM Explorer",
           "url": "https://www.hyperscan.com"
@@ -8876,6 +8876,13 @@
     },
     "monad": {
       "blockExplorers": [
+        {
+          "apiKey": "GP69JEAP2W7YFJT9ZJTEPGQT6Y6KMW44ZN",
+          "apiUrl": "https://api.etherscan.io/v2/api?chainid=143",
+          "family": "etherscan",
+          "name": "MonadScan",
+          "url": "https://monadscan.com"
+        },
         {
           "apiUrl": "https://mainnet-beta.monvision.io/api",
           "family": "other",

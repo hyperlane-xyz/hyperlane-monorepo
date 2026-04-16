@@ -1,5 +1,48 @@
 # @hyperlane-xyz/starknet-sdk
 
+## 27.2.10
+
+### Patch Changes
+
+- @hyperlane-xyz/starknet-core@31.2.1
+- @hyperlane-xyz/utils@31.2.1
+- @hyperlane-xyz/provider-sdk@4.3.4
+
+## 27.2.9
+
+### Patch Changes
+
+- @hyperlane-xyz/starknet-core@31.2.0
+- @hyperlane-xyz/utils@31.2.0
+- @hyperlane-xyz/provider-sdk@4.3.3
+
+## 27.2.8
+
+### Patch Changes
+
+- cf3f11c: Starknet devnet switched to instant per-transaction block mining and starknet.js polling interval reduced for fast block times, speeding up e2e tests ~5x.
+  - @hyperlane-xyz/starknet-core@31.1.0
+  - @hyperlane-xyz/utils@31.1.0
+  - @hyperlane-xyz/provider-sdk@4.3.2
+
+## 27.2.7
+
+### Patch Changes
+
+- Updated dependencies [d5168fc]
+  - @hyperlane-xyz/utils@31.0.1
+  - @hyperlane-xyz/provider-sdk@4.3.1
+  - @hyperlane-xyz/starknet-core@31.0.1
+
+## 27.2.6
+
+### Patch Changes
+
+- Updated dependencies [44626fb]
+  - @hyperlane-xyz/provider-sdk@4.3.0
+  - @hyperlane-xyz/starknet-core@31.0.0
+  - @hyperlane-xyz/utils@31.0.0
+
 ## 27.2.5
 
 ### Patch Changes

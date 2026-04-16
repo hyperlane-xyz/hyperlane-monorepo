@@ -65,7 +65,7 @@ export function parseMessage(message: string): ParsedMessage {
   const BODY_OFFSET = 77;
 
   const buf = Buffer.from(utils.arrayify(message));
-  const version = buf.readUint8(VERSION_OFFSET);
+  const version = buf.readUInt8(VERSION_OFFSET);
   const nonce = buf.readUInt32BE(NONCE_OFFSET);
   const origin = buf.readUInt32BE(ORIGIN_OFFSET);
   const sender = utils.hexlify(buf.subarray(SENDER_OFFSET, DESTINATION_OFFSET));

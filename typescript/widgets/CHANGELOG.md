@@ -1,5 +1,83 @@
 # @hyperlane-xyz/widgets
 
+## 31.2.1
+
+### Patch Changes
+
+- Updated dependencies [f9c8f83]
+  - @hyperlane-xyz/sdk@31.2.1
+  - @hyperlane-xyz/aleo-sdk@31.2.1
+  - @hyperlane-xyz/cosmos-sdk@31.2.1
+  - @hyperlane-xyz/radix-sdk@31.2.1
+  - @hyperlane-xyz/utils@31.2.1
+  - @hyperlane-xyz/provider-sdk@4.3.4
+  - @hyperlane-xyz/tron-sdk@22.1.14
+
+## 31.2.0
+
+### Patch Changes
+
+- fcb087d: Replaced WebSocket-based `confirmTransaction` with HTTP polling (`getSignatureStatuses`) for Solana transaction confirmation. Fixed hangs with RPC providers that don't support `signatureSubscribe`.
+- f89d6bd: Added reusable wallet address helpers for protocol-scoped consumers.
+- 3d52b1a: Added `@hyperlane-xyz/widgets/animations/*` subpath exports.
+- Updated dependencies [35fb5c8]
+  - @hyperlane-xyz/sdk@31.2.0
+  - @hyperlane-xyz/aleo-sdk@31.2.0
+  - @hyperlane-xyz/cosmos-sdk@31.2.0
+  - @hyperlane-xyz/radix-sdk@31.2.0
+  - @hyperlane-xyz/utils@31.2.0
+  - @hyperlane-xyz/provider-sdk@4.3.3
+  - @hyperlane-xyz/tron-sdk@22.1.13
+
+## 31.1.0
+
+### Patch Changes
+
+- 8a082af: Added light subpath exports for SDK provider and warp modules, plus lean widget subpath exports.
+- 8a082af: Added runtime entrypoints for non-EVM SDKs and avoided bundling heavy deploy-time modules in UI wallet integrations.
+- Updated dependencies [8a082af]
+- Updated dependencies [c8fe242]
+- Updated dependencies [8a082af]
+  - @hyperlane-xyz/sdk@31.1.0
+  - @hyperlane-xyz/aleo-sdk@31.1.0
+  - @hyperlane-xyz/cosmos-sdk@31.1.0
+  - @hyperlane-xyz/radix-sdk@31.1.0
+  - @hyperlane-xyz/tron-sdk@22.1.12
+  - @hyperlane-xyz/utils@31.1.0
+  - @hyperlane-xyz/provider-sdk@4.3.2
+
+## 31.0.1
+
+### Patch Changes
+
+- Updated dependencies [d5168fc]
+  - @hyperlane-xyz/utils@31.0.1
+  - @hyperlane-xyz/aleo-sdk@31.0.1
+  - @hyperlane-xyz/cosmos-sdk@31.0.1
+  - @hyperlane-xyz/provider-sdk@4.3.1
+  - @hyperlane-xyz/radix-sdk@31.0.1
+  - @hyperlane-xyz/sdk@31.0.1
+  - @hyperlane-xyz/tron-sdk@22.1.11
+
+## 31.0.0
+
+### Patch Changes
+
+- Updated dependencies [44626fb]
+- Updated dependencies [df33d41]
+- Updated dependencies [4963b32]
+- Updated dependencies [9003721]
+- Updated dependencies [69e6b3f]
+- Updated dependencies [fc0a1cf]
+- Updated dependencies [1dac3b0]
+  - @hyperlane-xyz/sdk@31.0.0
+  - @hyperlane-xyz/provider-sdk@4.3.0
+  - @hyperlane-xyz/tron-sdk@22.1.10
+  - @hyperlane-xyz/aleo-sdk@31.0.0
+  - @hyperlane-xyz/cosmos-sdk@31.0.0
+  - @hyperlane-xyz/radix-sdk@31.0.0
+  - @hyperlane-xyz/utils@31.0.0
+
 ## 30.1.1
 
 ### Patch Changes

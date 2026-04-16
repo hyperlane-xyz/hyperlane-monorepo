@@ -1,4 +1,3 @@
-import { useConnectModal } from '@rainbow-me/rainbowkit';
 import {
   getAccount,
   sendTransaction,
@@ -6,94 +5,53 @@ import {
   waitForTransactionReceipt,
   watchAsset,
 } from '@wagmi/core';
-import { useCallback, useMemo } from 'react';
+import { useCallback } from 'react';
 import { Chain as ViemChain } from 'viem';
-import { useAccount, useConfig, useDisconnect } from 'wagmi';
+import { useConfig } from 'wagmi';
 
+import { chainMetadataToViemChain } from '@hyperlane-xyz/sdk/metadata/chainMetadataConversion';
 import {
-  ChainName,
-  EvmHypXERC20LockboxAdapter,
-  IToken,
-  LOCKBOX_STANDARDS,
-  MultiProtocolProvider,
   ProviderType,
-  TypedTransactionReceipt,
-  WarpTypedTransaction,
-  chainMetadataToViemChain,
-} from '@hyperlane-xyz/sdk';
+  type TypedTransactionReceipt,
+} from '@hyperlane-xyz/sdk/providers/ProviderType';
+import type { MultiProviderAdapter } from '@hyperlane-xyz/sdk/providers/MultiProviderAdapter';
+import type { ITokenMetadata } from '@hyperlane-xyz/sdk/token/ITokenMetadata';
+import { LOCKBOX_STANDARDS } from '@hyperlane-xyz/sdk/token/TokenStandard';
+import type {
+  IHypTokenAdapter,
+  IMovableCollateralRouterAdapter,
+} from '@hyperlane-xyz/sdk/token/adapters/ITokenAdapter';
+import type { ChainName } from '@hyperlane-xyz/sdk/types';
+import type { WarpTypedTransaction } from '@hyperlane-xyz/sdk/warp/types';
 import { ProtocolType, assert, sleep } from '@hyperlane-xyz/utils';
 
 import { widgetLogger } from '../logger.js';
 
 import {
-  AccountInfo,
-  ActiveChainInfo,
   ChainTransactionFns,
   SwitchNetworkFns,
-  WalletDetails,
   WatchAssetFns,
 } from './types.js';
 import { ethers5TxToWagmiTx, getChainsForProtocol } from './utils.js';
 
 const logger = widgetLogger.child({ module: 'walletIntegrations/ethereum' });
+export {
+  useEthereumAccount,
+  useEthereumActiveChain,
+  useEthereumConnectFn,
+  useEthereumDisconnectFn,
+  useEthereumWalletDetails,
+} from './ethereumWallet.js';
 
-export function useEthereumAccount(
-  _multiProvider: MultiProtocolProvider,
-): AccountInfo {
-  const { address, isConnected, connector } = useAccount();
-  const isReady = !!(address && isConnected && connector);
-
-  return useMemo<AccountInfo>(
-    () => ({
-      protocol: ProtocolType.Ethereum,
-      addresses: address ? [{ address: `${address}` }] : [],
-      isReady: isReady,
-    }),
-    [address, isReady],
-  );
-}
-
-export function useEthereumWalletDetails() {
-  const { connector } = useAccount();
-  const name = connector?.name;
-  const logoUrl = connector?.icon;
-
-  return useMemo<WalletDetails>(
-    () => ({
-      name,
-      logoUrl,
-    }),
-    [name, logoUrl],
-  );
-}
-
-export function useEthereumConnectFn(): () => void {
-  const { openConnectModal } = useConnectModal();
-  return useCallback(() => openConnectModal?.(), [openConnectModal]);
-}
-
-export function useEthereumDisconnectFn(): () => Promise<void> {
-  const { disconnectAsync } = useDisconnect();
-  return disconnectAsync;
-}
-
-export function useEthereumActiveChain(
-  multiProvider: MultiProtocolProvider,
-): ActiveChainInfo {
-  const { chain } = useAccount();
-  return useMemo<ActiveChainInfo>(
-    () => ({
-      chainDisplayName: chain?.name,
-      chainName: chain
-        ? multiProvider.tryGetChainMetadata(chain.id)?.name
-        : undefined,
-    }),
-    [chain, multiProvider],
-  );
+function isWrappedTokenAddressAdapter(
+  adapter: IHypTokenAdapter<unknown>,
+): adapter is IHypTokenAdapter<unknown> &
+  Pick<IMovableCollateralRouterAdapter<unknown>, 'getWrappedTokenAddress'> {
+  return 'getWrappedTokenAddress' in adapter;
 }
 
 export function useEthereumSwitchNetwork(
-  multiProvider: MultiProtocolProvider,
+  multiProvider: MultiProviderAdapter,
 ): SwitchNetworkFns {
   const config = useConfig();
 
@@ -112,13 +70,13 @@ export function useEthereumSwitchNetwork(
 }
 
 export function useEthereumWatchAsset(
-  multiProvider: MultiProtocolProvider,
+  multiProvider: MultiProviderAdapter,
 ): WatchAssetFns {
   const { switchNetwork } = useEthereumSwitchNetwork(multiProvider);
   const config = useConfig();
 
   const onAddAsset = useCallback(
-    async (token: IToken, activeChainName: ChainName) => {
+    async (token: ITokenMetadata, activeChainName: ChainName) => {
       const chainName = token.chainName;
       // If the active chain is different from tx origin chain, try to switch network first
       if (activeChainName && activeChainName !== chainName)
@@ -126,9 +84,17 @@ export function useEthereumWatchAsset(
 
       let tokenAddress = '';
       if (LOCKBOX_STANDARDS.includes(token.standard)) {
-        const adapter = token.getAdapter(
-          multiProvider,
-        ) as EvmHypXERC20LockboxAdapter;
+        const { createEvmHypAdapter } =
+          await import('@hyperlane-xyz/sdk/token/adapters/evmHyp');
+        const adapter = createEvmHypAdapter(multiProvider, token);
+        assert(
+          adapter,
+          `No EVM hyp adapter found for lockbox token ${token.symbol}`,
+        );
+        assert(
+          isWrappedTokenAddressAdapter(adapter),
+          `Hyp adapter for ${token.symbol} does not expose getWrappedTokenAddress`,
+        );
         tokenAddress = await adapter.getWrappedTokenAddress();
       } else {
         tokenAddress = token.collateralAddressOrDenom || token.addressOrDenom;
@@ -150,7 +116,7 @@ export function useEthereumWatchAsset(
 }
 
 export function useEthereumTransactionFns(
-  multiProvider: MultiProtocolProvider,
+  multiProvider: MultiProviderAdapter,
 ): ChainTransactionFns {
   const config = useConfig();
   const { switchNetwork } = useEthereumSwitchNetwork(multiProvider);
@@ -234,7 +200,7 @@ export function useEthereumTransactionFns(
 
 // Metadata formatted for use in Wagmi config
 export function getWagmiChainConfigs(
-  multiProvider: MultiProtocolProvider,
+  multiProvider: MultiProviderAdapter,
 ): ViemChain[] {
   return getChainsForProtocol(multiProvider, ProtocolType.Ethereum).map(
     chainMetadataToViemChain,
