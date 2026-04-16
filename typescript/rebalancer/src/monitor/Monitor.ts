@@ -143,23 +143,26 @@ export class Monitor implements IMonitor {
             const tokensByChain = new Map(
               this.warpCore.tokens.map((token) => [token.chainName, token]),
             );
+            // CAST: inventoryBalances keys come from configured monitor chains,
+            // but Object.entries widens them to string.
+            const inventoryBalanceEntries = Object.entries(
+              inventoryBalances,
+            ) as [ChainName, bigint][];
             this.logger.info(
               {
                 chainsMonitored: Object.keys(inventoryBalances).length,
-                balances: Object.entries(inventoryBalances).map(
-                  ([chain, balance]) => {
-                    const token = tokensByChain.get(chain as ChainName);
-                    return {
-                      chain,
-                      tokenSymbol: token?.symbol,
-                      balance: balance.toString(),
-                      balanceFormatted: fromWei(
-                        balance.toString(),
-                        token?.decimals,
-                      ),
-                    };
-                  },
-                ),
+                balances: inventoryBalanceEntries.map(([chain, balance]) => {
+                  const token = tokensByChain.get(chain);
+                  return {
+                    chain,
+                    tokenSymbol: token?.symbol,
+                    balance: balance.toString(),
+                    balanceFormatted: fromWei(
+                      balance.toString(),
+                      token?.decimals,
+                    ),
+                  };
+                }),
               },
               'Inventory balances fetched',
             );
