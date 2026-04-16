@@ -3,3 +3,4 @@ pub mod error;
 pub mod fee_math;
 pub mod instruction;
 pub mod pda_seeds;
+pub mod processor;

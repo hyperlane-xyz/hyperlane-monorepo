@@ -75,6 +75,13 @@ impl FeeDataStrategy {
             Self::Linear(p) | Self::Regressive(p) | Self::Progressive(p) => p,
         }
     }
+
+    /// Returns a mutable reference to the inner FeeParams.
+    pub fn params_mut(&mut self) -> &mut FeeParams {
+        match self {
+            Self::Linear(p) | Self::Regressive(p) | Self::Progressive(p) => p,
+        }
+    }
 }
 
 /// Linear: fee = min(max_fee, amount * max_fee / (2 * half_amount))
