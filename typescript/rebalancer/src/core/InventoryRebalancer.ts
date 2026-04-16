@@ -900,10 +900,12 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     }
 
     // Create bridge plans using destination-local output amounts.
+    const shortfall =
+      requestedLocalAmount > availableInventory
+        ? requestedLocalAmount - availableInventory
+        : 0n;
     const targetWithBuffer =
-      ((requestedLocalAmount + costs.totalCost) *
-        (100n + BRIDGE_BUFFER_PERCENT)) /
-      100n;
+      ((shortfall + costs.totalCost) * (100n + BRIDGE_BUFFER_PERCENT)) / 100n;
     const bridgePlans: Array<{
       chain: ChainName;
       maxSourceInput: bigint;
@@ -942,6 +944,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
           targetOutput: p.targetOutput.toString(),
         })),
         totalPlanned: totalPlanned.toString(),
+        shortfall: shortfall.toString(),
         targetWithBuffer: targetWithBuffer.toString(),
         intentId: intent.id,
       },
