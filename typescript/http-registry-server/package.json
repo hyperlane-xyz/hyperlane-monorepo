@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/http-registry-server",
-  "version": "32.0.0",
+  "version": "32.0.1",
   "private": true,
   "description": "An HTTP server for the Hyperlane registry",
   "homepage": "https://www.hyperlane.xyz",

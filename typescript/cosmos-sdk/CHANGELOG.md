@@ -1,5 +1,13 @@
 # @hyperlane-xyz/cosmos-sdk
 
+## 32.0.1
+
+### Patch Changes
+
+- @hyperlane-xyz/cosmos-types@32.0.1
+- @hyperlane-xyz/utils@32.0.1
+- @hyperlane-xyz/provider-sdk@5.0.1
+
 ## 32.0.0
 
 ### Major Changes
