@@ -96,9 +96,11 @@ export class ExplorerPendingTransfersClient {
     this.nodeByDestinationKey = new Map<string, RouterNodeMetadata>();
 
     for (const node of nodes) {
+      domains.add(node.domainId);
+      if (!isValidAddressEvm(node.routerAddress)) continue;
+
       const routerLower = node.routerAddress.toLowerCase();
       routers.add(routerLower);
-      domains.add(node.domainId);
       this.nodeByDestinationKey.set(`${node.domainId}:${routerLower}`, node);
     }
 

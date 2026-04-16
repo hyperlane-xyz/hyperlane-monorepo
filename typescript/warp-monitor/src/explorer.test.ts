@@ -183,7 +183,7 @@ describe('Explorer Pending Transfers', () => {
     expect(thrown!.message).to.contain('GraphQL errors');
   });
 
-  it('counts sealevel-origin pending transfers even when sender is not a router', async () => {
+  it('counts sealevel-origin pending transfers without querying non-evm routers as recipients', async () => {
     const router = '0x00000000000000000000000000000000000000aa';
     const nodes: RouterNodeMetadata[] = [
       {
@@ -203,8 +203,8 @@ describe('Explorer Pending Transfers', () => {
           'USDC|solanamainnet|So11111111111111111111111111111111111111112',
         chainName: 'solanamainnet' as any,
         domainId: 1399811149,
-        routerAddress: '0x00000000000000000000000000000000000000cc',
-        tokenAddress: '0x00000000000000000000000000000000000000dd',
+        routerAddress: 'So11111111111111111111111111111111111111112',
+        tokenAddress: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
         tokenName: 'USD Coin',
         tokenSymbol: 'USDC',
         tokenDecimals: 6,
@@ -260,7 +260,6 @@ describe('Explorer Pending Transfers', () => {
     expect(body.variables.originDomains).to.deep.equal([8453, 1399811149]);
     expect(body.variables.recipients).to.deep.equal([
       '\\x00000000000000000000000000000000000000aa',
-      '\\x00000000000000000000000000000000000000cc',
     ]);
   });
 });

@@ -2,6 +2,7 @@ import { expect } from 'chai';
 
 import type { IRegistry } from '@hyperlane-xyz/registry';
 import type { Token, WarpCore } from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 import type {
   PendingDestinationTransfer,
   RouterNodeMetadata,
@@ -323,5 +324,64 @@ describe('WarpMonitor', () => {
       );
     expect(inventoryLine).to.exist;
     expect(inventoryLine!.trim().endsWith(' 1')).to.equal(true);
+  });
+
+  it('builds router nodes for non-evm tokens so their domains reach explorer queries', () => {
+    const monitor = new WarpMonitor(
+      {
+        warpRouteId: 'MULTI/sealevel-origin-test',
+        checkFrequency: 10_000,
+      },
+      {} as IRegistry,
+    );
+
+    const buildRouterNodes = (monitor as any).buildRouterNodes as (
+      warpCore: WarpCore,
+      chainMetadata: Record<string, { domainId: number }>,
+    ) => RouterNodeMetadata[];
+
+    const routerNodes = buildRouterNodes(
+      {
+        tokens: [
+          {
+            chainName: 'base',
+            addressOrDenom: '0x00000000000000000000000000000000000000AA',
+            collateralAddressOrDenom:
+              '0x00000000000000000000000000000000000000BB',
+            name: 'USD Coin',
+            symbol: 'USDC',
+            decimals: 6,
+            scale: 1_000_000_000_000,
+          },
+          {
+            chainName: 'solanamainnet',
+            addressOrDenom: 'So11111111111111111111111111111111111111112',
+            collateralAddressOrDenom:
+              'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+            name: 'USD Coin',
+            symbol: 'USDC',
+            decimals: 6,
+            scale: 1_000_000_000_000,
+            protocol: ProtocolType.Sealevel,
+          },
+        ] as Token[],
+      } as WarpCore,
+      {
+        base: { domainId: 8453 },
+        solanamainnet: { domainId: 1399811149 },
+      },
+    );
+
+    expect(routerNodes.map((node) => node.domainId)).to.deep.equal([
+      8453, 1399811149,
+    ]);
+    expect(routerNodes.map((node) => node.routerAddress)).to.deep.equal([
+      '0x00000000000000000000000000000000000000aa',
+      'So11111111111111111111111111111111111111112',
+    ]);
+    expect(routerNodes.map((node) => node.nodeId)).to.deep.equal([
+      'USDC|base|0x00000000000000000000000000000000000000aa',
+      'USDC|solanamainnet|So11111111111111111111111111111111111111112',
+    ]);
   });
 });
