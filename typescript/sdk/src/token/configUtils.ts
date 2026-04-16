@@ -31,6 +31,7 @@ import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { DestinationGas, RemoteRouters } from '../router/types.js';
 import { ChainMap } from '../types.js';
+import { normalizeScale } from '../utils/decimals.js';
 import { WarpCoreConfig } from '../warp/types.js';
 
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
@@ -685,6 +686,16 @@ export function transformConfigToCheck(
     clonedTokenConfig.tokenFee = normalizeTokenFeeForCheck(
       clonedTokenConfig.tokenFee,
     );
+  }
+
+  // Normalize scale so plain numbers and {numerator, denominator} objects compare equal.
+  // Uses !== null so undefined passes through to normalizeScale as identity {1n,1n}.
+  if (clonedTokenConfig.scale !== null) {
+    const normalized = normalizeScale(clonedTokenConfig.scale);
+    clonedTokenConfig.scale = {
+      numerator: normalized.numerator,
+      denominator: normalized.denominator,
+    };
   }
 
   return sortArraysInObject(
