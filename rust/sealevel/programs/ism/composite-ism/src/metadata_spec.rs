@@ -3,7 +3,7 @@ use hyperlane_core::{HyperlaneMessage, H160};
 use solana_program::{account_info::AccountInfo, pubkey::Pubkey};
 
 use crate::{
-    accounts::{derive_domain_pda, load_domain_ism, IsmNode},
+    accounts::{derive_domain_pda, load_and_validate_domain_ism_storage, IsmNode},
     error::Error,
     metadata::parse_routing_amount,
 };
@@ -58,11 +58,14 @@ where
             }
 
             // Load sub-ISM.
-            let loaded = load_domain_ism(program_id, message.origin, domain_pda_info)
-                .map_err(|_| Error::InvalidConfig)?;
+            let loaded =
+                load_and_validate_domain_ism_storage(program_id, message.origin, domain_pda_info)
+                    .map_err(|_| Error::InvalidConfig)?;
 
-            if let Some(ref ism) = loaded {
-                return spec_for_node_with_pdas(ism, message, program_id, accounts_iter);
+            if let Some(ref storage) = loaded {
+                if let Some(ref ism) = storage.ism {
+                    return spec_for_node_with_pdas(ism, message, program_id, accounts_iter);
+                }
             }
 
             if let Some(ref d) = default_ism {
