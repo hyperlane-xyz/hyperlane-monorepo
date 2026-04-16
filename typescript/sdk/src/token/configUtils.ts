@@ -428,9 +428,9 @@ export function normalizeWarpDeployConfigForCheck(params: {
 
     return {
       ...config,
-      mailbox: zeroAddress,
-      hook: zeroAddress,
-      interchainSecurityModule: zeroAddress,
+      mailbox: constants.AddressZero,
+      hook: constants.AddressZero,
+      interchainSecurityModule: constants.AddressZero,
       remoteRouters: {},
       destinationGas: undefined,
       domainMappings: resolveRouterMapConfig(

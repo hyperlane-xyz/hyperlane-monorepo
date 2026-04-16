@@ -1,6 +1,5 @@
 import { expect } from 'chai';
 import { constants } from 'ethers';
-import { zeroAddress } from 'viem';
 
 import {
   DEFAULT_ROUTER_KEY,
@@ -666,9 +665,9 @@ describe('configUtils', () => {
         destinationGas: undefined,
         domainMappings: { [test2.domainId]: 30110 },
         extraOptions: undefined,
-        hook: zeroAddress,
-        interchainSecurityModule: zeroAddress,
-        mailbox: zeroAddress,
+        hook: constants.AddressZero,
+        interchainSecurityModule: constants.AddressZero,
+        mailbox: constants.AddressZero,
         name: 'USDT',
         oft: OTHER_ADDRESS,
         owner: ADDRESS,
@@ -702,7 +701,9 @@ describe('configUtils', () => {
         warpDeployConfig,
       });
 
-      expect(normalized[test1.name]?.extraOptions).to.equal('0xdeadbeef');
+      expect(normalized[test1.name]).to.deep.include({
+        extraOptions: '0xdeadbeef',
+      });
     });
 
     it('leaves non-OFT configs unchanged', () => {
