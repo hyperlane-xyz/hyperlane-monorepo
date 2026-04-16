@@ -18,12 +18,13 @@ use account_utils::AccountData;
 use hyperlane_sealevel_fee::{
     accounts::{
         CrossCollateralRoute, CrossCollateralRouteAccount, FeeAccount, FeeAccountData, FeeData,
-        RouteDomain, RouteDomainAccount,
+        RouteDomain, RouteDomainAccount, DEFAULT_ROUTER, WILDCARD_DOMAIN,
     },
     cc_route_pda_seeds,
     error::Error as FeeError,
     fee_account_pda_seeds,
     fee_math::{FeeDataStrategy, FeeParams},
+    fee_standing_quote_pda_seeds,
     instruction::Instruction as FeeInstruction,
     processor::process_instruction as fee_process_instruction,
     route_domain_pda_seeds,
@@ -265,6 +266,119 @@ fn build_remove_route_ix(fee_account: &Pubkey, owner: &Pubkey, domain: u32) -> I
             AccountMeta::new(*owner, true),
             AccountMeta::new(route_pda, false),
         ],
+    )
+}
+
+/// Derives the standing quote PDA for a domain (or wildcard).
+fn standing_quote_pda_for(fee_account: &Pubkey, domain: u32) -> Pubkey {
+    let domain_le = domain.to_le_bytes();
+    let (pda, _) = Pubkey::find_program_address(
+        fee_standing_quote_pda_seeds!(fee_account, &domain_le),
+        &fee_program_id(),
+    );
+    pda
+}
+
+/// Builds a QuoteFee instruction for Leaf mode (no route accounts, no quote accounts).
+fn build_quote_fee_leaf_ix(
+    fee_account: &Pubkey,
+    payer: &Pubkey,
+    destination_domain: u32,
+    recipient: H256,
+    amount: u64,
+) -> Instruction {
+    // Standing quote PDAs (always present, uninitialized for on-chain-only tests).
+    let domain_quotes_pda = standing_quote_pda_for(fee_account, destination_domain);
+    let wildcard_quotes_pda = standing_quote_pda_for(fee_account, WILDCARD_DOMAIN);
+
+    Instruction::new_with_borsh(
+        fee_program_id(),
+        &FeeInstruction::QuoteFee(hyperlane_sealevel_fee::instruction::QuoteFee {
+            destination_domain,
+            recipient,
+            amount,
+            target_router: H256::zero(),
+        }),
+        vec![
+            AccountMeta::new_readonly(system_program::ID, false),
+            AccountMeta::new_readonly(*fee_account, false),
+            AccountMeta::new(*payer, true),
+            // No transient PDA — first variable account is domain standing quote.
+            AccountMeta::new_readonly(domain_quotes_pda, false),
+            AccountMeta::new_readonly(wildcard_quotes_pda, false),
+        ],
+    )
+}
+
+/// Builds a QuoteFee instruction for Routing mode.
+fn build_quote_fee_routing_ix(
+    fee_account: &Pubkey,
+    payer: &Pubkey,
+    destination_domain: u32,
+    recipient: H256,
+    amount: u64,
+) -> Instruction {
+    let domain_quotes_pda = standing_quote_pda_for(fee_account, destination_domain);
+    let wildcard_quotes_pda = standing_quote_pda_for(fee_account, WILDCARD_DOMAIN);
+    let route_pda = route_pda_for(fee_account, destination_domain);
+
+    Instruction::new_with_borsh(
+        fee_program_id(),
+        &FeeInstruction::QuoteFee(hyperlane_sealevel_fee::instruction::QuoteFee {
+            destination_domain,
+            recipient,
+            amount,
+            target_router: H256::zero(),
+        }),
+        vec![
+            AccountMeta::new_readonly(system_program::ID, false),
+            AccountMeta::new_readonly(*fee_account, false),
+            AccountMeta::new(*payer, true),
+            AccountMeta::new_readonly(domain_quotes_pda, false),
+            AccountMeta::new_readonly(wildcard_quotes_pda, false),
+            AccountMeta::new_readonly(route_pda, false),
+        ],
+    )
+}
+
+/// Builds a QuoteFee instruction for CrossCollateralRouting mode.
+/// `include_default` controls whether the DEFAULT_ROUTER PDA is appended (for fallback tests).
+fn build_quote_fee_cc_ix(
+    fee_account: &Pubkey,
+    payer: &Pubkey,
+    destination_domain: u32,
+    recipient: H256,
+    amount: u64,
+    target_router: H256,
+    include_default: bool,
+) -> Instruction {
+    let domain_quotes_pda = standing_quote_pda_for(fee_account, destination_domain);
+    let wildcard_quotes_pda = standing_quote_pda_for(fee_account, WILDCARD_DOMAIN);
+    let cc_specific_pda = cc_route_pda_for(fee_account, destination_domain, &target_router);
+
+    let mut accounts = vec![
+        AccountMeta::new_readonly(system_program::ID, false),
+        AccountMeta::new_readonly(*fee_account, false),
+        AccountMeta::new(*payer, true),
+        AccountMeta::new_readonly(domain_quotes_pda, false),
+        AccountMeta::new_readonly(wildcard_quotes_pda, false),
+        AccountMeta::new_readonly(cc_specific_pda, false),
+    ];
+
+    if include_default {
+        let cc_default_pda = cc_route_pda_for(fee_account, destination_domain, &DEFAULT_ROUTER);
+        accounts.push(AccountMeta::new_readonly(cc_default_pda, false));
+    }
+
+    Instruction::new_with_borsh(
+        fee_program_id(),
+        &FeeInstruction::QuoteFee(hyperlane_sealevel_fee::instruction::QuoteFee {
+            destination_domain,
+            recipient,
+            amount,
+            target_router,
+        }),
+        accounts,
     )
 }
 
@@ -1059,6 +1173,360 @@ mod remove_cc_route {
             TransactionError::InstructionError(
                 0,
                 InstructionError::Custom(FeeError::RouteNotFound as u32),
+            ),
+        );
+    }
+}
+
+mod quote_fee {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_leaf_linear() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            FeeData::Leaf(FeeDataStrategy::Linear(FeeParams {
+                max_fee: 1000,
+                half_amount: 500,
+            })),
+        )
+        .await;
+
+        let ix = build_quote_fee_leaf_ix(
+            &fee_key,
+            &payer.pubkey(),
+            42,
+            H256::zero(),
+            500, // at half_amount → fee = 500
+        );
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_leaf_regressive() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            FeeData::Leaf(FeeDataStrategy::Regressive(FeeParams {
+                max_fee: 1000,
+                half_amount: 500,
+            })),
+        )
+        .await;
+
+        let ix = build_quote_fee_leaf_ix(&fee_key, &payer.pubkey(), 42, H256::zero(), 1000);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_leaf_progressive() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            FeeData::Leaf(FeeDataStrategy::Progressive(FeeParams {
+                max_fee: 1000,
+                half_amount: 500,
+            })),
+        )
+        .await;
+
+        let ix = build_quote_fee_leaf_ix(&fee_key, &payer.pubkey(), 42, H256::zero(), 1000);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_routing_with_configured_domain() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            FeeData::Routing,
+        )
+        .await;
+
+        let domain = 42u32;
+        let strategy = FeeDataStrategy::Linear(FeeParams {
+            max_fee: 500,
+            half_amount: 250,
+        });
+        let ix = build_set_route_ix(&fee_key, &payer.pubkey(), domain, strategy);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let ix = build_quote_fee_routing_ix(
+            &fee_key,
+            &payer.pubkey(),
+            domain,
+            H256::zero(),
+            250, // at half_amount → fee = 250
+        );
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_routing_unconfigured_domain_fails() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            FeeData::Routing,
+        )
+        .await;
+
+        let ix = build_quote_fee_routing_ix(
+            &fee_key,
+            &payer.pubkey(),
+            99, // no route configured
+            H256::zero(),
+            1000,
+        );
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::RouteNotFound as u32),
+            ),
+        );
+    }
+
+    #[tokio::test]
+    async fn test_cc_routing_specific_route() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            FeeData::CrossCollateralRouting,
+        )
+        .await;
+
+        let dest = 42u32;
+        let target_router = H256::random();
+        let strategy = FeeDataStrategy::Regressive(FeeParams {
+            max_fee: 500,
+            half_amount: 250,
+        });
+        let ix = build_set_cc_route_ix(&fee_key, &payer.pubkey(), dest, target_router, strategy);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let ix = build_quote_fee_cc_ix(
+            &fee_key,
+            &payer.pubkey(),
+            dest,
+            H256::zero(),
+            500,
+            target_router,
+            false, // specific route exists, no need for default
+        );
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_cc_routing_falls_back_to_default_router() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            FeeData::CrossCollateralRouting,
+        )
+        .await;
+
+        let dest = 42u32;
+        // Only set the DEFAULT_ROUTER route, not the specific one.
+        let strategy = FeeDataStrategy::Linear(FeeParams {
+            max_fee: 300,
+            half_amount: 150,
+        });
+        let ix = build_set_cc_route_ix(&fee_key, &payer.pubkey(), dest, DEFAULT_ROUTER, strategy);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // QuoteFee with a specific target_router that has no route → falls back to default.
+        let ix = build_quote_fee_cc_ix(
+            &fee_key,
+            &payer.pubkey(),
+            dest,
+            H256::zero(),
+            150,
+            H256::random(), // specific router not configured
+            true,           // include default PDA for fallback
+        );
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_cc_routing_no_route_fails() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            FeeData::CrossCollateralRouting,
+        )
+        .await;
+
+        // No routes configured at all.
+        let ix = build_quote_fee_cc_ix(
+            &fee_key,
+            &payer.pubkey(),
+            42,
+            H256::zero(),
+            1000,
+            H256::random(),
+            true, // include default PDA (both uninitialized)
+        );
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::RouteNotFound as u32),
+            ),
+        );
+    }
+
+    #[tokio::test]
+    async fn test_cc_routing_extraneous_default_when_specific_exists() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            FeeData::CrossCollateralRouting,
+        )
+        .await;
+
+        let dest = 42u32;
+        let target_router = H256::random();
+        let strategy = FeeDataStrategy::Linear(FeeParams {
+            max_fee: 500,
+            half_amount: 250,
+        });
+        let ix = build_set_cc_route_ix(&fee_key, &payer.pubkey(), dest, target_router, strategy);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Pass both specific + default PDAs even though specific exists.
+        // The default PDA should be flagged as extraneous.
+        let ix = build_quote_fee_cc_ix(
+            &fee_key,
+            &payer.pubkey(),
+            dest,
+            H256::zero(),
+            500,
+            target_router,
+            true, // include default — should be extraneous
+        );
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::ExtraneousAccount as u32),
+            ),
+        );
+    }
+
+    #[tokio::test]
+    async fn test_cc_routing_extraneous_after_both_pdas() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            FeeData::CrossCollateralRouting,
+        )
+        .await;
+
+        let dest = 42u32;
+        let strategy = FeeDataStrategy::Linear(FeeParams {
+            max_fee: 300,
+            half_amount: 150,
+        });
+        let ix = build_set_cc_route_ix(&fee_key, &payer.pubkey(), dest, DEFAULT_ROUTER, strategy);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let target_router = H256::random();
+        let domain_quotes_pda = standing_quote_pda_for(&fee_key, dest);
+        let wildcard_quotes_pda = standing_quote_pda_for(&fee_key, WILDCARD_DOMAIN);
+        let cc_specific_pda = cc_route_pda_for(&fee_key, dest, &target_router);
+        let cc_default_pda = cc_route_pda_for(&fee_key, dest, &DEFAULT_ROUTER);
+
+        let ix = Instruction::new_with_borsh(
+            fee_program_id(),
+            &FeeInstruction::QuoteFee(hyperlane_sealevel_fee::instruction::QuoteFee {
+                destination_domain: dest,
+                recipient: H256::zero(),
+                amount: 150,
+                target_router,
+            }),
+            vec![
+                AccountMeta::new_readonly(system_program::ID, false),
+                AccountMeta::new_readonly(fee_key, false),
+                AccountMeta::new(payer.pubkey(), true),
+                AccountMeta::new_readonly(domain_quotes_pda, false),
+                AccountMeta::new_readonly(wildcard_quotes_pda, false),
+                AccountMeta::new_readonly(cc_specific_pda, false),
+                AccountMeta::new_readonly(cc_default_pda, false),
+                AccountMeta::new_readonly(Pubkey::new_unique(), false), // extraneous
+            ],
+        );
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::ExtraneousAccount as u32),
             ),
         );
     }
