@@ -17,11 +17,17 @@ use access_control::AccessControl;
 use account_utils::{create_pda_account, verify_account_uninitialized, SizedData};
 
 use crate::{
-    accounts::{FeeAccount, FeeAccountData, FeeData, RouteDomain, RouteDomainAccount},
+    accounts::{
+        CrossCollateralRoute, CrossCollateralRouteAccount, FeeAccount, FeeAccountData, FeeData,
+        RouteDomain, RouteDomainAccount,
+    },
+    cc_route_pda_seeds,
     error::Error,
     fee_account_pda_seeds,
     fee_math::FeeParams,
-    instruction::{InitFee, Instruction, SetRoute},
+    instruction::{
+        InitFee, Instruction, RemoveCrossCollateralRoute, SetCrossCollateralRoute, SetRoute,
+    },
     route_domain_pda_seeds,
 };
 
@@ -39,8 +45,12 @@ pub fn process_instruction(
         Instruction::QuoteFee(_) => todo!("QuoteFee"),
         Instruction::SetRoute(data) => process_set_route(program_id, accounts, data),
         Instruction::RemoveRoute(domain) => process_remove_route(program_id, accounts, domain),
-        Instruction::SetCrossCollateralRoute(_) => todo!("SetCrossCollateralRoute"),
-        Instruction::RemoveCrossCollateralRoute(_) => todo!("RemoveCrossCollateralRoute"),
+        Instruction::SetCrossCollateralRoute(data) => {
+            process_set_cc_route(program_id, accounts, data)
+        }
+        Instruction::RemoveCrossCollateralRoute(data) => {
+            process_remove_cc_route(program_id, accounts, data)
+        }
         Instruction::UpdateFeeParams(params) => {
             process_update_fee_params(program_id, accounts, params)
         }
@@ -331,6 +341,141 @@ fn process_remove_route(
     close_pda(route_pda_info, owner_info)?;
 
     msg!("Removed route for domain {}", domain);
+
+    Ok(())
+}
+
+/// Set or update a cross-collateral route (owner-only).
+/// Creates the CC route PDA if it doesn't exist, or updates it if it does.
+/// Requires the fee account to be FeeData::CrossCollateralRouting.
+///
+/// Accounts:
+/// 0. `[executable]` System program.
+/// 1. `[]` Fee account.
+/// 2. `[signer, writable]` Owner.
+/// 3. `[writable]` CrossCollateralRoute PDA.
+fn process_set_cc_route(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    data: SetCrossCollateralRoute,
+) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    // Account 0: System program.
+    let system_program_info = next_account_info(accounts_iter)?;
+    if *system_program_info.key != system_program::ID {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+
+    // Account 1 + 2: Fee account (read-only) + owner (signer).
+    let (fee_account_info, fee_account) =
+        fetch_fee_account_and_verify_owner(program_id, accounts_iter)?;
+
+    if !matches!(fee_account.fee_data, FeeData::CrossCollateralRouting) {
+        return Err(Error::NotCrossCollateralRoutingFeeData.into());
+    }
+
+    // Account 3: CrossCollateralRoute PDA.
+    let cc_route_pda_info = next_account_info(accounts_iter)?;
+    let dest_le = data.destination.to_le_bytes();
+    let (expected_cc_key, cc_bump) = Pubkey::find_program_address(
+        cc_route_pda_seeds!(fee_account_info.key, &dest_le, data.target_router),
+        program_id,
+    );
+    if *cc_route_pda_info.key != expected_cc_key {
+        return Err(ProgramError::InvalidSeeds);
+    }
+
+    ensure_no_extraneous_accounts(accounts_iter)?;
+
+    let cc_route = CrossCollateralRouteAccount::new(
+        CrossCollateralRoute {
+            bump: cc_bump,
+            fee_data: data.fee_data,
+        }
+        .into(),
+    );
+
+    if cc_route_pda_info.data_is_empty() && cc_route_pda_info.owner == &system_program::ID {
+        let owner_info = &accounts[2];
+        let rent = Rent::get()?;
+        create_pda_account(
+            owner_info,
+            &rent,
+            SizedData::size(&cc_route),
+            program_id,
+            system_program_info,
+            cc_route_pda_info,
+            cc_route_pda_seeds!(fee_account_info.key, &dest_le, data.target_router, cc_bump),
+        )?;
+    } else if cc_route_pda_info.owner != program_id {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+
+    cc_route.store(cc_route_pda_info, false)?;
+
+    msg!(
+        "Set CC route for destination {} target_router {}",
+        data.destination,
+        data.target_router
+    );
+
+    Ok(())
+}
+
+/// Remove a cross-collateral route, closing the CC route PDA (owner-only).
+/// Returns rent to the owner. Requires FeeData::CrossCollateralRouting.
+///
+/// Accounts:
+/// 0. `[executable]` System program.
+/// 1. `[]` Fee account.
+/// 2. `[signer, writable]` Owner (receives rent refund).
+/// 3. `[writable]` CrossCollateralRoute PDA.
+fn process_remove_cc_route(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    data: RemoveCrossCollateralRoute,
+) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    // Account 0: System program.
+    let _system_program_info = next_account_info(accounts_iter)?;
+    if *_system_program_info.key != system_program::ID {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+
+    // Account 1 + 2: Fee account + owner.
+    let (fee_account_info, fee_account) =
+        fetch_fee_account_and_verify_owner(program_id, accounts_iter)?;
+
+    if !matches!(fee_account.fee_data, FeeData::CrossCollateralRouting) {
+        return Err(Error::NotCrossCollateralRoutingFeeData.into());
+    }
+
+    // Account 3: CrossCollateralRoute PDA.
+    let cc_route_pda_info = next_account_info(accounts_iter)?;
+    let dest_le = data.destination.to_le_bytes();
+    let (expected_cc_key, _) = Pubkey::find_program_address(
+        cc_route_pda_seeds!(fee_account_info.key, &dest_le, data.target_router),
+        program_id,
+    );
+    if *cc_route_pda_info.key != expected_cc_key {
+        return Err(ProgramError::InvalidSeeds);
+    }
+    if cc_route_pda_info.owner != program_id {
+        return Err(Error::RouteNotFound.into());
+    }
+
+    ensure_no_extraneous_accounts(accounts_iter)?;
+
+    let owner_info = &accounts[2];
+    close_pda(cc_route_pda_info, owner_info)?;
+
+    msg!(
+        "Removed CC route for destination {} target_router {}",
+        data.destination,
+        data.target_router
+    );
 
     Ok(())
 }

@@ -16,7 +16,11 @@ use solana_system_interface::program as system_program;
 
 use account_utils::AccountData;
 use hyperlane_sealevel_fee::{
-    accounts::{FeeAccount, FeeAccountData, FeeData, RouteDomain, RouteDomainAccount},
+    accounts::{
+        CrossCollateralRoute, CrossCollateralRouteAccount, FeeAccount, FeeAccountData, FeeData,
+        RouteDomain, RouteDomainAccount,
+    },
+    cc_route_pda_seeds,
     error::Error as FeeError,
     fee_account_pda_seeds,
     fee_math::{FeeDataStrategy, FeeParams},
@@ -150,6 +154,73 @@ async fn fund_keypair(banks_client: &mut BanksClient, payer: &Keypair, target: &
         recent_blockhash,
     );
     banks_client.process_transaction(tx).await.unwrap();
+}
+
+async fn fetch_cc_route(banks_client: &mut BanksClient, key: Pubkey) -> CrossCollateralRoute {
+    let account = banks_client.get_account(key).await.unwrap().unwrap();
+    CrossCollateralRouteAccount::fetch(&mut &account.data[..])
+        .unwrap()
+        .into_inner()
+        .data
+}
+
+fn cc_route_pda_for(fee_account: &Pubkey, destination: u32, target_router: &H256) -> Pubkey {
+    let dest_le = destination.to_le_bytes();
+    let (pda, _) = Pubkey::find_program_address(
+        cc_route_pda_seeds!(fee_account, &dest_le, target_router),
+        &fee_program_id(),
+    );
+    pda
+}
+
+fn build_set_cc_route_ix(
+    fee_account: &Pubkey,
+    owner: &Pubkey,
+    destination: u32,
+    target_router: H256,
+    strategy: FeeDataStrategy,
+) -> Instruction {
+    let cc_pda = cc_route_pda_for(fee_account, destination, &target_router);
+    Instruction::new_with_borsh(
+        fee_program_id(),
+        &FeeInstruction::SetCrossCollateralRoute(
+            hyperlane_sealevel_fee::instruction::SetCrossCollateralRoute {
+                destination,
+                target_router,
+                fee_data: strategy,
+            },
+        ),
+        vec![
+            AccountMeta::new_readonly(system_program::ID, false),
+            AccountMeta::new_readonly(*fee_account, false),
+            AccountMeta::new(*owner, true),
+            AccountMeta::new(cc_pda, false),
+        ],
+    )
+}
+
+fn build_remove_cc_route_ix(
+    fee_account: &Pubkey,
+    owner: &Pubkey,
+    destination: u32,
+    target_router: H256,
+) -> Instruction {
+    let cc_pda = cc_route_pda_for(fee_account, destination, &target_router);
+    Instruction::new_with_borsh(
+        fee_program_id(),
+        &FeeInstruction::RemoveCrossCollateralRoute(
+            hyperlane_sealevel_fee::instruction::RemoveCrossCollateralRoute {
+                destination,
+                target_router,
+            },
+        ),
+        vec![
+            AccountMeta::new_readonly(system_program::ID, false),
+            AccountMeta::new_readonly(*fee_account, false),
+            AccountMeta::new(*owner, true),
+            AccountMeta::new(cc_pda, false),
+        ],
+    )
 }
 
 fn route_pda_for(fee_account: &Pubkey, domain: u32) -> Pubkey {
@@ -729,6 +800,259 @@ mod remove_route {
         .await;
 
         let ix = build_remove_route_ix(&fee_key, &payer.pubkey(), 42);
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::RouteNotFound as u32),
+            ),
+        );
+    }
+}
+
+mod set_cc_route {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_create_cc_route() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            FeeData::CrossCollateralRouting,
+        )
+        .await;
+
+        let dest = 42u32;
+        let target_router = H256::random();
+        let strategy = FeeDataStrategy::Regressive(FeeParams {
+            max_fee: 500,
+            half_amount: 250,
+        });
+        let ix = build_set_cc_route_ix(
+            &fee_key,
+            &payer.pubkey(),
+            dest,
+            target_router,
+            strategy.clone(),
+        );
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let route = fetch_cc_route(
+            &mut banks_client,
+            cc_route_pda_for(&fee_key, dest, &target_router),
+        )
+        .await;
+        assert_eq!(route.fee_data, strategy);
+    }
+
+    #[tokio::test]
+    async fn test_update_existing_cc_route() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            FeeData::CrossCollateralRouting,
+        )
+        .await;
+
+        let dest = 42u32;
+        let target_router = H256::random();
+        let strategy1 = FeeDataStrategy::Linear(FeeParams {
+            max_fee: 100,
+            half_amount: 50,
+        });
+        let ix = build_set_cc_route_ix(&fee_key, &payer.pubkey(), dest, target_router, strategy1);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let strategy2 = FeeDataStrategy::Progressive(FeeParams {
+            max_fee: 999,
+            half_amount: 333,
+        });
+        let ix = build_set_cc_route_ix(
+            &fee_key,
+            &payer.pubkey(),
+            dest,
+            target_router,
+            strategy2.clone(),
+        );
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let route = fetch_cc_route(
+            &mut banks_client,
+            cc_route_pda_for(&fee_key, dest, &target_router),
+        )
+        .await;
+        assert_eq!(route.fee_data, strategy2);
+    }
+
+    #[tokio::test]
+    async fn test_different_target_routers_are_separate() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            FeeData::CrossCollateralRouting,
+        )
+        .await;
+
+        let dest = 42u32;
+        let router_a = H256::random();
+        let router_b = H256::random();
+
+        let strategy_a = FeeDataStrategy::Linear(FeeParams {
+            max_fee: 100,
+            half_amount: 50,
+        });
+        let strategy_b = FeeDataStrategy::Regressive(FeeParams {
+            max_fee: 200,
+            half_amount: 100,
+        });
+
+        let ix = build_set_cc_route_ix(
+            &fee_key,
+            &payer.pubkey(),
+            dest,
+            router_a,
+            strategy_a.clone(),
+        );
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let ix = build_set_cc_route_ix(
+            &fee_key,
+            &payer.pubkey(),
+            dest,
+            router_b,
+            strategy_b.clone(),
+        );
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let route_a = fetch_cc_route(
+            &mut banks_client,
+            cc_route_pda_for(&fee_key, dest, &router_a),
+        )
+        .await;
+        let route_b = fetch_cc_route(
+            &mut banks_client,
+            cc_route_pda_for(&fee_key, dest, &router_b),
+        )
+        .await;
+        assert_eq!(route_a.fee_data, strategy_a);
+        assert_eq!(route_b.fee_data, strategy_b);
+    }
+
+    #[tokio::test]
+    async fn test_on_routing_fails() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            FeeData::Routing,
+        )
+        .await;
+
+        let ix = build_set_cc_route_ix(
+            &fee_key,
+            &payer.pubkey(),
+            42,
+            H256::random(),
+            FeeDataStrategy::Linear(FeeParams {
+                max_fee: 100,
+                half_amount: 50,
+            }),
+        );
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::NotCrossCollateralRoutingFeeData as u32),
+            ),
+        );
+    }
+}
+
+mod remove_cc_route {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_remove_existing_cc_route() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            FeeData::CrossCollateralRouting,
+        )
+        .await;
+
+        let dest = 42u32;
+        let target_router = H256::random();
+        let ix = build_set_cc_route_ix(
+            &fee_key,
+            &payer.pubkey(),
+            dest,
+            target_router,
+            FeeDataStrategy::Linear(FeeParams {
+                max_fee: 100,
+                half_amount: 50,
+            }),
+        );
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let ix = build_remove_cc_route_ix(&fee_key, &payer.pubkey(), dest, target_router);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let account = banks_client
+            .get_account(cc_route_pda_for(&fee_key, dest, &target_router))
+            .await
+            .unwrap();
+        assert!(account.is_none() || account.unwrap().data.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_remove_nonexistent_cc_route_fails() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            FeeData::CrossCollateralRouting,
+        )
+        .await;
+
+        let ix = build_remove_cc_route_ix(&fee_key, &payer.pubkey(), 42, H256::random());
         let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
         assert_tx_error(
             result,
