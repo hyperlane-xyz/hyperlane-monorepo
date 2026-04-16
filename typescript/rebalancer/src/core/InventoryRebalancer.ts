@@ -1474,6 +1474,8 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         'Inventory movement transaction executed',
       );
 
+      // Keep bridge consumption in source-local units; intent fulfillment only
+      // advances from canonical inventory_deposit amounts after transferRemote.
       await this.actionTracker.createRebalanceAction({
         intentId: intent.id,
         origin: this.multiProvider.getDomainId(sourceChain),

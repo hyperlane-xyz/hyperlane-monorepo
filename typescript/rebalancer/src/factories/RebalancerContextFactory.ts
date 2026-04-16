@@ -770,10 +770,11 @@ export class RebalancerContextFactory {
         ) {
           const adapter = token.getHypAdapter(this.warpCore.multiProvider);
           const bridgedSupply = await adapter.getBridgedSupply();
-          initialTotalCollateral += normalizeToCanonical(
-            bridgedSupply ?? 0n,
-            token,
+          assert(
+            bridgedSupply !== undefined,
+            `Missing bridged supply for ${token.chainName} while computing initial total collateral for warp route ${this.config.warpRouteId}`,
           );
+          initialTotalCollateral += normalizeToCanonical(bridgedSupply, token);
         }
       }),
     );

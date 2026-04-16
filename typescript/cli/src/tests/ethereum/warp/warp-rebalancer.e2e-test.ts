@@ -441,7 +441,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       };
 
       const getProcessErrorOutput = (error: unknown): string => {
-        const outputs = [observedLines.join('\n')];
+        const outputs: string[] = [];
 
         outputs.push(getErrorLines(error).join('\n'));
 

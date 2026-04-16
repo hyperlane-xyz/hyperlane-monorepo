@@ -277,6 +277,48 @@ describe('RebalancerContextFactory', () => {
       );
     });
 
+    it('should fail fast when bridged supply is unavailable during initial collateral calculation', async () => {
+      const { multiProvider } = createMockMultiProvider([
+        { name: 'ethereum', protocol: ProtocolType.Ethereum },
+        { name: 'arbitrum', protocol: ProtocolType.Ethereum },
+      ]);
+
+      const factory = await createFactory(createMockConfig(), multiProvider, {
+        tokens: [
+          createToken(
+            'ethereum',
+            TEST_ADDRESSES.ethereum,
+            TokenStandard.EvmHypCollateral,
+          ),
+          createToken(
+            'arbitrum',
+            TEST_ADDRESSES.arbitrum,
+            TokenStandard.EvmHypSynthetic,
+          ),
+        ],
+      });
+
+      const collateralToken = factory
+        .getWarpCore()
+        .tokens.find((token) => token.chainName === 'ethereum');
+      assert(collateralToken, 'Expected ethereum collateral token in test');
+
+      sandbox.stub(collateralToken, 'getHypAdapter').returns({
+        getBridgedSupply: sandbox.stub().resolves(undefined),
+      } as any);
+
+      let error: Error | undefined;
+      try {
+        await factory.createStrategy();
+      } catch (caught) {
+        error = caught as Error;
+      }
+
+      expect(error?.message).to.equal(
+        'Missing bridged supply for ethereum while computing initial total collateral for warp route USDC/paradex',
+      );
+    });
+
     it('should fail early when inventory override origin protocol signer key is missing', async () => {
       const sealevelChain = 'solana';
       const evmChain = 'ethereum';

@@ -1485,8 +1485,9 @@ describe('InventoryRebalancer E2E', () => {
     });
 
     it('does not inflate each split bridge plan to minViableTransfer', async () => {
-      const amount = 10_000_000_000_000_000n;
+      const amount = 7_000_000_000_000_000n;
       const perChainInventory = 6_000_000_000_000_000n;
+      const reservedGas = 1_000_000_000n;
 
       for (const token of warpCore.tokens) {
         if (
@@ -1529,6 +1530,25 @@ describe('InventoryRebalancer E2E', () => {
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.true;
       expect(bridge.execute.callCount).to.equal(2);
+
+      const reverseQuoteRequests = bridge.quote
+        .getCalls()
+        .map((call) => call.args[0])
+        .filter((params) => params.toAmount !== undefined);
+      expect(reverseQuoteRequests).to.have.lengthOf(2);
+
+      const requestedOutputs = reverseQuoteRequests
+        .map((params) => params.toAmount as bigint)
+        .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+      const maxPerSourceOutput = perChainInventory - reservedGas;
+      const totalAvailableCapacity = maxPerSourceOutput * 2n;
+
+      expect(requestedOutputs.every((output) => output <= maxPerSourceOutput))
+        .to.be.true;
+      expect(requestedOutputs[0] < maxPerSourceOutput).to.be.true;
+      expect(requestedOutputs[1]).to.equal(maxPerSourceOutput);
+      expect(requestedOutputs[0] + requestedOutputs[1] < totalAvailableCapacity)
+        .to.be.true;
     });
 
     it('applies 5% buffer to total bridge amount', async () => {
