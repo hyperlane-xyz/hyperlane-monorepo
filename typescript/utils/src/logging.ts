@@ -75,6 +75,33 @@ export function createHyperlanePinoLogger(
   logLevel: LevelWithSilent,
   logFormat: LogFormat,
 ) {
+  const createFallbackLogger = () =>
+    pino({
+      level: logLevel,
+      name: 'hyperlane',
+      formatters: {
+        // Remove pino's default bindings of hostname but keep pid
+        bindings: (defaultBindings) => ({ pid: defaultBindings.pid }),
+      },
+      hooks: {
+        logMethod(inputArgs, method, level) {
+          // Pino has no simple way of setting custom log shapes and they
+          // recommend against using pino-pretty in production so when
+          // pretty is enabled we circumvent pino and log directly to console
+          if (
+            logFormat === LogFormat.Pretty &&
+            level >= pino.levels.values[logLevel]
+          ) {
+            // eslint-disable-next-line no-console
+            console.log(...inputArgs);
+            // Then return null to prevent pino from logging
+            return null;
+          }
+          return method.apply(this, inputArgs);
+        },
+      },
+    });
+
   // In development, pino-pretty is used for a better dev experience,
   // but only if the log format is 'pretty'. This allows for JSON logs
   // in development as well if explicitly configured.
@@ -82,45 +109,30 @@ export function createHyperlanePinoLogger(
     process.env.NODE_ENV === 'development' &&
     logFormat === LogFormat.Pretty
   ) {
-    return pino({
-      level: logLevel,
-      transport: {
-        target: 'pino-pretty',
-        options: {
-          colorize: true,
-          translateTime: 'SYS:standard',
-          ignore: 'pid,hostname',
+    try {
+      return pino({
+        level: logLevel,
+        transport: {
+          target: 'pino-pretty',
+          options: {
+            colorize: true,
+            translateTime: 'SYS:standard',
+            ignore: 'pid,hostname',
+          },
         },
-      },
-    });
+      });
+    } catch (err) {
+      const fallbackLogger = createFallbackLogger();
+      fallbackLogger.warn(
+        err,
+        'Could not initialize pino-pretty, falling back to built-in pretty logger',
+      );
+      return fallbackLogger;
+    }
   }
 
   // In production (or other envs), use the original hook-based logger
-  return pino({
-    level: logLevel,
-    name: 'hyperlane',
-    formatters: {
-      // Remove pino's default bindings of hostname but keep pid
-      bindings: (defaultBindings) => ({ pid: defaultBindings.pid }),
-    },
-    hooks: {
-      logMethod(inputArgs, method, level) {
-        // Pino has no simple way of setting custom log shapes and they
-        // recommend against using pino-pretty in production so when
-        // pretty is enabled we circumvent pino and log directly to console
-        if (
-          logFormat === LogFormat.Pretty &&
-          level >= pino.levels.values[logLevel]
-        ) {
-          // eslint-disable-next-line no-console
-          console.log(...inputArgs);
-          // Then return null to prevent pino from logging
-          return null;
-        }
-        return method.apply(this, inputArgs);
-      },
-    },
-  });
+  return createFallbackLogger();
 }
 
 export function ethersBigNumberSerializer(key: string, value: any): any {
