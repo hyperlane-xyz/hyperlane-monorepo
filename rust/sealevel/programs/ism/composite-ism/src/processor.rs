@@ -912,7 +912,7 @@ mod test {
         let mut lamports = 0u64;
         let acc = account_info_from_data(&key, &id, &mut data, &mut lamports);
 
-        let meta = crate::multisig_metadata::MultisigIsmMessageIdMetadata {
+        let meta = multisig_ism::MultisigIsmMessageIdMetadata {
             origin_merkle_tree_hook: checkpoint.checkpoint.merkle_tree_hook_address,
             merkle_root: checkpoint.checkpoint.root,
             merkle_index: checkpoint.checkpoint.index,

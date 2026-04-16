@@ -21,11 +21,11 @@ use hyperlane_core::{Checkpoint, CheckpointWithMessageId, Encode, H160, H256, U2
 use hyperlane_sealevel_composite_ism::{
     accounts::{DomainIsmAccount, IsmNode},
     error::Error,
-    multisig_metadata::MultisigIsmMessageIdMetadata,
 };
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction,
 };
+use multisig_ism::MultisigIsmMessageIdMetadata;
 use solana_program::instruction::AccountMeta;
 use solana_sdk::{
     instruction::{Instruction, InstructionError},

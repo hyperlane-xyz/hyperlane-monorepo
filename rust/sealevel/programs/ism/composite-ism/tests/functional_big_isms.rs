@@ -22,10 +22,9 @@ mod common;
 
 use ecdsa_signature::EcdsaSignature;
 use hyperlane_core::{Checkpoint, CheckpointWithMessageId, Encode, H160, H256};
-use hyperlane_sealevel_composite_ism::{
-    accounts::IsmNode, multisig_metadata::MultisigIsmMessageIdMetadata,
-};
+use hyperlane_sealevel_composite_ism::accounts::IsmNode;
 use hyperlane_sealevel_interchain_security_module_interface::VerifyInstruction;
+use multisig_ism::MultisigIsmMessageIdMetadata;
 use solana_program_test::ProgramTest;
 use solana_sdk::signature::Signer;
 use std::str::FromStr;

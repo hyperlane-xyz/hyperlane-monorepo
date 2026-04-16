@@ -7,6 +7,8 @@ use solana_program::{
     sysvar::Sysvar,
 };
 
+use multisig_ism::MultisigIsmMessageIdMetadata;
+
 use crate::{
     account_metas::contains_rate_limited,
     accounts::{
@@ -14,7 +16,6 @@ use crate::{
     },
     error::Error,
     metadata::{parse_routing_amount, sub_metadata_at},
-    multisig_metadata::MultisigIsmMessageIdMetadata,
     rate_limit::calculate_current_level,
 };
 
@@ -398,7 +399,7 @@ mod test {
             threshold: 2,
         };
 
-        let meta = crate::multisig_metadata::MultisigIsmMessageIdMetadata {
+        let meta = multisig_ism::MultisigIsmMessageIdMetadata {
             origin_merkle_tree_hook: checkpoint.checkpoint.merkle_tree_hook_address,
             merkle_root: checkpoint.checkpoint.root,
             merkle_index: checkpoint.checkpoint.index,
@@ -432,7 +433,7 @@ mod test {
         };
 
         // Two copies of signature[0] — duplicate cannot satisfy a second slot.
-        let meta = crate::multisig_metadata::MultisigIsmMessageIdMetadata {
+        let meta = multisig_ism::MultisigIsmMessageIdMetadata {
             origin_merkle_tree_hook: checkpoint.checkpoint.merkle_tree_hook_address,
             merkle_root: checkpoint.checkpoint.root,
             merkle_index: checkpoint.checkpoint.index,

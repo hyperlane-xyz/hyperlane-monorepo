@@ -20,9 +20,9 @@ use hyperlane_core::{Checkpoint, CheckpointWithMessageId, Encode, H160, H256};
 use hyperlane_sealevel_composite_ism::{
     accounts::{CompositeIsmAccount, IsmNode},
     error::Error,
-    multisig_metadata::MultisigIsmMessageIdMetadata,
 };
 use hyperlane_sealevel_interchain_security_module_interface::VerifyInstruction;
+use multisig_ism::MultisigIsmMessageIdMetadata;
 use solana_sdk::{instruction::InstructionError, signature::Signer, transaction::TransactionError};
 use std::str::FromStr;
 

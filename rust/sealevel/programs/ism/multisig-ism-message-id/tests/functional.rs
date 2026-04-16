@@ -22,7 +22,6 @@ use hyperlane_sealevel_multisig_ism_message_id::{
     domain_data_pda_seeds,
     error::Error as MultisigIsmError,
     instruction::{Domained, Instruction as MultisigIsmProgramInstruction, ValidatorsAndThreshold},
-    metadata::MultisigIsmMessageIdMetadata,
     processor::process_instruction,
 };
 use hyperlane_test_utils::assert_transaction_error;
@@ -31,6 +30,7 @@ use multisig_ism::interface::{
 };
 #[cfg(test)]
 use multisig_ism::test_data::{get_multisig_ism_test_data, MultisigIsmTestData};
+use multisig_ism::MultisigIsmMessageIdMetadata;
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_program_test::*;
 use solana_sdk::{
