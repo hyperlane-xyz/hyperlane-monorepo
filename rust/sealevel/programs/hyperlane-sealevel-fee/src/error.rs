@@ -31,6 +31,18 @@ pub enum Error {
     /// Quote has expired (Clock::unix_timestamp > expiry).
     #[error("Quote expired")]
     QuoteExpired = 9,
+    /// Transient quote context does not match the QuoteFee parameters.
+    #[error("Transient quote context mismatch")]
+    TransientContextMismatch = 10,
+    /// Transient quote payer does not match the QuoteFee payer.
+    #[error("Transient quote payer mismatch")]
+    TransientPayerMismatch = 11,
+    /// Transient quote PDA key does not match derivation from stored scoped_salt.
+    #[error("Transient quote PDA mismatch")]
+    TransientPdaMismatch = 12,
+    /// Transient quote data is invalid (wrong length or format).
+    #[error("Invalid transient quote data")]
+    InvalidTransientData = 13,
 }
 
 impl From<Error> for ProgramError {
