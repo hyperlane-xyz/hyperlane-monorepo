@@ -2,7 +2,7 @@
 
 use std::collections::BTreeSet;
 
-use hyperlane_core::H256;
+use hyperlane_core::{H160, H256};
 use solana_program::{
     instruction::{AccountMeta, Instruction, InstructionError},
     pubkey::Pubkey,
@@ -379,6 +379,45 @@ fn build_quote_fee_cc_ix(
             target_router,
         }),
         accounts,
+    )
+}
+
+fn build_add_quote_signer_ix(fee_account: &Pubkey, owner: &Pubkey, signer: H160) -> Instruction {
+    Instruction::new_with_borsh(
+        fee_program_id(),
+        &FeeInstruction::AddQuoteSigner { signer },
+        vec![
+            AccountMeta::new_readonly(system_program::ID, false),
+            AccountMeta::new(*fee_account, false),
+            AccountMeta::new(*owner, true),
+        ],
+    )
+}
+
+fn build_remove_quote_signer_ix(fee_account: &Pubkey, owner: &Pubkey, signer: H160) -> Instruction {
+    Instruction::new_with_borsh(
+        fee_program_id(),
+        &FeeInstruction::RemoveQuoteSigner { signer },
+        vec![
+            AccountMeta::new_readonly(system_program::ID, false),
+            AccountMeta::new(*fee_account, false),
+            AccountMeta::new(*owner, true),
+        ],
+    )
+}
+
+fn build_set_min_issued_at_ix(
+    fee_account: &Pubkey,
+    owner: &Pubkey,
+    min_issued_at: i64,
+) -> Instruction {
+    Instruction::new_with_borsh(
+        fee_program_id(),
+        &FeeInstruction::SetMinIssuedAt { min_issued_at },
+        vec![
+            AccountMeta::new(*fee_account, false),
+            AccountMeta::new_readonly(*owner, true),
+        ],
     )
 }
 
@@ -1519,6 +1558,385 @@ mod quote_fee {
                 AccountMeta::new_readonly(cc_specific_pda, false),
                 AccountMeta::new_readonly(cc_default_pda, false),
                 AccountMeta::new_readonly(Pubkey::new_unique(), false), // extraneous
+            ],
+        );
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::ExtraneousAccount as u32),
+            ),
+        );
+    }
+}
+
+mod add_quote_signer {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_add_signer() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let signer = H160::random();
+        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let acct = fetch_fee_account(&mut banks_client, fee_key).await;
+        assert!(acct.signers.contains(&signer));
+        assert_eq!(acct.signers.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_add_multiple_signers() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let signer1 = H160::random();
+        let signer2 = H160::random();
+
+        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer1);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer2);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let acct = fetch_fee_account(&mut banks_client, fee_key).await;
+        assert!(acct.signers.contains(&signer1));
+        assert!(acct.signers.contains(&signer2));
+        assert_eq!(acct.signers.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_add_duplicate_is_idempotent() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let signer = H160::random();
+        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let acct = fetch_fee_account(&mut banks_client, fee_key).await;
+        assert_eq!(acct.signers.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_non_owner_fails() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let non_owner = Keypair::new();
+        fund_keypair(&mut banks_client, &payer, &non_owner).await;
+
+        let ix = build_add_quote_signer_ix(&fee_key, &non_owner.pubkey(), H160::random());
+        let result = process_tx(&mut banks_client, &non_owner, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+        );
+    }
+
+    #[tokio::test]
+    async fn test_extraneous_account_rejected() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let ix = Instruction::new_with_borsh(
+            fee_program_id(),
+            &FeeInstruction::AddQuoteSigner {
+                signer: H160::random(),
+            },
+            vec![
+                AccountMeta::new_readonly(system_program::ID, false),
+                AccountMeta::new(fee_key, false),
+                AccountMeta::new(payer.pubkey(), true),
+                AccountMeta::new_readonly(Pubkey::new_unique(), false),
+            ],
+        );
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::ExtraneousAccount as u32),
+            ),
+        );
+    }
+}
+
+mod remove_quote_signer {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_remove_signer() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let signer = H160::random();
+        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let ix = build_remove_quote_signer_ix(&fee_key, &payer.pubkey(), signer);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let acct = fetch_fee_account(&mut banks_client, fee_key).await;
+        assert!(!acct.signers.contains(&signer));
+        assert_eq!(acct.signers.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_remove_nonexistent_is_safe() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let ix = build_remove_quote_signer_ix(&fee_key, &payer.pubkey(), H160::random());
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let acct = fetch_fee_account(&mut banks_client, fee_key).await;
+        assert_eq!(acct.signers.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_non_owner_fails() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let non_owner = Keypair::new();
+        fund_keypair(&mut banks_client, &payer, &non_owner).await;
+
+        let ix = build_remove_quote_signer_ix(&fee_key, &non_owner.pubkey(), H160::random());
+        let result = process_tx(&mut banks_client, &non_owner, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+        );
+    }
+
+    #[tokio::test]
+    async fn test_extraneous_account_rejected() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let ix = Instruction::new_with_borsh(
+            fee_program_id(),
+            &FeeInstruction::RemoveQuoteSigner {
+                signer: H160::random(),
+            },
+            vec![
+                AccountMeta::new_readonly(system_program::ID, false),
+                AccountMeta::new(fee_key, false),
+                AccountMeta::new(payer.pubkey(), true),
+                AccountMeta::new_readonly(Pubkey::new_unique(), false),
+            ],
+        );
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::ExtraneousAccount as u32),
+            ),
+        );
+    }
+}
+
+mod set_min_issued_at {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_set_value() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let ix = build_set_min_issued_at_ix(&fee_key, &payer.pubkey(), 1000);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let acct = fetch_fee_account(&mut banks_client, fee_key).await;
+        assert_eq!(acct.min_issued_at, 1000);
+    }
+
+    #[tokio::test]
+    async fn test_can_increase_and_decrease() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let ix = build_set_min_issued_at_ix(&fee_key, &payer.pubkey(), 5000);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+        assert_eq!(
+            fetch_fee_account(&mut banks_client, fee_key)
+                .await
+                .min_issued_at,
+            5000
+        );
+
+        let ix = build_set_min_issued_at_ix(&fee_key, &payer.pubkey(), 100);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+        assert_eq!(
+            fetch_fee_account(&mut banks_client, fee_key)
+                .await
+                .min_issued_at,
+            100
+        );
+    }
+
+    #[tokio::test]
+    async fn test_non_owner_fails() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let non_owner = Keypair::new();
+        fund_keypair(&mut banks_client, &payer, &non_owner).await;
+
+        let ix = build_set_min_issued_at_ix(&fee_key, &non_owner.pubkey(), 999);
+        let result = process_tx(&mut banks_client, &non_owner, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+        );
+    }
+
+    #[tokio::test]
+    async fn test_extraneous_account_rejected() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let ix = Instruction::new_with_borsh(
+            fee_program_id(),
+            &FeeInstruction::SetMinIssuedAt { min_issued_at: 100 },
+            vec![
+                AccountMeta::new(fee_key, false),
+                AccountMeta::new_readonly(payer.pubkey(), true),
+                AccountMeta::new_readonly(Pubkey::new_unique(), false),
             ],
         );
         let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
