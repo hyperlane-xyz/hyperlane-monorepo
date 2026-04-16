@@ -417,10 +417,10 @@ fn existing_domain_ids(ctx: &Context, program_id: Pubkey) -> Vec<u32> {
 }
 
 fn read_composite_ism(ctx: &Context, program_id: Pubkey) {
-    // Seeds match VERIFY_ACCOUNT_METAS_PDA_SEEDS from the ISM interface library,
-    // which is what storage_pda_seeds!() expands to in the composite ISM crate.
-    let storage_seeds: &[&[u8]] = &[b"hyperlane_ism", b"-", b"verify", b"-", b"account_metas"];
-    let (storage_pda_key, _) = Pubkey::find_program_address(storage_seeds, &program_id);
+    let (storage_pda_key, _) = Pubkey::find_program_address(
+        hyperlane_sealevel_interchain_security_module_interface::VERIFY_ACCOUNT_METAS_PDA_SEEDS,
+        &program_id,
+    );
 
     let account = ctx
         .client

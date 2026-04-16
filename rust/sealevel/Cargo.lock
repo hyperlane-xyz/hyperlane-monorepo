@@ -3424,6 +3424,7 @@ dependencies = [
  "hyperlane-sealevel-connection-client",
  "hyperlane-sealevel-hello-world",
  "hyperlane-sealevel-igp",
+ "hyperlane-sealevel-interchain-security-module-interface",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-multisig-ism-message-id",
  "hyperlane-sealevel-token",
