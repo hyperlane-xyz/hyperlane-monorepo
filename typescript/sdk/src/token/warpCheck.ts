@@ -614,8 +614,8 @@ function stringifyViolationValue(value: unknown): string {
   if (
     typeof value === 'number' ||
     typeof value === 'boolean' ||
-    typeof value === 'bigint' ||
-    typeof value === 'symbol'
+    typeof value === 'symbol' ||
+    typeof value === 'function'
   ) {
     return value.toString();
   }
