@@ -2,6 +2,7 @@
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{H160, H256};
+use quote_verifier::SvmSignedQuote;
 use solana_program::{
     instruction::{AccountMeta, Instruction as SolanaInstruction},
     program_error::ProgramError,
@@ -45,7 +46,7 @@ pub enum Instruction {
     /// Standing quotes with issued_at < min_issued_at are rejected.
     SetMinIssuedAt { min_issued_at: i64 },
     /// Submit a signed offchain quote (transient or standing).
-    SubmitQuote(SubmitQuote),
+    SubmitQuote(SvmSignedQuote),
     /// Close an orphaned transient quote PDA, returning rent to the original payer.
     CloseTransientQuote,
     /// Remove expired standing quotes for a domain, closing the PDA if empty (owner-only).
@@ -125,24 +126,6 @@ pub struct RemoveCrossCollateralRoute {
     pub destination: u32,
     /// Remote warp route contract address.
     pub target_router: H256,
-}
-
-/// Submit a signed offchain quote (transient or standing).
-#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
-pub struct SubmitQuote {
-    /// Fee-type-specific context bytes.
-    pub context: Vec<u8>,
-    /// Fee params bytes (max_fee u64 LE + half_amount u64 LE).
-    pub data: Vec<u8>,
-    /// When the quote was issued (u48 BE, 6 bytes).
-    pub issued_at: [u8; 6],
-    /// When the quote expires (u48 BE, 6 bytes).
-    /// expiry == issued_at means transient; expiry > issued_at means standing.
-    pub expiry: [u8; 6],
-    /// Client-provided random salt for PDA derivation.
-    pub client_salt: H256,
-    /// secp256k1 signature (r: 32, s: 32, v: 1) = 65 bytes.
-    pub signature: [u8; 65],
 }
 
 /// Simulation-only: query required accounts for a QuoteFee call.

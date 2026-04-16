@@ -27,8 +27,11 @@ use hyperlane_sealevel_fee::{
     fee_standing_quote_pda_seeds,
     instruction::Instruction as FeeInstruction,
     processor::process_instruction as fee_process_instruction,
-    route_domain_pda_seeds,
+    route_domain_pda_seeds, transient_quote_pda_seeds,
 };
+use k256::ecdsa::{SigningKey, VerifyingKey};
+use quote_verifier::SvmSignedQuote;
+use solana_program::keccak;
 
 const LOCAL_DOMAIN: u32 = 1234;
 
@@ -77,6 +80,50 @@ fn assert_tx_error<T>(result: Result<T, BanksClientError>, expected: Transaction
 
 fn default_salt() -> H256 {
     H256::zero()
+}
+
+/// Signs a message hash with a k256 private key and returns the 65-byte signature.
+fn sign_hash(signing_key: &SigningKey, hash: &[u8; 32]) -> [u8; 65] {
+    let (sig, recovery_id) = signing_key
+        .sign_prehash_recoverable(hash)
+        .expect("signing failed");
+    let mut bytes = [0u8; 65];
+    bytes[..64].copy_from_slice(&sig.to_bytes());
+    bytes[64] = recovery_id.to_byte();
+    bytes
+}
+
+/// Derives the Ethereum address (H160) from a k256 signing key.
+fn eth_address(signing_key: &SigningKey) -> H160 {
+    let verifying_key = VerifyingKey::from(signing_key);
+    let pubkey_bytes = verifying_key.to_encoded_point(false);
+    let hash = keccak::hash(&pubkey_bytes.as_bytes()[1..]);
+    H160::from_slice(&hash.as_ref()[12..])
+}
+
+/// Creates a signed transient quote (expiry == issued_at).
+fn make_signed_transient_quote(
+    signing_key: &SigningKey,
+    fee_account: &Pubkey,
+    domain_id: u32,
+    payer: &Pubkey,
+    context: Vec<u8>,
+    data: Vec<u8>,
+    issued_at: [u8; 6],
+) -> SvmSignedQuote {
+    let client_salt = H256::random();
+    let mut quote = SvmSignedQuote {
+        context,
+        data,
+        issued_at,
+        expiry: issued_at, // transient: expiry == issued_at
+        client_salt,
+        signature: [0u8; 65],
+    };
+    let scoped_salt = quote.compute_scoped_salt(payer);
+    let message_hash = quote.build_message_hash(fee_account, domain_id, &scoped_salt);
+    quote.signature = sign_hash(signing_key, message_hash.as_fixed_bytes());
+    quote
 }
 
 fn default_leaf_fee_data() -> FeeData {
@@ -1946,6 +1993,414 @@ mod set_min_issued_at {
                 0,
                 InstructionError::Custom(FeeError::ExtraneousAccount as u32),
             ),
+        );
+    }
+}
+
+mod submit_transient_quote {
+    use super::*;
+
+    fn build_submit_transient_ix(
+        fee_account: &Pubkey,
+        payer: &Pubkey,
+        quote: &SvmSignedQuote,
+    ) -> Instruction {
+        let scoped_salt = quote.compute_scoped_salt(payer);
+        let (transient_pda, _) = Pubkey::find_program_address(
+            transient_quote_pda_seeds!(fee_account, scoped_salt),
+            &fee_program_id(),
+        );
+
+        Instruction::new_with_borsh(
+            fee_program_id(),
+            &FeeInstruction::SubmitQuote(quote.clone()),
+            vec![
+                AccountMeta::new_readonly(system_program::ID, false),
+                AccountMeta::new(*payer, true),
+                AccountMeta::new_readonly(*fee_account, false),
+                AccountMeta::new(transient_pda, false),
+            ],
+        )
+    }
+
+    /// Encodes a u48 BE timestamp from an i64.
+    fn encode_u48(ts: i64) -> [u8; 6] {
+        let bytes = ts.to_be_bytes();
+        let mut out = [0u8; 6];
+        out.copy_from_slice(&bytes[2..8]);
+        out
+    }
+
+    #[tokio::test]
+    async fn test_submit_transient_quote() {
+        let (mut banks_client, payer) = setup_client().await;
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let signer_address = eth_address(&signing_key);
+
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        // Add signer.
+        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Use a far-future timestamp so the quote hasn't expired.
+        let issued_at = encode_u48(9999999999);
+        let quote = make_signed_transient_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            vec![1, 2, 3, 4],
+            vec![5, 6, 7, 8],
+            issued_at,
+        );
+
+        let ix = build_submit_transient_ix(&fee_key, &payer.pubkey(), &quote);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Verify the transient PDA was created.
+        let scoped_salt = quote.compute_scoped_salt(&payer.pubkey());
+        let (transient_pda, _) = Pubkey::find_program_address(
+            transient_quote_pda_seeds!(fee_key, scoped_salt),
+            &fee_program_id(),
+        );
+        let account = banks_client
+            .get_account(transient_pda)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(!account.data.is_empty());
+        assert_eq!(account.owner, fee_program_id());
+    }
+
+    #[tokio::test]
+    async fn test_invalid_signature_fails() {
+        let (mut banks_client, payer) = setup_client().await;
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let signer_address = eth_address(&signing_key);
+
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Create a quote signed by a DIFFERENT key.
+        let wrong_key = SigningKey::random(&mut rand::thread_rng());
+        let issued_at = encode_u48(9999999999);
+        let quote = make_signed_transient_quote(
+            &wrong_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            vec![1, 2, 3],
+            vec![4, 5, 6],
+            issued_at,
+        );
+
+        let ix = build_submit_transient_ix(&fee_key, &payer.pubkey(), &quote);
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::InvalidQuoteSignature as u32),
+            ),
+        );
+    }
+
+    #[tokio::test]
+    async fn test_no_signers_fails() {
+        let (mut banks_client, payer) = setup_client().await;
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        // Don't add any signers.
+        let issued_at = encode_u48(9999999999);
+        let quote = make_signed_transient_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            vec![],
+            vec![],
+            issued_at,
+        );
+
+        let ix = build_submit_transient_ix(&fee_key, &payer.pubkey(), &quote);
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::InvalidQuoteSignature as u32),
+            ),
+        );
+    }
+
+    #[tokio::test]
+    async fn test_expiry_before_issued_at_fails() {
+        let (mut banks_client, payer) = setup_client().await;
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let signer_address = eth_address(&signing_key);
+
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Manually create a quote with expiry < issued_at.
+        let quote = SvmSignedQuote {
+            context: vec![],
+            data: vec![],
+            issued_at: encode_u48(200),
+            expiry: encode_u48(100), // expiry before issued_at
+            client_salt: H256::random(),
+            signature: [0u8; 65],
+        };
+
+        let ix = build_submit_transient_ix(&fee_key, &payer.pubkey(), &quote);
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::InvalidQuoteExpiry as u32),
+            ),
+        );
+    }
+
+    #[tokio::test]
+    async fn test_extraneous_account_rejected() {
+        let (mut banks_client, payer) = setup_client().await;
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let signer_address = eth_address(&signing_key);
+
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let issued_at = encode_u48(9999999999);
+        let quote = make_signed_transient_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            vec![1, 2],
+            vec![3, 4],
+            issued_at,
+        );
+
+        let scoped_salt = quote.compute_scoped_salt(&payer.pubkey());
+        let (transient_pda, _) = Pubkey::find_program_address(
+            transient_quote_pda_seeds!(fee_key, scoped_salt),
+            &fee_program_id(),
+        );
+
+        let ix = Instruction::new_with_borsh(
+            fee_program_id(),
+            &FeeInstruction::SubmitQuote(quote),
+            vec![
+                AccountMeta::new_readonly(system_program::ID, false),
+                AccountMeta::new(payer.pubkey(), true),
+                AccountMeta::new_readonly(fee_key, false),
+                AccountMeta::new(transient_pda, false),
+                AccountMeta::new_readonly(Pubkey::new_unique(), false), // extraneous
+            ],
+        );
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::ExtraneousAccount as u32),
+            ),
+        );
+    }
+
+    #[tokio::test]
+    async fn test_expired_quote_rejected() {
+        let (mut banks_client, payer) = setup_client().await;
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let signer_address = eth_address(&signing_key);
+
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Use a very small timestamp that the clock has already passed.
+        let issued_at = encode_u48(1);
+        let quote = make_signed_transient_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            vec![],
+            vec![],
+            issued_at,
+        );
+
+        let ix = build_submit_transient_ix(&fee_key, &payer.pubkey(), &quote);
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::QuoteExpired as u32),
+            ),
+        );
+    }
+
+    #[tokio::test]
+    async fn test_zero_fee_params_transient_quote() {
+        let (mut banks_client, payer) = setup_client().await;
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let signer_address = eth_address(&signing_key);
+
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Zero fee params (max_fee=0, half_amount=0).
+        let issued_at = encode_u48(9999999999);
+        let quote = make_signed_transient_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], // context
+            vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], // data (zero fees)
+            issued_at,
+        );
+
+        let ix = build_submit_transient_ix(&fee_key, &payer.pubkey(), &quote);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_double_submit_same_salt_fails() {
+        let (mut banks_client, payer) = setup_client().await;
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let signer_address = eth_address(&signing_key);
+
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let issued_at = encode_u48(9999999999);
+        let quote = make_signed_transient_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            vec![1, 2],
+            vec![3, 4],
+            issued_at,
+        );
+
+        // First submission succeeds.
+        let ix = build_submit_transient_ix(&fee_key, &payer.pubkey(), &quote);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Second submission with same quote (same salt → same PDA) should fail.
+        // Use a different payer for the second tx to avoid transaction deduplication.
+        // The quote is still signed for `payer`, so we pass `payer` as extra signer.
+        let payer2 = Keypair::new();
+        fund_keypair(&mut banks_client, &payer, &payer2).await;
+
+        let ix = build_submit_transient_ix(&fee_key, &payer.pubkey(), &quote);
+        let result = process_tx(&mut banks_client, &payer2, ix, &[&payer]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(0, InstructionError::AccountAlreadyInitialized),
         );
     }
 }
