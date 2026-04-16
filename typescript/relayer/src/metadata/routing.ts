@@ -35,9 +35,10 @@ export class StaticRoutingMetadataBuilder implements MetadataBuilder {
     context: MetadataContext<WithAddress<DomainRoutingIsmConfig>>,
     maxDepth = 10,
   ): Promise<RoutingMetadataBuildResult> {
-    const originChain = this.baseMetadataBuilder.multiProvider.getChainName(
-      context.message.parsed.origin,
-    );
+    const originChain =
+      this.baseMetadataBuilder.readProviderRegistry.getChainName(
+        context.message.parsed.origin,
+      );
     const originContext = {
       ...context,
       ism: context.ism.domains[originChain] as DerivedIsmConfig,
@@ -92,19 +93,20 @@ export class DynamicRoutingMetadataBuilder extends StaticRoutingMetadataBuilder 
     maxDepth = 10,
   ): Promise<RoutingMetadataBuildResult> {
     const { message, ism } = context;
-    const originChain = this.baseMetadataBuilder.multiProvider.getChainName(
-      message.parsed.origin,
-    );
+    const originChain =
+      this.baseMetadataBuilder.readProviderRegistry.getChainName(
+        message.parsed.origin,
+      );
     const destination = message.parsed.destination;
     const provider =
-      this.baseMetadataBuilder.multiProvider.getProvider(destination);
+      this.baseMetadataBuilder.readProviderRegistry.getEvmProvider(destination);
 
     // Helper to derive new ISM config and recurse
     const deriveAndRecurse = async (
       moduleAddress: string,
     ): Promise<RoutingMetadataBuildResult> => {
       const ismReader = new EvmIsmReader(
-        this.baseMetadataBuilder.multiProvider,
+        this.baseMetadataBuilder.readProviderRegistry,
         destination,
       );
       const nextConfig = await ismReader.deriveIsmConfig(moduleAddress);

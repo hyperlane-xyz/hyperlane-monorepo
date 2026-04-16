@@ -1,6 +1,9 @@
 import { joinSignature, splitSignature } from 'ethers/lib/utils.js';
 
-import { MerkleTreeHook__factory } from '@hyperlane-xyz/core';
+import {
+  MerkleTreeHook__factory,
+  ValidatorAnnounce__factory,
+} from '@hyperlane-xyz/core';
 import {
   ChainName,
   HyperlaneCore,
@@ -10,6 +13,7 @@ import {
   S3Validator,
   defaultMultisigConfigs,
 } from '@hyperlane-xyz/sdk';
+import type { MultiProviderAdapter } from '@hyperlane-xyz/sdk/providers/MultiProviderAdapter';
 import {
   Address,
   Checkpoint,
@@ -68,6 +72,7 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
 
   constructor(
     protected readonly core: HyperlaneCore,
+    protected readonly readProviderRegistry: MultiProviderAdapter,
     protected readonly logger = rootLogger.child({
       module: 'MultisigMetadataBuilder',
     }),
@@ -98,8 +103,10 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
     );
 
     if (toFetch.length > 0) {
-      const validatorAnnounce =
-        this.core.getContracts(originChain).validatorAnnounce;
+      const validatorAnnounce = ValidatorAnnounce__factory.connect(
+        this.core.getContracts(originChain).validatorAnnounce.address,
+        this.readProviderRegistry.getEvmProvider(originChain),
+      );
 
       const storageLocations =
         await validatorAnnounce.getAnnouncedStorageLocations(toFetch);
@@ -162,7 +169,7 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
   }> {
     this.logger.debug({ match, validators }, 'Fetching validator checkpoints');
 
-    const originChain = this.core.multiProvider.getChainName(match.origin);
+    const originChain = this.readProviderRegistry.getChainName(match.origin);
     const s3Validators = await this.s3Validators(originChain, validators);
 
     const { fulfilled, rejected } = await mapAllSettled(

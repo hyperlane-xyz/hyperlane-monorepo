@@ -54,6 +54,8 @@ describe('MultiProtocolProvider', () => {
       multiProvider.setProvider('zksync', provider);
 
       const adapted = MultiProtocolProvider.fromMultiProvider(multiProvider);
+      expect(multiProvider.getEvmProvider('zksync')).to.equal(provider);
+      expect(adapted.getEvmProvider('zksync')).to.equal(provider);
       expect(adapted.getProvider('zksync', ProviderType.ZkSync).type).to.equal(
         ProviderType.ZkSync,
       );
@@ -73,6 +75,8 @@ describe('MultiProtocolProvider', () => {
       const adapter = MultiProviderAdapter.fromMultiProvider(multiProvider);
       const adapted = MultiProtocolProvider.fromMultiProvider(multiProvider);
 
+      expect(adapter.getEvmProvider('zksync')).to.be.instanceOf(ZKSyncProvider);
+      expect(adapted.getEvmProvider('zksync')).to.be.instanceOf(ZKSyncProvider);
       expect(adapter.getProvider('zksync').type).to.equal(ProviderType.ZkSync);
       expect(adapted.getProvider('zksync').type).to.equal(ProviderType.ZkSync);
     });

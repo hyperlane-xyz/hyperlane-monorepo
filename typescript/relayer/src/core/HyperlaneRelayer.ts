@@ -12,6 +12,7 @@ import {
   IsmConfig,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
+import { MultiProviderAdapter } from '@hyperlane-xyz/sdk/providers/MultiProviderAdapter';
 import {
   Address,
   WithAddress,
@@ -36,6 +37,7 @@ type DerivedIsmConfig = WithAddress<Exclude<IsmConfig, Address>>;
 
 export class HyperlaneRelayer {
   protected multiProvider: MultiProvider;
+  protected readonly readProviderRegistry: MultiProviderAdapter;
   protected metadataBuilder: BaseMetadataBuilder;
   protected readonly core: HyperlaneCore;
   protected readonly retryTimeout: number;
@@ -66,8 +68,14 @@ export class HyperlaneRelayer {
     this.core = core;
     this.retryTimeout = retryTimeout;
     this.logger = core.logger.child({ module: 'Relayer' });
-    this.metadataBuilder = new BaseMetadataBuilder(core);
     this.multiProvider = core.multiProvider;
+    this.readProviderRegistry = MultiProviderAdapter.fromMultiProvider(
+      this.multiProvider,
+    );
+    this.metadataBuilder = new BaseMetadataBuilder(
+      core,
+      this.readProviderRegistry,
+    );
     this.observer = observer;
     if (whitelist) {
       this.whitelist = objMap(
@@ -96,7 +104,7 @@ export class HyperlaneRelayer {
       config = this.cache.hook[chain][hook] as DerivedHookConfig | undefined;
     } else {
       const evmHookReader = new EvmHookReader(
-        this.multiProvider,
+        this.readProviderRegistry,
         chain,
         undefined,
         messageContext,
@@ -130,7 +138,7 @@ export class HyperlaneRelayer {
       config = this.cache.ism[chain][cacheKey] as DerivedIsmConfig | undefined;
     } else {
       const evmIsmReader = new EvmIsmReader(
-        this.multiProvider,
+        this.readProviderRegistry,
         chain,
         undefined,
         messageContext,
@@ -354,8 +362,8 @@ export class HyperlaneRelayer {
 
       try {
         // TODO: handle batching
-        const dispatchReceipt = await this.multiProvider
-          .getProvider(parsed.origin)
+        const dispatchReceipt = await this.readProviderRegistry
+          .getEvmProvider(parsed.origin)
           .getTransactionReceipt(dispatchTx);
 
         await this.relayMessage(dispatchReceipt, undefined, dispatchMsg);

@@ -7,6 +7,7 @@ import {
   OffchainLookupIsmConfig,
   offchainLookupRequestMessageHash,
 } from '@hyperlane-xyz/sdk';
+import type { MultiProviderAdapter } from '@hyperlane-xyz/sdk/providers/MultiProviderAdapter';
 import { WithAddress, ensure0x } from '@hyperlane-xyz/utils';
 
 import type {
@@ -51,17 +52,17 @@ function extractRevertData(error: unknown): string | undefined {
 
 export class OffchainLookupMetadataBuilder implements MetadataBuilder {
   readonly type = IsmType.OFFCHAIN_LOOKUP;
-  private core: HyperlaneCore;
 
-  constructor(core: HyperlaneCore) {
-    this.core = core;
-  }
+  constructor(
+    private readonly core: HyperlaneCore,
+    private readonly readProviderRegistry: MultiProviderAdapter,
+  ) {}
 
   async build(
     context: MetadataContext<WithAddress<OffchainLookupIsmConfig>>,
   ): Promise<CcipReadMetadataBuildResult> {
     const { ism, message } = context;
-    const provider = this.core.multiProvider.getProvider(
+    const provider = this.readProviderRegistry.getEvmProvider(
       message.parsed.destination,
     );
     const contract = AbstractCcipReadIsm__factory.connect(

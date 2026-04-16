@@ -32,9 +32,11 @@ import {
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { DispatchedMessage } from '../core/types.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId } from '../types.js';
-import { HyperlaneReader } from '../utils/HyperlaneReader.js';
+import {
+  EvmReadProviderRegistry,
+  HyperlaneReader,
+} from '../utils/HyperlaneReader.js';
 
 import {
   AggregationHookConfig,
@@ -101,7 +103,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
   private _cache: Map<Address, any> = new Map();
 
   constructor(
-    protected readonly multiProvider: MultiProvider,
+    protected readonly multiProvider: EvmReadProviderRegistry,
     protected readonly chain: ChainNameOrId,
     protected readonly concurrency: number = multiProvider.tryGetRpcConcurrency(
       chain,

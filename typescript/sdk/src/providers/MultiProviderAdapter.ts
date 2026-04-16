@@ -1,3 +1,5 @@
+import { providers } from 'ethers';
+
 import {
   Address,
   HexString,
@@ -139,6 +141,21 @@ export class MultiProviderAdapter<
       chainNameOrId,
       type ?? this.getDefaultProviderType(chainNameOrId),
     );
+  }
+
+  getEvmProvider(chainNameOrId: ChainNameOrId): providers.Provider {
+    const providerType = this.getDefaultProviderType(chainNameOrId);
+    if (
+      providerType === ProviderType.EthersV5 ||
+      providerType === ProviderType.Tron ||
+      providerType === ProviderType.ZkSync
+    ) {
+      return this.getSpecificProvider<providers.Provider>(
+        chainNameOrId,
+        providerType,
+      );
+    }
+    throw new Error(`No EVM provider available for ${chainNameOrId}`);
   }
 
   toMultiProvider(options?: MultiProviderOptions): MultiProvider<MetaExt> {

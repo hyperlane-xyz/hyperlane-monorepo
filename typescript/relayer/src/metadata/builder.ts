@@ -6,6 +6,7 @@ import {
   MerkleTreeHookConfig,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
+import { MultiProviderAdapter } from '@hyperlane-xyz/sdk/providers/MultiProviderAdapter';
 import {
   WithAddress,
   assert,
@@ -36,15 +37,31 @@ export class BaseMetadataBuilder implements MetadataBuilder {
   public ccipReadMetadataBuilder: OffchainLookupMetadataBuilder;
 
   public multiProvider: MultiProvider;
+  public readProviderRegistry: MultiProviderAdapter;
   protected logger = rootLogger.child({ module: 'BaseMetadataBuilder' });
 
-  constructor(core: HyperlaneCore) {
-    this.multisigMetadataBuilder = new MultisigMetadataBuilder(core);
+  constructor(
+    core: HyperlaneCore,
+    readProviderRegistry = MultiProviderAdapter.fromMultiProvider(
+      core.multiProvider,
+    ),
+  ) {
+    this.readProviderRegistry = readProviderRegistry;
+    this.multisigMetadataBuilder = new MultisigMetadataBuilder(
+      core,
+      readProviderRegistry,
+    );
     this.aggregationMetadataBuilder = new AggregationMetadataBuilder(this);
     this.routingMetadataBuilder = new DynamicRoutingMetadataBuilder(this);
     this.nullMetadataBuilder = new NullMetadataBuilder(core.multiProvider);
-    this.arbL2ToL1MetadataBuilder = new ArbL2ToL1MetadataBuilder(core);
-    this.ccipReadMetadataBuilder = new OffchainLookupMetadataBuilder(core);
+    this.arbL2ToL1MetadataBuilder = new ArbL2ToL1MetadataBuilder(
+      core,
+      readProviderRegistry,
+    );
+    this.ccipReadMetadataBuilder = new OffchainLookupMetadataBuilder(
+      core,
+      readProviderRegistry,
+    );
     this.multiProvider = core.multiProvider;
   }
 

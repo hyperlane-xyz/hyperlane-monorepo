@@ -33,9 +33,11 @@ import { getChainNameFromCCIPSelector } from '../ccip/utils.js';
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { DispatchedMessage } from '../core/types.js';
 import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainNameOrId } from '../types.js';
-import { HyperlaneReader } from '../utils/HyperlaneReader.js';
+import {
+  EvmReadProviderRegistry,
+  HyperlaneReader,
+} from '../utils/HyperlaneReader.js';
 import { contractHasString } from '../utils/contract.js';
 
 import {
@@ -82,7 +84,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
   protected isZkSyncChain: boolean;
 
   constructor(
-    protected readonly multiProvider: MultiProvider,
+    protected readonly multiProvider: EvmReadProviderRegistry,
     protected readonly chain: ChainNameOrId,
     protected readonly concurrency: number = multiProvider.tryGetRpcConcurrency(
       chain,

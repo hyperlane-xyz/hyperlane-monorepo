@@ -20,6 +20,7 @@ import {
   IsmType,
   findMatchingLogEvents,
 } from '@hyperlane-xyz/sdk';
+import type { MultiProviderAdapter } from '@hyperlane-xyz/sdk/providers/MultiProviderAdapter';
 import { WithAddress, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import type {
@@ -41,6 +42,7 @@ const ArbSys = ArbSys__factory.createInterface();
 export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
   constructor(
     protected readonly core: HyperlaneCore,
+    protected readonly readProviderRegistry: MultiProviderAdapter,
     protected readonly logger = rootLogger.child({
       module: 'ArbL2ToL1MetadataBuilder',
     }),
@@ -63,7 +65,9 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
     // if the executeTransaction call is already successful, we can call with null metadata
     const ism = AbstractMessageIdAuthorizedIsm__factory.connect(
       context.ism.address,
-      this.core.multiProvider.getSigner(context.message.parsed.destination),
+      this.readProviderRegistry.getEvmProvider(
+        context.message.parsed.destination,
+      ),
     );
     const verified = await ism.isVerified(context.message.message);
     if (verified) {
@@ -160,11 +164,11 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
       };
 
       const reader = new ChildToParentMessageReader(
-        this.core.multiProvider.getProvider(context.hook.destinationChain),
+        this.readProviderRegistry.getEvmProvider(context.hook.destinationChain),
         l2ToL1TxEvent,
       );
 
-      const originChainMetadata = this.core.multiProvider.getChainMetadata(
+      const originChainMetadata = this.readProviderRegistry.getChainMetadata(
         context.message.parsed.origin,
       );
       if (typeof originChainMetadata.chainId == 'string') {

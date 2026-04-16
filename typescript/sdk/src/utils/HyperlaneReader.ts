@@ -1,18 +1,31 @@
 import { providers } from 'ethers';
 import { LevelWithSilentOrString } from 'pino';
 
-import { MultiProvider } from '../providers/MultiProvider.js';
+import type { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 import { HyperlaneSmartProvider } from '../providers/SmartProvider/SmartProvider.js';
-import { ChainNameOrId } from '../types.js';
+import type { ChainName, ChainNameOrId } from '../types.js';
 
-export class HyperlaneReader {
+export interface EvmReadProviderRegistry<MetaExt = {}> {
+  getEvmProvider(chainNameOrId: ChainNameOrId): providers.Provider;
+  getChainMetadata(chainNameOrId: ChainNameOrId): ChainMetadata<MetaExt>;
+  getChainName(chainNameOrId: ChainNameOrId): ChainName;
+  tryGetChainName(chainNameOrId: ChainNameOrId): string | null;
+  getKnownChainNames(): string[];
+  getDomainId(chainNameOrId: ChainNameOrId): number;
+  tryGetRpcConcurrency(
+    chainNameOrId: ChainNameOrId,
+    index?: number,
+  ): number | null;
+}
+
+export class HyperlaneReader<MetaExt = {}> {
   provider: providers.Provider;
 
   constructor(
-    protected readonly multiProvider: MultiProvider,
+    protected readonly multiProvider: EvmReadProviderRegistry<MetaExt>,
     protected readonly chain: ChainNameOrId,
   ) {
-    this.provider = this.multiProvider.getProvider(chain);
+    this.provider = this.multiProvider.getEvmProvider(chain);
   }
 
   /**

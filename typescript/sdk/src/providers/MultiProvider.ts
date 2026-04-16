@@ -162,6 +162,10 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     return provider;
   }
 
+  getEvmProvider(chainNameOrId: ChainNameOrId): Provider {
+    return this.getProvider(chainNameOrId);
+  }
+
   /**
    * Sets an Ethers provider for a given chain name or domain id
    * @throws if chain's metadata has not been set
