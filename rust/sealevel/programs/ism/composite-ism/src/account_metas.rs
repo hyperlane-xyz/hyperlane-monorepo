@@ -4,7 +4,7 @@ use solana_program::{account_info::AccountInfo, instruction::AccountMeta, pubkey
 
 use crate::{
     accounts::{derive_domain_pda, DomainIsmAccount, IsmNode},
-    metadata::{parse_aggregation_ranges, parse_routing_amount, sub_metadata},
+    metadata::{parse_routing_amount, sub_metadata_at},
 };
 
 /// Returns `true` if the ISM tree contains any `RateLimited` node.
@@ -58,17 +58,11 @@ pub fn required_accounts_for_node(
         IsmNode::MultisigMessageId { .. } => vec![],
 
         IsmNode::Aggregation { sub_isms, .. } => {
-            let ranges = match parse_aggregation_ranges(metadata, sub_isms.len()) {
-                Ok(r) => r,
-                Err(_) => return vec![],
-            };
-
             let mut accounts: Vec<SerializableAccountMeta> = Vec::new();
             for (i, sub_ism) in sub_isms.iter().enumerate() {
-                if !ranges[i].has_metadata() {
+                let Ok(Some(sub_meta)) = sub_metadata_at(metadata, i) else {
                     continue;
-                }
-                let sub_meta = sub_metadata(metadata, ranges[i]);
+                };
                 let sub_accounts = required_accounts_for_node(
                     sub_ism,
                     sub_meta,

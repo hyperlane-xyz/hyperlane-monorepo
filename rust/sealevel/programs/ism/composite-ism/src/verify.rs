@@ -13,8 +13,7 @@ use crate::{
         derive_domain_pda, load_and_validate_domain_ism_storage, DomainIsmAccount, IsmNode,
     },
     error::Error,
-    metadata::parse_routing_amount,
-    metadata::{parse_aggregation_ranges, sub_metadata},
+    metadata::{parse_routing_amount, sub_metadata_at},
     multisig_metadata::MultisigIsmMessageIdMetadata,
     rate_limit::calculate_current_level,
 };
@@ -95,18 +94,17 @@ where
             threshold,
             sub_isms,
         } => {
-            let ranges = parse_aggregation_ranges(metadata, sub_isms.len())?;
-
-            let provided = ranges.iter().filter(|r| r.has_metadata()).count();
+            let provided = (0..sub_isms.len())
+                .filter(|&i| sub_metadata_at(metadata, i).ok().flatten().is_some())
+                .count();
             if provided < *threshold as usize {
                 return Err(Error::ThresholdNotMet.into());
             }
 
             for (i, sub_ism) in sub_isms.iter_mut().enumerate() {
-                if !ranges[i].has_metadata() {
+                let Some(sub_meta) = sub_metadata_at(metadata, i)? else {
                     continue;
-                }
-                let sub_meta = sub_metadata(metadata, ranges[i]);
+                };
                 verify_node(sub_ism, sub_meta, message, accounts_iter, program_id)?;
             }
 

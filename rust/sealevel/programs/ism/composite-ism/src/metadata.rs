@@ -13,68 +13,30 @@ use solana_program::program_error::ProgramError;
 const RANGE_SIZE: usize = 4;
 const ENTRY_SIZE: usize = RANGE_SIZE * 2; // (start: u32, end: u32)
 
-/// A byte range [start, end) into the metadata blob.
-/// start == 0 indicates no metadata for this sub-ISM.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct MetadataRange {
-    pub start: u32,
-    pub end: u32,
-}
-
-impl MetadataRange {
-    /// Returns true if metadata is provided for this sub-ISM.
-    pub fn has_metadata(self) -> bool {
-        self.start > 0
-    }
-}
-
-/// Parses the ranges header of aggregation metadata for `n` sub-ISMs.
+/// Returns the sub-metadata slice for sub-ISM at `index`, or `None` if not provided.
 ///
-/// Returns `Err(InvalidMetadata)` if the metadata is too short or a range is
-/// out of bounds.
-pub fn parse_aggregation_ranges(
-    metadata: &[u8],
-    n: usize,
-) -> Result<Vec<MetadataRange>, ProgramError> {
-    let header_len = n * ENTRY_SIZE;
-    if metadata.len() < header_len {
+/// Mirrors Solidity's `hasMetadata` + `metadataAt` from `AggregationIsmMetadata.sol`.
+/// Returns `Err(InvalidMetadata)` if the header is too short or the range is out of bounds.
+pub fn sub_metadata_at(metadata: &[u8], index: usize) -> Result<Option<&[u8]>, ProgramError> {
+    let offset = index * ENTRY_SIZE;
+    let mid = offset + RANGE_SIZE;
+    let end_of_header = mid + RANGE_SIZE;
+
+    if metadata.len() < end_of_header {
         return Err(Error::InvalidMetadata.into());
     }
 
-    let mut ranges = Vec::with_capacity(n);
-    for i in 0..n {
-        let offset = i * ENTRY_SIZE;
-        let start = u32::from_be_bytes(
-            metadata[offset..offset + RANGE_SIZE]
-                .try_into()
-                .map_err(|_| Error::InvalidMetadata)?,
-        );
-        let end = u32::from_be_bytes(
-            metadata[offset + RANGE_SIZE..offset + ENTRY_SIZE]
-                .try_into()
-                .map_err(|_| Error::InvalidMetadata)?,
-        );
+    let start = u32::from_be_bytes(metadata[offset..mid].try_into().unwrap()) as usize;
+    let end = u32::from_be_bytes(metadata[mid..end_of_header].try_into().unwrap()) as usize;
 
-        if start > 0 {
-            // Validate the range is within the metadata blob.
-            let end_usize = end as usize;
-            let start_usize = start as usize;
-            if start_usize > end_usize || end_usize > metadata.len() {
-                return Err(Error::InvalidMetadata.into());
-            }
-        }
-
-        ranges.push(MetadataRange { start, end });
+    if start == 0 {
+        return Ok(None);
+    }
+    if start > end || end > metadata.len() {
+        return Err(Error::InvalidMetadata.into());
     }
 
-    Ok(ranges)
-}
-
-/// Extracts the sub-metadata slice for sub-ISM at `index`.
-///
-/// Callers must ensure `range.has_metadata()` before calling.
-pub fn sub_metadata(metadata: &[u8], range: MetadataRange) -> &[u8] {
-    &metadata[range.start as usize..range.end as usize]
+    Ok(Some(&metadata[start..end]))
 }
 
 /// Parses the big-endian U256 amount from a warp-route message body.
@@ -103,10 +65,9 @@ mod test {
     }
 
     #[test]
-    fn test_parse_ranges_all_provided() {
+    fn test_sub_metadata_at_all_provided() {
         let sub0 = b"meta0";
         let sub1 = b"metadata1";
-        // header is 2 * 8 = 16 bytes
         let header_len = 16u32;
         let start0 = header_len;
         let end0 = start0 + sub0.len() as u32;
@@ -117,30 +78,12 @@ mod test {
         metadata.extend_from_slice(sub0);
         metadata.extend_from_slice(sub1);
 
-        let ranges = parse_aggregation_ranges(&metadata, 2).unwrap();
-        assert_eq!(
-            ranges[0],
-            MetadataRange {
-                start: start0,
-                end: end0
-            }
-        );
-        assert_eq!(
-            ranges[1],
-            MetadataRange {
-                start: start1,
-                end: end1
-            }
-        );
-        assert!(ranges[0].has_metadata());
-        assert!(ranges[1].has_metadata());
-        assert_eq!(sub_metadata(&metadata, ranges[0]), sub0);
-        assert_eq!(sub_metadata(&metadata, ranges[1]), sub1);
+        assert_eq!(sub_metadata_at(&metadata, 0).unwrap(), Some(sub0.as_ref()));
+        assert_eq!(sub_metadata_at(&metadata, 1).unwrap(), Some(sub1.as_ref()));
     }
 
     #[test]
-    fn test_parse_ranges_some_skipped() {
-        // Sub-ISM 0 has no metadata (start=0), sub-ISM 1 has metadata.
+    fn test_sub_metadata_at_some_skipped() {
         let sub1 = b"meta";
         let header_len = 16u32;
         let start1 = header_len;
@@ -149,23 +92,21 @@ mod test {
         let mut metadata = encode_ranges(&[(0, 0), (start1, end1)]);
         metadata.extend_from_slice(sub1);
 
-        let ranges = parse_aggregation_ranges(&metadata, 2).unwrap();
-        assert!(!ranges[0].has_metadata());
-        assert!(ranges[1].has_metadata());
+        assert_eq!(sub_metadata_at(&metadata, 0).unwrap(), None);
+        assert_eq!(sub_metadata_at(&metadata, 1).unwrap(), Some(sub1.as_ref()));
     }
 
     #[test]
-    fn test_parse_ranges_too_short() {
+    fn test_sub_metadata_at_too_short() {
         let metadata = vec![0u8; 7]; // needs at least 8 bytes for 1 sub-ISM
-        assert!(parse_aggregation_ranges(&metadata, 1).is_err());
+        assert!(sub_metadata_at(&metadata, 0).is_err());
     }
 
     #[test]
-    fn test_parse_ranges_out_of_bounds() {
-        // start points beyond metadata length
+    fn test_sub_metadata_at_out_of_bounds() {
         let mut metadata = encode_ranges(&[(100, 200)]);
         metadata.extend_from_slice(&[0u8; 4]);
-        assert!(parse_aggregation_ranges(&metadata, 1).is_err());
+        assert!(sub_metadata_at(&metadata, 0).is_err());
     }
 
     #[test]
