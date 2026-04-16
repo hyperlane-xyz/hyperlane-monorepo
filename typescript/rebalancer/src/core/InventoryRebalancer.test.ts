@@ -1762,6 +1762,53 @@ describe('InventoryRebalancer E2E', () => {
       expect(quotedTargetOutput).to.equal(expectedWithBuffer);
     });
 
+    it('bridges only the mixed-decimal shortfall after dust partial skip', async () => {
+      const canonicalAmount = 1n;
+      const destinationDust = 1_000_000_000_000n - 1n;
+      const sourceInventory = 1_000_000_000_000n;
+      warpCore.tokens.find((t: any) => t.chainName === SOLANA_CHAIN)!.scale = {
+        numerator: 1n,
+        denominator: 1_000_000_000_000n,
+      };
+
+      const route = createTestRoute({ amount: canonicalAmount });
+      createTestIntent({ amount: canonicalAmount });
+
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: destinationDust,
+        [ARBITRUM_CHAIN]: sourceInventory,
+      });
+
+      let reverseQuoteTargetOutput: bigint | undefined;
+      bridge.quote.callsFake(async (params: any) => {
+        if (params.toAmount !== undefined) {
+          reverseQuoteTargetOutput = params.toAmount;
+        }
+        return createMockBridgeQuote({
+          fromAmount: params.fromAmount ?? params.toAmount,
+          toAmount: params.toAmount ?? params.fromAmount,
+          toAmountMin: params.toAmount ?? params.fromAmount,
+          requestParams:
+            params.toAmount !== undefined
+              ? { ...params, toAmount: params.toAmount }
+              : { ...params, fromAmount: params.fromAmount },
+        });
+      });
+      bridge.execute.resolves({
+        txHash: '0xBridgeTxHash',
+        fromChain: 42161,
+        toChain: 1399811149,
+      });
+
+      const results = await inventoryRebalancer.rebalance([route]);
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.true;
+      expect(warpCore.getTransferRemoteTxs.called).to.be.false;
+      expect(bridge.execute.calledOnce).to.be.true;
+      expect(reverseQuoteTargetOutput).to.equal(1n);
+    });
+
     it('plans LiFi target output in destination-local units for mixed-decimal routes', async () => {
       const canonicalAmount = 1_000_000n;
       const availableInventory = BigInt(2e18);
