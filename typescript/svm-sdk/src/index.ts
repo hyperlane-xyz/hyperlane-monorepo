@@ -98,7 +98,8 @@ export {
   convertLegacySolanaTransaction,
   isLegacySolanaTransaction,
 } from './legacy-compat.js';
-export type { LegacyKeypair, LegacyTransaction } from './legacy-compat.js';
+export type { LegacyTransaction } from './legacy-compat.js';
+export type { LegacyKeypair } from './types.js';
 
 // PDA derivation
 export {

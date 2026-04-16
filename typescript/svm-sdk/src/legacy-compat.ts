@@ -14,7 +14,7 @@ import type {
 } from '@solana/kit';
 
 import { COMPUTE_BUDGET_PROGRAM_ID } from './constants.js';
-import type { SvmTransaction } from './types.js';
+import type { LegacyKeypair, SvmTransaction } from './types.js';
 
 // -- Structural interfaces for legacy @solana/web3.js types --
 // Defined here to avoid depending on @solana/web3.js.
@@ -34,11 +34,6 @@ interface LegacyTransactionInstruction {
 /** Structural interface matching @solana/web3.js Transaction. */
 export interface LegacyTransaction {
   instructions: LegacyTransactionInstruction[];
-}
-
-/** Structural interface matching @solana/web3.js Keypair. */
-export interface LegacyKeypair {
-  secretKey: Uint8Array;
 }
 
 const SET_COMPUTE_UNIT_LIMIT_DISCRIMINATOR = 2;

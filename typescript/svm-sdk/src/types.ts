@@ -7,8 +7,6 @@ import type {
   TransactionSigner,
 } from '@solana/kit';
 
-import type { LegacyKeypair } from './legacy-compat.js';
-
 import type { DeployedHookAddress } from '@hyperlane-xyz/provider-sdk/hook';
 import type { DeployedIsmAddress } from '@hyperlane-xyz/provider-sdk/ism';
 
@@ -37,6 +35,11 @@ export interface SvmReceipt {
   meta?: {
     logMessages?: readonly string[];
   };
+}
+
+/** Structural interface matching @solana/web3.js Keypair. */
+export interface LegacyKeypair {
+  secretKey: Uint8Array;
 }
 
 /**
