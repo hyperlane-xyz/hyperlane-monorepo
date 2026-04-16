@@ -489,33 +489,46 @@ export class SvmSigner
 
   /**
    * Fetches full transaction to populate meta (including logs) on the receipt.
+   * Retries with backoff since RPC indexing can lag behind confirmation.
+   * // TODO: make meta-fetch opt-in once the legacy compat layer is removed
    */
-  private async fetchTransactionMeta(receipt: SvmReceipt): Promise<SvmReceipt> {
-    try {
-      assertIsSignature(receipt.signature);
-      const fullTx = await this.rpc
-        .getTransaction(receipt.signature, {
-          commitment: RPC_COMMITMENT_LEVEL,
-          maxSupportedTransactionVersion: 0,
-          encoding: 'jsonParsed',
-        })
-        .send();
+  private async fetchTransactionMeta(
+    receipt: SvmReceipt,
+    maxRetries = 5,
+  ): Promise<SvmReceipt> {
+    assertIsSignature(receipt.signature);
 
-      if (!fullTx?.meta?.logMessages) {
-        this.logger.warn('Transaction meta not yet available', {
-          signature: receipt.signature,
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const fullTx = await this.rpc
+          .getTransaction(receipt.signature, {
+            commitment: RPC_COMMITMENT_LEVEL,
+            maxSupportedTransactionVersion: 0,
+            encoding: 'jsonParsed',
+          })
+          .send();
+
+        if (fullTx?.meta?.logMessages) {
+          return {
+            ...receipt,
+            meta: { logMessages: fullTx.meta.logMessages },
+          };
+        }
+      } catch (error) {
+        this.logger.debug(`Attempt ${attempt + 1} failed to fetch tx meta`, {
+          error,
         });
-        return receipt;
       }
 
-      return {
-        ...receipt,
-        meta: { logMessages: fullTx.meta.logMessages },
-      };
-    } catch (error) {
-      this.logger.warn('Failed to fetch transaction meta', { error });
-      return receipt;
+      if (attempt < maxRetries - 1) {
+        await sleep(1000 * (attempt + 1));
+      }
     }
+
+    this.logger.warn('Transaction meta unavailable after retries', {
+      signature: receipt.signature,
+    });
+    return receipt;
   }
 
   async sendAndConfirmBatchTransactions(
