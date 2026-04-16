@@ -151,7 +151,7 @@ export enum WarpRouteIds {
 
   // TODO: uncomment when USDTOft warp routes are in the registry
   // USDT OFT
-  // USDTOft = 'USDT/oft',
+  USDTOft = 'USDT/oft',
   // USDTOftLegacy = 'USDT/oft-legacy',
 
   // RISE routes
