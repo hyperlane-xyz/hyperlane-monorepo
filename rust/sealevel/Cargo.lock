@@ -3472,6 +3472,7 @@ dependencies = [
  "num-derive",
  "num-traits",
  "solana-program 3.0.0",
+ "solana-system-interface 2.0.0",
  "thiserror 1.0.69",
 ]
 
