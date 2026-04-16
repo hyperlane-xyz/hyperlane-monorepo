@@ -4967,6 +4967,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "package-versioned"
+version = "0.1.0"
+dependencies = [
+ "solana-program 3.0.0",
+]
+
+[[package]]
 name = "parity-scale-codec"
 version = "3.7.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"

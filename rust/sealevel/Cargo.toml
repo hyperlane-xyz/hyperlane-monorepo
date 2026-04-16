@@ -10,6 +10,7 @@ members = [
     "libraries/interchain-security-module-interface",
     "libraries/message-recipient-interface",
     "libraries/multisig-ism",
+    "libraries/package-versioned",
     "libraries/serializable-account-meta",
     "libraries/test-transaction-utils",
     "libraries/test-utils",
@@ -181,6 +182,9 @@ overflow-checks = true
 overflow-checks = true
 
 [profile.release.package.multisig-ism]
+overflow-checks = true
+
+[profile.release.package.package-versioned]
 overflow-checks = true
 
 [profile.release.package.serializable-account-meta]
