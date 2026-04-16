@@ -1,4 +1,4 @@
-import type { Address } from '@solana/kit';
+import { address as castAddress, type Address } from '@solana/kit';
 
 export const PROGRAM_INSTRUCTION_DISCRIMINATOR = new Uint8Array([
   1, 1, 1, 1, 1, 1, 1, 1,
@@ -38,6 +38,11 @@ export const TOKEN_2022_PROGRAM_ADDRESS =
 // https://github.com/metaplex-foundation/mpl-token-metadata/blob/c314930196b6b16e1ba8fefdf206e9af7b0e4c37/programs/token-metadata/program/src/lib.rs#L25
 export const METAPLEX_METADATA_PROGRAM_ADDRESS =
   'metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s' as Address;
+
+// Hand-rolled to avoid adding @solana-program/compute-budget as a dependency.
+export const COMPUTE_BUDGET_PROGRAM_ID = castAddress(
+  'ComputeBudget111111111111111111111111111111',
+);
 
 // Default compute unit budget for SVM deployment transactions.
 export const DEFAULT_COMPUTE_UNITS = 400_000;
