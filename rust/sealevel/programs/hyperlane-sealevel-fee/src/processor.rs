@@ -80,8 +80,10 @@ pub fn process_instruction(
             process_set_min_issued_at(program_id, accounts, min_issued_at)
         }
         Instruction::SubmitQuote(quote) => process_submit_quote(program_id, accounts, quote),
-        Instruction::CloseTransientQuote => todo!("CloseTransientQuote"),
-        Instruction::PruneExpiredQuotes { .. } => todo!("PruneExpiredQuotes"),
+        Instruction::CloseTransientQuote => process_close_transient_quote(program_id, accounts),
+        Instruction::PruneExpiredQuotes { domain } => {
+            process_prune_expired_quotes(program_id, accounts, domain)
+        }
         Instruction::GetQuoteAccountMetas(_) => todo!("GetQuoteAccountMetas"),
     }
 }
@@ -952,6 +954,137 @@ fn process_submit_quote(
             ctx.destination_domain,
             recipient_key
         );
+    }
+
+    Ok(())
+}
+
+/// Close an orphaned transient quote PDA, returning rent to the original payer.
+///
+/// Accounts:
+/// 0. `[executable]` System program.
+/// 1. `[]` Fee account.
+/// 2. `[writable]` Transient quote PDA.
+/// 3. `[signer, writable]` Payer refund (must match stored TransientQuote.payer).
+fn process_close_transient_quote(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    let _system_program_info = next_account_info(accounts_iter)?;
+    if *_system_program_info.key != system_program::ID {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+
+    // Account 1: Fee account (read-only, for PDA derivation).
+    let fee_account_info = next_account_info(accounts_iter)?;
+    if fee_account_info.owner != program_id {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+
+    // Account 2: Transient quote PDA.
+    let transient_pda_info = next_account_info(accounts_iter)?;
+    if transient_pda_info.owner != program_id {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+    let transient = TransientQuoteAccount::fetch(&mut &transient_pda_info.data.borrow()[..])?
+        .into_inner()
+        .data;
+
+    // Account 3: Payer refund (must be signer and match stored payer).
+    let payer_refund_info = next_account_info(accounts_iter)?;
+    if !payer_refund_info.is_signer {
+        return Err(ProgramError::MissingRequiredSignature);
+    }
+    if *payer_refund_info.key != transient.payer {
+        return Err(Error::TransientPayerMismatch.into());
+    }
+
+    // Re-derive PDA to verify key.
+    let (expected_key, _) = Pubkey::find_program_address(
+        transient_quote_pda_seeds!(fee_account_info.key, transient.scoped_salt),
+        program_id,
+    );
+    if *transient_pda_info.key != expected_key {
+        return Err(Error::TransientPdaMismatch.into());
+    }
+
+    ensure_no_extraneous_accounts(accounts_iter)?;
+
+    close_pda(transient_pda_info, payer_refund_info)?;
+
+    msg!("Closed transient quote PDA");
+
+    Ok(())
+}
+
+/// Remove expired standing quotes for a domain (owner-only).
+/// Closes the domain PDA if empty and removes domain from standing_quote_domains.
+///
+/// Accounts:
+/// 0. `[executable]` System program.
+/// 1. `[writable]` Fee account.
+/// 2. `[signer, writable]` Owner.
+/// 3. `[writable]` Domain standing quote PDA.
+fn process_prune_expired_quotes(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    domain: u32,
+) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    let system_program_info = next_account_info(accounts_iter)?;
+    if *system_program_info.key != system_program::ID {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+
+    let (fee_account_info, mut fee_account) =
+        fetch_fee_account_and_verify_owner(program_id, accounts_iter)?;
+
+    // Account 3: Domain standing quote PDA.
+    let domain_pda_info = next_account_info(accounts_iter)?;
+    let domain_le = domain.to_le_bytes();
+    let (expected_key, _) = Pubkey::find_program_address(
+        fee_standing_quote_pda_seeds!(fee_account_info.key, &domain_le),
+        program_id,
+    );
+    if *domain_pda_info.key != expected_key {
+        return Err(ProgramError::InvalidSeeds);
+    }
+    if domain_pda_info.owner != program_id {
+        return Err(Error::RouteNotFound.into());
+    }
+
+    ensure_no_extraneous_accounts(accounts_iter)?;
+
+    let mut standing = FeeStandingQuotePdaAccount::fetch(&mut &domain_pda_info.data.borrow()[..])?
+        .into_inner()
+        .data;
+
+    let clock = Clock::get()?;
+    standing
+        .quotes
+        .retain(|_, value| clock.unix_timestamp <= value.expiry);
+
+    if standing.quotes.is_empty() {
+        // Close the PDA and remove domain from standing_quote_domains.
+        let owner_info = &accounts[2];
+        close_pda(domain_pda_info, owner_info)?;
+
+        fee_account.standing_quote_domains.remove(&domain);
+        FeeAccountData::new(fee_account.into()).store(fee_account_info, false)?;
+
+        msg!("Pruned domain {} — PDA closed", domain);
+    } else {
+        // Re-serialize with remaining entries.
+        let remaining = standing.quotes.len();
+        let owner_info = &accounts[2];
+        FeeStandingQuotePdaAccount::new(standing.into()).store_with_rent_exempt_realloc(
+            domain_pda_info,
+            &Rent::get()?,
+            owner_info,
+            system_program_info,
+        )?;
+
+        msg!("Pruned domain {} — {} entries remaining", domain, remaining);
     }
 
     Ok(())
