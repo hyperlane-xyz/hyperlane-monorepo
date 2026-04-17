@@ -885,6 +885,13 @@ fn process_submit_quote(
             return Err(Error::StandingQuoteAmountNotWildcard.into());
         }
 
+        // Reject fully-wildcarded standing quotes (wildcard dest + wildcard recipient).
+        if ctx.destination_domain == crate::accounts::WILDCARD_DOMAIN
+            && ctx.recipient == crate::accounts::WILDCARD_RECIPIENT
+        {
+            return Err(Error::FullyWildcardedStandingQuote.into());
+        }
+
         // Parse quote data.
         let quote_data = FeeQuoteData::try_from(quote.data.as_slice())
             .map_err(|_| Error::InvalidStandingQuoteData)?;

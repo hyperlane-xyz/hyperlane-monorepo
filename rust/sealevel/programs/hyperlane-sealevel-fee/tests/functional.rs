@@ -3921,6 +3921,60 @@ mod submit_standing_quote {
             ),
         );
     }
+
+    #[tokio::test]
+    async fn test_fully_wildcarded_rejected() {
+        let (mut banks_client, payer) = setup_client().await;
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let signer_address = eth_address(&signing_key);
+
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let context = encode_standing_context(
+            hyperlane_sealevel_fee::accounts::WILDCARD_DOMAIN,
+            hyperlane_sealevel_fee::accounts::WILDCARD_RECIPIENT,
+        );
+        let data = encode_data(1000, 500);
+
+        let quote = make_signed_standing_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            context,
+            data,
+            encode_u48(100),
+            encode_u48(9999999999),
+        );
+
+        let ix = build_submit_standing_ix(
+            &fee_key,
+            &payer.pubkey(),
+            &quote,
+            hyperlane_sealevel_fee::accounts::WILDCARD_DOMAIN,
+        );
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::FullyWildcardedStandingQuote as u32),
+            ),
+        );
+    }
 }
 
 mod quote_fee_standing {
