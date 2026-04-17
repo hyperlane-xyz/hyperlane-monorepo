@@ -33,6 +33,7 @@ const mockProtocolProvider: ProtocolProvider = {
   createHookArtifactManager: sinon.stub(),
   createMailboxArtifactManager: sinon.stub(),
   createValidatorAnnounceArtifactManager: sinon.stub(),
+  createFeeArtifactManager: sinon.stub(),
   getMinGas: sinon.stub(),
   createWarpArtifactManager: sinon.stub(),
 };

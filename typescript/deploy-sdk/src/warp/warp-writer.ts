@@ -160,12 +160,14 @@ export class WarpTokenWriter
     }
 
     // Convert to raw artifact config (flatten nested artifacts)
+    // Fee is excluded from create - managed in update() after remote routers are enrolled
     const rawArtifact: ArtifactNew<RawWarpArtifactConfig> = {
       artifactState: ArtifactState.NEW,
       config: {
         ...config,
         interchainSecurityModule: onChainIsmArtifact,
         hook: onChainHookArtifact,
+        fee: undefined,
       },
     };
 
@@ -182,6 +184,7 @@ export class WarpTokenWriter
           ...artifact.config,
           interchainSecurityModule: onChainIsmArtifact,
           hook: onChainHookArtifact,
+          fee: undefined,
         },
         deployed: deployed.deployed,
       },
@@ -310,12 +313,14 @@ export class WarpTokenWriter
     }
 
     // Build raw artifact with flattened ISM and Hook references
+    // Fee is not yet handled in update - will be added in a follow-up
     const rawArtifact = {
       artifactState: ArtifactState.DEPLOYED,
       config: {
         ...config,
         interchainSecurityModule: onChainIsmArtifact,
         hook: onChainHookArtifact,
+        fee: undefined,
       },
       deployed,
     };

@@ -12,6 +12,7 @@ import {
   JsonRpcSubmitterConfig,
   TransactionSubmitterConfig,
 } from './submitter.js';
+import { IRawFeeArtifactManager } from './fee.js';
 import { IRawWarpArtifactManager } from './warp.js';
 import { IRawValidatorAnnounceArtifactManager } from './validator-announce.js';
 
@@ -128,6 +129,20 @@ export interface ProtocolProvider {
   createValidatorAnnounceArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
   ): IRawValidatorAnnounceArtifactManager | null;
+
+  /**
+   * Creates a Fee artifact manager for the protocol.
+   * The artifact manager provides protocol-specific readers and writers
+   * that handle fee operations using the Artifact API pattern.
+   *
+   * Not all protocols support fee programs.
+   *
+   * @param chainMetadata Chain metadata for the target chain
+   * @returns A protocol-specific Fee artifact manager, or null if not supported
+   */
+  createFeeArtifactManager(
+    chainMetadata: ChainMetadataForAltVM,
+  ): IRawFeeArtifactManager | null;
 
   getMinGas(): MinimumRequiredGasByAction;
 }
