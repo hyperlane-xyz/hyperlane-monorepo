@@ -11,7 +11,6 @@ import { type IStrategy } from '../interfaces/IStrategy.js';
 import { type Metrics } from '../metrics/Metrics.js';
 import type {
   BridgeConfigWithOverride,
-  InventoryBridgeConfig,
   MovableCollateralBridgeConfig,
 } from '../utils/bridgeUtils.js';
 
@@ -124,6 +123,7 @@ export class StrategyFactory {
     strategyConfig: StrategyConfig,
   ): ChainMap<BridgeConfigWithOverride> {
     const bridgeConfigs: ChainMap<BridgeConfigWithOverride> = {};
+    const strategyExternalBridgeConfig = strategyConfig.externalBridgeConfig;
 
     for (const [chain, config] of Object.entries(strategyConfig.chains)) {
       const baseConfig = {
@@ -138,7 +138,8 @@ export class StrategyFactory {
           ...baseConfig,
           executionType: 'inventory',
           externalBridge: config.externalBridge!, // Validated by config schema
-          override: config.override as ChainMap<Partial<InventoryBridgeConfig>>,
+          strategyExternalBridgeConfig,
+          override: config.override as BridgeConfigWithOverride['override'],
         };
       } else {
         bridgeConfigs[chain] = {

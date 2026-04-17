@@ -2,10 +2,12 @@ import type { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 import type { Address } from '@hyperlane-xyz/utils';
 
 import type { ExternalBridgeType } from '../config/types.js';
-import type { StrategyRoute } from '../interfaces/IStrategy.js';
+import type { ExternalBridgeQuoteOverridesMap } from '../interfaces/IExternalBridge.js';
+import type { InventoryRoute, StrategyRoute } from '../interfaces/IStrategy.js';
 
 type BaseBridgeConfig = {
   bridgeMinAcceptedAmount?: string | number;
+  strategyExternalBridgeConfig?: Partial<ExternalBridgeQuoteOverridesMap>;
 };
 
 export type MovableCollateralBridgeConfig = BaseBridgeConfig & {
@@ -13,10 +15,14 @@ export type MovableCollateralBridgeConfig = BaseBridgeConfig & {
   bridge: Address;
 };
 
-export type InventoryBridgeConfig = BaseBridgeConfig & {
-  executionType: 'inventory';
-  externalBridge: ExternalBridgeType;
-};
+export type InventoryBridgeConfig<
+  T extends ExternalBridgeType = ExternalBridgeType,
+> = {
+  [B in T]: BaseBridgeConfig & {
+    executionType: 'inventory';
+    externalBridge: B;
+  };
+}[T];
 
 export type BridgeConfig =
   | MovableCollateralBridgeConfig
@@ -60,6 +66,23 @@ export function getBridgeConfig(
   return { ...baseConfig, ...routeSpecificOverrides } as BridgeConfig;
 }
 
+function createInventoryRoute<T extends ExternalBridgeType>(
+  bridgeConfig: InventoryBridgeConfig<T>,
+  origin: ChainName,
+  destination: ChainName,
+  amount: bigint,
+): InventoryRoute<T> {
+  return {
+    origin,
+    destination,
+    amount,
+    executionType: 'inventory',
+    externalBridge: bridgeConfig.externalBridge,
+    quoteOverrides:
+      bridgeConfig.strategyExternalBridgeConfig?.[bridgeConfig.externalBridge],
+  };
+}
+
 /**
  * Creates a StrategyRoute from a BridgeConfig with exhaustive type checking
  * @param bridgeConfig The bridge configuration
@@ -76,13 +99,7 @@ export function createStrategyRoute(
 ): StrategyRoute {
   switch (bridgeConfig.executionType) {
     case 'inventory':
-      return {
-        origin,
-        destination,
-        amount,
-        executionType: 'inventory',
-        externalBridge: bridgeConfig.externalBridge,
-      };
+      return createInventoryRoute(bridgeConfig, origin, destination, amount);
     case 'movableCollateral':
       return {
         origin,

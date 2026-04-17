@@ -34,7 +34,7 @@ describe('InventoryRebalancer E2E', () => {
   let inventoryRebalancer: InventoryRebalancer;
   let config: InventoryRebalancerConfig;
   let actionTracker: SinonStubbedInstance<IActionTracker>;
-  let bridge: SinonStubbedInstance<IExternalBridge>;
+  let bridge: SinonStubbedInstance<IExternalBridge<unknown>>;
   let warpCore: any;
   let multiProvider: any;
   let adapterStub: any;
@@ -96,7 +96,7 @@ describe('InventoryRebalancer E2E', () => {
       getNativeTokenAddress: Sinon.stub().returns(
         '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
       ),
-    } as unknown as SinonStubbedInstance<IExternalBridge>;
+    } as unknown as SinonStubbedInstance<IExternalBridge<unknown>>;
 
     // Mock adapter for WarpCore tokens
     adapterStub = {
@@ -224,7 +224,7 @@ describe('InventoryRebalancer E2E', () => {
     inventoryRebalancer = new InventoryRebalancer(
       config,
       actionTracker as unknown as IActionTracker,
-      { lifi: bridge as unknown as IExternalBridge },
+      { lifi: bridge as unknown as IExternalBridge<unknown> },
       warpCore as unknown as WarpCore,
       multiProvider as unknown as MultiProvider,
       testLogger,
@@ -697,7 +697,7 @@ describe('InventoryRebalancer E2E', () => {
       inventoryRebalancer = new InventoryRebalancer(
         configWithoutKeys,
         actionTracker as unknown as IActionTracker,
-        { lifi: bridge as unknown as IExternalBridge },
+        { lifi: bridge as unknown as IExternalBridge<unknown> },
         warpCore as unknown as WarpCore,
         multiProvider as unknown as MultiProvider,
         testLogger,
