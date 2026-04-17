@@ -28,7 +28,7 @@ use hyperlane_sealevel_fee::{
     fee_account_pda_seeds,
     fee_math::{FeeDataStrategy, FeeParams},
     fee_standing_quote_pda_seeds,
-    instruction::Instruction as FeeInstruction,
+    instruction::{self, Instruction as FeeInstruction},
     processor::process_instruction as fee_process_instruction,
     route_domain_pda_seeds, transient_quote_pda_seeds,
 };
@@ -175,21 +175,16 @@ fn build_init_fee_ix(
 ) -> (Instruction, Pubkey) {
     let program_id = fee_program_id();
     let (fee_account, _) = Pubkey::find_program_address(fee_account_pda_seeds!(salt), &program_id);
-    let ix = Instruction::new_with_borsh(
+    let ix = instruction::init_fee_instruction(
         program_id,
-        &FeeInstruction::InitFee(hyperlane_sealevel_fee::instruction::InitFee {
-            salt,
-            owner,
-            beneficiary,
-            fee_data,
-            domain_id: LOCAL_DOMAIN,
-        }),
-        vec![
-            AccountMeta::new_readonly(system_program::ID, false),
-            AccountMeta::new(*payer, true),
-            AccountMeta::new(fee_account, false),
-        ],
-    );
+        *payer,
+        salt,
+        owner,
+        beneficiary,
+        fee_data,
+        LOCAL_DOMAIN,
+    )
+    .unwrap();
     (ix, fee_account)
 }
 
@@ -261,23 +256,15 @@ fn build_set_cc_route_ix(
     target_router: H256,
     strategy: FeeDataStrategy,
 ) -> Instruction {
-    let cc_pda = cc_route_pda_for(fee_account, destination, &target_router);
-    Instruction::new_with_borsh(
+    instruction::set_cc_route_instruction(
         fee_program_id(),
-        &FeeInstruction::SetCrossCollateralRoute(
-            hyperlane_sealevel_fee::instruction::SetCrossCollateralRoute {
-                destination,
-                target_router,
-                fee_data: strategy,
-            },
-        ),
-        vec![
-            AccountMeta::new_readonly(system_program::ID, false),
-            AccountMeta::new_readonly(*fee_account, false),
-            AccountMeta::new(*owner, true),
-            AccountMeta::new(cc_pda, false),
-        ],
+        *fee_account,
+        *owner,
+        destination,
+        target_router,
+        strategy,
     )
+    .unwrap()
 }
 
 fn build_remove_cc_route_ix(
@@ -286,22 +273,14 @@ fn build_remove_cc_route_ix(
     destination: u32,
     target_router: H256,
 ) -> Instruction {
-    let cc_pda = cc_route_pda_for(fee_account, destination, &target_router);
-    Instruction::new_with_borsh(
+    instruction::remove_cc_route_instruction(
         fee_program_id(),
-        &FeeInstruction::RemoveCrossCollateralRoute(
-            hyperlane_sealevel_fee::instruction::RemoveCrossCollateralRoute {
-                destination,
-                target_router,
-            },
-        ),
-        vec![
-            AccountMeta::new_readonly(system_program::ID, false),
-            AccountMeta::new_readonly(*fee_account, false),
-            AccountMeta::new(*owner, true),
-            AccountMeta::new(cc_pda, false),
-        ],
+        *fee_account,
+        *owner,
+        destination,
+        target_router,
     )
+    .unwrap()
 }
 
 fn route_pda_for(fee_account: &Pubkey, domain: u32) -> Pubkey {
@@ -319,34 +298,12 @@ fn build_set_route_ix(
     domain: u32,
     strategy: FeeDataStrategy,
 ) -> Instruction {
-    let route_pda = route_pda_for(fee_account, domain);
-    Instruction::new_with_borsh(
-        fee_program_id(),
-        &FeeInstruction::SetRoute(hyperlane_sealevel_fee::instruction::SetRoute {
-            domain,
-            fee_data: strategy,
-        }),
-        vec![
-            AccountMeta::new_readonly(system_program::ID, false),
-            AccountMeta::new_readonly(*fee_account, false),
-            AccountMeta::new(*owner, true),
-            AccountMeta::new(route_pda, false),
-        ],
-    )
+    instruction::set_route_instruction(fee_program_id(), *fee_account, *owner, domain, strategy)
+        .unwrap()
 }
 
 fn build_remove_route_ix(fee_account: &Pubkey, owner: &Pubkey, domain: u32) -> Instruction {
-    let route_pda = route_pda_for(fee_account, domain);
-    Instruction::new_with_borsh(
-        fee_program_id(),
-        &FeeInstruction::RemoveRoute(domain),
-        vec![
-            AccountMeta::new_readonly(system_program::ID, false),
-            AccountMeta::new_readonly(*fee_account, false),
-            AccountMeta::new(*owner, true),
-            AccountMeta::new(route_pda, false),
-        ],
-    )
+    instruction::remove_route_instruction(fee_program_id(), *fee_account, *owner, domain).unwrap()
 }
 
 /// Derives the standing quote PDA for a domain (or wildcard).
@@ -477,27 +434,13 @@ fn build_quote_fee_cc_ix(
 }
 
 fn build_add_quote_signer_ix(fee_account: &Pubkey, owner: &Pubkey, signer: H160) -> Instruction {
-    Instruction::new_with_borsh(
-        fee_program_id(),
-        &FeeInstruction::AddQuoteSigner { signer },
-        vec![
-            AccountMeta::new_readonly(system_program::ID, false),
-            AccountMeta::new(*fee_account, false),
-            AccountMeta::new(*owner, true),
-        ],
-    )
+    instruction::add_quote_signer_instruction(fee_program_id(), *fee_account, *owner, signer)
+        .unwrap()
 }
 
 fn build_remove_quote_signer_ix(fee_account: &Pubkey, owner: &Pubkey, signer: H160) -> Instruction {
-    Instruction::new_with_borsh(
-        fee_program_id(),
-        &FeeInstruction::RemoveQuoteSigner { signer },
-        vec![
-            AccountMeta::new_readonly(system_program::ID, false),
-            AccountMeta::new(*fee_account, false),
-            AccountMeta::new(*owner, true),
-        ],
-    )
+    instruction::remove_quote_signer_instruction(fee_program_id(), *fee_account, *owner, signer)
+        .unwrap()
 }
 
 fn build_set_min_issued_at_ix(
@@ -505,14 +448,13 @@ fn build_set_min_issued_at_ix(
     owner: &Pubkey,
     min_issued_at: i64,
 ) -> Instruction {
-    Instruction::new_with_borsh(
+    instruction::set_min_issued_at_instruction(
         fee_program_id(),
-        &FeeInstruction::SetMinIssuedAt { min_issued_at },
-        vec![
-            AccountMeta::new(*fee_account, false),
-            AccountMeta::new_readonly(*owner, true),
-        ],
+        *fee_account,
+        *owner,
+        min_issued_at,
     )
+    .unwrap()
 }
 
 // --- Shared encoding helpers ---
@@ -596,21 +538,14 @@ fn build_submit_transient_ix(
     quote: &SvmSignedQuote,
 ) -> Instruction {
     let scoped_salt = quote.compute_scoped_salt(payer);
-    let (transient_pda, _) = Pubkey::find_program_address(
-        transient_quote_pda_seeds!(fee_account, scoped_salt),
-        &fee_program_id(),
-    );
-
-    Instruction::new_with_borsh(
+    instruction::submit_transient_quote_instruction(
         fee_program_id(),
-        &FeeInstruction::SubmitQuote(quote.clone()),
-        vec![
-            AccountMeta::new_readonly(system_program::ID, false),
-            AccountMeta::new(*payer, true),
-            AccountMeta::new_readonly(*fee_account, false),
-            AccountMeta::new(transient_pda, false),
-        ],
+        *payer,
+        *fee_account,
+        scoped_salt,
+        quote.clone(),
     )
+    .unwrap()
 }
 
 fn build_submit_standing_ix(
@@ -619,22 +554,15 @@ fn build_submit_standing_ix(
     quote: &SvmSignedQuote,
     dest_domain: u32,
 ) -> Instruction {
-    let domain_le = dest_domain.to_le_bytes();
-    let (domain_pda, _) = Pubkey::find_program_address(
-        fee_standing_quote_pda_seeds!(fee_account, &domain_le),
-        &fee_program_id(),
-    );
-
-    Instruction::new_with_borsh(
+    instruction::submit_standing_quote_instruction(
         fee_program_id(),
-        &FeeInstruction::SubmitQuote(quote.clone()),
-        vec![
-            AccountMeta::new_readonly(system_program::ID, false),
-            AccountMeta::new(*payer, true),
-            AccountMeta::new(*fee_account, false),
-            AccountMeta::new(domain_pda, false),
-        ],
+        *payer,
+        *fee_account,
+        dest_domain,
+        H256::zero(),
+        quote.clone(),
     )
+    .unwrap()
 }
 
 fn build_submit_cc_standing_ix(
@@ -644,21 +572,15 @@ fn build_submit_cc_standing_ix(
     dest: u32,
     target_router: &H256,
 ) -> Instruction {
-    let domain_le = dest.to_le_bytes();
-    let (domain_pda, _) = Pubkey::find_program_address(
-        fee_standing_quote_pda_seeds!(fee_account, &domain_le, target_router),
-        &fee_program_id(),
-    );
-    Instruction::new_with_borsh(
+    instruction::submit_standing_quote_instruction(
         fee_program_id(),
-        &FeeInstruction::SubmitQuote(quote.clone()),
-        vec![
-            AccountMeta::new_readonly(system_program::ID, false),
-            AccountMeta::new(*payer, true),
-            AccountMeta::new(*fee_account, false),
-            AccountMeta::new(domain_pda, false),
-        ],
+        *payer,
+        *fee_account,
+        dest,
+        *target_router,
+        quote.clone(),
     )
+    .unwrap()
 }
 
 fn build_close_transient_ix(
@@ -666,37 +588,24 @@ fn build_close_transient_ix(
     transient_pda: &Pubkey,
     payer_refund: &Pubkey,
 ) -> Instruction {
-    Instruction::new_with_borsh(
+    instruction::close_transient_quote_instruction(
         fee_program_id(),
-        &FeeInstruction::CloseTransientQuote,
-        vec![
-            AccountMeta::new_readonly(system_program::ID, false),
-            AccountMeta::new_readonly(*fee_key, false),
-            AccountMeta::new(*transient_pda, false),
-            AccountMeta::new(*payer_refund, true),
-        ],
+        *fee_key,
+        *transient_pda,
+        *payer_refund,
     )
+    .unwrap()
 }
 
 fn build_prune_ix(fee_account: &Pubkey, owner: &Pubkey, domain: u32) -> Instruction {
-    let domain_le = domain.to_le_bytes();
-    let (domain_pda, _) = Pubkey::find_program_address(
-        fee_standing_quote_pda_seeds!(fee_account, &domain_le),
-        &fee_program_id(),
-    );
-    Instruction::new_with_borsh(
+    instruction::prune_expired_quotes_instruction(
         fee_program_id(),
-        &FeeInstruction::PruneExpiredQuotes {
-            domain,
-            target_router: None,
-        },
-        vec![
-            AccountMeta::new_readonly(system_program::ID, false),
-            AccountMeta::new(*fee_account, false),
-            AccountMeta::new(*owner, true),
-            AccountMeta::new(domain_pda, false),
-        ],
+        *fee_account,
+        *owner,
+        domain,
+        None,
     )
+    .unwrap()
 }
 
 async fn fetch_standing_pda(banks_client: &mut BanksClient, key: Pubkey) -> FeeStandingQuotePda {
