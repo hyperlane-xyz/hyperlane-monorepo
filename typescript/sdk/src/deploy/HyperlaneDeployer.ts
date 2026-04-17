@@ -409,8 +409,10 @@ export abstract class HyperlaneDeployer<
     shouldRecover = true,
     implementationAddress?: Address,
   ): Promise<ReturnType<F['deploy']>> {
+    const cacheKey = this.deriveCacheKey(contractName, constructorArgs);
+
     if (this.cachingEnabled && shouldRecover) {
-      const cachedContract = this.readCache(chain, factory, contractName);
+      const cachedContract = this.readCache(chain, factory, cacheKey);
       if (cachedContract) {
         if (this.recoverVerificationInputs) {
           const recoveredInputs = await this.recoverVerificationArtifacts(
@@ -515,6 +517,8 @@ export abstract class HyperlaneDeployer<
       this.logger.debug(`Error verifying contract: ${error}`);
     }
 
+    this.writeCache(chain, cacheKey, contract.address);
+
     return contract;
   }
 
@@ -549,7 +553,6 @@ export abstract class HyperlaneDeployer<
       initializeArgs,
       shouldRecover,
     );
-    this.writeCache(chain, contractName, contract.address);
     return contract;
   }
 
@@ -698,11 +701,18 @@ export abstract class HyperlaneDeployer<
     );
   }
 
-  writeCache<K extends keyof Factories>(
-    chain: ChainName,
-    contractName: K,
-    address: Address,
-  ): void {
+  protected deriveCacheKey(
+    contractName: string,
+    constructorArgs: unknown[],
+  ): string {
+    if (constructorArgs.length === 0) return contractName;
+    const serialized = JSON.stringify(constructorArgs, (_, v) =>
+      typeof v === 'bigint' ? v.toString() : v,
+    );
+    return `${contractName}:${ethers.utils.id(serialized).slice(2, 10)}`;
+  }
+
+  writeCache(chain: ChainName, contractName: string, address: Address): void {
     if (!this.cachedAddresses[chain]) {
       this.cachedAddresses[chain] = {};
     }
