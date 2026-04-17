@@ -411,11 +411,14 @@ fn try_consume_transient_quote<C: crate::accounts::QuoteContext>(
         return Err(Error::TransientPayerMismatch.into());
     }
 
-    // Re-derive PDA from stored scoped_salt and verify key matches.
-    let (expected_key, _) = Pubkey::find_program_address(
-        transient_quote_pda_seeds!(fee_account_key, transient.scoped_salt),
+    // Re-derive PDA from stored scoped_salt + bump and verify key matches.
+    // Uses create_program_address (~150 CU) instead of find_program_address (~1,500 CU)
+    // since the bump is already stored in the deserialized, program-owned account.
+    let expected_key = Pubkey::create_program_address(
+        transient_quote_pda_seeds!(fee_account_key, transient.scoped_salt, transient.bump_seed),
         program_id,
-    );
+    )
+    .map_err(|_| Error::TransientPdaMismatch)?;
     if *transient_acct.key != expected_key {
         return Err(Error::TransientPdaMismatch.into());
     }
@@ -618,7 +621,7 @@ fn process_set_beneficiary(
     new_beneficiary: Pubkey,
 ) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
-    let (fee_account_info, mut fee_account) =
+    let (fee_account_info, mut fee_account, _owner_info) =
         fetch_fee_account_and_verify_owner(program_id, accounts_iter)?;
 
     ensure_no_extraneous_accounts(accounts_iter)?;
@@ -642,7 +645,7 @@ fn process_transfer_ownership(
     new_owner: Option<Pubkey>,
 ) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
-    let (fee_account_info, mut fee_account) =
+    let (fee_account_info, mut fee_account, _owner_info) =
         fetch_fee_account_and_verify_owner(program_id, accounts_iter)?;
 
     ensure_no_extraneous_accounts(accounts_iter)?;
@@ -667,7 +670,7 @@ fn process_update_fee_params(
     new_params: FeeParams,
 ) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
-    let (fee_account_info, mut fee_account) =
+    let (fee_account_info, mut fee_account, _owner_info) =
         fetch_fee_account_and_verify_owner(program_id, accounts_iter)?;
 
     ensure_no_extraneous_accounts(accounts_iter)?;
@@ -707,14 +710,13 @@ fn process_add_quote_signer(
         return Err(ProgramError::IncorrectProgramId);
     }
 
-    let (fee_account_info, mut fee_account) =
+    let (fee_account_info, mut fee_account, owner_info) =
         fetch_fee_account_and_verify_owner(program_id, accounts_iter)?;
 
     ensure_no_extraneous_accounts(accounts_iter)?;
 
     fee_account.signers.insert(signer);
 
-    let owner_info = &accounts[2];
     FeeAccountData::new(fee_account.into()).store_with_rent_exempt_realloc(
         fee_account_info,
         &Rent::get()?,
@@ -745,7 +747,7 @@ fn process_remove_quote_signer(
         return Err(ProgramError::IncorrectProgramId);
     }
 
-    let (fee_account_info, mut fee_account) =
+    let (fee_account_info, mut fee_account, _owner_info) =
         fetch_fee_account_and_verify_owner(program_id, accounts_iter)?;
 
     ensure_no_extraneous_accounts(accounts_iter)?;
@@ -770,7 +772,7 @@ fn process_set_min_issued_at(
     min_issued_at: i64,
 ) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
-    let (fee_account_info, mut fee_account) =
+    let (fee_account_info, mut fee_account, _owner_info) =
         fetch_fee_account_and_verify_owner(program_id, accounts_iter)?;
 
     ensure_no_extraneous_accounts(accounts_iter)?;
@@ -1109,7 +1111,7 @@ fn process_prune_expired_quotes(
         return Err(ProgramError::IncorrectProgramId);
     }
 
-    let (fee_account_info, mut fee_account) =
+    let (fee_account_info, mut fee_account, owner_info) =
         fetch_fee_account_and_verify_owner(program_id, accounts_iter)?;
 
     // Account 3: Domain standing quote PDA.
@@ -1139,7 +1141,6 @@ fn process_prune_expired_quotes(
 
     if standing.quotes.is_empty() {
         // Close the PDA.
-        let owner_info = &accounts[2];
         close_pda(domain_pda_info, owner_info)?;
 
         // Remove domain from standing_quote_domains only for non-CC accounts.
@@ -1154,7 +1155,6 @@ fn process_prune_expired_quotes(
     } else {
         // Re-serialize with remaining entries.
         let remaining = standing.quotes.len();
-        let owner_info = &accounts[2];
         FeeStandingQuotePdaAccount::new(standing.into()).store_with_rent_exempt_realloc(
             domain_pda_info,
             &Rent::get()?,
@@ -1319,7 +1319,7 @@ fn process_set_route(
     }
 
     // Account 1 + 2: Fee account (read-only) + owner (signer).
-    let (fee_account_info, fee_account) =
+    let (fee_account_info, fee_account, owner_info) =
         fetch_fee_account_and_verify_owner(program_id, accounts_iter)?;
 
     if !matches!(fee_account.fee_data, FeeData::Routing) {
@@ -1354,7 +1354,6 @@ fn process_set_route(
 
     // Create the PDA if uninitialized, or verify ownership if it exists.
     if route_pda_info.data_is_empty() && route_pda_info.owner == &system_program::ID {
-        let owner_info = &accounts[2];
         let rent = Rent::get()?;
         create_pda_account(
             owner_info,
@@ -1398,7 +1397,7 @@ fn process_remove_route(
     }
 
     // Account 1 + 2: Fee account + owner.
-    let (fee_account_info, fee_account) =
+    let (fee_account_info, fee_account, owner_info) =
         fetch_fee_account_and_verify_owner(program_id, accounts_iter)?;
 
     if !matches!(fee_account.fee_data, FeeData::Routing) {
@@ -1422,7 +1421,6 @@ fn process_remove_route(
     ensure_no_extraneous_accounts(accounts_iter)?;
 
     // Close the PDA: drain lamports to owner, zero data, reassign to system program.
-    let owner_info = &accounts[2];
     close_pda(route_pda_info, owner_info)?;
 
     msg!("Removed route for domain {}", domain);
@@ -1453,7 +1451,7 @@ fn process_set_cc_route(
     }
 
     // Account 1 + 2: Fee account (read-only) + owner (signer).
-    let (fee_account_info, fee_account) =
+    let (fee_account_info, fee_account, owner_info) =
         fetch_fee_account_and_verify_owner(program_id, accounts_iter)?;
 
     if !matches!(fee_account.fee_data, FeeData::CrossCollateralRouting) {
@@ -1487,7 +1485,6 @@ fn process_set_cc_route(
     );
 
     if cc_route_pda_info.data_is_empty() && cc_route_pda_info.owner == &system_program::ID {
-        let owner_info = &accounts[2];
         let rent = Rent::get()?;
         create_pda_account(
             owner_info,
@@ -1535,7 +1532,7 @@ fn process_remove_cc_route(
     }
 
     // Account 1 + 2: Fee account + owner.
-    let (fee_account_info, fee_account) =
+    let (fee_account_info, fee_account, owner_info) =
         fetch_fee_account_and_verify_owner(program_id, accounts_iter)?;
 
     if !matches!(fee_account.fee_data, FeeData::CrossCollateralRouting) {
@@ -1558,7 +1555,6 @@ fn process_remove_cc_route(
 
     ensure_no_extraneous_accounts(accounts_iter)?;
 
-    let owner_info = &accounts[2];
     close_pda(cc_route_pda_info, owner_info)?;
 
     msg!(
@@ -1580,7 +1576,7 @@ fn process_remove_cc_route(
 fn fetch_fee_account_and_verify_owner<'a, 'b>(
     program_id: &Pubkey,
     accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
-) -> Result<(&'a AccountInfo<'b>, FeeAccount), ProgramError> {
+) -> Result<(&'a AccountInfo<'b>, FeeAccount, &'a AccountInfo<'b>), ProgramError> {
     let fee_account_info = next_account_info(accounts_iter)?;
     if fee_account_info.owner != program_id {
         return Err(ProgramError::IncorrectProgramId);
@@ -1591,7 +1587,7 @@ fn fetch_fee_account_and_verify_owner<'a, 'b>(
     let owner_info = next_account_info(accounts_iter)?;
     fee_account.ensure_owner_signer(owner_info)?;
 
-    Ok((fee_account_info, fee_account.data))
+    Ok((fee_account_info, fee_account.data, owner_info))
 }
 
 /// Errors if there are remaining accounts in the iterator.
@@ -1606,6 +1602,9 @@ fn ensure_no_extraneous_accounts(
 
 /// Closes a PDA account by draining lamports, zeroing data, and reassigning to the system program.
 fn close_pda(pda_info: &AccountInfo, recipient_info: &AccountInfo) -> ProgramResult {
+    if pda_info.key == recipient_info.key {
+        return Err(ProgramError::InvalidAccountData);
+    }
     let lamports = pda_info.lamports();
     **pda_info.try_borrow_mut_lamports()? = 0;
     **recipient_info.try_borrow_mut_lamports()? = recipient_info
