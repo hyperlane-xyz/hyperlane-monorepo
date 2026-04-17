@@ -40,7 +40,7 @@ export const getUSDTOftWarpConfig = async (
         ...routerConfig[chain],
         owner: ownersByChain[chain],
         type: TokenType.collateralOft,
-        token: tokens[chain as keyof typeof tokens as DeploymentChain].USDT,
+        token: tokens[chain].USDT,
         oft: oftAddresses[chain],
         decimals: 6,
         name: 'Tether USD',
