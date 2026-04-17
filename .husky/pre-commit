@@ -20,11 +20,11 @@ if [ "$GITHUB_ACTIONS" != "true" ]; then
     fi
 
     # Broad private key check on staged diff. May produce false positives — use --no-verify to bypass if intentional.
-    STAGED_DIFF=$(git diff --cached)
-    EVM_MATCHES=$(echo "$STAGED_DIFF"    | grep -nE '\b(0x)?[0-9a-fA-F]{64}\b' || true)
-    BASE58_MATCHES=$(echo "$STAGED_DIFF" | grep -nE '\b[1-9A-HJ-NP-Za-km-z]{87,88}\b' || true)
-    CLI_MATCHES=$(echo "$STAGED_DIFF"    | grep -nE '\[(\s*[0-9]{1,3}\s*,\s*){63}[0-9]{1,3}\s*\]' || true)
-    ALL_MATCHES="${EVM_MATCHES}${BASE58_MATCHES}${CLI_MATCHES}"
+    STAGED_DIFF=$(git diff --cached | awk '/^\+\+\+ b\// { file=substr($0,7) } /^\+[^+]/ { print file ":" $0 }')
+    EVM_MATCHES=$(echo "$STAGED_DIFF"    | grep -E '\b(0x)?[0-9a-fA-F]{64}\b' || true)
+    BASE58_MATCHES=$(echo "$STAGED_DIFF" | grep -E '\b[1-9A-HJ-NP-Za-km-z]{87,88}\b' || true)
+    CLI_MATCHES=$(echo "$STAGED_DIFF"    | grep -E '\[(\s*[0-9]{1,3}\s*,\s*){63}[0-9]{1,3}\s*\]' || true)
+    ALL_MATCHES=$(printf '%s\n%s\n%s' "$EVM_MATCHES" "$BASE58_MATCHES" "$CLI_MATCHES" | sed '/^$/d')
     if [ -n "$ALL_MATCHES" ]; then
         echo "⚠️  Possible private key detected in staged changes."
         echo "$ALL_MATCHES"
