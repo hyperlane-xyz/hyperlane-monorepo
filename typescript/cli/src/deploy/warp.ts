@@ -53,6 +53,8 @@ import {
   isCctpTokenConfig,
   isCollateralTokenConfig,
   isCrossCollateralTokenConfig,
+  isDepositAddressTokenConfig,
+  isEverclearCollateralTokenConfig,
   isXERC20TokenConfig,
   normalizeScale,
   splitWarpCoreAndExtendedConfigs,
@@ -374,7 +376,9 @@ function generateTokenConfigs(
       isCollateralTokenConfig(config) ||
       isCctpTokenConfig(config) ||
       isXERC20TokenConfig(config) ||
-      isCrossCollateralTokenConfig(config)
+      isCrossCollateralTokenConfig(config) ||
+      isDepositAddressTokenConfig(config) ||
+      isEverclearCollateralTokenConfig(config)
         ? (config as { token: string }).token // gets set in the above deriveTokenMetadata()
         : undefined;
 
