@@ -18,6 +18,19 @@ if [ "$GITHUB_ACTIONS" != "true" ]; then
         echo "Please remove any secrets, credentials, or sensitive information before committing."
         exit 1
     fi
+
+    # Broad private key check on staged diff. May produce false positives — use --no-verify to bypass if intentional.
+    STAGED_DIFF=$(git diff --cached)
+    EVM_MATCHES=$(echo "$STAGED_DIFF"    | grep -nE '\b(0x)?[0-9a-fA-F]{64}\b' || true)
+    BASE58_MATCHES=$(echo "$STAGED_DIFF" | grep -nE '\b[1-9A-HJ-NP-Za-km-z]{87,88}\b' || true)
+    CLI_MATCHES=$(echo "$STAGED_DIFF"    | grep -nE '\[(\s*[0-9]{1,3}\s*,\s*){63}[0-9]{1,3}\s*\]' || true)
+    ALL_MATCHES="${EVM_MATCHES}${BASE58_MATCHES}${CLI_MATCHES}"
+    if [ -n "$ALL_MATCHES" ]; then
+        echo "⚠️  Possible private key detected in staged changes."
+        echo "$ALL_MATCHES"
+        echo "   If this is a non-sensitive value (e.g. tx hash), re-run with: git commit --no-verify"
+        exit 1
+    fi
 fi
 
 pnpm lint-staged --concurrent false
