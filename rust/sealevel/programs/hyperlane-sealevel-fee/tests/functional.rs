@@ -4859,3 +4859,302 @@ mod prune_expired_quotes {
         );
     }
 }
+
+mod get_quote_account_metas {
+    use super::*;
+    use hyperlane_sealevel_fee::accounts::{DEFAULT_ROUTER, WILDCARD_DOMAIN};
+    use serializable_account_meta::SerializableAccountMeta;
+
+    async fn simulate_get_metas(
+        banks_client: &mut BanksClient,
+        payer: &Keypair,
+        fee_account: &Pubkey,
+        destination_domain: u32,
+        target_router: H256,
+        scoped_salt: Option<H256>,
+    ) -> Vec<SerializableAccountMeta> {
+        let instruction = Instruction::new_with_borsh(
+            fee_program_id(),
+            &FeeInstruction::GetQuoteAccountMetas(
+                hyperlane_sealevel_fee::instruction::GetQuoteAccountMetas {
+                    destination_domain,
+                    target_router,
+                    scoped_salt,
+                },
+            ),
+            vec![AccountMeta::new_readonly(*fee_account, false)],
+        );
+        let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+        let simulation = banks_client
+            .simulate_transaction(Transaction::new_unsigned(Message::new_with_blockhash(
+                &[instruction],
+                Some(&payer.pubkey()),
+                &recent_blockhash,
+            )))
+            .await
+            .unwrap();
+        if let Some(Err(err)) = &simulation.result {
+            panic!("Simulation failed: {:?}", err);
+        }
+        let return_data = simulation
+            .simulation_details
+            .unwrap()
+            .return_data
+            .expect("no return data");
+        let result: SimulationReturnData<Vec<SerializableAccountMeta>> =
+            borsh::from_slice(&return_data.data).expect("failed to deserialize");
+        result.return_data
+    }
+
+    #[tokio::test]
+    async fn test_leaf_no_transient() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let dest = 42u32;
+        let metas = simulate_get_metas(
+            &mut banks_client,
+            &payer,
+            &fee_key,
+            dest,
+            H256::zero(),
+            None,
+        )
+        .await;
+
+        // domain_quotes + wildcard_quotes = 2
+        assert_eq!(metas.len(), 2);
+
+        let expected_domain = standing_quote_pda_for(&fee_key, dest);
+        let expected_wildcard = standing_quote_pda_for(&fee_key, WILDCARD_DOMAIN);
+
+        assert_eq!(metas[0].pubkey, expected_domain);
+        assert!(!metas[0].is_writable);
+        assert!(!metas[0].is_signer);
+
+        assert_eq!(metas[1].pubkey, expected_wildcard);
+        assert!(!metas[1].is_writable);
+        assert!(!metas[1].is_signer);
+    }
+
+    #[tokio::test]
+    async fn test_leaf_with_transient() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let dest = 42u32;
+        let scoped_salt = H256::random();
+
+        let (expected_transient, _) = Pubkey::find_program_address(
+            transient_quote_pda_seeds!(fee_key, scoped_salt),
+            &fee_program_id(),
+        );
+
+        let metas = simulate_get_metas(
+            &mut banks_client,
+            &payer,
+            &fee_key,
+            dest,
+            H256::zero(),
+            Some(scoped_salt),
+        )
+        .await;
+
+        // transient + domain_quotes + wildcard_quotes = 3
+        assert_eq!(metas.len(), 3);
+
+        assert_eq!(metas[0].pubkey, expected_transient);
+        assert!(metas[0].is_writable);
+        assert!(!metas[0].is_signer);
+
+        assert_eq!(metas[1].pubkey, standing_quote_pda_for(&fee_key, dest));
+        assert_eq!(
+            metas[2].pubkey,
+            standing_quote_pda_for(&fee_key, WILDCARD_DOMAIN)
+        );
+    }
+
+    #[tokio::test]
+    async fn test_routing() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            FeeData::Routing,
+        )
+        .await;
+
+        let dest = 42u32;
+        let metas = simulate_get_metas(
+            &mut banks_client,
+            &payer,
+            &fee_key,
+            dest,
+            H256::zero(),
+            None,
+        )
+        .await;
+
+        // domain_quotes + wildcard_quotes + route_pda = 3
+        assert_eq!(metas.len(), 3);
+
+        assert_eq!(metas[0].pubkey, standing_quote_pda_for(&fee_key, dest));
+        assert_eq!(
+            metas[1].pubkey,
+            standing_quote_pda_for(&fee_key, WILDCARD_DOMAIN)
+        );
+        assert_eq!(metas[2].pubkey, route_pda_for(&fee_key, dest));
+        assert!(!metas[2].is_writable);
+    }
+
+    #[tokio::test]
+    async fn test_cc_routing() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            FeeData::CrossCollateralRouting,
+        )
+        .await;
+
+        let dest = 42u32;
+        let target_router = H256::random();
+        let metas = simulate_get_metas(
+            &mut banks_client,
+            &payer,
+            &fee_key,
+            dest,
+            target_router,
+            None,
+        )
+        .await;
+
+        // domain_quotes + wildcard_quotes + cc_specific + cc_default = 4
+        assert_eq!(metas.len(), 4);
+
+        assert_eq!(metas[0].pubkey, standing_quote_pda_for(&fee_key, dest));
+        assert_eq!(
+            metas[1].pubkey,
+            standing_quote_pda_for(&fee_key, WILDCARD_DOMAIN)
+        );
+        assert_eq!(
+            metas[2].pubkey,
+            cc_route_pda_for(&fee_key, dest, &target_router)
+        );
+        assert_eq!(
+            metas[3].pubkey,
+            cc_route_pda_for(&fee_key, dest, &DEFAULT_ROUTER)
+        );
+    }
+
+    #[tokio::test]
+    async fn test_cc_routing_with_transient() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            FeeData::CrossCollateralRouting,
+        )
+        .await;
+
+        let dest = 42u32;
+        let target_router = H256::random();
+        let scoped_salt = H256::random();
+
+        let (expected_transient, _) = Pubkey::find_program_address(
+            transient_quote_pda_seeds!(fee_key, scoped_salt),
+            &fee_program_id(),
+        );
+
+        let metas = simulate_get_metas(
+            &mut banks_client,
+            &payer,
+            &fee_key,
+            dest,
+            target_router,
+            Some(scoped_salt),
+        )
+        .await;
+
+        // transient + domain_quotes + wildcard_quotes + cc_specific + cc_default = 5
+        assert_eq!(metas.len(), 5);
+
+        assert_eq!(metas[0].pubkey, expected_transient);
+        assert!(metas[0].is_writable);
+        assert_eq!(metas[1].pubkey, standing_quote_pda_for(&fee_key, dest));
+        assert_eq!(
+            metas[2].pubkey,
+            standing_quote_pda_for(&fee_key, WILDCARD_DOMAIN)
+        );
+        assert_eq!(
+            metas[3].pubkey,
+            cc_route_pda_for(&fee_key, dest, &target_router)
+        );
+        assert_eq!(
+            metas[4].pubkey,
+            cc_route_pda_for(&fee_key, dest, &DEFAULT_ROUTER)
+        );
+    }
+
+    #[tokio::test]
+    async fn test_extraneous_account_rejected() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let ix = Instruction::new_with_borsh(
+            fee_program_id(),
+            &FeeInstruction::GetQuoteAccountMetas(
+                hyperlane_sealevel_fee::instruction::GetQuoteAccountMetas {
+                    destination_domain: 42,
+                    target_router: H256::zero(),
+                    scoped_salt: None,
+                },
+            ),
+            vec![
+                AccountMeta::new_readonly(fee_key, false),
+                AccountMeta::new_readonly(Pubkey::new_unique(), false), // extraneous
+            ],
+        );
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::ExtraneousAccount as u32),
+            ),
+        );
+    }
+}

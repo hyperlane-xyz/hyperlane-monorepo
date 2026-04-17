@@ -20,7 +20,7 @@ use solana_system_interface::program as system_program;
 use access_control::AccessControl;
 use account_utils::{create_pda_account, verify_account_uninitialized, SizedData};
 use quote_verifier::SvmSignedQuote;
-use serializable_account_meta::SimulationReturnData;
+use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 
 use crate::{
     accounts::{
@@ -35,8 +35,8 @@ use crate::{
     fee_math::FeeParams,
     fee_standing_quote_pda_seeds,
     instruction::{
-        InitFee, Instruction, QuoteFee, RemoveCrossCollateralRoute, SetCrossCollateralRoute,
-        SetRoute,
+        GetQuoteAccountMetas, InitFee, Instruction, QuoteFee, RemoveCrossCollateralRoute,
+        SetCrossCollateralRoute, SetRoute,
     },
     route_domain_pda_seeds, transient_quote_pda_seeds,
 };
@@ -84,7 +84,9 @@ pub fn process_instruction(
         Instruction::PruneExpiredQuotes { domain } => {
             process_prune_expired_quotes(program_id, accounts, domain)
         }
-        Instruction::GetQuoteAccountMetas(_) => todo!("GetQuoteAccountMetas"),
+        Instruction::GetQuoteAccountMetas(data) => {
+            process_get_quote_account_metas(program_id, accounts, data)
+        }
     }
 }
 
@@ -1086,6 +1088,110 @@ fn process_prune_expired_quotes(
 
         msg!("Pruned domain {} — {} entries remaining", domain, remaining);
     }
+
+    Ok(())
+}
+
+/// Simulation-only: returns the required account metas for a QuoteFee call.
+/// Derives PDA addresses based on the fee account's FeeData type.
+///
+/// Accounts:
+/// 0. `[]` Fee account.
+fn process_get_quote_account_metas(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    data: GetQuoteAccountMetas,
+) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    let fee_account_info = next_account_info(accounts_iter)?;
+    if fee_account_info.owner != program_id {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+    let fee_account = FeeAccountData::fetch(&mut &fee_account_info.data.borrow()[..])?.into_inner();
+
+    ensure_no_extraneous_accounts(accounts_iter)?;
+
+    let mut metas: Vec<SerializableAccountMeta> = Vec::new();
+
+    // Transient PDA (if scoped_salt provided).
+    if let Some(scoped_salt) = data.scoped_salt {
+        let (transient_key, _) = Pubkey::find_program_address(
+            transient_quote_pda_seeds!(fee_account_info.key, scoped_salt),
+            program_id,
+        );
+        metas.push(SerializableAccountMeta {
+            pubkey: transient_key,
+            is_signer: false,
+            is_writable: true,
+        });
+    }
+
+    // Standing quote PDAs (domain + wildcard).
+    let domain_le = data.destination_domain.to_le_bytes();
+    let (domain_quotes_key, _) = Pubkey::find_program_address(
+        fee_standing_quote_pda_seeds!(fee_account_info.key, &domain_le),
+        program_id,
+    );
+    metas.push(SerializableAccountMeta {
+        pubkey: domain_quotes_key,
+        is_signer: false,
+        is_writable: false,
+    });
+
+    let wildcard_le = crate::accounts::WILDCARD_DOMAIN.to_le_bytes();
+    let (wildcard_quotes_key, _) = Pubkey::find_program_address(
+        fee_standing_quote_pda_seeds!(fee_account_info.key, &wildcard_le),
+        program_id,
+    );
+    metas.push(SerializableAccountMeta {
+        pubkey: wildcard_quotes_key,
+        is_signer: false,
+        is_writable: false,
+    });
+
+    // Route-specific PDAs.
+    match &fee_account.fee_data {
+        FeeData::Leaf(_) => {}
+        FeeData::Routing => {
+            let (route_key, _) = Pubkey::find_program_address(
+                route_domain_pda_seeds!(fee_account_info.key, &domain_le),
+                program_id,
+            );
+            metas.push(SerializableAccountMeta {
+                pubkey: route_key,
+                is_signer: false,
+                is_writable: false,
+            });
+        }
+        FeeData::CrossCollateralRouting => {
+            let dest_le = data.destination_domain.to_le_bytes();
+            let (cc_specific_key, _) = Pubkey::find_program_address(
+                cc_route_pda_seeds!(fee_account_info.key, &dest_le, data.target_router),
+                program_id,
+            );
+            metas.push(SerializableAccountMeta {
+                pubkey: cc_specific_key,
+                is_signer: false,
+                is_writable: false,
+            });
+
+            let (cc_default_key, _) = Pubkey::find_program_address(
+                cc_route_pda_seeds!(fee_account_info.key, &dest_le, DEFAULT_ROUTER),
+                program_id,
+            );
+            metas.push(SerializableAccountMeta {
+                pubkey: cc_default_key,
+                is_signer: false,
+                is_writable: false,
+            });
+        }
+    }
+
+    set_return_data(
+        &borsh::to_vec(&SimulationReturnData::new(metas))
+            .map_err(|_| ProgramError::BorshIoError)?,
+    );
 
     Ok(())
 }
