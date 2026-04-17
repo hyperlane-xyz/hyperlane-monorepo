@@ -5,22 +5,30 @@ import { fromZodError } from 'zod-validation-error';
 
 import { KeyFunderConfigSchema } from '@hyperlane-xyz/keyfunder';
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
+import { getChain } from '../../config/registry.js';
 import { Contexts } from '../../config/contexts.js';
 import { DockerImageRepos } from '../../config/docker.js';
 import { NODE_SERVICE_NAMES } from '../utils/consts.js';
 import rebalancerAddresses from '../../config/rebalancer.json' with { type: 'json' };
 import inventoryRebalancerAddresses from '../../config/inventoryRebalancer.json' with { type: 'json' };
 import { getEnvAddresses } from '../../config/registry.js';
-import { getAgentConfig } from '../../scripts/agent-utils.js';
+import {
+  getAgentConfig,
+  MissingAgentConfigError,
+} from '../../scripts/agent-utils.js';
 import { getEnvironmentConfig } from '../../scripts/core-utils.js';
-import { relayerAddresses } from '../agents/key-utils.js';
+import { getCloudAgentKey, relayerAddresses } from '../agents/key-utils.js';
 import { AgentContextConfig } from '../config/agent/agent.js';
 import { DeployEnvironment, EnvironmentConfig } from '../config/environment.js';
 import { DEFAULT_SWEEP_ADDRESS, KeyFunderConfig } from '../config/funding.js';
 import { FundableRole, Role } from '../roles.js';
 import { HelmManager } from '../utils/helm.js';
-import { getInfraPath, isEthereumProtocolChain } from '../utils/utils.js';
+import {
+  getInfraPath,
+  isEthereumProtocolChain,
+} from '../utils/utils.js';
 
 const RC_FUNDING_DISCOUNT_NUMERATOR = BigNumber.from(2);
 const RC_FUNDING_DISCOUNT_DENOMINATOR = BigNumber.from(10);
@@ -55,7 +63,7 @@ export class KeyFunderHelmManager extends HelmManager {
     readonly config: KeyFunderConfig<string[]>,
     readonly agentConfig: AgentContextConfig,
     readonly registryCommit: string,
-    // Per-context EVM chain allowlist for relayer funding. If set for a context,
+    // Per-context supported chain allowlist for relayer funding. If set for a context,
     // only those chains will be funded for that context's relayer.
     private readonly contextRelayerChains: Partial<
       Record<Contexts, string[]>
@@ -82,9 +90,11 @@ export class KeyFunderHelmManager extends HelmManager {
         const ctxAgentConfig = getAgentConfig(context, environment);
         contextRelayerChains[context] = ctxAgentConfig.contextChainNames[
           Role.Relayer
-        ].filter(isEthereumProtocolChain);
-      } catch {
-        // context may not have an agent config in this environment
+        ].filter(isKeyFunderSupportedChain);
+      } catch (error) {
+        if (!isMissingAgentConfigError(error, context, environment)) {
+          throw error;
+        }
       }
     }
 
@@ -102,7 +112,7 @@ export class KeyFunderHelmManager extends HelmManager {
 
   async helmValues() {
     const registryUri = `${DEFAULT_GITHUB_REGISTRY}/tree/${this.registryCommit}`;
-    const keyfunderConfig = this.generateKeyfunderYaml();
+    const keyfunderConfig = await this.generateKeyfunderYaml();
 
     return {
       cronjob: {
@@ -110,7 +120,7 @@ export class KeyFunderHelmManager extends HelmManager {
       },
       hyperlane: {
         runEnv: this.agentConfig.runEnv,
-        chains: this.getEthereumChains(),
+        chains: this.getSupportedChains(),
         registryUri,
         keyfunderConfig,
         chainsToSkip: this.config.chainsToSkip,
@@ -125,24 +135,24 @@ export class KeyFunderHelmManager extends HelmManager {
     };
   }
 
-  private getEthereumChains(): string[] {
+  private getSupportedChains(): string[] {
     return this.agentConfig.environmentChainNames.filter((chain) =>
-      isEthereumProtocolChain(chain),
+      isKeyFunderSupportedChain(chain),
     );
   }
 
-  private generateKeyfunderYaml(): string {
+  private async generateKeyfunderYaml(): Promise<string> {
     const environment = this.agentConfig.runEnv;
     const roles: Record<string, RoleYamlConfig> = {};
     const chains: Record<string, ChainYamlConfig> = {};
     const envAddresses = getEnvAddresses(environment);
 
-    const roleAddressMap = this.buildRoleAddressMap(environment);
+    const roleAddressMap = await this.buildRoleAddressMap(environment);
     for (const [roleName, address] of Object.entries(roleAddressMap)) {
       roles[roleName] = { address };
     }
 
-    for (const chain of this.getEthereumChains()) {
+    for (const chain of this.getSupportedChains()) {
       if (this.config.chainsToSkip?.includes(chain)) continue;
 
       const chainConfig: ChainYamlConfig = {};
@@ -210,9 +220,9 @@ export class KeyFunderHelmManager extends HelmManager {
     return YAML.stringify(validationResult.data);
   }
 
-  private buildRoleAddressMap(
+  private async buildRoleAddressMap(
     environment: DeployEnvironment,
-  ): Record<string, string> {
+  ): Promise<Record<string, string>> {
     const roleAddressMap: Record<string, string> = {};
     const contextsAndRoles = this.config.contextsAndRolesToFund;
 
@@ -221,6 +231,19 @@ export class KeyFunderHelmManager extends HelmManager {
       if (!roles) continue;
 
       for (const role of roles) {
+        if (role === Role.Relayer) {
+          const relayerChains = this.contextRelayerChains[context] ?? [];
+          for (const chain of relayerChains) {
+            const address = await this.getRelayerAddressForChain(
+              environment,
+              context,
+              chain,
+            );
+            roleAddressMap[this.getRoleName(context, role, chain)] = address;
+          }
+          continue;
+        }
+
         const address = this.getAddressForRole(environment, context, role);
         if (!address) {
           throw new Error(
@@ -228,8 +251,7 @@ export class KeyFunderHelmManager extends HelmManager {
               `Ensure the role is configured in the appropriate addresses file.`,
           );
         }
-        const roleName = `${context}-${role}`;
-        roleAddressMap[roleName] = address;
+        roleAddressMap[this.getRoleName(context, role)] = address;
       }
     }
 
@@ -253,14 +275,18 @@ export class KeyFunderHelmManager extends HelmManager {
           if (allowedChains && !allowedChains.includes(chain)) continue;
         }
 
-        const roleName = `${context}-${role}`;
+        const roleName = this.getRoleName(
+          context,
+          role,
+          role === Role.Relayer ? chain : undefined,
+        );
         if (!roleAddressMap[roleName]) continue;
 
         const desiredBalance = this.getDesiredBalanceForRole(chain, role);
         if (desiredBalance && desiredBalance !== '0') {
           const adjustedBalance =
             context === Contexts.ReleaseCandidate
-              ? this.applyRcDiscount(desiredBalance)
+              ? this.applyRcDiscount(desiredBalance, chain)
               : desiredBalance;
           balances[roleName] = adjustedBalance;
         }
@@ -277,6 +303,42 @@ export class KeyFunderHelmManager extends HelmManager {
   ): string | undefined {
     const envAddresses = this.getRoleAddresses(role);
     return envAddresses?.[environment]?.[context];
+  }
+
+  private async getRelayerAddressForChain(
+    environment: DeployEnvironment,
+    context: Contexts,
+    chain: string,
+  ): Promise<string> {
+    if (isEthereumProtocolChain(chain)) {
+      const address = relayerAddresses?.[environment]?.[context];
+      if (!address) {
+        throw new Error(
+          `No relayer address found for context ${context} in environment ${environment}`,
+        );
+      }
+      return address;
+    }
+
+    const agentConfig = getAgentConfig(context, environment);
+    const key = getCloudAgentKey(agentConfig, Role.Relayer, chain);
+    await key.fetch();
+    const metadata = getChain(chain);
+    const address = key.addressForProtocol(metadata.protocol, metadata.bech32Prefix);
+    if (!address) {
+      throw new Error(
+        `Unable to derive relayer address for protocol ${metadata.protocol} on chain ${chain}`,
+      );
+    }
+    return address;
+  }
+
+  private getRoleName(
+    context: Contexts,
+    role: FundableRole,
+    chain?: string,
+  ): string {
+    return chain ? `${context}-${role}-${chain}` : `${context}-${role}`;
   }
 
   private getRoleAddresses(
@@ -331,18 +393,47 @@ export class KeyFunderHelmManager extends HelmManager {
     }
 
     // Default threshold is 20% of relayer desired balance.
-    return ethers.utils.formatEther(
-      ethers.utils.parseEther(desiredRelayerBalance).div(5),
+    const decimals = this.getNativeTokenDecimals(chain);
+    return ethers.utils.formatUnits(
+      ethers.utils.parseUnits(desiredRelayerBalance, decimals).div(5),
+      decimals,
     );
   }
 
-  private applyRcDiscount(balance: string): string {
+  private applyRcDiscount(balance: string, chain: string): string {
+    const decimals = this.getNativeTokenDecimals(chain);
     const discountedBalance = ethers.utils
-      .parseEther(balance)
+      .parseUnits(balance, decimals)
       .mul(RC_FUNDING_DISCOUNT_NUMERATOR)
       .div(RC_FUNDING_DISCOUNT_DENOMINATOR);
-    return ethers.utils.formatEther(discountedBalance);
+    return ethers.utils.formatUnits(discountedBalance, decimals);
   }
+
+  private getNativeTokenDecimals(chain: string): number {
+    return getChain(chain).nativeToken?.decimals ?? 18;
+  }
+}
+
+function isKeyFunderSupportedChain(chain: string): boolean {
+  if (isEthereumProtocolChain(chain)) return true;
+  const protocol = getChain(chain).protocol;
+  return (
+    protocol === ProtocolType.Cosmos ||
+    protocol === ProtocolType.CosmosNative ||
+    protocol === ProtocolType.Sealevel
+  );
+}
+
+function isMissingAgentConfigError(
+  error: unknown,
+  context: Contexts,
+  environment: DeployEnvironment,
+): boolean {
+  return (
+    error instanceof MissingAgentConfigError &&
+    error.context === context &&
+    error.environment === environment
+  );
 }
 
 interface RoleYamlConfig {
