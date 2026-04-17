@@ -1,4 +1,5 @@
-use solana_program::program::set_return_data;
+use serializable_account_meta::SimulationReturnData;
+use solana_program::{program::set_return_data, program_error::ProgramError};
 
 /// Single source of truth for all Hyperlane SVM program versions.
 /// Compiled into each program's binary — atomic on upgrade, no migration step.
@@ -13,8 +14,12 @@ pub trait PackageVersioned {
 }
 
 /// Shared handler for the `GetProgramVersion` instruction.
-/// Writes the version string as return data.
-pub fn process_get_program_version<T: PackageVersioned>() {
+/// Writes the version string as return data wrapped in SimulationReturnData.
+pub fn process_get_program_version<T: PackageVersioned>() -> Result<(), ProgramError> {
     let version = T::package_version();
-    set_return_data(version.as_bytes());
+    set_return_data(
+        &borsh::to_vec(&SimulationReturnData::new(version.to_string()))
+            .map_err(|_| ProgramError::BorshIoError)?,
+    );
+    Ok(())
 }

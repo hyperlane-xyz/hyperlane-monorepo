@@ -3472,6 +3472,7 @@ dependencies = [
  "k256 0.13.4",
  "num-derive",
  "num-traits",
+ "package-versioned",
  "quote-verifier",
  "rand 0.8.5",
  "serializable-account-meta",
@@ -4992,6 +4993,8 @@ dependencies = [
 name = "package-versioned"
 version = "0.1.0"
 dependencies = [
+ "borsh 1.6.0",
+ "serializable-account-meta",
  "solana-program 3.0.0",
 ]
 

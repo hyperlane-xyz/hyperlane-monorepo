@@ -5158,3 +5158,37 @@ mod get_quote_account_metas {
         );
     }
 }
+
+mod get_program_version {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_returns_version() {
+        let (mut banks_client, payer) = setup_client().await;
+
+        let instruction = Instruction::new_with_borsh(
+            fee_program_id(),
+            &FeeInstruction::GetProgramVersion,
+            vec![],
+        );
+        let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+        let simulation = banks_client
+            .simulate_transaction(Transaction::new_unsigned(Message::new_with_blockhash(
+                &[instruction],
+                Some(&payer.pubkey()),
+                &recent_blockhash,
+            )))
+            .await
+            .unwrap();
+
+        assert!(simulation.result.unwrap().is_ok());
+        let return_data = simulation
+            .simulation_details
+            .unwrap()
+            .return_data
+            .expect("no return data");
+        let result: SimulationReturnData<String> =
+            borsh::from_slice(&return_data.data).expect("failed to deserialize");
+        assert_eq!(result.return_data, package_versioned::PACKAGE_VERSION);
+    }
+}

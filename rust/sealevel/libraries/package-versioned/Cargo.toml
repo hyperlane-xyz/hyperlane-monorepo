@@ -6,6 +6,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+borsh.workspace = true
+serializable-account-meta = { path = "../serializable-account-meta" }
 solana-program.workspace = true
 
 [lib]

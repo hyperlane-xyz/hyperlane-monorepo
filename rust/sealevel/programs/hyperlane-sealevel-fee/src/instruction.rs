@@ -53,6 +53,8 @@ pub enum Instruction {
     PruneExpiredQuotes { domain: u32 },
     /// Simulation-only: returns required account metas for a QuoteFee call.
     GetQuoteAccountMetas(GetQuoteAccountMetas),
+    /// Returns the program version via set_return_data. No accounts required.
+    GetProgramVersion,
 }
 
 impl Instruction {
