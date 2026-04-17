@@ -1,3 +1,7 @@
+## [2.3.0] - 2026-04-17
+
+* feat(sealevel): svm cross collateral token impl (#8373)
+
 ## [2.2.0] - 2026-03-09
 
 * feat(sealevel): per-message ALT overrides for relayer (#8271)
