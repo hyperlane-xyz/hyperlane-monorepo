@@ -418,6 +418,7 @@ export class RebalancerContextFactory {
   private async createInventoryRebalancerAndConfig(
     actionTracker: IActionTracker,
     externalBridgeRegistryOverride?: Partial<ExternalBridgeRegistry>,
+    metrics?: Metrics,
   ): Promise<{
     inventoryRebalancer: IRebalancer;
     externalBridgeRegistry: Partial<ExternalBridgeRegistry>;
@@ -596,6 +597,7 @@ export class RebalancerContextFactory {
       this.warpCore,
       this.multiProvider,
       this.logger,
+      metrics,
     );
 
     this.logger.info(
@@ -676,6 +678,7 @@ export class RebalancerContextFactory {
     const inventoryComponents = await this.createInventoryRebalancerAndConfig(
       actionTracker,
       externalBridgeRegistryOverride,
+      metrics,
     );
     if (inventoryComponents) {
       rebalancers.push(inventoryComponents.inventoryRebalancer);
