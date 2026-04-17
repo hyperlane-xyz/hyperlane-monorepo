@@ -258,7 +258,7 @@ describe('hyperlane warp apply E2E (predicate wrapper updates)', async function 
     expect(await predicateWrapper.getPolicyID()).to.equal(MOCK_POLICY_ID);
   });
 
-  it('should remove predicate wrapper via warp apply and restore the bare underlying hook', async function () {
+  it('should remove predicate wrapper via warp apply and clear the custom hook', async function () {
     const router = TokenRouter__factory.connect(routerAddress, wallet);
     const aggregationHookBefore = await router.hook();
     expect(aggregationHookBefore).to.not.equal(
@@ -271,7 +271,7 @@ describe('hyperlane warp apply E2E (predicate wrapper updates)', async function 
       [CHAIN_NAME_2]: {
         type: TokenType.native,
         owner: OWNER,
-        // No predicateWrapper field
+        // No predicateWrapper field, no hook field
       },
     };
     writeYamlOrJson(WARP_DEPLOY_PATH, warpDeployConfig);
@@ -282,20 +282,11 @@ describe('hyperlane warp apply E2E (predicate wrapper updates)', async function 
       skipConfirmationPrompts: true,
     });
 
-    // The aggregation hook must have been replaced: hook() now points to the
-    // bare underlying hook (mailbox default hook used when the predicate was
-    // originally added), not the old Agg([Predicate, underlyingHook]) address.
+    // The hook must be cleared to zero: removing predicateWrapper without supplying
+    // a replacement hook resets the router to the mailbox default (zero address).
     const hookAddressAfter = await router.hook();
-    expect(hookAddressAfter).to.not.equal(aggregationHookBefore);
-    expect(hookAddressAfter).to.not.equal(
+    expect(hookAddressAfter).to.equal(
       '0x0000000000000000000000000000000000000000',
     );
-
-    // No predicate wrapper should exist in the new hook
-    const remainingWrapper = await findPredicateWrapperInAggregation(
-      hookAddressAfter,
-      wallet,
-    );
-    expect(remainingWrapper).to.be.undefined;
   });
 });

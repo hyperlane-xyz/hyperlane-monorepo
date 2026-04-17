@@ -1173,10 +1173,13 @@ export class EvmWarpModule extends HyperlaneModule<
     const actualHook: DerivedHookConfig | string = actualConfig.hook;
 
     // Predicate removal: on-chain wrapper exists but expected config omits it.
-    // When the user provides an explicit expectedConfig.hook the normal hook-diff
-    // path handles removal (the new hook replaces the aggregation). When no hook
-    // is provided we must generate a setHook call to unwrap the aggregation and
-    // restore the bare underlying hook.
+    // When the user provides an explicit hook that differs from the underlying hook
+    // (predicate stripped), the hook-diff path generates the setHook to the new hook.
+    // Otherwise (no hook, or a stale aggregation from a warp read), the
+    // needsPredicateRemoval block below clears the hook to zero so the router uses the
+    // mailbox default — the user who removed predicateWrapper without supplying a
+    // replacement hook wants the default behavior restored, not the underlying sub-hook
+    // silently preserved.
     const needsPredicateRemoval =
       actualConfig.predicateWrapper != null && !expectedConfig.predicateWrapper;
 
@@ -1196,15 +1199,19 @@ export class EvmWarpModule extends HyperlaneModule<
 
       // The reader leaves the PREDICATE sub-hook inside actualConfig.hook
       // (e.g. Agg([Predicate, IGP])). When expectedConfig is derived from
-      // actualConfig (e.g. during the enrollment step after initial deploy),
-      // expectedConfig.hook carries the same aggregation. Strip the predicate
-      // from BOTH sides so the hook diff sees the bare hook (IGP) on both sides
-      // and doesn't generate a spurious setHook.
-      const actualHookForComparison = expectedConfig.predicateWrapper
+      // actualConfig (e.g. during the enrollment step after initial deploy, OR
+      // during a read→edit→apply round-trip where the operator removed predicateWrapper
+      // but kept the hook field unchanged), expectedConfig.hook carries the same
+      // aggregation. Strip the predicate from BOTH sides so the hook diff sees the bare
+      // hook (e.g. IGP) on both sides and doesn't generate a spurious setHook.
+      // The needsPredicateRemoval block below then fires to clear the hook to zero.
+      const shouldStripHookForComparison =
+        !!expectedConfig.predicateWrapper || needsPredicateRemoval;
+      const actualHookForComparison = shouldStripHookForComparison
         ? stripPredicateSubHook(actualHook)
         : actualHook;
       const expectedHookForComparison =
-        expectedConfig.predicateWrapper && expectedConfig.hook
+        shouldStripHookForComparison && expectedConfig.hook
           ? stripPredicateSubHook(
               expectedConfig.hook as DerivedHookConfig | string,
             )
@@ -1234,29 +1241,27 @@ export class EvmWarpModule extends HyperlaneModule<
       );
       hookTransactions = result.transactions;
       newHookAddress = result.newHookAddress;
-    } else if (needsPredicateRemoval) {
-      // No explicit target hook. Restore the bare underlying hook by stripping
-      // the predicate sub-hook from the current aggregation and calling setHook
-      // with the resulting address.
-      const strippedHook = stripPredicateSubHook(actualHook);
-      const underlyingAddress =
-        typeof strippedHook === 'string' ? strippedHook : strippedHook.address;
+    }
+    // Predicate removal when no new hook was deployed: clear the custom hook entirely.
+    // This fires whether or not expectedConfig.hook was provided — it handles both the
+    // "no hook field" case and the round-trip hazard where the operator removed
+    // predicateWrapper but left an unchanged hook field (still containing the aggregation).
+    if (needsPredicateRemoval && !newHookAddress) {
       const currentAddress =
         typeof actualHook === 'string' ? actualHook : actualHook.address;
-
-      if (underlyingAddress !== currentAddress) {
+      if (!isZeroishAddress(currentAddress)) {
         this.logger.debug(
-          { chain: this.chainName, underlyingAddress },
-          'Removing predicate wrapper: generating setHook to restore bare underlying hook',
+          { chain: this.chainName },
+          'Removing predicate wrapper: generating setHook(zero) to clear custom hook',
         );
         hookTransactions.push({
           annotation:
-            'Remove predicate wrapper: restore router hook to bare underlying hook',
+            'Remove predicate wrapper: clear custom hook (router will use mailbox default)',
           chainId: this.chainId,
           to: this.args.addresses.deployedTokenRoute,
           data: MailboxClient__factory.createInterface().encodeFunctionData(
             'setHook',
-            [underlyingAddress],
+            [constants.AddressZero],
           ),
         });
       }
