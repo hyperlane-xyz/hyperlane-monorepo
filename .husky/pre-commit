@@ -19,8 +19,8 @@ if [ "$GITHUB_ACTIONS" != "true" ]; then
         exit 1
     fi
 
-    # Broad private key check on staged diff. May produce false positives — set SKIP_PK_CHECK=1 to bypass if intentional.
-    if [ "$SKIP_PK_CHECK" != "1" ]; then
+    # Broad private key check on staged diff. May produce false positives — set SKIP_KEY_CHECK=1 to bypass if intentional.
+    if [ "$SKIP_KEY_CHECK" != "1" ]; then
         STAGED_DIFF=$(git diff --cached | awk '/^\+\+\+ b\// { file=substr($0,7) } /^\+[^+]/ { print file ":" $0 }')
         EVM_MATCHES=$(echo "$STAGED_DIFF"    | grep -E '\b(0x)?[0-9a-fA-F]{64}\b' || true)
         BASE58_MATCHES=$(echo "$STAGED_DIFF" | grep -E '\b[1-9A-HJ-NP-Za-km-z]{87,88}\b' || true)
@@ -29,7 +29,7 @@ if [ "$GITHUB_ACTIONS" != "true" ]; then
         if [ -n "$ALL_MATCHES" ]; then
             echo "⚠️  Possible private key detected in staged changes."
             echo "$ALL_MATCHES"
-            echo "   If this is a non-sensitive value (e.g. tx hash), re-run with: SKIP_PK_CHECK=1 git commit"
+            echo "   If this is a non-sensitive value (e.g. tx hash), re-run with: SKIP_KEY_CHECK=1 git commit"
             exit 1
         fi
     fi
