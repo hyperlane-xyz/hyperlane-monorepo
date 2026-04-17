@@ -284,10 +284,7 @@ fn process_quote_fee(
             )?,
         };
         if let Some(fee) = fee {
-            set_return_data(
-                &borsh::to_vec(&SimulationReturnData::new(fee))
-                    .map_err(|_| ProgramError::BorshIoError)?,
-            );
+            set_return_data(&fee.to_le_bytes());
             msg!("QuoteFee (transient): {} for amount {}", fee, data.amount);
             return Ok(());
         }
@@ -303,10 +300,7 @@ fn process_quote_fee(
         &data,
         fee_account.min_issued_at,
     )? {
-        set_return_data(
-            &borsh::to_vec(&SimulationReturnData::new(fee))
-                .map_err(|_| ProgramError::BorshIoError)?,
-        );
+        set_return_data(&fee.to_le_bytes());
         msg!(
             "QuoteFee (standing domain): {} for amount {}",
             fee,
@@ -325,10 +319,7 @@ fn process_quote_fee(
         &data,
         fee_account.min_issued_at,
     )? {
-        set_return_data(
-            &borsh::to_vec(&SimulationReturnData::new(fee))
-                .map_err(|_| ProgramError::BorshIoError)?,
-        );
+        set_return_data(&fee.to_le_bytes());
         msg!(
             "QuoteFee (standing wildcard): {} for amount {}",
             fee,
@@ -340,9 +331,7 @@ fn process_quote_fee(
     // Step 4: On-chain fallback — use resolved curve with on-chain params.
     let fee = strategy.compute_fee(data.amount)?;
 
-    set_return_data(
-        &borsh::to_vec(&SimulationReturnData::new(fee)).map_err(|_| ProgramError::BorshIoError)?,
-    );
+    set_return_data(&fee.to_le_bytes());
     msg!("QuoteFee (on-chain): {} for amount {}", fee, data.amount);
 
     Ok(())
