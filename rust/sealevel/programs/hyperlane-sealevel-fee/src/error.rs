@@ -1,3 +1,5 @@
+//! Fee program error types.
+
 use solana_program::program_error::ProgramError;
 
 /// Custom errors for the Fee program.

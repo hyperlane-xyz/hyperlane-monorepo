@@ -2,8 +2,7 @@
 
 #![allow(unexpected_cfgs)]
 #![deny(warnings)]
-// TODO: enable once all public items have doc comments
-// #![deny(missing_docs)]
+#![deny(missing_docs)]
 #![deny(unsafe_code)]
 
 pub mod accounts;
