@@ -24,6 +24,7 @@ import {
   type DerivedFeeConfig,
   type FeeArtifactConfig,
   type FeeConfig,
+  type FeeReadContext,
   feeArtifactToDerivedConfig,
   feeConfigToArtifact,
 } from './fee.js';
@@ -634,6 +635,36 @@ function convertCrossCollateralRoutersToDerived(
   }
 
   return result;
+}
+
+// Fee Read Context Utilities
+
+/**
+ * Builds a FeeReadContext from a WarpArtifactConfig.
+ * Extracts remote router domains and cross-collateral router mappings
+ * so the fee reader knows which domains/routers to check on-chain.
+ */
+export function buildFeeReadContext(
+  config: WarpArtifactConfig,
+): FeeReadContext {
+  const knownRoutersPerDomain: Record<number, Set<string>> = {};
+
+  for (const [domainStr, router] of Object.entries(config.remoteRouters)) {
+    const domain = Number(domainStr);
+    knownRoutersPerDomain[domain] = new Set([router.address]);
+  }
+
+  if (config.type === TokenType.crossCollateral) {
+    for (const [domainStr, routers] of Object.entries(
+      config.crossCollateralRouters,
+    )) {
+      const domain = Number(domainStr);
+      const existing = knownRoutersPerDomain[domain] ?? new Set();
+      knownRoutersPerDomain[domain] = new Set([...existing, ...routers]);
+    }
+  }
+
+  return { knownRoutersPerDomain };
 }
 
 // Warp Router Update Utilities

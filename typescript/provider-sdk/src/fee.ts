@@ -138,7 +138,7 @@ export type DeployedFeeArtifact = ArtifactDeployed<
 >;
 
 export interface FeeReadContext {
-  knownRoutersPerDomain: Record<number, Record<number, Set<string>>>;
+  knownRoutersPerDomain: Record<number, Set<string>>;
 }
 
 export interface IRawFeeArtifactManager extends IArtifactManager<
