@@ -1832,7 +1832,7 @@ mod quote_fee {
     }
 
     #[tokio::test]
-    async fn test_routing_unconfigured_domain_fails() {
+    async fn test_routing_unconfigured_domain_returns_zero() {
         let (mut banks_client, payer) = setup_client().await;
         let fee_key = init_fee_account(
             &mut banks_client,
@@ -1844,6 +1844,7 @@ mod quote_fee {
         )
         .await;
 
+        // Unconfigured domain → fee = 0 (EVM-compatible behavior).
         let ix = build_quote_fee_routing_ix(
             &fee_key,
             &payer.pubkey(),
@@ -1851,14 +1852,8 @@ mod quote_fee {
             H256::zero(),
             1000,
         );
-        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
-        assert_tx_error(
-            result,
-            TransactionError::InstructionError(
-                0,
-                InstructionError::Custom(FeeError::RouteNotFound as u32),
-            ),
-        );
+        let fee = simulate_quote_fee(&mut banks_client, &payer, ix).await;
+        assert_eq!(fee, 0);
     }
 
     #[tokio::test]
