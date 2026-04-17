@@ -297,6 +297,8 @@ fn process_quote_fee(
     if let Some(fee) = try_resolve_standing_quote(
         program_id,
         domain_quotes_info,
+        fee_account_info.key,
+        data.destination_domain,
         &strategy,
         &data,
         fee_account.min_issued_at,
@@ -317,6 +319,8 @@ fn process_quote_fee(
     if let Some(fee) = try_resolve_standing_quote(
         program_id,
         wildcard_quotes_info,
+        fee_account_info.key,
+        crate::accounts::WILDCARD_DOMAIN,
         &strategy,
         &data,
         fee_account.min_issued_at,
@@ -438,12 +442,15 @@ fn try_consume_transient_quote<C: crate::accounts::QuoteContext>(
 }
 
 /// Attempts to resolve a fee from a standing quote PDA.
+/// Re-derives the PDA from (fee_account, domain) to prevent spoofing.
 /// Scans for exact recipient match, then wildcard recipient.
 /// Validates expiry and min_issued_at. Returns None if PDA is uninitialized
 /// or no matching entry found.
 fn try_resolve_standing_quote(
     program_id: &Pubkey,
     standing_pda_info: &AccountInfo,
+    fee_account_key: &Pubkey,
+    domain: u32,
     strategy: &crate::fee_math::FeeDataStrategy,
     quote_fee_data: &QuoteFee,
     min_issued_at: i64,
@@ -456,6 +463,16 @@ fn try_resolve_standing_quote(
     }
     if standing_pda_info.owner != program_id {
         return Err(ProgramError::IncorrectProgramId);
+    }
+
+    // Re-derive PDA to prevent spoofing from a different fee account or domain.
+    let domain_le = domain.to_le_bytes();
+    let (expected_key, _) = Pubkey::find_program_address(
+        fee_standing_quote_pda_seeds!(fee_account_key, &domain_le),
+        program_id,
+    );
+    if *standing_pda_info.key != expected_key {
+        return Err(ProgramError::InvalidSeeds);
     }
 
     let standing = FeeStandingQuotePdaAccount::fetch(&mut &standing_pda_info.data.borrow()[..])?

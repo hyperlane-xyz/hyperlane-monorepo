@@ -4344,6 +4344,99 @@ mod quote_fee_standing {
         // Let's just verify the transient was consumed (autoclosed).
         assert_eq!(fee, 100);
     }
+
+    #[tokio::test]
+    async fn test_spoofed_standing_pda_rejected() {
+        let (mut banks_client, payer) = setup_client().await;
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let signer_address = eth_address(&signing_key);
+
+        let dest = 42u32;
+        let recipient = H256::zero();
+
+        // Create fee account A with on-chain max_fee=100.
+        let salt_a = H256::zero();
+        let fee_key_a = init_fee_account(
+            &mut banks_client,
+            &payer,
+            salt_a,
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            FeeData::Leaf(FeeDataStrategy::Linear(FeeParams {
+                max_fee: 100,
+                half_amount: 50,
+            })),
+        )
+        .await;
+
+        let ix = build_add_quote_signer_ix(&fee_key_a, &payer.pubkey(), signer_address);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Create fee account B with a standing quote (max_fee=1, very cheap).
+        let salt_b = H256::random();
+        let fee_key_b = init_fee_account(
+            &mut banks_client,
+            &payer,
+            salt_b,
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            FeeData::Leaf(FeeDataStrategy::Linear(FeeParams {
+                max_fee: 10000,
+                half_amount: 5000,
+            })),
+        )
+        .await;
+
+        let ix = build_add_quote_signer_ix(&fee_key_b, &payer.pubkey(), signer_address);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Submit cheap standing quote on fee_key_b.
+        let quote_b = make_signed_standing_quote(
+            &signing_key,
+            &fee_key_b,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            encode_standing_context(dest, recipient),
+            encode_data(1, 1), // very cheap
+            encode_u48(100),
+            encode_u48(9999999999),
+        );
+        let ix = build_submit_standing_ix(&fee_key_b, &payer.pubkey(), &quote_b, dest);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Try to use fee_key_b's standing PDA when querying fee_key_a.
+        let spoofed_domain_pda = standing_quote_pda_for(&fee_key_b, dest);
+        let wildcard_pda = standing_quote_pda_for(&fee_key_a, WILDCARD_DOMAIN);
+
+        let quote_ix = Instruction::new_with_borsh(
+            fee_program_id(),
+            &FeeInstruction::QuoteFee(hyperlane_sealevel_fee::instruction::QuoteFee {
+                destination_domain: dest,
+                recipient,
+                amount: 50,
+                target_router: H256::zero(),
+            }),
+            vec![
+                AccountMeta::new_readonly(system_program::ID, false),
+                AccountMeta::new_readonly(fee_key_a, false), // querying A
+                AccountMeta::new(payer.pubkey(), true),
+                AccountMeta::new_readonly(spoofed_domain_pda, false), // B's PDA!
+                AccountMeta::new_readonly(wildcard_pda, false),
+            ],
+        );
+        let result = process_tx(&mut banks_client, &payer, quote_ix, &[]).await;
+        // Should fail because B's PDA doesn't match A's derivation.
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(0, InstructionError::InvalidSeeds),
+        );
+    }
 }
 
 mod close_transient_quote {
