@@ -45,8 +45,15 @@ function matchesUnderlyingAsset(
       return true;
     }
 
+    // Only native-type collateral tokens (e.g. EvmHypNative) can be fungible
+    // with native tokens when no collateralAddressOrDenom is set — native
+    // tokens have no address by definition. ERC20 collateral tokens missing
+    // their collateralAddressOrDenom (e.g. incomplete config) must not be
+    // treated as native.
+    const hypNativeStandards = Object.values(PROTOCOL_TO_HYP_NATIVE_STANDARD);
     if (
       !source.collateralAddressOrDenom &&
+      hypNativeStandards.includes(source.standard as TokenStandard) &&
       (target.isNative() || target.isHypNative())
     ) {
       return true;

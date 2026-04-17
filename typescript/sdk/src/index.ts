@@ -850,6 +850,7 @@ export {
   HypTokenRouterConfigSchema,
   HypTokenRouterVirtualConfig,
   isCollateralRebaseTokenConfig,
+  isCctpTokenConfig,
   isCollateralTokenConfig,
   isMovableCollateralTokenConfig,
   isNativeTokenConfig,
