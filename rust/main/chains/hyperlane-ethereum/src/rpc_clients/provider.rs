@@ -187,6 +187,15 @@ where
         function: &Function,
     ) -> ChainResult<U256> {
         let contract_call = self.build_contract_call::<()>(tx.clone(), function.clone());
+        // Set the from address to the signer to ensure the gas estimation is
+        // performed from the relayer's address. Without this, some chains
+        // (e.g. Citrea) estimate as if the call is from the zero address,
+        // which may have no funds and cause "Not enough funds for L1 fee" errors.
+        let contract_call = if let Some(signer) = self.get_signer() {
+            contract_call.from(signer)
+        } else {
+            contract_call
+        };
         let gas_limit = contract_call.estimate_gas().await?.into();
         Ok(gas_limit)
     }
