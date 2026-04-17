@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/widgets",
-  "version": "31.0.1",
+  "version": "32.0.1",
   "description": "Common react components for Hyperlane projects",
   "keywords": [
     "Components",
@@ -23,6 +23,10 @@
       "default": "./dist/index.js"
     },
     "./styles.css": "./dist/styles.css",
+    "./animations/*": {
+      "types": "./dist/animations/*.d.ts",
+      "default": "./dist/animations/*.js"
+    },
     "./chains/*": {
       "types": "./dist/chains/*.d.ts",
       "default": "./dist/chains/*.js"

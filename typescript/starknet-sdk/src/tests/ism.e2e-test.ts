@@ -103,8 +103,18 @@ describe('1. starknet sdk ISM e2e tests', function () {
   });
 
   it('updates routing ISM routes and owner', async () => {
-    const { ismAddress: noopA } = await signer.createNoopIsm({});
-    const { ismAddress: noopB } = await signer.createNoopIsm({});
+    const noopWriter = artifactManager.createWriter(
+      AltVM.IsmType.TEST_ISM,
+      signer,
+    );
+    const [noopAResult] = await noopWriter.create({
+      config: { type: AltVM.IsmType.TEST_ISM },
+    });
+    const [noopBResult] = await noopWriter.create({
+      config: { type: AltVM.IsmType.TEST_ISM },
+    });
+    const noopA = noopAResult.deployed.address;
+    const noopB = noopBResult.deployed.address;
 
     const writer = artifactManager.createWriter(AltVM.IsmType.ROUTING, signer);
     const [created] = await writer.create({

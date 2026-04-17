@@ -1,5 +1,95 @@
 # @hyperlane-xyz/sdk
 
+## 32.0.1
+
+### Patch Changes
+
+- 611b911: Normalized scale values in warp route check so plain numbers from config and {numerator, denominator} objects from on-chain reader compare equal during diff.
+- c6de4c9: Updated warp check to validate OFT routes using OFT-specific sentinel router state and normalized empty extraOptions/domainMappings values.
+  - @hyperlane-xyz/aleo-sdk@32.0.1
+  - @hyperlane-xyz/starknet-core@32.0.1
+  - @hyperlane-xyz/cosmos-sdk@32.0.1
+  - @hyperlane-xyz/radix-sdk@32.0.1
+  - @hyperlane-xyz/utils@32.0.1
+  - @hyperlane-xyz/deploy-sdk@5.0.1
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/provider-sdk@5.0.1
+  - @hyperlane-xyz/tron-sdk@23.0.1
+
+## 32.0.0
+
+### Patch Changes
+
+- e4da110: Fixed routing fee for non-evm legs
+- d588eb5: Replaced z.coerce.bigint().positive() with ZBigNumberish.refine() in TokenMetadataSchema scale field for zod-to-json-schema compatibility. Fixed validateZodResult generic to correctly return output type for schemas with transforms.
+- ab17263: Fixed Solana-origin `warp send` by adding a legacy @solana/web3.js to @solana/kit transaction conversion layer. SDK adapters return legacy Transaction objects, but the SvmSigner expects kit-format instructions. The conversion handles instruction format translation, compute budget preservation, and extra signer (Keypair→TransactionSigner) conversion. SvmReceipt was extended with transaction meta (logs) fetched after confirmation so extractMessageIds works for Solana transfers.
+- ebde778: Fixed `deliver()` and `sendMessage()` in HyperlaneCore to connect the mailbox with the current signer at call time, preventing "sending a transaction requires a signer" errors when signers are added after construction. The `status --relay` command now exits non-zero when relay fails.
+- Updated dependencies [3dc6367]
+- Updated dependencies [fa08f2a]
+  - @hyperlane-xyz/provider-sdk@5.0.0
+  - @hyperlane-xyz/aleo-sdk@32.0.0
+  - @hyperlane-xyz/tron-sdk@23.0.0
+  - @hyperlane-xyz/cosmos-sdk@32.0.0
+  - @hyperlane-xyz/radix-sdk@32.0.0
+  - @hyperlane-xyz/deploy-sdk@5.0.0
+  - @hyperlane-xyz/starknet-core@32.0.0
+  - @hyperlane-xyz/utils@32.0.0
+  - @hyperlane-xyz/core@11.3.1
+
+## 31.2.1
+
+### Patch Changes
+
+- f9c8f83: Replaced z.coerce.bigint().positive() with pipe-based coercion in TokenMetadataSchema scale field to fix zod-to-json-schema compatibility in the registry build.
+  - @hyperlane-xyz/aleo-sdk@31.2.1
+  - @hyperlane-xyz/starknet-core@31.2.1
+  - @hyperlane-xyz/cosmos-sdk@31.2.1
+  - @hyperlane-xyz/radix-sdk@31.2.1
+  - @hyperlane-xyz/utils@31.2.1
+  - @hyperlane-xyz/deploy-sdk@4.3.4
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/provider-sdk@4.3.4
+  - @hyperlane-xyz/tron-sdk@22.1.14
+
+## 31.2.0
+
+### Minor Changes
+
+- 35fb5c8: Shared scale conversion helpers were exported, and WarpCore preserved legacy collateral checks for mixed-decimal routes when scale metadata is missing.
+
+### Patch Changes
+
+- @hyperlane-xyz/aleo-sdk@31.2.0
+- @hyperlane-xyz/starknet-core@31.2.0
+- @hyperlane-xyz/cosmos-sdk@31.2.0
+- @hyperlane-xyz/radix-sdk@31.2.0
+- @hyperlane-xyz/utils@31.2.0
+- @hyperlane-xyz/deploy-sdk@4.3.3
+- @hyperlane-xyz/core@11.3.1
+- @hyperlane-xyz/provider-sdk@4.3.3
+- @hyperlane-xyz/tron-sdk@22.1.13
+
+## 31.1.0
+
+### Minor Changes
+
+- c8fe242: Added request retries when fetching contract verification status from etherscan like apis to avoid having an incorrect status due to rate limits
+
+### Patch Changes
+
+- 8a082af: Added light subpath exports for SDK provider and warp modules, plus lean widget subpath exports.
+- 8a082af: Added runtime entrypoints for non-EVM SDKs and avoided bundling heavy deploy-time modules in UI wallet integrations.
+- Updated dependencies [8a082af]
+  - @hyperlane-xyz/aleo-sdk@31.1.0
+  - @hyperlane-xyz/cosmos-sdk@31.1.0
+  - @hyperlane-xyz/radix-sdk@31.1.0
+  - @hyperlane-xyz/tron-sdk@22.1.12
+  - @hyperlane-xyz/deploy-sdk@4.3.2
+  - @hyperlane-xyz/starknet-core@31.1.0
+  - @hyperlane-xyz/utils@31.1.0
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/provider-sdk@4.3.2
+
 ## 31.0.1
 
 ### Patch Changes

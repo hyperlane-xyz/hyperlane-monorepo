@@ -1,8 +1,6 @@
-import { type AltVM } from '@hyperlane-xyz/provider-sdk';
 import { type TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
 
 import { AleoSigner } from '../clients/signer.js';
-import { type AleoReceipt, type AleoTransaction } from '../utils/types.js';
 
 import {
   TEST_ALEO_CHAIN_METADATA,
@@ -19,7 +17,7 @@ import {
 export async function createSigner(
   privateKey: string = TEST_ALEO_PRIVATE_KEY,
   chainMetadata: TestChainMetadata = TEST_ALEO_CHAIN_METADATA,
-): Promise<AltVM.ISigner<AleoTransaction, AleoReceipt>> {
+): Promise<AleoSigner> {
   return AleoSigner.connectWithSigner([chainMetadata.rpcUrl], privateKey, {
     metadata: chainMetadata,
   });
@@ -35,6 +33,6 @@ export async function createSigner(
 export async function createSigners(
   privateKeys: string[],
   chainMetadata: TestChainMetadata = TEST_ALEO_CHAIN_METADATA,
-): Promise<AltVM.ISigner<AleoTransaction, AleoReceipt>[]> {
+): Promise<AleoSigner[]> {
   return Promise.all(privateKeys.map((pk) => createSigner(pk, chainMetadata)));
 }

@@ -11,6 +11,7 @@ import {
   TokenConnectionConfigSchema,
 } from './TokenConnection.js';
 import { TokenStandard } from './TokenStandard.js';
+import { TokenMetadataSchema } from './types.js';
 
 export const TokenConfigSchema = z.object({
   chainName: ZChainName.describe(
@@ -49,7 +50,9 @@ export const TokenConfigSchema = z.object({
     .string()
     .optional()
     .describe('The CoinGecko id of the token, used for price lookups'),
-  scale: ZUint.lt(256).optional().describe('The scaling factor of the token'),
+  scale: TokenMetadataSchema.shape.scale.describe(
+    'The scaling factor of the token',
+  ),
   warpRouteId: z
     .string()
     .min(1)

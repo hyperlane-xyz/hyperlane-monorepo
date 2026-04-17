@@ -1,5 +1,3 @@
-import assert from 'assert';
-
 import {
   ChainMap,
   ChainName,
@@ -13,6 +11,7 @@ import {
 import {
   Address,
   arrayToObject,
+  assert,
   intersection,
   objMap,
 } from '@hyperlane-xyz/utils';
@@ -20,6 +19,7 @@ import {
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { getRegistry } from '../../../../registry.js';
 import { usdcTokenAddresses } from '../cctp.js';
+import { usdtTokenAddresses } from '../tokens.js';
 import { WarpRouteIds } from '../warpIds.js';
 
 const REBALANCER = '0xa3948a15e1d0778a7d53268b651B2411AF198FE3';
@@ -124,6 +124,102 @@ export const getRebalancingUSDCConfigForChain = (
   };
 };
 
+export function getRebalancingBridgesConfigFor(
+  deploymentChains: readonly ChainName[],
+  warpRouteIds: [WarpRouteIds, ...WarpRouteIds[]],
+): ChainMap<RebalancingConfig> {
+  const registry = getRegistry();
+
+  const routeData = warpRouteIds.map((warpRouteId) => {
+    const route = registry.getWarpRoute(warpRouteId);
+    assert(route, `Warp route ${warpRouteId} not found`);
+
+    const chainSet = new Set(route.tokens.map(({ chainName }) => chainName));
+    const bridgesByChain = Object.fromEntries(
+      route.tokens.map(({ chainName, addressOrDenom }): [string, string] => {
+        assert(
+          addressOrDenom,
+          `Expected bridge address for ${warpRouteId} on ${chainName}`,
+        );
+        return [chainName, addressOrDenom];
+      }),
+    );
+
+    return { chainSet, bridgesByChain };
+  });
+
+  // Union: a chain is rebalanceable if it's in deploymentChains AND in at least one route
+  const rebalanceableChains = deploymentChains.filter((chain) =>
+    routeData.some(({ chainSet }) => chainSet.has(chain)),
+  );
+
+  return objMap(
+    arrayToObject(rebalanceableChains),
+    (currentChain): RebalancingConfig => {
+      // For each (currentChain, remoteChain) pair, only include bridges
+      // from routes that have both chains
+      const allowedRebalancingBridges = Object.fromEntries(
+        rebalanceableChains
+          .filter((remoteChain) => remoteChain !== currentChain)
+          .map((remoteChain) => {
+            const bridges = routeData
+              .filter(
+                ({ chainSet }) =>
+                  chainSet.has(currentChain) && chainSet.has(remoteChain),
+              )
+              .map(({ bridgesByChain }) => {
+                const bridge = bridgesByChain[currentChain];
+                assert(bridge, `No bridge found for chain ${currentChain}`);
+                return { bridge };
+              });
+            return [remoteChain, bridges] as const;
+          })
+          .filter(([, bridges]) => bridges.length > 0),
+      );
+
+      return {
+        allowedRebalancers: [REBALANCER],
+        allowedRebalancingBridges,
+      };
+    },
+  );
+}
+
+export const getRebalancingUSDTConfigForChain = (
+  currentChain: keyof typeof usdtTokenAddresses,
+  routerConfigByChain: ChainMap<RouterConfigWithoutOwner>,
+  ownersByChain: ChainMap<Address>,
+  // TODO: uncomment when USDTOft warp routes are in the registry
+  // rebalancingConfigByChain: ChainMap<RebalancingConfig>,
+): HypTokenRouterConfig => {
+  const owner = ownersByChain[currentChain];
+  assert(owner, `Owner not found for chain ${currentChain}`);
+
+  const usdtTokenAddress = usdtTokenAddresses[currentChain];
+  assert(
+    usdtTokenAddress,
+    `USDT token address not found for chain ${currentChain}`,
+  );
+
+  // TODO: uncomment when USDTOft warp routes are in the registry
+  // const currentRebalancingConfig = rebalancingConfigByChain[currentChain];
+  // assert(
+  //   currentRebalancingConfig,
+  //   `Rebalancing config not found for chain ${currentChain}`,
+  // );
+  // const { allowedRebalancers, allowedRebalancingBridges } =
+  //   currentRebalancingConfig;
+
+  return {
+    type: TokenType.collateral,
+    token: usdtTokenAddress,
+    mailbox: routerConfigByChain[currentChain].mailbox,
+    owner,
+    // allowedRebalancers,
+    // allowedRebalancingBridges,
+  };
+};
+
 export const getCollateralTokenConfigForChain = <
   TOwnerAddress extends ChainMap<Address>,
 >(
@@ -184,6 +280,24 @@ export const getNativeTokenConfigForChain = <
 };
 
 /**
+ * Returns the scale config for a chain based on its local decimals vs message decimals.
+ * - Chains at messageDecimals: no scale (1/1)
+ * - Chains above (e.g. BSC 18-dec): scale down with {numerator: 1, denominator: 10^diff}
+ */
+export function scaleDownConfig(
+  localDecimals: number,
+  messageDecimals: number,
+) {
+  const diff = localDecimals - messageDecimals;
+  assert(
+    diff >= 0,
+    `Local decimals ${localDecimals} < message decimals ${messageDecimals}`,
+  );
+  if (diff === 0) return { scale: { numerator: 1, denominator: 1 } };
+  return { scale: { numerator: 1, denominator: Math.pow(10, diff) } };
+}
+
+/**
  * Creates a RoutingFee configuration with a fixed fee for specified destinations.
  * Destinations not included will have no fee (RoutingFee returns 0 for unconfigured destinations).
  * The fee token is auto-derived at deploy time based on the warp route token type.
@@ -197,20 +311,23 @@ export const getNativeTokenConfigForChain = <
 export function getFixedRoutingFeeConfig(
   owner: Address,
   feeDestinations: readonly ChainName[],
-  bps: number,
+  bps: number | Record<ChainName, number>,
   feeParams?: Record<string, { maxFee: string; halfAmount: string }>,
   quoteSigners?: Address[],
 ): TokenFeeConfigInput {
   const feeContracts: Record<ChainName, TokenFeeConfigInput> = {};
 
   for (const chain of feeDestinations) {
+    const chainBps = typeof bps === 'number' ? bps : bps[chain];
+    assert(chainBps != null, `Missing bps for destination chain ${chain}`);
+
     const params = feeParams?.[chain];
     if (quoteSigners) {
       feeContracts[chain] = params
         ? {
             type: TokenFeeType.OffchainQuotedLinearFee,
             owner,
-            bps,
+            bps: chainBps,
             maxFee: BigInt(params.maxFee),
             halfAmount: BigInt(params.halfAmount),
             quoteSigners,
@@ -218,7 +335,7 @@ export function getFixedRoutingFeeConfig(
         : {
             type: TokenFeeType.OffchainQuotedLinearFee,
             owner,
-            bps,
+            bps: chainBps,
             quoteSigners,
           };
     } else {
@@ -226,11 +343,11 @@ export function getFixedRoutingFeeConfig(
         ? {
             type: TokenFeeType.LinearFee,
             owner,
-            bps,
+            bps: chainBps,
             maxFee: BigInt(params.maxFee),
             halfAmount: BigInt(params.halfAmount),
           }
-        : { type: TokenFeeType.LinearFee, owner, bps };
+        : { type: TokenFeeType.LinearFee, owner, bps: chainBps };
     }
   }
 

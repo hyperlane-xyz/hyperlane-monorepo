@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/relayer",
-  "version": "1.1.19",
+  "version": "1.1.24",
   "description": "Hyperlane Message Relayer Service",
   "keywords": [
     "blockchain",
@@ -21,6 +21,9 @@
   "types": "./dist/index.d.ts",
   "typesVersions": {
     "*": {
+      "metadata": [
+        "./dist/metadata/index.d.ts"
+      ],
       "fs": [
         "./dist/fs/index.d.ts"
       ]
@@ -30,6 +33,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./metadata": {
+      "types": "./dist/metadata/index.d.ts",
+      "default": "./dist/metadata/index.js"
     },
     "./fs": {
       "types": "./dist/fs/index.d.ts",

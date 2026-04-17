@@ -390,6 +390,7 @@ jobs:
           - warp-cc-evm-svm
           - warp-deploy
           - warp-send
+          - warp-send-evm-svm
     steps:
       - uses: actions/checkout@v6
         with:

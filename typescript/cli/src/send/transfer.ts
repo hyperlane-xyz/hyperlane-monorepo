@@ -657,7 +657,14 @@ async function executeDelivery({
           `Expected AnnotatedTx for non-EVM transfer execution, got ${typeof tx.transaction}`,
         );
       }
-      const txReceipt = await signer.sendAndConfirmTransaction(tx.transaction);
+      // For Solana, forward extraSigners so the signer can convert
+      // legacy @solana/web3.js Transactions to @solana/kit format.
+      // TODO: remove once SDK adapters return @solana/kit-native transactions
+      const transaction =
+        tx.type === ProviderType.SolanaWeb3 && tx.extraSigners
+          ? { ...tx.transaction, extraSigners: tx.extraSigners }
+          : tx.transaction;
+      const txReceipt = await signer.sendAndConfirmTransaction(transaction);
       const typedReceipt = toTypedAltVmReceipt(tx.type, txReceipt);
       txReceipts.push(typedReceipt);
       if (tx.category === WarpTxCategory.Transfer) {

@@ -34,6 +34,14 @@ await relayer.relayMessage(dispatchTx);
 relayer.start();
 ```
 
+### Metadata-Only Usage
+
+For metadata builders without the relayer runtime API, use the `/metadata` export:
+
+```typescript
+import { BaseMetadataBuilder } from '@hyperlane-xyz/relayer/metadata';
+```
+
 ### Node.js Daemon Mode
 
 For Node.js environments with filesystem access, use the `/fs` export:
@@ -104,10 +112,11 @@ cacheFile: ./relayer-cache.json
 
 ## Package Exports
 
-| Export                      | Description                               | Browser-safe |
-| --------------------------- | ----------------------------------------- | ------------ |
-| `@hyperlane-xyz/relayer`    | Core relayer, metadata builders, schemas  | Yes          |
-| `@hyperlane-xyz/relayer/fs` | RelayerService, loadConfig (file loading) | No (Node.js) |
+| Export                            | Description                               | Browser-safe |
+| --------------------------------- | ----------------------------------------- | ------------ |
+| `@hyperlane-xyz/relayer`          | Core relayer, metadata builders, schemas  | Yes          |
+| `@hyperlane-xyz/relayer/metadata` | Metadata builders only                    | Yes          |
+| `@hyperlane-xyz/relayer/fs`       | RelayerService, loadConfig (file loading) | No (Node.js) |
 
 ## Prometheus Metrics
 

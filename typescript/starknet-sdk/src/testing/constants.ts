@@ -24,7 +24,7 @@ export const TEST_STARKNET_CHAIN_METADATA: TestChainMetadata = {
   },
   blocks: {
     confirmations: 0,
-    estimateBlockTime: 5,
+    estimateBlockTime: 0.5,
   },
   rpcUrls: [{ http: 'http://127.0.0.1:5050' }],
   rpcPort: 5050,

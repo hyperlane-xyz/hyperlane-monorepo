@@ -1,5 +1,49 @@
 # @hyperlane-xyz/radix-sdk
 
+## 32.0.1
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@32.0.1
+- @hyperlane-xyz/provider-sdk@5.0.1
+
+## 32.0.0
+
+### Major Changes
+
+- fa08f2a: IProvider and ISigner interfaces were slimmed to their minimal surface. IProvider was reduced from 53 to 22 query-only methods by removing all get\*Transaction methods. ISigner was reduced from 36 to 5 infrastructure methods by removing all action methods (createMailbox, setDefaultIsm, enrollRemoteRouter, etc.). Transaction building is now handled exclusively by artifact managers using concrete class methods or standalone helper functions.
+
+  Throwing stubs were removed from SVM, Cosmos, Radix, and Starknet provider/signer implementations. Old action-method-based e2e tests were replaced with artifact API equivalents. Cosmos routing ISM writer was fixed to handle domain route updates correctly via remove + re-add.
+
+### Patch Changes
+
+- Updated dependencies [3dc6367]
+- Updated dependencies [fa08f2a]
+  - @hyperlane-xyz/provider-sdk@5.0.0
+  - @hyperlane-xyz/utils@32.0.0
+
+## 31.2.1
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@31.2.1
+- @hyperlane-xyz/provider-sdk@4.3.4
+
+## 31.2.0
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@31.2.0
+- @hyperlane-xyz/provider-sdk@4.3.3
+
+## 31.1.0
+
+### Patch Changes
+
+- 8a082af: Added runtime entrypoints for non-EVM SDKs and avoided bundling heavy deploy-time modules in UI wallet integrations.
+  - @hyperlane-xyz/utils@31.1.0
+  - @hyperlane-xyz/provider-sdk@4.3.2
+
 ## 31.0.1
 
 ### Patch Changes
