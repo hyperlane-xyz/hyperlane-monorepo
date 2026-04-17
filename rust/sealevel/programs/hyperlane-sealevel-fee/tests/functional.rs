@@ -442,8 +442,11 @@ fn build_quote_fee_cc_ix(
     target_router: H256,
     include_default: bool,
 ) -> Instruction {
-    let domain_quotes_pda = standing_quote_pda_for(fee_account, destination_domain);
-    let wildcard_quotes_pda = standing_quote_pda_for(fee_account, WILDCARD_DOMAIN);
+    // CC standing PDAs use target_router in seeds (not H256::zero()).
+    let domain_quotes_pda =
+        cc_standing_quote_pda_for(fee_account, destination_domain, &target_router);
+    let wildcard_quotes_pda =
+        cc_standing_quote_pda_for(fee_account, WILDCARD_DOMAIN, &target_router);
     let cc_specific_pda = cc_route_pda_for(fee_account, destination_domain, &target_router);
 
     let mut accounts = vec![
@@ -509,6 +512,81 @@ fn build_set_min_issued_at_ix(
             AccountMeta::new_readonly(*owner, true),
         ],
     )
+}
+
+// --- Shared encoding helpers ---
+
+fn encode_u48(ts: i64) -> [u8; 6] {
+    let bytes = ts.to_be_bytes();
+    let mut out = [0u8; 6];
+    out.copy_from_slice(&bytes[2..8]);
+    out
+}
+
+fn encode_data(max_fee: u64, half_amount: u64) -> Vec<u8> {
+    let mut buf = Vec::with_capacity(16);
+    buf.extend_from_slice(&max_fee.to_le_bytes());
+    buf.extend_from_slice(&half_amount.to_le_bytes());
+    buf
+}
+
+fn encode_context(dest: u32, recipient: H256, amount: u64) -> Vec<u8> {
+    let mut buf = Vec::with_capacity(44);
+    buf.extend_from_slice(&dest.to_le_bytes());
+    buf.extend_from_slice(recipient.as_bytes());
+    buf.extend_from_slice(&amount.to_le_bytes());
+    buf
+}
+
+fn encode_cc_context(dest: u32, recipient: H256, amount: u64, target_router: H256) -> Vec<u8> {
+    let mut buf = Vec::with_capacity(76);
+    buf.extend_from_slice(&dest.to_le_bytes());
+    buf.extend_from_slice(recipient.as_bytes());
+    buf.extend_from_slice(&amount.to_le_bytes());
+    buf.extend_from_slice(target_router.as_bytes());
+    buf
+}
+
+fn encode_standing_context(dest: u32, recipient: H256) -> Vec<u8> {
+    let mut buf = Vec::with_capacity(44);
+    buf.extend_from_slice(&dest.to_le_bytes());
+    buf.extend_from_slice(recipient.as_bytes());
+    buf.extend_from_slice(&u64::MAX.to_le_bytes());
+    buf
+}
+
+fn encode_cc_standing_context(dest: u32, recipient: H256, target_router: H256) -> Vec<u8> {
+    let mut buf = Vec::with_capacity(76);
+    buf.extend_from_slice(&dest.to_le_bytes());
+    buf.extend_from_slice(recipient.as_bytes());
+    buf.extend_from_slice(&u64::MAX.to_le_bytes());
+    buf.extend_from_slice(target_router.as_bytes());
+    buf
+}
+
+fn make_signed_standing_quote(
+    signing_key: &SigningKey,
+    fee_account: &Pubkey,
+    domain_id: u32,
+    payer: &Pubkey,
+    context: Vec<u8>,
+    data: Vec<u8>,
+    issued_at: [u8; 6],
+    expiry: [u8; 6],
+) -> SvmSignedQuote {
+    let client_salt = H256::random();
+    let mut quote = SvmSignedQuote {
+        context,
+        data,
+        issued_at,
+        expiry,
+        client_salt,
+        signature: [0u8; 65],
+    };
+    let scoped_salt = quote.compute_scoped_salt(payer);
+    let message_hash = quote.build_message_hash(fee_account, domain_id, &scoped_salt);
+    quote.signature = sign_hash(signing_key, message_hash.as_fixed_bytes());
+    quote
 }
 
 // ========= Test modules per instruction =========
@@ -1345,6 +1423,72 @@ mod set_cc_route {
             ),
         );
     }
+
+    #[tokio::test]
+    async fn test_wildcard_domain_rejected() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            FeeData::CrossCollateralRouting,
+        )
+        .await;
+
+        let ix = build_set_cc_route_ix(
+            &fee_key,
+            &payer.pubkey(),
+            WILDCARD_DOMAIN,
+            H256::random(),
+            FeeDataStrategy::Linear(FeeParams {
+                max_fee: 100,
+                half_amount: 50,
+            }),
+        );
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::InvalidRouteDomain as u32),
+            ),
+        );
+    }
+
+    #[tokio::test]
+    async fn test_zero_domain_rejected() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            FeeData::CrossCollateralRouting,
+        )
+        .await;
+
+        let ix = build_set_cc_route_ix(
+            &fee_key,
+            &payer.pubkey(),
+            0,
+            H256::random(),
+            FeeDataStrategy::Linear(FeeParams {
+                max_fee: 100,
+                half_amount: 50,
+            }),
+        );
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::InvalidRouteDomain as u32),
+            ),
+        );
+    }
 }
 
 mod remove_cc_route {
@@ -2175,14 +2319,6 @@ mod submit_transient_quote {
         )
     }
 
-    /// Encodes a u48 BE timestamp from an i64.
-    fn encode_u48(ts: i64) -> [u8; 6] {
-        let bytes = ts.to_be_bytes();
-        let mut out = [0u8; 6];
-        out.copy_from_slice(&bytes[2..8]);
-        out
-    }
-
     #[tokio::test]
     async fn test_submit_transient_quote() {
         let (mut banks_client, payer) = setup_client().await;
@@ -2560,41 +2696,6 @@ mod submit_transient_quote {
 mod quote_fee_transient {
     use super::*;
 
-    /// Encodes a u48 BE timestamp from an i64.
-    fn encode_u48(ts: i64) -> [u8; 6] {
-        let bytes = ts.to_be_bytes();
-        let mut out = [0u8; 6];
-        out.copy_from_slice(&bytes[2..8]);
-        out
-    }
-
-    /// Encodes a FeeQuoteContext (non-CC) into raw bytes (44 bytes).
-    fn encode_context(dest: u32, recipient: H256, amount: u64) -> Vec<u8> {
-        let mut buf = Vec::with_capacity(44);
-        buf.extend_from_slice(&dest.to_le_bytes());
-        buf.extend_from_slice(recipient.as_bytes());
-        buf.extend_from_slice(&amount.to_le_bytes());
-        buf
-    }
-
-    /// Encodes a CcFeeQuoteContext into raw bytes (76 bytes).
-    fn encode_cc_context(dest: u32, recipient: H256, amount: u64, target_router: H256) -> Vec<u8> {
-        let mut buf = Vec::with_capacity(76);
-        buf.extend_from_slice(&dest.to_le_bytes());
-        buf.extend_from_slice(recipient.as_bytes());
-        buf.extend_from_slice(&amount.to_le_bytes());
-        buf.extend_from_slice(target_router.as_bytes());
-        buf
-    }
-
-    /// Encodes FeeQuoteData into raw bytes.
-    fn encode_data(max_fee: u64, half_amount: u64) -> Vec<u8> {
-        let mut buf = Vec::with_capacity(16);
-        buf.extend_from_slice(&max_fee.to_le_bytes());
-        buf.extend_from_slice(&half_amount.to_le_bytes());
-        buf
-    }
-
     fn build_submit_transient_ix(
         fee_account: &Pubkey,
         payer: &Pubkey,
@@ -2702,8 +2803,8 @@ mod quote_fee_transient {
             &fee_program_id(),
         );
 
-        // QuoteFee with the transient PDA.
-        let quote_ix = build_quote_fee_with_transient_ix(
+        // Simulate to verify the fee value.
+        let sim_ix = build_quote_fee_with_transient_ix(
             &fee_key,
             &payer.pubkey(),
             &transient_pda,
@@ -2711,7 +2812,23 @@ mod quote_fee_transient {
             recipient,
             amount,
         );
-        process_tx(&mut banks_client, &payer, quote_ix, &[])
+        let fee = simulate_quote_fee(&mut banks_client, &payer, sim_ix).await;
+
+        // Transient params: Linear max_fee=2000, half_amount=1000, amount=1000.
+        // min(2000, 1000*2000/(2*1000)) = min(2000, 1000) = 1000.
+        // On-chain would give: min(100, 1000*100/(2*50)) = 100. Confirms transient was used.
+        assert_eq!(fee, 1000);
+
+        // Execute to actually close the PDA.
+        let exec_ix = build_quote_fee_with_transient_ix(
+            &fee_key,
+            &payer.pubkey(),
+            &transient_pda,
+            dest,
+            recipient,
+            amount,
+        );
+        process_tx(&mut banks_client, &payer, exec_ix, &[])
             .await
             .unwrap();
 
@@ -2974,8 +3091,8 @@ mod quote_fee_transient {
             &fee_program_id(),
         );
 
-        // QuoteFee should succeed (fee = 0 from zero params, not from on-chain 1000/500).
-        let quote_ix = build_quote_fee_with_transient_ix(
+        // Simulate to verify the fee value.
+        let sim_ix = build_quote_fee_with_transient_ix(
             &fee_key,
             &payer.pubkey(),
             &transient_pda,
@@ -2983,7 +3100,22 @@ mod quote_fee_transient {
             recipient,
             amount,
         );
-        process_tx(&mut banks_client, &payer, quote_ix, &[])
+        let fee = simulate_quote_fee(&mut banks_client, &payer, sim_ix).await;
+
+        // Transient params: max_fee=0, half_amount=0 → fee = 0.
+        // On-chain would give: min(1000, 1000*1000/(2*500)) = 1000. Confirms transient was used.
+        assert_eq!(fee, 0);
+
+        // Execute to actually close the PDA.
+        let exec_ix = build_quote_fee_with_transient_ix(
+            &fee_key,
+            &payer.pubkey(),
+            &transient_pda,
+            dest,
+            recipient,
+            amount,
+        );
+        process_tx(&mut banks_client, &payer, exec_ix, &[])
             .await
             .unwrap();
 
@@ -3056,25 +3188,37 @@ mod quote_fee_transient {
         let wildcard_quotes_pda = standing_quote_pda_for(&fee_key, WILDCARD_DOMAIN);
         let route_pda = route_pda_for(&fee_key, dest);
 
-        let quote_ix = Instruction::new_with_borsh(
-            fee_program_id(),
-            &FeeInstruction::QuoteFee(hyperlane_sealevel_fee::instruction::QuoteFee {
-                destination_domain: dest,
-                recipient,
-                amount,
-                target_router: H256::zero(),
-            }),
-            vec![
-                AccountMeta::new_readonly(system_program::ID, false),
-                AccountMeta::new_readonly(fee_key, false),
-                AccountMeta::new(payer.pubkey(), true),
-                AccountMeta::new(transient_pda, false),
-                AccountMeta::new_readonly(domain_quotes_pda, false),
-                AccountMeta::new_readonly(wildcard_quotes_pda, false),
-                AccountMeta::new_readonly(route_pda, false),
-            ],
-        );
-        process_tx(&mut banks_client, &payer, quote_ix, &[])
+        let build_ix = || {
+            Instruction::new_with_borsh(
+                fee_program_id(),
+                &FeeInstruction::QuoteFee(hyperlane_sealevel_fee::instruction::QuoteFee {
+                    destination_domain: dest,
+                    recipient,
+                    amount,
+                    target_router: H256::zero(),
+                }),
+                vec![
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new_readonly(fee_key, false),
+                    AccountMeta::new(payer.pubkey(), true),
+                    AccountMeta::new(transient_pda, false),
+                    AccountMeta::new_readonly(domain_quotes_pda, false),
+                    AccountMeta::new_readonly(wildcard_quotes_pda, false),
+                    AccountMeta::new_readonly(route_pda, false),
+                ],
+            )
+        };
+
+        // Simulate to verify the fee value.
+        let fee = simulate_quote_fee(&mut banks_client, &payer, build_ix()).await;
+
+        // Transient params: Regressive max_fee=2000, half_amount=1000, amount=100.
+        // 2000 * 100 / (1000 + 100) = 181.
+        // On-chain route would give: 100 * 100 / (50 + 100) = 66. Confirms transient was used.
+        assert_eq!(fee, 181);
+
+        // Execute to actually close the PDA.
+        process_tx(&mut banks_client, &payer, build_ix(), &[])
             .await
             .unwrap();
 
@@ -3152,39 +3296,43 @@ mod quote_fee_transient {
         );
 
         // QuoteFee with CC accounts + transient.
-        let ix = build_quote_fee_cc_ix(
-            &fee_key,
-            &payer.pubkey(),
-            dest,
-            recipient,
-            amount,
-            target_router,
-            false,
-        );
-        // Rebuild with transient PDA inserted before standing PDAs.
-        let domain_quotes_pda = standing_quote_pda_for(&fee_key, dest);
-        let wildcard_quotes_pda = standing_quote_pda_for(&fee_key, WILDCARD_DOMAIN);
+        // CC standing PDAs use target_router in seeds.
+        let domain_quotes_pda = cc_standing_quote_pda_for(&fee_key, dest, &target_router);
+        let wildcard_quotes_pda =
+            cc_standing_quote_pda_for(&fee_key, WILDCARD_DOMAIN, &target_router);
         let cc_specific_pda = cc_route_pda_for(&fee_key, dest, &target_router);
 
-        let quote_ix = Instruction::new_with_borsh(
-            fee_program_id(),
-            &FeeInstruction::QuoteFee(hyperlane_sealevel_fee::instruction::QuoteFee {
-                destination_domain: dest,
-                recipient,
-                amount,
-                target_router,
-            }),
-            vec![
-                AccountMeta::new_readonly(system_program::ID, false),
-                AccountMeta::new_readonly(fee_key, false),
-                AccountMeta::new(payer.pubkey(), true),
-                AccountMeta::new(transient_pda, false),
-                AccountMeta::new_readonly(domain_quotes_pda, false),
-                AccountMeta::new_readonly(wildcard_quotes_pda, false),
-                AccountMeta::new_readonly(cc_specific_pda, false),
-            ],
-        );
-        process_tx(&mut banks_client, &payer, quote_ix, &[])
+        let build_ix = || {
+            Instruction::new_with_borsh(
+                fee_program_id(),
+                &FeeInstruction::QuoteFee(hyperlane_sealevel_fee::instruction::QuoteFee {
+                    destination_domain: dest,
+                    recipient,
+                    amount,
+                    target_router,
+                }),
+                vec![
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new_readonly(fee_key, false),
+                    AccountMeta::new(payer.pubkey(), true),
+                    AccountMeta::new(transient_pda, false),
+                    AccountMeta::new_readonly(domain_quotes_pda, false),
+                    AccountMeta::new_readonly(wildcard_quotes_pda, false),
+                    AccountMeta::new_readonly(cc_specific_pda, false),
+                ],
+            )
+        };
+
+        // Simulate to verify the fee value.
+        let fee = simulate_quote_fee(&mut banks_client, &payer, build_ix()).await;
+
+        // Transient params: Progressive max_fee=3000, half_amount=1500, amount=500.
+        // 3000 * 500^2 / (1500^2 + 500^2) = 300.
+        // On-chain route would give: 100 * 500^2 / (50^2 + 500^2) = 99. Confirms transient was used.
+        assert_eq!(fee, 300);
+
+        // Execute to actually close the PDA.
+        process_tx(&mut banks_client, &payer, build_ix(), &[])
             .await
             .unwrap();
 
@@ -3381,53 +3529,6 @@ mod submit_standing_quote {
     use hyperlane_sealevel_fee::accounts::{
         FeeStandingQuotePda, FeeStandingQuotePdaAccount, FeeStandingQuoteValue,
     };
-
-    fn encode_u48(ts: i64) -> [u8; 6] {
-        let bytes = ts.to_be_bytes();
-        let mut out = [0u8; 6];
-        out.copy_from_slice(&bytes[2..8]);
-        out
-    }
-
-    fn encode_standing_context(dest: u32, recipient: H256) -> Vec<u8> {
-        let mut buf = Vec::with_capacity(44);
-        buf.extend_from_slice(&dest.to_le_bytes());
-        buf.extend_from_slice(recipient.as_bytes());
-        buf.extend_from_slice(&u64::MAX.to_le_bytes()); // wildcard amount
-        buf
-    }
-
-    fn encode_data(max_fee: u64, half_amount: u64) -> Vec<u8> {
-        let mut buf = Vec::with_capacity(16);
-        buf.extend_from_slice(&max_fee.to_le_bytes());
-        buf.extend_from_slice(&half_amount.to_le_bytes());
-        buf
-    }
-
-    fn make_signed_standing_quote(
-        signing_key: &SigningKey,
-        fee_account: &Pubkey,
-        domain_id: u32,
-        payer: &Pubkey,
-        context: Vec<u8>,
-        data: Vec<u8>,
-        issued_at: [u8; 6],
-        expiry: [u8; 6],
-    ) -> SvmSignedQuote {
-        let client_salt = H256::random();
-        let mut quote = SvmSignedQuote {
-            context,
-            data,
-            issued_at,
-            expiry,
-            client_salt,
-            signature: [0u8; 65],
-        };
-        let scoped_salt = quote.compute_scoped_salt(payer);
-        let message_hash = quote.build_message_hash(fee_account, domain_id, &scoped_salt);
-        quote.signature = sign_hash(signing_key, message_hash.as_fixed_bytes());
-        quote
-    }
 
     fn build_submit_standing_ix(
         fee_account: &Pubkey,
@@ -4058,53 +4159,6 @@ mod quote_fee_standing {
     use super::*;
     use hyperlane_sealevel_fee::accounts::WILDCARD_RECIPIENT;
 
-    fn encode_u48(ts: i64) -> [u8; 6] {
-        let bytes = ts.to_be_bytes();
-        let mut out = [0u8; 6];
-        out.copy_from_slice(&bytes[2..8]);
-        out
-    }
-
-    fn encode_standing_context(dest: u32, recipient: H256) -> Vec<u8> {
-        let mut buf = Vec::with_capacity(44);
-        buf.extend_from_slice(&dest.to_le_bytes());
-        buf.extend_from_slice(recipient.as_bytes());
-        buf.extend_from_slice(&u64::MAX.to_le_bytes());
-        buf
-    }
-
-    fn encode_data(max_fee: u64, half_amount: u64) -> Vec<u8> {
-        let mut buf = Vec::with_capacity(16);
-        buf.extend_from_slice(&max_fee.to_le_bytes());
-        buf.extend_from_slice(&half_amount.to_le_bytes());
-        buf
-    }
-
-    fn make_signed_standing_quote(
-        signing_key: &SigningKey,
-        fee_account: &Pubkey,
-        domain_id: u32,
-        payer: &Pubkey,
-        context: Vec<u8>,
-        data: Vec<u8>,
-        issued_at: [u8; 6],
-        expiry: [u8; 6],
-    ) -> SvmSignedQuote {
-        let client_salt = H256::random();
-        let mut quote = SvmSignedQuote {
-            context,
-            data,
-            issued_at,
-            expiry,
-            client_salt,
-            signature: [0u8; 65],
-        };
-        let scoped_salt = quote.compute_scoped_salt(payer);
-        let message_hash = quote.build_message_hash(fee_account, domain_id, &scoped_salt);
-        quote.signature = sign_hash(signing_key, message_hash.as_fixed_bytes());
-        quote
-    }
-
     fn build_submit_standing_ix(
         fee_account: &Pubkey,
         payer: &Pubkey,
@@ -4414,6 +4468,72 @@ mod quote_fee_standing {
     }
 
     #[tokio::test]
+    async fn test_domain_standing_takes_priority_over_wildcard_domain() {
+        let (mut banks_client, payer) = setup_client().await;
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let signer_address = eth_address(&signing_key);
+
+        let dest = 42u32;
+        let recipient = H256::random();
+
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            FeeData::Leaf(FeeDataStrategy::Linear(FeeParams {
+                max_fee: 100,
+                half_amount: 50,
+            })),
+        )
+        .await;
+
+        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Domain-specific standing: max_fee=777, half_amount=1 → fee = 777 for amount=100.
+        let q_domain = make_signed_standing_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            encode_standing_context(dest, recipient),
+            encode_data(777, 1),
+            encode_u48(100),
+            encode_u48(9999999999),
+        );
+        let ix = build_submit_standing_ix(&fee_key, &payer.pubkey(), &q_domain, dest);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Wildcard domain standing: max_fee=333, half_amount=1 → fee = 333 for amount=100.
+        let q_wildcard = make_signed_standing_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            encode_standing_context(WILDCARD_DOMAIN, recipient),
+            encode_data(333, 1),
+            encode_u48(100),
+            encode_u48(9999999999),
+        );
+        let ix = build_submit_standing_ix(&fee_key, &payer.pubkey(), &q_wildcard, WILDCARD_DOMAIN);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // amount=100 → domain standing: 777, wildcard standing: 333, on-chain: 100.
+        // Domain-specific must win.
+        let ix = build_quote_fee_leaf_ix(&fee_key, &payer.pubkey(), dest, recipient, 100);
+        let fee = simulate_quote_fee(&mut banks_client, &payer, ix).await;
+        assert_eq!(fee, 777);
+    }
+
+    #[tokio::test]
     async fn test_transient_takes_priority_over_standing() {
         let (mut banks_client, payer) = setup_client().await;
         let signing_key = SigningKey::random(&mut rand::thread_rng());
@@ -4441,14 +4561,14 @@ mod quote_fee_standing {
             .await
             .unwrap();
 
-        // Standing: max_fee=10000 (high fee).
+        // Standing: max_fee=333, half_amount=1 → fee = min(333, 100*333/2) = 333.
         let sq = make_signed_standing_quote(
             &signing_key,
             &fee_key,
             LOCAL_DOMAIN,
             &payer.pubkey(),
             encode_standing_context(dest, recipient),
-            encode_data(10000, 5000),
+            encode_data(333, 1),
             encode_u48(100),
             encode_u48(9999999999),
         );
@@ -4457,7 +4577,7 @@ mod quote_fee_standing {
             .await
             .unwrap();
 
-        // Transient: max_fee=200 (low fee).
+        // Transient: max_fee=777, half_amount=1 → fee = min(777, 100*777/2) = 777.
         let mut transient_ctx = Vec::with_capacity(44);
         transient_ctx.extend_from_slice(&dest.to_le_bytes());
         transient_ctx.extend_from_slice(recipient.as_bytes());
@@ -4469,7 +4589,7 @@ mod quote_fee_standing {
             LOCAL_DOMAIN,
             &payer.pubkey(),
             transient_ctx,
-            encode_data(200, 100),
+            encode_data(777, 1),
             encode_u48(9999999999),
         );
 
@@ -4492,8 +4612,7 @@ mod quote_fee_standing {
             .await
             .unwrap();
 
-        // QuoteFee with transient → transient wins (200/100), not standing (10000/5000).
-        // amount=100 → min(200, 100*200/200) = 100
+        // QuoteFee with transient → transient wins (777/1), not standing (333/1).
         let domain_pda = standing_quote_pda_for(&fee_key, dest);
         let wildcard_pda = standing_quote_pda_for(&fee_key, WILDCARD_DOMAIN);
         let quote_ix = Instruction::new_with_borsh(
@@ -4514,11 +4633,11 @@ mod quote_fee_standing {
             ],
         );
         let fee = simulate_quote_fee(&mut banks_client, &payer, quote_ix).await;
-        // Transient: min(200, 100*200/200) = 100
-        // Standing would give: min(10000, 100*10000/10000) = 100 — same value!
-        // Use different amounts to distinguish. Actually both give 100 for amount=100.
-        // Let's just verify the transient was consumed (autoclosed).
-        assert_eq!(fee, 100);
+        // Transient: Linear max_fee=777, half_amount=1, amount=100 → min(777, 100*777/2) = 777.
+        // Standing would give: min(333, 100*333/2) = 333.
+        // On-chain would give: min(100, 100*100/100) = 100.
+        // All three values are distinct, confirming transient was used.
+        assert_eq!(fee, 777);
     }
 
     #[tokio::test]
@@ -4617,13 +4736,6 @@ mod quote_fee_standing {
 
 mod close_transient_quote {
     use super::*;
-
-    fn encode_u48(ts: i64) -> [u8; 6] {
-        let bytes = ts.to_be_bytes();
-        let mut out = [0u8; 6];
-        out.copy_from_slice(&bytes[2..8]);
-        out
-    }
 
     async fn setup_and_submit_transient(
         banks_client: &mut BanksClient,
@@ -4759,53 +4871,6 @@ mod prune_expired_quotes {
     use super::*;
     use hyperlane_sealevel_fee::accounts::{FeeStandingQuotePda, FeeStandingQuotePdaAccount};
 
-    fn encode_u48(ts: i64) -> [u8; 6] {
-        let bytes = ts.to_be_bytes();
-        let mut out = [0u8; 6];
-        out.copy_from_slice(&bytes[2..8]);
-        out
-    }
-
-    fn encode_standing_context(dest: u32, recipient: H256) -> Vec<u8> {
-        let mut buf = Vec::with_capacity(44);
-        buf.extend_from_slice(&dest.to_le_bytes());
-        buf.extend_from_slice(recipient.as_bytes());
-        buf.extend_from_slice(&u64::MAX.to_le_bytes());
-        buf
-    }
-
-    fn encode_data(max_fee: u64, half_amount: u64) -> Vec<u8> {
-        let mut buf = Vec::with_capacity(16);
-        buf.extend_from_slice(&max_fee.to_le_bytes());
-        buf.extend_from_slice(&half_amount.to_le_bytes());
-        buf
-    }
-
-    fn make_signed_standing_quote(
-        signing_key: &SigningKey,
-        fee_account: &Pubkey,
-        domain_id: u32,
-        payer: &Pubkey,
-        context: Vec<u8>,
-        data: Vec<u8>,
-        issued_at: [u8; 6],
-        expiry: [u8; 6],
-    ) -> SvmSignedQuote {
-        let client_salt = H256::random();
-        let mut quote = SvmSignedQuote {
-            context,
-            data,
-            issued_at,
-            expiry,
-            client_salt,
-            signature: [0u8; 65],
-        };
-        let scoped_salt = quote.compute_scoped_salt(payer);
-        let message_hash = quote.build_message_hash(fee_account, domain_id, &scoped_salt);
-        quote.signature = sign_hash(signing_key, message_hash.as_fixed_bytes());
-        quote
-    }
-
     fn build_submit_standing_ix(
         fee_account: &Pubkey,
         payer: &Pubkey,
@@ -4898,7 +4963,7 @@ mod prune_expired_quotes {
         let fee_key = setup_fee_with_signer(banks_client, &payer, &signing_key).await;
 
         let dest = 42u32;
-        // Submit with expiry=1000 (valid now, will be expired after clock warp).
+        // Submit with expiry=9999999999 (valid now, will be expired after clock warp).
         let quote = make_signed_standing_quote(
             &signing_key,
             &fee_key,
@@ -5602,54 +5667,6 @@ mod cc_standing_quotes {
         FeeStandingQuotePda, FeeStandingQuotePdaAccount, WILDCARD_DOMAIN,
     };
 
-    fn encode_u48(ts: i64) -> [u8; 6] {
-        let bytes = ts.to_be_bytes();
-        let mut out = [0u8; 6];
-        out.copy_from_slice(&bytes[2..8]);
-        out
-    }
-
-    fn encode_cc_standing_context(dest: u32, recipient: H256, target_router: H256) -> Vec<u8> {
-        let mut buf = Vec::with_capacity(76);
-        buf.extend_from_slice(&dest.to_le_bytes());
-        buf.extend_from_slice(recipient.as_bytes());
-        buf.extend_from_slice(&u64::MAX.to_le_bytes());
-        buf.extend_from_slice(target_router.as_bytes());
-        buf
-    }
-
-    fn encode_data(max_fee: u64, half_amount: u64) -> Vec<u8> {
-        let mut buf = Vec::with_capacity(16);
-        buf.extend_from_slice(&max_fee.to_le_bytes());
-        buf.extend_from_slice(&half_amount.to_le_bytes());
-        buf
-    }
-
-    fn make_signed_standing_quote(
-        signing_key: &SigningKey,
-        fee_account: &Pubkey,
-        domain_id: u32,
-        payer: &Pubkey,
-        context: Vec<u8>,
-        data: Vec<u8>,
-        issued_at: [u8; 6],
-        expiry: [u8; 6],
-    ) -> SvmSignedQuote {
-        let client_salt = H256::random();
-        let mut quote = SvmSignedQuote {
-            context,
-            data,
-            issued_at,
-            expiry,
-            client_salt,
-            signature: [0u8; 65],
-        };
-        let scoped_salt = quote.compute_scoped_salt(payer);
-        let message_hash = quote.build_message_hash(fee_account, domain_id, &scoped_salt);
-        quote.signature = sign_hash(signing_key, message_hash.as_fixed_bytes());
-        quote
-    }
-
     fn build_submit_cc_standing_ix(
         fee_account: &Pubkey,
         payer: &Pubkey,
@@ -5990,8 +6007,7 @@ mod cc_standing_quotes {
         let fee_acct = fetch_fee_account(banks_client, fee_key).await;
         assert!(fee_acct.standing_quote_domains.contains(&dest));
 
-        // Warp clock past expiry of router_a's quote only.
-        // Both have expiry=9999999999, so warp past that.
+        // Warp clock past expiry — both quotes have expiry=9999999999.
         let mut clock = banks_client
             .get_sysvar::<solana_program::clock::Clock>()
             .await
@@ -6032,5 +6048,85 @@ mod cc_standing_quotes {
             fee_acct.standing_quote_domains.contains(&dest),
             "CC prune should not remove domain from tracking when other router PDAs may exist"
         );
+    }
+
+    #[tokio::test]
+    async fn test_cc_standing_quote_consumed_in_quote_fee() {
+        let (mut banks_client, payer) = setup_client().await;
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let signer_address = eth_address(&signing_key);
+
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            FeeData::CrossCollateralRouting,
+        )
+        .await;
+
+        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let dest = 42u32;
+        let recipient = H256::random();
+        let target_router = H256::random();
+
+        // Configure CC route: Progressive max_fee=100, half_amount=50.
+        let route_strategy = FeeDataStrategy::Progressive(FeeParams {
+            max_fee: 100,
+            half_amount: 50,
+        });
+        let ix = build_set_cc_route_ix(
+            &fee_key,
+            &payer.pubkey(),
+            dest,
+            target_router,
+            route_strategy,
+        );
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Submit CC standing quote: max_fee=888, half_amount=1.
+        let context = encode_cc_standing_context(dest, recipient, target_router);
+        let data = encode_data(888, 1);
+        let quote = make_signed_standing_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            context,
+            data,
+            encode_u48(100),
+            encode_u48(9999999999),
+        );
+        let ix =
+            build_submit_cc_standing_ix(&fee_key, &payer.pubkey(), &quote, dest, &target_router);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // QuoteFee with CC standing quote.
+        let amount = 200u64;
+        let ix = build_quote_fee_cc_ix(
+            &fee_key,
+            &payer.pubkey(),
+            dest,
+            recipient,
+            amount,
+            target_router,
+            false,
+        );
+        let fee = simulate_quote_fee(&mut banks_client, &payer, ix).await;
+
+        // Standing params: Progressive max_fee=888, half_amount=1, amount=200.
+        // 888 * 200^2 / (1^2 + 200^2) = 888 * 40000 / 40001 = 887.
+        // On-chain route would give: 100 * 200^2 / (50^2 + 200^2) = 100*40000/42500 = 94.
+        // Confirms standing was used.
+        assert_eq!(fee, 887);
     }
 }
