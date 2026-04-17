@@ -1318,6 +1318,11 @@ fn process_set_route(
         return Err(Error::NotRoutingFeeData.into());
     }
 
+    // Reject reserved domain values.
+    if data.domain == 0 || data.domain == crate::accounts::WILDCARD_DOMAIN {
+        return Err(Error::InvalidRouteDomain.into());
+    }
+
     // Account 3: RouteDomain PDA.
     let route_pda_info = next_account_info(accounts_iter)?;
     let domain_le = data.domain.to_le_bytes();
@@ -1445,6 +1450,11 @@ fn process_set_cc_route(
 
     if !matches!(fee_account.fee_data, FeeData::CrossCollateralRouting) {
         return Err(Error::NotCrossCollateralRoutingFeeData.into());
+    }
+
+    // Reject reserved domain values.
+    if data.destination == 0 || data.destination == crate::accounts::WILDCARD_DOMAIN {
+        return Err(Error::InvalidRouteDomain.into());
     }
 
     // Account 3: CrossCollateralRoute PDA.

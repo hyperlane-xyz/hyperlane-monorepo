@@ -985,6 +985,70 @@ mod set_route {
             ),
         );
     }
+
+    #[tokio::test]
+    async fn test_wildcard_domain_rejected() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            FeeData::Routing,
+        )
+        .await;
+
+        let ix = build_set_route_ix(
+            &fee_key,
+            &payer.pubkey(),
+            hyperlane_sealevel_fee::accounts::WILDCARD_DOMAIN,
+            FeeDataStrategy::Linear(FeeParams {
+                max_fee: 100,
+                half_amount: 50,
+            }),
+        );
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::InvalidRouteDomain as u32),
+            ),
+        );
+    }
+
+    #[tokio::test]
+    async fn test_zero_domain_rejected() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            FeeData::Routing,
+        )
+        .await;
+
+        let ix = build_set_route_ix(
+            &fee_key,
+            &payer.pubkey(),
+            0,
+            FeeDataStrategy::Linear(FeeParams {
+                max_fee: 100,
+                half_amount: 50,
+            }),
+        );
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::InvalidRouteDomain as u32),
+            ),
+        );
+    }
 }
 
 mod remove_route {
