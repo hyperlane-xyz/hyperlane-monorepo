@@ -46,6 +46,8 @@ pub enum Instruction {
     /// Standing quotes with issued_at < min_issued_at are rejected.
     SetMinIssuedAt { min_issued_at: i64 },
     /// Submit a signed offchain quote (transient or standing).
+    /// Transient: fee_account is read-only.
+    /// Standing: fee_account must be writable (updates standing_quote_domains on new domain).
     SubmitQuote(SvmSignedQuote),
     /// Close an orphaned transient quote PDA, returning rent to the original payer.
     CloseTransientQuote,

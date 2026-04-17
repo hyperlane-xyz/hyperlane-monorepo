@@ -1135,6 +1135,25 @@ fn process_get_quote_account_metas(
 
     let mut metas: Vec<SerializableAccountMeta> = Vec::new();
 
+    // Fixed prefix accounts.
+    metas.push(SerializableAccountMeta {
+        pubkey: system_program::ID,
+        is_signer: false,
+        is_writable: false,
+    });
+    metas.push(SerializableAccountMeta {
+        pubkey: *fee_account_info.key,
+        is_signer: false,
+        is_writable: false,
+    });
+    // Payer placeholder — actual payer key is not known at simulation time.
+    // SDK must replace this with the real payer pubkey.
+    metas.push(SerializableAccountMeta {
+        pubkey: Pubkey::default(),
+        is_signer: true,
+        is_writable: true,
+    });
+
     // Transient PDA (if scoped_salt provided).
     if let Some(scoped_salt) = data.scoped_salt {
         let (transient_key, _) = Pubkey::find_program_address(
