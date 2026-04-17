@@ -14,6 +14,11 @@ import {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
+  DeployedFeeAddress,
+  FeeArtifactConfig,
+  mergeFeeArtifacts,
+} from '@hyperlane-xyz/provider-sdk/fee';
+import {
   DeployedHookAddress,
   HookArtifactConfig,
   mergeHookArtifacts,
@@ -30,9 +35,11 @@ import {
   IRawWarpArtifactManager,
   RawWarpArtifactConfig,
   WarpArtifactConfig,
+  buildFeeReadContext,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert, isNullish, rootLogger } from '@hyperlane-xyz/utils';
 
+import { createFeeWriter } from '../fee/fee-writer.js';
 import { HookWriter, createHookWriter } from '../hook/hook-writer.js';
 import { IsmWriter, createIsmWriter } from '../ism/generic-ism-writer.js';
 
@@ -234,6 +241,12 @@ export class WarpTokenWriter
       `Expected Warp Reader to expand the Hook config`,
     );
 
+    assert(
+      isNullish(currentArtifact.config.fee) ||
+        isArtifactDeployed(currentArtifact.config.fee),
+      `Expected Warp Reader to expand the Fee config`,
+    );
+
     const updateTxs: AnnotatedTx[] = [];
 
     // Resolve ISM updates
@@ -312,15 +325,59 @@ export class WarpTokenWriter
       onChainHookArtifact = expectedHook;
     }
 
-    // Build raw artifact with flattened ISM and Hook references
-    // Fee is not yet handled in update - will be added in a follow-up
+    // Resolve Fee updates
+    const expectedFee = config.fee;
+    const currentFee = currentArtifact.config.fee;
+
+    let onChainFeeArtifact:
+      | ArtifactOnChain<FeeArtifactConfig, DeployedFeeAddress>
+      | undefined;
+
+    if (expectedFee && !isArtifactUnderived(expectedFee)) {
+      const feeContext = buildFeeReadContext(config);
+      const feeWriter = createFeeWriter(
+        this.chainMetadata,
+        this.signer,
+        feeContext,
+      );
+
+      if (!feeWriter) {
+        rootLogger.warn(
+          'Fee programs are not supported for this protocol. Fee configuration will be ignored.',
+        );
+        onChainFeeArtifact = currentFee;
+      } else {
+        const mergedFeeConfig = mergeFeeArtifacts(currentFee, expectedFee);
+
+        if (isArtifactNew(mergedFeeConfig)) {
+          const [deployedFee] = await feeWriter.create(mergedFeeConfig);
+
+          onChainFeeArtifact = {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: deployedFee.deployed.address },
+          };
+        } else if (isArtifactDeployed(mergedFeeConfig)) {
+          const txs = await feeWriter.update(mergedFeeConfig);
+
+          updateTxs.push(...txs);
+          onChainFeeArtifact = {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: mergedFeeConfig.deployed.address },
+          };
+        }
+      }
+    } else {
+      onChainFeeArtifact = expectedFee;
+    }
+
+    // Build raw artifact with flattened ISM, Hook, and Fee references
     const rawArtifact = {
       artifactState: ArtifactState.DEPLOYED,
       config: {
         ...config,
         interchainSecurityModule: onChainIsmArtifact,
         hook: onChainHookArtifact,
-        fee: undefined,
+        fee: onChainFeeArtifact,
       },
       deployed,
     };
