@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/tsconfig",
-  "version": "31.2.1",
+  "version": "32.0.1",
   "private": true,
   "description": "Hyperlane TypeScript config",
   "license": "Apache-2.0",

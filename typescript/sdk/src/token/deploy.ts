@@ -16,6 +16,7 @@ import {
   TokenBridgeCctpV2__factory,
   TokenBridgeDepositAddress__factory,
   TokenRouter,
+  TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import {
   Address,
@@ -36,6 +37,7 @@ import {
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { EvmTokenFeeModule } from '../fee/EvmTokenFeeModule.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
+import { PredicateWrapperDeployer } from '../predicate/PredicateDeployer.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { GasRouterDeployer } from '../router/GasRouterDeployer.js';
 import { ProxiedFactories, resolveRouterMapConfig } from '../router/types.js';
@@ -66,6 +68,7 @@ import {
   DepositAddressTokenConfig,
   HypTokenConfig,
   HypTokenRouterConfig,
+  PredicateWrapperConfig,
   OftTokenConfig,
   WarpRouteDeployConfig,
   isCctpTokenConfig,
@@ -770,6 +773,56 @@ abstract class TokenDeployer<
     );
   }
 
+  protected async deployPredicateWrappers(
+    configMap: ChainMap<
+      HypTokenConfig & { predicateWrapper?: PredicateWrapperConfig }
+    >,
+    deployedContractsMap: HyperlaneContractsMap<Factories>,
+  ): Promise<void> {
+    await promiseObjAll(
+      objMap(configMap, async (chain, config) => {
+        if (!config.predicateWrapper) {
+          return;
+        }
+
+        const router = this.router(deployedContractsMap[chain]);
+
+        const factoryContracts = this.options.ismFactory?.getContracts(chain);
+        assert(
+          factoryContracts?.staticAggregationHookFactory,
+          `staticAggregationHookFactory not found for ${chain}. Ensure proxy factories are deployed.`,
+        );
+
+        const predicateDeployer = new PredicateWrapperDeployer(
+          this.multiProvider,
+          factoryContracts.staticAggregationHookFactory,
+          this.logger,
+        );
+
+        // Token address is fetched from router.token() in PredicateRouterWrapper constructor.
+        // config.predicateWrapper.owner (from the original configMap) is used for wrapper
+        // ownership — it's explicit in the schema rather than read from on-chain, so it
+        // correctly points to the intended final owner even before transferOwnership runs.
+        const result = await predicateDeployer.deployAndConfigure(
+          chain,
+          router.address,
+          config.predicateWrapper,
+          config.type,
+        );
+
+        const signerRouter = TokenRouter__factory.connect(
+          router.address,
+          this.multiProvider.getSigner(chain),
+        );
+        const txOverrides = this.multiProvider.getTransactionOverrides(chain);
+        await this.multiProvider.handleTx(
+          chain,
+          signerRouter.setHook(result.aggregationHookAddress, txOverrides),
+        );
+      }),
+    );
+  }
+
   protected async enrollCrossCollateralRouters(
     configMap: ChainMap<HypTokenConfig>,
     deployedContractsMap: HyperlaneContractsMap<Factories>,
@@ -829,6 +882,17 @@ abstract class TokenDeployer<
   async deploy(
     configMap: ChainMap<HypTokenRouterConfig>,
   ): Promise<HyperlaneContractsMap<Factories & ProxiedFactories>> {
+    // Fail fast if any chain requires a predicate wrapper but lacks the factory.
+    // Checked before any on-chain work to avoid partial deployments.
+    for (const [chain, config] of Object.entries(configMap)) {
+      if (!('predicateWrapper' in config) || !config.predicateWrapper) continue;
+      const factoryContracts = this.options.ismFactory?.getContracts(chain);
+      assert(
+        factoryContracts?.staticAggregationHookFactory,
+        `staticAggregationHookFactory not found for ${chain}. Ensure proxy factories are deployed.`,
+      );
+    }
+
     let tokenMetadataMap: TokenMetadataMap;
     try {
       tokenMetadataMap = await TokenDeployer.deriveTokenMetadata(
@@ -932,6 +996,8 @@ abstract class TokenDeployer<
     await this.setEverclearFeeParams(configMap, deployedContractsMap);
 
     await this.setEverclearOutputAssets(configMap, deployedContractsMap);
+
+    await this.deployPredicateWrappers(configMap, deployedContractsMap);
 
     await this.enrollCrossCollateralRouters(configMap, deployedContractsMap);
 

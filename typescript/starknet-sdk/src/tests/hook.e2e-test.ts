@@ -12,6 +12,7 @@ import {
   DEFAULT_E2E_TEST_TIMEOUT,
   TEST_STARKNET_CHAIN_METADATA,
 } from '../testing/constants.js';
+import { getCreateNoopHookTx } from '../hook/hook-tx.js';
 import { createSigner } from '../testing/utils.js';
 import { StarknetAnnotatedTx } from '../types.js';
 
@@ -32,10 +33,7 @@ describe('3. starknet sdk hook e2e tests', function () {
       .createWriter(AltVM.IsmType.TEST_ISM, signer)
       .create({ config: { type: AltVM.IsmType.TEST_ISM } });
 
-    const hookTx = await signer.getCreateNoopHookTransaction({
-      signer: signer.getSignerAddress(),
-      mailboxAddress: signer.getSignerAddress(),
-    });
+    const hookTx = getCreateNoopHookTx();
     const hookReceipt = await signer.sendAndConfirmTransaction(hookTx);
     assert(hookReceipt.contractAddress, 'failed to deploy noop hook');
     const hookAddress = hookReceipt.contractAddress;

@@ -7,6 +7,7 @@ import {
   type TransactionSigner,
   type GetSignatureStatusesApi,
   addSignersToTransactionMessage,
+  assertIsSignature,
   createKeyPairSignerFromBytes,
   createKeyPairSignerFromPrivateKeyBytes,
   getBase58Encoder,
@@ -25,6 +26,10 @@ import { type AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert, rootLogger, sleep, strip0x } from '@hyperlane-xyz/utils';
 import type { InstructionAccountMeta } from '../instructions/utils.js';
 
+import {
+  convertLegacySolanaTransaction,
+  isLegacySolanaTransaction,
+} from '../legacy-compat.js';
 import { createRpc } from '../rpc.js';
 import {
   buildTransactionMessage,
@@ -35,6 +40,7 @@ import type {
   SvmReceipt,
   SvmRpc,
   SvmTransaction,
+  WithExtraSigners,
 } from '../types.js';
 
 import { SvmProvider } from './provider.js';
@@ -468,9 +474,61 @@ export class SvmSigner
   }
 
   async sendAndConfirmTransaction(
-    transaction: SendableSvmTransaction,
+    transaction: WithExtraSigners<SendableSvmTransaction>,
   ): Promise<SvmReceipt> {
-    return this.send(transaction);
+    const tx = isLegacySolanaTransaction(transaction)
+      ? await convertLegacySolanaTransaction(
+          transaction,
+          transaction.extraSigners,
+        )
+      : transaction;
+
+    const receipt = await this.send(tx);
+    return this.fetchTransactionMeta(receipt);
+  }
+
+  /**
+   * Fetches full transaction to populate meta (including logs) on the receipt.
+   * Retries with backoff since RPC indexing can lag behind confirmation.
+   * // TODO: make meta-fetch opt-in once the legacy compat layer is removed
+   */
+  private async fetchTransactionMeta(
+    receipt: SvmReceipt,
+    maxRetries = 5,
+  ): Promise<SvmReceipt> {
+    assertIsSignature(receipt.signature);
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const fullTx = await this.rpc
+          .getTransaction(receipt.signature, {
+            commitment: RPC_COMMITMENT_LEVEL,
+            maxSupportedTransactionVersion: 0,
+            encoding: 'jsonParsed',
+          })
+          .send();
+
+        if (fullTx?.meta?.logMessages) {
+          return {
+            ...receipt,
+            meta: { logMessages: fullTx.meta.logMessages },
+          };
+        }
+      } catch (error) {
+        this.logger.debug(`Attempt ${attempt + 1} failed to fetch tx meta`, {
+          error,
+        });
+      }
+
+      if (attempt < maxRetries - 1) {
+        await sleep(1000 * (attempt + 1));
+      }
+    }
+
+    this.logger.warn('Transaction meta unavailable after retries', {
+      signature: receipt.signature,
+    });
+    return receipt;
   }
 
   async sendAndConfirmBatchTransactions(

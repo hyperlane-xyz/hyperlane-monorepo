@@ -128,6 +128,33 @@ describe('hyperlane status e2e tests', async function () {
       expect(exitCode).to.equal(0);
     });
 
+    it('should actually deliver the message when relaying', async () => {
+      // Send a message with quick mode so it is NOT auto-delivered
+      const sendResult = await hyperlaneSendMessage(
+        CHAIN_NAME_2,
+        CHAIN_NAME_3,
+        { quick: true },
+      );
+      const messageId = extractMessageId(sendResult.stdout);
+
+      // Relay via status --relay. Exits non-zero if relay fails.
+      const { exitCode } = await hyperlaneStatus({
+        origin: CHAIN_NAME_2,
+        messageId,
+        relay: true,
+        key: ANVIL_KEY,
+      });
+
+      expect(exitCode).to.equal(0);
+
+      // Verify the message is now delivered
+      const { stdout } = await hyperlaneStatus({
+        origin: CHAIN_NAME_2,
+        messageId,
+      });
+      expect(stdout).to.include('was delivered');
+    });
+
     it('should prompt for key when using --relay without providing key', async () => {
       // Send a message first
       const sendResult = await hyperlaneSendMessage(

@@ -1,5 +1,9 @@
 # @hyperlane-xyz/starknet-core
 
+## 32.0.1
+
+## 32.0.0
+
 ## 31.2.1
 
 ## 31.2.0

@@ -37,57 +37,9 @@ export class MockProvider implements AltVM.IProvider {
 
   // ### QUERY CORE ###
 
-  async getMailbox(_req: AltVM.ReqGetMailbox): Promise<AltVM.ResGetMailbox> {
-    throw new Error(`not implemented`);
-  }
-
   async isMessageDelivered(
     _req: AltVM.ReqIsMessageDelivered,
   ): Promise<boolean> {
-    throw new Error(`not implemented`);
-  }
-
-  async getIsmType(_req: AltVM.ReqGetIsmType): Promise<AltVM.IsmType> {
-    throw new Error(`not implemented`);
-  }
-
-  async getMessageIdMultisigIsm(
-    _req: AltVM.ReqMessageIdMultisigIsm,
-  ): Promise<AltVM.ResMessageIdMultisigIsm> {
-    throw new Error(`not implemented`);
-  }
-
-  async getMerkleRootMultisigIsm(
-    _req: AltVM.ReqMerkleRootMultisigIsm,
-  ): Promise<AltVM.ResMerkleRootMultisigIsm> {
-    throw new Error(`not implemented`);
-  }
-
-  async getRoutingIsm(_req: AltVM.ReqRoutingIsm): Promise<AltVM.ResRoutingIsm> {
-    throw new Error(`not implemented`);
-  }
-
-  async getNoopIsm(_req: AltVM.ReqNoopIsm): Promise<AltVM.ResNoopIsm> {
-    throw new Error(`not implemented`);
-  }
-
-  async getHookType(_req: AltVM.ReqGetHookType): Promise<AltVM.HookType> {
-    throw new Error(`not implemented`);
-  }
-
-  async getInterchainGasPaymasterHook(
-    _req: AltVM.ReqGetInterchainGasPaymasterHook,
-  ): Promise<AltVM.ResGetInterchainGasPaymasterHook> {
-    throw new Error(`not implemented`);
-  }
-
-  async getMerkleTreeHook(
-    _req: AltVM.ReqGetMerkleTreeHook,
-  ): Promise<AltVM.ResGetMerkleTreeHook> {
-    throw new Error(`not implemented`);
-  }
-
-  async getNoopHook(_req: AltVM.ReqGetNoopHook): Promise<AltVM.ResGetNoopHook> {
     throw new Error(`not implemented`);
   }
 

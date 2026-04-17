@@ -133,6 +133,7 @@ export const hookTypesToFilter: HookType[] = [
   HookType.OP_STACK,
   HookType.ARB_L2_TO_L1,
   HookType.CUSTOM,
+  HookType.PREDICATE,
   HookType.CCIP,
   HookType.UNKNOWN,
 ];

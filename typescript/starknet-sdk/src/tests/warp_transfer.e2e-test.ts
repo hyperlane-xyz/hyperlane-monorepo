@@ -17,7 +17,9 @@ import {
 import { assert } from '@hyperlane-xyz/utils';
 
 import { StarknetSigner } from '../clients/signer.js';
+import { getCreateNoopHookTx } from '../hook/hook-tx.js';
 import { StarknetIsmArtifactManager } from '../ism/ism-artifact-manager.js';
+import { getMailboxConfig } from '../mailbox/mailbox-query.js';
 import { StarknetMailboxArtifactManager } from '../mailbox/mailbox-artifact-manager.js';
 import { DEFAULT_E2E_TEST_TIMEOUT } from '../testing/constants.js';
 import { TEST_STARKNET_CHAIN_METADATA } from '../testing/index.js';
@@ -43,10 +45,7 @@ describe('5b. starknet sdk warp transfer e2e tests', function () {
       .createWriter(AltVM.IsmType.TEST_ISM, signer)
       .create({ config: { type: AltVM.IsmType.TEST_ISM } });
 
-    const hookTx = await signer.getCreateNoopHookTransaction({
-      signer: signer.getSignerAddress(),
-      mailboxAddress: signer.getSignerAddress(),
-    });
+    const hookTx = getCreateNoopHookTx();
     const hookReceipt = await signer.sendAndConfirmTransaction(hookTx);
     assert(hookReceipt.contractAddress, 'failed to deploy noop hook');
     const hookAddress = hookReceipt.contractAddress;
@@ -116,7 +115,7 @@ describe('5b. starknet sdk warp transfer e2e tests', function () {
 
     const [beforeMailbox, beforeSenderBalance, beforeEscrowBalance] =
       await Promise.all([
-        signer.getMailbox({ mailboxAddress }),
+        getMailboxConfig(signer.getRawProvider(), mailboxAddress),
         signer.getBalance({
           denom: token.denom,
           address: signer.getSignerAddress(),
@@ -142,7 +141,7 @@ describe('5b. starknet sdk warp transfer e2e tests', function () {
 
     const [afterMailbox, afterSenderBalance, afterEscrowBalance] =
       await Promise.all([
-        signer.getMailbox({ mailboxAddress }),
+        getMailboxConfig(signer.getRawProvider(), mailboxAddress),
         signer.getBalance({
           denom: token.denom,
           address: signer.getSignerAddress(),

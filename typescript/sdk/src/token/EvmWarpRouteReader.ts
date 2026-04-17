@@ -5,6 +5,7 @@ import {
   CrossCollateralRouter__factory,
   EverclearTokenBridge,
   EverclearTokenBridge__factory,
+  PredicateRouterWrapper__factory,
   HypERC20Collateral__factory,
   HypERC20__factory,
   HypERC4626Collateral__factory,
@@ -54,6 +55,11 @@ import {
   EvmTokenFeeReader,
 } from '../fee/EvmTokenFeeReader.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
+import {
+  AggregationHookConfig,
+  DerivedHookConfig,
+  HookType,
+} from '../hook/types.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { EvmRouterReader } from '../router/EvmRouterReader.js';
@@ -84,6 +90,7 @@ import {
   XERC20Type,
   isMovableCollateralTokenConfig,
   isCrossCollateralTokenConfig,
+  PredicateWrapperConfig,
 } from './types.js';
 import { getExtraLockBoxConfigs } from './xerc20.js';
 
@@ -326,6 +333,10 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       routerConfig.interchainSecurityModule = constants.AddressZero;
     }
 
+    const predicateWrapper = await this.derivePredicateWrapperConfig(
+      routerConfig.hook as DerivedHookConfig | string | undefined,
+    );
+
     const derivedConfig = {
       ...routerConfig,
       ...tokenConfig,
@@ -334,8 +345,47 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       proxyAdmin,
       destinationGas,
       tokenFee,
+      ...(predicateWrapper && { predicateWrapper }),
     };
     return derivedConfig;
+  }
+
+  /**
+   * Searches the derived hook tree for a PredicateRouterWrapper and, if found,
+   * reads its on-chain config (registry, policyId, owner).
+   */
+  private async derivePredicateWrapperConfig(
+    hook: DerivedHookConfig | string | undefined,
+  ): Promise<PredicateWrapperConfig | undefined> {
+    const predicateAddress = this.findPredicateAddressInHook(hook);
+    if (!predicateAddress) return undefined;
+
+    const wrapper = PredicateRouterWrapper__factory.connect(
+      predicateAddress,
+      this.provider,
+    );
+    const [predicateRegistry, policyId, owner] = await Promise.all([
+      wrapper.getRegistry(),
+      wrapper.getPolicyID(),
+      wrapper.owner(),
+    ]);
+    return { predicateRegistry, policyId, owner };
+  }
+
+  private findPredicateAddressInHook(
+    hook: DerivedHookConfig | string | undefined,
+  ): string | undefined {
+    if (!hook || typeof hook === 'string') return undefined;
+    if (hook.type === HookType.PREDICATE) return hook.address;
+    if (hook.type === HookType.AGGREGATION) {
+      for (const sub of (hook as AggregationHookConfig).hooks) {
+        const found = this.findPredicateAddressInHook(
+          sub as DerivedHookConfig | string,
+        );
+        if (found) return found;
+      }
+    }
+    return undefined;
   }
 
   public async fetchTokenFee(
