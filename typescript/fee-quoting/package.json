@@ -24,6 +24,7 @@
     "format": "oxfmt --write ./src"
   },
   "dependencies": {
+    "@google-cloud/pino-logging-gcp-config": "catalog:",
     "@hyperlane-xyz/registry": "catalog:",
     "@hyperlane-xyz/sdk": "workspace:*",
     "@hyperlane-xyz/utils": "workspace:*",

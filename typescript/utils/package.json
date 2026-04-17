@@ -74,18 +74,6 @@
     "sinon": "catalog:",
     "typescript": "catalog:"
   },
-  "peerDependencies": {
-    "@google-cloud/pino-logging-gcp-config": "catalog:",
-    "pino-pretty": "catalog:"
-  },
-  "peerDependenciesMeta": {
-    "@google-cloud/pino-logging-gcp-config": {
-      "optional": true
-    },
-    "pino-pretty": {
-      "optional": true
-    }
-  },
   "engines": {
     "node": ">=16"
   }
