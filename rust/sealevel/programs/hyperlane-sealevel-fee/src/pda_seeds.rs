@@ -97,19 +97,36 @@ macro_rules! transient_quote_pda_seeds {
 }
 
 /// PDA seeds for a standing quote domain account.
-/// Seeds: ["fee_quotes", fee_account, domain_le]
+/// Seeds: ["fee_quotes", fee_account, domain_le, target_router]
 /// Wildcard domain uses u32::MAX LE bytes.
+/// For Leaf/Routing (no target_router arg): uses H256::zero() sentinel.
+/// For CrossCollateralRouting: pass the actual target_router.
 #[macro_export]
 macro_rules! fee_standing_quote_pda_seeds {
     ($fee_account:expr, $domain_le:expr) => {{
-        &[b"fee_quotes", $fee_account.as_ref(), $domain_le]
-    }};
-
-    ($fee_account:expr, $domain_le:expr, $bump_seed:expr) => {{
         &[
             b"fee_quotes",
             $fee_account.as_ref(),
             $domain_le,
+            hyperlane_core::H256::zero().as_bytes(),
+        ]
+    }};
+
+    ($fee_account:expr, $domain_le:expr, $target_router:expr) => {{
+        &[
+            b"fee_quotes",
+            $fee_account.as_ref(),
+            $domain_le,
+            $target_router.as_ref(),
+        ]
+    }};
+
+    ($fee_account:expr, $domain_le:expr, $target_router:expr, $bump_seed:expr) => {{
+        &[
+            b"fee_quotes",
+            $fee_account.as_ref(),
+            $domain_le,
+            $target_router.as_ref(),
             &[$bump_seed],
         ]
     }};

@@ -349,10 +349,21 @@ fn build_remove_route_ix(fee_account: &Pubkey, owner: &Pubkey, domain: u32) -> I
 }
 
 /// Derives the standing quote PDA for a domain (or wildcard).
+/// Standing quote PDA for Leaf/Routing (target_router = H256::zero() sentinel).
 fn standing_quote_pda_for(fee_account: &Pubkey, domain: u32) -> Pubkey {
     let domain_le = domain.to_le_bytes();
     let (pda, _) = Pubkey::find_program_address(
         fee_standing_quote_pda_seeds!(fee_account, &domain_le),
+        &fee_program_id(),
+    );
+    pda
+}
+
+/// Standing quote PDA for CC routing (target_router = actual router).
+fn cc_standing_quote_pda_for(fee_account: &Pubkey, domain: u32, target_router: &H256) -> Pubkey {
+    let domain_le = domain.to_le_bytes();
+    let (pda, _) = Pubkey::find_program_address(
+        fee_standing_quote_pda_seeds!(fee_account, &domain_le, target_router),
         &fee_program_id(),
     );
     pda
@@ -4762,7 +4773,10 @@ mod prune_expired_quotes {
         );
         Instruction::new_with_borsh(
             fee_program_id(),
-            &FeeInstruction::PruneExpiredQuotes { domain },
+            &FeeInstruction::PruneExpiredQuotes {
+                domain,
+                target_router: None,
+            },
             vec![
                 AccountMeta::new_readonly(system_program::ID, false),
                 AccountMeta::new(*fee_account, false),
@@ -5034,7 +5048,10 @@ mod prune_expired_quotes {
 
         let ix = Instruction::new_with_borsh(
             fee_program_id(),
-            &FeeInstruction::PruneExpiredQuotes { domain: dest },
+            &FeeInstruction::PruneExpiredQuotes {
+                domain: dest,
+                target_router: None,
+            },
             vec![
                 AccountMeta::new_readonly(system_program::ID, false),
                 AccountMeta::new(fee_key, false),
@@ -5049,6 +5066,124 @@ mod prune_expired_quotes {
             TransactionError::InstructionError(
                 0,
                 InstructionError::Custom(FeeError::ExtraneousAccount as u32),
+            ),
+        );
+    }
+
+    #[tokio::test]
+    async fn test_prune_none_on_cc_account_fails() {
+        let (mut banks_client, payer) = setup_client().await;
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let fee_key = setup_fee_with_signer(&mut banks_client, &payer, &signing_key).await;
+
+        // Re-init as CC. We need a fresh CC fee account.
+        // setup_fee_with_signer creates Leaf. Create a separate CC one.
+        let cc_fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            H256::random(), // different salt
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            FeeData::CrossCollateralRouting,
+        )
+        .await;
+
+        // Prune with None (resolves to H256::zero()) on CC account.
+        // No standing PDA was ever created with H256::zero() for CC → RouteNotFound.
+        let domain_le = 42u32.to_le_bytes();
+        let (domain_pda, _) = Pubkey::find_program_address(
+            fee_standing_quote_pda_seeds!(cc_fee_key, &domain_le),
+            &fee_program_id(),
+        );
+        let ix = Instruction::new_with_borsh(
+            fee_program_id(),
+            &FeeInstruction::PruneExpiredQuotes {
+                domain: 42,
+                target_router: None,
+            },
+            vec![
+                AccountMeta::new_readonly(system_program::ID, false),
+                AccountMeta::new(cc_fee_key, false),
+                AccountMeta::new(payer.pubkey(), true),
+                AccountMeta::new(domain_pda, false),
+            ],
+        );
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::RouteNotFound as u32),
+            ),
+        );
+    }
+
+    #[tokio::test]
+    async fn test_prune_some_on_leaf_account_fails() {
+        let (mut banks_client, payer) = setup_client().await;
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let signer_address = eth_address(&signing_key);
+
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Submit a valid Leaf standing quote first so the domain PDA exists.
+        let context = encode_standing_context(42, H256::zero());
+        let data = encode_data(1000, 500);
+        let quote = make_signed_standing_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            context,
+            data,
+            encode_u48(100),
+            encode_u48(9999999999),
+        );
+        let ix = build_submit_standing_ix(&fee_key, &payer.pubkey(), &quote, 42);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Prune with Some(random_router) on Leaf account.
+        // PDA derived with random_router was never created → RouteNotFound.
+        let random_router = H256::random();
+        let domain_le = 42u32.to_le_bytes();
+        let (wrong_pda, _) = Pubkey::find_program_address(
+            fee_standing_quote_pda_seeds!(fee_key, &domain_le, random_router),
+            &fee_program_id(),
+        );
+        let ix = Instruction::new_with_borsh(
+            fee_program_id(),
+            &FeeInstruction::PruneExpiredQuotes {
+                domain: 42,
+                target_router: Some(random_router),
+            },
+            vec![
+                AccountMeta::new_readonly(system_program::ID, false),
+                AccountMeta::new(fee_key, false),
+                AccountMeta::new(payer.pubkey(), true),
+                AccountMeta::new(wrong_pda, false),
+            ],
+        );
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::RouteNotFound as u32),
             ),
         );
     }
@@ -5252,10 +5387,13 @@ mod get_quote_account_metas {
         // prefix (3) + domain_quotes + wildcard_quotes + cc_specific + cc_default = 7
         assert_eq!(metas.len(), 7);
 
-        assert_eq!(metas[3].pubkey, standing_quote_pda_for(&fee_key, dest));
+        assert_eq!(
+            metas[3].pubkey,
+            cc_standing_quote_pda_for(&fee_key, dest, &target_router)
+        );
         assert_eq!(
             metas[4].pubkey,
-            standing_quote_pda_for(&fee_key, WILDCARD_DOMAIN)
+            cc_standing_quote_pda_for(&fee_key, WILDCARD_DOMAIN, &target_router)
         );
         assert_eq!(
             metas[5].pubkey,
@@ -5304,10 +5442,13 @@ mod get_quote_account_metas {
 
         assert_eq!(metas[3].pubkey, expected_transient);
         assert!(metas[3].is_writable);
-        assert_eq!(metas[4].pubkey, standing_quote_pda_for(&fee_key, dest));
+        assert_eq!(
+            metas[4].pubkey,
+            cc_standing_quote_pda_for(&fee_key, dest, &target_router)
+        );
         assert_eq!(
             metas[5].pubkey,
-            standing_quote_pda_for(&fee_key, WILDCARD_DOMAIN)
+            cc_standing_quote_pda_for(&fee_key, WILDCARD_DOMAIN, &target_router)
         );
         assert_eq!(
             metas[6].pubkey,
@@ -5388,5 +5529,388 @@ mod get_program_version {
         let result: SimulationReturnData<String> =
             borsh::from_slice(&return_data.data).expect("failed to deserialize");
         assert_eq!(result.return_data, package_versioned::PACKAGE_VERSION);
+    }
+}
+
+mod cc_standing_quotes {
+    use super::*;
+    use hyperlane_sealevel_fee::accounts::{
+        FeeStandingQuotePda, FeeStandingQuotePdaAccount, WILDCARD_DOMAIN,
+    };
+
+    fn encode_u48(ts: i64) -> [u8; 6] {
+        let bytes = ts.to_be_bytes();
+        let mut out = [0u8; 6];
+        out.copy_from_slice(&bytes[2..8]);
+        out
+    }
+
+    fn encode_cc_standing_context(dest: u32, recipient: H256, target_router: H256) -> Vec<u8> {
+        let mut buf = Vec::with_capacity(76);
+        buf.extend_from_slice(&dest.to_le_bytes());
+        buf.extend_from_slice(recipient.as_bytes());
+        buf.extend_from_slice(&u64::MAX.to_le_bytes());
+        buf.extend_from_slice(target_router.as_bytes());
+        buf
+    }
+
+    fn encode_data(max_fee: u64, half_amount: u64) -> Vec<u8> {
+        let mut buf = Vec::with_capacity(16);
+        buf.extend_from_slice(&max_fee.to_le_bytes());
+        buf.extend_from_slice(&half_amount.to_le_bytes());
+        buf
+    }
+
+    fn make_signed_standing_quote(
+        signing_key: &SigningKey,
+        fee_account: &Pubkey,
+        domain_id: u32,
+        payer: &Pubkey,
+        context: Vec<u8>,
+        data: Vec<u8>,
+        issued_at: [u8; 6],
+        expiry: [u8; 6],
+    ) -> SvmSignedQuote {
+        let client_salt = H256::random();
+        let mut quote = SvmSignedQuote {
+            context,
+            data,
+            issued_at,
+            expiry,
+            client_salt,
+            signature: [0u8; 65],
+        };
+        let scoped_salt = quote.compute_scoped_salt(payer);
+        let message_hash = quote.build_message_hash(fee_account, domain_id, &scoped_salt);
+        quote.signature = sign_hash(signing_key, message_hash.as_fixed_bytes());
+        quote
+    }
+
+    fn build_submit_cc_standing_ix(
+        fee_account: &Pubkey,
+        payer: &Pubkey,
+        quote: &SvmSignedQuote,
+        dest: u32,
+        target_router: &H256,
+    ) -> Instruction {
+        let domain_le = dest.to_le_bytes();
+        let (domain_pda, _) = Pubkey::find_program_address(
+            fee_standing_quote_pda_seeds!(fee_account, &domain_le, target_router),
+            &fee_program_id(),
+        );
+        Instruction::new_with_borsh(
+            fee_program_id(),
+            &FeeInstruction::SubmitQuote(quote.clone()),
+            vec![
+                AccountMeta::new_readonly(system_program::ID, false),
+                AccountMeta::new(*payer, true),
+                AccountMeta::new(*fee_account, false),
+                AccountMeta::new(domain_pda, false),
+            ],
+        )
+    }
+
+    async fn fetch_standing_pda(
+        banks_client: &mut BanksClient,
+        key: Pubkey,
+    ) -> FeeStandingQuotePda {
+        let account = banks_client.get_account(key).await.unwrap().unwrap();
+        FeeStandingQuotePdaAccount::fetch(&mut &account.data[..])
+            .unwrap()
+            .into_inner()
+            .data
+    }
+
+    #[tokio::test]
+    async fn test_cc_standing_creates_route_bound_pda() {
+        let (mut banks_client, payer) = setup_client().await;
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let signer_address = eth_address(&signing_key);
+
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            FeeData::CrossCollateralRouting,
+        )
+        .await;
+
+        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let dest = 42u32;
+        let target_router = H256::random();
+        let recipient = H256::zero();
+
+        let context = encode_cc_standing_context(dest, recipient, target_router);
+        let data = encode_data(2000, 1000);
+        let quote = make_signed_standing_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            context,
+            data,
+            encode_u48(100),
+            encode_u48(9999999999),
+        );
+
+        let ix =
+            build_submit_cc_standing_ix(&fee_key, &payer.pubkey(), &quote, dest, &target_router);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Verify PDA is at the CC-specific address.
+        let cc_pda = cc_standing_quote_pda_for(&fee_key, dest, &target_router);
+        let standing = fetch_standing_pda(&mut banks_client, cc_pda).await;
+        assert_eq!(standing.quotes.len(), 1);
+        assert_eq!(standing.quotes.get(&recipient).unwrap().max_fee, 2000);
+    }
+
+    #[tokio::test]
+    async fn test_two_routers_get_separate_pdas() {
+        let (mut banks_client, payer) = setup_client().await;
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let signer_address = eth_address(&signing_key);
+
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            FeeData::CrossCollateralRouting,
+        )
+        .await;
+
+        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let dest = 42u32;
+        let recipient = H256::zero();
+        let router_a = H256::random();
+        let router_b = H256::random();
+
+        // Submit standing for router_a: max_fee=1000.
+        let ctx_a = encode_cc_standing_context(dest, recipient, router_a);
+        let q_a = make_signed_standing_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            ctx_a,
+            encode_data(1000, 500),
+            encode_u48(100),
+            encode_u48(9999999999),
+        );
+        let ix = build_submit_cc_standing_ix(&fee_key, &payer.pubkey(), &q_a, dest, &router_a);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Submit standing for router_b: max_fee=5000.
+        let ctx_b = encode_cc_standing_context(dest, recipient, router_b);
+        let q_b = make_signed_standing_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            ctx_b,
+            encode_data(5000, 2500),
+            encode_u48(100),
+            encode_u48(9999999999),
+        );
+        let ix = build_submit_cc_standing_ix(&fee_key, &payer.pubkey(), &q_b, dest, &router_b);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Verify separate PDAs with separate values.
+        let pda_a = cc_standing_quote_pda_for(&fee_key, dest, &router_a);
+        let pda_b = cc_standing_quote_pda_for(&fee_key, dest, &router_b);
+        assert_ne!(pda_a, pda_b);
+
+        let standing_a = fetch_standing_pda(&mut banks_client, pda_a).await;
+        let standing_b = fetch_standing_pda(&mut banks_client, pda_b).await;
+        assert_eq!(standing_a.quotes.get(&recipient).unwrap().max_fee, 1000);
+        assert_eq!(standing_b.quotes.get(&recipient).unwrap().max_fee, 5000);
+    }
+
+    #[tokio::test]
+    async fn test_cc_standing_zero_target_router_rejected() {
+        let (mut banks_client, payer) = setup_client().await;
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let signer_address = eth_address(&signing_key);
+
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            FeeData::CrossCollateralRouting,
+        )
+        .await;
+
+        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Submit with target_router = H256::zero() → should be rejected.
+        let context = encode_cc_standing_context(42, H256::zero(), H256::zero());
+        let data = encode_data(1000, 500);
+        let quote = make_signed_standing_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            context,
+            data,
+            encode_u48(100),
+            encode_u48(9999999999),
+        );
+
+        let ix = build_submit_cc_standing_ix(&fee_key, &payer.pubkey(), &quote, 42, &H256::zero());
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::ZeroTargetRouterNotAllowed as u32),
+            ),
+        );
+    }
+
+    #[tokio::test]
+    async fn test_cc_prune_does_not_remove_domain_from_tracking() {
+        let program_id = fee_program_id();
+        let program_test = ProgramTest::new(
+            "hyperlane_sealevel_fee",
+            program_id,
+            processor!(fee_process_instruction),
+        );
+        let mut ctx = program_test.start_with_context().await;
+        let payer = ctx.payer.insecure_clone();
+        let banks_client = &mut ctx.banks_client;
+
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let signer_address = eth_address(&signing_key);
+
+        let fee_key = init_fee_account(
+            banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            FeeData::CrossCollateralRouting,
+        )
+        .await;
+
+        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
+        process_tx(banks_client, &payer, ix, &[]).await.unwrap();
+
+        // Set up a CC route so QuoteFee can resolve the curve.
+        let dest = 42u32;
+        let router_a = H256::random();
+        let router_b = H256::random();
+        let route_strategy = FeeDataStrategy::Linear(FeeParams {
+            max_fee: 100,
+            half_amount: 50,
+        });
+
+        let ix = build_set_cc_route_ix(
+            &fee_key,
+            &payer.pubkey(),
+            dest,
+            router_a,
+            route_strategy.clone(),
+        );
+        process_tx(banks_client, &payer, ix, &[]).await.unwrap();
+        let ix = build_set_cc_route_ix(&fee_key, &payer.pubkey(), dest, router_b, route_strategy);
+        process_tx(banks_client, &payer, ix, &[]).await.unwrap();
+
+        // Submit standing quotes for two different routers on the same domain.
+        let ctx_a = encode_cc_standing_context(dest, H256::zero(), router_a);
+        let q_a = make_signed_standing_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            ctx_a,
+            encode_data(1000, 500),
+            encode_u48(100),
+            encode_u48(9999999999),
+        );
+        let ix = build_submit_cc_standing_ix(&fee_key, &payer.pubkey(), &q_a, dest, &router_a);
+        process_tx(banks_client, &payer, ix, &[]).await.unwrap();
+
+        let ctx_b = encode_cc_standing_context(dest, H256::zero(), router_b);
+        let q_b = make_signed_standing_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            ctx_b,
+            encode_data(2000, 1000),
+            encode_u48(100),
+            encode_u48(9999999999),
+        );
+        let ix = build_submit_cc_standing_ix(&fee_key, &payer.pubkey(), &q_b, dest, &router_b);
+        process_tx(banks_client, &payer, ix, &[]).await.unwrap();
+
+        // Verify domain is in standing_quote_domains.
+        let fee_acct = fetch_fee_account(banks_client, fee_key).await;
+        assert!(fee_acct.standing_quote_domains.contains(&dest));
+
+        // Warp clock past expiry of router_a's quote only.
+        // Both have expiry=9999999999, so warp past that.
+        let mut clock = banks_client
+            .get_sysvar::<solana_program::clock::Clock>()
+            .await
+            .unwrap();
+        clock.unix_timestamp = 99999999999;
+        ctx.set_sysvar(&clock);
+        let banks_client = &mut ctx.banks_client;
+
+        // Prune router_a's standing PDA — it should close.
+        let domain_le = dest.to_le_bytes();
+        let (pda_a, _) = Pubkey::find_program_address(
+            fee_standing_quote_pda_seeds!(fee_key, &domain_le, router_a),
+            &fee_program_id(),
+        );
+        let ix = Instruction::new_with_borsh(
+            fee_program_id(),
+            &FeeInstruction::PruneExpiredQuotes {
+                domain: dest,
+                target_router: Some(router_a),
+            },
+            vec![
+                AccountMeta::new_readonly(system_program::ID, false),
+                AccountMeta::new(fee_key, false),
+                AccountMeta::new(payer.pubkey(), true),
+                AccountMeta::new(pda_a, false),
+            ],
+        );
+        process_tx(banks_client, &payer, ix, &[]).await.unwrap();
+
+        // Router_a's PDA should be closed.
+        let account = banks_client.get_account(pda_a).await.unwrap();
+        assert!(account.is_none() || account.unwrap().data.is_empty());
+
+        // But domain should STILL be in standing_quote_domains
+        // because router_b's PDA still exists.
+        let fee_acct = fetch_fee_account(banks_client, fee_key).await;
+        assert!(
+            fee_acct.standing_quote_domains.contains(&dest),
+            "CC prune should not remove domain from tracking when other router PDAs may exist"
+        );
     }
 }

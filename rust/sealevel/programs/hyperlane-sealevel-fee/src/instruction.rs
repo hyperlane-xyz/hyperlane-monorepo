@@ -52,7 +52,11 @@ pub enum Instruction {
     /// Close an orphaned transient quote PDA, returning rent to the original payer.
     CloseTransientQuote,
     /// Remove expired standing quotes for a domain, closing the PDA if empty (owner-only).
-    PruneExpiredQuotes { domain: u32 },
+    /// For CC fee accounts, pass Some(target_router). For Leaf/Routing, pass None.
+    PruneExpiredQuotes {
+        domain: u32,
+        target_router: Option<H256>,
+    },
     /// Simulation-only: returns required account metas for a QuoteFee call.
     GetQuoteAccountMetas(GetQuoteAccountMetas),
     /// Returns the program version via set_return_data. No accounts required.
