@@ -247,14 +247,27 @@ fn process_quote_fee(
             strategy.clone()
         }
         FeeData::Routing => {
-            let strategy = resolve_routing(
+            match resolve_routing(
                 program_id,
                 accounts_iter,
                 fee_account_info.key,
                 data.destination_domain,
-            )?;
-            ensure_no_extraneous_accounts(accounts_iter)?;
-            strategy
+            )? {
+                Some(strategy) => {
+                    ensure_no_extraneous_accounts(accounts_iter)?;
+                    strategy
+                }
+                None => {
+                    // Unconfigured domain → zero fee (EVM-compatible behavior).
+                    ensure_no_extraneous_accounts(accounts_iter)?;
+                    set_return_data(&0u64.to_le_bytes());
+                    msg!(
+                        "QuoteFee (unconfigured route): 0 for amount {}",
+                        data.amount
+                    );
+                    return Ok(());
+                }
+            }
         }
         FeeData::CrossCollateralRouting => {
             let strategy = resolve_cc_routing(
@@ -522,12 +535,13 @@ fn try_resolve_standing_quote(
 }
 
 /// Resolves the fee strategy for Routing mode by reading the RouteDomain PDA.
+/// Returns None if the route PDA is uninitialized (unconfigured domain).
 fn resolve_routing(
     program_id: &Pubkey,
     accounts_iter: &mut std::slice::Iter<'_, AccountInfo<'_>>,
     fee_account_key: &Pubkey,
     destination_domain: u32,
-) -> Result<crate::fee_math::FeeDataStrategy, ProgramError> {
+) -> Result<Option<crate::fee_math::FeeDataStrategy>, ProgramError> {
     let route_pda_info = next_account_info(accounts_iter)?;
 
     let domain_le = destination_domain.to_le_bytes();
@@ -538,12 +552,13 @@ fn resolve_routing(
     if *route_pda_info.key != expected_key {
         return Err(ProgramError::InvalidSeeds);
     }
+    // Unconfigured route: PDA exists but is system-owned (uninitialized).
     if route_pda_info.owner != program_id {
-        return Err(Error::RouteNotFound.into());
+        return Ok(None);
     }
 
     let route = RouteDomainAccount::fetch(&mut &route_pda_info.data.borrow()[..])?.into_inner();
-    Ok(route.data.fee_data)
+    Ok(Some(route.data.fee_data))
 }
 
 /// Resolves the fee strategy for CrossCollateralRouting mode.
