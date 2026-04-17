@@ -59,6 +59,7 @@ import {
   normalizeScale,
   splitWarpCoreAndExtendedConfigs,
   tokenTypeToStandard,
+  isOftTokenConfig,
 } from '@hyperlane-xyz/sdk';
 import {
   type Address,
