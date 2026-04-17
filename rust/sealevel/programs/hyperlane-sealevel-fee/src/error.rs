@@ -58,6 +58,9 @@ pub enum Error {
     /// Standing quote data is invalid.
     #[error("Invalid standing quote data")]
     InvalidStandingQuoteData = 18,
+    /// CC standing quote cannot use H256::zero() as target_router.
+    #[error("Zero target router not allowed for CC standing quotes")]
+    ZeroTargetRouterNotAllowed = 19,
 }
 
 impl From<Error> for ProgramError {

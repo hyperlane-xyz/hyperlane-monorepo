@@ -361,7 +361,9 @@ impl DiscriminatorData for FeeStandingQuotePda {
 }
 
 /// Per-destination-domain standing quote PDA. Contains a map of recipient → quote values.
-/// PDA derived from fee_account + destination domain (u32 LE).
+/// PDA derived from fee_account + destination domain (u32 LE) + target_router (H256).
+/// For Leaf/Routing: target_router = H256::zero() (sentinel).
+/// For CrossCollateralRouting: target_router = actual remote warp route address.
 /// Wildcard domain uses u32::MAX LE bytes.
 /// Each entry is keyed by the end-user's address on the destination chain (H256).
 /// Wildcard recipient uses [0xFF; 32].

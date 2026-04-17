@@ -81,9 +81,15 @@ pub fn process_instruction(
         }
         Instruction::SubmitQuote(quote) => process_submit_quote(program_id, accounts, quote),
         Instruction::CloseTransientQuote => process_close_transient_quote(program_id, accounts),
-        Instruction::PruneExpiredQuotes { domain } => {
-            process_prune_expired_quotes(program_id, accounts, domain)
-        }
+        Instruction::PruneExpiredQuotes {
+            domain,
+            target_router,
+        } => process_prune_expired_quotes(
+            program_id,
+            accounts,
+            domain,
+            target_router.unwrap_or(hyperlane_core::H256::zero()),
+        ),
         Instruction::GetQuoteAccountMetas(data) => {
             process_get_quote_account_metas(program_id, accounts, data)
         }
@@ -290,12 +296,19 @@ fn process_quote_fee(
         }
     }
 
+    // Resolve target_router for standing quote PDA derivation.
+    let standing_target_router = match &fee_account.fee_data {
+        FeeData::CrossCollateralRouting => data.target_router,
+        _ => hyperlane_core::H256::zero(),
+    };
+
     // Step 2: Domain standing quote — exact recipient then wildcard recipient.
     if let Some(fee) = try_resolve_standing_quote(
         program_id,
         domain_quotes_info,
         fee_account_info.key,
         data.destination_domain,
+        standing_target_router,
         &strategy,
         &data,
         fee_account.min_issued_at,
@@ -315,6 +328,7 @@ fn process_quote_fee(
         wildcard_quotes_info,
         fee_account_info.key,
         crate::accounts::WILDCARD_DOMAIN,
+        standing_target_router,
         &strategy,
         &data,
         fee_account.min_issued_at,
@@ -430,8 +444,9 @@ fn try_consume_transient_quote<C: crate::accounts::QuoteContext>(
     Ok(Some(fee))
 }
 
+#[allow(clippy::too_many_arguments)]
 /// Attempts to resolve a fee from a standing quote PDA.
-/// Re-derives the PDA from (fee_account, domain) to prevent spoofing.
+/// Re-derives the PDA from (fee_account, domain, target_router) to prevent spoofing.
 /// Scans for exact recipient match, then wildcard recipient.
 /// Validates expiry and min_issued_at. Returns None if PDA is uninitialized
 /// or no matching entry found.
@@ -440,6 +455,7 @@ fn try_resolve_standing_quote(
     standing_pda_info: &AccountInfo,
     fee_account_key: &Pubkey,
     domain: u32,
+    target_router: hyperlane_core::H256,
     strategy: &crate::fee_math::FeeDataStrategy,
     quote_fee_data: &QuoteFee,
     min_issued_at: i64,
@@ -457,7 +473,7 @@ fn try_resolve_standing_quote(
     // Re-derive PDA to prevent spoofing from a different fee account or domain.
     let domain_le = domain.to_le_bytes();
     let (expected_key, _) = Pubkey::find_program_address(
-        fee_standing_quote_pda_seeds!(fee_account_key, &domain_le),
+        fee_standing_quote_pda_seeds!(fee_account_key, &domain_le, target_router),
         program_id,
     );
     if *standing_pda_info.key != expected_key {
@@ -865,18 +881,38 @@ fn process_submit_quote(
     } else {
         // Standing quote: expiry > issued_at. Store in per-domain PDA.
 
-        // Parse context to get destination domain and recipient (BTreeMap key).
-        // Standing quotes use the base context (44B) — recipient is the map key.
-        // Amount must be wildcard (u64::MAX) for standing quotes.
-        let ctx = FeeQuoteContext::try_from_bytes(&quote.context)
-            .map_err(|_| Error::InvalidStandingQuoteContext)?;
-        if ctx.amount != u64::MAX {
-            return Err(Error::StandingQuoteAmountNotWildcard.into());
-        }
+        // Parse context based on FeeData variant.
+        // Leaf/Routing: 44B context, target_router = H256::zero() sentinel.
+        // CC: 76B context with target_router, reject H256::zero().
+        let (destination_domain, recipient, standing_target_router) = match &fee_account.fee_data {
+            FeeData::CrossCollateralRouting => {
+                let ctx = CcFeeQuoteContext::try_from_bytes(&quote.context)
+                    .map_err(|_| Error::InvalidStandingQuoteContext)?;
+                if ctx.amount != u64::MAX {
+                    return Err(Error::StandingQuoteAmountNotWildcard.into());
+                }
+                if ctx.target_router == hyperlane_core::H256::zero() {
+                    return Err(Error::ZeroTargetRouterNotAllowed.into());
+                }
+                (ctx.destination_domain, ctx.recipient, ctx.target_router)
+            }
+            _ => {
+                let ctx = FeeQuoteContext::try_from_bytes(&quote.context)
+                    .map_err(|_| Error::InvalidStandingQuoteContext)?;
+                if ctx.amount != u64::MAX {
+                    return Err(Error::StandingQuoteAmountNotWildcard.into());
+                }
+                (
+                    ctx.destination_domain,
+                    ctx.recipient,
+                    hyperlane_core::H256::zero(),
+                )
+            }
+        };
 
         // Reject fully-wildcarded standing quotes (wildcard dest + wildcard recipient).
-        if ctx.destination_domain == crate::accounts::WILDCARD_DOMAIN
-            && ctx.recipient == crate::accounts::WILDCARD_RECIPIENT
+        if destination_domain == crate::accounts::WILDCARD_DOMAIN
+            && recipient == crate::accounts::WILDCARD_RECIPIENT
         {
             return Err(Error::FullyWildcardedStandingQuote.into());
         }
@@ -887,9 +923,9 @@ fn process_submit_quote(
 
         // Account 3: Domain standing quote PDA.
         let domain_pda_info = next_account_info(accounts_iter)?;
-        let domain_le = ctx.destination_domain.to_le_bytes();
+        let domain_le = destination_domain.to_le_bytes();
         let (expected_domain_key, domain_bump) = Pubkey::find_program_address(
-            fee_standing_quote_pda_seeds!(fee_account_info.key, &domain_le),
+            fee_standing_quote_pda_seeds!(fee_account_info.key, &domain_le, standing_target_router),
             program_id,
         );
         if *domain_pda_info.key != expected_domain_key {
@@ -916,7 +952,7 @@ fn process_submit_quote(
         };
 
         // Insert or update the quote for this recipient.
-        let recipient_key = ctx.recipient;
+        let recipient_key = recipient;
         let new_value = FeeStandingQuoteValue {
             issued_at: issued_at_ts,
             expiry: expiry_ts,
@@ -948,7 +984,12 @@ fn process_submit_quote(
                 program_id,
                 system_program_info,
                 domain_pda_info,
-                fee_standing_quote_pda_seeds!(fee_account_info.key, &domain_le, domain_bump),
+                fee_standing_quote_pda_seeds!(
+                    fee_account_info.key,
+                    &domain_le,
+                    standing_target_router,
+                    domain_bump
+                ),
             )?;
             standing_account.store(domain_pda_info, false)?;
 
@@ -956,7 +997,7 @@ fn process_submit_quote(
             let mut fee_account_mut = fee_account.data;
             fee_account_mut
                 .standing_quote_domains
-                .insert(ctx.destination_domain);
+                .insert(destination_domain);
             FeeAccountData::new(fee_account_mut.into()).store_with_rent_exempt_realloc(
                 fee_account_info,
                 &Rent::get()?,
@@ -974,7 +1015,7 @@ fn process_submit_quote(
 
         msg!(
             "Submitted standing quote for domain {} recipient {}",
-            ctx.destination_domain,
+            destination_domain,
             recipient_key
         );
     }
@@ -1051,6 +1092,7 @@ fn process_prune_expired_quotes(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
     domain: u32,
+    target_router: hyperlane_core::H256,
 ) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
@@ -1066,7 +1108,7 @@ fn process_prune_expired_quotes(
     let domain_pda_info = next_account_info(accounts_iter)?;
     let domain_le = domain.to_le_bytes();
     let (expected_key, _) = Pubkey::find_program_address(
-        fee_standing_quote_pda_seeds!(fee_account_info.key, &domain_le),
+        fee_standing_quote_pda_seeds!(fee_account_info.key, &domain_le, target_router),
         program_id,
     );
     if *domain_pda_info.key != expected_key {
@@ -1088,12 +1130,17 @@ fn process_prune_expired_quotes(
         .retain(|_, value| clock.unix_timestamp <= value.expiry);
 
     if standing.quotes.is_empty() {
-        // Close the PDA and remove domain from standing_quote_domains.
+        // Close the PDA.
         let owner_info = &accounts[2];
         close_pda(domain_pda_info, owner_info)?;
 
-        fee_account.standing_quote_domains.remove(&domain);
-        FeeAccountData::new(fee_account.into()).store(fee_account_info, false)?;
+        // Remove domain from standing_quote_domains only for non-CC accounts.
+        // CC accounts may have multiple PDAs per domain (one per target_router),
+        // so we can't safely remove the domain when just one PDA is empty.
+        if !matches!(fee_account.fee_data, FeeData::CrossCollateralRouting) {
+            fee_account.standing_quote_domains.remove(&domain);
+            FeeAccountData::new(fee_account.into()).store(fee_account_info, false)?;
+        }
 
         msg!("Pruned domain {} — PDA closed", domain);
     } else {
@@ -1168,9 +1215,14 @@ fn process_get_quote_account_metas(
     }
 
     // Standing quote PDAs (domain + wildcard).
+    // For CC: include target_router in PDA seeds. For Leaf/Routing: H256::zero() sentinel via macro default.
     let domain_le = data.destination_domain.to_le_bytes();
+    let standing_target_router = match &fee_account.fee_data {
+        FeeData::CrossCollateralRouting => data.target_router,
+        _ => hyperlane_core::H256::zero(),
+    };
     let (domain_quotes_key, _) = Pubkey::find_program_address(
-        fee_standing_quote_pda_seeds!(fee_account_info.key, &domain_le),
+        fee_standing_quote_pda_seeds!(fee_account_info.key, &domain_le, standing_target_router),
         program_id,
     );
     metas.push(SerializableAccountMeta {
@@ -1181,7 +1233,7 @@ fn process_get_quote_account_metas(
 
     let wildcard_le = crate::accounts::WILDCARD_DOMAIN.to_le_bytes();
     let (wildcard_quotes_key, _) = Pubkey::find_program_address(
-        fee_standing_quote_pda_seeds!(fee_account_info.key, &wildcard_le),
+        fee_standing_quote_pda_seeds!(fee_account_info.key, &wildcard_le, standing_target_router),
         program_id,
     );
     metas.push(SerializableAccountMeta {
