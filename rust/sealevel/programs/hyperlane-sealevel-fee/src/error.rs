@@ -61,6 +61,9 @@ pub enum Error {
     /// CC standing quote cannot use H256::zero() as target_router.
     #[error("Zero target router not allowed for CC standing quotes")]
     ZeroTargetRouterNotAllowed = 19,
+    /// Domain 0 and u32::MAX (wildcard sentinel) cannot be used as route domains.
+    #[error("Invalid route domain")]
+    InvalidRouteDomain = 20,
 }
 
 impl From<Error> for ProgramError {
