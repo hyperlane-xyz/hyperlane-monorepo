@@ -1,3 +1,10 @@
+## [2.3.0] - 2026-04-17
+
+* feat(tron): migrate Tron agents from gRPC to HTTP API (#8370)
+* fix: process gas estimation for trusted relayer isms (#8457)
+* fix: skip scraper lookup for txHash (#8517)
+* refactor(evm): remove evm tron techstack (#8408)
+
 ## [2.2.0] - 2026-03-09
 
 * chore: migrate spellchecker from codespell to typos (#8214)

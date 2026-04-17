@@ -1,3 +1,8 @@
+## [2.3.0] - 2026-04-17
+
+* feat: apr 6 deprecations (#8518)
+* refactor(evm): remove evm tron techstack (#8408)
+
 ## [2.1.0] - 2026-03-04
 
 * chore: enable modetestnet again (#8057)
