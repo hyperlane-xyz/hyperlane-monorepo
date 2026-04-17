@@ -378,7 +378,8 @@ function generateTokenConfigs(
       isXERC20TokenConfig(config) ||
       isCrossCollateralTokenConfig(config) ||
       isDepositAddressTokenConfig(config) ||
-      isEverclearCollateralTokenConfig(config)
+      isEverclearCollateralTokenConfig(config) ||
+      isOftTokenConfig(config)
         ? (config as { token: string }).token // gets set in the above deriveTokenMetadata()
         : undefined;
 
