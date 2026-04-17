@@ -631,7 +631,9 @@ export async function getMultiProviderForRole(
 ): Promise<MultiProvider> {
   const chainMetadata = await registry.getMetadata();
   logger.debug(`Getting multiprovider for ${role} role`);
-  const multiProvider = new MultiProvider(chainMetadata);
+  const multiProvider = new MultiProvider(chainMetadata, {
+    minConfirmationTimeoutMs: 300_000,
+  });
   if (inCIMode()) {
     logger.debug('Running in CI, returning multiprovider without secret keys');
     return multiProvider;

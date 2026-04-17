@@ -44,6 +44,7 @@ import {
   OpStackHookConfig,
   ProtocolFeeHookConfig,
 } from './types.js';
+import { submitBatched } from './utils.js';
 
 export class HyperlaneHookDeployer extends HyperlaneDeployer<
   HookConfig,
@@ -416,22 +417,21 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
 
     const overrides = this.multiProvider.getTransactionOverrides(chain);
     await this.runIfOwner(chain, routingHook, async () => {
-      this.logger.debug(
-        {
-          chain,
-          routingHookAddress: routingHook.address,
-          routingConfigs,
-        },
-        'Setting routing hooks',
-      );
-      const estimatedGas =
-        await routingHook.estimateGas.setHooks(routingConfigs);
-      return this.multiProvider.handleTx(
+      await submitBatched(
         chain,
-        routingHook.setHooks(routingConfigs, {
-          gasLimit: addBufferToGasLimit(estimatedGas),
-          ...overrides,
-        }),
+        routingConfigs,
+        async (batch) => {
+          const estimatedGas = await routingHook.estimateGas.setHooks(batch);
+          await this.multiProvider.handleTx(
+            chain,
+            routingHook.setHooks(batch, {
+              gasLimit: addBufferToGasLimit(estimatedGas),
+              ...overrides,
+            }),
+          );
+        },
+        this.logger,
+        'routing hook configs',
       );
     });
 

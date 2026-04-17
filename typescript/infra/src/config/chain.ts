@@ -29,6 +29,7 @@ import { getSecretRpcEndpoints } from '../agents/index.js';
 import { getSafeApiKey } from '../utils/safe.js';
 
 import { DeployEnvironment } from './environment.js';
+import { fetchExplorerApiKeys } from '../deployment/verify.js';
 
 // V2 ICAs are not supported on these chains, due to the block gas limit being
 // lower than the amount required to deploy the new InterchainAccountRouter
@@ -65,6 +66,8 @@ export function getDisabledChains(): ChainName[] {
 export const chainsToSkip: ChainName[] = [
   // downtime
   'molten',
+  'fluence',
+  'tangle',
 
   // not AW owned
   'forma',
@@ -206,6 +209,26 @@ export async function getSecretMetadataOverrides(
         chainMetadataOverrides[chain].gnosisSafeApiKey = safeApiKey;
       }
     }
+  }
+
+  // Merge explorer API keys into chain metadata so that block explorer
+  // verification checks (e.g. warp check) use authenticated requests.
+  // These overrides live only in the PartialRegistry layer and are never
+  // persisted back to the on-disk registry.
+  const explorerApiKeys = await fetchExplorerApiKeys();
+  for (const chain of chains) {
+    const apiKey = explorerApiKeys[chain];
+    if (!apiKey) continue;
+
+    const chainMetadata = getChain(chain);
+    if (!chainMetadata.blockExplorers?.length) continue;
+
+    chainMetadataOverrides[chain] ??= {};
+    chainMetadataOverrides[chain].blockExplorers =
+      chainMetadata.blockExplorers.map((explorer) => ({
+        ...explorer,
+        apiKey,
+      }));
   }
 
   return chainMetadataOverrides;
