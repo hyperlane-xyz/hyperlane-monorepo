@@ -5124,19 +5124,23 @@ mod get_quote_account_metas {
         )
         .await;
 
-        // domain_quotes + wildcard_quotes = 2
-        assert_eq!(metas.len(), 2);
+        // prefix (3) + domain_quotes + wildcard_quotes = 5
+        assert_eq!(metas.len(), 5);
+
+        // Fixed prefix.
+        assert_eq!(metas[0].pubkey, system_program::ID);
+        assert_eq!(metas[1].pubkey, fee_key);
+        assert!(metas[2].is_signer);
+        assert!(metas[2].is_writable);
 
         let expected_domain = standing_quote_pda_for(&fee_key, dest);
         let expected_wildcard = standing_quote_pda_for(&fee_key, WILDCARD_DOMAIN);
 
-        assert_eq!(metas[0].pubkey, expected_domain);
-        assert!(!metas[0].is_writable);
-        assert!(!metas[0].is_signer);
+        assert_eq!(metas[3].pubkey, expected_domain);
+        assert!(!metas[3].is_writable);
 
-        assert_eq!(metas[1].pubkey, expected_wildcard);
-        assert!(!metas[1].is_writable);
-        assert!(!metas[1].is_signer);
+        assert_eq!(metas[4].pubkey, expected_wildcard);
+        assert!(!metas[4].is_writable);
     }
 
     #[tokio::test]
@@ -5170,16 +5174,16 @@ mod get_quote_account_metas {
         )
         .await;
 
-        // transient + domain_quotes + wildcard_quotes = 3
-        assert_eq!(metas.len(), 3);
+        // prefix (3) + transient + domain_quotes + wildcard_quotes = 6
+        assert_eq!(metas.len(), 6);
 
-        assert_eq!(metas[0].pubkey, expected_transient);
-        assert!(metas[0].is_writable);
-        assert!(!metas[0].is_signer);
+        assert_eq!(metas[3].pubkey, expected_transient);
+        assert!(metas[3].is_writable);
+        assert!(!metas[3].is_signer);
 
-        assert_eq!(metas[1].pubkey, standing_quote_pda_for(&fee_key, dest));
+        assert_eq!(metas[4].pubkey, standing_quote_pda_for(&fee_key, dest));
         assert_eq!(
-            metas[2].pubkey,
+            metas[5].pubkey,
             standing_quote_pda_for(&fee_key, WILDCARD_DOMAIN)
         );
     }
@@ -5208,16 +5212,16 @@ mod get_quote_account_metas {
         )
         .await;
 
-        // domain_quotes + wildcard_quotes + route_pda = 3
-        assert_eq!(metas.len(), 3);
+        // prefix (3) + domain_quotes + wildcard_quotes + route_pda = 6
+        assert_eq!(metas.len(), 6);
 
-        assert_eq!(metas[0].pubkey, standing_quote_pda_for(&fee_key, dest));
+        assert_eq!(metas[3].pubkey, standing_quote_pda_for(&fee_key, dest));
         assert_eq!(
-            metas[1].pubkey,
+            metas[4].pubkey,
             standing_quote_pda_for(&fee_key, WILDCARD_DOMAIN)
         );
-        assert_eq!(metas[2].pubkey, route_pda_for(&fee_key, dest));
-        assert!(!metas[2].is_writable);
+        assert_eq!(metas[5].pubkey, route_pda_for(&fee_key, dest));
+        assert!(!metas[5].is_writable);
     }
 
     #[tokio::test]
@@ -5245,20 +5249,20 @@ mod get_quote_account_metas {
         )
         .await;
 
-        // domain_quotes + wildcard_quotes + cc_specific + cc_default = 4
-        assert_eq!(metas.len(), 4);
+        // prefix (3) + domain_quotes + wildcard_quotes + cc_specific + cc_default = 7
+        assert_eq!(metas.len(), 7);
 
-        assert_eq!(metas[0].pubkey, standing_quote_pda_for(&fee_key, dest));
+        assert_eq!(metas[3].pubkey, standing_quote_pda_for(&fee_key, dest));
         assert_eq!(
-            metas[1].pubkey,
+            metas[4].pubkey,
             standing_quote_pda_for(&fee_key, WILDCARD_DOMAIN)
         );
         assert_eq!(
-            metas[2].pubkey,
+            metas[5].pubkey,
             cc_route_pda_for(&fee_key, dest, &target_router)
         );
         assert_eq!(
-            metas[3].pubkey,
+            metas[6].pubkey,
             cc_route_pda_for(&fee_key, dest, &DEFAULT_ROUTER)
         );
     }
@@ -5295,22 +5299,22 @@ mod get_quote_account_metas {
         )
         .await;
 
-        // transient + domain_quotes + wildcard_quotes + cc_specific + cc_default = 5
-        assert_eq!(metas.len(), 5);
+        // prefix (3) + transient + domain_quotes + wildcard_quotes + cc_specific + cc_default = 8
+        assert_eq!(metas.len(), 8);
 
-        assert_eq!(metas[0].pubkey, expected_transient);
-        assert!(metas[0].is_writable);
-        assert_eq!(metas[1].pubkey, standing_quote_pda_for(&fee_key, dest));
+        assert_eq!(metas[3].pubkey, expected_transient);
+        assert!(metas[3].is_writable);
+        assert_eq!(metas[4].pubkey, standing_quote_pda_for(&fee_key, dest));
         assert_eq!(
-            metas[2].pubkey,
+            metas[5].pubkey,
             standing_quote_pda_for(&fee_key, WILDCARD_DOMAIN)
         );
         assert_eq!(
-            metas[3].pubkey,
+            metas[6].pubkey,
             cc_route_pda_for(&fee_key, dest, &target_router)
         );
         assert_eq!(
-            metas[4].pubkey,
+            metas[7].pubkey,
             cc_route_pda_for(&fee_key, dest, &DEFAULT_ROUTER)
         );
     }
