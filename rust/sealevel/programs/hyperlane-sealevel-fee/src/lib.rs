@@ -1,3 +1,11 @@
+//! Hyperlane SVM fee program — on-chain fee computation with offchain quoting.
+
+#![allow(unexpected_cfgs)]
+#![deny(warnings)]
+// TODO: enable once all public items have doc comments
+// #![deny(missing_docs)]
+#![deny(unsafe_code)]
+
 pub mod accounts;
 pub mod error;
 pub mod fee_math;
