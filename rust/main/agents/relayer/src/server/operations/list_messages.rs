@@ -172,6 +172,21 @@ mod tests {
         ) as QueueOperation
     }
 
+    /// Helper to compare JSON responses ignoring field order
+    fn assert_json_eq(actual: &str, expected: &str) {
+        let actual_json: serde_json::Value =
+            serde_json::from_str(actual).expect("Failed to parse actual JSON");
+        let expected_json: serde_json::Value =
+            serde_json::from_str(expected).expect("Failed to parse expected JSON");
+        assert_eq!(
+            actual_json,
+            expected_json,
+            "JSON values differ:\nActual: {}\nExpected: {}",
+            serde_json::to_string_pretty(&actual_json).unwrap(),
+            serde_json::to_string_pretty(&expected_json).unwrap()
+        );
+    }
+
     #[tokio::test]
     async fn test_message_id_retry() {
         let TestServerSetup { app, op_queue } = setup_test_server();
@@ -187,33 +202,33 @@ mod tests {
   {{
     "id": "0x1acbee9798118b11ebef0d94b0a2936eafd58e3bfab91b05da875825c4a1c39b",
     "operation": {{
-      "type": "MockPendingOperation",
-      "id": "0x1acbee9798118b11ebef0d94b0a2936eafd58e3bfab91b05da875825c4a1c39b",
-      "sender_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
-      "origin_domain_id": 0,
-      "destination_domain_id": 42161,
-      "recipient_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
-      "seconds_to_next_attempt": 1,
       "destination_domain": {{
         "Known": "Arbitrum"
       }},
-      "retry_count": 1
+      "destination_domain_id": 42161,
+      "id": "0x1acbee9798118b11ebef0d94b0a2936eafd58e3bfab91b05da875825c4a1c39b",
+      "origin_domain_id": 0,
+      "recipient_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
+      "retry_count": 1,
+      "seconds_to_next_attempt": 1,
+      "sender_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
+      "type": "MockPendingOperation"
     }}
   }},
   {{
     "id": "0x51e7be221ce90a49dee46ca0d0270c48d338a7b9d85c2a89d83fac0816571914",
     "operation": {{
-      "type": "MockPendingOperation",
-      "id": "0x51e7be221ce90a49dee46ca0d0270c48d338a7b9d85c2a89d83fac0816571914",
-      "sender_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
-      "origin_domain_id": 0,
-      "destination_domain_id": 42161,
-      "recipient_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
-      "seconds_to_next_attempt": 2,
       "destination_domain": {{
         "Known": "Arbitrum"
       }},
-      "retry_count": 2
+      "destination_domain_id": 42161,
+      "id": "0x51e7be221ce90a49dee46ca0d0270c48d338a7b9d85c2a89d83fac0816571914",
+      "origin_domain_id": 0,
+      "recipient_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
+      "retry_count": 2,
+      "seconds_to_next_attempt": 2,
+      "sender_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
+      "type": "MockPendingOperation"
     }}
   }}
 ]"#
@@ -236,7 +251,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
 
         let response_text = parse_body_to_string(response.into_body()).await;
-        assert_eq!(response_text, expected_response);
+        assert_json_eq(&response_text, &expected_response);
     }
 
     #[tokio::test]
@@ -254,33 +269,33 @@ mod tests {
   {{
     "id": "0x51e7be221ce90a49dee46ca0d0270c48d338a7b9d85c2a89d83fac0816571914",
     "operation": {{
-      "type": "MockPendingOperation",
-      "id": "0x51e7be221ce90a49dee46ca0d0270c48d338a7b9d85c2a89d83fac0816571914",
-      "sender_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
-      "origin_domain_id": 0,
-      "destination_domain_id": 42161,
-      "recipient_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
-      "seconds_to_next_attempt": 2,
       "destination_domain": {{
         "Known": "Arbitrum"
       }},
-      "retry_count": 1
+      "destination_domain_id": 42161,
+      "id": "0x51e7be221ce90a49dee46ca0d0270c48d338a7b9d85c2a89d83fac0816571914",
+      "origin_domain_id": 0,
+      "recipient_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
+      "retry_count": 1,
+      "seconds_to_next_attempt": 2,
+      "sender_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
+      "type": "MockPendingOperation"
     }}
   }},
   {{
     "id": "0x1acbee9798118b11ebef0d94b0a2936eafd58e3bfab91b05da875825c4a1c39b",
     "operation": {{
-      "type": "MockPendingOperation",
-      "id": "0x1acbee9798118b11ebef0d94b0a2936eafd58e3bfab91b05da875825c4a1c39b",
-      "sender_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
-      "origin_domain_id": 0,
-      "destination_domain_id": 42161,
-      "recipient_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
-      "seconds_to_next_attempt": 1,
       "destination_domain": {{
         "Known": "Arbitrum"
       }},
-      "retry_count": 4
+      "destination_domain_id": 42161,
+      "id": "0x1acbee9798118b11ebef0d94b0a2936eafd58e3bfab91b05da875825c4a1c39b",
+      "origin_domain_id": 0,
+      "recipient_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
+      "retry_count": 4,
+      "seconds_to_next_attempt": 1,
+      "sender_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
+      "type": "MockPendingOperation"
     }}
   }}
 ]"#
@@ -303,6 +318,6 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
 
         let response_text = parse_body_to_string(response.into_body()).await;
-        assert_eq!(response_text, expected_response);
+        assert_json_eq(&response_text, &expected_response);
     }
 }
