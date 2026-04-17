@@ -3,6 +3,8 @@
 // import { AltVMFileSubmitter } from '@hyperlane-xyz/deploy-sdk/AltVMFileSubmitter';
 
 export { AltVMJsonRpcSubmitter } from './AltVMJsonRpcSubmitter.js';
+export { createFeeReader, FeeReader } from './fee/fee-reader.js';
+export { createFeeWriter, FeeWriter } from './fee/fee-writer.js';
 export {
   CoreArtifactReader,
   createCoreReader,
