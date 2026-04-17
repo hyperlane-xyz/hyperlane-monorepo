@@ -64,6 +64,9 @@ pub enum Error {
     /// Domain 0 and u32::MAX (wildcard sentinel) cannot be used as route domains.
     #[error("Invalid route domain")]
     InvalidRouteDomain = 20,
+    /// Quote issued_at is too far in the future (beyond allowed clock skew).
+    #[error("Quote issued_at too far in the future")]
+    IssuedAtTooFarInFuture = 21,
 }
 
 impl From<Error> for ProgramError {

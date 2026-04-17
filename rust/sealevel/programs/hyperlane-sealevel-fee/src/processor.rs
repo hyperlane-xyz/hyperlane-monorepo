@@ -41,6 +41,10 @@ use crate::{
     route_domain_pda_seeds, transient_quote_pda_seeds,
 };
 
+/// Maximum allowed clock skew (seconds) between signer infrastructure and Solana clock.
+/// Quotes with issued_at > now + MAX_ISSUED_AT_SKEW are rejected.
+const MAX_ISSUED_AT_SKEW: i64 = 300; // 5 minutes
+
 #[cfg(not(feature = "no-entrypoint"))]
 solana_program::entrypoint!(process_instruction);
 
@@ -826,6 +830,11 @@ fn process_submit_quote(
     let clock = Clock::get()?;
     if clock.unix_timestamp > expiry_ts {
         return Err(Error::QuoteExpired.into());
+    }
+
+    // Reject issued_at too far in the future (clock skew guard).
+    if issued_at_ts > clock.unix_timestamp + MAX_ISSUED_AT_SKEW {
+        return Err(Error::IssuedAtTooFarInFuture.into());
     }
 
     let accounts_iter = &mut accounts.iter();

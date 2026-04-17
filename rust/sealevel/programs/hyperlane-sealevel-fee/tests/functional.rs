@@ -51,7 +51,19 @@ async fn setup_client() -> (BanksClient, Keypair) {
         program_id,
         processor!(fee_process_instruction),
     );
-    let (banks_client, payer, _) = program_test.start().await;
+    let mut ctx = program_test.start_with_context().await;
+    // Reset the clock to 0 so that transient-quote tests using small timestamps work.
+    let mut clock = ctx
+        .banks_client
+        .get_sysvar::<solana_program::clock::Clock>()
+        .await
+        .unwrap();
+    clock.unix_timestamp = 2;
+    ctx.set_sysvar(&clock);
+    let payer = ctx.payer.insecure_clone();
+    let banks_client = ctx.banks_client.clone();
+    // Leak the context so the bank task keeps running for the lifetime of the test.
+    Box::leak(Box::new(ctx));
     (banks_client, payer)
 }
 
@@ -734,14 +746,13 @@ mod set_beneficiary {
     use super::*;
 
     fn build_ix(fee_account: &Pubkey, owner: &Pubkey, beneficiary: Pubkey) -> Instruction {
-        Instruction::new_with_borsh(
+        instruction::set_beneficiary_instruction(
             fee_program_id(),
-            &FeeInstruction::SetBeneficiary(beneficiary),
-            vec![
-                AccountMeta::new(*fee_account, false),
-                AccountMeta::new_readonly(*owner, true),
-            ],
+            *fee_account,
+            *owner,
+            beneficiary,
         )
+        .unwrap()
     }
 
     #[tokio::test]
@@ -2475,7 +2486,7 @@ mod submit_transient_quote {
             .unwrap();
 
         // Use a far-future timestamp so the quote hasn't expired.
-        let issued_at = encode_u48(9999999999);
+        let issued_at = encode_u48(100);
         let quote = make_signed_transient_quote(
             &signing_key,
             &fee_key,
@@ -2529,7 +2540,7 @@ mod submit_transient_quote {
 
         // Create a quote signed by a DIFFERENT key.
         let wrong_key = SigningKey::random(&mut rand::thread_rng());
-        let issued_at = encode_u48(9999999999);
+        let issued_at = encode_u48(100);
         let quote = make_signed_transient_quote(
             &wrong_key,
             &fee_key,
@@ -2567,7 +2578,7 @@ mod submit_transient_quote {
         .await;
 
         // Don't add any signers.
-        let issued_at = encode_u48(9999999999);
+        let issued_at = encode_u48(100);
         let quote = make_signed_transient_quote(
             &signing_key,
             &fee_key,
@@ -2652,7 +2663,7 @@ mod submit_transient_quote {
             .await
             .unwrap();
 
-        let issued_at = encode_u48(9999999999);
+        let issued_at = encode_u48(100);
         let quote = make_signed_transient_quote(
             &signing_key,
             &fee_key,
@@ -2756,7 +2767,7 @@ mod submit_transient_quote {
             .unwrap();
 
         // Zero fee params (max_fee=0, half_amount=0).
-        let issued_at = encode_u48(9999999999);
+        let issued_at = encode_u48(100);
         let quote = make_signed_transient_quote(
             &signing_key,
             &fee_key,
@@ -2794,7 +2805,7 @@ mod submit_transient_quote {
             .await
             .unwrap();
 
-        let issued_at = encode_u48(9999999999);
+        let issued_at = encode_u48(100);
         let quote = make_signed_transient_quote(
             &signing_key,
             &fee_key,
@@ -2822,6 +2833,95 @@ mod submit_transient_quote {
         assert_tx_error(
             result,
             TransactionError::InstructionError(0, InstructionError::AccountAlreadyInitialized),
+        );
+    }
+
+    #[tokio::test]
+    async fn test_transient_issued_at_too_far_in_future_rejected() {
+        let (mut banks_client, payer) = setup_client().await;
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let signer_address = eth_address(&signing_key);
+
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Clock is at 2, MAX_ISSUED_AT_SKEW = 300. issued_at = 400 > 2 + 300 → rejected.
+        let context = encode_context(42, H256::zero(), 100);
+        let data = encode_data(1000, 500);
+        let quote = make_signed_transient_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            context,
+            data,
+            encode_u48(400),
+        );
+
+        let ix = build_submit_transient_ix(&fee_key, &payer.pubkey(), &quote);
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::IssuedAtTooFarInFuture as u32),
+            ),
+        );
+    }
+
+    #[tokio::test]
+    async fn test_standing_issued_at_too_far_in_future_rejected() {
+        let (mut banks_client, payer) = setup_client().await;
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let signer_address = eth_address(&signing_key);
+
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Standing quote: issued_at = 400 > 2 + 300 → rejected.
+        let quote = make_signed_standing_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            encode_standing_context(42, H256::zero()),
+            encode_data(1000, 500),
+            encode_u48(400),        // issued_at: too far in future
+            encode_u48(9999999999), // expiry: far future (valid)
+        );
+
+        let ix = build_submit_standing_ix(&fee_key, &payer.pubkey(), &quote, 42);
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::IssuedAtTooFarInFuture as u32),
+            ),
         );
     }
 }
@@ -2890,7 +2990,7 @@ mod quote_fee_transient {
         let amount = 1000u64;
         let context = encode_context(dest, recipient, amount);
         let data = encode_data(2000, 1000);
-        let issued_at = encode_u48(9999999999);
+        let issued_at = encode_u48(100);
 
         let quote = make_signed_transient_quote(
             &signing_key,
@@ -2977,7 +3077,7 @@ mod quote_fee_transient {
         let recipient = H256::zero();
         let context = encode_context(dest, recipient, 500);
         let data = encode_data(1000, 500);
-        let issued_at = encode_u48(9999999999);
+        let issued_at = encode_u48(100);
 
         let quote = make_signed_transient_quote(
             &signing_key,
@@ -3042,7 +3142,7 @@ mod quote_fee_transient {
 
         let context = encode_context(42, H256::zero(), 500);
         let data = encode_data(1000, 500);
-        let issued_at = encode_u48(9999999999);
+        let issued_at = encode_u48(100);
 
         let quote = make_signed_transient_quote(
             &signing_key,
@@ -3107,7 +3207,7 @@ mod quote_fee_transient {
 
         let context = encode_context(42, H256::zero(), 500);
         let data = encode_data(1000, 500);
-        let issued_at = encode_u48(9999999999);
+        let issued_at = encode_u48(100);
 
         let quote = make_signed_transient_quote(
             &signing_key,
@@ -3179,7 +3279,7 @@ mod quote_fee_transient {
         let amount = 1000u64;
         let context = encode_context(dest, recipient, amount);
         let data = encode_data(0, 0); // zero fee
-        let issued_at = encode_u48(9999999999);
+        let issued_at = encode_u48(100);
 
         let quote = make_signed_transient_quote(
             &signing_key,
@@ -3271,7 +3371,7 @@ mod quote_fee_transient {
         let amount = 100u64;
         let context = encode_context(dest, recipient, amount);
         let data = encode_data(2000, 1000); // override params
-        let issued_at = encode_u48(9999999999);
+        let issued_at = encode_u48(100);
 
         let quote = make_signed_transient_quote(
             &signing_key,
@@ -3383,7 +3483,7 @@ mod quote_fee_transient {
         // Submit transient with CC context (76 bytes).
         let context = encode_cc_context(dest, recipient, amount, target_router);
         let data = encode_data(3000, 1500);
-        let issued_at = encode_u48(9999999999);
+        let issued_at = encode_u48(100);
 
         let quote = make_signed_transient_quote(
             &signing_key,
@@ -3495,7 +3595,7 @@ mod quote_fee_transient {
         // Submit transient with wrong target_router in context.
         let context = encode_cc_context(dest, H256::zero(), 100, wrong_router);
         let data = encode_data(1000, 500);
-        let issued_at = encode_u48(9999999999);
+        let issued_at = encode_u48(100);
 
         let quote = make_signed_transient_quote(
             &signing_key,
@@ -3577,7 +3677,7 @@ mod quote_fee_transient {
         let amount = 100u64;
         let context = encode_context(dest, recipient, amount);
         let data = encode_data(1000, 500);
-        let issued_at = encode_u48(9999999999);
+        let issued_at = encode_u48(100);
 
         let quote = make_signed_transient_quote(
             &signing_key,
@@ -4639,7 +4739,7 @@ mod quote_fee_standing {
             &payer.pubkey(),
             transient_ctx,
             encode_data(777, 1),
-            encode_u48(9999999999),
+            encode_u48(100),
         );
 
         let scoped_salt = tq.compute_scoped_salt(&payer.pubkey());
@@ -4880,7 +4980,7 @@ mod close_transient_quote {
             &payer.pubkey(),
             vec![1, 2, 3, 4],
             vec![5, 6, 7, 8],
-            encode_u48(9999999999),
+            encode_u48(100),
         );
 
         let scoped_salt = quote.compute_scoped_salt(&payer.pubkey());
@@ -6605,7 +6705,7 @@ mod additional_coverage {
         let amount = 100u64;
         let context = encode_context(dest, recipient, amount);
         let data = encode_data(5000, 1);
-        let issued_at = encode_u48(9999999999);
+        let issued_at = encode_u48(100);
 
         let quote = make_signed_transient_quote(
             &signing_key,
