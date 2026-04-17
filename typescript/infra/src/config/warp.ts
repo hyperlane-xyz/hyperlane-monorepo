@@ -92,6 +92,9 @@ export const tokens = {
   tron: {
     USDT: '0xa614f803b6fd780986a42c78ec9c7f77e6ded13c', // converted from TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t
   },
+  tron: {
+    USDT: '0xa614f803b6fd780986a42c78ec9c7f77e6ded13c',
+  },
 };
 
 export type RouterConfigWithoutOwner = Omit<RouterConfig, keyof OwnableConfig>;

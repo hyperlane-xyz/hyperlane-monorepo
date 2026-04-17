@@ -286,8 +286,16 @@ export async function computeWarpTokenUpdateInstructions(
   // 1. ISM + IGP hook — combined into a single tx (both are small instructions)
   const configInstructions: SvmInstruction[] = [];
 
-  const currentIsm = current.interchainSecurityModule?.deployed?.address;
-  const expectedIsm = expected.interchainSecurityModule?.deployed?.address;
+  const rawCurrentIsm = current.interchainSecurityModule?.deployed?.address;
+  const currentIsm =
+    rawCurrentIsm && !isZeroishAddress(rawCurrentIsm)
+      ? rawCurrentIsm
+      : undefined;
+  const rawExpectedIsm = expected.interchainSecurityModule?.deployed?.address;
+  const expectedIsm =
+    rawExpectedIsm && !isZeroishAddress(rawExpectedIsm)
+      ? rawExpectedIsm
+      : undefined;
   if (!eqOptionalAddress(currentIsm, expectedIsm, eqAddressSol)) {
     configInstructions.push(
       await getTokenSetInterchainSecurityModuleInstruction(
@@ -298,8 +306,16 @@ export async function computeWarpTokenUpdateInstructions(
     );
   }
 
-  const currentHook = current.hook?.deployed?.address;
-  const expectedHook = expected.hook?.deployed?.address;
+  const rawCurrentHook = current.hook?.deployed?.address;
+  const currentHook =
+    rawCurrentHook && !isZeroishAddress(rawCurrentHook)
+      ? rawCurrentHook
+      : undefined;
+  const rawExpectedHook = expected.hook?.deployed?.address;
+  const expectedHook =
+    rawExpectedHook && !isZeroishAddress(rawExpectedHook)
+      ? rawExpectedHook
+      : undefined;
   if (!eqOptionalAddress(currentHook, expectedHook, eqAddressSol)) {
     let igpValue: Parameters<
       typeof getTokenSetInterchainGasPaymasterInstruction
