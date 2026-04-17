@@ -3,11 +3,14 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
+use axum::{http::StatusCode, routing::get, Router};
 use ethers::utils::hex;
 use ethers_prometheus::middleware::PrometheusMiddlewareConf;
 use eyre::eyre;
 use prometheus::Registry;
 use reqwest::Url;
+use tokio::net::TcpListener;
+use tokio::task::JoinHandle;
 use tokio::time::error::Elapsed;
 
 use hyperlane_base::db::DB;
@@ -134,6 +137,7 @@ fn generate_test_relayer_settings(
         gas_payment_enforcement: Vec::new(),
         whitelist: MatchingList::default(),
         blacklist: MatchingList::default(),
+        blacklist_url: None,
         address_blacklist: Vec::new(),
         transaction_gas_limit: None,
         skip_transaction_gas_limit_for: HashSet::new(),
@@ -584,4 +588,83 @@ async fn test_from_settings_and_run_bad_signer() {
             .await
             .is_ok()
     );
+}
+
+async fn start_test_server(status: StatusCode, body: &'static str) -> (String, JoinHandle<()>) {
+    let app = Router::new().route(
+        "/denylist",
+        get(move || async move { (status, body.to_string()) }),
+    );
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("Failed to bind test server");
+    let addr = listener.local_addr().expect("Missing local address");
+    let handle = tokio::spawn(async move {
+        axum::serve(listener, app)
+            .await
+            .expect("Test server should run");
+    });
+    (format!("http://{addr}/denylist"), handle)
+}
+
+#[tokio::test]
+async fn test_fetch_remote_message_ids_success() {
+    let message_1 = "0x1111111111111111111111111111111111111111111111111111111111111111";
+    let message_2 = "0x2222222222222222222222222222222222222222222222222222222222222222";
+    let payload = format!(
+        r#"[{{"messageId":"{message_1}","context":"foo"}},{{"messageId":"{message_2}","context":"bar"}}]"#
+    );
+    let payload = Box::leak(payload.into_boxed_str());
+    let (url, server) = start_test_server(StatusCode::OK, payload).await;
+    let client = reqwest::Client::new();
+
+    let fetched = Relayer::fetch_remote_message_ids(&client, &url)
+        .await
+        .expect("Should parse valid denylist");
+    assert_eq!(fetched.len(), 2);
+    assert!(fetched.contains(&message_1.parse::<H256>().unwrap()));
+    assert!(fetched.contains(&message_2.parse::<H256>().unwrap()));
+
+    server.abort();
+}
+
+#[tokio::test]
+async fn test_fetch_remote_message_ids_invalid_payload() {
+    let payload = r#"[{"messageId":"not-a-hash","context":"bad"}]"#;
+    let (url, server) = start_test_server(StatusCode::OK, payload).await;
+    let client = reqwest::Client::new();
+
+    let fetched = Relayer::fetch_remote_message_ids(&client, &url).await;
+    assert!(fetched.is_err(), "Invalid messageId must fail parsing");
+
+    server.abort();
+}
+
+#[test]
+fn test_merge_message_blacklists_appends_remote_message_ids() {
+    let inline_id = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        .parse::<H256>()
+        .unwrap();
+    let remote_id = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        .parse::<H256>()
+        .unwrap();
+    let inline_blacklist = MatchingList::with_message_id(inline_id);
+    let remote_message_ids = HashSet::from([remote_id]);
+
+    let merged = Relayer::merge_message_blacklists(&inline_blacklist, &remote_message_ids);
+
+    assert_eq!(inline_blacklist.0.as_ref().map(Vec::len), Some(1));
+    assert_eq!(merged.0.as_ref().map(Vec::len), Some(2));
+}
+
+#[test]
+fn test_merge_message_blacklists_with_empty_remote_keeps_inline() {
+    let inline_id = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        .parse::<H256>()
+        .unwrap();
+    let inline_blacklist = MatchingList::with_message_id(inline_id);
+
+    let merged = Relayer::merge_message_blacklists(&inline_blacklist, &HashSet::new());
+
+    assert_eq!(merged.0.as_ref().map(Vec::len), Some(1));
 }
