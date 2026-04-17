@@ -37,6 +37,7 @@ export class RebalancerHelmManager extends HelmManager {
 
   private rebalancerConfigContent: string = '';
   private rebalancerChains: string[] = [];
+  private inventorySignerProtocols: string[] = [];
 
   constructor(
     readonly warpRouteId: string,
@@ -84,6 +85,9 @@ export class RebalancerHelmManager extends HelmManager {
       rebalancerConfigFile,
       'utf8',
     );
+    this.inventorySignerProtocols = Object.keys(
+      validationResult.data.inventorySigners ?? {},
+    );
   }
 
   get namespace() {
@@ -109,6 +113,7 @@ export class RebalancerHelmManager extends HelmManager {
         withMetrics: this.withMetrics,
         // Used for fetching private RPC secrets
         chains: this.rebalancerChains,
+        inventorySignerProtocols: this.inventorySignerProtocols,
       },
     };
   }
