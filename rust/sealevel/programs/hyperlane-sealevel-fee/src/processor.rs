@@ -891,7 +891,9 @@ fn process_submit_quote(
                 if ctx.amount != u64::MAX {
                     return Err(Error::StandingQuoteAmountNotWildcard.into());
                 }
-                if ctx.target_router == hyperlane_core::H256::zero() {
+                if ctx.target_router == hyperlane_core::H256::zero()
+                    || ctx.target_router == crate::accounts::DEFAULT_ROUTER
+                {
                     return Err(Error::ZeroTargetRouterNotAllowed.into());
                 }
                 (ctx.destination_domain, ctx.recipient, ctx.target_router)

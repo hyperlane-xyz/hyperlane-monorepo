@@ -5854,6 +5854,62 @@ mod cc_standing_quotes {
     }
 
     #[tokio::test]
+    async fn test_cc_standing_default_router_rejected() {
+        let (mut banks_client, payer) = setup_client().await;
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let signer_address = eth_address(&signing_key);
+
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            FeeData::CrossCollateralRouting,
+        )
+        .await;
+
+        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Submit with target_router = DEFAULT_ROUTER → should be rejected.
+        let context = encode_cc_standing_context(
+            42,
+            H256::zero(),
+            hyperlane_sealevel_fee::accounts::DEFAULT_ROUTER,
+        );
+        let data = encode_data(1000, 500);
+        let quote = make_signed_standing_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            context,
+            data,
+            encode_u48(100),
+            encode_u48(9999999999),
+        );
+
+        let ix = build_submit_cc_standing_ix(
+            &fee_key,
+            &payer.pubkey(),
+            &quote,
+            42,
+            &hyperlane_sealevel_fee::accounts::DEFAULT_ROUTER,
+        );
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::ZeroTargetRouterNotAllowed as u32),
+            ),
+        );
+    }
+
+    #[tokio::test]
     async fn test_cc_prune_does_not_remove_domain_from_tracking() {
         let program_id = fee_program_id();
         let program_test = ProgramTest::new(
