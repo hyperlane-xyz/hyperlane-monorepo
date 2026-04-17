@@ -6013,9 +6013,9 @@ mod cc_standing_quotes {
         let ix = build_submit_cc_standing_ix(&fee_key, &payer.pubkey(), &q_b, dest, &router_b);
         process_tx(banks_client, &payer, ix, &[]).await.unwrap();
 
-        // Verify domain is in standing_quote_domains.
+        // CC accounts do not track domains in standing_quote_domains.
         let fee_acct = fetch_fee_account(banks_client, fee_key).await;
-        assert!(fee_acct.standing_quote_domains.contains(&dest));
+        assert!(!fee_acct.standing_quote_domains.contains(&dest));
 
         // Warp clock past expiry — both quotes have expiry=9999999999.
         let mut clock = banks_client
@@ -6051,13 +6051,10 @@ mod cc_standing_quotes {
         let account = banks_client.get_account(pda_a).await.unwrap();
         assert!(account.is_none() || account.unwrap().data.is_empty());
 
-        // But domain should STILL be in standing_quote_domains
-        // because router_b's PDA still exists.
+        // CC accounts never add domains to standing_quote_domains,
+        // so the set remains empty regardless of prune operations.
         let fee_acct = fetch_fee_account(banks_client, fee_key).await;
-        assert!(
-            fee_acct.standing_quote_domains.contains(&dest),
-            "CC prune should not remove domain from tracking when other router PDAs may exist"
-        );
+        assert!(!fee_acct.standing_quote_domains.contains(&dest));
     }
 
     #[tokio::test]
@@ -6561,9 +6558,9 @@ mod additional_coverage {
         let fee = simulate_quote_fee(banks_client, &payer, ix).await;
         assert_eq!(fee, 333);
 
-        // standing_quote_domains still contains dest.
+        // CC accounts never track domains in standing_quote_domains.
         let fee_acct = fetch_fee_account(banks_client, fee_key).await;
-        assert!(fee_acct.standing_quote_domains.contains(&dest));
+        assert!(!fee_acct.standing_quote_domains.contains(&dest));
     }
 
     // --- Test 5: Transient PDA spoof rejected across fee accounts ---

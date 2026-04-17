@@ -1003,17 +1003,21 @@ fn process_submit_quote(
             )?;
             standing_account.store(domain_pda_info, false)?;
 
-            // Update standing_quote_domains on fee account.
-            let mut fee_account_mut = fee_account.data;
-            fee_account_mut
-                .standing_quote_domains
-                .insert(destination_domain);
-            FeeAccountData::new(fee_account_mut.into()).store_with_rent_exempt_realloc(
-                fee_account_info,
-                &rent,
-                payer_info,
-                system_program_info,
-            )?;
+            // Update standing_quote_domains on fee account (non-CC only).
+            // CC accounts have multiple PDAs per domain (one per target_router),
+            // making domain tracking unreliable — offchain tooling handles CC domain discovery.
+            if !matches!(fee_account.data.fee_data, FeeData::CrossCollateralRouting) {
+                let mut fee_account_mut = fee_account.data;
+                fee_account_mut
+                    .standing_quote_domains
+                    .insert(destination_domain);
+                FeeAccountData::new(fee_account_mut.into()).store_with_rent_exempt_realloc(
+                    fee_account_info,
+                    &rent,
+                    payer_info,
+                    system_program_info,
+                )?;
+            }
         } else {
             standing_account.store_with_rent_exempt_realloc(
                 domain_pda_info,
@@ -1143,9 +1147,8 @@ fn process_prune_expired_quotes(
         // Close the PDA.
         close_pda(domain_pda_info, owner_info)?;
 
-        // Remove domain from standing_quote_domains only for non-CC accounts.
-        // CC accounts may have multiple PDAs per domain (one per target_router),
-        // so we can't safely remove the domain when just one PDA is empty.
+        // Remove domain from standing_quote_domains (non-CC only).
+        // CC accounts never add domains to this set — offchain tooling handles CC domain discovery.
         if !matches!(fee_account.fee_data, FeeData::CrossCollateralRouting) {
             fee_account.standing_quote_domains.remove(&domain);
             FeeAccountData::new(fee_account.into()).store(fee_account_info, false)?;
