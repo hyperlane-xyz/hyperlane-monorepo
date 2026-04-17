@@ -12,7 +12,8 @@ use solana_system_interface::program as system_program;
 
 use crate::{
     accounts::FeeData, cc_route_pda_seeds, fee_account_pda_seeds, fee_math::FeeDataStrategy,
-    fee_math::FeeParams, route_domain_pda_seeds,
+    fee_math::FeeParams, fee_standing_quote_pda_seeds, route_domain_pda_seeds,
+    transient_quote_pda_seeds,
 };
 
 /// Fee program instructions.
@@ -484,5 +485,163 @@ pub fn set_min_issued_at_instruction(
         program_id,
         data: borsh::to_vec(&ixn)?,
         accounts,
+    })
+}
+
+/// Builds a SubmitQuote instruction for a transient quote.
+/// The transient PDA is derived from the fee_account and scoped_salt.
+pub fn submit_transient_quote_instruction(
+    program_id: Pubkey,
+    payer: Pubkey,
+    fee_account: Pubkey,
+    scoped_salt: H256,
+    quote: SvmSignedQuote,
+) -> Result<SolanaInstruction, ProgramError> {
+    let (transient_pda, _) = Pubkey::try_find_program_address(
+        transient_quote_pda_seeds!(fee_account, scoped_salt),
+        &program_id,
+    )
+    .ok_or(ProgramError::InvalidSeeds)?;
+
+    let ixn = Instruction::SubmitQuote(quote);
+
+    // Accounts:
+    // 0. `[executable]` System program.
+    // 1. `[signer, writable]` Payer.
+    // 2. `[]` Fee account.
+    // 3. `[writable]` Transient quote PDA.
+    let accounts = vec![
+        AccountMeta::new_readonly(system_program::ID, false),
+        AccountMeta::new(payer, true),
+        AccountMeta::new_readonly(fee_account, false),
+        AccountMeta::new(transient_pda, false),
+    ];
+
+    Ok(SolanaInstruction {
+        program_id,
+        data: borsh::to_vec(&ixn)?,
+        accounts,
+    })
+}
+
+/// Builds a SubmitQuote instruction for a standing quote.
+/// For Leaf/Routing fee accounts, pass `target_router = H256::zero()`.
+/// For CC fee accounts, pass the actual target_router.
+pub fn submit_standing_quote_instruction(
+    program_id: Pubkey,
+    payer: Pubkey,
+    fee_account: Pubkey,
+    domain: u32,
+    target_router: H256,
+    quote: SvmSignedQuote,
+) -> Result<SolanaInstruction, ProgramError> {
+    let domain_le = domain.to_le_bytes();
+    let (standing_pda, _) = Pubkey::try_find_program_address(
+        fee_standing_quote_pda_seeds!(fee_account, &domain_le, target_router),
+        &program_id,
+    )
+    .ok_or(ProgramError::InvalidSeeds)?;
+
+    let ixn = Instruction::SubmitQuote(quote);
+
+    // Accounts:
+    // 0. `[executable]` System program.
+    // 1. `[signer, writable]` Payer.
+    // 2. `[writable]` Fee account (updated with standing_quote_domains on new domain).
+    // 3. `[writable]` Standing quote PDA.
+    let accounts = vec![
+        AccountMeta::new_readonly(system_program::ID, false),
+        AccountMeta::new(payer, true),
+        AccountMeta::new(fee_account, false),
+        AccountMeta::new(standing_pda, false),
+    ];
+
+    Ok(SolanaInstruction {
+        program_id,
+        data: borsh::to_vec(&ixn)?,
+        accounts,
+    })
+}
+
+/// Builds a CloseTransientQuote instruction.
+pub fn close_transient_quote_instruction(
+    program_id: Pubkey,
+    fee_account: Pubkey,
+    transient_pda: Pubkey,
+    payer_refund: Pubkey,
+) -> Result<SolanaInstruction, ProgramError> {
+    let ixn = Instruction::CloseTransientQuote;
+
+    // Accounts:
+    // 0. `[executable]` System program.
+    // 1. `[]` Fee account.
+    // 2. `[writable]` Transient quote PDA.
+    // 3. `[signer]` Original payer (receives rent refund).
+    let accounts = vec![
+        AccountMeta::new_readonly(system_program::ID, false),
+        AccountMeta::new_readonly(fee_account, false),
+        AccountMeta::new(transient_pda, false),
+        AccountMeta::new(payer_refund, true),
+    ];
+
+    Ok(SolanaInstruction {
+        program_id,
+        data: borsh::to_vec(&ixn)?,
+        accounts,
+    })
+}
+
+/// Builds a PruneExpiredQuotes instruction.
+/// For Leaf/Routing fee accounts, pass `target_router = None`.
+/// For CC fee accounts, pass `Some(target_router)`.
+pub fn prune_expired_quotes_instruction(
+    program_id: Pubkey,
+    fee_account: Pubkey,
+    owner: Pubkey,
+    domain: u32,
+    target_router: Option<H256>,
+) -> Result<SolanaInstruction, ProgramError> {
+    let domain_le = domain.to_le_bytes();
+    let resolved_router = target_router.unwrap_or(H256::zero());
+    let (standing_pda, _) = Pubkey::try_find_program_address(
+        fee_standing_quote_pda_seeds!(fee_account, &domain_le, resolved_router),
+        &program_id,
+    )
+    .ok_or(ProgramError::InvalidSeeds)?;
+
+    let ixn = Instruction::PruneExpiredQuotes {
+        domain,
+        target_router,
+    };
+
+    // Accounts:
+    // 0. `[executable]` System program.
+    // 1. `[writable]` Fee account.
+    // 2. `[signer, writable]` Owner.
+    // 3. `[writable]` Standing quote PDA.
+    let accounts = vec![
+        AccountMeta::new_readonly(system_program::ID, false),
+        AccountMeta::new(fee_account, false),
+        AccountMeta::new(owner, true),
+        AccountMeta::new(standing_pda, false),
+    ];
+
+    Ok(SolanaInstruction {
+        program_id,
+        data: borsh::to_vec(&ixn)?,
+        accounts,
+    })
+}
+
+/// Builds a GetProgramVersion instruction. No accounts required.
+pub fn get_program_version_instruction(
+    program_id: Pubkey,
+) -> Result<SolanaInstruction, ProgramError> {
+    let ixn = Instruction::GetProgramVersion;
+
+    Ok(SolanaInstruction {
+        program_id,
+        data: borsh::to_vec(&ixn)?,
+        accounts: vec![],
     })
 }
