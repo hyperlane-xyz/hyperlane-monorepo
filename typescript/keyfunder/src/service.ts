@@ -3,7 +3,13 @@ import { Wallet } from 'ethers';
 
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
-import { HyperlaneIgp, MultiProvider } from '@hyperlane-xyz/sdk';
+import {
+  getSignerForChain,
+  HyperlaneIgp,
+  MultiProtocolProvider,
+  MultiProvider,
+  ProtocolType,
+} from '@hyperlane-xyz/sdk';
 import {
   applyRpcUrlOverridesFromEnv,
   createServiceLogger,
@@ -68,9 +74,10 @@ async function main(): Promise<void> {
     );
 
     const multiProvider = new MultiProvider(chainMetadata);
+    const multiProtocolProvider = new MultiProtocolProvider(chainMetadata);
     const signer = new Wallet(privateKey);
     multiProvider.setSharedSigner(signer);
-    logger.info('Initialized MultiProvider with signer');
+    logger.info('Initialized providers with signer support');
 
     let igp: HyperlaneIgp | undefined;
     const igpEntries = Object.entries(config.chains)
@@ -94,18 +101,40 @@ async function main(): Promise<void> {
       config.metrics?.labels,
     );
 
-    const funder = new KeyFunder(multiProvider, config, {
+    const signerCache = new Map<string, Awaited<ReturnType<typeof getSignerForChain>>>();
+
+    const funder = new KeyFunder(multiProvider, multiProtocolProvider, config, {
       logger,
       metrics,
       skipIgpClaim: process.env.SKIP_IGP_CLAIM === 'true',
       igp,
+      getSigner: async (chain) => {
+        const cached = signerCache.get(chain);
+        if (cached) return cached;
+
+        const metadata = multiProtocolProvider.getChainMetadata(chain);
+        const protocol =
+          metadata.protocol === ProtocolType.Cosmos
+            ? ProtocolType.CosmosNative
+            : metadata.protocol;
+        const chainSigner = await getSignerForChain(
+          chain,
+          {
+            protocol,
+            privateKey,
+          },
+          multiProtocolProvider,
+        );
+        signerCache.set(chain, chainSigner);
+        return chainSigner;
+      },
     });
 
-    let fundingError: Error | undefined;
+    let fundingError: unknown;
     try {
       await funder.fundAllChains();
     } catch (error) {
-      fundingError = error as Error;
+      fundingError = error;
     }
 
     // Always push metrics, even on failure (matches original fund-keys-from-deployer.ts behavior)
@@ -119,14 +148,18 @@ async function main(): Promise<void> {
     logger.info('KeyFunder completed successfully');
     process.exit(0);
   } catch (error) {
-    const err = error as Error;
+    const err = normalizeError(error);
     logger.error({ error: err.message, stack: err.stack }, 'KeyFunder failed');
     process.exit(1);
   }
 }
 
 main().catch((error) => {
-  const err = error as Error;
+  const err = normalizeError(error);
   rootLogger.error({ error: err.message, stack: err.stack }, 'Fatal error');
   process.exit(1);
 });
+
+function normalizeError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
+}
