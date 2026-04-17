@@ -349,6 +349,9 @@ const send: CommandModuleWithWriteContext<
       recipient?: string;
       chains?: string[];
       skipValidation?: boolean;
+      predicateApiKey?: string;
+      predicateApiUrl?: string;
+      attestation?: string;
       sourceToken?: string;
       destinationToken?: string;
       feeQuotingUrl?: string;
@@ -380,6 +383,23 @@ const send: CommandModuleWithWriteContext<
       description: 'Skip transfer validation (e.g., collateral checks)',
       default: false,
     },
+    'predicate-api-key': {
+      type: 'string',
+      description: 'Predicate API key for fetching attestations automatically',
+      default: process.env.PREDICATE_API_KEY,
+      conflicts: 'attestation',
+    },
+    'predicate-api-url': {
+      type: 'string',
+      description:
+        'Predicate API base URL (overrides default; useful for testing)',
+      default: process.env.PREDICATE_API_URL,
+      implies: 'predicate-api-key',
+    },
+    attestation: {
+      type: 'string',
+      description: 'Pre-obtained Predicate attestation (JSON string)',
+    },
     'source-token': {
       type: 'string',
       description:
@@ -408,12 +428,17 @@ const send: CommandModuleWithWriteContext<
     timeout,
     quick,
     relay,
+    symbol: _symbol,
+    warp: _warp,
     warpRouteId,
     amount,
     recipient,
     roundTrip,
     chains: chainsArg,
     skipValidation,
+    predicateApiKey,
+    predicateApiUrl,
+    attestation,
     sourceToken,
     destinationToken,
     feeQuotingUrl,
@@ -495,6 +520,9 @@ const send: CommandModuleWithWriteContext<
       skipWaitForDelivery: quick,
       selfRelay: relay,
       skipValidation,
+      predicateApiKey,
+      predicateApiUrl,
+      attestation,
       sourceToken,
       destinationToken,
       feeQuotingUrl,

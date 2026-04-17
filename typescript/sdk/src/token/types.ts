@@ -103,9 +103,29 @@ export const BaseMovableTokenConfigSchema = z.object({
     .optional(),
 });
 
+// Predicate wrapper configuration for compliance-gated transfers
+export const PredicateWrapperConfigSchema = z.object({
+  predicateRegistry: ZHash.describe('Predicate registry contract address'),
+  policyId: z
+    .string()
+    .min(1)
+    .describe('Predicate policy ID for attestation validation'),
+  owner: ZHash.describe(
+    'Owner of the predicate wrapper contract (controls setPolicyID, setRegistry, withdrawETH)',
+  ),
+});
+
+export type PredicateWrapperConfig = z.infer<
+  typeof PredicateWrapperConfigSchema
+>;
+export const isPredicateWrapperConfig = isCompliant(
+  PredicateWrapperConfigSchema,
+);
+
 export const NativeTokenConfigSchema = TokenMetadataSchema.partial().extend({
   type: z.enum([TokenType.native, TokenType.nativeScaled]),
   ...BaseMovableTokenConfigSchema.shape,
+  predicateWrapper: PredicateWrapperConfigSchema.optional(),
 });
 export type NativeTokenConfig = z.infer<typeof NativeTokenConfigSchema>;
 export const isNativeTokenConfig = isCompliant(NativeTokenConfigSchema);
@@ -148,6 +168,7 @@ export const CollateralTokenConfigSchema = TokenMetadataSchema.partial().extend(
         'Existing token address to extend with Warp Route functionality',
       ),
     ...BaseMovableTokenConfigSchema.shape,
+    predicateWrapper: PredicateWrapperConfigSchema.optional(),
   },
 );
 
@@ -229,6 +250,7 @@ export const CctpTokenConfigSchema = TokenMetadataSchema.partial()
       .describe(
         'Maximum fee in basis points (bps), supports decimals for fractional bps. 1 bps = 0.01%. Examples: 1.3 bps for Circle Optimism/Arbitrum/Base fee, 1.5 bps for Circle Unichain fee. Internally converted to ppm (parts per million) for contract precision.',
       ),
+    predicateWrapper: PredicateWrapperConfigSchema.optional(),
   })
   .merge(OffchainLookupIsmConfigSchema.omit({ type: true, owner: true }));
 
@@ -280,6 +302,7 @@ export const DepositAddressTokenConfigSchema =
       RemoteRouterDomainOrChainNameSchema,
       DepositAddressDestinationConfigSchema,
     ),
+    predicateWrapper: PredicateWrapperConfigSchema.optional(),
   });
 export type DepositAddressTokenConfig = z.infer<
   typeof DepositAddressTokenConfigSchema
@@ -302,6 +325,7 @@ export const OftTokenConfigSchema = TokenMetadataSchema.partial().extend({
       'Mapping of Hyperlane domain (or chain name) to LayerZero endpoint ID',
     ),
   extraOptions: z.string().optional().describe('LayerZero extra options (hex)'),
+  predicateWrapper: PredicateWrapperConfigSchema.optional(),
 });
 export type OftTokenConfig = z.infer<typeof OftTokenConfigSchema>;
 export const isOftTokenConfig = isCompliant(OftTokenConfigSchema);
@@ -317,6 +341,7 @@ export const isCollateralRebaseTokenConfig = isCompliant(
 export const SyntheticTokenConfigSchema = TokenMetadataSchema.partial().extend({
   type: z.enum([TokenType.synthetic, TokenType.syntheticUri]),
   initialSupply: z.string().or(z.number()).optional(),
+  predicateWrapper: PredicateWrapperConfigSchema.optional(),
   metadataUri: z.string().url().optional(),
 });
 export type SyntheticTokenConfig = z.infer<typeof SyntheticTokenConfigSchema>;
@@ -326,6 +351,7 @@ export const SyntheticRebaseTokenConfigSchema =
   TokenMetadataSchema.partial().extend({
     type: z.literal(TokenType.syntheticRebase),
     collateralChainName: z.string(),
+    predicateWrapper: PredicateWrapperConfigSchema.optional(),
   });
 export type SyntheticRebaseTokenConfig = z.infer<
   typeof SyntheticRebaseTokenConfigSchema
@@ -347,6 +373,7 @@ export const CrossCollateralTokenConfigSchema =
       .record(RemoteRouterDomainOrChainNameSchema, z.array(ZHash))
       .optional(),
     ...BaseMovableTokenConfigSchema.shape,
+    predicateWrapper: PredicateWrapperConfigSchema.optional(),
   });
 export type CrossCollateralTokenConfig = z.infer<
   typeof CrossCollateralTokenConfigSchema
@@ -422,6 +449,7 @@ export type HypTokenRouterVirtualConfig = z.infer<
 export const UnknownTokenConfigSchema = TokenMetadataSchema.partial()
   .extend({
     type: z.literal(TokenType.unknown),
+    predicateWrapper: PredicateWrapperConfigSchema.optional(),
   })
   .passthrough();
 export type UnknownTokenConfig = z.infer<typeof UnknownTokenConfigSchema>;
