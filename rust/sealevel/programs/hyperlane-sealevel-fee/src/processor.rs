@@ -138,7 +138,7 @@ fn process_init_fee(program_id: &Pubkey, accounts: &[AccountInfo], data: InitFee
 
     let fee_account = FeeAccountData::new(
         FeeAccount {
-            bump: fee_account_bump,
+            bump_seed: fee_account_bump,
             owner: data.owner,
             beneficiary: data.beneficiary,
             fee_data: data.fee_data,
@@ -200,8 +200,8 @@ fn process_quote_fee(
     let accounts_iter = &mut accounts.iter();
 
     // Account 0: System program.
-    let _system_program_info = next_account_info(accounts_iter)?;
-    if *_system_program_info.key != system_program::ID {
+    let system_program_info = next_account_info(accounts_iter)?;
+    if *system_program_info.key != system_program::ID {
         return Err(ProgramError::IncorrectProgramId);
     }
 
@@ -213,8 +213,8 @@ fn process_quote_fee(
     let fee_account = FeeAccountData::fetch(&mut &fee_account_info.data.borrow()[..])?.into_inner();
 
     // Account 2: Payer (must be signer — receives lamports on transient autoclose).
-    let _payer_info = next_account_info(accounts_iter)?;
-    if !_payer_info.is_signer {
+    let payer_info = next_account_info(accounts_iter)?;
+    if !payer_info.is_signer {
         return Err(ProgramError::MissingRequiredSignature);
     }
 
@@ -275,7 +275,7 @@ fn process_quote_fee(
             FeeData::CrossCollateralRouting => try_consume_transient_quote::<CcFeeQuoteContext>(
                 program_id,
                 transient_acct,
-                _payer_info,
+                payer_info,
                 fee_account_info.key,
                 &strategy,
                 &data,
@@ -283,7 +283,7 @@ fn process_quote_fee(
             _ => try_consume_transient_quote::<FeeQuoteContext>(
                 program_id,
                 transient_acct,
-                _payer_info,
+                payer_info,
                 fee_account_info.key,
                 &strategy,
                 &data,
@@ -854,7 +854,7 @@ fn process_submit_quote(
 
         let transient = TransientQuoteAccount::new(
             TransientQuote {
-                bump: transient_bump,
+                bump_seed: transient_bump,
                 payer: *payer_info.key,
                 scoped_salt,
                 context: quote.context,
@@ -941,7 +941,7 @@ fn process_submit_quote(
 
         let mut standing_pda = if is_new_pda {
             FeeStandingQuotePda {
-                bump: domain_bump,
+                bump_seed: domain_bump,
                 quotes: std::collections::BTreeMap::new(),
             }
         } else {
@@ -1035,8 +1035,8 @@ fn process_submit_quote(
 fn process_close_transient_quote(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
-    let _system_program_info = next_account_info(accounts_iter)?;
-    if *_system_program_info.key != system_program::ID {
+    let system_program_info = next_account_info(accounts_iter)?;
+    if *system_program_info.key != system_program::ID {
         return Err(ProgramError::IncorrectProgramId);
     }
 
@@ -1340,7 +1340,7 @@ fn process_set_route(
 
     let route_domain = RouteDomainAccount::new(
         RouteDomain {
-            bump: route_bump,
+            bump_seed: route_bump,
             fee_data: data.fee_data,
         }
         .into(),
@@ -1386,8 +1386,8 @@ fn process_remove_route(
     let accounts_iter = &mut accounts.iter();
 
     // Account 0: System program.
-    let _system_program_info = next_account_info(accounts_iter)?;
-    if *_system_program_info.key != system_program::ID {
+    let system_program_info = next_account_info(accounts_iter)?;
+    if *system_program_info.key != system_program::ID {
         return Err(ProgramError::IncorrectProgramId);
     }
 
@@ -1474,7 +1474,7 @@ fn process_set_cc_route(
 
     let cc_route = CrossCollateralRouteAccount::new(
         CrossCollateralRoute {
-            bump: cc_bump,
+            bump_seed: cc_bump,
             fee_data: data.fee_data,
         }
         .into(),
@@ -1523,8 +1523,8 @@ fn process_remove_cc_route(
     let accounts_iter = &mut accounts.iter();
 
     // Account 0: System program.
-    let _system_program_info = next_account_info(accounts_iter)?;
-    if *_system_program_info.key != system_program::ID {
+    let system_program_info = next_account_info(accounts_iter)?;
+    if *system_program_info.key != system_program::ID {
         return Err(ProgramError::IncorrectProgramId);
     }
 

@@ -90,7 +90,7 @@ impl DiscriminatorData for FeeAccount {
 #[derive(BorshDeserialize, BorshSerialize, Debug, Default, PartialEq)]
 pub struct FeeAccount {
     /// PDA bump seed.
-    pub bump: u8,
+    pub bump_seed: u8,
     /// Owner who can modify fee configuration. None = immutable.
     pub owner: Option<Pubkey>,
     /// Beneficiary who receives collected token fees.
@@ -146,7 +146,7 @@ impl DiscriminatorData for RouteDomain {
 #[derive(BorshDeserialize, BorshSerialize, Debug, Default, PartialEq)]
 pub struct RouteDomain {
     /// PDA bump seed.
-    pub bump: u8,
+    pub bump_seed: u8,
     /// Fee strategy for this destination domain.
     pub fee_data: FeeDataStrategy,
 }
@@ -171,7 +171,7 @@ impl DiscriminatorData for CrossCollateralRoute {
 #[derive(BorshDeserialize, BorshSerialize, Debug, Default, PartialEq)]
 pub struct CrossCollateralRoute {
     /// PDA bump seed.
-    pub bump: u8,
+    pub bump_seed: u8,
     /// Fee strategy for this (destination, target_router) pair.
     pub fee_data: FeeDataStrategy,
 }
@@ -196,7 +196,7 @@ impl DiscriminatorData for TransientQuote {
 #[derive(BorshDeserialize, BorshSerialize, Debug, Default, PartialEq)]
 pub struct TransientQuote {
     /// PDA bump seed.
-    pub bump: u8,
+    pub bump_seed: u8,
     /// The payer who created this quote (binding for scoped salt verification).
     pub payer: Pubkey,
     /// keccak256(payer || client_salt) — used as PDA seed for collision prevention.
@@ -370,7 +370,7 @@ impl DiscriminatorData for FeeStandingQuotePda {
 #[derive(BorshDeserialize, BorshSerialize, Debug, Default, PartialEq)]
 pub struct FeeStandingQuotePda {
     /// PDA bump seed.
-    pub bump: u8,
+    pub bump_seed: u8,
     /// Standing quotes keyed by recipient address on the destination chain (H256).
     /// WILDCARD_RECIPIENT ([0xFF; 32]) matches any recipient.
     pub quotes: BTreeMap<H256, FeeStandingQuoteValue>,
@@ -432,7 +432,7 @@ mod tests {
     #[test]
     fn test_fee_account_borsh_roundtrip() {
         let account = FeeAccount {
-            bump: 255,
+            bump_seed: 255,
             owner: Some(Pubkey::new_unique()),
             beneficiary: Pubkey::new_unique(),
             fee_data: FeeData::Routing,
@@ -449,7 +449,7 @@ mod tests {
     #[test]
     fn test_route_domain_borsh_roundtrip() {
         let route = RouteDomain {
-            bump: 1,
+            bump_seed: 1,
             fee_data: FeeDataStrategy::Regressive(FeeParams {
                 max_fee: 500,
                 half_amount: 250,
@@ -463,7 +463,7 @@ mod tests {
     #[test]
     fn test_cc_route_borsh_roundtrip() {
         let route = CrossCollateralRoute {
-            bump: 2,
+            bump_seed: 2,
             fee_data: FeeDataStrategy::Progressive(FeeParams {
                 max_fee: 1000,
                 half_amount: 500,
@@ -477,7 +477,7 @@ mod tests {
     #[test]
     fn test_transient_quote_borsh_roundtrip() {
         let quote = TransientQuote {
-            bump: 3,
+            bump_seed: 3,
             payer: Pubkey::new_unique(),
             scoped_salt: H256::random(),
             context: vec![1, 2, 3, 4],
@@ -510,7 +510,10 @@ mod tests {
                 half_amount: 1000,
             },
         );
-        let pda = FeeStandingQuotePda { bump: 4, quotes };
+        let pda = FeeStandingQuotePda {
+            bump_seed: 4,
+            quotes,
+        };
         let encoded = borsh::to_vec(&pda).unwrap();
         let decoded: FeeStandingQuotePda = borsh::from_slice(&encoded).unwrap();
         assert_eq!(pda, decoded);
@@ -521,7 +524,7 @@ mod tests {
     #[test]
     fn test_sized_data_fee_account_leaf() {
         let account = FeeAccount {
-            bump: 1,
+            bump_seed: 1,
             owner: Some(Pubkey::new_unique()),
             beneficiary: Pubkey::new_unique(),
             fee_data: FeeData::Leaf(FeeDataStrategy::Linear(FeeParams {
@@ -539,7 +542,7 @@ mod tests {
     #[test]
     fn test_sized_data_fee_account_routing() {
         let account = FeeAccount {
-            bump: 1,
+            bump_seed: 1,
             owner: None,
             beneficiary: Pubkey::new_unique(),
             fee_data: FeeData::Routing,
@@ -562,7 +565,7 @@ mod tests {
         domains.insert(1000u32);
 
         let account = FeeAccount {
-            bump: 1,
+            bump_seed: 1,
             owner: Some(Pubkey::new_unique()),
             beneficiary: Pubkey::new_unique(),
             fee_data: FeeData::CrossCollateralRouting,
@@ -577,7 +580,7 @@ mod tests {
     #[test]
     fn test_sized_data_route_domain() {
         let route = RouteDomain {
-            bump: 1,
+            bump_seed: 1,
             fee_data: FeeDataStrategy::Linear(FeeParams {
                 max_fee: 100,
                 half_amount: 50,
@@ -589,7 +592,7 @@ mod tests {
     #[test]
     fn test_sized_data_cc_route() {
         let route = CrossCollateralRoute {
-            bump: 1,
+            bump_seed: 1,
             fee_data: FeeDataStrategy::Progressive(FeeParams {
                 max_fee: 100,
                 half_amount: 50,
@@ -601,7 +604,7 @@ mod tests {
     #[test]
     fn test_sized_data_transient_quote() {
         let quote = TransientQuote {
-            bump: 1,
+            bump_seed: 1,
             payer: Pubkey::new_unique(),
             scoped_salt: H256::random(),
             context: vec![0u8; 44],
@@ -614,7 +617,7 @@ mod tests {
     #[test]
     fn test_sized_data_standing_quote_pda_empty() {
         let pda = FeeStandingQuotePda {
-            bump: 1,
+            bump_seed: 1,
             quotes: BTreeMap::new(),
         };
         assert_eq!(pda.size(), borsh::to_vec(&pda).unwrap().len());
@@ -632,7 +635,10 @@ mod tests {
                 half_amount: 500,
             },
         );
-        let pda = FeeStandingQuotePda { bump: 1, quotes };
+        let pda = FeeStandingQuotePda {
+            bump_seed: 1,
+            quotes,
+        };
         assert_eq!(pda.size(), borsh::to_vec(&pda).unwrap().len());
     }
 
