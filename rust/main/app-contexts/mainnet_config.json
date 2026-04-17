@@ -42216,6 +42216,71 @@
       ]
     },
     {
+      "name": "USDT/oft",
+      "matchingList": [
+        {
+          "originDomain": 42161,
+          "senderAddress": [
+            "0x000000000000000000000000e4c1a1e54c232454311cf68610c3885fdd991c0e"
+          ],
+          "destinationDomain": 1,
+          "recipientAddress": [
+            "0x0000000000000000000000007bb4fe8f406fb7b22487fa2e3bcbcb6a38cf29e6"
+          ]
+        },
+        {
+          "originDomain": 42161,
+          "senderAddress": [
+            "0x000000000000000000000000e4c1a1e54c232454311cf68610c3885fdd991c0e"
+          ],
+          "destinationDomain": 9745,
+          "recipientAddress": [
+            "0x00000000000000000000000093bffa2231fba5029997603fb68d9ac08024baa2"
+          ]
+        },
+        {
+          "originDomain": 1,
+          "senderAddress": [
+            "0x0000000000000000000000007bb4fe8f406fb7b22487fa2e3bcbcb6a38cf29e6"
+          ],
+          "destinationDomain": 42161,
+          "recipientAddress": [
+            "0x000000000000000000000000e4c1a1e54c232454311cf68610c3885fdd991c0e"
+          ]
+        },
+        {
+          "originDomain": 1,
+          "senderAddress": [
+            "0x0000000000000000000000007bb4fe8f406fb7b22487fa2e3bcbcb6a38cf29e6"
+          ],
+          "destinationDomain": 9745,
+          "recipientAddress": [
+            "0x00000000000000000000000093bffa2231fba5029997603fb68d9ac08024baa2"
+          ]
+        },
+        {
+          "originDomain": 9745,
+          "senderAddress": [
+            "0x00000000000000000000000093bffa2231fba5029997603fb68d9ac08024baa2"
+          ],
+          "destinationDomain": 42161,
+          "recipientAddress": [
+            "0x000000000000000000000000e4c1a1e54c232454311cf68610c3885fdd991c0e"
+          ]
+        },
+        {
+          "originDomain": 9745,
+          "senderAddress": [
+            "0x00000000000000000000000093bffa2231fba5029997603fb68d9ac08024baa2"
+          ],
+          "destinationDomain": 1,
+          "recipientAddress": [
+            "0x0000000000000000000000007bb4fe8f406fb7b22487fa2e3bcbcb6a38cf29e6"
+          ]
+        }
+      ]
+    },
+    {
       "name": "RISE/bsc-ethereum",
       "matchingList": [
         {
