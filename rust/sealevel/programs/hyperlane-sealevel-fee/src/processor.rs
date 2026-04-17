@@ -177,7 +177,7 @@ fn process_init_fee(program_id: &Pubkey, accounts: &[AccountInfo], data: InitFee
 /// 0. `[executable]` System program.
 /// 1. `[]` Fee account.
 /// 2. `[writable]` Payer (for transient quote autoclose).
-/// 3. `[]` Transient quote PDA (optional — detected by TransientQuote discriminator).
+/// 3. `[writable]` Transient quote PDA (optional — detected by TransientQuote discriminator, writable for autoclose).
 ///
 /// If transient PDA is present:
 ///     4. `[]` Domain standing quote PDA (always present, may be uninitialized).
