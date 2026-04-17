@@ -556,7 +556,9 @@ fn resolve_routing(
     if *route_pda_info.key != expected_key {
         return Err(ProgramError::InvalidSeeds);
     }
-    // Unconfigured route: PDA exists but is system-owned (uninitialized).
+    // Unconfigured route: uninitialized (system-owned, empty) → None.
+    // Owned by another program → error (consistent with standing PDA pattern).
+    verify_optional_pda_owner(route_pda_info, program_id)?;
     if route_pda_info.owner != program_id {
         return Ok(None);
     }
