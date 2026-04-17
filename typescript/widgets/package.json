@@ -114,7 +114,7 @@
     "@cosmjs/cosmwasm-stargate": "catalog:",
     "@emotion/react": "^11.13.3",
     "@emotion/styled": "^11.13.0",
-    "@hyperlane-xyz/registry": "catalog:",
+    "@hyperlane-xyz/registry": "24.3.0",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@storybook/addon-essentials": "^7.6.14",
     "@storybook/addon-interactions": "^7.6.14",

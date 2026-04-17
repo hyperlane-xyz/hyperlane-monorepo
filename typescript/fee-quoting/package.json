@@ -24,7 +24,7 @@
     "format": "oxfmt --write ./src"
   },
   "dependencies": {
-    "@hyperlane-xyz/registry": "catalog:",
+    "@hyperlane-xyz/registry": "24.3.0",
     "@hyperlane-xyz/sdk": "workspace:*",
     "@hyperlane-xyz/utils": "workspace:*",
     "cors": "^2.8.5",
