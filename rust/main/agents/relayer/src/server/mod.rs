@@ -7,9 +7,9 @@ use derive_new::new;
 use tokio::sync::broadcast::Sender;
 use tokio::sync::RwLock;
 
+use ::lander::CommandEntrypoint;
 use hyperlane_base::db::HyperlaneRocksDB;
 use hyperlane_core::HyperlaneDomain;
-use lander::CommandEntrypoint;
 
 use crate::merkle_tree::builder::MerkleTreeBuilder;
 use crate::msg::gas_payment::GasPaymentEnforcer;
@@ -22,6 +22,7 @@ pub const ENDPOINT_MESSAGES_QUEUE_SIZE: usize = 100;
 pub mod environment_variable;
 pub mod evm;
 pub mod igp;
+pub mod lander;
 pub mod merkle_tree_insertions;
 pub mod messages;
 pub mod operations;
@@ -130,7 +131,9 @@ impl Server {
             router = router.merge(proofs::ServerState::new(prover_syncs).router());
         }
         if let Some(chains) = self.dispatcher_command_entrypoints {
-            router = router.merge(evm::nonce::ServerState::new(chains).router());
+            router = router
+                .merge(evm::nonce::ServerState::new(chains.clone()).router())
+                .merge(self::lander::ServerState::new(chains).router());
         }
 
         let expose_environment_variable_endpoint =
