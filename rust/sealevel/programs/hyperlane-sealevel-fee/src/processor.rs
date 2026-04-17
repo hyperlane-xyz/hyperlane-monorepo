@@ -1527,7 +1527,7 @@ fn close_pda(pda_info: &AccountInfo, recipient_info: &AccountInfo) -> ProgramRes
         .lamports()
         .checked_add(lamports)
         .ok_or(ProgramError::ArithmeticOverflow)?;
-    pda_info.data.borrow_mut().fill(0);
+    pda_info.resize(0)?;
     pda_info.assign(&system_program::ID);
     Ok(())
 }
