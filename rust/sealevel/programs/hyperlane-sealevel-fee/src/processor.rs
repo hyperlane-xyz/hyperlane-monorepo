@@ -218,6 +218,9 @@ fn process_quote_fee(
         return Err(ProgramError::MissingRequiredSignature);
     }
 
+    // Cache clock for the cascade — avoids redundant syscalls.
+    let clock = Clock::get()?;
+
     // Account 3: Either transient quote PDA or domain standing quote PDA.
     // Peek at discriminator to determine which.
     let next_info = next_account_info(accounts_iter)?;
@@ -279,6 +282,7 @@ fn process_quote_fee(
                 fee_account_info.key,
                 &strategy,
                 &data,
+                &clock,
             )?,
             _ => try_consume_transient_quote::<FeeQuoteContext>(
                 program_id,
@@ -287,6 +291,7 @@ fn process_quote_fee(
                 fee_account_info.key,
                 &strategy,
                 &data,
+                &clock,
             )?,
         };
         if let Some(fee) = fee {
@@ -312,6 +317,7 @@ fn process_quote_fee(
         &strategy,
         &data,
         fee_account.min_issued_at,
+        &clock,
     )? {
         set_return_data(&fee.to_le_bytes());
         msg!(
@@ -332,6 +338,7 @@ fn process_quote_fee(
         &strategy,
         &data,
         fee_account.min_issued_at,
+        &clock,
     )? {
         set_return_data(&fee.to_le_bytes());
         msg!(
@@ -393,6 +400,7 @@ fn try_consume_transient_quote<C: crate::accounts::QuoteContext>(
     fee_account_key: &Pubkey,
     strategy: &crate::fee_math::FeeDataStrategy,
     quote_fee_data: &QuoteFee,
+    clock: &Clock,
 ) -> Result<Option<u64>, ProgramError> {
     let transient = TransientQuoteAccount::fetch(&mut &transient_acct.data.borrow()[..])?
         .into_inner()
@@ -413,7 +421,6 @@ fn try_consume_transient_quote<C: crate::accounts::QuoteContext>(
     }
 
     // Validate expiry against on-chain clock.
-    let clock = Clock::get()?;
     if clock.unix_timestamp > transient.expiry {
         return Err(Error::QuoteExpired.into());
     }
@@ -459,6 +466,7 @@ fn try_resolve_standing_quote(
     strategy: &crate::fee_math::FeeDataStrategy,
     quote_fee_data: &QuoteFee,
     min_issued_at: i64,
+    clock: &Clock,
 ) -> Result<Option<u64>, ProgramError> {
     use crate::accounts::WILDCARD_RECIPIENT;
 
@@ -483,8 +491,6 @@ fn try_resolve_standing_quote(
     let standing = FeeStandingQuotePdaAccount::fetch(&mut &standing_pda_info.data.borrow()[..])?
         .into_inner()
         .data;
-
-    let clock = Clock::get()?;
 
     // Try exact recipient match first, then wildcard.
     let candidates = [quote_fee_data.recipient, WILDCARD_RECIPIENT];
@@ -976,9 +982,9 @@ fn process_submit_quote(
         standing_pda.quotes.insert(recipient_key, new_value);
 
         let standing_account = FeeStandingQuotePdaAccount::new(standing_pda.into());
+        let rent = Rent::get()?;
 
         if is_new_pda {
-            let rent = Rent::get()?;
             create_pda_account(
                 payer_info,
                 &rent,
@@ -1002,14 +1008,14 @@ fn process_submit_quote(
                 .insert(destination_domain);
             FeeAccountData::new(fee_account_mut.into()).store_with_rent_exempt_realloc(
                 fee_account_info,
-                &Rent::get()?,
+                &rent,
                 payer_info,
                 system_program_info,
             )?;
         } else {
             standing_account.store_with_rent_exempt_realloc(
                 domain_pda_info,
-                &Rent::get()?,
+                &rent,
                 payer_info,
                 system_program_info,
             )?;
