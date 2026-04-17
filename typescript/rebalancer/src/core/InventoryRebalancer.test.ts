@@ -1700,24 +1700,29 @@ describe('InventoryRebalancer E2E', () => {
       expect(results[0].success).to.be.true;
       expect(bridge.execute.callCount).to.equal(2);
 
-      const reverseQuoteRequests = bridge.quote
-        .getCalls()
-        .map((call) => call.args[0])
-        .filter((params) => params.toAmount !== undefined);
-      expect(reverseQuoteRequests).to.have.lengthOf(2);
-
-      const requestedOutputs = reverseQuoteRequests
-        .map((params) => params.toAmount as bigint)
-        .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
       const maxPerSourceOutput = perChainInventory - reservedGas;
-      const totalAvailableCapacity = maxPerSourceOutput * 2n;
+      const executionQuoteRequests = bridge.quote
+        .getCalls()
+        .slice(-2)
+        .map((call) => call.args[0]);
+      expect(executionQuoteRequests).to.have.lengthOf(2);
 
-      expect(requestedOutputs.every((output) => output <= maxPerSourceOutput))
-        .to.be.true;
-      expect(requestedOutputs[0] < maxPerSourceOutput).to.be.true;
-      expect(requestedOutputs[1]).to.equal(maxPerSourceOutput);
-      expect(requestedOutputs[0] + requestedOutputs[1] < totalAvailableCapacity)
-        .to.be.true;
+      const forwardQuoteRequests = executionQuoteRequests.filter(
+        (params) => params.fromAmount !== undefined,
+      );
+      const reverseQuoteRequests = executionQuoteRequests.filter(
+        (params) => params.toAmount !== undefined,
+      );
+      const forwardAmounts = forwardQuoteRequests.map(
+        (params) => params.fromAmount as bigint,
+      );
+
+      expect(
+        forwardQuoteRequests.length + reverseQuoteRequests.length,
+      ).to.equal(2);
+      expect(forwardQuoteRequests.length).to.be.greaterThan(0);
+      expect(forwardAmounts.every((amount) => amount <= maxPerSourceOutput)).to
+        .be.true;
     });
 
     it('applies 5% buffer to total bridge amount', async () => {
@@ -1851,7 +1856,7 @@ describe('InventoryRebalancer E2E', () => {
       expect(quotedTargetOutput).to.equal(1_050_000_000_000_000_000n);
     });
 
-    it('fails bridge execution when reverse quote exceeds planned source capacity', async () => {
+    it('retries forward execution when reverse quote exceeds planned source capacity', async () => {
       const amount = BigInt(1e18);
       const sourceInventory = BigInt(2e18);
       const targetWithBuffer = (amount * 105n) / 100n;
@@ -1898,15 +1903,43 @@ describe('InventoryRebalancer E2E', () => {
               toAmount: targetWithBuffer,
             },
           }),
+        )
+        .onThirdCall()
+        .resolves(
+          createMockBridgeQuote({
+            fromAmount: sourceInventory,
+            toAmount: targetWithBuffer - 1n,
+            toAmountMin: targetWithBuffer - 1n,
+            requestParams: {
+              fromChain: 42161,
+              toChain: 1399811149,
+              fromToken: '0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
+              toToken: '0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
+              fromAddress: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+              toAddress: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+              fromAmount: sourceInventory,
+            },
+          }),
         );
+
+      bridge.execute.resolves({
+        txHash: '0xBridgeTxHash',
+        fromChain: 42161,
+        toChain: 1399811149,
+      });
 
       const results = await inventoryRebalancer.rebalance([route]);
 
       expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.false;
-      expect(results[0].error).to.include('All inventory movements failed');
-      expect(results[0].error).to.include('exceeded planned source capacity');
-      expect(bridge.execute.called).to.be.false;
+      expect(results[0].success).to.be.true;
+      expect(bridge.execute.calledOnce).to.be.true;
+      expect(bridge.quote.getCall(1)?.args[0].toAmount).to.equal(
+        targetWithBuffer,
+      );
+      expect(bridge.quote.getCall(2)?.args[0].fromAmount).to.equal(
+        sourceInventory,
+      );
+      expect(bridge.quote.getCall(2)?.args[0].toAmount).to.be.undefined;
     });
 
     it('continues when some bridges fail', async () => {
@@ -2177,7 +2210,10 @@ describe('InventoryRebalancer E2E', () => {
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.true;
       expect(bridge.execute.calledOnce).to.be.true;
-      expect(bridge.quote.getCall(1)?.args[0].toAmount).to.equal(tokenBalance);
+      expect(bridge.quote.getCall(1)?.args[0].fromAmount).to.equal(
+        tokenBalance,
+      );
+      expect(bridge.quote.getCall(1)?.args[0].toAmount).to.be.undefined;
     });
 
     it('calculates max viable amount as inventory minus (gasCosts * 20) for native tokens', async () => {
@@ -2276,6 +2312,109 @@ describe('InventoryRebalancer E2E', () => {
       }
       expect(executionTargetOutput > amount).to.be.true;
       expect(executionTargetOutput <= maxViable).to.be.true;
+    });
+
+    it('uses forward quote when target output exactly matches source capacity', async () => {
+      const amount = 1000n;
+      const rawBalance = 1100n;
+      const targetWithBuffer = 1050n;
+
+      const route = createTestRoute({ amount });
+      createTestIntent({ amount });
+
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 0n,
+        [ARBITRUM_CHAIN]: rawBalance,
+      });
+
+      bridge.quote
+        .onFirstCall()
+        .resolves(
+          createMockBridgeQuote({
+            fromAmount: rawBalance,
+            toAmount: targetWithBuffer,
+            toAmountMin: targetWithBuffer,
+          }),
+        )
+        .onSecondCall()
+        .resolves(
+          createMockBridgeQuote({
+            fromAmount: rawBalance,
+            toAmount: targetWithBuffer,
+            toAmountMin: targetWithBuffer,
+          }),
+        );
+
+      bridge.execute.resolves({
+        txHash: '0xForwardBoundaryBridgeTxHash',
+        fromChain: 42161,
+        toChain: 1399811149,
+      });
+
+      const results = await inventoryRebalancer.rebalance([route]);
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.true;
+      expect(bridge.execute.calledOnce).to.be.true;
+      expect(bridge.quote.getCall(1)?.args[0].fromAmount).to.equal(rawBalance);
+      expect(bridge.quote.getCall(1)?.args[0].toAmount).to.be.undefined;
+    });
+
+    it('retries reverse quote as forward when exact-output exceeds source capacity', async () => {
+      const amount = 1000n;
+      const rawBalance = 1100n;
+      const targetWithBuffer = 1050n;
+
+      const route = createTestRoute({ amount });
+      createTestIntent({ amount });
+
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 0n,
+        [ARBITRUM_CHAIN]: rawBalance,
+      });
+
+      bridge.quote
+        .onFirstCall()
+        .resolves(
+          createMockBridgeQuote({
+            fromAmount: rawBalance,
+            toAmount: 1051n,
+            toAmountMin: 1051n,
+          }),
+        )
+        .onSecondCall()
+        .resolves(
+          createMockBridgeQuote({
+            fromAmount: rawBalance + 1n,
+            toAmount: targetWithBuffer,
+            toAmountMin: targetWithBuffer,
+          }),
+        )
+        .onThirdCall()
+        .resolves(
+          createMockBridgeQuote({
+            fromAmount: rawBalance,
+            toAmount: 1049n,
+            toAmountMin: 1049n,
+          }),
+        );
+
+      bridge.execute.resolves({
+        txHash: '0xForwardFallbackBridgeTxHash',
+        fromChain: 42161,
+        toChain: 1399811149,
+      });
+
+      const results = await inventoryRebalancer.rebalance([route]);
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.true;
+      expect(bridge.execute.calledOnce).to.be.true;
+      expect(bridge.quote.getCall(1)?.args[0].toAmount).to.equal(
+        targetWithBuffer,
+      );
+      expect(bridge.quote.getCall(2)?.args[0].fromAmount).to.equal(rawBalance);
+      expect(bridge.quote.getCall(2)?.args[0].toAmount).to.be.undefined;
     });
 
     it('handles quote failures gracefully by skipping the source chain', async () => {

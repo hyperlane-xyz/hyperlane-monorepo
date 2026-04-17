@@ -133,21 +133,27 @@ export class LiFiBridge implements IExternalBridge {
   constructor(config: ExternalBridgeConfig, logger: Logger) {
     this.config = config;
     this.logger = logger;
-    // Build chainId -> metadata map for O(1) lookups
+    // Build LiFi chainId -> metadata map for O(1) lookups.
+    // Numeric chainIds are only unique for EVM chains; non-EVM chains can
+    // legitimately collide (e.g. radix and ethereum both use 1), so index
+    // non-EVM chains only through explicit Hyperlane-domain -> LiFi mappings.
     this.chainMetadataByChainId = new Map();
     if (config.chainMetadata) {
+      const metadataByDomainId = new Map<number, ChainMetadata>();
       for (const metadata of Object.values(config.chainMetadata)) {
+        metadataByDomainId.set(metadata.domainId, metadata);
         if (metadata.chainId !== undefined) {
-          this.chainMetadataByChainId.set(Number(metadata.chainId), metadata);
+          if (metadata.protocol === ProtocolType.Ethereum) {
+            this.chainMetadataByChainId.set(Number(metadata.chainId), metadata);
+          }
         }
       }
-      // Also key by LiFi chain IDs so both Hyperlane domains and LiFi IDs resolve to the same metadata.
+      // Also key by LiFi chain IDs so both Hyperlane domains and LiFi IDs
+      // resolve to the same metadata for non-EVM chains like Solana.
       for (const [hyperlaneDomainId, lifiChainId] of Object.entries(
         HYPERLANE_TO_LIFI_CHAIN_IDS,
       )) {
-        const metadata = this.chainMetadataByChainId.get(
-          Number(hyperlaneDomainId),
-        );
+        const metadata = metadataByDomainId.get(Number(hyperlaneDomainId));
         if (metadata !== undefined) {
           this.chainMetadataByChainId.set(Number(lifiChainId), metadata);
         }

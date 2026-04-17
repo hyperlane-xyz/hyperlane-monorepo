@@ -34,6 +34,36 @@ const SOLANA_CHAIN_METADATA_CONFIG: ExternalBridgeConfig = {
   },
 };
 
+const DUPLICATE_CHAIN_ID_CONFIG: ExternalBridgeConfig = {
+  integrator: 'test-rebalancer',
+  chainMetadata: {
+    ethereum: {
+      chainId: 1,
+      protocol: ProtocolType.Ethereum,
+      name: 'ethereum',
+      displayName: 'Ethereum',
+      domainId: 1,
+      rpcUrls: [{ http: 'https://ethereum-rpc.local' }],
+    },
+    radix: {
+      chainId: 1,
+      protocol: ProtocolType.Radix,
+      name: 'radix',
+      displayName: 'Radix',
+      domainId: 1001,
+      rpcUrls: [{ http: 'https://radix-rpc.local' }],
+    },
+    solanamainnet: {
+      chainId: 1399811149,
+      protocol: ProtocolType.Sealevel,
+      name: 'solanamainnet',
+      displayName: 'Solana',
+      domainId: 1399811149,
+      rpcUrls: [{ http: 'https://api.mainnet-beta.solana.com' }],
+    },
+  },
+};
+
 // Use all-digit hex addresses to avoid EIP-55 checksum case mutations
 const TOKEN_ADDR = '0x1234567890123456789012345678901234567890';
 const SENDER_ADDR = '0x9876543210987654321098765432109876543210';
@@ -611,5 +641,16 @@ describe('LiFiBridge constructor chainMetadataByChainId', function () {
       expect(msg).to.include('toToken');
       expect(msg).to.include('does not match requested');
     }
+  });
+
+  it('should prefer Ethereum metadata for LiFi chainId lookups when non-EVM chainIds collide', () => {
+    const bridge = new LiFiBridge(DUPLICATE_CHAIN_ID_CONFIG, testLogger);
+
+    expect((bridge as any).getProtocolTypeForChainId(1)).to.equal(
+      ProtocolType.Ethereum,
+    );
+    expect((bridge as any).getRpcUrlForChainId(1)).to.equal(
+      'https://ethereum-rpc.local',
+    );
   });
 });
