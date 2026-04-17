@@ -15,6 +15,14 @@ import {
 } from './artifact.js';
 import { ChainLookup } from './chain.js';
 
+// These fee types model fees as a single contract/program with internal routing,
+// unlike the EVM implementation where RoutingFee and CrossCollateralRoutingFee
+// deploy separate fee contracts per destination domain. The SVM fee program
+// handles all routing internally via PDAs within one program, and these multi-VM
+// types follow that single-entity model to avoid the complexity of supporting
+// both approaches simultaneously. This will be unified later to support both
+// models under a single interface.
+
 // ====== Strategy Types (shared between Config API and Artifact API) ======
 
 export const FeeStrategyType = {
