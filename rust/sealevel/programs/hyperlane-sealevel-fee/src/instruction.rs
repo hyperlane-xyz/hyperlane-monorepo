@@ -40,12 +40,21 @@ pub enum Instruction {
     /// Transfer ownership of the fee account (owner-only).
     TransferOwnership(Option<Pubkey>),
     /// Add an authorized offchain quote signer (owner-only).
-    AddQuoteSigner { signer: H160 },
+    AddQuoteSigner {
+        /// Ethereum address (secp256k1) of the signer to authorize.
+        signer: H160,
+    },
     /// Remove an offchain quote signer (owner-only).
-    RemoveQuoteSigner { signer: H160 },
+    RemoveQuoteSigner {
+        /// Ethereum address (secp256k1) of the signer to remove.
+        signer: H160,
+    },
     /// Set the minimum issued_at threshold for standing quote validation (owner-only).
     /// Standing quotes with issued_at < min_issued_at are rejected.
-    SetMinIssuedAt { min_issued_at: i64 },
+    SetMinIssuedAt {
+        /// Unix timestamp; standing quotes issued before this are rejected.
+        min_issued_at: i64,
+    },
     /// Submit a signed offchain quote (transient or standing).
     /// Transient: fee_account is read-only.
     /// Standing: fee_account must be writable (updates standing_quote_domains on new domain).
@@ -55,7 +64,9 @@ pub enum Instruction {
     /// Remove expired standing quotes for a domain, closing the PDA if empty (owner-only).
     /// For CC fee accounts, pass Some(target_router). For Leaf/Routing, pass None.
     PruneExpiredQuotes {
+        /// Hyperlane destination domain ID whose standing quote PDA to prune.
         domain: u32,
+        /// Remote warp route address for CC accounts; None for Leaf/Routing accounts.
         target_router: Option<H256>,
     },
     /// Simulation-only: returns required account metas for a QuoteFee call.

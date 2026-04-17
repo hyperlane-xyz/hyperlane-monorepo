@@ -1,3 +1,5 @@
+//! Fee curve computation (Linear, Regressive, Progressive).
+
 use account_utils::SizedData;
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::U256;

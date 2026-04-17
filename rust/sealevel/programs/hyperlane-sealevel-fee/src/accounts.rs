@@ -12,10 +12,15 @@ use crate::fee_math::FeeDataStrategy;
 
 // --- Discriminators ---
 
+/// Discriminator for FeeAccount PDAs.
 pub const FEE_ACCOUNT_DISCRIMINATOR: [u8; 8] = *b"FEE_ACCT";
+/// Discriminator for RouteDomain PDAs.
 pub const ROUTE_DOMAIN_DISCRIMINATOR: [u8; 8] = *b"ROUTEDOM";
+/// Discriminator for CrossCollateralRoute PDAs.
 pub const CC_ROUTE_DISCRIMINATOR: [u8; 8] = *b"CC_ROUTE";
+/// Discriminator for TransientQuote PDAs.
 pub const TRANSIENT_QUOTE_DISCRIMINATOR: [u8; 8] = *b"TRNQUOTE";
+/// Discriminator for FeeStandingQuotePda PDAs.
 pub const STANDING_QUOTE_DISCRIMINATOR: [u8; 8] = *b"STDQUOTE";
 
 // --- Wildcard constants ---
@@ -79,6 +84,7 @@ impl SizedData for FeeData {
 
 // --- Fee account ---
 
+/// AccountData wrapper for FeeAccount.
 pub type FeeAccountData = AccountData<DiscriminatorPrefixed<FeeAccount>>;
 
 impl DiscriminatorData for FeeAccount {
@@ -135,6 +141,7 @@ impl SizedData for FeeAccount {
 
 // --- Route domain PDA ---
 
+/// AccountData wrapper for RouteDomain.
 pub type RouteDomainAccount = AccountData<DiscriminatorPrefixed<RouteDomain>>;
 
 impl DiscriminatorData for RouteDomain {
@@ -159,6 +166,7 @@ impl SizedData for RouteDomain {
 
 // --- Cross-collateral route PDA ---
 
+/// AccountData wrapper for CrossCollateralRoute.
 pub type CrossCollateralRouteAccount = AccountData<DiscriminatorPrefixed<CrossCollateralRoute>>;
 
 impl DiscriminatorData for CrossCollateralRoute {
@@ -184,6 +192,7 @@ impl SizedData for CrossCollateralRoute {
 
 // --- Transient quote PDA ---
 
+/// AccountData wrapper for TransientQuote.
 pub type TransientQuoteAccount = AccountData<DiscriminatorPrefixed<TransientQuote>>;
 
 impl DiscriminatorData for TransientQuote {
@@ -228,7 +237,9 @@ impl SizedData for TransientQuote {
 /// Trait for quote context types. Implementations parse from raw bytes
 /// and validate against the QuoteFee instruction data.
 pub trait QuoteContext: Sized {
+    /// Parses a QuoteContext from raw context bytes stored in a quote PDA.
     fn try_from_bytes(bytes: &[u8]) -> Result<Self, ProgramError>;
+    /// Validates that the stored context matches the fields of a QuoteFee instruction.
     fn validate(&self, quote_fee: &crate::instruction::QuoteFee) -> Result<(), ProgramError>;
 }
 
@@ -236,8 +247,11 @@ pub trait QuoteContext: Sized {
 /// Wire format (44 bytes): dest_domain (u32 LE) + recipient (H256) + amount (u64 LE).
 #[derive(Debug, PartialEq)]
 pub struct FeeQuoteContext {
+    /// Hyperlane domain ID of the destination chain.
     pub destination_domain: u32,
+    /// End-user's address on the destination chain.
     pub recipient: H256,
+    /// Transfer amount in local token units.
     pub amount: u64,
 }
 
@@ -276,9 +290,13 @@ impl QuoteContext for FeeQuoteContext {
 /// Wire format (76 bytes): dest_domain (u32 LE) + recipient (H256) + amount (u64 LE) + target_router (H256).
 #[derive(Debug, PartialEq)]
 pub struct CcFeeQuoteContext {
+    /// Hyperlane domain ID of the destination chain.
     pub destination_domain: u32,
+    /// End-user's address on the destination chain.
     pub recipient: H256,
+    /// Transfer amount in local token units.
     pub amount: u64,
+    /// Remote warp route contract address for CC routing resolution.
     pub target_router: H256,
 }
 
@@ -319,7 +337,9 @@ impl QuoteContext for CcFeeQuoteContext {
 /// Wire format: max_fee (u64 LE, 8 bytes) + half_amount (u64 LE, 8 bytes).
 #[derive(Debug, Default, PartialEq)]
 pub struct FeeQuoteData {
+    /// Maximum fee parameter for the fee curve.
     pub max_fee: u64,
+    /// Half amount parameter — transfer amount at which fee = max_fee / 2.
     pub half_amount: u64,
 }
 
@@ -354,6 +374,7 @@ impl TryFrom<&[u8]> for FeeQuoteData {
 
 // --- Standing quote PDA ---
 
+/// AccountData wrapper for FeeStandingQuotePda.
 pub type FeeStandingQuotePdaAccount = AccountData<DiscriminatorPrefixed<FeeStandingQuotePda>>;
 
 impl DiscriminatorData for FeeStandingQuotePda {
