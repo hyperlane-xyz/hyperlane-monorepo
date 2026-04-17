@@ -49,12 +49,15 @@ pub enum Error {
     /// Standing quote amount must be wildcard (u64::MAX).
     #[error("Standing quote amount must be wildcard")]
     StandingQuoteAmountNotWildcard = 15,
+    /// Fully-wildcarded standing quote (wildcard dest + wildcard recipient) is not allowed.
+    #[error("Fully wildcarded standing quote not allowed")]
+    FullyWildcardedStandingQuote = 16,
     /// Standing quote context is invalid.
     #[error("Invalid standing quote context")]
-    InvalidStandingQuoteContext = 16,
+    InvalidStandingQuoteContext = 17,
     /// Standing quote data is invalid.
     #[error("Invalid standing quote data")]
-    InvalidStandingQuoteData = 17,
+    InvalidStandingQuoteData = 18,
 }
 
 impl From<Error> for ProgramError {
