@@ -8,7 +8,7 @@ use hyperlane_core::{
     identifiers::UniqueIdentifier, Decode, Encode, GasPaymentKey, HyperlaneDomain,
     HyperlaneLogStore, HyperlaneMessage, HyperlaneSequenceAwareIndexerStoreReader,
     HyperlaneWatermarkedLogStore, Indexed, InterchainGasExpenditure, InterchainGasPayment,
-    InterchainGasPaymentMeta, LogMeta, MerkleTreeInsertion, PendingOperationStatus, H256,
+    InterchainGasPaymentMeta, LogMeta, MerkleTreeInsertion, PendingOperationStatus, H256, H512,
 };
 
 use crate::db::{
@@ -40,6 +40,7 @@ const MERKLE_TREE_INSERTION_BLOCK_NUMBER_BY_LEAF_INDEX: &str =
     "merkle_tree_insertion_block_number_by_leaf_index_";
 const LATEST_INDEXED_GAS_PAYMENT_BLOCK: &str = "latest_indexed_gas_payment_block";
 const PAYLOAD_UUIDS_BY_MESSAGE_ID: &str = "payload_uuids_by_message_id_";
+const MESSAGE_DISPATCHED_TX_HASH_BY_MESSAGE_ID: &str = "message_dispatched_tx_hash_by_message_id_";
 
 /// Rocks DB result type
 pub type DbResult<T> = std::result::Result<T, DbError>;
@@ -319,6 +320,10 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneRocksDB {
             if stored_message {
                 stored = stored.saturating_add(1);
             }
+            self.store_dispatched_tx_hash_by_message_id(
+                &message.inner().id(),
+                &meta.transaction_id,
+            )?;
         }
         if stored > 0 {
             debug!(messages = stored, "Wrote new messages to database");
@@ -697,6 +702,25 @@ impl HyperlaneDb for HyperlaneRocksDB {
         message_id: &H256,
     ) -> DbResult<Option<Vec<UniqueIdentifier>>> {
         self.retrieve_value_by_key(PAYLOAD_UUIDS_BY_MESSAGE_ID, message_id)
+    }
+
+    fn store_dispatched_tx_hash_by_message_id(
+        &self,
+        message_id: &H256,
+        tx_hash: &H512,
+    ) -> DbResult<()> {
+        self.store_value_by_key(
+            MESSAGE_DISPATCHED_TX_HASH_BY_MESSAGE_ID,
+            message_id,
+            tx_hash,
+        )
+    }
+
+    fn retrieve_dispatched_tx_hash_by_message_id(
+        &self,
+        message_id: &H256,
+    ) -> DbResult<Option<H512>> {
+        self.retrieve_value_by_key(MESSAGE_DISPATCHED_TX_HASH_BY_MESSAGE_ID, message_id)
     }
 }
 

@@ -5,7 +5,7 @@ pub use rocks::*;
 use hyperlane_core::{
     identifiers::UniqueIdentifier, GasPaymentKey, HyperlaneDomain, HyperlaneMessage,
     InterchainGasPayment, InterchainGasPaymentMeta, MerkleTreeInsertion, PendingOperationStatus,
-    H256,
+    H256, H512,
 };
 
 mod error;
@@ -160,6 +160,19 @@ pub trait HyperlaneDb: Send + Sync {
 
     /// Retrieve the nonce of the highest processed message we're aware of
     fn retrieve_highest_seen_message_nonce_number(&self) -> DbResult<Option<u32>>;
+
+    /// Store the origin transaction hash for a dispatched message by its message id
+    fn store_dispatched_tx_hash_by_message_id(
+        &self,
+        message_id: &H256,
+        tx_hash: &H512,
+    ) -> DbResult<()>;
+
+    /// Retrieve the origin transaction hash for a dispatched message by its message id
+    fn retrieve_dispatched_tx_hash_by_message_id(
+        &self,
+        message_id: &H256,
+    ) -> DbResult<Option<H512>>;
 
     /// Store payload uuid by message id
     fn store_payload_uuids_by_message_id(
