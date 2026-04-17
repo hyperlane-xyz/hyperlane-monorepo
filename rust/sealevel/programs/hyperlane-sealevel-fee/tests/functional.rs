@@ -95,9 +95,11 @@ async fn simulate_quote_fee(
         .unwrap()
         .return_data
         .expect("no return data");
-    let result: SimulationReturnData<u64> =
-        borsh::from_slice(&return_data.data).expect("failed to deserialize return data");
-    result.return_data
+    let bytes: [u8; 8] = return_data
+        .data
+        .try_into()
+        .expect("expected 8 bytes of return data");
+    u64::from_le_bytes(bytes)
 }
 
 fn assert_tx_error<T>(result: Result<T, BanksClientError>, expected: TransactionError) {
