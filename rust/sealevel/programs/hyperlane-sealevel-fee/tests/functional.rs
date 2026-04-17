@@ -1039,6 +1039,51 @@ mod remove_route {
             ),
         );
     }
+
+    #[tokio::test]
+    async fn test_recreate_after_remove() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            FeeData::Routing,
+        )
+        .await;
+
+        let domain = 42u32;
+        let strategy1 = FeeDataStrategy::Linear(FeeParams {
+            max_fee: 100,
+            half_amount: 50,
+        });
+
+        // Create route.
+        let ix = build_set_route_ix(&fee_key, &payer.pubkey(), domain, strategy1);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Remove route (close PDA).
+        let ix = build_remove_route_ix(&fee_key, &payer.pubkey(), domain);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Recreate route on the same domain — PDA must be reusable after close.
+        let strategy2 = FeeDataStrategy::Regressive(FeeParams {
+            max_fee: 200,
+            half_amount: 100,
+        });
+        let ix = build_set_route_ix(&fee_key, &payer.pubkey(), domain, strategy2.clone());
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let route = fetch_route_domain(&mut banks_client, route_pda_for(&fee_key, domain)).await;
+        assert_eq!(route.fee_data, strategy2);
+    }
 }
 
 mod set_cc_route {
