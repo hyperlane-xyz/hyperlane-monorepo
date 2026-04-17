@@ -87,8 +87,16 @@ pub fn process_instruction(
         Instruction::GetQuoteAccountMetas(data) => {
             process_get_quote_account_metas(program_id, accounts, data)
         }
+        Instruction::GetProgramVersion => {
+            package_versioned::process_get_program_version::<FeeProgram>()
+        }
     }
 }
+
+/// Marker type for PackageVersioned trait implementation.
+pub struct FeeProgram;
+
+impl package_versioned::PackageVersioned for FeeProgram {}
 
 /// Initialize a new fee account.
 ///

@@ -15,6 +15,7 @@ borsh.workspace = true
 hyperlane-core = { path = "../../../main/hyperlane-core" }
 num-derive.workspace = true
 num-traits.workspace = true
+package-versioned = { path = "../../libraries/package-versioned" }
 quote-verifier = { path = "../../libraries/quote-verifier" }
 serializable-account-meta = { path = "../../libraries/serializable-account-meta" }
 solana-program.workspace = true
