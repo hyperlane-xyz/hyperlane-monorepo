@@ -973,6 +973,59 @@ mod transfer_ownership {
         let acct = fetch_fee_account(&mut banks_client, key).await;
         assert_eq!(acct.owner, None);
     }
+
+    #[tokio::test]
+    async fn test_immutable_account_rejects_admin_ops() {
+        let (mut banks_client, payer) = setup_client().await;
+
+        // Init with owner=None (immutable from the start).
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            None,
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        // SetBeneficiary should fail — no owner.
+        let ix = Instruction::new_with_borsh(
+            fee_program_id(),
+            &FeeInstruction::SetBeneficiary(Pubkey::new_unique()),
+            vec![
+                AccountMeta::new(fee_key, false),
+                AccountMeta::new_readonly(payer.pubkey(), true),
+            ],
+        );
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert!(result.is_err());
+
+        // TransferOwnership should fail.
+        let ix = build_ix(&fee_key, &payer.pubkey(), Some(Pubkey::new_unique()));
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert!(result.is_err());
+
+        // AddQuoteSigner should fail.
+        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), H160::zero());
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert!(result.is_err());
+
+        // UpdateFeeParams should fail.
+        let ix = Instruction::new_with_borsh(
+            fee_program_id(),
+            &FeeInstruction::UpdateFeeParams(FeeParams {
+                max_fee: 999,
+                half_amount: 111,
+            }),
+            vec![
+                AccountMeta::new(fee_key, false),
+                AccountMeta::new_readonly(payer.pubkey(), true),
+            ],
+        );
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert!(result.is_err());
+    }
 }
 
 mod update_fee_params {
@@ -1245,6 +1298,44 @@ mod set_route {
             ),
         );
     }
+
+    #[tokio::test]
+    async fn test_non_owner_rejected() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            FeeData::Routing,
+        )
+        .await;
+
+        let non_owner = Keypair::new();
+
+        // Fund non_owner so they can sign.
+        let transfer_ix = solana_system_interface::instruction::transfer(
+            &payer.pubkey(),
+            &non_owner.pubkey(),
+            1_000_000_000,
+        );
+        process_tx(&mut banks_client, &payer, transfer_ix, &[])
+            .await
+            .unwrap();
+
+        let ix = build_set_route_ix(
+            &fee_key,
+            &non_owner.pubkey(),
+            42,
+            FeeDataStrategy::Linear(FeeParams {
+                max_fee: 100,
+                half_amount: 50,
+            }),
+        );
+        let result = process_tx(&mut banks_client, &non_owner, ix, &[]).await;
+        assert!(result.is_err());
+    }
 }
 
 mod remove_route {
@@ -1356,6 +1447,49 @@ mod remove_route {
 
         let route = fetch_route_domain(&mut banks_client, route_pda_for(&fee_key, domain)).await;
         assert_eq!(route.fee_data, strategy2);
+    }
+
+    #[tokio::test]
+    async fn test_non_owner_rejected() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            FeeData::Routing,
+        )
+        .await;
+
+        // Create a route first (as owner).
+        let ix = build_set_route_ix(
+            &fee_key,
+            &payer.pubkey(),
+            42,
+            FeeDataStrategy::Linear(FeeParams {
+                max_fee: 100,
+                half_amount: 50,
+            }),
+        );
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Non-owner tries to remove it.
+        let non_owner = Keypair::new();
+        let transfer_ix = solana_system_interface::instruction::transfer(
+            &payer.pubkey(),
+            &non_owner.pubkey(),
+            1_000_000_000,
+        );
+        process_tx(&mut banks_client, &payer, transfer_ix, &[])
+            .await
+            .unwrap();
+
+        let ix = build_remove_route_ix(&fee_key, &non_owner.pubkey(), 42);
+        let result = process_tx(&mut banks_client, &non_owner, ix, &[]).await;
+        assert!(result.is_err());
     }
 }
 
@@ -4742,6 +4876,73 @@ mod quote_fee_standing {
             result,
             TransactionError::InstructionError(0, InstructionError::InvalidSeeds),
         );
+    }
+
+    #[tokio::test]
+    async fn test_expired_standing_falls_to_onchain() {
+        // Standing quote exists but is expired → QuoteFee skips it, uses on-chain params.
+        let program_id = fee_program_id();
+        let program_test = ProgramTest::new(
+            "hyperlane_sealevel_fee",
+            program_id,
+            processor!(fee_process_instruction),
+        );
+        let mut ctx = program_test.start_with_context().await;
+        let payer = ctx.payer.insecure_clone();
+        let banks_client = &mut ctx.banks_client;
+
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let signer_address = eth_address(&signing_key);
+
+        let dest = 42u32;
+        let recipient = H256::random();
+
+        // On-chain Leaf: Linear max_fee=100, half_amount=50.
+        let fee_key = init_fee_account(
+            banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            FeeData::Leaf(FeeDataStrategy::Linear(FeeParams {
+                max_fee: 100,
+                half_amount: 50,
+            })),
+        )
+        .await;
+
+        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
+        process_tx(banks_client, &payer, ix, &[]).await.unwrap();
+
+        // Standing quote: max_fee=9999, expiry=5000000000.
+        let sq = make_signed_standing_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            encode_standing_context(dest, recipient),
+            encode_data(9999, 5000),
+            encode_u48(100),
+            encode_u48(5000000000),
+        );
+        let ix = build_submit_standing_ix(&fee_key, &payer.pubkey(), &sq, dest);
+        process_tx(banks_client, &payer, ix, &[]).await.unwrap();
+
+        // Warp clock past expiry.
+        let mut clock = banks_client
+            .get_sysvar::<solana_program::clock::Clock>()
+            .await
+            .unwrap();
+        clock.unix_timestamp = 6000000000;
+        ctx.set_sysvar(&clock);
+        let banks_client = &mut ctx.banks_client;
+
+        // QuoteFee: standing is expired → falls to on-chain.
+        // On-chain: Linear max_fee=100, half_amount=50, amount=50.
+        // min(100, 50*100/(2*50)) = min(100, 50) = 50.
+        let ix = build_quote_fee_leaf_ix(&fee_key, &payer.pubkey(), dest, recipient, 50);
+        let fee = simulate_quote_fee(banks_client, &payer, ix).await;
+        assert_eq!(fee, 50);
     }
 }
 
