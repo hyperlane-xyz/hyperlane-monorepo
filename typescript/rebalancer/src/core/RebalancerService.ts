@@ -22,6 +22,7 @@ import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type {
   IStrategy,
   MovableCollateralRoute,
+  RawBalances,
 } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
 import { type InventoryMonitorConfig, Monitor } from '../monitor/Monitor.js';
@@ -45,6 +46,9 @@ export interface RebalancerServiceConfig {
 
   /** CoinGecko API key for token price fetching (required for metrics) */
   coingeckoApiKey?: string;
+
+  /** Port for the state API (default: 0 = disabled). Set to 3001+ to enable. */
+  stateApiPort?: number;
 
   /** Logger instance */
   logger: Logger;
@@ -119,6 +123,7 @@ export class RebalancerService {
   private actionTracker?: IActionTracker;
   private inflightContextAdapter?: InflightContextAdapter;
   private orchestrator?: RebalancerOrchestrator;
+  private _latestBalances: RawBalances | null = null;
   constructor(
     private readonly multiProvider: MultiProvider,
     private readonly multiProtocolProvider: MultiProviderAdapter | undefined,
@@ -329,6 +334,24 @@ export class RebalancerService {
       .on(MonitorEventType.Error, this.onMonitorError.bind(this))
       .on(MonitorEventType.Start, this.onMonitorStart.bind(this));
 
+    // Start state API if configured
+    const stateApiPort = this.config.stateApiPort ?? 0;
+    if (stateApiPort > 0 && this.actionTracker) {
+      const { createStateApi, startStateApi } = await import(
+        '../api/stateApi.js'
+      );
+      const stateApp = createStateApi(
+        {
+          getLatestBalances: () => this._latestBalances,
+          getChainNames: () =>
+            getStrategyChainNames(this.rebalancerConfig.strategyConfig),
+          actionTracker: this.actionTracker,
+        },
+        { port: stateApiPort, logger: this.logger },
+      );
+      startStateApi(stateApp, { port: stateApiPort, logger: this.logger });
+    }
+
     // Set up signal handlers for graceful shutdown
     process.on('SIGINT', () => this.gracefulShutdown());
     process.on('SIGTERM', () => this.gracefulShutdown());
@@ -379,7 +402,13 @@ export class RebalancerService {
       return;
     }
 
-    await this.orchestrator.executeCycle(event);
+    const result = await this.orchestrator.executeCycle(event);
+    this._latestBalances = result.balances;
+  }
+
+  /** Latest raw balances from the most recent monitor poll. */
+  getLatestBalances(): RawBalances | null {
+    return this._latestBalances;
   }
 
   /**
