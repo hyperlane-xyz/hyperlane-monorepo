@@ -109,14 +109,69 @@ impl ForwardBackwardIterator {
                     return Ok(Some(low_nonce_message));
                 }
 
-                // If both iterators give us unindexed messages, there are no messages at the moment
-                (MessageStatus::Unindexed, MessageStatus::Unindexed) => return Ok(None),
+                // If both iterators give us unindexed messages, there are no messages
+                // at the current iterator position. Before giving up, re-read the DB's
+                // highest seen nonce: ContractSync may have indexed new messages while
+                // our iterator was pinned at its cached frontier (this happens on any
+                // relayer restart before a direction's first non-zero nonce was stored,
+                // and after RocksDB wipes combined with `index.from` past the old cursor).
+                // If the DB has advanced, jump the iterator forward and retry.
+                (MessageStatus::Unindexed, MessageStatus::Unindexed) => {
+                    if !self.refresh_from_db_if_lagging() {
+                        return Ok(None);
+                    }
+                }
             }
             // This loop may iterate through millions of processed messages, blocking the runtime.
             // So, to avoid starving other futures in this task, yield to the runtime
             // on each iteration
             tokio::task::yield_now().await;
         }
+    }
+
+    /// Re-reads `retrieve_highest_seen_message_nonce` from the DB. If the DB's
+    /// highest stored nonce is greater than the iterator's current high-water
+    /// mark, advances both iterators so subsequent probes reach the new
+    /// frontier without requiring a process restart.
+    ///
+    /// Without this, the `ForwardBackwardIterator` captures `highest_seen`
+    /// exactly once at construction. Any nonces written to the DB by
+    /// `ContractSync` after that point go unseen: the forward iterator keeps
+    /// probing the same stale nonce (which is `Unindexed`) and the loop
+    /// returns `Ok(None)` forever — the `message_processor` / Lander pipeline
+    /// receives no work.
+    ///
+    /// Returns `true` if the iterators were advanced, `false` otherwise.
+    fn refresh_from_db_if_lagging(&mut self) -> bool {
+        let db = self.high_nonce_iter.db.clone();
+        let Some(db_highest) = db.retrieve_highest_seen_message_nonce().ok().flatten() else {
+            return false;
+        };
+        let current_high = self.high_nonce_iter.nonce.unwrap_or_default();
+        if db_highest <= current_high {
+            return false;
+        }
+        debug!(
+            db_highest,
+            current_high,
+            domain = ?self._domain,
+            "DB highest_seen_message_nonce is ahead of the loader; jumping iterator forward"
+        );
+        self.high_nonce_iter.nonce = Some(db_highest);
+        // Seed the backward scan just below the new frontier so any messages
+        // between the loader's old position and `db_highest` are still
+        // picked up. Leave the backward iterator alone if it has already
+        // progressed past this point (i.e. its nonce is lower than the new
+        // target).
+        let target_low = db_highest.saturating_sub(1);
+        let should_advance_low = match self.low_nonce_iter.nonce {
+            Some(n) => n < target_low,
+            None => true,
+        };
+        if should_advance_low {
+            self.low_nonce_iter.nonce = Some(target_low);
+        }
+        true
     }
 }
 
