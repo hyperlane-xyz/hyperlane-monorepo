@@ -247,6 +247,78 @@ describe('RebalancerContextFactory', () => {
       expect(providerChains).to.include('arbitrum');
     });
 
+    it('should fail fast when bridgeMinAcceptedAmount is configured for a chain without a token', async () => {
+      const { multiProvider } = createMockMultiProvider([
+        { name: 'ethereum', protocol: ProtocolType.Ethereum },
+        { name: 'arbitrum', protocol: ProtocolType.Ethereum },
+      ]);
+
+      const config = createMockConfig();
+      config.strategyConfig[0].chains.arbitrum.bridgeMinAcceptedAmount = 1;
+
+      let error: Error | undefined;
+      try {
+        const factory = await createFactory(config, multiProvider, {
+          tokens: [
+            createToken(
+              'ethereum',
+              TEST_ADDRESSES.ethereum,
+              TokenStandard.EvmHypCollateral,
+            ),
+          ],
+        } as WarpCoreConfig);
+        await factory.createStrategy();
+      } catch (caught) {
+        error = caught as Error;
+      }
+
+      expect(error?.message).to.equal(
+        'No token found for configured strategy chain arbitrum in warp route USDC/paradex',
+      );
+    });
+
+    it('should fail fast when bridged supply is unavailable during initial collateral calculation', async () => {
+      const { multiProvider } = createMockMultiProvider([
+        { name: 'ethereum', protocol: ProtocolType.Ethereum },
+        { name: 'arbitrum', protocol: ProtocolType.Ethereum },
+      ]);
+
+      const factory = await createFactory(createMockConfig(), multiProvider, {
+        tokens: [
+          createToken(
+            'ethereum',
+            TEST_ADDRESSES.ethereum,
+            TokenStandard.EvmHypCollateral,
+          ),
+          createToken(
+            'arbitrum',
+            TEST_ADDRESSES.arbitrum,
+            TokenStandard.EvmHypSynthetic,
+          ),
+        ],
+      });
+
+      const collateralToken = factory
+        .getWarpCore()
+        .tokens.find((token) => token.chainName === 'ethereum');
+      assert(collateralToken, 'Expected ethereum collateral token in test');
+
+      sandbox.stub(collateralToken, 'getHypAdapter').returns({
+        getBridgedSupply: sandbox.stub().resolves(undefined),
+      } as any);
+
+      let error: Error | undefined;
+      try {
+        await factory.createStrategy();
+      } catch (caught) {
+        error = caught as Error;
+      }
+
+      expect(error?.message).to.equal(
+        'Missing bridged supply for ethereum while computing initial total collateral for warp route USDC/paradex',
+      );
+    });
+
     it('should fail early when inventory override origin protocol signer key is missing', async () => {
       const sealevelChain = 'solana';
       const evmChain = 'ethereum';
@@ -310,10 +382,67 @@ describe('RebalancerContextFactory', () => {
             : ProtocolType.Ethereum,
       }));
 
-      await expect(
-        (factory as any).createInventoryRebalancerAndConfig({} as any, {}),
-      ).to.be.rejectedWith(
+      let error: Error | undefined;
+      try {
+        await (factory as any).createInventoryRebalancerAndConfig(
+          {} as any,
+          {},
+        );
+      } catch (caught) {
+        error = caught as Error;
+      }
+
+      expect(error?.message).to.contain(
         `Missing inventory signer key for protocol ${ProtocolType.Sealevel}`,
+      );
+    });
+
+    it('should fail early when an inventory-relevant chain has no token', async () => {
+      const { multiProvider } = createMockMultiProvider([
+        { name: 'ethereum', protocol: ProtocolType.Ethereum },
+        { name: 'arbitrum', protocol: ProtocolType.Ethereum },
+      ]);
+
+      const config = {
+        ...createMockConfig(),
+        inventorySigners: {
+          [ProtocolType.Ethereum]: {
+            address: TEST_ADDRESSES.ethereum,
+            key: '0xabc123',
+          },
+        },
+      } as RebalancerConfig;
+      config.strategyConfig[0].chains.arbitrum.executionType =
+        ExecutionType.Inventory;
+
+      const factory = await createFactory(config, multiProvider, {
+        tokens: [
+          createToken(
+            'ethereum',
+            TEST_ADDRESSES.ethereum,
+            TokenStandard.EvmHypCollateral,
+          ),
+        ],
+      });
+
+      const getChainMetadataStub = factory.getWarpCore().multiProvider
+        .getChainMetadata as Sinon.SinonStub;
+      getChainMetadataStub.callsFake(() => ({
+        protocol: ProtocolType.Ethereum,
+      }));
+
+      let error: Error | undefined;
+      try {
+        await (factory as any).createInventoryRebalancerAndConfig(
+          {} as any,
+          {},
+        );
+      } catch (caught) {
+        error = caught as Error;
+      }
+
+      expect(error?.message).to.equal(
+        'No token found for inventory-relevant chain arbitrum in warp route USDC/paradex',
       );
     });
 
@@ -384,9 +513,17 @@ describe('RebalancerContextFactory', () => {
             : ProtocolType.Ethereum,
       }));
 
-      await expect(
-        (factory as any).createInventoryRebalancerAndConfig({} as any, {}),
-      ).to.be.rejectedWith(
+      let error: Error | undefined;
+      try {
+        await (factory as any).createInventoryRebalancerAndConfig(
+          {} as any,
+          {},
+        );
+      } catch (caught) {
+        error = caught as Error;
+      }
+
+      expect(error?.message).to.contain(
         `Inventory rebalancing does not support protocol '${ProtocolType.Cosmos}'`,
       );
     });

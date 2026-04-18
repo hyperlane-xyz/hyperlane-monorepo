@@ -1,9 +1,12 @@
 import { Logger } from 'pino';
 
 import { IRegistry } from '@hyperlane-xyz/registry';
-import { type MultiProvider, Token } from '@hyperlane-xyz/sdk';
-import type { MultiProviderAdapter } from '@hyperlane-xyz/sdk/providers/MultiProviderAdapter';
-import { ProtocolType, assert, toWei } from '@hyperlane-xyz/utils';
+import {
+  type MultiProtocolProvider,
+  type MultiProvider,
+  Token,
+} from '@hyperlane-xyz/sdk';
+import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from '../config/RebalancerConfig.js';
 import {
@@ -27,6 +30,7 @@ import { Metrics } from '../metrics/Metrics.js';
 import { type InventoryMonitorConfig, Monitor } from '../monitor/Monitor.js';
 import type { IActionTracker } from '../tracking/IActionTracker.js';
 import { InflightContextAdapter } from '../tracking/InflightContextAdapter.js';
+import { normalizeConfiguredAmount } from '../utils/balanceUtils.js';
 
 import type { RebalancerOrchestrator } from './RebalancerOrchestrator.js';
 
@@ -121,7 +125,7 @@ export class RebalancerService {
   private orchestrator?: RebalancerOrchestrator;
   constructor(
     private readonly multiProvider: MultiProvider,
-    private readonly multiProtocolProvider: MultiProviderAdapter | undefined,
+    private readonly multiProtocolProvider: MultiProtocolProvider | undefined,
     private readonly registry: IRegistry,
     private readonly rebalancerConfig: RebalancerConfig,
     private readonly config: RebalancerServiceConfig,
@@ -293,7 +297,7 @@ export class RebalancerService {
       const manualRoute: MovableCollateralRoute & { intentId: string } = {
         origin,
         destination,
-        amount: BigInt(toWei(amount, originToken.decimals)),
+        amount: normalizeConfiguredAmount(amount, originToken),
         executionType: 'movableCollateral',
         bridge,
         intentId: `manual-${Date.now()}`,

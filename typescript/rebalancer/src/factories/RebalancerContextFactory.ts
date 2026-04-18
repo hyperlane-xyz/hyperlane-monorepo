@@ -11,14 +11,7 @@ import {
   WarpCore,
   type WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import type { MultiProviderAdapter } from '@hyperlane-xyz/sdk/providers/MultiProviderAdapter';
-import {
-  Address,
-  assert,
-  ProtocolType,
-  objMap,
-  toWei,
-} from '@hyperlane-xyz/utils';
+import { Address, assert, ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
 import { LiFiBridge } from '../bridges/LiFiBridge.js';
 import { type RebalancerConfig } from '../config/RebalancerConfig.js';
@@ -64,6 +57,10 @@ import {
   ExplorerClient,
   type IExplorerClient,
 } from '../utils/ExplorerClient.js';
+import {
+  normalizeConfiguredAmount,
+  normalizeToCanonical,
+} from '../utils/balanceUtils.js';
 import { isCollateralizedTokenEligibleForRebalancing } from '../utils/tokenUtils.js';
 
 const DEFAULT_EXPLORER_URL =
@@ -75,7 +72,7 @@ export class RebalancerContextFactory {
    * @param warpCore - An instance of `WarpCore` configured for the specified `warpRouteId`.
    * @param tokensByChainName - A map of chain->token to ease the lookup of token by chain
    * @param multiProvider - MultiProvider instance (for movable collateral operations)
-   * @param multiProtocolProvider - MultiProviderAdapter instance (with mailbox metadata)
+   * @param multiProtocolProvider - MultiProtocolProvider instance (with mailbox metadata)
    * @param registry - IRegistry instance
    * @param logger - Logger instance
    */
@@ -84,7 +81,7 @@ export class RebalancerContextFactory {
     private readonly warpCore: WarpCore,
     private readonly tokensByChainName: ChainMap<Token>,
     private readonly multiProvider: MultiProvider,
-    private readonly multiProtocolProvider: MultiProviderAdapter,
+    private readonly multiProtocolProvider: MultiProtocolProvider,
     private readonly registry: IRegistry,
     private readonly logger: Logger,
     private readonly inventorySignerKeysByProtocol?: Partial<
@@ -95,14 +92,14 @@ export class RebalancerContextFactory {
   /**
    * @param config - The rebalancer config
    * @param multiProvider - MultiProvider instance (for movable collateral operations)
-   * @param multiProtocolProvider - MultiProviderAdapter instance (optional, created from multiProvider if not provided)
+   * @param multiProtocolProvider - MultiProtocolProvider instance (optional, created from multiProvider if not provided)
    * @param registry - IRegistry instance
    * @param logger - Logger instance
    */
   public static async create(
     config: RebalancerConfig,
     multiProvider: MultiProvider,
-    multiProtocolProvider: MultiProviderAdapter | undefined,
+    multiProtocolProvider: MultiProtocolProvider | undefined,
     registry: IRegistry,
     logger: Logger,
     inventorySignerKeysByProtocol?: Partial<Record<ProtocolType, string>>,
@@ -147,7 +144,7 @@ export class RebalancerContextFactory {
       multiProvider.getProvider(chain);
     }
 
-    // Create MultiProviderAdapter (convert from MultiProvider if not provided)
+    // Create MultiProtocolProvider (convert from MultiProvider if not provided)
     const mpp =
       multiProtocolProvider ??
       MultiProtocolProvider.fromMultiProvider(multiProvider);
@@ -253,9 +250,13 @@ export class RebalancerContextFactory {
       );
       if (chainConfig?.bridgeMinAcceptedAmount) {
         const token = this.tokensByChainName[chainName];
-        const decimals = token?.decimals ?? 18;
-        minAmountsByChain[chainName] = BigInt(
-          toWei(chainConfig.bridgeMinAcceptedAmount, decimals),
+        assert(
+          token,
+          `No token found for configured strategy chain ${chainName} in warp route ${this.config.warpRouteId}`,
+        );
+        minAmountsByChain[chainName] = normalizeConfiguredAmount(
+          chainConfig.bridgeMinAcceptedAmount,
+          token,
         );
       }
     }
@@ -458,6 +459,13 @@ export class RebalancerContextFactory {
     if (allRelevantChains.length === 0) {
       this.logger.debug('No inventory chains configured');
       return null;
+    }
+
+    for (const chain of allRelevantChains) {
+      assert(
+        this.tokensByChainName[chain],
+        `No token found for inventory-relevant chain ${chain} in warp route ${this.config.warpRouteId}`,
+      );
     }
 
     const requiredProtocols = new Set(
@@ -762,7 +770,11 @@ export class RebalancerContextFactory {
         ) {
           const adapter = token.getHypAdapter(this.warpCore.multiProvider);
           const bridgedSupply = await adapter.getBridgedSupply();
-          initialTotalCollateral += bridgedSupply ?? 0n;
+          assert(
+            bridgedSupply !== undefined,
+            `Missing bridged supply for ${token.chainName} while computing initial total collateral for warp route ${this.config.warpRouteId}`,
+          );
+          initialTotalCollateral += normalizeToCanonical(bridgedSupply, token);
         }
       }),
     );

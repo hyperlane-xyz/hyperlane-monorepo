@@ -229,6 +229,53 @@ describe('Rebalancer', () => {
       expect(results[0].success).to.be.false;
     });
 
+    it('should log scaled route amounts using origin local units', async () => {
+      const ctx = createRebalancerTestContext(['ethereum']);
+      ctx.tokensByChainName.ethereum.scale = {
+        numerator: 1,
+        denominator: 1_000_000_000_000,
+      };
+
+      const logger = {
+        child: Sinon.stub(),
+        info: Sinon.stub(),
+        warn: Sinon.stub(),
+        error: Sinon.stub(),
+      };
+      logger.child.returns(logger);
+
+      const rebalancer = new Rebalancer(
+        ctx.warpCore,
+        ctx.chainMetadata,
+        ctx.tokensByChainName,
+        ctx.multiProvider as any,
+        createMockActionTracker(),
+        logger as any,
+      );
+
+      const route = buildTestMovableCollateralRoute({
+        origin: 'ethereum',
+        destination: 'arbitrum',
+        amount: 1_000_000n,
+      });
+      const results = await rebalancer.rebalance([route]);
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.false;
+      const validationErrorCall = logger.error
+        .getCalls()
+        .find(
+          (call) =>
+            call.args[1] ===
+            'Route validation failed: destination token not found.',
+        );
+      expect(validationErrorCall).to.not.be.undefined;
+      expect(validationErrorCall!.args[0].amount).to.equal(1);
+      expect(validationErrorCall!.args[1]).to.equal(
+        'Route validation failed: destination token not found.',
+      );
+    });
+
     it('should fail when signer is not a rebalancer', async () => {
       const ctx = createRebalancerTestContext(['ethereum', 'arbitrum'], {
         ethereum: { isRebalancer: false },
@@ -336,6 +383,43 @@ describe('Rebalancer', () => {
 
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.false;
+    });
+
+    it('should denormalize canonical route amounts before quote and populate calls', async () => {
+      const ctx = createRebalancerTestContext(['ethereum', 'arbitrum']);
+      ctx.tokensByChainName.ethereum.scale = {
+        numerator: 1,
+        denominator: 1_000_000_000_000,
+      };
+
+      sandbox.stub(HyperlaneCore, 'getDispatchedMessages').returns([
+        {
+          id: '0x1111111111111111111111111111111111111111111111111111111111111111',
+        } as any,
+      ]);
+
+      const rebalancer = new Rebalancer(
+        ctx.warpCore,
+        ctx.chainMetadata,
+        ctx.tokensByChainName,
+        ctx.multiProvider as any,
+        createMockActionTracker(),
+        testLogger,
+      );
+
+      await rebalancer.rebalance([
+        buildTestMovableCollateralRoute({
+          amount: 1_000_000n,
+        }),
+      ]);
+
+      expect(ctx.adapters.ethereum.getRebalanceQuotes.calledOnce).to.be.true;
+      expect(
+        ctx.adapters.ethereum.getRebalanceQuotes.firstCall.args[3],
+      ).to.equal(1_000_000_000_000_000_000n);
+      expect(
+        ctx.adapters.ethereum.populateRebalanceTx.firstCall.args[1],
+      ).to.equal(1_000_000_000_000_000_000n);
     });
   });
 

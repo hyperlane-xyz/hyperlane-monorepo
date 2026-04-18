@@ -6,7 +6,7 @@ import {
   type Token,
   type WarpCore,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, sleep } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, fromWei, sleep } from '@hyperlane-xyz/utils';
 
 import {
   type ConfirmedBlockTag,
@@ -140,16 +140,29 @@ export class Monitor implements IMonitor {
           const inventoryBalances = await this.fetchInventoryBalances();
           if (Object.keys(inventoryBalances).length > 0) {
             event.inventoryBalances = inventoryBalances;
+            const tokensByChain = new Map(
+              this.warpCore.tokens.map((token) => [token.chainName, token]),
+            );
+            // CAST: inventoryBalances keys come from configured monitor chains,
+            // but Object.entries widens them to string.
+            const inventoryBalanceEntries = Object.entries(
+              inventoryBalances,
+            ) as [ChainName, bigint][];
             this.logger.info(
               {
                 chainsMonitored: Object.keys(inventoryBalances).length,
-                balances: Object.entries(inventoryBalances).map(
-                  ([chain, balance]) => ({
+                balances: inventoryBalanceEntries.map(([chain, balance]) => {
+                  const token = tokensByChain.get(chain);
+                  return {
                     chain,
+                    tokenSymbol: token?.symbol,
                     balance: balance.toString(),
-                    balanceEth: (Number(balance) / 1e18).toFixed(6),
-                  }),
-                ),
+                    balanceFormatted: fromWei(
+                      balance.toString(),
+                      token?.decimals,
+                    ),
+                  };
+                }),
               },
               'Inventory balances fetched',
             );

@@ -128,15 +128,18 @@ export function createMockBridgeQuote(
   const route = overrides?.route as
     | { action?: { fromChainId?: number; toChainId?: number } }
     | undefined;
+  const usesReverseQuote = overrides?.requestParams?.toAmount !== undefined;
 
   const defaultRequestParams: BridgeQuoteParams = {
     fromChain: 42161,
     toChain: 1399811149,
     fromToken: '0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
     toToken: '0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
-    fromAddress: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
     toAddress: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
-    fromAmount: 10000000000n,
+    fromAddress: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+    ...(usesReverseQuote
+      ? { toAmount: 9950000000n }
+      : { fromAmount: 10000000000n }),
   };
   const requestParams: BridgeQuoteParams = {
     ...defaultRequestParams,

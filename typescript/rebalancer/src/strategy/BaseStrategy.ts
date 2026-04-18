@@ -1,7 +1,6 @@
 import { type Logger } from 'pino';
 
 import type { ChainMap, ChainName, Token } from '@hyperlane-xyz/sdk';
-import { toWei } from '@hyperlane-xyz/utils';
 
 import type {
   IStrategy,
@@ -18,6 +17,7 @@ import {
   createStrategyRoute,
   getBridgeConfig,
 } from '../utils/bridgeUtils.js';
+import { normalizeConfiguredAmount } from '../utils/balanceUtils.js';
 
 export type Delta = { chain: ChainName; amount: bigint };
 
@@ -528,21 +528,24 @@ export abstract class BaseStrategy implements IStrategy {
             route.origin,
             route.destination,
           );
-          const minAmount = BigInt(
-            toWei(bridgeConfig.bridgeMinAcceptedAmount, token.decimals),
-          );
-          if (route.amount < minAmount) {
-            this.logger.info(
-              {
-                context: this.constructor.name,
-                origin: route.origin,
-                destination: route.destination,
-                amount: route.amount.toString(),
-                minAmount: minAmount.toString(),
-              },
-              'Dropping route below bridgeMinAcceptedAmount',
+          if (bridgeConfig.bridgeMinAcceptedAmount != null) {
+            const minAmount = normalizeConfiguredAmount(
+              bridgeConfig.bridgeMinAcceptedAmount,
+              token,
             );
-            return false;
+            if (route.amount < minAmount) {
+              this.logger.info(
+                {
+                  context: this.constructor.name,
+                  origin: route.origin,
+                  destination: route.destination,
+                  amount: route.amount.toString(),
+                  minAmount: minAmount.toString(),
+                },
+                'Dropping route below bridgeMinAcceptedAmount',
+              );
+              return false;
+            }
           }
         }
       }
