@@ -3,6 +3,12 @@ export {
   DerivedTokenFeeConfig,
   EvmTokenFeeReader,
 } from './fee/EvmTokenFeeReader.js';
+export {
+  DerivedWarpFeeVaultConfig,
+  EvmWarpFeeVaultModule,
+  WarpFeeVaultAddresses,
+  WarpFeeVaultConfig,
+} from './fee/WarpFeeVault.js';
 
 export {
   buildExecuteCalldata,

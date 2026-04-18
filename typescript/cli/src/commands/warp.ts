@@ -25,6 +25,7 @@ import {
   type CommandModuleWithWarpDeployContext,
   type CommandModuleWithWriteContext,
 } from '../context/types.js';
+import { runWarpFeeVaultDeploy } from '../deploy/feeVault.js';
 import {
   runWarpRouteApply,
   runWarpRouteCombine,
@@ -79,6 +80,7 @@ export const warpCommand: CommandModule = {
       .command(check)
       .command(combine)
       .command(deploy)
+      .command(feeVault)
       .command(fork)
       .command(getFees)
       .command(init)
@@ -200,6 +202,93 @@ export const deploy: CommandModuleWithWarpDeployContext<WarpRouteOptions> = {
 
     process.exit(0);
   },
+};
+
+const feeVaultDeploy: CommandModuleWithWriteContext<
+  WarpRouteOptions & {
+    chain: string;
+    owner: string;
+    protocolBeneficiary: string;
+    lpBps: string;
+    streamingPeriod: string;
+    name?: string;
+    symbol?: string;
+    out?: string;
+  }
+> = {
+  command: 'deploy',
+  describe: 'Deploy a WarpFeeVault for a deployed warp route member',
+  builder: {
+    ...WARP_ROUTE_OPTIONS,
+    chain: { ...chainCommandOption, demandOption: true },
+    owner: addressCommandOption('Owner of the deployed warp fee vault', true),
+    protocolBeneficiary: addressCommandOption(
+      'Protocol fee beneficiary for the deployed warp fee vault',
+      true,
+    ),
+    lpBps: {
+      type: 'string',
+      description: 'LP share in basis points',
+      demandOption: true,
+    },
+    streamingPeriod: {
+      type: 'string',
+      description: 'Fee streaming period in seconds',
+      demandOption: true,
+    },
+    name: {
+      type: 'string',
+      description: 'Override the inferred vault token name',
+      demandOption: false,
+    },
+    symbol: {
+      type: 'string',
+      description: 'Override the inferred vault token symbol',
+      demandOption: false,
+    },
+    out: outputFileCommandOption(
+      undefined,
+      false,
+      'Output file path for deployed warp fee vault details',
+    ),
+  },
+  handler: async ({
+    context,
+    warpRouteId,
+    chain,
+    owner,
+    protocolBeneficiary,
+    lpBps,
+    streamingPeriod,
+    name,
+    symbol,
+    out,
+  }) => {
+    logCommandHeader('Hyperlane Warp Fee Vault Deploy');
+
+    await runWarpFeeVaultDeploy({
+      context,
+      warpRouteId,
+      chain,
+      owner,
+      protocolBeneficiary,
+      lpBps,
+      streamingPeriod,
+      name,
+      symbol,
+      outPath: out,
+    });
+
+    process.exit(0);
+  },
+};
+
+const feeVault: CommandModule = {
+  command: 'fee-vault',
+  describe: 'Manage Warp fee vaults',
+  builder: (yargs) =>
+    yargs.command(feeVaultDeploy).version(false).demandCommand(),
+  handler: () => log('Command required'),
 };
 
 const combine: CommandModuleWithWriteContext<{
