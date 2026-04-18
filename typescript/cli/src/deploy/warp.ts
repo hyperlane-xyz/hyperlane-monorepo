@@ -50,12 +50,16 @@ import {
   getRouterAddressesFromWarpCoreConfig,
   getSubmitterBuilder,
   getTokenConnectionId,
+  isCctpTokenConfig,
   isCollateralTokenConfig,
   isCrossCollateralTokenConfig,
+  isDepositAddressTokenConfig,
+  isEverclearCollateralTokenConfig,
   isXERC20TokenConfig,
   normalizeScale,
   splitWarpCoreAndExtendedConfigs,
   tokenTypeToStandard,
+  isOftTokenConfig,
 } from '@hyperlane-xyz/sdk';
 import {
   type Address,
@@ -371,8 +375,12 @@ function generateTokenConfigs(
     const config = warpDeployConfig[chainName];
     const collateralAddressOrDenom =
       isCollateralTokenConfig(config) ||
+      isCctpTokenConfig(config) ||
       isXERC20TokenConfig(config) ||
-      isCrossCollateralTokenConfig(config)
+      isCrossCollateralTokenConfig(config) ||
+      isDepositAddressTokenConfig(config) ||
+      isEverclearCollateralTokenConfig(config) ||
+      isOftTokenConfig(config)
         ? (config as { token: string }).token // gets set in the above deriveTokenMetadata()
         : undefined;
 

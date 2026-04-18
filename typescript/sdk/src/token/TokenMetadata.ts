@@ -45,8 +45,11 @@ function matchesUnderlyingAsset(
       return true;
     }
 
+    // Only HypNative collateral legitimately lacks collateralAddressOrDenom;
+    // any other collateralized token missing it is a config bug, not a native match.
     if (
       !source.collateralAddressOrDenom &&
+      source.isHypNative() &&
       (target.isNative() || target.isHypNative())
     ) {
       return true;
