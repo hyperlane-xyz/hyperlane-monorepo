@@ -250,12 +250,40 @@ async fn metadata_build(
             continue;
         }
 
-        // if we fail, we want to try the other urls
-        match fetch_offchain_data(ism_builder, &info, url, origin_tx_hash.clone()).await {
-            Ok(data) => return Ok(data),
-            Err(err) => {
-                tracing::warn!(?ism_address, url, ?err, "Failed to fetch offchain data");
-                continue;
+        // Retry this URL while attestation is pending (transient), up to 30 attempts at 1s intervals.
+        // Move to the next URL only on hard failures.
+        const MAX_PENDING_RETRIES: u32 = 30;
+        let mut pending_attempts = 0u32;
+        loop {
+            match fetch_offchain_data(ism_builder, &info, url, origin_tx_hash.clone()).await {
+                Ok(data) => {
+                    tracing::info!(
+                        ?ism_address,
+                        url,
+                        origin_tx_hash = ?origin_tx_hash,
+                        attempts = pending_attempts,
+                        "Successfully fetched offchain lookup data"
+                    );
+                    return Ok(data);
+                }
+                Err(MetadataBuildError::AttestationPending)
+                    if pending_attempts < MAX_PENDING_RETRIES =>
+                {
+                    pending_attempts += 1;
+                    tracing::debug!(
+                        ?ism_address,
+                        url,
+                        origin_tx_hash = ?origin_tx_hash,
+                        attempt = pending_attempts,
+                        max = MAX_PENDING_RETRIES,
+                        "Attestation pending, retrying in 1s"
+                    );
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                }
+                Err(err) => {
+                    tracing::warn!(?ism_address, url, origin_tx_hash = ?origin_tx_hash, error = ?err, "Failed to fetch offchain data");
+                    break;
+                }
             }
         }
     }
@@ -331,6 +359,16 @@ async fn fetch_offchain_data(
         response = response_body,
         "Received response from offchain lookup server"
     );
+    // Check for transient "pending" response before attempting full parse
+    if let Ok(val) = serde_json::from_str::<serde_json::Value>(&response_body) {
+        if let Some(err_msg) = val.get("error").and_then(|e| e.as_str()) {
+            let err_lower = err_msg.to_lowercase();
+            if err_lower.contains("pending") || err_lower.contains("not found") {
+                return Err(MetadataBuildError::AttestationPending);
+            }
+        }
+    }
+
     let json: OffchainResponse = serde_json::from_str(&response_body).map_err(|err| {
         let error_msg = format!(
             "Failed to parse offchain lookup server json response: ({err}) ({response_body})"
