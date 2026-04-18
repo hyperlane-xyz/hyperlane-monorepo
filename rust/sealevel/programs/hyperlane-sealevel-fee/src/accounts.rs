@@ -106,7 +106,8 @@ pub struct FeeAccount {
     /// Hyperlane domain ID of the local chain (used in quote signature verification).
     pub domain_id: u32,
     /// Authorized offchain quote signers (secp256k1 Ethereum addresses).
-    pub signers: BTreeSet<H160>,
+    /// Some = offchain quoting enabled, None = on-chain fee only.
+    pub signers: Option<BTreeSet<H160>>,
     /// Emergency revocation threshold: standing quotes with issued_at < min_issued_at are rejected.
     pub min_issued_at: i64,
     /// Set of Hyperlane destination domain IDs that have standing quote PDAs.
@@ -125,6 +126,25 @@ impl AccessControl for FeeAccount {
     }
 }
 
+impl FeeAccount {
+    /// Returns a reference to the leaf-level signer set, or an error if offchain
+    /// quoting is not configured (signers is None).
+    pub fn require_leaf_signers(&self) -> Result<&BTreeSet<H160>, ProgramError> {
+        self.signers
+            .as_ref()
+            .ok_or_else(|| crate::error::Error::OffchainQuotingNotConfigured.into())
+    }
+}
+
+/// Borsh serialized size of `Option<BTreeSet<H160>>`.
+/// None: 1 tag. Some: 1 tag + 4 len prefix + count * 20.
+fn option_signers_size(opt: &Option<BTreeSet<H160>>) -> usize {
+    1 + match opt {
+        Some(set) => BORSH_LEN_PREFIX + (set.len() * H160_SIZE),
+        None => 0,
+    }
+}
+
 impl SizedData for FeeAccount {
     fn size(&self) -> usize {
         std::mem::size_of::<u8>()                                                                   // bump
@@ -132,7 +152,7 @@ impl SizedData for FeeAccount {
         + PUBKEY_SIZE                                                                               // beneficiary
         + SizedData::size(&self.fee_data)                                                             // fee_data
         + std::mem::size_of::<u32>()                                                                // domain_id
-        + BORSH_LEN_PREFIX + (self.signers.len() * H160_SIZE)                                       // signers
+        + option_signers_size(&self.signers)                                                        // signers
         + std::mem::size_of::<i64>()                                                                // min_issued_at
         + BORSH_LEN_PREFIX + (self.standing_quote_domains.len() * std::mem::size_of::<u32>())
         // standing_quote_domains
@@ -458,7 +478,29 @@ mod tests {
             beneficiary: Pubkey::new_unique(),
             fee_data: FeeData::Routing,
             domain_id: 42,
-            signers: BTreeSet::new(),
+            signers: None,
+            min_issued_at: 0,
+            standing_quote_domains: BTreeSet::new(),
+        };
+        let encoded = borsh::to_vec(&account).unwrap();
+        let decoded: FeeAccount = borsh::from_slice(&encoded).unwrap();
+        assert_eq!(account, decoded);
+    }
+
+    #[test]
+    fn test_fee_account_borsh_roundtrip_with_some_signers() {
+        let mut signers = BTreeSet::new();
+        signers.insert(H160::random());
+        let account = FeeAccount {
+            bump_seed: 1,
+            owner: Some(Pubkey::new_unique()),
+            beneficiary: Pubkey::new_unique(),
+            fee_data: FeeData::Leaf(FeeDataStrategy::Linear(FeeParams {
+                max_fee: 100,
+                half_amount: 50,
+            })),
+            domain_id: 1,
+            signers: Some(signers),
             min_issued_at: 0,
             standing_quote_domains: BTreeSet::new(),
         };
@@ -543,7 +585,7 @@ mod tests {
     // --- SizedData consistency tests (compare against actual Borsh serialization) ---
 
     #[test]
-    fn test_sized_data_fee_account_leaf() {
+    fn test_sized_data_fee_account_leaf_no_signers() {
         let account = FeeAccount {
             bump_seed: 1,
             owner: Some(Pubkey::new_unique()),
@@ -553,7 +595,25 @@ mod tests {
                 half_amount: 50,
             })),
             domain_id: 1,
-            signers: BTreeSet::new(),
+            signers: None,
+            min_issued_at: 0,
+            standing_quote_domains: BTreeSet::new(),
+        };
+        assert_eq!(account.size(), borsh::to_vec(&account).unwrap().len());
+    }
+
+    #[test]
+    fn test_sized_data_fee_account_leaf_empty_signers() {
+        let account = FeeAccount {
+            bump_seed: 1,
+            owner: Some(Pubkey::new_unique()),
+            beneficiary: Pubkey::new_unique(),
+            fee_data: FeeData::Leaf(FeeDataStrategy::Linear(FeeParams {
+                max_fee: 100,
+                half_amount: 50,
+            })),
+            domain_id: 1,
+            signers: Some(BTreeSet::new()),
             min_issued_at: 0,
             standing_quote_domains: BTreeSet::new(),
         };
@@ -568,7 +628,7 @@ mod tests {
             beneficiary: Pubkey::new_unique(),
             fee_data: FeeData::Routing,
             domain_id: 1,
-            signers: BTreeSet::new(),
+            signers: None,
             min_issued_at: 0,
             standing_quote_domains: BTreeSet::new(),
         };
@@ -591,11 +651,27 @@ mod tests {
             beneficiary: Pubkey::new_unique(),
             fee_data: FeeData::CrossCollateralRouting,
             domain_id: 1,
-            signers,
+            signers: Some(signers),
             min_issued_at: -100,
             standing_quote_domains: domains,
         };
         assert_eq!(account.size(), borsh::to_vec(&account).unwrap().len());
+    }
+
+    #[test]
+    fn test_require_leaf_signers() {
+        let account_none = FeeAccount {
+            signers: None,
+            ..Default::default()
+        };
+        assert!(account_none.require_leaf_signers().is_err());
+
+        let account_some = FeeAccount {
+            signers: Some(BTreeSet::new()),
+            ..Default::default()
+        };
+        assert!(account_some.require_leaf_signers().is_ok());
+        assert!(account_some.require_leaf_signers().unwrap().is_empty());
     }
 
     #[test]

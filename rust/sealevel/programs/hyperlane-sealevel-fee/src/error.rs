@@ -69,6 +69,9 @@ pub enum Error {
     /// Quote issued_at is too far in the future (beyond allowed clock skew).
     #[error("Quote issued_at too far in the future")]
     IssuedAtTooFarInFuture = 21,
+    /// Offchain quoting is not configured (signers is None).
+    #[error("Offchain quoting not configured")]
+    OffchainQuotingNotConfigured = 22,
 }
 
 impl From<Error> for ProgramError {

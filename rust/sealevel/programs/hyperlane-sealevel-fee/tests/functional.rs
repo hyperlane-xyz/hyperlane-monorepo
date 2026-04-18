@@ -654,7 +654,7 @@ mod init_fee {
         assert_eq!(acct.beneficiary, beneficiary);
         assert_eq!(acct.fee_data, fee_data);
         assert_eq!(acct.domain_id, LOCAL_DOMAIN);
-        assert_eq!(acct.signers, BTreeSet::new());
+        assert_eq!(acct.signers, Some(BTreeSet::new()));
         assert_eq!(acct.min_issued_at, 0);
         assert_eq!(acct.standing_quote_domains, BTreeSet::new());
     }
@@ -2104,8 +2104,8 @@ mod add_quote_signer {
             .unwrap();
 
         let acct = fetch_fee_account(&mut banks_client, fee_key).await;
-        assert!(acct.signers.contains(&signer));
-        assert_eq!(acct.signers.len(), 1);
+        assert!(acct.signers.as_ref().unwrap().contains(&signer));
+        assert_eq!(acct.signers.as_ref().unwrap().len(), 1);
     }
 
     #[tokio::test]
@@ -2135,9 +2135,9 @@ mod add_quote_signer {
             .unwrap();
 
         let acct = fetch_fee_account(&mut banks_client, fee_key).await;
-        assert!(acct.signers.contains(&signer1));
-        assert!(acct.signers.contains(&signer2));
-        assert_eq!(acct.signers.len(), 2);
+        assert!(acct.signers.as_ref().unwrap().contains(&signer1));
+        assert!(acct.signers.as_ref().unwrap().contains(&signer2));
+        assert_eq!(acct.signers.as_ref().unwrap().len(), 2);
     }
 
     #[tokio::test]
@@ -2165,7 +2165,7 @@ mod add_quote_signer {
             .unwrap();
 
         let acct = fetch_fee_account(&mut banks_client, fee_key).await;
-        assert_eq!(acct.signers.len(), 1);
+        assert_eq!(acct.signers.as_ref().unwrap().len(), 1);
     }
 
     #[tokio::test]
@@ -2256,8 +2256,8 @@ mod remove_quote_signer {
             .unwrap();
 
         let acct = fetch_fee_account(&mut banks_client, fee_key).await;
-        assert!(!acct.signers.contains(&signer));
-        assert_eq!(acct.signers.len(), 0);
+        assert!(!acct.signers.as_ref().unwrap().contains(&signer));
+        assert_eq!(acct.signers.as_ref().unwrap().len(), 0);
     }
 
     #[tokio::test]
@@ -2278,8 +2278,9 @@ mod remove_quote_signer {
             .await
             .unwrap();
 
+        // signers is still Some(empty) (remove nonexistent from empty set is a no-op).
         let acct = fetch_fee_account(&mut banks_client, fee_key).await;
-        assert_eq!(acct.signers.len(), 0);
+        assert_eq!(acct.signers, Some(BTreeSet::new()));
     }
 
     #[tokio::test]
@@ -2577,7 +2578,7 @@ mod submit_transient_quote {
         )
         .await;
 
-        // Don't add any signers.
+        // No signers added (empty set) — should fail with InvalidQuoteSignature.
         let issued_at = encode_u48(100);
         let quote = make_signed_transient_quote(
             &signing_key,

@@ -147,7 +147,7 @@ fn process_init_fee(program_id: &Pubkey, accounts: &[AccountInfo], data: InitFee
             beneficiary: data.beneficiary,
             fee_data: data.fee_data,
             domain_id: data.domain_id,
-            signers: BTreeSet::new(),
+            signers: Some(BTreeSet::new()),
             min_issued_at: 0,
             standing_quote_domains: BTreeSet::new(),
         }
@@ -736,7 +736,11 @@ fn process_add_quote_signer(
 
     ensure_no_extraneous_accounts(accounts_iter)?;
 
-    fee_account.signers.insert(signer);
+    fee_account
+        .signers
+        .as_mut()
+        .ok_or(ProgramError::from(Error::OffchainQuotingNotConfigured))?
+        .insert(signer);
 
     FeeAccountData::new(fee_account.into()).store_with_rent_exempt_realloc(
         fee_account_info,
@@ -773,7 +777,9 @@ fn process_remove_quote_signer(
 
     ensure_no_extraneous_accounts(accounts_iter)?;
 
-    fee_account.signers.remove(&signer);
+    if let Some(ref mut signers) = fee_account.signers {
+        signers.remove(&signer);
+    }
 
     FeeAccountData::new(fee_account.into()).store(fee_account_info, false)?;
 
@@ -861,12 +867,13 @@ fn process_submit_quote(
     let fee_account = FeeAccountData::fetch(&mut &fee_account_info.data.borrow()[..])?.into_inner();
 
     // Verify the quote signature against authorized signers.
+    let signers = fee_account.require_leaf_signers()?;
     quote
         .verify_signer(
             fee_account_info.key,
             fee_account.domain_id,
             payer_info.key,
-            &fee_account.signers,
+            signers,
         )
         .map_err(|_| Error::InvalidQuoteSignature)?;
 
