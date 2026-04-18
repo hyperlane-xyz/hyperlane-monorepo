@@ -432,7 +432,9 @@ async function resolveSubmitChains(
 export function getSubmitterChains(
   submitter: ExtendedSubmissionStrategy['submitter'],
 ): ChainName[] {
-  const chains: ChainName[] = submitter.chain ? [submitter.chain] : [];
+  const chains: ChainName[] =
+    'chain' in submitter && submitter.chain ? [submitter.chain] : [];
+  // submitter_ref has no chain until resolved; caller adds the destination chain separately.
   if (submitter.type === TxSubmitterType.INTERCHAIN_ACCOUNT) {
     if (submitter.destinationChain) chains.push(submitter.destinationChain);
     if (submitter.internalSubmitter)

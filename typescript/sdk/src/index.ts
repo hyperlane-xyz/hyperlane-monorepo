@@ -536,7 +536,17 @@ export { TxSubmitterType } from './providers/transactions/submitter/TxSubmitterT
 export {
   SubmitterMetadata,
   SubmitterMetadataSchema,
+  UnresolvedSubmitterReference,
+  UnresolvedSubmitterReferenceSchema,
 } from './providers/transactions/submitter/types.js';
+export {
+  SubmitterLookup,
+  UnresolvedSubmissionStrategy,
+  UnresolvedSubmissionStrategySchema,
+  parseSubmitterReferencePayload,
+  resolveSubmissionStrategy,
+  resolveSubmitterMetadata,
+} from './providers/transactions/submitter/reference.js';
 
 export {
   EV5GnosisSafeTxSubmitterProps,

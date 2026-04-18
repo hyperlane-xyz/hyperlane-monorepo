@@ -56,6 +56,36 @@ View SDK contract addresses: `hyperlane chains addresses`
 
 Send test message: `hyperlane send message`
 
+## Submitter strategies
+
+The CLI accepts per-chain submission strategies with a `submitter` block. There are now three main ways to provide that submitter config:
+
+- Inline submitter metadata: put the full submitter config directly in the strategy file.
+- `file` submitter: write transactions to disk instead of sending them. Useful for offline review/signing flows, not for shared credential lookup.
+- `submitter_ref`: keep the strategy small and resolve the real submitter config from the registry at runtime.
+
+`submitter_ref` is a registry-backed indirection layer. Instead of embedding a private key or multisig config inline, the strategy points at a top-level registry entry under `submitters/`. The resolved payload can be either a bare submitter object or a `{ submitter: ... }` strategy wrapper.
+
+```yaml
+# strategy.yaml
+arbitrum:
+  submitter:
+    type: submitter_ref
+    ref: submitters/dev-arbitrum
+```
+
+```yaml
+# <registry>/submitters/dev-arbitrum.yaml
+submitter:
+  type: jsonRpc
+  chain: arbitrum
+  privateKey: ${HYP_KEY}
+```
+
+Compared with inline config, `submitter_ref` keeps reusable submitter definitions in one place and lets multiple configs share them. Compared with `file` submitters, `submitter_ref` still resolves to a real on-chain submitter and executes transactions normally.
+
+Resolution is done against the same registries the CLI already loads. Local registries are read from disk. HTTPS-backed registries are fetched over HTTP(S), and when an auth token is configured for registry access the CLI forwards it as `Authorization: Bearer <token>` while resolving submitter refs.
+
 ### Address conversion utilities
 
 Convert address to bytes32: `hyperlane address to-bytes32 --address <address> [--protocol <protocol>]`

@@ -160,6 +160,7 @@
     "pino": "catalog:",
     "starknet": "catalog:",
     "viem": "catalog:",
+    "yaml": "catalog:",
     "zksync-ethers": "catalog:",
     "zod": "catalog:"
   },
@@ -186,8 +187,7 @@
     "solidity-coverage": "catalog:",
     "ts-node": "catalog:",
     "tsx": "catalog:",
-    "typescript": "catalog:",
-    "yaml": "catalog:"
+    "typescript": "catalog:"
   },
   "peerDependencies": {
     "@ethersproject/abi": "*"

@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import { type PopulatedTransaction as EV5Transaction, ethers } from 'ethers';
+import { mkdirSync } from 'fs';
 
 import { type XERC20VSTest, XERC20VSTest__factory } from '@hyperlane-xyz/core';
 import { TxSubmitterType, randomAddress } from '@hyperlane-xyz/sdk';
@@ -14,6 +15,7 @@ import {
   CHAIN_NAME_2,
   CHAIN_NAME_3,
   DEFAULT_E2E_TEST_TIMEOUT,
+  REGISTRY_PATH,
   TEMP_PATH,
 } from '../consts.js';
 
@@ -160,6 +162,44 @@ describe('hyperlane submit', function () {
       initialBalances[0].add(chain2MintAmount).toNumber(),
       initialBalances[1].add(chain3MintAmount).toNumber(),
     ]);
+  });
+
+  it('should execute a submitter reference strategy', async function () {
+    mkdirSync(`${REGISTRY_PATH}/submitters`, { recursive: true });
+    const submitterPath = `${REGISTRY_PATH}/submitters/chain2-owner.yaml`;
+    writeYamlOrJson(submitterPath, {
+      submitter: {
+        type: TxSubmitterType.JSON_RPC,
+        chain: CHAIN_NAME_2,
+        privateKey: ANVIL_KEY,
+      },
+    });
+
+    const strategyPath = `${TEMP_PATH}/submitter-reference-strategy.yaml`;
+    writeYamlOrJson(strategyPath, {
+      [CHAIN_NAME_2]: {
+        submitter: {
+          type: TxSubmitterType.SUBMITTER_REF,
+          ref: `${REGISTRY_PATH}/submitters/chain2-owner`,
+        },
+      },
+    });
+
+    const chain2MintAmount = randomInt(1, 1000);
+    const transaction = await getMintOnlyOwnerTransaction(
+      xerc20Chain2,
+      ALICE,
+      chain2MintAmount,
+      ANVIL2_CHAIN_ID,
+    );
+    const transactionsPath = `${TEMP_PATH}/submitter-reference-transactions.yaml`;
+    writeYamlOrJson(transactionsPath, [transaction]);
+
+    const initialBalance = await xerc20Chain2.balanceOf(ALICE);
+    await hyperlaneSubmit({ strategyPath, transactionsPath });
+    expect(await xerc20Chain2.balanceOf(ALICE)).to.eql(
+      initialBalance.add(chain2MintAmount),
+    );
   });
 
   describe('FileSubmitter', function () {

@@ -1,64 +1,8 @@
-import { type IRegistry, WarpRouteFilterParams } from '@hyperlane-xyz/registry';
-import {
-  type SubmissionStrategy,
-  SubmissionStrategySchema,
-  TxSubmitterType,
-  parseSubmitterReferencePayload,
-  resolveSubmitterMetadata,
-} from '@hyperlane-xyz/sdk';
-import { readYamlOrJson } from '@hyperlane-xyz/utils/fs';
+import { type IRegistry } from '@hyperlane-xyz/registry';
+import { parseSubmitterReferencePayload } from '@hyperlane-xyz/sdk';
+import { assert } from '@hyperlane-xyz/utils';
 
-import { AbstractService } from './abstractService.js';
-import { RegistryService } from './registryService.js';
-
-export class RootService extends AbstractService {
-  constructor(
-    registryService: RegistryService,
-    private readonly authToken?: string,
-  ) {
-    super(registryService);
-  }
-
-  async getMetadata() {
-    return this.withRegistry(async (registry) => {
-      return registry.getMetadata();
-    });
-  }
-
-  async getAddresses() {
-    return this.withRegistry(async (registry) => {
-      return registry.getAddresses();
-    });
-  }
-
-  async getChains() {
-    return this.withRegistry(async (registry) => {
-      return registry.getChains();
-    });
-  }
-
-  async listRegistryContent() {
-    return this.withRegistry(async (registry) => {
-      return registry.listRegistryContent();
-    });
-  }
-
-  async getWarpRoutes(filter?: WarpRouteFilterParams) {
-    return this.withRegistry(async (registry) => {
-      return registry.getWarpRoutes(filter);
-    });
-  }
-
-  async getSubmitter(id: string): Promise<SubmissionStrategy> {
-    return this.withRegistry(async (registry) => {
-      const submitter = await resolveSubmitterMetadata(
-        { type: TxSubmitterType.SUBMITTER_REF, ref: `submitters/${id}` },
-        extendRegistryWithSubmitters(registry, this.authToken),
-      );
-      return SubmissionStrategySchema.parse({ submitter });
-    });
-  }
-}
+import { readYamlOrJson } from '../utils/files.js';
 
 const SUBMITTER_DIRECTORY = 'submitters';
 const SUPPORTED_EXTENSIONS = ['', '.yaml', '.yml', '.json'];
@@ -124,11 +68,10 @@ function getCandidateItemPaths(ref: string, registry: IRegistry): string[] {
   if (!strippedRef && isUrl(ref)) return [];
 
   const normalizedRef = (strippedRef ?? ref).replace(/^\/+/, '');
-  if (!normalizedRef.startsWith(`${SUBMITTER_DIRECTORY}/`)) {
-    throw new Error(
-      `Submitter reference ${ref} must target a top-level ${SUBMITTER_DIRECTORY}/ entry`,
-    );
-  }
+  assert(
+    normalizedRef.startsWith(`${SUBMITTER_DIRECTORY}/`),
+    `Submitter reference ${ref} must target a top-level ${SUBMITTER_DIRECTORY}/ entry`,
+  );
 
   if (
     SUPPORTED_EXTENSIONS.some(
@@ -178,11 +121,10 @@ async function loadPayload(
       headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
     });
     if (response.status === 404) return null;
-    if (!response.ok) {
-      throw new Error(
-        `Failed to fetch submitter reference ${source}: ${response.status} ${response.statusText}`,
-      );
-    }
+    assert(
+      response.ok,
+      `Failed to fetch submitter reference ${source}: ${response.status} ${response.statusText}`,
+    );
     return parseSubmitterReferencePayload(await response.text(), source);
   }
   if (isUrl(source)) return null;

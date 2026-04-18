@@ -55,7 +55,10 @@ async function main() {
     });
   };
 
-  const server = await HttpServer.create(getRegistryInstance, { writeMode });
+  const server = await HttpServer.create(getRegistryInstance, {
+    authToken,
+    writeMode,
+  });
   await server.start(port?.toString(), refreshInterval?.toString());
 }
 

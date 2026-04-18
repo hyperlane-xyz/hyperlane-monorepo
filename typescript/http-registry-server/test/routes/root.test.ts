@@ -6,6 +6,7 @@ import sinon from 'sinon';
 import request from 'supertest';
 
 import { WarpRouteFilterParams } from '@hyperlane-xyz/registry';
+import { TxSubmitterType } from '@hyperlane-xyz/sdk';
 
 import { AppConstants } from '../../src/constants/AppConstants.js';
 import { createErrorHandler } from '../../src/middleware/errorHandler.js';
@@ -250,6 +251,66 @@ describe('Root Routes', () => {
 
       expect(mockRootService.getWarpRoutes.calledWith(multipleFilters)).to.be
         .true;
+    });
+  });
+
+  describe('GET /submitters/:id', () => {
+    it('should return a resolved submitter strategy', async () => {
+      const submitter = {
+        submitter: {
+          type: TxSubmitterType.JSON_RPC as const,
+          chain: 'ethereum',
+          privateKey:
+            '0x0123456789012345678901234567890123456789012345678901234567890123',
+        },
+      };
+      mockRootService.getSubmitter.resolves(submitter);
+
+      const response = await request(app)
+        .get('/submitters/dev-ethereum')
+        .expect(AppConstants.HTTP_STATUS_OK);
+
+      expect(response.body).to.deep.equal(submitter);
+      expect(mockRootService.getSubmitter.calledWith('dev-ethereum')).to.be
+        .true;
+    });
+
+    it('should keep the singular alias working', async () => {
+      const submitter = {
+        submitter: {
+          type: TxSubmitterType.JSON_RPC as const,
+          chain: 'ethereum',
+          privateKey:
+            '0x0123456789012345678901234567890123456789012345678901234567890123',
+        },
+      };
+      mockRootService.getSubmitter.resolves(submitter);
+
+      const response = await request(app)
+        .get('/submitter/dev-ethereum')
+        .expect(AppConstants.HTTP_STATUS_OK);
+
+      expect(response.body).to.deep.equal(submitter);
+      expect(mockRootService.getSubmitter.calledWith('dev-ethereum')).to.be
+        .true;
+    });
+
+    it('should handle service errors', async () => {
+      mockRootService.getSubmitter.rejects(new Error('Submitter fetch failed'));
+
+      const response = await request(app)
+        .get('/submitters/dev-ethereum')
+        .expect(AppConstants.HTTP_STATUS_INTERNAL_SERVER_ERROR);
+
+      expect(response.body.message).to.include('Submitter fetch failed');
+    });
+
+    it('should reject parent directory submitter ids', async () => {
+      await request(app)
+        .get('/submitters/%2e%2e')
+        .expect(AppConstants.HTTP_STATUS_BAD_REQUEST);
+
+      expect(mockRootService.getSubmitter.called).to.be.false;
     });
   });
 

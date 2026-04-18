@@ -5,4 +5,5 @@ export enum TxSubmitterType {
   GNOSIS_TX_BUILDER = 'gnosisSafeTxBuilder',
   INTERCHAIN_ACCOUNT = 'interchainAccount',
   TIMELOCK_CONTROLLER = 'timelockController',
+  SUBMITTER_REF = 'submitter_ref',
 }
