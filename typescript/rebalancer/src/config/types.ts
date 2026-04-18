@@ -36,6 +36,7 @@ export enum ExecutionType {
 
 export enum ExternalBridgeType {
   LiFi = 'lifi',
+  CctpWarp = 'cctpWarp',
 }
 
 export const RebalancerMinAmountConfigSchema = z.object({
@@ -126,8 +127,15 @@ export const LiFiBridgeConfigSchema = z.object({
   defaultSlippage: z.number().optional(),
 });
 
+export const CctpWarpBridgeModeSchema = z.enum(['fast', 'standard']);
+
+export const CctpWarpBridgeConfigSchema = z.object({
+  mode: CctpWarpBridgeModeSchema,
+});
+
 export const ExternalBridgesConfigSchema = z.object({
   lifi: LiFiBridgeConfigSchema.optional(),
+  cctpWarp: CctpWarpBridgeConfigSchema.optional(),
 });
 
 export const RebalancerConfigSchema = z
@@ -365,16 +373,44 @@ export const RebalancerConfigSchema = z
           // Other protocols: accept any non-empty string (future-proof)
         }
       }
-
-      if (!config.externalBridges?.lifi?.integrator) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message:
-            'externalBridges.lifi is required when using inventory execution',
-          path: ['externalBridges', 'lifi'],
-        });
-      }
     }
+
+    const getMissingExternalBridgeConfigPath = (
+      externalBridge: ExternalBridgeType | undefined,
+    ): (string | number)[] | undefined => {
+      switch (externalBridge) {
+        case ExternalBridgeType.LiFi:
+          return config.externalBridges?.lifi?.integrator
+            ? undefined
+            : ['externalBridges', 'lifi'];
+        case ExternalBridgeType.CctpWarp:
+          return config.externalBridges?.cctpWarp?.mode
+            ? undefined
+            : ['externalBridges', 'cctpWarp'];
+        case undefined:
+          return undefined;
+        default: {
+          const _exhaustive: never = externalBridge;
+          return _exhaustive;
+        }
+      }
+    };
+
+    const getExternalBridgeConfigError = (
+      chainName: string,
+      externalBridge: ExternalBridgeType,
+    ): string => {
+      switch (externalBridge) {
+        case ExternalBridgeType.LiFi:
+          return `Chain '${chainName}' uses externalBridge: 'lifi' but externalBridges.lifi is not configured`;
+        case ExternalBridgeType.CctpWarp:
+          return `Chain '${chainName}' uses externalBridge: 'cctpWarp' but externalBridges.cctpWarp is not configured`;
+        default: {
+          const _exhaustive: never = externalBridge;
+          return `Unsupported external bridge '${_exhaustive}'`;
+        }
+      }
+    };
 
     for (
       let strategyIndex = 0;
@@ -383,25 +419,29 @@ export const RebalancerConfigSchema = z
     ) {
       const strategy = config.strategy[strategyIndex];
       for (const [chainName, chainConfig] of Object.entries(strategy.chains)) {
-        const checkLifiBridge = (
+        const checkExternalBridgeConfig = (
           externalBridge: ExternalBridgeType | undefined,
           path: (string | number)[],
         ) => {
-          if (
-            externalBridge === ExternalBridgeType.LiFi &&
-            !config.externalBridges?.lifi?.integrator
-          ) {
-            ctx.addIssue({
-              code: z.ZodIssueCode.custom,
-              message: `Chain '${chainName}' uses externalBridge: 'lifi' but externalBridges.lifi is not configured`,
-              path,
-            });
-          }
+          if (!externalBridge) return;
+
+          const missingPath =
+            getMissingExternalBridgeConfigPath(externalBridge);
+          if (!missingPath) return;
+
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: getExternalBridgeConfigError(chainName, externalBridge),
+            path,
+          });
         };
 
-        checkLifiBridge(chainConfig.externalBridge, [
-          'externalBridges',
-          'lifi',
+        checkExternalBridgeConfig(chainConfig.externalBridge, [
+          'strategy',
+          strategyIndex,
+          'chains',
+          chainName,
+          'externalBridge',
         ]);
 
         if (chainConfig.override) {
@@ -412,7 +452,7 @@ export const RebalancerConfigSchema = z
               ...chainConfig,
               ...(overrideConfig as Record<string, unknown>),
             };
-            checkLifiBridge(
+            checkExternalBridgeConfig(
               merged.externalBridge as ExternalBridgeType | undefined,
               [
                 'strategy',

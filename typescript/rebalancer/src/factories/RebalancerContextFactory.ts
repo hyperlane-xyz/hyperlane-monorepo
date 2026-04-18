@@ -20,6 +20,7 @@ import {
   toWei,
 } from '@hyperlane-xyz/utils';
 
+import { CctpWarpBridge } from '../bridges/CctpWarpBridge.js';
 import { LiFiBridge } from '../bridges/LiFiBridge.js';
 import { type RebalancerConfig } from '../config/RebalancerConfig.js';
 import {
@@ -624,6 +625,20 @@ export class RebalancerContextFactory {
                 defaultSlippage: lifiConfig.defaultSlippage,
                 chainMetadata: this.multiProvider.metadata,
               },
+              this.logger,
+            );
+          }
+          break;
+        }
+        case ExternalBridgeType.CctpWarp: {
+          const cctpWarpConfig = externalBridges?.cctpWarp;
+          if (cctpWarpConfig?.mode) {
+            registry[ExternalBridgeType.CctpWarp] = new CctpWarpBridge(
+              {
+                mode: cctpWarpConfig.mode,
+              },
+              this.multiProvider,
+              this.registry,
               this.logger,
             );
           }
