@@ -44,14 +44,22 @@ pub enum Instruction {
     /// Transfer ownership of the fee account (owner-only).
     TransferOwnership(Option<Pubkey>),
     /// Add an authorized offchain quote signer (owner-only).
+    /// For Leaf: route = None (mutates FeeAccount.signers).
+    /// For Routing: route = Some(Domain(d)) (mutates RouteDomain.signers).
+    /// For CC: route = Some(CrossCollateral { .. }) (mutates CrossCollateralRoute.signers).
     AddQuoteSigner {
         /// Ethereum address (secp256k1) of the signer to authorize.
         signer: H160,
+        /// Route key for PDA derivation. None targets FeeAccount (Leaf mode).
+        route: Option<RouteKey>,
     },
     /// Remove an offchain quote signer (owner-only).
+    /// Same routing semantics as AddQuoteSigner.
     RemoveQuoteSigner {
         /// Ethereum address (secp256k1) of the signer to remove.
         signer: H160,
+        /// Route key for PDA derivation. None targets FeeAccount (Leaf mode).
+        route: Option<RouteKey>,
     },
     /// Set the minimum issued_at threshold for standing quote validation (owner-only).
     /// Standing quotes with issued_at < min_issued_at are rejected.
@@ -89,6 +97,22 @@ impl Instruction {
     pub fn into_instruction_data(self) -> Result<Vec<u8>, ProgramError> {
         borsh::to_vec(&self).map_err(|_| ProgramError::BorshIoError)
     }
+}
+
+// --- Route key for signer mutation dispatch ---
+
+/// Identifies which route PDA to target for signer management.
+#[derive(BorshDeserialize, BorshSerialize, Clone, Debug, PartialEq)]
+pub enum RouteKey {
+    /// Target a RouteDomain PDA (Routing mode).
+    Domain(u32),
+    /// Target a CrossCollateralRoute PDA (CC mode).
+    CrossCollateral {
+        /// Hyperlane destination domain ID.
+        destination: u32,
+        /// Remote warp route contract address.
+        target_router: H256,
+    },
 }
 
 // --- Instruction data structs ---
@@ -445,23 +469,32 @@ pub fn transfer_ownership_instruction(
 }
 
 /// Builds an AddQuoteSigner instruction (owner-only).
+/// For Leaf mode: pass `route = None` (mutates FeeAccount.signers).
+/// For Routing: pass `route = Some(RouteKey::Domain(d))`.
+/// For CC: pass `route = Some(RouteKey::CrossCollateral { .. })`.
 pub fn add_quote_signer_instruction(
     program_id: Pubkey,
     fee_account: Pubkey,
     owner: Pubkey,
     signer: H160,
+    route: Option<RouteKey>,
 ) -> Result<SolanaInstruction, ProgramError> {
-    let ixn = Instruction::AddQuoteSigner { signer };
+    let ixn = Instruction::AddQuoteSigner {
+        signer,
+        route: route.clone(),
+    };
 
-    // Accounts:
-    // 0. `[executable]` System program.
-    // 1. `[writable]` Fee account.
-    // 2. `[signer, writable]` Owner.
-    let accounts = vec![
+    let mut accounts = vec![
         AccountMeta::new_readonly(system_program::ID, false),
         AccountMeta::new(fee_account, false),
         AccountMeta::new(owner, true),
     ];
+
+    // Append route PDA if targeting a route.
+    if let Some(ref route_key) = route {
+        let route_pda = derive_route_pda(&program_id, &fee_account, route_key)?;
+        accounts.push(AccountMeta::new(route_pda, false));
+    }
 
     Ok(SolanaInstruction {
         program_id,
@@ -471,29 +504,66 @@ pub fn add_quote_signer_instruction(
 }
 
 /// Builds a RemoveQuoteSigner instruction (owner-only).
+/// Same routing semantics as add_quote_signer_instruction.
 pub fn remove_quote_signer_instruction(
     program_id: Pubkey,
     fee_account: Pubkey,
     owner: Pubkey,
     signer: H160,
+    route: Option<RouteKey>,
 ) -> Result<SolanaInstruction, ProgramError> {
-    let ixn = Instruction::RemoveQuoteSigner { signer };
+    let ixn = Instruction::RemoveQuoteSigner {
+        signer,
+        route: route.clone(),
+    };
 
-    // Accounts:
-    // 0. `[executable]` System program.
-    // 1. `[writable]` Fee account.
-    // 2. `[signer, writable]` Owner.
-    let accounts = vec![
+    let mut accounts = vec![
         AccountMeta::new_readonly(system_program::ID, false),
         AccountMeta::new(fee_account, false),
         AccountMeta::new(owner, true),
     ];
+
+    if let Some(ref route_key) = route {
+        let route_pda = derive_route_pda(&program_id, &fee_account, route_key)?;
+        accounts.push(AccountMeta::new(route_pda, false));
+    }
 
     Ok(SolanaInstruction {
         program_id,
         data: borsh::to_vec(&ixn)?,
         accounts,
     })
+}
+
+/// Derives the route PDA address for a given RouteKey.
+fn derive_route_pda(
+    program_id: &Pubkey,
+    fee_account: &Pubkey,
+    route_key: &RouteKey,
+) -> Result<Pubkey, ProgramError> {
+    match route_key {
+        RouteKey::Domain(domain) => {
+            let domain_le = domain.to_le_bytes();
+            Pubkey::try_find_program_address(
+                route_domain_pda_seeds!(fee_account, &domain_le),
+                program_id,
+            )
+            .map(|(key, _)| key)
+            .ok_or(ProgramError::InvalidSeeds)
+        }
+        RouteKey::CrossCollateral {
+            destination,
+            target_router,
+        } => {
+            let dest_le = destination.to_le_bytes();
+            Pubkey::try_find_program_address(
+                cc_route_pda_seeds!(fee_account, &dest_le, target_router),
+                program_id,
+            )
+            .map(|(key, _)| key)
+            .ok_or(ProgramError::InvalidSeeds)
+        }
+    }
 }
 
 /// Builds a SetMinIssuedAt instruction (owner-only).
@@ -522,12 +592,15 @@ pub fn set_min_issued_at_instruction(
 
 /// Builds a SubmitQuote instruction for a transient quote.
 /// The transient PDA is derived from the fee_account and scoped_salt.
+/// For Routing/CC fee accounts, pass `route_pdas` with the route PDA(s) for signer lookup.
+/// For Leaf, pass an empty slice.
 pub fn submit_transient_quote_instruction(
     program_id: Pubkey,
     payer: Pubkey,
     fee_account: Pubkey,
     scoped_salt: H256,
     quote: SvmSignedQuote,
+    route_pdas: &[Pubkey],
 ) -> Result<SolanaInstruction, ProgramError> {
     let (transient_pda, _) = Pubkey::try_find_program_address(
         transient_quote_pda_seeds!(fee_account, scoped_salt),
@@ -541,13 +614,17 @@ pub fn submit_transient_quote_instruction(
     // 0. `[executable]` System program.
     // 1. `[signer, writable]` Payer.
     // 2. `[]` Fee account.
-    // 3. `[writable]` Transient quote PDA.
-    let accounts = vec![
+    // 3..N. `[]` Route PDAs (Routing: 1 RouteDomain, CC: specific + default CC route).
+    // N+1. `[writable]` Transient quote PDA.
+    let mut accounts = vec![
         AccountMeta::new_readonly(system_program::ID, false),
         AccountMeta::new(payer, true),
         AccountMeta::new_readonly(fee_account, false),
-        AccountMeta::new(transient_pda, false),
     ];
+    for pda in route_pdas {
+        accounts.push(AccountMeta::new_readonly(*pda, false));
+    }
+    accounts.push(AccountMeta::new(transient_pda, false));
 
     Ok(SolanaInstruction {
         program_id,
@@ -559,6 +636,8 @@ pub fn submit_transient_quote_instruction(
 /// Builds a SubmitQuote instruction for a standing quote.
 /// For Leaf/Routing fee accounts, pass `target_router = H256::zero()`.
 /// For CC fee accounts, pass the actual target_router.
+/// For Routing/CC fee accounts, pass `route_pdas` with the route PDA(s) for signer lookup.
+/// For Leaf, pass an empty slice.
 pub fn submit_standing_quote_instruction(
     program_id: Pubkey,
     payer: Pubkey,
@@ -566,6 +645,7 @@ pub fn submit_standing_quote_instruction(
     domain: u32,
     target_router: H256,
     quote: SvmSignedQuote,
+    route_pdas: &[Pubkey],
 ) -> Result<SolanaInstruction, ProgramError> {
     let domain_le = domain.to_le_bytes();
     let (standing_pda, _) = Pubkey::try_find_program_address(
@@ -580,13 +660,17 @@ pub fn submit_standing_quote_instruction(
     // 0. `[executable]` System program.
     // 1. `[signer, writable]` Payer.
     // 2. `[writable]` Fee account (updated with standing_quote_domains on new domain).
-    // 3. `[writable]` Standing quote PDA.
-    let accounts = vec![
+    // 3..N. `[]` Route PDAs (Routing: 1 RouteDomain, CC: specific + default CC route).
+    // N+1. `[writable]` Standing quote PDA.
+    let mut accounts = vec![
         AccountMeta::new_readonly(system_program::ID, false),
         AccountMeta::new(payer, true),
         AccountMeta::new(fee_account, false),
-        AccountMeta::new(standing_pda, false),
     ];
+    for pda in route_pdas {
+        accounts.push(AccountMeta::new_readonly(*pda, false));
+    }
+    accounts.push(AccountMeta::new(standing_pda, false));
 
     Ok(SolanaInstruction {
         program_id,

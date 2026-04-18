@@ -178,11 +178,11 @@ fn default_leaf_fee_data() -> FeeData {
     }))
 }
 
-fn default_signers_for(_fee_data: &FeeData) -> Option<BTreeSet<H160>> {
-    // All modes get Some(empty) for now — tests add signers via AddQuoteSigner.
-    // Routing/CC enforcement (None required) will be added when route-scoped
-    // signer paths are complete.
-    Some(BTreeSet::new())
+fn default_signers_for(fee_data: &FeeData) -> Option<BTreeSet<H160>> {
+    match fee_data {
+        FeeData::Leaf(_) => Some(BTreeSet::new()),
+        FeeData::Routing | FeeData::CrossCollateralRouting => None,
+    }
 }
 
 fn build_init_fee_ix(
@@ -463,13 +463,28 @@ fn build_quote_fee_cc_ix(
 }
 
 fn build_add_quote_signer_ix(fee_account: &Pubkey, owner: &Pubkey, signer: H160) -> Instruction {
-    instruction::add_quote_signer_instruction(fee_program_id(), *fee_account, *owner, signer)
+    build_add_quote_signer_ix_with_route(fee_account, owner, signer, None)
+}
+
+fn build_add_quote_signer_ix_with_route(
+    fee_account: &Pubkey,
+    owner: &Pubkey,
+    signer: H160,
+    route: Option<instruction::RouteKey>,
+) -> Instruction {
+    instruction::add_quote_signer_instruction(fee_program_id(), *fee_account, *owner, signer, route)
         .unwrap()
 }
 
 fn build_remove_quote_signer_ix(fee_account: &Pubkey, owner: &Pubkey, signer: H160) -> Instruction {
-    instruction::remove_quote_signer_instruction(fee_program_id(), *fee_account, *owner, signer)
-        .unwrap()
+    instruction::remove_quote_signer_instruction(
+        fee_program_id(),
+        *fee_account,
+        *owner,
+        signer,
+        None,
+    )
+    .unwrap()
 }
 
 fn build_set_min_issued_at_ix(
@@ -566,6 +581,15 @@ fn build_submit_transient_ix(
     payer: &Pubkey,
     quote: &SvmSignedQuote,
 ) -> Instruction {
+    build_submit_transient_ix_with_routes(fee_account, payer, quote, &[])
+}
+
+fn build_submit_transient_ix_with_routes(
+    fee_account: &Pubkey,
+    payer: &Pubkey,
+    quote: &SvmSignedQuote,
+    route_pdas: &[Pubkey],
+) -> Instruction {
     let scoped_salt = quote.compute_scoped_salt(payer);
     instruction::submit_transient_quote_instruction(
         fee_program_id(),
@@ -573,6 +597,7 @@ fn build_submit_transient_ix(
         *fee_account,
         scoped_salt,
         quote.clone(),
+        route_pdas,
     )
     .unwrap()
 }
@@ -583,13 +608,25 @@ fn build_submit_standing_ix(
     quote: &SvmSignedQuote,
     dest_domain: u32,
 ) -> Instruction {
+    build_submit_standing_ix_with_routes(fee_account, payer, quote, dest_domain, &H256::zero(), &[])
+}
+
+fn build_submit_standing_ix_with_routes(
+    fee_account: &Pubkey,
+    payer: &Pubkey,
+    quote: &SvmSignedQuote,
+    dest_domain: u32,
+    target_router: &H256,
+    route_pdas: &[Pubkey],
+) -> Instruction {
     instruction::submit_standing_quote_instruction(
         fee_program_id(),
         *payer,
         *fee_account,
         dest_domain,
-        H256::zero(),
+        *target_router,
         quote.clone(),
+        route_pdas,
     )
     .unwrap()
 }
@@ -601,15 +638,7 @@ fn build_submit_cc_standing_ix(
     dest: u32,
     target_router: &H256,
 ) -> Instruction {
-    instruction::submit_standing_quote_instruction(
-        fee_program_id(),
-        *payer,
-        *fee_account,
-        dest,
-        *target_router,
-        quote.clone(),
-    )
-    .unwrap()
+    build_submit_standing_ix_with_routes(fee_account, payer, quote, dest, target_router, &[])
 }
 
 fn build_close_transient_ix(
@@ -2226,6 +2255,7 @@ mod add_quote_signer {
             fee_program_id(),
             &FeeInstruction::AddQuoteSigner {
                 signer: H160::random(),
+                route: None,
             },
             vec![
                 AccountMeta::new_readonly(system_program::ID, false),
@@ -2341,6 +2371,7 @@ mod remove_quote_signer {
             fee_program_id(),
             &FeeInstruction::RemoveQuoteSigner {
                 signer: H160::random(),
+                route: None,
             },
             vec![
                 AccountMeta::new_readonly(system_program::ID, false),
@@ -3369,17 +3400,23 @@ mod quote_fee_transient {
         )
         .await;
 
-        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
-        process_tx(&mut banks_client, &payer, ix, &[])
-            .await
-            .unwrap();
-
         // Configure route for domain 42.
         let route_strategy = FeeDataStrategy::Regressive(FeeParams {
             max_fee: 100,
             half_amount: 50,
         });
         let ix = build_set_route_ix(&fee_key, &payer.pubkey(), 42, route_strategy);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Add signer to route PDA (must exist first).
+        let ix = build_add_quote_signer_ix_with_route(
+            &fee_key,
+            &payer.pubkey(),
+            signer_address,
+            Some(instruction::RouteKey::Domain(42)),
+        );
         process_tx(&mut banks_client, &payer, ix, &[])
             .await
             .unwrap();
@@ -3401,7 +3438,9 @@ mod quote_fee_transient {
             issued_at,
         );
 
-        let submit_ix = build_submit_transient_ix(&fee_key, &payer.pubkey(), &quote);
+        let route_pda = route_pda_for(&fee_key, 42);
+        let submit_ix =
+            build_submit_transient_ix_with_routes(&fee_key, &payer.pubkey(), &quote, &[route_pda]);
         process_tx(&mut banks_client, &payer, submit_ix, &[])
             .await
             .unwrap();
@@ -3472,11 +3511,6 @@ mod quote_fee_transient {
         )
         .await;
 
-        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
-        process_tx(&mut banks_client, &payer, ix, &[])
-            .await
-            .unwrap();
-
         let dest = 42u32;
         let recipient = H256::zero();
         let amount = 500u64;
@@ -3498,6 +3532,20 @@ mod quote_fee_transient {
             .await
             .unwrap();
 
+        // Add signer to CC route PDA (must exist first).
+        let ix = build_add_quote_signer_ix_with_route(
+            &fee_key,
+            &payer.pubkey(),
+            signer_address,
+            Some(instruction::RouteKey::CrossCollateral {
+                destination: dest,
+                target_router,
+            }),
+        );
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
         // Submit transient with CC context (76 bytes).
         let context = encode_cc_context(dest, recipient, amount, target_router);
         let data = encode_data(3000, 1500);
@@ -3513,7 +3561,14 @@ mod quote_fee_transient {
             issued_at,
         );
 
-        let submit_ix = build_submit_transient_ix(&fee_key, &payer.pubkey(), &quote);
+        let specific_pda = cc_route_pda_for(&fee_key, dest, &target_router);
+        let default_pda = cc_route_pda_for(&fee_key, dest, &DEFAULT_ROUTER);
+        let submit_ix = build_submit_transient_ix_with_routes(
+            &fee_key,
+            &payer.pubkey(),
+            &quote,
+            &[specific_pda, default_pda],
+        );
         process_tx(&mut banks_client, &payer, submit_ix, &[])
             .await
             .unwrap();
@@ -3586,11 +3641,6 @@ mod quote_fee_transient {
         )
         .await;
 
-        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
-        process_tx(&mut banks_client, &payer, ix, &[])
-            .await
-            .unwrap();
-
         let dest = 42u32;
         let target_router = H256::random();
         let wrong_router = H256::random();
@@ -3604,7 +3654,33 @@ mod quote_fee_transient {
             &payer.pubkey(),
             dest,
             target_router,
+            route_strategy.clone(),
+        );
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Also set up a CC route for wrong_router so the transient submit can resolve it.
+        let ix = build_set_cc_route_ix(
+            &fee_key,
+            &payer.pubkey(),
+            dest,
+            wrong_router,
             route_strategy,
+        );
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Add signer to wrong_router CC route PDA (quote context uses wrong_router).
+        let ix = build_add_quote_signer_ix_with_route(
+            &fee_key,
+            &payer.pubkey(),
+            signer_address,
+            Some(instruction::RouteKey::CrossCollateral {
+                destination: dest,
+                target_router: wrong_router,
+            }),
         );
         process_tx(&mut banks_client, &payer, ix, &[])
             .await
@@ -3625,7 +3701,14 @@ mod quote_fee_transient {
             issued_at,
         );
 
-        let submit_ix = build_submit_transient_ix(&fee_key, &payer.pubkey(), &quote);
+        let wrong_specific_pda = cc_route_pda_for(&fee_key, dest, &wrong_router);
+        let default_pda = cc_route_pda_for(&fee_key, dest, &DEFAULT_ROUTER);
+        let submit_ix = build_submit_transient_ix_with_routes(
+            &fee_key,
+            &payer.pubkey(),
+            &quote,
+            &[wrong_specific_pda, default_pda],
+        );
         process_tx(&mut banks_client, &payer, submit_ix, &[])
             .await
             .unwrap();
@@ -5841,14 +5924,38 @@ mod cc_standing_quotes {
         )
         .await;
 
-        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
+        let dest = 42u32;
+        let target_router = H256::random();
+        let recipient = H256::zero();
+
+        // Set up CC route so the route PDA exists for signer lookup.
+        let ix = build_set_cc_route_ix(
+            &fee_key,
+            &payer.pubkey(),
+            dest,
+            target_router,
+            FeeDataStrategy::Linear(FeeParams {
+                max_fee: 1000,
+                half_amount: 500,
+            }),
+        );
         process_tx(&mut banks_client, &payer, ix, &[])
             .await
             .unwrap();
 
-        let dest = 42u32;
-        let target_router = H256::random();
-        let recipient = H256::zero();
+        // Add signer to CC route PDA (must exist first).
+        let ix = build_add_quote_signer_ix_with_route(
+            &fee_key,
+            &payer.pubkey(),
+            signer_address,
+            Some(instruction::RouteKey::CrossCollateral {
+                destination: dest,
+                target_router,
+            }),
+        );
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
 
         let context = encode_cc_standing_context(dest, recipient, target_router);
         let data = encode_data(2000, 1000);
@@ -5863,8 +5970,16 @@ mod cc_standing_quotes {
             encode_u48(9999999999),
         );
 
-        let ix =
-            build_submit_cc_standing_ix(&fee_key, &payer.pubkey(), &quote, dest, &target_router);
+        let specific_pda = cc_route_pda_for(&fee_key, dest, &target_router);
+        let default_pda = cc_route_pda_for(&fee_key, dest, &DEFAULT_ROUTER);
+        let ix = build_submit_standing_ix_with_routes(
+            &fee_key,
+            &payer.pubkey(),
+            &quote,
+            dest,
+            &target_router,
+            &[specific_pda, default_pda],
+        );
         process_tx(&mut banks_client, &payer, ix, &[])
             .await
             .unwrap();
@@ -5892,15 +6007,56 @@ mod cc_standing_quotes {
         )
         .await;
 
-        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
-        process_tx(&mut banks_client, &payer, ix, &[])
-            .await
-            .unwrap();
-
         let dest = 42u32;
         let recipient = H256::zero();
         let router_a = H256::random();
         let router_b = H256::random();
+
+        // Set up CC routes for both routers.
+        let route_strategy = FeeDataStrategy::Linear(FeeParams {
+            max_fee: 1000,
+            half_amount: 500,
+        });
+        let ix = build_set_cc_route_ix(
+            &fee_key,
+            &payer.pubkey(),
+            dest,
+            router_a,
+            route_strategy.clone(),
+        );
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+        let ix = build_set_cc_route_ix(&fee_key, &payer.pubkey(), dest, router_b, route_strategy);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Add signer to both CC route PDAs.
+        let ix = build_add_quote_signer_ix_with_route(
+            &fee_key,
+            &payer.pubkey(),
+            signer_address,
+            Some(instruction::RouteKey::CrossCollateral {
+                destination: dest,
+                target_router: router_a,
+            }),
+        );
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+        let ix = build_add_quote_signer_ix_with_route(
+            &fee_key,
+            &payer.pubkey(),
+            signer_address,
+            Some(instruction::RouteKey::CrossCollateral {
+                destination: dest,
+                target_router: router_b,
+            }),
+        );
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
 
         // Submit standing for router_a: max_fee=1000.
         let ctx_a = encode_cc_standing_context(dest, recipient, router_a);
@@ -5914,7 +6070,16 @@ mod cc_standing_quotes {
             encode_u48(100),
             encode_u48(9999999999),
         );
-        let ix = build_submit_cc_standing_ix(&fee_key, &payer.pubkey(), &q_a, dest, &router_a);
+        let specific_pda_a = cc_route_pda_for(&fee_key, dest, &router_a);
+        let default_pda = cc_route_pda_for(&fee_key, dest, &DEFAULT_ROUTER);
+        let ix = build_submit_standing_ix_with_routes(
+            &fee_key,
+            &payer.pubkey(),
+            &q_a,
+            dest,
+            &router_a,
+            &[specific_pda_a, default_pda],
+        );
         process_tx(&mut banks_client, &payer, ix, &[])
             .await
             .unwrap();
@@ -5931,7 +6096,15 @@ mod cc_standing_quotes {
             encode_u48(100),
             encode_u48(9999999999),
         );
-        let ix = build_submit_cc_standing_ix(&fee_key, &payer.pubkey(), &q_b, dest, &router_b);
+        let specific_pda_b = cc_route_pda_for(&fee_key, dest, &router_b);
+        let ix = build_submit_standing_ix_with_routes(
+            &fee_key,
+            &payer.pubkey(),
+            &q_b,
+            dest,
+            &router_b,
+            &[specific_pda_b, default_pda],
+        );
         process_tx(&mut banks_client, &payer, ix, &[])
             .await
             .unwrap();
@@ -5963,7 +6136,30 @@ mod cc_standing_quotes {
         )
         .await;
 
-        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
+        // Set up a DEFAULT_ROUTER CC route so signer resolution succeeds via fallback.
+        let ix = build_set_cc_route_ix(
+            &fee_key,
+            &payer.pubkey(),
+            42,
+            DEFAULT_ROUTER,
+            FeeDataStrategy::Linear(FeeParams {
+                max_fee: 1000,
+                half_amount: 500,
+            }),
+        );
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let ix = build_add_quote_signer_ix_with_route(
+            &fee_key,
+            &payer.pubkey(),
+            signer_address,
+            Some(instruction::RouteKey::CrossCollateral {
+                destination: 42,
+                target_router: DEFAULT_ROUTER,
+            }),
+        );
         process_tx(&mut banks_client, &payer, ix, &[])
             .await
             .unwrap();
@@ -5982,7 +6178,16 @@ mod cc_standing_quotes {
             encode_u48(9999999999),
         );
 
-        let ix = build_submit_cc_standing_ix(&fee_key, &payer.pubkey(), &quote, 42, &H256::zero());
+        let specific_pda = cc_route_pda_for(&fee_key, 42, &H256::zero());
+        let default_pda = cc_route_pda_for(&fee_key, 42, &DEFAULT_ROUTER);
+        let ix = build_submit_standing_ix_with_routes(
+            &fee_key,
+            &payer.pubkey(),
+            &quote,
+            42,
+            &H256::zero(),
+            &[specific_pda, default_pda],
+        );
         let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
         assert_tx_error(
             result,
@@ -6009,7 +6214,30 @@ mod cc_standing_quotes {
         )
         .await;
 
-        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
+        // Set up a DEFAULT_ROUTER CC route so signer resolution succeeds.
+        let ix = build_set_cc_route_ix(
+            &fee_key,
+            &payer.pubkey(),
+            42,
+            DEFAULT_ROUTER,
+            FeeDataStrategy::Linear(FeeParams {
+                max_fee: 1000,
+                half_amount: 500,
+            }),
+        );
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let ix = build_add_quote_signer_ix_with_route(
+            &fee_key,
+            &payer.pubkey(),
+            signer_address,
+            Some(instruction::RouteKey::CrossCollateral {
+                destination: 42,
+                target_router: DEFAULT_ROUTER,
+            }),
+        );
         process_tx(&mut banks_client, &payer, ix, &[])
             .await
             .unwrap();
@@ -6032,12 +6260,15 @@ mod cc_standing_quotes {
             encode_u48(9999999999),
         );
 
-        let ix = build_submit_cc_standing_ix(
+        let specific_pda = cc_route_pda_for(&fee_key, 42, &DEFAULT_ROUTER);
+        let default_pda = cc_route_pda_for(&fee_key, 42, &DEFAULT_ROUTER);
+        let ix = build_submit_standing_ix_with_routes(
             &fee_key,
             &payer.pubkey(),
             &quote,
             42,
             &hyperlane_sealevel_fee::accounts::DEFAULT_ROUTER,
+            &[specific_pda, default_pda],
         );
         let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
         assert_tx_error(
@@ -6074,9 +6305,6 @@ mod cc_standing_quotes {
         )
         .await;
 
-        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
-        process_tx(banks_client, &payer, ix, &[]).await.unwrap();
-
         // Set up a CC route so QuoteFee can resolve the curve.
         let dest = 42u32;
         let router_a = H256::random();
@@ -6097,6 +6325,28 @@ mod cc_standing_quotes {
         let ix = build_set_cc_route_ix(&fee_key, &payer.pubkey(), dest, router_b, route_strategy);
         process_tx(banks_client, &payer, ix, &[]).await.unwrap();
 
+        // Add signer to both CC route PDAs.
+        let ix = build_add_quote_signer_ix_with_route(
+            &fee_key,
+            &payer.pubkey(),
+            signer_address,
+            Some(instruction::RouteKey::CrossCollateral {
+                destination: dest,
+                target_router: router_a,
+            }),
+        );
+        process_tx(banks_client, &payer, ix, &[]).await.unwrap();
+        let ix = build_add_quote_signer_ix_with_route(
+            &fee_key,
+            &payer.pubkey(),
+            signer_address,
+            Some(instruction::RouteKey::CrossCollateral {
+                destination: dest,
+                target_router: router_b,
+            }),
+        );
+        process_tx(banks_client, &payer, ix, &[]).await.unwrap();
+
         // Submit standing quotes for two different routers on the same domain.
         let ctx_a = encode_cc_standing_context(dest, H256::zero(), router_a);
         let q_a = make_signed_standing_quote(
@@ -6109,7 +6359,16 @@ mod cc_standing_quotes {
             encode_u48(100),
             encode_u48(9999999999),
         );
-        let ix = build_submit_cc_standing_ix(&fee_key, &payer.pubkey(), &q_a, dest, &router_a);
+        let specific_pda_a = cc_route_pda_for(&fee_key, dest, &router_a);
+        let default_pda = cc_route_pda_for(&fee_key, dest, &DEFAULT_ROUTER);
+        let ix = build_submit_standing_ix_with_routes(
+            &fee_key,
+            &payer.pubkey(),
+            &q_a,
+            dest,
+            &router_a,
+            &[specific_pda_a, default_pda],
+        );
         process_tx(banks_client, &payer, ix, &[]).await.unwrap();
 
         let ctx_b = encode_cc_standing_context(dest, H256::zero(), router_b);
@@ -6123,7 +6382,15 @@ mod cc_standing_quotes {
             encode_u48(100),
             encode_u48(9999999999),
         );
-        let ix = build_submit_cc_standing_ix(&fee_key, &payer.pubkey(), &q_b, dest, &router_b);
+        let specific_pda_b = cc_route_pda_for(&fee_key, dest, &router_b);
+        let ix = build_submit_standing_ix_with_routes(
+            &fee_key,
+            &payer.pubkey(),
+            &q_b,
+            dest,
+            &router_b,
+            &[specific_pda_b, default_pda],
+        );
         process_tx(banks_client, &payer, ix, &[]).await.unwrap();
 
         // CC accounts do not track domains in standing_quote_domains.
@@ -6186,11 +6453,6 @@ mod cc_standing_quotes {
         )
         .await;
 
-        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
-        process_tx(&mut banks_client, &payer, ix, &[])
-            .await
-            .unwrap();
-
         let dest = 42u32;
         let recipient = H256::random();
         let target_router = H256::random();
@@ -6211,6 +6473,20 @@ mod cc_standing_quotes {
             .await
             .unwrap();
 
+        // Add signer to CC route PDA (must exist first).
+        let ix = build_add_quote_signer_ix_with_route(
+            &fee_key,
+            &payer.pubkey(),
+            signer_address,
+            Some(instruction::RouteKey::CrossCollateral {
+                destination: dest,
+                target_router,
+            }),
+        );
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
         // Submit CC standing quote: max_fee=888, half_amount=1.
         let context = encode_cc_standing_context(dest, recipient, target_router);
         let data = encode_data(888, 1);
@@ -6224,8 +6500,16 @@ mod cc_standing_quotes {
             encode_u48(100),
             encode_u48(9999999999),
         );
-        let ix =
-            build_submit_cc_standing_ix(&fee_key, &payer.pubkey(), &quote, dest, &target_router);
+        let specific_pda = cc_route_pda_for(&fee_key, dest, &target_router);
+        let default_pda = cc_route_pda_for(&fee_key, dest, &DEFAULT_ROUTER);
+        let ix = build_submit_standing_ix_with_routes(
+            &fee_key,
+            &payer.pubkey(),
+            &quote,
+            dest,
+            &target_router,
+            &[specific_pda, default_pda],
+        );
         process_tx(&mut banks_client, &payer, ix, &[])
             .await
             .unwrap();
@@ -6272,11 +6556,6 @@ mod additional_coverage {
         )
         .await;
 
-        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
-        process_tx(&mut banks_client, &payer, ix, &[])
-            .await
-            .unwrap();
-
         let dest = 42u32;
         let recipient = H256::random();
         let router_a = H256::random();
@@ -6296,6 +6575,32 @@ mod additional_coverage {
             .await
             .unwrap();
 
+        // Add signer to both CC route PDAs.
+        let ix = build_add_quote_signer_ix_with_route(
+            &fee_key,
+            &payer.pubkey(),
+            signer_address,
+            Some(instruction::RouteKey::CrossCollateral {
+                destination: dest,
+                target_router: router_a,
+            }),
+        );
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+        let ix = build_add_quote_signer_ix_with_route(
+            &fee_key,
+            &payer.pubkey(),
+            signer_address,
+            Some(instruction::RouteKey::CrossCollateral {
+                destination: dest,
+                target_router: router_b,
+            }),
+        );
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
         // Standing for router_a: max_fee=777, half_amount=1.
         let sq_a = make_signed_standing_quote(
             &signing_key,
@@ -6307,7 +6612,16 @@ mod additional_coverage {
             encode_u48(100),
             encode_u48(9999999999),
         );
-        let ix = build_submit_cc_standing_ix(&fee_key, &payer.pubkey(), &sq_a, dest, &router_a);
+        let specific_pda_a = cc_route_pda_for(&fee_key, dest, &router_a);
+        let default_pda = cc_route_pda_for(&fee_key, dest, &DEFAULT_ROUTER);
+        let ix = build_submit_standing_ix_with_routes(
+            &fee_key,
+            &payer.pubkey(),
+            &sq_a,
+            dest,
+            &router_a,
+            &[specific_pda_a, default_pda],
+        );
         process_tx(&mut banks_client, &payer, ix, &[])
             .await
             .unwrap();
@@ -6323,7 +6637,15 @@ mod additional_coverage {
             encode_u48(100),
             encode_u48(9999999999),
         );
-        let ix = build_submit_cc_standing_ix(&fee_key, &payer.pubkey(), &sq_b, dest, &router_b);
+        let specific_pda_b = cc_route_pda_for(&fee_key, dest, &router_b);
+        let ix = build_submit_standing_ix_with_routes(
+            &fee_key,
+            &payer.pubkey(),
+            &sq_b,
+            dest,
+            &router_b,
+            &[specific_pda_b, default_pda],
+        );
         process_tx(&mut banks_client, &payer, ix, &[])
             .await
             .unwrap();
@@ -6375,11 +6697,6 @@ mod additional_coverage {
         )
         .await;
 
-        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
-        process_tx(&mut banks_client, &payer, ix, &[])
-            .await
-            .unwrap();
-
         let dest = 42u32;
         let recipient = H256::random();
         let router_a = H256::random();
@@ -6399,6 +6716,20 @@ mod additional_coverage {
             .await
             .unwrap();
 
+        // Add signer to router_a CC route PDA.
+        let ix = build_add_quote_signer_ix_with_route(
+            &fee_key,
+            &payer.pubkey(),
+            signer_address,
+            Some(instruction::RouteKey::CrossCollateral {
+                destination: dest,
+                target_router: router_a,
+            }),
+        );
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
         // Wildcard-domain standing for router_a ONLY: max_fee=555, half_amount=1.
         let sq = make_signed_standing_quote(
             &signing_key,
@@ -6410,8 +6741,16 @@ mod additional_coverage {
             encode_u48(100),
             encode_u48(9999999999),
         );
-        let ix =
-            build_submit_cc_standing_ix(&fee_key, &payer.pubkey(), &sq, WILDCARD_DOMAIN, &router_a);
+        let specific_pda = cc_route_pda_for(&fee_key, dest, &router_a);
+        let default_pda = cc_route_pda_for(&fee_key, dest, &DEFAULT_ROUTER);
+        let ix = build_submit_standing_ix_with_routes(
+            &fee_key,
+            &payer.pubkey(),
+            &sq,
+            WILDCARD_DOMAIN,
+            &router_a,
+            &[specific_pda, default_pda],
+        );
         process_tx(&mut banks_client, &payer, ix, &[])
             .await
             .unwrap();
@@ -6463,11 +6802,6 @@ mod additional_coverage {
         )
         .await;
 
-        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
-        process_tx(&mut banks_client, &payer, ix, &[])
-            .await
-            .unwrap();
-
         let dest = 42u32;
         let target_router = H256::random();
         let exact_recipient = H256::random();
@@ -6478,6 +6812,20 @@ mod additional_coverage {
             half_amount: 50,
         });
         let ix = build_set_cc_route_ix(&fee_key, &payer.pubkey(), dest, target_router, route);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Add signer to CC route PDA (must exist first).
+        let ix = build_add_quote_signer_ix_with_route(
+            &fee_key,
+            &payer.pubkey(),
+            signer_address,
+            Some(instruction::RouteKey::CrossCollateral {
+                destination: dest,
+                target_router,
+            }),
+        );
         process_tx(&mut banks_client, &payer, ix, &[])
             .await
             .unwrap();
@@ -6493,8 +6841,16 @@ mod additional_coverage {
             encode_u48(100),
             encode_u48(9999999999),
         );
-        let ix =
-            build_submit_cc_standing_ix(&fee_key, &payer.pubkey(), &sq_exact, dest, &target_router);
+        let specific_pda = cc_route_pda_for(&fee_key, dest, &target_router);
+        let default_pda = cc_route_pda_for(&fee_key, dest, &DEFAULT_ROUTER);
+        let ix = build_submit_standing_ix_with_routes(
+            &fee_key,
+            &payer.pubkey(),
+            &sq_exact,
+            dest,
+            &target_router,
+            &[specific_pda, default_pda],
+        );
         process_tx(&mut banks_client, &payer, ix, &[])
             .await
             .unwrap();
@@ -6510,12 +6866,13 @@ mod additional_coverage {
             encode_u48(100),
             encode_u48(9999999999),
         );
-        let ix = build_submit_cc_standing_ix(
+        let ix = build_submit_standing_ix_with_routes(
             &fee_key,
             &payer.pubkey(),
             &sq_wildcard,
             dest,
             &target_router,
+            &[specific_pda, default_pda],
         );
         process_tx(&mut banks_client, &payer, ix, &[])
             .await
@@ -6577,9 +6934,6 @@ mod additional_coverage {
         )
         .await;
 
-        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
-        process_tx(banks_client, &payer, ix, &[]).await.unwrap();
-
         let dest = 42u32;
         let recipient = H256::random();
         let router_a = H256::random();
@@ -6594,6 +6948,28 @@ mod additional_coverage {
         let ix = build_set_cc_route_ix(&fee_key, &payer.pubkey(), dest, router_b, route);
         process_tx(banks_client, &payer, ix, &[]).await.unwrap();
 
+        // Add signer to both CC route PDAs.
+        let ix = build_add_quote_signer_ix_with_route(
+            &fee_key,
+            &payer.pubkey(),
+            signer_address,
+            Some(instruction::RouteKey::CrossCollateral {
+                destination: dest,
+                target_router: router_a,
+            }),
+        );
+        process_tx(banks_client, &payer, ix, &[]).await.unwrap();
+        let ix = build_add_quote_signer_ix_with_route(
+            &fee_key,
+            &payer.pubkey(),
+            signer_address,
+            Some(instruction::RouteKey::CrossCollateral {
+                destination: dest,
+                target_router: router_b,
+            }),
+        );
+        process_tx(banks_client, &payer, ix, &[]).await.unwrap();
+
         // Router_a standing: expires at 5000000000 (will be expired).
         let sq_a = make_signed_standing_quote(
             &signing_key,
@@ -6605,7 +6981,16 @@ mod additional_coverage {
             encode_u48(100),
             encode_u48(5000000000),
         );
-        let ix = build_submit_cc_standing_ix(&fee_key, &payer.pubkey(), &sq_a, dest, &router_a);
+        let specific_pda_a = cc_route_pda_for(&fee_key, dest, &router_a);
+        let default_pda = cc_route_pda_for(&fee_key, dest, &DEFAULT_ROUTER);
+        let ix = build_submit_standing_ix_with_routes(
+            &fee_key,
+            &payer.pubkey(),
+            &sq_a,
+            dest,
+            &router_a,
+            &[specific_pda_a, default_pda],
+        );
         process_tx(banks_client, &payer, ix, &[]).await.unwrap();
 
         // Router_b standing: expires at 9999999999 (will be live).
@@ -6619,7 +7004,15 @@ mod additional_coverage {
             encode_u48(100),
             encode_u48(9999999999),
         );
-        let ix = build_submit_cc_standing_ix(&fee_key, &payer.pubkey(), &sq_b, dest, &router_b);
+        let specific_pda_b = cc_route_pda_for(&fee_key, dest, &router_b);
+        let ix = build_submit_standing_ix_with_routes(
+            &fee_key,
+            &payer.pubkey(),
+            &sq_b,
+            dest,
+            &router_b,
+            &[specific_pda_b, default_pda],
+        );
         process_tx(banks_client, &payer, ix, &[]).await.unwrap();
 
         // Warp clock past router_a's expiry but before router_b's.
