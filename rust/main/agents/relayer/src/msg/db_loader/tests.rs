@@ -1,3 +1,4 @@
+use std::sync::Mutex;
 use std::time::Instant;
 
 use prometheus::IntCounterVec;
@@ -301,4 +302,116 @@ async fn test_forward_backward_iterator() {
         forward_backward_iterator.high_nonce_iter.nonce,
         Some(MAX_ONCHAIN_NONCE + 1)
     );
+}
+
+/// Regression for the `MessageDbLoader` nonce-cache bug (SBP-371 / PRMX
+/// Warp Route 2026-04-18): `ForwardBackwardIterator::new` reads
+/// `retrieve_highest_seen_message_nonce` exactly once. When the relayer
+/// starts against an empty DB (e.g. after a RocksDB wipe, or before the
+/// first message for a direction has been indexed), the forward iterator is
+/// pinned at `Some(0)` forever. Any messages `ContractSync` later writes to
+/// the DB are never surfaced to the processor, even though they exist in
+/// RocksDB and show up in `hyperlane_last_known_message_nonce`.
+///
+/// The fix in `refresh_from_db_if_lagging` re-reads the DB's highest nonce
+/// when both iterators hit `Unindexed`, and jumps the forward (and, if it
+/// would otherwise stay behind, backward) iterator forward.
+///
+/// This simulates the PRMX scenario where `index.from` cursored past low
+/// nonces after a RocksDB wipe: the first message `ContractSync` actually
+/// stores has nonce 5, not nonce 0. With the pre-fix behaviour the forward
+/// iterator probes nonce 0 (not present → `Unindexed`) and the backward
+/// iterator has `None` (→ `Unindexed`), so `try_get_next_message` returns
+/// `None` indefinitely — that's what caused the 4+ hour stall on
+/// 2026-04-18 and forced a `docker restart` to rebuild the iterator.
+#[tokio::test]
+async fn db_loader_jumps_to_new_high_nonce_after_empty_start() {
+    let mut mock_db = MockDb::new();
+
+    // Shared DB highest-seen-nonce state; flipped by the test body between
+    // loader calls to simulate `ContractSync` writing a new message.
+    let db_highest: Arc<Mutex<Option<u32>>> = Arc::new(Mutex::new(None));
+    let db_highest_for_nonce = db_highest.clone();
+    let db_highest_for_msgs = db_highest.clone();
+
+    mock_db
+        .expect_domain()
+        .return_const(dummy_domain(0, "dummy_domain"));
+
+    mock_db
+        .expect_retrieve_highest_seen_message_nonce()
+        .returning(move || Ok(*db_highest_for_nonce.lock().unwrap()));
+
+    // Simulates `index.from` starting past low nonces: only the exact
+    // highest-seen nonce is present in the DB. Nonces below it were never
+    // indexed and will never be indexed (for this test).
+    mock_db
+        .expect_retrieve_message_by_nonce()
+        .returning(move |nonce| {
+            let highest = *db_highest_for_msgs.lock().unwrap();
+            match highest {
+                Some(h) if nonce == h => Ok(Some(dummy_hyperlane_message(
+                    &dummy_domain(1, "dummy_domain"),
+                    nonce,
+                ))),
+                _ => Ok(None),
+            }
+        });
+
+    mock_db
+        .expect_retrieve_processed_by_nonce()
+        .returning(|_| Ok(Some(false)));
+
+    let dummy_metrics = dummy_message_loader_metrics();
+    let db = Arc::new(mock_db);
+
+    let mut iter = ForwardBackwardIterator::new(db.clone());
+
+    // Empty DB at construction: highest_seen is None, so the forward
+    // iterator defaults to `Some(0)` via `unwrap_or_default`, and the
+    // backward iterator at `None` (after one `iterate()` on the Low
+    // direction with an initial `None`, which is a no-op).
+    assert_eq!(iter.high_nonce_iter.nonce, Some(0));
+    assert_eq!(iter.low_nonce_iter.nonce, None);
+
+    // Nothing indexed yet → both iterators report `Unindexed`, the refresh
+    // finds no new frontier (db_highest still None), loader correctly
+    // returns None.
+    let first = iter
+        .try_get_next_message(&dummy_metrics)
+        .await
+        .expect("try_get_next_message should not error on empty DB");
+    assert!(
+        first.is_none(),
+        "expected None when DB has no indexed messages"
+    );
+
+    // Simulate ContractSync indexing message with nonce 5 (and updating
+    // highest_seen to 5) *after* the loader was constructed. Nonces 0..4
+    // remain absent from the DB — this mirrors post-wipe `index.from`
+    // behaviour where low nonces are skipped entirely.
+    *db_highest.lock().unwrap() = Some(5);
+
+    // Without `refresh_from_db_if_lagging`, this call stays at nonce 0
+    // (probe returns None), the backward iterator is `None`, both hit
+    // `Unindexed`, and the loader returns `None` forever until restart.
+    // With the fix, the refresh detects the DB frontier has advanced to 5,
+    // jumps the forward iterator to 5, finds the message, and returns it.
+    let caught_up = iter
+        .try_get_next_message(&dummy_metrics)
+        .await
+        .expect("try_get_next_message should not error after DB frontier advances")
+        .expect("iterator must catch up to the DB's new highest nonce without a restart");
+    assert_eq!(
+        caught_up.nonce, 5,
+        "expected the forward iterator to jump to the new DB frontier (nonce 5)"
+    );
+
+    // The forward iterator should have advanced past the delivered nonce
+    // so the next tick probes nonce 6, not nonce 5 again.
+    assert_eq!(iter.high_nonce_iter.nonce, Some(6));
+    // The backward iterator should now be seeded just below the new
+    // frontier so any gaps between the old (0) and new (5) positions can
+    // still be picked up on subsequent ticks.
+    assert_eq!(iter.low_nonce_iter.nonce, Some(4));
 }
