@@ -1384,6 +1384,7 @@ fn process_set_route(
         RouteDomain {
             bump_seed: route_bump,
             fee_data: data.fee_data,
+            signers: data.signers,
         }
         .into(),
     );
@@ -1400,11 +1401,17 @@ fn process_set_route(
             route_pda_info,
             route_domain_pda_seeds!(fee_account_info.key, &domain_le, route_bump),
         )?;
+        route_domain.store(route_pda_info, false)?;
     } else if route_pda_info.owner != program_id {
         return Err(ProgramError::IncorrectProgramId);
+    } else {
+        route_domain.store_with_rent_exempt_realloc(
+            route_pda_info,
+            &Rent::get()?,
+            owner_info,
+            system_program_info,
+        )?;
     }
-
-    route_domain.store(route_pda_info, false)?;
 
     msg!("Set route for domain {}", data.domain);
 
@@ -1516,6 +1523,7 @@ fn process_set_cc_route(
         CrossCollateralRoute {
             bump_seed: cc_bump,
             fee_data: data.fee_data,
+            signers: data.signers,
         }
         .into(),
     );
@@ -1531,11 +1539,17 @@ fn process_set_cc_route(
             cc_route_pda_info,
             cc_route_pda_seeds!(fee_account_info.key, &dest_le, data.target_router, cc_bump),
         )?;
+        cc_route.store(cc_route_pda_info, false)?;
     } else if cc_route_pda_info.owner != program_id {
         return Err(ProgramError::IncorrectProgramId);
+    } else {
+        cc_route.store_with_rent_exempt_realloc(
+            cc_route_pda_info,
+            &Rent::get()?,
+            owner_info,
+            system_program_info,
+        )?;
     }
-
-    cc_route.store(cc_route_pda_info, false)?;
 
     msg!(
         "Set CC route for destination {} target_router {}",

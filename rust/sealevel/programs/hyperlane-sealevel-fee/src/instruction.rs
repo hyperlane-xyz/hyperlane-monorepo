@@ -10,6 +10,10 @@ use solana_program::{
 };
 use solana_system_interface::program as system_program;
 
+use std::collections::BTreeSet;
+
+use hyperlane_core::H160 as SignerAddress;
+
 use crate::{
     accounts::FeeData, cc_route_pda_seeds, fee_account_pda_seeds, fee_math::FeeDataStrategy,
     fee_math::FeeParams, fee_standing_quote_pda_seeds, route_domain_pda_seeds,
@@ -126,6 +130,9 @@ pub struct SetRoute {
     pub domain: u32,
     /// Fee strategy for this destination domain.
     pub fee_data: FeeDataStrategy,
+    /// Authorized offchain quote signers for this route.
+    /// Some = offchain quoting enabled, None = on-chain fee only.
+    pub signers: Option<BTreeSet<SignerAddress>>,
 }
 
 /// Set or update a cross-collateral route (owner-only).
@@ -137,6 +144,9 @@ pub struct SetCrossCollateralRoute {
     pub target_router: H256,
     /// Fee strategy for this (destination, target_router) pair.
     pub fee_data: FeeDataStrategy,
+    /// Authorized offchain quote signers for this route.
+    /// Some = offchain quoting enabled, None = on-chain fee only.
+    pub signers: Option<BTreeSet<SignerAddress>>,
 }
 
 /// Remove a cross-collateral route (owner-only).
@@ -207,6 +217,7 @@ pub fn set_route_instruction(
     owner: Pubkey,
     domain: u32,
     fee_data: FeeDataStrategy,
+    signers: Option<BTreeSet<SignerAddress>>,
 ) -> Result<SolanaInstruction, ProgramError> {
     let domain_le = domain.to_le_bytes();
     let (route_pda, _bump) = Pubkey::try_find_program_address(
@@ -215,7 +226,11 @@ pub fn set_route_instruction(
     )
     .ok_or(ProgramError::InvalidSeeds)?;
 
-    let ixn = Instruction::SetRoute(SetRoute { domain, fee_data });
+    let ixn = Instruction::SetRoute(SetRoute {
+        domain,
+        fee_data,
+        signers,
+    });
 
     // Accounts:
     // 0. `[executable]` System program.
@@ -279,6 +294,7 @@ pub fn set_cc_route_instruction(
     destination: u32,
     target_router: H256,
     fee_data: FeeDataStrategy,
+    signers: Option<BTreeSet<SignerAddress>>,
 ) -> Result<SolanaInstruction, ProgramError> {
     let dest_le = destination.to_le_bytes();
     let (cc_route_pda, _bump) = Pubkey::try_find_program_address(
@@ -291,6 +307,7 @@ pub fn set_cc_route_instruction(
         destination,
         target_router,
         fee_data,
+        signers,
     });
 
     // Accounts:

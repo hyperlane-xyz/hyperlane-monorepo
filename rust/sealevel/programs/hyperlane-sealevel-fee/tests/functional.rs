@@ -275,6 +275,7 @@ fn build_set_cc_route_ix(
         destination,
         target_router,
         strategy,
+        None,
     )
     .unwrap()
 }
@@ -310,8 +311,15 @@ fn build_set_route_ix(
     domain: u32,
     strategy: FeeDataStrategy,
 ) -> Instruction {
-    instruction::set_route_instruction(fee_program_id(), *fee_account, *owner, domain, strategy)
-        .unwrap()
+    instruction::set_route_instruction(
+        fee_program_id(),
+        *fee_account,
+        *owner,
+        domain,
+        strategy,
+        None,
+    )
+    .unwrap()
 }
 
 fn build_remove_route_ix(fee_account: &Pubkey, owner: &Pubkey, domain: u32) -> Instruction {

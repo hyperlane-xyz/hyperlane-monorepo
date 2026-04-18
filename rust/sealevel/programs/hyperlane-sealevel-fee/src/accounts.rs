@@ -176,11 +176,16 @@ pub struct RouteDomain {
     pub bump_seed: u8,
     /// Fee strategy for this destination domain.
     pub fee_data: FeeDataStrategy,
+    /// Authorized offchain quote signers for this route.
+    /// Some = offchain quoting enabled, None = on-chain fee only.
+    pub signers: Option<BTreeSet<H160>>,
 }
 
 impl SizedData for RouteDomain {
     fn size(&self) -> usize {
-        std::mem::size_of::<u8>() + SizedData::size(&self.fee_data)
+        std::mem::size_of::<u8>()
+            + SizedData::size(&self.fee_data)
+            + option_signers_size(&self.signers)
     }
 }
 
@@ -202,11 +207,16 @@ pub struct CrossCollateralRoute {
     pub bump_seed: u8,
     /// Fee strategy for this (destination, target_router) pair.
     pub fee_data: FeeDataStrategy,
+    /// Authorized offchain quote signers for this route.
+    /// Some = offchain quoting enabled, None = on-chain fee only.
+    pub signers: Option<BTreeSet<H160>>,
 }
 
 impl SizedData for CrossCollateralRoute {
     fn size(&self) -> usize {
-        std::mem::size_of::<u8>() + SizedData::size(&self.fee_data)
+        std::mem::size_of::<u8>()
+            + SizedData::size(&self.fee_data)
+            + option_signers_size(&self.signers)
     }
 }
 
@@ -517,6 +527,24 @@ mod tests {
                 max_fee: 500,
                 half_amount: 250,
             }),
+            signers: None,
+        };
+        let encoded = borsh::to_vec(&route).unwrap();
+        let decoded: RouteDomain = borsh::from_slice(&encoded).unwrap();
+        assert_eq!(route, decoded);
+    }
+
+    #[test]
+    fn test_route_domain_borsh_roundtrip_with_signers() {
+        let mut signers = BTreeSet::new();
+        signers.insert(H160::random());
+        let route = RouteDomain {
+            bump_seed: 1,
+            fee_data: FeeDataStrategy::Linear(FeeParams {
+                max_fee: 100,
+                half_amount: 50,
+            }),
+            signers: Some(signers),
         };
         let encoded = borsh::to_vec(&route).unwrap();
         let decoded: RouteDomain = borsh::from_slice(&encoded).unwrap();
@@ -531,6 +559,7 @@ mod tests {
                 max_fee: 1000,
                 half_amount: 500,
             }),
+            signers: None,
         };
         let encoded = borsh::to_vec(&route).unwrap();
         let decoded: CrossCollateralRoute = borsh::from_slice(&encoded).unwrap();
@@ -675,25 +704,58 @@ mod tests {
     }
 
     #[test]
-    fn test_sized_data_route_domain() {
+    fn test_sized_data_route_domain_no_signers() {
         let route = RouteDomain {
             bump_seed: 1,
             fee_data: FeeDataStrategy::Linear(FeeParams {
                 max_fee: 100,
                 half_amount: 50,
             }),
+            signers: None,
         };
         assert_eq!(route.size(), borsh::to_vec(&route).unwrap().len());
     }
 
     #[test]
-    fn test_sized_data_cc_route() {
+    fn test_sized_data_route_domain_with_signers() {
+        let mut signers = BTreeSet::new();
+        signers.insert(H160::random());
+        signers.insert(H160::random());
+        let route = RouteDomain {
+            bump_seed: 1,
+            fee_data: FeeDataStrategy::Linear(FeeParams {
+                max_fee: 100,
+                half_amount: 50,
+            }),
+            signers: Some(signers),
+        };
+        assert_eq!(route.size(), borsh::to_vec(&route).unwrap().len());
+    }
+
+    #[test]
+    fn test_sized_data_cc_route_no_signers() {
         let route = CrossCollateralRoute {
             bump_seed: 1,
             fee_data: FeeDataStrategy::Progressive(FeeParams {
                 max_fee: 100,
                 half_amount: 50,
             }),
+            signers: None,
+        };
+        assert_eq!(route.size(), borsh::to_vec(&route).unwrap().len());
+    }
+
+    #[test]
+    fn test_sized_data_cc_route_with_signers() {
+        let mut signers = BTreeSet::new();
+        signers.insert(H160::random());
+        let route = CrossCollateralRoute {
+            bump_seed: 1,
+            fee_data: FeeDataStrategy::Progressive(FeeParams {
+                max_fee: 100,
+                half_amount: 50,
+            }),
+            signers: Some(signers),
         };
         assert_eq!(route.size(), borsh::to_vec(&route).unwrap().len());
     }
