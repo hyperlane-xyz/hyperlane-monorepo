@@ -644,7 +644,7 @@ function convertCrossCollateralRoutersToDerived(
  * Extracts remote router domains and cross-collateral router mappings
  * so the fee reader knows which domains/routers to check on-chain.
  */
-export function buildFeeReadContext(
+export function buildFeeReadContextFromDeployedWarpConfig(
   config: WarpArtifactConfig,
 ): FeeReadContext {
   const knownRoutersPerDomain: Record<number, Set<string>> = {};
