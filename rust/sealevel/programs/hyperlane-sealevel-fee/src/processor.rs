@@ -35,8 +35,8 @@ use crate::{
     fee_math::FeeParams,
     fee_standing_quote_pda_seeds,
     instruction::{
-        GetQuoteAccountMetas, InitFee, Instruction, QuoteFee, RemoveCrossCollateralRoute, RouteKey,
-        SetCrossCollateralRoute, SetRoute,
+        GetQuoteAccountMetas, GetSubmitQuoteAccountMetas, InitFee, Instruction, QuoteFee,
+        RemoveCrossCollateralRoute, RouteKey, SetCrossCollateralRoute, SetRoute,
     },
     route_domain_pda_seeds, transient_quote_pda_seeds,
 };
@@ -96,6 +96,9 @@ pub fn process_instruction(
         ),
         Instruction::GetQuoteAccountMetas(data) => {
             process_get_quote_account_metas(program_id, accounts, data)
+        }
+        Instruction::GetSubmitQuoteAccountMetas(data) => {
+            process_get_submit_quote_account_metas(program_id, accounts, data)
         }
         Instruction::GetProgramVersion => {
             package_versioned::process_get_program_version::<FeeProgram>()
@@ -1583,6 +1586,123 @@ fn process_get_quote_account_metas(
                 is_writable: false,
             });
         }
+    }
+
+    set_return_data(
+        &borsh::to_vec(&SimulationReturnData::new(metas))
+            .map_err(|_| ProgramError::BorshIoError)?,
+    );
+
+    Ok(())
+}
+
+/// Simulation-only: returns required account metas for a SubmitQuote call.
+/// Accounts vary by fee_data type (Leaf vs Routing vs CC) and quote kind (transient vs standing).
+///
+/// Accounts:
+/// 0. `[]` Fee account.
+fn process_get_submit_quote_account_metas(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    data: GetSubmitQuoteAccountMetas,
+) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    // Account 0: Fee account.
+    let fee_account_info = next_account_info(accounts_iter)?;
+    if fee_account_info.owner != program_id {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+    let fee_account = FeeAccountData::fetch(&mut &fee_account_info.data.borrow()[..])?.into_inner();
+
+    ensure_no_extraneous_accounts(accounts_iter)?;
+
+    let mut metas: Vec<SerializableAccountMeta> = Vec::new();
+
+    // Account 0: System program.
+    metas.push(SerializableAccountMeta {
+        pubkey: system_program::ID,
+        is_signer: false,
+        is_writable: false,
+    });
+    // Account 1: Payer placeholder.
+    metas.push(SerializableAccountMeta {
+        pubkey: Pubkey::default(),
+        is_signer: true,
+        is_writable: true,
+    });
+    // Account 2: Fee account.
+    // Standing quotes may update standing_quote_domains → writable.
+    metas.push(SerializableAccountMeta {
+        pubkey: *fee_account_info.key,
+        is_signer: false,
+        is_writable: data.scoped_salt.is_none(),
+    });
+
+    // Route PDAs for signer lookup (Routing/CC only).
+    let domain_le = data.destination_domain.to_le_bytes();
+    match &fee_account.fee_data {
+        FeeData::Leaf(_) => {}
+        FeeData::Routing => {
+            let (route_key, _) = Pubkey::find_program_address(
+                route_domain_pda_seeds!(fee_account_info.key, &domain_le),
+                program_id,
+            );
+            metas.push(SerializableAccountMeta {
+                pubkey: route_key,
+                is_signer: false,
+                is_writable: false,
+            });
+        }
+        FeeData::CrossCollateralRouting => {
+            let (cc_specific_key, _) = Pubkey::find_program_address(
+                cc_route_pda_seeds!(fee_account_info.key, &domain_le, data.target_router),
+                program_id,
+            );
+            metas.push(SerializableAccountMeta {
+                pubkey: cc_specific_key,
+                is_signer: false,
+                is_writable: false,
+            });
+            let (cc_default_key, _) = Pubkey::find_program_address(
+                cc_route_pda_seeds!(fee_account_info.key, &domain_le, DEFAULT_ROUTER),
+                program_id,
+            );
+            metas.push(SerializableAccountMeta {
+                pubkey: cc_default_key,
+                is_signer: false,
+                is_writable: false,
+            });
+        }
+    }
+
+    // Quote PDA (transient or standing).
+    if let Some(scoped_salt) = data.scoped_salt {
+        // Transient quote PDA.
+        let (transient_key, _) = Pubkey::find_program_address(
+            transient_quote_pda_seeds!(fee_account_info.key, scoped_salt),
+            program_id,
+        );
+        metas.push(SerializableAccountMeta {
+            pubkey: transient_key,
+            is_signer: false,
+            is_writable: true,
+        });
+    } else {
+        // Standing quote PDA.
+        let standing_target_router = match &fee_account.fee_data {
+            FeeData::CrossCollateralRouting => data.target_router,
+            _ => hyperlane_core::H256::zero(),
+        };
+        let (standing_key, _) = Pubkey::find_program_address(
+            fee_standing_quote_pda_seeds!(fee_account_info.key, &domain_le, standing_target_router),
+            program_id,
+        );
+        metas.push(SerializableAccountMeta {
+            pubkey: standing_key,
+            is_signer: false,
+            is_writable: true,
+        });
     }
 
     set_return_data(

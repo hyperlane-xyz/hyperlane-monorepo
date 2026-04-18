@@ -83,6 +83,8 @@ pub enum Instruction {
     },
     /// Simulation-only: returns required account metas for a QuoteFee call.
     GetQuoteAccountMetas(GetQuoteAccountMetas),
+    /// Simulation-only: returns required account metas for a SubmitQuote call.
+    GetSubmitQuoteAccountMetas(GetSubmitQuoteAccountMetas),
     /// Returns the program version via set_return_data. No accounts required.
     GetProgramVersion,
 }
@@ -192,6 +194,18 @@ pub struct GetQuoteAccountMetas {
     /// Remote warp route contract address (for CC routing).
     pub target_router: H256,
     /// If Some, include the transient quote PDA for this scoped_salt.
+    pub scoped_salt: Option<H256>,
+}
+
+/// Simulation-only: query required accounts for a SubmitQuote call.
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
+pub struct GetSubmitQuoteAccountMetas {
+    /// Hyperlane destination domain ID (from quote context).
+    pub destination_domain: u32,
+    /// Remote warp route contract address (for CC routing).
+    pub target_router: H256,
+    /// If Some, returns accounts for a transient quote (scoped_salt needed for PDA derivation).
+    /// If None, returns accounts for a standing quote.
     pub scoped_salt: Option<H256>,
 }
 
