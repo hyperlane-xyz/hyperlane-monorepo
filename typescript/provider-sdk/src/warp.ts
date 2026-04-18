@@ -645,7 +645,7 @@ function convertCrossCollateralRoutersToDerived(
  * reader can discover routes from current state (for cleanup) and expected
  * state (for setup).
  */
-export function buildFeeReadContextFromDeployedWarpConfig(
+export function buildFeeReadContextFromWarpArtifactConfig(
   ...configs: WarpArtifactConfig[]
 ): FeeReadContext {
   const knownRoutersPerDomain: Record<number, Set<string>> = {};

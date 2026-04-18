@@ -35,7 +35,7 @@ import {
   IRawWarpArtifactManager,
   RawWarpArtifactConfig,
   WarpArtifactConfig,
-  buildFeeReadContextFromDeployedWarpConfig,
+  buildFeeReadContextFromWarpArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert, isNullish, rootLogger } from '@hyperlane-xyz/utils';
 
@@ -356,7 +356,7 @@ export class WarpTokenWriter
       | undefined;
 
     if (expectedFee && !isArtifactUnderived(expectedFee)) {
-      const feeContext = buildFeeReadContextFromDeployedWarpConfig(
+      const feeContext = buildFeeReadContextFromWarpArtifactConfig(
         config,
         currentArtifact.config,
       );

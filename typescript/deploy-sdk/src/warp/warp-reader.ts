@@ -31,7 +31,7 @@ import {
   DerivedWarpConfig,
   IRawWarpArtifactManager,
   WarpArtifactConfig,
-  buildFeeReadContextFromDeployedWarpConfig,
+  buildFeeReadContextFromWarpArtifactConfig,
   warpArtifactToDerivedConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
 
@@ -167,7 +167,7 @@ export class WarpTokenReader implements ArtifactReader<
     }
 
     if (isArtifactUnderived(feeArtifact)) {
-      const context = buildFeeReadContextFromDeployedWarpConfig(warpConfig);
+      const context = buildFeeReadContextFromWarpArtifactConfig(warpConfig);
       const feeReader = createFeeReader(this.chainMetadata, context);
       assert(
         feeReader,
