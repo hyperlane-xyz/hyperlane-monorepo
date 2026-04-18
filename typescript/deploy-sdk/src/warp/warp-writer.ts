@@ -14,6 +14,11 @@ import {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
+  DeployedFeeAddress,
+  FeeArtifactConfig,
+  mergeFeeArtifacts,
+} from '@hyperlane-xyz/provider-sdk/fee';
+import {
   DeployedHookAddress,
   HookArtifactConfig,
   mergeHookArtifacts,
@@ -30,9 +35,11 @@ import {
   IRawWarpArtifactManager,
   RawWarpArtifactConfig,
   WarpArtifactConfig,
+  buildFeeReadContextFromWarpArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert, isNullish, rootLogger } from '@hyperlane-xyz/utils';
 
+import { createFeeWriter } from '../fee/fee-writer.js';
 import { HookWriter, createHookWriter } from '../hook/hook-writer.js';
 import { IsmWriter, createIsmWriter } from '../ism/generic-ism-writer.js';
 
@@ -159,6 +166,29 @@ export class WarpTokenWriter
       }
     }
 
+    // Deploy Fee if configured as a NEW artifact
+    // No FeeReadContext needed on create - deploying from scratch
+    let onChainFeeArtifact:
+      | ArtifactOnChain<FeeArtifactConfig, DeployedFeeAddress>
+      | undefined;
+    if (config.fee) {
+      const feeWriter = createFeeWriter(this.chainMetadata, this.signer, {
+        knownRoutersPerDomain: {},
+      });
+
+      if (!feeWriter) {
+        rootLogger.warn(
+          'Fee programs are not supported for this protocol. Fee configuration will be ignored.',
+        );
+      } else if (isArtifactNew(config.fee)) {
+        const [deployedFee, feeReceipts] = await feeWriter.create(config.fee);
+        allReceipts.push(...feeReceipts);
+        onChainFeeArtifact = deployedFee;
+      } else {
+        onChainFeeArtifact = config.fee;
+      }
+    }
+
     // Convert to raw artifact config (flatten nested artifacts)
     const rawArtifact: ArtifactNew<RawWarpArtifactConfig> = {
       artifactState: ArtifactState.NEW,
@@ -166,6 +196,7 @@ export class WarpTokenWriter
         ...config,
         interchainSecurityModule: onChainIsmArtifact,
         hook: onChainHookArtifact,
+        fee: onChainFeeArtifact,
       },
     };
 
@@ -182,6 +213,7 @@ export class WarpTokenWriter
           ...artifact.config,
           interchainSecurityModule: onChainIsmArtifact,
           hook: onChainHookArtifact,
+          fee: onChainFeeArtifact,
         },
         deployed: deployed.deployed,
       },
@@ -229,6 +261,12 @@ export class WarpTokenWriter
       isNullish(currentArtifact.config.hook) ||
         isArtifactDeployed(currentArtifact.config.hook),
       `Expected Warp Reader to expand the Hook config`,
+    );
+
+    assert(
+      isNullish(currentArtifact.config.fee) ||
+        isArtifactDeployed(currentArtifact.config.fee),
+      `Expected Warp Reader to expand the Fee config`,
     );
 
     const updateTxs: AnnotatedTx[] = [];
@@ -309,13 +347,62 @@ export class WarpTokenWriter
       onChainHookArtifact = expectedHook;
     }
 
-    // Build raw artifact with flattened ISM and Hook references
+    // Resolve Fee updates
+    const expectedFee = config.fee;
+    const currentFee = currentArtifact.config.fee;
+
+    let onChainFeeArtifact:
+      | ArtifactOnChain<FeeArtifactConfig, DeployedFeeAddress>
+      | undefined;
+
+    if (expectedFee && !isArtifactUnderived(expectedFee)) {
+      const feeContext = buildFeeReadContextFromWarpArtifactConfig(
+        config,
+        currentArtifact.config,
+      );
+      const feeWriter = createFeeWriter(
+        this.chainMetadata,
+        this.signer,
+        feeContext,
+      );
+
+      if (!feeWriter) {
+        rootLogger.warn(
+          'Fee programs are not supported for this protocol. Fee configuration will be ignored.',
+        );
+        onChainFeeArtifact = currentFee;
+      } else {
+        const mergedFeeConfig = mergeFeeArtifacts(currentFee, expectedFee);
+
+        if (isArtifactNew(mergedFeeConfig)) {
+          const [deployedFee] = await feeWriter.create(mergedFeeConfig);
+
+          onChainFeeArtifact = {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: deployedFee.deployed.address },
+          };
+        } else if (isArtifactDeployed(mergedFeeConfig)) {
+          const txs = await feeWriter.update(mergedFeeConfig);
+
+          updateTxs.push(...txs);
+          onChainFeeArtifact = {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: mergedFeeConfig.deployed.address },
+          };
+        }
+      }
+    } else {
+      onChainFeeArtifact = expectedFee;
+    }
+
+    // Build raw artifact with flattened ISM, Hook, and Fee references
     const rawArtifact = {
       artifactState: ArtifactState.DEPLOYED,
       config: {
         ...config,
         interchainSecurityModule: onChainIsmArtifact,
         hook: onChainHookArtifact,
+        fee: onChainFeeArtifact,
       },
       deployed,
     };

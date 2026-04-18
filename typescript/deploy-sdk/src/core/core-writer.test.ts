@@ -152,6 +152,7 @@ describe('CoreWriter', () => {
       createHookArtifactManager: sinon.stub().returns(mockHookArtifactManager),
       createMailboxArtifactManager: sinon.stub(),
       createValidatorAnnounceArtifactManager: sinon.stub(),
+      createFeeArtifactManager: sinon.stub(),
       getMinGas: sinon.stub(),
       createWarpArtifactManager: sinon.stub(),
     } satisfies ProtocolProvider;

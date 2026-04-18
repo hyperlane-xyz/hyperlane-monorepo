@@ -20,6 +20,15 @@ import {
 } from './artifact.js';
 import { ChainLookup } from './chain.js';
 import {
+  type DeployedFeeAddress,
+  type DerivedFeeConfig,
+  type FeeArtifactConfig,
+  type FeeConfig,
+  type FeeReadContext,
+  feeArtifactToDerivedConfig,
+  feeConfigToArtifact,
+} from './fee.js';
+import {
   type DeployedHookAddress,
   type DerivedHookConfig,
   type HookArtifactConfig,
@@ -59,6 +68,7 @@ export interface BaseWarpConfig {
   mailbox: string;
   interchainSecurityModule?: IsmConfig | string;
   hook?: HookConfig | string;
+  fee?: FeeConfig | string;
   remoteRouters?: RemoteRouters;
   destinationGas?: DestinationGas;
   scale?: number;
@@ -98,6 +108,7 @@ export interface BaseDerivedWarpConfig {
   mailbox: string;
   interchainSecurityModule: DerivedIsmConfig | string;
   hook: DerivedHookConfig | string;
+  fee?: DerivedFeeConfig | string;
   remoteRouters: RemoteRouters;
   destinationGas: DestinationGas;
   scale?: number;
@@ -158,6 +169,7 @@ interface BaseWarpArtifactConfig {
   mailbox: string;
   interchainSecurityModule?: Artifact<IsmArtifactConfig, DeployedIsmAddress>;
   hook?: Artifact<HookArtifactConfig, DeployedHookAddress>;
+  fee?: Artifact<FeeArtifactConfig, DeployedFeeAddress>;
   remoteRouters: Record<number, { address: string }>;
   destinationGas: Record<number, string>;
   name?: string;
@@ -325,6 +337,16 @@ export function warpConfigToArtifact(
     }
   }
 
+  // Convert Fee config to artifact if present
+  let feeArtifact: Artifact<FeeArtifactConfig, DeployedFeeAddress> | undefined;
+  if (config.fee) {
+    if (typeof config.fee === 'string') {
+      feeArtifact = addressToUnderivedArtifact(config.fee);
+    } else {
+      feeArtifact = feeConfigToArtifact(config.fee, chainLookup);
+    }
+  }
+
   // Convert remoteRouters from chain names to domain IDs
   const remoteRouters: Record<number, { address: string }> = {};
   if (config.remoteRouters) {
@@ -362,6 +384,7 @@ export function warpConfigToArtifact(
     mailbox: config.mailbox,
     interchainSecurityModule: ismArtifact,
     hook: hookArtifact,
+    fee: feeArtifact,
     remoteRouters,
     destinationGas,
     scale: config.scale,
@@ -506,11 +529,26 @@ export function warpArtifactToDerivedConfig(
     hookConfig = config.hook.deployed.address;
   }
 
+  // Convert fee artifact to config if present
+  assert(
+    isNullish(config.fee) || !isArtifactNew(config.fee),
+    'Expected fee to be a deployed or underived artifact',
+  );
+  let feeConfig: DerivedWarpConfig['fee'];
+  if (isNullish(config.fee)) {
+    feeConfig = undefined;
+  } else if (isArtifactDeployed(config.fee)) {
+    feeConfig = feeArtifactToDerivedConfig(config.fee, chainLookup);
+  } else {
+    feeConfig = config.fee.deployed.address;
+  }
+
   const baseDerivedConfig = {
     owner: config.owner,
     mailbox: config.mailbox,
     interchainSecurityModule: ismConfig,
     hook: hookConfig,
+    fee: feeConfig,
     remoteRouters,
     destinationGas,
     name: config.name,
@@ -597,6 +635,40 @@ function convertCrossCollateralRoutersToDerived(
   }
 
   return result;
+}
+
+// Fee Read Context Utilities
+
+/**
+ * Builds a FeeReadContext by unioning domains/routers from the provided
+ * WarpArtifactConfigs. Pass both expected and current configs so the fee
+ * reader can discover routes from current state (for cleanup) and expected
+ * state (for setup).
+ */
+export function buildFeeReadContextFromWarpArtifactConfig(
+  ...configs: WarpArtifactConfig[]
+): FeeReadContext {
+  const knownRoutersPerDomain: Record<number, Set<string>> = {};
+
+  for (const config of configs) {
+    for (const [domainStr, router] of Object.entries(config.remoteRouters)) {
+      const domain = Number(domainStr);
+      const existing = knownRoutersPerDomain[domain] ?? new Set();
+      knownRoutersPerDomain[domain] = new Set([...existing, router.address]);
+    }
+
+    if (config.type === TokenType.crossCollateral) {
+      for (const [domainStr, routers] of Object.entries(
+        config.crossCollateralRouters,
+      )) {
+        const domain = Number(domainStr);
+        const existing = knownRoutersPerDomain[domain] ?? new Set();
+        knownRoutersPerDomain[domain] = new Set([...existing, ...routers]);
+      }
+    }
+  }
+
+  return { knownRoutersPerDomain };
 }
 
 // Warp Router Update Utilities

@@ -2,6 +2,7 @@ import {
   ChainMetadataForAltVM,
   getProtocolProvider,
 } from '@hyperlane-xyz/provider-sdk';
+import { assert } from '@hyperlane-xyz/utils';
 import {
   Artifact,
   ArtifactReader,
@@ -9,6 +10,11 @@ import {
   isArtifactUnderived,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
+import {
+  DeployedFeeAddress,
+  DeployedFeeArtifact,
+  FeeArtifactConfig,
+} from '@hyperlane-xyz/provider-sdk/fee';
 import {
   DeployedHookAddress,
   DeployedHookArtifact,
@@ -25,9 +31,11 @@ import {
   DerivedWarpConfig,
   IRawWarpArtifactManager,
   WarpArtifactConfig,
+  buildFeeReadContextFromWarpArtifactConfig,
   warpArtifactToDerivedConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
 
+import { createFeeReader } from '../fee/fee-reader.js';
 import { HookReader, createHookReader } from '../hook/hook-reader.js';
 import { IsmReader, createIsmReader } from '../ism/generic-ism.js';
 
@@ -69,12 +77,19 @@ export class WarpTokenReader implements ArtifactReader<
       rawArtifact.config.hook,
     );
 
+    // Expand nested Fee artifact if present
+    const expandedFeeArtifact = await this.expandFeeArtifact(
+      rawArtifact.config,
+      rawArtifact.config.fee,
+    );
+
     return {
       ...rawArtifact,
       config: {
         ...rawArtifact.config,
         interchainSecurityModule: expandedIsmArtifact,
         hook: expandedHookArtifact,
+        fee: expandedFeeArtifact,
       },
     };
   }
@@ -131,6 +146,38 @@ export class WarpTokenReader implements ArtifactReader<
     // NEW state should not occur in read artifacts
     throw new Error(
       `Unexpected Hook artifact state 'new' when reading warp token Hook configuration`,
+    );
+  }
+
+  /**
+   * Expands a Fee artifact by reading it if underived.
+   * Builds FeeReadContext from the warp config's remote routers and CC routers.
+   * Returns undefined if no fee is configured or protocol doesn't support fees.
+   */
+  private async expandFeeArtifact(
+    warpConfig: WarpArtifactConfig,
+    feeArtifact?: Artifact<FeeArtifactConfig, DeployedFeeAddress>,
+  ): Promise<DeployedFeeArtifact | undefined> {
+    if (!feeArtifact) {
+      return undefined;
+    }
+
+    if (isArtifactDeployed(feeArtifact)) {
+      return feeArtifact;
+    }
+
+    if (isArtifactUnderived(feeArtifact)) {
+      const context = buildFeeReadContextFromWarpArtifactConfig(warpConfig);
+      const feeReader = createFeeReader(this.chainMetadata, context);
+      assert(
+        feeReader,
+        `Fee artifact present on warp config but protocol ${this.chainMetadata.protocol} has no fee artifact manager`,
+      );
+      return feeReader.read(feeArtifact.deployed.address);
+    }
+
+    throw new Error(
+      `Unexpected Fee artifact state 'new' when reading warp token Fee configuration`,
     );
   }
 
