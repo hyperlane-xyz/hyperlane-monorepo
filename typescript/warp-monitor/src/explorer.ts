@@ -96,9 +96,11 @@ export class ExplorerPendingTransfersClient {
     this.nodeByDestinationKey = new Map<string, RouterNodeMetadata>();
 
     for (const node of nodes) {
+      domains.add(node.domainId);
+      if (!isValidAddressEvm(node.routerAddress)) continue;
+
       const routerLower = node.routerAddress.toLowerCase();
       routers.add(routerLower);
-      domains.add(node.domainId);
       this.nodeByDestinationKey.set(`${node.domainId}:${routerLower}`, node);
     }
 
@@ -187,7 +189,6 @@ export class ExplorerPendingTransfersClient {
     if (this.routers.length === 0 || this.domains.length === 0) return [];
 
     const variables = {
-      senders: this.routers.map((router) => this.toBytea(router)),
       recipients: this.routers.map((router) => this.toBytea(router)),
       originDomains: this.domains,
       destinationDomains: this.domains,
@@ -196,7 +197,6 @@ export class ExplorerPendingTransfersClient {
 
     const query = `
       query WarpMonitorInflightTransfers(
-        $senders: [bytea!],
         $recipients: [bytea!],
         $originDomains: [Int!],
         $destinationDomains: [Int!],
@@ -206,7 +206,6 @@ export class ExplorerPendingTransfersClient {
           where: {
             _and: [
               { is_delivered: { _eq: false } },
-              { sender: { _in: $senders } },
               { recipient: { _in: $recipients } },
               { origin_domain_id: { _in: $originDomains } },
               { destination_domain_id: { _in: $destinationDomains } }
