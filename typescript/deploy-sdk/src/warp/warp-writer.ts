@@ -166,15 +166,37 @@ export class WarpTokenWriter
       }
     }
 
+    // Deploy Fee if configured as a NEW artifact
+    // No FeeReadContext needed on create - deploying from scratch
+    let onChainFeeArtifact:
+      | ArtifactOnChain<FeeArtifactConfig, DeployedFeeAddress>
+      | undefined;
+    if (config.fee) {
+      const feeWriter = createFeeWriter(this.chainMetadata, this.signer, {
+        knownRoutersPerDomain: {},
+      });
+
+      if (!feeWriter) {
+        rootLogger.warn(
+          'Fee programs are not supported for this protocol. Fee configuration will be ignored.',
+        );
+      } else if (isArtifactNew(config.fee)) {
+        const [deployedFee, feeReceipts] = await feeWriter.create(config.fee);
+        allReceipts.push(...feeReceipts);
+        onChainFeeArtifact = deployedFee;
+      } else {
+        onChainFeeArtifact = config.fee;
+      }
+    }
+
     // Convert to raw artifact config (flatten nested artifacts)
-    // Fee is excluded from create - managed in update() after remote routers are enrolled
     const rawArtifact: ArtifactNew<RawWarpArtifactConfig> = {
       artifactState: ArtifactState.NEW,
       config: {
         ...config,
         interchainSecurityModule: onChainIsmArtifact,
         hook: onChainHookArtifact,
-        fee: undefined,
+        fee: onChainFeeArtifact,
       },
     };
 
@@ -191,7 +213,7 @@ export class WarpTokenWriter
           ...artifact.config,
           interchainSecurityModule: onChainIsmArtifact,
           hook: onChainHookArtifact,
-          fee: undefined,
+          fee: onChainFeeArtifact,
         },
         deployed: deployed.deployed,
       },

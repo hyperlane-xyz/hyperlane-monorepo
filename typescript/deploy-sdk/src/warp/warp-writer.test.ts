@@ -1170,20 +1170,81 @@ describe('WarpTokenWriter', () => {
   });
 
   describe('create() - Fee', () => {
-    it('should exclude fee from raw artifact on create', async () => {
-      const feeConfig: FeeArtifactConfig = {
-        type: 'linear',
-        owner: '0xowner',
-        beneficiary: '0xbeneficiary',
-        maxFee: '1000',
-        halfAmount: '500',
-      };
+    const FEE_CREATE_PROTOCOL = 'fee-create-protocol' as ProtocolType;
 
+    const feeCreateChainMetadata: ChainMetadataForAltVM = {
+      name: TEST_CHAIN,
+      chainId: 1,
+      domainId: TEST_DOMAIN_ID,
+      protocol: FEE_CREATE_PROTOCOL,
+      rpcUrls: [{ http: 'http://localhost:8545' }],
+    };
+
+    let feeCreateWriter: WarpTokenWriter;
+    let mockFeeCreateStub: Sinon.SinonStub;
+
+    const linearFeeConfig: FeeArtifactConfig = {
+      type: 'linear',
+      owner: '0xowner',
+      beneficiary: '0xbeneficiary',
+      maxFee: '1000',
+      halfAmount: '500',
+    };
+
+    const deployedFee: DeployedFeeArtifact = {
+      artifactState: ArtifactState.DEPLOYED,
+      config: linearFeeConfig,
+      deployed: { address: FEE_ADDRESS },
+    };
+
+    before(() => {
+      if (!hasProtocol(FEE_CREATE_PROTOCOL)) {
+        let currentFeeManager: IRawFeeArtifactManager;
+        registerProtocol(FEE_CREATE_PROTOCOL, () => {
+          mockFeeCreateStub = Sinon.stub().resolves([deployedFee, []]);
+          currentFeeManager = {
+            readFee: Sinon.stub().resolves(deployedFee),
+            createReader: Sinon.stub(),
+            createWriter: Sinon.stub().returns({
+              read: Sinon.stub(),
+              create: mockFeeCreateStub,
+              update: Sinon.stub().resolves([]),
+            }),
+          };
+          return {
+            createProvider: Sinon.stub(),
+            createSigner: Sinon.stub(),
+            createSubmitter: Sinon.stub(),
+            createIsmArtifactManager: Sinon.stub(),
+            createHookArtifactManager: Sinon.stub(),
+            createMailboxArtifactManager: Sinon.stub(),
+            createValidatorAnnounceArtifactManager: Sinon.stub(),
+            createFeeArtifactManager: () => currentFeeManager,
+            getMinGas: Sinon.stub(),
+            createWarpArtifactManager: Sinon.stub(),
+          };
+        });
+      }
+    });
+
+    beforeEach(() => {
+      feeCreateWriter = Object.create(WarpTokenWriter.prototype);
+      Object.assign(feeCreateWriter, {
+        artifactManager: mockArtifactManager,
+        chainMetadata: feeCreateChainMetadata,
+        chainLookup: mockChainLookup,
+        signer: mockSigner,
+        ismWriter: mockIsmWriter,
+        hookWriterFactory: () => mockHookWriter,
+      });
+    });
+
+    it('should deploy fee before warp token when fee is NEW', async () => {
       const configWithFee: WarpArtifactConfig = {
         ...actualConfig,
         fee: {
           artifactState: ArtifactState.NEW,
-          config: feeConfig,
+          config: linearFeeConfig,
         },
       };
 
@@ -1207,11 +1268,50 @@ describe('WarpTokenWriter', () => {
         config: configWithFee,
       };
 
-      await writer.create(artifact);
+      const [deployed] = await feeCreateWriter.create(artifact);
 
-      // Fee should be excluded from the raw artifact passed to protocol writer
+      // Fee should be deployed and passed to raw artifact
       const rawArtifactArg = createStub.firstCall.args[0];
-      expect(rawArtifactArg.config.fee).to.be.undefined;
+      expect(rawArtifactArg.config.fee).to.not.be.undefined;
+      expect(rawArtifactArg.config.fee?.deployed.address).to.equal(FEE_ADDRESS);
+      // Returned artifact should include deployed fee
+      expect(deployed.config.fee).to.not.be.undefined;
+    });
+
+    it('should pass through existing fee address on create', async () => {
+      const configWithDeployedFee: WarpArtifactConfig = {
+        ...actualConfig,
+        fee: {
+          artifactState: ArtifactState.DEPLOYED,
+          config: linearFeeConfig,
+          deployed: { address: FEE_ADDRESS },
+        },
+      };
+
+      const createStub = Sinon.stub().resolves([
+        {
+          artifactState: ArtifactState.DEPLOYED,
+          config: configWithDeployedFee,
+          deployed: { address: TOKEN_ADDRESS },
+        },
+        [],
+      ]);
+
+      mockArtifactManager.createWriter.returns({
+        read: Sinon.stub(),
+        create: createStub,
+        update: Sinon.stub(),
+      });
+
+      const artifact: ArtifactNew<WarpArtifactConfig> = {
+        artifactState: ArtifactState.NEW,
+        config: configWithDeployedFee,
+      };
+
+      await feeCreateWriter.create(artifact);
+
+      const rawArtifactArg = createStub.firstCall.args[0];
+      expect(rawArtifactArg.config.fee?.deployed.address).to.equal(FEE_ADDRESS);
     });
   });
 
@@ -1420,7 +1520,7 @@ describe('WarpTokenWriter', () => {
     });
   });
 
-  describe('update() - Fee unsupported protocol', () => {
+  describe('Fee - unsupported protocol', () => {
     const NO_FEE_PROTOCOL = 'no-fee-protocol' as ProtocolType;
 
     const noFeeChainMetadata: ChainMetadataForAltVM = {
@@ -1433,7 +1533,7 @@ describe('WarpTokenWriter', () => {
 
     let noFeeWriter: WarpTokenWriter;
 
-    beforeEach(() => {
+    before(() => {
       if (!hasProtocol(NO_FEE_PROTOCOL)) {
         registerProtocol(NO_FEE_PROTOCOL, () => ({
           createProvider: Sinon.stub(),
@@ -1448,7 +1548,9 @@ describe('WarpTokenWriter', () => {
           createWarpArtifactManager: Sinon.stub(),
         }));
       }
+    });
 
+    beforeEach(() => {
       noFeeWriter = Object.create(WarpTokenWriter.prototype);
       Object.assign(noFeeWriter, {
         artifactManager: mockArtifactManager,
@@ -1462,30 +1564,58 @@ describe('WarpTokenWriter', () => {
       Sinon.stub(noFeeWriter, 'read').resolves(baseDeployedArtifact);
     });
 
-    it('should ignore fee config when protocol does not support fees', async () => {
-      const feeConfig: FeeArtifactConfig = {
-        type: 'linear',
-        owner: '0xowner',
-        beneficiary: '0xbeneficiary',
-        maxFee: '1000',
-        halfAmount: '500',
-      };
+    const feeConfig: FeeArtifactConfig = {
+      type: 'linear',
+      owner: '0xowner',
+      beneficiary: '0xbeneficiary',
+      maxFee: '1000',
+      halfAmount: '500',
+    };
 
-      const configWithFee: WarpArtifactConfig = {
-        ...actualConfig,
-        fee: {
-          artifactState: ArtifactState.NEW,
-          config: feeConfig,
+    const configWithFee: WarpArtifactConfig = {
+      ...actualConfig,
+      fee: {
+        artifactState: ArtifactState.NEW,
+        config: feeConfig,
+      },
+    };
+
+    it('should ignore fee config on create when protocol does not support fees', async () => {
+      const createStub = Sinon.stub().resolves([
+        {
+          artifactState: ArtifactState.DEPLOYED,
+          config: actualConfig,
+          deployed: { address: TOKEN_ADDRESS },
         },
+        [],
+      ]);
+
+      mockArtifactManager.createWriter.returns({
+        read: Sinon.stub(),
+        create: createStub,
+        update: Sinon.stub(),
+      });
+
+      const artifact: ArtifactNew<WarpArtifactConfig> = {
+        artifactState: ArtifactState.NEW,
+        config: configWithFee,
       };
 
-      const mockWriter: MockRawWarpWriter = {
+      // Should not throw - fee is ignored with a warning
+      const [deployed] = await noFeeWriter.create(artifact);
+      expect(deployed.artifactState).to.equal(ArtifactState.DEPLOYED);
+      // Fee should be undefined in raw artifact since protocol doesn't support it
+      const rawArtifactArg = createStub.firstCall.args[0];
+      expect(rawArtifactArg.config.fee).to.be.undefined;
+    });
+
+    it('should ignore fee config on update when protocol does not support fees', async () => {
+      const updateStub = Sinon.stub().resolves([]);
+      mockArtifactManager.createWriter.returns({
         read: Sinon.stub(),
         create: Sinon.stub(),
-        update: Sinon.stub().resolves([]),
-      };
-
-      mockArtifactManager.createWriter.returns(mockWriter);
+        update: updateStub,
+      });
 
       const artifact: DeployedWarpArtifact = {
         ...baseDeployedArtifact,
