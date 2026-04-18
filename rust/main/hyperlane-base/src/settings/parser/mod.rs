@@ -171,6 +171,12 @@ fn parse_chain(
         .and_then(parse_signer)
         .end();
 
+    let identity = chain
+        .chain(&mut err)
+        .get_opt_key("identity")
+        .and_then(parse_signer)
+        .end();
+
     // measured in seconds (with fractions)
     let estimated_block_time = chain
         .chain(&mut err)
@@ -348,6 +354,7 @@ fn parse_chain(
     err.into_result(ChainConf {
         domain,
         signer,
+        identity,
         submitter,
         estimated_block_time,
         reorg_period,

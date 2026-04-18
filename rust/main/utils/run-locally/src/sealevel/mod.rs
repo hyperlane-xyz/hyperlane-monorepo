@@ -1,3 +1,4 @@
+pub mod composite_ism;
 pub mod sealevel_termination_invariants;
 pub mod solana;
 

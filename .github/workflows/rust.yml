@@ -138,9 +138,16 @@ jobs:
         uses: rui314/setup-mold@v1
       - name: Setup sccache
         uses: ./.github/actions/setup-sccache
+      - name: Install Solana toolchain
+        run: |
+          sh -c "$(curl -sSfL https://release.anza.xyz/v3.0.14/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
       - name: Run tests for main workspace
         run: cargo test --all-targets --features aleo,integration_test
         working-directory: ./rust/main
+      - name: Build sealevel SBF programs
+        run: cargo build-sbf --manifest-path programs/ism/composite-ism/Cargo.toml
+        working-directory: ./rust/sealevel
       - name: Run tests for sealevel workspace
         run: cargo test
         working-directory: ./rust/sealevel

@@ -6,6 +6,7 @@
 #![deny(clippy::unwrap_used, clippy::panic)]
 #![deny(clippy::arithmetic_side_effects)]
 
+pub use crate::composite_ism::{MetadataSpec as CompositeIsmMetadataSpec, SealevelCompositeIsm};
 pub use crate::multisig_ism::*;
 pub use interchain_gas::*;
 pub use interchain_security_module::*;
@@ -28,6 +29,7 @@ mod account;
 pub mod alt;
 /// Hyperlane Application specific functionality
 pub mod application;
+mod composite_ism;
 mod error;
 mod interchain_gas;
 mod interchain_security_module;

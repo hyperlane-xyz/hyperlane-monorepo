@@ -75,6 +75,10 @@ pub struct ChainConf {
     pub domain: HyperlaneDomain,
     /// Signer configuration for this chain
     pub signer: Option<SignerConf>,
+    /// Identity keypair used as the relayer's on-chain identity (e.g. for TrustedRelayer ISMs).
+    /// Only valid for Sealevel chains — an error is returned if set on other protocols.
+    /// Falls back to `signer` if not set.
+    pub identity: Option<SignerConf>,
     /// Submitter type for this chain
     pub submitter: SubmitterType,
     /// The estimated block time, i.e. the average time the next block is added to the chain
@@ -361,6 +365,17 @@ impl ChainConf {
     /// Try to convert the chain setting into a Mailbox contract
     pub async fn build_mailbox(&self, metrics: &CoreMetrics) -> Result<Box<dyn Mailbox>> {
         let ctx = "Building mailbox";
+
+        if self.identity.is_some()
+            && self.connection.protocol() != HyperlaneDomainProtocol::Sealevel
+        {
+            return Err(eyre!(
+                "'identity' is only supported for Sealevel chains, but chain '{}' uses protocol '{:?}'",
+                self.domain.name(),
+                self.connection.protocol()
+            ));
+        }
+
         let locator = self.locator(self.addresses.mailbox);
 
         match &self.connection {
@@ -377,6 +392,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Sealevel(conf) => {
                 let keypair = self.sealevel_signer().await.context(ctx)?;
+                let identity_keypair = self.sealevel_identity_signer().await.context(ctx)?;
 
                 let provider =
                     Arc::new(build_sealevel_provider(self, &locator, &[], conf, metrics));
@@ -389,6 +405,7 @@ impl ChainConf {
                     conf,
                     &locator,
                     keypair.map(h_sealevel::SealevelKeypair::new),
+                    identity_keypair.map(h_sealevel::SealevelKeypair::new),
                 )
                 .map(|m| Box::new(m) as Box<dyn Mailbox>)
                 .map_err(Into::into)
@@ -461,7 +478,7 @@ impl ChainConf {
                 let tx_submitter =
                     build_sealevel_tx_submitter(&provider, self, conf, &locator, metrics);
 
-                h_sealevel::SealevelMailbox::new(provider, tx_submitter, conf, &locator, None)
+                h_sealevel::SealevelMailbox::new(provider, tx_submitter, conf, &locator, None, None)
                     .map(|m| Box::new(m) as Box<dyn MerkleTreeHook>)
                     .map_err(Into::into)
             }
@@ -1153,6 +1170,32 @@ impl ChainConf {
         .context(ctx)
     }
 
+    /// Creates a [`h_sealevel::SealevelCompositeIsm`] for a composite ISM program.
+    ///
+    /// Only valid for Sealevel chains; returns an error for all others.
+    pub async fn build_sealevel_composite_ism(
+        &self,
+        address: H256,
+        metrics: &CoreMetrics,
+    ) -> Result<h_sealevel::SealevelCompositeIsm> {
+        let ctx = "Building Sealevel composite ISM";
+        let locator = self.locator(address);
+
+        match &self.connection {
+            ChainConnectionConf::Sealevel(conf) => {
+                let keypair = self.sealevel_signer().await.context(ctx)?;
+                let provider =
+                    Arc::new(build_sealevel_provider(self, &locator, &[], conf, metrics));
+                Ok(h_sealevel::SealevelCompositeIsm::new(
+                    provider,
+                    locator,
+                    keypair.map(h_sealevel::SealevelKeypair::new),
+                ))
+            }
+            _ => eyre::bail!("SealevelCompositeIsm is only supported on Sealevel chains"),
+        }
+    }
+
     /// Try to convert the chain setting into a RoutingIsm Ism contract
     pub async fn build_routing_ism(
         &self,
@@ -1363,6 +1406,16 @@ impl ChainConf {
 
     async fn sealevel_signer(&self) -> Result<Option<h_sealevel::Keypair>> {
         self.signer().await
+    }
+
+    /// Returns the identity keypair for Sealevel chains — the relayer's on-chain identity used
+    /// e.g. by TrustedRelayer ISMs. Falls back to the regular `signer` if `identity` is not set.
+    async fn sealevel_identity_signer(&self) -> Result<Option<h_sealevel::Keypair>> {
+        if let Some(conf) = &self.identity {
+            Ok(Some(conf.build::<h_sealevel::Keypair>().await?))
+        } else {
+            self.signer().await
+        }
     }
 
     async fn cosmos_signer(&self) -> Result<Option<h_cosmos::Signer>> {

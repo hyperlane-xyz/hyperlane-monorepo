@@ -44,6 +44,8 @@ pub enum ModuleType {
     Null,
     /// Ccip Read ISM (accepts offchain signature information)
     CcipRead,
+    /// Composite ISM (Sealevel inline ISM tree)
+    Composite,
 }
 
 /// Metadata associated with an ISM verification
@@ -98,6 +100,7 @@ impl ModuleType {
             Self::MessageIdMultisig => "message_id_multisig",
             Self::Null => "null",
             Self::CcipRead => "ccip_read",
+            Self::Composite => "composite",
         }
     }
 }

@@ -48,6 +48,7 @@ const SOLANA_HYPERLANE_PROGRAMS: &[&str] = &[
     "mailbox",
     "validator-announce",
     "ism/multisig-ism-message-id",
+    "ism/composite-ism",
     "hyperlane-sealevel-token",
     "hyperlane-sealevel-token-native",
     "hyperlane-sealevel-token-collateral",
@@ -65,23 +66,23 @@ const SOLANA_WARPROUTE_TOKEN_CONFIG_FILE: &str =
     "environments/local-e2e/warp-routes/testwarproute/token-config.json";
 const SOLANA_ENVS_DIR: &str = "environments";
 
-const SOLANA_ENV_NAME: &str = "local-e2e";
+pub const SOLANA_ENV_NAME: &str = "local-e2e";
 
 const SBF_OUT_PATH: &str = "target/dist";
 
 // Domain IDs for sealevel test chains
-const SEALEVELTEST1_DOMAIN_ID: &str = "13375";
-const SEALEVELTEST2_DOMAIN_ID: &str = "13376";
+pub const SEALEVELTEST1_DOMAIN_ID: &str = "13375";
+pub const SEALEVELTEST2_DOMAIN_ID: &str = "13376";
 const SEALEVELTEST3_DOMAIN_ID: &str = "13377";
 
-const SEALEVELTEST1_IGP_PROGRAM_ID: &str = "GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U";
+pub const SEALEVELTEST1_IGP_PROGRAM_ID: &str = "GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U";
 const SEALEVELTEST2_IGP_PROGRAM_ID: &str = "FArd4tEikwz2fk3MB7S9kC82NGhkgT6f9aXi3C5cw1E5";
 const SEALEVELTEST3_IGP_PROGRAM_ID: &str = "Bimih5j2Vbw1ytUbLW3uQPfykHzPdDZrevSz6ZSYNAvf";
 const SEALEVELTEST3_MULTISIG_ISM_PROGRAM_ID: &str = "ECEnBkaZVaDnCpLN836tpdXYHhifXsB8QZpcGk4FNCk5";
 
 // Sealeveltest2 mailbox program ID (used for ALT creation on destination)
 // ALT must be for the destination chain since it's used when DELIVERING messages
-const SEALEVELTEST2_MAILBOX_PROGRAM_ID: &str = "9tCUWNjpqcf3NUSrtp7vquYVCwbEByvLjZUrhG5dgvhj";
+pub const SEALEVELTEST2_MAILBOX_PROGRAM_ID: &str = "9tCUWNjpqcf3NUSrtp7vquYVCwbEByvLjZUrhG5dgvhj";
 
 // Warp route program ID for sealeveltest1
 const SEALEVELTEST1_WARP_ROUTE_PROGRAM_ID: &str = "CGn8yNtSD3aTTqJfYhUb6s1aVTN75NzwtsFKo1e83aga";
@@ -661,7 +662,7 @@ pub fn solana_termination_invariants_met(
         .join("\n")
         .contains("Message delivered")
 }
-fn sealevel_client(solana_cli_tools_path: &Path, solana_config_path: &Path) -> Program {
+pub fn sealevel_client(solana_cli_tools_path: &Path, solana_config_path: &Path) -> Program {
     let workspace_path = get_workspace_path();
     let sealevel_path = get_sealevel_path(&workspace_path);
 

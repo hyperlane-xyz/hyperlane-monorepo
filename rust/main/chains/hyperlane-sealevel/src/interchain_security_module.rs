@@ -2,14 +2,20 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use num_traits::cast::FromPrimitive;
-use solana_sdk::{instruction::Instruction, pubkey::Pubkey, signer::Signer};
+use solana_sdk::{
+    instruction::{AccountMeta, Instruction},
+    pubkey::Pubkey,
+    signer::Signer,
+};
 use tracing::warn;
 
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneMessage, InterchainSecurityModule, Metadata, ModuleType, H256, U256,
 };
-use hyperlane_sealevel_interchain_security_module_interface::InterchainSecurityModuleInstruction;
+use hyperlane_sealevel_interchain_security_module_interface::{
+    InterchainSecurityModuleInstruction, VERIFY_ACCOUNT_METAS_PDA_SEEDS,
+};
 use serializable_account_meta::SimulationReturnData;
 
 use crate::{SealevelKeypair, SealevelProvider};
@@ -57,12 +63,17 @@ impl HyperlaneChain for SealevelInterchainSecurityModule {
 #[async_trait]
 impl InterchainSecurityModule for SealevelInterchainSecurityModule {
     async fn module_type(&self) -> ChainResult<ModuleType> {
+        // Pass the VAM PDA as account 0. ISMs that store config there (e.g.
+        // composite ISM) read it to determine the module type; ISMs that don't
+        // need accounts (e.g. multisig) safely ignore it.
+        let (vam_pda, _) =
+            Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, &self.program_id);
         let instruction = Instruction::new_with_bytes(
             self.program_id,
             &InterchainSecurityModuleInstruction::Type
                 .encode()
                 .map_err(ChainCommunicationError::from_other)?[..],
-            vec![],
+            vec![AccountMeta::new_readonly(vam_pda, false)],
         );
 
         let pubkey = self

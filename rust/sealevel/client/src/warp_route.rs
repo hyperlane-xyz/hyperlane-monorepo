@@ -743,6 +743,13 @@ pub fn parse_token_account_data(token_type: FlatTokenType, data: &mut &[u8]) {
 }
 
 pub fn install_spl_token_cli() {
+    let home_path = std::env::var("HOME").unwrap_or_default();
+    let cargo_bin = format!("{home_path}/.cargo/bin/spl-token");
+    if std::path::Path::new(&cargo_bin).exists() {
+        println!("spl-token already installed at {cargo_bin}, skipping");
+        return;
+    }
+
     println!("Installing cargo 1.76.0 (required by spl-token-cli)");
     Command::new("rustup")
         .args(["toolchain", "install", "1.76.0"])

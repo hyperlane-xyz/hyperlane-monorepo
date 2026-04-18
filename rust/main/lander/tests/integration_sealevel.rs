@@ -84,15 +84,16 @@ mock! {
 
     #[async_trait]
     impl SealevelProviderForLander for SvmProvider {
-        async fn create_transaction_for_instruction(
+        async fn create_transaction_for_instruction<'a>(
             &self,
             compute_unit_limit: u32,
             compute_unit_price_micro_lamports: u64,
             instruction: SealevelInstruction,
-            payer: &SealevelKeypair,
+            payer: &'a SealevelKeypair,
             tx_submitter: Arc<dyn TransactionSubmitter>,
             sign: bool,
             alt_address: Option<Pubkey>,
+            additional_signers: &'a [&'a SealevelKeypair],
         ) -> ChainResult<SealevelTxType>;
 
         async fn get_estimated_costs_for_instruction(
@@ -137,7 +138,7 @@ fn create_sealevel_provider_for_successful_tx() -> MockSvmProvider {
 
     provider
         .expect_create_transaction_for_instruction()
-        .returning(|_, _, instruction, payer, _, _, _| {
+        .returning(|_, _, instruction, payer, _, _, _, _| {
             let tx = SealevelLegacyTransaction::new_unsigned(Message::new(
                 &[instruction],
                 Some(&payer.pubkey()),
@@ -172,7 +173,7 @@ fn create_sealevel_provider_for_successful_versioned_tx() -> MockSvmProvider {
 
     provider
         .expect_create_transaction_for_instruction()
-        .returning(|_, _, instruction, payer, _, _, _| {
+        .returning(|_, _, instruction, payer, _, _, _, _| {
             // Create a versioned transaction with V0 message
             let message = MessageV0::try_compile(
                 &payer.pubkey(),
@@ -545,7 +546,7 @@ async fn test_sealevel_payload_estimation_failure_results_in_dropped() {
 
     provider
         .expect_create_transaction_for_instruction()
-        .returning(|_, _, instruction, payer, _, _, _| {
+        .returning(|_, _, instruction, payer, _, _, _, _| {
             let tx = SealevelLegacyTransaction::new_unsigned(Message::new(
                 &[instruction],
                 Some(&payer.pubkey()),
@@ -631,7 +632,7 @@ async fn test_sealevel_versioned_tx_estimation_failure_results_in_dropped() {
     // Mock still needed even though estimation fails - may be called during simulation
     provider
         .expect_create_transaction_for_instruction()
-        .returning(|_, _, instruction, payer, _, _, _| {
+        .returning(|_, _, instruction, payer, _, _, _, _| {
             let message =
                 MessageV0::try_compile(&payer.pubkey(), &[instruction], &[], Hash::default())
                     .unwrap();

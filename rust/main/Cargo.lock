@@ -6195,6 +6195,7 @@ dependencies = [
  "hyperlane-core",
  "hyperlane-metric",
  "hyperlane-operation-verifier",
+ "hyperlane-sealevel-composite-ism",
  "hyperlane-sealevel-igp",
  "hyperlane-sealevel-interchain-security-module-interface",
  "hyperlane-sealevel-mailbox",
@@ -6232,6 +6233,25 @@ dependencies = [
  "tracing",
  "tracing-futures",
  "url",
+]
+
+[[package]]
+name = "hyperlane-sealevel-composite-ism"
+version = "0.1.0"
+dependencies = [
+ "access-control",
+ "account-utils",
+ "borsh 1.6.0",
+ "ecdsa-signature",
+ "getrandom 0.2.15",
+ "hyperlane-core",
+ "hyperlane-sealevel-interchain-security-module-interface",
+ "num-derive",
+ "num-traits",
+ "serializable-account-meta",
+ "solana-program 3.0.0",
+ "solana-system-interface 2.0.0",
+ "thiserror 1.0.63",
 ]
 
 [[package]]

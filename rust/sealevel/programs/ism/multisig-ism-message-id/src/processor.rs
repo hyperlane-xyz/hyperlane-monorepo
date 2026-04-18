@@ -15,11 +15,12 @@ use solana_program::{
 };
 use solana_system_interface::program as system_program;
 
+use multisig_ism::MultisigIsmMessageIdMetadata;
+
 use crate::{
     accounts::{AccessControlAccount, AccessControlData, DomainData, DomainDataAccount},
     error::Error,
     instruction::{Domained, Instruction, ValidatorsAndThreshold},
-    metadata::MultisigIsmMessageIdMetadata,
 };
 
 use hyperlane_sealevel_interchain_security_module_interface::InterchainSecurityModuleInstruction;
@@ -233,7 +234,8 @@ fn verify(
     metadata_bytes: Vec<u8>,
     message_bytes: Vec<u8>,
 ) -> ProgramResult {
-    let metadata = MultisigIsmMessageIdMetadata::try_from(metadata_bytes)?;
+    let metadata = MultisigIsmMessageIdMetadata::try_from(metadata_bytes)
+        .map_err(|_| Error::InvalidMetadata)?;
     let message = HyperlaneMessage::read_from(&mut &message_bytes[..])
         .map_err(|_| ProgramError::InvalidArgument)?;
 
