@@ -5,11 +5,14 @@ import { assert } from '@hyperlane-xyz/utils';
 import { ArtifactNew, ArtifactState } from './artifact.js';
 import { ChainLookup } from './chain.js';
 import {
+  CrossCollateralRoutingFeeArtifactConfig,
   DeployedFeeArtifact,
+  DerivedFeeConfig,
   FeeArtifactConfig,
   FeeConfig,
   FeeStrategyType,
   FeeType,
+  RoutingFeeArtifactConfig,
   feeArtifactToDerivedConfig,
   feeConfigToArtifact,
   mergeFeeArtifacts,
@@ -84,7 +87,7 @@ describe('fee type support', () => {
         beneficiary: '0xbeneficiary',
         maxFee: '1000',
         halfAmount: '500',
-        quoteSigners: new Set(['0xsigner1']),
+        quoteSigners: ['0xsigner1'],
       };
 
       const artifact = feeConfigToArtifact(config, chainLookup);
@@ -111,11 +114,10 @@ describe('fee type support', () => {
       };
 
       const artifact = feeConfigToArtifact(config, chainLookup);
-      expect(artifact.config).to.deep.equal({
+      const expectedArtifactConfig: RoutingFeeArtifactConfig = {
         type: FeeType.routing,
         owner: '0xowner',
         beneficiary: '0xbeneficiary',
-        quoteSigners: undefined,
         routes: {
           1: {
             type: FeeStrategyType.linear,
@@ -128,7 +130,8 @@ describe('fee type support', () => {
             halfAmount: '1000',
           },
         },
-      });
+      };
+      expect(artifact.config).to.deep.equal(expectedArtifactConfig);
     });
 
     it('converts CC routing fee chain names to domain IDs', () => {
@@ -148,11 +151,10 @@ describe('fee type support', () => {
       };
 
       const artifact = feeConfigToArtifact(config, chainLookup);
-      expect(artifact.config).to.deep.equal({
+      const expectedArtifactConfig: CrossCollateralRoutingFeeArtifactConfig = {
         type: FeeType.crossCollateralRouting,
         owner: '0xowner',
         beneficiary: '0xbeneficiary',
-        quoteSigners: undefined,
         routes: {
           1: {
             '0xrouter1': {
@@ -162,7 +164,8 @@ describe('fee type support', () => {
             },
           },
         },
-      });
+      };
+      expect(artifact.config).to.deep.equal(expectedArtifactConfig);
     });
 
     it('skips unknown chains in routing routes', () => {
@@ -252,11 +255,10 @@ describe('fee type support', () => {
         chainLookup,
       );
 
-      expect(derived).to.deep.equal({
+      const expectedDerived: DerivedFeeConfig = {
         type: FeeType.routing,
         owner: '0xowner',
         beneficiary: '0xbeneficiary',
-        quoteSigners: undefined,
         routes: {
           ethereum: {
             type: FeeStrategyType.linear,
@@ -270,7 +272,8 @@ describe('fee type support', () => {
           },
         },
         address: '0xfee',
-      });
+      };
+      expect(derived).to.deep.equal(expectedDerived);
     });
 
     it('throws for unhandled fee types', () => {
@@ -345,6 +348,7 @@ describe('fee type support', () => {
         beneficiary: '0xbeneficiary',
         maxFee: '1000',
         halfAmount: '500',
+        quoteSigners: ['0xsigner1'],
       };
       const expected: FeeArtifactConfig = {
         type: FeeType.offchainQuotedLinear,
@@ -352,6 +356,7 @@ describe('fee type support', () => {
         beneficiary: '0xbeneficiary',
         maxFee: '2000',
         halfAmount: '500',
+        quoteSigners: ['0xsigner1'],
       };
 
       expect(shouldDeployNewFee(actual, expected)).to.equal(true);

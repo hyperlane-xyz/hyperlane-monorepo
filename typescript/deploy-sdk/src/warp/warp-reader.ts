@@ -2,6 +2,7 @@ import {
   ChainMetadataForAltVM,
   getProtocolProvider,
 } from '@hyperlane-xyz/provider-sdk';
+import { assert } from '@hyperlane-xyz/utils';
 import {
   Artifact,
   ArtifactReader,
@@ -168,9 +169,10 @@ export class WarpTokenReader implements ArtifactReader<
     if (isArtifactUnderived(feeArtifact)) {
       const context = buildFeeReadContextFromDeployedWarpConfig(warpConfig);
       const feeReader = createFeeReader(this.chainMetadata, context);
-      if (!feeReader) {
-        return undefined;
-      }
+      assert(
+        feeReader,
+        `Fee artifact present on warp config but protocol ${this.chainMetadata.protocol} has no fee artifact manager`,
+      );
       return feeReader.read(feeArtifact.deployed.address);
     }
 

@@ -56,9 +56,9 @@ export class FeeWriter
   implements ArtifactWriter<FeeArtifactConfig, DeployedFeeAddress>
 {
   constructor(
-    protected readonly artifactManager: IRawFeeArtifactManager,
-    protected readonly context: FeeReadContext,
-    protected readonly signer: ISigner<AnnotatedTx, TxReceipt>,
+    artifactManager: IRawFeeArtifactManager,
+    context: FeeReadContext,
+    private readonly signer: ISigner<AnnotatedTx, TxReceipt>,
   ) {
     super(artifactManager, context);
   }

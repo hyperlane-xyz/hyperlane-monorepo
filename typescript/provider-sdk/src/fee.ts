@@ -29,6 +29,7 @@ export const FeeStrategyType = {
   linear: 'linear',
   regressive: 'regressive',
   progressive: 'progressive',
+  offchainQuotedLinear: 'offchainQuotedLinear',
 } as const;
 
 export type FeeStrategyType =
@@ -51,10 +52,16 @@ export interface ProgressiveFeeStrategy extends FeeParams {
   type: typeof FeeStrategyType.progressive;
 }
 
+export interface OffchainQuotedLinearFeeStrategy extends FeeParams {
+  type: typeof FeeStrategyType.offchainQuotedLinear;
+  quoteSigners: string[];
+}
+
 export type FeeStrategy =
   | LinearFeeStrategy
   | RegressiveFeeStrategy
-  | ProgressiveFeeStrategy;
+  | ProgressiveFeeStrategy
+  | OffchainQuotedLinearFeeStrategy;
 
 export const FeeType = {
   linear: 'linear',
@@ -72,7 +79,6 @@ export type FeeType = (typeof FeeType)[keyof typeof FeeType];
 export type BaseFeeConfig<T = {}> = {
   owner: string;
   beneficiary: string;
-  quoteSigners?: Set<string>;
 } & T;
 
 export interface LinearFeeConfig extends BaseFeeConfig<FeeParams> {
@@ -89,6 +95,7 @@ export interface ProgressiveFeeConfig extends BaseFeeConfig<FeeParams> {
 
 export interface OffchainQuotedLinearFeeConfig extends BaseFeeConfig<FeeParams> {
   type: typeof FeeType.offchainQuotedLinear;
+  quoteSigners: string[];
 }
 
 export interface RoutingFeeConfig extends BaseFeeConfig {
@@ -256,7 +263,6 @@ export function feeConfigToArtifact(
           type: config.type,
           owner: config.owner,
           beneficiary: config.beneficiary,
-          quoteSigners: config.quoteSigners,
           routes: convertRoutesToArtifact(config.routes, chainLookup),
         },
       };
@@ -268,7 +274,6 @@ export function feeConfigToArtifact(
           type: config.type,
           owner: config.owner,
           beneficiary: config.beneficiary,
-          quoteSigners: config.quoteSigners,
           routes: convertCCRoutesToArtifact(config.routes, chainLookup),
         },
       };
@@ -305,7 +310,6 @@ export function feeArtifactToDerivedConfig(
         type: config.type,
         owner: config.owner,
         beneficiary: config.beneficiary,
-        quoteSigners: config.quoteSigners,
         routes: convertRoutesToDerived(config.routes, chainLookup),
         address,
       };
@@ -315,7 +319,6 @@ export function feeArtifactToDerivedConfig(
         type: config.type,
         owner: config.owner,
         beneficiary: config.beneficiary,
-        quoteSigners: config.quoteSigners,
         routes: convertCCRoutesToDerived(config.routes, chainLookup),
         address,
       };

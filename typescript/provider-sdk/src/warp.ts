@@ -640,27 +640,31 @@ function convertCrossCollateralRoutersToDerived(
 // Fee Read Context Utilities
 
 /**
- * Builds a FeeReadContext from a WarpArtifactConfig.
- * Extracts remote router domains and cross-collateral router mappings
- * so the fee reader knows which domains/routers to check on-chain.
+ * Builds a FeeReadContext by unioning domains/routers from the provided
+ * WarpArtifactConfigs. Pass both expected and current configs so the fee
+ * reader can discover routes from current state (for cleanup) and expected
+ * state (for setup).
  */
 export function buildFeeReadContextFromDeployedWarpConfig(
-  config: WarpArtifactConfig,
+  ...configs: WarpArtifactConfig[]
 ): FeeReadContext {
   const knownRoutersPerDomain: Record<number, Set<string>> = {};
 
-  for (const [domainStr, router] of Object.entries(config.remoteRouters)) {
-    const domain = Number(domainStr);
-    knownRoutersPerDomain[domain] = new Set([router.address]);
-  }
-
-  if (config.type === TokenType.crossCollateral) {
-    for (const [domainStr, routers] of Object.entries(
-      config.crossCollateralRouters,
-    )) {
+  for (const config of configs) {
+    for (const [domainStr, router] of Object.entries(config.remoteRouters)) {
       const domain = Number(domainStr);
       const existing = knownRoutersPerDomain[domain] ?? new Set();
-      knownRoutersPerDomain[domain] = new Set([...existing, ...routers]);
+      knownRoutersPerDomain[domain] = new Set([...existing, router.address]);
+    }
+
+    if (config.type === TokenType.crossCollateral) {
+      for (const [domainStr, routers] of Object.entries(
+        config.crossCollateralRouters,
+      )) {
+        const domain = Number(domainStr);
+        const existing = knownRoutersPerDomain[domain] ?? new Set();
+        knownRoutersPerDomain[domain] = new Set([...existing, ...routers]);
+      }
     }
   }
 

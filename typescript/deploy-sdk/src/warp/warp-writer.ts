@@ -334,7 +334,10 @@ export class WarpTokenWriter
       | undefined;
 
     if (expectedFee && !isArtifactUnderived(expectedFee)) {
-      const feeContext = buildFeeReadContextFromDeployedWarpConfig(config);
+      const feeContext = buildFeeReadContextFromDeployedWarpConfig(
+        config,
+        currentArtifact.config,
+      );
       const feeWriter = createFeeWriter(
         this.chainMetadata,
         this.signer,
