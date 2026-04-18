@@ -107,6 +107,8 @@ pub struct InitFee {
     pub fee_data: FeeData,
     /// Hyperlane domain ID of the local chain.
     pub domain_id: u32,
+    /// Initial offchain quote signers. Must be Some for Leaf, None for Routing/CC.
+    pub signers: Option<BTreeSet<SignerAddress>>,
 }
 
 /// Quote the fee for a transfer amount to a destination.
@@ -180,6 +182,7 @@ pub fn init_fee_instruction(
     beneficiary: Pubkey,
     fee_data: FeeData,
     domain_id: u32,
+    signers: Option<BTreeSet<SignerAddress>>,
 ) -> Result<SolanaInstruction, ProgramError> {
     let (fee_account, _bump) =
         Pubkey::try_find_program_address(fee_account_pda_seeds!(salt), &program_id)
@@ -191,6 +194,7 @@ pub fn init_fee_instruction(
         beneficiary,
         fee_data,
         domain_id,
+        signers,
     });
 
     // Accounts:

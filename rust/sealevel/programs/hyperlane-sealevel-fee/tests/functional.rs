@@ -178,6 +178,13 @@ fn default_leaf_fee_data() -> FeeData {
     }))
 }
 
+fn default_signers_for(_fee_data: &FeeData) -> Option<BTreeSet<H160>> {
+    // All modes get Some(empty) for now — tests add signers via AddQuoteSigner.
+    // Routing/CC enforcement (None required) will be added when route-scoped
+    // signer paths are complete.
+    Some(BTreeSet::new())
+}
+
 fn build_init_fee_ix(
     payer: &Pubkey,
     salt: H256,
@@ -187,6 +194,7 @@ fn build_init_fee_ix(
 ) -> (Instruction, Pubkey) {
     let program_id = fee_program_id();
     let (fee_account, _) = Pubkey::find_program_address(fee_account_pda_seeds!(salt), &program_id);
+    let signers = default_signers_for(&fee_data);
     let ix = instruction::init_fee_instruction(
         program_id,
         *payer,
@@ -195,6 +203,7 @@ fn build_init_fee_ix(
         beneficiary,
         fee_data,
         LOCAL_DOMAIN,
+        signers,
     )
     .unwrap();
     (ix, fee_account)

@@ -147,7 +147,7 @@ fn process_init_fee(program_id: &Pubkey, accounts: &[AccountInfo], data: InitFee
             beneficiary: data.beneficiary,
             fee_data: data.fee_data,
             domain_id: data.domain_id,
-            signers: Some(BTreeSet::new()),
+            signers: data.signers,
             min_issued_at: 0,
             standing_quote_domains: BTreeSet::new(),
         }
