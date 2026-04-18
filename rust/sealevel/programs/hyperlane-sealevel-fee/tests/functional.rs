@@ -5049,6 +5049,51 @@ mod quote_fee_standing {
         let fee = simulate_quote_fee(banks_client, &payer, ix).await;
         assert_eq!(fee, 50);
     }
+
+    /// Regression: standing quotes remain usable even after the signer set is removed.
+    /// QuoteFee does not check signers — only SubmitQuote does.
+    /// Revocation is via min_issued_at, not signer config changes.
+    #[tokio::test]
+    async fn test_standing_quote_survives_signer_removal() {
+        let (mut banks_client, payer) = setup_client().await;
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let signer_address = eth_address(&signing_key);
+
+        let dest = 42u32;
+        let recipient = H256::zero();
+
+        // Setup Leaf fee account with standing quote (max_fee=9999, half_amount=5000).
+        let fee_key = setup_with_standing(
+            &mut banks_client,
+            &payer,
+            &signing_key,
+            dest,
+            recipient,
+            9999,
+            5000,
+        )
+        .await;
+
+        // Verify standing quote is used.
+        let ix = build_quote_fee_leaf_ix(&fee_key, &payer.pubkey(), dest, recipient, 5000);
+        let fee = simulate_quote_fee(&mut banks_client, &payer, ix).await;
+        // Standing: regressive-like params → fee should come from standing quote, not on-chain.
+        assert!(fee > 0);
+        let fee_before = fee;
+
+        // Remove the signer. FeeAccount.signers becomes Some(empty set).
+        let ix = build_remove_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+        let acct = fetch_fee_account(&mut banks_client, fee_key).await;
+        assert!(acct.signers.as_ref().unwrap().is_empty());
+
+        // Standing quote still works — QuoteFee doesn't check signers.
+        let ix = build_quote_fee_leaf_ix(&fee_key, &payer.pubkey(), dest, recipient, 5000);
+        let fee = simulate_quote_fee(&mut banks_client, &payer, ix).await;
+        assert_eq!(fee, fee_before);
+    }
 }
 
 mod close_transient_quote {
