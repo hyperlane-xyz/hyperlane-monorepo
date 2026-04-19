@@ -156,9 +156,71 @@ If `CouldNotFetchMetadata` persists > 5 minutes:
 If `GasPaymentRequirementNotMet`:
 
 - Compare `current_payment.gas_amount` vs `tx_cost_estimate.gas_limit`
+- Compare `current_expenditure.gas_used` vs `current_payment.gas_amount` — if gas_used >> gas_amount, the deficit is unrecoverable
 - Message will auto-retry every ~3 min until gas prices drop or subsidy kicks in
 - Check `policy` field for subsidy ratio (e.g., 1/2 = relayer covers 50%)
-- Resolution: wait for gas prices to drop, or manually subsidize via IGP top-up
+- Resolution: wait for gas prices to drop, manually subsidize via IGP top-up, or force-retry (see below)
+
+### Force-Retry a Message (Bypassing Gas Payment Enforcement)
+
+When `GasPaymentRequirementNotMet` is unrecoverable (accumulated `gas_used` far exceeds `gas_amount`), you can temporarily bypass gas enforcement using the relayer's runtime API. **Requires engineer approval** — the `None` policy also bypasses sanctions-related checks in the enforcement pipeline.
+
+Before force-retrying, verify the underlying issue is resolved:
+
+- Check recent deliveries to the same destination chain for `executed: true` outcomes
+- If the original tx reverted, confirm the revert condition is transient (not a permanent contract bug)
+
+The relayer API runs on the **metrics port (9090)**, accessed via port-forward:
+
+```bash
+kubectl port-forward -n mainnet3 pod/omniscient-relayer-hyperlane-agent-relayer-0 19090:9090 > /dev/null 2>&1 &
+```
+
+**Step 1: Add temporary None IGP rule for the message**
+
+```bash
+curl -s -X POST http://localhost:19090/igp_rules \
+  -H 'Content-Type: application/json' \
+  -d '{"policy":"None","matching_list":[{"messageid":"0x<MESSAGE_ID>"}]}'
+# Returns {} on success. Rule inserted at index 0 (highest priority).
+```
+
+**Step 2: Trigger message retry**
+
+```bash
+curl -s -X POST http://localhost:19090/message_retry \
+  -H 'Content-Type: application/json' \
+  -d '[{"messageid":"0x<MESSAGE_ID>"}]'
+# Returns {"uuid":"...","evaluated":N,"matched":1}
+```
+
+**Step 3: Wait ~30-60s, then verify delivery**
+
+```bash
+gcloud logging read '[BASE_RELAYER_QUERY] AND "[MESSAGE_ID]" AND jsonPayload.fields.message:"Recording gas expenditure"' \
+  --project=abacus-labs-dev --limit=1 --format='value(jsonPayload.fields.outcome)' --freshness=5m
+# Look for executed: true
+```
+
+**Step 4: Remove temporary IGP rule (CRITICAL — do not skip)**
+
+```bash
+curl -s -X DELETE http://localhost:19090/igp_rules/0
+# Returns {} on success.
+```
+
+**Step 5: Kill port-forward**
+
+```bash
+kill %1 2>/dev/null
+```
+
+Other useful API endpoints:
+
+- GET /igp_rules — list all enforcement rules per chain
+- POST /message_retry matching fields: messageid, origindomain, destinationdomain, senderaddress, recipientaddress
+
+> **Note:** IGP rules added via API are in-memory only and do not survive pod restarts.
 
 ## Decoding Revert Selectors
 
