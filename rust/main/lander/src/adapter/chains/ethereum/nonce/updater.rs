@@ -65,10 +65,19 @@ impl NonceUpdater {
             .await
             .map_err(NonceError::ProviderError)?;
 
-        let finalized_nonce = next_nonce.checked_sub(U256::one());
-
-        if let Some(finalized_nonce) = finalized_nonce {
-            self.state.update_boundary_nonces(&finalized_nonce).await?;
+        match next_nonce.checked_sub(U256::one()) {
+            Some(finalized_nonce) => {
+                self.state.update_boundary_nonces(&finalized_nonce).await?;
+            }
+            None => {
+                // `next_nonce == 0` means the on-chain account has zero
+                // finalized transactions. If we have persisted state from a
+                // previous run (e.g. testnet chain wipe), it is now stale
+                // and would mis-route every future nonce assignment.
+                // `reset_boundary_nonces` is idempotent — a no-op when
+                // already at genesis — so it is safe to call unconditionally.
+                self.state.reset_boundary_nonces().await?;
+            }
         }
 
         Ok(())

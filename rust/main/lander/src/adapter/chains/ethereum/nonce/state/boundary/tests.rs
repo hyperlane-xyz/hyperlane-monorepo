@@ -219,3 +219,36 @@ async fn test_update_boundary_nonces_multiple_calls_and_idempotency() {
         (finalized3 + 1).as_u64()
     );
 }
+
+#[tokio::test]
+async fn test_reset_boundary_nonces_clears_stale_state() {
+    let (_, tx_db, nonce_db) = tmp_dbs();
+    let address = Address::random();
+    let metrics = EthereumAdapterMetrics::dummy_instance();
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
+
+    // Seed stale state from a previous chain era.
+    state.set_finalized_nonce(&U256::from(7)).await.unwrap();
+    state.set_upper_nonce(&U256::from(10)).await.unwrap();
+
+    state.reset_boundary_nonces().await.unwrap();
+
+    assert_eq!(state.get_finalized_nonce().await.unwrap(), None);
+    assert_eq!(state.get_upper_nonce().await.unwrap(), U256::zero());
+    assert_eq!(state.metrics.get_finalized_nonce() as u64, 0);
+    assert_eq!(state.metrics.get_upper_nonce() as u64, 0);
+}
+
+#[tokio::test]
+async fn test_reset_boundary_nonces_is_noop_at_genesis() {
+    let (_, tx_db, nonce_db) = tmp_dbs();
+    let address = Address::random();
+    let metrics = EthereumAdapterMetrics::dummy_instance();
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
+
+    // No prior state — reset must be a no-op.
+    state.reset_boundary_nonces().await.unwrap();
+
+    assert_eq!(state.get_finalized_nonce().await.unwrap(), None);
+    assert_eq!(state.get_upper_nonce().await.unwrap(), U256::zero());
+}

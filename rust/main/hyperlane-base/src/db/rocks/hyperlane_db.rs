@@ -743,4 +743,14 @@ impl HyperlaneRocksDB {
     ) -> DbResult<Option<V>> {
         self.retrieve_decodable(prefix, key.to_vec())
     }
+
+    /// Delete a value by key. Idempotent — returns `Ok(())` whether or not
+    /// the key was present.
+    pub fn delete_value_by_key<K: Encode>(
+        &self,
+        prefix: impl AsRef<[u8]>,
+        key: &K,
+    ) -> DbResult<()> {
+        self.delete_keyed(prefix, key.to_vec())
+    }
 }
