@@ -263,14 +263,14 @@ jobs:
       - name: Setup Foundry
         uses: ./.github/actions/setup-foundry
 
-      # Build BEFORE snapshot versioning so turbo cache hits are preserved.
-      # Snapshot versioning rewrites every package.json, which invalidates turbo hashes.
-      - name: Build packages
-        run: pnpm run build
+      # Build BEFORE snapshot versioning. Release builds should execute from a clean
+      # filesystem state and bypass cache reads so npm packages are produced from source.
+      - name: Build packages from scratch
+        run: pnpm run build:from-scratch
 
       - name: Build ZKSync artifacts
         if: inputs.include_zksync
-        run: pnpm run build:zk
+        run: pnpm run build:zk:from-scratch
 
       - name: Create snapshot versions
         run: pnpm exec changeset version --snapshot ${{ inputs.snapshot_tag }}

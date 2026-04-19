@@ -6,7 +6,9 @@
   "scripts": {
     "agent-configs": "pnpm -C typescript/infra update-agent-config:mainnet3 && pnpm -C typescript/infra update-agent-config:testnet4",
     "build": "turbo run build",
+    "build:from-scratch": "pnpm clean && turbo run build --force",
     "build:zk": "turbo run build:zk",
+    "build:zk:from-scratch": "turbo run build:zk --force",
     "clean": "turbo run clean",
     "format": "turbo run format && pnpm exec tsx ./scripts/sort-yaml.ts",
     "format:check": "oxfmt --ignore-path .gitignore --check . && pnpm exec tsx ./scripts/sort-yaml.ts --check && prettier --check 'solidity/**/*.sol' 'typescript/helloworld/contracts/**/*.sol'",
@@ -17,7 +19,7 @@
     "coverage": "turbo run coverage",
     "version:prepare": "pnpm changeset version && turbo run version:update && pnpm install",
     "version:check": "pnpm changeset status",
-    "release": "pnpm build && pnpm build:zk && pnpm changeset publish",
+    "release": "pnpm build:from-scratch && pnpm build:zk:from-scratch && pnpm changeset publish",
     "spellcheck": "typos --config .spellcheck/typos.toml",
     "spellcheck:diff": "bash .spellcheck/run-diff.sh",
     "postinstall": "husky install"
