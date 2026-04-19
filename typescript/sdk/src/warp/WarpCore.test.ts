@@ -1188,7 +1188,7 @@ describe('WarpCore', () => {
 
     try {
       expect(
-        (crossCollateralWarpCore as any).isCrossCollateralTransfer(
+        crossCollateralWarpCore.isCrossCollateralTransfer(
           sealevelCrossCollateral,
           evmCrossCollateral,
         ),
