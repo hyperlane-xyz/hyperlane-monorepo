@@ -155,7 +155,8 @@ export class TokenMetadata implements ITokenMetadata {
   isCrossCollateralToken(): boolean {
     return (
       this.standard === TokenStandard.EvmHypCrossCollateralRouter ||
-      this.standard === TokenStandard.TronHypCrossCollateralRouter
+      this.standard === TokenStandard.TronHypCrossCollateralRouter ||
+      this.standard === TokenStandard.SealevelHypCrossCollateral
     );
   }
 
