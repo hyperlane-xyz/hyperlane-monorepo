@@ -1153,6 +1153,9 @@ fn process_submit_quote(
                     if *specific_pda_info.key != specific_key {
                         return Err(ProgramError::InvalidSeeds);
                     }
+                    // Verify ownership: must be fee program or system (uninitialized).
+                    verify_optional_pda_owner(specific_pda_info, program_id)?;
+
                     if specific_pda_info.owner == program_id && !specific_pda_info.data_is_empty() {
                         specific_pda_info
                     } else {
@@ -1163,6 +1166,8 @@ fn process_submit_quote(
                         if *default_pda_info.key != default_key {
                             return Err(ProgramError::InvalidSeeds);
                         }
+                        verify_optional_pda_owner(default_pda_info, program_id)?;
+
                         if default_pda_info.owner != program_id || default_pda_info.data_is_empty()
                         {
                             return Err(Error::RouteNotFound.into());
@@ -1684,11 +1689,14 @@ fn process_get_submit_quote_account_metas(
         is_writable: true,
     });
     // Account 2: Fee account.
-    // Standing quotes may update standing_quote_domains → writable.
+    // Standing quotes on non-CC accounts may update standing_quote_domains → writable.
+    // CC standing quotes and all transient quotes: fee_account is read-only.
+    let fee_account_writable = data.scoped_salt.is_none()
+        && !matches!(fee_account.fee_data, FeeData::CrossCollateralRouting(_));
     metas.push(SerializableAccountMeta {
         pubkey: *fee_account_info.key,
         is_signer: false,
-        is_writable: data.scoped_salt.is_none(),
+        is_writable: fee_account_writable,
     });
 
     // Route PDAs for signer lookup (Routing/CC exact domain only).
