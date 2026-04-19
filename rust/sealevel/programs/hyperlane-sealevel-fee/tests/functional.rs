@@ -7224,6 +7224,9 @@ mod additional_coverage {
         let signing_key = SigningKey::random(&mut rand::thread_rng());
         let signer_address = eth_address(&signing_key);
 
+        // Init with wildcard signers so wildcard-domain quotes can be submitted.
+        let mut wildcard_signers = BTreeSet::new();
+        wildcard_signers.insert(signer_address);
         let fee_key = init_fee_account(
             &mut banks_client,
             &payer,
@@ -7231,7 +7234,7 @@ mod additional_coverage {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: Some(wildcard_signers),
             }),
         )
         .await;
@@ -7255,21 +7258,8 @@ mod additional_coverage {
             .await
             .unwrap();
 
-        // Add signer to router_a CC route PDA.
-        let ix = build_add_quote_signer_ix_with_route(
-            &fee_key,
-            &payer.pubkey(),
-            signer_address,
-            Some(instruction::RouteKey::CrossCollateral {
-                destination: dest,
-                target_router: router_a,
-            }),
-        );
-        process_tx(&mut banks_client, &payer, ix, &[])
-            .await
-            .unwrap();
-
         // Wildcard-domain standing for router_a ONLY: max_fee=555, half_amount=1.
+        // Auth comes from fee_data.wildcard_signers (no route PDAs needed).
         let sq = make_signed_standing_quote(
             &signing_key,
             &fee_key,
@@ -7280,15 +7270,13 @@ mod additional_coverage {
             encode_u48(100),
             encode_u48(9999999999),
         );
-        let specific_pda = cc_route_pda_for(&fee_key, dest, &router_a);
-        let default_pda = cc_route_pda_for(&fee_key, dest, &DEFAULT_ROUTER);
         let ix = build_submit_standing_ix_with_routes(
             &fee_key,
             &payer.pubkey(),
             &sq,
             WILDCARD_DOMAIN,
             &router_a,
-            &[specific_pda, default_pda],
+            &[], // No route PDAs — wildcard auth from fee_data
         );
         process_tx(&mut banks_client, &payer, ix, &[])
             .await

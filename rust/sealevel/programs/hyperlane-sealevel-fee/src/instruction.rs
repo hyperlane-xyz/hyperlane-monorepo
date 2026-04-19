@@ -502,13 +502,19 @@ pub fn add_quote_signer_instruction(
         route: route.clone(),
     };
 
+    // Leaf (route=None): fee_account writable (signers live there).
+    // Routed (route=Some): fee_account readonly (signers live on route PDA).
+    let fee_account_writable = route.is_none();
     let mut accounts = vec![
         AccountMeta::new_readonly(system_program::ID, false),
-        AccountMeta::new(fee_account, false),
+        if fee_account_writable {
+            AccountMeta::new(fee_account, false)
+        } else {
+            AccountMeta::new_readonly(fee_account, false)
+        },
         AccountMeta::new(owner, true),
     ];
 
-    // Append route PDA if targeting a route.
     if let Some(ref route_key) = route {
         let route_pda = derive_route_pda(&program_id, &fee_account, route_key)?;
         accounts.push(AccountMeta::new(route_pda, false));
@@ -535,9 +541,14 @@ pub fn remove_quote_signer_instruction(
         route: route.clone(),
     };
 
+    let fee_account_writable = route.is_none();
     let mut accounts = vec![
         AccountMeta::new_readonly(system_program::ID, false),
-        AccountMeta::new(fee_account, false),
+        if fee_account_writable {
+            AccountMeta::new(fee_account, false)
+        } else {
+            AccountMeta::new_readonly(fee_account, false)
+        },
         AccountMeta::new(owner, true),
     ];
 

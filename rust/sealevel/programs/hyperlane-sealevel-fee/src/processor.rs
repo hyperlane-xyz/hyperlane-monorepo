@@ -1096,84 +1096,90 @@ fn process_submit_quote(
     }
     let fee_account = FeeAccountData::fetch(&mut &fee_account_info.data.borrow()[..])?.into_inner();
 
-    // Resolve signers based on fee_data type.
+    // Resolve signers based on fee_data type and destination domain.
+    // - Leaf: signers from FeeData::Leaf for all quotes.
+    // - Routing exact: signers from RouteDomain PDA.
+    // - Routing wildcard: signers from FeeData::Routing.wildcard_signers.
+    // - CC exact: signers from resolved CrossCollateralRoute PDA.
+    // - CC wildcard: signers from FeeData::CrossCollateralRouting.wildcard_signers.
     let resolved_signers: BTreeSet<H160> = match &fee_account.fee_data {
         FeeData::Leaf(_) => fee_account.fee_data.require_leaf_signers()?.clone(),
         FeeData::Routing(_) => {
-            // Account 3: RouteDomain PDA (read-only, for signer verification).
-            let route_pda_info = next_account_info(accounts_iter)?;
-            if route_pda_info.owner != program_id {
-                return Err(ProgramError::IncorrectProgramId);
-            }
             let ctx = FeeQuoteContext::try_from_bytes(&quote.context)?;
-            let domain_le = ctx.destination_domain.to_le_bytes();
-            let (expected_key, _) = Pubkey::find_program_address(
-                route_domain_pda_seeds!(fee_account_info.key, &domain_le),
-                program_id,
-            );
-            if *route_pda_info.key != expected_key {
-                return Err(ProgramError::InvalidSeeds);
+            if ctx.destination_domain == WILDCARD_DOMAIN {
+                // Wildcard domain: auth from FeeData. No route PDA needed.
+                fee_account
+                    .fee_data
+                    .require_routing_wildcard_signers()?
+                    .clone()
+            } else {
+                // Exact domain: auth from RouteDomain PDA.
+                let route_pda_info = next_account_info(accounts_iter)?;
+                if route_pda_info.owner != program_id {
+                    return Err(ProgramError::IncorrectProgramId);
+                }
+                let domain_le = ctx.destination_domain.to_le_bytes();
+                let (expected_key, _) = Pubkey::find_program_address(
+                    route_domain_pda_seeds!(fee_account_info.key, &domain_le),
+                    program_id,
+                );
+                if *route_pda_info.key != expected_key {
+                    return Err(ProgramError::InvalidSeeds);
+                }
+                RouteDomainAccount::fetch(&mut &route_pda_info.data.borrow()[..])?
+                    .into_inner()
+                    .data
+                    .signers
+                    .ok_or(ProgramError::from(Error::OffchainQuotingNotConfigured))?
             }
-            RouteDomainAccount::fetch(&mut &route_pda_info.data.borrow()[..])?
-                .into_inner()
-                .data
-                .signers
-                .ok_or(ProgramError::from(Error::OffchainQuotingNotConfigured))?
         }
         FeeData::CrossCollateralRouting(_) => {
-            // Account 3: CC specific route PDA (read-only).
-            // Account 4: CC default route PDA (read-only).
-            let specific_pda_info = next_account_info(accounts_iter)?;
-            let default_pda_info = next_account_info(accounts_iter)?;
-
             let ctx = CcFeeQuoteContext::try_from_bytes(&quote.context)?;
-
-            // For standing quotes with WILDCARD_DOMAIN, signers are resolved
-            // from the first initialized route PDA owned by this program.
-            // Wildcard destinations don't have their own CC route PDAs, so
-            // the caller passes an actual domain's route PDA for signer lookup.
-            let resolved_pda_info = if ctx.destination_domain == WILDCARD_DOMAIN {
-                if specific_pda_info.owner == program_id && !specific_pda_info.data_is_empty() {
-                    specific_pda_info
-                } else if default_pda_info.owner == program_id && !default_pda_info.data_is_empty()
-                {
-                    default_pda_info
-                } else {
-                    return Err(Error::RouteNotFound.into());
-                }
+            if ctx.destination_domain == WILDCARD_DOMAIN {
+                // Wildcard domain: auth from FeeData. No route PDAs needed.
+                fee_account.fee_data.require_cc_wildcard_signers()?.clone()
             } else {
+                // Exact domain: auth from resolved CC route PDA.
+                // Account 3: CC specific route PDA (read-only).
+                // Account 4: CC default route PDA (read-only).
+                let specific_pda_info = next_account_info(accounts_iter)?;
+                let default_pda_info = next_account_info(accounts_iter)?;
+
                 let dest_le = ctx.destination_domain.to_le_bytes();
 
                 // Resolve: specific → default (same cascade as QuoteFee).
-                let (specific_key, _) = Pubkey::find_program_address(
-                    cc_route_pda_seeds!(fee_account_info.key, &dest_le, ctx.target_router),
-                    program_id,
-                );
-                if *specific_pda_info.key != specific_key {
-                    return Err(ProgramError::InvalidSeeds);
-                }
-                if specific_pda_info.owner == program_id && !specific_pda_info.data_is_empty() {
-                    specific_pda_info
-                } else {
-                    let (default_key, _) = Pubkey::find_program_address(
-                        cc_route_pda_seeds!(fee_account_info.key, &dest_le, DEFAULT_ROUTER),
+                let resolved_pda_info = {
+                    let (specific_key, _) = Pubkey::find_program_address(
+                        cc_route_pda_seeds!(fee_account_info.key, &dest_le, ctx.target_router),
                         program_id,
                     );
-                    if *default_pda_info.key != default_key {
+                    if *specific_pda_info.key != specific_key {
                         return Err(ProgramError::InvalidSeeds);
                     }
-                    if default_pda_info.owner != program_id || default_pda_info.data_is_empty() {
-                        return Err(Error::RouteNotFound.into());
+                    if specific_pda_info.owner == program_id && !specific_pda_info.data_is_empty() {
+                        specific_pda_info
+                    } else {
+                        let (default_key, _) = Pubkey::find_program_address(
+                            cc_route_pda_seeds!(fee_account_info.key, &dest_le, DEFAULT_ROUTER),
+                            program_id,
+                        );
+                        if *default_pda_info.key != default_key {
+                            return Err(ProgramError::InvalidSeeds);
+                        }
+                        if default_pda_info.owner != program_id || default_pda_info.data_is_empty()
+                        {
+                            return Err(Error::RouteNotFound.into());
+                        }
+                        default_pda_info
                     }
-                    default_pda_info
-                }
-            };
+                };
 
-            CrossCollateralRouteAccount::fetch(&mut &resolved_pda_info.data.borrow()[..])?
-                .into_inner()
-                .data
-                .signers
-                .ok_or(ProgramError::from(Error::OffchainQuotingNotConfigured))?
+                CrossCollateralRouteAccount::fetch(&mut &resolved_pda_info.data.borrow()[..])?
+                    .into_inner()
+                    .data
+                    .signers
+                    .ok_or(ProgramError::from(Error::OffchainQuotingNotConfigured))?
+            }
         }
     };
 
@@ -1688,40 +1694,46 @@ fn process_get_submit_quote_account_metas(
         is_writable: data.scoped_salt.is_none(),
     });
 
-    // Route PDAs for signer lookup (Routing/CC only).
+    // Route PDAs for signer lookup (Routing/CC exact domain only).
+    // Wildcard domain quotes use fee_data.wildcard_signers — no route PDAs needed.
     let domain_le = data.destination_domain.to_le_bytes();
+    let is_wildcard = data.destination_domain == WILDCARD_DOMAIN;
     match &fee_account.fee_data {
         FeeData::Leaf(_) => {}
         FeeData::Routing(_) => {
-            let (route_key, _) = Pubkey::find_program_address(
-                route_domain_pda_seeds!(fee_account_info.key, &domain_le),
-                program_id,
-            );
-            metas.push(SerializableAccountMeta {
-                pubkey: route_key,
-                is_signer: false,
-                is_writable: false,
-            });
+            if !is_wildcard {
+                let (route_key, _) = Pubkey::find_program_address(
+                    route_domain_pda_seeds!(fee_account_info.key, &domain_le),
+                    program_id,
+                );
+                metas.push(SerializableAccountMeta {
+                    pubkey: route_key,
+                    is_signer: false,
+                    is_writable: false,
+                });
+            }
         }
         FeeData::CrossCollateralRouting(_) => {
-            let (cc_specific_key, _) = Pubkey::find_program_address(
-                cc_route_pda_seeds!(fee_account_info.key, &domain_le, data.target_router),
-                program_id,
-            );
-            metas.push(SerializableAccountMeta {
-                pubkey: cc_specific_key,
-                is_signer: false,
-                is_writable: false,
-            });
-            let (cc_default_key, _) = Pubkey::find_program_address(
-                cc_route_pda_seeds!(fee_account_info.key, &domain_le, DEFAULT_ROUTER),
-                program_id,
-            );
-            metas.push(SerializableAccountMeta {
-                pubkey: cc_default_key,
-                is_signer: false,
-                is_writable: false,
-            });
+            if !is_wildcard {
+                let (cc_specific_key, _) = Pubkey::find_program_address(
+                    cc_route_pda_seeds!(fee_account_info.key, &domain_le, data.target_router),
+                    program_id,
+                );
+                metas.push(SerializableAccountMeta {
+                    pubkey: cc_specific_key,
+                    is_signer: false,
+                    is_writable: false,
+                });
+                let (cc_default_key, _) = Pubkey::find_program_address(
+                    cc_route_pda_seeds!(fee_account_info.key, &domain_le, DEFAULT_ROUTER),
+                    program_id,
+                );
+                metas.push(SerializableAccountMeta {
+                    pubkey: cc_default_key,
+                    is_signer: false,
+                    is_writable: false,
+                });
+            }
         }
     }
 
