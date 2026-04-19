@@ -16,6 +16,7 @@ import {
   PROTOCOL_TO_HYP_NATIVE_STANDARD,
   PROTOCOL_TO_NATIVE_STANDARD,
   TOKEN_COLLATERALIZED_STANDARDS,
+  TOKEN_CROSS_COLLATERAL_STANDARDS,
   TOKEN_HYP_STANDARDS,
   TOKEN_MULTI_CHAIN_STANDARDS,
   TOKEN_NFT_STANDARDS,
@@ -153,10 +154,7 @@ export class TokenMetadata implements ITokenMetadata {
   }
 
   isCrossCollateralToken(): boolean {
-    return (
-      this.standard === TokenStandard.EvmHypCrossCollateralRouter ||
-      this.standard === TokenStandard.TronHypCrossCollateralRouter
-    );
+    return TOKEN_CROSS_COLLATERAL_STANDARDS.has(this.standard);
   }
 
   getConnections(): TokenConnection[] {
