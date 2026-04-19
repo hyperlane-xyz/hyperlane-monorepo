@@ -718,7 +718,7 @@ mod init_fee {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -727,7 +727,7 @@ mod init_fee {
         assert_eq!(
             acct.fee_data,
             FeeData::Routing(RoutingFeeConfig {
-                wildcard_signers: None
+                wildcard_signers: BTreeSet::new()
             })
         );
     }
@@ -742,7 +742,7 @@ mod init_fee {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -751,7 +751,7 @@ mod init_fee {
         assert_eq!(
             acct.fee_data,
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-                wildcard_signers: None
+                wildcard_signers: BTreeSet::new()
             })
         );
     }
@@ -1104,7 +1104,7 @@ mod update_fee_params {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -1141,7 +1141,7 @@ mod set_route {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -1170,7 +1170,7 @@ mod set_route {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -1240,7 +1240,7 @@ mod set_route {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -1274,7 +1274,7 @@ mod set_route {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -1308,7 +1308,7 @@ mod set_route {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -1352,7 +1352,7 @@ mod remove_route {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -1393,7 +1393,7 @@ mod remove_route {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -1419,7 +1419,7 @@ mod remove_route {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -1466,7 +1466,7 @@ mod remove_route {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -1515,7 +1515,7 @@ mod set_cc_route {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -1555,7 +1555,7 @@ mod set_cc_route {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -1604,7 +1604,7 @@ mod set_cc_route {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -1668,7 +1668,7 @@ mod set_cc_route {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -1703,7 +1703,7 @@ mod set_cc_route {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -1738,7 +1738,7 @@ mod set_cc_route {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -1777,7 +1777,7 @@ mod remove_cc_route {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -1820,7 +1820,7 @@ mod remove_cc_route {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -1931,7 +1931,7 @@ mod quote_fee {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -1968,7 +1968,7 @@ mod quote_fee {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -1995,7 +1995,7 @@ mod quote_fee {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -2035,7 +2035,7 @@ mod quote_fee {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -2076,7 +2076,7 @@ mod quote_fee {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -2111,7 +2111,7 @@ mod quote_fee {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -2158,7 +2158,7 @@ mod quote_fee {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -2597,7 +2597,7 @@ mod set_wildcard_quote_signers {
     fn build_set_wildcard_signers_ix(
         fee_account: &Pubkey,
         owner: &Pubkey,
-        signers: Option<BTreeSet<H160>>,
+        signers: BTreeSet<H160>,
     ) -> Instruction {
         instruction::set_wildcard_quote_signers_instruction(
             fee_program_id(),
@@ -2618,21 +2618,21 @@ mod set_wildcard_quote_signers {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
 
         let mut signers = BTreeSet::new();
         signers.insert(H160::random());
-        let ix = build_set_wildcard_signers_ix(&fee_key, &payer.pubkey(), Some(signers.clone()));
+        let ix = build_set_wildcard_signers_ix(&fee_key, &payer.pubkey(), signers.clone());
         process_tx(&mut banks_client, &payer, ix, &[])
             .await
             .unwrap();
 
         let acct = fetch_fee_account(&mut banks_client, fee_key).await;
         match &acct.fee_data {
-            FeeData::Routing(cfg) => assert_eq!(cfg.wildcard_signers, Some(signers)),
+            FeeData::Routing(cfg) => assert_eq!(cfg.wildcard_signers, signers),
             _ => panic!("expected Routing"),
         }
     }
@@ -2647,14 +2647,14 @@ mod set_wildcard_quote_signers {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
 
         let mut signers = BTreeSet::new();
         signers.insert(H160::random());
-        let ix = build_set_wildcard_signers_ix(&fee_key, &payer.pubkey(), Some(signers.clone()));
+        let ix = build_set_wildcard_signers_ix(&fee_key, &payer.pubkey(), signers.clone());
         process_tx(&mut banks_client, &payer, ix, &[])
             .await
             .unwrap();
@@ -2662,7 +2662,7 @@ mod set_wildcard_quote_signers {
         let acct = fetch_fee_account(&mut banks_client, fee_key).await;
         match &acct.fee_data {
             FeeData::CrossCollateralRouting(cfg) => {
-                assert_eq!(cfg.wildcard_signers, Some(signers))
+                assert_eq!(cfg.wildcard_signers, signers)
             }
             _ => panic!("expected CrossCollateralRouting"),
         }
@@ -2681,13 +2681,13 @@ mod set_wildcard_quote_signers {
         )
         .await;
 
-        let ix = build_set_wildcard_signers_ix(&fee_key, &payer.pubkey(), Some(BTreeSet::new()));
+        let ix = build_set_wildcard_signers_ix(&fee_key, &payer.pubkey(), BTreeSet::new());
         let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
         assert_tx_error(
             result,
             TransactionError::InstructionError(
                 0,
-                InstructionError::Custom(FeeError::NotLeafFeeData as u32),
+                InstructionError::Custom(FeeError::WildcardSignersNotApplicable as u32),
             ),
         );
     }
@@ -2702,7 +2702,7 @@ mod set_wildcard_quote_signers {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -2710,8 +2710,7 @@ mod set_wildcard_quote_signers {
         let non_owner = Keypair::new();
         fund_keypair(&mut banks_client, &payer, &non_owner).await;
 
-        let ix =
-            build_set_wildcard_signers_ix(&fee_key, &non_owner.pubkey(), Some(BTreeSet::new()));
+        let ix = build_set_wildcard_signers_ix(&fee_key, &non_owner.pubkey(), BTreeSet::new());
         let result = process_tx(&mut banks_client, &non_owner, ix, &[]).await;
         assert_tx_error(
             result,
@@ -2731,20 +2730,20 @@ mod set_wildcard_quote_signers {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
-                wildcard_signers: Some(signers),
+                wildcard_signers: signers,
             }),
         )
         .await;
 
-        // Set to None.
-        let ix = build_set_wildcard_signers_ix(&fee_key, &payer.pubkey(), None);
+        // Set to empty (disables wildcard quoting).
+        let ix = build_set_wildcard_signers_ix(&fee_key, &payer.pubkey(), BTreeSet::new());
         process_tx(&mut banks_client, &payer, ix, &[])
             .await
             .unwrap();
 
         let acct = fetch_fee_account(&mut banks_client, fee_key).await;
         match &acct.fee_data {
-            FeeData::Routing(cfg) => assert_eq!(cfg.wildcard_signers, None),
+            FeeData::Routing(cfg) => assert!(cfg.wildcard_signers.is_empty()),
             _ => panic!("expected Routing"),
         }
     }
@@ -3644,7 +3643,7 @@ mod quote_fee_transient {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -3757,7 +3756,7 @@ mod quote_fee_transient {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -3889,7 +3888,7 @@ mod quote_fee_transient {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -5783,7 +5782,7 @@ mod prune_expired_quotes {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -6033,7 +6032,7 @@ mod get_quote_account_metas {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -6071,7 +6070,7 @@ mod get_quote_account_metas {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -6119,7 +6118,7 @@ mod get_quote_account_metas {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -6315,7 +6314,7 @@ mod get_submit_quote_account_metas {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -6362,7 +6361,7 @@ mod get_submit_quote_account_metas {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -6444,7 +6443,7 @@ mod cc_standing_quotes {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -6529,7 +6528,7 @@ mod cc_standing_quotes {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -6660,7 +6659,7 @@ mod cc_standing_quotes {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -6740,7 +6739,7 @@ mod cc_standing_quotes {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -6833,7 +6832,7 @@ mod cc_standing_quotes {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -6983,7 +6982,7 @@ mod cc_standing_quotes {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -7088,7 +7087,7 @@ mod additional_coverage {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -7234,7 +7233,7 @@ mod additional_coverage {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-                wildcard_signers: Some(wildcard_signers),
+                wildcard_signers: wildcard_signers,
             }),
         )
         .await;
@@ -7326,7 +7325,7 @@ mod additional_coverage {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -7460,7 +7459,7 @@ mod additional_coverage {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;
@@ -7824,7 +7823,7 @@ mod additional_coverage {
             Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         )
         .await;

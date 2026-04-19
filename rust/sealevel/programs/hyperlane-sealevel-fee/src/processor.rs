@@ -1011,7 +1011,7 @@ fn process_set_min_issued_at(
 fn process_set_wildcard_quote_signers(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
-    signers: Option<BTreeSet<H160>>,
+    signers: BTreeSet<H160>,
 ) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
@@ -1026,7 +1026,7 @@ fn process_set_wildcard_quote_signers(
     ensure_no_extraneous_accounts(accounts_iter)?;
 
     match &mut fee_account.fee_data {
-        FeeData::Leaf(_) => return Err(Error::NotLeafFeeData.into()),
+        FeeData::Leaf(_) => return Err(Error::WildcardSignersNotApplicable.into()),
         FeeData::Routing(cfg) => cfg.wildcard_signers = signers,
         FeeData::CrossCollateralRouting(cfg) => cfg.wildcard_signers = signers,
     }
@@ -1108,10 +1108,7 @@ fn process_submit_quote(
             let ctx = FeeQuoteContext::try_from_bytes(&quote.context)?;
             if ctx.destination_domain == WILDCARD_DOMAIN {
                 // Wildcard domain: auth from FeeData. No route PDA needed.
-                fee_account
-                    .fee_data
-                    .require_routing_wildcard_signers()?
-                    .clone()
+                fee_account.fee_data.routing_wildcard_signers()?.clone()
             } else {
                 // Exact domain: auth from RouteDomain PDA.
                 let route_pda_info = next_account_info(accounts_iter)?;
@@ -1137,7 +1134,7 @@ fn process_submit_quote(
             let ctx = CcFeeQuoteContext::try_from_bytes(&quote.context)?;
             if ctx.destination_domain == WILDCARD_DOMAIN {
                 // Wildcard domain: auth from FeeData. No route PDAs needed.
-                fee_account.fee_data.require_cc_wildcard_signers()?.clone()
+                fee_account.fee_data.cc_wildcard_signers()?.clone()
             } else {
                 // Exact domain: auth from resolved CC route PDA.
                 // Account 3: CC specific route PDA (read-only).

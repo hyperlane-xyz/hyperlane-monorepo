@@ -70,9 +70,10 @@ pub enum Instruction {
     /// Set wildcard quote signers for Routing or CrossCollateralRouting modes (owner-only).
     /// Mutates the wildcard_signers field inside the FeeData variant on the FeeAccount.
     /// Rejects Leaf mode (use AddQuoteSigner with route=None instead).
+    /// Pass an empty set to disable wildcard quoting.
     SetWildcardQuoteSigners {
-        /// New wildcard signer set. None disables wildcard quoting.
-        signers: Option<BTreeSet<SignerAddress>>,
+        /// New wildcard signer set. Empty = no wildcard quoting.
+        signers: BTreeSet<SignerAddress>,
     },
     /// Submit a signed offchain quote (transient or standing).
     /// Transient: fee_account is read-only.
@@ -601,7 +602,7 @@ pub fn set_wildcard_quote_signers_instruction(
     program_id: Pubkey,
     fee_account: Pubkey,
     owner: Pubkey,
-    signers: Option<BTreeSet<SignerAddress>>,
+    signers: BTreeSet<SignerAddress>,
 ) -> Result<SolanaInstruction, ProgramError> {
     let ixn = Instruction::SetWildcardQuoteSigners { signers };
 

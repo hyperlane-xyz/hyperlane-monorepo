@@ -75,13 +75,13 @@ impl SizedData for LeafFeeConfig {
 /// for exact-domain quotes. Wildcard-domain quotes are authorized by `wildcard_signers`.
 #[derive(BorshDeserialize, BorshSerialize, Clone, Debug, Default, PartialEq)]
 pub struct RoutingFeeConfig {
-    /// Signers for wildcard-domain standing quotes. None = wildcard quoting disabled.
-    pub wildcard_signers: Option<BTreeSet<H160>>,
+    /// Signers for wildcard-domain standing quotes. Empty = no wildcard quoting.
+    pub wildcard_signers: BTreeSet<H160>,
 }
 
 impl SizedData for RoutingFeeConfig {
     fn size(&self) -> usize {
-        option_signers_size(&self.wildcard_signers)
+        BORSH_LEN_PREFIX + (self.wildcard_signers.len() * H160_SIZE)
     }
 }
 
@@ -91,13 +91,13 @@ impl SizedData for RoutingFeeConfig {
 /// Wildcard-domain quotes are authorized by `wildcard_signers`.
 #[derive(BorshDeserialize, BorshSerialize, Clone, Debug, Default, PartialEq)]
 pub struct CrossCollateralRoutingFeeConfig {
-    /// Signers for wildcard-domain standing quotes. None = wildcard quoting disabled.
-    pub wildcard_signers: Option<BTreeSet<H160>>,
+    /// Signers for wildcard-domain standing quotes. Empty = no wildcard quoting.
+    pub wildcard_signers: BTreeSet<H160>,
 }
 
 impl SizedData for CrossCollateralRoutingFeeConfig {
     fn size(&self) -> usize {
-        option_signers_size(&self.wildcard_signers)
+        BORSH_LEN_PREFIX + (self.wildcard_signers.len() * H160_SIZE)
     }
 }
 
@@ -137,24 +137,18 @@ impl FeeData {
         }
     }
 
-    /// Returns a reference to the routing wildcard signer set, or error if not configured.
-    pub fn require_routing_wildcard_signers(&self) -> Result<&BTreeSet<H160>, ProgramError> {
+    /// Returns a reference to the routing wildcard signer set.
+    pub fn routing_wildcard_signers(&self) -> Result<&BTreeSet<H160>, ProgramError> {
         match self {
-            FeeData::Routing(cfg) => cfg
-                .wildcard_signers
-                .as_ref()
-                .ok_or_else(|| crate::error::Error::OffchainQuotingNotConfigured.into()),
+            FeeData::Routing(cfg) => Ok(&cfg.wildcard_signers),
             _ => Err(crate::error::Error::NotRoutingFeeData.into()),
         }
     }
 
-    /// Returns a reference to the CC wildcard signer set, or error if not configured.
-    pub fn require_cc_wildcard_signers(&self) -> Result<&BTreeSet<H160>, ProgramError> {
+    /// Returns a reference to the CC wildcard signer set.
+    pub fn cc_wildcard_signers(&self) -> Result<&BTreeSet<H160>, ProgramError> {
         match self {
-            FeeData::CrossCollateralRouting(cfg) => cfg
-                .wildcard_signers
-                .as_ref()
-                .ok_or_else(|| crate::error::Error::OffchainQuotingNotConfigured.into()),
+            FeeData::CrossCollateralRouting(cfg) => Ok(&cfg.wildcard_signers),
             _ => Err(crate::error::Error::NotCrossCollateralRoutingFeeData.into()),
         }
     }
@@ -551,10 +545,10 @@ mod tests {
                 signers: None,
             }),
             FeeData::Routing(RoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         ] {
             let encoded = borsh::to_vec(&variant).unwrap();
@@ -577,10 +571,10 @@ mod tests {
                 signers: Some(signers.clone()),
             }),
             FeeData::Routing(RoutingFeeConfig {
-                wildcard_signers: Some(signers.clone()),
+                wildcard_signers: signers.clone(),
             }),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-                wildcard_signers: Some(signers.clone()),
+                wildcard_signers: signers.clone(),
             }),
         ] {
             let encoded = borsh::to_vec(&variant).unwrap();
@@ -596,7 +590,7 @@ mod tests {
             owner: Some(Pubkey::new_unique()),
             beneficiary: Pubkey::new_unique(),
             fee_data: FeeData::Routing(RoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
             domain_id: 42,
             min_issued_at: 0,
@@ -775,7 +769,7 @@ mod tests {
             owner: None,
             beneficiary: Pubkey::new_unique(),
             fee_data: FeeData::Routing(RoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
             domain_id: 1,
             min_issued_at: 0,
@@ -798,7 +792,7 @@ mod tests {
             owner: Some(Pubkey::new_unique()),
             beneficiary: Pubkey::new_unique(),
             fee_data: FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-                wildcard_signers: Some(signers),
+                wildcard_signers: signers,
             }),
             domain_id: 1,
             min_issued_at: -100,
@@ -829,37 +823,29 @@ mod tests {
     }
 
     #[test]
-    fn test_require_routing_wildcard_signers() {
-        let with = FeeData::Routing(RoutingFeeConfig {
-            wildcard_signers: Some(BTreeSet::new()),
+    fn test_routing_wildcard_signers() {
+        let routing = FeeData::Routing(RoutingFeeConfig {
+            wildcard_signers: BTreeSet::new(),
         });
-        assert!(with.require_routing_wildcard_signers().is_ok());
-
-        let without = FeeData::Routing(RoutingFeeConfig {
-            wildcard_signers: None,
-        });
-        assert!(without.require_routing_wildcard_signers().is_err());
+        assert!(routing.routing_wildcard_signers().is_ok());
+        assert!(routing.routing_wildcard_signers().unwrap().is_empty());
 
         // Wrong mode
         let leaf = FeeData::Leaf(LeafFeeConfig::default());
-        assert!(leaf.require_routing_wildcard_signers().is_err());
+        assert!(leaf.routing_wildcard_signers().is_err());
     }
 
     #[test]
-    fn test_require_cc_wildcard_signers() {
-        let with = FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-            wildcard_signers: Some(BTreeSet::new()),
+    fn test_cc_wildcard_signers() {
+        let cc = FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+            wildcard_signers: BTreeSet::new(),
         });
-        assert!(with.require_cc_wildcard_signers().is_ok());
-
-        let without = FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-            wildcard_signers: None,
-        });
-        assert!(without.require_cc_wildcard_signers().is_err());
+        assert!(cc.cc_wildcard_signers().is_ok());
+        assert!(cc.cc_wildcard_signers().unwrap().is_empty());
 
         // Wrong mode
         let routing = FeeData::Routing(RoutingFeeConfig::default());
-        assert!(routing.require_cc_wildcard_signers().is_err());
+        assert!(routing.cc_wildcard_signers().is_err());
     }
 
     #[test]
@@ -985,10 +971,10 @@ mod tests {
                 signers: None,
             }),
             FeeData::Routing(RoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-                wildcard_signers: None,
+                wildcard_signers: BTreeSet::new(),
             }),
         ] {
             assert_eq!(

@@ -72,6 +72,9 @@ pub enum Error {
     /// Offchain quoting is not configured (signers is None).
     #[error("Offchain quoting not configured")]
     OffchainQuotingNotConfigured = 22,
+    /// SetWildcardQuoteSigners is only valid for Routing/CrossCollateralRouting modes.
+    #[error("Wildcard signers not applicable for this fee mode")]
+    WildcardSignersNotApplicable = 23,
 }
 
 impl From<Error> for ProgramError {
