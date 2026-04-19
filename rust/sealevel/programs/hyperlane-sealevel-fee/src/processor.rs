@@ -143,11 +143,6 @@ fn process_init_fee(program_id: &Pubkey, accounts: &[AccountInfo], data: InitFee
 
     ensure_no_extraneous_accounts(accounts_iter)?;
 
-    // Routing/CC: top-level signers forbidden (use per-route signers).
-    if !matches!(data.fee_data, FeeData::Leaf(_)) && data.signers.is_some() {
-        return Err(Error::NotLeafFeeData.into());
-    }
-
     let fee_account = FeeAccountData::new(
         FeeAccount {
             bump_seed: fee_account_bump,
@@ -155,7 +150,6 @@ fn process_init_fee(program_id: &Pubkey, accounts: &[AccountInfo], data: InitFee
             beneficiary: data.beneficiary,
             fee_data: data.fee_data,
             domain_id: data.domain_id,
-            signers: data.signers,
             min_issued_at: 0,
             standing_quote_domains: BTreeSet::new(),
         }
@@ -254,11 +248,11 @@ fn process_quote_fee(
     // --- Resolve on-chain curve type (always needed) ---
 
     let strategy = match &fee_account.fee_data {
-        FeeData::Leaf(strategy) => {
+        FeeData::Leaf(cfg) => {
             ensure_no_extraneous_accounts(accounts_iter)?;
-            strategy.clone()
+            cfg.strategy.clone()
         }
-        FeeData::Routing => {
+        FeeData::Routing(_) => {
             match resolve_routing(
                 program_id,
                 accounts_iter,
@@ -281,7 +275,7 @@ fn process_quote_fee(
                 }
             }
         }
-        FeeData::CrossCollateralRouting => {
+        FeeData::CrossCollateralRouting(_) => {
             let strategy = resolve_cc_routing(
                 program_id,
                 accounts_iter,
@@ -300,7 +294,7 @@ fn process_quote_fee(
     // Dispatch the correct context type based on fee data variant.
     if let Some(transient_acct) = transient_info {
         let fee = match &fee_account.fee_data {
-            FeeData::CrossCollateralRouting => try_consume_transient_quote::<CcFeeQuoteContext>(
+            FeeData::CrossCollateralRouting(_) => try_consume_transient_quote::<CcFeeQuoteContext>(
                 program_id,
                 transient_acct,
                 payer_info,
@@ -328,7 +322,7 @@ fn process_quote_fee(
 
     // Resolve target_router for standing quote PDA derivation.
     let standing_target_router = match &fee_account.fee_data {
-        FeeData::CrossCollateralRouting => data.target_router,
+        FeeData::CrossCollateralRouting(_) => data.target_router,
         _ => hyperlane_core::H256::zero(),
     };
 
@@ -705,8 +699,8 @@ fn process_update_fee_params(
     ensure_no_extraneous_accounts(accounts_iter)?;
 
     match &mut fee_account.fee_data {
-        FeeData::Leaf(strategy) => {
-            *strategy.params_mut() = new_params;
+        FeeData::Leaf(cfg) => {
+            *cfg.strategy.params_mut() = new_params;
         }
         _ => {
             return Err(Error::NotLeafFeeData.into());
@@ -754,16 +748,19 @@ fn process_add_quote_signer(
 
     match route {
         None => {
-            if !matches!(fee_account.fee_data, FeeData::Leaf(_)) {
-                return Err(Error::NotLeafFeeData.into());
-            }
             ensure_no_extraneous_accounts(accounts_iter)?;
 
-            fee_account
-                .signers
-                .as_mut()
-                .ok_or(ProgramError::from(Error::OffchainQuotingNotConfigured))?
-                .insert(signer);
+            match &mut fee_account.fee_data {
+                FeeData::Leaf(cfg) => {
+                    cfg.signers
+                        .as_mut()
+                        .ok_or(ProgramError::from(Error::OffchainQuotingNotConfigured))?
+                        .insert(signer);
+                }
+                _ => {
+                    return Err(Error::NotLeafFeeData.into());
+                }
+            }
 
             FeeAccountData::new(fee_account.into()).store_with_rent_exempt_realloc(
                 fee_account_info,
@@ -773,7 +770,7 @@ fn process_add_quote_signer(
             )?;
         }
         Some(RouteKey::Domain(domain)) => {
-            if !matches!(fee_account.fee_data, FeeData::Routing) {
+            if !matches!(fee_account.fee_data, FeeData::Routing(_)) {
                 return Err(Error::NotRoutingFeeData.into());
             }
             let route_pda_info = next_account_info(accounts_iter)?;
@@ -810,7 +807,7 @@ fn process_add_quote_signer(
             destination,
             target_router,
         }) => {
-            if !matches!(fee_account.fee_data, FeeData::CrossCollateralRouting) {
+            if !matches!(fee_account.fee_data, FeeData::CrossCollateralRouting(_)) {
                 return Err(Error::NotCrossCollateralRoutingFeeData.into());
             }
             let cc_pda_info = next_account_info(accounts_iter)?;
@@ -889,20 +886,24 @@ fn process_remove_quote_signer(
 
     match route {
         None => {
-            // Leaf path: mutate FeeAccount.signers.
-            if !matches!(fee_account.fee_data, FeeData::Leaf(_)) {
-                return Err(Error::NotLeafFeeData.into());
-            }
+            // Leaf path: mutate LeafFeeConfig.signers.
             ensure_no_extraneous_accounts(accounts_iter)?;
 
-            if let Some(ref mut signers) = fee_account.signers {
-                signers.remove(&signer);
+            match &mut fee_account.fee_data {
+                FeeData::Leaf(cfg) => {
+                    if let Some(ref mut signers) = cfg.signers {
+                        signers.remove(&signer);
+                    }
+                }
+                _ => {
+                    return Err(Error::NotLeafFeeData.into());
+                }
             }
             FeeAccountData::new(fee_account.into()).store(fee_account_info, false)?;
         }
         Some(RouteKey::Domain(domain)) => {
             // Routing path: mutate RouteDomain.signers.
-            if !matches!(fee_account.fee_data, FeeData::Routing) {
+            if !matches!(fee_account.fee_data, FeeData::Routing(_)) {
                 return Err(Error::NotRoutingFeeData.into());
             }
 
@@ -936,7 +937,7 @@ fn process_remove_quote_signer(
             target_router,
         }) => {
             // CC path: mutate CrossCollateralRoute.signers.
-            if !matches!(fee_account.fee_data, FeeData::CrossCollateralRouting) {
+            if !matches!(fee_account.fee_data, FeeData::CrossCollateralRouting(_)) {
                 return Err(Error::NotCrossCollateralRoutingFeeData.into());
             }
 
@@ -1052,8 +1053,8 @@ fn process_submit_quote(
 
     // Resolve signers based on fee_data type.
     let resolved_signers: BTreeSet<H160> = match &fee_account.fee_data {
-        FeeData::Leaf(_) => fee_account.require_leaf_signers()?.clone(),
-        FeeData::Routing => {
+        FeeData::Leaf(_) => fee_account.fee_data.require_leaf_signers()?.clone(),
+        FeeData::Routing(_) => {
             // Account 3: RouteDomain PDA (read-only, for signer verification).
             let route_pda_info = next_account_info(accounts_iter)?;
             if route_pda_info.owner != program_id {
@@ -1074,7 +1075,7 @@ fn process_submit_quote(
                 .signers
                 .ok_or(ProgramError::from(Error::OffchainQuotingNotConfigured))?
         }
-        FeeData::CrossCollateralRouting => {
+        FeeData::CrossCollateralRouting(_) => {
             // Account 3: CC specific route PDA (read-only).
             // Account 4: CC default route PDA (read-only).
             let specific_pda_info = next_account_info(accounts_iter)?;
@@ -1190,7 +1191,7 @@ fn process_submit_quote(
         // Leaf/Routing: 44B context, target_router = H256::zero() sentinel.
         // CC: 76B context with target_router, reject H256::zero().
         let (destination_domain, recipient, standing_target_router) = match &fee_account.fee_data {
-            FeeData::CrossCollateralRouting => {
+            FeeData::CrossCollateralRouting(_) => {
                 let ctx = CcFeeQuoteContext::try_from_bytes(&quote.context)
                     .map_err(|_| Error::InvalidStandingQuoteContext)?;
                 if ctx.amount != u64::MAX {
@@ -1303,7 +1304,10 @@ fn process_submit_quote(
             // Update standing_quote_domains on fee account (non-CC only).
             // CC accounts have multiple PDAs per domain (one per target_router),
             // making domain tracking unreliable — offchain tooling handles CC domain discovery.
-            if !matches!(fee_account.data.fee_data, FeeData::CrossCollateralRouting) {
+            if !matches!(
+                fee_account.data.fee_data,
+                FeeData::CrossCollateralRouting(_)
+            ) {
                 let mut fee_account_mut = fee_account.data;
                 fee_account_mut
                     .standing_quote_domains
@@ -1446,7 +1450,7 @@ fn process_prune_expired_quotes(
 
         // Remove domain from standing_quote_domains (non-CC only).
         // CC accounts never add domains to this set — offchain tooling handles CC domain discovery.
-        if !matches!(fee_account.fee_data, FeeData::CrossCollateralRouting) {
+        if !matches!(fee_account.fee_data, FeeData::CrossCollateralRouting(_)) {
             fee_account.standing_quote_domains.remove(&domain);
             FeeAccountData::new(fee_account.into()).store(fee_account_info, false)?;
         }
@@ -1526,7 +1530,7 @@ fn process_get_quote_account_metas(
     // For CC: include target_router in PDA seeds. For Leaf/Routing: H256::zero() sentinel via macro default.
     let domain_le = data.destination_domain.to_le_bytes();
     let standing_target_router = match &fee_account.fee_data {
-        FeeData::CrossCollateralRouting => data.target_router,
+        FeeData::CrossCollateralRouting(_) => data.target_router,
         _ => hyperlane_core::H256::zero(),
     };
     let (domain_quotes_key, _) = Pubkey::find_program_address(
@@ -1553,7 +1557,7 @@ fn process_get_quote_account_metas(
     // Route-specific PDAs.
     match &fee_account.fee_data {
         FeeData::Leaf(_) => {}
-        FeeData::Routing => {
+        FeeData::Routing(_) => {
             let (route_key, _) = Pubkey::find_program_address(
                 route_domain_pda_seeds!(fee_account_info.key, &domain_le),
                 program_id,
@@ -1564,7 +1568,7 @@ fn process_get_quote_account_metas(
                 is_writable: false,
             });
         }
-        FeeData::CrossCollateralRouting => {
+        FeeData::CrossCollateralRouting(_) => {
             let dest_le = data.destination_domain.to_le_bytes();
             let (cc_specific_key, _) = Pubkey::find_program_address(
                 cc_route_pda_seeds!(fee_account_info.key, &dest_le, data.target_router),
@@ -1643,7 +1647,7 @@ fn process_get_submit_quote_account_metas(
     let domain_le = data.destination_domain.to_le_bytes();
     match &fee_account.fee_data {
         FeeData::Leaf(_) => {}
-        FeeData::Routing => {
+        FeeData::Routing(_) => {
             let (route_key, _) = Pubkey::find_program_address(
                 route_domain_pda_seeds!(fee_account_info.key, &domain_le),
                 program_id,
@@ -1654,7 +1658,7 @@ fn process_get_submit_quote_account_metas(
                 is_writable: false,
             });
         }
-        FeeData::CrossCollateralRouting => {
+        FeeData::CrossCollateralRouting(_) => {
             let (cc_specific_key, _) = Pubkey::find_program_address(
                 cc_route_pda_seeds!(fee_account_info.key, &domain_le, data.target_router),
                 program_id,
@@ -1691,7 +1695,7 @@ fn process_get_submit_quote_account_metas(
     } else {
         // Standing quote PDA.
         let standing_target_router = match &fee_account.fee_data {
-            FeeData::CrossCollateralRouting => data.target_router,
+            FeeData::CrossCollateralRouting(_) => data.target_router,
             _ => hyperlane_core::H256::zero(),
         };
         let (standing_key, _) = Pubkey::find_program_address(
@@ -1739,7 +1743,7 @@ fn process_set_route(
     let (fee_account_info, fee_account, owner_info) =
         fetch_fee_account_and_verify_owner(program_id, accounts_iter)?;
 
-    if !matches!(fee_account.fee_data, FeeData::Routing) {
+    if !matches!(fee_account.fee_data, FeeData::Routing(_)) {
         return Err(Error::NotRoutingFeeData.into());
     }
 
@@ -1824,7 +1828,7 @@ fn process_remove_route(
     let (fee_account_info, fee_account, owner_info) =
         fetch_fee_account_and_verify_owner(program_id, accounts_iter)?;
 
-    if !matches!(fee_account.fee_data, FeeData::Routing) {
+    if !matches!(fee_account.fee_data, FeeData::Routing(_)) {
         return Err(Error::NotRoutingFeeData.into());
     }
 
@@ -1878,7 +1882,7 @@ fn process_set_cc_route(
     let (fee_account_info, fee_account, owner_info) =
         fetch_fee_account_and_verify_owner(program_id, accounts_iter)?;
 
-    if !matches!(fee_account.fee_data, FeeData::CrossCollateralRouting) {
+    if !matches!(fee_account.fee_data, FeeData::CrossCollateralRouting(_)) {
         return Err(Error::NotCrossCollateralRoutingFeeData.into());
     }
 
@@ -1966,7 +1970,7 @@ fn process_remove_cc_route(
     let (fee_account_info, fee_account, owner_info) =
         fetch_fee_account_and_verify_owner(program_id, accounts_iter)?;
 
-    if !matches!(fee_account.fee_data, FeeData::CrossCollateralRouting) {
+    if !matches!(fee_account.fee_data, FeeData::CrossCollateralRouting(_)) {
         return Err(Error::NotCrossCollateralRoutingFeeData.into());
     }
 

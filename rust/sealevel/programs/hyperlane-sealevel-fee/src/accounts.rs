@@ -51,24 +51,112 @@ const H160_SIZE: usize = 20;
 /// Borsh serialized size of a Borsh Vec/Map/Set length prefix (u32).
 const BORSH_LEN_PREFIX: usize = std::mem::size_of::<u32>();
 
+// --- Variant-specific fee config structs ---
+
+/// Configuration for Leaf fee mode.
+/// Directly computes fee from a strategy curve. Signers authorize all quotes
+/// (both exact and wildcard domain).
+#[derive(BorshDeserialize, BorshSerialize, Clone, Debug, Default, PartialEq)]
+pub struct LeafFeeConfig {
+    /// Fee computation strategy (Linear, Regressive, Progressive).
+    pub strategy: FeeDataStrategy,
+    /// Authorized offchain quote signers. Some = offchain quoting enabled, None = on-chain only.
+    pub signers: Option<BTreeSet<H160>>,
+}
+
+impl SizedData for LeafFeeConfig {
+    fn size(&self) -> usize {
+        SizedData::size(&self.strategy) + option_signers_size(&self.signers)
+    }
+}
+
+/// Configuration for Routing fee mode.
+/// Per-domain lookup via RouteDomain PDAs. Each route PDA carries its own signer set
+/// for exact-domain quotes. Wildcard-domain quotes are authorized by `wildcard_signers`.
+#[derive(BorshDeserialize, BorshSerialize, Clone, Debug, Default, PartialEq)]
+pub struct RoutingFeeConfig {
+    /// Signers for wildcard-domain standing quotes. None = wildcard quoting disabled.
+    pub wildcard_signers: Option<BTreeSet<H160>>,
+}
+
+impl SizedData for RoutingFeeConfig {
+    fn size(&self) -> usize {
+        option_signers_size(&self.wildcard_signers)
+    }
+}
+
+/// Configuration for CrossCollateralRouting fee mode.
+/// Per-(destination, target_router) lookup via CrossCollateralRoute PDAs.
+/// Each route PDA carries its own signer set for exact-domain quotes.
+/// Wildcard-domain quotes are authorized by `wildcard_signers`.
+#[derive(BorshDeserialize, BorshSerialize, Clone, Debug, Default, PartialEq)]
+pub struct CrossCollateralRoutingFeeConfig {
+    /// Signers for wildcard-domain standing quotes. None = wildcard quoting disabled.
+    pub wildcard_signers: Option<BTreeSet<H160>>,
+}
+
+impl SizedData for CrossCollateralRoutingFeeConfig {
+    fn size(&self) -> usize {
+        option_signers_size(&self.wildcard_signers)
+    }
+}
+
 // --- Top-level fee data enum ---
 
 /// Determines how fee resolution works for a fee account.
+/// Each variant carries its own signer configuration so the type system
+/// enforces mode-correct usage.
 #[derive(BorshDeserialize, BorshSerialize, Clone, Debug, PartialEq)]
 pub enum FeeData {
     /// Leaf fee strategy — directly computes fee from params.
-    Leaf(FeeDataStrategy),
+    /// Signers authorize all quotes (exact and wildcard domain).
+    Leaf(LeafFeeConfig),
     /// Per-domain lookup via RouteDomain PDAs.
-    /// Uninitialized domains produce an error (prevents accidental zero fees).
-    Routing,
+    /// Wildcard-domain quotes authorized by `wildcard_signers`.
+    Routing(RoutingFeeConfig),
     /// Per-(destination, target_router) lookup for cross-collateral warp routes.
-    /// target_router is the remote warp route contract address.
-    CrossCollateralRouting,
+    /// Wildcard-domain quotes authorized by `wildcard_signers`.
+    CrossCollateralRouting(CrossCollateralRoutingFeeConfig),
 }
 
 impl Default for FeeData {
     fn default() -> Self {
-        Self::Leaf(FeeDataStrategy::default())
+        Self::Leaf(LeafFeeConfig::default())
+    }
+}
+
+impl FeeData {
+    /// Returns a reference to the leaf signer set, or error if not configured.
+    pub fn require_leaf_signers(&self) -> Result<&BTreeSet<H160>, ProgramError> {
+        match self {
+            FeeData::Leaf(cfg) => cfg
+                .signers
+                .as_ref()
+                .ok_or_else(|| crate::error::Error::OffchainQuotingNotConfigured.into()),
+            _ => Err(crate::error::Error::NotLeafFeeData.into()),
+        }
+    }
+
+    /// Returns a reference to the routing wildcard signer set, or error if not configured.
+    pub fn require_routing_wildcard_signers(&self) -> Result<&BTreeSet<H160>, ProgramError> {
+        match self {
+            FeeData::Routing(cfg) => cfg
+                .wildcard_signers
+                .as_ref()
+                .ok_or_else(|| crate::error::Error::OffchainQuotingNotConfigured.into()),
+            _ => Err(crate::error::Error::NotRoutingFeeData.into()),
+        }
+    }
+
+    /// Returns a reference to the CC wildcard signer set, or error if not configured.
+    pub fn require_cc_wildcard_signers(&self) -> Result<&BTreeSet<H160>, ProgramError> {
+        match self {
+            FeeData::CrossCollateralRouting(cfg) => cfg
+                .wildcard_signers
+                .as_ref()
+                .ok_or_else(|| crate::error::Error::OffchainQuotingNotConfigured.into()),
+            _ => Err(crate::error::Error::NotCrossCollateralRoutingFeeData.into()),
+        }
     }
 }
 
@@ -76,8 +164,9 @@ impl SizedData for FeeData {
     fn size(&self) -> usize {
         // 1 byte for enum variant tag
         1 + match self {
-            FeeData::Leaf(strategy) => SizedData::size(strategy),
-            FeeData::Routing | FeeData::CrossCollateralRouting => 0,
+            FeeData::Leaf(cfg) => cfg.size(),
+            FeeData::Routing(cfg) => cfg.size(),
+            FeeData::CrossCollateralRouting(cfg) => cfg.size(),
         }
     }
 }
@@ -93,6 +182,7 @@ impl DiscriminatorData for FeeAccount {
 
 /// The main fee account, one per warp route.
 /// Created via InitFee with a salt-derived PDA.
+/// Signer configuration lives inside `fee_data` (variant-specific).
 #[derive(BorshDeserialize, BorshSerialize, Debug, Default, PartialEq)]
 pub struct FeeAccount {
     /// PDA bump seed.
@@ -101,13 +191,10 @@ pub struct FeeAccount {
     pub owner: Option<Pubkey>,
     /// Beneficiary who receives collected token fees.
     pub beneficiary: Pubkey,
-    /// Fee resolution strategy (Leaf, Routing, or CrossCollateralRouting).
+    /// Fee resolution strategy with variant-specific signer configuration.
     pub fee_data: FeeData,
     /// Hyperlane domain ID of the local chain (used in quote signature verification).
     pub domain_id: u32,
-    /// Authorized offchain quote signers (secp256k1 Ethereum addresses).
-    /// Some = offchain quoting enabled, None = on-chain fee only.
-    pub signers: Option<BTreeSet<H160>>,
     /// Emergency revocation threshold: standing quotes with issued_at < min_issued_at are rejected.
     pub min_issued_at: i64,
     /// Set of Hyperlane destination domain IDs that have standing quote PDAs.
@@ -126,16 +213,6 @@ impl AccessControl for FeeAccount {
     }
 }
 
-impl FeeAccount {
-    /// Returns a reference to the leaf-level signer set, or an error if offchain
-    /// quoting is not configured (signers is None).
-    pub fn require_leaf_signers(&self) -> Result<&BTreeSet<H160>, ProgramError> {
-        self.signers
-            .as_ref()
-            .ok_or_else(|| crate::error::Error::OffchainQuotingNotConfigured.into())
-    }
-}
-
 /// Borsh serialized size of `Option<BTreeSet<H160>>`.
 /// None: 1 tag. Some: 1 tag + 4 len prefix + count * 20.
 fn option_signers_size(opt: &Option<BTreeSet<H160>>) -> usize {
@@ -150,9 +227,8 @@ impl SizedData for FeeAccount {
         std::mem::size_of::<u8>()                                                                   // bump
         + option_pubkey_size(&self.owner)                                                           // owner
         + PUBKEY_SIZE                                                                               // beneficiary
-        + SizedData::size(&self.fee_data)                                                             // fee_data
+        + SizedData::size(&self.fee_data)                                                           // fee_data
         + std::mem::size_of::<u32>()                                                                // domain_id
-        + option_signers_size(&self.signers)                                                        // signers
         + std::mem::size_of::<i64>()                                                                // min_issued_at
         + BORSH_LEN_PREFIX + (self.standing_quote_domains.len() * std::mem::size_of::<u32>())
         // standing_quote_domains
@@ -467,12 +543,45 @@ mod tests {
     #[test]
     fn test_fee_data_borsh_roundtrip() {
         for variant in [
-            FeeData::Leaf(FeeDataStrategy::Linear(FeeParams {
-                max_fee: 100,
-                half_amount: 50,
-            })),
-            FeeData::Routing,
-            FeeData::CrossCollateralRouting,
+            FeeData::Leaf(LeafFeeConfig {
+                strategy: FeeDataStrategy::Linear(FeeParams {
+                    max_fee: 100,
+                    half_amount: 50,
+                }),
+                signers: None,
+            }),
+            FeeData::Routing(RoutingFeeConfig {
+                wildcard_signers: None,
+            }),
+            FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+                wildcard_signers: None,
+            }),
+        ] {
+            let encoded = borsh::to_vec(&variant).unwrap();
+            let decoded: FeeData = borsh::from_slice(&encoded).unwrap();
+            assert_eq!(variant, decoded);
+        }
+    }
+
+    #[test]
+    fn test_fee_data_borsh_roundtrip_with_signers() {
+        let mut signers = BTreeSet::new();
+        signers.insert(H160::random());
+
+        for variant in [
+            FeeData::Leaf(LeafFeeConfig {
+                strategy: FeeDataStrategy::Linear(FeeParams {
+                    max_fee: 100,
+                    half_amount: 50,
+                }),
+                signers: Some(signers.clone()),
+            }),
+            FeeData::Routing(RoutingFeeConfig {
+                wildcard_signers: Some(signers.clone()),
+            }),
+            FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+                wildcard_signers: Some(signers.clone()),
+            }),
         ] {
             let encoded = borsh::to_vec(&variant).unwrap();
             let decoded: FeeData = borsh::from_slice(&encoded).unwrap();
@@ -486,9 +595,10 @@ mod tests {
             bump_seed: 255,
             owner: Some(Pubkey::new_unique()),
             beneficiary: Pubkey::new_unique(),
-            fee_data: FeeData::Routing,
+            fee_data: FeeData::Routing(RoutingFeeConfig {
+                wildcard_signers: None,
+            }),
             domain_id: 42,
-            signers: None,
             min_issued_at: 0,
             standing_quote_domains: BTreeSet::new(),
         };
@@ -498,19 +608,21 @@ mod tests {
     }
 
     #[test]
-    fn test_fee_account_borsh_roundtrip_with_some_signers() {
+    fn test_fee_account_borsh_roundtrip_leaf_with_signers() {
         let mut signers = BTreeSet::new();
         signers.insert(H160::random());
         let account = FeeAccount {
             bump_seed: 1,
             owner: Some(Pubkey::new_unique()),
             beneficiary: Pubkey::new_unique(),
-            fee_data: FeeData::Leaf(FeeDataStrategy::Linear(FeeParams {
-                max_fee: 100,
-                half_amount: 50,
-            })),
+            fee_data: FeeData::Leaf(LeafFeeConfig {
+                strategy: FeeDataStrategy::Linear(FeeParams {
+                    max_fee: 100,
+                    half_amount: 50,
+                }),
+                signers: Some(signers),
+            }),
             domain_id: 1,
-            signers: Some(signers),
             min_issued_at: 0,
             standing_quote_domains: BTreeSet::new(),
         };
@@ -619,12 +731,14 @@ mod tests {
             bump_seed: 1,
             owner: Some(Pubkey::new_unique()),
             beneficiary: Pubkey::new_unique(),
-            fee_data: FeeData::Leaf(FeeDataStrategy::Linear(FeeParams {
-                max_fee: 100,
-                half_amount: 50,
-            })),
+            fee_data: FeeData::Leaf(LeafFeeConfig {
+                strategy: FeeDataStrategy::Linear(FeeParams {
+                    max_fee: 100,
+                    half_amount: 50,
+                }),
+                signers: None,
+            }),
             domain_id: 1,
-            signers: None,
             min_issued_at: 0,
             standing_quote_domains: BTreeSet::new(),
         };
@@ -632,17 +746,22 @@ mod tests {
     }
 
     #[test]
-    fn test_sized_data_fee_account_leaf_empty_signers() {
+    fn test_sized_data_fee_account_leaf_with_signers() {
+        let mut signers = BTreeSet::new();
+        signers.insert(H160::random());
+        signers.insert(H160::random());
         let account = FeeAccount {
             bump_seed: 1,
             owner: Some(Pubkey::new_unique()),
             beneficiary: Pubkey::new_unique(),
-            fee_data: FeeData::Leaf(FeeDataStrategy::Linear(FeeParams {
-                max_fee: 100,
-                half_amount: 50,
-            })),
+            fee_data: FeeData::Leaf(LeafFeeConfig {
+                strategy: FeeDataStrategy::Linear(FeeParams {
+                    max_fee: 100,
+                    half_amount: 50,
+                }),
+                signers: Some(signers),
+            }),
             domain_id: 1,
-            signers: Some(BTreeSet::new()),
             min_issued_at: 0,
             standing_quote_domains: BTreeSet::new(),
         };
@@ -655,9 +774,10 @@ mod tests {
             bump_seed: 1,
             owner: None,
             beneficiary: Pubkey::new_unique(),
-            fee_data: FeeData::Routing,
+            fee_data: FeeData::Routing(RoutingFeeConfig {
+                wildcard_signers: None,
+            }),
             domain_id: 1,
-            signers: None,
             min_issued_at: 0,
             standing_quote_domains: BTreeSet::new(),
         };
@@ -665,9 +785,8 @@ mod tests {
     }
 
     #[test]
-    fn test_sized_data_fee_account_with_signers_and_domains() {
+    fn test_sized_data_fee_account_cc_with_wildcard_signers() {
         let mut signers = BTreeSet::new();
-        signers.insert(H160::random());
         signers.insert(H160::random());
         let mut domains = BTreeSet::new();
         domains.insert(1u32);
@@ -678,9 +797,10 @@ mod tests {
             bump_seed: 1,
             owner: Some(Pubkey::new_unique()),
             beneficiary: Pubkey::new_unique(),
-            fee_data: FeeData::CrossCollateralRouting,
+            fee_data: FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+                wildcard_signers: Some(signers),
+            }),
             domain_id: 1,
-            signers: Some(signers),
             min_issued_at: -100,
             standing_quote_domains: domains,
         };
@@ -689,18 +809,57 @@ mod tests {
 
     #[test]
     fn test_require_leaf_signers() {
-        let account_none = FeeAccount {
+        // Leaf with None → error
+        let fee_data_none = FeeData::Leaf(LeafFeeConfig {
+            strategy: FeeDataStrategy::default(),
             signers: None,
-            ..Default::default()
-        };
-        assert!(account_none.require_leaf_signers().is_err());
+        });
+        assert!(fee_data_none.require_leaf_signers().is_err());
 
-        let account_some = FeeAccount {
+        // Leaf with Some → ok
+        let fee_data_some = FeeData::Leaf(LeafFeeConfig {
+            strategy: FeeDataStrategy::default(),
             signers: Some(BTreeSet::new()),
-            ..Default::default()
-        };
-        assert!(account_some.require_leaf_signers().is_ok());
-        assert!(account_some.require_leaf_signers().unwrap().is_empty());
+        });
+        assert!(fee_data_some.require_leaf_signers().is_ok());
+
+        // Routing → wrong mode error
+        let fee_data_routing = FeeData::Routing(RoutingFeeConfig::default());
+        assert!(fee_data_routing.require_leaf_signers().is_err());
+    }
+
+    #[test]
+    fn test_require_routing_wildcard_signers() {
+        let with = FeeData::Routing(RoutingFeeConfig {
+            wildcard_signers: Some(BTreeSet::new()),
+        });
+        assert!(with.require_routing_wildcard_signers().is_ok());
+
+        let without = FeeData::Routing(RoutingFeeConfig {
+            wildcard_signers: None,
+        });
+        assert!(without.require_routing_wildcard_signers().is_err());
+
+        // Wrong mode
+        let leaf = FeeData::Leaf(LeafFeeConfig::default());
+        assert!(leaf.require_routing_wildcard_signers().is_err());
+    }
+
+    #[test]
+    fn test_require_cc_wildcard_signers() {
+        let with = FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+            wildcard_signers: Some(BTreeSet::new()),
+        });
+        assert!(with.require_cc_wildcard_signers().is_ok());
+
+        let without = FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+            wildcard_signers: None,
+        });
+        assert!(without.require_cc_wildcard_signers().is_err());
+
+        // Wrong mode
+        let routing = FeeData::Routing(RoutingFeeConfig::default());
+        assert!(routing.require_cc_wildcard_signers().is_err());
     }
 
     #[test]
@@ -818,12 +977,19 @@ mod tests {
     #[test]
     fn test_fee_data_sized_data() {
         for variant in [
-            FeeData::Leaf(FeeDataStrategy::Linear(FeeParams {
-                max_fee: 1,
-                half_amount: 2,
-            })),
-            FeeData::Routing,
-            FeeData::CrossCollateralRouting,
+            FeeData::Leaf(LeafFeeConfig {
+                strategy: FeeDataStrategy::Linear(FeeParams {
+                    max_fee: 1,
+                    half_amount: 2,
+                }),
+                signers: None,
+            }),
+            FeeData::Routing(RoutingFeeConfig {
+                wildcard_signers: None,
+            }),
+            FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         ] {
             assert_eq!(
                 SizedData::size(&variant),

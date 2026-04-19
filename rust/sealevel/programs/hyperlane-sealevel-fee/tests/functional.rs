@@ -19,9 +19,10 @@ use serializable_account_meta::SimulationReturnData;
 use account_utils::AccountData;
 use hyperlane_sealevel_fee::{
     accounts::{
-        CrossCollateralRoute, CrossCollateralRouteAccount, FeeAccount, FeeAccountData, FeeData,
-        FeeStandingQuotePda, FeeStandingQuotePdaAccount, FeeStandingQuoteValue, RouteDomain,
-        RouteDomainAccount, DEFAULT_ROUTER, WILDCARD_DOMAIN, WILDCARD_RECIPIENT,
+        CrossCollateralRoute, CrossCollateralRouteAccount, CrossCollateralRoutingFeeConfig,
+        FeeAccount, FeeAccountData, FeeData, FeeStandingQuotePda, FeeStandingQuotePdaAccount,
+        FeeStandingQuoteValue, LeafFeeConfig, RouteDomain, RouteDomainAccount, RoutingFeeConfig,
+        DEFAULT_ROUTER, WILDCARD_DOMAIN, WILDCARD_RECIPIENT,
     },
     cc_route_pda_seeds,
     error::Error as FeeError,
@@ -127,6 +128,14 @@ fn default_salt() -> H256 {
     H256::zero()
 }
 
+/// Extracts the leaf signers from a FeeAccount's fee_data.
+fn leaf_signers(acct: &FeeAccount) -> &Option<BTreeSet<H160>> {
+    match &acct.fee_data {
+        FeeData::Leaf(cfg) => &cfg.signers,
+        _ => panic!("expected Leaf fee_data"),
+    }
+}
+
 /// Signs a message hash with a k256 private key and returns the 65-byte signature.
 fn sign_hash(signing_key: &SigningKey, hash: &[u8; 32]) -> [u8; 65] {
     let (sig, recovery_id) = signing_key
@@ -172,17 +181,13 @@ fn make_signed_transient_quote(
 }
 
 fn default_leaf_fee_data() -> FeeData {
-    FeeData::Leaf(FeeDataStrategy::Linear(FeeParams {
-        max_fee: 1000,
-        half_amount: 500,
-    }))
-}
-
-fn default_signers_for(fee_data: &FeeData) -> Option<BTreeSet<H160>> {
-    match fee_data {
-        FeeData::Leaf(_) => Some(BTreeSet::new()),
-        FeeData::Routing | FeeData::CrossCollateralRouting => None,
-    }
+    FeeData::Leaf(LeafFeeConfig {
+        strategy: FeeDataStrategy::Linear(FeeParams {
+            max_fee: 1000,
+            half_amount: 500,
+        }),
+        signers: Some(BTreeSet::new()),
+    })
 }
 
 fn build_init_fee_ix(
@@ -194,7 +199,6 @@ fn build_init_fee_ix(
 ) -> (Instruction, Pubkey) {
     let program_id = fee_program_id();
     let (fee_account, _) = Pubkey::find_program_address(fee_account_pda_seeds!(salt), &program_id);
-    let signers = default_signers_for(&fee_data);
     let ix = instruction::init_fee_instruction(
         program_id,
         *payer,
@@ -203,7 +207,6 @@ fn build_init_fee_ix(
         beneficiary,
         fee_data,
         LOCAL_DOMAIN,
-        signers,
     )
     .unwrap();
     (ix, fee_account)
@@ -700,7 +703,7 @@ mod init_fee {
         assert_eq!(acct.beneficiary, beneficiary);
         assert_eq!(acct.fee_data, fee_data);
         assert_eq!(acct.domain_id, LOCAL_DOMAIN);
-        assert_eq!(acct.signers, Some(BTreeSet::new()));
+        assert_eq!(leaf_signers(&acct), &Some(BTreeSet::new()));
         assert_eq!(acct.min_issued_at, 0);
         assert_eq!(acct.standing_quote_domains, BTreeSet::new());
     }
@@ -714,12 +717,19 @@ mod init_fee {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::Routing,
+            FeeData::Routing(RoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
         let acct = fetch_fee_account(&mut banks_client, key).await;
-        assert_eq!(acct.fee_data, FeeData::Routing);
+        assert_eq!(
+            acct.fee_data,
+            FeeData::Routing(RoutingFeeConfig {
+                wildcard_signers: None
+            })
+        );
     }
 
     #[tokio::test]
@@ -731,12 +741,19 @@ mod init_fee {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::CrossCollateralRouting,
+            FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
         let acct = fetch_fee_account(&mut banks_client, key).await;
-        assert_eq!(acct.fee_data, FeeData::CrossCollateralRouting);
+        assert_eq!(
+            acct.fee_data,
+            FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+                wildcard_signers: None
+            })
+        );
     }
 
     #[tokio::test]
@@ -1032,7 +1049,7 @@ mod update_fee_params {
 
         let acct = fetch_fee_account(&mut banks_client, key).await;
         match acct.fee_data {
-            FeeData::Leaf(strategy) => assert_eq!(*strategy.params(), new_params),
+            FeeData::Leaf(cfg) => assert_eq!(*cfg.strategy.params(), new_params),
             _ => panic!("expected Leaf"),
         }
     }
@@ -1046,10 +1063,13 @@ mod update_fee_params {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::Leaf(FeeDataStrategy::Progressive(FeeParams {
-                max_fee: 100,
-                half_amount: 50,
-            })),
+            FeeData::Leaf(LeafFeeConfig {
+                strategy: FeeDataStrategy::Progressive(FeeParams {
+                    max_fee: 100,
+                    half_amount: 50,
+                }),
+                signers: Some(BTreeSet::new()),
+            }),
         )
         .await;
 
@@ -1064,7 +1084,10 @@ mod update_fee_params {
 
         let acct = fetch_fee_account(&mut banks_client, key).await;
         match acct.fee_data {
-            FeeData::Leaf(FeeDataStrategy::Progressive(params)) => {
+            FeeData::Leaf(LeafFeeConfig {
+                strategy: FeeDataStrategy::Progressive(params),
+                ..
+            }) => {
                 assert_eq!(params, new_params);
             }
             _ => panic!("expected Progressive Leaf"),
@@ -1080,7 +1103,9 @@ mod update_fee_params {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::Routing,
+            FeeData::Routing(RoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -1115,7 +1140,9 @@ mod set_route {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::Routing,
+            FeeData::Routing(RoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -1142,7 +1169,9 @@ mod set_route {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::Routing,
+            FeeData::Routing(RoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -1210,7 +1239,9 @@ mod set_route {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::Routing,
+            FeeData::Routing(RoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -1242,7 +1273,9 @@ mod set_route {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::Routing,
+            FeeData::Routing(RoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -1274,7 +1307,9 @@ mod set_route {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::Routing,
+            FeeData::Routing(RoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -1316,7 +1351,9 @@ mod remove_route {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::Routing,
+            FeeData::Routing(RoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -1355,7 +1392,9 @@ mod remove_route {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::Routing,
+            FeeData::Routing(RoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -1379,7 +1418,9 @@ mod remove_route {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::Routing,
+            FeeData::Routing(RoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -1424,7 +1465,9 @@ mod remove_route {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::Routing,
+            FeeData::Routing(RoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -1471,7 +1514,9 @@ mod set_cc_route {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::CrossCollateralRouting,
+            FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -1509,7 +1554,9 @@ mod set_cc_route {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::CrossCollateralRouting,
+            FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -1556,7 +1603,9 @@ mod set_cc_route {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::CrossCollateralRouting,
+            FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -1618,7 +1667,9 @@ mod set_cc_route {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::Routing,
+            FeeData::Routing(RoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -1651,7 +1702,9 @@ mod set_cc_route {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::CrossCollateralRouting,
+            FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -1684,7 +1737,9 @@ mod set_cc_route {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::CrossCollateralRouting,
+            FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -1721,7 +1776,9 @@ mod remove_cc_route {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::CrossCollateralRouting,
+            FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -1762,7 +1819,9 @@ mod remove_cc_route {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::CrossCollateralRouting,
+            FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -1790,10 +1849,13 @@ mod quote_fee {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::Leaf(FeeDataStrategy::Linear(FeeParams {
-                max_fee: 1000,
-                half_amount: 500,
-            })),
+            FeeData::Leaf(LeafFeeConfig {
+                strategy: FeeDataStrategy::Linear(FeeParams {
+                    max_fee: 1000,
+                    half_amount: 500,
+                }),
+                signers: Some(BTreeSet::new()),
+            }),
         )
         .await;
 
@@ -1818,10 +1880,13 @@ mod quote_fee {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::Leaf(FeeDataStrategy::Regressive(FeeParams {
-                max_fee: 1000,
-                half_amount: 500,
-            })),
+            FeeData::Leaf(LeafFeeConfig {
+                strategy: FeeDataStrategy::Regressive(FeeParams {
+                    max_fee: 1000,
+                    half_amount: 500,
+                }),
+                signers: Some(BTreeSet::new()),
+            }),
         )
         .await;
 
@@ -1840,10 +1905,13 @@ mod quote_fee {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::Leaf(FeeDataStrategy::Progressive(FeeParams {
-                max_fee: 1000,
-                half_amount: 500,
-            })),
+            FeeData::Leaf(LeafFeeConfig {
+                strategy: FeeDataStrategy::Progressive(FeeParams {
+                    max_fee: 1000,
+                    half_amount: 500,
+                }),
+                signers: Some(BTreeSet::new()),
+            }),
         )
         .await;
 
@@ -1862,7 +1930,9 @@ mod quote_fee {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::Routing,
+            FeeData::Routing(RoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -1897,7 +1967,9 @@ mod quote_fee {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::Routing,
+            FeeData::Routing(RoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -1922,7 +1994,9 @@ mod quote_fee {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::CrossCollateralRouting,
+            FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -1960,7 +2034,9 @@ mod quote_fee {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::CrossCollateralRouting,
+            FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -1999,7 +2075,9 @@ mod quote_fee {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::CrossCollateralRouting,
+            FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -2032,7 +2110,9 @@ mod quote_fee {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::CrossCollateralRouting,
+            FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -2077,7 +2157,9 @@ mod quote_fee {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::CrossCollateralRouting,
+            FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -2150,8 +2232,8 @@ mod add_quote_signer {
             .unwrap();
 
         let acct = fetch_fee_account(&mut banks_client, fee_key).await;
-        assert!(acct.signers.as_ref().unwrap().contains(&signer));
-        assert_eq!(acct.signers.as_ref().unwrap().len(), 1);
+        assert!(leaf_signers(&acct).as_ref().unwrap().contains(&signer));
+        assert_eq!(leaf_signers(&acct).as_ref().unwrap().len(), 1);
     }
 
     #[tokio::test]
@@ -2181,9 +2263,9 @@ mod add_quote_signer {
             .unwrap();
 
         let acct = fetch_fee_account(&mut banks_client, fee_key).await;
-        assert!(acct.signers.as_ref().unwrap().contains(&signer1));
-        assert!(acct.signers.as_ref().unwrap().contains(&signer2));
-        assert_eq!(acct.signers.as_ref().unwrap().len(), 2);
+        assert!(leaf_signers(&acct).as_ref().unwrap().contains(&signer1));
+        assert!(leaf_signers(&acct).as_ref().unwrap().contains(&signer2));
+        assert_eq!(leaf_signers(&acct).as_ref().unwrap().len(), 2);
     }
 
     #[tokio::test]
@@ -2211,7 +2293,7 @@ mod add_quote_signer {
             .unwrap();
 
         let acct = fetch_fee_account(&mut banks_client, fee_key).await;
-        assert_eq!(acct.signers.as_ref().unwrap().len(), 1);
+        assert_eq!(leaf_signers(&acct).as_ref().unwrap().len(), 1);
     }
 
     #[tokio::test]
@@ -2303,8 +2385,8 @@ mod remove_quote_signer {
             .unwrap();
 
         let acct = fetch_fee_account(&mut banks_client, fee_key).await;
-        assert!(!acct.signers.as_ref().unwrap().contains(&signer));
-        assert_eq!(acct.signers.as_ref().unwrap().len(), 0);
+        assert!(!leaf_signers(&acct).as_ref().unwrap().contains(&signer));
+        assert_eq!(leaf_signers(&acct).as_ref().unwrap().len(), 0);
     }
 
     #[tokio::test]
@@ -2327,7 +2409,7 @@ mod remove_quote_signer {
 
         // signers is still Some(empty) (remove nonexistent from empty set is a no-op).
         let acct = fetch_fee_account(&mut banks_client, fee_key).await;
-        assert_eq!(acct.signers, Some(BTreeSet::new()));
+        assert_eq!(leaf_signers(&acct), &Some(BTreeSet::new()));
     }
 
     #[tokio::test]
@@ -3021,10 +3103,13 @@ mod quote_fee_transient {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::Leaf(FeeDataStrategy::Linear(FeeParams {
-                max_fee: 100,
-                half_amount: 50,
-            })),
+            FeeData::Leaf(LeafFeeConfig {
+                strategy: FeeDataStrategy::Linear(FeeParams {
+                    max_fee: 100,
+                    half_amount: 50,
+                }),
+                signers: Some(BTreeSet::new()),
+            }),
         )
         .await;
 
@@ -3310,10 +3395,13 @@ mod quote_fee_transient {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::Leaf(FeeDataStrategy::Linear(FeeParams {
-                max_fee: 1000,
-                half_amount: 500,
-            })),
+            FeeData::Leaf(LeafFeeConfig {
+                strategy: FeeDataStrategy::Linear(FeeParams {
+                    max_fee: 1000,
+                    half_amount: 500,
+                }),
+                signers: Some(BTreeSet::new()),
+            }),
         )
         .await;
 
@@ -3396,7 +3484,9 @@ mod quote_fee_transient {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::Routing,
+            FeeData::Routing(RoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -3507,7 +3597,9 @@ mod quote_fee_transient {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::CrossCollateralRouting,
+            FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -3637,7 +3729,9 @@ mod quote_fee_transient {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::CrossCollateralRouting,
+            FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -4449,10 +4543,13 @@ mod quote_fee_standing {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::Leaf(FeeDataStrategy::Linear(FeeParams {
-                max_fee: 100,
-                half_amount: 50,
-            })),
+            FeeData::Leaf(LeafFeeConfig {
+                strategy: FeeDataStrategy::Linear(FeeParams {
+                    max_fee: 100,
+                    half_amount: 50,
+                }),
+                signers: Some(BTreeSet::new()),
+            }),
         )
         .await;
 
@@ -4511,10 +4608,13 @@ mod quote_fee_standing {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::Leaf(FeeDataStrategy::Linear(FeeParams {
-                max_fee: 100,
-                half_amount: 50,
-            })),
+            FeeData::Leaf(LeafFeeConfig {
+                strategy: FeeDataStrategy::Linear(FeeParams {
+                    max_fee: 100,
+                    half_amount: 50,
+                }),
+                signers: Some(BTreeSet::new()),
+            }),
         )
         .await;
 
@@ -4563,10 +4663,13 @@ mod quote_fee_standing {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::Leaf(FeeDataStrategy::Linear(FeeParams {
-                max_fee: 100,
-                half_amount: 50,
-            })),
+            FeeData::Leaf(LeafFeeConfig {
+                strategy: FeeDataStrategy::Linear(FeeParams {
+                    max_fee: 100,
+                    half_amount: 50,
+                }),
+                signers: Some(BTreeSet::new()),
+            }),
         )
         .await;
 
@@ -4683,10 +4786,13 @@ mod quote_fee_standing {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::Leaf(FeeDataStrategy::Linear(FeeParams {
-                max_fee: 100,
-                half_amount: 50,
-            })),
+            FeeData::Leaf(LeafFeeConfig {
+                strategy: FeeDataStrategy::Linear(FeeParams {
+                    max_fee: 100,
+                    half_amount: 50,
+                }),
+                signers: Some(BTreeSet::new()),
+            }),
         )
         .await;
 
@@ -4732,10 +4838,13 @@ mod quote_fee_standing {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::Leaf(FeeDataStrategy::Linear(FeeParams {
-                max_fee: 100,
-                half_amount: 50,
-            })),
+            FeeData::Leaf(LeafFeeConfig {
+                strategy: FeeDataStrategy::Linear(FeeParams {
+                    max_fee: 100,
+                    half_amount: 50,
+                }),
+                signers: Some(BTreeSet::new()),
+            }),
         )
         .await;
 
@@ -4799,10 +4908,13 @@ mod quote_fee_standing {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::Leaf(FeeDataStrategy::Linear(FeeParams {
-                max_fee: 100,
-                half_amount: 50,
-            })),
+            FeeData::Leaf(LeafFeeConfig {
+                strategy: FeeDataStrategy::Linear(FeeParams {
+                    max_fee: 100,
+                    half_amount: 50,
+                }),
+                signers: Some(BTreeSet::new()),
+            }),
         )
         .await;
 
@@ -4907,10 +5019,13 @@ mod quote_fee_standing {
             salt_a,
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::Leaf(FeeDataStrategy::Linear(FeeParams {
-                max_fee: 100,
-                half_amount: 50,
-            })),
+            FeeData::Leaf(LeafFeeConfig {
+                strategy: FeeDataStrategy::Linear(FeeParams {
+                    max_fee: 100,
+                    half_amount: 50,
+                }),
+                signers: Some(BTreeSet::new()),
+            }),
         )
         .await;
 
@@ -4927,10 +5042,13 @@ mod quote_fee_standing {
             salt_b,
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::Leaf(FeeDataStrategy::Linear(FeeParams {
-                max_fee: 10000,
-                half_amount: 5000,
-            })),
+            FeeData::Leaf(LeafFeeConfig {
+                strategy: FeeDataStrategy::Linear(FeeParams {
+                    max_fee: 10000,
+                    half_amount: 5000,
+                }),
+                signers: Some(BTreeSet::new()),
+            }),
         )
         .await;
 
@@ -5009,10 +5127,13 @@ mod quote_fee_standing {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::Leaf(FeeDataStrategy::Linear(FeeParams {
-                max_fee: 100,
-                half_amount: 50,
-            })),
+            FeeData::Leaf(LeafFeeConfig {
+                strategy: FeeDataStrategy::Linear(FeeParams {
+                    max_fee: 100,
+                    half_amount: 50,
+                }),
+                signers: Some(BTreeSet::new()),
+            }),
         )
         .await;
 
@@ -5087,7 +5208,7 @@ mod quote_fee_standing {
             .await
             .unwrap();
         let acct = fetch_fee_account(&mut banks_client, fee_key).await;
-        assert!(acct.signers.as_ref().unwrap().is_empty());
+        assert!(leaf_signers(&acct).as_ref().unwrap().is_empty());
 
         // Standing quote still works — QuoteFee doesn't check signers.
         let ix = build_quote_fee_leaf_ix(&fee_key, &payer.pubkey(), dest, recipient, 5000);
@@ -5502,7 +5623,9 @@ mod prune_expired_quotes {
             H256::random(), // different salt
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::CrossCollateralRouting,
+            FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -5750,7 +5873,9 @@ mod get_quote_account_metas {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::Routing,
+            FeeData::Routing(RoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -5786,7 +5911,9 @@ mod get_quote_account_metas {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::CrossCollateralRouting,
+            FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -5832,7 +5959,9 @@ mod get_quote_account_metas {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::CrossCollateralRouting,
+            FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -6026,7 +6155,9 @@ mod get_submit_quote_account_metas {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::Routing,
+            FeeData::Routing(RoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -6071,7 +6202,9 @@ mod get_submit_quote_account_metas {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::CrossCollateralRouting,
+            FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -6151,7 +6284,9 @@ mod cc_standing_quotes {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::CrossCollateralRouting,
+            FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -6234,7 +6369,9 @@ mod cc_standing_quotes {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::CrossCollateralRouting,
+            FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -6363,7 +6500,9 @@ mod cc_standing_quotes {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::CrossCollateralRouting,
+            FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -6441,7 +6580,9 @@ mod cc_standing_quotes {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::CrossCollateralRouting,
+            FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -6532,7 +6673,9 @@ mod cc_standing_quotes {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::CrossCollateralRouting,
+            FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -6680,7 +6823,9 @@ mod cc_standing_quotes {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::CrossCollateralRouting,
+            FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -6783,7 +6928,9 @@ mod additional_coverage {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::CrossCollateralRouting,
+            FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -6924,7 +7071,9 @@ mod additional_coverage {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::CrossCollateralRouting,
+            FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -7029,7 +7178,9 @@ mod additional_coverage {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::CrossCollateralRouting,
+            FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -7161,7 +7312,9 @@ mod additional_coverage {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::CrossCollateralRouting,
+            FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
@@ -7523,7 +7676,9 @@ mod additional_coverage {
             default_salt(),
             Some(payer.pubkey()),
             payer.pubkey(),
-            FeeData::CrossCollateralRouting,
+            FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+                wildcard_signers: None,
+            }),
         )
         .await;
 
