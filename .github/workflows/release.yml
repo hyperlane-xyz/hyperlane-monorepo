@@ -271,7 +271,7 @@ jobs:
       - name: Inspect SDK dist after build
         run: |
           echo "Source cross-collateral predicate:"
-          rg -n "isCrossCollateralToken|SealevelHypCrossCollateral" typescript/sdk/src/token/Token.ts
+          grep -nE "isCrossCollateralToken|SealevelHypCrossCollateral" typescript/sdk/src/token/Token.ts
           echo ""
           echo "Dist token entry:"
           sed -n '1,12p' typescript/sdk/dist/token/Token.js || true
@@ -280,8 +280,8 @@ jobs:
           sed -n '70,90p' typescript/sdk/dist/token/TokenMetadata.js || true
           echo ""
           if [ -f typescript/sdk/dist/token/TokenMetadata.js ] && \
-             rg -q "SealevelHypCrossCollateral" typescript/sdk/src/token/Token.ts && \
-             ! rg -q "SealevelHypCrossCollateral" typescript/sdk/dist/token/TokenMetadata.js; then
+             grep -q "SealevelHypCrossCollateral" typescript/sdk/src/token/Token.ts && \
+             ! grep -q "SealevelHypCrossCollateral" typescript/sdk/dist/token/TokenMetadata.js; then
             echo "::error::SDK dist is stale on CI: source includes SealevelHypCrossCollateral but dist/token/TokenMetadata.js does not"
             exit 1
           fi
