@@ -67,6 +67,13 @@ pub enum Instruction {
         /// Unix timestamp; standing quotes issued before this are rejected.
         min_issued_at: i64,
     },
+    /// Set wildcard quote signers for Routing or CrossCollateralRouting modes (owner-only).
+    /// Mutates the wildcard_signers field inside the FeeData variant on the FeeAccount.
+    /// Rejects Leaf mode (use AddQuoteSigner with route=None instead).
+    SetWildcardQuoteSigners {
+        /// New wildcard signer set. None disables wildcard quoting.
+        signers: Option<BTreeSet<SignerAddress>>,
+    },
     /// Submit a signed offchain quote (transient or standing).
     /// Transient: fee_account is read-only.
     /// Standing: fee_account must be writable (updates standing_quote_domains on new domain).
@@ -575,6 +582,33 @@ fn derive_route_pda(
             .ok_or(ProgramError::InvalidSeeds)
         }
     }
+}
+
+/// Builds a SetWildcardQuoteSigners instruction (owner-only).
+/// Only valid for Routing and CrossCollateralRouting fee accounts.
+pub fn set_wildcard_quote_signers_instruction(
+    program_id: Pubkey,
+    fee_account: Pubkey,
+    owner: Pubkey,
+    signers: Option<BTreeSet<SignerAddress>>,
+) -> Result<SolanaInstruction, ProgramError> {
+    let ixn = Instruction::SetWildcardQuoteSigners { signers };
+
+    // Accounts:
+    // 0. `[executable]` System program.
+    // 1. `[writable]` Fee account.
+    // 2. `[signer, writable]` Owner.
+    let accounts = vec![
+        AccountMeta::new_readonly(system_program::ID, false),
+        AccountMeta::new(fee_account, false),
+        AccountMeta::new(owner, true),
+    ];
+
+    Ok(SolanaInstruction {
+        program_id,
+        data: borsh::to_vec(&ixn)?,
+        accounts,
+    })
 }
 
 /// Builds a SetMinIssuedAt instruction (owner-only).

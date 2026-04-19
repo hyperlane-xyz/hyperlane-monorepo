@@ -83,6 +83,9 @@ pub fn process_instruction(
         Instruction::SetMinIssuedAt { min_issued_at } => {
             process_set_min_issued_at(program_id, accounts, min_issued_at)
         }
+        Instruction::SetWildcardQuoteSigners { signers } => {
+            process_set_wildcard_quote_signers(program_id, accounts, signers)
+        }
         Instruction::SubmitQuote(quote) => process_submit_quote(program_id, accounts, quote),
         Instruction::CloseTransientQuote => process_close_transient_quote(program_id, accounts),
         Instruction::PruneExpiredQuotes {
@@ -994,6 +997,48 @@ fn process_set_min_issued_at(
     FeeAccountData::new(fee_account.into()).store(fee_account_info, false)?;
 
     msg!("Set min_issued_at: {}", min_issued_at);
+
+    Ok(())
+}
+
+/// Set wildcard quote signers for Routing or CrossCollateralRouting fee accounts (owner-only).
+/// Mutates the wildcard_signers field inside the FeeData variant.
+///
+/// Accounts:
+/// 0. `[executable]` System program.
+/// 1. `[writable]` Fee account (fee_data must be Routing or CrossCollateralRouting).
+/// 2. `[signer, writable]` Owner.
+fn process_set_wildcard_quote_signers(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    signers: Option<BTreeSet<H160>>,
+) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    let system_program_info = next_account_info(accounts_iter)?;
+    if *system_program_info.key != system_program::ID {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+
+    let (fee_account_info, mut fee_account, owner_info) =
+        fetch_fee_account_and_verify_owner(program_id, accounts_iter)?;
+
+    ensure_no_extraneous_accounts(accounts_iter)?;
+
+    match &mut fee_account.fee_data {
+        FeeData::Leaf(_) => return Err(Error::NotLeafFeeData.into()),
+        FeeData::Routing(cfg) => cfg.wildcard_signers = signers,
+        FeeData::CrossCollateralRouting(cfg) => cfg.wildcard_signers = signers,
+    }
+
+    FeeAccountData::new(fee_account.into()).store_with_rent_exempt_realloc(
+        fee_account_info,
+        &Rent::get()?,
+        owner_info,
+        system_program_info,
+    )?;
+
+    msg!("Set wildcard quote signers");
 
     Ok(())
 }

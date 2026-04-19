@@ -2591,6 +2591,165 @@ mod set_min_issued_at {
     }
 }
 
+mod set_wildcard_quote_signers {
+    use super::*;
+
+    fn build_set_wildcard_signers_ix(
+        fee_account: &Pubkey,
+        owner: &Pubkey,
+        signers: Option<BTreeSet<H160>>,
+    ) -> Instruction {
+        instruction::set_wildcard_quote_signers_instruction(
+            fee_program_id(),
+            *fee_account,
+            *owner,
+            signers,
+        )
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn test_routing_set_wildcard_signers() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            FeeData::Routing(RoutingFeeConfig {
+                wildcard_signers: None,
+            }),
+        )
+        .await;
+
+        let mut signers = BTreeSet::new();
+        signers.insert(H160::random());
+        let ix = build_set_wildcard_signers_ix(&fee_key, &payer.pubkey(), Some(signers.clone()));
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let acct = fetch_fee_account(&mut banks_client, fee_key).await;
+        match &acct.fee_data {
+            FeeData::Routing(cfg) => assert_eq!(cfg.wildcard_signers, Some(signers)),
+            _ => panic!("expected Routing"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_cc_set_wildcard_signers() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+                wildcard_signers: None,
+            }),
+        )
+        .await;
+
+        let mut signers = BTreeSet::new();
+        signers.insert(H160::random());
+        let ix = build_set_wildcard_signers_ix(&fee_key, &payer.pubkey(), Some(signers.clone()));
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let acct = fetch_fee_account(&mut banks_client, fee_key).await;
+        match &acct.fee_data {
+            FeeData::CrossCollateralRouting(cfg) => {
+                assert_eq!(cfg.wildcard_signers, Some(signers))
+            }
+            _ => panic!("expected CrossCollateralRouting"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_leaf_rejected() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let ix = build_set_wildcard_signers_ix(&fee_key, &payer.pubkey(), Some(BTreeSet::new()));
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::NotLeafFeeData as u32),
+            ),
+        );
+    }
+
+    #[tokio::test]
+    async fn test_non_owner_fails() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            FeeData::Routing(RoutingFeeConfig {
+                wildcard_signers: None,
+            }),
+        )
+        .await;
+
+        let non_owner = Keypair::new();
+        fund_keypair(&mut banks_client, &payer, &non_owner).await;
+
+        let ix =
+            build_set_wildcard_signers_ix(&fee_key, &non_owner.pubkey(), Some(BTreeSet::new()));
+        let result = process_tx(&mut banks_client, &non_owner, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+        );
+    }
+
+    #[tokio::test]
+    async fn test_set_to_none_disables() {
+        let (mut banks_client, payer) = setup_client().await;
+        let mut signers = BTreeSet::new();
+        signers.insert(H160::random());
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            FeeData::Routing(RoutingFeeConfig {
+                wildcard_signers: Some(signers),
+            }),
+        )
+        .await;
+
+        // Set to None.
+        let ix = build_set_wildcard_signers_ix(&fee_key, &payer.pubkey(), None);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let acct = fetch_fee_account(&mut banks_client, fee_key).await;
+        match &acct.fee_data {
+            FeeData::Routing(cfg) => assert_eq!(cfg.wildcard_signers, None),
+            _ => panic!("expected Routing"),
+        }
+    }
+}
+
 mod submit_transient_quote {
     use super::*;
 
