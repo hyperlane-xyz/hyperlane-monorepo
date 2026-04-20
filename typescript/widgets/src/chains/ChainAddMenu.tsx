@@ -149,20 +149,82 @@ function tryParseMetadataInput(
   }
 
   const newMetadata = result.data as ChainMetadata;
+  const chainId = newMetadata.chainId;
+  const effectiveDomainId = getEffectiveDomainId(newMetadata);
 
   if (existingChainMetadata[newMetadata.name]) {
     return failure('name is already in use by another chain');
   }
 
   if (
-    Object.values(existingChainMetadata).some(
-      (metadata) => metadata.domainId === newMetadata.domainId,
+    chainId !== undefined &&
+    Object.entries(existingChainMetadata).some(
+      ([chainName, metadata]) =>
+        chainName !== newMetadata.name &&
+        areChainIdsEqual(metadata.chainId, chainId),
+    )
+  ) {
+    return failure('chainId is already in use by another chain');
+  }
+
+  if (
+    effectiveDomainId !== null &&
+    Object.entries(existingChainMetadata).some(
+      ([chainName, metadata]) =>
+        chainName !== newMetadata.name &&
+        getEffectiveDomainId(metadata) === effectiveDomainId,
     )
   ) {
     return failure('domainId is already in use by another chain');
   }
 
   return success(newMetadata);
+}
+
+function areChainIdsEqual(
+  left: ChainMetadata['chainId'],
+  right: ChainMetadata['chainId'],
+): boolean {
+  if (
+    left === undefined ||
+    left === null ||
+    right === undefined ||
+    right === null
+  ) {
+    return false;
+  }
+
+  if (left === right) return true;
+
+  const leftNumeric = tryNormalizeNumericChainId(left);
+  const rightNumeric = tryNormalizeNumericChainId(right);
+  return leftNumeric !== null && leftNumeric === rightNumeric;
+}
+
+function getEffectiveDomainId(
+  metadata: Pick<ChainMetadata, 'chainId' | 'domainId'>,
+) {
+  if (metadata.domainId !== undefined && metadata.domainId !== null) {
+    return metadata.domainId;
+  }
+
+  return tryNormalizeNumericChainId(metadata.chainId);
+}
+
+function tryNormalizeNumericChainId(
+  chainId: ChainMetadata['chainId'],
+): number | null {
+  if (typeof chainId === 'number') {
+    return Number.isSafeInteger(chainId) ? chainId : null;
+  }
+
+  if (typeof chainId !== 'string' || !/^\d+$/.test(chainId)) return null;
+
+  const numericChainId = Number(chainId);
+  if (!Number.isSafeInteger(numericChainId)) return null;
+  if (String(numericChainId) !== chainId) return null;
+
+  return numericChainId;
 }
 
 const placeholderText = `# YAML data
