@@ -1,5 +1,61 @@
 # @hyperlane-xyz/relayer
 
+## 1.1.25
+
+### Patch Changes
+
+- Updated dependencies [dc8e560]
+  - @hyperlane-xyz/sdk@33.0.0
+  - @hyperlane-xyz/metrics@0.2.18
+  - @hyperlane-xyz/utils@33.0.0
+  - @hyperlane-xyz/core@11.3.1
+
+## 1.1.24
+
+### Patch Changes
+
+- Updated dependencies [611b911]
+- Updated dependencies [c6de4c9]
+  - @hyperlane-xyz/sdk@32.0.1
+  - @hyperlane-xyz/metrics@0.2.17
+  - @hyperlane-xyz/utils@32.0.1
+  - @hyperlane-xyz/core@11.3.1
+
+## 1.1.23
+
+### Patch Changes
+
+- b9e744b: Re-exported metadata build result types from the relayer public API and added a
+  `@hyperlane-xyz/relayer/metadata` subpath export for metadata-only imports.
+- Updated dependencies [e4da110]
+- Updated dependencies [d588eb5]
+- Updated dependencies [ab17263]
+- Updated dependencies [ebde778]
+  - @hyperlane-xyz/sdk@32.0.0
+  - @hyperlane-xyz/metrics@0.2.16
+  - @hyperlane-xyz/utils@32.0.0
+  - @hyperlane-xyz/core@11.3.1
+
+## 1.1.22
+
+### Patch Changes
+
+- Updated dependencies [f9c8f83]
+  - @hyperlane-xyz/sdk@31.2.1
+  - @hyperlane-xyz/metrics@0.2.15
+  - @hyperlane-xyz/utils@31.2.1
+  - @hyperlane-xyz/core@11.3.1
+
+## 1.1.21
+
+### Patch Changes
+
+- Updated dependencies [35fb5c8]
+  - @hyperlane-xyz/sdk@31.2.0
+  - @hyperlane-xyz/metrics@0.2.14
+  - @hyperlane-xyz/utils@31.2.0
+  - @hyperlane-xyz/core@11.3.1
+
 ## 1.1.20
 
 ### Patch Changes

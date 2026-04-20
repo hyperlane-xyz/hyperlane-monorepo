@@ -154,6 +154,9 @@ describe('InventoryRebalancer E2E', () => {
         }),
       },
       findToken: Sinon.stub().returns(null),
+      getMaxTransferAmount: Sinon.stub().callsFake(
+        async ({ balance }) => balance,
+      ),
       getTransferRemoteTxs: Sinon.stub().resolves([
         {
           category: 'transfer',
@@ -277,6 +280,21 @@ describe('InventoryRebalancer E2E', () => {
     return intent;
   }
 
+  function mockSuccessfulBridge(fromAmount: bigint, toAmount: bigint): void {
+    bridge.quote.resolves(
+      createMockBridgeQuote({
+        fromAmount,
+        toAmount,
+        toAmountMin: toAmount,
+      }),
+    );
+    bridge.execute.resolves({
+      txHash: '0xBridgeTxHash',
+      fromChain: 42161,
+      toChain: 1399811149,
+    });
+  }
+
   describe('Basic Inventory Rebalance (Sufficient Inventory)', () => {
     // NOTE: Strategy route is arbitrum (surplus) → solana (deficit)
     // But execution calls transferRemote FROM solana TO arbitrum (swapped direction)
@@ -396,11 +414,39 @@ describe('InventoryRebalancer E2E', () => {
       const actionParams = actionTracker.createRebalanceAction.lastCall.args[0];
       expect(actionParams.txHash).to.equal('0xSolanaTxHash');
     });
+
+    it('denormalizes inventory execution amounts but records canonical deposit amount', async () => {
+      const route = createTestRoute({ amount: 1_000_000n });
+      createTestIntent({ amount: 1_000_000n });
+      warpCore.tokens.find((t: any) => t.chainName === SOLANA_CHAIN)!.scale = {
+        numerator: 1n,
+        denominator: 1_000_000_000_000n,
+      };
+
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 1_000_000_000_000_000_000n,
+        [ARBITRUM_CHAIN]: 0n,
+      });
+
+      const results = await inventoryRebalancer.rebalance([route]);
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.true;
+
+      const txParams = warpCore.getTransferRemoteTxs.firstCall.args[0];
+      expect(txParams.originTokenAmount.amount).to.equal(
+        1_000_000_000_000_000_000n,
+      );
+
+      const actionParams = actionTracker.createRebalanceAction.lastCall.args[0];
+      expect(actionParams.amount).to.equal(1_000_000n);
+    });
   });
 
   describe('Partial Fulfillment (Insufficient Inventory)', () => {
-    // Partial transfers happen when maxTransferable >= minViableTransfer
-    // For non-native tokens (EvmHypCollateral), minViableTransfer = 0, so partial always viable
+    // Partial transfers happen when maxTransferable >= minViableTransfer.
+    // For non-native tokens (EvmHypCollateral), minViableTransfer = 0, so any
+    // positive fee-aware maxTransferable remains viable.
     const PARTIAL_AMOUNT = BigInt(5e15); // 0.005 ETH - above threshold
     const FULL_AMOUNT = BigInt(1e16); // 0.01 ETH
 
@@ -433,6 +479,65 @@ describe('InventoryRebalancer E2E', () => {
       expect(actionParams.amount).to.equal(PARTIAL_AMOUNT);
     });
 
+    it('uses fee-aware maxTransferable for non-native token fees', async () => {
+      const requestedAmount = 19998000000n;
+      const availableInventory = 102466n;
+      const safeTransferAmount = 102400n;
+
+      warpCore.getMaxTransferAmount.resolves({ amount: safeTransferAmount });
+
+      const route = createTestRoute({ amount: requestedAmount });
+      createTestIntent({ amount: requestedAmount });
+
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: availableInventory,
+        [ARBITRUM_CHAIN]: 0n,
+      });
+
+      const results = await inventoryRebalancer.rebalance([route]);
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.true;
+      expect(warpCore.getMaxTransferAmount.calledOnce).to.be.true;
+
+      const maxTransferArgs = warpCore.getMaxTransferAmount.firstCall.args[0];
+      expect(maxTransferArgs.balance.amount).to.equal(availableInventory);
+      expect(maxTransferArgs.destination).to.equal(ARBITRUM_CHAIN);
+
+      const txParams = warpCore.getTransferRemoteTxs.lastCall.args[0];
+      expect(txParams.originTokenAmount.amount).to.equal(safeTransferAmount);
+      expect(txParams).to.not.have.property('interchainFee');
+      expect(txParams).to.not.have.property('tokenFeeQuote');
+
+      const actionParams = actionTracker.createRebalanceAction.lastCall.args[0];
+      expect(actionParams.amount).to.equal(safeTransferAmount);
+    });
+
+    it('downgrades full non-native transfers to partial when fee headroom is missing', async () => {
+      const requestedAmount = 102466n;
+      const safeTransferAmount = 102400n;
+
+      warpCore.getMaxTransferAmount.resolves({ amount: safeTransferAmount });
+
+      const route = createTestRoute({ amount: requestedAmount });
+      createTestIntent({ amount: requestedAmount });
+
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: requestedAmount,
+        [ARBITRUM_CHAIN]: 0n,
+      });
+
+      const results = await inventoryRebalancer.rebalance([route]);
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.true;
+      expect(bridge.execute.called).to.be.false;
+
+      const txParams = warpCore.getTransferRemoteTxs.lastCall.args[0];
+      expect(txParams.originTokenAmount.amount).to.equal(safeTransferAmount);
+      expect(txParams.originTokenAmount.amount).to.not.equal(requestedAmount);
+    });
+
     it('intent remains in_progress after partial fulfillment', async () => {
       const route = createTestRoute({ amount: FULL_AMOUNT });
       createTestIntent({ amount: FULL_AMOUNT });
@@ -447,6 +552,52 @@ describe('InventoryRebalancer E2E', () => {
 
       // Verify: Partial transfer succeeded
       expect(results[0].success).to.be.true;
+    });
+  });
+
+  describe('Fee-Aware Probe Fallback', () => {
+    it('bridges when non-native destination inventory is zero', async () => {
+      const requestedAmount = 10000000000n;
+      const bufferedBridgeAmount = (requestedAmount * 105n) / 100n;
+      const route = createTestRoute({ amount: requestedAmount });
+      createTestIntent({ amount: requestedAmount });
+
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 0n,
+        [ARBITRUM_CHAIN]: 20000000000n,
+      });
+      mockSuccessfulBridge(bufferedBridgeAmount, bufferedBridgeAmount);
+
+      const results = await inventoryRebalancer.rebalance([route]);
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.true;
+      expect(warpCore.getMaxTransferAmount.called).to.be.false;
+      expect(warpCore.getTransferRemoteTxs.called).to.be.false;
+      expect(bridge.execute.calledOnce).to.be.true;
+
+      const actionParams =
+        actionTracker.createRebalanceAction.firstCall.args[0];
+      expect(actionParams.type).to.equal('inventory_movement');
+    });
+
+    it('returns failure for unrelated fee-aware probe errors', async () => {
+      const route = createTestRoute();
+      createTestIntent();
+
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 1n,
+        [ARBITRUM_CHAIN]: 20000000000n,
+      });
+      warpCore.getMaxTransferAmount.rejects(new Error('RPC down'));
+
+      const results = await inventoryRebalancer.rebalance([route]);
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.false;
+      expect(results[0].error).to.include('RPC down');
+      expect(bridge.execute.called).to.be.false;
+      expect(actionTracker.createRebalanceAction.called).to.be.false;
     });
   });
 
@@ -625,6 +776,51 @@ describe('InventoryRebalancer E2E', () => {
 
       // Verify: No new intent was created (existing was continued)
       expect(actionTracker.createRebalanceIntent.called).to.be.false;
+    });
+
+    it('continues existing intent by bridging after recoverable fee-aware probe failure', async () => {
+      const existingIntent = createTestIntent({
+        id: 'existing-intent',
+        status: 'in_progress',
+        amount: 10000000000n,
+        externalBridge: ExternalBridgeType.LiFi,
+      });
+      const recoverableProbeError = new Error('Fee probe failed') as Error & {
+        cause?: unknown;
+      };
+      recoverableProbeError.cause = {
+        code: 'UNPREDICTABLE_GAS_LIMIT',
+        message: 'execution reverted: ERC20: transfer amount exceeds balance',
+      };
+
+      actionTracker.getPartiallyFulfilledInventoryIntents.resolves([
+        {
+          intent: existingIntent,
+          completedAmount: 0n,
+          remaining: 10000000000n,
+          hasInflightDeposit: false,
+        },
+      ]);
+
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 1n,
+        [ARBITRUM_CHAIN]: 20000000000n,
+      });
+      warpCore.getMaxTransferAmount.rejects(recoverableProbeError);
+      mockSuccessfulBridge(10500000000n, 10500000000n);
+
+      const results = await inventoryRebalancer.rebalance([
+        createTestRoute({ amount: 5000000000n }),
+      ]);
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.true;
+      expect(bridge.execute.calledOnce).to.be.true;
+      expect(actionTracker.createRebalanceIntent.called).to.be.false;
+
+      const actionParams =
+        actionTracker.createRebalanceAction.firstCall.args[0];
+      expect(actionParams.type).to.equal('inventory_movement');
     });
   });
 
@@ -1457,6 +1653,73 @@ describe('InventoryRebalancer E2E', () => {
       expect(bridge.execute.callCount).to.equal(2);
     });
 
+    it('does not inflate each split bridge plan to minViableTransfer', async () => {
+      const amount = 7_000_000_000_000_000n;
+      const perChainInventory = 6_000_000_000_000_000n;
+      const reservedGas = 1_000_000_000n;
+
+      for (const token of warpCore.tokens) {
+        if (
+          token.chainName === ARBITRUM_CHAIN ||
+          token.chainName === SOLANA_CHAIN ||
+          token.chainName === BASE_CHAIN
+        ) {
+          token.standard = TokenStandard.EvmHypNative;
+        }
+      }
+
+      const route = createTestRoute({ amount });
+      createTestIntent({ amount });
+
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 0n,
+        [ARBITRUM_CHAIN]: perChainInventory,
+        [BASE_CHAIN]: perChainInventory,
+      });
+
+      bridge.quote.callsFake(async (params: any) =>
+        createMockBridgeQuote({
+          fromAmount: params.fromAmount ?? params.toAmount,
+          toAmount: params.toAmount ?? params.fromAmount,
+          toAmountMin: params.toAmount ?? params.fromAmount,
+          requestParams:
+            params.toAmount !== undefined
+              ? { ...params, toAmount: params.toAmount }
+              : { ...params, fromAmount: params.fromAmount },
+        }),
+      );
+      bridge.execute.resolves({
+        txHash: '0xBridgeTxHash',
+        fromChain: 42161,
+        toChain: 1399811149,
+      });
+
+      const results = await inventoryRebalancer.rebalance([route]);
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.true;
+      expect(bridge.execute.callCount).to.equal(2);
+
+      const reverseQuoteRequests = bridge.quote
+        .getCalls()
+        .map((call) => call.args[0])
+        .filter((params) => params.toAmount !== undefined);
+      expect(reverseQuoteRequests).to.have.lengthOf(2);
+
+      const requestedOutputs = reverseQuoteRequests
+        .map((params) => params.toAmount as bigint)
+        .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+      const maxPerSourceOutput = perChainInventory - reservedGas;
+      const totalAvailableCapacity = maxPerSourceOutput * 2n;
+
+      expect(requestedOutputs.every((output) => output <= maxPerSourceOutput))
+        .to.be.true;
+      expect(requestedOutputs[0] < maxPerSourceOutput).to.be.true;
+      expect(requestedOutputs[1]).to.equal(maxPerSourceOutput);
+      expect(requestedOutputs[0] + requestedOutputs[1] < totalAvailableCapacity)
+        .to.be.true;
+    });
+
     it('applies 5% buffer to total bridge amount', async () => {
       // Need 1 ETH -> should plan to bridge 1.05 ETH total (with 5% buffer)
       const amount = BigInt(1e18); // 1 ETH
@@ -1471,14 +1734,19 @@ describe('InventoryRebalancer E2E', () => {
         [ARBITRUM_CHAIN]: availableInventory,
       });
 
-      // Capture the quote amount from executeInventoryMovement
-      // (calculateMaxViableBridgeAmount doesn't quote for ERC20 tokens)
-      let quotedFromAmount: bigint | undefined;
+      let quotedTargetOutput: bigint | undefined;
       bridge.quote.callsFake(async (params: any) => {
-        quotedFromAmount = params.fromAmount;
+        if (params.toAmount !== undefined) {
+          quotedTargetOutput = params.toAmount;
+        }
         return createMockBridgeQuote({
           fromAmount: params.fromAmount ?? params.toAmount,
-          toAmount: params.fromAmount ?? params.toAmount,
+          toAmount: params.toAmount ?? params.fromAmount,
+          toAmountMin: params.toAmount ?? params.fromAmount,
+          requestParams:
+            params.toAmount !== undefined
+              ? { ...params, toAmount: params.toAmount }
+              : { ...params, fromAmount: params.fromAmount },
         });
       });
       bridge.execute.resolves({
@@ -1490,10 +1758,155 @@ describe('InventoryRebalancer E2E', () => {
       await inventoryRebalancer.rebalance([route]);
 
       // Verify: 5% buffer applied (1 ETH * 1.05 = 1.05 ETH)
-      // The bridge plan uses pre-validated amounts (for ERC20, full inventory available)
-      // But the target is (amount * 105%), so if source has >= target, we bridge exactly target
       const expectedWithBuffer = (amount * 105n) / 100n;
-      expect(quotedFromAmount).to.equal(expectedWithBuffer);
+      expect(quotedTargetOutput).to.equal(expectedWithBuffer);
+    });
+
+    it('bridges only the mixed-decimal shortfall after dust partial skip', async () => {
+      const canonicalAmount = 1n;
+      const destinationDust = 1_000_000_000_000n - 1n;
+      const sourceInventory = 1_000_000_000_000n;
+      warpCore.tokens.find((t: any) => t.chainName === SOLANA_CHAIN)!.scale = {
+        numerator: 1n,
+        denominator: 1_000_000_000_000n,
+      };
+
+      const route = createTestRoute({ amount: canonicalAmount });
+      createTestIntent({ amount: canonicalAmount });
+
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: destinationDust,
+        [ARBITRUM_CHAIN]: sourceInventory,
+      });
+
+      let reverseQuoteTargetOutput: bigint | undefined;
+      bridge.quote.callsFake(async (params: any) => {
+        if (params.toAmount !== undefined) {
+          reverseQuoteTargetOutput = params.toAmount;
+        }
+        return createMockBridgeQuote({
+          fromAmount: params.fromAmount ?? params.toAmount,
+          toAmount: params.toAmount ?? params.fromAmount,
+          toAmountMin: params.toAmount ?? params.fromAmount,
+          requestParams:
+            params.toAmount !== undefined
+              ? { ...params, toAmount: params.toAmount }
+              : { ...params, fromAmount: params.fromAmount },
+        });
+      });
+      bridge.execute.resolves({
+        txHash: '0xBridgeTxHash',
+        fromChain: 42161,
+        toChain: 1399811149,
+      });
+
+      const results = await inventoryRebalancer.rebalance([route]);
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.true;
+      expect(warpCore.getTransferRemoteTxs.called).to.be.false;
+      expect(bridge.execute.calledOnce).to.be.true;
+      expect(reverseQuoteTargetOutput).to.equal(1n);
+    });
+
+    it('plans LiFi target output in destination-local units for mixed-decimal routes', async () => {
+      const canonicalAmount = 1_000_000n;
+      const availableInventory = BigInt(2e18);
+      warpCore.tokens.find((t: any) => t.chainName === SOLANA_CHAIN)!.scale = {
+        numerator: 1n,
+        denominator: 1_000_000_000_000n,
+      };
+
+      const route = createTestRoute({ amount: canonicalAmount });
+      createTestIntent({ amount: canonicalAmount });
+
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 0n,
+        [ARBITRUM_CHAIN]: availableInventory,
+      });
+
+      let quotedTargetOutput: bigint | undefined;
+      bridge.quote.callsFake(async (params: any) => {
+        if (params.toAmount !== undefined) {
+          quotedTargetOutput = params.toAmount;
+        }
+        return createMockBridgeQuote({
+          fromAmount: params.fromAmount ?? params.toAmount,
+          toAmount: params.toAmount ?? params.fromAmount,
+          toAmountMin: params.toAmount ?? params.fromAmount,
+          requestParams:
+            params.toAmount !== undefined
+              ? { ...params, toAmount: params.toAmount }
+              : { ...params, fromAmount: params.fromAmount },
+        });
+      });
+      bridge.execute.resolves({
+        txHash: '0xBridgeTxHash',
+        fromChain: 42161,
+        toChain: 1399811149,
+      });
+
+      await inventoryRebalancer.rebalance([route]);
+
+      expect(quotedTargetOutput).to.equal(1_050_000_000_000_000_000n);
+    });
+
+    it('fails bridge execution when reverse quote exceeds planned source capacity', async () => {
+      const amount = BigInt(1e18);
+      const sourceInventory = BigInt(2e18);
+      const targetWithBuffer = (amount * 105n) / 100n;
+
+      const route = createTestRoute({ amount });
+      createTestIntent({ amount });
+
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 0n,
+        [ARBITRUM_CHAIN]: sourceInventory,
+      });
+
+      bridge.quote
+        .onFirstCall()
+        .resolves(
+          createMockBridgeQuote({
+            fromAmount: sourceInventory,
+            toAmount: sourceInventory,
+            toAmountMin: sourceInventory,
+            requestParams: {
+              fromChain: 42161,
+              toChain: 1399811149,
+              fromToken: '0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
+              toToken: '0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
+              fromAddress: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+              toAddress: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+              fromAmount: sourceInventory,
+            },
+          }),
+        )
+        .onSecondCall()
+        .resolves(
+          createMockBridgeQuote({
+            fromAmount: sourceInventory + 1n,
+            toAmount: targetWithBuffer,
+            toAmountMin: targetWithBuffer,
+            requestParams: {
+              fromChain: 42161,
+              toChain: 1399811149,
+              fromToken: '0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
+              toToken: '0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
+              fromAddress: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+              toAddress: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+              toAmount: targetWithBuffer,
+            },
+          }),
+        );
+
+      const results = await inventoryRebalancer.rebalance([route]);
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.false;
+      expect(results[0].error).to.include('All inventory movements failed');
+      expect(results[0].error).to.include('exceeded planned source capacity');
+      expect(bridge.execute.called).to.be.false;
     });
 
     it('continues when some bridges fail', async () => {
@@ -1721,14 +2134,36 @@ describe('InventoryRebalancer E2E', () => {
       });
 
       // Quote with high gas costs (but for ERC20, this shouldn't trigger viability check)
-      bridge.quote.resolves(
-        createMockBridgeQuote({
-          fromAmount: BigInt(1.05e18),
-          toAmount: BigInt(1e18),
-          gasCosts: BigInt(1e18), // Very high gas (would fail viability if this were native)
-          feeCosts: 0n,
-        }),
-      );
+      bridge.quote
+        .onFirstCall()
+        .resolves(
+          createMockBridgeQuote({
+            fromAmount: tokenBalance,
+            toAmount: tokenBalance,
+            toAmountMin: tokenBalance,
+            gasCosts: BigInt(1e18), // Very high gas (would fail viability if this were native)
+            feeCosts: 0n,
+          }),
+        )
+        .onSecondCall()
+        .resolves(
+          createMockBridgeQuote({
+            fromAmount: tokenBalance,
+            toAmount: tokenBalance,
+            toAmountMin: tokenBalance,
+            gasCosts: BigInt(1e18),
+            feeCosts: 0n,
+            requestParams: {
+              fromChain: 42161,
+              toChain: 1399811149,
+              fromToken: '0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
+              toToken: '0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
+              fromAddress: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+              toAddress: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+              toAmount: tokenBalance,
+            },
+          }),
+        );
 
       bridge.execute.resolves({
         txHash: '0xERC20BridgeTxHash',
@@ -1742,6 +2177,7 @@ describe('InventoryRebalancer E2E', () => {
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.true;
       expect(bridge.execute.calledOnce).to.be.true;
+      expect(bridge.quote.getCall(1)?.args[0].toAmount).to.equal(tokenBalance);
     });
 
     it('calculates max viable amount as inventory minus (gasCosts * 20) for native tokens', async () => {
@@ -1777,14 +2213,47 @@ describe('InventoryRebalancer E2E', () => {
       // maxViable = 1 ETH - 0.02 ETH = 0.98 ETH
       // 10% threshold = 0.1 ETH, estimatedGas (0.02) < threshold → viable
       const gasCosts = BigInt(0.001e18); // 0.001 ETH
-      bridge.quote.resolves(
-        createMockBridgeQuote({
-          fromAmount: rawBalance,
-          toAmount: rawBalance - BigInt(1e15),
-          gasCosts,
-          feeCosts: 0n,
-        }),
-      );
+      const maxViable = rawBalance - gasCosts * 20n;
+      bridge.quote
+        .onFirstCall()
+        .resolves(
+          createMockBridgeQuote({
+            fromAmount: rawBalance,
+            toAmount: rawBalance - BigInt(1e15),
+            toAmountMin: rawBalance - BigInt(1e15),
+            gasCosts,
+            feeCosts: 0n,
+          }),
+        )
+        .onSecondCall()
+        .resolves(
+          createMockBridgeQuote({
+            fromAmount: maxViable,
+            toAmount: maxViable - BigInt(1e15),
+            toAmountMin: maxViable - BigInt(1e15),
+            gasCosts,
+            feeCosts: 0n,
+          }),
+        )
+        .onThirdCall()
+        .resolves(
+          createMockBridgeQuote({
+            fromAmount: BigInt(0.525e18),
+            toAmount: BigInt(0.525e18),
+            toAmountMin: BigInt(0.525e18),
+            gasCosts,
+            feeCosts: 0n,
+            requestParams: {
+              fromChain: 42161,
+              toChain: 1399811149,
+              fromToken: '0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
+              toToken: '0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
+              fromAddress: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+              toAddress: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+              toAmount: BigInt(0.525e18),
+            },
+          }),
+        );
 
       bridge.execute.resolves({
         txHash: '0xSuccessBridgeTxHash',
@@ -1799,18 +2268,14 @@ describe('InventoryRebalancer E2E', () => {
       expect(results[0].success).to.be.true;
       expect(bridge.execute.calledOnce).to.be.true;
 
-      // Verify: The quoted fromAmount should be the target (since maxViable > target)
-      // For the execution quote (second quote call):
-      // targetWithBuffer = (0.5 ETH) * 1.05 = 0.525 ETH (for non-inventory execution, costs are 0)
-      const executionQuoteCall = bridge.quote
-        .getCalls()
-        .find(
-          (call: any) =>
-            call.args[0].fromAmount !== undefined &&
-            call.args[0].fromAmount !== rawBalance,
-        );
-      // Since maxViable (0.98 ETH) > targetWithBuffer (0.525 ETH), we bridge exactly targetWithBuffer
-      expect(executionQuoteCall).to.exist;
+      expect(bridge.quote.getCall(1)?.args[0].fromAmount).to.equal(maxViable);
+      const executionTargetOutput = bridge.quote.getCall(2)?.args[0].toAmount;
+      expect(executionTargetOutput).to.be.a('bigint');
+      if (executionTargetOutput === undefined) {
+        throw new Error('Expected reverse quote to set toAmount');
+      }
+      expect(executionTargetOutput > amount).to.be.true;
+      expect(executionTargetOutput <= maxViable).to.be.true;
     });
 
     it('handles quote failures gracefully by skipping the source chain', async () => {

@@ -1,5 +1,80 @@
 # @hyperlane-xyz/widgets
 
+## 33.0.0
+
+### Patch Changes
+
+- Updated dependencies [dc8e560]
+  - @hyperlane-xyz/sdk@33.0.0
+  - @hyperlane-xyz/aleo-sdk@33.0.0
+  - @hyperlane-xyz/cosmos-sdk@33.0.0
+  - @hyperlane-xyz/radix-sdk@33.0.0
+  - @hyperlane-xyz/utils@33.0.0
+  - @hyperlane-xyz/provider-sdk@5.0.2
+  - @hyperlane-xyz/tron-sdk@23.0.2
+
+## 32.0.1
+
+### Patch Changes
+
+- Updated dependencies [611b911]
+- Updated dependencies [c6de4c9]
+  - @hyperlane-xyz/sdk@32.0.1
+  - @hyperlane-xyz/aleo-sdk@32.0.1
+  - @hyperlane-xyz/cosmos-sdk@32.0.1
+  - @hyperlane-xyz/radix-sdk@32.0.1
+  - @hyperlane-xyz/utils@32.0.1
+  - @hyperlane-xyz/provider-sdk@5.0.1
+  - @hyperlane-xyz/tron-sdk@23.0.1
+
+## 32.0.0
+
+### Patch Changes
+
+- d9096f4: Fixed Cosmos transfers failing with "must be connected to origin chain" by reverting useCosmosActiveChain to return empty ActiveChainInfo, since CosmosKit doesn't have the concept of an active chain
+- Updated dependencies [e4da110]
+- Updated dependencies [d588eb5]
+- Updated dependencies [3dc6367]
+- Updated dependencies [ab17263]
+- Updated dependencies [ebde778]
+- Updated dependencies [fa08f2a]
+  - @hyperlane-xyz/sdk@32.0.0
+  - @hyperlane-xyz/provider-sdk@5.0.0
+  - @hyperlane-xyz/aleo-sdk@32.0.0
+  - @hyperlane-xyz/tron-sdk@23.0.0
+  - @hyperlane-xyz/cosmos-sdk@32.0.0
+  - @hyperlane-xyz/radix-sdk@32.0.0
+  - @hyperlane-xyz/utils@32.0.0
+
+## 31.2.1
+
+### Patch Changes
+
+- Updated dependencies [f9c8f83]
+  - @hyperlane-xyz/sdk@31.2.1
+  - @hyperlane-xyz/aleo-sdk@31.2.1
+  - @hyperlane-xyz/cosmos-sdk@31.2.1
+  - @hyperlane-xyz/radix-sdk@31.2.1
+  - @hyperlane-xyz/utils@31.2.1
+  - @hyperlane-xyz/provider-sdk@4.3.4
+  - @hyperlane-xyz/tron-sdk@22.1.14
+
+## 31.2.0
+
+### Patch Changes
+
+- fcb087d: Replaced WebSocket-based `confirmTransaction` with HTTP polling (`getSignatureStatuses`) for Solana transaction confirmation. Fixed hangs with RPC providers that don't support `signatureSubscribe`.
+- f89d6bd: Added reusable wallet address helpers for protocol-scoped consumers.
+- 3d52b1a: Added `@hyperlane-xyz/widgets/animations/*` subpath exports.
+- Updated dependencies [35fb5c8]
+  - @hyperlane-xyz/sdk@31.2.0
+  - @hyperlane-xyz/aleo-sdk@31.2.0
+  - @hyperlane-xyz/cosmos-sdk@31.2.0
+  - @hyperlane-xyz/radix-sdk@31.2.0
+  - @hyperlane-xyz/utils@31.2.0
+  - @hyperlane-xyz/provider-sdk@4.3.3
+  - @hyperlane-xyz/tron-sdk@22.1.13
+
 ## 31.1.0
 
 ### Patch Changes

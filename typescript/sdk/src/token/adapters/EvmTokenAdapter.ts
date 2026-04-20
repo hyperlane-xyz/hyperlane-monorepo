@@ -21,6 +21,7 @@ import {
   HypXERC20Lockbox__factory,
   HypXERC20__factory,
   IFiatToken__factory,
+  IPostDispatchHook__factory,
   ITokenBridge__factory,
   IXERC20,
   IXERC20VS,
@@ -28,6 +29,8 @@ import {
   IXERC20__factory,
   MovableCollateralRouter,
   MovableCollateralRouter__factory,
+  PredicateRouterWrapper__factory,
+  StaticAggregationHook__factory,
   TokenRouter,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
@@ -53,6 +56,7 @@ import {
 import { BaseEvmAdapter } from '../../app/MultiProtocolApp.js';
 import { UIN256_MAX_VALUE } from '../../consts/numbers.js';
 import { EthJsonRpcBlockParameterTag } from '../../metadata/chainMetadataTypes.js';
+import { OnchainHookType } from '../../hook/types.js';
 import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
 import { ChainName } from '../../types.js';
 import { isValidContractVersion } from '../../utils/contract.js';
@@ -64,6 +68,7 @@ import {
   IHypVSXERC20Adapter,
   IHypXERC20Adapter,
   IMovableCollateralRouterAdapter,
+  IPredicateAwareAdapter,
   ITokenAdapter,
   IXERC20Adapter,
   IXERC20VSAdapter,
@@ -238,8 +243,14 @@ export class EvmTokenAdapter<T extends ERC20 = ERC20>
 // Interacts with Hyp Synthetic token contracts (aka 'HypTokens')
 export class EvmHypSyntheticAdapter
   extends EvmTokenAdapter<HypERC20>
-  implements IHypTokenAdapter<PopulatedTransaction>
+  implements IHypTokenAdapter<PopulatedTransaction>, IPredicateAwareAdapter
 {
+  protected predicateWrapperAddress: Address | null | undefined;
+
+  clearPredicateCache(): void {
+    this.predicateWrapperAddress = undefined;
+  }
+
   constructor(
     public readonly chainName: ChainName,
     public readonly multiProvider: MultiProviderAdapter,
@@ -254,9 +265,19 @@ export class EvmHypSyntheticAdapter
     spender: Address,
     weiAmountOrId: Numberish,
   ): Promise<boolean> {
-    // transferRemote burns directly from msg.sender — no approval needed.
-    // External spenders (e.g. QuotedCalls) need standard ERC20 approval.
-    if (eqAddress(spender, this.addresses.token)) return false;
+    if (eqAddress(spender, this.addresses.token)) {
+      // Synthetics with PredicateWrapper need approval to the wrapper instead.
+      // Without a wrapper, transferRemote burns directly from msg.sender — no approval needed.
+      const predicateWrapper = await this.getPredicateWrapperAddress();
+      if (!predicateWrapper) return false;
+      const allowance = await this.contract.allowance(
+        toEvmAddress(owner),
+        predicateWrapper,
+      );
+      return allowance.lt(weiAmountOrId);
+    }
+
+    // External spenders (e.g. QuotedCalls) get the standard ERC20 allowance check.
     return super.isApproveRequired(owner, spender, weiAmountOrId);
   }
 
@@ -264,8 +285,122 @@ export class EvmHypSyntheticAdapter
     owner: Address,
     spender: Address,
   ): Promise<boolean> {
-    if (eqAddress(spender, this.addresses.token)) return false;
+    if (eqAddress(spender, this.addresses.token)) {
+      // When a predicate wrapper is present, allowance was granted to the wrapper.
+      // Check whether the wrapper has a non-zero allowance that must be revoked first
+      // (relevant for USDT-like tokens that require zeroing before re-approval).
+      const predicateWrapper = await this.getPredicateWrapperAddress();
+      if (!predicateWrapper) return false;
+      return super.isRevokeApprovalRequired(owner, predicateWrapper);
+    }
     return super.isRevokeApprovalRequired(owner, spender);
+  }
+
+  override async populateApproveTx(
+    params: TransferParams,
+  ): Promise<PopulatedTransaction> {
+    if (eqAddress(params.recipient, this.addresses.token)) {
+      // Synthetics with PredicateWrapper approve the wrapper, not the route contract
+      const predicateWrapper = await this.getPredicateWrapperAddress();
+      if (predicateWrapper) {
+        return this.contract.populateTransaction.approve(
+          predicateWrapper,
+          params.weiAmountOrId.toString(),
+        );
+      }
+    }
+
+    // External spender or no predicate wrapper — standard ERC20 approve
+    return super.populateApproveTx(params);
+  }
+
+  async getPredicateWrapperAddress(): Promise<Address | null> {
+    if (this.predicateWrapperAddress !== undefined) {
+      return this.predicateWrapperAddress;
+    }
+
+    const hookAddress = await this.contract.hook();
+
+    if (hookAddress === ethersConstants.AddressZero) {
+      this.predicateWrapperAddress = null;
+      return null;
+    }
+
+    const provider = this.getProvider();
+    const warpRouteAddress = this.addresses.token.toLowerCase();
+
+    // findPredicateWrapperInHook returns null when the hook structure contains no
+    // matching wrapper (a confirmed structural absence). Any exception here is an
+    // unexpected RPC/network failure — don't cache null so the next call can retry.
+    const foundWrapper = await this.findPredicateWrapperInHook(
+      hookAddress,
+      warpRouteAddress,
+      provider,
+    );
+
+    this.predicateWrapperAddress = foundWrapper;
+    return this.predicateWrapperAddress;
+  }
+
+  private async findPredicateWrapperInHook(
+    hookAddress: Address,
+    warpRouteAddress: string,
+    provider: ReturnType<typeof this.getProvider>,
+  ): Promise<Address | null> {
+    const hook = IPostDispatchHook__factory.connect(hookAddress, provider);
+
+    let hookType: number;
+    try {
+      hookType = await hook.hookType();
+    } catch (error: unknown) {
+      // CALL_EXCEPTION means the contract at hookAddress doesn't implement hookType()
+      // (e.g. an old or incompatible hook). Treat as "no wrapper here".
+      // Any other error (network timeout, RPC failure) is unexpected — rethrow.
+      if (
+        error instanceof Error &&
+        'code' in error &&
+        error.code === 'CALL_EXCEPTION'
+      )
+        return null;
+      throw error;
+    }
+
+    if (hookType === OnchainHookType.PREDICATE_ROUTER_WRAPPER) {
+      const wrapper = PredicateRouterWrapper__factory.connect(
+        hookAddress,
+        provider,
+      );
+      const warpRouteFromWrapper = await wrapper.warpRoute();
+      const matches = warpRouteFromWrapper.toLowerCase() === warpRouteAddress;
+      if (matches) {
+        return hookAddress;
+      }
+    }
+
+    if (hookType === OnchainHookType.AGGREGATION) {
+      const aggregationHook = StaticAggregationHook__factory.connect(
+        hookAddress,
+        provider,
+      );
+      const subHooks = await aggregationHook.hooks('0x');
+      for (const subHook of subHooks) {
+        const found = await this.findPredicateWrapperInHook(
+          subHook,
+          warpRouteAddress,
+          provider,
+        );
+        if (found) {
+          return found;
+        }
+      }
+    }
+
+    // Known constraint: recursion only descends into AGGREGATION hooks.
+    // FALLBACK_ROUTING, DOMAIN_ROUTING, and AMOUNT_ROUTING hooks are not traversed.
+    // In practice this is fine because PredicateWrapperDeployer always places the
+    // wrapper inside a StaticAggregationHook. A wrapper nested inside a routing hook
+    // would not be detected and predicate support would silently degrade to disabled.
+    return null;
   }
 
   getDomains(): Promise<Domain[]> {
@@ -363,15 +498,81 @@ export class EvmHypSyntheticAdapter
     };
   }
 
-  async populateTransferRemoteTx(
-    {
-      weiAmountOrId,
+  /**
+   * Check if this warp route supports Predicate attestations
+   * @returns True if a PredicateRouterWrapper is configured on the hook
+   */
+  async supportsAttestation(): Promise<boolean> {
+    const wrapperAddress = await this.getPredicateWrapperAddress();
+    return wrapperAddress !== null;
+  }
+
+  protected async populatePredicateTransferRemoteTx(
+    params: TransferRemoteParams,
+    nativeValue: bigint,
+  ): Promise<PopulatedTransaction> {
+    const { weiAmountOrId, destination, recipient, attestation } = params;
+    assert(attestation, 'attestation is required');
+
+    const predicateWrapperAddress = await this.getPredicateWrapperAddress();
+    if (!predicateWrapperAddress) {
+      throw new Error(
+        'Attestation provided but no PredicateRouterWrapper detected on warp route hook. ' +
+          'Attestations can only be used with routes that have a PredicateRouterWrapper configured.',
+      );
+    }
+
+    let { interchainGas } = params;
+    if (!interchainGas) {
+      interchainGas = await this.quoteTransferRemoteGas({
+        destination,
+        recipient,
+        amount: BigInt(weiAmountOrId),
+      });
+    }
+
+    nativeValue += interchainGas.igpQuote.amount;
+    if (
+      !interchainGas.tokenFeeQuote?.addressOrDenom ||
+      isZeroishAddress(interchainGas.tokenFeeQuote?.addressOrDenom)
+    ) {
+      nativeValue += interchainGas.tokenFeeQuote?.amount ?? 0n;
+    }
+
+    const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
+
+    const predicateWrapper = PredicateRouterWrapper__factory.connect(
+      predicateWrapperAddress,
+      this.getProvider(),
+    );
+
+    const contractAttestation = {
+      uuid: attestation.uuid,
+      expiration: attestation.expiration,
+      attester: attestation.attester,
+      signature: attestation.signature,
+    };
+
+    return predicateWrapper.populateTransaction.transferRemoteWithAttestation(
+      contractAttestation,
       destination,
-      recipient,
-      interchainGas,
-    }: TransferRemoteParams,
+      recipBytes32,
+      weiAmountOrId,
+      { value: nativeValue.toString() },
+    );
+  }
+
+  async populateTransferRemoteTx(
+    params: TransferRemoteParams,
     nativeValue = 0n,
   ): Promise<PopulatedTransaction> {
+    const { weiAmountOrId, destination, recipient, attestation } = params;
+
+    if (attestation) {
+      return this.populatePredicateTransferRemoteTx(params, nativeValue);
+    }
+
+    let { interchainGas } = params;
     if (!interchainGas)
       interchainGas = await this.quoteTransferRemoteGas({
         destination,
@@ -459,13 +660,21 @@ class BaseEvmHypCollateralAdapter
     return this.getWrappedTokenAdapter().then((t) => t.getMetadata(isNft));
   }
 
-  override isApproveRequired(
+  override async isApproveRequired(
     owner: Address,
     spender: Address,
     weiAmountOrId: Numberish,
   ): Promise<boolean> {
-    return this.getWrappedTokenAdapter().then((t) =>
-      t.isApproveRequired(owner, spender, weiAmountOrId),
+    const wrappedTokenAdapter = await this.getWrappedTokenAdapter();
+    let effectiveSpender = spender;
+    if (eqAddress(spender, this.addresses.token)) {
+      const predicateWrapper = await this.getPredicateWrapperAddress();
+      if (predicateWrapper) effectiveSpender = predicateWrapper;
+    }
+    return wrappedTokenAdapter.isApproveRequired(
+      owner,
+      effectiveSpender,
+      weiAmountOrId,
     );
   }
 
@@ -474,16 +683,47 @@ class BaseEvmHypCollateralAdapter
     spender: Address,
   ): Promise<boolean> {
     const collateral = await this.getWrappedTokenAdapter();
-
-    return collateral.isRevokeApprovalRequired(owner, spender);
+    let effectiveSpender = spender;
+    if (eqAddress(spender, this.addresses.token)) {
+      const predicateWrapper = await this.getPredicateWrapperAddress();
+      if (predicateWrapper) effectiveSpender = predicateWrapper;
+    }
+    return collateral.isRevokeApprovalRequired(owner, effectiveSpender);
   }
 
-  override populateApproveTx(
+  override async populateApproveTx(
     params: TransferParams,
   ): Promise<PopulatedTransaction> {
-    return this.getWrappedTokenAdapter().then((t) =>
-      t.populateApproveTx(params),
-    );
+    const wrappedTokenAdapter = await this.getWrappedTokenAdapter();
+    let effectiveRecipient = params.recipient;
+    if (eqAddress(params.recipient, this.addresses.token)) {
+      const predicateWrapper = await this.getPredicateWrapperAddress();
+      if (predicateWrapper) effectiveRecipient = predicateWrapper;
+    }
+    return wrappedTokenAdapter.populateApproveTx({
+      ...params,
+      recipient: effectiveRecipient,
+    });
+  }
+
+  /**
+   * Check if this warp route supports Predicate attestations
+   * @returns True if a PredicateRouterWrapper is configured on the hook
+   */
+  async supportsAttestation(): Promise<boolean> {
+    const wrapperAddress = await this.getPredicateWrapperAddress();
+    return wrapperAddress !== null;
+  }
+
+  override async populateTransferRemoteTx(
+    params: TransferRemoteParams,
+    nativeValue = 0n,
+  ): Promise<PopulatedTransaction> {
+    if (params.attestation) {
+      return this.populatePredicateTransferRemoteTx(params, nativeValue);
+    }
+
+    return super.populateTransferRemoteTx(params, nativeValue);
   }
 
   override populateTransferTx(
@@ -1028,16 +1268,23 @@ export class EvmHypNativeAdapter
     destination,
     recipient,
     interchainGas,
+    attestation,
   }: TransferRemoteParams): Promise<PopulatedTransaction> {
+    // For native tokens the token amount is itself msg.value, so pass it as the
+    // initial nativeValue. populatePredicateTransferRemoteTx / super both add
+    // IGP fees on top of this base value.
+    const nativeValue = BigInt(weiAmountOrId);
+
+    if (attestation) {
+      return this.populatePredicateTransferRemoteTx(
+        { weiAmountOrId, destination, recipient, interchainGas, attestation },
+        nativeValue,
+      );
+    }
+
     return super.populateTransferRemoteTx(
-      {
-        weiAmountOrId,
-        destination,
-        recipient,
-        interchainGas,
-      },
-      // Pass the amount as initial native value to the parent class
-      BigInt(weiAmountOrId),
+      { weiAmountOrId, destination, recipient, interchainGas },
+      nativeValue,
     );
   }
 

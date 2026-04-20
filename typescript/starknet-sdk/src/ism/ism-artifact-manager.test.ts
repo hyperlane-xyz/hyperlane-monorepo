@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { RpcProvider } from 'starknet';
 
-import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
 
@@ -57,23 +57,6 @@ describe('StarknetIsmArtifactManager', () => {
       // @ts-expect-error testing runtime validation for unsupported value
       manager.createWriter('unsupported', {});
     }).to.throw(/Unsupported Starknet ISM type/i);
-  });
-
-  it('treats custom noop ISMs as testIsm on generic reads', async () => {
-    const manager = new StarknetIsmArtifactManager(chainMetadata);
-    const provider = Reflect.get(manager, 'provider') as {
-      getIsmType: (_req: { ismAddress: string }) => Promise<AltVM.IsmType>;
-      getNoopIsm: (_req: {
-        ismAddress: string;
-      }) => Promise<{ address: string }>;
-    };
-    provider.getIsmType = async () => AltVM.IsmType.CUSTOM;
-    provider.getNoopIsm = async ({ ismAddress }) => ({ address: ismAddress });
-
-    const artifact = await manager.readIsm('0xabc');
-
-    expect(artifact.config).to.deep.equal({ type: 'testIsm' });
-    expect(artifact.deployed.address).to.equal('0xabc');
   });
 
   it('returns noop ISM deployment receipts', async () => {

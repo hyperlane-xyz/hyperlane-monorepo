@@ -14366,9 +14366,149 @@
       ]
     },
     {
-      "name": "USDT/eclipsemainnet-ethereum-solanamainnet",
+      "name": "USDT/eclipsemainnet",
       "matchingList": [
         {
+          "originDomain": 42161,
+          "senderAddress": [
+            "0x00000000000000000000000042b794fbf2ae97d7e9001e21d36b0a5595b51b11"
+          ],
+          "destinationDomain": 56,
+          "recipientAddress": [
+            "0x000000000000000000000000c13d466b9e196afde472856923e857cc298edf1b"
+          ]
+        },
+        {
+          "originDomain": 42161,
+          "senderAddress": [
+            "0x00000000000000000000000042b794fbf2ae97d7e9001e21d36b0a5595b51b11"
+          ],
+          "destinationDomain": 1408864445,
+          "recipientAddress": [
+            "0x4571f343c286dc844237b550560b90bf5e748a551d60721599b1ac0408d9c08d"
+          ]
+        },
+        {
+          "originDomain": 42161,
+          "senderAddress": [
+            "0x00000000000000000000000042b794fbf2ae97d7e9001e21d36b0a5595b51b11"
+          ],
+          "destinationDomain": 1,
+          "recipientAddress": [
+            "0x000000000000000000000000647c621ceb36853ef6a907e397adf18568e70543"
+          ]
+        },
+        {
+          "originDomain": 42161,
+          "senderAddress": [
+            "0x00000000000000000000000042b794fbf2ae97d7e9001e21d36b0a5595b51b11"
+          ],
+          "destinationDomain": 9745,
+          "recipientAddress": [
+            "0x000000000000000000000000a119087116adc61ade063105644795cb7bc0009d"
+          ]
+        },
+        {
+          "originDomain": 42161,
+          "senderAddress": [
+            "0x00000000000000000000000042b794fbf2ae97d7e9001e21d36b0a5595b51b11"
+          ],
+          "destinationDomain": 1399811149,
+          "recipientAddress": [
+            "0x9f9fcd70f9772f30e4cd5646890b640e88c6b82a8417f813aaf81dac0cd468b9"
+          ]
+        },
+        {
+          "originDomain": 42161,
+          "senderAddress": [
+            "0x00000000000000000000000042b794fbf2ae97d7e9001e21d36b0a5595b51b11"
+          ],
+          "destinationDomain": 728126428,
+          "recipientAddress": [
+            "0x000000000000000000000000bf8078818627110fd05827ca0aa9e4518d3421ec"
+          ]
+        },
+        {
+          "originDomain": 56,
+          "senderAddress": [
+            "0x000000000000000000000000c13d466b9e196afde472856923e857cc298edf1b"
+          ],
+          "destinationDomain": 42161,
+          "recipientAddress": [
+            "0x00000000000000000000000042b794fbf2ae97d7e9001e21d36b0a5595b51b11"
+          ]
+        },
+        {
+          "originDomain": 56,
+          "senderAddress": [
+            "0x000000000000000000000000c13d466b9e196afde472856923e857cc298edf1b"
+          ],
+          "destinationDomain": 1408864445,
+          "recipientAddress": [
+            "0x4571f343c286dc844237b550560b90bf5e748a551d60721599b1ac0408d9c08d"
+          ]
+        },
+        {
+          "originDomain": 56,
+          "senderAddress": [
+            "0x000000000000000000000000c13d466b9e196afde472856923e857cc298edf1b"
+          ],
+          "destinationDomain": 1,
+          "recipientAddress": [
+            "0x000000000000000000000000647c621ceb36853ef6a907e397adf18568e70543"
+          ]
+        },
+        {
+          "originDomain": 56,
+          "senderAddress": [
+            "0x000000000000000000000000c13d466b9e196afde472856923e857cc298edf1b"
+          ],
+          "destinationDomain": 9745,
+          "recipientAddress": [
+            "0x000000000000000000000000a119087116adc61ade063105644795cb7bc0009d"
+          ]
+        },
+        {
+          "originDomain": 56,
+          "senderAddress": [
+            "0x000000000000000000000000c13d466b9e196afde472856923e857cc298edf1b"
+          ],
+          "destinationDomain": 1399811149,
+          "recipientAddress": [
+            "0x9f9fcd70f9772f30e4cd5646890b640e88c6b82a8417f813aaf81dac0cd468b9"
+          ]
+        },
+        {
+          "originDomain": 56,
+          "senderAddress": [
+            "0x000000000000000000000000c13d466b9e196afde472856923e857cc298edf1b"
+          ],
+          "destinationDomain": 728126428,
+          "recipientAddress": [
+            "0x000000000000000000000000bf8078818627110fd05827ca0aa9e4518d3421ec"
+          ]
+        },
+        {
+          "originDomain": 1408864445,
+          "senderAddress": [
+            "0x4571f343c286dc844237b550560b90bf5e748a551d60721599b1ac0408d9c08d"
+          ],
+          "destinationDomain": 42161,
+          "recipientAddress": [
+            "0x00000000000000000000000042b794fbf2ae97d7e9001e21d36b0a5595b51b11"
+          ]
+        },
+        {
+          "originDomain": 1408864445,
+          "senderAddress": [
+            "0x4571f343c286dc844237b550560b90bf5e748a551d60721599b1ac0408d9c08d"
+          ],
+          "destinationDomain": 56,
+          "recipientAddress": [
+            "0x000000000000000000000000c13d466b9e196afde472856923e857cc298edf1b"
+          ]
+        },
+        {
           "originDomain": 1408864445,
           "senderAddress": [
             "0x4571f343c286dc844237b550560b90bf5e748a551d60721599b1ac0408d9c08d"
@@ -14383,9 +14523,49 @@
           "senderAddress": [
             "0x4571f343c286dc844237b550560b90bf5e748a551d60721599b1ac0408d9c08d"
           ],
+          "destinationDomain": 9745,
+          "recipientAddress": [
+            "0x000000000000000000000000a119087116adc61ade063105644795cb7bc0009d"
+          ]
+        },
+        {
+          "originDomain": 1408864445,
+          "senderAddress": [
+            "0x4571f343c286dc844237b550560b90bf5e748a551d60721599b1ac0408d9c08d"
+          ],
           "destinationDomain": 1399811149,
           "recipientAddress": [
             "0x9f9fcd70f9772f30e4cd5646890b640e88c6b82a8417f813aaf81dac0cd468b9"
+          ]
+        },
+        {
+          "originDomain": 1408864445,
+          "senderAddress": [
+            "0x4571f343c286dc844237b550560b90bf5e748a551d60721599b1ac0408d9c08d"
+          ],
+          "destinationDomain": 728126428,
+          "recipientAddress": [
+            "0x000000000000000000000000bf8078818627110fd05827ca0aa9e4518d3421ec"
+          ]
+        },
+        {
+          "originDomain": 1,
+          "senderAddress": [
+            "0x000000000000000000000000647c621ceb36853ef6a907e397adf18568e70543"
+          ],
+          "destinationDomain": 42161,
+          "recipientAddress": [
+            "0x00000000000000000000000042b794fbf2ae97d7e9001e21d36b0a5595b51b11"
+          ]
+        },
+        {
+          "originDomain": 1,
+          "senderAddress": [
+            "0x000000000000000000000000647c621ceb36853ef6a907e397adf18568e70543"
+          ],
+          "destinationDomain": 56,
+          "recipientAddress": [
+            "0x000000000000000000000000c13d466b9e196afde472856923e857cc298edf1b"
           ]
         },
         {
@@ -14403,9 +14583,109 @@
           "senderAddress": [
             "0x000000000000000000000000647c621ceb36853ef6a907e397adf18568e70543"
           ],
+          "destinationDomain": 9745,
+          "recipientAddress": [
+            "0x000000000000000000000000a119087116adc61ade063105644795cb7bc0009d"
+          ]
+        },
+        {
+          "originDomain": 1,
+          "senderAddress": [
+            "0x000000000000000000000000647c621ceb36853ef6a907e397adf18568e70543"
+          ],
           "destinationDomain": 1399811149,
           "recipientAddress": [
             "0x9f9fcd70f9772f30e4cd5646890b640e88c6b82a8417f813aaf81dac0cd468b9"
+          ]
+        },
+        {
+          "originDomain": 1,
+          "senderAddress": [
+            "0x000000000000000000000000647c621ceb36853ef6a907e397adf18568e70543"
+          ],
+          "destinationDomain": 728126428,
+          "recipientAddress": [
+            "0x000000000000000000000000bf8078818627110fd05827ca0aa9e4518d3421ec"
+          ]
+        },
+        {
+          "originDomain": 9745,
+          "senderAddress": [
+            "0x000000000000000000000000a119087116adc61ade063105644795cb7bc0009d"
+          ],
+          "destinationDomain": 42161,
+          "recipientAddress": [
+            "0x00000000000000000000000042b794fbf2ae97d7e9001e21d36b0a5595b51b11"
+          ]
+        },
+        {
+          "originDomain": 9745,
+          "senderAddress": [
+            "0x000000000000000000000000a119087116adc61ade063105644795cb7bc0009d"
+          ],
+          "destinationDomain": 56,
+          "recipientAddress": [
+            "0x000000000000000000000000c13d466b9e196afde472856923e857cc298edf1b"
+          ]
+        },
+        {
+          "originDomain": 9745,
+          "senderAddress": [
+            "0x000000000000000000000000a119087116adc61ade063105644795cb7bc0009d"
+          ],
+          "destinationDomain": 1408864445,
+          "recipientAddress": [
+            "0x4571f343c286dc844237b550560b90bf5e748a551d60721599b1ac0408d9c08d"
+          ]
+        },
+        {
+          "originDomain": 9745,
+          "senderAddress": [
+            "0x000000000000000000000000a119087116adc61ade063105644795cb7bc0009d"
+          ],
+          "destinationDomain": 1,
+          "recipientAddress": [
+            "0x000000000000000000000000647c621ceb36853ef6a907e397adf18568e70543"
+          ]
+        },
+        {
+          "originDomain": 9745,
+          "senderAddress": [
+            "0x000000000000000000000000a119087116adc61ade063105644795cb7bc0009d"
+          ],
+          "destinationDomain": 1399811149,
+          "recipientAddress": [
+            "0x9f9fcd70f9772f30e4cd5646890b640e88c6b82a8417f813aaf81dac0cd468b9"
+          ]
+        },
+        {
+          "originDomain": 9745,
+          "senderAddress": [
+            "0x000000000000000000000000a119087116adc61ade063105644795cb7bc0009d"
+          ],
+          "destinationDomain": 728126428,
+          "recipientAddress": [
+            "0x000000000000000000000000bf8078818627110fd05827ca0aa9e4518d3421ec"
+          ]
+        },
+        {
+          "originDomain": 1399811149,
+          "senderAddress": [
+            "0x9f9fcd70f9772f30e4cd5646890b640e88c6b82a8417f813aaf81dac0cd468b9"
+          ],
+          "destinationDomain": 42161,
+          "recipientAddress": [
+            "0x00000000000000000000000042b794fbf2ae97d7e9001e21d36b0a5595b51b11"
+          ]
+        },
+        {
+          "originDomain": 1399811149,
+          "senderAddress": [
+            "0x9f9fcd70f9772f30e4cd5646890b640e88c6b82a8417f813aaf81dac0cd468b9"
+          ],
+          "destinationDomain": 56,
+          "recipientAddress": [
+            "0x000000000000000000000000c13d466b9e196afde472856923e857cc298edf1b"
           ]
         },
         {
@@ -14426,6 +14706,86 @@
           "destinationDomain": 1,
           "recipientAddress": [
             "0x000000000000000000000000647c621ceb36853ef6a907e397adf18568e70543"
+          ]
+        },
+        {
+          "originDomain": 1399811149,
+          "senderAddress": [
+            "0x9f9fcd70f9772f30e4cd5646890b640e88c6b82a8417f813aaf81dac0cd468b9"
+          ],
+          "destinationDomain": 9745,
+          "recipientAddress": [
+            "0x000000000000000000000000a119087116adc61ade063105644795cb7bc0009d"
+          ]
+        },
+        {
+          "originDomain": 1399811149,
+          "senderAddress": [
+            "0x9f9fcd70f9772f30e4cd5646890b640e88c6b82a8417f813aaf81dac0cd468b9"
+          ],
+          "destinationDomain": 728126428,
+          "recipientAddress": [
+            "0x000000000000000000000000bf8078818627110fd05827ca0aa9e4518d3421ec"
+          ]
+        },
+        {
+          "originDomain": 728126428,
+          "senderAddress": [
+            "0x000000000000000000000000bf8078818627110fd05827ca0aa9e4518d3421ec"
+          ],
+          "destinationDomain": 42161,
+          "recipientAddress": [
+            "0x00000000000000000000000042b794fbf2ae97d7e9001e21d36b0a5595b51b11"
+          ]
+        },
+        {
+          "originDomain": 728126428,
+          "senderAddress": [
+            "0x000000000000000000000000bf8078818627110fd05827ca0aa9e4518d3421ec"
+          ],
+          "destinationDomain": 56,
+          "recipientAddress": [
+            "0x000000000000000000000000c13d466b9e196afde472856923e857cc298edf1b"
+          ]
+        },
+        {
+          "originDomain": 728126428,
+          "senderAddress": [
+            "0x000000000000000000000000bf8078818627110fd05827ca0aa9e4518d3421ec"
+          ],
+          "destinationDomain": 1408864445,
+          "recipientAddress": [
+            "0x4571f343c286dc844237b550560b90bf5e748a551d60721599b1ac0408d9c08d"
+          ]
+        },
+        {
+          "originDomain": 728126428,
+          "senderAddress": [
+            "0x000000000000000000000000bf8078818627110fd05827ca0aa9e4518d3421ec"
+          ],
+          "destinationDomain": 1,
+          "recipientAddress": [
+            "0x000000000000000000000000647c621ceb36853ef6a907e397adf18568e70543"
+          ]
+        },
+        {
+          "originDomain": 728126428,
+          "senderAddress": [
+            "0x000000000000000000000000bf8078818627110fd05827ca0aa9e4518d3421ec"
+          ],
+          "destinationDomain": 9745,
+          "recipientAddress": [
+            "0x000000000000000000000000a119087116adc61ade063105644795cb7bc0009d"
+          ]
+        },
+        {
+          "originDomain": 728126428,
+          "senderAddress": [
+            "0x000000000000000000000000bf8078818627110fd05827ca0aa9e4518d3421ec"
+          ],
+          "destinationDomain": 1399811149,
+          "recipientAddress": [
+            "0x9f9fcd70f9772f30e4cd5646890b640e88c6b82a8417f813aaf81dac0cd468b9"
           ]
         }
       ]
@@ -41851,6 +42211,136 @@
           "destinationDomain": 1,
           "recipientAddress": [
             "0x0000000000000000000000006372e1c8a08940c7e95af2891b9201ac48de6519"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "USDT/oft",
+      "matchingList": [
+        {
+          "originDomain": 42161,
+          "senderAddress": [
+            "0x000000000000000000000000e4c1a1e54c232454311cf68610c3885fdd991c0e"
+          ],
+          "destinationDomain": 1,
+          "recipientAddress": [
+            "0x0000000000000000000000007bb4fe8f406fb7b22487fa2e3bcbcb6a38cf29e6"
+          ]
+        },
+        {
+          "originDomain": 42161,
+          "senderAddress": [
+            "0x000000000000000000000000e4c1a1e54c232454311cf68610c3885fdd991c0e"
+          ],
+          "destinationDomain": 9745,
+          "recipientAddress": [
+            "0x00000000000000000000000093bffa2231fba5029997603fb68d9ac08024baa2"
+          ]
+        },
+        {
+          "originDomain": 1,
+          "senderAddress": [
+            "0x0000000000000000000000007bb4fe8f406fb7b22487fa2e3bcbcb6a38cf29e6"
+          ],
+          "destinationDomain": 42161,
+          "recipientAddress": [
+            "0x000000000000000000000000e4c1a1e54c232454311cf68610c3885fdd991c0e"
+          ]
+        },
+        {
+          "originDomain": 1,
+          "senderAddress": [
+            "0x0000000000000000000000007bb4fe8f406fb7b22487fa2e3bcbcb6a38cf29e6"
+          ],
+          "destinationDomain": 9745,
+          "recipientAddress": [
+            "0x00000000000000000000000093bffa2231fba5029997603fb68d9ac08024baa2"
+          ]
+        },
+        {
+          "originDomain": 9745,
+          "senderAddress": [
+            "0x00000000000000000000000093bffa2231fba5029997603fb68d9ac08024baa2"
+          ],
+          "destinationDomain": 42161,
+          "recipientAddress": [
+            "0x000000000000000000000000e4c1a1e54c232454311cf68610c3885fdd991c0e"
+          ]
+        },
+        {
+          "originDomain": 9745,
+          "senderAddress": [
+            "0x00000000000000000000000093bffa2231fba5029997603fb68d9ac08024baa2"
+          ],
+          "destinationDomain": 1,
+          "recipientAddress": [
+            "0x0000000000000000000000007bb4fe8f406fb7b22487fa2e3bcbcb6a38cf29e6"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "USDT/oft-legacy",
+      "matchingList": [
+        {
+          "originDomain": 42161,
+          "senderAddress": [
+            "0x0000000000000000000000009323793fb9a071ce5fe839079925c0e39f37170f"
+          ],
+          "destinationDomain": 1,
+          "recipientAddress": [
+            "0x000000000000000000000000c0da8ef1225145e0b720d8a33471fa6360b7e73b"
+          ]
+        },
+        {
+          "originDomain": 42161,
+          "senderAddress": [
+            "0x0000000000000000000000009323793fb9a071ce5fe839079925c0e39f37170f"
+          ],
+          "destinationDomain": 728126428,
+          "recipientAddress": [
+            "0x00000000000000000000000043bb7c9c64a05af94d67b52883a60756950058d7"
+          ]
+        },
+        {
+          "originDomain": 1,
+          "senderAddress": [
+            "0x000000000000000000000000c0da8ef1225145e0b720d8a33471fa6360b7e73b"
+          ],
+          "destinationDomain": 42161,
+          "recipientAddress": [
+            "0x0000000000000000000000009323793fb9a071ce5fe839079925c0e39f37170f"
+          ]
+        },
+        {
+          "originDomain": 1,
+          "senderAddress": [
+            "0x000000000000000000000000c0da8ef1225145e0b720d8a33471fa6360b7e73b"
+          ],
+          "destinationDomain": 728126428,
+          "recipientAddress": [
+            "0x00000000000000000000000043bb7c9c64a05af94d67b52883a60756950058d7"
+          ]
+        },
+        {
+          "originDomain": 728126428,
+          "senderAddress": [
+            "0x00000000000000000000000043bb7c9c64a05af94d67b52883a60756950058d7"
+          ],
+          "destinationDomain": 42161,
+          "recipientAddress": [
+            "0x0000000000000000000000009323793fb9a071ce5fe839079925c0e39f37170f"
+          ]
+        },
+        {
+          "originDomain": 728126428,
+          "senderAddress": [
+            "0x00000000000000000000000043bb7c9c64a05af94d67b52883a60756950058d7"
+          ],
+          "destinationDomain": 1,
+          "recipientAddress": [
+            "0x000000000000000000000000c0da8ef1225145e0b720d8a33471fa6360b7e73b"
           ]
         }
       ]

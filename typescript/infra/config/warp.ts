@@ -54,7 +54,10 @@ import { getCarchainnUSDCWarpConfig } from './environments/mainnet3/warp/configG
 import { getCarchainnUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getCarrchainUSDTWarpConfig.js';
 import { getCarchainnWBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getCarrchainWBTCWarpConfig.js';
 import { getEclipseEthereumESWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumESWarpConfig.js';
-import { getEclipseEthereumSolanaUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumSolanaUSDTWarpConfig.js';
+import {
+  getEclipseUSDTGnosisSafeBuilderStrategyConfig,
+  getEclipseUSDTWarpConfig,
+} from './environments/mainnet3/warp/configGetters/getEclipseUSDTWarpConfig.js';
 import { getEclipseEthereumWBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumWBTCWarpConfig.js';
 import { getEclipseStrideTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseStrideSTTIAWarpConfig.js';
 import { getEclipseStrideStTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseStrideTIAWarpConfig.js';
@@ -136,6 +139,8 @@ import {
 import { WarpRouteIds } from './environments/mainnet3/warp/warpIds.js';
 import { getCCTPWarpConfig as getTestnetCCTPWarpConfig } from './environments/testnet4/warp/getCCTPConfig.js';
 import { DEFAULT_REGISTRY_URI } from './registry.js';
+import { getUSDTOftWarpConfig } from './environments/mainnet3/warp/configGetters/getUSDTOftWarpConfig.js';
+import { getUSDTOftLegacyWarpConfig } from './environments/mainnet3/warp/configGetters/getUSDTOftLegacyWarpConfig.js';
 import { getUSDTSTAGEWarpConfig } from './environments/mainnet3/warp/configGetters/getUSDTSTAGEWarpConfig.js';
 
 type WarpConfigGetter = (
@@ -164,8 +169,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.EclipseUSDC]: getEclipseUSDCWarpConfig,
   [WarpRouteIds.EclipseUSDCSTAGE]: getEclipseUSDCSTAGEWarpConfig,
   [WarpRouteIds.ETHSTAGEStage]: getETHStageWarpConfig,
-  [WarpRouteIds.EclipseEthereumSolanaUSDT]:
-    getEclipseEthereumSolanaUSDTWarpConfig,
+  [WarpRouteIds.EclipseUSDT]: getEclipseUSDTWarpConfig,
   [WarpRouteIds.EclipseEthereumWBTC]: getEclipseEthereumWBTCWarpConfig,
   [WarpRouteIds.BaseZeroNetworkCBBTC]: getBaseZeroNetworkCBBTCWarpConfig,
   [WarpRouteIds.BaseEthereumREZ]: getREZBaseEthereumWarpConfig,
@@ -224,6 +228,8 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.Eni1Piece]: getEni1PieceWarpConfig,
   [WarpRouteIds.ModeUSDTSTAGE]: getUSDTSTAGEWarpConfig,
   [WarpRouteIds.AleoUSDC]: getAleoUSDCWarpConfig,
+  [WarpRouteIds.USDTOft]: getUSDTOftWarpConfig,
+  [WarpRouteIds.USDTOftLegacy]: getUSDTOftLegacyWarpConfig,
 };
 
 type StrategyConfigGetter = () => ChainSubmissionStrategy;
@@ -243,6 +249,7 @@ export const strategyConfigGetterMap: Record<string, StrategyConfigGetter> = {
     getRezStagingGnosisSafeBuilderStrategyConfig,
   [WarpRouteIds.BsquaredUBTC]: getUbtcGnosisSafeBuilderStrategyConfigGenerator,
   [WarpRouteIds.EclipseUSDC]: getEclipseUSDCStrategyConfig,
+  [WarpRouteIds.EclipseUSDT]: getEclipseUSDTGnosisSafeBuilderStrategyConfig,
   [WarpRouteIds.IgraUSDC]: getIgraUSDCStrategyConfig,
   [WarpRouteIds.EclipseUSDCSTAGE]:
     getUSDCSTAGEEclipseFileSubmitterStrategyConfig,

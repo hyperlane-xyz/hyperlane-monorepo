@@ -128,6 +128,14 @@
       },
       "overhead": 166887
     },
+    "fluent": {
+      "oracleConfig": {
+        "tokenExchangeRate": "386740877774942587394",
+        "gasPrice": "304208313",
+        "tokenDecimals": 18
+      },
+      "overhead": 166887
+    },
     "galactica": {
       "oracleConfig": {
         "tokenExchangeRate": "2002197626945649",
@@ -140,6 +148,14 @@
       "oracleConfig": {
         "tokenExchangeRate": "6646465935187547843",
         "gasPrice": "17701104788",
+        "tokenDecimals": 18
+      },
+      "overhead": 166887
+    },
+    "igra": {
+      "oracleConfig": {
+        "tokenExchangeRate": "191375350854809900",
+        "gasPrice": "1000000000000",
         "tokenDecimals": 18
       },
       "overhead": 166887
