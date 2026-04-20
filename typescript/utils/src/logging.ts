@@ -112,8 +112,10 @@ export function createHyperlanePinoLogger(
           logFormat === LogFormat.Pretty &&
           level >= pino.levels.values[logLevel]
         ) {
+          const now = new Date();
+          const timestamp = now.toTimeString().split(' ')[0]; // "HH:MM:SS"
           // eslint-disable-next-line no-console
-          console.log(...inputArgs);
+          console.log(`[${timestamp}]`, ...inputArgs);
           // Then return null to prevent pino from logging
           return null;
         }
