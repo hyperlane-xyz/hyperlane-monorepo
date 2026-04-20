@@ -460,12 +460,12 @@ fn try_consume_transient_quote<C: crate::accounts::QuoteContext>(
     Ok(Some(fee))
 }
 
-#[allow(clippy::too_many_arguments)]
 /// Attempts to resolve a fee from a standing quote PDA.
 /// Re-derives the PDA from (fee_account, domain, target_router) to prevent spoofing.
 /// Scans for exact recipient match, then wildcard recipient.
 /// Validates expiry and min_issued_at. Returns None if PDA is uninitialized
 /// or no matching entry found.
+#[allow(clippy::too_many_arguments)]
 fn try_resolve_standing_quote(
     program_id: &Pubkey,
     standing_pda_info: &AccountInfo,
@@ -503,9 +503,8 @@ fn try_resolve_standing_quote(
 
     // Try exact recipient match first, then wildcard.
     let current_tag = crate::fee_math::StrategyTag::from(strategy);
-    let candidates = [quote_fee_data.recipient, WILDCARD_RECIPIENT];
-    for recipient_key in &candidates {
-        if let Some(value) = standing.quotes.get(recipient_key) {
+    for recipient_key in [quote_fee_data.recipient, WILDCARD_RECIPIENT] {
+        if let Some(value) = standing.quotes.get(&recipient_key) {
             // Skip if strategy tag, issued_at, or expiry checks fail.
             if value
                 .validate_quote(current_tag, min_issued_at, clock)
@@ -520,6 +519,7 @@ fn try_resolve_standing_quote(
                 max_fee: value.max_fee,
                 half_amount: value.half_amount,
             };
+
             let fee = quoted_strategy.compute_fee(quote_fee_data.amount)?;
             return Ok(Some(fee));
         }
@@ -602,9 +602,11 @@ fn verify_optional_pda_owner(
     if account_info.owner == &system_program::ID && account_info.data_is_empty() {
         return Ok(());
     }
+
     if account_info.owner != program_id {
         return Err(ProgramError::IncorrectProgramId);
     }
+
     Ok(())
 }
 
@@ -748,6 +750,7 @@ fn process_add_quote_signer(
             if !matches!(fee_account.fee_data, FeeData::Routing(_)) {
                 return Err(Error::NotRoutingFeeData.into());
             }
+
             let route_pda_info = next_account_info(accounts_iter)?;
             ensure_no_extraneous_accounts(accounts_iter)?;
 
@@ -785,6 +788,7 @@ fn process_add_quote_signer(
             if !matches!(fee_account.fee_data, FeeData::CrossCollateralRouting(_)) {
                 return Err(Error::NotCrossCollateralRoutingFeeData.into());
             }
+
             let cc_pda_info = next_account_info(accounts_iter)?;
             ensure_no_extraneous_accounts(accounts_iter)?;
 
@@ -1083,6 +1087,7 @@ fn process_submit_quote(
                     .ok_or(ProgramError::from(Error::OffchainQuotingNotConfigured))?
                     .clone();
                 let tag = crate::fee_math::StrategyTag::from(&cfg.strategy);
+
                 (signers, tag)
             }
             FeeData::Routing(_) => {
@@ -1090,6 +1095,7 @@ fn process_submit_quote(
                 if ctx.destination_domain == WILDCARD_DOMAIN {
                     // Wildcard domain: auth from FeeData. No route PDA needed.
                     let signers = fee_account.fee_data.routing_wildcard_signers()?.clone();
+
                     (signers, crate::fee_math::StrategyTag::default())
                 } else {
                     // Exact domain: auth from RouteDomain PDA.
@@ -1097,6 +1103,7 @@ fn process_submit_quote(
                     if route_pda_info.owner != program_id {
                         return Err(ProgramError::IncorrectProgramId);
                     }
+
                     let domain_le = ctx.destination_domain.to_le_bytes();
                     let (expected_key, _) = Pubkey::find_program_address(
                         route_domain_pda_seeds!(fee_account_info.key, &domain_le),
@@ -1105,6 +1112,7 @@ fn process_submit_quote(
                     if *route_pda_info.key != expected_key {
                         return Err(ProgramError::InvalidSeeds);
                     }
+
                     let route = RouteDomainAccount::fetch(&mut &route_pda_info.data.borrow()[..])?
                         .into_inner()
                         .data;
@@ -1112,6 +1120,7 @@ fn process_submit_quote(
                         .signers
                         .ok_or(ProgramError::from(Error::OffchainQuotingNotConfigured))?;
                     let tag = crate::fee_math::StrategyTag::from(&route.fee_data);
+
                     (signers, tag)
                 }
             }
@@ -1120,6 +1129,7 @@ fn process_submit_quote(
                 if ctx.destination_domain == WILDCARD_DOMAIN {
                     // Wildcard domain: auth from FeeData. No route PDAs needed.
                     let signers = fee_account.fee_data.cc_wildcard_signers()?.clone();
+
                     (signers, crate::fee_math::StrategyTag::default())
                 } else {
                     // Exact domain: auth from resolved CC route PDA.
@@ -1174,6 +1184,7 @@ fn process_submit_quote(
                         .signers
                         .ok_or(ProgramError::from(Error::OffchainQuotingNotConfigured))?;
                     let tag = crate::fee_math::StrategyTag::from(&route.fee_data);
+
                     (signers, tag)
                 }
             }
@@ -1235,6 +1246,14 @@ fn process_submit_quote(
     } else {
         // Standing quote: expiry > issued_at. Store in per-domain PDA.
 
+        // Non-CC standing quotes update standing_quote_domains on the fee account,
+        // so the fee account must be writable.
+        if !matches!(fee_account.fee_data, FeeData::CrossCollateralRouting(_))
+            && !fee_account_info.is_writable
+        {
+            return Err(ProgramError::InvalidAccountData);
+        }
+
         // Parse context based on FeeData variant.
         // Leaf/Routing: 44B context, target_router = H256::zero() sentinel.
         // CC: 76B context with target_router, reject H256::zero().
@@ -1242,22 +1261,27 @@ fn process_submit_quote(
             FeeData::CrossCollateralRouting(_) => {
                 let ctx = CcFeeQuoteContext::try_from_bytes(&quote.context)
                     .map_err(|_| Error::InvalidStandingQuoteContext)?;
+
                 if ctx.amount != u64::MAX {
                     return Err(Error::StandingQuoteAmountNotWildcard.into());
                 }
+
                 if ctx.target_router == hyperlane_core::H256::zero()
                     || ctx.target_router == crate::accounts::DEFAULT_ROUTER
                 {
                     return Err(Error::ZeroTargetRouterNotAllowed.into());
                 }
+
                 (ctx.destination_domain, ctx.recipient, ctx.target_router)
             }
             _ => {
                 let ctx = FeeQuoteContext::try_from_bytes(&quote.context)
                     .map_err(|_| Error::InvalidStandingQuoteContext)?;
+
                 if ctx.amount != u64::MAX {
                     return Err(Error::StandingQuoteAmountNotWildcard.into());
                 }
+
                 (
                     ctx.destination_domain,
                     ctx.recipient,
@@ -1302,6 +1326,7 @@ fn process_submit_quote(
             if domain_pda_info.owner != program_id {
                 return Err(ProgramError::IncorrectProgramId);
             }
+
             FeeStandingQuotePdaAccount::fetch(&mut &domain_pda_info.data.borrow()[..])?
                 .into_inner()
                 .data
@@ -2090,6 +2115,7 @@ fn ensure_no_extraneous_accounts(
     if accounts_iter.next().is_some() {
         return Err(Error::ExtraneousAccount.into());
     }
+
     Ok(())
 }
 
