@@ -647,6 +647,28 @@ fn build_submit_standing_ix_with_routes(
         *target_router,
         quote.clone(),
         route_pdas,
+        true, // fee_account writable (Leaf/Routing default)
+    )
+    .unwrap()
+}
+
+fn build_submit_cc_standing_ix_with_routes(
+    fee_account: &Pubkey,
+    payer: &Pubkey,
+    quote: &SvmSignedQuote,
+    dest_domain: u32,
+    target_router: &H256,
+    route_pdas: &[Pubkey],
+) -> Instruction {
+    instruction::submit_standing_quote_instruction(
+        fee_program_id(),
+        *payer,
+        *fee_account,
+        dest_domain,
+        *target_router,
+        quote.clone(),
+        route_pdas,
+        false, // fee_account readonly (CC doesn't update standing_quote_domains)
     )
     .unwrap()
 }

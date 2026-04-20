@@ -1724,8 +1724,8 @@ mod close_transient_quote {
             &fee_key,
             LOCAL_DOMAIN,
             &payer.pubkey(),
-            vec![1, 2, 3, 4],
-            vec![5, 6, 7, 8],
+            encode_context(42, H256::zero(), 1000),
+            encode_data(100, 50),
             encode_u48(100),
         );
 
@@ -2325,5 +2325,64 @@ mod prune_expired_quotes {
         let fee_after = simulate_quote_fee(banks_client, &payer, build_qf()).await;
         assert_ne!(fee_after, fee_before);
         assert_eq!(fee_after, 99);
+    }
+
+    /// Non-CC standing quote submission with fee_account passed as readonly fails
+    /// because Leaf/Routing modes need to update standing_quote_domains.
+    #[tokio::test]
+    async fn test_leaf_standing_submit_readonly_fee_account_fails() {
+        let (mut banks_client, payer) = setup_client().await;
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let signer_address = eth_address(&signing_key);
+
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let dest = 42u32;
+        let recipient = H256::zero();
+        let quote = make_signed_standing_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            encode_standing_context(dest, recipient),
+            encode_data(1000, 500),
+            encode_u48(100),
+            encode_u48(9999999999),
+        );
+
+        // Build instruction manually with fee_account as readonly.
+        let domain_le = dest.to_le_bytes();
+        let (standing_pda, _) = Pubkey::find_program_address(
+            fee_standing_quote_pda_seeds!(fee_key, &domain_le),
+            &fee_program_id(),
+        );
+        let ix = Instruction::new_with_borsh(
+            fee_program_id(),
+            &FeeInstruction::SubmitQuote(quote),
+            vec![
+                AccountMeta::new_readonly(system_program::ID, false),
+                AccountMeta::new(payer.pubkey(), true),
+                AccountMeta::new_readonly(fee_key, false), // readonly — should fail
+                AccountMeta::new(standing_pda, false),
+            ],
+        );
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(0, InstructionError::InvalidAccountData),
+        );
     }
 }

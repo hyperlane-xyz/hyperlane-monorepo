@@ -29,8 +29,8 @@ async fn test_submit_transient_quote() {
         &fee_key,
         LOCAL_DOMAIN,
         &payer.pubkey(),
-        vec![1, 2, 3, 4],
-        vec![5, 6, 7, 8],
+        encode_context(42, H256::zero(), 1000),
+        encode_data(100, 50),
         issued_at,
     );
 
@@ -83,8 +83,8 @@ async fn test_invalid_signature_fails() {
         &fee_key,
         LOCAL_DOMAIN,
         &payer.pubkey(),
-        vec![1, 2, 3],
-        vec![4, 5, 6],
+        encode_context(42, H256::zero(), 1000),
+        encode_data(100, 50),
         issued_at,
     );
 
@@ -121,8 +121,8 @@ async fn test_no_signers_fails() {
         &fee_key,
         LOCAL_DOMAIN,
         &payer.pubkey(),
-        vec![],
-        vec![],
+        encode_context(42, H256::zero(), 1000),
+        encode_data(100, 50),
         issued_at,
     );
 
@@ -206,8 +206,8 @@ async fn test_extraneous_account_rejected() {
         &fee_key,
         LOCAL_DOMAIN,
         &payer.pubkey(),
-        vec![1, 2],
-        vec![3, 4],
+        encode_context(42, H256::zero(), 1000),
+        encode_data(100, 50),
         issued_at,
     );
 
@@ -266,8 +266,8 @@ async fn test_expired_quote_rejected() {
         &fee_key,
         LOCAL_DOMAIN,
         &payer.pubkey(),
-        vec![],
-        vec![],
+        encode_context(42, H256::zero(), 1000),
+        encode_data(100, 50),
         issued_at,
     );
 
@@ -310,8 +310,8 @@ async fn test_zero_fee_params_transient_quote() {
         &fee_key,
         LOCAL_DOMAIN,
         &payer.pubkey(),
-        vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], // context
-        vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], // data (zero fees)
+        encode_context(42, H256::zero(), 1000),
+        encode_data(0, 0), // zero fees
         issued_at,
     );
 
@@ -348,8 +348,8 @@ async fn test_double_submit_same_salt_fails() {
         &fee_key,
         LOCAL_DOMAIN,
         &payer.pubkey(),
-        vec![1, 2],
-        vec![3, 4],
+        encode_context(42, H256::zero(), 1000),
+        encode_data(100, 50),
         issued_at,
     );
 
@@ -1458,6 +1458,54 @@ async fn test_transient_rejected_after_strategy_change() {
         TransactionError::InstructionError(
             0,
             InstructionError::Custom(FeeError::TransientContextMismatch as u32),
+        ),
+    );
+}
+
+/// Routed wildcard domain transient quote rejected at SubmitQuote time.
+/// Wildcard transients would always fail context matching at QuoteFee
+/// and strand rent, so they're rejected early.
+#[tokio::test]
+async fn test_routed_wildcard_transient_rejected() {
+    let (mut banks_client, payer) = setup_client().await;
+    let signing_key = SigningKey::random(&mut rand::thread_rng());
+    let signer_address = eth_address(&signing_key);
+
+    // Routing fee account with wildcard signers.
+    let mut wildcard_signers = BTreeSet::new();
+    wildcard_signers.insert(signer_address);
+    let fee_key = init_fee_account(
+        &mut banks_client,
+        &payer,
+        default_salt(),
+        Some(payer.pubkey()),
+        payer.pubkey(),
+        FeeData::Routing(RoutingFeeConfig { wildcard_signers }),
+    )
+    .await;
+
+    // Transient quote with WILDCARD_DOMAIN destination.
+    let context = encode_context(WILDCARD_DOMAIN, H256::zero(), 1000);
+    let data = encode_data(100, 50);
+    let issued_at = encode_u48(100);
+    let quote = make_signed_transient_quote(
+        &signing_key,
+        &fee_key,
+        LOCAL_DOMAIN,
+        &payer.pubkey(),
+        context,
+        data,
+        issued_at,
+    );
+
+    // No route PDA needed — wildcard auth from FeeData.
+    let ix = build_submit_transient_ix(&fee_key, &payer.pubkey(), &quote);
+    let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+    assert_tx_error(
+        result,
+        TransactionError::InstructionError(
+            0,
+            InstructionError::Custom(FeeError::InvalidStandingQuoteContext as u32),
         ),
     );
 }
