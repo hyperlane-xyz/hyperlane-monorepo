@@ -183,8 +183,7 @@ where
         .await
         .ok_or_else(|| {
             ChainCommunicationError::CustomError(format!(
-                "No receipt found for tx hash {:?}",
-                tx_hash
+                "No receipt found for tx hash {tx_hash:?}"
             ))
         })?;
         let logs = raw_logs_and_meta
@@ -216,7 +215,7 @@ where
             .await
             .map_err(ChainCommunicationError::from_other)?;
 
-        Ok(receipt.map_or(false, |r| {
+        Ok(receipt.is_some_and(|r| {
             r.logs
                 .iter()
                 .any(|log| log.topics.first() == Some(&cctp_v2_topic))

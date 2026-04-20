@@ -165,8 +165,7 @@ where
         .await
         .ok_or_else(|| {
             ChainCommunicationError::CustomError(format!(
-                "No receipt found for tx hash {:?}",
-                tx_hash
+                "No receipt found for tx hash {tx_hash:?}"
             ))
         })?;
         let logs = raw_logs_and_meta

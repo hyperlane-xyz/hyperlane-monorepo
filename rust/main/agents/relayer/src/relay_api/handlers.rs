@@ -295,7 +295,7 @@ impl RateLimiter {
         while self
             .requests
             .front()
-            .map_or(false, |&t| now.saturating_sub(t) >= self.window_secs)
+            .is_some_and(|&t| now.saturating_sub(t) >= self.window_secs)
         {
             self.requests.pop_front();
         }
