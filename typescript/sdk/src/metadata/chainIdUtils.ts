@@ -1,5 +1,7 @@
 import type { ChainMetadata } from './chainMetadataTypes.js';
 
+import { isNullish } from '@hyperlane-xyz/utils';
+
 export function tryNormalizeNumericChainId(
   chainId: string | number,
 ): number | null {
@@ -17,17 +19,10 @@ export function tryNormalizeNumericChainId(
 }
 
 export function areChainIdsEqual(
-  left: ChainMetadata['chainId'],
-  right: ChainMetadata['chainId'],
+  left: ChainMetadata['chainId'] | null | undefined,
+  right: ChainMetadata['chainId'] | null | undefined,
 ): boolean {
-  if (
-    left === undefined ||
-    left === null ||
-    right === undefined ||
-    right === null
-  ) {
-    return false;
-  }
+  if (isNullish(left) || isNullish(right)) return false;
 
   if (left === right) return true;
 
@@ -36,10 +31,11 @@ export function areChainIdsEqual(
   return leftNumeric !== null && leftNumeric === rightNumeric;
 }
 
-export function getEffectiveDomainId(
-  metadata: Pick<ChainMetadata, 'chainId' | 'domainId'>,
-): number | null {
-  if (metadata.domainId !== undefined && metadata.domainId !== null) {
+export function getEffectiveDomainId(metadata: {
+  chainId: ChainMetadata['chainId'];
+  domainId?: ChainMetadata['domainId'] | null;
+}): number | null {
+  if (!isNullish(metadata.domainId)) {
     return metadata.domainId;
   }
 
