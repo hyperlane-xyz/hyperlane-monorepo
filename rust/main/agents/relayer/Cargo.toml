@@ -58,12 +58,6 @@ hyperlane-core = { path = "../../hyperlane-core", features = [
 ] }
 hyperlane-aleo = { path = "../../chains/hyperlane-aleo", optional = true }
 hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum" }
-hyperlane-cosmos = { path = "../../chains/hyperlane-cosmos" }
-hyperlane-fuel = { path = "../../chains/hyperlane-fuel" }
-hyperlane-radix = { path = "../../chains/hyperlane-radix" }
-hyperlane-sealevel = { path = "../../chains/hyperlane-sealevel" }
-hyperlane-starknet = { path = "../../chains/hyperlane-starknet" }
-hyperlane-tron = { path = "../../chains/hyperlane-tron" }
 solana-sdk.workspace = true
 hex.workspace = true
 hyperlane-metric = { path = "../../hyperlane-metric" }

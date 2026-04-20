@@ -6,9 +6,7 @@ use axum::{
     Json, Router,
 };
 use hyperlane_base::db::HyperlaneRocksDB;
-use hyperlane_core::{
-    HyperlaneMessage, Indexer, PendingOperationStatus, QueueOperation, H256, H512,
-};
+use hyperlane_core::{HyperlaneMessage, Indexer, QueueOperation, H256, H512};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
@@ -21,6 +19,11 @@ use crate::msg::pending_message::{MessageContext, PendingMessage};
 use crate::relay_api::metrics::RelayApiMetrics;
 
 /// Bounded cache for tracking recently submitted tx hashes to prevent replay attacks
+pub enum TxHashCacheError {
+    Duplicate,
+    CacheFull,
+}
+
 pub struct TxHashCache {
     cache: HashMap<(String, String), Instant>,
     max_entries: usize,
@@ -36,9 +39,13 @@ impl TxHashCache {
         }
     }
 
-    /// Check if tx_hash was recently submitted and insert if not
-    /// Returns Ok(()) if new, Err with reason if duplicate or cache full
-    pub fn check_and_insert(&mut self, chain: String, tx_hash: String) -> Result<(), &'static str> {
+    /// Check if tx_hash was recently submitted and insert if not.
+    /// Returns `Ok(())` if new, `Err(TxHashCacheError)` if duplicate or cache full.
+    pub fn check_and_insert(
+        &mut self,
+        chain: String,
+        tx_hash: String,
+    ) -> Result<(), TxHashCacheError> {
         let now = Instant::now();
         let normalized = tx_hash
             .strip_prefix("0x")
@@ -57,7 +64,7 @@ impl TxHashCache {
         // Check for duplicate within TTL
         if let Some(&timestamp) = self.cache.get(&key) {
             if now.duration_since(timestamp) < self.ttl {
-                return Err("Transaction already submitted recently");
+                return Err(TxHashCacheError::Duplicate);
             }
         }
 
@@ -68,7 +75,7 @@ impl TxHashCache {
                 max_entries = self.max_entries,
                 "TX hash cache full, rejecting request"
             );
-            return Err("Service temporarily unavailable");
+            return Err(TxHashCacheError::CacheFull);
         }
 
         self.cache.insert(key, now);
@@ -83,10 +90,10 @@ pub struct ServerState {
     dbs: HashMap<u32, HyperlaneRocksDB>,
     send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
     msg_ctxs: HashMap<(u32, u32), Arc<MessageContext>>,
+    metrics: RelayApiMetrics,
     // Optional features
     rate_limiter: Option<Arc<RwLock<RateLimiter>>>,
     tx_hash_cache: Option<Arc<RwLock<TxHashCache>>>,
-    metrics: Option<RelayApiMetrics>,
     cors_origins: Vec<String>,
     message_whitelist: Option<Arc<crate::settings::matching_list::MatchingList>>,
     message_blacklist: Option<Arc<crate::settings::matching_list::MatchingList>>,
@@ -99,15 +106,16 @@ impl ServerState {
         dbs: HashMap<u32, HyperlaneRocksDB>,
         send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
         msg_ctxs: HashMap<(u32, u32), Arc<MessageContext>>,
+        metrics: RelayApiMetrics,
     ) -> Self {
         Self {
             indexers,
             dbs,
             send_channels,
             msg_ctxs,
+            metrics,
             rate_limiter: None,
             tx_hash_cache: None,
-            metrics: None,
             cors_origins: Vec::new(),
             message_whitelist: None,
             message_blacklist: None,
@@ -115,13 +123,16 @@ impl ServerState {
         }
     }
 
-    pub fn with_tx_hash_cache(mut self, cache: Arc<RwLock<TxHashCache>>) -> Self {
-        self.tx_hash_cache = Some(cache);
-        self
+    fn record_failure(&self, reason: &str) {
+        self.metrics.inc_failure(reason);
     }
 
-    pub fn with_metrics(mut self, metrics: RelayApiMetrics) -> Self {
-        self.metrics = Some(metrics);
+    fn record_success(&self) {
+        self.metrics.inc_success();
+    }
+
+    pub fn with_tx_hash_cache(mut self, cache: Arc<RwLock<TxHashCache>>) -> Self {
+        self.tx_hash_cache = Some(cache);
         self
     }
 
@@ -220,7 +231,6 @@ pub struct MessageInfo {
 
 // Error handling
 pub enum ServerError {
-    RateLimited,
     TooManyRequests(String),
     InvalidRequest(String),
     NotFound,
@@ -232,9 +242,6 @@ pub enum ServerError {
 impl IntoResponse for ServerError {
     fn into_response(self) -> Response {
         match self {
-            ServerError::RateLimited => {
-                (StatusCode::TOO_MANY_REQUESTS, "Rate limit exceeded").into_response()
-            }
             ServerError::TooManyRequests(msg) => {
                 (StatusCode::TOO_MANY_REQUESTS, msg).into_response()
             }
@@ -316,26 +323,22 @@ async fn create_relay(
     if let Some(limiter) = &state.rate_limiter {
         let mut limiter = limiter.write().await;
         if !limiter.check() {
-            if let Some(ref metrics) = state.metrics {
-                metrics.inc_failure("rate_limited");
-            }
-            return Err(ServerError::RateLimited);
+            state.record_failure("rate_limited");
+            return Err(ServerError::TooManyRequests(
+                "Rate limit exceeded".to_string(),
+            ));
         }
     }
 
     // Validate request
     if req.origin_chain.is_empty() {
-        if let Some(ref metrics) = state.metrics {
-            metrics.inc_failure("invalid_request");
-        }
+        state.record_failure("invalid_request");
         return Err(ServerError::InvalidRequest(
             "origin_chain cannot be empty".to_string(),
         ));
     }
     if req.origin_chain.len() > 128 {
-        if let Some(ref metrics) = state.metrics {
-            metrics.inc_failure("invalid_request");
-        }
+        state.record_failure("invalid_request");
         return Err(ServerError::InvalidRequest(
             "origin_chain exceeds maximum length of 128 characters".to_string(),
         ));
@@ -344,18 +347,14 @@ async fn create_relay(
     // Validate tx_hash length to prevent memory abuse (before cloning into cache)
     // Max EVM tx hash: "0x" + 64 hex chars = 66 chars; 512 is a generous upper bound
     if req.tx_hash.len() > 512 {
-        if let Some(ref metrics) = state.metrics {
-            metrics.inc_failure("invalid_request");
-        }
+        state.record_failure("invalid_request");
         return Err(ServerError::InvalidRequest(
             "tx_hash exceeds maximum length of 512 characters".to_string(),
         ));
     }
 
     if req.tx_hash.is_empty() {
-        if let Some(ref metrics) = state.metrics {
-            metrics.inc_failure("invalid_request");
-        }
+        state.record_failure("invalid_request");
         return Err(ServerError::InvalidRequest(
             "tx_hash cannot be empty".to_string(),
         ));
@@ -364,17 +363,19 @@ async fn create_relay(
     // Check for duplicate tx_hash submission
     if let Some(cache) = &state.tx_hash_cache {
         let mut cache = cache.write().await;
-        if let Err(reason) = cache.check_and_insert(req.origin_chain.clone(), req.tx_hash.clone()) {
-            if reason.contains("unavailable") {
-                if let Some(ref metrics) = state.metrics {
-                    metrics.inc_failure("cache_full");
-                }
-                return Err(ServerError::ServiceUnavailable(reason.to_string()));
-            } else {
-                if let Some(ref metrics) = state.metrics {
-                    metrics.inc_failure("duplicate_tx");
-                }
-                return Err(ServerError::TooManyRequests(reason.to_string()));
+        match cache.check_and_insert(req.origin_chain.clone(), req.tx_hash.clone()) {
+            Ok(()) => {}
+            Err(TxHashCacheError::CacheFull) => {
+                state.record_failure("cache_full");
+                return Err(ServerError::ServiceUnavailable(
+                    "Service temporarily unavailable".to_string(),
+                ));
+            }
+            Err(TxHashCacheError::Duplicate) => {
+                state.record_failure("duplicate_tx");
+                return Err(ServerError::TooManyRequests(
+                    "Transaction already submitted recently".to_string(),
+                ));
             }
         }
     }
@@ -388,23 +389,17 @@ async fn create_relay(
     )
     .await
     .map_err(|_| {
-        if let Some(ref metrics) = state.metrics {
-            metrics.inc_failure("timeout");
-        }
+        state.record_failure("timeout");
         ServerError::RequestTimeout
     })?
     .map_err(|e| {
-        if let Some(ref metrics) = state.metrics {
-            metrics.inc_failure("extraction_failed");
-        }
+        state.record_failure("extraction_failed");
         ServerError::InvalidRequest(format!("Failed to extract messages: {e}"))
     })?;
 
     const MAX_MESSAGES_PER_TX: usize = 10;
     if extracted_messages.len() > MAX_MESSAGES_PER_TX {
-        if let Some(ref metrics) = state.metrics {
-            metrics.inc_failure("too_many_messages");
-        }
+        state.record_failure("too_many_messages");
         return Err(ServerError::InvalidRequest(format!(
             "Transaction contains {} messages, exceeding the limit of {}",
             extracted_messages.len(),
@@ -444,17 +439,15 @@ async fn create_relay(
     for extracted in &extracted_messages {
         info!(
             message_id = ?extracted.message_id,
-            origin = extracted.origin_domain,
-            destination = extracted.destination_domain,
+            origin = extracted.message.origin,
+            destination = extracted.message.destination,
             nonce = extracted.message.nonce,
             "Processing message"
         );
 
         // Only CCTP V2 messages are eligible for the relay API fast path.
         if !extracted.is_cctp_v2 {
-            if let Some(ref metrics) = state.metrics {
-                metrics.inc_failure("not_cctp_v2");
-            }
+            state.record_failure("not_cctp_v2");
             return Err(ServerError::InvalidRequest(
                 "Only CCTP V2 messages are supported via the relay API".to_string(),
             ));
@@ -462,11 +455,11 @@ async fn create_relay(
 
         // Get message context for (origin, destination)
         let msg_ctx = msg_ctxs
-            .get(&(extracted.origin_domain, extracted.destination_domain))
+            .get(&(extracted.message.origin, extracted.message.destination))
             .ok_or_else(|| {
                 ServerError::InternalError(format!(
                     "No message context for origin {} to destination {}",
-                    extracted.origin_domain, extracted.destination_domain
+                    extracted.message.origin, extracted.message.destination
                 ))
             })?;
 
@@ -541,9 +534,7 @@ async fn create_relay(
         // Apply message filtering (whitelist, blacklist, address blacklist)
         if let Some(whitelist) = &state.message_whitelist {
             if !whitelist.msg_matches(&extracted.message, true) {
-                if let Some(ref metrics) = state.metrics {
-                    metrics.inc_failure("message_not_whitelisted");
-                }
+                state.record_failure("message_not_whitelisted");
                 return Err(ServerError::InvalidRequest(
                     "Message not whitelisted".to_string(),
                 ));
@@ -552,9 +543,7 @@ async fn create_relay(
 
         if let Some(blacklist) = &state.message_blacklist {
             if blacklist.msg_matches(&extracted.message, false) {
-                if let Some(ref metrics) = state.metrics {
-                    metrics.inc_failure("message_blacklisted");
-                }
+                state.record_failure("message_blacklisted");
                 return Err(ServerError::InvalidRequest(
                     "Message blacklisted".to_string(),
                 ));
@@ -565,41 +554,49 @@ async fn create_relay(
             if let Some(blacklisted_address) =
                 blacklist.find_blacklisted_address(&extracted.message)
             {
-                if let Some(ref metrics) = state.metrics {
-                    metrics.inc_failure("message_blacklisted_address");
-                }
-                return Err(ServerError::InvalidRequest(format!(
-                    "Message involves blacklisted address: {}",
-                    hex::encode(blacklisted_address)
-                )));
+                warn!(
+                    message_id = ?extracted.message_id,
+                    address = %hex::encode(blacklisted_address),
+                    "Rejecting message involving blacklisted address"
+                );
+                state.record_failure("message_blacklisted_address");
+                return Err(ServerError::InvalidRequest("Message rejected".to_string()));
             }
         }
 
         let send_channel = send_channels
-            .get(&extracted.destination_domain)
+            .get(&extracted.message.destination)
             .ok_or_else(|| {
-                ServerError::InvalidRequest(format!(
-                    "No send channel for destination domain {}",
-                    extracted.destination_domain
-                ))
+                warn!(
+                    message_id = ?extracted.message_id,
+                    destination_domain = extracted.message.destination,
+                    "No send channel for destination domain"
+                );
+                ServerError::InvalidRequest("Unsupported destination".to_string())
             })?
             .clone();
 
-        let pending_msg = PendingMessage::new(
+        let pending_msg = PendingMessage::maybe_from_persisted_retries(
             extracted.message.clone(),
             msg_ctx.clone(),
-            PendingOperationStatus::FirstPrepareAttempt,
             app_context.clone(),
             3,
-        );
+        )
+        .ok_or_else(|| {
+            state.record_failure("retries_exhausted");
+            ServerError::InvalidRequest(format!(
+                "Message {:?} has exhausted its maximum retries and cannot be re-submitted",
+                extracted.message_id
+            ))
+        })?;
 
         validated.push(ValidatedMessage {
             pending_msg,
             send_channel,
             message_id: extracted.message_id,
-            origin_domain: extracted.origin_domain,
+            origin_domain: extracted.message.origin,
             tx_hash: extracted.tx_hash,
-            destination_domain: extracted.destination_domain,
+            destination_domain: extracted.message.destination,
             app_context,
             nonce: extracted.message.nonce,
         });
@@ -649,10 +646,7 @@ async fn create_relay(
         });
     }
 
-    // Track success metric
-    if let Some(ref metrics) = state.metrics {
-        metrics.inc_success();
-    }
+    state.record_success();
 
     // 4. Return success with all processed messages
     Ok(Json(RelayResponse {

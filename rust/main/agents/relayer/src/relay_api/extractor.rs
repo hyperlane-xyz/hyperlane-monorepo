@@ -84,23 +84,19 @@ pub async fn extract_messages(
     let extracted_messages: Vec<ExtractedMessage> = messages
         .into_iter()
         .map(|message| {
-            let origin_domain = message.origin;
-            let destination_domain = message.destination;
             let message_id = message.id();
 
             debug!(
                 chain = %chain_name,
                 tx_hash = %tx_hash,
                 message_id = ?message_id,
-                origin_domain = origin_domain,
-                destination_domain = destination_domain,
+                origin_domain = message.origin,
+                destination_domain = message.destination,
                 "Extracted message"
             );
 
             ExtractedMessage {
                 message,
-                origin_domain,
-                destination_domain,
                 message_id,
                 is_cctp_v2,
                 tx_hash: tx_hash_512,
@@ -114,8 +110,6 @@ pub async fn extract_messages(
 #[derive(Debug, Clone)]
 pub struct ExtractedMessage {
     pub message: HyperlaneMessage,
-    pub origin_domain: u32,
-    pub destination_domain: u32,
     pub message_id: H256,
     /// True when the transaction contains a Circle CCTP V2 `DepositForBurn` event.
     pub is_cctp_v2: bool,

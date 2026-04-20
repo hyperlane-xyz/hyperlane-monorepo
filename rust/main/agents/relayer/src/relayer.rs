@@ -15,6 +15,7 @@ use tokio::{
     sync::{
         broadcast::Sender as BroadcastSender,
         mpsc::{self, Receiver as MpscReceiver, UnboundedSender},
+        RwLock,
     },
     task::JoinHandle,
 };
@@ -32,11 +33,15 @@ use hyperlane_base::{
 };
 use hyperlane_core::{
     rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, ContractSyncCursor,
-    HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, PendingOperation,
-    QueueOperation, H512, U256,
+    HyperlaneDomain, HyperlaneMessage, Indexer, InterchainGasPayment, MerkleTreeInsertion,
+    PendingOperation, QueueOperation, H512, U256,
 };
 use lander::{CommandEntrypoint, DispatcherMetrics};
 
+use crate::relay_api::{
+    handlers::{RateLimiter, ServerState as RelayApiState, TxHashCache},
+    RelayApiMetrics,
+};
 use crate::{db_loader::DbLoader, relayer::origin::Origin, server::ENDPOINT_MESSAGES_QUEUE_SIZE};
 use crate::{
     db_loader::DbLoaderExt,
@@ -530,9 +535,16 @@ impl BaseAgent for Relayer {
         // run server
         start_entity_init = Instant::now();
 
-        let relayer_router = self
+        let relayer_router = match self
             .build_router(prep_queues, send_channels, sender.clone())
-            .await;
+            .await
+        {
+            Ok(router) => router,
+            Err(e) => {
+                error!(error = ?e, "Failed to build relayer router; aborting");
+                return;
+            }
+        };
         let server = self
             .core
             .settings
@@ -574,7 +586,7 @@ impl Relayer {
         prep_queues: PrepQueue,
         send_channels: HashMap<u32, mpsc::UnboundedSender<QueueOperation>>,
         sender: BroadcastSender<relayer_server::operations::message_retry::MessageRetryRequest>,
-    ) -> Router {
+    ) -> Result<Router> {
         // create a db mapping for server handlers
         let dbs: HashMap<u32, HyperlaneRocksDB> = self
             .origins
@@ -616,15 +628,7 @@ impl Relayer {
             })
             .collect();
 
-        // Build relay API state inline, following the pattern of other sub-routers.
-        use crate::relay_api::handlers::{RateLimiter, ServerState as RelayApiState, TxHashCache};
-        use crate::relay_api::RelayApiMetrics;
-        use hyperlane_core::{HyperlaneMessage, Indexer};
-        use std::collections::HashMap as StdHashMap;
-        use tokio::sync::RwLock;
-
-        let relay_api_metrics = RelayApiMetrics::new(&self.core_metrics.registry())
-            .expect("Failed to initialize relay API metrics");
+        let relay_api_metrics = RelayApiMetrics::new(&self.core_metrics.registry())?;
         let tx_hash_cache = Arc::new(RwLock::new(TxHashCache::new(10000)));
         let max_requests = self.relay_api_rate_limit_max_requests.unwrap_or(100);
         let window_secs = self.relay_api_rate_limit_window_secs.unwrap_or(60);
@@ -634,8 +638,7 @@ impl Relayer {
             window_secs, "Initialized relay API rate limiter"
         );
 
-        let mut indexers: StdHashMap<String, Arc<dyn Indexer<HyperlaneMessage>>> =
-            StdHashMap::new();
+        let mut indexers: HashMap<String, Arc<dyn Indexer<HyperlaneMessage>>> = HashMap::new();
         info!(
             origin_count = self.origins.len(),
             "Setting up relay API indexers"
@@ -660,16 +663,16 @@ impl Relayer {
             dbs.clone(),
             send_channels.clone(),
             msg_ctxs.clone(),
+            relay_api_metrics,
         )
         .with_tx_hash_cache(tx_hash_cache)
-        .with_metrics(relay_api_metrics)
         .with_rate_limiter(rate_limiter)
         .with_cors_origins(self.relay_api_cors_origins.clone())
         .with_message_whitelist(self.message_whitelist.clone())
         .with_message_blacklist(self.message_blacklist.clone())
         .with_address_blacklist(self.address_blacklist.clone());
 
-        relayer_server::Server::new(self.destinations.len())
+        let router = relayer_server::Server::new(self.destinations.len())
             .with_op_retry(sender)
             .with_message_queue(prep_queues)
             .with_dbs(dbs)
@@ -678,7 +681,8 @@ impl Relayer {
             .with_prover_sync(prover_syncs)
             .with_dispatcher_command_entrypoints(dispatcher_entrypoints)
             .with_relay_api(relay_api_state)
-            .router()
+            .router();
+        Ok(router)
     }
 
     fn record_critical_error(
