@@ -333,46 +333,26 @@ fn process_quote_fee(
         _ => hyperlane_core::H256::zero(),
     };
 
-    // Step 2: Domain standing quote — exact recipient then wildcard recipient.
-    if let Some(fee) = try_resolve_standing_quote(
-        program_id,
-        domain_quotes_info,
-        fee_account_info.key,
-        data.destination_domain,
-        standing_target_router,
-        &strategy,
-        &data,
-        fee_account.min_issued_at,
-        &clock,
-    )? {
-        set_return_data(&fee.to_le_bytes());
-        msg!(
-            "QuoteFee (standing domain): {} for amount {}",
-            fee,
-            data.amount
-        );
-        return Ok(());
-    }
-
-    // Step 3: Wildcard domain standing quote — exact recipient only.
-    if let Some(fee) = try_resolve_standing_quote(
-        program_id,
-        wildcard_quotes_info,
-        fee_account_info.key,
-        crate::accounts::WILDCARD_DOMAIN,
-        standing_target_router,
-        &strategy,
-        &data,
-        fee_account.min_issued_at,
-        &clock,
-    )? {
-        set_return_data(&fee.to_le_bytes());
-        msg!(
-            "QuoteFee (standing wildcard): {} for amount {}",
-            fee,
-            data.amount
-        );
-        return Ok(());
+    // Steps 2-3: Domain standing quote → wildcard domain standing quote.
+    for (pda_info, domain) in [
+        (domain_quotes_info, data.destination_domain),
+        (wildcard_quotes_info, crate::accounts::WILDCARD_DOMAIN),
+    ] {
+        if let Some(fee) = try_resolve_standing_quote(
+            program_id,
+            pda_info,
+            fee_account_info.key,
+            domain,
+            standing_target_router,
+            &strategy,
+            &data,
+            fee_account.min_issued_at,
+            &clock,
+        )? {
+            set_return_data(&fee.to_le_bytes());
+            msg!("QuoteFee (standing): {} for amount {}", fee, data.amount);
+            return Ok(());
+        }
     }
 
     // Step 4: On-chain fallback — use resolved curve with on-chain params.
