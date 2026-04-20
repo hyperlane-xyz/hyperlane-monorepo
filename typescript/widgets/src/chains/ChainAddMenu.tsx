@@ -1,5 +1,5 @@
 import { clsx } from 'clsx';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import {
@@ -87,9 +87,9 @@ function Form({
 }: ChainAddMenuProps) {
   const [textInput, setTextInput] = useState('');
   const [error, setError] = useState<any>(null);
-  const existingChainMetadata = mergeChainMetadataMap(
-    chainMetadata,
-    overrideChainMetadata,
+  const existingChainMetadata = useMemo(
+    () => mergeChainMetadataMap(chainMetadata, overrideChainMetadata),
+    [chainMetadata, overrideChainMetadata],
   );
 
   const onChangeInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -165,6 +165,8 @@ function tryParseMetadataInput(
     return failure('name is already in use by another chain');
   }
 
+  // The resolver can tolerate ambiguous duplicate chainId aliases, but local
+  // add-chain UX rejects them to avoid persisting ambiguous metadata entries.
   if (
     Object.entries(existingChainMetadata).some(([, metadata]) =>
       areChainIdsEqual(metadata.chainId, chainId),
