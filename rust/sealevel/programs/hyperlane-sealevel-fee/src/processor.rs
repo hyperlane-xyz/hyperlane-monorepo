@@ -142,7 +142,7 @@ fn process_init_fee(program_id: &Pubkey, accounts: &[AccountInfo], data: InitFee
     let (fee_account_key, fee_account_bump) =
         Pubkey::find_program_address(fee_account_pda_seeds!(data.salt), program_id);
     if *fee_account_info.key != fee_account_key {
-        return Err(ProgramError::InvalidSeeds);
+        return Err(ProgramError::InvalidArgument);
     }
 
     ensure_no_extraneous_accounts(accounts_iter)?;
@@ -494,7 +494,7 @@ fn try_resolve_standing_quote(
         program_id,
     );
     if *standing_pda_info.key != expected_key {
-        return Err(ProgramError::InvalidSeeds);
+        return Err(ProgramError::InvalidArgument);
     }
 
     let standing = FeeStandingQuotePdaAccount::fetch(&mut &standing_pda_info.data.borrow()[..])?
@@ -544,7 +544,7 @@ fn resolve_routing(
         program_id,
     );
     if *route_pda_info.key != expected_key {
-        return Err(ProgramError::InvalidSeeds);
+        return Err(ProgramError::InvalidArgument);
     }
     // Unconfigured route: uninitialized (system-owned, empty) → None.
     // Owned by another program → error (consistent with standing PDA pattern).
@@ -578,7 +578,7 @@ fn resolve_cc_routing(
         );
 
         if *pda_info.key != expected_key {
-            return Err(ProgramError::InvalidSeeds);
+            return Err(ProgramError::InvalidArgument);
         }
 
         if pda_info.owner == program_id && !pda_info.data_is_empty() {
@@ -760,7 +760,7 @@ fn process_add_quote_signer(
                 program_id,
             );
             if *route_pda_info.key != expected_key {
-                return Err(ProgramError::InvalidSeeds);
+                return Err(ProgramError::InvalidArgument);
             }
             if route_pda_info.owner != program_id {
                 return Err(ProgramError::IncorrectProgramId);
@@ -798,7 +798,7 @@ fn process_add_quote_signer(
                 program_id,
             );
             if *cc_pda_info.key != expected_key {
-                return Err(ProgramError::InvalidSeeds);
+                return Err(ProgramError::InvalidArgument);
             }
             if cc_pda_info.owner != program_id {
                 return Err(ProgramError::IncorrectProgramId);
@@ -896,7 +896,7 @@ fn process_remove_quote_signer(
                 program_id,
             );
             if *route_pda_info.key != expected_key {
-                return Err(ProgramError::InvalidSeeds);
+                return Err(ProgramError::InvalidArgument);
             }
             if route_pda_info.owner != program_id {
                 return Err(ProgramError::IncorrectProgramId);
@@ -930,7 +930,7 @@ fn process_remove_quote_signer(
                 program_id,
             );
             if *cc_pda_info.key != expected_key {
-                return Err(ProgramError::InvalidSeeds);
+                return Err(ProgramError::InvalidArgument);
             }
             if cc_pda_info.owner != program_id {
                 return Err(ProgramError::IncorrectProgramId);
@@ -1110,7 +1110,7 @@ fn process_submit_quote(
                         program_id,
                     );
                     if *route_pda_info.key != expected_key {
-                        return Err(ProgramError::InvalidSeeds);
+                        return Err(ProgramError::InvalidArgument);
                     }
 
                     let route = RouteDomainAccount::fetch(&mut &route_pda_info.data.borrow()[..])?
@@ -1147,7 +1147,7 @@ fn process_submit_quote(
                             program_id,
                         );
                         if *specific_pda_info.key != specific_key {
-                            return Err(ProgramError::InvalidSeeds);
+                            return Err(ProgramError::InvalidArgument);
                         }
                         // Verify ownership: must be fee program or system (uninitialized).
                         verify_optional_pda_owner(specific_pda_info, program_id)?;
@@ -1162,7 +1162,7 @@ fn process_submit_quote(
                                 program_id,
                             );
                             if *default_pda_info.key != default_key {
-                                return Err(ProgramError::InvalidSeeds);
+                                return Err(ProgramError::InvalidArgument);
                             }
                             verify_optional_pda_owner(default_pda_info, program_id)?;
 
@@ -1210,7 +1210,7 @@ fn process_submit_quote(
             program_id,
         );
         if *transient_pda_info.key != expected_key {
-            return Err(ProgramError::InvalidSeeds);
+            return Err(ProgramError::InvalidArgument);
         }
         verify_account_uninitialized(transient_pda_info)?;
 
@@ -1309,7 +1309,7 @@ fn process_submit_quote(
             program_id,
         );
         if *domain_pda_info.key != expected_domain_key {
-            return Err(ProgramError::InvalidSeeds);
+            return Err(ProgramError::InvalidArgument);
         }
 
         ensure_no_extraneous_accounts(accounts_iter)?;
@@ -1501,7 +1501,7 @@ fn process_prune_expired_quotes(
         program_id,
     );
     if *domain_pda_info.key != expected_key {
-        return Err(ProgramError::InvalidSeeds);
+        return Err(ProgramError::InvalidArgument);
     }
     if domain_pda_info.owner != program_id {
         return Err(Error::RouteNotFound.into());
@@ -1843,7 +1843,7 @@ fn process_set_route(
         program_id,
     );
     if *route_pda_info.key != expected_route_key {
-        return Err(ProgramError::InvalidSeeds);
+        return Err(ProgramError::InvalidArgument);
     }
 
     ensure_no_extraneous_accounts(accounts_iter)?;
@@ -1923,7 +1923,7 @@ fn process_remove_route(
         program_id,
     );
     if *route_pda_info.key != expected_route_key {
-        return Err(ProgramError::InvalidSeeds);
+        return Err(ProgramError::InvalidArgument);
     }
     if route_pda_info.owner != program_id {
         return Err(Error::RouteNotFound.into());
@@ -1982,7 +1982,7 @@ fn process_set_cc_route(
         program_id,
     );
     if *cc_route_pda_info.key != expected_cc_key {
-        return Err(ProgramError::InvalidSeeds);
+        return Err(ProgramError::InvalidArgument);
     }
 
     ensure_no_extraneous_accounts(accounts_iter)?;
@@ -2065,7 +2065,7 @@ fn process_remove_cc_route(
         program_id,
     );
     if *cc_route_pda_info.key != expected_cc_key {
-        return Err(ProgramError::InvalidSeeds);
+        return Err(ProgramError::InvalidArgument);
     }
     if cc_route_pda_info.owner != program_id {
         return Err(Error::RouteNotFound.into());

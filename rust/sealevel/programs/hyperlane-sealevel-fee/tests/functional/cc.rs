@@ -498,7 +498,7 @@ async fn test_cc_submit_spoofed_specific_route_pda_rejected() {
     .await;
     assert_tx_error(
         result,
-        TransactionError::InstructionError(0, InstructionError::InvalidSeeds),
+        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
     );
 }
 
@@ -606,7 +606,7 @@ async fn test_cc_submit_spoofed_default_route_pda_rejected() {
     .await;
     assert_tx_error(
         result,
-        TransactionError::InstructionError(0, InstructionError::InvalidSeeds),
+        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
     );
 }
 
@@ -787,7 +787,7 @@ async fn test_cc_wildcard_submit_with_extra_route_pda_rejected() {
     .await;
     assert_tx_error(
         result,
-        TransactionError::InstructionError(0, InstructionError::InvalidSeeds),
+        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
     );
 }
 

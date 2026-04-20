@@ -636,7 +636,7 @@ mod submit_standing_quote {
         .await;
         assert_tx_error(
             result,
-            TransactionError::InstructionError(0, InstructionError::InvalidSeeds),
+            TransactionError::InstructionError(0, InstructionError::InvalidArgument),
         );
     }
 
@@ -703,7 +703,7 @@ mod submit_standing_quote {
         .await;
         assert_tx_error(
             result,
-            TransactionError::InstructionError(0, InstructionError::InvalidSeeds),
+            TransactionError::InstructionError(0, InstructionError::InvalidArgument),
         );
     }
 
@@ -1426,7 +1426,7 @@ mod quote_fee_standing {
         // Should fail because B's PDA doesn't match A's derivation.
         assert_tx_error(
             result,
-            TransactionError::InstructionError(0, InstructionError::InvalidSeeds),
+            TransactionError::InstructionError(0, InstructionError::InvalidArgument),
         );
     }
 
@@ -1504,7 +1504,7 @@ mod quote_fee_standing {
         let result = process_tx(&mut banks_client, &payer, quote_ix, &[]).await;
         assert_tx_error(
             result,
-            TransactionError::InstructionError(0, InstructionError::InvalidSeeds),
+            TransactionError::InstructionError(0, InstructionError::InvalidArgument),
         );
     }
 
