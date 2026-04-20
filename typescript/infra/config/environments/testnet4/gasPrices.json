@@ -7,10 +7,6 @@
     "amount": "0.1",
     "decimals": 9
   },
-  "arcadiatestnet2": {
-    "amount": "0.000000008",
-    "decimals": 9
-  },
   "basesepolia": {
     "amount": "0.001000068",
     "decimals": 9

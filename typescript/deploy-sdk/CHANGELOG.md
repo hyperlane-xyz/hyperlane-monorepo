@@ -1,5 +1,170 @@
 # @hyperlane-xyz/deploy-sdk
 
+## 5.0.2
+
+### Patch Changes
+
+- @hyperlane-xyz/aleo-sdk@33.0.0
+- @hyperlane-xyz/cosmos-sdk@33.0.0
+- @hyperlane-xyz/radix-sdk@33.0.0
+- @hyperlane-xyz/sealevel-sdk@33.0.0
+- @hyperlane-xyz/utils@33.0.0
+- @hyperlane-xyz/starknet-sdk@28.0.2
+- @hyperlane-xyz/provider-sdk@5.0.2
+- @hyperlane-xyz/tron-sdk@23.0.2
+
+## 5.0.1
+
+### Patch Changes
+
+- @hyperlane-xyz/aleo-sdk@32.0.1
+- @hyperlane-xyz/cosmos-sdk@32.0.1
+- @hyperlane-xyz/radix-sdk@32.0.1
+- @hyperlane-xyz/sealevel-sdk@32.0.1
+- @hyperlane-xyz/utils@32.0.1
+- @hyperlane-xyz/starknet-sdk@28.0.1
+- @hyperlane-xyz/provider-sdk@5.0.1
+- @hyperlane-xyz/tron-sdk@23.0.1
+
+## 5.0.0
+
+### Major Changes
+
+- fa08f2a: IProvider and ISigner interfaces were slimmed to their minimal surface. IProvider was reduced from 53 to 22 query-only methods by removing all get\*Transaction methods. ISigner was reduced from 36 to 5 infrastructure methods by removing all action methods (createMailbox, setDefaultIsm, enrollRemoteRouter, etc.). Transaction building is now handled exclusively by artifact managers using concrete class methods or standalone helper functions.
+
+  Throwing stubs were removed from SVM, Cosmos, Radix, and Starknet provider/signer implementations. Old action-method-based e2e tests were replaced with artifact API equivalents. Cosmos routing ISM writer was fixed to handle domain route updates correctly via remove + re-add.
+
+### Patch Changes
+
+- Updated dependencies [3dc6367]
+- Updated dependencies [ab17263]
+- Updated dependencies [fa08f2a]
+  - @hyperlane-xyz/provider-sdk@5.0.0
+  - @hyperlane-xyz/sealevel-sdk@32.0.0
+  - @hyperlane-xyz/starknet-sdk@28.0.0
+  - @hyperlane-xyz/aleo-sdk@32.0.0
+  - @hyperlane-xyz/tron-sdk@23.0.0
+  - @hyperlane-xyz/cosmos-sdk@32.0.0
+  - @hyperlane-xyz/radix-sdk@32.0.0
+  - @hyperlane-xyz/utils@32.0.0
+
+## 4.3.4
+
+### Patch Changes
+
+- @hyperlane-xyz/aleo-sdk@31.2.1
+- @hyperlane-xyz/cosmos-sdk@31.2.1
+- @hyperlane-xyz/radix-sdk@31.2.1
+- @hyperlane-xyz/sealevel-sdk@31.2.1
+- @hyperlane-xyz/utils@31.2.1
+- @hyperlane-xyz/starknet-sdk@27.2.10
+- @hyperlane-xyz/provider-sdk@4.3.4
+- @hyperlane-xyz/tron-sdk@22.1.14
+
+## 4.3.3
+
+### Patch Changes
+
+- @hyperlane-xyz/aleo-sdk@31.2.0
+- @hyperlane-xyz/cosmos-sdk@31.2.0
+- @hyperlane-xyz/radix-sdk@31.2.0
+- @hyperlane-xyz/sealevel-sdk@31.2.0
+- @hyperlane-xyz/utils@31.2.0
+- @hyperlane-xyz/starknet-sdk@27.2.9
+- @hyperlane-xyz/provider-sdk@4.3.3
+- @hyperlane-xyz/tron-sdk@22.1.13
+
+## 4.3.2
+
+### Patch Changes
+
+- Updated dependencies [cf3f11c]
+- Updated dependencies [8a082af]
+  - @hyperlane-xyz/starknet-sdk@27.2.8
+  - @hyperlane-xyz/aleo-sdk@31.1.0
+  - @hyperlane-xyz/cosmos-sdk@31.1.0
+  - @hyperlane-xyz/radix-sdk@31.1.0
+  - @hyperlane-xyz/tron-sdk@22.1.12
+  - @hyperlane-xyz/sealevel-sdk@31.1.0
+  - @hyperlane-xyz/utils@31.1.0
+  - @hyperlane-xyz/provider-sdk@4.3.2
+
+## 4.3.1
+
+### Patch Changes
+
+- Updated dependencies [d5168fc]
+  - @hyperlane-xyz/utils@31.0.1
+  - @hyperlane-xyz/aleo-sdk@31.0.1
+  - @hyperlane-xyz/cosmos-sdk@31.0.1
+  - @hyperlane-xyz/provider-sdk@4.3.1
+  - @hyperlane-xyz/radix-sdk@31.0.1
+  - @hyperlane-xyz/starknet-sdk@27.2.7
+  - @hyperlane-xyz/sealevel-sdk@31.0.1
+  - @hyperlane-xyz/tron-sdk@22.1.11
+
+## 4.3.0
+
+### Patch Changes
+
+- Updated dependencies [44626fb]
+- Updated dependencies [eaac4ab]
+- Updated dependencies [1dac3b0]
+  - @hyperlane-xyz/sealevel-sdk@31.0.0
+  - @hyperlane-xyz/provider-sdk@4.3.0
+  - @hyperlane-xyz/tron-sdk@22.1.10
+  - @hyperlane-xyz/aleo-sdk@31.0.0
+  - @hyperlane-xyz/cosmos-sdk@31.0.0
+  - @hyperlane-xyz/radix-sdk@31.0.0
+  - @hyperlane-xyz/starknet-sdk@27.2.6
+  - @hyperlane-xyz/utils@31.0.0
+
+## 4.2.5
+
+### Patch Changes
+
+- @hyperlane-xyz/aleo-sdk@30.1.1
+- @hyperlane-xyz/cosmos-sdk@30.1.1
+- @hyperlane-xyz/radix-sdk@30.1.1
+- @hyperlane-xyz/sealevel-sdk@30.1.1
+- @hyperlane-xyz/utils@30.1.1
+- @hyperlane-xyz/starknet-sdk@27.2.5
+- @hyperlane-xyz/provider-sdk@4.2.5
+- @hyperlane-xyz/tron-sdk@22.1.9
+
+## 4.2.4
+
+### Patch Changes
+
+- Updated dependencies [95c331e]
+- Updated dependencies [b643062]
+  - @hyperlane-xyz/sealevel-sdk@30.1.0
+  - @hyperlane-xyz/tron-sdk@22.1.8
+  - @hyperlane-xyz/aleo-sdk@30.1.0
+  - @hyperlane-xyz/cosmos-sdk@30.1.0
+  - @hyperlane-xyz/radix-sdk@30.1.0
+  - @hyperlane-xyz/utils@30.1.0
+  - @hyperlane-xyz/starknet-sdk@27.2.4
+  - @hyperlane-xyz/provider-sdk@4.2.4
+
+## 4.2.3
+
+### Patch Changes
+
+- 37255ba: Starknet AltVM follow-up behavior was fixed across the CLI toolchain. Warp apply/update paths now preserve existing Starknet hook and ISM settings when config leaves them unset or uses empty addresses, zero-address hook and ISM references are normalized as unset during provider artifact conversion, and core mailbox bootstrap only passes through existing hook addresses for Starknet while other AltVMs keep zero-address placeholders.
+- Updated dependencies [516c829]
+- Updated dependencies [37255ba]
+- Updated dependencies [2a9b135]
+- Updated dependencies [7646819]
+  - @hyperlane-xyz/starknet-sdk@27.2.3
+  - @hyperlane-xyz/provider-sdk@4.2.3
+  - @hyperlane-xyz/sealevel-sdk@30.0.0
+  - @hyperlane-xyz/utils@30.0.0
+  - @hyperlane-xyz/tron-sdk@22.1.7
+  - @hyperlane-xyz/aleo-sdk@30.0.0
+  - @hyperlane-xyz/cosmos-sdk@30.0.0
+  - @hyperlane-xyz/radix-sdk@30.0.0
+
 ## 4.2.2
 
 ### Patch Changes

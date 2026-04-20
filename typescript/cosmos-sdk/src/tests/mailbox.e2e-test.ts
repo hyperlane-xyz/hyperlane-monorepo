@@ -2,6 +2,7 @@ import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { type ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   type ArtifactDeployed,
   ArtifactState,
@@ -29,7 +30,7 @@ chai.use(chaiAsPromised);
 describe('Cosmos Mailbox Artifact API (e2e)', function () {
   this.timeout(100_000);
 
-  let signer: AltVM.ISigner<AnnotatedTx, TxReceipt>;
+  let signer: ISigner<AnnotatedTx, TxReceipt>;
   let cosmosSigner: CosmosNativeSigner;
   let mailboxArtifactManager: CosmosMailboxArtifactManager;
   let ismArtifactManager: CosmosIsmArtifactManager;
@@ -38,8 +39,8 @@ describe('Cosmos Mailbox Artifact API (e2e)', function () {
   const denom = 'uhyp';
 
   before(async () => {
-    signer = await createSigner('alice');
-    cosmosSigner = signer as CosmosNativeSigner;
+    cosmosSigner = await createSigner('alice');
+    signer = cosmosSigner;
 
     const [rpc, ...otherRpcUrls] = cosmosSigner.getRpcUrls();
     assert(rpc, 'At least one rpc is required');

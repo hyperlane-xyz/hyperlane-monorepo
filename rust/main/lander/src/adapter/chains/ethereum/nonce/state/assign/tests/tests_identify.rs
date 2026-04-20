@@ -16,16 +16,56 @@ fn create_dummy_tx(uuid: TransactionUuid, status: TransactionStatus) -> Transact
 }
 
 #[tokio::test]
-async fn test_identify_next_nonce_no_finalized_nonce() {
+async fn test_identify_next_nonce_no_finalized_nonce_starts_at_zero() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
     let metrics = EthereumAdapterMetrics::dummy_instance();
     let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
 
-    // If finalized_nonce is None, should return upper_nonce
+    // If finalized_nonce is None, nonce assignment should scan from 0.
     let upper_nonce = U256::from(5);
     let result = state.identify_next_nonce(None, upper_nonce).await.unwrap();
-    assert_eq!(result, upper_nonce);
+    assert_eq!(result, U256::zero());
+}
+
+#[tokio::test]
+async fn test_identify_next_nonce_no_finalized_nonce_reuses_first_available_nonce() {
+    let (_, tx_db, nonce_db) = tmp_dbs();
+    let address = Address::random();
+    let metrics = EthereumAdapterMetrics::dummy_instance();
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
+
+    let uuid0 = TransactionUuid::random();
+    let uuid1 = TransactionUuid::random();
+    let uuid2 = TransactionUuid::random();
+
+    state
+        .set_tracked_tx_uuid(&U256::zero(), &uuid0)
+        .await
+        .unwrap();
+    let tx0 = create_dummy_tx(uuid0, TransactionStatus::PendingInclusion);
+    state.tx_db.store_transaction_by_uuid(&tx0).await.unwrap();
+
+    state
+        .set_tracked_tx_uuid(&U256::from(1), &uuid1)
+        .await
+        .unwrap();
+    let tx1 = create_dummy_tx(
+        uuid1,
+        TransactionStatus::Dropped(DropReason::DroppedByChain),
+    );
+    state.tx_db.store_transaction_by_uuid(&tx1).await.unwrap();
+
+    state
+        .set_tracked_tx_uuid(&U256::from(2), &uuid2)
+        .await
+        .unwrap();
+    let tx2 = create_dummy_tx(uuid2, TransactionStatus::PendingInclusion);
+    state.tx_db.store_transaction_by_uuid(&tx2).await.unwrap();
+
+    let upper_nonce = U256::from(4);
+    let result = state.identify_next_nonce(None, upper_nonce).await.unwrap();
+    assert_eq!(result, U256::from(1));
 }
 
 #[tokio::test]

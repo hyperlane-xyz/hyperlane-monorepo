@@ -11,13 +11,16 @@ import type {
   RawWarpArtifactConfigs,
   WarpType,
 } from '@hyperlane-xyz/provider-sdk/warp';
-
 import type { SvmSigner } from '../clients/signer.js';
 import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
 import {
   SvmCollateralTokenReader,
   SvmCollateralTokenWriter,
 } from './collateral-token.js';
+import {
+  SvmCrossCollateralTokenReader,
+  SvmCrossCollateralTokenWriter,
+} from './cross-collateral-token.js';
 import { SvmNativeTokenReader, SvmNativeTokenWriter } from './native-token.js';
 import {
   SvmSyntheticTokenReader,
@@ -53,9 +56,7 @@ export class SvmWarpArtifactManager implements IRawWarpArtifactManager {
       native: () => new SvmNativeTokenReader(this.rpc),
       synthetic: () => new SvmSyntheticTokenReader(this.rpc),
       collateral: () => new SvmCollateralTokenReader(this.rpc),
-      crossCollateral: () => {
-        throw new Error('Cross-collateral tokens are not yet supported on SVM');
-      },
+      crossCollateral: () => new SvmCrossCollateralTokenReader(this.rpc),
     };
 
     return readers[type]();
@@ -102,9 +103,17 @@ export class SvmWarpArtifactManager implements IRawWarpArtifactManager {
           this.rpc,
           signer,
         ),
-      crossCollateral: () => {
-        throw new Error('Cross-collateral tokens are not yet supported on SVM');
-      },
+      crossCollateral: () =>
+        new SvmCrossCollateralTokenWriter(
+          {
+            program: {
+              programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenCrossCollateral,
+            },
+            ataPayerFundingAmount: this.ataPayerFundingAmount,
+          },
+          this.rpc,
+          signer,
+        ),
     };
 
     return writers[type]();

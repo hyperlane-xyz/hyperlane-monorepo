@@ -32,11 +32,20 @@ contract LinearFee is BaseFee {
     function _quoteTransfer(
         uint256 amount
     ) internal view override returns (uint256 fee) {
-        uint256 uncapped = (amount * maxFee) / (2 * halfAmount);
-        return uncapped > maxFee ? maxFee : uncapped;
+        return _computeLinearFee(maxFee, halfAmount, amount);
     }
 
-    function feeType() external pure override returns (FeeType) {
+    function _computeLinearFee(
+        uint256 maxFee_,
+        uint256 halfAmount_,
+        uint256 amount
+    ) internal pure returns (uint256) {
+        if (maxFee_ == 0 || halfAmount_ == 0) return 0;
+        uint256 uncapped = (amount * maxFee_) / (2 * halfAmount_);
+        return uncapped > maxFee_ ? maxFee_ : uncapped;
+    }
+
+    function feeType() external pure virtual override returns (FeeType) {
         return FeeType.LINEAR;
     }
 }

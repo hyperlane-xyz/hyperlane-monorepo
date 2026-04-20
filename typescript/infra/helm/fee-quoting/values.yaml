@@ -1,0 +1,15 @@
+image:
+  repository: ghcr.io/hyperlane-xyz/hyperlane-fee-quoting
+  tag: latest
+
+hyperlane:
+  runEnv: mainnet3
+
+port: 8080
+prometheus_port: 9090
+
+env:
+  - name: PORT
+    value: '8080'
+  - name: QUOTE_MODE
+    value: 'transient'

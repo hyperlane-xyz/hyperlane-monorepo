@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import { Signer } from 'ethers';
 import hre from 'hardhat';
 
+import { CONTRACTS_PACKAGE_VERSION } from '@hyperlane-xyz/core';
 import {
   Address,
   WithAddress,
@@ -89,7 +90,7 @@ describe('EvmHookModule', async () => {
     );
 
     // mailbox and proxy admin for the core deploy
-    const { mailbox, proxyAdmin, validatorAnnounce } = (
+    const { mailbox, proxyAdmin, validatorAnnounce, quotedCalls } = (
       await testCoreDeployer.deployApp()
     ).getContracts(chain);
 
@@ -97,6 +98,7 @@ describe('EvmHookModule', async () => {
       mailbox: mailbox.address,
       proxyAdmin: proxyAdmin.address,
       validatorAnnounce: validatorAnnounce.address,
+      quotedCalls: quotedCalls.address,
     };
 
     // reusable for routing/fallback routing specific tests
@@ -665,6 +667,95 @@ describe('EvmHookModule', async () => {
 
       // expect 1 tx to update the oracle config
       await expectTxsAndUpdate(hook, config, 1);
+    });
+
+    it('should add quote signers to IGP', async () => {
+      const config = await createDeployerOwnedIgpHookConfig();
+      config.contractVersion = CONTRACTS_PACKAGE_VERSION;
+
+      // create a new hook
+      const { hook } = await createHook(config);
+
+      // add quote signers (contractVersion needed to confirm IGP supports them)
+      config.quoteSigners = [randomAddress(), randomAddress()];
+
+      // expect 2 txs to add quote signers
+      await expectTxsAndUpdate(hook, config, 2);
+    });
+
+    it('should remove quote signers from IGP', async () => {
+      const signerA = randomAddress();
+      const signerB = randomAddress();
+      const config = await createDeployerOwnedIgpHookConfig();
+      config.quoteSigners = [signerA, signerB];
+
+      // create a new hook with signers
+      const { hook } = await createHook(config);
+
+      // remove one signer
+      config.quoteSigners = [signerA];
+
+      // expect 1 tx to remove a signer
+      await expectTxsAndUpdate(hook, config, 1);
+    });
+
+    it('should deploy IGP with quote signers and read them back', async () => {
+      const signerA = randomAddress();
+      const signerB = randomAddress();
+      const config = await createDeployerOwnedIgpHookConfig();
+      config.quoteSigners = [signerA, signerB];
+
+      const { hook } = await createHook(config);
+      const readConfig = normalizeConfig(await hook.read());
+
+      expect(readConfig.quoteSigners).to.have.lengthOf(2);
+      expect(readConfig.quoteSigners).to.include(signerA.toLowerCase());
+      expect(readConfig.quoteSigners).to.include(signerB.toLowerCase());
+    });
+
+    it('should not update IGP if quote signers unchanged', async () => {
+      const signerAddr = randomAddress();
+      const config = await createDeployerOwnedIgpHookConfig();
+      config.quoteSigners = [signerAddr];
+
+      const { hook } = await createHook(config);
+
+      // same config, no updates
+      await expectTxsAndUpdate(hook, config, 0);
+    });
+
+    it('should not remove existing quote signers when target omits the field', async () => {
+      const config = await createDeployerOwnedIgpHookConfig();
+      config.contractVersion = CONTRACTS_PACKAGE_VERSION;
+      config.quoteSigners = [randomAddress()];
+
+      const { hook } = await createHook(config);
+
+      // omit quoteSigners from target — should not generate remove txs
+      delete config.quoteSigners;
+
+      // expect 0 txs since omitting quoteSigners means "don't change"
+      await expectTxsAndUpdate(hook, config, 0);
+    });
+
+    it('should not upgrade IGP when contractVersion is not in config', async () => {
+      const config = await createDeployerOwnedIgpHookConfig();
+      const { hook, initialHookAddress } = await createHook(config);
+
+      // no contractVersion in config, should produce no upgrade txs
+      await expectTxsAndUpdate(hook, config, 0);
+      expect(hook.serialize().deployedHook).to.equal(initialHookAddress);
+    });
+
+    it('should not upgrade IGP when contractVersion matches', async () => {
+      const config = await createDeployerOwnedIgpHookConfig();
+      config.contractVersion = CONTRACTS_PACKAGE_VERSION;
+
+      const { hook, initialHookAddress } = await createHook(config);
+
+      // version matches, no upgrade needed
+      await expectTxsAndUpdate(hook, config, 0);
+      expect(hook.serialize().deployedHook).to.equal(initialHookAddress);
     });
 
     it('should update protocol fee in protocol fee hook', async () => {

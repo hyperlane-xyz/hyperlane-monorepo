@@ -4,9 +4,9 @@ import {
   ChainName,
   EthersV5Transaction,
   EvmRouterAdapter,
-  MultiProtocolProvider,
   ProviderType,
 } from '@hyperlane-xyz/sdk';
+import type { MultiProviderAdapter } from '@hyperlane-xyz/sdk/providers/MultiProviderAdapter';
 import { Address, addBufferToGasLimit } from '@hyperlane-xyz/utils';
 
 import { HelloWorld, HelloWorld__factory } from '../types/index.js';
@@ -19,7 +19,7 @@ export class EvmHelloWorldAdapter
 {
   constructor(
     public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider,
+    public readonly multiProvider: MultiProviderAdapter,
     public readonly addresses: { router: Address; mailbox: Address },
   ) {
     super(chainName, multiProvider, addresses);

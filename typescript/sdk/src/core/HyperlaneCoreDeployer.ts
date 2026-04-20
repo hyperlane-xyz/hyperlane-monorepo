@@ -2,6 +2,7 @@ import {
   IPostDispatchHook,
   IPostDispatchHook__factory,
   Mailbox,
+  QuotedCalls,
   TestRecipient,
   ValidatorAnnounce,
 } from '@hyperlane-xyz/core';
@@ -25,7 +26,12 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';
 
 import { TestRecipientDeployer } from './TestRecipientDeployer.js';
-import { CoreAddresses, CoreFactories, coreFactories } from './contracts.js';
+import {
+  CoreAddresses,
+  CoreFactories,
+  PERMIT2_ADDRESS,
+  coreFactories,
+} from './contracts.js';
 import { CoreConfig } from './types.js';
 
 export class HyperlaneCoreDeployer extends HyperlaneDeployer<
@@ -226,6 +232,10 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
         config.type !== HookType.UNKNOWN,
         `Cannot deploy unknown hook type`,
       );
+      assert(
+        config.type !== HookType.PREDICATE,
+        'Predicate hooks cannot be deployed via HyperlaneCoreDeployer, they must be pre-deployed',
+      );
       const hookType = config.type as DeployableHookType;
       return hooks[hookType];
     }
@@ -243,6 +253,15 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     });
     this.addDeployedContracts(chain, this.ismFactory.deployedIsms[chain]);
     return ism.address;
+  }
+
+  async deployQuotedCalls(
+    chain: ChainName,
+    permit2?: Address,
+  ): Promise<QuotedCalls> {
+    return this.deployContract(chain, 'quotedCalls', [
+      permit2 ?? PERMIT2_ADDRESS,
+    ]);
   }
 
   async deployTestRecipient(
@@ -274,6 +293,8 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       mailbox.address,
     );
 
+    const quotedCalls = await this.deployQuotedCalls(chain, config.permit2);
+
     if (config.upgrade) {
       const timelockController = await this.deployTimelock(
         chain,
@@ -290,15 +311,18 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       this.cachedAddresses[chain].interchainSecurityModule,
     );
 
-    const contracts = {
+    const ownableContracts = {
       mailbox,
       proxyAdmin,
       validatorAnnounce,
       testRecipient,
     };
 
-    await this.transferOwnershipOfContracts(chain, config, contracts);
+    await this.transferOwnershipOfContracts(chain, config, ownableContracts);
 
-    return contracts;
+    return {
+      ...ownableContracts,
+      quotedCalls,
+    };
   }
 }

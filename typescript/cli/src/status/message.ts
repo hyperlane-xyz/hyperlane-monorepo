@@ -152,7 +152,16 @@ export async function checkMessageStatus({
         const merkleAddress = coreAddresses[origin].merkleTreeHook;
         stubMerkleTreeConfig(relayer, origin, hookAddress, merkleAddress);
       }
-      await relayer.relayAll(dispatchedReceipt, relayable);
+      // relayAll returns a receipt per message: either from the relay tx or,
+      // if the message was already delivered, from getProcessedReceipt.
+      const results = await relayer.relayAll(dispatchedReceipt, relayable);
+      const delivered = Object.values(results).flat().length;
+      const failed = relayable.length - delivered;
+      if (failed > 0) {
+        logRed(`Failed to relay ${failed}/${relayable.length} messages`);
+        process.exit(1);
+      }
+      logGreen(`Relayed ${delivered} message(s)`);
     } else if (undelivered.length > 0) {
       warnYellow(
         'No messages could be relayed - missing signers for all destination chains',

@@ -11,7 +11,7 @@ import {
 import { Address, ProtocolType, rootLogger, sleep } from '@hyperlane-xyz/utils';
 
 import { SEALEVEL_PRIORITY_FEES } from '../../consts/sealevel.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
 import { SendTransactionOptions } from '../../providers/MultiProvider.js';
 import { SolanaWeb3Transaction } from '../../providers/ProviderType.js';
 import { ChainName } from '../../types.js';
@@ -74,7 +74,7 @@ export class SvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
   constructor(
     private readonly chainName: ChainName,
     signer: SvmTransactionSigner,
-    multiProtocolProvider: MultiProtocolProvider,
+    multiProtocolProvider: MultiProviderAdapter,
     config?: SvmSignerConfig,
   ) {
     this.signer = signer;
@@ -166,6 +166,10 @@ export class SvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
       await this.svmProvider.getLatestBlockhash(this.config.commitment);
 
     transaction.recentBlockhash = blockhash;
+
+    if (!transaction.feePayer) {
+      transaction.feePayer = this.signer.publicKey;
+    }
 
     // Sign with extra signers first (e.g., randomWallet for Sealevel transferRemote).
     // Uses partialSign to avoid clearing any existing signatures.

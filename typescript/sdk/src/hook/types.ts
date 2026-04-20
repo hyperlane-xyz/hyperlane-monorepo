@@ -28,9 +28,17 @@ export enum OnchainHookType {
   OP_L2_TO_L1,
   MAILBOX_DEFAULT_HOOK,
   AMOUNT_ROUTING,
+  CCTP,
+  TIMELOCK_ROUTING,
+  PREDICATE_ROUTER_WRAPPER,
 }
 
 export const HookType = {
+  /**
+   * Retained for backwards compatibility with pre-deployed hooks that don't fit
+   * a named type. Excluded from `DeployableHookType` — cannot be deployed via
+   * `HyperlaneHookDeployer`. New code should use a specific named hook type.
+   */
   CUSTOM: 'custom',
   MERKLE_TREE: 'merkleTreeHook',
   INTERCHAIN_GAS_PAYMASTER: 'interchainGasPaymaster',
@@ -45,13 +53,14 @@ export const HookType = {
   MAILBOX_DEFAULT: 'defaultHook',
   CCIP: 'ccipHook',
   UNKNOWN: 'unknownHook',
+  PREDICATE: 'predicateHook',
 } as const;
 
 export type HookType = (typeof HookType)[keyof typeof HookType];
 
 export type DeployableHookType = Exclude<
   HookType,
-  typeof HookType.CUSTOM | typeof HookType.UNKNOWN
+  typeof HookType.CUSTOM | typeof HookType.PREDICATE | typeof HookType.UNKNOWN
 >;
 
 export const HookTypeToContractNameMap: Record<DeployableHookType, string> = {
@@ -124,6 +133,12 @@ export const MerkleTreeSchema = z.object({
   type: z.literal(HookType.MERKLE_TREE),
 });
 
+export const PredicateHookSchema = z.object({
+  type: z.literal(HookType.PREDICATE),
+  address: z.string(),
+});
+export type PredicateHookConfig = z.infer<typeof PredicateHookSchema>;
+
 export const PausableHookSchema = PausableSchema.extend({
   type: z.literal(HookType.PAUSABLE),
 });
@@ -161,6 +176,8 @@ export const IgpSchema = OwnableSchema.extend({
   oracleKey: z.string(),
   overhead: z.record(z.number()),
   oracleConfig: z.record(ProtocolAgnositicGasOracleConfigWithTypicalCostSchema),
+  quoteSigners: z.array(z.string()).optional(),
+  contractVersion: z.string().optional(),
 });
 
 export const DomainRoutingHookConfigSchema: z.ZodSchema<DomainRoutingHookConfig> =
@@ -266,6 +283,7 @@ export const HookConfigSchema = z.union([
   MailboxDefaultHookSchema,
   CCIPHookSchema,
   UnknownHookSchema,
+  PredicateHookSchema,
 ]);
 
 /**

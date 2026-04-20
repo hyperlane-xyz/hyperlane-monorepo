@@ -1,4 +1,5 @@
 typescript/sdk/src/cw-types/*.types.ts linguist-generated=true
+typescript/svm-sdk/src/hyperlane/program-bytes.ts linguist-generated=true binary
 rust/main/chains/hyperlane-ethereum/abis/*.abi.json linguist-generated=true
 solidity/contracts/interfaces/avs/*.sol linguist-vendored=true
 solidity/contracts/avs/ECDSA*.sol linguist-vendored=true

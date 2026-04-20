@@ -359,7 +359,7 @@ export async function getTokenSetDestinationGasConfigsInstruction(
   );
 }
 
-function encodeTokenInit(value: TokenInitInstructionData): Uint8Array {
+export function encodeTokenInit(value: TokenInitInstructionData): Uint8Array {
   const normalized: TokenInitCodecValue = {
     mailbox: value.mailbox,
     interchainSecurityModule: value.interchainSecurityModule,

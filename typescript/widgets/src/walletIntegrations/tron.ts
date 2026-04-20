@@ -1,88 +1,36 @@
 import { useWallet } from '@tronweb3/tronwallet-adapter-react-hooks';
-import { TronLinkAdapterName } from '@tronweb3/tronwallet-adapters';
-import { useCallback, useMemo } from 'react';
+import { useCallback } from 'react';
 
 import {
-  ChainName,
-  IToken,
-  MultiProtocolProvider,
   ProviderType,
-  TypedTransactionReceipt,
-  WarpTypedTransaction,
-} from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+  type TypedTransactionReceipt,
+} from '@hyperlane-xyz/sdk/providers/ProviderType';
+import type { MultiProviderAdapter } from '@hyperlane-xyz/sdk/providers/MultiProviderAdapter';
+import type { ITokenMetadata } from '@hyperlane-xyz/sdk/token/ITokenMetadata';
+import type { ChainName } from '@hyperlane-xyz/sdk/types';
+import type { WarpTypedTransaction } from '@hyperlane-xyz/sdk/warp/types';
 
 import {
   TronJsonRpcProvider,
   TronTransactionBuilder,
   TronTransactionResponse,
-} from '@hyperlane-xyz/tron-sdk';
+} from '@hyperlane-xyz/tron-sdk/runtime';
 
 import {
-  AccountInfo,
-  ActiveChainInfo,
-  ChainAddress,
   ChainTransactionFns,
   SwitchNetworkFns,
-  WalletDetails,
   WatchAssetFns,
 } from './types.js';
-
-export function useTronAccount(
-  _multiProvider: MultiProtocolProvider,
-): AccountInfo {
-  const { address, connected } = useWallet();
-
-  return useMemo<AccountInfo>(() => {
-    const addresses: Array<ChainAddress> = [];
-    if (address) {
-      addresses.push({ address });
-    }
-
-    return {
-      protocol: ProtocolType.Tron,
-      addresses,
-      publicKey: undefined,
-      isReady: connected && !!address,
-    };
-  }, [address, connected]);
-}
-
-export function useTronWalletDetails() {
-  const { wallet } = useWallet();
-  const { icon, name } = wallet?.adapter || {};
-
-  return useMemo<WalletDetails>(
-    () => ({
-      name: name,
-      logoUrl: icon,
-    }),
-    [name, icon],
-  );
-}
-
-export function useTronConnectFn(): () => void {
-  const { connect, select } = useWallet();
-  return async () => {
-    select(TronLinkAdapterName);
-    await connect();
-  };
-}
-
-export function useTronDisconnectFn(): () => Promise<void> {
-  const { disconnect } = useWallet();
-  return disconnect;
-}
-
-export function useTronActiveChain(
-  _multiProvider: MultiProtocolProvider,
-): ActiveChainInfo {
-  // Tron doesn't has the concept of an active chain
-  return useMemo(() => ({}) as ActiveChainInfo, []);
-}
+export {
+  useTronAccount,
+  useTronActiveChain,
+  useTronConnectFn,
+  useTronDisconnectFn,
+  useTronWalletDetails,
+} from './tronWallet.js';
 
 export function useTronSwitchNetwork(
-  _multiProvider: MultiProtocolProvider,
+  _multiProvider: MultiProviderAdapter,
 ): SwitchNetworkFns {
   const onSwitchNetwork = useCallback(async (chainName: ChainName) => {
     // Most Tron wallets (like TronLink) don't support programmatic
@@ -96,10 +44,10 @@ export function useTronSwitchNetwork(
 }
 
 export function useTronWatchAsset(
-  _multiProvider: MultiProtocolProvider,
+  _multiProvider: MultiProviderAdapter,
 ): WatchAssetFns {
   const onAddAsset = useCallback(
-    async (_token: IToken, _activeChainName: ChainName) => {
+    async (_token: ITokenMetadata, _activeChainName: ChainName) => {
       throw new Error('Watch asset not available for Tron');
     },
     [],
@@ -112,7 +60,7 @@ export function useTronWatchAsset(
  * Core Transaction Functionality for Tron.
  */
 export function useTronTransactionFns(
-  multiProvider: MultiProtocolProvider,
+  multiProvider: MultiProviderAdapter,
 ): ChainTransactionFns {
   const { address, signTransaction, connected } = useWallet();
   const { switchNetwork } = useTronSwitchNetwork(multiProvider);

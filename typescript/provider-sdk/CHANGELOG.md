@@ -1,5 +1,92 @@
 # @hyperlane-xyz/provider-sdk
 
+## 5.0.2
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@33.0.0
+
+## 5.0.1
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@32.0.1
+
+## 5.0.0
+
+### Major Changes
+
+- 3dc6367: Core query methods (getIsmType, getRoutingIsm, getHookType, etc.) were removed from the IProvider interface and extracted into standalone query functions in each SDK. isMessageDelivered was kept on the interface to enforce all providers implement it.
+
+  Starknet get\*Transaction methods were extracted into standalone tx builder functions (mailbox-tx.ts, ism-tx.ts, hook-tx.ts, warp-tx.ts) with their own parameter types, removing the dependency on provider-sdk Req/Res types.
+
+  Tron and Aleo providers and signers had all get\*Transaction and action methods removed. Old e2e tests replaced with artifact API equivalents.
+
+  76 Req/Res types were removed from provider-sdk altvm.ts, reducing it from 587 to 243 lines.
+
+- fa08f2a: IProvider and ISigner interfaces were slimmed to their minimal surface. IProvider was reduced from 53 to 22 query-only methods by removing all get\*Transaction methods. ISigner was reduced from 36 to 5 infrastructure methods by removing all action methods (createMailbox, setDefaultIsm, enrollRemoteRouter, etc.). Transaction building is now handled exclusively by artifact managers using concrete class methods or standalone helper functions.
+
+  Throwing stubs were removed from SVM, Cosmos, Radix, and Starknet provider/signer implementations. Old action-method-based e2e tests were replaced with artifact API equivalents. Cosmos routing ISM writer was fixed to handle domain route updates correctly via remove + re-add.
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@32.0.0
+
+## 4.3.4
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@31.2.1
+
+## 4.3.3
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@31.2.0
+
+## 4.3.2
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@31.1.0
+
+## 4.3.1
+
+### Patch Changes
+
+- Updated dependencies [d5168fc]
+  - @hyperlane-xyz/utils@31.0.1
+
+## 4.3.0
+
+### Minor Changes
+
+- 44626fb: Enabled SVM cross-collateral token deployments in the CLI. Added `crossCollateral` to supported Alt-VM token types, allowing `warp deploy`, `warp combine`, and `warp apply` to work with SVM CC routes. Extracted `computeCrossCollateralRouterUpdates` into provider-sdk for cross-protocol reuse. Fixed CC-only gas preservation for domains transitioning from remote routers.
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@31.0.0
+
+## 4.2.5
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@30.1.1
+
+## 4.2.4
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@30.1.0
+
+## 4.2.3
+
+### Patch Changes
+
+- 37255ba: Starknet AltVM follow-up behavior was fixed across the CLI toolchain. Warp apply/update paths now preserve existing Starknet hook and ISM settings when config leaves them unset or uses empty addresses, zero-address hook and ISM references are normalized as unset during provider artifact conversion, and core mailbox bootstrap only passes through existing hook addresses for Starknet while other AltVMs keep zero-address placeholders.
+- Updated dependencies [7646819]
+  - @hyperlane-xyz/utils@30.0.0
+
 ## 4.2.2
 
 ### Patch Changes

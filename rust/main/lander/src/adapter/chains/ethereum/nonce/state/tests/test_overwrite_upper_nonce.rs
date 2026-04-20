@@ -155,6 +155,29 @@ async fn test_lower_than_current_finalized_nonce() {
 }
 
 #[tokio::test]
+async fn test_equal_to_current_finalized_nonce() {
+    let (_, tx_db, nonce_db) = tmp_dbs();
+    let signer = Address::random();
+    let state = mock_nonce_manager_state(tx_db.clone(), nonce_db, signer);
+
+    state.set_upper_nonce(&U256::from(150)).await.unwrap();
+    state.set_finalized_nonce(&U256::from(100)).await.unwrap();
+
+    assert!(state.overwrite_upper_nonce(Some(100)).await.is_err());
+
+    let db_upper_nonce = state
+        .get_upper_nonce()
+        .await
+        .expect("Failed to retrieve upper nonce");
+    assert_eq!(db_upper_nonce, U256::from(150));
+    let db_finalized_nonce = state
+        .get_finalized_nonce()
+        .await
+        .expect("Failed to retrieve finalized nonce");
+    assert_eq!(db_finalized_nonce, Some(U256::from(100)));
+}
+
+#[tokio::test]
 async fn test_set_to_finalized() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let signer = Address::random();
@@ -236,6 +259,48 @@ async fn test_missing_finalized_nonce_when_none_provided() {
         .await
         .expect("Failed to retrieve upper nonce");
     assert_eq!(db_upper_nonce, U256::from(120));
+}
+
+#[tokio::test]
+async fn test_missing_finalized_nonce_with_none_resets_to_zero() {
+    let (_, tx_db, nonce_db) = tmp_dbs();
+    let signer = Address::random();
+    let state = mock_nonce_manager_state(tx_db.clone(), nonce_db, signer);
+
+    state.set_upper_nonce(&U256::from(3)).await.unwrap();
+
+    let transactions = [
+        (TransactionUuid::random(), U256::zero()),
+        (TransactionUuid::random(), U256::from(1)),
+        (TransactionUuid::random(), U256::from(2)),
+    ];
+    for (tx_uuid, tx_nonce) in transactions.iter() {
+        state
+            .set_tracked_tx_uuid(tx_nonce, tx_uuid)
+            .await
+            .expect("Failed to store nonce and transaction uuid");
+    }
+
+    assert!(state.overwrite_upper_nonce(None).await.is_ok());
+
+    let db_upper_nonce = state
+        .get_upper_nonce()
+        .await
+        .expect("Failed to retrieve upper nonce");
+    assert_eq!(db_upper_nonce, U256::zero());
+
+    for (tx_uuid, tx_nonce) in transactions.iter() {
+        let db_tx_uuid = state
+            .get_tracked_tx_uuid(tx_nonce)
+            .await
+            .expect("Failed to get tracked tx uuid");
+        assert_eq!(db_tx_uuid, TransactionUuid::default());
+        let db_tx_nonce = state
+            .get_tx_nonce(tx_uuid)
+            .await
+            .expect("Failed to get tx nonce");
+        assert_eq!(db_tx_nonce, Some(U256::MAX));
+    }
 }
 
 #[tokio::test]

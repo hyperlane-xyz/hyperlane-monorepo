@@ -165,6 +165,18 @@ function getRoleKeyMapPerChain(
     }
   };
 
+  const setQuoteSignerKeys = () => {
+    const quoteSignerKey = getQuoteSignerKey(agentConfig);
+    for (const chainName of agentConfig.contextChainNames.relayer) {
+      keysPerChain[chainName] = {
+        ...keysPerChain[chainName],
+        [Role.QuoteSigner]: {
+          [quoteSignerKey.identifier]: quoteSignerKey,
+        },
+      };
+    }
+  };
+
   for (const role of agentConfig.rolesWithKeys) {
     switch (role) {
       case Role.Validator:
@@ -181,6 +193,9 @@ function getRoleKeyMapPerChain(
         break;
       case Role.InventoryRebalancer:
         setInventoryRebalancerKeys();
+        break;
+      case Role.QuoteSigner:
+        setQuoteSignerKeys();
         break;
       default:
         throw Error(`Unsupported role with keys ${role}`);
@@ -248,6 +263,8 @@ export function getCloudAgentKey(
       return getRebalancerKey(agentConfig);
     case Role.InventoryRebalancer:
       return getInventoryRebalancerKey(agentConfig);
+    case Role.QuoteSigner:
+      return getQuoteSignerKey(agentConfig);
     default:
       throw Error(`Unsupported role ${role}`);
   }
@@ -315,6 +332,17 @@ export function getInventoryRebalancerKey(
     agentConfig.runEnv,
     Contexts.Hyperlane,
     Role.InventoryRebalancer,
+  );
+}
+
+export function getQuoteSignerKey(
+  agentConfig: AgentContextConfig,
+): CloudAgentKey {
+  logger.debug('Retrieving quote signer key');
+  return new AgentGCPKey(
+    agentConfig.runEnv,
+    Contexts.Hyperlane,
+    Role.QuoteSigner,
   );
 }
 

@@ -16,18 +16,28 @@ impl NonceManagerState {
     ) -> Result<U256, LanderError> {
         debug!(?desired_nonce, "Overwriting to new upper nonce");
 
-        // default to 0 finalized nonce if we don't have anything set
-        let current_finalized_nonce = self.get_finalized_nonce().await?.unwrap_or_default();
+        let current_finalized_nonce = self.get_finalized_nonce().await?;
 
         // The new desired upper nonce we want to set
         let desired_upper_nonce = match desired_nonce {
             Some(s) => U256::from(s),
             None => {
-                debug!(
-                    finalized_nonce = current_finalized_nonce.as_u64(),
-                    "No upper nonce provided, using finalized nonce"
-                );
-                current_finalized_nonce.saturating_add(U256::one())
+                // When no finalized nonce exists (fresh account with 0 txs),
+                // reset upper nonce to 0 so the first tx uses nonce 0.
+                // Otherwise, reset to finalized + 1.
+                match current_finalized_nonce {
+                    Some(finalized) => {
+                        debug!(
+                            finalized_nonce = finalized.as_u64(),
+                            "No upper nonce provided, using finalized nonce + 1"
+                        );
+                        finalized.saturating_add(U256::one())
+                    }
+                    None => {
+                        debug!("No upper nonce provided and no finalized nonce, resetting to 0");
+                        U256::zero()
+                    }
+                }
             }
         };
 
@@ -41,13 +51,15 @@ impl NonceManagerState {
             ));
             return Err(err);
         }
-        if desired_upper_nonce <= current_finalized_nonce {
-            let err = LanderError::EyreError(eyre::eyre!(
-                "desired_upper_nonce ({}) lower than current_finalized_nonce ({})",
-                desired_upper_nonce.as_u64(),
-                current_finalized_nonce.as_u64(),
-            ));
-            return Err(err);
+        if let Some(finalized_nonce) = current_finalized_nonce {
+            if desired_upper_nonce <= finalized_nonce {
+                let err = LanderError::EyreError(eyre::eyre!(
+                    "desired_upper_nonce ({}) lower than or equal to current_finalized_nonce ({})",
+                    desired_upper_nonce.as_u64(),
+                    finalized_nonce.as_u64(),
+                ));
+                return Err(err);
+            }
         }
 
         // set upper nonce in the db

@@ -54,21 +54,21 @@ export const messageTransmitterV2Addresses = {
   plume: '0x81D40F21F12A8F0E3252Bccb954D722d4c464B64',
 } as const;
 
-// https://developers.circle.com/cctp/technical-guide#cctp-v2-fees
-// Note: Contract uses integer bps precision. Values are rounded up from Circle's
-// actual fees (e.g., 1.3 bps -> 2 bps) since fractional bps aren't supported.
+// https://developers.circle.com/cctp/concepts/fees
+// Values in fractional bps matching Circle's published rates.
+// The SDK converts to ppm (bps * 100) for on-chain storage.
 export const FAST_TRANSFER_FEE_BPS: Partial<
   Record<keyof typeof tokenMessengerV2Addresses, number>
 > = {
-  arbitrum: 2,
-  base: 2,
+  arbitrum: 1.3,
+  base: 1.3,
   ethereum: 1,
   ink: 2,
   linea: 11,
-  optimism: 2,
+  optimism: 1.3,
   plume: 2,
-  unichain: 2,
-  worldchain: 1,
+  unichain: 1.5,
+  worldchain: 1.3,
 };
 
 // https://developers.circle.com/cctp/technical-guide#cctp-v2-finality-thresholds

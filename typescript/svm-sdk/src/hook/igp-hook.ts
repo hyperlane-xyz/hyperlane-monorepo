@@ -239,7 +239,7 @@ export class SvmIgpHookWriter
     if (oracleConfigs.length > 0) {
       const setOracleIx = await getSetGasOracleConfigsInstruction(
         programId,
-        this.svmSigner.signer,
+        this.svmSigner.signer.address,
         igpPda,
         oracleConfigs,
       );
@@ -273,7 +273,7 @@ export class SvmIgpHookWriter
 
       const setOverheadIx = await getSetDestinationGasOverheadsInstruction(
         programId,
-        this.svmSigner.signer,
+        this.svmSigner.signer.address,
         overheadIgpPda,
         overheadConfigs,
       );
@@ -310,6 +310,9 @@ export class SvmIgpHookWriter
     if (!currentIgp) {
       throw new Error('IGP account not initialized');
     }
+
+    assert(currentIgp.owner, `IGP ${programId} has no owner`);
+    const ownerAddress = currentIgp.owner;
 
     const { address: igpPda } = await deriveIgpAccountPda(programId, this.salt);
 
@@ -358,12 +361,13 @@ export class SvmIgpHookWriter
     if (oracleConfigsToUpdate.length > 0) {
       const setOracleIx = await getSetGasOracleConfigsInstruction(
         programId,
-        this.svmSigner.signer,
+        ownerAddress,
         igpPda,
         oracleConfigsToUpdate,
       );
 
       txs.push({
+        feePayer: ownerAddress,
         instructions: [setOracleIx],
         annotation: `Update gas oracles for ${oracleConfigsToUpdate.length} domains`,
       });
@@ -404,12 +408,13 @@ export class SvmIgpHookWriter
 
       const setOverheadIx = await getSetDestinationGasOverheadsInstruction(
         programId,
-        this.svmSigner.signer,
+        ownerAddress,
         overheadIgpPda,
         overheadConfigsToUpdate,
       );
 
       txs.push({
+        feePayer: ownerAddress,
         instructions: [setOverheadIx],
         annotation: `Update gas overheads for ${overheadConfigsToUpdate.length} domains`,
       });

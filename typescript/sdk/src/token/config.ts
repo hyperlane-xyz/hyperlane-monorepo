@@ -11,6 +11,7 @@ export const TokenType = {
   collateralUri: 'collateralUri',
   collateralCctp: 'collateralCctp',
   collateralEverclear: 'collateralEverclear',
+  collateralDepositAddress: 'collateralDepositAddress',
   collateralOft: 'collateralOft',
   native: 'native',
   nativeOpL2: 'nativeOpL2',
@@ -47,6 +48,7 @@ const isMovableCollateralTokenTypeMap = {
   [TokenType.syntheticUri]: false,
   [TokenType.ethEverclear]: false,
   [TokenType.collateralEverclear]: false,
+  [TokenType.collateralDepositAddress]: false,
   [TokenType.collateralOft]: false,
   [TokenType.crossCollateral]: true, // CrossCollateralRouter extends HypERC20Collateral
   [TokenType.unknown]: false,
@@ -66,6 +68,8 @@ export function isMovableCollateralTokenType(type: TokenType): boolean {
   return !!isMovableCollateralTokenTypeMap[type];
 }
 
+export const MAX_GAS_OVERHEAD = 68_000;
+
 export const gasOverhead = (tokenType: TokenType): number => {
   switch (tokenType) {
     case TokenType.synthetic:
@@ -74,7 +78,7 @@ export const gasOverhead = (tokenType: TokenType): number => {
     case TokenType.nativeScaled:
       return 44_000;
     default:
-      return 68_000;
+      return MAX_GAS_OVERHEAD;
   }
 };
 

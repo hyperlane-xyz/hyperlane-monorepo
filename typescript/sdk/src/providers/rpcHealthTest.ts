@@ -15,7 +15,7 @@ import {
   SolanaWeb3Provider,
   StarknetJsProvider,
 } from './ProviderType.js';
-import { protocolToDefaultProviderBuilder } from './providerBuilders.js';
+import { protocolToDefaultProviderBuilder } from './defaultProviderBuilderMaps.js';
 
 export async function isRpcHealthy(
   metadata: ChainMetadata,

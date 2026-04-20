@@ -6,16 +6,13 @@ import { RebalancerConfig, RebalancerService } from '@hyperlane-xyz/rebalancer';
 import {
   type RawForkedChainConfigByChain,
   RawForkedChainConfigByChainSchema,
-  expandVirtualWarpDeployConfig,
-  expandWarpDeployConfig,
-  getRouterAddressesFromWarpCoreConfig,
+  checkWarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
 import {
   assert,
   difference,
   intersection,
   isEVMLike,
-  objFilter,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -42,7 +39,7 @@ import {
   logCommandHeader,
   logGreen,
 } from '../logger.js';
-import { getWarpRouteConfigsByCore, runWarpRouteRead } from '../read/warp.js';
+import { runWarpRouteRead } from '../read/warp.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { ExtendedChainSubmissionStrategySchema } from '../submitters/types.js';
 import {
@@ -352,8 +349,13 @@ const send: CommandModuleWithWriteContext<
       recipient?: string;
       chains?: string[];
       skipValidation?: boolean;
+      predicateApiKey?: string;
+      predicateApiUrl?: string;
+      attestation?: string;
       sourceToken?: string;
       destinationToken?: string;
+      feeQuotingUrl?: string;
+      feeQuotingApiKey?: string;
     }
 > = {
   command: 'send',
@@ -381,6 +383,23 @@ const send: CommandModuleWithWriteContext<
       description: 'Skip transfer validation (e.g., collateral checks)',
       default: false,
     },
+    'predicate-api-key': {
+      type: 'string',
+      description: 'Predicate API key for fetching attestations automatically',
+      default: process.env.PREDICATE_API_KEY,
+      conflicts: 'attestation',
+    },
+    'predicate-api-url': {
+      type: 'string',
+      description:
+        'Predicate API base URL (overrides default; useful for testing)',
+      default: process.env.PREDICATE_API_URL,
+      implies: 'predicate-api-key',
+    },
+    attestation: {
+      type: 'string',
+      description: 'Pre-obtained Predicate attestation (JSON string)',
+    },
     'source-token': {
       type: 'string',
       description:
@@ -391,6 +410,16 @@ const send: CommandModuleWithWriteContext<
       description:
         'Destination token router address (for CrossCollateralRouter cross-stablecoin transfers)',
     },
+    'fee-quoting-url': {
+      type: 'string',
+      description: 'Fee quoting service URL for offchain fee quotes',
+      default: process.env.FEE_QUOTING_URL,
+    },
+    'fee-quoting-api-key': {
+      type: 'string',
+      description: 'API key for the fee quoting service',
+      default: process.env.FEE_QUOTING_API_KEY,
+    },
   },
   handler: async ({
     context,
@@ -399,14 +428,21 @@ const send: CommandModuleWithWriteContext<
     timeout,
     quick,
     relay,
+    symbol: _symbol,
+    warp: _warp,
     warpRouteId,
     amount,
     recipient,
     roundTrip,
     chains: chainsArg,
     skipValidation,
+    predicateApiKey,
+    predicateApiUrl,
+    attestation,
     sourceToken,
     destinationToken,
+    feeQuotingUrl,
+    feeQuotingApiKey,
   }) => {
     const filterChains = [origin, destination, ...(chainsArg || [])]
       .filter((v): v is string => Boolean(v))
@@ -484,8 +520,13 @@ const send: CommandModuleWithWriteContext<
       skipWaitForDelivery: quick,
       selfRelay: relay,
       skipValidation,
+      predicateApiKey,
+      predicateApiUrl,
+      attestation,
       sourceToken,
       destinationToken,
+      feeQuotingUrl,
+      feeQuotingApiKey,
     });
     logGreen(
       `✅ Successfully sent messages for chains: ${chains.join(' ➡️ ')}`,
@@ -568,44 +609,14 @@ export const check: CommandModuleWithContext<
       warpCoreConfig,
     ));
 
-    const deployedRoutersAddresses =
-      getRouterAddressesFromWarpCoreConfig(warpCoreConfig);
-
-    // Remove any non EVM chain configs to avoid the checker crashing
-    warpCoreConfig.tokens = warpCoreConfig.tokens.filter((config) =>
-      isEVMLike(
-        context.multiProvider.getChainMetadata(config.chainName).protocol,
-      ),
-    );
-
-    // Get on-chain config
-    const onChainWarpConfig = await getWarpRouteConfigsByCore({
-      context,
+    const result = await checkWarpRouteDeployConfig({
+      multiProvider: context.multiProvider,
       warpCoreConfig,
-    });
-
-    // get virtual on-chain config
-    const expandedOnChainWarpConfig = await expandVirtualWarpDeployConfig({
-      multiProvider: context.multiProvider,
-      onChainWarpConfig,
-      deployedRoutersAddresses,
-    });
-
-    let expandedWarpDeployConfig = await expandWarpDeployConfig({
-      multiProvider: context.multiProvider,
       warpDeployConfig,
-      deployedRoutersAddresses,
-      expandedOnChainWarpConfig,
     });
-    expandedWarpDeployConfig = objFilter(
-      expandedWarpDeployConfig,
-      (chain, _config): _config is any =>
-        isEVMLike(context.multiProvider.getChainMetadata(chain).protocol),
-    );
 
     await runWarpRouteCheck({
-      onChainWarpConfig: expandedOnChainWarpConfig,
-      warpRouteConfig: expandedWarpDeployConfig,
+      result,
     });
 
     process.exit(0);

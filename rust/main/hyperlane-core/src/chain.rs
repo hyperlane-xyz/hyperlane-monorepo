@@ -260,7 +260,6 @@ pub enum KnownHyperlaneDomain {
     //
     AleoTestnet = 1617853565,
     ArbitrumSepolia = 421614,
-    ArcadiaTestnet2 = 1098411886,
     BaseSepolia = 84532,
     #[cfg_attr(feature = "strum", strum(serialize = "bsctestnet"))]
     BinanceSmartChainTestnet = 97,
@@ -417,7 +416,6 @@ impl KnownHyperlaneDomain {
         match self {
             AleoTestnet
             | ArbitrumSepolia
-            | ArcadiaTestnet2
             | BaseSepolia
             | BinanceSmartChainTestnet
             | CelestiaTestnet

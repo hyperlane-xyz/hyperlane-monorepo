@@ -15,6 +15,7 @@ import {
   WarpRouteDeployConfig,
   isCctpTokenConfig,
   isCollateralTokenConfig,
+  isDepositAddressTokenConfig,
   isEverclearCollateralTokenConfig,
   isEverclearEthBridgeTokenConfig,
   isCrossCollateralTokenConfig,
@@ -26,11 +27,26 @@ import {
 export async function deriveTokenMetadata(
   multiProvider: MultiProvider,
   configMap: WarpRouteDeployConfig,
+  { validateScale = true }: { validateScale?: boolean } = {},
 ): Promise<TokenMetadataMap> {
   const metadataMap = new TokenMetadataMap();
+  const prioritizedTypes = new Set<string>([
+    TokenType.collateral,
+    TokenType.collateralVault,
+    TokenType.collateralVaultRebase,
+    TokenType.collateralCctp,
+    TokenType.collateralDepositAddress,
+    TokenType.collateralEverclear,
+    TokenType.XERC20,
+    TokenType.XERC20Lockbox,
+    TokenType.native,
+  ]);
 
   const priorityGetter = (type: string) => {
-    return ['collateral', 'native'].indexOf(type);
+    if (prioritizedTypes.has(type)) {
+      return 1;
+    }
+    return -1;
   };
 
   const sortedEntries = Object.entries(configMap).sort(
@@ -67,6 +83,7 @@ export async function deriveTokenMetadata(
       isCrossCollateralTokenConfig(config) ||
       isXERC20TokenConfig(config) ||
       isCctpTokenConfig(config) ||
+      isDepositAddressTokenConfig(config) ||
       isEverclearCollateralTokenConfig(config)
     ) {
       const provider = multiProvider.getProvider(chain);
@@ -127,6 +144,6 @@ export async function deriveTokenMetadata(
     }
   }
 
-  metadataMap.finalize();
+  metadataMap.finalize(validateScale);
   return metadataMap;
 }

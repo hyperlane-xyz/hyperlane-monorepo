@@ -5,6 +5,7 @@ import sinon from 'sinon';
 import { zeroAddress } from 'viem';
 
 import {
+  CrossCollateralRouter__factory,
   ERC20Test,
   ERC20Test__factory,
   ERC4626,
@@ -23,14 +24,15 @@ import {
   MockEverclearAdapter__factory,
   MockWETH,
   MockWETH__factory,
+  MovableCollateralRouter__factory,
   PackageVersioned__factory,
   ProxyAdmin__factory,
   TokenRouter__factory,
+  TokenBridgeDepositAddress__factory,
   XERC20LockboxTest__factory,
   XERC20Test__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
-import { CrossCollateralRouter__factory } from '@hyperlane-xyz/multicollateral';
 import {
   ContractVerifier,
   ExplorerLicenseType,
@@ -942,7 +944,7 @@ describe('EvmWarpRouteReader', async () => {
     expect(derivedConfig.tokenFee?.type).to.equal(TokenFeeType.RoutingFee);
     expect((derivedConfig.tokenFee as any).owner).to.equal(mailbox.address);
     expect(
-      Object.keys(((derivedConfig.tokenFee as any)?.feeContracts ?? {}) as any),
+      Object.keys((derivedConfig.tokenFee as any).feeContracts as any),
     ).to.have.length(0);
   });
 
@@ -1006,6 +1008,57 @@ describe('EvmWarpRouteReader', async () => {
 
     fetchPackageVersionStub.restore();
     fetchScaleStub.restore();
+  });
+
+  it('derives deposit-address bridge config', async () => {
+    const bridgeAddress = '0x1000000000000000000000000000000000000002';
+    const tokenAddress = '0x2000000000000000000000000000000000000002';
+    const recipient = addressToBytes32(
+      '0x3000000000000000000000000000000000000003',
+    );
+    const depositAddress = '0x4000000000000000000000000000000000000004';
+
+    const bridgeStub = sinon
+      .stub(TokenBridgeDepositAddress__factory, 'connect')
+      .returns({
+        token: sinon.stub().resolves(tokenAddress),
+        getDomainConfigs: sinon
+          .stub()
+          .resolves([[101], [depositAddress], [recipient], ['1234']]),
+      } as any);
+    const metadataStub = sinon
+      .stub(evmERC20WarpRouteReader, 'fetchERC20Metadata')
+      .resolves({
+        name: TOKEN_NAME,
+        symbol: TOKEN_NAME,
+        decimals: TOKEN_DECIMALS,
+        isNft: false,
+      });
+
+    const deriveDepositAddressConfig = (evmERC20WarpRouteReader as any)
+      .deriveHypCollateralDepositAddressTokenConfig as (
+      address: string,
+    ) => Promise<any>;
+    try {
+      const derivedConfig = await deriveDepositAddressConfig.call(
+        evmERC20WarpRouteReader,
+        bridgeAddress,
+      );
+
+      expect(derivedConfig.type).to.equal(TokenType.collateralDepositAddress);
+      expect(derivedConfig.token).to.equal(tokenAddress);
+      expect(derivedConfig.destinationConfigs).to.deep.equal({
+        '101': {
+          [recipient.toLowerCase()]: {
+            depositAddress,
+            feeBps: '1234',
+          },
+        },
+      });
+    } finally {
+      bridgeStub.restore();
+      metadataStub.restore();
+    }
   });
 
   it('derives multicollateral config with scale from the router', async () => {
@@ -1100,11 +1153,97 @@ describe('EvmWarpRouteReader', async () => {
         [mcOnlyDomain],
       );
 
-      // Both the default domain and the MC-only domain should be present
       expect(gas[defaultDomain]).to.equal('100000');
       expect(gas[mcOnlyDomain]).to.equal('200000');
     } finally {
       tokenRouterStub.restore();
+    }
+  });
+
+  it('fetchDestinationGas excludes local domain entries', async () => {
+    const routerAddress = '0x1000000000000000000000000000000000000002';
+    const localDomain = multiProvider.getDomainId(chain);
+    const remoteDomain = localDomain + 1;
+
+    const tokenRouterStub = sinon
+      .stub(TokenRouter__factory, 'connect')
+      .returns({
+        domains: sinon.stub().resolves([localDomain, remoteDomain]),
+        destinationGas: sinon.stub().callsFake(async (domain: number) => {
+          if (domain === localDomain) return { toString: () => '999' };
+          if (domain === remoteDomain) return { toString: () => '100000' };
+          return { toString: () => '0' };
+        }),
+      } as any);
+
+    try {
+      const gas = await evmERC20WarpRouteReader.fetchDestinationGas(
+        routerAddress,
+        [localDomain],
+      );
+
+      expect(gas[remoteDomain]).to.equal('100000');
+      expect(gas[localDomain]).to.be.undefined;
+    } finally {
+      tokenRouterStub.restore();
+    }
+  });
+
+  it('deriveWarpRouteConfig includes CCR-only destinations when deriving token fees', async () => {
+    const routerAddress = token.address;
+    const localDomain = multiProvider.getDomainId(chain);
+    const ccrOnlyDomain = localDomain + 100;
+
+    const readRouterConfigStub = sinon
+      .stub(evmERC20WarpRouteReader, 'readRouterConfig')
+      .resolves({
+        mailbox: mailbox.address,
+        owner: signer.address,
+        hook: zeroAddress,
+        interchainSecurityModule: zeroAddress,
+        remoteRouters: {},
+      } as any);
+
+    const fetchTokenConfigStub = sinon
+      .stub(evmERC20WarpRouteReader as any, 'fetchTokenConfig')
+      .resolves({
+        type: TokenType.crossCollateral,
+        token: token.address,
+        contractVersion: '8.0.0',
+        crossCollateralRouters: {
+          [localDomain.toString()]: [addressToBytes32(routerAddress)],
+          [ccrOnlyDomain.toString()]: [addressToBytes32(routerAddress)],
+        },
+      });
+
+    const fetchDestinationGasStub = sinon
+      .stub(evmERC20WarpRouteReader, 'fetchDestinationGas')
+      .resolves({});
+    const fetchTokenFeeStub = sinon
+      .stub(evmERC20WarpRouteReader, 'fetchTokenFee')
+      .resolves(undefined);
+
+    const movableConnectStub = sinon
+      .stub(MovableCollateralRouter__factory, 'connect')
+      .returns({
+        allowedRebalancers: sinon.stub().resolves([]),
+        domains: sinon.stub().resolves([]),
+        allowedBridges: sinon.stub().resolves([]),
+      } as any);
+
+    try {
+      await evmERC20WarpRouteReader.deriveWarpRouteConfig(routerAddress);
+      expect(fetchTokenFeeStub.calledOnce).to.equal(true);
+      expect(fetchTokenFeeStub.firstCall.args[1]).to.deep.equal([
+        localDomain,
+        ccrOnlyDomain,
+      ]);
+    } finally {
+      readRouterConfigStub.restore();
+      fetchTokenConfigStub.restore();
+      fetchDestinationGasStub.restore();
+      fetchTokenFeeStub.restore();
+      movableConnectStub.restore();
     }
   });
 
@@ -1460,9 +1599,13 @@ describe('EvmWarpRouteReader', async () => {
         .stub(TokenRouter__factory, 'connect')
         .returns(mockTokenRouter as any);
 
-      await expect(
-        evmERC20WarpRouteReader.deriveTokenType(warpAddress),
-      ).to.be.rejectedWith(
+      let thrownError: Error | undefined;
+      try {
+        await evmERC20WarpRouteReader.deriveTokenType(warpAddress);
+      } catch (error) {
+        thrownError = error as Error;
+      }
+      expect(thrownError?.message).to.include(
         `Error deriving token type for token at address "${warpAddress}"`,
       );
 

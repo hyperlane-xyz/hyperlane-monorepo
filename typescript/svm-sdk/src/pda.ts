@@ -221,3 +221,23 @@ export async function deriveEscrowPda(
     utf8.encode('escrow'),
   ]);
 }
+
+export async function deriveCrossCollateralStatePda(
+  programAddress: Address,
+): Promise<PdaWithBump> {
+  return derive(programAddress, [
+    utf8.encode('hyperlane_token'),
+    utf8.encode('-'),
+    utf8.encode('cross_collateral'),
+  ]);
+}
+
+export async function deriveCrossCollateralDispatchAuthorityPda(
+  programAddress: Address,
+): Promise<PdaWithBump> {
+  return derive(programAddress, [
+    utf8.encode('hyperlane_cc'),
+    utf8.encode('-'),
+    utf8.encode('dispatch_authority'),
+  ]);
+}

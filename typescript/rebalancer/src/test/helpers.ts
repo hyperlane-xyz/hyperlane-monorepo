@@ -6,10 +6,11 @@ import {
   type ChainMetadata,
   type ChainName,
   EvmMovableCollateralAdapter,
+  type IToken,
   type InterchainGasQuote,
   type MultiProvider,
   type Token,
-  type TokenAmount,
+  TokenAmount,
   type WarpCore,
 } from '@hyperlane-xyz/sdk';
 
@@ -115,17 +116,14 @@ export function buildTestPreparedTransaction(
 
 // === Mock Factories ===
 
-export function createMockTokenAmount(amount: bigint): TokenAmount {
-  return {
-    amount,
-    token: {
-      name: 'TestToken',
-      symbol: 'TEST',
-      decimals: 18,
-      addressOrDenom: TEST_ADDRESSES.token,
-    },
-    getDecimalFormattedAmount: () => ethers.utils.formatEther(amount),
-  } as unknown as TokenAmount;
+export function createMockTokenAmount(amount: bigint): TokenAmount<IToken> {
+  const token = {
+    name: 'TestToken',
+    symbol: 'TEST',
+    decimals: 18,
+    addressOrDenom: TEST_ADDRESSES.token,
+  } as IToken;
+  return new TokenAmount(amount, token);
 }
 
 export interface MockAdapterConfig {
@@ -173,6 +171,7 @@ export interface MockTokenConfig {
   name?: string;
   decimals?: number;
   addressOrDenom?: string;
+  scale?: Token['scale'];
   adapter?: ReturnType<typeof createMockAdapter>;
 }
 
@@ -181,6 +180,7 @@ export function createMockToken(config: MockTokenConfig = {}) {
     name = 'TestToken',
     decimals = 18,
     addressOrDenom = TEST_ADDRESSES.token,
+    scale,
     adapter = createMockAdapter(),
   } = config;
 
@@ -188,6 +188,7 @@ export function createMockToken(config: MockTokenConfig = {}) {
     name,
     decimals,
     addressOrDenom,
+    scale,
     amount: (amt: bigint) => createMockTokenAmount(amt),
     getHypAdapter: Sinon.stub().returns(adapter),
   };

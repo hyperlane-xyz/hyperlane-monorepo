@@ -1,7 +1,10 @@
 import { Meta, StoryObj } from '@storybook/react';
 
 import { chainMetadata } from '@hyperlane-xyz/registry';
-import { ChainDisabledReason, ChainStatus } from '@hyperlane-xyz/sdk';
+import {
+  ChainDisabledReason,
+  ChainStatus,
+} from '@hyperlane-xyz/sdk/metadata/chainMetadataTypes';
 import { pick } from '@hyperlane-xyz/utils';
 
 import {

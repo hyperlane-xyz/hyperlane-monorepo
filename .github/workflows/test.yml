@@ -73,9 +73,6 @@ jobs:
       - name: helloworld solhint
         run: pnpm -C typescript/helloworld lint
 
-      - name: multicollateral lint
-        run: pnpm -C solidity/multicollateral lint
-
       - name: Get changed PR files
         if: github.event_name == 'pull_request'
         run: |

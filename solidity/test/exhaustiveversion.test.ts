@@ -6,14 +6,9 @@ const EXCLUDE_PATTERNS: RegExp[] = [
   /\.dbg/g,
   /interfaces\//g,
   /libs\//g,
-  /Abstract/g,
   /Test/g,
   /Mock/g,
   /Versioned/g,
-  /Service/g,
-  // also abstract
-  /ECDSAServiceManagerBase/g,
-  /ECDSAStakeRegistryStorage/g,
 ];
 const REQUIRED_METHOD = 'PACKAGE_VERSION';
 
@@ -40,9 +35,14 @@ const results = await Promise.all(
   filtered.map(async (path) => {
     const content = await readFile(path, 'utf-8');
     const compilerOutput: CompilerOutputContract = JSON.parse(content);
+    // Skip abstract contracts and libraries (non-deployable)
+    const isDeployable =
+      compilerOutput.bytecode &&
+      compilerOutput.bytecode !== '0x' &&
+      compilerOutput.abi?.length > 0;
     return [
       path,
-      compilerOutput.abi &&
+      !isDeployable ||
         compilerOutput.abi.some((elem) => elem.name === REQUIRED_METHOD),
     ];
   }),

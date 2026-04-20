@@ -120,7 +120,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) external view override returns (Quote[] memory quotes) {
+    ) external view virtual override returns (Quote[] memory quotes) {
         address _feeToken = feeToken();
         quotes = new Quote[](3);
         quotes[0] = Quote({
@@ -254,8 +254,11 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
                 );
             }
 
-            // Approve fee hook to pull fee tokens
-            IERC20(_token).approve(_feeHook, hookFee);
+            // Per-call approval only: standing approvals to fee hooks are unsafe
+            // because postDispatch is publicly callable with arbitrary message data,
+            // allowing a third party to spend the approval. Funds would go to the
+            // hook beneficiary (not the attacker), but the caller still loses tokens.
+            IERC20(_token).forceApprove(_feeHook, hookFee);
         }
 
         _transferFromSender(charge);
@@ -379,6 +382,12 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
      * @param _feeHook The fee hook address.
      */
     function _setFeeHook(address _feeHook) internal {
+        if (_feeHook != address(0)) {
+            require(
+                token() != address(0),
+                "TokenRouter: fee hook requires ERC20 token"
+            );
+        }
         FEE_HOOK_SLOT.getAddressSlot().value = _feeHook;
         emit FeeHookSet(_feeHook);
     }
@@ -475,7 +484,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         return
             _Router_quoteDispatch(
                 _destination,
-                TokenMessage.format(_recipient, _amount),
+                TokenMessage.format(_recipient, _outboundAmount(_amount)),
                 _generateHookMetadata(_destination, _feeToken),
                 address(hook)
             );

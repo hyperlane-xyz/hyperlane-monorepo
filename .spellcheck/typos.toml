@@ -78,6 +78,8 @@ afe = "afe"
 ba = "ba"
 # "unparseable" is acceptable English (variant of "unparsable")
 unparseable = "unparseable"
+# "writeable" is acceptable English (variant of "writable")
+writeable = "writeable"
 
 # External API field names that cannot be changed
 # Etherscan API uses "constructorArguements" (their typo)

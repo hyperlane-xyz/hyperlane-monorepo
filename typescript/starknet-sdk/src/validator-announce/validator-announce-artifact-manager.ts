@@ -20,7 +20,11 @@ import { hash } from 'starknet';
 
 import { StarknetProvider } from '../clients/provider.js';
 import { StarknetSigner } from '../clients/signer.js';
-import { normalizeStarknetAddressSafe } from '../contracts.js';
+import { getCreateValidatorAnnounceTx } from './validator-announce-tx.js';
+import {
+  normalizeStarknetAddressSafe,
+  shouldFallbackStorageRead,
+} from '../contracts.js';
 
 const STARKNET_STORAGE_ADDRESS_BOUND = (1n << 251n) - 256n;
 const logger = rootLogger.child({
@@ -29,31 +33,6 @@ const logger = rootLogger.child({
 const MAILBOX_STORAGE_KEYS = ['mailbox', '_mailbox'].map(
   (name) => hash.starknetKeccak(name) % STARKNET_STORAGE_ADDRESS_BOUND,
 );
-
-function shouldFallbackStorageRead(error: unknown): boolean {
-  const code =
-    error && typeof error === 'object' ? Reflect.get(error, 'code') : undefined;
-  if (code === -32601) return true;
-
-  const message =
-    error instanceof Error
-      ? error.message
-      : typeof error === 'string'
-        ? error
-        : String(
-            error && typeof error === 'object'
-              ? Reflect.get(error, 'message')
-              : error,
-          );
-  const normalizedMessage = message.toLowerCase();
-
-  return [
-    'method not found',
-    'not supported',
-    'unsupported',
-    'not implemented',
-  ].some((fragment) => normalizedMessage.includes(fragment));
-}
 
 async function readStorageAddress(
   provider: StarknetProvider,
@@ -175,10 +154,10 @@ class StarknetValidatorAnnounceWriter
       TxReceipt[],
     ]
   > {
-    const tx = await this.signer.getCreateValidatorAnnounceTransaction({
-      signer: this.signer.getSignerAddress(),
-      mailboxAddress: artifact.config.mailboxAddress,
-    });
+    const tx = getCreateValidatorAnnounceTx(
+      this.signer.getSignerAddress(),
+      artifact.config.mailboxAddress,
+    );
     const receipt = await this.signer.sendAndConfirmTransaction(tx);
     const validatorAnnounceId = receipt.contractAddress;
     assert(

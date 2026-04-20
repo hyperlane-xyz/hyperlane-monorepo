@@ -9,6 +9,7 @@ export const AccountConfigSchema = z.object({
   localRouter: ZHash.optional(),
   routerOverride: ZHash.optional(),
   ismOverride: ZHash.optional(),
+  userSalt: ZHash.optional(),
 });
 
 export type AccountConfig = z.infer<typeof AccountConfigSchema>;

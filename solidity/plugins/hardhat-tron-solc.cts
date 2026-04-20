@@ -22,6 +22,8 @@ const TRON_SOLC_BASE_URL =
 const TRON_SOLC_SHA256: Record<string, string> = {
   '0.8.22':
     '246b2a0f2e5f7e9611cbf91558a57b14958c9d0120740432a0f409e86d93d131',
+  '0.8.24':
+    '527b5363b50eee33b9d45a1619ccd3511e6304637867135396969ac93bc67116',
 };
 
 function getTronSolcPath(version: string): string {

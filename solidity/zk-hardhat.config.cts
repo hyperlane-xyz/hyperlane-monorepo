@@ -10,6 +10,14 @@ import { rootHardhatConfig } from './rootHardhatConfig.cjs';
  */
 module.exports = {
   ...rootHardhatConfig,
+  // Override solidity version — zkvm-solc 0.8.30 crashes with EPIPE on CI
+  // when compiling the full contract set. Pin to 0.8.28 (>=0.8.24 required
+  // for transient storage opcodes used by TransientStorage.sol).
+  // https://github.com/matter-labs/era-solidity/releases
+  solidity: {
+    ...rootHardhatConfig.solidity,
+    version: '0.8.28',
+  },
   zksolc: {
     version: '1.5.12',
     compilerSource: 'binary',

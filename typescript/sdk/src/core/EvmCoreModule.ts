@@ -115,6 +115,31 @@ export class EvmCoreModule extends HyperlaneModule<
     expectedConfig: CoreConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
     CoreConfigSchema.parse(expectedConfig);
+
+    // Deploy QuotedCalls if not yet present
+    if (!this.args.addresses.quotedCalls) {
+      const ismFactory = new HyperlaneIsmFactory(
+        attachContractsMap(
+          { [this.chainName]: this.args.addresses },
+          proxyFactoryFactories,
+        ),
+        this.multiProvider,
+      );
+      const coreDeployer = new HyperlaneCoreDeployer(
+        this.multiProvider,
+        ismFactory,
+      );
+      const quotedCalls = await coreDeployer.deployQuotedCalls(
+        this.chainName,
+        expectedConfig.permit2,
+      );
+      this.args.addresses.quotedCalls = quotedCalls.address;
+      this.logger.info(
+        { address: quotedCalls.address },
+        'Deployed QuotedCalls',
+      );
+    }
+
     const actualConfig = await this.read();
 
     const transactions: AnnotatedEV5Transaction[] = [
@@ -175,31 +200,35 @@ export class EvmCoreModule extends HyperlaneModule<
     actualConfig: DerivedHookConfig,
     expectedConfig: HookConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
-    return getEvmHookUpdateTransactions(this.args.addresses.mailbox, {
-      actualConfig: actualConfig,
-      expectedConfig: expectedConfig,
-      evmChainName: this.chainName,
-      hookAndIsmFactories: extractIsmAndHookFactoryAddresses(
-        this.args.addresses,
-      ),
-      setHookFunctionCallEncoder: (newHookAddress: string) => {
-        if (setHookFunctionName === 'requiredHook') {
+    const { transactions } = await getEvmHookUpdateTransactions(
+      this.args.addresses.mailbox,
+      {
+        actualConfig: actualConfig,
+        expectedConfig: expectedConfig,
+        evmChainName: this.chainName,
+        hookAndIsmFactories: extractIsmAndHookFactoryAddresses(
+          this.args.addresses,
+        ),
+        setHookFunctionCallEncoder: (newHookAddress: string) => {
+          if (setHookFunctionName === 'requiredHook') {
+            return Mailbox__factory.createInterface().encodeFunctionData(
+              'setRequiredHook',
+              [newHookAddress],
+            );
+          }
+
           return Mailbox__factory.createInterface().encodeFunctionData(
-            'setRequiredHook',
+            'setDefaultHook',
             [newHookAddress],
           );
-        }
-
-        return Mailbox__factory.createInterface().encodeFunctionData(
-          'setDefaultHook',
-          [newHookAddress],
-        );
+        },
+        logger: this.logger,
+        mailbox: this.args.addresses.mailbox,
+        multiProvider: this.multiProvider,
+        proxyAdminAddress,
       },
-      logger: this.logger,
-      mailbox: this.args.addresses.mailbox,
-      multiProvider: this.multiProvider,
-      proxyAdminAddress,
-    });
+    );
+    return transactions;
   }
 
   /**
@@ -406,6 +435,11 @@ export class EvmCoreModule extends HyperlaneModule<
       await coreDeployer.deployValidatorAnnounce(chainName, mailbox.address)
     ).address;
 
+    // Deploy QuotedCalls
+    const quotedCalls = (
+      await coreDeployer.deployQuotedCalls(chainName, config.permit2)
+    ).address;
+
     // Deploy timelock controller if config.upgrade is set
     let timelockController;
     if (config.upgrade) {
@@ -455,6 +489,7 @@ export class EvmCoreModule extends HyperlaneModule<
       mailbox: mailbox.address,
       interchainAccountRouter,
       validatorAnnounce,
+      quotedCalls,
       timelockController,
       testRecipient,
       merkleTreeHook,

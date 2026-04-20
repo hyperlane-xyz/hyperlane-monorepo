@@ -6,7 +6,6 @@ minimumReleaseAgeExclude:
 packages:
   - 'solhint-plugin'
   - 'solidity'
-  - 'solidity/multicollateral'
   - 'typescript/*'
   - 'starknet'
 
@@ -31,6 +30,9 @@ catalog:
 
   # Validation
   zod: ^3.21.2
+
+  # HTTP
+  express-rate-limit: ^8.3.1
 
   # Utilities
   bignumber.js: ^9.1.1
@@ -59,6 +61,7 @@ catalog:
   cosmjs-types: ^0.9.0
 
   # Solana
+  '@solana/kit': ^6.1.0
   '@solana/web3.js': ^1.98.4
   '@solana/spl-token': ^0.4.9
 
@@ -77,7 +80,7 @@ catalog:
   '@aws-sdk/client-kms': ^3.577.0
 
   # Registry
-  '@hyperlane-xyz/registry': 23.12.0
+  '@hyperlane-xyz/registry': 24.3.0
 
   # CLI prompts
   '@inquirer/prompts': 3.3.2

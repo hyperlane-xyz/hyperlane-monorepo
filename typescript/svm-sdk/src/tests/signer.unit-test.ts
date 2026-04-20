@@ -3,7 +3,14 @@ import {
   SOLANA_ERROR__TRANSACTION_ERROR__BLOCKHASH_NOT_FOUND,
   SolanaError,
 } from '@solana/errors';
-import { blockhash, signature as toSignature } from '@solana/kit';
+import {
+  AccountRole,
+  address,
+  blockhash,
+  getBase58Encoder,
+  getCompiledTransactionMessageDecoder,
+  signature as toSignature,
+} from '@solana/kit';
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { afterEach, describe, it } from 'mocha';
@@ -774,6 +781,82 @@ describe('SvmSigner', () => {
       expect(receipt.slot).to.equal(42n);
       // Only the initial send, no rebroadcasts (processed triggers continue)
       expect(sendTxCalls).to.equal(1);
+    });
+  });
+
+  // ---- Fee payer derivation ----
+
+  // Deterministic fake addresses (valid base58, 32 bytes)
+  const OWNER_ADDRESS = address('11111111111111111111111111111112');
+  const SQUADS_VAULT_ADDRESS = address(
+    'zUeFx6cfxedG2JnFtMKkTXnxgPa5M44tyaF9RrPunCp',
+  );
+  const PROGRAM_ADDRESS = address('11111111111111111111111111111113');
+  const TOKEN_PDA_ADDRESS = address('11111111111111111111111111111114');
+
+  const base58Encoder = getBase58Encoder();
+  const messageDecoder = getCompiledTransactionMessageDecoder();
+
+  /** Decode a base58-encoded compiled message and return the fee payer (first static account). */
+  function feePayerFromMessageBase58(messageBase58: string): string {
+    const bytes = base58Encoder.encode(messageBase58);
+    const decoded = messageDecoder.decode(bytes);
+    return decoded.staticAccounts[0];
+  }
+
+  describe('transactionToPrintableJson — fee payer derivation', () => {
+    it('uses explicit feePayer instead of local signer', async () => {
+      const rpc = createMockRpc();
+      const signer = await createTestSigner(rpc);
+      const signerAddress = signer.getSignerAddress();
+
+      // feePayer differs from both the local signer and instruction accounts
+      expect(signerAddress).to.not.equal(SQUADS_VAULT_ADDRESS);
+      expect(OWNER_ADDRESS).to.not.equal(SQUADS_VAULT_ADDRESS);
+
+      const tx: SvmTransaction = {
+        feePayer: SQUADS_VAULT_ADDRESS,
+        instructions: [
+          {
+            programAddress: PROGRAM_ADDRESS,
+            accounts: [
+              { address: TOKEN_PDA_ADDRESS, role: AccountRole.WRITABLE },
+              { address: OWNER_ADDRESS, role: AccountRole.READONLY_SIGNER },
+            ],
+            data: new Uint8Array([0]),
+          },
+        ],
+      };
+
+      const json = await signer.transactionToPrintableJson(tx);
+
+      expect(feePayerFromMessageBase58(json.message_base58)).to.equal(
+        SQUADS_VAULT_ADDRESS,
+      );
+    });
+
+    it('falls back to local signer when instructions have no signers', async () => {
+      const rpc = createMockRpc();
+      const signer = await createTestSigner(rpc);
+      const signerAddress = signer.getSignerAddress();
+
+      const tx: SvmTransaction = {
+        instructions: [
+          {
+            programAddress: PROGRAM_ADDRESS,
+            accounts: [
+              { address: TOKEN_PDA_ADDRESS, role: AccountRole.WRITABLE },
+            ],
+            data: new Uint8Array([0]),
+          },
+        ],
+      };
+
+      const json = await signer.transactionToPrintableJson(tx);
+
+      expect(feePayerFromMessageBase58(json.message_base58)).to.equal(
+        signerAddress,
+      );
     });
   });
 });

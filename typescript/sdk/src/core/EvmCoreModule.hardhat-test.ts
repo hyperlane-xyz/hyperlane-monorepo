@@ -6,11 +6,12 @@ import hre from 'hardhat';
 import {
   Mailbox__factory,
   ProxyAdmin__factory,
+  QuotedCalls__factory,
   TestRecipient__factory,
   TimelockController__factory,
   ValidatorAnnounce__factory,
 } from '@hyperlane-xyz/core';
-import { objMap } from '@hyperlane-xyz/utils';
+import { eqAddress, objMap } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
 import { HookConfig, HookType } from '../hook/types.js';
@@ -21,6 +22,7 @@ import { randomAddress, testCoreConfig } from '../test/testUtils.js';
 import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmCoreModule } from './EvmCoreModule.js';
+import { PERMIT2_ADDRESS } from './contracts.js';
 import { CoreConfig, CoreConfigHookFieldKey } from './types.js';
 
 describe('EvmCoreModule', async () => {
@@ -33,6 +35,7 @@ describe('EvmCoreModule', async () => {
   let proxyAdminContract: any;
   let mailboxContract: any;
   let validatorAnnounceContract: any;
+  let quotedCallsContract: any;
   let testRecipientContract: any;
   let timelockControllerContract: any;
   async function sendTxs(txs: AnnotatedEV5Transaction[]) {
@@ -67,6 +70,7 @@ describe('EvmCoreModule', async () => {
       proxyAdmin,
       mailbox,
       validatorAnnounce,
+      quotedCalls,
       testRecipient,
       timelockController,
     } = evmCoreModule.serialize();
@@ -83,6 +87,11 @@ describe('EvmCoreModule', async () => {
 
     validatorAnnounceContract = ValidatorAnnounce__factory.connect(
       validatorAnnounce!,
+      multiProvider.getProvider(CHAIN),
+    );
+
+    quotedCallsContract = QuotedCalls__factory.connect(
+      quotedCalls!,
       multiProvider.getProvider(CHAIN),
     );
 
@@ -158,6 +167,27 @@ describe('EvmCoreModule', async () => {
     it('should deploy validatorAnnounce', async () => {
       expect(evmCoreModule.serialize().validatorAnnounce).to.exist;
       expect(await validatorAnnounceContract.owner()).to.equal(signer.address);
+    });
+
+    it('should deploy quotedCalls with canonical permit2', async () => {
+      expect(evmCoreModule.serialize().quotedCalls).to.exist;
+      expect(await quotedCallsContract.PERMIT2()).to.equal(PERMIT2_ADDRESS);
+    });
+
+    it('should deploy quotedCalls with custom permit2', async () => {
+      const customPermit2 = randomAddress();
+      const module = await EvmCoreModule.create({
+        chain: CHAIN,
+        config: { ...config, permit2: customPermit2 },
+        multiProvider,
+      });
+      const { quotedCalls: qcAddress } = module.serialize();
+      expect(qcAddress).to.exist;
+      const qc = QuotedCalls__factory.connect(
+        qcAddress!,
+        multiProvider.getProvider(CHAIN),
+      );
+      expect(eqAddress(await qc.PERMIT2(), customPermit2)).to.be.true;
     });
 
     it('should deploy testRecipient', async () => {

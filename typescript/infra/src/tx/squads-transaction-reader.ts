@@ -46,6 +46,7 @@ import {
 import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
+import { getDomainId } from '../../config/registry.js';
 import { DeployEnvironment } from '../config/environment.js';
 import {
   ErrorMessage,
@@ -58,6 +59,8 @@ import {
   SYSTEM_PROGRAM_ID,
   SvmMultisigConfigMap,
   WarningMessage,
+  diffMultisigIsmConfigs,
+  fetchMultisigIsmState,
   formatUnknownInstructionWarning,
   formatUnknownProgramWarning,
   loadCoreProgramIds,
@@ -1090,8 +1093,8 @@ export class SquadsTransactionReader {
       proposalPda: proposalData.proposalPda.toBase58(),
       transactionIndex: Number(proposalData.proposal.transactionIndex),
       multisig: proposalData.multisigPda.toBase58(),
-      instructions: parsedInstructions.map((inst) =>
-        this.formatInstruction(chain, inst),
+      instructions: await Promise.all(
+        parsedInstructions.map((inst) => this.formatInstruction(chain, inst)),
       ),
     };
   }
@@ -1263,6 +1266,72 @@ export class SquadsTransactionReader {
   }
 
   /**
+   * Verify the default ISM being set matches expected per-domain config.
+   * Reads on-chain domain data from the ISM program and compares against
+   * expected multisig ISM config files.
+   */
+  private async verifyDefaultIsm(
+    chain: ChainName,
+    ismAddress: string,
+  ): Promise<{ insight: string; issues: string[] } | null> {
+    const expectedConfig = this.loadMultisigConfig(chain);
+    if (!expectedConfig) {
+      return {
+        insight: `Set default ISM to ${ismAddress} ❌ could not verify: missing expected config for ${chain}`,
+        issues: [`Missing expected ISM config for ${chain}`],
+      };
+    }
+
+    const connection = this.mpp.getSolanaWeb3Provider(chain);
+    const ismProgramId = new PublicKey(ismAddress);
+    const issues: string[] = [];
+
+    for (const [remoteChainName, expected] of Object.entries(expectedConfig)) {
+      const remoteDomain = getDomainId(remoteChainName);
+
+      const onChainState = await fetchMultisigIsmState(
+        connection,
+        ismProgramId,
+        remoteDomain,
+      );
+
+      const actual = onChainState
+        ? {
+            type: expected.type,
+            validators: onChainState.validators,
+            threshold: onChainState.threshold,
+          }
+        : undefined;
+
+      if (!diffMultisigIsmConfigs(expected, actual)) {
+        const actualDesc = actual
+          ? `threshold=${actual.threshold}, validators=${actual.validators.length}`
+          : 'not configured';
+        issues.push(
+          `${remoteChainName}: expected threshold=${expected.threshold}, validators=${expected.validators.length}; got ${actualDesc}`,
+        );
+      }
+    }
+
+    if (issues.length === 0) {
+      return {
+        insight: `Set default ISM to ${ismAddress} ✅ matches expected config (${Object.keys(expectedConfig).length} domains verified)`,
+        issues: [],
+      };
+    }
+
+    rootLogger.error(
+      chalk.bold.red(
+        `Mismatch of default ISM config for ${chain}: ${issues.length} domain(s) differ`,
+      ),
+    );
+    return {
+      insight: `Set default ISM to ${ismAddress} ❌ fatal mismatch of ISM config (${issues.length} domain mismatches)`,
+      issues,
+    };
+  }
+
+  /**
    * Format a ConfigAction as a GovernTransaction for display
    */
   private formatConfigAction(
@@ -1339,10 +1408,10 @@ export class SquadsTransactionReader {
   /**
    * Format a single instruction as a GovernTransaction
    */
-  private formatInstruction(
+  private async formatInstruction(
     chain: ChainName,
     inst: ParsedInstruction,
-  ): GovernTransaction {
+  ): Promise<GovernTransaction> {
     const to = `${inst.programName} (${inst.programId.toBase58()})`;
     const insight = inst.insight || `${inst.instructionType} instruction`;
 
@@ -1406,6 +1475,23 @@ export class SquadsTransactionReader {
         tx.args = {
           module: inst.data.newDefaultIsm,
         };
+
+        // Verify the ISM being set matches expected config
+        const ismVerification = await this.verifyDefaultIsm(
+          chain,
+          inst.data.newDefaultIsm,
+        );
+        if (ismVerification) {
+          tx.insight = ismVerification.insight;
+          if (ismVerification.issues.length > 0) {
+            this.errors.push({
+              chain,
+              module: inst.data.newDefaultIsm,
+              info: 'Incorrect default ISM being set',
+              issues: ismVerification.issues,
+            });
+          }
+        }
         break;
       }
 

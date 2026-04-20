@@ -1,5 +1,11 @@
-import { BaseFee, RoutingFee } from '@hyperlane-xyz/core';
-import { eqAddress } from '@hyperlane-xyz/utils';
+import {
+  BaseFee,
+  BaseFee__factory,
+  CrossCollateralRoutingFee,
+  OffchainQuotedLinearFee,
+  RoutingFee,
+} from '@hyperlane-xyz/core';
+import { assert, eqAddress } from '@hyperlane-xyz/utils';
 
 import type { HyperlaneContracts } from '../contracts/types.js';
 import {
@@ -12,18 +18,14 @@ import { ChainName } from '../types.js';
 import { EvmTokenFeeReader } from './EvmTokenFeeReader.js';
 import { EvmTokenFeeFactories, evmTokenFeeFactories } from './contracts.js';
 import {
-  OnchainTokenFeeType,
+  CrossCollateralRoutingFeeConfig,
+  OffchainQuotedLinearFeeConfig,
+  RoutingFeeConfig,
   TokenFeeConfig,
   TokenFeeConfigInput,
   TokenFeeConfigSchema,
   TokenFeeType,
-  onChainTypeToTokenFeeTypeMap,
 } from './types.js';
-
-type RoutingFeeDeploymentResult = {
-  routingFee: RoutingFee;
-  subFeeContracts: Record<ChainName, BaseFee>;
-};
 
 export class EvmTokenFeeDeployer extends HyperlaneDeployer<
   TokenFeeConfig,
@@ -54,20 +56,20 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
           parsedConfig,
         );
         break;
+      case TokenFeeType.OffchainQuotedLinearFee:
+        deployedContract[parsedConfig.type] =
+          await this.deployOffchainQuotedLinearFee(chain, parsedConfig);
+        break;
       case TokenFeeType.RoutingFee: {
-        // Return the routing fee and all the child fee contracts
-        const routingFeeResult = await this.deployRoutingFee(
+        deployedContract[TokenFeeType.RoutingFee] = await this.deployRoutingFee(
           chain,
           parsedConfig,
         );
-        deployedContract[TokenFeeType.RoutingFee] = routingFeeResult.routingFee;
-        for (const [_, contract] of Object.entries(
-          routingFeeResult.subFeeContracts,
-        )) {
-          const onchainFeeType: OnchainTokenFeeType = await contract.feeType();
-          const feeType = onChainTypeToTokenFeeTypeMap[onchainFeeType];
-          deployedContract[feeType] = contract;
-        }
+        break;
+      }
+      case TokenFeeType.CrossCollateralRoutingFee: {
+        deployedContract[TokenFeeType.CrossCollateralRoutingFee] =
+          await this.deployCrossCollateralRoutingFee(chain, parsedConfig);
         break;
       }
     }
@@ -76,10 +78,13 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
 
   private async deployFee(
     chain: ChainName,
-    config: Exclude<TokenFeeConfig, { type: TokenFeeType.RoutingFee }>,
-  ): Promise<
-    ReturnType<EvmTokenFeeFactories[TokenFeeConfig['type']]['deploy']>
-  > {
+    config: Exclude<
+      TokenFeeConfig,
+      | { type: TokenFeeType.RoutingFee }
+      | { type: TokenFeeType.CrossCollateralRoutingFee }
+      | { type: TokenFeeType.OffchainQuotedLinearFee }
+    >,
+  ): Promise<BaseFee> {
     let { maxFee, halfAmount } = config;
     if (
       config.type === TokenFeeType.LinearFee &&
@@ -99,14 +104,59 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
     ]);
   }
 
-  private async deployRoutingFee(
+  private async deployOffchainQuotedLinearFee(
     chain: ChainName,
-    config: TokenFeeConfig,
-  ): Promise<RoutingFeeDeploymentResult> {
-    if (config.type !== TokenFeeType.RoutingFee) {
-      throw new Error('Invalid config type for routing fee deployment');
+    config: OffchainQuotedLinearFeeConfig,
+  ): Promise<OffchainQuotedLinearFee> {
+    let { maxFee, halfAmount } = config;
+    if (config.bps && (!maxFee || !halfAmount)) {
+      const derived = this.tokenFeeReader.convertFromBps(config.bps);
+      maxFee = derived.maxFee;
+      halfAmount = derived.halfAmount;
     }
 
+    assert(
+      config.quoteSigners?.length,
+      'At least one quote signer is required for OffchainQuotedLinearFee',
+    );
+
+    const signerAddress = await this.multiProvider.getSignerAddress(chain);
+    const [firstSigner, ...additionalSigners] = config.quoteSigners;
+
+    // addQuoteSigner is onlyOwner, so deploy with signer as temporary owner
+    const contract = await this.deployContract(
+      chain,
+      TokenFeeType.OffchainQuotedLinearFee,
+      [firstSigner, config.token, maxFee, halfAmount, signerAddress],
+    );
+
+    for (const signer of additionalSigners) {
+      await this.multiProvider.handleTx(
+        chain,
+        contract.addQuoteSigner(
+          signer,
+          this.multiProvider.getTransactionOverrides(chain),
+        ),
+      );
+    }
+
+    if (!eqAddress(signerAddress, config.owner)) {
+      await this.multiProvider.handleTx(
+        chain,
+        contract.transferOwnership(
+          config.owner,
+          this.multiProvider.getTransactionOverrides(chain),
+        ),
+      );
+    }
+
+    return contract;
+  }
+
+  private async deployRoutingFee(
+    chain: ChainName,
+    config: RoutingFeeConfig,
+  ): Promise<RoutingFee> {
     const signerAddress = await this.multiProvider.getSignerAddress(chain);
 
     // RoutingFee.setFeeContract is onlyOwner, so we deploy with the signer as a
@@ -117,24 +167,36 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
       [config.token, signerAddress],
     );
 
-    const subFeeContracts: Record<ChainName, BaseFee> = {};
-    if (config.feeContracts) {
-      // Deploy each fee contract & set each fee for the routing fee
-      for (const [destinationChain, feeConfig] of Object.entries(
-        config.feeContracts,
-      )) {
-        const deployedFeeContract = await this.deployFee(chain, feeConfig);
+    // Deploy each fee contract & set each fee for the routing fee
+    for (const [destinationChain, feeConfig] of Object.entries(
+      config.feeContracts,
+    )) {
+      // Sub-fee configs inherit the routing fee's token if not explicitly set
+      const resolvedFeeConfig = {
+        ...feeConfig,
+        token: feeConfig.token ?? config.token,
+      };
+      const deployedFeeContract =
+        resolvedFeeConfig.type === TokenFeeType.OffchainQuotedLinearFee
+          ? BaseFee__factory.connect(
+              (
+                await this.deployOffchainQuotedLinearFee(
+                  chain,
+                  resolvedFeeConfig,
+                )
+              ).address,
+              this.multiProvider.getSigner(chain),
+            )
+          : await this.deployFee(chain, resolvedFeeConfig);
 
-        await this.multiProvider.handleTx(
-          chain,
-          routingFee.setFeeContract(
-            this.multiProvider.getChainId(destinationChain),
-            deployedFeeContract.address,
-            this.multiProvider.getTransactionOverrides(chain),
-          ),
-        );
-        subFeeContracts[destinationChain] = deployedFeeContract;
-      }
+      await this.multiProvider.handleTx(
+        chain,
+        routingFee.setFeeContract(
+          this.multiProvider.getDomainId(destinationChain),
+          deployedFeeContract.address,
+          this.multiProvider.getTransactionOverrides(chain),
+        ),
+      );
     }
 
     if (!eqAddress(signerAddress, config.owner)) {
@@ -150,9 +212,67 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
       );
     }
 
-    return {
-      routingFee,
-      subFeeContracts,
-    };
+    return routingFee;
+  }
+
+  private async deployCrossCollateralRoutingFee(
+    chain: ChainName,
+    config: CrossCollateralRoutingFeeConfig,
+  ): Promise<CrossCollateralRoutingFee> {
+    const signerAddress = await this.multiProvider.getSignerAddress(chain);
+    const routingFee = await this.deployContract(
+      chain,
+      TokenFeeType.CrossCollateralRoutingFee,
+      [signerAddress],
+    );
+
+    const destinationDomains: number[] = [];
+    const routerKeys: string[] = [];
+    const feeAddresses: string[] = [];
+
+    for (const [destinationChain, destinationConfig] of Object.entries(
+      config.feeContracts,
+    )) {
+      for (const [routerKey, routerFeeConfig] of Object.entries(
+        destinationConfig,
+      )) {
+        const deployedFeeContract = await this.deployFee(
+          chain,
+          routerFeeConfig,
+        );
+        destinationDomains.push(
+          this.multiProvider.getDomainId(destinationChain),
+        );
+        routerKeys.push(routerKey);
+        feeAddresses.push(deployedFeeContract.address);
+      }
+    }
+
+    if (destinationDomains.length > 0) {
+      await this.multiProvider.handleTx(
+        chain,
+        routingFee.setCrossCollateralRouterFeeContracts(
+          destinationDomains,
+          routerKeys,
+          feeAddresses,
+          this.multiProvider.getTransactionOverrides(chain),
+        ),
+      );
+    }
+
+    if (!eqAddress(signerAddress, config.owner)) {
+      this.logger.debug(
+        `Transferring ownership of CrossCollateralRoutingFee to ${config.owner} on ${chain}`,
+      );
+      await this.multiProvider.handleTx(
+        chain,
+        routingFee.transferOwnership(
+          config.owner,
+          this.multiProvider.getTransactionOverrides(chain),
+        ),
+      );
+    }
+
+    return routingFee;
   }
 }

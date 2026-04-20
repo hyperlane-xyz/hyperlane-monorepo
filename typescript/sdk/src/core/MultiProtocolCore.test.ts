@@ -19,6 +19,7 @@ describe('MultiProtocolCore', () => {
         validatorAnnounce: ethers.constants.AddressZero,
         proxyAdmin: ethers.constants.AddressZero,
         mailbox: ethers.constants.AddressZero,
+        quotedCalls: ethers.constants.AddressZero,
       },
     });
     expect(core).to.be.instanceOf(MultiProtocolCore);

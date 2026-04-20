@@ -68,6 +68,12 @@ contract MinimalInterchainAccountRouter is
         bytes32 _sender,
         bytes calldata _message
     ) external payable override onlyMailbox {
+        require(
+            _message.messageType() ==
+                InterchainAccountMessage.MessageType.CALLS,
+            "Only CALLS type supported"
+        );
+
         bytes32 _owner = _message.owner();
         bytes32 _salt = _message.salt();
         bytes32 _ism = _message.ism();

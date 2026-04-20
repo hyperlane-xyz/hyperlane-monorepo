@@ -1,6 +1,7 @@
 import { before, describe, it } from 'mocha';
 
 import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
+import { retryAsync } from '@hyperlane-xyz/utils';
 import { expect } from 'chai';
 import { createRpc } from '../rpc.js';
 import { SvmWarpArtifactManager } from '../warp/warp-artifact-manager.js';
@@ -71,7 +72,11 @@ describe('SVM Warp Token read E2E Tests', function () {
     },
   ]) {
     it(`should read the prod deployment for ${testCase.type} token at ${testCase.tokenAddress}`, async () => {
-      const read = await artifactManager.readWarpToken(testCase.tokenAddress);
+      const read = await retryAsync(
+        () => artifactManager.readWarpToken(testCase.tokenAddress),
+        3,
+        7000,
+      );
 
       const onChainConfig = read.config;
       expect(onChainConfig.type).to.equal(testCase.type);

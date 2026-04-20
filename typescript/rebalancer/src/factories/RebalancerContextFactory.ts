@@ -11,13 +11,7 @@ import {
   WarpCore,
   type WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import {
-  Address,
-  assert,
-  ProtocolType,
-  objMap,
-  toWei,
-} from '@hyperlane-xyz/utils';
+import { Address, assert, ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
 import { LiFiBridge } from '../bridges/LiFiBridge.js';
 import { type RebalancerConfig } from '../config/RebalancerConfig.js';
@@ -63,6 +57,10 @@ import {
   ExplorerClient,
   type IExplorerClient,
 } from '../utils/ExplorerClient.js';
+import {
+  normalizeConfiguredAmount,
+  normalizeToCanonical,
+} from '../utils/balanceUtils.js';
 import { isCollateralizedTokenEligibleForRebalancing } from '../utils/tokenUtils.js';
 
 const DEFAULT_EXPLORER_URL =
@@ -252,9 +250,13 @@ export class RebalancerContextFactory {
       );
       if (chainConfig?.bridgeMinAcceptedAmount) {
         const token = this.tokensByChainName[chainName];
-        const decimals = token?.decimals ?? 18;
-        minAmountsByChain[chainName] = BigInt(
-          toWei(chainConfig.bridgeMinAcceptedAmount, decimals),
+        assert(
+          token,
+          `No token found for configured strategy chain ${chainName} in warp route ${this.config.warpRouteId}`,
+        );
+        minAmountsByChain[chainName] = normalizeConfiguredAmount(
+          chainConfig.bridgeMinAcceptedAmount,
+          token,
         );
       }
     }
@@ -457,6 +459,13 @@ export class RebalancerContextFactory {
     if (allRelevantChains.length === 0) {
       this.logger.debug('No inventory chains configured');
       return null;
+    }
+
+    for (const chain of allRelevantChains) {
+      assert(
+        this.tokensByChainName[chain],
+        `No token found for inventory-relevant chain ${chain} in warp route ${this.config.warpRouteId}`,
+      );
     }
 
     const requiredProtocols = new Set(
@@ -761,7 +770,11 @@ export class RebalancerContextFactory {
         ) {
           const adapter = token.getHypAdapter(this.warpCore.multiProvider);
           const bridgedSupply = await adapter.getBridgedSupply();
-          initialTotalCollateral += bridgedSupply ?? 0n;
+          assert(
+            bridgedSupply !== undefined,
+            `Missing bridged supply for ${token.chainName} while computing initial total collateral for warp route ${this.config.warpRouteId}`,
+          );
+          initialTotalCollateral += normalizeToCanonical(bridgedSupply, token);
         }
       }),
     );

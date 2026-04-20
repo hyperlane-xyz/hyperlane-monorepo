@@ -12,7 +12,7 @@ import {
   strip0x,
 } from '@hyperlane-xyz/utils';
 
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
 import { ChainName } from '../../types.js';
 
 import { EvmTokenAdapter } from './EvmTokenAdapter.js';
@@ -52,7 +52,7 @@ export class M0PortalLiteTokenAdapter
   public readonly portalContract: Contract;
 
   constructor(
-    multiProvider: MultiProtocolProvider,
+    multiProvider: MultiProviderAdapter,
     chainName: ChainName,
     private readonly portalAddress: Address,
     mTokenAddress: Address,

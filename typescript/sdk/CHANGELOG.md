@@ -1,5 +1,264 @@
 # @hyperlane-xyz/sdk
 
+## 33.0.0
+
+### Major Changes
+
+- dc8e560: Added Predicate integration for compliance-gated warp route transfers
+  - Added `PredicateWrapperConfigSchema` for configuring predicate wrapper deployment
+  - Added `PredicateApiClient` for fetching attestations from Predicate API
+  - Added `PredicateWrapperDeployer` for deploying and configuring PredicateRouterWrapper contracts
+  - Integrated predicate wrapper deployment into warp route deployment flow
+  - Supported aggregation hooks with predicate wrapper (wrapper executes first)
+  - Always aggregated predicate wrapper with mailbox default hook to ensure gas quoting works correctly
+  - Detected PredicateRouterWrapper recursively inside nested aggregation hooks
+
+  Example configuration:
+
+  ```yaml
+  ethereum:
+    type: collateral
+    token: '0x...'
+    predicateWrapper:
+      predicateRegistry: '0xe15a8Ca5BD8464283818088c1760d8f23B6a216E'
+      policyId: 'x-your-policy-id'
+  ```
+
+### Patch Changes
+
+- @hyperlane-xyz/aleo-sdk@33.0.0
+- @hyperlane-xyz/starknet-core@33.0.0
+- @hyperlane-xyz/cosmos-sdk@33.0.0
+- @hyperlane-xyz/radix-sdk@33.0.0
+- @hyperlane-xyz/utils@33.0.0
+- @hyperlane-xyz/deploy-sdk@5.0.2
+- @hyperlane-xyz/core@11.3.1
+- @hyperlane-xyz/provider-sdk@5.0.2
+- @hyperlane-xyz/tron-sdk@23.0.2
+
+## 32.0.1
+
+### Patch Changes
+
+- 611b911: Normalized scale values in warp route check so plain numbers from config and {numerator, denominator} objects from on-chain reader compare equal during diff.
+- c6de4c9: Updated warp check to validate OFT routes using OFT-specific sentinel router state and normalized empty extraOptions/domainMappings values.
+  - @hyperlane-xyz/aleo-sdk@32.0.1
+  - @hyperlane-xyz/starknet-core@32.0.1
+  - @hyperlane-xyz/cosmos-sdk@32.0.1
+  - @hyperlane-xyz/radix-sdk@32.0.1
+  - @hyperlane-xyz/utils@32.0.1
+  - @hyperlane-xyz/deploy-sdk@5.0.1
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/provider-sdk@5.0.1
+  - @hyperlane-xyz/tron-sdk@23.0.1
+
+## 32.0.0
+
+### Patch Changes
+
+- e4da110: Fixed routing fee for non-evm legs
+- d588eb5: Replaced z.coerce.bigint().positive() with ZBigNumberish.refine() in TokenMetadataSchema scale field for zod-to-json-schema compatibility. Fixed validateZodResult generic to correctly return output type for schemas with transforms.
+- ab17263: Fixed Solana-origin `warp send` by adding a legacy @solana/web3.js to @solana/kit transaction conversion layer. SDK adapters return legacy Transaction objects, but the SvmSigner expects kit-format instructions. The conversion handles instruction format translation, compute budget preservation, and extra signer (Keypair→TransactionSigner) conversion. SvmReceipt was extended with transaction meta (logs) fetched after confirmation so extractMessageIds works for Solana transfers.
+- ebde778: Fixed `deliver()` and `sendMessage()` in HyperlaneCore to connect the mailbox with the current signer at call time, preventing "sending a transaction requires a signer" errors when signers are added after construction. The `status --relay` command now exits non-zero when relay fails.
+- Updated dependencies [3dc6367]
+- Updated dependencies [fa08f2a]
+  - @hyperlane-xyz/provider-sdk@5.0.0
+  - @hyperlane-xyz/aleo-sdk@32.0.0
+  - @hyperlane-xyz/tron-sdk@23.0.0
+  - @hyperlane-xyz/cosmos-sdk@32.0.0
+  - @hyperlane-xyz/radix-sdk@32.0.0
+  - @hyperlane-xyz/deploy-sdk@5.0.0
+  - @hyperlane-xyz/starknet-core@32.0.0
+  - @hyperlane-xyz/utils@32.0.0
+  - @hyperlane-xyz/core@11.3.1
+
+## 31.2.1
+
+### Patch Changes
+
+- f9c8f83: Replaced z.coerce.bigint().positive() with pipe-based coercion in TokenMetadataSchema scale field to fix zod-to-json-schema compatibility in the registry build.
+  - @hyperlane-xyz/aleo-sdk@31.2.1
+  - @hyperlane-xyz/starknet-core@31.2.1
+  - @hyperlane-xyz/cosmos-sdk@31.2.1
+  - @hyperlane-xyz/radix-sdk@31.2.1
+  - @hyperlane-xyz/utils@31.2.1
+  - @hyperlane-xyz/deploy-sdk@4.3.4
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/provider-sdk@4.3.4
+  - @hyperlane-xyz/tron-sdk@22.1.14
+
+## 31.2.0
+
+### Minor Changes
+
+- 35fb5c8: Shared scale conversion helpers were exported, and WarpCore preserved legacy collateral checks for mixed-decimal routes when scale metadata is missing.
+
+### Patch Changes
+
+- @hyperlane-xyz/aleo-sdk@31.2.0
+- @hyperlane-xyz/starknet-core@31.2.0
+- @hyperlane-xyz/cosmos-sdk@31.2.0
+- @hyperlane-xyz/radix-sdk@31.2.0
+- @hyperlane-xyz/utils@31.2.0
+- @hyperlane-xyz/deploy-sdk@4.3.3
+- @hyperlane-xyz/core@11.3.1
+- @hyperlane-xyz/provider-sdk@4.3.3
+- @hyperlane-xyz/tron-sdk@22.1.13
+
+## 31.1.0
+
+### Minor Changes
+
+- c8fe242: Added request retries when fetching contract verification status from etherscan like apis to avoid having an incorrect status due to rate limits
+
+### Patch Changes
+
+- 8a082af: Added light subpath exports for SDK provider and warp modules, plus lean widget subpath exports.
+- 8a082af: Added runtime entrypoints for non-EVM SDKs and avoided bundling heavy deploy-time modules in UI wallet integrations.
+- Updated dependencies [8a082af]
+  - @hyperlane-xyz/aleo-sdk@31.1.0
+  - @hyperlane-xyz/cosmos-sdk@31.1.0
+  - @hyperlane-xyz/radix-sdk@31.1.0
+  - @hyperlane-xyz/tron-sdk@22.1.12
+  - @hyperlane-xyz/deploy-sdk@4.3.2
+  - @hyperlane-xyz/starknet-core@31.1.0
+  - @hyperlane-xyz/utils@31.1.0
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/provider-sdk@4.3.2
+
+## 31.0.1
+
+### Patch Changes
+
+- Updated dependencies [d5168fc]
+  - @hyperlane-xyz/utils@31.0.1
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/aleo-sdk@31.0.1
+  - @hyperlane-xyz/cosmos-sdk@31.0.1
+  - @hyperlane-xyz/deploy-sdk@4.3.1
+  - @hyperlane-xyz/provider-sdk@4.3.1
+  - @hyperlane-xyz/radix-sdk@31.0.1
+  - @hyperlane-xyz/tron-sdk@22.1.11
+  - @hyperlane-xyz/starknet-core@31.0.1
+
+## 31.0.0
+
+### Major Changes
+
+- 69e6b3f: Warp route checks were unified onto the shared CLI comparison flow, including explicit proxyAdmin address checks and owner override ownership checks. The legacy `HypERC20App` and `HypERC20Checker` SDK exports were removed.
+
+### Minor Changes
+
+- 44626fb: Enabled SVM cross-collateral token deployments in the CLI. Added `crossCollateral` to supported Alt-VM token types, allowing `warp deploy`, `warp combine`, and `warp apply` to work with SVM CC routes. Extracted `computeCrossCollateralRouterUpdates` into provider-sdk for cross-protocol reuse. Fixed CC-only gas preservation for domains transitioning from remote routers.
+
+### Patch Changes
+
+- df33d41: Fixed sealevel fee payer
+- 4963b32: Fix HypERC20Checker validation for EVM cross-collateral routes.
+- 9003721: Warp check validated scale against configured crossCollateralRouters.
+- fc0a1cf: Fixed tx overrides in token deploys
+- Updated dependencies [44626fb]
+- Updated dependencies [7ad1f9e]
+- Updated dependencies [1dac3b0]
+  - @hyperlane-xyz/provider-sdk@4.3.0
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/tron-sdk@22.1.10
+  - @hyperlane-xyz/deploy-sdk@4.3.0
+  - @hyperlane-xyz/aleo-sdk@31.0.0
+  - @hyperlane-xyz/cosmos-sdk@31.0.0
+  - @hyperlane-xyz/radix-sdk@31.0.0
+  - @hyperlane-xyz/starknet-core@31.0.0
+  - @hyperlane-xyz/utils@31.0.0
+
+## 30.1.1
+
+### Patch Changes
+
+- 26d682b: Fee quoting client and shared types were moved from @hyperlane-xyz/fee-quoting into @hyperlane-xyz/sdk. The fee-quoting package was marked as private since it is a deployable service, not a published library.
+  - @hyperlane-xyz/aleo-sdk@30.1.1
+  - @hyperlane-xyz/starknet-core@30.1.1
+  - @hyperlane-xyz/cosmos-sdk@30.1.1
+  - @hyperlane-xyz/radix-sdk@30.1.1
+  - @hyperlane-xyz/utils@30.1.1
+  - @hyperlane-xyz/deploy-sdk@4.2.5
+  - @hyperlane-xyz/core@11.3.0
+  - @hyperlane-xyz/provider-sdk@4.2.5
+  - @hyperlane-xyz/tron-sdk@22.1.9
+
+## 30.1.0
+
+### Minor Changes
+
+- 71f0ca4: Added standalone `setMaxFeePpm` update path for CCTP V2 warp routes in `EvmWarpModule.update()`, so fee changes are applied even without a contract version upgrade.
+- 6f8c503: QuotedCalls.quoteExecute was added for fee discovery via eth_call, returning per-command Quote[][] arrays. The SDK gained a QuotedCalls client with codec, builder, and WarpCore integration for atomic quoted transfers.
+- 5eae48e: Added `SealevelHypCrossCollateralAdapter` for Sealevel cross-collateral warp token transfers. The adapter supports both same-chain (local CPI) and cross-chain (mailbox dispatch) paths, with account discovery via `HandleLocalAccountMetas` simulation. WarpCore CC transfer flow was made protocol-agnostic by replacing EVM-specific casts with an `isHypCrossCollateralAdapter` type guard. Added `SealevelHypCrossCollateral` token standard and wired it into the Token factory.
+
+### Patch Changes
+
+- 4c4462f: CrossCollateral contracts and tests were moved into the core Solidity package under `contracts/token` and `test/token`, and SDK imports were updated to use `@hyperlane-xyz/core` factories instead of `@hyperlane-xyz/multicollateral`.
+- 9061916: CrossCollateralRoutingFee exposed an explicit feeType in the core contract interface.
+- 2057d1a: CrossCollateralRoutingFee reader and update flows were fixed to preserve token context, support direct SDK updates, and encode CCRF fee-contract mutations correctly.
+- e1f35a7: The offchain fee quoting service and client were added, with CLI integration for quoted transfers and SDK export of DEFAULT_ROUTER_KEY.
+- b691b87: A deposit-address token bridge adapter was added in core, and the SDK deployer, reader, and config types were updated to support `collateralDepositAddress` routes.
+- 57e46b1: The TokenBridgeOft contract, LayerZero IOFT interface, and Forge tests were moved into the core Solidity package. The SDK was updated to resolve TokenBridgeOft factories from `@hyperlane-xyz/core`, and the deprecated `@hyperlane-xyz/multicollateral` package was removed.
+- Updated dependencies [9ac480a]
+- Updated dependencies [9eefa2d]
+- Updated dependencies [4c4462f]
+- Updated dependencies [696da11]
+- Updated dependencies [46dda6c]
+- Updated dependencies [ac1acbb]
+- Updated dependencies [d38fad1]
+- Updated dependencies [cfed1d2]
+- Updated dependencies [9061916]
+- Updated dependencies [d41d088]
+- Updated dependencies [b691b87]
+- Updated dependencies [7018cc6]
+- Updated dependencies [ef4399b]
+- Updated dependencies [3fef31c]
+- Updated dependencies [d98726f]
+- Updated dependencies [40356c6]
+- Updated dependencies [6f8c503]
+- Updated dependencies [f2749a6]
+- Updated dependencies [6bd4fd1]
+- Updated dependencies [57e46b1]
+- Updated dependencies [993de2b]
+- Updated dependencies [b5f897c]
+- Updated dependencies [9515191]
+  - @hyperlane-xyz/core@11.3.0
+  - @hyperlane-xyz/tron-sdk@22.1.8
+  - @hyperlane-xyz/deploy-sdk@4.2.4
+  - @hyperlane-xyz/aleo-sdk@30.1.0
+  - @hyperlane-xyz/starknet-core@30.1.0
+  - @hyperlane-xyz/cosmos-sdk@30.1.0
+  - @hyperlane-xyz/radix-sdk@30.1.0
+  - @hyperlane-xyz/utils@30.1.0
+  - @hyperlane-xyz/provider-sdk@4.2.4
+
+## 30.0.0
+
+### Minor Changes
+
+- d0dbf1a: PostCallsSchema is now a backwards-compatible union accepting either `destinationDomain` + `owner` (new ICA derivation path) or `commitmentDispatchTx` (legacy dispatch tx path). Added `isPostCallsIca()` type guard, `PostCallsIcaType`, `PostCallsLegacyType` exports, and `commitmentFromRevealMessage()` helper. Tightened schema validation to use ZHash for `owner`, `salt`, `ismOverride`, and `commitmentDispatchTx` fields.
+
+### Patch Changes
+
+- e1ed158: User-specified remoteRouters and destinationGas in warp deploy configs were ignored during router enrollment when the remote chains were not part of the deployment. enrollCrossChainRouters now merges user-specified entries with auto-discovered routers from deployed contracts.
+- 95c2891: Routing fee config derivation skips non-EVM domains unknown to MultiProvider instead of throwing.
+- Updated dependencies [ac297da]
+- Updated dependencies [77db719]
+- Updated dependencies [37255ba]
+- Updated dependencies [7646819]
+  - @hyperlane-xyz/core@11.2.0
+  - @hyperlane-xyz/deploy-sdk@4.2.3
+  - @hyperlane-xyz/provider-sdk@4.2.3
+  - @hyperlane-xyz/utils@30.0.0
+  - @hyperlane-xyz/multicollateral@1.0.2
+  - @hyperlane-xyz/tron-sdk@22.1.7
+  - @hyperlane-xyz/aleo-sdk@30.0.0
+  - @hyperlane-xyz/cosmos-sdk@30.0.0
+  - @hyperlane-xyz/radix-sdk@30.0.0
+  - @hyperlane-xyz/starknet-core@30.0.0
+
 ## 29.1.0
 
 ### Minor Changes

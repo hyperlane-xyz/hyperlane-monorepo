@@ -10,6 +10,8 @@ import {
   StarknetWarpTokenReaderBase,
   StarknetWarpTokenWriterBase,
 } from './token-artifact-manager.js';
+import { getCreateNativeTokenTx } from './warp-tx.js';
+import { getMailboxConfig } from '../mailbox/mailbox-query.js';
 
 export class StarknetNativeTokenReader extends StarknetWarpTokenReaderBase<
   'native',
@@ -47,9 +49,15 @@ export class StarknetNativeTokenWriter extends StarknetWarpTokenWriterBase<
   protected async createToken(
     artifact: ArtifactNew<RawWarpArtifactConfigs['native']>,
   ) {
-    const tx = await this.signer.getCreateNativeTokenTransaction({
-      signer: this.signer.getSignerAddress(),
+    const mailbox = await getMailboxConfig(
+      this.provider.getRawProvider(),
+      artifact.config.mailbox,
+    );
+    const tx = getCreateNativeTokenTx(this.signer.getSignerAddress(), {
       mailboxAddress: artifact.config.mailbox,
+      feeTokenAddress: this.provider.getFeeTokenAddress(),
+      defaultHook: mailbox.defaultHook,
+      defaultIsm: mailbox.defaultIsm,
     });
     return this.signer.sendAndConfirmTransaction(tx);
   }

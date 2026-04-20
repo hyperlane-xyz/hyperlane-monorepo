@@ -135,4 +135,10 @@ export const awIcas: ChainMap<Address> = {
   // Mar 24, 2026
   // ----------------------------------------------------------
   plasma: '0x5f132a9a16F8e4AE1E2ec2F2bcEdf074d1496c3f',
+
+  // Apr 2, 2026
+  // ----------------------------------------------------------
+  // mocachain: '0x978d92B88ddcE02879ADa3848F0bCD6279E93B73',
+  // fluent: '0x978d92B88ddcE02879ADa3848F0bCD6279E93B73',
+  // kiichain: '0x978d92B88ddcE02879ADa3848F0bCD6279E93B73',
 } as const;

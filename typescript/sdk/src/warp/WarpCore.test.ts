@@ -22,6 +22,14 @@ import { TokenStandard } from '../token/TokenStandard.js';
 import { InterchainGasQuote } from '../token/adapters/ITokenAdapter.js';
 import { ChainName } from '../types.js';
 
+import { encodeAbiParameters, zeroAddress } from 'viem';
+
+import type {
+  QuotedCallsParams,
+  SubmitQuoteCommand,
+} from '../quoted-calls/types.js';
+import { TokenPullMode } from '../quoted-calls/types.js';
+
 import { WarpCore } from './WarpCore.js';
 import { WarpTxCategory } from './types.js';
 
@@ -50,24 +58,11 @@ describe('WarpCore', () => {
   let cw20: Token;
   let cosmosIbc: Token;
 
-  // Stub MultiProvider fee estimation to avoid real network calls
-  sinon
-    .stub(multiProvider, 'estimateTransactionFee')
-    .returns(Promise.resolve(MOCK_LOCAL_QUOTE));
-
-  it('Constructs', () => {
-    const fromArgs = new WarpCore(multiProvider, [
-      Token.FromChainMetadataNativeToken(test1),
-    ]);
+  before(() => {
     const exampleConfig = yamlParse(
       fs.readFileSync('./src/warp/test-warp-core-config.yaml', 'utf-8'),
     );
-    const fromConfig = WarpCore.FromConfig(multiProvider, exampleConfig);
-    expect(fromArgs).to.be.instanceOf(WarpCore);
-    expect(fromConfig).to.be.instanceOf(WarpCore);
-    expect(fromConfig.tokens.length).to.equal(exampleConfig.tokens.length);
-
-    warpCore = fromConfig;
+    warpCore = WarpCore.FromConfig(multiProvider, exampleConfig);
     [
       evmHypNative,
       evmHypSynthetic,
@@ -82,6 +77,29 @@ describe('WarpCore', () => {
       cw20,
       cosmosIbc,
     ] = warpCore.tokens;
+  });
+
+  beforeEach(() => {
+    sinon
+      .stub(multiProvider, 'estimateTransactionFee')
+      .returns(Promise.resolve(MOCK_LOCAL_QUOTE));
+  });
+
+  afterEach(() => {
+    sinon.restore();
+  });
+
+  it('Constructs', () => {
+    const fromArgs = new WarpCore(multiProvider, [
+      Token.FromChainMetadataNativeToken(test1),
+    ]);
+    const exampleConfig = yamlParse(
+      fs.readFileSync('./src/warp/test-warp-core-config.yaml', 'utf-8'),
+    );
+    const fromConfig = WarpCore.FromConfig(multiProvider, exampleConfig);
+    expect(fromArgs).to.be.instanceOf(WarpCore);
+    expect(fromConfig).to.be.instanceOf(WarpCore);
+    expect(fromConfig.tokens.length).to.equal(exampleConfig.tokens.length);
   });
 
   it('Finds tokens', () => {
@@ -249,13 +267,277 @@ describe('WarpCore', () => {
       ).to.equal(expectedResult);
     };
 
-    await testCollateral(evmHypNativeScale1, testScale2.name, 10n, false);
-    await testCollateral(evmHypNativeScale1, testScale2.name, 1n, true);
-    await testCollateral(evmHypNativeScale2, testScale1.name, 10n, true);
-    await testCollateral(evmHypNativeScale2, testScale1.name, 100n, true);
-    await testCollateral(evmHypNativeScale2, testScale1.name, 101n, false);
+    const originalScale1 = evmHypNativeScale1.scale;
+    const originalScale2 = evmHypNativeScale2.scale;
 
-    stubs.forEach((s) => s.restore());
+    try {
+      await testCollateral(evmHypNativeScale1, testScale2.name, 10n, false);
+      await testCollateral(evmHypNativeScale1, testScale2.name, 1n, true);
+      await testCollateral(evmHypNativeScale2, testScale1.name, 10n, true);
+      await testCollateral(evmHypNativeScale2, testScale1.name, 100n, true);
+      await testCollateral(evmHypNativeScale2, testScale1.name, 101n, false);
+
+      evmHypNativeScale1.scale = { numerator: 100n, denominator: 10n };
+      evmHypNativeScale2.scale = { numerator: 10n, denominator: 10n };
+
+      await testCollateral(evmHypNativeScale1, testScale2.name, 10n, false);
+      await testCollateral(evmHypNativeScale1, testScale2.name, 1n, true);
+      await testCollateral(evmHypNativeScale2, testScale1.name, 10n, true);
+      await testCollateral(evmHypNativeScale2, testScale1.name, 100n, true);
+      await testCollateral(evmHypNativeScale2, testScale1.name, 101n, false);
+    } finally {
+      evmHypNativeScale1.scale = originalScale1;
+      evmHypNativeScale2.scale = originalScale2;
+      stubs.forEach((s) => s.restore());
+    }
+  });
+
+  it('Preserves decimals fallback for mixed-decimal routes missing scale', async () => {
+    const originToken = new Token({
+      chainName: test1.name,
+      standard: TokenStandard.EvmHypCollateral,
+      addressOrDenom: zeroAddress,
+      decimals: 18,
+      symbol: 'TEST',
+      name: 'Test Token',
+      connections: [],
+    });
+    const destinationToken = new Token({
+      chainName: test2.name,
+      standard: TokenStandard.EvmHypCollateral,
+      addressOrDenom: zeroAddress,
+      decimals: 6,
+      symbol: 'TEST',
+      name: 'Test Token',
+      connections: [],
+    });
+    originToken.connections!.push({ token: destinationToken });
+    const mixedDecimalWarpCore = new WarpCore(multiProvider, [
+      originToken,
+      destinationToken,
+    ]);
+    const originStub = sinon.stub(originToken, 'getHypAdapter').returns({
+      getBalance: () => Promise.resolve(1_000_000n),
+      getBridgedSupply: () => Promise.resolve(1_000_000n),
+    } as any);
+    const destinationStub = sinon
+      .stub(destinationToken, 'getHypAdapter')
+      .returns({
+        getBalance: () => Promise.resolve(1_000_000n),
+        getBridgedSupply: () => Promise.resolve(1_000_000n),
+      } as any);
+
+    try {
+      expect(
+        await mixedDecimalWarpCore.isDestinationCollateralSufficient({
+          originTokenAmount: originToken.amount(1_000_000_000_000_000_000n),
+          destination: test2.name,
+        }),
+      ).to.be.true;
+      expect(
+        await mixedDecimalWarpCore.isDestinationCollateralSufficient({
+          originTokenAmount: originToken.amount(1_000_000_000_000_000_001n),
+          destination: test2.name,
+        }),
+      ).to.be.false;
+    } finally {
+      originStub.restore();
+      destinationStub.restore();
+    }
+  });
+
+  it('Uses message-space collateral checks when one side has rational scale and the other uses implicit identity', async () => {
+    const originToken = new Token({
+      chainName: test1.name,
+      standard: TokenStandard.EvmHypCollateral,
+      addressOrDenom: zeroAddress,
+      decimals: 18,
+      scale: { numerator: 2, denominator: 1_000_000_000_000 },
+      symbol: 'TEST',
+      name: 'Test Token',
+      connections: [],
+    });
+    const destinationToken = new Token({
+      chainName: test2.name,
+      standard: TokenStandard.EvmHypCollateral,
+      addressOrDenom: zeroAddress,
+      decimals: 6,
+      symbol: 'TEST',
+      name: 'Test Token',
+      connections: [],
+    });
+    originToken.connections!.push({ token: destinationToken });
+    const scaledWarpCore = new WarpCore(multiProvider, [
+      originToken,
+      destinationToken,
+    ]);
+    const originStub = sinon.stub(originToken, 'getHypAdapter').returns({
+      getBalance: () => Promise.resolve(1_000_000n),
+      getBridgedSupply: () => Promise.resolve(1_000_000n),
+    } as any);
+    const destinationStub = sinon
+      .stub(destinationToken, 'getHypAdapter')
+      .returns({
+        getBalance: () => Promise.resolve(1_000_000n),
+        getBridgedSupply: () => Promise.resolve(1_000_000n),
+      } as any);
+
+    try {
+      expect(
+        await scaledWarpCore.isDestinationCollateralSufficient({
+          originTokenAmount: originToken.amount(500_000_000_000_000_000n),
+          destination: test2.name,
+        }),
+      ).to.be.true;
+      expect(
+        await scaledWarpCore.isDestinationCollateralSufficient({
+          originTokenAmount: originToken.amount(750_000_000_000_000_000n),
+          destination: test2.name,
+        }),
+      ).to.be.false;
+    } finally {
+      originStub.restore();
+      destinationStub.restore();
+    }
+  });
+
+  it('Uses message-space collateral checks when destination has scale and origin uses implicit identity', async () => {
+    // Reverse of the previous test: origin is the "simple" 6-dec side,
+    // destination is 18-dec with a rational scale.
+    const originToken = new Token({
+      chainName: test1.name,
+      standard: TokenStandard.EvmHypCollateral,
+      addressOrDenom: zeroAddress,
+      decimals: 6,
+      symbol: 'TEST',
+      name: 'Test Token',
+      connections: [],
+    });
+    const destinationToken = new Token({
+      chainName: test2.name,
+      standard: TokenStandard.EvmHypCollateral,
+      addressOrDenom: zeroAddress,
+      decimals: 18,
+      scale: { numerator: 2, denominator: 1_000_000_000_000 },
+      symbol: 'TEST',
+      name: 'Test Token',
+      connections: [],
+    });
+    originToken.connections!.push({ token: destinationToken });
+    const scaledWarpCore = new WarpCore(multiProvider, [
+      originToken,
+      destinationToken,
+    ]);
+    // dest has 1_000_000 local units; scale {2, 1e12} → message = 1_000_000 * 2 / 1e12 = 0
+    // So even a small origin amount should be insufficient.
+    const originStub = sinon.stub(originToken, 'getHypAdapter').returns({
+      getBalance: () => Promise.resolve(1_000_000n),
+      getBridgedSupply: () => Promise.resolve(1_000_000n),
+    } as any);
+    const destinationStub = sinon
+      .stub(destinationToken, 'getHypAdapter')
+      .returns({
+        getBalance: () => Promise.resolve(1_000_000n),
+        getBridgedSupply: () => Promise.resolve(1_000_000n),
+      } as any);
+
+    try {
+      // origin 1_000_000 (6-dec, identity scale) → message = 1_000_000
+      // dest 1_000_000 (18-dec, scale 2/1e12) → message = 0 (floor)
+      expect(
+        await scaledWarpCore.isDestinationCollateralSufficient({
+          originTokenAmount: originToken.amount(1n),
+          destination: test2.name,
+        }),
+      ).to.be.false;
+
+      // Give dest enough balance: 500_000_000_000_000_000 * 2 / 1e12 = 1_000_000
+      destinationStub.restore();
+      const destinationStub2 = sinon
+        .stub(destinationToken, 'getHypAdapter')
+        .returns({
+          getBalance: () => Promise.resolve(500_000_000_000_000_000n),
+          getBridgedSupply: () => Promise.resolve(500_000_000_000_000_000n),
+        } as any);
+
+      expect(
+        await scaledWarpCore.isDestinationCollateralSufficient({
+          originTokenAmount: originToken.amount(1_000_000n),
+          destination: test2.name,
+        }),
+      ).to.be.true;
+
+      destinationStub2.restore();
+    } finally {
+      originStub.restore();
+    }
+  });
+
+  it('Uses message-space collateral checks when both tokens have non-trivial scale and different decimals', async () => {
+    // Production-realistic: origin 18-dec with scale-down {1, 1e12},
+    // dest 6-dec with scale-up {2, 1}.
+    // origin message amount = localAmount * 1 / 1e12
+    // dest message amount = localAmount * 2 / 1
+    const originToken = new Token({
+      chainName: test1.name,
+      standard: TokenStandard.EvmHypCollateral,
+      addressOrDenom: zeroAddress,
+      decimals: 18,
+      scale: { numerator: 1, denominator: 1_000_000_000_000 },
+      symbol: 'TEST',
+      name: 'Test Token',
+      connections: [],
+    });
+    const destinationToken = new Token({
+      chainName: test2.name,
+      standard: TokenStandard.EvmHypCollateral,
+      addressOrDenom: zeroAddress,
+      decimals: 6,
+      scale: { numerator: 2, denominator: 1 },
+      symbol: 'TEST',
+      name: 'Test Token',
+      connections: [],
+    });
+    originToken.connections!.push({ token: destinationToken });
+    const scaledWarpCore = new WarpCore(multiProvider, [
+      originToken,
+      destinationToken,
+    ]);
+    const originStub = sinon.stub(originToken, 'getHypAdapter').returns({
+      getBalance: () => Promise.resolve(1_000_000n),
+      getBridgedSupply: () => Promise.resolve(1_000_000n),
+    } as any);
+    // dest balance 500_000: message = 500_000 * 2 = 1_000_000
+    const destinationStub = sinon
+      .stub(destinationToken, 'getHypAdapter')
+      .returns({
+        getBalance: () => Promise.resolve(500_000n),
+        getBridgedSupply: () => Promise.resolve(500_000n),
+      } as any);
+
+    try {
+      // origin 1_000_000_000_000_000_000 (1 token in 18-dec)
+      // → message = 1e18 * 1 / 1e12 = 1_000_000
+      // dest message = 500_000 * 2 = 1_000_000 → sufficient
+      expect(
+        await scaledWarpCore.isDestinationCollateralSufficient({
+          originTokenAmount: originToken.amount(1_000_000_000_000_000_000n),
+          destination: test2.name,
+        }),
+      ).to.be.true;
+
+      // origin 2e18 → message = 2_000_000
+      // dest message = 1_000_000 → insufficient
+      expect(
+        await scaledWarpCore.isDestinationCollateralSufficient({
+          originTokenAmount: originToken.amount(2_000_000_000_000_000_000n),
+          destination: test2.name,
+        }),
+      ).to.be.false;
+    } finally {
+      originStub.restore();
+      destinationStub.restore();
+    }
   });
 
   it('Validates transfers', async () => {
@@ -749,6 +1031,7 @@ describe('WarpCore', () => {
 
     const adapterStub = sinon.stub(evmHypNative, 'getHypAdapter').returns({
       quoteTransferRemoteToGas,
+      populateTransferRemoteToTx: sinon.stub(),
     } as any);
 
     try {
@@ -790,6 +1073,7 @@ describe('WarpCore', () => {
     });
     const adapterStub = sinon.stub(evmHypNative, 'getHypAdapter').returns({
       quoteTransferRemoteToGas,
+      populateTransferRemoteToTx: sinon.stub(),
     } as any);
     const localFeeAmountStub = sinon
       .stub(warpCore as any, 'getLocalTransferFeeAmount')
@@ -967,6 +1251,180 @@ describe('WarpCore', () => {
     await testGetTxs(cosmosIbc, test1.name, ProviderType.CosmJs);
 
     coreStub.restore();
+    adapterStubs.forEach((s) => s.restore());
+  });
+
+  // ============ QuotedCalls tests ============
+
+  const MOCK_QUOTED_CALLS_ADDRESS =
+    '0x0000000000000000000000000000000000AC0101' as `0x${string}`;
+  const MOCK_CLIENT_SALT =
+    '0x5555555555555555555555555555555555555555555555555555555555555555' as `0x${string}`;
+  const MOCK_SUBMIT_QUOTE: SubmitQuoteCommand = {
+    quoter: '0x000000000000000000000000000000000000aa01',
+    quote: {
+      context: '0xdeadbeef',
+      data: '0xcafebabe',
+      issuedAt: 1000,
+      expiry: 1000,
+      salt: MOCK_CLIENT_SALT,
+      submitter: MOCK_QUOTED_CALLS_ADDRESS,
+    },
+    signature: '0xaabb',
+  };
+
+  // Encode a mock quoteExecute return value (Quote[][])
+  function encodeMockQuoteResult(
+    results: Array<Array<{ token: `0x${string}`; amount: bigint }>>,
+  ): `0x${string}` {
+    return encodeAbiParameters(
+      [
+        {
+          type: 'tuple[][]',
+          components: [
+            { name: 'token', type: 'address' },
+            { name: 'amount', type: 'uint256' },
+          ],
+        },
+      ],
+      [results],
+    );
+  }
+
+  it('Gets quoted transfer fee via quoteExecute', async () => {
+    const syntheticAddr = evmHypSynthetic.addressOrDenom as `0x${string}`;
+    const mockQuoteResult = encodeMockQuoteResult([
+      [], // SUBMIT_QUOTE
+      [
+        // TRANSFER_REMOTE
+        { token: zeroAddress, amount: 500n },
+        { token: syntheticAddr, amount: TRANSFER_AMOUNT + 100n },
+        { token: syntheticAddr, amount: 50n },
+      ],
+    ]);
+
+    const providerStub = sinon
+      .stub(multiProvider, 'getEthersV5Provider')
+      .returns({
+        _isProvider: true,
+        call: () => Promise.resolve(mockQuoteResult),
+      } as any);
+
+    try {
+      const quotedCalls: QuotedCallsParams = {
+        address: MOCK_QUOTED_CALLS_ADDRESS,
+        quotes: [MOCK_SUBMIT_QUOTE],
+        clientSalt: MOCK_CLIENT_SALT,
+        tokenPullMode: TokenPullMode.TransferFrom,
+      };
+
+      const result = await warpCore.getQuotedTransferFee({
+        originTokenAmount: evmHypSynthetic.amount(TRANSFER_AMOUNT),
+        destination: test2.name,
+        sender: MOCK_ADDRESS,
+        recipient: MOCK_ADDRESS,
+        quotedCalls,
+      });
+
+      expect(result.igpQuote.amount).to.equal(500n);
+      expect(result.tokenFeeQuote?.amount).to.equal(150n); // (TRANSFER_AMOUNT+100+50) - TRANSFER_AMOUNT
+      expect(result.feeQuotes).to.have.length(2);
+    } finally {
+      providerStub.restore();
+    }
+  });
+
+  it('Gets quoted transfer remote txs with approval', async () => {
+    const syntheticAddr = evmHypSynthetic.addressOrDenom as `0x${string}`;
+    const mockQuoteResult = encodeMockQuoteResult([
+      [], // SUBMIT_QUOTE
+      [
+        // TRANSFER_REMOTE
+        { token: zeroAddress, amount: 500n },
+        { token: syntheticAddr, amount: TRANSFER_AMOUNT + 100n },
+      ],
+    ]);
+
+    const providerStub = sinon
+      .stub(multiProvider, 'getEthersV5Provider')
+      .returns({
+        call: () => Promise.resolve(mockQuoteResult),
+      } as any);
+    const adapterStubs = warpCore.tokens.map((t) =>
+      sinon.stub(t, 'getAdapter').returns({
+        isApproveRequired: () => Promise.resolve(true),
+        populateApproveTx: () =>
+          Promise.resolve({ to: MOCK_QUOTED_CALLS_ADDRESS, data: '0x' }),
+        isRevokeApprovalRequired: () => Promise.resolve(false),
+      } as any),
+    );
+
+    try {
+      const quotedCalls: QuotedCallsParams = {
+        address: MOCK_QUOTED_CALLS_ADDRESS,
+        quotes: [MOCK_SUBMIT_QUOTE],
+        clientSalt: MOCK_CLIENT_SALT,
+        tokenPullMode: TokenPullMode.TransferFrom,
+      };
+
+      const result = await warpCore.getTransferRemoteTxs({
+        originTokenAmount: evmHypSynthetic.amount(TRANSFER_AMOUNT),
+        destination: test2.name,
+        sender: MOCK_ADDRESS,
+        recipient: MOCK_ADDRESS,
+        quotedCalls,
+      });
+
+      // Should have [Approval, Transfer]
+      expect(result.length).to.equal(2);
+      expect(result[0].category).to.equal(WarpTxCategory.Approval);
+      expect(result[1].category).to.equal(WarpTxCategory.Transfer);
+      expect(result[1].type).to.equal(ProviderType.EthersV5);
+    } finally {
+      providerStub.restore();
+      adapterStubs.forEach((s) => s.restore());
+    }
+  });
+
+  it('Skips quoteExecute when feeQuotes are pre-provided', async () => {
+    const precomputedFeeQuotes = [
+      [] as Array<{ token: `0x${string}`; amount: bigint }>,
+      [
+        { token: zeroAddress as `0x${string}`, amount: 500n },
+        {
+          token: evmHypSynthetic.addressOrDenom as `0x${string}`,
+          amount: TRANSFER_AMOUNT + 100n,
+        },
+      ],
+    ];
+
+    const adapterStubs = warpCore.tokens.map((t) =>
+      sinon.stub(t, 'getAdapter').returns({
+        isApproveRequired: () => Promise.resolve(false),
+        isRevokeApprovalRequired: () => Promise.resolve(false),
+      } as any),
+    );
+
+    const quotedCalls: QuotedCallsParams = {
+      address: MOCK_QUOTED_CALLS_ADDRESS,
+      quotes: [MOCK_SUBMIT_QUOTE],
+      clientSalt: MOCK_CLIENT_SALT,
+      tokenPullMode: TokenPullMode.TransferFrom,
+      feeQuotes: precomputedFeeQuotes,
+    };
+
+    const result = await warpCore.getTransferRemoteTxs({
+      originTokenAmount: evmHypSynthetic.amount(TRANSFER_AMOUNT),
+      destination: test2.name,
+      sender: MOCK_ADDRESS,
+      recipient: MOCK_ADDRESS,
+      quotedCalls,
+    });
+
+    // No approval needed, just Transfer
+    expect(result.length).to.equal(1);
+    expect(result[0].category).to.equal(WarpTxCategory.Transfer);
+
     adapterStubs.forEach((s) => s.restore());
   });
 });

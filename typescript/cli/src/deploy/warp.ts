@@ -41,7 +41,7 @@ import {
   type WarpRouteDeployConfig,
   type WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigSchema,
-  TokenStandard,
+  TOKEN_CROSS_COLLATERAL_STANDARDS,
   altVmChainLookup,
   enrollCrossChainRouters,
   executeWarpDeploy,
@@ -1280,7 +1280,7 @@ function assertCombineRoutesAreValid(routes: CombineRouteConfig[]): void {
     );
 
     const invalidCoreTokens = route.coreConfig.tokens.filter(
-      (token) => token.standard !== TokenStandard.EvmHypCrossCollateralRouter,
+      (token) => !TOKEN_CROSS_COLLATERAL_STANDARDS.has(token.standard),
     );
     assert(
       invalidCoreTokens.length === 0,

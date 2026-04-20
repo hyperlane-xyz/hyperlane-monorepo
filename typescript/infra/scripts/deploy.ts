@@ -8,7 +8,6 @@ import {
   ChainMap,
   ContractVerifier,
   ExplorerLicenseType,
-  HypERC20Deployer,
   HyperlaneCCIPDeployer,
   HyperlaneCoreDeployer,
   HyperlaneDeployer,
@@ -32,7 +31,6 @@ import { Contexts } from '../config/contexts.js';
 import { core as coreConfig } from '../config/environments/mainnet3/core.js';
 import { DEFAULT_OFFCHAIN_LOOKUP_ISM_URLS } from '../config/environments/utils.js';
 import { getEnvAddresses } from '../config/registry.js';
-import { getWarpConfig } from '../config/warp.js';
 import { chainsToSkip, minimalIcaChains } from '../src/config/chain.js';
 import { DeployCache, deployWithArtifacts } from '../src/deployment/deploy.js';
 import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender.js';
@@ -54,7 +52,6 @@ import {
   withConcurrentDeploy,
   withContext,
   withFork,
-  withKnownWarpRouteId,
   withModule,
   withWritePlan,
 } from './agent-utils.js';
@@ -69,16 +66,11 @@ async function main() {
     buildArtifactPath,
     chains,
     concurrentDeploy,
-    warpRouteId,
     writePlan,
   } = await withContext(
     withConcurrentDeploy(
       withWritePlan(
-        withChains(
-          withModule(
-            withFork(withKnownWarpRouteId(withBuildArtifactPath(getArgs()))),
-          ),
-        ),
+        withChains(withModule(withFork(withBuildArtifactPath(getArgs())))),
       ),
     ),
   ).argv;
@@ -148,21 +140,6 @@ async function main() {
       contractVerifier,
       concurrentDeploy,
       60 * 60 * 1000, // 60 minutes
-    );
-  } else if (module === Modules.WARP) {
-    if (!warpRouteId) {
-      throw new Error('Warp route ID is required for WARP module');
-    }
-    const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
-      getAddresses(envConfig.environment, Modules.PROXY_FACTORY),
-      multiProvider,
-    );
-    config = await getWarpConfig(multiProvider, envConfig, warpRouteId);
-    deployer = new HypERC20Deployer(
-      multiProvider,
-      ismFactory,
-      contractVerifier,
-      concurrentDeploy,
     );
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     config = envConfig.igp;

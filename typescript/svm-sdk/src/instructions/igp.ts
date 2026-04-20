@@ -34,6 +34,7 @@ import {
   readonlyAccount,
   writableAccount,
   writableSigner,
+  writableSignerAddress,
 } from './utils.js';
 
 export enum IgpInstructionKind {
@@ -283,7 +284,7 @@ function decodeInitOverheadIgp(data: Uint8Array): InitOverheadIgpData {
 
 export async function getSetGasOracleConfigsInstruction(
   programAddress: Address,
-  owner: TransactionSigner,
+  owner: Address,
   igpAccount: Address,
   configs: GasOracleConfig[],
 ): Promise<Instruction> {
@@ -292,7 +293,7 @@ export async function getSetGasOracleConfigsInstruction(
     [
       readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
       writableAccount(igpAccount),
-      writableSigner(owner),
+      writableSignerAddress(owner),
     ],
     encodeIgpProgramInstruction({ kind: 'setGasOracleConfigs', configs }),
   );
@@ -300,7 +301,7 @@ export async function getSetGasOracleConfigsInstruction(
 
 export async function getSetDestinationGasOverheadsInstruction(
   programAddress: Address,
-  owner: TransactionSigner,
+  owner: Address,
   overheadIgpAccount: Address,
   configs: GasOverheadConfig[],
 ): Promise<Instruction> {
@@ -309,7 +310,7 @@ export async function getSetDestinationGasOverheadsInstruction(
     [
       readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
       writableAccount(overheadIgpAccount),
-      writableSigner(owner),
+      writableSignerAddress(owner),
     ],
     encodeIgpProgramInstruction({
       kind: 'setDestinationGasOverheads',

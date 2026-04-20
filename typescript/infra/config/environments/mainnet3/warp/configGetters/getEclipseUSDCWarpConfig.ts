@@ -197,6 +197,8 @@ export interface EclipseUSDCWarpConfigOptions {
   programIds: { eclipsemainnet: string; solanamainnet: string };
   tokenMetadata?: { symbol: string; name: string };
   proxyAdmins: ChainMap<{ address: string | undefined; owner: string }>;
+  /** When set, fee contracts use OffchainQuotedLinearFee with these signers */
+  quoteSigners?: string[];
 }
 
 const rebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
@@ -208,7 +210,13 @@ export const buildEclipseUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   options: EclipseUSDCWarpConfigOptions,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const { ownersByChain, programIds, tokenMetadata, proxyAdmins } = options;
+  const {
+    ownersByChain,
+    programIds,
+    tokenMetadata,
+    proxyAdmins,
+    quoteSigners,
+  } = options;
 
   const configs: Array<[DeploymentChain, HypTokenRouterConfig]> = [];
   for (const currentChain of deploymentChains) {
@@ -257,6 +265,8 @@ export const buildEclipseUSDCWarpConfig = async (
         getWarpFeeOwner(currentChain),
         feeDestinations,
         1.5,
+        undefined,
+        quoteSigners,
       );
 
       const baseConfig = cctpRebalanceableSet.has(currentChain)

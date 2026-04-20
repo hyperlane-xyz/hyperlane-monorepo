@@ -29,8 +29,13 @@ import {
 import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { DestinationGas, RemoteRouters } from '../router/types.js';
+import {
+  DestinationGas,
+  RemoteRouters,
+  resolveRouterMapConfig,
+} from '../router/types.js';
 import { ChainMap } from '../types.js';
+import { normalizeScale } from '../utils/decimals.js';
 import { WarpCoreConfig } from '../warp/types.js';
 
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
@@ -47,8 +52,10 @@ import {
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
   isCollateralTokenConfig,
+  isCrossCollateralTokenConfig,
   isMovableCollateralTokenConfig,
   isNativeTokenConfig,
+  isOftTokenConfig,
   isSyntheticRebaseTokenConfig,
   isSyntheticTokenConfig,
 } from './types.js';
@@ -185,17 +192,20 @@ export async function expandWarpDeployConfig(params: {
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   deployedRoutersAddresses: ChainMap<Address>;
   expandedOnChainWarpConfig?: WarpRouteDeployConfigMailboxRequired;
+  validateScale?: boolean;
 }): Promise<WarpRouteDeployConfigMailboxRequired> {
   const {
     multiProvider,
     warpDeployConfig,
     deployedRoutersAddresses,
     expandedOnChainWarpConfig,
+    validateScale = true,
   } = params;
 
   const derivedTokenMetadata: TokenMetadataMap = await deriveTokenMetadata(
     multiProvider,
     warpDeployConfig,
+    { validateScale },
   );
 
   // If the token is on an EVM chain check if it is deployed as a proxy
@@ -239,6 +249,16 @@ export async function expandWarpDeployConfig(params: {
         ...config,
       };
 
+      if (chainConfig.proxyAdmin) {
+        chainConfig.proxyAdmin = {
+          ...chainConfig.proxyAdmin,
+          owner:
+            config.ownerOverrides?.proxyAdmin ??
+            chainConfig.proxyAdmin.owner ??
+            config.owner,
+        };
+      }
+
       // Properly set the remote routers addresses to their 32 bytes representation
       // as that is how they are set on chain
       const formattedRemoteRouters = objMap(
@@ -250,9 +270,38 @@ export async function expandWarpDeployConfig(params: {
 
       chainConfig.remoteRouters = formattedRemoteRouters;
 
+      const selfDomain = multiProvider.getDomainId(chain).toString();
+      const ccrGasDomains = isCrossCollateralTokenConfig(chainConfig)
+        ? Object.keys(chainConfig.crossCollateralRouters ?? {}).filter(
+            (domain) => domain !== selfDomain,
+          )
+        : [];
+      const gasDomainsToKeep = new Set([
+        ...Object.keys(formattedRemoteRouters),
+        ...ccrGasDomains,
+      ]);
+
+      // CrossCollateralRouter may require destination gas for CCR-only domains
+      // that are not present in Router._routers.
+      if (isCrossCollateralTokenConfig(chainConfig)) {
+        for (const domain of ccrGasDomains) {
+          gasDomainsToKeep.add(domain);
+          // Ensure CCR-only destinations get destinationGas defaults so
+          // warp check/apply can enforce gas config on enrolled CCR domains.
+          if (!chainConfig.destinationGas?.[domain]) {
+            chainConfig.destinationGas = {
+              ...chainConfig.destinationGas,
+              [domain]:
+                chainConfig.gas?.toString() ||
+                gasOverhead(chainConfig.type).toString(),
+            };
+          }
+        }
+      }
+
       const remoteGasDomainsToKeep = intersection(
         new Set(Object.keys(chainConfig.destinationGas ?? {})),
-        new Set(Object.keys(formattedRemoteRouters)),
+        gasDomainsToKeep,
       );
 
       // If the deploy config specified a custom config for remote routers
@@ -367,37 +416,86 @@ export async function expandWarpDeployConfig(params: {
   );
 }
 
+export function normalizeWarpDeployConfigForCheck(params: {
+  multiProvider: MultiProvider;
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+}): WarpRouteDeployConfigMailboxRequired {
+  const { multiProvider, warpDeployConfig } = params;
+
+  return objMap(warpDeployConfig, (_chain, config) => {
+    if (!isOftTokenConfig(config)) {
+      return config;
+    }
+
+    return {
+      ...config,
+      mailbox: constants.AddressZero,
+      hook: constants.AddressZero,
+      interchainSecurityModule: constants.AddressZero,
+      remoteRouters: {},
+      destinationGas: undefined,
+      domainMappings: resolveRouterMapConfig(
+        multiProvider,
+        config.domainMappings,
+      ),
+      extraOptions:
+        config.extraOptions === '0x' ? undefined : config.extraOptions,
+    };
+  });
+}
+
 /**
  * Resolves the fee token address based on the warp route token type.
  * - Native tokens: fee token is AddressZero
  * - Collateral tokens: fee token is the collateral token address
  * - Synthetic tokens: fee token is the router address (the HypERC20 itself)
  */
+function getFeeTokenAddress(
+  routerAddress: Address,
+  tokenConfig: HypTokenConfig,
+): Address {
+  if (isNativeTokenConfig(tokenConfig)) {
+    return constants.AddressZero;
+  }
+
+  if (
+    isCollateralTokenConfig(tokenConfig) ||
+    isCrossCollateralTokenConfig(tokenConfig)
+  ) {
+    return tokenConfig.token;
+  }
+
+  if (
+    isSyntheticTokenConfig(tokenConfig) ||
+    isSyntheticRebaseTokenConfig(tokenConfig)
+  ) {
+    return routerAddress;
+  }
+
+  throw new Error(`Unsupported token type for fee resolution`);
+}
+
+function resolveCrossCollateralFeeContracts(
+  destinationConfig: Record<string, TokenFeeConfigInput>,
+  routerAddress: Address,
+  tokenConfig: HypTokenConfig,
+) {
+  return Object.fromEntries(
+    Object.entries(destinationConfig).map(([router, subFee]) => [
+      router,
+      resolveTokenFeeAddress(subFee, routerAddress, tokenConfig),
+    ]),
+  );
+}
+
 export function resolveTokenFeeAddress(
   feeConfig: TokenFeeConfigInput,
   routerAddress: Address,
   tokenConfig: HypTokenConfig,
 ): ResolvedTokenFeeConfigInput {
-  let feeToken: Address;
+  const feeToken = getFeeTokenAddress(routerAddress, tokenConfig);
 
-  if (isNativeTokenConfig(tokenConfig)) {
-    feeToken = constants.AddressZero;
-  } else if (isCollateralTokenConfig(tokenConfig)) {
-    feeToken = tokenConfig.token;
-  } else if (
-    isSyntheticTokenConfig(tokenConfig) ||
-    isSyntheticRebaseTokenConfig(tokenConfig)
-  ) {
-    feeToken = routerAddress;
-  } else {
-    throw new Error(`Unsupported token type for fee resolution`);
-  }
-
-  if (
-    feeConfig.type === TokenFeeType.RoutingFee &&
-    'feeContracts' in feeConfig &&
-    feeConfig.feeContracts
-  ) {
+  if (feeConfig.type === TokenFeeType.RoutingFee) {
     return {
       ...feeConfig,
       token: feeToken,
@@ -405,6 +503,22 @@ export function resolveTokenFeeAddress(
         Object.entries(feeConfig.feeContracts).map(([chain, subFee]) => [
           chain,
           resolveTokenFeeAddress(subFee, routerAddress, tokenConfig),
+        ]),
+      ),
+    } satisfies ResolvedTokenFeeConfigInput;
+  }
+
+  if (feeConfig.type === TokenFeeType.CrossCollateralRoutingFee) {
+    return {
+      ...feeConfig,
+      feeContracts: Object.fromEntries(
+        Object.keys(feeConfig.feeContracts).map((chain) => [
+          chain,
+          resolveCrossCollateralFeeContracts(
+            feeConfig.feeContracts[chain],
+            routerAddress,
+            tokenConfig,
+          ),
         ]),
       ),
     } satisfies ResolvedTokenFeeConfigInput;
@@ -447,12 +561,15 @@ const transformWarpDeployConfigToCheck: TransformObjectTransformer = (
 ) => {
   // Needed to check if we are currently inside the remoteRouters object
   const maybeRemoteRoutersKey = propPath[propPath.length - 3];
+  const parentObjectKey = propPath[propPath.length - 2];
   const parentKey = propPath[propPath.length - 1];
 
   // Remove the address and ownerOverrides fields if we are not inside the
   // remoteRouters property
   if (
-    (parentKey === 'address' && maybeRemoteRoutersKey !== 'remoteRouters') ||
+    (parentKey === 'address' &&
+      maybeRemoteRoutersKey !== 'remoteRouters' &&
+      parentObjectKey !== 'proxyAdmin') ||
     parentKey === 'ownerOverrides'
   ) {
     return undefined;
@@ -497,6 +614,79 @@ const FIELDS_TO_IGNORE = new Set<keyof HypTokenRouterConfig>([
   'name',
 ]);
 
+function normalizeCrossCollateralFeeContractsForCheck(
+  destinationConfig: Record<string, TokenFeeConfigInput>,
+) {
+  return Object.fromEntries(
+    Object.entries(destinationConfig).map(([router, nestedFee]) => [
+      router,
+      normalizeTokenFeeForCheck(nestedFee),
+    ]),
+  );
+}
+
+function normalizeTokenFeeForCheck(
+  feeConfig: TokenFeeConfigInput | undefined,
+): TokenFeeConfigInput | undefined {
+  if (!feeConfig) return feeConfig;
+
+  const tokenConfig =
+    'token' in feeConfig && feeConfig.token ? { token: feeConfig.token } : {};
+
+  if (feeConfig.type === TokenFeeType.RoutingFee) {
+    const normalizedFeeContracts = Object.fromEntries(
+      Object.entries(feeConfig.feeContracts).map(([chain, nestedFee]) => [
+        chain,
+        normalizeTokenFeeForCheck(nestedFee),
+      ]),
+    );
+
+    return {
+      type: TokenFeeType.RoutingFee,
+      owner: feeConfig.owner,
+      ...tokenConfig,
+      feeContracts: normalizedFeeContracts,
+    };
+  }
+
+  if (feeConfig.type === TokenFeeType.CrossCollateralRoutingFee) {
+    const normalizedFeeContracts = Object.fromEntries(
+      Object.keys(feeConfig.feeContracts).map((chain) => [
+        chain,
+        normalizeCrossCollateralFeeContractsForCheck(
+          feeConfig.feeContracts[chain],
+        ),
+      ]),
+    );
+    return {
+      type: TokenFeeType.CrossCollateralRoutingFee,
+      owner: feeConfig.owner,
+      feeContracts: normalizedFeeContracts,
+    };
+  }
+
+  if (feeConfig.type === TokenFeeType.OffchainQuotedLinearFee) {
+    return {
+      type: feeConfig.type,
+      owner: feeConfig.owner,
+      bps: feeConfig.bps,
+      ...tokenConfig,
+      quoteSigners: feeConfig.quoteSigners,
+    };
+  }
+
+  if (feeConfig.type === TokenFeeType.LinearFee) {
+    return {
+      type: feeConfig.type,
+      owner: feeConfig.owner,
+      bps: feeConfig.bps,
+      ...tokenConfig,
+    };
+  }
+
+  return feeConfig;
+}
+
 /**
  * transforms the provided {@link HypTokenRouterConfig}, removing the address, totalSupply and ownerOverrides
  * field where they are not required for the config comparison
@@ -524,6 +714,16 @@ export function transformConfigToCheck(
       ? clonedTokenConfig.allowedRebalancingBridges
       : undefined;
   }
+
+  if (clonedTokenConfig.tokenFee) {
+    clonedTokenConfig.tokenFee = normalizeTokenFeeForCheck(
+      clonedTokenConfig.tokenFee,
+    );
+  }
+
+  // normalizeScale(undefined) -> {1n,1n}, matching EvmWarpRouteReader.fetchScale's
+  // identity-collapse so both sides of the diff agree symmetrically.
+  clonedTokenConfig.scale = normalizeScale(clonedTokenConfig.scale);
 
   return sortArraysInObject(
     transformObj(clonedTokenConfig, transformWarpDeployConfigToCheck),

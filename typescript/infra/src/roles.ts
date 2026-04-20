@@ -5,6 +5,7 @@ export enum Role {
   Deployer = 'deployer',
   Rebalancer = 'rebalancer',
   InventoryRebalancer = 'inventoryrebalancer',
+  QuoteSigner = 'quotesigner',
 }
 
 export type FundableRole =
@@ -18,6 +19,7 @@ export const ALL_KEY_ROLES = [
   Role.Deployer,
   Role.Rebalancer,
   Role.InventoryRebalancer,
+  Role.QuoteSigner,
 ];
 
 // Use a const assertion to tell the compiler to retain the literal array item types.

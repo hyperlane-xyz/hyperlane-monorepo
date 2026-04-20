@@ -100,6 +100,19 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       });
     }
 
+    if (config.quoteSigners?.length) {
+      for (const signer of config.quoteSigners) {
+        this.logger.debug(`Adding quote signer ${signer} to IGP on ${chain}`);
+        await this.multiProvider.handleTx(
+          chain,
+          igp.addQuoteSigner(
+            signer,
+            this.multiProvider.getTransactionOverrides(chain),
+          ),
+        );
+      }
+    }
+
     return igp;
   }
 

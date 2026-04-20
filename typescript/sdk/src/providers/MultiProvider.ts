@@ -37,12 +37,10 @@ import { ChainMap, ChainName, ChainNameOrId } from '../types.js';
 import { ZKSyncDeployer } from '../zksync/ZKSyncDeployer.js';
 
 import { AnnotatedEV5Transaction } from './ProviderType.js';
-import {
-  ProviderBuilderFn,
-  defaultProviderBuilder,
-  defaultTronEthersProviderBuilder,
-  defaultZKProviderBuilder,
-} from './providerBuilders.js';
+import { ProviderBuilderFn } from './builders/types.js';
+import { defaultProviderBuilder } from './builders/ethersV5.js';
+import { defaultTronEthersProviderBuilder } from './builders/tron.js';
+import { defaultZKProviderBuilder } from './builders/zksync.js';
 
 type Provider = providers.Provider | ZKSyncProvider;
 
