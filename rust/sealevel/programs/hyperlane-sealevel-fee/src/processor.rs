@@ -55,6 +55,11 @@ pub fn process_instruction(
     accounts: &[AccountInfo],
     instruction_data: &[u8],
 ) -> ProgramResult {
+    // Universal version query — discriminator-based, independent of instruction enum.
+    if package_versioned::is_get_program_version(instruction_data) {
+        return package_versioned::process_get_program_version::<FeeProgram>();
+    }
+
     match Instruction::from_instruction_data(instruction_data)? {
         Instruction::InitFee(data) => process_init_fee(program_id, accounts, data),
         Instruction::QuoteFee(data) => process_quote_fee(program_id, accounts, data),
@@ -103,9 +108,6 @@ pub fn process_instruction(
         }
         Instruction::GetSubmitQuoteAccountMetas(data) => {
             process_get_submit_quote_account_metas(program_id, accounts, data)
-        }
-        Instruction::GetProgramVersion => {
-            package_versioned::process_get_program_version::<FeeProgram>()
         }
     }
 }

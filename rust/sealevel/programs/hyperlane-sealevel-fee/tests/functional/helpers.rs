@@ -499,9 +499,9 @@ mod get_program_version {
     async fn test_returns_version() {
         let (banks_client, payer) = setup_client().await;
 
-        let instruction = Instruction::new_with_borsh(
+        let instruction = Instruction::new_with_bytes(
             fee_program_id(),
-            &FeeInstruction::GetProgramVersion,
+            &package_versioned::get_program_version_instruction_data(),
             vec![],
         );
         let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();

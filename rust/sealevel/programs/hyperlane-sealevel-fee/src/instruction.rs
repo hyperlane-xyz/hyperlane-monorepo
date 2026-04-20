@@ -93,8 +93,6 @@ pub enum Instruction {
     GetQuoteAccountMetas(GetQuoteAccountMetas),
     /// Simulation-only: returns required account metas for a SubmitQuote call.
     GetSubmitQuoteAccountMetas(GetSubmitQuoteAccountMetas),
-    /// Returns the program version via set_return_data. No accounts required.
-    GetProgramVersion,
 }
 
 impl Instruction {
@@ -814,14 +812,13 @@ pub fn prune_expired_quotes_instruction(
 }
 
 /// Builds a GetProgramVersion instruction. No accounts required.
+/// Uses a universal discriminator shared across all Hyperlane SVM programs.
 pub fn get_program_version_instruction(
     program_id: Pubkey,
 ) -> Result<SolanaInstruction, ProgramError> {
-    let ixn = Instruction::GetProgramVersion;
-
     Ok(SolanaInstruction {
         program_id,
-        data: borsh::to_vec(&ixn)?,
+        data: package_versioned::get_program_version_instruction_data(),
         accounts: vec![],
     })
 }
