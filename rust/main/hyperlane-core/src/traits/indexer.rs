@@ -76,7 +76,15 @@ pub trait Indexer<T: Sized>: Send + Sync + Debug {
     }
 
     /// Check whether a transaction originates from a CCTP V2 fast transfer.
-    /// Returns false by default; only EVM chains override this.
+    ///
+    /// Returns `false` by default. Only EVM chains override this; non-EVM chains
+    /// always return `false`, which means the relay API CCTP V2 gate rejects all
+    /// non-EVM messages. The relay API is therefore currently EVM-only in scope.
+    ///
+    /// Note: topic0-only matching is sufficient here because Circle's attestation
+    /// service is the real gate — without a genuine `DepositForBurn` from
+    /// `TokenMessengerV2`, Circle will not issue an attestation and the message
+    /// cannot be delivered regardless.
     async fn is_cctp_v2(&self, _tx_hash: H512) -> ChainResult<bool> {
         Ok(false)
     }

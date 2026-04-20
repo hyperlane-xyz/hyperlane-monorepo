@@ -213,7 +213,8 @@ impl ServerState {
 #[derive(Debug, Deserialize)]
 pub struct RelayRequest {
     pub origin_chain: String,
-    pub tx_hash: String, // Protocol-agnostic: hex string for EVM, base58 for Sealevel, etc.
+    /// Hex-encoded EVM transaction hash (with or without `0x` prefix).
+    pub tx_hash: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -360,26 +361,6 @@ async fn create_relay(
         ));
     }
 
-    // Check for duplicate tx_hash submission
-    if let Some(cache) = &state.tx_hash_cache {
-        let mut cache = cache.write().await;
-        match cache.check_and_insert(req.origin_chain.clone(), req.tx_hash.clone()) {
-            Ok(()) => {}
-            Err(TxHashCacheError::CacheFull) => {
-                state.record_failure("cache_full");
-                return Err(ServerError::ServiceUnavailable(
-                    "Service temporarily unavailable".to_string(),
-                ));
-            }
-            Err(TxHashCacheError::Duplicate) => {
-                state.record_failure("duplicate_tx");
-                return Err(ServerError::TooManyRequests(
-                    "Transaction already submitted recently".to_string(),
-                ));
-            }
-        }
-    }
-
     // 1. Extract message using indexers (with timeout)
     let indexers = &state.indexers;
 
@@ -445,11 +426,14 @@ async fn create_relay(
             "Processing message"
         );
 
-        // Only CCTP V2 messages are eligible for the relay API fast path.
+        // Only CCTP V2 messages on EVM chains are eligible for the relay API fast path.
+        // Non-EVM chains always produce is_cctp_v2 = false because the trait default
+        // returns false and no non-EVM indexer overrides it. Extending the relay API
+        // to non-EVM chains requires a chain-specific is_cctp_v2 implementation.
         if !extracted.is_cctp_v2 {
             state.record_failure("not_cctp_v2");
             return Err(ServerError::InvalidRequest(
-                "Only CCTP V2 messages are supported via the relay API".to_string(),
+                "Only EVM CCTP V2 messages are supported via the relay API".to_string(),
             ));
         }
 
@@ -582,6 +566,7 @@ async fn create_relay(
             app_context.clone(),
             3,
         )
+        .map(|m| m.with_fail_fast())
         .ok_or_else(|| {
             state.record_failure("retries_exhausted");
             ServerError::InvalidRequest(format!(
@@ -603,17 +588,42 @@ async fn create_relay(
     }
 
     // Phase 2: all messages validated — now commit side effects.
+    // Insert into the dedup cache only here, after extraction and all validation passed.
+    // Inserting earlier would block retries on transient extraction failures (RPC timeout,
+    // block not yet indexed) since the cache TTL is 5 minutes.
+    if let Some(cache) = &state.tx_hash_cache {
+        let mut cache = cache.write().await;
+        match cache.check_and_insert(req.origin_chain.clone(), req.tx_hash.clone()) {
+            Ok(()) => {}
+            Err(TxHashCacheError::CacheFull) => {
+                state.record_failure("cache_full");
+                return Err(ServerError::ServiceUnavailable(
+                    "Service temporarily unavailable".to_string(),
+                ));
+            }
+            Err(TxHashCacheError::Duplicate) => {
+                state.record_failure("duplicate_tx");
+                return Err(ServerError::TooManyRequests(
+                    "Transaction already submitted recently".to_string(),
+                ));
+            }
+        }
+    }
+
+    let mut send_failed = false;
     for v in validated {
-        v.send_channel
+        if let Err(e) = v
+            .send_channel
             .send(Box::new(v.pending_msg) as QueueOperation)
-            .map_err(|e| {
-                error!(
-                    message_id = ?v.message_id,
-                    error = %e,
-                    "Failed to send message to processor channel - message will NOT be persisted"
-                );
-                ServerError::InternalError(format!("Failed to send message to processor: {e}"))
-            })?;
+        {
+            error!(
+                message_id = ?v.message_id,
+                error = %e,
+                "Failed to send message to processor channel"
+            );
+            send_failed = true;
+            continue;
+        }
 
         info!(
             message_id = ?v.message_id,
@@ -644,6 +654,13 @@ async fn create_relay(
             destination: v.destination_domain,
             nonce: v.nonce,
         });
+    }
+
+    if processed_messages.is_empty() && send_failed {
+        state.record_failure("send_failed");
+        return Err(ServerError::InternalError(
+            "Failed to send messages to processor".to_string(),
+        ));
     }
 
     state.record_success();

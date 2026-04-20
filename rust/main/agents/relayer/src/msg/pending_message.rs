@@ -115,6 +115,13 @@ pub struct PendingMessage {
     #[new(default)]
     #[serde(skip_serializing)]
     metric: Option<Arc<IntGauge>>,
+    /// When true, drop the message immediately once `num_retries > max_retries`
+    /// instead of parking it in the final long backoff arm. Set by the relay API
+    /// so that small `max_retries` budgets are respected without touching the
+    /// behavior of normal relayer messages.
+    #[new(default)]
+    #[serde(skip_serializing)]
+    fail_fast: bool,
 }
 
 impl Debug for PendingMessage {
@@ -594,6 +601,14 @@ impl PendingMessage {
         Some(pending_message)
     }
 
+    /// Set fail-fast mode: drop the message immediately when `num_retries` exceeds
+    /// `max_retries` rather than parking it in the final long-backoff arm.
+    /// Use this for relay API messages where a small retry budget must be enforced strictly.
+    pub fn with_fail_fast(mut self) -> Self {
+        self.fail_fast = true;
+        self
+    }
+
     fn next_attempt_after(num_retries: u32, max_retries: u32) -> Option<Instant> {
         PendingMessage::calculate_msg_backoff(num_retries, max_retries, None)
             .and_then(|dur| Instant::now().checked_add(dur))
@@ -845,16 +860,16 @@ impl PendingMessage {
         } else {
             warn!("Repreparing message: {}", reason.clone());
         }
-        // Drop the message if it has exceeded its max retry budget.
-        // This is checked here (rather than relying on calculate_msg_backoff) so that
-        // low max_retries values (e.g. 0 meaning "no retries") are respected even
-        // for retry counts that fall into the fixed early backoff arms (1 => 5s, etc.).
-        if self.num_retries > self.max_retries {
+        // For fail-fast messages (relay API), drop immediately once the retry budget is
+        // exceeded. Without this check, a small max_retries value (e.g. 3) would still
+        // hit the fixed early-backoff arms (1 => 5s, 2 => 10s, ...) rather than dropping.
+        // Normal relayer messages do NOT set fail_fast and continue to the long-backoff arm.
+        if self.fail_fast && self.num_retries > self.max_retries {
             warn!(
                 message_id = ?self.message.id(),
                 num_retries = self.num_retries,
                 max_retries = self.max_retries,
-                "Message exceeded max retries, dropping"
+                "Relay API message exceeded max retries, dropping"
             );
             return PendingOperationResult::Drop;
         }

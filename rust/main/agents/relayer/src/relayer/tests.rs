@@ -146,6 +146,7 @@ fn generate_test_relayer_settings(
         igp_indexing_enabled: true,
         relay_api_rate_limit_max_requests: None,
         relay_api_rate_limit_window_secs: None,
+        relay_api_cors_origins: Vec::new(),
     }
 }
 

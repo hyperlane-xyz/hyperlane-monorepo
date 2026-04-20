@@ -269,7 +269,7 @@ async fn metadata_build(
                 Err(MetadataBuildError::AttestationPending)
                     if pending_attempts < MAX_PENDING_RETRIES =>
                 {
-                    pending_attempts += 1;
+                    pending_attempts = pending_attempts.saturating_add(1);
                     tracing::debug!(
                         ?ism_address,
                         url,
@@ -351,19 +351,32 @@ async fn fetch_offchain_data(
             })?
     };
 
+    // Capture status before consuming the body.
+    // HTTP 404 is the canonical "attestation not yet available" response from Circle's
+    // attestation service — treat it as transient without inspecting the body.
+    let status = res.status();
+
     let response_body = res.text().await.map_err(|err| {
         let error_msg = format!("Failed to read offchain lookup server response: ({err})");
         MetadataBuildError::FailedToBuild(error_msg)
     })?;
     tracing::debug!(
         response = response_body,
+        status = status.as_u16(),
         "Received response from offchain lookup server"
     );
-    // Check for transient "pending" response before attempting full parse
+
+    if status == reqwest::StatusCode::NOT_FOUND {
+        return Err(MetadataBuildError::AttestationPending);
+    }
+
+    // For non-404 responses, check the error body for an explicit "pending" signal.
+    // We intentionally do NOT match generic "not found" substrings here — a 404 already
+    // handles the attestation-not-ready case above, and matching "not found" in the body
+    // would catch infrastructure errors (e.g. "Route not found") and waste 30s of retries.
     if let Ok(val) = serde_json::from_str::<serde_json::Value>(&response_body) {
         if let Some(err_msg) = val.get("error").and_then(|e| e.as_str()) {
-            let err_lower = err_msg.to_lowercase();
-            if err_lower.contains("pending") || err_lower.contains("not found") {
+            if err_msg.to_lowercase().contains("pending") {
                 return Err(MetadataBuildError::AttestationPending);
             }
         }
