@@ -14,6 +14,7 @@ members = [
   "chains/hyperlane-sealevel",
   "chains/hyperlane-tron",
   "chains/hyperlane-starknet",
+  "chains/hyperlane-dango",
   "ethers-prometheus",
   "hyperlane-base",
   "hyperlane-core",
@@ -62,6 +63,7 @@ bs58 = "0.5.0"
 bytes = "1"
 byteorder = "1.5.0"
 cainome = { version = "0.8.0", features = ["abigen-rs"] }
+cargo_metadata = "0.22.0"
 clap = "4"
 chrono = "*"
 color-eyre = "0.6"
@@ -83,6 +85,7 @@ derive-new = "0.5"
 derive_builder = "0.12"
 derive_more = "0.99"
 dhat = "0.3.3"
+dotenvy = "0.15"
 ed25519-dalek = "~2.1"
 eyre = "=0.6.8"
 fixed-hash = "0.8.0"
@@ -102,6 +105,7 @@ http-body-util = "0.1"
 hyper = "0.14"
 hyper-tls = "0.5.0"
 hyperlane-cosmwasm-interface = "=0.0.6-rc6"
+humantime = "2"
 ibc-proto = "0.51.1"
 injective-protobuf = "0.2.2"
 moka = "0.12.8"
@@ -174,7 +178,7 @@ static_assertions = "1.1"
 strum = "0.26.2"
 strum_macros = "0.26.2"
 tempfile = "3.3"
-tendermint = "0.40.1"
+tendermint = "0.40.4"
 tendermint-rpc = { version = "0.40.1", features = ["http-client", "tokio"] }
 testcontainers = "0.23.3"
 testcontainers-modules = { version = "0.11.6", features = ["postgres"] }
@@ -215,6 +219,18 @@ sbor = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", branch =
 ] }
 hyperlane-cosmos-rs = "0.1.4"
 
+## dango
+grug = { git = "https://github.com/left-curve/left-curve.git", rev = "102ed2eb74d9abd39eab715befce83a1b42a6e2a" }
+grug-app = { git = "https://github.com/left-curve/left-curve.git", rev = "102ed2eb74d9abd39eab715befce83a1b42a6e2a" }
+grug-jmt = { git = "https://github.com/left-curve/left-curve.git", rev = "102ed2eb74d9abd39eab715befce83a1b42a6e2a" }
+grug-indexer-client = { git = "https://github.com/left-curve/left-curve.git", package = "indexer-client", rev = "102ed2eb74d9abd39eab715befce83a1b42a6e2a" }
+dango-types = { git = "https://github.com/left-curve/left-curve.git", rev = "102ed2eb74d9abd39eab715befce83a1b42a6e2a" }
+dango-client = { git = "https://github.com/left-curve/left-curve.git", rev = "102ed2eb74d9abd39eab715befce83a1b42a6e2a" }
+dango-hyperlane-types = { git = "https://github.com/left-curve/left-curve.git", package = "hyperlane-types", rev = "102ed2eb74d9abd39eab715befce83a1b42a6e2a" }
+dango-hyperlane-testing = { git = "https://github.com/left-curve/left-curve.git", package = "hyperlane-testing", rev = "102ed2eb74d9abd39eab715befce83a1b42a6e2a" }
+dango-mock-httpd = { git = "https://github.com/left-curve/left-curve.git", rev = "102ed2eb74d9abd39eab715befce83a1b42a6e2a" }
+dango-testing = { git = "https://github.com/left-curve/left-curve.git", rev = "102ed2eb74d9abd39eab715befce83a1b42a6e2a" }
+dango-genesis = { git = "https://github.com/left-curve/left-curve.git", rev = "102ed2eb74d9abd39eab715befce83a1b42a6e2a" }
 
 ## TODO: remove this
 cosmwasm-schema = "2.2.0"

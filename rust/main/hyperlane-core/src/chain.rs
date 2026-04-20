@@ -255,6 +255,7 @@ pub enum KnownHyperlaneDomain {
     Zksync = 324,
     Zircuit = 48900,
     ZoraMainnet = 7777777,
+    Dango = 88888888,
 
     // -- Test chains --
     //
@@ -269,6 +270,7 @@ pub enum KnownHyperlaneDomain {
     EclipseTestnet = 239092742,
     HyperLiquidEvmTestnet = 998,
     IncentivTestnet = 28802,
+    KyveAlpha = 75898669,
     KyveTestnet = 1262571342,
     ModeTestnet = 919,
     OptimismSepolia = 11155420,
@@ -279,6 +281,8 @@ pub enum KnownHyperlaneDomain {
     SolanaTestnet = 1399811150,
     SonicSvmTestnet = 15153042,
     StarknetSepolia = 23448591,
+    SubtensorTestnet = 945,
+    DangoTestnet = 88888887,
 
     // -- Local chains --
     //
@@ -295,6 +299,8 @@ pub enum KnownHyperlaneDomain {
     StarknetTest23448594 = 23448594,
     CosmosTestNative1 = 75898670,
     CosmosTestNative2 = 75898671,
+    LocalDango1 = 88888867,
+    LocalDango2 = 88888877,
 }
 
 #[derive(Clone, Serialize)]
@@ -365,6 +371,8 @@ pub enum HyperlaneDomainProtocol {
     Starknet,
     /// A Cosmos based chain with uses a module instead of a contract.
     CosmosNative,
+    /// A Grug based chain type
+    Dango,
     /// A Raidx based chain
     Radix,
     /// Aleo chain
@@ -433,10 +441,13 @@ impl KnownHyperlaneDomain {
             | Sepolia
             | SolanaTestnet
             | SonicSvmTestnet
-            | StarknetSepolia => HyperlaneDomainType::Testnet,
+            | StarknetSepolia
+            | SubtensorTestnet
+            | KyveAlpha
+            | DangoTestnet => HyperlaneDomainType::Testnet,
             Test1 | Test2 | Test3 | Test4 | FuelTest1 | SealevelTest1 | SealevelTest2
             | CosmosTest99990 | CosmosTest99991 | CosmosTestNative1 | CosmosTestNative2
-            | StarknetTest23448593 | StarknetTest23448594 => HyperlaneDomainType::LocalTestChain,
+            | StarknetTest23448593 | StarknetTest23448594 | LocalDango1 | LocalDango2 => HyperlaneDomainType::LocalTestChain,
             _ => HyperlaneDomainType::Mainnet,
         }
     }
@@ -452,6 +463,7 @@ impl KnownHyperlaneDomain {
             | CosmosTestNative1
             | CosmosTestNative2
             | Kyve
+            | KyveAlpha
             | KyveTestnet
             | Milkyway
             | Noble => HyperlaneDomainProtocol::CosmosNative,
@@ -475,6 +487,7 @@ impl KnownHyperlaneDomain {
             | Paradex
             | ParadexSepolia => HyperlaneDomainProtocol::Starknet,
             Radix | RadixTestnet => HyperlaneDomainProtocol::Radix,
+            Dango | DangoTestnet | LocalDango1 | LocalDango2 => HyperlaneDomainProtocol::Dango,
             Aleo | AleoTestnet => HyperlaneDomainProtocol::Aleo,
             _ => HyperlaneDomainProtocol::Ethereum
         }
@@ -693,7 +706,7 @@ impl HyperlaneDomain {
         use HyperlaneDomainProtocol::*;
         let protocol = self.domain_protocol();
         match protocol {
-            Ethereum | Cosmos | CosmosNative | Starknet | Tron => IndexMode::Block,
+            Ethereum | Cosmos | CosmosNative | Starknet | Dango | Tron => IndexMode::Block,
             Fuel | Sealevel | Radix | Aleo => IndexMode::Sequence,
         }
     }

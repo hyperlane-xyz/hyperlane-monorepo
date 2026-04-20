@@ -169,6 +169,15 @@ pub enum ChainCommunicationError {
     /// Simulation failed
     #[error("Simulation failed: {0}")]
     SimulationFailed(String),
+    /// Dango error
+    #[error(transparent)]
+    DangoError(#[from] grug::StdError),
+    /// Anyhow error
+    #[error(transparent)]
+    AnyhowError(#[from] anyhow::Error),
+    /// Grug error
+    #[error(transparent)]
+    GrugGasEstimateError(#[from] grug::GasEstimateError),
 }
 
 impl ChainCommunicationError {
