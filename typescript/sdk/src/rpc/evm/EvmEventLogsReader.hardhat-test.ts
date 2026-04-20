@@ -10,9 +10,9 @@ import { ERC20Test, ERC20Test__factory } from '@hyperlane-xyz/core';
 import { assert } from '@hyperlane-xyz/utils';
 
 import {
-  KNOWN_BASE_TIMELOCK_CONTRACT,
+  KNOWN_ETHEREUM_TIMELOCK_CONTRACT,
   TestChainName,
-  baseTestChain,
+  ethereumTestChain,
 } from '../../consts/testChains.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { randomAddress, randomInt } from '../../test/testUtils.js';
@@ -370,11 +370,11 @@ describe('EvmEventLogsReader', () => {
       await deployTestErc20();
 
       multiProvider = new MultiProvider({
-        base: baseTestChain,
+        ethereum: ethereumTestChain,
       });
       reader = EvmEventLogsReader.fromConfig(
         {
-          chain: baseTestChain.name,
+          chain: ethereumTestChain.name,
         },
         multiProvider,
       );
@@ -382,15 +382,15 @@ describe('EvmEventLogsReader', () => {
 
     it('should get the expected number of events when fromBlock is not provided', async () => {
       const res = await reader.getLogsByTopic({
-        contractAddress: KNOWN_BASE_TIMELOCK_CONTRACT,
+        contractAddress: KNOWN_ETHEREUM_TIMELOCK_CONTRACT,
         // CallExecuted signature
         eventTopic:
           '0xc2617efa69bab66782fa219543714338489c4e9e178271560a91b82c3f612b58',
         // Omitting from block to test getting contract deployment block from explorer
-        toBlock: 32986242,
+        toBlock: 15_000_000,
       });
 
-      expect(res.length).to.equal(5);
+      expect(res.length).to.equal(17);
     });
   });
 
