@@ -2,6 +2,10 @@ import type { ChainMetadata } from './chainMetadataTypes.js';
 
 import { isNullish } from '@hyperlane-xyz/utils';
 
+// Decimal-only canonical chain IDs. Rejects hex, prefixed values, and mixed IDs
+// like cosmoshub-4 so those never alias to numeric domain lookups.
+const NUMERIC_CHAIN_ID_REGEX = /^\d+$/;
+
 export function tryNormalizeNumericChainId(
   chainId: string | number,
 ): number | null {
@@ -9,7 +13,7 @@ export function tryNormalizeNumericChainId(
     return Number.isSafeInteger(chainId) ? chainId : null;
   }
 
-  if (!/^\d+$/.test(chainId)) return null;
+  if (!NUMERIC_CHAIN_ID_REGEX.test(chainId)) return null;
 
   const numericChainId = Number(chainId);
   if (!Number.isSafeInteger(numericChainId)) return null;
