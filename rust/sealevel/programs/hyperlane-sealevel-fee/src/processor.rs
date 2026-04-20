@@ -27,7 +27,8 @@ use crate::{
         CcFeeQuoteContext, CrossCollateralRoute, CrossCollateralRouteAccount, FeeAccount,
         FeeAccountData, FeeData, FeeQuoteContext, FeeQuoteData, FeeStandingQuotePda,
         FeeStandingQuotePdaAccount, FeeStandingQuoteValue, QuoteContext, RouteDomain,
-        RouteDomainAccount, TransientQuote, TransientQuoteAccount, DEFAULT_ROUTER, WILDCARD_DOMAIN,
+        RouteDomainAccount, TransientQuote, TransientQuoteAccount, ValidatableQuote,
+        DEFAULT_ROUTER, WILDCARD_DOMAIN,
     },
     cc_route_pda_seeds,
     error::Error,
@@ -304,6 +305,7 @@ fn process_quote_fee(
                 fee_account_info.key,
                 &strategy,
                 &data,
+                fee_account.min_issued_at,
                 &clock,
             )?,
             _ => try_consume_transient_quote::<FeeQuoteContext>(
@@ -313,6 +315,7 @@ fn process_quote_fee(
                 fee_account_info.key,
                 &strategy,
                 &data,
+                fee_account.min_issued_at,
                 &clock,
             )?,
         };
@@ -423,6 +426,7 @@ fn try_consume_transient_quote<C: crate::accounts::QuoteContext>(
     fee_account_key: &Pubkey,
     strategy: &crate::fee_math::FeeDataStrategy,
     quote_fee_data: &QuoteFee,
+    min_issued_at: i64,
     clock: &Clock,
 ) -> Result<Option<u64>, ProgramError> {
     let transient = TransientQuoteAccount::fetch(&mut &transient_acct.data.borrow()[..])?
@@ -446,16 +450,9 @@ fn try_consume_transient_quote<C: crate::accounts::QuoteContext>(
         return Err(Error::TransientPdaMismatch.into());
     }
 
-    // Validate expiry against on-chain clock.
-    if clock.unix_timestamp > transient.expiry {
-        return Err(Error::QuoteExpired.into());
-    }
-
-    // Reject if curve type changed since submission.
+    // Validate strategy tag + expiry.
     let current_tag = crate::fee_math::StrategyTag::from(strategy);
-    if transient.strategy_tag != current_tag {
-        return Err(Error::TransientContextMismatch.into());
-    }
+    transient.validate_quote(current_tag, min_issued_at, clock)?;
 
     // Parse and validate context using the generic context type.
     let ctx = C::try_from_bytes(&transient.context).map_err(|_| Error::TransientContextMismatch)?;
@@ -529,18 +526,14 @@ fn try_resolve_standing_quote(
     let candidates = [quote_fee_data.recipient, WILDCARD_RECIPIENT];
     for recipient_key in &candidates {
         if let Some(value) = standing.quotes.get(recipient_key) {
-            // Skip if curve type changed since submission.
-            if value.strategy_tag != current_tag {
+            // Skip if strategy tag, issued_at, or expiry checks fail.
+            if value
+                .validate_quote(current_tag, min_issued_at, clock)
+                .is_err()
+            {
                 continue;
             }
-            // Validate issued_at >= min_issued_at.
-            if value.issued_at < min_issued_at {
-                continue;
-            }
-            // Validate not expired.
-            if clock.unix_timestamp > value.expiry {
-                continue;
-            }
+
             // Compute fee using on-chain curve with standing quote params.
             let mut quoted_strategy = strategy.clone();
             *quoted_strategy.params_mut() = FeeParams {

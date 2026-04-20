@@ -8,7 +8,8 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{H160, H256};
 use solana_program::{program_error::ProgramError, pubkey::Pubkey};
 
-use crate::fee_math::FeeDataStrategy;
+use crate::fee_math::{FeeDataStrategy, StrategyTag};
+use solana_program::clock::Clock;
 
 // --- Discriminators ---
 
@@ -292,6 +293,50 @@ impl SizedData for CrossCollateralRoute {
 
 // --- Transient quote PDA ---
 
+// --- Quote validation trait ---
+
+/// Common validation for transient and standing quote values.
+/// Checks strategy tag, optional issued_at freshness, and expiry.
+pub trait ValidatableQuote {
+    /// Curve variant tag recorded at submission time.
+    fn strategy_tag(&self) -> StrategyTag;
+
+    /// Expiry timestamp (unix).
+    fn expiry(&self) -> i64;
+
+    /// Issued-at timestamp. Standing quotes return Some, transient quotes return None.
+    fn issued_at(&self) -> Option<i64> {
+        None
+    }
+
+    /// Validates that the quote is still usable given the current strategy, clock, and
+    /// min_issued_at threshold. Returns an error describing the first failed check.
+    fn validate_quote(
+        &self,
+        current_tag: StrategyTag,
+        min_issued_at: i64,
+        clock: &Clock,
+    ) -> Result<(), ProgramError> {
+        if self.strategy_tag() != current_tag {
+            return Err(crate::error::Error::TransientContextMismatch.into());
+        }
+
+        if self
+            .issued_at()
+            .is_some_and(|issued_at| issued_at < min_issued_at)
+        {
+            return Err(crate::error::Error::StaleStandingQuote.into());
+        }
+
+        if clock.unix_timestamp > self.expiry() {
+            return Err(crate::error::Error::QuoteExpired.into());
+        }
+        Ok(())
+    }
+}
+
+// --- Transient quote PDA ---
+
 /// AccountData wrapper for TransientQuote.
 pub type TransientQuoteAccount = AccountData<DiscriminatorPrefixed<TransientQuote>>;
 
@@ -331,6 +376,16 @@ impl SizedData for TransientQuote {
         + BORSH_LEN_PREFIX + self.data.len()             // data
         + std::mem::size_of::<i64>()                     // expiry
         + std::mem::size_of::<u8>() // strategy_tag
+    }
+}
+
+impl ValidatableQuote for TransientQuote {
+    fn strategy_tag(&self) -> StrategyTag {
+        self.strategy_tag
+    }
+
+    fn expiry(&self) -> i64 {
+        self.expiry
     }
 }
 
@@ -532,6 +587,20 @@ impl SizedData for FeeStandingQuoteValue {
         + std::mem::size_of::<u64>() // max_fee
         + std::mem::size_of::<u64>() // half_amount
         + std::mem::size_of::<u8>() // strategy_tag
+    }
+}
+
+impl ValidatableQuote for FeeStandingQuoteValue {
+    fn strategy_tag(&self) -> StrategyTag {
+        self.strategy_tag
+    }
+
+    fn expiry(&self) -> i64 {
+        self.expiry
+    }
+
+    fn issued_at(&self) -> Option<i64> {
+        Some(self.issued_at)
     }
 }
 
