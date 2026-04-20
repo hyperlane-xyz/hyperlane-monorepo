@@ -316,6 +316,7 @@ fn process_quote_fee(
                 &clock,
             )?,
         };
+
         if let Some(fee) = fee {
             set_return_data(&fee.to_le_bytes());
             msg!("QuoteFee (transient): {} for amount {}", fee, data.amount);
@@ -595,39 +596,26 @@ fn resolve_cc_routing(
 ) -> Result<crate::fee_math::FeeDataStrategy, ProgramError> {
     let dest_le = destination.to_le_bytes();
 
-    // Specific CC route PDA (destination, target_router).
-    let specific_pda_info = next_account_info(accounts_iter)?;
-    let (expected_specific, _) = Pubkey::find_program_address(
-        cc_route_pda_seeds!(fee_account_key, &dest_le, target_router),
-        program_id,
-    );
-    if *specific_pda_info.key != expected_specific {
-        return Err(ProgramError::InvalidSeeds);
-    }
+    // Try specific (destination, target_router) then default (destination, DEFAULT_ROUTER).
+    for router in [*target_router, DEFAULT_ROUTER] {
+        let pda_info = next_account_info(accounts_iter)?;
+        let (expected_key, _) = Pubkey::find_program_address(
+            cc_route_pda_seeds!(fee_account_key, &dest_le, router),
+            program_id,
+        );
 
-    if specific_pda_info.owner == program_id && !specific_pda_info.data_is_empty() {
-        let route = CrossCollateralRouteAccount::fetch(&mut &specific_pda_info.data.borrow()[..])?
-            .into_inner();
-        return Ok(route.data.fee_data);
-    }
-    verify_optional_pda_owner(specific_pda_info, program_id)?;
+        if *pda_info.key != expected_key {
+            return Err(ProgramError::InvalidSeeds);
+        }
 
-    // Default CC route PDA (destination, DEFAULT_ROUTER).
-    let default_pda_info = next_account_info(accounts_iter)?;
-    let (expected_default, _) = Pubkey::find_program_address(
-        cc_route_pda_seeds!(fee_account_key, &dest_le, DEFAULT_ROUTER),
-        program_id,
-    );
-    if *default_pda_info.key != expected_default {
-        return Err(ProgramError::InvalidSeeds);
-    }
+        if pda_info.owner == program_id && !pda_info.data_is_empty() {
+            let route =
+                CrossCollateralRouteAccount::fetch(&mut &pda_info.data.borrow()[..])?.into_inner();
+            return Ok(route.data.fee_data);
+        }
 
-    if default_pda_info.owner == program_id && !default_pda_info.data_is_empty() {
-        let route = CrossCollateralRouteAccount::fetch(&mut &default_pda_info.data.borrow()[..])?
-            .into_inner();
-        return Ok(route.data.fee_data);
+        verify_optional_pda_owner(pda_info, program_id)?;
     }
-    verify_optional_pda_owner(default_pda_info, program_id)?;
 
     Err(Error::RouteNotFound.into())
 }
