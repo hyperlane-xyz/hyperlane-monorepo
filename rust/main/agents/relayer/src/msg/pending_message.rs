@@ -864,7 +864,7 @@ impl PendingMessage {
         // exceeded. Without this check, a small max_retries value (e.g. 3) would still
         // hit the fixed early-backoff arms (1 => 5s, 2 => 10s, ...) rather than dropping.
         // Normal relayer messages do NOT set fail_fast and continue to the long-backoff arm.
-        if self.fail_fast && self.num_retries > self.max_retries {
+        if self.fail_fast && self.num_retries >= self.max_retries {
             warn!(
                 message_id = ?self.message.id(),
                 num_retries = self.num_retries,

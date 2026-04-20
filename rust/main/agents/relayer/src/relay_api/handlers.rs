@@ -560,6 +560,8 @@ async fn create_relay(
             })?
             .clone();
 
+        // 3 retries is intentional for the relay API fast path — if it fails the
+        // contract indexer will re-queue it within seconds.
         let pending_msg = PendingMessage::maybe_from_persisted_retries(
             extracted.message.clone(),
             msg_ctx.clone(),
@@ -587,29 +589,9 @@ async fn create_relay(
         });
     }
 
-    // Phase 2: all messages validated — now commit side effects.
-    // Insert into the dedup cache only here, after extraction and all validation passed.
-    // Inserting earlier would block retries on transient extraction failures (RPC timeout,
-    // block not yet indexed) since the cache TTL is 5 minutes.
-    if let Some(cache) = &state.tx_hash_cache {
-        let mut cache = cache.write().await;
-        match cache.check_and_insert(req.origin_chain.clone(), req.tx_hash.clone()) {
-            Ok(()) => {}
-            Err(TxHashCacheError::CacheFull) => {
-                state.record_failure("cache_full");
-                return Err(ServerError::ServiceUnavailable(
-                    "Service temporarily unavailable".to_string(),
-                ));
-            }
-            Err(TxHashCacheError::Duplicate) => {
-                state.record_failure("duplicate_tx");
-                return Err(ServerError::TooManyRequests(
-                    "Transaction already submitted recently".to_string(),
-                ));
-            }
-        }
-    }
-
+    // Phase 2: send all messages first, then commit the dedup key only on full success.
+    // Inserting into the dedup cache before knowing whether sends succeed would prevent
+    // clients from retrying if the processor channel is unavailable.
     let mut send_failed = false;
     for v in validated {
         if let Err(e) = v
@@ -656,11 +638,33 @@ async fn create_relay(
         });
     }
 
-    if processed_messages.is_empty() && send_failed {
+    // Any send failure is non-200 so the client knows to retry. The dedup key is not
+    // committed in this case, so the client is free to resubmit the same tx hash.
+    if send_failed {
         state.record_failure("send_failed");
         return Err(ServerError::InternalError(
             "Failed to send messages to processor".to_string(),
         ));
+    }
+
+    // All sends succeeded — now lock the tx hash to prevent replays.
+    if let Some(cache) = &state.tx_hash_cache {
+        let mut cache = cache.write().await;
+        match cache.check_and_insert(req.origin_chain.clone(), req.tx_hash.clone()) {
+            Ok(()) => {}
+            Err(TxHashCacheError::CacheFull) => {
+                state.record_failure("cache_full");
+                return Err(ServerError::ServiceUnavailable(
+                    "Service temporarily unavailable".to_string(),
+                ));
+            }
+            Err(TxHashCacheError::Duplicate) => {
+                state.record_failure("duplicate_tx");
+                return Err(ServerError::TooManyRequests(
+                    "Transaction already submitted recently".to_string(),
+                ));
+            }
+        }
     }
 
     state.record_success();
