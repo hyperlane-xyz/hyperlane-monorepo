@@ -39,6 +39,20 @@ impl TxHashCache {
         }
     }
 
+    /// Returns true if the (chain, tx_hash) pair is present and within TTL.
+    /// Read-only — does not modify the cache or evict expired entries.
+    pub fn contains(&self, chain: &str, tx_hash: &str) -> bool {
+        let normalized = tx_hash
+            .strip_prefix("0x")
+            .or_else(|| tx_hash.strip_prefix("0X"))
+            .unwrap_or(tx_hash)
+            .to_lowercase();
+        let key = (chain.to_owned(), normalized);
+        self.cache
+            .get(&key)
+            .is_some_and(|&ts| Instant::now().duration_since(ts) < self.ttl)
+    }
+
     /// Check if tx_hash was recently submitted and insert if not.
     /// Returns `Ok(())` if new, `Err(TxHashCacheError)` if duplicate or cache full.
     pub fn check_and_insert(
@@ -589,9 +603,20 @@ async fn create_relay(
         });
     }
 
-    // Phase 2: send all messages first, then commit the dedup key only on full success.
-    // Inserting into the dedup cache before knowing whether sends succeed would prevent
-    // clients from retrying if the processor channel is unavailable.
+    // Phase 2: reject known duplicates before touching any send channel or DB.
+    // This is a read-only check — the key is committed after all sends succeed below.
+    if let Some(cache) = &state.tx_hash_cache {
+        let cache = cache.read().await;
+        if cache.contains(&req.origin_chain, &req.tx_hash) {
+            state.record_failure("duplicate_tx");
+            return Err(ServerError::TooManyRequests(
+                "Transaction already submitted recently".to_string(),
+            ));
+        }
+    }
+
+    // Send all messages, then commit the dedup key only on full success so that
+    // clients can retry if the processor channel is unavailable.
     let mut send_failed = false;
     for v in validated {
         if let Err(e) = v
