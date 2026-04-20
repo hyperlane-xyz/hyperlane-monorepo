@@ -5,14 +5,16 @@ use axum::{
     routing::post,
     Json, Router,
 };
-use derive_new::new;
 use hyperlane_base::db::HyperlaneRocksDB;
-use hyperlane_core::{HyperlaneMessage, Indexer, PendingOperationStatus, QueueOperation};
+use hyperlane_core::{
+    HyperlaneMessage, Indexer, PendingOperationStatus, QueueOperation, H256, H512,
+};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::collections::{HashMap, VecDeque};
+use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 
 use crate::msg::pending_message::{MessageContext, PendingMessage};
@@ -38,7 +40,12 @@ impl TxHashCache {
     /// Returns Ok(()) if new, Err with reason if duplicate or cache full
     pub fn check_and_insert(&mut self, chain: String, tx_hash: String) -> Result<(), &'static str> {
         let now = Instant::now();
-        let key = (chain, tx_hash);
+        let normalized = tx_hash
+            .strip_prefix("0x")
+            .or_else(|| tx_hash.strip_prefix("0X"))
+            .unwrap_or(&tx_hash)
+            .to_lowercase();
+        let key = (chain, normalized);
 
         // Clean expired entries if cache is getting large (75% threshold)
         if self.cache.len() > self.max_entries.saturating_mul(3) / 4 {
@@ -69,59 +76,45 @@ impl TxHashCache {
     }
 }
 
-#[derive(Clone, new)]
+#[derive(Clone)]
 pub struct ServerState {
-    #[new(default)]
+    // Required: server cannot function without these
+    indexers: HashMap<String, Arc<dyn Indexer<HyperlaneMessage>>>,
+    dbs: HashMap<u32, HyperlaneRocksDB>,
+    send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
+    msg_ctxs: HashMap<(u32, u32), Arc<MessageContext>>,
+    // Optional features
     rate_limiter: Option<Arc<RwLock<RateLimiter>>>,
-    #[new(default)]
     tx_hash_cache: Option<Arc<RwLock<TxHashCache>>>,
-    #[new(default)]
-    indexers: Option<HashMap<String, Arc<dyn Indexer<HyperlaneMessage>>>>,
-    #[new(default)]
-    dbs: Option<HashMap<u32, HyperlaneRocksDB>>,
-    #[new(default)]
-    send_channels: Option<HashMap<u32, UnboundedSender<QueueOperation>>>,
-    #[new(default)]
-    msg_ctxs: Option<HashMap<(u32, u32), Arc<MessageContext>>>,
-    #[new(default)]
     metrics: Option<RelayApiMetrics>,
-    #[new(default)]
     message_whitelist: Option<Arc<crate::settings::matching_list::MatchingList>>,
-    #[new(default)]
     message_blacklist: Option<Arc<crate::settings::matching_list::MatchingList>>,
-    #[new(default)]
     address_blacklist: Option<Arc<crate::msg::blacklist::AddressBlacklist>>,
 }
 
 impl ServerState {
+    pub fn new(
+        indexers: HashMap<String, Arc<dyn Indexer<HyperlaneMessage>>>,
+        dbs: HashMap<u32, HyperlaneRocksDB>,
+        send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
+        msg_ctxs: HashMap<(u32, u32), Arc<MessageContext>>,
+    ) -> Self {
+        Self {
+            indexers,
+            dbs,
+            send_channels,
+            msg_ctxs,
+            rate_limiter: None,
+            tx_hash_cache: None,
+            metrics: None,
+            message_whitelist: None,
+            message_blacklist: None,
+            address_blacklist: None,
+        }
+    }
+
     pub fn with_tx_hash_cache(mut self, cache: Arc<RwLock<TxHashCache>>) -> Self {
         self.tx_hash_cache = Some(cache);
-        self
-    }
-
-    pub fn with_indexers(
-        mut self,
-        indexers: HashMap<String, Arc<dyn Indexer<HyperlaneMessage>>>,
-    ) -> Self {
-        self.indexers = Some(indexers);
-        self
-    }
-
-    pub fn with_dbs(mut self, dbs: HashMap<u32, HyperlaneRocksDB>) -> Self {
-        self.dbs = Some(dbs);
-        self
-    }
-
-    pub fn with_send_channels(
-        mut self,
-        channels: HashMap<u32, UnboundedSender<QueueOperation>>,
-    ) -> Self {
-        self.send_channels = Some(channels);
-        self
-    }
-
-    pub fn with_msg_ctxs(mut self, ctxs: HashMap<(u32, u32), Arc<MessageContext>>) -> Self {
-        self.msg_ctxs = Some(ctxs);
         self
     }
 
@@ -244,7 +237,7 @@ pub type ServerResult<T> = Result<T, ServerError>;
 
 // Simple global rate limiter
 pub struct RateLimiter {
-    requests: Vec<u64>,
+    requests: VecDeque<u64>,
     max_requests: usize,
     window_secs: u64,
 }
@@ -252,7 +245,7 @@ pub struct RateLimiter {
 impl RateLimiter {
     pub fn new(max_requests: usize, window_secs: u64) -> Self {
         Self {
-            requests: Vec::new(),
+            requests: VecDeque::new(),
             max_requests,
             window_secs,
         }
@@ -263,22 +256,26 @@ impl RateLimiter {
             Ok(duration) => duration.as_secs(),
             Err(e) => {
                 error!("System clock is misconfigured (before UNIX_EPOCH): {}. Clearing rate limiter and allowing request.", e);
-                // If system time is invalid, clear state and allow the request
                 self.requests.clear();
-                self.requests.push(0);
+                self.requests.push_back(0);
                 return true;
             }
         };
 
-        // Remove requests outside the window (use saturating_sub to prevent underflow)
-        self.requests
-            .retain(|&t| now.saturating_sub(t) < self.window_secs);
+        // Timestamps are monotonically increasing so expired entries are always at the front.
+        while self
+            .requests
+            .front()
+            .map_or(false, |&t| now.saturating_sub(t) >= self.window_secs)
+        {
+            self.requests.pop_front();
+        }
 
         if self.requests.len() >= self.max_requests {
             return false;
         }
 
-        self.requests.push(now);
+        self.requests.push_back(now);
         true
     }
 }
@@ -296,10 +293,7 @@ async fn create_relay(
 
     // Rate limit check
     if let Some(limiter) = &state.rate_limiter {
-        let mut limiter = limiter.write().map_err(|e| {
-            error!("Rate limiter lock poisoned: {}", e);
-            ServerError::InternalError("Rate limiter unavailable".to_string())
-        })?;
+        let mut limiter = limiter.write().await;
         if !limiter.check() {
             if let Some(ref metrics) = state.metrics {
                 metrics.inc_failure("rate_limited");
@@ -348,10 +342,7 @@ async fn create_relay(
 
     // Check for duplicate tx_hash submission
     if let Some(cache) = &state.tx_hash_cache {
-        let mut cache = cache.write().map_err(|e| {
-            error!("Tx hash cache lock poisoned: {}", e);
-            ServerError::InternalError("Cache unavailable".to_string())
-        })?;
+        let mut cache = cache.write().await;
         if let Err(reason) = cache.check_and_insert(req.origin_chain.clone(), req.tx_hash.clone()) {
             if reason.contains("unavailable") {
                 if let Some(ref metrics) = state.metrics {
@@ -368,10 +359,7 @@ async fn create_relay(
     }
 
     // 1. Extract message using indexers (with timeout)
-    let indexers = state
-        .indexers
-        .as_ref()
-        .ok_or_else(|| ServerError::InternalError("Indexers not configured".to_string()))?;
+    let indexers = &state.indexers;
 
     let extracted_messages = tokio::time::timeout(
         Duration::from_secs(10),
@@ -391,6 +379,18 @@ async fn create_relay(
         ServerError::InvalidRequest(format!("Failed to extract messages: {e}"))
     })?;
 
+    const MAX_MESSAGES_PER_TX: usize = 10;
+    if extracted_messages.len() > MAX_MESSAGES_PER_TX {
+        if let Some(ref metrics) = state.metrics {
+            metrics.inc_failure("too_many_messages");
+        }
+        return Err(ServerError::InvalidRequest(format!(
+            "Transaction contains {} messages, exceeding the limit of {}",
+            extracted_messages.len(),
+            MAX_MESSAGES_PER_TX
+        )));
+    }
+
     info!(
         message_count = extracted_messages.len(),
         origin_chain = %req.origin_chain,
@@ -399,20 +399,28 @@ async fn create_relay(
     );
 
     // 2. Get shared resources once
-    let msg_ctxs = state
-        .msg_ctxs
-        .as_ref()
-        .ok_or_else(|| ServerError::InternalError("Message contexts not configured".to_string()))?;
-
-    let send_channels = state
-        .send_channels
-        .as_ref()
-        .ok_or_else(|| ServerError::InternalError("Send channels not configured".to_string()))?;
+    let msg_ctxs = &state.msg_ctxs;
+    let send_channels = &state.send_channels;
 
     // 3. Process each message
     let mut processed_messages = Vec::new();
 
-    for extracted in extracted_messages {
+    // Phase 1: validate and prepare all messages before touching the channel or DB.
+    // If any message fails here, no side effects have occurred.
+    struct ValidatedMessage {
+        pending_msg: PendingMessage,
+        send_channel: UnboundedSender<QueueOperation>,
+        message_id: H256,
+        origin_domain: u32,
+        tx_hash: H512,
+        destination_domain: u32,
+        app_context: Option<String>,
+        nonce: u32,
+    }
+
+    let mut validated: Vec<ValidatedMessage> = Vec::with_capacity(extracted_messages.len());
+
+    for extracted in &extracted_messages {
         info!(
             message_id = ?extracted.message_id,
             origin = extracted.origin_domain,
@@ -510,7 +518,6 @@ async fn create_relay(
         );
 
         // Apply message filtering (whitelist, blacklist, address blacklist)
-        // Skip if not whitelisted
         if let Some(whitelist) = &state.message_whitelist {
             if !whitelist.msg_matches(&extracted.message, true) {
                 if let Some(ref metrics) = state.metrics {
@@ -522,7 +529,6 @@ async fn create_relay(
             }
         }
 
-        // Skip if message is blacklisted
         if let Some(blacklist) = &state.message_blacklist {
             if blacklist.msg_matches(&extracted.message, false) {
                 if let Some(ref metrics) = state.metrics {
@@ -534,7 +540,6 @@ async fn create_relay(
             }
         }
 
-        // Skip if message involves a blacklisted address
         if let Some(blacklist) = &state.address_blacklist {
             if let Some(blacklisted_address) =
                 blacklist.find_blacklisted_address(&extracted.message)
@@ -549,7 +554,6 @@ async fn create_relay(
             }
         }
 
-        // Get send channel for destination
         let send_channel = send_channels
             .get(&extracted.destination_domain)
             .ok_or_else(|| {
@@ -557,24 +561,36 @@ async fn create_relay(
                     "No send channel for destination domain {}",
                     extracted.destination_domain
                 ))
-            })?;
+            })?
+            .clone();
 
-        // Create PendingMessage with classified app_context
         let pending_msg = PendingMessage::new(
             extracted.message.clone(),
             msg_ctx.clone(),
             PendingOperationStatus::FirstPrepareAttempt,
             app_context.clone(),
-            3, // Safety net for hard failures; pending attestation is handled inside ccip_read
+            3,
         );
 
-        // CRITICAL: Send to channel FIRST, before persisting to DB
-        // This ensures we only persist messages that were successfully queued for processing
-        send_channel
-            .send(Box::new(pending_msg) as QueueOperation)
+        validated.push(ValidatedMessage {
+            pending_msg,
+            send_channel,
+            message_id: extracted.message_id,
+            origin_domain: extracted.origin_domain,
+            tx_hash: extracted.tx_hash,
+            destination_domain: extracted.destination_domain,
+            app_context,
+            nonce: extracted.message.nonce,
+        });
+    }
+
+    // Phase 2: all messages validated — now commit side effects.
+    for v in validated {
+        v.send_channel
+            .send(Box::new(v.pending_msg) as QueueOperation)
             .map_err(|e| {
                 error!(
-                    message_id = ?extracted.message_id,
+                    message_id = ?v.message_id,
                     error = %e,
                     "Failed to send message to processor channel - message will NOT be persisted"
                 );
@@ -582,9 +598,9 @@ async fn create_relay(
             })?;
 
         info!(
-            message_id = ?extracted.message_id,
-            destination = extracted.destination_domain,
-            app_context = ?app_context,
+            message_id = ?v.message_id,
+            destination = v.destination_domain,
+            app_context = ?v.app_context,
             "Successfully sent message to processor channel"
         );
 
@@ -593,32 +609,22 @@ async fn create_relay(
         // Circle directly. This is safe on reorgs: worst case Circle returns no attestation
         // for a reorged tx hash, which just causes a retry.
         // We do NOT write nonce→messageId mappings (that would corrupt the DB on reorgs).
-        if let Some(dbs) = &state.dbs {
-            if let Some(db) = dbs.get(&extracted.origin_domain) {
-                use hyperlane_base::db::HyperlaneDb;
-                if let Err(e) = db.store_dispatched_tx_hash_by_message_id(
-                    &extracted.message_id,
-                    &extracted.tx_hash,
-                ) {
-                    warn!(
-                        message_id = ?extracted.message_id,
-                        error = %e,
-                        "Failed to store tx hash for message — ccip-server will fall back to GraphQL"
-                    );
-                }
+        if let Some(db) = state.dbs.get(&v.origin_domain) {
+            use hyperlane_base::db::HyperlaneDb;
+            if let Err(e) = db.store_dispatched_tx_hash_by_message_id(&v.message_id, &v.tx_hash) {
+                warn!(
+                    message_id = ?v.message_id,
+                    error = %e,
+                    "Failed to store tx hash for message — ccip-server will fall back to GraphQL"
+                );
             }
         }
 
-        // The contracts indexer writes to the DB once the
-        // tx is finalized; if the message was already delivered by then, prepare() will
-        // detect it via mailbox.delivered() and skip resubmission without wasting gas.
-
-        // Add to response
         processed_messages.push(MessageInfo {
-            message_id: format!("{:x}", extracted.message_id),
-            origin: extracted.origin_domain,
-            destination: extracted.destination_domain,
-            nonce: extracted.message.nonce,
+            message_id: format!("{:x}", v.message_id),
+            origin: v.origin_domain,
+            destination: v.destination_domain,
+            nonce: v.nonce,
         });
     }
 

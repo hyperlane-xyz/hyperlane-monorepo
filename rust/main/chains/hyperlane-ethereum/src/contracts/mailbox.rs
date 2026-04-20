@@ -180,7 +180,13 @@ where
                 fetch_raw_logs_and_meta::<DispatchFilter, M>(tx_hash, provider, contract).await
             })
         })
-        .await;
+        .await
+        .ok_or_else(|| {
+            ChainCommunicationError::CustomError(format!(
+                "No receipt found for tx hash {:?}",
+                tx_hash
+            ))
+        })?;
         let logs = raw_logs_and_meta
             .into_iter()
             .map(|(log, log_meta)| {
