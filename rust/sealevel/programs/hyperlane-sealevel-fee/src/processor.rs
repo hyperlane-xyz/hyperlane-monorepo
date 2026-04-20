@@ -27,8 +27,8 @@ use crate::{
         CcFeeQuoteContext, CrossCollateralRoute, CrossCollateralRouteAccount, FeeAccount,
         FeeAccountData, FeeData, FeeQuoteContext, FeeQuoteData, FeeStandingQuotePda,
         FeeStandingQuotePdaAccount, FeeStandingQuoteValue, QuoteContext, RouteDomain,
-        RouteDomainAccount, TransientQuote, TransientQuoteAccount, ValidatableQuote,
-        DEFAULT_ROUTER, WILDCARD_DOMAIN,
+        RouteDomainAccount, StandingQuoteAuthScope, TransientQuote, TransientQuoteAccount,
+        ValidatableQuote, DEFAULT_ROUTER, WILDCARD_DOMAIN,
     },
     cc_route_pda_seeds,
     error::Error,
@@ -251,10 +251,10 @@ fn process_quote_fee(
 
     // --- Resolve on-chain curve type (always needed) ---
 
-    let strategy = match &fee_account.fee_data {
+    let (strategy, cc_specific_route_active) = match &fee_account.fee_data {
         FeeData::Leaf(cfg) => {
             ensure_no_extraneous_accounts(accounts_iter)?;
-            cfg.strategy.clone()
+            (cfg.strategy.clone(), false)
         }
         FeeData::Routing(_) => {
             match resolve_routing(
@@ -265,7 +265,7 @@ fn process_quote_fee(
             )? {
                 Some(strategy) => {
                     ensure_no_extraneous_accounts(accounts_iter)?;
-                    strategy
+                    (strategy, false)
                 }
                 None => {
                     // Unconfigured domain → zero fee (EVM-compatible behavior).
@@ -280,7 +280,7 @@ fn process_quote_fee(
             }
         }
         FeeData::CrossCollateralRouting(_) => {
-            let strategy = resolve_cc_routing(
+            let (strategy, cc_specific_route_active) = resolve_cc_routing(
                 program_id,
                 accounts_iter,
                 fee_account_info.key,
@@ -288,7 +288,7 @@ fn process_quote_fee(
                 &data.target_router,
             )?;
             ensure_no_extraneous_accounts(accounts_iter)?;
-            strategy
+            (strategy, cc_specific_route_active)
         }
     };
 
@@ -348,6 +348,7 @@ fn process_quote_fee(
             &data,
             fee_account.min_issued_at,
             &clock,
+            cc_specific_route_active,
         )? {
             set_return_data(&fee.to_le_bytes());
             msg!("QuoteFee (standing): {} for amount {}", fee, data.amount);
@@ -430,9 +431,7 @@ fn try_consume_transient_quote<C: crate::accounts::QuoteContext>(
         return Err(Error::TransientPdaMismatch.into());
     }
 
-    // Validate strategy tag + expiry.
-    let current_tag = crate::fee_math::StrategyTag::from(strategy);
-    transient.validate_quote(current_tag, min_issued_at, clock)?;
+    transient.validate_quote(min_issued_at, clock)?;
 
     // Parse and validate context using the generic context type.
     let ctx = C::try_from_bytes(&transient.context).map_err(|_| Error::TransientContextMismatch)?;
@@ -476,6 +475,7 @@ fn try_resolve_standing_quote(
     quote_fee_data: &QuoteFee,
     min_issued_at: i64,
     clock: &Clock,
+    cc_specific_route_active: bool,
 ) -> Result<Option<u64>, ProgramError> {
     use crate::accounts::WILDCARD_RECIPIENT;
 
@@ -502,14 +502,19 @@ fn try_resolve_standing_quote(
         .data;
 
     // Try exact recipient match first, then wildcard.
-    let current_tag = crate::fee_math::StrategyTag::from(strategy);
     for recipient_key in [quote_fee_data.recipient, WILDCARD_RECIPIENT] {
         if let Some(value) = standing.quotes.get(&recipient_key) {
-            // Skip if strategy tag, issued_at, or expiry checks fail.
-            if value
-                .validate_quote(current_tag, min_issued_at, clock)
-                .is_err()
+            // A CC exact-domain standing quote may have been authorized earlier via the
+            // DEFAULT_ROUTER fallback because no router-specific route existed yet. Once a
+            // specific route exists, that quote must no longer apply to the specific route's
+            // trust domain, even if the standing quote PDA key still matches.
+            if cc_specific_route_active
+                && value.auth_scope == StandingQuoteAuthScope::CcDefaultFallback
             {
+                continue;
+            }
+
+            if value.validate_quote(min_issued_at, clock).is_err() {
                 continue;
             }
 
@@ -566,11 +571,11 @@ fn resolve_cc_routing(
     fee_account_key: &Pubkey,
     destination: u32,
     target_router: &hyperlane_core::H256,
-) -> Result<crate::fee_math::FeeDataStrategy, ProgramError> {
+) -> Result<(crate::fee_math::FeeDataStrategy, bool), ProgramError> {
     let dest_le = destination.to_le_bytes();
 
     // Try specific (destination, target_router) then default (destination, DEFAULT_ROUTER).
-    for router in [*target_router, DEFAULT_ROUTER] {
+    for (router, is_specific) in [(*target_router, true), (DEFAULT_ROUTER, false)] {
         let pda_info = next_account_info(accounts_iter)?;
         let (expected_key, _) = Pubkey::find_program_address(
             cc_route_pda_seeds!(fee_account_key, &dest_le, router),
@@ -584,7 +589,7 @@ fn resolve_cc_routing(
         if pda_info.owner == program_id && !pda_info.data_is_empty() {
             let route =
                 CrossCollateralRouteAccount::fetch(&mut &pda_info.data.borrow()[..])?.into_inner();
-            return Ok(route.data.fee_data);
+            return Ok((route.data.fee_data, is_specific));
         }
 
         verify_optional_pda_owner(pda_info, program_id)?;
@@ -1078,12 +1083,12 @@ fn process_submit_quote(
     // - Routing wildcard: signers from FeeData::Routing.wildcard_signers.
     // - CC exact: signers from resolved CrossCollateralRoute PDA.
     // - CC wildcard: signers from FeeData::CrossCollateralRouting.wildcard_signers.
-    // Returns (signers, strategy_tag, destination_domain).
+    // Returns (signers, destination_domain, standing auth scope).
     // destination_domain is extracted from the quote context during signer resolution.
-    let (resolved_signers, resolved_strategy_tag, resolved_destination): (
+    let (resolved_signers, resolved_destination, resolved_auth_scope): (
         BTreeSet<H160>,
-        crate::fee_math::StrategyTag,
         u32,
+        StandingQuoteAuthScope,
     ) = match &fee_account.fee_data {
         FeeData::Leaf(cfg) => {
             let signers = cfg
@@ -1091,21 +1096,20 @@ fn process_submit_quote(
                 .as_ref()
                 .ok_or(ProgramError::from(Error::OffchainQuotingNotConfigured))?
                 .clone();
-            let tag = crate::fee_math::StrategyTag::from(&cfg.strategy);
             let ctx = FeeQuoteContext::try_from_bytes(&quote.context)?;
 
-            (signers, tag, ctx.destination_domain)
+            (
+                signers,
+                ctx.destination_domain,
+                StandingQuoteAuthScope::Direct,
+            )
         }
         FeeData::Routing(_) => {
             let ctx = FeeQuoteContext::try_from_bytes(&quote.context)?;
             if ctx.destination_domain == WILDCARD_DOMAIN {
                 let signers = fee_account.fee_data.routing_wildcard_signers()?.clone();
 
-                (
-                    signers,
-                    crate::fee_math::StrategyTag::default(),
-                    WILDCARD_DOMAIN,
-                )
+                (signers, WILDCARD_DOMAIN, StandingQuoteAuthScope::Direct)
             } else {
                 // Exact domain: auth from RouteDomain PDA.
                 let route_pda_info = next_account_info(accounts_iter)?;
@@ -1128,9 +1132,11 @@ fn process_submit_quote(
                 let signers = route
                     .signers
                     .ok_or(ProgramError::from(Error::OffchainQuotingNotConfigured))?;
-                let tag = crate::fee_math::StrategyTag::from(&route.fee_data);
-
-                (signers, tag, ctx.destination_domain)
+                (
+                    signers,
+                    ctx.destination_domain,
+                    StandingQuoteAuthScope::Direct,
+                )
             }
         }
         FeeData::CrossCollateralRouting(_) => {
@@ -1138,11 +1144,7 @@ fn process_submit_quote(
             if ctx.destination_domain == WILDCARD_DOMAIN {
                 let signers = fee_account.fee_data.cc_wildcard_signers()?.clone();
 
-                (
-                    signers,
-                    crate::fee_math::StrategyTag::default(),
-                    WILDCARD_DOMAIN,
-                )
+                (signers, WILDCARD_DOMAIN, StandingQuoteAuthScope::Direct)
             } else {
                 // Exact domain: auth from resolved CC route PDA.
                 // Account 3: CC specific route PDA (read-only).
@@ -1153,7 +1155,7 @@ fn process_submit_quote(
                 let dest_le = ctx.destination_domain.to_le_bytes();
 
                 // Resolve: specific → default (same cascade as QuoteFee).
-                let resolved_pda_info = {
+                let (resolved_pda_info, auth_scope) = {
                     let (specific_key, _) = Pubkey::find_program_address(
                         cc_route_pda_seeds!(fee_account_info.key, &dest_le, ctx.target_router),
                         program_id,
@@ -1165,7 +1167,7 @@ fn process_submit_quote(
                     verify_optional_pda_owner(specific_pda_info, program_id)?;
 
                     if specific_pda_info.owner == program_id && !specific_pda_info.data_is_empty() {
-                        specific_pda_info
+                        (specific_pda_info, StandingQuoteAuthScope::Direct)
                     } else {
                         let (default_key, _) = Pubkey::find_program_address(
                             cc_route_pda_seeds!(fee_account_info.key, &dest_le, DEFAULT_ROUTER),
@@ -1180,7 +1182,7 @@ fn process_submit_quote(
                         {
                             return Err(Error::RouteNotFound.into());
                         }
-                        default_pda_info
+                        (default_pda_info, StandingQuoteAuthScope::CcDefaultFallback)
                     }
                 };
 
@@ -1191,9 +1193,7 @@ fn process_submit_quote(
                 let signers = route
                     .signers
                     .ok_or(ProgramError::from(Error::OffchainQuotingNotConfigured))?;
-                let tag = crate::fee_math::StrategyTag::from(&route.fee_data);
-
-                (signers, tag, ctx.destination_domain)
+                (signers, ctx.destination_domain, auth_scope)
             }
         }
     };
@@ -1241,7 +1241,6 @@ fn process_submit_quote(
                 context: quote.context,
                 data: quote.data,
                 expiry: expiry_ts,
-                strategy_tag: resolved_strategy_tag,
             }
             .into(),
         );
@@ -1356,7 +1355,7 @@ fn process_submit_quote(
             expiry: expiry_ts,
             max_fee: quote_data.max_fee,
             half_amount: quote_data.half_amount,
-            strategy_tag: resolved_strategy_tag,
+            auth_scope: resolved_auth_scope,
         };
 
         if let Some(existing) = standing_pda.quotes.get(&recipient_key) {

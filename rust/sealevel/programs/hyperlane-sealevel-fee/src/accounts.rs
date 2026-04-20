@@ -8,7 +8,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{H160, H256};
 use solana_program::{program_error::ProgramError, pubkey::Pubkey};
 
-use crate::fee_math::{FeeDataStrategy, StrategyTag};
+use crate::fee_math::FeeDataStrategy;
 use solana_program::clock::Clock;
 
 // --- Discriminators ---
@@ -295,12 +295,9 @@ impl SizedData for CrossCollateralRoute {
 
 // --- Quote validation trait ---
 
-/// Common validation for transient and standing quote values.
-/// Checks strategy tag, optional issued_at freshness, and expiry.
+/// Common validation for quote values.
+/// Checks optional issued_at freshness and expiry.
 pub trait ValidatableQuote {
-    /// Curve variant tag recorded at submission time.
-    fn strategy_tag(&self) -> StrategyTag;
-
     /// Expiry timestamp (unix).
     fn expiry(&self) -> i64;
 
@@ -309,18 +306,9 @@ pub trait ValidatableQuote {
         None
     }
 
-    /// Validates that the quote is still usable given the current strategy, clock, and
-    /// min_issued_at threshold. Returns an error describing the first failed check.
-    fn validate_quote(
-        &self,
-        current_tag: StrategyTag,
-        min_issued_at: i64,
-        clock: &Clock,
-    ) -> Result<(), ProgramError> {
-        if self.strategy_tag() != current_tag {
-            return Err(crate::error::Error::TransientContextMismatch.into());
-        }
-
+    /// Validates that the quote is still usable given the clock and min_issued_at threshold.
+    /// Returns an error describing the first failed check.
+    fn validate_quote(&self, min_issued_at: i64, clock: &Clock) -> Result<(), ProgramError> {
         if self
             .issued_at()
             .is_some_and(|issued_at| issued_at < min_issued_at)
@@ -362,9 +350,6 @@ pub struct TransientQuote {
     pub data: Vec<u8>,
     /// Expiry timestamp (unix). For transient quotes, expiry == issued_at.
     pub expiry: i64,
-    /// Curve variant tag recorded at submission time. Transient quotes are rejected
-    /// if the resolved route strategy no longer matches this tag.
-    pub strategy_tag: crate::fee_math::StrategyTag,
 }
 
 impl SizedData for TransientQuote {
@@ -374,16 +359,11 @@ impl SizedData for TransientQuote {
         + H256_SIZE                                      // scoped_salt
         + BORSH_LEN_PREFIX + self.context.len()          // context
         + BORSH_LEN_PREFIX + self.data.len()             // data
-        + std::mem::size_of::<i64>()                     // expiry
-        + std::mem::size_of::<u8>() // strategy_tag
+        + std::mem::size_of::<i64>() // expiry
     }
 }
 
 impl ValidatableQuote for TransientQuote {
-    fn strategy_tag(&self) -> StrategyTag {
-        self.strategy_tag
-    }
-
     fn expiry(&self) -> i64 {
         self.expiry
     }
@@ -565,6 +545,18 @@ impl SizedData for FeeStandingQuotePda {
 }
 
 /// A standing quote value for a specific recipient on a specific destination domain.
+#[derive(BorshDeserialize, BorshSerialize, Clone, Copy, Debug, Default, PartialEq)]
+#[borsh(use_discriminant = true)]
+#[repr(u8)]
+pub enum StandingQuoteAuthScope {
+    /// Quote was authorized directly by the current scope's signer set.
+    #[default]
+    Direct = 0,
+    /// Quote was authorized for an exact CC route via DEFAULT_ROUTER fallback.
+    CcDefaultFallback = 1,
+}
+
+/// A standing quote value for a specific recipient on a specific destination domain.
 #[derive(BorshDeserialize, BorshSerialize, Clone, Debug, Default, PartialEq)]
 pub struct FeeStandingQuoteValue {
     /// When the quote was issued (unix timestamp).
@@ -575,9 +567,10 @@ pub struct FeeStandingQuoteValue {
     pub max_fee: u64,
     /// Half amount parameter — transfer amount at which fee = max_fee / 2.
     pub half_amount: u64,
-    /// Curve variant tag recorded at submission time. Standing quotes are skipped
-    /// if the resolved route strategy no longer matches this tag.
-    pub strategy_tag: crate::fee_math::StrategyTag,
+    /// Auth provenance recorded at submission time.
+    /// Used to reject CC exact-domain quotes that were authorized via DEFAULT_ROUTER
+    /// once a router-specific route exists later.
+    pub auth_scope: StandingQuoteAuthScope,
 }
 
 impl SizedData for FeeStandingQuoteValue {
@@ -586,15 +579,11 @@ impl SizedData for FeeStandingQuoteValue {
         + std::mem::size_of::<i64>() // expiry
         + std::mem::size_of::<u64>() // max_fee
         + std::mem::size_of::<u64>() // half_amount
-        + std::mem::size_of::<u8>() // strategy_tag
+        + std::mem::size_of::<u8>() // auth_scope
     }
 }
 
 impl ValidatableQuote for FeeStandingQuoteValue {
-    fn strategy_tag(&self) -> StrategyTag {
-        self.strategy_tag
-    }
-
     fn expiry(&self) -> i64 {
         self.expiry
     }

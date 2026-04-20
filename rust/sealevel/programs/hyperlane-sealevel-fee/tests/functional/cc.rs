@@ -710,6 +710,142 @@ async fn test_cc_exact_does_not_fallback_to_default_when_specific_exists_without
 }
 
 #[tokio::test]
+async fn test_cc_default_authorized_standing_quote_invalidated_by_later_specific_route() {
+    let (mut banks_client, payer) = setup_client().await;
+    let signing_key = SigningKey::random(&mut rand::thread_rng());
+    let signer_address = eth_address(&signing_key);
+    let dest = 42u32;
+    let recipient = H256::random();
+    let target_router = H256::random();
+
+    let fee_key = init_fee_account(
+        &mut banks_client,
+        &payer,
+        default_salt(),
+        Some(payer.pubkey()),
+        payer.pubkey(),
+        FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+            wildcard_signers: BTreeSet::new(),
+        }),
+    )
+    .await;
+
+    let linear_strategy = FeeDataStrategy::Linear(FeeParams {
+        max_fee: 100,
+        half_amount: 50,
+    });
+    process_tx(
+        &mut banks_client,
+        &payer,
+        build_set_cc_route_ix(
+            &fee_key,
+            &payer.pubkey(),
+            dest,
+            DEFAULT_ROUTER,
+            linear_strategy,
+        ),
+        &[],
+    )
+    .await
+    .unwrap();
+    process_tx(
+        &mut banks_client,
+        &payer,
+        build_add_quote_signer_ix_with_route(
+            &fee_key,
+            &payer.pubkey(),
+            signer_address,
+            Some(instruction::RouteKey::CrossCollateral {
+                destination: dest,
+                target_router: DEFAULT_ROUTER,
+            }),
+        ),
+        &[],
+    )
+    .await
+    .unwrap();
+
+    let quote = make_signed_standing_quote(
+        &signing_key,
+        &fee_key,
+        LOCAL_DOMAIN,
+        &payer.pubkey(),
+        encode_cc_standing_context(dest, recipient, target_router),
+        encode_data(777, 1),
+        encode_u48(100),
+        encode_u48(9999999999),
+    );
+    process_tx(
+        &mut banks_client,
+        &payer,
+        build_submit_standing_ix_with_routes(
+            &fee_key,
+            &payer.pubkey(),
+            &quote,
+            dest,
+            &target_router,
+            &[
+                cc_route_pda_for(&fee_key, dest, &target_router),
+                cc_route_pda_for(&fee_key, dest, &DEFAULT_ROUTER),
+            ],
+        ),
+        &[],
+    )
+    .await
+    .unwrap();
+
+    let fee_before = simulate_quote_fee(
+        &mut banks_client,
+        &payer,
+        build_quote_fee_cc_ix(
+            &fee_key,
+            &payer.pubkey(),
+            dest,
+            recipient,
+            100,
+            target_router,
+            true,
+        ),
+    )
+    .await;
+    assert_eq!(fee_before, 777);
+
+    process_tx(
+        &mut banks_client,
+        &payer,
+        build_set_cc_route_ix(
+            &fee_key,
+            &payer.pubkey(),
+            dest,
+            target_router,
+            FeeDataStrategy::Linear(FeeParams {
+                max_fee: 100,
+                half_amount: 50,
+            }),
+        ),
+        &[],
+    )
+    .await
+    .unwrap();
+
+    let fee_after = simulate_quote_fee(
+        &mut banks_client,
+        &payer,
+        build_quote_fee_cc_ix(
+            &fee_key,
+            &payer.pubkey(),
+            dest,
+            recipient,
+            100,
+            target_router,
+            false,
+        ),
+    )
+    .await;
+    assert_eq!(fee_after, 100);
+}
+
+#[tokio::test]
 async fn test_cc_wildcard_submit_with_extra_route_pda_rejected() {
     let (mut banks_client, payer) = setup_client().await;
     let signing_key = SigningKey::random(&mut rand::thread_rng());
