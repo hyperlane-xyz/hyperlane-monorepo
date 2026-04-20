@@ -450,6 +450,12 @@ fn try_consume_transient_quote<C: crate::accounts::QuoteContext>(
         return Err(Error::QuoteExpired.into());
     }
 
+    // Reject if curve type changed since submission.
+    let current_tag = crate::fee_math::StrategyTag::from(strategy);
+    if transient.strategy_tag != current_tag {
+        return Err(Error::TransientContextMismatch.into());
+    }
+
     // Parse and validate context using the generic context type.
     let ctx = C::try_from_bytes(&transient.context).map_err(|_| Error::TransientContextMismatch)?;
     ctx.validate(quote_fee_data)?;
@@ -518,9 +524,14 @@ fn try_resolve_standing_quote(
         .data;
 
     // Try exact recipient match first, then wildcard.
+    let current_tag = crate::fee_math::StrategyTag::from(strategy);
     let candidates = [quote_fee_data.recipient, WILDCARD_RECIPIENT];
     for recipient_key in &candidates {
         if let Some(value) = standing.quotes.get(recipient_key) {
+            // Skip if curve type changed since submission.
+            if value.strategy_tag != current_tag {
+                continue;
+            }
             // Validate issued_at >= min_issued_at.
             if value.issued_at < min_issued_at {
                 continue;
@@ -1102,88 +1113,110 @@ fn process_submit_quote(
     // - Routing wildcard: signers from FeeData::Routing.wildcard_signers.
     // - CC exact: signers from resolved CrossCollateralRoute PDA.
     // - CC wildcard: signers from FeeData::CrossCollateralRouting.wildcard_signers.
-    let resolved_signers: BTreeSet<H160> = match &fee_account.fee_data {
-        FeeData::Leaf(_) => fee_account.fee_data.require_leaf_signers()?.clone(),
-        FeeData::Routing(_) => {
-            let ctx = FeeQuoteContext::try_from_bytes(&quote.context)?;
-            if ctx.destination_domain == WILDCARD_DOMAIN {
-                // Wildcard domain: auth from FeeData. No route PDA needed.
-                fee_account.fee_data.routing_wildcard_signers()?.clone()
-            } else {
-                // Exact domain: auth from RouteDomain PDA.
-                let route_pda_info = next_account_info(accounts_iter)?;
-                if route_pda_info.owner != program_id {
-                    return Err(ProgramError::IncorrectProgramId);
-                }
-                let domain_le = ctx.destination_domain.to_le_bytes();
-                let (expected_key, _) = Pubkey::find_program_address(
-                    route_domain_pda_seeds!(fee_account_info.key, &domain_le),
-                    program_id,
-                );
-                if *route_pda_info.key != expected_key {
-                    return Err(ProgramError::InvalidSeeds);
-                }
-                RouteDomainAccount::fetch(&mut &route_pda_info.data.borrow()[..])?
-                    .into_inner()
-                    .data
+    let (resolved_signers, resolved_strategy_tag): (BTreeSet<H160>, crate::fee_math::StrategyTag) =
+        match &fee_account.fee_data {
+            FeeData::Leaf(cfg) => {
+                let signers = cfg
                     .signers
+                    .as_ref()
                     .ok_or(ProgramError::from(Error::OffchainQuotingNotConfigured))?
+                    .clone();
+                let tag = crate::fee_math::StrategyTag::from(&cfg.strategy);
+                (signers, tag)
             }
-        }
-        FeeData::CrossCollateralRouting(_) => {
-            let ctx = CcFeeQuoteContext::try_from_bytes(&quote.context)?;
-            if ctx.destination_domain == WILDCARD_DOMAIN {
-                // Wildcard domain: auth from FeeData. No route PDAs needed.
-                fee_account.fee_data.cc_wildcard_signers()?.clone()
-            } else {
-                // Exact domain: auth from resolved CC route PDA.
-                // Account 3: CC specific route PDA (read-only).
-                // Account 4: CC default route PDA (read-only).
-                let specific_pda_info = next_account_info(accounts_iter)?;
-                let default_pda_info = next_account_info(accounts_iter)?;
-
-                let dest_le = ctx.destination_domain.to_le_bytes();
-
-                // Resolve: specific → default (same cascade as QuoteFee).
-                let resolved_pda_info = {
-                    let (specific_key, _) = Pubkey::find_program_address(
-                        cc_route_pda_seeds!(fee_account_info.key, &dest_le, ctx.target_router),
+            FeeData::Routing(_) => {
+                let ctx = FeeQuoteContext::try_from_bytes(&quote.context)?;
+                if ctx.destination_domain == WILDCARD_DOMAIN {
+                    // Wildcard domain: auth from FeeData. No route PDA needed.
+                    let signers = fee_account.fee_data.routing_wildcard_signers()?.clone();
+                    (signers, crate::fee_math::StrategyTag::default())
+                } else {
+                    // Exact domain: auth from RouteDomain PDA.
+                    let route_pda_info = next_account_info(accounts_iter)?;
+                    if route_pda_info.owner != program_id {
+                        return Err(ProgramError::IncorrectProgramId);
+                    }
+                    let domain_le = ctx.destination_domain.to_le_bytes();
+                    let (expected_key, _) = Pubkey::find_program_address(
+                        route_domain_pda_seeds!(fee_account_info.key, &domain_le),
                         program_id,
                     );
-                    if *specific_pda_info.key != specific_key {
+                    if *route_pda_info.key != expected_key {
                         return Err(ProgramError::InvalidSeeds);
                     }
-                    // Verify ownership: must be fee program or system (uninitialized).
-                    verify_optional_pda_owner(specific_pda_info, program_id)?;
+                    let route = RouteDomainAccount::fetch(&mut &route_pda_info.data.borrow()[..])?
+                        .into_inner()
+                        .data;
+                    let signers = route
+                        .signers
+                        .ok_or(ProgramError::from(Error::OffchainQuotingNotConfigured))?;
+                    let tag = crate::fee_math::StrategyTag::from(&route.fee_data);
+                    (signers, tag)
+                }
+            }
+            FeeData::CrossCollateralRouting(_) => {
+                let ctx = CcFeeQuoteContext::try_from_bytes(&quote.context)?;
+                if ctx.destination_domain == WILDCARD_DOMAIN {
+                    // Wildcard domain: auth from FeeData. No route PDAs needed.
+                    let signers = fee_account.fee_data.cc_wildcard_signers()?.clone();
+                    (signers, crate::fee_math::StrategyTag::default())
+                } else {
+                    // Exact domain: auth from resolved CC route PDA.
+                    // Account 3: CC specific route PDA (read-only).
+                    // Account 4: CC default route PDA (read-only).
+                    let specific_pda_info = next_account_info(accounts_iter)?;
+                    let default_pda_info = next_account_info(accounts_iter)?;
 
-                    if specific_pda_info.owner == program_id && !specific_pda_info.data_is_empty() {
-                        specific_pda_info
-                    } else {
-                        let (default_key, _) = Pubkey::find_program_address(
-                            cc_route_pda_seeds!(fee_account_info.key, &dest_le, DEFAULT_ROUTER),
+                    let dest_le = ctx.destination_domain.to_le_bytes();
+
+                    // Resolve: specific → default (same cascade as QuoteFee).
+                    let resolved_pda_info = {
+                        let (specific_key, _) = Pubkey::find_program_address(
+                            cc_route_pda_seeds!(fee_account_info.key, &dest_le, ctx.target_router),
                             program_id,
                         );
-                        if *default_pda_info.key != default_key {
+                        if *specific_pda_info.key != specific_key {
                             return Err(ProgramError::InvalidSeeds);
                         }
-                        verify_optional_pda_owner(default_pda_info, program_id)?;
+                        // Verify ownership: must be fee program or system (uninitialized).
+                        verify_optional_pda_owner(specific_pda_info, program_id)?;
 
-                        if default_pda_info.owner != program_id || default_pda_info.data_is_empty()
+                        if specific_pda_info.owner == program_id
+                            && !specific_pda_info.data_is_empty()
                         {
-                            return Err(Error::RouteNotFound.into());
-                        }
-                        default_pda_info
-                    }
-                };
+                            specific_pda_info
+                        } else {
+                            let (default_key, _) = Pubkey::find_program_address(
+                                cc_route_pda_seeds!(fee_account_info.key, &dest_le, DEFAULT_ROUTER),
+                                program_id,
+                            );
+                            if *default_pda_info.key != default_key {
+                                return Err(ProgramError::InvalidSeeds);
+                            }
+                            verify_optional_pda_owner(default_pda_info, program_id)?;
 
-                CrossCollateralRouteAccount::fetch(&mut &resolved_pda_info.data.borrow()[..])?
+                            if default_pda_info.owner != program_id
+                                || default_pda_info.data_is_empty()
+                            {
+                                return Err(Error::RouteNotFound.into());
+                            }
+                            default_pda_info
+                        }
+                    };
+
+                    let route = CrossCollateralRouteAccount::fetch(
+                        &mut &resolved_pda_info.data.borrow()[..],
+                    )?
                     .into_inner()
-                    .data
-                    .signers
-                    .ok_or(ProgramError::from(Error::OffchainQuotingNotConfigured))?
+                    .data;
+                    let signers = route
+                        .signers
+                        .ok_or(ProgramError::from(Error::OffchainQuotingNotConfigured))?;
+                    let tag = crate::fee_math::StrategyTag::from(&route.fee_data);
+                    (signers, tag)
+                }
             }
-        }
-    };
+        };
 
     // Verify the quote signature against resolved signers.
     quote
@@ -1219,6 +1252,7 @@ fn process_submit_quote(
                 context: quote.context,
                 data: quote.data,
                 expiry: expiry_ts,
+                strategy_tag: resolved_strategy_tag,
             }
             .into(),
         );
@@ -1319,6 +1353,7 @@ fn process_submit_quote(
             expiry: expiry_ts,
             max_fee: quote_data.max_fee,
             half_amount: quote_data.half_amount,
+            strategy_tag: resolved_strategy_tag,
         };
 
         if let Some(existing) = standing_pda.quotes.get(&recipient_key) {

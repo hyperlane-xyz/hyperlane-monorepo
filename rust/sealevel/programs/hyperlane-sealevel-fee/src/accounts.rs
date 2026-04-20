@@ -317,6 +317,9 @@ pub struct TransientQuote {
     pub data: Vec<u8>,
     /// Expiry timestamp (unix). For transient quotes, expiry == issued_at.
     pub expiry: i64,
+    /// Curve variant tag recorded at submission time. Transient quotes are rejected
+    /// if the resolved route strategy no longer matches this tag.
+    pub strategy_tag: crate::fee_math::StrategyTag,
 }
 
 impl SizedData for TransientQuote {
@@ -326,7 +329,8 @@ impl SizedData for TransientQuote {
         + H256_SIZE                                      // scoped_salt
         + BORSH_LEN_PREFIX + self.context.len()          // context
         + BORSH_LEN_PREFIX + self.data.len()             // data
-        + std::mem::size_of::<i64>() // expiry
+        + std::mem::size_of::<i64>()                     // expiry
+        + std::mem::size_of::<u8>() // strategy_tag
     }
 }
 
@@ -516,6 +520,9 @@ pub struct FeeStandingQuoteValue {
     pub max_fee: u64,
     /// Half amount parameter — transfer amount at which fee = max_fee / 2.
     pub half_amount: u64,
+    /// Curve variant tag recorded at submission time. Standing quotes are skipped
+    /// if the resolved route strategy no longer matches this tag.
+    pub strategy_tag: crate::fee_math::StrategyTag,
 }
 
 impl SizedData for FeeStandingQuoteValue {
@@ -524,6 +531,7 @@ impl SizedData for FeeStandingQuoteValue {
         + std::mem::size_of::<i64>() // expiry
         + std::mem::size_of::<u64>() // max_fee
         + std::mem::size_of::<u64>() // half_amount
+        + std::mem::size_of::<u8>() // strategy_tag
     }
 }
 
@@ -681,6 +689,7 @@ mod tests {
             context: vec![1, 2, 3, 4],
             data: vec![5, 6, 7, 8],
             expiry: 1234567890,
+            ..Default::default()
         };
         let encoded = borsh::to_vec(&quote).unwrap();
         let decoded: TransientQuote = borsh::from_slice(&encoded).unwrap();
@@ -697,6 +706,7 @@ mod tests {
                 expiry: 200,
                 max_fee: 1000,
                 half_amount: 500,
+                ..Default::default()
             },
         );
         quotes.insert(
@@ -706,6 +716,7 @@ mod tests {
                 expiry: 300,
                 max_fee: 2000,
                 half_amount: 1000,
+                ..Default::default()
             },
         );
         let pda = FeeStandingQuotePda {
@@ -914,6 +925,7 @@ mod tests {
             context: vec![0u8; 44],
             data: vec![0u8; 16],
             expiry: 100,
+            ..Default::default()
         };
         assert_eq!(quote.size(), borsh::to_vec(&quote).unwrap().len());
     }
@@ -937,6 +949,7 @@ mod tests {
                 expiry: 200,
                 max_fee: 1000,
                 half_amount: 500,
+                ..Default::default()
             },
         );
         let pda = FeeStandingQuotePda {
@@ -953,6 +966,7 @@ mod tests {
             expiry: 200,
             max_fee: 1000,
             half_amount: 500,
+            ..Default::default()
         };
         assert_eq!(
             SizedData::size(&value),

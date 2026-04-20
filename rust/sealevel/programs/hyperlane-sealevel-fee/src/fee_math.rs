@@ -47,6 +47,31 @@ impl SizedData for FeeDataStrategy {
     }
 }
 
+/// Tag identifying the curve variant. Used to bind standing quotes to the
+/// strategy that was active when they were submitted.
+#[derive(BorshDeserialize, BorshSerialize, Clone, Copy, Debug, Default, PartialEq)]
+#[borsh(use_discriminant = true)]
+#[repr(u8)]
+pub enum StrategyTag {
+    /// Linear curve.
+    #[default]
+    Linear = 0,
+    /// Regressive curve.
+    Regressive = 1,
+    /// Progressive curve.
+    Progressive = 2,
+}
+
+impl From<&FeeDataStrategy> for StrategyTag {
+    fn from(strategy: &FeeDataStrategy) -> Self {
+        match strategy {
+            FeeDataStrategy::Linear(_) => Self::Linear,
+            FeeDataStrategy::Regressive(_) => Self::Regressive,
+            FeeDataStrategy::Progressive(_) => Self::Progressive,
+        }
+    }
+}
+
 impl FeeDataStrategy {
     /// Computes the fee for the given transfer amount.
     /// All arithmetic uses U256 intermediates. Results rounded down.

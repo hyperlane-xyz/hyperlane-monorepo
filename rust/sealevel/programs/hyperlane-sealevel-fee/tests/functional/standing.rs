@@ -2206,4 +2206,124 @@ mod prune_expired_quotes {
             ),
         );
     }
+
+    /// Standing quote submitted under Linear → route changed to Progressive →
+    /// QuoteFee skips standing quote (strategy tag mismatch), falls to on-chain.
+    #[tokio::test]
+    async fn test_standing_skipped_after_route_strategy_change() {
+        let program_id = fee_program_id();
+        let program_test = ProgramTest::new(
+            "hyperlane_sealevel_fee",
+            program_id,
+            processor!(fee_process_instruction),
+        );
+        let mut ctx = program_test.start_with_context().await;
+        let payer = ctx.payer.insecure_clone();
+        let banks_client = &mut ctx.banks_client;
+
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let signer_address = eth_address(&signing_key);
+
+        let fee_key = init_fee_account(
+            banks_client,
+            &payer,
+            default_salt(),
+            Some(payer.pubkey()),
+            payer.pubkey(),
+            FeeData::Routing(RoutingFeeConfig {
+                wildcard_signers: BTreeSet::new(),
+            }),
+        )
+        .await;
+
+        let dest = 42u32;
+        let recipient = H256::zero();
+
+        // Create Linear route with signer.
+        let ix = build_set_route_ix(
+            &fee_key,
+            &payer.pubkey(),
+            dest,
+            FeeDataStrategy::Linear(FeeParams {
+                max_fee: 100,
+                half_amount: 50,
+            }),
+        );
+        process_tx(banks_client, &payer, ix, &[]).await.unwrap();
+
+        let ix = build_add_quote_signer_ix_with_route(
+            &fee_key,
+            &payer.pubkey(),
+            signer_address,
+            Some(instruction::RouteKey::Domain(dest)),
+        );
+        process_tx(banks_client, &payer, ix, &[]).await.unwrap();
+
+        // Submit standing quote under Linear.
+        let route_pda = route_pda_for(&fee_key, dest);
+        let quote = make_signed_standing_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            encode_standing_context(dest, recipient),
+            encode_data(9999, 5000),
+            encode_u48(100),
+            encode_u48(9999999999),
+        );
+        let ix = build_submit_standing_ix_with_routes(
+            &fee_key,
+            &payer.pubkey(),
+            &quote,
+            dest,
+            &H256::zero(),
+            &[route_pda],
+        );
+        process_tx(banks_client, &payer, ix, &[]).await.unwrap();
+
+        // Verify standing quote is used.
+        let domain_quotes_pda = standing_quote_pda_for(&fee_key, dest);
+        let wildcard_quotes_pda = standing_quote_pda_for(&fee_key, WILDCARD_DOMAIN);
+        let build_qf = || {
+            Instruction::new_with_borsh(
+                fee_program_id(),
+                &FeeInstruction::QuoteFee(hyperlane_sealevel_fee::instruction::QuoteFee {
+                    destination_domain: dest,
+                    recipient,
+                    amount: 5000,
+                    target_router: H256::zero(),
+                }),
+                vec![
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new_readonly(fee_key, false),
+                    AccountMeta::new(payer.pubkey(), true),
+                    AccountMeta::new_readonly(domain_quotes_pda, false),
+                    AccountMeta::new_readonly(wildcard_quotes_pda, false),
+                    AccountMeta::new_readonly(route_pda, false),
+                ],
+            )
+        };
+
+        let fee_before = simulate_quote_fee(banks_client, &payer, build_qf()).await;
+        // Linear(9999, 5000): min(9999, 5000*9999/10000) = 4999
+        assert_eq!(fee_before, 4999);
+
+        // Change route to Progressive.
+        let ix = build_set_route_ix(
+            &fee_key,
+            &payer.pubkey(),
+            dest,
+            FeeDataStrategy::Progressive(FeeParams {
+                max_fee: 100,
+                half_amount: 50,
+            }),
+        );
+        process_tx(banks_client, &payer, ix, &[]).await.unwrap();
+
+        // Standing quote has Linear tag, route is now Progressive → skip.
+        // Falls to on-chain Progressive(100, 50): 100*5000^2/(50^2+5000^2) = 99
+        let fee_after = simulate_quote_fee(banks_client, &payer, build_qf()).await;
+        assert_ne!(fee_after, fee_before);
+        assert_eq!(fee_after, 99);
+    }
 }
