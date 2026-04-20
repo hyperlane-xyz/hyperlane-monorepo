@@ -24,6 +24,7 @@ import {
   getFixedRoutingFeeConfig,
   getRebalancingUSDCConfigForChain,
   getUSDCRebalancingBridgesConfigFor,
+  scaleDownConfig,
 } from './utils.js';
 
 type DeploymentChains<T> = {
@@ -154,7 +155,6 @@ const awProxyAdminOwners: Record<EvmChain, string> = {
   ink: awSafes.ink,
   worldchain: awSafes.worldchain,
   hyperevm: awSafes.hyperevm,
-
   bsc: awSafes.bsc,
   katana: awSafes.katana,
 } as const;
@@ -179,6 +179,49 @@ const productionOwnersByChain: DeploymentChains<string> = {
   linea: awIcas.linea,
   monad: awIcas.monad,
 };
+
+const chainDecimals: DeploymentChains<number> = {
+  arbitrum: 6,
+  avalanche: 6,
+  base: 6,
+  bsc: 18,
+  eclipsemainnet: 6,
+  ethereum: 6,
+  hyperevm: 6,
+  ink: 6,
+  katana: 6,
+  linea: 6,
+  monad: 6,
+  optimism: 6,
+  polygon: 6,
+  solanamainnet: 6,
+  unichain: 6,
+  worldchain: 6,
+};
+
+const contractVersionByChain: DeploymentChains<string | null> = {
+  arbitrum: '10.1.3',
+  avalanche: '10.1.5',
+  base: '10.1.3',
+  bsc: '11.1.0',
+  eclipsemainnet: null,
+  ethereum: '10.1.3',
+  hyperevm: '10.1.5',
+  ink: '10.1.5',
+  katana: '11.1.0',
+  linea: '10.1.5',
+  monad: '10.1.5',
+  optimism: '10.1.3',
+  polygon: '10.1.3',
+  solanamainnet: null,
+  unichain: '10.1.3',
+  worldchain: '10.1.5',
+};
+
+// Convention: use the minimum decimals as the message encoding baseline.
+// The contract does not enforce this — each router independently applies its own scale.
+// We derive scales here so that all routers agree on the same message amount encoding.
+const MESSAGE_DECIMALS = Math.min(...Object.values(chainDecimals));
 
 // TODO: can we read this from a config file?
 const PRODUCTION_PROGRAM_IDS = {
@@ -220,16 +263,10 @@ export const buildEclipseUSDCWarpConfig = async (
   const configs: Array<[DeploymentChain, HypTokenRouterConfig]> = [];
   for (const currentChain of deploymentChains) {
     // Scaling
-    const scaleConfig =
-      currentChain === 'bsc'
-        ? {
-            numerator: 1,
-            denominator: 10 ** 12,
-          }
-        : {
-            numerator: 1,
-            denominator: 1,
-          };
+    const decimals = chainDecimals[currentChain];
+    assert(decimals != null, `Decimals not defined for ${currentChain}`);
+
+    const { scale: scaleConfig } = scaleDownConfig(decimals, MESSAGE_DECIMALS);
 
     let chainConfig: HypTokenRouterConfig;
     if (currentChain === 'eclipsemainnet') {
@@ -255,6 +292,12 @@ export const buildEclipseUSDCWarpConfig = async (
       // Proxy admin config
       const proxyAdmin = proxyAdmins[currentChain];
       assert(proxyAdmin, `Missing proxyAdmin for chain ${currentChain}`);
+
+      const contractVersion = contractVersionByChain[currentChain];
+      assert(
+        contractVersion,
+        `Missing contractVersion for chain ${currentChain}`,
+      );
 
       // Fees
       const feeDestinations = evmDeploymentChains.filter(
@@ -290,6 +333,7 @@ export const buildEclipseUSDCWarpConfig = async (
         proxyAdmin,
         tokenFee: feeConfig,
         scale: scaleConfig,
+        contractVersion,
       };
     }
 
@@ -325,7 +369,7 @@ export const getEclipseUSDCWarpConfig = async (
     programIds: PRODUCTION_PROGRAM_IDS,
     proxyAdmins: awProxyAdmins,
     tokenMetadata: {
-      name: 'USDC Coin',
+      name: 'USD Coin',
       symbol: 'USDC',
     },
   });
