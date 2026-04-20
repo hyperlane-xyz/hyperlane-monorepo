@@ -6,6 +6,10 @@ import {
   ChainMetadata,
   ChainMetadataSchema,
 } from '@hyperlane-xyz/sdk/metadata/chainMetadataTypes';
+import {
+  areChainIdsEqual,
+  getEffectiveDomainId,
+} from '@hyperlane-xyz/sdk/metadata/chainIdUtils';
 import type { ChainMap } from '@hyperlane-xyz/sdk/types';
 import {
   Result,
@@ -179,52 +183,6 @@ function tryParseMetadataInput(
   }
 
   return success(newMetadata);
-}
-
-function areChainIdsEqual(
-  left: ChainMetadata['chainId'],
-  right: ChainMetadata['chainId'],
-): boolean {
-  if (
-    left === undefined ||
-    left === null ||
-    right === undefined ||
-    right === null
-  ) {
-    return false;
-  }
-
-  if (left === right) return true;
-
-  const leftNumeric = tryNormalizeNumericChainId(left);
-  const rightNumeric = tryNormalizeNumericChainId(right);
-  return leftNumeric !== null && leftNumeric === rightNumeric;
-}
-
-function getEffectiveDomainId(
-  metadata: Pick<ChainMetadata, 'chainId' | 'domainId'>,
-) {
-  if (metadata.domainId !== undefined && metadata.domainId !== null) {
-    return metadata.domainId;
-  }
-
-  return tryNormalizeNumericChainId(metadata.chainId);
-}
-
-function tryNormalizeNumericChainId(
-  chainId: ChainMetadata['chainId'],
-): number | null {
-  if (typeof chainId === 'number') {
-    return Number.isSafeInteger(chainId) ? chainId : null;
-  }
-
-  if (typeof chainId !== 'string' || !/^\d+$/.test(chainId)) return null;
-
-  const numericChainId = Number(chainId);
-  if (!Number.isSafeInteger(numericChainId)) return null;
-  if (String(numericChainId) !== chainId) return null;
-
-  return numericChainId;
 }
 
 const placeholderText = `# YAML data
