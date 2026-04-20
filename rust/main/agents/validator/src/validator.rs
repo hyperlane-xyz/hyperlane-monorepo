@@ -16,17 +16,23 @@ use hyperlane_base::{
     db::{HyperlaneDb, HyperlaneRocksDB, DB},
     git_sha,
     metrics::AgentMetrics,
-    settings::{ChainConf, CheckpointSyncerBuildError},
-    BaseAgent, ChainMetrics, ChainSpecificMetricsUpdater, CheckpointSyncer, ContractSyncMetrics,
-    ContractSyncer, CoreMetrics, HyperlaneAgentCore, MetadataFromSettings, RuntimeMetrics,
-    SequencedDataContractSync,
+    settings::{
+        ChainConf, ChainConnectionConf, CheckpointSyncerBuildError, MerkleTreeHookIndexer,
+        TryFromWithMetrics,
+    },
+    BaseAgent, ChainMetrics, ChainSpecificMetricsUpdater, CheckpointSyncer, ContractSync,
+    ContractSyncMetrics, ContractSyncer, CoreMetrics, HyperlaneAgentCore, MetadataFromSettings,
+    RuntimeMetrics, SequenceAwareLogStore, SequencedDataContractSync,
 };
 use hyperlane_core::{
-    rpc_clients::RPC_RETRY_SLEEP_DURATION, Announcement, ChainResult, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, Mailbox,
-    MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, TxOutcome, ValidatorAnnounce, H256, U256,
+    rpc_clients::RPC_RETRY_SLEEP_DURATION, Announcement, ChainResult, CheckpointAtBlock,
+    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt,
+    IncrementalMerkleAtBlock, Mailbox, MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, TxOutcome,
+    ValidatorAnnounce, H256, U256,
 };
-use hyperlane_ethereum::{Signers, SingletonSigner, SingletonSignerHandle};
+use hyperlane_ethereum::{
+    self as h_eth, RpcConnectionConf, Signers, SingletonSigner, SingletonSignerHandle,
+};
 
 use crate::reorg_reporter::{
     LatestCheckpointReorgReporter, LatestCheckpointReorgReporterWithStorageWriter, ReorgReporter,
@@ -38,6 +44,50 @@ use crate::{
 };
 
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
+
+#[derive(Debug)]
+struct ValidatorSafetyMerkleTreeHook {
+    fallback: Arc<dyn MerkleTreeHook>,
+    safety: Arc<dyn MerkleTreeHook>,
+}
+
+#[async_trait]
+impl MerkleTreeHook for ValidatorSafetyMerkleTreeHook {
+    async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkleAtBlock> {
+        self.fallback.tree(reorg_period).await
+    }
+
+    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
+        self.fallback.count(reorg_period).await
+    }
+
+    async fn latest_checkpoint(
+        &self,
+        reorg_period: &ReorgPeriod,
+    ) -> ChainResult<CheckpointAtBlock> {
+        self.safety.latest_checkpoint(reorg_period).await
+    }
+
+    async fn latest_checkpoint_at_block(&self, height: u64) -> ChainResult<CheckpointAtBlock> {
+        self.safety.latest_checkpoint_at_block(height).await
+    }
+}
+
+impl HyperlaneChain for ValidatorSafetyMerkleTreeHook {
+    fn domain(&self) -> &HyperlaneDomain {
+        self.fallback.domain()
+    }
+
+    fn provider(&self) -> Box<dyn hyperlane_core::HyperlaneProvider> {
+        self.fallback.provider()
+    }
+}
+
+impl HyperlaneContract for ValidatorSafetyMerkleTreeHook {
+    fn address(&self) -> H256 {
+        self.fallback.address()
+    }
+}
 
 /// A validator agent
 #[derive(Debug, AsRef)]
@@ -174,12 +224,32 @@ impl BaseAgent for Validator {
         let reorg_reporter = Arc::new(reorg_reporter_with_storage_writer) as Arc<dyn ReorgReporter>;
 
         let origin_chain_conf = core.settings.chain_setup(&settings.origin_chain)?.clone();
+        let fallback_origin_chain_conf =
+            Self::validator_chain_conf_with_fallback_rpc(&origin_chain_conf);
+        let safety_origin_chain_conf =
+            Self::validator_chain_conf_with_quorum_rpc(&origin_chain_conf);
 
         let mailbox = origin_chain_conf.build_mailbox(&metrics).await?;
 
-        let merkle_tree_hook = settings
-            .build_merkle_tree_hook(&settings.origin_chain, &metrics)
-            .await?;
+        let merkle_tree_hook = if matches!(
+            origin_chain_conf.connection,
+            ChainConnectionConf::Ethereum(_)
+        ) {
+            let fallback_hook = fallback_origin_chain_conf
+                .build_merkle_tree_hook(&metrics)
+                .await?;
+            let safety_hook = safety_origin_chain_conf
+                .build_merkle_tree_hook(&metrics)
+                .await?;
+            Box::new(ValidatorSafetyMerkleTreeHook {
+                fallback: fallback_hook.into(),
+                safety: safety_hook.into(),
+            }) as Box<dyn MerkleTreeHook>
+        } else {
+            settings
+                .build_merkle_tree_hook(&settings.origin_chain, &metrics)
+                .await?
+        };
 
         let validator_announce = settings
             .build_validator_announce(&settings.origin_chain, &metrics)
@@ -187,16 +257,36 @@ impl BaseAgent for Validator {
 
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&metrics));
 
-        let merkle_tree_hook_sync = settings
-            .sequenced_contract_sync::<MerkleTreeInsertion, _>(
-                &settings.origin_chain,
+        let merkle_tree_hook_sync = if matches!(
+            origin_chain_conf.connection,
+            ChainConnectionConf::Ethereum(_)
+        ) {
+            let log_store: SequenceAwareLogStore<MerkleTreeInsertion> = Arc::new(msg_db.clone());
+            let indexer: MerkleTreeHookIndexer = TryFromWithMetrics::try_from_with_metrics(
+                &fallback_origin_chain_conf,
                 &metrics,
-                &contract_sync_metrics,
-                msg_db.clone().into(),
-                false,
                 false,
             )
             .await?;
+            Arc::new(ContractSync::new(
+                settings.origin_chain.clone(),
+                log_store,
+                indexer,
+                contract_sync_metrics.as_ref().clone(),
+                false,
+            ))
+        } else {
+            settings
+                .sequenced_contract_sync::<MerkleTreeInsertion, _>(
+                    &settings.origin_chain,
+                    &metrics,
+                    &contract_sync_metrics,
+                    msg_db.clone().into(),
+                    false,
+                    false,
+                )
+                .await?
+        };
 
         Ok(Self {
             origin_chain: settings.origin_chain,
@@ -332,6 +422,31 @@ impl BaseAgent for Validator {
 }
 
 impl Validator {
+    fn validator_chain_conf_with_fallback_rpc(origin_chain_conf: &ChainConf) -> ChainConf {
+        Self::validator_chain_conf_with_rpc_connection(origin_chain_conf, |urls| {
+            RpcConnectionConf::HttpFallback { urls }
+        })
+    }
+
+    fn validator_chain_conf_with_quorum_rpc(origin_chain_conf: &ChainConf) -> ChainConf {
+        Self::validator_chain_conf_with_rpc_connection(origin_chain_conf, |urls| {
+            RpcConnectionConf::HttpQuorum { urls }
+        })
+    }
+
+    fn validator_chain_conf_with_rpc_connection(
+        origin_chain_conf: &ChainConf,
+        build_rpc_connection: impl FnOnce(Vec<url::Url>) -> RpcConnectionConf,
+    ) -> ChainConf {
+        let mut chain_conf = origin_chain_conf.clone();
+        if let ChainConnectionConf::Ethereum(conn) = &origin_chain_conf.connection {
+            let mut updated_conn: h_eth::ConnectionConf = conn.clone();
+            updated_conn.rpc_connection = build_rpc_connection(conn.rpc_urls());
+            chain_conf.connection = ChainConnectionConf::Ethereum(updated_conn);
+        }
+        chain_conf
+    }
+
     /// Try to create merkle tree hook contract sync attempts times before giving up.
     async fn try_n_times_to_run_merkle_tree_hook_sync(
         &self,
@@ -608,7 +723,36 @@ impl Validator {
 
 #[cfg(test)]
 mod tests {
+    use async_trait::async_trait;
+    use hyperlane_core::{test_utils::dummy_domain, HyperlaneProvider};
+
     use super::*;
+
+    mockall::mock! {
+        pub MerkleTreeHook {}
+
+        impl Debug for MerkleTreeHook {
+            fn fmt<'a>(&self, f: &mut std::fmt::Formatter<'a>) -> std::fmt::Result;
+        }
+
+        impl HyperlaneChain for MerkleTreeHook {
+            fn domain(&self) -> &HyperlaneDomain;
+            fn provider(&self) -> Box<dyn HyperlaneProvider>;
+        }
+
+        impl HyperlaneContract for MerkleTreeHook {
+            fn address(&self) -> H256;
+        }
+
+        #[async_trait]
+        impl MerkleTreeHook for MerkleTreeHook {
+            async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkleAtBlock>;
+            async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32>;
+            async fn latest_checkpoint(&self, reorg_period: &ReorgPeriod) -> ChainResult<CheckpointAtBlock>;
+            async fn latest_checkpoint_at_block(&self, height: u64) -> ChainResult<CheckpointAtBlock>;
+        }
+    }
+
     #[test]
     fn aleo_announcement_location_exactly_max_minus_null() -> Result<()> {
         // 479 bytes input should be padded to 480 with a single null
@@ -669,5 +813,78 @@ mod tests {
         assert_eq!(out_bytes.len(), 480);
         assert!(out_bytes[input_bytes.len()..].iter().all(|&b| b == 0));
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn validator_safety_merkle_tree_hook_only_routes_latest_checkpoint_to_safety() {
+        let domain = dummy_domain(1337, "test-domain");
+        let checkpoint = CheckpointAtBlock {
+            checkpoint: hyperlane_core::Checkpoint {
+                merkle_tree_hook_address: H256::from_low_u64_be(11),
+                mailbox_domain: domain.id(),
+                root: H256::from_low_u64_be(22),
+                index: 7,
+            },
+            block_height: Some(99),
+        };
+
+        let mut fallback = MockMerkleTreeHook::new();
+        fallback.expect_domain().return_const(domain.clone());
+        fallback
+            .expect_address()
+            .return_const(H256::from_low_u64_be(11));
+        fallback.expect_provider().never();
+        fallback.expect_count().once().return_once(|_| Ok(3));
+        fallback.expect_latest_checkpoint_at_block().never();
+
+        let mut safety = MockMerkleTreeHook::new();
+        safety.expect_domain().return_const(domain.clone());
+        safety
+            .expect_address()
+            .return_const(H256::from_low_u64_be(11));
+        safety.expect_provider().never();
+        safety.expect_count().never();
+        safety
+            .expect_latest_checkpoint()
+            .once()
+            .return_once(|_| Ok(checkpoint));
+        safety
+            .expect_latest_checkpoint_at_block()
+            .once()
+            .with(mockall::predicate::eq(42))
+            .return_once(|height| {
+                Ok(CheckpointAtBlock {
+                    checkpoint: hyperlane_core::Checkpoint {
+                        merkle_tree_hook_address: H256::from_low_u64_be(11),
+                        mailbox_domain: 1337,
+                        root: H256::from_low_u64_be(height),
+                        index: height as u32,
+                    },
+                    block_height: Some(height),
+                })
+            });
+
+        let hook = ValidatorSafetyMerkleTreeHook {
+            fallback: Arc::new(fallback),
+            safety: Arc::new(safety),
+        };
+
+        assert_eq!(hook.count(&ReorgPeriod::None).await.unwrap(), 3);
+        assert_eq!(
+            hook.latest_checkpoint(&ReorgPeriod::None)
+                .await
+                .unwrap()
+                .checkpoint
+                .index,
+            7
+        );
+        assert_eq!(
+            hook.latest_checkpoint_at_block(42)
+                .await
+                .unwrap()
+                .checkpoint
+                .index,
+            42
+        );
     }
 }
