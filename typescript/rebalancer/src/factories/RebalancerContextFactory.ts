@@ -20,6 +20,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { LiFiBridge } from '../bridges/LiFiBridge.js';
+import { KatanaBridge } from '../bridges/KatanaBridge.js';
 import { type RebalancerConfig } from '../config/RebalancerConfig.js';
 import {
   ExecutionType,
@@ -645,6 +646,17 @@ export class RebalancerContextFactory {
               this.logger,
             );
           }
+          break;
+        }
+        case ExternalBridgeType.Katana: {
+          registry[ExternalBridgeType.Katana] = new KatanaBridge(
+            {
+              integrator: 'hyperlane',
+              defaultSlippage: externalBridges?.katana?.defaultSlippage,
+              chainMetadata: this.multiProvider.metadata,
+            },
+            this.logger,
+          );
           break;
         }
         default: {

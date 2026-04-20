@@ -36,6 +36,7 @@ export enum ExecutionType {
 
 export enum ExternalBridgeType {
   LiFi = 'lifi',
+  Katana = 'katana',
 }
 
 export const RebalancerMinAmountConfigSchema = z.object({
@@ -126,8 +127,13 @@ export const LiFiBridgeConfigSchema = z.object({
   defaultSlippage: z.number().optional(),
 });
 
+export const KatanaBridgeConfigSchema = z.object({
+  defaultSlippage: z.number().optional(),
+});
+
 export const ExternalBridgesConfigSchema = z.object({
   lifi: LiFiBridgeConfigSchema.optional(),
+  katana: KatanaBridgeConfigSchema.optional(),
 });
 
 export const RebalancerConfigSchema = z
@@ -372,15 +378,6 @@ export const RebalancerConfigSchema = z
           }
           // Other protocols: accept any non-empty string (future-proof)
         }
-      }
-
-      if (!config.externalBridges?.lifi?.integrator) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message:
-            'externalBridges.lifi is required when using inventory execution',
-          path: ['externalBridges', 'lifi'],
-        });
       }
     }
 
