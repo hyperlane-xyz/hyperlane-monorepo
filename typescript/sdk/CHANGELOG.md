@@ -1,5 +1,41 @@
 # @hyperlane-xyz/sdk
 
+## 33.0.0
+
+### Major Changes
+
+- dc8e560: Added Predicate integration for compliance-gated warp route transfers
+  - Added `PredicateWrapperConfigSchema` for configuring predicate wrapper deployment
+  - Added `PredicateApiClient` for fetching attestations from Predicate API
+  - Added `PredicateWrapperDeployer` for deploying and configuring PredicateRouterWrapper contracts
+  - Integrated predicate wrapper deployment into warp route deployment flow
+  - Supported aggregation hooks with predicate wrapper (wrapper executes first)
+  - Always aggregated predicate wrapper with mailbox default hook to ensure gas quoting works correctly
+  - Detected PredicateRouterWrapper recursively inside nested aggregation hooks
+
+  Example configuration:
+
+  ```yaml
+  ethereum:
+    type: collateral
+    token: '0x...'
+    predicateWrapper:
+      predicateRegistry: '0xe15a8Ca5BD8464283818088c1760d8f23B6a216E'
+      policyId: 'x-your-policy-id'
+  ```
+
+### Patch Changes
+
+- @hyperlane-xyz/aleo-sdk@33.0.0
+- @hyperlane-xyz/starknet-core@33.0.0
+- @hyperlane-xyz/cosmos-sdk@33.0.0
+- @hyperlane-xyz/radix-sdk@33.0.0
+- @hyperlane-xyz/utils@33.0.0
+- @hyperlane-xyz/deploy-sdk@5.0.2
+- @hyperlane-xyz/core@11.3.1
+- @hyperlane-xyz/provider-sdk@5.0.2
+- @hyperlane-xyz/tron-sdk@23.0.2
+
 ## 32.0.1
 
 ### Patch Changes

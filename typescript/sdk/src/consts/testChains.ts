@@ -1,9 +1,6 @@
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import {
-  ChainTechnicalStack,
-  ExplorerFamily,
-} from '../metadata/chainMetadataTypes.js';
+import { ExplorerFamily } from '../metadata/chainMetadataTypes.js';
 import type { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 import type { ChainMap, ChainName } from '../types.js';
 
@@ -194,26 +191,29 @@ export const testStarknetChain: ChainMetadata = {
   ],
 };
 
-// Address of a timelock contract on base that can be used for integration tests
-export const KNOWN_BASE_TIMELOCK_CONTRACT =
-  '0x733BC1F0D76AB8f0AB7C1c8044ECc4720Cd402AD';
+// Address of the ENS DAO TimelockController contract on Ethereum mainnet,
+// used for integration tests that exercise the block explorer path.
+// Chosen because Base's Blockscout `getcontractcreation` endpoint has been
+// observed to hang in CI, while eth.blockscout.com is reliable.
+export const KNOWN_ETHEREUM_TIMELOCK_CONTRACT =
+  '0xFe89cc7aBB2C4183683ab71653C4cdc9B02D44b7';
 
-// Base chain metadata for testing with block explorer
-export const baseTestChain: ChainMetadata = {
+// Ethereum mainnet metadata for testing with a live block explorer
+export const ethereumTestChain: ChainMetadata = {
   blockExplorers: [
     {
-      apiUrl: 'https://base.blockscout.com/api',
+      apiUrl: 'https://eth.blockscout.com/api',
       family: ExplorerFamily.Blockscout,
-      name: 'Base Explorer',
-      url: 'https://base.blockscout.com',
+      name: 'Ethereum Explorer',
+      url: 'https://eth.blockscout.com',
     },
   ],
-  blocks: { confirmations: 3, estimateBlockTime: 2, reorgPeriod: 10 },
-  chainId: 8453,
-  displayName: 'Base',
-  domainId: 8453,
+  blocks: { confirmations: 3, estimateBlockTime: 12, reorgPeriod: 14 },
+  chainId: 1,
+  displayName: 'Ethereum',
+  domainId: 1,
   gasCurrencyCoinGeckoId: 'ethereum',
-  name: 'base',
+  name: 'ethereum',
   nativeToken: {
     decimals: 18,
     name: 'Ether',
@@ -221,15 +221,12 @@ export const baseTestChain: ChainMetadata = {
   },
   protocol: ProtocolType.Ethereum,
   rpcUrls: [
-    { http: 'https://base.publicnode.com' },
-    { http: 'https://mainnet.base.org' },
-    { http: 'https://base.blockpi.network/v1/rpc/public' },
-    { http: 'https://base.drpc.org' },
-    { http: 'https://base.llamarpc.com' },
-    { http: 'https://1rpc.io/base' },
-    { http: 'https://base-pokt.nodies.app' },
+    { http: 'https://ethereum-rpc.publicnode.com' },
+    { http: 'https://eth.llamarpc.com' },
+    { http: 'https://1rpc.io/eth' },
+    { http: 'https://ethereum.blockpi.network/v1/rpc/public' },
+    { http: 'https://eth.drpc.org' },
   ],
-  technicalStack: ChainTechnicalStack.OpStack,
 };
 
 export const multiProtocolTestChainMetadata: ChainMap<ChainMetadata> = {

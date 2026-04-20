@@ -3,6 +3,7 @@ import { assert, isNullish } from '@hyperlane-xyz/utils';
 import type { ChainMap, ChainNameOrId } from '../types.js';
 
 import type { ChainMetadata } from './chainMetadataTypes.js';
+import { tryNormalizeNumericChainId } from './chainIdUtils.js';
 
 export interface ChainMetadataResolver<MetaExt = {}> {
   metadata: ChainMap<ChainMetadata<MetaExt>>;
@@ -89,18 +90,4 @@ export function createChainMetadataResolver<MetaExt = {}>(
     tryGetDomainId: (chain) => tryGetChainMetadata(chain)?.domainId ?? null,
     tryGetProtocol: (chain) => tryGetChainMetadata(chain)?.protocol ?? null,
   };
-}
-
-function tryNormalizeNumericChainId(chainId: string | number) {
-  if (typeof chainId === 'number') {
-    return Number.isSafeInteger(chainId) ? chainId : null;
-  }
-
-  if (!/^\d+$/.test(chainId)) return null;
-
-  const numericChainId = Number(chainId);
-  if (!Number.isSafeInteger(numericChainId)) return null;
-  if (String(numericChainId) !== chainId) return null;
-
-  return numericChainId;
 }

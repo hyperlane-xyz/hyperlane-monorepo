@@ -1,5 +1,16 @@
 # @hyperlane-xyz/ccip-server
 
+## 33.0.0
+
+### Patch Changes
+
+- 19b4f3e: Added origin tx hash to skip scraper lookup for tx hash
+- Updated dependencies [dc8e560]
+  - @hyperlane-xyz/sdk@33.0.0
+  - @hyperlane-xyz/metrics@0.2.18
+  - @hyperlane-xyz/utils@33.0.0
+  - @hyperlane-xyz/core@11.3.1
+
 ## 32.0.1
 
 ### Patch Changes
