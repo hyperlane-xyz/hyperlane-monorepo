@@ -1,6 +1,6 @@
-import type { ChainMetadata } from './chainMetadataTypes.js';
-
 import { isNullish } from '@hyperlane-xyz/utils';
+
+import type { ChainMetadata } from './chainMetadataTypes.js';
 
 // Decimal-only canonical chain IDs. Rejects hex, prefixed values, and mixed IDs
 // like cosmoshub-4 so those never alias to numeric domain lookups.

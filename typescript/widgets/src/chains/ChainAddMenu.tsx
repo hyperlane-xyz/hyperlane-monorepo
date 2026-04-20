@@ -5,6 +5,7 @@ import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import {
   ChainMetadata,
   ChainMetadataSchema,
+  mergeChainMetadataMap,
 } from '@hyperlane-xyz/sdk/metadata/chainMetadataTypes';
 import {
   areChainIdsEqual,
@@ -86,6 +87,10 @@ function Form({
 }: ChainAddMenuProps) {
   const [textInput, setTextInput] = useState('');
   const [error, setError] = useState<any>(null);
+  const existingChainMetadata = mergeChainMetadataMap(
+    chainMetadata,
+    overrideChainMetadata,
+  );
 
   const onChangeInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setTextInput(e.target.value);
@@ -93,7 +98,7 @@ function Form({
   };
 
   const onClickAdd = () => {
-    const result = tryParseMetadataInput(textInput, chainMetadata);
+    const result = tryParseMetadataInput(textInput, existingChainMetadata);
     if (result.success) {
       onChangeOverrideMetadata({
         ...overrideChainMetadata,
@@ -161,11 +166,8 @@ function tryParseMetadataInput(
   }
 
   if (
-    chainId !== undefined &&
-    Object.entries(existingChainMetadata).some(
-      ([chainName, metadata]) =>
-        chainName !== newMetadata.name &&
-        areChainIdsEqual(metadata.chainId, chainId),
+    Object.entries(existingChainMetadata).some(([, metadata]) =>
+      areChainIdsEqual(metadata.chainId, chainId),
     )
   ) {
     return failure('chainId is already in use by another chain');
@@ -174,9 +176,7 @@ function tryParseMetadataInput(
   if (
     effectiveDomainId !== null &&
     Object.entries(existingChainMetadata).some(
-      ([chainName, metadata]) =>
-        chainName !== newMetadata.name &&
-        getEffectiveDomainId(metadata) === effectiveDomainId,
+      ([, metadata]) => getEffectiveDomainId(metadata) === effectiveDomainId,
     )
   ) {
     return failure('domainId is already in use by another chain');

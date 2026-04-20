@@ -36,6 +36,8 @@ describe(areChainIdsEqual.name, () => {
   it('rejects nullish and non-matching values', () => {
     expect(areChainIdsEqual(undefined, 123)).to.equal(false);
     expect(areChainIdsEqual(null, '123')).to.equal(false);
+    expect(areChainIdsEqual(5, 10)).to.equal(false);
+    expect(areChainIdsEqual('5', 10)).to.equal(false);
     expect(areChainIdsEqual('00123', 123)).to.equal(false);
     expect(areChainIdsEqual('cosmoshub-4', 4)).to.equal(false);
   });
