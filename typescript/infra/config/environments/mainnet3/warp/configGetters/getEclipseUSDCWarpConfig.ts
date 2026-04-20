@@ -124,7 +124,7 @@ export const rebalancingChains = [
   'katana',
 ] as const satisfies DeploymentChain[];
 
-const awProxyAdminAddresses: Record<EvmChain, string | undefined> = {
+const awProxyAdminAddresses: Record<EvmChain, string> = {
   arbitrum: '0x33465314CbD880976B7A9f86062d615DE5E4Fa8A',
   base: '0x4e60dB3117AB7322949dC0A8E952D0cD413B1132',
   ethereum: '0x692e50577fAaBF10F824Dc8Ce581e3Af93785175',
@@ -137,9 +137,8 @@ const awProxyAdminAddresses: Record<EvmChain, string | undefined> = {
   ink: '0x3Ee33a0F98c06eE3d3E5c1717bD3AfbB0f749879',
   worldchain: '0xbcA7cc1c87E67341463f62F00Ea096564cAD13C1',
   hyperevm: '0xa5ff938C9DdC524d98ebf0297e39A6F5918Db2CD',
-
-  bsc: undefined,
-  katana: undefined,
+  bsc: '0x840A9f5dEF03dDffd798A5F4b405E59F8b7F6801',
+  katana: '0xa8ab7DF354DD5d4bCE5856b2b4E0863A3AaeEb44',
 } as const;
 
 const awProxyAdminOwners: Record<EvmChain, string> = {
@@ -300,8 +299,9 @@ export const buildEclipseUSDCWarpConfig = async (
   return Object.fromEntries(configs);
 };
 
-const awProxyAdmins: ChainMap<{ address: string | undefined; owner: string }> =
-  objMap(awProxyAdminAddresses, (chain, address) => {
+const awProxyAdmins: ChainMap<{ address: string; owner: string }> = objMap(
+  awProxyAdminAddresses,
+  (chain, address) => {
     const proxyAdminOwner =
       awProxyAdminOwners[chain] ?? chainOwners[chain].owner;
 
@@ -314,7 +314,8 @@ const awProxyAdmins: ChainMap<{ address: string | undefined; owner: string }> =
       address: address,
       owner: proxyAdminOwner,
     };
-  });
+  },
+);
 
 export const getEclipseUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
