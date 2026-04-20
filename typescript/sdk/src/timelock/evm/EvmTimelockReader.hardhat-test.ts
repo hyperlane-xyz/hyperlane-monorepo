@@ -9,9 +9,9 @@ import { TimelockController__factory } from '@hyperlane-xyz/core';
 import { assert, deepCopy, normalizeAddressEvm } from '@hyperlane-xyz/utils';
 
 import {
-  KNOWN_BASE_TIMELOCK_CONTRACT,
+  KNOWN_ETHEREUM_TIMELOCK_CONTRACT,
   TestChainName,
-  baseTestChain,
+  ethereumTestChain,
   test1,
 } from '../../consts/testChains.js';
 import { ChainMetadata } from '../../metadata/chainMetadataTypes.js';
@@ -1023,21 +1023,17 @@ describe(EvmTimelockReader.name, () => {
     });
   });
 
-  describe(`${EvmTimelockReader.name} (Block Explorer)`, function () {
-    // Live Blockscout API calls are slow/flaky; bump timeout and retry.
-    this.timeout(120_000);
-    this.retries(2);
-
+  describe(`${EvmTimelockReader.name} (Block Explorer)`, () => {
     let reader: EvmTimelockReader;
     let multiProvider: MultiProvider;
 
     beforeEach(async () => {
       multiProvider = new MultiProvider({
-        base: baseTestChain,
+        ethereum: ethereumTestChain,
       });
       reader = EvmTimelockReader.fromConfig({
-        chain: baseTestChain.name,
-        timelockAddress: KNOWN_BASE_TIMELOCK_CONTRACT,
+        chain: ethereumTestChain.name,
+        timelockAddress: KNOWN_ETHEREUM_TIMELOCK_CONTRACT,
         multiProvider,
       });
     });
