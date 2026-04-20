@@ -87,6 +87,7 @@ pub struct ServerState {
     rate_limiter: Option<Arc<RwLock<RateLimiter>>>,
     tx_hash_cache: Option<Arc<RwLock<TxHashCache>>>,
     metrics: Option<RelayApiMetrics>,
+    cors_origins: Vec<String>,
     message_whitelist: Option<Arc<crate::settings::matching_list::MatchingList>>,
     message_blacklist: Option<Arc<crate::settings::matching_list::MatchingList>>,
     address_blacklist: Option<Arc<crate::msg::blacklist::AddressBlacklist>>,
@@ -107,6 +108,7 @@ impl ServerState {
             rate_limiter: None,
             tx_hash_cache: None,
             metrics: None,
+            cors_origins: Vec::new(),
             message_whitelist: None,
             message_blacklist: None,
             address_blacklist: None,
@@ -120,6 +122,11 @@ impl ServerState {
 
     pub fn with_metrics(mut self, metrics: RelayApiMetrics) -> Self {
         self.metrics = Some(metrics);
+        self
+    }
+
+    pub fn with_cors_origins(mut self, origins: Vec<String>) -> Self {
+        self.cors_origins = origins;
         self
     }
 
@@ -157,16 +164,30 @@ impl ServerState {
     pub fn router(self) -> Router {
         use tower_http::cors::CorsLayer;
 
-        // Restrict CORS to only allow localhost:3000 and nexus.hyperlane.xyz
-        let cors = CorsLayer::new()
-            .allow_origin([
+        let cors_headers: Vec<HeaderValue> = if self.cors_origins.is_empty() {
+            vec![
                 "http://localhost:3000"
-                    .parse::<HeaderValue>()
-                    .expect("Static localhost origin is valid HeaderValue"),
+                    .parse()
+                    .expect("static CORS origin is valid"),
                 "https://nexus.hyperlane.xyz"
-                    .parse::<HeaderValue>()
-                    .expect("Static nexus origin is valid HeaderValue"),
-            ])
+                    .parse()
+                    .expect("static CORS origin is valid"),
+            ]
+        } else {
+            self.cors_origins
+                .iter()
+                .filter_map(|origin| {
+                    origin
+                        .parse::<HeaderValue>()
+                        .map_err(|e| {
+                            warn!(origin, error = %e, "Ignoring invalid CORS origin");
+                        })
+                        .ok()
+                })
+                .collect()
+        };
+        let cors = CorsLayer::new()
+            .allow_origin(cors_headers)
             .allow_methods([Method::POST])
             .allow_headers([axum::http::header::CONTENT_TYPE]);
 

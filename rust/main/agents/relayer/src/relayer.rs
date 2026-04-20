@@ -94,6 +94,7 @@ pub struct Relayer {
     max_retries: u32,
     relay_api_rate_limit_max_requests: Option<usize>,
     relay_api_rate_limit_window_secs: Option<u64>,
+    relay_api_cors_origins: Vec<String>,
     core_metrics: Arc<CoreMetrics>,
     // TODO: decide whether to consolidate `agent_metrics` and `chain_metrics` into a single struct
     // or move them in `core_metrics`, like the validator metrics
@@ -293,6 +294,7 @@ impl BaseAgent for Relayer {
             max_retries: settings.max_retries,
             relay_api_rate_limit_max_requests: settings.relay_api_rate_limit_max_requests,
             relay_api_rate_limit_window_secs: settings.relay_api_rate_limit_window_secs,
+            relay_api_cors_origins: settings.relay_api_cors_origins,
             core_metrics,
             agent_metrics,
             chain_metrics,
@@ -662,6 +664,7 @@ impl Relayer {
         .with_tx_hash_cache(tx_hash_cache)
         .with_metrics(relay_api_metrics)
         .with_rate_limiter(rate_limiter)
+        .with_cors_origins(self.relay_api_cors_origins.clone())
         .with_message_whitelist(self.message_whitelist.clone())
         .with_message_blacklist(self.message_blacklist.clone())
         .with_address_blacklist(self.address_blacklist.clone());

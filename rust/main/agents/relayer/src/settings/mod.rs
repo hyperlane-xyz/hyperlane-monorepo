@@ -77,6 +77,8 @@ pub struct RelayerSettings {
     pub relay_api_rate_limit_max_requests: Option<usize>,
     /// Relay API rate limit: time window in seconds (default: 60)
     pub relay_api_rate_limit_window_secs: Option<u64>,
+    /// Relay API allowed CORS origins (comma-separated). Defaults to localhost:3000 and nexus.hyperlane.xyz.
+    pub relay_api_cors_origins: Vec<String>,
 }
 
 /// Config for gas payment enforcement
@@ -407,6 +409,18 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
                 }
             });
 
+        let relay_api_cors_origins: Vec<String> = p
+            .chain(&mut err)
+            .get_opt_key("relayApiCorsOrigins")
+            .parse_string()
+            .map(|v| {
+                v.split(',')
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect()
+            })
+            .unwrap_or_default();
+
         err.into_result(RelayerSettings {
             base,
             db,
@@ -427,6 +441,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             igp_indexing_enabled,
             relay_api_rate_limit_max_requests,
             relay_api_rate_limit_window_secs,
+            relay_api_cors_origins,
         })
     }
 }
