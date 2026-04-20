@@ -1023,7 +1023,11 @@ describe(EvmTimelockReader.name, () => {
     });
   });
 
-  describe(`${EvmTimelockReader.name} (Block Explorer)`, () => {
+  describe(`${EvmTimelockReader.name} (Block Explorer)`, function () {
+    // Live Blockscout API calls are slow/flaky; bump timeout and retry.
+    this.timeout(120_000);
+    this.retries(2);
+
     let reader: EvmTimelockReader;
     let multiProvider: MultiProvider;
 
