@@ -351,7 +351,7 @@ const awProxyAdmins: ChainMap<{ address: string; owner: string }> = objMap(
 
     assert(
       proxyAdminOwner,
-      `Expected proxy admin owner to be defined for chain ${proxyAdminOwner}`,
+      `Expected proxy admin owner to be defined for chain ${chain}`,
     );
 
     return {

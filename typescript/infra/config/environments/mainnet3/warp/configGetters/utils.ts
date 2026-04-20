@@ -283,20 +283,6 @@ export const getNativeTokenConfigForChain = <
   };
 };
 
-export function getFixedRoutingFeeConfigForChain<
-  T extends { [key: string]: string },
->(
-  currentChain: Extract<keyof T, ChainName>,
-  ownersByChain: T,
-  feeDestinations: readonly (keyof T)[],
-  bps: number,
-): TokenFeeConfigInput {
-  const owner = ownersByChain[currentChain];
-  assert(owner, `Fee owner not found for chain ${currentChain}`);
-
-  return getFixedRoutingFeeConfig(owner, feeDestinations as string[], bps);
-}
-
 /**
  * Returns the scale config for a chain based on its local decimals vs message decimals.
  * - Chains at messageDecimals: no scale (1/1)
