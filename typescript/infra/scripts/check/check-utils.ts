@@ -16,7 +16,7 @@ import {
   IsmType,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { objFilter } from '@hyperlane-xyz/utils';
+import { objFilter, rootLogger } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { DEPLOYER } from '../../config/environments/mainnet3/owners.js';
@@ -67,7 +67,13 @@ const HAAS_SMART_PROVIDER_OPTIONS = {
   fallbackStaggerMs: 2_000,
 };
 
-function reconnectSigner(signer: Signer, provider: providers.Provider): Signer {
+const logger = rootLogger.child({ module: 'check-utils' });
+
+function reconnectSigner(
+  signer: Signer,
+  provider: providers.Provider,
+  chain: string,
+): Signer {
   try {
     return signer.connect(provider);
   } catch (error: unknown) {
@@ -76,6 +82,10 @@ function reconnectSigner(signer: Signer, provider: providers.Provider): Signer {
         ? String((error as Record<string, unknown>).code)
         : undefined;
     if (code === 'UNSUPPORTED_OPERATION') {
+      logger.warn(
+        { chain },
+        'Signer could not be reconnected to HAAS provider; smart-provider options not active',
+      );
       return signer;
     }
     throw error;
@@ -97,6 +107,19 @@ function getHaasMultiProvider(baseMultiProvider: MultiProvider): MultiProvider {
     const sharedSigner = Object.values(baseMultiProvider.signers)[0];
     if (sharedSigner) {
       haasMultiProvider.setSharedSigner(sharedSigner);
+      // Rebind each chain's signer to its HAAS provider so signer-backed
+      // calls (estimateGas, sendTransaction) benefit from the smart-provider
+      // options. We mutate the map directly because MultiProvider.setSigner()
+      // is blocked once useSharedSigner is true.
+      for (const chain of Object.keys(haasMultiProvider.signers)) {
+        const provider = haasMultiProvider.tryGetProvider(chain);
+        if (!provider) continue;
+        haasMultiProvider.signers[chain] = reconnectSigner(
+          sharedSigner,
+          provider,
+          chain,
+        );
+      }
     }
     return haasMultiProvider;
   }
@@ -105,7 +128,7 @@ function getHaasMultiProvider(baseMultiProvider: MultiProvider): MultiProvider {
     const provider = haasMultiProvider.tryGetProvider(chain);
     haasMultiProvider.setSigner(
       chain,
-      provider ? reconnectSigner(signer, provider) : signer,
+      provider ? reconnectSigner(signer, provider, chain) : signer,
     );
   }
 

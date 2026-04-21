@@ -163,7 +163,32 @@ export async function getRegistryForEnvironment(
  * @param chains The chains to get metadata overrides for.
  * @returns A partial chain metadata map with the secret overrides.
  */
-export async function getSecretMetadataOverrides(
+// Process-level cache for secret metadata overrides. Explorer/Safe keys and
+// secret RPC URLs don't change within a single process run, so re-fetching
+// them on every MultiProvider construction is wasteful.
+const secretMetadataOverridesCache = new Map<
+  string,
+  Promise<ChainMap<Partial<ChainMetadata>>>
+>();
+
+export function getSecretMetadataOverrides(
+  deployEnv: DeployEnvironment,
+  chains: string[],
+): Promise<ChainMap<Partial<ChainMetadata>>> {
+  const cacheKey = `${deployEnv}:${[...chains].sort().join(',')}`;
+  const cached = secretMetadataOverridesCache.get(cacheKey);
+  if (cached) return cached;
+  const promise = fetchSecretMetadataOverrides(deployEnv, chains).catch(
+    (error) => {
+      secretMetadataOverridesCache.delete(cacheKey);
+      throw error;
+    },
+  );
+  secretMetadataOverridesCache.set(cacheKey, promise);
+  return promise;
+}
+
+async function fetchSecretMetadataOverrides(
   deployEnv: DeployEnvironment,
   chains: string[],
 ): Promise<ChainMap<Partial<ChainMetadata>>> {

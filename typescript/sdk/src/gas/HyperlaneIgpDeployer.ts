@@ -14,8 +14,8 @@ import {
 import { TOKEN_EXCHANGE_RATE_SCALE_ETHEREUM } from '../consts/igp.js';
 import { HyperlaneContracts } from '../contracts/types.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
+import { submitBatched } from '../deploy/utils.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
-import { submitBatched } from '../hook/utils.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
 

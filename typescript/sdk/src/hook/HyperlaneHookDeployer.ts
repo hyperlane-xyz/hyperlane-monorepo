@@ -31,6 +31,8 @@ import { IsmType, OpStackIsmConfig } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';
 
+import { submitBatched } from '../deploy/utils.js';
+
 import { DeployedHook, HookFactories, hookFactories } from './contracts.js';
 import {
   AggregationHookConfig,
@@ -44,7 +46,6 @@ import {
   OpStackHookConfig,
   ProtocolFeeHookConfig,
 } from './types.js';
-import { submitBatched } from './utils.js';
 
 export class HyperlaneHookDeployer extends HyperlaneDeployer<
   HookConfig,

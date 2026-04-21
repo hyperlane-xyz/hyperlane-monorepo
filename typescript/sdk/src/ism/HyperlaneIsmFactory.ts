@@ -727,17 +727,20 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           await this.multiProvider.handleTx(destination, enrollTx);
         }
 
-        // Transfer ownership after all enrollments are complete
-        const transferTxEstimatedGas =
-          await routingIsm.estimateGas.transferOwnership(
-            config.owner,
-            overrides,
-          );
-        const transferTx = await routingIsm.transferOwnership(config.owner, {
-          gasLimit: addBufferToGasLimit(transferTxEstimatedGas, 15),
-          ...overrides,
-        });
-        await this.multiProvider.handleTx(destination, transferTx);
+        // Transfer ownership after all enrollments are complete, unless the
+        // signer is already the target owner (common for self-owned deploys).
+        if (!eqAddress(signerAddress, config.owner)) {
+          const transferTxEstimatedGas =
+            await routingIsm.estimateGas.transferOwnership(
+              config.owner,
+              overrides,
+            );
+          const transferTx = await routingIsm.transferOwnership(config.owner, {
+            gasLimit: addBufferToGasLimit(transferTxEstimatedGas, 15),
+            ...overrides,
+          });
+          await this.multiProvider.handleTx(destination, transferTx);
+        }
       }
     }
     return routingIsm;
