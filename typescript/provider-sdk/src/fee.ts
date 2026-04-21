@@ -17,11 +17,11 @@ import { ChainLookup } from './chain.js';
 
 // These fee types model fees as a single contract/program with internal routing,
 // unlike the EVM implementation where RoutingFee and CrossCollateralRoutingFee
-// deploy separate fee contracts per destination domain. The SVM fee program
-// handles all routing internally via PDAs within one program, and these multi-VM
-// types follow that single-entity model to avoid the complexity of supporting
-// both approaches simultaneously. This will be unified later to support both
-// models under a single interface.
+// deploy separate fee contracts per destination domain. The upcoming SVM fee
+// program will handle all routing internally via PDAs within one program, and
+// these multi-VM types follow that single-entity model to avoid the complexity
+// of supporting both approaches simultaneously. This will be unified later to
+// support both models under a single interface.
 
 // ====== Strategy Types (shared between Config API and Artifact API) ======
 
@@ -217,7 +217,13 @@ function convertRoutesToDerived(
   for (const [domainIdStr, strategy] of Object.entries(routes)) {
     const domainId = parseInt(domainIdStr);
     const chainName = chainLookup.getChainName(domainId);
-    if (!chainName) continue;
+    if (!chainName) {
+      feeLogger.warn(
+        `Skipping fee route for unknown domain ID: ${domainId}. ` +
+          `Domain not found in chain lookup.`,
+      );
+      continue;
+    }
     result[chainName] = strategy;
   }
   return result;
@@ -231,7 +237,13 @@ function convertCCRoutesToDerived(
   for (const [domainIdStr, routerMap] of Object.entries(routes)) {
     const domainId = parseInt(domainIdStr);
     const chainName = chainLookup.getChainName(domainId);
-    if (!chainName) continue;
+    if (!chainName) {
+      feeLogger.warn(
+        `Skipping CC fee route for unknown domain ID: ${domainId}. ` +
+          `Domain not found in chain lookup.`,
+      );
+      continue;
+    }
     result[chainName] = routerMap;
   }
   return result;

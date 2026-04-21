@@ -152,7 +152,9 @@ export class WarpTokenReader implements ArtifactReader<
   /**
    * Expands a Fee artifact by reading it if underived.
    * Builds FeeReadContext from the warp config's remote routers and CC routers.
-   * Returns undefined if no fee is configured or protocol doesn't support fees.
+   * Returns undefined only when no feeArtifact is provided. Deployed artifacts
+   * are returned as-is. Underived artifacts are read via the fee reader.
+   * Throws if a fee artifact exists but the protocol has no fee artifact manager.
    */
   private async expandFeeArtifact(
     warpConfig: WarpArtifactConfig,

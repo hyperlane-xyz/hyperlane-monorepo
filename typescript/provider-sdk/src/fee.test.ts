@@ -276,6 +276,151 @@ describe('fee type support', () => {
       expect(derived).to.deep.equal(expectedDerived);
     });
 
+    it('converts crossCollateralRouting fee domain IDs back to chain names', () => {
+      const derived = feeArtifactToDerivedConfig(
+        {
+          artifactState: ArtifactState.DEPLOYED,
+          config: {
+            type: FeeType.crossCollateralRouting,
+            owner: '0xowner',
+            beneficiary: '0xbeneficiary',
+            routes: {
+              1: {
+                '0xrouter1': {
+                  type: FeeStrategyType.linear,
+                  maxFee: '1000',
+                  halfAmount: '500',
+                },
+              },
+              137: {
+                '0xrouter2': {
+                  type: FeeStrategyType.regressive,
+                  maxFee: '2000',
+                  halfAmount: '1000',
+                },
+              },
+            },
+          },
+          deployed: { address: '0xfee' },
+        },
+        chainLookup,
+      );
+
+      const expectedDerived: DerivedFeeConfig = {
+        type: FeeType.crossCollateralRouting,
+        owner: '0xowner',
+        beneficiary: '0xbeneficiary',
+        routes: {
+          ethereum: {
+            '0xrouter1': {
+              type: FeeStrategyType.linear,
+              maxFee: '1000',
+              halfAmount: '500',
+            },
+          },
+          polygon: {
+            '0xrouter2': {
+              type: FeeStrategyType.regressive,
+              maxFee: '2000',
+              halfAmount: '1000',
+            },
+          },
+        },
+        address: '0xfee',
+      };
+      expect(derived).to.deep.equal(expectedDerived);
+    });
+
+    it('skips unknown domain IDs in routing fee derived config', () => {
+      const derived = feeArtifactToDerivedConfig(
+        {
+          artifactState: ArtifactState.DEPLOYED,
+          config: {
+            type: FeeType.routing,
+            owner: '0xowner',
+            beneficiary: '0xbeneficiary',
+            routes: {
+              1: {
+                type: FeeStrategyType.linear,
+                maxFee: '1000',
+                halfAmount: '500',
+              },
+              99999: {
+                type: FeeStrategyType.regressive,
+                maxFee: '2000',
+                halfAmount: '1000',
+              },
+            },
+          },
+          deployed: { address: '0xfee' },
+        },
+        chainLookup,
+      );
+
+      const expectedDerived: DerivedFeeConfig = {
+        type: FeeType.routing,
+        owner: '0xowner',
+        beneficiary: '0xbeneficiary',
+        routes: {
+          ethereum: {
+            type: FeeStrategyType.linear,
+            maxFee: '1000',
+            halfAmount: '500',
+          },
+        },
+        address: '0xfee',
+      };
+      expect(derived).to.deep.equal(expectedDerived);
+    });
+
+    it('skips unknown domain IDs in crossCollateralRouting fee derived config', () => {
+      const derived = feeArtifactToDerivedConfig(
+        {
+          artifactState: ArtifactState.DEPLOYED,
+          config: {
+            type: FeeType.crossCollateralRouting,
+            owner: '0xowner',
+            beneficiary: '0xbeneficiary',
+            routes: {
+              1: {
+                '0xrouter1': {
+                  type: FeeStrategyType.linear,
+                  maxFee: '1000',
+                  halfAmount: '500',
+                },
+              },
+              99999: {
+                '0xrouter2': {
+                  type: FeeStrategyType.progressive,
+                  maxFee: '3000',
+                  halfAmount: '1500',
+                },
+              },
+            },
+          },
+          deployed: { address: '0xfee' },
+        },
+        chainLookup,
+      );
+
+      const expectedDerived: DerivedFeeConfig = {
+        type: FeeType.crossCollateralRouting,
+        owner: '0xowner',
+        beneficiary: '0xbeneficiary',
+        routes: {
+          ethereum: {
+            '0xrouter1': {
+              type: FeeStrategyType.linear,
+              maxFee: '1000',
+              halfAmount: '500',
+            },
+          },
+        },
+        address: '0xfee',
+      };
+      expect(derived).to.deep.equal(expectedDerived);
+    });
+
     it('throws for unhandled fee types', () => {
       expect(() =>
         feeArtifactToDerivedConfig(
