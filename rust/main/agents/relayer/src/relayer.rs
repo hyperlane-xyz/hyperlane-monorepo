@@ -641,25 +641,11 @@ impl Relayer {
                 window_secs, "Initialized relay API rate limiter"
             );
 
-            let mut indexers: HashMap<String, Arc<dyn Indexer<HyperlaneMessage>>> = HashMap::new();
-            info!(
-                origin_count = self.origins.len(),
-                "Setting up relay API indexers"
-            );
-            for (domain, origin) in &self.origins {
-                match origin
-                    .chain_conf
-                    .build_message_indexer(&self.core_metrics, false)
-                    .await
-                {
-                    Ok(indexer) => {
-                        indexers.insert(domain.name().to_string(), Arc::new(indexer));
-                    }
-                    Err(e) => {
-                        error!(domain = %domain.name(), error = ?e, "Failed to create mailbox indexer for relay API");
-                    }
-                }
-            }
+            let indexers: HashMap<String, Arc<dyn Indexer<HyperlaneMessage>>> = self
+                .origins
+                .iter()
+                .map(|(domain, origin)| (domain.name().to_string(), origin.message_indexer.clone()))
+                .collect();
 
             Some(
                 RelayApiState::new(
