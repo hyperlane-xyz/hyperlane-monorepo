@@ -1014,9 +1014,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         const error =
           result.status === 'rejected'
             ? result.reason?.message
-            : result.value.success
-              ? undefined
-              : result.value.error;
+            : result.value.error;
         if (error) {
           failedErrors.push(`${plan.chain}: ${error}`);
         }
