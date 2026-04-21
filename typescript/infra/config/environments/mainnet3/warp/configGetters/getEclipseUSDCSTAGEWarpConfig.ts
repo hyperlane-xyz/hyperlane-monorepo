@@ -95,6 +95,8 @@ const stagingOwnersByChain: Record<DeploymentChain, string> = {
   hyperevm: DEPLOYER,
   linea: DEPLOYER,
   monad: DEPLOYER,
+  bsc: DEPLOYER,
+  katana: DEPLOYER,
 };
 
 export const getEclipseUSDCSTAGEWarpConfig = async (

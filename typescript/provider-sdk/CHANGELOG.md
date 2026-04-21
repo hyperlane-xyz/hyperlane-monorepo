@@ -1,5 +1,89 @@
 # @hyperlane-xyz/provider-sdk
 
+## 5.1.0
+
+### Minor Changes
+
+- b864cca: Multi-VM fee type support was added to provider-sdk and deploy-sdk. Fee types (linear, regressive, progressive, offchainQuotedLinear, routing, crossCollateralRouting) were defined with Config API and Artifact API variants. FeeReader and FeeWriter with required FeeReadContext were added to deploy-sdk. Fee was integrated into warp types and the warp writer update flow. All protocol providers received createFeeArtifactManager stubs.
+
+### Patch Changes
+
+- Updated dependencies [1f918d0]
+  - @hyperlane-xyz/utils@33.0.2
+
+## 5.0.3
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@33.0.1
+
+## 5.0.2
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@33.0.0
+
+## 5.0.1
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@32.0.1
+
+## 5.0.0
+
+### Major Changes
+
+- 3dc6367: Core query methods (getIsmType, getRoutingIsm, getHookType, etc.) were removed from the IProvider interface and extracted into standalone query functions in each SDK. isMessageDelivered was kept on the interface to enforce all providers implement it.
+
+  Starknet get\*Transaction methods were extracted into standalone tx builder functions (mailbox-tx.ts, ism-tx.ts, hook-tx.ts, warp-tx.ts) with their own parameter types, removing the dependency on provider-sdk Req/Res types.
+
+  Tron and Aleo providers and signers had all get\*Transaction and action methods removed. Old e2e tests replaced with artifact API equivalents.
+
+  76 Req/Res types were removed from provider-sdk altvm.ts, reducing it from 587 to 243 lines.
+
+- fa08f2a: IProvider and ISigner interfaces were slimmed to their minimal surface. IProvider was reduced from 53 to 22 query-only methods by removing all get\*Transaction methods. ISigner was reduced from 36 to 5 infrastructure methods by removing all action methods (createMailbox, setDefaultIsm, enrollRemoteRouter, etc.). Transaction building is now handled exclusively by artifact managers using concrete class methods or standalone helper functions.
+
+  Throwing stubs were removed from SVM, Cosmos, Radix, and Starknet provider/signer implementations. Old action-method-based e2e tests were replaced with artifact API equivalents. Cosmos routing ISM writer was fixed to handle domain route updates correctly via remove + re-add.
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@32.0.0
+
+## 4.3.4
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@31.2.1
+
+## 4.3.3
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@31.2.0
+
+## 4.3.2
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@31.1.0
+
+## 4.3.1
+
+### Patch Changes
+
+- Updated dependencies [d5168fc]
+  - @hyperlane-xyz/utils@31.0.1
+
+## 4.3.0
+
+### Minor Changes
+
+- 44626fb: Enabled SVM cross-collateral token deployments in the CLI. Added `crossCollateral` to supported Alt-VM token types, allowing `warp deploy`, `warp combine`, and `warp apply` to work with SVM CC routes. Extracted `computeCrossCollateralRouterUpdates` into provider-sdk for cross-protocol reuse. Fixed CC-only gas preservation for domains transitioning from remote routers.
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@31.0.0
+
 ## 4.2.5
 
 ### Patch Changes

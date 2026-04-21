@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 
-import type { MultiProvider } from '@hyperlane-xyz/sdk';
+import type { ChainMetadataManager } from '@hyperlane-xyz/sdk/metadata/ChainMetadataManager';
 import { fetchWithTimeout } from '@hyperlane-xyz/utils';
 
 import { HYPERLANE_EXPLORER_API_URL } from '../consts.js';
@@ -23,7 +23,7 @@ const DEFAULT_FINALITY_BLOCKS = 3;
 
 interface Params {
   message: PartialMessage | null | undefined;
-  multiProvider: MultiProvider;
+  multiProvider: ChainMetadataManager;
   explorerApiUrl?: string;
   retryInterval?: number;
 }
@@ -88,7 +88,7 @@ export function useMessageStage({
 
 async function fetchMessageState(
   message: PartialMessage,
-  multiProvider: MultiProvider,
+  multiProvider: ChainMetadataManager,
   explorerApiUrl: string,
 ) {
   const {
@@ -177,21 +177,24 @@ async function fetchMessageState(
 
 async function getFinalityBlocks(
   domainId: number,
-  multiProvider: MultiProvider,
+  multiProvider: ChainMetadataManager,
 ) {
   const metadata = await multiProvider.getChainMetadata(domainId);
   if (metadata?.blocks?.confirmations) return metadata.blocks.confirmations;
   else return DEFAULT_FINALITY_BLOCKS;
 }
 
-async function getBlockTimeEst(domainId: number, multiProvider: MultiProvider) {
+async function getBlockTimeEst(
+  domainId: number,
+  multiProvider: ChainMetadataManager,
+) {
   const metadata = await multiProvider.getChainMetadata(domainId);
   return metadata?.blocks?.estimateBlockTime || DEFAULT_BLOCK_TIME_EST;
 }
 
 async function tryFetchChainLatestBlock(
   domainId: number,
-  multiProvider: MultiProvider,
+  multiProvider: ChainMetadataManager,
 ) {
   const metadata = multiProvider.tryGetChainMetadata(domainId);
   if (!metadata) return null;
@@ -211,7 +214,7 @@ async function tryFetchChainLatestBlock(
 
 async function tryFetchLatestNonce(
   domainId: number,
-  multiProvider: MultiProvider,
+  multiProvider: ChainMetadataManager,
   explorerApiUrl: string,
 ) {
   const metadata = multiProvider.tryGetChainMetadata(domainId);

@@ -1,12 +1,11 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { Suspense, lazy, useCallback, useMemo, useState } from 'react';
 
 import {
-  ChainMap,
-  ChainMetadata,
-  ChainName,
-  ChainStatus,
   mergeChainMetadataMap,
-} from '@hyperlane-xyz/sdk';
+  type ChainMetadata,
+  ChainStatus,
+} from '@hyperlane-xyz/sdk/metadata/chainMetadataTypes';
+import type { ChainMap, ChainName } from '@hyperlane-xyz/sdk/types';
 import { ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
 import {
@@ -17,8 +16,13 @@ import {
 import { SegmentedControl } from '../components/SegmentedControl.js';
 
 import { ChainAddMenu } from './ChainAddMenu.js';
-import { ChainDetailsMenu } from './ChainDetailsMenu.js';
 import { ChainLogo } from './ChainLogo.js';
+
+const ChainDetailsMenu = lazy(() =>
+  import('./ChainDetailsMenu.js').then((mod) => ({
+    default: mod.ChainDetailsMenu,
+  })),
+);
 
 export enum ChainSortByOption {
   Name = 'name',
@@ -120,18 +124,26 @@ export function ChainSearchMenu({
     };
 
     return (
-      <ChainDetailsMenu
-        chainMetadata={chainMetadata[drilldownChain]}
-        overrideChainMetadata={overrideChainMetadata?.[drilldownChain]}
-        onChangeOverrideMetadata={(o) =>
-          onChangeOverrideMetadata({
-            ...overrideChainMetadata,
-            [drilldownChain]: o,
-          })
+      <Suspense
+        fallback={
+          <div className="htw-py-8 htw-text-center htw-text-sm htw-text-gray-500">
+            Loading chain details...
+          </div>
         }
-        onClickBack={() => setDrilldownChain(undefined)}
-        onRemoveChain={isLocalOverrideChain ? onRemoveChain : undefined}
-      />
+      >
+        <ChainDetailsMenu
+          chainMetadata={chainMetadata[drilldownChain]}
+          overrideChainMetadata={overrideChainMetadata?.[drilldownChain]}
+          onChangeOverrideMetadata={(o) =>
+            onChangeOverrideMetadata({
+              ...overrideChainMetadata,
+              [drilldownChain]: o,
+            })
+          }
+          onClickBack={() => setDrilldownChain(undefined)}
+          onRemoveChain={isLocalOverrideChain ? onRemoveChain : undefined}
+        />
+      </Suspense>
     );
   }
 

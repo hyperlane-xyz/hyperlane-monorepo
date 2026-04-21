@@ -10,7 +10,21 @@ export { MultisigMetadata, MultisigMetadataBuilder } from './multisig.js';
 export { NullMetadata, NullMetadataBuilder } from './null.js';
 export { DynamicRoutingMetadataBuilder, RoutingMetadata } from './routing.js';
 export type {
+  AggregationMetadataBuildResult,
+  ArbL2ToL1MetadataBuildResult,
+  CcipReadMetadataBuildResult,
+  MetadataBuildResult,
   MetadataBuilder,
   MetadataContext,
+  MultisigMetadataBuildResult,
+  NullMetadataBuildResult,
+  RoutingMetadataBuildResult,
   StructuredMetadata,
+  ValidatorInfo,
+} from './types.js';
+export {
+  ValidatorStatus,
+  getSignedValidatorCount,
+  isMetadataBuildable,
+  isQuorumMet,
 } from './types.js';

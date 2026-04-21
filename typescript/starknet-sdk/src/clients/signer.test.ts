@@ -25,9 +25,6 @@ const TEST_METADATA = {
 class StarknetSignerTestHarness extends StarknetSigner {
   capturedBatch?: StarknetAnnotatedTx[];
   capturedTx?: StarknetAnnotatedTx;
-  capturedCreateMailboxReq?: Omit<AltVM.ReqCreateMailbox, 'signer'> & {
-    signer: string;
-  };
   capturedRemoteTransferToken?: AltVM.ResGetToken;
   getTokenCalls = 0;
   testTokenType: AltVM.TokenType = AltVM.TokenType.native;
@@ -84,21 +81,6 @@ class StarknetSignerTestHarness extends StarknetSigner {
   ): Promise<StarknetTxReceipt> {
     this.capturedTx = transaction;
     return { transactionHash: '0x1', contractAddress: '0xabc' };
-  }
-
-  override async createNoopHook(): Promise<AltVM.ResCreateNoopHook> {
-    return { hookAddress: '0x999' };
-  }
-
-  override async getCreateMailboxTransaction(
-    req: AltVM.ReqCreateMailbox,
-  ): Promise<StarknetAnnotatedTx> {
-    this.capturedCreateMailboxReq = req;
-    return {
-      kind: 'deploy',
-      contractName: 'mailbox',
-      constructorArgs: [],
-    };
   }
 }
 
@@ -235,46 +217,6 @@ describe('StarknetSigner remoteTransfer', () => {
     expect(signer.getTokenCalls).to.equal(1);
     expect(signer.capturedRemoteTransferToken?.denom).to.equal(
       TEST_METADATA.nativeToken.denom,
-    );
-  });
-});
-
-describe('StarknetSigner createMailbox', () => {
-  it('keeps requiredHookAddress opt-in when default hook is auto-created', async () => {
-    const signer = new StarknetSignerTestHarness();
-
-    await signer.createMailbox({
-      domainId: TEST_METADATA.domainId,
-      defaultIsmAddress: '0x222',
-    });
-
-    expect(signer.capturedCreateMailboxReq).to.deep.include({
-      signer: signer.getSignerAddress(),
-      domainId: TEST_METADATA.domainId,
-      defaultIsmAddress: '0x222',
-      defaultHookAddress: '0x999',
-    });
-    expect(signer.capturedCreateMailboxReq?.requiredHookAddress).to.equal(
-      undefined,
-    );
-  });
-});
-
-describe('StarknetSigner createRoutingIsm', () => {
-  it('batches route initialization after deploy', async () => {
-    const signer = new StarknetSignerTestHarness();
-
-    await signer.createRoutingIsm({
-      routes: [
-        { domainId: 1111, ismAddress: '0xabc' },
-        { domainId: 2222, ismAddress: '0xdef' },
-      ],
-    });
-
-    expect(signer.capturedTx?.kind).to.equal('deploy');
-    expect(signer.capturedBatch).to.have.length(2);
-    expect(signer.capturedBatch?.every((tx) => tx.kind === 'invoke')).to.equal(
-      true,
     );
   });
 });

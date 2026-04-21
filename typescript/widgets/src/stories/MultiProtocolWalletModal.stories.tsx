@@ -19,7 +19,7 @@ import React, { PropsWithChildren, useState } from 'react';
 import { WagmiProvider, createConfig, http } from 'wagmi';
 
 import { cosmoshub, ethereum, solanamainnet } from '@hyperlane-xyz/registry';
-import { MultiProtocolProvider } from '@hyperlane-xyz/sdk';
+import { MultiProtocolProvider } from '@hyperlane-xyz/sdk/providers/MultiProtocolProvider';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { AccountList } from '../walletIntegrations/AccountList.js';

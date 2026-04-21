@@ -1,7 +1,6 @@
 import { Logger } from 'pino';
 
 import { type ChainMap, type ChainName, type Token } from '@hyperlane-xyz/sdk';
-import { toWei } from '@hyperlane-xyz/utils';
 
 import {
   type CollateralDeficitStrategyConfig,
@@ -20,6 +19,7 @@ import {
   isInventoryConfig,
   isMovableCollateralConfig,
 } from '../utils/bridgeUtils.js';
+import { normalizeConfiguredAmount } from '../utils/balanceUtils.js';
 
 import { BaseStrategy, type Delta } from './BaseStrategy.js';
 
@@ -102,8 +102,9 @@ export class CollateralDeficitStrategy extends BaseStrategy {
     for (const chain of this.chains) {
       const balance = simulatedBalances[chain];
       const token = this.getTokenByChainName(chain);
-      const bufferWei = BigInt(
-        toWei(this.config[chain].buffer, token.decimals),
+      const bufferWei = normalizeConfiguredAmount(
+        this.config[chain].buffer,
+        token,
       );
 
       if (balance < 0n) {

@@ -7,12 +7,15 @@ import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
 import {
   TestChainName,
+  multiProtocolTestChainMetadata,
   test1,
   testCosmosChain,
   testSealevelChain,
 } from '../consts/testChains.js';
+import type { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { stubMultiProtocolProvider } from '../test/multiProviderStubs.js';
+import type { ChainMap } from '../types.js';
 
 import { TokenArgs } from './IToken.js';
 import { Token } from './Token.js';
@@ -295,16 +298,25 @@ const STANDARD_TO_ADDRESS_FOR_BALANCE_CHECK: Partial<
 };
 
 describe('Token', () => {
+  function createMailboxTestMetadata(): ChainMap<
+    ChainMetadata<{ mailbox?: string }>
+  > {
+    return {
+      ...multiProtocolTestChainMetadata,
+      [testSealevelChain.name]: {
+        ...multiProtocolTestChainMetadata[testSealevelChain.name],
+        mailbox: SystemProgram.programId.toBase58(),
+      },
+    };
+  }
+
   for (const tokenArgs of Object.values(STANDARD_TO_TOKEN)) {
     if (!tokenArgs) continue;
     it(`Handles ${tokenArgs.standard} standard`, async () => {
       const multiProvider =
-        MultiProtocolProvider.createTestMultiProtocolProvider<{
-          mailbox?: string;
-        }>();
-      // A placeholder mailbox address for the sealevel chain
-      multiProvider.metadata[testSealevelChain.name].mailbox =
-        SystemProgram.programId.toBase58();
+        MultiProtocolProvider.createTestMultiProtocolProvider(
+          createMailboxTestMetadata(),
+        );
 
       console.debug('Testing token standard', tokenArgs.standard);
       const token = new Token(tokenArgs);
@@ -336,9 +348,9 @@ describe('Token', () => {
   describe('getHypAdapter', () => {
     it('returns EvmHypNativeAdapter for EvmNative with connections', () => {
       const multiProvider =
-        MultiProtocolProvider.createTestMultiProtocolProvider<{
-          mailbox?: string;
-        }>();
+        MultiProtocolProvider.createTestMultiProtocolProvider(
+          createMailboxTestMetadata(),
+        );
 
       const evmNativeToken = new Token(
         Token.FromChainMetadataNativeToken(test1),
@@ -362,9 +374,9 @@ describe('Token', () => {
 
     it('returns EvmHypNativeAdapter for EvmNative with untyped connection', () => {
       const multiProvider =
-        MultiProtocolProvider.createTestMultiProtocolProvider<{
-          mailbox?: string;
-        }>();
+        MultiProtocolProvider.createTestMultiProtocolProvider(
+          createMailboxTestMetadata(),
+        );
 
       const evmNativeToken = new Token(
         Token.FromChainMetadataNativeToken(test1),
@@ -383,11 +395,51 @@ describe('Token', () => {
       expect(adapter.constructor.name).to.eql('EvmHypNativeAdapter');
     });
 
-    it('throws for EvmNative without connections', () => {
+    it('returns EvmHypNativeAdapter for TronNative with connections', () => {
       const multiProvider =
         MultiProtocolProvider.createTestMultiProtocolProvider<{
           mailbox?: string;
-        }>();
+        }>({
+          ...multiProtocolTestChainMetadata,
+          tron: {
+            ...test1,
+            chainId: 9913388,
+            domainId: 9913388,
+            name: 'tron',
+            protocol: ProtocolType.Tron,
+          },
+        });
+
+      const tronNativeToken = new Token({
+        chainName: 'tron',
+        standard: TokenStandard.TronNative,
+        addressOrDenom: 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb',
+        decimals: 6,
+        symbol: 'TRX',
+        name: 'Tron',
+      });
+      const remoteToken = new Token({
+        chainName: TestChainName.test2,
+        standard: TokenStandard.EvmHypSynthetic,
+        addressOrDenom: '0x8358D8291e3bEDb04804975eEa0fe9fe0fAfB147',
+        decimals: 6,
+        symbol: 'TRX',
+        name: 'Tron',
+      });
+      tronNativeToken.addConnection({
+        token: remoteToken,
+        type: TokenConnectionType.Hyperlane,
+      });
+
+      const adapter = tronNativeToken.getHypAdapter(multiProvider);
+      expect(adapter.constructor.name).to.eql('EvmHypNativeAdapter');
+    });
+
+    it('throws for EvmNative without connections', () => {
+      const multiProvider =
+        MultiProtocolProvider.createTestMultiProtocolProvider(
+          createMailboxTestMetadata(),
+        );
 
       const evmNativeToken = new Token(
         Token.FromChainMetadataNativeToken(test1),
@@ -400,9 +452,9 @@ describe('Token', () => {
 
     it('throws for EvmNative with IBC connections', () => {
       const multiProvider =
-        MultiProtocolProvider.createTestMultiProtocolProvider<{
-          mailbox?: string;
-        }>();
+        MultiProtocolProvider.createTestMultiProtocolProvider(
+          createMailboxTestMetadata(),
+        );
 
       const evmNativeToken = new Token(
         Token.FromChainMetadataNativeToken(test1),
@@ -429,9 +481,9 @@ describe('Token', () => {
 
     it('throws for EvmNative with chain not in multiProvider', () => {
       const multiProvider =
-        MultiProtocolProvider.createTestMultiProtocolProvider<{
-          mailbox?: string;
-        }>();
+        MultiProtocolProvider.createTestMultiProtocolProvider(
+          createMailboxTestMetadata(),
+        );
 
       const evmNativeToken = new Token({
         chainName: 'nonexistent',
@@ -559,6 +611,7 @@ describe('Token', () => {
 
     it('returns true for collateralized token without collateral address and native token', () => {
       expect(evmHypNativeToken2.isFungibleWith(evmNativeToken)).to.be.true;
+      expect(evmNativeToken.isFungibleWith(evmHypNativeToken2)).to.be.true;
     });
 
     it('returns true for collateralized token without collateral address and HypNative token', () => {
@@ -567,6 +620,7 @@ describe('Token', () => {
 
     it('returns true for IBC token and matching native token', () => {
       expect(cosmosIbcToken.isFungibleWith(cosmosNativeToken)).to.be.true;
+      expect(cosmosNativeToken.isFungibleWith(cosmosIbcToken)).to.be.true;
     });
 
     it('returns false for IBC token and non-matching native token', () => {

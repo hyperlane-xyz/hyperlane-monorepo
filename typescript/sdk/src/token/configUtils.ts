@@ -29,8 +29,13 @@ import {
 import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { DestinationGas, RemoteRouters } from '../router/types.js';
+import {
+  DestinationGas,
+  RemoteRouters,
+  resolveRouterMapConfig,
+} from '../router/types.js';
 import { ChainMap } from '../types.js';
+import { normalizeScale } from '../utils/decimals.js';
 import { WarpCoreConfig } from '../warp/types.js';
 
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
@@ -50,6 +55,7 @@ import {
   isCrossCollateralTokenConfig,
   isMovableCollateralTokenConfig,
   isNativeTokenConfig,
+  isOftTokenConfig,
   isSyntheticRebaseTokenConfig,
   isSyntheticTokenConfig,
 } from './types.js';
@@ -186,17 +192,20 @@ export async function expandWarpDeployConfig(params: {
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   deployedRoutersAddresses: ChainMap<Address>;
   expandedOnChainWarpConfig?: WarpRouteDeployConfigMailboxRequired;
+  validateScale?: boolean;
 }): Promise<WarpRouteDeployConfigMailboxRequired> {
   const {
     multiProvider,
     warpDeployConfig,
     deployedRoutersAddresses,
     expandedOnChainWarpConfig,
+    validateScale = true,
   } = params;
 
   const derivedTokenMetadata: TokenMetadataMap = await deriveTokenMetadata(
     multiProvider,
     warpDeployConfig,
+    { validateScale },
   );
 
   // If the token is on an EVM chain check if it is deployed as a proxy
@@ -239,6 +248,16 @@ export async function expandWarpDeployConfig(params: {
         // User-specified config takes precedence
         ...config,
       };
+
+      if (chainConfig.proxyAdmin) {
+        chainConfig.proxyAdmin = {
+          ...chainConfig.proxyAdmin,
+          owner:
+            config.ownerOverrides?.proxyAdmin ??
+            chainConfig.proxyAdmin.owner ??
+            config.owner,
+        };
+      }
 
       // Properly set the remote routers addresses to their 32 bytes representation
       // as that is how they are set on chain
@@ -397,6 +416,34 @@ export async function expandWarpDeployConfig(params: {
   );
 }
 
+export function normalizeWarpDeployConfigForCheck(params: {
+  multiProvider: MultiProvider;
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+}): WarpRouteDeployConfigMailboxRequired {
+  const { multiProvider, warpDeployConfig } = params;
+
+  return objMap(warpDeployConfig, (_chain, config) => {
+    if (!isOftTokenConfig(config)) {
+      return config;
+    }
+
+    return {
+      ...config,
+      mailbox: constants.AddressZero,
+      hook: constants.AddressZero,
+      interchainSecurityModule: constants.AddressZero,
+      remoteRouters: {},
+      destinationGas: undefined,
+      domainMappings: resolveRouterMapConfig(
+        multiProvider,
+        config.domainMappings,
+      ),
+      extraOptions:
+        config.extraOptions === '0x' ? undefined : config.extraOptions,
+    };
+  });
+}
+
 /**
  * Resolves the fee token address based on the warp route token type.
  * - Native tokens: fee token is AddressZero
@@ -514,12 +561,15 @@ const transformWarpDeployConfigToCheck: TransformObjectTransformer = (
 ) => {
   // Needed to check if we are currently inside the remoteRouters object
   const maybeRemoteRoutersKey = propPath[propPath.length - 3];
+  const parentObjectKey = propPath[propPath.length - 2];
   const parentKey = propPath[propPath.length - 1];
 
   // Remove the address and ownerOverrides fields if we are not inside the
   // remoteRouters property
   if (
-    (parentKey === 'address' && maybeRemoteRoutersKey !== 'remoteRouters') ||
+    (parentKey === 'address' &&
+      maybeRemoteRoutersKey !== 'remoteRouters' &&
+      parentObjectKey !== 'proxyAdmin') ||
     parentKey === 'ownerOverrides'
   ) {
     return undefined;
@@ -670,6 +720,10 @@ export function transformConfigToCheck(
       clonedTokenConfig.tokenFee,
     );
   }
+
+  // normalizeScale(undefined) -> {1n,1n}, matching EvmWarpRouteReader.fetchScale's
+  // identity-collapse so both sides of the diff agree symmetrically.
+  clonedTokenConfig.scale = normalizeScale(clonedTokenConfig.scale);
 
   return sortArraysInObject(
     transformObj(clonedTokenConfig, transformWarpDeployConfigToCheck),

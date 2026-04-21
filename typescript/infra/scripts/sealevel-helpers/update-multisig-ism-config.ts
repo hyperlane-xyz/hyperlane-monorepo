@@ -11,10 +11,16 @@ import {
   ChainName,
   IsmType,
   MultiProtocolProvider,
+  SealevelCoreAdapter,
   SvmMultiProtocolSignerAdapter,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  createRpc,
+  fetchMailboxInboxAccount,
+} from '@hyperlane-xyz/sealevel-sdk';
+import { ProtocolType, assert, rootLogger } from '@hyperlane-xyz/utils';
 import { readJson } from '@hyperlane-xyz/utils/fs';
+import { address } from '@solana/kit';
 
 import { Contexts } from '../../config/contexts.js';
 import { getChain } from '../../config/registry.js';
@@ -336,6 +342,101 @@ async function printAndSubmitMultisigIsmUpdates(
 }
 
 /**
+ * Check if the on-chain default ISM matches the configured ISM program ID.
+ * If not, submit a set-default-ISM Squads proposal.
+ *
+ * Returns:
+ *   'match' — on-chain ISM equals configured, safe to do in-place validator updates
+ *   'proposed' — mismatch, set-default-ISM proposal submitted
+ *   'skipped' — mismatch, user declined proposal submission
+ *   'unreadable' — could not read mailbox inbox
+ */
+async function checkAndSubmitSetDefaultIsm(
+  chain: ChainName,
+  mailboxProgramId: string,
+  configuredIsmProgramId: string,
+  vaultPubkey: PublicKey,
+  mpp: MultiProtocolProvider,
+  adapter: SvmMultiProtocolSignerAdapter,
+): Promise<'match' | 'proposed' | 'skipped' | 'unreadable'> {
+  // Read on-chain default ISM from the mailbox inbox PDA
+  const chainMeta = getChain(chain);
+  let inbox;
+  try {
+    const rpcUrl = chainMeta.rpcUrls[0]?.http;
+    assert(rpcUrl, `No HTTP RPC configured for ${chain}`);
+    const rpc = createRpc(rpcUrl);
+    inbox = await fetchMailboxInboxAccount(rpc, address(mailboxProgramId));
+  } catch (error) {
+    rootLogger.warn(
+      chalk.yellow(
+        `[${chain}] Failed to read mailbox inbox — cannot verify default ISM, skipping validator updates: ${String(error)}`,
+      ),
+    );
+    return 'unreadable';
+  }
+  if (!inbox) {
+    // Can't verify — treat as mismatch to be safe (don't update wrong ISM)
+    rootLogger.warn(
+      chalk.yellow(
+        `[${chain}] Could not read mailbox inbox — cannot verify default ISM, skipping validator updates`,
+      ),
+    );
+    return 'unreadable';
+  }
+
+  const onChainIsm = inbox.defaultIsm;
+  if (onChainIsm === configuredIsmProgramId) {
+    rootLogger.info(
+      chalk.gray(
+        `[${chain}] Default ISM matches configured: ${configuredIsmProgramId}`,
+      ),
+    );
+    return 'match';
+  }
+
+  rootLogger.info(
+    chalk.yellow(
+      `[${chain}] Default ISM mismatch:\n` +
+        `  On-chain: ${onChainIsm}\n` +
+        `  Configured: ${configuredIsmProgramId}`,
+    ),
+  );
+
+  // Build set-default-ISM instruction (vault is the mailbox owner/signer)
+  const coreAdapter = new SealevelCoreAdapter(chain, mpp, {
+    mailbox: mailboxProgramId,
+  });
+  const setIsmIx = coreAdapter.createSetDefaultIsmInstruction(
+    new PublicKey(mailboxProgramId),
+    vaultPubkey,
+    new PublicKey(configuredIsmProgramId),
+  );
+
+  const shouldSubmit = await confirm({
+    message: `Submit set-default-ISM proposal for ${chain}? (${configuredIsmProgramId})`,
+    default: true,
+  });
+
+  if (shouldSubmit) {
+    await submitProposalToSquads(
+      chain,
+      [setIsmIx],
+      mpp,
+      adapter,
+      `Set default ISM to ${configuredIsmProgramId} on ${chain}`,
+    );
+    rootLogger.info(
+      chalk.green(`[${chain}] Set-default-ISM proposal submitted`),
+    );
+    return 'proposed';
+  }
+
+  rootLogger.info(chalk.yellow(`[${chain}] Skipped set-default-ISM proposal`));
+  return 'skipped';
+}
+
+/**
  * Process a single chain's MultisigIsm configuration
  */
 async function processChain(
@@ -348,6 +449,7 @@ async function processChain(
   chain: string;
   updated: number;
   matched: number;
+  ismStatus: 'match' | 'proposed' | 'skipped' | 'unreadable';
 }> {
   rootLogger.debug(`Configuring MultisigIsm for ${chain} on ${environment}`);
 
@@ -370,6 +472,26 @@ async function processChain(
   rootLogger.debug(
     `Using Turnkey signer (proposal creator): ${await adapter.address()}`,
   );
+
+  // Check if on-chain default ISM matches configured ISM.
+  // If different, submit a set-default-ISM proposal and skip validator updates
+  // (the new ISM was already configured during deployment).
+  const ismCheckResult = await checkAndSubmitSetDefaultIsm(
+    chain,
+    coreProgramIds.mailbox,
+    coreProgramIds.multisig_ism_message_id,
+    vaultPubkey,
+    mpp,
+    adapter,
+  );
+  if (ismCheckResult !== 'match') {
+    return {
+      chain,
+      updated: 0,
+      matched: 0,
+      ismStatus: ismCheckResult,
+    };
+  }
 
   // Load configuration from file
   const configPath = multisigIsmConfigPath(environment, context, chain);
@@ -415,7 +537,7 @@ async function processChain(
     rootLogger.info(`No updates needed for ${chain} - all configs match`);
   }
 
-  return { chain, updated, matched };
+  return { chain, updated, matched, ismStatus: 'match' };
 }
 
 // CLI argument parsing
@@ -454,8 +576,12 @@ async function main() {
 
   // Process all chains sequentially (to avoid overwhelming the user with prompts)
   const mpp = await envConfig.getMultiProtocolProvider();
-  const results: Array<{ chain: string; updated: number; matched: number }> =
-    [];
+  const results: Array<{
+    chain: string;
+    updated: number;
+    matched: number;
+    ismStatus: string;
+  }> = [];
 
   for (const chain of chains) {
     const signerAdapter = new SvmMultiProtocolSignerAdapter(
@@ -475,7 +601,7 @@ async function main() {
       results.push(result);
     } catch (error) {
       rootLogger.error(`Failed to process ${chain}:`, error);
-      results.push({ chain, updated: 0, matched: 0 });
+      results.push({ chain, updated: 0, matched: 0, ismStatus: 'error' });
     }
   }
 

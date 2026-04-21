@@ -7,10 +7,10 @@ export function isCompliant<S extends z.ZodTypeAny>(schema: S) {
     schema.safeParse(config).success;
 }
 
-export function validateZodResult<T>(
-  result: SafeParseReturnType<T, T>,
+export function validateZodResult<I, O>(
+  result: SafeParseReturnType<I, O>,
   desc: string = 'config',
-): T {
+): O {
   if (!result.success) {
     rootLogger.warn(`Invalid ${desc}`, result.error);
     throw new Error(`Invalid desc: ${result.error.toString()}`);

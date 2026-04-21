@@ -39,7 +39,7 @@ import {
   SealevelOverheadIgpAdapter,
 } from '../../gas/adapters/SealevelIgpAdapter.js';
 import { SealevelInterchainGasPaymasterType } from '../../gas/adapters/serialization.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
 import { ChainName } from '../../types.js';
 import {
   SealevelAccountDataWrapper,
@@ -177,7 +177,7 @@ export class SealevelTokenAdapter
 
   constructor(
     public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider,
+    public readonly multiProvider: MultiProviderAdapter,
     public readonly addresses: { token: Address },
   ) {
     super(chainName, multiProvider, addresses);
@@ -362,7 +362,7 @@ export abstract class SealevelHypTokenAdapter
 
   constructor(
     public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider,
+    public readonly multiProvider: MultiProviderAdapter,
     addresses: HypTokenAddresses,
   ) {
     super(chainName, multiProvider, { token: addresses.token });
@@ -743,7 +743,7 @@ export class SealevelHypNativeAdapter extends SealevelHypTokenAdapter {
 
   constructor(
     public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider,
+    public readonly multiProvider: MultiProviderAdapter,
     addresses: {
       // A 'token' address is not required for hyp native tokens (e.g. hypSOL)
       token?: Address;

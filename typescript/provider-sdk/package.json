@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/provider-sdk",
-  "version": "4.2.5",
+  "version": "5.1.0",
   "description": "Protocol Provider SDK for the Hyperlane Protocol",
   "license": "Apache-2.0",
   "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
@@ -20,6 +20,7 @@
     "./mailbox": "./dist/mailbox.js",
     "./validator-announce": "./dist/validator-announce.js",
     "./warp": "./dist/warp.js",
+    "./fee": "./dist/fee.js",
     "./factory": "./dist/factory.js",
     "./submitter": "./dist/submitter.js",
     "./registry": "./dist/registry.js",

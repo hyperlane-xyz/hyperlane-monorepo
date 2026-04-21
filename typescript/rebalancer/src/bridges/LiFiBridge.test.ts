@@ -34,6 +34,36 @@ const SOLANA_CHAIN_METADATA_CONFIG: ExternalBridgeConfig = {
   },
 };
 
+const DUPLICATE_CHAIN_ID_CONFIG: ExternalBridgeConfig = {
+  integrator: 'test-rebalancer',
+  chainMetadata: {
+    ethereum: {
+      chainId: 1,
+      protocol: ProtocolType.Ethereum,
+      name: 'ethereum',
+      displayName: 'Ethereum',
+      domainId: 1,
+      rpcUrls: [{ http: 'https://ethereum-rpc.local' }],
+    },
+    radix: {
+      chainId: 1,
+      protocol: ProtocolType.Radix,
+      name: 'radix',
+      displayName: 'Radix',
+      domainId: 1001,
+      rpcUrls: [{ http: 'https://radix-rpc.local' }],
+    },
+    solanamainnet: {
+      chainId: 1399811149,
+      protocol: ProtocolType.Sealevel,
+      name: 'solanamainnet',
+      displayName: 'Solana',
+      domainId: 1399811149,
+      rpcUrls: [{ http: 'https://api.mainnet-beta.solana.com' }],
+    },
+  },
+};
+
 // Use all-digit hex addresses to avoid EIP-55 checksum case mutations
 const TOKEN_ADDR = '0x1234567890123456789012345678901234567890';
 const SENDER_ADDR = '0x9876543210987654321098765432109876543210';
@@ -557,6 +587,49 @@ describe('LiFiBridge.quote() input validation', function () {
   });
 });
 
+describe('LiFiBridge.quote() routing policy', function () {
+  let bridge: LiFiBridge;
+
+  beforeEach(() => {
+    bridge = new LiFiBridge(BRIDGE_CONFIG, testLogger);
+  });
+
+  it('should use RECOMMENDED order for reverse toAmount quotes', async () => {
+    const originalFetch = globalThis.fetch;
+    let requestUrl = '';
+
+    globalThis.fetch = (async (input: URL | RequestInfo) => {
+      requestUrl = String(input);
+      return {
+        ok: true,
+        json: async () =>
+          createLiFiStep({
+            toChainId: 1151111081099710,
+            toAmount: '5000000000',
+          }),
+      } as Response;
+    }) as typeof fetch;
+
+    try {
+      const quote = await bridge.quote({
+        fromChain: 42161,
+        toChain: 1151111081099710,
+        fromToken: TOKEN_ADDR,
+        toToken: TOKEN_ADDR,
+        fromAddress: SENDER_ADDR,
+        toAddress: SENDER_ADDR,
+        toAmount: 5000000000n,
+      });
+      const params = new URL(requestUrl).searchParams;
+
+      expect(params.get('order')).to.equal('RECOMMENDED');
+      expect(quote.requestParams.toAmount).to.equal(5000000000n);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
+
 describe('LiFiBridge.getStatus()', function () {
   let bridge: LiFiBridge;
 
@@ -611,5 +684,31 @@ describe('LiFiBridge constructor chainMetadataByChainId', function () {
       expect(msg).to.include('toToken');
       expect(msg).to.include('does not match requested');
     }
+  });
+
+  it('should prefer Ethereum metadata for LiFi chainId lookups when non-EVM chainIds collide', () => {
+    const bridge = new LiFiBridge(DUPLICATE_CHAIN_ID_CONFIG, testLogger);
+    const quote = createTestQuote(
+      { fromChainId: 1 },
+      {
+        fromChain: 1,
+        toChain: 1151111081099710,
+      },
+    );
+
+    return bridge
+      .execute(quote, {
+        [ProtocolType.Ethereum]: '0x1234',
+      })
+      .catch((error: unknown) => {
+        const msg = error instanceof Error ? error.message : String(error);
+        expect(
+          isValidationError(msg),
+          `Expected non-validation error but got: ${msg}`,
+        ).to.equal(false);
+        expect(msg).to.not.include('Missing private key');
+        expect(msg).to.not.include('protocol radix');
+        expect(msg.toLowerCase()).to.include('private key');
+      });
   });
 });

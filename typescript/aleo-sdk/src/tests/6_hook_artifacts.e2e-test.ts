@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import { step } from 'mocha-steps';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { HookType } from '@hyperlane-xyz/provider-sdk/altvm';
+import { HookType, type ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   type ArtifactDeployed,
   ArtifactState,
@@ -19,14 +19,16 @@ import { assert, normalizeConfig } from '@hyperlane-xyz/utils';
 
 import { AleoSigner } from '../clients/signer.js';
 import { AleoHookArtifactManager } from '../hook/hook-artifact-manager.js';
-import { type AleoReceipt, type AleoTransaction } from '../utils/types.js';
+import { AleoIsmArtifactManager } from '../ism/ism-artifact-manager.js';
+import { AleoMailboxArtifactManager } from '../mailbox/mailbox-artifact-manager.js';
+import { ALEO_NULL_ADDRESS } from '../utils/helper.js';
+import { AleoNetworkId } from '../utils/types.js';
 
 describe('6. aleo sdk Hook artifacts e2e tests', async function () {
   this.timeout(100_000);
 
+  let signer: ISigner<AnnotatedTx, TxReceipt>;
   let aleoSigner: AleoSigner;
-  let signer: AltVM.ISigner<AleoTransaction, AleoReceipt>;
-  let providerSdkSigner: AltVM.ISigner<AnnotatedTx, TxReceipt>;
   let artifactManager: AleoHookArtifactManager;
   let mailboxAddress: string;
 
@@ -35,6 +37,7 @@ describe('6. aleo sdk Hook artifacts e2e tests', async function () {
     // test private key with funds
     const privateKey =
       'APrivateKey1zkp8CZNn3yeCseEtxuVPbDCwSyhGW6yZKUYKfgXmcpoGPWH';
+    const domainId = 1234;
 
     aleoSigner = await AleoSigner.connectWithSigner([localnetRpc], privateKey, {
       metadata: {
@@ -43,17 +46,46 @@ describe('6. aleo sdk Hook artifacts e2e tests', async function () {
     });
     signer = aleoSigner;
 
-    providerSdkSigner = signer as any;
-
-    // Create a mailbox for hook testing
-    const domainId = 1234;
-    const mailbox = await aleoSigner.createMailbox({
-      domainId: domainId,
-    });
-    mailboxAddress = mailbox.mailboxAddress;
-
-    // Access the aleoClient from the signer to create the artifact manager
     const aleoClient = aleoSigner.getAleoClient();
+
+    // Create ISM for mailbox
+    const ismArtifactManager = new AleoIsmArtifactManager(aleoClient);
+    const ismWriter = ismArtifactManager.createWriter(
+      AltVM.IsmType.TEST_ISM,
+      aleoSigner,
+    );
+    const [ism] = await ismWriter.create({
+      config: { type: AltVM.IsmType.TEST_ISM },
+    });
+
+    // Create a mailbox for hook testing using artifact manager
+    const mailboxArtifactManager = new AleoMailboxArtifactManager(
+      { domainId, aleoNetworkId: AleoNetworkId.TESTNET },
+      aleoClient,
+    );
+    const mailboxWriter = mailboxArtifactManager.createWriter(
+      'mailbox',
+      aleoSigner,
+    );
+    const [deployedMailbox] = await mailboxWriter.create({
+      config: {
+        owner: aleoSigner.getSignerAddress(),
+        defaultIsm: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: ism.deployed.address },
+        },
+        defaultHook: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: ALEO_NULL_ADDRESS },
+        },
+        requiredHook: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: ALEO_NULL_ADDRESS },
+        },
+      },
+    });
+    mailboxAddress = deployedMailbox.deployed.address;
+
     artifactManager = new AleoHookArtifactManager(aleoClient, mailboxAddress);
   });
 
@@ -64,7 +96,7 @@ describe('6. aleo sdk Hook artifacts e2e tests', async function () {
       // Create MerkleTree Hook using artifact writer
       const writer = artifactManager.createWriter(
         AltVM.HookType.MERKLE_TREE,
-        signer as any,
+        aleoSigner,
       );
 
       const [deployedArtifact] = await writer.create({
@@ -98,16 +130,16 @@ describe('6. aleo sdk Hook artifacts e2e tests', async function () {
       // Create IGP Hook using artifact writer
       const writer = artifactManager.createWriter(
         AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
-        signer as any,
+        aleoSigner,
       );
 
       const [deployedArtifact] = await writer.create({
         artifactState: ArtifactState.NEW,
         config: {
           type: AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
-          owner: signer.getSignerAddress(),
-          beneficiary: signer.getSignerAddress(),
-          oracleKey: signer.getSignerAddress(),
+          owner: aleoSigner.getSignerAddress(),
+          beneficiary: aleoSigner.getSignerAddress(),
+          oracleKey: aleoSigner.getSignerAddress(),
           overhead: {
             [DOMAIN_1]: 50000,
             [DOMAIN_2]: 75000,
@@ -140,14 +172,14 @@ describe('6. aleo sdk Hook artifacts e2e tests', async function () {
       expect(readHook.config.type).to.equal(
         AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
       );
-      expect(readHook.config.owner).to.equal(signer.getSignerAddress());
+      expect(readHook.config.owner).to.equal(aleoSigner.getSignerAddress());
 
       // Verify gas configs
       const expectedConfig = {
         type: AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
-        owner: signer.getSignerAddress(),
-        beneficiary: signer.getSignerAddress(),
-        oracleKey: signer.getSignerAddress(),
+        owner: aleoSigner.getSignerAddress(),
+        beneficiary: aleoSigner.getSignerAddress(),
+        oracleKey: aleoSigner.getSignerAddress(),
         overhead: {
           [DOMAIN_1]: 50000,
           [DOMAIN_2]: 75000,
@@ -173,7 +205,7 @@ describe('6. aleo sdk Hook artifacts e2e tests', async function () {
       // Update one of the gas configs using artifact writer
       const writer = artifactManager.createWriter(
         AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
-        signer as any,
+        aleoSigner,
       );
 
       // Read current config
@@ -208,7 +240,7 @@ describe('6. aleo sdk Hook artifacts e2e tests', async function () {
       // Execute update transactions
       const transactions = await writer.update(updatedArtifact);
       for (const tx of transactions) {
-        await providerSdkSigner.sendAndConfirmTransaction(tx);
+        await signer.sendAndConfirmTransaction(tx);
       }
 
       // Read and verify update
@@ -233,7 +265,7 @@ describe('6. aleo sdk Hook artifacts e2e tests', async function () {
       // Remove DOMAIN_2 config using artifact writer
       const writer = artifactManager.createWriter(
         AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
-        signer as any,
+        aleoSigner,
       );
 
       // Read current config
@@ -265,7 +297,7 @@ describe('6. aleo sdk Hook artifacts e2e tests', async function () {
       // Execute update transactions
       const transactions = await writer.update(updatedArtifact);
       for (const tx of transactions) {
-        await providerSdkSigner.sendAndConfirmTransaction(tx);
+        await signer.sendAndConfirmTransaction(tx);
       }
 
       // Read and verify removal
@@ -291,7 +323,7 @@ describe('6. aleo sdk Hook artifacts e2e tests', async function () {
         // Create IGP hook using the artifact writer with a different owner
         const writer = artifactManager.createWriter(
           AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
-          signer as any,
+          aleoSigner,
         );
 
         const [deployedArtifact] = await writer.create({
@@ -316,7 +348,9 @@ describe('6. aleo sdk Hook artifacts e2e tests', async function () {
         const readHook = await reader.read(deployedArtifact.deployed.address);
 
         expect(readHook.config.owner).to.equal(newOwnerAddress);
-        expect(readHook.config.owner).to.not.equal(signer.getSignerAddress());
+        expect(readHook.config.owner).to.not.equal(
+          aleoSigner.getSignerAddress(),
+        );
       },
     );
   });
@@ -328,7 +362,7 @@ describe('6. aleo sdk Hook artifacts e2e tests', async function () {
       // Create MerkleTree Hook
       const writer = artifactManager.createWriter(
         AltVM.HookType.MERKLE_TREE,
-        signer as any,
+        aleoSigner,
       );
 
       const [deployedHook] = await writer.create({
@@ -352,16 +386,16 @@ describe('6. aleo sdk Hook artifacts e2e tests', async function () {
       // Create IGP Hook
       const writer = artifactManager.createWriter(
         AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
-        signer as any,
+        aleoSigner,
       );
 
       const [deployedHook] = await writer.create({
         artifactState: ArtifactState.NEW,
         config: {
           type: AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
-          owner: signer.getSignerAddress(),
-          beneficiary: signer.getSignerAddress(),
-          oracleKey: signer.getSignerAddress(),
+          owner: aleoSigner.getSignerAddress(),
+          beneficiary: aleoSigner.getSignerAddress(),
+          oracleKey: aleoSigner.getSignerAddress(),
           overhead: {
             [DOMAIN_1]: 50000,
           },
@@ -392,9 +426,9 @@ describe('6. aleo sdk Hook artifacts e2e tests', async function () {
         igpConfig.type === HookType.INTERCHAIN_GAS_PAYMASTER,
         `Expected config to be of type ${HookType.INTERCHAIN_GAS_PAYMASTER}`,
       );
-      expect(igpConfig.owner).to.equal(signer.getSignerAddress());
-      expect(igpConfig.beneficiary).to.equal(signer.getSignerAddress());
-      expect(igpConfig.oracleKey).to.equal(signer.getSignerAddress());
+      expect(igpConfig.owner).to.equal(aleoSigner.getSignerAddress());
+      expect(igpConfig.beneficiary).to.equal(aleoSigner.getSignerAddress());
+      expect(igpConfig.oracleKey).to.equal(aleoSigner.getSignerAddress());
       expect(igpConfig.overhead[DOMAIN_1]).to.equal(50000);
       expect(igpConfig.oracleConfig[DOMAIN_1].gasPrice).to.equal('1000000000');
       expect(igpConfig.oracleConfig[DOMAIN_1].tokenExchangeRate).to.equal(

@@ -12,7 +12,7 @@ import {
 import { getProtocolExchangeRateDecimals } from '../consts/igp.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { AgentCosmosGasPrice } from '../metadata/agentConfig.js';
-import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
+import type { MultiProviderAdapter } from '../providers/MultiProviderAdapter.js';
 import { ChainMap, ChainName } from '../types.js';
 import { getCosmosRegistryChain } from '../utils/cosmos.js';
 
@@ -38,7 +38,7 @@ export interface ChainGasOracleParams {
 }
 
 export async function getGasPrice(
-  mpp: MultiProtocolProvider,
+  mpp: MultiProviderAdapter,
   chain: string,
 ): Promise<GasPriceConfig> {
   const protocolType = mpp.getProtocol(chain);

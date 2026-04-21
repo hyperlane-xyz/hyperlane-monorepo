@@ -16,6 +16,7 @@ import {
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
 import { type IRawWarpArtifactManager } from '@hyperlane-xyz/provider-sdk/warp';
+import { type IRawFeeArtifactManager } from '@hyperlane-xyz/provider-sdk/fee';
 import { type IRawValidatorAnnounceArtifactManager } from '@hyperlane-xyz/provider-sdk/validator-announce';
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -86,6 +87,12 @@ export class TronProtocolProvider implements ProtocolProvider {
   ): IRawValidatorAnnounceArtifactManager | null {
     // @TODO Implement in a follow up PR
     throw Error('Not implemented');
+  }
+
+  createFeeArtifactManager(
+    _chainMetadata: ChainMetadataForAltVM,
+  ): IRawFeeArtifactManager | null {
+    return null;
   }
 
   getMinGas(): MinimumRequiredGasByAction {

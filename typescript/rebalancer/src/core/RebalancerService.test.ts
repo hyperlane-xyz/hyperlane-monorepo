@@ -366,6 +366,41 @@ describe('RebalancerService', () => {
       expect(calledRoutes[0].destination).to.equal('arbitrum');
     });
 
+    it('should normalize manual amount to canonical units when token has scale', async () => {
+      const rebalancer = createMockRebalancer();
+      const warpCore = {
+        tokens: [
+          {
+            ...createMockToken('ethereum'),
+            decimals: 18,
+            scale: { numerator: 1n, denominator: 1_000_000_000_000n },
+          },
+          createMockToken('arbitrum'),
+        ],
+        multiProvider: createMockMultiProvider(),
+      } as unknown as WarpCore;
+
+      const contextFactory = createMockContextFactory({ rebalancer, warpCore });
+      sandbox.stub(RebalancerContextFactory, 'create').resolves(contextFactory);
+
+      const service = new RebalancerService(
+        createMockMultiProvider(),
+        undefined,
+        {} as any,
+        createMockRebalancerConfig(),
+        { mode: 'manual', logger: testLogger },
+      );
+
+      await service.executeManual({
+        origin: 'ethereum',
+        destination: 'arbitrum',
+        amount: '1',
+      });
+
+      const calledRoutes = rebalancer.rebalance.firstCall.args[0];
+      expect(calledRoutes[0].amount).to.equal(1_000_000n);
+    });
+
     it('should throw when origin token not found', async () => {
       const warpCore = {
         tokens: [createMockToken('arbitrum')],

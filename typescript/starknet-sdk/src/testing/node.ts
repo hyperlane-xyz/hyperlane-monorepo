@@ -79,7 +79,8 @@ export async function runStarknetNode(
             '--state-archive-capacity',
             'full',
             '--block-generation-on',
-            '5',
+            'transaction',
+            '--lite-mode',
             '--seed',
             '0',
           ])

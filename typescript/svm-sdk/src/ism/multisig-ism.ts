@@ -9,7 +9,7 @@ import {
   type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import type { MultisigIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, retryAsync } from '@hyperlane-xyz/utils';
 
 import { resolveProgram } from '../deploy/resolve-program.js';
 import {
@@ -33,6 +33,27 @@ import {
 } from './ism-query.js';
 
 const CHUNK_SIZE = 5;
+const INIT_RETRY_ATTEMPTS = 8;
+const INIT_RETRY_BASE_MS = 1000;
+
+type ProgramDeploymentError = Error & {
+  context?: { logs?: string[] };
+  isRecoverable?: boolean;
+};
+
+function toProgramDeploymentError(error: unknown): ProgramDeploymentError {
+  if (error instanceof Error) return error;
+  return new Error(String(error));
+}
+
+function isProgramDeploymentRace(error: unknown): boolean {
+  const logs = toProgramDeploymentError(error).context?.logs;
+  return !!logs?.some(
+    (log) =>
+      log.includes('Program is not deployed') ||
+      log.includes('invalid account data for instruction'),
+  );
+}
 
 export interface SvmMultisigIsmConfig extends MultisigIsmConfig {
   program: SvmProgramTarget;
@@ -122,9 +143,20 @@ export class SvmMessageIdMultisigIsmWriter
         programAddress,
         this.svmSigner.signer,
       );
-      const initReceipt = await this.svmSigner.send({
-        instructions: [initIx],
-      });
+      const initReceipt = await retryAsync(
+        async () => {
+          try {
+            return await this.svmSigner.send({ instructions: [initIx] });
+          } catch (error) {
+            const wrapped = toProgramDeploymentError(error);
+            if (isProgramDeploymentRace(wrapped)) throw wrapped;
+            wrapped.isRecoverable = false;
+            throw wrapped;
+          }
+        },
+        INIT_RETRY_ATTEMPTS,
+        INIT_RETRY_BASE_MS,
+      );
       receipts.push(initReceipt);
     }
 

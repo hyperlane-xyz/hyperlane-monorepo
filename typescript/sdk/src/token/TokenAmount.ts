@@ -1,13 +1,13 @@
 import { Numberish, fromWei } from '@hyperlane-xyz/utils';
 
-import type { IToken } from './IToken.js';
+import type { ITokenMetadata } from './ITokenMetadata.js';
 
-export class TokenAmount {
+export class TokenAmount<TToken extends ITokenMetadata = ITokenMetadata> {
   public readonly amount: bigint;
 
   constructor(
     _amount: Numberish,
-    public readonly token: IToken,
+    public readonly token: TToken,
   ) {
     this.amount = BigInt(_amount);
   }
@@ -16,11 +16,11 @@ export class TokenAmount {
     return Number(fromWei(this.amount.toString(), this.token.decimals));
   }
 
-  plus(amount: Numberish): TokenAmount {
+  plus(amount: Numberish): TokenAmount<TToken> {
     return new TokenAmount(this.amount + BigInt(amount), this.token);
   }
 
-  minus(amount: Numberish): TokenAmount {
+  minus(amount: Numberish): TokenAmount<TToken> {
     return new TokenAmount(this.amount - BigInt(amount), this.token);
   }
 

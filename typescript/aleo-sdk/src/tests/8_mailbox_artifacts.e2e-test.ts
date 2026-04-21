@@ -2,6 +2,7 @@ import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { type ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   type ArtifactDeployed,
   ArtifactState,
@@ -34,7 +35,7 @@ chai.use(chaiAsPromised);
 describe('8. aleo sdk Mailbox artifacts e2e tests', async function () {
   this.timeout(100_000);
 
-  let signer: AltVM.ISigner<AnnotatedTx, TxReceipt>;
+  let signer: ISigner<AnnotatedTx, TxReceipt>;
   let aleoSigner: AleoSigner;
   let aleoClient: AnyAleoNetworkClient;
   let mailboxArtifactManager: AleoMailboxArtifactManager;
@@ -57,8 +58,8 @@ describe('8. aleo sdk Mailbox artifacts e2e tests', async function () {
         },
       },
     );
-
     signer = aleoSigner;
+
     aleoClient = aleoSigner.getAleoClient();
 
     mailboxArtifactManager = new AleoMailboxArtifactManager(

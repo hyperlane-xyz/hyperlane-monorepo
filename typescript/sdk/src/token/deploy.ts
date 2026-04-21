@@ -16,6 +16,7 @@ import {
   TokenBridgeCctpV2__factory,
   TokenBridgeDepositAddress__factory,
   TokenRouter,
+  TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import {
   Address,
@@ -36,6 +37,7 @@ import {
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { EvmTokenFeeModule } from '../fee/EvmTokenFeeModule.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
+import { PredicateWrapperDeployer } from '../predicate/PredicateDeployer.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { GasRouterDeployer } from '../router/GasRouterDeployer.js';
 import { ProxiedFactories, resolveRouterMapConfig } from '../router/types.js';
@@ -66,6 +68,7 @@ import {
   DepositAddressTokenConfig,
   HypTokenConfig,
   HypTokenRouterConfig,
+  PredicateWrapperConfig,
   OftTokenConfig,
   WarpRouteDeployConfig,
   isCctpTokenConfig,
@@ -345,9 +348,10 @@ abstract class TokenDeployer<
         this.logger.info(`Mapping Circle domains on ${chain}`, {
           remoteDomains,
         });
+        const overrides = this.multiProvider.getTransactionOverrides(chain);
         await this.multiProvider.handleTx(
           chain,
-          tokenBridge.addDomains(remoteDomains),
+          tokenBridge.addDomains(remoteDomains, overrides),
         );
       }),
     );
@@ -408,10 +412,11 @@ abstract class TokenDeployer<
             `Setting maxFeePpm on ${chain} from ${currentFeeBps} bps to ${config.maxFeeBps} bps${usesPpmStorage ? ' (stored as ppm)' : ''}`,
           );
           // >= 11.0.0 uses setMaxFeePpm(), older uses setMaxFeeBps()
+          const overrides = this.multiProvider.getTransactionOverrides(chain);
           if (usesPpmName) {
             await this.multiProvider.handleTx(
               chain,
-              tokenBridgeV2.setMaxFeePpm(targetFee),
+              tokenBridgeV2.setMaxFeePpm(targetFee, overrides),
             );
           } else {
             await this.multiProvider.handleTx(
@@ -425,6 +430,7 @@ abstract class TokenDeployer<
                     .toHexString()
                     .slice(2)
                     .padStart(64, '0'),
+                ...overrides,
               }),
             );
           }
@@ -512,17 +518,19 @@ abstract class TokenDeployer<
             hyperlaneDomain: domainId,
             lzEid,
           });
+          const overrides = this.multiProvider.getTransactionOverrides(chain);
           await this.multiProvider.handleTx(
             chain,
-            tokenBridge.addDomain(Number(domainId), lzEid),
+            tokenBridge.addDomain(Number(domainId), lzEid, overrides),
           );
         }
 
         if (config.extraOptions) {
           this.logger.info(`Setting OFT extra options on ${chain}`);
+          const overrides = this.multiProvider.getTransactionOverrides(chain);
           await this.multiProvider.handleTx(
             chain,
-            tokenBridge.setExtraOptions(config.extraOptions),
+            tokenBridge.setExtraOptions(config.extraOptions, overrides),
           );
         }
       }),
@@ -546,10 +554,11 @@ abstract class TokenDeployer<
         );
 
         const rebalancers = Array.from(config.allowedRebalancers ?? []);
+        const overrides = this.multiProvider.getTransactionOverrides(chain);
         for (const rebalancer of rebalancers) {
           await this.multiProvider.handleTx(
             chain,
-            movableToken.addRebalancer(rebalancer),
+            movableToken.addRebalancer(rebalancer, overrides),
           );
         }
       }),
@@ -591,10 +600,15 @@ abstract class TokenDeployer<
         const bridgesToAllowOnRouter = bridgesToAllow.filter(({ domain }) =>
           routerDomains.includes(domain),
         );
+        const overrides = this.multiProvider.getTransactionOverrides(chain);
         for (const bridgeConfig of bridgesToAllowOnRouter) {
           await this.multiProvider.handleTx(
             chain,
-            movableToken.addBridge(bridgeConfig.domain, bridgeConfig.bridge),
+            movableToken.addBridge(
+              bridgeConfig.domain,
+              bridgeConfig.bridge,
+              overrides,
+            ),
           );
         }
       }),
@@ -664,12 +678,14 @@ abstract class TokenDeployer<
             !bridgesWithAllowanceAlreadySet[token].has(bridge),
         );
 
+        const overrides = this.multiProvider.getTransactionOverrides(chain);
         for (const bridgeConfig of filteredTokenApprovalTxs) {
           await this.multiProvider.handleTx(
             chain,
             movableToken.approveTokenForBridge(
               bridgeConfig.token,
               bridgeConfig.bridge,
+              overrides,
             ),
           );
         }
@@ -698,6 +714,7 @@ abstract class TokenDeployer<
           config.everclearFeeParams,
         );
 
+        const overrides = this.multiProvider.getTransactionOverrides(chain);
         for (const [domainId, feeConfig] of Object.entries(
           resolvedFeeParamsConfig,
         )) {
@@ -708,6 +725,7 @@ abstract class TokenDeployer<
               feeConfig.fee,
               feeConfig.deadline,
               feeConfig.signature,
+              overrides,
             ),
           );
         }
@@ -746,9 +764,60 @@ abstract class TokenDeployer<
           }),
         );
 
+        const overrides = this.multiProvider.getTransactionOverrides(chain);
         await this.multiProvider.handleTx(
           chain,
-          everclearTokenBridge.setOutputAssetsBatch(assets),
+          everclearTokenBridge.setOutputAssetsBatch(assets, overrides),
+        );
+      }),
+    );
+  }
+
+  protected async deployPredicateWrappers(
+    configMap: ChainMap<
+      HypTokenConfig & { predicateWrapper?: PredicateWrapperConfig }
+    >,
+    deployedContractsMap: HyperlaneContractsMap<Factories>,
+  ): Promise<void> {
+    await promiseObjAll(
+      objMap(configMap, async (chain, config) => {
+        if (!config.predicateWrapper) {
+          return;
+        }
+
+        const router = this.router(deployedContractsMap[chain]);
+
+        const factoryContracts = this.options.ismFactory?.getContracts(chain);
+        assert(
+          factoryContracts?.staticAggregationHookFactory,
+          `staticAggregationHookFactory not found for ${chain}. Ensure proxy factories are deployed.`,
+        );
+
+        const predicateDeployer = new PredicateWrapperDeployer(
+          this.multiProvider,
+          factoryContracts.staticAggregationHookFactory,
+          this.logger,
+        );
+
+        // Token address is fetched from router.token() in PredicateRouterWrapper constructor.
+        // config.predicateWrapper.owner (from the original configMap) is used for wrapper
+        // ownership — it's explicit in the schema rather than read from on-chain, so it
+        // correctly points to the intended final owner even before transferOwnership runs.
+        const result = await predicateDeployer.deployAndConfigure(
+          chain,
+          router.address,
+          config.predicateWrapper,
+          config.type,
+        );
+
+        const signerRouter = TokenRouter__factory.connect(
+          router.address,
+          this.multiProvider.getSigner(chain),
+        );
+        const txOverrides = this.multiProvider.getTransactionOverrides(chain);
+        await this.multiProvider.handleTx(
+          chain,
+          signerRouter.setHook(result.aggregationHookAddress, txOverrides),
         );
       }),
     );
@@ -796,11 +865,13 @@ abstract class TokenDeployer<
           this.logger.info(
             `Batch enrolling ${domains.length} routers for ${chain}`,
           );
+          const overrides = this.multiProvider.getTransactionOverrides(chain);
           await this.multiProvider.handleTx(
             chain,
             crossCollateralRouter.enrollCrossCollateralRouters(
               domains,
               routers,
+              overrides,
             ),
           );
         }
@@ -811,6 +882,17 @@ abstract class TokenDeployer<
   async deploy(
     configMap: ChainMap<HypTokenRouterConfig>,
   ): Promise<HyperlaneContractsMap<Factories & ProxiedFactories>> {
+    // Fail fast if any chain requires a predicate wrapper but lacks the factory.
+    // Checked before any on-chain work to avoid partial deployments.
+    for (const [chain, config] of Object.entries(configMap)) {
+      if (!('predicateWrapper' in config) || !config.predicateWrapper) continue;
+      const factoryContracts = this.options.ismFactory?.getContracts(chain);
+      assert(
+        factoryContracts?.staticAggregationHookFactory,
+        `staticAggregationHookFactory not found for ${chain}. Ensure proxy factories are deployed.`,
+      );
+    }
+
     let tokenMetadataMap: TokenMetadataMap;
     try {
       tokenMetadataMap = await TokenDeployer.deriveTokenMetadata(
@@ -914,6 +996,8 @@ abstract class TokenDeployer<
     await this.setEverclearFeeParams(configMap, deployedContractsMap);
 
     await this.setEverclearOutputAssets(configMap, deployedContractsMap);
+
+    await this.deployPredicateWrappers(configMap, deployedContractsMap);
 
     await this.enrollCrossCollateralRouters(configMap, deployedContractsMap);
 
@@ -1026,7 +1110,8 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
         });
 
         const { deployedFee } = module.serialize();
-        const tx = await router.setFeeRecipient(deployedFee);
+        const overrides = this.multiProvider.getTransactionOverrides(chain);
+        const tx = await router.setFeeRecipient(deployedFee, overrides);
         await this.multiProvider.handleTx(chain, tx);
       }),
     );

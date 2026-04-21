@@ -6,7 +6,7 @@ import {
   type MultiProvider,
   Token,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert, toWei } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from '../config/RebalancerConfig.js';
 import {
@@ -30,6 +30,7 @@ import { Metrics } from '../metrics/Metrics.js';
 import { type InventoryMonitorConfig, Monitor } from '../monitor/Monitor.js';
 import type { IActionTracker } from '../tracking/IActionTracker.js';
 import { InflightContextAdapter } from '../tracking/InflightContextAdapter.js';
+import { normalizeConfiguredAmount } from '../utils/balanceUtils.js';
 
 import type { RebalancerOrchestrator } from './RebalancerOrchestrator.js';
 
@@ -296,7 +297,7 @@ export class RebalancerService {
       const manualRoute: MovableCollateralRoute & { intentId: string } = {
         origin,
         destination,
-        amount: BigInt(toWei(amount, originToken.decimals)),
+        amount: normalizeConfiguredAmount(amount, originToken),
         executionType: 'movableCollateral',
         bridge,
         intentId: `manual-${Date.now()}`,

@@ -31,6 +31,17 @@ export {
   SvmMessageIdMultisigIsmReader as SealevelMessageIdMultisigIsmReader,
   SvmMessageIdMultisigIsmWriter as SealevelMessageIdMultisigIsmWriter,
 } from './ism/multisig-ism.js';
+export type { SvmMultisigIsmConfig as SealevelMultisigIsmConfig } from './ism/multisig-ism.js';
+
+// Program bytes (auto-generated from compiled .so binaries)
+export { HYPERLANE_SVM_PROGRAM_BYTES } from './hyperlane/program-bytes.js';
+
+// Low-level instruction builders
+export { getTransferOwnershipInstruction as getMultisigIsmTransferOwnershipInstruction } from './instructions/multisig-ism-message-id.js';
+export { getSetUpgradeAuthorityInstruction } from './instructions/loader.js';
+export { buildSetDefaultIsmInstruction } from './core/mailbox-tx.js';
+export { fetchMultisigIsmAccessControl } from './ism/ism-query.js';
+export { getProgramUpgradeAuthority } from './deploy/program-deployer.js';
 export {
   SvmTestIsmReader as SealevelTestIsmReader,
   SvmTestIsmWriter as SealevelTestIsmWriter,
@@ -82,6 +93,14 @@ export {
   serializeUnsignedTransaction,
 } from './tx.js';
 
+// Legacy @solana/web3.js compatibility
+export {
+  convertLegacySolanaTransaction,
+  isLegacySolanaTransaction,
+} from './legacy-compat.js';
+export type { LegacyTransaction } from './legacy-compat.js';
+export type { LegacyKeypair } from './types.js';
+
 // PDA derivation
 export {
   deriveMultisigIsmAccessControlPda,
@@ -116,6 +135,7 @@ export { decodeTestIsmStorageAccount } from './accounts/test-ism.js';
 export {
   decodeMailboxInboxAccount,
   decodeMailboxOutboxAccount,
+  fetchMailboxInboxAccount,
 } from './core/mailbox-query.js';
 export {
   decodeValidatorAnnounceAccount,

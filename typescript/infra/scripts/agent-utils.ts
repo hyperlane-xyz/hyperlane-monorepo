@@ -71,7 +71,6 @@ export enum Modules {
   INTERCHAIN_QUERY_SYSTEM = 'iqs',
   TEST_QUERY_SENDER = 'testquerysender',
   TEST_RECIPIENT = 'testrecipient',
-  WARP = 'warp',
   HAAS = 'haas',
   CCIP = 'ccip',
 }
