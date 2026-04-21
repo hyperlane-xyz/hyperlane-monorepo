@@ -206,6 +206,7 @@ allowBuilds:
   core-js: true
   core-js-pure: true
   cpu-features: true
+  es5-ext: false
   esbuild: true
   keccak: true
   node-hid: true
