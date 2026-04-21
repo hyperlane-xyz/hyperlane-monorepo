@@ -1,5 +1,21 @@
 # @hyperlane-xyz/sdk
 
+## 33.0.1
+
+### Patch Changes
+
+- a2081df: Sealevel cross-collateral tokens were classified as cross-collateral again when building WarpCore routes.
+- 4c91737: Added shared chain ID normalization helpers under the existing `metadata/*` subpath so metadata-first consumers can reuse the same chain ID and effective domain ID validation logic as the SDK resolver.
+  - @hyperlane-xyz/aleo-sdk@33.0.1
+  - @hyperlane-xyz/starknet-core@33.0.1
+  - @hyperlane-xyz/cosmos-sdk@33.0.1
+  - @hyperlane-xyz/radix-sdk@33.0.1
+  - @hyperlane-xyz/utils@33.0.1
+  - @hyperlane-xyz/deploy-sdk@5.0.3
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/provider-sdk@5.0.3
+  - @hyperlane-xyz/tron-sdk@23.0.3
+
 ## 33.0.0
 
 ### Major Changes

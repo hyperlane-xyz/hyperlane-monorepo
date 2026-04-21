@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/warp-monitor",
-  "version": "0.3.15",
+  "version": "0.3.16",
   "private": true,
   "description": "Hyperlane Warp Route Balance Monitor Service",
   "keywords": [
