@@ -638,12 +638,10 @@ impl Relayer {
             let rate_limiter = Arc::new(RwLock::new(RateLimiter::new(max_requests, window_secs)));
             info!(
                 max_requests,
-                window_secs,
-                "Initialized relay API rate limiter"
+                window_secs, "Initialized relay API rate limiter"
             );
 
-            let mut indexers: HashMap<String, Arc<dyn Indexer<HyperlaneMessage>>> =
-                HashMap::new();
+            let mut indexers: HashMap<String, Arc<dyn Indexer<HyperlaneMessage>>> = HashMap::new();
             info!(
                 origin_count = self.origins.len(),
                 "Setting up relay API indexers"

@@ -41,7 +41,10 @@ pub async fn extract_messages(
             tx_hash = %tx_hash,
             "Timed out waiting for transaction receipt"
         );
-        eyre!("Transaction receipt not found within timeout for tx hash: {}", tx_hash)
+        eyre!(
+            "Transaction receipt not found within timeout for tx hash: {}",
+            tx_hash
+        )
     })?
     .map_err(|e| {
         error!(
