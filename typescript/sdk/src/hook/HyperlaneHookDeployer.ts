@@ -23,6 +23,7 @@ import {
 import { HyperlaneContracts } from '../contracts/types.js';
 import { CoreAddresses } from '../core/contracts.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
+import { submitBatched } from '../deploy/utils.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { HyperlaneIgpDeployer } from '../gas/HyperlaneIgpDeployer.js';
 import { IgpFactories } from '../gas/contracts.js';
@@ -30,8 +31,6 @@ import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { IsmType, OpStackIsmConfig } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';
-
-import { submitBatched } from '../deploy/utils.js';
 
 import { DeployedHook, HookFactories, hookFactories } from './contracts.js';
 import {

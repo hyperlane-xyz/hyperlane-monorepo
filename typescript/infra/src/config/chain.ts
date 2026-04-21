@@ -26,10 +26,10 @@ import {
   getRegistryWithOverrides,
 } from '../../config/registry.js';
 import { getSecretRpcEndpoints } from '../agents/index.js';
+import { fetchExplorerApiKeys } from '../deployment/verify.js';
 import { getSafeApiKey } from '../utils/safe.js';
 
 import { DeployEnvironment } from './environment.js';
-import { fetchExplorerApiKeys } from '../deployment/verify.js';
 
 // V2 ICAs are not supported on these chains, due to the block gas limit being
 // lower than the amount required to deploy the new InterchainAccountRouter
