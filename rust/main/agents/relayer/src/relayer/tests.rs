@@ -144,6 +144,7 @@ fn generate_test_relayer_settings(
         max_retries: 1,
         tx_id_indexing_enabled: true,
         igp_indexing_enabled: true,
+        relay_api_enabled: false,
         relay_api_rate_limit_max_requests: None,
         relay_api_rate_limit_window_secs: None,
         relay_api_cors_origins: Vec::new(),

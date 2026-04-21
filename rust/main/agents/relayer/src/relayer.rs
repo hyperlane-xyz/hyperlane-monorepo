@@ -97,6 +97,7 @@ pub struct Relayer {
     allow_local_checkpoint_syncers: bool,
     metric_app_contexts: Arc<Vec<(MatchingList, String)>>,
     max_retries: u32,
+    relay_api_enabled: bool,
     relay_api_rate_limit_max_requests: Option<usize>,
     relay_api_rate_limit_window_secs: Option<u64>,
     relay_api_cors_origins: Vec<String>,
@@ -297,6 +298,7 @@ impl BaseAgent for Relayer {
             allow_local_checkpoint_syncers: settings.allow_local_checkpoint_syncers,
             metric_app_contexts: settings.metric_app_contexts,
             max_retries: settings.max_retries,
+            relay_api_enabled: settings.relay_api_enabled,
             relay_api_rate_limit_max_requests: settings.relay_api_rate_limit_max_requests,
             relay_api_rate_limit_window_secs: settings.relay_api_rate_limit_window_secs,
             relay_api_cors_origins: settings.relay_api_cors_origins,
@@ -628,60 +630,72 @@ impl Relayer {
             })
             .collect();
 
-        let relay_api_metrics = RelayApiMetrics::new(&self.core_metrics.registry())?;
-        let tx_hash_cache = Arc::new(RwLock::new(TxHashCache::new(10000)));
-        let max_requests = self.relay_api_rate_limit_max_requests.unwrap_or(100);
-        let window_secs = self.relay_api_rate_limit_window_secs.unwrap_or(60);
-        let rate_limiter = Arc::new(RwLock::new(RateLimiter::new(max_requests, window_secs)));
-        info!(
-            max_requests,
-            window_secs, "Initialized relay API rate limiter"
-        );
+        let maybe_relay_api_state = if self.relay_api_enabled {
+            let relay_api_metrics = RelayApiMetrics::new(&self.core_metrics.registry())?;
+            let tx_hash_cache = Arc::new(RwLock::new(TxHashCache::new(10000)));
+            let max_requests = self.relay_api_rate_limit_max_requests.unwrap_or(100);
+            let window_secs = self.relay_api_rate_limit_window_secs.unwrap_or(60);
+            let rate_limiter = Arc::new(RwLock::new(RateLimiter::new(max_requests, window_secs)));
+            info!(
+                max_requests,
+                window_secs,
+                "Initialized relay API rate limiter"
+            );
 
-        let mut indexers: HashMap<String, Arc<dyn Indexer<HyperlaneMessage>>> = HashMap::new();
-        info!(
-            origin_count = self.origins.len(),
-            "Setting up relay API indexers"
-        );
-        for (domain, origin) in &self.origins {
-            match origin
-                .chain_conf
-                .build_message_indexer(&self.core_metrics, false)
-                .await
-            {
-                Ok(indexer) => {
-                    indexers.insert(domain.name().to_string(), Arc::new(indexer));
-                }
-                Err(e) => {
-                    error!(domain = %domain.name(), error = ?e, "Failed to create mailbox indexer for relay API");
+            let mut indexers: HashMap<String, Arc<dyn Indexer<HyperlaneMessage>>> =
+                HashMap::new();
+            info!(
+                origin_count = self.origins.len(),
+                "Setting up relay API indexers"
+            );
+            for (domain, origin) in &self.origins {
+                match origin
+                    .chain_conf
+                    .build_message_indexer(&self.core_metrics, false)
+                    .await
+                {
+                    Ok(indexer) => {
+                        indexers.insert(domain.name().to_string(), Arc::new(indexer));
+                    }
+                    Err(e) => {
+                        error!(domain = %domain.name(), error = ?e, "Failed to create mailbox indexer for relay API");
+                    }
                 }
             }
-        }
 
-        let relay_api_state = RelayApiState::new(
-            indexers,
-            dbs.clone(),
-            send_channels.clone(),
-            msg_ctxs.clone(),
-            relay_api_metrics,
-        )
-        .with_tx_hash_cache(tx_hash_cache)
-        .with_rate_limiter(rate_limiter)
-        .with_cors_origins(self.relay_api_cors_origins.clone())
-        .with_message_whitelist(self.message_whitelist.clone())
-        .with_message_blacklist(self.message_blacklist.clone())
-        .with_address_blacklist(self.address_blacklist.clone());
+            Some(
+                RelayApiState::new(
+                    indexers,
+                    dbs.clone(),
+                    send_channels.clone(),
+                    msg_ctxs.clone(),
+                    relay_api_metrics,
+                )
+                .with_tx_hash_cache(tx_hash_cache)
+                .with_rate_limiter(rate_limiter)
+                .with_cors_origins(self.relay_api_cors_origins.clone())
+                .with_message_whitelist(self.message_whitelist.clone())
+                .with_message_blacklist(self.message_blacklist.clone())
+                .with_address_blacklist(self.address_blacklist.clone()),
+            )
+        } else {
+            None
+        };
 
-        let router = relayer_server::Server::new(self.destinations.len())
+        let mut server = relayer_server::Server::new(self.destinations.len())
             .with_op_retry(sender)
             .with_message_queue(prep_queues)
             .with_dbs(dbs)
             .with_gas_enforcers(gas_enforcers)
             .with_msg_ctxs(msg_ctxs)
             .with_prover_sync(prover_syncs)
-            .with_dispatcher_command_entrypoints(dispatcher_entrypoints)
-            .with_relay_api(relay_api_state)
-            .router();
+            .with_dispatcher_command_entrypoints(dispatcher_entrypoints);
+
+        if let Some(relay_api_state) = maybe_relay_api_state {
+            server = server.with_relay_api(relay_api_state);
+        }
+
+        let router = server.router();
         Ok(router)
     }
 

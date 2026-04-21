@@ -1,6 +1,6 @@
 use eyre::{eyre, Result};
 use hyperlane_core::{HyperlaneMessage, Indexer, H256, H512};
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 use tracing::{debug, error, warn};
 
 /// Extract all Hyperlane messages from a transaction hash on a specific chain
@@ -25,19 +25,33 @@ pub async fn extract_messages(
         .parse_tx_hash(tx_hash)
         .map_err(|e| eyre!("Invalid tx hash format: {}", e))?;
 
-    // Fetch messages from transaction
-    let messages_with_meta = indexer
-        .fetch_logs_by_tx_hash(tx_hash_512)
-        .await
-        .map_err(|e| {
-            error!(
-                chain = %chain_name,
-                tx_hash = %tx_hash,
-                error = ?e,
-                "Failed to fetch logs from transaction"
-            );
-            eyre!("Failed to fetch transaction logs: {}", e)
-        })?;
+    // Fetch messages from transaction.
+    // fetch_logs_by_tx_hash retries indefinitely on missing receipts (required by the
+    // contract_sync indexing path). For the relay API we bound it to 5 seconds so an
+    // invalid or not-yet-confirmed tx hash returns a clean error instead of burning the
+    // entire 10-second outer handler timeout.
+    let messages_with_meta = tokio::time::timeout(
+        Duration::from_secs(5),
+        indexer.fetch_logs_by_tx_hash(tx_hash_512),
+    )
+    .await
+    .map_err(|_| {
+        error!(
+            chain = %chain_name,
+            tx_hash = %tx_hash,
+            "Timed out waiting for transaction receipt"
+        );
+        eyre!("Transaction receipt not found within timeout for tx hash: {}", tx_hash)
+    })?
+    .map_err(|e| {
+        error!(
+            chain = %chain_name,
+            tx_hash = %tx_hash,
+            error = ?e,
+            "Failed to fetch logs from transaction"
+        );
+        eyre!("Failed to fetch transaction logs: {}", e)
+    })?;
 
     // Extract just the messages
     let messages: Vec<HyperlaneMessage> = messages_with_meta
