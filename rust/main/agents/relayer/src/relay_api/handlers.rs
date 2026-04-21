@@ -7,6 +7,7 @@ use axum::{
 };
 use hyperlane_base::db::HyperlaneRocksDB;
 use hyperlane_core::{HyperlaneMessage, Indexer, QueueOperation, H256, H512};
+use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
@@ -111,6 +112,43 @@ impl TxHashCache {
     }
 }
 
+/// RAII guard for a dedup-cache reservation.
+///
+/// On creation the slot is already locked in the cache. Calling [`commit`] keeps the
+/// entry alive for the TTL (duplicate detection). If the guard is dropped without
+/// committing — including when an async handler task is cancelled mid-await — the
+/// reservation is removed so the client can retry with the same tx hash.
+pub struct TxHashReservation {
+    cache: Arc<Mutex<TxHashCache>>,
+    chain: String,
+    tx_hash: String,
+    committed: bool,
+}
+
+impl TxHashReservation {
+    fn new(cache: Arc<Mutex<TxHashCache>>, chain: String, tx_hash: String) -> Self {
+        Self {
+            cache,
+            chain,
+            tx_hash,
+            committed: false,
+        }
+    }
+
+    /// Mark this reservation as permanent. Drop will no longer remove the entry.
+    pub fn commit(mut self) {
+        self.committed = true;
+    }
+}
+
+impl Drop for TxHashReservation {
+    fn drop(&mut self) {
+        if !self.committed {
+            self.cache.lock().remove(&self.chain, &self.tx_hash);
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct ServerState {
     // Required: server cannot function without these
@@ -121,7 +159,7 @@ pub struct ServerState {
     metrics: RelayApiMetrics,
     // Optional features
     rate_limiter: Option<Arc<RwLock<RateLimiter>>>,
-    tx_hash_cache: Option<Arc<RwLock<TxHashCache>>>,
+    tx_hash_cache: Option<Arc<Mutex<TxHashCache>>>,
     cors_origins: Vec<String>,
     message_whitelist: Option<Arc<crate::settings::matching_list::MatchingList>>,
     message_blacklist: Option<Arc<crate::settings::matching_list::MatchingList>>,
@@ -159,7 +197,7 @@ impl ServerState {
         self.metrics.inc_success();
     }
 
-    pub fn with_tx_hash_cache(mut self, cache: Arc<RwLock<TxHashCache>>) -> Self {
+    pub fn with_tx_hash_cache(mut self, cache: Arc<Mutex<TxHashCache>>) -> Self {
         self.tx_hash_cache = Some(cache);
         self
     }
@@ -391,11 +429,18 @@ async fn create_relay(
 
     // Reserve the dedup slot before any side-effecting work so concurrent requests
     // for the same (chain, tx_hash) are rejected before touching the send channels.
-    // On any downstream failure the reservation is released so the client can retry.
-    if let Some(cache) = &state.tx_hash_cache {
-        let mut cache = cache.write().await;
-        match cache.check_and_insert(req.origin_chain.clone(), req.tx_hash.clone()) {
-            Ok(()) => {}
+    // The reservation is held in a TxHashReservation guard that auto-releases on drop
+    // (including async cancellation). commit() is called only on the success path.
+    let maybe_reservation = if let Some(cache) = &state.tx_hash_cache {
+        match cache
+            .lock()
+            .check_and_insert(req.origin_chain.clone(), req.tx_hash.clone())
+        {
+            Ok(()) => Some(TxHashReservation::new(
+                cache.clone(),
+                req.origin_chain.clone(),
+                req.tx_hash.clone(),
+            )),
             Err(TxHashCacheError::Duplicate) => {
                 state.record_failure("duplicate_tx");
                 return Err(ServerError::TooManyRequests(
@@ -409,17 +454,19 @@ async fn create_relay(
                 ));
             }
         }
-    }
+    } else {
+        None
+    };
 
     let result = relay_work(&state, &req).await;
 
-    // Release the reservation on failure so the client can retry with the same tx hash.
-    if result.is_err() {
-        if let Some(cache) = &state.tx_hash_cache {
-            let mut cache = cache.write().await;
-            cache.remove(&req.origin_chain, &req.tx_hash);
+    if result.is_ok() {
+        if let Some(reservation) = maybe_reservation {
+            reservation.commit();
         }
     }
+    // On Err (or if this future is dropped/cancelled), `maybe_reservation` drops here
+    // and TxHashReservation::drop removes the entry so the client can retry.
 
     result
 }
@@ -437,9 +484,15 @@ async fn relay_work(state: &ServerState, req: &RelayRequest) -> ServerResult<Jso
         state.record_failure("timeout");
         ServerError::RequestTimeout
     })?
-    .map_err(|e| {
-        state.record_failure("extraction_failed");
-        ServerError::InvalidRequest(format!("Failed to extract messages: {e}"))
+    .map_err(|e| match e {
+        crate::relay_api::ExtractError::Timeout(_) => {
+            state.record_failure("timeout");
+            ServerError::RequestTimeout
+        }
+        crate::relay_api::ExtractError::Failed(msg) => {
+            state.record_failure("extraction_failed");
+            ServerError::InvalidRequest(format!("Failed to extract messages: {msg}"))
+        }
     })?;
 
     const MAX_MESSAGES_PER_TX: usize = 10;

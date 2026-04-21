@@ -632,7 +632,7 @@ impl Relayer {
 
         let maybe_relay_api_state = if self.relay_api_enabled {
             let relay_api_metrics = RelayApiMetrics::new(&self.core_metrics.registry())?;
-            let tx_hash_cache = Arc::new(RwLock::new(TxHashCache::new(10000)));
+            let tx_hash_cache = Arc::new(parking_lot::Mutex::new(TxHashCache::new(10000)));
             let max_requests = self.relay_api_rate_limit_max_requests.unwrap_or(100);
             let window_secs = self.relay_api_rate_limit_window_secs.unwrap_or(60);
             let rate_limiter = Arc::new(RwLock::new(RateLimiter::new(max_requests, window_secs)));

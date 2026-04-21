@@ -15,6 +15,7 @@ use hyperlane_core::{
     H256, H512,
 };
 use hyperlane_test::mocks::MockMailboxContract;
+use parking_lot::Mutex;
 use prometheus::Registry;
 use tempfile::TempDir;
 use tokio::sync::{mpsc, RwLock};
@@ -240,7 +241,7 @@ async fn test_happy_path_enqueue() {
         _tempdir,
     } = make_state(Arc::new(MockIndexer::cctp(msg)), ORIGIN_ID, DEST_ID).await;
 
-    let cache = Arc::new(RwLock::new(TxHashCache::new(100)));
+    let cache = Arc::new(Mutex::new(TxHashCache::new(100)));
     let status = send_relay(state.with_tx_hash_cache(cache).router(), TX_HASH).await;
 
     assert_eq!(status, StatusCode::OK);
@@ -256,7 +257,7 @@ async fn test_duplicate_within_ttl_rejected() {
         _tempdir,
     } = make_state(Arc::new(MockIndexer::cctp(msg)), ORIGIN_ID, DEST_ID).await;
 
-    let cache = Arc::new(RwLock::new(TxHashCache::new(100)));
+    let cache = Arc::new(Mutex::new(TxHashCache::new(100)));
     let router = state.with_tx_hash_cache(cache).router();
 
     let first = send_relay(router.clone(), TX_HASH).await;
@@ -276,7 +277,7 @@ async fn test_duplicate_after_ttl_allows_retry() {
     } = make_state(Arc::new(MockIndexer::cctp(msg)), ORIGIN_ID, DEST_ID).await;
 
     // 1 ms TTL so the entry expires immediately
-    let cache = Arc::new(RwLock::new(TxHashCache::new_with_ttl(
+    let cache = Arc::new(Mutex::new(TxHashCache::new_with_ttl(
         100,
         Duration::from_millis(1),
     )));
@@ -299,7 +300,7 @@ async fn test_concurrent_same_tx_only_one_succeeds() {
         _tempdir,
     } = make_state(Arc::new(MockIndexer::cctp(msg)), ORIGIN_ID, DEST_ID).await;
 
-    let cache = Arc::new(RwLock::new(TxHashCache::new(100)));
+    let cache = Arc::new(Mutex::new(TxHashCache::new(100)));
     let router = state.with_tx_hash_cache(cache).router();
 
     // Fire both requests concurrently; exactly one must win the write-lock race.
@@ -419,7 +420,7 @@ async fn test_cache_full_returns_503_before_any_sends() {
     } = make_state(Arc::new(MockIndexer::cctp(msg)), ORIGIN_ID, DEST_ID).await;
 
     // Cache that holds exactly 1 entry
-    let cache = Arc::new(RwLock::new(TxHashCache::new(1)));
+    let cache = Arc::new(Mutex::new(TxHashCache::new(1)));
     let router = state.with_tx_hash_cache(cache).router();
 
     // First request fills the cache
@@ -498,7 +499,7 @@ async fn test_partial_send_failure_releases_dedup_for_retry() {
     let metrics = RelayApiMetrics::new(&Registry::new()).unwrap();
     let state = ServerState::new(indexers, dbs, send_channels, msg_ctxs, metrics);
 
-    let cache = Arc::new(RwLock::new(TxHashCache::new(100)));
+    let cache = Arc::new(Mutex::new(TxHashCache::new(100)));
     let router = state.with_tx_hash_cache(cache).router();
 
     // First call: dest_b send fails → 500, reservation released

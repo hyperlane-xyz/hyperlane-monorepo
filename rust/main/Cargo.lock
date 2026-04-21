@@ -9282,6 +9282,7 @@ dependencies = [
  "num-derive",
  "num-traits",
  "once_cell",
+ "parking_lot 0.12.3",
  "prometheus",
  "rand 0.8.5",
  "regex",

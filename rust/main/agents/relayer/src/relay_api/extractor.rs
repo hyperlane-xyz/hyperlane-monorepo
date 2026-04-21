@@ -1,18 +1,33 @@
-use eyre::{eyre, Result};
+use eyre::eyre;
 use hyperlane_core::{HyperlaneMessage, Indexer, H256, H512};
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tracing::{debug, error, warn};
 
-/// Extract all Hyperlane messages from a transaction hash on a specific chain
+/// Error returned by [`extract_messages`].
+#[derive(Debug, thiserror::Error)]
+pub enum ExtractError {
+    /// The receipt lookup timed out. Clients should treat this as transient and retry.
+    #[error("Transaction receipt not found within timeout for tx hash: {0}")]
+    Timeout(String),
+    /// A permanent extraction failure (bad tx hash, no Dispatch events, etc.).
+    #[error("{0}")]
+    Failed(String),
+}
+
+/// Extract all Hyperlane messages from a transaction hash on a specific chain.
+///
+/// Returns [`ExtractError::Timeout`] when the receipt lookup times out (transient — client
+/// should retry). Returns [`ExtractError::Failed`] for permanent errors such as an invalid tx
+/// hash or a tx with no Dispatch events.
 pub async fn extract_messages(
     indexers: &HashMap<String, Arc<dyn Indexer<HyperlaneMessage>>>,
     chain_name: &str,
     tx_hash: &str,
-) -> Result<Vec<ExtractedMessage>> {
+) -> Result<Vec<ExtractedMessage>, ExtractError> {
     // Get indexer for chain
-    let indexer = indexers
-        .get(chain_name)
-        .ok_or_else(|| eyre!("Chain not found in registry: {}", chain_name))?;
+    let indexer = indexers.get(chain_name).ok_or_else(|| {
+        ExtractError::Failed(format!("Chain not found in registry: {}", chain_name))
+    })?;
 
     debug!(
         chain = %chain_name,
@@ -23,7 +38,7 @@ pub async fn extract_messages(
     // Parse tx hash using protocol-specific method
     let tx_hash_512 = indexer
         .parse_tx_hash(tx_hash)
-        .map_err(|e| eyre!("Invalid tx hash format: {}", e))?;
+        .map_err(|e| ExtractError::Failed(format!("Invalid tx hash format: {}", e)))?;
 
     // Fetch messages from transaction.
     // fetch_logs_by_tx_hash retries indefinitely on missing receipts (required by the
@@ -41,10 +56,7 @@ pub async fn extract_messages(
             tx_hash = %tx_hash,
             "Timed out waiting for transaction receipt"
         );
-        eyre!(
-            "Transaction receipt not found within timeout for tx hash: {}",
-            tx_hash
-        )
+        ExtractError::Timeout(tx_hash.to_string())
     })?
     .map_err(|e| {
         error!(
@@ -53,7 +65,7 @@ pub async fn extract_messages(
             error = ?e,
             "Failed to fetch logs from transaction"
         );
-        eyre!("Failed to fetch transaction logs: {}", e)
+        ExtractError::Failed(format!("Failed to fetch transaction logs: {}", e))
     })?;
 
     // Extract just the messages
@@ -68,7 +80,9 @@ pub async fn extract_messages(
             tx_hash = %tx_hash,
             "No Hyperlane Dispatch events found in transaction"
         );
-        return Err(eyre!("No Hyperlane Dispatch events found in transaction"));
+        return Err(ExtractError::Failed(
+            "No Hyperlane Dispatch events found in transaction".to_string(),
+        ));
     }
 
     debug!(
