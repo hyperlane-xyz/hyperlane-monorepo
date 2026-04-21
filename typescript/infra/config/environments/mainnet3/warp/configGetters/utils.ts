@@ -191,8 +191,6 @@ export const getRebalancingUSDTConfigForChain = (
   currentChain: keyof typeof usdtTokenAddresses,
   routerConfigByChain: ChainMap<RouterConfigWithoutOwner>,
   ownersByChain: ChainMap<Address>,
-  // Rebalancing wiring was previously commented out while USDT/oft and
-  // USDT/oft-legacy routes were absent from the registry.
   rebalancingConfigByChain: ChainMap<RebalancingConfig>,
 ): HypTokenRouterConfig => {
   const owner = ownersByChain[currentChain];

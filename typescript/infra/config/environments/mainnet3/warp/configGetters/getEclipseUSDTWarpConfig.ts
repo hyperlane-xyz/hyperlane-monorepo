@@ -161,8 +161,6 @@ export const buildEclipseUSDTWarpConfig = async (
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const { ownersByChain, programIds, proxyAdmins } = options;
 
-  // Rebalancing sourced from the USDT/oft + USDT/oft-legacy routes. This block
-  // was previously commented out while those routes were absent from the registry.
   const rebalancingConfigByChain = getRebalancingBridgesConfigFor(
     rebalanceableCollateralChains,
     [WarpRouteIds.USDTOft, WarpRouteIds.USDTOftLegacy],
