@@ -1085,4 +1085,237 @@ mod tests {
             42
         );
     }
+
+    #[tokio::test]
+    async fn validator_tron_safety_merkle_tree_hook_uses_quorum_for_safety_reads() {
+        let domain = dummy_domain(1337, "test-domain");
+        let expected_tree = IncrementalMerkleAtBlock {
+            tree: Default::default(),
+            block_height: Some(11),
+        };
+        let divergent_tree = IncrementalMerkleAtBlock {
+            tree: Default::default(),
+            block_height: Some(12),
+        };
+        let expected_checkpoint = CheckpointAtBlock {
+            checkpoint: hyperlane_core::Checkpoint {
+                merkle_tree_hook_address: H256::from_low_u64_be(11),
+                mailbox_domain: domain.id(),
+                root: H256::from_low_u64_be(22),
+                index: 7,
+            },
+            block_height: Some(99),
+        };
+        let divergent_checkpoint = CheckpointAtBlock {
+            checkpoint: hyperlane_core::Checkpoint {
+                merkle_tree_hook_address: H256::from_low_u64_be(11),
+                mailbox_domain: domain.id(),
+                root: H256::from_low_u64_be(23),
+                index: 8,
+            },
+            block_height: Some(100),
+        };
+
+        let mut fallback = MockMerkleTreeHook::new();
+        fallback.expect_domain().return_const(domain.clone());
+        fallback
+            .expect_address()
+            .return_const(H256::from_low_u64_be(11));
+        fallback.expect_provider().never();
+        fallback.expect_count().once().return_once(|_| Ok(3));
+        fallback.expect_tree().never();
+        fallback.expect_latest_checkpoint().never();
+        fallback.expect_latest_checkpoint_at_block().never();
+
+        let mut safety_a = MockMerkleTreeHook::new();
+        safety_a.expect_domain().return_const(domain.clone());
+        safety_a
+            .expect_address()
+            .return_const(H256::from_low_u64_be(11));
+        safety_a.expect_provider().never();
+        safety_a.expect_count().never();
+        safety_a.expect_tree().once().return_once({
+            let expected_tree = expected_tree.clone();
+            move |_| Ok(expected_tree)
+        });
+        safety_a.expect_latest_checkpoint().once().return_once({
+            let expected_checkpoint = expected_checkpoint.clone();
+            move |_| Ok(expected_checkpoint)
+        });
+        safety_a
+            .expect_latest_checkpoint_at_block()
+            .once()
+            .with(mockall::predicate::eq(42))
+            .return_once(|height| {
+                Ok(CheckpointAtBlock {
+                    checkpoint: hyperlane_core::Checkpoint {
+                        merkle_tree_hook_address: H256::from_low_u64_be(11),
+                        mailbox_domain: 1337,
+                        root: H256::from_low_u64_be(33),
+                        index: 9,
+                    },
+                    block_height: Some(height),
+                })
+            });
+
+        let mut safety_b = MockMerkleTreeHook::new();
+        safety_b.expect_domain().return_const(domain.clone());
+        safety_b
+            .expect_address()
+            .return_const(H256::from_low_u64_be(11));
+        safety_b.expect_provider().never();
+        safety_b.expect_count().never();
+        safety_b.expect_tree().once().return_once({
+            let expected_tree = expected_tree.clone();
+            move |_| Ok(expected_tree)
+        });
+        safety_b.expect_latest_checkpoint().once().return_once({
+            let expected_checkpoint = expected_checkpoint.clone();
+            move |_| Ok(expected_checkpoint)
+        });
+        safety_b
+            .expect_latest_checkpoint_at_block()
+            .once()
+            .with(mockall::predicate::eq(42))
+            .return_once(|height| {
+                Ok(CheckpointAtBlock {
+                    checkpoint: hyperlane_core::Checkpoint {
+                        merkle_tree_hook_address: H256::from_low_u64_be(11),
+                        mailbox_domain: 1337,
+                        root: H256::from_low_u64_be(33),
+                        index: 9,
+                    },
+                    block_height: Some(height),
+                })
+            });
+
+        let mut safety_c = MockMerkleTreeHook::new();
+        safety_c.expect_domain().return_const(domain.clone());
+        safety_c
+            .expect_address()
+            .return_const(H256::from_low_u64_be(11));
+        safety_c.expect_provider().never();
+        safety_c.expect_count().never();
+        safety_c
+            .expect_tree()
+            .once()
+            .return_once(|_| Ok(divergent_tree));
+        safety_c
+            .expect_latest_checkpoint()
+            .once()
+            .return_once(|_| Ok(divergent_checkpoint));
+        safety_c
+            .expect_latest_checkpoint_at_block()
+            .once()
+            .with(mockall::predicate::eq(42))
+            .return_once(|height| {
+                Ok(CheckpointAtBlock {
+                    checkpoint: hyperlane_core::Checkpoint {
+                        merkle_tree_hook_address: H256::from_low_u64_be(11),
+                        mailbox_domain: 1337,
+                        root: H256::from_low_u64_be(44),
+                        index: 10,
+                    },
+                    block_height: Some(height),
+                })
+            });
+
+        let hook = ValidatorTronSafetyMerkleTreeHook {
+            fallback: Arc::new(fallback),
+            safety_hooks: vec![Arc::new(safety_a), Arc::new(safety_b), Arc::new(safety_c)],
+        };
+
+        assert_eq!(hook.count(&ReorgPeriod::None).await.unwrap(), 3);
+        assert_eq!(
+            hook.tree(&ReorgPeriod::None).await.unwrap().block_height,
+            Some(11)
+        );
+        assert_eq!(
+            hook.latest_checkpoint(&ReorgPeriod::None)
+                .await
+                .unwrap()
+                .checkpoint
+                .index,
+            7
+        );
+        assert_eq!(
+            hook.latest_checkpoint_at_block(42)
+                .await
+                .unwrap()
+                .checkpoint
+                .index,
+            9
+        );
+    }
+
+    #[tokio::test]
+    async fn validator_tron_safety_merkle_tree_hook_errors_without_quorum() {
+        let domain = dummy_domain(1337, "test-domain");
+
+        let mut fallback = MockMerkleTreeHook::new();
+        fallback.expect_domain().return_const(domain.clone());
+        fallback
+            .expect_address()
+            .return_const(H256::from_low_u64_be(11));
+        fallback.expect_provider().never();
+        fallback.expect_count().never();
+        fallback.expect_tree().never();
+        fallback.expect_latest_checkpoint().never();
+        fallback.expect_latest_checkpoint_at_block().never();
+
+        let mut safety_a = MockMerkleTreeHook::new();
+        safety_a.expect_domain().return_const(domain.clone());
+        safety_a
+            .expect_address()
+            .return_const(H256::from_low_u64_be(11));
+        safety_a.expect_provider().never();
+        safety_a.expect_count().never();
+        safety_a.expect_tree().once().return_once(|_| {
+            Ok(IncrementalMerkleAtBlock {
+                tree: Default::default(),
+                block_height: Some(1),
+            })
+        });
+        safety_a.expect_latest_checkpoint().never();
+        safety_a.expect_latest_checkpoint_at_block().never();
+
+        let mut safety_b = MockMerkleTreeHook::new();
+        safety_b.expect_domain().return_const(domain.clone());
+        safety_b
+            .expect_address()
+            .return_const(H256::from_low_u64_be(11));
+        safety_b.expect_provider().never();
+        safety_b.expect_count().never();
+        safety_b.expect_tree().once().return_once(|_| {
+            Ok(IncrementalMerkleAtBlock {
+                tree: Default::default(),
+                block_height: Some(2),
+            })
+        });
+        safety_b.expect_latest_checkpoint().never();
+        safety_b.expect_latest_checkpoint_at_block().never();
+
+        let mut safety_c = MockMerkleTreeHook::new();
+        safety_c.expect_domain().return_const(domain);
+        safety_c
+            .expect_address()
+            .return_const(H256::from_low_u64_be(11));
+        safety_c.expect_provider().never();
+        safety_c.expect_count().never();
+        safety_c.expect_tree().once().return_once(|_| {
+            Ok(IncrementalMerkleAtBlock {
+                tree: Default::default(),
+                block_height: Some(3),
+            })
+        });
+        safety_c.expect_latest_checkpoint().never();
+        safety_c.expect_latest_checkpoint_at_block().never();
+
+        let hook = ValidatorTronSafetyMerkleTreeHook {
+            fallback: Arc::new(fallback),
+            safety_hooks: vec![Arc::new(safety_a), Arc::new(safety_b), Arc::new(safety_c)],
+        };
+
+        assert!(hook.tree(&ReorgPeriod::None).await.is_err());
+    }
 }
