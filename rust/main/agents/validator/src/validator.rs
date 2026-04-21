@@ -112,7 +112,14 @@ impl ValidatorTronSafetyMerkleTreeHook {
             }
         }
 
-        Err(first_err.unwrap_or_else(|| ChainCommunicationError::from_other_str(context)))
+        if oks.is_empty() {
+            Err(first_err.unwrap_or_else(|| ChainCommunicationError::from_other_str(context)))
+        } else {
+            Err(ChainCommunicationError::from_other_str(&format!(
+                "{context}; {ok_count} successful hooks disagreed",
+                ok_count = oks.len()
+            )))
+        }
     }
 }
 
@@ -486,15 +493,15 @@ impl BaseAgent for Validator {
         // announce the validator after spawning the signer task
         self.announce().await.expect("Failed to announce validator");
 
-        // Ensure that the merkle tree hook has count > 0 before we begin indexing
+        // Ensure that the merkle tree hook has at least one message on the safety path
         // messages or submitting checkpoints.
         loop {
-            match self.merkle_tree_hook.count(&self.reorg_period).await {
+            match self.merkle_tree_hook.tree(&self.reorg_period).await {
                 Err(err) => {
-                    error!(?err, "Error getting merkle tree hook count");
+                    error!(?err, "Error getting merkle tree");
                     sleep(self.interval).await;
                 }
-                Ok(0) => {
+                Ok(tree) if tree.count() == 0 => {
                     info!("Waiting for first message in merkle tree hook");
                     sleep(self.interval).await;
                 }
@@ -578,14 +585,15 @@ impl Validator {
             unreachable!("tron safety hooks only supported for tron chains");
         };
 
-        let mut safety_hooks = Vec::new();
-        let wallet_solidity_urls = if conn.wallet_solidity_urls.is_empty() {
-            conn.wallet_urls.clone()
-        } else {
-            conn.wallet_solidity_urls.clone()
-        };
+        if conn.wallet_solidity_urls.is_empty() {
+            return Err(ChainCommunicationError::from_other_str(
+                "Tron validator safety hooks require wallet_solidity_urls",
+            ));
+        }
 
-        for wallet_solidity_url in wallet_solidity_urls {
+        let mut safety_hooks = Vec::new();
+
+        for wallet_solidity_url in conn.wallet_solidity_urls.clone() {
             let mut chain_conf = origin_chain_conf.clone();
             if let ChainConnectionConf::Tron(updated_conn) = &mut chain_conf.connection {
                 updated_conn.wallet_solidity_urls = vec![wallet_solidity_url];
@@ -619,7 +627,7 @@ impl Validator {
             chain_conf.connection = ChainConnectionConf::Ethereum(updated_conn);
         } else if let ChainConnectionConf::Tron(conn) = &origin_chain_conf.connection {
             let mut updated_conn = conn.clone();
-            let rpc_urls = match build_rpc_connection(conn.rpc_urls.clone()) {
+            updated_conn.rpc_urls = match build_rpc_connection(conn.rpc_urls.clone()) {
                 RpcConnectionConf::HttpFallback { urls }
                 | RpcConnectionConf::HttpQuorum { urls } => urls,
                 RpcConnectionConf::Http { url } => vec![url],
@@ -627,7 +635,6 @@ impl Validator {
                     unreachable!("validator split rpc does not support ws")
                 }
             };
-            updated_conn.rpc_urls = rpc_urls;
             chain_conf.connection = ChainConnectionConf::Tron(updated_conn);
         }
         chain_conf
@@ -1317,5 +1324,77 @@ mod tests {
         };
 
         assert!(hook.tree(&ReorgPeriod::None).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn validator_tron_safety_merkle_tree_hook_tolerates_partial_failures() {
+        let domain = dummy_domain(1337, "test-domain");
+        let expected_tree = IncrementalMerkleAtBlock {
+            tree: Default::default(),
+            block_height: Some(11),
+        };
+
+        let mut fallback = MockMerkleTreeHook::new();
+        fallback.expect_domain().return_const(domain.clone());
+        fallback
+            .expect_address()
+            .return_const(H256::from_low_u64_be(11));
+        fallback.expect_provider().never();
+        fallback.expect_count().never();
+        fallback.expect_tree().never();
+        fallback.expect_latest_checkpoint().never();
+        fallback.expect_latest_checkpoint_at_block().never();
+
+        let mut safety_a = MockMerkleTreeHook::new();
+        safety_a.expect_domain().return_const(domain.clone());
+        safety_a
+            .expect_address()
+            .return_const(H256::from_low_u64_be(11));
+        safety_a.expect_provider().never();
+        safety_a.expect_count().never();
+        safety_a.expect_tree().once().return_once({
+            let expected_tree = expected_tree.clone();
+            move |_| Ok(expected_tree)
+        });
+        safety_a.expect_latest_checkpoint().never();
+        safety_a.expect_latest_checkpoint_at_block().never();
+
+        let mut safety_b = MockMerkleTreeHook::new();
+        safety_b.expect_domain().return_const(domain.clone());
+        safety_b
+            .expect_address()
+            .return_const(H256::from_low_u64_be(11));
+        safety_b.expect_provider().never();
+        safety_b.expect_count().never();
+        safety_b
+            .expect_tree()
+            .once()
+            .return_once(|_| Err(ChainCommunicationError::from_other_str("boom").into()));
+        safety_b.expect_latest_checkpoint().never();
+        safety_b.expect_latest_checkpoint_at_block().never();
+
+        let mut safety_c = MockMerkleTreeHook::new();
+        safety_c.expect_domain().return_const(domain);
+        safety_c
+            .expect_address()
+            .return_const(H256::from_low_u64_be(11));
+        safety_c.expect_provider().never();
+        safety_c.expect_count().never();
+        safety_c
+            .expect_tree()
+            .once()
+            .return_once(move |_| Ok(expected_tree));
+        safety_c.expect_latest_checkpoint().never();
+        safety_c.expect_latest_checkpoint_at_block().never();
+
+        let hook = ValidatorTronSafetyMerkleTreeHook {
+            fallback: Arc::new(fallback),
+            safety_hooks: vec![Arc::new(safety_a), Arc::new(safety_b), Arc::new(safety_c)],
+        };
+
+        assert_eq!(
+            hook.tree(&ReorgPeriod::None).await.unwrap().block_height,
+            Some(11)
+        );
     }
 }
