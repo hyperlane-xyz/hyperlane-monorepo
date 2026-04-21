@@ -16,7 +16,10 @@ use hyperlane_sealevel_composite_ism::{
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction, VERIFY_ACCOUNT_METAS_PDA_SEEDS,
 };
-use hyperlane_sealevel_mailbox::accounts::{Inbox, InboxAccount};
+use hyperlane_sealevel_mailbox::{
+    accounts::{Inbox, InboxAccount},
+    mailbox_inbox_pda_seeds,
+};
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_banks_interface::BanksTransactionResultWithSimulation;
 use solana_program::{account_info::AccountInfo, instruction::AccountMeta, pubkey, pubkey::Pubkey};
@@ -398,7 +401,7 @@ pub fn make_domain_pda_data(
 /// Serializes a mailbox [`InboxAccount`] into a raw byte buffer and returns the PDA key.
 /// `default_ism` is stored as the mailbox's current fallback ISM program ID.
 pub fn make_inbox_data(mailbox: &Pubkey, default_ism: Pubkey) -> (Pubkey, Vec<u8>) {
-    let (inbox_key, bump) = Pubkey::find_program_address(&[b"hyperlane", b"-", b"inbox"], mailbox);
+    let (inbox_key, bump) = Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), mailbox);
     let inbox = Inbox {
         local_domain: 0,
         inbox_bump_seed: bump,

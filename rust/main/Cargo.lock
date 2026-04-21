@@ -6246,6 +6246,8 @@ dependencies = [
  "getrandom 0.2.15",
  "hyperlane-core",
  "hyperlane-sealevel-interchain-security-module-interface",
+ "hyperlane-sealevel-mailbox",
+ "multisig-ism",
  "num-derive",
  "num-traits",
  "serializable-account-meta",

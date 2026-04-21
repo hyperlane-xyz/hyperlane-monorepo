@@ -1,6 +1,6 @@
 use hyperlane_core::{Checkpoint, CheckpointWithMessageId, HyperlaneMessage, Signable};
 use hyperlane_sealevel_interchain_security_module_interface::VERIFY_ACCOUNT_METAS_PDA_SEEDS;
-use hyperlane_sealevel_mailbox::accounts::InboxAccount;
+use hyperlane_sealevel_mailbox::{accounts::InboxAccount, mailbox_inbox_pda_seeds};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     clock::Clock,
@@ -213,7 +213,7 @@ where
             // Pop the Mailbox Inbox PDA.
             let inbox_pda_info = next_account_info(accounts_iter)?;
             let (expected_inbox_key, _) =
-                Pubkey::find_program_address(&[b"hyperlane", b"-", b"inbox"], mailbox);
+                Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), mailbox);
             if *inbox_pda_info.key != expected_inbox_key {
                 return Err(Error::InvalidMailboxAccount.into());
             }

@@ -1,6 +1,6 @@
 use hyperlane_core::HyperlaneMessage;
 use hyperlane_sealevel_interchain_security_module_interface::VERIFY_ACCOUNT_METAS_PDA_SEEDS;
-use hyperlane_sealevel_mailbox::accounts::InboxAccount;
+use hyperlane_sealevel_mailbox::{accounts::InboxAccount, mailbox_inbox_pda_seeds};
 use serializable_account_meta::SerializableAccountMeta;
 use solana_program::{
     account_info::AccountInfo, instruction::AccountMeta, program_error::ProgramError,
@@ -201,7 +201,7 @@ pub fn required_accounts_for_node(
 
             // No domain ISM — fallback path.
             let (inbox_pda_key, _) =
-                Pubkey::find_program_address(&[b"hyperlane", b"-", b"inbox"], mailbox);
+                Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), mailbox);
 
             // Pass 2: request the mailbox inbox PDA.
             let inbox_provided =

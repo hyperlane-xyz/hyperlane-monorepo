@@ -10,7 +10,7 @@ use hyperlane_sealevel_composite_ism::accounts::{derive_domain_pda, CompositeIsm
 use hyperlane_sealevel_composite_ism::instruction::get_metadata_spec_instruction;
 pub use hyperlane_sealevel_composite_ism::metadata_spec::MetadataSpec;
 use hyperlane_sealevel_interchain_security_module_interface::VERIFY_ACCOUNT_METAS_PDA_SEEDS;
-use hyperlane_sealevel_mailbox::accounts::InboxAccount;
+use hyperlane_sealevel_mailbox::{accounts::InboxAccount, mailbox_inbox_pda_seeds};
 use serializable_account_meta::SimulationReturnData;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signer::Signer;
@@ -121,8 +121,7 @@ impl SealevelCompositeIsm {
         };
 
         // Derive and fetch the mailbox inbox PDA.
-        let (inbox_pda, _) =
-            Pubkey::find_program_address(&[b"hyperlane", b"-", b"inbox"], &mailbox);
+        let (inbox_pda, _) = Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), &mailbox);
         let inbox_account = self
             .provider
             .rpc_client()

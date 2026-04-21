@@ -687,6 +687,10 @@ impl SealevelProvider {
         ));
         let simulation = self.rpc_client().simulate_transaction(&transaction).await?;
 
+        if let Some(err) = simulation.err {
+            return Err(ChainCommunicationError::from_other(err));
+        }
+
         if let Some(return_data) = simulation.return_data {
             let bytes = match return_data.data.1 {
                 UiReturnDataEncoding::Base64 => base64::engine::general_purpose::STANDARD
