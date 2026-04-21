@@ -50,7 +50,7 @@ export {
   isContractAddress,
   assertIsContractAddress,
 } from './contracts/contracts.js';
-export { MUTABLE_HOOK_TYPE } from './hook/types.js';
+export { MUTABLE_HOOK_TYPE, OnchainHookType } from './hook/types.js';
 export { MUTABLE_ISM_TYPE } from './ism/types.js';
 
 export { HyperlaneApp } from './app/HyperlaneApp.js';
@@ -708,11 +708,13 @@ export {
   IHypVSXERC20Adapter,
   IHypXERC20Adapter,
   InterchainGasQuote,
+  IPredicateAwareAdapter,
   ITokenAdapter,
   TransferParams,
   TransferRemoteParams,
   Quote,
   QuoteTransferRemoteParams,
+  isPredicateCapableAdapter,
 } from './token/adapters/ITokenAdapter.js';
 export {
   SealevelHypCollateralAdapter,
@@ -883,6 +885,9 @@ export {
   XERC20Type,
   XERC20TokenExtraBridgesLimits,
   XERC20TokenMetadata,
+  PredicateWrapperConfig,
+  PredicateWrapperConfigSchema,
+  isPredicateWrapperConfig,
 } from './token/types.js';
 export {
   deriveBridgesConfig,
@@ -894,6 +899,17 @@ export {
   CONFIGURATION_CHANGED_EVENT_SELECTOR,
   XERC20_VS_ABI,
 } from './token/xerc20-abi.js';
+export {
+  PredicateApiClient,
+  PredicateAttestation,
+  PredicateAttestationRequest,
+  PredicateAttestationResponse,
+  PredicateAttestationSchema,
+} from './predicate/PredicateApiClient.js';
+export {
+  PredicateWrapperDeployer,
+  PredicateWrapperDeploymentResult,
+} from './predicate/PredicateDeployer.js';
 export {
   ChainMap,
   ChainName,

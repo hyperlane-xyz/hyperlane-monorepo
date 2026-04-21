@@ -807,6 +807,53 @@ describe('ActionTracker', () => {
       expect(partialIntents[0].remaining).to.equal(600000000000000000n); // 0.6 ETH remaining
     });
 
+    it('ignores inventory_movement amounts when computing remaining', async () => {
+      await rebalanceIntentStore.save({
+        id: 'partial-intent-with-movement',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n,
+        executionMethod: 'inventory',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      await rebalanceActionStore.save({
+        id: 'action-deposit',
+        type: 'inventory_deposit',
+        status: 'complete',
+        intentId: 'partial-intent-with-movement',
+        origin: 1,
+        destination: 2,
+        amount: 400000000000000000n,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      await rebalanceActionStore.save({
+        id: 'action-movement',
+        type: 'inventory_movement',
+        status: 'complete',
+        intentId: 'partial-intent-with-movement',
+        origin: 3,
+        destination: 2,
+        amount: 9000000000000000000n,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      const partialIntents =
+        await tracker.getPartiallyFulfilledInventoryIntents();
+
+      expect(partialIntents).to.have.lengthOf(1);
+      expect(partialIntents[0].intent.id).to.equal(
+        'partial-intent-with-movement',
+      );
+      expect(partialIntents[0].completedAmount).to.equal(400000000000000000n);
+      expect(partialIntents[0].remaining).to.equal(600000000000000000n);
+    });
+
     it('does not return non-inventory intents', async () => {
       // Create a not_started intent without executionMethod: 'inventory'
       await rebalanceIntentStore.save({

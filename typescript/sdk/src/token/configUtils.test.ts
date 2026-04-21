@@ -10,18 +10,31 @@ import {
 } from '../fee/types.js';
 import { HookType } from '../hook/types.js';
 import { IsmType } from '../ism/types.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { test1, test2 } from '../consts/testChains.js';
 import type { WarpCoreConfig } from '../warp/types.js';
 
 import { TokenType } from './config.js';
 import {
   filterWarpCoreConfigMapByChains,
   getChainsFromWarpCoreConfig,
+  normalizeWarpDeployConfigForCheck,
   resolveTokenFeeAddress,
   transformConfigToCheck,
   warpCoreConfigMatchesChains,
 } from './configUtils.js';
 import { TokenStandard } from './TokenStandard.js';
-import { HypTokenConfig } from './types.js';
+import {
+  HypTokenConfig,
+  WarpRouteDeployConfigMailboxRequired,
+} from './types.js';
+
+function buildMultiProvider(): MultiProvider {
+  return new MultiProvider({
+    [test1.name]: test1,
+    [test2.name]: test2,
+  });
+}
 
 describe('configUtils', () => {
   describe(transformConfigToCheck.name, () => {
@@ -72,6 +85,7 @@ describe('configUtils', () => {
               },
             ],
           },
+          scale: { numerator: 1n, denominator: 1n },
         },
       },
       {
@@ -96,6 +110,7 @@ describe('configUtils', () => {
               address: ADDRESS,
             },
           },
+          scale: { numerator: 1n, denominator: 1n },
         },
       },
       {
@@ -118,6 +133,7 @@ describe('configUtils', () => {
             address: ADDRESS,
             owner: ADDRESS,
           },
+          scale: { numerator: 1n, denominator: 1n },
         },
       },
       {
@@ -169,6 +185,7 @@ describe('configUtils', () => {
             owner: 'milk169dcaz397j75tjfpl6ykm23dfrv39dqd58lsag',
             type: 'native',
           },
+          scale: { numerator: 1n, denominator: 1n },
         },
         input: {
           bsc: {
@@ -229,6 +246,44 @@ describe('configUtils', () => {
       });
     }
 
+    it('normalizes plain number scale to {numerator, denominator} bigint', () => {
+      const transformedObj = transformConfigToCheck({
+        type: TokenType.collateral,
+        token: ADDRESS,
+        scale: 1000000000000,
+      } as any);
+
+      expect(transformedObj.scale).to.eql({
+        numerator: 1000000000000n,
+        denominator: 1n,
+      });
+    });
+
+    it('normalizes {number, number} scale to {bigint, bigint}', () => {
+      const transformedObj = transformConfigToCheck({
+        type: TokenType.collateral,
+        token: ADDRESS,
+        scale: { numerator: 1, denominator: 1000000000000 },
+      } as any);
+
+      expect(transformedObj.scale).to.eql({
+        numerator: 1n,
+        denominator: 1000000000000n,
+      });
+    });
+
+    it('normalizes undefined scale to identity {1n, 1n}', () => {
+      const transformedObj = transformConfigToCheck({
+        type: TokenType.collateral,
+        token: ADDRESS,
+      } as any);
+
+      expect(transformedObj.scale).to.eql({
+        numerator: 1n,
+        denominator: 1n,
+      });
+    });
+
     it('normalizes LinearFee maxFee/halfAmount so equivalent bps configs compare equal', () => {
       const transformedObj = transformConfigToCheck({
         type: TokenType.collateral,
@@ -246,6 +301,7 @@ describe('configUtils', () => {
       expect(transformedObj).to.eql({
         type: TokenType.collateral,
         token: ADDRESS,
+        scale: { numerator: 1n, denominator: 1n },
         tokenFee: {
           type: TokenFeeType.LinearFee,
           owner: ADDRESS,
@@ -273,6 +329,7 @@ describe('configUtils', () => {
       expect(transformedObj).to.eql({
         type: TokenType.collateral,
         token: ADDRESS,
+        scale: { numerator: 1n, denominator: 1n },
         tokenFee: {
           type: TokenFeeType.OffchainQuotedLinearFee,
           owner: ADDRESS,
@@ -309,6 +366,7 @@ describe('configUtils', () => {
       expect(transformedObj).to.eql({
         type: TokenType.collateral,
         token: ADDRESS,
+        scale: { numerator: 1n, denominator: 1n },
         tokenFee: {
           type: TokenFeeType.RoutingFee,
           owner: ADDRESS,
@@ -360,6 +418,7 @@ describe('configUtils', () => {
       expect(transformedObj).to.eql({
         type: TokenType.collateral,
         token: ADDRESS,
+        scale: { numerator: 1n, denominator: 1n },
         tokenFee: {
           type: TokenFeeType.CrossCollateralRoutingFee,
           owner: ADDRESS,
@@ -406,6 +465,7 @@ describe('configUtils', () => {
       expect(transformedObj).to.eql({
         type: TokenType.collateral,
         token: ADDRESS,
+        scale: { numerator: 1n, denominator: 1n },
         tokenFee: {
           type: TokenFeeType.CrossCollateralRoutingFee,
           owner: ADDRESS,
@@ -445,6 +505,7 @@ describe('configUtils', () => {
       expect(transformedObj).to.eql({
         type: TokenType.collateral,
         token: ADDRESS,
+        scale: { numerator: 1n, denominator: 1n },
         tokenFee: {
           type: TokenFeeType.RoutingFee,
           owner: ADDRESS,
@@ -556,13 +617,8 @@ describe('configUtils', () => {
       expect(result.token).to.equal(ROUTER_ADDRESS);
       expect(result.type).to.equal(TokenFeeType.RoutingFee);
 
-      const routingResult = result as ResolvedRoutingFeeConfigInput;
-      expect(routingResult.feeContracts.ethereum.token).to.equal(
-        ROUTER_ADDRESS,
-      );
-      expect(routingResult.feeContracts.arbitrum.token).to.equal(
-        ROUTER_ADDRESS,
-      );
+      expect(result.feeContracts.ethereum.token).to.equal(ROUTER_ADDRESS);
+      expect(result.feeContracts.arbitrum.token).to.equal(ROUTER_ADDRESS);
     });
 
     it('should handle RoutingFee with empty feeContracts', () => {
@@ -616,6 +672,106 @@ describe('configUtils', () => {
       expect(result.feeContracts.ethereum[ROUTER_KEY]?.token).to.equal(
         ROUTER_ADDRESS,
       );
+    });
+  });
+
+  describe(normalizeWarpDeployConfigForCheck.name, () => {
+    const ADDRESS = '0x3c499c542cef5e3811e1192ce70d8cc03d5c3359';
+    const OTHER_ADDRESS = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+
+    it('normalizes OFT configs to sentinel router state for checks', () => {
+      const warpDeployConfig: WarpRouteDeployConfigMailboxRequired = {
+        [test1.name]: {
+          decimals: 6,
+          destinationGas: { [test2.name]: '12345' },
+          domainMappings: { [test2.name]: 30110 },
+          extraOptions: '0x',
+          hook: OTHER_ADDRESS,
+          interchainSecurityModule: OTHER_ADDRESS,
+          mailbox: ADDRESS,
+          name: 'USDT',
+          oft: OTHER_ADDRESS,
+          owner: ADDRESS,
+          remoteRouters: {
+            [test2.name]: {
+              address: OTHER_ADDRESS,
+            },
+          },
+          symbol: 'USDT',
+          token: ADDRESS,
+          type: TokenType.collateralOft,
+        },
+      };
+
+      const normalized = normalizeWarpDeployConfigForCheck({
+        multiProvider: buildMultiProvider(),
+        warpDeployConfig,
+      });
+
+      expect(normalized[test1.name]).to.deep.equal({
+        decimals: 6,
+        destinationGas: undefined,
+        domainMappings: { [test2.domainId]: 30110 },
+        extraOptions: undefined,
+        hook: constants.AddressZero,
+        interchainSecurityModule: constants.AddressZero,
+        mailbox: constants.AddressZero,
+        name: 'USDT',
+        oft: OTHER_ADDRESS,
+        owner: ADDRESS,
+        remoteRouters: {},
+        symbol: 'USDT',
+        token: ADDRESS,
+        type: TokenType.collateralOft,
+      });
+    });
+
+    it('preserves non-empty OFT extraOptions', () => {
+      const warpDeployConfig: WarpRouteDeployConfigMailboxRequired = {
+        [test1.name]: {
+          decimals: 6,
+          domainMappings: { [test2.name]: 30110 },
+          extraOptions: '0xdeadbeef',
+          hook: OTHER_ADDRESS,
+          interchainSecurityModule: OTHER_ADDRESS,
+          mailbox: ADDRESS,
+          name: 'USDT',
+          oft: OTHER_ADDRESS,
+          owner: ADDRESS,
+          symbol: 'USDT',
+          token: ADDRESS,
+          type: TokenType.collateralOft,
+        },
+      };
+
+      const normalized = normalizeWarpDeployConfigForCheck({
+        multiProvider: buildMultiProvider(),
+        warpDeployConfig,
+      });
+
+      expect(normalized[test1.name]).to.deep.include({
+        extraOptions: '0xdeadbeef',
+      });
+    });
+
+    it('leaves non-OFT configs unchanged', () => {
+      const warpDeployConfig: WarpRouteDeployConfigMailboxRequired = {
+        [test1.name]: {
+          decimals: 18,
+          mailbox: ADDRESS,
+          name: 'TOKEN',
+          owner: ADDRESS,
+          symbol: 'TKN',
+          type: TokenType.synthetic,
+        },
+      };
+
+      const normalized = normalizeWarpDeployConfigForCheck({
+        multiProvider: buildMultiProvider(),
+        warpDeployConfig,
+      });
+
+      expect(normalized).to.deep.equal(warpDeployConfig);
     });
   });
 

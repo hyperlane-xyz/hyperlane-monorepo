@@ -1,5 +1,93 @@
 # @hyperlane-xyz/sdk
 
+## 33.0.1
+
+### Patch Changes
+
+- a2081df: Sealevel cross-collateral tokens were classified as cross-collateral again when building WarpCore routes.
+- 4c91737: Added shared chain ID normalization helpers under the existing `metadata/*` subpath so metadata-first consumers can reuse the same chain ID and effective domain ID validation logic as the SDK resolver.
+  - @hyperlane-xyz/aleo-sdk@33.0.1
+  - @hyperlane-xyz/starknet-core@33.0.1
+  - @hyperlane-xyz/cosmos-sdk@33.0.1
+  - @hyperlane-xyz/radix-sdk@33.0.1
+  - @hyperlane-xyz/utils@33.0.1
+  - @hyperlane-xyz/deploy-sdk@5.0.3
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/provider-sdk@5.0.3
+  - @hyperlane-xyz/tron-sdk@23.0.3
+
+## 33.0.0
+
+### Major Changes
+
+- dc8e560: Added Predicate integration for compliance-gated warp route transfers
+  - Added `PredicateWrapperConfigSchema` for configuring predicate wrapper deployment
+  - Added `PredicateApiClient` for fetching attestations from Predicate API
+  - Added `PredicateWrapperDeployer` for deploying and configuring PredicateRouterWrapper contracts
+  - Integrated predicate wrapper deployment into warp route deployment flow
+  - Supported aggregation hooks with predicate wrapper (wrapper executes first)
+  - Always aggregated predicate wrapper with mailbox default hook to ensure gas quoting works correctly
+  - Detected PredicateRouterWrapper recursively inside nested aggregation hooks
+
+  Example configuration:
+
+  ```yaml
+  ethereum:
+    type: collateral
+    token: '0x...'
+    predicateWrapper:
+      predicateRegistry: '0xe15a8Ca5BD8464283818088c1760d8f23B6a216E'
+      policyId: 'x-your-policy-id'
+  ```
+
+### Patch Changes
+
+- @hyperlane-xyz/aleo-sdk@33.0.0
+- @hyperlane-xyz/starknet-core@33.0.0
+- @hyperlane-xyz/cosmos-sdk@33.0.0
+- @hyperlane-xyz/radix-sdk@33.0.0
+- @hyperlane-xyz/utils@33.0.0
+- @hyperlane-xyz/deploy-sdk@5.0.2
+- @hyperlane-xyz/core@11.3.1
+- @hyperlane-xyz/provider-sdk@5.0.2
+- @hyperlane-xyz/tron-sdk@23.0.2
+
+## 32.0.1
+
+### Patch Changes
+
+- 611b911: Normalized scale values in warp route check so plain numbers from config and {numerator, denominator} objects from on-chain reader compare equal during diff.
+- c6de4c9: Updated warp check to validate OFT routes using OFT-specific sentinel router state and normalized empty extraOptions/domainMappings values.
+  - @hyperlane-xyz/aleo-sdk@32.0.1
+  - @hyperlane-xyz/starknet-core@32.0.1
+  - @hyperlane-xyz/cosmos-sdk@32.0.1
+  - @hyperlane-xyz/radix-sdk@32.0.1
+  - @hyperlane-xyz/utils@32.0.1
+  - @hyperlane-xyz/deploy-sdk@5.0.1
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/provider-sdk@5.0.1
+  - @hyperlane-xyz/tron-sdk@23.0.1
+
+## 32.0.0
+
+### Patch Changes
+
+- e4da110: Fixed routing fee for non-evm legs
+- d588eb5: Replaced z.coerce.bigint().positive() with ZBigNumberish.refine() in TokenMetadataSchema scale field for zod-to-json-schema compatibility. Fixed validateZodResult generic to correctly return output type for schemas with transforms.
+- ab17263: Fixed Solana-origin `warp send` by adding a legacy @solana/web3.js to @solana/kit transaction conversion layer. SDK adapters return legacy Transaction objects, but the SvmSigner expects kit-format instructions. The conversion handles instruction format translation, compute budget preservation, and extra signer (Keypair→TransactionSigner) conversion. SvmReceipt was extended with transaction meta (logs) fetched after confirmation so extractMessageIds works for Solana transfers.
+- ebde778: Fixed `deliver()` and `sendMessage()` in HyperlaneCore to connect the mailbox with the current signer at call time, preventing "sending a transaction requires a signer" errors when signers are added after construction. The `status --relay` command now exits non-zero when relay fails.
+- Updated dependencies [3dc6367]
+- Updated dependencies [fa08f2a]
+  - @hyperlane-xyz/provider-sdk@5.0.0
+  - @hyperlane-xyz/aleo-sdk@32.0.0
+  - @hyperlane-xyz/tron-sdk@23.0.0
+  - @hyperlane-xyz/cosmos-sdk@32.0.0
+  - @hyperlane-xyz/radix-sdk@32.0.0
+  - @hyperlane-xyz/deploy-sdk@5.0.0
+  - @hyperlane-xyz/starknet-core@32.0.0
+  - @hyperlane-xyz/utils@32.0.0
+  - @hyperlane-xyz/core@11.3.1
+
 ## 31.2.1
 
 ### Patch Changes

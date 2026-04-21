@@ -1,11 +1,16 @@
 import { clsx } from 'clsx';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import {
   ChainMetadata,
   ChainMetadataSchema,
+  mergeChainMetadataMap,
 } from '@hyperlane-xyz/sdk/metadata/chainMetadataTypes';
+import {
+  areChainIdsEqual,
+  getEffectiveDomainId,
+} from '@hyperlane-xyz/sdk/metadata/chainIdUtils';
 import type { ChainMap } from '@hyperlane-xyz/sdk/types';
 import {
   Result,
@@ -82,6 +87,10 @@ function Form({
 }: ChainAddMenuProps) {
   const [textInput, setTextInput] = useState('');
   const [error, setError] = useState<any>(null);
+  const existingChainMetadata = useMemo(
+    () => mergeChainMetadataMap(chainMetadata, overrideChainMetadata),
+    [chainMetadata, overrideChainMetadata],
+  );
 
   const onChangeInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setTextInput(e.target.value);
@@ -89,7 +98,7 @@ function Form({
   };
 
   const onClickAdd = () => {
-    const result = tryParseMetadataInput(textInput, chainMetadata);
+    const result = tryParseMetadataInput(textInput, existingChainMetadata);
     if (result.success) {
       onChangeOverrideMetadata({
         ...overrideChainMetadata,
@@ -149,14 +158,27 @@ function tryParseMetadataInput(
   }
 
   const newMetadata = result.data as ChainMetadata;
+  const chainId = newMetadata.chainId;
+  const effectiveDomainId = getEffectiveDomainId(newMetadata);
 
   if (existingChainMetadata[newMetadata.name]) {
     return failure('name is already in use by another chain');
   }
 
+  // The resolver can tolerate ambiguous duplicate chainId aliases, but local
+  // add-chain UX rejects them to avoid persisting ambiguous metadata entries.
   if (
-    Object.values(existingChainMetadata).some(
-      (metadata) => metadata.domainId === newMetadata.domainId,
+    Object.entries(existingChainMetadata).some(([, metadata]) =>
+      areChainIdsEqual(metadata.chainId, chainId),
+    )
+  ) {
+    return failure('chainId is already in use by another chain');
+  }
+
+  if (
+    effectiveDomainId !== null &&
+    Object.entries(existingChainMetadata).some(
+      ([, metadata]) => getEffectiveDomainId(metadata) === effectiveDomainId,
     )
   ) {
     return failure('domainId is already in use by another chain');

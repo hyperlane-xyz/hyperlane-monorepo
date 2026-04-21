@@ -636,7 +636,8 @@ export class ActionTracker implements IActionTracker {
         );
       }
 
-      // Compute amounts from action states
+      // Only inventory_deposit amounts advance fulfillment. inventory_movement
+      // amounts stay in source-local units and only gate retries/stale cleanup.
       const completedAmount = actions
         .filter(
           (a) => a.status === 'complete' && a.type === 'inventory_deposit',
