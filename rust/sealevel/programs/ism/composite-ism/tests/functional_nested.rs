@@ -47,7 +47,7 @@ const ORIGIN: u32 = 1234;
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 fn routing_root() -> IsmNode {
-    IsmNode::Routing { default_ism: None }
+    IsmNode::Routing
 }
 
 fn verify_ixn_empty(origin: u32) -> VerifyInstruction {

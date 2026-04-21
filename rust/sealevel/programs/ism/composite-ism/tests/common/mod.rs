@@ -3,7 +3,10 @@
 use borsh::BorshDeserialize;
 use hyperlane_core::{HyperlaneMessage, ModuleType, H256};
 use hyperlane_sealevel_composite_ism::{
-    accounts::{derive_domain_pda, IsmNode},
+    accounts::{
+        derive_domain_pda, CompositeIsmAccount, CompositeIsmStorage, DomainIsmAccount,
+        DomainIsmStorage, IsmNode,
+    },
     instruction::{
         initialize_instruction, remove_domain_ism_instruction, set_domain_ism_instruction,
         update_config_instruction,
@@ -13,9 +16,10 @@ use hyperlane_sealevel_composite_ism::{
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction, VERIFY_ACCOUNT_METAS_PDA_SEEDS,
 };
+use hyperlane_sealevel_mailbox::accounts::{Inbox, InboxAccount};
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_banks_interface::BanksTransactionResultWithSimulation;
-use solana_program::{instruction::AccountMeta, pubkey, pubkey::Pubkey};
+use solana_program::{account_info::AccountInfo, instruction::AccountMeta, pubkey, pubkey::Pubkey};
 use solana_program_test::{BanksClient, BanksClientError, ProgramTest};
 use solana_sdk::{
     hash::Hash,
@@ -357,4 +361,91 @@ pub async fn get_ism_type(
         .unwrap()
         .return_data;
     num_traits::FromPrimitive::from_u32(type_u32).unwrap()
+}
+
+// ── Account-data helpers ─────────────────────────────────────────────────────
+// Used by functional tests that exercise the FallbackRouting fallback path,
+// where on-chain accounts for the Mailbox Inbox PDA and the fallback ISM's
+// storage PDA must be pre-populated in the test bank.
+
+/// Serializes a [`DomainIsmStorage`] into a raw byte buffer and returns the PDA key.
+pub fn make_domain_pda_data(
+    program_id: &Pubkey,
+    origin: u32,
+    ism: Option<IsmNode>,
+) -> (Pubkey, Vec<u8>) {
+    let (key, bump) = derive_domain_pda(program_id, origin);
+    let storage = DomainIsmStorage {
+        bump_seed: bump,
+        domain: origin,
+        ism,
+    };
+    let mut data = vec![0u8; 512];
+    let mut lamports = 0u64;
+    let acc = AccountInfo::new(
+        &key,
+        false,
+        true,
+        &mut lamports,
+        &mut data,
+        program_id,
+        false,
+    );
+    DomainIsmAccount::from(storage).store(&acc, false).unwrap();
+    (key, data)
+}
+
+/// Serializes a mailbox [`InboxAccount`] into a raw byte buffer and returns the PDA key.
+/// `default_ism` is stored as the mailbox's current fallback ISM program ID.
+pub fn make_inbox_data(mailbox: &Pubkey, default_ism: Pubkey) -> (Pubkey, Vec<u8>) {
+    let (inbox_key, bump) = Pubkey::find_program_address(&[b"hyperlane", b"-", b"inbox"], mailbox);
+    let inbox = Inbox {
+        local_domain: 0,
+        inbox_bump_seed: bump,
+        default_ism,
+        processed_count: 0,
+    };
+    let mut data = vec![0u8; 256];
+    let mut lamports = 0u64;
+    let acc = AccountInfo::new(
+        &inbox_key,
+        false,
+        true,
+        &mut lamports,
+        &mut data,
+        mailbox,
+        false,
+    );
+    InboxAccount::from(inbox).store(&acc, false).unwrap();
+    (inbox_key, data)
+}
+
+/// Serializes a [`CompositeIsmAccount`] for a fallback ISM program into a raw byte buffer
+/// and returns the PDA key.
+pub fn make_fallback_storage_data(
+    fallback_program_id: &Pubkey,
+    root: Option<IsmNode>,
+) -> (Pubkey, Vec<u8>) {
+    let (key, bump) =
+        Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, fallback_program_id);
+    let storage = CompositeIsmStorage {
+        bump_seed: bump,
+        owner: None,
+        root,
+    };
+    let mut data = vec![0u8; 512];
+    let mut lamports = 0u64;
+    let acc = AccountInfo::new(
+        &key,
+        false,
+        true,
+        &mut lamports,
+        &mut data,
+        fallback_program_id,
+        false,
+    );
+    CompositeIsmAccount::from(storage)
+        .store(&acc, false)
+        .unwrap();
+    (key, data)
 }

@@ -35,6 +35,30 @@ pub enum MetadataSpec {
     },
 }
 
+/// Loads the domain ISM from `domain_pda_info` and resolves its spec.
+/// Returns `Ok(Some(spec))` if a domain ISM is configured, `Ok(None)` to fall through.
+fn try_spec_via_domain_ism<'a, 'info, I>(
+    program_id: &Pubkey,
+    message: &HyperlaneMessage,
+    domain_pda_info: &AccountInfo<'info>,
+    accounts_iter: &mut I,
+) -> Result<Option<MetadataSpec>, Error>
+where
+    I: Iterator<Item = &'a AccountInfo<'info>>,
+    'info: 'a,
+{
+    let loaded = load_and_validate_domain_ism_storage(program_id, message.origin, domain_pda_info)
+        .map_err(|_| Error::InvalidConfig)?;
+
+    if let Some(ref storage) = loaded {
+        if let Some(ref ism) = storage.ism {
+            return spec_for_node_with_pdas(ism, message, program_id, accounts_iter).map(Some);
+        }
+    }
+
+    Ok(None)
+}
+
 /// Resolves the [`MetadataSpec`] for an ISM node given the message.
 ///
 /// For each `Routing` encountered during depth-first traversal, the next
@@ -52,27 +76,13 @@ where
 {
     match node {
         IsmNode::Routing => {
-            // Expect the domain PDA as the next account.
             let domain_pda_info = accounts_iter.next().ok_or(Error::InvalidDomainPda)?;
-
-            // Verify correct account.
             let (expected_key, _) = derive_domain_pda(program_id, message.origin);
             if *domain_pda_info.key != expected_key {
                 return Err(Error::InvalidDomainPda);
             }
-
-            // Load sub-ISM.
-            let loaded =
-                load_and_validate_domain_ism_storage(program_id, message.origin, domain_pda_info)
-                    .map_err(|_| Error::InvalidConfig)?;
-
-            if let Some(ref storage) = loaded {
-                if let Some(ref ism) = storage.ism {
-                    return spec_for_node_with_pdas(ism, message, program_id, accounts_iter);
-                }
-            }
-
-            Err(Error::NoRouteForDomain)
+            try_spec_via_domain_ism(program_id, message, domain_pda_info, accounts_iter)?
+                .ok_or(Error::NoRouteForDomain)
         }
 
         IsmNode::MultisigMessageId {
@@ -108,22 +118,16 @@ where
         }
 
         IsmNode::FallbackRouting { mailbox } => {
-            // Expect the domain PDA as the next account.
             let domain_pda_info = accounts_iter.next().ok_or(Error::InvalidDomainPda)?;
             let (expected_key, _) = derive_domain_pda(program_id, message.origin);
             if *domain_pda_info.key != expected_key {
                 return Err(Error::InvalidDomainPda);
             }
 
-            // Try domain PDA first.
-            let loaded =
-                load_and_validate_domain_ism_storage(program_id, message.origin, domain_pda_info)
-                    .map_err(|_| Error::InvalidConfig)?;
-
-            if let Some(ref storage) = loaded {
-                if let Some(ref ism) = storage.ism {
-                    return spec_for_node_with_pdas(ism, message, program_id, accounts_iter);
-                }
+            if let Some(spec) =
+                try_spec_via_domain_ism(program_id, message, domain_pda_info, accounts_iter)?
+            {
+                return Ok(spec);
             }
 
             // Fallback path — expect inbox PDA, then fallback storage PDA.

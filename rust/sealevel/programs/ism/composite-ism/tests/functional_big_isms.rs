@@ -228,14 +228,9 @@ async fn test_scale_200_domains_aggregation_pausable_multisig() {
 
     // ── 1. Initialize with a bare Routing root ────────────────────────────
     let blockhash = banks_client.get_latest_blockhash().await.unwrap();
-    initialize(
-        &mut banks_client,
-        &payer,
-        blockhash,
-        IsmNode::Routing { default_ism: None },
-    )
-    .await
-    .unwrap();
+    initialize(&mut banks_client, &payer, blockhash, IsmNode::Routing)
+        .await
+        .unwrap();
 
     // ── 2. Register 200 domain PDAs ───────────────────────────────────────
     // domains 1..=199 + VERIFY_DOMAIN (1234) = 200 total.
@@ -704,14 +699,9 @@ async fn test_scale_set_domain_ism_large_config() {
 
     // Initialize with a bare Routing root.
     let blockhash = banks_client.get_latest_blockhash().await.unwrap();
-    initialize(
-        &mut banks_client,
-        &payer,
-        blockhash,
-        IsmNode::Routing { default_ism: None },
-    )
-    .await
-    .unwrap();
+    initialize(&mut banks_client, &payer, blockhash, IsmNode::Routing)
+        .await
+        .unwrap();
 
     // Register the large domain ISM.
     let blockhash = banks_client.get_latest_blockhash().await.unwrap();

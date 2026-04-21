@@ -22,6 +22,39 @@ use crate::{
     rate_limit::calculate_current_level,
 };
 
+/// Validates the domain PDA key, loads its stored ISM, and if one is configured verifies
+/// the message through it.  Returns `Ok(true)` on success, `Ok(false)` when no domain ISM
+/// is stored (so the caller can fall through to a fallback), or `Err` on failure.
+fn try_verify_domain_ism<'a, 'b, I>(
+    program_id: &Pubkey,
+    message: &HyperlaneMessage,
+    domain_pda_info: &AccountInfo,
+    metadata: &[u8],
+    accounts_iter: &mut I,
+) -> Result<bool, solana_program::program_error::ProgramError>
+where
+    I: Iterator<Item = &'a AccountInfo<'b>>,
+    'b: 'a,
+{
+    let loaded = load_and_validate_domain_ism_storage(program_id, message.origin, domain_pda_info)?;
+
+    if let Some(mut storage) = loaded {
+        if let Some(mut ism) = storage.ism.take() {
+            if contains_rate_limited(&ism) && !domain_pda_info.is_writable {
+                return Err(Error::DomainPdaNotWritable.into());
+            }
+            verify_node(&mut ism, metadata, message, accounts_iter, program_id)?;
+            if domain_pda_info.is_writable {
+                storage.ism = Some(ism);
+                DomainIsmAccount::from(storage).store(domain_pda_info, false)?;
+            }
+            return Ok(true);
+        }
+    }
+
+    Ok(false)
+}
+
 /// Recursively verifies a message against an ISM node.
 ///
 /// `node` is `&mut` so that `RateLimited` can update `filled_level` and
@@ -124,37 +157,22 @@ where
         }
 
         IsmNode::Routing => {
-            // Pop the domain PDA from the accounts iterator.
             let domain_pda_info = next_account_info(accounts_iter)?;
-
-            // Verify the caller passed the correct domain PDA for this origin.
             let (expected_key, _) = derive_domain_pda(program_id, message.origin);
             if *domain_pda_info.key != expected_key {
                 return Err(Error::InvalidDomainPda.into());
             }
-
-            // Load the full domain PDA storage (None if not owned by this program).
-            let loaded_storage =
-                load_and_validate_domain_ism_storage(program_id, message.origin, domain_pda_info)?;
-
-            if let Some(mut storage) = loaded_storage {
-                if let Some(mut ism) = storage.ism.take() {
-                    // RateLimited state must be persisted; require a writable domain PDA so a
-                    // hand-crafted transaction cannot bypass the rate limit by passing it readonly.
-                    if contains_rate_limited(&ism) && !domain_pda_info.is_writable {
-                        return Err(Error::DomainPdaNotWritable.into());
-                    }
-                    verify_node(&mut ism, metadata, message, accounts_iter, program_id)?;
-                    // Write updated state back to the domain PDA (e.g. RateLimited counters).
-                    if domain_pda_info.is_writable {
-                        storage.ism = Some(ism);
-                        DomainIsmAccount::from(storage).store(domain_pda_info, false)?;
-                    }
-                    return Ok(());
-                }
+            if try_verify_domain_ism(
+                program_id,
+                message,
+                domain_pda_info,
+                metadata,
+                accounts_iter,
+            )? {
+                Ok(())
+            } else {
+                Err(Error::NoRouteForDomain.into())
             }
-
-            Err(Error::NoRouteForDomain.into())
         }
 
         IsmNode::Test { accept } => {
@@ -174,32 +192,21 @@ where
         }
 
         IsmNode::FallbackRouting { mailbox } => {
-            // Pop the domain PDA (same as Routing).
             let domain_pda_info = next_account_info(accounts_iter)?;
             let (expected_key, _) = derive_domain_pda(program_id, message.origin);
             if *domain_pda_info.key != expected_key {
                 return Err(Error::InvalidDomainPda.into());
             }
 
-            // Load the full domain PDA storage (None if not owned by this program).
-            let loaded =
-                load_and_validate_domain_ism_storage(program_id, message.origin, domain_pda_info)?;
-
-            if let Some(mut storage) = loaded {
-                if let Some(mut ism) = storage.ism.take() {
-                    if contains_rate_limited(&ism) && !domain_pda_info.is_writable {
-                        return Err(Error::DomainPdaNotWritable.into());
-                    }
-                    verify_node(&mut ism, metadata, message, accounts_iter, program_id)?;
-                    if domain_pda_info.is_writable {
-                        storage.ism = Some(ism);
-                        DomainIsmAccount::from(storage).store(domain_pda_info, false)?;
-                    }
-                    return Ok(());
-                }
-                // ism is None — domain PDA exists but holds no ISM; fall through.
+            if try_verify_domain_ism(
+                program_id,
+                message,
+                domain_pda_info,
+                metadata,
+                accounts_iter,
+            )? {
+                return Ok(());
             }
-            // domain_pda not owned by this program — fall through.
 
             // No domain ISM — fall back to the Mailbox's current default ISM.
 
@@ -214,7 +221,6 @@ where
                 return Err(Error::InvalidMailboxAccount.into());
             }
 
-            // Read default_ism (= fallback ISM program ID) from the Inbox.
             let inbox = InboxAccount::fetch_data(&mut &inbox_pda_info.data.borrow()[..])?
                 .ok_or(Error::InvalidMailboxAccount)?;
             let fallback_program_id = inbox.default_ism;
@@ -230,15 +236,14 @@ where
                 return Err(Error::InvalidFallbackIsmAccount.into());
             }
 
-            // Load the fallback ISM's root IsmNode and verify inline.
-            // Recursing with fallback_program_id means any FallbackRouting node
-            // inside the fallback ISM uses its own mailbox field independently.
             let fallback_storage =
-                CompositeIsmAccount::fetch_data(&mut &fallback_storage_info.data.borrow()[..])?
+                CompositeIsmAccount::fetch_data(&mut &fallback_storage_info.data.borrow()[..])
+                    .ok()
+                    .flatten()
                     .ok_or(Error::InvalidFallbackIsmAccount)?;
             let mut fallback_root = fallback_storage.root.ok_or(Error::ConfigNotSet)?;
 
-            // Recurse with the fallback program's ID so its domain PDAs are derived correctly.
+            // Recurse with fallback_program_id so its domain PDAs are derived correctly.
             verify_node(
                 &mut fallback_root,
                 metadata,
@@ -610,7 +615,8 @@ mod test {
             &program_id,
             &[],
             &mut 0,
-        );
+        )
+        .unwrap();
         assert_eq!(
             metas.len(),
             2,

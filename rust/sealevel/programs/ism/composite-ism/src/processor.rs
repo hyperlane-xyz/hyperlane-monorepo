@@ -143,14 +143,7 @@ fn verify_account_metas(
     // Remaining accounts (after the VAM PDA) are potential domain PDAs for pass-2 resolution.
     let extra: Vec<&AccountInfo> = accounts_iter.collect();
 
-    Ok(all_verify_account_metas(
-        &vam_pda_key,
-        root,
-        metadata,
-        message,
-        program_id,
-        &extra,
-    ))
+    all_verify_account_metas(&vam_pda_key, root, metadata, message, program_id, &extra)
 }
 
 /// Returns the [`MetadataSpec`] for a given message.
@@ -538,7 +531,6 @@ fn normalize_node(node: &mut IsmNode) {
             normalize_node(lower);
             normalize_node(upper);
         }
-        IsmNode::Routing | IsmNode::FallbackRouting { .. } => {}
         _ => {}
     }
 }

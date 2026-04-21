@@ -5,16 +5,13 @@
 //! time, keeping heap usage O(1) regardless of how many domains are configured.
 //!
 //! CONFIG:
-//! - Initialize stores the Routing root node (with table_id and optional
-//!   default_ism) in the VAM PDA.
+//! - Initialize stores the Routing root node in the VAM PDA.
 //! - SetDomainIsm creates or updates the per-domain PDA for a given origin.
-//! - RemoveDomainIsm closes the per-domain PDA, reverting to the default_ism.
+//! - RemoveDomainIsm closes the per-domain PDA.
 //!
 //! VERIFY:
 //! - Verify succeeds when a domain PDA exists for the message's origin.
-//! - Verify succeeds via default_ism when no domain PDA exists.
-//! - Verify fails NoRouteForDomain when no domain PDA and no default_ism.
-//! - After RemoveDomainIsm, Verify falls back to default_ism.
+//! - Verify fails NoRouteForDomain when no domain PDA exists.
 //!
 //! VERIFY ACCOUNT METAS:
 //! - Pass 1: returns [storage_pda, domain_pda].
@@ -49,7 +46,7 @@ const OTHER_ORIGIN: u32 = 9999;
 async fn test_initialize() {
     let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
 
-    let root = IsmNode::Routing { default_ism: None };
+    let root = IsmNode::Routing;
     initialize(&mut banks_client, &payer, recent_blockhash, root.clone())
         .await
         .unwrap();
@@ -76,7 +73,7 @@ async fn test_set_domain_ism_creates_pda() {
         &mut banks_client,
         &payer,
         recent_blockhash,
-        IsmNode::Routing { default_ism: None },
+        IsmNode::Routing,
     )
     .await
     .unwrap();
@@ -114,9 +111,7 @@ async fn test_remove_domain_ism_closes_pda() {
         &mut banks_client,
         &payer,
         recent_blockhash,
-        IsmNode::Routing {
-            default_ism: Some(Box::new(IsmNode::Test { accept: true })),
-        },
+        IsmNode::Routing,
     )
     .await
     .unwrap();
@@ -152,7 +147,7 @@ async fn test_verify_via_domain_pda() {
         &mut banks_client,
         &payer,
         recent_blockhash,
-        IsmNode::Routing { default_ism: None },
+        IsmNode::Routing,
     )
     .await
     .unwrap();
@@ -200,7 +195,7 @@ async fn test_verify_rejects_via_domain_pda() {
         &mut banks_client,
         &payer,
         recent_blockhash,
-        IsmNode::Routing { default_ism: None },
+        IsmNode::Routing,
     )
     .await
     .unwrap();
@@ -247,47 +242,6 @@ async fn test_verify_rejects_via_domain_pda() {
 }
 
 #[tokio::test]
-async fn test_verify_uses_default_when_no_domain_pda() {
-    let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
-
-    // default_ism accepts; no domain PDA for ORIGIN.
-    initialize(
-        &mut banks_client,
-        &payer,
-        recent_blockhash,
-        IsmNode::Routing {
-            default_ism: Some(Box::new(IsmNode::Test { accept: true })),
-        },
-    )
-    .await
-    .unwrap();
-
-    let mut msg = dummy_message();
-    msg.origin = ORIGIN;
-    let verify_ixn = VerifyInstruction {
-        metadata: vec![],
-        message: msg.to_vec(),
-    };
-    let account_metas = get_all_verify_account_metas(
-        &mut banks_client,
-        &payer,
-        recent_blockhash,
-        verify_ixn.clone(),
-    )
-    .await;
-    let result = simulate_verify(
-        &mut banks_client,
-        &payer,
-        recent_blockhash,
-        verify_ixn,
-        account_metas,
-    )
-    .await;
-
-    assert_simulation_ok(&result);
-}
-
-#[tokio::test]
 async fn test_verify_no_route_for_domain() {
     let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
 
@@ -296,7 +250,7 @@ async fn test_verify_no_route_for_domain() {
         &mut banks_client,
         &payer,
         recent_blockhash,
-        IsmNode::Routing { default_ism: None },
+        IsmNode::Routing,
     )
     .await
     .unwrap();
@@ -332,62 +286,6 @@ async fn test_verify_no_route_for_domain() {
     );
 }
 
-#[tokio::test]
-async fn test_verify_falls_back_after_remove_domain_ism() {
-    let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
-
-    initialize(
-        &mut banks_client,
-        &payer,
-        recent_blockhash,
-        IsmNode::Routing {
-            default_ism: Some(Box::new(IsmNode::Test { accept: true })),
-        },
-    )
-    .await
-    .unwrap();
-
-    // Set domain PDA to reject.
-    set_domain_ism(
-        &mut banks_client,
-        &payer,
-        recent_blockhash,
-        ORIGIN,
-        IsmNode::Test { accept: false },
-    )
-    .await
-    .unwrap();
-
-    // Remove it — should fall back to the accepting default_ism.
-    remove_domain_ism(&mut banks_client, &payer, recent_blockhash, ORIGIN)
-        .await
-        .unwrap();
-
-    let mut msg = dummy_message();
-    msg.origin = ORIGIN;
-    let verify_ixn = VerifyInstruction {
-        metadata: vec![],
-        message: msg.to_vec(),
-    };
-    let account_metas = get_all_verify_account_metas(
-        &mut banks_client,
-        &payer,
-        recent_blockhash,
-        verify_ixn.clone(),
-    )
-    .await;
-    let result = simulate_verify(
-        &mut banks_client,
-        &payer,
-        recent_blockhash,
-        verify_ixn,
-        account_metas,
-    )
-    .await;
-
-    assert_simulation_ok(&result);
-}
-
 // ── VERIFY ACCOUNT METAS ─────────────────────────────────────────────────────
 
 #[tokio::test]
@@ -398,7 +296,7 @@ async fn test_verify_account_metas_returns_domain_pda() {
         &mut banks_client,
         &payer,
         recent_blockhash,
-        IsmNode::Routing { default_ism: None },
+        IsmNode::Routing,
     )
     .await
     .unwrap();
@@ -440,7 +338,7 @@ async fn test_verify_account_metas_trusted_relayer_in_domain_pda() {
         &mut banks_client,
         &payer,
         recent_blockhash,
-        IsmNode::Routing { default_ism: None },
+        IsmNode::Routing,
     )
     .await
     .unwrap();
@@ -483,7 +381,7 @@ async fn test_verify_account_metas_different_origins_independent() {
         &mut banks_client,
         &payer,
         recent_blockhash,
-        IsmNode::Routing { default_ism: None },
+        IsmNode::Routing,
     )
     .await
     .unwrap();
