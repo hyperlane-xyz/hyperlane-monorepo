@@ -287,7 +287,6 @@ describe('SVM Fee Stress Tests — Finding Limits', function () {
         signer.signer.address,
         {
           salt,
-          owner: parseAddress(signer.getSignerAddress()),
           beneficiary: parseAddress(signer.getSignerAddress()),
           feeData: {
             kind: FeeDataKind.Leaf,
@@ -370,7 +369,6 @@ describe('SVM Fee Stress Tests — Finding Limits', function () {
         signer.signer.address,
         {
           salt,
-          owner: parseAddress(signer.getSignerAddress()),
           beneficiary: parseAddress(signer.getSignerAddress()),
           feeData: {
             kind: FeeDataKind.Routing,
@@ -433,7 +431,6 @@ describe('SVM Fee Stress Tests — Finding Limits', function () {
         signer.signer.address,
         {
           salt,
-          owner: parseAddress(signer.getSignerAddress()),
           beneficiary: parseAddress(signer.getSignerAddress()),
           feeData: {
             kind: FeeDataKind.Leaf,
@@ -569,7 +566,6 @@ describe('SVM Fee Stress Tests — Finding Limits', function () {
         signer.signer.address,
         {
           salt,
-          owner: parseAddress(signer.getSignerAddress()),
           beneficiary: parseAddress(signer.getSignerAddress()),
           feeData: {
             kind: FeeDataKind.CrossCollateralRouting,

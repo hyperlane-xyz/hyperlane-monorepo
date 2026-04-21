@@ -1,6 +1,7 @@
 import type { Address } from '@solana/kit';
 
 import { FeeType } from '@hyperlane-xyz/provider-sdk/fee';
+import { isNullish } from '@hyperlane-xyz/utils';
 
 import {
   decodeFeeAccount,
@@ -33,14 +34,17 @@ export async function fetchFeeAccount(
 
 /**
  * Maps an on-chain FeeData variant to the provider-sdk FeeType.
- * For Leaf variants, also considers whether signers are present
- * to distinguish offchainQuotedLinear from the pure strategy types.
+ * For Leaf variants, checks whether signers is Some (not None) to distinguish
+ * offchain-quoted from pure on-chain strategies. An empty Some([]) still means
+ * offchain quoting is enabled — it's distinct from None (no quoting at all).
+ *
+ * Note: provider-sdk only models offchainQuotedLinear; on-chain signers are
+ * orthogonal to strategy kind, so any strategy with signers maps here.
  */
 export function detectSvmFeeType(feeData: DecodedFeeData): FeeType {
   switch (feeData.kind) {
     case FeeDataKind.Leaf: {
-      const hasSigners = feeData.signers !== null && feeData.signers.length > 0;
-      if (hasSigners) return FeeType.offchainQuotedLinear;
+      if (!isNullish(feeData.signers)) return FeeType.offchainQuotedLinear;
       return strategyKindToFeeType(feeData.strategy.kind);
     }
     case FeeDataKind.Routing:

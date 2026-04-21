@@ -2,6 +2,7 @@ import {
   FeeStrategyType,
   type FeeStrategy,
 } from '@hyperlane-xyz/provider-sdk/fee';
+import { isNullish } from '@hyperlane-xyz/utils';
 
 import type {
   RouteDomainData,
@@ -23,7 +24,7 @@ export function routeDataToFeeStrategy(route: RouteData): FeeStrategy {
     halfAmount: halfAmount.toString(),
   };
 
-  if (route.signers !== null && route.signers.length > 0) {
+  if (!isNullish(route.signers)) {
     return {
       type: FeeStrategyType.offchainQuotedLinear,
       ...base,

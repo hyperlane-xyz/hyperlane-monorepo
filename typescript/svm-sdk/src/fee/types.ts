@@ -3,6 +3,7 @@ import { keccak_256 } from '@noble/hashes/sha3';
 
 import type { DeployedFeeAddress } from '@hyperlane-xyz/provider-sdk/fee';
 
+import { addressBytes, ensureLength } from '../codecs/binary.js';
 import type { SvmProgramTarget } from '../types.js';
 
 /** Deployed fee artifact data — address is the program, feeAccountPda is the salted PDA. */
@@ -46,16 +47,12 @@ export type FeeDataKind = (typeof FeeDataKind)[keyof typeof FeeDataKind];
 /**
  * Convert a hex signer address (0x-prefixed, 20-byte Ethereum address)
  * to a raw 20-byte H160 Uint8Array for on-chain encoding.
+ * Validates hex format and exact length.
  */
 export function signerToH160(hexAddress: string): Uint8Array {
-  const stripped = hexAddress.startsWith('0x')
-    ? hexAddress.slice(2)
-    : hexAddress;
-  const bytes = new Uint8Array(20);
-  for (let i = 0; i < 20; i++) {
-    bytes[i] = parseInt(stripped.slice(i * 2, i * 2 + 2), 16);
-  }
-  return bytes;
+  return Uint8Array.from(
+    ensureLength(addressBytes(hexAddress), 20, 'H160 signer'),
+  );
 }
 
 /**

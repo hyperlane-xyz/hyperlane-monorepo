@@ -42,7 +42,14 @@ export function encodeFeeDataStrategy(
 // ── BTreeSet<H160> encoding (Borsh: u32 len + sorted 20-byte entries) ─
 
 export function encodeBTreeSetH160(signers: Uint8Array[]): ReadonlyUint8Array {
-  return vec(signers, (s) => Uint8Array.from(s));
+  // Sort lexicographically to match Rust BTreeSet canonical serialization order.
+  const sorted = [...signers].sort((a, b) => {
+    for (let i = 0; i < a.length; i++) {
+      if (a[i]! !== b[i]!) return a[i]! - b[i]!;
+    }
+    return 0;
+  });
+  return vec(sorted, (s) => Uint8Array.from(s));
 }
 
 export function encodeOptionalBTreeSetH160(

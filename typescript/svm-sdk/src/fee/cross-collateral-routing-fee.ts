@@ -21,6 +21,7 @@ import {
   ZERO_ADDRESS_HEX_32,
 } from '@hyperlane-xyz/utils';
 
+import { addressBytes, ensureLength } from '../codecs/binary.js';
 import type { SvmSigner } from '../clients/signer.js';
 import { resolveProgram } from '../deploy/resolve-program.js';
 import {
@@ -49,12 +50,7 @@ import {
 
 /** Convert a hex router address string to a 32-byte Uint8Array (H256). */
 function routerToBytes(router: string): Uint8Array {
-  const stripped = router.startsWith('0x') ? router.slice(2) : router;
-  const bytes = new Uint8Array(32);
-  for (let i = 0; i < 32; i++) {
-    bytes[i] = parseInt(stripped.slice(i * 2, i * 2 + 2), 16);
-  }
-  return bytes;
+  return Uint8Array.from(ensureLength(addressBytes(router), 32, 'H256 router'));
 }
 
 /** Collect all FeeStrategy values from the nested CC routes map. */
