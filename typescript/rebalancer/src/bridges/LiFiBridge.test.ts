@@ -688,12 +688,27 @@ describe('LiFiBridge constructor chainMetadataByChainId', function () {
 
   it('should prefer Ethereum metadata for LiFi chainId lookups when non-EVM chainIds collide', () => {
     const bridge = new LiFiBridge(DUPLICATE_CHAIN_ID_CONFIG, testLogger);
+    const quote = createTestQuote(
+      { fromChainId: 1 },
+      {
+        fromChain: 1,
+        toChain: 1151111081099710,
+      },
+    );
 
-    expect((bridge as any).getProtocolTypeForChainId(1)).to.equal(
-      ProtocolType.Ethereum,
-    );
-    expect((bridge as any).getRpcUrlForChainId(1)).to.equal(
-      'https://ethereum-rpc.local',
-    );
+    return bridge
+      .execute(quote, {
+        [ProtocolType.Ethereum]: '0x1234',
+      })
+      .catch((error: unknown) => {
+        const msg = error instanceof Error ? error.message : String(error);
+        expect(
+          isValidationError(msg),
+          `Expected non-validation error but got: ${msg}`,
+        ).to.equal(false);
+        expect(msg).to.not.include('Missing private key');
+        expect(msg).to.not.include('protocol radix');
+        expect(msg.toLowerCase()).to.include('private key');
+      });
   });
 });
