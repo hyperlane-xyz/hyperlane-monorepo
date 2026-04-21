@@ -15,7 +15,6 @@ import {
   getSignerForChain,
   type TypedTransactionReceipt,
 } from '@hyperlane-xyz/sdk';
-<<<<<<< HEAD
 import {
   ProtocolType,
   assert,
@@ -96,7 +95,6 @@ type InventoryMovementExecutionResult =
       success: false;
       error: string;
     };
-
 const RECOVERABLE_MAX_TRANSFER_ERROR_MESSAGES = [
   'balance may be insufficient',
   'transfer amount exceeds balance',
