@@ -32,10 +32,14 @@ pub struct TxHashCache {
 
 impl TxHashCache {
     pub fn new(max_entries: usize) -> Self {
+        Self::new_with_ttl(max_entries, Duration::from_secs(300))
+    }
+
+    pub fn new_with_ttl(max_entries: usize, ttl: Duration) -> Self {
         Self {
             cache: HashMap::new(),
             max_entries,
-            ttl: Duration::from_secs(300), // 5 minutes
+            ttl,
         }
     }
 
