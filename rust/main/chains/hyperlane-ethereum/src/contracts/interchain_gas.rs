@@ -134,15 +134,16 @@ where
             let provider = self.provider.clone();
             let contract = self.contract.address();
             Box::pin(async move {
-                fetch_raw_logs_and_meta::<GasPaymentFilter, M>(tx_hash, provider, contract).await
+                fetch_raw_logs_and_meta::<GasPaymentFilter, M>(tx_hash, provider, contract)
+                    .await?
+                    .ok_or_else(|| {
+                        ChainCommunicationError::CustomError(format!(
+                            "No receipt found for tx hash {tx_hash:?}"
+                        ))
+                    })
             })
         })
-        .await
-        .ok_or_else(|| {
-            ChainCommunicationError::CustomError(format!(
-                "No receipt found for tx hash {tx_hash:?}"
-            ))
-        })?;
+        .await;
 
         let logs = raw_logs_and_meta
             .into_iter()

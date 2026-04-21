@@ -10,8 +10,9 @@ use hyperlane_core::{ChainCommunicationError, ChainResult, LogMeta, H512};
 
 use crate::EthereumReorgPeriod;
 
-/// Returns `Ok(None)` when no receipt exists for the tx hash (permanent, not retryable).
-/// Returns `Err` only for transient RPC failures (retryable).
+/// Returns `Ok(None)` when the RPC returns no receipt for the tx hash.
+/// Returns `Err` for transient RPC failures.
+/// Callers that need retry-on-missing-receipt must convert `None` to `Err` inside their retry closure.
 pub async fn fetch_raw_logs_and_meta<T: EthEvent, M>(
     tx_hash: H512,
     provider: Arc<M>,

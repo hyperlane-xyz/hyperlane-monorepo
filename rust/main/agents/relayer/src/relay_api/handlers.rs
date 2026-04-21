@@ -53,6 +53,16 @@ impl TxHashCache {
             .is_some_and(|&ts| Instant::now().duration_since(ts) < self.ttl)
     }
 
+    /// Remove a previously inserted entry (used to roll back a reservation on handler error).
+    pub fn remove(&mut self, chain: &str, tx_hash: &str) {
+        let normalized = tx_hash
+            .strip_prefix("0x")
+            .or_else(|| tx_hash.strip_prefix("0X"))
+            .unwrap_or(tx_hash)
+            .to_lowercase();
+        self.cache.remove(&(chain.to_owned(), normalized));
+    }
+
     /// Check if tx_hash was recently submitted and insert if not.
     /// Returns `Ok(())` if new, `Err(TxHashCacheError)` if duplicate or cache full.
     pub fn check_and_insert(
@@ -375,6 +385,42 @@ async fn create_relay(
         ));
     }
 
+    // Reserve the dedup slot before any side-effecting work so concurrent requests
+    // for the same (chain, tx_hash) are rejected before touching the send channels.
+    // On any downstream failure the reservation is released so the client can retry.
+    if let Some(cache) = &state.tx_hash_cache {
+        let mut cache = cache.write().await;
+        match cache.check_and_insert(req.origin_chain.clone(), req.tx_hash.clone()) {
+            Ok(()) => {}
+            Err(TxHashCacheError::Duplicate) => {
+                state.record_failure("duplicate_tx");
+                return Err(ServerError::TooManyRequests(
+                    "Transaction already submitted recently".to_string(),
+                ));
+            }
+            Err(TxHashCacheError::CacheFull) => {
+                state.record_failure("cache_full");
+                return Err(ServerError::ServiceUnavailable(
+                    "Service temporarily unavailable".to_string(),
+                ));
+            }
+        }
+    }
+
+    let result = relay_work(&state, &req).await;
+
+    // Release the reservation on failure so the client can retry with the same tx hash.
+    if result.is_err() {
+        if let Some(cache) = &state.tx_hash_cache {
+            let mut cache = cache.write().await;
+            cache.remove(&req.origin_chain, &req.tx_hash);
+        }
+    }
+
+    result
+}
+
+async fn relay_work(state: &ServerState, req: &RelayRequest) -> ServerResult<Json<RelayResponse>> {
     // 1. Extract message using indexers (with timeout)
     let indexers = &state.indexers;
 
@@ -603,20 +649,7 @@ async fn create_relay(
         });
     }
 
-    // Phase 2: reject known duplicates before touching any send channel or DB.
-    // This is a read-only check — the key is committed after all sends succeed below.
-    if let Some(cache) = &state.tx_hash_cache {
-        let cache = cache.read().await;
-        if cache.contains(&req.origin_chain, &req.tx_hash) {
-            state.record_failure("duplicate_tx");
-            return Err(ServerError::TooManyRequests(
-                "Transaction already submitted recently".to_string(),
-            ));
-        }
-    }
-
-    // Send all messages, then commit the dedup key only on full success so that
-    // clients can retry if the processor channel is unavailable.
+    // Phase 2: send all validated messages.
     let mut send_failed = false;
     for v in validated {
         if let Err(e) = v
@@ -663,8 +696,6 @@ async fn create_relay(
         });
     }
 
-    // Any send failure is non-200 so the client knows to retry. The dedup key is not
-    // committed in this case, so the client is free to resubmit the same tx hash.
     if send_failed {
         state.record_failure("send_failed");
         return Err(ServerError::InternalError(
@@ -672,29 +703,8 @@ async fn create_relay(
         ));
     }
 
-    // All sends succeeded — now lock the tx hash to prevent replays.
-    if let Some(cache) = &state.tx_hash_cache {
-        let mut cache = cache.write().await;
-        match cache.check_and_insert(req.origin_chain.clone(), req.tx_hash.clone()) {
-            Ok(()) => {}
-            Err(TxHashCacheError::CacheFull) => {
-                state.record_failure("cache_full");
-                return Err(ServerError::ServiceUnavailable(
-                    "Service temporarily unavailable".to_string(),
-                ));
-            }
-            Err(TxHashCacheError::Duplicate) => {
-                state.record_failure("duplicate_tx");
-                return Err(ServerError::TooManyRequests(
-                    "Transaction already submitted recently".to_string(),
-                ));
-            }
-        }
-    }
-
     state.record_success();
 
-    // 4. Return success with all processed messages
     Ok(Json(RelayResponse {
         messages: processed_messages,
     }))

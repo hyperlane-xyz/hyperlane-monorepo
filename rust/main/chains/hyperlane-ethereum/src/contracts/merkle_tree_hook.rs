@@ -159,15 +159,15 @@ where
             let contract = self.contract.address();
             Box::pin(async move {
                 fetch_raw_logs_and_meta::<InsertedIntoTreeFilter, M>(tx_hash, provider, contract)
-                    .await
+                    .await?
+                    .ok_or_else(|| {
+                        ChainCommunicationError::CustomError(format!(
+                            "No receipt found for tx hash {tx_hash:?}"
+                        ))
+                    })
             })
         })
-        .await
-        .ok_or_else(|| {
-            ChainCommunicationError::CustomError(format!(
-                "No receipt found for tx hash {tx_hash:?}"
-            ))
-        })?;
+        .await;
         let logs = raw_logs_and_meta
             .into_iter()
             .map(|(log, log_meta)| {
