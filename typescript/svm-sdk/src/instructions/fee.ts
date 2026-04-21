@@ -1,7 +1,15 @@
 import type { Address, Instruction } from '@solana/kit';
 import { getAddressCodec, getNullableCodec } from '@solana/kit';
 
-import { concatBytes, u8, u32le } from '../codecs/binary.js';
+import {
+  concatBytes,
+  i64le,
+  option,
+  u8,
+  u32le,
+  u64le,
+  vecBytes,
+} from '../codecs/binary.js';
 import {
   encodeBTreeSetH160,
   encodeFeeData,
@@ -19,6 +27,8 @@ import {
   deriveFeeAccountPda,
   deriveCrossCollateralRoutePda,
   deriveRouteDomainPda,
+  deriveStandingQuotePda,
+  deriveTransientQuotePda,
 } from '../pda.js';
 
 import {
@@ -471,4 +481,296 @@ export async function getRemoveCrossCollateralRouteInstruction(
     ],
     ixData,
   );
+}
+
+// ── SetMinIssuedAt ──────────────────────────────────────────────────
+// Accounts:
+//   0. `[writable]`   Fee account
+//   1. `[signer]`     Owner
+
+export function getSetMinIssuedAtInstruction(
+  programId: Address,
+  feeAccount: Address,
+  owner: Address,
+  minIssuedAt: bigint,
+): Instruction {
+  const ixData = concatBytes(
+    u8(FeeInstructionKind.SetMinIssuedAt),
+    i64le(minIssuedAt),
+  );
+
+  return buildInstruction(
+    programId,
+    [writableAccount(feeAccount), readonlySignerAddress(owner)],
+    ixData,
+  );
+}
+
+// ── SubmitQuote (transient) ─────────────────────────────────────────
+// Accounts:
+//   0. `[]`           System program
+//   1. `[writable, signer]` Payer
+//   2. `[]`           Fee account (read-only for transient)
+//   3..N. `[]`        Route PDAs (Routing: 1 RouteDomain; CC: specific + default; Leaf: none)
+//   N+1. `[writable]` Transient quote PDA
+
+export interface SvmSignedQuoteData {
+  context: Uint8Array;
+  data: Uint8Array;
+  issuedAt: Uint8Array; // 6 bytes, u48 BE
+  expiry: Uint8Array; // 6 bytes, u48 BE
+  clientSalt: Uint8Array; // 32 bytes
+  signature: Uint8Array; // 65 bytes
+}
+
+function encodeSvmSignedQuote(quote: SvmSignedQuoteData): Uint8Array {
+  return Uint8Array.from(
+    concatBytes(
+      vecBytes(quote.context),
+      vecBytes(quote.data),
+      Uint8Array.from(quote.issuedAt),
+      Uint8Array.from(quote.expiry),
+      Uint8Array.from(quote.clientSalt),
+      Uint8Array.from(quote.signature),
+    ),
+  );
+}
+
+export async function getSubmitTransientQuoteInstruction(
+  programId: Address,
+  payer: Address,
+  feeAccount: Address,
+  scopedSalt: Uint8Array,
+  quote: SvmSignedQuoteData,
+  routePdas: Address[],
+): Promise<Instruction> {
+  const { address: transientPda } = await deriveTransientQuotePda(
+    programId,
+    feeAccount,
+    scopedSalt,
+  );
+
+  const ixData = concatBytes(
+    u8(FeeInstructionKind.SubmitQuote),
+    encodeSvmSignedQuote(quote),
+  );
+
+  return buildInstruction(
+    programId,
+    [
+      readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
+      writableSignerAddress(payer),
+      readonlyAccount(feeAccount),
+      ...routePdas.map(readonlyAccount),
+      writableAccount(transientPda),
+    ],
+    ixData,
+  );
+}
+
+// ── SubmitQuote (standing) ──────────────────────────────────────────
+// Accounts:
+//   0. `[]`           System program
+//   1. `[writable, signer]` Payer
+//   2. `[writable/readonly]` Fee account (writable for Leaf/Routing, readonly for CC)
+//   3..N. `[]`        Route PDAs
+//   N+1. `[writable]` Standing quote PDA
+
+export async function getSubmitStandingQuoteInstruction(
+  programId: Address,
+  payer: Address,
+  feeAccount: Address,
+  domain: number,
+  targetRouter: Uint8Array,
+  quote: SvmSignedQuoteData,
+  routePdas: Address[],
+  feeAccountWritable: boolean,
+): Promise<Instruction> {
+  const { address: standingPda } = await deriveStandingQuotePda(
+    programId,
+    feeAccount,
+    domain,
+    targetRouter,
+  );
+
+  const ixData = concatBytes(
+    u8(FeeInstructionKind.SubmitQuote),
+    encodeSvmSignedQuote(quote),
+  );
+
+  const feeAccountMeta = feeAccountWritable
+    ? writableAccount(feeAccount)
+    : readonlyAccount(feeAccount);
+
+  return buildInstruction(
+    programId,
+    [
+      readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
+      writableSignerAddress(payer),
+      feeAccountMeta,
+      ...routePdas.map(readonlyAccount),
+      writableAccount(standingPda),
+    ],
+    ixData,
+  );
+}
+
+// ── CloseTransientQuote ─────────────────────────────────────────────
+// Accounts:
+//   0. `[]`           Fee account
+//   1. `[writable]`   Transient quote PDA
+//   2. `[signer]`     Original payer (receives rent refund)
+
+export function getCloseTransientQuoteInstruction(
+  programId: Address,
+  feeAccount: Address,
+  transientPda: Address,
+  payerRefund: Address,
+): Instruction {
+  return buildInstruction(
+    programId,
+    [
+      readonlyAccount(feeAccount),
+      writableAccount(transientPda),
+      writableSignerAddress(payerRefund),
+    ],
+    u8(FeeInstructionKind.CloseTransientQuote),
+  );
+}
+
+// ── PruneExpiredQuotes ──────────────────────────────────────────────
+// Accounts:
+//   0. `[]`           System program
+//   1. `[writable]`   Fee account
+//   2. `[writable, signer]` Owner (receives rent if PDA closed)
+//   3. `[writable]`   Standing quote PDA
+//
+// target_router in data: Some(H256) for CC, None for Leaf/Routing.
+// When None, standing PDA is derived with H256::zero() as target_router.
+
+export async function getPruneExpiredQuotesInstruction(
+  programId: Address,
+  feeAccount: Address,
+  owner: Address,
+  domain: number,
+  targetRouter: Uint8Array | null,
+): Promise<Instruction> {
+  const resolvedRouter = targetRouter ?? new Uint8Array(32);
+  const { address: standingPda } = await deriveStandingQuotePda(
+    programId,
+    feeAccount,
+    domain,
+    resolvedRouter,
+  );
+
+  const ixData = concatBytes(
+    u8(FeeInstructionKind.PruneExpiredQuotes),
+    u32le(domain),
+    option(targetRouter, (r) => Uint8Array.from(r)),
+  );
+
+  return buildInstruction(
+    programId,
+    [
+      readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
+      writableAccount(feeAccount),
+      writableSignerAddress(owner),
+      writableAccount(standingPda),
+    ],
+    ixData,
+  );
+}
+
+// ── GetQuoteAccountMetas (simulation-only) ──────────────────────────
+// Accounts:
+//   0. `[]` Fee account
+
+export function getGetQuoteAccountMetasInstruction(
+  programId: Address,
+  feeAccount: Address,
+  destinationDomain: number,
+  targetRouter: Uint8Array,
+  scopedSalt: Uint8Array | null,
+): Instruction {
+  const ixData = concatBytes(
+    u8(FeeInstructionKind.GetQuoteAccountMetas),
+    u32le(destinationDomain),
+    Uint8Array.from(targetRouter),
+    option(scopedSalt, (s) => Uint8Array.from(s)),
+  );
+
+  return buildInstruction(programId, [readonlyAccount(feeAccount)], ixData);
+}
+
+// ── GetSubmitQuoteAccountMetas (simulation-only) ────────────────────
+// Accounts:
+//   0. `[]` Fee account
+
+export function getGetSubmitQuoteAccountMetasInstruction(
+  programId: Address,
+  feeAccount: Address,
+  destinationDomain: number,
+  targetRouter: Uint8Array,
+  scopedSalt: Uint8Array | null,
+): Instruction {
+  const ixData = concatBytes(
+    u8(FeeInstructionKind.GetSubmitQuoteAccountMetas),
+    u32le(destinationDomain),
+    Uint8Array.from(targetRouter),
+    option(scopedSalt, (s) => Uint8Array.from(s)),
+  );
+
+  return buildInstruction(programId, [readonlyAccount(feeAccount)], ixData);
+}
+
+// ── QuoteFee (CPI-called, but exposed for testing) ──────────────────
+// Accounts (variable):
+//   0. `[]`           Fee account
+//   1. `[writable, signer]` Payer
+//   2. (optional) `[writable]` Transient quote PDA
+//   N. `[]`           Domain standing quote PDA (may be uninitialized)
+//   N+1. `[]`         Wildcard standing quote PDA (may be uninitialized)
+//   (Routing) +1: `[]` RouteDomain PDA
+//   (CC) +2: `[]` CC specific route PDA + CC default route PDA
+
+export interface QuoteFeeAccounts {
+  transientPda?: Address;
+  domainStandingPda: Address;
+  wildcardStandingPda: Address;
+  routePdas: Address[];
+}
+
+export function getQuoteFeeInstruction(
+  programId: Address,
+  feeAccount: Address,
+  payer: Address,
+  destinationDomain: number,
+  recipient: Uint8Array,
+  amount: bigint,
+  targetRouter: Uint8Array,
+  quoteFeeAccounts: QuoteFeeAccounts,
+): Instruction {
+  const ixData = concatBytes(
+    u8(FeeInstructionKind.QuoteFee),
+    u32le(destinationDomain),
+    Uint8Array.from(recipient),
+    u64le(amount),
+    Uint8Array.from(targetRouter),
+  );
+
+  const accounts = [
+    readonlyAccount(feeAccount),
+    writableSignerAddress(payer),
+  ];
+
+  if (quoteFeeAccounts.transientPda) {
+    accounts.push(writableAccount(quoteFeeAccounts.transientPda));
+  }
+  accounts.push(readonlyAccount(quoteFeeAccounts.domainStandingPda));
+  accounts.push(readonlyAccount(quoteFeeAccounts.wildcardStandingPda));
+  for (const pda of quoteFeeAccounts.routePdas) {
+    accounts.push(readonlyAccount(pda));
+  }
+
+  return buildInstruction(programId, accounts, ixData);
 }
