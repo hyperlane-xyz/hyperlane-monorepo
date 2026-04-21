@@ -13,7 +13,7 @@ import {
   WarpTxCategory,
   type WarpCore,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { assert, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { ExternalBridgeType } from '../config/types.js';
 import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
@@ -2161,12 +2161,16 @@ describe('InventoryRebalancer E2E', () => {
         .getCalls()
         .find(
           (call: ReturnType<typeof logger.info.getCall>) =>
-            call.args[1] ===
-            'Parallel inventory movements completed, transferRemote will execute after bridges complete',
+            call.args[0] &&
+            typeof call.args[0] === 'object' &&
+            Object.prototype.hasOwnProperty.call(
+              call.args[0],
+              'totalQuotedOutputMin',
+            ),
         );
 
-      expect(summaryCall).to.exist;
-      expect(summaryCall!.args[0].totalQuotedOutputMin).to.equal(
+      assert(summaryCall, 'Expected summary log with totalQuotedOutputMin');
+      expect(summaryCall.args[0].totalQuotedOutputMin).to.equal(
         BigInt(1.01e18).toString(),
       );
     });
