@@ -19,7 +19,10 @@ import { assert } from '@hyperlane-xyz/utils';
 import { address as parseAddress } from '@solana/kit';
 
 import { type IRawMailboxArtifactManager } from '@hyperlane-xyz/provider-sdk/mailbox';
-import { type IRawFeeArtifactManager } from '@hyperlane-xyz/provider-sdk/fee';
+import {
+  type FeeReadContext,
+  type IRawFeeArtifactManager,
+} from '@hyperlane-xyz/provider-sdk/fee';
 import { type IRawValidatorAnnounceArtifactManager } from '@hyperlane-xyz/provider-sdk/validator-announce';
 import { SvmMailboxArtifactManager } from '../core/mailbox-artifact-manager.js';
 import { SvmValidatorAnnounceArtifactManager } from '../core/validator-announce-artifact-manager.js';
@@ -94,13 +97,10 @@ export class SvmProtocolProvider implements ProtocolProvider {
 
   createFeeArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
+    context: FeeReadContext,
   ): IRawFeeArtifactManager | null {
     const rpc = createRpc(this.getRpcUrls(chainMetadata)[0]);
-    return new SvmFeeArtifactManager(
-      rpc,
-      { knownRoutersPerDomain: {} },
-      chainMetadata.domainId,
-    );
+    return new SvmFeeArtifactManager(rpc, context, chainMetadata.domainId);
   }
 
   getMinGas(): MinimumRequiredGasByAction {

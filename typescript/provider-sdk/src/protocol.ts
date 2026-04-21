@@ -13,7 +13,7 @@ import {
   JsonRpcSubmitterConfig,
   TransactionSubmitterConfig,
 } from './submitter.js';
-import { IRawFeeArtifactManager } from './fee.js';
+import { type FeeReadContext, IRawFeeArtifactManager } from './fee.js';
 import { IRawWarpArtifactManager } from './warp.js';
 import { IRawValidatorAnnounceArtifactManager } from './validator-announce.js';
 
@@ -112,10 +112,12 @@ export interface ProtocolProvider {
    * Not all protocols support fee programs.
    *
    * @param chainMetadata Chain metadata for the target chain
+   * @param context Fee read context with known domains and routers for non-enumerable route discovery
    * @returns A protocol-specific Fee artifact manager, or null if not supported
    */
   createFeeArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
+    context: FeeReadContext,
   ): IRawFeeArtifactManager | null;
 
   getMinGas(): MinimumRequiredGasByAction;
