@@ -1011,10 +1011,12 @@ export class InventoryRebalancer implements IInventoryRebalancer {
           'Inventory movement succeeded',
         );
       } else {
-        const error =
-          result.status === 'rejected'
-            ? result.reason?.message
-            : result.value.error;
+        let error: string | undefined;
+        if (result.status === 'rejected') {
+          error = result.reason?.message;
+        } else if (!result.value.success) {
+          error = result.value.error;
+        }
         if (error) {
           failedErrors.push(`${plan.chain}: ${error}`);
         }
