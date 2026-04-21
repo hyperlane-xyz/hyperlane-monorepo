@@ -646,7 +646,6 @@ describe('RebalancerOrchestrator', () => {
       expect(inventoryRebalancer.rebalance.calledWith([])).to.be.false;
     });
 
-    // eslint-disable-next-line jest/expect-expect
     it('should NOT call inventoryRebalancer.rebalance([]) when inventoryRebalancer is not in rebalancers', async () => {
       const strategy = createMockStrategy();
       strategy.getRebalancingRoutes.returns([]);
