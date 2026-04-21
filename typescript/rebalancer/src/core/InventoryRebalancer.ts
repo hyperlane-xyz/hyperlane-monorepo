@@ -1013,7 +1013,17 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       } else {
         let error: string | undefined;
         if (result.status === 'rejected') {
-          error = result.reason?.message;
+          if (result.reason instanceof Error) {
+            error = result.reason.message;
+          } else if (typeof result.reason === 'string') {
+            error = result.reason;
+          } else {
+            try {
+              error = JSON.stringify(result.reason) ?? String(result.reason);
+            } catch {
+              error = String(result.reason);
+            }
+          }
         } else if (!result.value.success) {
           error = result.value.error;
         }
