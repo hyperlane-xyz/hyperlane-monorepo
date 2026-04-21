@@ -325,12 +325,36 @@ The warp route directory and warp route ID also use the **underlying asset symbo
 
 The `fee-owner-address` defaults to the chain's `owner` unless separately specified.
 
-**Sealevel chain rules (solanamainnet, eclipsemainnet, etc.):** For any Sealevel chain in the route, add two extra fields regardless of token type (`native`, `synthetic`, `collateral`, etc.):
+**Sealevel chain rules (solanamainnet, eclipsemainnet, etc.):** For any Sealevel chain in the route, add extra fields depending on token type:
 
-- `hook`: the IGP address looked up in Step 3 (the `interchainGasPaymaster` value from that chain's `addresses.yaml`)
+**All Sealevel chains** (any type):
+
+- `hook`: the IGP address looked up in Step 3 (from `program-ids.json`, NOT `addresses.yaml`)
 - `gas: 300000`: sending to Solana costs more than the default 68k gas
 
-Example:
+**Sealevel `synthetic` chains only** (additional required fields):
+
+- **`decimals`**: Solana SPL tokens are capped at 9 decimals. If the collateral token has more than 9 decimals (e.g. 18 on EVM), set `decimals: 9` on the Sealevel synthetic and add `scale: 1000000000` (i.e. `10^(collateral_decimals - 9)`). For 6-decimal tokens (e.g. USDC), use `decimals: 6` with no scale needed.
+
+- `metadataUri`: a URL that will be stored in the Token 2022 on-chain metadata extension. This is **never fetched at deploy time** — any valid URL works, including a placeholder. The URI length affects rent (longer = marginally more SOL needed). Use the registry raw URL pattern so it resolves correctly after the registry PR is merged:
+
+  ```
+  https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/main/deployments/warp_routes/<TOKEN>/metadata.json
+  ```
+
+  Also create a `metadata.json` file next to the deploy.yaml in the registry:
+
+  ```json
+  {
+    "name": "<TOKEN_NAME>",
+    "symbol": "<TOKEN_SYMBOL>",
+    "image": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/main/deployments/warp_routes/<TOKEN>/logo.svg"
+  }
+  ```
+
+  This JSON is the Metaplex-compatible metadata that Solana wallets (Phantom, etc.) use to display the token. If an SVG logo is attached to the Linear ticket, reference it via the registry raw URL.
+
+Example (collateral has 18 decimals → Solana synthetic uses 9 with scale):
 
 ```yaml
 solanamainnet:
@@ -338,8 +362,27 @@ solanamainnet:
   gas: 300000
   hook: '<igp-address-from-registry>'
   mailbox: '<mailbox-address>'
-  owner: '<owner-address>'
-  type: native
+  metadataUri: 'https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/main/deployments/warp_routes/TOKEN/metadata.json'
+  name: TOKEN
+  owner: '<solana-owner-address>'
+  scale: 1000000000
+  symbol: TOKEN
+  type: synthetic
+```
+
+Example (collateral has 6 decimals → Solana synthetic uses 6, no scale needed):
+
+```yaml
+solanamainnet:
+  decimals: 6
+  gas: 300000
+  hook: '<igp-address-from-registry>'
+  mailbox: '<mailbox-address>'
+  metadataUri: 'https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/main/deployments/warp_routes/TOKEN/metadata.json'
+  name: TOKEN
+  owner: '<solana-owner-address>'
+  symbol: TOKEN
+  type: synthetic
 ```
 
 **Rules:**
