@@ -3,10 +3,14 @@ import { getAddressCodec, getNullableCodec } from '@solana/kit';
 
 import { concatBytes, u8, u32le } from '../codecs/binary.js';
 import {
+  encodeBTreeSetH160,
   encodeFeeData,
+  encodeFeeDataStrategy,
   encodeFeeParams,
+  encodeOptionalBTreeSetH160,
   encodeOptionalRouteKey,
   type SvmFeeData,
+  type SvmFeeDataStrategy,
   type SvmFeeParams,
   type SvmRouteKey,
 } from '../codecs/fee.js';
@@ -288,4 +292,103 @@ async function buildRemoveQuoteSignerAccounts(
     writableSignerAddress(owner),
     writableAccount(routePda.address),
   ];
+}
+
+// ── SetRoute ────────────────────────────────────────────────────────
+// Accounts:
+//   0. `[]`           System program
+//   1. `[]`           Fee account (read-only, must be FeeData::Routing)
+//   2. `[writable, signer]` Owner
+//   3. `[writable]`   RouteDomain PDA (created if uninitialized, updated if exists)
+
+export async function getSetRouteInstruction(
+  programId: Address,
+  feeAccount: Address,
+  owner: Address,
+  domain: number,
+  feeData: SvmFeeDataStrategy,
+  signers: Uint8Array[] | null,
+): Promise<Instruction> {
+  const { address: routePda } = await deriveRouteDomainPda(
+    programId,
+    feeAccount,
+    domain,
+  );
+
+  const ixData = concatBytes(
+    u8(FeeInstructionKind.SetRoute),
+    u32le(domain),
+    encodeFeeDataStrategy(feeData),
+    encodeOptionalBTreeSetH160(signers),
+  );
+
+  return buildInstruction(
+    programId,
+    [
+      readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
+      readonlyAccount(feeAccount),
+      writableSignerAddress(owner),
+      writableAccount(routePda),
+    ],
+    ixData,
+  );
+}
+
+// ── RemoveRoute ─────────────────────────────────────────────────────
+// Accounts:
+//   0. `[]`           Fee account (read-only, must be FeeData::Routing)
+//   1. `[writable, signer]` Owner (receives rent refund)
+//   2. `[writable]`   RouteDomain PDA (closed)
+
+export async function getRemoveRouteInstruction(
+  programId: Address,
+  feeAccount: Address,
+  owner: Address,
+  domain: number,
+): Promise<Instruction> {
+  const { address: routePda } = await deriveRouteDomainPda(
+    programId,
+    feeAccount,
+    domain,
+  );
+
+  const ixData = concatBytes(u8(FeeInstructionKind.RemoveRoute), u32le(domain));
+
+  return buildInstruction(
+    programId,
+    [
+      readonlyAccount(feeAccount),
+      writableSignerAddress(owner),
+      writableAccount(routePda),
+    ],
+    ixData,
+  );
+}
+
+// ── SetWildcardQuoteSigners ─────────────────────────────────────────
+// Accounts:
+//   0. `[]`           System program
+//   1. `[writable]`   Fee account (must be Routing or CrossCollateralRouting)
+//   2. `[writable, signer]` Owner
+
+export function getSetWildcardQuoteSignersInstruction(
+  programId: Address,
+  feeAccount: Address,
+  owner: Address,
+  signers: Uint8Array[],
+): Instruction {
+  const ixData = concatBytes(
+    u8(FeeInstructionKind.SetWildcardQuoteSigners),
+    encodeBTreeSetH160(signers),
+  );
+
+  return buildInstruction(
+    programId,
+    [
+      readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
+      writableAccount(feeAccount),
+      writableSignerAddress(owner),
+    ],
+    ixData,
+  );
 }
