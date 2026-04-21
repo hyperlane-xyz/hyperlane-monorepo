@@ -96,26 +96,26 @@ pub enum IsmNode {
     /// ModuleType: Routing.
     Routing,
 
-    /// Routes to a per-domain PDA first (like `Routing`), then falls back to the
-    /// Mailbox's **current** default ISM when no domain-specific ISM is configured.
+    /// Routes to a per-domain PDA first (like `Routing`), then falls back to a
+    /// statically-configured composite ISM when no domain-specific ISM is set.
     ///
-    /// Mirrors `DefaultFallbackRoutingIsm.sol`. At verify time, if no domain ISM is
-    /// found, the caller must provide (in order after the domain PDA):
-    /// 1. The Mailbox Inbox PDA (seeds `["hyperlane", "-", "inbox"]` under `mailbox`).
-    /// 2. The fallback ISM's storage PDA (at `VERIFY_ACCOUNT_METAS_PDA_SEEDS` under
-    ///    the program ID read from the Inbox's `default_ism` field).
-    /// 3. Any additional accounts required by the fallback ISM.
+    /// At verify time, if no domain ISM is found, the caller must provide (in
+    /// order after the domain PDA):
+    /// 1. The fallback ISM's storage PDA (at `VERIFY_ACCOUNT_METAS_PDA_SEEDS`
+    ///    under `fallback_ism`).
+    /// 2. Any additional accounts required by the fallback ISM.
     ///
-    /// The fallback ISM must be another composite ISM deployment; other types are not
-    /// supported and will return `InvalidFallbackIsmAccount`.
+    /// The fallback ISM must be another composite ISM deployment; other types are
+    /// not supported and will return `InvalidFallbackIsmAccount`.
     ///
     /// `FallbackRouting` is not allowed inside a domain PDA (enforced by
     /// `validate_domain_ism`), and at most one routing-type node is allowed per tree.
     ///
     /// ModuleType: Routing.
     FallbackRouting {
-        /// The Mailbox program ID. Used to derive the Inbox PDA at verify time.
-        mailbox: Pubkey,
+        /// The fallback composite ISM program ID. Its storage PDA is read directly
+        /// at verify time — no mailbox inbox PDA is required.
+        fallback_ism: Pubkey,
     },
 }
 

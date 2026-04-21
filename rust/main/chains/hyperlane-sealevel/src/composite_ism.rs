@@ -10,7 +10,6 @@ use hyperlane_sealevel_composite_ism::accounts::{derive_domain_pda, CompositeIsm
 use hyperlane_sealevel_composite_ism::instruction::get_metadata_spec_instruction;
 pub use hyperlane_sealevel_composite_ism::metadata_spec::MetadataSpec;
 use hyperlane_sealevel_interchain_security_module_interface::VERIFY_ACCOUNT_METAS_PDA_SEEDS;
-use hyperlane_sealevel_mailbox::{accounts::InboxAccount, mailbox_inbox_pda_seeds};
 use serializable_account_meta::SimulationReturnData;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signer::Signer;
@@ -96,13 +95,11 @@ impl SealevelCompositeIsm {
             .map(|r| r.return_data)
     }
 
-    /// Fetches the inbox PDA and fallback composite ISM storage PDA needed when a
-    /// `FallbackRouting` node falls back to the Mailbox's current default ISM.
+    /// Derives the fallback composite ISM storage PDA for pass 2 of `GetMetadataSpec`.
     ///
-    /// Reads the VAM PDA to get the configured mailbox address, then fetches the
-    /// mailbox inbox to read `default_ism`, and finally derives the fallback storage PDA.
+    /// Reads the VAM PDA to get the `FallbackRouting { fallback_ism }` address, then
+    /// derives the fallback ISM's storage PDA directly — no mailbox inbox PDA needed.
     async fn resolve_fallback_routing_accounts(&self) -> ChainResult<Vec<Pubkey>> {
-        // Read the VAM PDA to find the FallbackRouting mailbox address.
         let (vam_pda, _) =
             Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, &self.program_id);
         let vam_account = self
@@ -116,8 +113,8 @@ impl SealevelCompositeIsm {
                 ChainCommunicationError::from_other_str("Composite ISM VAM PDA not initialized")
             })?;
 
-        let mailbox = match storage.root {
-            Some(IsmNode::FallbackRouting { mailbox }) => mailbox,
+        let fallback_ism = match storage.root {
+            Some(IsmNode::FallbackRouting { fallback_ism }) => fallback_ism,
             _ => {
                 return Err(ChainCommunicationError::from_other_str(
                     "Root ISM is not FallbackRouting; cannot resolve fallback accounts",
@@ -125,23 +122,10 @@ impl SealevelCompositeIsm {
             }
         };
 
-        // Derive and fetch the mailbox inbox PDA.
-        let (inbox_pda, _) = Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), &mailbox);
-        let inbox_account = self
-            .provider
-            .rpc_client()
-            .get_account_with_finalized_commitment(inbox_pda)
-            .await?;
-        let inbox = InboxAccount::fetch(&mut inbox_account.data.as_ref())
-            .map_err(ChainCommunicationError::from_other)?
-            .into_inner();
-        let fallback_program_id = inbox.default_ism;
-
-        // Derive the fallback composite ISM's storage PDA.
         let (fallback_storage_pda, _) =
-            Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, &fallback_program_id);
+            Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, &fallback_ism);
 
-        Ok(vec![inbox_pda, fallback_storage_pda])
+        Ok(vec![fallback_storage_pda])
     }
 }
 

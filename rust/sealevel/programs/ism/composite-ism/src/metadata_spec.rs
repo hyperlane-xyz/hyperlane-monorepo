@@ -1,7 +1,6 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{HyperlaneMessage, H160};
 use hyperlane_sealevel_interchain_security_module_interface::VERIFY_ACCOUNT_METAS_PDA_SEEDS;
-use hyperlane_sealevel_mailbox::{accounts::InboxAccount, mailbox_inbox_pda_seeds};
 use solana_program::{account_info::AccountInfo, pubkey::Pubkey};
 
 use crate::{
@@ -117,7 +116,7 @@ where
             spec_for_node_with_pdas(sub_ism, message, program_id, accounts_iter)
         }
 
-        IsmNode::FallbackRouting { mailbox } => {
+        IsmNode::FallbackRouting { fallback_ism } => {
             let domain_pda_info = accounts_iter.next().ok_or(Error::InvalidDomainPda)?;
             let (expected_key, _) = derive_domain_pda(program_id, message.origin);
             if *domain_pda_info.key != expected_key {
@@ -130,24 +129,13 @@ where
                 return Ok(spec);
             }
 
-            // Fallback path — expect inbox PDA, then fallback storage PDA.
-            let inbox_pda_info = accounts_iter.next().ok_or(Error::InvalidMailboxAccount)?;
-            let (expected_inbox_key, _) =
-                Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), mailbox);
-            if *inbox_pda_info.key != expected_inbox_key {
-                return Err(Error::InvalidMailboxAccount);
-            }
-
-            let inbox = InboxAccount::fetch_data(&mut &inbox_pda_info.data.borrow()[..])
-                .map_err(|_| Error::InvalidMailboxAccount)?
-                .ok_or(Error::InvalidMailboxAccount)?;
-            let fallback_program_id = inbox.default_ism;
-
+            // Fallback path — expect the fallback ISM's storage PDA directly.
+            // No mailbox inbox PDA is needed.
             let fallback_storage_info = accounts_iter
                 .next()
                 .ok_or(Error::InvalidFallbackIsmAccount)?;
             let (expected_fallback_key, _) =
-                Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, &fallback_program_id);
+                Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, fallback_ism);
             if *fallback_storage_info.key != expected_fallback_key {
                 return Err(Error::InvalidFallbackIsmAccount);
             }
@@ -158,7 +146,7 @@ where
                     .ok_or(Error::InvalidFallbackIsmAccount)?;
             let fallback_root = fallback_storage.root.ok_or(Error::ConfigNotSet)?;
 
-            spec_for_node_with_pdas(&fallback_root, message, &fallback_program_id, accounts_iter)
+            spec_for_node_with_pdas(&fallback_root, message, fallback_ism, accounts_iter)
         }
 
         IsmNode::TrustedRelayer { .. }

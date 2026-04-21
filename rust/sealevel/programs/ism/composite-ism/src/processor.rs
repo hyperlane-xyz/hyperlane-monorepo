@@ -449,8 +449,8 @@ fn validate_config_inner(node: &IsmNode, routing_found: &mut bool) -> ProgramRes
             *routing_found = true;
             Ok(())
         }
-        IsmNode::FallbackRouting { mailbox } => {
-            if *mailbox == Pubkey::default() {
+        IsmNode::FallbackRouting { fallback_ism } => {
+            if *fallback_ism == Pubkey::default() {
                 return Err(Error::InvalidConfig.into());
             }
             if *routing_found {

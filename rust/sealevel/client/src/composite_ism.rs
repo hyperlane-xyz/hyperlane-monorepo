@@ -50,11 +50,11 @@ pub(crate) enum IsmNodeConfig {
         #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
         domains: BTreeMap<String, IsmNodeConfig>,
     },
-    /// Like `Routing`, but falls back to the Mailbox's current `default_ism` when
-    /// no per-domain ISM is configured for the incoming message's origin.
+    /// Like `Routing`, but falls back to a statically-configured composite ISM
+    /// when no per-domain ISM is configured for the incoming message's origin.
     FallbackRouting {
         #[serde(with = "crate::serde::serde_pubkey")]
-        mailbox: Pubkey,
+        fallback_ism: Pubkey,
         /// Per-domain ISM configs (same semantics as `Routing.domains`).
         #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
         domains: BTreeMap<String, IsmNodeConfig>,
@@ -104,9 +104,9 @@ impl From<IsmNodeConfig> for IsmNode {
                 domains: _, // domain ISMs are submitted via SetDomainIsm, not stored in the root node
             } => IsmNode::Routing,
             IsmNodeConfig::FallbackRouting {
-                mailbox,
+                fallback_ism,
                 domains: _,
-            } => IsmNode::FallbackRouting { mailbox },
+            } => IsmNode::FallbackRouting { fallback_ism },
             IsmNodeConfig::Test { accept } => IsmNode::Test { accept },
             IsmNodeConfig::Pausable { paused } => IsmNode::Pausable { paused },
             IsmNodeConfig::AmountRouting {
@@ -158,8 +158,8 @@ impl TryFrom<IsmNode> for IsmNodeConfig {
             IsmNode::Routing => Ok(IsmNodeConfig::Routing {
                 domains: BTreeMap::new(), // on-chain node has no domain map; domain PDAs are separate
             }),
-            IsmNode::FallbackRouting { mailbox } => Ok(IsmNodeConfig::FallbackRouting {
-                mailbox,
+            IsmNode::FallbackRouting { fallback_ism } => Ok(IsmNodeConfig::FallbackRouting {
+                fallback_ism,
                 domains: BTreeMap::new(),
             }),
             IsmNode::Test { accept } => Ok(IsmNodeConfig::Test { accept }),

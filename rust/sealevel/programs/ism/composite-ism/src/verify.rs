@@ -1,6 +1,5 @@
 use hyperlane_core::{Checkpoint, CheckpointWithMessageId, HyperlaneMessage, Signable};
 use hyperlane_sealevel_interchain_security_module_interface::VERIFY_ACCOUNT_METAS_PDA_SEEDS;
-use hyperlane_sealevel_mailbox::{accounts::InboxAccount, mailbox_inbox_pda_seeds};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     clock::Clock,
@@ -191,7 +190,7 @@ where
             }
         }
 
-        IsmNode::FallbackRouting { mailbox } => {
+        IsmNode::FallbackRouting { fallback_ism } => {
             let domain_pda_info = next_account_info(accounts_iter)?;
             let (expected_key, _) = derive_domain_pda(program_id, message.origin);
             if *domain_pda_info.key != expected_key {
@@ -208,31 +207,16 @@ where
                 return Ok(());
             }
 
-            // No domain ISM — fall back to the Mailbox's current default ISM.
-
-            // Pop the Mailbox Inbox PDA.
-            let inbox_pda_info = next_account_info(accounts_iter)?;
-            let (expected_inbox_key, _) =
-                Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), mailbox);
-            if *inbox_pda_info.key != expected_inbox_key {
-                return Err(Error::InvalidMailboxAccount.into());
-            }
-            if inbox_pda_info.owner != mailbox {
-                return Err(Error::InvalidMailboxAccount.into());
-            }
-
-            let inbox = InboxAccount::fetch_data(&mut &inbox_pda_info.data.borrow()[..])?
-                .ok_or(Error::InvalidMailboxAccount)?;
-            let fallback_program_id = inbox.default_ism;
-
-            // Pop the fallback composite ISM's storage PDA.
+            // No domain ISM — fall back to the statically-configured fallback ISM.
+            // The fallback ISM address is stored directly in the node, so no mailbox
+            // inbox PDA is read here (avoids the mailbox reentrancy guard borrow conflict).
             let fallback_storage_info = next_account_info(accounts_iter)?;
             let (expected_fallback_key, _) =
-                Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, &fallback_program_id);
+                Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, fallback_ism);
             if *fallback_storage_info.key != expected_fallback_key {
                 return Err(Error::InvalidFallbackIsmAccount.into());
             }
-            if fallback_storage_info.owner != &fallback_program_id {
+            if fallback_storage_info.owner != fallback_ism {
                 return Err(Error::InvalidFallbackIsmAccount.into());
             }
 
@@ -243,13 +227,13 @@ where
                     .ok_or(Error::InvalidFallbackIsmAccount)?;
             let mut fallback_root = fallback_storage.root.ok_or(Error::ConfigNotSet)?;
 
-            // Recurse with fallback_program_id so its domain PDAs are derived correctly.
+            // Recurse with fallback_ism so its domain PDAs are derived correctly.
             verify_node(
                 &mut fallback_root,
                 metadata,
                 message,
                 accounts_iter,
-                &fallback_program_id,
+                fallback_ism,
             )
         }
 

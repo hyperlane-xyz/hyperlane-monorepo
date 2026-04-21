@@ -16,10 +16,6 @@ use hyperlane_sealevel_composite_ism::{
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction, VERIFY_ACCOUNT_METAS_PDA_SEEDS,
 };
-use hyperlane_sealevel_mailbox::{
-    accounts::{Inbox, InboxAccount},
-    mailbox_inbox_pda_seeds,
-};
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_banks_interface::BanksTransactionResultWithSimulation;
 use solana_program::{account_info::AccountInfo, instruction::AccountMeta, pubkey, pubkey::Pubkey};
@@ -367,9 +363,7 @@ pub async fn get_ism_type(
 }
 
 // ── Account-data helpers ─────────────────────────────────────────────────────
-// Used by functional tests that exercise the FallbackRouting fallback path,
-// where on-chain accounts for the Mailbox Inbox PDA and the fallback ISM's
-// storage PDA must be pre-populated in the test bank.
+// Used by functional tests that exercise the FallbackRouting fallback path.
 
 /// Serializes a [`DomainIsmStorage`] into a raw byte buffer and returns the PDA key.
 pub fn make_domain_pda_data(
@@ -396,31 +390,6 @@ pub fn make_domain_pda_data(
     );
     DomainIsmAccount::from(storage).store(&acc, false).unwrap();
     (key, data)
-}
-
-/// Serializes a mailbox [`InboxAccount`] into a raw byte buffer and returns the PDA key.
-/// `default_ism` is stored as the mailbox's current fallback ISM program ID.
-pub fn make_inbox_data(mailbox: &Pubkey, default_ism: Pubkey) -> (Pubkey, Vec<u8>) {
-    let (inbox_key, bump) = Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), mailbox);
-    let inbox = Inbox {
-        local_domain: 0,
-        inbox_bump_seed: bump,
-        default_ism,
-        processed_count: 0,
-    };
-    let mut data = vec![0u8; 256];
-    let mut lamports = 0u64;
-    let acc = AccountInfo::new(
-        &inbox_key,
-        false,
-        true,
-        &mut lamports,
-        &mut data,
-        mailbox,
-        false,
-    );
-    InboxAccount::from(inbox).store(&acc, false).unwrap();
-    (inbox_key, data)
 }
 
 /// Serializes a [`CompositeIsmAccount`] for a fallback ISM program into a raw byte buffer

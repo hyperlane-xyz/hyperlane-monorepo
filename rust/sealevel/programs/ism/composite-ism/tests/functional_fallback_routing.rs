@@ -1,22 +1,26 @@
 //! Functional tests for the FallbackRouting ISM node type.
 //!
 //! FallbackRouting acts like Routing when a domain ISM is configured for the
-//! incoming message's origin.  When no domain ISM exists, it falls back to the
-//! Mailbox's current `default_ism` by reading two extra accounts:
-//!   1. The Mailbox Inbox PDA  →  reveals the fallback program ID
-//!   2. The fallback composite ISM's storage PDA  →  provides the root ISM node
+//! incoming message's origin.  When no domain ISM exists, it falls back to a
+//! statically-configured composite ISM whose address is stored directly in the
+//! node (`fallback_ism`).
 //!
-//! Tests that exercise the fallback path set up those two accounts in the
-//! bank via `ProgramTestContext::set_account` before the test starts.
+//! Unlike the old mailbox-indirection design, no mailbox inbox PDA is needed
+//! at verify time.  This avoids the `AccountBorrowFailed` conflict that arose
+//! because the mailbox intentionally holds a `RefMut` on the inbox PDA as a
+//! reentrancy guard for the entire duration of `process` — including across the
+//! ISM Verify CPI.  Because that guard was never taken in the isolated
+//! `simulate_verify` tests, the borrow conflict was never caught here; it only
+//! manifested when the mailbox actually called `Verify` during `process`.
 //!
 //! VERIFY:
 //! - Domain ISM path: accepts / rejects based on the configured domain ISM.
-//! - Fallback path: delegates to the Mailbox default ISM (accepts / rejects).
-//! - After RemoveDomainIsm: falls back to the Mailbox default ISM.
+//! - Fallback path: delegates to the configured fallback ISM (accepts / rejects).
+//! - After RemoveDomainIsm: falls back to the configured fallback ISM.
 //!
 //! VERIFY ACCOUNT METAS (fixpoint convergence):
-//! - Domain ISM present: converges at [storage_pda, domain_pda].
-//! - No domain ISM:      converges at [storage_pda, domain_pda, inbox_pda, fallback_storage_pda].
+//! - Domain ISM present:  converges at [storage_pda, domain_pda].
+//! - No domain ISM:       converges at [storage_pda, domain_pda, fallback_storage_pda].
 
 mod common;
 
@@ -38,34 +42,19 @@ use solana_sdk::{
 use common::{
     assert_simulation_error, assert_simulation_ok, domain_pda_key, dummy_message,
     get_all_verify_account_metas, get_verify_account_metas, initialize, make_fallback_storage_data,
-    make_inbox_data, program_test, remove_domain_ism, set_domain_ism, simulate_verify,
-    storage_pda_key,
+    program_test, remove_domain_ism, set_domain_ism, simulate_verify, storage_pda_key,
 };
 
 const ORIGIN: u32 = 1234;
 
-/// Inserts the mailbox inbox PDA and fallback ISM storage PDA into the test
-/// bank so they are available during transaction simulation.
+/// Inserts the fallback composite ISM storage PDA into the test bank.
 ///
-/// Returns `(inbox_pda_key, fallback_storage_pda_key)`.
-fn setup_fallback_accounts(
+/// Returns the fallback storage PDA key.
+fn setup_fallback_ism(
     context: &mut ProgramTestContext,
-    mailbox: &Pubkey,
     fallback_program_id: &Pubkey,
     fallback_root: IsmNode,
-) -> (Pubkey, Pubkey) {
-    let (inbox_pda_key, inbox_data) = make_inbox_data(mailbox, *fallback_program_id);
-    context.set_account(
-        &inbox_pda_key,
-        &AccountSharedData::from(Account {
-            lamports: 10_000_000,
-            data: inbox_data,
-            owner: *mailbox,
-            executable: false,
-            rent_epoch: 0,
-        }),
-    );
-
+) -> Pubkey {
     let (fallback_storage_key, fallback_data) =
         make_fallback_storage_data(fallback_program_id, Some(fallback_root));
     context.set_account(
@@ -78,8 +67,7 @@ fn setup_fallback_accounts(
             rent_epoch: 0,
         }),
     );
-
-    (inbox_pda_key, fallback_storage_key)
+    fallback_storage_key
 }
 
 // ── CONFIG ───────────────────────────────────────────────────────────────────
@@ -88,8 +76,8 @@ fn setup_fallback_accounts(
 async fn test_initialize() {
     let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
 
-    let mailbox = Pubkey::new_unique();
-    let root = IsmNode::FallbackRouting { mailbox };
+    let fallback_ism = Pubkey::new_unique();
+    let root = IsmNode::FallbackRouting { fallback_ism };
     initialize(&mut banks_client, &payer, recent_blockhash, root.clone())
         .await
         .unwrap();
@@ -116,7 +104,7 @@ async fn test_set_domain_ism_creates_pda() {
         &payer,
         recent_blockhash,
         IsmNode::FallbackRouting {
-            mailbox: Pubkey::new_unique(),
+            fallback_ism: Pubkey::new_unique(),
         },
     )
     .await
@@ -154,7 +142,7 @@ async fn test_remove_domain_ism_closes_pda() {
         &payer,
         recent_blockhash,
         IsmNode::FallbackRouting {
-            mailbox: Pubkey::new_unique(),
+            fallback_ism: Pubkey::new_unique(),
         },
     )
     .await
@@ -192,7 +180,7 @@ async fn test_verify_via_domain_pda_accepts() {
         &payer,
         recent_blockhash,
         IsmNode::FallbackRouting {
-            mailbox: Pubkey::new_unique(),
+            fallback_ism: Pubkey::new_unique(),
         },
     )
     .await
@@ -242,7 +230,7 @@ async fn test_verify_via_domain_pda_rejects() {
         &payer,
         recent_blockhash,
         IsmNode::FallbackRouting {
-            mailbox: Pubkey::new_unique(),
+            fallback_ism: Pubkey::new_unique(),
         },
     )
     .await
@@ -291,13 +279,11 @@ async fn test_verify_via_domain_pda_rejects() {
 
 #[tokio::test]
 async fn test_verify_via_fallback_ism_accepts() {
-    let mailbox = Pubkey::new_unique();
     let fallback_program_id = Pubkey::new_unique();
 
     let mut context = program_test().start_with_context().await;
-    setup_fallback_accounts(
+    setup_fallback_ism(
         &mut context,
-        &mailbox,
         &fallback_program_id,
         IsmNode::Test { accept: true },
     );
@@ -309,7 +295,9 @@ async fn test_verify_via_fallback_ism_accepts() {
         &mut context.banks_client,
         &payer,
         recent_blockhash,
-        IsmNode::FallbackRouting { mailbox },
+        IsmNode::FallbackRouting {
+            fallback_ism: fallback_program_id,
+        },
     )
     .await
     .unwrap();
@@ -344,13 +332,11 @@ async fn test_verify_via_fallback_ism_accepts() {
 
 #[tokio::test]
 async fn test_verify_via_fallback_ism_rejects() {
-    let mailbox = Pubkey::new_unique();
     let fallback_program_id = Pubkey::new_unique();
 
     let mut context = program_test().start_with_context().await;
-    setup_fallback_accounts(
+    setup_fallback_ism(
         &mut context,
-        &mailbox,
         &fallback_program_id,
         IsmNode::Test { accept: false },
     );
@@ -362,7 +348,9 @@ async fn test_verify_via_fallback_ism_rejects() {
         &mut context.banks_client,
         &payer,
         recent_blockhash,
-        IsmNode::FallbackRouting { mailbox },
+        IsmNode::FallbackRouting {
+            fallback_ism: fallback_program_id,
+        },
     )
     .await
     .unwrap();
@@ -401,13 +389,11 @@ async fn test_verify_via_fallback_ism_rejects() {
 
 #[tokio::test]
 async fn test_verify_falls_back_after_remove_domain_ism() {
-    let mailbox = Pubkey::new_unique();
     let fallback_program_id = Pubkey::new_unique();
 
     let mut context = program_test().start_with_context().await;
-    setup_fallback_accounts(
+    setup_fallback_ism(
         &mut context,
-        &mailbox,
         &fallback_program_id,
         IsmNode::Test { accept: true },
     );
@@ -419,7 +405,9 @@ async fn test_verify_falls_back_after_remove_domain_ism() {
         &mut context.banks_client,
         &payer,
         recent_blockhash,
-        IsmNode::FallbackRouting { mailbox },
+        IsmNode::FallbackRouting {
+            fallback_ism: fallback_program_id,
+        },
     )
     .await
     .unwrap();
@@ -482,7 +470,7 @@ async fn test_vam_domain_ism_present_returns_domain_pda() {
         &payer,
         recent_blockhash,
         IsmNode::FallbackRouting {
-            mailbox: Pubkey::new_unique(),
+            fallback_ism: Pubkey::new_unique(),
         },
     )
     .await
@@ -516,14 +504,12 @@ async fn test_vam_domain_ism_present_returns_domain_pda() {
 }
 
 #[tokio::test]
-async fn test_vam_no_domain_ism_returns_fallback_accounts() {
-    let mailbox = Pubkey::new_unique();
+async fn test_vam_no_domain_ism_returns_fallback_storage() {
     let fallback_program_id = Pubkey::new_unique();
 
     let mut context = program_test().start_with_context().await;
-    let (inbox_pda_key, fallback_storage_pda_key) = setup_fallback_accounts(
+    let fallback_storage_pda_key = setup_fallback_ism(
         &mut context,
-        &mailbox,
         &fallback_program_id,
         IsmNode::Test { accept: true },
     );
@@ -535,7 +521,9 @@ async fn test_vam_no_domain_ism_returns_fallback_accounts() {
         &mut context.banks_client,
         &payer,
         recent_blockhash,
-        IsmNode::FallbackRouting { mailbox },
+        IsmNode::FallbackRouting {
+            fallback_ism: fallback_program_id,
+        },
     )
     .await
     .unwrap();
@@ -556,10 +544,9 @@ async fn test_vam_no_domain_ism_returns_fallback_accounts() {
     )
     .await;
 
-    // [storage_pda, domain_pda, inbox_pda, fallback_storage_pda]
-    assert_eq!(metas.len(), 4);
+    // [storage_pda, domain_pda, fallback_storage_pda] — no inbox PDA.
+    assert_eq!(metas.len(), 3);
     assert_eq!(metas[0].pubkey, storage_pda_key());
     assert_eq!(metas[1].pubkey, domain_pda_key(ORIGIN));
-    assert_eq!(metas[2].pubkey, inbox_pda_key);
-    assert_eq!(metas[3].pubkey, fallback_storage_pda_key);
+    assert_eq!(metas[2].pubkey, fallback_storage_pda_key);
 }
