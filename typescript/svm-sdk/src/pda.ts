@@ -241,3 +241,88 @@ export async function deriveCrossCollateralDispatchAuthorityPda(
     utf8.encode('dispatch_authority'),
   ]);
 }
+
+// ── Fee program PDAs ────────────────────────────────────────────────
+
+export async function deriveFeeAccountPda(
+  programAddress: Address,
+  salt: Uint8Array,
+): Promise<PdaWithBump> {
+  return derive(programAddress, [
+    utf8.encode('hyperlane_fee'),
+    utf8.encode('-'),
+    utf8.encode('fee'),
+    utf8.encode('-'),
+    salt,
+  ]);
+}
+
+export async function deriveRouteDomainPda(
+  programAddress: Address,
+  feeAccount: Address,
+  domain: number,
+): Promise<PdaWithBump> {
+  return derive(programAddress, [
+    utf8.encode('hyperlane_fee'),
+    utf8.encode('-'),
+    utf8.encode('route'),
+    utf8.encode('-'),
+    addressEncoder.encode(feeAccount),
+    utf8.encode('-'),
+    u32.encode(domain),
+  ]);
+}
+
+export async function deriveCrossCollateralRoutePda(
+  programAddress: Address,
+  feeAccount: Address,
+  destination: number,
+  targetRouter: Uint8Array,
+): Promise<PdaWithBump> {
+  return derive(programAddress, [
+    utf8.encode('hyperlane_fee'),
+    utf8.encode('-'),
+    utf8.encode('cc_route'),
+    utf8.encode('-'),
+    addressEncoder.encode(feeAccount),
+    utf8.encode('-'),
+    u32.encode(destination),
+    utf8.encode('-'),
+    targetRouter,
+  ]);
+}
+
+export async function deriveTransientQuotePda(
+  programAddress: Address,
+  feeAccount: Address,
+  scopedSalt: Uint8Array,
+): Promise<PdaWithBump> {
+  return derive(programAddress, [
+    utf8.encode('hyperlane_fee'),
+    utf8.encode('-'),
+    utf8.encode('transient'),
+    utf8.encode('-'),
+    addressEncoder.encode(feeAccount),
+    utf8.encode('-'),
+    scopedSalt,
+  ]);
+}
+
+export async function deriveStandingQuotePda(
+  programAddress: Address,
+  feeAccount: Address,
+  domain: number,
+  targetRouter: Uint8Array,
+): Promise<PdaWithBump> {
+  return derive(programAddress, [
+    utf8.encode('hyperlane_fee'),
+    utf8.encode('-'),
+    utf8.encode('standing'),
+    utf8.encode('-'),
+    addressEncoder.encode(feeAccount),
+    utf8.encode('-'),
+    u32.encode(domain),
+    utf8.encode('-'),
+    targetRouter,
+  ]);
+}
