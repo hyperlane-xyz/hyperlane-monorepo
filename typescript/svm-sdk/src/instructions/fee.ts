@@ -392,3 +392,83 @@ export function getSetWildcardQuoteSignersInstruction(
     ixData,
   );
 }
+
+// ── SetCrossCollateralRoute ─────────────────────────────────────────
+// Accounts:
+//   0. `[]`           System program
+//   1. `[]`           Fee account (read-only, must be FeeData::CrossCollateralRouting)
+//   2. `[writable, signer]` Owner
+//   3. `[writable]`   CrossCollateralRoute PDA (created if uninitialized, updated if exists)
+
+export async function getSetCrossCollateralRouteInstruction(
+  programId: Address,
+  feeAccount: Address,
+  owner: Address,
+  destination: number,
+  targetRouter: Uint8Array,
+  feeData: SvmFeeDataStrategy,
+  signers: Uint8Array[] | null,
+): Promise<Instruction> {
+  const { address: ccRoutePda } = await deriveCrossCollateralRoutePda(
+    programId,
+    feeAccount,
+    destination,
+    targetRouter,
+  );
+
+  const ixData = concatBytes(
+    u8(FeeInstructionKind.SetCrossCollateralRoute),
+    u32le(destination),
+    Uint8Array.from(targetRouter),
+    encodeFeeDataStrategy(feeData),
+    encodeOptionalBTreeSetH160(signers),
+  );
+
+  return buildInstruction(
+    programId,
+    [
+      readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
+      readonlyAccount(feeAccount),
+      writableSignerAddress(owner),
+      writableAccount(ccRoutePda),
+    ],
+    ixData,
+  );
+}
+
+// ── RemoveCrossCollateralRoute ──────────────────────────────────────
+// Accounts:
+//   0. `[]`           Fee account (read-only, must be FeeData::CrossCollateralRouting)
+//   1. `[writable, signer]` Owner (receives rent refund)
+//   2. `[writable]`   CrossCollateralRoute PDA (closed)
+
+export async function getRemoveCrossCollateralRouteInstruction(
+  programId: Address,
+  feeAccount: Address,
+  owner: Address,
+  destination: number,
+  targetRouter: Uint8Array,
+): Promise<Instruction> {
+  const { address: ccRoutePda } = await deriveCrossCollateralRoutePda(
+    programId,
+    feeAccount,
+    destination,
+    targetRouter,
+  );
+
+  const ixData = concatBytes(
+    u8(FeeInstructionKind.RemoveCrossCollateralRoute),
+    u32le(destination),
+    Uint8Array.from(targetRouter),
+  );
+
+  return buildInstruction(
+    programId,
+    [
+      readonlyAccount(feeAccount),
+      writableSignerAddress(owner),
+      writableAccount(ccRoutePda),
+    ],
+    ixData,
+  );
+}
