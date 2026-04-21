@@ -29,8 +29,13 @@ import {
 import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { DestinationGas, RemoteRouters } from '../router/types.js';
+import {
+  DestinationGas,
+  RemoteRouters,
+  resolveRouterMapConfig,
+} from '../router/types.js';
 import { ChainMap } from '../types.js';
+import { normalizeScale } from '../utils/decimals.js';
 import { WarpCoreConfig } from '../warp/types.js';
 
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
@@ -50,6 +55,7 @@ import {
   isCrossCollateralTokenConfig,
   isMovableCollateralTokenConfig,
   isNativeTokenConfig,
+  isOftTokenConfig,
   isSyntheticRebaseTokenConfig,
   isSyntheticTokenConfig,
 } from './types.js';
@@ -410,6 +416,34 @@ export async function expandWarpDeployConfig(params: {
   );
 }
 
+export function normalizeWarpDeployConfigForCheck(params: {
+  multiProvider: MultiProvider;
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+}): WarpRouteDeployConfigMailboxRequired {
+  const { multiProvider, warpDeployConfig } = params;
+
+  return objMap(warpDeployConfig, (_chain, config) => {
+    if (!isOftTokenConfig(config)) {
+      return config;
+    }
+
+    return {
+      ...config,
+      mailbox: constants.AddressZero,
+      hook: constants.AddressZero,
+      interchainSecurityModule: constants.AddressZero,
+      remoteRouters: {},
+      destinationGas: undefined,
+      domainMappings: resolveRouterMapConfig(
+        multiProvider,
+        config.domainMappings,
+      ),
+      extraOptions:
+        config.extraOptions === '0x' ? undefined : config.extraOptions,
+    };
+  });
+}
+
 /**
  * Resolves the fee token address based on the warp route token type.
  * - Native tokens: fee token is AddressZero
@@ -686,6 +720,10 @@ export function transformConfigToCheck(
       clonedTokenConfig.tokenFee,
     );
   }
+
+  // normalizeScale(undefined) -> {1n,1n}, matching EvmWarpRouteReader.fetchScale's
+  // identity-collapse so both sides of the diff agree symmetrically.
+  clonedTokenConfig.scale = normalizeScale(clonedTokenConfig.scale);
 
   return sortArraysInObject(
     transformObj(clonedTokenConfig, transformWarpDeployConfigToCheck),

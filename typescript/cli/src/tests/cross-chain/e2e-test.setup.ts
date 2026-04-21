@@ -31,6 +31,7 @@ const TESTS_WITHOUT_RADIX_SETUP = new Set([
   'warp-apply-starknet',
   'warp-deploy-starknet',
   'warp-cc-evm-svm',
+  'warp-send-evm-svm',
 ]);
 
 before(async function () {

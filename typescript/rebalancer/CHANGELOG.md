@@ -1,5 +1,57 @@
 # @hyperlane-xyz/rebalancer
 
+## 27.2.13
+
+### Patch Changes
+
+- 959c42a: Mixed-decimal inventory follow-ups were fixed by failing fast on missing bridged supply, tightening bridge plan coverage, and formatting monitored inventory balances with token-aware decimals.
+- Updated dependencies [a2081df]
+- Updated dependencies [4c91737]
+  - @hyperlane-xyz/sdk@33.0.1
+  - @hyperlane-xyz/metrics@0.2.19
+  - @hyperlane-xyz/utils@33.0.1
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/provider-sdk@5.0.3
+
+## 27.2.12
+
+### Patch Changes
+
+- Updated dependencies [dc8e560]
+  - @hyperlane-xyz/sdk@33.0.0
+  - @hyperlane-xyz/metrics@0.2.18
+  - @hyperlane-xyz/utils@33.0.0
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/provider-sdk@5.0.2
+
+## 27.2.11
+
+### Patch Changes
+
+- Updated dependencies [611b911]
+- Updated dependencies [c6de4c9]
+  - @hyperlane-xyz/sdk@32.0.1
+  - @hyperlane-xyz/metrics@0.2.17
+  - @hyperlane-xyz/utils@32.0.1
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/provider-sdk@5.0.1
+
+## 27.2.10
+
+### Patch Changes
+
+- Updated dependencies [e4da110]
+- Updated dependencies [d588eb5]
+- Updated dependencies [3dc6367]
+- Updated dependencies [ab17263]
+- Updated dependencies [ebde778]
+- Updated dependencies [fa08f2a]
+  - @hyperlane-xyz/sdk@32.0.0
+  - @hyperlane-xyz/provider-sdk@5.0.0
+  - @hyperlane-xyz/metrics@0.2.16
+  - @hyperlane-xyz/utils@32.0.0
+  - @hyperlane-xyz/core@11.3.1
+
 ## 27.2.9
 
 ### Patch Changes
