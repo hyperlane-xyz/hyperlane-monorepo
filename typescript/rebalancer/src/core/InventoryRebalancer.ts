@@ -76,6 +76,20 @@ type BridgeCapacity = {
 
 type BridgeQuoteMode = 'forward' | 'reverse';
 
+type InventoryMovementExecutionResult =
+  | {
+      success: true;
+      txHash: string;
+      inputRequired: bigint;
+      quotedOutput: bigint;
+      quotedOutputMin: bigint;
+      quoteModeUsed: BridgeQuoteMode;
+    }
+  | {
+      success: false;
+      error: string;
+    };
+
 const RECOVERABLE_MAX_TRANSFER_ERROR_MESSAGES = [
   'balance may be insufficient',
   'transfer amount exceeds balance',
@@ -975,7 +989,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
     // Process results
     let successCount = 0;
-    let totalBridged = 0n;
+    let totalQuotedOutputMin = 0n;
     const failedErrors: string[] = [];
 
     for (let i = 0; i < bridgeResults.length; i++) {
@@ -984,11 +998,14 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
       if (result.status === 'fulfilled' && result.value.success) {
         successCount++;
-        totalBridged += plan.targetOutput;
+        totalQuotedOutputMin += result.value.quotedOutputMin;
         this.logger.info(
           {
             sourceChain: plan.chain,
-            amount: plan.targetOutput.toString(),
+            plannedTargetOutput: plan.targetOutput.toString(),
+            quotedOutput: result.value.quotedOutput.toString(),
+            quotedOutputMin: result.value.quotedOutputMin.toString(),
+            quoteModeUsed: result.value.quoteModeUsed,
             txHash: result.value.txHash,
           },
           'Inventory movement succeeded',
@@ -997,14 +1014,16 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         const error =
           result.status === 'rejected'
             ? result.reason?.message
-            : result.value.error;
+            : result.value.success
+              ? undefined
+              : result.value.error;
         if (error) {
           failedErrors.push(`${plan.chain}: ${error}`);
         }
         this.logger.warn(
           {
             sourceChain: plan.chain,
-            amount: plan.targetOutput.toString(),
+            plannedTargetOutput: plan.targetOutput.toString(),
             error,
           },
           'Inventory movement failed',
@@ -1026,7 +1045,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       {
         targetChain: destination,
         successCount,
-        totalBridged: totalBridged.toString(),
+        totalQuotedOutputMin: totalQuotedOutputMin.toString(),
         targetAmount: requestedLocalAmount.toString(),
         targetAmountCanonical: amount.toString(),
         intentId: intent.id,
@@ -1424,7 +1443,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     quoteMode: BridgeQuoteMode,
     intent: RebalanceIntent,
     externalBridgeType: ExternalBridgeType,
-  ): Promise<{ success: boolean; txHash?: string; error?: string }> {
+  ): Promise<InventoryMovementExecutionResult> {
     const sourceToken = this.getTokenForChain(sourceChain);
     if (!sourceToken) {
       return {
@@ -1470,52 +1489,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       'Resolved token addresses for LiFi bridge',
     );
 
-    const costs = await calculateTransferCosts(
-      targetChain,
-      sourceChain,
-      targetOutputAmount,
-      targetOutputAmount,
-      this.multiProvider,
-      this.warpCore.multiProvider,
-      this.getTokenForChain.bind(this),
-      this.getInventorySignerAddress(targetChain),
-      isNativeTokenStandard,
-      this.logger,
-    );
-    const { minViableTransfer } = costs;
-
-    // If the requested amount is below minViableTransfer, adjust it up.
-    // This ensures we bridge enough to actually complete the final transferRemote.
-    const effectiveTargetOutput =
-      targetOutputAmount < minViableTransfer
-        ? minViableTransfer
-        : targetOutputAmount;
-
-    if (effectiveTargetOutput !== targetOutputAmount) {
-      this.logger.info(
-        {
-          originalAmount: targetOutputAmount.toString(),
-          effectiveAmount: effectiveTargetOutput.toString(),
-          minViableTransfer: minViableTransfer.toString(),
-          originalAmountFormatted: this.formatLocalAmount(
-            targetOutputAmount,
-            targetToken,
-          ),
-          effectiveAmountFormatted: this.formatLocalAmount(
-            effectiveTargetOutput,
-            targetToken,
-          ),
-          minViableTransferFormatted: this.formatLocalAmount(
-            minViableTransfer,
-            targetToken,
-          ),
-          adjustedUp: true,
-          intentId: intent.id,
-        },
-        'Over-bridging to minViableTransfer to ensure final transferRemote can complete',
-      );
-    }
-
     try {
       const externalBridge = this.getExternalBridge(externalBridgeType);
       const fromAddress = this.getInventorySignerAddress(sourceChain);
@@ -1528,7 +1501,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
           toToken: toTokenAddress,
           ...(mode === 'forward'
             ? { fromAmount: maxSourceInput }
-            : { toAmount: effectiveTargetOutput }),
+            : { toAmount: targetOutputAmount }),
           fromAddress,
           toAddress,
         });
@@ -1543,7 +1516,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
             targetChain,
             plannedQuoteMode: quoteMode,
             requestedTargetOutput: targetOutputAmount.toString(),
-            effectiveTargetOutput: effectiveTargetOutput.toString(),
             quotedInput: quote.fromAmount.toString(),
             maxSourceInput: maxSourceInput.toString(),
             intentId: intent.id,
@@ -1551,6 +1523,8 @@ export class InventoryRebalancer implements IInventoryRebalancer {
           'Reverse bridge quote exceeded source capacity, retrying with forward quote',
         );
 
+        // Spend the full source cap on fallback; minor output drift is acceptable
+        // and will be reconciled by later cycles rather than risking livelock.
         quoteModeUsed = 'forward';
         quote = await quoteWithMode(quoteModeUsed);
       }
@@ -1576,26 +1550,26 @@ export class InventoryRebalancer implements IInventoryRebalancer {
           ),
           quoteModePlanned: quoteMode,
           quoteModeUsed,
-          effectiveTargetOutput: effectiveTargetOutput.toString(),
-          effectiveTargetOutputFormatted: this.formatLocalAmount(
-            effectiveTargetOutput,
-            targetToken,
-          ),
+          retriedAsForward:
+            quoteMode === 'reverse' && quoteModeUsed === 'forward',
           inputRequired: inputRequired.toString(),
           inputRequiredFormatted: this.formatLocalAmount(
             inputRequired,
             sourceToken,
           ),
-          expectedOutput: quote.toAmount.toString(),
-          expectedOutputMin: quote.toAmountMin.toString(),
-          expectedOutputFormatted: this.formatLocalAmount(
+          quotedOutput: quote.toAmount.toString(),
+          quotedOutputMin: quote.toAmountMin.toString(),
+          quotedOutputFormatted: this.formatLocalAmount(
             quote.toAmount,
+            targetToken,
+          ),
+          quotedOutputMinFormatted: this.formatLocalAmount(
+            quote.toAmountMin,
             targetToken,
           ),
           gasCosts: quote.gasCosts.toString(),
           feeCosts: quote.feeCosts.toString(),
           intentId: intent.id,
-          adjustedForMinViable: effectiveTargetOutput > targetOutputAmount,
         },
         'Executing inventory movement via bridge quote',
       );
@@ -1665,22 +1639,31 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         'Updated consumed inventory after LiFi bridge',
       );
 
-      return { success: true, txHash: result.txHash };
+      return {
+        success: true,
+        txHash: result.txHash,
+        inputRequired,
+        quotedOutput: quote.toAmount,
+        quotedOutputMin: quote.toAmountMin,
+        quoteModeUsed,
+      };
     } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       this.logger.error(
         {
           sourceChain,
           targetChain,
           amount: targetOutputAmount.toString(),
           intentId: intent.id,
-          error: (error as Error).message,
+          error: errorMessage,
         },
         'Failed to execute inventory movement',
       );
 
       return {
         success: false,
-        error: (error as Error).message,
+        error: errorMessage,
       };
     }
   }
