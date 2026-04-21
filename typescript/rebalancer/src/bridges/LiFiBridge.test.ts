@@ -557,6 +557,49 @@ describe('LiFiBridge.quote() input validation', function () {
   });
 });
 
+describe('LiFiBridge.quote() routing policy', function () {
+  let bridge: LiFiBridge;
+
+  beforeEach(() => {
+    bridge = new LiFiBridge(BRIDGE_CONFIG, testLogger);
+  });
+
+  it('should use RECOMMENDED order for reverse toAmount quotes', async () => {
+    const originalFetch = globalThis.fetch;
+    let requestUrl = '';
+
+    globalThis.fetch = (async (input: URL | RequestInfo) => {
+      requestUrl = String(input);
+      return {
+        ok: true,
+        json: async () =>
+          createLiFiStep({
+            toChainId: 1151111081099710,
+            toAmount: '5000000000',
+          }),
+      } as Response;
+    }) as typeof fetch;
+
+    try {
+      const quote = await bridge.quote({
+        fromChain: 42161,
+        toChain: 1151111081099710,
+        fromToken: TOKEN_ADDR,
+        toToken: TOKEN_ADDR,
+        fromAddress: SENDER_ADDR,
+        toAddress: SENDER_ADDR,
+        toAmount: 5000000000n,
+      });
+      const params = new URL(requestUrl).searchParams;
+
+      expect(params.get('order')).to.equal('RECOMMENDED');
+      expect(quote.requestParams.toAmount).to.equal(5000000000n);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
+
 describe('LiFiBridge.getStatus()', function () {
   let bridge: LiFiBridge;
 

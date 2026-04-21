@@ -381,7 +381,7 @@ export class LiFiBridge implements IExternalBridge {
       slippage: (params.slippage ?? this.config.defaultSlippage ?? 0.005)
         .toFixed(4)
         .replace(/\.?0+$/, ''),
-      order: 'CHEAPEST',
+      order: 'RECOMMENDED',
       integrator: this.config.integrator,
     });
 
