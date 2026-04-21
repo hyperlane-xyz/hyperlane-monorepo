@@ -100,6 +100,12 @@ class TestKatanaBridge extends KatanaBridge {
   protected override async sleep(): Promise<void> {}
 }
 
+class InspectingKatanaBridge extends KatanaBridge {
+  getProviderFor(chainId: number): ethers.providers.StaticJsonRpcProvider {
+    return this.getProvider(chainId);
+  }
+}
+
 function createReceipt(
   transactionHash: string,
 ): ethers.providers.TransactionReceipt {
@@ -352,5 +358,31 @@ describe('KatanaBridge', () => {
       receivingTxHash: '0xreceivingtx',
       receivedAmount: 5_000_000n,
     });
+  });
+
+  it('uses static EVM providers and ignores non-EVM chainId collisions', () => {
+    const bridge = new InspectingKatanaBridge(
+      {
+        ...BRIDGE_CONFIG,
+        chainMetadata: {
+          ...BRIDGE_CONFIG.chainMetadata,
+          collision: {
+            chainId: ETHEREUM_CHAIN_ID,
+            domainId: 999_999,
+            protocol: ProtocolType.Sealevel,
+            name: 'collision',
+            displayName: 'Collision',
+            rpcUrls: [{ http: 'https://wrong.example' }],
+          },
+        },
+      },
+      testLogger,
+    );
+
+    const provider = bridge.getProviderFor(ETHEREUM_CHAIN_ID);
+
+    expect(provider).to.be.instanceOf(ethers.providers.StaticJsonRpcProvider);
+    expect(provider.connection.url).to.equal('https://ethereum.example');
+    expect(provider.network.chainId).to.equal(ETHEREUM_CHAIN_ID);
   });
 });

@@ -182,7 +182,10 @@ export class KatanaBridge implements IExternalBridge {
     this.chainMetadataByChainId = new Map();
     if (config.chainMetadata) {
       for (const metadata of Object.values(config.chainMetadata)) {
-        if (metadata.chainId !== undefined) {
+        if (
+          metadata.chainId !== undefined &&
+          metadata.protocol === ProtocolType.Ethereum
+        ) {
           this.chainMetadataByChainId.set(Number(metadata.chainId), metadata);
         }
       }
@@ -440,8 +443,13 @@ export class KatanaBridge implements IExternalBridge {
     );
   }
 
-  protected getProvider(chainId: number): ethers.providers.JsonRpcProvider {
-    return new ethers.providers.JsonRpcProvider(this.getRpcUrl(chainId));
+  protected getProvider(
+    chainId: number,
+  ): ethers.providers.StaticJsonRpcProvider {
+    return new ethers.providers.StaticJsonRpcProvider(
+      this.getRpcUrl(chainId),
+      chainId,
+    );
   }
 
   protected async readAllowance(
