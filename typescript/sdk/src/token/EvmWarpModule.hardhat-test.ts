@@ -2314,4 +2314,40 @@ describe('EvmWarpModule', async () => {
       );
     });
   });
+
+  describe('createHookUpdateTxs', () => {
+    const ROUTE_ADDRESS = '0x1111111111111111111111111111111111111111';
+    const TOKEN_ADDRESS = '0x2222222222222222222222222222222222222222';
+
+    let warpModule: EvmWarpModule;
+
+    before(() => {
+      warpModule = new EvmWarpModule(multiProvider, {
+        chain,
+        config: {} as HypTokenRouterConfig,
+        addresses: {
+          deployedTokenRoute: ROUTE_ADDRESS,
+          ...ismFactoryAddresses,
+        },
+      });
+    });
+
+    it('returns empty when expected hook is AddressZero', async () => {
+      const actual = {
+        ...baseConfig,
+        type: TokenType.collateral,
+        token: TOKEN_ADDRESS,
+      } as DerivedTokenRouterConfig;
+      const expected = {
+        ...baseConfig,
+        type: TokenType.collateral,
+        token: TOKEN_ADDRESS,
+        hook: ethers.constants.AddressZero,
+      } as HypTokenRouterConfig;
+
+      expect(
+        await warpModule.createHookUpdateTxs(actual, expected),
+      ).to.deep.equal([]);
+    });
+  });
 });

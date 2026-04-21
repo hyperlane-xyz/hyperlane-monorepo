@@ -33,7 +33,10 @@ type UpdateHookParams = {
 export async function getEvmHookUpdateTransactions(
   clientContractAddress: string,
   updateHookParams: Readonly<UpdateHookParams>,
-): Promise<AnnotatedEV5Transaction[]> {
+): Promise<{
+  transactions: AnnotatedEV5Transaction[];
+  newHookAddress: Address;
+}> {
   const {
     actualConfig: actualHookConfig,
     evmChainName,
@@ -88,5 +91,5 @@ export async function getEvmHookUpdateTransactions(
     });
   }
 
-  return updateTransactions;
+  return { transactions: updateTransactions, newHookAddress };
 }

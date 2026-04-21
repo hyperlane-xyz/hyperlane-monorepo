@@ -19,7 +19,7 @@ use hyperlane_base::{
 use hyperlane_core::{
     accumulator::merkle::Proof, AggregationIsm, CcipReadIsm, Checkpoint, HyperlaneDomain,
     HyperlaneMessage, InterchainSecurityModule, ModuleType, MultisigIsm, RoutingIsm,
-    ValidatorAnnounce, H160, H256,
+    ValidatorAnnounce, H160, H256, H512,
 };
 
 use crate::msg::metadata::base_builder::validator_announced_storages::fetch_storage_locations_helper;
@@ -85,6 +85,10 @@ pub trait BuildsBaseMetadata: Send + Sync + Debug {
     async fn highest_known_leaf_index(&self) -> Option<u32>;
     async fn get_merkle_leaf_id_by_message_id(&self, message_id: H256)
         -> eyre::Result<Option<u32>>;
+    async fn retrieve_origin_tx_hash_by_message_id(
+        &self,
+        message_id: H256,
+    ) -> eyre::Result<Option<H512>>;
     async fn build_ism(&self, address: H256) -> eyre::Result<Box<dyn InterchainSecurityModule>>;
     async fn build_routing_ism(&self, address: H256) -> eyre::Result<Box<dyn RoutingIsm>>;
     async fn build_multisig_ism(&self, address: H256) -> eyre::Result<Box<dyn MultisigIsm>>;
@@ -170,6 +174,15 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
             .db
             .retrieve_merkle_leaf_index_by_message_id(&message_id)?;
         Ok(merkle_leaf)
+    }
+
+    async fn retrieve_origin_tx_hash_by_message_id(
+        &self,
+        message_id: H256,
+    ) -> eyre::Result<Option<H512>> {
+        Ok(self
+            .db
+            .retrieve_dispatched_tx_hash_by_message_id(&message_id)?)
     }
 
     async fn build_ism(&self, address: H256) -> eyre::Result<Box<dyn InterchainSecurityModule>> {

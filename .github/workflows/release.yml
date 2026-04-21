@@ -321,9 +321,9 @@ jobs:
           webhook: ${{ secrets.SLACK_INCIDENTS_WEBHOOK }}
           webhook-type: incoming-webhook
           payload: |
-            text: ":red-siren: NPM package publish failed — see workflow run for details"
+            text: ":alert: NPM package publish failed — see workflow run for details"
             blocks:
               - type: "section"
                 text:
                   type: "mrkdwn"
-                  text: ":red-siren: *NPM package publish failed*\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View workflow run #${{ github.run_number }}>"
+                  text: ":alert: *NPM package publish failed*\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View workflow run #${{ github.run_number }}>"

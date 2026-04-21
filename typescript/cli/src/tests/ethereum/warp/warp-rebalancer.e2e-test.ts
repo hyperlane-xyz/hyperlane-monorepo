@@ -367,30 +367,129 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     })();
 
     return new Promise((resolve, reject) => {
+      let settled = false;
+      const observedLines: string[] = [];
+      let stdoutCarry = '';
+      let stderrCarry = '';
+
+      const settleSuccess = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeoutId);
+        resolve(void 0);
+      };
+
+      const settleError = (error: Error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeoutId);
+        reject(error);
+      };
+
+      const consumeLines = (lines: string[]) => {
+        for (const line of lines) {
+          observedLines.push(line);
+          if (!expectedLogs.length) break;
+          try {
+            const logJson = JSON.parse(line) as { msg?: unknown };
+            if (
+              typeof logJson.msg === 'string' &&
+              logJson.msg.includes(expectedLogs[0])
+            ) {
+              expectedLogs.shift();
+            }
+          } catch (_e) {
+            if (line.includes(expectedLogs[0])) {
+              expectedLogs.shift();
+            }
+          }
+        }
+
+        if (!expectedLogs.length) {
+          settleSuccess();
+        }
+      };
+
+      const consumeChunk = (
+        output: string,
+        stream: 'stdout' | 'stderr',
+        flush = false,
+      ) => {
+        const buffered =
+          (stream === 'stdout' ? stdoutCarry : stderrCarry) + output;
+        const parts = buffered.split('\n');
+        const carry = flush ? '' : (parts.pop() ?? '');
+
+        if (stream === 'stdout') {
+          stdoutCarry = carry;
+        } else {
+          stderrCarry = carry;
+        }
+
+        consumeLines(parts.filter(Boolean));
+      };
+
+      const getErrorLines = (error: unknown): string[] => {
+        if (typeof error !== 'object' || error === null) return [];
+        const maybeError = error as { lines?: unknown };
+        if (typeof maybeError.lines !== 'function') return [];
+
+        const lines = maybeError.lines();
+        return Array.isArray(lines)
+          ? lines.filter((line): line is string => typeof line === 'string')
+          : [];
+      };
+
+      const getProcessErrorOutput = (error: unknown): string => {
+        const outputs: string[] = [];
+
+        outputs.push(getErrorLines(error).join('\n'));
+
+        if (typeof error === 'object' && error !== null) {
+          const maybeError = error as {
+            stdout?: unknown;
+            stderr?: unknown;
+            message?: unknown;
+            stack?: unknown;
+          };
+
+          if (typeof maybeError.stdout === 'string') {
+            outputs.push(maybeError.stdout);
+          }
+          if (typeof maybeError.stderr === 'string') {
+            outputs.push(maybeError.stderr);
+          }
+          if (typeof maybeError.message === 'string') {
+            outputs.push(maybeError.message);
+          }
+          if (typeof maybeError.stack === 'string') {
+            outputs.push(maybeError.stack);
+          }
+        } else if (typeof error === 'string') {
+          outputs.push(error);
+        }
+
+        return outputs.filter(Boolean).join('\n');
+      };
+
       // Use a timeout to prevent waiting for a log that might never happen and fail faster
       timeoutId = setTimeout(() => {
-        reject(new Error(`Timeout waiting for log: "${expectedLogs[0]}"`));
+        settleError(new Error(`Timeout waiting for log: "${expectedLogs[0]}"`));
       }, timeout);
 
       // Handle when the process exits due to an error that is not the expected log
-      rebalancer.catch((e) => {
-        const lines = typeof e.lines === 'function' ? e.lines() : [];
-        const combined = Array.isArray(lines) ? lines.join('\n') : String(e);
+      rebalancer.catch((e: unknown) => {
+        consumeChunk('', 'stdout', true);
+        consumeChunk('', 'stderr', true);
+        const combined = getProcessErrorOutput(e);
+        consumeLines(combined.split('\n').filter(Boolean));
 
-        // Consume any expected logs that appear in the error output
-        while (expectedLogs.length && combined.includes(expectedLogs[0])) {
-          expectedLogs.shift();
-        }
-
-        clearTimeout(timeoutId);
         if (!expectedLogs.length) {
-          resolve(void 0);
+          settleSuccess();
         } else {
-          const lastLine =
-            Array.isArray(lines) && lines.length
-              ? lines[lines.length - 1]
-              : String(e);
-          reject(
+          const lines = getErrorLines(e);
+          const lastLine = lines.length ? lines[lines.length - 1] : String(e);
+          settleError(
             new Error(
               `Process failed before logging: "${expectedLogs[0]}" with error: ${lastLine}`,
             ),
@@ -398,32 +497,19 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         }
       });
       (async () => {
-        // Wait for the process to output the expected log.
         for await (let chunk of rebalancer.stdout) {
           chunk = typeof chunk === 'string' ? chunk : chunk.toString();
-          const lines = chunk.split('\n').filter(Boolean); // handle empty lines
-
-          for (const line of lines) {
-            if (!expectedLogs.length) break;
-            try {
-              const logJson = JSON.parse(line);
-              if (logJson.msg?.includes(expectedLogs[0])) {
-                expectedLogs.shift();
-              }
-            } catch (_e) {
-              // For non-json logs
-              if (line.includes(expectedLogs[0])) {
-                expectedLogs.shift();
-              }
-            }
-          }
-
-          if (!expectedLogs.length) {
-            resolve(void 0);
-            break;
-          }
+          consumeChunk(chunk, 'stdout');
         }
-      })().catch(reject);
+        consumeChunk('', 'stdout', true);
+      })().catch(settleError);
+      (async () => {
+        for await (let chunk of rebalancer.stderr) {
+          chunk = typeof chunk === 'string' ? chunk : chunk.toString();
+          consumeChunk(chunk, 'stderr');
+        }
+        consumeChunk('', 'stderr', true);
+      })().catch(settleError);
     }).finally(async () => {
       // Perform a cleanup at the end
       clearTimeout(timeoutId);

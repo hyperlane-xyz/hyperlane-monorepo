@@ -200,31 +200,35 @@ export class EvmCoreModule extends HyperlaneModule<
     actualConfig: DerivedHookConfig,
     expectedConfig: HookConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
-    return getEvmHookUpdateTransactions(this.args.addresses.mailbox, {
-      actualConfig: actualConfig,
-      expectedConfig: expectedConfig,
-      evmChainName: this.chainName,
-      hookAndIsmFactories: extractIsmAndHookFactoryAddresses(
-        this.args.addresses,
-      ),
-      setHookFunctionCallEncoder: (newHookAddress: string) => {
-        if (setHookFunctionName === 'requiredHook') {
+    const { transactions } = await getEvmHookUpdateTransactions(
+      this.args.addresses.mailbox,
+      {
+        actualConfig: actualConfig,
+        expectedConfig: expectedConfig,
+        evmChainName: this.chainName,
+        hookAndIsmFactories: extractIsmAndHookFactoryAddresses(
+          this.args.addresses,
+        ),
+        setHookFunctionCallEncoder: (newHookAddress: string) => {
+          if (setHookFunctionName === 'requiredHook') {
+            return Mailbox__factory.createInterface().encodeFunctionData(
+              'setRequiredHook',
+              [newHookAddress],
+            );
+          }
+
           return Mailbox__factory.createInterface().encodeFunctionData(
-            'setRequiredHook',
+            'setDefaultHook',
             [newHookAddress],
           );
-        }
-
-        return Mailbox__factory.createInterface().encodeFunctionData(
-          'setDefaultHook',
-          [newHookAddress],
-        );
+        },
+        logger: this.logger,
+        mailbox: this.args.addresses.mailbox,
+        multiProvider: this.multiProvider,
+        proxyAdminAddress,
       },
-      logger: this.logger,
-      mailbox: this.args.addresses.mailbox,
-      multiProvider: this.multiProvider,
-      proxyAdminAddress,
-    });
+    );
+    return transactions;
   }
 
   /**

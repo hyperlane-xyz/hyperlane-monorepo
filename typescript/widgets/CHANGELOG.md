@@ -1,5 +1,47 @@
 # @hyperlane-xyz/widgets
 
+## 33.0.1
+
+### Patch Changes
+
+- 4c91737: Made `ChainSearchMenu` fit metadata-first consumers better by lazy-loading the chain-details drilldown, and hardened `ChainAddMenu` validation against duplicate `chainId` and effective `domainId` conflicts across merged base and override metadata.
+- Updated dependencies [a2081df]
+- Updated dependencies [4c91737]
+  - @hyperlane-xyz/sdk@33.0.1
+  - @hyperlane-xyz/aleo-sdk@33.0.1
+  - @hyperlane-xyz/cosmos-sdk@33.0.1
+  - @hyperlane-xyz/radix-sdk@33.0.1
+  - @hyperlane-xyz/utils@33.0.1
+  - @hyperlane-xyz/provider-sdk@5.0.3
+  - @hyperlane-xyz/tron-sdk@23.0.3
+
+## 33.0.0
+
+### Patch Changes
+
+- Updated dependencies [dc8e560]
+  - @hyperlane-xyz/sdk@33.0.0
+  - @hyperlane-xyz/aleo-sdk@33.0.0
+  - @hyperlane-xyz/cosmos-sdk@33.0.0
+  - @hyperlane-xyz/radix-sdk@33.0.0
+  - @hyperlane-xyz/utils@33.0.0
+  - @hyperlane-xyz/provider-sdk@5.0.2
+  - @hyperlane-xyz/tron-sdk@23.0.2
+
+## 32.0.1
+
+### Patch Changes
+
+- Updated dependencies [611b911]
+- Updated dependencies [c6de4c9]
+  - @hyperlane-xyz/sdk@32.0.1
+  - @hyperlane-xyz/aleo-sdk@32.0.1
+  - @hyperlane-xyz/cosmos-sdk@32.0.1
+  - @hyperlane-xyz/radix-sdk@32.0.1
+  - @hyperlane-xyz/utils@32.0.1
+  - @hyperlane-xyz/provider-sdk@5.0.1
+  - @hyperlane-xyz/tron-sdk@23.0.1
+
 ## 32.0.0
 
 ### Patch Changes
