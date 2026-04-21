@@ -4,12 +4,18 @@ import { FeeType } from '@hyperlane-xyz/provider-sdk/fee';
 
 import {
   decodeFeeAccount,
+  decodeCrossCollateralRoute,
   decodeRouteDomain,
+  type CrossCollateralRouteData,
   type FeeAccountData,
   type DecodedFeeData,
   type RouteDomainData,
 } from '../accounts/fee.js';
-import { deriveFeeAccountPda, deriveRouteDomainPda } from '../pda.js';
+import {
+  deriveCrossCollateralRoutePda,
+  deriveFeeAccountPda,
+  deriveRouteDomainPda,
+} from '../pda.js';
 import { fetchAccountDataRaw } from '../rpc.js';
 import type { SvmRpc } from '../types.js';
 import { FeeDataKind, FeeStrategyKind } from './types.js';
@@ -58,6 +64,24 @@ export async function fetchRouteDomain(
   const raw = await fetchAccountDataRaw(rpc, routePda);
   if (!raw || raw.length === 0) return null;
   return decodeRouteDomain(raw);
+}
+
+export async function fetchCrossCollateralRoute(
+  rpc: SvmRpc,
+  programId: Address,
+  feeAccount: Address,
+  destination: number,
+  targetRouter: Uint8Array,
+): Promise<CrossCollateralRouteData | null> {
+  const { address: ccRoutePda } = await deriveCrossCollateralRoutePda(
+    programId,
+    feeAccount,
+    destination,
+    targetRouter,
+  );
+  const raw = await fetchAccountDataRaw(rpc, ccRoutePda);
+  if (!raw || raw.length === 0) return null;
+  return decodeCrossCollateralRoute(raw);
 }
 
 function strategyKindToFeeType(kind: number): FeeType {
