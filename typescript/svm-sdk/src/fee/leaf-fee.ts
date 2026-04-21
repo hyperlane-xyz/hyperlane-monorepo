@@ -2,6 +2,7 @@ import { address as parseAddress } from '@solana/kit';
 
 import type {
   LinearFeeConfig,
+  OffchainQuotedLinearFeeConfig,
   ProgressiveFeeConfig,
   RegressiveFeeConfig,
 } from '@hyperlane-xyz/provider-sdk/fee';
@@ -43,7 +44,8 @@ import {
 export type LeafFeeConfig =
   | LinearFeeConfig
   | RegressiveFeeConfig
-  | ProgressiveFeeConfig;
+  | ProgressiveFeeConfig
+  | OffchainQuotedLinearFeeConfig;
 
 export abstract class SvmLeafFeeReader<
   C extends LeafFeeConfig,
