@@ -70,6 +70,14 @@ export class ByteCursor {
     return value;
   }
 
+  readI64LE(): bigint {
+    const unsigned = this.readU64LE();
+    // Two's complement: if the high bit is set, the value is negative.
+    return unsigned >= 0x8000000000000000n
+      ? unsigned - 0x10000000000000000n
+      : unsigned;
+  }
+
   readU128LE(): bigint {
     this.ensure(16);
     const value = U128_CODEC.decode(
@@ -149,6 +157,12 @@ export function u32le(value: number): ReadonlyUint8Array {
 
 export function u64le(value: bigint): ReadonlyUint8Array {
   return U64_CODEC.encode(value);
+}
+
+export function i64le(value: bigint): ReadonlyUint8Array {
+  // Two's complement: encode negative values as unsigned.
+  const unsigned = value < 0n ? value + 0x10000000000000000n : value;
+  return U64_CODEC.encode(unsigned);
 }
 
 export function u128le(value: bigint): ReadonlyUint8Array {

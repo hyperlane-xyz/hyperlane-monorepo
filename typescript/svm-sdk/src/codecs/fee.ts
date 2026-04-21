@@ -68,23 +68,23 @@ export function encodeLeafFeeConfig(
 }
 
 export interface SvmRoutingFeeConfig {
-  wildcardSigners: Uint8Array[] | null;
+  wildcardSigners: Uint8Array[];
 }
 
 export function encodeRoutingFeeConfig(
   config: SvmRoutingFeeConfig,
 ): ReadonlyUint8Array {
-  return encodeOptionalBTreeSetH160(config.wildcardSigners);
+  return encodeBTreeSetH160(config.wildcardSigners);
 }
 
 export interface SvmCrossCollateralRoutingFeeConfig {
-  wildcardSigners: Uint8Array[] | null;
+  wildcardSigners: Uint8Array[];
 }
 
 export function encodeCrossCollateralRoutingFeeConfig(
   config: SvmCrossCollateralRoutingFeeConfig,
 ): ReadonlyUint8Array {
-  return encodeOptionalBTreeSetH160(config.wildcardSigners);
+  return encodeBTreeSetH160(config.wildcardSigners);
 }
 
 // ── FeeData enum ────────────────────────────────────────────────────
