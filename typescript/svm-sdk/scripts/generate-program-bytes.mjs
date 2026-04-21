@@ -11,6 +11,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const PROGRAMS_DIR = join(__dirname, '../../../rust/sealevel/target/deploy');
+const LOCAL_SO_DIR = join(__dirname, '../so-binaries');
 const OUTPUT_FILE = join(__dirname, '../src/hyperlane/program-bytes.ts');
 
 /** All Sealevel programs — keys match PROGRAM_BINARIES in testing/setup.ts. */
@@ -24,6 +25,7 @@ const PROGRAMS = {
   tokenNative: 'hyperlane_sealevel_token_native.so',
   tokenCollateral: 'hyperlane_sealevel_token_collateral.so',
   tokenCrossCollateral: 'hyperlane_sealevel_token_cross_collateral.so',
+  tokenFee: 'hyperlane_sealevel_fee.so',
 };
 
 console.log('🔧 Generating program bytes from .so files...\n');
@@ -31,15 +33,21 @@ console.log('🔧 Generating program bytes from .so files...\n');
 const programBytes = {};
 
 for (const [key, filename] of Object.entries(PROGRAMS)) {
-  const path = join(PROGRAMS_DIR, filename);
+  const primaryPath = join(PROGRAMS_DIR, filename);
+  const fallbackPath = join(LOCAL_SO_DIR, filename);
+  let bytes;
   try {
-    const bytes = readFileSync(path);
-    programBytes[key] = Array.from(bytes);
-    console.log(`  ✅ ${key}: ${bytes.length.toLocaleString()} bytes`);
+    bytes = readFileSync(primaryPath);
   } catch {
-    console.error(`  ❌ ${key}: required .so file not found at ${path}`);
-    process.exit(1);
+    try {
+      bytes = readFileSync(fallbackPath);
+    } catch {
+      console.error(`  ❌ ${key}: .so not found at ${primaryPath} or ${fallbackPath}`);
+      process.exit(1);
+    }
   }
+  programBytes[key] = Array.from(bytes);
+  console.log(`  ✅ ${key}: ${bytes.length.toLocaleString()} bytes`);
 }
 
 const sourceHash = computeSealevelSourceHash();
