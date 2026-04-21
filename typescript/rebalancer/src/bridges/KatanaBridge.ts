@@ -18,64 +18,151 @@ import type {
 } from '../interfaces/IExternalBridge.js';
 import {
   ERC20_ABI,
+  ETHEREUM_CHAIN_ID,
+  KATANA_CHAIN_ID,
   KATANA_FORWARD_CONFIG,
   KATANA_REVERSE_CONFIG,
-  applySlippage,
-  buildKatanaEthereumToKatana,
-  buildKatanaToEthereumCompose,
-  composerInterface,
-  erc20Interface,
-  oftInterface,
-  previewInterface,
-  type ApprovalTx,
-  type BuiltRead,
-  type BuiltTx,
-  type OftSendParam,
 } from './katanaUtils.js';
 
 type KatanaDirection = 'ethereum-to-katana' | 'katana-to-ethereum';
 
-type LayerZeroScanMessage = {
-  status: string;
-  dstTxHash?: string;
+type ArcApiSuccess<T> = {
+  status: 'success';
+  data: T;
 };
 
-type LayerZeroScanResponse = {
-  messages?: LayerZeroScanMessage[];
+type ArcApiError = {
+  status: 'error';
+  message: string;
+  name?: string;
+  code?: number;
+};
+
+type ArcApiResponse<T> = ArcApiSuccess<T> | ArcApiError;
+
+type ArcFeeCost = {
+  amount: string;
+  included?: boolean;
+};
+
+type ArcGasCost = {
+  amount: string;
+};
+
+type ArcStep = {
+  estimate: {
+    approvalAddress: string | null;
+  };
+};
+
+type ArcUnsignedTransaction = {
+  from?: string;
+  to: string;
+  data: string;
+  value: string;
+  gasLimit?: string;
+  gasPrice?: string;
+  maxFeePerGas?: string;
+  maxPriorityFeePerGas?: string;
+  chainId: number;
+};
+
+type ArcRoute = {
+  id: string;
+  provider: string[];
+  fromChainId: number;
+  toChainId: number;
+  fromAmount: string;
+  toAmount: string;
+  toAmountMin: string;
+  feeCosts: ArcFeeCost[];
+  gasCosts: ArcGasCost[];
+  steps: ArcStep[];
+  transactionRequest?: ArcUnsignedTransaction;
+  executionDuration?: number | null;
+  estimatedCompletionTime?: number | null;
+  providerMetadata?: {
+    agglayer?: {
+      claimTransactionRequired?: boolean;
+    };
+  };
+};
+
+type ArcTransaction = {
+  transactionHash: string;
+  transactionHashes?: string[];
+  status: string;
+  sending: {
+    txHash: string;
+    network: {
+      chainId: number;
+      networkId: number | null;
+    };
+  };
+  receiving?: {
+    txHash?: string | null;
+    amount?: string | null;
+  } | null;
+  metadata?: {
+    depositCount?: number | null;
+  };
+};
+
+type KatanaExecutionState = {
+  fromAddress: string;
+  claimRequired: boolean;
+  claimSubmittedTxHash?: string;
 };
 
 export type KatanaBridgeRoute = {
+  id: string;
   kind: KatanaDirection;
   fromChainId: number;
   toChainId: number;
   fromToken: string;
   toToken: string;
   recipient: string;
-  refundAddress: string;
-  previewAmount: bigint;
-  nativeFee: bigint;
-  sendParam: OftSendParam;
-  quoteRead: BuiltRead;
-  approvalCall: ApprovalTx;
-  executionCall: BuiltTx;
+  approvalAddress?: string;
+  executionTx: ArcUnsignedTransaction;
+  claimTransactionRequired: boolean;
 };
 
+const ARC_API_BASE_URL = 'https://arc-api.polygon.technology';
 const DEFAULT_SLIPPAGE = 0.005;
-const EXECUTION_DURATION_S = 120;
-const LAYERZERO_SCAN_API_URL = 'https://scan.layerzero-api.com/v1/messages/tx/';
-
-function toBigInt(value: unknown): bigint {
-  if (typeof value === 'bigint') return value;
-  if (typeof value === 'number') return BigInt(value);
-  if (typeof value === 'string') return BigInt(value);
-  if (value && typeof value === 'object' && 'toString' in value) {
-    return BigInt((value as { toString: () => string }).toString());
-  }
-  throw new Error(`Unable to convert value to bigint: ${String(value)}`);
-}
+const TRANSACTION_POLL_INTERVAL_MS = 5_000;
+const CLAIM_SUBMISSION_TIMEOUT_MS = 10 * 60 * 1_000;
+const TRANSACTION_QUERY_LIMIT = 100;
+const erc20Interface = new ethers.utils.Interface(ERC20_ABI);
 
 function addressesEqual(a: string, b: string): boolean {
   return normalizeAddressEvm(a) === normalizeAddressEvm(b);
+}
+
+function toBigInt(value: string | number | bigint | null | undefined): bigint {
+  assert(value !== null && value !== undefined, 'Missing bigint value');
+  if (typeof value === 'bigint') return value;
+  return BigInt(value);
+}
+
+function sumBigIntStrings(values: Array<{ amount: string }>): bigint {
+  return values.reduce((sum, value) => sum + BigInt(value.amount), 0n);
+}
+
+function normalizeTxHash(txHash: string): string {
+  return txHash.startsWith('0x')
+    ? txHash.toLowerCase()
+    : `0x${txHash.toLowerCase()}`;
+}
+
+function txMatchesHash(tx: ArcTransaction, txHash: string): boolean {
+  const normalized = normalizeTxHash(txHash);
+  return (
+    normalizeTxHash(tx.transactionHash) === normalized ||
+    normalizeTxHash(tx.sending.txHash) === normalized ||
+    tx.transactionHashes?.some(
+      (hash) => normalizeTxHash(hash) === normalized,
+    ) === true
+  );
 }
 
 export class KatanaBridge implements IExternalBridge {
@@ -84,6 +171,10 @@ export class KatanaBridge implements IExternalBridge {
 
   private readonly config: ExternalBridgeConfig;
   private readonly chainMetadataByChainId: Map<number, ChainMetadata>;
+  private readonly executionStateByTxHash = new Map<
+    string,
+    KatanaExecutionState
+  >();
 
   constructor(config: ExternalBridgeConfig, logger: Logger) {
     this.config = config;
@@ -111,138 +202,62 @@ export class KatanaBridge implements IExternalBridge {
     const recipient = normalizeAddressEvm(
       params.toAddress ?? params.fromAddress,
     );
-    const refundAddress = normalizeAddressEvm(params.fromAddress);
     const slippage =
       params.slippage ?? this.config.defaultSlippage ?? DEFAULT_SLIPPAGE;
 
     assert(direction, `Unsupported Katana route: ${fromChain} -> ${toChain}`);
-    assert(toAmount === undefined, 'KatanaBridge does not support toAmount');
+    assert(toAmount === undefined, 'KatanaBridge only supports fromAmount');
     assert(fromAmount !== undefined, 'KatanaBridge requires fromAmount');
     assert(fromAmount > 0n, 'KatanaBridge requires a positive fromAmount');
 
-    if (direction === 'ethereum-to-katana') {
-      const previewShares = await this.probePreviewAmount(
-        fromChain,
-        KATANA_FORWARD_CONFIG.vaultAddress,
-        'previewDeposit',
-        fromAmount,
-      );
-      const exactCall = buildKatanaEthereumToKatana({
-        vaultAddress: KATANA_FORWARD_CONFIG.vaultAddress,
-        composerAddress: KATANA_FORWARD_CONFIG.composerAddress,
-        shareOftAddress: KATANA_FORWARD_CONFIG.shareOftAddress,
-        underlyingTokenAddress: KATANA_FORWARD_CONFIG.fromToken,
-        dstEid: KATANA_FORWARD_CONFIG.dstEid,
-        recipient,
-        amountLD: fromAmount,
-        shareAmountLD: previewShares,
-        minShareAmountLD: applySlippage(previewShares, slippage),
-        refundAddress,
-        extraOptions: KATANA_FORWARD_CONFIG.extraOptions,
-        composeMsg: KATANA_FORWARD_CONFIG.composeMsg,
-        oftCmd: KATANA_FORWARD_CONFIG.oftCmd,
-      });
-      const quoteFee = await this.probeQuoteSend(
-        fromChain,
-        exactCall.quoteRead,
-      );
-
-      return {
-        id: crypto.randomUUID(),
-        tool: 'katana-vault-bridge',
-        fromAmount,
-        toAmount: previewShares,
-        toAmountMin: exactCall.sendParam.minAmountLD,
-        executionDuration: EXECUTION_DURATION_S,
-        gasCosts: quoteFee.nativeFee,
-        feeCosts: 0n,
-        route: {
-          kind: direction,
-          fromChainId: fromChain,
-          toChainId: toChain,
-          fromToken: normalizeAddressEvm(fromToken),
-          toToken: normalizeAddressEvm(toToken),
-          recipient,
-          refundAddress,
-          previewAmount: previewShares,
-          nativeFee: quoteFee.nativeFee,
-          sendParam: exactCall.sendParam,
-          quoteRead: exactCall.quoteRead,
-          approvalCall: exactCall.assetApproveTx,
-          executionCall: {
-            ...exactCall.depositAndSendTx,
-            value: quoteFee.nativeFee,
-          },
-        },
-        requestParams: params,
-      };
-    }
-
-    const previewAssets = await this.probePreviewAmount(
-      toChain,
-      KATANA_REVERSE_CONFIG.vaultAddress,
-      'previewRedeem',
-      fromAmount,
-    );
-    const exactCall = buildKatanaToEthereumCompose({
-      vaultAddress: KATANA_REVERSE_CONFIG.vaultAddress,
-      composerAddress: KATANA_REVERSE_CONFIG.composerAddress,
-      shareTokenAddress: KATANA_REVERSE_CONFIG.shareTokenAddress,
-      shareOftAddress: KATANA_REVERSE_CONFIG.shareOftAddress,
-      dstEid: KATANA_REVERSE_CONFIG.dstEid,
-      recipient,
-      shareAmountLD: fromAmount,
-      minShareAmountLD: fromAmount,
-      assetAmountLD: previewAssets,
-      minAssetAmountLD: applySlippage(previewAssets, slippage),
-      refundAddress,
-      extraOptions: KATANA_REVERSE_CONFIG.extraOptions,
-      receiveExtraOptions: KATANA_REVERSE_CONFIG.receiveExtraOptions,
-      oftCmd: KATANA_REVERSE_CONFIG.oftCmd,
+    const routes = await this.requestRoutes({
+      fromChainId: fromChain,
+      toChainId: toChain,
+      fromTokenAddress: normalizeAddressEvm(fromToken),
+      toTokenAddress: normalizeAddressEvm(toToken),
+      amount: fromAmount.toString(),
+      fromAddress: normalizeAddressEvm(params.fromAddress),
+      toAddress: recipient,
+      slippage: slippage * 100,
     });
-    const quoteFee = await this.probeQuoteSend(fromChain, exactCall.quoteRead);
-    const secondaryChainBalance = await this.probeSecondaryChainBalance(
-      fromChain,
-      KATANA_REVERSE_CONFIG.shareOftAddress,
+    const route = this.selectRoute(routes);
+    const executionTx =
+      route.transactionRequest ??
+      (await this.requestUnsignedTransaction(route));
+    const approvalAddress =
+      route.steps[0]?.estimate.approvalAddress ?? undefined;
+
+    assert(
+      BigInt(route.fromAmount) === fromAmount,
+      `Katana route fromAmount ${route.fromAmount} did not match request ${fromAmount}`,
     );
-    if (secondaryChainBalance !== undefined) {
-      assert(
-        secondaryChainBalance >= fromAmount,
-        `Insufficient Katana secondaryChainBalance: ${secondaryChainBalance} < ${fromAmount}`,
-      );
-    }
 
     return {
       id: crypto.randomUUID(),
-      tool: 'katana-vault-bridge',
+      tool: 'agglayer',
       fromAmount,
-      toAmount: previewAssets,
-      toAmountMin: exactCall.redemptionSendParam.minAmountLD,
-      executionDuration: EXECUTION_DURATION_S,
-      gasCosts: quoteFee.nativeFee,
-      feeCosts: 0n,
+      toAmount: BigInt(route.toAmount),
+      toAmountMin: BigInt(route.toAmountMin),
+      executionDuration:
+        route.estimatedCompletionTime ??
+        route.executionDuration ??
+        CLAIM_SUBMISSION_TIMEOUT_MS / 1_000,
+      gasCosts: sumBigIntStrings(route.gasCosts),
+      feeCosts: sumBigIntStrings(
+        route.feeCosts.filter((cost) => !cost.included),
+      ),
       route: {
+        id: route.id,
         kind: direction,
         fromChainId: fromChain,
         toChainId: toChain,
         fromToken: normalizeAddressEvm(fromToken),
         toToken: normalizeAddressEvm(toToken),
         recipient,
-        refundAddress,
-        previewAmount: previewAssets,
-        nativeFee: quoteFee.nativeFee,
-        sendParam: exactCall.sendParam,
-        quoteRead: exactCall.quoteRead,
-        approvalCall: exactCall.shareApproveTx,
-        executionCall: {
-          ...exactCall.sendTx,
-          value: quoteFee.nativeFee,
-          data: oftInterface.encodeFunctionData('send', [
-            exactCall.sendParam,
-            { nativeFee: quoteFee.nativeFee, lzTokenFee: 0 },
-            refundAddress,
-          ]),
-        },
+        approvalAddress,
+        executionTx,
+        claimTransactionRequired:
+          route.providerMetadata?.agglayer?.claimTransactionRequired === true,
       },
       requestParams: params,
     };
@@ -254,11 +269,6 @@ export class KatanaBridge implements IExternalBridge {
   ): Promise<BridgeTransferResult> {
     const route = quote.route;
     assert(route, 'KatanaBridge requires a populated route');
-    assert(
-      route.kind === 'ethereum-to-katana' ||
-        route.kind === 'katana-to-ethereum',
-      'Invalid KatanaBridge route',
-    );
 
     const key = privateKeys[ProtocolType.Ethereum];
     assert(key, 'Missing EVM private key for KatanaBridge execution');
@@ -268,293 +278,170 @@ export class KatanaBridge implements IExternalBridge {
     );
     this.validateExecutionQuote(quote, route, signerAddress);
 
-    const allowance = await this.readAllowance(
-      route.fromChainId,
-      route.approvalCall.tokenAddress,
-      signerAddress,
-      route.approvalCall.spender,
-    );
-    if (allowance < route.approvalCall.amount) {
-      await this.sendPreparedTransaction(route.fromChainId, key, {
-        to: route.approvalCall.to,
-        data: route.approvalCall.data,
-        value: 0n,
-      });
+    if (route.approvalAddress) {
+      const allowance = await this.readAllowance(
+        route.executionTx.chainId,
+        route.fromToken,
+        signerAddress,
+        route.approvalAddress,
+      );
+      if (allowance < quote.fromAmount) {
+        await this.sendPreparedTransaction(route.executionTx.chainId, key, {
+          to: route.fromToken,
+          data: erc20Interface.encodeFunctionData('approve', [
+            route.approvalAddress,
+            quote.fromAmount.toString(),
+          ]),
+          value: '0',
+          chainId: route.executionTx.chainId,
+        });
+      }
     }
 
-    const receipt = await this.sendPreparedTransaction(
-      route.fromChainId,
+    const sourceReceipt = await this.sendPreparedTransaction(
+      route.executionTx.chainId,
       key,
-      route.executionCall,
+      route.executionTx,
     );
-    const transferId = this.extractGuidFromReceipt(receipt);
+    const sourceTxHash = normalizeTxHash(sourceReceipt.transactionHash);
+
+    this.executionStateByTxHash.set(sourceTxHash, {
+      fromAddress: signerAddress,
+      claimRequired: route.claimTransactionRequired,
+    });
+
+    if (route.claimTransactionRequired) {
+      const claimReceipt = await this.waitForAndSubmitClaim(
+        sourceTxHash,
+        signerAddress,
+        key,
+      );
+      const state = this.executionStateByTxHash.get(sourceTxHash);
+      if (state) {
+        state.claimSubmittedTxHash = normalizeTxHash(
+          claimReceipt.transactionHash,
+        );
+      }
+    }
 
     return {
-      txHash: receipt.transactionHash,
+      txHash: sourceTxHash,
       fromChain: route.fromChainId,
       toChain: route.toChainId,
-      transferId,
     };
   }
 
   async getStatus(
     txHash: string,
-    fromChain: number,
-    toChain: number,
+    _fromChain: number,
+    _toChain: number,
   ): Promise<BridgeTransferStatus> {
-    const direction = this.getDirectionByChains(fromChain, toChain);
-    if (!direction) {
+    const normalizedTxHash = normalizeTxHash(txHash);
+    const state = this.executionStateByTxHash.get(normalizedTxHash);
+    if (!state) return { status: 'not_found' };
+
+    const tx = await this.findIndexedTransaction(
+      state.fromAddress,
+      normalizedTxHash,
+    );
+    if (!tx) {
+      return { status: 'pending', substatus: 'INDEXING' };
+    }
+
+    if (this.isFailedStatus(tx.status)) {
+      return { status: 'failed', error: tx.status };
+    }
+
+    const receivingTxHash =
+      tx.receiving?.txHash ??
+      tx.transactionHashes?.find(
+        (hash) => normalizeTxHash(hash) !== normalizedTxHash,
+      );
+
+    if (receivingTxHash && tx.receiving?.amount) {
       return {
-        status: 'failed',
-        error: `Unsupported Katana status route: ${fromChain} -> ${toChain}`,
+        status: 'complete',
+        receivingTxHash,
+        receivedAmount: BigInt(tx.receiving.amount),
       };
     }
 
-    const normalizedHash = txHash.startsWith('0x') ? txHash : `0x${txHash}`;
-    const response = await this.fetchWithRetry(
-      `${LAYERZERO_SCAN_API_URL}${normalizedHash}`,
+    return {
+      status: 'pending',
+      substatus:
+        tx.status === 'BRIDGED' && state.claimSubmittedTxHash
+          ? 'CLAIM_SUBMITTED'
+          : tx.status,
+    };
+  }
+
+  protected async requestRoutes(params: {
+    fromChainId: number;
+    toChainId: number;
+    fromTokenAddress: string;
+    toTokenAddress: string;
+    amount: string;
+    fromAddress: string;
+    toAddress: string;
+    slippage: number;
+  }): Promise<ArcRoute[]> {
+    const response = await this.fetchArcJson<ArcRoute[]>('/routes', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    });
+    return this.requireSuccess(response, 'Failed to fetch Katana routes');
+  }
+
+  protected async requestUnsignedTransaction(
+    route: ArcRoute,
+  ): Promise<ArcUnsignedTransaction> {
+    const response = await this.fetchArcJson<ArcUnsignedTransaction>(
+      '/routes/build-transaction',
+      {
+        method: 'POST',
+        body: JSON.stringify(route.steps[0]),
+      },
     );
+    return this.requireSuccess(
+      response,
+      'Failed to build Katana unsigned transaction',
+    );
+  }
 
-    if (response.status === 404) {
-      return { status: 'not_found' };
-    }
+  protected async requestTransactions(
+    address: string,
+    limit: number = TRANSACTION_QUERY_LIMIT,
+  ): Promise<ArcTransaction[]> {
+    const query = new URLSearchParams({
+      'transactionsRequestQueryParams[address]': address,
+      'transactionsRequestQueryParams[limit]': String(limit),
+    });
+    const response = await this.fetchArcJson<ArcTransaction[]>(
+      `/transactions?${query.toString()}`,
+      { method: 'GET' },
+    );
+    return this.requireSuccess(response, 'Failed to fetch Katana transactions');
+  }
 
-    const data = (await response.json()) as LayerZeroScanResponse;
-    if (!data.messages?.length) {
-      return { status: 'not_found' };
-    }
-
-    const message = data.messages[0];
-    switch (message.status) {
-      case 'FAILED':
-      case 'BLOCKED':
-        return { status: 'failed', error: message.status };
-      case 'DELIVERED': {
-        const destinationTxHash = message.dstTxHash;
-        if (!destinationTxHash) {
-          return { status: 'pending', substatus: 'DELIVERED' };
-        }
-
-        const receipt = await this.getTransactionReceipt(
-          toChain,
-          destinationTxHash,
-        );
-        if (!receipt) {
-          return { status: 'pending', substatus: 'DELIVERED' };
-        }
-
-        const receivedAmount = this.extractReceivedAmount(direction, receipt);
-        if (receivedAmount === undefined) {
-          return {
-            status: 'failed',
-            error: 'Unable to parse Katana destination received amount',
-          };
-        }
-
-        return {
-          status: 'complete',
-          receivingTxHash: destinationTxHash,
-          receivedAmount,
-        };
-      }
-      case 'INFLIGHT':
-        return { status: 'pending', substatus: 'INFLIGHT' };
-      default:
-        return { status: 'pending', substatus: message.status };
-    }
+  protected async requestClaimTransaction(
+    sourceNetworkId: number,
+    depositCount: number,
+  ): Promise<ArcUnsignedTransaction> {
+    const response = await this.fetchArcJson<ArcUnsignedTransaction>(
+      '/routes/build-transaction-for-claim',
+      {
+        method: 'POST',
+        body: JSON.stringify({ sourceNetworkId, depositCount }),
+      },
+    );
+    return this.requireSuccess(
+      response,
+      'Failed to build Katana claim transaction',
+    );
   }
 
   protected getProvider(chainId: number): ethers.providers.JsonRpcProvider {
     return new ethers.providers.JsonRpcProvider(this.getRpcUrl(chainId));
-  }
-
-  protected async callContract(
-    chainId: number,
-    to: string,
-    data: string,
-  ): Promise<string> {
-    return this.getProvider(chainId).call({ to, data });
-  }
-
-  protected async getTransactionReceipt(
-    chainId: number,
-    txHash: string,
-  ): Promise<ethers.providers.TransactionReceipt | undefined> {
-    return this.getProvider(chainId).getTransactionReceipt(txHash);
-  }
-
-  protected async sendPreparedTransaction(
-    chainId: number,
-    privateKey: string,
-    call: BuiltTx,
-  ): Promise<ethers.providers.TransactionReceipt> {
-    const provider = this.getProvider(chainId);
-    const wallet = new ethers.Wallet(ensure0x(privateKey), provider);
-    const tx = await wallet.sendTransaction({
-      to: call.to,
-      data: call.data,
-      value: call.value.toString(),
-    });
-    return tx.wait();
-  }
-
-  protected async fetchWithRetry(
-    url: string,
-    options?: RequestInit,
-    retries: number = 3,
-  ): Promise<Response> {
-    let lastError: Error | undefined;
-    for (let attempt = 0; attempt < retries; attempt++) {
-      if (attempt > 0) {
-        await new Promise((resolve) =>
-          setTimeout(resolve, 1000 * 2 ** (attempt - 1)),
-        );
-      }
-      try {
-        const response = await fetch(url, options);
-        if (response.status === 404) return response;
-        if (
-          response.status >= 400 &&
-          response.status < 500 &&
-          response.status !== 429
-        ) {
-          const body = await response.text();
-          throw new Error(`HTTP ${response.status}: ${body}`);
-        }
-        if (response.ok) return response;
-        lastError = new Error(`HTTP ${response.status} from ${url}`);
-      } catch (error) {
-        if (error instanceof Error && /^HTTP 4\d\d/.test(error.message))
-          throw error;
-        lastError = error instanceof Error ? error : new Error(String(error));
-      }
-    }
-    throw lastError ?? new Error(`fetchWithRetry exhausted retries for ${url}`);
-  }
-
-  private getDirection(
-    fromChain: number,
-    toChain: number,
-    fromToken: string,
-    toToken: string,
-  ): KatanaDirection | undefined {
-    if (
-      fromChain === KATANA_FORWARD_CONFIG.fromChainId &&
-      toChain === KATANA_FORWARD_CONFIG.toChainId &&
-      addressesEqual(fromToken, KATANA_FORWARD_CONFIG.fromToken) &&
-      addressesEqual(toToken, KATANA_FORWARD_CONFIG.toToken)
-    ) {
-      return 'ethereum-to-katana';
-    }
-
-    if (
-      fromChain === KATANA_REVERSE_CONFIG.fromChainId &&
-      toChain === KATANA_REVERSE_CONFIG.toChainId &&
-      addressesEqual(fromToken, KATANA_REVERSE_CONFIG.fromToken) &&
-      addressesEqual(toToken, KATANA_REVERSE_CONFIG.toToken)
-    ) {
-      return 'katana-to-ethereum';
-    }
-
-    return undefined;
-  }
-
-  private getDirectionByChains(
-    fromChain: number,
-    toChain: number,
-  ): KatanaDirection | undefined {
-    if (
-      fromChain === KATANA_FORWARD_CONFIG.fromChainId &&
-      toChain === KATANA_FORWARD_CONFIG.toChainId
-    ) {
-      return 'ethereum-to-katana';
-    }
-    if (
-      fromChain === KATANA_REVERSE_CONFIG.fromChainId &&
-      toChain === KATANA_REVERSE_CONFIG.toChainId
-    ) {
-      return 'katana-to-ethereum';
-    }
-    return undefined;
-  }
-
-  private validateExecutionQuote(
-    quote: BridgeQuote<KatanaBridgeRoute>,
-    route: KatanaBridgeRoute,
-    signerAddress: string,
-  ): void {
-    const { requestParams } = quote;
-    const expectedDirection = this.getDirection(
-      requestParams.fromChain,
-      requestParams.toChain,
-      requestParams.fromToken,
-      requestParams.toToken,
-    );
-
-    assert(
-      expectedDirection === route.kind,
-      'Route kind does not match request',
-    );
-    assert(
-      requestParams.fromAmount === quote.fromAmount,
-      'Quote fromAmount does not match request',
-    );
-    assert(
-      addressesEqual(requestParams.fromAddress, signerAddress),
-      `Signer ${signerAddress} does not match quote.fromAddress ${requestParams.fromAddress}`,
-    );
-
-    const expectedRecipient = normalizeAddressEvm(
-      requestParams.toAddress ?? requestParams.fromAddress,
-    );
-    assert(
-      addressesEqual(route.recipient, expectedRecipient),
-      `Route recipient ${route.recipient} does not match quote recipient ${expectedRecipient}`,
-    );
-  }
-
-  private async probePreviewAmount(
-    chainId: number,
-    contractAddress: string,
-    functionName: 'previewDeposit' | 'previewRedeem',
-    amount: bigint,
-  ): Promise<bigint> {
-    const data = previewInterface.encodeFunctionData(functionName, [
-      amount.toString(),
-    ]);
-    const raw = await this.callContract(chainId, contractAddress, data);
-    const decoded = previewInterface.decodeFunctionResult(functionName, raw);
-    return toBigInt(decoded[0]);
-  }
-
-  private async probeQuoteSend(
-    chainId: number,
-    quoteRead: BuiltRead,
-  ): Promise<{ nativeFee: bigint; lzTokenFee: bigint }> {
-    const raw = await this.callContract(chainId, quoteRead.to, quoteRead.data);
-    const decoded = oftInterface.decodeFunctionResult('quoteSend', raw);
-    const fee = decoded.msgFee ?? decoded[0];
-    return {
-      nativeFee: toBigInt(fee.nativeFee),
-      lzTokenFee: toBigInt(fee.lzTokenFee),
-    };
-  }
-
-  private async probeSecondaryChainBalance(
-    chainId: number,
-    shareOftAddress: string,
-  ): Promise<bigint | undefined> {
-    try {
-      const data = oftInterface.encodeFunctionData('secondaryChainBalance', []);
-      const raw = await this.callContract(chainId, shareOftAddress, data);
-      const decoded = oftInterface.decodeFunctionResult(
-        'secondaryChainBalance',
-        raw,
-      );
-      return toBigInt(decoded[0]);
-    } catch {
-      return undefined;
-    }
   }
 
   protected async readAllowance(
@@ -564,99 +451,262 @@ export class KatanaBridge implements IExternalBridge {
     spender: string,
   ): Promise<bigint> {
     const provider = this.getProvider(chainId);
-    const token = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
-    return toBigInt(await token.allowance(owner, spender));
+    const result = await provider.call({
+      to: tokenAddress,
+      data: erc20Interface.encodeFunctionData('allowance', [owner, spender]),
+    });
+    return toBigInt(
+      erc20Interface.decodeFunctionResult('allowance', result)[0].toString(),
+    );
   }
 
-  private extractGuidFromReceipt(
-    receipt: ethers.providers.TransactionReceipt,
-  ): string | undefined {
-    for (const log of receipt.logs) {
-      try {
-        const parsed = oftInterface.parseLog(log);
-        if (parsed.name === 'OFTSent') {
-          return parsed.args.guid;
-        }
-      } catch {}
+  protected async sendPreparedTransaction(
+    chainId: number,
+    privateKey: string,
+    tx: ArcUnsignedTransaction,
+  ): Promise<ethers.providers.TransactionReceipt> {
+    const wallet = new ethers.Wallet(
+      ensure0x(privateKey),
+      this.getProvider(chainId),
+    );
+    const response = await wallet.sendTransaction({
+      to: tx.to,
+      data: tx.data,
+      value: tx.value ? ethers.BigNumber.from(tx.value) : undefined,
+      gasLimit: tx.gasLimit ? ethers.BigNumber.from(tx.gasLimit) : undefined,
+      gasPrice: tx.gasPrice ? ethers.BigNumber.from(tx.gasPrice) : undefined,
+      maxFeePerGas: tx.maxFeePerGas
+        ? ethers.BigNumber.from(tx.maxFeePerGas)
+        : undefined,
+      maxPriorityFeePerGas: tx.maxPriorityFeePerGas
+        ? ethers.BigNumber.from(tx.maxPriorityFeePerGas)
+        : undefined,
+    });
+    return response.wait();
+  }
+
+  protected async sleep(ms: number): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private selectRoute(routes: ArcRoute[]): ArcRoute {
+    const route = routes.find((candidate) =>
+      candidate.provider.some((provider) => provider === 'agglayer'),
+    );
+    assert(route, 'No AggLayer route returned for Katana bridge');
+    assert(
+      route.steps.length > 0,
+      `Katana route ${route.id} did not include execution steps`,
+    );
+    return route;
+  }
+
+  private async waitForAndSubmitClaim(
+    sourceTxHash: string,
+    fromAddress: string,
+    privateKey: string,
+  ): Promise<ethers.providers.TransactionReceipt> {
+    const deadline = Date.now() + CLAIM_SUBMISSION_TIMEOUT_MS;
+
+    while (Date.now() < deadline) {
+      const tx = await this.findIndexedTransaction(fromAddress, sourceTxHash);
+      if (!tx) {
+        await this.sleep(TRANSACTION_POLL_INTERVAL_MS);
+        continue;
+      }
+
+      if (tx.receiving?.txHash) {
+        return {
+          transactionHash: tx.receiving.txHash,
+        } as ethers.providers.TransactionReceipt;
+      }
+
+      const sourceNetworkId = tx.sending.network.networkId;
+      const depositCount = tx.metadata?.depositCount;
+      if (
+        sourceNetworkId === null ||
+        depositCount === null ||
+        depositCount === undefined
+      ) {
+        await this.sleep(TRANSACTION_POLL_INTERVAL_MS);
+        continue;
+      }
 
       try {
-        const parsed = composerInterface.parseLog(log);
-        if (parsed.name === 'Sent') {
-          return parsed.args.guid;
+        const claimTx = await this.requestClaimTransaction(
+          sourceNetworkId,
+          depositCount,
+        );
+        return this.sendPreparedTransaction(
+          claimTx.chainId,
+          privateKey,
+          claimTx,
+        );
+      } catch (error) {
+        if (this.isClaimNotReadyError(error)) {
+          await this.sleep(TRANSACTION_POLL_INTERVAL_MS);
+          continue;
         }
-      } catch {}
+        throw error;
+      }
+    }
+
+    throw new Error(`Timed out waiting for Katana claim for ${sourceTxHash}`);
+  }
+
+  private async findIndexedTransaction(
+    address: string,
+    txHash: string,
+  ): Promise<ArcTransaction | undefined> {
+    const transactions = await this.requestTransactions(address);
+    return transactions.find((tx) => txMatchesHash(tx, txHash));
+  }
+
+  private isClaimNotReadyError(error: unknown): boolean {
+    return (
+      error instanceof Error &&
+      error.message.toLowerCase().includes('transaction not ready to claim')
+    );
+  }
+
+  private isFailedStatus(status: string): boolean {
+    return ['FAILED', 'ERROR', 'REVERTED'].includes(status.toUpperCase());
+  }
+
+  private requireSuccess<T>(response: ArcApiResponse<T>, message: string): T {
+    if (response.status === 'success') return response.data;
+    throw new Error(`${message}: ${response.message}`);
+  }
+
+  private async fetchArcJson<T>(
+    path: string,
+    init: RequestInit,
+    retries: number = 3,
+  ): Promise<ArcApiResponse<T>> {
+    const url =
+      path.startsWith('http://') || path.startsWith('https://')
+        ? path
+        : `${ARC_API_BASE_URL}${path}`;
+    let lastError: Error | undefined;
+
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        const response = await fetch(url, {
+          ...init,
+          headers: {
+            'content-type': 'application/json',
+            ...init.headers,
+          },
+        });
+        const rawBody = await response.text();
+        const parsedBody = rawBody
+          ? (JSON.parse(rawBody) as ArcApiResponse<T>)
+          : ({
+              status: 'error',
+              message: `HTTP ${response.status}`,
+            } as ArcApiResponse<T>);
+
+        if (response.ok) return parsedBody;
+
+        const errorMessage =
+          parsedBody.status === 'error'
+            ? parsedBody.message
+            : `HTTP ${response.status}: ${rawBody}`;
+        lastError = new Error(errorMessage);
+
+        if (response.status === 429 || response.status >= 500 || !response.ok) {
+          if (attempt < retries) {
+            await this.sleep(1_000 * 2 ** attempt);
+            continue;
+          }
+        }
+
+        throw lastError;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        if (attempt < retries) {
+          await this.sleep(1_000 * 2 ** attempt);
+          continue;
+        }
+      }
+    }
+
+    throw lastError ?? new Error(`Failed to fetch Katana ARC endpoint: ${url}`);
+  }
+
+  private getDirection(
+    fromChain: number,
+    toChain: number,
+    fromToken: string,
+    toToken: string,
+  ): KatanaDirection | undefined {
+    if (
+      fromChain === ETHEREUM_CHAIN_ID &&
+      toChain === KATANA_CHAIN_ID &&
+      addressesEqual(fromToken, KATANA_FORWARD_CONFIG.fromToken) &&
+      addressesEqual(toToken, KATANA_FORWARD_CONFIG.toToken)
+    ) {
+      return 'ethereum-to-katana';
+    }
+
+    if (
+      fromChain === KATANA_CHAIN_ID &&
+      toChain === ETHEREUM_CHAIN_ID &&
+      addressesEqual(fromToken, KATANA_REVERSE_CONFIG.fromToken) &&
+      addressesEqual(toToken, KATANA_REVERSE_CONFIG.toToken)
+    ) {
+      return 'katana-to-ethereum';
     }
 
     return undefined;
   }
 
-  private extractReceivedAmount(
-    direction: KatanaDirection,
-    receipt: ethers.providers.TransactionReceipt,
-  ): bigint | undefined {
-    if (direction === 'ethereum-to-katana') {
-      for (const log of receipt.logs) {
-        if (
-          !addressesEqual(
-            log.address,
-            KATANA_FORWARD_CONFIG.destinationShareOftAddress,
-          )
-        ) {
-          continue;
-        }
-        try {
-          const parsed = oftInterface.parseLog(log);
-          if (parsed.name === 'OFTReceived') {
-            return toBigInt(parsed.args.amountReceivedLD);
-          }
-        } catch {}
-      }
-      return this.extractLargestTransfer(
-        receipt,
-        KATANA_FORWARD_CONFIG.toToken,
-      );
-    }
+  private validateExecutionQuote(
+    quote: BridgeQuote<KatanaBridgeRoute>,
+    route: KatanaBridgeRoute,
+    signerAddress: string,
+  ): void {
+    const expectedDirection = this.getDirection(
+      quote.requestParams.fromChain,
+      quote.requestParams.toChain,
+      quote.requestParams.fromToken,
+      quote.requestParams.toToken,
+    );
 
-    for (const log of receipt.logs) {
-      if (!addressesEqual(log.address, KATANA_REVERSE_CONFIG.composerAddress)) {
-        continue;
-      }
-      try {
-        const parsed = composerInterface.parseLog(log);
-        if (parsed.name === 'Redeemed') {
-          return toBigInt(parsed.args.assetAmt);
-        }
-      } catch {}
-    }
+    assert(
+      expectedDirection === route.kind,
+      'Route kind does not match request',
+    );
+    assert(
+      quote.requestParams.fromAmount === quote.fromAmount,
+      'Quote fromAmount does not match request',
+    );
+    assert(
+      addressesEqual(quote.requestParams.fromAddress, signerAddress),
+      `Signer ${signerAddress} does not match quote.fromAddress ${quote.requestParams.fromAddress}`,
+    );
 
-    return this.extractLargestTransfer(receipt, KATANA_REVERSE_CONFIG.toToken);
-  }
-
-  private extractLargestTransfer(
-    receipt: ethers.providers.TransactionReceipt,
-    tokenAddress: string,
-  ): bigint | undefined {
-    let largest = 0n;
-
-    for (const log of receipt.logs) {
-      if (!addressesEqual(log.address, tokenAddress)) {
-        continue;
-      }
-      try {
-        const parsed = erc20Interface.parseLog(log);
-        if (parsed.name === 'Transfer') {
-          const value = toBigInt(parsed.args.value);
-          if (value > largest) largest = value;
-        }
-      } catch {}
-    }
-
-    return largest > 0n ? largest : undefined;
+    const expectedRecipient = normalizeAddressEvm(
+      quote.requestParams.toAddress ?? quote.requestParams.fromAddress,
+    );
+    assert(
+      addressesEqual(route.recipient, expectedRecipient),
+      `Route recipient ${route.recipient} does not match quote recipient ${expectedRecipient}`,
+    );
+    assert(
+      route.executionTx.chainId === route.fromChainId,
+      `Katana execution chain ${route.executionTx.chainId} did not match source chain ${route.fromChainId}`,
+    );
   }
 
   private getRpcUrl(chainId: number): string {
-    const rpcUrl = this.chainMetadataByChainId.get(chainId)?.rpcUrls?.[0]?.http;
-    assert(rpcUrl, `No RPC URL configured for chain ${chainId}`);
+    const metadata = this.chainMetadataByChainId.get(chainId);
+    assert(
+      metadata,
+      `Missing chain metadata for Katana bridge chainId ${chainId}`,
+    );
+    const rpcUrl = metadata.rpcUrls?.[0]?.http;
+    assert(rpcUrl, `Missing RPC URL for Katana bridge chainId ${chainId}`);
     return rpcUrl;
   }
 }

@@ -23,7 +23,7 @@ import {
   isEVMLike,
 } from '@hyperlane-xyz/utils';
 
-import type { ExternalBridgeType } from '../config/types.js';
+import { ExternalBridgeType } from '../config/types.js';
 import type {
   ExternalBridgeRegistry,
   IExternalBridge,
@@ -938,17 +938,39 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     for (const source of viableSources) {
       if (totalPlanned >= targetWithBuffer) break;
 
+      const sourceToken = this.getTokenForChain(source.chain);
+      const destinationToken = this.getTokenForChain(destination);
+      assert(sourceToken, `No token found for source chain: ${source.chain}`);
+      assert(
+        destinationToken,
+        `No token found for destination chain: ${destination}`,
+      );
+
       const remaining = targetWithBuffer - totalPlanned;
       const targetOutput =
         source.maxTargetOutput >= remaining
           ? remaining
           : source.maxTargetOutput;
+      const forwardInputCap =
+        route.externalBridge === ExternalBridgeType.Katana
+          ? denormalizeToLocal(
+              normalizeToCanonical(targetOutput, destinationToken),
+              sourceToken,
+            )
+          : source.maxSourceInput;
       const quoteMode: BridgeQuoteMode =
-        source.maxTargetOutput > remaining ? 'reverse' : 'forward';
+        route.externalBridge === ExternalBridgeType.Katana
+          ? 'forward'
+          : source.maxTargetOutput > remaining
+            ? 'reverse'
+            : 'forward';
 
       bridgePlans.push({
         chain: source.chain,
-        maxSourceInput: source.maxSourceInput,
+        maxSourceInput:
+          forwardInputCap < source.maxSourceInput
+            ? forwardInputCap
+            : source.maxSourceInput,
         targetOutput,
         quoteMode,
       });
@@ -1522,7 +1544,10 @@ export class InventoryRebalancer implements IInventoryRebalancer {
           toAddress,
         });
 
-      let quoteModeUsed = quoteMode;
+      let quoteModeUsed =
+        externalBridgeType === ExternalBridgeType.Katana
+          ? 'forward'
+          : quoteMode;
       let quote = await quoteWithMode(quoteModeUsed);
 
       if (quoteModeUsed === 'reverse' && quote.fromAmount > maxSourceInput) {
