@@ -1,5 +1,16 @@
 # @hyperlane-xyz/tron-sdk
 
+## 23.0.4
+
+### Patch Changes
+
+- b864cca: Multi-VM fee type support was added to provider-sdk and deploy-sdk. Fee types (linear, regressive, progressive, offchainQuotedLinear, routing, crossCollateralRouting) were defined with Config API and Artifact API variants. FeeReader and FeeWriter with required FeeReadContext were added to deploy-sdk. Fee was integrated into warp types and the warp writer update flow. All protocol providers received createFeeArtifactManager stubs.
+- Updated dependencies [b864cca]
+- Updated dependencies [1f918d0]
+  - @hyperlane-xyz/provider-sdk@5.1.0
+  - @hyperlane-xyz/utils@33.0.2
+  - @hyperlane-xyz/core@11.3.1
+
 ## 23.0.3
 
 ### Patch Changes

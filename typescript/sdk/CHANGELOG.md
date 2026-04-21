@@ -1,5 +1,23 @@
 # @hyperlane-xyz/sdk
 
+## 33.0.2
+
+### Patch Changes
+
+- 1f918d0: Added `@hyperlane-xyz/sdk` subpath exports for `core`, `hook`, and `ism` modules. Hardened `@hyperlane-xyz/utils` pretty-mode logging with a graceful fallback when `pino-pretty` is not installed.
+- 78199f4: Added narrow runtime provider-builder exports for Tron and EVM-like consumers.
+- Updated dependencies [b864cca]
+- Updated dependencies [1f918d0]
+  - @hyperlane-xyz/provider-sdk@5.1.0
+  - @hyperlane-xyz/deploy-sdk@5.1.0
+  - @hyperlane-xyz/cosmos-sdk@33.0.2
+  - @hyperlane-xyz/radix-sdk@33.0.2
+  - @hyperlane-xyz/aleo-sdk@33.0.2
+  - @hyperlane-xyz/tron-sdk@23.0.4
+  - @hyperlane-xyz/utils@33.0.2
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/starknet-core@33.0.2
+
 ## 33.0.1
 
 ### Patch Changes
