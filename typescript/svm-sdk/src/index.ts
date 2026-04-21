@@ -25,6 +25,7 @@ export { SvmMailboxArtifactManager as SealevelMailboxArtifactManager } from './c
 export { SvmValidatorAnnounceArtifactManager as SealevelValidatorAnnounceArtifactManager } from './core/validator-announce-artifact-manager.js';
 export { SvmIsmArtifactManager as SealevelIsmArtifactManager } from './ism/ism-artifact-manager.js';
 export { SvmHookArtifactManager as SealevelHookArtifactManager } from './hook/hook-artifact-manager.js';
+export { SvmFeeArtifactManager as SealevelFeeArtifactManager } from './fee/fee-artifact-manager.js';
 
 // ISM readers/writers
 export {
@@ -118,6 +119,11 @@ export {
   deriveReplayProtectionPda,
   deriveCrossCollateralStatePda,
   deriveCrossCollateralDispatchAuthorityPda,
+  deriveFeeAccountPda,
+  deriveRouteDomainPda,
+  deriveCrossCollateralRoutePda,
+  deriveTransientQuotePda,
+  deriveStandingQuotePda,
 } from './pda.js';
 
 // Account decoders
@@ -148,3 +154,31 @@ export {
   SvmCrossCollateralTokenReader,
   SvmCrossCollateralTokenWriter,
 } from './warp/cross-collateral-token.js';
+
+// Fee readers/writers
+export {
+  SvmLinearFeeReader as SealevelLinearFeeReader,
+  SvmLinearFeeWriter as SealevelLinearFeeWriter,
+} from './fee/linear-fee.js';
+export {
+  SvmRegressiveFeeReader as SealevelRegressiveFeeReader,
+  SvmRegressiveFeeWriter as SealevelRegressiveFeeWriter,
+} from './fee/regressive-fee.js';
+export {
+  SvmProgressiveFeeReader as SealevelProgressiveFeeReader,
+  SvmProgressiveFeeWriter as SealevelProgressiveFeeWriter,
+} from './fee/progressive-fee.js';
+export {
+  SvmOffchainQuotedLinearFeeReader as SealevelOffchainQuotedLinearFeeReader,
+  SvmOffchainQuotedLinearFeeWriter as SealevelOffchainQuotedLinearFeeWriter,
+} from './fee/offchain-quoted-linear-fee.js';
+export {
+  SvmRoutingFeeReader as SealevelRoutingFeeReader,
+  SvmRoutingFeeWriter as SealevelRoutingFeeWriter,
+} from './fee/routing-fee.js';
+export {
+  SvmCrossCollateralRoutingFeeReader as SealevelCrossCollateralRoutingFeeReader,
+  SvmCrossCollateralRoutingFeeWriter as SealevelCrossCollateralRoutingFeeWriter,
+} from './fee/cross-collateral-routing-fee.js';
+export type { SvmDeployedFee as SealevelDeployedFee } from './fee/types.js';
+export { DEFAULT_FEE_SALT, deriveFeeSalt } from './fee/types.js';

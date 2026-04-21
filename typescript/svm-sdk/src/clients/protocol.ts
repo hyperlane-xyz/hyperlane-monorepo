@@ -23,6 +23,7 @@ import { type IRawFeeArtifactManager } from '@hyperlane-xyz/provider-sdk/fee';
 import { type IRawValidatorAnnounceArtifactManager } from '@hyperlane-xyz/provider-sdk/validator-announce';
 import { SvmMailboxArtifactManager } from '../core/mailbox-artifact-manager.js';
 import { SvmValidatorAnnounceArtifactManager } from '../core/validator-announce-artifact-manager.js';
+import { SvmFeeArtifactManager } from '../fee/fee-artifact-manager.js';
 import { SvmHookArtifactManager } from '../hook/hook-artifact-manager.js';
 import { SvmIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 import { createRpc } from '../rpc.js';
@@ -92,9 +93,14 @@ export class SvmProtocolProvider implements ProtocolProvider {
   }
 
   createFeeArtifactManager(
-    _chainMetadata: ChainMetadataForAltVM,
+    chainMetadata: ChainMetadataForAltVM,
   ): IRawFeeArtifactManager | null {
-    return null;
+    const rpc = createRpc(this.getRpcUrls(chainMetadata)[0]);
+    return new SvmFeeArtifactManager(
+      rpc,
+      { knownRoutersPerDomain: {} },
+      chainMetadata.domainId,
+    );
   }
 
   getMinGas(): MinimumRequiredGasByAction {
