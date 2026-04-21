@@ -2,9 +2,9 @@ import { address as parseAddress } from '@solana/kit';
 
 import {
   FeeType,
+  type CrossCollateralRoutingFeeArtifactConfig,
   type FeeReadContext,
   type FeeStrategy,
-  type RoutingFeeArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/fee';
 import {
   type ArtifactDeployed,
@@ -25,16 +25,16 @@ import type { SvmSigner } from '../clients/signer.js';
 import { resolveProgram } from '../deploy/resolve-program.js';
 import {
   getInitFeeInstruction,
-  getRemoveRouteInstruction,
+  getRemoveCrossCollateralRouteInstruction,
   getSetBeneficiaryInstruction,
-  getSetRouteInstruction,
+  getSetCrossCollateralRouteInstruction,
   getSetWildcardQuoteSignersInstruction,
   getTransferFeeOwnershipInstruction,
 } from '../instructions/fee.js';
 import { deriveFeeAccountPda } from '../pda.js';
 import type { AnnotatedSvmTransaction, SvmReceipt, SvmRpc } from '../types.js';
 
-import { fetchFeeAccount, fetchRouteDomain } from './fee-query.js';
+import { fetchCrossCollateralRoute, fetchFeeAccount } from './fee-query.js';
 import {
   computeWildcardSignersFromStrategies,
   feeStrategyToOnChain,
@@ -47,10 +47,33 @@ import {
   type SvmFeeWriterConfig,
 } from './types.js';
 
+/** Convert a hex router address string to a 32-byte Uint8Array (H256). */
+function routerToBytes(router: string): Uint8Array {
+  const stripped = router.startsWith('0x') ? router.slice(2) : router;
+  const bytes = new Uint8Array(32);
+  for (let i = 0; i < 32; i++) {
+    bytes[i] = parseInt(stripped.slice(i * 2, i * 2 + 2), 16);
+  }
+  return bytes;
+}
+
+/** Collect all FeeStrategy values from the nested CC routes map. */
+function allCCStrategies(
+  routes: Record<number, Record<string, FeeStrategy>>,
+): FeeStrategy[] {
+  const result: FeeStrategy[] = [];
+  for (const routerMap of Object.values(routes)) {
+    for (const strategy of Object.values(routerMap)) {
+      result.push(strategy);
+    }
+  }
+  return result;
+}
+
 // ── Reader ──────────────────────────────────────────────────────────
 
-export class SvmRoutingFeeReader implements ArtifactReader<
-  RoutingFeeArtifactConfig,
+export class SvmCrossCollateralRoutingFeeReader implements ArtifactReader<
+  CrossCollateralRoutingFeeArtifactConfig,
   SvmDeployedFee
 > {
   constructor(
@@ -61,13 +84,15 @@ export class SvmRoutingFeeReader implements ArtifactReader<
 
   async read(
     address: string,
-  ): Promise<ArtifactDeployed<RoutingFeeArtifactConfig, SvmDeployedFee>> {
+  ): Promise<
+    ArtifactDeployed<CrossCollateralRoutingFeeArtifactConfig, SvmDeployedFee>
+  > {
     const programId = parseAddress(address);
     const account = await fetchFeeAccount(this.rpc, programId, this.salt);
     assert(account, `Fee account not found for program: ${programId}`);
     assert(
-      account.feeData.kind === FeeDataKind.Routing,
-      `Expected Routing fee data, got kind ${account.feeData.kind}`,
+      account.feeData.kind === FeeDataKind.CrossCollateralRouting,
+      `Expected CrossCollateralRouting fee data, got kind ${account.feeData.kind}`,
     );
 
     const { address: feeAccountPda } = await deriveFeeAccountPda(
@@ -75,18 +100,24 @@ export class SvmRoutingFeeReader implements ArtifactReader<
       this.salt,
     );
 
-    // Route PDAs are not enumerable on-chain — use context to know which domains to query.
-    const routes: Record<number, FeeStrategy> = {};
-    for (const domainStr of Object.keys(this.context.knownRoutersPerDomain)) {
+    // CC route PDAs are not enumerable on-chain — use context for (domain, router) pairs.
+    const routes: Record<number, Record<string, FeeStrategy>> = {};
+    for (const [domainStr, routerSet] of Object.entries(
+      this.context.knownRoutersPerDomain,
+    )) {
       const domain = Number(domainStr);
-      const route = await fetchRouteDomain(
-        this.rpc,
-        programId,
-        feeAccountPda,
-        domain,
-      );
-      if (route) {
-        routes[domain] = routeDataToFeeStrategy(route);
+      for (const router of routerSet) {
+        const route = await fetchCrossCollateralRoute(
+          this.rpc,
+          programId,
+          feeAccountPda,
+          domain,
+          routerToBytes(router),
+        );
+        if (route) {
+          if (!routes[domain]) routes[domain] = {};
+          routes[domain][router] = routeDataToFeeStrategy(route);
+        }
       }
     }
 
@@ -95,7 +126,12 @@ export class SvmRoutingFeeReader implements ArtifactReader<
 
     return {
       artifactState: ArtifactState.DEPLOYED,
-      config: { type: FeeType.routing, owner, beneficiary, routes },
+      config: {
+        type: FeeType.crossCollateralRouting,
+        owner,
+        beneficiary,
+        routes,
+      },
       deployed: { address: programId, programId, feeAccountPda },
     };
   }
@@ -103,9 +139,10 @@ export class SvmRoutingFeeReader implements ArtifactReader<
 
 // ── Writer ──────────────────────────────────────────────────────────
 
-export class SvmRoutingFeeWriter
-  extends SvmRoutingFeeReader
-  implements ArtifactWriter<RoutingFeeArtifactConfig, SvmDeployedFee>
+export class SvmCrossCollateralRoutingFeeWriter
+  extends SvmCrossCollateralRoutingFeeReader
+  implements
+    ArtifactWriter<CrossCollateralRoutingFeeArtifactConfig, SvmDeployedFee>
 {
   constructor(
     private readonly writerConfig: SvmFeeWriterConfig,
@@ -119,9 +156,12 @@ export class SvmRoutingFeeWriter
   }
 
   async create(
-    artifact: ArtifactNew<RoutingFeeArtifactConfig>,
+    artifact: ArtifactNew<CrossCollateralRoutingFeeArtifactConfig>,
   ): Promise<
-    [ArtifactDeployed<RoutingFeeArtifactConfig, SvmDeployedFee>, SvmReceipt[]]
+    [
+      ArtifactDeployed<CrossCollateralRoutingFeeArtifactConfig, SvmDeployedFee>,
+      SvmReceipt[],
+    ]
   > {
     const feeConfig = artifact.config;
     const { programAddress: programId, receipts } = await resolveProgram(
@@ -131,7 +171,7 @@ export class SvmRoutingFeeWriter
     );
 
     const wildcardSigners = computeWildcardSignersFromStrategies(
-      Object.values(feeConfig.routes),
+      allCCStrategies(feeConfig.routes),
     );
 
     const initIx = await getInitFeeInstruction(
@@ -141,7 +181,7 @@ export class SvmRoutingFeeWriter
         salt: this.salt,
         beneficiary: parseAddress(feeConfig.beneficiary),
         feeData: {
-          kind: FeeDataKind.Routing,
+          kind: FeeDataKind.CrossCollateralRouting,
           config: { wildcardSigners },
         },
         domainId: this.domainId,
@@ -159,22 +199,26 @@ export class SvmRoutingFeeWriter
       this.salt,
     );
 
-    for (const [domainStr, strategy] of Object.entries(feeConfig.routes)) {
+    // Set each CC route
+    for (const [domainStr, routerMap] of Object.entries(feeConfig.routes)) {
       const domain = Number(domainStr);
-      const { feeData, signers } = feeStrategyToOnChain(strategy);
-      const setRouteIx = await getSetRouteInstruction(
-        programId,
-        feeAccountPda,
-        this.svmSigner.signer.address,
-        domain,
-        feeData,
-        signers,
-      );
-      const routeReceipt = await this.svmSigner.send({
-        instructions: [setRouteIx],
-        skipPreflight: true,
-      });
-      receipts.push(routeReceipt);
+      for (const [router, strategy] of Object.entries(routerMap)) {
+        const { feeData, signers } = feeStrategyToOnChain(strategy);
+        const setRouteIx = await getSetCrossCollateralRouteInstruction(
+          programId,
+          feeAccountPda,
+          this.svmSigner.signer.address,
+          domain,
+          routerToBytes(router),
+          feeData,
+          signers,
+        );
+        const routeReceipt = await this.svmSigner.send({
+          instructions: [setRouteIx],
+          skipPreflight: true,
+        });
+        receipts.push(routeReceipt);
+      }
     }
 
     return [
@@ -188,7 +232,10 @@ export class SvmRoutingFeeWriter
   }
 
   async update(
-    artifact: ArtifactDeployed<RoutingFeeArtifactConfig, SvmDeployedFee>,
+    artifact: ArtifactDeployed<
+      CrossCollateralRoutingFeeArtifactConfig,
+      SvmDeployedFee
+    >,
   ): Promise<AnnotatedSvmTransaction[]> {
     const txs: AnnotatedSvmTransaction[] = [];
     const expected = artifact.config;
@@ -203,53 +250,66 @@ export class SvmRoutingFeeWriter
     );
     const ownerAddress = parseAddress(currentConfig.owner);
 
-    const expectedDomains = new Set(Object.keys(expected.routes).map(Number));
-    const currentDomains = new Set(
-      Object.keys(currentConfig.routes).map(Number),
-    );
-
-    // Phase 1: Add or update routes
-    for (const domain of expectedDomains) {
-      const { feeData, signers } = feeStrategyToOnChain(
-        expected.routes[domain]!,
-      );
-      txs.push({
-        feePayer: ownerAddress,
-        instructions: [
-          await getSetRouteInstruction(
-            programId,
-            feeAccountPda,
-            ownerAddress,
-            domain,
-            feeData,
-            signers,
-          ),
-        ],
-        annotation: `Set route for domain ${domain}`,
-      });
+    // Build sets of (domain, router) keys for current and expected
+    const expectedKeys = new Set<string>();
+    for (const [domainStr, routerMap] of Object.entries(expected.routes)) {
+      for (const router of Object.keys(routerMap)) {
+        expectedKeys.add(`${domainStr}:${router}`);
+      }
+    }
+    const currentKeys = new Set<string>();
+    for (const [domainStr, routerMap] of Object.entries(currentConfig.routes)) {
+      for (const router of Object.keys(routerMap)) {
+        currentKeys.add(`${domainStr}:${router}`);
+      }
     }
 
-    // Phase 2: Remove stale routes
-    for (const domain of currentDomains) {
-      if (!expectedDomains.has(domain)) {
+    // Phase 1: Add or update CC routes
+    for (const [domainStr, routerMap] of Object.entries(expected.routes)) {
+      const domain = Number(domainStr);
+      for (const [router, strategy] of Object.entries(routerMap)) {
+        const { feeData, signers } = feeStrategyToOnChain(strategy);
         txs.push({
           feePayer: ownerAddress,
           instructions: [
-            await getRemoveRouteInstruction(
+            await getSetCrossCollateralRouteInstruction(
               programId,
               feeAccountPda,
               ownerAddress,
               domain,
+              routerToBytes(router),
+              feeData,
+              signers,
             ),
           ],
-          annotation: `Remove route for domain ${domain}`,
+          annotation: `Set CC route for domain ${domain} router ${router.slice(0, 10)}...`,
+        });
+      }
+    }
+
+    // Phase 2: Remove stale CC routes
+    for (const key of currentKeys) {
+      if (!expectedKeys.has(key)) {
+        const [domainStr, router] = key.split(':');
+        txs.push({
+          feePayer: ownerAddress,
+          instructions: [
+            await getRemoveCrossCollateralRouteInstruction(
+              programId,
+              feeAccountPda,
+              ownerAddress,
+              Number(domainStr),
+              routerToBytes(router!),
+            ),
+          ],
+          annotation: `Remove CC route for domain ${domainStr} router ${router!.slice(0, 10)}...`,
         });
       }
     }
 
     // Phase 3: Update wildcard signers
     const wildcardSigners = computeWildcardSignersFromStrategies(
-      Object.values(expected.routes),
+      allCCStrategies(expected.routes),
     );
     txs.push({
       feePayer: ownerAddress,
