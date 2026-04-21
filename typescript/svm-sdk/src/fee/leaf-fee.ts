@@ -40,7 +40,7 @@ import {
   type SvmFeeWriterConfig,
 } from './types.js';
 
-type LeafFeeConfig =
+export type LeafFeeConfig =
   | LinearFeeConfig
   | RegressiveFeeConfig
   | ProgressiveFeeConfig;

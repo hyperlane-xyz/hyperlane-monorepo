@@ -5,11 +5,17 @@ import { concatBytes, u8, u32le } from '../codecs/binary.js';
 import {
   encodeFeeData,
   encodeFeeParams,
+  encodeOptionalRouteKey,
   type SvmFeeData,
   type SvmFeeParams,
+  type SvmRouteKey,
 } from '../codecs/fee.js';
 import { SYSTEM_PROGRAM_ADDRESS } from '../constants.js';
-import { deriveFeeAccountPda } from '../pda.js';
+import {
+  deriveFeeAccountPda,
+  deriveCrossCollateralRoutePda,
+  deriveRouteDomainPda,
+} from '../pda.js';
 
 import {
   buildInstruction,
@@ -147,4 +153,139 @@ export function getTransferFeeOwnershipInstruction(
     [writableAccount(feeAccount), readonlySignerAddress(owner)],
     ixData,
   );
+}
+
+// ── AddQuoteSigner ──────────────────────────────────────────────────
+// Accounts when route=None (Leaf mode):
+//   0. `[]`           System program
+//   1. `[writable]`   Fee account (signers stored directly on it)
+//   2. `[writable, signer]` Owner
+//
+// Accounts when route=Some(Domain) (Routing mode):
+//   0. `[]`           System program
+//   1. `[]`           Fee account (read-only, signers on route PDA)
+//   2. `[writable, signer]` Owner
+//   3. `[writable]`   RouteDomain PDA
+//
+// Accounts when route=Some(CrossCollateral) (CC mode):
+//   0. `[]`           System program
+//   1. `[]`           Fee account (read-only, signers on CC route PDA)
+//   2. `[writable, signer]` Owner
+//   3. `[writable]`   CrossCollateralRoute PDA
+
+export async function getAddQuoteSignerInstruction(
+  programId: Address,
+  feeAccount: Address,
+  owner: Address,
+  signer: Uint8Array,
+  route: SvmRouteKey | null,
+): Promise<Instruction> {
+  const ixData = concatBytes(
+    u8(FeeInstructionKind.AddQuoteSigner),
+    Uint8Array.from(signer),
+    encodeOptionalRouteKey(route),
+  );
+
+  return buildInstruction(
+    programId,
+    await buildAddQuoteSignerAccounts(programId, feeAccount, owner, route),
+    ixData,
+  );
+}
+
+// ── RemoveQuoteSigner ───────────────────────────────────────────────
+// Accounts when route=None (Leaf mode):
+//   0. `[writable]`   Fee account
+//   1. `[writable, signer]` Owner
+//
+// Accounts when route=Some(Domain) (Routing mode):
+//   0. `[]`           Fee account (read-only)
+//   1. `[writable, signer]` Owner
+//   2. `[writable]`   RouteDomain PDA
+//
+// Accounts when route=Some(CrossCollateral) (CC mode):
+//   0. `[]`           Fee account (read-only)
+//   1. `[writable, signer]` Owner
+//   2. `[writable]`   CrossCollateralRoute PDA
+
+export async function getRemoveQuoteSignerInstruction(
+  programId: Address,
+  feeAccount: Address,
+  owner: Address,
+  signer: Uint8Array,
+  route: SvmRouteKey | null,
+): Promise<Instruction> {
+  const ixData = concatBytes(
+    u8(FeeInstructionKind.RemoveQuoteSigner),
+    Uint8Array.from(signer),
+    encodeOptionalRouteKey(route),
+  );
+
+  return buildInstruction(
+    programId,
+    await buildRemoveQuoteSignerAccounts(programId, feeAccount, owner, route),
+    ixData,
+  );
+}
+
+async function buildAddQuoteSignerAccounts(
+  programId: Address,
+  feeAccount: Address,
+  owner: Address,
+  route: SvmRouteKey | null,
+) {
+  if (!route) {
+    return [
+      readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
+      writableAccount(feeAccount),
+      writableSignerAddress(owner),
+    ];
+  }
+
+  const routePda =
+    route.kind === 'domain'
+      ? await deriveRouteDomainPda(programId, feeAccount, route.domain)
+      : await deriveCrossCollateralRoutePda(
+          programId,
+          feeAccount,
+          route.destination,
+          route.targetRouter,
+        );
+
+  return [
+    readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
+    readonlyAccount(feeAccount),
+    writableSignerAddress(owner),
+    writableAccount(routePda.address),
+  ];
+}
+
+async function buildRemoveQuoteSignerAccounts(
+  programId: Address,
+  feeAccount: Address,
+  owner: Address,
+  route: SvmRouteKey | null,
+) {
+  if (!route) {
+    return [
+      writableAccount(feeAccount),
+      writableSignerAddress(owner),
+    ];
+  }
+
+  const routePda =
+    route.kind === 'domain'
+      ? await deriveRouteDomainPda(programId, feeAccount, route.domain)
+      : await deriveCrossCollateralRoutePda(
+          programId,
+          feeAccount,
+          route.destination,
+          route.targetRouter,
+        );
+
+  return [
+    readonlyAccount(feeAccount),
+    writableSignerAddress(owner),
+    writableAccount(routePda.address),
+  ];
 }
