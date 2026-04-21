@@ -2032,6 +2032,49 @@ describe('InventoryRebalancer E2E', () => {
       expect(bridge.quote.getCall(2).args[0].toAmount).to.be.undefined;
     });
 
+    it('fails gracefully when execute-time bridge quote rejects', async () => {
+      const amount = BigInt(1e18);
+      const sourceInventory = BigInt(2e18);
+
+      const route = createTestRoute({ amount });
+      createTestIntent({ amount });
+
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 0n,
+        [ARBITRUM_CHAIN]: sourceInventory,
+      });
+
+      bridge.quote
+        .onFirstCall()
+        .resolves(
+          createMockBridgeQuote({
+            fromAmount: sourceInventory,
+            toAmount: sourceInventory,
+            toAmountMin: sourceInventory,
+            requestParams: {
+              fromChain: 42161,
+              toChain: 1399811149,
+              fromToken: '0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
+              toToken: '0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
+              fromAddress: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+              toAddress: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+              fromAmount: sourceInventory,
+            },
+          }),
+        )
+        .onSecondCall()
+        .rejects(new Error('LiFi API timeout'));
+
+      const results = await inventoryRebalancer.rebalance([route]);
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.false;
+      expect(results[0].error).to.include('All inventory movements failed');
+      expect(results[0].error).to.include('LiFi API timeout');
+      expect(bridge.quote.callCount).to.equal(2);
+      expect(bridge.execute.called).to.be.false;
+    });
+
     it('logs actual successful bridge output floors instead of planned output totals', async () => {
       const amount = BigInt(1e18);
       const perChainInventory = BigInt(0.6e18);
