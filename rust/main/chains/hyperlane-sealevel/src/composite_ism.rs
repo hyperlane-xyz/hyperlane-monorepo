@@ -63,10 +63,15 @@ impl SealevelCompositeIsm {
             get_metadata_spec_instruction(self.program_id, message_bytes.clone(), vec![domain_pda])
                 .map_err(ChainCommunicationError::from_other)?;
 
+        // Errors on pass 1 are treated as "no data": FallbackRouting fails the
+        // simulation when inbox/fallback accounts are missing, but pass 2 will
+        // supply them. Pass 2 errors still propagate via `?`.
         if let Some(result) = self
             .provider
             .simulate_instruction::<SimulationReturnData<MetadataSpec>>(&payer, instruction)
-            .await?
+            .await
+            .ok()
+            .flatten()
         {
             return Ok(result.return_data);
         }

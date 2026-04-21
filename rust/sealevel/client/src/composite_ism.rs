@@ -39,8 +39,6 @@ pub(crate) enum IsmNodeConfig {
         sub_isms: Vec<IsmNodeConfig>,
     },
     Routing {
-        #[serde(skip_serializing_if = "Option::is_none")]
-        default_ism: Option<Box<IsmNodeConfig>>,
         /// Per-domain ISM configs.  Keys are origin domain IDs.
         ///
         /// This field exists only in the CLI config file — it is not stored in
@@ -49,6 +47,15 @@ pub(crate) enum IsmNodeConfig {
         /// `Initialize` / `UpdateConfig` transaction.
         /// JSON object keys must be strings, so domain IDs are stored as decimal
         /// strings (e.g. `"1399811149"`).  `collect_domain_isms` parses them to u32.
+        #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+        domains: BTreeMap<String, IsmNodeConfig>,
+    },
+    /// Like `Routing`, but falls back to the Mailbox's current `default_ism` when
+    /// no per-domain ISM is configured for the incoming message's origin.
+    FallbackRouting {
+        #[serde(with = "crate::serde::serde_pubkey")]
+        mailbox: Pubkey,
+        /// Per-domain ISM configs (same semantics as `Routing.domains`).
         #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
         domains: BTreeMap<String, IsmNodeConfig>,
     },
@@ -94,11 +101,12 @@ impl From<IsmNodeConfig> for IsmNode {
                 sub_isms: sub_isms.into_iter().map(Into::into).collect(),
             },
             IsmNodeConfig::Routing {
-                default_ism,
                 domains: _, // domain ISMs are submitted via SetDomainIsm, not stored in the root node
-            } => IsmNode::Routing {
-                default_ism: default_ism.map(|n| Box::new(IsmNode::from(*n))),
-            },
+            } => IsmNode::Routing,
+            IsmNodeConfig::FallbackRouting {
+                mailbox,
+                domains: _,
+            } => IsmNode::FallbackRouting { mailbox },
             IsmNodeConfig::Test { accept } => IsmNode::Test { accept },
             IsmNodeConfig::Pausable { paused } => IsmNode::Pausable { paused },
             IsmNodeConfig::AmountRouting {
@@ -147,11 +155,12 @@ impl TryFrom<IsmNode> for IsmNodeConfig {
                     sub_isms: sub_isms?,
                 })
             }
-            IsmNode::Routing { default_ism } => Ok(IsmNodeConfig::Routing {
-                default_ism: default_ism
-                    .map(|n| IsmNodeConfig::try_from(*n).map(Box::new))
-                    .transpose()?,
+            IsmNode::Routing => Ok(IsmNodeConfig::Routing {
                 domains: BTreeMap::new(), // on-chain node has no domain map; domain PDAs are separate
+            }),
+            IsmNode::FallbackRouting { mailbox } => Ok(IsmNodeConfig::FallbackRouting {
+                mailbox,
+                domains: BTreeMap::new(),
             }),
             IsmNode::Test { accept } => Ok(IsmNodeConfig::Test { accept }),
             IsmNode::Pausable { paused } => Ok(IsmNodeConfig::Pausable { paused }),
@@ -206,15 +215,17 @@ mod serde_hex_bytes32 {
 /// deployment, this always collects at most one batch of domain ISMs.
 fn collect_domain_isms(config: &IsmNodeConfig) -> Vec<(u32, IsmNodeConfig)> {
     match config {
-        IsmNodeConfig::Routing { domains, .. } => domains
-            .iter()
-            .map(|(k, v)| {
-                let domain = k
-                    .parse::<u32>()
-                    .unwrap_or_else(|_| panic!("domain key {k:?} is not a valid u32"));
-                (domain, v.clone())
-            })
-            .collect(),
+        IsmNodeConfig::Routing { domains, .. } | IsmNodeConfig::FallbackRouting { domains, .. } => {
+            domains
+                .iter()
+                .map(|(k, v)| {
+                    let domain = k
+                        .parse::<u32>()
+                        .unwrap_or_else(|_| panic!("domain key {k:?} is not a valid u32"));
+                    (domain, v.clone())
+                })
+                .collect()
+        }
         IsmNodeConfig::Aggregation { sub_isms, .. } => {
             sub_isms.iter().flat_map(collect_domain_isms).collect()
         }
@@ -489,7 +500,7 @@ fn inject_routing_domains(
     domain_map: &mut BTreeMap<String, IsmNodeConfig>,
 ) {
     match config {
-        IsmNodeConfig::Routing { domains, .. } => {
+        IsmNodeConfig::Routing { domains, .. } | IsmNodeConfig::FallbackRouting { domains, .. } => {
             domains.append(domain_map);
         }
         IsmNodeConfig::Aggregation { sub_isms, .. } => {
