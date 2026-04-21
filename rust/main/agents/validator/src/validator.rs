@@ -5,7 +5,7 @@ use axum::Router;
 use derive_more::AsRef;
 use ethers::utils::keccak256;
 use eyre::{eyre, Result};
-use futures_util::future::try_join_all;
+use futures_util::future::{join_all, try_join_all};
 use itertools::Itertools;
 use serde::Serialize;
 use tokio::{task::JoinHandle, time::sleep};
@@ -25,10 +25,10 @@ use hyperlane_base::{
     RuntimeMetrics, SequenceAwareLogStore, SequencedDataContractSync,
 };
 use hyperlane_core::{
-    rpc_clients::RPC_RETRY_SLEEP_DURATION, Announcement, ChainResult, CheckpointAtBlock,
-    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt,
-    IncrementalMerkleAtBlock, Mailbox, MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, TxOutcome,
-    ValidatorAnnounce, H256, U256,
+    rpc_clients::RPC_RETRY_SLEEP_DURATION, Announcement, ChainCommunicationError, ChainResult,
+    CheckpointAtBlock, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneSigner,
+    HyperlaneSignerExt, IncrementalMerkleAtBlock, Mailbox, MerkleTreeHook, MerkleTreeInsertion,
+    ReorgPeriod, TxOutcome, ValidatorAnnounce, H256, U256,
 };
 use hyperlane_ethereum::{
     self as h_eth, RpcConnectionConf, Signers, SingletonSigner, SingletonSignerHandle,
@@ -54,7 +54,7 @@ struct ValidatorSafetyMerkleTreeHook {
 #[async_trait]
 impl MerkleTreeHook for ValidatorSafetyMerkleTreeHook {
     async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkleAtBlock> {
-        self.fallback.tree(reorg_period).await
+        self.safety.tree(reorg_period).await
     }
 
     async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
@@ -70,6 +70,119 @@ impl MerkleTreeHook for ValidatorSafetyMerkleTreeHook {
 
     async fn latest_checkpoint_at_block(&self, height: u64) -> ChainResult<CheckpointAtBlock> {
         self.safety.latest_checkpoint_at_block(height).await
+    }
+}
+
+#[derive(Debug)]
+struct ValidatorTronSafetyMerkleTreeHook {
+    fallback: Arc<dyn MerkleTreeHook>,
+    safety_hooks: Vec<Arc<dyn MerkleTreeHook>>,
+}
+
+impl ValidatorTronSafetyMerkleTreeHook {
+    fn quorum_threshold(&self) -> usize {
+        self.safety_hooks.len() / 2 + 1
+    }
+
+    fn select_quorum_result<T: Clone>(
+        &self,
+        results: Vec<ChainResult<T>>,
+        matches: impl Fn(&T, &T) -> bool,
+        context: &str,
+    ) -> ChainResult<T> {
+        let mut oks = Vec::new();
+        let mut first_err = None;
+
+        for result in results {
+            match result {
+                Ok(value) => oks.push(value),
+                Err(err) => {
+                    if first_err.is_none() {
+                        first_err = Some(err);
+                    }
+                }
+            }
+        }
+
+        for candidate in &oks {
+            if oks.iter().filter(|other| matches(candidate, other)).count()
+                >= self.quorum_threshold()
+            {
+                return Ok(candidate.clone());
+            }
+        }
+
+        Err(first_err.unwrap_or_else(|| ChainCommunicationError::from_other_str(context)))
+    }
+}
+
+#[async_trait]
+impl MerkleTreeHook for ValidatorTronSafetyMerkleTreeHook {
+    async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkleAtBlock> {
+        let results = join_all(self.safety_hooks.iter().cloned().map(|hook| {
+            let reorg_period = reorg_period.clone();
+            async move { hook.tree(&reorg_period).await }
+        }))
+        .await;
+
+        self.select_quorum_result(
+            results,
+            |a, b| a.tree == b.tree && a.block_height == b.block_height,
+            "Failed to reach quorum for tron merkle tree",
+        )
+    }
+
+    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
+        self.fallback.count(reorg_period).await
+    }
+
+    async fn latest_checkpoint(
+        &self,
+        reorg_period: &ReorgPeriod,
+    ) -> ChainResult<CheckpointAtBlock> {
+        let results = join_all(self.safety_hooks.iter().cloned().map(|hook| {
+            let reorg_period = reorg_period.clone();
+            async move { hook.latest_checkpoint(&reorg_period).await }
+        }))
+        .await;
+
+        self.select_quorum_result(
+            results,
+            |a, b| a.checkpoint == b.checkpoint && a.block_height == b.block_height,
+            "Failed to reach quorum for tron latest_checkpoint",
+        )
+    }
+
+    async fn latest_checkpoint_at_block(&self, height: u64) -> ChainResult<CheckpointAtBlock> {
+        let results = join_all(
+            self.safety_hooks
+                .iter()
+                .cloned()
+                .map(|hook| async move { hook.latest_checkpoint_at_block(height).await }),
+        )
+        .await;
+
+        self.select_quorum_result(
+            results,
+            |a, b| a.checkpoint == b.checkpoint && a.block_height == b.block_height,
+            "Failed to reach quorum for tron latest_checkpoint_at_block",
+        )
+    }
+}
+
+impl HyperlaneChain for ValidatorTronSafetyMerkleTreeHook {
+    fn domain(&self) -> &HyperlaneDomain {
+        self.fallback.domain()
+    }
+
+    fn provider(&self) -> Box<dyn hyperlane_core::HyperlaneProvider> {
+        self.fallback.provider()
+    }
+}
+
+impl HyperlaneContract for ValidatorTronSafetyMerkleTreeHook {
+    fn address(&self) -> H256 {
+        self.fallback.address()
     }
 }
 
@@ -231,20 +344,14 @@ impl BaseAgent for Validator {
 
         let mailbox = origin_chain_conf.build_mailbox(&metrics).await?;
 
-        let merkle_tree_hook = if matches!(
-            origin_chain_conf.connection,
-            ChainConnectionConf::Ethereum(_)
-        ) {
-            let fallback_hook = fallback_origin_chain_conf
-                .build_merkle_tree_hook(&metrics)
-                .await?;
-            let safety_hook = safety_origin_chain_conf
-                .build_merkle_tree_hook(&metrics)
-                .await?;
-            Box::new(ValidatorSafetyMerkleTreeHook {
-                fallback: fallback_hook.into(),
-                safety: safety_hook.into(),
-            }) as Box<dyn MerkleTreeHook>
+        let merkle_tree_hook = if Self::validator_uses_split_safety_hook(&origin_chain_conf) {
+            Self::build_validator_merkle_tree_hook(
+                &origin_chain_conf,
+                &fallback_origin_chain_conf,
+                &safety_origin_chain_conf,
+                &metrics,
+            )
+            .await?
         } else {
             settings
                 .build_merkle_tree_hook(&settings.origin_chain, &metrics)
@@ -422,6 +529,73 @@ impl BaseAgent for Validator {
 }
 
 impl Validator {
+    fn validator_uses_split_safety_hook(origin_chain_conf: &ChainConf) -> bool {
+        matches!(
+            origin_chain_conf.connection,
+            ChainConnectionConf::Ethereum(_) | ChainConnectionConf::Tron(_)
+        )
+    }
+
+    async fn build_validator_merkle_tree_hook(
+        origin_chain_conf: &ChainConf,
+        fallback_origin_chain_conf: &ChainConf,
+        safety_origin_chain_conf: &ChainConf,
+        metrics: &CoreMetrics,
+    ) -> ChainResult<Box<dyn MerkleTreeHook>> {
+        match &origin_chain_conf.connection {
+            ChainConnectionConf::Ethereum(_) => {
+                let fallback_hook = fallback_origin_chain_conf
+                    .build_merkle_tree_hook(metrics)
+                    .await?;
+                let safety_hook = safety_origin_chain_conf
+                    .build_merkle_tree_hook(metrics)
+                    .await?;
+                Ok(Box::new(ValidatorSafetyMerkleTreeHook {
+                    fallback: fallback_hook.into(),
+                    safety: safety_hook.into(),
+                }) as Box<dyn MerkleTreeHook>)
+            }
+            ChainConnectionConf::Tron(_) => {
+                let fallback_hook = fallback_origin_chain_conf
+                    .build_merkle_tree_hook(metrics)
+                    .await?;
+                let safety_hooks =
+                    Self::build_validator_tron_safety_hooks(origin_chain_conf, metrics).await?;
+                Ok(Box::new(ValidatorTronSafetyMerkleTreeHook {
+                    fallback: fallback_hook.into(),
+                    safety_hooks,
+                }) as Box<dyn MerkleTreeHook>)
+            }
+            _ => unreachable!("validator split safety hook only supports ethereum and tron"),
+        }
+    }
+
+    async fn build_validator_tron_safety_hooks(
+        origin_chain_conf: &ChainConf,
+        metrics: &CoreMetrics,
+    ) -> ChainResult<Vec<Arc<dyn MerkleTreeHook>>> {
+        let ChainConnectionConf::Tron(conn) = &origin_chain_conf.connection else {
+            unreachable!("tron safety hooks only supported for tron chains");
+        };
+
+        let mut safety_hooks = Vec::new();
+        let wallet_solidity_urls = if conn.wallet_solidity_urls.is_empty() {
+            conn.wallet_urls.clone()
+        } else {
+            conn.wallet_solidity_urls.clone()
+        };
+
+        for wallet_solidity_url in wallet_solidity_urls {
+            let mut chain_conf = origin_chain_conf.clone();
+            if let ChainConnectionConf::Tron(updated_conn) = &mut chain_conf.connection {
+                updated_conn.wallet_solidity_urls = vec![wallet_solidity_url];
+            }
+            safety_hooks.push(chain_conf.build_merkle_tree_hook(metrics).await?.into());
+        }
+
+        Ok(safety_hooks)
+    }
+
     fn validator_chain_conf_with_fallback_rpc(origin_chain_conf: &ChainConf) -> ChainConf {
         Self::validator_chain_conf_with_rpc_connection(origin_chain_conf, |urls| {
             RpcConnectionConf::HttpFallback { urls }
@@ -443,6 +617,18 @@ impl Validator {
             let mut updated_conn: h_eth::ConnectionConf = conn.clone();
             updated_conn.rpc_connection = build_rpc_connection(conn.rpc_urls());
             chain_conf.connection = ChainConnectionConf::Ethereum(updated_conn);
+        } else if let ChainConnectionConf::Tron(conn) = &origin_chain_conf.connection {
+            let mut updated_conn = conn.clone();
+            let rpc_urls = match build_rpc_connection(conn.rpc_urls.clone()) {
+                RpcConnectionConf::HttpFallback { urls }
+                | RpcConnectionConf::HttpQuorum { urls } => urls,
+                RpcConnectionConf::Http { url } => vec![url],
+                RpcConnectionConf::Ws { .. } => {
+                    unreachable!("validator split rpc does not support ws")
+                }
+            };
+            updated_conn.rpc_urls = rpc_urls;
+            chain_conf.connection = ChainConnectionConf::Tron(updated_conn);
         }
         chain_conf
     }
@@ -835,6 +1021,8 @@ mod tests {
             .return_const(H256::from_low_u64_be(11));
         fallback.expect_provider().never();
         fallback.expect_count().once().return_once(|_| Ok(3));
+        fallback.expect_tree().never();
+        fallback.expect_latest_checkpoint().never();
         fallback.expect_latest_checkpoint_at_block().never();
 
         let mut safety = MockMerkleTreeHook::new();
@@ -844,6 +1032,12 @@ mod tests {
             .return_const(H256::from_low_u64_be(11));
         safety.expect_provider().never();
         safety.expect_count().never();
+        safety.expect_tree().once().return_once(|_| {
+            Ok(IncrementalMerkleAtBlock {
+                tree: Default::default(),
+                block_height: Some(123),
+            })
+        });
         safety
             .expect_latest_checkpoint()
             .once()
@@ -869,6 +1063,10 @@ mod tests {
             safety: Arc::new(safety),
         };
 
+        assert_eq!(
+            hook.tree(&ReorgPeriod::None).await.unwrap().block_height,
+            Some(123)
+        );
         assert_eq!(hook.count(&ReorgPeriod::None).await.unwrap(), 3);
         assert_eq!(
             hook.latest_checkpoint(&ReorgPeriod::None)
