@@ -11,19 +11,19 @@
  * CU / HEAP LIMITS (bottleneck: BTreeSet deserialization on 32KB heap):
  *   - AddQuoteSigner incremental on Leaf:  409 (account grows via realloc per add)
  *
- * STANDING QUOTE LIMITS:
- *   - TODO: requires secp256k1 quote signing infrastructure to stress test.
- *     Each standing quote entry = 65 bytes (H256 key + i64 issued_at + i64 expiry
- *     + u64 max_fee + u64 half_amount + u8 auth_scope). The per-domain PDA's
- *     BTreeMap will hit the same ~32KB heap limit as signers.
+ * STANDING QUOTE LIMITS (bottleneck: BTreeMap deserialization on 32KB heap):
+ *   - Standing quotes per domain PDA (Leaf):  113 (each entry = 65 bytes)
+ *   - Standing quotes per domain PDA (CC):    113 (same PDA structure as Leaf)
  */
-import { address } from '@solana/kit';
+import { address, address as parseAddress } from '@solana/kit';
+import { secp256k1 } from '@noble/curves/secp256k1';
+import { keccak_256 } from '@noble/hashes/sha3';
 import { before, describe, it } from 'mocha';
 
 import { FeeType, FeeStrategyType } from '@hyperlane-xyz/provider-sdk/fee';
-import { address as parseAddress } from '@solana/kit';
 
 import { SvmSigner } from '../clients/signer.js';
+import { concatBytes, u32le, u64le } from '../codecs/binary.js';
 import { SvmOffchainQuotedLinearFeeWriter } from '../fee/offchain-quoted-linear-fee.js';
 import { SvmRoutingFeeWriter } from '../fee/routing-fee.js';
 import { deriveFeeSalt, signerToH160 } from '../fee/types.js';
@@ -31,6 +31,8 @@ import {
   getAddQuoteSignerInstruction,
   getInitFeeInstruction,
   getSetWildcardQuoteSignersInstruction,
+  getSubmitStandingQuoteInstruction,
+  type SvmSignedQuoteData,
 } from '../instructions/fee.js';
 import { deriveFeeAccountPda } from '../pda.js';
 import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
@@ -45,6 +47,99 @@ const TEST_PRIVATE_KEY =
 
 function makeSigner(index: number): string {
   return '0x' + index.toString(16).padStart(40, '0');
+}
+
+// ── secp256k1 quote signing helpers ─────────────────────────────────
+
+const DOMAIN_TAG = new TextEncoder().encode('HyperlaneSvmQuote');
+
+/** Derive H160 address from a secp256k1 private key. */
+function privateKeyToH160(privKey: Uint8Array): Uint8Array {
+  const pubKeyUncompressed = secp256k1.getPublicKey(privKey, false).slice(1); // drop 0x04 prefix
+  const hash = keccak_256(pubKeyUncompressed);
+  return hash.slice(12); // last 20 bytes
+}
+
+/** Build scoped_salt = keccak256(payer || client_salt). */
+function computeScopedSalt(
+  payer: Uint8Array,
+  clientSalt: Uint8Array,
+): Uint8Array {
+  return keccak_256(Uint8Array.from([...payer, ...clientSalt]));
+}
+
+/** Encode a u48 big-endian timestamp into 6 bytes. */
+function u48be(value: number): Uint8Array {
+  const buf = new Uint8Array(6);
+  for (let i = 5; i >= 0; i--) {
+    buf[i] = value & 0xff;
+    value = Math.floor(value / 256);
+  }
+  return buf;
+}
+
+/**
+ * Build and sign a standing quote for a given recipient.
+ * Standing quote: expiry > issued_at.
+ */
+function signStandingQuote(opts: {
+  privKey: Uint8Array;
+  feeAccountPda: Uint8Array;
+  domainId: number;
+  destinationDomain: number;
+  recipient: Uint8Array;
+  amount: bigint;
+  maxFee: bigint;
+  halfAmount: bigint;
+  issuedAt: number;
+  expiry: number;
+  clientSalt: Uint8Array;
+  payer: Uint8Array;
+}): SvmSignedQuoteData {
+  // FeeQuoteContext: dest_domain(u32 LE) + recipient(H256) + amount(u64 LE) = 44 bytes
+  const context = Uint8Array.from(
+    concatBytes(
+      u32le(opts.destinationDomain),
+      opts.recipient,
+      u64le(opts.amount),
+    ),
+  );
+  // FeeQuoteData: max_fee(u64 LE) + half_amount(u64 LE) = 16 bytes
+  const data = Uint8Array.from(
+    concatBytes(u64le(opts.maxFee), u64le(opts.halfAmount)),
+  );
+
+  const issuedAtBytes = u48be(opts.issuedAt);
+  const expiryBytes = u48be(opts.expiry);
+  const scopedSalt = computeScopedSalt(opts.payer, opts.clientSalt);
+
+  // message_hash = keccak256(DOMAIN_TAG || fee_account || domain_id_le || keccak(context) || keccak(data) || issued_at || expiry || scoped_salt)
+  const messageHash = keccak_256(
+    Uint8Array.from([
+      ...DOMAIN_TAG,
+      ...opts.feeAccountPda,
+      ...new Uint8Array(new Uint32Array([opts.domainId]).buffer),
+      ...keccak_256(context),
+      ...keccak_256(data),
+      ...issuedAtBytes,
+      ...expiryBytes,
+      ...scopedSalt,
+    ]),
+  );
+
+  const sig = secp256k1.sign(messageHash, opts.privKey);
+  const signature = new Uint8Array(65);
+  signature.set(sig.toCompactRawBytes(), 0);
+  signature[64] = sig.recovery;
+
+  return {
+    context,
+    data,
+    issuedAt: issuedAtBytes,
+    expiry: expiryBytes,
+    clientSalt: opts.clientSalt,
+    signature,
+  };
 }
 
 async function findLimit(
@@ -307,6 +402,323 @@ describe('SVM Fee Stress Tests — Finding Limits', function () {
 
       console.log(
         `\n    ► SetWildcardQuoteSigners limit: ${maxSuccess} (fails at ${firstFailure})`,
+      );
+    });
+
+    // Discovered limit: 113 standing quotes per domain PDA (114 fails).
+    // Each entry = 32 (H256 key) + 8+8+8+8+1 (value) = 65 bytes in BTreeMap.
+    // ~7.3KB of data at 113 entries; BTreeMap deser overhead hits heap before signers.
+    it('max standing quotes per domain PDA (Leaf)', async () => {
+      const quoteSignerPrivKey = new Uint8Array(32);
+      quoteSignerPrivKey[31] = 42;
+      const quoteSignerH160 = privateKeyToH160(quoteSignerPrivKey);
+      const quoteSignerHex =
+        '0x' +
+        Array.from(quoteSignerH160)
+          .map((b) => b.toString(16).padStart(2, '0'))
+          .join('');
+
+      const { programAddress: programId } = await resolveProgram(
+        { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenFee },
+        signer,
+        rpc,
+      );
+
+      const salt = deriveFeeSalt('stress-standing-quotes');
+      const DOMAIN_ID = 1;
+      const DEST_DOMAIN = 10;
+
+      const initIx = await getInitFeeInstruction(
+        programId,
+        signer.signer.address,
+        {
+          salt,
+          owner: parseAddress(signer.getSignerAddress()),
+          beneficiary: parseAddress(signer.getSignerAddress()),
+          feeData: {
+            kind: FeeDataKind.Leaf,
+            config: {
+              strategy: {
+                kind: FeeStrategyKind.Linear,
+                params: { maxFee: 1000n, halfAmount: 500n },
+              },
+              signers: [signerToH160(quoteSignerHex)],
+            },
+          },
+          domainId: DOMAIN_ID,
+        },
+      );
+      await signer.send({ instructions: [initIx], skipPreflight: true });
+
+      const { address: feeAccountPda } = await deriveFeeAccountPda(
+        programId,
+        salt,
+      );
+
+      // Get the fee account PDA raw bytes for signing
+      const { getAddressEncoder } = await import('@solana/kit');
+      const addrEncoder = getAddressEncoder();
+      const feeAccountBytes = Uint8Array.from(
+        addrEncoder.encode(feeAccountPda),
+      );
+      const payerBytes = Uint8Array.from(
+        addrEncoder.encode(parseAddress(signer.getSignerAddress())),
+      );
+
+      const targetRouter = new Uint8Array(32); // H256::zero for Leaf/Routing
+      const BATCH_SIZE = 25;
+      let totalAdded = 0;
+      let failedAt = -1;
+      const baseTime = Math.floor(Date.now() / 1000);
+
+      while (true) {
+        const batchStart = totalAdded + 1;
+        const batchEnd = totalAdded + BATCH_SIZE;
+        let batchFailed = false;
+
+        for (let i = batchStart; i <= batchEnd; i++) {
+          // Unique recipient per quote
+          const recipient = new Uint8Array(32);
+          recipient[31] = i & 0xff;
+          recipient[30] = (i >> 8) & 0xff;
+          recipient[29] = (i >> 16) & 0xff;
+
+          // Unique client_salt per quote
+          const clientSalt = new Uint8Array(32);
+          clientSalt[31] = i & 0xff;
+          clientSalt[30] = (i >> 8) & 0xff;
+
+          const quote = signStandingQuote({
+            privKey: quoteSignerPrivKey,
+            feeAccountPda: feeAccountBytes,
+            domainId: DOMAIN_ID,
+            destinationDomain: DEST_DOMAIN,
+            recipient,
+            amount: BigInt('18446744073709551615'), // u64::MAX for standing quotes
+            maxFee: 1000n,
+            halfAmount: 500n,
+            issuedAt: baseTime,
+            expiry: baseTime + 86400, // 24h from now
+            clientSalt,
+            payer: payerBytes,
+          });
+
+          try {
+            const ix = await getSubmitStandingQuoteInstruction(
+              programId,
+              signer.signer.address,
+              feeAccountPda,
+              DEST_DOMAIN,
+              targetRouter,
+              quote,
+              [], // Leaf mode: no route PDAs
+              true, // fee_account writable for Leaf standing quotes
+            );
+            await signer.send({ instructions: [ix], skipPreflight: true });
+          } catch (err) {
+            console.log(
+              `      SubmitStandingQuote(${i}): ✗ — ${(err as Error).message?.slice(0, 120)}`,
+            );
+            failedAt = i;
+            batchFailed = true;
+            break;
+          }
+        }
+
+        if (batchFailed) break;
+        totalAdded = batchEnd;
+        console.log(
+          `      SubmitStandingQuote batch [${batchStart}..${batchEnd}]: ✓ (total: ${totalAdded})`,
+        );
+      }
+
+      const maxSuccess = failedAt > 0 ? failedAt - 1 : totalAdded;
+      console.log(
+        `\n    ► Max standing quotes per domain PDA (Leaf): ${maxSuccess} (failed at ${failedAt})`,
+      );
+    });
+
+    // Discovered limit: 113 standing quotes per domain PDA (same as Leaf).
+    // CC uses a non-zero target_router in PDA seeds and the fee account is
+    // read-only, but the PDA structure and BTreeMap are identical.
+    it('max standing quotes per domain PDA (CC routing)', async () => {
+      const quoteSignerPrivKey = new Uint8Array(32);
+      quoteSignerPrivKey[31] = 99;
+      const quoteSignerH160 = privateKeyToH160(quoteSignerPrivKey);
+      const quoteSignerHex =
+        '0x' +
+        Array.from(quoteSignerH160)
+          .map((b) => b.toString(16).padStart(2, '0'))
+          .join('');
+
+      const { programAddress: programId } = await resolveProgram(
+        { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenFee },
+        signer,
+        rpc,
+      );
+
+      const salt = deriveFeeSalt('stress-cc-standing-quotes');
+      const DOMAIN_ID = 1;
+      const DEST_DOMAIN = 10;
+      const TARGET_ROUTER = new Uint8Array(32);
+      TARGET_ROUTER[31] = 0xaa;
+
+      // Init as CC routing
+      const initIx = await getInitFeeInstruction(
+        programId,
+        signer.signer.address,
+        {
+          salt,
+          owner: parseAddress(signer.getSignerAddress()),
+          beneficiary: parseAddress(signer.getSignerAddress()),
+          feeData: {
+            kind: FeeDataKind.CrossCollateralRouting,
+            config: { wildcardSigners: [signerToH160(quoteSignerHex)] },
+          },
+          domainId: DOMAIN_ID,
+        },
+      );
+      await signer.send({ instructions: [initIx], skipPreflight: true });
+
+      const { address: feeAccountPda } = await deriveFeeAccountPda(
+        programId,
+        salt,
+      );
+
+      // Set a CC route so the signer is authorized for exact-domain quotes
+      const { getSetCrossCollateralRouteInstruction } =
+        await import('../instructions/fee.js');
+      const setRouteIx = await getSetCrossCollateralRouteInstruction(
+        programId,
+        feeAccountPda,
+        parseAddress(signer.getSignerAddress()),
+        DEST_DOMAIN,
+        TARGET_ROUTER,
+        {
+          kind: FeeStrategyKind.Linear,
+          params: { maxFee: 1000n, halfAmount: 500n },
+        },
+        [signerToH160(quoteSignerHex)],
+      );
+      await signer.send({ instructions: [setRouteIx], skipPreflight: true });
+
+      const { getAddressEncoder } = await import('@solana/kit');
+      const addrEncoder = getAddressEncoder();
+      const feeAccountBytes = Uint8Array.from(
+        addrEncoder.encode(feeAccountPda),
+      );
+      const payerBytes = Uint8Array.from(
+        addrEncoder.encode(parseAddress(signer.getSignerAddress())),
+      );
+
+      // Derive the CC route PDAs needed for SubmitQuote account list
+      const { deriveCrossCollateralRoutePda } = await import('../pda.js');
+      const { address: specificRoutePda } = await deriveCrossCollateralRoutePda(
+        programId,
+        feeAccountPda,
+        DEST_DOMAIN,
+        TARGET_ROUTER,
+      );
+      const defaultRouter = new Uint8Array(32).fill(0xff);
+      const { address: defaultRoutePda } = await deriveCrossCollateralRoutePda(
+        programId,
+        feeAccountPda,
+        DEST_DOMAIN,
+        defaultRouter,
+      );
+
+      const BATCH_SIZE = 25;
+      let totalAdded = 0;
+      let failedAt = -1;
+      const baseTime = Math.floor(Date.now() / 1000);
+
+      while (true) {
+        const batchStart = totalAdded + 1;
+        const batchEnd = totalAdded + BATCH_SIZE;
+        let batchFailed = false;
+
+        for (let i = batchStart; i <= batchEnd; i++) {
+          const recipient = new Uint8Array(32);
+          recipient[31] = i & 0xff;
+          recipient[30] = (i >> 8) & 0xff;
+          recipient[29] = (i >> 16) & 0xff;
+
+          const clientSalt = new Uint8Array(32);
+          clientSalt[31] = i & 0xff;
+          clientSalt[30] = (i >> 8) & 0xff;
+
+          // CC quote context: dest_domain(4) + recipient(32) + amount(8) + target_router(32) = 76 bytes
+          const context = Uint8Array.from(
+            concatBytes(
+              u32le(DEST_DOMAIN),
+              recipient,
+              u64le(BigInt('18446744073709551615')),
+              TARGET_ROUTER,
+            ),
+          );
+          const data = Uint8Array.from(concatBytes(u64le(1000n), u64le(500n)));
+
+          const issuedAtBytes = u48be(baseTime);
+          const expiryBytes = u48be(baseTime + 86400);
+          const scopedSalt = computeScopedSalt(payerBytes, clientSalt);
+
+          const messageHash = keccak_256(
+            Uint8Array.from([
+              ...DOMAIN_TAG,
+              ...feeAccountBytes,
+              ...new Uint8Array(new Uint32Array([DOMAIN_ID]).buffer),
+              ...keccak_256(context),
+              ...keccak_256(data),
+              ...issuedAtBytes,
+              ...expiryBytes,
+              ...scopedSalt,
+            ]),
+          );
+
+          const sig = secp256k1.sign(messageHash, quoteSignerPrivKey);
+          const signature = new Uint8Array(65);
+          signature.set(sig.toCompactRawBytes(), 0);
+          signature[64] = sig.recovery;
+
+          try {
+            const ix = await getSubmitStandingQuoteInstruction(
+              programId,
+              signer.signer.address,
+              feeAccountPda,
+              DEST_DOMAIN,
+              TARGET_ROUTER,
+              {
+                context,
+                data,
+                issuedAt: issuedAtBytes,
+                expiry: expiryBytes,
+                clientSalt,
+                signature,
+              },
+              [specificRoutePda, defaultRoutePda],
+              false, // fee_account read-only for CC standing quotes
+            );
+            await signer.send({ instructions: [ix], skipPreflight: true });
+          } catch (err) {
+            console.log(
+              `      CC SubmitStandingQuote(${i}): ✗ — ${(err as Error).message?.slice(0, 120)}`,
+            );
+            failedAt = i;
+            batchFailed = true;
+            break;
+          }
+        }
+
+        if (batchFailed) break;
+        totalAdded = batchEnd;
+        console.log(
+          `      CC SubmitStandingQuote batch [${batchStart}..${batchEnd}]: ✓ (total: ${totalAdded})`,
+        );
+      }
+
+      const maxSuccess = failedAt > 0 ? failedAt - 1 : totalAdded;
+      console.log(
+        `\n    ► Max standing quotes per domain PDA (CC): ${maxSuccess} (failed at ${failedAt})`,
       );
     });
   });

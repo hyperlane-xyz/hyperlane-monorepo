@@ -2414,6 +2414,9 @@ importers:
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
         version: link:../tsconfig
+      '@noble/curves':
+        specifier: ^1.7.0
+        version: 1.9.7
       '@types/chai':
         specifier: ^4.3.14
         version: 4.3.20
