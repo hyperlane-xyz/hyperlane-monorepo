@@ -140,4 +140,34 @@ describe('SVM OffchainQuotedLinear Fee E2E Tests', function () {
       readResult.config.quoteSigners.map((s) => s.toLowerCase()),
     ).to.not.include(SIGNER_B.toLowerCase());
   });
+
+  it('should remain offchainQuotedLinear after removing last signer (Some(empty))', async () => {
+    const [deployed] = await writer.create({
+      config: {
+        type: FeeType.offchainQuotedLinear,
+        owner: signer.getSignerAddress(),
+        beneficiary: signer.getSignerAddress(),
+        maxFee: '100',
+        halfAmount: '50',
+        quoteSigners: [SIGNER_A],
+      },
+    });
+
+    // Remove the only signer → on-chain state becomes Some(empty set), not None
+    const updateTxs = await writer.update({
+      ...deployed,
+      config: { ...deployed.config, quoteSigners: [] },
+    });
+
+    expect(updateTxs).to.have.length(1);
+    for (const tx of updateTxs) {
+      await signer.send(tx);
+    }
+
+    // Must still read back as offchainQuotedLinear, not downgrade to linear
+    const reader = new SvmOffchainQuotedLinearFeeReader(rpc);
+    const readResult = await reader.read(deployed.deployed.programId);
+    expect(readResult.config.type).to.equal(FeeType.offchainQuotedLinear);
+    expect(readResult.config.quoteSigners).to.have.length(0);
+  });
 });
