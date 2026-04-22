@@ -1223,6 +1223,94 @@ describe('HyperlaneIsmFactory', async () => {
     });
   }
 
+  it('batches multiple routing ISM enrollments and removals', async () => {
+    const owner = await multiProvider.getSignerAddress(chain);
+    const config: DomainRoutingIsmConfig = {
+      type: IsmType.ROUTING,
+      owner,
+      domains: {},
+    };
+    const routingIsm = await ismFactory.deploy({
+      destination: chain,
+      config,
+    });
+    const module = await new TestIsm__factory(
+      multiProvider.getSigner(chain),
+    ).deploy();
+    await module.deployed();
+
+    const provider = multiProvider.getProvider(chain);
+    config.domains = {
+      [TestChainName.test2]: module.address,
+      [TestChainName.test3]: module.address,
+    };
+    const enrollStartBlock = await provider.getBlockNumber();
+    await ismFactory.deploy({
+      destination: chain,
+      config,
+      existingIsmAddress: routingIsm.address,
+    });
+    const routingContract = DomainRoutingIsm__factory.connect(
+      routingIsm.address,
+      provider,
+    );
+    const moduleSetEvents = await routingContract.queryFilter(
+      routingContract.filters.ModuleSet(),
+      enrollStartBlock + 1,
+    );
+    expect(
+      moduleSetEvents.map(({ args }) => [args.domain, args.module]),
+    ).to.deep.equal([
+      [multiProvider.getDomainId(TestChainName.test2), module.address],
+      [multiProvider.getDomainId(TestChainName.test3), module.address],
+    ]);
+    expect(
+      new Set(moduleSetEvents.map((event) => event.transactionHash)).size,
+    ).to.equal(1);
+    const enrollTransaction = await provider.getTransaction(
+      moduleSetEvents[0].transactionHash,
+    );
+    expect(
+      routingContract.interface.parseTransaction({
+        data: enrollTransaction.data,
+        value: enrollTransaction.value,
+      }).name,
+    ).to.equal('setIsms');
+    expect((await routingContract.domains()).map(Number)).to.have.members([
+      multiProvider.getDomainId(TestChainName.test2),
+      multiProvider.getDomainId(TestChainName.test3),
+    ]);
+
+    config.domains = {};
+    const removeStartBlock = await provider.getBlockNumber();
+    await ismFactory.deploy({
+      destination: chain,
+      config,
+      existingIsmAddress: routingIsm.address,
+    });
+    const moduleRemovedEvents = await routingContract.queryFilter(
+      routingContract.filters.ModuleRemoved(),
+      removeStartBlock + 1,
+    );
+    expect(moduleRemovedEvents.map(({ args }) => args.domain)).to.deep.equal([
+      multiProvider.getDomainId(TestChainName.test2),
+      multiProvider.getDomainId(TestChainName.test3),
+    ]);
+    expect(
+      new Set(moduleRemovedEvents.map((event) => event.transactionHash)).size,
+    ).to.equal(1);
+    const removeTransaction = await provider.getTransaction(
+      moduleRemovedEvents[0].transactionHash,
+    );
+    expect(
+      routingContract.interface.parseTransaction({
+        data: removeTransaction.data,
+        value: removeTransaction.value,
+      }).name,
+    ).to.equal('removeIsms');
+    expect(await routingContract.domains()).to.be.empty;
+  });
+
   for (const type of [IsmType.ROUTING, IsmType.FALLBACK_ROUTING]) {
     it(`deploys ${type} routingIsm with correct routes`, async () => {
       exampleRoutingConfig.type = type;
