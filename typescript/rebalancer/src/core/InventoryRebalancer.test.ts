@@ -7,6 +7,7 @@ import Sinon, { type SinonStubbedInstance } from 'sinon';
 
 import {
   type ChainName,
+  HyperlaneCore,
   type MultiProvider,
   ProviderType,
   TokenStandard,
@@ -444,53 +445,51 @@ describe('InventoryRebalancer E2E', () => {
     });
   });
 
-  it('uses IMultiProtocolSigner path for tron transfer txs', async () => {
-    // Re-use SOLANA_CHAIN slot but treat it as Tron protocol.
-    // This mirrors the Sealevel test above which also re-uses the same slot.
-    const route = createTestRoute({ amount: 5000000000n });
-    createTestIntent({ amount: 5000000000n });
-
-    inventoryRebalancer.setInventoryBalances({
-      [SOLANA_CHAIN]: 5000000000n,
-      [ARBITRUM_CHAIN]: 0n,
-    });
-
+  it('sendAndConfirmInventoryTx uses the EVM-like signer path for Tron txs', async () => {
+    const TRON_CHAIN = 'tron' as ChainName;
     config.inventorySigners[ProtocolType.Tron] = {
       address: INVENTORY_SIGNER,
       key: TEST_PRIVATE_KEY,
     };
 
-    warpCore.multiProvider.getChainMetadata.callsFake((chain: ChainName) => ({
+    const getChainMetadata = (chain: ChainName) => ({
       name: chain,
       protocol:
-        chain === SOLANA_CHAIN ? ProtocolType.Tron : ProtocolType.Ethereum,
-      blocks: { reorgPeriod: 1 },
-    }));
+        chain === TRON_CHAIN ? ProtocolType.Tron : ProtocolType.Ethereum,
+      blocks: { reorgPeriod: 2 },
+      rpcUrls: [{ http: 'http://127.0.0.1:9090/jsonrpc' }],
+    });
+    warpCore.multiProvider.getChainMetadata.callsFake(getChainMetadata);
+    multiProvider.getChainMetadata.callsFake(getChainMetadata);
+    warpCore.multiProvider.toMultiProvider =
+      Sinon.stub().returns(multiProvider);
 
-    const sendAndConfirmStub = Sinon.stub(
-      InventoryRebalancer.prototype as any,
-      'sendAndConfirmInventoryTx',
-    ).resolves({ txHash: '0xTronTxHash' });
-
-    multiProvider.sendTransaction.resetHistory();
-    warpCore.getTransferRemoteTxs.resolves([
-      {
-        category: WarpTxCategory.Transfer,
-        type: ProviderType.EthersV5,
-        transaction: {} as any,
+    const sendFn = (inventoryRebalancer as any).sendAndConfirmInventoryTx.bind(
+      inventoryRebalancer,
+    );
+    const result = await sendFn(TRON_CHAIN, {
+      category: WarpTxCategory.Transfer,
+      type: ProviderType.Tron,
+      transaction: {
+        to: '0xRouterAddress',
+        data: '0xTransferRemoteData',
+        value: 1000000n,
       },
-    ]);
+    });
 
-    const results = await inventoryRebalancer.rebalance([route]);
-
-    expect(results).to.have.lengthOf(1);
-    expect(results[0].success).to.be.true;
-    expect(sendAndConfirmStub.calledOnce).to.be.true;
-    expect(sendAndConfirmStub.firstCall.args[0]).to.equal(SOLANA_CHAIN);
-    expect(multiProvider.sendTransaction.called).to.be.false;
-
-    const actionParams = actionTracker.createRebalanceAction.lastCall.args[0];
-    expect(actionParams.txHash).to.equal('0xTronTxHash');
+    expect(result).to.deep.equal({ txHash: '0xTransferRemoteTxHash' });
+    expect(multiProvider.setSigner.calledOnce).to.be.true;
+    expect(
+      multiProvider.sendTransaction.calledOnceWithExactly(
+        TRON_CHAIN,
+        {
+          to: '0xRouterAddress',
+          data: '0xTransferRemoteData',
+          value: 1000000n,
+        },
+        { waitConfirmations: 2 },
+      ),
+    ).to.be.true;
   });
 
   it('buildSignerAccountConfig returns correct config for Tron protocol', () => {
@@ -541,8 +540,14 @@ describe('InventoryRebalancer E2E', () => {
     expect(receipt.receipt).to.deep.equal(mockReceipt);
   });
 
-  it('extractDispatchedMessageId parses Tron dispatch logs via EthersV5 path', async () => {
+  it('extractDispatchedMessageId returns Tron message ids via the EthersV5 path', async () => {
     const TRON_CHAIN = 'tron' as ChainName;
+    const expectedMessageId =
+      '0x1111111111111111111111111111111111111111111111111111111111111111';
+    const mockReceipt = {
+      transactionHash: '0xTronTx',
+      logs: [{}],
+    };
 
     warpCore.multiProvider.getChainMetadata.callsFake((chain: ChainName) => ({
       name: chain,
@@ -550,23 +555,24 @@ describe('InventoryRebalancer E2E', () => {
         chain === TRON_CHAIN ? ProtocolType.Tron : ProtocolType.Ethereum,
     }));
 
-    // Mock EthersV5 provider returning a receipt with no dispatch logs
+    const getDispatchedMessagesStub = Sinon.stub(
+      HyperlaneCore,
+      'getDispatchedMessages',
+    ).returns([{ id: expectedMessageId }] as any);
     warpCore.multiProvider.getEthersV5Provider.returns({
-      getTransactionReceipt: Sinon.stub().resolves({
-        transactionHash: '0xTronTx',
-        logs: [],
-      }),
+      getTransactionReceipt: Sinon.stub().resolves(mockReceipt),
     });
 
     const extractFn = (
       inventoryRebalancer as any
     ).extractDispatchedMessageId.bind(inventoryRebalancer);
-    // With empty logs, no message ID should be found (undefined)
     const messageId = await extractFn(TRON_CHAIN, '0xTronTx');
-    expect(messageId).to.be.undefined;
+    expect(messageId).to.equal(expectedMessageId);
+    expect(getDispatchedMessagesStub.calledOnceWithExactly(mockReceipt)).to.be
+      .true;
   });
 
-  it('accepts multi-protocol config with Ethereum + Tron + Sealevel signers', () => {
+  it('selects the Tron signer address from a mixed multi-protocol config', () => {
     config.inventorySigners[ProtocolType.Tron] = {
       address: INVENTORY_SIGNER,
       key: TEST_PRIVATE_KEY,
@@ -576,43 +582,26 @@ describe('InventoryRebalancer E2E', () => {
       key: '1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32',
     };
 
-    // Should not throw during construction
-    const rebalancer = new InventoryRebalancer(
-      config,
-      actionTracker as unknown as IActionTracker,
-      { lifi: bridge as unknown as IExternalBridge },
-      warpCore as unknown as WarpCore,
-      multiProvider as unknown as MultiProvider,
-      testLogger,
+    warpCore.multiProvider.getChainMetadata.callsFake((chain: ChainName) => ({
+      name: chain,
+      protocol:
+        chain === 'tron'
+          ? ProtocolType.Tron
+          : chain === SOLANA_CHAIN
+            ? ProtocolType.Sealevel
+            : ProtocolType.Ethereum,
+    }));
+
+    const getInventorySignerAddress = (
+      inventoryRebalancer as any
+    ).getInventorySignerAddress.bind(inventoryRebalancer);
+
+    expect(getInventorySignerAddress('tron' as ChainName)).to.equal(
+      INVENTORY_SIGNER,
     );
-
-    expect(rebalancer).to.be.instanceOf(InventoryRebalancer);
-    expect(config.inventorySigners[ProtocolType.Ethereum]).to.exist;
-    expect(config.inventorySigners[ProtocolType.Tron]).to.exist;
-    expect(config.inventorySigners[ProtocolType.Sealevel]).to.exist;
-  });
-
-  it('Tron chain is accepted in inventoryChains config', () => {
-    const tronConfig: InventoryRebalancerConfig = {
-      inventorySigners: {
-        [ProtocolType.Tron]: {
-          address: INVENTORY_SIGNER,
-          key: TEST_PRIVATE_KEY,
-        },
-      },
-      inventoryChains: ['tron' as ChainName, ARBITRUM_CHAIN],
-    };
-
-    const rebalancer = new InventoryRebalancer(
-      tronConfig,
-      actionTracker as unknown as IActionTracker,
-      { lifi: bridge as unknown as IExternalBridge },
-      warpCore as unknown as WarpCore,
-      multiProvider as unknown as MultiProvider,
-      testLogger,
+    expect(getInventorySignerAddress(SOLANA_CHAIN)).to.equal(
+      'SoLANAAddReSs1234567890123456789012345678',
     );
-
-    expect(rebalancer).to.be.instanceOf(InventoryRebalancer);
   });
 
   describe('Partial Fulfillment (Insufficient Inventory)', () => {
