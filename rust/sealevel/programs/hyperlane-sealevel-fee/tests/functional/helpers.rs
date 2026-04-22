@@ -66,23 +66,22 @@ async fn test_leaf_no_transient() {
     )
     .await;
 
-    // prefix (3) + domain_quotes + wildcard_quotes = 5
-    assert_eq!(metas.len(), 5);
+    // prefix (2) + domain_quotes + wildcard_quotes = 4
+    assert_eq!(metas.len(), 4);
 
     // Fixed prefix.
-    assert_eq!(metas[0].pubkey, system_program::ID);
-    assert_eq!(metas[1].pubkey, fee_key);
-    assert!(metas[2].is_signer);
-    assert!(metas[2].is_writable);
+    assert_eq!(metas[0].pubkey, fee_key);
+    assert!(metas[1].is_signer);
+    assert!(metas[1].is_writable);
 
     let expected_domain = standing_quote_pda_for(&fee_key, dest);
     let expected_wildcard = standing_quote_pda_for(&fee_key, WILDCARD_DOMAIN);
 
-    assert_eq!(metas[3].pubkey, expected_domain);
-    assert!(!metas[3].is_writable);
+    assert_eq!(metas[2].pubkey, expected_domain);
+    assert!(!metas[2].is_writable);
 
-    assert_eq!(metas[4].pubkey, expected_wildcard);
-    assert!(!metas[4].is_writable);
+    assert_eq!(metas[3].pubkey, expected_wildcard);
+    assert!(!metas[3].is_writable);
 }
 
 #[tokio::test]
@@ -115,16 +114,16 @@ async fn test_leaf_with_transient() {
     )
     .await;
 
-    // prefix (3) + transient + domain_quotes + wildcard_quotes = 6
-    assert_eq!(metas.len(), 6);
+    // prefix (2) + transient + domain_quotes + wildcard_quotes = 5
+    assert_eq!(metas.len(), 5);
 
-    assert_eq!(metas[3].pubkey, expected_transient);
-    assert!(metas[3].is_writable);
-    assert!(!metas[3].is_signer);
+    assert_eq!(metas[2].pubkey, expected_transient);
+    assert!(metas[2].is_writable);
+    assert!(!metas[2].is_signer);
 
-    assert_eq!(metas[4].pubkey, standing_quote_pda_for(&fee_key, dest));
+    assert_eq!(metas[3].pubkey, standing_quote_pda_for(&fee_key, dest));
     assert_eq!(
-        metas[5].pubkey,
+        metas[4].pubkey,
         standing_quote_pda_for(&fee_key, WILDCARD_DOMAIN)
     );
 }
@@ -154,16 +153,16 @@ async fn test_routing() {
     )
     .await;
 
-    // prefix (3) + domain_quotes + wildcard_quotes + route_pda = 6
-    assert_eq!(metas.len(), 6);
+    // prefix (2) + domain_quotes + wildcard_quotes + route_pda = 5
+    assert_eq!(metas.len(), 5);
 
-    assert_eq!(metas[3].pubkey, standing_quote_pda_for(&fee_key, dest));
+    assert_eq!(metas[2].pubkey, standing_quote_pda_for(&fee_key, dest));
     assert_eq!(
-        metas[4].pubkey,
+        metas[3].pubkey,
         standing_quote_pda_for(&fee_key, WILDCARD_DOMAIN)
     );
-    assert_eq!(metas[5].pubkey, route_pda_for(&fee_key, dest));
-    assert!(!metas[5].is_writable);
+    assert_eq!(metas[4].pubkey, route_pda_for(&fee_key, dest));
+    assert!(!metas[4].is_writable);
 }
 
 #[tokio::test]
@@ -192,23 +191,23 @@ async fn test_cc_routing() {
     )
     .await;
 
-    // prefix (3) + domain_quotes + wildcard_quotes + cc_specific + cc_default = 7
-    assert_eq!(metas.len(), 7);
+    // prefix (2) + domain_quotes + wildcard_quotes + cc_specific + cc_default = 6
+    assert_eq!(metas.len(), 6);
 
     assert_eq!(
-        metas[3].pubkey,
+        metas[2].pubkey,
         cc_standing_quote_pda_for(&fee_key, dest, &target_router)
     );
     assert_eq!(
-        metas[4].pubkey,
+        metas[3].pubkey,
         cc_standing_quote_pda_for(&fee_key, WILDCARD_DOMAIN, &target_router)
     );
     assert_eq!(
-        metas[5].pubkey,
+        metas[4].pubkey,
         cc_route_pda_for(&fee_key, dest, &target_router)
     );
     assert_eq!(
-        metas[6].pubkey,
+        metas[5].pubkey,
         cc_route_pda_for(&fee_key, dest, &DEFAULT_ROUTER)
     );
 }
@@ -246,25 +245,25 @@ async fn test_cc_routing_with_transient() {
     )
     .await;
 
-    // prefix (3) + transient + domain_quotes + wildcard_quotes + cc_specific + cc_default = 8
-    assert_eq!(metas.len(), 8);
+    // prefix (2) + transient + domain_quotes + wildcard_quotes + cc_specific + cc_default = 7
+    assert_eq!(metas.len(), 7);
 
-    assert_eq!(metas[3].pubkey, expected_transient);
-    assert!(metas[3].is_writable);
+    assert_eq!(metas[2].pubkey, expected_transient);
+    assert!(metas[2].is_writable);
     assert_eq!(
-        metas[4].pubkey,
+        metas[3].pubkey,
         cc_standing_quote_pda_for(&fee_key, dest, &target_router)
     );
     assert_eq!(
-        metas[5].pubkey,
+        metas[4].pubkey,
         cc_standing_quote_pda_for(&fee_key, WILDCARD_DOMAIN, &target_router)
     );
     assert_eq!(
-        metas[6].pubkey,
+        metas[5].pubkey,
         cc_route_pda_for(&fee_key, dest, &target_router)
     );
     assert_eq!(
-        metas[7].pubkey,
+        metas[6].pubkey,
         cc_route_pda_for(&fee_key, dest, &DEFAULT_ROUTER)
     );
 }
@@ -299,8 +298,8 @@ async fn test_get_quote_account_metas_scoped_salt_same_tx_expectation() {
         transient_quote_pda_seeds!(fee_key, scoped_salt),
         &fee_program_id(),
     );
-    assert_eq!(metas[3].pubkey, expected_transient);
-    assert!(metas[3].is_writable);
+    assert_eq!(metas[2].pubkey, expected_transient);
+    assert!(metas[2].is_writable);
 }
 
 async fn simulate_get_submit_metas(

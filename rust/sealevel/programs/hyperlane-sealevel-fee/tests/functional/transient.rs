@@ -472,7 +472,6 @@ fn build_quote_fee_with_transient_ix(
             target_router: H256::zero(),
         }),
         vec![
-            AccountMeta::new_readonly(system_program::ID, false),
             AccountMeta::new_readonly(*fee_account, false),
             AccountMeta::new(*payer, true),
             AccountMeta::new(*transient_pda, false), // transient PDA (writable for autoclose)
@@ -942,7 +941,6 @@ async fn test_transient_on_routing_account_works() {
                 target_router: H256::zero(),
             }),
             vec![
-                AccountMeta::new_readonly(system_program::ID, false),
                 AccountMeta::new_readonly(fee_key, false),
                 AccountMeta::new(payer.pubkey(), true),
                 AccountMeta::new(transient_pda, false),
@@ -1072,7 +1070,6 @@ async fn test_transient_on_cc_account_works() {
                 target_router,
             }),
             vec![
-                AccountMeta::new_readonly(system_program::ID, false),
                 AccountMeta::new_readonly(fee_key, false),
                 AccountMeta::new(payer.pubkey(), true),
                 AccountMeta::new(transient_pda, false),
@@ -1210,7 +1207,6 @@ async fn test_cc_context_wrong_target_router_fails() {
             target_router, // correct router in instruction
         }),
         vec![
-            AccountMeta::new_readonly(system_program::ID, false),
             AccountMeta::new_readonly(fee_key, false),
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new(transient_pda, false),
@@ -1293,7 +1289,6 @@ async fn test_payer_mismatch_fails() {
             target_router: H256::zero(),
         }),
         vec![
-            AccountMeta::new_readonly(system_program::ID, false),
             AccountMeta::new_readonly(fee_key, false),
             AccountMeta::new(other_payer.pubkey(), true), // different payer
             AccountMeta::new(transient_pda, false),

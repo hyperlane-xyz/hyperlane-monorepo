@@ -1765,7 +1765,6 @@ async fn test_transient_pda_spoof_rejected() {
             target_router: H256::zero(),
         }),
         vec![
-            AccountMeta::new_readonly(system_program::ID, false),
             AccountMeta::new_readonly(fee_key_a, false),
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new(transient_pda_b, false),

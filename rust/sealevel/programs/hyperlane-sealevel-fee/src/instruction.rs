@@ -309,12 +309,10 @@ pub fn remove_route_instruction(
     let ixn = Instruction::RemoveRoute(domain);
 
     // Accounts:
-    // 0. `[executable]` System program.
-    // 1. `[]` Fee account.
-    // 2. `[signer, writable]` Owner.
-    // 3. `[writable]` RouteDomain PDA.
+    // 0. `[]` Fee account.
+    // 1. `[signer, writable]` Owner.
+    // 2. `[writable]` RouteDomain PDA.
     let accounts = vec![
-        AccountMeta::new_readonly(system_program::ID, false),
         AccountMeta::new_readonly(fee_account, false),
         AccountMeta::new(owner, true),
         AccountMeta::new(route_pda, false),
@@ -391,12 +389,10 @@ pub fn remove_cc_route_instruction(
     });
 
     // Accounts:
-    // 0. `[executable]` System program.
-    // 1. `[]` Fee account.
-    // 2. `[signer, writable]` Owner.
-    // 3. `[writable]` CrossCollateralRoute PDA.
+    // 0. `[]` Fee account.
+    // 1. `[signer, writable]` Owner.
+    // 2. `[writable]` CrossCollateralRoute PDA.
     let accounts = vec![
-        AccountMeta::new_readonly(system_program::ID, false),
         AccountMeta::new_readonly(fee_account, false),
         AccountMeta::new(owner, true),
         AccountMeta::new(cc_route_pda, false),
@@ -538,7 +534,6 @@ pub fn remove_quote_signer_instruction(
 
     let fee_account_writable = route.is_none();
     let mut accounts = vec![
-        AccountMeta::new_readonly(system_program::ID, false),
         if fee_account_writable {
             AccountMeta::new(fee_account, false)
         } else {
@@ -748,12 +743,10 @@ pub fn close_transient_quote_instruction(
     let ixn = Instruction::CloseTransientQuote;
 
     // Accounts:
-    // 0. `[executable]` System program.
-    // 1. `[]` Fee account.
-    // 2. `[writable]` Transient quote PDA.
-    // 3. `[signer]` Original payer (receives rent refund).
+    // 0. `[]` Fee account.
+    // 1. `[writable]` Transient quote PDA.
+    // 2. `[signer]` Original payer (receives rent refund).
     let accounts = vec![
-        AccountMeta::new_readonly(system_program::ID, false),
         AccountMeta::new_readonly(fee_account, false),
         AccountMeta::new(transient_pda, false),
         AccountMeta::new(payer_refund, true),

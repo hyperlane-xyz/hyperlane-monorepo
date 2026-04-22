@@ -394,7 +394,6 @@ fn build_quote_fee_leaf_ix(
             target_router: H256::zero(),
         }),
         vec![
-            AccountMeta::new_readonly(system_program::ID, false),
             AccountMeta::new_readonly(*fee_account, false),
             AccountMeta::new(*payer, true),
             // No transient PDA — first variable account is domain standing quote.
@@ -425,7 +424,6 @@ fn build_quote_fee_routing_ix(
             target_router: H256::zero(),
         }),
         vec![
-            AccountMeta::new_readonly(system_program::ID, false),
             AccountMeta::new_readonly(*fee_account, false),
             AccountMeta::new(*payer, true),
             AccountMeta::new_readonly(domain_quotes_pda, false),
@@ -454,7 +452,6 @@ fn build_quote_fee_cc_ix(
     let cc_specific_pda = cc_route_pda_for(fee_account, destination_domain, &target_router);
 
     let mut accounts = vec![
-        AccountMeta::new_readonly(system_program::ID, false),
         AccountMeta::new_readonly(*fee_account, false),
         AccountMeta::new(*payer, true),
         AccountMeta::new_readonly(domain_quotes_pda, false),
@@ -2124,7 +2121,6 @@ mod quote_fee {
                 target_router,
             }),
             vec![
-                AccountMeta::new_readonly(system_program::ID, false),
                 AccountMeta::new_readonly(fee_key, false),
                 AccountMeta::new(payer.pubkey(), true),
                 AccountMeta::new_readonly(domain_quotes_pda, false),

@@ -186,18 +186,17 @@ fn process_init_fee(program_id: &Pubkey, accounts: &[AccountInfo], data: InitFee
 /// Returns fee amount as u64 LE via set_return_data.
 ///
 /// Accounts:
-/// 0. `[executable]` System program.
-/// 1. `[]` Fee account.
-/// 2. `[writable]` Payer (for transient quote autoclose).
-/// 3. `[writable]` Transient quote PDA (optional — detected by TransientQuote discriminator, writable for autoclose).
+/// 0. `[]` Fee account.
+/// 1. `[writable]` Payer (for transient quote autoclose).
+/// 2. `[writable]` Transient quote PDA (optional — detected by TransientQuote discriminator, writable for autoclose).
 ///
 /// If transient PDA is present:
-///     4. `[]` Domain standing quote PDA (always present, may be uninitialized).
-///     5. `[]` Wildcard standing quote PDA (always present, may be uninitialized).
+///     3. `[]` Domain standing quote PDA (always present, may be uninitialized).
+///     4. `[]` Wildcard standing quote PDA (always present, may be uninitialized).
 ///
 /// If transient PDA is absent:
-///     3. `[]` Domain standing quote PDA.
-///     4. `[]` Wildcard standing quote PDA.
+///     2. `[]` Domain standing quote PDA.
+///     3. `[]` Wildcard standing quote PDA.
 ///
 /// For Routing mode, additionally:
 ///   N+1. `[]` RouteDomain PDA for the destination.
@@ -211,20 +210,14 @@ fn process_quote_fee(
 ) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
-    // Account 0: System program.
-    let system_program_info = next_account_info(accounts_iter)?;
-    if *system_program_info.key != system_program::ID {
-        return Err(ProgramError::IncorrectProgramId);
-    }
-
-    // Account 1: Fee account.
+    // Account 0: Fee account.
     let fee_account_info = next_account_info(accounts_iter)?;
     if fee_account_info.owner != program_id {
         return Err(ProgramError::IncorrectProgramId);
     }
     let fee_account = FeeAccountData::fetch(&mut &fee_account_info.data.borrow()[..])?.into_inner();
 
-    // Account 2: Payer (must be signer — receives lamports on transient autoclose).
+    // Account 1: Payer (must be signer — receives lamports on transient autoclose).
     let payer_info = next_account_info(accounts_iter)?;
     if !payer_info.is_signer {
         return Err(ProgramError::MissingRequiredSignature);
@@ -233,7 +226,7 @@ fn process_quote_fee(
     // Cache clock for the cascade — avoids redundant syscalls.
     let clock = Clock::get()?;
 
-    // Account 3: Either transient quote PDA or domain standing quote PDA.
+    // Account 2: Either transient quote PDA or domain standing quote PDA.
     // Peek at discriminator to determine which.
     let next_info = next_account_info(accounts_iter)?;
     let has_transient = is_transient_quote(next_info, program_id)?;
@@ -838,21 +831,18 @@ fn process_add_quote_signer(
 /// Dispatches by route key: None → FeeAccount (Leaf), Some → route PDA.
 ///
 /// Accounts (route = None / Leaf):
-/// 0. `[executable]` System program.
-/// 1. `[writable]` Fee account (fee_data must be Leaf).
-/// 2. `[signer, writable]` Owner.
+/// 0. `[writable]` Fee account (fee_data must be Leaf).
+/// 1. `[signer, writable]` Owner.
 ///
 /// Accounts (route = Some(Domain) / Routing):
-/// 0. `[executable]` System program.
-/// 1. `[]` Fee account (fee_data must be Routing).
-/// 2. `[signer, writable]` Owner.
-/// 3. `[writable]` RouteDomain PDA.
+/// 0. `[]` Fee account (fee_data must be Routing).
+/// 1. `[signer, writable]` Owner.
+/// 2. `[writable]` RouteDomain PDA.
 ///
 /// Accounts (route = Some(CrossCollateral) / CC):
-/// 0. `[executable]` System program.
-/// 1. `[]` Fee account (fee_data must be CrossCollateralRouting).
-/// 2. `[signer, writable]` Owner.
-/// 3. `[writable]` CrossCollateralRoute PDA.
+/// 0. `[]` Fee account (fee_data must be CrossCollateralRouting).
+/// 1. `[signer, writable]` Owner.
+/// 2. `[writable]` CrossCollateralRoute PDA.
 fn process_remove_quote_signer(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -861,13 +851,7 @@ fn process_remove_quote_signer(
 ) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
-    // Account 0: System program.
-    let system_program_info = next_account_info(accounts_iter)?;
-    if *system_program_info.key != system_program::ID {
-        return Err(ProgramError::IncorrectProgramId);
-    }
-
-    // Account 1 + 2: Fee account + owner.
+    // Account 0 + 1: Fee account + owner.
     let (fee_account_info, mut fee_account, _owner_info) =
         fetch_fee_account_and_verify_owner(program_id, accounts_iter)?;
 
@@ -894,7 +878,7 @@ fn process_remove_quote_signer(
                 return Err(Error::NotRoutingFeeData.into());
             }
 
-            // Account 3: RouteDomain PDA.
+            // Account 2: RouteDomain PDA.
             let route_pda_info = next_account_info(accounts_iter)?;
             ensure_no_extraneous_accounts(accounts_iter)?;
 
@@ -928,7 +912,7 @@ fn process_remove_quote_signer(
                 return Err(Error::NotCrossCollateralRoutingFeeData.into());
             }
 
-            // Account 3: CrossCollateralRoute PDA.
+            // Account 2: CrossCollateralRoute PDA.
             let cc_pda_info = next_account_info(accounts_iter)?;
             ensure_no_extraneous_accounts(accounts_iter)?;
 
@@ -1448,25 +1432,19 @@ fn process_submit_quote(
 /// Close an orphaned transient quote PDA, returning rent to the original payer.
 ///
 /// Accounts:
-/// 0. `[executable]` System program.
-/// 1. `[]` Fee account.
-/// 2. `[writable]` Transient quote PDA.
-/// 3. `[signer, writable]` Payer refund (must match stored TransientQuote.payer).
+/// 0. `[]` Fee account.
+/// 1. `[writable]` Transient quote PDA.
+/// 2. `[signer, writable]` Payer refund (must match stored TransientQuote.payer).
 fn process_close_transient_quote(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
-    let system_program_info = next_account_info(accounts_iter)?;
-    if *system_program_info.key != system_program::ID {
-        return Err(ProgramError::IncorrectProgramId);
-    }
-
-    // Account 1: Fee account (read-only, for PDA derivation).
+    // Account 0: Fee account (read-only, for PDA derivation).
     let fee_account_info = next_account_info(accounts_iter)?;
     if fee_account_info.owner != program_id {
         return Err(ProgramError::IncorrectProgramId);
     }
 
-    // Account 2: Transient quote PDA.
+    // Account 1: Transient quote PDA.
     let transient_pda_info = next_account_info(accounts_iter)?;
     if transient_pda_info.owner != program_id {
         return Err(ProgramError::IncorrectProgramId);
@@ -1475,7 +1453,7 @@ fn process_close_transient_quote(program_id: &Pubkey, accounts: &[AccountInfo]) 
         .into_inner()
         .data;
 
-    // Account 3: Payer refund (must be signer and match stored payer).
+    // Account 2: Payer refund (must be signer and match stored payer).
     let payer_refund_info = next_account_info(accounts_iter)?;
     if !payer_refund_info.is_signer {
         return Err(ProgramError::MissingRequiredSignature);
@@ -1602,11 +1580,6 @@ fn process_get_quote_account_metas(
     let mut metas: Vec<SerializableAccountMeta> = Vec::new();
 
     // Fixed prefix accounts.
-    metas.push(SerializableAccountMeta {
-        pubkey: system_program::ID,
-        is_signer: false,
-        is_writable: false,
-    });
     metas.push(SerializableAccountMeta {
         pubkey: *fee_account_info.key,
         is_signer: false,
@@ -1923,10 +1896,9 @@ fn process_set_route(
 /// Returns rent to the owner. Requires the fee account to be FeeData::Routing.
 ///
 /// Accounts:
-/// 0. `[executable]` System program.
-/// 1. `[]` Fee account.
-/// 2. `[signer, writable]` Owner (receives rent refund).
-/// 3. `[writable]` RouteDomain PDA.
+/// 0. `[]` Fee account.
+/// 1. `[signer, writable]` Owner (receives rent refund).
+/// 2. `[writable]` RouteDomain PDA.
 fn process_remove_route(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -1934,13 +1906,7 @@ fn process_remove_route(
 ) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
-    // Account 0: System program.
-    let system_program_info = next_account_info(accounts_iter)?;
-    if *system_program_info.key != system_program::ID {
-        return Err(ProgramError::IncorrectProgramId);
-    }
-
-    // Account 1 + 2: Fee account + owner.
+    // Account 0 + 1: Fee account + owner.
     let (fee_account_info, fee_account, owner_info) =
         fetch_fee_account_and_verify_owner(program_id, accounts_iter)?;
 
@@ -1948,7 +1914,7 @@ fn process_remove_route(
         return Err(Error::NotRoutingFeeData.into());
     }
 
-    // Account 3: RouteDomain PDA.
+    // Account 2: RouteDomain PDA.
     let route_pda_info = next_account_info(accounts_iter)?;
     let domain_le = domain.to_le_bytes();
     let (expected_route_key, _) = Pubkey::find_program_address(
@@ -2065,10 +2031,9 @@ fn process_set_cc_route(
 /// Returns rent to the owner. Requires FeeData::CrossCollateralRouting.
 ///
 /// Accounts:
-/// 0. `[executable]` System program.
-/// 1. `[]` Fee account.
-/// 2. `[signer, writable]` Owner (receives rent refund).
-/// 3. `[writable]` CrossCollateralRoute PDA.
+/// 0. `[]` Fee account.
+/// 1. `[signer, writable]` Owner (receives rent refund).
+/// 2. `[writable]` CrossCollateralRoute PDA.
 fn process_remove_cc_route(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -2076,13 +2041,7 @@ fn process_remove_cc_route(
 ) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
-    // Account 0: System program.
-    let system_program_info = next_account_info(accounts_iter)?;
-    if *system_program_info.key != system_program::ID {
-        return Err(ProgramError::IncorrectProgramId);
-    }
-
-    // Account 1 + 2: Fee account + owner.
+    // Account 0 + 1: Fee account + owner.
     let (fee_account_info, fee_account, owner_info) =
         fetch_fee_account_and_verify_owner(program_id, accounts_iter)?;
 
@@ -2090,7 +2049,7 @@ fn process_remove_cc_route(
         return Err(Error::NotCrossCollateralRoutingFeeData.into());
     }
 
-    // Account 3: CrossCollateralRoute PDA.
+    // Account 2: CrossCollateralRoute PDA.
     let cc_route_pda_info = next_account_info(accounts_iter)?;
     let dest_le = data.destination.to_le_bytes();
     let (expected_cc_key, _) = Pubkey::find_program_address(

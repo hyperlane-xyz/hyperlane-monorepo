@@ -1295,7 +1295,6 @@ mod quote_fee_standing {
                 target_router: H256::zero(),
             }),
             vec![
-                AccountMeta::new_readonly(system_program::ID, false),
                 AccountMeta::new_readonly(fee_key, false),
                 AccountMeta::new(payer.pubkey(), true),
                 AccountMeta::new(transient_pda, false),
@@ -1393,7 +1392,6 @@ mod quote_fee_standing {
                 target_router: H256::zero(),
             }),
             vec![
-                AccountMeta::new_readonly(system_program::ID, false),
                 AccountMeta::new_readonly(fee_key_a, false), // querying A
                 AccountMeta::new(payer.pubkey(), true),
                 AccountMeta::new_readonly(spoofed_domain_pda, false), // B's PDA!
@@ -1469,7 +1467,6 @@ mod quote_fee_standing {
                 target_router: H256::zero(),
             }),
             vec![
-                AccountMeta::new_readonly(system_program::ID, false),
                 AccountMeta::new_readonly(fee_key_a, false),
                 AccountMeta::new(payer.pubkey(), true),
                 AccountMeta::new_readonly(domain_quotes_pda, false),
@@ -1767,7 +1764,6 @@ mod close_transient_quote {
             fee_program_id(),
             &FeeInstruction::CloseTransientQuote,
             vec![
-                AccountMeta::new_readonly(system_program::ID, false),
                 AccountMeta::new_readonly(fee_key, false),
                 AccountMeta::new(transient_pda, false),
                 AccountMeta::new(payer.pubkey(), true),
