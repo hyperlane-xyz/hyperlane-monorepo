@@ -287,6 +287,7 @@ export class SvmCrossCollateralRoutingFeeWriter
     for (const key of currentKeys) {
       if (!expectedKeys.has(key)) {
         const [domainStr, router] = key.split(':');
+        assert(router, `Malformed CC route key: ${key}`);
         txs.push({
           feePayer: ownerAddress,
           instructions: [
@@ -295,10 +296,10 @@ export class SvmCrossCollateralRoutingFeeWriter
               feeAccountPda,
               ownerAddress,
               Number(domainStr),
-              routerToBytes(router!),
+              routerToBytes(router),
             ),
           ],
-          annotation: `Remove CC route for domain ${domainStr} router ${router!.slice(0, 10)}...`,
+          annotation: `Remove CC route for domain ${domainStr} router ${router.slice(0, 10)}...`,
         });
       }
     }

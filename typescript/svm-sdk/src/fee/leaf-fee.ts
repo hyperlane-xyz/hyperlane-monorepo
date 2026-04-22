@@ -82,6 +82,10 @@ export abstract class SvmLeafFeeReader<
 
     return {
       artifactState: ArtifactState.DEPLOYED,
+      // CAST: C is constrained to the LeafFeeConfig union. The abstract feeType
+      // property narrows the discriminant. OffchainQuotedLinearFeeConfig (which
+      // has an extra quoteSigners field) has its own dedicated reader and never
+      // flows through this base class read path.
       config: {
         type: this.feeType,
         owner,

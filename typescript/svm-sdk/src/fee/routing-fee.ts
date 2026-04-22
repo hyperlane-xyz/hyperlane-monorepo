@@ -209,10 +209,9 @@ export class SvmRoutingFeeWriter
     );
 
     // Phase 1: Add or update routes
-    for (const domain of expectedDomains) {
-      const { feeData, signers } = feeStrategyToOnChain(
-        expected.routes[domain]!,
-      );
+    for (const [domainStr, strategy] of Object.entries(expected.routes)) {
+      const domain = Number(domainStr);
+      const { feeData, signers } = feeStrategyToOnChain(strategy);
       txs.push({
         feePayer: ownerAddress,
         instructions: [

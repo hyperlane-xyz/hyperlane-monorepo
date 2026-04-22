@@ -13,7 +13,7 @@ import {
   STANDING_QUOTE_DISCRIMINATOR,
   type SvmFeeDataStrategy,
 } from '../codecs/fee.js';
-import { FeeDataKind, type FeeStrategyKind } from '../fee/types.js';
+import { FeeDataKind, FeeStrategyKind } from '../fee/types.js';
 
 const addressDecoder = getAddressDecoder();
 
@@ -159,8 +159,19 @@ function readOptionAddress(c: ByteCursor): Address | null {
   return readAddress(c);
 }
 
+function isFeeStrategyKind(value: number): value is FeeStrategyKind {
+  return (
+    value === FeeStrategyKind.Linear ||
+    value === FeeStrategyKind.Regressive ||
+    value === FeeStrategyKind.Progressive
+  );
+}
+
 function decodeFeeDataStrategy(c: ByteCursor): SvmFeeDataStrategy {
-  const kind = c.readU8() as FeeStrategyKind;
+  const kind = c.readU8();
+  if (!isFeeStrategyKind(kind)) {
+    throw new Error(`Unknown FeeDataStrategy kind: ${kind}`);
+  }
   const params = { maxFee: c.readU64LE(), halfAmount: c.readU64LE() };
   return { kind, params };
 }

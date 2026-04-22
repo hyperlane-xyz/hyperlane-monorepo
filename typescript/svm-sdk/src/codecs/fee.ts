@@ -43,13 +43,17 @@ export function encodeFeeDataStrategy(
 
 export function encodeBTreeSetH160(signers: Uint8Array[]): ReadonlyUint8Array {
   // Sort lexicographically to match Rust BTreeSet canonical serialization order.
-  const sorted = [...signers].sort((a, b) => {
-    for (let i = 0; i < a.length; i++) {
-      if (a[i]! !== b[i]!) return a[i]! - b[i]!;
-    }
-    return 0;
-  });
+  const sorted = [...signers].sort(compareBytes);
   return vec(sorted, (s) => Uint8Array.from(s));
+}
+
+function compareBytes(a: Uint8Array, b: Uint8Array): number {
+  const len = Math.min(a.length, b.length);
+  for (let i = 0; i < len; i++) {
+    const diff = (a[i] ?? 0) - (b[i] ?? 0);
+    if (diff !== 0) return diff;
+  }
+  return a.length - b.length;
 }
 
 export function encodeOptionalBTreeSetH160(
