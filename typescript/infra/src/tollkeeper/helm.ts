@@ -6,8 +6,8 @@ import { execCmd } from '../utils/utils.js';
 // separate repo. This manager only exists so that the set-rpc-urls script can
 // refresh tollkeeper's k8s secret and restart its pods after rotating shared
 // `{env}-rpc-endpoints-{chain}` GCP secrets. It does not deploy the chart.
-const RELEASE_NAMES: Partial<Record<DeployEnvironment, string>> = {
-  mainnet3: 'tollkeeper-staging',
+const RELEASE_NAMES: Partial<Record<DeployEnvironment, string[]>> = {
+  mainnet3: ['tollkeeper-prod', 'tollkeeper-staging'],
 };
 
 const RPC_ENV_PREFIX = 'RPC_URL_';
@@ -61,19 +61,21 @@ export class TollkeeperHelmManager extends HelmManager {
     return keys.includes(needle);
   }
 
-  static async getManagerForChain(
+  static async getManagersForChain(
     environment: DeployEnvironment,
     chain: string,
-  ): Promise<TollkeeperHelmManager | null> {
-    const releaseName = RELEASE_NAMES[environment];
-    if (!releaseName) return null;
-
-    const manager = new TollkeeperHelmManager(environment, releaseName);
-    const [existsOutput] = await execCmd(
-      `kubectl get deployment ${releaseName} -n ${environment} --ignore-not-found -o name`,
+  ): Promise<TollkeeperHelmManager[]> {
+    const releaseNames = RELEASE_NAMES[environment] ?? [];
+    const managers = await Promise.all(
+      releaseNames.map(async (releaseName) => {
+        const manager = new TollkeeperHelmManager(environment, releaseName);
+        const [existsOutput] = await execCmd(
+          `kubectl get deployment ${releaseName} -n ${environment} --ignore-not-found -o name`,
+        );
+        if (!existsOutput.trim()) return null;
+        return (await manager.includesChain(chain)) ? manager : null;
+      }),
     );
-    if (!existsOutput.trim()) return null;
-
-    return (await manager.includesChain(chain)) ? manager : null;
+    return managers.filter((m): m is TollkeeperHelmManager => m !== null);
   }
 }

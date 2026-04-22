@@ -498,18 +498,24 @@ async function selectTollkeeper(
   environment: DeployEnvironment,
   chain: string,
 ): Promise<TollkeeperHelmManager[]> {
-  const manager = await TollkeeperHelmManager.getManagerForChain(
+  const managers = await TollkeeperHelmManager.getManagersForChain(
     environment,
     chain,
   );
-  if (!manager) {
+  if (managers.length === 0) {
     return [];
   }
 
-  const cont = await confirm({
-    message: `Refresh tollkeeper (${manager.helmReleaseName}) — it reads RPC_URL_${chain.toUpperCase().replaceAll('-', '_')} from the shared secret?`,
+  const selection = await checkbox({
+    message: `Select tollkeeper instances to refresh (serve RPC_URL_${chain.toUpperCase().replaceAll('-', '_')})`,
+    choices: managers.map((manager, i) => ({
+      name: manager.helmReleaseName,
+      value: i,
+      checked: true,
+    })),
   });
-  return cont ? [manager] : [];
+
+  return managers.filter((_, i) => selection.includes(i));
 }
 
 async function selectCronJobs(
