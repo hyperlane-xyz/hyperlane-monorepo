@@ -34,6 +34,7 @@ import {
   applyRpcUrlOverridesFromEnv,
   createServiceLogger,
   isEVMLike,
+  objKeys,
   ProtocolType,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -152,12 +153,13 @@ async function main(): Promise<void> {
       Record<ProtocolType, InventorySignerConfig>
     > = {};
 
-    for (const [protocol, privateKey] of Object.entries(inventoryPrivateKeys)) {
+    for (const protocol of objKeys(inventoryPrivateKeys)) {
+      const privateKey = inventoryPrivateKeys[protocol];
       if (!privateKey) continue;
 
       let derivedAddress: string;
 
-      if (isEVMLike(protocol as ProtocolType)) {
+      if (isEVMLike(protocol)) {
         // Tron uses same hex private key format as Ethereum.
         // Derive 0x-prefixed hex address via ethers Wallet (TronWallet extends Wallet).
         derivedAddress = new Wallet(privateKey).address;
@@ -175,9 +177,9 @@ async function main(): Promise<void> {
 
       // Validate against config if present
       const configuredAddress =
-        rebalancerConfig.inventorySigners?.[protocol as ProtocolType]?.address;
+        rebalancerConfig.inventorySigners?.[protocol]?.address;
       if (configuredAddress) {
-        const mismatch = isEVMLike(protocol as ProtocolType)
+        const mismatch = isEVMLike(protocol)
           ? configuredAddress.toLowerCase() !== derivedAddress.toLowerCase()
           : configuredAddress !== derivedAddress;
         if (mismatch) {
@@ -187,7 +189,7 @@ async function main(): Promise<void> {
         }
       }
 
-      inventorySigners[protocol as ProtocolType] = {
+      inventorySigners[protocol] = {
         address: derivedAddress,
         key: privateKey,
       };
