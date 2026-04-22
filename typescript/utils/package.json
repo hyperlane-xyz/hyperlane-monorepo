@@ -39,6 +39,7 @@
   "scripts": {
     "dev": "tsc -w",
     "build": "tsc -p tsconfig.build.json",
+    "build:ts7": "tsgo -p tsconfig.build.json",
     "clean": "rm -rf ./dist",
     "check": "tsc --noEmit",
     "lint": "oxlint -c ../../oxlint.json",

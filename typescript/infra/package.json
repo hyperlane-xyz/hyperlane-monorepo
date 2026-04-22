@@ -15,6 +15,7 @@
   "scripts": {
     "start:http-registry": "tsx scripts/http-registry.ts",
     "build": "tsc",
+    "build:ts7": "tsgo",
     "check": "tsc --noEmit",
     "clean": "rm -rf ./dist ./cache",
     "deploy-core": "tsx scripts/deploy.ts -e test -m core",

@@ -2,6 +2,10 @@
 minimumReleaseAge: 10080
 minimumReleaseAgeExclude:
   - '@hyperlane-xyz/*'
+  # TS7 beta dev releases ship frequently; exclude from 7-day quarantine for build benchmarks.
+  # Includes platform-specific binary subpackages.
+  - '@typescript/native-preview'
+  - '@typescript/native-preview-*'
 
 packages:
   - 'solhint-plugin'
@@ -113,6 +117,9 @@ catalog:
 
   # Build tools
   typescript: 6.0.2
+  # TypeScript 7 beta (native Go port — ships `tsgo`). Used for build benchmarks
+  # against the 6.x tsc compiler. Not a drop-in replacement for `typescript`.
+  '@typescript/native-preview': 7.0.0-dev.20260421.2
   tsx: ^4.19.1
   ts-node: ^10.9.2
   '@vercel/ncc': ^0.38.3

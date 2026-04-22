@@ -15,6 +15,7 @@
   },
   "scripts": {
     "build": "tsc",
+    "build:ts7": "tsgo",
     "check": "tsc --noEmit",
     "dev": "tsc --watch",
     "lint": "oxlint -c ../../oxlint.json",

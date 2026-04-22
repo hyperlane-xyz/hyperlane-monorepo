@@ -62,7 +62,9 @@
   },
   "scripts": {
     "build": "pnpm build:ts && pnpm build:css",
+    "build:ts7": "pnpm build:ts7-only && pnpm build:css",
     "build:ts": "tsc",
+    "build:ts7-only": "tsgo",
     "build:css": "tailwindcss -c ./tailwind.config.cjs -i ./src/styles.css -o ./dist/styles.css --minify",
     "clean": "rm -rf ./dist ./cache ./storybook-static",
     "lint": "oxlint -c ../../oxlint.json",

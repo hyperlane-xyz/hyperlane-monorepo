@@ -17,6 +17,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
+    "build:ts7": "tsgo",
     "bundle": "rm -rf ./bundle && ncc build ./dist/service.js -o bundle -e @google-cloud/pino-logging-gcp-config && node ../../scripts/ncc.post-bundle.mjs",
     "clean": "rm -rf dist cache bundle",
     "dev": "tsc --watch",

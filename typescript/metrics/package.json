@@ -21,6 +21,7 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc",
+    "build:ts7": "tsgo",
     "clean": "rm -rf dist",
     "dev": "tsc --watch",
     "lint": "oxlint -c ../../oxlint.json",

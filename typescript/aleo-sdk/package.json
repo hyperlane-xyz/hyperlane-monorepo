@@ -33,6 +33,7 @@
   "scripts": {
     "prebuild": "node scripts/generate-artifacts.js",
     "build": "pnpm prebuild && rm -rf ./dist && tsc",
+    "build:ts7": "pnpm prebuild && rm -rf ./dist && tsgo",
     "format": "oxfmt --write ./src",
     "lint": "oxlint -c ../../oxlint.json",
     "clean": "rm -rf ./dist ./cache",

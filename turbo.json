@@ -5,6 +5,10 @@
       "dependsOn": ["^build"],
       "outputs": ["dist/**", "cache/**", "src/generated/**"]
     },
+    "build:ts7": {
+      "dependsOn": ["^build:ts7"],
+      "outputs": ["dist/**", "cache/**", "src/generated/**"]
+    },
     "build:zk": {
       "dependsOn": ["build"],
       "outputs": ["dist/**", "artifacts-zk/**", "cache-zk/**"]

@@ -22,6 +22,7 @@
   },
   "scripts": {
     "build": "rm -rf ./dist && tsc",
+    "build:ts7": "rm -rf ./dist && tsgo",
     "format": "oxfmt --write ./src",
     "lint": "oxlint -c ../../oxlint.json",
     "clean": "rm -rf ./dist ./cache",
