@@ -3,6 +3,7 @@ import sinon from 'sinon';
 
 import {
   ChainMetadataForAltVM,
+  ProtocolType,
   hasProtocol,
   registerProtocol,
 } from '@hyperlane-xyz/provider-sdk';
@@ -14,10 +15,7 @@ import {
   DeployedRawMailboxArtifact,
   IRawMailboxArtifactManager,
 } from '@hyperlane-xyz/provider-sdk/mailbox';
-import {
-  ProtocolProvider,
-  ProtocolType,
-} from '@hyperlane-xyz/provider-sdk/protocol';
+import { ProtocolProvider } from '@hyperlane-xyz/provider-sdk/protocol';
 import { ZERO_ADDRESS_HEX_32 } from '@hyperlane-xyz/utils';
 
 import { CoreArtifactReader } from './core-artifact-reader.js';

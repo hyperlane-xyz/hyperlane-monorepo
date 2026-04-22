@@ -36,8 +36,6 @@ import { AnnotatedCallData } from '../govern/types.js';
 
 import { getSafeApiKey } from './safeApiKey.js';
 
-export { getSafeApiKey };
-
 const MIN_SAFE_API_VERSION = '5.18.0';
 
 const SAFE_API_MAX_RETRIES = 10;

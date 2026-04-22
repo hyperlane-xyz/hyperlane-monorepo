@@ -8,11 +8,6 @@ import { IRawMailboxArtifactManager } from './mailbox.js';
 import { MinimumRequiredGasByAction } from './mingas.js';
 import { AnnotatedTx, TxReceipt } from './module.js';
 import { ProtocolType } from './protocolType.js';
-export {
-  ProtocolType,
-  ProtocolTypeValue,
-  ProtocolSmallestUnit,
-} from './protocolType.js';
 import {
   ITransactionSubmitter,
   JsonRpcSubmitterConfig,

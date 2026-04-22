@@ -19,13 +19,11 @@ import {
 
 import { chainsToSkip } from '../config/chain.js';
 
-import {
-  AnnotatedCallData,
-  HyperlaneAppGovernor,
-} from './HyperlaneAppGovernor.js';
+import { HyperlaneAppGovernor } from './HyperlaneAppGovernor.js';
 import { HyperlaneCoreGovernor } from './HyperlaneCoreGovernor.js';
 import { HyperlaneICAChecker } from './HyperlaneICAChecker.js';
 import { ProxiedRouterGovernor } from './ProxiedRouterGovernor.js';
+import { AnnotatedCallData } from './types.js';
 
 export class HyperlaneHaasGovernor extends HyperlaneAppGovernor<
   HyperlaneCore,
