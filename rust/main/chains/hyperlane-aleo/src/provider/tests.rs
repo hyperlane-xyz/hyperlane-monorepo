@@ -4,8 +4,12 @@ use std::{ops::Deref, path::PathBuf, str::FromStr};
 
 use hyperlane_core::{HyperlaneProvider, H256, U256};
 use serde_json::{json, Value};
+use url::Url;
 
-use crate::{provider::mock::MockHttpClient, AleoProvider, AleoSigner};
+use crate::{
+    provider::{mock::MockHttpClient, BaseHttpClient, RpcClient},
+    AleoProvider, AleoSigner, CurrentNetwork,
+};
 
 // Helper constructing provider with mock client
 fn mock_provider() -> AleoProvider<MockHttpClient> {
@@ -247,6 +251,25 @@ async fn test_estimate_tx_unknown_program() {
         !result.is_ok(),
         "Estimate TX with unknown program should fail"
     );
+}
+
+// Hits the live explorer API; ignored by default. Run with:
+//   cargo test -p hyperlane-aleo --all-features -- --ignored --nocapture provable_mainnet_get_block_range
+#[tokio::test]
+#[ignore = "hits live https://api.explorer.provable.com/v2/mainnet"]
+async fn provable_mainnet_get_block_range() {
+    let url = Url::parse("https://api.explorer.provable.com/v2/").unwrap();
+    let client = BaseHttpClient::new(url, 0).expect("build BaseHttpClient");
+    let rpc = RpcClient::new(client);
+
+    for height in 17918388u32..=17918398 {
+        match rpc.get_block::<CurrentNetwork>(height).await {
+            Ok(_) => println!("block {height}: ok"),
+            Err(err) => {
+                panic!("first error at block {height}: {err:?}");
+            }
+        }
+    }
 }
 
 #[tokio::test]
