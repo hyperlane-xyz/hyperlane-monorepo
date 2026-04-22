@@ -274,7 +274,7 @@ export class LiFiBridge implements IExternalBridge {
         fromChain,
         protocol,
       },
-      'Configured LiFi providers for route execution',
+      'Configured LiFi provider for route execution',
     );
   }
 
@@ -544,14 +544,6 @@ export class LiFiBridge implements IExternalBridge {
         privateKeys[sourceProtocol]!,
         fromChain,
         fromRpcUrl,
-      );
-
-      this.logger.debug(
-        {
-          fromChain,
-          sourceProtocol,
-        },
-        'Configured LiFi providers for route execution',
       );
 
       // Execute route with update callbacks

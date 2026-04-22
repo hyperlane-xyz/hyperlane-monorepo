@@ -15,6 +15,7 @@ const testLogger = pino({ level: 'silent' });
 
 const TEST_PRIVATE_KEY =
   '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
+const OTHER_PRIVATE_KEY = `${TEST_PRIVATE_KEY.slice(0, -1)}1`;
 
 const BRIDGE_CONFIG: ExternalBridgeConfig = {
   integrator: 'test-rebalancer',
@@ -776,20 +777,28 @@ describe('LiFiBridge constructor chainMetadataByChainId', function () {
 describe('LiFiBridge source protocol handling', function () {
   it('ignores unrelated Tron keys when executing an Ethereum LiFi route', async () => {
     const bridge = new LiFiBridge(BRIDGE_CONFIG, testLogger);
+    (bridge as any).configureLiFiProvider = (
+      protocol: ProtocolType,
+      key: string,
+      fromChain: number,
+    ) => {
+      expect(protocol).to.equal(ProtocolType.Ethereum);
+      expect(key).to.equal(TEST_PRIVATE_KEY);
+      expect(fromChain).to.equal(42161);
+      throw new Error('expected downstream error');
+    };
 
     const quote = createTestQuote();
 
     try {
       await bridge.execute(quote, {
         [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
-        [ProtocolType.Tron]: TEST_PRIVATE_KEY,
+        [ProtocolType.Tron]: OTHER_PRIVATE_KEY,
       });
       expect.fail('Expected execute to throw');
     } catch (error: unknown) {
       const msg = (error as Error).message;
-      // Should NOT be a Tron-related error — just post-validation SDK/RPC error
-      expect(msg).to.not.include('Tron');
-      expect(msg).to.not.include('unsupported protocol');
+      expect(msg).to.equal('expected downstream error');
     }
   });
 
