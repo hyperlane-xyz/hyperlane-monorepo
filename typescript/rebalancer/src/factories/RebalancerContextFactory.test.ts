@@ -393,7 +393,7 @@ describe('RebalancerContextFactory', () => {
           createToken(
             evmChain,
             TEST_ADDRESSES.ethereum,
-            TokenStandard.EvmHypSynthetic,
+            TokenStandard.EvmHypCollateral,
           ),
           createToken(
             sealevelChain,
@@ -524,7 +524,7 @@ describe('RebalancerContextFactory', () => {
           createToken(
             evmChain,
             TEST_ADDRESSES.ethereum,
-            TokenStandard.EvmHypSynthetic,
+            TokenStandard.EvmHypCollateral,
           ),
           createToken(
             tronChain,
@@ -541,15 +541,24 @@ describe('RebalancerContextFactory', () => {
           chainName === tronChain ? ProtocolType.Tron : ProtocolType.Ethereum,
       }));
 
-      try {
-        await (factory as any).createInventoryRebalancerAndConfig(
-          {} as any,
-          {},
-        );
-      } catch (error: unknown) {
-        const msg = (error as Error).message;
-        expect(msg).to.not.include("does not support protocol 'tron'");
-      }
+      const result = await (factory as any).createInventoryRebalancerAndConfig(
+        {} as any,
+        {},
+      );
+
+      assert(
+        result,
+        'Expected inventory config to be created for Tron support',
+      );
+      expect(result.inventoryConfig.inventoryAddresses).to.deep.equal({
+        [ProtocolType.Ethereum]: TEST_ADDRESSES.ethereum,
+        [ProtocolType.Tron]: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+      });
+      expect(result.inventoryConfig.chains).to.include.members([
+        evmChain,
+        tronChain,
+      ]);
+      expect(result.inventoryRebalancer).to.exist;
     });
 
     it('should fail early when inventory chain uses unsupported protocol', async () => {
