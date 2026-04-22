@@ -17,12 +17,11 @@ use hyperlane_base::{
     git_sha,
     metrics::AgentMetrics,
     settings::{
-        ChainConf, ChainConnectionConf, CheckpointSyncerBuildError, MerkleTreeHookIndexer,
-        TryFromWithMetrics,
+        ChainConf, ChainConnectionConf, CheckpointSyncerBuildError, ContractSyncBuildOptions,
     },
-    BaseAgent, ChainMetrics, ChainSpecificMetricsUpdater, CheckpointSyncer, ContractSync,
-    ContractSyncMetrics, ContractSyncer, CoreMetrics, HyperlaneAgentCore, MetadataFromSettings,
-    RuntimeMetrics, SequenceAwareLogStore, SequencedDataContractSync,
+    BaseAgent, ChainMetrics, ChainSpecificMetricsUpdater, CheckpointSyncer, ContractSyncMetrics,
+    ContractSyncer, CoreMetrics, HyperlaneAgentCore, MetadataFromSettings, RuntimeMetrics,
+    SequencedDataContractSync,
 };
 use hyperlane_core::{
     rpc_clients::RPC_RETRY_SLEEP_DURATION, Announcement, ChainCommunicationError, ChainResult,
@@ -46,15 +45,15 @@ use crate::{
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
 
 #[derive(Debug)]
-struct ValidatorSafetyMerkleTreeHook {
+struct ValidatorQuorumMerkleTreeHook {
     fallback: Arc<dyn MerkleTreeHook>,
-    safety: Arc<dyn MerkleTreeHook>,
+    quorum: Arc<dyn MerkleTreeHook>,
 }
 
 #[async_trait]
-impl MerkleTreeHook for ValidatorSafetyMerkleTreeHook {
+impl MerkleTreeHook for ValidatorQuorumMerkleTreeHook {
     async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkleAtBlock> {
-        self.safety.tree(reorg_period).await
+        self.quorum.tree(reorg_period).await
     }
 
     async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
@@ -65,23 +64,23 @@ impl MerkleTreeHook for ValidatorSafetyMerkleTreeHook {
         &self,
         reorg_period: &ReorgPeriod,
     ) -> ChainResult<CheckpointAtBlock> {
-        self.safety.latest_checkpoint(reorg_period).await
+        self.quorum.latest_checkpoint(reorg_period).await
     }
 
     async fn latest_checkpoint_at_block(&self, height: u64) -> ChainResult<CheckpointAtBlock> {
-        self.safety.latest_checkpoint_at_block(height).await
+        self.quorum.latest_checkpoint_at_block(height).await
     }
 }
 
 #[derive(Debug)]
-struct ValidatorTronSafetyMerkleTreeHook {
+struct ValidatorTronQuorumMerkleTreeHook {
     fallback: Arc<dyn MerkleTreeHook>,
-    safety_hooks: Vec<Arc<dyn MerkleTreeHook>>,
+    quorum_hooks: Vec<Arc<dyn MerkleTreeHook>>,
 }
 
-impl ValidatorTronSafetyMerkleTreeHook {
+impl ValidatorTronQuorumMerkleTreeHook {
     fn quorum_threshold(&self) -> usize {
-        self.safety_hooks.len() / 2 + 1
+        (self.quorum_hooks.len() / 2).saturating_add(1)
     }
 
     fn select_quorum_result<T: Clone>(
@@ -124,9 +123,9 @@ impl ValidatorTronSafetyMerkleTreeHook {
 }
 
 #[async_trait]
-impl MerkleTreeHook for ValidatorTronSafetyMerkleTreeHook {
+impl MerkleTreeHook for ValidatorTronQuorumMerkleTreeHook {
     async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkleAtBlock> {
-        let results = join_all(self.safety_hooks.iter().cloned().map(|hook| {
+        let results = join_all(self.quorum_hooks.iter().cloned().map(|hook| {
             let reorg_period = reorg_period.clone();
             async move { hook.tree(&reorg_period).await }
         }))
@@ -147,7 +146,7 @@ impl MerkleTreeHook for ValidatorTronSafetyMerkleTreeHook {
         &self,
         reorg_period: &ReorgPeriod,
     ) -> ChainResult<CheckpointAtBlock> {
-        let results = join_all(self.safety_hooks.iter().cloned().map(|hook| {
+        let results = join_all(self.quorum_hooks.iter().cloned().map(|hook| {
             let reorg_period = reorg_period.clone();
             async move { hook.latest_checkpoint(&reorg_period).await }
         }))
@@ -162,7 +161,7 @@ impl MerkleTreeHook for ValidatorTronSafetyMerkleTreeHook {
 
     async fn latest_checkpoint_at_block(&self, height: u64) -> ChainResult<CheckpointAtBlock> {
         let results = join_all(
-            self.safety_hooks
+            self.quorum_hooks
                 .iter()
                 .cloned()
                 .map(|hook| async move { hook.latest_checkpoint_at_block(height).await }),
@@ -177,7 +176,7 @@ impl MerkleTreeHook for ValidatorTronSafetyMerkleTreeHook {
     }
 }
 
-impl HyperlaneChain for ValidatorTronSafetyMerkleTreeHook {
+impl HyperlaneChain for ValidatorTronQuorumMerkleTreeHook {
     fn domain(&self) -> &HyperlaneDomain {
         self.fallback.domain()
     }
@@ -187,13 +186,13 @@ impl HyperlaneChain for ValidatorTronSafetyMerkleTreeHook {
     }
 }
 
-impl HyperlaneContract for ValidatorTronSafetyMerkleTreeHook {
+impl HyperlaneContract for ValidatorTronQuorumMerkleTreeHook {
     fn address(&self) -> H256 {
         self.fallback.address()
     }
 }
 
-impl HyperlaneChain for ValidatorSafetyMerkleTreeHook {
+impl HyperlaneChain for ValidatorQuorumMerkleTreeHook {
     fn domain(&self) -> &HyperlaneDomain {
         self.fallback.domain()
     }
@@ -203,7 +202,7 @@ impl HyperlaneChain for ValidatorSafetyMerkleTreeHook {
     }
 }
 
-impl HyperlaneContract for ValidatorSafetyMerkleTreeHook {
+impl HyperlaneContract for ValidatorQuorumMerkleTreeHook {
     fn address(&self) -> H256 {
         self.fallback.address()
     }
@@ -346,16 +345,16 @@ impl BaseAgent for Validator {
         let origin_chain_conf = core.settings.chain_setup(&settings.origin_chain)?.clone();
         let fallback_origin_chain_conf =
             Self::validator_chain_conf_with_fallback_rpc(&origin_chain_conf);
-        let safety_origin_chain_conf =
+        let quorum_origin_chain_conf =
             Self::validator_chain_conf_with_quorum_rpc(&origin_chain_conf);
 
         let mailbox = origin_chain_conf.build_mailbox(&metrics).await?;
 
-        let merkle_tree_hook = if Self::validator_uses_split_safety_hook(&origin_chain_conf) {
-            Self::build_validator_merkle_tree_hook(
+        let merkle_tree_hook = if Self::validator_uses_split_quorum_hook(&origin_chain_conf) {
+            Self::build_validator_quorum_merkle_tree_hook(
                 &origin_chain_conf,
                 &fallback_origin_chain_conf,
-                &safety_origin_chain_conf,
+                &quorum_origin_chain_conf,
                 &metrics,
             )
             .await?
@@ -371,24 +370,20 @@ impl BaseAgent for Validator {
 
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&metrics));
 
-        let merkle_tree_hook_sync = if matches!(
-            origin_chain_conf.connection,
-            ChainConnectionConf::Ethereum(_)
-        ) {
-            let log_store: SequenceAwareLogStore<MerkleTreeInsertion> = Arc::new(msg_db.clone());
-            let indexer: MerkleTreeHookIndexer = TryFromWithMetrics::try_from_with_metrics(
-                &fallback_origin_chain_conf,
-                &metrics,
-                false,
-            )
-            .await?;
-            Arc::new(ContractSync::new(
-                settings.origin_chain.clone(),
-                log_store,
-                indexer,
-                contract_sync_metrics.as_ref().clone(),
-                false,
-            ))
+        let merkle_tree_hook_sync = if Self::validator_uses_split_quorum_hook(&origin_chain_conf) {
+            settings
+                .sequenced_contract_sync_with_chain_conf::<MerkleTreeInsertion, _>(
+                    &settings.origin_chain,
+                    &metrics,
+                    &contract_sync_metrics,
+                    msg_db.clone().into(),
+                    ContractSyncBuildOptions {
+                        advanced_log_meta: false,
+                        broadcast_sender_enabled: false,
+                    },
+                    &fallback_origin_chain_conf,
+                )
+                .await?
         } else {
             settings
                 .sequenced_contract_sync::<MerkleTreeInsertion, _>(
@@ -536,17 +531,17 @@ impl BaseAgent for Validator {
 }
 
 impl Validator {
-    fn validator_uses_split_safety_hook(origin_chain_conf: &ChainConf) -> bool {
+    fn validator_uses_split_quorum_hook(origin_chain_conf: &ChainConf) -> bool {
         matches!(
             origin_chain_conf.connection,
             ChainConnectionConf::Ethereum(_) | ChainConnectionConf::Tron(_)
         )
     }
 
-    async fn build_validator_merkle_tree_hook(
+    async fn build_validator_quorum_merkle_tree_hook(
         origin_chain_conf: &ChainConf,
         fallback_origin_chain_conf: &ChainConf,
-        safety_origin_chain_conf: &ChainConf,
+        quorum_origin_chain_conf: &ChainConf,
         metrics: &CoreMetrics,
     ) -> ChainResult<Box<dyn MerkleTreeHook>> {
         match &origin_chain_conf.connection {
@@ -554,35 +549,35 @@ impl Validator {
                 let fallback_hook = fallback_origin_chain_conf
                     .build_merkle_tree_hook(metrics)
                     .await?;
-                let safety_hook = safety_origin_chain_conf
+                let quorum_hook = quorum_origin_chain_conf
                     .build_merkle_tree_hook(metrics)
                     .await?;
-                Ok(Box::new(ValidatorSafetyMerkleTreeHook {
+                Ok(Box::new(ValidatorQuorumMerkleTreeHook {
                     fallback: fallback_hook.into(),
-                    safety: safety_hook.into(),
+                    quorum: quorum_hook.into(),
                 }) as Box<dyn MerkleTreeHook>)
             }
             ChainConnectionConf::Tron(_) => {
                 let fallback_hook = fallback_origin_chain_conf
                     .build_merkle_tree_hook(metrics)
                     .await?;
-                let safety_hooks =
-                    Self::build_validator_tron_safety_hooks(origin_chain_conf, metrics).await?;
-                Ok(Box::new(ValidatorTronSafetyMerkleTreeHook {
+                let quorum_hooks =
+                    Self::build_validator_tron_quorum_hooks(origin_chain_conf, metrics).await?;
+                Ok(Box::new(ValidatorTronQuorumMerkleTreeHook {
                     fallback: fallback_hook.into(),
-                    safety_hooks,
+                    quorum_hooks,
                 }) as Box<dyn MerkleTreeHook>)
             }
-            _ => unreachable!("validator split safety hook only supports ethereum and tron"),
+            _ => unreachable!("validator split quorum hook only supports ethereum and tron"),
         }
     }
 
-    async fn build_validator_tron_safety_hooks(
+    async fn build_validator_tron_quorum_hooks(
         origin_chain_conf: &ChainConf,
         metrics: &CoreMetrics,
     ) -> ChainResult<Vec<Arc<dyn MerkleTreeHook>>> {
         let ChainConnectionConf::Tron(conn) = &origin_chain_conf.connection else {
-            unreachable!("tron safety hooks only supported for tron chains");
+            unreachable!("tron quorum hooks only supported for tron chains");
         };
 
         if conn.wallet_solidity_urls.is_empty() {
@@ -591,17 +586,17 @@ impl Validator {
             ));
         }
 
-        let mut safety_hooks = Vec::new();
+        let mut quorum_hooks = Vec::new();
 
         for wallet_solidity_url in conn.wallet_solidity_urls.clone() {
             let mut chain_conf = origin_chain_conf.clone();
             if let ChainConnectionConf::Tron(updated_conn) = &mut chain_conf.connection {
                 updated_conn.wallet_solidity_urls = vec![wallet_solidity_url];
             }
-            safety_hooks.push(chain_conf.build_merkle_tree_hook(metrics).await?.into());
+            quorum_hooks.push(chain_conf.build_merkle_tree_hook(metrics).await?.into());
         }
 
-        Ok(safety_hooks)
+        Ok(quorum_hooks)
     }
 
     fn validator_chain_conf_with_fallback_rpc(origin_chain_conf: &ChainConf) -> ChainConf {
@@ -1009,7 +1004,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn validator_safety_merkle_tree_hook_only_routes_latest_checkpoint_to_safety() {
+    async fn validator_quorum_merkle_tree_hook_only_routes_quorum_reads_to_quorum() {
         let domain = dummy_domain(1337, "test-domain");
         let checkpoint = CheckpointAtBlock {
             checkpoint: hyperlane_core::Checkpoint {
@@ -1032,24 +1027,24 @@ mod tests {
         fallback.expect_latest_checkpoint().never();
         fallback.expect_latest_checkpoint_at_block().never();
 
-        let mut safety = MockMerkleTreeHook::new();
-        safety.expect_domain().return_const(domain.clone());
-        safety
+        let mut quorum = MockMerkleTreeHook::new();
+        quorum.expect_domain().return_const(domain.clone());
+        quorum
             .expect_address()
             .return_const(H256::from_low_u64_be(11));
-        safety.expect_provider().never();
-        safety.expect_count().never();
-        safety.expect_tree().once().return_once(|_| {
+        quorum.expect_provider().never();
+        quorum.expect_count().never();
+        quorum.expect_tree().once().return_once(|_| {
             Ok(IncrementalMerkleAtBlock {
                 tree: Default::default(),
                 block_height: Some(123),
             })
         });
-        safety
+        quorum
             .expect_latest_checkpoint()
             .once()
             .return_once(|_| Ok(checkpoint));
-        safety
+        quorum
             .expect_latest_checkpoint_at_block()
             .once()
             .with(mockall::predicate::eq(42))
@@ -1065,9 +1060,9 @@ mod tests {
                 })
             });
 
-        let hook = ValidatorSafetyMerkleTreeHook {
+        let hook = ValidatorQuorumMerkleTreeHook {
             fallback: Arc::new(fallback),
-            safety: Arc::new(safety),
+            quorum: Arc::new(quorum),
         };
 
         assert_eq!(
@@ -1094,7 +1089,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn validator_tron_safety_merkle_tree_hook_uses_quorum_for_safety_reads() {
+    async fn validator_tron_quorum_merkle_tree_hook_uses_quorum_for_quorum_reads() {
         let domain = dummy_domain(1337, "test-domain");
         let expected_tree = IncrementalMerkleAtBlock {
             tree: Default::default(),
@@ -1134,22 +1129,22 @@ mod tests {
         fallback.expect_latest_checkpoint().never();
         fallback.expect_latest_checkpoint_at_block().never();
 
-        let mut safety_a = MockMerkleTreeHook::new();
-        safety_a.expect_domain().return_const(domain.clone());
-        safety_a
+        let mut quorum_a = MockMerkleTreeHook::new();
+        quorum_a.expect_domain().return_const(domain.clone());
+        quorum_a
             .expect_address()
             .return_const(H256::from_low_u64_be(11));
-        safety_a.expect_provider().never();
-        safety_a.expect_count().never();
-        safety_a.expect_tree().once().return_once({
+        quorum_a.expect_provider().never();
+        quorum_a.expect_count().never();
+        quorum_a.expect_tree().once().return_once({
             let expected_tree = expected_tree.clone();
             move |_| Ok(expected_tree)
         });
-        safety_a.expect_latest_checkpoint().once().return_once({
+        quorum_a.expect_latest_checkpoint().once().return_once({
             let expected_checkpoint = expected_checkpoint.clone();
             move |_| Ok(expected_checkpoint)
         });
-        safety_a
+        quorum_a
             .expect_latest_checkpoint_at_block()
             .once()
             .with(mockall::predicate::eq(42))
@@ -1165,22 +1160,22 @@ mod tests {
                 })
             });
 
-        let mut safety_b = MockMerkleTreeHook::new();
-        safety_b.expect_domain().return_const(domain.clone());
-        safety_b
+        let mut quorum_b = MockMerkleTreeHook::new();
+        quorum_b.expect_domain().return_const(domain.clone());
+        quorum_b
             .expect_address()
             .return_const(H256::from_low_u64_be(11));
-        safety_b.expect_provider().never();
-        safety_b.expect_count().never();
-        safety_b.expect_tree().once().return_once({
+        quorum_b.expect_provider().never();
+        quorum_b.expect_count().never();
+        quorum_b.expect_tree().once().return_once({
             let expected_tree = expected_tree.clone();
             move |_| Ok(expected_tree)
         });
-        safety_b.expect_latest_checkpoint().once().return_once({
+        quorum_b.expect_latest_checkpoint().once().return_once({
             let expected_checkpoint = expected_checkpoint.clone();
             move |_| Ok(expected_checkpoint)
         });
-        safety_b
+        quorum_b
             .expect_latest_checkpoint_at_block()
             .once()
             .with(mockall::predicate::eq(42))
@@ -1196,22 +1191,22 @@ mod tests {
                 })
             });
 
-        let mut safety_c = MockMerkleTreeHook::new();
-        safety_c.expect_domain().return_const(domain.clone());
-        safety_c
+        let mut quorum_c = MockMerkleTreeHook::new();
+        quorum_c.expect_domain().return_const(domain.clone());
+        quorum_c
             .expect_address()
             .return_const(H256::from_low_u64_be(11));
-        safety_c.expect_provider().never();
-        safety_c.expect_count().never();
-        safety_c
+        quorum_c.expect_provider().never();
+        quorum_c.expect_count().never();
+        quorum_c
             .expect_tree()
             .once()
             .return_once(|_| Ok(divergent_tree));
-        safety_c
+        quorum_c
             .expect_latest_checkpoint()
             .once()
             .return_once(|_| Ok(divergent_checkpoint));
-        safety_c
+        quorum_c
             .expect_latest_checkpoint_at_block()
             .once()
             .with(mockall::predicate::eq(42))
@@ -1227,9 +1222,9 @@ mod tests {
                 })
             });
 
-        let hook = ValidatorTronSafetyMerkleTreeHook {
+        let hook = ValidatorTronQuorumMerkleTreeHook {
             fallback: Arc::new(fallback),
-            safety_hooks: vec![Arc::new(safety_a), Arc::new(safety_b), Arc::new(safety_c)],
+            quorum_hooks: vec![Arc::new(quorum_a), Arc::new(quorum_b), Arc::new(quorum_c)],
         };
 
         assert_eq!(hook.count(&ReorgPeriod::None).await.unwrap(), 3);
@@ -1256,7 +1251,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn validator_tron_safety_merkle_tree_hook_errors_without_quorum() {
+    async fn validator_tron_quorum_merkle_tree_hook_errors_without_quorum() {
         let domain = dummy_domain(1337, "test-domain");
 
         let mut fallback = MockMerkleTreeHook::new();
@@ -1270,64 +1265,64 @@ mod tests {
         fallback.expect_latest_checkpoint().never();
         fallback.expect_latest_checkpoint_at_block().never();
 
-        let mut safety_a = MockMerkleTreeHook::new();
-        safety_a.expect_domain().return_const(domain.clone());
-        safety_a
+        let mut quorum_a = MockMerkleTreeHook::new();
+        quorum_a.expect_domain().return_const(domain.clone());
+        quorum_a
             .expect_address()
             .return_const(H256::from_low_u64_be(11));
-        safety_a.expect_provider().never();
-        safety_a.expect_count().never();
-        safety_a.expect_tree().once().return_once(|_| {
+        quorum_a.expect_provider().never();
+        quorum_a.expect_count().never();
+        quorum_a.expect_tree().once().return_once(|_| {
             Ok(IncrementalMerkleAtBlock {
                 tree: Default::default(),
                 block_height: Some(1),
             })
         });
-        safety_a.expect_latest_checkpoint().never();
-        safety_a.expect_latest_checkpoint_at_block().never();
+        quorum_a.expect_latest_checkpoint().never();
+        quorum_a.expect_latest_checkpoint_at_block().never();
 
-        let mut safety_b = MockMerkleTreeHook::new();
-        safety_b.expect_domain().return_const(domain.clone());
-        safety_b
+        let mut quorum_b = MockMerkleTreeHook::new();
+        quorum_b.expect_domain().return_const(domain.clone());
+        quorum_b
             .expect_address()
             .return_const(H256::from_low_u64_be(11));
-        safety_b.expect_provider().never();
-        safety_b.expect_count().never();
-        safety_b.expect_tree().once().return_once(|_| {
+        quorum_b.expect_provider().never();
+        quorum_b.expect_count().never();
+        quorum_b.expect_tree().once().return_once(|_| {
             Ok(IncrementalMerkleAtBlock {
                 tree: Default::default(),
                 block_height: Some(2),
             })
         });
-        safety_b.expect_latest_checkpoint().never();
-        safety_b.expect_latest_checkpoint_at_block().never();
+        quorum_b.expect_latest_checkpoint().never();
+        quorum_b.expect_latest_checkpoint_at_block().never();
 
-        let mut safety_c = MockMerkleTreeHook::new();
-        safety_c.expect_domain().return_const(domain);
-        safety_c
+        let mut quorum_c = MockMerkleTreeHook::new();
+        quorum_c.expect_domain().return_const(domain);
+        quorum_c
             .expect_address()
             .return_const(H256::from_low_u64_be(11));
-        safety_c.expect_provider().never();
-        safety_c.expect_count().never();
-        safety_c.expect_tree().once().return_once(|_| {
+        quorum_c.expect_provider().never();
+        quorum_c.expect_count().never();
+        quorum_c.expect_tree().once().return_once(|_| {
             Ok(IncrementalMerkleAtBlock {
                 tree: Default::default(),
                 block_height: Some(3),
             })
         });
-        safety_c.expect_latest_checkpoint().never();
-        safety_c.expect_latest_checkpoint_at_block().never();
+        quorum_c.expect_latest_checkpoint().never();
+        quorum_c.expect_latest_checkpoint_at_block().never();
 
-        let hook = ValidatorTronSafetyMerkleTreeHook {
+        let hook = ValidatorTronQuorumMerkleTreeHook {
             fallback: Arc::new(fallback),
-            safety_hooks: vec![Arc::new(safety_a), Arc::new(safety_b), Arc::new(safety_c)],
+            quorum_hooks: vec![Arc::new(quorum_a), Arc::new(quorum_b), Arc::new(quorum_c)],
         };
 
         assert!(hook.tree(&ReorgPeriod::None).await.is_err());
     }
 
     #[tokio::test]
-    async fn validator_tron_safety_merkle_tree_hook_tolerates_partial_failures() {
+    async fn validator_tron_quorum_merkle_tree_hook_tolerates_partial_failures() {
         let domain = dummy_domain(1337, "test-domain");
         let expected_tree = IncrementalMerkleAtBlock {
             tree: Default::default(),
@@ -1345,51 +1340,51 @@ mod tests {
         fallback.expect_latest_checkpoint().never();
         fallback.expect_latest_checkpoint_at_block().never();
 
-        let mut safety_a = MockMerkleTreeHook::new();
-        safety_a.expect_domain().return_const(domain.clone());
-        safety_a
+        let mut quorum_a = MockMerkleTreeHook::new();
+        quorum_a.expect_domain().return_const(domain.clone());
+        quorum_a
             .expect_address()
             .return_const(H256::from_low_u64_be(11));
-        safety_a.expect_provider().never();
-        safety_a.expect_count().never();
-        safety_a.expect_tree().once().return_once({
+        quorum_a.expect_provider().never();
+        quorum_a.expect_count().never();
+        quorum_a.expect_tree().once().return_once({
             let expected_tree = expected_tree.clone();
             move |_| Ok(expected_tree)
         });
-        safety_a.expect_latest_checkpoint().never();
-        safety_a.expect_latest_checkpoint_at_block().never();
+        quorum_a.expect_latest_checkpoint().never();
+        quorum_a.expect_latest_checkpoint_at_block().never();
 
-        let mut safety_b = MockMerkleTreeHook::new();
-        safety_b.expect_domain().return_const(domain.clone());
-        safety_b
+        let mut quorum_b = MockMerkleTreeHook::new();
+        quorum_b.expect_domain().return_const(domain.clone());
+        quorum_b
             .expect_address()
             .return_const(H256::from_low_u64_be(11));
-        safety_b.expect_provider().never();
-        safety_b.expect_count().never();
-        safety_b
+        quorum_b.expect_provider().never();
+        quorum_b.expect_count().never();
+        quorum_b
             .expect_tree()
             .once()
             .return_once(|_| Err(ChainCommunicationError::from_other_str("boom").into()));
-        safety_b.expect_latest_checkpoint().never();
-        safety_b.expect_latest_checkpoint_at_block().never();
+        quorum_b.expect_latest_checkpoint().never();
+        quorum_b.expect_latest_checkpoint_at_block().never();
 
-        let mut safety_c = MockMerkleTreeHook::new();
-        safety_c.expect_domain().return_const(domain);
-        safety_c
+        let mut quorum_c = MockMerkleTreeHook::new();
+        quorum_c.expect_domain().return_const(domain);
+        quorum_c
             .expect_address()
             .return_const(H256::from_low_u64_be(11));
-        safety_c.expect_provider().never();
-        safety_c.expect_count().never();
-        safety_c
+        quorum_c.expect_provider().never();
+        quorum_c.expect_count().never();
+        quorum_c
             .expect_tree()
             .once()
             .return_once(move |_| Ok(expected_tree));
-        safety_c.expect_latest_checkpoint().never();
-        safety_c.expect_latest_checkpoint_at_block().never();
+        quorum_c.expect_latest_checkpoint().never();
+        quorum_c.expect_latest_checkpoint_at_block().never();
 
-        let hook = ValidatorTronSafetyMerkleTreeHook {
+        let hook = ValidatorTronQuorumMerkleTreeHook {
             fallback: Arc::new(fallback),
-            safety_hooks: vec![Arc::new(safety_a), Arc::new(safety_b), Arc::new(safety_c)],
+            quorum_hooks: vec![Arc::new(quorum_a), Arc::new(quorum_b), Arc::new(quorum_c)],
         };
 
         assert_eq!(
