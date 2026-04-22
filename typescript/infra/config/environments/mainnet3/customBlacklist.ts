@@ -237,4 +237,11 @@ export const blacklistedMessageIds = [
 
   // USDC/eclipsemainnet warp transfer to USDC contract itself [2026-01-30]
   '0x4190cf8c0419cd966fc96fcb9050be3d941cb06974667bd768f22e90abcec6a6',
+  // velo_message_module ERC20InsufficientBalance on soneium [2026-04-22]
+  // dest: soneium, origin: optimism
+  '0x8a12d78dd26608acca089624e567d3adc0aa9ce8ef214eeaab1a84da0be233ef',
+  '0xced3604251fa7748901c26fa6ab2d3998202b9609bf73609fada0bff70181276',
+  '0x72269ad6123d77ab8dc0a79d317cae313bace12e3dae160da906afd6c1d7d326',
+  '0x8fc8a19f78c46c8804463a04468b05925a8c0e802675820d212cf2bb455a0543',
+  '0x6f51167c6a9d322926f3a9ce7c1893678a555a92b83b1aa5240978a9132e6495',
 ];
