@@ -20,6 +20,7 @@ import {
 import { DeployEnvironment } from '../config/environment.js';
 import { KeyFunderHelmManager } from '../funding/key-funder.js';
 import { RebalancerHelmManager } from '../rebalancer/helm.js';
+import { TollkeeperHelmManager } from '../tollkeeper/helm.js';
 import { WarpRouteMonitorHelmManager } from '../warp-monitor/helm.js';
 
 import { disableGCPSecretVersion } from './gcloud.js';
@@ -293,6 +294,7 @@ async function refreshDependentK8sResourcesInteractive(
   const coreManagers = await selectCoreInfrastructure(environment, chain);
   const warpManagers = await selectWarpMonitors(environment, chain);
   const rebalancerManagers = await selectRebalancers(environment, chain);
+  const tollkeeperManagers = await selectTollkeeper(environment, chain);
   const cronjobManagers = await selectCronJobs(environment);
 
   // Services get both secret and pod refresh
@@ -300,6 +302,7 @@ async function refreshDependentK8sResourcesInteractive(
     ...coreManagers,
     ...warpManagers,
     ...rebalancerManagers,
+    ...tollkeeperManagers,
   ];
   // CronJobs only get secret refresh (they pick up new secrets on next scheduled run)
   const allManagersForSecrets = [...serviceManagers, ...cronjobManagers];
@@ -489,6 +492,24 @@ async function selectRebalancers(
   });
 
   return rebalancerManagers.filter((_, i) => selection.includes(i));
+}
+
+async function selectTollkeeper(
+  environment: DeployEnvironment,
+  chain: string,
+): Promise<TollkeeperHelmManager[]> {
+  const manager = await TollkeeperHelmManager.getManagerForChain(
+    environment,
+    chain,
+  );
+  if (!manager) {
+    return [];
+  }
+
+  const cont = await confirm({
+    message: `Refresh tollkeeper (${manager.helmReleaseName}) — it reads RPC_URL_${chain.toUpperCase().replaceAll('-', '_')} from the shared secret?`,
+  });
+  return cont ? [manager] : [];
 }
 
 async function selectCronJobs(
