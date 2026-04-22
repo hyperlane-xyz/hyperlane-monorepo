@@ -1,4 +1,4 @@
-import { DeployEnvironment } from '../config/environment.js';
+import { DeployEnvironment } from '../config/deploy-environment.js';
 import { HelmManager, HelmValues } from '../utils/helm.js';
 import { execCmd } from '../utils/utils.js';
 
