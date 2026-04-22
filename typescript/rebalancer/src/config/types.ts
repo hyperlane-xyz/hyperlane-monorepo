@@ -1,9 +1,5 @@
 import { z } from 'zod';
-import {
-  ProtocolType,
-  isAddressEvm,
-  isValidAddressTron,
-} from '@hyperlane-xyz/utils';
+import { ProtocolType, isAddressEvm } from '@hyperlane-xyz/utils';
 
 export enum RebalancerStrategyOptions {
   Weighted = 'weighted',
@@ -366,10 +362,10 @@ export const RebalancerConfigSchema = z
               });
             }
           } else if (protocol === ProtocolType.Tron) {
-            if (!isValidAddressTron(signerConfig.address)) {
+            if (!isAddressEvm(signerConfig.address)) {
               ctx.addIssue({
                 code: z.ZodIssueCode.custom,
-                message: `inventorySigners.${protocol} must be a valid Tron address (T-prefix base58 or 0x hex), got: ${signerConfig.address}`,
+                message: `inventorySigners.${protocol} must be a valid 0x hex address, got: ${signerConfig.address}`,
                 path: ['inventorySigners', protocol],
               });
             }

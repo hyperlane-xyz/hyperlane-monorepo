@@ -579,7 +579,7 @@ describe('Tron inventorySigners validation', () => {
     rmSync(TEST_CONFIG_PATH_TRON, { force: true });
   });
 
-  it('should accept valid Tron T-prefix base58 address in inventorySigners', () => {
+  it('should reject Tron T-prefix base58 address in inventorySigners', () => {
     const data: RebalancerConfigFileInput = {
       warpRouteId: 'test-tron-route',
       strategy: [
@@ -617,7 +617,9 @@ describe('Tron inventorySigners validation', () => {
     };
 
     writeYamlOrJson(TEST_CONFIG_PATH_TRON, data);
-    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH_TRON)).to.not.throw();
+    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH_TRON)).to.throw(
+      /must be a valid 0x hex address/,
+    );
   });
 
   it('should accept valid 0x hex address for Tron inventorySigners', () => {
@@ -700,7 +702,7 @@ describe('Tron inventorySigners validation', () => {
 
     writeYamlOrJson(TEST_CONFIG_PATH_TRON, data);
     expect(() => RebalancerConfig.load(TEST_CONFIG_PATH_TRON)).to.throw(
-      /must be a valid Tron address/,
+      /must be a valid 0x hex address/,
     );
   });
 });
