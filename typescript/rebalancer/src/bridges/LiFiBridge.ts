@@ -145,6 +145,8 @@ export class LiFiBridge implements IExternalBridge {
         if (metadata.chainId !== undefined) {
           if (metadata.protocol === ProtocolType.Ethereum) {
             this.chainMetadataByChainId.set(Number(metadata.chainId), metadata);
+          } else {
+            this.chainMetadataByChainId.set(metadata.domainId, metadata);
           }
         }
       }
