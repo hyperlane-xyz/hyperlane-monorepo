@@ -1,13 +1,18 @@
+use account_utils::DiscriminatorEncode;
 use borsh::{BorshDeserialize, BorshSerialize};
-use hyperlane_core::{HyperlaneMessage, H160};
-use hyperlane_sealevel_interchain_security_module_interface::VERIFY_ACCOUNT_METAS_PDA_SEEDS;
-use solana_program::{account_info::AccountInfo, pubkey::Pubkey};
+use hyperlane_core::{Encode, HyperlaneMessage, H160};
+use serializable_account_meta::SimulationReturnData;
+use solana_program::{
+    account_info::AccountInfo,
+    instruction::{AccountMeta, Instruction as SolanaInstruction},
+    program::{get_return_data, invoke},
+    pubkey::Pubkey,
+};
 
 use crate::{
-    accounts::{
-        derive_domain_pda, load_and_validate_domain_ism_storage, CompositeIsmAccount, IsmNode,
-    },
+    accounts::{derive_domain_pda, load_and_validate_domain_ism_storage, IsmNode},
     error::Error,
+    instruction::Instruction as CompositeInstruction,
     metadata::parse_routing_amount,
 };
 
@@ -129,24 +134,40 @@ where
                 return Ok(spec);
             }
 
-            // Fallback path — expect the fallback ISM's storage PDA directly.
-            // No mailbox inbox PDA is needed.
-            let fallback_storage_info = accounts_iter
-                .next()
-                .ok_or(Error::InvalidFallbackIsmAccount)?;
-            let (expected_fallback_key, _) =
-                Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, fallback_ism);
-            if *fallback_storage_info.key != expected_fallback_key {
-                return Err(Error::InvalidFallbackIsmAccount);
+            // Fallback path — CPI to the fallback ISM's GetMetadataSpec instruction.
+            // The fallback program can be any ISM; if it does not implement
+            // GetMetadataSpec (e.g. a standalone MultisigIsm), return Null so the
+            // relayer can supply empty metadata and let on-chain Verify decide.
+            let remaining_accounts: Vec<AccountInfo> = accounts_iter.cloned().collect();
+            let remaining_metas: Vec<AccountMeta> = remaining_accounts
+                .iter()
+                .map(|ai| {
+                    if ai.is_writable {
+                        AccountMeta::new(*ai.key, ai.is_signer)
+                    } else {
+                        AccountMeta::new_readonly(*ai.key, ai.is_signer)
+                    }
+                })
+                .collect();
+            let Ok(ixn_data) = CompositeInstruction::GetMetadataSpec(message.to_vec()).encode()
+            else {
+                return Ok(MetadataSpec::Null);
+            };
+            let ixn = SolanaInstruction {
+                program_id: *fallback_ism,
+                accounts: remaining_metas,
+                data: ixn_data,
+            };
+            if invoke(&ixn, &remaining_accounts).is_err() {
+                return Ok(MetadataSpec::Null);
             }
-
-            let fallback_storage =
-                CompositeIsmAccount::fetch_data(&mut &fallback_storage_info.data.borrow()[..])
-                    .map_err(|_| Error::InvalidFallbackIsmAccount)?
-                    .ok_or(Error::InvalidFallbackIsmAccount)?;
-            let fallback_root = fallback_storage.root.ok_or(Error::ConfigNotSet)?;
-
-            spec_for_node_with_pdas(&fallback_root, message, fallback_ism, accounts_iter)
+            let Some((_, cpi_bytes)) = get_return_data() else {
+                return Ok(MetadataSpec::Null);
+            };
+            match borsh::from_slice::<SimulationReturnData<MetadataSpec>>(&cpi_bytes) {
+                Ok(s) => Ok(s.return_data),
+                Err(_) => Ok(MetadataSpec::Null),
+            }
         }
 
         IsmNode::TrustedRelayer { .. }

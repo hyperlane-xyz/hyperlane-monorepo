@@ -95,10 +95,16 @@ impl SealevelCompositeIsm {
             .map(|r| r.return_data)
     }
 
-    /// Derives the fallback composite ISM storage PDA for pass 2 of `GetMetadataSpec`.
+    /// Derives the fallback ISM's VAM storage PDA for pass 2 of `GetMetadataSpec`.
     ///
-    /// Reads the VAM PDA to get the `FallbackRouting { fallback_ism }` address, then
-    /// derives the fallback ISM's storage PDA directly — no mailbox inbox PDA needed.
+    /// Reads the main VAM PDA to extract `FallbackRouting { fallback_ism }`, then
+    /// returns the fallback ISM's own VAM PDA.  The fallback ISM can be any program
+    /// implementing the standard ISM interface; it does not need to be a composite ISM.
+    ///
+    /// Limitation: if the fallback ISM itself contains `Routing` nodes that need
+    /// domain PDAs, the single pass-2 simulation will not supply them and
+    /// `GetMetadataSpec` will return incomplete data.  A fixpoint loop (analogous
+    /// to the `VerifyAccountMetas` fixpoint) would be needed to handle that case.
     async fn resolve_fallback_routing_accounts(&self) -> ChainResult<Vec<Pubkey>> {
         let (vam_pda, _) =
             Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, &self.program_id);
@@ -125,7 +131,10 @@ impl SealevelCompositeIsm {
         let (fallback_storage_pda, _) =
             Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, &fallback_ism);
 
-        Ok(vec![fallback_storage_pda])
+        // The fallback ISM's program account must also be included so that the
+        // GetMetadataSpec CPI inside the composite ISM can locate the callee program
+        // in the outer instruction's accounts list.
+        Ok(vec![fallback_storage_pda, fallback_ism])
     }
 }
 

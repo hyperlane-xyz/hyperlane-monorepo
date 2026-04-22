@@ -1,13 +1,18 @@
-use hyperlane_core::HyperlaneMessage;
-use hyperlane_sealevel_interchain_security_module_interface::VERIFY_ACCOUNT_METAS_PDA_SEEDS;
-use serializable_account_meta::SerializableAccountMeta;
+use hyperlane_core::{Encode, HyperlaneMessage};
+use hyperlane_sealevel_interchain_security_module_interface::{
+    InterchainSecurityModuleInstruction, VerifyInstruction, VERIFY_ACCOUNT_METAS_PDA_SEEDS,
+};
+use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_program::{
-    account_info::AccountInfo, instruction::AccountMeta, program_error::ProgramError,
+    account_info::AccountInfo,
+    instruction::{AccountMeta, Instruction as SolanaInstruction},
+    program::{get_return_data, invoke},
+    program_error::ProgramError,
     pubkey::Pubkey,
 };
 
 use crate::{
-    accounts::{derive_domain_pda, CompositeIsmAccount, DomainIsmAccount, IsmNode},
+    accounts::{derive_domain_pda, DomainIsmAccount, IsmNode},
     metadata::{parse_routing_amount, sub_metadata_at},
 };
 
@@ -205,44 +210,64 @@ pub fn required_accounts_for_node(
             let (fallback_storage_key, _) =
                 Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, fallback_ism);
 
-            // Pass 2: request the fallback ISM's storage PDA.
+            // Pass 2: request the fallback ISM's storage PDA and program account.
+            // The program account must be in the outer instruction's accounts so
+            // that the CPI to the fallback ISM can locate the callee program.
             let fallback_provided = *cursor < extra_accounts.len()
                 && *extra_accounts[*cursor].key == fallback_storage_key;
             if !fallback_provided {
                 return Ok(vec![
                     AccountMeta::new_readonly(domain_pda_key, false).into(),
                     AccountMeta::new_readonly(fallback_storage_key, false).into(),
+                    AccountMeta::new_readonly(*fallback_ism, false).into(),
                 ]);
             }
 
-            let fallback_storage_acc = extra_accounts[*cursor];
-            *cursor += 1;
+            // Pass 3+: CPI to the fallback ISM's VerifyAccountMetas instruction.
+            // extra_accounts[*cursor..] starts with the fallback ISM's VAM PDA.
+            // The fallback program can be any ISM that implements the interface.
+            let cpi_accounts: Vec<AccountInfo> = extra_accounts[*cursor..]
+                .iter()
+                .map(|a| (*a).clone())
+                .collect();
+            let cpi_metas: Vec<AccountMeta> = cpi_accounts
+                .iter()
+                .map(|ai| {
+                    if ai.is_writable {
+                        AccountMeta::new(*ai.key, ai.is_signer)
+                    } else {
+                        AccountMeta::new_readonly(*ai.key, ai.is_signer)
+                    }
+                })
+                .collect();
+            let ixn_data =
+                InterchainSecurityModuleInstruction::VerifyAccountMetas(VerifyInstruction {
+                    metadata: metadata.to_vec(),
+                    message: message.to_vec(),
+                })
+                .encode()?;
+            let ixn = SolanaInstruction {
+                program_id: *fallback_ism,
+                accounts: cpi_metas,
+                data: ixn_data,
+            };
+            invoke(&ixn, &cpi_accounts)?;
+            *cursor = extra_accounts.len();
 
-            // Load the fallback ISM's root and recursively resolve its accounts.
-            // Error if deserialization fails: the fallback program is not a composite ISM.
-            let fallback_storage =
-                CompositeIsmAccount::fetch_data(&mut &fallback_storage_acc.data.borrow()[..])
-                    .ok()
-                    .flatten()
-                    .ok_or(crate::error::Error::InvalidFallbackIsmAccount)?;
-            let mut fallback_sub_accounts: Vec<SerializableAccountMeta> = vec![];
-            if let Some(ref root) = fallback_storage.root {
-                fallback_sub_accounts = required_accounts_for_node(
-                    root,
-                    metadata,
-                    message,
-                    fallback_ism,
-                    extra_accounts,
-                    cursor,
-                )?;
-            }
+            let (_, cpi_return_bytes) =
+                get_return_data().ok_or(crate::error::Error::InvalidFallbackIsmAccount)?;
+            let cpi_result =
+                borsh::from_slice::<SimulationReturnData<Vec<SerializableAccountMeta>>>(
+                    &cpi_return_bytes,
+                )
+                .map_err(|_| ProgramError::BorshIoError)?;
 
-            // Pass 3 (final): return the full flat account list.
-            let mut result: Vec<SerializableAccountMeta> = vec![
-                AccountMeta::new_readonly(domain_pda_key, false).into(),
-                AccountMeta::new_readonly(fallback_storage_key, false).into(),
-            ];
-            result.extend(fallback_sub_accounts);
+            let mut result: Vec<SerializableAccountMeta> =
+                vec![AccountMeta::new_readonly(domain_pda_key, false).into()];
+            result.extend(cpi_result.return_data);
+            // Re-append the program account so that subsequent Verify calls (and the
+            // fixpoint loop) also include it and can perform the CPI.
+            result.push(AccountMeta::new_readonly(*fallback_ism, false).into());
             Ok(result)
         }
 
@@ -499,8 +524,9 @@ mod test {
         assert!(!accounts[0].is_writable);
     }
 
-    /// Pass 2: domain PDA present but no domain ISM → requests fallback storage PDA.
-    /// No inbox PDA is required (avoids mailbox reentrancy guard borrow conflict).
+    /// Pass 2: domain PDA present but no domain ISM → requests fallback storage PDA and
+    /// fallback ISM program account.  The program account is required so that pass 3's
+    /// CPI to the fallback ISM can locate the callee in the outer instruction's accounts.
     #[test]
     fn test_fallback_routing_pass2_returns_fallback_storage_key() {
         use solana_program::account_info::AccountInfo;
@@ -532,10 +558,11 @@ mod test {
         let accounts =
             required_accounts_for_node(&node, &[], &msg, &program_id, &extra, &mut 0).unwrap();
 
-        // [domain_pda, fallback_storage_key] — no inbox PDA.
-        assert_eq!(accounts.len(), 2);
+        // [domain_pda, fallback_storage_key, fallback_ism_program_key]
+        assert_eq!(accounts.len(), 3);
         assert_eq!(accounts[0].pubkey, domain_pda_key);
         assert_eq!(accounts[1].pubkey, expected_fallback_storage);
+        assert_eq!(accounts[2].pubkey, fallback_ism);
     }
 
     #[test]

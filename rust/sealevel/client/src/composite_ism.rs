@@ -9,7 +9,6 @@ use crate::{
     core::adjust_gas_price_if_needed,
     CompositeIsmCmd, CompositeIsmSubCmd, Context,
 };
-
 use hyperlane_core::{H160, H256, U256};
 use hyperlane_sealevel_composite_ism::{
     accounts::{CompositeIsmAccount, DomainIsmAccount, IsmNode},
@@ -389,16 +388,36 @@ pub(crate) fn deploy_composite_ism(
         .send_with_payer();
     println!("Initialized Composite ISM at program ID {}", program_id);
 
-    for (domain, ism_config) in domain_isms {
-        let instruction =
-            set_domain_ism_instruction(program_id, ctx.payer_pubkey, domain, ism_config.into())
-                .unwrap();
+    for (domain, ism_config) in &domain_isms {
+        let instruction = set_domain_ism_instruction(
+            program_id,
+            ctx.payer_pubkey,
+            *domain,
+            ism_config.clone().into(),
+        )
+        .unwrap();
         ctx.new_txn()
             .add_with_description(
                 instruction,
                 format!("Set domain ISM for origin domain {domain}"),
             )
             .send_with_payer();
+    }
+
+    // Remove domain PDAs no longer in the config (only relevant on re-deploy).
+    let new_domains: std::collections::HashSet<u32> = domain_isms.iter().map(|(d, _)| *d).collect();
+    for existing_domain in existing_domain_ids(ctx, program_id) {
+        if !new_domains.contains(&existing_domain) {
+            let instruction =
+                remove_domain_ism_instruction(program_id, ctx.payer_pubkey, existing_domain)
+                    .unwrap();
+            ctx.new_txn()
+                .add_with_description(
+                    instruction,
+                    format!("Remove domain ISM for origin domain {existing_domain}"),
+                )
+                .send_with_payer();
+        }
     }
 
     program_id

@@ -2,16 +2,14 @@
 //!
 //! FallbackRouting acts like Routing when a domain ISM is configured for the
 //! incoming message's origin.  When no domain ISM exists, it falls back to a
-//! statically-configured composite ISM whose address is stored directly in the
+//! statically-configured ISM program whose address is stored directly in the
 //! node (`fallback_ism`).
 //!
-//! Unlike the old mailbox-indirection design, no mailbox inbox PDA is needed
-//! at verify time.  This avoids the `AccountBorrowFailed` conflict that arose
-//! because the mailbox intentionally holds a `RefMut` on the inbox PDA as a
-//! reentrancy guard for the entire duration of `process` — including across the
-//! ISM Verify CPI.  Because that guard was never taken in the isolated
-//! `simulate_verify` tests, the borrow conflict was never caught here; it only
-//! manifested when the mailbox actually called `Verify` during `process`.
+//! The fallback ISM can be *any* program that implements the standard ISM
+//! interface (Verify, VerifyAccountMetas).  It does not need to be a composite
+//! ISM.  In these tests we register a second instance of the composite ISM
+//! binary under `fallback_ism_id()` to act as the fallback so that CPI calls
+//! succeed under BanksClient.
 //!
 //! VERIFY:
 //! - Domain ISM path: accepts / rejects based on the configured domain ISM.
@@ -28,46 +26,67 @@ use hyperlane_core::Encode;
 use hyperlane_sealevel_composite_ism::{
     accounts::{CompositeIsmAccount, IsmNode},
     error::Error,
+    instruction::initialize_instruction,
+    processor::process_instruction,
 };
-use hyperlane_sealevel_interchain_security_module_interface::VerifyInstruction;
+use hyperlane_sealevel_interchain_security_module_interface::{
+    VerifyInstruction, VERIFY_ACCOUNT_METAS_PDA_SEEDS,
+};
 use solana_program::pubkey::Pubkey;
-use solana_program_test::ProgramTestContext;
+use solana_program_test::{processor, ProgramTest};
 use solana_sdk::{
-    account::{Account, AccountSharedData},
+    hash::Hash,
     instruction::InstructionError,
     signature::Signer,
-    transaction::TransactionError,
+    signer::keypair::Keypair,
+    transaction::{Transaction, TransactionError},
 };
 
 use common::{
     assert_simulation_error, assert_simulation_ok, domain_pda_key, dummy_message,
-    get_all_verify_account_metas, get_verify_account_metas, initialize, make_fallback_storage_data,
-    program_test, remove_domain_ism, set_domain_ism, simulate_verify, storage_pda_key,
+    get_all_verify_account_metas, get_verify_account_metas, initialize, program_test,
+    remove_domain_ism, set_domain_ism, simulate_verify, storage_pda_key,
 };
 
 const ORIGIN: u32 = 1234;
 
-/// Inserts the fallback composite ISM storage PDA into the test bank.
-///
-/// Returns the fallback storage PDA key.
-fn setup_fallback_ism(
-    context: &mut ProgramTestContext,
-    fallback_program_id: &Pubkey,
-    fallback_root: IsmNode,
-) -> Pubkey {
-    let (fallback_storage_key, fallback_data) =
-        make_fallback_storage_data(fallback_program_id, Some(fallback_root));
-    context.set_account(
-        &fallback_storage_key,
-        &AccountSharedData::from(Account {
-            lamports: 10_000_000,
-            data: fallback_data,
-            owner: *fallback_program_id,
-            executable: false,
-            rent_epoch: 0,
-        }),
+/// Fixed program ID for the second composite ISM instance used as the fallback.
+fn fallback_ism_id() -> Pubkey {
+    Pubkey::new_from_array([2u8; 32])
+}
+
+/// The VAM storage PDA for the fallback ISM program.
+fn fallback_storage_pda_key() -> Pubkey {
+    Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, &fallback_ism_id()).0
+}
+
+/// Returns a ProgramTest with both the main composite ISM and the fallback
+/// composite ISM registered (same binary, different program IDs).
+fn program_test_with_fallback() -> ProgramTest {
+    let mut test = program_test();
+    test.add_program(
+        "hyperlane_sealevel_composite_ism",
+        fallback_ism_id(),
+        processor!(process_instruction),
     );
-    fallback_storage_key
+    test
+}
+
+/// Initializes the fallback ISM program with the given root ISM node.
+async fn setup_fallback_ism(
+    banks_client: &mut solana_program_test::BanksClient,
+    payer: &Keypair,
+    recent_blockhash: Hash,
+    fallback_root: IsmNode,
+) {
+    let ix = initialize_instruction(fallback_ism_id(), payer.pubkey(), fallback_root).unwrap();
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&payer.pubkey()),
+        &[payer],
+        recent_blockhash,
+    );
+    banks_client.process_transaction(tx).await.unwrap();
 }
 
 // ── CONFIG ───────────────────────────────────────────────────────────────────
@@ -279,24 +298,25 @@ async fn test_verify_via_domain_pda_rejects() {
 
 #[tokio::test]
 async fn test_verify_via_fallback_ism_accepts() {
-    let fallback_program_id = Pubkey::new_unique();
-
-    let mut context = program_test().start_with_context().await;
-    setup_fallback_ism(
-        &mut context,
-        &fallback_program_id,
-        IsmNode::Test { accept: true },
-    );
-
+    let mut context = program_test_with_fallback().start_with_context().await;
     let payer = context.payer.insecure_clone();
     let recent_blockhash = context.banks_client.get_latest_blockhash().await.unwrap();
 
+    setup_fallback_ism(
+        &mut context.banks_client,
+        &payer,
+        recent_blockhash,
+        IsmNode::Test { accept: true },
+    )
+    .await;
+
+    let recent_blockhash = context.banks_client.get_latest_blockhash().await.unwrap();
     initialize(
         &mut context.banks_client,
         &payer,
         recent_blockhash,
         IsmNode::FallbackRouting {
-            fallback_ism: fallback_program_id,
+            fallback_ism: fallback_ism_id(),
         },
     )
     .await
@@ -332,24 +352,25 @@ async fn test_verify_via_fallback_ism_accepts() {
 
 #[tokio::test]
 async fn test_verify_via_fallback_ism_rejects() {
-    let fallback_program_id = Pubkey::new_unique();
-
-    let mut context = program_test().start_with_context().await;
-    setup_fallback_ism(
-        &mut context,
-        &fallback_program_id,
-        IsmNode::Test { accept: false },
-    );
-
+    let mut context = program_test_with_fallback().start_with_context().await;
     let payer = context.payer.insecure_clone();
     let recent_blockhash = context.banks_client.get_latest_blockhash().await.unwrap();
 
+    setup_fallback_ism(
+        &mut context.banks_client,
+        &payer,
+        recent_blockhash,
+        IsmNode::Test { accept: false },
+    )
+    .await;
+
+    let recent_blockhash = context.banks_client.get_latest_blockhash().await.unwrap();
     initialize(
         &mut context.banks_client,
         &payer,
         recent_blockhash,
         IsmNode::FallbackRouting {
-            fallback_ism: fallback_program_id,
+            fallback_ism: fallback_ism_id(),
         },
     )
     .await
@@ -389,24 +410,25 @@ async fn test_verify_via_fallback_ism_rejects() {
 
 #[tokio::test]
 async fn test_verify_falls_back_after_remove_domain_ism() {
-    let fallback_program_id = Pubkey::new_unique();
-
-    let mut context = program_test().start_with_context().await;
-    setup_fallback_ism(
-        &mut context,
-        &fallback_program_id,
-        IsmNode::Test { accept: true },
-    );
-
+    let mut context = program_test_with_fallback().start_with_context().await;
     let payer = context.payer.insecure_clone();
     let recent_blockhash = context.banks_client.get_latest_blockhash().await.unwrap();
 
+    setup_fallback_ism(
+        &mut context.banks_client,
+        &payer,
+        recent_blockhash,
+        IsmNode::Test { accept: true },
+    )
+    .await;
+
+    let recent_blockhash = context.banks_client.get_latest_blockhash().await.unwrap();
     initialize(
         &mut context.banks_client,
         &payer,
         recent_blockhash,
         IsmNode::FallbackRouting {
-            fallback_ism: fallback_program_id,
+            fallback_ism: fallback_ism_id(),
         },
     )
     .await
@@ -505,24 +527,25 @@ async fn test_vam_domain_ism_present_returns_domain_pda() {
 
 #[tokio::test]
 async fn test_vam_no_domain_ism_returns_fallback_storage() {
-    let fallback_program_id = Pubkey::new_unique();
-
-    let mut context = program_test().start_with_context().await;
-    let fallback_storage_pda_key = setup_fallback_ism(
-        &mut context,
-        &fallback_program_id,
-        IsmNode::Test { accept: true },
-    );
-
+    let mut context = program_test_with_fallback().start_with_context().await;
     let payer = context.payer.insecure_clone();
     let recent_blockhash = context.banks_client.get_latest_blockhash().await.unwrap();
 
+    setup_fallback_ism(
+        &mut context.banks_client,
+        &payer,
+        recent_blockhash,
+        IsmNode::Test { accept: true },
+    )
+    .await;
+
+    let recent_blockhash = context.banks_client.get_latest_blockhash().await.unwrap();
     initialize(
         &mut context.banks_client,
         &payer,
         recent_blockhash,
         IsmNode::FallbackRouting {
-            fallback_ism: fallback_program_id,
+            fallback_ism: fallback_ism_id(),
         },
     )
     .await
@@ -544,9 +567,12 @@ async fn test_vam_no_domain_ism_returns_fallback_storage() {
     )
     .await;
 
-    // [storage_pda, domain_pda, fallback_storage_pda] — no inbox PDA.
-    assert_eq!(metas.len(), 3);
+    // [storage_pda, domain_pda, fallback_storage_pda, fallback_ism_program]
+    // The fallback ISM program account is required so the CPI inside VerifyAccountMetas
+    // and Verify can locate the callee in the outer instruction's accounts list.
+    assert_eq!(metas.len(), 4);
     assert_eq!(metas[0].pubkey, storage_pda_key());
     assert_eq!(metas[1].pubkey, domain_pda_key(ORIGIN));
-    assert_eq!(metas[2].pubkey, fallback_storage_pda_key);
+    assert_eq!(metas[2].pubkey, fallback_storage_pda_key());
+    assert_eq!(metas[3].pubkey, fallback_ism_id());
 }

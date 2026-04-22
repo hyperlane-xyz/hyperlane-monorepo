@@ -3,62 +3,52 @@ use solana_program::program_error::ProgramError;
 #[derive(Copy, Clone, Debug, Eq, thiserror::Error, num_derive::FromPrimitive, PartialEq)]
 #[repr(u32)]
 pub enum Error {
-    #[error("Account not found in the correct order")]
-    AccountOutOfOrder = 1,
     #[error("Program ID is not owner")]
-    ProgramIdNotOwner = 2,
+    ProgramIdNotOwner = 1,
     #[error("Account not initialized")]
-    AccountNotInitialized = 3,
+    AccountNotInitialized = 2,
     #[error("Already initialized")]
-    AlreadyInitialized = 4,
+    AlreadyInitialized = 3,
     #[error("ISM config tree not set")]
-    ConfigNotSet = 5,
+    ConfigNotSet = 4,
     #[error("Invalid metadata")]
-    InvalidMetadata = 6,
+    InvalidMetadata = 5,
     #[error("Invalid signature")]
-    InvalidSignature = 7,
+    InvalidSignature = 6,
     #[error("Threshold not met")]
-    ThresholdNotMet = 8,
-    #[error("No domain config for origin")]
-    NoDomainConfig = 9,
+    ThresholdNotMet = 7,
     #[error("No route for origin domain")]
-    NoRouteForDomain = 10,
+    NoRouteForDomain = 8,
     #[error("Invalid relayer")]
-    InvalidRelayer = 11,
+    InvalidRelayer = 9,
     #[error("Relayer is not a signer")]
-    RelayerNotSigner = 12,
+    RelayerNotSigner = 10,
     #[error("Verify rejected (paused or test accept=false)")]
-    VerifyRejected = 13,
+    VerifyRejected = 11,
     #[error("Invalid ISM config (e.g. threshold exceeds sub-ISM count)")]
-    InvalidConfig = 14,
+    InvalidConfig = 12,
     #[error("Message body too short to decode token amount")]
-    InvalidMessageBody = 15,
+    InvalidMessageBody = 13,
     #[error("Rate limit capacity exceeded")]
-    RateLimitExceeded = 16,
+    RateLimitExceeded = 14,
     #[error("Message recipient does not match configured recipient")]
-    RecipientMismatch = 17,
+    RecipientMismatch = 15,
     #[error("More than one Routing node in the ISM tree")]
-    MultipleRoutingNodes = 18,
-    #[error("RateLimited ISM is not allowed inside a domain PDA")]
-    RateLimitedInDomainIsm = 19,
+    MultipleRoutingNodes = 16,
     #[error("Routing ISM is not allowed inside a domain PDA")]
-    RoutingInDomainIsm = 20,
+    RoutingInDomainIsm = 17,
     #[error("Domain PDA must be writable when ISM tree contains a RateLimited node")]
-    DomainPdaNotWritable = 21,
+    DomainPdaNotWritable = 18,
     #[error("Expected system program account")]
-    InvalidSystemProgram = 22,
+    InvalidSystemProgram = 19,
     #[error("Storage PDA account does not match expected derived address")]
-    InvalidStoragePda = 23,
+    InvalidStoragePda = 20,
     #[error("Domain PDA account does not match expected derived address for this origin")]
-    InvalidDomainPda = 24,
+    InvalidDomainPda = 21,
     #[error("FallbackRouting ISM is not allowed inside a domain PDA")]
-    FallbackRoutingInDomainIsm = 25,
-    #[error("Mailbox Inbox PDA is invalid or does not match the configured mailbox")]
-    InvalidMailboxAccount = 26,
-    #[error("Fallback ISM storage account is invalid or not a composite ISM")]
-    InvalidFallbackIsmAccount = 27,
-    #[error("FallbackRouting node requires a mailbox address configured in storage")]
-    MailboxNotConfigured = 28,
+    FallbackRoutingInDomainIsm = 22,
+    #[error("Fallback ISM account is invalid or missing")]
+    InvalidFallbackIsmAccount = 23,
 }
 
 impl From<Error> for ProgramError {

@@ -1,9 +1,13 @@
-use hyperlane_core::{Checkpoint, CheckpointWithMessageId, HyperlaneMessage, Signable};
-use hyperlane_sealevel_interchain_security_module_interface::VERIFY_ACCOUNT_METAS_PDA_SEEDS;
+use hyperlane_core::{Checkpoint, CheckpointWithMessageId, Encode, HyperlaneMessage, Signable};
+use hyperlane_sealevel_interchain_security_module_interface::{
+    InterchainSecurityModuleInstruction, VerifyInstruction,
+};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     clock::Clock,
     entrypoint::ProgramResult,
+    instruction::{AccountMeta, Instruction as SolanaInstruction},
+    program::invoke,
     pubkey::Pubkey,
     sysvar::Sysvar,
 };
@@ -13,8 +17,7 @@ use multisig_ism::MultisigIsmMessageIdMetadata;
 use crate::{
     account_metas::contains_rate_limited,
     accounts::{
-        derive_domain_pda, load_and_validate_domain_ism_storage, CompositeIsmAccount,
-        DomainIsmAccount, IsmNode,
+        derive_domain_pda, load_and_validate_domain_ism_storage, DomainIsmAccount, IsmNode,
     },
     error::Error,
     metadata::{parse_routing_amount, sub_metadata_at},
@@ -207,34 +210,37 @@ where
                 return Ok(());
             }
 
-            // No domain ISM — fall back to the statically-configured fallback ISM.
-            // The fallback ISM address is stored directly in the node, so no mailbox
-            // inbox PDA is read here (avoids the mailbox reentrancy guard borrow conflict).
-            let fallback_storage_info = next_account_info(accounts_iter)?;
-            let (expected_fallback_key, _) =
-                Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, fallback_ism);
-            if *fallback_storage_info.key != expected_fallback_key {
-                return Err(Error::InvalidFallbackIsmAccount.into());
-            }
-            if fallback_storage_info.owner != fallback_ism {
-                return Err(Error::InvalidFallbackIsmAccount.into());
-            }
-
-            let fallback_storage =
-                CompositeIsmAccount::fetch_data(&mut &fallback_storage_info.data.borrow()[..])
-                    .ok()
-                    .flatten()
-                    .ok_or(Error::InvalidFallbackIsmAccount)?;
-            let mut fallback_root = fallback_storage.root.ok_or(Error::ConfigNotSet)?;
-
-            // Recurse with fallback_ism so its domain PDAs are derived correctly.
-            verify_node(
-                &mut fallback_root,
-                metadata,
-                message,
-                accounts_iter,
-                fallback_ism,
-            )
+            // No domain ISM — CPI to the fallback ISM's standard Verify interface.
+            // The fallback program can be any ISM that implements the interface; it
+            // does not need to be a composite ISM.  All remaining accounts (starting
+            // with the fallback ISM's VAM PDA) are forwarded directly.
+            //
+            // Constraint: FallbackRouting must be account-terminal when taking the
+            // fallback path.  Placing it as a non-last sub-ISM inside Aggregation
+            // while using the fallback path is unsupported — subsequent sub-ISMs
+            // would find accounts_iter exhausted.
+            let remaining_accounts: Vec<AccountInfo> = accounts_iter.cloned().collect();
+            let remaining_metas: Vec<AccountMeta> = remaining_accounts
+                .iter()
+                .map(|ai| {
+                    if ai.is_writable {
+                        AccountMeta::new(*ai.key, ai.is_signer)
+                    } else {
+                        AccountMeta::new_readonly(*ai.key, ai.is_signer)
+                    }
+                })
+                .collect();
+            let ixn_data = InterchainSecurityModuleInstruction::Verify(VerifyInstruction {
+                metadata: metadata.to_vec(),
+                message: message.to_vec(),
+            })
+            .encode()?;
+            let ixn = SolanaInstruction {
+                program_id: *fallback_ism,
+                accounts: remaining_metas,
+                data: ixn_data,
+            };
+            invoke(&ixn, &remaining_accounts)
         }
 
         IsmNode::RateLimited {
