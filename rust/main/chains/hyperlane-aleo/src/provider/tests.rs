@@ -4,11 +4,12 @@ use std::{ops::Deref, path::PathBuf, str::FromStr};
 
 use hyperlane_core::{HyperlaneProvider, H256, U256};
 use serde_json::{json, Value};
+use snarkvm::prelude::MainnetV0;
 use url::Url;
 
 use crate::{
     provider::{mock::MockHttpClient, BaseHttpClient, RpcClient},
-    AleoProvider, AleoSigner, CurrentNetwork,
+    AleoProvider, AleoSigner,
 };
 
 // Helper constructing provider with mock client
@@ -263,7 +264,7 @@ async fn provable_mainnet_get_block_range() {
     let rpc = RpcClient::new(client);
 
     for height in 17918388u32..=17918398 {
-        match rpc.get_block::<CurrentNetwork>(height).await {
+        match rpc.get_block::<MainnetV0>(height).await {
             Ok(_) => println!("block {height}: ok"),
             Err(err) => {
                 panic!("first error at block {height}: {err:?}");
