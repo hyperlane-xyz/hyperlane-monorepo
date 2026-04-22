@@ -32,6 +32,12 @@ contract DomainRoutingIsm is
     // ============ Mutable Storage ============
     EnumerableMapExtended.UintToBytes32Map internal _modules;
 
+    // ============ Structs ============
+    struct DomainModule {
+        uint32 domain;
+        IInterchainSecurityModule module;
+    }
+
     // ============ External Functions ============
 
     /**
@@ -75,11 +81,33 @@ contract DomainRoutingIsm is
     }
 
     /**
+     * @notice Sets the ISMs to be used for the specified origin domains
+     * @param _domainModules The origin domains and ISMs to enroll
+     */
+    function setBatch(
+        DomainModule[] calldata _domainModules
+    ) external onlyOwner {
+        for (uint256 i = 0; i < _domainModules.length; ++i) {
+            _set(_domainModules[i].domain, address(_domainModules[i].module));
+        }
+    }
+
+    /**
      * @notice Removes the specified origin domain
      * @param _domain The origin domain
      */
     function remove(uint32 _domain) external onlyOwner {
         _remove(_domain);
+    }
+
+    /**
+     * @notice Removes the specified origin domains
+     * @param _domains The origin domains to remove
+     */
+    function removeBatch(uint32[] calldata _domains) external onlyOwner {
+        for (uint256 i = 0; i < _domains.length; ++i) {
+            _remove(_domains[i]);
+        }
     }
 
     function domains() external view returns (uint256[] memory) {
