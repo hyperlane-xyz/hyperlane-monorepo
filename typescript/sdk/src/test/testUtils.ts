@@ -135,6 +135,7 @@ export const hookTypesToFilter: HookType[] = [
   HookType.CUSTOM,
   HookType.PREDICATE,
   HookType.CCIP,
+  HookType.CCTP,
   HookType.UNKNOWN,
 ];
 export const DEFAULT_TOKEN_DECIMALS = 18;

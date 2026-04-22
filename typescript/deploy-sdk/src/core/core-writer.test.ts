@@ -4,6 +4,7 @@ import sinon from 'sinon';
 import {
   ChainMetadataForAltVM,
   MockSigner,
+  ProtocolType,
   hasProtocol,
   registerProtocol,
 } from '@hyperlane-xyz/provider-sdk';
@@ -33,10 +34,7 @@ import {
   MailboxOnChain,
 } from '@hyperlane-xyz/provider-sdk/mailbox';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
-import {
-  ProtocolProvider,
-  ProtocolType,
-} from '@hyperlane-xyz/provider-sdk/protocol';
+import { ProtocolProvider } from '@hyperlane-xyz/provider-sdk/protocol';
 import {
   DeployedValidatorAnnounceArtifact,
   IRawValidatorAnnounceArtifactManager,
