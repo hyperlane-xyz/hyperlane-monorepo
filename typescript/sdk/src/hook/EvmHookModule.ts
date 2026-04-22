@@ -810,6 +810,12 @@ export class EvmHookModule extends HyperlaneModule<
         return this.deployAmountRoutingHook({ config });
       case HookType.CCIP:
         return this.deployCCIPHook({ config });
+      case HookType.CCTP:
+        // @ts-ignore
+        return IPostDispatchHook__factory.connect(
+          config.address,
+          this.multiProvider.getSignerOrProvider(this.args.chain),
+        );
       default:
         throw new Error(`Unsupported hook config: ${config}`);
     }
