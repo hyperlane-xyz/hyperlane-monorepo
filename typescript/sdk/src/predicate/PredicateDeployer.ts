@@ -3,7 +3,7 @@ import { Logger } from 'pino';
 
 import {
   CrossCollateralRouter__factory,
-  Mailbox__factory,
+  DefaultHook__factory,
   PredicateCrossCollateralRouterWrapper__factory,
   PredicateRouterWrapper__factory,
   StaticAggregationHook__factory,
@@ -227,11 +227,16 @@ export class PredicateWrapperDeployer {
       hookToAggregateWith = existingHook;
     } else {
       const mailboxAddress = await warpRoute.mailbox();
-      const mailbox = Mailbox__factory.connect(mailboxAddress, signer);
-      hookToAggregateWith = await mailbox.defaultHook();
+      const overrides = this.multiProvider.getTransactionOverrides(chain);
+      const defaultHook = await new DefaultHook__factory(signer).deploy(
+        mailboxAddress,
+        overrides,
+      );
+      await defaultHook.deployed();
+      hookToAggregateWith = defaultHook.address;
       this.logger.info(
         { chain, defaultHook: hookToAggregateWith },
-        'Using mailbox default hook for aggregation (warp route had no existing hook)',
+        'Deployed DefaultHook for aggregation (warp route had no existing hook)',
       );
     }
 

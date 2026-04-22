@@ -186,7 +186,7 @@ describe('PredicateWrapperDeployer', async () => {
       expect(result.wrapperAddress).to.be.properAddress;
       expect(result.aggregationHookAddress).to.be.properAddress;
 
-      // Even with no existing hook, we aggregate with mailbox default hook for gas quoting
+      // Even with no existing hook, we aggregate with a DefaultHook (delegates to mailbox.defaultHook()) for gas quoting
       expect(result.wrapperAddress).to.not.equal(result.aggregationHookAddress);
 
       const router = TokenRouter__factory.connect(
