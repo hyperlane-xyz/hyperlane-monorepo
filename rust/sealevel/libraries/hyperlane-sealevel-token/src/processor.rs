@@ -38,7 +38,7 @@ use solana_system_interface::program as system_program;
 use std::collections::HashMap;
 
 use crate::{
-    accounts::{HyperlaneToken, HyperlaneTokenAccount},
+    accounts::{FeeConfig, HyperlaneToken, HyperlaneTokenAccount},
     error::Error,
     instruction::{Init, TransferRemote},
 };
@@ -976,6 +976,46 @@ where
 
         // Store the updated token account. No need to realloc, the size for the ISM is the same.
         HyperlaneTokenAccount::<T>::from(token).store(token_account, false)?;
+
+        Ok(())
+    }
+
+    /// Lets the owner set the fee configuration.
+    ///
+    /// Accounts:
+    /// 0. `[executable]` The system program.
+    /// 1. `[writeable]` The token PDA account.
+    /// 2. `[signer]` The access control owner.
+    pub fn set_fee_config(
+        program_id: &Pubkey,
+        accounts: &[AccountInfo],
+        fee_config: Option<FeeConfig>,
+    ) -> ProgramResult {
+        let accounts_iter = &mut accounts.iter();
+
+        // Account 0: System program. Only used if a realloc / rent exemption top up occurs.
+        let system_program = next_account_info(accounts_iter)?;
+        if system_program.key != &system_program::ID {
+            return Err(ProgramError::InvalidArgument);
+        }
+
+        // Account 1: Token account
+        let token_account = next_account_info(accounts_iter)?;
+        let mut token = HyperlaneToken::verify_account_and_fetch_inner(program_id, token_account)?;
+
+        // Account 2: Owner
+        let owner_account = next_account_info(accounts_iter)?;
+        token.ensure_owner_signer(owner_account)?;
+
+        token.fee_config = fee_config;
+
+        // Store with realloc since fee_config may change the account size.
+        HyperlaneTokenAccount::<T>::from(token).store_with_rent_exempt_realloc(
+            token_account,
+            &Rent::get()?,
+            owner_account,
+            system_program,
+        )?;
 
         Ok(())
     }

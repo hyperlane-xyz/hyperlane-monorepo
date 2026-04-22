@@ -147,6 +147,11 @@ pub fn process_instruction(
                 program_id, accounts, new_igp,
             )
         }
+        TokenIxn::SetFeeConfig(fee_config) => {
+            HyperlaneSealevelToken::<CollateralPlugin>::set_fee_config(
+                program_id, accounts, fee_config,
+            )
+        }
     }
     .map_err(|err| {
         msg!("{}", err);
