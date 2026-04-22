@@ -110,13 +110,6 @@ function toBase58SolanaKey(rawKey: string): string {
  *
  * @see https://docs.li.fi/integrate-li.fi-sdk
  */
-/**
- * Protocols known to be unsupported by LiFi.
- * Only Tron is explicitly unsupported (no LiFi aggregator available).
- * All other unknown protocols will throw to preserve fail-fast behavior.
- */
-const LIFI_UNSUPPORTED_PROTOCOLS = new Set([ProtocolType.Tron]);
-
 export class LiFiBridge implements IExternalBridge {
   private static readonly NATIVE_TOKEN_ADDRESS =
     '0x0000000000000000000000000000000000000000';
@@ -202,7 +195,6 @@ export class LiFiBridge implements IExternalBridge {
   private addressesEqual(a: string, b: string, chainId: number): boolean {
     const protocol = this.getProtocolTypeForChainId(chainId);
     // Sealevel uses base58 addresses where case is significant.
-    // EVM and Tron use hex addresses where case is insignificant.
     if (protocol === ProtocolType.Sealevel) {
       return a === b;
     }
@@ -210,65 +202,53 @@ export class LiFiBridge implements IExternalBridge {
   }
 
   /**
-   * Configure LiFi SDK providers from the given private keys.
-   * Sets up wallet/signer for each protocol type present in the keys map.
+   * Configure the LiFi SDK provider for the route source protocol.
    */
-  private configureLiFiProviders(
-    privateKeys: Partial<Record<ProtocolType, string>>,
+  private configureLiFiProvider(
+    protocol: ProtocolType,
+    key: string,
     fromChain: number,
     fromRpcUrl: string | undefined,
   ): void {
     const providers: Parameters<typeof lifiConfig.setProviders>[0] = [];
-    for (const [protocol, key] of Object.entries(privateKeys)) {
-      switch (protocol) {
-        case ProtocolType.Ethereum: {
-          const account = privateKeyToAccount(ensure0x(key) as `0x${string}`);
-          const chain = getViemChain(fromChain, fromRpcUrl);
-          const walletClient = createWalletClient({
-            account,
-            chain,
-            transport: http(fromRpcUrl),
-          });
-          providers.push(
-            EVM({
-              getWalletClient: async () => walletClient,
-              switchChain: async (requiredChainId: number) => {
-                const switchRpcUrl = this.getRpcUrlForChainId(requiredChainId);
-                const requiredChain = getViemChain(
-                  requiredChainId,
-                  switchRpcUrl,
-                );
-                return createWalletClient({
-                  account,
-                  chain: requiredChain,
-                  transport: http(switchRpcUrl),
-                });
-              },
-            }),
-          );
-          break;
-        }
-        case ProtocolType.Sealevel: {
-          const base58Key = toBase58SolanaKey(key);
-          providers.push(
-            Solana({
-              getWalletAdapter: async () => new KeypairWalletAdapter(base58Key),
-            }),
-          );
-          break;
-        }
-        default:
-          if (LIFI_UNSUPPORTED_PROTOCOLS.has(protocol as ProtocolType)) {
-            this.logger.warn(
-              { protocol },
-              `Skipping unsupported protocol for LiFi provider — no LiFi bridge support for ${protocol}`,
-            );
-            break;
-          }
-          throw new Error(
-            `Unsupported protocol type '${protocol}' for LiFi provider`,
-          );
+    switch (protocol) {
+      case ProtocolType.Ethereum: {
+        const account = privateKeyToAccount(ensure0x(key) as `0x${string}`);
+        const chain = getViemChain(fromChain, fromRpcUrl);
+        const walletClient = createWalletClient({
+          account,
+          chain,
+          transport: http(fromRpcUrl),
+        });
+        providers.push(
+          EVM({
+            getWalletClient: async () => walletClient,
+            switchChain: async (requiredChainId: number) => {
+              const switchRpcUrl = this.getRpcUrlForChainId(requiredChainId);
+              const requiredChain = getViemChain(requiredChainId, switchRpcUrl);
+              return createWalletClient({
+                account,
+                chain: requiredChain,
+                transport: http(switchRpcUrl),
+              });
+            },
+          }),
+        );
+        break;
       }
+      case ProtocolType.Sealevel: {
+        const base58Key = toBase58SolanaKey(key);
+        providers.push(
+          Solana({
+            getWalletAdapter: async () => new KeypairWalletAdapter(base58Key),
+          }),
+        );
+        break;
+      }
+      default:
+        throw new Error(
+          `Unsupported protocol type '${protocol}' for LiFi provider`,
+        );
     }
 
     lifiConfig.setProviders(providers);
@@ -276,7 +256,7 @@ export class LiFiBridge implements IExternalBridge {
     this.logger.debug(
       {
         fromChain,
-        protocols: Object.keys(privateKeys),
+        protocol,
       },
       'Configured LiFi providers for route execution',
     );
@@ -512,9 +492,10 @@ export class LiFiBridge implements IExternalBridge {
     const fromChain = route.fromChainId;
     const toChain = route.toChainId;
     const fromProtocol = this.getProtocolTypeForChainId(fromChain);
+    const sourceProtocol = fromProtocol ?? ProtocolType.Ethereum;
     assert(
-      privateKeys[fromProtocol ?? ProtocolType.Ethereum],
-      `Missing private key for source chain protocol ${fromProtocol ?? ProtocolType.Ethereum}`,
+      privateKeys[sourceProtocol],
+      `Missing private key for source chain protocol ${sourceProtocol}`,
     );
 
     this.logger.info(
@@ -542,12 +523,17 @@ export class LiFiBridge implements IExternalBridge {
     let executedRoute!: RouteExtended;
 
     try {
-      this.configureLiFiProviders(privateKeys, fromChain, fromRpcUrl);
+      this.configureLiFiProvider(
+        sourceProtocol,
+        privateKeys[sourceProtocol]!,
+        fromChain,
+        fromRpcUrl,
+      );
 
       this.logger.debug(
         {
           fromChain,
-          protocols: Object.keys(privateKeys),
+          sourceProtocol,
         },
         'Configured LiFi providers for route execution',
       );

@@ -713,12 +713,10 @@ describe('LiFiBridge constructor chainMetadataByChainId', function () {
   });
 });
 
-describe('LiFiBridge Tron protocol handling', function () {
-  it('configureLiFiProviders does not throw when Tron key is present (logs warning)', async () => {
+describe('LiFiBridge source protocol handling', function () {
+  it('ignores unrelated Tron keys when executing an Ethereum LiFi route', async () => {
     const bridge = new LiFiBridge(BRIDGE_CONFIG, testLogger);
 
-    // configureLiFiProviders is private — invoke via execute which calls it internally.
-    // Tron is an unsupported LiFi protocol, so it should warn but not throw.
     const quote = createTestQuote();
 
     try {
@@ -735,57 +733,84 @@ describe('LiFiBridge Tron protocol handling', function () {
     }
   });
 
-  it('addressesEqual uses case-insensitive comparison for Tron hex addresses', () => {
-    const TRON_CHAIN_ID = 728126428;
-    const TRON_CHAIN_METADATA_CONFIG: ExternalBridgeConfig = {
-      integrator: 'test-rebalancer',
-      chainMetadata: {
-        tron: {
-          chainId: TRON_CHAIN_ID,
-          protocol: ProtocolType.Tron,
-          name: 'tron',
-          displayName: 'Tron',
-          domainId: TRON_CHAIN_ID,
-          rpcUrls: [{ http: 'https://api.trongrid.io/jsonrpc' }],
-        },
-      },
-    };
-
-    const bridge = new LiFiBridge(TRON_CHAIN_METADATA_CONFIG, testLogger);
+  it('addressesEqual keeps Sealevel base58 comparison case-sensitive', () => {
+    const bridge = new LiFiBridge(SOLANA_CHAIN_METADATA_CONFIG, testLogger);
     const addressesEqualFn = (bridge as any).addressesEqual.bind(bridge);
 
-    // Tron uses hex addresses where case is insignificant (EVM-like)
     expect(
       addressesEqualFn(
-        '0xAbCdEf1234567890AbCdEf1234567890AbCdEf12',
-        '0xabcdef1234567890abcdef1234567890abcdef12',
-        TRON_CHAIN_ID,
-      ),
-    ).to.be.true;
-
-    // Different addresses should not be equal
-    expect(
-      addressesEqualFn(
-        '0xAbCdEf1234567890AbCdEf1234567890AbCdEf12',
-        '0x1111111111111111111111111111111111111111',
-        TRON_CHAIN_ID,
+        'SoLANAAddReSs1234567890123456789012345678',
+        'solanaaddress1234567890123456789012345678',
+        1399811149,
       ),
     ).to.be.false;
   });
 
-  it('throws for genuinely unknown protocol type', async () => {
-    const bridge = new LiFiBridge(BRIDGE_CONFIG, testLogger);
-    const quote = createTestQuote();
+  it('throws when the route source protocol is Tron', async () => {
+    const TRON_CHAIN_ID = 728126428;
+    const bridge = new LiFiBridge(
+      {
+        integrator: 'test-rebalancer',
+        chainMetadata: {
+          tron: {
+            chainId: TRON_CHAIN_ID,
+            protocol: ProtocolType.Tron,
+            name: 'tron',
+            displayName: 'Tron',
+            domainId: TRON_CHAIN_ID,
+            rpcUrls: [{ http: 'https://api.trongrid.io/jsonrpc' }],
+          },
+        },
+      },
+      testLogger,
+    );
+    const quote = createTestQuote(
+      { fromChainId: TRON_CHAIN_ID },
+      { fromChain: TRON_CHAIN_ID },
+    );
 
     try {
       await bridge.execute(quote, {
-        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
-        [ProtocolType.Cosmos]: TEST_PRIVATE_KEY,
+        [ProtocolType.Tron]: TEST_PRIVATE_KEY,
       });
-      expect.fail('Should have thrown for unknown protocol Cosmos');
+      expect.fail('Should have thrown for unsupported source protocol Tron');
     } catch (error: unknown) {
       const msg = (error as Error).message;
-      expect(msg).to.include('Unsupported protocol');
+      expect(msg).to.include("Unsupported protocol type 'tron'");
+    }
+  });
+
+  it('throws when the route source protocol is an unsupported non-Tron chain', async () => {
+    const COSMOS_CHAIN_ID = 999999999;
+    const bridge = new LiFiBridge(
+      {
+        integrator: 'test-rebalancer',
+        chainMetadata: {
+          cosmos: {
+            chainId: COSMOS_CHAIN_ID,
+            protocol: ProtocolType.Cosmos,
+            name: 'cosmos',
+            displayName: 'Cosmos',
+            domainId: COSMOS_CHAIN_ID,
+            rpcUrls: [{ http: 'https://rpc.cosmos.invalid' }],
+          },
+        },
+      },
+      testLogger,
+    );
+    const quote = createTestQuote(
+      { fromChainId: COSMOS_CHAIN_ID },
+      { fromChain: COSMOS_CHAIN_ID },
+    );
+
+    try {
+      await bridge.execute(quote, {
+        [ProtocolType.Cosmos]: TEST_PRIVATE_KEY,
+      });
+      expect.fail('Should have thrown for unsupported source protocol Cosmos');
+    } catch (error: unknown) {
+      const msg = (error as Error).message;
+      expect(msg).to.include("Unsupported protocol type 'cosmos'");
     }
   });
 });
