@@ -1223,6 +1223,54 @@ describe('HyperlaneIsmFactory', async () => {
     });
   }
 
+  it('batches multiple routing ISM enrollments and removals', async () => {
+    const owner = await multiProvider.getSignerAddress(chain);
+    const config: DomainRoutingIsmConfig = {
+      type: IsmType.ROUTING,
+      owner,
+      domains: {},
+    };
+    const routingIsm = await ismFactory.deploy({
+      destination: chain,
+      config,
+    });
+    const module = await new TestIsm__factory(
+      multiProvider.getSigner(chain),
+    ).deploy();
+    await module.deployed();
+
+    const provider = multiProvider.getProvider(chain);
+    config.domains = {
+      [TestChainName.test2]: module.address,
+      [TestChainName.test3]: module.address,
+    };
+    const enrollNonce = await provider.getTransactionCount(owner);
+    await ismFactory.deploy({
+      destination: chain,
+      config,
+      existingIsmAddress: routingIsm.address,
+    });
+    expect(await provider.getTransactionCount(owner)).to.equal(enrollNonce + 1);
+    const routingContract = DomainRoutingIsm__factory.connect(
+      routingIsm.address,
+      provider,
+    );
+    expect((await routingContract.domains()).map(Number)).to.have.members([
+      multiProvider.getDomainId(TestChainName.test2),
+      multiProvider.getDomainId(TestChainName.test3),
+    ]);
+
+    config.domains = {};
+    const removeNonce = await provider.getTransactionCount(owner);
+    await ismFactory.deploy({
+      destination: chain,
+      config,
+      existingIsmAddress: routingIsm.address,
+    });
+    expect(await provider.getTransactionCount(owner)).to.equal(removeNonce + 1);
+    expect(await routingContract.domains()).to.be.empty;
+  });
+
   for (const type of [IsmType.ROUTING, IsmType.FALLBACK_ROUTING]) {
     it(`deploys ${type} routingIsm with correct routes`, async () => {
       exampleRoutingConfig.type = type;
