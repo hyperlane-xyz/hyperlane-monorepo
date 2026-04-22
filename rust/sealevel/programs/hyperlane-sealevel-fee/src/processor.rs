@@ -1822,13 +1822,11 @@ fn process_set_route(
 ) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
-    // Account 0: System program.
     let system_program_info = next_account_info(accounts_iter)?;
     if *system_program_info.key != system_program::ID {
         return Err(ProgramError::IncorrectProgramId);
     }
 
-    // Account 1 + 2: Fee account (read-only) + owner (signer).
     let (fee_account_info, fee_account, owner_info) =
         fetch_fee_account_and_verify_owner(program_id, accounts_iter)?;
 
@@ -1836,59 +1834,36 @@ fn process_set_route(
         return Err(Error::NotRoutingFeeData.into());
     }
 
-    // Reject reserved domain values.
     if data.domain == 0 || data.domain == crate::accounts::WILDCARD_DOMAIN {
         return Err(Error::InvalidRouteDomain.into());
     }
 
-    // Account 3: RouteDomain PDA.
-    let route_pda_info = next_account_info(accounts_iter)?;
     let domain_le = data.domain.to_le_bytes();
-    let (expected_route_key, route_bump) = Pubkey::find_program_address(
+    let (expected_key, bump) = Pubkey::find_program_address(
         route_domain_pda_seeds!(fee_account_info.key, &domain_le),
         program_id,
     );
-    if *route_pda_info.key != expected_route_key {
-        return Err(ProgramError::InvalidArgument);
-    }
 
-    ensure_no_extraneous_accounts(accounts_iter)?;
-
-    let route_domain = RouteDomainAccount::new(
+    let account = RouteDomainAccount::new(
         RouteDomain {
-            bump_seed: route_bump,
+            bump_seed: bump,
             fee_data: data.fee_data,
             signers: data.signers,
         }
         .into(),
     );
 
-    // Create the PDA if uninitialized, or verify ownership if it exists.
-    if route_pda_info.data_is_empty() && route_pda_info.owner == &system_program::ID {
-        let rent = Rent::get()?;
-        create_pda_account(
-            owner_info,
-            &rent,
-            SizedData::size(&route_domain),
-            program_id,
-            system_program_info,
-            route_pda_info,
-            route_domain_pda_seeds!(fee_account_info.key, &domain_le, route_bump),
-        )?;
-        route_domain.store(route_pda_info, false)?;
-    } else if route_pda_info.owner != program_id {
-        return Err(ProgramError::IncorrectProgramId);
-    } else {
-        route_domain.store_with_rent_exempt_realloc(
-            route_pda_info,
-            &Rent::get()?,
-            owner_info,
-            system_program_info,
-        )?;
-    }
+    upsert_route_pda(
+        program_id,
+        accounts_iter,
+        expected_key,
+        &account,
+        route_domain_pda_seeds!(fee_account_info.key, &domain_le, bump),
+        owner_info,
+        system_program_info,
+    )?;
 
     msg!("Set route for domain {}", data.domain);
-
     Ok(())
 }
 
@@ -1905,8 +1880,6 @@ fn process_remove_route(
     domain: u32,
 ) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
-
-    // Account 0 + 1: Fee account + owner.
     let (fee_account_info, fee_account, owner_info) =
         fetch_fee_account_and_verify_owner(program_id, accounts_iter)?;
 
@@ -1914,27 +1887,15 @@ fn process_remove_route(
         return Err(Error::NotRoutingFeeData.into());
     }
 
-    // Account 2: RouteDomain PDA.
-    let route_pda_info = next_account_info(accounts_iter)?;
     let domain_le = domain.to_le_bytes();
-    let (expected_route_key, _) = Pubkey::find_program_address(
+    let (expected_key, _) = Pubkey::find_program_address(
         route_domain_pda_seeds!(fee_account_info.key, &domain_le),
         program_id,
     );
-    if *route_pda_info.key != expected_route_key {
-        return Err(ProgramError::InvalidArgument);
-    }
-    if route_pda_info.owner != program_id {
-        return Err(Error::RouteNotFound.into());
-    }
 
-    ensure_no_extraneous_accounts(accounts_iter)?;
-
-    // Close the PDA: drain lamports to owner, zero data, reassign to system program.
-    close_pda(route_pda_info, owner_info)?;
+    remove_route_pda(program_id, accounts_iter, expected_key, owner_info)?;
 
     msg!("Removed route for domain {}", domain);
-
     Ok(())
 }
 
@@ -1954,13 +1915,11 @@ fn process_set_cc_route(
 ) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
-    // Account 0: System program.
     let system_program_info = next_account_info(accounts_iter)?;
     if *system_program_info.key != system_program::ID {
         return Err(ProgramError::IncorrectProgramId);
     }
 
-    // Account 1 + 2: Fee account (read-only) + owner (signer).
     let (fee_account_info, fee_account, owner_info) =
         fetch_fee_account_and_verify_owner(program_id, accounts_iter)?;
 
@@ -1968,62 +1927,40 @@ fn process_set_cc_route(
         return Err(Error::NotCrossCollateralRoutingFeeData.into());
     }
 
-    // Reject reserved domain values.
     if data.destination == 0 || data.destination == crate::accounts::WILDCARD_DOMAIN {
         return Err(Error::InvalidRouteDomain.into());
     }
 
-    // Account 3: CrossCollateralRoute PDA.
-    let cc_route_pda_info = next_account_info(accounts_iter)?;
     let dest_le = data.destination.to_le_bytes();
-    let (expected_cc_key, cc_bump) = Pubkey::find_program_address(
+    let (expected_key, bump) = Pubkey::find_program_address(
         cc_route_pda_seeds!(fee_account_info.key, &dest_le, data.target_router),
         program_id,
     );
-    if *cc_route_pda_info.key != expected_cc_key {
-        return Err(ProgramError::InvalidArgument);
-    }
 
-    ensure_no_extraneous_accounts(accounts_iter)?;
-
-    let cc_route = CrossCollateralRouteAccount::new(
+    let account = CrossCollateralRouteAccount::new(
         CrossCollateralRoute {
-            bump_seed: cc_bump,
+            bump_seed: bump,
             fee_data: data.fee_data,
             signers: data.signers,
         }
         .into(),
     );
 
-    if cc_route_pda_info.data_is_empty() && cc_route_pda_info.owner == &system_program::ID {
-        let rent = Rent::get()?;
-        create_pda_account(
-            owner_info,
-            &rent,
-            SizedData::size(&cc_route),
-            program_id,
-            system_program_info,
-            cc_route_pda_info,
-            cc_route_pda_seeds!(fee_account_info.key, &dest_le, data.target_router, cc_bump),
-        )?;
-        cc_route.store(cc_route_pda_info, false)?;
-    } else if cc_route_pda_info.owner != program_id {
-        return Err(ProgramError::IncorrectProgramId);
-    } else {
-        cc_route.store_with_rent_exempt_realloc(
-            cc_route_pda_info,
-            &Rent::get()?,
-            owner_info,
-            system_program_info,
-        )?;
-    }
+    upsert_route_pda(
+        program_id,
+        accounts_iter,
+        expected_key,
+        &account,
+        cc_route_pda_seeds!(fee_account_info.key, &dest_le, data.target_router, bump),
+        owner_info,
+        system_program_info,
+    )?;
 
     msg!(
         "Set CC route for destination {} target_router {}",
         data.destination,
         data.target_router
     );
-
     Ok(())
 }
 
@@ -2040,8 +1977,6 @@ fn process_remove_cc_route(
     data: RemoveCrossCollateralRoute,
 ) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
-
-    // Account 0 + 1: Fee account + owner.
     let (fee_account_info, fee_account, owner_info) =
         fetch_fee_account_and_verify_owner(program_id, accounts_iter)?;
 
@@ -2049,34 +1984,88 @@ fn process_remove_cc_route(
         return Err(Error::NotCrossCollateralRoutingFeeData.into());
     }
 
-    // Account 2: CrossCollateralRoute PDA.
-    let cc_route_pda_info = next_account_info(accounts_iter)?;
     let dest_le = data.destination.to_le_bytes();
-    let (expected_cc_key, _) = Pubkey::find_program_address(
+    let (expected_key, _) = Pubkey::find_program_address(
         cc_route_pda_seeds!(fee_account_info.key, &dest_le, data.target_router),
         program_id,
     );
-    if *cc_route_pda_info.key != expected_cc_key {
-        return Err(ProgramError::InvalidArgument);
-    }
-    if cc_route_pda_info.owner != program_id {
-        return Err(Error::RouteNotFound.into());
-    }
 
-    ensure_no_extraneous_accounts(accounts_iter)?;
-
-    close_pda(cc_route_pda_info, owner_info)?;
+    remove_route_pda(program_id, accounts_iter, expected_key, owner_info)?;
 
     msg!(
         "Removed CC route for destination {} target_router {}",
         data.destination,
         data.target_router
     );
-
     Ok(())
 }
 
 // --- Helpers ---
+
+/// Removes a route PDA (RouteDomain or CrossCollateralRoute).
+/// Verifies the PDA key matches `expected_key`, checks ownership, and closes it.
+fn remove_route_pda<'a, 'b>(
+    program_id: &Pubkey,
+    accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
+    expected_key: Pubkey,
+    owner_info: &'a AccountInfo<'b>,
+) -> ProgramResult {
+    let route_pda_info = next_account_info(accounts_iter)?;
+    if *route_pda_info.key != expected_key {
+        return Err(ProgramError::InvalidArgument);
+    }
+    if route_pda_info.owner != program_id {
+        return Err(Error::RouteNotFound.into());
+    }
+
+    ensure_no_extraneous_accounts(accounts_iter)?;
+    close_pda(route_pda_info, owner_info)
+}
+
+/// Creates or updates a route PDA (RouteDomain or CrossCollateralRoute).
+/// If the PDA is uninitialized, creates it with `create_pda_account`.
+/// If it already exists, updates it via `store_with_rent_exempt_realloc`.
+fn upsert_route_pda<'a, 'b, T: account_utils::Data + SizedData>(
+    program_id: &Pubkey,
+    accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
+    expected_key: Pubkey,
+    account: &account_utils::AccountData<T>,
+    signer_seeds: &[&[u8]],
+    owner_info: &'a AccountInfo<'b>,
+    system_program_info: &'a AccountInfo<'b>,
+) -> ProgramResult {
+    let route_pda_info = next_account_info(accounts_iter)?;
+    if *route_pda_info.key != expected_key {
+        return Err(ProgramError::InvalidArgument);
+    }
+
+    ensure_no_extraneous_accounts(accounts_iter)?;
+
+    if route_pda_info.data_is_empty() && route_pda_info.owner == &system_program::ID {
+        let rent = Rent::get()?;
+        create_pda_account(
+            owner_info,
+            &rent,
+            SizedData::size(account),
+            program_id,
+            system_program_info,
+            route_pda_info,
+            signer_seeds,
+        )?;
+        account.store(route_pda_info, false)?;
+    } else if route_pda_info.owner != program_id {
+        return Err(ProgramError::IncorrectProgramId);
+    } else {
+        account.store_with_rent_exempt_realloc(
+            route_pda_info,
+            &Rent::get()?,
+            owner_info,
+            system_program_info,
+        )?;
+    }
+
+    Ok(())
+}
 
 /// Fetches the fee account and verifies the owner is the signer.
 ///
