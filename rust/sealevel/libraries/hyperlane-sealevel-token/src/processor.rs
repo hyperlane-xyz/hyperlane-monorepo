@@ -225,6 +225,7 @@ where
             remote_decimals: init.remote_decimals,
             remote_routers: HashMap::new(),
             plugin_data,
+            fee_config: None,
         };
         let token_account_data = HyperlaneTokenAccount::<T>::from(token);
 

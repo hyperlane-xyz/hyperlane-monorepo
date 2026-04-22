@@ -274,6 +274,7 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
         remote_decimals: init.remote_decimals,
         remote_routers: HashMap::new(),
         plugin_data,
+        fee_config: None,
     };
     let hyperlane_token_account_data =
         HyperlaneTokenAccount::<CollateralPlugin>::from(hyperlane_token);

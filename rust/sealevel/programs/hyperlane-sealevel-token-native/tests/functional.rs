@@ -328,6 +328,7 @@ async fn test_initialize() {
             plugin_data: NativePlugin {
                 native_collateral_bump: hyperlane_token_accounts.native_collateral_bump,
             },
+            fee_config: None,
         }),
     );
 

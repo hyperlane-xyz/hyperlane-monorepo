@@ -365,6 +365,7 @@ async fn test_initialize() {
                 mint_bump: hyperlane_token_accounts.mint_bump,
                 ata_payer_bump: hyperlane_token_accounts.ata_payer_bump,
             },
+            fee_config: None,
         }),
     );
 
