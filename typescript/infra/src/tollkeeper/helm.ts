@@ -29,14 +29,11 @@ export class TollkeeperHelmManager extends HelmManager {
     );
   }
 
-  // Tollkeeper is a Deployment (chart labels pods with `app=<release>`), so the
-  // base StatefulSet-only pod discovery returns nothing. Filter on ReplicaSet
-  // ownership to get Deployment-managed pods.
+  // Pod restarts go through `kubectl rollout restart` (see restartDeployment)
+  // rather than the shared pod-delete flow: Deployment pods get new names on
+  // delete, which breaks the name-based wait in refreshK8sResources.
   async getManagedK8sPods(): Promise<string[]> {
-    const [output] = await execCmd(
-      `kubectl get pods --selector=app=${this.helmReleaseName} -o jsonpath='{range .items[?(@.metadata.ownerReferences[0].kind=="ReplicaSet")]}{.metadata.name}{"\\n"}{end}' -n ${this.namespace}`,
-    );
-    return output.split('\n').filter(Boolean);
+    return [];
   }
 
   // The tollkeeper chart doesn't use the standard `app.kubernetes.io/instance`
@@ -52,13 +49,29 @@ export class TollkeeperHelmManager extends HelmManager {
     const secrets = await this.getExistingK8sSecrets();
     if (secrets.length === 0) return false;
 
-    const [output] = await execCmd(
-      `kubectl get secret ${secrets[0]} -n ${this.namespace} --ignore-not-found -o jsonpath='{.data}'`,
-    );
-
+    // Query the specific RPC_URL_<CHAIN> key. `-o jsonpath='{.data}'` would
+    // render the map in Go format (`map[K:V ...]`), not JSON — parsing fails.
+    // Targeting the key directly returns its base64 value if present, else
+    // empty string.
     const needle = `${RPC_ENV_PREFIX}${chain.toUpperCase().replaceAll('-', '_')}`;
-    const keys = Object.keys(JSON.parse(output || '{}'));
-    return keys.includes(needle);
+    const [output] = await execCmd(
+      `kubectl get secret ${secrets[0]} -n ${this.namespace} --ignore-not-found -o jsonpath='{.data.${needle}}'`,
+    );
+    return output.trim().length > 0;
+  }
+
+  // Deployment-aware restart: rolls pods without name-based polling.
+  async restartDeployment(): Promise<void> {
+    console.log(
+      `🔄 Restarting deployment ${this.helmReleaseName} in ${this.namespace}...`,
+    );
+    await execCmd(
+      `kubectl rollout restart deployment/${this.helmReleaseName} -n ${this.namespace}`,
+    );
+    await execCmd(
+      `kubectl rollout status deployment/${this.helmReleaseName} -n ${this.namespace} --timeout=180s`,
+    );
+    console.log(`✅  ${this.helmReleaseName} rollout complete`);
   }
 
   static async getManagersForChain(

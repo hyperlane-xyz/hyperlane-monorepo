@@ -297,15 +297,22 @@ async function refreshDependentK8sResourcesInteractive(
   const tollkeeperManagers = await selectTollkeeper(environment, chain);
   const cronjobManagers = await selectCronJobs(environment);
 
-  // Services get both secret and pod refresh
+  // StatefulSet-backed services: both secret and pod refresh through the
+  // shared (name-based) flow.
   const serviceManagers = [
     ...coreManagers,
     ...warpManagers,
     ...rebalancerManagers,
-    ...tollkeeperManagers,
   ];
-  // CronJobs only get secret refresh (they pick up new secrets on next scheduled run)
-  const allManagersForSecrets = [...serviceManagers, ...cronjobManagers];
+  // Tollkeeper gets secret refresh through the shared flow, but pod refresh
+  // via `kubectl rollout restart` — its Deployment pods get new names on
+  // delete, which would break name-based polling in refreshK8sResources.
+  // CronJobs only get secret refresh (pods pick up new secrets on next run).
+  const allManagersForSecrets = [
+    ...serviceManagers,
+    ...tollkeeperManagers,
+    ...cronjobManagers,
+  ];
 
   if (allManagersForSecrets.length > 0) {
     await refreshK8sResources(
@@ -320,6 +327,9 @@ async function refreshDependentK8sResourcesInteractive(
       K8sResourceType.POD,
       environment,
     );
+  }
+  for (const manager of tollkeeperManagers) {
+    await manager.restartDeployment();
   }
 }
 
