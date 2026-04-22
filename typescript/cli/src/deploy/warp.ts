@@ -50,9 +50,7 @@ import {
   getRouterAddressesFromWarpCoreConfig,
   getSubmitterBuilder,
   getTokenConnectionId,
-  isCollateralTokenConfig,
   isCrossCollateralTokenConfig,
-  isXERC20TokenConfig,
   normalizeScale,
   splitWarpCoreAndExtendedConfigs,
   tokenTypeToStandard,
@@ -370,10 +368,8 @@ function generateTokenConfigs(
   for (const chainName of Object.keys(contracts)) {
     const config = warpDeployConfig[chainName];
     const collateralAddressOrDenom =
-      isCollateralTokenConfig(config) ||
-      isXERC20TokenConfig(config) ||
-      isCrossCollateralTokenConfig(config)
-        ? (config as { token: string }).token // gets set in the above deriveTokenMetadata()
+      'token' in config && typeof config.token === 'string'
+        ? config.token
         : undefined;
 
     const protocol = multiProvider.getProtocol(chainName);

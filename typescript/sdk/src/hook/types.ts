@@ -28,9 +28,17 @@ export enum OnchainHookType {
   OP_L2_TO_L1,
   MAILBOX_DEFAULT_HOOK,
   AMOUNT_ROUTING,
+  CCTP,
+  TIMELOCK_ROUTING,
+  PREDICATE_ROUTER_WRAPPER,
 }
 
 export const HookType = {
+  /**
+   * Retained for backwards compatibility with pre-deployed hooks that don't fit
+   * a named type. Excluded from `DeployableHookType` — cannot be deployed via
+   * `HyperlaneHookDeployer`. New code should use a specific named hook type.
+   */
   CUSTOM: 'custom',
   MERKLE_TREE: 'merkleTreeHook',
   INTERCHAIN_GAS_PAYMASTER: 'interchainGasPaymaster',
@@ -44,14 +52,24 @@ export const HookType = {
   ARB_L2_TO_L1: 'arbL2ToL1Hook',
   MAILBOX_DEFAULT: 'defaultHook',
   CCIP: 'ccipHook',
+  /**
+   * References a pre-deployed CCTP hook by address. Excluded from
+   * `DeployableHookType` — not deployed via `HyperlaneHookDeployer`; the
+   * `EvmHookModule.deploy` path just connects to `config.address`.
+   */
+  CCTP: 'cctpHook',
   UNKNOWN: 'unknownHook',
+  PREDICATE: 'predicateHook',
 } as const;
 
 export type HookType = (typeof HookType)[keyof typeof HookType];
 
 export type DeployableHookType = Exclude<
   HookType,
-  typeof HookType.CUSTOM | typeof HookType.UNKNOWN
+  | typeof HookType.CUSTOM
+  | typeof HookType.PREDICATE
+  | typeof HookType.UNKNOWN
+  | typeof HookType.CCTP
 >;
 
 export const HookTypeToContractNameMap: Record<DeployableHookType, string> = {
@@ -123,6 +141,12 @@ export const ProtocolFeeSchema = OwnableSchema.extend({
 export const MerkleTreeSchema = z.object({
   type: z.literal(HookType.MERKLE_TREE),
 });
+
+export const PredicateHookSchema = z.object({
+  type: z.literal(HookType.PREDICATE),
+  address: z.string(),
+});
+export type PredicateHookConfig = z.infer<typeof PredicateHookSchema>;
 
 export const PausableHookSchema = PausableSchema.extend({
   type: z.literal(HookType.PAUSABLE),
@@ -205,6 +229,12 @@ export const CCIPHookSchema = z.object({
   destinationChain: z.string(),
 });
 
+export const CctpHookSchema = z.object({
+  type: z.literal(HookType.CCTP),
+  address: ZHash,
+});
+export type CctpHookConfig = z.infer<typeof CctpHookSchema>;
+
 export const UnknownHookSchema = z
   .object({
     type: z.literal(HookType.UNKNOWN),
@@ -267,7 +297,9 @@ export const HookConfigSchema = z.union([
   ArbL2ToL1HookSchema,
   MailboxDefaultHookSchema,
   CCIPHookSchema,
+  CctpHookSchema,
   UnknownHookSchema,
+  PredicateHookSchema,
 ]);
 
 /**

@@ -33,6 +33,7 @@ import { MultiProvider } from '@hyperlane-xyz/sdk';
 import {
   applyRpcUrlOverridesFromEnv,
   createServiceLogger,
+  isEVMLike,
   ProtocolType,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -151,12 +152,15 @@ async function main(): Promise<void> {
       Record<ProtocolType, InventorySignerConfig>
     > = {};
 
-    for (const [protocol, privateKey] of Object.entries(inventoryPrivateKeys)) {
+    for (const protocol of Object.values(ProtocolType)) {
+      const privateKey = inventoryPrivateKeys[protocol];
       if (!privateKey) continue;
 
       let derivedAddress: string;
 
-      if (protocol === ProtocolType.Ethereum) {
+      if (isEVMLike(protocol)) {
+        // Tron uses same hex private key format as Ethereum.
+        // Derive 0x-prefixed hex address via ethers Wallet (TronWallet extends Wallet).
         derivedAddress = new Wallet(privateKey).address;
       } else if (protocol === ProtocolType.Sealevel) {
         const keyBytes = parseSolanaPrivateKey(privateKey);
@@ -172,12 +176,11 @@ async function main(): Promise<void> {
 
       // Validate against config if present
       const configuredAddress =
-        rebalancerConfig.inventorySigners?.[protocol as ProtocolType]?.address;
+        rebalancerConfig.inventorySigners?.[protocol]?.address;
       if (configuredAddress) {
-        const mismatch =
-          protocol === ProtocolType.Ethereum
-            ? configuredAddress.toLowerCase() !== derivedAddress.toLowerCase()
-            : configuredAddress !== derivedAddress;
+        const mismatch = isEVMLike(protocol)
+          ? configuredAddress.toLowerCase() !== derivedAddress.toLowerCase()
+          : configuredAddress !== derivedAddress;
         if (mismatch) {
           throw new Error(
             `inventorySigners.${protocol} mismatch: config has ${configuredAddress} but HYP_INVENTORY_KEY_${protocol.toUpperCase()} derives to ${derivedAddress}`,
@@ -185,7 +188,7 @@ async function main(): Promise<void> {
         }
       }
 
-      inventorySigners[protocol as ProtocolType] = {
+      inventorySigners[protocol] = {
         address: derivedAddress,
         key: privateKey,
       };

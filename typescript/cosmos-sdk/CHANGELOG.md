@@ -1,5 +1,56 @@
 # @hyperlane-xyz/cosmos-sdk
 
+## 33.0.2
+
+### Patch Changes
+
+- b864cca: Multi-VM fee type support was added to provider-sdk and deploy-sdk. Fee types (linear, regressive, progressive, offchainQuotedLinear, routing, crossCollateralRouting) were defined with Config API and Artifact API variants. FeeReader and FeeWriter with required FeeReadContext were added to deploy-sdk. Fee was integrated into warp types and the warp writer update flow. All protocol providers received createFeeArtifactManager stubs.
+- Updated dependencies [b864cca]
+- Updated dependencies [1f918d0]
+  - @hyperlane-xyz/provider-sdk@5.1.0
+  - @hyperlane-xyz/utils@33.0.2
+  - @hyperlane-xyz/cosmos-types@33.0.2
+
+## 33.0.1
+
+### Patch Changes
+
+- @hyperlane-xyz/cosmos-types@33.0.1
+- @hyperlane-xyz/utils@33.0.1
+- @hyperlane-xyz/provider-sdk@5.0.3
+
+## 33.0.0
+
+### Patch Changes
+
+- @hyperlane-xyz/cosmos-types@33.0.0
+- @hyperlane-xyz/utils@33.0.0
+- @hyperlane-xyz/provider-sdk@5.0.2
+
+## 32.0.1
+
+### Patch Changes
+
+- @hyperlane-xyz/cosmos-types@32.0.1
+- @hyperlane-xyz/utils@32.0.1
+- @hyperlane-xyz/provider-sdk@5.0.1
+
+## 32.0.0
+
+### Major Changes
+
+- fa08f2a: IProvider and ISigner interfaces were slimmed to their minimal surface. IProvider was reduced from 53 to 22 query-only methods by removing all get\*Transaction methods. ISigner was reduced from 36 to 5 infrastructure methods by removing all action methods (createMailbox, setDefaultIsm, enrollRemoteRouter, etc.). Transaction building is now handled exclusively by artifact managers using concrete class methods or standalone helper functions.
+
+  Throwing stubs were removed from SVM, Cosmos, Radix, and Starknet provider/signer implementations. Old action-method-based e2e tests were replaced with artifact API equivalents. Cosmos routing ISM writer was fixed to handle domain route updates correctly via remove + re-add.
+
+### Patch Changes
+
+- Updated dependencies [3dc6367]
+- Updated dependencies [fa08f2a]
+  - @hyperlane-xyz/provider-sdk@5.0.0
+  - @hyperlane-xyz/cosmos-types@32.0.0
+  - @hyperlane-xyz/utils@32.0.0
+
 ## 31.2.1
 
 ### Patch Changes

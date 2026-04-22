@@ -4,6 +4,10 @@ import { type TransactionReceipt } from '@ethersproject/providers';
 import { stringify as yamlStringify } from 'yaml';
 import { type Address, type Hex } from 'viem';
 
+import {
+  CrossCollateralRouter__factory,
+  TokenRouter__factory,
+} from '@hyperlane-xyz/core';
 import { GasAction } from '@hyperlane-xyz/provider-sdk';
 import {
   type AnnotatedTx,
@@ -17,6 +21,10 @@ import {
   FeeQuotingCommand,
   HyperlaneCore,
   MultiProtocolCore,
+  MultiProtocolProvider,
+  PredicateApiClient,
+  type PredicateAttestation,
+  PredicateAttestationSchema,
   ProviderType,
   type QuotedCallsParams,
   type Token,
@@ -27,12 +35,15 @@ import {
   type WarpCoreConfig,
   WarpTxCategory,
   computeScopedSalt,
+  isPredicateCapableAdapter,
 } from '@hyperlane-xyz/sdk';
 import {
-  ProtocolType,
+  addressToByteHexString,
   addressToBytes32,
-  assert,
   isEVMLike,
+  isZeroishAddress,
+  ProtocolType,
+  assert,
   mustGet,
   objFilter,
   objMap,
@@ -109,6 +120,9 @@ export async function sendTestTransfer({
   skipWaitForDelivery,
   selfRelay,
   skipValidation,
+  predicateApiKey,
+  predicateApiUrl,
+  attestation,
   sourceToken,
   destinationToken,
   feeQuotingUrl,
@@ -123,6 +137,9 @@ export async function sendTestTransfer({
   skipWaitForDelivery: boolean;
   selfRelay?: boolean;
   skipValidation?: boolean;
+  predicateApiKey?: string;
+  predicateApiUrl?: string;
+  attestation?: string;
   sourceToken?: string;
   destinationToken?: string;
   feeQuotingUrl?: string;
@@ -186,6 +203,26 @@ export async function sendTestTransfer({
     return selfRelay && isEVMLike(multiProvider.getProtocol(chain));
   });
 
+  // Parse attestation if provided as JSON string
+  let parsedAttestation: PredicateAttestation | undefined;
+  if (attestation || predicateApiKey) {
+    if (chains.length > 2) {
+      throw new Error(
+        'Predicate attestations are not supported for multi-hop routes. ' +
+          'Provide a single origin and destination chain.',
+      );
+    }
+    if (attestation) {
+      try {
+        parsedAttestation = PredicateAttestationSchema.parse(
+          JSON.parse(attestation),
+        );
+      } catch (e) {
+        throw new Error(`Invalid attestation JSON: ${e}`);
+      }
+    }
+  }
+
   if (signerChains.length > 0) {
     await runPreflightChecksForChains({
       context,
@@ -213,6 +250,9 @@ export async function sendTestTransfer({
           skipWaitForDelivery,
           selfRelay,
           skipValidation,
+          predicateApiKey,
+          predicateApiUrl,
+          attestation: parsedAttestation,
           timeoutSec,
           sourceToken: i === 0 ? sourceToken : undefined,
           destinationToken:
@@ -237,6 +277,9 @@ async function executeDelivery({
   skipWaitForDelivery,
   selfRelay,
   skipValidation,
+  predicateApiKey,
+  predicateApiUrl,
+  attestation,
   timeoutSec,
   sourceToken: sourceTokenAddr,
   destinationToken: destTokenAddr,
@@ -252,6 +295,9 @@ async function executeDelivery({
   skipWaitForDelivery: boolean;
   selfRelay?: boolean;
   skipValidation?: boolean;
+  predicateApiKey?: string;
+  predicateApiUrl?: string;
+  attestation?: PredicateAttestation;
   timeoutSec: number;
   sourceToken?: string;
   destinationToken?: string;
@@ -286,9 +332,18 @@ async function executeDelivery({
 
   const chainAddresses = await registry.getAddresses();
 
+  // Only load core contracts for chains we're actually using (origin + destination)
+  const relevantChains = [origin, destination];
+  const filteredChainAddresses: ChainMap<Record<string, string>> =
+    Object.fromEntries(
+      Object.entries(chainAddresses).filter(([chain]) =>
+        relevantChains.includes(chain),
+      ),
+    );
+
   const mailboxes = objMap(
     objFilter(
-      chainAddresses,
+      filteredChainAddresses,
       (_, addresses): addresses is typeof addresses => !!addresses?.mailbox,
     ),
     (_, { mailbox }) => ({ mailbox }),
@@ -324,6 +379,12 @@ async function executeDelivery({
     token = found;
   }
 
+  let finalAttestation: PredicateAttestation | undefined;
+  let quote:
+    | Awaited<ReturnType<typeof warpCore.getInterchainTransferFee>>
+    | undefined;
+  let tokenAmount = token.amount(amount); // Hoist to reuse for transaction
+
   let destToken: Token | undefined;
   if (destTokenAddr) {
     const found = warpCore.findToken(destination, destTokenAddr);
@@ -332,6 +393,131 @@ async function executeDelivery({
       `Destination token ${destTokenAddr} not found on ${destination}`,
     );
     destToken = found;
+  }
+
+  // Auto-resolve destToken for cross-collateral routes when not explicitly provided.
+  // Must happen before both attestation branches so that the manual --attestation path
+  // uses transferRemoteTo (not transferRemote) and doesn't produce a calldata mismatch.
+  if (!destToken && token.isCrossCollateralToken()) {
+    const connectionsForDest = token
+      .getConnections()
+      .filter((c) => c.token.chainName === destination);
+    assert(
+      connectionsForDest.length <= 1,
+      `Multiple cross-collateral connections exist from ${token.chainName} to ${destination}. ` +
+        `Use --destination-token to specify which one.`,
+    );
+    if (connectionsForDest.length === 1) {
+      destToken =
+        warpCore.findToken(
+          destination,
+          connectionsForDest[0].token.addressOrDenom,
+        ) ?? undefined;
+    }
+  }
+
+  if (attestation) {
+    finalAttestation = attestation;
+    // Pre-compute fees so getTransferRemoteTxs uses the same msg_value the
+    // attestation was signed over rather than re-quoting at submission time.
+    quote = await warpCore.getInterchainTransferFee({
+      originTokenAmount: tokenAmount,
+      destination,
+      sender: signerAddress,
+      recipient: recipientAddress,
+      destinationToken: destToken,
+    });
+  } else if (predicateApiKey) {
+    logBlue('Fetching Predicate attestation...');
+    const predicateClient = new PredicateApiClient(
+      predicateApiKey,
+      predicateApiUrl,
+    );
+
+    const destinationDomain = multiProvider.getDomainId(destination);
+    const recipientBytes32 = addressToBytes32(
+      addressToByteHexString(recipientAddress),
+    );
+
+    const isCrossCollateral = warpCore.isCrossCollateralTransfer(
+      token,
+      destToken,
+    );
+
+    let calldata: string;
+    if (isCrossCollateral) {
+      assert(destToken, 'destToken required for cross-collateral attestation');
+      const targetRouterBytes32 = addressToBytes32(destToken.addressOrDenom);
+      calldata =
+        CrossCollateralRouter__factory.createInterface().encodeFunctionData(
+          'transferRemoteTo',
+          [
+            destinationDomain,
+            recipientBytes32,
+            tokenAmount.amount,
+            targetRouterBytes32,
+          ],
+        );
+    } else {
+      calldata = TokenRouter__factory.createInterface().encodeFunctionData(
+        'transferRemote(uint32,bytes32,uint256)',
+        [destinationDomain, recipientBytes32, tokenAmount.amount],
+      );
+    }
+
+    quote = await warpCore.getInterchainTransferFee({
+      originTokenAmount: tokenAmount,
+      destination,
+      sender: signerAddress,
+      recipient: recipientAddress,
+      destinationToken: destToken,
+    });
+
+    const hypAdapter = token.getHypAdapter(
+      MultiProtocolProvider.fromMultiProvider(multiProvider),
+      destination,
+    );
+    let predicateTarget = token.addressOrDenom;
+    if (isPredicateCapableAdapter(hypAdapter)) {
+      const wrapperAddress = await hypAdapter.getPredicateWrapperAddress();
+      if (wrapperAddress) {
+        predicateTarget = wrapperAddress;
+        log(`Using PredicateRouterWrapper address: ${wrapperAddress}`);
+      }
+    }
+
+    // Mirror adapter logic: igpQuote + tokenFeeQuote (when native denom) + token amount (when native token)
+    const tokenFeeDenom = quote.tokenFeeQuote?.token.addressOrDenom;
+    const nativeTokenFee =
+      quote.tokenFeeQuote && (!tokenFeeDenom || isZeroishAddress(tokenFeeDenom))
+        ? quote.tokenFeeQuote.amount
+        : 0n;
+    const msgValue = (
+      (token.isNative() || token.isHypNative()
+        ? BigInt(tokenAmount.amount.toString())
+        : 0n) +
+      quote.igpQuote.amount +
+      nativeTokenFee
+    ).toString();
+
+    // The Predicate API validates transfer intent, not exact on-chain calldata.
+    // `to` is the wrapper address (the contract that will execute the attestation-gated call),
+    // and `data` is the underlying transferRemote / transferRemoteTo calldata so the API
+    // can parse the destination, recipient, and amount.
+    // The actual on-chain tx will call transferRemoteWithAttestation on the wrapper,
+    // but the API does not need to match the wrapping layer — only the transfer intent.
+    const attestationRequest = {
+      to: predicateTarget,
+      from: signerAddress,
+      data: calldata,
+      msg_value: msgValue,
+      chain: origin,
+    };
+
+    const response = await predicateClient.fetchAttestation(attestationRequest);
+
+    finalAttestation = response.attestation;
+    logGreen('Predicate attestation obtained successfully');
   }
 
   const isCosmosOrigin =
@@ -351,10 +537,11 @@ async function executeDelivery({
 
   if (!shouldSkipTransferValidation) {
     const errors = await warpCore.validateTransfer({
-      originTokenAmount: token.amount(amount),
+      originTokenAmount: tokenAmount,
       destination,
       recipient: recipientAddress,
       sender: signerAddress,
+      attestation: finalAttestation,
       destinationToken: destToken,
     });
     if (errors) {
@@ -422,11 +609,24 @@ async function executeDelivery({
     quotedCalls.feeQuotes = feeQuotes;
   }
 
+  if (finalAttestation && quotedCalls) {
+    throw new Error(
+      'Predicate attestation (--attestation / --predicate-api-key) and fee quoting (--fee-quoting-url) cannot be used together. ' +
+        'The QuotedCalls path does not support attestation-gated transfers.',
+    );
+  }
+
   // TODO: override hook address for self-relay
   const transferTxs = await warpCore.getTransferRemoteTxs({
-    originTokenAmount: new TokenAmount(amount, token),
+    originTokenAmount: tokenAmount, // Use same tokenAmount as attestation
     destination,
     sender: signerAddress,
+    attestation: finalAttestation,
+    // Always pin the pre-computed fees when available so WarpCore doesn't re-quote.
+    // tokenFeeQuote is intentionally omitted when undefined (valid for routes with no
+    // token fee) — passing undefined would wrongly trigger a re-fetch in WarpCore.
+    ...(quote && { interchainFee: quote.igpQuote }),
+    ...(quote?.tokenFeeQuote && { tokenFeeQuote: quote.tokenFeeQuote }),
     recipient: recipientAddress,
     destinationToken: destToken,
     quotedCalls,
@@ -457,7 +657,14 @@ async function executeDelivery({
           `Expected AnnotatedTx for non-EVM transfer execution, got ${typeof tx.transaction}`,
         );
       }
-      const txReceipt = await signer.sendAndConfirmTransaction(tx.transaction);
+      // For Solana, forward extraSigners so the signer can convert
+      // legacy @solana/web3.js Transactions to @solana/kit format.
+      // TODO: remove once SDK adapters return @solana/kit-native transactions
+      const transaction =
+        tx.type === ProviderType.SolanaWeb3 && tx.extraSigners
+          ? { ...tx.transaction, extraSigners: tx.extraSigners }
+          : tx.transaction;
+      const txReceipt = await signer.sendAndConfirmTransaction(transaction);
       const typedReceipt = toTypedAltVmReceipt(tx.type, txReceipt);
       txReceipts.push(typedReceipt);
       if (tx.category === WarpTxCategory.Transfer) {
