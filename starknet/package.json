@@ -25,6 +25,7 @@
     "fetch-contracts": "./scripts/fetch-contracts-release.sh",
     "generate-artifacts": "tsx ./scripts/generate-artifacts.ts",
     "build": "tsc && pnpm fetch-contracts && pnpm generate-artifacts",
+    "build:ts7": "tsgo && pnpm fetch-contracts && pnpm generate-artifacts",
     "clean": "rm -rf ./dist ./release",
     "lint": "oxlint -c ../oxlint.json",
     "format": "oxfmt --write ./src"

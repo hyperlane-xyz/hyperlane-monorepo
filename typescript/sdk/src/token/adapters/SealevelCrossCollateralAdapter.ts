@@ -503,12 +503,14 @@ export class SealevelHypCrossCollateralAdapter
       await this.getProvider().getLatestBlockhash('finalized')
     ).blockhash;
 
-    // @ts-expect-error Workaround for bug in the web3 lib, sometimes uses recentBlockhash and sometimes uses blockhash
-    const tx = new Transaction({
+    // Workaround for bug in the web3 lib, sometimes uses recentBlockhash and sometimes uses blockhash.
+    // Using an intermediate variable bypasses excess-property checks in both tsc 6 and tsgo 7.
+    const txOpts = {
       feePayer: sender,
       blockhash: recentBlockhash,
       recentBlockhash,
-    })
+    };
+    const tx = new Transaction(txOpts)
       .add(setComputeLimitInstruction)
       .add(setPriorityFeeInstruction)
       .add(transferInstruction);

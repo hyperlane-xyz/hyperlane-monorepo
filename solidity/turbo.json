@@ -14,6 +14,24 @@
         "dist/**",
         "types/**"
       ]
+    },
+    "build:ts7": {
+      "dependsOn": ["deps:soldeer"],
+      "outputs": [
+        "artifacts/**",
+        "cache/**",
+        "core-utils/**",
+        "dist/**",
+        "types/**"
+      ]
+    },
+    "build:tron": {
+      "dependsOn": ["deps:soldeer"],
+      "outputs": [
+        "cache-tron/**",
+        "artifacts-tron/**",
+        "dist/tron/typechain/**"
+      ]
     }
   }
 }
