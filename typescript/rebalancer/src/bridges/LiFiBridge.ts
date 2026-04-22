@@ -14,7 +14,12 @@ import {
 } from '@lifi/sdk';
 import bs58 from 'bs58';
 import type { ChainMetadata } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert, ensure0x } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  assert,
+  ensure0x,
+  isEVMLike,
+} from '@hyperlane-xyz/utils';
 import type { Logger } from 'pino';
 import { type Chain, createWalletClient, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
@@ -142,12 +147,8 @@ export class LiFiBridge implements IExternalBridge {
       const metadataByDomainId = new Map<number, ChainMetadata>();
       for (const metadata of Object.values(config.chainMetadata)) {
         metadataByDomainId.set(metadata.domainId, metadata);
-        if (metadata.chainId !== undefined) {
-          if (metadata.protocol === ProtocolType.Ethereum) {
-            this.chainMetadataByChainId.set(Number(metadata.chainId), metadata);
-          } else {
-            this.chainMetadataByChainId.set(metadata.domainId, metadata);
-          }
+        if (metadata.chainId !== undefined && isEVMLike(metadata.protocol)) {
+          this.chainMetadataByChainId.set(Number(metadata.chainId), metadata);
         }
       }
       // Also key by LiFi chain IDs so both Hyperlane domains and LiFi IDs
@@ -187,11 +188,24 @@ export class LiFiBridge implements IExternalBridge {
    * Iterates metadata to find matching chainId and returns first HTTP RPC URL.
    */
   private getRpcUrlForChainId(chainId: number): string | undefined {
-    return this.chainMetadataByChainId.get(chainId)?.rpcUrls?.[0]?.http;
+    return this.getMetadataForChainId(chainId)?.rpcUrls?.[0]?.http;
   }
 
   private getProtocolTypeForChainId(chainId: number): ProtocolType | undefined {
-    return this.chainMetadataByChainId.get(chainId)?.protocol;
+    return this.getMetadataForChainId(chainId)?.protocol;
+  }
+
+  private getMetadataForChainId(chainId: number): ChainMetadata | undefined {
+    const directMetadata = this.chainMetadataByChainId.get(chainId);
+    if (directMetadata) {
+      return directMetadata;
+    }
+
+    const matches = Object.values(this.config.chainMetadata ?? {}).filter(
+      (metadata) =>
+        metadata.chainId !== undefined && Number(metadata.chainId) === chainId,
+    );
+    return matches.length === 1 ? matches[0] : undefined;
   }
 
   private addressesEqual(a: string, b: string, chainId: number): boolean {
