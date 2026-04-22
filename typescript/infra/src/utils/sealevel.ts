@@ -31,7 +31,7 @@ import { rootLogger } from '@hyperlane-xyz/utils';
 import { readJson } from '@hyperlane-xyz/utils/fs';
 
 import { Contexts } from '../../config/contexts.js';
-import { DeployEnvironment } from '../config/environment.js';
+import { DeployEnvironment } from '../config/deploy-environment.js';
 
 import { getValidatorAlias } from './consts.js';
 import { getMonorepoRoot } from './utils.js';

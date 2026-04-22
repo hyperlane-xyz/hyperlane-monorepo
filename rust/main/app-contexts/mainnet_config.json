@@ -43551,6 +43551,31 @@
       ]
     },
     {
+      "name": "BLEND/fluent",
+      "matchingList": [
+        {
+          "originDomain": 25363,
+          "senderAddress": [
+            "0x0000000000000000000000002bef59e84615371304bd731601f6344f5f304504"
+          ],
+          "destinationDomain": 1399811149,
+          "recipientAddress": [
+            "0x372ea14e648cbfe4980d66453fee74911a98b11a510f7208ce14fbbd2858633d"
+          ]
+        },
+        {
+          "originDomain": 1399811149,
+          "senderAddress": [
+            "0x372ea14e648cbfe4980d66453fee74911a98b11a510f7208ce14fbbd2858633d"
+          ],
+          "destinationDomain": 25363,
+          "recipientAddress": [
+            "0x0000000000000000000000002bef59e84615371304bd731601f6344f5f304504"
+          ]
+        }
+      ]
+    },
+    {
       "name": "merkly_erc20",
       "matchingList": [
         {
