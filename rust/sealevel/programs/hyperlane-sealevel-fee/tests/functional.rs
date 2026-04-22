@@ -210,7 +210,6 @@ fn default_leaf_fee_data() -> FeeData {
 fn build_init_fee_ix(
     payer: &Pubkey,
     salt: H256,
-    owner: Option<Pubkey>,
     beneficiary: Pubkey,
     fee_data: FeeData,
 ) -> (Instruction, Pubkey) {
@@ -220,7 +219,6 @@ fn build_init_fee_ix(
         program_id,
         *payer,
         salt,
-        owner,
         beneficiary,
         fee_data,
         LOCAL_DOMAIN,
@@ -233,11 +231,10 @@ async fn init_fee_account(
     banks_client: &mut BanksClient,
     payer: &Keypair,
     salt: H256,
-    owner: Option<Pubkey>,
     beneficiary: Pubkey,
     fee_data: FeeData,
 ) -> Pubkey {
-    let (ix, fee_account) = build_init_fee_ix(&payer.pubkey(), salt, owner, beneficiary, fee_data);
+    let (ix, fee_account) = build_init_fee_ix(&payer.pubkey(), salt, beneficiary, fee_data);
     process_tx(banks_client, payer, ix, &[]).await.unwrap();
     fee_account
 }
@@ -700,7 +697,6 @@ mod init_fee {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             beneficiary,
             fee_data.clone(),
         )
@@ -723,7 +719,6 @@ mod init_fee {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
                 wildcard_signers: BTreeSet::new(),
@@ -747,7 +742,6 @@ mod init_fee {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
                 wildcard_signers: BTreeSet::new(),
@@ -765,20 +759,19 @@ mod init_fee {
     }
 
     #[tokio::test]
-    async fn test_no_owner() {
+    async fn test_owner_is_signer() {
         let (mut banks_client, payer) = setup_client().await;
         let key = init_fee_account(
             &mut banks_client,
             &payer,
             default_salt(),
-            None,
             payer.pubkey(),
             default_leaf_fee_data(),
         )
         .await;
 
         let acct = fetch_fee_account(&mut banks_client, key).await;
-        assert_eq!(acct.owner, None);
+        assert_eq!(acct.owner, Some(payer.pubkey()));
     }
 
     #[tokio::test]
@@ -788,7 +781,6 @@ mod init_fee {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             default_leaf_fee_data(),
         )
@@ -801,7 +793,6 @@ mod init_fee {
         let (ix, _) = build_init_fee_ix(
             &payer2.pubkey(),
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             default_leaf_fee_data(),
         );
@@ -833,7 +824,6 @@ mod set_beneficiary {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             default_leaf_fee_data(),
         )
@@ -856,7 +846,6 @@ mod set_beneficiary {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             default_leaf_fee_data(),
         )
@@ -895,7 +884,6 @@ mod transfer_ownership {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             default_leaf_fee_data(),
         )
@@ -918,7 +906,6 @@ mod transfer_ownership {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             default_leaf_fee_data(),
         )
@@ -937,16 +924,20 @@ mod transfer_ownership {
     async fn test_immutable_account_rejects_admin_ops() {
         let (mut banks_client, payer) = setup_client().await;
 
-        // Init with owner=None (immutable from the start).
         let fee_key = init_fee_account(
             &mut banks_client,
             &payer,
             default_salt(),
-            None,
             payer.pubkey(),
             default_leaf_fee_data(),
         )
         .await;
+
+        // Renounce ownership to make the account immutable.
+        let ix = build_ix(&fee_key, &payer.pubkey(), None);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
 
         // SetBeneficiary should fail — no owner.
         let ix = Instruction::new_with_borsh(
@@ -1008,7 +999,6 @@ mod update_fee_params {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             default_leaf_fee_data(),
         )
@@ -1037,7 +1027,6 @@ mod update_fee_params {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Leaf(LeafFeeConfig {
                 strategy: FeeDataStrategy::Progressive(FeeParams {
@@ -1077,7 +1066,6 @@ mod update_fee_params {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
                 wildcard_signers: BTreeSet::new(),
@@ -1114,7 +1102,6 @@ mod set_route {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
                 wildcard_signers: BTreeSet::new(),
@@ -1143,7 +1130,6 @@ mod set_route {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
                 wildcard_signers: BTreeSet::new(),
@@ -1181,7 +1167,6 @@ mod set_route {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             default_leaf_fee_data(),
         )
@@ -1213,7 +1198,6 @@ mod set_route {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
                 wildcard_signers: BTreeSet::new(),
@@ -1247,7 +1231,6 @@ mod set_route {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
                 wildcard_signers: BTreeSet::new(),
@@ -1281,7 +1264,6 @@ mod set_route {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
                 wildcard_signers: BTreeSet::new(),
@@ -1325,7 +1307,6 @@ mod remove_route {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
                 wildcard_signers: BTreeSet::new(),
@@ -1366,7 +1347,6 @@ mod remove_route {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
                 wildcard_signers: BTreeSet::new(),
@@ -1392,7 +1372,6 @@ mod remove_route {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
                 wildcard_signers: BTreeSet::new(),
@@ -1439,7 +1418,6 @@ mod remove_route {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
                 wildcard_signers: BTreeSet::new(),
@@ -1488,7 +1466,6 @@ mod set_cc_route {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
                 wildcard_signers: BTreeSet::new(),
@@ -1528,7 +1505,6 @@ mod set_cc_route {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
                 wildcard_signers: BTreeSet::new(),
@@ -1577,7 +1553,6 @@ mod set_cc_route {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
                 wildcard_signers: BTreeSet::new(),
@@ -1641,7 +1616,6 @@ mod set_cc_route {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
                 wildcard_signers: BTreeSet::new(),
@@ -1676,7 +1650,6 @@ mod set_cc_route {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
                 wildcard_signers: BTreeSet::new(),
@@ -1711,7 +1684,6 @@ mod set_cc_route {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
                 wildcard_signers: BTreeSet::new(),
@@ -1750,7 +1722,6 @@ mod remove_cc_route {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
                 wildcard_signers: BTreeSet::new(),
@@ -1793,7 +1764,6 @@ mod remove_cc_route {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
                 wildcard_signers: BTreeSet::new(),
@@ -1823,7 +1793,6 @@ mod quote_fee {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Leaf(LeafFeeConfig {
                 strategy: FeeDataStrategy::Linear(FeeParams {
@@ -1854,7 +1823,6 @@ mod quote_fee {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Leaf(LeafFeeConfig {
                 strategy: FeeDataStrategy::Regressive(FeeParams {
@@ -1879,7 +1847,6 @@ mod quote_fee {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Leaf(LeafFeeConfig {
                 strategy: FeeDataStrategy::Progressive(FeeParams {
@@ -1904,7 +1871,6 @@ mod quote_fee {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
                 wildcard_signers: BTreeSet::new(),
@@ -1941,7 +1907,6 @@ mod quote_fee {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
                 wildcard_signers: BTreeSet::new(),
@@ -1968,7 +1933,6 @@ mod quote_fee {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
                 wildcard_signers: BTreeSet::new(),
@@ -2008,7 +1972,6 @@ mod quote_fee {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
                 wildcard_signers: BTreeSet::new(),
@@ -2049,7 +2012,6 @@ mod quote_fee {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
                 wildcard_signers: BTreeSet::new(),
@@ -2084,7 +2046,6 @@ mod quote_fee {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
                 wildcard_signers: BTreeSet::new(),
@@ -2131,7 +2092,6 @@ mod quote_fee {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
                 wildcard_signers: BTreeSet::new(),
@@ -2195,7 +2155,6 @@ mod add_quote_signer {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             default_leaf_fee_data(),
         )
@@ -2219,7 +2178,6 @@ mod add_quote_signer {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             default_leaf_fee_data(),
         )
@@ -2251,7 +2209,6 @@ mod add_quote_signer {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             default_leaf_fee_data(),
         )
@@ -2279,7 +2236,6 @@ mod add_quote_signer {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             default_leaf_fee_data(),
         )
@@ -2307,7 +2263,6 @@ mod remove_quote_signer {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             default_leaf_fee_data(),
         )
@@ -2336,7 +2291,6 @@ mod remove_quote_signer {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             default_leaf_fee_data(),
         )
@@ -2359,7 +2313,6 @@ mod remove_quote_signer {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             default_leaf_fee_data(),
         )
@@ -2387,7 +2340,6 @@ mod set_min_issued_at {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             default_leaf_fee_data(),
         )
@@ -2409,7 +2361,6 @@ mod set_min_issued_at {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             default_leaf_fee_data(),
         )
@@ -2454,7 +2405,6 @@ mod set_min_issued_at {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             default_leaf_fee_data(),
         )
@@ -2496,7 +2446,6 @@ mod set_wildcard_quote_signers {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
                 wildcard_signers: BTreeSet::new(),
@@ -2525,7 +2474,6 @@ mod set_wildcard_quote_signers {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
                 wildcard_signers: BTreeSet::new(),
@@ -2556,7 +2504,6 @@ mod set_wildcard_quote_signers {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             default_leaf_fee_data(),
         )
@@ -2580,7 +2527,6 @@ mod set_wildcard_quote_signers {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
                 wildcard_signers: BTreeSet::new(),
@@ -2608,7 +2554,6 @@ mod set_wildcard_quote_signers {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
                 wildcard_signers: signers,

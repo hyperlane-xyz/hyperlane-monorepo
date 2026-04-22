@@ -27,7 +27,6 @@ mod submit_standing_quote {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             default_leaf_fee_data(),
         )
@@ -85,7 +84,6 @@ mod submit_standing_quote {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             default_leaf_fee_data(),
         )
@@ -152,7 +150,6 @@ mod submit_standing_quote {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             default_leaf_fee_data(),
         )
@@ -215,7 +212,6 @@ mod submit_standing_quote {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             default_leaf_fee_data(),
         )
@@ -279,7 +275,6 @@ mod submit_standing_quote {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             default_leaf_fee_data(),
         )
@@ -328,7 +323,6 @@ mod submit_standing_quote {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             default_leaf_fee_data(),
         )
@@ -393,7 +387,6 @@ mod submit_standing_quote {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             default_leaf_fee_data(),
         )
@@ -450,7 +443,6 @@ mod submit_standing_quote {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             default_leaf_fee_data(),
         )
@@ -499,7 +491,6 @@ mod submit_standing_quote {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             default_leaf_fee_data(),
         )
@@ -555,7 +546,6 @@ mod submit_standing_quote {
             &mut banks_client,
             &payer,
             H256::zero(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
                 wildcard_signers: BTreeSet::new(),
@@ -566,7 +556,6 @@ mod submit_standing_quote {
             &mut banks_client,
             &payer,
             H256::repeat_byte(1),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
                 wildcard_signers: BTreeSet::new(),
@@ -654,7 +643,6 @@ mod submit_standing_quote {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig { wildcard_signers }),
         )
@@ -720,7 +708,6 @@ mod submit_standing_quote {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig { wildcard_signers }),
         )
@@ -787,7 +774,6 @@ mod submit_standing_quote {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
                 wildcard_signers: BTreeSet::new(),
@@ -870,7 +856,6 @@ mod quote_fee_standing {
             banks_client,
             payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Leaf(LeafFeeConfig {
                 strategy: FeeDataStrategy::Linear(FeeParams {
@@ -935,7 +920,6 @@ mod quote_fee_standing {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Leaf(LeafFeeConfig {
                 strategy: FeeDataStrategy::Linear(FeeParams {
@@ -990,7 +974,6 @@ mod quote_fee_standing {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Leaf(LeafFeeConfig {
                 strategy: FeeDataStrategy::Linear(FeeParams {
@@ -1113,7 +1096,6 @@ mod quote_fee_standing {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Leaf(LeafFeeConfig {
                 strategy: FeeDataStrategy::Linear(FeeParams {
@@ -1165,7 +1147,6 @@ mod quote_fee_standing {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Leaf(LeafFeeConfig {
                 strategy: FeeDataStrategy::Linear(FeeParams {
@@ -1235,7 +1216,6 @@ mod quote_fee_standing {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Leaf(LeafFeeConfig {
                 strategy: FeeDataStrategy::Linear(FeeParams {
@@ -1346,7 +1326,6 @@ mod quote_fee_standing {
             &mut banks_client,
             &payer,
             salt_a,
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Leaf(LeafFeeConfig {
                 strategy: FeeDataStrategy::Linear(FeeParams {
@@ -1369,7 +1348,6 @@ mod quote_fee_standing {
             &mut banks_client,
             &payer,
             salt_b,
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Leaf(LeafFeeConfig {
                 strategy: FeeDataStrategy::Linear(FeeParams {
@@ -1440,7 +1418,6 @@ mod quote_fee_standing {
             &mut banks_client,
             &payer,
             H256::zero(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
                 wildcard_signers: BTreeSet::new(),
@@ -1451,7 +1428,6 @@ mod quote_fee_standing {
             &mut banks_client,
             &payer,
             H256::repeat_byte(1),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
                 wildcard_signers: BTreeSet::new(),
@@ -1520,7 +1496,6 @@ mod quote_fee_standing {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Routing(RoutingFeeConfig {
                 wildcard_signers: BTreeSet::new(),
@@ -1604,7 +1579,6 @@ mod quote_fee_standing {
             banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::Leaf(LeafFeeConfig {
                 strategy: FeeDataStrategy::Linear(FeeParams {
@@ -1710,7 +1684,6 @@ mod close_transient_quote {
             banks_client,
             payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             default_leaf_fee_data(),
         )
@@ -1825,7 +1798,6 @@ mod prune_expired_quotes {
             banks_client,
             payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             default_leaf_fee_data(),
         )
@@ -1986,7 +1958,6 @@ mod prune_expired_quotes {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             default_leaf_fee_data(),
         )
@@ -2099,7 +2070,6 @@ mod prune_expired_quotes {
             &mut banks_client,
             &payer,
             H256::random(), // different salt
-            Some(payer.pubkey()),
             payer.pubkey(),
             FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
                 wildcard_signers: BTreeSet::new(),
@@ -2147,7 +2117,6 @@ mod prune_expired_quotes {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             default_leaf_fee_data(),
         )
@@ -2219,7 +2188,6 @@ mod prune_expired_quotes {
             &mut banks_client,
             &payer,
             default_salt(),
-            Some(payer.pubkey()),
             payer.pubkey(),
             default_leaf_fee_data(),
         )

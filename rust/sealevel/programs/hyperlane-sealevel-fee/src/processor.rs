@@ -152,7 +152,7 @@ fn process_init_fee(program_id: &Pubkey, accounts: &[AccountInfo], data: InitFee
     let fee_account = FeeAccountData::new(
         FeeAccount {
             bump_seed: fee_account_bump,
-            owner: data.owner,
+            owner: Some(*payer_info.key),
             beneficiary: data.beneficiary,
             fee_data: data.fee_data,
             domain_id: data.domain_id,

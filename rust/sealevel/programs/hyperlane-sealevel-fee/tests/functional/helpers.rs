@@ -50,7 +50,6 @@ async fn test_leaf_no_transient() {
         &mut banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         default_leaf_fee_data(),
     )
@@ -93,7 +92,6 @@ async fn test_leaf_with_transient() {
         &mut banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         default_leaf_fee_data(),
     )
@@ -138,7 +136,6 @@ async fn test_routing() {
         &mut banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         FeeData::Routing(RoutingFeeConfig {
             wildcard_signers: BTreeSet::new(),
@@ -176,7 +173,6 @@ async fn test_cc_routing() {
         &mut banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
             wildcard_signers: BTreeSet::new(),
@@ -224,7 +220,6 @@ async fn test_cc_routing_with_transient() {
         &mut banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
             wildcard_signers: BTreeSet::new(),
@@ -284,7 +279,6 @@ async fn test_get_quote_account_metas_scoped_salt_same_tx_expectation() {
         &mut banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         default_leaf_fee_data(),
     )
@@ -357,7 +351,6 @@ async fn test_leaf_transient() {
         &mut banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         default_leaf_fee_data(),
     )
@@ -389,7 +382,6 @@ async fn test_leaf_standing() {
         &mut banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         default_leaf_fee_data(),
     )
@@ -412,7 +404,6 @@ async fn test_routing_transient() {
         &mut banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         FeeData::Routing(RoutingFeeConfig {
             wildcard_signers: BTreeSet::new(),
@@ -459,7 +450,6 @@ async fn test_cc_standing() {
         &mut banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
             wildcard_signers: BTreeSet::new(),

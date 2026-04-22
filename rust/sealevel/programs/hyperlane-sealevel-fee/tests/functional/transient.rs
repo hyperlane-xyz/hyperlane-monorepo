@@ -10,7 +10,6 @@ async fn test_submit_transient_quote() {
         &mut banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         default_leaf_fee_data(),
     )
@@ -64,7 +63,6 @@ async fn test_invalid_signature_fails() {
         &mut banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         default_leaf_fee_data(),
     )
@@ -108,7 +106,6 @@ async fn test_no_signers_fails() {
         &mut banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         default_leaf_fee_data(),
     )
@@ -147,7 +144,6 @@ async fn test_expiry_before_issued_at_fails() {
         &mut banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         default_leaf_fee_data(),
     )
@@ -189,7 +185,6 @@ async fn test_extraneous_account_rejected() {
         &mut banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         default_leaf_fee_data(),
     )
@@ -248,7 +243,6 @@ async fn test_expired_quote_rejected() {
         &mut banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         default_leaf_fee_data(),
     )
@@ -292,7 +286,6 @@ async fn test_zero_fee_params_transient_quote() {
         &mut banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         default_leaf_fee_data(),
     )
@@ -331,7 +324,6 @@ async fn test_double_submit_same_salt_fails() {
         &mut banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         default_leaf_fee_data(),
     )
@@ -383,7 +375,6 @@ async fn test_transient_issued_at_too_far_in_future_rejected() {
         &mut banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         default_leaf_fee_data(),
     )
@@ -428,7 +419,6 @@ async fn test_standing_issued_at_too_far_in_future_rejected() {
         &mut banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         default_leaf_fee_data(),
     )
@@ -503,7 +493,6 @@ async fn test_transient_quote_consumed_and_autoclosed() {
         &mut banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         FeeData::Leaf(LeafFeeConfig {
             strategy: FeeDataStrategy::Linear(FeeParams {
@@ -597,7 +586,6 @@ async fn test_context_mismatch_different_amount() {
         &mut banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         default_leaf_fee_data(),
     )
@@ -665,7 +653,6 @@ async fn test_context_mismatch_different_destination() {
         &mut banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         default_leaf_fee_data(),
     )
@@ -730,7 +717,6 @@ async fn test_context_mismatch_different_recipient() {
         &mut banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         default_leaf_fee_data(),
     )
@@ -795,7 +781,6 @@ async fn test_zero_fee_params_consumed() {
         &mut banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         FeeData::Leaf(LeafFeeConfig {
             strategy: FeeDataStrategy::Linear(FeeParams {
@@ -884,7 +869,6 @@ async fn test_transient_on_routing_account_works() {
         &mut banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         FeeData::Routing(RoutingFeeConfig {
             wildcard_signers: BTreeSet::new(),
@@ -997,7 +981,6 @@ async fn test_transient_on_cc_account_works() {
         &mut banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
             wildcard_signers: BTreeSet::new(),
@@ -1128,7 +1111,6 @@ async fn test_cc_context_wrong_target_router_fails() {
         &mut banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
             wildcard_signers: BTreeSet::new(),
@@ -1257,7 +1239,6 @@ async fn test_payer_mismatch_fails() {
         &mut banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         default_leaf_fee_data(),
     )
@@ -1346,7 +1327,6 @@ async fn test_routed_wildcard_transient_rejected() {
         &mut banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         FeeData::Routing(RoutingFeeConfig { wildcard_signers }),
     )

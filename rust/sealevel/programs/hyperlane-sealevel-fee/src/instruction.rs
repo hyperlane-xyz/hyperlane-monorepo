@@ -130,8 +130,6 @@ pub enum RouteKey {
 pub struct InitFee {
     /// Salt for PDA derivation. Allows multiple fee accounts per program.
     pub salt: H256,
-    /// Owner who can modify the fee account. None = immutable.
-    pub owner: Option<Pubkey>,
     /// Beneficiary who receives collected token fees.
     pub beneficiary: Pubkey,
     /// Fee resolution strategy with variant-specific signer configuration.
@@ -221,7 +219,6 @@ pub fn init_fee_instruction(
     program_id: Pubkey,
     payer: Pubkey,
     salt: H256,
-    owner: Option<Pubkey>,
     beneficiary: Pubkey,
     fee_data: FeeData,
     domain_id: u32,
@@ -232,7 +229,6 @@ pub fn init_fee_instruction(
 
     let ixn = Instruction::InitFee(InitFee {
         salt,
-        owner,
         beneficiary,
         fee_data,
         domain_id,

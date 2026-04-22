@@ -24,7 +24,6 @@ async fn test_cc_standing_creates_route_bound_pda() {
         &mut banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
             wildcard_signers: BTreeSet::new(),
@@ -109,7 +108,6 @@ async fn test_two_routers_get_separate_pdas() {
         &mut banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
             wildcard_signers: BTreeSet::new(),
@@ -240,7 +238,6 @@ async fn test_cc_standing_zero_target_router_rejected() {
         &mut banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
             wildcard_signers: BTreeSet::new(),
@@ -320,7 +317,6 @@ async fn test_cc_standing_default_router_rejected() {
         &mut banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
             wildcard_signers: BTreeSet::new(),
@@ -407,7 +403,6 @@ async fn test_cc_submit_spoofed_specific_route_pda_rejected() {
         &mut banks_client,
         &payer,
         H256::zero(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
             wildcard_signers: BTreeSet::new(),
@@ -418,7 +413,6 @@ async fn test_cc_submit_spoofed_specific_route_pda_rejected() {
         &mut banks_client,
         &payer,
         H256::repeat_byte(1),
-        Some(payer.pubkey()),
         payer.pubkey(),
         FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
             wildcard_signers: BTreeSet::new(),
@@ -515,7 +509,6 @@ async fn test_cc_submit_spoofed_default_route_pda_rejected() {
         &mut banks_client,
         &payer,
         H256::zero(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
             wildcard_signers: BTreeSet::new(),
@@ -526,7 +519,6 @@ async fn test_cc_submit_spoofed_default_route_pda_rejected() {
         &mut banks_client,
         &payer,
         H256::repeat_byte(1),
-        Some(payer.pubkey()),
         payer.pubkey(),
         FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
             wildcard_signers: BTreeSet::new(),
@@ -622,7 +614,6 @@ async fn test_cc_exact_does_not_fallback_to_default_when_specific_exists_without
         &mut banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
             wildcard_signers: BTreeSet::new(),
@@ -722,7 +713,6 @@ async fn test_cc_default_authorized_standing_quote_invalidated_by_later_specific
         &mut banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
             wildcard_signers: BTreeSet::new(),
@@ -857,7 +847,6 @@ async fn test_cc_wildcard_submit_with_extra_route_pda_rejected() {
         &mut banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
             wildcard_signers: BTreeSet::new(),
@@ -946,7 +935,6 @@ async fn test_cc_prune_does_not_remove_domain_from_tracking() {
         banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
             wildcard_signers: BTreeSet::new(),
@@ -1096,7 +1084,6 @@ async fn test_cc_standing_quote_consumed_in_quote_fee() {
         &mut banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
             wildcard_signers: BTreeSet::new(),
@@ -1195,7 +1182,6 @@ async fn test_cc_quote_fee_uses_router_bound_standing_pda() {
         &mut banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
             wildcard_signers: BTreeSet::new(),
@@ -1339,7 +1325,6 @@ async fn test_cc_quote_fee_wildcard_domain_fallback_is_router_scoped() {
         &mut banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
             wildcard_signers: wildcard_signers,
@@ -1429,7 +1414,6 @@ async fn test_cc_quote_fee_exact_recipient_beats_wildcard_recipient() {
         &mut banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
             wildcard_signers: BTreeSet::new(),
@@ -1561,7 +1545,6 @@ async fn test_cc_prune_one_router_preserves_other_router_quote() {
         banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
             wildcard_signers: BTreeSet::new(),
@@ -1718,7 +1701,6 @@ async fn test_transient_pda_spoof_rejected() {
         &mut banks_client,
         &payer,
         salt_a,
-        Some(payer.pubkey()),
         payer.pubkey(),
         default_leaf_fee_data(),
     )
@@ -1733,7 +1715,6 @@ async fn test_transient_pda_spoof_rejected() {
         &mut banks_client,
         &payer,
         salt_b,
-        Some(payer.pubkey()),
         payer.pubkey(),
         default_leaf_fee_data(),
     )
@@ -1837,7 +1818,6 @@ async fn test_standing_pda_recreated_after_prune() {
         banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         default_leaf_fee_data(),
     )
@@ -1919,7 +1899,6 @@ async fn test_cc_route_recreated_after_remove() {
         &mut banks_client,
         &payer,
         default_salt(),
-        Some(payer.pubkey()),
         payer.pubkey(),
         FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
             wildcard_signers: BTreeSet::new(),
