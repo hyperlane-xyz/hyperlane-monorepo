@@ -1,4 +1,3 @@
-use eyre::eyre;
 use hyperlane_core::{HyperlaneMessage, Indexer, H256, H512};
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tracing::{debug, error, warn};
