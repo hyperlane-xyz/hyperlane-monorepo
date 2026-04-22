@@ -296,23 +296,18 @@ impl SizedData for CrossCollateralRoute {
 // --- Quote validation trait ---
 
 /// Common validation for quote values.
-/// Checks optional issued_at freshness and expiry.
+/// Checks issued_at freshness and expiry.
 pub trait ValidatableQuote {
     /// Expiry timestamp (unix).
     fn expiry(&self) -> i64;
 
-    /// Issued-at timestamp. Standing quotes return Some, transient quotes return None.
-    fn issued_at(&self) -> Option<i64> {
-        None
-    }
+    /// Issued-at timestamp (unix).
+    fn issued_at(&self) -> i64;
 
     /// Validates that the quote is still usable given the clock and min_issued_at threshold.
     /// Returns an error describing the first failed check.
     fn validate_quote(&self, min_issued_at: i64, clock: &Clock) -> Result<(), ProgramError> {
-        if self
-            .issued_at()
-            .is_some_and(|issued_at| issued_at < min_issued_at)
-        {
+        if self.issued_at() < min_issued_at {
             return Err(crate::error::Error::StaleStandingQuote.into());
         }
 
@@ -365,6 +360,11 @@ impl SizedData for TransientQuote {
 
 impl ValidatableQuote for TransientQuote {
     fn expiry(&self) -> i64 {
+        self.expiry
+    }
+
+    fn issued_at(&self) -> i64 {
+        // Transient quotes have expiry == issued_at by construction.
         self.expiry
     }
 }
@@ -588,8 +588,8 @@ impl ValidatableQuote for FeeStandingQuoteValue {
         self.expiry
     }
 
-    fn issued_at(&self) -> Option<i64> {
-        Some(self.issued_at)
+    fn issued_at(&self) -> i64 {
+        self.issued_at
     }
 }
 

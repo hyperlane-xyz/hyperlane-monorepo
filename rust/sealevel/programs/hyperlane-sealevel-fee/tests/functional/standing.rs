@@ -846,7 +846,7 @@ mod submit_standing_quote {
             result,
             TransactionError::InstructionError(
                 0,
-                InstructionError::Custom(FeeError::InvalidQuoteSignature as u32),
+                InstructionError::Custom(FeeError::UnauthorizedQuoteSigner as u32),
             ),
         );
     }

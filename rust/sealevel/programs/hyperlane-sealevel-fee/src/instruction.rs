@@ -694,6 +694,7 @@ pub fn submit_transient_quote_instruction(
 /// For Routing/CC fee accounts, pass `route_pdas` with the route PDA(s) for signer lookup.
 /// For Leaf, pass an empty slice.
 /// `fee_account_writable`: true for Leaf/Routing (updates standing_quote_domains), false for CC.
+#[allow(clippy::too_many_arguments)]
 pub fn submit_standing_quote_instruction(
     program_id: Pubkey,
     payer: Pubkey,

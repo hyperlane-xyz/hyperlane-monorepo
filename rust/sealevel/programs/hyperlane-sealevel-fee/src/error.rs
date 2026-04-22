@@ -75,6 +75,15 @@ pub enum Error {
     /// SetWildcardQuoteSigners is only valid for Routing/CrossCollateralRouting modes.
     #[error("Wildcard signers not applicable for this fee mode")]
     WildcardSignersNotApplicable = 23,
+    /// SetMinIssuedAt must be monotonically increasing (cannot move backward).
+    #[error("min_issued_at must be >= current value")]
+    MinIssuedAtMustBeMonotonic = 24,
+    /// Quote signature recovered a valid signer, but it is not in the authorized set.
+    #[error("Recovered signer is not authorized")]
+    UnauthorizedQuoteSigner = 25,
+    /// Quote issued_at is below the fee account's min_issued_at threshold.
+    #[error("Quote issued_at below min_issued_at")]
+    QuoteBelowMinIssuedAt = 26,
 }
 
 impl From<Error> for ProgramError {

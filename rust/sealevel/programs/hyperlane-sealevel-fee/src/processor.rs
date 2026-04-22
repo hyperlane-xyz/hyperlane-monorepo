@@ -402,6 +402,7 @@ fn is_transient_quote(
 /// Generic over the context type (FeeQuoteContext or CcFeeQuoteContext).
 /// Validates context match, payer binding, PDA derivation, and expiry.
 /// On success: computes fee using on-chain curve + quoted params, autocloses PDA.
+#[allow(clippy::too_many_arguments)]
 fn try_consume_transient_quote<C: crate::accounts::QuoteContext>(
     program_id: &Pubkey,
     transient_acct: &AccountInfo,
@@ -975,6 +976,11 @@ fn process_set_min_issued_at(
 
     ensure_no_extraneous_accounts(accounts_iter)?;
 
+    // Monotonic: cannot move backward (prevents un-revoking previously revoked quotes).
+    if min_issued_at < fee_account.min_issued_at {
+        return Err(Error::MinIssuedAtMustBeMonotonic.into());
+    }
+
     fee_account.min_issued_at = min_issued_at;
 
     FeeAccountData::new(fee_account.into()).store(fee_account_info, false)?;
@@ -1078,6 +1084,12 @@ fn process_submit_quote(
         return Err(ProgramError::IncorrectProgramId);
     }
     let fee_account = FeeAccountData::fetch(&mut &fee_account_info.data.borrow()[..])?.into_inner();
+
+    // Reject quotes below the min_issued_at threshold at ingest time.
+    // Prevents stranding rent on dead-on-arrival entries.
+    if issued_at_ts < fee_account.min_issued_at {
+        return Err(Error::QuoteBelowMinIssuedAt.into());
+    }
 
     // Resolve signers based on fee_data type and destination domain.
     // - Leaf: signers from FeeData::Leaf for all quotes.
@@ -1208,7 +1220,10 @@ fn process_submit_quote(
             payer_info.key,
             &resolved_signers,
         )
-        .map_err(|_| Error::InvalidQuoteSignature)?;
+        .map_err(|e| match e {
+            quote_verifier::QuoteVerifyError::InvalidSignature => Error::InvalidQuoteSignature,
+            quote_verifier::QuoteVerifyError::UnauthorizedSigner => Error::UnauthorizedQuoteSigner,
+        })?;
 
     if quote.is_transient() {
         // Reject wildcard domain transient quotes for routed modes.

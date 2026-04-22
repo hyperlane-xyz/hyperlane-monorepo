@@ -2403,7 +2403,7 @@ mod set_min_issued_at {
     }
 
     #[tokio::test]
-    async fn test_can_increase_and_decrease() {
+    async fn test_monotonic_increase_only() {
         let (mut banks_client, payer) = setup_client().await;
         let fee_key = init_fee_account(
             &mut banks_client,
@@ -2415,6 +2415,7 @@ mod set_min_issued_at {
         )
         .await;
 
+        // Increase: 0 → 5000.
         let ix = build_set_min_issued_at_ix(&fee_key, &payer.pubkey(), 5000);
         process_tx(&mut banks_client, &payer, ix, &[])
             .await
@@ -2426,15 +2427,23 @@ mod set_min_issued_at {
             5000
         );
 
+        // Decrease: 5000 → 100. Must fail.
         let ix = build_set_min_issued_at_ix(&fee_key, &payer.pubkey(), 100);
-        process_tx(&mut banks_client, &payer, ix, &[])
-            .await
-            .unwrap();
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::MinIssuedAtMustBeMonotonic as u32),
+            ),
+        );
+
+        // Value unchanged.
         assert_eq!(
             fetch_fee_account(&mut banks_client, fee_key)
                 .await
                 .min_issued_at,
-            100
+            5000
         );
     }
 

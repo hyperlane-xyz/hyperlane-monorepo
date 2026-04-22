@@ -94,7 +94,7 @@ async fn test_invalid_signature_fails() {
         result,
         TransactionError::InstructionError(
             0,
-            InstructionError::Custom(FeeError::InvalidQuoteSignature as u32),
+            InstructionError::Custom(FeeError::UnauthorizedQuoteSigner as u32),
         ),
     );
 }
@@ -132,7 +132,7 @@ async fn test_no_signers_fails() {
         result,
         TransactionError::InstructionError(
             0,
-            InstructionError::Custom(FeeError::InvalidQuoteSignature as u32),
+            InstructionError::Custom(FeeError::UnauthorizedQuoteSigner as u32),
         ),
     );
 }
