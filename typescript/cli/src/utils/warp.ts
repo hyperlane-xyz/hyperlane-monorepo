@@ -145,14 +145,14 @@ export async function resolveWarpRouteId(args: {
       );
     }
 
-    return (await search({
+    return search<string>({
       message: `Multiple routes found for "${symbol}". Select one:`,
       source: (term) =>
         matchingIds.filter((id) =>
           id.toLowerCase().includes(term?.toLowerCase() || ''),
         ),
       pageSize: 20,
-    })) as string;
+    });
   }
 
   assert(
@@ -178,14 +178,14 @@ export async function resolveWarpRouteId(args: {
     return routeIds[0];
   }
 
-  return (await search({
+  return search<string>({
     message: 'Select a warp route:',
     source: (term) =>
       routeIds.filter((id) =>
         id.toLowerCase().includes(term?.toLowerCase() || ''),
       ),
     pageSize: 20,
-  })) as string;
+  });
 }
 
 export async function getWarpConfigs({
