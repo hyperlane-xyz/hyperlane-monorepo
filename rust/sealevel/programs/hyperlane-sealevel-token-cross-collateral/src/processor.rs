@@ -527,7 +527,7 @@ fn transfer_remote_to_remote<'account_info_slice, 'account_info>(
     }
 
     // Delegate to the shared remote-dispatch helper in token-lib.
-    HyperlaneSealevelToken::<CollateralPlugin>::transfer_remote_to(
+    let remote_amount = HyperlaneSealevelToken::<CollateralPlugin>::transfer_remote_to(
         program_id,
         hyperlane_token,
         system_program_account,
@@ -540,9 +540,10 @@ fn transfer_remote_to_remote<'account_info_slice, 'account_info>(
     )?;
 
     msg!(
-        "CC transfer_remote_to completed to destination: {}, target_router: {:?}",
+        "CC transfer_remote_to completed to destination: {}, target_router: {:?}, remote_amount: {}",
         xfer.destination_domain,
         xfer.target_router,
+        remote_amount
     );
 
     Ok(())
@@ -593,20 +594,12 @@ fn transfer_remote_to_local(
         return Err(ProgramError::InvalidAccountData);
     }
 
-    // Convert amount
-    let local_amount: u64 = xfer
-        .amount_or_id
-        .try_into()
-        .map_err(|_| ProgramError::InvalidArgument)?;
-    let remote_amount = hyperlane_token.local_amount_to_remote_amount(local_amount)?;
-
-    // Transfer tokens into escrow via plugin
-    CollateralPlugin::transfer_in(
+    let remote_amount = HyperlaneSealevelToken::<CollateralPlugin>::convert_and_transfer_in(
         program_id,
         hyperlane_token,
         sender_wallet,
         accounts_iter,
-        local_amount,
+        xfer.amount_or_id,
     )?;
 
     // Build HandleLocal instruction data

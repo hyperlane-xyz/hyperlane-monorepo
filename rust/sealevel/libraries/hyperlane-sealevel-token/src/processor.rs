@@ -315,7 +315,7 @@ where
             .ok_or(ProgramError::InvalidArgument)?;
 
         // Delegate to the shared remote-dispatch helper.
-        Self::transfer_remote_to(
+        let remote_amount = Self::transfer_remote_to(
             program_id,
             &token,
             system_program_account,
@@ -328,10 +328,10 @@ where
         )?;
 
         msg!(
-            "Warp route transfer completed to destination: {}, recipient: {}, router: {}",
+            "Warp route transfer completed to destination: {}, recipient: {}, remote_amount: {}",
             xfer.destination_domain,
             xfer.recipient,
-            router
+            remote_amount
         );
 
         Ok(())
@@ -362,7 +362,7 @@ where
         recipient: H256,
         router: H256,
         amount_or_id: U256,
-    ) -> ProgramResult {
+    ) -> Result<U256, ProgramError> {
         // Mailbox program
         let mailbox_info = next_account_info(accounts_iter)?;
         if mailbox_info.key != &token.mailbox {
@@ -468,21 +468,12 @@ where
                 None
             };
 
-        // The amount denominated in the local decimals.
-        let local_amount: u64 = amount_or_id
-            .try_into()
-            .map_err(|_| Error::IntegerOverflow)?;
-        // Convert to the remote number of decimals, which is universally understood
-        // by the remote routers as the number of decimals used by the message amount.
-        let remote_amount = token.local_amount_to_remote_amount(local_amount)?;
-
-        // Transfer `local_amount` of tokens in...
-        T::transfer_in(
+        let remote_amount = Self::convert_and_transfer_in(
             program_id,
             token,
             sender_wallet,
             accounts_iter,
-            local_amount,
+            amount_or_id,
         )?;
 
         if accounts_iter.next().is_some() {
@@ -561,7 +552,36 @@ where
             invoke(&igp_ixn, &igp_payment_account_infos)?;
         }
 
-        Ok(())
+        Ok(remote_amount)
+    }
+
+    /// Converts amount from local to remote decimals and calls plugin
+    /// `transfer_in`. Returns `remote_amount` for the caller to build
+    /// `TokenMessage`.
+    pub fn convert_and_transfer_in<'a, 'b>(
+        program_id: &Pubkey,
+        token: &HyperlaneToken<T>,
+        sender_wallet: &'a AccountInfo<'b>,
+        accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
+        amount_or_id: U256,
+    ) -> Result<U256, ProgramError> {
+        // The amount denominated in the local decimals.
+        let local_amount: u64 = amount_or_id
+            .try_into()
+            .map_err(|_| Error::IntegerOverflow)?;
+        // Convert to the remote number of decimals, which is universally understood
+        // by the remote routers as the number of decimals used by the message amount.
+        let remote_amount = token.local_amount_to_remote_amount(local_amount)?;
+
+        T::transfer_in(
+            program_id,
+            token,
+            sender_wallet,
+            accounts_iter,
+            local_amount,
+        )?;
+
+        Ok(remote_amount)
     }
 
     /// Accounts:
