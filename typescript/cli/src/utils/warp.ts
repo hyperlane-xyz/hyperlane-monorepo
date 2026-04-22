@@ -219,6 +219,30 @@ export async function getWarpConfigs({
   return { warpDeployConfig, warpCoreConfig, resolvedWarpRouteId };
 }
 
+export async function getWarpRouteDeployConfig({
+  context,
+  warpRouteId,
+}: {
+  context: CommandContext;
+  warpRouteId?: string;
+}): Promise<{
+  config: WarpRouteDeployConfigMailboxRequired;
+  resolvedWarpRouteId: string;
+}> {
+  const resolvedWarpRouteId = await resolveWarpRouteId({
+    warpRouteId,
+    context,
+    promptByDeploymentConfigs: true,
+  });
+
+  const config = await readWarpRouteDeployConfig({
+    context,
+    warpRouteId: resolvedWarpRouteId,
+  });
+
+  return { config, resolvedWarpRouteId };
+}
+
 export function filterWarpConfigsToMatchingChains(
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
   warpCoreConfig: WarpCoreConfig,

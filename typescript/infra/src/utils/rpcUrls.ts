@@ -17,7 +17,7 @@ import {
   secretRpcEndpointsExist,
   setSecretRpcEndpoints,
 } from '../agents/index.js';
-import { DeployEnvironment } from '../config/environment.js';
+import { DeployEnvironment } from '../config/deploy-environment.js';
 import { KeyFunderHelmManager } from '../funding/key-funder.js';
 import { RebalancerHelmManager } from '../rebalancer/helm.js';
 import { WarpRouteMonitorHelmManager } from '../warp-monitor/helm.js';

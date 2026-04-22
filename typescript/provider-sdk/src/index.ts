@@ -6,6 +6,8 @@ export {
   ProtocolType,
   ProtocolTypeValue,
   ProtocolSmallestUnit,
+} from './protocolType.js';
+export {
   SignerConfig,
   ProtocolProvider,
   registerProtocol,
