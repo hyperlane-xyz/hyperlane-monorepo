@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {MockMailbox} from "../../contracts/mock/MockMailbox.sol";
+import {MockWETH} from "../../contracts/mock/MockWETH.sol";
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
 import {HypNative} from "../../contracts/token/HypNative.sol";
 import {IWETH} from "../../contracts/token/interfaces/IWETH.sol";
@@ -12,79 +13,6 @@ import {HypNativeWethWrapper} from "../../contracts/token/extensions/HypNativeWe
 import {HypNativeWethWrapperFactory} from "../../contracts/token/extensions/HypNativeWethWrapperFactory.sol";
 import {Quote} from "../../contracts/interfaces/ITokenBridge.sol";
 import {Quotes} from "../../contracts/token/libs/Quotes.sol";
-
-/// @dev Minimal WETH9-compatible token for unit tests.
-contract TestWETH is IWETH {
-    string public constant name = "Wrapped Ether";
-    string public constant symbol = "WETH";
-    uint8 public constant decimals = 18;
-
-    mapping(address => uint256) public override balanceOf;
-    mapping(address => mapping(address => uint256)) public override allowance;
-
-    event Deposit(address indexed account, uint256 amount);
-    event Withdrawal(address indexed account, uint256 amount);
-
-    function totalSupply() external view override returns (uint256) {
-        return address(this).balance;
-    }
-
-    function deposit() public payable override {
-        balanceOf[msg.sender] += msg.value;
-        emit Deposit(msg.sender, msg.value);
-    }
-
-    function withdraw(uint256 amount) external override {
-        require(balanceOf[msg.sender] >= amount, "WETH: balance");
-        balanceOf[msg.sender] -= amount;
-        (bool ok, ) = msg.sender.call{value: amount}("");
-        require(ok, "WETH: send failed");
-        emit Withdrawal(msg.sender, amount);
-    }
-
-    function approve(
-        address spender,
-        uint256 amount
-    ) external override returns (bool) {
-        allowance[msg.sender][spender] = amount;
-        return true;
-    }
-
-    function transfer(
-        address to,
-        uint256 amount
-    ) external override returns (bool) {
-        return _transfer(msg.sender, to, amount);
-    }
-
-    function transferFrom(
-        address from,
-        address to,
-        uint256 amount
-    ) external override returns (bool) {
-        uint256 allowed = allowance[from][msg.sender];
-        if (allowed != type(uint256).max) {
-            require(allowed >= amount, "WETH: allowance");
-            allowance[from][msg.sender] = allowed - amount;
-        }
-        return _transfer(from, to, amount);
-    }
-
-    function _transfer(
-        address from,
-        address to,
-        uint256 amount
-    ) internal returns (bool) {
-        require(balanceOf[from] >= amount, "WETH: balance");
-        balanceOf[from] -= amount;
-        balanceOf[to] += amount;
-        return true;
-    }
-
-    receive() external payable {
-        deposit();
-    }
-}
 
 contract HypNativeWethWrapperTest is Test {
     using TypeCasts for address;
@@ -101,7 +29,7 @@ contract HypNativeWethWrapperTest is Test {
     TestPostDispatchHook internal noopHook;
     HypNative internal localRouter;
     HypNative internal remoteRouter;
-    TestWETH internal weth;
+    MockWETH internal weth;
     HypNativeWethWrapper internal wrapper;
 
     function setUp() public {
@@ -130,7 +58,7 @@ contract HypNativeWethWrapperTest is Test {
             address(localRouter).addressToBytes32()
         );
 
-        weth = new TestWETH();
+        weth = new MockWETH();
         wrapper = new HypNativeWethWrapper(IWETH(address(weth)), localRouter);
 
         vm.label(ALICE, "ALICE");
