@@ -52,6 +52,11 @@ export const HookType = {
   ARB_L2_TO_L1: 'arbL2ToL1Hook',
   MAILBOX_DEFAULT: 'defaultHook',
   CCIP: 'ccipHook',
+  /**
+   * References a pre-deployed CCTP hook by address. Excluded from
+   * `DeployableHookType` — not deployed via `HyperlaneHookDeployer`; the
+   * `EvmHookModule.deploy` path just connects to `config.address`.
+   */
   CCTP: 'cctpHook',
   UNKNOWN: 'unknownHook',
   PREDICATE: 'predicateHook',
