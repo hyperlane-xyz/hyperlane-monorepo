@@ -34,7 +34,6 @@ import {
   applyRpcUrlOverridesFromEnv,
   createServiceLogger,
   isEVMLike,
-  objKeys,
   ProtocolType,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -153,7 +152,7 @@ async function main(): Promise<void> {
       Record<ProtocolType, InventorySignerConfig>
     > = {};
 
-    for (const protocol of objKeys(inventoryPrivateKeys)) {
+    for (const protocol of Object.values(ProtocolType)) {
       const privateKey = inventoryPrivateKeys[protocol];
       if (!privateKey) continue;
 

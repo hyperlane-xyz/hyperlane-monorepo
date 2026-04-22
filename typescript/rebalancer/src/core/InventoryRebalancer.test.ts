@@ -568,8 +568,8 @@ describe('InventoryRebalancer E2E', () => {
     ).extractDispatchedMessageId.bind(inventoryRebalancer);
     const messageId = await extractFn(TRON_CHAIN, '0xTronTx');
     expect(messageId).to.equal(expectedMessageId);
-    expect(getDispatchedMessagesStub.calledOnceWithExactly(mockReceipt)).to.be
-      .true;
+    expect(getDispatchedMessagesStub.calledOnce).to.be.true;
+    expect(getDispatchedMessagesStub.firstCall.firstArg).to.equal(mockReceipt);
   });
 
   it('selects the Tron signer address from a mixed multi-protocol config', () => {

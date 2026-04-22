@@ -15,7 +15,6 @@ import {
   Address,
   assert,
   isEVMLike,
-  objKeys,
   ProtocolType,
   objMap,
 } from '@hyperlane-xyz/utils';
@@ -380,7 +379,7 @@ export class RebalancerContextFactory {
       bridges,
       rebalancerAddress,
       inventorySignerAddresses: this.config.inventorySigners
-        ? objKeys(this.config.inventorySigners)
+        ? Object.values(ProtocolType)
             .filter((protocol) => isEVMLike(protocol))
             .map(
               (protocol) => this.config.inventorySigners?.[protocol]?.address,
@@ -542,8 +541,10 @@ export class RebalancerContextFactory {
         );
       }
       const inventoryAddresses: Partial<Record<ProtocolType, Address>> = {};
-      for (const protocol of objKeys(inventorySigners)) {
-        inventoryAddresses[protocol] = inventorySigners[protocol].address;
+      for (const protocol of Object.values(ProtocolType)) {
+        const cfg = inventorySigners[protocol];
+        if (!cfg) continue;
+        inventoryAddresses[protocol] = cfg.address;
       }
       const inventoryConfig: InventoryMonitorConfig = {
         inventoryAddresses,
@@ -553,8 +554,9 @@ export class RebalancerContextFactory {
       const mergedSigners: Partial<
         Record<ProtocolType, InventorySignerConfig>
       > = {};
-      for (const protocol of objKeys(inventorySigners)) {
+      for (const protocol of Object.values(ProtocolType)) {
         const cfg = inventorySigners[protocol];
+        if (!cfg) continue;
         mergedSigners[protocol] = {
           address: cfg.address,
           key: cfg.key ?? this.inventorySignerKeysByProtocol?.[protocol],
@@ -580,8 +582,10 @@ export class RebalancerContextFactory {
 
     // 3. Build inventory config
     const inventoryAddresses: Partial<Record<ProtocolType, Address>> = {};
-    for (const protocol of objKeys(inventorySigners)) {
-      inventoryAddresses[protocol] = inventorySigners[protocol].address;
+    for (const protocol of Object.values(ProtocolType)) {
+      const cfg = inventorySigners[protocol];
+      if (!cfg) continue;
+      inventoryAddresses[protocol] = cfg.address;
     }
     const inventoryConfig: InventoryMonitorConfig = {
       inventoryAddresses,
@@ -592,8 +596,9 @@ export class RebalancerContextFactory {
     // Merge config addresses with runtime keys
     const mergedSigners: Partial<Record<ProtocolType, InventorySignerConfig>> =
       {};
-    for (const protocol of objKeys(inventorySigners)) {
+    for (const protocol of Object.values(ProtocolType)) {
       const cfg = inventorySigners[protocol];
+      if (!cfg) continue;
       mergedSigners[protocol] = {
         address: cfg.address,
         key: cfg.key ?? this.inventorySignerKeysByProtocol?.[protocol],
