@@ -53,6 +53,7 @@
     "@hyperlane-xyz/http-registry-server": "workspace:*",
     "@hyperlane-xyz/keyfunder": "workspace:*",
     "@hyperlane-xyz/metrics": "workspace:*",
+    "@hyperlane-xyz/multicollateral": "workspace:*",
     "@hyperlane-xyz/provider-sdk": "workspace:*",
     "@hyperlane-xyz/rebalancer": "workspace:*",
     "@hyperlane-xyz/registry": "catalog:",
