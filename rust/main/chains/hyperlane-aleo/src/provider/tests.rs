@@ -263,6 +263,13 @@ async fn provable_mainnet_get_block_range() {
     let client = BaseHttpClient::new(url, 0).expect("build BaseHttpClient");
     let rpc = RpcClient::new(client);
 
+    // Sanity check: confirm the RPC URL is reachable before fanning out over heights.
+    let latest = rpc
+        .get_latest_height()
+        .await
+        .expect("get_latest_height sanity check failed");
+    println!("latest height: {latest}");
+
     for height in 17918388u32..=17918398 {
         match rpc.get_block::<MainnetV0>(height).await {
             Ok(_) => println!("block {height}: ok"),
