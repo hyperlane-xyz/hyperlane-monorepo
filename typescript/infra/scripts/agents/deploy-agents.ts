@@ -2,8 +2,10 @@ import { confirm } from '@inquirer/prompts';
 import chalk from 'chalk';
 import { execSync } from 'child_process';
 
+import { DockerImageRepos } from '../../config/docker.js';
 import { createAgentKeysIfNotExistsWithPrompt } from '../../src/agents/key-utils.js';
 import { RootAgentConfig } from '../../src/config/agent/agent.js';
+import { preflightVerifyImages } from '../../src/utils/attestation.js';
 import {
   checkAgentImageExists,
   checkMonorepoImageExists,
@@ -100,6 +102,40 @@ async function checkDockerTagsExist(agentConfig: RootAgentConfig) {
   }
 }
 
+async function verifyAgentAttestationsWithPrompt(agentConfig: RootAgentConfig) {
+  const refs = [
+    { component: 'scraper', tag: agentConfig.scraper?.docker.tag },
+    { component: 'validators', tag: agentConfig.validators?.docker.tag },
+    { component: 'relayer', tag: agentConfig.relayer?.docker.tag },
+  ]
+    .filter((r): r is { component: string; tag: string } => !!r.tag)
+    .map(({ component, tag }) => ({
+      component,
+      image: DockerImageRepos.AGENT,
+      tag,
+    }));
+
+  if (refs.length === 0) return;
+
+  console.log(chalk.grey.italic('Verifying image attestations...'));
+  const { allVerified } = await preflightVerifyImages(refs);
+
+  const message = allVerified
+    ? 'All attestations verified. Continue with deploy?'
+    : chalk.red.bold(
+        'One or more images FAILED attestation verify. Continue with deploy anyway?',
+      );
+
+  const shouldContinue = await confirm({
+    message,
+    default: allVerified,
+  });
+  if (!shouldContinue) {
+    console.log(chalk.red.bold('Exiting...'));
+    process.exit(1);
+  }
+}
+
 async function main() {
   // Note the create-keys script should be ran prior to running this script.
   // At the moment, `runAgentHelmCommand` has the side effect of creating keys / users
@@ -110,6 +146,7 @@ async function main() {
   // run the create-keys script first.
   const { agentConfig } = await getConfigsBasedOnArgs();
   await checkDockerTagsExist(agentConfig);
+  await verifyAgentAttestationsWithPrompt(agentConfig);
 
   await createAgentKeysIfNotExistsWithPrompt(agentConfig);
 
