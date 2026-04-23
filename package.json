@@ -13,7 +13,7 @@
     "lint": "oxlint -c oxlint.json",
     "lint:catalog": "tsx scripts/lint-catalog-usage.ts",
     "test": "turbo run test --continue",
-    "test:ci": "turbo run test:ci",
+    "test:ci": "turbo run test:ci --concurrency=4",
     "coverage": "turbo run coverage",
     "version:prepare": "pnpm changeset version && turbo run version:update && pnpm install",
     "version:check": "pnpm changeset status",
