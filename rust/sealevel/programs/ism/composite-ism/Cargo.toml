@@ -28,10 +28,16 @@ serializable-account-meta = { path = "../../../libraries/serializable-account-me
 
 [dev-dependencies]
 hyperlane-test-utils = { path = "../../../libraries/test-utils" }
+hyperlane-sealevel-test-ism = { path = "../test-ism" }
+hyperlane-sealevel-multisig-ism-message-id = { path = "../multisig-ism-message-id", features = ["no-entrypoint"] }
+hyperlane-sealevel-test-send-receiver = { path = "../../test-send-receiver", features = ["test-client"] }
+ecdsa-signature = { path = "../../../libraries/ecdsa-signature" }
+multisig-ism = { path = "../../../libraries/multisig-ism" }
 solana-banks-interface.workspace = true
 tokio = { workspace = true, features = ["macros", "rt"] }
 solana-program-test.workspace = true
 solana-sdk.workspace = true
+spl-noop.workspace = true
 hex.workspace = true
 rand = "0.8.5"
 

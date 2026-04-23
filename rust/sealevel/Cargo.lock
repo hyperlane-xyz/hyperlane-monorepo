@@ -3463,6 +3463,9 @@ dependencies = [
  "hyperlane-core",
  "hyperlane-sealevel-interchain-security-module-interface",
  "hyperlane-sealevel-mailbox",
+ "hyperlane-sealevel-multisig-ism-message-id",
+ "hyperlane-sealevel-test-ism",
+ "hyperlane-sealevel-test-send-receiver",
  "hyperlane-test-utils",
  "multisig-ism",
  "num-derive",
@@ -3474,6 +3477,7 @@ dependencies = [
  "solana-program-test",
  "solana-sdk",
  "solana-system-interface 2.0.0",
+ "spl-noop",
  "thiserror 1.0.69",
  "tokio",
 ]
