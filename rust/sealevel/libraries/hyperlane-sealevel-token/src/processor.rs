@@ -91,14 +91,25 @@ where
         accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
     ) -> Result<Self, ProgramError>;
 
-    /// Transfers tokens into the program.
+    /// Transfers tokens into the program, optionally collecting a fee.
+    /// When `fee` is `Some((fee_amount, beneficiary))`, transfers the fee
+    /// from the sender to the beneficiary account.
     fn transfer_in<'a, 'b>(
         program_id: &Pubkey,
         token: &HyperlaneToken<Self>,
         sender_wallet: &'a AccountInfo<'b>,
         accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
         amount: u64,
+        fee: Option<(u64, &'a AccountInfo<'b>)>,
     ) -> Result<(), ProgramError>;
+
+    /// Derives the fee beneficiary account pubkey for this plugin type.
+    /// For SPL token plugins this is the ATA of (beneficiary_owner, mint, token_program).
+    /// For the native plugin this is the raw beneficiary_owner pubkey.
+    fn fee_beneficiary_pubkey(
+        token: &HyperlaneToken<Self>,
+        beneficiary_owner: &Pubkey,
+    ) -> Result<Pubkey, ProgramError>;
 
     /// Transfers tokens out of the program.
     fn transfer_out<'a, 'b>(
@@ -582,6 +593,7 @@ where
             sender_wallet,
             accounts_iter,
             local_amount,
+            None,
         )?;
 
         Ok(remote_amount)
