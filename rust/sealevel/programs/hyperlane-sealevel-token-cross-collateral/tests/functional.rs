@@ -3860,3 +3860,442 @@ async fn test_cc_local_transfer_with_fee() {
     .await;
     assert_token_balance(&mut ctx.banks_client, &recipient_ata, transfer_amount).await;
 }
+
+#[tokio::test]
+async fn test_cc_remote_transfer_with_fee_routing_mode() {
+    use hyperlane_sealevel_fee::accounts::RoutingFeeConfig;
+
+    let mut ctx = TestContext::new(true).await;
+    let igp = ctx.igp_accounts.as_ref().unwrap();
+    let (igp_program, igp_program_data, igp_overhead_igp, igp_igp) =
+        (igp.program, igp.program_data, igp.overhead_igp, igp.igp);
+
+    let target_router = H256::random();
+    set_cc_routers(
+        &mut ctx.banks_client,
+        &ctx.program_id,
+        &ctx.payer,
+        vec![CrossCollateralRouterUpdate::Add {
+            domain: REMOTE_DOMAIN,
+            router: target_router,
+        }],
+    )
+    .await
+    .unwrap();
+
+    // Init Routing-mode fee account + set route.
+    let fee_beneficiary_owner = Pubkey::new_unique();
+    let fee_salt = H256::zero();
+    let fp = fee_program_id();
+    let (fee_account_key, _) = Pubkey::find_program_address(fee_account_pda_seeds!(fee_salt), &fp);
+
+    let route_max_fee: u64 = 50;
+    let route_half_amount: u64 = 500_000;
+
+    let recent_blockhash = ctx.banks_client.get_latest_blockhash().await.unwrap();
+    ctx.banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[
+                fee_instruction::init_fee_instruction(
+                    fp,
+                    ctx.payer.pubkey(),
+                    fee_salt,
+                    fee_beneficiary_owner,
+                    FeeData::Routing(RoutingFeeConfig {
+                        wildcard_signers: std::collections::BTreeSet::new(),
+                    }),
+                    LOCAL_DOMAIN,
+                )
+                .unwrap(),
+                fee_instruction::set_remote_fee_route_instruction(
+                    fp,
+                    fee_account_key,
+                    ctx.payer.pubkey(),
+                    REMOTE_DOMAIN,
+                    None,
+                    FeeDataStrategy::Linear(FeeParams {
+                        max_fee: route_max_fee,
+                        half_amount: route_half_amount,
+                    }),
+                    None,
+                )
+                .unwrap(),
+            ],
+            Some(&ctx.payer.pubkey()),
+            &[&ctx.payer],
+            recent_blockhash,
+        ))
+        .await
+        .unwrap();
+
+    // Set fee config.
+    let recent_blockhash = ctx.banks_client.get_latest_blockhash().await.unwrap();
+    ctx.banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[Instruction::new_with_bytes(
+                ctx.program_id,
+                &HyperlaneTokenInstruction::SetFeeConfig(Some(FeeConfig {
+                    fee_program: fp,
+                    fee_account: fee_account_key,
+                }))
+                .encode()
+                .unwrap(),
+                vec![
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new(ctx.cc.token, false),
+                    AccountMeta::new(ctx.payer.pubkey(), true),
+                ],
+            )],
+            Some(&ctx.payer.pubkey()),
+            &[&ctx.payer],
+            recent_blockhash,
+        ))
+        .await
+        .unwrap();
+
+    // Create beneficiary ATA.
+    let fee_beneficiary_ata =
+        spl_associated_token_account::get_associated_token_address_with_program_id(
+            &fee_beneficiary_owner,
+            &ctx.mint,
+            &ctx.spl_token_program_id,
+        );
+    let recent_blockhash = ctx.banks_client.get_latest_blockhash().await.unwrap();
+    ctx.banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[
+                spl_associated_token_account::instruction::create_associated_token_account(
+                    &ctx.payer.pubkey(),
+                    &fee_beneficiary_owner,
+                    &ctx.mint,
+                    &ctx.spl_token_program_id,
+                ),
+            ],
+            Some(&ctx.payer.pubkey()),
+            &[&ctx.payer],
+            recent_blockhash,
+        ))
+        .await
+        .unwrap();
+
+    let (token_sender, token_sender_ata) = ctx
+        .create_funded_sender(100 * 10u64.pow(LOCAL_DECIMALS_U32))
+        .await;
+    let token_sender_pubkey = token_sender.pubkey();
+    let transfer_amount = 69 * 10u64.pow(LOCAL_DECIMALS_U32);
+    let expected_fee = route_max_fee;
+
+    let unique_msg = Keypair::new();
+    let (dispatched_msg_key, _) = Pubkey::find_program_address(
+        mailbox_dispatched_message_pda_seeds!(&unique_msg.pubkey()),
+        &ctx.mailbox_program_id,
+    );
+    let (gas_payment_pda_key, _) = Pubkey::find_program_address(
+        igp_gas_payment_pda_seeds!(&unique_msg.pubkey()),
+        &igp_program_id(),
+    );
+
+    let domain_standing_quote_pda = {
+        let d = REMOTE_DOMAIN.to_le_bytes();
+        Pubkey::find_program_address(fee_standing_quote_pda_seeds!(&fee_account_key, &d), &fp).0
+    };
+    let wildcard_standing_quote_pda = {
+        let d = WILDCARD_DOMAIN.to_le_bytes();
+        Pubkey::find_program_address(fee_standing_quote_pda_seeds!(&fee_account_key, &d), &fp).0
+    };
+    let route_pda = {
+        use hyperlane_sealevel_fee::route_domain_pda_seeds;
+        let d = REMOTE_DOMAIN.to_le_bytes();
+        Pubkey::find_program_address(route_domain_pda_seeds!(fee_account_key, &d), &fp).0
+    };
+
+    let ixn_data = CrossCollateralInstruction::TransferRemoteTo(TransferRemoteTo {
+        destination_domain: REMOTE_DOMAIN,
+        recipient: H256::random(),
+        amount_or_id: transfer_amount.into(),
+        target_router,
+    })
+    .encode()
+    .unwrap();
+
+    let recent_blockhash = ctx.banks_client.get_latest_blockhash().await.unwrap();
+    ctx.banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[Instruction::new_with_bytes(
+                ctx.program_id,
+                &ixn_data,
+                vec![
+                    // CC prefix
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new_readonly(ctx.cc.token, false),
+                    AccountMeta::new_readonly(ctx.cc.cc_state, false),
+                    AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
+                    // Core
+                    AccountMeta::new_readonly(ctx.mailbox_program_id, false),
+                    AccountMeta::new(ctx.mailbox_accounts.outbox, false),
+                    AccountMeta::new_readonly(ctx.cc.dispatch_authority, false),
+                    AccountMeta::new(token_sender_pubkey, true),
+                    AccountMeta::new_readonly(unique_msg.pubkey(), true),
+                    AccountMeta::new(dispatched_msg_key, false),
+                    // Fee (Routing)
+                    AccountMeta::new_readonly(fp, false),
+                    AccountMeta::new_readonly(fee_account_key, false),
+                    AccountMeta::new_readonly(domain_standing_quote_pda, false),
+                    AccountMeta::new_readonly(wildcard_standing_quote_pda, false),
+                    AccountMeta::new_readonly(route_pda, false),
+                    AccountMeta::new(fee_beneficiary_ata, false),
+                    // IGP
+                    AccountMeta::new_readonly(igp_program, false),
+                    AccountMeta::new(igp_program_data, false),
+                    AccountMeta::new(gas_payment_pda_key, false),
+                    AccountMeta::new_readonly(igp_overhead_igp, false),
+                    AccountMeta::new(igp_igp, false),
+                    // Plugin
+                    AccountMeta::new_readonly(ctx.spl_token_program_id, false),
+                    AccountMeta::new(ctx.mint, false),
+                    AccountMeta::new(token_sender_ata, false),
+                    AccountMeta::new(ctx.cc.escrow, false),
+                ],
+            )],
+            Some(&token_sender_pubkey),
+            &[&token_sender, &unique_msg],
+            recent_blockhash,
+        ))
+        .await
+        .unwrap();
+
+    assert_token_balance(
+        &mut ctx.banks_client,
+        &token_sender_ata,
+        (100 * 10u64.pow(LOCAL_DECIMALS_U32)) - transfer_amount - expected_fee,
+    )
+    .await;
+    assert_token_balance(&mut ctx.banks_client, &fee_beneficiary_ata, expected_fee).await;
+}
+
+#[tokio::test]
+async fn test_cc_remote_transfer_with_fee_cc_routing_mode() {
+    use hyperlane_sealevel_fee::accounts::CrossCollateralRoutingFeeConfig;
+
+    let mut ctx = TestContext::new(true).await;
+    let igp = ctx.igp_accounts.as_ref().unwrap();
+    let (igp_program, igp_program_data, igp_overhead_igp, igp_igp) =
+        (igp.program, igp.program_data, igp.overhead_igp, igp.igp);
+
+    let target_router = H256::random();
+    set_cc_routers(
+        &mut ctx.banks_client,
+        &ctx.program_id,
+        &ctx.payer,
+        vec![CrossCollateralRouterUpdate::Add {
+            domain: REMOTE_DOMAIN,
+            router: target_router,
+        }],
+    )
+    .await
+    .unwrap();
+
+    // Init CrossCollateralRouting-mode fee account.
+    let fee_beneficiary_owner = Pubkey::new_unique();
+    let fee_salt = H256::zero();
+    let fp = fee_program_id();
+    let (fee_account_key, _) = Pubkey::find_program_address(fee_account_pda_seeds!(fee_salt), &fp);
+
+    let route_max_fee: u64 = 75;
+    let route_half_amount: u64 = 500_000;
+
+    let recent_blockhash = ctx.banks_client.get_latest_blockhash().await.unwrap();
+    ctx.banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[
+                fee_instruction::init_fee_instruction(
+                    fp,
+                    ctx.payer.pubkey(),
+                    fee_salt,
+                    fee_beneficiary_owner,
+                    FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+                        wildcard_signers: std::collections::BTreeSet::new(),
+                    }),
+                    LOCAL_DOMAIN,
+                )
+                .unwrap(),
+                // Set a CC route for (REMOTE_DOMAIN, target_router).
+                fee_instruction::set_remote_fee_route_instruction(
+                    fp,
+                    fee_account_key,
+                    ctx.payer.pubkey(),
+                    REMOTE_DOMAIN,
+                    Some(target_router),
+                    FeeDataStrategy::Linear(FeeParams {
+                        max_fee: route_max_fee,
+                        half_amount: route_half_amount,
+                    }),
+                    None,
+                )
+                .unwrap(),
+            ],
+            Some(&ctx.payer.pubkey()),
+            &[&ctx.payer],
+            recent_blockhash,
+        ))
+        .await
+        .unwrap();
+
+    // Set fee config on the token.
+    let recent_blockhash = ctx.banks_client.get_latest_blockhash().await.unwrap();
+    ctx.banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[Instruction::new_with_bytes(
+                ctx.program_id,
+                &HyperlaneTokenInstruction::SetFeeConfig(Some(FeeConfig {
+                    fee_program: fp,
+                    fee_account: fee_account_key,
+                }))
+                .encode()
+                .unwrap(),
+                vec![
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new(ctx.cc.token, false),
+                    AccountMeta::new(ctx.payer.pubkey(), true),
+                ],
+            )],
+            Some(&ctx.payer.pubkey()),
+            &[&ctx.payer],
+            recent_blockhash,
+        ))
+        .await
+        .unwrap();
+
+    // Create beneficiary ATA.
+    let fee_beneficiary_ata =
+        spl_associated_token_account::get_associated_token_address_with_program_id(
+            &fee_beneficiary_owner,
+            &ctx.mint,
+            &ctx.spl_token_program_id,
+        );
+    let recent_blockhash = ctx.banks_client.get_latest_blockhash().await.unwrap();
+    ctx.banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[
+                spl_associated_token_account::instruction::create_associated_token_account(
+                    &ctx.payer.pubkey(),
+                    &fee_beneficiary_owner,
+                    &ctx.mint,
+                    &ctx.spl_token_program_id,
+                ),
+            ],
+            Some(&ctx.payer.pubkey()),
+            &[&ctx.payer],
+            recent_blockhash,
+        ))
+        .await
+        .unwrap();
+
+    let (token_sender, token_sender_ata) = ctx
+        .create_funded_sender(100 * 10u64.pow(LOCAL_DECIMALS_U32))
+        .await;
+    let token_sender_pubkey = token_sender.pubkey();
+    let transfer_amount = 69 * 10u64.pow(LOCAL_DECIMALS_U32);
+    let expected_fee = route_max_fee; // amount >> half_amount → capped
+
+    let unique_msg = Keypair::new();
+    let (dispatched_msg_key, _) = Pubkey::find_program_address(
+        mailbox_dispatched_message_pda_seeds!(&unique_msg.pubkey()),
+        &ctx.mailbox_program_id,
+    );
+    let (gas_payment_pda_key, _) = Pubkey::find_program_address(
+        igp_gas_payment_pda_seeds!(&unique_msg.pubkey()),
+        &igp_program_id(),
+    );
+
+    // CC standing quote PDAs use target_router in seeds.
+    let domain_standing_quote_pda = {
+        let d = REMOTE_DOMAIN.to_le_bytes();
+        Pubkey::find_program_address(
+            fee_standing_quote_pda_seeds!(&fee_account_key, &d, &target_router),
+            &fp,
+        )
+        .0
+    };
+    let wildcard_standing_quote_pda = {
+        let d = WILDCARD_DOMAIN.to_le_bytes();
+        Pubkey::find_program_address(
+            fee_standing_quote_pda_seeds!(&fee_account_key, &d, &target_router),
+            &fp,
+        )
+        .0
+    };
+    // CC specific route PDA for (REMOTE_DOMAIN, target_router).
+    let cc_route_pda = {
+        use hyperlane_sealevel_fee::cc_route_pda_seeds;
+        let d = REMOTE_DOMAIN.to_le_bytes();
+        Pubkey::find_program_address(
+            cc_route_pda_seeds!(fee_account_key, &d, &target_router),
+            &fp,
+        )
+        .0
+    };
+
+    let ixn_data = CrossCollateralInstruction::TransferRemoteTo(TransferRemoteTo {
+        destination_domain: REMOTE_DOMAIN,
+        recipient: H256::random(),
+        amount_or_id: transfer_amount.into(),
+        target_router,
+    })
+    .encode()
+    .unwrap();
+
+    let recent_blockhash = ctx.banks_client.get_latest_blockhash().await.unwrap();
+    ctx.banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[Instruction::new_with_bytes(
+                ctx.program_id,
+                &ixn_data,
+                vec![
+                    // CC prefix
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new_readonly(ctx.cc.token, false),
+                    AccountMeta::new_readonly(ctx.cc.cc_state, false),
+                    AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
+                    // Core
+                    AccountMeta::new_readonly(ctx.mailbox_program_id, false),
+                    AccountMeta::new(ctx.mailbox_accounts.outbox, false),
+                    AccountMeta::new_readonly(ctx.cc.dispatch_authority, false),
+                    AccountMeta::new(token_sender_pubkey, true),
+                    AccountMeta::new_readonly(unique_msg.pubkey(), true),
+                    AccountMeta::new(dispatched_msg_key, false),
+                    // Fee (CrossCollateralRouting: CC standing quotes + CC route PDA)
+                    AccountMeta::new_readonly(fp, false),
+                    AccountMeta::new_readonly(fee_account_key, false),
+                    AccountMeta::new_readonly(domain_standing_quote_pda, false),
+                    AccountMeta::new_readonly(wildcard_standing_quote_pda, false),
+                    AccountMeta::new_readonly(cc_route_pda, false),
+                    AccountMeta::new(fee_beneficiary_ata, false),
+                    // IGP
+                    AccountMeta::new_readonly(igp_program, false),
+                    AccountMeta::new(igp_program_data, false),
+                    AccountMeta::new(gas_payment_pda_key, false),
+                    AccountMeta::new_readonly(igp_overhead_igp, false),
+                    AccountMeta::new(igp_igp, false),
+                    // Plugin
+                    AccountMeta::new_readonly(ctx.spl_token_program_id, false),
+                    AccountMeta::new(ctx.mint, false),
+                    AccountMeta::new(token_sender_ata, false),
+                    AccountMeta::new(ctx.cc.escrow, false),
+                ],
+            )],
+            Some(&token_sender_pubkey),
+            &[&token_sender, &unique_msg],
+            recent_blockhash,
+        ))
+        .await
+        .unwrap();
+
+    assert_token_balance(
+        &mut ctx.banks_client,
+        &token_sender_ata,
+        (100 * 10u64.pow(LOCAL_DECIMALS_U32)) - transfer_amount - expected_fee,
+    )
+    .await;
+    assert_token_balance(&mut ctx.banks_client, &fee_beneficiary_ata, expected_fee).await;
+}
