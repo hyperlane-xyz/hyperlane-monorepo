@@ -705,7 +705,7 @@ describe('QuoteService', () => {
         SALT,
         RECIPIENT,
       );
-      expect.fail('Should have thrown');
+      throw new Error('Should have thrown');
     } catch (e: any) {
       expect(e.message).toContain('Unknown origin');
     }
@@ -722,7 +722,7 @@ describe('QuoteService', () => {
         SALT,
         RECIPIENT,
       );
-      expect.fail('Should have thrown');
+      throw new Error('Should have thrown');
     } catch (e: any) {
       expect(e.message).toContain('Unknown router');
     }
@@ -738,7 +738,7 @@ describe('QuoteService', () => {
         DESTINATION,
         SALT,
       );
-      expect.fail('Should have thrown');
+      throw new Error('Should have thrown');
     } catch (e: any) {
       expect(e.message).toContain('recipient required');
     }
