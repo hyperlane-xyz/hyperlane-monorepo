@@ -27,7 +27,11 @@ import { deriveNativeCollateralPda } from '../pda.js';
 import type { AnnotatedSvmTransaction, SvmReceipt, SvmRpc } from '../types.js';
 
 import type { SvmWarpTokenConfig } from './types.js';
-import { fetchTokenAccount, routerBytesToHex } from './warp-query.js';
+import {
+  fetchTokenAccount,
+  fetchWarpProgramVersion,
+  routerBytesToHex,
+} from './warp-query.js';
 import {
   applyPostInitConfig,
   assertLocalDecimals,
@@ -66,6 +70,12 @@ export class SvmNativeTokenReader implements ArtifactReader<
       destinationGas[domain] = gas.toString();
     }
 
+    const contractVersion = await fetchWarpProgramVersion(
+      this.rpc,
+      programId,
+      token.owner,
+    );
+
     const config: RawNativeWarpArtifactConfig = {
       type: TokenType.native,
       owner: token.owner ?? ZERO_ADDRESS_HEX_32,
@@ -86,6 +96,7 @@ export class SvmNativeTokenReader implements ArtifactReader<
       destinationGas,
       decimals: token.decimals,
       scale: remoteDecimalsToScale(token.decimals, token.remoteDecimals),
+      contractVersion: contractVersion ?? undefined,
     };
 
     return {

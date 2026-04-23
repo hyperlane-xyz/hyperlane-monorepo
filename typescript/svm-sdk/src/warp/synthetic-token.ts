@@ -50,7 +50,11 @@ import type {
 } from '../types.js';
 
 import type { SvmWarpTokenConfig } from './types.js';
-import { fetchTokenAccount, routerBytesToHex } from './warp-query.js';
+import {
+  fetchTokenAccount,
+  fetchWarpProgramVersion,
+  routerBytesToHex,
+} from './warp-query.js';
 import {
   applyPostInitConfig,
   assertLocalDecimals,
@@ -190,6 +194,11 @@ export class SvmSyntheticTokenReader implements ArtifactReader<
 
     const { address: mintPda } = await deriveSyntheticMintPda(programId);
     const metadata = await fetchMintMetadata(this.rpc, mintPda);
+    const contractVersion = await fetchWarpProgramVersion(
+      this.rpc,
+      programId,
+      token.owner,
+    );
 
     const config: RawSyntheticWarpArtifactConfig = {
       type: TokenType.synthetic,
@@ -214,6 +223,7 @@ export class SvmSyntheticTokenReader implements ArtifactReader<
       decimals: token.decimals,
       metadataUri: metadata.uri,
       scale: remoteDecimalsToScale(token.decimals, token.remoteDecimals),
+      contractVersion: contractVersion ?? undefined,
     };
 
     return {

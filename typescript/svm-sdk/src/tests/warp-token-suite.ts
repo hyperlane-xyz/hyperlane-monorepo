@@ -14,10 +14,7 @@ import { SvmSigner } from '../clients/signer.js';
 import { getProgramUpgradeAuthority } from '../deploy/program-deployer.js';
 import type { createRpc } from '../rpc.js';
 import { airdropSol } from '../testing/setup.js';
-import {
-  queryProgramVersion,
-  supportsFeeConfig,
-} from '../version/version-query.js';
+import { supportsFeeConfig } from '../version/version-query.js';
 
 /**
  * Overrides that can be applied to any token type config.
@@ -80,15 +77,11 @@ export function defineWarpTokenTests(
   });
 
   it('should return program version after deploy', async () => {
-    const { rpc, signer } = getContext();
-    const version = await queryProgramVersion(
-      rpc,
-      address(deployedProgramId),
-      address(signer.getSignerAddress()),
-    );
-    expect(version).to.be.a('string');
-    expect(version).to.not.be.empty;
-    expect(supportsFeeConfig(version)).to.be.true;
+    const { writer } = getContext();
+    const onChain = await writer.read(deployedProgramId);
+    expect(onChain.config.contractVersion).to.be.a('string');
+    expect(onChain.config.contractVersion).to.not.be.empty;
+    expect(supportsFeeConfig(onChain.config.contractVersion!)).to.be.true;
   });
 
   it('should deploy with IGP and ISM configured and read them back', async () => {
