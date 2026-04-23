@@ -35,6 +35,7 @@ jobs:
       id-token: write
       packages: write
       pull-requests: write
+      attestations: write
 
     steps:
       - name: Generate GitHub App Token
@@ -101,13 +102,22 @@ jobs:
           context: ./
           file: ./typescript/Dockerfile
           push: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
-          provenance: false
+          provenance: mode=max
+          sbom: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             FOUNDRY_VERSION=${{ env.FOUNDRY_VERSION }}
             SERVICE_VERSION=${{ steps.taggen.outputs.TAG_SHA }}-${{ steps.taggen.outputs.TAG_DATE }}
           platforms: ${{ steps.determine-platforms.outputs.platforms }}
+
+      - name: Attest build provenance
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ghcr.io/hyperlane-xyz/hyperlane-node-services
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
 
       - name: Generate image tags output
         id: image-tags
