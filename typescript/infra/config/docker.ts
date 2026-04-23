@@ -4,7 +4,6 @@ export const DockerImageNames = {
   AGENT: 'hyperlane-agent',
   MONOREPO: 'hyperlane-monorepo',
   NODE_SERVICES: 'hyperlane-node-services',
-  FEE_QUOTING: 'hyperlane-fee-quoting',
 } as const;
 
 type DockerImageReposType = {
@@ -43,7 +42,7 @@ export const mainnetDockerTags: MainnetDockerTags = {
   relayer: '7eb690c-20260406-142107',
   relayerRC: '7eb690c-20260406-142107',
   relayerFastPath: '7eb690c-20260406-142107',
-  validator: '7eb690c-20260406-142107',
+  validator: 'b24afdc-20260423-160239',
   validatorRC: '7eb690c-20260406-142107',
   scraper: 'caa8162-20260409-132508',
   // monorepo services

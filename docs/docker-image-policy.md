@@ -26,6 +26,7 @@ The `hyperlane-node-services` image is a single unified image containing all Typ
 | `ccip-server`  | Offchain lookup server     |
 | `keyfunder`    | Agent key funder           |
 | `relayer`      | TypeScript relayer         |
+| `fee-quoting`  | Fee-quoting server         |
 
 ## Tagging
 

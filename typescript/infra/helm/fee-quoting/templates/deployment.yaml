@@ -52,6 +52,8 @@ spec:
             - secretRef:
                 name: {{ .Chart.Name }}-secrets
           env:
+            - name: SERVICE_NAME
+              value: fee-quoting
             - name: REGISTRY_URI
               value: {{ .Values.hyperlane.registryUri | quote }}
 {{- with .Values.env }}

@@ -43,7 +43,7 @@ export class FeeQuotingHelmManager extends HelmManager {
     return {
       ...envValues,
       image: {
-        repository: DockerImageRepos.FEE_QUOTING,
+        repository: DockerImageRepos.NODE_SERVICES,
         tag: mainnetDockerTags.feeQuoting,
       },
       hyperlane: {
