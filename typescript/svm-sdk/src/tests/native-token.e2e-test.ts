@@ -1,5 +1,5 @@
 import { address, type Address } from '@solana/kit';
-import { before, describe } from 'mocha';
+import { beforeAll, describe } from 'vitest';
 
 import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
 
@@ -26,9 +26,7 @@ import { defineWarpTokenTests } from './warp-token-suite.js';
 const TEST_PRIVATE_KEY =
   '0x0000000000000000000000000000000000000000000000000000000000000001';
 
-describe('SVM Native Warp Token E2E Tests', function () {
-  this.timeout(300_000);
-
+describe('SVM Native Warp Token E2E Tests', () => {
   let rpc: ReturnType<typeof createRpc>;
   let signer: SvmSigner;
   let mailboxAddress: Address;
@@ -36,7 +34,7 @@ describe('SVM Native Warp Token E2E Tests', function () {
   let testIsmAddress: Address;
   let writer: SvmNativeTokenWriter;
 
-  before(async () => {
+  beforeAll(async () => {
     rpc = createRpc(TEST_SVM_CHAIN_METADATA.rpcUrl);
     signer = await SvmSigner.connectWithSigner(
       [TEST_SVM_CHAIN_METADATA.rpcUrl],

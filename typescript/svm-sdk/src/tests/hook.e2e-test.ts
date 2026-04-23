@@ -1,5 +1,4 @@
-import { expect } from 'chai';
-import { before, describe, it } from 'mocha';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 import { HookType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
@@ -32,13 +31,11 @@ import { address } from '@solana/kit';
 const TEST_PRIVATE_KEY =
   '0x0000000000000000000000000000000000000000000000000000000000000001';
 
-describe('SVM Hook E2E Tests', function () {
-  this.timeout(180_000);
-
+describe('SVM Hook E2E Tests', () => {
   let rpc: ReturnType<typeof createRpc>;
   let signer: SvmSigner;
 
-  before(async () => {
+  beforeAll(async () => {
     rpc = createRpc(TEST_SVM_CHAIN_METADATA.rpcUrl);
     signer = await SvmSigner.connectWithSigner(
       [TEST_SVM_CHAIN_METADATA.rpcUrl],
@@ -61,17 +58,17 @@ describe('SVM Hook E2E Tests', function () {
         config: { type: HookType.MERKLE_TREE },
       });
 
-      expect(receipts).to.have.length(0);
-      expect(deployed.artifactState).to.equal(ArtifactState.DEPLOYED);
-      expect(deployed.config.type).to.equal(HookType.MERKLE_TREE);
-      expect(deployed.deployed.address).to.equal(TEST_PROGRAM_IDS.mailbox);
-      expect(deployed.deployed.programId).to.equal(TEST_PROGRAM_IDS.mailbox);
+      expect(receipts).toHaveLength(0);
+      expect(deployed.artifactState).toBe(ArtifactState.DEPLOYED);
+      expect(deployed.config.type).toBe(HookType.MERKLE_TREE);
+      expect(deployed.deployed.address).toBe(TEST_PROGRAM_IDS.mailbox);
+      expect(deployed.deployed.programId).toBe(TEST_PROGRAM_IDS.mailbox);
 
       const reader = new SvmMerkleTreeHookReader(rpc);
       const readResult = await reader.read(TEST_PROGRAM_IDS.mailbox);
 
-      expect(readResult.artifactState).to.equal(ArtifactState.DEPLOYED);
-      expect(readResult.config.type).to.equal(HookType.MERKLE_TREE);
+      expect(readResult.artifactState).toBe(ArtifactState.DEPLOYED);
+      expect(readResult.config.type).toBe(HookType.MERKLE_TREE);
     });
 
     it('should return empty transactions for update', async () => {
@@ -92,12 +89,12 @@ describe('SVM Hook E2E Tests', function () {
         };
 
       const updateTxs = await writer.update(artifact);
-      expect(updateTxs).to.have.length(0);
+      expect(updateTxs).toHaveLength(0);
     });
   });
 
   describe('IGP Hook', () => {
-    it('should create and read IGP Hook with gas oracle configs', async function () {
+    it('should create and read IGP Hook with gas oracle configs', async () => {
       const salt = deriveIgpSalt('hyperlane-test');
       const writer = new SvmIgpHookWriter(
         { program: { programId: TEST_PROGRAM_IDS.igp } },
@@ -131,21 +128,19 @@ describe('SVM Hook E2E Tests', function () {
         config: igpConfig,
       });
 
-      expect(receipts).to.have.length.greaterThan(0);
-      expect(deployed.artifactState).to.equal(ArtifactState.DEPLOYED);
-      expect(deployed.config.type).to.equal(HookType.INTERCHAIN_GAS_PAYMASTER);
-      expect(deployed.deployed.programId).to.equal(TEST_PROGRAM_IDS.igp);
+      expect(receipts.length).toBeGreaterThan(0);
+      expect(deployed.artifactState).toBe(ArtifactState.DEPLOYED);
+      expect(deployed.config.type).toBe(HookType.INTERCHAIN_GAS_PAYMASTER);
+      expect(deployed.deployed.programId).toBe(TEST_PROGRAM_IDS.igp);
 
       const reader = new SvmIgpHookReader(rpc, salt);
       const readResult = await reader.read(TEST_PROGRAM_IDS.igp);
 
-      expect(readResult.artifactState).to.equal(ArtifactState.DEPLOYED);
-      expect(readResult.config.type).to.equal(
-        HookType.INTERCHAIN_GAS_PAYMASTER,
-      );
+      expect(readResult.artifactState).toBe(ArtifactState.DEPLOYED);
+      expect(readResult.config.type).toBe(HookType.INTERCHAIN_GAS_PAYMASTER);
     });
 
-    it('should generate update transactions for config changes', async function () {
+    it('should generate update transactions for config changes', async () => {
       const salt = deriveIgpSalt('hyperlane-update-test');
       const writer = new SvmIgpHookWriter(
         { program: { programId: TEST_PROGRAM_IDS.igp } },
@@ -192,8 +187,8 @@ describe('SVM Hook E2E Tests', function () {
         },
       });
 
-      expect(updateTxs).to.have.length.greaterThan(0);
-      expect(updateTxs[0].annotation).to.include('oracle');
+      expect(updateTxs.length).toBeGreaterThan(0);
+      expect(updateTxs[0].annotation).toContain('oracle');
     });
   });
 
@@ -204,30 +199,30 @@ describe('SVM Hook E2E Tests', function () {
       const merkleHookArtifact = await manager.readHook(
         TEST_PROGRAM_IDS.mailbox,
       );
-      expect(merkleHookArtifact.config.type).to.equal(HookType.MERKLE_TREE);
+      expect(merkleHookArtifact.config.type).toBe(HookType.MERKLE_TREE);
     });
 
     it('should create readers for different hook types', () => {
       const manager = new SvmHookArtifactManager(rpc, TEST_PROGRAM_IDS.mailbox);
 
       const merkleReader = manager.createReader(HookType.MERKLE_TREE);
-      expect(merkleReader).to.be.instanceOf(SvmMerkleTreeHookReader);
+      expect(merkleReader).toBeInstanceOf(SvmMerkleTreeHookReader);
 
       const igpReader = manager.createReader(HookType.INTERCHAIN_GAS_PAYMASTER);
-      expect(igpReader).to.be.instanceOf(SvmIgpHookReader);
+      expect(igpReader).toBeInstanceOf(SvmIgpHookReader);
     });
 
     it('should create writers for different hook types', () => {
       const manager = new SvmHookArtifactManager(rpc, TEST_PROGRAM_IDS.mailbox);
 
       const merkleWriter = manager.createWriter(HookType.MERKLE_TREE, signer);
-      expect(merkleWriter).to.be.instanceOf(SvmMerkleTreeHookWriter);
+      expect(merkleWriter).toBeInstanceOf(SvmMerkleTreeHookWriter);
 
       const igpWriter = manager.createWriter(
         HookType.INTERCHAIN_GAS_PAYMASTER,
         signer,
       );
-      expect(igpWriter).to.be.instanceOf(SvmIgpHookWriter);
+      expect(igpWriter).toBeInstanceOf(SvmIgpHookWriter);
     });
   });
 });

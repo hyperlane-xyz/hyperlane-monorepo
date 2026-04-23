@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { describe, expect, it } from 'vitest';
 
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { type ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
@@ -35,9 +35,7 @@ const PARADEX_MAINNET_METADATA: ChainMetadataForAltVM = {
   rpcUrls: [{ http: 'https://rpc.api.prod.paradex.trade/rpc/v0_8' }],
 };
 
-describe('Starknet Warp Token read E2E Tests', function () {
-  this.timeout(300_000);
-
+describe('Starknet Warp Token read E2E Tests', () => {
   for (const testCase of [
     {
       chainMetadata: STARKNET_MAINNET_METADATA,

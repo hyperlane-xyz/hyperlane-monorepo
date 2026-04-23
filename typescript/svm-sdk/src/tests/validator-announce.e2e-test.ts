@@ -1,6 +1,5 @@
 import { address, type Address } from '@solana/kit';
-import { expect } from 'chai';
-import { before, describe, it } from 'mocha';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 
@@ -19,14 +18,12 @@ import { TEST_PROGRAM_IDS, airdropSol } from '../testing/setup.js';
 const TEST_PRIVATE_KEY =
   '0x0000000000000000000000000000000000000000000000000000000000000001';
 
-describe('SVM Validator Announce E2E Tests', function () {
-  this.timeout(300_000);
-
+describe('SVM Validator Announce E2E Tests', () => {
   let rpc: ReturnType<typeof createRpc>;
   let signer: SvmSigner;
   let vaWriter: SvmValidatorAnnounceWriter;
 
-  before(async () => {
+  beforeAll(async () => {
     rpc = createRpc(TEST_SVM_CHAIN_METADATA.rpcUrl);
     signer = await SvmSigner.connectWithSigner(
       [TEST_SVM_CHAIN_METADATA.rpcUrl],
@@ -91,19 +88,19 @@ describe('SVM Validator Announce E2E Tests', function () {
         },
       });
 
-      expect(receipts.length).to.be.greaterThan(0);
-      expect(deployed.artifactState).to.equal(ArtifactState.DEPLOYED);
-      expect(deployed.deployed.address).to.equal(
+      expect(receipts.length).toBeGreaterThan(0);
+      expect(deployed.artifactState).toBe(ArtifactState.DEPLOYED);
+      expect(deployed.deployed.address).toBe(
         TEST_PROGRAM_IDS.validatorAnnounce,
       );
-      expect(deployed.config.mailboxAddress).to.equal(TEST_PROGRAM_IDS.mailbox);
+      expect(deployed.config.mailboxAddress).toBe(TEST_PROGRAM_IDS.mailbox);
 
       // Verify on-chain state via read().
       const reader = new SvmValidatorAnnounceReader(rpc);
       const onChain = await reader.read(TEST_PROGRAM_IDS.validatorAnnounce);
 
-      expect(onChain.artifactState).to.equal(ArtifactState.DEPLOYED);
-      expect(onChain.config.mailboxAddress).to.equal(TEST_PROGRAM_IDS.mailbox);
+      expect(onChain.artifactState).toBe(ArtifactState.DEPLOYED);
+      expect(onChain.config.mailboxAddress).toBe(TEST_PROGRAM_IDS.mailbox);
     });
 
     it('should return empty transactions for update (no mutable config)', async () => {
@@ -117,7 +114,7 @@ describe('SVM Validator Announce E2E Tests', function () {
         },
       });
 
-      expect(updateTxs).to.have.length(0);
+      expect(updateTxs).toHaveLength(0);
     });
   });
 
@@ -131,8 +128,8 @@ describe('SVM Validator Announce E2E Tests', function () {
       const artifact = await manager.readValidatorAnnounce(
         TEST_PROGRAM_IDS.validatorAnnounce,
       );
-      expect(artifact.artifactState).to.equal(ArtifactState.DEPLOYED);
-      expect(artifact.deployed.address).to.equal(
+      expect(artifact.artifactState).toBe(ArtifactState.DEPLOYED);
+      expect(artifact.deployed.address).toBe(
         TEST_PROGRAM_IDS.validatorAnnounce,
       );
     });
@@ -144,10 +141,10 @@ describe('SVM Validator Announce E2E Tests', function () {
       );
 
       const reader = manager.createReader('validatorAnnounce');
-      expect(reader).to.be.instanceOf(SvmValidatorAnnounceReader);
+      expect(reader).toBeInstanceOf(SvmValidatorAnnounceReader);
 
       const writer = manager.createWriter('validatorAnnounce', signer);
-      expect(writer).to.be.instanceOf(SvmValidatorAnnounceWriter);
+      expect(writer).toBeInstanceOf(SvmValidatorAnnounceWriter);
     });
   });
 });

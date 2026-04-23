@@ -1,6 +1,6 @@
-import { expect } from 'chai';
 import { pino } from 'pino';
 import sinon from 'sinon';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { formatMessage, messageId } from '@hyperlane-xyz/utils';
 

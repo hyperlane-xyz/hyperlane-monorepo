@@ -1,18 +1,15 @@
-import { before, describe, it } from 'mocha';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
 import { retryAsync } from '@hyperlane-xyz/utils';
-import { expect } from 'chai';
 import { createRpc } from '../rpc.js';
 import { SvmWarpArtifactManager } from '../warp/warp-artifact-manager.js';
 
-describe('SVM Warp Token read E2E Tests', function () {
-  this.timeout(300_000);
-
+describe('SVM Warp Token read E2E Tests', () => {
   let rpc: ReturnType<typeof createRpc>;
   let artifactManager: SvmWarpArtifactManager;
 
-  before(async () => {
+  beforeAll(async () => {
     rpc = createRpc('https://api.mainnet-beta.solana.com');
     artifactManager = new SvmWarpArtifactManager(rpc);
   });
@@ -79,13 +76,11 @@ describe('SVM Warp Token read E2E Tests', function () {
       );
 
       const onChainConfig = read.config;
-      expect(onChainConfig.type).to.equal(testCase.type);
-      expect(onChainConfig.name).to.equal(testCase.expectedMetadata.name);
-      expect(onChainConfig.decimals).to.equal(
-        testCase.expectedMetadata.decimals,
-      );
-      expect(onChainConfig.symbol).to.equal(testCase.expectedMetadata.symbol);
-      expect(onChainConfig.scale).to.equal(testCase.expectedMetadata.scale);
+      expect(onChainConfig.type).toBe(testCase.type);
+      expect(onChainConfig.name).toBe(testCase.expectedMetadata.name);
+      expect(onChainConfig.decimals).toBe(testCase.expectedMetadata.decimals);
+      expect(onChainConfig.symbol).toBe(testCase.expectedMetadata.symbol);
+      expect(onChainConfig.scale).toBe(testCase.expectedMetadata.scale);
     });
   }
 });

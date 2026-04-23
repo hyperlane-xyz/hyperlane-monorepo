@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import { BigNumber, providers } from 'ethers';
 
 import { HyperlaneCore, MultiProvider, snapshot } from '@hyperlane-xyz/sdk';
@@ -21,9 +21,7 @@ import { getFirstMonitorEvent } from './harness/TestHelpers.js';
 import { TestRebalancer } from './harness/TestRebalancer.js';
 import { tryRelayMessage } from './harness/TransferHelper.js';
 
-describe('WeightedStrategy E2E', function () {
-  this.timeout(300_000);
-
+describe('WeightedStrategy E2E', () => {
   let deploymentManager: Erc20LocalDeploymentManager;
   let multiProvider: MultiProvider;
   let localProviders: Map<string, providers.JsonRpcProvider>;
@@ -32,7 +30,7 @@ describe('WeightedStrategy E2E', function () {
   let deployedAddresses: DeployedAddresses;
   let weightedStrategyConfig: StrategyConfig[];
 
-  before(async function () {
+  beforeAll(async function () {
     deploymentManager = new Erc20LocalDeploymentManager();
     const ctx: LocalDeploymentContext<DeployedAddresses> =
       await deploymentManager.start();
@@ -86,7 +84,7 @@ describe('WeightedStrategy E2E', function () {
     });
   });
 
-  after(async function () {
+  afterAll(async function () {
     if (deploymentManager) {
       await deploymentManager.stop();
     }

@@ -1,5 +1,4 @@
-import chai, { expect } from 'chai';
-import chaiAsPromised from 'chai-as-promised';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
@@ -17,11 +16,7 @@ import { ALEO_NULL_ADDRESS, fromAleoAddress } from '../utils/helper.js';
 import { AleoNetworkId } from '../utils/types.js';
 import { AleoValidatorAnnounceArtifactManager } from '../validator-announce/validator-announce-artifact-manager.js';
 
-chai.use(chaiAsPromised);
-
-describe('9. aleo sdk ValidatorAnnounce artifacts e2e tests', async function () {
-  this.timeout(100_000);
-
+describe('9. aleo sdk ValidatorAnnounce artifacts e2e tests', () => {
   let aleoSigner: AleoSigner;
   let aleoClient: AnyAleoNetworkClient;
   let validatorAnnounceArtifactManager: AleoValidatorAnnounceArtifactManager;
@@ -30,7 +25,7 @@ describe('9. aleo sdk ValidatorAnnounce artifacts e2e tests', async function () 
   let testMailboxAddress: string;
   const domainId = 1234;
 
-  before(async () => {
+  beforeAll(async () => {
     aleoSigner = await AleoSigner.connectWithSigner(
       [TEST_ALEO_CHAIN_METADATA.rpcUrl],
       TEST_ALEO_PRIVATE_KEY,

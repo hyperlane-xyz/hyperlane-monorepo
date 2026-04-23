@@ -1,7 +1,5 @@
 import { address, type Address } from '@solana/kit';
-import { expect } from 'chai';
-import { before, describe, it } from 'mocha';
-import { step } from 'mocha-steps';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
 
@@ -29,9 +27,7 @@ import { defineWarpTokenTests } from './warp-token-suite.js';
 const TEST_PRIVATE_KEY =
   '0x0000000000000000000000000000000000000000000000000000000000000001';
 
-describe('SVM Cross-Collateral Warp Token E2E Tests', function () {
-  this.timeout(300_000);
-
+describe('SVM Cross-Collateral Warp Token E2E Tests', () => {
   let rpc: ReturnType<typeof createRpc>;
   let signer: SvmSigner;
   let mailboxAddress: Address;
@@ -40,7 +36,7 @@ describe('SVM Cross-Collateral Warp Token E2E Tests', function () {
   let testIsmAddress: Address;
   let writer: SvmCrossCollateralTokenWriter;
 
-  before(async () => {
+  beforeAll(async () => {
     rpc = createRpc(TEST_SVM_CHAIN_METADATA.rpcUrl);
     signer = await SvmSigner.connectWithSigner(
       [TEST_SVM_CHAIN_METADATA.rpcUrl],
@@ -156,23 +152,37 @@ describe('SVM Cross-Collateral Warp Token E2E Tests', function () {
         address(deployedProgramId),
       );
       const balance = await rpc.getBalance(ataPayerPda).send();
-      expect(BigInt(balance.value) >= TEST_ATA_PAYER_FUNDING_AMOUNT).to.be.true;
+      expect(BigInt(balance.value) >= TEST_ATA_PAYER_FUNDING_AMOUNT).toBe(true);
     });
 
     it('should have correct collateral token address after deploy', async () => {
       const token = await writer.read(deployedProgramId);
-      expect(token.config.token).to.equal(collateralMint);
-      expect(token.config.mailbox).to.equal(mailboxAddress);
+      expect(token.config.token).toBe(collateralMint);
+      expect(token.config.mailbox).toBe(mailboxAddress);
     });
 
-    describe('Cross collateral token', function () {
+    describe('Cross collateral token', () => {
+      let __stepFailed = false;
+      const step = (name: string, fn?: () => void | Promise<void>) => {
+        if (!fn) return it.skip(name, () => {});
+        return it(name, async (ctx) => {
+          if (__stepFailed) return ctx.skip();
+          try {
+            await fn();
+          } catch (e) {
+            __stepFailed = true;
+            throw e;
+          }
+        });
+      };
+
       step(
         'should enroll CC routers via update and read them back',
         async () => {
           const current = await writer.read(deployedProgramId);
           expect(
             Object.keys(current.config.crossCollateralRouters),
-          ).to.have.length(0);
+          ).toHaveLength(0);
 
           const ccRouters: Record<number, Set<string>> = {
             1: new Set([
@@ -192,32 +202,32 @@ describe('SVM Cross-Collateral Warp Token E2E Tests', function () {
             },
           });
 
-          expect(updateTxs.length).to.be.greaterThan(0);
+          expect(updateTxs.length).toBeGreaterThan(0);
           for (const tx of updateTxs) {
             await signer.send({ instructions: tx.instructions });
           }
 
           const onChain = await writer.read(deployedProgramId);
           const domain1Routers = onChain.config.crossCollateralRouters[1];
-          expect(domain1Routers).to.not.be.undefined;
-          expect(domain1Routers?.size).to.equal(1);
+          expect(domain1Routers).toBeDefined();
+          expect(domain1Routers?.size).toBe(1);
           expect(
             domain1Routers?.has(
               '0x1111111111111111111111111111111111111111111111111111111111111111',
             ),
-          ).to.be.true;
+          ).toBe(true);
 
           const domain2Routers = onChain.config.crossCollateralRouters[2];
-          expect(domain2Routers).to.not.be.undefined;
-          expect(domain2Routers?.size).to.equal(2);
+          expect(domain2Routers).toBeDefined();
+          expect(domain2Routers?.size).toBe(2);
         },
       );
 
       step('should enroll additional CC routers via update', async () => {
         const current = await writer.read(deployedProgramId);
-        expect(
-          Object.keys(current.config.crossCollateralRouters),
-        ).to.have.length(2);
+        expect(Object.keys(current.config.crossCollateralRouters)).toHaveLength(
+          2,
+        );
 
         const updateTxs = await writer.update({
           ...current,
@@ -232,32 +242,32 @@ describe('SVM Cross-Collateral Warp Token E2E Tests', function () {
           },
         });
 
-        expect(updateTxs.length).to.be.greaterThan(0);
+        expect(updateTxs.length).toBeGreaterThan(0);
         for (const tx of updateTxs) {
           await signer.send({ instructions: tx.instructions });
         }
 
         const updated = await writer.read(deployedProgramId);
-        expect(
-          Object.keys(updated.config.crossCollateralRouters),
-        ).to.have.length(3);
-        expect(updated.config.crossCollateralRouters[1]?.size).to.equal(1);
-        expect(updated.config.crossCollateralRouters[2]?.size).to.equal(2);
+        expect(Object.keys(updated.config.crossCollateralRouters)).toHaveLength(
+          3,
+        );
+        expect(updated.config.crossCollateralRouters[1]?.size).toBe(1);
+        expect(updated.config.crossCollateralRouters[2]?.size).toBe(2);
         const domain3 = updated.config.crossCollateralRouters[3];
-        expect(domain3).to.not.be.undefined;
-        expect(domain3?.size).to.equal(1);
+        expect(domain3).toBeDefined();
+        expect(domain3?.size).toBe(1);
         expect(
           domain3?.has(
             '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
           ),
-        ).to.be.true;
+        ).toBe(true);
       });
 
       step('should unenroll all CC routers via update', async () => {
         const current = await writer.read(deployedProgramId);
-        expect(
-          Object.keys(current.config.crossCollateralRouters),
-        ).to.have.length(3);
+        expect(Object.keys(current.config.crossCollateralRouters)).toHaveLength(
+          3,
+        );
 
         const updateTxs = await writer.update({
           ...current,
@@ -267,15 +277,15 @@ describe('SVM Cross-Collateral Warp Token E2E Tests', function () {
           },
         });
 
-        expect(updateTxs.length).to.be.greaterThan(0);
+        expect(updateTxs.length).toBeGreaterThan(0);
         for (const tx of updateTxs) {
           await signer.send({ instructions: tx.instructions });
         }
 
         const updated = await writer.read(deployedProgramId);
-        expect(
-          Object.keys(updated.config.crossCollateralRouters),
-        ).to.have.length(0);
+        expect(Object.keys(updated.config.crossCollateralRouters)).toHaveLength(
+          0,
+        );
       });
 
       step(
@@ -309,7 +319,7 @@ describe('SVM Cross-Collateral Warp Token E2E Tests', function () {
             },
           });
 
-          expect(enrollTxs.length).to.be.greaterThan(0);
+          expect(enrollTxs.length).toBeGreaterThan(0);
           for (const tx of enrollTxs) {
             await signer.send({ instructions: tx.instructions });
           }
@@ -318,13 +328,13 @@ describe('SVM Cross-Collateral Warp Token E2E Tests', function () {
           const afterEnroll = await writer.read(deployedProgramId);
           expect(
             afterEnroll.config.crossCollateralRouters[10]?.has(CANONICAL_MIXED),
-          ).to.be.true;
+          ).toBe(true);
           expect(
             afterEnroll.config.crossCollateralRouters[11]?.has(CANONICAL_EVM),
-          ).to.be.true;
+          ).toBe(true);
           expect(
             afterEnroll.config.crossCollateralRouters[12]?.has(CANONICAL_SOL),
-          ).to.be.true;
+          ).toBe(true);
 
           // Re-apply same non-canonical config — should produce no txs at all
           const nochurnTxs = await writer.update({
@@ -339,7 +349,7 @@ describe('SVM Cross-Collateral Warp Token E2E Tests', function () {
             },
           });
 
-          expect(nochurnTxs).to.have.length(0);
+          expect(nochurnTxs).toHaveLength(0);
 
           // Cleanup
           const cleanupTxs = await writer.update({
@@ -365,7 +375,7 @@ describe('SVM Cross-Collateral Warp Token E2E Tests', function () {
           const current = await writer.read(deployedProgramId);
 
           // Verify domain 99 is not in remoteRouters
-          expect(current.config.remoteRouters[CC_ONLY_DOMAIN]).to.be.undefined;
+          expect(current.config.remoteRouters[CC_ONLY_DOMAIN]).toBeUndefined();
 
           // Enroll CC routers + gas for a CC-only domain
           const enrollTxs = await writer.update({
@@ -382,7 +392,7 @@ describe('SVM Cross-Collateral Warp Token E2E Tests', function () {
             },
           });
 
-          expect(enrollTxs.length).to.be.greaterThan(0);
+          expect(enrollTxs.length).toBeGreaterThan(0);
           for (const tx of enrollTxs) {
             await signer.send({ instructions: tx.instructions });
           }
@@ -390,8 +400,8 @@ describe('SVM Cross-Collateral Warp Token E2E Tests', function () {
           const afterEnroll = await writer.read(deployedProgramId);
           expect(
             afterEnroll.config.crossCollateralRouters[CC_ONLY_DOMAIN]?.size,
-          ).to.equal(1);
-          expect(afterEnroll.config.destinationGas[CC_ONLY_DOMAIN]).to.equal(
+          ).toBe(1);
+          expect(afterEnroll.config.destinationGas[CC_ONLY_DOMAIN]).toBe(
             '300000',
           );
         },
@@ -418,13 +428,13 @@ describe('SVM Cross-Collateral Warp Token E2E Tests', function () {
           },
         });
 
-        expect(updateTxs.length).to.be.greaterThan(0);
+        expect(updateTxs.length).toBeGreaterThan(0);
         for (const tx of updateTxs) {
           await signer.send({ instructions: tx.instructions });
         }
 
         const afterUpdate = await writer.read(deployedProgramId);
-        expect(afterUpdate.config.destinationGas[CC_ONLY_DOMAIN]).to.equal(
+        expect(afterUpdate.config.destinationGas[CC_ONLY_DOMAIN]).toBe(
           '500000',
         );
       });
@@ -435,7 +445,7 @@ describe('SVM Cross-Collateral Warp Token E2E Tests', function () {
           const CC_ONLY_DOMAIN = 99;
 
           const current = await writer.read(deployedProgramId);
-          expect(current.config.destinationGas[CC_ONLY_DOMAIN]).to.exist;
+          expect(current.config.destinationGas[CC_ONLY_DOMAIN]).toBeDefined();
 
           // Remove CC routers for domain 99 — gas should be unenrolled too
           const removeTxs = await writer.update({
@@ -451,7 +461,7 @@ describe('SVM Cross-Collateral Warp Token E2E Tests', function () {
             },
           });
 
-          expect(removeTxs.length).to.be.greaterThan(0);
+          expect(removeTxs.length).toBeGreaterThan(0);
           for (const tx of removeTxs) {
             await signer.send({ instructions: tx.instructions });
           }
@@ -459,9 +469,10 @@ describe('SVM Cross-Collateral Warp Token E2E Tests', function () {
           const afterRemove = await writer.read(deployedProgramId);
           expect(
             Object.keys(afterRemove.config.crossCollateralRouters),
-          ).to.have.length(0);
-          expect(afterRemove.config.destinationGas[CC_ONLY_DOMAIN]).to.be
-            .undefined;
+          ).toHaveLength(0);
+          expect(
+            afterRemove.config.destinationGas[CC_ONLY_DOMAIN],
+          ).toBeUndefined();
         },
       );
     });

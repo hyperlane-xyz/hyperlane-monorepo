@@ -1,5 +1,4 @@
-import chai, { expect } from 'chai';
-import chaiAsPromised from 'chai-as-promised';
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { type ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
@@ -30,11 +29,7 @@ import {
 import { ALEO_NULL_ADDRESS } from '../utils/helper.js';
 import { AleoNetworkId } from '../utils/types.js';
 
-chai.use(chaiAsPromised);
-
-describe('8. aleo sdk Mailbox artifacts e2e tests', async function () {
-  this.timeout(100_000);
-
+describe('8. aleo sdk Mailbox artifacts e2e tests', () => {
   let signer: ISigner<AnnotatedTx, TxReceipt>;
   let aleoSigner: AleoSigner;
   let aleoClient: AnyAleoNetworkClient;
@@ -47,7 +42,7 @@ describe('8. aleo sdk Mailbox artifacts e2e tests', async function () {
   const TEST_OWNER_ADDRESS =
     'aleo1d5hg2z3ma00382pngntdp68e74zv54jdxy249qhaujhks9c72yrs33ddah';
 
-  before(async () => {
+  beforeAll(async () => {
     aleoSigner = await AleoSigner.connectWithSigner(
       [TEST_ALEO_CHAIN_METADATA.rpcUrl],
       TEST_ALEO_PRIVATE_KEY,

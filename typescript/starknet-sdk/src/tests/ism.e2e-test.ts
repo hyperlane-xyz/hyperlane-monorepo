@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
@@ -6,10 +6,7 @@ import { eqAddressStarknet, normalizeAddressEvm } from '@hyperlane-xyz/utils';
 
 import { StarknetSigner } from '../clients/signer.js';
 import { StarknetIsmArtifactManager } from '../ism/ism-artifact-manager.js';
-import {
-  DEFAULT_E2E_TEST_TIMEOUT,
-  TEST_STARKNET_CHAIN_METADATA,
-} from '../testing/constants.js';
+import { TEST_STARKNET_CHAIN_METADATA } from '../testing/constants.js';
 import { createSigner } from '../testing/utils.js';
 import { StarknetAnnotatedTx } from '../types.js';
 
@@ -19,13 +16,11 @@ function normalizeValidators(addresses: string[]): string[] {
     .sort();
 }
 
-describe('1. starknet sdk ISM e2e tests', function () {
-  this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
-
+describe('1. starknet sdk ISM e2e tests', () => {
   let signer: StarknetSigner;
   let artifactManager: StarknetIsmArtifactManager;
 
-  before(async () => {
+  beforeAll(async () => {
     signer = await createSigner();
     artifactManager = new StarknetIsmArtifactManager(
       TEST_STARKNET_CHAIN_METADATA,

@@ -1,6 +1,5 @@
 import { address, type Address } from '@solana/kit';
-import { expect } from 'chai';
-import { before, describe, it } from 'mocha';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
 
@@ -28,9 +27,7 @@ import { defineWarpTokenTests } from './warp-token-suite.js';
 const TEST_PRIVATE_KEY =
   '0x0000000000000000000000000000000000000000000000000000000000000001';
 
-describe('SVM Collateral Warp Token E2E Tests', function () {
-  this.timeout(300_000);
-
+describe('SVM Collateral Warp Token E2E Tests', () => {
   let rpc: ReturnType<typeof createRpc>;
   let signer: SvmSigner;
   let mailboxAddress: Address;
@@ -39,7 +36,7 @@ describe('SVM Collateral Warp Token E2E Tests', function () {
   let testIsmAddress: Address;
   let writer: SvmCollateralTokenWriter;
 
-  before(async () => {
+  beforeAll(async () => {
     rpc = createRpc(TEST_SVM_CHAIN_METADATA.rpcUrl);
     signer = await SvmSigner.connectWithSigner(
       [TEST_SVM_CHAIN_METADATA.rpcUrl],
@@ -126,13 +123,13 @@ describe('SVM Collateral Warp Token E2E Tests', function () {
         address(deployedProgramId),
       );
       const balance = await rpc.getBalance(ataPayerPda).send();
-      expect(BigInt(balance.value) >= TEST_ATA_PAYER_FUNDING_AMOUNT).to.be.true;
+      expect(BigInt(balance.value) >= TEST_ATA_PAYER_FUNDING_AMOUNT).toBe(true);
     });
 
     it('should have correct collateral token address after deploy', async () => {
       const token = await writer.read(deployedProgramId);
-      expect(token.config.token).to.equal(collateralMint);
-      expect(token.config.mailbox).to.equal(mailboxAddress);
+      expect(token.config.token).toBe(collateralMint);
+      expect(token.config.mailbox).toBe(mailboxAddress);
     });
   });
 });

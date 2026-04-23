@@ -1,5 +1,4 @@
-import chai, { expect } from 'chai';
-import chaiAsPromised from 'chai-as-promised';
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { type ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
@@ -25,11 +24,7 @@ import { CosmosMailboxArtifactManager } from '../mailbox/mailbox-artifact-manage
 import { COSMOS_MODULE_MESSAGE_REGISTRY as MessageRegistry } from '../registry.js';
 import { createSigner } from '../testing/utils.js';
 
-chai.use(chaiAsPromised);
-
-describe('Cosmos Mailbox Artifact API (e2e)', function () {
-  this.timeout(100_000);
-
+describe('Cosmos Mailbox Artifact API (e2e)', () => {
   let signer: ISigner<AnnotatedTx, TxReceipt>;
   let cosmosSigner: CosmosNativeSigner;
   let mailboxArtifactManager: CosmosMailboxArtifactManager;
@@ -38,7 +33,7 @@ describe('Cosmos Mailbox Artifact API (e2e)', function () {
   const domainId = 1234;
   const denom = 'uhyp';
 
-  before(async () => {
+  beforeAll(async () => {
     cosmosSigner = await createSigner('alice');
     signer = cosmosSigner;
 

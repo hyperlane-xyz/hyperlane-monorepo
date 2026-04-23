@@ -3,7 +3,7 @@ import { BigNumber, providers } from 'ethers';
 import { HyperlaneCore, MultiProvider } from '@hyperlane-xyz/sdk';
 import { assert } from '@hyperlane-xyz/utils';
 import { ERC20Test__factory } from '@hyperlane-xyz/core';
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import type { RebalanceAction } from '../../tracking/types.js';
 import type { MonitorEvent } from '../../interfaces/IMonitor.js';

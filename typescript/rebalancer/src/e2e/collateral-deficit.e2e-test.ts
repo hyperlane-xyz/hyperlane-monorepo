@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import { BigNumber, ethers, providers } from 'ethers';
 
 import { HyperlaneCore, MultiProvider, snapshot } from '@hyperlane-xyz/sdk';
@@ -29,9 +29,7 @@ import {
 
 const USDC_DECIMALS = 6;
 
-describe('Collateral Deficit E2E', function () {
-  this.timeout(300_000);
-
+describe('Collateral Deficit E2E', () => {
   let deploymentManager: Erc20LocalDeploymentManager;
   let multiProvider: MultiProvider;
   let localProviders: Map<string, providers.JsonRpcProvider>;
@@ -41,7 +39,7 @@ describe('Collateral Deficit E2E', function () {
   let deployedAddresses: DeployedAddresses;
   let collateralDeficitStrategyConfig: StrategyConfig[];
 
-  before(async function () {
+  beforeAll(async function () {
     const wallet = new ethers.Wallet(ANVIL_USER_PRIVATE_KEY);
     userAddress = wallet.address;
 
@@ -98,7 +96,7 @@ describe('Collateral Deficit E2E', function () {
     });
   });
 
-  after(async function () {
+  afterAll(async function () {
     if (deploymentManager) {
       await deploymentManager.stop();
     }

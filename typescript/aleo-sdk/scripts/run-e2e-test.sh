@@ -12,9 +12,9 @@ export ALEO_ISM_MANAGER_SUFFIX="custom"
 
 if [ -n "${ALEO_SDK_E2E_TEST}" ]; then
   echo "Running only ${ALEO_SDK_E2E_TEST} test"
-  pnpm mocha --config .mocharc-e2e.json "src/tests/${ALEO_SDK_E2E_TEST}.e2e-test.ts"
+  pnpm vitest run --config vitest.e2e.config.ts "src/tests/${ALEO_SDK_E2E_TEST}.e2e-test.ts"
 else
-  pnpm mocha --config .mocharc-e2e.json "src/tests/*.e2e-test.ts"
+  pnpm vitest run --config vitest.e2e.config.ts
 fi
 
 echo "Completed E2E tests"

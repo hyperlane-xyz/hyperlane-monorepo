@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { type ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
@@ -25,14 +25,12 @@ import { type CosmosNativeSigner } from '../clients/signer.js';
 import { CosmosIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 import { createSigner } from '../testing/utils.js';
 
-describe('Cosmos ISM Artifact API (e2e)', function () {
-  this.timeout(100_000);
-
+describe('Cosmos ISM Artifact API (e2e)', () => {
   let cosmosSigner: CosmosNativeSigner;
   let signer: ISigner<AnnotatedTx, TxReceipt>;
   let artifactManager: CosmosIsmArtifactManager;
 
-  before(async () => {
+  beforeAll(async () => {
     cosmosSigner = await createSigner('alice');
     signer = cosmosSigner;
 
@@ -153,7 +151,7 @@ describe('Cosmos ISM Artifact API (e2e)', function () {
       DeployedIsmAddress
     >;
 
-    before(async () => {
+    beforeAll(async () => {
       const testWriter = artifactManager.createWriter(
         AltVM.IsmType.TEST_ISM,
         cosmosSigner,

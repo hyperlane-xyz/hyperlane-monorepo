@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import { BigNumber, Wallet, providers } from 'ethers';
 
 import {
@@ -71,9 +71,7 @@ function buildMixedWeightedStrategyConfig(
   ];
 }
 
-describe('Mixed WeightedStrategy E2E', function () {
-  this.timeout(300_000);
-
+describe('Mixed WeightedStrategy E2E', () => {
   let deploymentManager: MixedLocalDeploymentManager;
   let multiProvider: MultiProvider;
   let localProviders: Map<string, providers.JsonRpcProvider>;
@@ -100,7 +98,7 @@ describe('Mixed WeightedStrategy E2E', function () {
       .build();
   }
 
-  before(async function () {
+  beforeAll(async function () {
     deploymentManager = new MixedLocalDeploymentManager(inventorySignerAddress);
     const ctx = await deploymentManager.start();
     multiProvider = ctx.multiProvider;
@@ -144,7 +142,7 @@ describe('Mixed WeightedStrategy E2E', function () {
     }
   });
 
-  after(async function () {
+  afterAll(async function () {
     if (deploymentManager) {
       await deploymentManager.stop();
     }
