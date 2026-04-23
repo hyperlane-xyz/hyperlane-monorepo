@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import 'chai-as-promised';
 import sinon from 'sinon';
 
 import {

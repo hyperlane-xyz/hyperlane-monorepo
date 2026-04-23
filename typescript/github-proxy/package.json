@@ -24,13 +24,13 @@
     "cf-typegen": "wrangler types"
   },
   "devDependencies": {
-    "@cloudflare/vitest-pool-workers": "^0.4.5",
+    "@cloudflare/vitest-pool-workers": "^0.14.7",
     "@cloudflare/workers-types": "^4.20240821.1",
     "@faker-js/faker": "^8.4.1",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "chai": "catalog:",
     "typescript": "catalog:",
-    "vitest": "1.4.0",
+    "vitest": "catalog:",
     "wrangler": "^3.74.0"
   }
 }
