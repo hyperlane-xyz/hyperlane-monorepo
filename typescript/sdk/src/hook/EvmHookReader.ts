@@ -189,19 +189,16 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
           );
       }
     } catch (e: any) {
-      let customMessage: string = `Failed to derive ${onchainHookType} hook (${address})`;
-      if (
-        !onchainHookType &&
-        e.message.includes('Invalid response from provider')
-      ) {
-        customMessage = customMessage.concat(
-          ` [The provided hook contract might be outdated and not support hookType()]`,
+      if (!onchainHookType) {
+        this.logger.warn(
+          `Failed to derive hook type for ${address} [contract may be outdated and not support hookType()], falling back to unknown:\n\t${e}`,
         );
-        this.logger.info(`${customMessage}:\n\t${e}`);
+        derivedHookConfig = { type: HookType.UNKNOWN, address };
       } else {
+        const customMessage = `Failed to derive ${onchainHookType} hook (${address})`;
         this.logger.debug(`${customMessage}:\n\t${e}`);
+        throw new Error(`${customMessage}:\n\t${e}`);
       }
-      throw new Error(`${customMessage}:\n\t${e}`);
     } finally {
       this.setSmartProviderLogLevel(getLogLevel()); // returns to original level defined by rootLogger
     }
