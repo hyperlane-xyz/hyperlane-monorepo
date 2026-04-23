@@ -20,12 +20,21 @@ use crate::plugin::CollateralPlugin;
 #[cfg(not(feature = "no-entrypoint"))]
 solana_program::entrypoint!(process_instruction);
 
+/// Marker type for PackageVersioned trait implementation.
+pub struct HyperlaneCollateralProgram;
+impl package_versioned::PackageVersioned for HyperlaneCollateralProgram {}
+
 /// Processes an instruction.
 pub fn process_instruction(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
     instruction_data: &[u8],
 ) -> ProgramResult {
+    // Universal version query.
+    if package_versioned::is_get_program_version(instruction_data) {
+        return package_versioned::process_get_program_version::<HyperlaneCollateralProgram>();
+    }
+
     // First, check if the instruction has a discriminant relating to
     // the message recipient interface.
     if let Ok(message_recipient_instruction) = MessageRecipientInstruction::decode(instruction_data)

@@ -26,6 +26,7 @@ thiserror.workspace = true
 access-control = { path = "../../libraries/access-control" }
 account-utils = { path = "../../libraries/account-utils" }
 hyperlane-core = { path = "../../../main/hyperlane-core" }
+package-versioned = { path = "../../libraries/package-versioned" }
 hyperlane-sealevel-connection-client = { path = "../../libraries/hyperlane-sealevel-connection-client" }
 hyperlane-sealevel-mailbox = { path = "../mailbox", features = [
     "no-entrypoint",

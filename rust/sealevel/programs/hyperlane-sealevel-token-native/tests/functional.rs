@@ -2018,3 +2018,37 @@ async fn test_transfer_remote_with_transient_quote_native() {
         "dispatched message should exist"
     );
 }
+
+#[tokio::test]
+async fn test_get_program_version() {
+    use package_versioned::{get_program_version_instruction_data, PACKAGE_VERSION};
+    use serializable_account_meta::SimulationReturnData;
+    use solana_sdk::message::Message;
+
+    let program_id = hyperlane_sealevel_token_native_id();
+    let (mut banks_client, payer) = setup_client().await;
+
+    let ix =
+        Instruction::new_with_bytes(program_id, &get_program_version_instruction_data(), vec![]);
+
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let simulation = banks_client
+        .simulate_transaction(Transaction::new_unsigned(Message::new_with_blockhash(
+            &[ix],
+            Some(&payer.pubkey()),
+            &recent_blockhash,
+        )))
+        .await
+        .unwrap();
+
+    let return_data = simulation
+        .simulation_details
+        .unwrap()
+        .return_data
+        .unwrap()
+        .data;
+
+    let version: SimulationReturnData<String> =
+        borsh::BorshDeserialize::try_from_slice(&return_data).unwrap();
+    assert_eq!(version.return_data, PACKAGE_VERSION);
+}

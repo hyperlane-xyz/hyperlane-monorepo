@@ -50,12 +50,21 @@ use hyperlane_sealevel_token_lib::hyperlane_token_pda_seeds;
 #[cfg(not(feature = "no-entrypoint"))]
 solana_program::entrypoint!(process_instruction);
 
+/// Marker type for PackageVersioned trait implementation.
+pub struct HyperlaneCrossCollateralProgram;
+impl package_versioned::PackageVersioned for HyperlaneCrossCollateralProgram {}
+
 /// Processes an instruction.
 pub fn process_instruction(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
     instruction_data: &[u8],
 ) -> ProgramResult {
+    // Universal version query.
+    if package_versioned::is_get_program_version(instruction_data) {
+        return package_versioned::process_get_program_version::<HyperlaneCrossCollateralProgram>();
+    }
+
     // Stage 1: Try cross-collateral instruction discriminator [2,2,2,2,2,2,2,2]
     if let Ok(cc_instruction) = CrossCollateralInstruction::decode(instruction_data) {
         return match cc_instruction {
