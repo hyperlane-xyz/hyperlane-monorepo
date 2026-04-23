@@ -71,6 +71,7 @@ describe('WarpService', () => {
       );
       try {
         await warpService.getWarpCoreConfig(warpRouteId);
+        throw new Error('Should have thrown');
       } catch (err) {
         expect(err).toBeInstanceOf(NotFoundError);
         expect(err).toHaveProperty(
@@ -131,6 +132,7 @@ describe('WarpService', () => {
       );
       try {
         await warpService.getWarpDeployConfig(warpRouteId);
+        throw new Error('Should have thrown');
       } catch (err) {
         expect(err).toBeInstanceOf(NotFoundError);
         expect(err).toHaveProperty(

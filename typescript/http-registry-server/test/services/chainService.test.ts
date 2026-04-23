@@ -60,6 +60,7 @@ describe('ChainService', () => {
       ).rejects.toThrow(/Chain metadata not found for chain nonexistent/);
       try {
         await chainService.getChainMetadata('nonexistent');
+        throw new Error('Should have thrown');
       } catch (err) {
         expect(err).toBeInstanceOf(NotFoundError);
         expect(err).toHaveProperty(
@@ -102,6 +103,7 @@ describe('ChainService', () => {
       ).rejects.toThrow(/Chain addresses not found for chain nonexistent/);
       try {
         await chainService.getChainAddresses('nonexistent');
+        throw new Error('Should have thrown');
       } catch (err) {
         expect(err).toBeInstanceOf(NotFoundError);
         expect(err).toHaveProperty(
