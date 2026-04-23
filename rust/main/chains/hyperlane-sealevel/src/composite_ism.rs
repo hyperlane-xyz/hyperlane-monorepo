@@ -65,20 +65,22 @@ impl SealevelCompositeIsm {
         )
         .map_err(ChainCommunicationError::from_other)?;
 
-        // Errors on pass 1 are treated as "no data": FallbackRouting fails the
-        // simulation when inbox/fallback accounts are missing, but pass 2 will
-        // supply them. Pass 2 errors still propagate via `?`.
-        if let Some(result) = self
+        // FallbackRouting fails the simulation when the fallback ISM's accounts are
+        // missing; pass 2 will supply them. Any other simulation error propagates.
+        // Ok(None) (program ran but set no return data) is always a bug.
+        match self
             .provider
             .simulate_instruction::<SimulationReturnData<MetadataSpec>>(&payer, instruction)
             .await
-            .ok()
-            .flatten()
         {
-            return Ok(result.return_data);
+            Ok(Some(result)) => return Ok(result.return_data),
+            Ok(None) => return Err(ChainCommunicationError::from_other_str(
+                "VerifyMetadataSpec pass 1 returned no data — expected only for FallbackRouting",
+            )),
+            Err(_) => {} // fall through to pass 2
         }
 
-        // Pass 1 returned no data — the root ISM is likely a FallbackRouting node whose
+        // Pass 1 simulation error — the root ISM is a FallbackRouting node whose
         // fallback path requires the fallback ISM's accounts.
         let fallback_accounts = self.resolve_fallback_routing_accounts(message).await?;
         let all_accounts = std::iter::once(domain_pda)
