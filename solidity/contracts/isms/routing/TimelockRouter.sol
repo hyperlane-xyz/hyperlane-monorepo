@@ -18,9 +18,7 @@ import {Router} from "../../client/Router.sol";
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
 import {IRoutingHook} from "../../interfaces/hooks/IRoutingHook.sol";
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
-import {StandardHookMetadata} from "../../hooks/libs/StandardHookMetadata.sol";
 import {Message} from "../../libs/Message.sol";
-import {TypeCasts} from "../../libs/TypeCasts.sol";
 
 /**
  * @title TimelockRouter
@@ -29,6 +27,13 @@ import {TypeCasts} from "../../libs/TypeCasts.sol";
  * 1. Hook: On origin chain, sends message IDs to destination routers
  * 2. Router: On destination chain, receives message IDs and stores readyAt time
  * 3. ISM: On destination chain, verifies messages after the timelock window
+ *
+ * Subclasses customize behavior by overriding the external `postDispatch`
+ * (calling `_TimelockRouter_dispatchPreverify` with a custom payload) and
+ * `_handle` (computing a per-message wait and calling
+ * `_TimelockRouter_commitReadyAt`). `verify` can be extended via
+ * `_TimelockRouter_verify`. See `DelayedFlowRouter` for an amount-sensitive
+ * extension.
  */
 contract TimelockRouter is
     Router,
@@ -37,8 +42,6 @@ contract TimelockRouter is
     IInterchainSecurityModule
 {
     using Message for bytes;
-    using StandardHookMetadata for bytes;
-    using TypeCasts for address;
 
     // ============ Events ============
     event MessageQueued(bytes32 indexed messageId, uint48 readyAt);
@@ -61,7 +64,7 @@ contract TimelockRouter is
     // ============ IPostDispatchHook Implementation ============
 
     /// @inheritdoc IPostDispatchHook
-    function hookType() external pure returns (uint8) {
+    function hookType() external pure virtual returns (uint8) {
         return uint8(IPostDispatchHook.HookTypes.ROUTING);
     }
 
@@ -82,68 +85,101 @@ contract TimelockRouter is
 
     /**
      * @inheritdoc IPostDispatchHook
-     * @dev Access is restricted by _isLatestDispatched which ensures only
-     * messages currently being dispatched through the Mailbox can be preverified.
-     * On the destination, _handle only accepts messages from enrolled routers
-     * via the Mailbox's sender verification, preventing arbitrary preverification.
+     * @dev Access is restricted by `_isLatestDispatched` which ensures only
+     * messages currently being dispatched through the Mailbox can be
+     * preverified. On the destination, `_handle` only accepts messages from
+     * enrolled routers via the Mailbox's sender verification. Subclasses
+     * override this and call `_TimelockRouter_dispatchPreverify` with a
+     * custom payload (e.g. encoding an amount alongside the message id).
      */
     function postDispatch(
         bytes calldata /*metadata*/,
         bytes calldata message
-    ) external payable {
+    ) external payable virtual {
         bytes32 id = message.id();
-        require(_isLatestDispatched(id), "message not dispatching");
-        // Send message ID to destination router for preverification
-        _Router_dispatch(message.destination(), msg.value, abi.encode(id));
+        _TimelockRouter_dispatchPreverify(
+            id,
+            message.destination(),
+            abi.encode(id)
+        );
     }
 
-    /// @inheritdoc IPostDispatchHook
+    /// @dev Leaf helper for subclass `postDispatch` overrides: enforces the
+    /// `_isLatestDispatched` guard and forwards `payload` cross-chain.
+    function _TimelockRouter_dispatchPreverify(
+        bytes32 id,
+        uint32 destination,
+        bytes memory payload
+    ) internal {
+        require(_isLatestDispatched(id), "message not dispatching");
+        _Router_dispatch(destination, msg.value, payload);
+    }
+
     function quoteDispatch(
         bytes calldata /*metadata*/,
         bytes calldata message
-    ) external view returns (uint256) {
-        uint32 destination = message.destination();
-        bytes memory payload = abi.encode(message.id());
-
-        return _Router_quoteDispatch(destination, payload);
+    ) external view virtual returns (uint256) {
+        return
+            _Router_quoteDispatch(
+                message.destination(),
+                abi.encode(message.id())
+            );
     }
 
     // ============ Router Implementation ============
 
     /// @inheritdoc Router
+    /// @dev Default preverification: decode the id and commit `readyAt` at
+    /// the constant `timelockWindow`. Subclasses override this entirely to
+    /// derive an amount-sensitive wait, then call
+    /// `_TimelockRouter_commitReadyAt` to persist the result.
     function _handle(
-        uint32 /* _origin */,
-        bytes32 /* _sender */,
-        bytes calldata _message
-    ) internal override {
-        // Decode the message ID from the payload
-        bytes32 messageId = abi.decode(_message, (bytes32));
+        uint32 /*_origin*/,
+        bytes32 /*_sender*/,
+        bytes calldata payload
+    ) internal virtual override {
+        bytes32 id = abi.decode(payload, (bytes32));
+        _TimelockRouter_commitReadyAt(id, timelockWindow);
+    }
 
-        // Mark message as preverified with readyAt time
+    /// @dev Leaf helper for `_handle` overrides: one-shot replay guard and
+    /// `readyAt` write. `wait` is the number of seconds the message must be
+    /// withheld from the ISM before `verify` will pass.
+    function _TimelockRouter_commitReadyAt(
+        bytes32 id,
+        uint48 wait
+    ) internal {
         require(
-            readyAt[messageId] == 0,
+            readyAt[id] == 0,
             "TimelockRouter: message already preverified"
         );
-        uint48 messageReadyAt = uint48(block.timestamp) + timelockWindow;
-        readyAt[messageId] = messageReadyAt;
-
-        emit MessageQueued(messageId, messageReadyAt);
+        uint48 messageReadyAt = uint48(block.timestamp) + wait;
+        readyAt[id] = messageReadyAt;
+        emit MessageQueued(id, messageReadyAt);
     }
 
     // ============ IInterchainSecurityModule Implementation ============
 
     /// @inheritdoc IInterchainSecurityModule
-    function moduleType() external pure returns (uint8) {
+    function moduleType() external pure virtual returns (uint8) {
         return uint8(IInterchainSecurityModule.Types.NULL);
     }
 
     /// @inheritdoc IInterchainSecurityModule
     function verify(
-        bytes calldata /* metadata */,
+        bytes calldata /*metadata*/,
         bytes calldata message
-    ) external view returns (bool) {
-        bytes32 messageId = message.id();
-        uint48 messageReadyAt = readyAt[messageId];
+    ) external view virtual returns (bool) {
+        return _TimelockRouter_verify(message);
+    }
+
+    /// @dev Core `verify` logic. Subclasses can extend by overriding `verify`
+    /// and delegating here, or override this helper directly.
+    function _TimelockRouter_verify(
+        bytes calldata message
+    ) internal view virtual returns (bool) {
+        bytes32 id = message.id();
+        uint48 messageReadyAt = readyAt[id];
 
         require(messageReadyAt > 0, "TimelockRouter: message not preverified");
 

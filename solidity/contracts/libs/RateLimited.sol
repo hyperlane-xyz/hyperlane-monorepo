@@ -13,121 +13,134 @@ pragma solidity >=0.8.0;
  @@@@@@@@@       @@@@@@@@@
 @@@@@@@@@       @@@@@@@@*/
 
-// ============ External Imports ============
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
  * @title RateLimited
- * @notice A contract used to keep track of an address sender's token amount limits.
- * @dev Implements a modified token bucket algorithm where the bucket is full in the beginning and gradually refills
- * See: https://dev.to/satrobit/rate-limiting-using-the-token-bucket-algorithm-3cjh
- *
+ * @notice Token-bucket rate limiter: the bucket refills to `maxCapacity`
+ * linearly over `DURATION`. `maxCapacity` is virtual so subclasses may
+ * derive it from external state (e.g. a paired token balance); the
+ * refill rate always follows from it.
+ * @dev See https://dev.to/satrobit/rate-limiting-using-the-token-bucket-algorithm-3cjh
  */
 contract RateLimited is OwnableUpgradeable {
-    uint256 public constant DURATION = 1 days; // 86400
-    /// @notice Current filled level
+    uint256 public constant DURATION = 1 days;
+
+    /// @notice Current filled level.
     uint256 public filledLevel;
-    /// @notice Tokens per second refill rate
+
+    /// @notice Default-mode tokens-per-second refill rate. Unused by
+    /// subclasses that override `maxCapacity()`.
     uint256 public refillRate;
-    /// @notice Timestamp of the last time an action has been taken
+
+    /// @notice Timestamp of the last mutation.
     uint256 public lastUpdated;
 
-    event RateLimitSet(uint256 _oldCapacity, uint256 _newCapacity);
-
+    event RateLimitSet(uint256 oldRefillRate, uint256 newRefillRate);
     event ConsumedFilledLevel(uint256 filledLevel, uint256 lastUpdated);
-
-    constructor(uint256 _capacity) {
-        require(
-            _capacity >= DURATION,
-            "Capacity must be greater than DURATION"
-        );
-        _transferOwnership(msg.sender);
-        setRefillRate(_capacity);
-        filledLevel = _capacity;
-    }
+    event Credited(uint256 amount, uint256 newLevel);
 
     error RateLimitExceeded(uint256 newLimit, uint256 targetLimit);
 
-    /**
-     * @return The max capacity where the bucket will no longer refill
-     */
-    function maxCapacity() public view returns (uint256) {
+    constructor(uint256 _capacity) {
+        // `_capacity == 0` is permitted for subclasses with a dynamic cap.
+        require(
+            _capacity == 0 || _capacity >= DURATION,
+            "Capacity must be greater than DURATION"
+        );
+        _transferOwnership(msg.sender);
+        if (_capacity > 0) {
+            setRefillRate(_capacity);
+            filledLevel = _capacity;
+        }
+        lastUpdated = block.timestamp;
+    }
+
+    // ============ Views ============
+
+    /// @notice Max bucket capacity. Override to back with dynamic state.
+    function maxCapacity() public view virtual returns (uint256) {
         return refillRate * DURATION;
     }
 
-    /**
-     * Calculates the refilled amount based on time and refill rate
-     *
-     * Consider an example where there is a 1e18 max token limit per day (86400s)
-     * If half of the tokens has been used, and half a day (43200s) has passed,
-     * then there should be a refill of 0.5e18
-     *
-     * To calculate:
-     *   Refilled = Elapsed * RefilledRate
-     *   Elapsed = timestamp - Limit.lastUpdated
-     *   RefilledRate = Capacity / DURATION
-     *
-     *   If half of the day (43200) has passed, then
-     *   (86400 - 43200) * (1e18 / 86400)  = 0.5e18
-     */
-    function calculateRefilledAmount() internal view returns (uint256) {
-        uint256 elapsed = block.timestamp - lastUpdated;
-        return elapsed * refillRate;
-    }
-
-    /**
-     * Calculates the adjusted fill level based on time
-     */
+    /// @notice Time-adjusted fill level, clamped to `maxCapacity`.
     function calculateCurrentLevel() public view returns (uint256) {
-        uint256 _capacity = maxCapacity();
-        require(_capacity > 0, "RateLimitNotSet");
-
-        if (block.timestamp > lastUpdated + DURATION) {
-            // If last update is in the previous window, return the max capacity
-            return _capacity;
-        } else {
-            // If within the window, refill the capacity
-            uint256 replenishedLevel = filledLevel + calculateRefilledAmount();
-
-            // Only return _capacity, in the case where newCurrentCapacity overflows
-            return replenishedLevel > _capacity ? _capacity : replenishedLevel;
-        }
+        return _levelAt(maxCapacity());
     }
 
-    /**
-     * Sets the refill rate by giving a capacity
-     * @param _capacity new maximum capacity to set
-     */
+    // ============ Owner admin ============
+
+    /// @notice Sets `refillRate = _capacity / DURATION`.
     function setRefillRate(
         uint256 _capacity
-    ) public onlyOwner returns (uint256) {
-        uint256 _oldRefillRate = refillRate;
-        uint256 _newRefillRate = _capacity / DURATION;
-        refillRate = _newRefillRate;
-
-        emit RateLimitSet(_oldRefillRate, _newRefillRate);
-
-        return _newRefillRate;
+    ) public onlyOwner returns (uint256 newRate) {
+        uint256 oldRate = refillRate;
+        newRate = _capacity / DURATION;
+        refillRate = newRate;
+        emit RateLimitSet(oldRate, newRate);
     }
 
-    /**
-     * Validate an amount and decreases the currentCapacity
-     * @param _consumedAmount The amount to consume the fill level
-     * @return The new filled level
-     */
+    // ============ Internal helpers ============
+
+    /// @notice Hard-cap consume. Reverts with `RateLimitExceeded` on overage.
     function _validateAndConsumeFilledLevel(
-        uint256 _consumedAmount
+        uint256 _amount
     ) internal returns (uint256) {
-        uint256 adjustedFilledLevel = calculateCurrentLevel();
-        require(_consumedAmount <= adjustedFilledLevel, "RateLimitExceeded");
+        uint256 cap = maxCapacity();
+        uint256 level = _levelAt(cap);
+        require(_amount <= level, "RateLimitExceeded");
+        _writeConsume(_amount, level, cap);
+        return filledLevel;
+    }
 
-        // Reduce the filledLevel and update lastUpdated
-        uint256 _filledLevel = adjustedFilledLevel - _consumedAmount;
-        filledLevel = _filledLevel;
+    /// @notice Credit the bucket 1:1, clamped at `maxCapacity`. No-op when
+    /// capacity is zero.
+    function _credit(uint256 _amount) internal returns (uint256 newLevel) {
+        uint256 cap = maxCapacity();
+        if (cap == 0) return 0;
+        uint256 credited = _levelAt(cap) + _amount;
+        newLevel = credited > cap ? cap : credited;
+        filledLevel = newLevel;
         lastUpdated = block.timestamp;
+        emit Credited(_amount, newLevel);
+    }
 
+    /// @notice Soft consume. Returns the seconds of refill needed to cover
+    /// any overage — callers treat it as a delay rather than a hard reject.
+    /// Returns `type(uint256).max` when capacity is zero.
+    function _consume(uint256 _amount) internal returns (uint256) {
+        uint256 cap = maxCapacity();
+        return _writeConsume(_amount, _levelAt(cap), cap);
+    }
+
+    // ============ Private core ============
+
+    /// @dev Level at a caller-supplied cap so mutation paths don't re-read
+    /// `maxCapacity()`.
+    function _levelAt(uint256 _cap) private view returns (uint256) {
+        if (_cap == 0) return 0;
+        uint256 elapsed = block.timestamp - lastUpdated;
+        uint256 replenished = filledLevel +
+            Math.mulDiv(elapsed, _cap, DURATION);
+        return replenished > _cap ? _cap : replenished;
+    }
+
+    /// @dev Shared bucket mutation for `_consume` / `_validateAndConsume…`.
+    function _writeConsume(
+        uint256 _amount,
+        uint256 _level,
+        uint256 _cap
+    ) private returns (uint256 deficitSecs) {
+        if (_amount <= _level) {
+            filledLevel = _level - _amount;
+        } else {
+            filledLevel = 0;
+            deficitSecs = _cap == 0
+                ? type(uint256).max
+                : Math.mulDiv(_amount - _level, DURATION, _cap);
+        }
+        lastUpdated = block.timestamp;
         emit ConsumedFilledLevel(filledLevel, lastUpdated);
-
-        return _filledLevel;
     }
 }
