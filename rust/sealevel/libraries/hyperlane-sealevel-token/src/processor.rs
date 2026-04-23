@@ -12,6 +12,10 @@ use hyperlane_sealevel_connection_client::{
     },
     HyperlaneConnectionClient, HyperlaneConnectionClientSetterAccessControl,
 };
+use hyperlane_sealevel_fee::{
+    accounts::FeeAccountPrefix,
+    instruction::{Instruction as FeeInstruction, QuoteFee},
+};
 use hyperlane_sealevel_igp::{
     accounts::InterchainGasPaymasterType,
     instruction::{Instruction as IgpInstruction, PayForGas as IgpPayForGas},
@@ -567,6 +571,109 @@ where
         }
 
         Ok(remote_amount)
+    }
+
+    /// Parses the fee section from the accounts iterator, CPIs QuoteFee,
+    /// and returns the fee amount and beneficiary account reference.
+    ///
+    /// Assumes `token.fee_config` is `Some`. The caller must check before calling.
+    ///
+    /// Accounts consumed from the iterator:
+    /// - fee_program (executable)
+    /// - fee_account (owned by fee_program)
+    /// - variable QuoteFee pass-through accounts (until terminal)
+    /// - fee_beneficiary (terminal sentinel)
+    #[allow(clippy::too_many_arguments, dead_code)]
+    fn parse_fee_section_and_quote<'a, 'b>(
+        token: &HyperlaneToken<T>,
+        sender_wallet: &'a AccountInfo<'b>,
+        accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
+        destination_domain: u32,
+        recipient: H256,
+        amount: u64,
+        target_router: H256,
+    ) -> Result<(u64, &'a AccountInfo<'b>), ProgramError> {
+        let fee_config = token
+            .fee_config
+            .as_ref()
+            .ok_or(ProgramError::InvalidArgument)?;
+
+        // Consume fee_program account.
+        let fee_program_account = next_account_info(accounts_iter)?;
+        if fee_program_account.key != &fee_config.fee_program {
+            return Err(ProgramError::InvalidArgument);
+        }
+        if !fee_program_account.executable {
+            return Err(ProgramError::InvalidAccountData);
+        }
+
+        // Consume fee_account.
+        let fee_account_info = next_account_info(accounts_iter)?;
+        if fee_account_info.key != &fee_config.fee_account {
+            return Err(ProgramError::InvalidArgument);
+        }
+        if fee_account_info.owner != &fee_config.fee_program {
+            return Err(Error::FeeAccountOwnerMismatch.into());
+        }
+
+        // Read beneficiary from fee account prefix (bump + owner + beneficiary only).
+        let fee_prefix = FeeAccountPrefix::parse_from(&fee_account_info.data.borrow())?;
+        let beneficiary_owner = fee_prefix.beneficiary;
+
+        // Derive the terminal fee beneficiary pubkey for this plugin type.
+        let expected_fee_beneficiary = T::fee_beneficiary_pubkey(token, &beneficiary_owner)?;
+
+        // Collect variable QuoteFee pass-through accounts until the terminal
+        // (fee_beneficiary). Start CPI account lists with fee_account + sender.
+        let mut quote_account_infos = vec![fee_account_info.clone(), sender_wallet.clone()];
+        let mut quote_account_metas = vec![
+            AccountMeta::new_readonly(*fee_account_info.key, false),
+            AccountMeta::new(*sender_wallet.key, true),
+        ];
+
+        let fee_beneficiary_account = loop {
+            let next = next_account_info(accounts_iter)?;
+            if next.key == &expected_fee_beneficiary {
+                break next;
+            }
+            quote_account_infos.push(next.clone());
+            quote_account_metas.push(AccountMeta {
+                pubkey: *next.key,
+                is_signer: next.is_signer,
+                is_writable: next.is_writable,
+            });
+        };
+
+        // Build and invoke QuoteFee CPI.
+        let quote_fee_ixn = FeeInstruction::QuoteFee(QuoteFee {
+            destination_domain,
+            recipient,
+            amount,
+            target_router,
+        });
+        let cpi_instruction = Instruction {
+            program_id: fee_config.fee_program,
+            data: quote_fee_ixn
+                .into_instruction_data()
+                .map_err(|_| ProgramError::BorshIoError)?,
+            accounts: quote_account_metas,
+        };
+        invoke(&cpi_instruction, &quote_account_infos)?;
+
+        // Read return data IMMEDIATELY — before any subsequent CPI overwrites it.
+        let (returning_program_id, returned_data) =
+            get_return_data().ok_or(Error::InvalidFeeReturnData)?;
+        if returning_program_id != fee_config.fee_program {
+            return Err(Error::InvalidFeeReturnData.into());
+        }
+        let fee_amount = u64::from_le_bytes(
+            returned_data
+                .as_slice()
+                .try_into()
+                .map_err(|_| Error::InvalidFeeReturnData)?,
+        );
+
+        Ok((fee_amount, fee_beneficiary_account))
     }
 
     /// Converts amount from local to remote decimals and calls plugin

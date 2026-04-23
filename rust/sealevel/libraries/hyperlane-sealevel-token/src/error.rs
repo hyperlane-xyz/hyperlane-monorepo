@@ -17,6 +17,14 @@ pub enum Error {
     /// A message decoding error occurred.
     #[error("Message decoding error")]
     MessageDecodeError = 3,
+
+    /// The fee program returned invalid or missing return data.
+    #[error("Invalid fee return data")]
+    InvalidFeeReturnData = 4,
+
+    /// The fee account is not owned by the configured fee program.
+    #[error("Fee account owner mismatch")]
+    FeeAccountOwnerMismatch = 5,
 }
 
 impl From<Error> for ProgramError {

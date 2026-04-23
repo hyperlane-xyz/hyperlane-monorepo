@@ -210,6 +210,40 @@ impl AccessControl for FeeAccount {
     }
 }
 
+/// Minimal prefix of a fee account for extracting the beneficiary.
+#[derive(Debug)]
+pub struct FeeAccountPrefix {
+    /// Beneficiary who receives collected fees.
+    pub beneficiary: Pubkey,
+}
+
+impl FeeAccountPrefix {
+    /// Parses the beneficiary from raw fee account data by reading fields
+    /// sequentially with Borsh — no fixed offsets.
+    ///
+    /// On-disk layout: `[initialized (1)][discriminator (8)][bump (1)][owner (Option<Pubkey>)][beneficiary (Pubkey)]...`
+    pub fn parse_from(data: &[u8]) -> Result<Self, ProgramError> {
+        use account_utils::DiscriminatorData;
+        use borsh::BorshDeserialize;
+
+        // Skip AccountData wrapper: initialized (1) + discriminator (8)
+        let prefix_len = 1 + FeeAccount::DISCRIMINATOR.len();
+        if data.len() < prefix_len {
+            return Err(ProgramError::InvalidAccountData);
+        }
+        let mut reader = &data[prefix_len..];
+
+        let _bump =
+            u8::deserialize_reader(&mut reader).map_err(|_| ProgramError::InvalidAccountData)?;
+        let _owner = Option::<Pubkey>::deserialize_reader(&mut reader)
+            .map_err(|_| ProgramError::InvalidAccountData)?;
+        let beneficiary = Pubkey::deserialize_reader(&mut reader)
+            .map_err(|_| ProgramError::InvalidAccountData)?;
+
+        Ok(Self { beneficiary })
+    }
+}
+
 /// Borsh serialized size of `Option<BTreeSet<H160>>`.
 /// None: 1 tag. Some: 1 tag + 4 len prefix + count * 20.
 fn option_signers_size(opt: &Option<BTreeSet<H160>>) -> usize {
