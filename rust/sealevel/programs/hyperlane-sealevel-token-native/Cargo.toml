@@ -39,6 +39,9 @@ solana-commitment-config.workspace = true
 solana-program-test.workspace = true
 solana-sdk.workspace = true
 
+hyperlane-sealevel-fee = { path = "../hyperlane-sealevel-fee", features = [
+    "no-entrypoint",
+] }
 hyperlane-test-utils = { path = "../../libraries/test-utils" }
 hyperlane-sealevel-test-ism = { path = "../ism/test-ism", features = [
     "no-entrypoint",
