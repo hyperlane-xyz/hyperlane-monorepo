@@ -25,6 +25,11 @@ pub enum Error {
     /// The fee account is not owned by the configured fee program.
     #[error("Fee account owner mismatch")]
     FeeAccountOwnerMismatch = 5,
+
+    /// The fee beneficiary terminal account was not found within the
+    /// maximum number of variable fee section accounts.
+    #[error("Fee beneficiary not found")]
+    FeeBeneficiaryNotFound = 6,
 }
 
 impl From<Error> for ProgramError {

@@ -650,17 +650,30 @@ where
 
         // Collect variable QuoteFee pass-through accounts until the terminal
         // (fee_beneficiary). Start CPI account lists with fee_account + sender.
+        //
+        // Safety bound: cap variable accounts to prevent unbounded consumption,
+        // especially important in CC-local where accounts after the fee section
+        // belong to the forwarded HandleLocal CPI.
+        const MAX_FEE_VARIABLE_ACCOUNTS: usize = 15;
+
         let mut quote_account_infos = vec![fee_account_info.clone(), sender_wallet.clone()];
         let mut quote_account_metas = vec![
             AccountMeta::new_readonly(*fee_account_info.key, false),
             AccountMeta::new(*sender_wallet.key, true),
         ];
 
+        let mut variable_count = 0usize;
         let fee_beneficiary_account = loop {
             let next = next_account_info(accounts_iter)?;
             if next.key == &expected_fee_beneficiary {
                 break next;
             }
+
+            variable_count += 1;
+            if variable_count > MAX_FEE_VARIABLE_ACCOUNTS {
+                return Err(Error::FeeBeneficiaryNotFound.into());
+            }
+
             quote_account_infos.push(next.clone());
             quote_account_metas.push(AccountMeta {
                 pubkey: *next.key,

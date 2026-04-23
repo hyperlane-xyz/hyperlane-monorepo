@@ -2052,3 +2052,530 @@ async fn test_get_program_version() {
         borsh::BorshDeserialize::try_from_slice(&return_data).unwrap();
     assert_eq!(version.return_data, PACKAGE_VERSION);
 }
+
+// === Negative fee tests ===
+
+/// Shared setup for negative fee tests: initializes mailbox, IGP, token,
+/// fee account, enrolls router, sets fee config, funds sender + beneficiary.
+/// Returns all the keys needed to build transfer_remote account lists.
+struct FeeTestContext {
+    banks_client: BanksClient,
+    payer: Keypair,
+    program_id: Pubkey,
+    mailbox_accounts: hyperlane_test_utils::MailboxAccounts,
+    igp_accounts: IgpAccounts,
+    hyperlane_token_accounts: HyperlaneTokenAccounts,
+    remote_router: H256,
+    fee_account_key: Pubkey,
+    fee_beneficiary: Pubkey,
+    token_sender: Keypair,
+    domain_standing_quote_pda: Pubkey,
+    wildcard_standing_quote_pda: Pubkey,
+}
+
+async fn setup_fee_test_context() -> FeeTestContext {
+    let program_id = hyperlane_sealevel_token_native_id();
+    let mailbox_program_id = mailbox_id();
+
+    let (mut banks_client, payer) = setup_client().await;
+
+    let mailbox_accounts = initialize_mailbox(
+        &mut banks_client,
+        &mailbox_program_id,
+        &payer,
+        LOCAL_DOMAIN,
+        ONE_SOL_IN_LAMPORTS,
+        ProtocolFee::default(),
+    )
+    .await
+    .unwrap();
+
+    let igp_accounts =
+        initialize_igp_accounts(&mut banks_client, &igp_program_id(), &payer, REMOTE_DOMAIN)
+            .await
+            .unwrap();
+
+    let hyperlane_token_accounts =
+        initialize_hyperlane_token(&program_id, &mut banks_client, &payer, Some(&igp_accounts))
+            .await
+            .unwrap();
+
+    let remote_router = H256::random();
+    enroll_remote_router(
+        &mut banks_client,
+        &program_id,
+        &payer,
+        &hyperlane_token_accounts.token,
+        REMOTE_DOMAIN,
+        remote_router,
+    )
+    .await
+    .unwrap();
+
+    let fee_beneficiary = Pubkey::new_unique();
+    let fee_salt = H256::zero();
+    let fee_data = FeeData::Leaf(LeafFeeConfig {
+        strategy: FeeDataStrategy::Linear(FeeParams {
+            max_fee: FEE_MAX,
+            half_amount: FEE_HALF_AMOUNT,
+        }),
+        signers: None,
+    });
+    let fee_account_key = {
+        let fp = fee_program_id();
+        let (fee_account, _) = Pubkey::find_program_address(fee_account_pda_seeds!(fee_salt), &fp);
+        let ix = fee_instruction::init_fee_instruction(
+            fp,
+            payer.pubkey(),
+            fee_salt,
+            fee_beneficiary,
+            fee_data,
+            LOCAL_DOMAIN,
+        )
+        .unwrap();
+        let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+        banks_client
+            .process_transaction(Transaction::new_signed_with_payer(
+                &[ix],
+                Some(&payer.pubkey()),
+                &[&payer],
+                recent_blockhash,
+            ))
+            .await
+            .unwrap();
+        fee_account
+    };
+
+    // Set fee config.
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[Instruction::new_with_bytes(
+                program_id,
+                &HyperlaneTokenInstruction::SetFeeConfig(Some(FeeConfig {
+                    fee_program: fee_program_id(),
+                    fee_account: fee_account_key,
+                }))
+                .encode()
+                .unwrap(),
+                vec![
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new(hyperlane_token_accounts.token, false),
+                    AccountMeta::new(payer.pubkey(), true),
+                ],
+            )],
+            Some(&payer.pubkey()),
+            &[&payer],
+            recent_blockhash,
+        ))
+        .await
+        .unwrap();
+
+    transfer_lamports(
+        &mut banks_client,
+        &payer,
+        &fee_beneficiary,
+        ONE_SOL_IN_LAMPORTS,
+    )
+    .await;
+
+    let token_sender =
+        new_funded_keypair(&mut banks_client, &payer, 100 * ONE_SOL_IN_LAMPORTS).await;
+
+    let domain_standing_quote_pda = {
+        let domain_le = REMOTE_DOMAIN.to_le_bytes();
+        let (pda, _) = Pubkey::find_program_address(
+            fee_standing_quote_pda_seeds!(&fee_account_key, &domain_le),
+            &fee_program_id(),
+        );
+        pda
+    };
+    let wildcard_standing_quote_pda = {
+        let domain_le = WILDCARD_DOMAIN.to_le_bytes();
+        let (pda, _) = Pubkey::find_program_address(
+            fee_standing_quote_pda_seeds!(&fee_account_key, &domain_le),
+            &fee_program_id(),
+        );
+        pda
+    };
+
+    FeeTestContext {
+        banks_client,
+        payer,
+        program_id,
+        mailbox_accounts,
+        igp_accounts,
+        hyperlane_token_accounts,
+        remote_router,
+        fee_account_key,
+        fee_beneficiary,
+        token_sender,
+        domain_standing_quote_pda,
+        wildcard_standing_quote_pda,
+    }
+}
+
+#[tokio::test]
+async fn test_set_fee_config_non_owner_fails() {
+    let program_id = hyperlane_sealevel_token_native_id();
+    let (mut banks_client, payer) = setup_client().await;
+
+    let hyperlane_token_accounts =
+        initialize_hyperlane_token(&program_id, &mut banks_client, &payer, None)
+            .await
+            .unwrap();
+
+    let non_owner = new_funded_keypair(&mut banks_client, &payer, ONE_SOL_IN_LAMPORTS).await;
+
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let result = banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[Instruction::new_with_bytes(
+                program_id,
+                &HyperlaneTokenInstruction::SetFeeConfig(Some(FeeConfig {
+                    fee_program: Pubkey::new_unique(),
+                    fee_account: Pubkey::new_unique(),
+                }))
+                .encode()
+                .unwrap(),
+                vec![
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new(hyperlane_token_accounts.token, false),
+                    AccountMeta::new(non_owner.pubkey(), true),
+                ],
+            )],
+            Some(&non_owner.pubkey()),
+            &[&non_owner],
+            recent_blockhash,
+        ))
+        .await;
+
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+    );
+}
+
+#[tokio::test]
+async fn test_transfer_remote_with_fee_wrong_fee_program() {
+    let mut ctx = setup_fee_test_context().await;
+    let token_sender_pubkey = ctx.token_sender.pubkey();
+    let transfer_amount: u64 = 10 * ONE_SOL_IN_LAMPORTS;
+
+    let unique_msg = Keypair::new();
+    let (dispatched_msg_key, _) = Pubkey::find_program_address(
+        mailbox_dispatched_message_pda_seeds!(&unique_msg.pubkey()),
+        &mailbox_id(),
+    );
+    let (gas_payment_pda_key, _) = Pubkey::find_program_address(
+        igp_gas_payment_pda_seeds!(&unique_msg.pubkey()),
+        &igp_program_id(),
+    );
+
+    let wrong_fee_program = Pubkey::new_unique();
+
+    let recent_blockhash = ctx.banks_client.get_latest_blockhash().await.unwrap();
+    let result = ctx
+        .banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[Instruction::new_with_bytes(
+                ctx.program_id,
+                &HyperlaneTokenInstruction::TransferRemote(TransferRemote {
+                    destination_domain: REMOTE_DOMAIN,
+                    recipient: H256::random(),
+                    amount_or_id: transfer_amount.into(),
+                })
+                .encode()
+                .unwrap(),
+                vec![
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
+                    AccountMeta::new_readonly(ctx.hyperlane_token_accounts.token, false),
+                    AccountMeta::new_readonly(ctx.mailbox_accounts.program, false),
+                    AccountMeta::new(ctx.mailbox_accounts.outbox, false),
+                    AccountMeta::new_readonly(
+                        ctx.hyperlane_token_accounts.dispatch_authority,
+                        false,
+                    ),
+                    AccountMeta::new_readonly(token_sender_pubkey, true),
+                    AccountMeta::new_readonly(unique_msg.pubkey(), true),
+                    AccountMeta::new(dispatched_msg_key, false),
+                    // Wrong fee program
+                    AccountMeta::new_readonly(wrong_fee_program, false),
+                    AccountMeta::new_readonly(ctx.fee_account_key, false),
+                    AccountMeta::new_readonly(ctx.domain_standing_quote_pda, false),
+                    AccountMeta::new_readonly(ctx.wildcard_standing_quote_pda, false),
+                    AccountMeta::new(ctx.fee_beneficiary, false),
+                    // IGP
+                    AccountMeta::new_readonly(ctx.igp_accounts.program, false),
+                    AccountMeta::new(ctx.igp_accounts.program_data, false),
+                    AccountMeta::new(gas_payment_pda_key, false),
+                    AccountMeta::new_readonly(ctx.igp_accounts.overhead_igp, false),
+                    AccountMeta::new(ctx.igp_accounts.igp, false),
+                    // Plugin
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new(ctx.hyperlane_token_accounts.native_collateral, false),
+                ],
+            )],
+            Some(&token_sender_pubkey),
+            &[&ctx.token_sender, &unique_msg],
+            recent_blockhash,
+        ))
+        .await;
+
+    // fee_program key mismatch → InvalidArgument
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+    );
+}
+
+#[tokio::test]
+async fn test_transfer_remote_with_fee_wrong_fee_account_owner() {
+    let program_id = hyperlane_sealevel_token_native_id();
+    let mailbox_program_id = mailbox_id();
+    let (mut banks_client, payer) = setup_client().await;
+
+    let mailbox_accounts = initialize_mailbox(
+        &mut banks_client,
+        &mailbox_program_id,
+        &payer,
+        LOCAL_DOMAIN,
+        ONE_SOL_IN_LAMPORTS,
+        ProtocolFee::default(),
+    )
+    .await
+    .unwrap();
+
+    let igp_accounts =
+        initialize_igp_accounts(&mut banks_client, &igp_program_id(), &payer, REMOTE_DOMAIN)
+            .await
+            .unwrap();
+
+    let hyperlane_token_accounts =
+        initialize_hyperlane_token(&program_id, &mut banks_client, &payer, Some(&igp_accounts))
+            .await
+            .unwrap();
+
+    let remote_router = H256::random();
+    enroll_remote_router(
+        &mut banks_client,
+        &program_id,
+        &payer,
+        &hyperlane_token_accounts.token,
+        REMOTE_DOMAIN,
+        remote_router,
+    )
+    .await
+    .unwrap();
+
+    // Set fee_config pointing fee_account to the token PDA — it exists but is
+    // owned by the token program, not the fee program. This passes the key
+    // check but fails the owner check.
+    let wrong_fee_account = hyperlane_token_accounts.token;
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[Instruction::new_with_bytes(
+                program_id,
+                &HyperlaneTokenInstruction::SetFeeConfig(Some(FeeConfig {
+                    fee_program: fee_program_id(),
+                    fee_account: wrong_fee_account,
+                }))
+                .encode()
+                .unwrap(),
+                vec![
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new(hyperlane_token_accounts.token, false),
+                    AccountMeta::new(payer.pubkey(), true),
+                ],
+            )],
+            Some(&payer.pubkey()),
+            &[&payer],
+            recent_blockhash,
+        ))
+        .await
+        .unwrap();
+
+    let token_sender =
+        new_funded_keypair(&mut banks_client, &payer, 100 * ONE_SOL_IN_LAMPORTS).await;
+    let token_sender_pubkey = token_sender.pubkey();
+    let transfer_amount: u64 = 10 * ONE_SOL_IN_LAMPORTS;
+
+    let unique_msg = Keypair::new();
+    let (dispatched_msg_key, _) = Pubkey::find_program_address(
+        mailbox_dispatched_message_pda_seeds!(&unique_msg.pubkey()),
+        &mailbox_program_id,
+    );
+    let (gas_payment_pda_key, _) = Pubkey::find_program_address(
+        igp_gas_payment_pda_seeds!(&unique_msg.pubkey()),
+        &igp_program_id(),
+    );
+
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let result = banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[Instruction::new_with_bytes(
+                program_id,
+                &HyperlaneTokenInstruction::TransferRemote(TransferRemote {
+                    destination_domain: REMOTE_DOMAIN,
+                    recipient: H256::random(),
+                    amount_or_id: transfer_amount.into(),
+                })
+                .encode()
+                .unwrap(),
+                vec![
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
+                    AccountMeta::new_readonly(hyperlane_token_accounts.token, false),
+                    AccountMeta::new_readonly(mailbox_accounts.program, false),
+                    AccountMeta::new(mailbox_accounts.outbox, false),
+                    AccountMeta::new_readonly(hyperlane_token_accounts.dispatch_authority, false),
+                    AccountMeta::new_readonly(token_sender_pubkey, true),
+                    AccountMeta::new_readonly(unique_msg.pubkey(), true),
+                    AccountMeta::new(dispatched_msg_key, false),
+                    // Correct fee program but fee account owned by token program
+                    AccountMeta::new_readonly(fee_program_id(), false),
+                    AccountMeta::new_readonly(wrong_fee_account, false),
+                    // Remaining accounts don't matter — should fail before reaching them
+                ],
+            )],
+            Some(&token_sender_pubkey),
+            &[&token_sender, &unique_msg],
+            recent_blockhash,
+        ))
+        .await;
+
+    // Custom(5) = FeeAccountOwnerMismatch
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::Custom(5)),
+    );
+}
+
+#[tokio::test]
+async fn test_transfer_remote_with_fee_missing_beneficiary() {
+    let mut ctx = setup_fee_test_context().await;
+    let token_sender_pubkey = ctx.token_sender.pubkey();
+    let transfer_amount: u64 = 10 * ONE_SOL_IN_LAMPORTS;
+
+    let unique_msg = Keypair::new();
+    let (dispatched_msg_key, _) = Pubkey::find_program_address(
+        mailbox_dispatched_message_pda_seeds!(&unique_msg.pubkey()),
+        &mailbox_id(),
+    );
+    let (gas_payment_pda_key, _) = Pubkey::find_program_address(
+        igp_gas_payment_pda_seeds!(&unique_msg.pubkey()),
+        &igp_program_id(),
+    );
+
+    // Omit the fee beneficiary terminal from the account list entirely.
+    // The parser should exhaust accounts or hit the cap and error.
+    let recent_blockhash = ctx.banks_client.get_latest_blockhash().await.unwrap();
+    let result = ctx
+        .banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[Instruction::new_with_bytes(
+                ctx.program_id,
+                &HyperlaneTokenInstruction::TransferRemote(TransferRemote {
+                    destination_domain: REMOTE_DOMAIN,
+                    recipient: H256::random(),
+                    amount_or_id: transfer_amount.into(),
+                })
+                .encode()
+                .unwrap(),
+                vec![
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
+                    AccountMeta::new_readonly(ctx.hyperlane_token_accounts.token, false),
+                    AccountMeta::new_readonly(ctx.mailbox_accounts.program, false),
+                    AccountMeta::new(ctx.mailbox_accounts.outbox, false),
+                    AccountMeta::new_readonly(
+                        ctx.hyperlane_token_accounts.dispatch_authority,
+                        false,
+                    ),
+                    AccountMeta::new_readonly(token_sender_pubkey, true),
+                    AccountMeta::new_readonly(unique_msg.pubkey(), true),
+                    AccountMeta::new(dispatched_msg_key, false),
+                    // Fee section WITHOUT beneficiary terminal
+                    AccountMeta::new_readonly(fee_program_id(), false),
+                    AccountMeta::new_readonly(ctx.fee_account_key, false),
+                    AccountMeta::new_readonly(ctx.domain_standing_quote_pda, false),
+                    AccountMeta::new_readonly(ctx.wildcard_standing_quote_pda, false),
+                    // NO fee_beneficiary — terminal is missing
+                ],
+            )],
+            Some(&token_sender_pubkey),
+            &[&ctx.token_sender, &unique_msg],
+            recent_blockhash,
+        ))
+        .await;
+
+    // Iterator runs out of accounts before finding the terminal.
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::NotEnoughAccountKeys),
+    );
+}
+
+#[tokio::test]
+async fn test_transfer_remote_with_fee_beneficiary_not_found_cap() {
+    let mut ctx = setup_fee_test_context().await;
+    let token_sender_pubkey = ctx.token_sender.pubkey();
+    let transfer_amount: u64 = 10 * ONE_SOL_IN_LAMPORTS;
+
+    let unique_msg = Keypair::new();
+    let (dispatched_msg_key, _) = Pubkey::find_program_address(
+        mailbox_dispatched_message_pda_seeds!(&unique_msg.pubkey()),
+        &mailbox_id(),
+    );
+
+    // Stuff 16+ dummy accounts that don't match the terminal beneficiary.
+    // This should trigger the FeeBeneficiaryNotFound cap (max 15 variable accounts).
+    let mut accounts = vec![
+        // Core
+        AccountMeta::new_readonly(system_program::ID, false),
+        AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
+        AccountMeta::new_readonly(ctx.hyperlane_token_accounts.token, false),
+        AccountMeta::new_readonly(ctx.mailbox_accounts.program, false),
+        AccountMeta::new(ctx.mailbox_accounts.outbox, false),
+        AccountMeta::new_readonly(ctx.hyperlane_token_accounts.dispatch_authority, false),
+        AccountMeta::new_readonly(token_sender_pubkey, true),
+        AccountMeta::new_readonly(unique_msg.pubkey(), true),
+        AccountMeta::new(dispatched_msg_key, false),
+        // Fee section start
+        AccountMeta::new_readonly(fee_program_id(), false),
+        AccountMeta::new_readonly(ctx.fee_account_key, false),
+    ];
+    // 16 dummy accounts — none match the expected beneficiary
+    for _ in 0..16 {
+        accounts.push(AccountMeta::new_readonly(Pubkey::new_unique(), false));
+    }
+
+    let recent_blockhash = ctx.banks_client.get_latest_blockhash().await.unwrap();
+    let result = ctx
+        .banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[Instruction::new_with_bytes(
+                ctx.program_id,
+                &HyperlaneTokenInstruction::TransferRemote(TransferRemote {
+                    destination_domain: REMOTE_DOMAIN,
+                    recipient: H256::random(),
+                    amount_or_id: transfer_amount.into(),
+                })
+                .encode()
+                .unwrap(),
+                accounts,
+            )],
+            Some(&token_sender_pubkey),
+            &[&ctx.token_sender, &unique_msg],
+            recent_blockhash,
+        ))
+        .await;
+
+    // Custom(6) = FeeBeneficiaryNotFound
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::Custom(6)),
+    );
+}
