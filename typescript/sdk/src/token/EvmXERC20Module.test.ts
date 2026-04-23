@@ -1,5 +1,4 @@
-import { expect } from 'vitest';
-import sinon from 'sinon';
+import { expect, vi } from 'vitest';
 
 import { IXERC20Lockbox__factory } from '@hyperlane-xyz/core';
 
@@ -24,7 +23,6 @@ const XERC20_FROM_LOCKBOX = '0x7777777777777777777777777777777777777777';
 
 describe('EvmXERC20Module', () => {
   let multiProvider: MultiProvider;
-  let sandbox: sinon.SinonSandbox;
 
   const createStandardConfig = (): XERC20ModuleConfig => ({
     type: XERC20Type.Standard,
@@ -70,12 +68,11 @@ describe('EvmXERC20Module', () => {
   };
 
   beforeEach(() => {
-    sandbox = sinon.createSandbox();
     multiProvider = MultiProvider.createTestMultiProvider();
   });
 
   afterEach(() => {
-    sandbox.restore();
+    vi.restoreAllMocks();
   });
 
   describe('constructor', () => {
@@ -183,10 +180,10 @@ describe('EvmXERC20Module', () => {
       const config = createStandardConfig();
       const module = createModule(config);
 
-      sandbox
-        .stub(module.reader, 'deriveXERC20TokenType')
-        .resolves(XERC20Type.Standard);
-      sandbox.stub(module.reader, 'readLimits').resolves(config.limits);
+      vi.spyOn(module.reader, 'deriveXERC20TokenType').mockResolvedValue(
+        XERC20Type.Standard,
+      );
+      vi.spyOn(module.reader, 'readLimits').mockResolvedValue(config.limits);
 
       const txs = await module.update(config);
 
@@ -197,10 +194,10 @@ describe('EvmXERC20Module', () => {
       const config = createStandardConfig();
       const module = createModule(config);
 
-      sandbox
-        .stub(module.reader, 'deriveXERC20TokenType')
-        .resolves(XERC20Type.Standard);
-      sandbox.stub(module.reader, 'readLimits').resolves({
+      vi.spyOn(module.reader, 'deriveXERC20TokenType').mockResolvedValue(
+        XERC20Type.Standard,
+      );
+      vi.spyOn(module.reader, 'readLimits').mockResolvedValue({
         [WARP_ROUTE_ADDRESS]: {
           type: XERC20Type.Standard,
           mint: '1000000000000000000',
@@ -217,10 +214,10 @@ describe('EvmXERC20Module', () => {
       const config = createStandardConfig();
       const module = createModule(config);
 
-      sandbox
-        .stub(module.reader, 'deriveXERC20TokenType')
-        .resolves(XERC20Type.Standard);
-      sandbox.stub(module.reader, 'readLimits').resolves({
+      vi.spyOn(module.reader, 'deriveXERC20TokenType').mockResolvedValue(
+        XERC20Type.Standard,
+      );
+      vi.spyOn(module.reader, 'readLimits').mockResolvedValue({
         [WARP_ROUTE_ADDRESS]: {
           type: XERC20Type.Standard,
           mint: '999999999999999999',
@@ -337,10 +334,10 @@ describe('EvmXERC20Module', () => {
     });
 
     it('resolves xERC20 address from lockbox config', async () => {
-      const xerc20Stub = sandbox.stub().resolves(XERC20_FROM_LOCKBOX);
-      const connectStub = sandbox
-        .stub(IXERC20Lockbox__factory, 'connect')
-        .returns({ callStatic: { XERC20: xerc20Stub } } as any);
+      const xerc20Stub = vi.fn().mockResolvedValue(XERC20_FROM_LOCKBOX);
+      const connectStub = vi
+        .spyOn(IXERC20Lockbox__factory, 'connect')
+        .mockReturnValue({ callStatic: { XERC20: xerc20Stub } } as any);
 
       const warpRouteConfig = {
         type: TokenType.XERC20Lockbox,
@@ -361,13 +358,11 @@ describe('EvmXERC20Module', () => {
         WARP_ROUTE_ADDRESS,
       );
 
-      expect(
-        connectStub.calledWith(
-          LOCKBOX_ADDRESS,
-          multiProvider.getProvider(TestChainName.test1),
-        ),
-      ).toBe(true);
-      expect(xerc20Stub.calledOnce).toBe(true);
+      expect(connectStub).toHaveBeenCalledWith(
+        LOCKBOX_ADDRESS,
+        multiProvider.getProvider(TestChainName.test1),
+      );
+      expect(xerc20Stub).toHaveBeenCalledOnce();
       expect(module.serialize().xERC20).toBe(XERC20_FROM_LOCKBOX);
       expect(config.limits[WARP_ROUTE_ADDRESS]).toEqual({
         type: XERC20Type.Standard,
@@ -377,9 +372,9 @@ describe('EvmXERC20Module', () => {
     });
 
     it('derives type from chain when limits missing', async () => {
-      const typeStub = sandbox
-        .stub(EvmXERC20Reader.prototype, 'deriveXERC20TokenType')
-        .resolves(XERC20Type.Velo);
+      const typeStub = vi
+        .spyOn(EvmXERC20Reader.prototype, 'deriveXERC20TokenType')
+        .mockResolvedValue(XERC20Type.Velo);
 
       const warpRouteConfig = {
         type: TokenType.XERC20,
@@ -393,7 +388,7 @@ describe('EvmXERC20Module', () => {
         WARP_ROUTE_ADDRESS,
       );
 
-      expect(typeStub.calledOnce).toBe(true);
+      expect(typeStub).toHaveBeenCalledOnce();
       expect(config.type).toBe(XERC20Type.Velo);
     });
   });

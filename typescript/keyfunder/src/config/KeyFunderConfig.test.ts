@@ -1,20 +1,19 @@
 import fs from 'fs';
-import sinon from 'sinon';
-import { expect } from 'vitest';
+import { type MockInstance, expect, vi } from 'vitest';
 
 import { KeyFunderConfigLoader } from './KeyFunderConfig.js';
 
 describe('KeyFunderConfigLoader', () => {
-  let fsExistsStub: sinon.SinonStub;
-  let fsReadFileStub: sinon.SinonStub;
+  let fsExistsStub: MockInstance;
+  let fsReadFileStub: MockInstance;
 
   beforeEach(() => {
-    fsExistsStub = sinon.stub(fs, 'existsSync');
-    fsReadFileStub = sinon.stub(fs, 'readFileSync');
+    fsExistsStub = vi.spyOn(fs, 'existsSync');
+    fsReadFileStub = vi.spyOn(fs, 'readFileSync');
   });
 
   afterEach(() => {
-    sinon.restore();
+    vi.restoreAllMocks();
   });
 
   describe('load', () => {
@@ -29,8 +28,8 @@ chains:
     balances:
       hyperlane-relayer: "0.5"
 `;
-      fsExistsStub.returns(true);
-      fsReadFileStub.returns(configYaml);
+      fsExistsStub.mockReturnValue(true);
+      fsReadFileStub.mockReturnValue(configYaml);
 
       const loader = KeyFunderConfigLoader.load('/path/to/config.yaml');
 
@@ -44,7 +43,7 @@ chains:
     });
 
     it('should throw if file does not exist', () => {
-      fsExistsStub.returns(false);
+      fsExistsStub.mockReturnValue(false);
 
       expect(() => KeyFunderConfigLoader.load('/nonexistent.yaml')).toThrow(
         'Config file not found',
@@ -57,8 +56,8 @@ version: "2"
 roles: {}
 chains: {}
 `;
-      fsExistsStub.returns(true);
-      fsReadFileStub.returns(invalidYaml);
+      fsExistsStub.mockReturnValue(true);
+      fsReadFileStub.mockReturnValue(invalidYaml);
 
       expect(() => KeyFunderConfigLoader.load('/path/to/config.yaml')).toThrow(
         'Invalid keyfunder config',

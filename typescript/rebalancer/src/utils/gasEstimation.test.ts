@@ -1,7 +1,6 @@
 import { expect } from 'vitest';
 import { BigNumber } from 'ethers';
 import { pino } from 'pino';
-import Sinon from 'sinon';
 
 import type { ChainName, MultiProvider, Token } from '@hyperlane-xyz/sdk';
 import { TokenStandard } from '@hyperlane-xyz/sdk';
@@ -13,16 +12,16 @@ const testLogger = pino({ level: 'silent' });
 
 describe('calculateTransferCosts — Tron vs Sealevel protocol path', () => {
   afterEach(() => {
-    Sinon.restore();
+    vi.restoreAllMocks();
   });
 
   function createMockDeps(protocol: ProtocolType) {
     const mockAdapter = {
-      quoteTransferRemoteGas: Sinon.stub().resolves({
+      quoteTransferRemoteGas: vi.fn().mockResolvedValue({
         igpQuote: { amount: 1000n },
         tokenFeeQuote: { amount: 0n, addressOrDenom: '' },
       }),
-      populateTransferRemoteTx: Sinon.stub().resolves({
+      populateTransferRemoteTx: vi.fn().mockResolvedValue({
         to: '0xRouter',
         data: '0x',
         value: 1000n,
@@ -31,23 +30,23 @@ describe('calculateTransferCosts — Tron vs Sealevel protocol path', () => {
 
     const mockToken = {
       standard: TokenStandard.EvmHypNative, // Native so we reach the isEVMLike check
-      getHypAdapter: Sinon.stub().returns(mockAdapter),
+      getHypAdapter: vi.fn().mockReturnValue(mockAdapter),
     } as unknown as Token;
 
     const multiProvider = {
-      getDomainId: Sinon.stub().returns(42161),
-      getProtocol: Sinon.stub().returns(protocol),
-      getProvider: Sinon.stub().returns({
-        estimateGas: Sinon.stub().resolves(BigNumber.from(200000)),
-        getFeeData: Sinon.stub().resolves({
+      getDomainId: vi.fn().mockReturnValue(42161),
+      getProtocol: vi.fn().mockReturnValue(protocol),
+      getProvider: vi.fn().mockReturnValue({
+        estimateGas: vi.fn().mockResolvedValue(BigNumber.from(200000)),
+        getFeeData: vi.fn().mockResolvedValue({
           maxFeePerGas: BigNumber.from(10_000_000_000n),
           gasPrice: BigNumber.from(10_000_000_000n),
         }),
       }),
     } as unknown as MultiProvider;
 
-    const getTokenForChain = Sinon.stub().returns(mockToken);
-    const isNativeTokenStandard = Sinon.stub().returns(true);
+    const getTokenForChain = vi.fn().mockReturnValue(mockToken);
+    const isNativeTokenStandard = vi.fn().mockReturnValue(true);
 
     return { multiProvider, getTokenForChain, isNativeTokenStandard };
   }

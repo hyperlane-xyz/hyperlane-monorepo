@@ -1,5 +1,4 @@
-import sinon from 'sinon';
-import { expect } from 'vitest';
+import { expect, vi } from 'vitest';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
 
@@ -13,7 +12,7 @@ import {
 
 describe('Explorer Pending Transfers', () => {
   afterEach(() => {
-    sinon.restore();
+    vi.restoreAllMocks();
   });
 
   describe('normalize helpers', () => {
@@ -84,7 +83,7 @@ describe('Explorer Pending Transfers', () => {
     const messageBody = `0x${recipientBytes32}${amountHex}`;
     const malformedRecipientBody = `0x${malformedRecipientBytes32}${amountHex}`;
 
-    sinon.stub(globalThis, 'fetch' as any).resolves({
+    vi.spyOn(globalThis, 'fetch' as any).mockResolvedValue({
       ok: true,
       json: async () => ({
         data: {
@@ -160,7 +159,7 @@ describe('Explorer Pending Transfers', () => {
       },
     ];
 
-    sinon.stub(globalThis, 'fetch' as any).resolves({
+    vi.spyOn(globalThis, 'fetch' as any).mockResolvedValue({
       ok: true,
       json: async () => ({
         errors: [{ message: 'boom' }],

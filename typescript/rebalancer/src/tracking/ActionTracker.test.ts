@@ -1,6 +1,5 @@
 import { expect } from 'vitest';
 import { pino } from 'pino';
-import Sinon from 'sinon';
 
 import { EthJsonRpcBlockParameterTag } from '@hyperlane-xyz/sdk';
 
@@ -39,8 +38,8 @@ describe('ActionTracker', () => {
     rebalanceActionStore = new InMemoryStore();
 
     // Create stub for ExplorerClient methods with default return values
-    const explorerGetInflightUserTransfers = Sinon.stub().resolves([]);
-    const explorerGetInflightRebalanceActions = Sinon.stub().resolves([]);
+    const explorerGetInflightUserTransfers = vi.fn().mockResolvedValue([]);
+    const explorerGetInflightRebalanceActions = vi.fn().mockResolvedValue([]);
 
     explorerClient = {
       getInflightUserTransfers: explorerGetInflightUserTransfers,
@@ -49,14 +48,14 @@ describe('ActionTracker', () => {
 
     // Create stub for adapter (used by MultiProtocolCore)
     mailboxStub = {
-      isDelivered: Sinon.stub().resolves(false),
+      isDelivered: vi.fn().mockResolvedValue(false),
     };
 
     // Create stub for MultiProtocolCore
-    const multiProviderGetChainName = Sinon.stub().callsFake(
-      (domain: number) => `chain${domain}`,
-    );
-    const adapterStub = Sinon.stub().returns(mailboxStub);
+    const multiProviderGetChainName = vi
+      .fn()
+      .mockImplementation((domain: number) => `chain${domain}`);
+    const adapterStub = vi.fn().mockReturnValue(mailboxStub);
 
     core = {
       adapter: adapterStub,
@@ -106,18 +105,22 @@ describe('ActionTracker', () => {
         },
       ];
 
-      explorerClient.getInflightRebalanceActions.resolves(inflightMessages);
-      explorerClient.getInflightUserTransfers.resolves([]);
+      explorerClient.getInflightRebalanceActions.mockResolvedValue(
+        inflightMessages,
+      );
+      explorerClient.getInflightUserTransfers.mockResolvedValue([]);
 
       // Ensure mailbox returns false so action stays in_progress
-      mailboxStub.isDelivered.resolves(false);
+      mailboxStub.isDelivered.mockResolvedValue(false);
 
       await tracker.initialize();
 
       // Verify ExplorerClient was called twice:
       // 1. During startup recovery in initialize()
       // 2. During syncRebalanceActions() called from initialize()
-      expect(explorerClient.getInflightRebalanceActions.callCount).toBe(2);
+      expect(explorerClient.getInflightRebalanceActions.mock.calls.length).toBe(
+        2,
+      );
 
       // Verify synthetic intent and action were created
       const intents = await rebalanceIntentStore.getAll();
@@ -150,9 +153,11 @@ describe('ActionTracker', () => {
         },
       ];
 
-      explorerClient.getInflightRebalanceActions.resolves(inflightMessages);
-      explorerClient.getInflightUserTransfers.resolves([]);
-      mailboxStub.isDelivered.resolves(false);
+      explorerClient.getInflightRebalanceActions.mockResolvedValue(
+        inflightMessages,
+      );
+      explorerClient.getInflightUserTransfers.mockResolvedValue([]);
+      mailboxStub.isDelivered.mockResolvedValue(false);
 
       await tracker.initialize();
 
@@ -185,9 +190,11 @@ describe('ActionTracker', () => {
         },
       ];
 
-      explorerClient.getInflightRebalanceActions.resolves(inflightMessages);
-      explorerClient.getInflightUserTransfers.resolves([]);
-      mailboxStub.isDelivered.resolves(false);
+      explorerClient.getInflightRebalanceActions.mockResolvedValue(
+        inflightMessages,
+      );
+      explorerClient.getInflightUserTransfers.mockResolvedValue([]);
+      mailboxStub.isDelivered.mockResolvedValue(false);
 
       await tracker.initialize();
       const after = Date.now();
@@ -215,9 +222,11 @@ describe('ActionTracker', () => {
         },
       ];
 
-      explorerClient.getInflightRebalanceActions.resolves(inflightMessages);
-      explorerClient.getInflightUserTransfers.resolves([]);
-      mailboxStub.isDelivered.resolves(false);
+      explorerClient.getInflightRebalanceActions.mockResolvedValue(
+        inflightMessages,
+      );
+      explorerClient.getInflightUserTransfers.mockResolvedValue([]);
+      mailboxStub.isDelivered.mockResolvedValue(false);
 
       await tracker.initialize();
 
@@ -260,8 +269,10 @@ describe('ActionTracker', () => {
         updatedAt: Date.now(),
       });
 
-      explorerClient.getInflightRebalanceActions.resolves(inflightMessages);
-      explorerClient.getInflightUserTransfers.resolves([]);
+      explorerClient.getInflightRebalanceActions.mockResolvedValue(
+        inflightMessages,
+      );
+      explorerClient.getInflightUserTransfers.mockResolvedValue([]);
 
       await tracker.initialize();
 
@@ -294,7 +305,9 @@ describe('ActionTracker', () => {
         },
       ];
 
-      explorerClient.getInflightUserTransfers.resolves(inflightMessages);
+      explorerClient.getInflightUserTransfers.mockResolvedValue(
+        inflightMessages,
+      );
 
       await tracker.syncTransfers();
 
@@ -338,7 +351,9 @@ describe('ActionTracker', () => {
         },
       ];
 
-      explorerClient.getInflightUserTransfers.resolves(inflightMessages);
+      explorerClient.getInflightUserTransfers.mockResolvedValue(
+        inflightMessages,
+      );
 
       await tracker.syncTransfers();
 
@@ -361,8 +376,8 @@ describe('ActionTracker', () => {
         updatedAt: Date.now(),
       });
 
-      explorerClient.getInflightUserTransfers.resolves([]);
-      mailboxStub.isDelivered.resolves(true);
+      explorerClient.getInflightUserTransfers.mockResolvedValue([]);
+      mailboxStub.isDelivered.mockResolvedValue(true);
 
       await tracker.syncTransfers();
 
@@ -524,7 +539,7 @@ describe('ActionTracker', () => {
       await rebalanceIntentStore.save(intent);
       await rebalanceActionStore.save(action);
 
-      mailboxStub.isDelivered.resolves(true);
+      mailboxStub.isDelivered.mockResolvedValue(true);
 
       await tracker.syncRebalanceActions();
 
@@ -553,7 +568,7 @@ describe('ActionTracker', () => {
 
       await rebalanceActionStore.save(action);
 
-      mailboxStub.isDelivered.resolves(false);
+      mailboxStub.isDelivered.mockResolvedValue(false);
 
       await tracker.syncRebalanceActions();
 
@@ -578,7 +593,7 @@ describe('ActionTracker', () => {
         updatedAt: Date.now() - DEFAULT_MOVEMENT_STALENESS_MS - 1,
       });
 
-      const getStatus = Sinon.stub().resolves({ status: 'pending' });
+      const getStatus = vi.fn().mockResolvedValue({ status: 'pending' });
       await tracker.syncInventoryMovementActions({
         lifi: { getStatus } as any,
       });
@@ -603,7 +618,7 @@ describe('ActionTracker', () => {
         updatedAt: Date.now() - DEFAULT_MOVEMENT_STALENESS_MS - 1,
       });
 
-      const getStatus = Sinon.stub().resolves({ status: 'not_found' });
+      const getStatus = vi.fn().mockResolvedValue({ status: 'not_found' });
       await tracker.syncInventoryMovementActions({
         lifi: { getStatus } as any,
       });
@@ -631,7 +646,7 @@ describe('ActionTracker', () => {
         updatedAt: Date.now(),
       });
 
-      const getStatus = Sinon.stub().resolves({ status: 'pending' });
+      const getStatus = vi.fn().mockResolvedValue({ status: 'pending' });
       await tracker.syncInventoryMovementActions({
         lifi: { getStatus } as any,
       });
@@ -659,7 +674,7 @@ describe('ActionTracker', () => {
         updatedAt: Date.now(),
       });
 
-      const getStatus = Sinon.stub().resolves({ status: 'not_found' });
+      const getStatus = vi.fn().mockResolvedValue({ status: 'not_found' });
       await tracker.syncInventoryMovementActions({
         lifi: { getStatus } as any,
       });
@@ -1429,30 +1444,31 @@ describe('ActionTracker', () => {
 
   describe('Explorer query parameters', () => {
     it('should pass routersByDomain to getInflightRebalanceActions for warp route filtering', async () => {
-      explorerClient.getInflightRebalanceActions.resolves([]);
-      explorerClient.getInflightUserTransfers.resolves([]);
+      explorerClient.getInflightRebalanceActions.mockResolvedValue([]);
+      explorerClient.getInflightUserTransfers.mockResolvedValue([]);
 
       await tracker.initialize();
 
-      const call = explorerClient.getInflightRebalanceActions.firstCall;
-      expect(call).not.toBeNull();
+      const firstCall =
+        explorerClient.getInflightRebalanceActions.mock.calls[0];
+      expect(firstCall).not.toBeUndefined();
 
-      const params = call.args[0];
+      const params = firstCall[0];
       expect(params.routersByDomain).toEqual(config.routersByDomain);
       expect(params.bridges).toEqual(config.bridges);
       expect(params.rebalancerAddress).toBe(config.rebalancerAddress);
     });
 
     it('should pass routersByDomain to getInflightUserTransfers for warp route filtering', async () => {
-      explorerClient.getInflightRebalanceActions.resolves([]);
-      explorerClient.getInflightUserTransfers.resolves([]);
+      explorerClient.getInflightRebalanceActions.mockResolvedValue([]);
+      explorerClient.getInflightUserTransfers.mockResolvedValue([]);
 
       await tracker.initialize();
 
-      const call = explorerClient.getInflightUserTransfers.firstCall;
-      expect(call).not.toBeNull();
+      const firstCall = explorerClient.getInflightUserTransfers.mock.calls[0];
+      expect(firstCall).not.toBeUndefined();
 
-      const params = call.args[0];
+      const params = firstCall[0];
       expect(params.routersByDomain).toEqual(config.routersByDomain);
       expect(params.excludeTxSenders).toEqual([config.rebalancerAddress]);
     });
@@ -1473,14 +1489,14 @@ describe('ActionTracker', () => {
         updatedAt: Date.now(),
       });
 
-      explorerClient.getInflightUserTransfers.resolves([]);
-      mailboxStub.isDelivered.resolves(true);
+      explorerClient.getInflightUserTransfers.mockResolvedValue([]);
+      mailboxStub.isDelivered.mockResolvedValue(true);
 
       await tracker.syncTransfers();
 
-      expect(mailboxStub.isDelivered.calledOnce).toBe(true);
-      const call = mailboxStub.isDelivered.firstCall;
-      expect(call.args[0]).toBe('0xmsg1');
+      expect(mailboxStub.isDelivered).toHaveBeenCalledOnce();
+      const firstCall = mailboxStub.isDelivered.mock.calls[0];
+      expect(firstCall[0]).toBe('0xmsg1');
 
       const transfer = await transferStore.get('0xmsg1');
       expect(transfer?.status).toBe('complete');
@@ -1513,14 +1529,14 @@ describe('ActionTracker', () => {
       await rebalanceIntentStore.save(intent);
       await rebalanceActionStore.save(action);
 
-      explorerClient.getInflightRebalanceActions.resolves([]);
-      mailboxStub.isDelivered.resolves(true);
+      explorerClient.getInflightRebalanceActions.mockResolvedValue([]);
+      mailboxStub.isDelivered.mockResolvedValue(true);
 
       await tracker.syncRebalanceActions();
 
-      expect(mailboxStub.isDelivered.calledOnce).toBe(true);
-      const call = mailboxStub.isDelivered.firstCall;
-      expect(call.args[0]).toBe('0xmsg1');
+      expect(mailboxStub.isDelivered).toHaveBeenCalledOnce();
+      const firstCall = mailboxStub.isDelivered.mock.calls[0];
+      expect(firstCall[0]).toBe('0xmsg1');
 
       const updatedAction = await rebalanceActionStore.get('action-1');
       expect(updatedAction?.status).toBe('complete');
@@ -1540,12 +1556,12 @@ describe('ActionTracker', () => {
         updatedAt: Date.now(),
       });
 
-      explorerClient.getInflightUserTransfers.resolves([]);
-      mailboxStub.isDelivered.resolves(false);
+      explorerClient.getInflightUserTransfers.mockResolvedValue([]);
+      mailboxStub.isDelivered.mockResolvedValue(false);
 
       await tracker.syncTransfers();
 
-      expect(mailboxStub.isDelivered.calledOnce).toBe(true);
+      expect(mailboxStub.isDelivered).toHaveBeenCalledOnce();
       const transfer = await transferStore.get('0xmsg1');
       expect(transfer?.status).toBe('in_progress');
     });
@@ -1564,12 +1580,12 @@ describe('ActionTracker', () => {
         updatedAt: Date.now(),
       });
 
-      explorerClient.getInflightUserTransfers.resolves([]);
-      mailboxStub.isDelivered.resolves(false);
+      explorerClient.getInflightUserTransfers.mockResolvedValue([]);
+      mailboxStub.isDelivered.mockResolvedValue(false);
 
       await tracker.syncTransfers();
 
-      expect(mailboxStub.isDelivered.calledOnce).toBe(true);
+      expect(mailboxStub.isDelivered).toHaveBeenCalledOnce();
     });
 
     it('should pass blockTag when checking delivery in syncTransfers', async () => {
@@ -1586,18 +1602,18 @@ describe('ActionTracker', () => {
         updatedAt: Date.now(),
       });
 
-      explorerClient.getInflightUserTransfers.resolves([]);
-      mailboxStub.isDelivered.resolves(true);
+      explorerClient.getInflightUserTransfers.mockResolvedValue([]);
+      mailboxStub.isDelivered.mockResolvedValue(true);
 
       const confirmedBlockTags = {
         chain2: EthJsonRpcBlockParameterTag.Finalized,
       };
       await tracker.syncTransfers(confirmedBlockTags);
 
-      expect(mailboxStub.isDelivered.calledOnce).toBe(true);
-      const call = mailboxStub.isDelivered.firstCall;
-      expect(call.args[0]).toBe('0xmsg1');
-      expect(call.args[1]).toBe(EthJsonRpcBlockParameterTag.Finalized);
+      expect(mailboxStub.isDelivered).toHaveBeenCalledOnce();
+      const firstCall = mailboxStub.isDelivered.mock.calls[0];
+      expect(firstCall[0]).toBe('0xmsg1');
+      expect(firstCall[1]).toBe(EthJsonRpcBlockParameterTag.Finalized);
     });
 
     it('should pass blockTag when checking delivery in syncRebalanceActions', async () => {
@@ -1627,16 +1643,16 @@ describe('ActionTracker', () => {
       await rebalanceIntentStore.save(intent);
       await rebalanceActionStore.save(action);
 
-      explorerClient.getInflightRebalanceActions.resolves([]);
-      mailboxStub.isDelivered.resolves(true);
+      explorerClient.getInflightRebalanceActions.mockResolvedValue([]);
+      mailboxStub.isDelivered.mockResolvedValue(true);
 
       const confirmedBlockTags = { chain2: 12345 };
       await tracker.syncRebalanceActions(confirmedBlockTags);
 
-      expect(mailboxStub.isDelivered.calledOnce).toBe(true);
-      const call = mailboxStub.isDelivered.firstCall;
-      expect(call.args[0]).toBe('0xmsg1');
-      expect(call.args[1]).toBe(12345);
+      expect(mailboxStub.isDelivered).toHaveBeenCalledOnce();
+      const firstCall = mailboxStub.isDelivered.mock.calls[0];
+      expect(firstCall[0]).toBe('0xmsg1');
+      expect(firstCall[1]).toBe(12345);
     });
 
     it('should pass undefined blockTag when confirmedBlockTags not provided', async () => {
@@ -1653,15 +1669,15 @@ describe('ActionTracker', () => {
         updatedAt: Date.now(),
       });
 
-      explorerClient.getInflightUserTransfers.resolves([]);
-      mailboxStub.isDelivered.resolves(false);
+      explorerClient.getInflightUserTransfers.mockResolvedValue([]);
+      mailboxStub.isDelivered.mockResolvedValue(false);
 
       await tracker.syncTransfers(); // No confirmedBlockTags
 
-      expect(mailboxStub.isDelivered.calledOnce).toBe(true);
-      const call = mailboxStub.isDelivered.firstCall;
-      expect(call.args[0]).toBe('0xmsg1');
-      expect(call.args[1]).toBeUndefined();
+      expect(mailboxStub.isDelivered).toHaveBeenCalledOnce();
+      const firstCall = mailboxStub.isDelivered.mock.calls[0];
+      expect(firstCall[0]).toBe('0xmsg1');
+      expect(firstCall[1]).toBeUndefined();
     });
   });
 });

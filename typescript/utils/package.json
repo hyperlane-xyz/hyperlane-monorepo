@@ -65,8 +65,6 @@
     "@types/bs58": "catalog:",
     "@types/lodash-es": "catalog:",
     "@types/node": "catalog:",
-    "@types/sinon": "catalog:",
-    "sinon": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:"

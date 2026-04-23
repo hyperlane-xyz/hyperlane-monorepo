@@ -1,9 +1,9 @@
 import { expect } from 'vitest';
 import { pino } from 'pino';
-import Sinon from 'sinon';
 
 import { type IRegistry, RegistryType } from '@hyperlane-xyz/registry';
 import {
+  type ChainMetadata,
   MultiProtocolProvider,
   MultiProvider,
   TokenStandard,
@@ -27,33 +27,33 @@ function createMockRegistry(): IRegistry {
   return {
     type: RegistryType.Partial,
     uri: 'mock://registry',
-    getUri: Sinon.stub().returns('mock://registry'),
-    listRegistryContent: Sinon.stub().resolves({
+    getUri: vi.fn().mockReturnValue('mock://registry'),
+    listRegistryContent: vi.fn().mockResolvedValue({
       chains: {},
       deployments: { warpRoutes: {}, warpDeployConfig: {} },
     }),
-    getChains: Sinon.stub().resolves([]),
-    getMetadata: Sinon.stub().resolves({}),
-    getChainMetadata: Sinon.stub().resolves(null),
-    getAddresses: Sinon.stub().resolves({
+    getChains: vi.fn().mockResolvedValue([]),
+    getMetadata: vi.fn().mockResolvedValue({}),
+    getChainMetadata: vi.fn().mockResolvedValue(null),
+    getAddresses: vi.fn().mockResolvedValue({
       ethereum: { mailbox: TEST_ADDRESSES.ethereum },
       arbitrum: { mailbox: TEST_ADDRESSES.arbitrum },
       paradex: { mailbox: TEST_ADDRESSES.polygon },
     }),
-    getChainAddresses: Sinon.stub().resolves({
+    getChainAddresses: vi.fn().mockResolvedValue({
       mailbox: TEST_ADDRESSES.ethereum,
     }),
-    getChainLogoUri: Sinon.stub().resolves(null),
-    addChain: Sinon.stub().resolves(),
-    updateChain: Sinon.stub().resolves(),
-    removeChain: Sinon.stub().resolves(),
-    getWarpRoute: Sinon.stub().resolves(null),
-    getWarpRoutes: Sinon.stub().resolves({}),
-    addWarpRoute: Sinon.stub().resolves(),
-    addWarpRouteConfig: Sinon.stub().resolves(),
-    getWarpDeployConfig: Sinon.stub().resolves({}),
-    getWarpDeployConfigs: Sinon.stub().resolves({}),
-    merge: Sinon.stub().returnsThis(),
+    getChainLogoUri: vi.fn().mockResolvedValue(null),
+    addChain: vi.fn().mockResolvedValue(undefined),
+    updateChain: vi.fn().mockResolvedValue(undefined),
+    removeChain: vi.fn().mockResolvedValue(undefined),
+    getWarpRoute: vi.fn().mockResolvedValue(null),
+    getWarpRoutes: vi.fn().mockResolvedValue({}),
+    addWarpRoute: vi.fn().mockResolvedValue(undefined),
+    addWarpRouteConfig: vi.fn().mockResolvedValue(undefined),
+    getWarpDeployConfig: vi.fn().mockResolvedValue({}),
+    getWarpDeployConfigs: vi.fn().mockResolvedValue({}),
+    merge: vi.fn().mockReturnThis(),
   };
 }
 
@@ -81,9 +81,21 @@ function createMockConfig(): RebalancerConfig {
   } as RebalancerConfig;
 }
 
-function createMockMpp() {
-  const mpp = Sinon.createStubInstance(MultiProtocolProvider);
-  mpp.extendChainMetadata.returnsThis();
+function createMockMpp(): MultiProtocolProvider {
+  const mpp: any = Object.create(MultiProtocolProvider.prototype);
+  for (const key of Object.getOwnPropertyNames(
+    MultiProtocolProvider.prototype,
+  )) {
+    if (key === 'constructor') continue;
+    const desc = Object.getOwnPropertyDescriptor(
+      MultiProtocolProvider.prototype,
+      key,
+    );
+    if (desc && typeof desc.value === 'function') {
+      mpp[key] = vi.fn();
+    }
+  }
+  mpp.extendChainMetadata = vi.fn(() => mpp);
   return mpp;
 }
 
@@ -112,14 +124,21 @@ function createMockMultiProvider(chains: ChainDef[]) {
     chains.map((c) => [c.name, c.protocol]),
   );
 
-  const multiProvider = Sinon.createStubInstance(MultiProvider);
-  multiProvider.getProtocol.callsFake((chain) => {
+  const multiProvider: any = Object.create(MultiProvider.prototype);
+  for (const key of Object.getOwnPropertyNames(MultiProvider.prototype)) {
+    if (key === 'constructor') continue;
+    const desc = Object.getOwnPropertyDescriptor(MultiProvider.prototype, key);
+    if (desc && typeof desc.value === 'function') {
+      multiProvider[key] = vi.fn();
+    }
+  }
+  multiProvider.getProtocol = vi.fn().mockImplementation((chain: any) => {
     const protocol = protocolMap[String(chain)];
     assert(protocol, `No protocol in mock for chain ${chain}`);
     return protocol;
   });
 
-  return { multiProvider };
+  return { multiProvider: multiProvider as MultiProvider };
 }
 
 async function createFactory(
@@ -146,14 +165,8 @@ async function callCreate(
 }
 
 describe('RebalancerContextFactory', () => {
-  let sandbox: Sinon.SinonSandbox;
-
-  beforeEach(() => {
-    sandbox = Sinon.createSandbox();
-  });
-
   afterEach(() => {
-    sandbox.restore();
+    vi.restoreAllMocks();
   });
 
   describe('create() — non-EVM chain handling', () => {
@@ -184,10 +197,10 @@ describe('RebalancerContextFactory', () => {
         ],
       });
 
-      expect(multiProvider.getProvider.callCount).toBe(2);
-      const providerChains = multiProvider.getProvider
-        .getCalls()
-        .map((c) => c.args[0]);
+      expect((multiProvider.getProvider as any).mock.calls.length).toBe(2);
+      const providerChains = (multiProvider.getProvider as any).mock.calls.map(
+        (c: any) => c[0],
+      );
       expect(providerChains).toContain('ethereum');
       expect(providerChains).toContain('arbitrum');
       expect(providerChains).not.toContain('paradex');
@@ -214,8 +227,10 @@ describe('RebalancerContextFactory', () => {
         ],
       });
 
-      expect(multiProvider.getProvider.callCount).toBe(1);
-      expect(multiProvider.getProvider.firstCall.args[0]).toBe('ethereum');
+      expect((multiProvider.getProvider as any).mock.calls.length).toBe(1);
+      expect((multiProvider.getProvider as any).mock.calls[0][0]).toBe(
+        'ethereum',
+      );
     });
 
     it('should initialize providers for Tron chains (EVM-like)', async () => {
@@ -240,10 +255,10 @@ describe('RebalancerContextFactory', () => {
       });
 
       // Tron is EVM-like, so getProvider should be called for both chains
-      expect(multiProvider.getProvider.callCount).toBe(2);
-      const providerChains = multiProvider.getProvider
-        .getCalls()
-        .map((c) => c.args[0]);
+      expect((multiProvider.getProvider as any).mock.calls.length).toBe(2);
+      const providerChains = (multiProvider.getProvider as any).mock.calls.map(
+        (c: any) => c[0],
+      );
       expect(providerChains).toContain('ethereum');
       expect(providerChains).toContain('tron');
     });
@@ -269,10 +284,10 @@ describe('RebalancerContextFactory', () => {
         ],
       });
 
-      expect(multiProvider.getProvider.callCount).toBe(2);
-      const providerChains = multiProvider.getProvider
-        .getCalls()
-        .map((c) => c.args[0]);
+      expect((multiProvider.getProvider as any).mock.calls.length).toBe(2);
+      const providerChains = (multiProvider.getProvider as any).mock.calls.map(
+        (c: any) => c[0],
+      );
       expect(providerChains).toContain('ethereum');
       expect(providerChains).toContain('arbitrum');
     });
@@ -333,8 +348,8 @@ describe('RebalancerContextFactory', () => {
         .tokens.find((token) => token.chainName === 'ethereum');
       assert(collateralToken, 'Expected ethereum collateral token in test');
 
-      sandbox.stub(collateralToken, 'getHypAdapter').returns({
-        getBridgedSupply: sandbox.stub().resolves(undefined),
+      vi.spyOn(collateralToken, 'getHypAdapter').mockReturnValue({
+        getBridgedSupply: vi.fn().mockResolvedValue(undefined),
       } as any);
 
       let error: Error | undefined;
@@ -403,14 +418,19 @@ describe('RebalancerContextFactory', () => {
         ],
       });
 
-      const getChainMetadataStub = factory.getWarpCore().multiProvider
-        .getChainMetadata as Sinon.SinonStub;
-      getChainMetadataStub.callsFake((chainName: string) => ({
-        protocol:
-          chainName === sealevelChain
-            ? ProtocolType.Sealevel
-            : ProtocolType.Ethereum,
-      }));
+      const getChainMetadataStub = vi.spyOn(
+        factory.getWarpCore().multiProvider,
+        'getChainMetadata',
+      );
+      getChainMetadataStub.mockImplementation(
+        (chainNameOrId) =>
+          ({
+            protocol:
+              chainNameOrId === sealevelChain
+                ? ProtocolType.Sealevel
+                : ProtocolType.Ethereum,
+          }) as unknown as ChainMetadata,
+      );
 
       let error: Error | undefined;
       try {
@@ -455,11 +475,16 @@ describe('RebalancerContextFactory', () => {
         ],
       });
 
-      const getChainMetadataStub = factory.getWarpCore().multiProvider
-        .getChainMetadata as Sinon.SinonStub;
-      getChainMetadataStub.callsFake(() => ({
-        protocol: ProtocolType.Ethereum,
-      }));
+      const getChainMetadataStub = vi.spyOn(
+        factory.getWarpCore().multiProvider,
+        'getChainMetadata',
+      );
+      getChainMetadataStub.mockImplementation(
+        () =>
+          ({
+            protocol: ProtocolType.Ethereum,
+          }) as unknown as ChainMetadata,
+      );
 
       let error: Error | undefined;
       try {
@@ -534,12 +559,19 @@ describe('RebalancerContextFactory', () => {
         ],
       });
 
-      const getChainMetadataStub = factory.getWarpCore().multiProvider
-        .getChainMetadata as Sinon.SinonStub;
-      getChainMetadataStub.callsFake((chainName: string) => ({
-        protocol:
-          chainName === tronChain ? ProtocolType.Tron : ProtocolType.Ethereum,
-      }));
+      const getChainMetadataStub = vi.spyOn(
+        factory.getWarpCore().multiProvider,
+        'getChainMetadata',
+      );
+      getChainMetadataStub.mockImplementation(
+        (chainNameOrId) =>
+          ({
+            protocol:
+              chainNameOrId === tronChain
+                ? ProtocolType.Tron
+                : ProtocolType.Ethereum,
+          }) as unknown as ChainMetadata,
+      );
 
       const result = await (factory as any).createInventoryRebalancerAndConfig(
         {} as any,
@@ -618,14 +650,19 @@ describe('RebalancerContextFactory', () => {
         ],
       });
 
-      const getChainMetadataStub = factory.getWarpCore().multiProvider
-        .getChainMetadata as Sinon.SinonStub;
-      getChainMetadataStub.callsFake((chainName: string) => ({
-        protocol:
-          chainName === cosmosChain
-            ? ProtocolType.Cosmos
-            : ProtocolType.Ethereum,
-      }));
+      const getChainMetadataStub = vi.spyOn(
+        factory.getWarpCore().multiProvider,
+        'getChainMetadata',
+      );
+      getChainMetadataStub.mockImplementation(
+        (chainNameOrId) =>
+          ({
+            protocol:
+              chainNameOrId === cosmosChain
+                ? ProtocolType.Cosmos
+                : ProtocolType.Ethereum,
+          }) as unknown as ChainMetadata,
+      );
 
       let error: Error | undefined;
       try {

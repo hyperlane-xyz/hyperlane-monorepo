@@ -1,5 +1,4 @@
 import { expect } from 'vitest';
-import Sinon from 'sinon';
 
 import type { MultiProvider } from '@hyperlane-xyz/sdk';
 
@@ -8,19 +7,19 @@ import { InflightContextAdapter } from './InflightContextAdapter.js';
 import type { RebalanceIntent, Transfer } from './types.js';
 
 describe('InflightContextAdapter', () => {
-  let actionTracker: Sinon.SinonStubbedInstance<IActionTracker>;
-  let multiProvider: Sinon.SinonStubbedInstance<MultiProvider>;
+  let actionTracker: IActionTracker;
+  let multiProvider: MultiProvider;
   let adapter: InflightContextAdapter;
 
   beforeEach(() => {
     actionTracker = {
-      getActiveRebalanceIntents: Sinon.stub(),
-      getInProgressTransfers: Sinon.stub(),
-      getActionsForIntent: Sinon.stub(),
+      getActiveRebalanceIntents: vi.fn(),
+      getInProgressTransfers: vi.fn(),
+      getActionsForIntent: vi.fn(),
     } as any;
 
     multiProvider = {
-      getChainName: Sinon.stub(),
+      getChainName: vi.fn(),
     } as any;
 
     adapter = new InflightContextAdapter(
@@ -30,7 +29,7 @@ describe('InflightContextAdapter', () => {
   });
 
   afterEach(() => {
-    Sinon.restore();
+    vi.restoreAllMocks();
   });
 
   describe('getInflightContext', () => {
@@ -62,11 +61,18 @@ describe('InflightContextAdapter', () => {
         },
       ];
 
-      actionTracker.getActiveRebalanceIntents.resolves(mockIntents);
-      actionTracker.getInProgressTransfers.resolves(mockTransfers);
-      actionTracker.getActionsForIntent.resolves([]); // No actions
-      multiProvider.getChainName.withArgs(1).returns('ethereum');
-      multiProvider.getChainName.withArgs(2).returns('arbitrum');
+      (actionTracker.getActiveRebalanceIntents as any).mockResolvedValue(
+        mockIntents,
+      );
+      (actionTracker.getInProgressTransfers as any).mockResolvedValue(
+        mockTransfers,
+      );
+      (actionTracker.getActionsForIntent as any).mockResolvedValue([]); // No actions
+      (multiProvider.getChainName as any).mockImplementation((id: number) => {
+        if (id === 1) return 'ethereum';
+        if (id === 2) return 'arbitrum';
+        return undefined;
+      });
 
       const result = await adapter.getInflightContext();
 
@@ -90,8 +96,8 @@ describe('InflightContextAdapter', () => {
     });
 
     it('should handle empty arrays', async () => {
-      actionTracker.getActiveRebalanceIntents.resolves([]);
-      actionTracker.getInProgressTransfers.resolves([]);
+      (actionTracker.getActiveRebalanceIntents as any).mockResolvedValue([]);
+      (actionTracker.getInProgressTransfers as any).mockResolvedValue([]);
 
       const result = await adapter.getInflightContext();
 
@@ -127,11 +133,18 @@ describe('InflightContextAdapter', () => {
         },
       ];
 
-      actionTracker.getActiveRebalanceIntents.resolves(mockIntents);
-      actionTracker.getInProgressTransfers.resolves(mockTransfers);
-      actionTracker.getActionsForIntent.resolves([]);
-      multiProvider.getChainName.withArgs(137).returns('polygon');
-      multiProvider.getChainName.withArgs(10).returns('optimism');
+      (actionTracker.getActiveRebalanceIntents as any).mockResolvedValue(
+        mockIntents,
+      );
+      (actionTracker.getInProgressTransfers as any).mockResolvedValue(
+        mockTransfers,
+      );
+      (actionTracker.getActionsForIntent as any).mockResolvedValue([]);
+      (multiProvider.getChainName as any).mockImplementation((id: number) => {
+        if (id === 137) return 'polygon';
+        if (id === 10) return 'optimism';
+        return undefined;
+      });
 
       const result = await adapter.getInflightContext();
 
@@ -190,12 +203,19 @@ describe('InflightContextAdapter', () => {
         },
       ];
 
-      actionTracker.getActiveRebalanceIntents.resolves(mockIntents);
-      actionTracker.getInProgressTransfers.resolves(mockTransfers);
-      actionTracker.getActionsForIntent.resolves([]);
-      multiProvider.getChainName.withArgs(1).returns('ethereum');
-      multiProvider.getChainName.withArgs(2).returns('arbitrum');
-      multiProvider.getChainName.withArgs(3).returns('optimism');
+      (actionTracker.getActiveRebalanceIntents as any).mockResolvedValue(
+        mockIntents,
+      );
+      (actionTracker.getInProgressTransfers as any).mockResolvedValue(
+        mockTransfers,
+      );
+      (actionTracker.getActionsForIntent as any).mockResolvedValue([]);
+      (multiProvider.getChainName as any).mockImplementation((id: number) => {
+        if (id === 1) return 'ethereum';
+        if (id === 2) return 'arbitrum';
+        if (id === 3) return 'optimism';
+        return undefined;
+      });
 
       const result = await adapter.getInflightContext();
 

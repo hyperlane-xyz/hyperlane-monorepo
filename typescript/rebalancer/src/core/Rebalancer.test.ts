@@ -1,7 +1,6 @@
 import { expect } from 'vitest';
 import { ethers } from 'ethers';
 import { pino } from 'pino';
-import Sinon from 'sinon';
 
 import { HyperlaneCore } from '@hyperlane-xyz/sdk';
 
@@ -15,51 +14,45 @@ import { Rebalancer } from './Rebalancer.js';
 
 function createMockActionTracker(): IActionTracker {
   return {
-    initialize: Sinon.stub().resolves(),
-    createRebalanceIntent: Sinon.stub().callsFake(async () => ({
+    initialize: vi.fn().mockResolvedValue(undefined),
+    createRebalanceIntent: vi.fn().mockImplementation(async () => ({
       id: `intent-${Date.now()}`,
       status: 'not_started',
     })),
-    createRebalanceAction: Sinon.stub().resolves(),
-    completeRebalanceAction: Sinon.stub().resolves(),
-    failRebalanceAction: Sinon.stub().resolves(),
-    completeRebalanceIntent: Sinon.stub().resolves(),
-    cancelRebalanceIntent: Sinon.stub().resolves(),
-    failRebalanceIntent: Sinon.stub().resolves(),
-    syncTransfers: Sinon.stub().resolves(),
-    syncRebalanceIntents: Sinon.stub().resolves(),
-    syncRebalanceActions: Sinon.stub().resolves(),
-    syncInventoryMovementActions: Sinon.stub().resolves({
+    createRebalanceAction: vi.fn().mockResolvedValue(undefined),
+    completeRebalanceAction: vi.fn().mockResolvedValue(undefined),
+    failRebalanceAction: vi.fn().mockResolvedValue(undefined),
+    completeRebalanceIntent: vi.fn().mockResolvedValue(undefined),
+    cancelRebalanceIntent: vi.fn().mockResolvedValue(undefined),
+    failRebalanceIntent: vi.fn().mockResolvedValue(undefined),
+    syncTransfers: vi.fn().mockResolvedValue(undefined),
+    syncRebalanceIntents: vi.fn().mockResolvedValue(undefined),
+    syncRebalanceActions: vi.fn().mockResolvedValue(undefined),
+    syncInventoryMovementActions: vi.fn().mockResolvedValue({
       completed: 0,
       failed: 0,
     }),
-    logStoreContents: Sinon.stub().resolves(),
-    getInProgressTransfers: Sinon.stub().resolves([]),
-    getActiveRebalanceIntents: Sinon.stub().resolves([]),
-    getTransfersByDestination: Sinon.stub().resolves([]),
-    getRebalanceIntentsByDestination: Sinon.stub().resolves([]),
-    getTransfer: Sinon.stub().resolves(undefined),
-    getRebalanceIntent: Sinon.stub().resolves(undefined),
-    getRebalanceAction: Sinon.stub().resolves(undefined),
-    getInProgressActions: Sinon.stub().resolves([]),
-    getPartiallyFulfilledInventoryIntents: Sinon.stub().resolves([]),
-    getActionsByType: Sinon.stub().resolves([]),
-    getActionsForIntent: Sinon.stub().resolves([]),
-    getInflightInventoryMovements: Sinon.stub().resolves(0n),
+    logStoreContents: vi.fn().mockResolvedValue(undefined),
+    getInProgressTransfers: vi.fn().mockResolvedValue([]),
+    getActiveRebalanceIntents: vi.fn().mockResolvedValue([]),
+    getTransfersByDestination: vi.fn().mockResolvedValue([]),
+    getRebalanceIntentsByDestination: vi.fn().mockResolvedValue([]),
+    getTransfer: vi.fn().mockResolvedValue(undefined),
+    getRebalanceIntent: vi.fn().mockResolvedValue(undefined),
+    getRebalanceAction: vi.fn().mockResolvedValue(undefined),
+    getInProgressActions: vi.fn().mockResolvedValue([]),
+    getPartiallyFulfilledInventoryIntents: vi.fn().mockResolvedValue([]),
+    getActionsByType: vi.fn().mockResolvedValue([]),
+    getActionsForIntent: vi.fn().mockResolvedValue([]),
+    getInflightInventoryMovements: vi.fn().mockResolvedValue(0n),
   };
 }
 
 const testLogger = pino({ level: 'silent' });
 
 describe('Rebalancer', () => {
-  let sandbox: Sinon.SinonSandbox;
-
-  beforeEach(() => {
-    sandbox = Sinon.createSandbox();
-  });
-
   afterEach(() => {
-    sandbox.restore();
+    vi.restoreAllMocks();
   });
 
   describe('rebalance()', () => {
@@ -82,7 +75,7 @@ describe('Rebalancer', () => {
     it('should return success result for single valid route', async () => {
       const ctx = createRebalancerTestContext();
 
-      sandbox.stub(HyperlaneCore, 'getDispatchedMessages').returns([
+      vi.spyOn(HyperlaneCore, 'getDispatchedMessages').mockReturnValue([
         {
           id: '0x1111111111111111111111111111111111111111111111111111111111111111',
         } as any,
@@ -137,7 +130,7 @@ describe('Rebalancer', () => {
         },
       );
 
-      sandbox.stub(HyperlaneCore, 'getDispatchedMessages').returns([
+      vi.spyOn(HyperlaneCore, 'getDispatchedMessages').mockReturnValue([
         {
           id: '0xMessageId111111111111111111111111111111111111111111111111111111',
         } as any,
@@ -234,12 +227,12 @@ describe('Rebalancer', () => {
       };
 
       const logger = {
-        child: Sinon.stub(),
-        info: Sinon.stub(),
-        warn: Sinon.stub(),
-        error: Sinon.stub(),
+        child: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
       };
-      logger.child.returns(logger);
+      logger.child.mockReturnValue(logger);
 
       const rebalancer = new Rebalancer(
         ctx.warpCore,
@@ -259,16 +252,13 @@ describe('Rebalancer', () => {
 
       expect(results).toHaveLength(1);
       expect(results[0].success).toBe(false);
-      const validationErrorCall = logger.error
-        .getCalls()
-        .find(
-          (call) =>
-            call.args[1] ===
-            'Route validation failed: destination token not found.',
-        );
+      const validationErrorCall = logger.error.mock.calls.find(
+        (call) =>
+          call[1] === 'Route validation failed: destination token not found.',
+      );
       expect(validationErrorCall).not.toBeUndefined();
-      expect(validationErrorCall!.args[0].amount).toBe(1);
-      expect(validationErrorCall!.args[1]).toBe(
+      expect(validationErrorCall![0].amount).toBe(1);
+      expect(validationErrorCall![1]).toBe(
         'Route validation failed: destination token not found.',
       );
     });
@@ -389,7 +379,7 @@ describe('Rebalancer', () => {
         denominator: 1_000_000_000_000,
       };
 
-      sandbox.stub(HyperlaneCore, 'getDispatchedMessages').returns([
+      vi.spyOn(HyperlaneCore, 'getDispatchedMessages').mockReturnValue([
         {
           id: '0x1111111111111111111111111111111111111111111111111111111111111111',
         } as any,
@@ -423,11 +413,11 @@ describe('Rebalancer', () => {
   describe('executeTransactions()', () => {
     it('should create failure result when gas estimation fails', async () => {
       const ctx = createRebalancerTestContext(['ethereum', 'arbitrum']);
-      ctx.multiProvider.estimateGas = Sinon.stub().rejects(
-        new Error('Gas estimation failed'),
-      );
+      ctx.multiProvider.estimateGas = vi
+        .fn()
+        .mockRejectedValue(new Error('Gas estimation failed'));
 
-      sandbox.stub(HyperlaneCore, 'getDispatchedMessages').returns([
+      vi.spyOn(HyperlaneCore, 'getDispatchedMessages').mockReturnValue([
         {
           id: '0xMessageId111111111111111111111111111111111111111111111111111111',
         } as any,
@@ -458,7 +448,7 @@ describe('Rebalancer', () => {
       ]);
 
       let callCount = 0;
-      ctx.multiProvider.estimateGas = Sinon.stub().callsFake(() => {
+      ctx.multiProvider.estimateGas = vi.fn().mockImplementation(() => {
         callCount++;
         if (callCount === 1) {
           return Promise.reject(new Error('Gas estimation failed'));
@@ -466,7 +456,7 @@ describe('Rebalancer', () => {
         return Promise.resolve(ethers.BigNumber.from(100000));
       });
 
-      sandbox.stub(HyperlaneCore, 'getDispatchedMessages').returns([
+      vi.spyOn(HyperlaneCore, 'getDispatchedMessages').mockReturnValue([
         {
           id: '0xMessageId111111111111111111111111111111111111111111111111111111',
         } as any,
@@ -516,7 +506,7 @@ describe('Rebalancer', () => {
       ]);
 
       let sendCallCount = 0;
-      (ctx.multiProvider.sendTransaction as Sinon.SinonStub).callsFake(() => {
+      ctx.multiProvider.sendTransaction = vi.fn().mockImplementation(() => {
         sendCallCount++;
         return Promise.resolve({
           transactionHash: `0x${sendCallCount.toString().padStart(64, '0')}`,
@@ -525,7 +515,7 @@ describe('Rebalancer', () => {
         });
       });
 
-      sandbox.stub(HyperlaneCore, 'getDispatchedMessages').returns([
+      vi.spyOn(HyperlaneCore, 'getDispatchedMessages').mockReturnValue([
         {
           id: '0x1111111111111111111111111111111111111111111111111111111111111111',
         } as any,
@@ -564,9 +554,9 @@ describe('Rebalancer', () => {
   describe('sendTransactionsForChain()', () => {
     it('should return error result when send fails', async () => {
       const ctx = createRebalancerTestContext(['ethereum', 'arbitrum']);
-      ctx.multiProvider.sendTransaction = Sinon.stub().rejects(
-        new Error('Send failed'),
-      );
+      ctx.multiProvider.sendTransaction = vi
+        .fn()
+        .mockRejectedValue(new Error('Send failed'));
 
       const rebalancer = new Rebalancer(
         ctx.warpCore,
@@ -589,7 +579,7 @@ describe('Rebalancer', () => {
       const ctx = createRebalancerTestContext(['ethereum', 'arbitrum']);
 
       let callCount = 0;
-      ctx.multiProvider.sendTransaction = Sinon.stub().callsFake(() => {
+      ctx.multiProvider.sendTransaction = vi.fn().mockImplementation(() => {
         callCount++;
         if (callCount === 1) {
           return Promise.reject(new Error('First send failed'));
@@ -602,7 +592,7 @@ describe('Rebalancer', () => {
         });
       });
 
-      sandbox.stub(HyperlaneCore, 'getDispatchedMessages').returns([
+      vi.spyOn(HyperlaneCore, 'getDispatchedMessages').mockReturnValue([
         {
           id: '0xMessageId111111111111111111111111111111111111111111111111111111',
         } as any,
@@ -641,8 +631,9 @@ describe('Rebalancer', () => {
       ]);
 
       const callOrder: string[] = [];
-      ctx.multiProvider.sendTransaction = Sinon.stub().callsFake(
-        async (chain: string) => {
+      ctx.multiProvider.sendTransaction = vi
+        .fn()
+        .mockImplementation(async (chain: string) => {
           callOrder.push(chain);
           await new Promise((resolve) => setTimeout(resolve, 10));
           return {
@@ -650,10 +641,9 @@ describe('Rebalancer', () => {
             blockNumber: 100,
             status: 1,
           };
-        },
-      );
+        });
 
-      sandbox.stub(HyperlaneCore, 'getDispatchedMessages').returns([
+      vi.spyOn(HyperlaneCore, 'getDispatchedMessages').mockReturnValue([
         {
           id: '0x1111111111111111111111111111111111111111111111111111111111111111',
         } as any,
@@ -693,9 +683,9 @@ describe('Rebalancer', () => {
 
       const expectedMessageId =
         '0xMessageId111111111111111111111111111111111111111111111111111111';
-      sandbox
-        .stub(HyperlaneCore, 'getDispatchedMessages')
-        .returns([{ id: expectedMessageId } as any]);
+      vi.spyOn(HyperlaneCore, 'getDispatchedMessages').mockReturnValue([
+        { id: expectedMessageId } as any,
+      ]);
 
       const rebalancer = new Rebalancer(
         ctx.warpCore,
@@ -717,7 +707,7 @@ describe('Rebalancer', () => {
     it('should return success: false when no Dispatch event found', async () => {
       const ctx = createRebalancerTestContext(['ethereum', 'arbitrum']);
 
-      sandbox.stub(HyperlaneCore, 'getDispatchedMessages').returns([]);
+      vi.spyOn(HyperlaneCore, 'getDispatchedMessages').mockReturnValue([]);
 
       const rebalancer = new Rebalancer(
         ctx.warpCore,
@@ -742,7 +732,7 @@ describe('Rebalancer', () => {
 
       const expectedTxHash =
         '0x1111111111111111111111111111111111111111111111111111111111111111';
-      sandbox.stub(HyperlaneCore, 'getDispatchedMessages').returns([
+      vi.spyOn(HyperlaneCore, 'getDispatchedMessages').mockReturnValue([
         {
           id: '0x2222222222222222222222222222222222222222222222222222222222222222',
         } as any,

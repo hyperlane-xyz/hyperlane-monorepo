@@ -1,5 +1,4 @@
-import { expect } from 'vitest';
-import sinon from 'sinon';
+import { expect, vi } from 'vitest';
 
 import { CrossCollateralRouter__factory } from '@hyperlane-xyz/core';
 import { addressToBytes32 } from '@hyperlane-xyz/utils';
@@ -35,25 +34,25 @@ function stubConfiguredRouterMetadata({
   decimals: number;
   scale?: Awaited<ReturnType<EvmWarpRouteReader['fetchScale']>>;
 }) {
-  const connectStub = sinon
-    .stub(CrossCollateralRouter__factory, 'connect')
-    .returns({
+  const connectStub = vi
+    .spyOn(CrossCollateralRouter__factory, 'connect')
+    .mockReturnValue({
       wrappedToken: async () => TOKEN_B,
       // CAST: unit test only uses wrappedToken()
     } as ReturnType<typeof CrossCollateralRouter__factory.connect>);
 
-  const metadataStub = sinon
-    .stub(EvmWarpRouteReader.prototype, 'fetchERC20Metadata')
-    .resolves({
+  const metadataStub = vi
+    .spyOn(EvmWarpRouteReader.prototype, 'fetchERC20Metadata')
+    .mockResolvedValue({
       decimals,
       isNft: false,
       name: 'TOKEN',
       symbol: 'TOKEN',
     });
 
-  const scaleStub = sinon
-    .stub(EvmWarpRouteReader.prototype, 'fetchScale')
-    .resolves(scale);
+  const scaleStub = vi
+    .spyOn(EvmWarpRouteReader.prototype, 'fetchScale')
+    .mockResolvedValue(scale);
 
   return { connectStub, metadataStub, scaleStub };
 }
@@ -82,7 +81,7 @@ function buildCrossCollateralConfig({
 
 describe('getScaleViolations', () => {
   afterEach(() => {
-    sinon.restore();
+    vi.restoreAllMocks();
   });
 
   it('passes when an off-subroute configured CCR router shares the same effective scale', async () => {
@@ -105,11 +104,12 @@ describe('getScaleViolations', () => {
     });
 
     expect(violations).toEqual([]);
-    expect(
-      connectStub.calledOnceWithExactly(ROUTER_B, sinon.match.object),
-    ).toBe(true);
-    expect(metadataStub.calledOnceWithExactly(TOKEN_B)).toBe(true);
-    expect(scaleStub.calledOnceWithExactly(ROUTER_B)).toBe(true);
+    expect(connectStub).toHaveBeenCalledExactlyOnceWith(
+      ROUTER_B,
+      expect.any(Object),
+    );
+    expect(metadataStub).toHaveBeenCalledExactlyOnceWith(TOKEN_B);
+    expect(scaleStub).toHaveBeenCalledExactlyOnceWith(ROUTER_B);
   });
 
   it('fails when an off-subroute configured CCR router has mismatched decimals', async () => {
@@ -142,7 +142,7 @@ describe('getScaleViolations', () => {
   });
 
   it('skips configured CCR routers on non-EVM chains', async () => {
-    const connectStub = sinon.stub(CrossCollateralRouter__factory, 'connect');
+    const connectStub = vi.spyOn(CrossCollateralRouter__factory, 'connect');
 
     const warpRouteConfig: ScaleValidationWarpRouteConfig = {
       [test1.name]: buildCrossCollateralConfig({
@@ -162,6 +162,6 @@ describe('getScaleViolations', () => {
     });
 
     expect(violations).toEqual([]);
-    expect(connectStub.notCalled).toBe(true);
+    expect(connectStub).not.toHaveBeenCalled();
   });
 });

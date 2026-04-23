@@ -1,35 +1,33 @@
 import { TOKEN_2022_PROGRAM_ID } from '@solana/spl-token';
-import sinon from 'sinon';
+import { vi } from 'vitest';
 
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 
 /**
- * Takes a MultiProtocolProvider instance and stubs it's get*Provider methods to
- * return mock providers. More provider methods can be added her as needed.
- * Note: callers should call `sandbox.restore()` after tests complete.
+ * Takes a MultiProtocolProvider instance and stubs its get*Provider methods to
+ * return mock providers. More provider methods can be added here as needed.
+ * Note: callers should call `vi.restoreAllMocks()` after tests complete.
  */
 export function stubMultiProtocolProvider(
   multiProvider: MultiProtocolProvider,
-): sinon.SinonSandbox {
-  const sandbox = sinon.createSandbox();
-  sandbox.stub(multiProvider, 'getEthersV5Provider').returns({
+): void {
+  vi.spyOn(multiProvider, 'getEthersV5Provider').mockReturnValue({
     getBalance: async () => '100',
   } as any);
-  sandbox.stub(multiProvider, 'getCosmJsProvider').returns({
+  vi.spyOn(multiProvider, 'getCosmJsProvider').mockReturnValue({
     getBalance: async () => ({ amount: '100' }),
   } as any);
-  sandbox.stub(multiProvider, 'getCosmJsWasmProvider').returns({
+  vi.spyOn(multiProvider, 'getCosmJsWasmProvider').mockReturnValue({
     getBalance: async () => ({ amount: '100' }),
     queryContractSmart: async () => ({
       type: { native: { fungible: { denom: 'denom' } } },
     }),
   } as any);
-  sandbox.stub(multiProvider, 'getSolanaWeb3Provider').returns({
+  vi.spyOn(multiProvider, 'getSolanaWeb3Provider').mockReturnValue({
     getBalance: async () => '100',
     getTokenAccountBalance: async () => ({ value: { amount: '100' } }),
     getAccountInfo: async () => ({
       owner: TOKEN_2022_PROGRAM_ID,
     }),
   } as any);
-  return sandbox;
 }

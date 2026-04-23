@@ -1,6 +1,5 @@
 import type { Logger } from 'pino';
-import sinon from 'sinon';
-import { expect } from 'vitest';
+import { expect, vi } from 'vitest';
 
 import { MultiProvider } from '@hyperlane-xyz/sdk';
 
@@ -10,12 +9,12 @@ import { KeyFunder } from './KeyFunder.js';
 
 describe('KeyFunder', () => {
   afterEach(() => {
-    sinon.restore();
+    vi.restoreAllMocks();
   });
 
   it('should continue funding when recordFunderBalance fails', async () => {
-    const chainWarnSpy = sinon.spy();
-    const chainInfoSpy = sinon.spy();
+    const chainWarnSpy = vi.fn();
+    const chainInfoSpy = vi.fn();
 
     const chainLogger = {
       child: () => chainLogger,
@@ -33,7 +32,7 @@ describe('KeyFunder', () => {
       warn: () => undefined,
     } as unknown as Logger;
 
-    const multiProvider = sinon.createStubInstance(MultiProvider);
+    const multiProvider = {} as MultiProvider;
 
     const config: KeyFunderConfig = {
       version: '1',
@@ -52,35 +51,37 @@ describe('KeyFunder', () => {
     const keyFunder = new KeyFunder(multiProvider, config, {
       logger,
     });
-    const recordFunderBalanceStub = sinon.stub(
-      keyFunder as unknown as {
-        recordFunderBalance: (chain: string) => Promise<void>;
-      },
-      'recordFunderBalance',
-    );
-    recordFunderBalanceStub.rejects(new Error('RPC failure'));
+    const recordFunderBalanceStub = vi
+      .spyOn(
+        keyFunder as unknown as {
+          recordFunderBalance: (chain: string) => Promise<void>;
+        },
+        'recordFunderBalance',
+      )
+      .mockRejectedValue(new Error('RPC failure'));
 
-    const fundKeysStub = sinon.stub(
-      keyFunder as unknown as {
-        fundKeys: (chain: string, keys: unknown[]) => Promise<void>;
-      },
-      'fundKeys',
-    );
-    fundKeysStub.resolves();
+    const fundKeysStub = vi
+      .spyOn(
+        keyFunder as unknown as {
+          fundKeys: (chain: string, keys: unknown[]) => Promise<void>;
+        },
+        'fundKeys',
+      )
+      .mockResolvedValue(undefined);
 
     await keyFunder.fundChain('ethereum');
 
-    sinon.assert.calledOnce(recordFunderBalanceStub);
-    sinon.assert.calledOnce(fundKeysStub);
-    sinon.assert.calledOnce(chainWarnSpy);
-    const warnArgs = chainWarnSpy.firstCall.args;
+    expect(recordFunderBalanceStub).toHaveBeenCalledOnce();
+    expect(fundKeysStub).toHaveBeenCalledOnce();
+    expect(chainWarnSpy).toHaveBeenCalledOnce();
+    const warnArgs = chainWarnSpy.mock.calls[0];
     expect(warnArgs[1]).toBe(
       'Failed to record funder balance metric, continuing',
     );
     expect((warnArgs[0] as { error: unknown }).error).toBeInstanceOf(Error);
 
-    sinon.assert.calledOnce(chainInfoSpy);
-    const infoArgs = chainInfoSpy.firstCall.args;
+    expect(chainInfoSpy).toHaveBeenCalledOnce();
+    const infoArgs = chainInfoSpy.mock.calls[0];
     expect(infoArgs[1]).toBe('Chain funding completed');
     expect(
       (infoArgs[0] as { durationSeconds: unknown }).durationSeconds,

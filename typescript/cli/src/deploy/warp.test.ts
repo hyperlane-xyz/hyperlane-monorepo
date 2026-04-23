@@ -1,5 +1,4 @@
-import { expect } from 'vitest';
-import sinon from 'sinon';
+import { expect, vi } from 'vitest';
 
 import {
   ProtocolType,
@@ -48,16 +47,15 @@ function buildCrossCollateralToken({
 function buildContext(
   routes: Record<string, { coreConfig: WarpCoreConfig; deployConfig: any }>,
 ) {
-  const getWarpRoute = sinon.stub();
-  const getWarpDeployConfig = sinon.stub();
+  const getWarpRoute = vi.fn(
+    async (routeId: string) => routes[routeId]?.coreConfig,
+  );
+  const getWarpDeployConfig = vi.fn(
+    async (routeId: string) => routes[routeId]?.deployConfig,
+  );
 
-  for (const [id, route] of Object.entries(routes)) {
-    getWarpRoute.withArgs(id).resolves(route.coreConfig);
-    getWarpDeployConfig.withArgs(id).resolves(route.deployConfig);
-  }
-
-  const addWarpRouteConfig = sinon.stub().resolves();
-  const addWarpRoute = sinon.stub().resolves();
+  const addWarpRouteConfig = vi.fn().mockResolvedValue(undefined);
+  const addWarpRoute = vi.fn().mockResolvedValue(undefined);
 
   return {
     context: {
@@ -87,7 +85,7 @@ describe('runWarpRouteCombine', () => {
   const ROUTER_C = '0x3333333333333333333333333333333333333333';
 
   afterEach(() => {
-    sinon.restore();
+    vi.restoreAllMocks();
   });
 
   it('warns when combine will remove previously enrolled routers', async () => {
@@ -137,7 +135,7 @@ describe('runWarpRouteCombine', () => {
       'route-a': routeA,
       'route-b': routeB,
     });
-    const warnSpy = sinon.spy(rootLogger, 'warn');
+    const warnSpy = vi.spyOn(rootLogger, 'warn');
 
     await runWarpRouteCombine({
       context,
@@ -145,8 +143,8 @@ describe('runWarpRouteCombine', () => {
       outputWarpRouteId: 'MULTI/test',
     });
 
-    expect(warnSpy.called).toBe(true);
-    const warnings = warnSpy.getCalls().map((call) => String(call.args[0]));
+    expect(warnSpy).toHaveBeenCalled();
+    const warnings = warnSpy.mock.calls.map((args) => String(args[0]));
     expect(
       warnings.some(
         (warning) =>
@@ -155,7 +153,7 @@ describe('runWarpRouteCombine', () => {
       ),
     ).toBe(true);
 
-    const updatedRouteAConfig = addWarpRouteConfig.getCall(0).args[0];
+    const updatedRouteAConfig = addWarpRouteConfig.mock.calls[0][0];
     expect(updatedRouteAConfig.anvil2.crossCollateralRouters).toEqual({
       [DOMAIN_BY_CHAIN.anvil3.toString()]: [addressToBytes32(ROUTER_B)],
     });

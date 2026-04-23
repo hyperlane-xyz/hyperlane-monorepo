@@ -1,7 +1,6 @@
-import { expect } from 'vitest';
+import { expect, vi } from 'vitest';
 import { ethers } from 'ethers';
 import { randomBytes } from 'ethers/lib/utils.js';
-import sinon from 'sinon';
 
 import {
   CCIPHook,
@@ -40,16 +39,14 @@ import {
 describe('EvmHookReader', () => {
   let evmHookReader: EvmHookReader;
   let multiProvider: MultiProvider;
-  let sandbox: sinon.SinonSandbox;
 
   beforeEach(() => {
-    sandbox = sinon.createSandbox();
     multiProvider = MultiProvider.createTestMultiProvider();
     evmHookReader = new EvmHookReader(multiProvider, TestChainName.test1);
   });
 
   afterEach(() => {
-    sandbox.restore();
+    vi.restoreAllMocks();
   });
 
   it('should derive merkle tree config correctly', async () => {
@@ -58,15 +55,15 @@ describe('EvmHookReader', () => {
 
     // Mocking the connect method + returned what we need from contract object
     const mockContract = {
-      hookType: sandbox.stub().resolves(OnchainHookType.MERKLE_TREE),
-      owner: sandbox.stub().resolves(mockOwner),
+      hookType: vi.fn().mockResolvedValue(OnchainHookType.MERKLE_TREE),
+      owner: vi.fn().mockResolvedValue(mockOwner),
     };
-    sandbox
-      .stub(MerkleTreeHook__factory, 'connect')
-      .returns(mockContract as unknown as MerkleTreeHook);
-    sandbox
-      .stub(IPostDispatchHook__factory, 'connect')
-      .returns(mockContract as unknown as IPostDispatchHook);
+    vi.spyOn(MerkleTreeHook__factory, 'connect').mockReturnValue(
+      mockContract as unknown as MerkleTreeHook,
+    );
+    vi.spyOn(IPostDispatchHook__factory, 'connect').mockReturnValue(
+      mockContract as unknown as IPostDispatchHook,
+    );
 
     const expectedConfig: WithAddress<MerkleTreeHookConfig> = {
       address: mockAddress,
@@ -89,18 +86,20 @@ describe('EvmHookReader', () => {
 
     // Mocking the connect method + returned what we need from contract object
     const mockContract = {
-      hookType: sandbox.stub().resolves(OnchainHookType.PROTOCOL_FEE),
-      owner: sandbox.stub().resolves(mockOwner),
-      MAX_PROTOCOL_FEE: sandbox.stub().resolves(ethers.BigNumber.from('1000')),
-      protocolFee: sandbox.stub().resolves(ethers.BigNumber.from('10')),
-      beneficiary: sandbox.stub().resolves(mockBeneficiary),
+      hookType: vi.fn().mockResolvedValue(OnchainHookType.PROTOCOL_FEE),
+      owner: vi.fn().mockResolvedValue(mockOwner),
+      MAX_PROTOCOL_FEE: vi
+        .fn()
+        .mockResolvedValue(ethers.BigNumber.from('1000')),
+      protocolFee: vi.fn().mockResolvedValue(ethers.BigNumber.from('10')),
+      beneficiary: vi.fn().mockResolvedValue(mockBeneficiary),
     };
-    sandbox
-      .stub(ProtocolFee__factory, 'connect')
-      .returns(mockContract as unknown as ProtocolFee);
-    sandbox
-      .stub(IPostDispatchHook__factory, 'connect')
-      .returns(mockContract as unknown as IPostDispatchHook);
+    vi.spyOn(ProtocolFee__factory, 'connect').mockReturnValue(
+      mockContract as unknown as ProtocolFee,
+    );
+    vi.spyOn(IPostDispatchHook__factory, 'connect').mockReturnValue(
+      mockContract as unknown as IPostDispatchHook,
+    );
 
     const expectedConfig: WithAddress<ProtocolFeeHookConfig> = {
       owner: mockOwner,
@@ -127,16 +126,16 @@ describe('EvmHookReader', () => {
 
     // Mocking the connect method + returned what we need from contract object
     const mockContract = {
-      hookType: sandbox.stub().resolves(OnchainHookType.PAUSABLE),
-      owner: sandbox.stub().resolves(mockOwner),
-      paused: sandbox.stub().resolves(mockPaused),
+      hookType: vi.fn().mockResolvedValue(OnchainHookType.PAUSABLE),
+      owner: vi.fn().mockResolvedValue(mockOwner),
+      paused: vi.fn().mockResolvedValue(mockPaused),
     };
-    sandbox
-      .stub(PausableHook__factory, 'connect')
-      .returns(mockContract as unknown as PausableHook);
-    sandbox
-      .stub(IPostDispatchHook__factory, 'connect')
-      .returns(mockContract as unknown as IPostDispatchHook);
+    vi.spyOn(PausableHook__factory, 'connect').mockReturnValue(
+      mockContract as unknown as PausableHook,
+    );
+    vi.spyOn(IPostDispatchHook__factory, 'connect').mockReturnValue(
+      mockContract as unknown as IPostDispatchHook,
+    );
 
     const expectedConfig: WithAddress<PausableHookConfig> = {
       owner: mockOwner,
@@ -160,15 +159,15 @@ describe('EvmHookReader', () => {
 
     // Mocking the connect method + returned what we need from contract object
     const mockContract = {
-      hookType: sandbox.stub().resolves(OnchainHookType.MAILBOX_DEFAULT_HOOK),
-      mailbox: sandbox.stub().resolves(mockMailbox),
+      hookType: vi.fn().mockResolvedValue(OnchainHookType.MAILBOX_DEFAULT_HOOK),
+      mailbox: vi.fn().mockResolvedValue(mockMailbox),
     };
-    sandbox
-      .stub(DefaultHook__factory, 'connect')
-      .returns(mockContract as unknown as DefaultHook);
-    sandbox
-      .stub(IPostDispatchHook__factory, 'connect')
-      .returns(mockContract as unknown as IPostDispatchHook);
+    vi.spyOn(DefaultHook__factory, 'connect').mockReturnValue(
+      mockContract as unknown as DefaultHook,
+    );
+    vi.spyOn(IPostDispatchHook__factory, 'connect').mockReturnValue(
+      mockContract as unknown as IPostDispatchHook,
+    );
 
     const expectedConfig: WithAddress<MailboxDefaultHookConfig> = {
       address: mockAddress,
@@ -192,17 +191,17 @@ describe('EvmHookReader', () => {
 
     // Mocking the connect method + returned what we need from contract object
     const mockContract = {
-      hookType: sandbox.stub().resolves(OnchainHookType.ID_AUTH_ISM),
-      owner: sandbox.stub().resolves(mockOwner),
-      l1Messenger: sandbox.stub().resolves(l1Messenger),
-      destinationDomain: sandbox.stub().resolves(test1.domainId),
+      hookType: vi.fn().mockResolvedValue(OnchainHookType.ID_AUTH_ISM),
+      owner: vi.fn().mockResolvedValue(mockOwner),
+      l1Messenger: vi.fn().mockResolvedValue(l1Messenger),
+      destinationDomain: vi.fn().mockResolvedValue(test1.domainId),
     };
-    sandbox
-      .stub(OPStackHook__factory, 'connect')
-      .returns(mockContract as unknown as OPStackHook);
-    sandbox
-      .stub(IPostDispatchHook__factory, 'connect')
-      .returns(mockContract as unknown as IPostDispatchHook);
+    vi.spyOn(OPStackHook__factory, 'connect').mockReturnValue(
+      mockContract as unknown as OPStackHook,
+    );
+    vi.spyOn(IPostDispatchHook__factory, 'connect').mockReturnValue(
+      mockContract as unknown as IPostDispatchHook,
+    );
 
     const expectedConfig: WithAddress<OpStackHookConfig> = {
       owner: mockOwner,
@@ -228,17 +227,17 @@ describe('EvmHookReader', () => {
 
     // Mock the CCIPHook contract
     const mockContract = {
-      hookType: sandbox.stub().resolves(OnchainHookType.ID_AUTH_ISM),
-      destinationDomain: sandbox.stub().resolves(destinationDomain),
-      ism: sandbox.stub().resolves(ism),
+      hookType: vi.fn().mockResolvedValue(OnchainHookType.ID_AUTH_ISM),
+      destinationDomain: vi.fn().mockResolvedValue(destinationDomain),
+      ism: vi.fn().mockResolvedValue(ism),
     };
 
-    sandbox
-      .stub(CCIPHook__factory, 'connect')
-      .returns(mockContract as unknown as CCIPHook);
-    sandbox
-      .stub(IPostDispatchHook__factory, 'connect')
-      .returns(mockContract as unknown as IPostDispatchHook);
+    vi.spyOn(CCIPHook__factory, 'connect').mockReturnValue(
+      mockContract as unknown as CCIPHook,
+    );
+    vi.spyOn(IPostDispatchHook__factory, 'connect').mockReturnValue(
+      mockContract as unknown as IPostDispatchHook,
+    );
 
     const config = await evmHookReader.deriveCcipConfig(ccipHookAddress);
 
@@ -258,14 +257,14 @@ describe('EvmHookReader', () => {
     // Mocking the connect method + returned what we need from contract object
     const mockContract = {
       // No type
-      owner: sandbox.stub().resolves(mockOwner),
+      owner: vi.fn().mockResolvedValue(mockOwner),
     };
-    sandbox
-      .stub(MerkleTreeHook__factory, 'connect')
-      .returns(mockContract as unknown as MerkleTreeHook);
-    sandbox
-      .stub(IPostDispatchHook__factory, 'connect')
-      .returns(mockContract as unknown as IPostDispatchHook);
+    vi.spyOn(MerkleTreeHook__factory, 'connect').mockReturnValue(
+      mockContract as unknown as MerkleTreeHook,
+    );
+    vi.spyOn(IPostDispatchHook__factory, 'connect').mockReturnValue(
+      mockContract as unknown as IPostDispatchHook,
+    );
 
     // top-level method infers hook type
     try {

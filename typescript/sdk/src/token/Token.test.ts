@@ -1,6 +1,6 @@
 /* eslint-disable no-console */
 import { SystemProgram } from '@solana/web3.js';
-import { expect } from 'vitest';
+import { expect, vi } from 'vitest';
 import { ethers } from 'ethers';
 
 import { Address, ProtocolType } from '@hyperlane-xyz/utils';
@@ -328,7 +328,7 @@ describe('Token', () => {
       if (!balanceCheckAddress)
         throw new Error(`No address for standard ${tokenArgs.standard}`);
 
-      const sandbox = stubMultiProtocolProvider(multiProvider);
+      stubMultiProtocolProvider(multiProvider);
       // @ts-ignore simple extra mock for the Ethers V5 token contract call
       adapter.contract = {
         balanceOf: async () => '100',
@@ -341,7 +341,7 @@ describe('Token', () => {
 
       const balance = await adapter.getBalance(balanceCheckAddress);
       expect(typeof balance).toEqual('bigint');
-      sandbox.restore();
+      vi.restoreAllMocks();
     });
   }
 

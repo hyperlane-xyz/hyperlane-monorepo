@@ -1,6 +1,5 @@
-import { expect } from 'vitest';
+import { expect, type MockInstance } from 'vitest';
 import { pino } from 'pino';
-import Sinon from 'sinon';
 
 import type { MultiProvider, Token, WarpCore } from '@hyperlane-xyz/sdk';
 
@@ -53,12 +52,12 @@ function createMockRebalancerConfig(): RebalancerConfig {
 
 function createMockMultiProvider(): MultiProvider {
   return {
-    getDomainId: Sinon.stub().callsFake((chain: string) => {
+    getDomainId: vi.fn().mockImplementation((chain: string) => {
       const domains: Record<string, number> = { ethereum: 1, arbitrum: 42161 };
       return domains[chain] ?? 0;
     }),
-    getSigner: Sinon.stub().returns({
-      getAddress: Sinon.stub().resolves(TEST_ADDRESSES.signer),
+    getSigner: vi.fn().mockReturnValue({
+      getAddress: vi.fn().mockResolvedValue(TEST_ADDRESSES.signer),
     }),
     metadata: {
       ethereum: { domainId: 1 },
@@ -85,68 +84,68 @@ function createMockWarpCore(): WarpCore {
   } as unknown as WarpCore;
 }
 
-function createMockRebalancer(): IRebalancer & { rebalance: Sinon.SinonStub } {
+function createMockRebalancer(): IRebalancer & { rebalance: MockInstance } {
   return {
     rebalancerType: 'movableCollateral' as const,
-    rebalance: Sinon.stub().resolves([]),
+    rebalance: vi.fn().mockResolvedValue([]),
   };
 }
 
 function createMockStrategy(): IStrategy & {
-  getRebalancingRoutes: Sinon.SinonStub;
+  getRebalancingRoutes: MockInstance;
 } {
   return {
     name: 'mock-strategy',
-    getRebalancingRoutes: Sinon.stub().returns([]),
+    getRebalancingRoutes: vi.fn().mockReturnValue([]),
   };
 }
 
 function createMockActionTracker(): IActionTracker {
   return {
-    initialize: Sinon.stub().resolves(),
-    createRebalanceIntent: Sinon.stub().callsFake(async () => ({
+    initialize: vi.fn().mockResolvedValue(undefined),
+    createRebalanceIntent: vi.fn().mockImplementation(async () => ({
       id: `intent-${Date.now()}`,
       status: 'not_started',
     })),
-    createRebalanceAction: Sinon.stub().resolves(),
-    completeRebalanceAction: Sinon.stub().resolves(),
-    failRebalanceAction: Sinon.stub().resolves(),
-    completeRebalanceIntent: Sinon.stub().resolves(),
-    cancelRebalanceIntent: Sinon.stub().resolves(),
-    failRebalanceIntent: Sinon.stub().resolves(),
-    syncTransfers: Sinon.stub().resolves(),
-    syncRebalanceIntents: Sinon.stub().resolves(),
-    syncRebalanceActions: Sinon.stub().resolves(),
-    syncInventoryMovementActions: Sinon.stub().resolves({
+    createRebalanceAction: vi.fn().mockResolvedValue(undefined),
+    completeRebalanceAction: vi.fn().mockResolvedValue(undefined),
+    failRebalanceAction: vi.fn().mockResolvedValue(undefined),
+    completeRebalanceIntent: vi.fn().mockResolvedValue(undefined),
+    cancelRebalanceIntent: vi.fn().mockResolvedValue(undefined),
+    failRebalanceIntent: vi.fn().mockResolvedValue(undefined),
+    syncTransfers: vi.fn().mockResolvedValue(undefined),
+    syncRebalanceIntents: vi.fn().mockResolvedValue(undefined),
+    syncRebalanceActions: vi.fn().mockResolvedValue(undefined),
+    syncInventoryMovementActions: vi.fn().mockResolvedValue({
       completed: 0,
       failed: 0,
     }),
-    logStoreContents: Sinon.stub().resolves(),
-    getInProgressTransfers: Sinon.stub().resolves([]),
-    getActiveRebalanceIntents: Sinon.stub().resolves([]),
-    getTransfersByDestination: Sinon.stub().resolves([]),
-    getRebalanceIntentsByDestination: Sinon.stub().resolves([]),
-    getTransfer: Sinon.stub().resolves(undefined),
-    getRebalanceIntent: Sinon.stub().resolves(undefined),
-    getRebalanceAction: Sinon.stub().resolves(undefined),
-    getInProgressActions: Sinon.stub().resolves([]),
-    getPartiallyFulfilledInventoryIntents: Sinon.stub().resolves([]),
-    getActionsByType: Sinon.stub().resolves([]),
-    getActionsForIntent: Sinon.stub().resolves([]),
-    getInflightInventoryMovements: Sinon.stub().resolves(0n),
+    logStoreContents: vi.fn().mockResolvedValue(undefined),
+    getInProgressTransfers: vi.fn().mockResolvedValue([]),
+    getActiveRebalanceIntents: vi.fn().mockResolvedValue([]),
+    getTransfersByDestination: vi.fn().mockResolvedValue([]),
+    getRebalanceIntentsByDestination: vi.fn().mockResolvedValue([]),
+    getTransfer: vi.fn().mockResolvedValue(undefined),
+    getRebalanceIntent: vi.fn().mockResolvedValue(undefined),
+    getRebalanceAction: vi.fn().mockResolvedValue(undefined),
+    getInProgressActions: vi.fn().mockResolvedValue([]),
+    getPartiallyFulfilledInventoryIntents: vi.fn().mockResolvedValue([]),
+    getActionsByType: vi.fn().mockResolvedValue([]),
+    getActionsForIntent: vi.fn().mockResolvedValue([]),
+    getInflightInventoryMovements: vi.fn().mockResolvedValue(0n),
   };
 }
 
 function createMockInflightContextAdapter(): InflightContextAdapter & {
-  getInflightContext: Sinon.SinonStub;
+  getInflightContext: MockInstance;
 } {
   return {
-    getInflightContext: Sinon.stub().resolves({
+    getInflightContext: vi.fn().mockResolvedValue({
       pendingRebalances: [],
       pendingTransfers: [],
     }),
   } as unknown as InflightContextAdapter & {
-    getInflightContext: Sinon.SinonStub;
+    getInflightContext: MockInstance;
   };
 }
 
@@ -170,9 +169,9 @@ function createMockContextFactory(
   const monitor =
     overrides.monitor ??
     ({
-      on: Sinon.stub().returnsThis(),
-      start: Sinon.stub().resolves(),
-      stop: Sinon.stub().resolves(),
+      on: vi.fn().mockReturnThis(),
+      start: vi.fn().mockResolvedValue(undefined),
+      stop: vi.fn().mockResolvedValue(undefined),
     } as unknown as Monitor);
 
   return {
@@ -200,7 +199,7 @@ function createMockContextFactory(
       externalBridgeRegistry: Partial<ExternalBridgeRegistry>;
       metrics?: Metrics;
     }) => ({
-      executeCycle: Sinon.stub().callsFake(async (_event: any) => {
+      executeCycle: vi.fn().mockImplementation(async (_event: any) => {
         // Simulate orchestrator behavior: call strategy, then rebalancer, then record metrics
         const strategyWithGetRoutes = options.strategy as any;
         const routes = strategyWithGetRoutes.getRebalancingRoutes?.() ?? [];
@@ -224,54 +223,51 @@ function createMockContextFactory(
 
 interface DaemonTestSetup {
   actionTracker: IActionTracker;
-  rebalancer: IRebalancer & { rebalance: Sinon.SinonStub };
-  strategy: IStrategy & { getRebalancingRoutes: Sinon.SinonStub };
+  rebalancer: IRebalancer & { rebalance: MockInstance };
+  strategy: IStrategy & { getRebalancingRoutes: MockInstance };
   triggerCycle: () => Promise<void>;
 }
 
-async function setupDaemonTest(
-  sandbox: Sinon.SinonSandbox,
-  options: {
-    rebalanceResults: Array<{
-      route: {
-        origin: string;
-        destination: string;
-        amount: bigint;
-        bridge: string;
-      };
-      success: boolean;
-      messageId?: string;
-      txHash?: string;
-      error?: string;
-    }>;
-    strategyRoutes: Array<{
+async function setupDaemonTest(options: {
+  rebalanceResults: Array<{
+    route: {
       origin: string;
       destination: string;
       amount: bigint;
       bridge: string;
-    }>;
-  },
-): Promise<DaemonTestSetup> {
+    };
+    success: boolean;
+    messageId?: string;
+    txHash?: string;
+    error?: string;
+  }>;
+  strategyRoutes: Array<{
+    origin: string;
+    destination: string;
+    amount: bigint;
+    bridge: string;
+  }>;
+}): Promise<DaemonTestSetup> {
   const actionTracker = createMockActionTracker();
 
   const rebalancer = createMockRebalancer();
-  rebalancer.rebalance.resolves(options.rebalanceResults);
+  rebalancer.rebalance.mockResolvedValue(options.rebalanceResults);
 
   const strategy = createMockStrategy();
-  strategy.getRebalancingRoutes.returns(options.strategyRoutes);
+  strategy.getRebalancingRoutes.mockReturnValue(options.strategyRoutes);
 
   const inflightAdapter = createMockInflightContextAdapter();
 
   let tokenInfoHandler: ((event: any) => Promise<void>) | undefined;
   const monitor = {
-    on: Sinon.stub().callsFake((event: string, handler: any) => {
+    on: vi.fn().mockImplementation((event: string, handler: any) => {
       if (event === MonitorEventType.TokenInfo) {
         tokenInfoHandler = handler;
       }
       return monitor;
     }),
-    start: Sinon.stub().resolves(),
-    stop: Sinon.stub().resolves(),
+    start: vi.fn().mockResolvedValue(undefined),
+    stop: vi.fn().mockResolvedValue(undefined),
   } as unknown as Monitor;
 
   const contextFactory = createMockContextFactory({
@@ -281,7 +277,9 @@ async function setupDaemonTest(
     inflightAdapter,
     monitor,
   });
-  sandbox.stub(RebalancerContextFactory, 'create').resolves(contextFactory);
+  vi.spyOn(RebalancerContextFactory, 'create').mockResolvedValue(
+    contextFactory,
+  );
 
   const service = new RebalancerService(
     createMockMultiProvider(),
@@ -310,20 +308,14 @@ async function setupDaemonTest(
 }
 
 describe('RebalancerService', () => {
-  let sandbox: Sinon.SinonSandbox;
-
-  beforeEach(() => {
-    sandbox = Sinon.createSandbox();
-  });
-
   afterEach(() => {
-    sandbox.restore();
+    vi.restoreAllMocks();
   });
 
   describe('executeManual()', () => {
     it('should execute manual rebalance successfully', async () => {
       const rebalancer = createMockRebalancer();
-      rebalancer.rebalance.resolves([
+      rebalancer.rebalance.mockResolvedValue([
         {
           route: { origin: 'ethereum', destination: 'arbitrum', amount: 1000n },
           success: true,
@@ -335,7 +327,9 @@ describe('RebalancerService', () => {
       ]);
 
       const contextFactory = createMockContextFactory({ rebalancer });
-      sandbox.stub(RebalancerContextFactory, 'create').resolves(contextFactory);
+      vi.spyOn(RebalancerContextFactory, 'create').mockResolvedValue(
+        contextFactory,
+      );
 
       const config: RebalancerServiceConfig = {
         mode: 'manual',
@@ -356,8 +350,8 @@ describe('RebalancerService', () => {
         amount: '100',
       });
 
-      expect(rebalancer.rebalance.calledOnce).toBe(true);
-      const calledRoutes = rebalancer.rebalance.firstCall.args[0];
+      expect(rebalancer.rebalance).toHaveBeenCalledOnce();
+      const calledRoutes = rebalancer.rebalance.mock.calls[0][0];
       expect(calledRoutes).toHaveLength(1);
       expect(calledRoutes[0].origin).toBe('ethereum');
       expect(calledRoutes[0].destination).toBe('arbitrum');
@@ -378,7 +372,9 @@ describe('RebalancerService', () => {
       } as unknown as WarpCore;
 
       const contextFactory = createMockContextFactory({ rebalancer, warpCore });
-      sandbox.stub(RebalancerContextFactory, 'create').resolves(contextFactory);
+      vi.spyOn(RebalancerContextFactory, 'create').mockResolvedValue(
+        contextFactory,
+      );
 
       const service = new RebalancerService(
         createMockMultiProvider(),
@@ -394,7 +390,7 @@ describe('RebalancerService', () => {
         amount: '1',
       });
 
-      const calledRoutes = rebalancer.rebalance.firstCall.args[0];
+      const calledRoutes = rebalancer.rebalance.mock.calls[0][0];
       expect(calledRoutes[0].amount).toBe(1_000_000n);
     });
 
@@ -405,7 +401,9 @@ describe('RebalancerService', () => {
       } as unknown as WarpCore;
 
       const contextFactory = createMockContextFactory({ warpCore });
-      sandbox.stub(RebalancerContextFactory, 'create').resolves(contextFactory);
+      vi.spyOn(RebalancerContextFactory, 'create').mockResolvedValue(
+        contextFactory,
+      );
 
       const config: RebalancerServiceConfig = {
         mode: 'manual',
@@ -431,7 +429,9 @@ describe('RebalancerService', () => {
 
     it('should throw when amount is invalid', async () => {
       const contextFactory = createMockContextFactory();
-      sandbox.stub(RebalancerContextFactory, 'create').resolves(contextFactory);
+      vi.spyOn(RebalancerContextFactory, 'create').mockResolvedValue(
+        contextFactory,
+      );
 
       const config: RebalancerServiceConfig = {
         mode: 'manual',
@@ -457,7 +457,9 @@ describe('RebalancerService', () => {
 
     it('should throw when amount is zero or negative', async () => {
       const contextFactory = createMockContextFactory();
-      sandbox.stub(RebalancerContextFactory, 'create').resolves(contextFactory);
+      vi.spyOn(RebalancerContextFactory, 'create').mockResolvedValue(
+        contextFactory,
+      );
 
       const config: RebalancerServiceConfig = {
         mode: 'manual',
@@ -491,7 +493,9 @@ describe('RebalancerService', () => {
 
     it('should throw when origin chain has no bridge configured', async () => {
       const contextFactory = createMockContextFactory();
-      sandbox.stub(RebalancerContextFactory, 'create').resolves(contextFactory);
+      vi.spyOn(RebalancerContextFactory, 'create').mockResolvedValue(
+        contextFactory,
+      );
 
       const configWithoutBridge: RebalancerConfig = {
         warpRouteId: 'TEST/route',
@@ -534,7 +538,9 @@ describe('RebalancerService', () => {
 
     it('should throw when in monitorOnly mode', async () => {
       const contextFactory = createMockContextFactory();
-      sandbox.stub(RebalancerContextFactory, 'create').resolves(contextFactory);
+      vi.spyOn(RebalancerContextFactory, 'create').mockResolvedValue(
+        contextFactory,
+      );
 
       const config: RebalancerServiceConfig = {
         mode: 'manual',
@@ -561,10 +567,12 @@ describe('RebalancerService', () => {
 
     it('should propagate errors from rebalancer', async () => {
       const rebalancer = createMockRebalancer();
-      rebalancer.rebalance.rejects(new Error('Rebalance failed'));
+      rebalancer.rebalance.mockRejectedValue(new Error('Rebalance failed'));
 
       const contextFactory = createMockContextFactory({ rebalancer });
-      sandbox.stub(RebalancerContextFactory, 'create').resolves(contextFactory);
+      vi.spyOn(RebalancerContextFactory, 'create').mockResolvedValue(
+        contextFactory,
+      );
 
       const config: RebalancerServiceConfig = {
         mode: 'manual',
@@ -611,13 +619,15 @@ describe('RebalancerService', () => {
 
     it('should start monitor in daemon mode', async () => {
       const monitor = {
-        on: Sinon.stub().returnsThis(),
-        start: Sinon.stub().resolves(),
-        stop: Sinon.stub().resolves(),
+        on: vi.fn().mockReturnThis(),
+        start: vi.fn().mockResolvedValue(undefined),
+        stop: vi.fn().mockResolvedValue(undefined),
       } as unknown as Monitor;
 
       const contextFactory = createMockContextFactory({ monitor });
-      sandbox.stub(RebalancerContextFactory, 'create').resolves(contextFactory);
+      vi.spyOn(RebalancerContextFactory, 'create').mockResolvedValue(
+        contextFactory,
+      );
 
       const config: RebalancerServiceConfig = {
         mode: 'daemon',
@@ -635,21 +645,23 @@ describe('RebalancerService', () => {
 
       await service.start();
 
-      expect((monitor.on as Sinon.SinonStub).called).toBe(true);
-      expect((monitor.start as Sinon.SinonStub).calledOnce).toBe(true);
+      expect(monitor.on).toHaveBeenCalled();
+      expect(monitor.start).toHaveBeenCalledOnce();
     });
   });
 
   describe('stop()', () => {
     it('should stop monitor', async () => {
       const monitor = {
-        on: Sinon.stub().returnsThis(),
-        start: Sinon.stub().resolves(),
-        stop: Sinon.stub().resolves(),
+        on: vi.fn().mockReturnThis(),
+        start: vi.fn().mockResolvedValue(undefined),
+        stop: vi.fn().mockResolvedValue(undefined),
       } as unknown as Monitor;
 
       const contextFactory = createMockContextFactory({ monitor });
-      sandbox.stub(RebalancerContextFactory, 'create').resolves(contextFactory);
+      vi.spyOn(RebalancerContextFactory, 'create').mockResolvedValue(
+        contextFactory,
+      );
 
       const config: RebalancerServiceConfig = {
         mode: 'daemon',
@@ -668,14 +680,14 @@ describe('RebalancerService', () => {
       await service.start();
       await service.stop();
 
-      expect((monitor.stop as Sinon.SinonStub).calledOnce).toBe(true);
+      expect(monitor.stop).toHaveBeenCalledOnce();
     });
   });
 
   describe('daemon mode metrics', () => {
     it('should record failure metric when rebalance has failed results', async () => {
       const rebalancer = createMockRebalancer();
-      rebalancer.rebalance.resolves([
+      rebalancer.rebalance.mockResolvedValue([
         {
           route: {
             origin: 'ethereum',
@@ -690,7 +702,7 @@ describe('RebalancerService', () => {
       ]);
 
       const strategy = createMockStrategy();
-      strategy.getRebalancingRoutes.returns([
+      strategy.getRebalancingRoutes.mockReturnValue([
         {
           origin: 'ethereum',
           destination: 'arbitrum',
@@ -702,25 +714,25 @@ describe('RebalancerService', () => {
       const actionTracker = createMockActionTracker();
       const inflightAdapter = createMockInflightContextAdapter();
 
-      const recordRebalancerSuccess = Sinon.stub();
-      const recordRebalancerFailure = Sinon.stub();
+      const recordRebalancerSuccess = vi.fn();
+      const recordRebalancerFailure = vi.fn();
       const metrics = {
         recordRebalancerSuccess,
         recordRebalancerFailure,
-        recordIntentCreated: Sinon.stub(),
-        processToken: Sinon.stub().resolves(),
+        recordIntentCreated: vi.fn(),
+        processToken: vi.fn().mockResolvedValue(undefined),
       } as unknown as Metrics;
 
       let tokenInfoHandler: ((event: any) => Promise<void>) | undefined;
       const monitor = {
-        on: Sinon.stub().callsFake((event: string, handler: any) => {
+        on: vi.fn().mockImplementation((event: string, handler: any) => {
           if (event === MonitorEventType.TokenInfo) {
             tokenInfoHandler = handler;
           }
           return monitor;
         }),
-        start: Sinon.stub().resolves(),
-        stop: Sinon.stub().resolves(),
+        start: vi.fn().mockResolvedValue(undefined),
+        stop: vi.fn().mockResolvedValue(undefined),
       } as unknown as Monitor;
 
       const contextFactory = createMockContextFactory({
@@ -731,7 +743,9 @@ describe('RebalancerService', () => {
         monitor,
         metrics,
       });
-      sandbox.stub(RebalancerContextFactory, 'create').resolves(contextFactory);
+      vi.spyOn(RebalancerContextFactory, 'create').mockResolvedValue(
+        contextFactory,
+      );
 
       const config: RebalancerServiceConfig = {
         mode: 'daemon',
@@ -758,13 +772,13 @@ describe('RebalancerService', () => {
         ],
       });
 
-      expect(recordRebalancerFailure.calledOnce).toBe(true);
-      expect(recordRebalancerSuccess.called).toBe(false);
+      expect(recordRebalancerFailure).toHaveBeenCalledOnce();
+      expect(recordRebalancerSuccess).not.toHaveBeenCalled();
     });
 
     it('should record success metric when all rebalance results succeed', async () => {
       const rebalancer = createMockRebalancer();
-      rebalancer.rebalance.resolves([
+      rebalancer.rebalance.mockResolvedValue([
         {
           route: {
             origin: 'ethereum',
@@ -782,7 +796,7 @@ describe('RebalancerService', () => {
       ]);
 
       const strategy = createMockStrategy();
-      strategy.getRebalancingRoutes.returns([
+      strategy.getRebalancingRoutes.mockReturnValue([
         {
           origin: 'ethereum',
           destination: 'arbitrum',
@@ -794,25 +808,25 @@ describe('RebalancerService', () => {
       const actionTracker = createMockActionTracker();
       const inflightAdapter = createMockInflightContextAdapter();
 
-      const recordRebalancerSuccess = Sinon.stub();
-      const recordRebalancerFailure = Sinon.stub();
+      const recordRebalancerSuccess = vi.fn();
+      const recordRebalancerFailure = vi.fn();
       const metrics = {
         recordRebalancerSuccess,
         recordRebalancerFailure,
-        recordIntentCreated: Sinon.stub(),
-        processToken: Sinon.stub().resolves(),
+        recordIntentCreated: vi.fn(),
+        processToken: vi.fn().mockResolvedValue(undefined),
       } as unknown as Metrics;
 
       let tokenInfoHandler: ((event: any) => Promise<void>) | undefined;
       const monitor = {
-        on: Sinon.stub().callsFake((event: string, handler: any) => {
+        on: vi.fn().mockImplementation((event: string, handler: any) => {
           if (event === MonitorEventType.TokenInfo) {
             tokenInfoHandler = handler;
           }
           return monitor;
         }),
-        start: Sinon.stub().resolves(),
-        stop: Sinon.stub().resolves(),
+        start: vi.fn().mockResolvedValue(undefined),
+        stop: vi.fn().mockResolvedValue(undefined),
       } as unknown as Monitor;
 
       const contextFactory = createMockContextFactory({
@@ -823,7 +837,9 @@ describe('RebalancerService', () => {
         monitor,
         metrics,
       });
-      sandbox.stub(RebalancerContextFactory, 'create').resolves(contextFactory);
+      vi.spyOn(RebalancerContextFactory, 'create').mockResolvedValue(
+        contextFactory,
+      );
 
       const config: RebalancerServiceConfig = {
         mode: 'daemon',
@@ -850,13 +866,13 @@ describe('RebalancerService', () => {
         ],
       });
 
-      expect(recordRebalancerSuccess.calledOnce).toBe(true);
-      expect(recordRebalancerFailure.called).toBe(false);
+      expect(recordRebalancerSuccess).toHaveBeenCalledOnce();
+      expect(recordRebalancerFailure).not.toHaveBeenCalled();
     });
 
     it('should record failure metric when rebalance has mixed results', async () => {
       const rebalancer = createMockRebalancer();
-      rebalancer.rebalance.resolves([
+      rebalancer.rebalance.mockResolvedValue([
         {
           route: {
             origin: 'ethereum',
@@ -885,7 +901,7 @@ describe('RebalancerService', () => {
       ]);
 
       const strategy = createMockStrategy();
-      strategy.getRebalancingRoutes.returns([
+      strategy.getRebalancingRoutes.mockReturnValue([
         {
           origin: 'ethereum',
           destination: 'arbitrum',
@@ -903,25 +919,25 @@ describe('RebalancerService', () => {
       const actionTracker = createMockActionTracker();
       const inflightAdapter = createMockInflightContextAdapter();
 
-      const recordRebalancerSuccess = Sinon.stub();
-      const recordRebalancerFailure = Sinon.stub();
+      const recordRebalancerSuccess = vi.fn();
+      const recordRebalancerFailure = vi.fn();
       const metrics = {
         recordRebalancerSuccess,
         recordRebalancerFailure,
-        recordIntentCreated: Sinon.stub(),
-        processToken: Sinon.stub().resolves(),
+        recordIntentCreated: vi.fn(),
+        processToken: vi.fn().mockResolvedValue(undefined),
       } as unknown as Metrics;
 
       let tokenInfoHandler: ((event: any) => Promise<void>) | undefined;
       const monitor = {
-        on: Sinon.stub().callsFake((event: string, handler: any) => {
+        on: vi.fn().mockImplementation((event: string, handler: any) => {
           if (event === MonitorEventType.TokenInfo) {
             tokenInfoHandler = handler;
           }
           return monitor;
         }),
-        start: Sinon.stub().resolves(),
-        stop: Sinon.stub().resolves(),
+        start: vi.fn().mockResolvedValue(undefined),
+        stop: vi.fn().mockResolvedValue(undefined),
       } as unknown as Monitor;
 
       const contextFactory = createMockContextFactory({
@@ -932,7 +948,9 @@ describe('RebalancerService', () => {
         monitor,
         metrics,
       });
-      sandbox.stub(RebalancerContextFactory, 'create').resolves(contextFactory);
+      vi.spyOn(RebalancerContextFactory, 'create').mockResolvedValue(
+        contextFactory,
+      );
 
       const config: RebalancerServiceConfig = {
         mode: 'daemon',
@@ -959,14 +977,14 @@ describe('RebalancerService', () => {
         ],
       });
 
-      expect(recordRebalancerFailure.calledOnce).toBe(true);
-      expect(recordRebalancerSuccess.calledOnce).toBe(true);
+      expect(recordRebalancerFailure).toHaveBeenCalledOnce();
+      expect(recordRebalancerSuccess).toHaveBeenCalledOnce();
     });
   });
 
   describe('daemon mode rebalancer calls', () => {
     it('should call rebalancer with routes from strategy', async () => {
-      const { rebalancer, triggerCycle } = await setupDaemonTest(sandbox, {
+      const { rebalancer, triggerCycle } = await setupDaemonTest({
         rebalanceResults: [
           {
             route: {
@@ -992,15 +1010,15 @@ describe('RebalancerService', () => {
 
       await triggerCycle();
 
-      expect(rebalancer.rebalance.calledOnce).toBe(true);
-      const routesPassedToRebalancer = rebalancer.rebalance.firstCall.args[0];
+      expect(rebalancer.rebalance).toHaveBeenCalledOnce();
+      const routesPassedToRebalancer = rebalancer.rebalance.mock.calls[0][0];
       expect(routesPassedToRebalancer).toHaveLength(1);
       expect(routesPassedToRebalancer[0].origin).toBe('ethereum');
       expect(routesPassedToRebalancer[0].destination).toBe('arbitrum');
     });
 
     it('should call rebalancer with multiple routes', async () => {
-      const { rebalancer, triggerCycle } = await setupDaemonTest(sandbox, {
+      const { rebalancer, triggerCycle } = await setupDaemonTest({
         rebalanceResults: [
           {
             route: {
@@ -1039,29 +1057,29 @@ describe('RebalancerService', () => {
 
       await triggerCycle();
 
-      expect(rebalancer.rebalance.calledOnce).toBe(true);
-      const routesPassedToRebalancer = rebalancer.rebalance.firstCall.args[0];
+      expect(rebalancer.rebalance).toHaveBeenCalledOnce();
+      const routesPassedToRebalancer = rebalancer.rebalance.mock.calls[0][0];
       expect(routesPassedToRebalancer).toHaveLength(2);
     });
 
     it('should not call rebalancer when no routes proposed', async () => {
-      const { rebalancer, triggerCycle } = await setupDaemonTest(sandbox, {
+      const { rebalancer, triggerCycle } = await setupDaemonTest({
         rebalanceResults: [],
         strategyRoutes: [],
       });
 
       await triggerCycle();
 
-      expect(rebalancer.rebalance.called).toBe(false);
+      expect(rebalancer.rebalance).not.toHaveBeenCalled();
     });
   });
 
   describe('initialization', () => {
     it('should initialize only once', async () => {
       const contextFactory = createMockContextFactory();
-      const createStub = sandbox
-        .stub(RebalancerContextFactory, 'create')
-        .resolves(contextFactory);
+      const createStub = vi
+        .spyOn(RebalancerContextFactory, 'create')
+        .mockResolvedValue(contextFactory);
 
       const config: RebalancerServiceConfig = {
         mode: 'manual',
@@ -1088,15 +1106,17 @@ describe('RebalancerService', () => {
         amount: '200',
       });
 
-      expect(createStub.calledOnce).toBe(true);
+      expect(createStub).toHaveBeenCalledOnce();
     });
 
     it('should create metrics when withMetrics is enabled', async () => {
       const metrics = {} as Metrics;
       const contextFactory = createMockContextFactory({ metrics });
-      const createMetricsSpy = Sinon.spy(contextFactory, 'createMetrics');
+      const createMetricsSpy = vi.spyOn(contextFactory, 'createMetrics');
 
-      sandbox.stub(RebalancerContextFactory, 'create').resolves(contextFactory);
+      vi.spyOn(RebalancerContextFactory, 'create').mockResolvedValue(
+        contextFactory,
+      );
 
       const config: RebalancerServiceConfig = {
         mode: 'manual',
@@ -1119,8 +1139,8 @@ describe('RebalancerService', () => {
         amount: '100',
       });
 
-      expect(createMetricsSpy.calledOnce).toBe(true);
-      expect(createMetricsSpy.firstCall.args[0]).toBe('test-key');
+      expect(createMetricsSpy).toHaveBeenCalledOnce();
+      expect(createMetricsSpy.mock.calls[0][0]).toBe('test-key');
     });
   });
 });

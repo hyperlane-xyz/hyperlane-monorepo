@@ -1,5 +1,4 @@
-import sinon from 'sinon';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   PostCallsSchema,
@@ -11,20 +10,22 @@ import {
 import { CallCommitmentsService } from '../../src/services/CallCommitmentsService.js';
 
 function mockLogger() {
-  return {
-    info: sinon.stub(),
-    warn: sinon.stub(),
-    error: sinon.stub(),
-    debug: sinon.stub(),
-    setBindings: sinon.stub(),
-    child: sinon.stub().returnsThis(),
+  const logger: Record<string, ReturnType<typeof vi.fn>> = {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+    setBindings: vi.fn(),
+    child: vi.fn(),
   };
+  logger.child.mockReturnValue(logger);
+  return logger;
 }
 
 function mockRes() {
-  const json = sinon.stub();
-  const status = sinon.stub().returns({ json });
-  const sendStatus = sinon.stub();
+  const json = vi.fn();
+  const status = vi.fn().mockReturnValue({ json });
+  const sendStatus = vi.fn();
   return { status, json, sendStatus };
 }
 
@@ -113,36 +114,36 @@ describe('CallCommitmentsService.handleCommitment', () => {
 
     await service.handleCommitment(req, res);
 
-    expect(res.status.calledWith(400)).toBe(true);
-    expect(res.json.called).toBe(true);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalled();
   });
 
   it('routes ICA payload to deriveIcaFromConfig', async () => {
     const mockIca = '0x' + 'ff'.repeat(20);
     const icaApp = {
-      getAccount: sinon.stub().resolves(mockIca),
+      getAccount: vi.fn().mockResolvedValue(mockIca),
     };
     const multiProvider = {
-      getChainName: sinon.stub().returns('ethereum'),
-      getProvider: sinon.stub(),
+      getChainName: vi.fn().mockReturnValue('ethereum'),
+      getProvider: vi.fn(),
     };
     const service = createService({ icaApp, multiProvider });
-    service.upsertCommitmentInDB = sinon.stub().resolves();
+    service.upsertCommitmentInDB = vi.fn().mockResolvedValue(undefined);
 
     const req = { body: icaPayload, log: mockLogger() };
     const res = mockRes();
 
     await service.handleCommitment(req, res);
 
-    expect(icaApp.getAccount.called).toBe(true);
-    expect(res.sendStatus.calledWith(200)).toBe(true);
+    expect(icaApp.getAccount).toHaveBeenCalled();
+    expect(res.sendStatus).toHaveBeenCalledWith(200);
   });
 
   it('routes legacy payload to deriveIcaFromDispatchTx', async () => {
     const multiProvider = {
-      getChainName: sinon.stub().returns('ethereum'),
-      getProvider: sinon.stub().returns({
-        getTransactionReceipt: sinon.stub().resolves(null),
+      getChainName: vi.fn().mockReturnValue('ethereum'),
+      getProvider: vi.fn().mockReturnValue({
+        getTransactionReceipt: vi.fn().mockResolvedValue(null),
       }),
     };
     const service = createService({ multiProvider });
@@ -153,10 +154,10 @@ describe('CallCommitmentsService.handleCommitment', () => {
     await service.handleCommitment(req, res);
 
     // Should fail because receipt is null, returning 400
-    expect(res.status.calledWith(400)).toBe(true);
-    expect(
-      multiProvider.getProvider.calledWith(legacyPayload.originDomain),
-    ).toBe(true);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(multiProvider.getProvider).toHaveBeenCalledWith(
+      legacyPayload.originDomain,
+    );
   });
 });
 

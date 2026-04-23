@@ -1,6 +1,6 @@
-import { expect } from 'vitest';
 import { pino } from 'pino';
-import Sinon from 'sinon';
+import type { Mock, MockInstance } from 'vitest';
+import { expect } from 'vitest';
 
 import type { RebalancerConfig } from '../config/RebalancerConfig.js';
 import {
@@ -48,97 +48,105 @@ function createMockRebalancerConfig(): RebalancerConfig {
   } as RebalancerConfig;
 }
 
-function createMockRebalancer(): IRebalancer & { rebalance: Sinon.SinonStub } {
+function createMockRebalancer(): IRebalancer & { rebalance: MockInstance } {
   return {
     rebalancerType: 'movableCollateral' as const,
-    rebalance: Sinon.stub().resolves([]),
+    rebalance: vi.fn().mockResolvedValue([]),
   };
 }
 
 function createMockStrategy(): IStrategy & {
-  getRebalancingRoutes: Sinon.SinonStub;
+  getRebalancingRoutes: MockInstance;
 } {
   return {
     name: 'mock-strategy',
-    getRebalancingRoutes: Sinon.stub().returns([]),
+    getRebalancingRoutes: vi.fn().mockReturnValue([]),
   };
 }
 
-function createMockActionTracker(): IActionTracker {
+type MockActionTracker = {
+  [K in keyof IActionTracker]: IActionTracker[K] extends (
+    ...args: infer A
+  ) => infer R
+    ? Mock<(...args: A) => R>
+    : IActionTracker[K];
+};
+
+function createMockActionTracker(): MockActionTracker {
   return {
-    initialize: Sinon.stub().resolves(),
-    createRebalanceIntent: Sinon.stub().callsFake(async () => ({
+    initialize: vi.fn().mockResolvedValue(undefined),
+    createRebalanceIntent: vi.fn().mockImplementation(async () => ({
       id: `intent-${Date.now()}`,
       status: 'not_started',
     })),
-    createRebalanceAction: Sinon.stub().resolves(),
-    completeRebalanceAction: Sinon.stub().resolves(),
-    failRebalanceAction: Sinon.stub().resolves(),
-    completeRebalanceIntent: Sinon.stub().resolves(),
-    cancelRebalanceIntent: Sinon.stub().resolves(),
-    failRebalanceIntent: Sinon.stub().resolves(),
-    syncTransfers: Sinon.stub().resolves(),
-    syncRebalanceIntents: Sinon.stub().resolves(),
-    syncRebalanceActions: Sinon.stub().resolves(),
-    syncInventoryMovementActions: Sinon.stub().resolves({
+    createRebalanceAction: vi.fn().mockResolvedValue(undefined),
+    completeRebalanceAction: vi.fn().mockResolvedValue(undefined),
+    failRebalanceAction: vi.fn().mockResolvedValue(undefined),
+    completeRebalanceIntent: vi.fn().mockResolvedValue(undefined),
+    cancelRebalanceIntent: vi.fn().mockResolvedValue(undefined),
+    failRebalanceIntent: vi.fn().mockResolvedValue(undefined),
+    syncTransfers: vi.fn().mockResolvedValue(undefined),
+    syncRebalanceIntents: vi.fn().mockResolvedValue(undefined),
+    syncRebalanceActions: vi.fn().mockResolvedValue(undefined),
+    syncInventoryMovementActions: vi.fn().mockResolvedValue({
       completed: 0,
       failed: 0,
     }),
-    logStoreContents: Sinon.stub().resolves(),
-    getInProgressTransfers: Sinon.stub().resolves([]),
-    getActiveRebalanceIntents: Sinon.stub().resolves([]),
-    getTransfersByDestination: Sinon.stub().resolves([]),
-    getRebalanceIntentsByDestination: Sinon.stub().resolves([]),
-    getTransfer: Sinon.stub().resolves(undefined),
-    getRebalanceIntent: Sinon.stub().resolves(undefined),
-    getRebalanceAction: Sinon.stub().resolves(undefined),
-    getInProgressActions: Sinon.stub().resolves([]),
-    getPartiallyFulfilledInventoryIntents: Sinon.stub().resolves([]),
-    getActionsByType: Sinon.stub().resolves([]),
-    getActionsForIntent: Sinon.stub().resolves([]),
-    getInflightInventoryMovements: Sinon.stub().resolves(0n),
+    logStoreContents: vi.fn().mockResolvedValue(undefined),
+    getInProgressTransfers: vi.fn().mockResolvedValue([]),
+    getActiveRebalanceIntents: vi.fn().mockResolvedValue([]),
+    getTransfersByDestination: vi.fn().mockResolvedValue([]),
+    getRebalanceIntentsByDestination: vi.fn().mockResolvedValue([]),
+    getTransfer: vi.fn().mockResolvedValue(undefined),
+    getRebalanceIntent: vi.fn().mockResolvedValue(undefined),
+    getRebalanceAction: vi.fn().mockResolvedValue(undefined),
+    getInProgressActions: vi.fn().mockResolvedValue([]),
+    getPartiallyFulfilledInventoryIntents: vi.fn().mockResolvedValue([]),
+    getActionsByType: vi.fn().mockResolvedValue([]),
+    getActionsForIntent: vi.fn().mockResolvedValue([]),
+    getInflightInventoryMovements: vi.fn().mockResolvedValue(0n),
   };
 }
 
 function createMockInflightContextAdapter(): InflightContextAdapter & {
-  getInflightContext: Sinon.SinonStub;
+  getInflightContext: MockInstance;
 } {
   return {
-    getInflightContext: Sinon.stub().resolves({
+    getInflightContext: vi.fn().mockResolvedValue({
       pendingRebalances: [],
       pendingTransfers: [],
     }),
   } as unknown as InflightContextAdapter & {
-    getInflightContext: Sinon.SinonStub;
+    getInflightContext: MockInstance;
   };
 }
 
 function createMockInventoryRebalancer(): IRebalancer & {
-  rebalance: Sinon.SinonStub;
-  setInventoryBalances: Sinon.SinonStub;
+  rebalance: MockInstance;
+  setInventoryBalances: MockInstance;
 } {
   return {
     rebalancerType: 'inventory' as const,
-    rebalance: Sinon.stub().resolves([]),
-    setInventoryBalances: Sinon.stub(),
+    rebalance: vi.fn().mockResolvedValue([]),
+    setInventoryBalances: vi.fn(),
   };
 }
 
 function createMockBridge(): IExternalBridge {
   return {
     bridgeId: 'lifi',
-    quote: Sinon.stub().resolves({}),
-    execute: Sinon.stub().resolves({}),
-    getStatus: Sinon.stub().resolves({}),
+    quote: vi.fn().mockResolvedValue({}),
+    execute: vi.fn().mockResolvedValue({}),
+    getStatus: vi.fn().mockResolvedValue({}),
   } as unknown as IExternalBridge;
 }
 
 function createMockMetrics(): Metrics {
   return {
-    recordRebalancerSuccess: Sinon.stub(),
-    recordRebalancerFailure: Sinon.stub(),
-    recordIntentCreated: Sinon.stub(),
-    processToken: Sinon.stub().resolves(),
+    recordRebalancerSuccess: vi.fn(),
+    recordRebalancerFailure: vi.fn(),
+    recordIntentCreated: vi.fn(),
+    processToken: vi.fn().mockResolvedValue(undefined),
   } as unknown as Metrics;
 }
 
@@ -180,20 +188,14 @@ function createMonitorEvent(overrides?: any) {
 }
 
 describe('RebalancerOrchestrator', () => {
-  let sandbox: Sinon.SinonSandbox;
-
-  beforeEach(() => {
-    sandbox = Sinon.createSandbox();
-  });
-
   afterEach(() => {
-    sandbox.restore();
+    vi.restoreAllMocks();
   });
 
   describe('executeCycle() - No Routes', () => {
     it('should complete cycle when no routes proposed', async () => {
       const strategy = createMockStrategy();
-      strategy.getRebalancingRoutes.returns([]);
+      strategy.getRebalancingRoutes.mockReturnValue([]);
 
       const actionTracker = createMockActionTracker();
       const inflightAdapter = createMockInflightContextAdapter();
@@ -215,12 +217,12 @@ describe('RebalancerOrchestrator', () => {
       expect(result.proposedRoutes).toHaveLength(0);
       expect(result.executedCount).toBe(0);
       expect(result.failedCount).toBe(0);
-      expect(strategy.getRebalancingRoutes.calledOnce).toBe(true);
+      expect(strategy.getRebalancingRoutes).toHaveBeenCalledOnce();
     });
 
     it('should sync action tracker even when no routes', async () => {
       const strategy = createMockStrategy();
-      strategy.getRebalancingRoutes.returns([]);
+      strategy.getRebalancingRoutes.mockReturnValue([]);
 
       const actionTracker = createMockActionTracker();
       const inflightAdapter = createMockInflightContextAdapter();
@@ -239,22 +241,16 @@ describe('RebalancerOrchestrator', () => {
 
       await orchestrator.executeCycle(event);
 
-      expect((actionTracker.syncTransfers as Sinon.SinonStub).calledOnce).toBe(
-        true,
-      );
-      expect(
-        (actionTracker.syncRebalanceIntents as Sinon.SinonStub).calledOnce,
-      ).toBe(true);
-      expect(
-        (actionTracker.syncRebalanceActions as Sinon.SinonStub).calledOnce,
-      ).toBe(true);
+      expect(actionTracker.syncTransfers).toHaveBeenCalledOnce();
+      expect(actionTracker.syncRebalanceIntents).toHaveBeenCalledOnce();
+      expect(actionTracker.syncRebalanceActions).toHaveBeenCalledOnce();
     });
   });
 
   describe('executeCycle() - Movable Collateral Routes Only', () => {
     it('should execute movable collateral routes successfully', async () => {
       const strategy = createMockStrategy();
-      strategy.getRebalancingRoutes.returns([
+      strategy.getRebalancingRoutes.mockReturnValue([
         {
           origin: 'ethereum',
           destination: 'arbitrum',
@@ -265,7 +261,7 @@ describe('RebalancerOrchestrator', () => {
       ]);
 
       const rebalancer = createMockRebalancer();
-      rebalancer.rebalance.resolves([
+      rebalancer.rebalance.mockResolvedValue([
         {
           route: {
             origin: 'ethereum',
@@ -302,12 +298,12 @@ describe('RebalancerOrchestrator', () => {
       expect(result.proposedRoutes).toHaveLength(1);
       expect(result.executedCount).toBe(1);
       expect(result.failedCount).toBe(0);
-      expect(rebalancer.rebalance.calledOnce).toBe(true);
+      expect(rebalancer.rebalance).toHaveBeenCalledOnce();
     });
 
     it('should handle failed movable collateral routes', async () => {
       const strategy = createMockStrategy();
-      strategy.getRebalancingRoutes.returns([
+      strategy.getRebalancingRoutes.mockReturnValue([
         {
           origin: 'ethereum',
           destination: 'arbitrum',
@@ -318,7 +314,7 @@ describe('RebalancerOrchestrator', () => {
       ]);
 
       const rebalancer = createMockRebalancer();
-      rebalancer.rebalance.resolves([
+      rebalancer.rebalance.mockResolvedValue([
         {
           route: {
             origin: 'ethereum',
@@ -381,7 +377,7 @@ describe('RebalancerOrchestrator', () => {
       } as RebalancerConfig;
 
       const strategy = createMockStrategy();
-      strategy.getRebalancingRoutes.returns([
+      strategy.getRebalancingRoutes.mockReturnValue([
         {
           origin: 'ethereum',
           destination: 'arbitrum',
@@ -392,7 +388,7 @@ describe('RebalancerOrchestrator', () => {
       ]);
 
       const inventoryRebalancer = createMockInventoryRebalancer();
-      inventoryRebalancer.rebalance.resolves([
+      inventoryRebalancer.rebalance.mockResolvedValue([
         {
           success: true,
           route: {
@@ -421,7 +417,7 @@ describe('RebalancerOrchestrator', () => {
       const result = await orchestrator.executeCycle(event);
 
       expect(result.proposedRoutes).toHaveLength(1);
-      expect(inventoryRebalancer.rebalance.calledOnce).toBe(true);
+      expect(inventoryRebalancer.rebalance).toHaveBeenCalledOnce();
     });
   });
 
@@ -456,7 +452,7 @@ describe('RebalancerOrchestrator', () => {
       } as RebalancerConfig;
 
       const strategy = createMockStrategy();
-      strategy.getRebalancingRoutes.returns([
+      strategy.getRebalancingRoutes.mockReturnValue([
         {
           origin: 'ethereum',
           destination: 'optimism',
@@ -474,7 +470,7 @@ describe('RebalancerOrchestrator', () => {
       ]);
 
       const rebalancer = createMockRebalancer();
-      rebalancer.rebalance.resolves([
+      rebalancer.rebalance.mockResolvedValue([
         {
           route: {
             origin: 'ethereum',
@@ -489,7 +485,7 @@ describe('RebalancerOrchestrator', () => {
       ]);
 
       const inventoryRebalancer = createMockInventoryRebalancer();
-      inventoryRebalancer.rebalance.resolves([
+      inventoryRebalancer.rebalance.mockResolvedValue([
         {
           success: true,
           route: {
@@ -521,8 +517,8 @@ describe('RebalancerOrchestrator', () => {
       expect(result.proposedRoutes).toHaveLength(2);
       expect(result.executedCount).toBe(1);
       expect(result.failedCount).toBe(0);
-      expect(rebalancer.rebalance.calledOnce).toBe(true);
-      expect(inventoryRebalancer.rebalance.calledOnce).toBe(true);
+      expect(rebalancer.rebalance).toHaveBeenCalledOnce();
+      expect(inventoryRebalancer.rebalance).toHaveBeenCalledOnce();
     });
   });
 
@@ -552,10 +548,10 @@ describe('RebalancerOrchestrator', () => {
       } as RebalancerConfig;
 
       const strategy = createMockStrategy();
-      strategy.getRebalancingRoutes.returns([]);
+      strategy.getRebalancingRoutes.mockReturnValue([]);
 
       const inventoryRebalancer = createMockInventoryRebalancer();
-      inventoryRebalancer.rebalance.resolves([]);
+      inventoryRebalancer.rebalance.mockResolvedValue([]);
 
       const actionTracker = createMockActionTracker();
       const inflightAdapter = createMockInflightContextAdapter();
@@ -574,8 +570,8 @@ describe('RebalancerOrchestrator', () => {
 
       await orchestrator.executeCycle(event);
 
-      expect(inventoryRebalancer.rebalance.calledOnce).toBe(true);
-      expect(inventoryRebalancer.rebalance.calledWith([])).toBe(true);
+      expect(inventoryRebalancer.rebalance).toHaveBeenCalledOnce();
+      expect(inventoryRebalancer.rebalance).toHaveBeenCalledWith([]);
     });
 
     it('should NOT call inventoryRebalancer.rebalance([]) when routes are proposed', async () => {
@@ -603,7 +599,7 @@ describe('RebalancerOrchestrator', () => {
       } as RebalancerConfig;
 
       const strategy = createMockStrategy();
-      strategy.getRebalancingRoutes.returns([
+      strategy.getRebalancingRoutes.mockReturnValue([
         {
           origin: 'ethereum',
           destination: 'arbitrum',
@@ -614,7 +610,7 @@ describe('RebalancerOrchestrator', () => {
       ]);
 
       const inventoryRebalancer = createMockInventoryRebalancer();
-      inventoryRebalancer.rebalance.resolves([
+      inventoryRebalancer.rebalance.mockResolvedValue([
         {
           success: true,
           route: {
@@ -642,13 +638,13 @@ describe('RebalancerOrchestrator', () => {
 
       await orchestrator.executeCycle(event);
 
-      expect(inventoryRebalancer.rebalance.calledOnce).toBe(true);
-      expect(inventoryRebalancer.rebalance.calledWith([])).toBe(false);
+      expect(inventoryRebalancer.rebalance).toHaveBeenCalledOnce();
+      expect(inventoryRebalancer.rebalance).not.toHaveBeenCalledWith([]);
     });
 
     it('should NOT call inventoryRebalancer.rebalance([]) when inventoryRebalancer is not in rebalancers', async () => {
       const strategy = createMockStrategy();
-      strategy.getRebalancingRoutes.returns([]);
+      strategy.getRebalancingRoutes.mockReturnValue([]);
 
       const actionTracker = createMockActionTracker();
       const inflightAdapter = createMockInflightContextAdapter();
@@ -673,12 +669,10 @@ describe('RebalancerOrchestrator', () => {
   describe('syncActionTracker() Error Handling', () => {
     it('should warn but continue when syncTransfers fails', async () => {
       const strategy = createMockStrategy();
-      strategy.getRebalancingRoutes.returns([]);
+      strategy.getRebalancingRoutes.mockReturnValue([]);
 
       const actionTracker = createMockActionTracker();
-      (actionTracker.syncTransfers as Sinon.SinonStub).rejects(
-        new Error('Sync failed'),
-      );
+      actionTracker.syncTransfers.mockRejectedValue(new Error('Sync failed'));
 
       const inflightAdapter = createMockInflightContextAdapter();
 
@@ -697,12 +691,12 @@ describe('RebalancerOrchestrator', () => {
       const result = await orchestrator.executeCycle(event);
 
       expect(result.proposedRoutes).toHaveLength(0);
-      expect(strategy.getRebalancingRoutes.calledOnce).toBe(true);
+      expect(strategy.getRebalancingRoutes).toHaveBeenCalledOnce();
     });
 
     it('should sync inventory movement actions when bridge is provided', async () => {
       const strategy = createMockStrategy();
-      strategy.getRebalancingRoutes.returns([]);
+      strategy.getRebalancingRoutes.mockReturnValue([]);
 
       const actionTracker = createMockActionTracker();
       const inflightAdapter = createMockInflightContextAdapter();
@@ -723,22 +717,17 @@ describe('RebalancerOrchestrator', () => {
 
       await orchestrator.executeCycle(event);
 
-      expect(
-        (actionTracker.syncInventoryMovementActions as Sinon.SinonStub)
-          .calledOnce,
-      ).toBe(true);
-      expect(
-        (
-          actionTracker.syncInventoryMovementActions as Sinon.SinonStub
-        ).calledWith({ lifi: bridge }),
-      ).toBe(true);
+      expect(actionTracker.syncInventoryMovementActions).toHaveBeenCalledOnce();
+      expect(actionTracker.syncInventoryMovementActions).toHaveBeenCalledWith({
+        lifi: bridge,
+      });
     });
   });
 
   describe('Metrics Recording', () => {
     it('should record success metric when all routes succeed', async () => {
       const strategy = createMockStrategy();
-      strategy.getRebalancingRoutes.returns([
+      strategy.getRebalancingRoutes.mockReturnValue([
         {
           origin: 'ethereum',
           destination: 'arbitrum',
@@ -749,7 +738,7 @@ describe('RebalancerOrchestrator', () => {
       ]);
 
       const rebalancer = createMockRebalancer();
-      rebalancer.rebalance.resolves([
+      rebalancer.rebalance.mockResolvedValue([
         {
           route: {
             origin: 'ethereum',
@@ -783,17 +772,13 @@ describe('RebalancerOrchestrator', () => {
 
       await orchestrator.executeCycle(event);
 
-      expect(
-        (metrics.recordRebalancerSuccess as Sinon.SinonStub).calledOnce,
-      ).toBe(true);
-      expect((metrics.recordRebalancerFailure as Sinon.SinonStub).called).toBe(
-        false,
-      );
+      expect(metrics.recordRebalancerSuccess).toHaveBeenCalledOnce();
+      expect(metrics.recordRebalancerFailure).not.toHaveBeenCalled();
     });
 
     it('should record failure metric when any route fails', async () => {
       const strategy = createMockStrategy();
-      strategy.getRebalancingRoutes.returns([
+      strategy.getRebalancingRoutes.mockReturnValue([
         {
           origin: 'ethereum',
           destination: 'arbitrum',
@@ -804,7 +789,7 @@ describe('RebalancerOrchestrator', () => {
       ]);
 
       const rebalancer = createMockRebalancer();
-      rebalancer.rebalance.resolves([
+      rebalancer.rebalance.mockResolvedValue([
         {
           route: {
             origin: 'ethereum',
@@ -837,17 +822,13 @@ describe('RebalancerOrchestrator', () => {
 
       await orchestrator.executeCycle(event);
 
-      expect(
-        (metrics.recordRebalancerFailure as Sinon.SinonStub).calledOnce,
-      ).toBe(true);
-      expect((metrics.recordRebalancerSuccess as Sinon.SinonStub).called).toBe(
-        false,
-      );
+      expect(metrics.recordRebalancerFailure).toHaveBeenCalledOnce();
+      expect(metrics.recordRebalancerSuccess).not.toHaveBeenCalled();
     });
 
     it('should process token metrics when metrics is provided', async () => {
       const strategy = createMockStrategy();
-      strategy.getRebalancingRoutes.returns([]);
+      strategy.getRebalancingRoutes.mockReturnValue([]);
 
       const actionTracker = createMockActionTracker();
       const inflightAdapter = createMockInflightContextAdapter();
@@ -868,7 +849,7 @@ describe('RebalancerOrchestrator', () => {
 
       await orchestrator.executeCycle(event);
 
-      expect((metrics.processToken as Sinon.SinonStub).calledTwice).toBe(true);
+      expect(metrics.processToken).toHaveBeenCalledTimes(2);
     });
   });
 });

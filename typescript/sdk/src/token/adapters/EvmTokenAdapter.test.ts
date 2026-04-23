@@ -4,8 +4,7 @@ import {
   HypXERC20Lockbox__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
-import { expect } from 'vitest';
-import sinon from 'sinon';
+import { expect, vi } from 'vitest';
 
 import { testChainMetadata } from '../../consts/testChains.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
@@ -14,7 +13,6 @@ import { stubMultiProtocolProvider } from '../../test/multiProviderStubs.js';
 import { EvmHypXERC20LockboxAdapter } from './EvmTokenAdapter.js';
 
 describe('EvmHypXERC20LockboxAdapter', () => {
-  let sandbox: sinon.SinonSandbox;
   let multiProvider: MultiProtocolProvider;
 
   const chainName = 'test1';
@@ -23,33 +21,35 @@ describe('EvmHypXERC20LockboxAdapter', () => {
 
   beforeEach(() => {
     multiProvider = new MultiProtocolProvider(testChainMetadata);
-    sandbox = stubMultiProtocolProvider(multiProvider);
+    stubMultiProtocolProvider(multiProvider);
 
-    sandbox.stub(HypERC20__factory, 'connect').returns({} as any);
-    sandbox.stub(TokenRouter__factory, 'connect').returns({} as any);
+    vi.spyOn(HypERC20__factory, 'connect').mockReturnValue({} as any);
+    vi.spyOn(TokenRouter__factory, 'connect').mockReturnValue({} as any);
   });
 
   afterEach(() => {
-    sandbox.restore();
+    vi.restoreAllMocks();
   });
 
   it('loads wrapped token from lockbox contract', async () => {
-    const collateralWrappedToken = sandbox
-      .stub()
-      .rejects(new Error('collateral wrappedToken should not be called'));
-    sandbox.stub(HypERC20Collateral__factory, 'connect').returns({
+    const collateralWrappedToken = vi
+      .fn()
+      .mockRejectedValue(
+        new Error('collateral wrappedToken should not be called'),
+      );
+    vi.spyOn(HypERC20Collateral__factory, 'connect').mockReturnValue({
       wrappedToken: collateralWrappedToken,
     } as any);
 
-    const lockboxWrappedToken = sandbox.stub().resolves(wrappedTokenAddress);
-    sandbox.stub(HypXERC20Lockbox__factory, 'connect').returns({
+    const lockboxWrappedToken = vi.fn().mockResolvedValue(wrappedTokenAddress);
+    vi.spyOn(HypXERC20Lockbox__factory, 'connect').mockReturnValue({
       wrappedToken: lockboxWrappedToken,
-      lockbox: sandbox
-        .stub()
-        .resolves('0x3333333333333333333333333333333333333333'),
-      xERC20: sandbox
-        .stub()
-        .resolves('0x4444444444444444444444444444444444444444'),
+      lockbox: vi
+        .fn()
+        .mockResolvedValue('0x3333333333333333333333333333333333333333'),
+      xERC20: vi
+        .fn()
+        .mockResolvedValue('0x4444444444444444444444444444444444444444'),
     } as any);
 
     const adapter = new EvmHypXERC20LockboxAdapter(chainName, multiProvider, {
@@ -58,7 +58,7 @@ describe('EvmHypXERC20LockboxAdapter', () => {
     const wrapped = await adapter.getWrappedTokenAddress();
 
     expect(wrapped).toBe(wrappedTokenAddress);
-    expect(lockboxWrappedToken.calledOnce).toBe(true);
-    expect(collateralWrappedToken.called).toBe(false);
+    expect(lockboxWrappedToken).toHaveBeenCalledOnce();
+    expect(collateralWrappedToken).not.toHaveBeenCalled();
   });
 });
