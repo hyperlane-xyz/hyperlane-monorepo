@@ -64,7 +64,7 @@ export const keyFunderConfig: KeyFunderConfig<
     [Contexts.ReleaseCandidate]: [Role.Relayer],
     [Contexts.FastPath]: [Role.Relayer],
   },
-  chainsToSkip: ['everclear'],
+  chainsToSkip: ['everclear', 'milkyway'],
   // desired balance config, must be set for each chain
   desiredBalancePerChain: desiredRelayerBalancePerChain,
   // desired rebalancer balance config

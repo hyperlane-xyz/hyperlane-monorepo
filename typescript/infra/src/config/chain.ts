@@ -81,6 +81,7 @@ export const chainsToSkip: ChainName[] = [
 
   // permanently decommissioned
   'everclear',
+  'milkyway',
 
   ...getDisabledChains(),
 ];
