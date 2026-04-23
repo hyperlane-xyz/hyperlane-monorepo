@@ -43,6 +43,9 @@ hyperlane-sealevel-fee = { path = "../hyperlane-sealevel-fee", features = [
     "no-entrypoint",
 ] }
 hyperlane-test-utils = { path = "../../libraries/test-utils" }
+k256.workspace = true
+quote-verifier = { path = "../../libraries/quote-verifier" }
+rand.workspace = true
 hyperlane-sealevel-test-ism = { path = "../ism/test-ism", features = [
     "no-entrypoint",
 ] }

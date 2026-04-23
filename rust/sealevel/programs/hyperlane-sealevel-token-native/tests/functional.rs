@@ -1684,3 +1684,337 @@ async fn test_transfer_remote_with_fee_native() {
         "dispatched message should exist"
     );
 }
+
+#[tokio::test]
+async fn test_transfer_remote_with_transient_quote_native() {
+    use k256::ecdsa::SigningKey;
+    use quote_verifier::SvmSignedQuote;
+    use solana_program::keccak;
+
+    fn encode_u48(ts: i64) -> [u8; 6] {
+        let bytes = ts.to_be_bytes();
+        let mut out = [0u8; 6];
+        out.copy_from_slice(&bytes[2..8]);
+        out
+    }
+    fn encode_context(dest: u32, recipient: H256, amount: u64) -> Vec<u8> {
+        let mut buf = Vec::with_capacity(44);
+        buf.extend_from_slice(&dest.to_le_bytes());
+        buf.extend_from_slice(recipient.as_bytes());
+        buf.extend_from_slice(&amount.to_le_bytes());
+        buf
+    }
+    fn encode_data(max_fee: u64, half_amount: u64) -> Vec<u8> {
+        borsh::to_vec(&FeeDataStrategy::Linear(FeeParams {
+            max_fee,
+            half_amount,
+        }))
+        .unwrap()
+    }
+    fn sign_hash(signing_key: &SigningKey, hash: &[u8; 32]) -> [u8; 65] {
+        let (sig, recovery_id) = signing_key
+            .sign_prehash_recoverable(hash)
+            .expect("signing failed");
+        let mut bytes = [0u8; 65];
+        bytes[..64].copy_from_slice(&sig.to_bytes());
+        bytes[64] = recovery_id.to_byte();
+        bytes
+    }
+    fn eth_address(signing_key: &SigningKey) -> hyperlane_core::H160 {
+        let verifying_key = k256::ecdsa::VerifyingKey::from(signing_key);
+        let pubkey_bytes = verifying_key.to_encoded_point(false);
+        let hash = keccak::hash(&pubkey_bytes.as_bytes()[1..]);
+        hyperlane_core::H160::from_slice(&hash.as_ref()[12..])
+    }
+
+    let program_id = hyperlane_sealevel_token_native_id();
+    let mailbox_program_id = mailbox_id();
+
+    let (mut banks_client, payer) = setup_client().await;
+
+    let mailbox_accounts = initialize_mailbox(
+        &mut banks_client,
+        &mailbox_program_id,
+        &payer,
+        LOCAL_DOMAIN,
+        ONE_SOL_IN_LAMPORTS,
+        ProtocolFee::default(),
+    )
+    .await
+    .unwrap();
+
+    let igp_accounts =
+        initialize_igp_accounts(&mut banks_client, &igp_program_id(), &payer, REMOTE_DOMAIN)
+            .await
+            .unwrap();
+
+    let hyperlane_token_accounts =
+        initialize_hyperlane_token(&program_id, &mut banks_client, &payer, Some(&igp_accounts))
+            .await
+            .unwrap();
+
+    let remote_router = H256::random();
+    enroll_remote_router(
+        &mut banks_client,
+        &program_id,
+        &payer,
+        &hyperlane_token_accounts.token,
+        REMOTE_DOMAIN,
+        remote_router,
+    )
+    .await
+    .unwrap();
+
+    // Init fee account with on-chain params: max_fee=1_000_000, half_amount=500_000_000.
+    // These are HIGH so we can distinguish from the transient quote.
+    let fee_beneficiary = Pubkey::new_unique();
+    let fee_salt = H256::zero();
+    let signing_key = SigningKey::random(&mut rand::thread_rng());
+    let signer_address = eth_address(&signing_key);
+    let fee_data = FeeData::Leaf(LeafFeeConfig {
+        strategy: FeeDataStrategy::Linear(FeeParams {
+            max_fee: FEE_MAX,
+            half_amount: FEE_HALF_AMOUNT,
+        }),
+        signers: Some(std::collections::BTreeSet::new()),
+    });
+    let fee_account_key = {
+        let fp = fee_program_id();
+        let (fee_account, _) = Pubkey::find_program_address(fee_account_pda_seeds!(fee_salt), &fp);
+        let ix = fee_instruction::init_fee_instruction(
+            fp,
+            payer.pubkey(),
+            fee_salt,
+            fee_beneficiary,
+            fee_data,
+            LOCAL_DOMAIN,
+        )
+        .unwrap();
+        let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+        banks_client
+            .process_transaction(Transaction::new_signed_with_payer(
+                &[ix],
+                Some(&payer.pubkey()),
+                &[&payer],
+                recent_blockhash,
+            ))
+            .await
+            .unwrap();
+        fee_account
+    };
+
+    // Add signer to fee account.
+    let add_signer_ix = hyperlane_sealevel_fee::instruction::add_quote_signer_instruction(
+        fee_program_id(),
+        fee_account_key,
+        payer.pubkey(),
+        signer_address,
+        None,
+    )
+    .unwrap();
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[add_signer_ix],
+            Some(&payer.pubkey()),
+            &[&payer],
+            recent_blockhash,
+        ))
+        .await
+        .unwrap();
+
+    // Set fee config on the token.
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[Instruction::new_with_bytes(
+                program_id,
+                &HyperlaneTokenInstruction::SetFeeConfig(Some(FeeConfig {
+                    fee_program: fee_program_id(),
+                    fee_account: fee_account_key,
+                }))
+                .encode()
+                .unwrap(),
+                vec![
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new(hyperlane_token_accounts.token, false),
+                    AccountMeta::new(payer.pubkey(), true),
+                ],
+            )],
+            Some(&payer.pubkey()),
+            &[&payer],
+            recent_blockhash,
+        ))
+        .await
+        .unwrap();
+
+    transfer_lamports(
+        &mut banks_client,
+        &payer,
+        &fee_beneficiary,
+        ONE_SOL_IN_LAMPORTS,
+    )
+    .await;
+
+    // Fund token sender.
+    let token_sender =
+        new_funded_keypair(&mut banks_client, &payer, 100 * ONE_SOL_IN_LAMPORTS).await;
+    let token_sender_pubkey = token_sender.pubkey();
+
+    let remote_token_recipient = H256::random();
+    let transfer_amount: u64 = 10 * ONE_SOL_IN_LAMPORTS;
+
+    // Submit a transient quote with DIFFERENT params: max_fee=500, half_amount=5_000_000_000.
+    // On-chain Linear(1_000_000, 500_000_000) with amount=10 SOL => fee = 1_000_000 (capped).
+    // Transient Linear(500, 5_000_000_000) with amount=10 SOL =>
+    //   min(500, 10_000_000_000 * 500 / 10_000_000_000) = min(500, 500) = 500.
+    let transient_max_fee: u64 = 500;
+    let transient_half_amount: u64 = 5_000_000_000;
+    let context = encode_context(REMOTE_DOMAIN, remote_token_recipient, transfer_amount);
+    let data = encode_data(transient_max_fee, transient_half_amount);
+    // issued_at must satisfy: now <= issued_at <= now + 300.
+    // Use the current clock timestamp from the test validator.
+    let clock: solana_program::clock::Clock = banks_client.get_sysvar().await.unwrap();
+    let issued_at = encode_u48(clock.unix_timestamp);
+
+    let mut quote = SvmSignedQuote {
+        context,
+        data,
+        issued_at,
+        expiry: issued_at, // transient: expiry == issued_at
+        client_salt: H256::random(),
+        signature: [0u8; 65],
+    };
+    let scoped_salt = quote.compute_scoped_salt(&token_sender_pubkey);
+    let message_hash = quote.build_message_hash(&fee_account_key, LOCAL_DOMAIN, &scoped_salt);
+    quote.signature = sign_hash(&signing_key, message_hash.as_fixed_bytes());
+
+    // Submit transient quote (payer = token_sender, since they'll be the QuoteFee payer).
+    let submit_ix = hyperlane_sealevel_fee::instruction::submit_transient_quote_instruction(
+        fee_program_id(),
+        token_sender_pubkey,
+        fee_account_key,
+        scoped_salt,
+        quote.clone(),
+        &[],
+    )
+    .unwrap();
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[submit_ix],
+            Some(&token_sender_pubkey),
+            &[&token_sender],
+            recent_blockhash,
+        ))
+        .await
+        .unwrap();
+
+    let (transient_pda, _) = Pubkey::find_program_address(
+        hyperlane_sealevel_fee::transient_quote_pda_seeds!(fee_account_key, scoped_salt),
+        &fee_program_id(),
+    );
+
+    let unique_message_account_keypair = Keypair::new();
+    let (dispatched_message_key, _) = Pubkey::find_program_address(
+        mailbox_dispatched_message_pda_seeds!(&unique_message_account_keypair.pubkey()),
+        &mailbox_program_id,
+    );
+    let (gas_payment_pda_key, _) = Pubkey::find_program_address(
+        igp_gas_payment_pda_seeds!(&unique_message_account_keypair.pubkey()),
+        &igp_program_id(),
+    );
+
+    let domain_standing_quote_pda = {
+        let domain_le = REMOTE_DOMAIN.to_le_bytes();
+        let (pda, _) = Pubkey::find_program_address(
+            fee_standing_quote_pda_seeds!(&fee_account_key, &domain_le),
+            &fee_program_id(),
+        );
+        pda
+    };
+    let wildcard_standing_quote_pda = {
+        let domain_le = WILDCARD_DOMAIN.to_le_bytes();
+        let (pda, _) = Pubkey::find_program_address(
+            fee_standing_quote_pda_seeds!(&fee_account_key, &domain_le),
+            &fee_program_id(),
+        );
+        pda
+    };
+
+    let beneficiary_balance_before = banks_client.get_balance(fee_beneficiary).await.unwrap();
+
+    // Account layout: Core -> Fee (with transient PDA) -> IGP -> Plugin
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[Instruction::new_with_bytes(
+                program_id,
+                &HyperlaneTokenInstruction::TransferRemote(TransferRemote {
+                    destination_domain: REMOTE_DOMAIN,
+                    recipient: remote_token_recipient,
+                    amount_or_id: transfer_amount.into(),
+                })
+                .encode()
+                .unwrap(),
+                vec![
+                    // Core
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
+                    AccountMeta::new_readonly(hyperlane_token_accounts.token, false),
+                    AccountMeta::new_readonly(mailbox_accounts.program, false),
+                    AccountMeta::new(mailbox_accounts.outbox, false),
+                    AccountMeta::new_readonly(hyperlane_token_accounts.dispatch_authority, false),
+                    AccountMeta::new_readonly(token_sender_pubkey, true),
+                    AccountMeta::new_readonly(unique_message_account_keypair.pubkey(), true),
+                    AccountMeta::new(dispatched_message_key, false),
+                    // Fee section (with transient PDA before standing quotes)
+                    AccountMeta::new_readonly(fee_program_id(), false),
+                    AccountMeta::new_readonly(fee_account_key, false),
+                    AccountMeta::new(transient_pda, false), // writable for autoclose
+                    AccountMeta::new_readonly(domain_standing_quote_pda, false),
+                    AccountMeta::new_readonly(wildcard_standing_quote_pda, false),
+                    AccountMeta::new(fee_beneficiary, false), // terminal
+                    // IGP
+                    AccountMeta::new_readonly(igp_accounts.program, false),
+                    AccountMeta::new(igp_accounts.program_data, false),
+                    AccountMeta::new(gas_payment_pda_key, false),
+                    AccountMeta::new_readonly(igp_accounts.overhead_igp, false),
+                    AccountMeta::new(igp_accounts.igp, false),
+                    // Plugin (native)
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new(hyperlane_token_accounts.native_collateral, false),
+                ],
+            )],
+            Some(&token_sender_pubkey),
+            &[&token_sender, &unique_message_account_keypair],
+            recent_blockhash,
+        ))
+        .await
+        .unwrap();
+
+    // Verify the fee matches the TRANSIENT quote params (500), not on-chain (1_000_000).
+    let beneficiary_balance_after = banks_client.get_balance(fee_beneficiary).await.unwrap();
+    let fee_collected = beneficiary_balance_after - beneficiary_balance_before;
+    assert_eq!(
+        fee_collected, transient_max_fee,
+        "fee should come from transient quote (500), not on-chain (1_000_000)"
+    );
+
+    // Verify transient PDA was autoclosed.
+    let transient_account = banks_client.get_account(transient_pda).await.unwrap();
+    assert!(
+        transient_account.is_none() || transient_account.unwrap().data.is_empty(),
+        "transient PDA should be closed after consumption"
+    );
+
+    // Verify dispatch succeeded.
+    assert!(
+        banks_client
+            .get_account(dispatched_message_key)
+            .await
+            .unwrap()
+            .is_some(),
+        "dispatched message should exist"
+    );
+}
