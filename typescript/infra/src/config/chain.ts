@@ -78,6 +78,7 @@ export const chainsToSkip: ChainName[] = [
   'zeronetwork',
   'abstract',
   'sophon',
+  'everclear',
 
   ...getDisabledChains(),
 ];
