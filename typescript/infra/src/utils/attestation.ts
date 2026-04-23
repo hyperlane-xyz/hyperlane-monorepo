@@ -1,3 +1,4 @@
+import { confirm } from '@inquirer/prompts';
 import chalk from 'chalk';
 import { execSync } from 'child_process';
 
@@ -142,4 +143,27 @@ export async function preflightVerifyImages(
   }
 
   return { allVerified, results };
+}
+
+export async function verifyImagesAndConfirm(refs: ImageRef[]): Promise<void> {
+  if (refs.length === 0) return;
+
+  console.log(chalk.grey.italic('Verifying image attestations...'));
+  const { allVerified } = await preflightVerifyImages(refs);
+
+  const message = allVerified
+    ? 'All attestations verified. Continue with deploy?'
+    : chalk.red.bold(
+        'One or more images FAILED attestation verify. Continue with deploy anyway?',
+      );
+
+  const shouldContinue = await confirm({
+    message,
+    default: allVerified,
+  });
+
+  if (!shouldContinue) {
+    console.log(chalk.red.bold('Exiting...'));
+    process.exit(1);
+  }
 }

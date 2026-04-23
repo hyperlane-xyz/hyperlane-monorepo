@@ -5,7 +5,7 @@ import { execSync } from 'child_process';
 import { DockerImageRepos } from '../../config/docker.js';
 import { createAgentKeysIfNotExistsWithPrompt } from '../../src/agents/key-utils.js';
 import { RootAgentConfig } from '../../src/config/agent/agent.js';
-import { preflightVerifyImages } from '../../src/utils/attestation.js';
+import { verifyImagesAndConfirm } from '../../src/utils/attestation.js';
 import {
   checkAgentImageExists,
   checkMonorepoImageExists,
@@ -115,25 +115,7 @@ async function verifyAgentAttestationsWithPrompt(agentConfig: RootAgentConfig) {
       tag,
     }));
 
-  if (refs.length === 0) return;
-
-  console.log(chalk.grey.italic('Verifying image attestations...'));
-  const { allVerified } = await preflightVerifyImages(refs);
-
-  const message = allVerified
-    ? 'All attestations verified. Continue with deploy?'
-    : chalk.red.bold(
-        'One or more images FAILED attestation verify. Continue with deploy anyway?',
-      );
-
-  const shouldContinue = await confirm({
-    message,
-    default: allVerified,
-  });
-  if (!shouldContinue) {
-    console.log(chalk.red.bold('Exiting...'));
-    process.exit(1);
-  }
+  await verifyImagesAndConfirm(refs);
 }
 
 async function main() {

@@ -6,7 +6,7 @@ import { join } from 'path';
 import { Contexts } from '../../config/contexts.js';
 import { DockerImageRepos } from '../../config/docker.js';
 import { KeyFunderHelmManager } from '../../src/funding/key-funder.js';
-import { preflightVerifyImages } from '../../src/utils/attestation.js';
+import { verifyImagesAndConfirm } from '../../src/utils/attestation.js';
 import {
   checkNodeServicesImageExists,
   warnIfPrTag,
@@ -44,23 +44,9 @@ async function main() {
       process.exit(1);
     }
 
-    console.log(chalk.grey.italic('Verifying image attestation...'));
-    const { allVerified } = await preflightVerifyImages([
+    await verifyImagesAndConfirm([
       { component: 'key-funder', image: DockerImageRepos.NODE_SERVICES, tag },
     ]);
-
-    const shouldContinue = await confirm({
-      message: allVerified
-        ? 'Attestation verified. Continue with deploy?'
-        : chalk.red.bold(
-            'Image FAILED attestation verify. Continue with deploy anyway?',
-          ),
-      default: allVerified,
-    });
-    if (!shouldContinue) {
-      console.log(chalk.red.bold('Exiting...'));
-      process.exit(1);
-    }
   }
 
   const defaultRegistryCommit = readRegistryRc();

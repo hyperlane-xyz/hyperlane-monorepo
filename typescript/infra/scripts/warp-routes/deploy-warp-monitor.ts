@@ -9,7 +9,9 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
+import { DockerImageRepos, mainnetDockerTags } from '../../config/docker.js';
 import { getWarpCoreConfig } from '../../config/registry.js';
+import { verifyImagesAndConfirm } from '../../src/utils/attestation.js';
 import { WARP_ROUTE_MONITOR_HELM_RELEASE_PREFIX } from '../../src/utils/consts.js';
 import { validateRegistryCommit } from '../../src/utils/git.js';
 import { HelmCommand } from '../../src/utils/helm.js';
@@ -40,6 +42,14 @@ async function main() {
   await timedAsync('assertCorrectKubeContext', () =>
     assertCorrectKubeContext(getEnvironmentConfig(environment)),
   );
+
+  await verifyImagesAndConfirm([
+    {
+      component: 'warp-monitor',
+      image: DockerImageRepos.NODE_SERVICES,
+      tag: mainnetDockerTags.warpMonitor,
+    },
+  ]);
 
   const envConfig = getEnvironmentConfig(environment);
 

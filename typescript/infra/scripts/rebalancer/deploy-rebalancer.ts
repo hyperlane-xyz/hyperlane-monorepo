@@ -8,11 +8,13 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { DockerImageRepos, mainnetDockerTags } from '../../config/docker.js';
 import { DeployEnvironment } from '../../src/config/deploy-environment.js';
 import {
   RebalancerHelmManager,
   getDeployedRebalancerWarpRouteIds,
 } from '../../src/rebalancer/helm.js';
+import { verifyImagesAndConfirm } from '../../src/utils/attestation.js';
 import { REBALANCER_HELM_RELEASE_PREFIX } from '../../src/utils/consts.js';
 import { validateRegistryCommit } from '../../src/utils/git.js';
 import { HelmCommand } from '../../src/utils/helm.js';
@@ -44,6 +46,14 @@ async function main() {
   ).parse();
 
   await assertCorrectKubeContext(getEnvironmentConfig(environment));
+
+  await verifyImagesAndConfirm([
+    {
+      component: 'rebalancer',
+      image: DockerImageRepos.NODE_SERVICES,
+      tag: mainnetDockerTags.rebalancer,
+    },
+  ]);
 
   let warpRouteIds: string[];
   if (warpRouteId) {

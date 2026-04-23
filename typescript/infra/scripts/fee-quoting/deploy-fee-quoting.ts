@@ -5,7 +5,9 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { DockerImageRepos, mainnetDockerTags } from '../../config/docker.js';
 import { FeeQuotingHelmManager } from '../../src/fee-quoting/helm.js';
+import { verifyImagesAndConfirm } from '../../src/utils/attestation.js';
 import { HelmCommand } from '../../src/utils/helm.js';
 import {
   assertCorrectKubeContext,
@@ -21,6 +23,14 @@ async function main() {
     await withRegistryCommit(getArgs()).parse();
 
   await assertCorrectKubeContext(getEnvironmentConfig(environment));
+
+  await verifyImagesAndConfirm([
+    {
+      component: 'fee-quoting',
+      image: DockerImageRepos.FEE_QUOTING,
+      tag: mainnetDockerTags.feeQuoting,
+    },
+  ]);
 
   const helmManager = new FeeQuotingHelmManager(
     environment,
