@@ -3,6 +3,13 @@
 
 use account_utils::DiscriminatorEncode;
 use hyperlane_core::{Encode, HyperlaneMessage, H256, U256};
+use hyperlane_sealevel_fee::{
+    accounts::{FeeData, LeafFeeConfig, WILDCARD_DOMAIN},
+    fee_account_pda_seeds,
+    fee_math::{FeeDataStrategy, FeeParams},
+    fee_standing_quote_pda_seeds, instruction as fee_instruction,
+    processor::process_instruction as fee_process_instruction,
+};
 use solana_program::{
     instruction::{AccountMeta, Instruction},
     program_pack::Pack,
@@ -39,7 +46,7 @@ use hyperlane_sealevel_token_cross_collateral::{
     processor::process_instruction,
 };
 use hyperlane_sealevel_token_lib::{
-    accounts::{convert_decimals, HyperlaneToken, HyperlaneTokenAccount},
+    accounts::{convert_decimals, FeeConfig, HyperlaneToken, HyperlaneTokenAccount},
     hyperlane_token_pda_seeds,
     instruction::{Init, Instruction as HyperlaneTokenInstruction},
 };
@@ -77,6 +84,10 @@ fn hyperlane_sealevel_token_cross_collateral_id() -> Pubkey {
 
 fn second_cc_program_id() -> Pubkey {
     pubkey!("CCo11atera1TokenProgram222222222222222222222")
+}
+
+fn fee_program_id() -> Pubkey {
+    pubkey!("Fee1111111111111111111111111111111111111111")
 }
 
 async fn setup_client() -> (BanksClient, Keypair) {
@@ -124,6 +135,12 @@ async fn setup_client() -> (BanksClient, Keypair) {
         "hyperlane_sealevel_token_cross_collateral",
         second_cc_program_id(),
         processor!(process_instruction),
+    );
+
+    program_test.add_program(
+        "hyperlane_sealevel_fee",
+        fee_program_id(),
+        processor!(fee_process_instruction),
     );
 
     let (banks_client, payer, _recent_blockhash) = program_test.start().await;
@@ -3377,4 +3394,469 @@ mod account_metas_simulation {
         // Account 3: recipient
         assert_eq!(account_metas[3].pubkey, recipient_pubkey);
     }
+}
+
+// === Fee integration tests ===
+
+const FEE_MAX: u64 = 100;
+const FEE_HALF_AMOUNT: u64 = 500_000;
+
+#[tokio::test]
+async fn test_cc_remote_transfer_with_fee() {
+    let mut ctx = TestContext::new(true).await;
+    let igp = ctx.igp_accounts.as_ref().unwrap();
+    let (igp_program, igp_program_data, igp_overhead_igp, igp_igp) =
+        (igp.program, igp.program_data, igp.overhead_igp, igp.igp);
+
+    let target_router = H256::random();
+    set_cc_routers(
+        &mut ctx.banks_client,
+        &ctx.program_id,
+        &ctx.payer,
+        vec![CrossCollateralRouterUpdate::Add {
+            domain: REMOTE_DOMAIN,
+            router: target_router,
+        }],
+    )
+    .await
+    .unwrap();
+
+    // Initialize Leaf fee account.
+    let fee_beneficiary_owner = Pubkey::new_unique();
+    let fee_salt = H256::zero();
+    let fee_data = FeeData::Leaf(LeafFeeConfig {
+        strategy: FeeDataStrategy::Linear(FeeParams {
+            max_fee: FEE_MAX,
+            half_amount: FEE_HALF_AMOUNT,
+        }),
+        signers: None,
+    });
+    let fee_account_key = {
+        let fp = fee_program_id();
+        let (fee_account, _) = Pubkey::find_program_address(fee_account_pda_seeds!(fee_salt), &fp);
+        let ix = fee_instruction::init_fee_instruction(
+            fp,
+            ctx.payer.pubkey(),
+            fee_salt,
+            fee_beneficiary_owner,
+            fee_data,
+            LOCAL_DOMAIN,
+        )
+        .unwrap();
+        let recent_blockhash = ctx.banks_client.get_latest_blockhash().await.unwrap();
+        ctx.banks_client
+            .process_transaction(Transaction::new_signed_with_payer(
+                &[ix],
+                Some(&ctx.payer.pubkey()),
+                &[&ctx.payer],
+                recent_blockhash,
+            ))
+            .await
+            .unwrap();
+        fee_account
+    };
+
+    // Set fee config on the token.
+    let recent_blockhash = ctx.banks_client.get_latest_blockhash().await.unwrap();
+    ctx.banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[Instruction::new_with_bytes(
+                ctx.program_id,
+                &HyperlaneTokenInstruction::SetFeeConfig(Some(FeeConfig {
+                    fee_program: fee_program_id(),
+                    fee_account: fee_account_key,
+                }))
+                .encode()
+                .unwrap(),
+                vec![
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new(ctx.cc.token, false),
+                    AccountMeta::new(ctx.payer.pubkey(), true),
+                ],
+            )],
+            Some(&ctx.payer.pubkey()),
+            &[&ctx.payer],
+            recent_blockhash,
+        ))
+        .await
+        .unwrap();
+
+    // Create beneficiary ATA.
+    let fee_beneficiary_ata =
+        spl_associated_token_account::get_associated_token_address_with_program_id(
+            &fee_beneficiary_owner,
+            &ctx.mint,
+            &ctx.spl_token_program_id,
+        );
+    let recent_blockhash = ctx.banks_client.get_latest_blockhash().await.unwrap();
+    ctx.banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[
+                spl_associated_token_account::instruction::create_associated_token_account(
+                    &ctx.payer.pubkey(),
+                    &fee_beneficiary_owner,
+                    &ctx.mint,
+                    &ctx.spl_token_program_id,
+                ),
+            ],
+            Some(&ctx.payer.pubkey()),
+            &[&ctx.payer],
+            recent_blockhash,
+        ))
+        .await
+        .unwrap();
+
+    let (token_sender, token_sender_ata) = ctx
+        .create_funded_sender(100 * 10u64.pow(LOCAL_DECIMALS_U32))
+        .await;
+    let token_sender_pubkey = token_sender.pubkey();
+    let transfer_amount = 69 * 10u64.pow(LOCAL_DECIMALS_U32);
+    let expected_fee = FEE_MAX;
+
+    let unique_message_account_keypair = Keypair::new();
+    let (dispatched_message_key, _) = Pubkey::find_program_address(
+        mailbox_dispatched_message_pda_seeds!(&unique_message_account_keypair.pubkey()),
+        &ctx.mailbox_program_id,
+    );
+    let (gas_payment_pda_key, _) = Pubkey::find_program_address(
+        igp_gas_payment_pda_seeds!(&unique_message_account_keypair.pubkey()),
+        &igp_program_id(),
+    );
+
+    // Standing quote PDAs.
+    let domain_standing_quote_pda = {
+        let domain_le = REMOTE_DOMAIN.to_le_bytes();
+        let (pda, _) = Pubkey::find_program_address(
+            fee_standing_quote_pda_seeds!(&fee_account_key, &domain_le),
+            &fee_program_id(),
+        );
+        pda
+    };
+    let wildcard_standing_quote_pda = {
+        let domain_le = WILDCARD_DOMAIN.to_le_bytes();
+        let (pda, _) = Pubkey::find_program_address(
+            fee_standing_quote_pda_seeds!(&fee_account_key, &domain_le),
+            &fee_program_id(),
+        );
+        pda
+    };
+
+    let remote_token_recipient = H256::random();
+
+    let ixn_data = CrossCollateralInstruction::TransferRemoteTo(TransferRemoteTo {
+        destination_domain: REMOTE_DOMAIN,
+        recipient: remote_token_recipient,
+        amount_or_id: transfer_amount.into(),
+        target_router,
+    })
+    .encode()
+    .unwrap();
+
+    // Account layout: CC prefix -> Core -> Fee -> IGP -> Plugin
+    let recent_blockhash = ctx.banks_client.get_latest_blockhash().await.unwrap();
+    ctx.banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[Instruction::new_with_bytes(
+                ctx.program_id,
+                &ixn_data,
+                vec![
+                    // CC prefix
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new_readonly(ctx.cc.token, false),
+                    AccountMeta::new_readonly(ctx.cc.cc_state, false),
+                    AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
+                    // Core (shared remote-dispatch)
+                    AccountMeta::new_readonly(ctx.mailbox_program_id, false),
+                    AccountMeta::new(ctx.mailbox_accounts.outbox, false),
+                    AccountMeta::new_readonly(ctx.cc.dispatch_authority, false),
+                    AccountMeta::new(token_sender_pubkey, true),
+                    AccountMeta::new_readonly(unique_message_account_keypair.pubkey(), true),
+                    AccountMeta::new(dispatched_message_key, false),
+                    // Fee section
+                    AccountMeta::new_readonly(fee_program_id(), false),
+                    AccountMeta::new_readonly(fee_account_key, false),
+                    AccountMeta::new_readonly(domain_standing_quote_pda, false),
+                    AccountMeta::new_readonly(wildcard_standing_quote_pda, false),
+                    AccountMeta::new(fee_beneficiary_ata, false), // terminal
+                    // IGP
+                    AccountMeta::new_readonly(igp_program, false),
+                    AccountMeta::new(igp_program_data, false),
+                    AccountMeta::new(gas_payment_pda_key, false),
+                    AccountMeta::new_readonly(igp_overhead_igp, false),
+                    AccountMeta::new(igp_igp, false),
+                    // Plugin (collateral)
+                    AccountMeta::new_readonly(ctx.spl_token_program_id, false),
+                    AccountMeta::new(ctx.mint, false),
+                    AccountMeta::new(token_sender_ata, false),
+                    AccountMeta::new(ctx.cc.escrow, false),
+                ],
+            )],
+            Some(&token_sender_pubkey),
+            &[&token_sender, &unique_message_account_keypair],
+            recent_blockhash,
+        ))
+        .await
+        .unwrap();
+
+    // Verify sender balance: initial - transfer - fee.
+    assert_token_balance(
+        &mut ctx.banks_client,
+        &token_sender_ata,
+        (100 * 10u64.pow(LOCAL_DECIMALS_U32)) - transfer_amount - expected_fee,
+    )
+    .await;
+
+    // Verify beneficiary received exact fee.
+    assert_token_balance(&mut ctx.banks_client, &fee_beneficiary_ata, expected_fee).await;
+
+    // Verify escrow received transfer amount.
+    assert_token_balance(&mut ctx.banks_client, &ctx.cc.escrow, transfer_amount).await;
+
+    // Verify dispatch succeeded.
+    assert!(
+        ctx.banks_client
+            .get_account(dispatched_message_key)
+            .await
+            .unwrap()
+            .is_some(),
+        "dispatched message should exist"
+    );
+}
+
+#[tokio::test]
+async fn test_cc_local_transfer_with_fee() {
+    // A.TransferRemoteTo (local) with fee: escrows in A (with fee), CPIs into B.HandleLocal.
+    let mut ctx = TestContext::new(false).await;
+    let program_a = ctx.program_id;
+    let program_b = second_cc_program_id();
+    let cc_b = ctx.init_second_cc_token().await;
+
+    // Mutual enrollment
+    let router_b = H256::from(program_b.to_bytes());
+    let router_a = H256::from(program_a.to_bytes());
+    set_cc_routers(
+        &mut ctx.banks_client,
+        &program_a,
+        &ctx.payer,
+        vec![CrossCollateralRouterUpdate::Add {
+            domain: LOCAL_DOMAIN,
+            router: router_b,
+        }],
+    )
+    .await
+    .unwrap();
+    set_cc_routers(
+        &mut ctx.banks_client,
+        &program_b,
+        &ctx.payer,
+        vec![CrossCollateralRouterUpdate::Add {
+            domain: LOCAL_DOMAIN,
+            router: router_a,
+        }],
+    )
+    .await
+    .unwrap();
+
+    // Fund B's escrow and ATA payer
+    let escrow_b_amount = 100 * 10u64.pow(LOCAL_DECIMALS_U32);
+    ctx.fund_escrow_and_ata_payer(cc_b.escrow, cc_b.ata_payer, escrow_b_amount)
+        .await;
+
+    // Initialize Leaf fee account on program A.
+    let fee_beneficiary_owner = Pubkey::new_unique();
+    let fee_salt = H256::zero();
+    let fee_data = FeeData::Leaf(LeafFeeConfig {
+        strategy: FeeDataStrategy::Linear(FeeParams {
+            max_fee: FEE_MAX,
+            half_amount: FEE_HALF_AMOUNT,
+        }),
+        signers: None,
+    });
+    let fee_account_key = {
+        let fp = fee_program_id();
+        let (fee_account, _) = Pubkey::find_program_address(fee_account_pda_seeds!(fee_salt), &fp);
+        let ix = fee_instruction::init_fee_instruction(
+            fp,
+            ctx.payer.pubkey(),
+            fee_salt,
+            fee_beneficiary_owner,
+            fee_data,
+            LOCAL_DOMAIN,
+        )
+        .unwrap();
+        let recent_blockhash = ctx.banks_client.get_latest_blockhash().await.unwrap();
+        ctx.banks_client
+            .process_transaction(Transaction::new_signed_with_payer(
+                &[ix],
+                Some(&ctx.payer.pubkey()),
+                &[&ctx.payer],
+                recent_blockhash,
+            ))
+            .await
+            .unwrap();
+        fee_account
+    };
+
+    // Set fee config on program A's token.
+    let recent_blockhash = ctx.banks_client.get_latest_blockhash().await.unwrap();
+    ctx.banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[Instruction::new_with_bytes(
+                program_a,
+                &HyperlaneTokenInstruction::SetFeeConfig(Some(FeeConfig {
+                    fee_program: fee_program_id(),
+                    fee_account: fee_account_key,
+                }))
+                .encode()
+                .unwrap(),
+                vec![
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new(ctx.cc.token, false),
+                    AccountMeta::new(ctx.payer.pubkey(), true),
+                ],
+            )],
+            Some(&ctx.payer.pubkey()),
+            &[&ctx.payer],
+            recent_blockhash,
+        ))
+        .await
+        .unwrap();
+
+    // Create beneficiary ATA.
+    let fee_beneficiary_ata =
+        spl_associated_token_account::get_associated_token_address_with_program_id(
+            &fee_beneficiary_owner,
+            &ctx.mint,
+            &ctx.spl_token_program_id,
+        );
+    let recent_blockhash = ctx.banks_client.get_latest_blockhash().await.unwrap();
+    ctx.banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[
+                spl_associated_token_account::instruction::create_associated_token_account(
+                    &ctx.payer.pubkey(),
+                    &fee_beneficiary_owner,
+                    &ctx.mint,
+                    &ctx.spl_token_program_id,
+                ),
+            ],
+            Some(&ctx.payer.pubkey()),
+            &[&ctx.payer],
+            recent_blockhash,
+        ))
+        .await
+        .unwrap();
+
+    // Standing quote PDAs.
+    let domain_standing_quote_pda = {
+        let domain_le = LOCAL_DOMAIN.to_le_bytes();
+        let (pda, _) = Pubkey::find_program_address(
+            fee_standing_quote_pda_seeds!(&fee_account_key, &domain_le),
+            &fee_program_id(),
+        );
+        pda
+    };
+    let wildcard_standing_quote_pda = {
+        let domain_le = WILDCARD_DOMAIN.to_le_bytes();
+        let (pda, _) = Pubkey::find_program_address(
+            fee_standing_quote_pda_seeds!(&fee_account_key, &domain_le),
+            &fee_program_id(),
+        );
+        pda
+    };
+
+    let (token_sender, token_sender_ata) = ctx
+        .create_funded_sender(50 * 10u64.pow(LOCAL_DECIMALS_U32))
+        .await;
+    let token_sender_pubkey = token_sender.pubkey();
+    let transfer_amount = 25 * 10u64.pow(LOCAL_DECIMALS_U32);
+    let expected_fee = FEE_MAX;
+
+    let recipient_pubkey = Pubkey::new_unique();
+    let recipient: H256 = recipient_pubkey.to_bytes().into();
+    let recipient_ata = spl_associated_token_account::get_associated_token_address_with_program_id(
+        &recipient_pubkey,
+        &ctx.mint,
+        &ctx.spl_token_program_id,
+    );
+
+    let ixn_data = CrossCollateralInstruction::TransferRemoteTo(TransferRemoteTo {
+        destination_domain: LOCAL_DOMAIN,
+        recipient,
+        amount_or_id: transfer_amount.into(),
+        target_router: router_b,
+    })
+    .encode()
+    .unwrap();
+
+    // Account layout: CC prefix -> sender -> cc_dispatch_auth -> target_program
+    //   -> Fee section -> Plugin A -> B's HandleLocal accounts
+    let recent_blockhash = ctx.banks_client.get_latest_blockhash().await.unwrap();
+    ctx.banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[Instruction::new_with_bytes(
+                program_a,
+                &ixn_data,
+                vec![
+                    // CC prefix
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new_readonly(ctx.cc.token, false),
+                    AccountMeta::new_readonly(ctx.cc.cc_state, false),
+                    // Local path accounts
+                    AccountMeta::new(token_sender_pubkey, true),
+                    AccountMeta::new_readonly(ctx.cc.cc_dispatch_authority, false),
+                    AccountMeta::new_readonly(program_b, false),
+                    // Fee section
+                    AccountMeta::new_readonly(fee_program_id(), false),
+                    AccountMeta::new_readonly(fee_account_key, false),
+                    AccountMeta::new_readonly(domain_standing_quote_pda, false),
+                    AccountMeta::new_readonly(wildcard_standing_quote_pda, false),
+                    AccountMeta::new(fee_beneficiary_ata, false), // terminal
+                    // Plugin A (collateral transfer_in)
+                    AccountMeta::new_readonly(ctx.spl_token_program_id, false),
+                    AccountMeta::new(ctx.mint, false),
+                    AccountMeta::new(token_sender_ata, false),
+                    AccountMeta::new(ctx.cc.escrow, false),
+                    // B's HandleLocal accounts (passthrough)
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new_readonly(cc_b.token, false),
+                    AccountMeta::new_readonly(cc_b.cc_state, false),
+                    AccountMeta::new_readonly(recipient_pubkey, false),
+                    AccountMeta::new_readonly(ctx.spl_token_program_id, false),
+                    AccountMeta::new_readonly(spl_associated_token_account::id(), false),
+                    AccountMeta::new(ctx.mint, false),
+                    AccountMeta::new(recipient_ata, false),
+                    AccountMeta::new(cc_b.ata_payer, false),
+                    AccountMeta::new(cc_b.escrow, false),
+                ],
+            )],
+            Some(&token_sender_pubkey),
+            &[&token_sender],
+            recent_blockhash,
+        ))
+        .await
+        .unwrap();
+
+    // Verify sender: initial(50) - transfer(25) - fee
+    assert_token_balance(
+        &mut ctx.banks_client,
+        &token_sender_ata,
+        50 * 10u64.pow(LOCAL_DECIMALS_U32) - transfer_amount - expected_fee,
+    )
+    .await;
+
+    // Verify beneficiary received exact fee.
+    assert_token_balance(&mut ctx.banks_client, &fee_beneficiary_ata, expected_fee).await;
+
+    // Verify A's escrow received transfer amount.
+    assert_token_balance(&mut ctx.banks_client, &ctx.cc.escrow, transfer_amount).await;
+
+    // Verify B released to recipient.
+    assert_token_balance(
+        &mut ctx.banks_client,
+        &cc_b.escrow,
+        escrow_b_amount - transfer_amount,
+    )
+    .await;
+    assert_token_balance(&mut ctx.banks_client, &recipient_ata, transfer_amount).await;
 }
