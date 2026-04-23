@@ -49,6 +49,8 @@ pub struct RelayerSettings {
     pub whitelist: MatchingList,
     /// Filter for what messages to block.
     pub blacklist: MatchingList,
+    /// Optional remote URL for message-id blacklist entries.
+    pub blacklist_url: Option<String>,
     /// Filter for what addresses to block interactions with.
     /// This is intentionally not an H256 to allow for addresses of any length without
     /// adding any padding.
@@ -268,6 +270,12 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .end()
             .map(|str| parse_address_list(str, &mut err, || (&p.cwp).add("address_blacklist")))
             .unwrap_or_default();
+        let blacklist_url = p
+            .chain(&mut err)
+            .get_opt_key("blacklistUrl")
+            .parse_string()
+            .end()
+            .map(ToOwned::to_owned);
 
         let transaction_gas_limit = p
             .chain(&mut err)
@@ -377,6 +385,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             gas_payment_enforcement,
             whitelist,
             blacklist,
+            blacklist_url,
             address_blacklist,
             transaction_gas_limit,
             skip_transaction_gas_limit_for,
