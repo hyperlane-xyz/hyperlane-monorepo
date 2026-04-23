@@ -945,7 +945,10 @@
       "validatorAnnounce": "0xCe74905e51497b4adD3639366708b821dcBcff96",
       "staticMerkleRootWeightedMultisigIsmFactory": "0xA2502bF73e5313c1bf48E47C887cdcbf2640FA41",
       "staticMessageIdWeightedMultisigIsmFactory": "0x4272124Fba59CbA076D85375895f94B6a3485c3E",
-      "technicalStack": "other"
+      "technicalStack": "other",
+      "transactionOverrides": {
+        "gasPriceCap": 30000000000
+      }
     },
     "fraxtal": {
       "aggregationHook": "0x96F30f1c79bC2905e5dFac6e8A3E5CD82A301a10",

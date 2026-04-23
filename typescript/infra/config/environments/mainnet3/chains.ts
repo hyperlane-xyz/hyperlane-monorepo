@@ -17,6 +17,11 @@ export const ethereumChainNames = supportedChainNames.filter(
 export const agentSpecificChainMetadataOverrides: ChainMap<
   Partial<ChainMetadata>
 > = {
+  ethereum: {
+    transactionOverrides: {
+      gasPriceCap: 30 * 10 ** 9, // 30 gwei - caps EIP-1559 maxFeePerGas to prevent MEV-inflated fee estimates
+    },
+  },
   incentiv: {
     transactionOverrides: {
       minGasPrice: 1 * 10 ** 9, // 1 gwei
