@@ -38,6 +38,60 @@ Additional tags applied automatically:
 - **PR number** (e.g., `pr-123`)
 - **Git tag** (e.g., `v2.1.0`); agent releases use `agents-*` tags which also produce semver tags
 
+## Verification
+
+All images pushed by `rust-docker.yml`, `monorepo-docker.yml`, and `node-services-docker.yml` carry a SLSA v1 build-provenance attestation, signed keyless via GitHub Actions OIDC and attached to the image digest as an OCI referrer.
+
+The attestation identifies:
+
+- repository: `hyperlane-xyz/hyperlane-monorepo`
+- workflow: the producing `.github/workflows/*.yml`
+- commit SHA
+- runner / builder
+- `startedOn` / `finishedOn` build timestamps
+
+### Verify with `gh`
+
+```bash
+gh attestation verify \
+  oci://ghcr.io/hyperlane-xyz/hyperlane-agent:<tag-or-digest> \
+  --repo hyperlane-xyz/hyperlane-monorepo
+```
+
+Add `--signer-workflow hyperlane-xyz/hyperlane-monorepo/.github/workflows/rust-docker.yml` to pin the producing workflow.
+
+### Verify with `cosign`
+
+```bash
+cosign verify-attestation \
+  --type slsaprovenance1 \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity-regexp '^https://github.com/hyperlane-xyz/hyperlane-monorepo/\.github/workflows/rust-docker\.yml@' \
+  ghcr.io/hyperlane-xyz/hyperlane-agent@<digest>
+```
+
+### Minimum build age (soak time)
+
+Provenance timestamps enable a "cool-off" gate in promotion pipelines. Extract `finishedOn` and compare against `now - soak`:
+
+```bash
+FINISHED=$(cosign verify-attestation \
+  --type slsaprovenance1 \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity-regexp '^https://github.com/hyperlane-xyz/hyperlane-monorepo/\.github/workflows/rust-docker\.yml@' \
+  ghcr.io/hyperlane-xyz/hyperlane-agent@<digest> \
+  | jq -r '.payload | @base64d | fromjson | .predicate.runDetails.metadata.finishedOn')
+
+AGE=$(( $(date -u +%s) - $(date -u -d "$FINISHED" +%s) ))
+[ "$AGE" -ge 86400 ] || { echo "image younger than 24h"; exit 1; }
+```
+
+Staging typically needs no soak; production can require ≥24h.
+
+### Pin deploys by digest
+
+Tags are mutable. For verification guarantees to hold end-to-end, promotion/deploy should resolve tag → digest once, verify the digest, then deploy the digest. See `typescript/infra/config/docker.ts` for the deployed-tag surface.
+
 ## Retention
 
 | Image type                           | Retention                       | Notes                         |
