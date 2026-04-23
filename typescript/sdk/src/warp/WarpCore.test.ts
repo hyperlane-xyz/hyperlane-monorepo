@@ -1,6 +1,5 @@
-import { expect } from 'vitest';
+import { expect, vi } from 'vitest';
 import fs from 'fs';
-import sinon from 'sinon';
 import { parse as yamlParse } from 'yaml';
 
 import {
@@ -80,13 +79,13 @@ describe('WarpCore', () => {
   });
 
   beforeEach(() => {
-    sinon
-      .stub(multiProvider, 'estimateTransactionFee')
-      .returns(Promise.resolve(MOCK_LOCAL_QUOTE));
+    vi.spyOn(multiProvider, 'estimateTransactionFee').mockReturnValue(
+      Promise.resolve(MOCK_LOCAL_QUOTE),
+    );
   });
 
   afterEach(() => {
-    sinon.restore();
+    vi.restoreAllMocks();
   });
 
   it('Constructs', () => {
@@ -122,7 +121,7 @@ describe('WarpCore', () => {
 
   it('Gets transfer gas quote', async () => {
     const stubs = warpCore.tokens.map((t) =>
-      sinon.stub(t, 'getHypAdapter').returns({
+      vi.spyOn(t, 'getHypAdapter').mockReturnValue({
         quoteTransferRemoteGas: () =>
           Promise.resolve({
             igpQuote: MOCK_INTERCHAIN_QUOTE,
@@ -195,12 +194,12 @@ describe('WarpCore', () => {
       igpQuote: { amount: 1n, addressOrDenom: 'atom' },
     });
 
-    stubs.forEach((s) => s.restore());
+    stubs.forEach((s) => s.mockRestore());
   });
 
   it('Checks for destination collateral', async () => {
     const stubs = warpCore.tokens.map((t) =>
-      sinon.stub(t, 'getHypAdapter').returns({
+      vi.spyOn(t, 'getHypAdapter').mockReturnValue({
         getBalance: () => Promise.resolve(MOCK_BALANCE),
         getBridgedSupply: () => Promise.resolve(MOCK_BALANCE),
         isRevokeApprovalRequired: () => Promise.resolve(false),
@@ -239,12 +238,12 @@ describe('WarpCore', () => {
     await testCollateral(evmHypXERC20Lockbox, testXERC20.name, true);
     await testCollateral(evmHypNative, testXERC20Lockbox.name, false);
 
-    stubs.forEach((s) => s.restore());
+    stubs.forEach((s) => s.mockRestore());
   });
 
   it('Checks for destination collateral with scaling factors', async () => {
     const stubs = warpCore.tokens.map((t) =>
-      sinon.stub(t, 'getHypAdapter').returns({
+      vi.spyOn(t, 'getHypAdapter').mockReturnValue({
         getBalance: () => Promise.resolve(10n),
         getBridgedSupply: () => Promise.resolve(10n),
         isRevokeApprovalRequired: () => Promise.resolve(false),
@@ -289,7 +288,7 @@ describe('WarpCore', () => {
     } finally {
       evmHypNativeScale1.scale = originalScale1;
       evmHypNativeScale2.scale = originalScale2;
-      stubs.forEach((s) => s.restore());
+      stubs.forEach((s) => s.mockRestore());
     }
   });
 
@@ -317,13 +316,13 @@ describe('WarpCore', () => {
       originToken,
       destinationToken,
     ]);
-    const originStub = sinon.stub(originToken, 'getHypAdapter').returns({
+    const originStub = vi.spyOn(originToken, 'getHypAdapter').mockReturnValue({
       getBalance: () => Promise.resolve(1_000_000n),
       getBridgedSupply: () => Promise.resolve(1_000_000n),
     } as any);
-    const destinationStub = sinon
-      .stub(destinationToken, 'getHypAdapter')
-      .returns({
+    const destinationStub = vi
+      .spyOn(destinationToken, 'getHypAdapter')
+      .mockReturnValue({
         getBalance: () => Promise.resolve(1_000_000n),
         getBridgedSupply: () => Promise.resolve(1_000_000n),
       } as any);
@@ -342,8 +341,8 @@ describe('WarpCore', () => {
         }),
       ).toBe(false);
     } finally {
-      originStub.restore();
-      destinationStub.restore();
+      originStub.mockRestore();
+      destinationStub.mockRestore();
     }
   });
 
@@ -372,13 +371,13 @@ describe('WarpCore', () => {
       originToken,
       destinationToken,
     ]);
-    const originStub = sinon.stub(originToken, 'getHypAdapter').returns({
+    const originStub = vi.spyOn(originToken, 'getHypAdapter').mockReturnValue({
       getBalance: () => Promise.resolve(1_000_000n),
       getBridgedSupply: () => Promise.resolve(1_000_000n),
     } as any);
-    const destinationStub = sinon
-      .stub(destinationToken, 'getHypAdapter')
-      .returns({
+    const destinationStub = vi
+      .spyOn(destinationToken, 'getHypAdapter')
+      .mockReturnValue({
         getBalance: () => Promise.resolve(1_000_000n),
         getBridgedSupply: () => Promise.resolve(1_000_000n),
       } as any);
@@ -397,8 +396,8 @@ describe('WarpCore', () => {
         }),
       ).toBe(false);
     } finally {
-      originStub.restore();
-      destinationStub.restore();
+      originStub.mockRestore();
+      destinationStub.mockRestore();
     }
   });
 
@@ -431,13 +430,13 @@ describe('WarpCore', () => {
     ]);
     // dest has 1_000_000 local units; scale {2, 1e12} → message = 1_000_000 * 2 / 1e12 = 0
     // So even a small origin amount should be insufficient.
-    const originStub = sinon.stub(originToken, 'getHypAdapter').returns({
+    const originStub = vi.spyOn(originToken, 'getHypAdapter').mockReturnValue({
       getBalance: () => Promise.resolve(1_000_000n),
       getBridgedSupply: () => Promise.resolve(1_000_000n),
     } as any);
-    const destinationStub = sinon
-      .stub(destinationToken, 'getHypAdapter')
-      .returns({
+    const destinationStub = vi
+      .spyOn(destinationToken, 'getHypAdapter')
+      .mockReturnValue({
         getBalance: () => Promise.resolve(1_000_000n),
         getBridgedSupply: () => Promise.resolve(1_000_000n),
       } as any);
@@ -453,10 +452,10 @@ describe('WarpCore', () => {
       ).toBe(false);
 
       // Give dest enough balance: 500_000_000_000_000_000 * 2 / 1e12 = 1_000_000
-      destinationStub.restore();
-      const destinationStub2 = sinon
-        .stub(destinationToken, 'getHypAdapter')
-        .returns({
+      destinationStub.mockRestore();
+      const destinationStub2 = vi
+        .spyOn(destinationToken, 'getHypAdapter')
+        .mockReturnValue({
           getBalance: () => Promise.resolve(500_000_000_000_000_000n),
           getBridgedSupply: () => Promise.resolve(500_000_000_000_000_000n),
         } as any);
@@ -468,9 +467,9 @@ describe('WarpCore', () => {
         }),
       ).toBe(true);
 
-      destinationStub2.restore();
+      destinationStub2.mockRestore();
     } finally {
-      originStub.restore();
+      originStub.mockRestore();
     }
   });
 
@@ -504,14 +503,14 @@ describe('WarpCore', () => {
       originToken,
       destinationToken,
     ]);
-    const originStub = sinon.stub(originToken, 'getHypAdapter').returns({
+    const originStub = vi.spyOn(originToken, 'getHypAdapter').mockReturnValue({
       getBalance: () => Promise.resolve(1_000_000n),
       getBridgedSupply: () => Promise.resolve(1_000_000n),
     } as any);
     // dest balance 500_000: message = 500_000 * 2 = 1_000_000
-    const destinationStub = sinon
-      .stub(destinationToken, 'getHypAdapter')
-      .returns({
+    const destinationStub = vi
+      .spyOn(destinationToken, 'getHypAdapter')
+      .mockReturnValue({
         getBalance: () => Promise.resolve(500_000n),
         getBridgedSupply: () => Promise.resolve(500_000n),
       } as any);
@@ -536,18 +535,20 @@ describe('WarpCore', () => {
         }),
       ).toBe(false);
     } finally {
-      originStub.restore();
-      destinationStub.restore();
+      originStub.mockRestore();
+      destinationStub.mockRestore();
     }
   });
 
   it('Validates transfers', async () => {
     const balanceStubs = warpCore.tokens.map((t) =>
-      sinon.stub(t, 'getBalance').resolves({ amount: MOCK_BALANCE } as any),
+      vi
+        .spyOn(t, 'getBalance')
+        .mockResolvedValue({ amount: MOCK_BALANCE } as any),
     );
     const minimumTransferAmount = 10n;
     const quoteStubs = warpCore.tokens.map((t) =>
-      sinon.stub(t, 'getHypAdapter').returns({
+      vi.spyOn(t, 'getHypAdapter').mockReturnValue({
         quoteTransferRemoteGas: () =>
           Promise.resolve({ igpQuote: MOCK_INTERCHAIN_QUOTE }),
         isApproveRequired: () => Promise.resolve(false),
@@ -662,20 +663,22 @@ describe('WarpCore', () => {
     );
 
     balanceStubs.forEach((s) => {
-      s.restore();
+      s.mockRestore();
     });
     quoteStubs.forEach((s) => {
-      s.restore();
+      s.mockRestore();
     });
   });
 
   it('Validates destination token routing', async () => {
     const balanceStubs = warpCore.tokens.map((t) =>
-      sinon.stub(t, 'getBalance').resolves({ amount: MOCK_BALANCE } as any),
+      vi
+        .spyOn(t, 'getBalance')
+        .mockResolvedValue({ amount: MOCK_BALANCE } as any),
     );
     const minimumTransferAmount = 10n;
     const quoteStubs = warpCore.tokens.map((t) =>
-      sinon.stub(t, 'getHypAdapter').returns({
+      vi.spyOn(t, 'getHypAdapter').mockReturnValue({
         quoteTransferRemoteGas: () =>
           Promise.resolve({ igpQuote: MOCK_INTERCHAIN_QUOTE }),
         isApproveRequired: () => Promise.resolve(false),
@@ -710,10 +713,10 @@ describe('WarpCore', () => {
     expect(validDestinationToken).toBeNull();
 
     balanceStubs.forEach((s) => {
-      s.restore();
+      s.mockRestore();
     });
     quoteStubs.forEach((s) => {
-      s.restore();
+      s.mockRestore();
     });
   });
 
@@ -761,11 +764,13 @@ describe('WarpCore', () => {
     expect(extraDestination).not.toBeNull();
 
     const balanceStubs = ambiguousWarpCore.tokens.map((t) =>
-      sinon.stub(t, 'getBalance').resolves({ amount: MOCK_BALANCE } as any),
+      vi
+        .spyOn(t, 'getBalance')
+        .mockResolvedValue({ amount: MOCK_BALANCE } as any),
     );
     const minimumTransferAmount = 10n;
     const quoteStubs = ambiguousWarpCore.tokens.map((t) =>
-      sinon.stub(t, 'getHypAdapter').returns({
+      vi.spyOn(t, 'getHypAdapter').mockReturnValue({
         quoteTransferRemoteGas: () =>
           Promise.resolve({ igpQuote: MOCK_INTERCHAIN_QUOTE }),
         isApproveRequired: () => Promise.resolve(false),
@@ -798,8 +803,8 @@ describe('WarpCore', () => {
     });
     expect(explicitValidation).toBeNull();
 
-    balanceStubs.forEach((s) => s.restore());
-    quoteStubs.forEach((s) => s.restore());
+    balanceStubs.forEach((s) => s.mockRestore());
+    quoteStubs.forEach((s) => s.mockRestore());
   });
 
   it('Includes token fee in CrossCollateralRouter approval debit', async () => {
@@ -808,31 +813,33 @@ describe('WarpCore', () => {
     (evmHypNative as any).collateralAddressOrDenom =
       evmHypNative.addressOrDenom;
 
-    const originMultiStub = sinon
-      .stub(evmHypNative, 'isCrossCollateralToken')
-      .returns(true);
-    const destinationMultiStub = sinon
-      .stub(evmHypSynthetic, 'isCrossCollateralToken')
-      .returns(true);
+    const originMultiStub = vi
+      .spyOn(evmHypNative, 'isCrossCollateralToken')
+      .mockReturnValue(true);
+    const destinationMultiStub = vi
+      .spyOn(evmHypSynthetic, 'isCrossCollateralToken')
+      .mockReturnValue(true);
 
-    const quoteTransferRemoteToGas = sinon.stub().resolves({
+    const quoteTransferRemoteToGas = vi.fn().mockResolvedValue({
       igpQuote: { amount: 1n },
       tokenFeeQuote: {
         addressOrDenom: evmHypNative.addressOrDenom,
         amount: tokenFeeAmount,
       },
     });
-    const isApproveRequired = sinon.stub().resolves(true);
-    const populateApproveTx = sinon.stub().resolves({});
-    const populateTransferRemoteToTx = sinon.stub().resolves({});
+    const isApproveRequired = vi.fn().mockResolvedValue(true);
+    const populateApproveTx = vi.fn().mockResolvedValue({});
+    const populateTransferRemoteToTx = vi.fn().mockResolvedValue({});
 
-    const adapterStub = sinon.stub(evmHypNative, 'getHypAdapter').returns({
-      quoteTransferRemoteToGas,
-      isApproveRequired,
-      populateApproveTx,
-      populateTransferRemoteToTx,
-      isRevokeApprovalRequired: () => Promise.resolve(false),
-    } as any);
+    const adapterStub = vi
+      .spyOn(evmHypNative, 'getHypAdapter')
+      .mockReturnValue({
+        quoteTransferRemoteToGas,
+        isApproveRequired,
+        populateApproveTx,
+        populateTransferRemoteToTx,
+        isRevokeApprovalRequired: () => Promise.resolve(false),
+      } as any);
 
     try {
       const result = await warpCore.getTransferRemoteTxs({
@@ -844,20 +851,21 @@ describe('WarpCore', () => {
       });
 
       expect(result.length).toBe(2);
-      sinon.assert.calledWithExactly(
-        isApproveRequired,
+      expect(isApproveRequired).toHaveBeenCalledWith(
         MOCK_ADDRESS,
         evmHypNative.addressOrDenom,
         TRANSFER_AMOUNT + tokenFeeAmount,
       );
-      sinon.assert.calledWithMatch(populateApproveTx, {
-        weiAmountOrId: TRANSFER_AMOUNT + tokenFeeAmount,
-        recipient: evmHypNative.addressOrDenom,
-      });
+      expect(populateApproveTx).toHaveBeenCalledWith(
+        expect.objectContaining({
+          weiAmountOrId: TRANSFER_AMOUNT + tokenFeeAmount,
+          recipient: evmHypNative.addressOrDenom,
+        }),
+      );
     } finally {
-      adapterStub.restore();
-      originMultiStub.restore();
-      destinationMultiStub.restore();
+      adapterStub.mockRestore();
+      originMultiStub.mockRestore();
+      destinationMultiStub.mockRestore();
       (evmHypNative as any).collateralAddressOrDenom =
         originalCollateralAddress;
     }
@@ -868,28 +876,30 @@ describe('WarpCore', () => {
     (evmHypNative as any).collateralAddressOrDenom =
       evmHypNative.addressOrDenom;
 
-    const originMultiStub = sinon
-      .stub(evmHypNative, 'isCrossCollateralToken')
-      .returns(true);
-    const destinationMultiStub = sinon
-      .stub(evmHypSynthetic, 'isCrossCollateralToken')
-      .returns(true);
+    const originMultiStub = vi
+      .spyOn(evmHypNative, 'isCrossCollateralToken')
+      .mockReturnValue(true);
+    const destinationMultiStub = vi
+      .spyOn(evmHypSynthetic, 'isCrossCollateralToken')
+      .mockReturnValue(true);
 
-    const adapterStub = sinon.stub(evmHypNative, 'getHypAdapter').returns({
-      quoteTransferRemoteToGas: sinon.stub().resolves({
-        igpQuote: {
-          amount: 1n,
-          addressOrDenom: evmHypNative.addressOrDenom,
-        },
-        tokenFeeQuote: {
-          addressOrDenom: evmHypNative.addressOrDenom,
-          amount: 0n,
-        },
-      }),
-      isApproveRequired: sinon.stub().resolves(false),
-      isRevokeApprovalRequired: sinon.stub().resolves(false),
-      populateTransferRemoteToTx: sinon.stub().resolves({}),
-    } as any);
+    const adapterStub = vi
+      .spyOn(evmHypNative, 'getHypAdapter')
+      .mockReturnValue({
+        quoteTransferRemoteToGas: vi.fn().mockResolvedValue({
+          igpQuote: {
+            amount: 1n,
+            addressOrDenom: evmHypNative.addressOrDenom,
+          },
+          tokenFeeQuote: {
+            addressOrDenom: evmHypNative.addressOrDenom,
+            amount: 0n,
+          },
+        }),
+        isApproveRequired: vi.fn().mockResolvedValue(false),
+        isRevokeApprovalRequired: vi.fn().mockResolvedValue(false),
+        populateTransferRemoteToTx: vi.fn().mockResolvedValue({}),
+      } as any);
 
     try {
       let thrown: Error | undefined;
@@ -910,25 +920,25 @@ describe('WarpCore', () => {
         'CrossCollateralRouter transferRemoteTo requires native IGP fee',
       );
     } finally {
-      adapterStub.restore();
-      originMultiStub.restore();
-      destinationMultiStub.restore();
+      adapterStub.mockRestore();
+      originMultiStub.mockRestore();
+      destinationMultiStub.mockRestore();
       (evmHypNative as any).collateralAddressOrDenom =
         originalCollateralAddress;
     }
   });
 
   it('Checks destination collateral for CrossCollateralRouter route using explicit destination token', async () => {
-    const originMultiStub = sinon
-      .stub(evmHypNative, 'isCrossCollateralToken')
-      .returns(true);
-    const destinationMultiStub = sinon
-      .stub(cwHypCollateral, 'isCrossCollateralToken')
-      .returns(true);
-    const destinationAdapterStub = sinon
-      .stub(cwHypCollateral, 'getAdapter')
-      .returns({
-        getBalance: sinon.stub().resolves(10n),
+    const originMultiStub = vi
+      .spyOn(evmHypNative, 'isCrossCollateralToken')
+      .mockReturnValue(true);
+    const destinationMultiStub = vi
+      .spyOn(cwHypCollateral, 'isCrossCollateralToken')
+      .mockReturnValue(true);
+    const destinationAdapterStub = vi
+      .spyOn(cwHypCollateral, 'getAdapter')
+      .mockReturnValue({
+        getBalance: vi.fn().mockResolvedValue(10n),
       } as any);
 
     try {
@@ -946,9 +956,9 @@ describe('WarpCore', () => {
       });
       expect(bigResult).toBe(false);
     } finally {
-      destinationAdapterStub.restore();
-      originMultiStub.restore();
-      destinationMultiStub.restore();
+      destinationAdapterStub.mockRestore();
+      originMultiStub.mockRestore();
+      destinationMultiStub.mockRestore();
     }
   });
 
@@ -958,32 +968,34 @@ describe('WarpCore', () => {
     (evmHypNative as any).collateralAddressOrDenom =
       evmHypNative.addressOrDenom;
 
-    const originMultiStub = sinon
-      .stub(evmHypNative, 'isCrossCollateralToken')
-      .returns(true);
-    const destinationMultiStub = sinon
-      .stub(evmHypSynthetic, 'isCrossCollateralToken')
-      .returns(true);
+    const originMultiStub = vi
+      .spyOn(evmHypNative, 'isCrossCollateralToken')
+      .mockReturnValue(true);
+    const destinationMultiStub = vi
+      .spyOn(evmHypSynthetic, 'isCrossCollateralToken')
+      .mockReturnValue(true);
 
-    const quoteTransferRemoteToGas = sinon.stub().resolves({
+    const quoteTransferRemoteToGas = vi.fn().mockResolvedValue({
       igpQuote: { amount: 1n },
       tokenFeeQuote: {
         addressOrDenom: evmHypNative.addressOrDenom,
         amount: tokenFeeAmount,
       },
     });
-    const isApproveRequired = sinon.stub().resolves(true);
-    const isRevokeApprovalRequired = sinon.stub().resolves(true);
-    const populateApproveTx = sinon.stub().resolves({});
-    const populateTransferRemoteToTx = sinon.stub().resolves({});
+    const isApproveRequired = vi.fn().mockResolvedValue(true);
+    const isRevokeApprovalRequired = vi.fn().mockResolvedValue(true);
+    const populateApproveTx = vi.fn().mockResolvedValue({});
+    const populateTransferRemoteToTx = vi.fn().mockResolvedValue({});
 
-    const adapterStub = sinon.stub(evmHypNative, 'getHypAdapter').returns({
-      quoteTransferRemoteToGas,
-      isApproveRequired,
-      isRevokeApprovalRequired,
-      populateApproveTx,
-      populateTransferRemoteToTx,
-    } as any);
+    const adapterStub = vi
+      .spyOn(evmHypNative, 'getHypAdapter')
+      .mockReturnValue({
+        quoteTransferRemoteToGas,
+        isApproveRequired,
+        isRevokeApprovalRequired,
+        populateApproveTx,
+        populateTransferRemoteToTx,
+      } as any);
 
     try {
       const result = await warpCore.getTransferRemoteTxs({
@@ -999,30 +1011,34 @@ describe('WarpCore', () => {
       expect(result[1].category).toBe(WarpTxCategory.Approval);
       expect(result[2].category).toBe(WarpTxCategory.Transfer);
 
-      sinon.assert.calledWithMatch(populateApproveTx.firstCall, {
-        weiAmountOrId: 0,
-      });
-      sinon.assert.calledWithMatch(populateApproveTx.secondCall, {
-        weiAmountOrId: TRANSFER_AMOUNT + tokenFeeAmount,
-      });
+      expect(populateApproveTx).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({ weiAmountOrId: 0 }),
+      );
+      expect(populateApproveTx).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          weiAmountOrId: TRANSFER_AMOUNT + tokenFeeAmount,
+        }),
+      );
     } finally {
-      adapterStub.restore();
-      originMultiStub.restore();
-      destinationMultiStub.restore();
+      adapterStub.mockRestore();
+      originMultiStub.mockRestore();
+      destinationMultiStub.mockRestore();
       (evmHypNative as any).collateralAddressOrDenom =
         originalCollateralAddress;
     }
   });
 
   it('Uses destination router-aware quote for CrossCollateralRouter fees', async () => {
-    const originMultiStub = sinon
-      .stub(evmHypNative, 'isCrossCollateralToken')
-      .returns(true);
-    const destinationMultiStub = sinon
-      .stub(evmHypSynthetic, 'isCrossCollateralToken')
-      .returns(true);
+    const originMultiStub = vi
+      .spyOn(evmHypNative, 'isCrossCollateralToken')
+      .mockReturnValue(true);
+    const destinationMultiStub = vi
+      .spyOn(evmHypSynthetic, 'isCrossCollateralToken')
+      .mockReturnValue(true);
 
-    const quoteTransferRemoteToGas = sinon.stub().resolves({
+    const quoteTransferRemoteToGas = vi.fn().mockResolvedValue({
       igpQuote: { amount: 42n },
       tokenFeeQuote: {
         addressOrDenom: evmHypNative.addressOrDenom,
@@ -1030,10 +1046,12 @@ describe('WarpCore', () => {
       },
     });
 
-    const adapterStub = sinon.stub(evmHypNative, 'getHypAdapter').returns({
-      quoteTransferRemoteToGas,
-      populateTransferRemoteToTx: sinon.stub(),
-    } as any);
+    const adapterStub = vi
+      .spyOn(evmHypNative, 'getHypAdapter')
+      .mockReturnValue({
+        quoteTransferRemoteToGas,
+        populateTransferRemoteToTx: vi.fn(),
+      } as any);
 
     try {
       const quote = await warpCore.getInterchainTransferFee({
@@ -1046,39 +1064,43 @@ describe('WarpCore', () => {
 
       expect(quote.igpQuote.amount).toBe(42n);
       expect(quote.tokenFeeQuote?.amount).toBe(11n);
-      sinon.assert.calledWithMatch(quoteTransferRemoteToGas, {
-        destination: test2.domainId,
-        recipient: MOCK_ADDRESS,
-        amount: TRANSFER_AMOUNT,
-        targetRouter: evmHypSynthetic.addressOrDenom,
-      });
+      expect(quoteTransferRemoteToGas).toHaveBeenCalledWith(
+        expect.objectContaining({
+          destination: test2.domainId,
+          recipient: MOCK_ADDRESS,
+          amount: TRANSFER_AMOUNT,
+          targetRouter: evmHypSynthetic.addressOrDenom,
+        }),
+      );
     } finally {
-      adapterStub.restore();
-      originMultiStub.restore();
-      destinationMultiStub.restore();
+      adapterStub.mockRestore();
+      originMultiStub.mockRestore();
+      destinationMultiStub.mockRestore();
     }
   });
 
   it('uses quoted interchain fee token for CrossCollateralRouter estimateTransferRemoteFees', async () => {
-    const originMultiStub = sinon
-      .stub(evmHypNative, 'isCrossCollateralToken')
-      .returns(true);
-    const destinationMultiStub = sinon
-      .stub(evmHypSynthetic, 'isCrossCollateralToken')
-      .returns(true);
-    const quoteTransferRemoteToGas = sinon.stub().resolves({
+    const originMultiStub = vi
+      .spyOn(evmHypNative, 'isCrossCollateralToken')
+      .mockReturnValue(true);
+    const destinationMultiStub = vi
+      .spyOn(evmHypSynthetic, 'isCrossCollateralToken')
+      .mockReturnValue(true);
+    const quoteTransferRemoteToGas = vi.fn().mockResolvedValue({
       igpQuote: {
         amount: 42n,
         addressOrDenom: evmHypNative.addressOrDenom,
       },
     });
-    const adapterStub = sinon.stub(evmHypNative, 'getHypAdapter').returns({
-      quoteTransferRemoteToGas,
-      populateTransferRemoteToTx: sinon.stub(),
-    } as any);
-    const localFeeAmountStub = sinon
-      .stub(warpCore as any, 'getLocalTransferFeeAmount')
-      .resolves(evmHypNative.amount(7n));
+    const adapterStub = vi
+      .spyOn(evmHypNative, 'getHypAdapter')
+      .mockReturnValue({
+        quoteTransferRemoteToGas,
+        populateTransferRemoteToTx: vi.fn(),
+      } as any);
+    const localFeeAmountStub = vi
+      .spyOn(warpCore as any, 'getLocalTransferFeeAmount')
+      .mockResolvedValue(evmHypNative.amount(7n));
 
     try {
       const quote = await warpCore.estimateTransferRemoteFees({
@@ -1095,31 +1117,33 @@ describe('WarpCore', () => {
       );
       expect(quote.localQuote.amount).toBe(7n);
     } finally {
-      localFeeAmountStub.restore();
-      adapterStub.restore();
-      destinationMultiStub.restore();
-      originMultiStub.restore();
+      localFeeAmountStub.mockRestore();
+      adapterStub.mockRestore();
+      destinationMultiStub.mockRestore();
+      originMultiStub.mockRestore();
     }
   });
 
   it('Rejects non-connected destination token for CrossCollateralRouter fee quote', async () => {
-    const originMultiStub = sinon
-      .stub(evmHypNative, 'isCrossCollateralToken')
-      .returns(true);
-    const quoteTransferRemoteToGas = sinon.stub().resolves({
+    const originMultiStub = vi
+      .spyOn(evmHypNative, 'isCrossCollateralToken')
+      .mockReturnValue(true);
+    const quoteTransferRemoteToGas = vi.fn().mockResolvedValue({
       igpQuote: { amount: 42n },
     });
-    const adapterStub = sinon.stub(evmHypNative, 'getHypAdapter').returns({
-      quoteTransferRemoteToGas,
-    } as any);
+    const adapterStub = vi
+      .spyOn(evmHypNative, 'getHypAdapter')
+      .mockReturnValue({
+        quoteTransferRemoteToGas,
+      } as any);
 
     const invalidDestinationToken = new Token({
       ...evmHypSynthetic,
       addressOrDenom: '0x9999999999999999999999999999999999999999',
     });
-    const invalidDestinationMultiStub = sinon
-      .stub(invalidDestinationToken, 'isCrossCollateralToken')
-      .returns(true);
+    const invalidDestinationMultiStub = vi
+      .spyOn(invalidDestinationToken, 'isCrossCollateralToken')
+      .mockReturnValue(true);
 
     try {
       let error: Error | undefined;
@@ -1137,11 +1161,11 @@ describe('WarpCore', () => {
 
       expect(error).toBeDefined();
       expect(error!.message).toContain('is not connected');
-      expect(quoteTransferRemoteToGas.called).toBe(false);
+      expect(quoteTransferRemoteToGas).not.toHaveBeenCalled();
     } finally {
-      invalidDestinationMultiStub.restore();
-      adapterStub.restore();
-      originMultiStub.restore();
+      invalidDestinationMultiStub.mockRestore();
+      adapterStub.mockRestore();
+      originMultiStub.mockRestore();
     }
   });
 
@@ -1171,20 +1195,20 @@ describe('WarpCore', () => {
       sealevelCrossCollateral,
       evmCrossCollateral,
     ]);
-    const quoteTransferRemoteToGas = sinon.stub().resolves({
+    const quoteTransferRemoteToGas = vi.fn().mockResolvedValue({
       igpQuote: { amount: 1n },
       tokenFeeQuote: { amount: 0n },
     });
-    const populateTransferRemoteToTx = sinon.stub().resolves({});
-    const populateTransferRemoteTx = sinon.stub().resolves({});
-    const originAdapterStub = sinon
-      .stub(sealevelCrossCollateral, 'getHypAdapter')
-      .returns({
+    const populateTransferRemoteToTx = vi.fn().mockResolvedValue({});
+    const populateTransferRemoteTx = vi.fn().mockResolvedValue({});
+    const originAdapterStub = vi
+      .spyOn(sealevelCrossCollateral, 'getHypAdapter')
+      .mockReturnValue({
         quoteTransferRemoteToGas,
         populateTransferRemoteToTx,
         populateTransferRemoteTx,
-        isApproveRequired: sinon.stub().resolves(false),
-        isRevokeApprovalRequired: sinon.stub().resolves(false),
+        isApproveRequired: vi.fn().mockResolvedValue(false),
+        isRevokeApprovalRequired: vi.fn().mockResolvedValue(false),
       } as any);
 
     try {
@@ -1205,17 +1229,17 @@ describe('WarpCore', () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].category).toBe(WarpTxCategory.Transfer);
-      sinon.assert.calledOnce(populateTransferRemoteToTx);
-      sinon.assert.notCalled(populateTransferRemoteTx);
+      expect(populateTransferRemoteToTx).toHaveBeenCalledOnce();
+      expect(populateTransferRemoteTx).not.toHaveBeenCalled();
     } finally {
-      originAdapterStub.restore();
+      originAdapterStub.mockRestore();
     }
   });
 
   it('Converts destination minimum transfer amount into origin decimals correctly', async () => {
-    const destinationAdapterStub = sinon
-      .stub(sealevelHypSynthetic, 'getAdapter')
-      .returns({
+    const destinationAdapterStub = vi
+      .spyOn(sealevelHypSynthetic, 'getAdapter')
+      .mockReturnValue({
         getMinimumTransferAmount: () => Promise.resolve(1_000_000_000n),
       } as any);
 
@@ -1254,17 +1278,17 @@ describe('WarpCore', () => {
       );
       expect(atMinimum).toBeNull();
     } finally {
-      destinationAdapterStub.restore();
+      destinationAdapterStub.mockRestore();
     }
   });
 
   it('Gets transfer remote txs', async () => {
-    const coreStub = sinon
-      .stub(warpCore, 'isApproveRequired')
-      .returns(Promise.resolve(false));
+    const coreStub = vi
+      .spyOn(warpCore, 'isApproveRequired')
+      .mockReturnValue(Promise.resolve(false));
 
     const adapterStubs = warpCore.tokens.map((t) =>
-      sinon.stub(t, 'getHypAdapter').returns({
+      vi.spyOn(t, 'getHypAdapter').mockReturnValue({
         quoteTransferRemoteGas: () =>
           Promise.resolve({ igpQuote: MOCK_INTERCHAIN_QUOTE }),
         populateTransferRemoteTx: () => Promise.resolve({}),
@@ -1318,8 +1342,8 @@ describe('WarpCore', () => {
     await testGetTxs(cwHypCollateral, test1.name, ProviderType.CosmJsWasm);
     await testGetTxs(cosmosIbc, test1.name, ProviderType.CosmJs);
 
-    coreStub.restore();
-    adapterStubs.forEach((s) => s.restore());
+    coreStub.mockRestore();
+    adapterStubs.forEach((s) => s.mockRestore());
   });
 
   // ============ QuotedCalls tests ============
@@ -1371,9 +1395,9 @@ describe('WarpCore', () => {
       ],
     ]);
 
-    const providerStub = sinon
-      .stub(multiProvider, 'getEthersV5Provider')
-      .returns({
+    const providerStub = vi
+      .spyOn(multiProvider, 'getEthersV5Provider')
+      .mockReturnValue({
         _isProvider: true,
         call: () => Promise.resolve(mockQuoteResult),
       } as any);
@@ -1398,7 +1422,7 @@ describe('WarpCore', () => {
       expect(result.tokenFeeQuote?.amount).toBe(150n); // (TRANSFER_AMOUNT+100+50) - TRANSFER_AMOUNT
       expect(result.feeQuotes).toHaveLength(2);
     } finally {
-      providerStub.restore();
+      providerStub.mockRestore();
     }
   });
 
@@ -1413,13 +1437,13 @@ describe('WarpCore', () => {
       ],
     ]);
 
-    const providerStub = sinon
-      .stub(multiProvider, 'getEthersV5Provider')
-      .returns({
+    const providerStub = vi
+      .spyOn(multiProvider, 'getEthersV5Provider')
+      .mockReturnValue({
         call: () => Promise.resolve(mockQuoteResult),
       } as any);
     const adapterStubs = warpCore.tokens.map((t) =>
-      sinon.stub(t, 'getAdapter').returns({
+      vi.spyOn(t, 'getAdapter').mockReturnValue({
         isApproveRequired: () => Promise.resolve(true),
         populateApproveTx: () =>
           Promise.resolve({ to: MOCK_QUOTED_CALLS_ADDRESS, data: '0x' }),
@@ -1449,8 +1473,8 @@ describe('WarpCore', () => {
       expect(result[1].category).toBe(WarpTxCategory.Transfer);
       expect(result[1].type).toBe(ProviderType.EthersV5);
     } finally {
-      providerStub.restore();
-      adapterStubs.forEach((s) => s.restore());
+      providerStub.mockRestore();
+      adapterStubs.forEach((s) => s.mockRestore());
     }
   });
 
@@ -1467,7 +1491,7 @@ describe('WarpCore', () => {
     ];
 
     const adapterStubs = warpCore.tokens.map((t) =>
-      sinon.stub(t, 'getAdapter').returns({
+      vi.spyOn(t, 'getAdapter').mockReturnValue({
         isApproveRequired: () => Promise.resolve(false),
         isRevokeApprovalRequired: () => Promise.resolve(false),
       } as any),
@@ -1493,6 +1517,6 @@ describe('WarpCore', () => {
     expect(result.length).toBe(1);
     expect(result[0].category).toBe(WarpTxCategory.Transfer);
 
-    adapterStubs.forEach((s) => s.restore());
+    adapterStubs.forEach((s) => s.mockRestore());
   });
 });

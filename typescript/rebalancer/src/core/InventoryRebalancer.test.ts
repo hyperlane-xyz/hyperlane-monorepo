@@ -2,7 +2,6 @@ import { expect } from 'vitest';
 import { Wallet } from 'ethers';
 import type { Logger } from 'pino';
 import { pino } from 'pino';
-import Sinon, { type SinonStubbedInstance } from 'sinon';
 
 import {
   type ChainName,
@@ -32,8 +31,8 @@ const testLogger = pino({ level: 'silent' });
 describe('InventoryRebalancer E2E', () => {
   let inventoryRebalancer: InventoryRebalancer;
   let config: InventoryRebalancerConfig;
-  let actionTracker: SinonStubbedInstance<IActionTracker>;
-  let bridge: SinonStubbedInstance<IExternalBridge>;
+  let actionTracker: any;
+  let bridge: any;
   let warpCore: any;
   let multiProvider: any;
   let adapterStub: any;
@@ -62,54 +61,54 @@ describe('InventoryRebalancer E2E', () => {
 
     // Mock IActionTracker
     actionTracker = {
-      initialize: Sinon.stub(),
-      syncTransfers: Sinon.stub(),
-      syncRebalanceIntents: Sinon.stub(),
-      syncRebalanceActions: Sinon.stub(),
-      syncInventoryMovementActions: Sinon.stub(),
-      getInProgressTransfers: Sinon.stub(),
-      getTransfersByDestination: Sinon.stub(),
-      getActiveRebalanceIntents: Sinon.stub(),
-      getRebalanceIntentsByDestination: Sinon.stub(),
-      createRebalanceIntent: Sinon.stub(),
-      completeRebalanceIntent: Sinon.stub(),
-      cancelRebalanceIntent: Sinon.stub(),
-      failRebalanceIntent: Sinon.stub(),
-      getActionsByType: Sinon.stub(),
-      getInflightInventoryMovements: Sinon.stub(),
-      getPartiallyFulfilledInventoryIntents: Sinon.stub(),
-      createRebalanceAction: Sinon.stub(),
-      completeRebalanceAction: Sinon.stub(),
-      failRebalanceAction: Sinon.stub(),
-      logStoreContents: Sinon.stub(),
-    } as SinonStubbedInstance<IActionTracker>;
+      initialize: vi.fn(),
+      syncTransfers: vi.fn(),
+      syncRebalanceIntents: vi.fn(),
+      syncRebalanceActions: vi.fn(),
+      syncInventoryMovementActions: vi.fn(),
+      getInProgressTransfers: vi.fn(),
+      getTransfersByDestination: vi.fn(),
+      getActiveRebalanceIntents: vi.fn(),
+      getRebalanceIntentsByDestination: vi.fn(),
+      createRebalanceIntent: vi.fn(),
+      completeRebalanceIntent: vi.fn(),
+      cancelRebalanceIntent: vi.fn(),
+      failRebalanceIntent: vi.fn(),
+      getActionsByType: vi.fn(),
+      getInflightInventoryMovements: vi.fn(),
+      getPartiallyFulfilledInventoryIntents: vi.fn(),
+      createRebalanceAction: vi.fn(),
+      completeRebalanceAction: vi.fn(),
+      failRebalanceAction: vi.fn(),
+      logStoreContents: vi.fn(),
+    };
 
     // Default: No active (partial) inventory intents
-    actionTracker.getPartiallyFulfilledInventoryIntents.resolves([]);
+    actionTracker.getPartiallyFulfilledInventoryIntents.mockResolvedValue([]);
 
     bridge = {
       bridgeId: 'lifi',
-      quote: Sinon.stub(),
-      execute: Sinon.stub(),
-      getStatus: Sinon.stub(),
-      getNativeTokenAddress: Sinon.stub().returns(
-        '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
-      ),
-    } as unknown as SinonStubbedInstance<IExternalBridge>;
+      quote: vi.fn(),
+      execute: vi.fn(),
+      getStatus: vi.fn(),
+      getNativeTokenAddress: vi
+        .fn()
+        .mockReturnValue('0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE'),
+    } as unknown;
 
     // Mock adapter for WarpCore tokens
     adapterStub = {
-      quoteTransferRemoteGas: Sinon.stub().resolves({
+      quoteTransferRemoteGas: vi.fn().mockResolvedValue({
         igpQuote: { amount: 1000000n },
       }),
-      populateTransferRemoteTx: Sinon.stub().resolves({
+      populateTransferRemoteTx: vi.fn().mockResolvedValue({
         to: '0xRouterAddress',
         data: '0xTransferRemoteData',
         value: 1000000n,
       }),
-      isApproveRequired: Sinon.stub().resolves(false),
-      isRevokeApprovalRequired: Sinon.stub().resolves(false),
-      populateApproveTx: Sinon.stub().resolves({
+      isApproveRequired: vi.fn().mockResolvedValue(false),
+      isRevokeApprovalRequired: vi.fn().mockResolvedValue(false),
+      populateApproveTx: vi.fn().mockResolvedValue({
         to: '0xTokenAddress',
         data: '0xApproveData',
         value: 0n,
@@ -124,39 +123,39 @@ describe('InventoryRebalancer E2E', () => {
       standard: TokenStandard.EvmHypCollateral, // Non-native: no IGP reservation needed
       addressOrDenom: '0xArbitrumToken',
       collateralAddressOrDenom: '0xArbitrumCollateralERC20',
-      getHypAdapter: Sinon.stub().returns(adapterStub),
-      amount: Sinon.stub().callsFake((amt: bigint) => ({ amount: amt })),
+      getHypAdapter: vi.fn().mockReturnValue(adapterStub),
+      amount: vi.fn().mockImplementation((amt: bigint) => ({ amount: amt })),
     };
     const solanaToken = {
       chainName: SOLANA_CHAIN,
       standard: TokenStandard.EvmHypCollateral, // Non-native: no IGP reservation needed
       addressOrDenom: '0xSolanaToken',
       collateralAddressOrDenom: '0xSolanaCollateralERC20',
-      getHypAdapter: Sinon.stub().returns(adapterStub),
-      amount: Sinon.stub().callsFake((amt: bigint) => ({ amount: amt })),
+      getHypAdapter: vi.fn().mockReturnValue(adapterStub),
+      amount: vi.fn().mockImplementation((amt: bigint) => ({ amount: amt })),
     };
 
     warpCore = {
       tokens: [arbitrumToken, solanaToken],
       multiProvider: {
-        getProvider: Sinon.stub(),
-        getSigner: Sinon.stub(),
-        getChainMetadata: Sinon.stub().callsFake((chain: ChainName) => ({
+        getProvider: vi.fn(),
+        getSigner: vi.fn(),
+        getChainMetadata: vi.fn().mockImplementation((chain: ChainName) => ({
           name: chain,
           protocol: ProtocolType.Ethereum,
         })),
-        getEthersV5Provider: Sinon.stub().returns({
-          getTransactionReceipt: Sinon.stub().resolves({
+        getEthersV5Provider: vi.fn().mockReturnValue({
+          getTransactionReceipt: vi.fn().mockResolvedValue({
             transactionHash: '0xTransferRemoteTxHash',
             logs: [],
           }),
         }),
       },
-      findToken: Sinon.stub().returns(null),
-      getMaxTransferAmount: Sinon.stub().callsFake(
-        async ({ balance }) => balance,
-      ),
-      getTransferRemoteTxs: Sinon.stub().resolves([
+      findToken: vi.fn().mockReturnValue(null),
+      getMaxTransferAmount: vi
+        .fn()
+        .mockImplementation(async ({ balance }) => balance),
+      getTransferRemoteTxs: vi.fn().mockResolvedValue([
         {
           category: 'transfer',
           type: ProviderType.EthersV5,
@@ -172,12 +171,12 @@ describe('InventoryRebalancer E2E', () => {
     // Mock provider with getFeeData for gas estimation, estimateGas for actual gas estimation,
     // and waitForTransaction for confirmations
     const mockProvider = {
-      getFeeData: Sinon.stub().resolves({
+      getFeeData: vi.fn().mockResolvedValue({
         maxFeePerGas: 10000000000n, // 10 gwei
         gasPrice: 10000000000n,
       }),
-      estimateGas: Sinon.stub().resolves(300000n), // Mock gas estimate for transferRemote
-      waitForTransaction: Sinon.stub().resolves({
+      estimateGas: vi.fn().mockResolvedValue(300000n), // Mock gas estimate for transferRemote
+      waitForTransaction: vi.fn().mockResolvedValue({
         blockNumber: 100,
         status: 1,
       }),
@@ -185,42 +184,43 @@ describe('InventoryRebalancer E2E', () => {
 
     // Mock MultiProvider
     multiProvider = {
-      getDomainId: Sinon.stub().callsFake((chain: ChainName) => {
+      getDomainId: vi.fn().mockImplementation((chain: ChainName) => {
         if (chain === ARBITRUM_CHAIN) return ARBITRUM_DOMAIN;
         if (chain === SOLANA_CHAIN) return SOLANA_DOMAIN;
         return 0;
       }),
-      getChainId: Sinon.stub().callsFake((chain: ChainName) => {
+      getChainId: vi.fn().mockImplementation((chain: ChainName) => {
         if (chain === ARBITRUM_CHAIN) return 42161;
         if (chain === SOLANA_CHAIN) return 1399811149;
         return 0;
       }),
-      getChainName: Sinon.stub().callsFake((domain: number) => {
+      getChainName: vi.fn().mockImplementation((domain: number) => {
         if (domain === ARBITRUM_DOMAIN) return ARBITRUM_CHAIN;
         if (domain === SOLANA_DOMAIN) return SOLANA_CHAIN;
         return 'unknown';
       }),
-      getChainMetadata: Sinon.stub().callsFake((chain: ChainName) => ({
+      getChainMetadata: vi.fn().mockImplementation((chain: ChainName) => ({
         name: chain,
         protocol: ProtocolType.Ethereum,
         blocks: { reorgPeriod: 1 }, // Quick confirmations for tests
       })),
-      getProtocol: Sinon.stub().callsFake((_: ChainName) => {
+      getProtocol: vi.fn().mockImplementation((_: ChainName) => {
         // Return Ethereum protocol for all chains in tests
         return 'ethereum';
       }),
-      getProvider: Sinon.stub().returns(mockProvider),
-      getSigner: Sinon.stub().returns(TEST_WALLET),
-      sendTransaction: Sinon.stub().resolves({
+      getProvider: vi.fn().mockReturnValue(mockProvider),
+      getSigner: vi.fn().mockReturnValue(TEST_WALLET),
+      sendTransaction: vi.fn().mockResolvedValue({
         transactionHash: '0xTransferRemoteTxHash',
         logs: [], // Required for HyperlaneCore.getDispatchedMessages
       }),
-      setSigner: Sinon.stub(),
+      setSigner: vi.fn(),
     };
 
     // Wire toMultiProvider so EvmMultiProtocolSignerAdapter returns our mock multiProvider
-    warpCore.multiProvider.toMultiProvider =
-      Sinon.stub().returns(multiProvider);
+    warpCore.multiProvider.toMultiProvider = vi
+      .fn()
+      .mockReturnValue(multiProvider);
 
     // Create InventoryRebalancer
     inventoryRebalancer = new InventoryRebalancer(
@@ -240,7 +240,7 @@ describe('InventoryRebalancer E2E', () => {
   });
 
   afterEach(() => {
-    Sinon.restore();
+    vi.restoreAllMocks();
   });
 
   // Helper to create test routes and intents
@@ -274,20 +274,20 @@ describe('InventoryRebalancer E2E', () => {
     };
 
     // Configure mock to return this intent when createRebalanceIntent is called
-    actionTracker.createRebalanceIntent.resolves(intent);
+    actionTracker.createRebalanceIntent.mockResolvedValue(intent);
 
     return intent;
   }
 
   function mockSuccessfulBridge(fromAmount: bigint, toAmount: bigint): void {
-    bridge.quote.resolves(
+    bridge.quote.mockResolvedValue(
       createMockBridgeQuote({
         fromAmount,
         toAmount,
         toAmountMin: toAmount,
       }),
     );
-    bridge.execute.resolves({
+    bridge.execute.mockResolvedValue({
       txHash: '0xBridgeTxHash',
       fromChain: 42161,
       toChain: 1399811149,
@@ -320,19 +320,18 @@ describe('InventoryRebalancer E2E', () => {
       expect(results[0].route).toEqual(route);
 
       // Verify: transferRemote was called via adapter
-      expect(adapterStub.quoteTransferRemoteGas.calledOnce).toBe(true);
-      expect(warpCore.getTransferRemoteTxs.calledOnce).toBe(true);
+      expect(adapterStub.quoteTransferRemoteGas).toHaveBeenCalledOnce();
+      expect(warpCore.getTransferRemoteTxs).toHaveBeenCalledOnce();
 
       // Verify: Transaction was sent FROM SOLANA (destination chain, swapped)
-      expect(multiProvider.sendTransaction.calledOnce).toBe(true);
-      const [chainArg, txArg] = multiProvider.sendTransaction.firstCall.args;
+      expect(multiProvider.sendTransaction).toHaveBeenCalledOnce();
+      const [chainArg, txArg] = multiProvider.sendTransaction.mock.calls[0];
       expect(chainArg).toBe(SOLANA_CHAIN); // Called FROM destination (swapped)
       expect(txArg.to).toBe('0xRouterAddress');
 
       // Verify: inventory_deposit action was created
-      expect(actionTracker.createRebalanceAction.calledOnce).toBe(true);
-      const actionParams =
-        actionTracker.createRebalanceAction.firstCall.args[0];
+      expect(actionTracker.createRebalanceAction).toHaveBeenCalledOnce();
+      const actionParams = actionTracker.createRebalanceAction.mock.calls[0][0];
       expect(actionParams.intentId).toBe('intent-1');
       expect(actionParams.type).toBe('inventory_deposit');
       expect(actionParams.amount).toBe(10000000000n);
@@ -352,7 +351,7 @@ describe('InventoryRebalancer E2E', () => {
       await inventoryRebalancer.rebalance([route]);
 
       // Direction is SWAPPED: transferRemote from solana TO arbitrum
-      const txParams = warpCore.getTransferRemoteTxs.firstCall.args[0];
+      const txParams = warpCore.getTransferRemoteTxs.mock.calls[0][0];
       expect(txParams.destination).toBe(ARBITRUM_CHAIN); // Goes TO arbitrum (swapped)
       expect(txParams.sender).toBe(INVENTORY_SIGNER);
       expect(txParams.recipient).toBe(INVENTORY_SIGNER);
@@ -373,28 +372,32 @@ describe('InventoryRebalancer E2E', () => {
         key: '1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32',
       };
 
-      warpCore.multiProvider.getChainMetadata.callsFake((chain: ChainName) => ({
-        name: chain,
-        protocol:
-          chain === SOLANA_CHAIN
-            ? ProtocolType.Sealevel
-            : ProtocolType.Ethereum,
-        blocks: { reorgPeriod: 1 },
-      }));
+      warpCore.multiProvider.getChainMetadata.mockImplementation(
+        (chain: ChainName) => ({
+          name: chain,
+          protocol:
+            chain === SOLANA_CHAIN
+              ? ProtocolType.Sealevel
+              : ProtocolType.Ethereum,
+          blocks: { reorgPeriod: 1 },
+        }),
+      );
 
-      const sendAndConfirmStub = Sinon.stub(
-        InventoryRebalancer.prototype as any,
-        'sendAndConfirmInventoryTx',
-      ).resolves({ txHash: '0xSolanaTxHash' });
+      const sendAndConfirmStub = vi
+        .spyOn(
+          InventoryRebalancer.prototype as any,
+          'sendAndConfirmInventoryTx',
+        )
+        .mockResolvedValue({ txHash: '0xSolanaTxHash' });
 
-      warpCore.multiProvider.getSolanaWeb3Provider = Sinon.stub().returns({
-        getTransaction: Sinon.stub().resolves({
+      warpCore.multiProvider.getSolanaWeb3Provider = vi.fn().mockReturnValue({
+        getTransaction: vi.fn().mockResolvedValue({
           meta: { logMessages: [] },
         }),
       });
 
-      multiProvider.sendTransaction.resetHistory();
-      warpCore.getTransferRemoteTxs.resolves([
+      multiProvider.sendTransaction.mockClear();
+      warpCore.getTransferRemoteTxs.mockResolvedValue([
         {
           category: WarpTxCategory.Transfer,
           type: ProviderType.SolanaWeb3,
@@ -406,11 +409,12 @@ describe('InventoryRebalancer E2E', () => {
 
       expect(results).toHaveLength(1);
       expect(results[0].success).toBe(true);
-      expect(sendAndConfirmStub.calledOnce).toBe(true);
-      expect(sendAndConfirmStub.firstCall.args[0]).toBe(SOLANA_CHAIN);
-      expect(multiProvider.sendTransaction.called).toBe(false);
+      expect(sendAndConfirmStub).toHaveBeenCalledOnce();
+      expect(sendAndConfirmStub.mock.calls[0][0]).toBe(SOLANA_CHAIN);
+      expect(multiProvider.sendTransaction).not.toHaveBeenCalled();
 
-      const actionParams = actionTracker.createRebalanceAction.lastCall.args[0];
+      const actionParams =
+        actionTracker.createRebalanceAction.mock.lastCall![0];
       expect(actionParams.txHash).toBe('0xSolanaTxHash');
     });
 
@@ -432,12 +436,13 @@ describe('InventoryRebalancer E2E', () => {
       expect(results).toHaveLength(1);
       expect(results[0].success).toBe(true);
 
-      const txParams = warpCore.getTransferRemoteTxs.firstCall.args[0];
+      const txParams = warpCore.getTransferRemoteTxs.mock.calls[0][0];
       expect(txParams.originTokenAmount.amount).toBe(
         1_000_000_000_000_000_000n,
       );
 
-      const actionParams = actionTracker.createRebalanceAction.lastCall.args[0];
+      const actionParams =
+        actionTracker.createRebalanceAction.mock.lastCall![0];
       expect(actionParams.amount).toBe(1_000_000n);
     });
   });
@@ -456,10 +461,13 @@ describe('InventoryRebalancer E2E', () => {
       blocks: { reorgPeriod: 2 },
       rpcUrls: [{ http: 'http://127.0.0.1:9090/jsonrpc' }],
     });
-    warpCore.multiProvider.getChainMetadata.callsFake(getChainMetadata);
-    multiProvider.getChainMetadata.callsFake(getChainMetadata);
-    warpCore.multiProvider.toMultiProvider =
-      Sinon.stub().returns(multiProvider);
+    warpCore.multiProvider.getChainMetadata.mockImplementation(
+      getChainMetadata,
+    );
+    multiProvider.getChainMetadata.mockImplementation(getChainMetadata);
+    warpCore.multiProvider.toMultiProvider = vi
+      .fn()
+      .mockReturnValue(multiProvider);
 
     const sendFn = (inventoryRebalancer as any).sendAndConfirmInventoryTx.bind(
       inventoryRebalancer,
@@ -475,18 +483,16 @@ describe('InventoryRebalancer E2E', () => {
     });
 
     expect(result).toEqual({ txHash: '0xTransferRemoteTxHash' });
-    expect(multiProvider.setSigner.calledOnce).toBe(true);
-    expect(
-      multiProvider.sendTransaction.calledOnceWithExactly(
-        TRON_CHAIN,
-        {
-          to: '0xRouterAddress',
-          data: '0xTransferRemoteData',
-          value: 1000000n,
-        },
-        { waitConfirmations: 2 },
-      ),
-    ).toBe(true);
+    expect(multiProvider.setSigner).toHaveBeenCalledOnce();
+    expect(multiProvider.sendTransaction).toHaveBeenCalledExactlyOnceWith(
+      TRON_CHAIN,
+      {
+        to: '0xRouterAddress',
+        data: '0xTransferRemoteData',
+        value: 1000000n,
+      },
+      { waitConfirmations: 2 },
+    );
   });
 
   it('buildSignerAccountConfig returns correct config for Tron protocol', () => {
@@ -517,14 +523,16 @@ describe('InventoryRebalancer E2E', () => {
       logs: [],
     };
 
-    warpCore.multiProvider.getChainMetadata.callsFake((chain: ChainName) => ({
-      name: chain,
-      protocol:
-        chain === TRON_CHAIN ? ProtocolType.Tron : ProtocolType.Ethereum,
-    }));
+    warpCore.multiProvider.getChainMetadata.mockImplementation(
+      (chain: ChainName) => ({
+        name: chain,
+        protocol:
+          chain === TRON_CHAIN ? ProtocolType.Tron : ProtocolType.Ethereum,
+      }),
+    );
 
-    warpCore.multiProvider.getEthersV5Provider.returns({
-      getTransactionReceipt: Sinon.stub().resolves(mockReceipt),
+    warpCore.multiProvider.getEthersV5Provider.mockReturnValue({
+      getTransactionReceipt: vi.fn().mockResolvedValue(mockReceipt),
     });
 
     const getReceiptFn = (
@@ -546,18 +554,19 @@ describe('InventoryRebalancer E2E', () => {
       logs: [{}],
     };
 
-    warpCore.multiProvider.getChainMetadata.callsFake((chain: ChainName) => ({
-      name: chain,
-      protocol:
-        chain === TRON_CHAIN ? ProtocolType.Tron : ProtocolType.Ethereum,
-    }));
+    warpCore.multiProvider.getChainMetadata.mockImplementation(
+      (chain: ChainName) => ({
+        name: chain,
+        protocol:
+          chain === TRON_CHAIN ? ProtocolType.Tron : ProtocolType.Ethereum,
+      }),
+    );
 
-    const getDispatchedMessagesStub = Sinon.stub(
-      HyperlaneCore,
-      'getDispatchedMessages',
-    ).returns([{ id: expectedMessageId }] as any);
-    warpCore.multiProvider.getEthersV5Provider.returns({
-      getTransactionReceipt: Sinon.stub().resolves(mockReceipt),
+    const getDispatchedMessagesStub = vi
+      .spyOn(HyperlaneCore, 'getDispatchedMessages')
+      .mockReturnValue([{ id: expectedMessageId }] as any);
+    warpCore.multiProvider.getEthersV5Provider.mockReturnValue({
+      getTransactionReceipt: vi.fn().mockResolvedValue(mockReceipt),
     });
 
     const extractFn = (
@@ -565,8 +574,8 @@ describe('InventoryRebalancer E2E', () => {
     ).extractDispatchedMessageId.bind(inventoryRebalancer);
     const messageId = await extractFn(TRON_CHAIN, '0xTronTx');
     expect(messageId).toBe(expectedMessageId);
-    expect(getDispatchedMessagesStub.calledOnce).toBe(true);
-    expect(getDispatchedMessagesStub.firstCall.firstArg).toBe(mockReceipt);
+    expect(getDispatchedMessagesStub).toHaveBeenCalledOnce();
+    expect(getDispatchedMessagesStub.mock.calls[0][0]).toBe(mockReceipt);
   });
 
   it('selects the Tron signer address from a mixed multi-protocol config', () => {
@@ -579,15 +588,17 @@ describe('InventoryRebalancer E2E', () => {
       key: '1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32',
     };
 
-    warpCore.multiProvider.getChainMetadata.callsFake((chain: ChainName) => ({
-      name: chain,
-      protocol:
-        chain === 'tron'
-          ? ProtocolType.Tron
-          : chain === SOLANA_CHAIN
-            ? ProtocolType.Sealevel
-            : ProtocolType.Ethereum,
-    }));
+    warpCore.multiProvider.getChainMetadata.mockImplementation(
+      (chain: ChainName) => ({
+        name: chain,
+        protocol:
+          chain === 'tron'
+            ? ProtocolType.Tron
+            : chain === SOLANA_CHAIN
+              ? ProtocolType.Sealevel
+              : ProtocolType.Ethereum,
+      }),
+    );
 
     const getInventorySignerAddress = (
       inventoryRebalancer as any
@@ -628,12 +639,11 @@ describe('InventoryRebalancer E2E', () => {
       expect(results[0].success).toBe(true);
 
       // Verify: transferRemote was called with available amount (0.005 ETH), not full amount (0.01 ETH)
-      const txParams = warpCore.getTransferRemoteTxs.firstCall.args[0];
+      const txParams = warpCore.getTransferRemoteTxs.mock.calls[0][0];
       expect(txParams.originTokenAmount.amount).toBe(PARTIAL_AMOUNT);
 
       // Verify: Action created for partial amount
-      const actionParams =
-        actionTracker.createRebalanceAction.firstCall.args[0];
+      const actionParams = actionTracker.createRebalanceAction.mock.calls[0][0];
       expect(actionParams.amount).toBe(PARTIAL_AMOUNT);
     });
 
@@ -642,7 +652,9 @@ describe('InventoryRebalancer E2E', () => {
       const availableInventory = 102466n;
       const safeTransferAmount = 102400n;
 
-      warpCore.getMaxTransferAmount.resolves({ amount: safeTransferAmount });
+      warpCore.getMaxTransferAmount.mockResolvedValue({
+        amount: safeTransferAmount,
+      });
 
       const route = createTestRoute({ amount: requestedAmount });
       createTestIntent({ amount: requestedAmount });
@@ -656,18 +668,19 @@ describe('InventoryRebalancer E2E', () => {
 
       expect(results).toHaveLength(1);
       expect(results[0].success).toBe(true);
-      expect(warpCore.getMaxTransferAmount.calledOnce).toBe(true);
+      expect(warpCore.getMaxTransferAmount).toHaveBeenCalledOnce();
 
-      const maxTransferArgs = warpCore.getMaxTransferAmount.firstCall.args[0];
+      const maxTransferArgs = warpCore.getMaxTransferAmount.mock.calls[0][0];
       expect(maxTransferArgs.balance.amount).toBe(availableInventory);
       expect(maxTransferArgs.destination).toBe(ARBITRUM_CHAIN);
 
-      const txParams = warpCore.getTransferRemoteTxs.lastCall.args[0];
+      const txParams = warpCore.getTransferRemoteTxs.mock.lastCall![0];
       expect(txParams.originTokenAmount.amount).toBe(safeTransferAmount);
       expect(txParams).not.toHaveProperty('interchainFee');
       expect(txParams).not.toHaveProperty('tokenFeeQuote');
 
-      const actionParams = actionTracker.createRebalanceAction.lastCall.args[0];
+      const actionParams =
+        actionTracker.createRebalanceAction.mock.lastCall![0];
       expect(actionParams.amount).toBe(safeTransferAmount);
     });
 
@@ -675,7 +688,9 @@ describe('InventoryRebalancer E2E', () => {
       const requestedAmount = 102466n;
       const safeTransferAmount = 102400n;
 
-      warpCore.getMaxTransferAmount.resolves({ amount: safeTransferAmount });
+      warpCore.getMaxTransferAmount.mockResolvedValue({
+        amount: safeTransferAmount,
+      });
 
       const route = createTestRoute({ amount: requestedAmount });
       createTestIntent({ amount: requestedAmount });
@@ -689,9 +704,9 @@ describe('InventoryRebalancer E2E', () => {
 
       expect(results).toHaveLength(1);
       expect(results[0].success).toBe(true);
-      expect(bridge.execute.called).toBe(false);
+      expect(bridge.execute).not.toHaveBeenCalled();
 
-      const txParams = warpCore.getTransferRemoteTxs.lastCall.args[0];
+      const txParams = warpCore.getTransferRemoteTxs.mock.lastCall![0];
       expect(txParams.originTokenAmount.amount).toBe(safeTransferAmount);
       expect(txParams.originTokenAmount.amount).not.toBe(requestedAmount);
     });
@@ -730,12 +745,11 @@ describe('InventoryRebalancer E2E', () => {
 
       expect(results).toHaveLength(1);
       expect(results[0].success).toBe(true);
-      expect(warpCore.getMaxTransferAmount.called).toBe(false);
-      expect(warpCore.getTransferRemoteTxs.called).toBe(false);
-      expect(bridge.execute.calledOnce).toBe(true);
+      expect(warpCore.getMaxTransferAmount).not.toHaveBeenCalled();
+      expect(warpCore.getTransferRemoteTxs).not.toHaveBeenCalled();
+      expect(bridge.execute).toHaveBeenCalledOnce();
 
-      const actionParams =
-        actionTracker.createRebalanceAction.firstCall.args[0];
+      const actionParams = actionTracker.createRebalanceAction.mock.calls[0][0];
       expect(actionParams.type).toBe('inventory_movement');
     });
 
@@ -747,15 +761,15 @@ describe('InventoryRebalancer E2E', () => {
         [SOLANA_CHAIN]: 1n,
         [ARBITRUM_CHAIN]: 20000000000n,
       });
-      warpCore.getMaxTransferAmount.rejects(new Error('RPC down'));
+      warpCore.getMaxTransferAmount.mockRejectedValue(new Error('RPC down'));
 
       const results = await inventoryRebalancer.rebalance([route]);
 
       expect(results).toHaveLength(1);
       expect(results[0].success).toBe(false);
       expect(results[0].error).toContain('RPC down');
-      expect(bridge.execute.called).toBe(false);
-      expect(actionTracker.createRebalanceAction.called).toBe(false);
+      expect(bridge.execute).not.toHaveBeenCalled();
+      expect(actionTracker.createRebalanceAction).not.toHaveBeenCalled();
     });
   });
 
@@ -779,9 +793,9 @@ describe('InventoryRebalancer E2E', () => {
       expect(results[0].error).toContain('No inventory available');
 
       // Verify: No transferRemote attempted
-      expect(warpCore.getTransferRemoteTxs.called).toBe(false);
-      expect(multiProvider.sendTransaction.called).toBe(false);
-      expect(actionTracker.createRebalanceAction.called).toBe(false);
+      expect(warpCore.getTransferRemoteTxs).not.toHaveBeenCalled();
+      expect(multiProvider.sendTransaction).not.toHaveBeenCalled();
+      expect(actionTracker.createRebalanceAction).not.toHaveBeenCalled();
     });
   });
 
@@ -812,10 +826,10 @@ describe('InventoryRebalancer E2E', () => {
       expect(results[0].success).toBe(true);
 
       // Verify: Only one intent created
-      expect(actionTracker.createRebalanceIntent.calledOnce).toBe(true);
+      expect(actionTracker.createRebalanceIntent).toHaveBeenCalledOnce();
 
       // Verify: Only one action created
-      expect(actionTracker.createRebalanceAction.calledOnce).toBe(true);
+      expect(actionTracker.createRebalanceAction).toHaveBeenCalledOnce();
     });
 
     it('continues existing intent instead of processing new routes', async () => {
@@ -827,7 +841,7 @@ describe('InventoryRebalancer E2E', () => {
       });
 
       // Configure mock to return existing partial intent
-      actionTracker.getPartiallyFulfilledInventoryIntents.resolves([
+      actionTracker.getPartiallyFulfilledInventoryIntents.mockResolvedValue([
         {
           intent: existingIntent,
           completedAmount: 3000000000n,
@@ -853,7 +867,7 @@ describe('InventoryRebalancer E2E', () => {
       expect(results[0].success).toBe(true);
 
       // Verify: No new intent was created (existing was used)
-      expect(actionTracker.createRebalanceIntent.called).toBe(false);
+      expect(actionTracker.createRebalanceIntent).not.toHaveBeenCalled();
     });
 
     it('returns empty when active intent has in-flight deposit (prevents oscillation)', async () => {
@@ -864,7 +878,7 @@ describe('InventoryRebalancer E2E', () => {
       });
 
       // Configure mock: active intent WITH in-flight deposit
-      actionTracker.getPartiallyFulfilledInventoryIntents.resolves([
+      actionTracker.getPartiallyFulfilledInventoryIntents.mockResolvedValue([
         {
           intent: existingIntent,
           completedAmount: 3000000000n,
@@ -886,16 +900,16 @@ describe('InventoryRebalancer E2E', () => {
       // Must return empty — wait for in-flight deposit to complete
       expect(results).toHaveLength(0);
       // Must NOT create a new intent
-      expect(actionTracker.createRebalanceIntent.called).toBe(false);
+      expect(actionTracker.createRebalanceIntent).not.toHaveBeenCalled();
       // Must NOT call createRebalanceAction (proves continueIntent was never reached)
-      expect(actionTracker.createRebalanceAction.called).toBe(false);
+      expect(actionTracker.createRebalanceAction).not.toHaveBeenCalled();
     });
 
     it('returns empty results when no routes provided and no active intent', async () => {
       const results = await inventoryRebalancer.rebalance([]);
 
       expect(results).toHaveLength(0);
-      expect(actionTracker.createRebalanceIntent.called).toBe(false);
+      expect(actionTracker.createRebalanceIntent).not.toHaveBeenCalled();
     });
 
     it('continues existing not_started intent instead of creating new one', async () => {
@@ -908,7 +922,7 @@ describe('InventoryRebalancer E2E', () => {
 
       // Configure mock to return the not_started intent as a partial intent
       // (this is the fix - getPartiallyFulfilledInventoryIntents now includes not_started)
-      actionTracker.getPartiallyFulfilledInventoryIntents.resolves([
+      actionTracker.getPartiallyFulfilledInventoryIntents.mockResolvedValue([
         {
           intent: existingIntent,
           completedAmount: 0n,
@@ -933,7 +947,7 @@ describe('InventoryRebalancer E2E', () => {
       expect(results[0].success).toBe(true);
 
       // Verify: No new intent was created (existing was continued)
-      expect(actionTracker.createRebalanceIntent.called).toBe(false);
+      expect(actionTracker.createRebalanceIntent).not.toHaveBeenCalled();
     });
 
     it('continues existing intent by bridging after recoverable fee-aware probe failure', async () => {
@@ -951,7 +965,7 @@ describe('InventoryRebalancer E2E', () => {
         message: 'execution reverted: ERC20: transfer amount exceeds balance',
       };
 
-      actionTracker.getPartiallyFulfilledInventoryIntents.resolves([
+      actionTracker.getPartiallyFulfilledInventoryIntents.mockResolvedValue([
         {
           intent: existingIntent,
           completedAmount: 0n,
@@ -964,7 +978,7 @@ describe('InventoryRebalancer E2E', () => {
         [SOLANA_CHAIN]: 1n,
         [ARBITRUM_CHAIN]: 20000000000n,
       });
-      warpCore.getMaxTransferAmount.rejects(recoverableProbeError);
+      warpCore.getMaxTransferAmount.mockRejectedValue(recoverableProbeError);
       mockSuccessfulBridge(10500000000n, 10500000000n);
 
       const results = await inventoryRebalancer.rebalance([
@@ -973,11 +987,10 @@ describe('InventoryRebalancer E2E', () => {
 
       expect(results).toHaveLength(1);
       expect(results[0].success).toBe(true);
-      expect(bridge.execute.calledOnce).toBe(true);
-      expect(actionTracker.createRebalanceIntent.called).toBe(false);
+      expect(bridge.execute).toHaveBeenCalledOnce();
+      expect(actionTracker.createRebalanceIntent).not.toHaveBeenCalled();
 
-      const actionParams =
-        actionTracker.createRebalanceAction.firstCall.args[0];
+      const actionParams = actionTracker.createRebalanceAction.mock.calls[0][0];
       expect(actionParams.type).toBe('inventory_movement');
     });
   });
@@ -992,7 +1005,9 @@ describe('InventoryRebalancer E2E', () => {
         [SOLANA_CHAIN]: 10000000000n,
         [ARBITRUM_CHAIN]: 0n,
       });
-      multiProvider.sendTransaction.rejects(new Error('Transaction failed'));
+      multiProvider.sendTransaction.mockRejectedValue(
+        new Error('Transaction failed'),
+      );
 
       const results = await inventoryRebalancer.rebalance([route]);
 
@@ -1030,7 +1045,9 @@ describe('InventoryRebalancer E2E', () => {
         [SOLANA_CHAIN]: 10000000000n,
         [ARBITRUM_CHAIN]: 0n,
       });
-      adapterStub.quoteTransferRemoteGas.rejects(new Error('Gas quote failed'));
+      adapterStub.quoteTransferRemoteGas.mockRejectedValue(
+        new Error('Gas quote failed'),
+      );
 
       const results = await inventoryRebalancer.rebalance([route]);
 
@@ -1065,7 +1082,7 @@ describe('InventoryRebalancer E2E', () => {
         [SOLANA_CHAIN]: 0n,
       });
 
-      bridge.quote.resolves(
+      bridge.quote.mockResolvedValue(
         createMockBridgeQuote({
           fromAmount: BigInt(1e18),
           toAmount: BigInt(0.98e18),
@@ -1077,7 +1094,7 @@ describe('InventoryRebalancer E2E', () => {
       expect(results).toHaveLength(1);
       expect(results[0].success).toBe(false);
       expect(results[0].error).toContain('Missing inventory signer key');
-      expect(bridge.execute.called).toBe(false);
+      expect(bridge.execute).not.toHaveBeenCalled();
     });
   });
 
@@ -1103,16 +1120,16 @@ describe('InventoryRebalancer E2E', () => {
       const arbitrumToken = {
         chainName: ARBITRUM_CHAIN,
         standard: TokenStandard.EvmHypNative,
-        getHypAdapter: Sinon.stub().returns(adapterStub),
-        amount: Sinon.stub().callsFake((amt: bigint) => ({
+        getHypAdapter: vi.fn().mockReturnValue(adapterStub),
+        amount: vi.fn().mockImplementation((amt: bigint) => ({
           amount: amt,
         })),
       };
       const solanaToken = {
         chainName: SOLANA_CHAIN,
         standard: TokenStandard.EvmHypNative, // Native token: reservation needed
-        getHypAdapter: Sinon.stub().returns(adapterStub),
-        amount: Sinon.stub().callsFake((amt: bigint) => ({
+        getHypAdapter: vi.fn().mockReturnValue(adapterStub),
+        amount: vi.fn().mockImplementation((amt: bigint) => ({
           amount: amt,
         })),
       };
@@ -1137,7 +1154,7 @@ describe('InventoryRebalancer E2E', () => {
       expect(results).toHaveLength(1);
       expect(results[0].success).toBe(true);
 
-      const txParams = warpCore.getTransferRemoteTxs.lastCall.args[0];
+      const txParams = warpCore.getTransferRemoteTxs.mock.lastCall![0];
       expect(txParams.originTokenAmount.amount).toBe(requestedAmount);
     });
 
@@ -1146,16 +1163,16 @@ describe('InventoryRebalancer E2E', () => {
       const arbitrumToken = {
         chainName: ARBITRUM_CHAIN,
         standard: TokenStandard.EvmHypNative,
-        getHypAdapter: Sinon.stub().returns(adapterStub),
-        amount: Sinon.stub().callsFake((amt: bigint) => ({
+        getHypAdapter: vi.fn().mockReturnValue(adapterStub),
+        amount: vi.fn().mockImplementation((amt: bigint) => ({
           amount: amt,
         })),
       };
       const solanaToken = {
         chainName: SOLANA_CHAIN,
         standard: TokenStandard.EvmHypNative,
-        getHypAdapter: Sinon.stub().returns(adapterStub),
-        amount: Sinon.stub().callsFake((amt: bigint) => ({
+        getHypAdapter: vi.fn().mockReturnValue(adapterStub),
+        amount: vi.fn().mockImplementation((amt: bigint) => ({
           amount: amt,
         })),
       };
@@ -1186,7 +1203,7 @@ describe('InventoryRebalancer E2E', () => {
       expect(results).toHaveLength(1);
       expect(results[0].success).toBe(true);
 
-      const txParams = warpCore.getTransferRemoteTxs.lastCall.args[0];
+      const txParams = warpCore.getTransferRemoteTxs.mock.lastCall![0];
       expect(txParams.originTokenAmount.amount).toBe(partialAmount);
     });
 
@@ -1195,16 +1212,16 @@ describe('InventoryRebalancer E2E', () => {
       const arbitrumToken = {
         chainName: ARBITRUM_CHAIN,
         standard: TokenStandard.EvmHypNative,
-        getHypAdapter: Sinon.stub().returns(adapterStub),
-        amount: Sinon.stub().callsFake((amt: bigint) => ({
+        getHypAdapter: vi.fn().mockReturnValue(adapterStub),
+        amount: vi.fn().mockImplementation((amt: bigint) => ({
           amount: amt,
         })),
       };
       const solanaToken = {
         chainName: SOLANA_CHAIN,
         standard: TokenStandard.EvmHypNative,
-        getHypAdapter: Sinon.stub().returns(adapterStub),
-        amount: Sinon.stub().callsFake((amt: bigint) => ({
+        getHypAdapter: vi.fn().mockReturnValue(adapterStub),
+        amount: vi.fn().mockImplementation((amt: bigint) => ({
           amount: amt,
         })),
       };
@@ -1228,8 +1245,8 @@ describe('InventoryRebalancer E2E', () => {
       expect(results[0].success).toBe(false);
       expect(results[0].error).toContain('No inventory available');
 
-      expect(warpCore.getTransferRemoteTxs.called).toBe(false);
-      expect(actionTracker.createRebalanceAction.called).toBe(false);
+      expect(warpCore.getTransferRemoteTxs).not.toHaveBeenCalled();
+      expect(actionTracker.createRebalanceAction).not.toHaveBeenCalled();
     });
 
     it('does not reserve IGP for non-native tokens', async () => {
@@ -1238,8 +1255,8 @@ describe('InventoryRebalancer E2E', () => {
         chainName: ARBITRUM_CHAIN,
         standard: TokenStandard.EvmHypCollateral, // Non-native: no IGP reservation
         collateralAddressOrDenom: '0xArbitrumCollateralERC20',
-        getHypAdapter: Sinon.stub().returns(adapterStub),
-        amount: Sinon.stub().callsFake((amt: bigint) => ({
+        getHypAdapter: vi.fn().mockReturnValue(adapterStub),
+        amount: vi.fn().mockImplementation((amt: bigint) => ({
           amount: amt,
         })),
       };
@@ -1247,8 +1264,8 @@ describe('InventoryRebalancer E2E', () => {
         chainName: SOLANA_CHAIN,
         standard: TokenStandard.EvmHypCollateral, // Non-native: no IGP reservation
         collateralAddressOrDenom: '0xSolanaCollateralERC20',
-        getHypAdapter: Sinon.stub().returns(adapterStub),
-        amount: Sinon.stub().callsFake((amt: bigint) => ({
+        getHypAdapter: vi.fn().mockReturnValue(adapterStub),
+        amount: vi.fn().mockImplementation((amt: bigint) => ({
           amount: amt,
         })),
       };
@@ -1270,7 +1287,7 @@ describe('InventoryRebalancer E2E', () => {
       expect(results).toHaveLength(1);
       expect(results[0].success).toBe(true);
 
-      const txParams = warpCore.getTransferRemoteTxs.firstCall.args[0];
+      const txParams = warpCore.getTransferRemoteTxs.mock.calls[0][0];
       expect(txParams.originTokenAmount.amount).toBe(10000000000n); // Full amount
     });
   });
@@ -1289,7 +1306,7 @@ describe('InventoryRebalancer E2E', () => {
     it('deducts tokenFeeQuote when addressOrDenom is undefined (native token)', async () => {
       // Setup: Native token with tokenFeeQuote but no addressOrDenom (undefined = native)
       // Override the global adapterStub to include tokenFeeQuote
-      adapterStub.quoteTransferRemoteGas.resolves({
+      adapterStub.quoteTransferRemoteGas.mockResolvedValue({
         igpQuote: { amount: IGP_COST },
         tokenFeeQuote: { amount: TOKEN_FEE_AMOUNT }, // No addressOrDenom = native
       });
@@ -1297,16 +1314,16 @@ describe('InventoryRebalancer E2E', () => {
       const arbitrumToken = {
         chainName: ARBITRUM_CHAIN,
         standard: TokenStandard.EvmHypNative,
-        getHypAdapter: Sinon.stub().returns(adapterStub),
-        amount: Sinon.stub().callsFake((amt: bigint) => ({
+        getHypAdapter: vi.fn().mockReturnValue(adapterStub),
+        amount: vi.fn().mockImplementation((amt: bigint) => ({
           amount: amt,
         })),
       };
       const solanaToken = {
         chainName: SOLANA_CHAIN,
         standard: TokenStandard.EvmHypNative,
-        getHypAdapter: Sinon.stub().returns(adapterStub),
-        amount: Sinon.stub().callsFake((amt: bigint) => ({
+        getHypAdapter: vi.fn().mockReturnValue(adapterStub),
+        amount: vi.fn().mockImplementation((amt: bigint) => ({
           amount: amt,
         })),
       };
@@ -1329,21 +1346,21 @@ describe('InventoryRebalancer E2E', () => {
 
       expect(results).toHaveLength(1);
       expect(results[0].success).toBe(true);
-      const txParams = warpCore.getTransferRemoteTxs.lastCall.args[0];
+      const txParams = warpCore.getTransferRemoteTxs.mock.lastCall![0];
       expect(txParams.originTokenAmount.amount).toBe(requestedAmount);
     });
 
     it('deducts tokenFeeQuote when addressOrDenom is zero address', async () => {
       // Setup: Native token with tokenFeeQuote and zero-address denom (isZeroishAddress)
       const zeroAddressAdapter = {
-        quoteTransferRemoteGas: Sinon.stub().resolves({
+        quoteTransferRemoteGas: vi.fn().mockResolvedValue({
           igpQuote: { amount: IGP_COST },
           tokenFeeQuote: {
             addressOrDenom: '0x0000000000000000000000000000000000000000',
             amount: TOKEN_FEE_AMOUNT,
           },
         }),
-        populateTransferRemoteTx: Sinon.stub().resolves({
+        populateTransferRemoteTx: vi.fn().mockResolvedValue({
           to: '0xRouterAddress',
           data: '0xTransferRemoteData',
           value: 1000000n,
@@ -1353,16 +1370,16 @@ describe('InventoryRebalancer E2E', () => {
       const arbitrumToken = {
         chainName: ARBITRUM_CHAIN,
         standard: TokenStandard.EvmHypNative,
-        getHypAdapter: Sinon.stub().returns(zeroAddressAdapter),
-        amount: Sinon.stub().callsFake((amt: bigint) => ({
+        getHypAdapter: vi.fn().mockReturnValue(zeroAddressAdapter),
+        amount: vi.fn().mockImplementation((amt: bigint) => ({
           amount: amt,
         })),
       };
       const solanaToken = {
         chainName: SOLANA_CHAIN,
         standard: TokenStandard.EvmHypNative,
-        getHypAdapter: Sinon.stub().returns(zeroAddressAdapter),
-        amount: Sinon.stub().callsFake((amt: bigint) => ({
+        getHypAdapter: vi.fn().mockReturnValue(zeroAddressAdapter),
+        amount: vi.fn().mockImplementation((amt: bigint) => ({
           amount: amt,
         })),
       };
@@ -1384,7 +1401,7 @@ describe('InventoryRebalancer E2E', () => {
 
       expect(results).toHaveLength(1);
       expect(results[0].success).toBe(true);
-      const txParams = warpCore.getTransferRemoteTxs.lastCall.args[0];
+      const txParams = warpCore.getTransferRemoteTxs.mock.lastCall![0];
       expect(txParams.originTokenAmount.amount).toBe(requestedAmount);
     });
 
@@ -1392,14 +1409,14 @@ describe('InventoryRebalancer E2E', () => {
       // Setup: Native token with tokenFeeQuote but ERC20 denom (not native)
       const erc20Address = '0x1234567890abcdef1234567890abcdef12345678';
       const erc20Adapter = {
-        quoteTransferRemoteGas: Sinon.stub().resolves({
+        quoteTransferRemoteGas: vi.fn().mockResolvedValue({
           igpQuote: { amount: IGP_COST },
           tokenFeeQuote: {
             addressOrDenom: erc20Address,
             amount: TOKEN_FEE_AMOUNT,
           },
         }),
-        populateTransferRemoteTx: Sinon.stub().resolves({
+        populateTransferRemoteTx: vi.fn().mockResolvedValue({
           to: '0xRouterAddress',
           data: '0xTransferRemoteData',
           value: 1000000n,
@@ -1409,16 +1426,16 @@ describe('InventoryRebalancer E2E', () => {
       const arbitrumToken = {
         chainName: ARBITRUM_CHAIN,
         standard: TokenStandard.EvmHypNative,
-        getHypAdapter: Sinon.stub().returns(erc20Adapter),
-        amount: Sinon.stub().callsFake((amt: bigint) => ({
+        getHypAdapter: vi.fn().mockReturnValue(erc20Adapter),
+        amount: vi.fn().mockImplementation((amt: bigint) => ({
           amount: amt,
         })),
       };
       const solanaToken = {
         chainName: SOLANA_CHAIN,
         standard: TokenStandard.EvmHypNative,
-        getHypAdapter: Sinon.stub().returns(erc20Adapter),
-        amount: Sinon.stub().callsFake((amt: bigint) => ({
+        getHypAdapter: vi.fn().mockReturnValue(erc20Adapter),
+        amount: vi.fn().mockImplementation((amt: bigint) => ({
           amount: amt,
         })),
       };
@@ -1440,18 +1457,18 @@ describe('InventoryRebalancer E2E', () => {
 
       expect(results).toHaveLength(1);
       expect(results[0].success).toBe(true);
-      const txParams = warpCore.getTransferRemoteTxs.lastCall.args[0];
+      const txParams = warpCore.getTransferRemoteTxs.mock.lastCall![0];
       expect(txParams.originTokenAmount.amount).toBe(requestedAmount);
     });
 
     it('handles undefined tokenFeeQuote (backward compatibility with v<10)', async () => {
       // Setup: Native token without tokenFeeQuote (old contract version)
       const oldAdapter = {
-        quoteTransferRemoteGas: Sinon.stub().resolves({
+        quoteTransferRemoteGas: vi.fn().mockResolvedValue({
           igpQuote: { amount: IGP_COST },
           // No tokenFeeQuote field
         }),
-        populateTransferRemoteTx: Sinon.stub().resolves({
+        populateTransferRemoteTx: vi.fn().mockResolvedValue({
           to: '0xRouterAddress',
           data: '0xTransferRemoteData',
           value: 1000000n,
@@ -1461,16 +1478,16 @@ describe('InventoryRebalancer E2E', () => {
       const arbitrumToken = {
         chainName: ARBITRUM_CHAIN,
         standard: TokenStandard.EvmHypNative,
-        getHypAdapter: Sinon.stub().returns(oldAdapter),
-        amount: Sinon.stub().callsFake((amt: bigint) => ({
+        getHypAdapter: vi.fn().mockReturnValue(oldAdapter),
+        amount: vi.fn().mockImplementation((amt: bigint) => ({
           amount: amt,
         })),
       };
       const solanaToken = {
         chainName: SOLANA_CHAIN,
         standard: TokenStandard.EvmHypNative,
-        getHypAdapter: Sinon.stub().returns(oldAdapter),
-        amount: Sinon.stub().callsFake((amt: bigint) => ({
+        getHypAdapter: vi.fn().mockReturnValue(oldAdapter),
+        amount: vi.fn().mockImplementation((amt: bigint) => ({
           amount: amt,
         })),
       };
@@ -1492,13 +1509,13 @@ describe('InventoryRebalancer E2E', () => {
 
       expect(results).toHaveLength(1);
       expect(results[0].success).toBe(true);
-      const txParams = warpCore.getTransferRemoteTxs.lastCall.args[0];
+      const txParams = warpCore.getTransferRemoteTxs.mock.lastCall![0];
       expect(txParams.originTokenAmount.amount).toBe(requestedAmount);
     });
 
     it('reduces maxTransferable when large tokenFeeQuote is present', async () => {
       // Setup: Native token with large tokenFeeQuote that significantly reduces maxTransferable
-      adapterStub.quoteTransferRemoteGas.resolves({
+      adapterStub.quoteTransferRemoteGas.mockResolvedValue({
         igpQuote: { amount: IGP_COST },
         tokenFeeQuote: { amount: 5000000000000000n }, // Large fee (5e15 wei)
       });
@@ -1506,12 +1523,12 @@ describe('InventoryRebalancer E2E', () => {
       const arbitrumToken = {
         chainName: ARBITRUM_CHAIN,
         standard: TokenStandard.EvmHypNative,
-        getHypAdapter: Sinon.stub().returns(adapterStub),
+        getHypAdapter: vi.fn().mockReturnValue(adapterStub),
       };
       const solanaToken = {
         chainName: SOLANA_CHAIN,
         standard: TokenStandard.EvmHypNative,
-        getHypAdapter: Sinon.stub().returns(adapterStub),
+        getHypAdapter: vi.fn().mockReturnValue(adapterStub),
       };
       warpCore.tokens = [arbitrumToken, solanaToken];
 
@@ -1555,7 +1572,7 @@ describe('InventoryRebalancer E2E', () => {
     });
 
     it('bridge mock can be configured for quote', async () => {
-      bridge.quote.resolves(
+      bridge.quote.mockResolvedValue(
         createMockBridgeQuote({
           fromAmount: 10000000000n,
           toAmount: 9950000000n,
@@ -1601,11 +1618,11 @@ describe('InventoryRebalancer E2E', () => {
       expect(results).toHaveLength(1);
       expect(results[0].success).toBe(true);
 
-      const txParams = warpCore.getTransferRemoteTxs.lastCall.args[0];
+      const txParams = warpCore.getTransferRemoteTxs.mock.lastCall![0];
       expect(txParams.originTokenAmount.amount).toBe(availableOnDestination);
 
       // Verify: Bridge was NOT called (no need to bridge when partial transfer is viable)
-      expect(bridge.execute.called).toBe(false);
+      expect(bridge.execute).not.toHaveBeenCalled();
     });
 
     it('does partial transfer when maxTransferable >= minViableTransfer', async () => {
@@ -1628,7 +1645,7 @@ describe('InventoryRebalancer E2E', () => {
       expect(results).toHaveLength(1);
       expect(results[0].success).toBe(true);
 
-      const txParams = warpCore.getTransferRemoteTxs.lastCall.args[0];
+      const txParams = warpCore.getTransferRemoteTxs.mock.lastCall![0];
       expect(txParams.originTokenAmount.amount).toBe(maxTransferable);
     });
 
@@ -1638,12 +1655,12 @@ describe('InventoryRebalancer E2E', () => {
       const arbitrumToken = {
         chainName: ARBITRUM_CHAIN,
         standard: TokenStandard.EvmHypNative,
-        getHypAdapter: Sinon.stub().returns(adapterStub),
+        getHypAdapter: vi.fn().mockReturnValue(adapterStub),
       };
       const solanaToken = {
         chainName: SOLANA_CHAIN,
         standard: TokenStandard.EvmHypNative,
-        getHypAdapter: Sinon.stub().returns(adapterStub),
+        getHypAdapter: vi.fn().mockReturnValue(adapterStub),
       };
       warpCore.tokens = [arbitrumToken, solanaToken];
 
@@ -1664,13 +1681,13 @@ describe('InventoryRebalancer E2E', () => {
       });
 
       // Mock bridge
-      bridge.quote.resolves(
+      bridge.quote.mockResolvedValue(
         createMockBridgeQuote({
           fromAmount: BigInt(0.5e18),
           toAmount: BigInt(0.48e18),
         }),
       );
-      bridge.execute.resolves({
+      bridge.execute.mockResolvedValue({
         txHash: '0xBridgeTxHash',
         fromChain: 42161,
         toChain: 1399811149,
@@ -1682,7 +1699,7 @@ describe('InventoryRebalancer E2E', () => {
       expect(results[0].success).toBe(true);
 
       // Verify: inventory movement via bridge happened (NOT partial transferRemote)
-      expect(bridge.execute.called).toBe(true);
+      expect(bridge.execute).toHaveBeenCalled();
     });
   });
 
@@ -1700,12 +1717,12 @@ describe('InventoryRebalancer E2E', () => {
       const arbitrumToken = {
         chainName: ARBITRUM_CHAIN,
         standard: TokenStandard.EvmHypNative,
-        getHypAdapter: Sinon.stub().returns(adapterStub),
+        getHypAdapter: vi.fn().mockReturnValue(adapterStub),
       };
       const solanaToken = {
         chainName: SOLANA_CHAIN,
         standard: TokenStandard.EvmHypNative,
-        getHypAdapter: Sinon.stub().returns(adapterStub),
+        getHypAdapter: vi.fn().mockReturnValue(adapterStub),
       };
       warpCore.tokens = [arbitrumToken, solanaToken];
 
@@ -1727,13 +1744,13 @@ describe('InventoryRebalancer E2E', () => {
       expect((results[0] as any).reason).toBe('completed_with_acceptable_loss');
 
       // Verify: Intent was completed (not left in progress)
-      expect(actionTracker.completeRebalanceIntent.calledOnce).toBe(true);
-      expect(actionTracker.completeRebalanceIntent.calledWith('intent-1')).toBe(
-        true,
+      expect(actionTracker.completeRebalanceIntent).toHaveBeenCalledOnce();
+      expect(actionTracker.completeRebalanceIntent).toHaveBeenCalledWith(
+        'intent-1',
       );
 
       // Verify: No transferRemote was attempted
-      expect(actionTracker.createRebalanceAction.called).toBe(false);
+      expect(actionTracker.createRebalanceAction).not.toHaveBeenCalled();
     });
   });
 
@@ -1744,31 +1761,33 @@ describe('InventoryRebalancer E2E', () => {
 
     beforeEach(() => {
       // Extend multiProvider to handle BASE_CHAIN
-      multiProvider.getDomainId.callsFake((chain: ChainName) => {
+      multiProvider.getDomainId.mockImplementation((chain: ChainName) => {
         if (chain === ARBITRUM_CHAIN) return ARBITRUM_DOMAIN;
         if (chain === SOLANA_CHAIN) return SOLANA_DOMAIN;
         if (chain === BASE_CHAIN) return BASE_DOMAIN;
         return 0;
       });
 
-      multiProvider.getChainId = Sinon.stub().callsFake((chain: ChainName) => {
-        if (chain === ARBITRUM_CHAIN) return 42161;
-        if (chain === SOLANA_CHAIN) return 1399811149;
-        if (chain === BASE_CHAIN) return 8453;
-        return 0;
-      });
+      multiProvider.getChainId = vi
+        .fn()
+        .mockImplementation((chain: ChainName) => {
+          if (chain === ARBITRUM_CHAIN) return 42161;
+          if (chain === SOLANA_CHAIN) return 1399811149;
+          if (chain === BASE_CHAIN) return 8453;
+          return 0;
+        });
 
       // Add token for BASE_CHAIN
       const baseToken = {
         chainName: BASE_CHAIN,
         standard: TokenStandard.EvmHypCollateral,
-        getHypAdapter: Sinon.stub().returns(adapterStub),
+        getHypAdapter: vi.fn().mockReturnValue(adapterStub),
         addressOrDenom: '0xBaseToken',
         collateralAddressOrDenom: '0xBaseCollateralERC20',
       };
       warpCore.tokens.push(baseToken);
 
-      multiProvider.getSigner = Sinon.stub().returns(TEST_WALLET);
+      multiProvider.getSigner = vi.fn().mockReturnValue(TEST_WALLET);
     });
 
     it('bridges from multiple sources in parallel', async () => {
@@ -1787,13 +1806,13 @@ describe('InventoryRebalancer E2E', () => {
       });
 
       // Mock bridge quotes and execution
-      bridge.quote.resolves(
+      bridge.quote.mockResolvedValue(
         createMockBridgeQuote({
           fromAmount: BigInt(0.55e18),
           toAmount: BigInt(0.525e18),
         }),
       );
-      bridge.execute.resolves({
+      bridge.execute.mockResolvedValue({
         txHash: '0xBridgeTxHash',
         fromChain: 42161,
         toChain: 1399811149,
@@ -1805,7 +1824,7 @@ describe('InventoryRebalancer E2E', () => {
       expect(results[0].success).toBe(true);
 
       // Verify: Bridge was called twice (once for each source)
-      expect(bridge.execute.callCount).toBe(2);
+      expect(bridge.execute.mock.calls.length).toBe(2);
     });
 
     it('does not inflate each split bridge plan to minViableTransfer', async () => {
@@ -1832,7 +1851,7 @@ describe('InventoryRebalancer E2E', () => {
         [BASE_CHAIN]: perChainInventory,
       });
 
-      bridge.quote.callsFake(async (params: any) =>
+      bridge.quote.mockImplementation(async (params: any) =>
         createMockBridgeQuote({
           fromAmount: params.fromAmount ?? params.toAmount,
           toAmount: params.toAmount ?? params.fromAmount,
@@ -1843,7 +1862,7 @@ describe('InventoryRebalancer E2E', () => {
               : { ...params, fromAmount: params.fromAmount },
         }),
       );
-      bridge.execute.resolves({
+      bridge.execute.mockResolvedValue({
         txHash: '0xBridgeTxHash',
         fromChain: 42161,
         toChain: 1399811149,
@@ -1853,13 +1872,13 @@ describe('InventoryRebalancer E2E', () => {
 
       expect(results).toHaveLength(1);
       expect(results[0].success).toBe(true);
-      expect(bridge.execute.callCount).toBe(2);
+      expect(bridge.execute.mock.calls.length).toBe(2);
 
       const maxPerSourceOutput = perChainInventory - reservedGas;
-      const executionQuoteRequests = bridge.quote
-        .getCalls()
+      type QuoteParams = { fromAmount?: bigint; toAmount?: bigint };
+      const executionQuoteRequests: QuoteParams[] = bridge.quote.mock.calls
         .slice(-2)
-        .map((call) => call.args[0]);
+        .map((call: unknown[]) => call[0] as QuoteParams);
       expect(executionQuoteRequests).toHaveLength(2);
 
       const forwardQuoteRequests = executionQuoteRequests.filter(
@@ -1869,7 +1888,7 @@ describe('InventoryRebalancer E2E', () => {
         (params) => params.toAmount !== undefined,
       );
       const forwardAmounts = forwardQuoteRequests.map(
-        (params) => params.fromAmount as bigint,
+        (params) => params.fromAmount!,
       );
 
       expect(forwardQuoteRequests.length + reverseQuoteRequests.length).toBe(2);
@@ -1879,7 +1898,7 @@ describe('InventoryRebalancer E2E', () => {
       ).toBe(true);
       expect(
         reverseQuoteRequests.every(
-          (params) => (params.toAmount as bigint) <= maxPerSourceOutput,
+          (params) => params.toAmount! <= maxPerSourceOutput,
         ),
       ).toBe(true);
     });
@@ -1899,7 +1918,7 @@ describe('InventoryRebalancer E2E', () => {
       });
 
       let quotedTargetOutput: bigint | undefined;
-      bridge.quote.callsFake(async (params: any) => {
+      bridge.quote.mockImplementation(async (params: any) => {
         if (params.toAmount !== undefined) {
           quotedTargetOutput = params.toAmount;
         }
@@ -1913,7 +1932,7 @@ describe('InventoryRebalancer E2E', () => {
               : { ...params, fromAmount: params.fromAmount },
         });
       });
-      bridge.execute.resolves({
+      bridge.execute.mockResolvedValue({
         txHash: '0xBridgeTxHash',
         fromChain: 42161,
         toChain: 1399811149,
@@ -1944,7 +1963,7 @@ describe('InventoryRebalancer E2E', () => {
       });
 
       let reverseQuoteTargetOutput: bigint | undefined;
-      bridge.quote.callsFake(async (params: any) => {
+      bridge.quote.mockImplementation(async (params: any) => {
         if (params.toAmount !== undefined) {
           reverseQuoteTargetOutput = params.toAmount;
         }
@@ -1958,7 +1977,7 @@ describe('InventoryRebalancer E2E', () => {
               : { ...params, fromAmount: params.fromAmount },
         });
       });
-      bridge.execute.resolves({
+      bridge.execute.mockResolvedValue({
         txHash: '0xBridgeTxHash',
         fromChain: 42161,
         toChain: 1399811149,
@@ -1968,8 +1987,8 @@ describe('InventoryRebalancer E2E', () => {
 
       expect(results).toHaveLength(1);
       expect(results[0].success).toBe(true);
-      expect(warpCore.getTransferRemoteTxs.called).toBe(false);
-      expect(bridge.execute.calledOnce).toBe(true);
+      expect(warpCore.getTransferRemoteTxs).not.toHaveBeenCalled();
+      expect(bridge.execute).toHaveBeenCalledOnce();
       expect(reverseQuoteTargetOutput).toBe(1n);
     });
 
@@ -1990,7 +2009,7 @@ describe('InventoryRebalancer E2E', () => {
       });
 
       let quotedTargetOutput: bigint | undefined;
-      bridge.quote.callsFake(async (params: any) => {
+      bridge.quote.mockImplementation(async (params: any) => {
         if (params.toAmount !== undefined) {
           quotedTargetOutput = params.toAmount;
         }
@@ -2004,7 +2023,7 @@ describe('InventoryRebalancer E2E', () => {
               : { ...params, fromAmount: params.fromAmount },
         });
       });
-      bridge.execute.resolves({
+      bridge.execute.mockResolvedValue({
         txHash: '0xBridgeTxHash',
         fromChain: 42161,
         toChain: 1399811149,
@@ -2029,8 +2048,7 @@ describe('InventoryRebalancer E2E', () => {
       });
 
       bridge.quote
-        .onFirstCall()
-        .resolves(
+        .mockResolvedValueOnce(
           createMockBridgeQuote({
             fromAmount: sourceInventory,
             toAmount: sourceInventory,
@@ -2046,8 +2064,7 @@ describe('InventoryRebalancer E2E', () => {
             },
           }),
         )
-        .onSecondCall()
-        .resolves(
+        .mockResolvedValueOnce(
           createMockBridgeQuote({
             fromAmount: sourceInventory + 1n,
             toAmount: targetWithBuffer,
@@ -2063,8 +2080,7 @@ describe('InventoryRebalancer E2E', () => {
             },
           }),
         )
-        .onThirdCall()
-        .resolves(
+        .mockResolvedValueOnce(
           createMockBridgeQuote({
             fromAmount: sourceInventory,
             toAmount: targetWithBuffer - 1n,
@@ -2081,7 +2097,7 @@ describe('InventoryRebalancer E2E', () => {
           }),
         );
 
-      bridge.execute.resolves({
+      bridge.execute.mockResolvedValue({
         txHash: '0xBridgeTxHash',
         fromChain: 42161,
         toChain: 1399811149,
@@ -2091,11 +2107,11 @@ describe('InventoryRebalancer E2E', () => {
 
       expect(results).toHaveLength(1);
       expect(results[0].success).toBe(true);
-      expect(bridge.execute.calledOnce).toBe(true);
-      expect(bridge.quote.callCount).toBe(3);
-      expect(bridge.quote.getCall(1).args[0].toAmount).toBe(targetWithBuffer);
-      expect(bridge.quote.getCall(2).args[0].fromAmount).toBe(sourceInventory);
-      expect(bridge.quote.getCall(2).args[0].toAmount).toBeUndefined();
+      expect(bridge.execute).toHaveBeenCalledOnce();
+      expect(bridge.quote.mock.calls.length).toBe(3);
+      expect(bridge.quote.mock.calls[1][0].toAmount).toBe(targetWithBuffer);
+      expect(bridge.quote.mock.calls[2][0].fromAmount).toBe(sourceInventory);
+      expect(bridge.quote.mock.calls[2][0].toAmount).toBeUndefined();
     });
 
     it('fails when forward retry still exceeds planned source capacity', async () => {
@@ -2112,8 +2128,7 @@ describe('InventoryRebalancer E2E', () => {
       });
 
       bridge.quote
-        .onFirstCall()
-        .resolves(
+        .mockResolvedValueOnce(
           createMockBridgeQuote({
             fromAmount: sourceInventory,
             toAmount: sourceInventory,
@@ -2129,8 +2144,7 @@ describe('InventoryRebalancer E2E', () => {
             },
           }),
         )
-        .onSecondCall()
-        .resolves(
+        .mockResolvedValueOnce(
           createMockBridgeQuote({
             fromAmount: sourceInventory + 1n,
             toAmount: targetWithBuffer,
@@ -2146,8 +2160,7 @@ describe('InventoryRebalancer E2E', () => {
             },
           }),
         )
-        .onThirdCall()
-        .resolves(
+        .mockResolvedValueOnce(
           createMockBridgeQuote({
             fromAmount: sourceInventory + 1n,
             toAmount: targetWithBuffer - 1n,
@@ -2170,11 +2183,11 @@ describe('InventoryRebalancer E2E', () => {
       expect(results[0].success).toBe(false);
       expect(results[0].error).toContain('All inventory movements failed');
       expect(results[0].error).toContain('exceeded planned source capacity');
-      expect(bridge.quote.callCount).toBe(3);
-      expect(bridge.execute.called).toBe(false);
-      expect(bridge.quote.getCall(1).args[0].toAmount).toBe(targetWithBuffer);
-      expect(bridge.quote.getCall(2).args[0].fromAmount).toBe(sourceInventory);
-      expect(bridge.quote.getCall(2).args[0].toAmount).toBeUndefined();
+      expect(bridge.quote.mock.calls.length).toBe(3);
+      expect(bridge.execute).not.toHaveBeenCalled();
+      expect(bridge.quote.mock.calls[1][0].toAmount).toBe(targetWithBuffer);
+      expect(bridge.quote.mock.calls[2][0].fromAmount).toBe(sourceInventory);
+      expect(bridge.quote.mock.calls[2][0].toAmount).toBeUndefined();
     });
 
     it('fails gracefully when execute-time bridge quote rejects', async () => {
@@ -2190,8 +2203,7 @@ describe('InventoryRebalancer E2E', () => {
       });
 
       bridge.quote
-        .onFirstCall()
-        .resolves(
+        .mockResolvedValueOnce(
           createMockBridgeQuote({
             fromAmount: sourceInventory,
             toAmount: sourceInventory,
@@ -2207,8 +2219,7 @@ describe('InventoryRebalancer E2E', () => {
             },
           }),
         )
-        .onSecondCall()
-        .rejects(new Error('LiFi API timeout'));
+        .mockRejectedValueOnce(new Error('LiFi API timeout'));
 
       const results = await inventoryRebalancer.rebalance([route]);
 
@@ -2216,8 +2227,8 @@ describe('InventoryRebalancer E2E', () => {
       expect(results[0].success).toBe(false);
       expect(results[0].error).toContain('All inventory movements failed');
       expect(results[0].error).toContain('LiFi API timeout');
-      expect(bridge.quote.callCount).toBe(2);
-      expect(bridge.execute.called).toBe(false);
+      expect(bridge.quote.mock.calls.length).toBe(2);
+      expect(bridge.execute).not.toHaveBeenCalled();
     });
 
     it('preserves non-Error rejection reasons from parallel bridge execution', async () => {
@@ -2232,7 +2243,7 @@ describe('InventoryRebalancer E2E', () => {
         [ARBITRUM_CHAIN]: sourceInventory,
       });
 
-      bridge.quote.onFirstCall().resolves(
+      bridge.quote.mockResolvedValueOnce(
         createMockBridgeQuote({
           fromAmount: sourceInventory,
           toAmount: sourceInventory,
@@ -2252,16 +2263,18 @@ describe('InventoryRebalancer E2E', () => {
       // Simulate a foreign promise rejecting with a non-Error reason at runtime.
       const rejectionReason = 'bridge exploded' as unknown as Error;
 
-      const executeInventoryMovementStub = Sinon.stub(
-        inventoryRebalancer as unknown as {
-          executeInventoryMovement: () => Promise<unknown>;
-        },
-        'executeInventoryMovement',
-      ).callsFake(() =>
-        Promise.resolve().then(() => {
-          throw rejectionReason;
-        }),
-      );
+      const executeInventoryMovementStub = vi
+        .spyOn(
+          inventoryRebalancer as unknown as {
+            executeInventoryMovement: () => Promise<unknown>;
+          },
+          'executeInventoryMovement',
+        )
+        .mockImplementation(() =>
+          Promise.resolve().then(() => {
+            throw rejectionReason;
+          }),
+        );
 
       const results = await inventoryRebalancer.rebalance([route]);
 
@@ -2269,20 +2282,20 @@ describe('InventoryRebalancer E2E', () => {
       expect(results[0].success).toBe(false);
       expect(results[0].error).toContain('All inventory movements failed');
       expect(results[0].error).toContain('arbitrum: bridge exploded');
-      expect(executeInventoryMovementStub.calledOnce).toBe(true);
-      expect(bridge.execute.called).toBe(false);
+      expect(executeInventoryMovementStub).toHaveBeenCalledOnce();
+      expect(bridge.execute).not.toHaveBeenCalled();
 
-      executeInventoryMovementStub.restore();
+      executeInventoryMovementStub.mockRestore();
     });
 
     it('logs actual successful bridge output floors instead of planned output totals', async () => {
       const amount = BigInt(1e18);
       const perChainInventory = BigInt(0.6e18);
       const logger = {
-        info: Sinon.stub(),
-        debug: Sinon.stub(),
-        warn: Sinon.stub(),
-        error: Sinon.stub(),
+        info: vi.fn(),
+        debug: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
       };
 
       const localRebalancer = new InventoryRebalancer(
@@ -2304,32 +2317,28 @@ describe('InventoryRebalancer E2E', () => {
       });
 
       bridge.quote
-        .onCall(0)
-        .resolves(
+        .mockResolvedValueOnce(
           createMockBridgeQuote({
             fromAmount: perChainInventory,
             toAmount: BigInt(0.525e18),
             toAmountMin: BigInt(0.525e18),
           }),
         )
-        .onCall(1)
-        .resolves(
+        .mockResolvedValueOnce(
           createMockBridgeQuote({
             fromAmount: perChainInventory,
             toAmount: BigInt(0.525e18),
             toAmountMin: BigInt(0.525e18),
           }),
         )
-        .onCall(2)
-        .resolves(
+        .mockResolvedValueOnce(
           createMockBridgeQuote({
             fromAmount: perChainInventory,
             toAmount: BigInt(0.505e18),
             toAmountMin: BigInt(0.5e18),
           }),
         )
-        .onCall(3)
-        .resolves(
+        .mockResolvedValueOnce(
           createMockBridgeQuote({
             fromAmount: perChainInventory,
             toAmount: BigInt(0.515e18),
@@ -2338,14 +2347,12 @@ describe('InventoryRebalancer E2E', () => {
         );
 
       bridge.execute
-        .onFirstCall()
-        .resolves({
+        .mockResolvedValueOnce({
           txHash: '0xSuccessTxHash1',
           fromChain: 42161,
           toChain: 1399811149,
         })
-        .onSecondCall()
-        .resolves({
+        .mockResolvedValueOnce({
           txHash: '0xSuccessTxHash2',
           fromChain: 8453,
           toChain: 1399811149,
@@ -2355,22 +2362,17 @@ describe('InventoryRebalancer E2E', () => {
 
       expect(results).toHaveLength(1);
       expect(results[0].success).toBe(true);
-      expect(bridge.execute.callCount).toBe(2);
+      expect(bridge.execute.mock.calls.length).toBe(2);
 
-      const summaryCall = logger.info
-        .getCalls()
-        .find(
-          (call: ReturnType<typeof logger.info.getCall>) =>
-            call.args[0] &&
-            typeof call.args[0] === 'object' &&
-            Object.prototype.hasOwnProperty.call(
-              call.args[0],
-              'totalQuotedOutputMin',
-            ),
-        );
+      const summaryCall = logger.info.mock.calls.find(
+        (call: any) =>
+          call[0] &&
+          typeof call[0] === 'object' &&
+          Object.prototype.hasOwnProperty.call(call[0], 'totalQuotedOutputMin'),
+      );
 
       assert(summaryCall, 'Expected summary log with totalQuotedOutputMin');
-      expect(summaryCall.args[0].totalQuotedOutputMin).toBe(
+      expect(summaryCall[0].totalQuotedOutputMin).toBe(
         BigInt(1.01e18).toString(),
       );
     });
@@ -2389,7 +2391,7 @@ describe('InventoryRebalancer E2E', () => {
         [BASE_CHAIN]: perChainInventory,
       });
 
-      bridge.quote.resolves(
+      bridge.quote.mockResolvedValue(
         createMockBridgeQuote({
           fromAmount: BigInt(0.55e18),
           toAmount: BigInt(0.525e18),
@@ -2398,14 +2400,12 @@ describe('InventoryRebalancer E2E', () => {
 
       // First bridge succeeds, second fails
       bridge.execute
-        .onFirstCall()
-        .resolves({
+        .mockResolvedValueOnce({
           txHash: '0xSuccessTxHash',
           fromChain: 42161,
           toChain: 1399811149,
         })
-        .onSecondCall()
-        .rejects(new Error('Bridge execution failed'));
+        .mockRejectedValueOnce(new Error('Bridge execution failed'));
 
       const results = await inventoryRebalancer.rebalance([route]);
 
@@ -2428,7 +2428,7 @@ describe('InventoryRebalancer E2E', () => {
         [BASE_CHAIN]: perChainInventory,
       });
 
-      bridge.quote.resolves(
+      bridge.quote.mockResolvedValue(
         createMockBridgeQuote({
           fromAmount: BigInt(0.55e18),
           toAmount: BigInt(0.525e18),
@@ -2436,7 +2436,7 @@ describe('InventoryRebalancer E2E', () => {
       );
 
       // All bridges fail
-      bridge.execute.rejects(new Error('Bridge execution failed'));
+      bridge.execute.mockRejectedValue(new Error('Bridge execution failed'));
 
       const results = await inventoryRebalancer.rebalance([route]);
 
@@ -2462,13 +2462,13 @@ describe('InventoryRebalancer E2E', () => {
         chainName: ARBITRUM_CHAIN,
         standard: TokenStandard.EvmHypNative, // Native token for gas check
         addressOrDenom: '0xArbitrumNative',
-        getHypAdapter: Sinon.stub().returns(adapterStub),
+        getHypAdapter: vi.fn().mockReturnValue(adapterStub),
       };
       const solanaToken = {
         chainName: SOLANA_CHAIN,
         standard: TokenStandard.EvmHypNative,
         addressOrDenom: '0xSolanaNative',
-        getHypAdapter: Sinon.stub().returns(adapterStub),
+        getHypAdapter: vi.fn().mockReturnValue(adapterStub),
       };
       warpCore.tokens = [arbitrumToken, solanaToken];
 
@@ -2491,7 +2491,7 @@ describe('InventoryRebalancer E2E', () => {
       // 10% threshold = 0.000219 ETH
       // gasCosts = 0.00005 ETH, estimated = 0.001 ETH (20x multiplier)
       // 0.001 > 0.000219 → not viable
-      bridge.quote.resolves(
+      bridge.quote.mockResolvedValue(
         createMockBridgeQuote({
           fromAmount: rawBalance,
           toAmount: rawBalance - BigInt(1e14), // Some output
@@ -2510,7 +2510,7 @@ describe('InventoryRebalancer E2E', () => {
       expect(results[0].error).toContain('No viable bridge sources');
 
       // Verify: Bridge.execute should NOT have been called (filtered during planning)
-      expect(bridge.execute.called).toBe(false);
+      expect(bridge.execute).not.toHaveBeenCalled();
     });
 
     it('proceeds with bridge when total cost is within available balance', async () => {
@@ -2519,13 +2519,13 @@ describe('InventoryRebalancer E2E', () => {
         chainName: ARBITRUM_CHAIN,
         standard: TokenStandard.EvmHypNative,
         addressOrDenom: '0xArbitrumNative',
-        getHypAdapter: Sinon.stub().returns(adapterStub),
+        getHypAdapter: vi.fn().mockReturnValue(adapterStub),
       };
       const solanaToken = {
         chainName: SOLANA_CHAIN,
         standard: TokenStandard.EvmHypNative,
         addressOrDenom: '0xSolanaNative',
-        getHypAdapter: Sinon.stub().returns(adapterStub),
+        getHypAdapter: vi.fn().mockReturnValue(adapterStub),
       };
       warpCore.tokens = [arbitrumToken, solanaToken];
 
@@ -2543,7 +2543,7 @@ describe('InventoryRebalancer E2E', () => {
       });
 
       // Quote with reasonable costs well under the balance
-      bridge.quote.resolves(
+      bridge.quote.mockResolvedValue(
         createMockBridgeQuote({
           fromAmount: BigInt(1.05e18), // 1.05 ETH (with buffer)
           toAmount: BigInt(1e18),
@@ -2553,7 +2553,7 @@ describe('InventoryRebalancer E2E', () => {
       );
 
       // Mock successful execution
-      bridge.execute.resolves({
+      bridge.execute.mockResolvedValue({
         txHash: '0xSuccessBridgeTxHash',
         fromChain: 42161,
         toChain: 1399811149,
@@ -2566,7 +2566,7 @@ describe('InventoryRebalancer E2E', () => {
       expect(results[0].success).toBe(true);
 
       // Verify: Bridge.execute WAS called (not abandoned)
-      expect(bridge.execute.calledOnce).toBe(true);
+      expect(bridge.execute).toHaveBeenCalledOnce();
     });
 
     it('viability check only applies to native tokens (not ERC20)', async () => {
@@ -2576,14 +2576,14 @@ describe('InventoryRebalancer E2E', () => {
         standard: TokenStandard.EvmHypCollateral, // ERC20, not native
         addressOrDenom: '0xArbitrumToken',
         collateralAddressOrDenom: '0xArbitrumCollateralERC20',
-        getHypAdapter: Sinon.stub().returns(adapterStub),
+        getHypAdapter: vi.fn().mockReturnValue(adapterStub),
       };
       const solanaToken = {
         chainName: SOLANA_CHAIN,
         standard: TokenStandard.EvmHypCollateral,
         addressOrDenom: '0xSolanaToken',
         collateralAddressOrDenom: '0xSolanaCollateralERC20',
-        getHypAdapter: Sinon.stub().returns(adapterStub),
+        getHypAdapter: vi.fn().mockReturnValue(adapterStub),
       };
       warpCore.tokens = [arbitrumToken, solanaToken];
 
@@ -2601,8 +2601,7 @@ describe('InventoryRebalancer E2E', () => {
 
       // Quote with high gas costs (but for ERC20, this shouldn't trigger viability check)
       bridge.quote
-        .onFirstCall()
-        .resolves(
+        .mockResolvedValueOnce(
           createMockBridgeQuote({
             fromAmount: tokenBalance,
             toAmount: tokenBalance,
@@ -2611,8 +2610,7 @@ describe('InventoryRebalancer E2E', () => {
             feeCosts: 0n,
           }),
         )
-        .onSecondCall()
-        .resolves(
+        .mockResolvedValueOnce(
           createMockBridgeQuote({
             fromAmount: tokenBalance,
             toAmount: tokenBalance,
@@ -2631,7 +2629,7 @@ describe('InventoryRebalancer E2E', () => {
           }),
         );
 
-      bridge.execute.resolves({
+      bridge.execute.mockResolvedValue({
         txHash: '0xERC20BridgeTxHash',
         fromChain: 42161,
         toChain: 1399811149,
@@ -2642,10 +2640,10 @@ describe('InventoryRebalancer E2E', () => {
       // Verify: Should succeed because ERC20 viability check doesn't include gasCosts
       expect(results).toHaveLength(1);
       expect(results[0].success).toBe(true);
-      expect(bridge.execute.calledOnce).toBe(true);
-      expect(bridge.quote.callCount).toBe(2);
-      expect(bridge.quote.getCall(1).args[0].fromAmount).toBe(tokenBalance);
-      expect(bridge.quote.getCall(1).args[0].toAmount).toBeUndefined();
+      expect(bridge.execute).toHaveBeenCalledOnce();
+      expect(bridge.quote.mock.calls.length).toBe(2);
+      expect(bridge.quote.mock.calls[1][0].fromAmount).toBe(tokenBalance);
+      expect(bridge.quote.mock.calls[1][0].toAmount).toBeUndefined();
     });
 
     it('calculates max viable amount as inventory minus (gasCosts * 20) for native tokens', async () => {
@@ -2654,13 +2652,13 @@ describe('InventoryRebalancer E2E', () => {
         chainName: ARBITRUM_CHAIN,
         standard: TokenStandard.EvmHypNative,
         addressOrDenom: '0xArbitrumNative',
-        getHypAdapter: Sinon.stub().returns(adapterStub),
+        getHypAdapter: vi.fn().mockReturnValue(adapterStub),
       };
       const solanaToken = {
         chainName: SOLANA_CHAIN,
         standard: TokenStandard.EvmHypNative,
         addressOrDenom: '0xSolanaNative',
-        getHypAdapter: Sinon.stub().returns(adapterStub),
+        getHypAdapter: vi.fn().mockReturnValue(adapterStub),
       };
       warpCore.tokens = [arbitrumToken, solanaToken];
 
@@ -2683,8 +2681,7 @@ describe('InventoryRebalancer E2E', () => {
       const gasCosts = BigInt(0.001e18); // 0.001 ETH
       const maxViable = rawBalance - gasCosts * 20n;
       bridge.quote
-        .onFirstCall()
-        .resolves(
+        .mockResolvedValueOnce(
           createMockBridgeQuote({
             fromAmount: rawBalance,
             toAmount: rawBalance - BigInt(1e15),
@@ -2693,8 +2690,7 @@ describe('InventoryRebalancer E2E', () => {
             feeCosts: 0n,
           }),
         )
-        .onSecondCall()
-        .resolves(
+        .mockResolvedValueOnce(
           createMockBridgeQuote({
             fromAmount: maxViable,
             toAmount: maxViable - BigInt(1e15),
@@ -2703,8 +2699,7 @@ describe('InventoryRebalancer E2E', () => {
             feeCosts: 0n,
           }),
         )
-        .onThirdCall()
-        .resolves(
+        .mockResolvedValueOnce(
           createMockBridgeQuote({
             fromAmount: BigInt(0.525e18),
             toAmount: BigInt(0.525e18),
@@ -2723,7 +2718,7 @@ describe('InventoryRebalancer E2E', () => {
           }),
         );
 
-      bridge.execute.resolves({
+      bridge.execute.mockResolvedValue({
         txHash: '0xSuccessBridgeTxHash',
         fromChain: 42161,
         toChain: 1399811149,
@@ -2734,11 +2729,11 @@ describe('InventoryRebalancer E2E', () => {
       // Verify: Should succeed - bridge is viable
       expect(results).toHaveLength(1);
       expect(results[0].success).toBe(true);
-      expect(bridge.execute.calledOnce).toBe(true);
-      expect(bridge.quote.callCount).toBe(3);
+      expect(bridge.execute).toHaveBeenCalledOnce();
+      expect(bridge.quote.mock.calls.length).toBe(3);
 
-      expect(bridge.quote.getCall(1).args[0].fromAmount).toBe(maxViable);
-      const executionTargetOutput = bridge.quote.getCall(2).args[0].toAmount;
+      expect(bridge.quote.mock.calls[1][0].fromAmount).toBe(maxViable);
+      const executionTargetOutput = bridge.quote.mock.calls[2][0].toAmount;
       expect(typeof executionTargetOutput).toBe('bigint');
       if (executionTargetOutput === undefined) {
         throw new Error('Expected reverse quote to set toAmount');
@@ -2761,16 +2756,14 @@ describe('InventoryRebalancer E2E', () => {
       });
 
       bridge.quote
-        .onFirstCall()
-        .resolves(
+        .mockResolvedValueOnce(
           createMockBridgeQuote({
             fromAmount: rawBalance,
             toAmount: targetWithBuffer,
             toAmountMin: targetWithBuffer,
           }),
         )
-        .onSecondCall()
-        .resolves(
+        .mockResolvedValueOnce(
           createMockBridgeQuote({
             fromAmount: rawBalance,
             toAmount: targetWithBuffer,
@@ -2778,7 +2771,7 @@ describe('InventoryRebalancer E2E', () => {
           }),
         );
 
-      bridge.execute.resolves({
+      bridge.execute.mockResolvedValue({
         txHash: '0xForwardBoundaryBridgeTxHash',
         fromChain: 42161,
         toChain: 1399811149,
@@ -2788,10 +2781,10 @@ describe('InventoryRebalancer E2E', () => {
 
       expect(results).toHaveLength(1);
       expect(results[0].success).toBe(true);
-      expect(bridge.execute.calledOnce).toBe(true);
-      expect(bridge.quote.callCount).toBe(2);
-      expect(bridge.quote.getCall(1).args[0].fromAmount).toBe(rawBalance);
-      expect(bridge.quote.getCall(1).args[0].toAmount).toBeUndefined();
+      expect(bridge.execute).toHaveBeenCalledOnce();
+      expect(bridge.quote.mock.calls.length).toBe(2);
+      expect(bridge.quote.mock.calls[1][0].fromAmount).toBe(rawBalance);
+      expect(bridge.quote.mock.calls[1][0].toAmount).toBeUndefined();
     });
 
     it('retries reverse quote as forward when exact-output exceeds source capacity', async () => {
@@ -2808,24 +2801,21 @@ describe('InventoryRebalancer E2E', () => {
       });
 
       bridge.quote
-        .onFirstCall()
-        .resolves(
+        .mockResolvedValueOnce(
           createMockBridgeQuote({
             fromAmount: rawBalance,
             toAmount: 1051n,
             toAmountMin: 1051n,
           }),
         )
-        .onSecondCall()
-        .resolves(
+        .mockResolvedValueOnce(
           createMockBridgeQuote({
             fromAmount: rawBalance + 1n,
             toAmount: targetWithBuffer,
             toAmountMin: targetWithBuffer,
           }),
         )
-        .onThirdCall()
-        .resolves(
+        .mockResolvedValueOnce(
           createMockBridgeQuote({
             fromAmount: rawBalance,
             toAmount: 1049n,
@@ -2833,7 +2823,7 @@ describe('InventoryRebalancer E2E', () => {
           }),
         );
 
-      bridge.execute.resolves({
+      bridge.execute.mockResolvedValue({
         txHash: '0xForwardFallbackBridgeTxHash',
         fromChain: 42161,
         toChain: 1399811149,
@@ -2843,11 +2833,11 @@ describe('InventoryRebalancer E2E', () => {
 
       expect(results).toHaveLength(1);
       expect(results[0].success).toBe(true);
-      expect(bridge.execute.calledOnce).toBe(true);
-      expect(bridge.quote.callCount).toBe(3);
-      expect(bridge.quote.getCall(1).args[0].toAmount).toBe(targetWithBuffer);
-      expect(bridge.quote.getCall(2).args[0].fromAmount).toBe(rawBalance);
-      expect(bridge.quote.getCall(2).args[0].toAmount).toBeUndefined();
+      expect(bridge.execute).toHaveBeenCalledOnce();
+      expect(bridge.quote.mock.calls.length).toBe(3);
+      expect(bridge.quote.mock.calls[1][0].toAmount).toBe(targetWithBuffer);
+      expect(bridge.quote.mock.calls[2][0].fromAmount).toBe(rawBalance);
+      expect(bridge.quote.mock.calls[2][0].toAmount).toBeUndefined();
     });
 
     it('handles quote failures gracefully by skipping the source chain', async () => {
@@ -2856,13 +2846,13 @@ describe('InventoryRebalancer E2E', () => {
         chainName: ARBITRUM_CHAIN,
         standard: TokenStandard.EvmHypNative,
         addressOrDenom: '0xArbitrumNative',
-        getHypAdapter: Sinon.stub().returns(adapterStub),
+        getHypAdapter: vi.fn().mockReturnValue(adapterStub),
       };
       const solanaToken = {
         chainName: SOLANA_CHAIN,
         standard: TokenStandard.EvmHypNative,
         addressOrDenom: '0xSolanaNative',
-        getHypAdapter: Sinon.stub().returns(adapterStub),
+        getHypAdapter: vi.fn().mockReturnValue(adapterStub),
       };
       warpCore.tokens = [arbitrumToken, solanaToken];
 
@@ -2879,7 +2869,7 @@ describe('InventoryRebalancer E2E', () => {
       });
 
       // Quote fails for viability check
-      bridge.quote.rejects(new Error('LiFi API timeout'));
+      bridge.quote.mockRejectedValue(new Error('LiFi API timeout'));
 
       const results = await inventoryRebalancer.rebalance([route]);
 
@@ -2889,7 +2879,7 @@ describe('InventoryRebalancer E2E', () => {
       expect(results[0].error).toContain('No viable bridge sources');
 
       // Verify: Bridge.execute should NOT have been called
-      expect(bridge.execute.called).toBe(false);
+      expect(bridge.execute).not.toHaveBeenCalled();
     });
   });
 });

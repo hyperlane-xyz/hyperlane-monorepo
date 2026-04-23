@@ -11,8 +11,7 @@ import {
   getCompiledTransactionMessageDecoder,
   signature as toSignature,
 } from '@solana/kit';
-import sinon from 'sinon';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { SvmSigner } from '../clients/signer.js';
 import type { SvmRpc, SvmTransaction } from '../types.js';
@@ -133,7 +132,7 @@ function makePreflightBlockhashError(): SolanaError {
 // ---------------------------------------------------------------------------
 
 describe('SvmSigner', () => {
-  afterEach(() => sinon.restore());
+  afterEach(() => vi.restoreAllMocks());
 
   // ---- Happy path ----
 

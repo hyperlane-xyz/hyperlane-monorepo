@@ -1,5 +1,4 @@
-import { expect } from 'vitest';
-import sinon from 'sinon';
+import { MockInstance, expect, vi } from 'vitest';
 
 import {
   PredicateApiClient,
@@ -8,7 +7,7 @@ import {
 } from './PredicateApiClient.js';
 
 describe('PredicateApiClient', () => {
-  let fetchStub: sinon.SinonStub;
+  let fetchStub: MockInstance<typeof fetch>;
 
   const mockRequest: PredicateAttestationRequest = {
     to: '0x1234567890123456789012345678901234567890',
@@ -32,15 +31,15 @@ describe('PredicateApiClient', () => {
   };
 
   beforeEach(() => {
-    fetchStub = sinon.stub(global, 'fetch');
+    fetchStub = vi.spyOn(global, 'fetch');
   });
 
   afterEach(() => {
-    fetchStub.restore();
+    fetchStub.mockRestore();
   });
 
   it('should fetch attestation successfully', async () => {
-    fetchStub.resolves({
+    fetchStub.mockResolvedValue({
       ok: true,
       json: async () => mockResponse,
     } as Response);
@@ -50,11 +49,11 @@ describe('PredicateApiClient', () => {
 
     expect(result.is_compliant).toBe(true);
     expect(result.attestation.uuid).toBe(mockResponse.attestation.uuid);
-    expect(fetchStub.calledOnce).toBe(true);
+    expect(fetchStub).toHaveBeenCalledOnce();
   });
 
   it('should throw on non-compliant response', async () => {
-    fetchStub.resolves({
+    fetchStub.mockResolvedValue({
       ok: true,
       json: async () => ({ ...mockResponse, is_compliant: false }),
     } as Response);
@@ -70,7 +69,7 @@ describe('PredicateApiClient', () => {
   });
 
   it('should throw on API error', async () => {
-    fetchStub.resolves({
+    fetchStub.mockResolvedValue({
       ok: false,
       status: 401,
       text: async () => 'Unauthorized',
@@ -88,7 +87,7 @@ describe('PredicateApiClient', () => {
   });
 
   it('should use custom base URL', async () => {
-    fetchStub.resolves({
+    fetchStub.mockResolvedValue({
       ok: true,
       json: async () => mockResponse,
     } as Response);
@@ -97,11 +96,11 @@ describe('PredicateApiClient', () => {
     const client = new PredicateApiClient('test-api-key', customUrl);
     await client.fetchAttestation(mockRequest);
 
-    expect(fetchStub.firstCall.args[0]).toBe(customUrl);
+    expect(fetchStub.mock.calls[0][0]).toBe(customUrl);
   });
 
   it('should include API key in headers', async () => {
-    fetchStub.resolves({
+    fetchStub.mockResolvedValue({
       ok: true,
       json: async () => mockResponse,
     } as Response);
@@ -109,14 +108,14 @@ describe('PredicateApiClient', () => {
     const client = new PredicateApiClient('my-secret-key');
     await client.fetchAttestation(mockRequest);
 
-    const callArgs = fetchStub.firstCall.args[1] as RequestInit;
+    const callArgs = fetchStub.mock.calls[0][1] as RequestInit;
     expect((callArgs.headers as Record<string, string>)['x-api-key']).toBe(
       'my-secret-key',
     );
   });
 
   it('should send correct request body', async () => {
-    fetchStub.resolves({
+    fetchStub.mockResolvedValue({
       ok: true,
       json: async () => mockResponse,
     } as Response);
@@ -124,7 +123,7 @@ describe('PredicateApiClient', () => {
     const client = new PredicateApiClient('test-api-key');
     await client.fetchAttestation(mockRequest);
 
-    const callArgs = fetchStub.firstCall.args[1] as RequestInit;
+    const callArgs = fetchStub.mock.calls[0][1] as RequestInit;
     const body = JSON.parse(callArgs.body as string);
 
     expect(body.to).toBe(mockRequest.to);

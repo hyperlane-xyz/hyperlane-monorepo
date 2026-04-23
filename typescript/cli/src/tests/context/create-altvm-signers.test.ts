@@ -1,5 +1,4 @@
-import { expect } from 'vitest';
-import sinon from 'sinon';
+import { expect, vi } from 'vitest';
 
 import {
   type AltVM,
@@ -60,7 +59,7 @@ describe('createAltVMSigners', () => {
   beforeEach(() => {
     capturedConfigs.length = 0;
     delete process.env.HYP_ACCOUNT_ADDRESS_STARKNET;
-    sinon.restore();
+    vi.restoreAllMocks();
   });
 
   function getProtocolRegistry(): NonNullable<
@@ -213,9 +212,9 @@ describe('createAltVMSigners', () => {
   });
 
   it('prompts for private key when strategy omits it', async () => {
-    const privateKeyPrompt = sinon
-      .stub(altVmPrompts, 'password')
-      .resolves('0xprompted-key');
+    const privateKeyPrompt = vi
+      .spyOn(altVmPrompts, 'password')
+      .mockResolvedValue('0xprompted-key');
 
     const strategy: Partial<ExtendedChainSubmissionStrategy> = {
       starknetsepolia: {
@@ -235,7 +234,7 @@ describe('createAltVMSigners', () => {
       getProtocolRegistry(),
     );
 
-    expect(privateKeyPrompt.calledOnce).toBe(true);
+    expect(privateKeyPrompt).toHaveBeenCalledOnce();
     expect(capturedConfigs).toHaveLength(1);
     expect(capturedConfigs[0]).toEqual({
       privateKey: '0xprompted-key',
@@ -244,7 +243,7 @@ describe('createAltVMSigners', () => {
   });
 
   it('throws for non-Starknet jsonRpc strategies without a private key', async () => {
-    const privateKeyPrompt = sinon.stub(altVmPrompts, 'password');
+    const privateKeyPrompt = vi.spyOn(altVmPrompts, 'password');
 
     const strategy: Partial<ExtendedChainSubmissionStrategy> = {
       radix: {
@@ -272,12 +271,12 @@ describe('createAltVMSigners', () => {
         );
       });
 
-    expect(privateKeyPrompt.called).toBe(false);
+    expect(privateKeyPrompt).not.toHaveBeenCalled();
     expect(capturedConfigs).toHaveLength(0);
   });
 
   it('throws for non-jsonRpc strategies instead of prompting for a private key', async () => {
-    const privateKeyPrompt = sinon.stub(altVmPrompts, 'password');
+    const privateKeyPrompt = vi.spyOn(altVmPrompts, 'password');
 
     const strategy: Partial<ExtendedChainSubmissionStrategy> = {
       radix: {
@@ -306,14 +305,14 @@ describe('createAltVMSigners', () => {
         );
       });
 
-    expect(privateKeyPrompt.called).toBe(false);
+    expect(privateKeyPrompt).not.toHaveBeenCalled();
     expect(capturedConfigs).toHaveLength(0);
   });
 
   it('prefers explicit per-chain strategy key over prompted fallback', async () => {
-    const privateKeyPrompt = sinon
-      .stub(altVmPrompts, 'password')
-      .resolves('0xprompted-key');
+    const privateKeyPrompt = vi
+      .spyOn(altVmPrompts, 'password')
+      .mockResolvedValue('0xprompted-key');
 
     const strategy: Partial<ExtendedChainSubmissionStrategy> = {
       starknetsepolia: {
@@ -341,7 +340,7 @@ describe('createAltVMSigners', () => {
       getProtocolRegistry(),
     );
 
-    expect(privateKeyPrompt.calledOnce).toBe(true);
+    expect(privateKeyPrompt).toHaveBeenCalledOnce();
     expect(capturedConfigs).toHaveLength(2);
     expect(capturedConfigs[0]).toEqual({
       privateKey: '0xprompted-key',
@@ -354,12 +353,10 @@ describe('createAltVMSigners', () => {
   });
 
   it('does not reuse a prompted Starknet account address across chains', async () => {
-    const accountPrompt = sinon
-      .stub(altVmPrompts, 'input')
-      .onFirstCall()
-      .resolves('0xaaa')
-      .onSecondCall()
-      .resolves('0xbbb');
+    const accountPrompt = vi
+      .spyOn(altVmPrompts, 'input')
+      .mockResolvedValueOnce('0xaaa')
+      .mockResolvedValueOnce('0xbbb');
 
     const keys: SignerKeyProtocolMap = {
       [ProtocolType.Starknet]: '0xkey',
@@ -373,7 +370,7 @@ describe('createAltVMSigners', () => {
       getProtocolRegistry(),
     );
 
-    expect(accountPrompt.callCount).toBe(2);
+    expect(accountPrompt).toHaveBeenCalledTimes(2);
     expect(capturedConfigs).toHaveLength(2);
     expect(capturedConfigs[0].accountAddress).toBe('0xaaa');
     expect(capturedConfigs[1].accountAddress).toBe('0xbbb');

@@ -1,4 +1,4 @@
-import { expect } from 'vitest';
+import { expect, vi } from 'vitest';
 import { ContractFactory } from 'ethers';
 
 import {
@@ -15,7 +15,6 @@ import {
 import { TestChainName, test1, test2 } from '../consts/testChains.js';
 import type { ProtocolTransaction, ProtocolReceipt } from './ProviderType.js';
 import { EthJsonRpcBlockParameterTag } from '../metadata/chainMetadataTypes.js';
-import sinon from 'sinon';
 
 import { MultiProvider } from './MultiProvider.js';
 
@@ -78,7 +77,7 @@ describe('MultiProvider', () => {
     it('should timeout when numeric confirmation never resolves', async () => {
       const mockTx = {
         hash: '0xabc123def456',
-        wait: sinon.stub().returns(new Promise(() => {})),
+        wait: vi.fn().mockReturnValue(new Promise(() => {})),
       } as unknown as ProtocolTransaction<any>;
 
       try {
@@ -102,7 +101,7 @@ describe('MultiProvider', () => {
 
       const mockTx = {
         hash: '0xabc123def456',
-        wait: sinon.stub().resolves(mockReceipt),
+        wait: vi.fn().mockResolvedValue(mockReceipt),
       } as unknown as ProtocolTransaction<any>;
 
       const result = await multiProvider.handleTx(TestChainName.test1, mockTx, {
@@ -110,7 +109,7 @@ describe('MultiProvider', () => {
       });
 
       expect(result).toEqual(mockReceipt);
-      expect(mockTx.wait.calledOnce).toBe(true);
+      expect(mockTx.wait).toHaveBeenCalledOnce();
     });
 
     it('should wait for inclusion when wait(0) returns null', async () => {
@@ -120,12 +119,10 @@ describe('MultiProvider', () => {
         status: 1,
       } as unknown as ProtocolReceipt<any>;
 
-      const waitStub = sinon
-        .stub()
-        .callsFake(async (confirmations?: number) => {
-          if (confirmations === 0) return null;
-          return mockReceipt;
-        });
+      const waitStub = vi.fn(async (confirmations?: number) => {
+        if (confirmations === 0) return null;
+        return mockReceipt;
+      });
 
       const mockTx = {
         hash: '0xabc123def456',
@@ -138,9 +135,9 @@ describe('MultiProvider', () => {
       });
 
       expect(result).toEqual(mockReceipt);
-      expect(waitStub.calledTwice).toBe(true);
-      expect(waitStub.firstCall.args[0]).toBe(0);
-      expect(waitStub.secondCall.args[0]).toBe(1);
+      expect(waitStub).toHaveBeenCalledTimes(2);
+      expect(waitStub.mock.calls[0][0]).toBe(0);
+      expect(waitStub.mock.calls[1][0]).toBe(1);
     });
 
     it('should not timeout when timeoutMs is 0', async () => {
@@ -152,7 +149,7 @@ describe('MultiProvider', () => {
 
       const mockTx = {
         hash: '0xabc123def456',
-        wait: sinon.stub().callsFake(
+        wait: vi.fn().mockImplementation(
           () =>
             new Promise((resolve) => {
               setTimeout(() => resolve(mockReceipt), 50);
@@ -170,7 +167,7 @@ describe('MultiProvider', () => {
     it('should apply default timeout when no options provided', async () => {
       const mockTx = {
         hash: '0xabc123def456',
-        wait: sinon.stub().returns(new Promise(() => {})),
+        wait: vi.fn().mockReturnValue(new Promise(() => {})),
       } as unknown as ProtocolTransaction<any>;
 
       try {
@@ -201,7 +198,7 @@ describe('MultiProvider', () => {
       const mp = new MultiProvider(chainMetadataWithBlockTime);
       const mockTx = {
         hash: '0xabc123def456',
-        wait: sinon.stub().returns(new Promise(() => {})),
+        wait: vi.fn().mockReturnValue(new Promise(() => {})),
       } as unknown as ProtocolTransaction<any>;
       // Raw timeout: 1 × 0.02s × 1000 × 2 = 40ms
       // With floor: max(40, 30000) = 30000ms
@@ -230,21 +227,21 @@ describe('MultiProvider', () => {
 
       const mockTx = {
         hash: '0xabc123def456',
-        wait: sinon.stub().resolves(mockReceipt),
+        wait: vi.fn().mockResolvedValue(mockReceipt),
       } as unknown as ProtocolTransaction<any>;
 
-      const waitForBlockTagStub = sinon
-        .stub(multiProvider, 'waitForBlockTag')
-        .resolves(mockReceipt);
+      const waitForBlockTagStub = vi
+        .spyOn(multiProvider, 'waitForBlockTag')
+        .mockResolvedValue(mockReceipt);
 
       const result = await multiProvider.handleTx(TestChainName.test1, mockTx, {
         waitConfirmations: EthJsonRpcBlockParameterTag.Finalized,
       });
 
       expect(result).toEqual(mockReceipt);
-      expect(waitForBlockTagStub.calledOnce).toBe(true);
+      expect(waitForBlockTagStub).toHaveBeenCalledOnce();
 
-      waitForBlockTagStub.restore();
+      waitForBlockTagStub.mockRestore();
     });
   });
 
@@ -261,7 +258,7 @@ describe('MultiProvider', () => {
       const mockConnectedSigner = { provider: mockProvider } as any;
       const mockSigner = {
         provider: undefined,
-        connect: sinon.stub().callsFake(() => {
+        connect: vi.fn().mockImplementation(() => {
           connectCallCount += 1;
           return mockConnectedSigner;
         }),
@@ -294,7 +291,7 @@ describe('MultiProvider', () => {
       let connectArg: any;
       const mockSigner = {
         provider: undefined,
-        connect: sinon.stub().callsFake((p: any) => {
+        connect: vi.fn().mockImplementation((p: any) => {
           connectArg = p;
           return { provider: p, getAddress: () => '0x1' } as any;
         }),

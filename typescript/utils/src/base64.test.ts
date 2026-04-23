@@ -1,18 +1,17 @@
-import Sinon from 'sinon';
-import { expect } from 'vitest';
+import { type MockInstance, expect, vi } from 'vitest';
 
 import { fromBase64, toBase64 } from './base64.js';
 import { rootLogger } from './logging.js';
 
 describe('Base64 Utility Functions', () => {
-  let loggerStub: sinon.SinonStub;
+  let loggerStub: MockInstance;
 
   beforeEach(() => {
-    loggerStub = Sinon.stub(rootLogger, 'error');
+    loggerStub = vi.spyOn(rootLogger, 'error').mockImplementation(() => {});
   });
 
   afterEach(() => {
-    loggerStub.restore();
+    loggerStub.mockRestore();
   });
 
   describe('toBase64', () => {
@@ -30,13 +29,11 @@ describe('Base64 Utility Functions', () => {
 
     it('should log an error for invalid input', () => {
       toBase64(null);
-      expect(loggerStub.calledOnce).toBe(true);
-      expect(
-        loggerStub.calledWith(
-          'Unable to serialize + encode data to base64',
-          null,
-        ),
-      ).toBe(true);
+      expect(loggerStub).toHaveBeenCalledOnce();
+      expect(loggerStub).toHaveBeenCalledWith(
+        'Unable to serialize + encode data to base64',
+        null,
+      );
     });
   });
 
@@ -62,13 +59,11 @@ describe('Base64 Utility Functions', () => {
 
     it('should log an error for invalid base64 input', () => {
       fromBase64('invalidBase64');
-      expect(loggerStub.calledOnce).toBe(true);
-      expect(
-        loggerStub.calledWith(
-          'Unable to decode + deserialize data from base64',
-          'invalidBase64',
-        ),
-      ).toBe(true);
+      expect(loggerStub).toHaveBeenCalledOnce();
+      expect(loggerStub).toHaveBeenCalledWith(
+        'Unable to decode + deserialize data from base64',
+        'invalidBase64',
+      );
     });
   });
 });

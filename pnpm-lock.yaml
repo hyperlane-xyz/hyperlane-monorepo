@@ -642,9 +642,6 @@ importers:
       '@types/pino-http':
         specifier: ^5.8.4
         version: 5.8.4
-      '@types/sinon':
-        specifier: 'catalog:'
-        version: 17.0.4
       '@vercel/ncc':
         specifier: 'catalog:'
         version: 0.38.4
@@ -654,9 +651,6 @@ importers:
       pino-pretty:
         specifier: 'catalog:'
         version: 13.1.2
-      sinon:
-        specifier: 'catalog:'
-        version: 13.0.2
       tsx:
         specifier: 'catalog:'
         version: 4.19.1
@@ -1619,18 +1613,12 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 24.10.9
-      '@types/sinon':
-        specifier: 'catalog:'
-        version: 17.0.4
       '@vercel/ncc':
         specifier: 'catalog:'
         version: 0.38.4
       oxfmt:
         specifier: 'catalog:'
         version: 0.42.0
-      sinon:
-        specifier: 'catalog:'
-        version: 13.0.2
       tsx:
         specifier: 'catalog:'
         version: 4.19.1
@@ -2577,12 +2565,6 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 24.10.9
-      '@types/sinon':
-        specifier: 'catalog:'
-        version: 17.0.4
-      sinon:
-        specifier: 'catalog:'
-        version: 13.0.2
       typescript:
         specifier: 'catalog:'
         version: 6.0.2
@@ -2629,18 +2611,12 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 24.10.9
-      '@types/sinon':
-        specifier: 'catalog:'
-        version: 17.0.4
       '@vercel/ncc':
         specifier: 'catalog:'
         version: 0.38.4
       oxfmt:
         specifier: 'catalog:'
         version: 0.42.0
-      sinon:
-        specifier: 'catalog:'
-        version: 13.0.2
       tsx:
         specifier: 'catalog:'
         version: 4.19.1

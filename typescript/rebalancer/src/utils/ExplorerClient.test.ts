@@ -1,6 +1,5 @@
-import { expect } from 'vitest';
+import { expect, type MockInstance } from 'vitest';
 import { pino } from 'pino';
-import Sinon from 'sinon';
 
 import { addressToByteHexString, ProtocolType } from '@hyperlane-xyz/utils';
 
@@ -8,11 +7,22 @@ import { ExplorerClient } from './ExplorerClient.js';
 
 const testLogger = pino({ level: 'silent' });
 
+function getFetchBody(
+  stub: MockInstance<typeof fetch>,
+  callIdx = 0,
+): { variables: Record<string, unknown> } {
+  const body = stub.mock.calls[callIdx]?.[1]?.body;
+  if (typeof body !== 'string') {
+    throw new Error('expected fetch call to have a string body');
+  }
+  return JSON.parse(body);
+}
+
 describe('ExplorerClient', () => {
-  let fetchStub: Sinon.SinonStub;
+  let fetchStub: MockInstance<typeof fetch>;
 
   beforeEach(() => {
-    fetchStub = Sinon.stub(globalThis, 'fetch').resolves(
+    fetchStub = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(JSON.stringify({ data: { message_view: [] } }), {
         status: 200,
       }),
@@ -20,13 +30,13 @@ describe('ExplorerClient', () => {
   });
 
   afterEach(() => {
-    fetchStub.restore();
+    fetchStub.mockRestore();
   });
 
   describe('getInflightUserTransfers address encoding', () => {
     it('encodes EVM router addresses as 20-byte hex bytea', async () => {
       const evmAddr = '0x5a0e13290ec57f5e9031d01d03c6a40029cc24ea';
-      const getProtocol = Sinon.stub().returns(ProtocolType.Ethereum);
+      const getProtocol = vi.fn().mockReturnValue(ProtocolType.Ethereum);
       const client = new ExplorerClient('https://explorer.test', getProtocol);
 
       await client.getInflightUserTransfers(
@@ -37,8 +47,8 @@ describe('ExplorerClient', () => {
         testLogger,
       );
 
-      expect(fetchStub.calledOnce).toBe(true);
-      const body = JSON.parse(fetchStub.firstCall.args[1].body);
+      expect(fetchStub).toHaveBeenCalledOnce();
+      const body = getFetchBody(fetchStub);
       expect(body.variables.senders).toEqual([
         '\\x5a0e13290ec57f5e9031d01d03c6a40029cc24ea',
       ]);
@@ -49,7 +59,7 @@ describe('ExplorerClient', () => {
 
     it('encodes Solana router addresses as 32-byte hex bytea', async () => {
       const solAddr = 'E5rVV8zXwtc4TKGypCJvSBaYbgxa4XaYg5MS6N9QGdeo';
-      const getProtocol = Sinon.stub().returns(ProtocolType.Sealevel);
+      const getProtocol = vi.fn().mockReturnValue(ProtocolType.Sealevel);
       const client = new ExplorerClient('https://explorer.test', getProtocol);
 
       await client.getInflightUserTransfers(
@@ -60,8 +70,8 @@ describe('ExplorerClient', () => {
         testLogger,
       );
 
-      expect(fetchStub.calledOnce).toBe(true);
-      const body = JSON.parse(fetchStub.firstCall.args[1].body);
+      expect(fetchStub).toHaveBeenCalledOnce();
+      const body = getFetchBody(fetchStub);
       const expectedHex = addressToByteHexString(
         solAddr,
         ProtocolType.Sealevel,
@@ -76,7 +86,7 @@ describe('ExplorerClient', () => {
     it('encodes Starknet router addresses as hex bytea', async () => {
       const starkAddr =
         '0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7';
-      const getProtocol = Sinon.stub().returns(ProtocolType.Starknet);
+      const getProtocol = vi.fn().mockReturnValue(ProtocolType.Starknet);
       const client = new ExplorerClient('https://explorer.test', getProtocol);
 
       await client.getInflightUserTransfers(
@@ -87,8 +97,8 @@ describe('ExplorerClient', () => {
         testLogger,
       );
 
-      expect(fetchStub.calledOnce).toBe(true);
-      const body = JSON.parse(fetchStub.firstCall.args[1].body);
+      expect(fetchStub).toHaveBeenCalledOnce();
+      const body = getFetchBody(fetchStub);
       const expectedHex = addressToByteHexString(
         starkAddr,
         ProtocolType.Starknet,
@@ -101,7 +111,7 @@ describe('ExplorerClient', () => {
       const evmAddr = '0x5a0e13290ec57f5e9031d01d03c6a40029cc24ea';
       const solAddr = 'E5rVV8zXwtc4TKGypCJvSBaYbgxa4XaYg5MS6N9QGdeo';
 
-      const getProtocol = Sinon.stub().callsFake((domain: number) => {
+      const getProtocol = vi.fn().mockImplementation((domain: number) => {
         if (domain === 1) return ProtocolType.Ethereum;
         if (domain === 1399811149) return ProtocolType.Sealevel;
         return ProtocolType.Ethereum;
@@ -116,8 +126,8 @@ describe('ExplorerClient', () => {
         testLogger,
       );
 
-      expect(fetchStub.calledOnce).toBe(true);
-      const body = JSON.parse(fetchStub.firstCall.args[1].body);
+      expect(fetchStub).toHaveBeenCalledOnce();
+      const body = getFetchBody(fetchStub);
 
       const expectedEvmBytea = '\\x5a0e13290ec57f5e9031d01d03c6a40029cc24ea';
       const expectedSolHex = addressToByteHexString(
@@ -135,7 +145,7 @@ describe('ExplorerClient', () => {
     });
 
     it('handles empty routersByDomain gracefully', async () => {
-      const getProtocol = Sinon.stub().returns(ProtocolType.Ethereum);
+      const getProtocol = vi.fn().mockReturnValue(ProtocolType.Ethereum);
       const client = new ExplorerClient('https://explorer.test', getProtocol);
 
       await client.getInflightUserTransfers(
@@ -146,8 +156,8 @@ describe('ExplorerClient', () => {
         testLogger,
       );
 
-      expect(fetchStub.calledOnce).toBe(true);
-      const body = JSON.parse(fetchStub.firstCall.args[1].body);
+      expect(fetchStub).toHaveBeenCalledOnce();
+      const body = getFetchBody(fetchStub);
       expect(body.variables.senders).toEqual([]);
       expect(body.variables.recipients).toEqual([]);
       expect(body.variables.originDomains).toEqual([]);
@@ -161,7 +171,7 @@ describe('ExplorerClient', () => {
       const bridgeAddr = '0x1234567890abcdef1234567890abcdef12345678';
       const rebalancerAddr = '0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef';
 
-      const getProtocol = Sinon.stub().callsFake((domain: number) => {
+      const getProtocol = vi.fn().mockImplementation((domain: number) => {
         if (domain === 1) return ProtocolType.Ethereum;
         if (domain === 1399811149) return ProtocolType.Sealevel;
         return ProtocolType.Ethereum;
@@ -177,8 +187,8 @@ describe('ExplorerClient', () => {
         testLogger,
       );
 
-      expect(fetchStub.calledOnce).toBe(true);
-      const body = JSON.parse(fetchStub.firstCall.args[1].body);
+      expect(fetchStub).toHaveBeenCalledOnce();
+      const body = getFetchBody(fetchStub);
 
       // bridges encoded as EVM bytea (20-byte)
       expect(body.variables.senders).toEqual([
@@ -218,10 +228,10 @@ describe('ExplorerClient', () => {
       const bridgeAddr = '0x1234567890abcdef1234567890abcdef12345678';
       const txSenderAddr = '0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef';
 
-      const getProtocol = Sinon.stub().returns(ProtocolType.Sealevel);
+      const getProtocol = vi.fn().mockReturnValue(ProtocolType.Sealevel);
       const client = new ExplorerClient('https://explorer.test', getProtocol);
 
-      fetchStub.resolves(
+      fetchStub.mockResolvedValue(
         new Response(
           JSON.stringify({
             data: {
@@ -263,10 +273,10 @@ describe('ExplorerClient', () => {
       const evmAddr = '0x5a0e13290ec57f5e9031d01d03c6a40029cc24ea';
       const wrongRouter = '0xffffffffffffffffffffffffffffffffffffffff';
 
-      const getProtocol = Sinon.stub().returns(ProtocolType.Ethereum);
+      const getProtocol = vi.fn().mockReturnValue(ProtocolType.Ethereum);
       const client = new ExplorerClient('https://explorer.test', getProtocol);
 
-      fetchStub.resolves(
+      fetchStub.mockResolvedValue(
         new Response(
           JSON.stringify({
             data: {
@@ -307,10 +317,10 @@ describe('ExplorerClient', () => {
     it('validates EVM router addresses correctly in post-query filter', async () => {
       const evmAddr = '0x5a0e13290ec57f5e9031d01d03c6a40029cc24ea';
 
-      const getProtocol = Sinon.stub().returns(ProtocolType.Ethereum);
+      const getProtocol = vi.fn().mockReturnValue(ProtocolType.Ethereum);
       const client = new ExplorerClient('https://explorer.test', getProtocol);
 
-      fetchStub.resolves(
+      fetchStub.mockResolvedValue(
         new Response(
           JSON.stringify({
             data: {
@@ -352,10 +362,10 @@ describe('ExplorerClient', () => {
 
   describe('error handling', () => {
     it('throws on non-200 response from explorer', async () => {
-      const getProtocol = Sinon.stub().returns(ProtocolType.Ethereum);
+      const getProtocol = vi.fn().mockReturnValue(ProtocolType.Ethereum);
       const client = new ExplorerClient('https://explorer.test', getProtocol);
 
-      fetchStub.resolves(
+      fetchStub.mockResolvedValue(
         new Response(
           JSON.stringify({
             errors: [{ message: 'Internal Server Error' }],

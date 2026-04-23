@@ -1,6 +1,5 @@
-import { expect } from 'vitest';
+import { expect, vi } from 'vitest';
 import { BigNumber } from 'ethers';
-import sinon from 'sinon';
 
 import { InterchainAccountRouter__factory } from '@hyperlane-xyz/core';
 import { formatStandardHookMetadata } from '@hyperlane-xyz/utils';
@@ -139,15 +138,13 @@ describe('InterchainAccount.getCallRemote', () => {
   const chain = TestChainName.test1;
   const destination = TestChainName.test2;
 
-  let sandbox: sinon.SinonSandbox;
   let multiProvider: MultiProvider;
   let app: InterchainAccount;
   let mockLocalRouter: Record<string, any>;
 
   beforeEach(() => {
-    sandbox = sinon.createSandbox();
     multiProvider = MultiProvider.createTestMultiProvider();
-    sandbox.stub(multiProvider, 'getSigner').returns({} as any);
+    vi.spyOn(multiProvider, 'getSigner').mockReturnValue({} as any);
 
     const contractsMap = {
       [chain]: { interchainAccountRouter: { address: randomAddress() } },
@@ -156,13 +153,15 @@ describe('InterchainAccount.getCallRemote', () => {
     app = new InterchainAccount(contractsMap, multiProvider);
 
     mockLocalRouter = {
-      ['quoteGasPayment(uint32,uint256)']: sandbox
-        .stub()
-        .resolves(BigNumber.from(123)),
-      ['quoteGasPayment(uint32)']: sandbox.stub().resolves(BigNumber.from(456)),
+      ['quoteGasPayment(uint32,uint256)']: vi
+        .fn()
+        .mockResolvedValue(BigNumber.from(123)),
+      ['quoteGasPayment(uint32)']: vi
+        .fn()
+        .mockResolvedValue(BigNumber.from(456)),
       populateTransaction: {
         ['callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)']:
-          sandbox.stub().resolves({
+          vi.fn().mockResolvedValue({
             to: randomAddress(),
             data: '0x',
             value: BigNumber.from(0),
@@ -170,13 +169,13 @@ describe('InterchainAccount.getCallRemote', () => {
       },
     };
 
-    sandbox
-      .stub(InterchainAccountRouter__factory, 'connect')
-      .returns(mockLocalRouter as any);
+    vi.spyOn(InterchainAccountRouter__factory, 'connect').mockReturnValue(
+      mockLocalRouter as any,
+    );
   });
 
   afterEach(() => {
-    sandbox.restore();
+    vi.restoreAllMocks();
   });
 
   const baseConfig = {
@@ -197,9 +196,11 @@ describe('InterchainAccount.getCallRemote', () => {
       config: baseConfig,
     });
 
-    sinon.assert.calledOnce(mockLocalRouter['quoteGasPayment(uint32,uint256)']);
+    expect(
+      mockLocalRouter['quoteGasPayment(uint32,uint256)'],
+    ).toHaveBeenCalledOnce();
     const [, gasLimit] =
-      mockLocalRouter['quoteGasPayment(uint32,uint256)'].getCall(0).args;
+      mockLocalRouter['quoteGasPayment(uint32,uint256)'].mock.calls[0];
     expect(gasLimit.toNumber()).toBe(defaultGasLimit.toNumber());
   });
 
@@ -219,7 +220,7 @@ describe('InterchainAccount.getCallRemote', () => {
     });
 
     const [, gasLimitArg] =
-      mockLocalRouter['quoteGasPayment(uint32,uint256)'].getCall(0).args;
+      mockLocalRouter['quoteGasPayment(uint32,uint256)'].mock.calls[0];
     expect(gasLimitArg.toString()).toBe(BigNumber.from(gasLimit).toString());
   });
 
@@ -233,18 +234,18 @@ describe('InterchainAccount.getCallRemote', () => {
     });
 
     const [, gasLimit] =
-      mockLocalRouter['quoteGasPayment(uint32,uint256)'].getCall(0).args;
+      mockLocalRouter['quoteGasPayment(uint32,uint256)'].mock.calls[0];
     expect(gasLimit.toNumber()).toBe(defaultGasLimit.toNumber());
   });
 
   it('falls back to mailbox quoteDispatch when v2 quote fails', async () => {
-    mockLocalRouter['quoteGasPayment(uint32,uint256)'].rejects(
+    mockLocalRouter['quoteGasPayment(uint32,uint256)'].mockRejectedValue(
       new Error('legacy router'),
     );
 
     // Add mailbox stub for legacy fallback path
     const mockMailboxAddress = randomAddress();
-    mockLocalRouter.mailbox = sandbox.stub().resolves(mockMailboxAddress);
+    mockLocalRouter.mailbox = vi.fn().mockResolvedValue(mockMailboxAddress);
 
     // Create a mock provider with proper call responses for mailbox contract
     const defaultHookAddress = randomAddress();
@@ -252,7 +253,7 @@ describe('InterchainAccount.getCallRemote', () => {
       _isProvider: true,
       // Respond to defaultHook() call - returns address
       // Respond to quoteDispatch() call - returns uint256
-      call: sandbox.stub().callsFake((tx: any) => {
+      call: vi.fn().mockImplementation((tx: any) => {
         // defaultHook() selector: 0x...
         if (tx.data?.startsWith('0x3a871cdd')) {
           // Return encoded address
@@ -265,9 +266,9 @@ describe('InterchainAccount.getCallRemote', () => {
           '0x0000000000000000000000000000000000000000000000000000000000000315',
         );
       }),
-      getNetwork: sandbox.stub().resolves({ chainId: 1, name: 'test' }),
+      getNetwork: vi.fn().mockResolvedValue({ chainId: 1, name: 'test' }),
     };
-    sandbox.stub(multiProvider, 'getProvider').returns(mockProvider as any);
+    vi.spyOn(multiProvider, 'getProvider').mockReturnValue(mockProvider as any);
 
     await app.getCallRemote({
       chain,
@@ -277,25 +278,25 @@ describe('InterchainAccount.getCallRemote', () => {
     });
 
     // Verify the fallback path was taken
-    sinon.assert.calledOnce(mockLocalRouter.mailbox);
+    expect(mockLocalRouter.mailbox).toHaveBeenCalledOnce();
   });
 
   it('calls isms() with origin domain when ismOverride not provided', async () => {
     const destRouterAddress = randomAddress();
     const mockDestRouter = {
-      isms: sandbox.stub().resolves(randomAddress()),
+      isms: vi.fn().mockResolvedValue(randomAddress()),
     };
 
-    // Restore the factory stub and recreate with address-aware logic
-    (InterchainAccountRouter__factory.connect as sinon.SinonStub).restore();
-    sandbox
-      .stub(InterchainAccountRouter__factory, 'connect')
-      .callsFake((address: string) => {
-        if (address === destRouterAddress) {
-          return mockDestRouter as any;
-        }
-        return mockLocalRouter as any;
-      });
+    // Restore the factory spy and recreate with address-aware logic
+    (InterchainAccountRouter__factory.connect as any).mockRestore();
+    vi.spyOn(InterchainAccountRouter__factory, 'connect').mockImplementation(((
+      address: string,
+    ) => {
+      if (address === destRouterAddress) {
+        return mockDestRouter as any;
+      }
+      return mockLocalRouter as any;
+    }) as any);
 
     const configWithoutIsmOverride = {
       origin: chain,
@@ -312,7 +313,7 @@ describe('InterchainAccount.getCallRemote', () => {
     });
 
     const originDomain = multiProvider.getDomainId(chain);
-    sinon.assert.calledWith(mockDestRouter.isms, originDomain);
+    expect(mockDestRouter.isms).toHaveBeenCalledWith(originDomain);
   });
 });
 
@@ -324,34 +325,32 @@ describe('InterchainAccount.estimateIcaHandleGas', () => {
   const PER_CALL_FALLBACK = BigNumber.from(50_000);
   const ICA_HANDLE_GAS_FALLBACK = BigNumber.from(200_000);
 
-  let sandbox: sinon.SinonSandbox;
   let multiProvider: MultiProvider;
   let app: InterchainAccount;
   let mockDestRouter: Record<string, any>;
   let mockProvider: Record<string, any>;
 
   beforeEach(() => {
-    sandbox = sinon.createSandbox();
     multiProvider = MultiProvider.createTestMultiProvider();
 
     mockProvider = {
-      estimateGas: sandbox.stub(),
+      estimateGas: vi.fn(),
     };
 
     mockDestRouter = {
       address: randomAddress(),
-      isms: sandbox.stub().resolves(randomAddress()),
-      mailbox: sandbox.stub().resolves(randomAddress()),
-      routers: sandbox.stub().resolves(randomAddress()),
+      isms: vi.fn().mockResolvedValue(randomAddress()),
+      mailbox: vi.fn().mockResolvedValue(randomAddress()),
+      routers: vi.fn().mockResolvedValue(randomAddress()),
       estimateGas: {
-        handle: sandbox.stub(),
+        handle: vi.fn(),
       },
     };
 
-    const mockOriginRouter = {
+    const mockOriginRouter: Record<string, any> = {
       address: randomAddress(),
-      connect: sandbox.stub().returnsThis(),
     };
+    mockOriginRouter.connect = vi.fn().mockReturnValue(mockOriginRouter);
 
     // Create contractsMap - origin needs connect() for constructor processing
     const contractsMap: Record<string, any> = {};
@@ -359,16 +358,16 @@ describe('InterchainAccount.estimateIcaHandleGas', () => {
     contractsMap[destination] = { interchainAccountRouter: mockDestRouter };
 
     // Mock connect() to return self (required by connectContracts)
-    mockDestRouter.connect = sandbox.stub().returns(mockDestRouter);
+    mockDestRouter.connect = vi.fn().mockReturnValue(mockDestRouter);
 
     app = new InterchainAccount(contractsMap as any, multiProvider);
 
     // Stub getProvider after app creation to avoid affecting constructor
-    sandbox.stub(multiProvider, 'getProvider').returns(mockProvider as any);
+    vi.spyOn(multiProvider, 'getProvider').mockReturnValue(mockProvider as any);
   });
 
   afterEach(() => {
-    sandbox.restore();
+    vi.restoreAllMocks();
   });
 
   const baseConfig = {
@@ -384,7 +383,7 @@ describe('InterchainAccount.estimateIcaHandleGas', () => {
 
   it('returns buffered handle() estimate when it succeeds', async () => {
     const handleEstimate = BigNumber.from(100_000);
-    mockDestRouter.estimateGas.handle.resolves(handleEstimate);
+    mockDestRouter.estimateGas.handle.mockResolvedValue(handleEstimate);
 
     const result = await app.estimateIcaHandleGas({
       origin: chain,
@@ -399,16 +398,16 @@ describe('InterchainAccount.estimateIcaHandleGas', () => {
   });
 
   it('falls back to individual estimation when handle() fails', async () => {
-    mockDestRouter.estimateGas.handle.rejects(new Error('handle failed'));
+    mockDestRouter.estimateGas.handle.mockRejectedValue(
+      new Error('handle failed'),
+    );
 
     // Individual call estimates
     const call1Estimate = BigNumber.from(30_000);
     const call2Estimate = BigNumber.from(40_000);
     mockProvider.estimateGas
-      .onFirstCall()
-      .resolves(call1Estimate)
-      .onSecondCall()
-      .resolves(call2Estimate);
+      .mockResolvedValueOnce(call1Estimate)
+      .mockResolvedValueOnce(call2Estimate);
 
     const result = await app.estimateIcaHandleGas({
       origin: chain,
@@ -427,15 +426,15 @@ describe('InterchainAccount.estimateIcaHandleGas', () => {
   });
 
   it('uses per-call fallback when individual call estimation fails', async () => {
-    mockDestRouter.estimateGas.handle.rejects(new Error('handle failed'));
+    mockDestRouter.estimateGas.handle.mockRejectedValue(
+      new Error('handle failed'),
+    );
 
     // First call succeeds, second fails (uses per-call fallback)
     const call1Estimate = BigNumber.from(30_000);
     mockProvider.estimateGas
-      .onFirstCall()
-      .resolves(call1Estimate)
-      .onSecondCall()
-      .rejects(new Error('call failed'));
+      .mockResolvedValueOnce(call1Estimate)
+      .mockRejectedValueOnce(new Error('call failed'));
 
     const result = await app.estimateIcaHandleGas({
       origin: chain,
@@ -454,11 +453,13 @@ describe('InterchainAccount.estimateIcaHandleGas', () => {
   });
 
   it('returns static 200k fallback when getProvider fails', async () => {
-    mockDestRouter.estimateGas.handle.rejects(new Error('handle failed'));
-
-    (multiProvider.getProvider as sinon.SinonStub).throws(
-      new Error('provider error'),
+    mockDestRouter.estimateGas.handle.mockRejectedValue(
+      new Error('handle failed'),
     );
+
+    (multiProvider.getProvider as any).mockImplementation(() => {
+      throw new Error('provider error');
+    });
 
     const result = await app.estimateIcaHandleGas({
       origin: chain,

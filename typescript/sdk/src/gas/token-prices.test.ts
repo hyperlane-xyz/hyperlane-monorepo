@@ -1,5 +1,4 @@
-import { expect } from 'vitest';
-import sinon from 'sinon';
+import { MockInstance, expect, vi } from 'vitest';
 
 import { TestChainName, testChainMetadata } from '../consts/testChains.js';
 
@@ -17,7 +16,7 @@ describe('TokenPriceGetter', () => {
   const chainB = TestChainName.test2;
   const priceA = 2;
   const priceB = 5;
-  let stub: sinon.SinonStub;
+  let stub: MockInstance | undefined;
 
   beforeEach(() => {
     tokenPriceGetter = new CoinGeckoTokenPriceGetter({
@@ -29,15 +28,15 @@ describe('TokenPriceGetter', () => {
     });
 
     if (MOCK_FETCH_CALLS) {
-      stub = sinon
-        .stub(tokenPriceGetter, 'fetchPriceData')
-        .returns(Promise.resolve([priceA, priceB]));
+      stub = vi
+        .spyOn(tokenPriceGetter, 'fetchPriceData')
+        .mockReturnValue(Promise.resolve([priceA, priceB]));
     }
   });
 
   afterEach(() => {
     if (MOCK_FETCH_CALLS && stub) {
-      stub.restore();
+      stub.mockRestore();
     }
   });
 

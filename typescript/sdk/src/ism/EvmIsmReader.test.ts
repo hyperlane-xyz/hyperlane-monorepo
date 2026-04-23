@@ -1,6 +1,5 @@
-import { expect } from 'vitest';
+import { expect, vi } from 'vitest';
 import { BigNumber } from 'ethers';
-import sinon from 'sinon';
 
 import {
   AbstractRoutingIsm__factory,
@@ -45,16 +44,14 @@ import {
 describe('EvmIsmReader', () => {
   let evmIsmReader: EvmIsmReader;
   let multiProvider: MultiProvider;
-  let sandbox: sinon.SinonSandbox;
 
   beforeEach(() => {
-    sandbox = sinon.createSandbox();
     multiProvider = MultiProvider.createTestMultiProvider();
     evmIsmReader = new EvmIsmReader(multiProvider, TestChainName.test1);
   });
 
   afterEach(() => {
-    sandbox.restore();
+    vi.restoreAllMocks();
   });
 
   it('should derive multisig config correctly', async () => {
@@ -64,17 +61,17 @@ describe('EvmIsmReader', () => {
 
     // Mocking the connect method + returned what we need from contract object
     const mockContract = {
-      moduleType: sandbox.stub().resolves(ModuleType.MESSAGE_ID_MULTISIG),
-      validatorsAndThreshold: sandbox
-        .stub()
-        .resolves([mockValidators, mockThreshold]),
+      moduleType: vi.fn().mockResolvedValue(ModuleType.MESSAGE_ID_MULTISIG),
+      validatorsAndThreshold: vi
+        .fn()
+        .mockResolvedValue([mockValidators, mockThreshold]),
     };
-    sandbox
-      .stub(IMultisigIsm__factory, 'connect')
-      .returns(mockContract as unknown as IMultisigIsm);
-    sandbox
-      .stub(IInterchainSecurityModule__factory, 'connect')
-      .returns(mockContract as unknown as IInterchainSecurityModule);
+    vi.spyOn(IMultisigIsm__factory, 'connect').mockReturnValue(
+      mockContract as unknown as IMultisigIsm,
+    );
+    vi.spyOn(IInterchainSecurityModule__factory, 'connect').mockReturnValue(
+      mockContract as unknown as IInterchainSecurityModule,
+    );
 
     const expectedConfig: WithAddress<MultisigIsmConfig> = {
       address: mockAddress,
@@ -99,19 +96,19 @@ describe('EvmIsmReader', () => {
 
     // Mocking the connect method + returned what we need from contract object
     const mockContract = {
-      moduleType: sandbox.stub().resolves(ModuleType.NULL),
-      owner: sandbox.stub().resolves(mockOwner),
-      paused: sandbox.stub().resolves(mockPaused),
+      moduleType: vi.fn().mockResolvedValue(ModuleType.NULL),
+      owner: vi.fn().mockResolvedValue(mockOwner),
+      paused: vi.fn().mockResolvedValue(mockPaused),
     };
-    sandbox
-      .stub(PausableIsm__factory, 'connect')
-      .returns(mockContract as unknown as PausableIsm);
-    sandbox
-      .stub(TrustedRelayerIsm__factory, 'connect')
-      .returns(mockContract as unknown as TrustedRelayerIsm);
-    sandbox
-      .stub(IInterchainSecurityModule__factory, 'connect')
-      .returns(mockContract as unknown as IInterchainSecurityModule);
+    vi.spyOn(PausableIsm__factory, 'connect').mockReturnValue(
+      mockContract as unknown as PausableIsm,
+    );
+    vi.spyOn(TrustedRelayerIsm__factory, 'connect').mockReturnValue(
+      mockContract as unknown as TrustedRelayerIsm,
+    );
+    vi.spyOn(IInterchainSecurityModule__factory, 'connect').mockReturnValue(
+      mockContract as unknown as IInterchainSecurityModule,
+    );
 
     const expectedConfig: WithAddress<PausableIsmConfig> = {
       address: mockAddress,
@@ -134,26 +131,26 @@ describe('EvmIsmReader', () => {
 
     // Mocking the connect method + returned what we need from contract object
     const mockContract = {
-      moduleType: sandbox.stub().resolves(ModuleType.NULL),
+      moduleType: vi.fn().mockResolvedValue(ModuleType.NULL),
     };
-    sandbox
-      .stub(TestIsm__factory, 'connect')
-      .returns(mockContract as unknown as TestIsm);
-    sandbox
-      .stub(OPStackIsm__factory, 'connect')
-      .returns(mockContract as unknown as OPStackIsm);
-    sandbox
-      .stub(PausableIsm__factory, 'connect')
-      .returns(mockContract as unknown as PausableIsm);
-    sandbox
-      .stub(TrustedRelayerIsm__factory, 'connect')
-      .returns(mockContract as unknown as TrustedRelayerIsm);
-    sandbox
-      .stub(CCIPIsm__factory, 'connect')
-      .returns(mockContract as unknown as CCIPIsm);
-    sandbox
-      .stub(IInterchainSecurityModule__factory, 'connect')
-      .returns(mockContract as unknown as IInterchainSecurityModule);
+    vi.spyOn(TestIsm__factory, 'connect').mockReturnValue(
+      mockContract as unknown as TestIsm,
+    );
+    vi.spyOn(OPStackIsm__factory, 'connect').mockReturnValue(
+      mockContract as unknown as OPStackIsm,
+    );
+    vi.spyOn(PausableIsm__factory, 'connect').mockReturnValue(
+      mockContract as unknown as PausableIsm,
+    );
+    vi.spyOn(TrustedRelayerIsm__factory, 'connect').mockReturnValue(
+      mockContract as unknown as TrustedRelayerIsm,
+    );
+    vi.spyOn(CCIPIsm__factory, 'connect').mockReturnValue(
+      mockContract as unknown as CCIPIsm,
+    );
+    vi.spyOn(IInterchainSecurityModule__factory, 'connect').mockReturnValue(
+      mockContract as unknown as IInterchainSecurityModule,
+    );
 
     const expectedConfig: WithAddress<TestIsmConfig> = {
       address: mockAddress,
@@ -175,33 +172,31 @@ describe('EvmIsmReader', () => {
     const mockccipIsm = randomAddress();
     // Mocking the connect method + returned what we need from contract object
     const mockContract = {
-      moduleType: sandbox.stub().resolves(ModuleType.ROUTING),
-      owner: sandbox.stub().resolves(mockOwner),
-      CCIP_READ_ISM: sandbox.stub().resolves(mockccipIsm),
+      moduleType: vi.fn().mockResolvedValue(ModuleType.ROUTING),
+      owner: vi.fn().mockResolvedValue(mockOwner),
+      CCIP_READ_ISM: vi.fn().mockResolvedValue(mockccipIsm),
     };
     const mockDefaultFallbackContract = {
-      moduleType: sandbox.stub().resolves(ModuleType.ROUTING),
-      owner: sandbox.stub().resolves(mockOwner),
-      domains: sandbox.stub().resolves([]),
+      moduleType: vi.fn().mockResolvedValue(ModuleType.ROUTING),
+      owner: vi.fn().mockResolvedValue(mockOwner),
+      domains: vi.fn().mockResolvedValue([]),
     };
-    sandbox
-      .stub(AbstractRoutingIsm__factory, 'connect')
-      .returns(mockContract as unknown as InterchainAccountRouter);
-    sandbox
-      .stub(InterchainAccountRouter__factory, 'connect')
-      .returns(mockContract as unknown as InterchainAccountRouter);
-    sandbox
-      .stub(TrustedRelayerIsm__factory, 'connect')
-      .returns(mockContract as unknown as TrustedRelayerIsm);
-    sandbox
-      .stub(IInterchainSecurityModule__factory, 'connect')
-      .returns(mockContract as unknown as IInterchainSecurityModule);
-    sandbox.stub(Ownable__factory, 'connect').returns(mockContract as any);
-    sandbox
-      .stub(DefaultFallbackRoutingIsm__factory, 'connect')
-      .returns(
-        mockDefaultFallbackContract as unknown as DefaultFallbackRoutingIsm,
-      );
+    vi.spyOn(AbstractRoutingIsm__factory, 'connect').mockReturnValue(
+      mockContract as unknown as InterchainAccountRouter,
+    );
+    vi.spyOn(InterchainAccountRouter__factory, 'connect').mockReturnValue(
+      mockContract as unknown as InterchainAccountRouter,
+    );
+    vi.spyOn(TrustedRelayerIsm__factory, 'connect').mockReturnValue(
+      mockContract as unknown as TrustedRelayerIsm,
+    );
+    vi.spyOn(IInterchainSecurityModule__factory, 'connect').mockReturnValue(
+      mockContract as unknown as IInterchainSecurityModule,
+    );
+    vi.spyOn(Ownable__factory, 'connect').mockReturnValue(mockContract as any);
+    vi.spyOn(DefaultFallbackRoutingIsm__factory, 'connect').mockReturnValue(
+      mockDefaultFallbackContract as unknown as DefaultFallbackRoutingIsm,
+    );
 
     const expectedConfig: WithAddress<InterchainAccountRouterIsm> = {
       address: mockAddress,
@@ -227,45 +222,45 @@ describe('EvmIsmReader', () => {
 
     // Mock the routing ISM contract
     const mockRoutingContract = {
-      moduleType: sandbox.stub().resolves(ModuleType.ROUTING),
-      owner: sandbox.stub().resolves(mockOwner),
-      domains: sandbox.stub().resolves([mockDomain]),
-      module: sandbox.stub().resolves(mockModule),
+      moduleType: vi.fn().mockResolvedValue(ModuleType.ROUTING),
+      owner: vi.fn().mockResolvedValue(mockOwner),
+      domains: vi.fn().mockResolvedValue([mockDomain]),
+      module: vi.fn().mockResolvedValue(mockModule),
     };
 
     // Mock fallback routing to fail mailbox() call
     const mockFallbackContract = {
-      mailbox: sandbox.stub().rejects(new Error('No mailbox')),
-      domains: sandbox.stub().resolves([BigNumber.from(mockDomain)]),
-      module: sandbox.stub().resolves(mockModule),
+      mailbox: vi.fn().mockRejectedValue(new Error('No mailbox')),
+      domains: vi.fn().mockResolvedValue([BigNumber.from(mockDomain)]),
+      module: vi.fn().mockResolvedValue(mockModule),
     };
 
     const mockProvider = evmIsmReader['provider'];
-    sandbox
-      .stub(mockProvider, 'getCode')
-      .resolves(IncrementalDomainRoutingIsm__factory.bytecode);
+    vi.spyOn(mockProvider, 'getCode').mockResolvedValue(
+      IncrementalDomainRoutingIsm__factory.bytecode,
+    );
 
-    sandbox
-      .stub(AbstractRoutingIsm__factory, 'connect')
-      .returns(mockRoutingContract as any);
-    sandbox
-      .stub(Ownable__factory, 'connect')
-      .returns({ owner: sandbox.stub().resolves(mockOwner) } as any);
-    sandbox
-      .stub(DefaultFallbackRoutingIsm__factory, 'connect')
-      .returns(mockFallbackContract as any);
-    sandbox
-      .stub(DomainRoutingIsm__factory, 'connect')
-      .returns(mockRoutingContract as any);
-    sandbox.stub(InterchainAccountRouter__factory, 'connect').returns({
-      CCIP_READ_ISM: sandbox.stub().rejects(new Error('Not ICA')),
+    vi.spyOn(AbstractRoutingIsm__factory, 'connect').mockReturnValue(
+      mockRoutingContract as any,
+    );
+    vi.spyOn(Ownable__factory, 'connect').mockReturnValue({
+      owner: vi.fn().mockResolvedValue(mockOwner),
     } as any);
-    sandbox
-      .stub(IInterchainSecurityModule__factory, 'connect')
-      .returns(mockRoutingContract as any);
+    vi.spyOn(DefaultFallbackRoutingIsm__factory, 'connect').mockReturnValue(
+      mockFallbackContract as any,
+    );
+    vi.spyOn(DomainRoutingIsm__factory, 'connect').mockReturnValue(
+      mockRoutingContract as any,
+    );
+    vi.spyOn(InterchainAccountRouter__factory, 'connect').mockReturnValue({
+      CCIP_READ_ISM: vi.fn().mockRejectedValue(new Error('Not ICA')),
+    } as any);
+    vi.spyOn(IInterchainSecurityModule__factory, 'connect').mockReturnValue(
+      mockRoutingContract as any,
+    );
 
     // Mock deriveIsmConfig for the nested module
-    sandbox.stub(evmIsmReader, 'deriveIsmConfig' as any).resolves({
+    vi.spyOn(evmIsmReader, 'deriveIsmConfig' as any).mockResolvedValue({
       type: IsmType.TEST_ISM,
       address: mockModule,
     });

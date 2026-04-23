@@ -1,5 +1,4 @@
-import { expect } from 'vitest';
-import sinon from 'sinon';
+import { expect, vi } from 'vitest';
 
 import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
@@ -18,10 +17,8 @@ describe('M0PortalTokenAdapter', () => {
   const HYPERLANE_BRIDGE_ADAPTER = '0xfCc1d596Ad6cAb0b5394eAa447d8626813180f32';
 
   let adapter: M0PortalTokenAdapter;
-  let sandbox: sinon.SinonSandbox;
 
   beforeEach(() => {
-    sandbox = sinon.createSandbox();
     const multiProvider =
       MultiProtocolProvider.createTestMultiProtocolProvider();
     adapter = new M0PortalTokenAdapter(
@@ -32,11 +29,11 @@ describe('M0PortalTokenAdapter', () => {
     );
   });
 
-  afterEach(() => sandbox.restore());
+  afterEach(() => vi.restoreAllMocks());
 
   describe('quoteTransferRemoteGas', () => {
     it('returns native-gas quote from Portal.quote()', async () => {
-      const quote = sandbox.stub().resolves(500n);
+      const quote = vi.fn().mockResolvedValue(500n);
       // @ts-ignore Mock portal contract for unit test
       adapter.portalContract = { quote };
 
@@ -48,8 +45,8 @@ describe('M0PortalTokenAdapter', () => {
       expect(result.igpQuote.addressOrDenom).toBe(undefined);
       expect(result.tokenFeeQuote).toBe(undefined);
 
-      expect(quote.calledOnce).toBe(true);
-      const args = quote.getCall(0).args;
+      expect(quote).toHaveBeenCalledOnce();
+      const args = quote.mock.calls[0];
       expect(args[0]).toBe(DESTINATION_CHAIN_ID);
       expect(args[1]).toBe(0); // TOKEN_TRANSFER_PAYLOAD_TYPE
       expect(args[2]).toBe(HYPERLANE_BRIDGE_ADAPTER);
@@ -58,10 +55,10 @@ describe('M0PortalTokenAdapter', () => {
 
   describe('populateTransferRemoteTx', () => {
     it('calls sendToken with correct args and tx value', async () => {
-      const sendToken = sandbox.stub().resolves({});
+      const sendToken = vi.fn().mockResolvedValue({});
       // @ts-ignore Mock portal contract for unit test
       adapter.portalContract = {
-        quote: sandbox.stub().resolves(200n),
+        quote: vi.fn().mockResolvedValue(200n),
         populateTransaction: { sendToken },
       };
 
@@ -73,8 +70,8 @@ describe('M0PortalTokenAdapter', () => {
         fromAccountOwner: SENDER,
       });
 
-      expect(sendToken.calledOnce).toBe(true);
-      const args = sendToken.getCall(0).args;
+      expect(sendToken).toHaveBeenCalledOnce();
+      const args = sendToken.mock.calls[0];
       expect(args[0]).toBe(amount); // amount
       expect(args[1]).toBe(MTOKEN_ADDRESS); // sourceToken
       expect(args[2]).toBe(DESTINATION_CHAIN_ID); // destinationChainId
@@ -89,8 +86,10 @@ describe('M0PortalTokenAdapter', () => {
 
   describe('regression: zero igpQuote does not re-quote', () => {
     it('uses provided interchainGas amount of 0n without calling quote()', async () => {
-      const quote = sandbox.stub().rejects(new Error('should not be called'));
-      const sendToken = sandbox.stub().resolves({});
+      const quote = vi
+        .fn()
+        .mockRejectedValue(new Error('should not be called'));
+      const sendToken = vi.fn().mockResolvedValue({});
       // @ts-ignore Mock portal contract for unit test
       adapter.portalContract = {
         quote,
@@ -107,9 +106,9 @@ describe('M0PortalTokenAdapter', () => {
         },
       });
 
-      expect(quote.called).toBe(false);
-      expect(sendToken.calledOnce).toBe(true);
-      const args = sendToken.getCall(0).args;
+      expect(quote).not.toHaveBeenCalled();
+      expect(sendToken).toHaveBeenCalledOnce();
+      const args = sendToken.mock.calls[0];
       expect(args[8].value).toBe(0n);
     });
   });

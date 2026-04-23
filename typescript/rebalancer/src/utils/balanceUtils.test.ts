@@ -1,6 +1,5 @@
 import { expect } from 'vitest';
 import { pino } from 'pino';
-import sinon from 'sinon';
 
 import { type ChainName, type Token, TokenStandard } from '@hyperlane-xyz/sdk';
 
@@ -30,7 +29,7 @@ describe('getRawBalances', () => {
     token = {
       chainName: 'mainnet',
       addressOrDenom: '0xAddress',
-      isCollateralized: sinon.stub().returns(true),
+      isCollateralized: vi.fn().mockReturnValue(true),
       standard: TokenStandard.EvmHypCollateral,
     } as unknown as Token;
 

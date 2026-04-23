@@ -51,10 +51,8 @@
   "devDependencies": {
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@types/node": "catalog:",
-    "@types/sinon": "catalog:",
     "@vercel/ncc": "catalog:",
     "oxfmt": "catalog:",
-    "sinon": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
