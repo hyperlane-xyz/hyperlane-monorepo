@@ -44,8 +44,8 @@ use solana_sdk::{
 
 use common::{
     assert_simulation_error, assert_simulation_ok, domain_pda_key, dummy_message,
-    get_all_verify_account_metas, get_verify_account_metas, initialize, program_test,
-    remove_domain_ism, set_domain_ism, simulate_verify, storage_pda_key,
+    get_all_verify_account_metas, get_metadata_spec, get_verify_account_metas, initialize,
+    program_test, remove_domain_ism, set_domain_ism, simulate_verify, storage_pda_key,
 };
 
 const ORIGIN: u32 = 1234;
@@ -701,4 +701,63 @@ async fn test_verify_via_fallback_ism_with_trusted_relayer_accepts() {
         )
         .await,
     );
+}
+
+// ── Regression: VerifyMetadataSpec when fallback ISM is a composite ISM ──────
+//
+// Previously the Type CPI was invoked with 0 accounts.  The inner composite
+// ISM's Type handler calls next_account_info → NotEnoughAccountKeys → the
+// relayer reported "insufficient account keys for instruction".
+// Fix: pass the fallback's VAM/storage PDA as accounts[0] to the Type CPI.
+
+#[tokio::test]
+async fn test_metadata_spec_fallback_composite_ism_converges() {
+    let mut context = program_test_with_fallback().start_with_context().await;
+    let payer = context.payer.insecure_clone();
+    let recent_blockhash = context.banks_client.get_latest_blockhash().await.unwrap();
+
+    let validators = vec![hyperlane_core::H160::random()];
+    setup_fallback_ism(
+        &mut context.banks_client,
+        &payer,
+        recent_blockhash,
+        IsmNode::MultisigMessageId {
+            validators: validators.clone(),
+            threshold: 1,
+        },
+    )
+    .await;
+
+    let recent_blockhash = context.banks_client.get_latest_blockhash().await.unwrap();
+    initialize(
+        &mut context.banks_client,
+        &payer,
+        recent_blockhash,
+        IsmNode::FallbackRouting {
+            fallback_ism: fallback_ism_id(),
+        },
+    )
+    .await
+    .unwrap();
+
+    let mut msg = dummy_message();
+    msg.origin = ORIGIN;
+
+    let recent_blockhash = context.banks_client.get_latest_blockhash().await.unwrap();
+    let result = get_metadata_spec(&mut context.banks_client, &payer, recent_blockhash, &msg)
+        .await
+        .expect("VerifyMetadataSpec fixpoint did not converge");
+
+    match result.spec {
+        Some(
+            hyperlane_sealevel_interchain_security_module_interface::MetadataSpec::MultisigMessageId {
+                validators: v,
+                threshold: t,
+            },
+        ) => {
+            assert_eq!(v, validators);
+            assert_eq!(t, 1);
+        }
+        other => panic!("expected MultisigMessageId spec, got {:?}", other),
+    }
 }

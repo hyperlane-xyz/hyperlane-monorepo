@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use borsh::BorshDeserialize;
-use hyperlane_core::{HyperlaneMessage, ModuleType, H256};
+use hyperlane_core::{Encode, HyperlaneMessage, ModuleType, H256};
 use hyperlane_sealevel_composite_ism::{
     accounts::{
         derive_domain_pda, CompositeIsmAccount, CompositeIsmStorage, DomainIsmAccount,
@@ -9,12 +9,13 @@ use hyperlane_sealevel_composite_ism::{
     },
     instruction::{
         initialize_instruction, remove_domain_ism_instruction, set_domain_ism_instruction,
-        update_config_instruction,
+        update_config_instruction, verify_metadata_spec_instruction,
     },
     processor::process_instruction,
 };
 use hyperlane_sealevel_interchain_security_module_interface::{
-    InterchainSecurityModuleInstruction, VerifyInstruction, VERIFY_ACCOUNT_METAS_PDA_SEEDS,
+    InterchainSecurityModuleInstruction, MetadataSpecResult, VerifyInstruction,
+    VERIFY_ACCOUNT_METAS_PDA_SEEDS,
 };
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_banks_interface::BanksTransactionResultWithSimulation;
@@ -390,6 +391,48 @@ pub fn make_domain_pda_data(
     );
     DomainIsmAccount::from(storage).store(&acc, false).unwrap();
     (key, data)
+}
+
+/// Runs the `VerifyMetadataSpec` fixpoint loop (mirrors the relayer's
+/// `SealevelCompositeIsm::get_metadata_spec`) and returns the converged
+/// [`MetadataSpecResult`], or `None` if it did not converge within 10 iters.
+pub async fn get_metadata_spec(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    recent_blockhash: Hash,
+    message: &HyperlaneMessage,
+) -> Option<MetadataSpecResult> {
+    use hyperlane_sealevel_composite_ism::accounts::derive_domain_pda as ddp;
+    let (domain_pda, _) = ddp(&composite_ism_id(), message.origin);
+    let mut extra: Vec<Pubkey> = vec![domain_pda];
+
+    for _ in 0..10 {
+        let ix =
+            verify_metadata_spec_instruction(composite_ism_id(), message.to_vec(), extra.clone())
+                .unwrap();
+
+        let sim = banks_client
+            .simulate_transaction(Transaction::new_unsigned(Message::new_with_blockhash(
+                &[ix],
+                Some(&payer.pubkey()),
+                &recent_blockhash,
+            )))
+            .await
+            .unwrap();
+
+        let data = sim.simulation_details?.return_data?.data;
+
+        let result = SimulationReturnData::<MetadataSpecResult>::try_from_slice(&data)
+            .ok()?
+            .return_data;
+
+        if result.spec.is_some() || result.accounts.is_empty() {
+            return Some(result);
+        }
+        // result.accounts = [vam_pda, a, b, …] — drop the leading vam_pda.
+        extra = result.accounts[1..].to_vec();
+    }
+    None
 }
 
 /// Serializes a [`CompositeIsmAccount`] for a fallback ISM program into a raw byte buffer

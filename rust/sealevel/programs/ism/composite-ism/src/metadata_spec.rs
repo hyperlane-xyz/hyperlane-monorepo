@@ -225,15 +225,23 @@ pub(crate) fn spec_and_accounts_for_node<'a, 'info>(
             // Pass 3+: determine type before invoking VerifyMetadataSpec so we
             // remain compatible with old deployed multisig ISMs that only support
             // Type / ValidatorsAndThresholdAccountMetas / ValidatorsAndThreshold.
+            //
+            // Pass the fallback ISM's VAM/storage PDA as accounts[0] so that
+            // composite ISMs (which call next_account_info in their Type handler)
+            // don't fail with NotEnoughAccountKeys.  Legacy multisig ISMs ignore
+            // extra accounts, so this is backwards-compatible.
+            let fallback_storage_info = (*extra_accounts[*cursor]).clone();
+            let fallback_storage_meta =
+                AccountMeta::new_readonly(*fallback_storage_info.key, false);
             invoke(
                 &SolanaInstruction {
                     program_id: *fallback_ism,
-                    accounts: vec![],
+                    accounts: vec![fallback_storage_meta],
                     data: InterchainSecurityModuleInstruction::Type
                         .encode()
                         .map_err(|_| Error::InvalidConfig)?,
                 },
-                &[],
+                &[fallback_storage_info],
             )
             .map_err(|_| Error::FallbackIsmCallFailed)?;
             let Some((_, type_bytes)) = get_return_data() else {
