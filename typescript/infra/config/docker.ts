@@ -51,7 +51,11 @@ export const mainnetDockerTags: MainnetDockerTags = {
   keyFunder: '3b17358-20260315-183126',
   warpMonitor: '3b17358-20260315-183126',
   rebalancer: '1a19513-20260413-090011',
-  feeQuoting: '12d899d-20260325-184337',
+  // Bumped from the old standalone hyperlane-fee-quoting tag when the
+  // service was migrated onto hyperlane-node-services. Points at a
+  // post-migration node-services build that includes the fee-quoting
+  // bundle; bump again after the next signed main build lands.
+  feeQuoting: '1a19513-20260413-090011',
 };
 
 export const testnetDockerTags: BaseDockerTags = {

@@ -67,7 +67,7 @@ function isNodeErrorCode(err: unknown, code: string): boolean {
     typeof err === 'object' &&
     err !== null &&
     'code' in err &&
-    (err as { code: unknown }).code === code
+    err.code === code
   );
 }
 
@@ -131,7 +131,7 @@ function extractFinishedOn(rawJson: string): FinishedOnResult {
       for (const t of tlogEntries) {
         const raw =
           typeof t === 'object' && t !== null && 'integratedTime' in t
-            ? (t as { integratedTime: unknown }).integratedTime
+            ? t.integratedTime
             : undefined;
         const seconds =
           typeof raw === 'string'
