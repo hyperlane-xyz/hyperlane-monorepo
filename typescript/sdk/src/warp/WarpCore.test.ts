@@ -58,7 +58,7 @@ describe('WarpCore', () => {
   let cw20: Token;
   let cosmosIbc: Token;
 
-  before(() => {
+  beforeAll(() => {
     const exampleConfig = yamlParse(
       fs.readFileSync('./src/warp/test-warp-core-config.yaml', 'utf-8'),
     );

@@ -31,7 +31,7 @@
     "dev": "tsc --watch",
     "lint": "oxlint -c ../../oxlint.json",
     "format": "oxfmt --write ./src",
-    "test": "mocha --config .mocharc.json './src/**/*.test.ts' --exit",
+    "test": "vitest run",
     "test:e2e": "mocha --config .mocharc.e2e.json",
     "test:e2e:ci": "sh -c 'mocha --config .mocharc.e2e.json \"src/e2e/*${REBALANCER_E2E_TEST}*.e2e-test.ts\" --exit'",
     "test:ci": "pnpm test",
@@ -82,7 +82,9 @@
     "sinon": "catalog:",
     "testcontainers": "catalog:",
     "tsx": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
   },
   "engines": {
     "node": ">=18"

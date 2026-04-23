@@ -35,8 +35,7 @@ async function getConfigsForBranch(branch: string) {
 }
 
 // eslint-disable-next-line jest/no-disabled-tests -- intentionally skipped, needs stable warp ids
-describe.skip('Warp Configs', function () {
-  this.timeout(DEFAULT_TIMEOUT);
+describe.skip('Warp Configs', () => {
   const ENV = 'mainnet3';
   const warpIdsToCheck = Object.keys(warpConfigGetterMap).filter(
     (warpId) => !warpIdsToSkip.includes(warpId),
@@ -44,7 +43,7 @@ describe.skip('Warp Configs', function () {
 
   let multiProvider: MultiProvider;
   let configsFromGithub: Record<string, WarpRouteDeployConfig>;
-  before(async function () {
+  beforeAll(async () => {
     multiProvider = (await getHyperlaneCore(ENV)).multiProvider;
     configsFromGithub = await getConfigsForBranch('main');
   });

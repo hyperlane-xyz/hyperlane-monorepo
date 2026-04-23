@@ -228,10 +228,7 @@ function isValidationError(msg: string): boolean {
   return VALIDATION_PATTERNS.some((pattern) => pattern.test(msg));
 }
 
-describe('LiFiBridge.execute() route validation', function () {
-  // Allow extra time for tests that pass validation and reach SDK execution
-  this.timeout(15000);
-
+describe('LiFiBridge.execute() route validation', () => {
   let bridge: LiFiBridge;
 
   beforeEach(() => {

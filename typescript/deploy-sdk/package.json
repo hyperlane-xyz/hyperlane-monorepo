@@ -20,7 +20,7 @@
     "lint": "oxlint -c ../../oxlint.json",
     "clean": "rm -rf ./dist",
     "format": "oxfmt --write .",
-    "test": "mocha --config .mocharc.json './src/**/*.test.ts' --exit"
+    "test": "vitest run"
   },
   "dependencies": {
     "@hyperlane-xyz/aleo-sdk": "workspace:*",
@@ -37,15 +37,15 @@
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@types/chai": "catalog:",
     "@types/chai-as-promised": "catalog:",
-    "@types/mocha": "catalog:",
     "@types/node": "catalog:",
     "@types/sinon": "catalog:",
     "@types/sinon-chai": "catalog:",
     "chai": "catalog:",
     "chai-as-promised": "catalog:",
-    "mocha": "catalog:",
     "sinon": "catalog:",
     "tsx": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
   }
 }

@@ -17,7 +17,7 @@
     "bundle": "rm -rf ./bundle && ncc build ./dist/server.js -o bundle -e @google-cloud/pino-logging-gcp-config && node ../../scripts/ncc.post-bundle.mjs",
     "start": "tsx src/server.ts",
     "dev": "NODE_ENV=development LOG_FORMAT=pretty tsx watch src/server.ts",
-    "test": "mocha './tests/**/CallCommitmentsService.test.ts' --exit",
+    "test": "vitest run",
     "test:ci": "pnpm test",
     "lint": "oxlint -c ../../oxlint.json",
     "format": "oxfmt --write ./src ./tests"
@@ -52,19 +52,19 @@
     "@types/chai": "catalog:",
     "@types/cors": "^2",
     "@types/express": "^4.17.1",
-    "@types/mocha": "catalog:",
     "@types/node": "catalog:",
     "@types/pg": "^8.16.0",
     "@types/pino-http": "^5.8.4",
     "@types/sinon": "catalog:",
     "@vercel/ncc": "catalog:",
     "chai": "catalog:",
-    "mocha": "catalog:",
     "nodemon": "^3.0.3",
     "pino-pretty": "catalog:",
     "sinon": "catalog:",
     "tsx": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
   },
   "engines": {
     "node": ">=16"

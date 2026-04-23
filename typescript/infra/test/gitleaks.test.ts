@@ -20,7 +20,7 @@ describe('GitLeaks CLI Integration Tests', function () {
 
   let gitLeaksConfig: TomlTable;
 
-  before(function () {
+  beforeAll(() => {
     const originalConfigPath = path.join(
       process.cwd(),
       '../../',

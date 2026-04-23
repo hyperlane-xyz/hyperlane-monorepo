@@ -8,7 +8,11 @@ import {
   AggregationMetadata,
   AggregationMetadataBuilder,
 } from './aggregation.js';
-import { Fixture } from './types.test.js';
+
+type Fixture<T> = {
+  decoded: T;
+  encoded: string;
+};
 
 const path = '../../solidity/fixtures/aggregation';
 const files = existsSync(path) ? readdirSync(path) : [];
@@ -27,7 +31,7 @@ const fixtures: Fixture<AggregationMetadata>[] = files
     };
   });
 
-describe('AggregationMetadataBuilder', () => {
+describe.skipIf(fixtures.length === 0)('AggregationMetadataBuilder', () => {
   fixtures.forEach((fixture, i) => {
     it(`should encode fixture ${i}`, () => {
       expect(AggregationMetadataBuilder.encode(fixture.decoded)).to.equal(

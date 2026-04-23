@@ -32,7 +32,7 @@
     "lint": "oxlint -c ../../oxlint.json",
     "clean": "rm -rf ./dist ./cache",
     "dev": "tsc --watch",
-    "test": "mocha --config .mocharc.json",
+    "test": "vitest run",
     "test:e2e": "./scripts/run-e2e-test.sh",
     "test:ci": "pnpm test"
   },
@@ -51,6 +51,8 @@
     "mocha": "catalog:",
     "testcontainers": "catalog:",
     "tsx": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
   }
 }

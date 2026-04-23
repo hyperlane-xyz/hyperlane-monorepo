@@ -33,8 +33,8 @@
     "lint": "oxlint -c ../../oxlint.json",
     "clean": "rm -rf ./dist",
     "format": "oxfmt --write .",
-    "test": "mocha --config .mocharc.json",
-    "test:ci": "mocha --config .mocharc.json"
+    "test": "vitest run",
+    "test:ci": "vitest run"
   },
   "dependencies": {
     "@hyperlane-xyz/utils": "workspace:*",
@@ -44,11 +44,11 @@
   "devDependencies": {
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@types/chai": "catalog:",
-    "@types/mocha": "catalog:",
     "@types/node": "catalog:",
     "chai": "catalog:",
-    "mocha": "catalog:",
     "tsx": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
   }
 }

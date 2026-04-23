@@ -17,10 +17,8 @@ import {
 
 const DEFAULT_TIMEOUT = 30_000;
 
-describe('Balance Alert Thresholds', function () {
-  this.timeout(DEFAULT_TIMEOUT);
-
-  it('should have matching thresholds between Grafana alerts and threshold config files', async function () {
+describe('Balance Alert Thresholds', () => {
+  it('should have matching thresholds between Grafana alerts and threshold config files', async () => {
     let saToken: string;
     try {
       saToken = await fetchGrafanaServiceAccountToken();

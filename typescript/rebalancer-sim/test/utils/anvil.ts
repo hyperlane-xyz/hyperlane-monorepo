@@ -48,20 +48,13 @@ export function getAnvilRpcUrl(container: StartedTestContainer): string {
 }
 
 /**
- * Setup function for Mocha tests that require Anvil.
  * Starts a fresh Anvil container for EACH TEST to ensure complete isolation.
- *
- * Uses testcontainers for:
- * - No local anvil installation required
- * - Automatic container cleanup (even on crashes)
- * - Dynamic port assignment (no port conflicts)
- * - Retry logic for CI reliability
- * - Consistent behavior across local/CI environments
+ * Timeouts are set globally via vitest.config.ts testTimeout/hookTimeout.
  *
  * Usage:
  * ```typescript
- * describe('My Tests', function() {
- *   const anvil = setupAnvilTestSuite(this);
+ * describe('My Tests', () => {
+ *   const anvil = setupAnvilTestSuite();
  *
  *   it('test case', async () => {
  *     const rpc = anvil.rpc; // http://localhost:<dynamic-port>
@@ -69,24 +62,18 @@ export function getAnvilRpcUrl(container: StartedTestContainer): string {
  * });
  * ```
  */
-export function setupAnvilTestSuite(
-  suite: Mocha.Suite,
-  chainId: number = DEFAULT_CHAIN_ID,
-): { rpc: string } {
-  // Use a getter pattern so rpc is always current after container starts
+export function setupAnvilTestSuite(chainId: number = DEFAULT_CHAIN_ID): {
+  rpc: string;
+} {
   const state: {
     container: StartedTestContainer | null;
     rpc: string;
   } = {
     container: null,
-    rpc: '', // Will be set after container starts
+    rpc: '',
   };
 
-  suite.timeout(180000); // 3 minutes per test
-
-  // Start fresh anvil container before EACH test
-  suite.beforeEach(async function () {
-    // Stop any existing container
+  beforeEach(async () => {
     if (state.container) {
       await state.container.stop();
       state.container = null;
@@ -96,8 +83,7 @@ export function setupAnvilTestSuite(
     state.rpc = getAnvilRpcUrl(state.container);
   });
 
-  // Stop container after EACH test for clean slate
-  suite.afterEach(async function () {
+  afterEach(async () => {
     if (state.container) {
       await state.container.stop();
       state.container = null;

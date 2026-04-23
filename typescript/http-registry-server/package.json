@@ -22,7 +22,7 @@
     "format": "oxfmt --write ./src ./test",
     "test": "pnpm test:unit",
     "test:ci": "pnpm test",
-    "test:unit": "mocha --config .mocharc.json './test/**/*.ts' --exit"
+    "test:unit": "vitest run"
   },
   "dependencies": {
     "@google-cloud/pino-logging-gcp-config": "catalog:",
@@ -39,20 +39,20 @@
     "@types/chai": "catalog:",
     "@types/chai-as-promised": "catalog:",
     "@types/express": "^5.0.3",
-    "@types/mocha": "catalog:",
     "@types/node": "catalog:",
     "@types/sinon": "catalog:",
     "@types/supertest": "^2.0.12",
     "@types/yargs": "catalog:",
     "chai": "catalog:",
     "chai-as-promised": "catalog:",
-    "mocha": "catalog:",
     "oxfmt": "catalog:",
     "pino-pretty": "catalog:",
     "sinon": "catalog:",
     "supertest": "^6.3.3",
     "tsx": "catalog:",
     "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:",
     "yargs": "catalog:"
   }
 }
