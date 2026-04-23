@@ -112,7 +112,7 @@ async function verifyAgentAttestationsWithPrompt(
 ) {
   const refs: ImageRef[] = [];
   for (const r of rolesToCheck(agentConfig, roles)) {
-    if (r.tag == null) continue;
+    if (!r.tag) continue;
     refs.push({
       component: r.agent,
       image: DockerImageRepos.AGENT,
