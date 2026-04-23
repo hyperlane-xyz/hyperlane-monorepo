@@ -600,12 +600,35 @@ fn transfer_remote_to_local(
         return Err(ProgramError::InvalidAccountData);
     }
 
+    // Fee prelude: parse fee section if fee_config is configured.
+    let local_amount: u64 = xfer
+        .amount_or_id
+        .try_into()
+        .map_err(|_| TokenError::IntegerOverflow)?;
+
+    let fee = if hyperlane_token.fee_config.is_some() {
+        let (fee_amount, fee_beneficiary) =
+            HyperlaneSealevelToken::<CollateralPlugin>::parse_fee_section_and_quote(
+                hyperlane_token,
+                sender_wallet,
+                accounts_iter,
+                xfer.destination_domain,
+                xfer.recipient,
+                local_amount,
+                xfer.target_router,
+            )?;
+        Some((fee_amount, fee_beneficiary))
+    } else {
+        None
+    };
+
     let remote_amount = HyperlaneSealevelToken::<CollateralPlugin>::convert_and_transfer_in(
         program_id,
         hyperlane_token,
         sender_wallet,
         accounts_iter,
         xfer.amount_or_id,
+        fee,
     )?;
 
     // Build HandleLocal instruction data

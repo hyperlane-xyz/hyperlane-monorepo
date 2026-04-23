@@ -413,6 +413,30 @@ where
         // Similarly defer to the checks in the Mailbox to ensure account validity.
         let dispatched_message_pda = next_account_info(accounts_iter)?;
 
+        // === Fee section (if fee_config is Some) ===
+        // Consumed before IGP: Core → Fee → IGP → Plugin.
+        // When fee_config is None, skipped — preserving Core → IGP → Plugin.
+        let local_amount: u64 = amount_or_id
+            .try_into()
+            .map_err(|_| Error::IntegerOverflow)?;
+
+        let fee = if token.fee_config.is_some() {
+            let (fee_amount, fee_beneficiary) = Self::parse_fee_section_and_quote(
+                token,
+                sender_wallet,
+                accounts_iter,
+                destination_domain,
+                recipient,
+                local_amount,
+                router,
+            )?;
+            Some((fee_amount, fee_beneficiary))
+        } else {
+            None
+        };
+
+        // === IGP accounts (saved for later CPI) ===
+
         let igp_payment_accounts =
             if let Some((igp_program_id, igp_account_type)) = token.interchain_gas_paymaster() {
                 // The IGP program
@@ -490,6 +514,7 @@ where
             sender_wallet,
             accounts_iter,
             amount_or_id,
+            fee,
         )?;
 
         if accounts_iter.next().is_some() {
@@ -583,8 +608,8 @@ where
     /// - fee_account (owned by fee_program)
     /// - variable QuoteFee pass-through accounts (until terminal)
     /// - fee_beneficiary (terminal sentinel)
-    #[allow(clippy::too_many_arguments, dead_code)]
-    fn parse_fee_section_and_quote<'a, 'b>(
+    #[allow(clippy::too_many_arguments)]
+    pub fn parse_fee_section_and_quote<'a, 'b>(
         token: &HyperlaneToken<T>,
         sender_wallet: &'a AccountInfo<'b>,
         accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
@@ -677,14 +702,15 @@ where
     }
 
     /// Converts amount from local to remote decimals and calls plugin
-    /// `transfer_in`. Returns `remote_amount` for the caller to build
-    /// `TokenMessage`.
+    /// `transfer_in` with an optional fee. Returns `remote_amount` for
+    /// the caller to build `TokenMessage`.
     pub fn convert_and_transfer_in<'a, 'b>(
         program_id: &Pubkey,
         token: &HyperlaneToken<T>,
         sender_wallet: &'a AccountInfo<'b>,
         accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
         amount_or_id: U256,
+        fee: Option<(u64, &'a AccountInfo<'b>)>,
     ) -> Result<U256, ProgramError> {
         // The amount denominated in the local decimals.
         let local_amount: u64 = amount_or_id
@@ -700,7 +726,7 @@ where
             sender_wallet,
             accounts_iter,
             local_amount,
-            None,
+            fee,
         )?;
 
         Ok(remote_amount)
