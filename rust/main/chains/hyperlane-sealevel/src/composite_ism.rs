@@ -6,21 +6,23 @@ use hyperlane_core::{
     HyperlaneDomain, HyperlaneMessage, InterchainSecurityModule, Metadata, ModuleType,
     RawHyperlaneMessage, H256, U256,
 };
-use hyperlane_sealevel_composite_ism::accounts::{derive_domain_pda, CompositeIsmAccount, IsmNode};
+use hyperlane_sealevel_composite_ism::accounts::derive_domain_pda;
 use hyperlane_sealevel_composite_ism::instruction::verify_metadata_spec_instruction;
 pub use hyperlane_sealevel_interchain_security_module_interface::MetadataSpec;
-use hyperlane_sealevel_interchain_security_module_interface::VERIFY_ACCOUNT_METAS_PDA_SEEDS;
+use hyperlane_sealevel_interchain_security_module_interface::MetadataSpecResult;
 use serializable_account_meta::SimulationReturnData;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signer::Signer;
 
 use crate::{SealevelKeypair, SealevelProvider};
 
+const MAX_SPEC_ITERATIONS: usize = 10;
+
 /// A reference to the composite ISM program on some Sealevel chain.
 #[derive(Debug)]
 pub struct SealevelCompositeIsm {
     payer: Option<SealevelKeypair>,
-    program_id: solana_sdk::pubkey::Pubkey,
+    program_id: Pubkey,
     domain: HyperlaneDomain,
     provider: Arc<SealevelProvider>,
 }
@@ -32,7 +34,7 @@ impl SealevelCompositeIsm {
         locator: ContractLocator,
         payer: Option<SealevelKeypair>,
     ) -> Self {
-        let program_id = solana_sdk::pubkey::Pubkey::from(<[u8; 32]>::from(locator.address));
+        let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         Self {
             payer,
             program_id,
@@ -41,115 +43,61 @@ impl SealevelCompositeIsm {
         }
     }
 
-    /// Simulates `VerifyMetadataSpec` and returns the resolved [`MetadataSpec`].
+    /// Simulates `VerifyMetadataSpec` in a fixpoint loop, growing the account
+    /// list until the ISM returns a converged `MetadataSpec`.
     ///
-    /// Uses a two-pass approach: the first simulation is tried with just the domain PDA
-    /// (sufficient for `Routing` nodes and `FallbackRouting` when a domain ISM is configured).
-    /// If that returns no data — which happens when a `FallbackRouting` node needs to fall
-    /// back to the Mailbox's default ISM — the inbox PDA and fallback ISM storage PDA are
-    /// fetched from chain and a second simulation is run with the full account list.
+    /// Each iteration the ISM returns either:
+    /// - `spec: Some(s)` — done; or
+    /// - `spec: None, accounts: [vam_pda, a, b, …]` — re-simulate with
+    ///   `accounts[1..]` as the new extra-accounts list.
     pub async fn get_metadata_spec(&self, message: &HyperlaneMessage) -> ChainResult<MetadataSpec> {
         let message_bytes = RawHyperlaneMessage::from(message).to_vec();
-        let (domain_pda, _) = derive_domain_pda(&self.program_id, message.origin);
         let payer = self
             .payer
             .as_ref()
             .map(|p| p.pubkey())
             .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?;
 
-        // Pass 1: try with just the domain PDA.
-        let instruction = verify_metadata_spec_instruction(
-            self.program_id,
-            message_bytes.clone(),
-            vec![domain_pda],
-        )
-        .map_err(ChainCommunicationError::from_other)?;
+        let (domain_pda_key, _) = derive_domain_pda(&self.program_id, message.origin);
+        let mut extra_accounts: Vec<Pubkey> = vec![domain_pda_key];
 
-        // FallbackRouting fails the simulation when the fallback ISM's accounts are
-        // missing; pass 2 will supply them. Any other simulation error propagates.
-        // Ok(None) (program ran but set no return data) is always a bug.
-        match self
-            .provider
-            .simulate_instruction::<SimulationReturnData<MetadataSpec>>(&payer, instruction)
-            .await
-        {
-            Ok(Some(result)) => return Ok(result.return_data),
-            Ok(None) => return Err(ChainCommunicationError::from_other_str(
-                "VerifyMetadataSpec pass 1 returned no data — expected only for FallbackRouting",
-            )),
-            Err(_) => {} // fall through to pass 2
+        for _ in 0..MAX_SPEC_ITERATIONS {
+            let instruction = verify_metadata_spec_instruction(
+                self.program_id,
+                message_bytes.clone(),
+                extra_accounts.clone(),
+            )
+            .map_err(ChainCommunicationError::from_other)?;
+
+            let result = self
+                .provider
+                .simulate_instruction::<SimulationReturnData<MetadataSpecResult>>(
+                    &payer,
+                    instruction,
+                )
+                .await?
+                .ok_or_else(|| {
+                    ChainCommunicationError::from_other_str("VerifyMetadataSpec returned no data")
+                })?
+                .return_data;
+
+            if let Some(spec) = result.spec {
+                return Ok(spec);
+            }
+
+            // result.accounts = [vam_pda, a, b, …]  (the complete desired list).
+            // extra_accounts for the next simulation = everything after the VAM PDA.
+            if result.accounts.is_empty() {
+                return Err(ChainCommunicationError::from_other_str(
+                    "VerifyMetadataSpec returned spec: None with empty accounts",
+                ));
+            }
+            extra_accounts = result.accounts[1..].to_vec();
         }
 
-        // Pass 1 simulation error — the root ISM is a FallbackRouting node whose
-        // fallback path requires the fallback ISM's accounts.
-        let fallback_accounts = self.resolve_fallback_routing_accounts(message).await?;
-        let all_accounts = std::iter::once(domain_pda)
-            .chain(fallback_accounts)
-            .collect();
-
-        let instruction2 =
-            verify_metadata_spec_instruction(self.program_id, message_bytes, all_accounts)
-                .map_err(ChainCommunicationError::from_other)?;
-
-        self.provider
-            .simulate_instruction::<SimulationReturnData<MetadataSpec>>(&payer, instruction2)
-            .await?
-            .ok_or_else(|| {
-                ChainCommunicationError::from_other_str("No return data from VerifyMetadataSpec")
-            })
-            .map(|r| r.return_data)
-    }
-
-    /// Discovers the accounts needed for pass 2 of `VerifyMetadataSpec`.
-    ///
-    /// Reads the main VAM PDA to extract `FallbackRouting { fallback_ism }`, then
-    /// simulates `VerifyAccountMetas` on the fallback ISM to learn which accounts
-    /// it requires.  Those accounts (plus the fallback ISM program key itself) are
-    /// returned so the composite ISM's on-chain CPI can supply them.
-    async fn resolve_fallback_routing_accounts(
-        &self,
-        message: &HyperlaneMessage,
-    ) -> ChainResult<Vec<Pubkey>> {
-        let payer = self
-            .payer
-            .as_ref()
-            .map(|p| p.pubkey())
-            .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?;
-
-        let (vam_pda, _) =
-            Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, &self.program_id);
-        let vam_account = self
-            .provider
-            .rpc_client()
-            .get_account_with_finalized_commitment(vam_pda)
-            .await?;
-        let storage = CompositeIsmAccount::fetch_data(&mut &vam_account.data[..])
-            .map_err(ChainCommunicationError::from_other)?
-            .ok_or_else(|| {
-                ChainCommunicationError::from_other_str("Composite ISM VAM PDA not initialized")
-            })?;
-
-        let fallback_ism = match storage.root {
-            Some(IsmNode::FallbackRouting { fallback_ism }) => fallback_ism,
-            _ => {
-                return Err(ChainCommunicationError::from_other_str(
-                    "Root ISM is not FallbackRouting; cannot resolve fallback accounts",
-                ))
-            }
-        };
-
-        let raw_msg = RawHyperlaneMessage::from(message).to_vec();
-        let accounts = self
-            .provider
-            .get_ism_verify_account_metas(&payer, fallback_ism, vec![], raw_msg)
-            .await?;
-
-        // Include the fallback ISM program key so the on-chain CPI invoke can find it.
-        Ok(accounts
-            .into_iter()
-            .map(|m| m.pubkey)
-            .chain(std::iter::once(fallback_ism))
-            .collect())
+        Err(ChainCommunicationError::from_other_str(
+            "VerifyMetadataSpec fixpoint did not converge",
+        ))
     }
 }
 

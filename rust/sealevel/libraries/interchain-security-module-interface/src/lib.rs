@@ -1,14 +1,9 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::H160;
-use solana_program::program_error::ProgramError;
+use solana_program::{program_error::ProgramError, pubkey::Pubkey};
 use spl_discriminator::ArrayDiscriminator as Discriminator;
 
 /// The metadata format a message's ISM requires the relayer to supply.
-///
-/// Returned as set_return_data from `VerifyMetadataSpec`, wrapped in
-/// `SimulationReturnData<MetadataSpec>`.  The relayer uses this to know
-/// which validator signatures to fetch and how to structure the bytes
-/// it passes to `Verify`.
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone, PartialEq)]
 pub enum MetadataSpec {
     /// No metadata needed (e.g. TrustedRelayer, Test, Pausable, RateLimited).
@@ -25,6 +20,18 @@ pub enum MetadataSpec {
     },
 }
 
+/// Return value of `VerifyMetadataSpec`, wrapped in `SimulationReturnData<MetadataSpecResult>`.
+///
+/// When `spec` is `None` the ISM could not yet determine the full spec because
+/// some accounts were missing.  The relayer must add the pubkeys in `accounts`
+/// and re-simulate.  When `spec` is `Some` the result has converged and
+/// `accounts` is empty.
+#[derive(BorshSerialize, BorshDeserialize, Debug, Clone, PartialEq)]
+pub struct MetadataSpecResult {
+    pub spec: Option<MetadataSpec>,
+    pub accounts: Vec<Pubkey>,
+}
+
 /// Instructions that a Hyperlane interchain security module is expected to process.
 /// The first 8 bytes of the encoded instruction is a discriminator that
 /// allows programs to implement the required interface.
@@ -38,11 +45,12 @@ pub enum InterchainSecurityModuleInstruction {
     /// The only account expected to be passed into this instruction is the
     /// read-only PDA relating to the program ID and the seeds `VERIFY_ACCOUNT_METAS_PDA_SEEDS`
     VerifyAccountMetas(VerifyInstruction),
-    /// Returns the [`MetadataSpec`] for the given message as set_return_data,
-    /// wrapped in `SimulationReturnData<MetadataSpec>`.
+    /// Returns a [`MetadataSpecResult`] for the given message as set_return_data,
+    /// wrapped in `SimulationReturnData<MetadataSpecResult>`.
     ///
     /// Account 0 must always be the ISM's storage PDA (derived from
     /// `VERIFY_ACCOUNT_METAS_PDA_SEEDS`).  Additional accounts vary by ISM type.
+    /// If the result's `spec` is `None`, re-simulate with the returned accounts appended.
     VerifyMetadataSpec(VerifyMetadataSpecInstruction),
 }
 

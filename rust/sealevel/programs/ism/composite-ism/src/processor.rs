@@ -4,7 +4,7 @@ use access_control::AccessControl;
 use account_utils::{create_pda_account, DiscriminatorDecode, SizedData};
 use hyperlane_core::{Decode, HyperlaneMessage, ModuleType};
 use hyperlane_sealevel_interchain_security_module_interface::{
-    InterchainSecurityModuleInstruction, VERIFY_ACCOUNT_METAS_PDA_SEEDS,
+    InterchainSecurityModuleInstruction, MetadataSpecResult, VERIFY_ACCOUNT_METAS_PDA_SEEDS,
 };
 use serializable_account_meta::SimulationReturnData;
 use solana_program::{
@@ -18,8 +18,6 @@ use solana_program::{
 };
 use solana_system_interface::program as system_program;
 
-use hyperlane_sealevel_interchain_security_module_interface::MetadataSpec;
-
 use crate::{
     account_metas::{all_verify_account_metas, contains_rate_limited},
     accounts::{
@@ -28,7 +26,7 @@ use crate::{
     },
     error::Error,
     instruction::Instruction,
-    metadata_spec::spec_for_node_with_pdas,
+    metadata_spec::spec_and_accounts_for_node,
     storage_pda_seeds,
     verify::verify_node,
 };
@@ -62,8 +60,8 @@ pub fn process_instruction(
             InterchainSecurityModuleInstruction::VerifyMetadataSpec(data) => {
                 let message = HyperlaneMessage::read_from(&mut &data.message[..])
                     .map_err(|_| ProgramError::InvalidArgument)?;
-                let spec = get_metadata_spec(program_id, accounts, &message)?;
-                let bytes = borsh::to_vec(&SimulationReturnData::new(spec))
+                let result = get_metadata_spec(program_id, accounts, &message)?;
+                let bytes = borsh::to_vec(&SimulationReturnData::new(result))
                     .map_err(|_| ProgramError::BorshIoError)?;
                 set_return_data(&bytes[..]);
                 Ok(())
@@ -148,27 +146,44 @@ fn verify_account_metas(
     all_verify_account_metas(&vam_pda_key, root, metadata, message, program_id, &extra)
 }
 
-/// Returns the [`MetadataSpec`] for a given message.
+/// Returns a [`MetadataSpecResult`] for a given message.
 ///
 /// Accounts:
-/// 0. `[]` The storage PDA.
-/// 1..N. Domain PDAs for any `Routing` nodes (depth-first order).
+/// 0. `[]` The storage PDA (VAM PDA).
+/// 1..N. Additional accounts (domain PDAs, fallback ISM accounts) grown by
+///       the fixpoint loop until `spec` is `Some`.
+///
+/// When `spec` is `None`, `accounts` is the full desired account list for the
+/// next simulation (composite VAM PDA at index 0, then extra_accounts).
 fn get_metadata_spec(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
     message: &HyperlaneMessage,
-) -> Result<MetadataSpec, ProgramError> {
+) -> Result<MetadataSpecResult, ProgramError> {
     let accounts_iter = &mut accounts.iter();
     let storage_info = next_account_info(accounts_iter)?;
     let storage = load_and_verify_storage(program_id, storage_info)?;
 
     let root = storage.root.as_ref().ok_or(Error::ConfigNotSet)?;
 
-    // Remaining accounts are domain PDAs consumed in depth-first order.
     let extra: Vec<&AccountInfo> = accounts_iter.collect();
-    let mut extra_iter = extra.into_iter();
+    let mut cursor = 0usize;
 
-    spec_for_node_with_pdas(root, message, program_id, &mut extra_iter).map_err(Into::into)
+    let result = spec_and_accounts_for_node(root, message, program_id, &extra, &mut cursor)
+        .map_err(Into::<ProgramError>::into)?;
+
+    if result.spec.is_some() {
+        return Ok(result);
+    }
+
+    // Prepend the composite VAM PDA so the relayer has the complete account list.
+    let (vam_pda, _) = Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, program_id);
+    let mut full_accounts = vec![vam_pda];
+    full_accounts.extend(result.accounts);
+    Ok(MetadataSpecResult {
+        spec: None,
+        accounts: full_accounts,
+    })
 }
 
 /// Initializes the program, creating the storage PDA.

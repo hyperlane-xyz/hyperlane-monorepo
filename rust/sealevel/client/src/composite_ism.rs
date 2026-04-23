@@ -66,7 +66,7 @@ pub(crate) enum IsmNodeConfig {
     },
     AmountRouting {
         /// Big-endian u256 as a `"0x..."` hex string (64 hex chars = 32 bytes).
-        #[serde(with = "serde_hex_bytes32")]
+        #[serde(with = "serde_u256_decimal")]
         threshold: [u8; 32],
         lower: Box<IsmNodeConfig>,
         upper: Box<IsmNodeConfig>,
@@ -189,20 +189,21 @@ impl TryFrom<IsmNode> for IsmNodeConfig {
 }
 
 /// Serde helper: serializes `[u8; 32]` as `"0x<64 hex chars>"`.
-mod serde_hex_bytes32 {
+mod serde_u256_decimal {
+    use hyperlane_core::U256;
     use serde::{Deserialize, Deserializer, Serializer};
 
     pub fn serialize<S: Serializer>(bytes: &[u8; 32], ser: S) -> Result<S::Ok, S::Error> {
-        ser.serialize_str(&format!("0x{}", hex::encode(bytes)))
+        let u = U256::from_big_endian(bytes);
+        ser.serialize_str(&u.to_string())
     }
 
     pub fn deserialize<'de, D: Deserializer<'de>>(de: D) -> Result<[u8; 32], D::Error> {
         let s = String::deserialize(de)?;
-        let hex_str = s.strip_prefix("0x").unwrap_or(&s);
-        let bytes = hex::decode(hex_str).map_err(serde::de::Error::custom)?;
-        bytes
-            .try_into()
-            .map_err(|_| serde::de::Error::custom("amountRouting threshold must be 32 bytes"))
+        let u = U256::from_dec_str(&s).map_err(serde::de::Error::custom)?;
+        let mut bytes = [0u8; 32];
+        u.to_big_endian(&mut bytes);
+        Ok(bytes)
     }
 }
 

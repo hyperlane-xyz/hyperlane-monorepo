@@ -1,6 +1,7 @@
 use hyperlane_core::{Encode, HyperlaneMessage};
 use hyperlane_sealevel_interchain_security_module_interface::{
-    InterchainSecurityModuleInstruction, VerifyMetadataSpecInstruction,
+    InterchainSecurityModuleInstruction, MetadataSpecResult, VerifyMetadataSpecInstruction,
+    VERIFY_ACCOUNT_METAS_PDA_SEEDS,
 };
 use serializable_account_meta::SimulationReturnData;
 use solana_program::{
@@ -10,83 +11,84 @@ use solana_program::{
     pubkey::Pubkey,
 };
 
+pub use hyperlane_sealevel_interchain_security_module_interface::MetadataSpec;
+
 use crate::{
     accounts::{derive_domain_pda, load_and_validate_domain_ism_storage, IsmNode},
     error::Error,
     metadata::parse_routing_amount,
 };
 
-pub use hyperlane_sealevel_interchain_security_module_interface::MetadataSpec;
-
-/// Loads the domain ISM from `domain_pda_info` and resolves its spec.
-/// Returns `Ok(Some(spec))` if a domain ISM is configured, `Ok(None)` to fall through.
-fn try_spec_via_domain_ism<'a, 'info, I>(
-    program_id: &Pubkey,
-    message: &HyperlaneMessage,
-    domain_pda_info: &AccountInfo<'info>,
-    accounts_iter: &mut I,
-) -> Result<Option<MetadataSpec>, Error>
-where
-    I: Iterator<Item = &'a AccountInfo<'info>>,
-    'info: 'a,
-{
-    let loaded = load_and_validate_domain_ism_storage(program_id, message.origin, domain_pda_info)
-        .map_err(|_| Error::InvalidConfig)?;
-
-    if let Some(ref storage) = loaded {
-        if let Some(ref ism) = storage.ism {
-            return spec_for_node_with_pdas(ism, message, program_id, accounts_iter).map(Some);
-        }
-    }
-
-    Ok(None)
-}
-
-/// Resolves the [`MetadataSpec`] for an ISM node given the message.
+/// Resolves the [`MetadataSpec`] for an ISM node via a cursor-based fixpoint.
 ///
-/// For each `Routing` encountered during depth-first traversal, the next
-/// account from `accounts_iter` must be the domain PDA for `message.origin`
-/// (or any PDA — the key is verified against the derived address).
-pub(crate) fn spec_for_node_with_pdas<'a, 'info, I>(
+/// `extra_accounts` is the slice of accounts passed after the composite ISM's
+/// VAM PDA.  `cursor` tracks how many have been consumed by nodes processed
+/// before this call (shared across siblings in an Aggregation).
+///
+/// **Return semantics**
+/// - `spec: Some(s), accounts: []` — fully resolved.
+/// - `spec: None, accounts: [a, b, …]` — accounts are needed starting at the
+///   node's own starting-cursor position (relative, NOT global).  The node
+///   restores `cursor` to its value on entry before returning `spec: None`, so
+///   the parent can safely prepend the already-consumed accounts.
+///
+/// Aggregation prepends accounts consumed by earlier sub-ISMs so that the
+/// top-level result is always the complete desired `extra_accounts` slice for
+/// the next simulation (still relative to extra_accounts[0], not including
+/// the composite VAM PDA which the caller prepends).
+pub(crate) fn spec_and_accounts_for_node<'a, 'info>(
     node: &IsmNode,
     message: &HyperlaneMessage,
     program_id: &Pubkey,
-    accounts_iter: &mut I,
-) -> Result<MetadataSpec, Error>
-where
-    I: Iterator<Item = &'a AccountInfo<'info>>,
-    'info: 'a,
-{
+    extra_accounts: &[&'a AccountInfo<'info>],
+    cursor: &mut usize,
+) -> Result<MetadataSpecResult, Error> {
     match node {
-        IsmNode::Routing => {
-            let domain_pda_info = accounts_iter.next().ok_or(Error::InvalidDomainPda)?;
-            let (expected_key, _) = derive_domain_pda(program_id, message.origin);
-            if *domain_pda_info.key != expected_key {
-                return Err(Error::InvalidDomainPda);
-            }
-            try_spec_via_domain_ism(program_id, message, domain_pda_info, accounts_iter)?
-                .ok_or(Error::NoRouteForDomain)
-        }
-
         IsmNode::MultisigMessageId {
             validators,
             threshold,
-        } => Ok(MetadataSpec::MultisigMessageId {
-            validators: validators.clone(),
-            threshold: *threshold,
+        } => Ok(MetadataSpecResult {
+            spec: Some(MetadataSpec::MultisigMessageId {
+                validators: validators.clone(),
+                threshold: *threshold,
+            }),
+            accounts: vec![],
         }),
 
         IsmNode::Aggregation {
             threshold,
             sub_isms,
         } => {
-            let sub_specs = sub_isms
-                .iter()
-                .map(|sub| spec_for_node_with_pdas(sub, message, program_id, accounts_iter))
-                .collect::<Result<Vec<_>, _>>()?;
-            Ok(MetadataSpec::Aggregation {
-                threshold: *threshold,
-                sub_specs,
+            let agg_start = *cursor;
+            let mut sub_specs = Vec::with_capacity(sub_isms.len());
+            for sub in sub_isms {
+                let sub_start = *cursor;
+                let result =
+                    spec_and_accounts_for_node(sub, message, program_id, extra_accounts, cursor)?;
+                match result.spec {
+                    Some(spec) => sub_specs.push(spec),
+                    None => {
+                        // sub restored cursor to sub_start on failure.
+                        // Prepend accounts consumed by earlier sub-ISMs (positions
+                        // agg_start..sub_start) so the returned list is complete.
+                        let mut accounts: Vec<Pubkey> = extra_accounts[agg_start..sub_start]
+                            .iter()
+                            .map(|a| *a.key)
+                            .collect();
+                        accounts.extend(result.accounts);
+                        return Ok(MetadataSpecResult {
+                            spec: None,
+                            accounts,
+                        });
+                    }
+                }
+            }
+            Ok(MetadataSpecResult {
+                spec: Some(MetadataSpec::Aggregation {
+                    threshold: *threshold,
+                    sub_specs,
+                }),
+                accounts: vec![],
             })
         }
 
@@ -97,34 +99,122 @@ where
         } => {
             let amount = parse_routing_amount(&message.body).ok_or(Error::InvalidMessageBody)?;
             let sub_ism = if amount >= *threshold { upper } else { lower };
-            spec_for_node_with_pdas(sub_ism, message, program_id, accounts_iter)
+            spec_and_accounts_for_node(sub_ism, message, program_id, extra_accounts, cursor)
+        }
+
+        IsmNode::Routing => {
+            let cursor_before = *cursor;
+            let (domain_pda_key, _) = derive_domain_pda(program_id, message.origin);
+
+            let domain_present =
+                *cursor < extra_accounts.len() && *extra_accounts[*cursor].key == domain_pda_key;
+            if !domain_present {
+                return Ok(MetadataSpecResult {
+                    spec: None,
+                    accounts: vec![domain_pda_key],
+                });
+            }
+
+            let domain_pda_info = extra_accounts[*cursor];
+            *cursor += 1;
+
+            let loaded =
+                load_and_validate_domain_ism_storage(program_id, message.origin, domain_pda_info)
+                    .map_err(|_| Error::InvalidConfig)?;
+
+            if let Some(ref storage) = loaded {
+                if let Some(ref ism) = storage.ism {
+                    let result = spec_and_accounts_for_node(
+                        ism,
+                        message,
+                        program_id,
+                        extra_accounts,
+                        cursor,
+                    )?;
+                    if result.spec.is_some() {
+                        return Ok(result);
+                    }
+                    *cursor = cursor_before;
+                    let mut accounts = vec![domain_pda_key];
+                    accounts.extend(result.accounts);
+                    return Ok(MetadataSpecResult {
+                        spec: None,
+                        accounts,
+                    });
+                }
+            }
+
+            Err(Error::NoRouteForDomain)
         }
 
         IsmNode::FallbackRouting { fallback_ism } => {
-            let domain_pda_info = accounts_iter.next().ok_or(Error::InvalidDomainPda)?;
-            let (expected_key, _) = derive_domain_pda(program_id, message.origin);
-            if *domain_pda_info.key != expected_key {
-                return Err(Error::InvalidDomainPda);
+            let cursor_before = *cursor;
+            let (domain_pda_key, _) = derive_domain_pda(program_id, message.origin);
+
+            // Pass 1: domain PDA not yet provided.
+            let domain_present =
+                *cursor < extra_accounts.len() && *extra_accounts[*cursor].key == domain_pda_key;
+            if !domain_present {
+                return Ok(MetadataSpecResult {
+                    spec: None,
+                    accounts: vec![domain_pda_key],
+                });
             }
 
-            if let Some(spec) =
-                try_spec_via_domain_ism(program_id, message, domain_pda_info, accounts_iter)?
-            {
-                return Ok(spec);
+            let domain_pda_info = extra_accounts[*cursor];
+            *cursor += 1;
+
+            // Fast path: check for a per-domain ISM override.
+            let loaded =
+                load_and_validate_domain_ism_storage(program_id, message.origin, domain_pda_info)
+                    .map_err(|_| Error::InvalidConfig)?;
+
+            if let Some(ref storage) = loaded {
+                if let Some(ref ism) = storage.ism {
+                    let result = spec_and_accounts_for_node(
+                        ism,
+                        message,
+                        program_id,
+                        extra_accounts,
+                        cursor,
+                    )?;
+                    if result.spec.is_some() {
+                        return Ok(result);
+                    }
+                    *cursor = cursor_before;
+                    let mut accounts = vec![domain_pda_key];
+                    accounts.extend(result.accounts);
+                    return Ok(MetadataSpecResult {
+                        spec: None,
+                        accounts,
+                    });
+                }
             }
 
-            // Fallback path — CPI to the fallback ISM's VerifyMetadataSpec instruction.
-            //
-            // Errors propagate so that pass-1 simulation (which supplies no fallback
-            // accounts) fails → the relayer detects no return data and retries with
-            // the correct accounts in pass 2.
-            //
-            // Constraint: FallbackRouting must be account-terminal when taking the
-            // fallback path. Placing it as a non-last sub-ISM inside Aggregation
-            // while using the fallback path is unsupported — subsequent sub-ISMs
-            // would find accounts_iter exhausted.
-            let remaining_accounts: Vec<AccountInfo> = accounts_iter.cloned().collect();
-            let remaining_metas: Vec<AccountMeta> = remaining_accounts
+            // Fallback path: CPI to the fallback ISM's VerifyMetadataSpec.
+            // The fallback ISM's VAM PDA (derived from VERIFY_ACCOUNT_METAS_PDA_SEEDS) must
+            // be the next account so the CPI can pass accounts[0] correctly.
+            let (fallback_vam_pda, _) =
+                Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, fallback_ism);
+
+            // Pass 2: fallback VAM PDA not yet provided.
+            let fallback_present =
+                *cursor < extra_accounts.len() && *extra_accounts[*cursor].key == fallback_vam_pda;
+            if !fallback_present {
+                *cursor = cursor_before;
+                return Ok(MetadataSpecResult {
+                    spec: None,
+                    accounts: vec![domain_pda_key, fallback_vam_pda, *fallback_ism],
+                });
+            }
+
+            // Pass 3+: perform the CPI.
+            // extra_accounts[cursor..] starts with the fallback ISM's VAM PDA.
+            let cpi_accounts: Vec<AccountInfo> = extra_accounts[*cursor..]
+                .iter()
+                .map(|a| (*a).clone())
+                .collect();
+            let cpi_metas: Vec<AccountMeta> = cpi_accounts
                 .iter()
                 .map(crate::account_info_to_meta)
                 .collect();
@@ -135,21 +225,50 @@ where
             .map_err(|_| Error::InvalidConfig)?;
             let ixn = SolanaInstruction {
                 program_id: *fallback_ism,
-                accounts: remaining_metas,
+                accounts: cpi_metas,
                 data: ixn_data,
             };
-            invoke(&ixn, &remaining_accounts).map_err(|_| Error::FallbackIsmCallFailed)?;
+            invoke(&ixn, &cpi_accounts).map_err(|_| Error::FallbackIsmCallFailed)?;
+
             let Some((_, cpi_bytes)) = get_return_data() else {
+                *cursor = cursor_before;
                 return Err(Error::FallbackIsmCallFailed);
             };
-            borsh::from_slice::<SimulationReturnData<MetadataSpec>>(&cpi_bytes)
-                .map(|s| s.return_data)
-                .map_err(|_| Error::FallbackIsmCallFailed)
+            let cpi_result =
+                borsh::from_slice::<SimulationReturnData<MetadataSpecResult>>(&cpi_bytes)
+                    .map(|s| s.return_data)
+                    .map_err(|_| Error::FallbackIsmCallFailed)?;
+
+            match cpi_result.spec {
+                Some(spec) => {
+                    *cursor = extra_accounts.len();
+                    Ok(MetadataSpecResult {
+                        spec: Some(spec),
+                        accounts: vec![],
+                    })
+                }
+                None => {
+                    // cpi_result.accounts = full desired accounts for the fallback ISM
+                    // (including its VAM PDA as accounts[0]).
+                    // Construct our relative result: [domain_pda_key] + cpi accounts + [fallback_ism].
+                    *cursor = cursor_before;
+                    let mut accounts = vec![domain_pda_key];
+                    accounts.extend(cpi_result.accounts);
+                    accounts.push(*fallback_ism);
+                    Ok(MetadataSpecResult {
+                        spec: None,
+                        accounts,
+                    })
+                }
+            }
         }
 
         IsmNode::TrustedRelayer { .. }
         | IsmNode::Test { .. }
         | IsmNode::Pausable { .. }
-        | IsmNode::RateLimited { .. } => Ok(MetadataSpec::Null),
+        | IsmNode::RateLimited { .. } => Ok(MetadataSpecResult {
+            spec: Some(MetadataSpec::Null),
+            accounts: vec![],
+        }),
     }
 }

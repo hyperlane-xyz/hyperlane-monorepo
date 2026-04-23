@@ -3,7 +3,7 @@
 use account_utils::{create_pda_account, AccountData, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_sealevel_interchain_security_module_interface::{
-    InterchainSecurityModuleInstruction, MetadataSpec,
+    InterchainSecurityModuleInstruction, MetadataSpec, MetadataSpecResult,
 };
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_program::{
@@ -89,7 +89,11 @@ pub fn process_instruction(
                 Ok(())
             }
             InterchainSecurityModuleInstruction::VerifyMetadataSpec(_) => {
-                let bytes = borsh::to_vec(&SimulationReturnData::new(MetadataSpec::Null))
+                let result = MetadataSpecResult {
+                    spec: Some(MetadataSpec::Null),
+                    accounts: vec![],
+                };
+                let bytes = borsh::to_vec(&SimulationReturnData::new(result))
                     .map_err(|_| ProgramError::BorshIoError)?;
                 set_return_data(&bytes[..]);
                 Ok(())
