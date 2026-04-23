@@ -326,9 +326,9 @@ describe('CoreArtifactReader', () => {
 
       // ASSERT
       expect(result.owner).toBe(mockOwner);
-      expect(typeof result.defaultIsm).toBe('object');
-      expect(typeof result.defaultHook).toBe('object');
-      expect(typeof result.requiredHook).toBe('object');
+      expect(result.defaultIsm).toEqual(expect.any(Object));
+      expect(result.defaultHook).toEqual(expect.any(Object));
+      expect(result.requiredHook).toEqual(expect.any(Object));
 
       sinon.assert.calledOnce(readMailboxStub);
       sinon.assert.calledOnce(mockIsmReader.read);
