@@ -72,6 +72,8 @@ export interface BaseWarpConfig {
   remoteRouters?: RemoteRouters;
   destinationGas?: DestinationGas;
   scale?: number;
+  /** On-chain program/contract version. Used for explicit upgrade detection. */
+  contractVersion?: string;
 }
 
 export interface CollateralWarpConfig extends BaseWarpConfig {
@@ -112,6 +114,8 @@ export interface BaseDerivedWarpConfig {
   remoteRouters: RemoteRouters;
   destinationGas: DestinationGas;
   scale?: number;
+  /** On-chain program/contract version. Used for explicit upgrade detection. */
+  contractVersion?: string;
 }
 
 export interface DerivedCollateralWarpConfig extends BaseDerivedWarpConfig {
@@ -176,6 +180,8 @@ interface BaseWarpArtifactConfig {
   symbol?: string;
   decimals?: number;
   scale?: number;
+  /** On-chain program/contract version. Used for explicit upgrade detection. */
+  contractVersion?: string;
 }
 
 export interface CollateralWarpArtifactConfig extends BaseWarpArtifactConfig {
@@ -388,6 +394,7 @@ export function warpConfigToArtifact(
     remoteRouters,
     destinationGas,
     scale: config.scale,
+    contractVersion: config.contractVersion,
   };
 
   switch (config.type) {
@@ -555,6 +562,7 @@ export function warpArtifactToDerivedConfig(
     symbol: config.symbol,
     decimals: config.decimals,
     scale: config.scale,
+    contractVersion: config.contractVersion,
   };
 
   switch (config.type) {
