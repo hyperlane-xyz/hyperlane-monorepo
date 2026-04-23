@@ -2,14 +2,24 @@ import { confirm } from '@inquirer/prompts';
 import chalk from 'chalk';
 import yargs from 'yargs';
 
-import { ChainMap, SvmMultiProtocolSignerAdapter } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  ChainName,
+  KeypairSvmTransactionSigner,
+  SvmMultiProtocolSignerAdapter,
+  SvmTransactionSigner,
+} from '@hyperlane-xyz/sdk';
 import {
   LogFormat,
   LogLevel,
+  ProtocolType,
+  assert,
   configureRootLogger,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { Contexts } from '../../config/contexts.js';
+import { getDeployerKey } from '../../src/agents/key-utils.js';
 import { squadsConfigs } from '../../src/config/squads.js';
 import { executePendingTransactions } from '../../src/tx/utils.js';
 import {
@@ -19,10 +29,25 @@ import {
   logProposals,
 } from '../../src/utils/squads.js';
 import { getTurnkeySealevelDeployerSigner } from '../../src/utils/turnkey.js';
-import { withChains } from '../agent-utils.js';
+import { getAgentConfig, withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
 const environment = 'mainnet3';
+
+// Chains whose Turnkey deployer account is not funded yet, so we fall back to
+// the regular GCP-backed Sealevel deployer keypair for Squads execution.
+const KEYPAIR_SIGNER_CHAINS = new Set<ChainName>(['solaxy']);
+
+async function getKeypairSealevelDeployerSigner(): Promise<KeypairSvmTransactionSigner> {
+  const agentConfig = getAgentConfig(Contexts.Hyperlane, environment);
+  // Pass 'solanamainnet' so we fetch the Sealevel-format deployer key
+  // (base64-encoded Solana CLI byte array) rather than the default EVM hex key.
+  const key = getDeployerKey(agentConfig, 'solanamainnet');
+  await key.fetch();
+  return new KeypairSvmTransactionSigner(
+    key.privateKeyForProtocol(ProtocolType.Sealevel),
+  );
+}
 
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
@@ -88,19 +113,36 @@ async function main() {
 
   rootLogger.info(chalk.blueBright('Executing proposals...'));
 
-  // Initialize Turnkey signer once for all executions
-  rootLogger.info('Initializing Turnkey signer...');
-  const turnkeySigner = await getTurnkeySealevelDeployerSigner(environment);
-
-  // Create signers for each chain (keyed by chain name)
-  const signersByChain: ChainMap<SvmMultiProtocolSignerAdapter> = {};
   const uniqueChains = Array.from(
     new Set(executableProposals.map((p) => p.chain)),
   );
+  const needsTurnkey = uniqueChains.some((c) => !KEYPAIR_SIGNER_CHAINS.has(c));
+  const needsKeypair = uniqueChains.some((c) => KEYPAIR_SIGNER_CHAINS.has(c));
+
+  let turnkeySigner: SvmTransactionSigner | undefined;
+  if (needsTurnkey) {
+    rootLogger.info('Initializing Turnkey signer...');
+    turnkeySigner = await getTurnkeySealevelDeployerSigner(environment);
+  }
+
+  let keypairSigner: SvmTransactionSigner | undefined;
+  if (needsKeypair) {
+    rootLogger.info(
+      `Initializing GCP deployer keypair signer for chains: ${[...KEYPAIR_SIGNER_CHAINS].join(', ')}`,
+    );
+    keypairSigner = await getKeypairSealevelDeployerSigner();
+  }
+
+  // Create signers for each chain (keyed by chain name)
+  const signersByChain: ChainMap<SvmMultiProtocolSignerAdapter> = {};
   for (const chain of uniqueChains) {
+    const signer = KEYPAIR_SIGNER_CHAINS.has(chain)
+      ? keypairSigner
+      : turnkeySigner;
+    assert(signer, `No signer initialized for chain ${chain}`);
     signersByChain[chain] = new SvmMultiProtocolSignerAdapter(
       chain,
-      turnkeySigner,
+      signer,
       mpp,
     );
   }

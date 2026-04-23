@@ -6,6 +6,7 @@ import {
 import {
   accounts,
   getProposalPda,
+  getSpendingLimitPda,
   getTransactionPda,
   instructions,
 } from '@sqds/multisig';
@@ -936,11 +937,74 @@ export async function executeProposal(
 
       instruction = vaultInstruction;
     } else {
-      // Build the config transaction execution instruction
+      // Build the config transaction execution instruction.
+      //
+      // We always pass rentPayer because some ConfigActions (e.g. AddMember
+      // that triggers a multisig realloc, AddSpendingLimit) require it;
+      // the squads-v4 program returns MissingAccount (error 6023) otherwise.
+      //
+      // For Add/RemoveSpendingLimit actions, we must also pass the affected
+      // SpendingLimit PDAs as remaining accounts.
+      const [transactionPda] = getTransactionPda({
+        multisigPda,
+        index: BigInt(transactionIndex),
+        programId,
+      });
+      const configTransaction =
+        await accounts.ConfigTransaction.fromAccountAddress(
+          svmProvider,
+          transactionPda,
+        );
+      const multisigAccount = await accounts.Multisig.fromAccountAddress(
+        svmProvider,
+        multisigPda,
+      );
+      rootLogger.info(
+        chalk.cyan(
+          `Config transaction actions: ${JSON.stringify(
+            configTransaction.actions.map((a) => a.__kind),
+          )}`,
+        ),
+      );
+      for (const action of configTransaction.actions) {
+        rootLogger.info(
+          chalk.gray(
+            `  Action: ${JSON.stringify(action, (_, v) =>
+              typeof v === 'bigint' ? v.toString() : v,
+            )}`,
+          ),
+        );
+      }
+      rootLogger.info(
+        chalk.cyan(
+          `Executor ${executorPublicKey.toBase58()} member check: ${
+            multisigAccount.members.some((m) => m.key.equals(executorPublicKey))
+              ? 'YES'
+              : 'NO'
+          } (multisig has ${multisigAccount.members.length} members)`,
+        ),
+      );
+
+      const spendingLimits: PublicKey[] = [];
+      for (const action of configTransaction.actions) {
+        if (action.__kind === 'AddSpendingLimit') {
+          const [spendingLimitPda] = getSpendingLimitPda({
+            multisigPda,
+            createKey: action.createKey,
+            programId,
+          });
+          spendingLimits.push(spendingLimitPda);
+        } else if (action.__kind === 'RemoveSpendingLimit') {
+          spendingLimits.push(action.spendingLimit);
+        }
+      }
+
       instruction = instructions.configTransactionExecute({
         multisigPda,
         transactionIndex: BigInt(transactionIndex),
         member: executorPublicKey,
+        rentPayer: executorPublicKey,
+        spendingLimits: spendingLimits.length > 0 ? spendingLimits : undefined,
         programId,
       });
     }
