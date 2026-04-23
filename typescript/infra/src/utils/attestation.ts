@@ -13,6 +13,7 @@ export type AttestationStatus =
       verified: true;
       finishedOn?: Date;
       ageMs?: number;
+      ageUnknownReason?: string;
     }
   | {
       verified: false;
@@ -42,23 +43,37 @@ export async function verifyImageAttestation({
       { maxBuffer: 10 * 1024 * 1024 },
     );
 
-    const finishedOn = extractFinishedOn(stdout);
-    if (!finishedOn) {
-      return { verified: true };
+    const { date, reason } = extractFinishedOn(stdout);
+    if (!date) {
+      return { verified: true, ageUnknownReason: reason };
     }
     return {
       verified: true,
-      finishedOn,
-      ageMs: Date.now() - finishedOn.getTime(),
+      finishedOn: date,
+      ageMs: Date.now() - date.getTime(),
     };
   } catch (err: unknown) {
+    if (isNodeErrorCode(err, 'ENOENT')) {
+      throw new Error(
+        'gh CLI not found on PATH — install from https://cli.github.com to run attestation preflight. (This is a tooling error, not an image problem.)',
+      );
+    }
     return { verified: false, reason: extractErrorMessage(err) };
   }
 }
 
+function isNodeErrorCode(err: unknown, code: string): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'code' in err &&
+    (err as { code: unknown }).code === code
+  );
+}
+
 function extractErrorMessage(err: unknown): string {
   if (typeof err !== 'object' || err === null) {
-    return err instanceof Error ? err.message : 'unknown error';
+    return String(err);
   }
   const stderr = 'stderr' in err ? String(err.stderr ?? '').trim() : '';
   const stdout = 'stdout' in err ? String(err.stdout ?? '').trim() : '';
@@ -66,58 +81,75 @@ function extractErrorMessage(err: unknown): string {
   return stderr || stdout || message || 'unknown error';
 }
 
-function extractFinishedOn(rawJson: string): Date | undefined {
-  try {
-    const parsed = JSON.parse(rawJson);
-    const entries = Array.isArray(parsed) ? parsed : [parsed];
-    for (const entry of entries) {
-      // 1. SLSA provenance predicate (if present — not populated by
-      //    GitHub's attest-build-provenance, but other producers may)
-      const statementCandidates: unknown[] = [
-        entry?.verificationResult?.statement,
-        entry?.statement,
-      ];
-      const dssePayload =
-        entry?.attestation?.bundle?.dsseEnvelope?.payload ??
-        entry?.bundle?.dsseEnvelope?.payload;
-      if (typeof dssePayload === 'string') {
-        try {
-          statementCandidates.push(
-            JSON.parse(Buffer.from(dssePayload, 'base64').toString('utf8')),
-          );
-        } catch {
-          // ignore, next candidate
-        }
-      }
-      for (const c of statementCandidates) {
-        const date = readFinishedOn(c);
-        if (date) return date;
-      }
+interface FinishedOnResult {
+  date?: Date;
+  reason?: string;
+}
 
-      // 2. Rekor transparency-log integratedTime — when the attestation
-      //    was signed (typically within seconds of build completion).
-      const tlogEntries =
-        entry?.attestation?.bundle?.verificationMaterial?.tlogEntries ??
-        entry?.bundle?.verificationMaterial?.tlogEntries;
-      if (Array.isArray(tlogEntries)) {
-        for (const t of tlogEntries) {
-          const raw = t?.integratedTime;
-          const seconds =
-            typeof raw === 'string'
-              ? Number(raw)
-              : typeof raw === 'number'
-                ? raw
-                : NaN;
-          if (Number.isFinite(seconds) && seconds > 0) {
-            return new Date(seconds * 1000);
-          }
+function extractFinishedOn(rawJson: string): FinishedOnResult {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(rawJson);
+  } catch (err) {
+    return {
+      reason: `JSON parse failed: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+
+  const entries = Array.isArray(parsed) ? parsed : [parsed];
+  for (const entry of entries) {
+    // 1. SLSA provenance predicate (if present — not populated by
+    //    GitHub's attest-build-provenance, but other producers may)
+    const statementCandidates: unknown[] = [
+      pickPath(entry, [['verificationResult', 'statement'], ['statement']]),
+    ];
+    const dssePayload = pickPath(entry, [
+      ['attestation', 'bundle', 'dsseEnvelope', 'payload'],
+      ['bundle', 'dsseEnvelope', 'payload'],
+    ]);
+    if (typeof dssePayload === 'string') {
+      try {
+        statementCandidates.push(
+          JSON.parse(Buffer.from(dssePayload, 'base64').toString('utf8')),
+        );
+      } catch {
+        // ignore, fall through to next candidate / tlog fallback
+      }
+    }
+    for (const c of statementCandidates) {
+      const date = readFinishedOn(c);
+      if (date) return { date };
+    }
+
+    // 2. Rekor transparency-log integratedTime — when the attestation
+    //    was signed (typically within seconds of build completion).
+    const tlogEntries = pickPath(entry, [
+      ['attestation', 'bundle', 'verificationMaterial', 'tlogEntries'],
+      ['bundle', 'verificationMaterial', 'tlogEntries'],
+    ]);
+    if (Array.isArray(tlogEntries)) {
+      for (const t of tlogEntries) {
+        const raw =
+          typeof t === 'object' && t !== null && 'integratedTime' in t
+            ? (t as { integratedTime: unknown }).integratedTime
+            : undefined;
+        const seconds =
+          typeof raw === 'string'
+            ? Number(raw)
+            : typeof raw === 'number'
+              ? raw
+              : NaN;
+        if (Number.isFinite(seconds) && seconds > 0) {
+          return { date: new Date(seconds * 1000) };
         }
       }
     }
-  } catch {
-    // ignore - treated as "verified but age unknown"
   }
-  return undefined;
+
+  return {
+    reason:
+      'no finishedOn in SLSA predicate and no Rekor integratedTime in bundle',
+  };
 }
 
 function readFinishedOn(statement: unknown): Date | undefined {
@@ -141,6 +173,8 @@ function pickPath(root: unknown, paths: string[][]): unknown {
         node = undefined;
         break;
       }
+      // CAST: safe after typeof === 'object' && !== null guard above;
+      // TS does not narrow unknown to an indexable shape on its own.
       node = (node as Record<string, unknown>)[key];
     }
     if (node !== undefined) return node;
@@ -181,9 +215,8 @@ export function printAttestationStatus(
         console.log(chalk.gray(line));
       }
     } else {
-      console.log(
-        chalk.gray('  build age: unknown (could not parse provenance)'),
-      );
+      const why = status.ageUnknownReason ?? 'no timestamp in provenance';
+      console.log(chalk.gray(`  build age: unknown (${why})`));
     }
   } else {
     const bar = '!'.repeat(72);
@@ -209,28 +242,52 @@ export async function preflightVerifyImages(refs: ImageRef[]): Promise<{
   allVerified: boolean;
   results: Array<{ ref: ImageRef; status: AttestationStatus }>;
 }> {
-  const unique: ImageRef[] = [];
-  const seen = new Set<string>();
+  // Group refs by image:tag so that when multiple components share a
+  // tag (common during coordinated agent releases), we verify once but
+  // still surface every component name in the printed status line.
+  const groups = new Map<
+    string,
+    { components: string[]; image: string; tag: string; refs: ImageRef[] }
+  >();
   for (const ref of refs) {
     const key = `${ref.image}:${ref.tag}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    unique.push(ref);
+    const existing = groups.get(key);
+    if (existing) {
+      existing.components.push(ref.component);
+      existing.refs.push(ref);
+    } else {
+      groups.set(key, {
+        components: [ref.component],
+        image: ref.image,
+        tag: ref.tag,
+        refs: [ref],
+      });
+    }
   }
 
+  const groupList = [...groups.values()];
   const statuses = await Promise.all(
-    unique.map((ref) =>
-      verifyImageAttestation({ image: ref.image, tag: ref.tag }),
+    groupList.map((g) =>
+      verifyImageAttestation({ image: g.image, tag: g.tag }),
     ),
   );
 
   const results: Array<{ ref: ImageRef; status: AttestationStatus }> = [];
   let allVerified = true;
-  for (let i = 0; i < unique.length; i++) {
-    const ref = unique[i];
+  for (let i = 0; i < groupList.length; i++) {
+    const group = groupList[i];
     const status = statuses[i];
-    printAttestationStatus(ref, status);
-    results.push({ ref, status });
+    printAttestationStatus(
+      {
+        component: group.components.join(', '),
+        image: group.image,
+        tag: group.tag,
+      },
+      status,
+    );
+    for (const ref of group.refs) {
+      results.push({ ref, status });
+    }
     if (!status.verified) allVerified = false;
   }
 

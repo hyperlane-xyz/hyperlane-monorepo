@@ -6,7 +6,10 @@ import { DockerImageRepos } from '../../config/docker.js';
 import { createAgentKeysIfNotExistsWithPrompt } from '../../src/agents/key-utils.js';
 import { RootAgentConfig } from '../../src/config/agent/agent.js';
 import { Role } from '../../src/roles.js';
-import { verifyImagesAndConfirm } from '../../src/utils/attestation.js';
+import {
+  ImageRef,
+  verifyImagesAndConfirm,
+} from '../../src/utils/attestation.js';
 import {
   checkAgentImageExists,
   checkMonorepoImageExists,
@@ -107,13 +110,15 @@ async function verifyAgentAttestationsWithPrompt(
   agentConfig: RootAgentConfig,
   roles?: Role[],
 ) {
-  const refs = rolesToCheck(agentConfig, roles)
-    .filter((r): r is { agent: string; role: Role; tag: string } => !!r.tag)
-    .map(({ agent, tag }) => ({
-      component: agent,
+  const refs: ImageRef[] = [];
+  for (const r of rolesToCheck(agentConfig, roles)) {
+    if (r.tag == null) continue;
+    refs.push({
+      component: r.agent,
       image: DockerImageRepos.AGENT,
-      tag,
-    }));
+      tag: r.tag,
+    });
+  }
 
   await verifyImagesAndConfirm(refs);
 }
