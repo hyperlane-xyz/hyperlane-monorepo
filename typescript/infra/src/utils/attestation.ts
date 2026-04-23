@@ -151,15 +151,13 @@ export async function verifyImagesAndConfirm(refs: ImageRef[]): Promise<void> {
   console.log(chalk.grey.italic('Verifying image attestations...'));
   const { allVerified } = await preflightVerifyImages(refs);
 
-  const message = allVerified
-    ? 'All attestations verified. Continue with deploy?'
-    : chalk.red.bold(
-        'One or more images FAILED attestation verify. Continue with deploy anyway?',
-      );
+  if (allVerified) return;
 
   const shouldContinue = await confirm({
-    message,
-    default: allVerified,
+    message: chalk.red.bold(
+      'One or more images FAILED attestation verify. Continue with deploy anyway?',
+    ),
+    default: false,
   });
 
   if (!shouldContinue) {
