@@ -3551,6 +3551,7 @@ name = "hyperlane-sealevel-interchain-security-module-interface"
 version = "0.1.0"
 dependencies = [
  "borsh 1.6.0",
+ "hyperlane-core",
  "solana-program 3.0.0",
  "spl-discriminator 0.5.1",
  "spl-type-length-value 0.6.0",

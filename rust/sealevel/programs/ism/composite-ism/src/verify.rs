@@ -1,6 +1,6 @@
 use hyperlane_core::{Checkpoint, CheckpointWithMessageId, Encode, HyperlaneMessage, Signable};
 use hyperlane_sealevel_interchain_security_module_interface::{
-    InterchainSecurityModuleInstruction, VerifyInstruction,
+    InterchainSecurityModuleInstruction, VerifyInstruction, VERIFY_ACCOUNT_METAS_PDA_SEEDS,
 };
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
@@ -212,23 +212,30 @@ where
 
             // No domain ISM — CPI to the fallback ISM's standard Verify interface.
             // The fallback program can be any ISM that implements the interface; it
-            // does not need to be a composite ISM.  All remaining accounts (starting
-            // with the fallback ISM's VAM PDA) are forwarded directly.
+            // does not need to be a composite ISM.
+            //
+            // The VerifyAccountMetas fixpoint loop inserts the fallback ISM's VAM PDA
+            // as a sentinel before the actual Verify accounts so that the loop can
+            // detect convergence (see account_metas.rs Pass 3+).  Skip that sentinel
+            // here so the fallback ISM receives only the accounts it expects.
             //
             // Constraint: FallbackRouting must be account-terminal when taking the
             // fallback path.  Placing it as a non-last sub-ISM inside Aggregation
             // while using the fallback path is unsupported — subsequent sub-ISMs
             // would find accounts_iter exhausted.
-            let remaining_accounts: Vec<AccountInfo> = accounts_iter.cloned().collect();
+            let all_remaining: Vec<AccountInfo> = accounts_iter.cloned().collect();
+            let (fallback_storage_key, _) =
+                Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, fallback_ism);
+            let cpi_start =
+                if !all_remaining.is_empty() && *all_remaining[0].key == fallback_storage_key {
+                    1
+                } else {
+                    0
+                };
+            let remaining_accounts = all_remaining[cpi_start..].to_vec();
             let remaining_metas: Vec<AccountMeta> = remaining_accounts
                 .iter()
-                .map(|ai| {
-                    if ai.is_writable {
-                        AccountMeta::new(*ai.key, ai.is_signer)
-                    } else {
-                        AccountMeta::new_readonly(*ai.key, ai.is_signer)
-                    }
-                })
+                .map(crate::account_info_to_meta)
                 .collect();
             let ixn_data = InterchainSecurityModuleInstruction::Verify(VerifyInstruction {
                 metadata: metadata.to_vec(),

@@ -7,8 +7,8 @@ use hyperlane_core::{
     RawHyperlaneMessage, H256, U256,
 };
 use hyperlane_sealevel_composite_ism::accounts::{derive_domain_pda, CompositeIsmAccount, IsmNode};
-use hyperlane_sealevel_composite_ism::instruction::get_metadata_spec_instruction;
-pub use hyperlane_sealevel_composite_ism::metadata_spec::MetadataSpec;
+use hyperlane_sealevel_composite_ism::instruction::verify_metadata_spec_instruction;
+pub use hyperlane_sealevel_interchain_security_module_interface::MetadataSpec;
 use hyperlane_sealevel_interchain_security_module_interface::VERIFY_ACCOUNT_METAS_PDA_SEEDS;
 use serializable_account_meta::SimulationReturnData;
 use solana_sdk::pubkey::Pubkey;
@@ -41,7 +41,7 @@ impl SealevelCompositeIsm {
         }
     }
 
-    /// Simulates `GetMetadataSpec` and returns the resolved [`MetadataSpec`].
+    /// Simulates `VerifyMetadataSpec` and returns the resolved [`MetadataSpec`].
     ///
     /// Uses a two-pass approach: the first simulation is tried with just the domain PDA
     /// (sufficient for `Routing` nodes and `FallbackRouting` when a domain ISM is configured).
@@ -58,9 +58,12 @@ impl SealevelCompositeIsm {
             .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?;
 
         // Pass 1: try with just the domain PDA.
-        let instruction =
-            get_metadata_spec_instruction(self.program_id, message_bytes.clone(), vec![domain_pda])
-                .map_err(ChainCommunicationError::from_other)?;
+        let instruction = verify_metadata_spec_instruction(
+            self.program_id,
+            message_bytes.clone(),
+            vec![domain_pda],
+        )
+        .map_err(ChainCommunicationError::from_other)?;
 
         // Errors on pass 1 are treated as "no data": FallbackRouting fails the
         // simulation when inbox/fallback accounts are missing, but pass 2 will
@@ -76,36 +79,41 @@ impl SealevelCompositeIsm {
         }
 
         // Pass 1 returned no data — the root ISM is likely a FallbackRouting node whose
-        // fallback path requires the mailbox inbox PDA and the fallback ISM's storage PDA.
-        let fallback_accounts = self.resolve_fallback_routing_accounts().await?;
+        // fallback path requires the fallback ISM's accounts.
+        let fallback_accounts = self.resolve_fallback_routing_accounts(message).await?;
         let all_accounts = std::iter::once(domain_pda)
             .chain(fallback_accounts)
             .collect();
 
         let instruction2 =
-            get_metadata_spec_instruction(self.program_id, message_bytes, all_accounts)
+            verify_metadata_spec_instruction(self.program_id, message_bytes, all_accounts)
                 .map_err(ChainCommunicationError::from_other)?;
 
         self.provider
             .simulate_instruction::<SimulationReturnData<MetadataSpec>>(&payer, instruction2)
             .await?
             .ok_or_else(|| {
-                ChainCommunicationError::from_other_str("No return data from GetMetadataSpec")
+                ChainCommunicationError::from_other_str("No return data from VerifyMetadataSpec")
             })
             .map(|r| r.return_data)
     }
 
-    /// Derives the fallback ISM's VAM storage PDA for pass 2 of `GetMetadataSpec`.
+    /// Discovers the accounts needed for pass 2 of `VerifyMetadataSpec`.
     ///
     /// Reads the main VAM PDA to extract `FallbackRouting { fallback_ism }`, then
-    /// returns the fallback ISM's own VAM PDA.  The fallback ISM can be any program
-    /// implementing the standard ISM interface; it does not need to be a composite ISM.
-    ///
-    /// Limitation: if the fallback ISM itself contains `Routing` nodes that need
-    /// domain PDAs, the single pass-2 simulation will not supply them and
-    /// `GetMetadataSpec` will return incomplete data.  A fixpoint loop (analogous
-    /// to the `VerifyAccountMetas` fixpoint) would be needed to handle that case.
-    async fn resolve_fallback_routing_accounts(&self) -> ChainResult<Vec<Pubkey>> {
+    /// simulates `VerifyAccountMetas` on the fallback ISM to learn which accounts
+    /// it requires.  Those accounts (plus the fallback ISM program key itself) are
+    /// returned so the composite ISM's on-chain CPI can supply them.
+    async fn resolve_fallback_routing_accounts(
+        &self,
+        message: &HyperlaneMessage,
+    ) -> ChainResult<Vec<Pubkey>> {
+        let payer = self
+            .payer
+            .as_ref()
+            .map(|p| p.pubkey())
+            .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?;
+
         let (vam_pda, _) =
             Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, &self.program_id);
         let vam_account = self
@@ -128,13 +136,18 @@ impl SealevelCompositeIsm {
             }
         };
 
-        let (fallback_storage_pda, _) =
-            Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, &fallback_ism);
+        let raw_msg = RawHyperlaneMessage::from(message).to_vec();
+        let accounts = self
+            .provider
+            .get_ism_verify_account_metas(&payer, fallback_ism, vec![], raw_msg)
+            .await?;
 
-        // The fallback ISM's program account must also be included so that the
-        // GetMetadataSpec CPI inside the composite ISM can locate the callee program
-        // in the outer instruction's accounts list.
-        Ok(vec![fallback_storage_pda, fallback_ism])
+        // Include the fallback ISM program key so the on-chain CPI invoke can find it.
+        Ok(accounts
+            .into_iter()
+            .map(|m| m.pubkey)
+            .chain(std::iter::once(fallback_ism))
+            .collect())
     }
 }
 

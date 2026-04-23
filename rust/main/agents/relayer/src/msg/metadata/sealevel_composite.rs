@@ -19,7 +19,7 @@ const AGG_RANGE_SIZE: usize = 4;
 /// Builds metadata for a Sealevel composite ISM.
 ///
 /// The flow is:
-/// 1. Simulate `GetMetadataSpec` on the composite ISM program to get the
+/// 1. Simulate `VerifyMetadataSpec` on the composite ISM program to get the
 ///    resolved [`CompositeIsmMetadataSpec`] tree (routing/amount-routing already
 ///    resolved inline by the program).
 /// 2. Walk the spec tree recursively:

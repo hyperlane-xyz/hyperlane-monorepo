@@ -1,6 +1,7 @@
-use account_utils::DiscriminatorEncode;
-use borsh::{BorshDeserialize, BorshSerialize};
-use hyperlane_core::{Encode, HyperlaneMessage, H160};
+use hyperlane_core::{Encode, HyperlaneMessage};
+use hyperlane_sealevel_interchain_security_module_interface::{
+    InterchainSecurityModuleInstruction, VerifyMetadataSpecInstruction,
+};
 use serializable_account_meta::SimulationReturnData;
 use solana_program::{
     account_info::AccountInfo,
@@ -12,32 +13,10 @@ use solana_program::{
 use crate::{
     accounts::{derive_domain_pda, load_and_validate_domain_ism_storage, IsmNode},
     error::Error,
-    instruction::Instruction as CompositeInstruction,
     metadata::parse_routing_amount,
 };
 
-/// Describes the metadata a relayer must supply for this composite ISM tree.
-///
-/// Routing and AmountRouting are transparent: the relayer-facing spec contains
-/// only the resolved leaf, so the relayer never needs to know about routing.
-#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Clone)]
-pub enum MetadataSpec {
-    /// No metadata needed (TrustedRelayer, Test, Pausable, RateLimited).
-    Null,
-
-    /// MultisigMessageId -- validator set is embedded so the relayer can build
-    /// metadata without a second chain call.
-    MultisigMessageId {
-        validators: Vec<H160>,
-        threshold: u8,
-    },
-
-    /// Aggregation -- recurse into sub-specs.
-    Aggregation {
-        threshold: u8,
-        sub_specs: Vec<MetadataSpec>,
-    },
-}
+pub use hyperlane_sealevel_interchain_security_module_interface::MetadataSpec;
 
 /// Loads the domain ISM from `domain_pda_info` and resolves its spec.
 /// Returns `Ok(Some(spec))` if a domain ISM is configured, `Ok(None)` to fall through.
@@ -134,40 +113,38 @@ where
                 return Ok(spec);
             }
 
-            // Fallback path — CPI to the fallback ISM's GetMetadataSpec instruction.
-            // The fallback program can be any ISM; if it does not implement
-            // GetMetadataSpec (e.g. a standalone MultisigIsm), return Null so the
-            // relayer can supply empty metadata and let on-chain Verify decide.
+            // Fallback path — CPI to the fallback ISM's VerifyMetadataSpec instruction.
+            //
+            // Errors propagate so that pass-1 simulation (which supplies no fallback
+            // accounts) fails → the relayer detects no return data and retries with
+            // the correct accounts in pass 2.
+            //
+            // Constraint: FallbackRouting must be account-terminal when taking the
+            // fallback path. Placing it as a non-last sub-ISM inside Aggregation
+            // while using the fallback path is unsupported — subsequent sub-ISMs
+            // would find accounts_iter exhausted.
             let remaining_accounts: Vec<AccountInfo> = accounts_iter.cloned().collect();
             let remaining_metas: Vec<AccountMeta> = remaining_accounts
                 .iter()
-                .map(|ai| {
-                    if ai.is_writable {
-                        AccountMeta::new(*ai.key, ai.is_signer)
-                    } else {
-                        AccountMeta::new_readonly(*ai.key, ai.is_signer)
-                    }
-                })
+                .map(crate::account_info_to_meta)
                 .collect();
-            let Ok(ixn_data) = CompositeInstruction::GetMetadataSpec(message.to_vec()).encode()
-            else {
-                return Ok(MetadataSpec::Null);
-            };
+            let ixn_data = InterchainSecurityModuleInstruction::VerifyMetadataSpec(
+                VerifyMetadataSpecInstruction::new(message.to_vec()),
+            )
+            .encode()
+            .map_err(|_| Error::InvalidConfig)?;
             let ixn = SolanaInstruction {
                 program_id: *fallback_ism,
                 accounts: remaining_metas,
                 data: ixn_data,
             };
-            if invoke(&ixn, &remaining_accounts).is_err() {
-                return Ok(MetadataSpec::Null);
-            }
+            invoke(&ixn, &remaining_accounts).map_err(|_| Error::FallbackIsmCallFailed)?;
             let Some((_, cpi_bytes)) = get_return_data() else {
-                return Ok(MetadataSpec::Null);
+                return Err(Error::FallbackIsmCallFailed);
             };
-            match borsh::from_slice::<SimulationReturnData<MetadataSpec>>(&cpi_bytes) {
-                Ok(s) => Ok(s.return_data),
-                Err(_) => Ok(MetadataSpec::Null),
-            }
+            borsh::from_slice::<SimulationReturnData<MetadataSpec>>(&cpi_bytes)
+                .map(|s| s.return_data)
+                .map_err(|_| Error::FallbackIsmCallFailed)
         }
 
         IsmNode::TrustedRelayer { .. }

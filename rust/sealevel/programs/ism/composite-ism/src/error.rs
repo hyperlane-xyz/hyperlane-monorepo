@@ -49,6 +49,8 @@ pub enum Error {
     FallbackRoutingInDomainIsm = 22,
     #[error("Fallback ISM account is invalid or missing")]
     InvalidFallbackIsmAccount = 23,
+    #[error("CPI to fallback ISM failed or returned no/invalid data")]
+    FallbackIsmCallFailed = 24,
 }
 
 impl From<Error> for ProgramError {

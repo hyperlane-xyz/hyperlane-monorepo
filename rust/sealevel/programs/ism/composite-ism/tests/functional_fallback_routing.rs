@@ -567,12 +567,138 @@ async fn test_vam_no_domain_ism_returns_fallback_storage() {
     )
     .await;
 
-    // [storage_pda, domain_pda, fallback_storage_pda, fallback_ism_program]
-    // The fallback ISM program account is required so the CPI inside VerifyAccountMetas
-    // and Verify can locate the callee in the outer instruction's accounts list.
-    assert_eq!(metas.len(), 4);
+    // [storage_pda, domain_pda, fallback_storage_pda (sentinel), fallback_storage_pda (from CPI), fallback_ism_program]
+    // fallback_storage_pda appears twice: once as the sentinel inserted by Pass 3+ to keep the
+    // fixpoint loop in Pass 3+ on subsequent iterations, and once as the VAM PDA returned by the
+    // fallback ISM's own all_verify_account_metas.  verify_node skips the first copy (sentinel)
+    // before forwarding the remaining accounts to the fallback ISM's Verify CPI.
+    assert_eq!(metas.len(), 5);
     assert_eq!(metas[0].pubkey, storage_pda_key());
     assert_eq!(metas[1].pubkey, domain_pda_key(ORIGIN));
     assert_eq!(metas[2].pubkey, fallback_storage_pda_key());
-    assert_eq!(metas[3].pubkey, fallback_ism_id());
+    assert_eq!(metas[3].pubkey, fallback_storage_pda_key());
+    assert_eq!(metas[4].pubkey, fallback_ism_id());
+}
+
+// ── Regression: sentinel convergence with non-empty fallback ISM accounts ─────
+//
+// When the fallback ISM returns non-empty accounts from VerifyAccountMetas
+// (e.g. TrustedRelayer), the fixpoint loop previously oscillated: Pass 3+
+// output did not include fallback_storage_key, so the next iteration re-entered
+// Pass 2 and produced a different set, cycling forever.  The fix adds
+// fallback_storage_key as a sentinel in Pass 3+ output so subsequent iterations
+// always satisfy the fallback_provided check and stay in Pass 3+.
+
+#[tokio::test]
+async fn test_vam_fallback_with_extra_accounts_converges() {
+    let mut context = program_test_with_fallback().start_with_context().await;
+    let payer = context.payer.insecure_clone();
+    let relayer = Keypair::new();
+
+    let recent_blockhash = context.banks_client.get_latest_blockhash().await.unwrap();
+    setup_fallback_ism(
+        &mut context.banks_client,
+        &payer,
+        recent_blockhash,
+        IsmNode::TrustedRelayer {
+            relayer: relayer.pubkey(),
+        },
+    )
+    .await;
+
+    let recent_blockhash = context.banks_client.get_latest_blockhash().await.unwrap();
+    initialize(
+        &mut context.banks_client,
+        &payer,
+        recent_blockhash,
+        IsmNode::FallbackRouting {
+            fallback_ism: fallback_ism_id(),
+        },
+    )
+    .await
+    .unwrap();
+
+    let mut msg = dummy_message();
+    msg.origin = ORIGIN;
+    let verify_ixn = VerifyInstruction {
+        metadata: vec![],
+        message: msg.to_vec(),
+    };
+
+    let recent_blockhash = context.banks_client.get_latest_blockhash().await.unwrap();
+    let metas = get_all_verify_account_metas(
+        &mut context.banks_client,
+        &payer,
+        recent_blockhash,
+        verify_ixn,
+    )
+    .await;
+
+    // Converged set:
+    // [storage_pda, domain_pda, fallback_storage (sentinel), fallback_storage (from CPI), relayer, fallback_ism]
+    assert_eq!(metas.len(), 6);
+    assert_eq!(metas[0].pubkey, storage_pda_key());
+    assert_eq!(metas[1].pubkey, domain_pda_key(ORIGIN));
+    assert_eq!(metas[2].pubkey, fallback_storage_pda_key());
+    assert_eq!(metas[3].pubkey, fallback_storage_pda_key());
+    assert_eq!(metas[4].pubkey, relayer.pubkey());
+    assert!(metas[4].is_signer, "relayer must be marked as signer");
+    assert_eq!(metas[5].pubkey, fallback_ism_id());
+}
+
+#[tokio::test]
+async fn test_verify_via_fallback_ism_with_trusted_relayer_accepts() {
+    let mut context = program_test_with_fallback().start_with_context().await;
+    let payer = context.payer.insecure_clone();
+    let relayer = Keypair::new();
+
+    let recent_blockhash = context.banks_client.get_latest_blockhash().await.unwrap();
+    setup_fallback_ism(
+        &mut context.banks_client,
+        &payer,
+        recent_blockhash,
+        IsmNode::TrustedRelayer {
+            relayer: relayer.pubkey(),
+        },
+    )
+    .await;
+
+    let recent_blockhash = context.banks_client.get_latest_blockhash().await.unwrap();
+    initialize(
+        &mut context.banks_client,
+        &payer,
+        recent_blockhash,
+        IsmNode::FallbackRouting {
+            fallback_ism: fallback_ism_id(),
+        },
+    )
+    .await
+    .unwrap();
+
+    let mut msg = dummy_message();
+    msg.origin = ORIGIN;
+    let verify_ixn = VerifyInstruction {
+        metadata: vec![],
+        message: msg.to_vec(),
+    };
+
+    let recent_blockhash = context.banks_client.get_latest_blockhash().await.unwrap();
+    let metas = get_all_verify_account_metas(
+        &mut context.banks_client,
+        &payer,
+        recent_blockhash,
+        verify_ixn.clone(),
+    )
+    .await;
+
+    assert_simulation_ok(
+        &simulate_verify(
+            &mut context.banks_client,
+            &payer,
+            recent_blockhash,
+            verify_ixn,
+            metas,
+        )
+        .await,
+    );
 }

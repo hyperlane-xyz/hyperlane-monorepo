@@ -1,5 +1,8 @@
 use account_utils::{DiscriminatorData, DiscriminatorEncode, PROGRAM_INSTRUCTION_DISCRIMINATOR};
 use borsh::{BorshDeserialize, BorshSerialize};
+use hyperlane_sealevel_interchain_security_module_interface::{
+    InterchainSecurityModuleInstruction, VerifyMetadataSpecInstruction,
+};
 use solana_program::{
     instruction::{AccountMeta, Instruction as SolanaInstruction},
     program_error::ProgramError,
@@ -41,21 +44,6 @@ pub enum Instruction {
     /// 0. `[signer]` The current owner.
     /// 1. `[writable]` The storage PDA account.
     TransferOwnership(Option<Pubkey>),
-
-    /// Returns the [`MetadataSpec`] for the given message as return data.
-    ///
-    /// Resolves Routing/AmountRouting/RoutingPda inline so the relayer receives
-    /// a flat spec. For `RoutingPda` nodes the domain PDA for `message.origin`
-    /// must be passed as an additional account after the storage PDA (in
-    /// depth-first tree order).
-    ///
-    /// Accounts:
-    /// 0. `[]` The storage PDA account.
-    /// 1..N. `[]` Domain PDAs for any `RoutingPda` nodes (depth-first order).
-    GetMetadataSpec(
-        /// Raw-encoded [`HyperlaneMessage`].
-        Vec<u8>,
-    ),
 
     /// Creates or updates the ISM for a specific origin domain within a
     /// `RoutingPda` routing table. If the domain PDA does not exist it is
@@ -125,8 +113,8 @@ pub fn update_config_instruction(
     })
 }
 
-/// Creates a GetMetadataSpec instruction.
-pub fn get_metadata_spec_instruction(
+/// Creates a VerifyMetadataSpec instruction.
+pub fn verify_metadata_spec_instruction(
     program_id: Pubkey,
     message_bytes: Vec<u8>,
     domain_pdas: Vec<Pubkey>,
@@ -141,7 +129,10 @@ pub fn get_metadata_spec_instruction(
 
     Ok(SolanaInstruction {
         program_id,
-        data: Instruction::GetMetadataSpec(message_bytes).encode()?,
+        data: InterchainSecurityModuleInstruction::VerifyMetadataSpec(
+            VerifyMetadataSpecInstruction::new(message_bytes),
+        )
+        .encode()?,
         accounts,
     })
 }

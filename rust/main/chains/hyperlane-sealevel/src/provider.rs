@@ -31,6 +31,9 @@ use hyperlane_core::{
     HyperlaneDomain, HyperlaneProvider, HyperlaneProviderError, NativeToken, TxnInfo,
     TxnReceiptInfo, H256, H512, U256,
 };
+use hyperlane_sealevel_interchain_security_module_interface::{
+    InterchainSecurityModuleInstruction, VerifyInstruction, VERIFY_ACCOUNT_METAS_PDA_SEEDS,
+};
 
 use crate::alt::fetch_alt;
 use crate::error::HyperlaneSealevelError;
@@ -664,6 +667,56 @@ impl SealevelProvider {
             .unwrap_or_else(Vec::new);
 
         Ok(account_metas)
+    }
+
+    /// Runs a fixpoint loop over `VerifyAccountMetas` on `ism` until the returned
+    /// account set converges, then returns it.  Callers are responsible for any
+    /// post-processing (e.g. signer-stripping via `sanitize_dynamic_accounts`).
+    pub async fn get_ism_verify_account_metas(
+        &self,
+        payer: &Pubkey,
+        ism: Pubkey,
+        metadata: Vec<u8>,
+        message: Vec<u8>,
+    ) -> ChainResult<Vec<AccountMeta>> {
+        let (vam_pda, _) = Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, &ism);
+
+        const MAX_VAM_ITERATIONS: usize = 10;
+        let mut accounts = vec![AccountMeta::new(vam_pda, false)];
+
+        for _ in 0..MAX_VAM_ITERATIONS {
+            let instruction =
+                InterchainSecurityModuleInstruction::VerifyAccountMetas(VerifyInstruction {
+                    metadata: metadata.clone(),
+                    message: message.clone(),
+                });
+            let ix = Instruction::new_with_bytes(
+                ism,
+                &instruction
+                    .encode()
+                    .map_err(ChainCommunicationError::from_other)?,
+                accounts.clone(),
+            );
+            let result: Vec<AccountMeta> = self
+                .simulate_instruction::<SimulationReturnData<Vec<SerializableAccountMeta>>>(
+                    payer, ix,
+                )
+                .await?
+                .map(|s| s.return_data.into_iter().map(|m| m.into()).collect())
+                .unwrap_or_default();
+
+            let result_keys: Vec<_> = result.iter().map(|m| m.pubkey).collect();
+            let prev_keys: Vec<_> = accounts.iter().map(|m| m.pubkey).collect();
+
+            if result_keys == prev_keys {
+                return Ok(result);
+            }
+            accounts = result;
+        }
+
+        Err(ChainCommunicationError::from_other_str(
+            "ISM verify account metas did not converge within MAX_VAM_ITERATIONS iterations",
+        ))
     }
 
     /// Simulates an instruction, and attempts to deserialize it into a T.

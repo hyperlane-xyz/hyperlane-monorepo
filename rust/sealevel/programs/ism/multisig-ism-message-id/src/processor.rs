@@ -23,7 +23,9 @@ use crate::{
     instruction::{Domained, Instruction, ValidatorsAndThreshold},
 };
 
-use hyperlane_sealevel_interchain_security_module_interface::InterchainSecurityModuleInstruction;
+use hyperlane_sealevel_interchain_security_module_interface::{
+    InterchainSecurityModuleInstruction, MetadataSpec,
+};
 use multisig_ism::{interface::MultisigIsmInstruction, multisig::MultisigIsm};
 
 const ISM_TYPE: ModuleType = ModuleType::MessageIdMultisig;
@@ -111,6 +113,11 @@ pub fn process_instruction(
                     .map_err(|_| ProgramError::BorshIoError)?;
                 set_return_data(&bytes[..]);
                 Ok(())
+            }
+            InterchainSecurityModuleInstruction::VerifyMetadataSpec(data) => {
+                let message = HyperlaneMessage::read_from(&mut &data.message[..])
+                    .map_err(|_| ProgramError::InvalidArgument)?;
+                get_metadata_spec(program_id, accounts, message.origin)
             }
         };
     }
@@ -316,6 +323,22 @@ fn get_validators_and_threshold_account_metas(
         Pubkey::find_program_address(domain_data_pda_seeds!(domain), program_id);
 
     Ok(vec![AccountMeta::new_readonly(domain_pda_key, false).into()])
+}
+
+/// Returns the MetadataSpec for a given message as return data.
+///
+/// Accounts:
+/// 0. `[]` The domain data PDA for the given domain.
+fn get_metadata_spec(program_id: &Pubkey, accounts: &[AccountInfo], domain: u32) -> ProgramResult {
+    let vat = validators_and_threshold(program_id, accounts, domain)?;
+    let spec = MetadataSpec::MultisigMessageId {
+        validators: vat.validators,
+        threshold: vat.threshold,
+    };
+    let bytes =
+        borsh::to_vec(&SimulationReturnData::new(spec)).map_err(|_| ProgramError::BorshIoError)?;
+    set_return_data(&bytes[..]);
+    Ok(())
 }
 
 /// Gets the validators and threshold for a given domain.

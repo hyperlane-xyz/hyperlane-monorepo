@@ -18,6 +18,8 @@ use solana_program::{
 };
 use solana_system_interface::program as system_program;
 
+use hyperlane_sealevel_interchain_security_module_interface::MetadataSpec;
+
 use crate::{
     account_metas::{all_verify_account_metas, contains_rate_limited},
     accounts::{
@@ -26,7 +28,7 @@ use crate::{
     },
     error::Error,
     instruction::Instruction,
-    metadata_spec::{spec_for_node_with_pdas, MetadataSpec},
+    metadata_spec::spec_for_node_with_pdas,
     storage_pda_seeds,
     verify::verify_node,
 };
@@ -57,6 +59,15 @@ pub fn process_instruction(
                 set_return_data(&bytes[..]);
                 Ok(())
             }
+            InterchainSecurityModuleInstruction::VerifyMetadataSpec(data) => {
+                let message = HyperlaneMessage::read_from(&mut &data.message[..])
+                    .map_err(|_| ProgramError::InvalidArgument)?;
+                let spec = get_metadata_spec(program_id, accounts, &message)?;
+                let bytes = borsh::to_vec(&SimulationReturnData::new(spec))
+                    .map_err(|_| ProgramError::BorshIoError)?;
+                set_return_data(&bytes[..]);
+                Ok(())
+            }
         };
     }
 
@@ -66,15 +77,6 @@ pub fn process_instruction(
         Instruction::GetOwner => get_owner(program_id, accounts),
         Instruction::TransferOwnership(new_owner) => {
             transfer_ownership(program_id, accounts, new_owner)
-        }
-        Instruction::GetMetadataSpec(message_bytes) => {
-            let message = HyperlaneMessage::read_from(&mut &message_bytes[..])
-                .map_err(|_| ProgramError::InvalidArgument)?;
-            let spec = get_metadata_spec(program_id, accounts, &message)?;
-            let bytes = borsh::to_vec(&SimulationReturnData::new(spec))
-                .map_err(|_| ProgramError::BorshIoError)?;
-            set_return_data(&bytes[..]);
-            Ok(())
         }
         Instruction::SetDomainIsm { domain, ism } => {
             set_domain_ism(program_id, accounts, domain, ism)

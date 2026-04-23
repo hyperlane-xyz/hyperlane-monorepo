@@ -1,6 +1,29 @@
 use borsh::{BorshDeserialize, BorshSerialize};
+use hyperlane_core::H160;
 use solana_program::program_error::ProgramError;
 use spl_discriminator::ArrayDiscriminator as Discriminator;
+
+/// The metadata format a message's ISM requires the relayer to supply.
+///
+/// Returned as set_return_data from `VerifyMetadataSpec`, wrapped in
+/// `SimulationReturnData<MetadataSpec>`.  The relayer uses this to know
+/// which validator signatures to fetch and how to structure the bytes
+/// it passes to `Verify`.
+#[derive(BorshSerialize, BorshDeserialize, Debug, Clone, PartialEq)]
+pub enum MetadataSpec {
+    /// No metadata needed (e.g. TrustedRelayer, Test, Pausable, RateLimited).
+    Null,
+    /// Standard secp256k1 multisig over the message ID.
+    MultisigMessageId {
+        validators: Vec<H160>,
+        threshold: u8,
+    },
+    /// m-of-n aggregation; each sub-spec maps to one sub-ISM in order.
+    Aggregation {
+        threshold: u8,
+        sub_specs: Vec<MetadataSpec>,
+    },
+}
 
 /// Instructions that a Hyperlane interchain security module is expected to process.
 /// The first 8 bytes of the encoded instruction is a discriminator that
@@ -15,6 +38,12 @@ pub enum InterchainSecurityModuleInstruction {
     /// The only account expected to be passed into this instruction is the
     /// read-only PDA relating to the program ID and the seeds `VERIFY_ACCOUNT_METAS_PDA_SEEDS`
     VerifyAccountMetas(VerifyInstruction),
+    /// Returns the [`MetadataSpec`] for the given message as set_return_data,
+    /// wrapped in `SimulationReturnData<MetadataSpec>`.
+    ///
+    /// Account 0 must always be the ISM's storage PDA (derived from
+    /// `VERIFY_ACCOUNT_METAS_PDA_SEEDS`).  Additional accounts vary by ISM type.
+    VerifyMetadataSpec(VerifyMetadataSpecInstruction),
 }
 
 /// First 8 bytes of `hash::hashv(&[b"hyperlane-interchain-security-module:type"])`
@@ -33,6 +62,17 @@ impl VerifyInstruction {
     }
 }
 
+#[derive(Eq, PartialEq, BorshSerialize, BorshDeserialize, Debug, Clone)]
+pub struct VerifyMetadataSpecInstruction {
+    pub message: Vec<u8>,
+}
+
+impl VerifyMetadataSpecInstruction {
+    pub fn new(message: Vec<u8>) -> Self {
+        Self { message }
+    }
+}
+
 /// First 8 bytes of `hash::hashv(&[b"hyperlane-interchain-security-module:verify"])`
 const VERIFY_DISCRIMINATOR: [u8; Discriminator::LENGTH] = [243, 53, 214, 0, 208, 18, 231, 67];
 const VERIFY_DISCRIMINATOR_SLICE: &[u8] = &VERIFY_DISCRIMINATOR;
@@ -41,6 +81,11 @@ const VERIFY_DISCRIMINATOR_SLICE: &[u8] = &VERIFY_DISCRIMINATOR;
 const VERIFY_ACCOUNT_METAS_DISCRIMINATOR: [u8; Discriminator::LENGTH] =
     [200, 65, 157, 12, 89, 255, 131, 216];
 const VERIFY_ACCOUNT_METAS_DISCRIMINATOR_SLICE: &[u8] = &VERIFY_ACCOUNT_METAS_DISCRIMINATOR;
+
+/// First 8 bytes of `hash::hashv(&[b"hyperlane-interchain-security-module:verify-metadata-spec"])`
+const VERIFY_METADATA_SPEC_DISCRIMINATOR: [u8; Discriminator::LENGTH] =
+    [49, 24, 22, 218, 134, 132, 63, 155];
+const VERIFY_METADATA_SPEC_DISCRIMINATOR_SLICE: &[u8] = &VERIFY_METADATA_SPEC_DISCRIMINATOR;
 
 /// Seeds for the PDA that's expected to be passed into the `VerifyAccountMetas`
 /// instruction.
@@ -62,6 +107,12 @@ impl InterchainSecurityModuleInstruction {
             }
             InterchainSecurityModuleInstruction::VerifyAccountMetas(instruction) => {
                 buf.extend_from_slice(VERIFY_ACCOUNT_METAS_DISCRIMINATOR_SLICE);
+                buf.extend_from_slice(
+                    &borsh::to_vec(&instruction).map_err(|_| ProgramError::BorshIoError)?[..],
+                );
+            }
+            InterchainSecurityModuleInstruction::VerifyMetadataSpec(instruction) => {
+                buf.extend_from_slice(VERIFY_METADATA_SPEC_DISCRIMINATOR_SLICE);
                 buf.extend_from_slice(
                     &borsh::to_vec(&instruction).map_err(|_| ProgramError::BorshIoError)?[..],
                 );
@@ -88,6 +139,11 @@ impl InterchainSecurityModuleInstruction {
                     .map_err(|_| ProgramError::BorshIoError)?;
                 Ok(Self::VerifyAccountMetas(instruction))
             }
+            VERIFY_METADATA_SPEC_DISCRIMINATOR_SLICE => {
+                let instruction = VerifyMetadataSpecInstruction::try_from_slice(rest)
+                    .map_err(|_| ProgramError::BorshIoError)?;
+                Ok(Self::VerifyMetadataSpec(instruction))
+            }
             _ => Err(ProgramError::InvalidInstructionData),
         }
     }
@@ -105,27 +161,28 @@ mod test {
                 [..Discriminator::LENGTH],
             TYPE_DISCRIMINATOR_SLICE,
         );
-
         assert_eq!(
             &hashv(&[b"hyperlane-interchain-security-module:verify"]).to_bytes()
                 [..Discriminator::LENGTH],
             VERIFY_DISCRIMINATOR_SLICE,
         );
-
         assert_eq!(
             &hashv(&[b"hyperlane-interchain-security-module:verify-account-metas"]).to_bytes()
                 [..Discriminator::LENGTH],
             VERIFY_ACCOUNT_METAS_DISCRIMINATOR_SLICE,
+        );
+        assert_eq!(
+            &hashv(&[b"hyperlane-interchain-security-module:verify-metadata-spec"]).to_bytes()
+                [..Discriminator::LENGTH],
+            VERIFY_METADATA_SPEC_DISCRIMINATOR_SLICE,
         );
     }
 
     #[test]
     fn test_encode_decode_type_instruction() {
         let instruction = InterchainSecurityModuleInstruction::Type;
-
         let encoded = instruction.encode().unwrap();
-        assert_eq!(&encoded[..Discriminator::LENGTH], TYPE_DISCRIMINATOR_SLICE,);
-
+        assert_eq!(&encoded[..Discriminator::LENGTH], TYPE_DISCRIMINATOR_SLICE);
         let decoded = InterchainSecurityModuleInstruction::decode(&encoded).unwrap();
         assert_eq!(instruction, decoded);
     }
@@ -136,13 +193,11 @@ mod test {
             vec![5, 4, 3, 2, 1],
             vec![1, 2, 3, 4, 5],
         ));
-
         let encoded = instruction.encode().unwrap();
         assert_eq!(
             &encoded[..Discriminator::LENGTH],
-            VERIFY_DISCRIMINATOR_SLICE,
+            VERIFY_DISCRIMINATOR_SLICE
         );
-
         let decoded = InterchainSecurityModuleInstruction::decode(&encoded).unwrap();
         assert_eq!(instruction, decoded);
     }
@@ -152,13 +207,25 @@ mod test {
         let instruction = InterchainSecurityModuleInstruction::VerifyAccountMetas(
             VerifyInstruction::new(vec![5, 4, 3, 2, 1], vec![1, 2, 3, 4, 5]),
         );
-
         let encoded = instruction.encode().unwrap();
         assert_eq!(
             &encoded[..Discriminator::LENGTH],
             VERIFY_ACCOUNT_METAS_DISCRIMINATOR_SLICE,
         );
+        let decoded = InterchainSecurityModuleInstruction::decode(&encoded).unwrap();
+        assert_eq!(instruction, decoded);
+    }
 
+    #[test]
+    fn test_encode_decode_verify_metadata_spec_instruction() {
+        let instruction = InterchainSecurityModuleInstruction::VerifyMetadataSpec(
+            VerifyMetadataSpecInstruction::new(vec![1, 2, 3, 4, 5]),
+        );
+        let encoded = instruction.encode().unwrap();
+        assert_eq!(
+            &encoded[..Discriminator::LENGTH],
+            VERIFY_METADATA_SPEC_DISCRIMINATOR_SLICE,
+        );
         let decoded = InterchainSecurityModuleInstruction::decode(&encoded).unwrap();
         assert_eq!(instruction, decoded);
     }

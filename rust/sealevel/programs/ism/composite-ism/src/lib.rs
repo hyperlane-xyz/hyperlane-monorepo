@@ -37,3 +37,15 @@ pub fn storage_pda_seeds_with_bump(bump: &[u8]) -> [&[u8]; 6] {
 }
 
 pub use processor::process_instruction;
+
+/// Converts an [`AccountInfo`] reference to an [`AccountMeta`],
+/// preserving its `is_writable` and `is_signer` flags.
+pub(crate) fn account_info_to_meta(
+    ai: &solana_program::account_info::AccountInfo,
+) -> solana_program::instruction::AccountMeta {
+    if ai.is_writable {
+        solana_program::instruction::AccountMeta::new(*ai.key, ai.is_signer)
+    } else {
+        solana_program::instruction::AccountMeta::new_readonly(*ai.key, ai.is_signer)
+    }
+}

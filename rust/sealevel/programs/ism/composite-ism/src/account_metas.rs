@@ -232,13 +232,7 @@ pub fn required_accounts_for_node(
                 .collect();
             let cpi_metas: Vec<AccountMeta> = cpi_accounts
                 .iter()
-                .map(|ai| {
-                    if ai.is_writable {
-                        AccountMeta::new(*ai.key, ai.is_signer)
-                    } else {
-                        AccountMeta::new_readonly(*ai.key, ai.is_signer)
-                    }
-                })
+                .map(crate::account_info_to_meta)
                 .collect();
             let ixn_data =
                 InterchainSecurityModuleInstruction::VerifyAccountMetas(VerifyInstruction {
@@ -262,8 +256,13 @@ pub fn required_accounts_for_node(
                 )
                 .map_err(|_| ProgramError::BorshIoError)?;
 
-            let mut result: Vec<SerializableAccountMeta> =
-                vec![AccountMeta::new_readonly(domain_pda_key, false).into()];
+            // Keep fallback_storage_key in the result so that the next fixpoint
+            // iteration finds it at cursor position and re-enters Pass 3+ (stable
+            // point).  verify_node skips this sentinel before the CPI to Verify.
+            let mut result: Vec<SerializableAccountMeta> = vec![
+                AccountMeta::new_readonly(domain_pda_key, false).into(),
+                AccountMeta::new_readonly(fallback_storage_key, false).into(),
+            ];
             result.extend(cpi_result.return_data);
             // Re-append the program account so that subsequent Verify calls (and the
             // fixpoint loop) also include it and can perform the CPI.
