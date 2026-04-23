@@ -176,7 +176,7 @@ export interface CollateralPluginData {
 export function decodeNativePlugin(pluginData: Uint8Array): NativePluginData {
   if (pluginData.length < 1)
     throw new Error(`NativePlugin: need 1 byte, got ${pluginData.length}`);
-  return { nativeCollateralBump: pluginData[0]! };
+  return { nativeCollateralBump: pluginData[0] };
 }
 
 export function decodeSyntheticPlugin(

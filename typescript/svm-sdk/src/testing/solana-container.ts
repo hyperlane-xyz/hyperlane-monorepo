@@ -388,7 +388,7 @@ async function waitForRpcReady(
   }
 
   throw new Error(
-    `RPC endpoint not ready after ${maxAttempts} attempts. Last error: ${lastError}`,
+    `RPC endpoint not ready after ${maxAttempts} attempts. Last error: ${String(lastError)}`,
   );
 }
 

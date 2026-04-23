@@ -26,7 +26,12 @@ import { SvmSigner } from '../clients/signer.js';
 import { concatBytes, u32le, u64le } from '../codecs/binary.js';
 import { SvmOffchainQuotedLinearFeeWriter } from '../fee/offchain-quoted-linear-fee.js';
 import { SvmRoutingFeeWriter } from '../fee/routing-fee.js';
-import { deriveFeeSalt, signerToH160 } from '../fee/types.js';
+import {
+  deriveFeeSalt,
+  signerToH160,
+  FeeDataKind,
+  FeeStrategyKind,
+} from '../fee/types.js';
 import {
   getAddQuoteSignerInstruction,
   getInitFeeInstruction,
@@ -40,7 +45,6 @@ import { createRpc } from '../rpc.js';
 import { resolveProgram } from '../deploy/resolve-program.js';
 import { TEST_SVM_CHAIN_METADATA } from '../testing/constants.js';
 import { airdropSol } from '../testing/setup.js';
-import { FeeDataKind, FeeStrategyKind } from '../fee/types.js';
 
 const TEST_PRIVATE_KEY =
   '0x0000000000000000000000000000000000000000000000000000000000000001';

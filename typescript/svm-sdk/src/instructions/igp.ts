@@ -170,7 +170,7 @@ export function decodeIgpProgramInstruction(
   data: Uint8Array,
 ): IgpProgramInstructionData | null {
   if (data.length < 1) return null;
-  const kind = data[0]!;
+  const kind = data[0];
   const payload = data.slice(1);
   switch (kind) {
     case IgpInstructionKind.Init:

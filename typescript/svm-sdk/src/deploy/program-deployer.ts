@@ -263,7 +263,7 @@ export async function executeDeployPlan(
         break;
       default: {
         const _exhaustive: never = stage.kind;
-        throw new Error(`Unknown stage kind: ${_exhaustive}`);
+        throw new Error(`Unknown stage kind: ${String(_exhaustive)}`);
       }
     }
   }

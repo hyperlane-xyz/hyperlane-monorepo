@@ -16,9 +16,9 @@ import type { createRpc } from '../rpc.js';
 export interface LeafFeeTestContext<T extends LeafFeeConfig['type']> {
   writer: ArtifactWriter<Extract<LeafFeeConfig, { type: T }>, SvmDeployedFee>;
   reader: ArtifactReader<Extract<LeafFeeConfig, { type: T }>, SvmDeployedFee>;
-  makeConfig(
+  makeConfig: (
     overrides?: Partial<Omit<LeafFeeConfig, 'type'>>,
-  ): Extract<LeafFeeConfig, { type: T }>;
+  ) => Extract<LeafFeeConfig, { type: T }>;
   signer: SvmSigner;
   rpc: ReturnType<typeof createRpc>;
 }

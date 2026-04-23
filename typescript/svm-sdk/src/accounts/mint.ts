@@ -40,7 +40,7 @@ const addressEncoder = getAddressEncoder();
 const utf8Encoder = getUtf8Encoder();
 
 export function getMintDecimals(data: Uint8Array): number {
-  return data[MINT_DECIMALS_OFFSET]!;
+  return data[MINT_DECIMALS_OFFSET];
 }
 
 /**

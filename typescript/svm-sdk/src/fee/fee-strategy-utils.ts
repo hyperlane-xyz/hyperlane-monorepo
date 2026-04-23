@@ -41,7 +41,7 @@ export function routeDataToFeeStrategy(route: RouteData): FeeStrategy {
       return { type: FeeStrategyType.progressive, ...base };
     default: {
       const _exhaustive: never = route.feeData;
-      throw new Error(`Unknown strategy kind: ${_exhaustive}`);
+      throw new Error(`Unknown strategy kind: ${String(_exhaustive)}`);
     }
   }
 }

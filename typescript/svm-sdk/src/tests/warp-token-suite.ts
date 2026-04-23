@@ -25,7 +25,7 @@ export type WarpConfigOverrides = Partial<
 
 export interface WarpTestContext {
   writer: ArtifactWriter<RawWarpArtifactConfig, DeployedWarpAddress>;
-  makeConfig(overrides?: WarpConfigOverrides): RawWarpArtifactConfig;
+  makeConfig: (overrides?: WarpConfigOverrides) => RawWarpArtifactConfig;
   igpProgramId: Address;
   testIsmAddress: Address;
   signer: SvmSigner;

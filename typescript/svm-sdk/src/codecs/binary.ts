@@ -211,7 +211,7 @@ export function addressBytes(
     return BASE16_CODEC.encode(input.slice(2).toLowerCase());
   }
   throw new Error(
-    `Expected raw bytes or 0x-prefixed hex string, got: ${input.slice(0, 12)}`,
+    `Expected raw bytes or 0x-prefixed hex string, got: ${String(input.slice(0, 12))}`,
   );
 }
 
