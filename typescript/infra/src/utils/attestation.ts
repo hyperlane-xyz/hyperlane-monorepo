@@ -3,6 +3,7 @@ import chalk from 'chalk';
 import { execSync } from 'child_process';
 
 const DEFAULT_REPO = 'hyperlane-xyz/hyperlane-monorepo';
+const YOUNG_BUILD_THRESHOLD_MS = 60 * 60 * 1000; // 1h
 
 export type AttestationStatus =
   | {
@@ -98,11 +99,12 @@ export function printAttestationStatus(ref: ImageRef, status: AttestationStatus)
       chalk.green(`✓ ${chalk.bold(ref.component)} attestation verified: ${imageStr}`),
     );
     if (status.finishedOn && status.ageMs != null) {
-      console.log(
-        chalk.gray(
-          `  built: ${status.finishedOn.toISOString()}  (age: ${formatAge(status.ageMs)})`,
-        ),
-      );
+      const line = `  built: ${status.finishedOn.toISOString()}  (age: ${formatAge(status.ageMs)})`;
+      if (status.ageMs < YOUNG_BUILD_THRESHOLD_MS) {
+        console.log(chalk.yellow(`${line}  ⚠ young build — consider a soak period before prod`));
+      } else {
+        console.log(chalk.gray(line));
+      }
     } else {
       console.log(chalk.gray('  build age: unknown (could not parse provenance)'));
     }
