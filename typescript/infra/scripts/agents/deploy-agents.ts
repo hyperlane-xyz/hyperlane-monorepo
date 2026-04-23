@@ -5,6 +5,7 @@ import { execSync } from 'child_process';
 import { DockerImageRepos } from '../../config/docker.js';
 import { createAgentKeysIfNotExistsWithPrompt } from '../../src/agents/key-utils.js';
 import { RootAgentConfig } from '../../src/config/agent/agent.js';
+import { Role } from '../../src/roles.js';
 import { verifyImagesAndConfirm } from '../../src/utils/attestation.js';
 import {
   checkAgentImageExists,
@@ -12,6 +13,7 @@ import {
   warnIfPrTag,
 } from '../../src/utils/gcloud.js';
 import { HelmCommand } from '../../src/utils/helm.js';
+import { getArgs, withAgentRoles } from '../agent-utils.js';
 import { getConfigsBasedOnArgs } from '../core-utils.js';
 
 import { AgentCli } from './utils.js';
@@ -55,12 +57,11 @@ async function getCommitsBehindMain(): Promise<number> {
   }
 }
 
-async function checkDockerTagsExist(agentConfig: RootAgentConfig) {
-  const imagesToCheck: { agent: string; tag?: string }[] = [
-    { agent: 'scraper', tag: agentConfig.scraper?.docker.tag },
-    { agent: 'validators', tag: agentConfig.validators?.docker.tag },
-    { agent: 'relayer', tag: agentConfig.relayer?.docker.tag },
-  ];
+async function checkDockerTagsExist(
+  agentConfig: RootAgentConfig,
+  roles?: Role[],
+) {
+  const imagesToCheck = rolesToCheck(agentConfig, roles);
 
   let errors = false;
   for (const { agent, tag } of imagesToCheck) {
@@ -102,20 +103,43 @@ async function checkDockerTagsExist(agentConfig: RootAgentConfig) {
   }
 }
 
-async function verifyAgentAttestationsWithPrompt(agentConfig: RootAgentConfig) {
-  const refs = [
-    { component: 'scraper', tag: agentConfig.scraper?.docker.tag },
-    { component: 'validators', tag: agentConfig.validators?.docker.tag },
-    { component: 'relayer', tag: agentConfig.relayer?.docker.tag },
-  ]
-    .filter((r): r is { component: string; tag: string } => !!r.tag)
-    .map(({ component, tag }) => ({
-      component,
+async function verifyAgentAttestationsWithPrompt(
+  agentConfig: RootAgentConfig,
+  roles?: Role[],
+) {
+  const refs = rolesToCheck(agentConfig, roles)
+    .filter((r): r is { agent: string; role: Role; tag: string } => !!r.tag)
+    .map(({ agent, tag }) => ({
+      component: agent,
       image: DockerImageRepos.AGENT,
       tag,
     }));
 
   await verifyImagesAndConfirm(refs);
+}
+
+function rolesToCheck(
+  agentConfig: RootAgentConfig,
+  roles?: Role[],
+): { agent: string; role: Role; tag?: string }[] {
+  const all = [
+    {
+      agent: 'scraper',
+      role: Role.Scraper,
+      tag: agentConfig.scraper?.docker.tag,
+    },
+    {
+      agent: 'validators',
+      role: Role.Validator,
+      tag: agentConfig.validators?.docker.tag,
+    },
+    {
+      agent: 'relayer',
+      role: Role.Relayer,
+      tag: agentConfig.relayer?.docker.tag,
+    },
+  ];
+  return roles ? all.filter((r) => roles.includes(r.role)) : all;
 }
 
 async function main() {
@@ -126,9 +150,10 @@ async function main() {
   // whose keys / users are not chain-specific) will be attempted multiple times.
   // While this function still has these side effects, the workaround is to just
   // run the create-keys script first.
+  const { roles } = await withAgentRoles(getArgs()).argv;
   const { agentConfig } = await getConfigsBasedOnArgs();
-  await checkDockerTagsExist(agentConfig);
-  await verifyAgentAttestationsWithPrompt(agentConfig);
+  await checkDockerTagsExist(agentConfig, roles);
+  await verifyAgentAttestationsWithPrompt(agentConfig, roles);
 
   await createAgentKeysIfNotExistsWithPrompt(agentConfig);
 

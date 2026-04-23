@@ -67,18 +67,57 @@ function extractFinishedOn(rawJson: string): Date | undefined {
     const parsed = JSON.parse(rawJson);
     const entries = Array.isArray(parsed) ? parsed : [parsed];
     for (const entry of entries) {
-      const statement =
-        entry?.verificationResult?.statement ?? entry?.statement;
-      const finishedOn =
-        statement?.predicate?.runDetails?.metadata?.finishedOn ??
-        statement?.predicate?.metadata?.buildFinishedOn;
-      if (typeof finishedOn === 'string') {
-        const d = new Date(finishedOn);
-        if (!isNaN(d.getTime())) return d;
+      const candidates: unknown[] = [
+        entry?.verificationResult?.statement,
+        entry?.statement,
+      ];
+      const dssePayload =
+        entry?.attestation?.bundle?.dsseEnvelope?.payload ??
+        entry?.bundle?.dsseEnvelope?.payload;
+      if (typeof dssePayload === 'string') {
+        try {
+          candidates.push(
+            JSON.parse(Buffer.from(dssePayload, 'base64').toString('utf8')),
+          );
+        } catch {
+          // ignore, next candidate
+        }
+      }
+      for (const c of candidates) {
+        const date = readFinishedOn(c);
+        if (date) return date;
       }
     }
   } catch {
     // ignore - treated as "verified but age unknown"
+  }
+  return undefined;
+}
+
+function readFinishedOn(statement: unknown): Date | undefined {
+  if (typeof statement !== 'object' || statement === null) return undefined;
+  const value = pickPath(statement, [
+    ['predicate', 'runDetails', 'metadata', 'finishedOn'],
+    ['predicate', 'metadata', 'buildFinishedOn'],
+  ]);
+  if (typeof value === 'string') {
+    const d = new Date(value);
+    if (!isNaN(d.getTime())) return d;
+  }
+  return undefined;
+}
+
+function pickPath(root: unknown, paths: string[][]): unknown {
+  for (const path of paths) {
+    let node: unknown = root;
+    for (const key of path) {
+      if (typeof node !== 'object' || node === null) {
+        node = undefined;
+        break;
+      }
+      node = (node as Record<string, unknown>)[key];
+    }
+    if (node !== undefined) return node;
   }
   return undefined;
 }
