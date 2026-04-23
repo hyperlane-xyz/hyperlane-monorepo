@@ -456,8 +456,9 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
             let region = signer
                 .chain(&mut err)
                 .get_key("region")
-                .parse_from_str("Expected AWS region")
-                .unwrap_or_default();
+                .parse_string()
+                .unwrap_or_default()
+                .to_owned();
             err.into_result(SignerConf::Aws { id, region })
         }};
         (cosmosKey) => {{
