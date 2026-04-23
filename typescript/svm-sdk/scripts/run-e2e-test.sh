@@ -9,5 +9,5 @@ if [ -z "${SVM_SDK_E2E_TEST}" ]; then
 fi
 
 echo "Running SVM SDK E2E test: ${SVM_SDK_E2E_TEST}"
-pnpm mocha --config .mocharc-e2e.json --timeout 300000 "src/tests/${SVM_SDK_E2E_TEST}.e2e-test.ts"
+pnpm vitest run --config vitest.e2e.config.ts "src/tests/${SVM_SDK_E2E_TEST}.e2e-test.ts"
 echo "Completed SVM SDK E2E test: ${SVM_SDK_E2E_TEST}"

@@ -1,5 +1,4 @@
-import chai from 'chai';
-import chaiAsPromised from 'chai-as-promised';
+import { afterAll, beforeAll, describe } from 'vitest';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
@@ -24,11 +23,7 @@ import { AleoWarpArtifactManager } from '../warp/warp-artifact-manager.js';
 
 import { warpArtifactTestSuite } from './warp-artifact-test-suite.js';
 
-chai.use(chaiAsPromised);
-
-describe('7a. Aleo Warp Native Token Artifact API (e2e)', function () {
-  this.timeout(300_000);
-
+describe('7a. Aleo Warp Native Token Artifact API (e2e)', () => {
   let aleoSigner: AleoSigner;
   let artifactManager: AleoWarpArtifactManager;
   let ismArtifactManager: AleoIsmArtifactManager;
@@ -36,7 +31,7 @@ describe('7a. Aleo Warp Native Token Artifact API (e2e)', function () {
   let mailboxAddress: string;
   let savedWarpSuffix: string | undefined;
 
-  before(async () => {
+  beforeAll(async () => {
     savedWarpSuffix = process.env['ALEO_WARP_SUFFIX'];
     delete process.env['ALEO_WARP_SUFFIX'];
 
@@ -104,7 +99,7 @@ describe('7a. Aleo Warp Native Token Artifact API (e2e)', function () {
     });
   });
 
-  after(() => {
+  afterAll(() => {
     if (!isNullish(savedWarpSuffix)) {
       process.env['ALEO_WARP_SUFFIX'] = savedWarpSuffix;
     }

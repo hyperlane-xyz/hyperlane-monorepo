@@ -49,20 +49,14 @@
   },
   "devDependencies": {
     "@hyperlane-xyz/tsconfig": "workspace:^",
-    "@types/chai": "catalog:",
-    "@types/chai-as-promised": "catalog:",
-    "@types/mocha": "catalog:",
     "@types/node": "catalog:",
     "@types/unzipper": "^0",
-    "chai": "catalog:",
-    "chai-as-promised": "catalog:",
-    "mocha": "catalog:",
-    "mocha-steps": "catalog:",
     "node-fetch": "^3.3.2",
     "oxfmt": "catalog:",
     "testcontainers": "catalog:",
-    "ts-node": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
   },
   "peerDependencies": {
     "testcontainers": "catalog:"

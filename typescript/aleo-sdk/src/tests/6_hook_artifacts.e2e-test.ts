@@ -1,5 +1,4 @@
-import { expect } from 'chai';
-import { step } from 'mocha-steps';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { HookType, type ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
@@ -24,15 +23,13 @@ import { AleoMailboxArtifactManager } from '../mailbox/mailbox-artifact-manager.
 import { ALEO_NULL_ADDRESS } from '../utils/helper.js';
 import { AleoNetworkId } from '../utils/types.js';
 
-describe('6. aleo sdk Hook artifacts e2e tests', async function () {
-  this.timeout(100_000);
-
+describe('6. aleo sdk Hook artifacts e2e tests', () => {
   let signer: ISigner<AnnotatedTx, TxReceipt>;
   let aleoSigner: AleoSigner;
   let artifactManager: AleoHookArtifactManager;
   let mailboxAddress: string;
 
-  before(async () => {
+  beforeAll(async () => {
     const localnetRpc = 'http://localhost:3030';
     // test private key with funds
     const privateKey =
@@ -90,6 +87,20 @@ describe('6. aleo sdk Hook artifacts e2e tests', async function () {
   });
 
   describe('MerkleTree Hook', () => {
+    let __stepFailed = false;
+    const step = (name: string, fn?: () => void | Promise<void>) => {
+      if (!fn) return it.skip(name, () => {});
+      return it(name, async (ctx) => {
+        if (__stepFailed) return ctx.skip();
+        try {
+          await fn();
+        } catch (e) {
+          __stepFailed = true;
+          throw e;
+        }
+      });
+    };
+
     let merkleTreeHookAddress: string;
 
     step('should create and read a MerkleTree Hook', async () => {
@@ -121,6 +132,20 @@ describe('6. aleo sdk Hook artifacts e2e tests', async function () {
   });
 
   describe('IGP Hook', () => {
+    let __stepFailed = false;
+    const step = (name: string, fn?: () => void | Promise<void>) => {
+      if (!fn) return it.skip(name, () => {});
+      return it(name, async (ctx) => {
+        if (__stepFailed) return ctx.skip();
+        try {
+          await fn();
+        } catch (e) {
+          __stepFailed = true;
+          throw e;
+        }
+      });
+    };
+
     let igpHookAddress: string;
 
     const DOMAIN_1 = 42;
@@ -356,6 +381,20 @@ describe('6. aleo sdk Hook artifacts e2e tests', async function () {
   });
 
   describe('Generic hook reading via readHook', () => {
+    let __stepFailed = false;
+    const step = (name: string, fn?: () => void | Promise<void>) => {
+      if (!fn) return it.skip(name, () => {});
+      return it(name, async (ctx) => {
+        if (__stepFailed) return ctx.skip();
+        try {
+          await fn();
+        } catch (e) {
+          __stepFailed = true;
+          throw e;
+        }
+      });
+    };
+
     const DOMAIN_1 = 42;
 
     step('should detect and read MerkleTree hook', async () => {

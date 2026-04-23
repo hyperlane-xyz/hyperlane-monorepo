@@ -1,5 +1,4 @@
-import chai, { expect } from 'chai';
-import chaiAsPromised from 'chai-as-promised';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
@@ -19,7 +18,6 @@ import { assert, eqAddressRadix } from '@hyperlane-xyz/utils';
 
 import { RadixSigner } from '../clients/signer.js';
 import {
-  DEFAULT_E2E_TEST_TIMEOUT,
   OTHER_RADIX_PRIVATE_KEY,
   TEST_RADIX_BURN_ADDRESS,
   TEST_RADIX_CHAIN_METADATA,
@@ -29,13 +27,9 @@ import {
 import { transactionManifestToString } from '../utils/utils.js';
 import { RadixWarpArtifactManager } from '../warp/warp-artifact-manager.js';
 
-import { DEPLOYED_TEST_CHAIN_METADATA } from './e2e-test.setup.js';
+import { getDeployedTestChainMetadata } from './e2e-test.setup.js';
 
-chai.use(chaiAsPromised);
-
-describe('Radix Warp Tokens (e2e)', function () {
-  this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
-
+describe('Radix Warp Tokens (e2e)', () => {
   let radixSigner: RadixSigner;
   let otherRadixSigner: RadixSigner;
   let providerSdkSigner: ISigner<AnnotatedTx, TxReceipt>;
@@ -46,9 +40,9 @@ describe('Radix Warp Tokens (e2e)', function () {
   const DOMAIN_2 = 96;
   const ZERO_ADDRESS = '0000000000000000000000000000000000000000';
 
-  before(async () => {
-    const rpcUrls =
-      TEST_RADIX_CHAIN_METADATA.rpcUrls?.map((url) => url.http) ?? [];
+  beforeAll(async () => {
+    const deployedChainMetadata = getDeployedTestChainMetadata();
+    const rpcUrls = deployedChainMetadata.rpcUrls?.map((url) => url.http) ?? [];
     assert(rpcUrls.length > 0, 'Expected at least 1 rpc url for the tests');
 
     radixSigner = (await RadixSigner.connectWithSigner(
@@ -56,9 +50,9 @@ describe('Radix Warp Tokens (e2e)', function () {
       TEST_RADIX_PRIVATE_KEY,
       {
         metadata: {
-          chainId: DEPLOYED_TEST_CHAIN_METADATA.chainId,
-          gatewayUrls: DEPLOYED_TEST_CHAIN_METADATA.gatewayUrls,
-          packageAddress: DEPLOYED_TEST_CHAIN_METADATA.packageAddress,
+          chainId: deployedChainMetadata.chainId,
+          gatewayUrls: deployedChainMetadata.gatewayUrls,
+          packageAddress: deployedChainMetadata.packageAddress,
         },
       },
     )) as RadixSigner;
@@ -68,9 +62,9 @@ describe('Radix Warp Tokens (e2e)', function () {
       OTHER_RADIX_PRIVATE_KEY,
       {
         metadata: {
-          chainId: DEPLOYED_TEST_CHAIN_METADATA.chainId,
-          gatewayUrls: DEPLOYED_TEST_CHAIN_METADATA.gatewayUrls,
-          packageAddress: DEPLOYED_TEST_CHAIN_METADATA.packageAddress,
+          chainId: deployedChainMetadata.chainId,
+          gatewayUrls: deployedChainMetadata.gatewayUrls,
+          packageAddress: deployedChainMetadata.packageAddress,
         },
       },
     )) as RadixSigner;
@@ -391,7 +385,7 @@ describe('Radix Warp Tokens (e2e)', function () {
         expect(txs).to.be.an('array').with.length(0);
       });
 
-      describe('Ism updates', function () {
+      describe('Ism updates', () => {
         it('should unset ISM when changed from address to undefined', async () => {
           const initialConfig = getConfig();
           const customIsmAddress = TEST_RADIX_BURN_ADDRESS;

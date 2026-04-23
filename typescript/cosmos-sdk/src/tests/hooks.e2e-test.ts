@@ -1,5 +1,4 @@
-import chai, { expect } from 'chai';
-import chaiAsPromised from 'chai-as-promised';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { type ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
@@ -26,18 +25,14 @@ import { CosmosIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 import { CosmosMailboxArtifactManager } from '../mailbox/mailbox-artifact-manager.js';
 import { createSigner } from '../testing/utils.js';
 
-chai.use(chaiAsPromised);
-
-describe('Cosmos Hooks Artifact API (e2e)', function () {
-  this.timeout(100_000);
-
+describe('Cosmos Hooks Artifact API (e2e)', () => {
   let signer: ISigner<AnnotatedTx, TxReceipt>;
   let cosmosSigner: CosmosNativeSigner;
   let artifactManager: CosmosHookArtifactManager;
   let mailboxAddress: string;
   let denom: string;
 
-  before(async () => {
+  beforeAll(async () => {
     cosmosSigner = await createSigner('alice');
     signer = cosmosSigner;
 
@@ -163,7 +158,7 @@ describe('Cosmos Hooks Artifact API (e2e)', function () {
 
     let igpWriter: ArtifactWriter<IgpHookConfig, DeployedHookAddress>;
 
-    before(() => {
+    beforeAll(() => {
       const signerAddress = cosmosSigner.getSignerAddress();
       baseConfig.owner = signerAddress;
       baseConfig.beneficiary = signerAddress;
@@ -466,7 +461,7 @@ describe('Cosmos Hooks Artifact API (e2e)', function () {
     it('should throw an error for an invalid hook address', async () => {
       const invalidAddress = 'osmo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqmcn030';
 
-      await expect(artifactManager.readHook(invalidAddress)).to.be.rejectedWith(
+      await expect(artifactManager.readHook(invalidAddress)).rejects.toThrow(
         'is not a Cosmos hook',
       );
     });

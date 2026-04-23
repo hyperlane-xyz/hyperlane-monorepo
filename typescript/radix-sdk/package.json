@@ -40,7 +40,7 @@
     "test": "echo \"no tests in radix-sdk\"",
     "test:unit": "vitest run",
     "test:ci": "pnpm test:unit",
-    "test:e2e": "mocha --config .mocharc.e2e.json"
+    "test:e2e": "vitest run --config vitest.e2e.config.ts"
   },
   "dependencies": {
     "@hyperlane-xyz/provider-sdk": "workspace:*",
@@ -54,17 +54,9 @@
   },
   "devDependencies": {
     "@hyperlane-xyz/tsconfig": "workspace:^",
-    "@types/chai": "catalog:",
-    "@types/chai-as-promised": "catalog:",
-    "@types/mocha": "catalog:",
     "@types/node": "catalog:",
-    "chai": "catalog:",
-    "chai-as-promised": "catalog:",
-    "mocha": "catalog:",
-    "mocha-steps": "catalog:",
     "oxfmt": "catalog:",
     "testcontainers": "catalog:",
-    "ts-node": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",

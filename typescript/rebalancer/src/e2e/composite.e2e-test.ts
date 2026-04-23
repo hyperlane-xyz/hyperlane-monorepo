@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import { BigNumber, ethers, providers } from 'ethers';
 
 import { ERC20__factory } from '@hyperlane-xyz/core';
@@ -27,9 +27,7 @@ import {
   tryRelayMessage,
 } from './harness/TransferHelper.js';
 
-describe('CompositeStrategy E2E', function () {
-  this.timeout(300_000);
-
+describe('CompositeStrategy E2E', () => {
   let deploymentManager: Erc20LocalDeploymentManager;
   let multiProvider: MultiProvider;
   let localProviders: Map<string, providers.JsonRpcProvider>;
@@ -38,7 +36,7 @@ describe('CompositeStrategy E2E', function () {
   let hyperlaneCore: HyperlaneCore;
   let deployedAddresses: DeployedAddresses;
 
-  before(async function () {
+  beforeAll(async function () {
     const wallet = new ethers.Wallet(ANVIL_USER_PRIVATE_KEY);
     userAddress = wallet.address;
 
@@ -75,7 +73,7 @@ describe('CompositeStrategy E2E', function () {
     });
   });
 
-  after(async function () {
+  afterAll(async function () {
     if (deploymentManager) {
       await deploymentManager.stop();
     }

@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import { ethers, providers } from 'ethers';
 
 import { HyperlaneCore, MultiProvider, snapshot } from '@hyperlane-xyz/sdk';
@@ -29,9 +29,7 @@ import {
   TestRebalancerBuilder,
 } from './harness/TestRebalancer.js';
 
-describe('Inventory WeightedStrategy E2E', function () {
-  this.timeout(300_000);
-
+describe('Inventory WeightedStrategy E2E', () => {
   let deploymentManager: NativeLocalDeploymentManager;
   let multiProvider: MultiProvider;
   let localProviders: Map<string, providers.JsonRpcProvider>;
@@ -52,7 +50,7 @@ describe('Inventory WeightedStrategy E2E', function () {
     await context.orchestrator.executeCycle(event);
   }
 
-  before(async function () {
+  beforeAll(async function () {
     deploymentManager = new NativeLocalDeploymentManager(
       inventorySignerAddress,
     );
@@ -97,7 +95,7 @@ describe('Inventory WeightedStrategy E2E', function () {
     });
   });
 
-  after(async function () {
+  afterAll(async function () {
     if (deploymentManager) {
       await deploymentManager.stop();
     }

@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import type { ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
@@ -56,7 +56,7 @@ export function warpArtifactTestSuite(
   const { type, getConfig, expectedFields } = testCase;
   let ctx: WarpTestSuiteContext;
 
-  before(() => {
+  beforeAll(() => {
     ctx = getContext();
   });
 
@@ -319,7 +319,7 @@ export function warpArtifactTestSuite(
     expect(txs).to.be.an('array').with.length(0);
   });
 
-  describe('ISM updates', function () {
+  describe('ISM updates', () => {
     it('should unset ISM when changed from address to undefined', async () => {
       const initialConfig = getConfig();
 
@@ -591,7 +591,7 @@ export function warpArtifactTestSuite(
     });
   });
 
-  describe('Hook updates', function () {
+  describe('Hook updates', () => {
     it('should unset hook when changed from address to undefined', async () => {
       const initialConfig = getConfig();
 

@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
@@ -20,24 +20,21 @@ import { assert, normalizeConfig } from '@hyperlane-xyz/utils';
 import { RadixSigner } from '../clients/signer.js';
 import { RadixIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 import {
-  DEFAULT_E2E_TEST_TIMEOUT,
   TEST_RADIX_BURN_ADDRESS,
   TEST_RADIX_DEPLOYER_ADDRESS,
   TEST_RADIX_PRIVATE_KEY,
 } from '../testing/constants.js';
 
-import { DEPLOYED_TEST_CHAIN_METADATA } from './e2e-test.setup.js';
+import { getDeployedTestChainMetadata } from './e2e-test.setup.js';
 
-describe('Radix ISMs (e2e)', function () {
-  this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
-
+describe('Radix ISMs (e2e)', () => {
   let radixSigner: RadixSigner;
   let providerSdkSigner: ISigner<AnnotatedTx, TxReceipt>;
   let artifactManager: RadixIsmArtifactManager;
 
-  before(async () => {
-    const rpcUrls =
-      DEPLOYED_TEST_CHAIN_METADATA.rpcUrls?.map((url) => url.http) ?? [];
+  beforeAll(async () => {
+    const deployedChainMetadata = getDeployedTestChainMetadata();
+    const rpcUrls = deployedChainMetadata.rpcUrls?.map((url) => url.http) ?? [];
     assert(rpcUrls.length > 0, 'Expected at least 1 rpc url for the tests');
 
     radixSigner = (await RadixSigner.connectWithSigner(
@@ -45,9 +42,9 @@ describe('Radix ISMs (e2e)', function () {
       TEST_RADIX_PRIVATE_KEY,
       {
         metadata: {
-          chainId: DEPLOYED_TEST_CHAIN_METADATA.chainId,
-          gatewayUrls: DEPLOYED_TEST_CHAIN_METADATA.gatewayUrls,
-          packageAddress: DEPLOYED_TEST_CHAIN_METADATA.packageAddress,
+          chainId: deployedChainMetadata.chainId,
+          gatewayUrls: deployedChainMetadata.gatewayUrls,
+          packageAddress: deployedChainMetadata.packageAddress,
         },
       },
     )) as RadixSigner;
@@ -171,7 +168,7 @@ describe('Radix ISMs (e2e)', function () {
       DeployedIsmAddress
     >;
 
-    before(async () => {
+    beforeAll(async () => {
       const testWriter = artifactManager.createWriter(
         AltVM.IsmType.TEST_ISM,
         radixSigner,

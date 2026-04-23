@@ -1,5 +1,4 @@
-import chai, { expect } from 'chai';
-import chaiAsPromised from 'chai-as-promised';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { type ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
@@ -22,11 +21,7 @@ import { normalizeConfig } from '@hyperlane-xyz/utils';
 import { AleoSigner } from '../clients/signer.js';
 import { AleoIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 
-chai.use(chaiAsPromised);
-
-describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async function () {
-  this.timeout(100_000);
-
+describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', () => {
   let signer: AleoSigner;
   let providerSdkSigner: ISigner<AnnotatedTx, TxReceipt>;
   let artifactManager: AleoIsmArtifactManager;
@@ -38,7 +33,7 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
     '0x98A56EdE1d6Dd386216DA8217D9ac1d2EE7c27c7',
   ].sort();
 
-  before(async () => {
+  beforeAll(async () => {
     const localnetRpc = 'http://localhost:3030';
     // test private key with funds
     const privateKey =
@@ -169,7 +164,7 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
     const DOMAIN_2 = 96;
     const DOMAIN_3 = 100;
 
-    before(async () => {
+    beforeAll(async () => {
       // Create Test ISM for routing
       const testWriter = artifactManager.createWriter(
         AltVM.IsmType.TEST_ISM,

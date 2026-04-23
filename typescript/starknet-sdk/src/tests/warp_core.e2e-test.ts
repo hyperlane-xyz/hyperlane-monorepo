@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
@@ -15,18 +15,13 @@ import { getCreateNoopHookTx } from '../hook/hook-tx.js';
 import { StarknetIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 import { StarknetMailboxArtifactManager } from '../mailbox/mailbox-artifact-manager.js';
 import { StarknetWarpArtifactManager } from '../warp/warp-artifact-manager.js';
-import {
-  DEFAULT_E2E_TEST_TIMEOUT,
-  TEST_STARKNET_CHAIN_METADATA,
-} from '../testing/constants.js';
+import { TEST_STARKNET_CHAIN_METADATA } from '../testing/constants.js';
 import { createSigner } from '../testing/utils.js';
 
-describe('5a. starknet sdk warp core e2e tests', function () {
-  this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
-
+describe('5a. starknet sdk warp core e2e tests', () => {
   let signer: StarknetSigner;
 
-  before(async () => {
+  beforeAll(async () => {
     signer = await createSigner();
   });
 

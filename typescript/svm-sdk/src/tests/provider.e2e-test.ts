@@ -1,5 +1,4 @@
-import { expect } from 'chai';
-import { before, describe, it } from 'mocha';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 import { AccountRole, address as parseAddress } from '@solana/kit';
 
@@ -8,12 +7,10 @@ import { SvmProvider } from '../clients/provider.js';
 import type { SvmTransaction } from '../types.js';
 import { TEST_SVM_CHAIN_METADATA } from '../testing/constants.js';
 
-describe('SVM Provider E2E Tests', function () {
-  this.timeout(180_000);
-
+describe('SVM Provider E2E Tests', () => {
   let provider: SvmProvider;
 
-  before(async () => {
+  beforeAll(async () => {
     provider = await SvmProvider.connect(
       [TEST_SVM_CHAIN_METADATA.rpcUrl],
       String(TEST_SVM_CHAIN_METADATA.domainId),
@@ -27,9 +24,9 @@ describe('SVM Provider E2E Tests', function () {
         transaction: tx,
       });
 
-      expect(result.gasPrice).to.equal(LAMPORTS_PER_SIGNATURE);
-      expect(result.fee).to.equal(BigInt(LAMPORTS_PER_SIGNATURE));
-      expect(result.gasUnits).to.equal(BigInt(DEFAULT_COMPUTE_UNITS));
+      expect(result.gasPrice).toBe(LAMPORTS_PER_SIGNATURE);
+      expect(result.fee).toBe(BigInt(LAMPORTS_PER_SIGNATURE));
+      expect(result.gasUnits).toBe(BigInt(DEFAULT_COMPUTE_UNITS));
     });
 
     it('should scale fee by number of signers', async () => {
@@ -45,7 +42,7 @@ describe('SVM Provider E2E Tests', function () {
       });
 
       // 1 fee payer + 1 additional signer = 2 signers
-      expect(result.fee).to.equal(BigInt(2) * BigInt(result.gasPrice));
+      expect(result.fee).toBe(BigInt(2) * BigInt(result.gasPrice));
     });
 
     it('should count signers from instruction account metas', async () => {
@@ -81,7 +78,7 @@ describe('SVM Provider E2E Tests', function () {
       });
 
       // 2 signers from instruction metas + 1 fee payer = 3
-      expect(result.fee).to.equal(BigInt(3) * BigInt(result.gasPrice));
+      expect(result.fee).toBe(BigInt(3) * BigInt(result.gasPrice));
     });
 
     it('should use custom compute units when specified', async () => {
@@ -94,7 +91,7 @@ describe('SVM Provider E2E Tests', function () {
         transaction: tx,
       });
 
-      expect(result.gasUnits).to.equal(BigInt(customUnits));
+      expect(result.gasUnits).toBe(BigInt(customUnits));
     });
   });
 });

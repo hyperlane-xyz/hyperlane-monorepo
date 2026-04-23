@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
@@ -8,22 +8,17 @@ import { StarknetSigner } from '../clients/signer.js';
 import { StarknetHookArtifactManager } from '../hook/hook-artifact-manager.js';
 import { StarknetIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 import { StarknetMailboxArtifactManager } from '../mailbox/mailbox-artifact-manager.js';
-import {
-  DEFAULT_E2E_TEST_TIMEOUT,
-  TEST_STARKNET_CHAIN_METADATA,
-} from '../testing/constants.js';
+import { TEST_STARKNET_CHAIN_METADATA } from '../testing/constants.js';
 import { getCreateNoopHookTx } from '../hook/hook-tx.js';
 import { createSigner } from '../testing/utils.js';
 import { StarknetAnnotatedTx } from '../types.js';
 
-describe('3. starknet sdk hook e2e tests', function () {
-  this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
-
+describe('3. starknet sdk hook e2e tests', () => {
   let signer: StarknetSigner;
   let mailboxAddress: string;
   let artifactManager: StarknetHookArtifactManager;
 
-  before(async () => {
+  beforeAll(async () => {
     signer = await createSigner();
 
     const ismArtifactManager = new StarknetIsmArtifactManager(

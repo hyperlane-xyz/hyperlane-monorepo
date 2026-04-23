@@ -20,4 +20,4 @@ if [ -n "${STARKNET_SDK_E2E_TEST:-}" ]; then
   echo "Running Starknet SDK E2E shard: ${STARKNET_SDK_E2E_TEST}"
 fi
 
-pnpm mocha --config .mocharc-e2e.json "${spec}"
+pnpm vitest run --config vitest.e2e.config.ts "${spec}"

@@ -1,28 +1,46 @@
 import { StartedDockerComposeEnvironment } from 'testcontainers';
 
 import { TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
-import { deepCopy } from '@hyperlane-xyz/utils';
+import { assert, deepCopy } from '@hyperlane-xyz/utils';
 
-import {
-  DEFAULT_E2E_TEST_TIMEOUT,
-  TEST_RADIX_CHAIN_METADATA,
-} from '../testing/constants.js';
+import { TEST_RADIX_CHAIN_METADATA } from '../testing/constants.js';
 import { runRadixNode } from '../testing/node.js';
 import {
   deployHyperlaneRadixPackage,
   downloadRadixContracts,
 } from '../testing/setup.js';
 
-let radixNodeInstance: StartedDockerComposeEnvironment;
+const PACKAGE_ADDRESS_ENV = 'RADIX_E2E_PACKAGE_ADDRESS';
+const XRD_ADDRESS_ENV = 'RADIX_E2E_XRD_ADDRESS';
 
-// Global chain metadata with deployed package address
-export let DEPLOYED_TEST_CHAIN_METADATA: TestChainMetadata;
+/**
+ * Reads the deployed package address and XRD resource address from env vars
+ * (set by the vitest globalSetup below) and returns a test chain metadata
+ * object that tests can use to connect to the running Radix node.
+ */
+export function getDeployedTestChainMetadata(): TestChainMetadata {
+  const packageAddress = process.env[PACKAGE_ADDRESS_ENV];
+  const xrdAddress = process.env[XRD_ADDRESS_ENV];
+  assert(
+    packageAddress,
+    `Expected ${PACKAGE_ADDRESS_ENV} env var to be set by e2e globalSetup`,
+  );
+  assert(
+    xrdAddress,
+    `Expected ${XRD_ADDRESS_ENV} env var to be set by e2e globalSetup`,
+  );
 
-before(async function () {
-  // Use 3x timeout for setup since Docker container startup can be slow in CI
-  // (image pulling, postgres init, fullnode sync, gateway sync)
-  this.timeout(3 * DEFAULT_E2E_TEST_TIMEOUT);
+  const metadata = deepCopy(TEST_RADIX_CHAIN_METADATA) as TestChainMetadata;
+  metadata.packageAddress = packageAddress;
+  if (metadata.nativeToken) {
+    metadata.nativeToken.denom = xrdAddress;
+  }
+  return metadata;
+}
 
+let radixNodeInstance: StartedDockerComposeEnvironment | undefined;
+
+export default async function setup() {
   // Download Radix contracts
   const artifacts = await downloadRadixContracts();
 
@@ -35,19 +53,14 @@ before(async function () {
     artifacts,
   );
 
-  // Store metadata with package address and correct XRD denom for tests to use
-  DEPLOYED_TEST_CHAIN_METADATA = deepCopy(TEST_RADIX_CHAIN_METADATA);
-  DEPLOYED_TEST_CHAIN_METADATA.packageAddress = packageAddress;
-  if (DEPLOYED_TEST_CHAIN_METADATA.nativeToken) {
-    DEPLOYED_TEST_CHAIN_METADATA.nativeToken.denom = xrdAddress;
-  }
-});
+  // Expose deployed addresses to test workers via env vars (globalSetup runs
+  // in a separate process from test files, so module-level exports don't work).
+  process.env[PACKAGE_ADDRESS_ENV] = packageAddress;
+  process.env[XRD_ADDRESS_ENV] = xrdAddress;
 
-after(async function () {
-  // Might take a while shutting down the compose environment
-  this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
-
-  if (radixNodeInstance) {
-    await radixNodeInstance.down();
-  }
-});
+  return async () => {
+    if (radixNodeInstance) {
+      await radixNodeInstance.down();
+    }
+  };
+}

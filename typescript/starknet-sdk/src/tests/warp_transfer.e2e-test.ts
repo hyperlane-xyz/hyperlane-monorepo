@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { type ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
@@ -21,18 +21,15 @@ import { getCreateNoopHookTx } from '../hook/hook-tx.js';
 import { StarknetIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 import { getMailboxConfig } from '../mailbox/mailbox-query.js';
 import { StarknetMailboxArtifactManager } from '../mailbox/mailbox-artifact-manager.js';
-import { DEFAULT_E2E_TEST_TIMEOUT } from '../testing/constants.js';
 import { TEST_STARKNET_CHAIN_METADATA } from '../testing/index.js';
 import { createSigner } from '../testing/utils.js';
 import { StarknetWarpArtifactManager } from '../warp/warp-artifact-manager.js';
 
-describe('5b. starknet sdk warp transfer e2e tests', function () {
-  this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
-
+describe('5b. starknet sdk warp transfer e2e tests', () => {
   let signer: StarknetSigner;
   let genericSigner: ISigner<AnnotatedTx, TxReceipt>;
 
-  before(async () => {
+  beforeAll(async () => {
     signer = await createSigner();
     genericSigner = signer;
   });

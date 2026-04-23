@@ -1,5 +1,4 @@
-import chai, { expect } from 'chai';
-import chaiAsPromised from 'chai-as-promised';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { type ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
@@ -28,15 +27,10 @@ import {
 import { type CosmosNativeSigner } from '../clients/signer.js';
 import { CosmosIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 import { CosmosMailboxArtifactManager } from '../mailbox/mailbox-artifact-manager.js';
-import { DEFAULT_E2E_TEST_TIMEOUT } from '../testing/constants.js';
 import { createSigner } from '../testing/utils.js';
 import { CosmosWarpArtifactManager } from '../warp/warp-artifact-manager.js';
 
-chai.use(chaiAsPromised);
-
-describe('Cosmos Warp Artifacts (e2e)', function () {
-  this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
-
+describe('Cosmos Warp Artifacts (e2e)', () => {
   let cosmosSigner: CosmosNativeSigner;
   let providerSdkSigner: ISigner<AnnotatedTx, TxReceipt>;
   let otherProviderSdkSigner: ISigner<AnnotatedTx, TxReceipt>;
@@ -50,7 +44,7 @@ describe('Cosmos Warp Artifacts (e2e)', function () {
   const DOMAIN_1 = 42;
   const DOMAIN_2 = 96;
 
-  before(async () => {
+  beforeAll(async () => {
     cosmosSigner = await createSigner('alice');
     providerSdkSigner = cosmosSigner;
     deployerAddress = cosmosSigner.getSignerAddress();
