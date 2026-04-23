@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import { ethers } from 'ethers';
 import { randomBytes } from 'ethers/lib/utils.js';
 import sinon from 'sinon';
@@ -75,11 +75,11 @@ describe('EvmHookReader', () => {
 
     // top-level method infers hook type
     const hookConfig = await evmHookReader.deriveHookConfig(mockAddress);
-    expect(hookConfig).to.deep.equal(expectedConfig);
+    expect(hookConfig).toEqual(expectedConfig);
 
     // should get same result if we call the specific method for the hook type
     const config = await evmHookReader.deriveMerkleTreeConfig(mockAddress);
-    expect(config).to.deep.equal(hookConfig);
+    expect(config).toEqual(hookConfig);
   });
 
   it('should derive protocol fee hook correctly', async () => {
@@ -113,11 +113,11 @@ describe('EvmHookReader', () => {
 
     // top-level method infers hook type
     const hookConfig = await evmHookReader.deriveHookConfig(mockAddress);
-    expect(hookConfig).to.deep.equal(expectedConfig);
+    expect(hookConfig).toEqual(expectedConfig);
 
     // should get same result if we call the specific method for the hook type
     const config = await evmHookReader.deriveProtocolFeeConfig(mockAddress);
-    expect(config).to.deep.equal(hookConfig);
+    expect(config).toEqual(hookConfig);
   });
 
   it('should derive pausable config correctly', async () => {
@@ -147,11 +147,11 @@ describe('EvmHookReader', () => {
 
     // top-level method infers hook type
     const hookConfig = await evmHookReader.deriveHookConfig(mockAddress);
-    expect(hookConfig).to.deep.equal(expectedConfig);
+    expect(hookConfig).toEqual(expectedConfig);
 
     // should get same result if we call the specific method for the hook type
     const config = await evmHookReader.derivePausableConfig(mockAddress);
-    expect(config).to.deep.equal(hookConfig);
+    expect(config).toEqual(hookConfig);
   });
 
   it('should derive mailbox default hook config correctly', async () => {
@@ -177,12 +177,12 @@ describe('EvmHookReader', () => {
 
     // top-level method infers hook type
     const hookConfig = await evmHookReader.deriveHookConfig(mockAddress);
-    expect(hookConfig).to.deep.equal(expectedConfig);
+    expect(hookConfig).toEqual(expectedConfig);
 
     // should get same result if we call the specific method for the hook type
     const config =
       await evmHookReader.deriveMailboxDefaultHookConfig(mockAddress);
-    expect(config).to.deep.equal(hookConfig);
+    expect(config).toEqual(hookConfig);
   });
 
   it('should derive op stack config correctly', async () => {
@@ -214,11 +214,11 @@ describe('EvmHookReader', () => {
 
     // top-level method infers hook type
     const hookConfig = await evmHookReader.deriveHookConfig(mockAddress);
-    expect(hookConfig).to.deep.equal(expectedConfig);
+    expect(hookConfig).toEqual(expectedConfig);
 
     // should get same result if we call the specific method for the hook type
     const config = await evmHookReader.deriveOpStackConfig(mockAddress);
-    expect(config).to.deep.equal(hookConfig);
+    expect(config).toEqual(hookConfig);
   });
 
   it('should derive CCIPHook configuration correctly', async () => {
@@ -248,7 +248,7 @@ describe('EvmHookReader', () => {
       destinationChain: TestChainName.test1,
     };
 
-    expect(config).to.deep.equal(expectedConfig);
+    expect(config).toEqual(expectedConfig);
   });
 
   it('should throw if derivation fails', async () => {
@@ -271,7 +271,7 @@ describe('EvmHookReader', () => {
     try {
       await evmHookReader.deriveHookConfig(mockAddress);
     } catch (e: any) {
-      expect(e.toString()).to.contain(
+      expect(e.toString()).toContain(
         `Failed to derive undefined hook (${mockAddress}):`,
       );
     }

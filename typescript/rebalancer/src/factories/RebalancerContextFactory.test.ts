@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import { pino } from 'pino';
 import Sinon from 'sinon';
 
@@ -184,13 +184,13 @@ describe('RebalancerContextFactory', () => {
         ],
       });
 
-      expect(multiProvider.getProvider.callCount).to.equal(2);
+      expect(multiProvider.getProvider.callCount).toBe(2);
       const providerChains = multiProvider.getProvider
         .getCalls()
         .map((c) => c.args[0]);
-      expect(providerChains).to.include('ethereum');
-      expect(providerChains).to.include('arbitrum');
-      expect(providerChains).to.not.include('paradex');
+      expect(providerChains).toContain('ethereum');
+      expect(providerChains).toContain('arbitrum');
+      expect(providerChains).not.toContain('paradex');
     });
 
     it('should skip provider initialization for Sealevel chains', async () => {
@@ -214,8 +214,8 @@ describe('RebalancerContextFactory', () => {
         ],
       });
 
-      expect(multiProvider.getProvider.callCount).to.equal(1);
-      expect(multiProvider.getProvider.firstCall.args[0]).to.equal('ethereum');
+      expect(multiProvider.getProvider.callCount).toBe(1);
+      expect(multiProvider.getProvider.firstCall.args[0]).toBe('ethereum');
     });
 
     it('should initialize providers for Tron chains (EVM-like)', async () => {
@@ -240,12 +240,12 @@ describe('RebalancerContextFactory', () => {
       });
 
       // Tron is EVM-like, so getProvider should be called for both chains
-      expect(multiProvider.getProvider.callCount).to.equal(2);
+      expect(multiProvider.getProvider.callCount).toBe(2);
       const providerChains = multiProvider.getProvider
         .getCalls()
         .map((c) => c.args[0]);
-      expect(providerChains).to.include('ethereum');
-      expect(providerChains).to.include('tron');
+      expect(providerChains).toContain('ethereum');
+      expect(providerChains).toContain('tron');
     });
 
     it('should call getProvider for all chains when all are EVM', async () => {
@@ -269,12 +269,12 @@ describe('RebalancerContextFactory', () => {
         ],
       });
 
-      expect(multiProvider.getProvider.callCount).to.equal(2);
+      expect(multiProvider.getProvider.callCount).toBe(2);
       const providerChains = multiProvider.getProvider
         .getCalls()
         .map((c) => c.args[0]);
-      expect(providerChains).to.include('ethereum');
-      expect(providerChains).to.include('arbitrum');
+      expect(providerChains).toContain('ethereum');
+      expect(providerChains).toContain('arbitrum');
     });
 
     it('should fail fast when bridgeMinAcceptedAmount is configured for a chain without a token', async () => {
@@ -302,7 +302,7 @@ describe('RebalancerContextFactory', () => {
         error = caught as Error;
       }
 
-      expect(error?.message).to.equal(
+      expect(error?.message).toBe(
         'No token found for configured strategy chain arbitrum in warp route USDC/paradex',
       );
     });
@@ -344,7 +344,7 @@ describe('RebalancerContextFactory', () => {
         error = caught as Error;
       }
 
-      expect(error?.message).to.equal(
+      expect(error?.message).toBe(
         'Missing bridged supply for ethereum while computing initial total collateral for warp route USDC/paradex',
       );
     });
@@ -422,7 +422,7 @@ describe('RebalancerContextFactory', () => {
         error = caught as Error;
       }
 
-      expect(error?.message).to.contain(
+      expect(error?.message).toContain(
         `Missing inventory signer key for protocol ${ProtocolType.Sealevel}`,
       );
     });
@@ -471,7 +471,7 @@ describe('RebalancerContextFactory', () => {
         error = caught as Error;
       }
 
-      expect(error?.message).to.equal(
+      expect(error?.message).toBe(
         'No token found for inventory-relevant chain arbitrum in warp route USDC/paradex',
       );
     });
@@ -550,15 +550,14 @@ describe('RebalancerContextFactory', () => {
         result,
         'Expected inventory config to be created for Tron support',
       );
-      expect(result.inventoryConfig.inventoryAddresses).to.deep.equal({
+      expect(result.inventoryConfig.inventoryAddresses).toEqual({
         [ProtocolType.Ethereum]: TEST_ADDRESSES.ethereum,
         [ProtocolType.Tron]: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
       });
-      expect(result.inventoryConfig.chains).to.include.members([
-        evmChain,
-        tronChain,
-      ]);
-      expect(result.inventoryRebalancer).to.exist;
+      expect(result.inventoryConfig.chains).toEqual(
+        expect.arrayContaining([evmChain, tronChain]),
+      );
+      expect(result.inventoryRebalancer).toBeDefined();
     });
 
     it('should fail early when inventory chain uses unsupported protocol', async () => {
@@ -638,7 +637,7 @@ describe('RebalancerContextFactory', () => {
         error = caught as Error;
       }
 
-      expect(error?.message).to.contain(
+      expect(error?.message).toContain(
         `Inventory rebalancing does not support protocol '${ProtocolType.Cosmos}'`,
       );
     });

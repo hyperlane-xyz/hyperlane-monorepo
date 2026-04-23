@@ -1,5 +1,5 @@
-import { expect } from 'chai';
 import { RpcProvider } from 'starknet';
+import { describe, expect, it } from 'vitest';
 
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
@@ -83,7 +83,7 @@ describe('StarknetWarpArtifactManager', () => {
       },
     });
 
-    expect(txs).to.be.empty;
+    expect(txs).toHaveLength(0);
   });
 
   it('treats zero-address hook and ism placeholders as unset on Starknet update', async () => {
@@ -132,6 +132,6 @@ describe('StarknetWarpArtifactManager', () => {
       },
     });
 
-    expect(txs).to.be.empty;
+    expect(txs).toHaveLength(0);
   });
 });

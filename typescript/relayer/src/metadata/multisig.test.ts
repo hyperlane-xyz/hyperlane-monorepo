@@ -1,5 +1,5 @@
-import { expect } from 'chai';
 import { existsSync, readFileSync, readdirSync } from 'fs';
+import { describe, expect, it } from 'vitest';
 
 import { IsmType, ModuleType } from '@hyperlane-xyz/sdk';
 import { SignatureLike } from '@hyperlane-xyz/utils';
@@ -54,7 +54,7 @@ const fixtures: Fixture<MultisigMetadata>[] = files
 describe.skip('MultisigMetadataBuilder', () => {
   fixtures.forEach((fixture, i) => {
     it(`should encode fixture ${i}`, () => {
-      expect(MultisigMetadataBuilder.encode(fixture.decoded)).to.equal(
+      expect(MultisigMetadataBuilder.encode(fixture.decoded)).toBe(
         fixture.encoded,
       );
     });
@@ -62,7 +62,7 @@ describe.skip('MultisigMetadataBuilder', () => {
     it(`should decode fixture ${i}`, () => {
       expect(
         MultisigMetadataBuilder.decode(fixture.encoded, fixture.decoded.type),
-      ).to.deep.equal(fixture.decoded);
+      ).toEqual(fixture.decoded);
     });
   });
 });

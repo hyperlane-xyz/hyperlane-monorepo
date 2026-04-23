@@ -1,5 +1,5 @@
-import { expect } from 'chai';
 import sinon from 'sinon';
+import { expect } from 'vitest';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
 
@@ -18,43 +18,43 @@ describe('Explorer Pending Transfers', () => {
 
   describe('normalize helpers', () => {
     it('normalizes postgres bytea hex', () => {
-      expect(normalizeExplorerHex('\\x1234')).to.equal('0x1234');
-      expect(normalizeExplorerHex('0x1234')).to.equal('0x1234');
+      expect(normalizeExplorerHex('\\x1234')).toBe('0x1234');
+      expect(normalizeExplorerHex('0x1234')).toBe('0x1234');
     });
 
     it('normalizes padded 32-byte addresses to EVM address', () => {
       const padded =
         '0x0000000000000000000000001111111111111111111111111111111111111111';
-      expect(normalizeExplorerAddress(padded)).to.equal(
+      expect(normalizeExplorerAddress(padded)).toBe(
         '0x1111111111111111111111111111111111111111',
       );
     });
 
     it('converts message amount to token base units using scale', () => {
       const messageAmount = 1234567890000000000n;
-      expect(messageAmountToTokenBaseUnits(messageAmount, 1)).to.equal(
+      expect(messageAmountToTokenBaseUnits(messageAmount, 1)).toBe(
         messageAmount,
       );
       expect(
         messageAmountToTokenBaseUnits(messageAmount, 1_000_000_000_000),
-      ).to.equal(1234567n);
+      ).toBe(1234567n);
       expect(
         messageAmountToTokenBaseUnits(messageAmount, {
           numerator: 1,
           denominator: 1_000_000_000_000,
         }),
-      ).to.equal(messageAmount * 1_000_000_000_000n);
-      expect(messageAmountToTokenBaseUnits(100n, 1)).to.equal(100n);
-      expect(messageAmountToTokenBaseUnits(100n, 10)).to.equal(10n);
+      ).toBe(messageAmount * 1_000_000_000_000n);
+      expect(messageAmountToTokenBaseUnits(100n, 1)).toBe(100n);
+      expect(messageAmountToTokenBaseUnits(100n, 10)).toBe(10n);
     });
 
     it('throws on invalid scale', () => {
-      expect(() => messageAmountToTokenBaseUnits(1n, 0)).to.throw(
+      expect(() => messageAmountToTokenBaseUnits(1n, 0)).toThrow(
         'Scale must be positive',
       );
       expect(() =>
         messageAmountToTokenBaseUnits(1n, { numerator: 0, denominator: 1 }),
-      ).to.throw('Scale must be positive');
+      ).toThrow('Scale must be positive');
     });
   });
 
@@ -137,12 +137,12 @@ describe('Explorer Pending Transfers', () => {
 
     const transfers = await client.getPendingDestinationTransfers();
 
-    expect(transfers).to.have.length(1);
-    expect(transfers[0].destinationNodeId).to.equal('USDC|base|0xrouter');
-    expect(transfers[0].destinationDomainId).to.equal(8453);
-    expect(transfers[0].destinationRouter).to.equal(router);
-    expect(transfers[0].amountBaseUnits).to.equal(1234567n);
-    expect(transfers[0].sendOccurredAtMs).to.be.a('number');
+    expect(transfers).toHaveLength(1);
+    expect(transfers[0].destinationNodeId).toBe('USDC|base|0xrouter');
+    expect(transfers[0].destinationDomainId).toBe(8453);
+    expect(transfers[0].destinationRouter).toBe(router);
+    expect(transfers[0].amountBaseUnits).toBe(1234567n);
+    expect(typeof transfers[0].sendOccurredAtMs).toBe('number');
   });
 
   it('throws when explorer returns GraphQL errors', async () => {
@@ -179,7 +179,7 @@ describe('Explorer Pending Transfers', () => {
     } catch (error) {
       thrown = error as Error;
     }
-    expect(thrown).to.not.equal(undefined);
-    expect(thrown!.message).to.contain('GraphQL errors');
+    expect(thrown).not.toBe(undefined);
+    expect(thrown!.message).toContain('GraphQL errors');
   });
 });

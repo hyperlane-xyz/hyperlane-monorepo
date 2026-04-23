@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import type { IRegistry } from '@hyperlane-xyz/registry';
 import type { WarpCoreConfig } from '@hyperlane-xyz/sdk';
@@ -83,7 +83,7 @@ describe('resolveWarpRouteId', () => {
       warpRouteId: 'ETH/ethereum-arbitrum',
     });
 
-    expect(result).to.equal('ETH/ethereum-arbitrum');
+    expect(result).toBe('ETH/ethereum-arbitrum');
   });
 
   it('should throw when a full warp route ID does not exist', async () => {
@@ -93,9 +93,9 @@ describe('resolveWarpRouteId', () => {
         context,
         warpRouteId: 'ETH/does-not-exist',
       });
-      expect.fail('Should have thrown an error');
+      throw new Error('Should have thrown an error');
     } catch (error) {
-      expect((error as Error).message).to.include(
+      expect((error as Error).message).toContain(
         'No warp route found with ID "ETH/does-not-exist"',
       );
     }
@@ -108,9 +108,9 @@ describe('resolveWarpRouteId', () => {
         context,
         symbol: 'ETH',
       });
-      expect.fail('Should have thrown an error');
+      throw new Error('Should have thrown an error');
     } catch (error) {
-      expect((error as Error).message).to.include(
+      expect((error as Error).message).toContain(
         'Legacy "symbol"/"warp" params are not supported',
       );
     }
@@ -123,7 +123,7 @@ describe('resolveWarpRouteId', () => {
       warpRouteId: 'usdc',
     });
 
-    expect(result).to.equal('USDC/circle');
+    expect(result).toBe('USDC/circle');
   });
 
   it('should throw error with list when multiple routes match and skipConfirmation is true', async () => {
@@ -133,13 +133,13 @@ describe('resolveWarpRouteId', () => {
         context,
         warpRouteId: 'eth',
       });
-      expect.fail('Should have thrown an error');
+      throw new Error('Should have thrown an error');
     } catch (error) {
-      expect((error as Error).message).to.include(
+      expect((error as Error).message).toContain(
         'Multiple warp routes found for symbol "ETH"',
       );
-      expect((error as Error).message).to.include('ETH/ethereum-arbitrum');
-      expect((error as Error).message).to.include('ETH/ethereum-optimism');
+      expect((error as Error).message).toContain('ETH/ethereum-arbitrum');
+      expect((error as Error).message).toContain('ETH/ethereum-optimism');
     }
   });
 
@@ -150,9 +150,9 @@ describe('resolveWarpRouteId', () => {
         context,
         warpRouteId: 'NONEXISTENT',
       });
-      expect.fail('Should have thrown an error');
+      throw new Error('Should have thrown an error');
     } catch (error) {
-      expect((error as Error).message).to.include(
+      expect((error as Error).message).toContain(
         'No warp route found for symbol "NONEXISTENT"',
       );
     }
@@ -168,7 +168,7 @@ describe('resolveWarpRouteId', () => {
     });
 
     // warpDeployConfig only has 'ETH/ethereum-arbitrum', not 'ETH/ethereum-optimism'
-    expect(result).to.equal('ETH/ethereum-arbitrum');
+    expect(result).toBe('ETH/ethereum-arbitrum');
   });
 
   it('should throw explicit error when symbol is not found in warpDeployConfig', async () => {
@@ -180,9 +180,9 @@ describe('resolveWarpRouteId', () => {
         warpRouteId: 'dai',
         promptByDeploymentConfigs: true,
       });
-      expect.fail('Should have thrown an error');
+      throw new Error('Should have thrown an error');
     } catch (error) {
-      expect((error as Error).message).to.include(
+      expect((error as Error).message).toContain(
         'No warp route found for symbol "DAI"',
       );
     }
@@ -197,7 +197,7 @@ describe('resolveWarpRouteId', () => {
         chains: ['ethereum', 'arbitrum'],
       });
 
-      expect(result).to.equal('ETH/ethereum-arbitrum');
+      expect(result).toBe('ETH/ethereum-arbitrum');
     });
 
     it('should filter routes by chains - optimism filter', async () => {
@@ -208,7 +208,7 @@ describe('resolveWarpRouteId', () => {
         chains: ['optimism'],
       });
 
-      expect(result).to.equal('ETH/ethereum-optimism');
+      expect(result).toBe('ETH/ethereum-optimism');
     });
 
     it('should throw explicit error when no routes match chains filter', async () => {
@@ -219,12 +219,12 @@ describe('resolveWarpRouteId', () => {
           warpRouteId: 'eth',
           chains: ['polygon'],
         });
-        expect.fail('Should have thrown an error');
+        throw new Error('Should have thrown an error');
       } catch (error) {
-        expect((error as Error).message).to.include(
+        expect((error as Error).message).toContain(
           'No warp route found for symbol "ETH" spanning chains: polygon',
         );
-        expect((error as Error).message).to.include(
+        expect((error as Error).message).toContain(
           'Try without --chains to see all available routes',
         );
       }
@@ -238,9 +238,9 @@ describe('resolveWarpRouteId', () => {
           warpRouteId: 'eth',
           chains: [],
         });
-        expect.fail('Should have thrown an error');
+        throw new Error('Should have thrown an error');
       } catch (error) {
-        expect((error as Error).message).to.include(
+        expect((error as Error).message).toContain(
           'Multiple warp routes found for symbol "ETH"',
         );
       }
@@ -254,7 +254,7 @@ describe('resolveWarpRouteId', () => {
         chains: ['ethereum', 'arbitrum', 'optimism'],
       });
 
-      expect(result).to.equal('USDC/circle');
+      expect(result).toBe('USDC/circle');
     });
   });
 });
@@ -316,7 +316,7 @@ describe('getWarpCoreConfigOrExit', () => {
       chains: ['ethereum', 'arbitrum'],
     });
 
-    expect(config).to.deep.equal(mockWarpCoreConfigs['ETH/ethereum-arbitrum']);
+    expect(config).toEqual(mockWarpCoreConfigs['ETH/ethereum-arbitrum']);
   });
 
   it('should resolve to different route with different chains', async () => {
@@ -327,7 +327,7 @@ describe('getWarpCoreConfigOrExit', () => {
       chains: ['optimism'],
     });
 
-    expect(config).to.deep.equal(mockWarpCoreConfigs['ETH/ethereum-optimism']);
+    expect(config).toEqual(mockWarpCoreConfigs['ETH/ethereum-optimism']);
   });
 
   it('should throw when no route matches chains', async () => {
@@ -338,9 +338,9 @@ describe('getWarpCoreConfigOrExit', () => {
         warpRouteId: 'eth',
         chains: ['polygon'],
       });
-      expect.fail('Should have thrown an error');
+      throw new Error('Should have thrown an error');
     } catch (error) {
-      expect((error as Error).message).to.include(
+      expect((error as Error).message).toContain(
         'No warp route found for symbol "ETH" spanning chains: polygon',
       );
     }

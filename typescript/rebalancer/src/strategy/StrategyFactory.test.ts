@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import { ethers } from 'ethers';
 import { pino } from 'pino';
 
@@ -66,7 +66,7 @@ describe('StrategyFactory', () => {
         totalCollateral,
         testLogger,
       );
-      expect(strategy).to.be.instanceOf(WeightedStrategy);
+      expect(strategy).toBeInstanceOf(WeightedStrategy);
     });
 
     it('creates a MinAmountStrategy when given minAmount configuration', () => {
@@ -102,7 +102,7 @@ describe('StrategyFactory', () => {
         totalCollateral,
         testLogger,
       );
-      expect(strategy).to.be.instanceOf(MinAmountStrategy);
+      expect(strategy).toBeInstanceOf(MinAmountStrategy);
     });
   });
 });

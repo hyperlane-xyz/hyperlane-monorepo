@@ -1,7 +1,7 @@
-import { expect } from 'chai';
 import { pino } from 'pino';
 import { type Address, type Hex, verifyTypedData } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
   DEFAULT_ROUTER_KEY,
@@ -114,7 +114,8 @@ describe('QuoteService', () => {
         SALT,
         RECIPIENT,
       );
-      expect(res.quotes).to.be.an('array').with.lengthOf(2);
+      expect(Array.isArray(res.quotes)).toBe(true);
+      expect(res.quotes).toHaveLength(2);
     });
 
     it('expiry equals issuedAt', async () => {
@@ -127,7 +128,7 @@ describe('QuoteService', () => {
         RECIPIENT,
       );
       for (const q of res.quotes) {
-        expect(q.quote.expiry).to.equal(q.quote.issuedAt);
+        expect(q.quote.expiry).toBe(q.quote.issuedAt);
       }
     });
 
@@ -141,7 +142,7 @@ describe('QuoteService', () => {
         RECIPIENT,
       );
       for (const q of res.quotes) {
-        expect(q.quote.submitter).to.equal(QUOTED_CALLS);
+        expect(q.quote.submitter).toBe(QUOTED_CALLS);
       }
     });
 
@@ -155,7 +156,7 @@ describe('QuoteService', () => {
         RECIPIENT,
       );
       for (const q of res.quotes) {
-        expect(q.quote.salt).to.equal(SALT);
+        expect(q.quote.salt).toBe(SALT);
       }
     });
 
@@ -167,8 +168,8 @@ describe('QuoteService', () => {
         DESTINATION,
         SALT,
       );
-      expect(res.quotes).to.have.lengthOf(1);
-      expect(res.quotes[0].quoter.toLowerCase()).to.equal(
+      expect(res.quotes).toHaveLength(1);
+      expect(res.quotes[0].quoter.toLowerCase()).toBe(
         IGP_ADDRESS.toLowerCase(),
       );
     });
@@ -190,7 +191,7 @@ describe('QuoteService', () => {
         RECIPIENT,
       );
       for (const q of res.quotes) {
-        expect(q.quote.expiry).to.be.greaterThan(q.quote.issuedAt);
+        expect(q.quote.expiry).toBeGreaterThan(q.quote.issuedAt);
       }
     });
 
@@ -204,7 +205,7 @@ describe('QuoteService', () => {
         RECIPIENT,
       );
       for (const q of res.quotes) {
-        expect(q.quote.submitter).to.equal(ZERO_ADDRESS);
+        expect(q.quote.submitter).toBe(ZERO_ADDRESS);
       }
     });
 
@@ -218,7 +219,7 @@ describe('QuoteService', () => {
         RECIPIENT,
       );
       for (const q of res.quotes) {
-        expect(q.quote.salt).to.equal(SALT);
+        expect(q.quote.salt).toBe(SALT);
       }
     });
   });
@@ -254,7 +255,7 @@ describe('QuoteService', () => {
         },
         signature,
       });
-      expect(valid).to.be.true;
+      expect(valid).toBe(true);
     });
   });
 
@@ -302,9 +303,7 @@ describe('QuoteService', () => {
         DESTINATION,
         SALT,
       );
-      expect(res.quotes[0].quoter.toLowerCase()).to.equal(
-        DEST_IGP.toLowerCase(),
-      );
+      expect(res.quotes[0].quoter.toLowerCase()).toBe(DEST_IGP.toLowerCase());
     });
 
     it('uses fallback hook when destination not in domains', async () => {
@@ -322,7 +321,7 @@ describe('QuoteService', () => {
         DESTINATION,
         SALT,
       );
-      expect(res.quotes[0].quoter.toLowerCase()).to.equal(
+      expect(res.quotes[0].quoter.toLowerCase()).toBe(
         FALLBACK_IGP.toLowerCase(),
       );
     });
@@ -346,9 +345,7 @@ describe('QuoteService', () => {
         DESTINATION,
         SALT,
       );
-      expect(res.quotes[0].quoter.toLowerCase()).to.equal(
-        DEST_IGP.toLowerCase(),
-      );
+      expect(res.quotes[0].quoter.toLowerCase()).toBe(DEST_IGP.toLowerCase());
     });
 
     it('resolves CCRF default fee for transferRemote', async () => {
@@ -394,7 +391,7 @@ describe('QuoteService', () => {
       const feeQuote = res.quotes.find(
         (q) => q.quoter.toLowerCase() === DEST_FEE.toLowerCase(),
       );
-      expect(feeQuote).to.exist;
+      expect(feeQuote).toBeDefined();
     });
 
     it('resolves CCRF router-specific fee for transferRemoteTo', async () => {
@@ -455,7 +452,7 @@ describe('QuoteService', () => {
       const feeQuote = res.quotes.find(
         (q) => q.quoter.toLowerCase() === ROUTER_FEE.toLowerCase(),
       );
-      expect(feeQuote).to.exist;
+      expect(feeQuote).toBeDefined();
     });
 
     it('falls back to CCRF default when targetRouter not in routers', async () => {
@@ -504,7 +501,7 @@ describe('QuoteService', () => {
       const feeQuote = res.quotes.find(
         (q) => q.quoter.toLowerCase() === DEST_FEE.toLowerCase(),
       );
-      expect(feeQuote).to.exist;
+      expect(feeQuote).toBeDefined();
     });
 
     it('falls back to parent fee contract when destination not in feeContracts', async () => {
@@ -549,7 +546,7 @@ describe('QuoteService', () => {
       const feeQuote = res.quotes.find(
         (q) => q.quoter.toLowerCase() === FEE_CONTRACT.toLowerCase(),
       );
-      expect(feeQuote).to.exist;
+      expect(feeQuote).toBeDefined();
     });
   });
 
@@ -578,8 +575,8 @@ describe('QuoteService', () => {
         SALT,
         RECIPIENT,
       );
-      expect(res.quotes).to.have.lengthOf(1);
-      expect(res.quotes[0].quoter.toLowerCase()).to.equal(
+      expect(res.quotes).toHaveLength(1);
+      expect(res.quotes[0].quoter.toLowerCase()).toBe(
         FEE_CONTRACT.toLowerCase(),
       );
     });
@@ -605,8 +602,8 @@ describe('QuoteService', () => {
         SALT,
         RECIPIENT,
       );
-      expect(res.quotes).to.have.lengthOf(1);
-      expect(res.quotes[0].quoter.toLowerCase()).to.equal(
+      expect(res.quotes).toHaveLength(1);
+      expect(res.quotes[0].quoter.toLowerCase()).toBe(
         FEE_CONTRACT.toLowerCase(),
       );
     });
@@ -635,8 +632,8 @@ describe('QuoteService', () => {
         SALT,
         RECIPIENT,
       );
-      expect(res.quotes).to.have.lengthOf(1);
-      expect(res.quotes[0].quoter.toLowerCase()).to.equal(
+      expect(res.quotes).toHaveLength(1);
+      expect(res.quotes[0].quoter.toLowerCase()).toBe(
         IGP_ADDRESS.toLowerCase(),
       );
     });
@@ -662,8 +659,8 @@ describe('QuoteService', () => {
         SALT,
         RECIPIENT,
       );
-      expect(res.quotes).to.have.lengthOf(1);
-      expect(res.quotes[0].quoter.toLowerCase()).to.equal(
+      expect(res.quotes).toHaveLength(1);
+      expect(res.quotes[0].quoter.toLowerCase()).toBe(
         FEE_CONTRACT.toLowerCase(),
       );
     });
@@ -693,7 +690,7 @@ describe('QuoteService', () => {
         SALT,
         RECIPIENT,
       );
-      expect(res.quotes).to.have.lengthOf(0);
+      expect(res.quotes).toHaveLength(0);
     });
   });
 
@@ -710,7 +707,7 @@ describe('QuoteService', () => {
       );
       expect.fail('Should have thrown');
     } catch (e: any) {
-      expect(e.message).to.include('Unknown origin');
+      expect(e.message).toContain('Unknown origin');
     }
   });
 
@@ -727,7 +724,7 @@ describe('QuoteService', () => {
       );
       expect.fail('Should have thrown');
     } catch (e: any) {
-      expect(e.message).to.include('Unknown router');
+      expect(e.message).toContain('Unknown router');
     }
   });
 
@@ -743,7 +740,7 @@ describe('QuoteService', () => {
       );
       expect.fail('Should have thrown');
     } catch (e: any) {
-      expect(e.message).to.include('recipient required');
+      expect(e.message).toContain('recipient required');
     }
   });
 });

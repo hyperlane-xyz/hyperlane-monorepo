@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import { Address } from '@hyperlane-xyz/utils';
 
@@ -19,7 +19,7 @@ describe('transactions schemas', () => {
         value: VALUE_MOCK,
       };
       const result = CallDataSchema.safeParse(validCallData);
-      expect(result.success).to.be.true;
+      expect(result.success).toBe(true);
     });
 
     it('should parse CallData without optional value', () => {
@@ -28,7 +28,7 @@ describe('transactions schemas', () => {
         data: DATA_MOCK,
       };
       const result = CallDataSchema.safeParse(validCallDataWithoutValue);
-      expect(result.success).to.be.true;
+      expect(result.success).toBe(true);
     });
 
     it('should fail parsing invalid CallData', () => {
@@ -38,7 +38,7 @@ describe('transactions schemas', () => {
         value: VALUE_MOCK,
       };
       const result = CallDataSchema.safeParse(invalidCallData);
-      expect(result.success).to.be.false;
+      expect(result.success).toBe(false);
     });
   });
 });

@@ -5,7 +5,6 @@ export default defineConfig({
     globals: true,
     include: ['src/**/*.test.ts'],
     exclude: ['**/node_modules/**', '**/dist/**', '**/*.hardhat-test.ts'],
-    setupFiles: ['../../vitest.setup.ts'],
     testTimeout: 30000,
   },
 });

@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import { Wallet as ZKSyncWallet } from 'zksync-ethers';
 
 import {
@@ -34,6 +34,6 @@ describe('ensureEvmSignersForChains', () => {
     );
 
     const signer = multiProvider.getSigner('test1');
-    expect(signer).to.be.instanceOf(ZKSyncWallet);
+    expect(signer).toBeInstanceOf(ZKSyncWallet);
   });
 });

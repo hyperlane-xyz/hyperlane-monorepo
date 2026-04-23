@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import { TestChainName, testChainMetadata } from '../../consts/testChains.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
@@ -49,8 +49,8 @@ describe('SealevelIgpAdapter', () => {
         const expected = createMockRemoteGasData(1000n, 2000n, 18);
         const result = adapter.gasOracleMatches(undefined, expected);
 
-        expect(result.matches).to.be.false;
-        expect(result.actual).to.be.null;
+        expect(result.matches).toBe(false);
+        expect(result.actual).toBeNull();
       });
     });
 
@@ -60,8 +60,8 @@ describe('SealevelIgpAdapter', () => {
         const currentOracle = createMockGasOracle(expected);
         const result = adapter.gasOracleMatches(currentOracle, expected);
 
-        expect(result.matches).to.be.true;
-        expect(result.actual).to.deep.equal(expected);
+        expect(result.matches).toBe(true);
+        expect(result.actual).toEqual(expected);
       });
 
       it('should work with number types instead of BigInt', () => {
@@ -69,8 +69,8 @@ describe('SealevelIgpAdapter', () => {
         const currentOracle = createMockGasOracle(expected);
         const result = adapter.gasOracleMatches(currentOracle, expected);
 
-        expect(result.matches).to.be.true;
-        expect(result.actual).to.deep.equal(expected);
+        expect(result.matches).toBe(true);
+        expect(result.actual).toEqual(expected);
       });
     });
 
@@ -81,8 +81,8 @@ describe('SealevelIgpAdapter', () => {
         const currentOracle = createMockGasOracle(actual);
         const result = adapter.gasOracleMatches(currentOracle, expected);
 
-        expect(result.matches).to.be.false;
-        expect(result.actual).to.deep.equal(actual);
+        expect(result.matches).toBe(false);
+        expect(result.actual).toEqual(actual);
       });
 
       it('should work with mixed BigInt and number types', () => {
@@ -91,8 +91,8 @@ describe('SealevelIgpAdapter', () => {
         const currentOracle = createMockGasOracle(actual);
         const result = adapter.gasOracleMatches(currentOracle, expected);
 
-        expect(result.matches).to.be.true;
-        expect(result.actual).to.deep.equal(actual);
+        expect(result.matches).toBe(true);
+        expect(result.actual).toEqual(actual);
       });
     });
 
@@ -103,8 +103,8 @@ describe('SealevelIgpAdapter', () => {
         const currentOracle = createMockGasOracle(actual);
         const result = adapter.gasOracleMatches(currentOracle, expected);
 
-        expect(result.matches).to.be.false;
-        expect(result.actual).to.deep.equal(actual);
+        expect(result.matches).toBe(false);
+        expect(result.actual).toEqual(actual);
       });
 
       it('should work with mixed BigInt and number types', () => {
@@ -113,8 +113,8 @@ describe('SealevelIgpAdapter', () => {
         const currentOracle = createMockGasOracle(actual);
         const result = adapter.gasOracleMatches(currentOracle, expected);
 
-        expect(result.matches).to.be.true;
-        expect(result.actual).to.deep.equal(actual);
+        expect(result.matches).toBe(true);
+        expect(result.actual).toEqual(actual);
       });
     });
 
@@ -125,8 +125,8 @@ describe('SealevelIgpAdapter', () => {
         const currentOracle = createMockGasOracle(actual);
         const result = adapter.gasOracleMatches(currentOracle, expected);
 
-        expect(result.matches).to.be.false;
-        expect(result.actual).to.deep.equal(actual);
+        expect(result.matches).toBe(false);
+        expect(result.actual).toEqual(actual);
       });
     });
 
@@ -137,8 +137,8 @@ describe('SealevelIgpAdapter', () => {
         const currentOracle = createMockGasOracle(actual);
         const result = adapter.gasOracleMatches(currentOracle, expected);
 
-        expect(result.matches).to.be.true;
-        expect(result.actual).to.deep.equal(actual);
+        expect(result.matches).toBe(true);
+        expect(result.actual).toEqual(actual);
       });
 
       it('should handle BigInt to number conversion for gas_price', () => {
@@ -147,8 +147,8 @@ describe('SealevelIgpAdapter', () => {
         const currentOracle = createMockGasOracle(actual);
         const result = adapter.gasOracleMatches(currentOracle, expected);
 
-        expect(result.matches).to.be.true;
-        expect(result.actual).to.deep.equal(actual);
+        expect(result.matches).toBe(true);
+        expect(result.actual).toEqual(actual);
       });
 
       it('should handle number to BigInt conversion for token_exchange_rate', () => {
@@ -157,8 +157,8 @@ describe('SealevelIgpAdapter', () => {
         const currentOracle = createMockGasOracle(actual);
         const result = adapter.gasOracleMatches(currentOracle, expected);
 
-        expect(result.matches).to.be.true;
-        expect(result.actual).to.deep.equal(actual);
+        expect(result.matches).toBe(true);
+        expect(result.actual).toEqual(actual);
       });
 
       it('should handle number to BigInt conversion for gas_price', () => {
@@ -167,8 +167,8 @@ describe('SealevelIgpAdapter', () => {
         const currentOracle = createMockGasOracle(actual);
         const result = adapter.gasOracleMatches(currentOracle, expected);
 
-        expect(result.matches).to.be.true;
-        expect(result.actual).to.deep.equal(actual);
+        expect(result.matches).toBe(true);
+        expect(result.actual).toEqual(actual);
       });
     });
 
@@ -179,8 +179,8 @@ describe('SealevelIgpAdapter', () => {
         const currentOracle = createMockGasOracle(actual);
         const result = adapter.gasOracleMatches(currentOracle, expected);
 
-        expect(result.matches).to.be.true;
-        expect(result.actual).to.deep.equal(actual);
+        expect(result.matches).toBe(true);
+        expect(result.actual).toEqual(actual);
       });
 
       it('should handle very large BigInt values', () => {
@@ -190,8 +190,8 @@ describe('SealevelIgpAdapter', () => {
         const currentOracle = createMockGasOracle(actual);
         const result = adapter.gasOracleMatches(currentOracle, expected);
 
-        expect(result.matches).to.be.true;
-        expect(result.actual).to.deep.equal(actual);
+        expect(result.matches).toBe(true);
+        expect(result.actual).toEqual(actual);
       });
 
       it('should handle mixed zero and non-zero values', () => {
@@ -200,8 +200,8 @@ describe('SealevelIgpAdapter', () => {
         const currentOracle = createMockGasOracle(actual);
         const result = adapter.gasOracleMatches(currentOracle, expected);
 
-        expect(result.matches).to.be.true;
-        expect(result.actual).to.deep.equal(actual);
+        expect(result.matches).toBe(true);
+        expect(result.actual).toEqual(actual);
       });
 
       it('should fail when zero values differ from non-zero', () => {
@@ -210,8 +210,8 @@ describe('SealevelIgpAdapter', () => {
         const currentOracle = createMockGasOracle(actual);
         const result = adapter.gasOracleMatches(currentOracle, expected);
 
-        expect(result.matches).to.be.false;
-        expect(result.actual).to.deep.equal(actual);
+        expect(result.matches).toBe(false);
+        expect(result.actual).toEqual(actual);
       });
     });
 
@@ -234,8 +234,8 @@ describe('SealevelIgpAdapter', () => {
           const currentOracle = createMockGasOracle(actualData);
           const result = adapter.gasOracleMatches(currentOracle, expectedData);
 
-          expect(result.matches).to.be.true;
-          expect(result.actual).to.deep.equal(actualData);
+          expect(result.matches).toBe(true);
+          expect(result.actual).toEqual(actualData);
         });
       });
     });

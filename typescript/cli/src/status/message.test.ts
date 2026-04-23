@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import { type DispatchedMessage, type MultiProvider } from '@hyperlane-xyz/sdk';
 
@@ -42,9 +42,9 @@ describe('filterRelayableMessages', () => {
 
     const result = filterRelayableMessages([message], multiProvider);
 
-    expect(result.relayable).to.have.lengthOf(1);
-    expect(result.relayable[0].id).to.equal('msg1');
-    expect(result.skipped).to.have.lengthOf(0);
+    expect(result.relayable).toHaveLength(1);
+    expect(result.relayable[0].id).toBe('msg1');
+    expect(result.skipped).toHaveLength(0);
   });
 
   it('returns message as skipped when no signer exists for destination', () => {
@@ -53,9 +53,9 @@ describe('filterRelayableMessages', () => {
 
     const result = filterRelayableMessages([message], multiProvider);
 
-    expect(result.relayable).to.have.lengthOf(0);
-    expect(result.skipped).to.have.lengthOf(1);
-    expect(result.skipped[0].id).to.equal('msg1');
+    expect(result.relayable).toHaveLength(0);
+    expect(result.skipped).toHaveLength(1);
+    expect(result.skipped[0].id).toBe('msg1');
   });
 
   it('returns message as skipped when destinationChain is undefined', () => {
@@ -64,8 +64,8 @@ describe('filterRelayableMessages', () => {
 
     const result = filterRelayableMessages([message], multiProvider);
 
-    expect(result.relayable).to.have.lengthOf(0);
-    expect(result.skipped).to.have.lengthOf(1);
+    expect(result.relayable).toHaveLength(0);
+    expect(result.skipped).toHaveLength(1);
   });
 
   it('correctly partitions multiple messages', () => {
@@ -81,10 +81,10 @@ describe('filterRelayableMessages', () => {
       multiProvider,
     );
 
-    expect(result.relayable).to.have.lengthOf(2);
-    expect(result.relayable.map((m) => m.id)).to.deep.equal(['msg1', 'msg3']);
-    expect(result.skipped).to.have.lengthOf(2);
-    expect(result.skipped.map((m) => m.id)).to.deep.equal(['msg2', 'msg4']);
+    expect(result.relayable).toHaveLength(2);
+    expect(result.relayable.map((m) => m.id)).toEqual(['msg1', 'msg3']);
+    expect(result.skipped).toHaveLength(2);
+    expect(result.skipped.map((m) => m.id)).toEqual(['msg2', 'msg4']);
   });
 
   it('returns empty arrays when no messages provided', () => {
@@ -92,7 +92,7 @@ describe('filterRelayableMessages', () => {
 
     const result = filterRelayableMessages([], multiProvider);
 
-    expect(result.relayable).to.have.lengthOf(0);
-    expect(result.skipped).to.have.lengthOf(0);
+    expect(result.relayable).toHaveLength(0);
+    expect(result.skipped).toHaveLength(0);
   });
 });

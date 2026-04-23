@@ -1,5 +1,4 @@
-import chai, { expect } from 'chai';
-import chaiAsPromised from 'chai-as-promised';
+import { expect } from 'vitest';
 import { pino } from 'pino';
 import Sinon from 'sinon';
 
@@ -7,7 +6,6 @@ import { addressToByteHexString, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { ExplorerClient } from './ExplorerClient.js';
 
-chai.use(chaiAsPromised);
 const testLogger = pino({ level: 'silent' });
 
 describe('ExplorerClient', () => {
@@ -39,12 +37,12 @@ describe('ExplorerClient', () => {
         testLogger,
       );
 
-      expect(fetchStub.calledOnce).to.be.true;
+      expect(fetchStub.calledOnce).toBe(true);
       const body = JSON.parse(fetchStub.firstCall.args[1].body);
-      expect(body.variables.senders).to.deep.equal([
+      expect(body.variables.senders).toEqual([
         '\\x5a0e13290ec57f5e9031d01d03c6a40029cc24ea',
       ]);
-      expect(body.variables.recipients).to.deep.equal([
+      expect(body.variables.recipients).toEqual([
         '\\x5a0e13290ec57f5e9031d01d03c6a40029cc24ea',
       ]);
     });
@@ -62,17 +60,17 @@ describe('ExplorerClient', () => {
         testLogger,
       );
 
-      expect(fetchStub.calledOnce).to.be.true;
+      expect(fetchStub.calledOnce).toBe(true);
       const body = JSON.parse(fetchStub.firstCall.args[1].body);
       const expectedHex = addressToByteHexString(
         solAddr,
         ProtocolType.Sealevel,
       );
       const expectedBytea = expectedHex.replace(/^0x/i, '\\x').toLowerCase();
-      expect(body.variables.senders).to.deep.equal([expectedBytea]);
-      expect(body.variables.recipients).to.deep.equal([expectedBytea]);
+      expect(body.variables.senders).toEqual([expectedBytea]);
+      expect(body.variables.recipients).toEqual([expectedBytea]);
       // 32 bytes = 64 hex chars + 2-char \\x prefix
-      expect(expectedBytea.length).to.equal(66);
+      expect(expectedBytea.length).toBe(66);
     });
 
     it('encodes Starknet router addresses as hex bytea', async () => {
@@ -89,14 +87,14 @@ describe('ExplorerClient', () => {
         testLogger,
       );
 
-      expect(fetchStub.calledOnce).to.be.true;
+      expect(fetchStub.calledOnce).toBe(true);
       const body = JSON.parse(fetchStub.firstCall.args[1].body);
       const expectedHex = addressToByteHexString(
         starkAddr,
         ProtocolType.Starknet,
       );
       const expectedBytea = expectedHex.replace(/^0x/i, '\\x').toLowerCase();
-      expect(body.variables.senders).to.deep.equal([expectedBytea]);
+      expect(body.variables.senders).toEqual([expectedBytea]);
     });
 
     it('encodes mixed EVM+Solana routersByDomain correctly', async () => {
@@ -118,7 +116,7 @@ describe('ExplorerClient', () => {
         testLogger,
       );
 
-      expect(fetchStub.calledOnce).to.be.true;
+      expect(fetchStub.calledOnce).toBe(true);
       const body = JSON.parse(fetchStub.firstCall.args[1].body);
 
       const expectedEvmBytea = '\\x5a0e13290ec57f5e9031d01d03c6a40029cc24ea';
@@ -130,10 +128,10 @@ describe('ExplorerClient', () => {
         .replace(/^0x/i, '\\x')
         .toLowerCase();
 
-      expect(body.variables.senders).to.include(expectedEvmBytea);
-      expect(body.variables.senders).to.include(expectedSolBytea);
-      expect(body.variables.recipients).to.include(expectedEvmBytea);
-      expect(body.variables.recipients).to.include(expectedSolBytea);
+      expect(body.variables.senders).toContain(expectedEvmBytea);
+      expect(body.variables.senders).toContain(expectedSolBytea);
+      expect(body.variables.recipients).toContain(expectedEvmBytea);
+      expect(body.variables.recipients).toContain(expectedSolBytea);
     });
 
     it('handles empty routersByDomain gracefully', async () => {
@@ -148,11 +146,11 @@ describe('ExplorerClient', () => {
         testLogger,
       );
 
-      expect(fetchStub.calledOnce).to.be.true;
+      expect(fetchStub.calledOnce).toBe(true);
       const body = JSON.parse(fetchStub.firstCall.args[1].body);
-      expect(body.variables.senders).to.deep.equal([]);
-      expect(body.variables.recipients).to.deep.equal([]);
-      expect(body.variables.originDomains).to.deep.equal([]);
+      expect(body.variables.senders).toEqual([]);
+      expect(body.variables.recipients).toEqual([]);
+      expect(body.variables.originDomains).toEqual([]);
     });
   });
 
@@ -179,18 +177,18 @@ describe('ExplorerClient', () => {
         testLogger,
       );
 
-      expect(fetchStub.calledOnce).to.be.true;
+      expect(fetchStub.calledOnce).toBe(true);
       const body = JSON.parse(fetchStub.firstCall.args[1].body);
 
       // bridges encoded as EVM bytea (20-byte)
-      expect(body.variables.senders).to.deep.equal([
+      expect(body.variables.senders).toEqual([
         '\\x1234567890abcdef1234567890abcdef12345678',
       ]);
-      expect(body.variables.recipients).to.deep.equal([
+      expect(body.variables.recipients).toEqual([
         '\\x1234567890abcdef1234567890abcdef12345678',
       ]);
       // rebalancer encoded as EVM bytea
-      expect(body.variables.txSenders).to.deep.equal([
+      expect(body.variables.txSenders).toEqual([
         '\\xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
       ]);
 
@@ -204,10 +202,10 @@ describe('ExplorerClient', () => {
         .replace(/^0x/i, '\\x')
         .toLowerCase();
 
-      expect(body.variables.originTxRecipients).to.include(expectedEvmBytea);
-      expect(body.variables.originTxRecipients).to.include(expectedSolBytea);
+      expect(body.variables.originTxRecipients).toContain(expectedEvmBytea);
+      expect(body.variables.originTxRecipients).toContain(expectedSolBytea);
       // 32 bytes = 64 hex chars + 2-char \\x prefix
-      expect(expectedSolBytea.length).to.equal(66);
+      expect(expectedSolBytea.length).toBe(66);
     });
   });
 
@@ -258,7 +256,7 @@ describe('ExplorerClient', () => {
         testLogger,
       );
 
-      expect(result).to.be.true;
+      expect(result).toBe(true);
     });
 
     it('returns false when origin_tx_recipient does not match expected router', async () => {
@@ -303,7 +301,7 @@ describe('ExplorerClient', () => {
         testLogger,
       );
 
-      expect(result).to.be.false;
+      expect(result).toBe(false);
     });
 
     it('validates EVM router addresses correctly in post-query filter', async () => {
@@ -348,7 +346,7 @@ describe('ExplorerClient', () => {
         testLogger,
       );
 
-      expect(result).to.be.true;
+      expect(result).toBe(true);
     });
   });
 
@@ -377,7 +375,7 @@ describe('ExplorerClient', () => {
           },
           testLogger,
         ),
-      ).to.be.rejectedWith('Explorer query failed: 500');
+      ).rejects.toThrow('Explorer query failed: 500');
     });
   });
 });

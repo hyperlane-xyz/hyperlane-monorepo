@@ -40,11 +40,9 @@
   },
   "devDependencies": {
     "@hyperlane-xyz/tsconfig": "workspace:^",
-    "@types/chai": "catalog:",
     "@types/node": "catalog:",
     "@types/sinon": "catalog:",
     "@vercel/ncc": "catalog:",
-    "chai": "catalog:",
     "oxfmt": "catalog:",
     "sinon": "catalog:",
     "tsx": "catalog:",

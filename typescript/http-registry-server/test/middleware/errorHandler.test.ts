@@ -1,13 +1,10 @@
-import { use as chaiUse, expect } from 'chai';
-import chaiAsPromised from 'chai-as-promised';
 import { Request } from 'express';
 import sinon from 'sinon';
+import { expect } from 'vitest';
 
 import { AppConstants } from '../../src/constants/AppConstants.js';
 import { ApiError, NotFoundError } from '../../src/errors/ApiError.js';
 import { createErrorHandler } from '../../src/middleware/errorHandler.js';
-
-chaiUse(chaiAsPromised);
 
 type MockResponse = {
   headersSent: boolean;
@@ -48,17 +45,19 @@ describe('errorHandler middleware', () => {
 
       errorHandler(error, req as Request, res as any, next);
 
-      expect(mockLogger.error.calledWith({ error }, 'Error handling request'))
-        .to.be.true;
-      expect(res.status.calledWith(AppConstants.HTTP_STATUS_BAD_REQUEST)).to.be
-        .true;
+      expect(
+        mockLogger.error.calledWith({ error }, 'Error handling request'),
+      ).toBe(true);
+      expect(res.status.calledWith(AppConstants.HTTP_STATUS_BAD_REQUEST)).toBe(
+        true,
+      );
       expect(
         res.json.calledWith({
           message: 'Test API error',
           stack: undefined,
         }),
-      ).to.be.true;
-      expect(next.called).to.be.false;
+      ).toBe(true);
+      expect(next.called).toBe(false);
     });
 
     it('should handle NotFoundError correctly', () => {
@@ -67,16 +66,18 @@ describe('errorHandler middleware', () => {
 
       errorHandler(error, req as Request, res as any, next);
 
-      expect(mockLogger.error.calledWith({ error }, 'Error handling request'))
-        .to.be.true;
-      expect(res.status.calledWith(AppConstants.HTTP_STATUS_NOT_FOUND)).to.be
-        .true;
+      expect(
+        mockLogger.error.calledWith({ error }, 'Error handling request'),
+      ).toBe(true);
+      expect(res.status.calledWith(AppConstants.HTTP_STATUS_NOT_FOUND)).toBe(
+        true,
+      );
       expect(
         res.json.calledWith({
           message: 'Test resource not found',
           stack: undefined,
         }),
-      ).to.be.true;
+      ).toBe(true);
     });
 
     it('should convert generic Error to ApiError', () => {
@@ -85,17 +86,18 @@ describe('errorHandler middleware', () => {
 
       errorHandler(error, req as Request, res as any, next);
 
-      expect(mockLogger.error.calledWith({ error }, 'Error handling request'))
-        .to.be.true;
+      expect(
+        mockLogger.error.calledWith({ error }, 'Error handling request'),
+      ).toBe(true);
       expect(
         res.status.calledWith(AppConstants.HTTP_STATUS_INTERNAL_SERVER_ERROR),
-      ).to.be.true;
+      ).toBe(true);
       expect(
         res.json.calledWith({
           message: 'Internal Server Error: Generic error message',
           stack: error.stack,
         }),
-      ).to.be.true;
+      ).toBe(true);
     });
 
     it('should handle unknown error types', () => {
@@ -104,17 +106,18 @@ describe('errorHandler middleware', () => {
 
       errorHandler(error, req as Request, res as any, next);
 
-      expect(mockLogger.error.calledWith({ error }, 'Error handling request'))
-        .to.be.true;
+      expect(
+        mockLogger.error.calledWith({ error }, 'Error handling request'),
+      ).toBe(true);
       expect(
         res.status.calledWith(AppConstants.HTTP_STATUS_INTERNAL_SERVER_ERROR),
-      ).to.be.true;
+      ).toBe(true);
       expect(
         res.json.calledWith({
           message: 'Internal Server Error: unknown error',
           stack: undefined,
         }),
-      ).to.be.true;
+      ).toBe(true);
     });
 
     it('should preserve custom ApiError status and stack', () => {
@@ -124,13 +127,13 @@ describe('errorHandler middleware', () => {
 
       errorHandler(error, req as Request, res as any, next);
 
-      expect(res.status.calledWith(422)).to.be.true;
+      expect(res.status.calledWith(422)).toBe(true);
       expect(
         res.json.calledWith({
           message: 'Custom error',
           stack: customStack,
         }),
-      ).to.be.true;
+      ).toBe(true);
     });
 
     it('should delegate to default handler if headers already sent', () => {
@@ -140,9 +143,9 @@ describe('errorHandler middleware', () => {
 
       errorHandler(error, req as Request, res as any, next);
 
-      expect(next.calledWith(error)).to.be.true;
-      expect(res.status.called).to.be.false;
-      expect(res.json.called).to.be.false;
+      expect(next.calledWith(error)).toBe(true);
+      expect(res.status.called).toBe(false);
+      expect(res.json.called).toBe(false);
     });
 
     it('should handle Error with stack trace correctly', () => {
@@ -157,7 +160,7 @@ describe('errorHandler middleware', () => {
           message: 'Internal Server Error: Error with stack',
           stack: 'Mock stack trace\n  at test location',
         }),
-      ).to.be.true;
+      ).toBe(true);
     });
   });
 });

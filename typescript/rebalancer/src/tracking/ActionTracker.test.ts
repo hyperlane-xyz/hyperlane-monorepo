@@ -1,5 +1,4 @@
-import chai, { expect } from 'chai';
-import chaiAsPromised from 'chai-as-promised';
+import { expect } from 'vitest';
 import { pino } from 'pino';
 import Sinon from 'sinon';
 
@@ -15,8 +14,6 @@ import type { ExplorerMessage } from '../utils/ExplorerClient.js';
 import { ActionTracker, type ActionTrackerConfig } from './ActionTracker.js';
 import { InMemoryStore } from './store/InMemoryStore.js';
 import type { RebalanceAction, RebalanceIntent, Transfer } from './types.js';
-
-chai.use(chaiAsPromised);
 
 const testLogger = pino({ level: 'silent' });
 
@@ -120,19 +117,19 @@ describe('ActionTracker', () => {
       // Verify ExplorerClient was called twice:
       // 1. During startup recovery in initialize()
       // 2. During syncRebalanceActions() called from initialize()
-      expect(explorerClient.getInflightRebalanceActions.callCount).to.equal(2);
+      expect(explorerClient.getInflightRebalanceActions.callCount).toBe(2);
 
       // Verify synthetic intent and action were created
       const intents = await rebalanceIntentStore.getAll();
-      expect(intents).to.have.lengthOf(1);
-      expect(intents[0].status).to.equal('in_progress');
-      expect(intents[0].amount).to.equal(100n);
+      expect(intents).toHaveLength(1);
+      expect(intents[0].status).toBe('in_progress');
+      expect(intents[0].amount).toBe(100n);
 
       const actions = await rebalanceActionStore.getAll();
-      expect(actions).to.have.lengthOf(1);
-      expect(actions[0].id).to.equal('0xmsg1');
-      expect(actions[0].status).to.equal('in_progress');
-      expect(actions[0].messageId).to.equal('0xmsg1');
+      expect(actions).toHaveLength(1);
+      expect(actions[0].id).toBe('0xmsg1');
+      expect(actions[0].status).toBe('in_progress');
+      expect(actions[0].messageId).toBe('0xmsg1');
     });
 
     it('should use send_occurred_at for createdAt when available', async () => {
@@ -160,13 +157,13 @@ describe('ActionTracker', () => {
       await tracker.initialize();
 
       const intents = await rebalanceIntentStore.getAll();
-      expect(intents).to.have.lengthOf(1);
+      expect(intents).toHaveLength(1);
       // Hasura timestamps are UTC without 'Z'; recoverAction appends 'Z' before parsing
       const expectedMs = new Date('2024-01-15T12:30:45Z').getTime();
-      expect(intents[0].createdAt).to.equal(expectedMs);
+      expect(intents[0].createdAt).toBe(expectedMs);
 
       const actions = await rebalanceActionStore.getAll();
-      expect(actions[0].createdAt).to.equal(expectedMs);
+      expect(actions[0].createdAt).toBe(expectedMs);
     });
 
     it('should fall back to Date.now() when send_occurred_at is null', async () => {
@@ -196,8 +193,8 @@ describe('ActionTracker', () => {
       const after = Date.now();
 
       const intents = await rebalanceIntentStore.getAll();
-      expect(intents[0].createdAt).to.be.at.least(before);
-      expect(intents[0].createdAt).to.be.at.most(after);
+      expect(intents[0].createdAt).toBeGreaterThanOrEqual(before);
+      expect(intents[0].createdAt).toBeLessThanOrEqual(after);
     });
 
     it('should skip action with invalid send_occurred_at timestamp', async () => {
@@ -226,9 +223,9 @@ describe('ActionTracker', () => {
 
       // Invalid timestamp is caught by recoverAction's catch block, so the action is skipped
       const intents = await rebalanceIntentStore.getAll();
-      expect(intents).to.have.lengthOf(0);
+      expect(intents).toHaveLength(0);
       const actions = await rebalanceActionStore.getAll();
-      expect(actions).to.have.lengthOf(0);
+      expect(actions).toHaveLength(0);
     });
 
     it('should skip creating action if it already exists', async () => {
@@ -270,11 +267,11 @@ describe('ActionTracker', () => {
 
       // Verify no additional action was created
       const actions = await rebalanceActionStore.getAll();
-      expect(actions).to.have.lengthOf(1);
+      expect(actions).toHaveLength(1);
 
       // Verify no intent was created either
       const intents = await rebalanceIntentStore.getAll();
-      expect(intents).to.have.lengthOf(0);
+      expect(intents).toHaveLength(0);
     });
   });
 
@@ -302,11 +299,11 @@ describe('ActionTracker', () => {
       await tracker.syncTransfers();
 
       const transfers = await transferStore.getAll();
-      expect(transfers).to.have.lengthOf(1);
-      expect(transfers[0].id).to.equal('0xmsg1');
-      expect(transfers[0].status).to.equal('in_progress');
-      expect(transfers[0].sender).to.equal('0xuser1');
-      expect(transfers[0].amount).to.equal(100n);
+      expect(transfers).toHaveLength(1);
+      expect(transfers[0].id).toBe('0xmsg1');
+      expect(transfers[0].status).toBe('in_progress');
+      expect(transfers[0].sender).toBe('0xuser1');
+      expect(transfers[0].amount).toBe(100n);
     });
 
     it('should not duplicate transfers that already exist', async () => {
@@ -346,7 +343,7 @@ describe('ActionTracker', () => {
       await tracker.syncTransfers();
 
       const transfers = await transferStore.getAll();
-      expect(transfers).to.have.lengthOf(1);
+      expect(transfers).toHaveLength(1);
     });
 
     it('should mark transfers as complete when delivered', async () => {
@@ -370,7 +367,7 @@ describe('ActionTracker', () => {
       await tracker.syncTransfers();
 
       const transfer = await transferStore.get('0xmsg1');
-      expect(transfer?.status).to.equal('complete');
+      expect(transfer?.status).toBe('complete');
     });
   });
 
@@ -406,7 +403,7 @@ describe('ActionTracker', () => {
       await tracker.syncRebalanceIntents();
 
       const updated = await rebalanceIntentStore.get('intent-1');
-      expect(updated?.status).to.equal('complete');
+      expect(updated?.status).toBe('complete');
     });
 
     it('should not mark intents as complete if not fully fulfilled', async () => {
@@ -440,7 +437,7 @@ describe('ActionTracker', () => {
       await tracker.syncRebalanceIntents();
 
       const updated = await rebalanceIntentStore.get('intent-1');
-      expect(updated?.status).to.equal('in_progress');
+      expect(updated?.status).toBe('in_progress');
     });
 
     it('should mark unfulfilled intents as failed when TTL exceeded', async () => {
@@ -473,10 +470,10 @@ describe('ActionTracker', () => {
       await tracker.syncRebalanceIntents();
 
       const updatedIntent = await rebalanceIntentStore.get('intent-1');
-      expect(updatedIntent?.status).to.equal('failed');
+      expect(updatedIntent?.status).toBe('failed');
 
       const updatedAction = await rebalanceActionStore.get('action-1');
-      expect(updatedAction?.status).to.equal('failed');
+      expect(updatedAction?.status).toBe('failed');
     });
 
     it('should not expire intents within TTL', async () => {
@@ -495,7 +492,7 @@ describe('ActionTracker', () => {
       await tracker.syncRebalanceIntents();
 
       const updated = await rebalanceIntentStore.get('intent-1');
-      expect(updated?.status).to.equal('in_progress');
+      expect(updated?.status).toBe('in_progress');
     });
   });
 
@@ -533,11 +530,11 @@ describe('ActionTracker', () => {
 
       // Action should be complete
       const updatedAction = await rebalanceActionStore.get('action-1');
-      expect(updatedAction?.status).to.equal('complete');
+      expect(updatedAction?.status).toBe('complete');
 
       // Intent should be complete (derived from completed action amounts)
       const updatedIntent = await rebalanceIntentStore.get('intent-1');
-      expect(updatedIntent?.status).to.equal('complete');
+      expect(updatedIntent?.status).toBe('complete');
     });
 
     it('should not mark actions as complete if not delivered', async () => {
@@ -561,7 +558,7 @@ describe('ActionTracker', () => {
       await tracker.syncRebalanceActions();
 
       const updatedAction = await rebalanceActionStore.get('action-1');
-      expect(updatedAction?.status).to.equal('in_progress');
+      expect(updatedAction?.status).toBe('in_progress');
     });
   });
 
@@ -587,8 +584,8 @@ describe('ActionTracker', () => {
       });
 
       const action = await rebalanceActionStore.get('action-pending');
-      expect(action?.status).to.equal('in_progress');
-      expect(action?.lastBridgeStatus).to.equal('pending');
+      expect(action?.status).toBe('in_progress');
+      expect(action?.lastBridgeStatus).toBe('pending');
     });
 
     it('stores not_found status on in-progress movement', async () => {
@@ -612,9 +609,9 @@ describe('ActionTracker', () => {
       });
 
       const action = await rebalanceActionStore.get('action-not-found');
-      expect(action?.status).to.equal('in_progress');
-      expect(action?.lastBridgeStatus).to.equal('not_found');
-      expect(action?.nonPendingSince).to.be.a('number');
+      expect(action?.status).toBe('in_progress');
+      expect(action?.lastBridgeStatus).toBe('not_found');
+      expect(typeof action?.nonPendingSince).toBe('number');
     });
 
     it('clears nonPendingSince when status returns to pending', async () => {
@@ -640,8 +637,8 @@ describe('ActionTracker', () => {
       });
 
       const action = await rebalanceActionStore.get('action-back-to-pending');
-      expect(action?.lastBridgeStatus).to.equal('pending');
-      expect(action?.nonPendingSince).to.be.undefined;
+      expect(action?.lastBridgeStatus).toBe('pending');
+      expect(action?.nonPendingSince).toBeUndefined();
     });
 
     it('preserves existing nonPendingSince on repeated not_found polls', async () => {
@@ -670,7 +667,7 @@ describe('ActionTracker', () => {
       const action = await rebalanceActionStore.get(
         'action-repeated-not-found',
       );
-      expect(action?.nonPendingSince).to.equal(originalNonPendingSince);
+      expect(action?.nonPendingSince).toBe(originalNonPendingSince);
     });
   });
 
@@ -703,8 +700,8 @@ describe('ActionTracker', () => {
       });
 
       const result = await tracker.getInProgressTransfers();
-      expect(result).to.have.lengthOf(1);
-      expect(result[0].id).to.equal('transfer-1');
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('transfer-1');
     });
   });
 
@@ -743,8 +740,8 @@ describe('ActionTracker', () => {
       // Only in_progress intents are returned - their origin tx is confirmed
       // so simulation only needs to add to destination (origin already deducted on-chain)
       const result = await tracker.getActiveRebalanceIntents();
-      expect(result).to.have.lengthOf(1);
-      expect(result[0].id).to.equal('intent-2');
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('intent-2');
     });
   });
 
@@ -766,10 +763,10 @@ describe('ActionTracker', () => {
       const partialIntents =
         await tracker.getPartiallyFulfilledInventoryIntents();
 
-      expect(partialIntents).to.have.lengthOf(1);
-      expect(partialIntents[0].intent.id).to.equal('stuck-intent');
-      expect(partialIntents[0].completedAmount).to.equal(0n);
-      expect(partialIntents[0].remaining).to.equal(1000000000000000000n);
+      expect(partialIntents).toHaveLength(1);
+      expect(partialIntents[0].intent.id).toBe('stuck-intent');
+      expect(partialIntents[0].completedAmount).toBe(0n);
+      expect(partialIntents[0].remaining).toBe(1000000000000000000n);
     });
 
     it('returns in_progress inventory intents with partial completion', async () => {
@@ -801,10 +798,10 @@ describe('ActionTracker', () => {
       const partialIntents =
         await tracker.getPartiallyFulfilledInventoryIntents();
 
-      expect(partialIntents).to.have.lengthOf(1);
-      expect(partialIntents[0].intent.id).to.equal('partial-intent');
-      expect(partialIntents[0].completedAmount).to.equal(400000000000000000n);
-      expect(partialIntents[0].remaining).to.equal(600000000000000000n); // 0.6 ETH remaining
+      expect(partialIntents).toHaveLength(1);
+      expect(partialIntents[0].intent.id).toBe('partial-intent');
+      expect(partialIntents[0].completedAmount).toBe(400000000000000000n);
+      expect(partialIntents[0].remaining).toBe(600000000000000000n); // 0.6 ETH remaining
     });
 
     it('ignores inventory_movement amounts when computing remaining', async () => {
@@ -846,12 +843,10 @@ describe('ActionTracker', () => {
       const partialIntents =
         await tracker.getPartiallyFulfilledInventoryIntents();
 
-      expect(partialIntents).to.have.lengthOf(1);
-      expect(partialIntents[0].intent.id).to.equal(
-        'partial-intent-with-movement',
-      );
-      expect(partialIntents[0].completedAmount).to.equal(400000000000000000n);
-      expect(partialIntents[0].remaining).to.equal(600000000000000000n);
+      expect(partialIntents).toHaveLength(1);
+      expect(partialIntents[0].intent.id).toBe('partial-intent-with-movement');
+      expect(partialIntents[0].completedAmount).toBe(400000000000000000n);
+      expect(partialIntents[0].remaining).toBe(600000000000000000n);
     });
 
     it('does not return non-inventory intents', async () => {
@@ -870,7 +865,7 @@ describe('ActionTracker', () => {
       const partialIntents =
         await tracker.getPartiallyFulfilledInventoryIntents();
 
-      expect(partialIntents).to.have.lengthOf(0);
+      expect(partialIntents).toHaveLength(0);
     });
 
     it('returns intent with in-flight deposit and sets hasInflightDeposit flag', async () => {
@@ -915,10 +910,10 @@ describe('ActionTracker', () => {
       const partialIntents =
         await tracker.getPartiallyFulfilledInventoryIntents();
 
-      expect(partialIntents).to.have.lengthOf(1);
-      expect(partialIntents[0].hasInflightDeposit).to.be.true;
-      expect(partialIntents[0].completedAmount).to.equal(400000000000000000n);
-      expect(partialIntents[0].remaining).to.equal(300000000000000000n); // 1.0 - 0.4 - 0.3
+      expect(partialIntents).toHaveLength(1);
+      expect(partialIntents[0].hasInflightDeposit).toBe(true);
+      expect(partialIntents[0].completedAmount).toBe(400000000000000000n);
+      expect(partialIntents[0].remaining).toBe(300000000000000000n); // 1.0 - 0.4 - 0.3
     });
 
     it('returns intent without in-flight deposit with hasInflightDeposit false', async () => {
@@ -951,9 +946,9 @@ describe('ActionTracker', () => {
       const partialIntents =
         await tracker.getPartiallyFulfilledInventoryIntents();
 
-      expect(partialIntents).to.have.lengthOf(1);
-      expect(partialIntents[0].hasInflightDeposit).to.be.false;
-      expect(partialIntents[0].remaining).to.equal(600000000000000000n);
+      expect(partialIntents).toHaveLength(1);
+      expect(partialIntents[0].hasInflightDeposit).toBe(false);
+      expect(partialIntents[0].remaining).toBe(600000000000000000n);
     });
 
     it('returns intent when remaining is 0n but has in-flight deposit', async () => {
@@ -998,10 +993,10 @@ describe('ActionTracker', () => {
       const partialIntents =
         await tracker.getPartiallyFulfilledInventoryIntents();
 
-      expect(partialIntents).to.have.lengthOf(1);
-      expect(partialIntents[0].remaining).to.equal(0n);
-      expect(partialIntents[0].hasInflightDeposit).to.be.true;
-      expect(partialIntents[0].completedAmount).to.equal(700000000000000000n);
+      expect(partialIntents).toHaveLength(1);
+      expect(partialIntents[0].remaining).toBe(0n);
+      expect(partialIntents[0].hasInflightDeposit).toBe(true);
+      expect(partialIntents[0].completedAmount).toBe(700000000000000000n);
     });
 
     it('does not return fully completed intent with no in-flight deposits', async () => {
@@ -1034,7 +1029,7 @@ describe('ActionTracker', () => {
         await tracker.getPartiallyFulfilledInventoryIntents();
 
       // remaining = 0n AND inflightAmount = 0n → should NOT be returned
-      expect(partialIntents).to.have.lengthOf(0);
+      expect(partialIntents).toHaveLength(0);
     });
 
     it('skips intent with recent in-flight inventory_movement', async () => {
@@ -1064,7 +1059,7 @@ describe('ActionTracker', () => {
 
       const partialIntents =
         await tracker.getPartiallyFulfilledInventoryIntents();
-      expect(partialIntents).to.have.lengthOf(0);
+      expect(partialIntents).toHaveLength(0);
     });
 
     it('fails stale movement and returns intent', async () => {
@@ -1096,12 +1091,12 @@ describe('ActionTracker', () => {
 
       const partialIntents =
         await tracker.getPartiallyFulfilledInventoryIntents();
-      expect(partialIntents).to.have.lengthOf(1);
-      expect(partialIntents[0].intent.id).to.equal('intent-stale-movement');
+      expect(partialIntents).toHaveLength(1);
+      expect(partialIntents[0].intent.id).toBe('intent-stale-movement');
 
       // Verify the stale movement was failed
       const failedAction = await rebalanceActionStore.get('movement-stale');
-      expect(failedAction?.status).to.equal('failed');
+      expect(failedAction?.status).toBe('failed');
     });
 
     it('fails stale movement with undefined lastBridgeStatus (pre-deploy data)', async () => {
@@ -1131,12 +1126,12 @@ describe('ActionTracker', () => {
 
       const partialIntents =
         await tracker.getPartiallyFulfilledInventoryIntents();
-      expect(partialIntents).to.have.lengthOf(1);
+      expect(partialIntents).toHaveLength(1);
 
       const action = await rebalanceActionStore.get(
         'movement-undefined-status',
       );
-      expect(action?.status).to.equal('failed');
+      expect(action?.status).toBe('failed');
     });
 
     it('does not fail long-running pending movement', async () => {
@@ -1166,10 +1161,10 @@ describe('ActionTracker', () => {
 
       const partialIntents =
         await tracker.getPartiallyFulfilledInventoryIntents();
-      expect(partialIntents).to.have.lengthOf(0);
+      expect(partialIntents).toHaveLength(0);
 
       const action = await rebalanceActionStore.get('movement-pending-old');
-      expect(action?.status).to.equal('in_progress');
+      expect(action?.status).toBe('in_progress');
     });
 
     it('does not fail old movement that recently became non-pending', async () => {
@@ -1201,12 +1196,12 @@ describe('ActionTracker', () => {
 
       const partialIntents =
         await tracker.getPartiallyFulfilledInventoryIntents();
-      expect(partialIntents).to.have.lengthOf(0);
+      expect(partialIntents).toHaveLength(0);
 
       const action = await rebalanceActionStore.get(
         'movement-recent-not-found',
       );
-      expect(action?.status).to.equal('in_progress');
+      expect(action?.status).toBe('in_progress');
     });
 
     it('handles mix of recent and stale movements', async () => {
@@ -1253,10 +1248,10 @@ describe('ActionTracker', () => {
       // Should skip because there's still a recent movement
       const partialIntents =
         await tracker.getPartiallyFulfilledInventoryIntents();
-      expect(partialIntents).to.have.lengthOf(0);
+      expect(partialIntents).toHaveLength(0);
 
       const staleAction = await rebalanceActionStore.get('movement-old');
-      expect(staleAction?.status).to.equal('in_progress');
+      expect(staleAction?.status).toBe('in_progress');
     });
   });
 
@@ -1270,15 +1265,15 @@ describe('ActionTracker', () => {
         strategyType: 'MinAmountStrategy',
       });
 
-      expect(result.status).to.equal('not_started');
-      expect(result.origin).to.equal(1);
-      expect(result.destination).to.equal(2);
-      expect(result.amount).to.equal(100n);
-      expect(result.priority).to.equal(1);
-      expect(result.strategyType).to.equal('MinAmountStrategy');
+      expect(result.status).toBe('not_started');
+      expect(result.origin).toBe(1);
+      expect(result.destination).toBe(2);
+      expect(result.amount).toBe(100n);
+      expect(result.priority).toBe(1);
+      expect(result.strategyType).toBe('MinAmountStrategy');
 
       const stored = await rebalanceIntentStore.get(result.id);
-      expect(stored).to.deep.equal(result);
+      expect(stored).toEqual(result);
     });
   });
 
@@ -1306,12 +1301,12 @@ describe('ActionTracker', () => {
         txHash: '0xtx1',
       });
 
-      expect(result.status).to.equal('in_progress');
-      expect(result.intentId).to.equal('intent-1');
-      expect(result.messageId).to.equal('0xmsg1');
+      expect(result.status).toBe('in_progress');
+      expect(result.intentId).toBe('intent-1');
+      expect(result.messageId).toBe('0xmsg1');
 
       const updatedIntent = await rebalanceIntentStore.get('intent-1');
-      expect(updatedIntent?.status).to.equal('in_progress');
+      expect(updatedIntent?.status).toBe('in_progress');
     });
 
     it('should not transition intent if already in_progress', async () => {
@@ -1338,7 +1333,7 @@ describe('ActionTracker', () => {
       });
 
       const updatedIntent = await rebalanceIntentStore.get('intent-1');
-      expect(updatedIntent?.status).to.equal('in_progress');
+      expect(updatedIntent?.status).toBe('in_progress');
     });
   });
 
@@ -1373,17 +1368,17 @@ describe('ActionTracker', () => {
       await tracker.completeRebalanceAction('action-1');
 
       const updatedAction = await rebalanceActionStore.get('action-1');
-      expect(updatedAction?.status).to.equal('complete');
+      expect(updatedAction?.status).toBe('complete');
 
       // Intent should be complete (derived from completed action amounts)
       const updatedIntent = await rebalanceIntentStore.get('intent-1');
-      expect(updatedIntent?.status).to.equal('complete');
+      expect(updatedIntent?.status).toBe('complete');
     });
 
     it('should throw error when action not found', async () => {
       await expect(
         tracker.completeRebalanceAction('non-existent'),
-      ).to.be.rejectedWith('RebalanceAction non-existent not found');
+      ).rejects.toThrow('RebalanceAction non-existent not found');
     });
   });
 
@@ -1404,7 +1399,7 @@ describe('ActionTracker', () => {
       await tracker.cancelRebalanceIntent('intent-1');
 
       const updated = await rebalanceIntentStore.get('intent-1');
-      expect(updated?.status).to.equal('cancelled');
+      expect(updated?.status).toBe('cancelled');
     });
   });
 
@@ -1428,7 +1423,7 @@ describe('ActionTracker', () => {
       await tracker.failRebalanceAction('action-1');
 
       const updated = await rebalanceActionStore.get('action-1');
-      expect(updated?.status).to.equal('failed');
+      expect(updated?.status).toBe('failed');
     });
   });
 
@@ -1440,12 +1435,12 @@ describe('ActionTracker', () => {
       await tracker.initialize();
 
       const call = explorerClient.getInflightRebalanceActions.firstCall;
-      expect(call).to.not.be.null;
+      expect(call).not.toBeNull();
 
       const params = call.args[0];
-      expect(params.routersByDomain).to.deep.equal(config.routersByDomain);
-      expect(params.bridges).to.deep.equal(config.bridges);
-      expect(params.rebalancerAddress).to.equal(config.rebalancerAddress);
+      expect(params.routersByDomain).toEqual(config.routersByDomain);
+      expect(params.bridges).toEqual(config.bridges);
+      expect(params.rebalancerAddress).toBe(config.rebalancerAddress);
     });
 
     it('should pass routersByDomain to getInflightUserTransfers for warp route filtering', async () => {
@@ -1455,11 +1450,11 @@ describe('ActionTracker', () => {
       await tracker.initialize();
 
       const call = explorerClient.getInflightUserTransfers.firstCall;
-      expect(call).to.not.be.null;
+      expect(call).not.toBeNull();
 
       const params = call.args[0];
-      expect(params.routersByDomain).to.deep.equal(config.routersByDomain);
-      expect(params.excludeTxSenders).to.deep.equal([config.rebalancerAddress]);
+      expect(params.routersByDomain).toEqual(config.routersByDomain);
+      expect(params.excludeTxSenders).toEqual([config.rebalancerAddress]);
     });
   });
 
@@ -1483,12 +1478,12 @@ describe('ActionTracker', () => {
 
       await tracker.syncTransfers();
 
-      expect(mailboxStub.isDelivered.calledOnce).to.be.true;
+      expect(mailboxStub.isDelivered.calledOnce).toBe(true);
       const call = mailboxStub.isDelivered.firstCall;
-      expect(call.args[0]).to.equal('0xmsg1');
+      expect(call.args[0]).toBe('0xmsg1');
 
       const transfer = await transferStore.get('0xmsg1');
-      expect(transfer?.status).to.equal('complete');
+      expect(transfer?.status).toBe('complete');
     });
 
     it('should check delivery status in syncRebalanceActions using adapter', async () => {
@@ -1523,12 +1518,12 @@ describe('ActionTracker', () => {
 
       await tracker.syncRebalanceActions();
 
-      expect(mailboxStub.isDelivered.calledOnce).to.be.true;
+      expect(mailboxStub.isDelivered.calledOnce).toBe(true);
       const call = mailboxStub.isDelivered.firstCall;
-      expect(call.args[0]).to.equal('0xmsg1');
+      expect(call.args[0]).toBe('0xmsg1');
 
       const updatedAction = await rebalanceActionStore.get('action-1');
-      expect(updatedAction?.status).to.equal('complete');
+      expect(updatedAction?.status).toBe('complete');
     });
 
     it('should keep transfer in_progress when not delivered', async () => {
@@ -1550,9 +1545,9 @@ describe('ActionTracker', () => {
 
       await tracker.syncTransfers();
 
-      expect(mailboxStub.isDelivered.calledOnce).to.be.true;
+      expect(mailboxStub.isDelivered.calledOnce).toBe(true);
       const transfer = await transferStore.get('0xmsg1');
-      expect(transfer?.status).to.equal('in_progress');
+      expect(transfer?.status).toBe('in_progress');
     });
 
     it('should check delivery for multiple destinations', async () => {
@@ -1574,7 +1569,7 @@ describe('ActionTracker', () => {
 
       await tracker.syncTransfers();
 
-      expect(mailboxStub.isDelivered.calledOnce).to.be.true;
+      expect(mailboxStub.isDelivered.calledOnce).toBe(true);
     });
 
     it('should pass blockTag when checking delivery in syncTransfers', async () => {
@@ -1599,10 +1594,10 @@ describe('ActionTracker', () => {
       };
       await tracker.syncTransfers(confirmedBlockTags);
 
-      expect(mailboxStub.isDelivered.calledOnce).to.be.true;
+      expect(mailboxStub.isDelivered.calledOnce).toBe(true);
       const call = mailboxStub.isDelivered.firstCall;
-      expect(call.args[0]).to.equal('0xmsg1');
-      expect(call.args[1]).to.equal(EthJsonRpcBlockParameterTag.Finalized);
+      expect(call.args[0]).toBe('0xmsg1');
+      expect(call.args[1]).toBe(EthJsonRpcBlockParameterTag.Finalized);
     });
 
     it('should pass blockTag when checking delivery in syncRebalanceActions', async () => {
@@ -1638,10 +1633,10 @@ describe('ActionTracker', () => {
       const confirmedBlockTags = { chain2: 12345 };
       await tracker.syncRebalanceActions(confirmedBlockTags);
 
-      expect(mailboxStub.isDelivered.calledOnce).to.be.true;
+      expect(mailboxStub.isDelivered.calledOnce).toBe(true);
       const call = mailboxStub.isDelivered.firstCall;
-      expect(call.args[0]).to.equal('0xmsg1');
-      expect(call.args[1]).to.equal(12345);
+      expect(call.args[0]).toBe('0xmsg1');
+      expect(call.args[1]).toBe(12345);
     });
 
     it('should pass undefined blockTag when confirmedBlockTags not provided', async () => {
@@ -1663,10 +1658,10 @@ describe('ActionTracker', () => {
 
       await tracker.syncTransfers(); // No confirmedBlockTags
 
-      expect(mailboxStub.isDelivered.calledOnce).to.be.true;
+      expect(mailboxStub.isDelivered.calledOnce).toBe(true);
       const call = mailboxStub.isDelivered.firstCall;
-      expect(call.args[0]).to.equal('0xmsg1');
-      expect(call.args[1]).to.be.undefined;
+      expect(call.args[0]).toBe('0xmsg1');
+      expect(call.args[1]).toBeUndefined();
     });
   });
 });

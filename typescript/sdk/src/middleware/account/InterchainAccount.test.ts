@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import { BigNumber } from 'ethers';
 import sinon from 'sinon';
 
@@ -25,14 +25,14 @@ describe('commitmentFromRevealMessage', () => {
   describe('Valid inputs', () => {
     it('should extract commitment from a valid 65-byte message', () => {
       const result = commitmentFromRevealMessage(REVEAL_MESSAGE);
-      expect(result).to.equal(COMMITMENT);
+      expect(result).toBe(COMMITMENT);
     });
   });
 
   describe('Invalid inputs - should throw', () => {
     it('should throw when message is too short (< 65 bytes)', () => {
       const shortMessage = REVEAL_MESSAGE.slice(0, 2 + 64 * 2);
-      expect(() => commitmentFromRevealMessage(shortMessage)).to.throw(
+      expect(() => commitmentFromRevealMessage(shortMessage)).toThrow(
         'Invalid reveal message: expected at least 65 bytes, got 64 bytes',
       );
     });
@@ -68,17 +68,17 @@ const legacyPayload = (overrides: Record<string, any> = {}) => ({
 describe('PostCallsSchema', () => {
   it('accepts new ICA shape with destinationDomain + owner', () => {
     const result = PostCallsSchema.safeParse(icaPayload());
-    expect(result.success).to.be.true;
+    expect(result.success).toBe(true);
   });
 
   it('accepts legacy shape with commitmentDispatchTx', () => {
     const result = PostCallsSchema.safeParse(legacyPayload());
-    expect(result.success).to.be.true;
+    expect(result.success).toBe(true);
   });
 
   it('rejects payload missing both discriminants', () => {
     const result = PostCallsSchema.safeParse(basePayload);
-    expect(result.success).to.be.false;
+    expect(result.success).toBe(false);
   });
 
   it('accepts valid bytes32 address', () => {
@@ -87,7 +87,7 @@ describe('PostCallsSchema', () => {
         calls: [{ to: '0x' + 'ab'.repeat(32), data: '0x', value: '0' }],
       }),
     );
-    expect(result.success).to.be.true;
+    expect(result.success).toBe(true);
   });
 
   it('rejects empty string to address', () => {
@@ -96,7 +96,7 @@ describe('PostCallsSchema', () => {
         calls: [{ to: '', data: '0x', value: '0' }],
       }),
     );
-    expect(result.success).to.be.false;
+    expect(result.success).toBe(false);
   });
 
   it('rejects URL as to address', () => {
@@ -105,7 +105,7 @@ describe('PostCallsSchema', () => {
         calls: [{ to: 'http://evil.com', data: '0x', value: '0' }],
       }),
     );
-    expect(result.success).to.be.false;
+    expect(result.success).toBe(false);
   });
 
   it('rejects SQL injection in to address', () => {
@@ -114,7 +114,7 @@ describe('PostCallsSchema', () => {
         calls: [{ to: "'; DROP TABLE--", data: '0x', value: '0' }],
       }),
     );
-    expect(result.success).to.be.false;
+    expect(result.success).toBe(false);
   });
 
   it('rejects prototype pollution in to address', () => {
@@ -123,14 +123,14 @@ describe('PostCallsSchema', () => {
         calls: [{ to: '__proto__', data: '0x', value: '0' }],
       }),
     );
-    expect(result.success).to.be.false;
+    expect(result.success).toBe(false);
   });
 
   it('rejects invalid relayer address', () => {
     const result = PostCallsSchema.safeParse(
       icaPayload({ relayers: ['not-an-address'] }),
     );
-    expect(result.success).to.be.false;
+    expect(result.success).toBe(false);
   });
 });
 
@@ -200,7 +200,7 @@ describe('InterchainAccount.getCallRemote', () => {
     sinon.assert.calledOnce(mockLocalRouter['quoteGasPayment(uint32,uint256)']);
     const [, gasLimit] =
       mockLocalRouter['quoteGasPayment(uint32,uint256)'].getCall(0).args;
-    expect(gasLimit.toNumber()).to.equal(defaultGasLimit.toNumber());
+    expect(gasLimit.toNumber()).toBe(defaultGasLimit.toNumber());
   });
 
   it('uses gasLimit from StandardHookMetadata when provided', async () => {
@@ -220,9 +220,7 @@ describe('InterchainAccount.getCallRemote', () => {
 
     const [, gasLimitArg] =
       mockLocalRouter['quoteGasPayment(uint32,uint256)'].getCall(0).args;
-    expect(gasLimitArg.toString()).to.equal(
-      BigNumber.from(gasLimit).toString(),
-    );
+    expect(gasLimitArg.toString()).toBe(BigNumber.from(gasLimit).toString());
   });
 
   it('falls back to IGP default gas on malformed metadata', async () => {
@@ -236,7 +234,7 @@ describe('InterchainAccount.getCallRemote', () => {
 
     const [, gasLimit] =
       mockLocalRouter['quoteGasPayment(uint32,uint256)'].getCall(0).args;
-    expect(gasLimit.toNumber()).to.equal(defaultGasLimit.toNumber());
+    expect(gasLimit.toNumber()).toBe(defaultGasLimit.toNumber());
   });
 
   it('falls back to mailbox quoteDispatch when v2 quote fails', async () => {
@@ -397,7 +395,7 @@ describe('InterchainAccount.estimateIcaHandleGas', () => {
 
     // addBufferToGasLimit adds 10%
     const expectedWithBuffer = handleEstimate.mul(110).div(100);
-    expect(result.toString()).to.equal(expectedWithBuffer.toString());
+    expect(result.toString()).toBe(expectedWithBuffer.toString());
   });
 
   it('falls back to individual estimation when handle() fails', async () => {
@@ -425,7 +423,7 @@ describe('InterchainAccount.estimateIcaHandleGas', () => {
     const expectedBeforeBuffer = callsTotal.add(overhead);
     const expectedWithBuffer = expectedBeforeBuffer.mul(110).div(100);
 
-    expect(result.toString()).to.equal(expectedWithBuffer.toString());
+    expect(result.toString()).toBe(expectedWithBuffer.toString());
   });
 
   it('uses per-call fallback when individual call estimation fails', async () => {
@@ -452,7 +450,7 @@ describe('InterchainAccount.estimateIcaHandleGas', () => {
     const expectedBeforeBuffer = callsTotal.add(overhead);
     const expectedWithBuffer = expectedBeforeBuffer.mul(110).div(100);
 
-    expect(result.toString()).to.equal(expectedWithBuffer.toString());
+    expect(result.toString()).toBe(expectedWithBuffer.toString());
   });
 
   it('returns static 200k fallback when getProvider fails', async () => {
@@ -469,6 +467,6 @@ describe('InterchainAccount.estimateIcaHandleGas', () => {
       config: baseConfig,
     });
 
-    expect(result.toString()).to.equal(ICA_HANDLE_GAS_FALLBACK.toString());
+    expect(result.toString()).toBe(ICA_HANDLE_GAS_FALLBACK.toString());
   });
 });

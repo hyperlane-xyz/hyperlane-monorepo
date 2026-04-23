@@ -1,6 +1,6 @@
-import { expect } from 'chai';
 import { ethers } from 'ethers';
 import { existsSync, readFileSync, readdirSync } from 'fs';
+import { describe, expect, it } from 'vitest';
 
 import { IsmType } from '@hyperlane-xyz/sdk';
 
@@ -32,7 +32,7 @@ const fixtures: Fixture<AggregationMetadata>[] = files
   () => {
     fixtures.forEach((fixture, i) => {
       it(`should encode fixture ${i}`, () => {
-        expect(AggregationMetadataBuilder.encode(fixture.decoded)).to.equal(
+        expect(AggregationMetadataBuilder.encode(fixture.decoded)).toBe(
           fixture.encoded,
         );
       });
@@ -56,7 +56,7 @@ const fixtures: Fixture<AggregationMetadata>[] = files
               throw new Error('Should not be called for string modules');
             },
           ),
-        ).to.deep.equal(fixture.decoded);
+        ).toEqual(fixture.decoded);
       });
     });
   },

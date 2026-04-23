@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import { TestChainName } from '../../consts/testChains.js';
 import { randomAddress } from '../../test/testUtils.js';
@@ -30,7 +30,7 @@ describe('shouldAddVerificationInput', () => {
     const chain: ChainName = TestChainName.test1;
     expect(
       shouldAddVerificationInput(verificationInputs, chain, newArtifact),
-    ).to.equal(true);
+    ).toBe(true);
   });
 
   it('should return false if the artifact already exists in the verification inputs', () => {
@@ -53,6 +53,6 @@ describe('shouldAddVerificationInput', () => {
     const chain: ChainName = TestChainName.test2;
     expect(
       shouldAddVerificationInput(verificationInputs, chain, existingArtifact),
-    ).to.equal(false);
+    ).toBe(false);
   });
 });

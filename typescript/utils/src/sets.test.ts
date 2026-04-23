@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import { difference, setEquality, symmetricDifference } from './sets.js';
 
@@ -8,7 +8,7 @@ describe('Set Operations', () => {
       const setA = new Set([1, 2, 3, undefined]);
       const setB = new Set([2, 3, 4]);
       const result = difference(setA, setB);
-      expect(result).to.deep.equal(new Set([1, undefined]));
+      expect(result).toEqual(new Set([1, undefined]));
     });
   });
 
@@ -17,7 +17,7 @@ describe('Set Operations', () => {
       const setA = new Set([1, 2, 3]);
       const setB = new Set([2, 3, 4]);
       const result = symmetricDifference(setA, setB);
-      expect(result).to.deep.equal(new Set([1, 4]));
+      expect(result).toEqual(new Set([1, 4]));
     });
   });
 
@@ -26,14 +26,14 @@ describe('Set Operations', () => {
       const setA = new Set([1, 2, 3]);
       const setB = new Set([1, 2, 3]);
       const result = setEquality(setA, setB);
-      expect(result).to.be.true;
+      expect(result).toBe(true);
     });
 
     it('should return false for non-equal sets', () => {
       const setA = new Set([1, 2, 3]);
       const setB = new Set([1, 2, 4]);
       const result = setEquality(setA, setB);
-      expect(result).to.be.false;
+      expect(result).toBe(false);
     });
   });
 });

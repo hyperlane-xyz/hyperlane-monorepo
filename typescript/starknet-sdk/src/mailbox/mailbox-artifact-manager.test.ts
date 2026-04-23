@@ -1,5 +1,5 @@
-import { expect } from 'chai';
 import { RpcProvider } from 'starknet';
+import { describe, expect, it } from 'vitest';
 
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
@@ -48,7 +48,7 @@ describe('StarknetMailboxArtifactManager', () => {
     expect(() => {
       // @ts-expect-error testing runtime validation for unsupported value
       manager.createReader('unsupported');
-    }).to.throw(/Unsupported Starknet mailbox type/i);
+    }).toThrow(/Unsupported Starknet mailbox type/i);
   });
 
   it('throws for unsupported mailbox writer type', () => {
@@ -56,7 +56,7 @@ describe('StarknetMailboxArtifactManager', () => {
     expect(() => {
       // @ts-expect-error testing runtime validation for unsupported value
       manager.createWriter('unsupported', {});
-    }).to.throw(/Unsupported Starknet mailbox type/i);
+    }).toThrow(/Unsupported Starknet mailbox type/i);
   });
 
   it('creates mailbox artifacts without re-reading on-chain state', async () => {
@@ -89,11 +89,11 @@ describe('StarknetMailboxArtifactManager', () => {
       },
     });
 
-    expect(receipts).to.have.length(1);
-    expect(artifact.deployed.address).to.equal(
+    expect(receipts).toHaveLength(1);
+    expect(artifact.deployed.address).toBe(
       normalizeStarknetAddressSafe('0xabc'),
     );
-    expect(artifact.deployed.domainId).to.equal(chainMetadata.domainId);
+    expect(artifact.deployed.domainId).toBe(chainMetadata.domainId);
   });
 
   it('deploys a noop placeholder hook when Starknet mailbox hooks are unset', async () => {
@@ -120,11 +120,11 @@ describe('StarknetMailboxArtifactManager', () => {
       },
     });
 
-    expect(receipts).to.have.length(2);
-    expect(signer.sentTxs).to.have.length(2);
-    expect(signer.sentTxs[0]?.kind).to.equal('deploy');
-    expect(signer.sentTxs[1]?.kind).to.equal('deploy');
-    expect(artifact.deployed.address).to.equal(
+    expect(receipts).toHaveLength(2);
+    expect(signer.sentTxs).toHaveLength(2);
+    expect(signer.sentTxs[0]?.kind).toBe('deploy');
+    expect(signer.sentTxs[1]?.kind).toBe('deploy');
+    expect(artifact.deployed.address).toBe(
       normalizeStarknetAddressSafe('0xabc'),
     );
   });

@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import { pino } from 'pino';
 
 import type { ChainName } from '@hyperlane-xyz/sdk';
@@ -46,13 +46,13 @@ describe('CompositeStrategy', () => {
     it('should throw an error when less than 2 strategies are provided', () => {
       const mockStrategy = new MockStrategy([]);
 
-      expect(() => new CompositeStrategy([mockStrategy], testLogger)).to.throw(
+      expect(() => new CompositeStrategy([mockStrategy], testLogger)).toThrow(
         'CompositeStrategy requires at least 2 sub-strategies',
       );
     });
 
     it('should throw an error when no strategies are provided', () => {
-      expect(() => new CompositeStrategy([], testLogger)).to.throw(
+      expect(() => new CompositeStrategy([], testLogger)).toThrow(
         'CompositeStrategy requires at least 2 sub-strategies',
       );
     });
@@ -65,7 +65,7 @@ describe('CompositeStrategy', () => {
         [strategy1, strategy2],
         testLogger,
       );
-      expect(composite).to.be.instanceOf(CompositeStrategy);
+      expect(composite).toBeInstanceOf(CompositeStrategy);
     });
   });
 
@@ -102,9 +102,9 @@ describe('CompositeStrategy', () => {
 
       const routes = composite.getRebalancingRoutes(rawBalances);
 
-      expect(routes).to.have.lengthOf(2);
-      expect(routes[0]).to.deep.equal(route1);
-      expect(routes[1]).to.deep.equal(route2);
+      expect(routes).toHaveLength(2);
+      expect(routes[0]).toEqual(route1);
+      expect(routes[1]).toEqual(route2);
     });
 
     it('should pass routes from earlier strategies as proposedRebalances to later strategies', () => {
@@ -132,17 +132,13 @@ describe('CompositeStrategy', () => {
       composite.getRebalancingRoutes(rawBalances);
 
       // Strategy 1 should receive empty proposedRebalances (none from earlier strategies)
-      expect(strategy1.lastInflightContext?.proposedRebalances).to.deep.equal(
-        [],
-      );
+      expect(strategy1.lastInflightContext?.proposedRebalances).toEqual([]);
 
       // Strategy 2 should receive route1 as proposedRebalances (from earlier strategy)
-      expect(
-        strategy2.lastInflightContext?.proposedRebalances,
-      ).to.have.lengthOf(1);
-      expect(
-        strategy2.lastInflightContext?.proposedRebalances?.[0],
-      ).to.deep.equal(route1);
+      expect(strategy2.lastInflightContext?.proposedRebalances).toHaveLength(1);
+      expect(strategy2.lastInflightContext?.proposedRebalances?.[0]).toEqual(
+        route1,
+      );
     });
 
     it('should accumulate routes across multiple strategies as proposedRebalances', () => {
@@ -186,25 +182,19 @@ describe('CompositeStrategy', () => {
       composite.getRebalancingRoutes(rawBalances);
 
       // Strategy 1: empty proposedRebalances (no earlier strategies)
-      expect(strategy1.lastInflightContext?.proposedRebalances).to.deep.equal(
-        [],
-      );
+      expect(strategy1.lastInflightContext?.proposedRebalances).toEqual([]);
 
       // Strategy 2: receives route1 as proposedRebalances
-      expect(
-        strategy2.lastInflightContext?.proposedRebalances,
-      ).to.have.lengthOf(1);
+      expect(strategy2.lastInflightContext?.proposedRebalances).toHaveLength(1);
 
       // Strategy 3: receives route1 + route2 as proposedRebalances
-      expect(
-        strategy3.lastInflightContext?.proposedRebalances,
-      ).to.have.lengthOf(2);
-      expect(
-        strategy3.lastInflightContext?.proposedRebalances?.[0],
-      ).to.deep.equal(route1);
-      expect(
-        strategy3.lastInflightContext?.proposedRebalances?.[1],
-      ).to.deep.equal(route2);
+      expect(strategy3.lastInflightContext?.proposedRebalances).toHaveLength(2);
+      expect(strategy3.lastInflightContext?.proposedRebalances?.[0]).toEqual(
+        route1,
+      );
+      expect(strategy3.lastInflightContext?.proposedRebalances?.[1]).toEqual(
+        route2,
+      );
     });
 
     it('should preserve original pendingRebalances and use proposedRebalances for new routes', () => {
@@ -246,31 +236,23 @@ describe('CompositeStrategy', () => {
       composite.getRebalancingRoutes(rawBalances, inflightContext);
 
       // Both strategies should receive the SAME original pendingRebalances (inflight intents)
-      expect(strategy1.lastInflightContext?.pendingRebalances).to.have.lengthOf(
-        1,
-      );
-      expect(strategy1.lastInflightContext?.pendingRebalances[0]).to.deep.equal(
+      expect(strategy1.lastInflightContext?.pendingRebalances).toHaveLength(1);
+      expect(strategy1.lastInflightContext?.pendingRebalances[0]).toEqual(
         originalPendingRebalance,
       );
-      expect(strategy2.lastInflightContext?.pendingRebalances).to.have.lengthOf(
-        1,
-      );
-      expect(strategy2.lastInflightContext?.pendingRebalances[0]).to.deep.equal(
+      expect(strategy2.lastInflightContext?.pendingRebalances).toHaveLength(1);
+      expect(strategy2.lastInflightContext?.pendingRebalances[0]).toEqual(
         originalPendingRebalance,
       );
 
       // Strategy 1: empty proposedRebalances (no earlier strategies)
-      expect(strategy1.lastInflightContext?.proposedRebalances).to.deep.equal(
-        [],
-      );
+      expect(strategy1.lastInflightContext?.proposedRebalances).toEqual([]);
 
       // Strategy 2: receives route1 as proposedRebalances (from earlier strategy)
-      expect(
-        strategy2.lastInflightContext?.proposedRebalances,
-      ).to.have.lengthOf(1);
-      expect(
-        strategy2.lastInflightContext?.proposedRebalances?.[0],
-      ).to.deep.equal(route1);
+      expect(strategy2.lastInflightContext?.proposedRebalances).toHaveLength(1);
+      expect(strategy2.lastInflightContext?.proposedRebalances?.[0]).toEqual(
+        route1,
+      );
     });
 
     it('should preserve pendingTransfers for all strategies', () => {
@@ -301,10 +283,10 @@ describe('CompositeStrategy', () => {
       composite.getRebalancingRoutes(rawBalances, inflightContext);
 
       // Both strategies should receive the same pendingTransfers
-      expect(strategy1.lastInflightContext?.pendingTransfers).to.deep.equal([
+      expect(strategy1.lastInflightContext?.pendingTransfers).toEqual([
         pendingTransfer,
       ]);
-      expect(strategy2.lastInflightContext?.pendingTransfers).to.deep.equal([
+      expect(strategy2.lastInflightContext?.pendingTransfers).toEqual([
         pendingTransfer,
       ]);
     });
@@ -348,10 +330,10 @@ describe('CompositeStrategy', () => {
 
       const routes = composite.getRebalancingRoutes(rawBalances);
 
-      expect(routes).to.have.lengthOf(3);
-      expect(routes[0]).to.deep.equal(route1a);
-      expect(routes[1]).to.deep.equal(route1b);
-      expect(routes[2]).to.deep.equal(route2a);
+      expect(routes).toHaveLength(3);
+      expect(routes[0]).toEqual(route1a);
+      expect(routes[1]).toEqual(route1b);
+      expect(routes[2]).toEqual(route2a);
     });
 
     it('should handle strategies that return no routes', () => {
@@ -380,8 +362,8 @@ describe('CompositeStrategy', () => {
 
       const routes = composite.getRebalancingRoutes(rawBalances);
 
-      expect(routes).to.have.lengthOf(1);
-      expect(routes[0]).to.deep.equal(route2);
+      expect(routes).toHaveLength(1);
+      expect(routes[0]).toEqual(route2);
     });
 
     it('should handle undefined inflightContext', () => {
@@ -408,11 +390,9 @@ describe('CompositeStrategy', () => {
 
       const routes = composite.getRebalancingRoutes(rawBalances, undefined);
 
-      expect(routes).to.have.lengthOf(1);
-      expect(strategy1.lastInflightContext?.pendingTransfers).to.deep.equal([]);
-      expect(strategy1.lastInflightContext?.pendingRebalances).to.deep.equal(
-        [],
-      );
+      expect(routes).toHaveLength(1);
+      expect(strategy1.lastInflightContext?.pendingTransfers).toEqual([]);
+      expect(strategy1.lastInflightContext?.pendingRebalances).toEqual([]);
     });
   });
 });

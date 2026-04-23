@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import { ethers } from 'ethers';
 
 import { TestChainName, test2 } from '../consts/testChains.js';
@@ -24,22 +24,22 @@ describe('TokenAmount', () => {
   it('Constructs', () => {
     tokenAmount1 = new TokenAmount(123456789, token1);
     tokenAmount2 = new TokenAmount('1', token2);
-    expect(!!tokenAmount1).to.eq(true);
-    expect(!!tokenAmount2).to.eq(true);
+    expect(!!tokenAmount1).toBe(true);
+    expect(!!tokenAmount2).toBe(true);
   });
 
   it('Formats human readable string', () => {
-    expect(tokenAmount1.getDecimalFormattedAmount()).to.eq(12345.6789);
-    expect(tokenAmount2.getDecimalFormattedAmount()).to.eq(1e-18);
+    expect(tokenAmount1.getDecimalFormattedAmount()).toBe(12345.6789);
+    expect(tokenAmount2.getDecimalFormattedAmount()).toBe(1e-18);
   });
 
   it('Does arithmetic', () => {
-    expect(tokenAmount1.plus(1).amount).to.eq(123456790n);
-    expect(tokenAmount2.minus(1).amount).to.eq(0n);
+    expect(tokenAmount1.plus(1).amount).toBe(123456790n);
+    expect(tokenAmount2.minus(1).amount).toBe(0n);
   });
 
   it('Checks equality', () => {
-    expect(tokenAmount1.equals(tokenAmount2)).to.be.false;
-    expect(tokenAmount1.equals(new TokenAmount(123456789n, token1))).to.true;
+    expect(tokenAmount1.equals(tokenAmount2)).toBe(false);
+    expect(tokenAmount1.equals(new TokenAmount(123456789n, token1))).toBe(true);
   });
 });

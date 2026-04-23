@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import {
   AggregationIsmConfig,
@@ -19,7 +19,7 @@ describe('Environment', () => {
         expect(
           env.owners[chain],
           `Missing owner for chain ${chain} in environment ${env.environment}`,
-        ).to.not.be.undefined;
+        ).toBeDefined();
       }
     });
   }
@@ -78,7 +78,7 @@ describe('Environment', () => {
                 return module.type === IsmType.ROUTING;
               },
             ) as DomainRoutingIsmConfig;
-            expect(routingIsm).to.not.be.undefined;
+            expect(routingIsm).toBeDefined();
           }
 
           // Get the domains from the routing ISM
@@ -92,16 +92,16 @@ describe('Environment', () => {
             .filter((c) => c !== 'eden');
 
           // Verify no unexpected chains in domains
-          expect(Object.keys(routingIsmDomains)).to.have.lengthOf(
+          expect(Object.keys(routingIsmDomains)).toHaveLength(
             expectedChains.length,
           );
-          expect(Object.keys(routingIsmDomains)).to.not.include(chain);
-          expect(Object.keys(routingIsmDomains)).to.not.include('forma');
-          expect(Object.keys(routingIsmDomains)).to.not.include('eden');
+          expect(Object.keys(routingIsmDomains)).not.toContain(chain);
+          expect(Object.keys(routingIsmDomains)).not.toContain('forma');
+          expect(Object.keys(routingIsmDomains)).not.toContain('eden');
 
           // Verify each expected chain has an entry in the domains
           for (const expectedChain of expectedChains) {
-            expect(routingIsmDomains[expectedChain]).to.not.be.undefined;
+            expect(routingIsmDomains[expectedChain]).toBeDefined();
           }
         }
       });

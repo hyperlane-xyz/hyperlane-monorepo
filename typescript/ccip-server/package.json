@@ -49,7 +49,6 @@
   },
   "devDependencies": {
     "@hyperlane-xyz/tsconfig": "workspace:^",
-    "@types/chai": "catalog:",
     "@types/cors": "^2",
     "@types/express": "^4.17.1",
     "@types/node": "catalog:",
@@ -57,7 +56,6 @@
     "@types/pino-http": "^5.8.4",
     "@types/sinon": "catalog:",
     "@vercel/ncc": "catalog:",
-    "chai": "catalog:",
     "nodemon": "^3.0.3",
     "pino-pretty": "catalog:",
     "sinon": "catalog:",

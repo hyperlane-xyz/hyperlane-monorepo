@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import {
   ChainDisabledReason,
@@ -65,10 +65,10 @@ describe('filterChainMetadataByProtocol', () => {
       ProtocolType.Ethereum,
     );
 
-    expect(Object.keys(result)).to.have.lengthOf(1);
-    expect(result).to.have.property('ethereum');
-    expect(result).to.not.have.property('solana');
-    expect(result).to.not.have.property('cosmos');
+    expect(Object.keys(result)).toHaveLength(1);
+    expect(result).toHaveProperty('ethereum');
+    expect(result).not.toHaveProperty('solana');
+    expect(result).not.toHaveProperty('cosmos');
   });
 
   it('should return only Sealevel chains when filtering for Sealevel protocol', () => {
@@ -84,9 +84,9 @@ describe('filterChainMetadataByProtocol', () => {
       ProtocolType.Sealevel,
     );
 
-    expect(Object.keys(result)).to.have.lengthOf(1);
-    expect(result).to.have.property('solana');
-    expect(result).to.not.have.property('ethereum');
+    expect(Object.keys(result)).toHaveLength(1);
+    expect(result).toHaveProperty('solana');
+    expect(result).not.toHaveProperty('ethereum');
   });
 
   it('should return empty object when no chains match the protocol', () => {
@@ -101,7 +101,7 @@ describe('filterChainMetadataByProtocol', () => {
       ProtocolType.Sealevel,
     );
 
-    expect(Object.keys(result)).to.have.lengthOf(0);
+    expect(Object.keys(result)).toHaveLength(0);
   });
 
   it('should return all chains when all match the protocol', () => {
@@ -117,9 +117,9 @@ describe('filterChainMetadataByProtocol', () => {
       ProtocolType.Ethereum,
     );
 
-    expect(Object.keys(result)).to.have.lengthOf(2);
-    expect(result).to.have.property('ethereum');
-    expect(result).to.have.property('polygon');
+    expect(Object.keys(result)).toHaveLength(2);
+    expect(result).toHaveProperty('ethereum');
+    expect(result).toHaveProperty('polygon');
   });
 });
 
@@ -162,9 +162,9 @@ describe('filterOutDisabledChains', () => {
 
     const result = filterOutDisabledChains(chainMetadata);
 
-    expect(result).to.not.have.property('disabled');
-    expect(result).to.have.property('live');
-    expect(result).to.have.property('default');
+    expect(result).not.toHaveProperty('disabled');
+    expect(result).toHaveProperty('live');
+    expect(result).toHaveProperty('default');
   });
 });
 
@@ -207,10 +207,10 @@ describe('getActiveChainNames', () => {
 
     const result = getActiveChainNames(chainMetadata);
 
-    expect(result).to.have.lengthOf(2);
-    expect(result).to.include('live');
-    expect(result).to.include('default');
-    expect(result).to.not.include('disabled');
+    expect(result).toHaveLength(2);
+    expect(result).toContain('live');
+    expect(result).toContain('default');
+    expect(result).not.toContain('disabled');
   });
 
   it('should return empty array when all chains are disabled', () => {
@@ -220,7 +220,7 @@ describe('getActiveChainNames', () => {
 
     const result = getActiveChainNames(chainMetadata);
 
-    expect(result).to.have.lengthOf(0);
+    expect(result).toHaveLength(0);
   });
 
   it('should return all names when no chains are disabled', () => {
@@ -231,8 +231,8 @@ describe('getActiveChainNames', () => {
 
     const result = getActiveChainNames(chainMetadata);
 
-    expect(result).to.have.lengthOf(2);
-    expect(result).to.include('live');
-    expect(result).to.include('default');
+    expect(result).toHaveLength(2);
+    expect(result).toContain('live');
+    expect(result).toContain('default');
   });
 });

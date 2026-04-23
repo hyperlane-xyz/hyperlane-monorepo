@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import sinon from 'sinon';
 
 import { addressToBytes32 } from '@hyperlane-xyz/utils';
@@ -44,15 +44,15 @@ describe('M0PortalTokenAdapter', () => {
         destination: DESTINATION_DOMAIN,
       });
 
-      expect(result.igpQuote.amount).to.equal(500n);
-      expect(result.igpQuote.addressOrDenom).to.equal(undefined);
-      expect(result.tokenFeeQuote).to.equal(undefined);
+      expect(result.igpQuote.amount).toBe(500n);
+      expect(result.igpQuote.addressOrDenom).toBe(undefined);
+      expect(result.tokenFeeQuote).toBe(undefined);
 
-      expect(quote.calledOnce).to.equal(true);
+      expect(quote.calledOnce).toBe(true);
       const args = quote.getCall(0).args;
-      expect(args[0]).to.equal(DESTINATION_CHAIN_ID);
-      expect(args[1]).to.equal(0); // TOKEN_TRANSFER_PAYLOAD_TYPE
-      expect(args[2]).to.equal(HYPERLANE_BRIDGE_ADAPTER);
+      expect(args[0]).toBe(DESTINATION_CHAIN_ID);
+      expect(args[1]).toBe(0); // TOKEN_TRANSFER_PAYLOAD_TYPE
+      expect(args[2]).toBe(HYPERLANE_BRIDGE_ADAPTER);
     });
   });
 
@@ -73,17 +73,17 @@ describe('M0PortalTokenAdapter', () => {
         fromAccountOwner: SENDER,
       });
 
-      expect(sendToken.calledOnce).to.equal(true);
+      expect(sendToken.calledOnce).toBe(true);
       const args = sendToken.getCall(0).args;
-      expect(args[0]).to.equal(amount); // amount
-      expect(args[1]).to.equal(MTOKEN_ADDRESS); // sourceToken
-      expect(args[2]).to.equal(DESTINATION_CHAIN_ID); // destinationChainId
-      expect(args[3]).to.equal(addressToBytes32(MTOKEN_ADDRESS)); // destinationToken
-      expect(args[4]).to.equal(addressToBytes32(RECIPIENT)); // recipient
-      expect(args[5]).to.equal(addressToBytes32(SENDER)); // refundAddress
-      expect(args[6]).to.equal(HYPERLANE_BRIDGE_ADAPTER);
-      expect(args[7]).to.equal('0x'); // empty bridge adapter args
-      expect(args[8].value).to.equal(200n); // tx value = gas quote
+      expect(args[0]).toBe(amount); // amount
+      expect(args[1]).toBe(MTOKEN_ADDRESS); // sourceToken
+      expect(args[2]).toBe(DESTINATION_CHAIN_ID); // destinationChainId
+      expect(args[3]).toBe(addressToBytes32(MTOKEN_ADDRESS)); // destinationToken
+      expect(args[4]).toBe(addressToBytes32(RECIPIENT)); // recipient
+      expect(args[5]).toBe(addressToBytes32(SENDER)); // refundAddress
+      expect(args[6]).toBe(HYPERLANE_BRIDGE_ADAPTER);
+      expect(args[7]).toBe('0x'); // empty bridge adapter args
+      expect(args[8].value).toBe(200n); // tx value = gas quote
     });
   });
 
@@ -107,10 +107,10 @@ describe('M0PortalTokenAdapter', () => {
         },
       });
 
-      expect(quote.called).to.equal(false);
-      expect(sendToken.calledOnce).to.equal(true);
+      expect(quote.called).toBe(false);
+      expect(sendToken.calledOnce).toBe(true);
       const args = sendToken.getCall(0).args;
-      expect(args[8].value).to.equal(0n);
+      expect(args[8].value).toBe(0n);
     });
   });
 });

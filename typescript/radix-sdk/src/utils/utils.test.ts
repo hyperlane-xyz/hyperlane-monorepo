@@ -1,5 +1,5 @@
 import { InstructionsKind } from '@radixdlt/radix-engine-toolkit';
-import { expect } from 'chai';
+import { describe, expect, it } from 'vitest';
 
 import { addressToBytes32, assert, strip0x } from '@hyperlane-xyz/utils';
 
@@ -30,13 +30,13 @@ describe(stringToTransactionManifest.name, function () {
 
     const res = await stringToTransactionManifest(stringManifest, 1);
 
-    expect(res.instructions.kind).to.eq(InstructionsKind.Parsed);
-    expect(res.instructions.value).to.be.an('array');
+    expect(res.instructions.kind).toBe(InstructionsKind.Parsed);
+    expect(Array.isArray(res.instructions.value)).toBe(true);
 
     assert(
       res.instructions.kind === InstructionsKind.Parsed,
       `Expected instruction to be of kind ${InstructionsKind.Parsed}`,
     );
-    expect(res.instructions.value).to.have.length.greaterThan(0);
+    expect(res.instructions.value.length).toBeGreaterThan(0);
   });
 });

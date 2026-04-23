@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
@@ -98,7 +98,7 @@ describe(ChainMetadataManager.name, () => {
         it(`should return correct result for ${description}`, () => {
           const result = manager.tryGetChainMetadata(input);
 
-          expect(result).to.deep.equal(expected);
+          expect(result).toEqual(expected);
         });
       });
     });
@@ -135,7 +135,7 @@ describe(ChainMetadataManager.name, () => {
         it(`should handle ${description}`, () => {
           const result = manager.tryGetChainMetadata(input);
 
-          expect(result).to.deep.equal(expected);
+          expect(result).toEqual(expected);
         });
       });
     });

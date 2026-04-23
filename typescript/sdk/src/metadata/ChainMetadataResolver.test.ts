@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
@@ -36,33 +36,27 @@ describe(createChainMetadataResolver.name, () => {
 
   it('supports chain-name lookups', () => {
     const resolver = createChainMetadataResolver(metadata);
-    expect(resolver.tryGetChainMetadata('ethereum')).to.equal(
-      metadata.ethereum,
-    );
-    expect(resolver.tryGetChainName('cosmos')).to.equal('cosmos');
+    expect(resolver.tryGetChainMetadata('ethereum')).toBe(metadata.ethereum);
+    expect(resolver.tryGetChainName('cosmos')).toBe('cosmos');
   });
 
   it('supports domain-id lookups', () => {
     const resolver = createChainMetadataResolver(metadata);
-    expect(resolver.tryGetChainMetadata(1)).to.equal(metadata.ethereum);
-    expect(resolver.tryGetProtocol(118)).to.equal(ProtocolType.Cosmos);
+    expect(resolver.tryGetChainMetadata(1)).toBe(metadata.ethereum);
+    expect(resolver.tryGetProtocol(118)).toBe(ProtocolType.Cosmos);
   });
 
   it('supports numeric chain-id string aliases', () => {
     const resolver = createChainMetadataResolver(metadata);
-    expect(resolver.tryGetChainMetadata('11155111')).to.equal(metadata.sepolia);
-    expect(resolver.tryGetChainMetadata(11155111)).to.equal(metadata.sepolia);
-    expect(resolver.tryGetDomainId('11155111')).to.equal(
-      metadata.sepolia.domainId,
-    );
+    expect(resolver.tryGetChainMetadata('11155111')).toBe(metadata.sepolia);
+    expect(resolver.tryGetChainMetadata(11155111)).toBe(metadata.sepolia);
+    expect(resolver.tryGetDomainId('11155111')).toBe(metadata.sepolia.domainId);
   });
 
   it('does not mishandle non-numeric chain ids', () => {
     const resolver = createChainMetadataResolver(metadata);
-    expect(resolver.tryGetChainMetadata('cosmoshub-4')).to.equal(
-      metadata.cosmos,
-    );
-    expect(resolver.tryGetChainMetadata(4)).to.equal(null);
+    expect(resolver.tryGetChainMetadata('cosmoshub-4')).toBe(metadata.cosmos);
+    expect(resolver.tryGetChainMetadata(4)).toBe(null);
   });
 
   it('allows duplicate chain ids and treats ambiguous aliases as unresolved', () => {
@@ -80,10 +74,10 @@ describe(createChainMetadataResolver.name, () => {
       },
     });
 
-    expect(resolver.tryGetChainMetadata('foo')?.name).to.equal('foo');
-    expect(resolver.tryGetChainMetadata('bar')?.name).to.equal('bar');
-    expect(resolver.tryGetChainMetadata('31337')).to.equal(null);
-    expect(resolver.tryGetChainMetadata(31337)).to.equal(null);
+    expect(resolver.tryGetChainMetadata('foo')?.name).toBe('foo');
+    expect(resolver.tryGetChainMetadata('bar')?.name).toBe('bar');
+    expect(resolver.tryGetChainMetadata('31337')).toBe(null);
+    expect(resolver.tryGetChainMetadata(31337)).toBe(null);
   });
 
   it('throws on duplicate domain ids', () => {
@@ -96,6 +90,6 @@ describe(createChainMetadataResolver.name, () => {
           domainId: metadata.ethereum.domainId,
         },
       }),
-    ).to.throw('Duplicate domainId detected');
+    ).toThrow('Duplicate domainId detected');
   });
 });

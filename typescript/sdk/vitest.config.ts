@@ -10,7 +10,6 @@ export default defineConfig({
       '**/*.hardhat-test.ts',
       '**/*.foundry-test.ts',
     ],
-    setupFiles: ['../../vitest.setup.ts'],
     testTimeout: 30000,
   },
 });

@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import { pino } from 'pino';
 
 import type { LiFiStep } from '@lifi/sdk';
@@ -249,7 +249,7 @@ describe('LiFiBridge.execute() route validation', () => {
       expect(
         isValidationError(msg),
         `Expected non-validation error but got: ${msg}`,
-      ).to.equal(false);
+      ).toBe(false);
     }
   });
 
@@ -260,12 +260,12 @@ describe('LiFiBridge.execute() route validation', () => {
       await bridge.execute(quote, {
         [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
       });
-      expect.fail('Expected execute to throw');
+      throw new Error('Expected execute to throw');
     } catch (error: unknown) {
       const msg = (error as Error).message;
-      expect(msg).to.include('999');
-      expect(msg).to.include('42161');
-      expect(msg).to.include('fromChainId');
+      expect(msg).toContain('999');
+      expect(msg).toContain('42161');
+      expect(msg).toContain('fromChainId');
     }
   });
 
@@ -279,12 +279,12 @@ describe('LiFiBridge.execute() route validation', () => {
       await bridge.execute(quote, {
         [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
       });
-      expect.fail('Expected execute to throw');
+      throw new Error('Expected execute to throw');
     } catch (error: unknown) {
       const msg = (error as Error).message;
-      expect(msg).to.include('888');
-      expect(msg).to.include('1151111081099710');
-      expect(msg).to.include('toChainId');
+      expect(msg).toContain('888');
+      expect(msg).toContain('1151111081099710');
+      expect(msg).toContain('toChainId');
     }
   });
 
@@ -298,12 +298,12 @@ describe('LiFiBridge.execute() route validation', () => {
       await bridge.execute(quote, {
         [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
       });
-      expect.fail('Expected execute to throw');
+      throw new Error('Expected execute to throw');
     } catch (error: unknown) {
       const msg = (error as Error).message;
-      expect(msg).to.include('fromToken');
+      expect(msg).toContain('fromToken');
       // Error message should contain the mismatched address value
-      expect(msg.toLowerCase()).to.include(BAD_ADDR.toLowerCase());
+      expect(msg.toLowerCase()).toContain(BAD_ADDR.toLowerCase());
     }
   });
 
@@ -317,11 +317,11 @@ describe('LiFiBridge.execute() route validation', () => {
       await bridge.execute(quote, {
         [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
       });
-      expect.fail('Expected execute to throw');
+      throw new Error('Expected execute to throw');
     } catch (error: unknown) {
       const msg = (error as Error).message;
-      expect(msg).to.include('toToken');
-      expect(msg.toLowerCase()).to.include(BAD_ADDR.toLowerCase());
+      expect(msg).toContain('toToken');
+      expect(msg.toLowerCase()).toContain(BAD_ADDR.toLowerCase());
     }
   });
 
@@ -335,10 +335,10 @@ describe('LiFiBridge.execute() route validation', () => {
       await bridge.execute(quote, {
         [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
       });
-      expect.fail('Expected execute to throw');
+      throw new Error('Expected execute to throw');
     } catch (error: unknown) {
       const msg = (error as Error).message;
-      expect(msg).to.include('toAddress');
+      expect(msg).toContain('toAddress');
     }
   });
 
@@ -352,10 +352,10 @@ describe('LiFiBridge.execute() route validation', () => {
       await bridge.execute(quote, {
         [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
       });
-      expect.fail('Expected execute to throw');
+      throw new Error('Expected execute to throw');
     } catch (error: unknown) {
       const msg = (error as Error).message;
-      expect(msg).to.include('fromAddress');
+      expect(msg).toContain('fromAddress');
     }
   });
 
@@ -377,7 +377,7 @@ describe('LiFiBridge.execute() route validation', () => {
       expect(
         isValidationError(msg),
         `Expected non-validation error but got: ${msg}`,
-      ).to.equal(false);
+      ).toBe(false);
     }
   });
 
@@ -391,12 +391,12 @@ describe('LiFiBridge.execute() route validation', () => {
       await bridge.execute(quote, {
         [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
       });
-      expect.fail('Expected execute to throw');
+      throw new Error('Expected execute to throw');
     } catch (error: unknown) {
       const msg = (error as Error).message;
-      expect(msg).to.include('9999999999');
-      expect(msg).to.include('10000000000');
-      expect(msg).to.include('fromAmount');
+      expect(msg).toContain('9999999999');
+      expect(msg).toContain('10000000000');
+      expect(msg).toContain('fromAmount');
     }
   });
 
@@ -412,10 +412,10 @@ describe('LiFiBridge.execute() route validation', () => {
       await bridge.execute(quote, {
         [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
       });
-      expect.fail('Expected execute to throw');
+      throw new Error('Expected execute to throw');
     } catch (error: unknown) {
       const msg = (error as Error).message;
-      expect(msg).to.include('must be positive');
+      expect(msg).toContain('must be positive');
     }
   });
 
@@ -451,7 +451,7 @@ describe('LiFiBridge.execute() route validation', () => {
       expect(
         isValidationError(msg),
         `Expected non-validation error but got: ${msg}`,
-      ).to.equal(false);
+      ).toBe(false);
     }
   });
 
@@ -464,10 +464,10 @@ describe('LiFiBridge.execute() route validation', () => {
       await bridge.execute(quote, {
         [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
       });
-      expect.fail('Expected execute to throw');
+      throw new Error('Expected execute to throw');
     } catch (error: unknown) {
       const msg = (error as Error).message;
-      expect(msg).to.include('fromAmount');
+      expect(msg).toContain('fromAmount');
     }
   });
 
@@ -488,7 +488,7 @@ describe('LiFiBridge.execute() route validation', () => {
       expect(
         isValidationError(msg),
         `Expected non-validation error but got: ${msg}`,
-      ).to.equal(false);
+      ).toBe(false);
     }
   });
 
@@ -502,13 +502,13 @@ describe('LiFiBridge.execute() route validation', () => {
       await bridge.execute(quote, {
         [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
       });
-      expect.fail('Expected execute to throw');
+      throw new Error('Expected execute to throw');
     } catch (error: unknown) {
       const msg = (error as Error).message;
-      expect(msg).to.include('toAmount');
-      expect(msg).to.include('100');
-      expect(msg).to.include('123');
-      expect(msg).to.include('is less than');
+      expect(msg).toContain('toAmount');
+      expect(msg).toContain('100');
+      expect(msg).toContain('123');
+      expect(msg).toContain('is less than');
     }
   });
 
@@ -528,7 +528,7 @@ describe('LiFiBridge.execute() route validation', () => {
       expect(
         isValidationError(msg),
         `Expected non-validation error but got: ${msg}`,
-      ).to.equal(false);
+      ).toBe(false);
     }
   });
 });
@@ -550,11 +550,9 @@ describe('LiFiBridge.quote() input validation', function () {
         fromAddress: SENDER_ADDR,
         fromAmount: 0n,
       });
-      expect.fail('Expected quote to throw');
+      throw new Error('Expected quote to throw');
     } catch (error: unknown) {
-      expect((error as Error).message).to.include(
-        'fromAmount must be positive',
-      );
+      expect((error as Error).message).toContain('fromAmount must be positive');
     }
   });
 
@@ -568,9 +566,9 @@ describe('LiFiBridge.quote() input validation', function () {
         fromAddress: SENDER_ADDR,
         toAmount: 0n,
       });
-      expect.fail('Expected quote to throw');
+      throw new Error('Expected quote to throw');
     } catch (error: unknown) {
-      expect((error as Error).message).to.include('toAmount must be positive');
+      expect((error as Error).message).toContain('toAmount must be positive');
     }
   });
 
@@ -585,9 +583,9 @@ describe('LiFiBridge.quote() input validation', function () {
         fromAmount: 10000000000n,
         toAmount: 5000000000n,
       });
-      expect.fail('Expected quote to throw');
+      throw new Error('Expected quote to throw');
     } catch (error: unknown) {
-      expect((error as Error).message).to.include('Cannot specify both');
+      expect((error as Error).message).toContain('Cannot specify both');
     }
   });
 
@@ -600,9 +598,9 @@ describe('LiFiBridge.quote() input validation', function () {
         toToken: TOKEN_ADDR,
         fromAddress: SENDER_ADDR,
       });
-      expect.fail('Expected quote to throw');
+      throw new Error('Expected quote to throw');
     } catch (error: unknown) {
-      expect((error as Error).message).to.include('Must specify either');
+      expect((error as Error).message).toContain('Must specify either');
     }
   });
 });
@@ -642,8 +640,8 @@ describe('LiFiBridge.quote() routing policy', function () {
       });
       const params = new URL(requestUrl).searchParams;
 
-      expect(params.get('order')).to.equal('RECOMMENDED');
-      expect(quote.requestParams.toAmount).to.equal(5000000000n);
+      expect(params.get('order')).toBe('RECOMMENDED');
+      expect(quote.requestParams.toAmount).toBe(5000000000n);
     } finally {
       globalThis.fetch = originalFetch;
     }
@@ -673,9 +671,9 @@ describe('LiFiBridge.getStatus()', function () {
       const result = await bridge.getStatus('0x1234', 1399811149, 1399811149);
       const params = new URL(requestUrl).searchParams;
 
-      expect(result.status).to.equal('not_found');
-      expect(params.get('fromChain')).to.equal('1151111081099710');
-      expect(params.get('toChain')).to.equal('1151111081099710');
+      expect(result.status).toBe('not_found');
+      expect(params.get('fromChain')).toBe('1151111081099710');
+      expect(params.get('toChain')).toBe('1151111081099710');
     } finally {
       globalThis.fetch = originalFetch;
     }
@@ -698,11 +696,11 @@ describe('LiFiBridge constructor chainMetadataByChainId', function () {
       await bridge.execute(quote, {
         [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
       });
-      expect.fail('Expected execute to throw');
+      throw new Error('Expected execute to throw');
     } catch (error: unknown) {
       const msg = (error as Error).message;
-      expect(msg).to.include('toToken');
-      expect(msg).to.include('does not match requested');
+      expect(msg).toContain('toToken');
+      expect(msg).toContain('does not match requested');
     }
   });
 
@@ -725,10 +723,10 @@ describe('LiFiBridge constructor chainMetadataByChainId', function () {
         expect(
           isValidationError(msg),
           `Expected non-validation error but got: ${msg}`,
-        ).to.equal(false);
-        expect(msg).to.not.include('Missing private key');
-        expect(msg).to.not.include('protocol radix');
-        expect(msg.toLowerCase()).to.include('private key');
+        ).toBe(false);
+        expect(msg).not.toContain('Missing private key');
+        expect(msg).not.toContain('protocol radix');
+        expect(msg.toLowerCase()).toContain('private key');
       });
   });
 
@@ -754,10 +752,8 @@ describe('LiFiBridge constructor chainMetadataByChainId', function () {
       bridge as any
     ).getProtocolTypeForChainId.bind(bridge);
 
-    expect(getProtocolTypeForChainId(TRON_CHAIN_ID)).to.equal(
-      ProtocolType.Tron,
-    );
-    expect(getProtocolTypeForChainId(999000999)).to.equal(undefined);
+    expect(getProtocolTypeForChainId(TRON_CHAIN_ID)).toBe(ProtocolType.Tron);
+    expect(getProtocolTypeForChainId(999000999)).toBe(undefined);
   });
 
   it('should not let non-EVM domainIds overwrite EVM chainId lookups', () => {
@@ -766,8 +762,8 @@ describe('LiFiBridge constructor chainMetadataByChainId', function () {
       bridge as any
     ).getProtocolTypeForChainId.bind(bridge);
 
-    expect(getProtocolTypeForChainId(1)).to.equal(ProtocolType.Ethereum);
-    expect(getProtocolTypeForChainId(999999999)).to.equal(ProtocolType.Cosmos);
+    expect(getProtocolTypeForChainId(1)).toBe(ProtocolType.Ethereum);
+    expect(getProtocolTypeForChainId(999999999)).toBe(ProtocolType.Cosmos);
   });
 });
 
@@ -779,9 +775,9 @@ describe('LiFiBridge source protocol handling', function () {
       key: string,
       fromChain: number,
     ) => {
-      expect(protocol).to.equal(ProtocolType.Ethereum);
-      expect(key).to.equal(TEST_PRIVATE_KEY);
-      expect(fromChain).to.equal(42161);
+      expect(protocol).toBe(ProtocolType.Ethereum);
+      expect(key).toBe(TEST_PRIVATE_KEY);
+      expect(fromChain).toBe(42161);
       throw new Error('expected downstream error');
     };
 
@@ -792,10 +788,10 @@ describe('LiFiBridge source protocol handling', function () {
         [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
         [ProtocolType.Tron]: OTHER_PRIVATE_KEY,
       });
-      expect.fail('Expected execute to throw');
+      throw new Error('Expected execute to throw');
     } catch (error: unknown) {
       const msg = (error as Error).message;
-      expect(msg).to.equal('expected downstream error');
+      expect(msg).toBe('expected downstream error');
     }
   });
 
@@ -809,7 +805,7 @@ describe('LiFiBridge source protocol handling', function () {
         'solanaaddress1234567890123456789012345678',
         1399811149,
       ),
-    ).to.be.false;
+    ).toBe(false);
   });
 
   it('throws when the route source protocol is Tron', async () => {
@@ -839,10 +835,12 @@ describe('LiFiBridge source protocol handling', function () {
       await bridge.execute(quote, {
         [ProtocolType.Tron]: TEST_PRIVATE_KEY,
       });
-      expect.fail('Should have thrown for unsupported source protocol Tron');
+      throw new Error(
+        'Should have thrown for unsupported source protocol Tron',
+      );
     } catch (error: unknown) {
       const msg = (error as Error).message;
-      expect(msg).to.include("Unsupported protocol type 'tron'");
+      expect(msg).toContain("Unsupported protocol type 'tron'");
     }
   });
 
@@ -873,10 +871,12 @@ describe('LiFiBridge source protocol handling', function () {
       await bridge.execute(quote, {
         [ProtocolType.Cosmos]: TEST_PRIVATE_KEY,
       });
-      expect.fail('Should have thrown for unsupported source protocol Cosmos');
+      throw new Error(
+        'Should have thrown for unsupported source protocol Cosmos',
+      );
     } catch (error: unknown) {
       const msg = (error as Error).message;
-      expect(msg).to.include("Unsupported protocol type 'cosmos'");
+      expect(msg).toContain("Unsupported protocol type 'cosmos'");
     }
   });
 });

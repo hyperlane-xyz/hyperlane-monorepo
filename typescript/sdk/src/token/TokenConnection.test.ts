@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import {
   getTokenConnectionId,
@@ -14,7 +14,7 @@ describe('TokenConnection', () => {
       '0x0000000000000000000000000000000000000001',
     );
 
-    expect(parseTokenConnectionId(id)).to.deep.equal({
+    expect(parseTokenConnectionId(id)).toEqual({
       protocol: ProtocolType.Ethereum,
       chainName: 'ethereum',
       addressOrDenom: '0x0000000000000000000000000000000000000001',
@@ -22,7 +22,7 @@ describe('TokenConnection', () => {
   });
 
   it('rejects malformed token connection ids', () => {
-    expect(() => parseTokenConnectionId('just-a-string')).to.throw(
+    expect(() => parseTokenConnectionId('just-a-string')).toThrow(
       'Invalid token connection id',
     );
   });

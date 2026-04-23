@@ -1,5 +1,5 @@
-import { expect } from 'chai';
 import { Contract, RpcProvider } from 'starknet';
+import { describe, expect, it } from 'vitest';
 
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
@@ -196,7 +196,7 @@ describe('StarknetProvider parseString', () => {
   const provider = new StarknetProviderTestHarness();
 
   it('parses wrapped value objects before generic toString', () => {
-    expect(provider.parseStringValue({ value: 'wrapped-value' })).to.equal(
+    expect(provider.parseStringValue({ value: 'wrapped-value' })).toBe(
       'wrapped-value',
     );
   });
@@ -204,11 +204,11 @@ describe('StarknetProvider parseString', () => {
   it('uses custom toString values when available', () => {
     expect(
       provider.parseStringValue({ toString: () => 'custom-to-string' }),
-    ).to.equal('custom-to-string');
+    ).toBe('custom-to-string');
   });
 
   it('does not return default object toString marker', () => {
-    expect(provider.parseStringValue({ foo: 'bar' })).to.equal('');
+    expect(provider.parseStringValue({ foo: 'bar' })).toBe('');
   });
 });
 
@@ -230,7 +230,7 @@ describe('StarknetProvider estimateTransactionFee', () => {
       caughtError = error;
     }
 
-    expect(String(caughtError)).to.include('unsupported');
+    expect(String(caughtError)).toContain('unsupported');
   });
 });
 
@@ -240,12 +240,12 @@ describe('StarknetProvider getTokenMetadata', () => {
 
     const metadata = await provider.readTokenMetadata(feeDenom);
 
-    expect(metadata).to.deep.equal({
+    expect(metadata).toEqual({
       name: 'Ether',
       symbol: 'ETH',
       decimals: 18,
     });
-    expect(provider.contractSelections).to.deep.equal([]);
+    expect(provider.contractSelections).toEqual([]);
   });
 });
 
@@ -257,7 +257,7 @@ describe('StarknetProvider getBalance', () => {
 
     const balance = await provider.getBalance({ address: '0x1' });
 
-    expect(balance).to.equal(9n);
+    expect(balance).toBe(9n);
   });
 
   it('rethrows unexpected balanceOf failures', async () => {
@@ -271,7 +271,7 @@ describe('StarknetProvider getBalance', () => {
       caughtError = error;
     }
 
-    expect(String(caughtError)).to.include('balanceOf failed');
+    expect(String(caughtError)).toContain('balanceOf failed');
   });
 });
 
@@ -290,8 +290,8 @@ describe('getCreateMailboxTx', () => {
       },
     );
 
-    expect(tx.kind).to.equal('deploy');
-    expect(tx.constructorArgs).to.deep.equal([
+    expect(tx.kind).toBe('deploy');
+    expect(tx.constructorArgs).toEqual([
       TEST_METADATA.domainId,
       '0x1111111111111111111111111111111111111111111111111111111111111111',
       '0x2222222222222222222222222222222222222222222222222222222222222222',
@@ -309,7 +309,7 @@ describe('StarknetProvider determineTokenType', () => {
 
     const tokenType = await provider.readTokenType('0x123');
 
-    expect(tokenType).to.equal(AltVM.TokenType.native);
+    expect(tokenType).toBe(AltVM.TokenType.native);
   });
 });
 
@@ -323,8 +323,8 @@ describe('StarknetProvider getBridgedSupply', () => {
       tokenAddress: '0xabc',
     });
 
-    expect(bridgedSupply).to.equal(444n);
-    expect(provider.capturedBalanceReq).to.equal(undefined);
+    expect(bridgedSupply).toBe(444n);
+    expect(provider.capturedBalanceReq).toBeUndefined();
   });
 
   it('returns underlying token balance for non-synthetic tokens', async () => {
@@ -336,8 +336,8 @@ describe('StarknetProvider getBridgedSupply', () => {
       tokenAddress: '0xabc',
     });
 
-    expect(bridgedSupply).to.equal(777n);
-    expect(provider.capturedBalanceReq).to.deep.equal({
+    expect(bridgedSupply).toBe(777n);
+    expect(provider.capturedBalanceReq).toEqual({
       address: '0xabc',
       denom: '0xdef',
     });

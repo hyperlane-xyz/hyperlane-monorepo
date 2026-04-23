@@ -1,6 +1,6 @@
 /* eslint-disable no-console */
 import { SystemProgram } from '@solana/web3.js';
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import { ethers } from 'ethers';
 
 import { Address, ProtocolType } from '@hyperlane-xyz/utils';
@@ -320,7 +320,7 @@ describe('Token', () => {
 
       console.debug('Testing token standard', tokenArgs.standard);
       const token = new Token(tokenArgs);
-      expect(token.standard).to.eql(tokenArgs.standard);
+      expect(token.standard).toEqual(tokenArgs.standard);
       const adapter = token.getAdapter(multiProvider);
       const balanceCheckAddress =
         STANDARD_TO_ADDRESS_FOR_BALANCE_CHECK[token.standard] ??
@@ -340,7 +340,7 @@ describe('Token', () => {
       });
 
       const balance = await adapter.getBalance(balanceCheckAddress);
-      expect(typeof balance).to.eql('bigint');
+      expect(typeof balance).toEqual('bigint');
       sandbox.restore();
     });
   }
@@ -369,7 +369,7 @@ describe('Token', () => {
       });
 
       const adapter = evmNativeToken.getHypAdapter(multiProvider);
-      expect(adapter.constructor.name).to.eql('EvmHypNativeAdapter');
+      expect(adapter.constructor.name).toEqual('EvmHypNativeAdapter');
     });
 
     it('returns EvmHypNativeAdapter for EvmNative with untyped connection', () => {
@@ -392,7 +392,7 @@ describe('Token', () => {
       evmNativeToken.addConnection({ token: remoteToken });
 
       const adapter = evmNativeToken.getHypAdapter(multiProvider);
-      expect(adapter.constructor.name).to.eql('EvmHypNativeAdapter');
+      expect(adapter.constructor.name).toEqual('EvmHypNativeAdapter');
     });
 
     it('returns EvmHypNativeAdapter for TronNative with connections', () => {
@@ -432,7 +432,7 @@ describe('Token', () => {
       });
 
       const adapter = tronNativeToken.getHypAdapter(multiProvider);
-      expect(adapter.constructor.name).to.eql('EvmHypNativeAdapter');
+      expect(adapter.constructor.name).toEqual('EvmHypNativeAdapter');
     });
 
     it('throws for EvmNative without connections', () => {
@@ -445,7 +445,7 @@ describe('Token', () => {
         Token.FromChainMetadataNativeToken(test1),
       );
 
-      expect(() => evmNativeToken.getHypAdapter(multiProvider)).to.throw(
+      expect(() => evmNativeToken.getHypAdapter(multiProvider)).toThrow(
         'not applicable to hyp adapter',
       );
     });
@@ -474,7 +474,7 @@ describe('Token', () => {
         sourceChannel: 'channel-0',
       });
 
-      expect(() => evmNativeToken.getHypAdapter(multiProvider)).to.throw(
+      expect(() => evmNativeToken.getHypAdapter(multiProvider)).toThrow(
         'not applicable to hyp adapter',
       );
     });
@@ -506,7 +506,7 @@ describe('Token', () => {
         type: TokenConnectionType.Hyperlane,
       });
 
-      expect(() => evmNativeToken.getHypAdapter(multiProvider)).to.throw(
+      expect(() => evmNativeToken.getHypAdapter(multiProvider)).toThrow(
         'not found in multiProvider',
       );
     });
@@ -573,7 +573,7 @@ describe('Token', () => {
     });
 
     it('returns false for undefined token', () => {
-      expect(evmHypCollateralToken.isFungibleWith(undefined)).to.be.false;
+      expect(evmHypCollateralToken.isFungibleWith(undefined)).toBe(false);
     });
 
     it('returns false for tokens on different chains', () => {
@@ -585,42 +585,47 @@ describe('Token', () => {
         symbol: 'USDC',
         name: 'USD Coin',
       });
-      expect(evmHypCollateralToken.isFungibleWith(differentChainToken)).to.be
-        .false;
+      expect(evmHypCollateralToken.isFungibleWith(differentChainToken)).toBe(
+        false,
+      );
     });
 
     it('returns true for identical tokens', () => {
-      expect(evmHypCollateralToken.isFungibleWith(evmHypCollateralToken)).to.be
-        .true;
+      expect(evmHypCollateralToken.isFungibleWith(evmHypCollateralToken)).toBe(
+        true,
+      );
     });
 
     it('returns false for collateralized token and non-matching token', () => {
-      expect(evmHypCollateralToken.isFungibleWith(evmHypSyntheticToken)).to.be
-        .false;
+      expect(evmHypCollateralToken.isFungibleWith(evmHypSyntheticToken)).toBe(
+        false,
+      );
     });
 
     it('returns false for non-IBC tokens with different standards', () => {
-      expect(evmHypCollateralToken.isFungibleWith(cosmosNativeToken)).to.be
-        .false;
+      expect(evmHypCollateralToken.isFungibleWith(cosmosNativeToken)).toBe(
+        false,
+      );
     });
 
     it('returns false for HypNative token and different token standards', () => {
-      expect(evmHypNativeToken.isFungibleWith(evmHypCollateralToken)).to.be
-        .false;
+      expect(evmHypNativeToken.isFungibleWith(evmHypCollateralToken)).toBe(
+        false,
+      );
     });
 
     it('returns true for collateralized token without collateral address and native token', () => {
-      expect(evmHypNativeToken2.isFungibleWith(evmNativeToken)).to.be.true;
-      expect(evmNativeToken.isFungibleWith(evmHypNativeToken2)).to.be.true;
+      expect(evmHypNativeToken2.isFungibleWith(evmNativeToken)).toBe(true);
+      expect(evmNativeToken.isFungibleWith(evmHypNativeToken2)).toBe(true);
     });
 
     it('returns true for collateralized token without collateral address and HypNative token', () => {
-      expect(evmHypNativeToken2.isFungibleWith(evmHypNativeToken)).to.be.true;
+      expect(evmHypNativeToken2.isFungibleWith(evmHypNativeToken)).toBe(true);
     });
 
     it('returns true for IBC token and matching native token', () => {
-      expect(cosmosIbcToken.isFungibleWith(cosmosNativeToken)).to.be.true;
-      expect(cosmosNativeToken.isFungibleWith(cosmosIbcToken)).to.be.true;
+      expect(cosmosIbcToken.isFungibleWith(cosmosNativeToken)).toBe(true);
+      expect(cosmosNativeToken.isFungibleWith(cosmosIbcToken)).toBe(true);
     });
 
     it('returns false for IBC token and non-matching native token', () => {
@@ -632,7 +637,7 @@ describe('Token', () => {
         symbol: 'OTHER',
         name: 'Other Token',
       });
-      expect(cosmosIbcToken.isFungibleWith(nonMatchingNativeToken)).to.be.false;
+      expect(cosmosIbcToken.isFungibleWith(nonMatchingNativeToken)).toBe(false);
     });
   });
 });

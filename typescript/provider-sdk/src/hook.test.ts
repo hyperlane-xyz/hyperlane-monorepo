@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import { ArtifactState } from './artifact.js';
 import { ChainLookup } from './chain.js';
@@ -30,7 +30,7 @@ describe('hook protocolFee support', () => {
     };
 
     const artifact = hookConfigToArtifact(config, chainLookup);
-    expect(artifact).to.deep.equal({
+    expect(artifact).toEqual({
       artifactState: ArtifactState.NEW,
       config,
     });
@@ -52,7 +52,7 @@ describe('hook protocolFee support', () => {
       protocolFee: '20',
     } as const;
 
-    expect(shouldDeployNewHook(actual, expected)).to.equal(false);
+    expect(shouldDeployNewHook(actual, expected)).toBe(false);
   });
 
   it('requires redeploy when protocolFee maxProtocolFee changes', () => {
@@ -71,7 +71,7 @@ describe('hook protocolFee support', () => {
       protocolFee: '10',
     } as const;
 
-    expect(shouldDeployNewHook(actual, expected)).to.equal(true);
+    expect(shouldDeployNewHook(actual, expected)).toBe(true);
   });
 
   it('fails closed when protocolFee max is unreadable', () => {
@@ -100,7 +100,7 @@ describe('hook protocolFee support', () => {
       error = caughtError;
     }
 
-    expect(String(error)).to.include('readable maxProtocolFee');
+    expect(String(error)).toContain('readable maxProtocolFee');
   });
 
   it('derives protocolFee hook config with address', () => {
@@ -119,7 +119,7 @@ describe('hook protocolFee support', () => {
       chainLookup,
     );
 
-    expect(derived).to.deep.equal({
+    expect(derived).toEqual({
       type: 'protocolFee',
       owner: '0xowner',
       beneficiary: '0xbeneficiary',
@@ -141,7 +141,7 @@ describe('hook protocolFee support', () => {
       chainLookup,
     );
 
-    expect(derived).to.deep.equal({
+    expect(derived).toEqual({
       type: 'unknownHook',
       address: '0xdef',
     });
@@ -155,11 +155,11 @@ describe('hook protocolFee support', () => {
       type: 'unknownHook',
     } as const;
 
-    expect(shouldDeployNewHook(actual, expected)).to.equal(false);
+    expect(shouldDeployNewHook(actual, expected)).toBe(false);
   });
 
   it('throws clear errors for unsupported hook artifact types', () => {
-    expect(() => throwUnsupportedHookType('protocolFee', 'Aleo')).to.throw(
+    expect(() => throwUnsupportedHookType('protocolFee', 'Aleo')).toThrow(
       'Unsupported hook artifact type protocolFee for protocol Aleo',
     );
   });
@@ -170,7 +170,7 @@ describe('hook protocolFee support', () => {
         { type: 'futureHook' } as unknown as HookConfig,
         chainLookup,
       ),
-    ).to.throw(/Unhandled hook type in hookConfigToArtifact: futureHook/);
+    ).toThrow(/Unhandled hook type in hookConfigToArtifact: futureHook/);
   });
 
   it('includes hook type in shouldDeployNewHook errors', () => {
@@ -179,7 +179,7 @@ describe('hook protocolFee support', () => {
         { type: 'futureHook' } as never,
         { type: 'futureHook' } as never,
       ),
-    ).to.throw(/Unhandled hook type in shouldDeployNewHook: futureHook/);
+    ).toThrow(/Unhandled hook type in shouldDeployNewHook: futureHook/);
   });
 
   it('includes hook type in hookArtifactToDerivedConfig errors', () => {
@@ -192,8 +192,6 @@ describe('hook protocolFee support', () => {
         },
         chainLookup,
       ),
-    ).to.throw(
-      /Unhandled hook type in hookArtifactToDerivedConfig: futureHook/,
-    );
+    ).toThrow(/Unhandled hook type in hookArtifactToDerivedConfig: futureHook/);
   });
 });

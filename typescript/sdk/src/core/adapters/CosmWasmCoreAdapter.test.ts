@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import {
   multiProtocolTestChainMetadata,
@@ -31,7 +31,7 @@ describe('CosmWasmCoreAdapter', () => {
       }),
       { mailbox: '' },
     );
-    expect(adapter).to.be.instanceOf(CosmWasmCoreAdapter);
+    expect(adapter).toBeInstanceOf(CosmWasmCoreAdapter);
   });
 
   it('extracts message IDs', () => {
@@ -39,10 +39,10 @@ describe('CosmWasmCoreAdapter', () => {
       type: ProviderType.CosmJsWasm,
       receipt: TX_RECEIPT,
     });
-    expect(messages).to.have.length(1);
-    expect(messages[0].messageId).to.equal(
+    expect(messages).toHaveLength(1);
+    expect(messages[0].messageId).toBe(
       '0xafc6cabcf735ac7b13fb4f1a045c4d675ecf8363cac76a21612411e644041af2',
     );
-    expect(messages[0].destination).to.equal('legacychain');
+    expect(messages[0].destination).toBe('legacychain');
   });
 });

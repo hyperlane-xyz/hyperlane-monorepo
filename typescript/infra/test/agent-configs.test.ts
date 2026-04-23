@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import { AgentConfig } from '@hyperlane-xyz/sdk';
 import { readJson } from '@hyperlane-xyz/utils/fs';
@@ -53,8 +53,8 @@ describe('Agent configs', () => {
         );
         // Allow for the agent JSON config to be a superset of the supported
         // chain names, as AW may not always run agents for all chains.
-        expect(agentJsonConfigChains).to.include.members(
-          config.supportedChainNames,
+        expect(agentJsonConfigChains).toEqual(
+          expect.arrayContaining(config.supportedChainNames),
         );
       });
     });

@@ -1,5 +1,4 @@
-import chai, { expect } from 'chai';
-import chaiAsPromised from 'chai-as-promised';
+import { expect } from 'vitest';
 import { pino } from 'pino';
 import Sinon from 'sinon';
 
@@ -25,8 +24,6 @@ import {
   RebalancerService,
   type RebalancerServiceConfig,
 } from './RebalancerService.js';
-
-chai.use(chaiAsPromised);
 
 const testLogger = pino({ level: 'silent' });
 
@@ -301,7 +298,7 @@ async function setupDaemonTest(
     rebalancer,
     strategy,
     triggerCycle: async () => {
-      expect(tokenInfoHandler).to.not.be.undefined;
+      expect(tokenInfoHandler).not.toBeUndefined();
       await tokenInfoHandler!({
         tokensInfo: [
           { token: createMockToken('ethereum'), bridgedSupply: 5000n },
@@ -359,11 +356,11 @@ describe('RebalancerService', () => {
         amount: '100',
       });
 
-      expect(rebalancer.rebalance.calledOnce).to.be.true;
+      expect(rebalancer.rebalance.calledOnce).toBe(true);
       const calledRoutes = rebalancer.rebalance.firstCall.args[0];
-      expect(calledRoutes).to.have.lengthOf(1);
-      expect(calledRoutes[0].origin).to.equal('ethereum');
-      expect(calledRoutes[0].destination).to.equal('arbitrum');
+      expect(calledRoutes).toHaveLength(1);
+      expect(calledRoutes[0].origin).toBe('ethereum');
+      expect(calledRoutes[0].destination).toBe('arbitrum');
     });
 
     it('should normalize manual amount to canonical units when token has scale', async () => {
@@ -398,7 +395,7 @@ describe('RebalancerService', () => {
       });
 
       const calledRoutes = rebalancer.rebalance.firstCall.args[0];
-      expect(calledRoutes[0].amount).to.equal(1_000_000n);
+      expect(calledRoutes[0].amount).toBe(1_000_000n);
     });
 
     it('should throw when origin token not found', async () => {
@@ -429,7 +426,7 @@ describe('RebalancerService', () => {
           destination: 'arbitrum',
           amount: '100',
         }),
-      ).to.be.rejectedWith('Origin token not found');
+      ).rejects.toThrow('Origin token not found');
     });
 
     it('should throw when amount is invalid', async () => {
@@ -455,7 +452,7 @@ describe('RebalancerService', () => {
           destination: 'arbitrum',
           amount: 'invalid',
         }),
-      ).to.be.rejectedWith('Amount must be a valid number');
+      ).rejects.toThrow('Amount must be a valid number');
     });
 
     it('should throw when amount is zero or negative', async () => {
@@ -481,7 +478,7 @@ describe('RebalancerService', () => {
           destination: 'arbitrum',
           amount: '0',
         }),
-      ).to.be.rejectedWith('Amount must be greater than 0');
+      ).rejects.toThrow('Amount must be greater than 0');
 
       await expect(
         service.executeManual({
@@ -489,7 +486,7 @@ describe('RebalancerService', () => {
           destination: 'arbitrum',
           amount: '-100',
         }),
-      ).to.be.rejectedWith('Amount must be greater than 0');
+      ).rejects.toThrow('Amount must be greater than 0');
     });
 
     it('should throw when origin chain has no bridge configured', async () => {
@@ -532,7 +529,7 @@ describe('RebalancerService', () => {
           destination: 'arbitrum',
           amount: '100',
         }),
-      ).to.be.rejectedWith('No bridge configured for origin chain ethereum');
+      ).rejects.toThrow('No bridge configured for origin chain ethereum');
     });
 
     it('should throw when in monitorOnly mode', async () => {
@@ -559,7 +556,7 @@ describe('RebalancerService', () => {
           destination: 'arbitrum',
           amount: '100',
         }),
-      ).to.be.rejectedWith('MonitorOnly mode cannot execute manual rebalances');
+      ).rejects.toThrow('MonitorOnly mode cannot execute manual rebalances');
     });
 
     it('should propagate errors from rebalancer', async () => {
@@ -588,7 +585,7 @@ describe('RebalancerService', () => {
           destination: 'arbitrum',
           amount: '100',
         }),
-      ).to.be.rejectedWith('Rebalance failed');
+      ).rejects.toThrow('Rebalance failed');
     });
   });
 
@@ -607,7 +604,7 @@ describe('RebalancerService', () => {
         config,
       );
 
-      await expect(service.start()).to.be.rejectedWith(
+      await expect(service.start()).rejects.toThrow(
         'start() can only be called in daemon mode',
       );
     });
@@ -638,8 +635,8 @@ describe('RebalancerService', () => {
 
       await service.start();
 
-      expect((monitor.on as Sinon.SinonStub).called).to.be.true;
-      expect((monitor.start as Sinon.SinonStub).calledOnce).to.be.true;
+      expect((monitor.on as Sinon.SinonStub).called).toBe(true);
+      expect((monitor.start as Sinon.SinonStub).calledOnce).toBe(true);
     });
   });
 
@@ -671,7 +668,7 @@ describe('RebalancerService', () => {
       await service.start();
       await service.stop();
 
-      expect((monitor.stop as Sinon.SinonStub).calledOnce).to.be.true;
+      expect((monitor.stop as Sinon.SinonStub).calledOnce).toBe(true);
     });
   });
 
@@ -753,7 +750,7 @@ describe('RebalancerService', () => {
 
       await service.start();
 
-      expect(tokenInfoHandler).to.not.be.undefined;
+      expect(tokenInfoHandler).not.toBeUndefined();
       await tokenInfoHandler!({
         tokensInfo: [
           { token: createMockToken('ethereum'), bridgedSupply: 5000n },
@@ -761,8 +758,8 @@ describe('RebalancerService', () => {
         ],
       });
 
-      expect(recordRebalancerFailure.calledOnce).to.be.true;
-      expect(recordRebalancerSuccess.called).to.be.false;
+      expect(recordRebalancerFailure.calledOnce).toBe(true);
+      expect(recordRebalancerSuccess.called).toBe(false);
     });
 
     it('should record success metric when all rebalance results succeed', async () => {
@@ -845,7 +842,7 @@ describe('RebalancerService', () => {
 
       await service.start();
 
-      expect(tokenInfoHandler).to.not.be.undefined;
+      expect(tokenInfoHandler).not.toBeUndefined();
       await tokenInfoHandler!({
         tokensInfo: [
           { token: createMockToken('ethereum'), bridgedSupply: 5000n },
@@ -853,8 +850,8 @@ describe('RebalancerService', () => {
         ],
       });
 
-      expect(recordRebalancerSuccess.calledOnce).to.be.true;
-      expect(recordRebalancerFailure.called).to.be.false;
+      expect(recordRebalancerSuccess.calledOnce).toBe(true);
+      expect(recordRebalancerFailure.called).toBe(false);
     });
 
     it('should record failure metric when rebalance has mixed results', async () => {
@@ -954,7 +951,7 @@ describe('RebalancerService', () => {
 
       await service.start();
 
-      expect(tokenInfoHandler).to.not.be.undefined;
+      expect(tokenInfoHandler).not.toBeUndefined();
       await tokenInfoHandler!({
         tokensInfo: [
           { token: createMockToken('ethereum'), bridgedSupply: 5000n },
@@ -962,8 +959,8 @@ describe('RebalancerService', () => {
         ],
       });
 
-      expect(recordRebalancerFailure.calledOnce).to.be.true;
-      expect(recordRebalancerSuccess.calledOnce).to.be.true;
+      expect(recordRebalancerFailure.calledOnce).toBe(true);
+      expect(recordRebalancerSuccess.calledOnce).toBe(true);
     });
   });
 
@@ -995,11 +992,11 @@ describe('RebalancerService', () => {
 
       await triggerCycle();
 
-      expect(rebalancer.rebalance.calledOnce).to.be.true;
+      expect(rebalancer.rebalance.calledOnce).toBe(true);
       const routesPassedToRebalancer = rebalancer.rebalance.firstCall.args[0];
-      expect(routesPassedToRebalancer).to.have.lengthOf(1);
-      expect(routesPassedToRebalancer[0].origin).to.equal('ethereum');
-      expect(routesPassedToRebalancer[0].destination).to.equal('arbitrum');
+      expect(routesPassedToRebalancer).toHaveLength(1);
+      expect(routesPassedToRebalancer[0].origin).toBe('ethereum');
+      expect(routesPassedToRebalancer[0].destination).toBe('arbitrum');
     });
 
     it('should call rebalancer with multiple routes', async () => {
@@ -1042,9 +1039,9 @@ describe('RebalancerService', () => {
 
       await triggerCycle();
 
-      expect(rebalancer.rebalance.calledOnce).to.be.true;
+      expect(rebalancer.rebalance.calledOnce).toBe(true);
       const routesPassedToRebalancer = rebalancer.rebalance.firstCall.args[0];
-      expect(routesPassedToRebalancer).to.have.lengthOf(2);
+      expect(routesPassedToRebalancer).toHaveLength(2);
     });
 
     it('should not call rebalancer when no routes proposed', async () => {
@@ -1055,7 +1052,7 @@ describe('RebalancerService', () => {
 
       await triggerCycle();
 
-      expect(rebalancer.rebalance.called).to.be.false;
+      expect(rebalancer.rebalance.called).toBe(false);
     });
   });
 
@@ -1091,7 +1088,7 @@ describe('RebalancerService', () => {
         amount: '200',
       });
 
-      expect(createStub.calledOnce).to.be.true;
+      expect(createStub.calledOnce).toBe(true);
     });
 
     it('should create metrics when withMetrics is enabled', async () => {
@@ -1122,8 +1119,8 @@ describe('RebalancerService', () => {
         amount: '100',
       });
 
-      expect(createMetricsSpy.calledOnce).to.be.true;
-      expect(createMetricsSpy.firstCall.args[0]).to.equal('test-key');
+      expect(createMetricsSpy.calledOnce).toBe(true);
+      expect(createMetricsSpy.firstCall.args[0]).toBe('test-key');
     });
   });
 });

@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -48,7 +48,7 @@ describe('fee type support', () => {
       };
 
       const artifact = feeConfigToArtifact(config, chainLookup);
-      expect(artifact).to.deep.equal({
+      expect(artifact).toEqual({
         artifactState: ArtifactState.NEW,
         config,
       });
@@ -64,7 +64,7 @@ describe('fee type support', () => {
       };
 
       const artifact = feeConfigToArtifact(config, chainLookup);
-      expect(artifact.config).to.deep.equal(config);
+      expect(artifact.config).toEqual(config);
     });
 
     it('passes through progressive fee config unchanged', () => {
@@ -77,7 +77,7 @@ describe('fee type support', () => {
       };
 
       const artifact = feeConfigToArtifact(config, chainLookup);
-      expect(artifact.config).to.deep.equal(config);
+      expect(artifact.config).toEqual(config);
     });
 
     it('passes through offchainQuotedLinear fee config unchanged', () => {
@@ -91,7 +91,7 @@ describe('fee type support', () => {
       };
 
       const artifact = feeConfigToArtifact(config, chainLookup);
-      expect(artifact.config).to.deep.equal(config);
+      expect(artifact.config).toEqual(config);
     });
 
     it('converts routing fee chain names to domain IDs', () => {
@@ -131,7 +131,7 @@ describe('fee type support', () => {
           },
         },
       };
-      expect(artifact.config).to.deep.equal(expectedArtifactConfig);
+      expect(artifact.config).toEqual(expectedArtifactConfig);
     });
 
     it('converts CC routing fee chain names to domain IDs', () => {
@@ -165,7 +165,7 @@ describe('fee type support', () => {
           },
         },
       };
-      expect(artifact.config).to.deep.equal(expectedArtifactConfig);
+      expect(artifact.config).toEqual(expectedArtifactConfig);
     });
 
     it('skips unknown chains in routing routes', () => {
@@ -189,7 +189,7 @@ describe('fee type support', () => {
 
       const artifact = feeConfigToArtifact(config, chainLookup);
       assert(artifact.config.type === FeeType.routing, 'Expected routing fee');
-      expect(Object.keys(artifact.config.routes)).to.deep.equal(['1']);
+      expect(Object.keys(artifact.config.routes)).toEqual(['1']);
     });
 
     it('throws for unsupported fee types', () => {
@@ -198,7 +198,7 @@ describe('fee type support', () => {
           { type: 'futureFee' } as unknown as FeeConfig,
           chainLookup,
         ),
-      ).to.throw(/Unsupported fee type/);
+      ).toThrow(/Unsupported fee type/);
     });
   });
 
@@ -219,7 +219,7 @@ describe('fee type support', () => {
         chainLookup,
       );
 
-      expect(derived).to.deep.equal({
+      expect(derived).toEqual({
         type: FeeType.linear,
         owner: '0xowner',
         beneficiary: '0xbeneficiary',
@@ -273,7 +273,7 @@ describe('fee type support', () => {
         },
         address: '0xfee',
       };
-      expect(derived).to.deep.equal(expectedDerived);
+      expect(derived).toEqual(expectedDerived);
     });
 
     it('converts crossCollateralRouting fee domain IDs back to chain names', () => {
@@ -328,7 +328,7 @@ describe('fee type support', () => {
         },
         address: '0xfee',
       };
-      expect(derived).to.deep.equal(expectedDerived);
+      expect(derived).toEqual(expectedDerived);
     });
 
     it('skips unknown domain IDs in routing fee derived config', () => {
@@ -370,7 +370,7 @@ describe('fee type support', () => {
         },
         address: '0xfee',
       };
-      expect(derived).to.deep.equal(expectedDerived);
+      expect(derived).toEqual(expectedDerived);
     });
 
     it('skips unknown domain IDs in crossCollateralRouting fee derived config', () => {
@@ -418,7 +418,7 @@ describe('fee type support', () => {
         },
         address: '0xfee',
       };
-      expect(derived).to.deep.equal(expectedDerived);
+      expect(derived).toEqual(expectedDerived);
     });
 
     it('throws for unhandled fee types', () => {
@@ -431,7 +431,7 @@ describe('fee type support', () => {
           },
           chainLookup,
         ),
-      ).to.throw(/Unhandled fee type/);
+      ).toThrow(/Unhandled fee type/);
     });
   });
 
@@ -452,7 +452,7 @@ describe('fee type support', () => {
         halfAmount: '500',
       };
 
-      expect(shouldDeployNewFee(actual, expected)).to.equal(true);
+      expect(shouldDeployNewFee(actual, expected)).toBe(true);
     });
 
     it('requires redeploy when linear fee params change', () => {
@@ -471,7 +471,7 @@ describe('fee type support', () => {
         halfAmount: '1000',
       };
 
-      expect(shouldDeployNewFee(actual, expected)).to.equal(true);
+      expect(shouldDeployNewFee(actual, expected)).toBe(true);
     });
 
     it('does not redeploy linear fee when config unchanged', () => {
@@ -483,7 +483,7 @@ describe('fee type support', () => {
         halfAmount: '500',
       };
 
-      expect(shouldDeployNewFee(config, config)).to.equal(false);
+      expect(shouldDeployNewFee(config, config)).toBe(false);
     });
 
     it('requires redeploy when offchainQuotedLinear params change', () => {
@@ -504,7 +504,7 @@ describe('fee type support', () => {
         quoteSigners: ['0xsigner1'],
       };
 
-      expect(shouldDeployNewFee(actual, expected)).to.equal(true);
+      expect(shouldDeployNewFee(actual, expected)).toBe(true);
     });
 
     it('does not redeploy routing fee (mutable)', () => {
@@ -527,7 +527,7 @@ describe('fee type support', () => {
         },
       };
 
-      expect(shouldDeployNewFee(actual, expected)).to.equal(false);
+      expect(shouldDeployNewFee(actual, expected)).toBe(false);
     });
 
     it('does not redeploy crossCollateralRouting fee (mutable)', () => {
@@ -552,7 +552,7 @@ describe('fee type support', () => {
         },
       };
 
-      expect(shouldDeployNewFee(actual, expected)).to.equal(false);
+      expect(shouldDeployNewFee(actual, expected)).toBe(false);
     });
 
     it('throws for unhandled fee types', () => {
@@ -561,7 +561,7 @@ describe('fee type support', () => {
           { type: 'futureFee' } as never,
           { type: 'futureFee' } as never,
         ),
-      ).to.throw(/Unhandled fee type in shouldDeployNewFee/);
+      ).toThrow(/Unhandled fee type in shouldDeployNewFee/);
     });
   });
 
@@ -579,7 +579,7 @@ describe('fee type support', () => {
       };
 
       const result = mergeFeeArtifacts(undefined, expected);
-      expect(result).to.deep.equal(expected);
+      expect(result).toEqual(expected);
     });
 
     it('deploys new fee when type changes', () => {
@@ -607,7 +607,7 @@ describe('fee type support', () => {
       };
 
       const result = mergeFeeArtifacts(current, expected);
-      expect(result.artifactState).to.equal(ArtifactState.NEW);
+      expect(result.artifactState).toBe(ArtifactState.NEW);
     });
 
     it('reuses current address for mutable routing fee updates', () => {
@@ -639,8 +639,8 @@ describe('fee type support', () => {
       };
 
       const result = mergeFeeArtifacts(current, expected);
-      expect(result.artifactState).to.equal(ArtifactState.DEPLOYED);
-      expect((result as DeployedFeeArtifact).deployed.address).to.equal(
+      expect(result.artifactState).toBe(ArtifactState.DEPLOYED);
+      expect((result as DeployedFeeArtifact).deployed.address).toBe(
         '0xexisting',
       );
     });
@@ -670,7 +670,7 @@ describe('fee type support', () => {
       };
 
       const result = mergeFeeArtifacts(current, expected);
-      expect(result.artifactState).to.equal(ArtifactState.NEW);
+      expect(result.artifactState).toBe(ArtifactState.NEW);
     });
   });
 });

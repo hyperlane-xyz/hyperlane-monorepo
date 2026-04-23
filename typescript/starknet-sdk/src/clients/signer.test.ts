@@ -1,5 +1,5 @@
-import { expect } from 'chai';
 import { RpcProvider } from 'starknet';
+import { describe, expect, it } from 'vitest';
 
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 
@@ -100,21 +100,21 @@ describe('StarknetSigner remoteTransfer', () => {
       },
     });
 
-    expect(signer.capturedTx).to.equal(undefined);
-    expect(signer.capturedBatch).to.have.length(2);
-    expect(signer.capturedBatch?.[0]?.kind).to.equal('invoke');
-    expect(signer.capturedBatch?.[0]?.contractAddress).to.equal(
+    expect(signer.capturedTx).toBeUndefined();
+    expect(signer.capturedBatch).toHaveLength(2);
+    expect(signer.capturedBatch?.[0]?.kind).toBe('invoke');
+    expect(signer.capturedBatch?.[0]?.contractAddress).toBe(
       TEST_METADATA.nativeToken.denom,
     );
-    expect(signer.capturedBatch?.[0]?.entrypoint).to.equal('approve');
-    expect(signer.capturedBatch?.[1]).to.deep.equal({
+    expect(signer.capturedBatch?.[0]?.entrypoint).toBe('approve');
+    expect(signer.capturedBatch?.[1]).toEqual({
       kind: 'invoke',
       contractAddress: '0xabc',
       entrypoint: 'transfer_remote',
       calldata: ['0x1'],
     });
-    expect(signer.getTokenCalls).to.equal(1);
-    expect(signer.capturedRemoteTransferToken?.tokenType).to.equal(
+    expect(signer.getTokenCalls).toBe(1);
+    expect(signer.capturedRemoteTransferToken?.tokenType).toBe(
       AltVM.TokenType.native,
     );
   });
@@ -137,22 +137,20 @@ describe('StarknetSigner remoteTransfer', () => {
       },
     });
 
-    expect(signer.capturedTx).to.equal(undefined);
-    expect(signer.capturedBatch).to.have.length(3);
-    expect(signer.capturedBatch?.[0]?.kind).to.equal('invoke');
-    expect(signer.capturedBatch?.[0]?.contractAddress).to.equal(
+    expect(signer.capturedTx).toBeUndefined();
+    expect(signer.capturedBatch).toHaveLength(3);
+    expect(signer.capturedBatch?.[0]?.kind).toBe('invoke');
+    expect(signer.capturedBatch?.[0]?.contractAddress).toBe(
       normalizeStarknetAddressSafe(signer.tokenDenom),
     );
-    expect(signer.capturedBatch?.[0]?.entrypoint).to.equal('approve');
-    expect(signer.capturedBatch?.[1]?.kind).to.equal('invoke');
-    expect(signer.capturedBatch?.[1]?.contractAddress).to.equal(
+    expect(signer.capturedBatch?.[0]?.entrypoint).toBe('approve');
+    expect(signer.capturedBatch?.[1]?.kind).toBe('invoke');
+    expect(signer.capturedBatch?.[1]?.contractAddress).toBe(
       TEST_METADATA.nativeToken.denom,
     );
-    expect(signer.capturedBatch?.[1]?.entrypoint).to.equal('approve');
-    expect(signer.getTokenCalls).to.equal(1);
-    expect(signer.capturedRemoteTransferToken?.denom).to.equal(
-      signer.tokenDenom,
-    );
+    expect(signer.capturedBatch?.[1]?.entrypoint).toBe('approve');
+    expect(signer.getTokenCalls).toBe(1);
+    expect(signer.capturedRemoteTransferToken?.denom).toBe(signer.tokenDenom);
   });
 
   it('batches fee token approval before synthetic transfer', async () => {
@@ -171,15 +169,15 @@ describe('StarknetSigner remoteTransfer', () => {
       },
     });
 
-    expect(signer.capturedTx).to.equal(undefined);
-    expect(signer.capturedBatch).to.have.length(2);
-    expect(signer.capturedBatch?.[0]?.kind).to.equal('invoke');
-    expect(signer.capturedBatch?.[0]?.contractAddress).to.equal(
+    expect(signer.capturedTx).toBeUndefined();
+    expect(signer.capturedBatch).toHaveLength(2);
+    expect(signer.capturedBatch?.[0]?.kind).toBe('invoke');
+    expect(signer.capturedBatch?.[0]?.contractAddress).toBe(
       TEST_METADATA.nativeToken.denom,
     );
-    expect(signer.capturedBatch?.[0]?.entrypoint).to.equal('approve');
-    expect(signer.getTokenCalls).to.equal(1);
-    expect(signer.capturedRemoteTransferToken?.tokenType).to.equal(
+    expect(signer.capturedBatch?.[0]?.entrypoint).toBe('approve');
+    expect(signer.getTokenCalls).toBe(1);
+    expect(signer.capturedRemoteTransferToken?.tokenType).toBe(
       AltVM.TokenType.synthetic,
     );
   });
@@ -201,21 +199,21 @@ describe('StarknetSigner remoteTransfer', () => {
       },
     });
 
-    expect(signer.capturedTx).to.equal(undefined);
-    expect(signer.capturedBatch).to.have.length(2);
-    expect(signer.capturedBatch?.[0]?.kind).to.equal('invoke');
-    expect(signer.capturedBatch?.[0]?.contractAddress).to.equal(
+    expect(signer.capturedTx).toBeUndefined();
+    expect(signer.capturedBatch).toHaveLength(2);
+    expect(signer.capturedBatch?.[0]?.kind).toBe('invoke');
+    expect(signer.capturedBatch?.[0]?.contractAddress).toBe(
       TEST_METADATA.nativeToken.denom,
     );
-    expect(signer.capturedBatch?.[0]?.entrypoint).to.equal('approve');
-    expect(signer.capturedBatch?.[1]).to.deep.equal({
+    expect(signer.capturedBatch?.[0]?.entrypoint).toBe('approve');
+    expect(signer.capturedBatch?.[1]).toEqual({
       kind: 'invoke',
       contractAddress: '0xabc',
       entrypoint: 'transfer_remote',
       calldata: ['0x1'],
     });
-    expect(signer.getTokenCalls).to.equal(1);
-    expect(signer.capturedRemoteTransferToken?.denom).to.equal(
+    expect(signer.getTokenCalls).toBe(1);
+    expect(signer.capturedRemoteTransferToken?.denom).toBe(
       TEST_METADATA.nativeToken.denom,
     );
   });
@@ -259,7 +257,7 @@ describe('StarknetSigner sendAndConfirmTransaction', () => {
       error = caughtError;
     }
 
-    expect(String(error)).to.include('reverted');
-    expect(String(error)).to.include('boom');
+    expect(String(error)).toContain('reverted');
+    expect(String(error)).toContain('boom');
   });
 });

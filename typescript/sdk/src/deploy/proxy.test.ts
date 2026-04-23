@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import { ethers } from 'ethers';
 
 import { isInitialized, proxyAdmin, proxyAdminUpdateTxs } from './proxy.js';
@@ -15,7 +15,7 @@ describe('proxy utilities', () => {
         mockProvider,
         '0x1234567890123456789012345678901234567890',
       );
-      expect(result).to.equal(false);
+      expect(result).toBe(false);
     });
 
     it('should return false for 0x response (malformed RPC)', async () => {
@@ -28,7 +28,7 @@ describe('proxy utilities', () => {
         mockProvider,
         '0x1234567890123456789012345678901234567890',
       );
-      expect(result).to.equal(false);
+      expect(result).toBe(false);
     });
 
     it('should return true for value of 1 (initialized)', async () => {
@@ -42,7 +42,7 @@ describe('proxy utilities', () => {
         mockProvider,
         '0x1234567890123456789012345678901234567890',
       );
-      expect(result).to.equal(true);
+      expect(result).toBe(true);
     });
 
     it('should return true for value of 255 (initialized)', async () => {
@@ -56,7 +56,7 @@ describe('proxy utilities', () => {
         mockProvider,
         '0x1234567890123456789012345678901234567890',
       );
-      expect(result).to.equal(true);
+      expect(result).toBe(true);
     });
 
     it('should return false for value of 0 (not initialized)', async () => {
@@ -70,7 +70,7 @@ describe('proxy utilities', () => {
         mockProvider,
         '0x1234567890123456789012345678901234567890',
       );
-      expect(result).to.equal(false);
+      expect(result).toBe(false);
     });
   });
 
@@ -85,7 +85,7 @@ describe('proxy utilities', () => {
         mockProvider,
         '0x1234567890123456789012345678901234567890',
       );
-      expect(result).to.equal(ethers.constants.AddressZero);
+      expect(result).toBe(ethers.constants.AddressZero);
     });
 
     it('should return zero address for 0x response (malformed RPC)', async () => {
@@ -98,7 +98,7 @@ describe('proxy utilities', () => {
         mockProvider,
         '0x1234567890123456789012345678901234567890',
       );
-      expect(result).to.equal(ethers.constants.AddressZero);
+      expect(result).toBe(ethers.constants.AddressZero);
     });
 
     it('should return zero address for 0x0 response (malformed RPC)', async () => {
@@ -111,7 +111,7 @@ describe('proxy utilities', () => {
         mockProvider,
         '0x1234567890123456789012345678901234567890',
       );
-      expect(result).to.equal(ethers.constants.AddressZero);
+      expect(result).toBe(ethers.constants.AddressZero);
     });
 
     it('should return valid address for proper storage value', async () => {
@@ -126,7 +126,7 @@ describe('proxy utilities', () => {
         mockProvider,
         '0xabcdabcdabcdabcdabcdabcdabcdabcdabcdabcd',
       );
-      expect(result.toLowerCase()).to.equal(testAddress.toLowerCase());
+      expect(result.toLowerCase()).toBe(testAddress.toLowerCase());
     });
 
     it('should return zero address for all-zero storage value', async () => {
@@ -140,7 +140,7 @@ describe('proxy utilities', () => {
         mockProvider,
         '0x1234567890123456789012345678901234567890',
       );
-      expect(result).to.equal(ethers.constants.AddressZero);
+      expect(result).toBe(ethers.constants.AddressZero);
     });
   });
 
@@ -162,8 +162,8 @@ describe('proxy utilities', () => {
         },
         { owner: OWNER_A, ownerOverrides: { proxyAdmin: OWNER_B } },
       );
-      expect(txs.length).to.equal(1);
-      expect(txs[0].annotation).to.include(OWNER_B);
+      expect(txs.length).toBe(1);
+      expect(txs[0].annotation).toContain(OWNER_B);
     });
 
     it('should use ownerOverrides.proxyAdmin over proxyAdmin.owner when both are set', () => {
@@ -180,8 +180,8 @@ describe('proxy utilities', () => {
           proxyAdmin: { owner: OWNER_C },
         },
       );
-      expect(txs.length).to.equal(1);
-      expect(txs[0].annotation).to.include(OWNER_B);
+      expect(txs.length).toBe(1);
+      expect(txs[0].annotation).toContain(OWNER_B);
     });
 
     it('should return empty array when owners match via ownerOverrides', () => {
@@ -194,7 +194,7 @@ describe('proxy utilities', () => {
         },
         { owner: OWNER_B, ownerOverrides: { proxyAdmin: OWNER_A } },
       );
-      expect(txs.length).to.equal(0);
+      expect(txs.length).toBe(0);
     });
 
     it('should fall back to top-level owner when no proxyAdmin config or ownerOverrides', () => {
@@ -207,8 +207,8 @@ describe('proxy utilities', () => {
         },
         { owner: OWNER_B },
       );
-      expect(txs.length).to.equal(1);
-      expect(txs[0].annotation).to.include(OWNER_B);
+      expect(txs.length).toBe(1);
+      expect(txs[0].annotation).toContain(OWNER_B);
     });
   });
 });

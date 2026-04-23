@@ -21,7 +21,7 @@
  * - Mailbox: MockMailbox for instant message delivery (user transfers)
  * - Bridge: MockValueTransferBridge for delayed delivery (rebalancer transfers)
  */
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import { ethers } from 'ethers';
 
 import { toWei } from '@hyperlane-xyz/utils';
@@ -71,14 +71,14 @@ describe('Multi-Domain Deployment', () => {
     });
 
     // Verify all domains deployed
-    expect(Object.keys(result.domains).length).to.equal(3);
+    expect(Object.keys(result.domains).length).toBe(3);
 
     for (const [chainName, domain] of Object.entries(result.domains)) {
-      expect(domain.chainName).to.equal(chainName);
-      expect(domain.mailbox).to.match(/^0x[a-fA-F0-9]{40}$/);
-      expect(domain.warpToken).to.match(/^0x[a-fA-F0-9]{40}$/);
-      expect(domain.collateralToken).to.match(/^0x[a-fA-F0-9]{40}$/);
-      expect(domain.bridge).to.match(/^0x[a-fA-F0-9]{40}$/);
+      expect(domain.chainName).toBe(chainName);
+      expect(domain.mailbox).toMatch(/^0x[a-fA-F0-9]{40}$/);
+      expect(domain.warpToken).toMatch(/^0x[a-fA-F0-9]{40}$/);
+      expect(domain.collateralToken).toMatch(/^0x[a-fA-F0-9]{40}$/);
+      expect(domain.bridge).toMatch(/^0x[a-fA-F0-9]{40}$/);
 
       // Verify balances
       const balance = await getWarpTokenBalance(
@@ -86,7 +86,7 @@ describe('Multi-Domain Deployment', () => {
         domain.warpToken,
         domain.collateralToken,
       );
-      expect(balance.toString()).to.equal(toWei(100));
+      expect(balance.toString()).toBe(toWei(100));
     }
   });
 });

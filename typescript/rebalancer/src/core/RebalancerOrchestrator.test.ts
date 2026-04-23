@@ -1,5 +1,4 @@
-import chai, { expect } from 'chai';
-import chaiAsPromised from 'chai-as-promised';
+import { expect } from 'vitest';
 import { pino } from 'pino';
 import Sinon from 'sinon';
 
@@ -22,8 +21,6 @@ import {
   RebalancerOrchestrator,
   type RebalancerOrchestratorDeps,
 } from './RebalancerOrchestrator.js';
-
-chai.use(chaiAsPromised);
 
 const testLogger = pino({ level: 'silent' });
 
@@ -215,10 +212,10 @@ describe('RebalancerOrchestrator', () => {
 
       const result = await orchestrator.executeCycle(event);
 
-      expect(result.proposedRoutes).to.have.lengthOf(0);
-      expect(result.executedCount).to.equal(0);
-      expect(result.failedCount).to.equal(0);
-      expect(strategy.getRebalancingRoutes.calledOnce).to.be.true;
+      expect(result.proposedRoutes).toHaveLength(0);
+      expect(result.executedCount).toBe(0);
+      expect(result.failedCount).toBe(0);
+      expect(strategy.getRebalancingRoutes.calledOnce).toBe(true);
     });
 
     it('should sync action tracker even when no routes', async () => {
@@ -242,12 +239,15 @@ describe('RebalancerOrchestrator', () => {
 
       await orchestrator.executeCycle(event);
 
-      expect((actionTracker.syncTransfers as Sinon.SinonStub).calledOnce).to.be
-        .true;
-      expect((actionTracker.syncRebalanceIntents as Sinon.SinonStub).calledOnce)
-        .to.be.true;
-      expect((actionTracker.syncRebalanceActions as Sinon.SinonStub).calledOnce)
-        .to.be.true;
+      expect((actionTracker.syncTransfers as Sinon.SinonStub).calledOnce).toBe(
+        true,
+      );
+      expect(
+        (actionTracker.syncRebalanceIntents as Sinon.SinonStub).calledOnce,
+      ).toBe(true);
+      expect(
+        (actionTracker.syncRebalanceActions as Sinon.SinonStub).calledOnce,
+      ).toBe(true);
     });
   });
 
@@ -299,10 +299,10 @@ describe('RebalancerOrchestrator', () => {
 
       const result = await orchestrator.executeCycle(event);
 
-      expect(result.proposedRoutes).to.have.lengthOf(1);
-      expect(result.executedCount).to.equal(1);
-      expect(result.failedCount).to.equal(0);
-      expect(rebalancer.rebalance.calledOnce).to.be.true;
+      expect(result.proposedRoutes).toHaveLength(1);
+      expect(result.executedCount).toBe(1);
+      expect(result.failedCount).toBe(0);
+      expect(rebalancer.rebalance.calledOnce).toBe(true);
     });
 
     it('should handle failed movable collateral routes', async () => {
@@ -349,9 +349,9 @@ describe('RebalancerOrchestrator', () => {
 
       const result = await orchestrator.executeCycle(event);
 
-      expect(result.proposedRoutes).to.have.lengthOf(1);
-      expect(result.executedCount).to.equal(0);
-      expect(result.failedCount).to.equal(1);
+      expect(result.proposedRoutes).toHaveLength(1);
+      expect(result.executedCount).toBe(0);
+      expect(result.failedCount).toBe(1);
     });
   });
 
@@ -420,8 +420,8 @@ describe('RebalancerOrchestrator', () => {
 
       const result = await orchestrator.executeCycle(event);
 
-      expect(result.proposedRoutes).to.have.lengthOf(1);
-      expect(inventoryRebalancer.rebalance.calledOnce).to.be.true;
+      expect(result.proposedRoutes).toHaveLength(1);
+      expect(inventoryRebalancer.rebalance.calledOnce).toBe(true);
     });
   });
 
@@ -518,11 +518,11 @@ describe('RebalancerOrchestrator', () => {
 
       const result = await orchestrator.executeCycle(event);
 
-      expect(result.proposedRoutes).to.have.lengthOf(2);
-      expect(result.executedCount).to.equal(1);
-      expect(result.failedCount).to.equal(0);
-      expect(rebalancer.rebalance.calledOnce).to.be.true;
-      expect(inventoryRebalancer.rebalance.calledOnce).to.be.true;
+      expect(result.proposedRoutes).toHaveLength(2);
+      expect(result.executedCount).toBe(1);
+      expect(result.failedCount).toBe(0);
+      expect(rebalancer.rebalance.calledOnce).toBe(true);
+      expect(inventoryRebalancer.rebalance.calledOnce).toBe(true);
     });
   });
 
@@ -574,8 +574,8 @@ describe('RebalancerOrchestrator', () => {
 
       await orchestrator.executeCycle(event);
 
-      expect(inventoryRebalancer.rebalance.calledOnce).to.be.true;
-      expect(inventoryRebalancer.rebalance.calledWith([])).to.be.true;
+      expect(inventoryRebalancer.rebalance.calledOnce).toBe(true);
+      expect(inventoryRebalancer.rebalance.calledWith([])).toBe(true);
     });
 
     it('should NOT call inventoryRebalancer.rebalance([]) when routes are proposed', async () => {
@@ -642,8 +642,8 @@ describe('RebalancerOrchestrator', () => {
 
       await orchestrator.executeCycle(event);
 
-      expect(inventoryRebalancer.rebalance.calledOnce).to.be.true;
-      expect(inventoryRebalancer.rebalance.calledWith([])).to.be.false;
+      expect(inventoryRebalancer.rebalance.calledOnce).toBe(true);
+      expect(inventoryRebalancer.rebalance.calledWith([])).toBe(false);
     });
 
     it('should NOT call inventoryRebalancer.rebalance([]) when inventoryRebalancer is not in rebalancers', async () => {
@@ -696,8 +696,8 @@ describe('RebalancerOrchestrator', () => {
 
       const result = await orchestrator.executeCycle(event);
 
-      expect(result.proposedRoutes).to.have.lengthOf(0);
-      expect(strategy.getRebalancingRoutes.calledOnce).to.be.true;
+      expect(result.proposedRoutes).toHaveLength(0);
+      expect(strategy.getRebalancingRoutes.calledOnce).toBe(true);
     });
 
     it('should sync inventory movement actions when bridge is provided', async () => {
@@ -726,12 +726,12 @@ describe('RebalancerOrchestrator', () => {
       expect(
         (actionTracker.syncInventoryMovementActions as Sinon.SinonStub)
           .calledOnce,
-      ).to.be.true;
+      ).toBe(true);
       expect(
         (
           actionTracker.syncInventoryMovementActions as Sinon.SinonStub
         ).calledWith({ lifi: bridge }),
-      ).to.be.true;
+      ).toBe(true);
     });
   });
 
@@ -783,10 +783,12 @@ describe('RebalancerOrchestrator', () => {
 
       await orchestrator.executeCycle(event);
 
-      expect((metrics.recordRebalancerSuccess as Sinon.SinonStub).calledOnce).to
-        .be.true;
-      expect((metrics.recordRebalancerFailure as Sinon.SinonStub).called).to.be
-        .false;
+      expect(
+        (metrics.recordRebalancerSuccess as Sinon.SinonStub).calledOnce,
+      ).toBe(true);
+      expect((metrics.recordRebalancerFailure as Sinon.SinonStub).called).toBe(
+        false,
+      );
     });
 
     it('should record failure metric when any route fails', async () => {
@@ -835,10 +837,12 @@ describe('RebalancerOrchestrator', () => {
 
       await orchestrator.executeCycle(event);
 
-      expect((metrics.recordRebalancerFailure as Sinon.SinonStub).calledOnce).to
-        .be.true;
-      expect((metrics.recordRebalancerSuccess as Sinon.SinonStub).called).to.be
-        .false;
+      expect(
+        (metrics.recordRebalancerFailure as Sinon.SinonStub).calledOnce,
+      ).toBe(true);
+      expect((metrics.recordRebalancerSuccess as Sinon.SinonStub).called).toBe(
+        false,
+      );
     });
 
     it('should process token metrics when metrics is provided', async () => {
@@ -864,7 +868,7 @@ describe('RebalancerOrchestrator', () => {
 
       await orchestrator.executeCycle(event);
 
-      expect((metrics.processToken as Sinon.SinonStub).calledTwice).to.be.true;
+      expect((metrics.processToken as Sinon.SinonStub).calledTwice).toBe(true);
     });
   });
 });

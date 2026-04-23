@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import fs from 'fs';
 import sinon from 'sinon';
 import { parse as yamlParse } from 'yaml';
@@ -97,26 +97,27 @@ describe('WarpCore', () => {
       fs.readFileSync('./src/warp/test-warp-core-config.yaml', 'utf-8'),
     );
     const fromConfig = WarpCore.FromConfig(multiProvider, exampleConfig);
-    expect(fromArgs).to.be.instanceOf(WarpCore);
-    expect(fromConfig).to.be.instanceOf(WarpCore);
-    expect(fromConfig.tokens.length).to.equal(exampleConfig.tokens.length);
+    expect(fromArgs).toBeInstanceOf(WarpCore);
+    expect(fromConfig).toBeInstanceOf(WarpCore);
+    expect(fromConfig.tokens.length).toBe(exampleConfig.tokens.length);
   });
 
   it('Finds tokens', () => {
     expect(
       warpCore.findToken(test1.name, evmHypNative.addressOrDenom),
-    ).to.be.instanceOf(Token);
+    ).toBeInstanceOf(Token);
     expect(
       warpCore.findToken(
         testSealevelChain.name,
         sealevelHypSynthetic.addressOrDenom,
       ),
-    ).to.be.instanceOf(Token);
+    ).toBeInstanceOf(Token);
     expect(
       warpCore.findToken(testCosmosChain.name, cw20.addressOrDenom),
-    ).to.be.instanceOf(Token);
-    expect(warpCore.findToken(test1.name, sealevelHypSynthetic.addressOrDenom))
-      .to.be.null;
+    ).toBeInstanceOf(Token);
+    expect(
+      warpCore.findToken(test1.name, sealevelHypSynthetic.addressOrDenom),
+    ).toBeNull();
   });
 
   it('Gets transfer gas quote', async () => {
@@ -156,7 +157,7 @@ describe('WarpCore', () => {
       expect(
         result.localQuote.amount,
         `token local amount check for ${token.chainName} to ${destination}`,
-      ).to.equal(MOCK_LOCAL_QUOTE.fee);
+      ).toBe(MOCK_LOCAL_QUOTE.fee);
       expect(
         result.interchainQuote.token.standard,
         `token interchain standard check for ${token.chainName} to ${destination}`,
@@ -164,11 +165,11 @@ describe('WarpCore', () => {
       expect(
         result.interchainQuote.amount,
         `token interchain amount check for ${token.chainName} to ${destination}`,
-      ).to.equal(interchainQuote.igpQuote.amount);
+      ).toBe(interchainQuote.igpQuote.amount);
       expect(
         result.tokenFeeQuote?.amount,
         `token fee amount check for ${token.chainName} to ${destination}`,
-      ).to.equal(interchainQuote.tokenFeeQuote?.amount);
+      ).toBe(interchainQuote.tokenFeeQuote?.amount);
     };
 
     await testQuote(evmHypNative, test1.name, TokenStandard.EvmNative);
@@ -218,7 +219,7 @@ describe('WarpCore', () => {
       expect(
         smallResult,
         `small collateral check for ${token.chainName} to ${destination}`,
-      ).to.be.true;
+      ).toBe(true);
       const bigResult = await warpCore.isDestinationCollateralSufficient({
         originTokenAmount: token.amount(BIG_TRANSFER_AMOUNT),
         destination,
@@ -226,7 +227,7 @@ describe('WarpCore', () => {
       expect(
         bigResult,
         `big collateral check for ${token.chainName} to ${destination}`,
-      ).to.equal(expectedBigResult);
+      ).toBe(expectedBigResult);
     };
 
     await testCollateral(evmHypNative, test2.name, true);
@@ -264,7 +265,7 @@ describe('WarpCore', () => {
       expect(
         result,
         `collateral check for ${token.chainName} to ${destination}`,
-      ).to.equal(expectedResult);
+      ).toBe(expectedResult);
     };
 
     const originalScale1 = evmHypNativeScale1.scale;
@@ -333,13 +334,13 @@ describe('WarpCore', () => {
           originTokenAmount: originToken.amount(1_000_000_000_000_000_000n),
           destination: test2.name,
         }),
-      ).to.be.true;
+      ).toBe(true);
       expect(
         await mixedDecimalWarpCore.isDestinationCollateralSufficient({
           originTokenAmount: originToken.amount(1_000_000_000_000_000_001n),
           destination: test2.name,
         }),
-      ).to.be.false;
+      ).toBe(false);
     } finally {
       originStub.restore();
       destinationStub.restore();
@@ -388,13 +389,13 @@ describe('WarpCore', () => {
           originTokenAmount: originToken.amount(500_000_000_000_000_000n),
           destination: test2.name,
         }),
-      ).to.be.true;
+      ).toBe(true);
       expect(
         await scaledWarpCore.isDestinationCollateralSufficient({
           originTokenAmount: originToken.amount(750_000_000_000_000_000n),
           destination: test2.name,
         }),
-      ).to.be.false;
+      ).toBe(false);
     } finally {
       originStub.restore();
       destinationStub.restore();
@@ -449,7 +450,7 @@ describe('WarpCore', () => {
           originTokenAmount: originToken.amount(1n),
           destination: test2.name,
         }),
-      ).to.be.false;
+      ).toBe(false);
 
       // Give dest enough balance: 500_000_000_000_000_000 * 2 / 1e12 = 1_000_000
       destinationStub.restore();
@@ -465,7 +466,7 @@ describe('WarpCore', () => {
           originTokenAmount: originToken.amount(1_000_000n),
           destination: test2.name,
         }),
-      ).to.be.true;
+      ).toBe(true);
 
       destinationStub2.restore();
     } finally {
@@ -524,7 +525,7 @@ describe('WarpCore', () => {
           originTokenAmount: originToken.amount(1_000_000_000_000_000_000n),
           destination: test2.name,
         }),
-      ).to.be.true;
+      ).toBe(true);
 
       // origin 2e18 → message = 2_000_000
       // dest message = 1_000_000 → insufficient
@@ -533,7 +534,7 @@ describe('WarpCore', () => {
           originTokenAmount: originToken.amount(2_000_000_000_000_000_000n),
           destination: test2.name,
         }),
-      ).to.be.false;
+      ).toBe(false);
     } finally {
       originStub.restore();
       destinationStub.restore();
@@ -566,7 +567,7 @@ describe('WarpCore', () => {
       recipient: MOCK_ADDRESS,
       sender: MOCK_ADDRESS,
     });
-    expect(validResult).to.be.null;
+    expect(validResult).toBeNull();
 
     const invalidChain = await warpCore.validateTransfer({
       originTokenAmount: evmHypNative.amount(TRANSFER_AMOUNT),
@@ -574,7 +575,7 @@ describe('WarpCore', () => {
       recipient: MOCK_ADDRESS,
       sender: MOCK_ADDRESS,
     });
-    expect(Object.keys(invalidChain || {})[0]).to.equal('destination');
+    expect(Object.keys(invalidChain || {})[0]).toBe('destination');
 
     const invalidRecipient = await warpCore.validateTransfer({
       originTokenAmount: evmHypNative.amount(TRANSFER_AMOUNT),
@@ -582,7 +583,7 @@ describe('WarpCore', () => {
       recipient: MOCK_ADDRESS,
       sender: MOCK_ADDRESS,
     });
-    expect(Object.keys(invalidRecipient || {})[0]).to.equal('recipient');
+    expect(Object.keys(invalidRecipient || {})[0]).toBe('recipient');
 
     const invalidAmount = await warpCore.validateTransfer({
       originTokenAmount: evmHypNative.amount(-10),
@@ -590,7 +591,7 @@ describe('WarpCore', () => {
       recipient: MOCK_ADDRESS,
       sender: MOCK_ADDRESS,
     });
-    expect(Object.keys(invalidAmount || {})[0]).to.equal('amount');
+    expect(Object.keys(invalidAmount || {})[0]).toBe('amount');
 
     const insufficientAmount = await warpCore.validateTransfer({
       originTokenAmount: evmHypNative.amount(minimumTransferAmount - 1n),
@@ -598,7 +599,7 @@ describe('WarpCore', () => {
       recipient: MOCK_ADDRESS,
       sender: MOCK_ADDRESS,
     });
-    expect(Object.keys(insufficientAmount || {})[0]).to.equal('amount');
+    expect(Object.keys(insufficientAmount || {})[0]).toBe('amount');
 
     const insufficientBalance = await warpCore.validateTransfer({
       originTokenAmount: evmHypNative.amount(BIG_TRANSFER_AMOUNT),
@@ -606,7 +607,7 @@ describe('WarpCore', () => {
       recipient: MOCK_ADDRESS,
       sender: MOCK_ADDRESS,
     });
-    expect(Object.keys(insufficientBalance || {})[0]).to.equal('amount');
+    expect(Object.keys(insufficientBalance || {})[0]).toBe('amount');
 
     const validXERC20TokenResult = await warpCore.validateTransfer({
       originTokenAmount: evmHypNative.amount(TRANSFER_AMOUNT),
@@ -614,7 +615,7 @@ describe('WarpCore', () => {
       recipient: MOCK_ADDRESS,
       sender: MOCK_ADDRESS,
     });
-    expect(validXERC20TokenResult).to.be.null;
+    expect(validXERC20TokenResult).toBeNull();
 
     const invalidRateLimit = await warpCore.validateTransfer({
       originTokenAmount: evmHypNative.amount(BIG_TRANSFER_AMOUNT),
@@ -622,7 +623,7 @@ describe('WarpCore', () => {
       recipient: MOCK_ADDRESS,
       sender: MOCK_ADDRESS,
     });
-    expect(Object.values(invalidRateLimit || {})[0]).to.equal(
+    expect(Object.values(invalidRateLimit || {})[0]).toBe(
       'Rate limit exceeded on destination',
     );
 
@@ -632,7 +633,7 @@ describe('WarpCore', () => {
       recipient: MOCK_ADDRESS,
       sender: MOCK_ADDRESS,
     });
-    expect(Object.values(invalidXERC20LockboxTokenRateLimit || {})[0]).to.equal(
+    expect(Object.values(invalidXERC20LockboxTokenRateLimit || {})[0]).toBe(
       'Rate limit exceeded on destination',
     );
 
@@ -644,9 +645,9 @@ describe('WarpCore', () => {
         sender: MOCK_ADDRESS,
       },
     );
-    expect(
-      Object.values(invalidCollateralFiatTokenRateLimit || {})[0],
-    ).to.equal('Rate limit exceeded on destination');
+    expect(Object.values(invalidCollateralFiatTokenRateLimit || {})[0]).toBe(
+      'Rate limit exceeded on destination',
+    );
 
     const invalidCollateralXERC20LockboxToken = await warpCore.validateTransfer(
       {
@@ -656,9 +657,9 @@ describe('WarpCore', () => {
         sender: MOCK_ADDRESS,
       },
     );
-    expect(
-      Object.values(invalidCollateralXERC20LockboxToken || {})[0],
-    ).to.equal('Insufficient collateral on destination');
+    expect(Object.values(invalidCollateralXERC20LockboxToken || {})[0]).toBe(
+      'Insufficient collateral on destination',
+    );
 
     balanceStubs.forEach((s) => {
       s.restore();
@@ -695,7 +696,7 @@ describe('WarpCore', () => {
       sender: MOCK_ADDRESS,
       destinationToken: evmHypCollateralFiat,
     });
-    expect(Object.values(invalidDestinationToken || {})[0]).to.equal(
+    expect(Object.values(invalidDestinationToken || {})[0]).toBe(
       `Destination token chain mismatch for ${test2.name}`,
     );
 
@@ -706,7 +707,7 @@ describe('WarpCore', () => {
       sender: MOCK_ADDRESS,
       destinationToken: evmHypSynthetic,
     });
-    expect(validDestinationToken).to.be.null;
+    expect(validDestinationToken).toBeNull();
 
     balanceStubs.forEach((s) => {
       s.restore();
@@ -756,8 +757,8 @@ describe('WarpCore', () => {
       test2.name,
       extraTest2Address,
     );
-    expect(ambiguousOrigin).to.not.be.null;
-    expect(extraDestination).to.not.be.null;
+    expect(ambiguousOrigin).not.toBeNull();
+    expect(extraDestination).not.toBeNull();
 
     const balanceStubs = ambiguousWarpCore.tokens.map((t) =>
       sinon.stub(t, 'getBalance').resolves({ amount: MOCK_BALANCE } as any),
@@ -784,7 +785,7 @@ describe('WarpCore', () => {
       recipient: MOCK_ADDRESS,
       sender: MOCK_ADDRESS,
     });
-    expect(Object.values(ambiguousValidation || {})[0]).to.equal(
+    expect(Object.values(ambiguousValidation || {})[0]).toBe(
       `Ambiguous route to ${test2.name}; specify destination token`,
     );
 
@@ -795,7 +796,7 @@ describe('WarpCore', () => {
       sender: MOCK_ADDRESS,
       destinationToken: extraDestination!,
     });
-    expect(explicitValidation).to.be.null;
+    expect(explicitValidation).toBeNull();
 
     balanceStubs.forEach((s) => s.restore());
     quoteStubs.forEach((s) => s.restore());
@@ -842,7 +843,7 @@ describe('WarpCore', () => {
         destinationToken: evmHypSynthetic,
       });
 
-      expect(result.length).to.equal(2);
+      expect(result.length).toBe(2);
       sinon.assert.calledWithExactly(
         isApproveRequired,
         MOCK_ADDRESS,
@@ -904,8 +905,8 @@ describe('WarpCore', () => {
         thrown = error as Error;
       }
 
-      expect(thrown).to.not.equal(undefined);
-      expect(thrown!.message).to.contain(
+      expect(thrown).not.toBe(undefined);
+      expect(thrown!.message).toContain(
         'CrossCollateralRouter transferRemoteTo requires native IGP fee',
       );
     } finally {
@@ -936,14 +937,14 @@ describe('WarpCore', () => {
         destination: cwHypCollateral.chainName,
         destinationToken: cwHypCollateral,
       });
-      expect(smallResult).to.equal(true);
+      expect(smallResult).toBe(true);
 
       const bigResult = await warpCore.isDestinationCollateralSufficient({
         originTokenAmount: evmHypNative.amount(11n),
         destination: cwHypCollateral.chainName,
         destinationToken: cwHypCollateral,
       });
-      expect(bigResult).to.equal(false);
+      expect(bigResult).toBe(false);
     } finally {
       destinationAdapterStub.restore();
       originMultiStub.restore();
@@ -993,10 +994,10 @@ describe('WarpCore', () => {
         destinationToken: evmHypSynthetic,
       });
 
-      expect(result.length).to.equal(3);
-      expect(result[0].category).to.equal(WarpTxCategory.Revoke);
-      expect(result[1].category).to.equal(WarpTxCategory.Approval);
-      expect(result[2].category).to.equal(WarpTxCategory.Transfer);
+      expect(result.length).toBe(3);
+      expect(result[0].category).toBe(WarpTxCategory.Revoke);
+      expect(result[1].category).toBe(WarpTxCategory.Approval);
+      expect(result[2].category).toBe(WarpTxCategory.Transfer);
 
       sinon.assert.calledWithMatch(populateApproveTx.firstCall, {
         weiAmountOrId: 0,
@@ -1043,8 +1044,8 @@ describe('WarpCore', () => {
         destinationToken: evmHypSynthetic,
       });
 
-      expect(quote.igpQuote.amount).to.equal(42n);
-      expect(quote.tokenFeeQuote?.amount).to.equal(11n);
+      expect(quote.igpQuote.amount).toBe(42n);
+      expect(quote.tokenFeeQuote?.amount).toBe(11n);
       sinon.assert.calledWithMatch(quoteTransferRemoteToGas, {
         destination: test2.domainId,
         recipient: MOCK_ADDRESS,
@@ -1088,11 +1089,11 @@ describe('WarpCore', () => {
         destinationToken: evmHypSynthetic,
       });
 
-      expect(quote.interchainQuote.amount).to.equal(42n);
-      expect(quote.interchainQuote.token.addressOrDenom).to.equal(
+      expect(quote.interchainQuote.amount).toBe(42n);
+      expect(quote.interchainQuote.token.addressOrDenom).toBe(
         evmHypNative.addressOrDenom,
       );
-      expect(quote.localQuote.amount).to.equal(7n);
+      expect(quote.localQuote.amount).toBe(7n);
     } finally {
       localFeeAmountStub.restore();
       adapterStub.restore();
@@ -1134,9 +1135,9 @@ describe('WarpCore', () => {
         error = e as Error;
       }
 
-      expect(error).to.exist;
-      expect(error!.message).to.contain('is not connected');
-      expect(quoteTransferRemoteToGas.called).to.equal(false);
+      expect(error).toBeDefined();
+      expect(error!.message).toContain('is not connected');
+      expect(quoteTransferRemoteToGas.called).toBe(false);
     } finally {
       invalidDestinationMultiStub.restore();
       adapterStub.restore();
@@ -1192,7 +1193,7 @@ describe('WarpCore', () => {
           sealevelCrossCollateral,
           evmCrossCollateral,
         ),
-      ).to.equal(true);
+      ).toBe(true);
 
       const result = await crossCollateralWarpCore.getTransferRemoteTxs({
         originTokenAmount: sealevelCrossCollateral.amount(TRANSFER_AMOUNT),
@@ -1202,8 +1203,8 @@ describe('WarpCore', () => {
         destinationToken: evmCrossCollateral,
       });
 
-      expect(result).to.have.length(1);
-      expect(result[0].category).to.equal(WarpTxCategory.Transfer);
+      expect(result).toHaveLength(1);
+      expect(result[0].category).toBe(WarpTxCategory.Transfer);
       sinon.assert.calledOnce(populateTransferRemoteToTx);
       sinon.assert.notCalled(populateTransferRemoteTx);
     } finally {
@@ -1234,7 +1235,7 @@ describe('WarpCore', () => {
         MOCK_ADDRESS,
         sealevelHypSynthetic,
       );
-      expect(belowMinimum?.amount).to.contain('Minimum transfer amount');
+      expect(belowMinimum?.amount).toContain('Minimum transfer amount');
 
       const atMinimum = await (
         warpCore as unknown as {
@@ -1251,7 +1252,7 @@ describe('WarpCore', () => {
         MOCK_ADDRESS,
         sealevelHypSynthetic,
       );
-      expect(atMinimum).to.be.null;
+      expect(atMinimum).toBeNull();
     } finally {
       destinationAdapterStub.restore();
     }
@@ -1283,20 +1284,20 @@ describe('WarpCore', () => {
         sender: MOCK_ADDRESS,
         recipient: MOCK_ADDRESS,
       });
-      expect(result.length).to.equal(1);
+      expect(result.length).toBe(1);
       if (expectExtraSigners) {
         const tx = result[0];
-        expect(tx.category).to.equal(WarpTxCategory.Transfer);
-        expect(tx.type).to.equal(providerType);
-        expect(tx.transaction).to.eql({});
+        expect(tx.category).toBe(WarpTxCategory.Transfer);
+        expect(tx.type).toBe(providerType);
+        expect(tx.transaction).toEqual({});
         if (tx.type === ProviderType.SolanaWeb3) {
-          expect(tx.extraSigners).to.be.an('array').with.lengthOf(1);
+          expect(tx.extraSigners).toHaveLength(1);
         }
       } else {
         expect(
           result[0],
           `transfer tx for ${token.chainName} to ${destination}`,
-        ).to.eql({
+        ).toEqual({
           category: WarpTxCategory.Transfer,
           transaction: {},
           type: providerType,
@@ -1393,9 +1394,9 @@ describe('WarpCore', () => {
         quotedCalls,
       });
 
-      expect(result.igpQuote.amount).to.equal(500n);
-      expect(result.tokenFeeQuote?.amount).to.equal(150n); // (TRANSFER_AMOUNT+100+50) - TRANSFER_AMOUNT
-      expect(result.feeQuotes).to.have.length(2);
+      expect(result.igpQuote.amount).toBe(500n);
+      expect(result.tokenFeeQuote?.amount).toBe(150n); // (TRANSFER_AMOUNT+100+50) - TRANSFER_AMOUNT
+      expect(result.feeQuotes).toHaveLength(2);
     } finally {
       providerStub.restore();
     }
@@ -1443,10 +1444,10 @@ describe('WarpCore', () => {
       });
 
       // Should have [Approval, Transfer]
-      expect(result.length).to.equal(2);
-      expect(result[0].category).to.equal(WarpTxCategory.Approval);
-      expect(result[1].category).to.equal(WarpTxCategory.Transfer);
-      expect(result[1].type).to.equal(ProviderType.EthersV5);
+      expect(result.length).toBe(2);
+      expect(result[0].category).toBe(WarpTxCategory.Approval);
+      expect(result[1].category).toBe(WarpTxCategory.Transfer);
+      expect(result[1].type).toBe(ProviderType.EthersV5);
     } finally {
       providerStub.restore();
       adapterStubs.forEach((s) => s.restore());
@@ -1489,8 +1490,8 @@ describe('WarpCore', () => {
     });
 
     // No approval needed, just Transfer
-    expect(result.length).to.equal(1);
-    expect(result[0].category).to.equal(WarpTxCategory.Transfer);
+    expect(result.length).toBe(1);
+    expect(result[0].category).toBe(WarpTxCategory.Transfer);
 
     adapterStubs.forEach((s) => s.restore());
   });

@@ -333,12 +333,6 @@ importers:
         specifier: ^2.26.2
         version: 2.27.12
     devDependencies:
-      chai:
-        specifier: 'catalog:'
-        version: 4.5.0
-      chai-as-promised:
-        specifier: 'catalog:'
-        version: 8.0.2(chai@4.5.0)
       husky:
         specifier: ^8.0.0
         version: 8.0.1
@@ -366,9 +360,6 @@ importers:
       turbo:
         specifier: ^2.8.11
         version: 2.8.11
-      vitest:
-        specifier: 'catalog:'
-        version: 4.1.4(@opentelemetry/api@1.9.0)(@types/node@24.10.9)(@vitest/coverage-v8@4.1.4)(jsdom@20.0.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(vite@7.3.2(@types/node@24.10.9)(jiti@2.6.1)(terser@5.44.1)(tsx@4.19.1)(yaml@2.8.1))
 
   solhint-plugin: {}
 
@@ -636,9 +627,6 @@ importers:
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
         version: link:../tsconfig
-      '@types/chai':
-        specifier: 'catalog:'
-        version: 4.3.20
       '@types/cors':
         specifier: ^2
         version: 2.8.19
@@ -660,9 +648,6 @@ importers:
       '@vercel/ncc':
         specifier: 'catalog:'
         version: 0.38.4
-      chai:
-        specifier: 'catalog:'
-        version: 4.5.0
       nodemon:
         specifier: ^3.0.3
         version: 3.1.11
@@ -1011,27 +996,12 @@ importers:
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
         version: link:../tsconfig
-      '@types/chai':
-        specifier: 'catalog:'
-        version: 4.3.20
-      '@types/chai-as-promised':
-        specifier: 'catalog:'
-        version: 8.0.2
       '@types/node':
         specifier: 'catalog:'
         version: 24.10.9
       '@types/sinon':
         specifier: 'catalog:'
         version: 17.0.4
-      '@types/sinon-chai':
-        specifier: 'catalog:'
-        version: 3.2.12
-      chai:
-        specifier: 'catalog:'
-        version: 4.5.0
-      chai-as-promised:
-        specifier: 'catalog:'
-        version: 8.0.2(chai@4.5.0)
       sinon:
         specifier: 'catalog:'
         version: 13.0.2
@@ -1090,9 +1060,6 @@ importers:
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
         version: link:../tsconfig
-      '@types/chai':
-        specifier: 'catalog:'
-        version: 4.3.20
       '@types/cors':
         specifier: ^2
         version: 2.8.19
@@ -1114,9 +1081,6 @@ importers:
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 4.1.4(vitest@4.1.4)
-      chai:
-        specifier: 'catalog:'
-        version: 4.5.0
       supertest:
         specifier: ^7.0.0
         version: 7.2.2
@@ -1147,9 +1111,6 @@ importers:
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
         version: link:../tsconfig
-      chai:
-        specifier: 'catalog:'
-        version: 4.5.0
       typescript:
         specifier: 'catalog:'
         version: 6.0.2
@@ -1302,12 +1263,6 @@ importers:
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
         version: link:../tsconfig
-      '@types/chai':
-        specifier: 'catalog:'
-        version: 4.3.20
-      '@types/chai-as-promised':
-        specifier: 'catalog:'
-        version: 8.0.2
       '@types/express':
         specifier: ^5.0.3
         version: 5.0.5
@@ -1323,12 +1278,6 @@ importers:
       '@types/yargs':
         specifier: 'catalog:'
         version: 17.0.35
-      chai:
-        specifier: 'catalog:'
-        version: 4.5.0
-      chai-as-promised:
-        specifier: 'catalog:'
-        version: 8.0.2(chai@4.5.0)
       oxfmt:
         specifier: 'catalog:'
         version: 0.42.0
@@ -1667,12 +1616,6 @@ importers:
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
         version: link:../tsconfig
-      '@types/chai':
-        specifier: 'catalog:'
-        version: 4.3.20
-      '@types/chai-as-promised':
-        specifier: 'catalog:'
-        version: 8.0.2
       '@types/node':
         specifier: 'catalog:'
         version: 24.10.9
@@ -1682,12 +1625,6 @@ importers:
       '@vercel/ncc':
         specifier: 'catalog:'
         version: 0.38.4
-      chai:
-        specifier: 'catalog:'
-        version: 4.5.0
-      chai-as-promised:
-        specifier: 'catalog:'
-        version: 8.0.2(chai@4.5.0)
       oxfmt:
         specifier: 'catalog:'
         version: 0.42.0
@@ -1731,18 +1668,12 @@ importers:
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
         version: link:../tsconfig
-      '@types/chai':
-        specifier: 'catalog:'
-        version: 4.3.20
       '@types/node':
         specifier: 'catalog:'
         version: 24.10.9
       '@types/sinon':
         specifier: 'catalog:'
         version: 17.0.4
-      chai:
-        specifier: 'catalog:'
-        version: 4.5.0
       oxfmt:
         specifier: 'catalog:'
         version: 0.42.0
@@ -1777,15 +1708,9 @@ importers:
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
         version: link:../tsconfig
-      '@types/chai':
-        specifier: 'catalog:'
-        version: 4.3.20
       '@types/node':
         specifier: 'catalog:'
         version: 24.10.9
-      chai:
-        specifier: 'catalog:'
-        version: 4.5.0
       tsx:
         specifier: 'catalog:'
         version: 4.19.1
@@ -2047,21 +1972,9 @@ importers:
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
         version: link:../tsconfig
-      '@types/chai':
-        specifier: 'catalog:'
-        version: 4.3.20
-      '@types/chai-as-promised':
-        specifier: 'catalog:'
-        version: 8.0.2
       '@types/node':
         specifier: 'catalog:'
         version: 24.10.9
-      chai:
-        specifier: 'catalog:'
-        version: 4.5.0
-      chai-as-promised:
-        specifier: 'catalog:'
-        version: 8.0.2(chai@4.5.0)
       testcontainers:
         specifier: 'catalog:'
         version: 11.12.0
@@ -2658,9 +2571,6 @@ importers:
       '@types/bs58':
         specifier: 'catalog:'
         version: 5.0.0
-      '@types/chai':
-        specifier: 'catalog:'
-        version: 4.3.20
       '@types/lodash-es':
         specifier: 'catalog:'
         version: 4.17.12
@@ -2670,12 +2580,6 @@ importers:
       '@types/sinon':
         specifier: 'catalog:'
         version: 17.0.4
-      '@types/sinon-chai':
-        specifier: 'catalog:'
-        version: 3.2.12
-      chai:
-        specifier: 'catalog:'
-        version: 4.5.0
       sinon:
         specifier: 'catalog:'
         version: 13.0.2
@@ -2722,9 +2626,6 @@ importers:
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
         version: link:../tsconfig
-      '@types/chai':
-        specifier: 'catalog:'
-        version: 4.3.20
       '@types/node':
         specifier: 'catalog:'
         version: 24.10.9
@@ -2734,9 +2635,6 @@ importers:
       '@vercel/ncc':
         specifier: 'catalog:'
         version: 0.38.4
-      chai:
-        specifier: 'catalog:'
-        version: 4.5.0
       oxfmt:
         specifier: 'catalog:'
         version: 0.42.0

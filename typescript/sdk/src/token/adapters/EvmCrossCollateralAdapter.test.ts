@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import { BigNumber } from 'ethers';
 import sinon from 'sinon';
 
@@ -46,9 +46,9 @@ describe('EvmHypCrossCollateralAdapter', () => {
       targetRouter: TARGET_ROUTER,
     });
 
-    expect(quote.igpQuote.amount).to.equal(1000n);
-    expect(quote.tokenFeeQuote?.amount).to.equal(525n);
-    expect(quote.tokenFeeQuote?.addressOrDenom).to.equal(COLLATERAL_ADDRESS);
+    expect(quote.igpQuote.amount).toBe(1000n);
+    expect(quote.tokenFeeQuote?.amount).toBe(525n);
+    expect(quote.tokenFeeQuote?.addressOrDenom).toBe(COLLATERAL_ADDRESS);
   });
 
   it('returns zero token fee when output equals input and external fee is zero', async () => {
@@ -68,9 +68,9 @@ describe('EvmHypCrossCollateralAdapter', () => {
       targetRouter: TARGET_ROUTER,
     });
 
-    expect(quote.igpQuote.amount).to.equal(7n);
-    expect(quote.tokenFeeQuote?.amount).to.equal(0n);
-    expect(quote.tokenFeeQuote?.addressOrDenom).to.equal(COLLATERAL_ADDRESS);
+    expect(quote.igpQuote.amount).toBe(7n);
+    expect(quote.tokenFeeQuote?.amount).toBe(0n);
+    expect(quote.tokenFeeQuote?.addressOrDenom).toBe(COLLATERAL_ADDRESS);
   });
 
   it('sets igp quote token when gas quote is non-native', async () => {
@@ -91,8 +91,8 @@ describe('EvmHypCrossCollateralAdapter', () => {
       targetRouter: TARGET_ROUTER,
     });
 
-    expect(quote.igpQuote.amount).to.equal(777n);
-    expect(quote.igpQuote.addressOrDenom).to.equal(GAS_TOKEN);
+    expect(quote.igpQuote.amount).toBe(777n);
+    expect(quote.igpQuote.addressOrDenom).toBe(GAS_TOKEN);
   });
 
   it('does not send native value when gas quote token is non-native', async () => {
@@ -115,9 +115,9 @@ describe('EvmHypCrossCollateralAdapter', () => {
       targetRouter: TARGET_ROUTER,
     });
 
-    expect(transferRemoteTo.calledOnce).to.equal(true);
+    expect(transferRemoteTo.calledOnce).toBe(true);
     const callArgs = transferRemoteTo.getCall(0).args;
-    expect(callArgs[4].value).to.equal('0');
+    expect(callArgs[4].value).toBe('0');
   });
 
   it('sends native value when gas quote token is native', async () => {
@@ -142,9 +142,9 @@ describe('EvmHypCrossCollateralAdapter', () => {
       targetRouter: TARGET_ROUTER,
     });
 
-    expect(transferRemoteTo.calledOnce).to.equal(true);
+    expect(transferRemoteTo.calledOnce).toBe(true);
     const callArgs = transferRemoteTo.getCall(0).args;
-    expect(callArgs[4].value).to.equal('88');
+    expect(callArgs[4].value).toBe('88');
   });
 
   it('throws when quote denominations mismatch', async () => {
@@ -171,7 +171,7 @@ describe('EvmHypCrossCollateralAdapter', () => {
     } catch (error) {
       thrown = error as Error;
     }
-    expect(thrown).to.not.equal(undefined);
-    expect(thrown!.message).to.contain('mismatched token fee denominations');
+    expect(thrown).not.toBe(undefined);
+    expect(thrown!.message).toContain('mismatched token fee denominations');
   });
 });

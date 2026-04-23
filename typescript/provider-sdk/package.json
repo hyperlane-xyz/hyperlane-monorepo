@@ -43,9 +43,7 @@
   },
   "devDependencies": {
     "@hyperlane-xyz/tsconfig": "workspace:^",
-    "@types/chai": "catalog:",
     "@types/node": "catalog:",
-    "chai": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",

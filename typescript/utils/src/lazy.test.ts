@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import { LazyAsync } from './async.js';
 
@@ -10,13 +10,13 @@ describe('LazyAsync', () => {
       return 5;
     });
 
-    expect(lazy.isInitialized()).to.equal(false);
-    expect(lazy.peek()).to.equal(undefined);
+    expect(lazy.isInitialized()).toBe(false);
+    expect(lazy.peek()).toBe(undefined);
 
     const value = await lazy.get();
-    expect(value).to.equal(5);
-    expect(calls).to.equal(1);
-    expect(lazy.isInitialized()).to.equal(true);
+    expect(value).toBe(5);
+    expect(calls).toBe(1);
+    expect(lazy.isInitialized()).toBe(true);
   });
 
   it('dedupes concurrent calls', async () => {
@@ -33,12 +33,12 @@ describe('LazyAsync', () => {
     const p1 = lazy.get();
     const p2 = lazy.get();
 
-    expect(p1).to.equal(p2);
-    expect(calls).to.equal(1);
+    expect(p1).toBe(p2);
+    expect(calls).toBe(1);
 
     resolve(7);
     const value = await p1;
-    expect(value).to.equal(7);
+    expect(value).toBe(7);
   });
 
   it('returns cached value on subsequent calls', async () => {
@@ -51,9 +51,9 @@ describe('LazyAsync', () => {
     const v1 = await lazy.get();
     const v2 = await lazy.get();
 
-    expect(v1).to.equal(3);
-    expect(v2).to.equal(3);
-    expect(calls).to.equal(1);
+    expect(v1).toBe(3);
+    expect(v2).toBe(3);
+    expect(calls).toBe(1);
   });
 
   it('retries after error by default', async () => {
@@ -71,11 +71,11 @@ describe('LazyAsync', () => {
       err = e as Error;
     }
 
-    expect(err?.message).to.equal('boom');
+    expect(err?.message).toBe('boom');
 
     const value = await lazy.get();
-    expect(value).to.equal(9);
-    expect(calls).to.equal(2);
+    expect(value).toBe(9);
+    expect(calls).toBe(2);
   });
 
   it('reset clears and allows re-init', async () => {
@@ -86,15 +86,15 @@ describe('LazyAsync', () => {
     });
 
     const v1 = await lazy.get();
-    expect(v1).to.equal(1);
+    expect(v1).toBe(1);
 
     lazy.reset();
-    expect(lazy.isInitialized()).to.equal(false);
-    expect(lazy.peek()).to.equal(undefined);
+    expect(lazy.isInitialized()).toBe(false);
+    expect(lazy.peek()).toBe(undefined);
 
     const v2 = await lazy.get();
-    expect(v2).to.equal(2);
-    expect(calls).to.equal(2);
+    expect(v2).toBe(2);
+    expect(calls).toBe(2);
   });
 
   it('peek does not trigger init', async () => {
@@ -104,12 +104,12 @@ describe('LazyAsync', () => {
       return 4;
     });
 
-    expect(lazy.peek()).to.equal(undefined);
-    expect(calls).to.equal(0);
+    expect(lazy.peek()).toBe(undefined);
+    expect(calls).toBe(0);
 
     await lazy.get();
-    expect(lazy.peek()).to.equal(4);
-    expect(calls).to.equal(1);
+    expect(lazy.peek()).toBe(4);
+    expect(calls).toBe(1);
   });
 
   it('reset during in-flight init does not repopulate cache', async () => {
@@ -125,33 +125,33 @@ describe('LazyAsync', () => {
 
     // Start first initialization
     const p1 = lazy.get();
-    expect(calls).to.equal(1);
+    expect(calls).toBe(1);
 
     // Reset while first init is in-flight
     lazy.reset();
-    expect(lazy.isInitialized()).to.equal(false);
+    expect(lazy.isInitialized()).toBe(false);
 
     // Start second initialization (should create new promise)
     const originalResolve = resolve;
     const p2 = lazy.get();
     const resolve2 = resolve;
-    expect(calls).to.equal(2);
-    expect(p1).to.not.equal(p2);
+    expect(calls).toBe(2);
+    expect(p1).not.toBe(p2);
 
     // Complete second init first
     resolve2(200);
     const v2 = await p2;
-    expect(v2).to.equal(200);
-    expect(lazy.isInitialized()).to.equal(true);
-    expect(lazy.peek()).to.equal(200);
+    expect(v2).toBe(200);
+    expect(lazy.isInitialized()).toBe(true);
+    expect(lazy.peek()).toBe(200);
 
     // Complete first init (stale) - should NOT overwrite cache
     originalResolve(100);
     const v1 = await p1;
-    expect(v1).to.equal(100); // Promise still resolves with its value
+    expect(v1).toBe(100); // Promise still resolves with its value
 
     // But cache should still have second value
-    expect(lazy.peek()).to.equal(200);
-    expect(lazy.isInitialized()).to.equal(true);
+    expect(lazy.peek()).toBe(200);
+    expect(lazy.isInitialized()).toBe(true);
   });
 });

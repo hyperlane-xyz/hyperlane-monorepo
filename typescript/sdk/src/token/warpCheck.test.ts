@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import sinon from 'sinon';
 
 import { CrossCollateralRouter__factory } from '@hyperlane-xyz/core';
@@ -104,12 +104,12 @@ describe('getScaleViolations', () => {
       warpRouteConfig,
     });
 
-    expect(violations).to.deep.equal([]);
+    expect(violations).toEqual([]);
     expect(
       connectStub.calledOnceWithExactly(ROUTER_B, sinon.match.object),
-    ).to.equal(true);
-    expect(metadataStub.calledOnceWithExactly(TOKEN_B)).to.equal(true);
-    expect(scaleStub.calledOnceWithExactly(ROUTER_B)).to.equal(true);
+    ).toBe(true);
+    expect(metadataStub.calledOnceWithExactly(TOKEN_B)).toBe(true);
+    expect(scaleStub.calledOnceWithExactly(ROUTER_B)).toBe(true);
   });
 
   it('fails when an off-subroute configured CCR router has mismatched decimals', async () => {
@@ -130,7 +130,7 @@ describe('getScaleViolations', () => {
       warpRouteConfig,
     });
 
-    expect(violations).to.deep.equal([
+    expect(violations).toEqual([
       {
         actual: 'invalid-or-missing',
         chain: 'route',
@@ -161,7 +161,7 @@ describe('getScaleViolations', () => {
       warpRouteConfig,
     });
 
-    expect(violations).to.deep.equal([]);
-    expect(connectStub.notCalled).to.equal(true);
+    expect(violations).toEqual([]);
+    expect(connectStub.notCalled).toBe(true);
   });
 });

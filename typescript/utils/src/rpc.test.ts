@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import { applyRpcUrlOverridesFromEnv } from './rpc.js';
 
@@ -15,11 +15,11 @@ describe('applyRpcUrlOverridesFromEnv', () => {
       },
     });
 
-    expect(overriddenChains).to.deep.equal(['ethereum']);
-    expect(metadata.ethereum.rpcUrls?.[0].http).to.equal(
+    expect(overriddenChains).toEqual(['ethereum']);
+    expect(metadata.ethereum.rpcUrls?.[0].http).toBe(
       'https://private-ethereum.example',
     );
-    expect(metadata.arbitrum.rpcUrls?.[0].http).to.equal(
+    expect(metadata.arbitrum.rpcUrls?.[0].http).toBe(
       'https://registry-arbitrum.example',
     );
   });
@@ -37,8 +37,8 @@ describe('applyRpcUrlOverridesFromEnv', () => {
       },
     });
 
-    expect(overriddenChains).to.deep.equal(['arbitrum-sepolia']);
-    expect(metadata['arbitrum-sepolia'].rpcUrls?.[0].http).to.equal(
+    expect(overriddenChains).toEqual(['arbitrum-sepolia']);
+    expect(metadata['arbitrum-sepolia'].rpcUrls?.[0].http).toBe(
       'https://private-arbitrum-sepolia.example',
     );
   });
@@ -57,11 +57,11 @@ describe('applyRpcUrlOverridesFromEnv', () => {
       },
     });
 
-    expect(overriddenChains).to.deep.equal(['arbitrum']);
-    expect(metadata.ethereum.rpcUrls?.[0].http).to.equal(
+    expect(overriddenChains).toEqual(['arbitrum']);
+    expect(metadata.ethereum.rpcUrls?.[0].http).toBe(
       'https://registry-ethereum.example',
     );
-    expect(metadata.arbitrum.rpcUrls?.[0].http).to.equal(
+    expect(metadata.arbitrum.rpcUrls?.[0].http).toBe(
       'https://private-arbitrum.example',
     );
   });

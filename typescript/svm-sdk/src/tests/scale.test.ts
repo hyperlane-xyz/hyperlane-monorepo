@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { describe, expect, it } from 'vitest';
 
 import {
   remoteDecimalsToScale,
@@ -22,7 +22,7 @@ describe('scaleToRemoteDecimals', () => {
 
   for (const { localDecimals, scale, expected } of valid) {
     it(`(${localDecimals}, ${scale}) => ${expected}`, () => {
-      expect(scaleToRemoteDecimals(localDecimals, scale)).to.equal(expected);
+      expect(scaleToRemoteDecimals(localDecimals, scale)).toBe(expected);
     });
   }
 
@@ -35,7 +35,7 @@ describe('scaleToRemoteDecimals', () => {
 
   for (const { localDecimals, scale, error } of invalid) {
     it(`(${localDecimals}, ${scale}) throws ${error}`, () => {
-      expect(() => scaleToRemoteDecimals(localDecimals, scale)).to.throw(error);
+      expect(() => scaleToRemoteDecimals(localDecimals, scale)).toThrow(error);
     });
   }
 });
@@ -50,7 +50,7 @@ describe('remoteDecimalsToScale', () => {
 
   for (const { localDecimals, remoteDecimals, expected } of cases) {
     it(`(${localDecimals}, ${remoteDecimals}) => ${expected}`, () => {
-      expect(remoteDecimalsToScale(localDecimals, remoteDecimals)).to.equal(
+      expect(remoteDecimalsToScale(localDecimals, remoteDecimals)).toBe(
         expected,
       );
     });
@@ -71,9 +71,7 @@ describe('scale round-trip', () => {
   for (const { localDecimals, remoteDecimals } of cases) {
     it(`local=${localDecimals} remote=${remoteDecimals}`, () => {
       const scale = remoteDecimalsToScale(localDecimals, remoteDecimals);
-      expect(scaleToRemoteDecimals(localDecimals, scale)).to.equal(
-        remoteDecimals,
-      );
+      expect(scaleToRemoteDecimals(localDecimals, scale)).toBe(remoteDecimals);
     });
   }
 });

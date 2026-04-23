@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import { ethers } from 'ethers';
 
 import { TestChainName, test1 } from '../consts/testChains.js';
@@ -22,8 +22,8 @@ describe('MultiProtocolCore', () => {
         quotedCalls: ethers.constants.AddressZero,
       },
     });
-    expect(core).to.be.instanceOf(MultiProtocolCore);
+    expect(core).toBeInstanceOf(MultiProtocolCore);
     const ethAdapter = core.adapter(TestChainName.test1);
-    expect(ethAdapter).to.be.instanceOf(EvmCoreAdapter);
+    expect(ethAdapter).toBeInstanceOf(EvmCoreAdapter);
   });
 });

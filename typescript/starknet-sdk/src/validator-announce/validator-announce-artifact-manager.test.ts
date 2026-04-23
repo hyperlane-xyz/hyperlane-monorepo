@@ -1,5 +1,5 @@
-import { expect } from 'chai';
 import { RpcProvider } from 'starknet';
+import { describe, expect, it } from 'vitest';
 
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
@@ -45,7 +45,7 @@ describe('StarknetValidatorAnnounceArtifactManager', () => {
     expect(() => {
       // @ts-expect-error testing runtime validation for unsupported value
       manager.createReader('unsupported');
-    }).to.throw(/Unsupported Starknet validator announce type/i);
+    }).toThrow(/Unsupported Starknet validator announce type/i);
   });
 
   it('throws for unsupported writer type', () => {
@@ -53,7 +53,7 @@ describe('StarknetValidatorAnnounceArtifactManager', () => {
     expect(() => {
       // @ts-expect-error testing runtime validation for unsupported value
       manager.createWriter('unsupported', {});
-    }).to.throw(/Unsupported Starknet validator announce type/i);
+    }).toThrow(/Unsupported Starknet validator announce type/i);
   });
 
   it('returns validator announce deployment receipts', async () => {
@@ -66,9 +66,9 @@ describe('StarknetValidatorAnnounceArtifactManager', () => {
       config: { mailboxAddress: '0x123' },
     });
 
-    expect(receipts).to.have.length(1);
-    expect(signer.capturedTxs).to.have.length(1);
-    expect(signer.capturedTxs[0]?.kind).to.equal('deploy');
+    expect(receipts).toHaveLength(1);
+    expect(signer.capturedTxs).toHaveLength(1);
+    expect(signer.capturedTxs[0]?.kind).toBe('deploy');
   });
 
   it('marks mailboxAddress as unknown when storage probing is unavailable', async () => {
@@ -87,9 +87,9 @@ describe('StarknetValidatorAnnounceArtifactManager', () => {
 
     const artifact = await manager.readValidatorAnnounce('0xabc');
 
-    expect(artifact.config.mailboxAddress).to.equal('');
+    expect(artifact.config.mailboxAddress).toBe('');
     expect(
       Reflect.get(artifact.config as object, '__mailboxAddressUnknown'),
-    ).to.equal(true);
+    ).toBe(true);
   });
 });

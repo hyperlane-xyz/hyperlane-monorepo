@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import { ProviderType } from '../ProviderType.js';
 
@@ -8,22 +8,26 @@ import { tronRuntimeProviderBuilders } from './tron.js';
 
 describe('runtime provider builders', () => {
   it('exports a narrow tron runtime builder map', () => {
-    expect(tronRuntimeProviderBuilders).to.have.keys([ProviderType.Tron]);
+    expect(Object.keys(tronRuntimeProviderBuilders).sort()).toEqual(
+      [ProviderType.Tron].sort(),
+    );
   });
 
   it('exports a merged evm-like runtime builder map', () => {
-    expect(evmLikeRuntimeProviderBuilders).to.include(
+    expect(evmLikeRuntimeProviderBuilders).toMatchObject(
       evmRuntimeProviderBuilders,
     );
-    expect(evmLikeRuntimeProviderBuilders).to.include(
+    expect(evmLikeRuntimeProviderBuilders).toMatchObject(
       tronRuntimeProviderBuilders,
     );
-    expect(evmLikeRuntimeProviderBuilders).to.have.keys([
-      ProviderType.EthersV5,
-      ProviderType.GnosisTxBuilder,
-      ProviderType.Viem,
-      ProviderType.ZkSync,
-      ProviderType.Tron,
-    ]);
+    expect(Object.keys(evmLikeRuntimeProviderBuilders).sort()).toEqual(
+      [
+        ProviderType.EthersV5,
+        ProviderType.GnosisTxBuilder,
+        ProviderType.Viem,
+        ProviderType.ZkSync,
+        ProviderType.Tron,
+      ].sort(),
+    );
   });
 });

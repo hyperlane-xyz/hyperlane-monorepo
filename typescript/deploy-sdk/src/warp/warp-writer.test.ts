@@ -1,5 +1,4 @@
-import chai, { expect } from 'chai';
-import chaiAsPromised from 'chai-as-promised';
+import { expect } from 'vitest';
 import Sinon from 'sinon';
 
 import type { ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
@@ -42,8 +41,6 @@ import {
 } from '@hyperlane-xyz/provider-sdk/warp';
 
 import { WarpTokenWriter } from './warp-writer.js';
-
-chai.use(chaiAsPromised);
 
 const TEST_CHAIN = 'test1';
 const TEST_DOMAIN_ID = 1;
@@ -235,7 +232,7 @@ describe('WarpTokenWriter', () => {
         },
         expectedTxCount: 1,
         assertion: (txs) => {
-          expect(txs[0].annotation).to.include('router');
+          expect(txs[0].annotation).toContain('router');
         },
       },
       {
@@ -254,9 +251,9 @@ describe('WarpTokenWriter', () => {
         },
         expectedTxCount: 2,
         assertion: (txs) => {
-          expect(txs).to.have.lengthOf(2);
+          expect(txs).toHaveLength(2);
           txs.forEach((tx) => {
-            expect(tx.annotation).to.include('router');
+            expect(tx.annotation).toContain('router');
           });
         },
       },
@@ -325,7 +322,7 @@ describe('WarpTokenWriter', () => {
           const updateTxs = await writer.update(artifact);
 
           // Assertions
-          expect(updateTxs).to.have.lengthOf(expectedTxCount);
+          expect(updateTxs).toHaveLength(expectedTxCount);
 
           if (assertion) {
             assertion(updateTxs);
@@ -364,8 +361,8 @@ describe('WarpTokenWriter', () => {
 
       const updateTxs = await writer.update(artifact);
 
-      expect(updateTxs).to.have.lengthOf(1);
-      expect(updateTxs[0].annotation).to.match(/ownership/i);
+      expect(updateTxs).toHaveLength(1);
+      expect(updateTxs[0].annotation).toMatch(/ownership/i);
     });
   });
 
@@ -422,8 +419,8 @@ describe('WarpTokenWriter', () => {
 
       const updateTxs = await writer.update(artifact);
 
-      expect(mockIsmWriter.create.callCount).to.equal(1);
-      expect(updateTxs.length).to.be.greaterThan(0);
+      expect(mockIsmWriter.create.callCount).toBe(1);
+      expect(updateTxs.length).toBeGreaterThan(0);
     });
 
     it('should update existing ISM in-place when type is unchanged', async () => {
@@ -470,8 +467,8 @@ describe('WarpTokenWriter', () => {
 
       await writer.update(artifact);
 
-      expect(mockIsmWriter.create.callCount).to.equal(0);
-      expect(mockIsmWriter.update.callCount).to.equal(1);
+      expect(mockIsmWriter.create.callCount).toBe(0);
+      expect(mockIsmWriter.update.callCount).toBe(1);
     });
 
     it('should replace existing ISM when type changes', async () => {
@@ -541,8 +538,8 @@ describe('WarpTokenWriter', () => {
 
       const updateTxs = await writer.update(artifact);
 
-      expect(mockIsmWriter.create.callCount).to.equal(1);
-      expect(updateTxs.length).to.be.greaterThan(0);
+      expect(mockIsmWriter.create.callCount).toBe(1);
+      expect(updateTxs.length).toBeGreaterThan(0);
     });
 
     it('should treat omitted ISM and zero-address ISM equivalently', async () => {
@@ -577,8 +574,8 @@ describe('WarpTokenWriter', () => {
       await writer.update(artifactZeroIsm);
 
       // Neither case should trigger ISM creation
-      expect(mockIsmWriter.create.callCount).to.equal(createCountAfterNoIsm);
-      expect(mockIsmWriter.create.callCount).to.equal(0);
+      expect(mockIsmWriter.create.callCount).toBe(createCountAfterNoIsm);
+      expect(mockIsmWriter.create.callCount).toBe(0);
     });
   });
 
@@ -621,8 +618,8 @@ describe('WarpTokenWriter', () => {
 
       const updateTxs = await writer.update(artifact);
 
-      expect(mockHookWriter.create.callCount).to.equal(1);
-      expect(updateTxs.length).to.be.greaterThan(0);
+      expect(mockHookWriter.create.callCount).toBe(1);
+      expect(updateTxs.length).toBeGreaterThan(0);
     });
 
     it('should skip hook deployment when hook is underived (address reference)', async () => {
@@ -649,8 +646,8 @@ describe('WarpTokenWriter', () => {
 
       await writer.update(artifact);
 
-      expect(mockHookWriter.create.called).to.be.false;
-      expect(mockHookWriter.update.called).to.be.false;
+      expect(mockHookWriter.create.called).toBe(false);
+      expect(mockHookWriter.update.called).toBe(false);
     });
 
     it('should skip hook deployment when protocol does not support hook updates', async () => {
@@ -679,8 +676,8 @@ describe('WarpTokenWriter', () => {
 
       await writer.update(artifact);
 
-      expect(mockHookWriter.create.called).to.be.false;
-      expect(mockHookWriter.update.called).to.be.false;
+      expect(mockHookWriter.create.called).toBe(false);
+      expect(mockHookWriter.update.called).toBe(false);
     });
 
     it('should handle hook + router updates in single call', async () => {
@@ -726,8 +723,8 @@ describe('WarpTokenWriter', () => {
 
       const updateTxs = await writer.update(artifact);
 
-      expect(mockHookWriter.create.callCount).to.equal(1);
-      expect(updateTxs.length).to.equal(2);
+      expect(mockHookWriter.create.callCount).toBe(1);
+      expect(updateTxs.length).toBe(2);
     });
   });
 
@@ -762,7 +759,7 @@ describe('WarpTokenWriter', () => {
         config: syntheticConfig,
       };
 
-      await expect(writer.update(artifact)).to.be.rejectedWith(
+      await expect(writer.update(artifact)).rejects.toThrow(
         /Cannot change warp token type/,
       );
     });
@@ -827,8 +824,8 @@ describe('WarpTokenWriter', () => {
 
       const updateTxs = await writer.update(artifact);
 
-      expect(mockIsmWriter.create.callCount).to.equal(1);
-      expect(updateTxs.length).to.be.greaterThan(1);
+      expect(mockIsmWriter.create.callCount).toBe(1);
+      expect(updateTxs.length).toBeGreaterThan(1);
     });
 
     it('should handle ownership + ISM + router updates', async () => {
@@ -890,8 +887,8 @@ describe('WarpTokenWriter', () => {
 
       const updateTxs = await writer.update(artifact);
 
-      expect(mockIsmWriter.create.callCount).to.equal(1);
-      expect(updateTxs.length).to.equal(3);
+      expect(mockIsmWriter.create.callCount).toBe(1);
+      expect(updateTxs.length).toBe(3);
     });
   });
 
@@ -919,10 +916,10 @@ describe('WarpTokenWriter', () => {
 
       const [deployed, receipts] = await writer.create(artifact);
 
-      expect(deployed.artifactState).to.equal(ArtifactState.DEPLOYED);
-      expect(deployed.deployed.address).to.equal(TOKEN_ADDRESS);
-      expect(receipts).to.be.an('array');
-      expect(mockWriter.create.callCount).to.equal(1);
+      expect(deployed.artifactState).toBe(ArtifactState.DEPLOYED);
+      expect(deployed.deployed.address).toBe(TOKEN_ADDRESS);
+      expect(Array.isArray(receipts)).toBe(true);
+      expect(mockWriter.create.callCount).toBe(1);
     });
 
     it('should create warp token with new ISM', async () => {
@@ -971,10 +968,10 @@ describe('WarpTokenWriter', () => {
 
       const [deployed, receipts] = await writer.create(artifact);
 
-      expect(mockIsmWriter.create.callCount).to.equal(1);
-      expect(deployed.artifactState).to.equal(ArtifactState.DEPLOYED);
-      expect(deployed.deployed.address).to.equal(TOKEN_ADDRESS);
-      expect(receipts).to.be.an('array');
+      expect(mockIsmWriter.create.callCount).toBe(1);
+      expect(deployed.artifactState).toBe(ArtifactState.DEPLOYED);
+      expect(deployed.deployed.address).toBe(TOKEN_ADDRESS);
+      expect(Array.isArray(receipts)).toBe(true);
     });
 
     it('should create warp token with existing ISM', async () => {
@@ -1016,10 +1013,10 @@ describe('WarpTokenWriter', () => {
       const [deployed, receipts] = await writer.create(artifact);
 
       // Should not create new ISM
-      expect(mockIsmWriter.create.called).to.be.false;
-      expect(deployed.artifactState).to.equal(ArtifactState.DEPLOYED);
-      expect(deployed.deployed.address).to.equal(TOKEN_ADDRESS);
-      expect(receipts).to.be.an('array');
+      expect(mockIsmWriter.create.called).toBe(false);
+      expect(deployed.artifactState).toBe(ArtifactState.DEPLOYED);
+      expect(deployed.deployed.address).toBe(TOKEN_ADDRESS);
+      expect(Array.isArray(receipts)).toBe(true);
     });
   });
 
@@ -1068,10 +1065,10 @@ describe('WarpTokenWriter', () => {
 
       const [deployed, receipts] = await writer.create(artifact);
 
-      expect(mockHookWriter.create.callCount).to.equal(1);
-      expect(receipts).to.include(hookReceipt);
-      expect(deployed.artifactState).to.equal(ArtifactState.DEPLOYED);
-      expect(deployed.deployed.address).to.equal(TOKEN_ADDRESS);
+      expect(mockHookWriter.create.callCount).toBe(1);
+      expect(receipts).toContain(hookReceipt);
+      expect(deployed.artifactState).toBe(ArtifactState.DEPLOYED);
+      expect(deployed.deployed.address).toBe(TOKEN_ADDRESS);
     });
 
     it('should reuse hook address when hook is already deployed', async () => {
@@ -1106,8 +1103,8 @@ describe('WarpTokenWriter', () => {
 
       const [deployed] = await writer.create(artifact);
 
-      expect(mockHookWriter.create.called).to.be.false;
-      expect(deployed.artifactState).to.equal(ArtifactState.DEPLOYED);
+      expect(mockHookWriter.create.called).toBe(false);
+      expect(deployed.artifactState).toBe(ArtifactState.DEPLOYED);
     });
 
     it('should skip hook deployment when protocol does not support hooks', async () => {
@@ -1143,8 +1140,8 @@ describe('WarpTokenWriter', () => {
 
       const [deployed] = await writer.create(artifact);
 
-      expect(mockHookWriter.create.called).to.be.false;
-      expect(deployed.artifactState).to.equal(ArtifactState.DEPLOYED);
+      expect(mockHookWriter.create.called).toBe(false);
+      expect(deployed.artifactState).toBe(ArtifactState.DEPLOYED);
     });
   });
 
@@ -1165,7 +1162,8 @@ describe('WarpTokenWriter', () => {
 
       const updateTxs = await writer.update(artifact);
 
-      expect(updateTxs).to.be.an('array').that.is.empty;
+      expect(Array.isArray(updateTxs)).toBe(true);
+      expect(updateTxs).toHaveLength(0);
     });
   });
 
@@ -1272,10 +1270,10 @@ describe('WarpTokenWriter', () => {
 
       // Fee should be deployed and passed to raw artifact
       const rawArtifactArg = createStub.firstCall.args[0];
-      expect(rawArtifactArg.config.fee).to.not.be.undefined;
-      expect(rawArtifactArg.config.fee?.deployed.address).to.equal(FEE_ADDRESS);
+      expect(rawArtifactArg.config.fee).not.toBeUndefined();
+      expect(rawArtifactArg.config.fee?.deployed.address).toBe(FEE_ADDRESS);
       // Returned artifact should include deployed fee
-      expect(deployed.config.fee).to.not.be.undefined;
+      expect(deployed.config.fee).not.toBeUndefined();
     });
 
     it('should pass through existing fee address on create', async () => {
@@ -1311,7 +1309,7 @@ describe('WarpTokenWriter', () => {
       await feeCreateWriter.create(artifact);
 
       const rawArtifactArg = createStub.firstCall.args[0];
-      expect(rawArtifactArg.config.fee?.deployed.address).to.equal(FEE_ADDRESS);
+      expect(rawArtifactArg.config.fee?.deployed.address).toBe(FEE_ADDRESS);
     });
   });
 
@@ -1420,8 +1418,8 @@ describe('WarpTokenWriter', () => {
 
       // Fee should have been deployed - raw artifact should have fee address
       const rawArtifactArg = updateStub.firstCall.args[0];
-      expect(rawArtifactArg.config.fee).to.not.be.undefined;
-      expect(rawArtifactArg.config.fee?.deployed.address).to.equal(FEE_ADDRESS);
+      expect(rawArtifactArg.config.fee).not.toBeUndefined();
+      expect(rawArtifactArg.config.fee?.deployed.address).toBe(FEE_ADDRESS);
     });
 
     it('should update existing routing fee in-place when DEPLOYED', async () => {
@@ -1488,7 +1486,7 @@ describe('WarpTokenWriter', () => {
       const updateTxs = await feeWriter.update(artifact);
 
       // Fee update tx should be included
-      expect(updateTxs).to.include(feeTx);
+      expect(updateTxs).toContain(feeTx);
     });
 
     it('should pass through UNDERIVED fee without creating fee writer', async () => {
@@ -1516,7 +1514,7 @@ describe('WarpTokenWriter', () => {
 
       // UNDERIVED fee should be passed through as-is
       const rawArtifactArg = warpUpdateStub.firstCall.args[0];
-      expect(rawArtifactArg.config.fee?.deployed.address).to.equal(FEE_ADDRESS);
+      expect(rawArtifactArg.config.fee?.deployed.address).toBe(FEE_ADDRESS);
     });
   });
 
@@ -1603,10 +1601,10 @@ describe('WarpTokenWriter', () => {
 
       // Should not throw - fee is ignored with a warning
       const [deployed] = await noFeeWriter.create(artifact);
-      expect(deployed.artifactState).to.equal(ArtifactState.DEPLOYED);
+      expect(deployed.artifactState).toBe(ArtifactState.DEPLOYED);
       // Fee should be undefined in raw artifact since protocol doesn't support it
       const rawArtifactArg = createStub.firstCall.args[0];
-      expect(rawArtifactArg.config.fee).to.be.undefined;
+      expect(rawArtifactArg.config.fee).toBeUndefined();
     });
 
     it('should ignore fee config on update when protocol does not support fees', async () => {
@@ -1624,7 +1622,7 @@ describe('WarpTokenWriter', () => {
 
       // Should not throw - fee is ignored with a warning
       const updateTxs = await noFeeWriter.update(artifact);
-      expect(updateTxs).to.be.an('array');
+      expect(Array.isArray(updateTxs)).toBe(true);
     });
   });
 });

@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import { ethers } from 'ethers';
 import { pino } from 'pino';
 
@@ -37,7 +37,7 @@ describe('WeightedStrategy', () => {
             testLogger,
             {},
           ),
-      ).to.throw('At least two chains must be configured');
+      ).toThrow('At least two chains must be configured');
     });
 
     it('should throw an error when weight is negative', () => {
@@ -59,7 +59,7 @@ describe('WeightedStrategy', () => {
             testLogger,
             {},
           ),
-      ).to.throw('Weight (-1) must not be negative for chain2');
+      ).toThrow('Weight (-1) must not be negative for chain2');
     });
 
     it('should throw an error when the total weight is 0', () => {
@@ -81,7 +81,7 @@ describe('WeightedStrategy', () => {
             testLogger,
             {},
           ),
-      ).to.throw('The total weight for all chains must be greater than 0');
+      ).toThrow('The total weight for all chains must be greater than 0');
     });
 
     it('should throw an error when tolerance is less than 0 or greater than 100', () => {
@@ -103,7 +103,7 @@ describe('WeightedStrategy', () => {
             testLogger,
             {},
           ),
-      ).to.throw('Tolerance (-1) must be between 0 and 100 for chain2');
+      ).toThrow('Tolerance (-1) must be between 0 and 100 for chain2');
 
       expect(
         () =>
@@ -123,7 +123,7 @@ describe('WeightedStrategy', () => {
             testLogger,
             {},
           ),
-      ).to.throw('Tolerance (101) must be between 0 and 100 for chain2');
+      ).toThrow('Tolerance (101) must be between 0 and 100 for chain2');
     });
   });
 
@@ -150,7 +150,7 @@ describe('WeightedStrategy', () => {
           [chain2]: ethers.utils.parseEther('200').toBigInt(),
           [chain3]: ethers.utils.parseEther('300').toBigInt(),
         }),
-      ).to.throw('Config chains do not match raw balances chains length');
+      ).toThrow('Config chains do not match raw balances chains length');
     });
 
     it('should throw an error when a raw balance is missing', () => {
@@ -174,7 +174,7 @@ describe('WeightedStrategy', () => {
           [chain1]: ethers.utils.parseEther('100').toBigInt(),
           [chain3]: ethers.utils.parseEther('300').toBigInt(),
         } as RawBalances),
-      ).to.throw('Raw balance for chain chain2 not found');
+      ).toThrow('Raw balance for chain chain2 not found');
     });
 
     it('should throw an error when a raw balance is negative', () => {
@@ -198,7 +198,7 @@ describe('WeightedStrategy', () => {
           [chain1]: ethers.utils.parseEther('100').toBigInt(),
           [chain2]: ethers.utils.parseEther('-200').toBigInt(),
         }),
-      ).to.throw('Raw balance for chain chain2 is negative');
+      ).toThrow('Raw balance for chain chain2 is negative');
     });
 
     it('should return an empty array when all chains are balanced', () => {
@@ -226,7 +226,7 @@ describe('WeightedStrategy', () => {
 
       const routes = strategy.getRebalancingRoutes(rawBalances);
 
-      expect(routes).to.be.empty;
+      expect(routes).toHaveLength(0);
     });
 
     it('should return a single route when a chain is unbalanced', () => {
@@ -252,7 +252,7 @@ describe('WeightedStrategy', () => {
 
       const routes = strategy.getRebalancingRoutes(rawBalances);
 
-      expect(routes).to.deep.equal([
+      expect(routes).toEqual([
         {
           origin: chain2,
           destination: chain1,
@@ -288,7 +288,7 @@ describe('WeightedStrategy', () => {
 
       const routes = strategy.getRebalancingRoutes(rawBalances);
 
-      expect(routes).to.be.empty;
+      expect(routes).toHaveLength(0);
     });
 
     it('should return a single route when two chains are unbalanced and can be solved with a single transfer', () => {
@@ -320,7 +320,7 @@ describe('WeightedStrategy', () => {
 
       const routes = strategy.getRebalancingRoutes(rawBalances);
 
-      expect(routes).to.deep.equal([
+      expect(routes).toEqual([
         {
           origin: chain3,
           destination: chain1,
@@ -359,7 +359,7 @@ describe('WeightedStrategy', () => {
 
       const routes = strategy.getRebalancingRoutes(rawBalances);
 
-      expect(routes).to.deep.equal([
+      expect(routes).toEqual([
         {
           origin: chain3,
           destination: chain1,
@@ -406,7 +406,7 @@ describe('WeightedStrategy', () => {
 
       const routes = strategy.getRebalancingRoutes(rawBalances);
 
-      expect(routes).to.deep.equal([
+      expect(routes).toEqual([
         {
           origin: chain2,
           destination: chain1,
@@ -476,7 +476,7 @@ describe('WeightedStrategy', () => {
 
       const routes = strategy.getRebalancingRoutes(rawBalances);
 
-      expect(routes).to.have.lengthOf(0);
+      expect(routes).toHaveLength(0);
     });
 
     it('should keep routes at or above bridgeMinAcceptedAmount', () => {
@@ -520,10 +520,8 @@ describe('WeightedStrategy', () => {
 
       const routes = strategy.getRebalancingRoutes(rawBalances);
 
-      expect(routes).to.have.lengthOf(1);
-      expect(routes[0].amount).to.equal(
-        ethers.utils.parseEther('50').toBigInt(),
-      );
+      expect(routes).toHaveLength(1);
+      expect(routes[0].amount).toBe(ethers.utils.parseEther('50').toBigInt());
     });
   });
 });

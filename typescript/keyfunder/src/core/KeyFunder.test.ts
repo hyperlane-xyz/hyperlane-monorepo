@@ -1,6 +1,6 @@
-import { expect } from 'chai';
 import type { Logger } from 'pino';
 import sinon from 'sinon';
+import { expect } from 'vitest';
 
 import { MultiProvider } from '@hyperlane-xyz/sdk';
 
@@ -74,16 +74,16 @@ describe('KeyFunder', () => {
     sinon.assert.calledOnce(fundKeysStub);
     sinon.assert.calledOnce(chainWarnSpy);
     const warnArgs = chainWarnSpy.firstCall.args;
-    expect(warnArgs[1]).to.equal(
+    expect(warnArgs[1]).toBe(
       'Failed to record funder balance metric, continuing',
     );
-    expect((warnArgs[0] as { error: unknown }).error).to.be.instanceOf(Error);
+    expect((warnArgs[0] as { error: unknown }).error).toBeInstanceOf(Error);
 
     sinon.assert.calledOnce(chainInfoSpy);
     const infoArgs = chainInfoSpy.firstCall.args;
-    expect(infoArgs[1]).to.equal('Chain funding completed');
+    expect(infoArgs[1]).toBe('Chain funding completed');
     expect(
       (infoArgs[0] as { durationSeconds: unknown }).durationSeconds,
-    ).to.be.a('number');
+    ).toBeTypeOf('number');
   });
 });

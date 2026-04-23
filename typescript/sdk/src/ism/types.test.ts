@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import { ethers } from 'ethers';
 
 import { AggregationIsmConfigSchema, IsmType } from './types.js';
@@ -11,9 +11,9 @@ describe('AggregationIsmConfigSchema refine', () => {
       modules: [SOME_ADDRESS],
       threshold: 100,
     };
-    expect(AggregationIsmConfigSchema.safeParse(IsmConfig).success).to.be.false;
+    expect(AggregationIsmConfigSchema.safeParse(IsmConfig).success).toBe(false);
 
     IsmConfig.threshold = 0;
-    expect(AggregationIsmConfigSchema.safeParse(IsmConfig).success).to.be.true;
+    expect(AggregationIsmConfigSchema.safeParse(IsmConfig).success).toBe(true);
   });
 });

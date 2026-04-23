@@ -28,7 +28,6 @@
     "@cloudflare/workers-types": "^4.20240821.1",
     "@faker-js/faker": "^8.4.1",
     "@hyperlane-xyz/tsconfig": "workspace:^",
-    "chai": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:",
     "wrangler": "^3.74.0"

@@ -1,9 +1,8 @@
-import { use as chaiUse, expect } from 'chai';
-import chaiAsPromised from 'chai-as-promised';
 import express, { Express } from 'express';
 import { pino } from 'pino';
 import sinon from 'sinon';
 import request from 'supertest';
+import { expect } from 'vitest';
 
 import { AppConstants } from '../../src/constants/AppConstants.js';
 import { NotFoundError } from '../../src/errors/ApiError.js';
@@ -15,8 +14,6 @@ import {
   mockChainAddresses,
   mockChainMetadata,
 } from '../utils/mockData.js';
-
-chaiUse(chaiAsPromised);
 
 describe('Chain Routes', () => {
   let app: Express;
@@ -46,9 +43,10 @@ describe('Chain Routes', () => {
         .get(`/chain/${MOCK_CHAIN_NAME}/metadata`)
         .expect(AppConstants.HTTP_STATUS_OK);
 
-      expect(response.body).to.deep.equal(mockChainMetadata);
-      expect(mockChainService.getChainMetadata.calledWith(MOCK_CHAIN_NAME)).to
-        .be.true;
+      expect(response.body).toEqual(mockChainMetadata);
+      expect(
+        mockChainService.getChainMetadata.calledWith(MOCK_CHAIN_NAME),
+      ).toBe(true);
     });
 
     it('should return 404 when chain metadata does not exist', async () => {
@@ -60,7 +58,7 @@ describe('Chain Routes', () => {
         .get('/chain/nonexistent/metadata')
         .expect(AppConstants.HTTP_STATUS_NOT_FOUND);
 
-      expect(response.body.message).to.include('Chain metadata not found');
+      expect(response.body.message).toContain('Chain metadata not found');
     });
 
     it('should return 500 when service throws unexpected error', async () => {
@@ -70,8 +68,8 @@ describe('Chain Routes', () => {
         .get(`/chain/${MOCK_CHAIN_NAME}/metadata`)
         .expect(AppConstants.HTTP_STATUS_INTERNAL_SERVER_ERROR);
 
-      expect(response.body.message).to.include('Internal Server Error');
-      expect(response.body.message).to.include('Database error');
+      expect(response.body.message).toContain('Internal Server Error');
+      expect(response.body.message).toContain('Database error');
     });
 
     it('should handle valid chain names', async () => {
@@ -82,8 +80,9 @@ describe('Chain Routes', () => {
         .get(`/chain/${validChainName}/metadata`)
         .expect(AppConstants.HTTP_STATUS_OK);
 
-      expect(mockChainService.getChainMetadata.calledWith(validChainName)).to.be
-        .true;
+      expect(mockChainService.getChainMetadata.calledWith(validChainName)).toBe(
+        true,
+      );
     });
   });
 
@@ -107,7 +106,7 @@ describe('Chain Routes', () => {
           chainName: MOCK_CHAIN_NAME,
           ...updateParams,
         }),
-      ).to.be.true;
+      ).toBe(true);
     });
 
     it('should return 400 for invalid metadata schema', async () => {
@@ -118,8 +117,8 @@ describe('Chain Routes', () => {
         .send(invalidMetadata)
         .expect(AppConstants.HTTP_STATUS_BAD_REQUEST);
 
-      expect(response.body.message).to.include('Validation error in body');
-      expect(mockChainService.updateChain.called).to.be.false;
+      expect(response.body.message).toContain('Validation error in body');
+      expect(mockChainService.updateChain.called).toBe(false);
     });
 
     it('should return 400 for missing request body', async () => {
@@ -127,7 +126,7 @@ describe('Chain Routes', () => {
         .post(`/chain/${MOCK_CHAIN_NAME}`)
         .expect(AppConstants.HTTP_STATUS_BAD_REQUEST);
 
-      expect(response.body.message).to.include('Validation error in body');
+      expect(response.body.message).toContain('Validation error in body');
     });
 
     it('should return 500 when service update fails', async () => {
@@ -141,7 +140,7 @@ describe('Chain Routes', () => {
         .send(updateParams)
         .expect(AppConstants.HTTP_STATUS_INTERNAL_SERVER_ERROR);
 
-      expect(response.body.message).to.include('Update failed');
+      expect(response.body.message).toContain('Update failed');
     });
 
     it('should handle content-type correctly', async () => {
@@ -169,9 +168,10 @@ describe('Chain Routes', () => {
         .get(`/chain/${MOCK_CHAIN_NAME}/addresses`)
         .expect(AppConstants.HTTP_STATUS_OK);
 
-      expect(response.body).to.deep.equal(mockChainAddresses);
-      expect(mockChainService.getChainAddresses.calledWith(MOCK_CHAIN_NAME)).to
-        .be.true;
+      expect(response.body).toEqual(mockChainAddresses);
+      expect(
+        mockChainService.getChainAddresses.calledWith(MOCK_CHAIN_NAME),
+      ).toBe(true);
     });
 
     it('should return 404 when chain addresses do not exist', async () => {
@@ -183,7 +183,7 @@ describe('Chain Routes', () => {
         .get('/chain/nonexistent/addresses')
         .expect(AppConstants.HTTP_STATUS_NOT_FOUND);
 
-      expect(response.body.message).to.include('Chain addresses not found');
+      expect(response.body.message).toContain('Chain addresses not found');
     });
 
     it('should return 500 when service throws unexpected error', async () => {
@@ -193,7 +193,7 @@ describe('Chain Routes', () => {
         .get(`/chain/${MOCK_CHAIN_NAME}/addresses`)
         .expect(AppConstants.HTTP_STATUS_INTERNAL_SERVER_ERROR);
 
-      expect(response.body.message).to.include('Service error');
+      expect(response.body.message).toContain('Service error');
     });
 
     it('should handle empty addresses object', async () => {
@@ -204,7 +204,7 @@ describe('Chain Routes', () => {
         .get(`/chain/${MOCK_CHAIN_NAME}/addresses`)
         .expect(AppConstants.HTTP_STATUS_OK);
 
-      expect(response.body).to.deep.equal(emptyAddresses);
+      expect(response.body).toEqual(emptyAddresses);
     });
   });
 
@@ -218,8 +218,9 @@ describe('Chain Routes', () => {
         .get('/chain/ethereum/metadata')
         .expect(AppConstants.HTTP_STATUS_OK);
 
-      expect(mockChainService.getChainMetadata.calledWith('ethereum')).to.be
-        .true;
+      expect(mockChainService.getChainMetadata.calledWith('ethereum')).toBe(
+        true,
+      );
     });
 
     it('should reject invalid chain names', async () => {
@@ -228,10 +229,10 @@ describe('Chain Routes', () => {
         .get(`/chain/${invalidChainName}/metadata`)
         .expect(AppConstants.HTTP_STATUS_BAD_REQUEST);
 
-      expect(response.body.message).to.include(
+      expect(response.body.message).toContain(
         "Validation error for param 'chain'",
       );
-      expect(mockChainService.getChainMetadata.called).to.be.false;
+      expect(mockChainService.getChainMetadata.called).toBe(false);
     });
   });
 });

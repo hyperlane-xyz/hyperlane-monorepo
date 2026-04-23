@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import { errors as EthersError, providers } from 'ethers';
 
 import {
@@ -176,10 +176,10 @@ describe('SmartProvider', () => {
       const rpcConfig = provider.rpcProviders[0].rpcConfig;
       const expectedUrl = new URL('http://example.com/path?foo=bar').toString();
 
-      expect(rpcConfig.http).to.equal(expectedUrl);
-      expect(rpcConfig.connection?.url).to.equal(expectedUrl);
-      expect(rpcConfig.connection?.timeout).to.equal(1234);
-      expect(rpcConfig.connection?.headers).to.deep.equal({
+      expect(rpcConfig.http).toBe(expectedUrl);
+      expect(rpcConfig.connection?.url).toBe(expectedUrl);
+      expect(rpcConfig.connection?.timeout).toBe(1234);
+      expect(rpcConfig.connection?.headers).toEqual({
         'X-Test': 'abc',
         Authorization: '[REDACTED]',
       });
@@ -205,11 +205,9 @@ describe('SmartProvider', () => {
 
       const rpcConfig = provider.rpcProviders[0].rpcConfig;
 
-      expect(rpcConfig.connection?.url).to.equal(
-        'http://other.example.com/path',
-      );
-      expect(rpcConfig.connection?.timeout).to.equal(5678);
-      expect(rpcConfig.connection?.headers).to.deep.equal({
+      expect(rpcConfig.connection?.url).toBe('http://other.example.com/path');
+      expect(rpcConfig.connection?.timeout).toBe(5678);
+      expect(rpcConfig.connection?.headers).toEqual({
         Authorization: '[REDACTED]',
         'X-Test': 'abc',
       });
@@ -226,8 +224,8 @@ describe('SmartProvider', () => {
 
       const rpcConfig = provider.rpcProviders[0].rpcConfig;
 
-      expect(rpcConfig.http).to.equal('http://example.com/path');
-      expect(rpcConfig.connection?.headers).to.deep.equal({
+      expect(rpcConfig.http).toBe('http://example.com/path');
+      expect(rpcConfig.connection?.headers).toEqual({
         Authorization: '[REDACTED]',
         'X-Api-Key': '[REDACTED]',
       });
@@ -244,9 +242,9 @@ describe('SmartProvider', () => {
 
       const rpcConfig = provider.rpcProviders[0].rpcConfig;
 
-      expect(rpcConfig.http).to.equal('http://example.com/path');
+      expect(rpcConfig.http).toBe('http://example.com/path');
       // Malformed header silently ignored, only valid one present
-      expect(rpcConfig.connection?.headers).to.deep.equal({
+      expect(rpcConfig.connection?.headers).toEqual({
         Valid: '[REDACTED]',
       });
     });
@@ -261,8 +259,8 @@ describe('SmartProvider', () => {
 
       const rpcConfig = provider.rpcProviders[0].rpcConfig;
 
-      expect(rpcConfig.http).to.equal(rawUrl);
-      expect(rpcConfig.connection).to.be.undefined;
+      expect(rpcConfig.http).toBe(rawUrl);
+      expect(rpcConfig.connection).toBeUndefined();
     });
 
     it('last duplicate header wins (like Rust behavior)', () => {
@@ -276,13 +274,13 @@ describe('SmartProvider', () => {
 
       const rpcConfig = provider.rpcProviders[0].rpcConfig;
       // rpcConfig has redacted headers for logging safety
-      expect(rpcConfig.connection?.headers?.['Authorization']).to.equal(
+      expect(rpcConfig.connection?.headers?.['Authorization']).toBe(
         '[REDACTED]',
       );
 
       // Actual connection (used for requests) has real value - last duplicate wins
       const actualConnection = provider.rpcProviders[0].connection;
-      expect(actualConnection.headers?.['Authorization']).to.equal('second');
+      expect(actualConnection.headers?.['Authorization']).toBe('second');
     });
   });
 
@@ -325,11 +323,11 @@ describe('SmartProvider', () => {
 
         const e: any = new CombinedError();
 
-        expect(e).to.be.instanceOf(BlockchainError);
-        expect(e.isRecoverable).to.equal(false);
-        expect(e.message).to.equal(message);
-        expect(e.cause).to.equal(error);
-        expect(e.cause.code).to.equal(code);
+        expect(e).toBeInstanceOf(BlockchainError);
+        expect(e.isRecoverable).toBe(false);
+        expect(e.message).toBe(message);
+        expect(e.cause).toBe(error);
+        expect(e.cause.code).toBe(code);
       });
     });
 
@@ -345,11 +343,11 @@ describe('SmartProvider', () => {
 
       const e: any = new CombinedError();
 
-      expect(e).to.be.instanceOf(Error);
-      expect(e).to.not.be.instanceOf(BlockchainError);
-      expect(e.isRecoverable).to.be.undefined;
-      expect(e.cause).to.equal(error);
-      expect(e.cause.code).to.equal(EthersError.SERVER_ERROR);
+      expect(e).toBeInstanceOf(Error);
+      expect(e).not.toBeInstanceOf(BlockchainError);
+      expect(e.isRecoverable).toBeUndefined();
+      expect(e.cause).toBe(error);
+      expect(e.cause.code).toBe(EthersError.SERVER_ERROR);
     });
 
     it('throws regular Error for TIMEOUT (not BlockchainError)', () => {
@@ -361,10 +359,10 @@ describe('SmartProvider', () => {
 
       const e: any = new CombinedError();
 
-      expect(e).to.be.instanceOf(Error);
-      expect(e).to.not.be.instanceOf(BlockchainError);
-      expect(e.isRecoverable).to.be.undefined;
-      expect(e.cause).to.equal(error);
+      expect(e).toBeInstanceOf(Error);
+      expect(e).not.toBeInstanceOf(BlockchainError);
+      expect(e.isRecoverable).toBeUndefined();
+      expect(e.cause).toBe(error);
     });
 
     const mixedErrorTestCases = [
@@ -403,10 +401,10 @@ describe('SmartProvider', () => {
 
         const e = new CombinedError();
 
-        expect(e).to.be.instanceOf(BlockchainError);
-        expect((e as BlockchainError).isRecoverable).to.equal(false);
-        expect(e.message).to.equal(expectedMessage);
-        expect(e.cause).to.equal(secondError);
+        expect(e).toBeInstanceOf(BlockchainError);
+        expect((e as BlockchainError).isRecoverable).toBe(false);
+        expect(e.message).toBe(expectedMessage);
+        expect(e.cause).toBe(secondError);
       });
     });
 
@@ -427,8 +425,8 @@ describe('SmartProvider', () => {
       const e: any = new CombinedError();
 
       // Without nested error, this IS a BlockchainError (decode failure is permanent)
-      expect(e).to.be.instanceOf(BlockchainError);
-      expect(e.isRecoverable).to.equal(false);
+      expect(e).toBeInstanceOf(BlockchainError);
+      expect(e.isRecoverable).toBe(false);
     });
 
     it('treats CALL_EXCEPTION with nested RPC error (not code 3) as recoverable', () => {
@@ -447,10 +445,10 @@ describe('SmartProvider', () => {
       const e: any = new CombinedError();
 
       // With nested error but no code 3, this should NOT be a BlockchainError
-      expect(e).to.be.instanceOf(Error);
-      expect(e).to.not.be.instanceOf(BlockchainError);
+      expect(e).toBeInstanceOf(Error);
+      expect(e).not.toBeInstanceOf(BlockchainError);
       // Falls through to generic error handler (unhandled case)
-      expect(e.message).to.equal('Test fallback message');
+      expect(e.message).toBe('Test fallback message');
     });
 
     it('treats CALL_EXCEPTION with JSON-RPC error code 3 as permanent (BlockchainError)', () => {
@@ -470,10 +468,10 @@ describe('SmartProvider', () => {
       const e: any = new CombinedError();
 
       // With JSON-RPC code 3, this SHOULD be a BlockchainError
-      expect(e).to.be.instanceOf(BlockchainError);
-      expect(e.isRecoverable).to.equal(false);
-      expect(e.message).to.equal('execution reverted');
-      expect(e.cause).to.equal(error);
+      expect(e).toBeInstanceOf(BlockchainError);
+      expect(e.isRecoverable).toBe(false);
+      expect(e.message).toBe('execution reverted');
+      expect(e.cause).toBe(error);
     });
   });
 
@@ -485,9 +483,9 @@ describe('SmartProvider', () => {
 
       const result = await provider.simplePerform('getBlockNumber', 1);
 
-      expect(result).to.deep.equal('success1');
-      expect(provider1.called).to.be.true;
-      expect(provider2.called).to.be.false;
+      expect(result).toEqual('success1');
+      expect(provider1.called).toBe(true);
+      expect(provider2.called).toBe(false);
     });
 
     it('calls second provider when first throws server error, returns success from second', async () => {
@@ -502,10 +500,10 @@ describe('SmartProvider', () => {
 
       const result = await provider.simplePerform('getBlockNumber', 1);
 
-      expect(result).to.deep.equal('success2');
-      expect(provider1.called).to.be.true;
-      expect(provider1.thrownError).to.equal(serverError);
-      expect(provider2.called).to.be.true;
+      expect(result).toEqual('success2');
+      expect(provider1.called).toBe(true);
+      expect(provider1.thrownError).toBe(serverError);
+      expect(provider2.called).toBe(true);
     });
 
     it('calls second provider when first times out, returns success from second', async () => {
@@ -515,9 +513,9 @@ describe('SmartProvider', () => {
 
       const result = await provider.simplePerform('getBlockNumber', 1);
 
-      expect(result).to.deep.equal('success2');
-      expect(provider1.called).to.be.true;
-      expect(provider2.called).to.be.true;
+      expect(result).toEqual('success2');
+      expect(provider1.called).toBe(true);
+      expect(provider2.called).toBe(true);
     });
 
     it('both providers timeout, first provider ultimately returns result (waitForProviderSuccess)', async () => {
@@ -527,9 +525,9 @@ describe('SmartProvider', () => {
 
       const result = await provider.simplePerform('getBlockNumber', 1);
 
-      expect(result).to.deep.equal('success1');
-      expect(provider1.called).to.be.true;
-      expect(provider2.called).to.be.true;
+      expect(result).toEqual('success1');
+      expect(provider1.called).toBe(true);
+      expect(provider2.called).toBe(true);
     });
 
     it('both providers throw errors, combined error is thrown', async () => {
@@ -548,16 +546,16 @@ describe('SmartProvider', () => {
 
       try {
         await provider.simplePerform('getBlockNumber', 1);
-        expect.fail('Should have thrown an error');
+        throw new Error('Should have thrown an error');
       } catch (e: any) {
-        expect(e).to.be.instanceOf(Error);
-        expect(e).to.not.be.instanceOf(BlockchainError);
-        expect(e.isRecoverable).to.be.undefined;
-        expect(e.cause).to.equal(serverError1); // First error should be the cause
-        expect(provider1.called).to.be.true;
-        expect(provider1.thrownError).to.equal(serverError1);
-        expect(provider2.called).to.be.true;
-        expect(provider2.thrownError).to.equal(serverError2);
+        expect(e).toBeInstanceOf(Error);
+        expect(e).not.toBeInstanceOf(BlockchainError);
+        expect(e.isRecoverable).toBeUndefined();
+        expect(e.cause).toBe(serverError1); // First error should be the cause
+        expect(provider1.called).toBe(true);
+        expect(provider1.thrownError).toBe(serverError1);
+        expect(provider2.called).toBe(true);
+        expect(provider2.thrownError).toBe(serverError2);
       }
     });
 
@@ -568,14 +566,14 @@ describe('SmartProvider', () => {
 
       try {
         await provider.simplePerform('getBlockNumber', 1);
-        expect.fail('Should have thrown an error');
+        throw new Error('Should have thrown an error');
       } catch (e: any) {
-        expect(e).to.be.instanceOf(Error);
-        expect(e).to.not.be.instanceOf(BlockchainError);
-        expect(e.isRecoverable).to.be.undefined;
-        expect(e.message).to.include('All providers timed out');
-        expect(provider1.called).to.be.true;
-        expect(provider2.called).to.be.true;
+        expect(e).toBeInstanceOf(Error);
+        expect(e).not.toBeInstanceOf(BlockchainError);
+        expect(e.isRecoverable).toBeUndefined();
+        expect(e.message).toContain('All providers timed out');
+        expect(provider1.called).toBe(true);
+        expect(provider2.called).toBe(true);
       }
     });
 
@@ -591,15 +589,15 @@ describe('SmartProvider', () => {
       const provider = new TestableSmartProvider([provider1, provider2]);
       try {
         await provider.simplePerform('getBlockNumber', 1);
-        expect.fail('Should have thrown an error');
+        throw new Error('Should have thrown an error');
       } catch (e: any) {
-        expect(e).to.be.instanceOf(BlockchainError);
-        expect(e.isRecoverable).to.equal(false);
-        expect(e.message).to.equal('execution reverted');
-        expect(e.cause).to.equal(blockchainError);
-        expect(provider1.called).to.be.true;
-        expect(provider1.thrownError).to.equal(blockchainError);
-        expect(provider2.called).to.be.false; // Key test - second provider should NOT be called
+        expect(e).toBeInstanceOf(BlockchainError);
+        expect(e.isRecoverable).toBe(false);
+        expect(e.message).toBe('execution reverted');
+        expect(e.cause).toBe(blockchainError);
+        expect(provider1.called).toBe(true);
+        expect(provider1.thrownError).toBe(blockchainError);
+        expect(provider2.called).toBe(false); // Key test - second provider should NOT be called
       }
     });
 
@@ -619,16 +617,16 @@ describe('SmartProvider', () => {
 
       try {
         await provider.simplePerform('getBlockNumber', 1);
-        expect.fail('Should have thrown an error');
+        throw new Error('Should have thrown an error');
       } catch (e: any) {
-        expect(e).to.be.instanceOf(BlockchainError); // Should get blockchain error, not server error
-        expect(e.isRecoverable).to.equal(false);
-        expect(e.message).to.equal('insufficient funds');
-        expect(e.cause).to.equal(blockchainError);
-        expect(provider1.called).to.be.true;
-        expect(provider1.thrownError).to.equal(serverError);
-        expect(provider2.called).to.be.true;
-        expect(provider2.thrownError).to.equal(blockchainError);
+        expect(e).toBeInstanceOf(BlockchainError); // Should get blockchain error, not server error
+        expect(e.isRecoverable).toBe(false);
+        expect(e.message).toBe('insufficient funds');
+        expect(e.cause).toBe(blockchainError);
+        expect(provider1.called).toBe(true);
+        expect(provider1.thrownError).toBe(serverError);
+        expect(provider2.called).toBe(true);
+        expect(provider2.thrownError).toBe(blockchainError);
       }
     });
 
@@ -647,11 +645,11 @@ describe('SmartProvider', () => {
 
       try {
         await provider.simplePerform('getBlockNumber', 1);
-        expect.fail('Should have thrown an error');
+        throw new Error('Should have thrown an error');
       } catch (e: any) {
-        expect(e).to.be.instanceOf(BlockchainError);
-        expect(provider1.called).to.be.true;
-        expect(provider2.called).to.be.false; // Key test - second provider should NOT be called
+        expect(e).toBeInstanceOf(BlockchainError);
+        expect(provider1.called).toBe(true);
+        expect(provider2.called).toBe(false); // Key test - second provider should NOT be called
       }
     });
 
@@ -671,10 +669,10 @@ describe('SmartProvider', () => {
       const result = await provider.simplePerform('getBlockNumber', 1);
 
       // Should succeed from second provider
-      expect(result).to.deep.equal('success2');
-      expect(provider1.called).to.be.true;
-      expect(provider1.thrownError).to.equal(callExceptionWithNestedError);
-      expect(provider2.called).to.be.true; // Key test - second provider SHOULD be called
+      expect(result).toEqual('success2');
+      expect(provider1.called).toBe(true);
+      expect(provider1.thrownError).toBe(callExceptionWithNestedError);
+      expect(provider2.called).toBe(true); // Key test - second provider SHOULD be called
     });
 
     it('CALL_EXCEPTION with JSON-RPC error code 3 stops trying additional providers', async () => {
@@ -693,15 +691,15 @@ describe('SmartProvider', () => {
 
       try {
         await provider.simplePerform('getBlockNumber', 1);
-        expect.fail('Should have thrown an error');
+        throw new Error('Should have thrown an error');
       } catch (e: any) {
-        expect(e).to.be.instanceOf(BlockchainError);
-        expect(e.isRecoverable).to.equal(false);
-        expect(e.message).to.equal('execution reverted');
-        expect(e.cause).to.equal(callExceptionJsonRpcCode3);
-        expect(provider1.called).to.be.true;
-        expect(provider1.thrownError).to.equal(callExceptionJsonRpcCode3);
-        expect(provider2.called).to.be.false; // Key test - second provider should NOT be called
+        expect(e).toBeInstanceOf(BlockchainError);
+        expect(e.isRecoverable).toBe(false);
+        expect(e.message).toBe('execution reverted');
+        expect(e.cause).toBe(callExceptionJsonRpcCode3);
+        expect(provider1.called).toBe(true);
+        expect(provider1.thrownError).toBe(callExceptionJsonRpcCode3);
+        expect(provider2.called).toBe(false); // Key test - second provider should NOT be called
       }
     });
 
@@ -719,9 +717,9 @@ describe('SmartProvider', () => {
       } catch {
         threw = true;
       }
-      expect(threw, 'perform should have thrown').to.be.true;
+      expect(threw, 'perform should have thrown').toBe(true);
       // performWithFallback should be called exactly once (no retryAsync wrapping)
-      expect(smartProvider.performWithFallbackCallCount).to.equal(1);
+      expect(smartProvider.performWithFallbackCallCount).toBe(1);
     });
 
     it('sendTransaction waits for provider instead of racing against timeout', async () => {
@@ -736,10 +734,10 @@ describe('SmartProvider', () => {
       );
 
       // Should wait for the slow provider instead of timing out and trying provider2
-      expect(result).to.equal('tx-hash');
-      expect(provider1.called).to.be.true;
-      expect(provider1.callCount).to.equal(1);
-      expect(provider2.called).to.be.false;
+      expect(result).toBe('tx-hash');
+      expect(provider1.called).toBe(true);
+      expect(provider1.callCount).toBe(1);
+      expect(provider2.called).toBe(false);
     });
   });
 });

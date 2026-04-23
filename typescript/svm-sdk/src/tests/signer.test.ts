@@ -11,9 +11,8 @@ import {
   getCompiledTransactionMessageDecoder,
   signature as toSignature,
 } from '@solana/kit';
-import { expect } from 'chai';
-import 'chai-as-promised';
 import sinon from 'sinon';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import { SvmSigner } from '../clients/signer.js';
 import type { SvmRpc, SvmTransaction } from '../types.js';
@@ -144,8 +143,9 @@ describe('SvmSigner', () => {
       const signer = await createTestSigner(rpc);
       const receipt = await signer.send(noopTx());
 
-      expect(receipt.slot).to.equal(42n);
-      expect(receipt.signature).to.be.a('string').and.not.empty;
+      expect(receipt.slot).toBe(42n);
+      expect(typeof receipt.signature).toBe('string');
+      expect(receipt.signature).not.toBe('');
     });
 
     it('accepts finalized status as confirmed', async () => {
@@ -166,7 +166,7 @@ describe('SvmSigner', () => {
 
       const signer = await createTestSigner(rpc);
       const receipt = await signer.send(noopTx());
-      expect(receipt.slot).to.equal(55n);
+      expect(receipt.slot).toBe(55n);
     });
   });
 
@@ -192,8 +192,8 @@ describe('SvmSigner', () => {
       const signer = await createTestSigner(rpc);
       const receipt = await signer.send(noopTx());
 
-      expect(receipt).to.have.property('signature');
-      expect(sendAttempts).to.equal(3);
+      expect(receipt).toHaveProperty('signature');
+      expect(sendAttempts).toBe(3);
     });
 
     it('retries on preflight failure wrapping blockhash not found', async () => {
@@ -213,8 +213,8 @@ describe('SvmSigner', () => {
       const signer = await createTestSigner(rpc);
       const receipt = await signer.send(noopTx());
 
-      expect(receipt).to.have.property('signature');
-      expect(sendAttempts).to.equal(2);
+      expect(receipt).toHaveProperty('signature');
+      expect(sendAttempts).toBe(2);
     });
 
     it('does not retry on non-blockhash errors', async () => {
@@ -229,10 +229,8 @@ describe('SvmSigner', () => {
       });
 
       const signer = await createTestSigner(rpc);
-      await expect(signer.send(noopTx())).to.be.rejectedWith(
-        'Insufficient funds',
-      );
-      expect(sendAttempts).to.equal(1);
+      await expect(signer.send(noopTx())).rejects.toThrow('Insufficient funds');
+      expect(sendAttempts).toBe(1);
     });
 
     it('throws after exhausting all signAndSend attempts', async () => {
@@ -249,11 +247,11 @@ describe('SvmSigner', () => {
       });
 
       const signer = await createTestSigner(rpc);
-      await expect(signer.send(noopTx())).to.be.rejectedWith(
+      await expect(signer.send(noopTx())).rejects.toThrow(
         /Blockhash not found/,
       );
       // signAndSend maxAttempts = 5
-      expect(sendAttempts).to.equal(5);
+      expect(sendAttempts).toBe(5);
     });
   });
 
@@ -281,8 +279,8 @@ describe('SvmSigner', () => {
         await signer.send(noopTx());
         expect.fail('should have thrown');
       } catch (error) {
-        expect((error as Error).name).to.equal('SvmTransactionError');
-        expect((error as Error).message).to.match(/Transaction failed/);
+        expect((error as Error).name).toBe('SvmTransactionError');
+        expect((error as Error).message).toMatch(/Transaction failed/);
       }
     });
   });
@@ -307,11 +305,11 @@ describe('SvmSigner', () => {
       });
 
       const signer = await createTestSigner(rpc);
-      await expect(signer.send(noopTx())).to.be.rejectedWith(
+      await expect(signer.send(noopTx())).rejects.toThrow(
         /Transaction not confirmed after 3 blockhash attempts/,
       );
       // 3 blockhash attempts × 3 failures each = 9
-      expect(blockHeightCalls).to.equal(9);
+      expect(blockHeightCalls).toBe(9);
     });
   });
 
@@ -361,8 +359,8 @@ describe('SvmSigner', () => {
       const signer = await createTestSigner(rpc);
       const receipt = await signer.send(noopTx());
 
-      expect(receipt.slot).to.equal(99n);
-      expect(blockhashFetches).to.equal(2);
+      expect(receipt.slot).toBe(99n);
+      expect(blockhashFetches).toBe(2);
     });
 
     it('exhausts all 3 blockhash attempts and throws', async function () {
@@ -390,11 +388,11 @@ describe('SvmSigner', () => {
       });
 
       const signer = await createTestSigner(rpc);
-      await expect(signer.send(noopTx())).to.be.rejectedWith(
+      await expect(signer.send(noopTx())).rejects.toThrow(
         /Transaction not confirmed after 3 blockhash attempts/,
       );
       // 3 outer attempts * signAndSend fetches
-      expect(blockhashFetches).to.equal(3);
+      expect(blockhashFetches).toBe(3);
     });
   });
 
@@ -434,8 +432,8 @@ describe('SvmSigner', () => {
       const signer = await createTestSigner(rpc);
       const receipt = await signer.send(noopTx());
 
-      expect(historyCalled).to.be.true;
-      expect(receipt.slot).to.equal(77n);
+      expect(historyCalled).toBe(true);
+      expect(receipt.slot).toBe(77n);
     });
   });
 
@@ -503,9 +501,9 @@ describe('SvmSigner', () => {
       const signer = await createTestSigner(rpc);
       const receipt = await signer.send(noopTx());
 
-      expect(receipt.slot).to.equal(88n);
+      expect(receipt.slot).toBe(88n);
       // 1 for signAndSend + 1 for fresh blockhash in processed retry
-      expect(blockhashFetches).to.equal(2);
+      expect(blockhashFetches).toBe(2);
     });
 
     it('throws if processed tx never confirms after retry poll', async function () {
@@ -551,11 +549,11 @@ describe('SvmSigner', () => {
       });
 
       const signer = await createTestSigner(rpc);
-      await expect(signer.send(noopTx())).to.be.rejectedWith(
+      await expect(signer.send(noopTx())).rejects.toThrow(
         /was observed at 'processed' but never confirmed/,
       );
       // 1 signAndSend + 1 fresh blockhash for processed retry = 2
-      expect(blockhashFetches).to.equal(2);
+      expect(blockhashFetches).toBe(2);
     });
   });
 
@@ -588,8 +586,8 @@ describe('SvmSigner', () => {
       const signer = await createTestSigner(rpc);
       const receipt = await signer.send(noopTx());
 
-      expect(receipt.slot).to.equal(42n);
-      expect(statusCalls).to.equal(3);
+      expect(receipt.slot).toBe(42n);
+      expect(statusCalls).toBe(3);
     });
 
     it('tolerates getBlockHeight failures and keeps polling', async function () {
@@ -626,9 +624,9 @@ describe('SvmSigner', () => {
       const signer = await createTestSigner(rpc);
       const receipt = await signer.send(noopTx());
 
-      expect(receipt.slot).to.equal(42n);
+      expect(receipt.slot).toBe(42n);
       // 2 polls with null status hit getBlockHeight before 3rd poll confirms
-      expect(blockHeightCalls).to.equal(2);
+      expect(blockHeightCalls).toBe(2);
     });
 
     it('throws instead of resubmitting when history check hits transient RPC error', async function () {
@@ -660,11 +658,11 @@ describe('SvmSigner', () => {
       });
 
       const signer = await createTestSigner(rpc);
-      await expect(signer.send(noopTx())).to.be.rejectedWith(
+      await expect(signer.send(noopTx())).rejects.toThrow(
         /Cannot safely resubmit: history lookup failed/,
       );
       // Only one send — no resubmit after RPC error
-      expect(sendTxCalls).to.equal(1);
+      expect(sendTxCalls).toBe(1);
     });
   });
 
@@ -705,9 +703,9 @@ describe('SvmSigner', () => {
       const signer = await createTestSigner(rpc);
       const receipt = await signer.send(noopTx());
 
-      expect(receipt.slot).to.equal(42n);
+      expect(receipt.slot).toBe(42n);
       // 1 initial send + 2 rebroadcasts (polls 1 & 2 return null, poll 3 confirms)
-      expect(sendTxCalls).to.equal(3);
+      expect(sendTxCalls).toBe(3);
     });
 
     it('does not rebroadcast when tx is at processed status', async function () {
@@ -753,9 +751,9 @@ describe('SvmSigner', () => {
       const signer = await createTestSigner(rpc);
       const receipt = await signer.send(noopTx());
 
-      expect(receipt.slot).to.equal(42n);
+      expect(receipt.slot).toBe(42n);
       // Only the initial send, no rebroadcasts (processed triggers continue)
-      expect(sendTxCalls).to.equal(1);
+      expect(sendTxCalls).toBe(1);
     });
   });
 
@@ -786,8 +784,8 @@ describe('SvmSigner', () => {
       const signerAddress = signer.getSignerAddress();
 
       // feePayer differs from both the local signer and instruction accounts
-      expect(signerAddress).to.not.equal(SQUADS_VAULT_ADDRESS);
-      expect(OWNER_ADDRESS).to.not.equal(SQUADS_VAULT_ADDRESS);
+      expect(signerAddress).not.toBe(SQUADS_VAULT_ADDRESS);
+      expect(OWNER_ADDRESS).not.toBe(SQUADS_VAULT_ADDRESS);
 
       const tx: SvmTransaction = {
         feePayer: SQUADS_VAULT_ADDRESS,
@@ -805,7 +803,7 @@ describe('SvmSigner', () => {
 
       const json = await signer.transactionToPrintableJson(tx);
 
-      expect(feePayerFromMessageBase58(json.message_base58)).to.equal(
+      expect(feePayerFromMessageBase58(json.message_base58)).toBe(
         SQUADS_VAULT_ADDRESS,
       );
     });
@@ -829,7 +827,7 @@ describe('SvmSigner', () => {
 
       const json = await signer.transactionToPrintableJson(tx);
 
-      expect(feePayerFromMessageBase58(json.message_base58)).to.equal(
+      expect(feePayerFromMessageBase58(json.message_base58)).toBe(
         signerAddress,
       );
     });

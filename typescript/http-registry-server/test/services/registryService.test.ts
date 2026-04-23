@@ -1,7 +1,6 @@
-import { use as chaiUse, expect } from 'chai';
-import chaiAsPromised from 'chai-as-promised';
 import { type Logger, pino } from 'pino';
 import sinon from 'sinon';
+import { expect } from 'vitest';
 
 import {
   IRegistry,
@@ -13,8 +12,6 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { RegistryService } from '../../src/services/registryService.js';
 import { IWatcher } from '../../src/services/watcherService.js';
-
-chaiUse(chaiAsPromised);
 
 describe('RegistryService', () => {
   let registryService: RegistryService;
@@ -72,7 +69,7 @@ describe('RegistryService', () => {
     it('should initialize registry on startup', async () => {
       await registryService.initialize();
 
-      expect(getRegistryStub.calledOnce).to.be.true;
+      expect(getRegistryStub.calledOnce).toBe(true);
     });
   });
 
@@ -84,9 +81,9 @@ describe('RegistryService', () => {
       const registry1 = await registryService.getCurrentRegistry();
       const registry2 = await registryService.getCurrentRegistry();
 
-      expect(registry1).to.equal(mockRegistry);
-      expect(registry2).to.equal(mockRegistry);
-      expect(getRegistryStub.called).to.be.false;
+      expect(registry1).toBe(mockRegistry);
+      expect(registry2).toBe(mockRegistry);
+      expect(getRegistryStub.called).toBe(false);
     });
 
     it('should refresh registry after refresh interval expires', async () => {
@@ -100,14 +97,14 @@ describe('RegistryService', () => {
 
       await registryService.getCurrentRegistry();
 
-      expect(getRegistryStub.calledOnce).to.be.true;
+      expect(getRegistryStub.calledOnce).toBe(true);
     });
 
     it('should refresh registry if no cached registry exists', async () => {
       const registry = await registryService.getCurrentRegistry();
 
-      expect(registry).to.equal(mockRegistry);
-      expect(getRegistryStub.calledOnce).to.be.true;
+      expect(registry).toBe(mockRegistry);
+      expect(getRegistryStub.calledOnce).toBe(true);
     });
   });
 
@@ -118,8 +115,8 @@ describe('RegistryService', () => {
       const operation = sinon.stub().resolves('test-result');
       const result = await registryService.withRegistry(operation);
 
-      expect(operation.calledWith(mockRegistry)).to.be.true;
-      expect(result).to.equal('test-result');
+      expect(operation.calledWith(mockRegistry)).toBe(true);
+      expect(result).toBe('test-result');
     });
 
     it('should propagate errors from operations', async () => {
@@ -127,7 +124,7 @@ describe('RegistryService', () => {
 
       const operation = sinon.stub().rejects(new Error('Operation failed'));
 
-      await expect(registryService.withRegistry(operation)).to.be.rejectedWith(
+      await expect(registryService.withRegistry(operation)).rejects.toThrow(
         'Operation failed',
       );
     });
@@ -144,8 +141,8 @@ describe('RegistryService', () => {
       const operation = sinon.stub().resolves('test-result');
       await registryService.withRegistry(operation);
 
-      expect(getRegistryStub.calledOnce).to.be.true;
-      expect(operation.calledWith(mockRegistry)).to.be.true;
+      expect(getRegistryStub.calledOnce).toBe(true);
+      expect(operation.calledWith(mockRegistry)).toBe(true);
     });
   });
 
@@ -185,7 +182,7 @@ describe('RegistryService', () => {
 
       await registryService.getCurrentRegistry();
 
-      expect(getRegistryStub.calledOnce).to.be.true;
+      expect(getRegistryStub.calledOnce).toBe(true);
     });
 
     it('should clear flag after refresh', async () => {
@@ -211,12 +208,12 @@ describe('RegistryService', () => {
 
       // First call should refresh
       await registryService.getCurrentRegistry();
-      expect(getRegistryStub.calledOnce).to.be.true;
+      expect(getRegistryStub.calledOnce).toBe(true);
       getRegistryStub.resetHistory();
 
       // Second call should NOT refresh (flag cleared)
       await registryService.getCurrentRegistry();
-      expect(getRegistryStub.called).to.be.false;
+      expect(getRegistryStub.called).toBe(false);
     });
 
     it('should skip time-based refresh when watching', async () => {
@@ -245,7 +242,7 @@ describe('RegistryService', () => {
       await registryService.getCurrentRegistry();
 
       // Should NOT refresh because we're watching and dirty flag not set
-      expect(getRegistryStub.called).to.be.false;
+      expect(getRegistryStub.called).toBe(false);
     });
   });
 
@@ -272,8 +269,8 @@ describe('RegistryService', () => {
 
       await registryService.initialize();
 
-      expect((mockWatcher.watch as sinon.SinonStub).calledOnce).to.be.true;
-      expect((mockWatcher.watch as sinon.SinonStub).firstCall.args[0]).to.equal(
+      expect((mockWatcher.watch as sinon.SinonStub).calledOnce).toBe(true);
+      expect((mockWatcher.watch as sinon.SinonStub).firstCall.args[0]).toBe(
         '/test/registry',
       );
     });
@@ -306,8 +303,8 @@ describe('RegistryService', () => {
 
       await registryService.initialize();
 
-      expect((mockWatcher.watch as sinon.SinonStub).calledOnce).to.be.true;
-      expect((mockWatcher.watch as sinon.SinonStub).firstCall.args[0]).to.equal(
+      expect((mockWatcher.watch as sinon.SinonStub).calledOnce).toBe(true);
+      expect((mockWatcher.watch as sinon.SinonStub).firstCall.args[0]).toBe(
         '/test/fs-registry',
       );
     });
@@ -334,7 +331,7 @@ describe('RegistryService', () => {
 
       await registryService.initialize();
 
-      expect((mockWatcher.watch as sinon.SinonStub).firstCall.args[0]).to.equal(
+      expect((mockWatcher.watch as sinon.SinonStub).firstCall.args[0]).toBe(
         '/test/registry',
       );
     });
@@ -355,7 +352,7 @@ describe('RegistryService', () => {
 
       await registryService.initialize();
 
-      expect((mockWatcher.watch as sinon.SinonStub).called).to.be.false;
+      expect((mockWatcher.watch as sinon.SinonStub).called).toBe(false);
     });
 
     it('should skip watcher setup when no watcher provided', async () => {
@@ -375,7 +372,7 @@ describe('RegistryService', () => {
 
       // Should not throw
       await registryService.initialize();
-      expect(registryService).to.exist;
+      expect(registryService).toBeDefined();
     });
 
     it('should log warning and fall back to polling on watch failure', async () => {
@@ -403,8 +400,8 @@ describe('RegistryService', () => {
 
       await registryService.initialize();
 
-      expect(loggerWarnStub.calledOnce).to.be.true;
-      expect(loggerWarnStub.firstCall.args[1]).to.include(
+      expect(loggerWarnStub.calledOnce).toBe(true);
+      expect(loggerWarnStub.firstCall.args[1]).toContain(
         'falling back to polling',
       );
 
@@ -412,7 +409,7 @@ describe('RegistryService', () => {
       getRegistryStub.resetHistory();
       clock.tick(REFRESH_INTERVAL + 1);
       await registryService.getCurrentRegistry();
-      expect(getRegistryStub.calledOnce).to.be.true;
+      expect(getRegistryStub.calledOnce).toBe(true);
     });
 
     it('should log warning and fall back to polling on runtime watcher error', async () => {
@@ -447,21 +444,21 @@ describe('RegistryService', () => {
       // Verify polling is skipped while watcher is active
       clock.tick(REFRESH_INTERVAL + 1);
       await registryService.getCurrentRegistry();
-      expect(getRegistryStub.called).to.be.false;
+      expect(getRegistryStub.called).toBe(false);
 
       // Simulate runtime watcher error
-      expect(capturedOnError).to.exist;
+      expect(capturedOnError).toBeDefined();
       capturedOnError!(new Error('ENOENT: no such file or directory'));
 
-      expect(loggerWarnStub.calledOnce).to.be.true;
-      expect(loggerWarnStub.firstCall.args[1]).to.include(
+      expect(loggerWarnStub.calledOnce).toBe(true);
+      expect(loggerWarnStub.firstCall.args[1]).toContain(
         'falling back to polling',
       );
 
       // Verify polling fallback works after watcher error
       clock.tick(REFRESH_INTERVAL + 1);
       await registryService.getCurrentRegistry();
-      expect(getRegistryStub.calledOnce).to.be.true;
+      expect(getRegistryStub.calledOnce).toBe(true);
     });
   });
 
@@ -489,7 +486,7 @@ describe('RegistryService', () => {
       await registryService.initialize();
       registryService.stop();
 
-      expect((mockWatcher.stop as sinon.SinonStub).calledOnce).to.be.true;
+      expect((mockWatcher.stop as sinon.SinonStub).calledOnce).toBe(true);
     });
 
     it('should handle stop when no watcher', async () => {
@@ -497,7 +494,7 @@ describe('RegistryService', () => {
       await registryService.initialize();
 
       // Should not throw
-      expect(() => registryService.stop()).to.not.throw();
+      expect(() => registryService.stop()).not.toThrow();
     });
   });
 });

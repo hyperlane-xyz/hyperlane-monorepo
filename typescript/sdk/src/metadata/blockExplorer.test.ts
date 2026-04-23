@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
@@ -54,16 +54,16 @@ const EXPECTED_RESULTS = [
 describe('Block explorer utils', () => {
   TEST_CHAINS.map((chain, i) => {
     it(`gets a base url correctly for protocol ${chain.protocol}`, () => {
-      expect(getExplorerBaseUrl(chain)).to.equal(EXPECTED_RESULTS[i][0]);
+      expect(getExplorerBaseUrl(chain)).toBe(EXPECTED_RESULTS[i][0]);
     });
     it(`gets an api url for protocol ${chain.protocol}`, () => {
-      expect(getExplorerApiUrl(chain)).to.equal(EXPECTED_RESULTS[i][1]);
+      expect(getExplorerApiUrl(chain)).toBe(EXPECTED_RESULTS[i][1]);
     });
     it(`gets a tx url for protocol ${chain.protocol}`, () => {
-      expect(getExplorerTxUrl(chain, '0x123')).to.equal(EXPECTED_RESULTS[i][2]);
+      expect(getExplorerTxUrl(chain, '0x123')).toBe(EXPECTED_RESULTS[i][2]);
     });
     it(`gets an address url for protocol ${chain.protocol}`, () => {
-      expect(getExplorerAddressUrl(chain, '0x123')).to.equal(
+      expect(getExplorerAddressUrl(chain, '0x123')).toBe(
         EXPECTED_RESULTS[i][3],
       );
     });
@@ -157,7 +157,7 @@ describe('Block explorer utils', () => {
 
     it('converts Etherscan V1 API to V2 format with chainId', () => {
       const result = getExplorerApi(etherscanV1Chain);
-      expect(result).to.deep.equal({
+      expect(result).toEqual({
         apiUrl: 'https://api.etherscan.io/v2/api?chainid=1',
         apiKey: 'testkey',
         family: ExplorerFamily.Etherscan,
@@ -166,7 +166,7 @@ describe('Block explorer utils', () => {
 
     it('converts PolygonScan API to V2 format with chainId', () => {
       const result = getExplorerApi(polygonScanChain);
-      expect(result).to.deep.equal({
+      expect(result).toEqual({
         apiUrl: 'https://api.etherscan.io/v2/api?chainid=137',
         apiKey: 'polygonkey',
         family: ExplorerFamily.Etherscan,
@@ -175,7 +175,7 @@ describe('Block explorer utils', () => {
 
     it('converts BscScan API to V2 format with chainId', () => {
       const result = getExplorerApi(bscScanChain);
-      expect(result).to.deep.equal({
+      expect(result).toEqual({
         apiUrl: 'https://api.etherscan.io/v2/api?chainid=56',
         apiKey: 'bsckey',
         family: ExplorerFamily.Etherscan,
@@ -184,7 +184,7 @@ describe('Block explorer utils', () => {
 
     it('leaves already V2 URLs unchanged', () => {
       const result = getExplorerApi(alreadyV2Chain);
-      expect(result).to.deep.equal({
+      expect(result).toEqual({
         apiUrl: 'https://api.etherscan.io/v2/api?chainid=1',
         apiKey: 'testkey',
         family: ExplorerFamily.Etherscan,
@@ -193,7 +193,7 @@ describe('Block explorer utils', () => {
 
     it('leaves non-scan APIs unchanged', () => {
       const result = getExplorerApi(nonScanChain);
-      expect(result).to.deep.equal({
+      expect(result).toEqual({
         apiUrl: 'https://api.custom-explorer.com/api',
         apiKey: 'customkey',
         family: ExplorerFamily.Other,
@@ -206,7 +206,7 @@ describe('Block explorer utils', () => {
         chainId: '1',
       };
       const result = getExplorerApi(stringChainIdChain);
-      expect(result).to.deep.equal({
+      expect(result).toEqual({
         apiUrl: 'https://api.etherscan.io/v2/api?chainid=1',
         apiKey: 'testkey',
         family: ExplorerFamily.Etherscan,
@@ -219,7 +219,7 @@ describe('Block explorer utils', () => {
         chainId: 0, // Use 0 instead of undefined to satisfy type requirements
       };
       const result = getExplorerApi(noChainIdChain);
-      expect(result).to.deep.equal({
+      expect(result).toEqual({
         apiUrl: 'https://api.etherscan.io/v2/api',
         apiKey: 'testkey',
         family: ExplorerFamily.Etherscan,
@@ -228,7 +228,7 @@ describe('Block explorer utils', () => {
 
     it('includes API key in final URL', () => {
       const result = getExplorerApiUrl(etherscanV1Chain);
-      expect(result).to.equal(
+      expect(result).toBe(
         'https://api.etherscan.io/v2/api?chainid=1&apikey=testkey',
       );
     });
@@ -251,9 +251,9 @@ describe('Block explorer utils', () => {
         };
         const result = getExplorerApi(testChain);
         if (expected) {
-          expect(result?.apiUrl).to.include('api.etherscan.io/v2/api');
+          expect(result?.apiUrl).toContain('api.etherscan.io/v2/api');
         } else {
-          expect(result?.apiUrl).to.equal('https://api.etherscan.io/api');
+          expect(result?.apiUrl).toBe('https://api.etherscan.io/api');
         }
       });
     });
@@ -284,15 +284,15 @@ describe('Block explorer utils', () => {
     };
 
     it('handles chain without block explorers', () => {
-      expect(getExplorerBaseUrl(emptyChain)).to.be.null;
-      expect(getExplorerApi(emptyChain)).to.be.null;
-      expect(getExplorerTxUrl(emptyChain, '0x123')).to.be.null;
-      expect(getExplorerAddressUrl(emptyChain, '0x123')).to.be.null;
+      expect(getExplorerBaseUrl(emptyChain)).toBeNull();
+      expect(getExplorerApi(emptyChain)).toBeNull();
+      expect(getExplorerTxUrl(emptyChain, '0x123')).toBeNull();
+      expect(getExplorerAddressUrl(emptyChain, '0x123')).toBeNull();
     });
 
     it('handles chain without api url', () => {
-      expect(getExplorerBaseUrl(chainWithoutApi)).to.equal('https://test.com/');
-      expect(getExplorerApi(chainWithoutApi)).to.be.null;
+      expect(getExplorerBaseUrl(chainWithoutApi)).toBe('https://test.com/');
+      expect(getExplorerApi(chainWithoutApi)).toBeNull();
     });
   });
 
@@ -320,10 +320,10 @@ describe('Block explorer utils', () => {
     };
 
     it('uses correct explorer by index', () => {
-      expect(getExplorerBaseUrl(multiExplorerChain, 1)).to.equal(
+      expect(getExplorerBaseUrl(multiExplorerChain, 1)).toBe(
         'https://second.com/',
       );
-      expect(getExplorerApiUrl(multiExplorerChain, 1)).to.equal(
+      expect(getExplorerApiUrl(multiExplorerChain, 1)).toBe(
         'https://api.second.com/?apikey=key2',
       );
     });
@@ -346,7 +346,7 @@ describe('Block explorer utils', () => {
     };
 
     it('uses correct transaction path for special chains', () => {
-      expect(getExplorerTxUrl(nautilusChain, '0x123')).to.equal(
+      expect(getExplorerTxUrl(nautilusChain, '0x123')).toBe(
         'https://nautilus.com/transaction/0x123',
       );
     });
@@ -369,7 +369,7 @@ describe('Block explorer utils', () => {
     };
 
     it('handles trailing slashes correctly', () => {
-      expect(getExplorerTxUrl(chainWithTrailingSlash, '0x123')).to.equal(
+      expect(getExplorerTxUrl(chainWithTrailingSlash, '0x123')).toBe(
         'https://test.com/tx/0x123',
       );
     });

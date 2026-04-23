@@ -1,5 +1,4 @@
-import { expect } from 'chai';
-import 'chai-as-promised';
+import { expect } from 'vitest';
 import sinon from 'sinon';
 
 import {
@@ -178,16 +177,14 @@ describe('CoreArtifactReader', () => {
       const result = await coreReader.read(mockMailboxAddress);
 
       // ASSERT
-      expect(result.artifactState).to.equal(ArtifactState.DEPLOYED);
-      expect(result.config.owner).to.equal(mockOwner);
-      expect(result.deployed.address).to.equal(mockMailboxAddress);
-      expect(result.deployed.domainId).to.equal(mockDomainId);
+      expect(result.artifactState).toBe(ArtifactState.DEPLOYED);
+      expect(result.config.owner).toBe(mockOwner);
+      expect(result.deployed.address).toBe(mockMailboxAddress);
+      expect(result.deployed.domainId).toBe(mockDomainId);
 
-      expect(result.config.defaultIsm).to.deep.equal(mockExpandedIsm);
-      expect(result.config.defaultHook).to.deep.equal(mockExpandedDefaultHook);
-      expect(result.config.requiredHook).to.deep.equal(
-        mockExpandedRequiredHook,
-      );
+      expect(result.config.defaultIsm).toEqual(mockExpandedIsm);
+      expect(result.config.defaultHook).toEqual(mockExpandedDefaultHook);
+      expect(result.config.requiredHook).toEqual(mockExpandedRequiredHook);
 
       sinon.assert.calledOnceWithExactly(readMailboxStub, mockMailboxAddress);
       sinon.assert.calledOnceWithExactly(mockIsmReader.read, mockIsmAddress);
@@ -223,12 +220,10 @@ describe('CoreArtifactReader', () => {
       await coreReader.read(mockMailboxAddress);
 
       // ASSERT
-      expect(callOrder).to.have.lengthOf(3);
-      expect(callOrder).to.include.members([
-        'ism',
-        'defaultHook',
-        'requiredHook',
-      ]);
+      expect(callOrder).toHaveLength(3);
+      expect(callOrder).toEqual(
+        expect.arrayContaining(['ism', 'defaultHook', 'requiredHook']),
+      );
     });
 
     it('should propagate mailbox reading errors', async () => {
@@ -237,7 +232,7 @@ describe('CoreArtifactReader', () => {
       readMailboxStub.rejects(error);
 
       // ACT & ASSERT
-      await expect(coreReader.read(mockMailboxAddress)).to.be.rejectedWith(
+      await expect(coreReader.read(mockMailboxAddress)).rejects.toThrow(
         'Failed to read mailbox',
       );
     });
@@ -272,17 +267,17 @@ describe('CoreArtifactReader', () => {
       const result = await coreReader.read(mockMailboxAddress);
 
       // ASSERT
-      expect(result.artifactState).to.equal(ArtifactState.DEPLOYED);
-      expect(result.config.owner).to.equal(mockOwner);
+      expect(result.artifactState).toBe(ArtifactState.DEPLOYED);
+      expect(result.config.owner).toBe(mockOwner);
 
       // Nested artifacts should remain UNDERIVED (not expanded)
-      expect(result.config.defaultIsm.artifactState).to.equal(
+      expect(result.config.defaultIsm.artifactState).toBe(
         ArtifactState.UNDERIVED,
       );
-      expect(result.config.defaultHook.artifactState).to.equal(
+      expect(result.config.defaultHook.artifactState).toBe(
         ArtifactState.UNDERIVED,
       );
-      expect(result.config.requiredHook.artifactState).to.equal(
+      expect(result.config.requiredHook.artifactState).toBe(
         ArtifactState.UNDERIVED,
       );
 
@@ -298,7 +293,7 @@ describe('CoreArtifactReader', () => {
       mockHookReader.read.resolves(mockExpandedDefaultHook);
 
       // ACT & ASSERT
-      await expect(coreReader.read(mockMailboxAddress)).to.be.rejectedWith(
+      await expect(coreReader.read(mockMailboxAddress)).rejects.toThrow(
         'ISM read failed',
       );
     });
@@ -310,7 +305,7 @@ describe('CoreArtifactReader', () => {
       mockHookReader.read.rejects(error);
 
       // ACT & ASSERT
-      await expect(coreReader.read(mockMailboxAddress)).to.be.rejectedWith(
+      await expect(coreReader.read(mockMailboxAddress)).rejects.toThrow(
         'Hook read failed',
       );
     });
@@ -330,14 +325,14 @@ describe('CoreArtifactReader', () => {
       const result = await coreReader.deriveCoreConfig(mockMailboxAddress);
 
       // ASSERT
-      expect(result.owner).to.equal(mockOwner);
-      expect(result.defaultIsm).to.be.an('object');
-      expect(result.defaultHook).to.be.an('object');
-      expect(result.requiredHook).to.be.an('object');
+      expect(result.owner).toBe(mockOwner);
+      expect(typeof result.defaultIsm).toBe('object');
+      expect(typeof result.defaultHook).toBe('object');
+      expect(typeof result.requiredHook).toBe('object');
 
       sinon.assert.calledOnce(readMailboxStub);
       sinon.assert.calledOnce(mockIsmReader.read);
-      expect(mockHookReader.read.callCount).to.equal(2);
+      expect(mockHookReader.read.callCount).toBe(2);
     });
 
     it('should propagate read errors', async () => {
@@ -348,7 +343,7 @@ describe('CoreArtifactReader', () => {
       // ACT & ASSERT
       await expect(
         coreReader.deriveCoreConfig(mockMailboxAddress),
-      ).to.be.rejectedWith('Mailbox read failed');
+      ).rejects.toThrow('Mailbox read failed');
     });
 
     it('should return ZERO_ADDRESS_HEX_32 for zero-address ISM/hooks', async () => {
@@ -379,10 +374,10 @@ describe('CoreArtifactReader', () => {
       const result = await coreReader.deriveCoreConfig(mockMailboxAddress);
 
       // ASSERT
-      expect(result.owner).to.equal(mockOwner);
-      expect(result.defaultIsm).to.equal(ZERO_ADDRESS_HEX_32);
-      expect(result.defaultHook).to.equal(ZERO_ADDRESS_HEX_32);
-      expect(result.requiredHook).to.equal(ZERO_ADDRESS_HEX_32);
+      expect(result.owner).toBe(mockOwner);
+      expect(result.defaultIsm).toBe(ZERO_ADDRESS_HEX_32);
+      expect(result.defaultHook).toBe(ZERO_ADDRESS_HEX_32);
+      expect(result.requiredHook).toBe(ZERO_ADDRESS_HEX_32);
 
       // Readers should NOT have been called
       sinon.assert.notCalled(mockIsmReader.read);

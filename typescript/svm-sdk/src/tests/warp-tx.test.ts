@@ -1,5 +1,5 @@
 import { address } from '@solana/kit';
-import { expect } from 'chai';
+import { describe, expect, it } from 'vitest';
 
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import type { RawNativeWarpArtifactConfig } from '@hyperlane-xyz/provider-sdk/warp';
@@ -100,9 +100,9 @@ describe('computeWarpTokenUpdateInstructions — feePayer', () => {
         'test',
       );
 
-      expect(txs).to.have.length(expectedTxCount);
+      expect(txs).toHaveLength(expectedTxCount);
       for (const tx of txs) {
-        expect(tx.feePayer).to.equal(OWNER);
+        expect(tx.feePayer).toBe(OWNER);
       }
     });
   }

@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import sinon from 'sinon';
 
 import {
@@ -145,7 +145,7 @@ describe('runWarpRouteCombine', () => {
       outputWarpRouteId: 'MULTI/test',
     });
 
-    expect(warnSpy.called).to.equal(true);
+    expect(warnSpy.called).toBe(true);
     const warnings = warnSpy.getCalls().map((call) => String(call.args[0]));
     expect(
       warnings.some(
@@ -153,10 +153,10 @@ describe('runWarpRouteCombine', () => {
           warning.includes('route-a') &&
           warning.includes('will remove 1 enrolled router'),
       ),
-    ).to.equal(true);
+    ).toBe(true);
 
     const updatedRouteAConfig = addWarpRouteConfig.getCall(0).args[0];
-    expect(updatedRouteAConfig.anvil2.crossCollateralRouters).to.deep.equal({
+    expect(updatedRouteAConfig.anvil2.crossCollateralRouters).toEqual({
       [DOMAIN_BY_CHAIN.anvil3.toString()]: [addressToBytes32(ROUTER_B)],
     });
   });
@@ -173,7 +173,7 @@ describe('runWarpRouteCombine', () => {
       thrown = error as Error;
     }
 
-    expect(thrown?.message).to.include('Duplicate route IDs are not allowed');
+    expect(thrown?.message).toContain('Duplicate route IDs are not allowed');
   });
 
   it('rejects empty route IDs', async () => {
@@ -188,7 +188,7 @@ describe('runWarpRouteCombine', () => {
       thrown = error as Error;
     }
 
-    expect(thrown?.message).to.include('Route IDs must be non-empty strings');
+    expect(thrown?.message).toContain('Route IDs must be non-empty strings');
   });
 
   it('rejects routes that are not CrossCollateralRouter', async () => {
@@ -250,7 +250,7 @@ describe('runWarpRouteCombine', () => {
       thrown = error as Error;
     }
 
-    expect(thrown?.message).to.include(
+    expect(thrown?.message).toContain(
       'contains non-CrossCollateralRouter deploy configs',
     );
   });
@@ -315,7 +315,7 @@ describe('runWarpRouteCombine', () => {
       thrown = error as Error;
     }
 
-    expect(thrown?.message).to.include(
+    expect(thrown?.message).toContain(
       'Incompatible decimals/scale on chain "anvil2"',
     );
   });
@@ -380,8 +380,8 @@ describe('runWarpRouteCombine', () => {
       thrown = error as Error;
     }
 
-    expect(thrown?.message).to.include('scale=3/2');
-    expect(thrown?.message).to.include('scale=1');
-    expect(thrown?.message).to.not.include('[object Object]');
+    expect(thrown?.message).toContain('scale=3/2');
+    expect(thrown?.message).toContain('scale=1');
+    expect(thrown?.message).not.toContain('[object Object]');
   });
 });

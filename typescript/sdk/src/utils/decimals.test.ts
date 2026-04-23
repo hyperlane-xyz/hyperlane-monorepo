@@ -1,4 +1,4 @@
-import { assert, expect } from 'chai';
+import { expect } from 'vitest';
 
 import { randomAddress } from '../test/testUtils.js';
 import { TokenType } from '../token/config.js';
@@ -20,58 +20,59 @@ import {
 describe(normalizeScale.name, () => {
   it('should normalize undefined to DEFAULT_SCALE', () => {
     const result = normalizeScale(undefined);
-    expect(result).to.deep.equal({ numerator: 1n, denominator: 1n });
+    expect(result).toEqual({ numerator: 1n, denominator: 1n });
   });
 
   it('should normalize a plain number to {BigInt(n), 1n}', () => {
     const result = normalizeScale(1000);
-    expect(result).to.deep.equal({ numerator: 1000n, denominator: 1n });
+    expect(result).toEqual({ numerator: 1000n, denominator: 1n });
   });
 
   it('should normalize {number, number} to {bigint, bigint}', () => {
     const result = normalizeScale({ numerator: 5, denominator: 3 });
-    expect(result).to.deep.equal({ numerator: 5n, denominator: 3n });
+    expect(result).toEqual({ numerator: 5n, denominator: 3n });
   });
 
   it('should pass through {bigint, bigint} unchanged', () => {
     const result = normalizeScale({ numerator: 10n ** 18n, denominator: 1n });
-    expect(result).to.deep.equal({ numerator: 10n ** 18n, denominator: 1n });
+    expect(result).toEqual({ numerator: 10n ** 18n, denominator: 1n });
   });
 });
 
 describe(scalesEqual.name, () => {
   it('should treat undefined as equal to {1n, 1n}', () => {
-    expect(scalesEqual(undefined, { numerator: 1n, denominator: 1n })).to.be
-      .true;
-    expect(scalesEqual(undefined, undefined)).to.be.true;
+    expect(scalesEqual(undefined, { numerator: 1n, denominator: 1n })).toBe(
+      true,
+    );
+    expect(scalesEqual(undefined, undefined)).toBe(true);
   });
 
   it('should accept plain number scales (backwards compat)', () => {
-    expect(scalesEqual(1000, 1000)).to.be.true;
-    expect(scalesEqual(1000, 2000)).to.be.false;
-    expect(scalesEqual(1, undefined)).to.be.true;
+    expect(scalesEqual(1000, 1000)).toBe(true);
+    expect(scalesEqual(1000, 2000)).toBe(false);
+    expect(scalesEqual(1, undefined)).toBe(true);
   });
 
   it('should accept {number, number} scales (backwards compat)', () => {
-    expect(scalesEqual({ numerator: 1000, denominator: 1 }, 1000)).to.be.true;
+    expect(scalesEqual({ numerator: 1000, denominator: 1 }, 1000)).toBe(true);
     expect(
       scalesEqual(
         { numerator: 1, denominator: 2 },
         { numerator: 2, denominator: 4 },
       ),
-    ).to.be.true;
+    ).toBe(true);
   });
 
   it('should compare mixed scale types correctly', () => {
     // number vs bigint object
-    expect(scalesEqual(1000, { numerator: 1000n, denominator: 1n })).to.be.true;
+    expect(scalesEqual(1000, { numerator: 1000n, denominator: 1n })).toBe(true);
     // number object vs bigint object
     expect(
       scalesEqual(
         { numerator: 1000, denominator: 1 },
         { numerator: 1000n, denominator: 1n },
       ),
-    ).to.be.true;
+    ).toBe(true);
   });
 
   it('should compare bigint scales', () => {
@@ -80,13 +81,13 @@ describe(scalesEqual.name, () => {
         { numerator: 1_000_000_000_000n, denominator: 1n },
         { numerator: 1_000_000_000_000n, denominator: 1n },
       ),
-    ).to.be.true;
+    ).toBe(true);
     expect(
       scalesEqual(
         { numerator: 1n, denominator: 1n },
         { numerator: 2n, denominator: 1n },
       ),
-    ).to.be.false;
+    ).toBe(false);
   });
 
   it('should compare fractional scales via cross-multiplication', () => {
@@ -95,68 +96,68 @@ describe(scalesEqual.name, () => {
         { numerator: 1n, denominator: 2n },
         { numerator: 2n, denominator: 4n },
       ),
-    ).to.be.true;
+    ).toBe(true);
     expect(
       scalesEqual(
         { numerator: 1n, denominator: 3n },
         { numerator: 1n, denominator: 2n },
       ),
-    ).to.be.false;
+    ).toBe(false);
   });
 
   it('should handle large values without precision loss', () => {
     // 10^18 exceeds Number.MAX_SAFE_INTEGER
     const large = { numerator: 10n ** 18n, denominator: 1n };
     const slightlyDifferent = { numerator: 10n ** 18n + 1n, denominator: 1n };
-    expect(scalesEqual(large, large)).to.be.true;
-    expect(scalesEqual(large, slightlyDifferent)).to.be.false;
+    expect(scalesEqual(large, large)).toBe(true);
+    expect(scalesEqual(large, slightlyDifferent)).toBe(false);
   });
 });
 
 describe('scale conversion helpers', () => {
   it('converts local amount to message amount using floor rounding', () => {
-    expect(
-      messageAmountFromLocal(5n, { numerator: 1n, denominator: 3n }),
-    ).to.equal(1n);
-    expect(
-      messageAmountFromLocal(2n, { numerator: 3n, denominator: 2n }),
-    ).to.equal(3n);
+    expect(messageAmountFromLocal(5n, { numerator: 1n, denominator: 3n })).toBe(
+      1n,
+    );
+    expect(messageAmountFromLocal(2n, { numerator: 3n, denominator: 2n })).toBe(
+      3n,
+    );
   });
 
   it('converts message amount to local amount using inbound floor rounding', () => {
-    expect(
-      localAmountFromMessage(7n, { numerator: 3n, denominator: 2n }),
-    ).to.equal(4n);
-    expect(
-      localAmountFromMessage(1n, { numerator: 1n, denominator: 3n }),
-    ).to.equal(3n);
+    expect(localAmountFromMessage(7n, { numerator: 3n, denominator: 2n })).toBe(
+      4n,
+    );
+    expect(localAmountFromMessage(1n, { numerator: 1n, denominator: 3n })).toBe(
+      3n,
+    );
   });
 
   it('computes the minimum local amount needed to reach a message amount', () => {
     expect(
       minLocalAmountForMessage(7n, { numerator: 3n, denominator: 2n }),
-    ).to.equal(5n);
+    ).toBe(5n);
     expect(
       minLocalAmountForMessage(2n, { numerator: 1n, denominator: 3n }),
-    ).to.equal(6n);
+    ).toBe(6n);
   });
 
   it('rejects negative message amounts for ceil local conversion', () => {
     expect(() =>
       minLocalAmountForMessage(-1n, { numerator: 1n, denominator: 3n }),
-    ).to.throw('Message amount must be non-negative');
+    ).toThrow('Message amount must be non-negative');
   });
 
   it('aligns local amounts to exact message progress without leaking local dust', () => {
     expect(
       alignLocalAmountToMessage(5n, { numerator: 1n, denominator: 3n }),
-    ).to.deep.equal({
+    ).toEqual({
       localAmount: 3n,
       messageAmount: 1n,
     });
     expect(
       alignLocalAmountToMessage(5n, { numerator: 3n, denominator: 2n }),
-    ).to.deep.equal({
+    ).toEqual({
       localAmount: 5n,
       messageAmount: 7n,
     });
@@ -165,7 +166,7 @@ describe('scale conversion helpers', () => {
         numerator: 1n,
         denominator: 1_000_000_000_000n,
       }),
-    ).to.deep.equal({
+    ).toEqual({
       localAmount: 0n,
       messageAmount: 0n,
     });
@@ -174,28 +175,28 @@ describe('scale conversion helpers', () => {
   it('rejects negative local amounts for alignment', () => {
     expect(() =>
       alignLocalAmountToMessage(-1n, { numerator: 1n, denominator: 3n }),
-    ).to.throw('Local amount must be non-negative');
+    ).toThrow('Local amount must be non-negative');
   });
 
   it('returns identity for undefined scale', () => {
-    expect(messageAmountFromLocal(42n, undefined)).to.equal(42n);
-    expect(localAmountFromMessage(42n, undefined)).to.equal(42n);
+    expect(messageAmountFromLocal(42n, undefined)).toBe(42n);
+    expect(localAmountFromMessage(42n, undefined)).toBe(42n);
   });
 
   it('handles zero amounts', () => {
-    expect(
-      messageAmountFromLocal(0n, { numerator: 1n, denominator: 3n }),
-    ).to.equal(0n);
-    expect(
-      localAmountFromMessage(0n, { numerator: 3n, denominator: 2n }),
-    ).to.equal(0n);
+    expect(messageAmountFromLocal(0n, { numerator: 1n, denominator: 3n })).toBe(
+      0n,
+    );
+    expect(localAmountFromMessage(0n, { numerator: 3n, denominator: 2n })).toBe(
+      0n,
+    );
   });
 
   it('round-trips exact-divisible amounts', () => {
     const scale = { numerator: 3n, denominator: 2n };
     const local = 6n;
     const message = messageAmountFromLocal(local, scale);
-    expect(localAmountFromMessage(message, scale)).to.equal(local);
+    expect(localAmountFromMessage(message, scale)).toBe(local);
   });
 });
 
@@ -216,7 +217,7 @@ describe(verifyScale.name, () => {
       ],
     ]);
 
-    expect(verifyScale(configMap)).to.be.true;
+    expect(verifyScale(configMap)).toBe(true);
   });
 
   it('should return true when all decimals are uniform and scale is not provided', () => {
@@ -231,7 +232,7 @@ describe(verifyScale.name, () => {
       ],
     ]);
 
-    expect(verifyScale(configMap)).to.be.true;
+    expect(verifyScale(configMap)).toBe(true);
   });
 
   it('should return false when decimals are uniform but scales are mismatched', () => {
@@ -251,7 +252,7 @@ describe(verifyScale.name, () => {
       ],
     ]);
 
-    expect(verifyScale(configMap)).to.be.false;
+    expect(verifyScale(configMap)).toBe(false);
   });
 
   it('should return true with plain number scale (backwards compat)', () => {
@@ -271,7 +272,7 @@ describe(verifyScale.name, () => {
       ],
     ]);
 
-    expect(verifyScale(configMap)).to.be.true;
+    expect(verifyScale(configMap)).toBe(true);
   });
 
   it('should return true with bigint scale', () => {
@@ -291,7 +292,7 @@ describe(verifyScale.name, () => {
       ],
     ]);
 
-    expect(verifyScale(configMap)).to.be.true;
+    expect(verifyScale(configMap)).toBe(true);
   });
 
   it('should return false when decimals are non-uniform and an incorrect scale is provided', () => {
@@ -311,7 +312,7 @@ describe(verifyScale.name, () => {
       ],
     ]);
 
-    expect(verifyScale(configMap)).to.be.false;
+    expect(verifyScale(configMap)).toBe(false);
   });
 
   it('should return false when decimals are non-uniform and scale is missing', () => {
@@ -326,7 +327,7 @@ describe(verifyScale.name, () => {
       ],
     ]);
 
-    expect(verifyScale(configMap)).to.be.false;
+    expect(verifyScale(configMap)).toBe(false);
   });
 
   it('should throw an error if decimals are not defined for a token config', () => {
@@ -338,8 +339,7 @@ describe(verifyScale.name, () => {
       ['chain2', { name: TOKEN_NAME, symbol: TOKEN_NAME }],
     ]);
 
-    assert.throws(
-      () => verifyScale(configMap),
+    expect(() => verifyScale(configMap)).toThrow(
       'Decimals must be defined for token config on chain chain2',
     );
   });
@@ -363,7 +363,7 @@ describe(verifyScale.name, () => {
       },
     };
 
-    expect(verifyScale(config)).to.be.true;
+    expect(verifyScale(config)).toBe(true);
   });
 
   it('should handle WarpRouteDeployConfigMailboxRequired with uniform decimals', () => {
@@ -384,7 +384,7 @@ describe(verifyScale.name, () => {
       },
     };
 
-    expect(verifyScale(config)).to.be.true;
+    expect(verifyScale(config)).toBe(true);
   });
 
   it('should return false for WarpRouteDeployConfigMailboxRequired with incorrect scale', () => {
@@ -406,7 +406,7 @@ describe(verifyScale.name, () => {
       },
     };
 
-    expect(verifyScale(config)).to.be.false;
+    expect(verifyScale(config)).toBe(false);
   });
 
   it('should throw an error for WarpRouteDeployConfigMailboxRequired with missing decimals', () => {
@@ -427,8 +427,7 @@ describe(verifyScale.name, () => {
       },
     };
 
-    assert.throws(
-      () => verifyScale(config),
+    expect(() => verifyScale(config)).toThrow(
       'Decimals must be defined for token config on chain chain2',
     );
   });
@@ -456,7 +455,7 @@ describe(verifyScale.name, () => {
       ],
     ]);
 
-    expect(verifyScale(configMap)).to.be.true;
+    expect(verifyScale(configMap)).toBe(true);
   });
 
   it('should return false when scale-down ratio is incorrect', () => {
@@ -477,7 +476,7 @@ describe(verifyScale.name, () => {
       ],
     ]);
 
-    expect(verifyScale(configMap)).to.be.false;
+    expect(verifyScale(configMap)).toBe(false);
   });
 
   it('should return true with mixed scale-up and scale-down reaching the same effective amount', () => {
@@ -504,7 +503,7 @@ describe(verifyScale.name, () => {
       ],
     ]);
 
-    expect(verifyScale(configMap)).to.be.true;
+    expect(verifyScale(configMap)).toBe(true);
   });
 
   it('should return true with scale-down across three chains', () => {
@@ -529,7 +528,7 @@ describe(verifyScale.name, () => {
       ],
     ]);
 
-    expect(verifyScale(configMap)).to.be.true;
+    expect(verifyScale(configMap)).toBe(true);
   });
 
   it('should return true with scale-down using WarpRouteDeployConfigMailboxRequired', () => {
@@ -552,7 +551,7 @@ describe(verifyScale.name, () => {
       },
     };
 
-    expect(verifyScale(config)).to.be.true;
+    expect(verifyScale(config)).toBe(true);
   });
 
   it('should return true when two chains both use scale-down to the same effective amount', () => {
@@ -579,7 +578,7 @@ describe(verifyScale.name, () => {
       ],
     ]);
 
-    expect(verifyScale(configMap)).to.be.true;
+    expect(verifyScale(configMap)).toBe(true);
   });
 
   it('should return true for non-reduced equivalent fractions (uniform decimals)', () => {
@@ -606,7 +605,7 @@ describe(verifyScale.name, () => {
       ],
     ]);
 
-    expect(verifyScale(configMap)).to.be.true;
+    expect(verifyScale(configMap)).toBe(true);
   });
 
   it('should return true for a single-chain config', () => {
@@ -618,7 +617,7 @@ describe(verifyScale.name, () => {
       ],
     ]);
 
-    expect(verifyScale(configMap)).to.be.true;
+    expect(verifyScale(configMap)).toBe(true);
   });
 
   it('should return false when three chains have the third inconsistent', () => {
@@ -648,12 +647,12 @@ describe(verifyScale.name, () => {
       ],
     ]);
 
-    expect(verifyScale(configMap)).to.be.false;
+    expect(verifyScale(configMap)).toBe(false);
   });
 
   it('should return true for an empty config', () => {
     const configMap: Map<string, TokenMetadata> = new Map();
-    expect(verifyScale(configMap)).to.be.true;
+    expect(verifyScale(configMap)).toBe(true);
   });
 
   it('should treat decimals: 0 as defined (not falsy)', () => {
@@ -663,6 +662,6 @@ describe(verifyScale.name, () => {
       ['chain1', { name: TOKEN_NAME, symbol: TOKEN_NAME, decimals: 0 }],
     ]);
 
-    expect(verifyScale(configMap)).to.be.true;
+    expect(verifyScale(configMap)).toBe(true);
   });
 });

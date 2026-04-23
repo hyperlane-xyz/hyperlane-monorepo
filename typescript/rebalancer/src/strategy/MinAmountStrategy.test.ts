@@ -1,5 +1,5 @@
 import { AddressZero } from '@ethersproject/constants';
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import { pino } from 'pino';
 
 import {
@@ -63,7 +63,7 @@ describe('MinAmountStrategy', () => {
             testLogger,
             {},
           ),
-      ).to.throw('At least two chains must be configured');
+      ).toThrow('At least two chains must be configured');
     });
 
     it('should create a strategy with minAmount and target using absolute values', () => {
@@ -153,7 +153,7 @@ describe('MinAmountStrategy', () => {
             testLogger,
             {},
           ),
-      ).to.throw('Minimum amount (-10) cannot be negative for chain chain2');
+      ).toThrow('Minimum amount (-10) cannot be negative for chain chain2');
     });
 
     it('should throw an error when target is less than min', () => {
@@ -185,7 +185,7 @@ describe('MinAmountStrategy', () => {
             testLogger,
             {},
           ),
-      ).to.throw(
+      ).toThrow(
         'Target (80) must be greater than or equal to min (100) for chain chain1',
       );
     });
@@ -219,7 +219,7 @@ describe('MinAmountStrategy', () => {
             testLogger,
             {},
           ),
-      ).to.throw(
+      ).toThrow(
         'Target (0.4) must be greater than or equal to min (0.5) for chain chain1',
       );
     });
@@ -256,7 +256,7 @@ describe('MinAmountStrategy', () => {
           [chain2]: 200n,
           [chain3]: 300n,
         }),
-      ).to.throw('Config chains do not match raw balances chains length');
+      ).toThrow('Config chains do not match raw balances chains length');
     });
 
     it('should throw an error when a raw balance is missing', () => {
@@ -290,7 +290,7 @@ describe('MinAmountStrategy', () => {
           [chain1]: 100n,
           [chain3]: 300n,
         } as RawBalances),
-      ).to.throw('Raw balance for chain chain2 not found');
+      ).toThrow('Raw balance for chain chain2 not found');
     });
 
     it('should throw an error when a raw balance is negative', () => {
@@ -324,7 +324,7 @@ describe('MinAmountStrategy', () => {
           [chain1]: 100n,
           [chain2]: -2n,
         }),
-      ).to.throw('Raw balance for chain chain2 is negative');
+      ).toThrow('Raw balance for chain chain2 is negative');
     });
   });
 
@@ -364,7 +364,7 @@ describe('MinAmountStrategy', () => {
 
       const routes = strategy.getRebalancingRoutes(rawBalances);
 
-      expect(routes).to.be.empty;
+      expect(routes).toHaveLength(0);
     });
 
     it('should return a single route when a chain is below minimum amount', () => {
@@ -404,7 +404,7 @@ describe('MinAmountStrategy', () => {
 
       const routes = strategy.getRebalancingRoutes(rawBalances);
 
-      expect(routes).to.deep.equal([
+      expect(routes).toEqual([
         {
           origin: chain2,
           destination: chain1,
@@ -463,7 +463,7 @@ describe('MinAmountStrategy', () => {
         [chain2]: 200_000_000n,
       });
 
-      expect(routes).to.deep.equal([
+      expect(routes).toEqual([
         {
           origin: chain2,
           destination: chain1,
@@ -537,14 +537,14 @@ describe('MinAmountStrategy', () => {
       };
 
       const rawBalances = getRawBalances([chain1, chain2], event, testLogger);
-      expect(rawBalances).to.deep.equal({
+      expect(rawBalances).toEqual({
         [chain1]: 50_000_000n,
         [chain2]: 200_000_000n,
       });
 
       const routes = strategy.getRebalancingRoutes(rawBalances);
 
-      expect(routes).to.deep.equal([
+      expect(routes).toEqual([
         {
           origin: chain2,
           destination: chain1,
@@ -602,7 +602,7 @@ describe('MinAmountStrategy', () => {
 
       const routes = strategy.getRebalancingRoutes(rawBalances);
 
-      expect(routes).to.deep.equal([
+      expect(routes).toEqual([
         {
           origin: chain3,
           destination: chain1,
@@ -649,7 +649,7 @@ describe('MinAmountStrategy', () => {
             testLogger,
             {},
           ),
-      ).to.throw(
+      ).toThrow(
         `Consider reducing the targets as the sum (340) is greater than sum of collaterals (300)`,
       );
     });
@@ -697,7 +697,7 @@ describe('MinAmountStrategy', () => {
             testLogger,
             {},
           ),
-      ).to.throw(
+      ).toThrow(
         `Consider reducing the targets as the sum (240) is greater than sum of collaterals (230)`,
       );
     });
@@ -745,7 +745,7 @@ describe('MinAmountStrategy', () => {
             testLogger,
             {},
           ),
-      ).to.throw(
+      ).toThrow(
         `Consider reducing the targets as the sum (240.5) is greater than sum of collaterals (230.5)`,
       );
     });
@@ -798,13 +798,13 @@ describe('MinAmountStrategy', () => {
       const routes = strategy.getRebalancingRoutes(rawBalances);
 
       // It scales down the deficits to prevent sending all surplus to a single chain
-      expect(routes.length).to.equal(2);
-      expect(routes[0].origin).to.equal(chain3);
-      expect(routes[0].destination).to.equal(chain1);
-      expect(routes[0].amount).to.equal(BigInt(25e18));
-      expect(routes[1].origin).to.equal(chain3);
-      expect(routes[1].destination).to.equal(chain2);
-      expect(routes[1].amount).to.equal(BigInt(25e18));
+      expect(routes.length).toBe(2);
+      expect(routes[0].origin).toBe(chain3);
+      expect(routes[0].destination).toBe(chain1);
+      expect(routes[0].amount).toBe(BigInt(25e18));
+      expect(routes[1].origin).toBe(chain3);
+      expect(routes[1].destination).toBe(chain2);
+      expect(routes[1].amount).toBe(BigInt(25e18));
     });
 
     it('should not produce zero-amount routes when scaling causes amounts to round to zero', () => {
@@ -868,7 +868,7 @@ describe('MinAmountStrategy', () => {
         expect(
           route.amount > 0n,
           `Route amount should be > 0, got ${route.amount}`,
-        ).to.be.true;
+        ).toBe(true);
       }
 
       // The single token of surplus may produce one route (or none if both scale to 0)
@@ -876,7 +876,7 @@ describe('MinAmountStrategy', () => {
       expect(
         routes.every((r) => r.amount > 0n),
         'All routes must have non-zero amounts',
-      ).to.be.true;
+      ).toBe(true);
     });
 
     it('should have no surplus or deficit when all at min', () => {
@@ -914,7 +914,7 @@ describe('MinAmountStrategy', () => {
 
       const routes = strategy.getRebalancingRoutes(rawBalances);
 
-      expect(routes).to.be.empty;
+      expect(routes).toHaveLength(0);
     });
 
     it('should consider the target amount with relative configuration', () => {
@@ -954,7 +954,7 @@ describe('MinAmountStrategy', () => {
 
       const routes = strategy.getRebalancingRoutes(rawBalances);
 
-      expect(routes).to.deep.equal([
+      expect(routes).toEqual([
         {
           origin: chain2,
           destination: chain1,

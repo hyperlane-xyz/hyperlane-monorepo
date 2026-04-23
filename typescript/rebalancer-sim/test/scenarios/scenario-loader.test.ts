@@ -2,7 +2,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import {
   getScenariosDir,
@@ -31,14 +31,14 @@ describe('ScenarioLoader', () => {
     delete process.env['SCENARIOS_DIR'];
 
     const scenariosDir = getScenariosDir();
-    expect(fs.existsSync(scenariosDir)).to.equal(true);
+    expect(fs.existsSync(scenariosDir)).toBe(true);
 
     const scenarioNames = listScenarios();
-    expect(scenarioNames.length).to.be.greaterThan(0);
+    expect(scenarioNames.length).toBeGreaterThan(0);
 
     const file = loadScenarioFile(scenarioNames[0]);
-    expect(file.name).to.equal(scenarioNames[0]);
-    expect(file.transfers.length).to.be.greaterThan(0);
+    expect(file.name).toBe(scenarioNames[0]);
+    expect(file.transfers.length).toBeGreaterThan(0);
   });
 
   it('supports SCENARIOS_DIR override', () => {
@@ -100,11 +100,11 @@ describe('ScenarioLoader', () => {
     );
     process.env['SCENARIOS_DIR'] = customDir;
 
-    expect(getScenariosDir()).to.equal(customDir);
-    expect(listScenarios()).to.deep.equal(['custom-one']);
+    expect(getScenariosDir()).toBe(customDir);
+    expect(listScenarios()).toEqual(['custom-one']);
 
     const loaded = loadScenario('custom-one');
-    expect(loaded.name).to.equal('custom-one');
-    expect(loaded.transfers[0].amount).to.equal(BigInt(1));
+    expect(loaded.name).toBe('custom-one');
+    expect(loaded.transfers[0].amount).toBe(BigInt(1));
   });
 });

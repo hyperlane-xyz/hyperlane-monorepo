@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import { ethers } from 'ethers';
 
 import { assert } from '@hyperlane-xyz/utils';
@@ -36,25 +36,25 @@ describe('WarpRouteDeployConfigSchema refine', () => {
   });
 
   it('should require token type', () => {
-    expect(WarpRouteDeployConfigSchema.safeParse(config).success).to.be.true;
+    expect(WarpRouteDeployConfigSchema.safeParse(config).success).toBe(true);
 
     //@ts-ignore
     delete config.arbitrum.type;
-    expect(WarpRouteDeployConfigSchema.safeParse(config).success).to.be.false;
+    expect(WarpRouteDeployConfigSchema.safeParse(config).success).toBe(false);
   });
 
   it('should require token address', () => {
-    expect(WarpRouteDeployConfigSchema.safeParse(config).success).to.be.true;
+    expect(WarpRouteDeployConfigSchema.safeParse(config).success).toBe(true);
 
     //@ts-ignore
     delete config.arbitrum.token;
-    expect(WarpRouteDeployConfigSchema.safeParse(config).success).to.be.false;
+    expect(WarpRouteDeployConfigSchema.safeParse(config).success).toBe(false);
   });
 
   it('should not require mailbox address', () => {
     //@ts-ignore
     delete config.arbitrum.mailbox;
-    expect(WarpRouteDeployConfigSchema.safeParse(config).success).to.be.true;
+    expect(WarpRouteDeployConfigSchema.safeParse(config).success).toBe(true);
   });
 
   it('should accept deposit-address bridge config', () => {
@@ -95,7 +95,7 @@ describe('WarpRouteDeployConfigSchema refine', () => {
       },
     });
 
-    expect(parseResults.success).to.be.false;
+    expect(parseResults.success).toBe(false);
   });
 
   it('should reject deposit-address bridge config with feeBps above 10000', () => {
@@ -116,7 +116,7 @@ describe('WarpRouteDeployConfigSchema refine', () => {
       },
     });
 
-    expect(parseResults.success).to.be.false;
+    expect(parseResults.success).toBe(false);
   });
 
   it('should reject deposit-address bridge config with feeBps of 10000', () => {
@@ -137,7 +137,7 @@ describe('WarpRouteDeployConfigSchema refine', () => {
       },
     });
 
-    expect(parseResults.success).to.be.false;
+    expect(parseResults.success).toBe(false);
   });
 
   it('should reject deposit-address bridge config with invalid feeBps string', () => {
@@ -158,7 +158,7 @@ describe('WarpRouteDeployConfigSchema refine', () => {
       },
     });
 
-    expect(parseResults.success).to.be.false;
+    expect(parseResults.success).toBe(false);
   });
 
   it('should reject deposit-address bridge config with empty feeBps string', () => {
@@ -179,7 +179,7 @@ describe('WarpRouteDeployConfigSchema refine', () => {
       },
     });
 
-    expect(parseResults.success).to.be.false;
+    expect(parseResults.success).toBe(false);
   });
 
   it('should reject deposit-address bridge config with negative feeBps', () => {
@@ -200,7 +200,7 @@ describe('WarpRouteDeployConfigSchema refine', () => {
       },
     });
 
-    expect(parseResults.success).to.be.false;
+    expect(parseResults.success).toBe(false);
   });
 
   it('should throw if collateral type and token is empty', async () => {
@@ -210,11 +210,11 @@ describe('WarpRouteDeployConfigSchema refine', () => {
 
       //@ts-ignore
       config.arbitrum.token = undefined;
-      expect(WarpRouteDeployConfigSchema.safeParse(config).success).to.be.false;
+      expect(WarpRouteDeployConfigSchema.safeParse(config).success).toBe(false);
 
       // Set to some address
       config.arbitrum.token = SOME_ADDRESS;
-      expect(WarpRouteDeployConfigSchema.safeParse(config).success).to.be.true;
+      expect(WarpRouteDeployConfigSchema.safeParse(config).success).toBe(true);
     }
   });
 
@@ -226,10 +226,10 @@ describe('WarpRouteDeployConfigSchema refine', () => {
     for (const type of NON_COLLATERAL_TYPES) {
       config.arbitrum.type = type;
       config.arbitrum.symbol = undefined;
-      expect(WarpRouteDeployConfigSchema.safeParse(config).success).to.be.false;
+      expect(WarpRouteDeployConfigSchema.safeParse(config).success).toBe(false);
 
       config.arbitrum.symbol = 'symbol';
-      expect(WarpRouteDeployConfigSchema.safeParse(config).success).to.be.true;
+      expect(WarpRouteDeployConfigSchema.safeParse(config).success).toBe(true);
     }
   });
 
@@ -256,7 +256,7 @@ describe('WarpRouteDeployConfigSchema refine', () => {
     };
     let parseResults = WarpRouteDeployConfigSchema.safeParse(config);
     assert(!parseResults.success, 'must be false'); // Needed so 'message' shows up because parseResults is a discriminate union
-    expect(parseResults.error.issues[0].message).to.equal(
+    expect(parseResults.error.issues[0].message).toBe(
       WarpRouteDeployConfigSchemaErrors.ONLY_SYNTHETIC_REBASE,
     );
 
@@ -265,7 +265,7 @@ describe('WarpRouteDeployConfigSchema refine', () => {
     config.ethereum.collateralChainName = '';
     parseResults = WarpRouteDeployConfigSchema.safeParse(config);
     //@ts-ignore
-    expect(parseResults.success).to.be.true;
+    expect(parseResults.success).toBe(true);
   });
 
   it(`should throw if deploying only ${TokenType.collateralVaultRebase}`, async () => {
@@ -278,7 +278,7 @@ describe('WarpRouteDeployConfigSchema refine', () => {
       },
     };
     let parseResults = WarpRouteDeployConfigSchema.safeParse(config);
-    expect(parseResults.success).to.be.false;
+    expect(parseResults.success).toBe(false);
 
     config.ethereum = {
       type: TokenType.collateralVaultRebase,
@@ -287,7 +287,7 @@ describe('WarpRouteDeployConfigSchema refine', () => {
       mailbox: SOME_ADDRESS,
     };
     parseResults = WarpRouteDeployConfigSchema.safeParse(config);
-    expect(parseResults.success).to.be.false;
+    expect(parseResults.success).toBe(false);
   });
 
   it(`should derive the collateral chain name for ${TokenType.syntheticRebase}`, async () => {
@@ -319,7 +319,7 @@ describe('WarpRouteDeployConfigSchema refine', () => {
       warpConfig.optimism.type === TokenType.syntheticRebase,
       'must be syntheticRebase',
     );
-    expect(warpConfig.optimism.collateralChainName).to.equal('arbitrum');
+    expect(warpConfig.optimism.collateralChainName).toBe('arbitrum');
   });
 
   describe('tokenFee input schema', () => {
@@ -339,7 +339,7 @@ describe('WarpRouteDeployConfigSchema refine', () => {
       });
 
       assert(parseResults.success, 'must be true');
-      expect(parseResults.data.arbitrum.tokenFee?.type).to.equal(
+      expect(parseResults.data.arbitrum.tokenFee?.type).toBe(
         TokenFeeType.LinearFee,
       );
     });
@@ -365,7 +365,7 @@ describe('WarpRouteDeployConfigSchema refine', () => {
       });
 
       assert(parseResults.success, 'must be true');
-      expect(parseResults.data.arbitrum.tokenFee?.type).to.equal(
+      expect(parseResults.data.arbitrum.tokenFee?.type).toBe(
         TokenFeeType.RoutingFee,
       );
     });
@@ -385,7 +385,7 @@ describe('WarpRouteDeployConfigSchema refine', () => {
       });
 
       assert(parseResults.success, 'must be true');
-      expect(parseResults.data.ethereum.tokenFee?.type).to.equal(
+      expect(parseResults.data.ethereum.tokenFee?.type).toBe(
         TokenFeeType.LinearFee,
       );
     });
@@ -404,7 +404,7 @@ describe('WarpRouteDeployConfigSchema refine', () => {
       });
 
       assert(parseResults.success, 'must be true');
-      expect(parseResults.data.arbitrum.tokenFee?.type).to.equal(
+      expect(parseResults.data.arbitrum.tokenFee?.type).toBe(
         TokenFeeType.LinearFee,
       );
     });
@@ -425,7 +425,7 @@ describe('WarpRouteDeployConfigSchema refine', () => {
       });
 
       assert(parseResults.success, 'must be true');
-      expect(parseResults.data.arbitrum.tokenFee?.owner).to.equal(SOME_ADDRESS);
+      expect(parseResults.data.arbitrum.tokenFee?.owner).toBe(SOME_ADDRESS);
     });
   });
 
@@ -446,7 +446,7 @@ describe('WarpRouteDeployConfigSchema refine', () => {
         },
       };
       const parseResults = WarpRouteDeployConfigSchema.safeParse(config);
-      expect(parseResults.success).to.be.true;
+      expect(parseResults.success).toBe(true);
     });
 
     it('should allow xERC20 with collateral', () => {
@@ -465,7 +465,7 @@ describe('WarpRouteDeployConfigSchema refine', () => {
         },
       };
       const parseResults = WarpRouteDeployConfigSchema.safeParse(config);
-      expect(parseResults.success).to.be.true;
+      expect(parseResults.success).toBe(true);
     });
 
     it('should allow multiple xERC20 chains', () => {
@@ -490,7 +490,7 @@ describe('WarpRouteDeployConfigSchema refine', () => {
         },
       };
       const parseResults = WarpRouteDeployConfigSchema.safeParse(config);
-      expect(parseResults.success).to.be.true;
+      expect(parseResults.success).toBe(true);
     });
 
     for (const invalidType of [TokenType.synthetic, TokenType.native]) {
@@ -510,7 +510,7 @@ describe('WarpRouteDeployConfigSchema refine', () => {
         };
         const parseResults = WarpRouteDeployConfigSchema.safeParse(config);
         assert(!parseResults.success, 'must be false');
-        expect(parseResults.error.issues[0].message).to.equal(
+        expect(parseResults.error.issues[0].message).toBe(
           'xERC20 warp routes must only contain xERC20 or collateral token types',
         );
       });

@@ -1,5 +1,5 @@
-import { expect } from 'chai';
 import { RpcProvider } from 'starknet';
+import { describe, expect, it } from 'vitest';
 
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
@@ -64,7 +64,7 @@ describe('StarknetHookArtifactManager', () => {
     } catch (error) {
       readerError = error;
     }
-    expect(String(readerError)).to.match(
+    expect(String(readerError)).toMatch(
       /Unsupported hook artifact type .* for protocol Starknet/i,
     );
 
@@ -78,7 +78,7 @@ describe('StarknetHookArtifactManager', () => {
     } catch (error) {
       writerError = error;
     }
-    expect(String(writerError)).to.match(
+    expect(String(writerError)).toMatch(
       /Unsupported hook artifact type .* for protocol Starknet/i,
     );
   });
@@ -99,19 +99,19 @@ describe('StarknetHookArtifactManager', () => {
       },
     });
 
-    expect(signer.capturedTx).to.not.equal(undefined);
-    expect(signer.capturedTx?.kind).to.equal('deploy');
+    expect(signer.capturedTx).toBeDefined();
+    expect(signer.capturedTx?.kind).toBe('deploy');
     if (signer.capturedTx?.kind !== 'deploy') {
       throw new Error('Expected deploy transaction');
     }
-    expect(Array.isArray(signer.capturedTx.constructorArgs)).to.equal(true);
+    expect(Array.isArray(signer.capturedTx.constructorArgs)).toBe(true);
     if (!Array.isArray(signer.capturedTx.constructorArgs)) {
       throw new Error('Expected constructorArgs to be an array');
     }
-    expect(signer.capturedTx.constructorArgs[0]).to.equal('20');
-    expect(signer.capturedTx.constructorArgs[1]).to.equal('10');
-    expect(artifact.config.maxProtocolFee).to.equal('20');
-    expect(artifact.config.protocolFee).to.equal('10');
+    expect(signer.capturedTx.constructorArgs[0]).toBe('20');
+    expect(signer.capturedTx.constructorArgs[1]).toBe('10');
+    expect(artifact.config.maxProtocolFee).toBe('20');
+    expect(artifact.config.protocolFee).toBe('10');
   });
 
   it('returns merkleTree hook deployment receipts', async () => {
@@ -126,9 +126,9 @@ describe('StarknetHookArtifactManager', () => {
       config: { type: 'merkleTreeHook' },
     });
 
-    expect(receipts).to.have.length(1);
-    expect(signer.capturedTxs).to.have.length(1);
-    expect(signer.capturedTxs[0]?.kind).to.equal('deploy');
+    expect(receipts).toHaveLength(1);
+    expect(signer.capturedTxs).toHaveLength(1);
+    expect(signer.capturedTxs[0]?.kind).toBe('deploy');
   });
 
   it('rejects creating unknownHook artifacts on Starknet', async () => {
@@ -146,7 +146,7 @@ describe('StarknetHookArtifactManager', () => {
       error = caughtError;
     }
 
-    expect(String(error)).to.match(
+    expect(String(error)).toMatch(
       /unknownHook artifacts are read-only on Starknet/i,
     );
   });
@@ -186,7 +186,7 @@ describe('StarknetHookArtifactManager', () => {
       error = caughtError;
     }
 
-    expect(String(error)).to.match(
+    expect(String(error)).toMatch(
       /Changing maxProtocolFee requires redeploying/i,
     );
   });

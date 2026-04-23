@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import { ContractFactory } from 'ethers';
 
 import {
@@ -24,28 +24,26 @@ describe('MultiProvider Tron factory resolution', () => {
 
   it('resolves Mailbox to tron factory with different bytecode', async () => {
     const resolved = await mp.resolveTronFactory(new Mailbox__factory());
-    expect(resolved.constructor.name).to.equal(TronContractFactory.name);
-    expect(resolved.bytecode).to.equal(new TronMailbox__factory().bytecode);
-    expect(resolved.bytecode).to.not.equal(new Mailbox__factory().bytecode);
+    expect(resolved.constructor.name).toBe(TronContractFactory.name);
+    expect(resolved.bytecode).toBe(new TronMailbox__factory().bytecode);
+    expect(resolved.bytecode).not.toBe(new Mailbox__factory().bytecode);
   });
 
   it('resolves ProxyAdmin to tron factory', async () => {
     const resolved = await mp.resolveTronFactory(new ProxyAdmin__factory());
-    expect(resolved.constructor.name).to.equal(TronContractFactory.name);
-    expect(resolved.bytecode).to.equal(new TronProxyAdmin__factory().bytecode);
+    expect(resolved.constructor.name).toBe(TronContractFactory.name);
+    expect(resolved.bytecode).toBe(new TronProxyAdmin__factory().bytecode);
   });
 
   it('resolves TestRecipient to tron factory', async () => {
     const resolved = await mp.resolveTronFactory(new TestRecipient__factory());
-    expect(resolved.constructor.name).to.equal(TronContractFactory.name);
-    expect(resolved.bytecode).to.equal(
-      new TronTestRecipient__factory().bytecode,
-    );
+    expect(resolved.constructor.name).toBe(TronContractFactory.name);
+    expect(resolved.bytecode).toBe(new TronTestRecipient__factory().bytecode);
   });
 
   it('preserves ABI when resolving', async () => {
     const resolved = await mp.resolveTronFactory(new Mailbox__factory());
-    expect(JSON.stringify(resolved.interface.fragments)).to.equal(
+    expect(JSON.stringify(resolved.interface.fragments)).toBe(
       JSON.stringify(new Mailbox__factory().interface.fragments),
     );
   });
@@ -58,9 +56,9 @@ describe('MultiProvider Tron factory resolution', () => {
     }
     try {
       await mp.resolveTronFactory(new Unknown__factory());
-      expect.fail('Should have thrown');
+      throw new Error('Should have thrown');
     } catch (e: any) {
-      expect(e.message).to.include('No Tron-compiled factory found for');
+      expect(e.message).toContain('No Tron-compiled factory found for');
     }
   });
 });
@@ -89,9 +87,9 @@ describe('MultiProvider', () => {
         });
         throw new Error('Expected timeout error');
       } catch (error: any) {
-        expect(error.message).to.include('Timeout');
-        expect(error.message).to.include('0xabc123def456');
-        expect(error.message).to.include('confirmations');
+        expect(error.message).toContain('Timeout');
+        expect(error.message).toContain('0xabc123def456');
+        expect(error.message).toContain('confirmations');
       }
     });
 
@@ -111,8 +109,8 @@ describe('MultiProvider', () => {
         timeoutMs: 5000,
       });
 
-      expect(result).to.deep.equal(mockReceipt);
-      expect(mockTx.wait.calledOnce).to.be.true;
+      expect(result).toEqual(mockReceipt);
+      expect(mockTx.wait.calledOnce).toBe(true);
     });
 
     it('should wait for inclusion when wait(0) returns null', async () => {
@@ -139,10 +137,10 @@ describe('MultiProvider', () => {
         timeoutMs: 5000,
       });
 
-      expect(result).to.deep.equal(mockReceipt);
-      expect(waitStub.calledTwice).to.be.true;
-      expect(waitStub.firstCall.args[0]).to.equal(0);
-      expect(waitStub.secondCall.args[0]).to.equal(1);
+      expect(result).toEqual(mockReceipt);
+      expect(waitStub.calledTwice).toBe(true);
+      expect(waitStub.firstCall.args[0]).toBe(0);
+      expect(waitStub.secondCall.args[0]).toBe(1);
     });
 
     it('should not timeout when timeoutMs is 0', async () => {
@@ -166,7 +164,7 @@ describe('MultiProvider', () => {
         timeoutMs: 0,
       });
 
-      expect(result).to.deep.equal(mockReceipt);
+      expect(result).toEqual(mockReceipt);
     });
 
     it('should apply default timeout when no options provided', async () => {
@@ -184,7 +182,7 @@ describe('MultiProvider', () => {
         ]);
         throw new Error('Expected timeout error');
       } catch (error: any) {
-        expect(error.message).to.match(/Timeout|Test timeout/);
+        expect(error.message).toMatch(/Timeout|Test timeout/);
       }
     });
 
@@ -219,7 +217,7 @@ describe('MultiProvider', () => {
       } catch (error: any) {
         // Without the floor, handleTx would timeout at 40ms with "Timeout" error.
         // With the floor, the 200ms race timer fires first.
-        expect(error.message).to.equal('Race timer');
+        expect(error.message).toBe('Race timer');
       }
     });
 
@@ -243,8 +241,8 @@ describe('MultiProvider', () => {
         waitConfirmations: EthJsonRpcBlockParameterTag.Finalized,
       });
 
-      expect(result).to.deep.equal(mockReceipt);
-      expect(waitForBlockTagStub.calledOnce).to.be.true;
+      expect(result).toEqual(mockReceipt);
+      expect(waitForBlockTagStub.calledOnce).toBe(true);
 
       waitForBlockTagStub.restore();
     });
@@ -274,13 +272,13 @@ describe('MultiProvider', () => {
 
       // First call should connect and cache
       const result1 = mp.tryGetSigner(TestChainName.test1);
-      expect(result1).to.equal(mockConnectedSigner);
-      expect(connectCallCount).to.equal(1);
+      expect(result1).toBe(mockConnectedSigner);
+      expect(connectCallCount).toBe(1);
 
       // Second call should return cached signer without calling connect again
       const result2 = mp.tryGetSigner(TestChainName.test1);
-      expect(result2).to.equal(mockConnectedSigner);
-      expect(connectCallCount).to.equal(1);
+      expect(result2).toBe(mockConnectedSigner);
+      expect(connectCallCount).toBe(1);
     });
 
     it('should not cache signer in shared-signer mode so provider swaps take effect', () => {
@@ -309,16 +307,16 @@ describe('MultiProvider', () => {
 
       // First call connects to old provider
       const result1 = mp.tryGetSigner(TestChainName.test1);
-      expect(connectArg).to.equal(oldProvider);
-      expect(result1!.provider).to.equal(oldProvider);
+      expect(connectArg).toBe(oldProvider);
+      expect(result1!.provider).toBe(oldProvider);
 
       // Swap provider — in shared mode, setProvider skips reconnection
       mp.providers[TestChainName.test1] = newProvider;
 
       // Second call should reconnect to new provider (not return stale cached signer)
       const result2 = mp.tryGetSigner(TestChainName.test1);
-      expect(connectArg).to.equal(newProvider);
-      expect(result2!.provider).to.equal(newProvider);
+      expect(connectArg).toBe(newProvider);
+      expect(result2!.provider).toBe(newProvider);
     });
   });
 });

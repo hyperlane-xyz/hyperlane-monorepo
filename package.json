@@ -26,8 +26,6 @@
     "@changesets/cli": "^2.26.2"
   },
   "devDependencies": {
-    "chai": "catalog:",
-    "chai-as-promised": "catalog:",
     "husky": "^8.0.0",
     "lint-staged": "^15.5.2",
     "oxfmt": "catalog:",
@@ -36,8 +34,7 @@
     "prettier": "catalog:",
     "prettier-plugin-solidity": "catalog:",
     "tsx": "catalog:",
-    "turbo": "^2.8.11",
-    "vitest": "catalog:"
+    "turbo": "^2.8.11"
   },
   "packageManager": "pnpm@10.30.2",
   "pnpm": {

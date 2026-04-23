@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
@@ -33,21 +33,21 @@ const blocks = {
 
 describe('ChainMetadataSchema', () => {
   it('Accepts valid schemas', () => {
-    expect(isValidChainMetadata(minimalSchema)).to.eq(true);
+    expect(isValidChainMetadata(minimalSchema)).toBe(true);
 
     expect(
       isValidChainMetadata({
         ...minimalSchema,
         blockExplorers,
       }),
-    ).to.eq(true);
+    ).toBe(true);
 
     expect(
       isValidChainMetadata({
         ...minimalSchema,
         blockExplorers,
       }),
-    ).to.eq(true);
+    ).toBe(true);
 
     expect(
       isValidChainMetadata({
@@ -55,7 +55,7 @@ describe('ChainMetadataSchema', () => {
         blockExplorers,
         blocks,
       }),
-    ).to.eq(true);
+    ).toBe(true);
 
     expect(
       isValidChainMetadata({
@@ -67,7 +67,7 @@ describe('ChainMetadataSchema', () => {
         restUrls: [],
         grpcUrls: [],
       }),
-    ).to.eq(true);
+    ).toBe(true);
 
     expect(
       isValidChainMetadata({
@@ -77,7 +77,7 @@ describe('ChainMetadataSchema', () => {
           reorgPeriod: EthJsonRpcBlockParameterTag.Finalized,
         },
       }),
-    ).to.eq(true);
+    ).toBe(true);
 
     expect(
       isValidChainMetadata({
@@ -86,7 +86,7 @@ describe('ChainMetadataSchema', () => {
           status: ChainStatus.Live,
         },
       }),
-    ).to.eq(true);
+    ).toBe(true);
 
     expect(
       isValidChainMetadata({
@@ -96,17 +96,17 @@ describe('ChainMetadataSchema', () => {
           reasons: [ChainDisabledReason.Deprecated],
         },
       }),
-    ).to.eq(true);
+    ).toBe(true);
   });
 
   it('Rejects invalid schemas', () => {
     expect(
       //@ts-ignore
       isValidChainMetadata({}),
-    ).to.eq(false);
+    ).toBe(false);
 
     //@ts-ignore
-    expect(isValidChainMetadata({ ...minimalSchema, chainId: 'id' })).to.eq(
+    expect(isValidChainMetadata({ ...minimalSchema, chainId: 'id' })).toBe(
       false,
     );
 
@@ -120,21 +120,21 @@ describe('ChainMetadataSchema', () => {
           },
         ],
       }),
-    ).to.eq(false);
+    ).toBe(false);
 
     expect(
       isValidChainMetadata({
         ...minimalSchema,
         name: 'Invalid name',
       }),
-    ).to.eq(false);
+    ).toBe(false);
 
     expect(
       isValidChainMetadata({
         ...minimalSchema,
         chainId: 'string-id',
       }),
-    ).to.eq(false);
+    ).toBe(false);
 
     expect(
       isValidChainMetadata({
@@ -142,7 +142,7 @@ describe('ChainMetadataSchema', () => {
         protocol: ProtocolType.Cosmos,
         chainId: 'string-id',
       }),
-    ).to.eq(false);
+    ).toBe(false);
 
     expect(
       isValidChainMetadata({
@@ -152,6 +152,6 @@ describe('ChainMetadataSchema', () => {
           reasons: [],
         },
       }),
-    ).to.eq(false);
+    ).toBe(false);
   });
 });
