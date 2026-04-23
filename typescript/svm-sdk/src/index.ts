@@ -40,6 +40,10 @@ export { HYPERLANE_SVM_PROGRAM_BYTES } from './hyperlane/program-bytes.js';
 // Low-level instruction builders
 export { getTransferOwnershipInstruction as getMultisigIsmTransferOwnershipInstruction } from './instructions/multisig-ism-message-id.js';
 export { getSetUpgradeAuthorityInstruction } from './instructions/loader.js';
+export {
+  GET_PROGRAM_VERSION_DISCRIMINATOR,
+  buildGetProgramVersionInstruction,
+} from './instructions/version.js';
 export { buildSetDefaultIsmInstruction } from './core/mailbox-tx.js';
 export { fetchMultisigIsmAccessControl } from './ism/ism-query.js';
 export { getProgramUpgradeAuthority } from './deploy/program-deployer.js';
@@ -182,3 +186,11 @@ export {
 } from './fee/cross-collateral-routing-fee.js';
 export type { SvmDeployedFee as SealevelDeployedFee } from './fee/types.js';
 export { DEFAULT_FEE_SALT, deriveFeeSalt } from './fee/types.js';
+
+// Version detection
+export {
+  queryProgramVersion,
+  compareVersions,
+  supportsFeeConfig,
+  SVM_PROGRAM_MINIMUM_FEE_SUPPORT_VERSION,
+} from './version/version-query.js';
