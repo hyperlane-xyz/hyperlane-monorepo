@@ -1,6 +1,9 @@
 import { confirm } from '@inquirer/prompts';
 import chalk from 'chalk';
-import { execSync } from 'child_process';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+
+const execFileP = promisify(execFile);
 
 const DEFAULT_REPO = 'hyperlane-xyz/hyperlane-monorepo';
 const YOUNG_BUILD_THRESHOLD_MS = 60 * 60 * 1000; // 1h
@@ -33,12 +36,13 @@ export async function verifyImageAttestation({
 }): Promise<AttestationStatus> {
   const ref = `oci://${image}:${tag}`;
   try {
-    const raw = execSync(
-      `gh attestation verify ${ref} --repo ${repo} --format json`,
-      { stdio: ['ignore', 'pipe', 'pipe'] },
-    ).toString();
+    const { stdout } = await execFileP(
+      'gh',
+      ['attestation', 'verify', ref, '--repo', repo, '--format', 'json'],
+      { maxBuffer: 10 * 1024 * 1024 },
+    );
 
-    const finishedOn = extractFinishedOn(raw);
+    const finishedOn = extractFinishedOn(stdout);
     if (!finishedOn) {
       return { verified: true };
     }
@@ -205,19 +209,26 @@ export async function preflightVerifyImages(refs: ImageRef[]): Promise<{
   allVerified: boolean;
   results: Array<{ ref: ImageRef; status: AttestationStatus }>;
 }> {
+  const unique: ImageRef[] = [];
   const seen = new Set<string>();
-  const results: Array<{ ref: ImageRef; status: AttestationStatus }> = [];
-  let allVerified = true;
-
   for (const ref of refs) {
     const key = `${ref.image}:${ref.tag}`;
     if (seen.has(key)) continue;
     seen.add(key);
+    unique.push(ref);
+  }
 
-    const status = await verifyImageAttestation({
-      image: ref.image,
-      tag: ref.tag,
-    });
+  const statuses = await Promise.all(
+    unique.map((ref) =>
+      verifyImageAttestation({ image: ref.image, tag: ref.tag }),
+    ),
+  );
+
+  const results: Array<{ ref: ImageRef; status: AttestationStatus }> = [];
+  let allVerified = true;
+  for (let i = 0; i < unique.length; i++) {
+    const ref = unique[i];
+    const status = statuses[i];
     printAttestationStatus(ref, status);
     results.push({ ref, status });
     if (!status.verified) allVerified = false;

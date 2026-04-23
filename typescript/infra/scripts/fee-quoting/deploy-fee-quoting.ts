@@ -5,9 +5,7 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { DockerImageRepos, mainnetDockerTags } from '../../config/docker.js';
 import { FeeQuotingHelmManager } from '../../src/fee-quoting/helm.js';
-import { verifyImagesAndConfirm } from '../../src/utils/attestation.js';
 import { HelmCommand } from '../../src/utils/helm.js';
 import {
   assertCorrectKubeContext,
@@ -24,13 +22,9 @@ async function main() {
 
   await assertCorrectKubeContext(getEnvironmentConfig(environment));
 
-  await verifyImagesAndConfirm([
-    {
-      component: 'fee-quoting',
-      image: DockerImageRepos.FEE_QUOTING,
-      tag: mainnetDockerTags.feeQuoting,
-    },
-  ]);
+  // Note: FEE_QUOTING image is not built by a workflow in this repo and
+  // therefore has no attestation to verify. Add attestation verify here
+  // once the image is built + signed by CI.
 
   const helmManager = new FeeQuotingHelmManager(
     environment,
