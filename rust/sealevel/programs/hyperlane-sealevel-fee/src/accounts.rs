@@ -33,7 +33,12 @@ pub const WILDCARD_RECIPIENT: H256 = H256::repeat_byte(0xFF);
 pub const WILDCARD_DOMAIN: u32 = u32::MAX;
 
 /// Default target router for CC routing fallback when no specific (dest, target_router) match.
-pub const DEFAULT_ROUTER: H256 = H256::repeat_byte(0xFF);
+/// Value is `keccak256("RoutingFee.DEFAULT_ROUTER")`, matching the EVM constant in
+/// `CrossCollateralRoutingFee.sol`. Precomputed because `const` context cannot call keccak.
+pub const DEFAULT_ROUTER: H256 = H256([
+    0x6e, 0x08, 0x6c, 0xd6, 0x47, 0xd6, 0xeb, 0x8b, 0x51, 0x68, 0x56, 0x66, 0x6e, 0x2c, 0x14, 0x65,
+    0xfb, 0x8a, 0x6a, 0x58, 0xd3, 0xa7, 0x59, 0x38, 0x36, 0x2a, 0xcc, 0x67, 0x4e, 0xac, 0xaf, 0x47,
+]);
 
 // --- Borsh serialized sizes for fixed-layout types ---
 
@@ -1062,7 +1067,16 @@ mod tests {
     fn test_wildcard_constants() {
         assert_eq!(WILDCARD_RECIPIENT.as_bytes(), &[0xFF; 32]);
         assert_eq!(WILDCARD_DOMAIN, u32::MAX);
-        assert_eq!(DEFAULT_ROUTER.as_bytes(), &[0xFF; 32]);
+        // DEFAULT_ROUTER = keccak256("RoutingFee.DEFAULT_ROUTER"), matching EVM.
+        assert_eq!(
+            DEFAULT_ROUTER,
+            H256([
+                0x6e, 0x08, 0x6c, 0xd6, 0x47, 0xd6, 0xeb, 0x8b, 0x51, 0x68, 0x56, 0x66, 0x6e, 0x2c,
+                0x14, 0x65, 0xfb, 0x8a, 0x6a, 0x58, 0xd3, 0xa7, 0x59, 0x38, 0x36, 0x2a, 0xcc, 0x67,
+                0x4e, 0xac, 0xaf, 0x47,
+            ])
+        );
+        assert_ne!(DEFAULT_ROUTER, WILDCARD_RECIPIENT);
     }
 
     // --- Access control ---
