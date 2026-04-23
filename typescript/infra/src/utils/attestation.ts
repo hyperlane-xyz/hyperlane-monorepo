@@ -67,7 +67,8 @@ function extractFinishedOn(rawJson: string): Date | undefined {
     const parsed = JSON.parse(rawJson);
     const entries = Array.isArray(parsed) ? parsed : [parsed];
     for (const entry of entries) {
-      const statement = entry?.verificationResult?.statement ?? entry?.statement;
+      const statement =
+        entry?.verificationResult?.statement ?? entry?.statement;
       const finishedOn =
         statement?.predicate?.runDetails?.metadata?.finishedOn ??
         statement?.predicate?.metadata?.buildFinishedOn;
@@ -92,32 +93,45 @@ function formatAge(ms: number): string {
   return `${m}m`;
 }
 
-export function printAttestationStatus(ref: ImageRef, status: AttestationStatus): void {
+export function printAttestationStatus(
+  ref: ImageRef,
+  status: AttestationStatus,
+): void {
   const imageStr = `${ref.image}:${ref.tag}`;
   if (status.verified) {
     console.log(
-      chalk.green(`✓ ${chalk.bold(ref.component)} attestation verified: ${imageStr}`),
+      chalk.green(
+        `✓ ${chalk.bold(ref.component)} attestation verified: ${imageStr}`,
+      ),
     );
     if (status.finishedOn && status.ageMs != null) {
       const line = `  built: ${status.finishedOn.toISOString()}  (age: ${formatAge(status.ageMs)})`;
       if (status.ageMs < YOUNG_BUILD_THRESHOLD_MS) {
-        console.log(chalk.yellow(`${line}  ⚠ young build — consider a soak period before prod`));
+        console.log(
+          chalk.yellow(
+            `${line}  ⚠ young build — consider a soak period before prod`,
+          ),
+        );
       } else {
         console.log(chalk.gray(line));
       }
     } else {
-      console.log(chalk.gray('  build age: unknown (could not parse provenance)'));
+      console.log(
+        chalk.gray('  build age: unknown (could not parse provenance)'),
+      );
     }
   } else {
     const bar = '!'.repeat(72);
     console.log('');
     console.log(chalk.red.bold(bar));
     console.log(
-      chalk.red.bold(`ATTESTATION VERIFY FAILED for ${ref.component} (${imageStr})`),
+      chalk.red.bold(
+        `ATTESTATION VERIFY FAILED for ${ref.component} (${imageStr})`,
+      ),
     );
     console.log(
       chalk.red.bold(
-        'Image may not have been built by this repo\'s CI. Supply-chain risk.',
+        "Image may not have been built by this repo's CI. Supply-chain risk.",
       ),
     );
     console.log(chalk.red(`reason: ${status.reason.split('\n')[0]}`));
@@ -126,9 +140,10 @@ export function printAttestationStatus(ref: ImageRef, status: AttestationStatus)
   }
 }
 
-export async function preflightVerifyImages(
-  refs: ImageRef[],
-): Promise<{ allVerified: boolean; results: Array<{ ref: ImageRef; status: AttestationStatus }> }> {
+export async function preflightVerifyImages(refs: ImageRef[]): Promise<{
+  allVerified: boolean;
+  results: Array<{ ref: ImageRef; status: AttestationStatus }>;
+}> {
   const seen = new Set<string>();
   const results: Array<{ ref: ImageRef; status: AttestationStatus }> = [];
   let allVerified = true;
@@ -138,7 +153,10 @@ export async function preflightVerifyImages(
     if (seen.has(key)) continue;
     seen.add(key);
 
-    const status = await verifyImageAttestation({ image: ref.image, tag: ref.tag });
+    const status = await verifyImageAttestation({
+      image: ref.image,
+      tag: ref.tag,
+    });
     printAttestationStatus(ref, status);
     results.push({ ref, status });
     if (!status.verified) allVerified = false;
