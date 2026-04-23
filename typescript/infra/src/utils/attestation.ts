@@ -67,7 +67,9 @@ function extractFinishedOn(rawJson: string): Date | undefined {
     const parsed = JSON.parse(rawJson);
     const entries = Array.isArray(parsed) ? parsed : [parsed];
     for (const entry of entries) {
-      const candidates: unknown[] = [
+      // 1. SLSA provenance predicate (if present — not populated by
+      //    GitHub's attest-build-provenance, but other producers may)
+      const statementCandidates: unknown[] = [
         entry?.verificationResult?.statement,
         entry?.statement,
       ];
@@ -76,16 +78,36 @@ function extractFinishedOn(rawJson: string): Date | undefined {
         entry?.bundle?.dsseEnvelope?.payload;
       if (typeof dssePayload === 'string') {
         try {
-          candidates.push(
+          statementCandidates.push(
             JSON.parse(Buffer.from(dssePayload, 'base64').toString('utf8')),
           );
         } catch {
           // ignore, next candidate
         }
       }
-      for (const c of candidates) {
+      for (const c of statementCandidates) {
         const date = readFinishedOn(c);
         if (date) return date;
+      }
+
+      // 2. Rekor transparency-log integratedTime — when the attestation
+      //    was signed (typically within seconds of build completion).
+      const tlogEntries =
+        entry?.attestation?.bundle?.verificationMaterial?.tlogEntries ??
+        entry?.bundle?.verificationMaterial?.tlogEntries;
+      if (Array.isArray(tlogEntries)) {
+        for (const t of tlogEntries) {
+          const raw = t?.integratedTime;
+          const seconds =
+            typeof raw === 'string'
+              ? Number(raw)
+              : typeof raw === 'number'
+                ? raw
+                : NaN;
+          if (Number.isFinite(seconds) && seconds > 0) {
+            return new Date(seconds * 1000);
+          }
+        }
       }
     }
   } catch {
