@@ -1,5 +1,4 @@
-//@ts-ignore
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import {
   ArraySortConfig,
@@ -14,29 +13,29 @@ describe('tryParseJsonOrYaml', () => {
   it('should parse valid JSON string', () => {
     const jsonString = '{"key": "value"}';
     const result: any = tryParseJsonOrYaml(jsonString);
-    expect(result.success).to.be.true;
-    expect(result.data).to.deep.equal({ key: 'value' });
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual({ key: 'value' });
   });
 
   it('should parse valid YAML string', () => {
     const yamlString = 'key: value';
     const result: any = tryParseJsonOrYaml(yamlString);
-    expect(result.success).to.be.true;
-    expect(result.data).to.deep.equal({ key: 'value' });
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual({ key: 'value' });
   });
 
   it('should fail for invalid JSON string', () => {
     const invalidJsonString = '{"key": "value"';
     const result: any = tryParseJsonOrYaml(invalidJsonString);
-    expect(result.success).to.be.false;
-    expect(result.error).to.equal('Input is not valid JSON or YAML');
+    expect(result.success).toBe(false);
+    expect(result.error).toBe('Input is not valid JSON or YAML');
   });
 
   it('should fail for invalid YAML string', () => {
     const invalidYamlString = 'key: value:';
     const result: any = tryParseJsonOrYaml(invalidYamlString);
-    expect(result.success).to.be.false;
-    expect(result.error).to.equal('Input is not valid JSON or YAML');
+    expect(result.success).toBe(false);
+    expect(result.error).toBe('Input is not valid JSON or YAML');
   });
 });
 
@@ -56,7 +55,7 @@ describe('sortNestedArrays', () => {
 
     const result = sortNestedArrays(data, config);
 
-    expect(result.items).to.deep.equal([
+    expect(result.items).toEqual([
       { name: 'a', value: 1 },
       { name: 'b', value: 2 },
       { name: 'c', value: 3 },
@@ -95,13 +94,13 @@ describe('sortNestedArrays', () => {
 
     const result = sortNestedArrays(data, config);
 
-    expect(result.level1.items).to.deep.equal([
+    expect(result.level1.items).toEqual([
       { id: 1, name: 'item1' },
       { id: 2, name: 'item2' },
       { id: 3, name: 'item3' },
     ]);
 
-    expect(result.level1.categories).to.deep.equal([
+    expect(result.level1.categories).toEqual([
       { code: 'cat-a', items: [] },
       {
         code: 'cat-b',
@@ -145,19 +144,11 @@ describe('sortNestedArrays', () => {
 
     const result = sortNestedArrays(data, config);
 
-    expect(result.users[0].name).to.equal('user1');
-    expect(result.users[1].name).to.equal('user2');
+    expect(result.users[0].name).toBe('user1');
+    expect(result.users[1].name).toBe('user2');
 
-    expect(result.users[0].tasks.map((t) => t.id)).to.deep.equal([
-      'x',
-      'y',
-      'z',
-    ]);
-    expect(result.users[1].tasks.map((t) => t.id)).to.deep.equal([
-      'a',
-      'b',
-      'c',
-    ]);
+    expect(result.users[0].tasks.map((t) => t.id)).toEqual(['x', 'y', 'z']);
+    expect(result.users[1].tasks.map((t) => t.id)).toEqual(['a', 'b', 'c']);
   });
 
   it('should not modify data when no sort configuration matches', () => {
@@ -184,16 +175,16 @@ describe('sortNestedArrays', () => {
     const result = sortNestedArrays(data, config);
 
     // Data should remain unchanged
-    expect(result).to.deep.equal(data);
+    expect(result).toEqual(data);
 
     // Verify the original order is preserved
-    expect(result.items[0].name).to.equal('c');
-    expect(result.items[1].name).to.equal('a');
-    expect(result.items[2].name).to.equal('b');
+    expect(result.items[0].name).toBe('c');
+    expect(result.items[1].name).toBe('a');
+    expect(result.items[2].name).toBe('b');
 
-    expect(result.otherItems[0].id).to.equal(3);
-    expect(result.otherItems[1].id).to.equal(1);
-    expect(result.otherItems[2].id).to.equal(2);
+    expect(result.otherItems[0].id).toBe(3);
+    expect(result.otherItems[1].id).toBe(1);
+    expect(result.otherItems[2].id).toBe(2);
   });
 
   it('should sort primitive arrays lexicographically when no keyed rule matches', () => {
@@ -206,8 +197,8 @@ describe('sortNestedArrays', () => {
 
     const result = sortNestedArrays(data, { arrays: [] });
 
-    expect(result.names).to.deep.equal(['alpha', 'beta', 'zeta']);
-    expect(result.nested.flags).to.deep.equal([false, true, true]);
+    expect(result.names).toEqual(['alpha', 'beta', 'zeta']);
+    expect(result.nested.flags).toEqual([false, true, true]);
   });
 
   it('should not match when path length is shorter than pattern length', () => {
@@ -226,11 +217,11 @@ describe('sortNestedArrays', () => {
 
     const result = sortNestedArrays(data, config);
 
-    expect(result).to.deep.equal(data);
+    expect(result).toEqual(data);
 
-    expect(result.items[0].name).to.equal('c');
-    expect(result.items[1].name).to.equal('a');
-    expect(result.items[2].name).to.equal('b');
+    expect(result.items[0].name).toBe('c');
+    expect(result.items[1].name).toBe('a');
+    expect(result.items[2].name).toBe('b');
   });
 
   it('should demonstrate difference between [] and * notations', () => {
@@ -341,27 +332,21 @@ describe('sortNestedArrays', () => {
       arrayOnlyConfig,
     );
 
-    expect(resultArrayNotationWithArray.root.categories[0].items).to.deep.equal(
-      [
-        { age: 10, name: 'c1' },
-        { age: 20, name: 'c2' },
-      ],
-    );
-    expect(resultArrayNotationWithArray.root.categories[1].items).to.deep.equal(
-      [
-        { age: 5, name: 'a2' },
-        { age: 15, name: 'a1' },
-      ],
-    );
+    expect(resultArrayNotationWithArray.root.categories[0].items).toEqual([
+      { age: 10, name: 'c1' },
+      { age: 20, name: 'c2' },
+    ]);
+    expect(resultArrayNotationWithArray.root.categories[1].items).toEqual([
+      { age: 5, name: 'a2' },
+      { age: 15, name: 'a1' },
+    ]);
 
     const resultArrayNotationWithObject = sortNestedArrays(
       dataWithObject,
       arrayOnlyConfig,
     );
 
-    expect(
-      resultArrayNotationWithObject.root.categories.first.items,
-    ).to.deep.equal([
+    expect(resultArrayNotationWithObject.root.categories.first.items).toEqual([
       { age: 20, name: 'c2' },
       { age: 10, name: 'c1' },
     ]);
@@ -371,7 +356,7 @@ describe('sortNestedArrays', () => {
       wildcardConfig,
     );
 
-    expect(resultWildcardWithArray.root.categories[0].items).to.deep.equal([
+    expect(resultWildcardWithArray.root.categories[0].items).toEqual([
       { age: 10, name: 'c1' },
       { age: 20, name: 'c2' },
     ]);
@@ -381,16 +366,14 @@ describe('sortNestedArrays', () => {
       wildcardConfig,
     );
 
-    expect(resultWildcardWithObject.root.categories.first.items).to.deep.equal([
+    expect(resultWildcardWithObject.root.categories.first.items).toEqual([
       { age: 10, name: 'c1' },
       { age: 20, name: 'c2' },
     ]);
-    expect(resultWildcardWithObject.root.categories.second.items).to.deep.equal(
-      [
-        { age: 15, name: 'a1' },
-        { age: 5, name: 'a2' },
-      ],
-    );
+    expect(resultWildcardWithObject.root.categories.second.items).toEqual([
+      { age: 15, name: 'a1' },
+      { age: 5, name: 'a2' },
+    ]);
 
     const hybridConfig: ArraySortConfig = {
       arrays: [
@@ -401,7 +384,7 @@ describe('sortNestedArrays', () => {
 
     const resultHybrid = sortNestedArrays(dataWithObject, hybridConfig);
 
-    expect(resultHybrid.root.categories.first.items).to.deep.equal([
+    expect(resultHybrid.root.categories.first.items).toEqual([
       { age: 10, name: 'c1' },
       { age: 20, name: 'c2' },
     ]);
@@ -415,7 +398,7 @@ describe('sortObjectKeys', () => {
       alpha: [{ delta: 4, charlie: 3 }],
     });
 
-    expect(result).to.deep.equal({
+    expect(result).toEqual({
       alpha: [{ charlie: 3, delta: 4 }],
       zebra: { alpha: 1, bravo: 2 },
     });
@@ -424,7 +407,7 @@ describe('sortObjectKeys', () => {
 
 describe('WARP_YAML_SORT_CONFIG', () => {
   it('should preserve the warp YAML array sort rules', () => {
-    expect(WARP_YAML_SORT_CONFIG).to.deep.equal({
+    expect(WARP_YAML_SORT_CONFIG).toEqual({
       arrays: [
         { path: 'tokens', sortKey: 'chainName' },
         { path: 'tokens[].connections', sortKey: 'token' },
@@ -639,7 +622,7 @@ config:
   testCases.forEach(({ name, original, expected, transformer }) => {
     it(name, () => {
       const result = transformYaml(original, transformer);
-      expect(result.trim()).to.equal(expected);
+      expect(result.trim()).toBe(expected);
     });
   });
 });

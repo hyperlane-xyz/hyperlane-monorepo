@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -22,15 +22,13 @@ describe('Agent config', () => {
 
   it('Should generate a new agent config', () => {
     const result = buildAgentConfig(...args);
-    expect(result.chains[TestChainName.test1].mailbox).to.equal('0xmailbox');
-    expect(result.chains[TestChainName.test1].interchainGasPaymaster).to.equal(
+    expect(result.chains[TestChainName.test1].mailbox).toBe('0xmailbox');
+    expect(result.chains[TestChainName.test1].interchainGasPaymaster).toBe(
       '0xgas',
     );
-    expect(result.chains[TestChainName.test1].validatorAnnounce).to.equal(
+    expect(result.chains[TestChainName.test1].validatorAnnounce).toBe(
       '0xannounce',
     );
-    expect(result.chains[TestChainName.test1].merkleTreeHook).to.equal(
-      '0xmerkle',
-    );
+    expect(result.chains[TestChainName.test1].merkleTreeHook).toBe('0xmerkle');
   });
 });

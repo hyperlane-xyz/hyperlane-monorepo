@@ -5,6 +5,5 @@ export default defineConfig({
     globals: true,
     include: ['src/**/*.test.ts'],
     exclude: ['**/node_modules/**', '**/dist/**', 'src/artifact.types.test.ts'],
-    setupFiles: ['../../vitest.setup.ts'],
   },
 });

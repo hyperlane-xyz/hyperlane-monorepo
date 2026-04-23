@@ -1,7 +1,7 @@
-import { expect } from 'chai';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { expect } from 'vitest';
 
 import {
   indentYamlOrJson,
@@ -29,54 +29,54 @@ describe('Format utilities', () => {
 
   describe('resolveFileFormat', () => {
     it('returns json for .json extension', () => {
-      expect(resolveFileFormat('file.json')).to.equal('json');
+      expect(resolveFileFormat('file.json')).toBe('json');
     });
 
     it('returns yaml for .yaml extension', () => {
-      expect(resolveFileFormat('file.yaml')).to.equal('yaml');
+      expect(resolveFileFormat('file.yaml')).toBe('yaml');
     });
 
     it('returns yaml for .yml extension', () => {
-      expect(resolveFileFormat('file.yml')).to.equal('yaml');
+      expect(resolveFileFormat('file.yml')).toBe('yaml');
     });
 
     it('returns undefined for unknown extension', () => {
-      expect(resolveFileFormat('file.txt')).to.be.undefined;
+      expect(resolveFileFormat('file.txt')).toBeUndefined();
     });
 
     it('format and extension both considered (format checked first for yaml, extension for json)', () => {
       // The logic checks format === 'json' OR extension .json first
       // Then format === 'yaml' OR extension .yaml/.yml
       // So json format/extension takes precedence
-      expect(resolveFileFormat('file.txt', 'yaml')).to.equal('yaml');
-      expect(resolveFileFormat('file.txt', 'json')).to.equal('json');
-      expect(resolveFileFormat('file.json', 'yaml')).to.equal('json'); // .json extension wins
-      expect(resolveFileFormat('file.yaml', 'json')).to.equal('json'); // json format wins
+      expect(resolveFileFormat('file.txt', 'yaml')).toBe('yaml');
+      expect(resolveFileFormat('file.txt', 'json')).toBe('json');
+      expect(resolveFileFormat('file.json', 'yaml')).toBe('json'); // .json extension wins
+      expect(resolveFileFormat('file.yaml', 'json')).toBe('json'); // json format wins
     });
 
     it('returns format when filepath is undefined', () => {
-      expect(resolveFileFormat(undefined, 'json')).to.equal('json');
-      expect(resolveFileFormat(undefined, 'yaml')).to.equal('yaml');
+      expect(resolveFileFormat(undefined, 'json')).toBe('json');
+      expect(resolveFileFormat(undefined, 'yaml')).toBe('yaml');
     });
 
     it('returns undefined when both are undefined', () => {
-      expect(resolveFileFormat(undefined, undefined)).to.be.undefined;
+      expect(resolveFileFormat(undefined, undefined)).toBeUndefined();
     });
   });
 
   describe('indentYamlOrJson', () => {
     it('indents single line', () => {
-      expect(indentYamlOrJson('line', 2)).to.equal('  line');
+      expect(indentYamlOrJson('line', 2)).toBe('  line');
     });
 
     it('indents multiple lines', () => {
       const input = 'line1\nline2\nline3';
       const expected = '    line1\n    line2\n    line3';
-      expect(indentYamlOrJson(input, 4)).to.equal(expected);
+      expect(indentYamlOrJson(input, 4)).toBe(expected);
     });
 
     it('handles zero indent', () => {
-      expect(indentYamlOrJson('line', 0)).to.equal('line');
+      expect(indentYamlOrJson('line', 0)).toBe('line');
     });
   });
 
@@ -85,21 +85,21 @@ describe('Format utilities', () => {
       const jsonFile = path.join(testDir, 'test.json');
       fs.writeFileSync(jsonFile, JSON.stringify({ format: 'json' }));
       const result = readYamlOrJson<{ format: string }>(jsonFile);
-      expect(result).to.deep.equal({ format: 'json' });
+      expect(result).toEqual({ format: 'json' });
     });
 
     it('reads YAML file based on extension', () => {
       const yamlFile = path.join(testDir, 'test.yaml');
       fs.writeFileSync(yamlFile, 'format: yaml\n');
       const result = readYamlOrJson<{ format: string }>(yamlFile);
-      expect(result).to.deep.equal({ format: 'yaml' });
+      expect(result).toEqual({ format: 'yaml' });
     });
 
     it('reads .yml file', () => {
       const ymlFile = path.join(testDir, 'test.yml');
       fs.writeFileSync(ymlFile, 'format: yml\n');
       const result = readYamlOrJson<{ format: string }>(ymlFile);
-      expect(result).to.deep.equal({ format: 'yml' });
+      expect(result).toEqual({ format: 'yml' });
     });
 
     it('uses explicit format override', () => {
@@ -107,13 +107,13 @@ describe('Format utilities', () => {
       const txtFile = path.join(testDir, 'test.txt');
       fs.writeFileSync(txtFile, 'key: value\n');
       const result = readYamlOrJson<{ key: string }>(txtFile, 'yaml');
-      expect(result).to.deep.equal({ key: 'value' });
+      expect(result).toEqual({ key: 'value' });
     });
 
     it('throws for unknown format', () => {
       const txtFile = path.join(testDir, 'test.txt');
       fs.writeFileSync(txtFile, 'content');
-      expect(() => readYamlOrJson(txtFile)).to.throw('Invalid file format');
+      expect(() => readYamlOrJson(txtFile)).toThrow('Invalid file format');
     });
   });
 
@@ -122,33 +122,33 @@ describe('Format utilities', () => {
       const jsonFile = path.join(testDir, 'test.json');
       writeYamlOrJson(jsonFile, { format: 'json' });
       const content = fs.readFileSync(jsonFile, 'utf8');
-      expect(JSON.parse(content)).to.deep.equal({ format: 'json' });
+      expect(JSON.parse(content)).toEqual({ format: 'json' });
     });
 
     it('writes YAML file based on extension', () => {
       const yamlFile = path.join(testDir, 'test.yaml');
       writeYamlOrJson(yamlFile, { format: 'yaml' });
       const result = readYamlOrJson<{ format: string }>(yamlFile);
-      expect(result).to.deep.equal({ format: 'yaml' });
+      expect(result).toEqual({ format: 'yaml' });
     });
 
     it('writes arrays', () => {
       const jsonFile = path.join(testDir, 'array.json');
       writeYamlOrJson(jsonFile, [1, 2, 3]);
       const result = readYamlOrJson<number[]>(jsonFile);
-      expect(result).to.deep.equal([1, 2, 3]);
+      expect(result).toEqual([1, 2, 3]);
     });
 
     it('uses explicit format override', () => {
       const txtFile = path.join(testDir, 'test.txt');
       writeYamlOrJson(txtFile, { key: 'value' }, 'yaml');
       const content = fs.readFileSync(txtFile, 'utf8');
-      expect(content.trimEnd()).to.equal('key: value');
+      expect(content.trimEnd()).toBe('key: value');
     });
 
     it('throws for unknown format', () => {
       const txtFile = path.join(testDir, 'test.txt');
-      expect(() => writeYamlOrJson(txtFile, { key: 'value' })).to.throw(
+      expect(() => writeYamlOrJson(txtFile, { key: 'value' })).toThrow(
         'Invalid file format',
       );
     });
@@ -159,14 +159,14 @@ describe('Format utilities', () => {
       const jsonFile = path.join(testDir, 'new.json');
       mergeYamlOrJson(jsonFile, { key: 'value' }, 'json');
       const result = readYamlOrJson<{ key: string }>(jsonFile);
-      expect(result).to.deep.equal({ key: 'value' });
+      expect(result).toEqual({ key: 'value' });
     });
 
     it('creates YAML file if it does not exist (default)', () => {
       const yamlFile = path.join(testDir, 'new.yaml');
       mergeYamlOrJson(yamlFile, { key: 'value' });
       const result = readYamlOrJson<{ key: string }>(yamlFile);
-      expect(result).to.deep.equal({ key: 'value' });
+      expect(result).toEqual({ key: 'value' });
     });
 
     it('merges with existing JSON content', () => {
@@ -174,7 +174,7 @@ describe('Format utilities', () => {
       writeYamlOrJson(jsonFile, { existing: 'data' });
       mergeYamlOrJson(jsonFile, { new: 'data' }, 'json');
       const result = readYamlOrJson<Record<string, string>>(jsonFile);
-      expect(result).to.deep.equal({ existing: 'data', new: 'data' });
+      expect(result).toEqual({ existing: 'data', new: 'data' });
     });
 
     it('merges with existing YAML content', () => {
@@ -182,7 +182,7 @@ describe('Format utilities', () => {
       writeYamlOrJson(yamlFile, { existing: 'data' });
       mergeYamlOrJson(yamlFile, { new: 'data' });
       const result = readYamlOrJson<Record<string, string>>(yamlFile);
-      expect(result).to.deep.equal({ existing: 'data', new: 'data' });
+      expect(result).toEqual({ existing: 'data', new: 'data' });
     });
   });
 });

@@ -1,8 +1,8 @@
-import { expect } from 'chai';
 import express, { Express } from 'express';
 import { pino } from 'pino';
 import request from 'supertest';
 import type { Address, Hex } from 'viem';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import { HookType, TokenFeeType } from '@hyperlane-xyz/sdk';
 
@@ -107,7 +107,8 @@ describe('Quote Routes', () => {
         .get(`/quote/transferRemote?${WARP_PARAMS}`)
         .set('Authorization', `Bearer ${TEST_API_KEY}`)
         .expect(200);
-      expect(res.body.quotes).to.be.an('array').with.lengthOf(2);
+      expect(Array.isArray(res.body.quotes)).toBe(true);
+      expect(res.body.quotes).toHaveLength(2);
     });
 
     it('returns 400 without salt', async () => {
@@ -124,7 +125,7 @@ describe('Quote Routes', () => {
         .get(`/quote/transferRemote?${params}`)
         .set('Authorization', `Bearer ${TEST_API_KEY}`)
         .expect(400);
-      expect(res.body.message).to.include('Unknown origin');
+      expect(res.body.message).toContain('Unknown origin');
     });
   });
 
@@ -134,8 +135,8 @@ describe('Quote Routes', () => {
         .get(`/quote/callRemoteWithOverrides?${ICA_PARAMS}`)
         .set('Authorization', `Bearer ${TEST_API_KEY}`)
         .expect(200);
-      expect(res.body.quotes).to.have.lengthOf(1);
-      expect(res.body.quotes[0].quoter.toLowerCase()).to.equal(
+      expect(res.body.quotes).toHaveLength(1);
+      expect(res.body.quotes[0].quoter.toLowerCase()).toBe(
         IGP_ADDRESS.toLowerCase(),
       );
     });

@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import {
   ProtocolType,
@@ -12,11 +12,11 @@ describe('loadProtocolProviders', () => {
   it('registers Starknet provider implementation', async () => {
     await loadProtocolProviders(new Set([ProtocolType.Starknet]));
 
-    expect(hasProtocol(ProtocolType.Starknet)).to.equal(true);
+    expect(hasProtocol(ProtocolType.Starknet)).toBe(true);
 
     const provider = getProtocolProvider(ProtocolType.Starknet);
-    expect(provider).to.have.property('createProvider');
-    expect(provider).to.have.property('createSigner');
-    expect(provider).to.have.property('createIsmArtifactManager');
+    expect(provider).toHaveProperty('createProvider');
+    expect(provider).toHaveProperty('createSigner');
+    expect(provider).toHaveProperty('createIsmArtifactManager');
   });
 });

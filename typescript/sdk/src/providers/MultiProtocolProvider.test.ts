@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import { Provider as ZKSyncProvider } from 'zksync-ethers';
 
 import { TestChainName, test1 } from '../consts/testChains.js';
@@ -14,7 +14,7 @@ describe('MultiProtocolProvider', () => {
     it('creates a multi protocol provider without type extension', async () => {
       const multiProvider = new MultiProtocolProvider({ test1 });
       const metadata = multiProvider.getChainMetadata(TestChainName.test1);
-      expect(metadata.name).to.equal(TestChainName.test1);
+      expect(metadata.name).toBe(TestChainName.test1);
     });
     it('creates a multi protocol provider with type extension', async () => {
       const multiProvider = new MultiProtocolProvider<{
@@ -24,8 +24,8 @@ describe('MultiProtocolProvider', () => {
         test1: { ...test1, foo: '0x123', bar: 1 },
       });
       const metadata = multiProvider.getChainMetadata(TestChainName.test1);
-      expect(metadata.foo).to.equal('0x123');
-      expect(metadata.bar).to.equal(1);
+      expect(metadata.foo).toBe('0x123');
+      expect(metadata.bar).toBe(1);
     });
 
     it('keeps distinct logger module names for base and derived providers', () => {
@@ -34,8 +34,8 @@ describe('MultiProtocolProvider', () => {
       });
       const multiProvider = new MultiProtocolProvider({ test1 });
 
-      expect(adapter.logger.bindings().module).to.equal('MultiProviderAdapter');
-      expect(multiProvider.logger.bindings().module).to.equal(
+      expect(adapter.logger.bindings().module).toBe('MultiProviderAdapter');
+      expect(multiProvider.logger.bindings().module).toBe(
         'MultiProtocolProvider',
       );
     });
@@ -54,7 +54,7 @@ describe('MultiProtocolProvider', () => {
       multiProvider.setProvider('zksync', provider);
 
       const adapted = MultiProtocolProvider.fromMultiProvider(multiProvider);
-      expect(adapted.getProvider('zksync', ProviderType.ZkSync).type).to.equal(
+      expect(adapted.getProvider('zksync', ProviderType.ZkSync).type).toBe(
         ProviderType.ZkSync,
       );
     });
@@ -73,8 +73,8 @@ describe('MultiProtocolProvider', () => {
       const adapter = MultiProviderAdapter.fromMultiProvider(multiProvider);
       const adapted = MultiProtocolProvider.fromMultiProvider(multiProvider);
 
-      expect(adapter.getProvider('zksync').type).to.equal(ProviderType.ZkSync);
-      expect(adapted.getProvider('zksync').type).to.equal(ProviderType.ZkSync);
+      expect(adapter.getProvider('zksync').type).toBe(ProviderType.ZkSync);
+      expect(adapted.getProvider('zksync').type).toBe(ProviderType.ZkSync);
     });
 
     it('returns a gnosis-typed builder entry', () => {
@@ -82,7 +82,7 @@ describe('MultiProtocolProvider', () => {
         [{ http: 'https://ethereum.example.com' }],
         1,
       );
-      expect(provider.type).to.equal(ProviderType.GnosisTxBuilder);
+      expect(provider.type).toBe(ProviderType.GnosisTxBuilder);
     });
   });
 });

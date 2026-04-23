@@ -1,5 +1,5 @@
-import { expect } from 'chai';
 import sinon from 'sinon';
+import { describe, expect, it } from 'vitest';
 
 import {
   PostCallsSchema,
@@ -54,12 +54,12 @@ const legacyPayload = {
 describe('PostCallsSchema union', () => {
   it('accepts new ICA shape', () => {
     const result = PostCallsSchema.safeParse(icaPayload);
-    expect(result.success).to.be.true;
+    expect(result.success).toBe(true);
   });
 
   it('accepts legacy shape', () => {
     const result = PostCallsSchema.safeParse(legacyPayload);
-    expect(result.success).to.be.true;
+    expect(result.success).toBe(true);
   });
 
   it('rejects payload missing both discriminants', () => {
@@ -69,19 +69,19 @@ describe('PostCallsSchema union', () => {
       salt,
       originDomain: 1,
     });
-    expect(result.success).to.be.false;
+    expect(result.success).toBe(false);
   });
 });
 
 describe('isPostCallsIca type guard', () => {
   it('returns true for ICA shape', () => {
     const parsed = PostCallsSchema.parse(icaPayload);
-    expect(isPostCallsIca(parsed)).to.be.true;
+    expect(isPostCallsIca(parsed)).toBe(true);
   });
 
   it('returns false for legacy shape', () => {
     const parsed = PostCallsSchema.parse(legacyPayload);
-    expect(isPostCallsIca(parsed)).to.be.false;
+    expect(isPostCallsIca(parsed)).toBe(false);
   });
 });
 
@@ -113,8 +113,8 @@ describe('CallCommitmentsService.handleCommitment', () => {
 
     await service.handleCommitment(req, res);
 
-    expect(res.status.calledWith(400)).to.be.true;
-    expect(res.json.called).to.be.true;
+    expect(res.status.calledWith(400)).toBe(true);
+    expect(res.json.called).toBe(true);
   });
 
   it('routes ICA payload to deriveIcaFromConfig', async () => {
@@ -134,8 +134,8 @@ describe('CallCommitmentsService.handleCommitment', () => {
 
     await service.handleCommitment(req, res);
 
-    expect(icaApp.getAccount.called).to.be.true;
-    expect(res.sendStatus.calledWith(200)).to.be.true;
+    expect(icaApp.getAccount.called).toBe(true);
+    expect(res.sendStatus.calledWith(200)).toBe(true);
   });
 
   it('routes legacy payload to deriveIcaFromDispatchTx', async () => {
@@ -153,9 +153,10 @@ describe('CallCommitmentsService.handleCommitment', () => {
     await service.handleCommitment(req, res);
 
     // Should fail because receipt is null, returning 400
-    expect(res.status.calledWith(400)).to.be.true;
-    expect(multiProvider.getProvider.calledWith(legacyPayload.originDomain)).to
-      .be.true;
+    expect(res.status.calledWith(400)).toBe(true);
+    expect(
+      multiProvider.getProvider.calledWith(legacyPayload.originDomain),
+    ).toBe(true);
   });
 });
 
@@ -163,7 +164,7 @@ describe('normalizeCalls', () => {
   it('throws on malformed address that bypasses schema', () => {
     expect(() => {
       normalizeCalls([{ to: 'not-an-address', data: '0x', value: '0' }]);
-    }).to.throw('address bytes must not be empty');
+    }).toThrow('address bytes must not be empty');
   });
 
   it('commitmentFromIcaCalls works with valid normalized calls', () => {
@@ -171,7 +172,7 @@ describe('normalizeCalls', () => {
       normalizeCalls([{ to: validAddress, data: '0x', value: '0' }]),
       salt,
     );
-    expect(result).to.not.be.undefined;
-    expect(result.startsWith('0x')).to.be.true;
+    expect(result).toBeDefined();
+    expect(result.startsWith('0x')).toBe(true);
   });
 });

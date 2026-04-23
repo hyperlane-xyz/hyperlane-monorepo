@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import { BigNumber } from 'ethers';
 
 import { ISafe__factory } from '@hyperlane-xyz/core';
@@ -24,10 +24,10 @@ describe('Safe Utils', () => {
         expectedOwners,
       );
 
-      expect(ownersToRemove).to.deep.equal([
+      expect(ownersToRemove).toEqual([
         '0x0000000000000000000000000000000000000002',
       ]);
-      expect(ownersToAdd).to.deep.equal([
+      expect(ownersToAdd).toEqual([
         '0x0000000000000000000000000000000000000004',
       ]);
     });
@@ -43,8 +43,8 @@ describe('Safe Utils', () => {
         currentOwners,
       );
 
-      expect(ownersToRemove).to.deep.equal([]);
-      expect(ownersToAdd).to.deep.equal([]);
+      expect(ownersToRemove).toEqual([]);
+      expect(ownersToAdd).toEqual([]);
     });
 
     it('should handle multiple swaps', async () => {
@@ -66,18 +66,18 @@ describe('Safe Utils', () => {
         expectedOwners,
       );
 
-      expect(ownersToRemove).to.have.lengthOf(2);
-      expect(ownersToAdd).to.have.lengthOf(2);
-      expect(ownersToRemove).to.include(
+      expect(ownersToRemove).toHaveLength(2);
+      expect(ownersToAdd).toHaveLength(2);
+      expect(ownersToRemove).toContain(
         '0x0000000000000000000000000000000000000002',
       );
-      expect(ownersToRemove).to.include(
+      expect(ownersToRemove).toContain(
         '0x0000000000000000000000000000000000000003',
       );
-      expect(ownersToAdd).to.include(
+      expect(ownersToAdd).toContain(
         '0x0000000000000000000000000000000000000005',
       );
-      expect(ownersToAdd).to.include(
+      expect(ownersToAdd).toContain(
         '0x0000000000000000000000000000000000000006',
       );
     });
@@ -98,12 +98,12 @@ describe('Safe Utils', () => {
       );
 
       // eqAddress normalizes addresses, so the checksummed and lowercase versions should be treated as the same
-      expect(ownersToRemove).to.have.lengthOf(1);
-      expect(ownersToAdd).to.have.lengthOf(1);
-      expect(ownersToRemove[0].toLowerCase()).to.equal(
+      expect(ownersToRemove).toHaveLength(1);
+      expect(ownersToAdd).toHaveLength(1);
+      expect(ownersToRemove[0].toLowerCase()).toBe(
         '0x0000000000000000000000000000000000000002',
       );
-      expect(ownersToAdd[0].toLowerCase()).to.equal(
+      expect(ownersToAdd[0].toLowerCase()).toBe(
         '0x0000000000000000000000000000000000000003',
       );
     });
@@ -132,11 +132,11 @@ describe('Safe Utils', () => {
 
       const decoded = parseSafeTx(tx);
 
-      expect(decoded.name).to.equal('swapOwner');
-      expect(decoded.args).to.have.lengthOf(3);
-      expect(decoded.args[0]).to.equal(prevOwner);
-      expect(decoded.args[1]).to.equal(oldOwner);
-      expect(decoded.args[2]).to.equal(newOwner);
+      expect(decoded.name).toBe('swapOwner');
+      expect(decoded.args).toHaveLength(3);
+      expect(decoded.args[0]).toBe(prevOwner);
+      expect(decoded.args[1]).toBe(oldOwner);
+      expect(decoded.args[2]).toBe(newOwner);
     });
 
     it('should parse addOwnerWithThreshold transaction using ISafe interface', () => {
@@ -159,10 +159,10 @@ describe('Safe Utils', () => {
 
       const decoded = parseSafeTx(tx);
 
-      expect(decoded.name).to.equal('addOwnerWithThreshold');
-      expect(decoded.args).to.have.lengthOf(2);
-      expect(decoded.args[0]).to.equal(newOwner);
-      expect(decoded.args[1].toNumber()).to.equal(threshold);
+      expect(decoded.name).toBe('addOwnerWithThreshold');
+      expect(decoded.args).toHaveLength(2);
+      expect(decoded.args[0]).toBe(newOwner);
+      expect(decoded.args[1].toNumber()).toBe(threshold);
     });
 
     it('should parse changeThreshold transaction using ISafe interface', () => {
@@ -183,9 +183,9 @@ describe('Safe Utils', () => {
 
       const decoded = parseSafeTx(tx);
 
-      expect(decoded.name).to.equal('changeThreshold');
-      expect(decoded.args).to.have.lengthOf(1);
-      expect(decoded.args[0].toNumber()).to.equal(newThreshold);
+      expect(decoded.name).toBe('changeThreshold');
+      expect(decoded.args).toHaveLength(1);
+      expect(decoded.args[0].toNumber()).toBe(newThreshold);
     });
   });
 

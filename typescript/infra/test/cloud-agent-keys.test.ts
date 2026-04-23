@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import { Contexts } from '../config/contexts.js';
 import { AgentAwsKey } from '../src/agents/aws/key.js';
@@ -41,11 +41,11 @@ describe('ReadOnlyCloudAgentKey', () => {
           addressZero,
         );
 
-        expect(readOnly.environment).to.eq(testKey.environment);
-        expect(readOnly.context).to.eq(testKey.context);
-        expect(readOnly.role).to.eq(testKey.role);
-        expect(readOnly.chainName).to.eq(testKey.chainName);
-        expect(readOnly.index).to.eq(testKey.index);
+        expect(readOnly.environment).toBe(testKey.environment);
+        expect(readOnly.context).toBe(testKey.context);
+        expect(readOnly.role).toBe(testKey.role);
+        expect(readOnly.chainName).toBe(testKey.chainName);
+        expect(readOnly.index).toBe(testKey.index);
       }
     });
   });

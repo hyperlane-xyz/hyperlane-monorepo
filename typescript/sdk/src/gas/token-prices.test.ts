@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import sinon from 'sinon';
 
 import { TestChainName, testChainMetadata } from '../consts/testChains.js';
@@ -46,27 +46,25 @@ describe('TokenPriceGetter', () => {
       // stubbed results
       expect(
         await tokenPriceGetter.getTokenPriceByIds(['ethereum', 'solana']),
-      ).to.eql([priceA, priceB]);
+      ).toEqual([priceA, priceB]);
     });
   });
 
   describe('getTokenPrice', () => {
     it('returns a token price', async () => {
       // hardcoded result of 1 for testnets
-      expect(
-        await tokenPriceGetter.getTokenPrice(TestChainName.test1),
-      ).to.equal(1);
+      expect(await tokenPriceGetter.getTokenPrice(TestChainName.test1)).toBe(1);
       // stubbed result for non-testnet
-      expect(await tokenPriceGetter.getTokenPrice('ethereum')).to.equal(priceA);
+      expect(await tokenPriceGetter.getTokenPrice('ethereum')).toBe(priceA);
     });
   });
 
   describe('getTokenExchangeRate', () => {
     it('returns a value consistent with getTokenPrice()', async () => {
       // hardcoded result of 1 for testnets
-      expect(
-        await tokenPriceGetter.getTokenExchangeRate(chainA, chainB),
-      ).to.equal(1);
+      expect(await tokenPriceGetter.getTokenExchangeRate(chainA, chainB)).toBe(
+        1,
+      );
 
       // stubbed result for non-testnet
       expect(
@@ -74,7 +72,7 @@ describe('TokenPriceGetter', () => {
           'ethereum',
           'solanamainnet',
         ),
-      ).to.equal(priceA / priceB);
+      ).toBe(priceA / priceB);
     });
   });
 });

@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import { Keypair } from '@solana/web3.js';
 import bs58 from 'bs58';
@@ -10,17 +10,17 @@ describe('parseSolanaPrivateKey', () => {
     const bytes = Array.from({ length: 64 }, (_, i) => i);
     const parsed = parseSolanaPrivateKey(JSON.stringify(bytes));
 
-    expect(parsed).to.be.instanceOf(Uint8Array);
-    expect(Array.from(parsed)).to.deep.equal(bytes);
-    expect(parsed).to.have.length(64);
+    expect(parsed).toBeInstanceOf(Uint8Array);
+    expect(Array.from(parsed)).toEqual(bytes);
+    expect(parsed).toHaveLength(64);
   });
 
   it('parses valid 64-byte comma-separated', () => {
     const bytes = Array.from({ length: 64 }, (_, i) => i);
     const parsed = parseSolanaPrivateKey(bytes.join(','));
 
-    expect(Array.from(parsed)).to.deep.equal(bytes);
-    expect(parsed).to.have.length(64);
+    expect(Array.from(parsed)).toEqual(bytes);
+    expect(parsed).toHaveLength(64);
   });
 
   it('parses valid 32-byte seed JSON array and expands to 64 bytes', () => {
@@ -28,8 +28,8 @@ describe('parseSolanaPrivateKey', () => {
     const parsed = parseSolanaPrivateKey(JSON.stringify(seed));
     const expected = Keypair.fromSeed(Uint8Array.from(seed)).secretKey;
 
-    expect(parsed).to.have.length(64);
-    expect(Array.from(parsed)).to.deep.equal(Array.from(expected));
+    expect(parsed).toHaveLength(64);
+    expect(Array.from(parsed)).toEqual(Array.from(expected));
   });
 
   it('parses valid 32-byte seed comma-separated and expands to 64 bytes', () => {
@@ -37,47 +37,47 @@ describe('parseSolanaPrivateKey', () => {
     const parsed = parseSolanaPrivateKey(seed.join(','));
     const expected = Keypair.fromSeed(Uint8Array.from(seed)).secretKey;
 
-    expect(parsed).to.have.length(64);
-    expect(Array.from(parsed)).to.deep.equal(Array.from(expected));
+    expect(parsed).toHaveLength(64);
+    expect(Array.from(parsed)).toEqual(Array.from(expected));
   });
 
   it('throws on "1,2,abc,4" (non-numeric)', () => {
-    expect(() => parseSolanaPrivateKey('1,2,abc,4')).to.throw(
+    expect(() => parseSolanaPrivateKey('1,2,abc,4')).toThrow(
       'Comma-separated byte at index 2 is not numeric.',
     );
   });
 
   it('throws on empty string', () => {
-    expect(() => parseSolanaPrivateKey('   ')).to.throw('Input is empty.');
+    expect(() => parseSolanaPrivateKey('   ')).toThrow('Input is empty.');
   });
 
   it('throws on "256,1,2" (out of range)', () => {
-    expect(() => parseSolanaPrivateKey('256,1,2')).to.throw(
+    expect(() => parseSolanaPrivateKey('256,1,2')).toThrow(
       'Comma-separated byte at index 0 must be in range 0..255.',
     );
   });
 
   it('throws on "-1,1,2" (negative)', () => {
-    expect(() => parseSolanaPrivateKey('-1,1,2')).to.throw(
+    expect(() => parseSolanaPrivateKey('-1,1,2')).toThrow(
       'Comma-separated byte at index 0 must be in range 0..255.',
     );
   });
 
   it('throws on "1.5,2,3" (non-integer)', () => {
-    expect(() => parseSolanaPrivateKey('1.5,2,3')).to.throw(
+    expect(() => parseSolanaPrivateKey('1.5,2,3')).toThrow(
       'Comma-separated byte at index 0 must be an integer.',
     );
   });
 
   it('throws on 10-byte array (wrong length)', () => {
     const tenBytes = JSON.stringify(Array.from({ length: 10 }, (_, i) => i));
-    expect(() => parseSolanaPrivateKey(tenBytes)).to.throw(
+    expect(() => parseSolanaPrivateKey(tenBytes)).toThrow(
       'Received 10 bytes; expected exactly 32 or 64.',
     );
   });
 
   it('error message contains HYP_INVENTORY_KEY_SEALEVEL', () => {
-    expect(() => parseSolanaPrivateKey('not-a-key')).to.throw(
+    expect(() => parseSolanaPrivateKey('not-a-key')).toThrow(
       'HYP_INVENTORY_KEY_SEALEVEL',
     );
   });
@@ -87,8 +87,8 @@ describe('parseSolanaPrivateKey', () => {
     const base58Key = bs58.encode(Uint8Array.from(bytes));
     const parsed = parseSolanaPrivateKey(base58Key);
 
-    expect(Array.from(parsed)).to.deep.equal(bytes);
-    expect(parsed).to.have.length(64);
+    expect(Array.from(parsed)).toEqual(bytes);
+    expect(parsed).toHaveLength(64);
   });
 
   it('parses valid base58-encoded 32-byte seed and expands to 64 bytes', () => {
@@ -97,7 +97,7 @@ describe('parseSolanaPrivateKey', () => {
     const parsed = parseSolanaPrivateKey(base58Seed);
     const expected = Keypair.fromSeed(Uint8Array.from(seed)).secretKey;
 
-    expect(parsed).to.have.length(64);
-    expect(Array.from(parsed)).to.deep.equal(Array.from(expected));
+    expect(parsed).toHaveLength(64);
+    expect(Array.from(parsed)).toEqual(Array.from(expected));
   });
 });

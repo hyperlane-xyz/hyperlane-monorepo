@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import { TxSubmitterType } from '@hyperlane-xyz/sdk';
 
@@ -14,7 +14,7 @@ describe('getSubmitterChains', () => {
       type: TxSubmitterType.JSON_RPC,
       chain: 'ethereum',
     };
-    expect(getSubmitterChains(submitter)).to.deep.equal(['ethereum']);
+    expect(getSubmitterChains(submitter)).toEqual(['ethereum']);
   });
 
   it('should return chain for a Gnosis Safe submitter', () => {
@@ -23,7 +23,7 @@ describe('getSubmitterChains', () => {
       chain: 'arbitrum',
       safeAddress: '0x0000000000000000000000000000000000000001',
     };
-    expect(getSubmitterChains(submitter)).to.deep.equal(['arbitrum']);
+    expect(getSubmitterChains(submitter)).toEqual(['arbitrum']);
   });
 
   it('should return origin, destination, and internal submitter chains for an ICA submitter', () => {
@@ -37,7 +37,7 @@ describe('getSubmitterChains', () => {
         chain: 'ethereum',
       },
     };
-    expect(getSubmitterChains(submitter)).to.deep.equal([
+    expect(getSubmitterChains(submitter)).toEqual([
       'ethereum',
       'arbitrum',
       'ethereum',
@@ -55,7 +55,7 @@ describe('getSubmitterChains', () => {
       },
     };
     const result = getSubmitterChains(submitter);
-    expect(result).to.deep.equal(['optimism', 'optimism']);
+    expect(result).toEqual(['optimism', 'optimism']);
   });
 
   it('should handle nested ICA with Gnosis Safe internal submitter', () => {
@@ -70,7 +70,7 @@ describe('getSubmitterChains', () => {
         safeAddress: '0x0000000000000000000000000000000000000003',
       },
     };
-    expect(getSubmitterChains(submitter)).to.deep.equal([
+    expect(getSubmitterChains(submitter)).toEqual([
       'ethereum',
       'arbitrum',
       'ethereum',
@@ -86,11 +86,11 @@ describe('resolveChains — STATUS command', () => {
 
   it('returns only origin when origin provided', async () => {
     const result = await resolveChains(statusArgv({ origin: 'bsc' }));
-    expect(result).to.deep.equal(['bsc']);
+    expect(result).toEqual(['bsc']);
   });
 
   it('returns empty array when origin not provided', async () => {
     const result = await resolveChains(statusArgv());
-    expect(result).to.deep.equal([]);
+    expect(result).toEqual([]);
   });
 });

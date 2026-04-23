@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import { tryFn } from '@hyperlane-xyz/utils';
 
@@ -8,9 +8,9 @@ describe('Warp Monitor Utils', () => {
   describe('getLogger', () => {
     it('should return a logger instance', () => {
       const logger = getLogger();
-      expect(logger).to.have.property('info');
-      expect(logger).to.have.property('warn');
-      expect(logger).to.have.property('error');
+      expect(logger).toHaveProperty('info');
+      expect(logger).toHaveProperty('warn');
+      expect(logger).toHaveProperty('error');
     });
   });
 
@@ -18,7 +18,7 @@ describe('Warp Monitor Utils', () => {
     it('should not throw when setting bindings', () => {
       expect(() => {
         setLoggerBindings({ warp_route: 'test-route' });
-      }).to.not.throw();
+      }).not.toThrow();
     });
   });
 
@@ -33,7 +33,7 @@ describe('Warp Monitor Utils', () => {
         'test context',
         logger,
       );
-      expect(executed).to.be.true;
+      expect(executed).toBe(true);
     });
 
     // eslint-disable-next-line jest/expect-expect -- testing no-throw behavior

@@ -1,6 +1,6 @@
 import { BigNumber } from 'bignumber.js';
-import { expect } from 'chai';
 import { FixedNumber } from 'ethers';
+import { expect } from 'vitest';
 
 import {
   BigNumberMax,
@@ -30,7 +30,7 @@ describe('isBigNumberish', () => {
   ];
   testCases.forEach((tc) => {
     it(`returns ${tc.expect} for ${tc.case}`, () => {
-      expect(isBigNumberish(tc.case!)).to.equal(tc.expect);
+      expect(isBigNumberish(tc.case!)).toBe(tc.expect);
     });
   });
 });
@@ -53,7 +53,7 @@ describe('isZeroish', () => {
   ];
   testCases.forEach((tc) => {
     it(`returns ${tc.expect} for ${tc.case}`, () => {
-      expect(isZeroish(tc.case!)).to.equal(tc.expect);
+      expect(isZeroish(tc.case!)).toBe(tc.expect);
     });
   });
 });
@@ -63,7 +63,7 @@ describe('bigToFixed', () => {
     const big = BigNumber('7.5e-10');
     const fixed = bigToFixed(big);
 
-    expect(fixed.toUnsafeFloat()).to.equal(7.5e-10);
+    expect(fixed.toUnsafeFloat()).toBe(7.5e-10);
   });
 });
 
@@ -72,14 +72,14 @@ describe('fixedToBig', () => {
     const fixed = FixedNumber.from('12.34');
     const big = fixedToBig(fixed);
 
-    expect(big.toNumber()).to.equal(12);
+    expect(big.toNumber()).toBe(12);
   });
 
   it('converts a FixedNumber to a ceilinged BigNumber', () => {
     const fixed = FixedNumber.from('12.34');
     const big = fixedToBig(fixed, true);
 
-    expect(big.toNumber()).to.equal(13);
+    expect(big.toNumber()).toBe(13);
   });
 });
 
@@ -89,7 +89,7 @@ describe('mulBigAndFixed', () => {
     const fixed = FixedNumber.from('1.2345');
     const product = mulBigAndFixed(big, fixed);
 
-    expect(product).to.equal((1234).toString());
+    expect(product).toBe((1234).toString());
   });
 
   it('gets the ceilinged product of a BigNumber and FixedNumber', () => {
@@ -97,7 +97,7 @@ describe('mulBigAndFixed', () => {
     const fixed = FixedNumber.from('1.2345');
     const product = mulBigAndFixed(big, fixed, true);
 
-    expect(product).to.equal((1235).toString());
+    expect(product).toBe((1235).toString());
   });
 });
 
@@ -105,7 +105,7 @@ describe('BigNumberMin', () => {
   it('gets the min between the two BigNumber', () => {
     const big = BigNumber('1000');
     const bigger = BigNumber('10000');
-    expect(BigNumberMin(big, bigger)).to.equal(big.toString());
+    expect(BigNumberMin(big, bigger)).toBe(big.toString());
   });
 });
 
@@ -113,6 +113,6 @@ describe('BigNumberMax', () => {
   it('gets the max between the two BigNumber', () => {
     const big = BigNumber('1000');
     const bigger = BigNumber('10000');
-    expect(BigNumberMax(big, bigger)).to.equal(bigger.toString());
+    expect(BigNumberMax(big, bigger)).toBe(bigger.toString());
   });
 });

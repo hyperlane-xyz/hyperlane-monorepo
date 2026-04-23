@@ -1,5 +1,5 @@
-import { expect } from 'chai';
 import sinon from 'sinon';
+import { expect } from 'vitest';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
@@ -55,9 +55,9 @@ describe('HookWriter', () => {
 
     expect(
       createWriter.calledOnceWith(AltVM.HookType.PROTOCOL_FEE, signer),
-    ).to.equal(true);
-    expect(update.calledOnceWith(artifact)).to.equal(true);
-    expect(txs).to.deep.equal(expectedTxs);
+    ).toBe(true);
+    expect(update.calledOnceWith(artifact)).toBe(true);
+    expect(txs).toEqual(expectedTxs);
   });
 
   it('treats unknownHook updates as a no-op', async () => {
@@ -79,7 +79,7 @@ describe('HookWriter', () => {
 
     const txs = await writer.update(artifact);
 
-    expect(createWriter.called).to.equal(false);
-    expect(txs).to.deep.equal([]);
+    expect(createWriter.called).toBe(false);
+    expect(txs).toEqual([]);
   });
 });

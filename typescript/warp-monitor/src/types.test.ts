@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import type {
   NativeWalletBalance,
@@ -17,9 +17,9 @@ describe('Warp Monitor Types', () => {
         tokenAddress: '0x1234567890123456789012345678901234567890',
       };
 
-      expect(balance.balance).to.equal(1000);
-      expect(balance.valueUSD).to.equal(5000);
-      expect(balance.tokenAddress).to.equal(
+      expect(balance.balance).toBe(1000);
+      expect(balance.valueUSD).toBe(5000);
+      expect(balance.tokenAddress).toBe(
         '0x1234567890123456789012345678901234567890',
       );
     });
@@ -30,7 +30,7 @@ describe('Warp Monitor Types', () => {
         tokenAddress: '0x1234567890123456789012345678901234567890',
       };
 
-      expect(balance.valueUSD).to.be.undefined;
+      expect(balance.valueUSD).toBeUndefined();
     });
   });
 
@@ -43,12 +43,12 @@ describe('Warp Monitor Types', () => {
         balance: 10.5,
       };
 
-      expect(balance.chain).to.equal('ethereum');
-      expect(balance.walletAddress).to.equal(
+      expect(balance.chain).toBe('ethereum');
+      expect(balance.walletAddress).toBe(
         '0x1234567890123456789012345678901234567890',
       );
-      expect(balance.walletName).to.equal('ata-payer');
-      expect(balance.balance).to.equal(10.5);
+      expect(balance.walletName).toBe('ata-payer');
+      expect(balance.balance).toBe(10.5);
     });
   });
 
@@ -61,10 +61,10 @@ describe('Warp Monitor Types', () => {
         burnMax: 5000,
       };
 
-      expect(limit.mint).to.equal(1000);
-      expect(limit.burn).to.equal(500);
-      expect(limit.mintMax).to.equal(10000);
-      expect(limit.burnMax).to.equal(5000);
+      expect(limit.mint).toBe(1000);
+      expect(limit.burn).toBe(500);
+      expect(limit.mintMax).toBe(10000);
+      expect(limit.burnMax).toBe(5000);
     });
   });
 
@@ -80,17 +80,17 @@ describe('Warp Monitor Types', () => {
         inventoryAddress: '0x1234567890123456789012345678901234567890',
       };
 
-      expect(config.warpRouteId).to.equal('ETH/ethereum-polygon');
-      expect(config.checkFrequency).to.equal(30000);
-      expect(config.coingeckoApiKey).to.equal('test-api-key');
-      expect(config.registryUri).to.equal(
+      expect(config.warpRouteId).toBe('ETH/ethereum-polygon');
+      expect(config.checkFrequency).toBe(30000);
+      expect(config.coingeckoApiKey).toBe('test-api-key');
+      expect(config.registryUri).toBe(
         'https://github.com/hyperlane-xyz/hyperlane-registry',
       );
-      expect(config.explorerApiUrl).to.equal(
+      expect(config.explorerApiUrl).toBe(
         'https://explorer4.hasura.app/v1/graphql',
       );
-      expect(config.explorerQueryLimit).to.equal(500);
-      expect(config.inventoryAddress).to.equal(
+      expect(config.explorerQueryLimit).toBe(500);
+      expect(config.inventoryAddress).toBe(
         '0x1234567890123456789012345678901234567890',
       );
     });
@@ -101,11 +101,11 @@ describe('Warp Monitor Types', () => {
         checkFrequency: 30000,
       };
 
-      expect(config.coingeckoApiKey).to.be.undefined;
-      expect(config.registryUri).to.be.undefined;
-      expect(config.explorerApiUrl).to.be.undefined;
-      expect(config.explorerQueryLimit).to.be.undefined;
-      expect(config.inventoryAddress).to.be.undefined;
+      expect(config.coingeckoApiKey).toBeUndefined();
+      expect(config.registryUri).toBeUndefined();
+      expect(config.explorerApiUrl).toBeUndefined();
+      expect(config.explorerQueryLimit).toBeUndefined();
+      expect(config.inventoryAddress).toBeUndefined();
     });
   });
 });

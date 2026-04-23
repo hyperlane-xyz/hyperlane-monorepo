@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import { ProtocolType, isEVMLike } from '@hyperlane-xyz/utils';
 
@@ -32,8 +32,8 @@ describe('MultiProtocolApp', () => {
       multiProvider.intersect(Object.keys(addresses)).result,
       addresses,
     );
-    expect(app).to.be.instanceOf(MultiProtocolApp);
-    expect(app.adapter(TestChainName.test1).protocol).to.eql(
+    expect(app).toBeInstanceOf(MultiProtocolApp);
+    expect(app.adapter(TestChainName.test1).protocol).toEqual(
       ProtocolType.Ethereum,
     );
   });

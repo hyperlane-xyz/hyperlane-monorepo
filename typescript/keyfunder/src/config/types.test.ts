@@ -1,5 +1,5 @@
-import { expect } from 'chai';
 import { BigNumber } from 'ethers';
+import { expect } from 'vitest';
 
 import { calculateMultipliedBalance } from '../core/KeyFunder.js';
 
@@ -17,7 +17,7 @@ describe('KeyFunderConfig Schemas', () => {
         address: '0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5',
       };
       const result = RoleConfigSchema.safeParse(config);
-      expect(result.success).to.be.true;
+      expect(result.success).toBe(true);
     });
 
     it('should reject invalid address', () => {
@@ -25,13 +25,13 @@ describe('KeyFunderConfig Schemas', () => {
         address: 'invalid-address',
       };
       const result = RoleConfigSchema.safeParse(config);
-      expect(result.success).to.be.false;
+      expect(result.success).toBe(false);
     });
 
     it('should reject missing address', () => {
       const config = {};
       const result = RoleConfigSchema.safeParse(config);
-      expect(result.success).to.be.false;
+      expect(result.success).toBe(false);
     });
   });
 
@@ -45,7 +45,7 @@ describe('KeyFunderConfig Schemas', () => {
         triggerMultiplier: 2.0,
       };
       const result = SweepConfigSchema.safeParse(config);
-      expect(result.success).to.be.true;
+      expect(result.success).toBe(true);
     });
 
     it('should reject enabled sweep config without address', () => {
@@ -54,7 +54,7 @@ describe('KeyFunderConfig Schemas', () => {
         threshold: '0.5',
       };
       const result = SweepConfigSchema.safeParse(config);
-      expect(result.success).to.be.false;
+      expect(result.success).toBe(false);
     });
 
     it('should reject enabled sweep config without threshold', () => {
@@ -63,7 +63,7 @@ describe('KeyFunderConfig Schemas', () => {
         address: '0x478be6076f31E9666123B9721D0B6631baD944AF',
       };
       const result = SweepConfigSchema.safeParse(config);
-      expect(result.success).to.be.false;
+      expect(result.success).toBe(false);
     });
 
     it('should reject trigger multiplier less than target + 0.05', () => {
@@ -75,7 +75,7 @@ describe('KeyFunderConfig Schemas', () => {
         triggerMultiplier: 1.52,
       };
       const result = SweepConfigSchema.safeParse(config);
-      expect(result.success).to.be.false;
+      expect(result.success).toBe(false);
     });
 
     it('should use default multipliers', () => {
@@ -85,10 +85,10 @@ describe('KeyFunderConfig Schemas', () => {
         threshold: '0.5',
       };
       const result = SweepConfigSchema.safeParse(config);
-      expect(result.success).to.be.true;
+      expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data.targetMultiplier).to.equal(1.5);
-        expect(result.data.triggerMultiplier).to.equal(2.0);
+        expect(result.data.targetMultiplier).toBe(1.5);
+        expect(result.data.triggerMultiplier).toBe(2.0);
       }
     });
 
@@ -99,7 +99,7 @@ describe('KeyFunderConfig Schemas', () => {
         triggerMultiplier: 1.5,
       };
       const result = SweepConfigSchema.safeParse(config);
-      expect(result.success).to.be.true;
+      expect(result.success).toBe(true);
     });
   });
 
@@ -111,7 +111,7 @@ describe('KeyFunderConfig Schemas', () => {
         },
       };
       const result = ChainConfigSchema.safeParse(config);
-      expect(result.success).to.be.true;
+      expect(result.success).toBe(true);
     });
 
     it('should validate chain config with igp', () => {
@@ -122,7 +122,7 @@ describe('KeyFunderConfig Schemas', () => {
         },
       };
       const result = ChainConfigSchema.safeParse(config);
-      expect(result.success).to.be.true;
+      expect(result.success).toBe(true);
     });
 
     it('should validate complete chain config', () => {
@@ -142,7 +142,7 @@ describe('KeyFunderConfig Schemas', () => {
         },
       };
       const result = ChainConfigSchema.safeParse(config);
-      expect(result.success).to.be.true;
+      expect(result.success).toBe(true);
     });
 
     it('should reject invalid balance value', () => {
@@ -152,7 +152,7 @@ describe('KeyFunderConfig Schemas', () => {
         },
       };
       const result = ChainConfigSchema.safeParse(config);
-      expect(result.success).to.be.false;
+      expect(result.success).toBe(false);
     });
 
     it('should reject scientific notation in balances', () => {
@@ -162,7 +162,7 @@ describe('KeyFunderConfig Schemas', () => {
         },
       };
       const result = ChainConfigSchema.safeParse(config);
-      expect(result.success).to.be.false;
+      expect(result.success).toBe(false);
     });
 
     it('should reject balances with too many decimals', () => {
@@ -172,7 +172,7 @@ describe('KeyFunderConfig Schemas', () => {
         },
       };
       const result = ChainConfigSchema.safeParse(config);
-      expect(result.success).to.be.false;
+      expect(result.success).toBe(false);
     });
 
     it('should reject negative balance', () => {
@@ -182,7 +182,7 @@ describe('KeyFunderConfig Schemas', () => {
         },
       };
       const result = ChainConfigSchema.safeParse(config);
-      expect(result.success).to.be.false;
+      expect(result.success).toBe(false);
     });
 
     it('should reject balance without leading digit (.5)', () => {
@@ -192,7 +192,7 @@ describe('KeyFunderConfig Schemas', () => {
         },
       };
       const result = ChainConfigSchema.safeParse(config);
-      expect(result.success).to.be.false;
+      expect(result.success).toBe(false);
     });
 
     it('should accept balance with leading zero (0.5)', () => {
@@ -202,7 +202,7 @@ describe('KeyFunderConfig Schemas', () => {
         },
       };
       const result = ChainConfigSchema.safeParse(config);
-      expect(result.success).to.be.true;
+      expect(result.success).toBe(true);
     });
 
     it('should accept high precision balances (up to 18 decimals)', () => {
@@ -212,7 +212,7 @@ describe('KeyFunderConfig Schemas', () => {
         },
       };
       const result = ChainConfigSchema.safeParse(config);
-      expect(result.success).to.be.true;
+      expect(result.success).toBe(true);
     });
   });
 
@@ -221,22 +221,22 @@ describe('KeyFunderConfig Schemas', () => {
 
     it('should calculate 1.5x correctly (1 ETH * 1.5 = 1.5 ETH)', () => {
       const result = calculateMultipliedBalance(oneEther, 1.5);
-      expect(result.toString()).to.equal('1500000000000000000');
+      expect(result.toString()).toBe('1500000000000000000');
     });
 
     it('should calculate 2.0x correctly (1 ETH * 2.0 = 2 ETH)', () => {
       const result = calculateMultipliedBalance(oneEther, 2.0);
-      expect(result.toString()).to.equal('2000000000000000000');
+      expect(result.toString()).toBe('2000000000000000000');
     });
 
     it('should floor third decimal (1 ETH * 1.555 = 1.55 ETH, not 1.56 ETH)', () => {
       const result = calculateMultipliedBalance(oneEther, 1.555);
-      expect(result.toString()).to.equal('1550000000000000000');
+      expect(result.toString()).toBe('1550000000000000000');
     });
 
     it('should floor (1 ETH * 1.999 = 1.99 ETH, not 2 ETH)', () => {
       const result = calculateMultipliedBalance(oneEther, 1.999);
-      expect(result.toString()).to.equal('1990000000000000000');
+      expect(result.toString()).toBe('1990000000000000000');
     });
   });
 
@@ -248,7 +248,7 @@ describe('KeyFunderConfig Schemas', () => {
         chains: {},
       };
       const result = KeyFunderConfigSchema.safeParse(config);
-      expect(result.success).to.be.true;
+      expect(result.success).toBe(true);
     });
 
     it('should reject invalid version', () => {
@@ -258,7 +258,7 @@ describe('KeyFunderConfig Schemas', () => {
         chains: {},
       };
       const result = KeyFunderConfigSchema.safeParse(config);
-      expect(result.success).to.be.false;
+      expect(result.success).toBe(false);
     });
 
     it('should reject missing roles', () => {
@@ -267,7 +267,7 @@ describe('KeyFunderConfig Schemas', () => {
         chains: {},
       };
       const result = KeyFunderConfigSchema.safeParse(config);
-      expect(result.success).to.be.false;
+      expect(result.success).toBe(false);
     });
 
     it('should validate complete config', () => {
@@ -312,7 +312,7 @@ describe('KeyFunderConfig Schemas', () => {
         chainsToSkip: ['polygon'],
       };
       const result = KeyFunderConfigSchema.safeParse(config);
-      expect(result.success).to.be.true;
+      expect(result.success).toBe(true);
     });
 
     it('should reject undefined role reference in chain balances', () => {
@@ -333,7 +333,7 @@ describe('KeyFunderConfig Schemas', () => {
         },
       };
       const result = KeyFunderConfigSchema.safeParse(config);
-      expect(result.success).to.be.false;
+      expect(result.success).toBe(false);
     });
 
     it('should allow chain balances that reference defined roles', () => {
@@ -362,7 +362,7 @@ describe('KeyFunderConfig Schemas', () => {
         },
       };
       const result = KeyFunderConfigSchema.safeParse(config);
-      expect(result.success).to.be.true;
+      expect(result.success).toBe(true);
     });
   });
 });

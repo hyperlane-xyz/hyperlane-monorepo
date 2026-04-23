@@ -1,5 +1,5 @@
-import { expect } from 'chai';
 import { RpcProvider } from 'starknet';
+import { describe, expect, it } from 'vitest';
 
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
@@ -48,7 +48,7 @@ describe('StarknetIsmArtifactManager', () => {
     expect(() => {
       // @ts-expect-error testing runtime validation for unsupported value
       manager.createReader('unsupported');
-    }).to.throw(/Unsupported Starknet ISM type/i);
+    }).toThrow(/Unsupported Starknet ISM type/i);
   });
 
   it('throws for unsupported writer type', () => {
@@ -56,7 +56,7 @@ describe('StarknetIsmArtifactManager', () => {
     expect(() => {
       // @ts-expect-error testing runtime validation for unsupported value
       manager.createWriter('unsupported', {});
-    }).to.throw(/Unsupported Starknet ISM type/i);
+    }).toThrow(/Unsupported Starknet ISM type/i);
   });
 
   it('returns noop ISM deployment receipts', async () => {
@@ -69,9 +69,9 @@ describe('StarknetIsmArtifactManager', () => {
       config: { type: 'testIsm' },
     });
 
-    expect(receipts).to.have.length(1);
-    expect(signer.capturedTxs).to.have.length(1);
-    expect(signer.capturedTxs[0]?.kind).to.equal('deploy');
+    expect(receipts).toHaveLength(1);
+    expect(signer.capturedTxs).toHaveLength(1);
+    expect(signer.capturedTxs[0]?.kind).toBe('deploy');
   });
 
   it('returns routing ISM deployment and route receipts', async () => {
@@ -93,9 +93,9 @@ describe('StarknetIsmArtifactManager', () => {
       },
     });
 
-    expect(receipts).to.have.length(2);
-    expect(signer.capturedTxs).to.have.length(2);
-    expect(signer.capturedTxs[0]?.kind).to.equal('deploy');
-    expect(signer.capturedTxs[1]?.kind).to.equal('invoke');
+    expect(receipts).toHaveLength(2);
+    expect(signer.capturedTxs).toHaveLength(2);
+    expect(signer.capturedTxs[0]?.kind).toBe('deploy');
+    expect(signer.capturedTxs[1]?.kind).toBe('invoke');
   });
 });

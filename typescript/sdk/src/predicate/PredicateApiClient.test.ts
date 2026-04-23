@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import sinon from 'sinon';
 
 import {
@@ -48,9 +48,9 @@ describe('PredicateApiClient', () => {
     const client = new PredicateApiClient('test-api-key');
     const result = await client.fetchAttestation(mockRequest);
 
-    expect(result.is_compliant).to.be.true;
-    expect(result.attestation.uuid).to.equal(mockResponse.attestation.uuid);
-    expect(fetchStub.calledOnce).to.be.true;
+    expect(result.is_compliant).toBe(true);
+    expect(result.attestation.uuid).toBe(mockResponse.attestation.uuid);
+    expect(fetchStub.calledOnce).toBe(true);
   });
 
   it('should throw on non-compliant response', async () => {
@@ -63,9 +63,9 @@ describe('PredicateApiClient', () => {
 
     try {
       await client.fetchAttestation(mockRequest);
-      expect.fail('Expected error to be thrown');
+      throw new Error('Expected error to be thrown');
     } catch (error: any) {
-      expect(error.message).to.include('Transaction not compliant');
+      expect(error.message).toContain('Transaction not compliant');
     }
   });
 
@@ -80,10 +80,10 @@ describe('PredicateApiClient', () => {
 
     try {
       await client.fetchAttestation(mockRequest);
-      expect.fail('Expected error to be thrown');
+      throw new Error('Expected error to be thrown');
     } catch (error: any) {
-      expect(error.message).to.include('Predicate API error (401)');
-      expect(error.message).to.include('Unauthorized');
+      expect(error.message).toContain('Predicate API error (401)');
+      expect(error.message).toContain('Unauthorized');
     }
   });
 
@@ -97,7 +97,7 @@ describe('PredicateApiClient', () => {
     const client = new PredicateApiClient('test-api-key', customUrl);
     await client.fetchAttestation(mockRequest);
 
-    expect(fetchStub.firstCall.args[0]).to.equal(customUrl);
+    expect(fetchStub.firstCall.args[0]).toBe(customUrl);
   });
 
   it('should include API key in headers', async () => {
@@ -110,7 +110,7 @@ describe('PredicateApiClient', () => {
     await client.fetchAttestation(mockRequest);
 
     const callArgs = fetchStub.firstCall.args[1] as RequestInit;
-    expect((callArgs.headers as Record<string, string>)['x-api-key']).to.equal(
+    expect((callArgs.headers as Record<string, string>)['x-api-key']).toBe(
       'my-secret-key',
     );
   });
@@ -127,10 +127,10 @@ describe('PredicateApiClient', () => {
     const callArgs = fetchStub.firstCall.args[1] as RequestInit;
     const body = JSON.parse(callArgs.body as string);
 
-    expect(body.to).to.equal(mockRequest.to);
-    expect(body.from).to.equal(mockRequest.from);
-    expect(body.data).to.equal(mockRequest.data);
-    expect(body.msg_value).to.equal(mockRequest.msg_value);
-    expect(body.chain).to.equal(mockRequest.chain);
+    expect(body.to).toBe(mockRequest.to);
+    expect(body.from).toBe(mockRequest.from);
+    expect(body.data).toBe(mockRequest.data);
+    expect(body.msg_value).toBe(mockRequest.msg_value);
+    expect(body.chain).toBe(mockRequest.chain);
   });
 });

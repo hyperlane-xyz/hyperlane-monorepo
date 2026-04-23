@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import { BigNumber } from 'ethers';
 import { pino } from 'pino';
 import Sinon from 'sinon';
@@ -70,9 +70,9 @@ describe('calculateTransferCosts — Tron vs Sealevel protocol path', () => {
     );
 
     // Tron is EVM-like — gas estimation runs, producing gasCost > 0
-    expect(result.gasCost > 0n).to.be.true;
-    expect(result.igpCost).to.equal(1000n);
-    expect(result.maxTransferable > 0n).to.be.true;
+    expect(result.gasCost > 0n).toBe(true);
+    expect(result.igpCost).toBe(1000n);
+    expect(result.maxTransferable > 0n).toBe(true);
   });
 
   it('Sealevel origin (non-EVM) returns gasCost = 0 for native tokens', async () => {
@@ -93,7 +93,7 @@ describe('calculateTransferCosts — Tron vs Sealevel protocol path', () => {
     );
 
     // Sealevel is non-EVM — gasCost is 0 (skips gas estimation)
-    expect(result.gasCost).to.equal(0n);
-    expect(result.igpCost).to.equal(1000n);
+    expect(result.gasCost).toBe(0n);
+    expect(result.igpCost).toBe(1000n);
   });
 });

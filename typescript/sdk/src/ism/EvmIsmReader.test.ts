@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import { BigNumber } from 'ethers';
 import sinon from 'sinon';
 
@@ -85,11 +85,11 @@ describe('EvmIsmReader', () => {
 
     // top-level method infers ism type
     const ismConfig = await evmIsmReader.deriveIsmConfig(mockAddress);
-    expect(ismConfig).to.deep.equal(expectedConfig);
+    expect(ismConfig).toEqual(expectedConfig);
 
     // should get same result if we call the specific method for the ism type
     const config = await evmIsmReader.deriveMultisigConfig(mockAddress);
-    expect(config).to.deep.equal(ismConfig);
+    expect(config).toEqual(ismConfig);
   });
 
   it('should derive pausable config correctly', async () => {
@@ -122,11 +122,11 @@ describe('EvmIsmReader', () => {
 
     // top-level method infers ism type
     const ismConfig = await evmIsmReader.deriveIsmConfig(mockAddress);
-    expect(ismConfig).to.deep.equal(expectedConfig);
+    expect(ismConfig).toEqual(expectedConfig);
 
     // should get same result if we call the specific method for the ism type
     const config = await evmIsmReader.deriveNullConfig(mockAddress);
-    expect(config).to.deep.equal(ismConfig);
+    expect(config).toEqual(ismConfig);
   });
 
   it('should derive test ISM config correctly', async () => {
@@ -162,11 +162,11 @@ describe('EvmIsmReader', () => {
 
     // top-level method infers ism type
     const ismConfig = await evmIsmReader.deriveIsmConfig(mockAddress);
-    expect(ismConfig).to.deep.equal(expectedConfig);
+    expect(ismConfig).toEqual(expectedConfig);
 
     // should get same result if we call the specific method for the ism type
     const config = await evmIsmReader.deriveNullConfig(mockAddress);
-    expect(config).to.deep.equal(ismConfig);
+    expect(config).toEqual(ismConfig);
   });
 
   it('should derive the ICA ism correctly', async () => {
@@ -212,11 +212,11 @@ describe('EvmIsmReader', () => {
 
     // top-level method infers ism type
     const ismConfig = await evmIsmReader.deriveIsmConfig(mockAddress);
-    expect(ismConfig).to.deep.equal(expectedConfig);
+    expect(ismConfig).toEqual(expectedConfig);
 
     // should get same result if we call the specific method for the ism type
     const config = await evmIsmReader.deriveRoutingConfig(mockAddress);
-    expect(config).to.deep.equal(ismConfig);
+    expect(config).toEqual(ismConfig);
   });
 
   it('should derive incremental routing ISM config correctly', async () => {
@@ -271,7 +271,7 @@ describe('EvmIsmReader', () => {
     });
 
     const config = await evmIsmReader.deriveRoutingConfig(mockAddress);
-    expect(config.type).to.equal(IsmType.INCREMENTAL_ROUTING);
+    expect(config.type).toBe(IsmType.INCREMENTAL_ROUTING);
   });
 
   /*

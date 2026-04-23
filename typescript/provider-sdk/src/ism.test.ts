@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -320,13 +320,13 @@ describe('mergeIsmArtifacts', () => {
       // Assert based on expected artifact state
       if (tc.expectedArtifactState === ArtifactState.NEW) {
         // Use helper to check - accepts both undefined and ArtifactState.NEW
-        expect(isArtifactNew(result)).to.be.true;
-        expect(result.config).to.deep.equal(tc.expectedConfig);
+        expect(isArtifactNew(result)).toBe(true);
+        expect(result.config).toEqual(tc.expectedConfig);
       } else if (tc.expectedArtifactState === ArtifactState.DEPLOYED) {
-        expect(isArtifactDeployed(result)).to.be.true;
+        expect(isArtifactDeployed(result)).toBe(true);
         assert(isArtifactDeployed(result), 'Expected DEPLOYED artifact');
-        expect(result.config).to.deep.equal(tc.expectedConfig);
-        expect(result.deployed.address).to.equal(tc.expectedAddress);
+        expect(result.config).toEqual(tc.expectedConfig);
+        expect(result.deployed.address).toBe(tc.expectedAddress);
       }
 
       if (tc.additionalAssertions) {
@@ -378,16 +378,16 @@ describe('mergeIsmArtifacts', () => {
         config: expectedConfig,
       });
 
-      expect(isArtifactDeployed(result)).to.be.true;
+      expect(isArtifactDeployed(result)).toBe(true);
       assert(isArtifactDeployed(result), 'Expected DEPLOYED artifact');
-      expect(result.config.type).to.equal('domainRoutingIsm');
-      expect(result.deployed.address).to.equal(address1);
+      expect(result.config.type).toBe('domainRoutingIsm');
+      expect(result.deployed.address).toBe(address1);
 
       const resultConfig = result.config as RoutingIsmArtifactConfig;
       const domain1Ism = resultConfig.domains[domain1];
-      expect(isArtifactDeployed(domain1Ism)).to.be.true;
+      expect(isArtifactDeployed(domain1Ism)).toBe(true);
       assert(isArtifactDeployed(domain1Ism), 'Expected DEPLOYED domain ISM');
-      expect(domain1Ism.deployed.address).to.equal(address2);
+      expect(domain1Ism.deployed.address).toBe(address2);
     });
 
     it('should mark domain ISM as NEW when its config changes', () => {
@@ -431,17 +431,18 @@ describe('mergeIsmArtifacts', () => {
         config: expectedConfig,
       });
 
-      expect(isArtifactDeployed(result)).to.be.true;
+      expect(isArtifactDeployed(result)).toBe(true);
       assert(isArtifactDeployed(result), 'Expected DEPLOYED artifact');
       const resultConfig = result.config as RoutingIsmArtifactConfig;
       const domain1Ism = resultConfig.domains[domain1];
 
       // Domain ISM config changed, should be NEW
-      expect(isArtifactNew(domain1Ism)).to.be.true;
+      expect(isArtifactNew(domain1Ism)).toBe(true);
       assert(isArtifactNew(domain1Ism), 'Expected NEW domain ISM');
-      expect((domain1Ism.config as MultisigIsmConfig).validators).to.deep.equal(
-        [validator1, validator3],
-      );
+      expect((domain1Ism.config as MultisigIsmConfig).validators).toEqual([
+        validator1,
+        validator3,
+      ]);
     });
 
     it('should mark newly added domain ISM as NEW', () => {
@@ -496,21 +497,21 @@ describe('mergeIsmArtifacts', () => {
         config: expectedConfig,
       });
 
-      expect(isArtifactDeployed(result)).to.be.true;
+      expect(isArtifactDeployed(result)).toBe(true);
       assert(isArtifactDeployed(result), 'Expected DEPLOYED artifact');
       const resultConfig = result.config as RoutingIsmArtifactConfig;
 
       // Domain 1 should be DEPLOYED (unchanged)
       const domain1Ism = resultConfig.domains[domain1];
-      expect(isArtifactDeployed(domain1Ism)).to.be.true;
+      expect(isArtifactDeployed(domain1Ism)).toBe(true);
       assert(isArtifactDeployed(domain1Ism), 'Expected DEPLOYED domain 1 ISM');
-      expect(domain1Ism.deployed.address).to.equal(address2);
+      expect(domain1Ism.deployed.address).toBe(address2);
 
       // Domain 2 should be NEW
       const domain2Ism = resultConfig.domains[domain2];
-      expect(isArtifactNew(domain2Ism)).to.be.true;
+      expect(isArtifactNew(domain2Ism)).toBe(true);
       assert(isArtifactNew(domain2Ism), 'Expected NEW domain 2 ISM');
-      expect(domain2Ism.config).to.deep.equal(newDomainConfig);
+      expect(domain2Ism.config).toEqual(newDomainConfig);
     });
 
     it('should pass through UNDERIVED domain ISMs without modification', () => {
@@ -559,23 +560,23 @@ describe('mergeIsmArtifacts', () => {
         config: expectedConfig,
       });
 
-      expect(isArtifactDeployed(result)).to.be.true;
+      expect(isArtifactDeployed(result)).toBe(true);
       assert(isArtifactDeployed(result), 'Expected DEPLOYED artifact');
       const resultConfig = result.config as RoutingIsmArtifactConfig;
 
       // Domain 1 should be DEPLOYED (unchanged)
       const domain1Ism = resultConfig.domains[domain1];
-      expect(isArtifactDeployed(domain1Ism)).to.be.true;
+      expect(isArtifactDeployed(domain1Ism)).toBe(true);
       assert(isArtifactDeployed(domain1Ism), 'Expected DEPLOYED domain 1 ISM');
 
       // Domain 2 should be UNDERIVED (passed through as-is)
       const domain2Ism = resultConfig.domains[domain2];
-      expect(isArtifactUnderived(domain2Ism)).to.be.true;
+      expect(isArtifactUnderived(domain2Ism)).toBe(true);
       assert(
         isArtifactUnderived(domain2Ism),
         'Expected UNDERIVED domain 2 ISM',
       );
-      expect(domain2Ism.deployed.address).to.equal(address2);
+      expect(domain2Ism.deployed.address).toBe(address2);
     });
 
     it('should allow owner change without redeployment (mutable property)', () => {
@@ -618,22 +619,22 @@ describe('mergeIsmArtifacts', () => {
       });
 
       // Should stay DEPLOYED (owner is mutable, no redeployment needed)
-      expect(isArtifactDeployed(result)).to.be.true;
+      expect(isArtifactDeployed(result)).toBe(true);
       assert(isArtifactDeployed(result), 'Expected DEPLOYED artifact');
 
       // Should reuse existing address
-      expect(result.deployed.address).to.equal(address1);
+      expect(result.deployed.address).toBe(address1);
 
       const resultConfig = result.config as RoutingIsmArtifactConfig;
 
       // Owner should be updated to expected
-      expect(resultConfig.owner).to.equal(address2);
+      expect(resultConfig.owner).toBe(address2);
 
       // Domain ISM should be DEPLOYED (unchanged)
       const domain1Ism = resultConfig.domains[domain1];
-      expect(isArtifactDeployed(domain1Ism)).to.be.true;
+      expect(isArtifactDeployed(domain1Ism)).toBe(true);
       assert(isArtifactDeployed(domain1Ism), 'Expected DEPLOYED domain ISM');
-      expect(domain1Ism.deployed.address).to.equal(address2);
+      expect(domain1Ism.deployed.address).toBe(address2);
     });
 
     it('should remove domains not present in expected config', () => {
@@ -689,15 +690,15 @@ describe('mergeIsmArtifacts', () => {
         config: expectedConfig,
       });
 
-      expect(isArtifactDeployed(result)).to.be.true;
+      expect(isArtifactDeployed(result)).toBe(true);
       assert(isArtifactDeployed(result), 'Expected DEPLOYED artifact');
 
       const resultConfig = result.config as RoutingIsmArtifactConfig;
 
       // Should only have domain 1
-      expect(Object.keys(resultConfig.domains)).to.deep.equal(['1']);
-      expect(resultConfig.domains[domain1]).to.exist;
-      expect(resultConfig.domains[domain2]).to.be.undefined;
+      expect(Object.keys(resultConfig.domains)).toEqual(['1']);
+      expect(resultConfig.domains[domain1]).toBeDefined();
+      expect(resultConfig.domains[domain2]).toBeUndefined();
     });
   });
 });

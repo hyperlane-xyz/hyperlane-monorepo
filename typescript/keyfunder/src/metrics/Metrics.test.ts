@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import { KeyFunderMetrics } from './Metrics.js';
 
@@ -6,14 +6,14 @@ describe('KeyFunderMetrics', () => {
   describe('constructor', () => {
     it('should create metrics without push gateway', () => {
       const metrics = new KeyFunderMetrics(undefined);
-      expect(metrics.getRegistry()).to.not.be.undefined;
+      expect(metrics.getRegistry()).toBeDefined();
     });
 
     it('should create metrics with config', () => {
       const metrics = new KeyFunderMetrics({
         jobName: 'test',
       });
-      expect(metrics.getRegistry()).to.not.be.undefined;
+      expect(metrics.getRegistry()).toBeDefined();
     });
 
     it('should include base labels in gauge configurations', () => {
@@ -21,7 +21,7 @@ describe('KeyFunderMetrics', () => {
         { jobName: 'test' },
         { environment: 'testnet' },
       );
-      expect(metrics.getRegistry()).to.not.be.undefined;
+      expect(metrics.getRegistry()).toBeDefined();
     });
   });
 
@@ -36,9 +36,9 @@ describe('KeyFunderMetrics', () => {
       );
 
       const metricsOutput = await metrics.getRegistry().metrics();
-      expect(metricsOutput).to.include('hyperlane_keyfunder_wallet_balance');
-      expect(metricsOutput).to.include('ethereum');
-      expect(metricsOutput).to.include('relayer');
+      expect(metricsOutput).toContain('hyperlane_keyfunder_wallet_balance');
+      expect(metricsOutput).toContain('ethereum');
+      expect(metricsOutput).toContain('relayer');
     });
   });
 
@@ -53,12 +53,12 @@ describe('KeyFunderMetrics', () => {
       );
 
       const metricsOutput = await metrics.getRegistry().metrics();
-      expect(metricsOutput).to.include('hyperlane_wallet_balance');
-      expect(metricsOutput).to.include('wallet_name="key-funder"');
-      expect(metricsOutput).to.include('token_address="native"');
-      expect(metricsOutput).to.include('token_symbol="Native"');
-      expect(metricsOutput).to.include('token_name="Native"');
-      expect(metricsOutput).to.include('ethereum');
+      expect(metricsOutput).toContain('hyperlane_wallet_balance');
+      expect(metricsOutput).toContain('wallet_name="key-funder"');
+      expect(metricsOutput).toContain('token_address="native"');
+      expect(metricsOutput).toContain('token_symbol="Native"');
+      expect(metricsOutput).toContain('token_name="Native"');
+      expect(metricsOutput).toContain('ethereum');
     });
   });
 
@@ -73,9 +73,9 @@ describe('KeyFunderMetrics', () => {
       );
 
       const metricsOutput = await metrics.getRegistry().metrics();
-      expect(metricsOutput).to.include('hyperlane_keyfunder_funding_amount');
-      expect(metricsOutput).to.include('arbitrum');
-      expect(metricsOutput).to.include('kathy');
+      expect(metricsOutput).toContain('hyperlane_keyfunder_funding_amount');
+      expect(metricsOutput).toContain('arbitrum');
+      expect(metricsOutput).toContain('kathy');
     });
   });
 
@@ -85,8 +85,8 @@ describe('KeyFunderMetrics', () => {
       metrics.recordIgpBalance('polygon', 2.5);
 
       const metricsOutput = await metrics.getRegistry().metrics();
-      expect(metricsOutput).to.include('hyperlane_keyfunder_igp_balance');
-      expect(metricsOutput).to.include('polygon');
+      expect(metricsOutput).toContain('hyperlane_keyfunder_igp_balance');
+      expect(metricsOutput).toContain('polygon');
     });
   });
 
@@ -96,8 +96,8 @@ describe('KeyFunderMetrics', () => {
       metrics.recordSweepAmount('optimism', 5.0);
 
       const metricsOutput = await metrics.getRegistry().metrics();
-      expect(metricsOutput).to.include('hyperlane_keyfunder_sweep_amount');
-      expect(metricsOutput).to.include('optimism');
+      expect(metricsOutput).toContain('hyperlane_keyfunder_sweep_amount');
+      expect(metricsOutput).toContain('optimism');
     });
   });
 
@@ -107,11 +107,11 @@ describe('KeyFunderMetrics', () => {
       metrics.recordOperationDuration('base', 'fund', 3.14);
 
       const metricsOutput = await metrics.getRegistry().metrics();
-      expect(metricsOutput).to.include(
+      expect(metricsOutput).toContain(
         'hyperlane_keyfunder_operation_duration_seconds',
       );
-      expect(metricsOutput).to.include('base');
-      expect(metricsOutput).to.include('fund');
+      expect(metricsOutput).toContain('base');
+      expect(metricsOutput).toContain('fund');
     });
   });
 
@@ -138,8 +138,8 @@ describe('KeyFunderMetrics', () => {
       );
 
       const metricsOutput = await metrics.getRegistry().metrics();
-      expect(metricsOutput).to.include('environment="mainnet3"');
-      expect(metricsOutput).to.include('region="us-east"');
+      expect(metricsOutput).toContain('environment="mainnet3"');
+      expect(metricsOutput).toContain('region="us-east"');
     });
 
     it('should include base labels in unified wallet balance metric', async () => {
@@ -156,13 +156,13 @@ describe('KeyFunderMetrics', () => {
       );
 
       const metricsOutput = await metrics.getRegistry().metrics();
-      expect(metricsOutput).to.include('hyperlane_wallet_balance');
-      expect(metricsOutput).to.include('wallet_name="key-funder"');
-      expect(metricsOutput).to.include('token_address="native"');
-      expect(metricsOutput).to.include('token_symbol="Native"');
-      expect(metricsOutput).to.include('token_name="Native"');
-      expect(metricsOutput).to.include('environment="mainnet3"');
-      expect(metricsOutput).to.include('region="us-east"');
+      expect(metricsOutput).toContain('hyperlane_wallet_balance');
+      expect(metricsOutput).toContain('wallet_name="key-funder"');
+      expect(metricsOutput).toContain('token_address="native"');
+      expect(metricsOutput).toContain('token_symbol="Native"');
+      expect(metricsOutput).toContain('token_name="Native"');
+      expect(metricsOutput).toContain('environment="mainnet3"');
+      expect(metricsOutput).toContain('region="us-east"');
     });
   });
 });

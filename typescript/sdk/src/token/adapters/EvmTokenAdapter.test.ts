@@ -4,7 +4,7 @@ import {
   HypXERC20Lockbox__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import sinon from 'sinon';
 
 import { testChainMetadata } from '../../consts/testChains.js';
@@ -57,8 +57,8 @@ describe('EvmHypXERC20LockboxAdapter', () => {
     });
     const wrapped = await adapter.getWrappedTokenAddress();
 
-    expect(wrapped).to.equal(wrappedTokenAddress);
-    expect(lockboxWrappedToken.calledOnce).to.equal(true);
-    expect(collateralWrappedToken.called).to.equal(false);
+    expect(wrapped).toBe(wrappedTokenAddress);
+    expect(lockboxWrappedToken.calledOnce).toBe(true);
+    expect(collateralWrappedToken.called).toBe(false);
   });
 });

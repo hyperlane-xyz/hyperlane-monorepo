@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import {
   addressToBytes,
@@ -42,46 +42,44 @@ const STARKNET_ADDRESSES = [
 describe('Address utilities', () => {
   describe('isZeroishAddress', () => {
     it('Identifies 0-ish addresses', () => {
-      expect(isZeroishAddress('0x')).to.be.true;
-      expect(isZeroishAddress(ETH_ZERO_ADDR)).to.be.true;
-      expect(isZeroishAddress(COS_ZERO_ADDR)).to.be.true;
-      expect(isZeroishAddress(COSMOS_NATIVE_ZERO_ADDR)).to.be.true;
-      expect(isZeroishAddress(SOL_ZERO_ADDR)).to.be.true;
-      expect(isZeroishAddress(STARKNET_ZERO_ADDR)).to.be.true;
+      expect(isZeroishAddress('0x')).toBe(true);
+      expect(isZeroishAddress(ETH_ZERO_ADDR)).toBe(true);
+      expect(isZeroishAddress(COS_ZERO_ADDR)).toBe(true);
+      expect(isZeroishAddress(COSMOS_NATIVE_ZERO_ADDR)).toBe(true);
+      expect(isZeroishAddress(SOL_ZERO_ADDR)).toBe(true);
+      expect(isZeroishAddress(STARKNET_ZERO_ADDR)).toBe(true);
     });
     it('Identifies non-0-ish addresses', () => {
-      expect(isZeroishAddress(ETH_NON_ZERO_ADDR)).to.be.false;
-      expect(isZeroishAddress(COS_NON_ZERO_ADDR)).to.be.false;
-      expect(isZeroishAddress(COSMOS_NATIVE_NON_ZERO_ADDR)).to.be.false;
-      expect(isZeroishAddress(SOL_NON_ZERO_ADDR)).to.be.false;
-      expect(isZeroishAddress(STARKNET_NON_ZERO_ADDR)).to.be.false;
+      expect(isZeroishAddress(ETH_NON_ZERO_ADDR)).toBe(false);
+      expect(isZeroishAddress(COS_NON_ZERO_ADDR)).toBe(false);
+      expect(isZeroishAddress(COSMOS_NATIVE_NON_ZERO_ADDR)).toBe(false);
+      expect(isZeroishAddress(SOL_NON_ZERO_ADDR)).toBe(false);
+      expect(isZeroishAddress(STARKNET_NON_ZERO_ADDR)).toBe(false);
     });
   });
 
   describe('addressToBytes', () => {
     it('Converts addresses to bytes', () => {
-      expect(addressToBytes(ETH_NON_ZERO_ADDR).length).to.equal(32);
-      expect(addressToBytes(STARKNET_NON_ZERO_ADDR).length).to.equal(32);
+      expect(addressToBytes(ETH_NON_ZERO_ADDR).length).toBe(32);
+      expect(addressToBytes(STARKNET_NON_ZERO_ADDR).length).toBe(32);
     });
     it('Rejects zeroish addresses', () => {
-      expect(() => addressToBytes(ETH_ZERO_ADDR)).to.throw(Error);
-      expect(() => addressToBytes(COS_ZERO_ADDR)).to.throw(Error);
-      expect(() => addressToBytes(COSMOS_NATIVE_ZERO_ADDR)).to.throw(Error);
-      expect(() => addressToBytes(SOL_ZERO_ADDR)).to.throw(Error);
-      expect(() => addressToBytes(STARKNET_ZERO_ADDR)).to.throw(Error);
+      expect(() => addressToBytes(ETH_ZERO_ADDR)).toThrow(Error);
+      expect(() => addressToBytes(COS_ZERO_ADDR)).toThrow(Error);
+      expect(() => addressToBytes(COSMOS_NATIVE_ZERO_ADDR)).toThrow(Error);
+      expect(() => addressToBytes(SOL_ZERO_ADDR)).toThrow(Error);
+      expect(() => addressToBytes(STARKNET_ZERO_ADDR)).toThrow(Error);
     });
   });
 
   describe('padBytesToLength', () => {
     it('Pads bytes to a given length', () => {
       const bytes = new Uint8Array([1, 2, 3]);
-      expect(Array.from(padBytesToLength(bytes, 5))).to.deep.equal([
-        0, 0, 1, 2, 3,
-      ]);
+      expect(Array.from(padBytesToLength(bytes, 5))).toEqual([0, 0, 1, 2, 3]);
     });
     it('Rejects bytes that exceed the target length', () => {
       const bytes = new Uint8Array([1, 2, 3]);
-      expect(() => padBytesToLength(bytes, 2)).to.throw(Error);
+      expect(() => padBytesToLength(bytes, 2)).toThrow(Error);
     });
   });
 
@@ -92,20 +90,20 @@ describe('Address utilities', () => {
           addressToBytes(ETH_NON_ZERO_ADDR),
           ProtocolType.Ethereum,
         ),
-      ).to.equal(ETH_NON_ZERO_ADDR);
+      ).toBe(ETH_NON_ZERO_ADDR);
       expect(
         bytesToProtocolAddress(
           addressToBytes(COSMOS_NATIVE_NON_ZERO_ADDR),
           ProtocolType.CosmosNative,
           COSMOS_PREFIX,
         ),
-      ).to.equal(COSMOS_NATIVE_NON_ZERO_ADDR);
+      ).toBe(COSMOS_NATIVE_NON_ZERO_ADDR);
       expect(
         bytesToProtocolAddress(
           addressToBytes(STARKNET_NON_ZERO_ADDR),
           ProtocolType.Starknet,
         ),
-      ).to.equal(STARKNET_NON_ZERO_ADDR);
+      ).toBe(STARKNET_NON_ZERO_ADDR);
     });
     it('Rejects zeroish addresses', () => {
       expect(() =>
@@ -113,26 +111,26 @@ describe('Address utilities', () => {
           new Uint8Array([0, 0, 0]),
           ProtocolType.Ethereum,
         ),
-      ).to.throw(Error);
+      ).toThrow(Error);
     });
   });
 
   describe('isAddressStarknet', () => {
     it('Validates correct Starknet addresses', () => {
       for (const address of STARKNET_ADDRESSES) {
-        expect(isAddressStarknet(address)).to.be.true;
+        expect(isAddressStarknet(address)).toBe(true);
       }
     });
 
     it('Rejects EVM addresses', () => {
       const evmAddress = '0x67C6390e8782b0B4F913f4dA99c065238Fb7DB30';
-      expect(isAddressStarknet(evmAddress)).to.be.false;
+      expect(isAddressStarknet(evmAddress)).toBe(false);
     });
 
     it('Rejects addresses exceeding felt252 bounds', () => {
       const outOfBoundsAddress =
         '0x5ab3ac43afd012da5037f72691f9791a9fd610900c0a1d6c18d41367aee9a530';
-      expect(isAddressStarknet(outOfBoundsAddress)).to.be.false;
+      expect(isAddressStarknet(outOfBoundsAddress)).toBe(false);
     });
   });
 
@@ -141,39 +139,39 @@ describe('Address utilities', () => {
       // mZhPGteS36G7FhMTcRofLQU8ocBNAsGq7u8SKSHfL2X
       const solAddress = 'mZhPGteS36G7FhMTcRofLQU8ocBNAsGq7u8SKSHfL2X';
       const result = addressToBytes32(solAddress);
-      expect(result).to.equal(
+      expect(result).toBe(
         '0x0b6a86806a0354c82b8f049eb75d9c97e370a6f0c0cfa15f47909c3fe1c8f794',
       );
     });
     it('Converts an EVM address to bytes32 hex', () => {
       const result = addressToBytes32(ETH_NON_ZERO_ADDR);
-      expect(result).to.equal(
+      expect(result).toBe(
         '0x0000000000000000000000000000000000000000000000000000000000000001',
       );
     });
     it('Returns an already-bytes32 hex address unchanged', () => {
       const bytes32 =
         '0x0b6a86806a0354c82b8f049eb75d9c97e370a6f0c0cfa15f47909c3fe1c8f794';
-      expect(addressToBytes32(bytes32)).to.equal(bytes32);
+      expect(addressToBytes32(bytes32)).toBe(bytes32);
     });
   });
 
   describe('isValidAddressStarknet', () => {
     it('Validates correct Starknet addresses', () => {
       for (const address of STARKNET_ADDRESSES) {
-        expect(isValidAddressStarknet(address)).to.be.true;
+        expect(isValidAddressStarknet(address)).toBe(true);
       }
     });
 
     it('Rejects EVM addresses', () => {
       const evmAddress = '0x67C6390e8782b0B4F913f4dA99c065238Fb7DB30';
-      expect(isValidAddressStarknet(evmAddress)).to.be.false;
+      expect(isValidAddressStarknet(evmAddress)).toBe(false);
     });
 
     it('Rejects addresses exceeding felt252 bounds', () => {
       const outOfBoundsAddress =
         '0x5ab3ac43afd012da5037f72691f9791a9fd610900c0a1d6c18d41367aee9a530';
-      expect(isValidAddressStarknet(outOfBoundsAddress)).to.be.false;
+      expect(isValidAddressStarknet(outOfBoundsAddress)).toBe(false);
     });
   });
 });

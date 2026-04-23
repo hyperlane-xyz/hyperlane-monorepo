@@ -1,9 +1,8 @@
-import { use as chaiUse, expect } from 'chai';
-import chaiAsPromised from 'chai-as-promised';
 import express, { Express } from 'express';
 import { pino } from 'pino';
 import sinon from 'sinon';
 import request from 'supertest';
+import { expect } from 'vitest';
 
 import { AppConstants } from '../../src/constants/AppConstants.js';
 import { NotFoundError } from '../../src/errors/ApiError.js';
@@ -15,8 +14,6 @@ import {
   mockWarpRouteDeploys,
   mockWarpRoutes,
 } from '../utils/mockData.js';
-
-chaiUse(chaiAsPromised);
 
 describe('Warp Routes', () => {
   let app: Express;
@@ -60,9 +57,10 @@ describe('Warp Routes', () => {
         .get(`/warp-route/core/${warpRouteId}`)
         .expect(AppConstants.HTTP_STATUS_OK);
 
-      expect(response.body).to.deep.equal(mockWarpRoute);
-      expect(mockWarpService.getWarpCoreConfig.calledWith(warpRouteId)).to.be
-        .true;
+      expect(response.body).toEqual(mockWarpRoute);
+      expect(mockWarpService.getWarpCoreConfig.calledWith(warpRouteId)).toBe(
+        true,
+      );
     });
 
     it('should return 404 when warp route does not exist', async () => {
@@ -75,9 +73,10 @@ describe('Warp Routes', () => {
         .get(`/warp-route/core/${warpRouteId}`)
         .expect(AppConstants.HTTP_STATUS_NOT_FOUND);
 
-      expect(response.body.message).to.include('Warp route not found');
-      expect(mockWarpService.getWarpCoreConfig.calledWith(warpRouteId)).to.be
-        .true;
+      expect(response.body.message).toContain('Warp route not found');
+      expect(mockWarpService.getWarpCoreConfig.calledWith(warpRouteId)).toBe(
+        true,
+      );
     });
 
     it('should return 500 when service throws unexpected error', async () => {
@@ -88,8 +87,8 @@ describe('Warp Routes', () => {
         .get(`/warp-route/core/${warpRouteId}`)
         .expect(AppConstants.HTTP_STATUS_INTERNAL_SERVER_ERROR);
 
-      expect(response.body.message).to.include('Internal Server Error');
-      expect(response.body.message).to.include('Unexpected error');
+      expect(response.body.message).toContain('Internal Server Error');
+      expect(response.body.message).toContain('Unexpected error');
     });
 
     it('should return warp core configs when no id is provided', async () => {
@@ -102,7 +101,7 @@ describe('Warp Routes', () => {
         .get(`/warp-route/core`)
         .expect(AppConstants.HTTP_STATUS_OK);
 
-      expect(response.body).to.deep.equal(warpCoreConfig);
+      expect(response.body).toEqual(warpCoreConfig);
     });
 
     it('should handle special characters in warp route ID', async () => {
@@ -113,9 +112,10 @@ describe('Warp Routes', () => {
         .get(`/warp-route/core/${encodeURIComponent(specialId)}`)
         .expect(AppConstants.HTTP_STATUS_OK);
 
-      expect(response.body).to.deep.equal(mockWarpRoute);
-      expect(mockWarpService.getWarpCoreConfig.calledWith(specialId)).to.be
-        .true;
+      expect(response.body).toEqual(mockWarpRoute);
+      expect(mockWarpService.getWarpCoreConfig.calledWith(specialId)).toBe(
+        true,
+      );
     });
 
     it('should handle service returning null gracefully', async () => {
@@ -127,7 +127,7 @@ describe('Warp Routes', () => {
         .get(`/warp-route/core/${warpRouteId}`)
         .expect(AppConstants.HTTP_STATUS_OK);
 
-      expect(response.body).to.be.null;
+      expect(response.body).toBeNull();
     });
 
     it('should preserve response headers', async () => {
@@ -139,7 +139,7 @@ describe('Warp Routes', () => {
         .expect('Content-Type', /json/)
         .expect(AppConstants.HTTP_STATUS_OK);
 
-      expect(response.body).to.deep.equal(mockWarpRoute);
+      expect(response.body).toEqual(mockWarpRoute);
     });
   });
 
@@ -152,9 +152,10 @@ describe('Warp Routes', () => {
         .get(`/warp-route/deploy/${warpRouteId}`)
         .expect(AppConstants.HTTP_STATUS_OK);
 
-      expect(response.body).to.deep.equal(mockWarpRouteDeploy);
-      expect(mockWarpService.getWarpDeployConfig.calledWith(warpRouteId)).to.be
-        .true;
+      expect(response.body).toEqual(mockWarpRouteDeploy);
+      expect(mockWarpService.getWarpDeployConfig.calledWith(warpRouteId)).toBe(
+        true,
+      );
     });
   });
 
@@ -166,8 +167,8 @@ describe('Warp Routes', () => {
         .get('/warp-route/deploy')
         .expect(AppConstants.HTTP_STATUS_OK);
 
-      expect(response.body).to.deep.equal(mockWarpDeployConfigMap);
-      expect(mockWarpService.getWarpDeployConfigs.calledOnce).to.be.true;
+      expect(response.body).toEqual(mockWarpDeployConfigMap);
+      expect(mockWarpService.getWarpDeployConfigs.calledOnce).toBe(true);
     });
 
     it('should pass filter params to service', async () => {
@@ -179,7 +180,7 @@ describe('Warp Routes', () => {
 
       expect(
         mockWarpService.getWarpDeployConfigs.calledWith({ symbol: 'TEST' }),
-      ).to.be.true;
+      ).toBe(true);
     });
   });
 
@@ -190,8 +191,8 @@ describe('Warp Routes', () => {
         .send({ config: mockWarpRoute })
         .expect(AppConstants.HTTP_STATUS_METHOD_NOT_ALLOWED);
 
-      expect(response.body.message).to.include('Write operations are disabled');
-      expect(mockWarpService.addWarpRoute.called).to.be.false;
+      expect(response.body.message).toContain('Write operations are disabled');
+      expect(mockWarpService.addWarpRoute.called).toBe(false);
     });
 
     it('should add warp route when writeMode is enabled', async () => {
@@ -202,8 +203,8 @@ describe('Warp Routes', () => {
         .send({ config: mockWarpRoute })
         .expect(AppConstants.HTTP_STATUS_NO_CONTENT);
 
-      expect(mockWarpService.addWarpRoute.calledOnce).to.be.true;
-      expect(mockWarpService.addWarpRoute.firstCall.args[0]).to.deep.equal(
+      expect(mockWarpService.addWarpRoute.calledOnce).toBe(true);
+      expect(mockWarpService.addWarpRoute.firstCall.args[0]).toEqual(
         mockWarpRoute,
       );
     });
@@ -217,10 +218,8 @@ describe('Warp Routes', () => {
         .send({ config: mockWarpRoute, options })
         .expect(AppConstants.HTTP_STATUS_NO_CONTENT);
 
-      expect(mockWarpService.addWarpRoute.calledOnce).to.be.true;
-      expect(mockWarpService.addWarpRoute.firstCall.args[1]).to.deep.equal(
-        options,
-      );
+      expect(mockWarpService.addWarpRoute.calledOnce).toBe(true);
+      expect(mockWarpService.addWarpRoute.firstCall.args[1]).toEqual(options);
     });
   });
 
@@ -231,8 +230,8 @@ describe('Warp Routes', () => {
         .send({ config: mockWarpRouteDeploy, options: { symbol: 'TEST' } })
         .expect(AppConstants.HTTP_STATUS_METHOD_NOT_ALLOWED);
 
-      expect(response.body.message).to.include('Write operations are disabled');
-      expect(mockWarpService.addWarpRouteConfig.called).to.be.false;
+      expect(response.body.message).toContain('Write operations are disabled');
+      expect(mockWarpService.addWarpRouteConfig.called).toBe(false);
     });
 
     it('should add warp deploy config when writeMode is enabled', async () => {
@@ -244,13 +243,13 @@ describe('Warp Routes', () => {
         .send({ config: mockWarpRouteDeploy, options })
         .expect(AppConstants.HTTP_STATUS_NO_CONTENT);
 
-      expect(mockWarpService.addWarpRouteConfig.calledOnce).to.be.true;
-      expect(
-        mockWarpService.addWarpRouteConfig.firstCall.args[0],
-      ).to.deep.equal(mockWarpRouteDeploy);
-      expect(
-        mockWarpService.addWarpRouteConfig.firstCall.args[1],
-      ).to.deep.equal(options);
+      expect(mockWarpService.addWarpRouteConfig.calledOnce).toBe(true);
+      expect(mockWarpService.addWarpRouteConfig.firstCall.args[0]).toEqual(
+        mockWarpRouteDeploy,
+      );
+      expect(mockWarpService.addWarpRouteConfig.firstCall.args[1]).toEqual(
+        options,
+      );
     });
 
     it('should accept warpRouteId option', async () => {
@@ -262,9 +261,9 @@ describe('Warp Routes', () => {
         .send({ config: mockWarpRouteDeploy, options })
         .expect(AppConstants.HTTP_STATUS_NO_CONTENT);
 
-      expect(
-        mockWarpService.addWarpRouteConfig.firstCall.args[1],
-      ).to.deep.equal(options);
+      expect(mockWarpService.addWarpRouteConfig.firstCall.args[1]).toEqual(
+        options,
+      );
     });
   });
 });

@@ -1,5 +1,5 @@
-import { expect } from 'chai';
 import { BigNumber } from 'ethers';
+import { expect } from 'vitest';
 
 import { ethersBigNumberSerializer } from './logging.js';
 
@@ -12,28 +12,28 @@ describe('Logging Utilities', () => {
         hex: '0x1a',
       };
       const result = ethersBigNumberSerializer(key, value);
-      expect(result).to.equal(BigNumber.from(value.hex).toString());
+      expect(result).toBe(BigNumber.from(value.hex).toString());
     });
 
     it('should return the value unchanged if it is not a BigNumber', () => {
       const key = 'testKey';
       const value = { some: 'object' };
       const result = ethersBigNumberSerializer(key, value);
-      expect(result).to.equal(value);
+      expect(result).toBe(value);
     });
 
     it('should return the value unchanged if it is null', () => {
       const key = 'testKey';
       const value = null;
       const result = ethersBigNumberSerializer(key, value);
-      expect(result).to.equal(value);
+      expect(result).toBe(value);
     });
 
     it('should return the value unchanged if it is not an object', () => {
       const key = 'testKey';
       const value = 'string';
       const result = ethersBigNumberSerializer(key, value);
-      expect(result).to.equal(value);
+      expect(result).toBe(value);
     });
   });
 });

@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import { TxSubmitterType } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
@@ -26,7 +26,7 @@ describe('altvm signer config helpers', () => {
       },
     };
 
-    expect(resolveStarknetAccountAddress(strategy, 'starknetsepolia')).to.equal(
+    expect(resolveStarknetAccountAddress(strategy, 'starknetsepolia')).toBe(
       '0x111',
     );
   });
@@ -42,14 +42,12 @@ describe('altvm signer config helpers', () => {
         },
       },
     };
-    expect(resolveStarknetAccountAddress(strategy, 'starknetsepolia')).to.equal(
+    expect(resolveStarknetAccountAddress(strategy, 'starknetsepolia')).toBe(
       '0x222',
     );
 
     process.env.HYP_ACCOUNT_ADDRESS_STARKNET = '0x333';
-    expect(resolveStarknetAccountAddress({}, 'starknetsepolia')).to.equal(
-      '0x333',
-    );
+    expect(resolveStarknetAccountAddress({}, 'starknetsepolia')).toBe('0x333');
   });
 
   it('prefers accountAddress over userAddress when both are present', () => {
@@ -65,7 +63,7 @@ describe('altvm signer config helpers', () => {
       },
     };
 
-    expect(resolveStarknetAccountAddress(strategy, 'starknetsepolia')).to.equal(
+    expect(resolveStarknetAccountAddress(strategy, 'starknetsepolia')).toBe(
       '0xaccount',
     );
   });
@@ -73,6 +71,6 @@ describe('altvm signer config helpers', () => {
   it('returns undefined for non-Starknet protocol', () => {
     expect(
       resolveAltVmAccountAddress({}, ProtocolType.CosmosNative, 'osmosis'),
-    ).to.equal(undefined);
+    ).toBeUndefined();
   });
 });

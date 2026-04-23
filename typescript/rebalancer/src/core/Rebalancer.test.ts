@@ -1,5 +1,4 @@
-import chai, { expect } from 'chai';
-import chaiAsPromised from 'chai-as-promised';
+import { expect } from 'vitest';
 import { ethers } from 'ethers';
 import { pino } from 'pino';
 import Sinon from 'sinon';
@@ -50,8 +49,6 @@ function createMockActionTracker(): IActionTracker {
   };
 }
 
-chai.use(chaiAsPromised);
-
 const testLogger = pino({ level: 'silent' });
 
 describe('Rebalancer', () => {
@@ -79,7 +76,7 @@ describe('Rebalancer', () => {
 
       const results = await rebalancer.rebalance([]);
 
-      expect(results).to.deep.equal([]);
+      expect(results).toEqual([]);
     });
 
     it('should return success result for single valid route', async () => {
@@ -106,8 +103,8 @@ describe('Rebalancer', () => {
       });
       const results = await rebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.true;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(true);
     });
 
     it('should return failure results for routes that fail preparation', async () => {
@@ -127,8 +124,8 @@ describe('Rebalancer', () => {
       const route = buildTestMovableCollateralRoute();
       const results = await rebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.false;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(false);
     });
 
     it('should handle mixed success and failure results', async () => {
@@ -175,11 +172,11 @@ describe('Rebalancer', () => {
 
       const results = await rebalancer.rebalance(routes);
 
-      expect(results).to.have.lengthOf(2);
+      expect(results).toHaveLength(2);
       const successResults = results.filter((r) => r.success);
       const failureResults = results.filter((r) => !r.success);
-      expect(successResults).to.have.lengthOf(1);
-      expect(failureResults).to.have.lengthOf(1);
+      expect(successResults).toHaveLength(1);
+      expect(failureResults).toHaveLength(1);
     });
   });
 
@@ -202,9 +199,9 @@ describe('Rebalancer', () => {
       });
       const results = await rebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.false;
-      expect(results[0].error).to.include('null');
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(false);
+      expect(results[0].error).toContain('null');
     });
 
     it('should fail when destination token not found', async () => {
@@ -225,8 +222,8 @@ describe('Rebalancer', () => {
       });
       const results = await rebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.false;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(false);
     });
 
     it('should log scaled route amounts using origin local units', async () => {
@@ -260,8 +257,8 @@ describe('Rebalancer', () => {
       });
       const results = await rebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.false;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(false);
       const validationErrorCall = logger.error
         .getCalls()
         .find(
@@ -269,9 +266,9 @@ describe('Rebalancer', () => {
             call.args[1] ===
             'Route validation failed: destination token not found.',
         );
-      expect(validationErrorCall).to.not.be.undefined;
-      expect(validationErrorCall!.args[0].amount).to.equal(1);
-      expect(validationErrorCall!.args[1]).to.equal(
+      expect(validationErrorCall).not.toBeUndefined();
+      expect(validationErrorCall!.args[0].amount).toBe(1);
+      expect(validationErrorCall!.args[1]).toBe(
         'Route validation failed: destination token not found.',
       );
     });
@@ -293,8 +290,8 @@ describe('Rebalancer', () => {
       const route = buildTestMovableCollateralRoute();
       const results = await rebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.false;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(false);
     });
 
     it('should fail when destination is not in allowed list', async () => {
@@ -316,8 +313,8 @@ describe('Rebalancer', () => {
       const route = buildTestMovableCollateralRoute();
       const results = await rebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.false;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(false);
     });
 
     it('should fail when bridge is not allowed', async () => {
@@ -337,8 +334,8 @@ describe('Rebalancer', () => {
       const route = buildTestMovableCollateralRoute();
       const results = await rebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.false;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(false);
     });
   });
 
@@ -360,8 +357,8 @@ describe('Rebalancer', () => {
       const route = buildTestMovableCollateralRoute();
       const results = await rebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.false;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(false);
     });
 
     it('should create failure result when tx population throws', async () => {
@@ -381,8 +378,8 @@ describe('Rebalancer', () => {
       const route = buildTestMovableCollateralRoute();
       const results = await rebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.false;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(false);
     });
 
     it('should denormalize canonical route amounts before quote and populate calls', async () => {
@@ -413,13 +410,13 @@ describe('Rebalancer', () => {
         }),
       ]);
 
-      expect(ctx.adapters.ethereum.getRebalanceQuotes.calledOnce).to.be.true;
-      expect(
-        ctx.adapters.ethereum.getRebalanceQuotes.firstCall.args[3],
-      ).to.equal(1_000_000_000_000_000_000n);
-      expect(
-        ctx.adapters.ethereum.populateRebalanceTx.firstCall.args[1],
-      ).to.equal(1_000_000_000_000_000_000n);
+      expect(ctx.adapters.ethereum.getRebalanceQuotes.calledOnce).toBe(true);
+      expect(ctx.adapters.ethereum.getRebalanceQuotes.firstCall.args[3]).toBe(
+        1_000_000_000_000_000_000n,
+      );
+      expect(ctx.adapters.ethereum.populateRebalanceTx.firstCall.args[1]).toBe(
+        1_000_000_000_000_000_000n,
+      );
     });
   });
 
@@ -448,9 +445,9 @@ describe('Rebalancer', () => {
       const route = buildTestMovableCollateralRoute();
       const results = await rebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.false;
-      expect(results[0].error).to.include('Gas estimation failed');
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(false);
+      expect(results[0].error).toContain('Gas estimation failed');
     });
 
     it('should continue with other routes when one fails gas estimation', async () => {
@@ -504,11 +501,11 @@ describe('Rebalancer', () => {
 
       const results = await rebalancer.rebalance(routes);
 
-      expect(results).to.have.lengthOf(2);
+      expect(results).toHaveLength(2);
       const failures = results.filter((r) => !r.success);
       const successes = results.filter((r) => r.success);
-      expect(failures).to.have.lengthOf(1);
-      expect(successes).to.have.lengthOf(1);
+      expect(failures).toHaveLength(1);
+      expect(successes).toHaveLength(1);
     });
 
     it('should group transactions by origin chain', async () => {
@@ -560,7 +557,7 @@ describe('Rebalancer', () => {
 
       await rebalancer.rebalance(routes);
 
-      expect(sendCallCount).to.equal(3);
+      expect(sendCallCount).toBe(3);
     });
   });
 
@@ -583,9 +580,9 @@ describe('Rebalancer', () => {
       const route = buildTestMovableCollateralRoute();
       const results = await rebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.false;
-      expect(results[0].error).to.include('Send failed');
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(false);
+      expect(results[0].error).toContain('Send failed');
     });
 
     it('should continue sending remaining transactions after one fails', async () => {
@@ -631,9 +628,9 @@ describe('Rebalancer', () => {
 
       const results = await rebalancer.rebalance(routes);
 
-      expect(results).to.have.lengthOf(2);
-      expect(results.filter((r) => !r.success)).to.have.lengthOf(1);
-      expect(results.filter((r) => r.success)).to.have.lengthOf(1);
+      expect(results).toHaveLength(2);
+      expect(results.filter((r) => !r.success)).toHaveLength(1);
+      expect(results.filter((r) => r.success)).toHaveLength(1);
     });
 
     it('should send transactions sequentially within same origin chain', async () => {
@@ -686,7 +683,7 @@ describe('Rebalancer', () => {
 
       await rebalancer.rebalance(routes);
 
-      expect(callOrder).to.deep.equal(['ethereum', 'ethereum']);
+      expect(callOrder).toEqual(['ethereum', 'ethereum']);
     });
   });
 
@@ -712,9 +709,9 @@ describe('Rebalancer', () => {
       const route = buildTestMovableCollateralRoute();
       const results = await rebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.true;
-      expect(results[0].messageId).to.equal(expectedMessageId);
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(true);
+      expect(results[0].messageId).toBe(expectedMessageId);
     });
 
     it('should return success: false when no Dispatch event found', async () => {
@@ -734,10 +731,10 @@ describe('Rebalancer', () => {
       const route = buildTestMovableCollateralRoute();
       const results = await rebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.false;
-      expect(results[0].error).to.include('no Dispatch event found');
-      expect(results[0].messageId).to.equal('');
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(false);
+      expect(results[0].error).toContain('no Dispatch event found');
+      expect(results[0].messageId).toBe('');
     });
 
     it('should include txHash in result', async () => {
@@ -763,8 +760,8 @@ describe('Rebalancer', () => {
       const route = buildTestMovableCollateralRoute();
       const results = await rebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].txHash).to.equal(expectedTxHash);
+      expect(results).toHaveLength(1);
+      expect(results[0].txHash).toBe(expectedTxHash);
     });
   });
 });

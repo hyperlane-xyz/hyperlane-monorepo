@@ -1,5 +1,5 @@
 import { Keypair } from '@solana/web3.js';
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -141,22 +141,22 @@ describe('GitLeaks CLI Integration Tests', function () {
         }
 
         // Validate results
-        expect(results).to.have.length.greaterThan(
-          0,
+        expect(
+          results.length,
           `Expected to find secrets but got empty results for test: ${testCase.name}`,
-        );
+        ).toBeGreaterThan(0);
 
         const ruleIds = results.map((r) => r.RuleID);
-        expect(ruleIds).to.include(
-          testCase.expectedRuleId,
+        expect(
+          ruleIds,
           `Expected rule ID ${testCase.expectedRuleId} but found: ${ruleIds.join(', ')}`,
-        );
+        ).toContain(testCase.expectedRuleId);
 
         if (testCase.expectedCount) {
-          expect(results).to.have.length(
-            testCase.expectedCount,
+          expect(
+            results,
             `Expected ${testCase.expectedCount} results but got ${results.length}`,
-          );
+          ).toHaveLength(testCase.expectedCount);
         }
       } else {
         throw new Error(
@@ -638,7 +638,7 @@ describe('GitLeaks CLI Integration Tests', function () {
     expect(
       setEquality(new Set(ruleIds), new Set(ruleIdsInTestCases)),
       'Expected rule ids in gitleaks config file to match rule ids in test cases',
-    ).to.be.true;
+    ).toBe(true);
   });
 
   // Generate tests for each rule

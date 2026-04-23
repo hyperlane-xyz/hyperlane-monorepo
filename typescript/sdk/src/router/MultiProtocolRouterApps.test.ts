@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import { ethers } from 'ethers';
 
 import { TestChainName } from '../consts/testChains.js';
@@ -19,10 +19,10 @@ describe('MultiProtocolRouterApp', () => {
         multiProvider.intersect(Object.keys(addresses)).result,
         addresses,
       );
-      expect(app).to.be.instanceOf(MultiProtocolRouterApp);
+      expect(app).toBeInstanceOf(MultiProtocolRouterApp);
       const ethAdapter = app.adapter(TestChainName.test1);
-      expect(ethAdapter).to.be.instanceOf(EvmRouterAdapter);
-      expect(!!ethAdapter.remoteRouter).to.be.true;
+      expect(ethAdapter).toBeInstanceOf(EvmRouterAdapter);
+      expect(!!ethAdapter.remoteRouter).toBe(true);
     });
   });
 });

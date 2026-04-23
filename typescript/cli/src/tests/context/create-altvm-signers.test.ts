@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import sinon from 'sinon';
 
 import {
@@ -105,8 +105,8 @@ describe('createAltVMSigners', () => {
       getProtocolRegistry(),
     );
 
-    expect(capturedConfigs).to.have.length(1);
-    expect(capturedConfigs[0]).to.deep.equal({
+    expect(capturedConfigs).toHaveLength(1);
+    expect(capturedConfigs[0]).toEqual({
       privateKey: '0xstrategy',
       accountAddress: '0xstrategy-account',
     });
@@ -142,12 +142,12 @@ describe('createAltVMSigners', () => {
       getProtocolRegistry(),
     );
 
-    expect(capturedConfigs).to.have.length(2);
-    expect(capturedConfigs[0]).to.deep.equal({
+    expect(capturedConfigs).toHaveLength(2);
+    expect(capturedConfigs[0]).toEqual({
       privateKey: '0xkey',
       accountAddress: '0xstrategy-account-sepolia',
     });
-    expect(capturedConfigs[1]).to.deep.equal({
+    expect(capturedConfigs[1]).toEqual({
       privateKey: '0xkey',
       accountAddress: '0xstrategy-account-mainnet',
     });
@@ -168,8 +168,8 @@ describe('createAltVMSigners', () => {
       getProtocolRegistry(),
     );
 
-    expect(capturedConfigs).to.have.length(1);
-    expect(capturedConfigs[0]).to.deep.equal({
+    expect(capturedConfigs).toHaveLength(1);
+    expect(capturedConfigs[0]).toEqual({
       privateKey: '0xkey',
       accountAddress: '0xenv-account',
     });
@@ -207,9 +207,9 @@ describe('createAltVMSigners', () => {
       getProtocolRegistry(),
     );
 
-    expect(capturedConfigs).to.have.length(2);
-    expect(capturedConfigs[0].accountAddress).to.equal('0xaaa');
-    expect(capturedConfigs[1].accountAddress).to.equal('0xbbb');
+    expect(capturedConfigs).toHaveLength(2);
+    expect(capturedConfigs[0].accountAddress).toBe('0xaaa');
+    expect(capturedConfigs[1].accountAddress).toBe('0xbbb');
   });
 
   it('prompts for private key when strategy omits it', async () => {
@@ -235,9 +235,9 @@ describe('createAltVMSigners', () => {
       getProtocolRegistry(),
     );
 
-    expect(privateKeyPrompt.calledOnce).to.equal(true);
-    expect(capturedConfigs).to.have.length(1);
-    expect(capturedConfigs[0]).to.deep.equal({
+    expect(privateKeyPrompt.calledOnce).toBe(true);
+    expect(capturedConfigs).toHaveLength(1);
+    expect(capturedConfigs[0]).toEqual({
       privateKey: '0xprompted-key',
       accountAddress: '0xstrategy-account',
     });
@@ -262,16 +262,18 @@ describe('createAltVMSigners', () => {
       strategy,
       getProtocolRegistry(),
     )
-      .then(() => expect.fail('expected createAltVMSigners to throw'))
+      .then(() => {
+        throw new Error('expected createAltVMSigners to throw');
+      })
       .catch((error: unknown) => {
-        expect(error).to.be.instanceOf(Error);
-        expect((error as Error).message).to.equal(
+        expect(error).toBeInstanceOf(Error);
+        expect((error as Error).message).toBe(
           'missing private key in strategy config for chain radix',
         );
       });
 
-    expect(privateKeyPrompt.called).to.equal(false);
-    expect(capturedConfigs).to.have.length(0);
+    expect(privateKeyPrompt.called).toBe(false);
+    expect(capturedConfigs).toHaveLength(0);
   });
 
   it('throws for non-jsonRpc strategies instead of prompting for a private key', async () => {
@@ -294,16 +296,18 @@ describe('createAltVMSigners', () => {
       strategy,
       getProtocolRegistry(),
     )
-      .then(() => expect.fail('expected createAltVMSigners to throw'))
+      .then(() => {
+        throw new Error('expected createAltVMSigners to throw');
+      })
       .catch((error: unknown) => {
-        expect(error).to.be.instanceOf(Error);
-        expect((error as Error).message).to.equal(
+        expect(error).toBeInstanceOf(Error);
+        expect((error as Error).message).toBe(
           `unsupported submitter type in strategy config for chain radix: ${TxSubmitterType.GNOSIS_SAFE}`,
         );
       });
 
-    expect(privateKeyPrompt.called).to.equal(false);
-    expect(capturedConfigs).to.have.length(0);
+    expect(privateKeyPrompt.called).toBe(false);
+    expect(capturedConfigs).toHaveLength(0);
   });
 
   it('prefers explicit per-chain strategy key over prompted fallback', async () => {
@@ -337,13 +341,13 @@ describe('createAltVMSigners', () => {
       getProtocolRegistry(),
     );
 
-    expect(privateKeyPrompt.calledOnce).to.equal(true);
-    expect(capturedConfigs).to.have.length(2);
-    expect(capturedConfigs[0]).to.deep.equal({
+    expect(privateKeyPrompt.calledOnce).toBe(true);
+    expect(capturedConfigs).toHaveLength(2);
+    expect(capturedConfigs[0]).toEqual({
       privateKey: '0xprompted-key',
       accountAddress: '0xstrategy-account-sepolia',
     });
-    expect(capturedConfigs[1]).to.deep.equal({
+    expect(capturedConfigs[1]).toEqual({
       privateKey: '0xstrategy-key-mainnet',
       accountAddress: '0xstrategy-account-mainnet',
     });
@@ -369,9 +373,9 @@ describe('createAltVMSigners', () => {
       getProtocolRegistry(),
     );
 
-    expect(accountPrompt.callCount).to.equal(2);
-    expect(capturedConfigs).to.have.length(2);
-    expect(capturedConfigs[0].accountAddress).to.equal('0xaaa');
-    expect(capturedConfigs[1].accountAddress).to.equal('0xbbb');
+    expect(accountPrompt.callCount).toBe(2);
+    expect(capturedConfigs).toHaveLength(2);
+    expect(capturedConfigs[0].accountAddress).toBe('0xaaa');
+    expect(capturedConfigs[1].accountAddress).toBe('0xbbb');
   });
 });

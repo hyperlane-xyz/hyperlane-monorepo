@@ -63,12 +63,9 @@
   "devDependencies": {
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@types/bs58": "catalog:",
-    "@types/chai": "catalog:",
     "@types/lodash-es": "catalog:",
     "@types/node": "catalog:",
     "@types/sinon": "catalog:",
-    "@types/sinon-chai": "catalog:",
-    "chai": "catalog:",
     "sinon": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",

@@ -17,7 +17,7 @@
  * - defaultTiming, defaultBridgeConfig, defaultStrategyConfig: Default configs
  * - expectations: Assertions (minCompletionRate, shouldTriggerRebalancing, etc.)
  */
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import { listScenarios } from '../../src/index.js';
 import { setupAnvilTestSuite } from '../utils/anvil.js';
@@ -65,16 +65,16 @@ describe('Rebalancer Simulation', function () {
       if (result.rebalancerName === 'NoOpRebalancer') continue;
 
       if (file.expectations.minCompletionRate) {
-        expect(result.kpis.completionRate).to.be.greaterThanOrEqual(
-          file.expectations.minCompletionRate,
+        expect(
+          result.kpis.completionRate,
           `${result.rebalancerName} should have min completion rate`,
-        );
+        ).toBeGreaterThanOrEqual(file.expectations.minCompletionRate);
       }
       if (file.expectations.shouldTriggerRebalancing) {
-        expect(result.kpis.totalRebalances).to.be.greaterThan(
-          0,
+        expect(
+          result.kpis.totalRebalances,
           `${result.rebalancerName} should trigger rebalancing`,
-        );
+        ).toBeGreaterThan(0);
       }
     }
   });
@@ -90,16 +90,16 @@ describe('Rebalancer Simulation', function () {
       if (result.rebalancerName === 'NoOpRebalancer') continue;
 
       if (file.expectations.minCompletionRate) {
-        expect(result.kpis.completionRate).to.be.greaterThanOrEqual(
-          file.expectations.minCompletionRate,
+        expect(
+          result.kpis.completionRate,
           `${result.rebalancerName} should have min completion rate`,
-        );
+        ).toBeGreaterThanOrEqual(file.expectations.minCompletionRate);
       }
       if (file.expectations.minRebalances) {
-        expect(result.kpis.totalRebalances).to.be.greaterThanOrEqual(
-          file.expectations.minRebalances,
+        expect(
+          result.kpis.totalRebalances,
           `${result.rebalancerName} should trigger min rebalances`,
-        );
+        ).toBeGreaterThanOrEqual(file.expectations.minRebalances);
       }
     }
   });
@@ -115,10 +115,10 @@ describe('Rebalancer Simulation', function () {
       if (result.rebalancerName === 'NoOpRebalancer') continue;
 
       if (file.expectations.minCompletionRate) {
-        expect(result.kpis.completionRate).to.be.greaterThanOrEqual(
-          file.expectations.minCompletionRate,
+        expect(
+          result.kpis.completionRate,
           `${result.rebalancerName} should have min completion rate`,
-        );
+        ).toBeGreaterThanOrEqual(file.expectations.minCompletionRate);
       }
     }
   });
@@ -134,10 +134,10 @@ describe('Rebalancer Simulation', function () {
       if (result.rebalancerName === 'NoOpRebalancer') continue;
 
       if (file.expectations.minCompletionRate) {
-        expect(result.kpis.completionRate).to.be.greaterThanOrEqual(
-          file.expectations.minCompletionRate,
+        expect(
+          result.kpis.completionRate,
           `${result.rebalancerName} should have min completion rate`,
-        );
+        ).toBeGreaterThanOrEqual(file.expectations.minCompletionRate);
       }
     }
   });
@@ -159,10 +159,10 @@ describe('Rebalancer Simulation', function () {
 
     for (const result of activeResults) {
       if (file.expectations.minCompletionRate) {
-        expect(result.kpis.completionRate).to.be.greaterThanOrEqual(
-          file.expectations.minCompletionRate,
+        expect(
+          result.kpis.completionRate,
           `${result.rebalancerName} should have min completion rate`,
-        );
+        ).toBeGreaterThanOrEqual(file.expectations.minCompletionRate);
       }
     }
 
@@ -172,10 +172,10 @@ describe('Rebalancer Simulation', function () {
         activeResults[0].kpis.completionRate -
           activeResults[1].kpis.completionRate,
       );
-      expect(completionDiff).to.be.lessThan(
-        0.1,
+      expect(
+        completionDiff,
         'Completion rates should be within 10% of each other',
-      );
+      ).toBeLessThan(0.1);
     }
   });
 
@@ -194,19 +194,19 @@ describe('Rebalancer Simulation', function () {
       if (result.rebalancerName === 'NoOpRebalancer') continue;
 
       if (file.expectations.minCompletionRate) {
-        expect(result.kpis.completionRate).to.be.greaterThanOrEqual(
-          file.expectations.minCompletionRate,
+        expect(
+          result.kpis.completionRate,
           `${result.rebalancerName} should have min completion rate`,
-        );
+        ).toBeGreaterThanOrEqual(file.expectations.minCompletionRate);
       }
       // Key: p50 latency should be low with enough headroom
       // Only assert for SimpleRunner - the CLI rebalancer may have different
       // behavior due to more aggressive rebalancing strategies
       if (result.rebalancerName === 'SimpleRebalancer') {
-        expect(result.kpis.p50Latency).to.be.lessThan(
-          500,
+        expect(
+          result.kpis.p50Latency,
           `${result.rebalancerName} should have low p50 latency`,
-        );
+        ).toBeLessThan(500);
       }
     }
   });
@@ -249,38 +249,38 @@ describe('Rebalancer Simulation', function () {
 
     // Both should complete all transfers
     if (productionResult) {
-      expect(productionResult.kpis.completionRate).to.equal(
-        1,
+      expect(
+        productionResult.kpis.completionRate,
         'ProductionRebalancer should complete all transfers',
-      );
+      ).toBe(1);
     }
     if (simpleResult) {
-      expect(simpleResult.kpis.completionRate).to.equal(
-        1,
+      expect(
+        simpleResult.kpis.completionRate,
         'SimpleRebalancer should complete all transfers',
-      );
+      ).toBe(1);
     }
 
     // ProductionRebalancer with inflight tracking should use significantly fewer rebalances
     if (productionResult && simpleResult) {
-      expect(productionResult.kpis.totalRebalances).to.be.lessThan(
-        simpleResult.kpis.totalRebalances,
+      expect(
+        productionResult.kpis.totalRebalances,
         'ProductionRebalancer should use fewer rebalances than SimpleRebalancer',
-      );
+      ).toBeLessThan(simpleResult.kpis.totalRebalances);
 
       // ProductionRebalancer should use at most 50% of SimpleRebalancer's rebalances
       // (typically achieves 60-80% reduction)
-      expect(simpleResult.kpis.totalRebalances).to.be.greaterThan(
-        0,
+      expect(
+        simpleResult.kpis.totalRebalances,
         'SimpleRebalancer should have rebalanced at least once for ratio comparison',
-      );
+      ).toBeGreaterThan(0);
       const reductionRatio =
         productionResult.kpis.totalRebalances /
         simpleResult.kpis.totalRebalances;
-      expect(reductionRatio).to.be.lessThan(
-        0.5,
+      expect(
+        reductionRatio,
         `ProductionRebalancer should achieve >50% reduction in rebalances (got ${((1 - reductionRatio) * 100).toFixed(0)}% reduction)`,
-      );
+      ).toBeLessThan(0.5);
     }
   });
 
@@ -328,26 +328,26 @@ describe('Rebalancer Simulation', function () {
 
     // SimpleRebalancer without inflight tracking should fail to complete
     if (simpleResult) {
-      expect(simpleResult.kpis.completionRate).to.equal(
-        0,
+      expect(
+        simpleResult.kpis.completionRate,
         'SimpleRebalancer should have 0% completion (blocked transfer)',
-      );
-      expect(simpleResult.kpis.totalRebalances).to.equal(
-        0,
+      ).toBe(0);
+      expect(
+        simpleResult.kpis.totalRebalances,
         'SimpleRebalancer should not rebalance (weights within tolerance)',
-      );
+      ).toBe(0);
     }
 
     // ProductionRebalancer with inflight tracking should complete
     if (productionResult) {
-      expect(productionResult.kpis.completionRate).to.equal(
-        1.0,
+      expect(
+        productionResult.kpis.completionRate,
         'ProductionRebalancer should have 100% completion (proactive collateral)',
-      );
-      expect(productionResult.kpis.totalRebalances).to.be.greaterThan(
-        0,
+      ).toBe(1.0);
+      expect(
+        productionResult.kpis.totalRebalances,
         'ProductionRebalancer should rebalance (sees pending transfer deficit)',
-      );
+      ).toBeGreaterThan(0);
     }
   });
 });

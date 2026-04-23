@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import { Keypair, SystemProgram, Transaction } from '@solana/web3.js';
 
 import { KeypairSvmTransactionSigner } from './solana-web3js.js';
@@ -32,7 +32,7 @@ describe('KeypairSvmTransactionSigner', () => {
     const extraSigBefore = tx.signatures.find((s) =>
       s.publicKey.equals(extraSigner.publicKey),
     );
-    expect(extraSigBefore?.signature).to.not.be.null;
+    expect(extraSigBefore?.signature).not.toBeNull();
 
     // Main signer signs via KeypairSvmTransactionSigner — should PRESERVE extra signer's signature
     const signer = new KeypairSvmTransactionSigner(mainSigner.secretKey);
@@ -44,8 +44,8 @@ describe('KeypairSvmTransactionSigner', () => {
     const extraSigAfter = tx.signatures.find((s) =>
       s.publicKey.equals(extraSigner.publicKey),
     );
-    expect(mainSig?.signature).to.not.be.null;
-    expect(extraSigAfter?.signature).to.not.be.null;
+    expect(mainSig?.signature).not.toBeNull();
+    expect(extraSigAfter?.signature).not.toBeNull();
   });
 
   it('REGRESSION: sign() wipes extra signatures (demonstrates the bug we fixed)', () => {
@@ -79,6 +79,6 @@ describe('KeypairSvmTransactionSigner', () => {
       s.publicKey.equals(extraSigner.publicKey),
     );
     // After sign(), the extra signer's signature is GONE (null)
-    expect(extraSig?.signature).to.be.null;
+    expect(extraSig?.signature).toBeNull();
   });
 });

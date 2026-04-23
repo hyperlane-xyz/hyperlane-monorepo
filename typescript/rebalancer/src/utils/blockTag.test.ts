@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import { providers } from 'ethers';
 import Sinon from 'sinon';
 
@@ -36,7 +36,7 @@ describe('getConfirmedBlockTag', () => {
 
     const result = await getConfirmedBlockTag(mpp, 'tron');
     // 100 - 20 = 80
-    expect(result).to.equal(80);
+    expect(result).toBe(80);
   });
 
   it('returns undefined for Sealevel chain (non-EVM-like)', async () => {
@@ -47,7 +47,7 @@ describe('getConfirmedBlockTag', () => {
     } as any);
 
     const result = await getConfirmedBlockTag(mpp, 'solana');
-    expect(result).to.be.undefined;
+    expect(result).toBeUndefined();
   });
 
   it('returns undefined for Tron chain with string reorgPeriod (named block tags not supported)', async () => {
@@ -60,10 +60,10 @@ describe('getConfirmedBlockTag', () => {
     } as any);
 
     const result = await getConfirmedBlockTag(mpp, 'tron', logger as any);
-    expect(result).to.be.undefined;
-    expect(logger.warn.calledOnce).to.be.true;
+    expect(result).toBeUndefined();
+    expect(logger.warn.calledOnce).toBe(true);
     const warnCall = logger.warn.getCall(0);
-    expect(warnCall.args[1]).to.include(
+    expect(warnCall.args[1]).toContain(
       'Tron does not support named block tags',
     );
   });

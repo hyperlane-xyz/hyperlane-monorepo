@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import {
   decodeAbiParameters,
   decodeFunctionData,
@@ -73,17 +73,15 @@ describe('QuotedCalls codec', () => {
         ],
         encoded,
       );
-      expect(quoter.toLowerCase()).to.equal(QUOTER);
-      expect(quote.context).to.equal(MOCK_QUOTE.quote.context);
-      expect(quote.data).to.equal(MOCK_QUOTE.quote.data);
-      expect(Number(quote.issuedAt)).to.equal(MOCK_QUOTE.quote.issuedAt);
-      expect(Number(quote.expiry)).to.equal(MOCK_QUOTE.quote.expiry);
-      expect(quote.salt).to.equal(MOCK_QUOTE.quote.salt);
-      expect(quote.submitter.toLowerCase()).to.equal(
-        MOCK_QUOTE.quote.submitter,
-      );
-      expect(signature).to.equal(SIGNATURE);
-      expect(clientSalt).to.equal(CLIENT_SALT);
+      expect(quoter.toLowerCase()).toBe(QUOTER);
+      expect(quote.context).toBe(MOCK_QUOTE.quote.context);
+      expect(quote.data).toBe(MOCK_QUOTE.quote.data);
+      expect(Number(quote.issuedAt)).toBe(MOCK_QUOTE.quote.issuedAt);
+      expect(Number(quote.expiry)).toBe(MOCK_QUOTE.quote.expiry);
+      expect(quote.salt).toBe(MOCK_QUOTE.quote.salt);
+      expect(quote.submitter.toLowerCase()).toBe(MOCK_QUOTE.quote.submitter);
+      expect(signature).toBe(SIGNATURE);
+      expect(clientSalt).toBe(CLIENT_SALT);
     });
   });
 
@@ -94,8 +92,8 @@ describe('QuotedCalls codec', () => {
         [{ type: 'address' }, { type: 'uint256' }],
         encoded,
       );
-      expect(token.toLowerCase()).to.equal(TOKEN);
-      expect(amount).to.equal(1000n);
+      expect(token.toLowerCase()).toBe(TOKEN);
+      expect(amount).toBe(1000n);
     });
   });
 
@@ -106,8 +104,8 @@ describe('QuotedCalls codec', () => {
         [{ type: 'address' }, { type: 'uint160' }],
         encoded,
       );
-      expect(token.toLowerCase()).to.equal(TOKEN);
-      expect(amount).to.equal(500n);
+      expect(token.toLowerCase()).toBe(TOKEN);
+      expect(amount).toBe(500n);
     });
   });
 
@@ -128,8 +126,8 @@ describe('QuotedCalls codec', () => {
       };
       const encoded = encodePermit2PermitInput(permit2Data);
       // Should encode without error and produce valid hex
-      expect(encoded).to.match(/^0x/);
-      expect(encoded.length).to.be.greaterThan(10);
+      expect(encoded).toMatch(/^0x/);
+      expect(encoded.length).toBeGreaterThan(10);
     });
   });
 
@@ -156,13 +154,13 @@ describe('QuotedCalls codec', () => {
         ],
         encoded,
       );
-      expect(decoded[0].toLowerCase()).to.equal(WARP_ROUTE);
-      expect(Number(decoded[1])).to.equal(42161);
-      expect(decoded[2]).to.equal(RECIPIENT);
-      expect(decoded[3]).to.equal(CONTRACT_BALANCE);
-      expect(decoded[4]).to.equal(CONTRACT_BALANCE);
-      expect(decoded[5].toLowerCase()).to.equal(TOKEN);
-      expect(decoded[6]).to.equal(CONTRACT_BALANCE);
+      expect(decoded[0].toLowerCase()).toBe(WARP_ROUTE);
+      expect(Number(decoded[1])).toBe(42161);
+      expect(decoded[2]).toBe(RECIPIENT);
+      expect(decoded[3]).toBe(CONTRACT_BALANCE);
+      expect(decoded[4]).toBe(CONTRACT_BALANCE);
+      expect(decoded[5].toLowerCase()).toBe(TOKEN);
+      expect(decoded[6]).toBe(CONTRACT_BALANCE);
     });
   });
 
@@ -193,8 +191,8 @@ describe('QuotedCalls codec', () => {
         ],
         encoded,
       );
-      expect(Number(decoded[1])).to.equal(10);
-      expect(decoded[4]).to.equal(targetRouter);
+      expect(Number(decoded[1])).toBe(10);
+      expect(decoded[4]).toBe(targetRouter);
     });
   });
 
@@ -202,13 +200,13 @@ describe('QuotedCalls codec', () => {
     it('encodes token address', () => {
       const encoded = encodeSweepInput(TOKEN);
       const [token] = decodeAbiParameters([{ type: 'address' }], encoded);
-      expect(token.toLowerCase()).to.equal(TOKEN);
+      expect(token.toLowerCase()).toBe(TOKEN);
     });
 
     it('encodes zero address for ETH-only sweep', () => {
       const encoded = encodeSweepInput(zeroAddress);
       const [token] = decodeAbiParameters([{ type: 'address' }], encoded);
-      expect(token).to.equal(zeroAddress);
+      expect(token).toBe(zeroAddress);
     });
   });
 
@@ -240,10 +238,10 @@ describe('QuotedCalls codec', () => {
         ],
         data: calldata,
       });
-      expect(decoded.functionName).to.equal('execute');
+      expect(decoded.functionName).toBe('execute');
       // commands should be 2 bytes: 0x0308 (TRANSFER_FROM=0x03, SWEEP=0x08)
-      expect(decoded.args[0]).to.equal('0x0308');
-      expect(decoded.args[1]).to.have.length(2);
+      expect(decoded.args[0]).toBe('0x0308');
+      expect(decoded.args[1]).toHaveLength(2);
     });
   });
 
@@ -267,7 +265,7 @@ describe('QuotedCalls codec', () => {
         abi: quotedCallsAbi,
         data: calldata,
       });
-      expect(decoded.functionName).to.equal('quoteExecute');
+      expect(decoded.functionName).toBe('quoteExecute');
     });
   });
 
@@ -301,14 +299,14 @@ describe('QuotedCalls codec', () => {
 
       const decoded = decodeQuoteExecuteResult(encoded);
 
-      expect(decoded).to.have.length(2);
-      expect(decoded[0]).to.have.length(0);
-      expect(decoded[1]).to.have.length(3);
-      expect(decoded[1][0].token).to.equal(zeroAddress);
-      expect(decoded[1][0].amount).to.equal(100n);
-      expect(decoded[1][1].token.toLowerCase()).to.equal(TOKEN);
-      expect(decoded[1][1].amount).to.equal(1050n);
-      expect(decoded[1][2].amount).to.equal(10n);
+      expect(decoded).toHaveLength(2);
+      expect(decoded[0]).toHaveLength(0);
+      expect(decoded[1]).toHaveLength(3);
+      expect(decoded[1][0].token).toBe(zeroAddress);
+      expect(decoded[1][0].amount).toBe(100n);
+      expect(decoded[1][1].token.toLowerCase()).toBe(TOKEN);
+      expect(decoded[1][1].amount).toBe(1050n);
+      expect(decoded[1][2].amount).toBe(10n);
     });
 
     it('decodes empty results', () => {
@@ -325,7 +323,7 @@ describe('QuotedCalls codec', () => {
         [[]],
       );
       const decoded = decodeQuoteExecuteResult(encoded);
-      expect(decoded).to.have.length(0);
+      expect(decoded).toHaveLength(0);
     });
   });
 
@@ -340,21 +338,21 @@ describe('QuotedCalls codec', () => {
         ],
       ];
       const { nativeValue, tokenTotals } = extractQuoteTotals(results);
-      expect(nativeValue).to.equal(100n);
-      expect(tokenTotals.get(TOKEN)).to.equal(1060n);
-      expect(tokenTotals.has(zeroAddress)).to.be.false;
+      expect(nativeValue).toBe(100n);
+      expect(tokenTotals.get(TOKEN)).toBe(1060n);
+      expect(tokenTotals.has(zeroAddress)).toBe(false);
     });
 
     it('returns zero for empty quotes', () => {
       const { nativeValue, tokenTotals } = extractQuoteTotals([[], []]);
-      expect(nativeValue).to.equal(0n);
-      expect(tokenTotals.size).to.equal(0);
+      expect(nativeValue).toBe(0n);
+      expect(tokenTotals.size).toBe(0);
     });
   });
 
   describe('CONTRACT_BALANCE', () => {
     it('equals 2^255', () => {
-      expect(CONTRACT_BALANCE).to.equal(2n ** 255n);
+      expect(CONTRACT_BALANCE).toBe(2n ** 255n);
     });
   });
 
@@ -366,13 +364,13 @@ describe('QuotedCalls codec', () => {
       const expected = keccak256(
         encodePacked(['address', 'bytes32'], [caller, CLIENT_SALT]),
       );
-      expect(salt).to.equal(expected);
+      expect(salt).toBe(expected);
     });
 
     it('produces different salts for different callers', () => {
       const salt1 = computeScopedSalt(QUOTER, CLIENT_SALT);
       const salt2 = computeScopedSalt(TOKEN, CLIENT_SALT);
-      expect(salt1).to.not.equal(salt2);
+      expect(salt1).not.toBe(salt2);
     });
 
     it('produces different salts for different clientSalts', () => {
@@ -380,7 +378,7 @@ describe('QuotedCalls codec', () => {
         '0x7777777777777777777777777777777777777777777777777777777777777777' as const;
       const salt1 = computeScopedSalt(QUOTER, CLIENT_SALT);
       const salt2 = computeScopedSalt(QUOTER, otherSalt);
-      expect(salt1).to.not.equal(salt2);
+      expect(salt1).not.toBe(salt2);
     });
   });
 });

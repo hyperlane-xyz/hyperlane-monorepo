@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { describe, expect, it } from 'vitest';
 
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 
@@ -20,8 +20,8 @@ describe('StarknetProtocolProvider', () => {
 
     const manager = provider.createWarpArtifactManager(METADATA);
 
-    expect(manager).to.be.instanceOf(StarknetWarpArtifactManager);
-    expect(manager.supportsHookUpdates()).to.equal(true);
+    expect(manager).toBeInstanceOf(StarknetWarpArtifactManager);
+    expect(manager.supportsHookUpdates()).toBe(true);
   });
 
   it('does not implement a protocol-level submitter', async () => {
@@ -39,6 +39,6 @@ describe('StarknetProtocolProvider', () => {
       error = caughtError;
     }
 
-    expect(String(error)).to.match(/Not implemented/);
+    expect(String(error)).toMatch(/Not implemented/);
   });
 });

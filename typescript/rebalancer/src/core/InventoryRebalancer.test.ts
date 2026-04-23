@@ -1,5 +1,4 @@
-import chai, { expect } from 'chai';
-import chaiAsPromised from 'chai-as-promised';
+import { expect } from 'vitest';
 import { Wallet } from 'ethers';
 import type { Logger } from 'pino';
 import { pino } from 'pino';
@@ -27,8 +26,6 @@ import {
   InventoryRebalancer,
   type InventoryRebalancerConfig,
 } from './InventoryRebalancer.js';
-
-chai.use(chaiAsPromised);
 
 const testLogger = pino({ level: 'silent' });
 
@@ -318,28 +315,28 @@ describe('InventoryRebalancer E2E', () => {
       const results = await inventoryRebalancer.rebalance([route]);
 
       // Verify: Single successful result
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.true;
-      expect(results[0].route).to.deep.equal(route);
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(true);
+      expect(results[0].route).toEqual(route);
 
       // Verify: transferRemote was called via adapter
-      expect(adapterStub.quoteTransferRemoteGas.calledOnce).to.be.true;
-      expect(warpCore.getTransferRemoteTxs.calledOnce).to.be.true;
+      expect(adapterStub.quoteTransferRemoteGas.calledOnce).toBe(true);
+      expect(warpCore.getTransferRemoteTxs.calledOnce).toBe(true);
 
       // Verify: Transaction was sent FROM SOLANA (destination chain, swapped)
-      expect(multiProvider.sendTransaction.calledOnce).to.be.true;
+      expect(multiProvider.sendTransaction.calledOnce).toBe(true);
       const [chainArg, txArg] = multiProvider.sendTransaction.firstCall.args;
-      expect(chainArg).to.equal(SOLANA_CHAIN); // Called FROM destination (swapped)
-      expect(txArg.to).to.equal('0xRouterAddress');
+      expect(chainArg).toBe(SOLANA_CHAIN); // Called FROM destination (swapped)
+      expect(txArg.to).toBe('0xRouterAddress');
 
       // Verify: inventory_deposit action was created
-      expect(actionTracker.createRebalanceAction.calledOnce).to.be.true;
+      expect(actionTracker.createRebalanceAction.calledOnce).toBe(true);
       const actionParams =
         actionTracker.createRebalanceAction.firstCall.args[0];
-      expect(actionParams.intentId).to.equal('intent-1');
-      expect(actionParams.type).to.equal('inventory_deposit');
-      expect(actionParams.amount).to.equal(10000000000n);
-      expect(actionParams.txHash).to.equal('0xTransferRemoteTxHash');
+      expect(actionParams.intentId).toBe('intent-1');
+      expect(actionParams.type).toBe('inventory_deposit');
+      expect(actionParams.amount).toBe(10000000000n);
+      expect(actionParams.txHash).toBe('0xTransferRemoteTxHash');
     });
 
     it('executes transferRemote with correct parameters (swapped direction)', async () => {
@@ -356,10 +353,10 @@ describe('InventoryRebalancer E2E', () => {
 
       // Direction is SWAPPED: transferRemote from solana TO arbitrum
       const txParams = warpCore.getTransferRemoteTxs.firstCall.args[0];
-      expect(txParams.destination).to.equal(ARBITRUM_CHAIN); // Goes TO arbitrum (swapped)
-      expect(txParams.sender).to.equal(INVENTORY_SIGNER);
-      expect(txParams.recipient).to.equal(INVENTORY_SIGNER);
-      expect(txParams.originTokenAmount.amount).to.equal(5000000000n);
+      expect(txParams.destination).toBe(ARBITRUM_CHAIN); // Goes TO arbitrum (swapped)
+      expect(txParams.sender).toBe(INVENTORY_SIGNER);
+      expect(txParams.recipient).toBe(INVENTORY_SIGNER);
+      expect(txParams.originTokenAmount.amount).toBe(5000000000n);
     });
 
     it('uses IMultiProtocolSigner path for solana transfer txs', async () => {
@@ -407,14 +404,14 @@ describe('InventoryRebalancer E2E', () => {
 
       const results = await inventoryRebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.true;
-      expect(sendAndConfirmStub.calledOnce).to.be.true;
-      expect(sendAndConfirmStub.firstCall.args[0]).to.equal(SOLANA_CHAIN);
-      expect(multiProvider.sendTransaction.called).to.be.false;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(true);
+      expect(sendAndConfirmStub.calledOnce).toBe(true);
+      expect(sendAndConfirmStub.firstCall.args[0]).toBe(SOLANA_CHAIN);
+      expect(multiProvider.sendTransaction.called).toBe(false);
 
       const actionParams = actionTracker.createRebalanceAction.lastCall.args[0];
-      expect(actionParams.txHash).to.equal('0xSolanaTxHash');
+      expect(actionParams.txHash).toBe('0xSolanaTxHash');
     });
 
     it('denormalizes inventory execution amounts but records canonical deposit amount', async () => {
@@ -432,16 +429,16 @@ describe('InventoryRebalancer E2E', () => {
 
       const results = await inventoryRebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.true;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(true);
 
       const txParams = warpCore.getTransferRemoteTxs.firstCall.args[0];
-      expect(txParams.originTokenAmount.amount).to.equal(
+      expect(txParams.originTokenAmount.amount).toBe(
         1_000_000_000_000_000_000n,
       );
 
       const actionParams = actionTracker.createRebalanceAction.lastCall.args[0];
-      expect(actionParams.amount).to.equal(1_000_000n);
+      expect(actionParams.amount).toBe(1_000_000n);
     });
   });
 
@@ -477,8 +474,8 @@ describe('InventoryRebalancer E2E', () => {
       },
     });
 
-    expect(result).to.deep.equal({ txHash: '0xTransferRemoteTxHash' });
-    expect(multiProvider.setSigner.calledOnce).to.be.true;
+    expect(result).toEqual({ txHash: '0xTransferRemoteTxHash' });
+    expect(multiProvider.setSigner.calledOnce).toBe(true);
     expect(
       multiProvider.sendTransaction.calledOnceWithExactly(
         TRON_CHAIN,
@@ -489,7 +486,7 @@ describe('InventoryRebalancer E2E', () => {
         },
         { waitConfirmations: 2 },
       ),
-    ).to.be.true;
+    ).toBe(true);
   });
 
   it('buildSignerAccountConfig returns correct config for Tron protocol', () => {
@@ -507,10 +504,10 @@ describe('InventoryRebalancer E2E', () => {
       'tron' as ChainName,
     );
 
-    expect(result.protocol).to.equal(ProtocolType.Tron);
-    expect(result.privateKey).to.equal(TEST_PRIVATE_KEY);
+    expect(result.protocol).toBe(ProtocolType.Tron);
+    expect(result.privateKey).toBe(TEST_PRIVATE_KEY);
     // Tron uses same 0x-prefixed hex key format as Ethereum
-    expect(result.privateKey.startsWith('0x')).to.be.true;
+    expect(result.privateKey.startsWith('0x')).toBe(true);
   });
 
   it('getTransactionReceipt returns EthersV5 type for Tron chain', async () => {
@@ -535,9 +532,9 @@ describe('InventoryRebalancer E2E', () => {
     ).getTransactionReceipt.bind(inventoryRebalancer);
     const receipt = await getReceiptFn(TRON_CHAIN, '0xTronTxHash');
 
-    expect(receipt).to.not.be.undefined;
-    expect(receipt.type).to.equal(ProviderType.EthersV5);
-    expect(receipt.receipt).to.deep.equal(mockReceipt);
+    expect(receipt).not.toBeUndefined();
+    expect(receipt.type).toBe(ProviderType.EthersV5);
+    expect(receipt.receipt).toEqual(mockReceipt);
   });
 
   it('extractDispatchedMessageId returns Tron message ids via the EthersV5 path', async () => {
@@ -567,9 +564,9 @@ describe('InventoryRebalancer E2E', () => {
       inventoryRebalancer as any
     ).extractDispatchedMessageId.bind(inventoryRebalancer);
     const messageId = await extractFn(TRON_CHAIN, '0xTronTx');
-    expect(messageId).to.equal(expectedMessageId);
-    expect(getDispatchedMessagesStub.calledOnce).to.be.true;
-    expect(getDispatchedMessagesStub.firstCall.firstArg).to.equal(mockReceipt);
+    expect(messageId).toBe(expectedMessageId);
+    expect(getDispatchedMessagesStub.calledOnce).toBe(true);
+    expect(getDispatchedMessagesStub.firstCall.firstArg).toBe(mockReceipt);
   });
 
   it('selects the Tron signer address from a mixed multi-protocol config', () => {
@@ -596,10 +593,10 @@ describe('InventoryRebalancer E2E', () => {
       inventoryRebalancer as any
     ).getInventorySignerAddress.bind(inventoryRebalancer);
 
-    expect(getInventorySignerAddress('tron' as ChainName)).to.equal(
+    expect(getInventorySignerAddress('tron' as ChainName)).toBe(
       INVENTORY_SIGNER,
     );
-    expect(getInventorySignerAddress(SOLANA_CHAIN)).to.equal(
+    expect(getInventorySignerAddress(SOLANA_CHAIN)).toBe(
       'SoLANAAddReSs1234567890123456789012345678',
     );
   });
@@ -627,17 +624,17 @@ describe('InventoryRebalancer E2E', () => {
       const results = await inventoryRebalancer.rebalance([route]);
 
       // Verify: Success with partial amount
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.true;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(true);
 
       // Verify: transferRemote was called with available amount (0.005 ETH), not full amount (0.01 ETH)
       const txParams = warpCore.getTransferRemoteTxs.firstCall.args[0];
-      expect(txParams.originTokenAmount.amount).to.equal(PARTIAL_AMOUNT);
+      expect(txParams.originTokenAmount.amount).toBe(PARTIAL_AMOUNT);
 
       // Verify: Action created for partial amount
       const actionParams =
         actionTracker.createRebalanceAction.firstCall.args[0];
-      expect(actionParams.amount).to.equal(PARTIAL_AMOUNT);
+      expect(actionParams.amount).toBe(PARTIAL_AMOUNT);
     });
 
     it('uses fee-aware maxTransferable for non-native token fees', async () => {
@@ -657,21 +654,21 @@ describe('InventoryRebalancer E2E', () => {
 
       const results = await inventoryRebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.true;
-      expect(warpCore.getMaxTransferAmount.calledOnce).to.be.true;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(true);
+      expect(warpCore.getMaxTransferAmount.calledOnce).toBe(true);
 
       const maxTransferArgs = warpCore.getMaxTransferAmount.firstCall.args[0];
-      expect(maxTransferArgs.balance.amount).to.equal(availableInventory);
-      expect(maxTransferArgs.destination).to.equal(ARBITRUM_CHAIN);
+      expect(maxTransferArgs.balance.amount).toBe(availableInventory);
+      expect(maxTransferArgs.destination).toBe(ARBITRUM_CHAIN);
 
       const txParams = warpCore.getTransferRemoteTxs.lastCall.args[0];
-      expect(txParams.originTokenAmount.amount).to.equal(safeTransferAmount);
-      expect(txParams).to.not.have.property('interchainFee');
-      expect(txParams).to.not.have.property('tokenFeeQuote');
+      expect(txParams.originTokenAmount.amount).toBe(safeTransferAmount);
+      expect(txParams).not.toHaveProperty('interchainFee');
+      expect(txParams).not.toHaveProperty('tokenFeeQuote');
 
       const actionParams = actionTracker.createRebalanceAction.lastCall.args[0];
-      expect(actionParams.amount).to.equal(safeTransferAmount);
+      expect(actionParams.amount).toBe(safeTransferAmount);
     });
 
     it('downgrades full non-native transfers to partial when fee headroom is missing', async () => {
@@ -690,13 +687,13 @@ describe('InventoryRebalancer E2E', () => {
 
       const results = await inventoryRebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.true;
-      expect(bridge.execute.called).to.be.false;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(true);
+      expect(bridge.execute.called).toBe(false);
 
       const txParams = warpCore.getTransferRemoteTxs.lastCall.args[0];
-      expect(txParams.originTokenAmount.amount).to.equal(safeTransferAmount);
-      expect(txParams.originTokenAmount.amount).to.not.equal(requestedAmount);
+      expect(txParams.originTokenAmount.amount).toBe(safeTransferAmount);
+      expect(txParams.originTokenAmount.amount).not.toBe(requestedAmount);
     });
 
     it('intent remains in_progress after partial fulfillment', async () => {
@@ -712,7 +709,7 @@ describe('InventoryRebalancer E2E', () => {
       const results = await inventoryRebalancer.rebalance([route]);
 
       // Verify: Partial transfer succeeded
-      expect(results[0].success).to.be.true;
+      expect(results[0].success).toBe(true);
     });
   });
 
@@ -731,15 +728,15 @@ describe('InventoryRebalancer E2E', () => {
 
       const results = await inventoryRebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.true;
-      expect(warpCore.getMaxTransferAmount.called).to.be.false;
-      expect(warpCore.getTransferRemoteTxs.called).to.be.false;
-      expect(bridge.execute.calledOnce).to.be.true;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(true);
+      expect(warpCore.getMaxTransferAmount.called).toBe(false);
+      expect(warpCore.getTransferRemoteTxs.called).toBe(false);
+      expect(bridge.execute.calledOnce).toBe(true);
 
       const actionParams =
         actionTracker.createRebalanceAction.firstCall.args[0];
-      expect(actionParams.type).to.equal('inventory_movement');
+      expect(actionParams.type).toBe('inventory_movement');
     });
 
     it('returns failure for unrelated fee-aware probe errors', async () => {
@@ -754,11 +751,11 @@ describe('InventoryRebalancer E2E', () => {
 
       const results = await inventoryRebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.false;
-      expect(results[0].error).to.include('RPC down');
-      expect(bridge.execute.called).to.be.false;
-      expect(actionTracker.createRebalanceAction.called).to.be.false;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(false);
+      expect(results[0].error).toContain('RPC down');
+      expect(bridge.execute.called).toBe(false);
+      expect(actionTracker.createRebalanceAction.called).toBe(false);
     });
   });
 
@@ -777,14 +774,14 @@ describe('InventoryRebalancer E2E', () => {
       const results = await inventoryRebalancer.rebalance([route]);
 
       // Verify: Failure result
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.false;
-      expect(results[0].error).to.include('No inventory available');
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(false);
+      expect(results[0].error).toContain('No inventory available');
 
       // Verify: No transferRemote attempted
-      expect(warpCore.getTransferRemoteTxs.called).to.be.false;
-      expect(multiProvider.sendTransaction.called).to.be.false;
-      expect(actionTracker.createRebalanceAction.called).to.be.false;
+      expect(warpCore.getTransferRemoteTxs.called).toBe(false);
+      expect(multiProvider.sendTransaction.called).toBe(false);
+      expect(actionTracker.createRebalanceAction.called).toBe(false);
     });
   });
 
@@ -811,14 +808,14 @@ describe('InventoryRebalancer E2E', () => {
       const results = await inventoryRebalancer.rebalance([route1, route2]);
 
       // Verify: Only ONE route processed (single-intent architecture)
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.true;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(true);
 
       // Verify: Only one intent created
-      expect(actionTracker.createRebalanceIntent.calledOnce).to.be.true;
+      expect(actionTracker.createRebalanceIntent.calledOnce).toBe(true);
 
       // Verify: Only one action created
-      expect(actionTracker.createRebalanceAction.calledOnce).to.be.true;
+      expect(actionTracker.createRebalanceAction.calledOnce).toBe(true);
     });
 
     it('continues existing intent instead of processing new routes', async () => {
@@ -852,11 +849,11 @@ describe('InventoryRebalancer E2E', () => {
       const results = await inventoryRebalancer.rebalance([newRoute]);
 
       // Verify: Existing intent was continued (not new route)
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.true;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(true);
 
       // Verify: No new intent was created (existing was used)
-      expect(actionTracker.createRebalanceIntent.called).to.be.false;
+      expect(actionTracker.createRebalanceIntent.called).toBe(false);
     });
 
     it('returns empty when active intent has in-flight deposit (prevents oscillation)', async () => {
@@ -887,18 +884,18 @@ describe('InventoryRebalancer E2E', () => {
       const results = await inventoryRebalancer.rebalance([newRoute]);
 
       // Must return empty — wait for in-flight deposit to complete
-      expect(results).to.have.lengthOf(0);
+      expect(results).toHaveLength(0);
       // Must NOT create a new intent
-      expect(actionTracker.createRebalanceIntent.called).to.be.false;
+      expect(actionTracker.createRebalanceIntent.called).toBe(false);
       // Must NOT call createRebalanceAction (proves continueIntent was never reached)
-      expect(actionTracker.createRebalanceAction.called).to.be.false;
+      expect(actionTracker.createRebalanceAction.called).toBe(false);
     });
 
     it('returns empty results when no routes provided and no active intent', async () => {
       const results = await inventoryRebalancer.rebalance([]);
 
-      expect(results).to.have.lengthOf(0);
-      expect(actionTracker.createRebalanceIntent.called).to.be.false;
+      expect(results).toHaveLength(0);
+      expect(actionTracker.createRebalanceIntent.called).toBe(false);
     });
 
     it('continues existing not_started intent instead of creating new one', async () => {
@@ -932,11 +929,11 @@ describe('InventoryRebalancer E2E', () => {
       const results = await inventoryRebalancer.rebalance([newRoute]);
 
       // Verify: Existing not_started intent was continued (not new route)
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.true;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(true);
 
       // Verify: No new intent was created (existing was continued)
-      expect(actionTracker.createRebalanceIntent.called).to.be.false;
+      expect(actionTracker.createRebalanceIntent.called).toBe(false);
     });
 
     it('continues existing intent by bridging after recoverable fee-aware probe failure', async () => {
@@ -974,14 +971,14 @@ describe('InventoryRebalancer E2E', () => {
         createTestRoute({ amount: 5000000000n }),
       ]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.true;
-      expect(bridge.execute.calledOnce).to.be.true;
-      expect(actionTracker.createRebalanceIntent.called).to.be.false;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(true);
+      expect(bridge.execute.calledOnce).toBe(true);
+      expect(actionTracker.createRebalanceIntent.called).toBe(false);
 
       const actionParams =
         actionTracker.createRebalanceAction.firstCall.args[0];
-      expect(actionParams.type).to.equal('inventory_movement');
+      expect(actionParams.type).toBe('inventory_movement');
     });
   });
 
@@ -999,9 +996,9 @@ describe('InventoryRebalancer E2E', () => {
 
       const results = await inventoryRebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.false;
-      expect(results[0].error).to.include('Transaction failed');
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(false);
+      expect(results[0].error).toContain('Transaction failed');
     });
 
     it('handles missing token for chain', async () => {
@@ -1019,9 +1016,9 @@ describe('InventoryRebalancer E2E', () => {
 
       const results = await inventoryRebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.false;
-      expect(results[0].error).to.include('No token found');
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(false);
+      expect(results[0].error).toContain('No token found');
     });
 
     it('handles adapter quoteTransferRemoteGas failure', async () => {
@@ -1037,9 +1034,9 @@ describe('InventoryRebalancer E2E', () => {
 
       const results = await inventoryRebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.false;
-      expect(results[0].error).to.include('Gas quote failed');
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(false);
+      expect(results[0].error).toContain('Gas quote failed');
     });
 
     it('throws when inventory signer key is missing', async () => {
@@ -1077,10 +1074,10 @@ describe('InventoryRebalancer E2E', () => {
 
       const results = await inventoryRebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.false;
-      expect(results[0].error).to.include('Missing inventory signer key');
-      expect(bridge.execute.called).to.be.false;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(false);
+      expect(results[0].error).toContain('Missing inventory signer key');
+      expect(bridge.execute.called).toBe(false);
     });
   });
 
@@ -1137,11 +1134,11 @@ describe('InventoryRebalancer E2E', () => {
       const results = await inventoryRebalancer.rebalance([route]);
 
       // Verify: Success with full requested amount (since we have enough for amount + costs)
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.true;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(true);
 
       const txParams = warpCore.getTransferRemoteTxs.lastCall.args[0];
-      expect(txParams.originTokenAmount.amount).to.equal(requestedAmount);
+      expect(txParams.originTokenAmount.amount).toBe(requestedAmount);
     });
 
     it('reduces transfer amount when inventory is limited', async () => {
@@ -1186,11 +1183,11 @@ describe('InventoryRebalancer E2E', () => {
       const results = await inventoryRebalancer.rebalance([route]);
 
       // Verify: Success with reduced amount
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.true;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(true);
 
       const txParams = warpCore.getTransferRemoteTxs.lastCall.args[0];
-      expect(txParams.originTokenAmount.amount).to.equal(partialAmount);
+      expect(txParams.originTokenAmount.amount).toBe(partialAmount);
     });
 
     it('returns failure when inventory cannot cover costs', async () => {
@@ -1227,12 +1224,12 @@ describe('InventoryRebalancer E2E', () => {
       const results = await inventoryRebalancer.rebalance([route]);
 
       // Verify: Failure due to insufficient funds
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.false;
-      expect(results[0].error).to.include('No inventory available');
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(false);
+      expect(results[0].error).toContain('No inventory available');
 
-      expect(warpCore.getTransferRemoteTxs.called).to.be.false;
-      expect(actionTracker.createRebalanceAction.called).to.be.false;
+      expect(warpCore.getTransferRemoteTxs.called).toBe(false);
+      expect(actionTracker.createRebalanceAction.called).toBe(false);
     });
 
     it('does not reserve IGP for non-native tokens', async () => {
@@ -1270,11 +1267,11 @@ describe('InventoryRebalancer E2E', () => {
       const results = await inventoryRebalancer.rebalance([route]);
 
       // Verify: Success with full amount (no IGP deduction)
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.true;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(true);
 
       const txParams = warpCore.getTransferRemoteTxs.firstCall.args[0];
-      expect(txParams.originTokenAmount.amount).to.equal(10000000000n); // Full amount
+      expect(txParams.originTokenAmount.amount).toBe(10000000000n); // Full amount
     });
   });
 
@@ -1330,10 +1327,10 @@ describe('InventoryRebalancer E2E', () => {
 
       const results = await inventoryRebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.true;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(true);
       const txParams = warpCore.getTransferRemoteTxs.lastCall.args[0];
-      expect(txParams.originTokenAmount.amount).to.equal(requestedAmount);
+      expect(txParams.originTokenAmount.amount).toBe(requestedAmount);
     });
 
     it('deducts tokenFeeQuote when addressOrDenom is zero address', async () => {
@@ -1385,10 +1382,10 @@ describe('InventoryRebalancer E2E', () => {
 
       const results = await inventoryRebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.true;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(true);
       const txParams = warpCore.getTransferRemoteTxs.lastCall.args[0];
-      expect(txParams.originTokenAmount.amount).to.equal(requestedAmount);
+      expect(txParams.originTokenAmount.amount).toBe(requestedAmount);
     });
 
     it('does NOT deduct tokenFeeQuote when addressOrDenom is ERC20 address', async () => {
@@ -1441,10 +1438,10 @@ describe('InventoryRebalancer E2E', () => {
 
       const results = await inventoryRebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.true;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(true);
       const txParams = warpCore.getTransferRemoteTxs.lastCall.args[0];
-      expect(txParams.originTokenAmount.amount).to.equal(requestedAmount);
+      expect(txParams.originTokenAmount.amount).toBe(requestedAmount);
     });
 
     it('handles undefined tokenFeeQuote (backward compatibility with v<10)', async () => {
@@ -1493,10 +1490,10 @@ describe('InventoryRebalancer E2E', () => {
 
       const results = await inventoryRebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.true;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(true);
       const txParams = warpCore.getTransferRemoteTxs.lastCall.args[0];
-      expect(txParams.originTokenAmount.amount).to.equal(requestedAmount);
+      expect(txParams.originTokenAmount.amount).toBe(requestedAmount);
     });
 
     it('reduces maxTransferable when large tokenFeeQuote is present', async () => {
@@ -1536,8 +1533,8 @@ describe('InventoryRebalancer E2E', () => {
 
       // Verify: Transfer succeeds with full amount (we have enough for amount + all costs)
       // This demonstrates that tokenFeeQuote is properly deducted from maxTransferable
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.true;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(true);
     });
   });
 
@@ -1551,10 +1548,10 @@ describe('InventoryRebalancer E2E', () => {
         toAmount: 9950000000n,
       });
 
-      expect(quote.id).to.equal('quote-123');
-      expect(quote.tool).to.equal('across');
-      expect(quote.fromAmount).to.equal(10000000000n);
-      expect(quote.toAmount).to.equal(9950000000n);
+      expect(quote.id).toBe('quote-123');
+      expect(quote.tool).toBe('across');
+      expect(quote.fromAmount).toBe(10000000000n);
+      expect(quote.toAmount).toBe(9950000000n);
     });
 
     it('bridge mock can be configured for quote', async () => {
@@ -1574,8 +1571,8 @@ describe('InventoryRebalancer E2E', () => {
         fromAddress: INVENTORY_SIGNER,
       });
 
-      expect(quote.fromAmount).to.equal(10000000000n);
-      expect(quote.toAmount).to.equal(9950000000n);
+      expect(quote.fromAmount).toBe(10000000000n);
+      expect(quote.toAmount).toBe(9950000000n);
     });
   });
 
@@ -1601,16 +1598,14 @@ describe('InventoryRebalancer E2E', () => {
 
       const results = await inventoryRebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.true;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(true);
 
       const txParams = warpCore.getTransferRemoteTxs.lastCall.args[0];
-      expect(txParams.originTokenAmount.amount).to.equal(
-        availableOnDestination,
-      );
+      expect(txParams.originTokenAmount.amount).toBe(availableOnDestination);
 
       // Verify: Bridge was NOT called (no need to bridge when partial transfer is viable)
-      expect(bridge.execute.called).to.be.false;
+      expect(bridge.execute.called).toBe(false);
     });
 
     it('does partial transfer when maxTransferable >= minViableTransfer', async () => {
@@ -1630,11 +1625,11 @@ describe('InventoryRebalancer E2E', () => {
 
       const results = await inventoryRebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.true;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(true);
 
       const txParams = warpCore.getTransferRemoteTxs.lastCall.args[0];
-      expect(txParams.originTokenAmount.amount).to.equal(maxTransferable);
+      expect(txParams.originTokenAmount.amount).toBe(maxTransferable);
     });
 
     it('does NOT do partial transfer when maxTransferable < minViableTransfer (native tokens)', async () => {
@@ -1683,11 +1678,11 @@ describe('InventoryRebalancer E2E', () => {
 
       const results = await inventoryRebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.true;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(true);
 
       // Verify: inventory movement via bridge happened (NOT partial transferRemote)
-      expect(bridge.execute.called).to.be.true;
+      expect(bridge.execute.called).toBe(true);
     });
   });
 
@@ -1727,19 +1722,18 @@ describe('InventoryRebalancer E2E', () => {
 
       const results = await inventoryRebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.true;
-      expect((results[0] as any).reason).to.equal(
-        'completed_with_acceptable_loss',
-      );
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(true);
+      expect((results[0] as any).reason).toBe('completed_with_acceptable_loss');
 
       // Verify: Intent was completed (not left in progress)
-      expect(actionTracker.completeRebalanceIntent.calledOnce).to.be.true;
-      expect(actionTracker.completeRebalanceIntent.calledWith('intent-1')).to.be
-        .true;
+      expect(actionTracker.completeRebalanceIntent.calledOnce).toBe(true);
+      expect(actionTracker.completeRebalanceIntent.calledWith('intent-1')).toBe(
+        true,
+      );
 
       // Verify: No transferRemote was attempted
-      expect(actionTracker.createRebalanceAction.called).to.be.false;
+      expect(actionTracker.createRebalanceAction.called).toBe(false);
     });
   });
 
@@ -1807,11 +1801,11 @@ describe('InventoryRebalancer E2E', () => {
 
       const results = await inventoryRebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.true;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(true);
 
       // Verify: Bridge was called twice (once for each source)
-      expect(bridge.execute.callCount).to.equal(2);
+      expect(bridge.execute.callCount).toBe(2);
     });
 
     it('does not inflate each split bridge plan to minViableTransfer', async () => {
@@ -1857,16 +1851,16 @@ describe('InventoryRebalancer E2E', () => {
 
       const results = await inventoryRebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.true;
-      expect(bridge.execute.callCount).to.equal(2);
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(true);
+      expect(bridge.execute.callCount).toBe(2);
 
       const maxPerSourceOutput = perChainInventory - reservedGas;
       const executionQuoteRequests = bridge.quote
         .getCalls()
         .slice(-2)
         .map((call) => call.args[0]);
-      expect(executionQuoteRequests).to.have.lengthOf(2);
+      expect(executionQuoteRequests).toHaveLength(2);
 
       const forwardQuoteRequests = executionQuoteRequests.filter(
         (params) => params.fromAmount !== undefined,
@@ -1878,17 +1872,16 @@ describe('InventoryRebalancer E2E', () => {
         (params) => params.fromAmount as bigint,
       );
 
+      expect(forwardQuoteRequests.length + reverseQuoteRequests.length).toBe(2);
+      expect(forwardQuoteRequests.length).toBeGreaterThan(0);
       expect(
-        forwardQuoteRequests.length + reverseQuoteRequests.length,
-      ).to.equal(2);
-      expect(forwardQuoteRequests.length).to.be.greaterThan(0);
-      expect(forwardAmounts.every((amount) => amount <= maxPerSourceOutput)).to
-        .be.true;
+        forwardAmounts.every((amount) => amount <= maxPerSourceOutput),
+      ).toBe(true);
       expect(
         reverseQuoteRequests.every(
           (params) => (params.toAmount as bigint) <= maxPerSourceOutput,
         ),
-      ).to.be.true;
+      ).toBe(true);
     });
 
     it('applies 5% buffer to total bridge amount', async () => {
@@ -1930,7 +1923,7 @@ describe('InventoryRebalancer E2E', () => {
 
       // Verify: 5% buffer applied (1 ETH * 1.05 = 1.05 ETH)
       const expectedWithBuffer = (amount * 105n) / 100n;
-      expect(quotedTargetOutput).to.equal(expectedWithBuffer);
+      expect(quotedTargetOutput).toBe(expectedWithBuffer);
     });
 
     it('bridges only the mixed-decimal shortfall after dust partial skip', async () => {
@@ -1973,11 +1966,11 @@ describe('InventoryRebalancer E2E', () => {
 
       const results = await inventoryRebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.true;
-      expect(warpCore.getTransferRemoteTxs.called).to.be.false;
-      expect(bridge.execute.calledOnce).to.be.true;
-      expect(reverseQuoteTargetOutput).to.equal(1n);
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(true);
+      expect(warpCore.getTransferRemoteTxs.called).toBe(false);
+      expect(bridge.execute.calledOnce).toBe(true);
+      expect(reverseQuoteTargetOutput).toBe(1n);
     });
 
     it('plans LiFi target output in destination-local units for mixed-decimal routes', async () => {
@@ -2019,7 +2012,7 @@ describe('InventoryRebalancer E2E', () => {
 
       await inventoryRebalancer.rebalance([route]);
 
-      expect(quotedTargetOutput).to.equal(1_050_000_000_000_000_000n);
+      expect(quotedTargetOutput).toBe(1_050_000_000_000_000_000n);
     });
 
     it('retries forward execution when reverse quote exceeds planned source capacity', async () => {
@@ -2096,17 +2089,13 @@ describe('InventoryRebalancer E2E', () => {
 
       const results = await inventoryRebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.true;
-      expect(bridge.execute.calledOnce).to.be.true;
-      expect(bridge.quote.callCount).to.equal(3);
-      expect(bridge.quote.getCall(1).args[0].toAmount).to.equal(
-        targetWithBuffer,
-      );
-      expect(bridge.quote.getCall(2).args[0].fromAmount).to.equal(
-        sourceInventory,
-      );
-      expect(bridge.quote.getCall(2).args[0].toAmount).to.be.undefined;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(true);
+      expect(bridge.execute.calledOnce).toBe(true);
+      expect(bridge.quote.callCount).toBe(3);
+      expect(bridge.quote.getCall(1).args[0].toAmount).toBe(targetWithBuffer);
+      expect(bridge.quote.getCall(2).args[0].fromAmount).toBe(sourceInventory);
+      expect(bridge.quote.getCall(2).args[0].toAmount).toBeUndefined();
     });
 
     it('fails when forward retry still exceeds planned source capacity', async () => {
@@ -2177,19 +2166,15 @@ describe('InventoryRebalancer E2E', () => {
 
       const results = await inventoryRebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.false;
-      expect(results[0].error).to.include('All inventory movements failed');
-      expect(results[0].error).to.include('exceeded planned source capacity');
-      expect(bridge.quote.callCount).to.equal(3);
-      expect(bridge.execute.called).to.be.false;
-      expect(bridge.quote.getCall(1).args[0].toAmount).to.equal(
-        targetWithBuffer,
-      );
-      expect(bridge.quote.getCall(2).args[0].fromAmount).to.equal(
-        sourceInventory,
-      );
-      expect(bridge.quote.getCall(2).args[0].toAmount).to.be.undefined;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(false);
+      expect(results[0].error).toContain('All inventory movements failed');
+      expect(results[0].error).toContain('exceeded planned source capacity');
+      expect(bridge.quote.callCount).toBe(3);
+      expect(bridge.execute.called).toBe(false);
+      expect(bridge.quote.getCall(1).args[0].toAmount).toBe(targetWithBuffer);
+      expect(bridge.quote.getCall(2).args[0].fromAmount).toBe(sourceInventory);
+      expect(bridge.quote.getCall(2).args[0].toAmount).toBeUndefined();
     });
 
     it('fails gracefully when execute-time bridge quote rejects', async () => {
@@ -2227,12 +2212,12 @@ describe('InventoryRebalancer E2E', () => {
 
       const results = await inventoryRebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.false;
-      expect(results[0].error).to.include('All inventory movements failed');
-      expect(results[0].error).to.include('LiFi API timeout');
-      expect(bridge.quote.callCount).to.equal(2);
-      expect(bridge.execute.called).to.be.false;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(false);
+      expect(results[0].error).toContain('All inventory movements failed');
+      expect(results[0].error).toContain('LiFi API timeout');
+      expect(bridge.quote.callCount).toBe(2);
+      expect(bridge.execute.called).toBe(false);
     });
 
     it('preserves non-Error rejection reasons from parallel bridge execution', async () => {
@@ -2280,12 +2265,12 @@ describe('InventoryRebalancer E2E', () => {
 
       const results = await inventoryRebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.false;
-      expect(results[0].error).to.include('All inventory movements failed');
-      expect(results[0].error).to.include('arbitrum: bridge exploded');
-      expect(executeInventoryMovementStub.calledOnce).to.be.true;
-      expect(bridge.execute.called).to.be.false;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(false);
+      expect(results[0].error).toContain('All inventory movements failed');
+      expect(results[0].error).toContain('arbitrum: bridge exploded');
+      expect(executeInventoryMovementStub.calledOnce).toBe(true);
+      expect(bridge.execute.called).toBe(false);
 
       executeInventoryMovementStub.restore();
     });
@@ -2368,9 +2353,9 @@ describe('InventoryRebalancer E2E', () => {
 
       const results = await localRebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.true;
-      expect(bridge.execute.callCount).to.equal(2);
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(true);
+      expect(bridge.execute.callCount).toBe(2);
 
       const summaryCall = logger.info
         .getCalls()
@@ -2385,7 +2370,7 @@ describe('InventoryRebalancer E2E', () => {
         );
 
       assert(summaryCall, 'Expected summary log with totalQuotedOutputMin');
-      expect(summaryCall.args[0].totalQuotedOutputMin).to.equal(
+      expect(summaryCall.args[0].totalQuotedOutputMin).toBe(
         BigInt(1.01e18).toString(),
       );
     });
@@ -2425,8 +2410,8 @@ describe('InventoryRebalancer E2E', () => {
       const results = await inventoryRebalancer.rebalance([route]);
 
       // Verify: Overall success (at least one bridge succeeded)
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.true;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(true);
     });
 
     it('returns failure when all bridges fail', async () => {
@@ -2456,9 +2441,9 @@ describe('InventoryRebalancer E2E', () => {
       const results = await inventoryRebalancer.rebalance([route]);
 
       // Verify: Failure when all bridges fail
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.false;
-      expect(results[0].error).to.include('All inventory movements failed');
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(false);
+      expect(results[0].error).toContain('All inventory movements failed');
     });
   });
 
@@ -2518,14 +2503,14 @@ describe('InventoryRebalancer E2E', () => {
       const results = await inventoryRebalancer.rebalance([route]);
 
       // Verify: Should fail because no sources pass viability check at planning time
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.false;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(false);
       // New behavior: Error is "No viable bridge sources" (filtered at planning time)
       // rather than "Insufficient funds" (which was at execution time)
-      expect(results[0].error).to.include('No viable bridge sources');
+      expect(results[0].error).toContain('No viable bridge sources');
 
       // Verify: Bridge.execute should NOT have been called (filtered during planning)
-      expect(bridge.execute.called).to.be.false;
+      expect(bridge.execute.called).toBe(false);
     });
 
     it('proceeds with bridge when total cost is within available balance', async () => {
@@ -2577,11 +2562,11 @@ describe('InventoryRebalancer E2E', () => {
       const results = await inventoryRebalancer.rebalance([route]);
 
       // Verify: Should succeed
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.true;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(true);
 
       // Verify: Bridge.execute WAS called (not abandoned)
-      expect(bridge.execute.calledOnce).to.be.true;
+      expect(bridge.execute.calledOnce).toBe(true);
     });
 
     it('viability check only applies to native tokens (not ERC20)', async () => {
@@ -2655,12 +2640,12 @@ describe('InventoryRebalancer E2E', () => {
       const results = await inventoryRebalancer.rebalance([route]);
 
       // Verify: Should succeed because ERC20 viability check doesn't include gasCosts
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.true;
-      expect(bridge.execute.calledOnce).to.be.true;
-      expect(bridge.quote.callCount).to.equal(2);
-      expect(bridge.quote.getCall(1).args[0].fromAmount).to.equal(tokenBalance);
-      expect(bridge.quote.getCall(1).args[0].toAmount).to.be.undefined;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(true);
+      expect(bridge.execute.calledOnce).toBe(true);
+      expect(bridge.quote.callCount).toBe(2);
+      expect(bridge.quote.getCall(1).args[0].fromAmount).toBe(tokenBalance);
+      expect(bridge.quote.getCall(1).args[0].toAmount).toBeUndefined();
     });
 
     it('calculates max viable amount as inventory minus (gasCosts * 20) for native tokens', async () => {
@@ -2747,19 +2732,19 @@ describe('InventoryRebalancer E2E', () => {
       const results = await inventoryRebalancer.rebalance([route]);
 
       // Verify: Should succeed - bridge is viable
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.true;
-      expect(bridge.execute.calledOnce).to.be.true;
-      expect(bridge.quote.callCount).to.equal(3);
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(true);
+      expect(bridge.execute.calledOnce).toBe(true);
+      expect(bridge.quote.callCount).toBe(3);
 
-      expect(bridge.quote.getCall(1).args[0].fromAmount).to.equal(maxViable);
+      expect(bridge.quote.getCall(1).args[0].fromAmount).toBe(maxViable);
       const executionTargetOutput = bridge.quote.getCall(2).args[0].toAmount;
-      expect(executionTargetOutput).to.be.a('bigint');
+      expect(typeof executionTargetOutput).toBe('bigint');
       if (executionTargetOutput === undefined) {
         throw new Error('Expected reverse quote to set toAmount');
       }
-      expect(executionTargetOutput > amount).to.be.true;
-      expect(executionTargetOutput <= maxViable).to.be.true;
+      expect(executionTargetOutput > amount).toBe(true);
+      expect(executionTargetOutput <= maxViable).toBe(true);
     });
 
     it('uses forward quote when target output exactly matches source capacity', async () => {
@@ -2801,12 +2786,12 @@ describe('InventoryRebalancer E2E', () => {
 
       const results = await inventoryRebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.true;
-      expect(bridge.execute.calledOnce).to.be.true;
-      expect(bridge.quote.callCount).to.equal(2);
-      expect(bridge.quote.getCall(1).args[0].fromAmount).to.equal(rawBalance);
-      expect(bridge.quote.getCall(1).args[0].toAmount).to.be.undefined;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(true);
+      expect(bridge.execute.calledOnce).toBe(true);
+      expect(bridge.quote.callCount).toBe(2);
+      expect(bridge.quote.getCall(1).args[0].fromAmount).toBe(rawBalance);
+      expect(bridge.quote.getCall(1).args[0].toAmount).toBeUndefined();
     });
 
     it('retries reverse quote as forward when exact-output exceeds source capacity', async () => {
@@ -2856,15 +2841,13 @@ describe('InventoryRebalancer E2E', () => {
 
       const results = await inventoryRebalancer.rebalance([route]);
 
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.true;
-      expect(bridge.execute.calledOnce).to.be.true;
-      expect(bridge.quote.callCount).to.equal(3);
-      expect(bridge.quote.getCall(1).args[0].toAmount).to.equal(
-        targetWithBuffer,
-      );
-      expect(bridge.quote.getCall(2).args[0].fromAmount).to.equal(rawBalance);
-      expect(bridge.quote.getCall(2).args[0].toAmount).to.be.undefined;
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(true);
+      expect(bridge.execute.calledOnce).toBe(true);
+      expect(bridge.quote.callCount).toBe(3);
+      expect(bridge.quote.getCall(1).args[0].toAmount).toBe(targetWithBuffer);
+      expect(bridge.quote.getCall(2).args[0].fromAmount).toBe(rawBalance);
+      expect(bridge.quote.getCall(2).args[0].toAmount).toBeUndefined();
     });
 
     it('handles quote failures gracefully by skipping the source chain', async () => {
@@ -2901,12 +2884,12 @@ describe('InventoryRebalancer E2E', () => {
       const results = await inventoryRebalancer.rebalance([route]);
 
       // Verify: Should fail because quote error means no viable sources
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.false;
-      expect(results[0].error).to.include('No viable bridge sources');
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(false);
+      expect(results[0].error).toContain('No viable bridge sources');
 
       // Verify: Bridge.execute should NOT have been called
-      expect(bridge.execute.called).to.be.false;
+      expect(bridge.execute.called).toBe(false);
     });
   });
 });

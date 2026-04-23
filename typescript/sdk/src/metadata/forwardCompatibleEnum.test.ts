@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
@@ -32,9 +32,9 @@ describe('forwardCompatibleEnum', () => {
         protocol: ProtocolType.Ethereum,
         rpcUrls: [{ http: 'https://rpc.example.com' }],
       });
-      expect(result.success).to.be.true;
+      expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data.protocol).to.equal(ProtocolType.Ethereum);
+        expect(result.data.protocol).toBe(ProtocolType.Ethereum);
       }
     });
 
@@ -46,9 +46,9 @@ describe('forwardCompatibleEnum', () => {
         protocol: 'futureprotocol', // A protocol that doesn't exist yet
         rpcUrls: [{ http: 'https://rpc.example.com' }],
       });
-      expect(result.success).to.be.true;
+      expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data.protocol).to.equal(ProtocolType.Unknown);
+        expect(result.data.protocol).toBe(ProtocolType.Unknown);
       }
     });
   });
@@ -70,9 +70,9 @@ describe('forwardCompatibleEnum', () => {
           },
         ],
       });
-      expect(result.success).to.be.true;
+      expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data.blockExplorers?.[0].family).to.equal(
+        expect(result.data.blockExplorers?.[0].family).toBe(
           ExplorerFamily.Etherscan,
         );
       }
@@ -94,9 +94,9 @@ describe('forwardCompatibleEnum', () => {
           },
         ],
       });
-      expect(result.success).to.be.true;
+      expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data.blockExplorers?.[0].family).to.equal(
+        expect(result.data.blockExplorers?.[0].family).toBe(
           ExplorerFamily.Unknown,
         );
       }
@@ -113,11 +113,9 @@ describe('forwardCompatibleEnum', () => {
         rpcUrls: [{ http: 'https://rpc.example.com' }],
         technicalStack: ChainTechnicalStack.OpStack,
       });
-      expect(result.success).to.be.true;
+      expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data.technicalStack).to.equal(
-          ChainTechnicalStack.OpStack,
-        );
+        expect(result.data.technicalStack).toBe(ChainTechnicalStack.OpStack);
       }
     });
 
@@ -130,11 +128,9 @@ describe('forwardCompatibleEnum', () => {
         rpcUrls: [{ http: 'https://rpc.example.com' }],
         technicalStack: 'newfuturestack', // A technical stack that doesn't exist yet
       });
-      expect(result.success).to.be.true;
+      expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data.technicalStack).to.equal(
-          ChainTechnicalStack.Unknown,
-        );
+        expect(result.data.technicalStack).toBe(ChainTechnicalStack.Unknown);
       }
     });
   });
@@ -145,9 +141,9 @@ describe('forwardCompatibleEnum', () => {
         type: TokenType.collateral,
         token: '0x1234567890123456789012345678901234567890',
       });
-      expect(result.success).to.be.true;
+      expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data.type).to.equal(TokenType.collateral);
+        expect(result.data.type).toBe(TokenType.collateral);
       }
     });
 
@@ -156,9 +152,9 @@ describe('forwardCompatibleEnum', () => {
         type: 'futuretokentype', // A token type that doesn't exist yet
         token: '0x1234567890123456789012345678901234567890',
       });
-      expect(result.success).to.be.true;
+      expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data.type).to.equal(TokenType.unknown);
+        expect(result.data.type).toBe(TokenType.unknown);
       }
     });
   });
@@ -173,44 +169,44 @@ describe('forwardCompatibleEnum', () => {
     const schema = forwardCompatibleEnum(TestEnum, TestEnum.Unknown);
 
     it('should parse known values unchanged', () => {
-      expect(schema.parse('known')).to.equal(TestEnum.Known);
-      expect(schema.parse('another')).to.equal(TestEnum.Another);
+      expect(schema.parse('known')).toBe(TestEnum.Known);
+      expect(schema.parse('another')).toBe(TestEnum.Another);
     });
 
     it('should normalize unknown values to the specified unknown value', () => {
-      expect(schema.parse('newvalue')).to.equal(TestEnum.Unknown);
-      expect(schema.parse('anythingunknown')).to.equal(TestEnum.Unknown);
-      expect(schema.parse('')).to.equal(TestEnum.Unknown);
+      expect(schema.parse('newvalue')).toBe(TestEnum.Unknown);
+      expect(schema.parse('anythingunknown')).toBe(TestEnum.Unknown);
+      expect(schema.parse('')).toBe(TestEnum.Unknown);
     });
 
     it('should handle the Unknown value itself correctly', () => {
-      expect(schema.parse('unknown')).to.equal(TestEnum.Unknown);
+      expect(schema.parse('unknown')).toBe(TestEnum.Unknown);
     });
   });
 
   describe('Unknown enum variants existence', () => {
     it('ProtocolType should have Unknown variant', () => {
-      expect(ProtocolType.Unknown).to.equal('unknown');
+      expect(ProtocolType.Unknown).toBe('unknown');
     });
 
     it('ExplorerFamily should have Unknown variant', () => {
-      expect(ExplorerFamily.Unknown).to.equal('unknown');
+      expect(ExplorerFamily.Unknown).toBe('unknown');
     });
 
     it('ChainTechnicalStack should have Unknown variant', () => {
-      expect(ChainTechnicalStack.Unknown).to.equal('unknown');
+      expect(ChainTechnicalStack.Unknown).toBe('unknown');
     });
 
     it('TokenType should have unknown variant', () => {
-      expect(TokenType.unknown).to.equal('unknown');
+      expect(TokenType.unknown).toBe('unknown');
     });
 
     it('IsmType should have UNKNOWN variant', () => {
-      expect(IsmType.UNKNOWN).to.equal('unknownIsm');
+      expect(IsmType.UNKNOWN).toBe('unknownIsm');
     });
 
     it('HookType should have UNKNOWN variant', () => {
-      expect(HookType.UNKNOWN).to.equal('unknownHook');
+      expect(HookType.UNKNOWN).toBe('unknownHook');
     });
   });
 
@@ -219,9 +215,9 @@ describe('forwardCompatibleEnum', () => {
       const result = SafeParseHookConfigSchema.safeParse({
         type: HookType.MERKLE_TREE,
       });
-      expect(result.success).to.be.true;
+      expect(result.success).toBe(true);
       if (result.success && typeof result.data === 'object') {
-        expect(result.data.type).to.equal(HookType.MERKLE_TREE);
+        expect(result.data.type).toBe(HookType.MERKLE_TREE);
       }
     });
 
@@ -230,9 +226,9 @@ describe('forwardCompatibleEnum', () => {
         type: 'futureHookType',
         someOtherField: 'value',
       });
-      expect(result.success).to.be.true;
+      expect(result.success).toBe(true);
       if (result.success && typeof result.data === 'object') {
-        expect(result.data.type).to.equal(HookType.UNKNOWN);
+        expect(result.data.type).toBe(HookType.UNKNOWN);
       }
     });
 
@@ -244,15 +240,15 @@ describe('forwardCompatibleEnum', () => {
           { type: 'futureHookType', data: 'test' },
         ],
       });
-      expect(result.success).to.be.true;
+      expect(result.success).toBe(true);
       if (
         result.success &&
         typeof result.data === 'object' &&
         result.data.type === HookType.AGGREGATION
       ) {
         const hooks = (result.data as { hooks: Array<{ type: string }> }).hooks;
-        expect(hooks[0].type).to.equal(HookType.MERKLE_TREE);
-        expect(hooks[1].type).to.equal(HookType.UNKNOWN);
+        expect(hooks[0].type).toBe(HookType.MERKLE_TREE);
+        expect(hooks[1].type).toBe(HookType.UNKNOWN);
       }
     });
 
@@ -265,21 +261,21 @@ describe('forwardCompatibleEnum', () => {
         array: [{ type: HookType.MERKLE_TREE }, { type: 'unknownType' }],
       };
       const normalized = normalizeUnknownHookTypes(config);
-      expect(normalized.type).to.equal(HookType.UNKNOWN);
-      expect(normalized.nested.type).to.equal(HookType.UNKNOWN);
-      expect(normalized.array[0].type).to.equal(HookType.MERKLE_TREE);
-      expect(normalized.array[1].type).to.equal(HookType.UNKNOWN);
+      expect(normalized.type).toBe(HookType.UNKNOWN);
+      expect(normalized.nested.type).toBe(HookType.UNKNOWN);
+      expect(normalized.array[0].type).toBe(HookType.MERKLE_TREE);
+      expect(normalized.array[1].type).toBe(HookType.UNKNOWN);
     });
 
     it('normalizeUnknownHookTypes should pass through string addresses unchanged', () => {
       const hookAddress = '0x1234567890123456789012345678901234567890';
       const normalized = normalizeUnknownHookTypes(hookAddress);
-      expect(normalized).to.equal(hookAddress);
+      expect(normalized).toBe(hookAddress);
     });
 
     it('normalizeUnknownHookTypes should handle null and undefined', () => {
-      expect(normalizeUnknownHookTypes(null)).to.equal(null);
-      expect(normalizeUnknownHookTypes(undefined)).to.equal(undefined);
+      expect(normalizeUnknownHookTypes(null)).toBe(null);
+      expect(normalizeUnknownHookTypes(undefined)).toBe(undefined);
     });
   });
 
@@ -288,9 +284,9 @@ describe('forwardCompatibleEnum', () => {
       const result = SafeParseIsmConfigSchema.safeParse({
         type: IsmType.TEST_ISM,
       });
-      expect(result.success).to.be.true;
+      expect(result.success).toBe(true);
       if (result.success && typeof result.data === 'object') {
-        expect(result.data.type).to.equal(IsmType.TEST_ISM);
+        expect(result.data.type).toBe(IsmType.TEST_ISM);
       }
     });
 
@@ -299,9 +295,9 @@ describe('forwardCompatibleEnum', () => {
         type: 'futureIsmType',
         someOtherField: 'value',
       });
-      expect(result.success).to.be.true;
+      expect(result.success).toBe(true);
       if (result.success && typeof result.data === 'object') {
-        expect(result.data.type).to.equal(IsmType.UNKNOWN);
+        expect(result.data.type).toBe(IsmType.UNKNOWN);
       }
     });
 
@@ -314,7 +310,7 @@ describe('forwardCompatibleEnum', () => {
         ],
         threshold: 1,
       });
-      expect(result.success).to.be.true;
+      expect(result.success).toBe(true);
       if (
         result.success &&
         typeof result.data === 'object' &&
@@ -322,8 +318,8 @@ describe('forwardCompatibleEnum', () => {
       ) {
         const modules = (result.data as { modules: Array<{ type: string }> })
           .modules;
-        expect(modules[0].type).to.equal(IsmType.TEST_ISM);
-        expect(modules[1].type).to.equal(IsmType.UNKNOWN);
+        expect(modules[0].type).toBe(IsmType.TEST_ISM);
+        expect(modules[1].type).toBe(IsmType.UNKNOWN);
       }
     });
 
@@ -336,21 +332,21 @@ describe('forwardCompatibleEnum', () => {
         array: [{ type: IsmType.TEST_ISM }, { type: 'unknownType' }],
       };
       const normalized = normalizeUnknownIsmTypes(config);
-      expect(normalized.type).to.equal(IsmType.UNKNOWN);
-      expect(normalized.nested.type).to.equal(IsmType.UNKNOWN);
-      expect(normalized.array[0].type).to.equal(IsmType.TEST_ISM);
-      expect(normalized.array[1].type).to.equal(IsmType.UNKNOWN);
+      expect(normalized.type).toBe(IsmType.UNKNOWN);
+      expect(normalized.nested.type).toBe(IsmType.UNKNOWN);
+      expect(normalized.array[0].type).toBe(IsmType.TEST_ISM);
+      expect(normalized.array[1].type).toBe(IsmType.UNKNOWN);
     });
 
     it('normalizeUnknownIsmTypes should pass through string addresses unchanged', () => {
       const ismAddress = '0x1234567890123456789012345678901234567890';
       const normalized = normalizeUnknownIsmTypes(ismAddress);
-      expect(normalized).to.equal(ismAddress);
+      expect(normalized).toBe(ismAddress);
     });
 
     it('normalizeUnknownIsmTypes should handle null and undefined', () => {
-      expect(normalizeUnknownIsmTypes(null)).to.equal(null);
-      expect(normalizeUnknownIsmTypes(undefined)).to.equal(undefined);
+      expect(normalizeUnknownIsmTypes(null)).toBe(null);
+      expect(normalizeUnknownIsmTypes(undefined)).toBe(undefined);
     });
   });
 });

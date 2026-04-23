@@ -1,6 +1,6 @@
 import assert from 'node:assert';
 
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import { type ChainMap } from '@hyperlane-xyz/sdk';
 
@@ -29,7 +29,7 @@ describe('bridgeConfig', () => {
 
     const result = getBridgeConfig(bridges, 'chain1', 'chain2');
 
-    expect(result).to.deep.equal({
+    expect(result).toEqual({
       executionType: 'movableCollateral',
       bridge: '0x1234567890123456789012345678901234567890',
       bridgeMinAcceptedAmount: 1000,
@@ -57,7 +57,7 @@ describe('bridgeConfig', () => {
 
     const result = getBridgeConfig(bridges, 'chain1', 'chain2');
 
-    expect(result).to.deep.equal({
+    expect(result).toEqual({
       executionType: 'movableCollateral',
       bridge: '0x1234567890123456789012345678901234567890',
       bridgeMinAcceptedAmount: 5000,
@@ -85,7 +85,7 @@ describe('bridgeConfig', () => {
 
     const result = getBridgeConfig(bridges, 'chain1', 'chain2');
 
-    expect(result).to.deep.equal({
+    expect(result).toEqual({
       executionType: 'movableCollateral',
       bridge: '0xABCDEF0123456789ABCDEF0123456789ABCDEF01',
       bridgeMinAcceptedAmount: 1000,
@@ -114,10 +114,10 @@ describe('bridgeConfig', () => {
 
     const result = getBridgeConfig(bridges, 'chain1', 'chain2');
 
-    expect(result.executionType).to.equal(ExecutionType.Inventory);
+    expect(result.executionType).toBe(ExecutionType.Inventory);
     assert(isInventoryConfig(result));
-    expect(result.externalBridge).to.equal(ExternalBridgeType.LiFi);
-    expect(result.bridgeMinAcceptedAmount).to.equal(1000);
+    expect(result.externalBridge).toBe(ExternalBridgeType.LiFi);
+    expect(result.bridgeMinAcceptedAmount).toBe(1000);
   });
   it('should apply override with executionType: inventory and externalBridge', () => {
     const bridges: ChainMap<BridgeConfigWithOverride> = {
@@ -139,9 +139,9 @@ describe('bridgeConfig', () => {
 
     const result = getBridgeConfig(bridges, 'chain1', 'chain2');
 
-    expect(result.executionType).to.equal(ExecutionType.Inventory);
+    expect(result.executionType).toBe(ExecutionType.Inventory);
     assert(isInventoryConfig(result));
-    expect(result.externalBridge).to.equal(ExternalBridgeType.LiFi);
+    expect(result.externalBridge).toBe(ExternalBridgeType.LiFi);
   });
 
   it('should allow override to change executionType from movableCollateral to inventory', () => {
@@ -165,9 +165,9 @@ describe('bridgeConfig', () => {
     const result = getBridgeConfig(bridges, 'chain1', 'chain2');
 
     // Override should win: executionType should be inventory, not movableCollateral
-    expect(result.executionType).to.equal(ExecutionType.Inventory);
+    expect(result.executionType).toBe(ExecutionType.Inventory);
     assert(isInventoryConfig(result));
-    expect(result.externalBridge).to.equal(ExternalBridgeType.LiFi);
+    expect(result.externalBridge).toBe(ExternalBridgeType.LiFi);
   });
 
   it('should preserve base chain executionType when no override exists', () => {
@@ -184,10 +184,8 @@ describe('bridgeConfig', () => {
 
     const result = getBridgeConfig(bridges, 'chain1', 'chain2');
 
-    expect(result.executionType).to.equal(ExecutionType.MovableCollateral);
+    expect(result.executionType).toBe(ExecutionType.MovableCollateral);
     assert(isMovableCollateralConfig(result));
-    expect(result.bridge).to.equal(
-      '0x1234567890123456789012345678901234567890',
-    );
+    expect(result.bridge).toBe('0x1234567890123456789012345678901234567890');
   });
 });

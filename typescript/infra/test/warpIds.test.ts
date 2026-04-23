@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
@@ -24,7 +24,11 @@ describe('Warp IDs', () => {
       expect(
         route,
         `Warp ID ${warpId} not in registry, the .registryrc or your local registry may be out of date`,
-      ).to.not.be.null.and.not.be.undefined;
+      ).not.toBeNull();
+      expect(
+        route,
+        `Warp ID ${warpId} not in registry, the .registryrc or your local registry may be out of date`,
+      ).toBeDefined();
     }
   });
 });

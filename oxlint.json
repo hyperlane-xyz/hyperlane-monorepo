@@ -122,7 +122,11 @@
       ],
       "rules": {
         "no-console": "off",
-        "no-unused-expressions": "off"
+        "no-unused-expressions": "off",
+        "jest/valid-expect": "off",
+        "jest/no-conditional-expect": "off",
+        "jest/require-to-throw-message": "off",
+        "jest/no-standalone-expect": "off"
       }
     },
     {

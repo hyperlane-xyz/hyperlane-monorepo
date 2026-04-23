@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import { ethers } from 'ethers';
 import { rmSync } from 'fs';
 import { tmpdir } from 'os';
@@ -70,13 +70,13 @@ describe('RebalancerConfig', () => {
   it('should throw when the config file does not exist', () => {
     rmSync(TEST_CONFIG_PATH, { force: true });
 
-    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).to.throw(
+    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).toThrow(
       `File doesn't exist at ${TEST_CONFIG_PATH}`,
     );
   });
 
   it('should load config from file', () => {
-    expect(RebalancerConfig.load(TEST_CONFIG_PATH)).to.deep.equal({
+    expect(RebalancerConfig.load(TEST_CONFIG_PATH)).toEqual({
       warpRouteId: 'warpRouteId',
       strategyConfig: [
         {
@@ -112,7 +112,7 @@ describe('RebalancerConfig', () => {
 
     writeYamlOrJson(TEST_CONFIG_PATH, data);
 
-    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).to.throw(
+    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).toThrow(
       'No chains configured',
     );
   });
@@ -123,7 +123,7 @@ describe('RebalancerConfig', () => {
 
     writeYamlOrJson(TEST_CONFIG_PATH, data);
 
-    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).to.throw(
+    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).toThrow(
       'Validation error: Required at "warpRouteId"',
     );
   });
@@ -162,7 +162,7 @@ describe('RebalancerConfig', () => {
 
     expect(
       RebalancerConfig.load(TEST_CONFIG_PATH).strategyConfig[0].chains.chain1,
-    ).to.deep.equal({
+    ).toEqual({
       ...getStrategyArray(data)[0].chains.chain1,
       bridgeLockTime: 1_000,
     });
@@ -202,7 +202,7 @@ describe('RebalancerConfig', () => {
 
     expect(
       RebalancerConfig.load(TEST_CONFIG_PATH).strategyConfig[0].chains.chain1,
-    ).to.deep.equal({
+    ).toEqual({
       ...getStrategyArray(data)[0].chains.chain1,
       bridgeLockTime: 1_000,
     });
@@ -257,15 +257,15 @@ describe('RebalancerConfig', () => {
 
       const config = RebalancerConfig.load(TEST_CONFIG_PATH);
       const chainConfig = config.strategyConfig[0].chains.chain1;
-      expect(chainConfig).to.have.property('override');
+      expect(chainConfig).toHaveProperty('override');
 
       const override = chainConfig.override;
-      expect(override).to.not.be.undefined;
-      expect(override).to.have.property('chain2');
+      expect(override).not.toBeUndefined();
+      expect(override).toHaveProperty('chain2');
 
       const toChain2Override = override!.chain2;
-      expect(toChain2Override).to.have.property('bridge');
-      expect(toChain2Override.bridge).to.equal(
+      expect(toChain2Override).toHaveProperty('bridge');
+      expect(toChain2Override.bridge).toBe(
         '0x1234567890123456789012345678901234567890',
       );
     });
@@ -310,7 +310,7 @@ describe('RebalancerConfig', () => {
 
       writeYamlOrJson(TEST_CONFIG_PATH, data);
 
-      expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).to.throw(
+      expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).toThrow(
         "Chain 'chain1' has an override for 'chain3', but 'chain3' is not defined in the config",
       );
     });
@@ -352,7 +352,7 @@ describe('RebalancerConfig', () => {
 
       writeYamlOrJson(TEST_CONFIG_PATH, data);
 
-      expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).to.throw(
+      expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).toThrow(
         "Chain 'chain1' has an override for 'chain1', but 'chain1' is self-referencing",
       );
     });
@@ -401,17 +401,17 @@ describe('RebalancerConfig', () => {
       const config = RebalancerConfig.load(TEST_CONFIG_PATH);
       const chainConfig = config.strategyConfig[0].chains.chain1;
       const chain1Overrides = chainConfig.override;
-      expect(chain1Overrides).to.not.be.undefined;
-      expect(chain1Overrides).to.have.property('chain2');
-      expect(chain1Overrides).to.have.property('chain3');
+      expect(chain1Overrides).not.toBeUndefined();
+      expect(chain1Overrides).toHaveProperty('chain2');
+      expect(chain1Overrides).toHaveProperty('chain3');
 
       const chain2Overrides = chain1Overrides!.chain2;
-      expect(chain2Overrides).to.have.property('bridgeMinAcceptedAmount');
-      expect(chain2Overrides.bridgeMinAcceptedAmount).to.equal(4000);
+      expect(chain2Overrides).toHaveProperty('bridgeMinAcceptedAmount');
+      expect(chain2Overrides.bridgeMinAcceptedAmount).toBe(4000);
 
       const chain3Overrides = chain1Overrides!.chain3;
-      expect(chain3Overrides).to.have.property('bridge');
-      expect(chain3Overrides.bridge).to.equal(
+      expect(chain3Overrides).toHaveProperty('bridge');
+      expect(chain3Overrides.bridge).toBe(
         '0x1234567890123456789012345678901234567890',
       );
     });
@@ -444,7 +444,7 @@ describe('RebalancerConfig', () => {
       };
 
       writeYamlOrJson(TEST_CONFIG_PATH, data);
-      expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).to.throw(
+      expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).toThrow(
         /override.*inventory execution.*externalBridge/i,
       );
     });
@@ -477,7 +477,7 @@ describe('RebalancerConfig', () => {
       };
 
       writeYamlOrJson(TEST_CONFIG_PATH, data);
-      expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).to.throw(
+      expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).toThrow(
         /inventorySigners.*required/i,
       );
     });
@@ -523,7 +523,7 @@ describe('RebalancerConfig', () => {
 
       writeYamlOrJson(TEST_CONFIG_PATH, data);
 
-      expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).to.throw(
+      expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).toThrow(
         'CollateralDeficitStrategy must be first when used in composite strategy',
       );
     });
@@ -567,7 +567,7 @@ describe('RebalancerConfig', () => {
 
       writeYamlOrJson(TEST_CONFIG_PATH, data);
 
-      expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).to.not.throw();
+      expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).not.toThrow();
     });
   });
 });
@@ -617,7 +617,7 @@ describe('Tron inventorySigners validation', () => {
     };
 
     writeYamlOrJson(TEST_CONFIG_PATH_TRON, data);
-    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH_TRON)).to.throw(
+    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH_TRON)).toThrow(
       /must be a valid 0x hex address/,
     );
   });
@@ -660,7 +660,7 @@ describe('Tron inventorySigners validation', () => {
     };
 
     writeYamlOrJson(TEST_CONFIG_PATH_TRON, data);
-    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH_TRON)).to.not.throw();
+    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH_TRON)).not.toThrow();
   });
 
   it('should reject invalid Tron address in inventorySigners', () => {
@@ -701,7 +701,7 @@ describe('Tron inventorySigners validation', () => {
     };
 
     writeYamlOrJson(TEST_CONFIG_PATH_TRON, data);
-    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH_TRON)).to.throw(
+    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH_TRON)).toThrow(
       /must be a valid 0x hex address/,
     );
   });
@@ -747,10 +747,10 @@ describe('per-chain bridge configuration', () => {
     writeYamlOrJson(TEST_CONFIG_PATH_BRIDGE, data);
     const config = RebalancerConfig.load(TEST_CONFIG_PATH_BRIDGE);
 
-    expect(config.strategyConfig[0].chains.ethereum.externalBridge).to.equal(
+    expect(config.strategyConfig[0].chains.ethereum.externalBridge).toBe(
       'lifi',
     );
-    expect(config.externalBridges?.lifi?.integrator).to.equal('test-app');
+    expect(config.externalBridges?.lifi?.integrator).toBe('test-app');
   });
 
   it('should accept bridges.lifi section with integrator and optional defaultSlippage', () => {
@@ -782,7 +782,7 @@ describe('per-chain bridge configuration', () => {
     writeYamlOrJson(TEST_CONFIG_PATH_BRIDGE, data);
     const config = RebalancerConfig.load(TEST_CONFIG_PATH_BRIDGE);
 
-    expect(config.externalBridges?.lifi).to.deep.include({
+    expect(config.externalBridges?.lifi).toMatchObject({
       integrator: 'my-app',
       defaultSlippage: 0.01,
     });
@@ -809,7 +809,7 @@ describe('per-chain bridge configuration', () => {
 
     writeYamlOrJson(TEST_CONFIG_PATH_BRIDGE, data);
 
-    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH_BRIDGE)).to.throw(
+    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH_BRIDGE)).toThrow(
       /externalBridges\.lifi.*required/i,
     );
   });
@@ -836,7 +836,7 @@ describe('per-chain bridge configuration', () => {
 
     writeYamlOrJson(TEST_CONFIG_PATH_BRIDGE, data);
 
-    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH_BRIDGE)).to.throw(
+    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH_BRIDGE)).toThrow(
       /externalBridges\.lifi.*required|lifi.*not configured/i,
     );
   });
@@ -867,7 +867,7 @@ describe('per-chain bridge configuration', () => {
 
     writeYamlOrJson(TEST_CONFIG_PATH_BRIDGE, data);
 
-    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH_BRIDGE)).to.throw(
+    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH_BRIDGE)).toThrow(
       /ethereum.*inventory execution.*externalBridge/i,
     );
   });
@@ -880,7 +880,7 @@ describe('getAllBridges', () => {
 
   it('should return empty array for empty strategies', () => {
     const result = getAllBridges([]);
-    expect(result).to.deep.equal([]);
+    expect(result).toEqual([]);
   });
 
   it('should return bridge from single strategy', () => {
@@ -903,7 +903,7 @@ describe('getAllBridges', () => {
     ];
 
     const result = getAllBridges(strategies);
-    expect(result).to.deep.equal([BRIDGE_A]);
+    expect(result).toEqual([BRIDGE_A]);
   });
 
   it('should return all bridges from multiple strategies', () => {
@@ -941,8 +941,8 @@ describe('getAllBridges', () => {
     ];
 
     const result = getAllBridges(strategies);
-    expect(result).to.have.members([BRIDGE_A, BRIDGE_B]);
-    expect(result).to.have.lengthOf(2);
+    expect(new Set(result)).toEqual(new Set([BRIDGE_A, BRIDGE_B]));
+    expect(result).toHaveLength(2);
   });
 
   it('should include bridges from per-destination overrides', () => {
@@ -978,8 +978,8 @@ describe('getAllBridges', () => {
     ];
 
     const result = getAllBridges(strategies);
-    expect(result).to.have.members([BRIDGE_A, BRIDGE_B, BRIDGE_C]);
-    expect(result).to.have.lengthOf(3);
+    expect(new Set(result)).toEqual(new Set([BRIDGE_A, BRIDGE_B, BRIDGE_C]));
+    expect(result).toHaveLength(3);
   });
 
   it('should deduplicate bridges across strategies and overrides', () => {
@@ -1022,8 +1022,8 @@ describe('getAllBridges', () => {
     ];
 
     const result = getAllBridges(strategies);
-    expect(result).to.have.members([BRIDGE_A, BRIDGE_B]);
-    expect(result).to.have.lengthOf(2);
+    expect(new Set(result)).toEqual(new Set([BRIDGE_A, BRIDGE_B]));
+    expect(result).toHaveLength(2);
   });
 
   it('should handle overrides without bridge property', () => {
@@ -1051,6 +1051,6 @@ describe('getAllBridges', () => {
     ];
 
     const result = getAllBridges(strategies);
-    expect(result).to.deep.equal([BRIDGE_A]);
+    expect(result).toEqual([BRIDGE_A]);
   });
 });

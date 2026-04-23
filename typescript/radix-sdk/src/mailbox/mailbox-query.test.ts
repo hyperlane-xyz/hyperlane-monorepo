@@ -5,7 +5,7 @@ import {
   type TransactionConstructionResponse,
   type TransactionPreviewResponse,
 } from '@radixdlt/babylon-gateway-api-sdk';
-import { expect } from 'chai';
+import { describe, expect, it } from 'vitest';
 
 import { isMessageDelivered } from './mailbox-query.js';
 
@@ -54,7 +54,7 @@ describe(isMessageDelivered.name, function () {
       '0x1234',
     );
 
-    expect(delivered).to.equal(true);
+    expect(delivered).toBe(true);
   });
 
   it('parses numeric and string boolean output', async function () {
@@ -69,8 +69,8 @@ describe(isMessageDelivered.name, function () {
       '0x1234',
     );
 
-    expect(numericDelivered).to.equal(true);
-    expect(stringDelivered).to.equal(false);
+    expect(numericDelivered).toBe(true);
+    expect(stringDelivered).toBe(false);
   });
 
   it('parses bigint boolean output', async function () {
@@ -85,8 +85,8 @@ describe(isMessageDelivered.name, function () {
       '0x1234',
     );
 
-    expect(bigintDelivered).to.equal(true);
-    expect(bigintUndelivered).to.equal(false);
+    expect(bigintDelivered).toBe(true);
+    expect(bigintUndelivered).toBe(false);
   });
 
   it('throws on malformed boolean output', async function () {
@@ -101,6 +101,6 @@ describe(isMessageDelivered.name, function () {
       error = caughtError;
     }
 
-    expect(String(error)).to.match(/Unexpected delivered\(\) output shape/i);
+    expect(String(error)).toMatch(/Unexpected delivered\(\) output shape/i);
   });
 });

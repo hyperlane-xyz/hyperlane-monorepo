@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import {
   isCheckpoint,
@@ -12,7 +12,7 @@ describe('Checkpoints', () => {
   describe('isValidSignature', () => {
     it('should return true for valid string signature', () => {
       const signature = '0x' + 'a'.repeat(130); // Example of a valid hex string
-      expect(isValidSignature(signature)).to.be.true;
+      expect(isValidSignature(signature)).toBe(true);
     });
 
     it('should return true for valid object signature', () => {
@@ -21,7 +21,7 @@ describe('Checkpoints', () => {
         s: '0x' + 'b'.repeat(64),
         v: 27,
       };
-      expect(isValidSignature(signature)).to.be.true;
+      expect(isValidSignature(signature)).toBe(true);
     });
 
     it('should return false for invalid signature', () => {
@@ -30,7 +30,7 @@ describe('Checkpoints', () => {
         s: '0x' + 'b'.repeat(64),
         v: 'invalid',
       };
-      expect(isValidSignature(signature)).to.be.false;
+      expect(isValidSignature(signature)).toBe(false);
     });
   });
 
@@ -42,7 +42,7 @@ describe('Checkpoints', () => {
         merkle_tree_hook_address: '0x' + 'b'.repeat(40),
         mailbox_domain: 123,
       };
-      expect(isCheckpoint(checkpoint)).to.be.true;
+      expect(isCheckpoint(checkpoint)).toBe(true);
     });
 
     it('should return false for invalid checkpoint', () => {
@@ -52,7 +52,7 @@ describe('Checkpoints', () => {
         merkle_tree_hook_address: 'invalid',
         mailbox_domain: 'invalid',
       };
-      expect(isCheckpoint(checkpoint)).to.be.false;
+      expect(isCheckpoint(checkpoint)).toBe(false);
     });
   });
 
@@ -67,7 +67,7 @@ describe('Checkpoints', () => {
           mailbox_domain: 123,
         },
       };
-      expect(isS3Checkpoint(s3Checkpoint)).to.be.true;
+      expect(isS3Checkpoint(s3Checkpoint)).toBe(true);
     });
 
     it('should return false for invalid S3Checkpoint', () => {
@@ -80,7 +80,7 @@ describe('Checkpoints', () => {
           mailbox_domain: 'invalid',
         },
       };
-      expect(isS3Checkpoint(s3Checkpoint)).to.be.false;
+      expect(isS3Checkpoint(s3Checkpoint)).toBe(false);
     });
   });
 
@@ -98,7 +98,7 @@ describe('Checkpoints', () => {
           message_id: '0x' + 'c'.repeat(64),
         },
       };
-      expect(isS3CheckpointWithId(s3CheckpointWithId)).to.be.true;
+      expect(isS3CheckpointWithId(s3CheckpointWithId)).toBe(true);
     });
 
     it('should return false for invalid S3CheckpointWithId', () => {
@@ -114,7 +114,7 @@ describe('Checkpoints', () => {
           message_id: 'invalid',
         },
       };
-      expect(isS3CheckpointWithId(s3CheckpointWithId)).to.be.false;
+      expect(isS3CheckpointWithId(s3CheckpointWithId)).toBe(false);
     });
   });
 });

@@ -1,5 +1,4 @@
-import * as chai from 'chai';
-import chaiAsPromised from 'chai-as-promised';
+import { expect } from 'vitest';
 
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
@@ -18,9 +17,6 @@ import {
   getHyperlaneCore,
 } from '../scripts/core-utils.js';
 
-const { expect } = chai;
-chai.use(chaiAsPromised);
-chai.should();
 const DEFAULT_TIMEOUT = 100000;
 
 const warpIdsToSkip: string[] = [WarpRouteIds.oUSDT, WarpRouteIds.oUSDTSTAGE];
@@ -75,10 +71,12 @@ describe.skip('Warp Configs', () => {
         }
       }
 
-      expect(warpConfig).to.have.keys(Object.keys(expectedConfig));
+      expect(Object.keys(warpConfig).sort()).toEqual(
+        Object.keys(expectedConfig).sort(),
+      );
       for (const key in warpConfig) {
         if (warpConfig[key]) {
-          expect(normalizeConfig(warpConfig[key])).to.deep.equal(
+          expect(normalizeConfig(warpConfig[key])).toEqual(
             normalizeConfig(expectedConfig[key]),
           );
         }
@@ -86,15 +84,11 @@ describe.skip('Warp Configs', () => {
     });
   }
 
-  // eslint-disable-next-line jest/expect-expect -- uses chai-as-promised .should.eventually assertion
+  // eslint-disable-next-line jest/expect-expect -- uses rejects.toThrow assertion
   it('should throw if warpRouteId is not found in either Getter nor Registry', async () => {
     const invalidWarpIds = '1111bla-bla-bla111';
-    await getWarpConfig(
-      multiProvider,
-      envConfig,
-      invalidWarpIds,
-    ).should.eventually.be.rejectedWith(
-      `Warp route Config not found for ${invalidWarpIds}`,
-    );
+    await expect(
+      getWarpConfig(multiProvider, envConfig, invalidWarpIds),
+    ).rejects.toThrow(`Warp route Config not found for ${invalidWarpIds}`);
   });
 });

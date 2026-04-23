@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import { TokenStandard } from '../token/TokenStandard.js';
 
@@ -29,18 +29,18 @@ describe(buildWarpRouteMaps.name, () => {
       },
     });
 
-    expect(result.warpRouteIdToAddressesMap).to.deep.equal({
+    expect(result.warpRouteIdToAddressesMap).toEqual({
       'usdc/mainnet': [
         { chainName: 'ethereum', address: '0xA' },
         { chainName: 'sepolia', address: '0xB' },
       ],
     });
-    expect(
-      result.warpRouteChainAddressMap.ethereum['0xA']?.wireDecimals,
-    ).to.equal(18);
-    expect(
-      result.warpRouteChainAddressMap.sepolia['0xB']?.wireDecimals,
-    ).to.equal(18);
+    expect(result.warpRouteChainAddressMap.ethereum['0xA']?.wireDecimals).toBe(
+      18,
+    );
+    expect(result.warpRouteChainAddressMap.sepolia['0xB']?.wireDecimals).toBe(
+      18,
+    );
   });
 
   it('skips tokens without an address or denom', () => {
@@ -59,7 +59,7 @@ describe(buildWarpRouteMaps.name, () => {
       },
     });
 
-    expect(result.warpRouteChainAddressMap).to.deep.equal({});
-    expect(result.warpRouteIdToAddressesMap.route).to.deep.equal([]);
+    expect(result.warpRouteChainAddressMap).toEqual({});
+    expect(result.warpRouteIdToAddressesMap.route).toEqual([]);
   });
 });

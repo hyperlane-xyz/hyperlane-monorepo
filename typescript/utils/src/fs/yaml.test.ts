@@ -1,7 +1,7 @@
-import { expect } from 'chai';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { expect } from 'vitest';
 
 import {
   mergeYaml,
@@ -32,7 +32,7 @@ describe('YAML utilities', () => {
   describe('yamlParse', () => {
     it('parses YAML string', () => {
       const result = yamlParse<{ key: string }>('key: value');
-      expect(result).to.deep.equal({ key: 'value' });
+      expect(result).toEqual({ key: 'value' });
     });
 
     it('handles nested structures', () => {
@@ -42,7 +42,7 @@ nested:
     value: 42
 `;
       const result = yamlParse<{ nested: { deep: { value: number } } }>(yaml);
-      expect(result).to.deep.equal({ nested: { deep: { value: 42 } } });
+      expect(result).toEqual({ nested: { deep: { value: 42 } } });
     });
 
     it('handles arrays', () => {
@@ -53,7 +53,7 @@ items:
   - three
 `;
       const result = yamlParse<{ items: string[] }>(yaml);
-      expect(result).to.deep.equal({ items: ['one', 'two', 'three'] });
+      expect(result).toEqual({ items: ['one', 'two', 'three'] });
     });
 
     it('handles YAML aliases without limit', () => {
@@ -72,9 +72,9 @@ list3: *shared
         list2: string[];
         list3: string[];
       }>(yaml);
-      expect(result.list1).to.deep.equal(['item1', 'item2']);
-      expect(result.list2).to.deep.equal(['item1', 'item2']);
-      expect(result.list3).to.deep.equal(['item1', 'item2']);
+      expect(result.list1).toEqual(['item1', 'item2']);
+      expect(result.list2).toEqual(['item1', 'item2']);
+      expect(result.list3).toEqual(['item1', 'item2']);
     });
   });
 
@@ -82,11 +82,11 @@ list3: *shared
     it('reads and parses YAML file', () => {
       fs.writeFileSync(testFile, 'key: value\n');
       const result = readYaml<{ key: string }>(testFile);
-      expect(result).to.deep.equal({ key: 'value' });
+      expect(result).toEqual({ key: 'value' });
     });
 
     it('throws for non-existent file', () => {
-      expect(() => readYaml('/non/existent/file.yaml')).to.throw();
+      expect(() => readYaml('/non/existent/file.yaml')).toThrow();
     });
   });
 
@@ -94,18 +94,18 @@ list3: *shared
     it('returns parsed YAML on success', () => {
       fs.writeFileSync(testFile, 'key: value\n');
       const result = tryReadYaml<{ key: string }>(testFile);
-      expect(result).to.deep.equal({ key: 'value' });
+      expect(result).toEqual({ key: 'value' });
     });
 
     it('returns null for non-existent file', () => {
       const result = tryReadYaml('/non/existent/file.yaml');
-      expect(result).to.be.null;
+      expect(result).toBeNull();
     });
 
     it('returns null for invalid YAML', () => {
       fs.writeFileSync(testFile, 'invalid: yaml: content: [unclosed');
       const result = tryReadYaml(testFile);
-      expect(result).to.be.null;
+      expect(result).toBeNull();
     });
   });
 
@@ -113,26 +113,26 @@ list3: *shared
     it('writes YAML with trailing newline', () => {
       writeYaml(testFile, { key: 'value' });
       const content = fs.readFileSync(testFile, 'utf8');
-      expect(content).to.equal('key: value\n');
+      expect(content).toBe('key: value\n');
     });
 
     it('sorts map entries', () => {
       writeYaml(testFile, { z: 1, a: 2, m: 3 });
       const content = fs.readFileSync(testFile, 'utf8');
       // Keys should be sorted alphabetically
-      expect(content).to.equal('a: 2\nm: 3\nz: 1\n');
+      expect(content).toBe('a: 2\nm: 3\nz: 1\n');
     });
 
     it('handles nested objects', () => {
       writeYaml(testFile, { outer: { inner: 'value' } });
       const result = readYaml<{ outer: { inner: string } }>(testFile);
-      expect(result).to.deep.equal({ outer: { inner: 'value' } });
+      expect(result).toEqual({ outer: { inner: 'value' } });
     });
 
     it('creates directory if needed', () => {
       const nestedFile = path.join(testDir, 'nested', 'test.yaml');
       writeYaml(nestedFile, { nested: true });
-      expect(fs.existsSync(nestedFile)).to.be.true;
+      expect(fs.existsSync(nestedFile)).toBe(true);
     });
   });
 
@@ -140,14 +140,14 @@ list3: *shared
     it('creates file if it does not exist', () => {
       mergeYaml(testFile, { key: 'value' });
       const result = readYaml<{ key: string }>(testFile);
-      expect(result).to.deep.equal({ key: 'value' });
+      expect(result).toEqual({ key: 'value' });
     });
 
     it('merges with existing content', () => {
       writeYaml(testFile, { existing: 'data', toOverwrite: 'old' });
       mergeYaml(testFile, { new: 'data', toOverwrite: 'new' });
       const result = readYaml<Record<string, string>>(testFile);
-      expect(result).to.deep.equal({
+      expect(result).toEqual({
         existing: 'data',
         new: 'data',
         toOverwrite: 'new',
@@ -162,7 +162,7 @@ list3: *shared
         testDir,
         'config.yaml',
       );
-      expect(result).to.deep.equal({ config: true });
+      expect(result).toEqual({ config: true });
     });
   });
 });

@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import { constants } from 'ethers';
 
 import {
@@ -242,7 +242,7 @@ describe('configUtils', () => {
       it(msg, () => {
         const transformedObj = transformConfigToCheck(input);
 
-        expect(transformedObj).to.eql(expected);
+        expect(transformedObj).toEqual(expected);
       });
     }
 
@@ -253,7 +253,7 @@ describe('configUtils', () => {
         scale: 1000000000000,
       } as any);
 
-      expect(transformedObj.scale).to.eql({
+      expect(transformedObj.scale).toEqual({
         numerator: 1000000000000n,
         denominator: 1n,
       });
@@ -266,7 +266,7 @@ describe('configUtils', () => {
         scale: { numerator: 1, denominator: 1000000000000 },
       } as any);
 
-      expect(transformedObj.scale).to.eql({
+      expect(transformedObj.scale).toEqual({
         numerator: 1n,
         denominator: 1000000000000n,
       });
@@ -278,7 +278,7 @@ describe('configUtils', () => {
         token: ADDRESS,
       } as any);
 
-      expect(transformedObj.scale).to.eql({
+      expect(transformedObj.scale).toEqual({
         numerator: 1n,
         denominator: 1n,
       });
@@ -298,7 +298,7 @@ describe('configUtils', () => {
         },
       } as any);
 
-      expect(transformedObj).to.eql({
+      expect(transformedObj).toEqual({
         type: TokenType.collateral,
         token: ADDRESS,
         scale: { numerator: 1n, denominator: 1n },
@@ -326,7 +326,7 @@ describe('configUtils', () => {
         },
       } as any);
 
-      expect(transformedObj).to.eql({
+      expect(transformedObj).toEqual({
         type: TokenType.collateral,
         token: ADDRESS,
         scale: { numerator: 1n, denominator: 1n },
@@ -363,7 +363,7 @@ describe('configUtils', () => {
         },
       } as any);
 
-      expect(transformedObj).to.eql({
+      expect(transformedObj).toEqual({
         type: TokenType.collateral,
         token: ADDRESS,
         scale: { numerator: 1n, denominator: 1n },
@@ -415,7 +415,7 @@ describe('configUtils', () => {
         },
       } as any);
 
-      expect(transformedObj).to.eql({
+      expect(transformedObj).toEqual({
         type: TokenType.collateral,
         token: ADDRESS,
         scale: { numerator: 1n, denominator: 1n },
@@ -462,7 +462,7 @@ describe('configUtils', () => {
         },
       } as any);
 
-      expect(transformedObj).to.eql({
+      expect(transformedObj).toEqual({
         type: TokenType.collateral,
         token: ADDRESS,
         scale: { numerator: 1n, denominator: 1n },
@@ -502,7 +502,7 @@ describe('configUtils', () => {
         },
       } as any);
 
-      expect(transformedObj).to.eql({
+      expect(transformedObj).toEqual({
         type: TokenType.collateral,
         token: ADDRESS,
         scale: { numerator: 1n, denominator: 1n },
@@ -554,8 +554,8 @@ describe('configUtils', () => {
         syntheticConfig,
       ) as ResolvedLinearFeeConfigInput;
 
-      expect(result.token).to.equal(ROUTER_ADDRESS);
-      expect(result.owner).to.equal(OWNER_ADDRESS);
+      expect(result.token).toBe(ROUTER_ADDRESS);
+      expect(result.owner).toBe(OWNER_ADDRESS);
     });
 
     it('should resolve token to collateral address for collateral tokens', () => {
@@ -571,7 +571,7 @@ describe('configUtils', () => {
         collateralConfig,
       ) as ResolvedLinearFeeConfigInput;
 
-      expect(result.token).to.equal(COLLATERAL_TOKEN);
+      expect(result.token).toBe(COLLATERAL_TOKEN);
     });
 
     it('should resolve token to AddressZero for native tokens', () => {
@@ -587,7 +587,7 @@ describe('configUtils', () => {
         nativeConfig,
       ) as ResolvedLinearFeeConfigInput;
 
-      expect(result.token).to.equal(constants.AddressZero);
+      expect(result.token).toBe(constants.AddressZero);
     });
 
     it('should resolve nested feeContracts tokens for RoutingFee', () => {
@@ -614,11 +614,11 @@ describe('configUtils', () => {
         syntheticConfig,
       ) as ResolvedRoutingFeeConfigInput;
 
-      expect(result.token).to.equal(ROUTER_ADDRESS);
-      expect(result.type).to.equal(TokenFeeType.RoutingFee);
+      expect(result.token).toBe(ROUTER_ADDRESS);
+      expect(result.type).toBe(TokenFeeType.RoutingFee);
 
-      expect(result.feeContracts.ethereum.token).to.equal(ROUTER_ADDRESS);
-      expect(result.feeContracts.arbitrum.token).to.equal(ROUTER_ADDRESS);
+      expect(result.feeContracts.ethereum.token).toBe(ROUTER_ADDRESS);
+      expect(result.feeContracts.arbitrum.token).toBe(ROUTER_ADDRESS);
     });
 
     it('should handle RoutingFee with empty feeContracts', () => {
@@ -634,8 +634,8 @@ describe('configUtils', () => {
         syntheticConfig,
       ) as ResolvedRoutingFeeConfigInput;
 
-      expect(result.token).to.equal(ROUTER_ADDRESS);
-      expect(result.type).to.equal(TokenFeeType.RoutingFee);
+      expect(result.token).toBe(ROUTER_ADDRESS);
+      expect(result.type).toBe(TokenFeeType.RoutingFee);
     });
 
     it('should resolve token for nested cross collateral feeContracts', () => {
@@ -666,10 +666,10 @@ describe('configUtils', () => {
         syntheticConfig,
       ) as ResolvedCrossCollateralRoutingFeeConfigInput;
 
-      expect(result.feeContracts.ethereum[DEFAULT_ROUTER_KEY]?.token).to.equal(
+      expect(result.feeContracts.ethereum[DEFAULT_ROUTER_KEY]?.token).toBe(
         ROUTER_ADDRESS,
       );
-      expect(result.feeContracts.ethereum[ROUTER_KEY]?.token).to.equal(
+      expect(result.feeContracts.ethereum[ROUTER_KEY]?.token).toBe(
         ROUTER_ADDRESS,
       );
     });
@@ -708,7 +708,7 @@ describe('configUtils', () => {
         warpDeployConfig,
       });
 
-      expect(normalized[test1.name]).to.deep.equal({
+      expect(normalized[test1.name]).toEqual({
         decimals: 6,
         destinationGas: undefined,
         domainMappings: { [test2.domainId]: 30110 },
@@ -749,7 +749,7 @@ describe('configUtils', () => {
         warpDeployConfig,
       });
 
-      expect(normalized[test1.name]).to.deep.include({
+      expect(normalized[test1.name]).toMatchObject({
         extraOptions: '0xdeadbeef',
       });
     });
@@ -771,7 +771,7 @@ describe('configUtils', () => {
         warpDeployConfig,
       });
 
-      expect(normalized).to.deep.equal(warpDeployConfig);
+      expect(normalized).toEqual(warpDeployConfig);
     });
   });
 
@@ -791,13 +791,13 @@ describe('configUtils', () => {
       const config = buildWarpCoreConfig(['ethereum', 'arbitrum', 'optimism']);
 
       const result = getChainsFromWarpCoreConfig(config);
-      expect(result).to.deep.equal(['ethereum', 'arbitrum', 'optimism']);
+      expect(result).toEqual(['ethereum', 'arbitrum', 'optimism']);
     });
 
     it('should return empty array for empty tokens', () => {
       const config = buildWarpCoreConfig([]);
       const result = getChainsFromWarpCoreConfig(config);
-      expect(result).to.deep.equal([]);
+      expect(result).toEqual([]);
     });
   });
 
@@ -810,16 +810,17 @@ describe('configUtils', () => {
     });
 
     it('should return true for single chain match', () => {
-      expect(warpCoreConfigMatchesChains(config, ['optimism'])).to.be.true;
+      expect(warpCoreConfigMatchesChains(config, ['optimism'])).toBe(true);
     });
 
     it('should return false when a chain is missing', () => {
-      expect(warpCoreConfigMatchesChains(config, ['ethereum', 'polygon'])).to.be
-        .false;
+      expect(warpCoreConfigMatchesChains(config, ['ethereum', 'polygon'])).toBe(
+        false,
+      );
     });
 
     it('should return true for empty chains array', () => {
-      expect(warpCoreConfigMatchesChains(config, [])).to.be.true;
+      expect(warpCoreConfigMatchesChains(config, [])).toBe(true);
     });
   });
 
@@ -835,12 +836,12 @@ describe('configUtils', () => {
         'ethereum',
         'arbitrum',
       ]);
-      expect(Object.keys(result)).to.deep.equal(['ETH/ethereum-arbitrum']);
+      expect(Object.keys(result)).toEqual(['ETH/ethereum-arbitrum']);
     });
 
     it('should return multiple routes when chains match multiple', () => {
       const result = filterWarpCoreConfigMapByChains(configMap, ['ethereum']);
-      expect(Object.keys(result).sort()).to.deep.equal([
+      expect(Object.keys(result).sort()).toEqual([
         'ETH/ethereum-arbitrum',
         'ETH/ethereum-optimism',
       ]);
@@ -848,12 +849,12 @@ describe('configUtils', () => {
 
     it('should return empty object when no routes match', () => {
       const result = filterWarpCoreConfigMapByChains(configMap, ['polygon']);
-      expect(Object.keys(result)).to.have.lengthOf(0);
+      expect(Object.keys(result)).toHaveLength(0);
     });
 
     it('should return all routes for empty chains array', () => {
       const result = filterWarpCoreConfigMapByChains(configMap, []);
-      expect(Object.keys(result)).to.have.lengthOf(3);
+      expect(Object.keys(result)).toHaveLength(3);
     });
   });
 });

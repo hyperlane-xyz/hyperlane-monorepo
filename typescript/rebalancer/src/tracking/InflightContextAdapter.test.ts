@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import Sinon from 'sinon';
 
 import type { MultiProvider } from '@hyperlane-xyz/sdk';
@@ -70,8 +70,8 @@ describe('InflightContextAdapter', () => {
 
       const result = await adapter.getInflightContext();
 
-      expect(result.pendingRebalances).to.have.lengthOf(1);
-      expect(result.pendingRebalances[0]).to.deep.equal({
+      expect(result.pendingRebalances).toHaveLength(1);
+      expect(result.pendingRebalances[0]).toEqual({
         origin: 'ethereum',
         destination: 'arbitrum',
         amount: 1000n,
@@ -81,8 +81,8 @@ describe('InflightContextAdapter', () => {
         bridge: undefined,
       });
 
-      expect(result.pendingTransfers).to.have.lengthOf(1);
-      expect(result.pendingTransfers[0]).to.deep.equal({
+      expect(result.pendingTransfers).toHaveLength(1);
+      expect(result.pendingTransfers[0]).toEqual({
         origin: 'ethereum',
         destination: 'arbitrum',
         amount: 500n,
@@ -95,8 +95,8 @@ describe('InflightContextAdapter', () => {
 
       const result = await adapter.getInflightContext();
 
-      expect(result.pendingRebalances).to.be.an('array').that.is.empty;
-      expect(result.pendingTransfers).to.be.an('array').that.is.empty;
+      expect(Array.isArray(result.pendingRebalances)).toBe(true);
+      expect(Array.isArray(result.pendingTransfers)).toBe(true);
     });
 
     it('should correctly convert domain IDs to chain names', async () => {
@@ -135,10 +135,10 @@ describe('InflightContextAdapter', () => {
 
       const result = await adapter.getInflightContext();
 
-      expect(result.pendingRebalances[0].origin).to.equal('polygon');
-      expect(result.pendingRebalances[0].destination).to.equal('optimism');
-      expect(result.pendingTransfers[0].origin).to.equal('polygon');
-      expect(result.pendingTransfers[0].destination).to.equal('optimism');
+      expect(result.pendingRebalances[0].origin).toBe('polygon');
+      expect(result.pendingRebalances[0].destination).toBe('optimism');
+      expect(result.pendingTransfers[0].origin).toBe('polygon');
+      expect(result.pendingTransfers[0].destination).toBe('optimism');
     });
 
     it('should handle multiple intents and transfers', async () => {
@@ -199,8 +199,8 @@ describe('InflightContextAdapter', () => {
 
       const result = await adapter.getInflightContext();
 
-      expect(result.pendingRebalances).to.have.lengthOf(2);
-      expect(result.pendingTransfers).to.have.lengthOf(2);
+      expect(result.pendingRebalances).toHaveLength(2);
+      expect(result.pendingTransfers).toHaveLength(2);
     });
   });
 });

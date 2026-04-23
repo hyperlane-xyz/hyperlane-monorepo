@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import type { IRegistry } from '@hyperlane-xyz/registry';
 import type { Token, WarpCore } from '@hyperlane-xyz/sdk';
@@ -170,12 +170,12 @@ describe('WarpMonitor', () => {
       pendingLines.some((line) =>
         line.includes(`node_id="${collateralizedNodeId}"`),
       ),
-    ).to.equal(true);
+    ).toBe(true);
     expect(
       pendingLines.some((line) =>
         line.includes(`node_id="${nonCollateralizedNodeId}"`),
       ),
-    ).to.equal(true);
+    ).toBe(true);
 
     const projectedLines = metrics
       .split('\n')
@@ -186,12 +186,12 @@ describe('WarpMonitor', () => {
       projectedLines.some((line) =>
         line.includes(`node_id="${collateralizedNodeId}"`),
       ),
-    ).to.equal(true);
+    ).toBe(true);
     expect(
       projectedLines.some((line) =>
         line.includes(`node_id="${nonCollateralizedNodeId}"`),
       ),
-    ).to.equal(false);
+    ).toBe(false);
   });
 
   it('does not emit inventory metrics when balance read fails', async () => {
@@ -252,7 +252,7 @@ describe('WarpMonitor', () => {
       );
     expect(
       inventoryLines.some((line) => line.includes(`node_id="${nodeId}"`)),
-    ).to.equal(false);
+    ).toBe(false);
   });
 
   it('resets pending metrics and still updates inventory when explorer query fails', async () => {
@@ -311,8 +311,8 @@ describe('WarpMonitor', () => {
           line.startsWith('hyperlane_warp_route_pending_destination_amount{') &&
           line.includes(`node_id="${nodeId}"`),
       );
-    expect(pendingAmountLine).to.exist;
-    expect(pendingAmountLine!.trim().endsWith(' 0')).to.equal(true);
+    expect(pendingAmountLine).toBeDefined();
+    expect(pendingAmountLine!.trim().endsWith(' 0')).toBe(true);
 
     const inventoryLine = metrics
       .split('\n')
@@ -321,7 +321,7 @@ describe('WarpMonitor', () => {
           line.startsWith('hyperlane_warp_route_inventory_balance{') &&
           line.includes(`node_id="${nodeId}"`),
       );
-    expect(inventoryLine).to.exist;
-    expect(inventoryLine!.trim().endsWith(' 1')).to.equal(true);
+    expect(inventoryLine).toBeDefined();
+    expect(inventoryLine!.trim().endsWith(' 1')).toBe(true);
   });
 });

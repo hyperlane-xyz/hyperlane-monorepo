@@ -1,9 +1,8 @@
-import { use as chaiUse, expect } from 'chai';
-import chaiAsPromised from 'chai-as-promised';
 import express, { Express } from 'express';
 import { pino } from 'pino';
 import sinon from 'sinon';
 import request from 'supertest';
+import { expect } from 'vitest';
 
 import { WarpRouteFilterParams } from '@hyperlane-xyz/registry';
 
@@ -18,8 +17,6 @@ import {
   mockRegistryContent,
   mockWarpRouteMap,
 } from '../utils/mockData.js';
-
-chaiUse(chaiAsPromised);
 
 describe('Root Routes', () => {
   let app: Express;
@@ -49,8 +46,8 @@ describe('Root Routes', () => {
         .get('/metadata')
         .expect(AppConstants.HTTP_STATUS_OK);
 
-      expect(response.body).to.deep.equal(mockChainMetadataMap);
-      expect(mockRootService.getMetadata.calledOnce).to.be.true;
+      expect(response.body).toEqual(mockChainMetadataMap);
+      expect(mockRootService.getMetadata.calledOnce).toBe(true);
     });
 
     it('should handle service errors', async () => {
@@ -60,7 +57,7 @@ describe('Root Routes', () => {
         .get('/metadata')
         .expect(AppConstants.HTTP_STATUS_INTERNAL_SERVER_ERROR);
 
-      expect(response.body.message).to.include('Metadata fetch failed');
+      expect(response.body.message).toContain('Metadata fetch failed');
     });
 
     it('should return empty object when no metadata exists', async () => {
@@ -70,7 +67,7 @@ describe('Root Routes', () => {
         .get('/metadata')
         .expect(AppConstants.HTTP_STATUS_OK);
 
-      expect(response.body).to.deep.equal({});
+      expect(response.body).toEqual({});
     });
   });
 
@@ -82,8 +79,8 @@ describe('Root Routes', () => {
         .get('/addresses')
         .expect(AppConstants.HTTP_STATUS_OK);
 
-      expect(response.body).to.deep.equal(mockChainAddressesMap);
-      expect(mockRootService.getAddresses.calledOnce).to.be.true;
+      expect(response.body).toEqual(mockChainAddressesMap);
+      expect(mockRootService.getAddresses.calledOnce).toBe(true);
     });
 
     it('should handle service errors', async () => {
@@ -93,7 +90,7 @@ describe('Root Routes', () => {
         .get('/addresses')
         .expect(AppConstants.HTTP_STATUS_INTERNAL_SERVER_ERROR);
 
-      expect(response.body.message).to.include('Addresses fetch failed');
+      expect(response.body.message).toContain('Addresses fetch failed');
     });
   });
 
@@ -105,8 +102,8 @@ describe('Root Routes', () => {
         .get('/chains')
         .expect(AppConstants.HTTP_STATUS_OK);
 
-      expect(response.body).to.deep.equal(mockChains);
-      expect(mockRootService.getChains.calledOnce).to.be.true;
+      expect(response.body).toEqual(mockChains);
+      expect(mockRootService.getChains.calledOnce).toBe(true);
     });
 
     it('should handle empty chains list', async () => {
@@ -116,7 +113,7 @@ describe('Root Routes', () => {
         .get('/chains')
         .expect(AppConstants.HTTP_STATUS_OK);
 
-      expect(response.body).to.deep.equal([]);
+      expect(response.body).toEqual([]);
     });
 
     it('should handle service errors', async () => {
@@ -126,7 +123,7 @@ describe('Root Routes', () => {
         .get('/chains')
         .expect(AppConstants.HTTP_STATUS_INTERNAL_SERVER_ERROR);
 
-      expect(response.body.message).to.include('Chains fetch failed');
+      expect(response.body.message).toContain('Chains fetch failed');
     });
   });
 
@@ -138,8 +135,8 @@ describe('Root Routes', () => {
         .get('/list-registry-content')
         .expect(AppConstants.HTTP_STATUS_OK);
 
-      expect(response.body).to.deep.equal(mockRegistryContent);
-      expect(mockRootService.listRegistryContent.calledOnce).to.be.true;
+      expect(response.body).toEqual(mockRegistryContent);
+      expect(mockRootService.listRegistryContent.calledOnce).toBe(true);
     });
 
     it('should handle service errors', async () => {
@@ -151,7 +148,7 @@ describe('Root Routes', () => {
         .get('/list-registry-content')
         .expect(AppConstants.HTTP_STATUS_INTERNAL_SERVER_ERROR);
 
-      expect(response.body.message).to.include('Content listing failed');
+      expect(response.body.message).toContain('Content listing failed');
     });
   });
 
@@ -163,8 +160,8 @@ describe('Root Routes', () => {
         .get('/warp-routes')
         .expect(AppConstants.HTTP_STATUS_OK);
 
-      expect(response.body).to.deep.equal(mockWarpRouteMap);
-      expect(mockRootService.getWarpRoutes.calledWith({})).to.be.true;
+      expect(response.body).toEqual(mockWarpRouteMap);
+      expect(mockRootService.getWarpRoutes.calledWith({})).toBe(true);
     });
 
     it('should return filtered warp routes with query parameters', async () => {
@@ -183,8 +180,8 @@ describe('Root Routes', () => {
         .query(filter)
         .expect(AppConstants.HTTP_STATUS_OK);
 
-      expect(response.body).to.deep.equal(filteredRoutes);
-      expect(mockRootService.getWarpRoutes.calledWith(filter)).to.be.true;
+      expect(response.body).toEqual(filteredRoutes);
+      expect(mockRootService.getWarpRoutes.calledWith(filter)).toBe(true);
     });
 
     it('should handle empty warp routes list', async () => {
@@ -194,7 +191,7 @@ describe('Root Routes', () => {
         .get('/warp-routes')
         .expect(AppConstants.HTTP_STATUS_OK);
 
-      expect(response.body).to.deep.equal({});
+      expect(response.body).toEqual({});
     });
 
     it('should return 400 for invalid query parameters', async () => {
@@ -204,10 +201,10 @@ describe('Root Routes', () => {
         .query({ invalidParam: 'invalid' })
         .expect(AppConstants.HTTP_STATUS_BAD_REQUEST);
 
-      expect(response.body.message).to.include(
+      expect(response.body.message).toContain(
         'Validation error in query parameters',
       );
-      expect(mockRootService.getWarpRoutes.called).to.be.false;
+      expect(mockRootService.getWarpRoutes.called).toBe(false);
     });
 
     it('should accept valid query parameters only', async () => {
@@ -219,8 +216,8 @@ describe('Root Routes', () => {
         .query({ symbol: 'ETH', label: 'test' })
         .expect(AppConstants.HTTP_STATUS_OK);
 
-      expect(response.body).to.deep.equal(mockWarpRouteMap);
-      expect(mockRootService.getWarpRoutes.calledOnce).to.be.true;
+      expect(response.body).toEqual(mockWarpRouteMap);
+      expect(mockRootService.getWarpRoutes.calledOnce).toBe(true);
     });
 
     it('should handle service errors', async () => {
@@ -232,7 +229,7 @@ describe('Root Routes', () => {
         .get('/warp-routes')
         .expect(AppConstants.HTTP_STATUS_INTERNAL_SERVER_ERROR);
 
-      expect(response.body.message).to.include('Warp routes fetch failed');
+      expect(response.body.message).toContain('Warp routes fetch failed');
     });
 
     it('should handle multiple filter parameters', async () => {
@@ -248,8 +245,9 @@ describe('Root Routes', () => {
         .query(multipleFilters)
         .expect(AppConstants.HTTP_STATUS_OK);
 
-      expect(mockRootService.getWarpRoutes.calledWith(multipleFilters)).to.be
-        .true;
+      expect(mockRootService.getWarpRoutes.calledWith(multipleFilters)).toBe(
+        true,
+      );
     });
   });
 

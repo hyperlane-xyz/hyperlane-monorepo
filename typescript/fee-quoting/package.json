@@ -39,7 +39,6 @@
   },
   "devDependencies": {
     "@hyperlane-xyz/tsconfig": "workspace:^",
-    "@types/chai": "catalog:",
     "@types/cors": "^2",
     "@types/express": "^4.17.1",
     "@types/node": "catalog:",
@@ -47,7 +46,6 @@
     "@types/yargs": "catalog:",
     "@vercel/ncc": "catalog:",
     "@vitest/coverage-v8": "catalog:",
-    "chai": "catalog:",
     "supertest": "^7.0.0",
     "tsx": "catalog:",
     "typescript": "catalog:",

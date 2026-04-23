@@ -46,7 +46,7 @@
  * }
  * ```
  */
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import { toWei } from '@hyperlane-xyz/utils';
 
@@ -69,8 +69,8 @@ describe('ScenarioGenerator', () => {
         amount: BigInt(toWei(1)),
       });
 
-      expect(scenario.transfers.length).to.equal(100);
-      expect(scenario.chains).to.deep.equal(['chain1', 'chain2']);
+      expect(scenario.transfers.length).toBe(100);
+      expect(scenario.chains).toEqual(['chain1', 'chain2']);
     });
 
     it('should have transfers in chronological order', () => {
@@ -83,7 +83,7 @@ describe('ScenarioGenerator', () => {
       });
 
       for (let i = 1; i < scenario.transfers.length; i++) {
-        expect(scenario.transfers[i].timestamp).to.be.at.least(
+        expect(scenario.transfers[i].timestamp).toBeGreaterThanOrEqual(
           scenario.transfers[i - 1].timestamp,
         );
       }
@@ -102,8 +102,8 @@ describe('ScenarioGenerator', () => {
       });
 
       for (const transfer of scenario.transfers) {
-        expect(transfer.amount >= minAmount).to.be.true;
-        expect(transfer.amount <= maxAmount).to.be.true;
+        expect(transfer.amount >= minAmount).toBe(true);
+        expect(transfer.amount <= maxAmount).toBe(true);
       }
     });
 
@@ -117,8 +117,8 @@ describe('ScenarioGenerator', () => {
       });
 
       for (const transfer of scenario.transfers) {
-        expect(transfer.origin).to.equal('chainA');
-        expect(transfer.destination).to.equal('chainB');
+        expect(transfer.origin).toBe('chainA');
+        expect(transfer.destination).toBe('chainB');
       }
     });
   });
@@ -139,8 +139,8 @@ describe('ScenarioGenerator', () => {
         amountRange: [BigInt(toWei(1)), BigInt(toWei(10))],
       });
 
-      expect(scenario.transfers.length).to.equal(100);
-      expect(scenario.chains).to.deep.equal(['chain1', 'chain2', 'chain3']);
+      expect(scenario.transfers.length).toBe(100);
+      expect(scenario.chains).toEqual(['chain1', 'chain2', 'chain3']);
     });
 
     it('should use all chains', () => {
@@ -159,8 +159,8 @@ describe('ScenarioGenerator', () => {
 
       // With 1000 transfers across 3 chains, all should be used
       for (const chain of chains) {
-        expect(usedOrigins.has(chain)).to.be.true;
-        expect(usedDestinations.has(chain)).to.be.true;
+        expect(usedOrigins.has(chain)).toBe(true);
+        expect(usedDestinations.has(chain)).toBe(true);
       }
     });
 
@@ -173,7 +173,7 @@ describe('ScenarioGenerator', () => {
       });
 
       for (const transfer of scenario.transfers) {
-        expect(transfer.origin).to.not.equal(transfer.destination);
+        expect(transfer.origin).not.toBe(transfer.destination);
       }
     });
 
@@ -185,7 +185,7 @@ describe('ScenarioGenerator', () => {
           duration: 10000,
           amountRange: [BigInt(1), BigInt(10)],
         });
-      }).to.throw('Random traffic requires at least 2 chains');
+      }).toThrow('Random traffic requires at least 2 chains');
     });
   });
 
@@ -213,8 +213,8 @@ describe('ScenarioGenerator', () => {
       const ratio = toHeavy / scenario.transfers.length;
 
       // Should be close to 90% (allow some variance due to randomness)
-      expect(ratio).to.be.greaterThan(0.85);
-      expect(ratio).to.be.lessThan(0.95);
+      expect(ratio).toBeGreaterThan(0.85);
+      expect(ratio).toBeLessThan(0.95);
     });
   });
 
@@ -242,14 +242,14 @@ describe('ScenarioGenerator', () => {
       const serialized = ScenarioGenerator.serialize(original);
       const deserialized = ScenarioGenerator.deserialize(serialized);
 
-      expect(deserialized.name).to.equal(original.name);
-      expect(deserialized.duration).to.equal(original.duration);
-      expect(deserialized.chains).to.deep.equal(original.chains);
-      expect(deserialized.transfers.length).to.equal(original.transfers.length);
+      expect(deserialized.name).toBe(original.name);
+      expect(deserialized.duration).toBe(original.duration);
+      expect(deserialized.chains).toEqual(original.chains);
+      expect(deserialized.transfers.length).toBe(original.transfers.length);
 
       for (let i = 0; i < original.transfers.length; i++) {
-        expect(deserialized.transfers[i].id).to.equal(original.transfers[i].id);
-        expect(deserialized.transfers[i].amount.toString()).to.equal(
+        expect(deserialized.transfers[i].id).toBe(original.transfers[i].id);
+        expect(deserialized.transfers[i].amount.toString()).toBe(
           original.transfers[i].amount.toString(),
         );
       }
@@ -278,8 +278,8 @@ describe('ScenarioGenerator', () => {
       });
 
       const result = ScenarioGenerator.validate(scenario);
-      expect(result.valid).to.be.true;
-      expect(result.errors).to.be.empty;
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
     });
 
     it('should detect unknown chains', () => {
@@ -295,9 +295,10 @@ describe('ScenarioGenerator', () => {
       scenario.chains = ['chain1'];
 
       const result = ScenarioGenerator.validate(scenario);
-      expect(result.valid).to.be.false;
-      expect(result.errors.some((e) => e.includes('Unknown destination chain')))
-        .to.be.true;
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some((e) => e.includes('Unknown destination chain')),
+      ).toBe(true);
     });
   });
 });

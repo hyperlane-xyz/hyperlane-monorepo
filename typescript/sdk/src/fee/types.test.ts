@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import { ethers } from 'ethers';
 
 import { ZBps } from '../metadata/customZodTypes.js';
@@ -21,7 +21,7 @@ describe('LinearFeeInputConfigSchema', () => {
       bps: 100,
     };
     const result = LinearFeeInputConfigSchema.safeParse(config);
-    expect(result.success).to.be.true;
+    expect(result.success).toBe(true);
   });
 
   it('should accept config with only maxFee and halfAmount', () => {
@@ -32,7 +32,7 @@ describe('LinearFeeInputConfigSchema', () => {
       halfAmount: 5_000n,
     };
     const result = LinearFeeInputConfigSchema.safeParse(config);
-    expect(result.success).to.be.true;
+    expect(result.success).toBe(true);
   });
 
   it('should reject config with neither bps nor maxFee/halfAmount', () => {
@@ -41,8 +41,8 @@ describe('LinearFeeInputConfigSchema', () => {
       owner: SOME_ADDRESS,
     };
     const result = LinearFeeInputConfigSchema.safeParse(config);
-    expect(result.success).to.be.false;
-    expect(result.error?.issues[0]?.message).to.include(
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.message).toContain(
       'Provide bps or both maxFee and halfAmount',
     );
   });
@@ -54,7 +54,7 @@ describe('LinearFeeInputConfigSchema', () => {
       maxFee: 10_000n,
     };
     const result = LinearFeeInputConfigSchema.safeParse(config);
-    expect(result.success).to.be.false;
+    expect(result.success).toBe(false);
   });
 
   it('should reject config with only halfAmount (missing maxFee)', () => {
@@ -64,7 +64,7 @@ describe('LinearFeeInputConfigSchema', () => {
       halfAmount: 5_000n,
     };
     const result = LinearFeeInputConfigSchema.safeParse(config);
-    expect(result.success).to.be.false;
+    expect(result.success).toBe(false);
   });
 
   it('should reject halfAmount = 0', () => {
@@ -75,8 +75,8 @@ describe('LinearFeeInputConfigSchema', () => {
       halfAmount: 0n,
     };
     const result = LinearFeeInputConfigSchema.safeParse(config);
-    expect(result.success).to.be.false;
-    expect(result.error?.issues[0]?.message).to.include(
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.message).toContain(
       'halfAmount must be > 0',
     );
   });
@@ -88,8 +88,8 @@ describe('LinearFeeInputConfigSchema', () => {
       bps: 0,
     };
     const result = LinearFeeInputConfigSchema.safeParse(config);
-    expect(result.success).to.be.false;
-    expect(result.error?.issues[0]?.message).to.include('bps must be > 0');
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.message).toContain('bps must be > 0');
   });
 
   it('should accept config with both bps and maxFee/halfAmount and use explicit bps', () => {
@@ -101,9 +101,9 @@ describe('LinearFeeInputConfigSchema', () => {
       halfAmount: 5_000n,
     };
     const result = LinearFeeInputConfigSchema.safeParse(config);
-    expect(result.success).to.be.true;
+    expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.bps).to.equal(100);
+      expect(result.data.bps).toBe(100);
     }
   });
 
@@ -117,10 +117,10 @@ describe('LinearFeeInputConfigSchema', () => {
       halfAmount,
     };
     const result = LinearFeeInputConfigSchema.safeParse(config);
-    expect(result.success).to.be.true;
+    expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.bps).to.exist;
-      expect(result.data.bps).to.be.a('number');
+      expect(result.data.bps).toBeDefined();
+      expect(result.data.bps).toBeTypeOf('number');
     }
   });
 });
@@ -133,7 +133,7 @@ describe('CrossCollateralRoutingFee schemas', () => {
       feeContracts: {},
     });
 
-    expect(result.success).to.equal(false);
+    expect(result.success).toBe(false);
   });
 
   it('rejects empty feeContracts for cross collateral input config', () => {
@@ -143,7 +143,7 @@ describe('CrossCollateralRoutingFee schemas', () => {
       feeContracts: {},
     });
 
-    expect(result.success).to.equal(false);
+    expect(result.success).toBe(false);
   });
 
   it('rejects empty destination entries for deployed config', () => {
@@ -155,7 +155,7 @@ describe('CrossCollateralRoutingFee schemas', () => {
       },
     });
 
-    expect(result.success).to.equal(false);
+    expect(result.success).toBe(false);
   });
 
   it('rejects empty destination entries for input config', () => {
@@ -167,7 +167,7 @@ describe('CrossCollateralRoutingFee schemas', () => {
       },
     });
 
-    expect(result.success).to.equal(false);
+    expect(result.success).toBe(false);
   });
 });
 
@@ -178,9 +178,9 @@ describe('LinearFeeInputConfigSchema — fractional bps', () => {
       owner: SOME_ADDRESS,
       bps: 1.5,
     });
-    expect(result.success).to.be.true;
+    expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.bps).to.equal(1.5);
+      expect(result.data.bps).toBe(1.5);
     }
   });
 
@@ -190,7 +190,7 @@ describe('LinearFeeInputConfigSchema — fractional bps', () => {
       owner: SOME_ADDRESS,
       bps: 0.3,
     });
-    expect(result.success).to.be.true;
+    expect(result.success).toBe(true);
   });
 
   it('should reject bps with more than 4 decimal places', () => {
@@ -199,8 +199,8 @@ describe('LinearFeeInputConfigSchema — fractional bps', () => {
       owner: SOME_ADDRESS,
       bps: 0.00001,
     });
-    expect(result.success).to.be.false;
-    expect(result.error?.issues[0]?.message).to.include(
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.message).toContain(
       'at most 4 decimal places',
     );
   });
@@ -208,35 +208,35 @@ describe('LinearFeeInputConfigSchema — fractional bps', () => {
 
 describe('ZBps schema validation', () => {
   it('should reject invalid string inputs', () => {
-    expect(ZBps.safeParse('abc').success).to.be.false;
-    expect(ZBps.safeParse('').success).to.be.false;
-    expect(ZBps.safeParse('Infinity').success).to.be.false;
-    expect(ZBps.safeParse('NaN').success).to.be.false;
-    expect(ZBps.safeParse('-1').success).to.be.false;
+    expect(ZBps.safeParse('abc').success).toBe(false);
+    expect(ZBps.safeParse('').success).toBe(false);
+    expect(ZBps.safeParse('Infinity').success).toBe(false);
+    expect(ZBps.safeParse('NaN').success).toBe(false);
+    expect(ZBps.safeParse('-1').success).toBe(false);
   });
 
   it('should accept valid inputs and transform to number', () => {
     const r1 = ZBps.safeParse('1.5');
-    expect(r1.success).to.be.true;
-    if (r1.success) expect(r1.data).to.equal(1.5);
+    expect(r1.success).toBe(true);
+    if (r1.success) expect(r1.data).toBe(1.5);
 
     const r2 = ZBps.safeParse('5');
-    expect(r2.success).to.be.true;
-    if (r2.success) expect(r2.data).to.equal(5);
+    expect(r2.success).toBe(true);
+    if (r2.success) expect(r2.data).toBe(5);
 
     const r3 = ZBps.safeParse(1.5);
-    expect(r3.success).to.be.true;
+    expect(r3.success).toBe(true);
   });
 
   it('should reject bigint input (intentional breaking change — use plain number instead)', () => {
     // ZBps intentionally dropped bigint support; callers must use number (e.g., 5 not 5n)
-    expect(ZBps.safeParse(5n).success).to.be.false;
-    expect(ZBps.safeParse(0n).success).to.be.false;
+    expect(ZBps.safeParse(5n).success).toBe(false);
+    expect(ZBps.safeParse(0n).success).toBe(false);
   });
 
   it('should reject negative numbers', () => {
-    expect(ZBps.safeParse(-5).success).to.be.false;
-    expect(ZBps.safeParse(-1.5).success).to.be.false;
-    expect(ZBps.safeParse(-0.0001).success).to.be.false;
+    expect(ZBps.safeParse(-5).success).toBe(false);
+    expect(ZBps.safeParse(-1.5).success).toBe(false);
+    expect(ZBps.safeParse(-0.0001).success).toBe(false);
   });
 });

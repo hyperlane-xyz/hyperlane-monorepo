@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import { HookType, type HooksConfigMap } from '@hyperlane-xyz/sdk';
 
@@ -82,12 +82,12 @@ describe('readHooksConfigMap', () => {
         },
       },
     };
-    expect(hooks).to.deep.equal(exampleHooksConfig);
+    expect(hooks).toEqual(exampleHooksConfig);
   });
 
   it('parsing failure, missing internal key "overhead"', () => {
     expect(() => {
       readHooksConfigMap('src/tests/hooks/safe-parse-fail.yaml');
-    }).to.throw();
+    }).toThrow();
   });
 });

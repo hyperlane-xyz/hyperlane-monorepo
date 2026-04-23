@@ -1,5 +1,5 @@
-import { expect } from 'chai';
 import { Registry } from 'prom-client';
+import { expect } from 'vitest';
 
 import { createWarpMetricsGauges } from './gauges.js';
 
@@ -9,11 +9,11 @@ describe('Warp Metrics', () => {
       const registry = new Registry();
       const gauges = createWarpMetricsGauges(registry);
 
-      expect(gauges).to.have.property('warpRouteTokenBalance');
-      expect(gauges).to.have.property('warpRouteCollateralValue');
-      expect(gauges).to.have.property('warpRouteValueAtRisk');
-      expect(gauges).to.have.property('walletBalanceGauge');
-      expect(gauges).to.have.property('xERC20LimitsGauge');
+      expect(gauges).toHaveProperty('warpRouteTokenBalance');
+      expect(gauges).toHaveProperty('warpRouteCollateralValue');
+      expect(gauges).toHaveProperty('warpRouteValueAtRisk');
+      expect(gauges).toHaveProperty('walletBalanceGauge');
+      expect(gauges).toHaveProperty('xERC20LimitsGauge');
     });
 
     it('should register gauges with the provided registry', async () => {
@@ -21,11 +21,11 @@ describe('Warp Metrics', () => {
       createWarpMetricsGauges(registry);
 
       const metrics = await registry.metrics();
-      expect(metrics).to.include('hyperlane_warp_route_token_balance');
-      expect(metrics).to.include('hyperlane_warp_route_collateral_value');
-      expect(metrics).to.include('hyperlane_warp_route_value_at_risk');
-      expect(metrics).to.include('hyperlane_wallet_balance');
-      expect(metrics).to.include('hyperlane_xerc20_limits');
+      expect(metrics).toContain('hyperlane_warp_route_token_balance');
+      expect(metrics).toContain('hyperlane_warp_route_collateral_value');
+      expect(metrics).toContain('hyperlane_warp_route_value_at_risk');
+      expect(metrics).toContain('hyperlane_wallet_balance');
+      expect(metrics).toContain('hyperlane_xerc20_limits');
     });
 
     it('should support additional wallet balance labels', async () => {
@@ -46,7 +46,7 @@ describe('Warp Metrics', () => {
         .set(1.5);
 
       const metrics = await registry.metrics();
-      expect(metrics).to.include('warp_route_id="test-route"');
+      expect(metrics).toContain('warp_route_id="test-route"');
     });
   });
 });

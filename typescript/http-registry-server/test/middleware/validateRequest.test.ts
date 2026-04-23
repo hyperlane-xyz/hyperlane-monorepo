@@ -1,7 +1,6 @@
-import { use as chaiUse, expect } from 'chai';
-import chaiAsPromised from 'chai-as-promised';
 import { Request, Response } from 'express';
 import sinon from 'sinon';
+import { expect } from 'vitest';
 import { z } from 'zod';
 
 import { AppConstants } from '../../src/constants/AppConstants.js';
@@ -12,8 +11,6 @@ import {
   validateQueryParams,
   validateRequestParam,
 } from '../../src/middleware/validateRequest.js';
-
-chaiUse(chaiAsPromised);
 
 describe('validateRequest middleware', () => {
   let req: Partial<Request>;
@@ -49,9 +46,9 @@ describe('validateRequest middleware', () => {
       const middleware = validateQueryParams(testSchema);
       middleware(req as Request, res as Response, next);
 
-      expect(next.calledOnce).to.be.true;
-      expect(next.calledWith()).to.be.true; // Called without error
-      expect(req.query).to.deep.equal({ limit: 10, page: '1' }); // Transformed
+      expect(next.calledOnce).toBe(true);
+      expect(next.calledWith()).toBe(true); // Called without error
+      expect(req.query).toEqual({ limit: 10, page: '1' }); // Transformed
     });
 
     it('should fail validation with invalid query parameters', () => {
@@ -60,12 +57,12 @@ describe('validateRequest middleware', () => {
       const middleware = validateQueryParams(testSchema);
       middleware(req as Request, res as Response, next);
 
-      expect(next.calledOnce).to.be.true;
+      expect(next.calledOnce).toBe(true);
       const error = next.getCall(0).args[0];
-      expect(error).to.be.instanceOf(ApiError);
-      expect(error.status).to.equal(AppConstants.HTTP_STATUS_BAD_REQUEST);
-      expect(error.message).to.include('Validation error in query parameters');
-      expect(error.message).to.include('Must be positive');
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error.status).toBe(AppConstants.HTTP_STATUS_BAD_REQUEST);
+      expect(error.message).toContain('Validation error in query parameters');
+      expect(error.message).toContain('Must be positive');
     });
 
     it('should handle missing required parameters', () => {
@@ -74,10 +71,10 @@ describe('validateRequest middleware', () => {
       const middleware = validateQueryParams(testSchema);
       middleware(req as Request, res as Response, next);
 
-      expect(next.calledOnce).to.be.true;
+      expect(next.calledOnce).toBe(true);
       const error = next.getCall(0).args[0];
-      expect(error).to.be.instanceOf(ApiError);
-      expect(error.message).to.include('Required');
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error.message).toContain('Required');
     });
   });
 
@@ -90,9 +87,9 @@ describe('validateRequest middleware', () => {
       const middleware = validateRequestParam('id', stringSchema);
       middleware(req as Request, res as Response, next);
 
-      expect(next.calledOnce).to.be.true;
-      expect(next.calledWith()).to.be.true;
-      expect(req.params!.id).to.equal('test-id');
+      expect(next.calledOnce).toBe(true);
+      expect(next.calledWith()).toBe(true);
+      expect(req.params!.id).toBe('test-id');
     });
 
     it('should fail validation with invalid parameter', () => {
@@ -101,12 +98,12 @@ describe('validateRequest middleware', () => {
       const middleware = validateRequestParam('id', stringSchema);
       middleware(req as Request, res as Response, next);
 
-      expect(next.calledOnce).to.be.true;
+      expect(next.calledOnce).toBe(true);
       const error = next.getCall(0).args[0];
-      expect(error).to.be.instanceOf(ApiError);
-      expect(error.status).to.equal(AppConstants.HTTP_STATUS_BAD_REQUEST);
-      expect(error.message).to.include("Validation error for param 'id'");
-      expect(error.message).to.include('Must not be empty');
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error.status).toBe(AppConstants.HTTP_STATUS_BAD_REQUEST);
+      expect(error.message).toContain("Validation error for param 'id'");
+      expect(error.message).toContain('Must not be empty');
     });
 
     it('should handle missing parameter', () => {
@@ -115,10 +112,10 @@ describe('validateRequest middleware', () => {
       const middleware = validateRequestParam('id', stringSchema);
       middleware(req as Request, res as Response, next);
 
-      expect(next.calledOnce).to.be.true;
+      expect(next.calledOnce).toBe(true);
       const error = next.getCall(0).args[0];
-      expect(error).to.be.instanceOf(ApiError);
-      expect(error.message).to.include('Required');
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error.message).toContain('Required');
     });
   });
 
@@ -134,9 +131,9 @@ describe('validateRequest middleware', () => {
       const middleware = validateBody(bodySchema);
       middleware(req as Request, res as Response, next);
 
-      expect(next.calledOnce).to.be.true;
-      expect(next.calledWith()).to.be.true;
-      expect(req.body).to.deep.equal({ name: 'test-chain', chainId: 1 });
+      expect(next.calledOnce).toBe(true);
+      expect(next.calledWith()).toBe(true);
+      expect(req.body).toEqual({ name: 'test-chain', chainId: 1 });
     });
 
     it('should fail validation with invalid body', () => {
@@ -145,11 +142,11 @@ describe('validateRequest middleware', () => {
       const middleware = validateBody(bodySchema);
       middleware(req as Request, res as Response, next);
 
-      expect(next.calledOnce).to.be.true;
+      expect(next.calledOnce).toBe(true);
       const error = next.getCall(0).args[0];
-      expect(error).to.be.instanceOf(ApiError);
-      expect(error.status).to.equal(AppConstants.HTTP_STATUS_BAD_REQUEST);
-      expect(error.message).to.include('Validation error in body');
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error.status).toBe(AppConstants.HTTP_STATUS_BAD_REQUEST);
+      expect(error.message).toContain('Validation error in body');
     });
 
     it('should transform valid body data', () => {
@@ -161,9 +158,9 @@ describe('validateRequest middleware', () => {
       const middleware = validateBody(transformSchema);
       middleware(req as Request, res as Response, next);
 
-      expect(next.calledOnce).to.be.true;
-      expect(next.calledWith()).to.be.true;
-      expect(req.body).to.deep.equal({ count: 42 }); // Transformed to number
+      expect(next.calledOnce).toBe(true);
+      expect(next.calledWith()).toBe(true);
+      expect(req.body).toEqual({ count: 42 }); // Transformed to number
     });
   });
 
@@ -179,9 +176,9 @@ describe('validateRequest middleware', () => {
       const middleware = validateQueryParam('offset', numberSchema);
       middleware(req as Request, res as Response, next);
 
-      expect(next.calledOnce).to.be.true;
-      expect(next.calledWith()).to.be.true;
-      expect(req.query!.offset).to.equal(5); // Transformed to number
+      expect(next.calledOnce).toBe(true);
+      expect(next.calledWith()).toBe(true);
+      expect(req.query!.offset).toBe(5); // Transformed to number
     });
 
     it('should fail validation with invalid query parameter', () => {
@@ -190,11 +187,11 @@ describe('validateRequest middleware', () => {
       const middleware = validateQueryParam('offset', numberSchema);
       middleware(req as Request, res as Response, next);
 
-      expect(next.calledOnce).to.be.true;
+      expect(next.calledOnce).toBe(true);
       const error = next.getCall(0).args[0];
-      expect(error).to.be.instanceOf(ApiError);
-      expect(error.status).to.equal(AppConstants.HTTP_STATUS_BAD_REQUEST);
-      expect(error.message).to.include('Validation error in query');
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error.status).toBe(AppConstants.HTTP_STATUS_BAD_REQUEST);
+      expect(error.message).toContain('Validation error in query');
     });
   });
 });

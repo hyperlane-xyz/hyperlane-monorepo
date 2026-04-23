@@ -1,5 +1,5 @@
-import { expect } from 'chai';
 import { Registry } from 'prom-client';
+import { expect } from 'vitest';
 
 import type {
   NativeWalletBalance,
@@ -26,12 +26,12 @@ describe('Warp Monitor Metrics', () => {
 
   describe('metricsRegister', () => {
     it('should be a valid Prometheus registry', () => {
-      expect(metricsRegister).to.be.instanceOf(Registry);
+      expect(metricsRegister).toBeInstanceOf(Registry);
     });
 
     it('should be able to generate metrics output', async () => {
       const metrics = await metricsRegister.metrics();
-      expect(metrics).to.be.a('string');
+      expect(typeof metrics).toBe('string');
     });
   });
 
@@ -72,11 +72,11 @@ describe('Warp Monitor Metrics', () => {
       );
 
       const metrics = await metricsRegister.metrics();
-      expect(metrics).to.include('hyperlane_warp_route_token_balance');
-      expect(metrics).to.include('chain_name="ethereum"');
-      expect(metrics).to.include('token_name="Test Token"');
-      expect(metrics).to.include('warp_route_id="ETH/ethereum-polygon"');
-      expect(metrics).to.include('1000.5');
+      expect(metrics).toContain('hyperlane_warp_route_token_balance');
+      expect(metrics).toContain('chain_name="ethereum"');
+      expect(metrics).toContain('token_name="Test Token"');
+      expect(metrics).toContain('warp_route_id="ETH/ethereum-polygon"');
+      expect(metrics).toContain('1000.5');
     });
 
     it('should record collateral value when valueUSD is provided', async () => {
@@ -101,8 +101,8 @@ describe('Warp Monitor Metrics', () => {
       );
 
       const metrics = await metricsRegister.metrics();
-      expect(metrics).to.include('hyperlane_warp_route_collateral_value');
-      expect(metrics).to.include('5000.25');
+      expect(metrics).toContain('hyperlane_warp_route_collateral_value');
+      expect(metrics).toContain('5000.25');
     });
 
     it('should record value at risk for all chains in warp route', async () => {
@@ -131,7 +131,7 @@ describe('Warp Monitor Metrics', () => {
       );
 
       const metrics = await metricsRegister.metrics();
-      expect(metrics).to.include('hyperlane_warp_route_value_at_risk');
+      expect(metrics).toContain('hyperlane_warp_route_value_at_risk');
     });
 
     it('should set related_chain_names excluding current chain', async () => {
@@ -160,7 +160,7 @@ describe('Warp Monitor Metrics', () => {
 
       const metrics = await metricsRegister.metrics();
       // Related chains should exclude 'ethereum' (the current chain) and be sorted
-      expect(metrics).to.include('related_chain_names="arbitrum,polygon"');
+      expect(metrics).toContain('related_chain_names="arbitrum,polygon"');
     });
 
     it('should handle xERC20 tokens with correct standard label', async () => {
@@ -185,7 +185,7 @@ describe('Warp Monitor Metrics', () => {
 
       const metrics = await metricsRegister.metrics();
       // xERC20 tokens should be labeled as 'xERC20' not 'EvmHypXERC20'
-      expect(metrics).to.include('token_standard="xERC20"');
+      expect(metrics).toContain('token_standard="xERC20"');
     });
   });
 
@@ -201,15 +201,15 @@ describe('Warp Monitor Metrics', () => {
       updateNativeWalletBalanceMetrics(balance);
 
       const metrics = await metricsRegister.metrics();
-      expect(metrics).to.include('hyperlane_wallet_balance');
-      expect(metrics).to.include('chain="solanamainnet"');
-      expect(metrics).to.include(
+      expect(metrics).toContain('hyperlane_wallet_balance');
+      expect(metrics).toContain('chain="solanamainnet"');
+      expect(metrics).toContain(
         'wallet_address="SoLaNaAdDrEsS123456789012345678901234567890"',
       );
-      expect(metrics).to.include(
+      expect(metrics).toContain(
         'wallet_name="ETH/ethereum-solanamainnet/ata-payer"',
       );
-      expect(metrics).to.include('token_symbol="Native"');
+      expect(metrics).toContain('token_symbol="Native"');
     });
 
     it('should handle small balance values', async () => {
@@ -223,7 +223,7 @@ describe('Warp Monitor Metrics', () => {
       updateNativeWalletBalanceMetrics(smallBalance);
 
       const metrics = await metricsRegister.metrics();
-      expect(metrics).to.include(
+      expect(metrics).toContain(
         'wallet_address="0xSmallBalance12345678901234567890123456"',
       );
     });
@@ -252,11 +252,11 @@ describe('Warp Monitor Metrics', () => {
       );
 
       const metrics = await metricsRegister.metrics();
-      expect(metrics).to.include('hyperlane_xerc20_limits');
-      expect(metrics).to.include('limit_type="mint"');
-      expect(metrics).to.include('limit_type="burn"');
-      expect(metrics).to.include('limit_type="mintMax"');
-      expect(metrics).to.include('limit_type="burnMax"');
+      expect(metrics).toContain('hyperlane_xerc20_limits');
+      expect(metrics).toContain('limit_type="mint"');
+      expect(metrics).toContain('limit_type="burn"');
+      expect(metrics).toContain('limit_type="mintMax"');
+      expect(metrics).toContain('limit_type="burnMax"');
     });
 
     it('should record bridge address and label', async () => {
@@ -276,10 +276,10 @@ describe('Warp Monitor Metrics', () => {
       );
 
       const metrics = await metricsRegister.metrics();
-      expect(metrics).to.include(
+      expect(metrics).toContain(
         'bridge_address="0xBridgeAddress1234567890123456789012345678"',
       );
-      expect(metrics).to.include('bridge_label="EvmManagedLockbox"');
+      expect(metrics).toContain('bridge_label="EvmManagedLockbox"');
     });
 
     it('should handle zero limits gracefully', async () => {
@@ -300,8 +300,8 @@ describe('Warp Monitor Metrics', () => {
       );
 
       const metrics = await metricsRegister.metrics();
-      expect(metrics).to.include('hyperlane_xerc20_limits');
-      expect(metrics).to.include(
+      expect(metrics).toContain('hyperlane_xerc20_limits');
+      expect(metrics).toContain(
         'bridge_address="0xZeroLimits123456789012345678901234567890"',
       );
     });
@@ -324,17 +324,17 @@ describe('Warp Monitor Metrics', () => {
       });
 
       const metrics = await metricsRegister.metrics();
-      expect(metrics).to.include(
+      expect(metrics).toContain(
         'hyperlane_warp_route_pending_destination_amount',
       );
-      expect(metrics).to.include(
+      expect(metrics).toContain(
         'hyperlane_warp_route_pending_destination_count',
       );
-      expect(metrics).to.include(
+      expect(metrics).toContain(
         'hyperlane_warp_route_pending_destination_oldest_seconds',
       );
-      expect(metrics).to.include('node_id="USDC|base|0xrouter"');
-      expect(metrics).to.include('token_symbol="USDC"');
+      expect(metrics).toContain('node_id="USDC|base|0xrouter"');
+      expect(metrics).toContain('token_symbol="USDC"');
     });
 
     it('should record projected deficit separately', async () => {
@@ -351,9 +351,9 @@ describe('Warp Monitor Metrics', () => {
       });
 
       const metrics = await metricsRegister.metrics();
-      expect(metrics).to.include('hyperlane_warp_route_projected_deficit');
-      expect(metrics).to.include('node_id="USDC|base|0xrouter"');
-      expect(metrics).to.include('23.45');
+      expect(metrics).toContain('hyperlane_warp_route_projected_deficit');
+      expect(metrics).toContain('node_id="USDC|base|0xrouter"');
+      expect(metrics).toContain('23.45');
     });
   });
 
@@ -373,9 +373,9 @@ describe('Warp Monitor Metrics', () => {
       });
 
       const metrics = await metricsRegister.metrics();
-      expect(metrics).to.include('hyperlane_warp_route_inventory_balance');
-      expect(metrics).to.include('inventory_address="0xrebalancer"');
-      expect(metrics).to.include('node_id="USDT|arbitrum|0xrouter2"');
+      expect(metrics).toContain('hyperlane_warp_route_inventory_balance');
+      expect(metrics).toContain('inventory_address="0xrebalancer"');
+      expect(metrics).toContain('node_id="USDT|arbitrum|0xrouter2"');
     });
   });
 });

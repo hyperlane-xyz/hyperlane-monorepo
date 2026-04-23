@@ -1,6 +1,5 @@
-import { use as chaiUse, expect } from 'chai';
-import chaiAsPromised from 'chai-as-promised';
 import sinon from 'sinon';
+import { expect } from 'vitest';
 
 import { PartialRegistry, WarpRouteId } from '@hyperlane-xyz/registry';
 
@@ -14,8 +13,6 @@ import {
   mockWarpRouteDeploys,
   mockWarpRoutes,
 } from '../utils/mockData.js';
-
-chaiUse(chaiAsPromised);
 
 describe('WarpService', () => {
   let warpService: WarpService;
@@ -59,8 +56,8 @@ describe('WarpService', () => {
 
       const result = await warpService.getWarpCoreConfig(warpRouteId);
 
-      expect(result).to.deep.equal(mockWarpRoute);
-      expect(mockRegistryService.withRegistry.calledOnce).to.be.true;
+      expect(result).toEqual(mockWarpRoute);
+      expect(mockRegistryService.withRegistry.calledOnce).toBe(true);
     });
 
     it('should throw NotFoundError when warp route does not exist', async () => {
@@ -69,10 +66,21 @@ describe('WarpService', () => {
       // Mock registry to return null
       sinon.stub(mockRegistry, 'getWarpRoute').resolves(null);
 
-      await expect(warpService.getWarpCoreConfig(warpRouteId))
-        .to.be.rejectedWith(NotFoundError)
-        .and.eventually.have.property('message')
-        .that.include('Warp route not found for id nonexistent-warp-route');
+      await expect(warpService.getWarpCoreConfig(warpRouteId)).rejects.toThrow(
+        /Warp route not found for id nonexistent-warp-route/,
+      );
+      try {
+        await warpService.getWarpCoreConfig(warpRouteId);
+        throw new Error('Should have thrown');
+      } catch (err) {
+        expect(err).toBeInstanceOf(NotFoundError);
+        expect(err).toHaveProperty(
+          'message',
+          expect.stringContaining(
+            'Warp route not found for id nonexistent-warp-route',
+          ),
+        );
+      }
     });
 
     it('should propagate registry errors', async () => {
@@ -83,9 +91,9 @@ describe('WarpService', () => {
         .stub(mockRegistry, 'getWarpRoute')
         .rejects(new Error('Registry error'));
 
-      await expect(
-        warpService.getWarpCoreConfig(warpRouteId),
-      ).to.be.rejectedWith('Registry error');
+      await expect(warpService.getWarpCoreConfig(warpRouteId)).rejects.toThrow(
+        'Registry error',
+      );
     });
 
     it('should call withRegistry with correct operation', async () => {
@@ -96,10 +104,10 @@ describe('WarpService', () => {
 
       await warpService.getWarpCoreConfig(warpRouteId);
 
-      expect(mockRegistryService.withRegistry.calledOnce).to.be.true;
+      expect(mockRegistryService.withRegistry.calledOnce).toBe(true);
 
       // Verify the stub on the full mock registry was called correctly
-      expect(getWarpRouteStub.calledWith(warpRouteId)).to.be.true;
+      expect(getWarpRouteStub.calledWith(warpRouteId)).toBe(true);
     });
   });
 
@@ -111,16 +119,29 @@ describe('WarpService', () => {
         .resolves(mockWarpRouteDeploy);
 
       const result = await warpService.getWarpDeployConfig(warpRouteId);
-      expect(result).to.deep.equal(mockWarpRouteDeploy);
+      expect(result).toEqual(mockWarpRouteDeploy);
     });
 
     it('should throw NotFoundError when warp route deploy does not exist', async () => {
       const warpRouteId: WarpRouteId = 'nonexistent-warp-route';
       sinon.stub(mockRegistry, 'getWarpDeployConfig').resolves(null);
-      await expect(warpService.getWarpDeployConfig(warpRouteId))
-        .to.be.rejectedWith(NotFoundError)
-        .and.eventually.have.property('message')
-        .that.include(`Warp deploy config not found for id ${warpRouteId}`);
+      await expect(
+        warpService.getWarpDeployConfig(warpRouteId),
+      ).rejects.toThrow(
+        new RegExp(`Warp deploy config not found for id ${warpRouteId}`),
+      );
+      try {
+        await warpService.getWarpDeployConfig(warpRouteId);
+        throw new Error('Should have thrown');
+      } catch (err) {
+        expect(err).toBeInstanceOf(NotFoundError);
+        expect(err).toHaveProperty(
+          'message',
+          expect.stringContaining(
+            `Warp deploy config not found for id ${warpRouteId}`,
+          ),
+        );
+      }
     });
   });
 
@@ -128,7 +149,7 @@ describe('WarpService', () => {
     it('should get warp core configs', async () => {
       const warpRouteId: WarpRouteId = 'MOCK/mockchain';
       const result = await warpService.getWarpCoreConfigs();
-      expect(result[warpRouteId]).to.deep.equal(mockWarpRoute);
+      expect(result[warpRouteId]).toEqual(mockWarpRoute);
     });
 
     it('should get warp core configs with filter', async () => {
@@ -137,7 +158,7 @@ describe('WarpService', () => {
       const result = await warpService.getWarpCoreConfigs({
         label,
       });
-      expect(result[warpRouteId]).to.deep.equal(mockWarpRoute);
+      expect(result[warpRouteId]).toEqual(mockWarpRoute);
     });
   });
 });

@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import { Address } from '@hyperlane-xyz/utils';
 
@@ -26,7 +26,7 @@ describe('ethersV5 submitter props schemas', () => {
         safeAddress: ADDRESS_MOCK,
       };
       const result = EV5GnosisSafeTxSubmitterPropsSchema.safeParse(validProps);
-      expect(result.success).to.be.true;
+      expect(result.success).toBe(true);
     });
 
     it('should fail parsing invalid props', () => {
@@ -35,7 +35,7 @@ describe('ethersV5 submitter props schemas', () => {
       };
       const result =
         EV5GnosisSafeTxSubmitterPropsSchema.safeParse(invalidProps);
-      expect(result.success).to.be.false;
+      expect(result.success).toBe(false);
     });
   });
 
@@ -47,7 +47,7 @@ describe('ethersV5 submitter props schemas', () => {
       };
       const result =
         EV5ImpersonatedAccountTxSubmitterPropsSchema.safeParse(validProps);
-      expect(result.success).to.be.true;
+      expect(result.success).toBe(true);
     });
 
     it('should fail parsing invalid props', () => {
@@ -57,7 +57,7 @@ describe('ethersV5 submitter props schemas', () => {
       };
       const result =
         EV5ImpersonatedAccountTxSubmitterPropsSchema.safeParse(invalidProps);
-      expect(result.success).to.be.false;
+      expect(result.success).toBe(false);
     });
   });
 
@@ -70,9 +70,9 @@ describe('ethersV5 submitter props schemas', () => {
       };
 
       const result = EV5JsonRpcTxSubmitterPropsSchema.safeParse(validProps);
-      expect(result.success).to.be.true;
+      expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data.accountAddress).to.equal(ADDRESS_MOCK);
+        expect(result.data.accountAddress).toBe(ADDRESS_MOCK);
       }
     });
   });

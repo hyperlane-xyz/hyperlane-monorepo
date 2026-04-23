@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import {
   concurrentMap,
@@ -18,8 +18,8 @@ describe('Async Utilities', () => {
       const start = Date.now();
       await sleep(100);
       const duration = Date.now() - start;
-      expect(duration).to.be.at.least(95);
-      expect(duration).to.be.lessThan(200);
+      expect(duration).toBeGreaterThanOrEqual(95);
+      expect(duration).toBeLessThan(200);
     });
   });
 
@@ -30,7 +30,7 @@ describe('Async Utilities', () => {
         await timeout(promise, 100);
         throw new Error('Expected timeout error');
       } catch (error: any) {
-        expect(error.message).to.equal('Timeout reached');
+        expect(error.message).toBe('Timeout reached');
       }
     });
 
@@ -51,7 +51,7 @@ describe('Async Utilities', () => {
       await timeout(Promise.resolve('ok'), 60_000);
       global.setTimeout = origSetTimeout;
       global.clearTimeout = origClearTimeout;
-      expect(timerCleared).to.equal(true);
+      expect(timerCleared).toBe(true);
     });
 
     it('should clear timer when promise rejects', async () => {
@@ -74,7 +74,7 @@ describe('Async Utilities', () => {
       }
       global.setTimeout = origSetTimeout;
       global.clearTimeout = origClearTimeout;
-      expect(timerCleared).to.equal(true);
+      expect(timerCleared).toBe(true);
     });
   });
 
@@ -84,7 +84,7 @@ describe('Async Utilities', () => {
         await sleep(50);
         return 'success';
       });
-      expect(result).to.equal('success');
+      expect(result).toBe('success');
     });
   });
 
@@ -97,7 +97,7 @@ describe('Async Utilities', () => {
       };
 
       const response = await fetchWithTimeout('https://example.com', {}, 100);
-      expect(await response.text()).to.equal('ok');
+      expect(await response.text()).toBe('ok');
     });
   });
 
@@ -111,7 +111,7 @@ describe('Async Utilities', () => {
       };
 
       const result = await retryAsync(runner, 5, 10);
-      expect(result).to.equal('success');
+      expect(result).toBe('success');
     });
 
     it('should retry `attempts` times at most', async () => {
@@ -125,8 +125,8 @@ describe('Async Utilities', () => {
         await retryAsync(runner, 5, 10);
         throw new Error('Expected error to be thrown');
       } catch (error: any) {
-        expect(error.message).to.equal('fail');
-        expect(attempt).to.equal(5);
+        expect(error.message).toBe('fail');
+        expect(attempt).toBe(5);
       }
     });
 
@@ -145,9 +145,9 @@ describe('Async Utilities', () => {
         await retryAsync(runner, 5, 10);
         throw new Error('Expected error to be thrown');
       } catch (error: any) {
-        expect(error.message).to.equal('non-recoverable error');
-        expect(error.isRecoverable).to.equal(false);
-        expect(attempts).to.equal(1);
+        expect(error.message).toBe('non-recoverable error');
+        expect(error.isRecoverable).toBe(false);
+        expect(attempts).toBe(1);
       }
     });
 
@@ -160,8 +160,8 @@ describe('Async Utilities', () => {
       };
 
       const result = await retryAsync(runner, 5, 10);
-      expect(result).to.equal('success');
-      expect(attempt).to.equal(3);
+      expect(result).toBe('success');
+      expect(attempt).toBe(3);
     });
 
     it('should continue retrying if isRecoverable is true', async () => {
@@ -179,8 +179,8 @@ describe('Async Utilities', () => {
       };
 
       const result = await retryAsync(runner, 5, 10);
-      expect(result).to.equal('success');
-      expect(attempt).to.equal(3);
+      expect(result).toBe('success');
+      expect(attempt).toBe(3);
     });
 
     it('should execute at least once even with 0 attempts', async () => {
@@ -191,8 +191,8 @@ describe('Async Utilities', () => {
       };
 
       const result = await retryAsync(runner, 0, 10);
-      expect(result).to.equal('success');
-      expect(attempts).to.equal(1);
+      expect(result).toBe('success');
+      expect(attempts).toBe(1);
     });
 
     it('should execute at least once even with negative attempts', async () => {
@@ -203,8 +203,8 @@ describe('Async Utilities', () => {
       };
 
       const result = await retryAsync(runner, -5, 10);
-      expect(result).to.equal('success');
-      expect(attempts).to.equal(1);
+      expect(result).toBe('success');
+      expect(attempts).toBe(1);
     });
   });
 
@@ -218,7 +218,7 @@ describe('Async Utilities', () => {
       };
 
       const result = await pollAsync(runner, 10, 5);
-      expect(result).to.equal('success');
+      expect(result).toBe('success');
     });
 
     it('should fail after reaching max retries', async () => {
@@ -232,8 +232,8 @@ describe('Async Utilities', () => {
         await pollAsync(runner, 10, 3); // Set maxAttempts to 3
         throw new Error('Expected pollAsync to throw an error');
       } catch (error: any) {
-        expect(attempt).to.equal(3); // Ensure it attempted 3 times
-        expect(error.message).to.equal('fail');
+        expect(attempt).toBe(3); // Ensure it attempted 3 times
+        expect(error.message).toBe('fail');
       }
     });
   });
@@ -246,8 +246,8 @@ describe('Async Utilities', () => {
       ];
 
       const result = await raceWithContext(promises);
-      expect(result.resolved).to.equal('first');
-      expect(result.index).to.equal(0);
+      expect(result.resolved).toBe('first');
+      expect(result.index).toBe(0);
     });
   });
 
@@ -259,7 +259,7 @@ describe('Async Utilities', () => {
         return val * 2;
       };
       const result = await concurrentMap(2, xs, mapFn);
-      expect(result).to.deep.equal([2, 4, 6, 8, 10, 12]);
+      expect(result).toEqual([2, 4, 6, 8, 10, 12]);
     });
 
     it('should respect concurrency limit', async () => {
@@ -277,7 +277,7 @@ describe('Async Utilities', () => {
       };
 
       await concurrentMap(concurrency, xs, mapFn);
-      expect(maxActiveTasks).to.equal(concurrency);
+      expect(maxActiveTasks).toBe(concurrency);
     });
   });
 });
@@ -291,11 +291,11 @@ describe('mapAllSettled', () => {
       (item) => item,
     );
 
-    expect(fulfilled.size).to.equal(3);
-    expect(fulfilled.get('a')).to.equal('A');
-    expect(fulfilled.get('b')).to.equal('B');
-    expect(fulfilled.get('c')).to.equal('C');
-    expect(rejected.size).to.equal(0);
+    expect(fulfilled.size).toBe(3);
+    expect(fulfilled.get('a')).toBe('A');
+    expect(fulfilled.get('b')).toBe('B');
+    expect(fulfilled.get('c')).toBe('C');
+    expect(rejected.size).toBe(0);
   });
 
   it('should return all rejected results when all promises fail', async () => {
@@ -308,11 +308,11 @@ describe('mapAllSettled', () => {
       (item) => item,
     );
 
-    expect(fulfilled.size).to.equal(0);
-    expect(rejected.size).to.equal(3);
-    expect(rejected.get('a')?.message).to.equal('Failed: a');
-    expect(rejected.get('b')?.message).to.equal('Failed: b');
-    expect(rejected.get('c')?.message).to.equal('Failed: c');
+    expect(fulfilled.size).toBe(0);
+    expect(rejected.size).toBe(3);
+    expect(rejected.get('a')?.message).toBe('Failed: a');
+    expect(rejected.get('b')?.message).toBe('Failed: b');
+    expect(rejected.get('c')?.message).toBe('Failed: c');
   });
 
   it('should handle mixed success and failure', async () => {
@@ -328,14 +328,14 @@ describe('mapAllSettled', () => {
       (item) => item,
     );
 
-    expect(fulfilled.size).to.equal(3);
-    expect(fulfilled.get(1)).to.equal(10);
-    expect(fulfilled.get(3)).to.equal(30);
-    expect(fulfilled.get(5)).to.equal(50);
+    expect(fulfilled.size).toBe(3);
+    expect(fulfilled.get(1)).toBe(10);
+    expect(fulfilled.get(3)).toBe(30);
+    expect(fulfilled.get(5)).toBe(50);
 
-    expect(rejected.size).to.equal(2);
-    expect(rejected.get(2)?.message).to.equal('Even number: 2');
-    expect(rejected.get(4)?.message).to.equal('Even number: 4');
+    expect(rejected.size).toBe(2);
+    expect(rejected.get(2)?.message).toBe('Even number: 2');
+    expect(rejected.get(4)?.message).toBe('Even number: 4');
   });
 
   it('should use index as key when keyFn is not provided', async () => {
@@ -344,11 +344,11 @@ describe('mapAllSettled', () => {
       item.toUpperCase(),
     );
 
-    expect(fulfilled.size).to.equal(3);
-    expect(fulfilled.get(0)).to.equal('A');
-    expect(fulfilled.get(1)).to.equal('B');
-    expect(fulfilled.get(2)).to.equal('C');
-    expect(rejected.size).to.equal(0);
+    expect(fulfilled.size).toBe(3);
+    expect(fulfilled.get(0)).toBe('A');
+    expect(fulfilled.get(1)).toBe('B');
+    expect(fulfilled.get(2)).toBe('C');
+    expect(rejected.size).toBe(0);
   });
 
   it('should convert non-Error rejection reasons to Error objects', async () => {
@@ -362,9 +362,9 @@ describe('mapAllSettled', () => {
       (item) => item,
     );
 
-    expect(rejected.size).to.equal(1);
-    expect(rejected.get('a')).to.be.instanceOf(Error);
-    expect(rejected.get('a')?.message).to.equal('string error');
+    expect(rejected.size).toBe(1);
+    expect(rejected.get('a')).toBeInstanceOf(Error);
+    expect(rejected.get('a')?.message).toBe('string error');
   });
 
   it('should handle empty array', async () => {
@@ -375,8 +375,8 @@ describe('mapAllSettled', () => {
       (item) => item,
     );
 
-    expect(fulfilled.size).to.equal(0);
-    expect(rejected.size).to.equal(0);
+    expect(fulfilled.size).toBe(0);
+    expect(rejected.size).toBe(0);
   });
 
   it('should pass index to mapFn', async () => {
@@ -387,9 +387,9 @@ describe('mapAllSettled', () => {
       (item) => item,
     );
 
-    expect(fulfilled.get('a')).to.equal('a-0');
-    expect(fulfilled.get('b')).to.equal('b-1');
-    expect(fulfilled.get('c')).to.equal('c-2');
+    expect(fulfilled.get('a')).toBe('a-0');
+    expect(fulfilled.get('b')).toBe('b-1');
+    expect(fulfilled.get('c')).toBe('c-2');
   });
 
   it('should pass index to keyFn', async () => {
@@ -400,9 +400,9 @@ describe('mapAllSettled', () => {
       (_item, index) => `key-${index}`,
     );
 
-    expect(fulfilled.get('key-0')).to.equal('A');
-    expect(fulfilled.get('key-1')).to.equal('B');
-    expect(fulfilled.get('key-2')).to.equal('C');
+    expect(fulfilled.get('key-0')).toBe('A');
+    expect(fulfilled.get('key-1')).toBe('B');
+    expect(fulfilled.get('key-2')).toBe('C');
   });
 
   it('should process items in parallel', async () => {
@@ -421,6 +421,6 @@ describe('mapAllSettled', () => {
     const duration = Date.now() - startTime;
     // If run in parallel, should take ~50ms, not ~150ms
     // Using 150ms threshold to avoid CI flakiness from timing jitter
-    expect(duration).to.be.lessThan(150);
+    expect(duration).toBeLessThan(150);
   });
 });

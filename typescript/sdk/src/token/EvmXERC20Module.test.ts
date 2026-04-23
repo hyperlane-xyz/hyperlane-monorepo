@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import sinon from 'sinon';
 
 import { IXERC20Lockbox__factory } from '@hyperlane-xyz/core';
@@ -83,15 +83,15 @@ describe('EvmXERC20Module', () => {
       const config = createStandardConfig();
       const module = createModule(config);
 
-      expect(module.chainName).to.equal(TestChainName.test1);
-      expect(module.reader).to.be.instanceOf(EvmXERC20Reader);
+      expect(module.chainName).toBe(TestChainName.test1);
+      expect(module.reader).toBeInstanceOf(EvmXERC20Reader);
     });
 
     it('creates module with velodrome config', () => {
       const config = createVeloConfig();
       const module = createModule(config);
 
-      expect(module.chainName).to.equal(TestChainName.test1);
+      expect(module.chainName).toBe(TestChainName.test1);
     });
   });
 
@@ -108,9 +108,9 @@ describe('EvmXERC20Module', () => {
 
       const txs = await module.generateSetLimitsTxs(BRIDGE_ADDRESS_1, limits);
 
-      expect(txs).to.have.lengthOf(1);
-      expect(txs[0].annotation).to.include('XERC20 limit update');
-      expect(txs[0].chainId).to.equal(
+      expect(txs).toHaveLength(1);
+      expect(txs[0].annotation).toContain('XERC20 limit update');
+      expect(txs[0].chainId).toBe(
         multiProvider.getEvmChainId(TestChainName.test1),
       );
     });
@@ -127,9 +127,9 @@ describe('EvmXERC20Module', () => {
 
       const txs = await module.generateSetLimitsTxs(BRIDGE_ADDRESS_1, limits);
 
-      expect(txs).to.have.lengthOf(2);
-      expect(txs[0].annotation).to.include('XERC20 limit update');
-      expect(txs[1].annotation).to.include('XERC20 limit update');
+      expect(txs).toHaveLength(2);
+      expect(txs[0].annotation).toContain('XERC20 limit update');
+      expect(txs[1].annotation).toContain('XERC20 limit update');
     });
   });
 
@@ -146,7 +146,7 @@ describe('EvmXERC20Module', () => {
 
       const txs = await module.generateAddBridgeTxs(BRIDGE_ADDRESS_1, limits);
 
-      expect(txs).to.have.lengthOf(1);
+      expect(txs).toHaveLength(1);
     });
 
     it('generates addBridge tx for Velodrome XERC20', async () => {
@@ -161,8 +161,8 @@ describe('EvmXERC20Module', () => {
 
       const txs = await module.generateAddBridgeTxs(BRIDGE_ADDRESS_1, limits);
 
-      expect(txs).to.have.lengthOf(1);
-      expect(txs[0].annotation).to.include('XERC20 limit update');
+      expect(txs).toHaveLength(1);
+      expect(txs[0].annotation).toContain('XERC20 limit update');
     });
   });
 
@@ -173,8 +173,8 @@ describe('EvmXERC20Module', () => {
 
       const txs = await module.generateRemoveBridgeTxs(BRIDGE_ADDRESS_1);
 
-      expect(txs).to.have.lengthOf(1);
-      expect(txs[0].annotation).to.include('XERC20 limit update');
+      expect(txs).toHaveLength(1);
+      expect(txs[0].annotation).toContain('XERC20 limit update');
     });
   });
 
@@ -190,7 +190,7 @@ describe('EvmXERC20Module', () => {
 
       const txs = await module.update(config);
 
-      expect(txs).to.have.lengthOf(0);
+      expect(txs).toHaveLength(0);
     });
 
     it('generates txs for missing bridges', async () => {
@@ -210,7 +210,7 @@ describe('EvmXERC20Module', () => {
 
       const txs = await module.update(config);
 
-      expect(txs.length).to.be.greaterThan(0);
+      expect(txs.length).toBeGreaterThan(0);
     });
 
     it('generates txs for limit mismatches', async () => {
@@ -235,7 +235,7 @@ describe('EvmXERC20Module', () => {
 
       const txs = await module.update(config);
 
-      expect(txs.length).to.be.greaterThan(0);
+      expect(txs.length).toBeGreaterThan(0);
     });
   });
 
@@ -260,9 +260,9 @@ describe('EvmXERC20Module', () => {
         WARP_ROUTE_ADDRESS,
       );
 
-      expect(module).to.be.instanceOf(EvmXERC20Module);
-      expect(config.type).to.equal(XERC20Type.Standard);
-      expect(config.limits[WARP_ROUTE_ADDRESS]).to.deep.equal({
+      expect(module).toBeInstanceOf(EvmXERC20Module);
+      expect(config.type).toBe(XERC20Type.Standard);
+      expect(config.limits[WARP_ROUTE_ADDRESS]).toEqual({
         type: XERC20Type.Standard,
         mint: '1000000000000000000',
         burn: '500000000000000000',
@@ -289,9 +289,9 @@ describe('EvmXERC20Module', () => {
         WARP_ROUTE_ADDRESS,
       );
 
-      expect(module).to.be.instanceOf(EvmXERC20Module);
-      expect(config.type).to.equal(XERC20Type.Velo);
-      expect(config.limits[WARP_ROUTE_ADDRESS]).to.deep.equal({
+      expect(module).toBeInstanceOf(EvmXERC20Module);
+      expect(config.type).toBe(XERC20Type.Velo);
+      expect(config.limits[WARP_ROUTE_ADDRESS]).toEqual({
         type: XERC20Type.Velo,
         bufferCap: '1000000000000000000',
         rateLimitPerSecond: '100000000000000000',
@@ -328,8 +328,8 @@ describe('EvmXERC20Module', () => {
         WARP_ROUTE_ADDRESS,
       );
 
-      expect(Object.keys(config.limits)).to.have.lengthOf(2);
-      expect(config.limits[EXTRA_BRIDGE_ADDRESS]).to.deep.equal({
+      expect(Object.keys(config.limits)).toHaveLength(2);
+      expect(config.limits[EXTRA_BRIDGE_ADDRESS]).toEqual({
         type: XERC20Type.Standard,
         mint: '2000000000000000000',
         burn: '1000000000000000000',
@@ -366,10 +366,10 @@ describe('EvmXERC20Module', () => {
           LOCKBOX_ADDRESS,
           multiProvider.getProvider(TestChainName.test1),
         ),
-      ).to.equal(true);
-      expect(xerc20Stub.calledOnce).to.equal(true);
-      expect(module.serialize().xERC20).to.equal(XERC20_FROM_LOCKBOX);
-      expect(config.limits[WARP_ROUTE_ADDRESS]).to.deep.equal({
+      ).toBe(true);
+      expect(xerc20Stub.calledOnce).toBe(true);
+      expect(module.serialize().xERC20).toBe(XERC20_FROM_LOCKBOX);
+      expect(config.limits[WARP_ROUTE_ADDRESS]).toEqual({
         type: XERC20Type.Standard,
         mint: '1',
         burn: '2',
@@ -393,8 +393,8 @@ describe('EvmXERC20Module', () => {
         WARP_ROUTE_ADDRESS,
       );
 
-      expect(typeStub.calledOnce).to.equal(true);
-      expect(config.type).to.equal(XERC20Type.Velo);
+      expect(typeStub.calledOnce).toBe(true);
+      expect(config.type).toBe(XERC20Type.Velo);
     });
   });
 });

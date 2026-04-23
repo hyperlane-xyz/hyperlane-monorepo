@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import { decodeFunctionData, zeroAddress } from 'viem';
 
 import { buildExecuteCalldata, buildQuoteCalldata } from './builder.js';
@@ -89,12 +89,12 @@ describe('buildQuoteCalldata', () => {
   it('builds quoteExecute with SUBMIT_QUOTE + TRANSFER_REMOTE', () => {
     const result = buildQuoteCalldata(BASE_PARAMS);
 
-    expect(result.to).to.equal(QUOTED_CALLS);
-    expect(result.value).to.equal(0n);
+    expect(result.to).toBe(QUOTED_CALLS);
+    expect(result.value).toBe(0n);
 
     const { fn, commands } = decodeCommands(result.data);
-    expect(fn).to.equal('quoteExecute');
-    expect(commands).to.deep.equal([
+    expect(fn).toBe('quoteExecute');
+    expect(commands).toEqual([
       QuotedCallsCommand.SUBMIT_QUOTE,
       QuotedCallsCommand.TRANSFER_REMOTE,
     ]);
@@ -106,7 +106,7 @@ describe('buildQuoteCalldata', () => {
     const result = buildQuoteCalldata({ ...BASE_PARAMS, targetRouter });
 
     const { commands } = decodeCommands(result.data);
-    expect(commands).to.deep.equal([
+    expect(commands).toEqual([
       QuotedCallsCommand.SUBMIT_QUOTE,
       QuotedCallsCommand.TRANSFER_REMOTE_TO,
     ]);
@@ -121,13 +121,13 @@ describe('buildExecuteCalldata', () => {
       tokenPullMode: TokenPullMode.TransferFrom,
     });
 
-    expect(result.to).to.equal(QUOTED_CALLS);
+    expect(result.to).toBe(QUOTED_CALLS);
     // native value = IGP fee (100)
-    expect(result.value).to.equal(100n);
+    expect(result.value).toBe(100n);
 
     const { fn, commands } = decodeCommands(result.data);
-    expect(fn).to.equal('execute');
-    expect(commands).to.deep.equal([
+    expect(fn).toBe('execute');
+    expect(commands).toEqual([
       QuotedCallsCommand.SUBMIT_QUOTE,
       QuotedCallsCommand.TRANSFER_FROM,
       QuotedCallsCommand.TRANSFER_REMOTE,
@@ -156,7 +156,7 @@ describe('buildExecuteCalldata', () => {
     });
 
     const { commands } = decodeCommands(result.data);
-    expect(commands).to.deep.equal([
+    expect(commands).toEqual([
       QuotedCallsCommand.SUBMIT_QUOTE,
       QuotedCallsCommand.PERMIT2_PERMIT,
       QuotedCallsCommand.PERMIT2_TRANSFER_FROM,
@@ -179,11 +179,11 @@ describe('buildExecuteCalldata', () => {
     });
 
     // msg.value = native total from quotes (5100 already includes transfer amount)
-    expect(result.value).to.equal(5100n);
+    expect(result.value).toBe(5100n);
 
     const { commands } = decodeCommands(result.data);
     // No TRANSFER_FROM for native route
-    expect(commands).to.deep.equal([
+    expect(commands).toEqual([
       QuotedCallsCommand.SUBMIT_QUOTE,
       QuotedCallsCommand.TRANSFER_REMOTE,
       QuotedCallsCommand.SWEEP,
@@ -206,11 +206,11 @@ describe('buildExecuteCalldata', () => {
 
     const { commands } = decodeCommands(result.data);
     // No TRANSFER_FROM (totalTokenNeeded=0) and no SWEEP (TransferFrom + zero token fees)
-    expect(commands).to.deep.equal([
+    expect(commands).toEqual([
       QuotedCallsCommand.SUBMIT_QUOTE,
       QuotedCallsCommand.TRANSFER_REMOTE,
     ]);
-    expect(result.value).to.equal(100n);
+    expect(result.value).toBe(100n);
   });
 
   it('throws when Permit2 mode without permit2Data', () => {
@@ -220,6 +220,6 @@ describe('buildExecuteCalldata', () => {
         feeQuotes: MOCK_FEE_QUOTES,
         tokenPullMode: TokenPullMode.Permit2,
       }),
-    ).to.throw('permit2Data required');
+    ).toThrow('permit2Data required');
   });
 });

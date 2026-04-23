@@ -1,5 +1,4 @@
-import { expect } from 'chai';
-import 'chai-as-promised';
+import { expect } from 'vitest';
 import sinon from 'sinon';
 
 import {
@@ -342,13 +341,13 @@ describe('CoreWriter', () => {
       const [result, receipts] = await coreWriter.create(artifact);
 
       // ASSERT
-      expect(result.mailbox.deployed.address).to.equal(mockMailboxAddress);
-      expect(result.mailbox.config.owner).to.equal(mockOwner);
-      expect(result.validatorAnnounce).to.not.be.null;
-      expect(result.validatorAnnounce?.deployed.address).to.equal(
+      expect(result.mailbox.deployed.address).toBe(mockMailboxAddress);
+      expect(result.mailbox.config.owner).toBe(mockOwner);
+      expect(result.validatorAnnounce).not.toBeNull();
+      expect(result.validatorAnnounce?.deployed.address).toBe(
         mockValidatorAnnounceAddress,
       );
-      expect(receipts.length).to.be.greaterThan(0);
+      expect(receipts.length).toBeGreaterThan(0);
 
       sinon.assert.calledOnce(ismCreateStub);
       sinon.assert.calledTwice(hookCreateStub);
@@ -422,7 +421,7 @@ describe('CoreWriter', () => {
       const [result] = await coreWriterNoVA.create(artifact);
 
       // ASSERT
-      expect(result.validatorAnnounce).to.be.null;
+      expect(result.validatorAnnounce).toBeNull();
     });
 
     it('should create mailbox with signer as initial owner', async () => {
@@ -456,8 +455,8 @@ describe('CoreWriter', () => {
       const mailboxCreateStub = mailboxWriter.create;
       const initialConfig = mailboxCreateStub.firstCall.args[0].config;
 
-      expect(initialConfig.owner).to.equal(mockSignerAddress);
-      expect(initialConfig.owner).to.not.equal(mockOwner);
+      expect(initialConfig.owner).toBe(mockSignerAddress);
+      expect(initialConfig.owner).not.toBe(mockOwner);
     });
 
     it('should create mailbox with zero-address hooks initially', async () => {
@@ -512,13 +511,13 @@ describe('CoreWriter', () => {
       const mailboxCreateStub = mailboxWriter.create;
       const initialConfig = mailboxCreateStub.firstCall.args[0].config;
 
-      expect(initialConfig.defaultHook.deployed.address).to.equal(
+      expect(initialConfig.defaultHook.deployed.address).toBe(
         ZERO_ADDRESS_HEX_32,
       );
-      expect(initialConfig.requiredHook.deployed.address).to.equal(
+      expect(initialConfig.requiredHook.deployed.address).toBe(
         ZERO_ADDRESS_HEX_32,
       );
-      expect(initialConfig.defaultHook.artifactState).to.equal(
+      expect(initialConfig.defaultHook.artifactState).toBe(
         ArtifactState.UNDERIVED,
       );
     });
@@ -550,10 +549,10 @@ describe('CoreWriter', () => {
       const mailboxWriter = createMailboxWriterStub.returnValues[0];
       const initialConfig = mailboxWriter.create.firstCall.args[0].config;
 
-      expect(initialConfig.defaultHook.deployed.address).to.equal(
+      expect(initialConfig.defaultHook.deployed.address).toBe(
         ZERO_ADDRESS_HEX_32,
       );
-      expect(initialConfig.requiredHook.deployed.address).to.equal(
+      expect(initialConfig.requiredHook.deployed.address).toBe(
         ZERO_ADDRESS_HEX_32,
       );
     });
@@ -618,10 +617,10 @@ describe('CoreWriter', () => {
       const mailboxWriter = createMailboxWriterStub.returnValues[0];
       const initialConfig = mailboxWriter.create.firstCall.args[0].config;
 
-      expect(initialConfig.defaultHook.deployed.address).to.equal(
+      expect(initialConfig.defaultHook.deployed.address).toBe(
         ZERO_ADDRESS_HEX_32,
       );
-      expect(initialConfig.requiredHook.deployed.address).to.equal(
+      expect(initialConfig.requiredHook.deployed.address).toBe(
         ZERO_ADDRESS_HEX_32,
       );
       sinon.assert.notCalled(sendAndConfirmTxStub);
@@ -666,10 +665,10 @@ describe('CoreWriter', () => {
       const mailboxWriter = createMailboxWriterStub.returnValues[0];
       const initialConfig = mailboxWriter.create.firstCall.args[0].config;
 
-      expect(initialConfig.defaultHook.deployed.address).to.equal(
+      expect(initialConfig.defaultHook.deployed.address).toBe(
         mockDefaultHookAddress,
       );
-      expect(initialConfig.requiredHook.deployed.address).to.equal(
+      expect(initialConfig.requiredHook.deployed.address).toBe(
         mockRequiredHookAddress,
       );
     });
@@ -708,11 +707,11 @@ describe('CoreWriter', () => {
 
       const updatedArtifact = mailboxUpdateStub.firstCall.args[0];
 
-      expect(updatedArtifact.config.owner).to.equal(mockOwner);
-      expect(updatedArtifact.config.defaultHook.deployed.address).to.equal(
+      expect(updatedArtifact.config.owner).toBe(mockOwner);
+      expect(updatedArtifact.config.defaultHook.deployed.address).toBe(
         mockDefaultHookAddress,
       );
-      expect(updatedArtifact.config.requiredHook.deployed.address).to.equal(
+      expect(updatedArtifact.config.requiredHook.deployed.address).toBe(
         mockRequiredHookAddress,
       );
     });
@@ -821,8 +820,8 @@ describe('CoreWriter', () => {
       const [, receipts] = await coreWriter.create(artifact);
 
       // ASSERT
-      expect(receipts.length).to.be.greaterThan(0);
-      expect(receipts.length).to.be.at.least(4);
+      expect(receipts.length).toBeGreaterThan(0);
+      expect(receipts.length).toBeGreaterThanOrEqual(4);
     });
 
     it('should propagate ISM deployment errors', async () => {
@@ -853,7 +852,7 @@ describe('CoreWriter', () => {
       });
 
       // ACT & ASSERT
-      await expect(coreWriter.create(artifact)).to.be.rejectedWith(
+      await expect(coreWriter.create(artifact)).rejects.toThrow(
         'ISM deployment failed',
       );
     });
@@ -893,7 +892,7 @@ describe('CoreWriter', () => {
       });
 
       // ACT & ASSERT
-      await expect(coreWriter.create(artifact)).to.be.rejectedWith(
+      await expect(coreWriter.create(artifact)).rejects.toThrow(
         'Mailbox creation failed',
       );
     });
@@ -973,8 +972,8 @@ describe('CoreWriter', () => {
       // ASSERT
       sinon.assert.calledOnce(ismCreateStub);
       const createArg = ismCreateStub.firstCall.args[0];
-      expect(createArg.artifactState).to.equal(ArtifactState.NEW);
-      expect(createArg.config.type).to.equal('messageIdMultisigIsm');
+      expect(createArg.artifactState).toBe(ArtifactState.NEW);
+      expect(createArg.config.type).toBe('messageIdMultisigIsm');
     });
 
     it('should handle UNDERIVED ISM by using address as-is', async () => {
@@ -1090,7 +1089,8 @@ describe('CoreWriter', () => {
       const result = await coreWriter.update(expectedArtifact);
 
       // ASSERT
-      expect(result).to.be.an('array').with.lengthOf(0);
+      expect(Array.isArray(result)).toBe(true);
+      expect(result).toHaveLength(0);
     });
 
     it('should deploy NEW ISM when current is zero-address UNDERIVED', async () => {
@@ -1171,7 +1171,7 @@ describe('CoreWriter', () => {
 
       // ASSERT
       sinon.assert.calledOnce(ismCreateStub);
-      expect(result).to.be.an('array');
+      expect(Array.isArray(result)).toBe(true);
     });
 
     it('should assert artifacts are expanded before updating', async () => {
@@ -1207,7 +1207,7 @@ describe('CoreWriter', () => {
       };
 
       // ACT & ASSERT
-      await expect(coreWriter.update(expectedArtifact)).to.be.rejectedWith(
+      await expect(coreWriter.update(expectedArtifact)).rejects.toThrow(
         'Expected defaultIsm to be DEPLOYED or UNDERIVED with zero address',
       );
     });
@@ -1342,7 +1342,7 @@ describe('CoreWriter', () => {
       // ASSERT
       const mailboxWriter = createMailboxWriterStub.returnValues[0];
       const updatedArtifact = mailboxWriter.update.firstCall.args[0];
-      expect(updatedArtifact.config.owner).to.equal(newOwner);
+      expect(updatedArtifact.config.owner).toBe(newOwner);
     });
 
     it('should wire correct addresses into mailbox update', async () => {
@@ -1415,13 +1415,13 @@ describe('CoreWriter', () => {
       // ASSERT
       const mailboxWriter = createMailboxWriterStub.returnValues[0];
       const updatedArtifact = mailboxWriter.update.firstCall.args[0];
-      expect(updatedArtifact.config.defaultIsm.deployed.address).to.equal(
+      expect(updatedArtifact.config.defaultIsm.deployed.address).toBe(
         mockNewIsmAddress,
       );
-      expect(updatedArtifact.config.defaultHook.deployed.address).to.equal(
+      expect(updatedArtifact.config.defaultHook.deployed.address).toBe(
         mockDefaultHookAddress,
       );
-      expect(updatedArtifact.config.requiredHook.deployed.address).to.equal(
+      expect(updatedArtifact.config.requiredHook.deployed.address).toBe(
         mockRequiredHookAddress,
       );
     });

@@ -1,32 +1,32 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import { isHttpsUrl, isRelativeUrl, isUrl } from './url.js';
 
 describe('URL Utilities', () => {
   it('isUrl', () => {
-    expect(isUrl(undefined)).to.be.false;
-    expect(isUrl(null)).to.be.false;
-    expect(isUrl('')).to.be.false;
-    expect(isUrl('foobar')).to.be.false;
-    expect(isUrl('https://hyperlane.xyz')).to.be.true;
+    expect(isUrl(undefined)).toBe(false);
+    expect(isUrl(null)).toBe(false);
+    expect(isUrl('')).toBe(false);
+    expect(isUrl('foobar')).toBe(false);
+    expect(isUrl('https://hyperlane.xyz')).toBe(true);
   });
 
   it('isHttpsUrl', () => {
-    expect(isHttpsUrl(undefined)).to.be.false;
-    expect(isHttpsUrl(null)).to.be.false;
-    expect(isHttpsUrl('')).to.be.false;
-    expect(isHttpsUrl('foobar')).to.be.false;
-    expect(isHttpsUrl('http://hyperlane.xyz')).to.be.false;
-    expect(isHttpsUrl('https://hyperlane.xyz')).to.be.true;
+    expect(isHttpsUrl(undefined)).toBe(false);
+    expect(isHttpsUrl(null)).toBe(false);
+    expect(isHttpsUrl('')).toBe(false);
+    expect(isHttpsUrl('foobar')).toBe(false);
+    expect(isHttpsUrl('http://hyperlane.xyz')).toBe(false);
+    expect(isHttpsUrl('https://hyperlane.xyz')).toBe(true);
   });
 
   it('isRelativeUrl', () => {
-    expect(isRelativeUrl(undefined)).to.be.false;
-    expect(isRelativeUrl(null)).to.be.false;
-    expect(isRelativeUrl('')).to.be.false;
-    expect(isRelativeUrl('foobar')).to.be.false;
-    expect(isRelativeUrl('https://hyperlane.xyz')).to.be.false;
-    expect(isRelativeUrl('/foobar')).to.be.true;
-    expect(isRelativeUrl('/foo/bar', 'https://hyperlane.xyz')).to.be.true;
+    expect(isRelativeUrl(undefined)).toBe(false);
+    expect(isRelativeUrl(null)).toBe(false);
+    expect(isRelativeUrl('')).toBe(false);
+    expect(isRelativeUrl('foobar')).toBe(false);
+    expect(isRelativeUrl('https://hyperlane.xyz')).toBe(false);
+    expect(isRelativeUrl('/foobar')).toBe(true);
+    expect(isRelativeUrl('/foo/bar', 'https://hyperlane.xyz')).toBe(true);
   });
 });

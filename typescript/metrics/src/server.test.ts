@@ -1,5 +1,5 @@
-import { expect } from 'chai';
 import { Registry } from 'prom-client';
+import { expect } from 'vitest';
 
 import { startMetricsServer } from './server.js';
 
@@ -17,7 +17,7 @@ describe('startMetricsServer', () => {
   it('throws for non-numeric PROMETHEUS_PORT values', () => {
     process.env['PROMETHEUS_PORT'] = '';
 
-    expect(() => startMetricsServer(new Registry())).to.throw(
+    expect(() => startMetricsServer(new Registry())).toThrow(
       /PROMETHEUS_PORT must contain only digits/i,
     );
   });
@@ -25,7 +25,7 @@ describe('startMetricsServer', () => {
   it('throws for out-of-range PROMETHEUS_PORT values', () => {
     process.env['PROMETHEUS_PORT'] = '70000';
 
-    expect(() => startMetricsServer(new Registry())).to.throw(
+    expect(() => startMetricsServer(new Registry())).toThrow(
       /PROMETHEUS_PORT must be between 1 and 65535/i,
     );
   });

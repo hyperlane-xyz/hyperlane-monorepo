@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { describe, expect, it } from 'vitest';
 
 import type { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk';
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
@@ -26,45 +26,45 @@ describe('SvmProtocolProvider', () => {
       const manager = provider.createHookArtifactManager(FAKE_METADATA, {
         mailbox: FAKE_MAILBOX,
       });
-      expect(manager).to.be.instanceOf(SvmHookArtifactManager);
+      expect(manager).toBeInstanceOf(SvmHookArtifactManager);
     });
 
     it('returns SvmHookArtifactManager without mailbox when no context', () => {
       const manager = provider.createHookArtifactManager(FAKE_METADATA);
-      expect(manager).to.be.instanceOf(SvmHookArtifactManager);
+      expect(manager).toBeInstanceOf(SvmHookArtifactManager);
     });
 
     it('returns SvmHookArtifactManager when context has no mailbox', () => {
       const manager = provider.createHookArtifactManager(FAKE_METADATA, {});
-      expect(manager).to.be.instanceOf(SvmHookArtifactManager);
+      expect(manager).toBeInstanceOf(SvmHookArtifactManager);
     });
   });
 
   describe('createIsmArtifactManager', () => {
     it('returns SvmIsmArtifactManager', () => {
       const manager = provider.createIsmArtifactManager(FAKE_METADATA);
-      expect(manager).to.be.instanceOf(SvmIsmArtifactManager);
+      expect(manager).toBeInstanceOf(SvmIsmArtifactManager);
     });
   });
 
   describe('createWarpArtifactManager', () => {
     it('returns SvmWarpArtifactManager', () => {
       const manager = provider.createWarpArtifactManager(FAKE_METADATA);
-      expect(manager).to.be.instanceOf(SvmWarpArtifactManager);
+      expect(manager).toBeInstanceOf(SvmWarpArtifactManager);
     });
   });
 
   describe('getRpcUrls validation', () => {
     it('throws when no rpcUrls', () => {
       const noRpc = { ...FAKE_METADATA, rpcUrls: [] };
-      expect(() => provider.createIsmArtifactManager(noRpc)).to.throw(
+      expect(() => provider.createIsmArtifactManager(noRpc)).toThrow(
         'At least one RPC URL is required',
       );
     });
 
     it('throws when rpcUrls is undefined', () => {
       const noRpc = { ...FAKE_METADATA, rpcUrls: undefined };
-      expect(() => provider.createIsmArtifactManager(noRpc)).to.throw(
+      expect(() => provider.createIsmArtifactManager(noRpc)).toThrow(
         'At least one RPC URL is required',
       );
     });

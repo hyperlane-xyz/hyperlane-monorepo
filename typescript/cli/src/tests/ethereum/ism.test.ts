@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 
 import { type ChainMap, type IsmConfig, IsmType } from '@hyperlane-xyz/sdk';
 
@@ -54,19 +54,19 @@ describe('readIsmConfig', () => {
         },
       },
     };
-    expect(ism).to.deep.equal(exampleIsmConfig);
+    expect(ism).toEqual(exampleIsmConfig);
   });
 
   it('parsing failure, missing internal key "threshold"', () => {
     expect(function () {
       readIsmConfig('src/tests/ethereum/ism/safe-parse-fail.yaml');
-    }).to.throw();
+    }).toThrow();
   });
 
   it('parsing failure, routingIsm.domains includes destination domain', () => {
     expect(function () {
       readIsmConfig('src/tests/ethereum/ism/routing-same-chain-fail.yaml');
-    }).to.throw(
+    }).toThrow(
       'Cannot set RoutingIsm.domain to the same chain you are configuring',
     );
   });
@@ -74,7 +74,7 @@ describe('readIsmConfig', () => {
   it('parsing failure, wrong ism type', () => {
     expect(function () {
       readIsmConfig('src/tests/ethereum/ism/wrong-ism-type-fail.yaml');
-    }).to.throw('Invalid ISM config: anvil2 => Invalid input');
+    }).toThrow('Invalid ISM config: anvil2 => Invalid input');
   });
 
   it('parsing failure, threshold > modules.length', () => {
@@ -82,8 +82,6 @@ describe('readIsmConfig', () => {
       readIsmConfig(
         'src/tests/ethereum/ism/threshold-gt-modules-length-fail.yaml',
       );
-    }).to.throw(
-      'Threshold must be less than or equal to the number of modules',
-    );
+    }).toThrow('Threshold must be less than or equal to the number of modules');
   });
 });

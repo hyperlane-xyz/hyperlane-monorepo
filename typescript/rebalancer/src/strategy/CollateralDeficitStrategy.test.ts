@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import { pino } from 'pino';
 
 import {
@@ -64,7 +64,7 @@ describe('CollateralDeficitStrategy', () => {
             testLogger,
             {},
           ),
-      ).to.throw('At least two chains must be configured');
+      ).toThrow('At least two chains must be configured');
     });
 
     it('should create a strategy with valid config', () => {
@@ -83,7 +83,7 @@ describe('CollateralDeficitStrategy', () => {
         testLogger,
         {},
       );
-      expect(strategy).to.be.instanceOf(CollateralDeficitStrategy);
+      expect(strategy).toBeInstanceOf(CollateralDeficitStrategy);
     });
   });
 
@@ -107,14 +107,14 @@ describe('CollateralDeficitStrategy', () => {
       const result = strategy['getCategorizedBalances'](rawBalances);
 
       // chain1: deficit = |-5 USDC| + 1000 USDC = 1005 USDC = 1005000000 (wei)
-      expect(result.deficits).to.have.lengthOf(1);
-      expect(result.deficits[0].chain).to.equal(chain1);
-      expect(result.deficits[0].amount).to.equal(1_005_000_000n);
+      expect(result.deficits).toHaveLength(1);
+      expect(result.deficits[0].chain).toBe(chain1);
+      expect(result.deficits[0].amount).toBe(1_005_000_000n);
 
       // chain2: surplus = 10 USDC
-      expect(result.surpluses).to.have.lengthOf(1);
-      expect(result.surpluses[0].chain).to.equal(chain2);
-      expect(result.surpluses[0].amount).to.equal(10_000_000n);
+      expect(result.surpluses).toHaveLength(1);
+      expect(result.surpluses[0].chain).toBe(chain2);
+      expect(result.surpluses[0].amount).toBe(10_000_000n);
     });
 
     it('should treat zero balance as neither surplus nor deficit', () => {
@@ -135,9 +135,9 @@ describe('CollateralDeficitStrategy', () => {
 
       const result = strategy['getCategorizedBalances'](rawBalances);
 
-      expect(result.deficits).to.have.lengthOf(0);
-      expect(result.surpluses).to.have.lengthOf(1);
-      expect(result.surpluses[0].chain).to.equal(chain2);
+      expect(result.deficits).toHaveLength(0);
+      expect(result.surpluses).toHaveLength(1);
+      expect(result.surpluses[0].chain).toBe(chain2);
     });
 
     it('should treat positive balance as surplus', () => {
@@ -158,8 +158,8 @@ describe('CollateralDeficitStrategy', () => {
 
       const result = strategy['getCategorizedBalances'](rawBalances);
 
-      expect(result.deficits).to.have.lengthOf(0);
-      expect(result.surpluses).to.have.lengthOf(2);
+      expect(result.deficits).toHaveLength(0);
+      expect(result.surpluses).toHaveLength(2);
     });
 
     it('should filter pending rebalances by configured bridges and simulate', () => {
@@ -198,15 +198,15 @@ describe('CollateralDeficitStrategy', () => {
 
       // After simulation: chain1 = -10 + 5 = -5 USDC (destination increase)
       // Deficit = |-5| + 1000 = 1005 USDC
-      expect(result.deficits).to.have.lengthOf(1);
-      expect(result.deficits[0].chain).to.equal(chain1);
-      expect(result.deficits[0].amount).to.equal(1_005_000_000n);
+      expect(result.deficits).toHaveLength(1);
+      expect(result.deficits[0].chain).toBe(chain1);
+      expect(result.deficits[0].amount).toBe(1_005_000_000n);
 
       // chain2 after simulation: 20 USDC (no change - origin already deducted on-chain)
       // Simulation only adds to destination, doesn't subtract from origin
-      expect(result.surpluses).to.have.lengthOf(1);
-      expect(result.surpluses[0].chain).to.equal(chain2);
-      expect(result.surpluses[0].amount).to.equal(20_000_000n);
+      expect(result.surpluses).toHaveLength(1);
+      expect(result.surpluses[0].chain).toBe(chain2);
+      expect(result.surpluses[0].amount).toBe(20_000_000n);
     });
 
     it('should filter out pending rebalances with different bridge', () => {
@@ -245,11 +245,11 @@ describe('CollateralDeficitStrategy', () => {
 
       // Pending rebalance should be filtered out, so no simulation
       // Deficit = |-10| + 1000 = 1010 USDC
-      expect(result.deficits).to.have.lengthOf(1);
-      expect(result.deficits[0].amount).to.equal(1_010_000_000n);
+      expect(result.deficits).toHaveLength(1);
+      expect(result.deficits[0].amount).toBe(1_010_000_000n);
 
       // chain2: no subtraction, stays at 20 USDC
-      expect(result.surpluses[0].amount).to.equal(20_000_000n);
+      expect(result.surpluses[0].amount).toBe(20_000_000n);
     });
 
     it('should handle pending rebalance that fully covers deficit', () => {
@@ -287,8 +287,8 @@ describe('CollateralDeficitStrategy', () => {
       );
 
       // After simulation: chain1 = -5 + 10 = 5 USDC (positive, no deficit)
-      expect(result.deficits).to.have.lengthOf(0);
-      expect(result.surpluses).to.have.lengthOf(2); // Both chains have surplus
+      expect(result.deficits).toHaveLength(0);
+      expect(result.surpluses).toHaveLength(2); // Both chains have surplus
     });
 
     it('should handle multiple chains with mixed balances', () => {
@@ -311,16 +311,16 @@ describe('CollateralDeficitStrategy', () => {
 
       const result = strategy['getCategorizedBalances'](rawBalances);
 
-      expect(result.deficits).to.have.lengthOf(2);
-      expect(result.surpluses).to.have.lengthOf(1);
+      expect(result.deficits).toHaveLength(2);
+      expect(result.surpluses).toHaveLength(1);
 
       // chain1: deficit = 5 + 1000 = 1005 USDC
       const chain1Deficit = result.deficits.find((d) => d.chain === chain1);
-      expect(chain1Deficit?.amount).to.equal(1_005_000_000n);
+      expect(chain1Deficit?.amount).toBe(1_005_000_000n);
 
       // chain3: deficit = 3 + 2000 = 2003 USDC
       const chain3Deficit = result.deficits.find((d) => d.chain === chain3);
-      expect(chain3Deficit?.amount).to.equal(2_003_000_000n);
+      expect(chain3Deficit?.amount).toBe(2_003_000_000n);
     });
 
     it('should handle empty pending rebalances array', () => {
@@ -342,8 +342,8 @@ describe('CollateralDeficitStrategy', () => {
       const result = strategy['getCategorizedBalances'](rawBalances, []);
 
       // No simulation should occur
-      expect(result.deficits).to.have.lengthOf(1);
-      expect(result.deficits[0].amount).to.equal(1_005_000_000n);
+      expect(result.deficits).toHaveLength(1);
+      expect(result.deficits[0].amount).toBe(1_005_000_000n);
     });
   });
 
@@ -386,11 +386,11 @@ describe('CollateralDeficitStrategy', () => {
         inflightContext,
       );
 
-      expect(routes).to.have.lengthOf(1);
-      expect(routes[0].origin).to.equal(chain2);
-      expect(routes[0].destination).to.equal(chain1);
+      expect(routes).toHaveLength(1);
+      expect(routes[0].origin).toBe(chain2);
+      expect(routes[0].destination).toBe(chain1);
       if (routes[0].executionType === 'movableCollateral') {
-        expect(routes[0].bridge).to.equal(BRIDGE2); // Uses chain2's (origin) bridge
+        expect(routes[0].bridge).toBe(BRIDGE2); // Uses chain2's (origin) bridge
       }
     });
 
@@ -435,10 +435,10 @@ describe('CollateralDeficitStrategy', () => {
       );
 
       // Should have route(s) from surplus chains (chain2, chain3) to deficit chain (chain1)
-      expect(routes.length).to.be.greaterThan(0);
+      expect(routes.length).toBeGreaterThan(0);
       routes.forEach((route) => {
-        expect([chain2, chain3]).to.include(route.origin);
-        expect(route.destination).to.equal(chain1);
+        expect([chain2, chain3]).toContain(route.origin);
+        expect(route.destination).toBe(chain1);
       });
     });
   });
@@ -480,12 +480,13 @@ describe('CollateralDeficitStrategy', () => {
 
       const filtered = strategy['filterByConfiguredBridges'](pendingRebalances);
 
-      expect(filtered).to.have.lengthOf(2);
-      expect((filtered[0] as Route & { bridge?: Address }).bridge).to.equal(
+      expect(filtered).toHaveLength(2);
+      expect((filtered[0] as Route & { bridge?: Address }).bridge).toBe(
         BRIDGE2,
       );
-      expect((filtered[1] as Route & { bridge?: Address }).bridge).to.be
-        .undefined;
+      expect(
+        (filtered[1] as Route & { bridge?: Address }).bridge,
+      ).toBeUndefined();
     });
 
     it('should include rebalance when bridge matches configured bridge for the route', () => {
@@ -512,8 +513,8 @@ describe('CollateralDeficitStrategy', () => {
       ];
 
       const filtered = strategy['filterByConfiguredBridges'](pendingRebalances);
-      expect(filtered).to.have.lengthOf(1);
-      expect((filtered[0] as Route & { bridge?: Address }).bridge).to.equal(
+      expect(filtered).toHaveLength(1);
+      expect((filtered[0] as Route & { bridge?: Address }).bridge).toBe(
         BRIDGE2,
       );
     });
@@ -544,7 +545,7 @@ describe('CollateralDeficitStrategy', () => {
       ];
 
       const filtered = strategy['filterByConfiguredBridges'](pendingRebalances);
-      expect(filtered).to.have.lengthOf(0);
+      expect(filtered).toHaveLength(0);
     });
 
     it('should return empty array for undefined pending rebalances', () => {
@@ -559,7 +560,7 @@ describe('CollateralDeficitStrategy', () => {
       );
 
       const filtered = strategy['filterByConfiguredBridges'](undefined);
-      expect(filtered).to.have.lengthOf(0);
+      expect(filtered).toHaveLength(0);
     });
   });
 
@@ -619,11 +620,11 @@ describe('CollateralDeficitStrategy', () => {
         inflightContext,
       );
 
-      expect(routes).to.have.lengthOf(1);
-      expect(routes[0].origin).to.equal(chain2);
-      expect(routes[0].destination).to.equal(chain1);
-      expect(routes[0].executionType).to.equal('inventory');
-      expect((routes[0] as InventoryRoute).externalBridge).to.equal(
+      expect(routes).toHaveLength(1);
+      expect(routes[0].origin).toBe(chain2);
+      expect(routes[0].destination).toBe(chain1);
+      expect(routes[0].executionType).toBe('inventory');
+      expect((routes[0] as InventoryRoute).externalBridge).toBe(
         ExternalBridgeType.LiFi,
       );
     });
@@ -671,8 +672,8 @@ describe('CollateralDeficitStrategy', () => {
       ];
 
       const filtered = strategy['filterByConfiguredBridges'](pendingRebalances);
-      expect(filtered).to.have.lengthOf(1);
-      expect((filtered[0] as InventoryRoute).externalBridge).to.equal(
+      expect(filtered).toHaveLength(1);
+      expect((filtered[0] as InventoryRoute).externalBridge).toBe(
         ExternalBridgeType.LiFi,
       );
     });
@@ -722,7 +723,7 @@ describe('CollateralDeficitStrategy', () => {
       ];
 
       const filtered = strategy['filterByConfiguredBridges'](pendingRebalances);
-      expect(filtered).to.have.lengthOf(0);
+      expect(filtered).toHaveLength(0);
     });
   });
 });
