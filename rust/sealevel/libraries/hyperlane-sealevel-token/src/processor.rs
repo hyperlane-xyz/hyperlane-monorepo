@@ -285,14 +285,20 @@ where
     /// - 6: `[signer]` The token sender and mailbox payer.
     /// - 7: `[signer]` Unique message / gas payment account.
     /// - 8: `[writeable]` Message storage PDA.
-    ///   ---- If using an IGP ----
-    /// - 9: `[executable]` The IGP program.
-    /// - 10: `[writeable]` The IGP program data.
-    /// - 11: `[writeable]` Gas payment PDA.
-    /// - 12: `[]` OPTIONAL - The Overhead IGP program, if the configured IGP is an Overhead IGP.
-    /// - 13: `[writeable]` The IGP account.
+    ///   ---- If fee_config is Some ----
+    /// - 9: `[executable]` The fee program.
+    /// - 10: `[]` The fee account.
+    /// - 11..M: Variable QuoteFee pass-through accounts (standing quote PDAs, route PDAs).
+    /// - M+1: `[writeable]` Fee beneficiary (terminal sentinel).
     ///   ---- End if ----
-    /// - 14..N: `[??..??]` Plugin-specific accounts.
+    ///   ---- If using an IGP ----
+    /// - `[executable]` The IGP program.
+    /// - `[writeable]` The IGP program data.
+    /// - `[writeable]` Gas payment PDA.
+    /// - `[]` OPTIONAL - The Overhead IGP program, if the configured IGP is an Overhead IGP.
+    /// - `[writeable]` The IGP account.
+    ///   ---- End if ----
+    /// - `[??..??]` Plugin-specific accounts.
     pub fn transfer_remote(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
@@ -353,20 +359,21 @@ where
         Ok(())
     }
 
-    /// Shared remote-dispatch helper: validates mailbox accounts, converts
-    /// amounts, calls plugin `transfer_in`, dispatches via mailbox CPI, and
-    /// optionally pays IGP. The caller is responsible for validating
-    /// system_program, spl_noop, loading the token, and resolving the router.
+    /// Shared remote-dispatch helper: validates mailbox accounts, optionally
+    /// quotes and collects fees, calls plugin `transfer_in`, dispatches via
+    /// mailbox CPI, and optionally pays IGP.
     ///
-    /// Accounts consumed from the iterator (starting after spl_noop / token PDA):
-    /// - mailbox program
-    /// - mailbox outbox
-    /// - dispatch authority PDA
-    /// - sender wallet (signer)
-    /// - unique message account
-    /// - dispatched message PDA
-    /// - optional IGP accounts
-    /// - plugin transfer_in accounts
+    /// The caller is responsible for validating system_program, spl_noop,
+    /// loading the token, and resolving the router.
+    ///
+    /// Account consumption order (starting after spl_noop / token PDA):
+    /// - Core: mailbox, outbox, dispatch authority, sender, unique message, dispatched message
+    /// - Fee (if fee_config is Some): fee_program, fee_account, variable pass-through, fee_beneficiary
+    /// - IGP (if configured): igp_program, igp_data, payment PDA, configured IGP, optional inner IGP
+    /// - Plugin: transfer_in accounts
+    ///
+    /// When fee_config is None the fee section is skipped, preserving
+    /// the existing Core → IGP → Plugin layout.
     #[allow(clippy::too_many_arguments)]
     pub fn transfer_remote_to<'a, 'b>(
         program_id: &Pubkey,
