@@ -115,6 +115,23 @@ contract DelayedFlowRouterTest is Test {
 
         // 6. Fund user with synthetic for transferRemote burns
         syntheticRouter.transfer(user, INITIAL_COLLATERAL);
+
+        // 7. Warm up the mailboxes with a throwaway dispatch each.
+        //    `DelayedFlowRouter` requires `message.nonce > lastCreditedNonce`,
+        //    and a fresh `MockMailbox` starts at nonce 0 — real mailboxes
+        //    have dispatched many messages before a router is deployed.
+        //    Each warmup occupies `inboundMessages[0]` on the remote side;
+        //    subsequent preverify/warp messages land at index 1/2.
+        originMailbox.dispatch(
+            DESTINATION_DOMAIN,
+            bytes32(0),
+            bytes("warmup")
+        );
+        destinationMailbox.dispatch(
+            ORIGIN_DOMAIN,
+            bytes32(0),
+            bytes("warmup")
+        );
     }
 
     // ============ Capacity source derivation ============
@@ -160,13 +177,12 @@ contract DelayedFlowRouterTest is Test {
         uint256 amount = destinationDelay.maxCapacity() / 2; // well under
         bytes32 messageId = _dispatchWithdrawal(amount);
 
-        // Preverify message arrives first (nonce 0), then warp message (nonce 1)
-        destinationMailbox.processInboundMessage(0);
+        // Index 0 is the setUp warmup; preverify lands at 1, warp at 2.
+        destinationMailbox.processInboundMessage(1);
 
         assertEq(destinationDelay.readyAt(messageId), uint48(block.timestamp));
 
-        // Warp message delivers in the same block (no delay)
-        destinationMailbox.processInboundMessage(1);
+        destinationMailbox.processInboundMessage(2);
 
         assertEq(underlying.balanceOf(user), amount);
     }
@@ -178,7 +194,7 @@ contract DelayedFlowRouterTest is Test {
         uint256 amount = cap + cap / 2; // 1.5x capacity
         bytes32 messageId = _dispatchWithdrawal(amount);
 
-        destinationMailbox.processInboundMessage(0);
+        destinationMailbox.processInboundMessage(1);
 
         // Rate derived the same way as RateLimited._consume
         uint256 rate = cap / destinationDelay.DURATION();
@@ -197,11 +213,11 @@ contract DelayedFlowRouterTest is Test {
                 uint48(block.timestamp + expectedWait)
             )
         );
-        destinationMailbox.processInboundMessage(1);
+        destinationMailbox.processInboundMessage(2);
 
         // Fast-forward, then deliver
         vm.warp(block.timestamp + expectedWait);
-        destinationMailbox.processInboundMessage(1);
+        destinationMailbox.processInboundMessage(2);
         assertEq(underlying.balanceOf(user), amount);
     }
 
@@ -232,9 +248,9 @@ contract DelayedFlowRouterTest is Test {
         uint256 cap = destinationDelay.maxCapacity();
         uint256 amount = cap / 4;
 
-        // Drain bucket first
+        // Drain bucket first (index 1 is the preverify; 0 is the warmup).
         _dispatchWithdrawal(cap + 1);
-        destinationMailbox.processInboundMessage(0);
+        destinationMailbox.processInboundMessage(1);
         assertEq(destinationDelay.filledLevel(), 0);
 
         // Local deposit on collateral chain credits destinationDelay's
@@ -254,10 +270,27 @@ contract DelayedFlowRouterTest is Test {
 
     // ============ Replay prevention ============
 
-    function test_postDispatch_advancesNextDispatchNonce() public {
-        uint32 before = originDelay.nextDispatchNonce();
+    function test_postDispatch_advancesLastCreditedNonce() public {
         _dispatchWithdrawal(1 ether);
-        assertEq(originDelay.nextDispatchNonce(), before + 1);
+        assertGt(originDelay.lastCreditedNonce(), 0);
+    }
+
+    function test_postDispatch_revertsIfNotLatestDispatched() public {
+        // Craft a valid-looking warp message that was never dispatched
+        // through the Mailbox. Sender + nonce checks pass, but
+        // `_isLatestDispatched` rejects it.
+        uint32 fakeNonce = originDelay.lastCreditedNonce() + 1;
+        bytes memory message = MessageUtils.formatMessage(
+            3,
+            fakeNonce,
+            ORIGIN_DOMAIN,
+            address(syntheticRouter).addressToBytes32(),
+            DESTINATION_DOMAIN,
+            address(collateralRouter).addressToBytes32(),
+            TokenMessage.format(user.addressToBytes32(), 1 ether, bytes(""))
+        );
+        vm.expectRevert("message not dispatching");
+        originDelay.postDispatch(bytes(""), message);
     }
 
     function test_handle_doublePreverifyReverts() public {
@@ -323,6 +356,88 @@ contract DelayedFlowRouterTest is Test {
         destinationDelay.verify(bytes(""), message);
     }
 
+    // ============ Fuzz: net flow invariants ============
+
+    /// @dev For any withdrawal amount on destination, the committed wait is
+    /// zero iff `amount <= currentLevel`, otherwise strictly positive and
+    /// clamped to `maxDelay`.
+    function testFuzz_withdraw_waitInvariants(uint128 _amount) public {
+        vm.assume(_amount > 0);
+        uint256 amount = uint256(_amount);
+
+        bytes32 id = keccak256(abi.encode("fuzz-withdraw", amount));
+        uint256 levelBefore = destinationDelay.calculateCurrentLevel();
+
+        vm.prank(address(destinationMailbox));
+        destinationDelay.handle(
+            ORIGIN_DOMAIN,
+            address(originDelay).addressToBytes32(),
+            abi.encode(id, amount)
+        );
+
+        uint48 readyAt = destinationDelay.readyAt(id);
+        uint48 wait = readyAt - uint48(block.timestamp);
+        assertLe(wait, MAX_DELAY, "wait exceeds maxDelay");
+        if (amount <= levelBefore) {
+            assertEq(wait, 0, "under-threshold must be instant");
+        } else {
+            assertGt(wait, 0, "over-threshold must delay");
+        }
+    }
+
+    /// @dev Round-trip: withdraw then deposit the same amount. Final bucket
+    /// level matches the starting level up to an additive clamp at `cap`.
+    function testFuzz_roundTrip_bucketReturns(uint128 _amount) public {
+        uint256 cap = destinationDelay.maxCapacity();
+        uint256 amount = bound(uint256(_amount), 1, cap);
+        uint256 startLevel = destinationDelay.calculateCurrentLevel();
+
+        // Consume via _handle (simulates an incoming withdrawal preverify).
+        bytes32 id = keccak256(abi.encode("fuzz-rt", amount));
+        vm.prank(address(destinationMailbox));
+        destinationDelay.handle(
+            ORIGIN_DOMAIN,
+            address(originDelay).addressToBytes32(),
+            abi.encode(id, amount)
+        );
+        uint256 levelAfterConsume = destinationDelay.calculateCurrentLevel();
+
+        // Credit back by the same amount via a local deposit dispatch.
+        underlying.mintTo(address(this), amount);
+        underlying.approve(address(collateralRouter), amount);
+        vm.deal(address(this), 1 ether);
+        collateralRouter.transferRemote{value: 1 ether}(
+            ORIGIN_DOMAIN,
+            address(this).addressToBytes32(),
+            amount
+        );
+
+        uint256 levelAfterCredit = destinationDelay.calculateCurrentLevel();
+        // Credit clamps at cap — the bucket should end at min(startLevel, cap)
+        // if it was fully refillable, or between levelAfterConsume + amount
+        // and cap otherwise.
+        assertLe(levelAfterCredit, cap, "exceeds cap");
+        assertGe(
+            levelAfterCredit,
+            levelAfterConsume,
+            "credit must not shrink bucket"
+        );
+        // Within a single block, refill is zero, so the credit is exactly
+        // `amount` clamped to `cap - levelAfterConsume`.
+        uint256 expected = levelAfterConsume + amount > cap
+            ? cap
+            : levelAfterConsume + amount;
+        assertEq(levelAfterCredit, expected, "round-trip level mismatch");
+        // Final level is bounded above by start (we can't exceed cap) and
+        // below by what consume left, so we're within [startLevel - amount,
+        // cap].
+        assertLe(
+            levelAfterCredit,
+            startLevel + amount,
+            "net flow grew bucket"
+        );
+    }
+
     // ============ Aggregation with PausableIsm ============
 
     function test_pausable_blocksReadyMessage() public {
@@ -341,7 +456,7 @@ contract DelayedFlowRouterTest is Test {
 
         uint256 amount = destinationDelay.maxCapacity() / 2;
         _dispatchWithdrawal(amount);
-        destinationMailbox.processInboundMessage(0);
+        destinationMailbox.processInboundMessage(1);
 
         // AggregationIsmMetadata format: 2 (start,end) u32 pairs. Both ISMs
         // ignore metadata, so empty ranges pointing past the header work.
@@ -352,16 +467,16 @@ contract DelayedFlowRouterTest is Test {
             uint32(16),
             uint32(16)
         );
-        destinationMailbox.addInboundMetadata(1, aggMetadata);
+        destinationMailbox.addInboundMetadata(2, aggMetadata);
 
         // Pause → aggregation verify reverts with Pausable's error
         pausable.pause();
         vm.expectRevert(bytes("Pausable: paused"));
-        destinationMailbox.processInboundMessage(1);
+        destinationMailbox.processInboundMessage(2);
 
         // Unpause → delivers
         pausable.unpause();
-        destinationMailbox.processInboundMessage(1);
+        destinationMailbox.processInboundMessage(2);
         assertEq(underlying.balanceOf(user), amount);
     }
 

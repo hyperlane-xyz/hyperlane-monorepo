@@ -42,7 +42,7 @@ sequenceDiagram
   SR->>SR: burn synthetic (totalSupply ↓)
   SR->>OM: dispatch(warp)
   OM-->>OD: postDispatch(warp)
-  Note over OD: sender == warpRouter<br/>nonce >= nextDispatchNonce<br/>_credit(amount): bucket ← min(cap, bucket + amount)
+  Note over OD: sender == warpRouter<br/>nonce > lastCreditedNonce<br/>_credit(amount): bucket ← min(cap, bucket + amount)
   OD->>OM: dispatch(preverify = id, amount)
 
   Note over OM,DM: cross-chain delivery — preverify & warp<br/>arrive independently
@@ -84,6 +84,7 @@ threshold = 2
 
 ## Replay protection
 
-`postDispatch` tracks `nextDispatchNonce` (uint32, monotonic). Combined with
-`TimelockRouter`'s `_isLatestDispatched` check, this prevents the same
-message from double-crediting the bucket or re-sending a preverify.
+`postDispatch` tracks `lastCreditedNonce` (uint32) and requires
+`message.nonce > lastCreditedNonce`. Combined with `TimelockRouter`'s
+`_isLatestDispatched` check, this prevents the same message from
+double-crediting the bucket or re-sending a preverify.

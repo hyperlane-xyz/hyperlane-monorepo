@@ -71,10 +71,10 @@ contract DelayedFlowRouter is TimelockRouter, RateLimited {
 
     // ============ Storage ============
 
-    /// @notice Next Mailbox nonce accepted by `postDispatch`. Monotonically
-    /// advances; combined with `TimelockRouter`'s `_isLatestDispatched`
-    /// check, prevents same-message replay of the bucket credit.
-    uint32 public nextDispatchNonce;
+    /// @notice Highest Mailbox nonce for which the bucket has been credited.
+    /// Combined with `TimelockRouter`'s `_isLatestDispatched` check, this
+    /// single slot prevents same-message replay of the bucket credit.
+    uint32 public lastCreditedNonce;
 
     // ============ Constructor ============
 
@@ -137,15 +137,15 @@ contract DelayedFlowRouter is TimelockRouter, RateLimited {
         );
         uint32 n = message.nonce();
         require(
-            n >= nextDispatchNonce,
+            n > lastCreditedNonce,
             "DelayedFlowRouter: already credited"
         );
-        nextDispatchNonce = n + 1;
+        lastCreditedNonce = n;
 
-        bytes32 id = message.id();
         uint256 amount = message.body().amount();
         _credit(amount);
 
+        bytes32 id = message.id();
         _TimelockRouter_dispatchPreverify(
             id,
             message.destination(),
