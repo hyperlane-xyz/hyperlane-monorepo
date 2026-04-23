@@ -339,6 +339,14 @@ jobs:
         uses: ./.github/actions/checkout-registry
 
       - name: Unit Tests
+        # depot-ubuntu-24.04 has 8GB RAM. Turbo's --concurrency cap only limits
+        # parallel package tasks, not the vitest worker pool spawned inside
+        # each one — so without this env var we'd end up with (concurrency ×
+        # vitest workers) processes all holding full TS transform caches, and
+        # peak memory hits ~94%. Force vitest to a single worker per package;
+        # turbo still parallelizes across packages.
+        env:
+          VITEST_MAX_WORKERS: 1
         run: pnpm run test:ci
 
   pnpm-test:
