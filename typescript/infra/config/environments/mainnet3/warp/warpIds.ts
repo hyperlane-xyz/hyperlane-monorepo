@@ -151,8 +151,8 @@ export enum WarpRouteIds {
 
   // TODO: uncomment when USDTOft warp routes are in the registry
   // USDT OFT
-  // USDTOft = 'USDT/oft',
-  // USDTOftLegacy = 'USDT/oft-legacy',
+  USDTOft = 'USDT/oft',
+  USDTOftLegacy = 'USDT/oft-legacy',
 
   // RISE routes
   BscEthereumRISE = 'RISE/bsc-ethereum',
@@ -160,9 +160,13 @@ export enum WarpRouteIds {
   // Igra routes
   IgraUSDC = 'USDC/igra',
   IgraIKAS = 'IKAS/igra',
+  IgraSOL = 'SOL/igra',
   IgraWSTETH = 'WSTETH/igra',
   IgraCBBTC = 'CBBTC/igra',
   EthereumIgraUSDS = 'USDS/ethereum-igra',
   EthereumIgraWETH = 'WETH/ethereum-igra',
   EthereumIgraUSDT = 'USDT/ethereum-igra',
+
+  // Fluent routes
+  FluentBLEND = 'BLEND/fluent',
 }

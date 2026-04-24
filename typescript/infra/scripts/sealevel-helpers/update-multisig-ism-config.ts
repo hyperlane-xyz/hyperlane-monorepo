@@ -25,7 +25,7 @@ import { address } from '@solana/kit';
 import { Contexts } from '../../config/contexts.js';
 import { getChain } from '../../config/registry.js';
 import { chainsToSkip } from '../../src/config/chain.js';
-import { DeployEnvironment } from '../../src/config/environment.js';
+import { DeployEnvironment } from '../../src/config/deploy-environment.js';
 import { squadsConfigs } from '../../src/config/squads.js';
 import {
   SQUADS_PROPOSAL_OVERHEAD,

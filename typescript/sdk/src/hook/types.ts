@@ -52,6 +52,12 @@ export const HookType = {
   ARB_L2_TO_L1: 'arbL2ToL1Hook',
   MAILBOX_DEFAULT: 'defaultHook',
   CCIP: 'ccipHook',
+  /**
+   * References a pre-deployed CCTP hook by address. Excluded from
+   * `DeployableHookType` — not deployed via `HyperlaneHookDeployer`; the
+   * `EvmHookModule.deploy` path just connects to `config.address`.
+   */
+  CCTP: 'cctpHook',
   UNKNOWN: 'unknownHook',
   PREDICATE: 'predicateHook',
 } as const;
@@ -60,7 +66,10 @@ export type HookType = (typeof HookType)[keyof typeof HookType];
 
 export type DeployableHookType = Exclude<
   HookType,
-  typeof HookType.CUSTOM | typeof HookType.PREDICATE | typeof HookType.UNKNOWN
+  | typeof HookType.CUSTOM
+  | typeof HookType.PREDICATE
+  | typeof HookType.UNKNOWN
+  | typeof HookType.CCTP
 >;
 
 export const HookTypeToContractNameMap: Record<DeployableHookType, string> = {
@@ -220,6 +229,12 @@ export const CCIPHookSchema = z.object({
   destinationChain: z.string(),
 });
 
+export const CctpHookSchema = z.object({
+  type: z.literal(HookType.CCTP),
+  address: ZHash,
+});
+export type CctpHookConfig = z.infer<typeof CctpHookSchema>;
+
 export const UnknownHookSchema = z
   .object({
     type: z.literal(HookType.UNKNOWN),
@@ -282,6 +297,7 @@ export const HookConfigSchema = z.union([
   ArbL2ToL1HookSchema,
   MailboxDefaultHookSchema,
   CCIPHookSchema,
+  CctpHookSchema,
   UnknownHookSchema,
   PredicateHookSchema,
 ]);

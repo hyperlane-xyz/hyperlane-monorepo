@@ -88,6 +88,12 @@ The rebalancer container
     value: $(HYP_REBALANCER_KEY)
   - name: HYP_INVENTORY_KEY
     value: $(HYP_INVENTORY_KEY)
+  - name: HYP_INVENTORY_KEY_ETHEREUM
+    value: $(HYP_INVENTORY_KEY_ETHEREUM)
+  {{- if has "sealevel" .Values.hyperlane.inventorySignerProtocols }}
+  - name: HYP_INVENTORY_KEY_SEALEVEL
+    value: $(HYP_INVENTORY_KEY_SEALEVEL)
+  {{- end }}
   - name: COINGECKO_API_KEY
     value: $(COINGECKO_API_KEY)
   - name: REBALANCER_CONFIG_FILE

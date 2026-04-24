@@ -22,7 +22,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { assert, objFilter, rootLogger } from '@hyperlane-xyz/utils';
 
-import type { DeployEnvironment } from '../src/config/environment.js';
+import type { DeployEnvironment } from '../src/config/deploy-environment.js';
 
 import { supportedChainNames as mainnet3Chains } from './environments/mainnet3/supportedChainNames.js';
 import {

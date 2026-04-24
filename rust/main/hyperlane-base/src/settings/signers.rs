@@ -7,6 +7,7 @@ use ethers::utils::hex::ToHex;
 use eyre::{bail, Context, Report};
 use rusoto_core::Region;
 use rusoto_kms::KmsClient;
+use std::str::FromStr;
 use tracing::instrument;
 
 use hyperlane_core::{AccountAddressType, H256};
@@ -15,6 +16,16 @@ use super::aws_credentials::AwsChainCredentialsProvider;
 use crate::types::utils;
 
 const AWS_SIGNER_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Resolve an AWS region string into a `rusoto_core::Region` without relying on
+/// rusoto's `FromStr` allowlist, which rejects regions added after rusoto was
+/// last updated (e.g. `eu-central-2`).
+fn resolve_kms_region(region: &str) -> Region {
+    Region::from_str(region).unwrap_or_else(|_| Region::Custom {
+        name: region.to_owned(),
+        endpoint: format!("https://kms.{region}.amazonaws.com"),
+    })
+}
 
 /// Signer types
 #[derive(Default, Debug, Clone)]
@@ -30,7 +41,7 @@ pub enum SignerConf {
         /// The UUID identifying the AWS KMS Key
         id: String,
         /// The AWS region
-        region: Region,
+        region: String,
     },
     /// Cosmos Specific key
     CosmosKey {
@@ -100,7 +111,7 @@ impl BuildableWithSignerConf for hyperlane_ethereum::Signers {
                     .map_err(|err| eyre::eyre!(err.to_string()))?;
                 let client = KmsClient::new_with_client(
                     rusoto_core::Client::new_with(AwsChainCredentialsProvider::new(), http_client),
-                    region.clone(),
+                    resolve_kms_region(region),
                 );
                 let signer = AwsSigner::new(client, id, 0, Some(AWS_SIGNER_TIMEOUT)).await?;
                 hyperlane_ethereum::Signers::Aws(signer)
@@ -142,7 +153,7 @@ impl BuildableWithSignerConf for hyperlane_tron::TronSigner {
                     .map_err(|err| eyre::eyre!(err.to_string()))?;
                 let client = KmsClient::new_with_client(
                     rusoto_core::Client::new_with(AwsChainCredentialsProvider::new(), http_client),
-                    region.clone(),
+                    resolve_kms_region(region),
                 );
                 let signer = AwsSigner::new(client, id, 0, Some(AWS_SIGNER_TIMEOUT)).await?;
                 Ok(hyperlane_tron::TronSigner::Aws(signer))
@@ -323,8 +334,27 @@ impl ChainSigner for hyperlane_aleo::AleoSigner {
 mod tests {
     use ethers::{signers::LocalWallet, utils::hex};
     use hyperlane_core::{AccountAddressType, Encode, H256};
+    use rusoto_core::Region;
 
+    use super::resolve_kms_region;
     use crate::settings::{ChainSigner, SignerConf};
+
+    #[test]
+    fn resolve_kms_region_known_region_uses_enum_variant() {
+        assert_eq!(resolve_kms_region("us-east-1"), Region::UsEast1);
+    }
+
+    #[test]
+    fn resolve_kms_region_unknown_region_uses_custom() {
+        let region = resolve_kms_region("eu-central-2");
+        match region {
+            Region::Custom { name, endpoint } => {
+                assert_eq!(name, "eu-central-2");
+                assert_eq!(endpoint, "https://kms.eu-central-2.amazonaws.com");
+            }
+            other => panic!("expected Region::Custom, got {other:?}"),
+        }
+    }
 
     #[test]
     fn address_h256_ethereum() {

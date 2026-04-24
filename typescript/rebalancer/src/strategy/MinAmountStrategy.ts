@@ -1,8 +1,12 @@
 import { BigNumber } from 'bignumber.js';
 import { type Logger } from 'pino';
 
-import { type ChainMap, type Token } from '@hyperlane-xyz/sdk';
-import { fromWei, toWei } from '@hyperlane-xyz/utils';
+import {
+  localAmountFromMessage,
+  type ChainMap,
+  type Token,
+} from '@hyperlane-xyz/sdk';
+import { fromWei } from '@hyperlane-xyz/utils';
 
 import {
   type MinAmountStrategyConfig,
@@ -16,6 +20,7 @@ import type {
 } from '../interfaces/IStrategy.js';
 import { type Metrics } from '../metrics/Metrics.js';
 import type { BridgeConfigWithOverride } from '../utils/bridgeUtils.js';
+import { normalizeConfiguredAmount } from '../utils/balanceUtils.js';
 
 import { BaseStrategy, type Delta } from './BaseStrategy.js';
 
@@ -116,9 +121,13 @@ export class MinAmountStrategy extends BaseStrategy {
         if (chainConfig.minAmount.type === RebalancerMinAmountType.Absolute) {
           const token = this.getTokenByChainName(chain);
 
-          minAmount = BigInt(toWei(chainConfig.minAmount.min, token.decimals));
-          targetAmount = BigInt(
-            toWei(chainConfig.minAmount.target, token.decimals),
+          minAmount = normalizeConfiguredAmount(
+            chainConfig.minAmount.min,
+            token,
+          );
+          targetAmount = normalizeConfiguredAmount(
+            chainConfig.minAmount.target,
+            token,
           );
         } else {
           minAmount = BigInt(
@@ -172,29 +181,32 @@ export class MinAmountStrategy extends BaseStrategy {
 
     if (minAmountType === RebalancerMinAmountType.Absolute) {
       let totalTargets = 0n;
-      let decimals: number = 0;
+      const displayToken = this.getTokenByChainName(this.chains[0]);
 
       for (const chainName of this.chains) {
         const token = this.getTokenByChainName(chainName);
-        // all the tokens have the same amount of decimals
-        decimals = token.decimals;
-
-        totalTargets += BigInt(
-          toWei(config[chainName].minAmount.target, token.decimals),
+        totalTargets += normalizeConfiguredAmount(
+          config[chainName].minAmount.target,
+          token,
         );
       }
 
       if (totalTargets > totalCollateral) {
         throw new Error(
-          `Consider reducing the targets as the sum (${fromWei(
-            totalTargets.toString(),
-            decimals,
-          )}) is greater than sum of collaterals (${fromWei(
-            totalCollateral.toString(),
-            decimals,
+          `Consider reducing the targets as the sum (${this.formatCanonicalAmount(
+            totalTargets,
+            displayToken,
+          )}) is greater than sum of collaterals (${this.formatCanonicalAmount(
+            totalCollateral,
+            displayToken,
           )})`,
         );
       }
     }
+  }
+
+  private formatCanonicalAmount(amount: bigint, token: Token): string {
+    const localAmount = localAmountFromMessage(amount, token.scale);
+    return fromWei(localAmount.toString(), token.decimals);
   }
 }
