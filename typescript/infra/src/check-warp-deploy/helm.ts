@@ -4,7 +4,7 @@ import { Contexts } from '../../config/contexts.js';
 import { getAgentConfig } from '../../scripts/agent-utils.js';
 import { getEnvironmentConfig } from '../../scripts/core-utils.js';
 import { AgentContextConfig } from '../config/agent/agent.js';
-import { DeployEnvironment } from '../config/environment.js';
+import { DeployEnvironment } from '../config/deploy-environment.js';
 import { CheckWarpDeployConfig } from '../config/funding.js';
 import { HelmManager } from '../utils/helm.js';
 import { getInfraPath } from '../utils/utils.js';

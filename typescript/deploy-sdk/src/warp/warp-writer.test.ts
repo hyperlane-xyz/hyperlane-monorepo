@@ -30,7 +30,7 @@ import {
   ProtocolType,
   hasProtocol,
   registerProtocol,
-} from '@hyperlane-xyz/provider-sdk/protocol';
+} from '@hyperlane-xyz/provider-sdk';
 import {
   type CollateralWarpArtifactConfig,
   type DeployedWarpAddress,

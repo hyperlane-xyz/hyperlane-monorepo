@@ -32,12 +32,9 @@ import {
 
 import { Contexts } from '../../config/contexts.js';
 import { getSecretDeployerKey } from '../agents/index.js';
-// eslint-disable-next-line import/no-cycle
-import { AnnotatedCallData } from '../govern/HyperlaneAppGovernor.js';
+import { AnnotatedCallData } from '../govern/types.js';
 
-import { fetchGCPSecret } from './gcloud.js';
-
-const safeApiKeySecretName = 'gnosis-safe-api-key';
+import { getSafeApiKey } from './safeApiKey.js';
 
 const MIN_SAFE_API_VERSION = '5.18.0';
 
@@ -94,10 +91,6 @@ async function fetchSafeApi<T>(url: string, safeApiKey: string): Promise<T> {
     }
     return response.json();
   });
-}
-
-export async function getSafeApiKey(): Promise<string> {
-  return (await fetchGCPSecret(safeApiKeySecretName, false)) as string;
 }
 
 export async function getSafeAndService(

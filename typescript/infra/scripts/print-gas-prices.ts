@@ -18,7 +18,7 @@ import { supportedChainNames as mainnet3SupportedChainNames } from '../config/en
 import { getRegistry as getTestnet4Registry } from '../config/environments/testnet4/chains.js';
 import testnet4GasPrices from '../config/environments/testnet4/gasPrices.json' with { type: 'json' };
 import { supportedChainNames as testnet4SupportedChainNames } from '../config/environments/testnet4/supportedChainNames.js';
-import { DeployEnvironment } from '../src/config/environment.js';
+import { DeployEnvironment } from '../src/config/deploy-environment.js';
 import {
   getSafeNumericValue,
   updatePriceIfNeeded,

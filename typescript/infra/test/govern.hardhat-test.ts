@@ -32,10 +32,8 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, CallData, eqAddress, objMap } from '@hyperlane-xyz/utils';
 
-import {
-  AnnotatedCallData,
-  HyperlaneAppGovernor,
-} from '../src/govern/HyperlaneAppGovernor.js';
+import { HyperlaneAppGovernor } from '../src/govern/HyperlaneAppGovernor.js';
+import { AnnotatedCallData } from '../src/govern/types.js';
 
 // eslint-disable-next-line jest/no-export -- test fixture class
 export class TestApp extends HyperlaneApp<{}> {}
