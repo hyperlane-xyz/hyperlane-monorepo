@@ -259,6 +259,13 @@ export function splitPluginDataAndFeeConfig(
     return { pluginData, feeConfig: null };
   }
 
+  const feeDataLen = pluginData.length - pluginSize;
+  // Option<FeeConfig> is 1 byte (tag=0, None) or 65 bytes (tag=1 + two 32-byte pubkeys).
+  assert(
+    feeDataLen === 1 || feeDataLen === 65,
+    `Unexpected fee config data size: ${feeDataLen} bytes (expected 1 or 65)`,
+  );
+
   const actualPluginData = pluginData.subarray(0, pluginSize);
   const cursor = new ByteCursor(pluginData.subarray(pluginSize));
 

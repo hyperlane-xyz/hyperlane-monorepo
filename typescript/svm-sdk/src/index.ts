@@ -26,6 +26,7 @@ export { SvmValidatorAnnounceArtifactManager as SealevelValidatorAnnounceArtifac
 export { SvmIsmArtifactManager as SealevelIsmArtifactManager } from './ism/ism-artifact-manager.js';
 export { SvmHookArtifactManager as SealevelHookArtifactManager } from './hook/hook-artifact-manager.js';
 export { SvmFeeArtifactManager as SealevelFeeArtifactManager } from './fee/fee-artifact-manager.js';
+export { SvmWarpArtifactManager as SealevelWarpArtifactManager } from './warp/warp-artifact-manager.js';
 
 // ISM readers/writers
 export {

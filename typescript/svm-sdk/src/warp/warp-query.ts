@@ -34,7 +34,7 @@ export async function fetchTokenAccount(
   const { address: tokenPda } = await deriveHyperlaneTokenPda(programId);
   const account = await fetchEncodedAccount(rpc, tokenPda);
   if (!account.exists) return null;
-  return decodeHyperlaneTokenAccount(account.data as Uint8Array);
+  return decodeHyperlaneTokenAccount(Uint8Array.from(account.data));
 }
 
 /**

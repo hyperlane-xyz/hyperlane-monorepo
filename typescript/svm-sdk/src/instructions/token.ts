@@ -35,6 +35,7 @@ import {
   InterchainGasPaymasterTypeKind,
   type RemoteRouterConfig,
 } from '../codecs/shared.js';
+import type { TokenFeeConfig } from '../accounts/token.js';
 import {
   PROGRAM_INSTRUCTION_DISCRIMINATOR,
   SYSTEM_PROGRAM_ADDRESS,
@@ -63,11 +64,6 @@ export enum TokenProgramInstructionKind {
   SetInterchainGasPaymaster = 6,
   TransferOwnership = 7,
   SetFeeConfig = 8,
-}
-
-export interface FeeConfigValue {
-  feeProgram: Address;
-  feeAccount: Address;
 }
 
 export interface TokenInitInstructionData {
@@ -99,7 +95,7 @@ export type TokenProgramInstructionData =
       value: [Address, InterchainGasPaymasterType] | null;
     }
   | { kind: 'transferOwnership'; value: Address | null }
-  | { kind: 'setFeeConfig'; value: FeeConfigValue | null };
+  | { kind: 'setFeeConfig'; value: TokenFeeConfig | null };
 
 interface TokenInitIgpValue {
   programId: Address;
@@ -382,7 +378,7 @@ export async function getTokenSetDestinationGasConfigsInstruction(
 export async function getTokenSetFeeConfigInstruction(
   programAddress: Address,
   owner: Address,
-  value: FeeConfigValue | null,
+  value: TokenFeeConfig | null,
 ): Promise<Instruction> {
   const { address: tokenPda } = await deriveHyperlaneTokenPda(programAddress);
   return buildInstruction(
@@ -498,7 +494,7 @@ function decodeOptionIgpTuple(
   ];
 }
 
-function decodeOptionFeeConfig(cursor: ByteCursor): FeeConfigValue | null {
+function decodeOptionFeeConfig(cursor: ByteCursor): TokenFeeConfig | null {
   const hasValue = cursor.readU8() === 1;
   if (!hasValue) return null;
   return {

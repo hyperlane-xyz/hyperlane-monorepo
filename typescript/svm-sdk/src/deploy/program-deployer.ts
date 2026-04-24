@@ -330,14 +330,19 @@ export async function executeDeployPlan(
 }
 
 /**
- * Reads the BPF loader upgradeable ProgramData account to return the current
- * upgrade authority, or null if the program is immutable or not found.
+ * BPF Loader v3 ProgramData account header size in bytes.
  *
- * ProgramData binary layout:
+ * Layout:
  *   [0-3]  u32 discriminant (= 3)
  *   [4-11] u64 slot
  *   [12]   u8  option tag (0 = None, 1 = Some)
  *   [13-44] [u8; 32] upgrade authority pubkey (only when tag = 1)
+ */
+export const PROGRAM_DATA_HEADER_SIZE = 45;
+
+/**
+ * Reads the BPF loader upgradeable ProgramData account to return the current
+ * upgrade authority, or null if the program is immutable or not found.
  */
 export async function getProgramUpgradeAuthority(
   rpc: SvmRpc,
@@ -348,9 +353,9 @@ export async function getProgramUpgradeAuthority(
     .getAccountInfo(programDataAddress, { encoding: 'base64' })
     .send();
   if (!account.value) return null;
-  const data = Buffer.from(account.value.data[0] as string, 'base64');
-  if (data.length < 45) return null;
+  const data = Buffer.from(account.value.data[0], 'base64');
+  if (data.length < PROGRAM_DATA_HEADER_SIZE) return null;
   const hasAuthority = data[12] === 1;
   if (!hasAuthority) return null;
-  return getAddressDecoder().decode(data.slice(13, 45));
+  return getAddressDecoder().decode(data.slice(13, PROGRAM_DATA_HEADER_SIZE));
 }

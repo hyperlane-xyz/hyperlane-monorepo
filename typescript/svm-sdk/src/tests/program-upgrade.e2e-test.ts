@@ -408,7 +408,8 @@ describe('SVM Program Upgrade E2E Tests', function () {
       },
     });
 
-    // Remove the set fee tx to make the test fail
+    // Remove the last tx (SetFeeConfig(None) migration) to simulate a partial
+    // upgrade. prepareProgramUpgrade always appends the migration tx last.
     upgradeTxs.pop();
     for (const tx of upgradeTxs) {
       await signer.send({

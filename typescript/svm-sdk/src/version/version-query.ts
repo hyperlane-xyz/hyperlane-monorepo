@@ -18,9 +18,15 @@ import {
   setTransactionMessageLifetimeUsingBlockhash,
 } from '@solana/kit';
 
+import { compareVersions as compareSemver } from 'compare-versions';
+
+import { rootLogger } from '@hyperlane-xyz/utils';
+
 import { ByteCursor } from '../codecs/binary.js';
 import { buildGetProgramVersionInstruction } from '../instructions/version.js';
 import type { SvmRpc } from '../types.js';
+
+const logger = rootLogger.child({ module: 'version-query' });
 
 /** Minimum program version that supports SetFeeConfig and fee section. */
 export const SVM_PROGRAM_MINIMUM_FEE_SUPPORT_VERSION = '1.0.0';
@@ -94,7 +100,11 @@ export async function queryProgramVersion(
 
     const raw = Buffer.from(returnData.data[0], 'base64');
     return decodeSimulationReturnDataString(raw);
-  } catch {
+  } catch (error) {
+    logger.debug('Failed to query program version via simulation', {
+      programAddress,
+      error,
+    });
     return null;
   }
 }
@@ -117,17 +127,12 @@ function decodeSimulationReturnDataString(raw: Uint8Array): string | null {
 
 /**
  * Compares two semver version strings.
- * @returns negative if a < b, 0 if equal, positive if a > b.
+ * Uses the `compare-versions` library (same as the EVM SDK) which
+ * validates format and handles pre-release tags correctly.
+ * @returns -1 if a < b, 0 if equal, 1 if a > b.
  */
 export function compareVersions(a: string, b: string): number {
-  const pa = a.split('.').map(Number);
-  const pb = b.split('.').map(Number);
-  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-    const va = pa[i] ?? 0;
-    const vb = pb[i] ?? 0;
-    if (va !== vb) return va - vb;
-  }
-  return 0;
+  return compareSemver(a, b);
 }
 
 /**

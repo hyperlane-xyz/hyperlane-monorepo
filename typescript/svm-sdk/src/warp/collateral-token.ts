@@ -182,7 +182,7 @@ export class SvmCollateralTokenWriter
         splProgram === TOKEN_2022_PROGRAM_ADDRESS,
       `Mint ${collateralMint} is not owned by SPL Token or Token-2022 (owner: ${splProgram})`,
     );
-    const mintRawData = Buffer.from(mintInfo.value.data[0] as string, 'base64');
+    const mintRawData = Buffer.from(mintInfo.value.data[0], 'base64');
     const localDecimals = getMintDecimals(mintRawData);
     assertLocalDecimals(localDecimals);
     const remoteDecimals = scaleToRemoteDecimals(

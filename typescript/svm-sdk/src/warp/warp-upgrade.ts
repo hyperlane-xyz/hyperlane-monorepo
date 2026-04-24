@@ -11,6 +11,7 @@ import { assert, eqAddressSol } from '@hyperlane-xyz/utils';
 
 import type { SvmSigner } from '../clients/signer.js';
 import {
+  PROGRAM_DATA_HEADER_SIZE,
   createUpgradeProgramPlan,
   DeployStageKind,
   executeDeployPlan,
@@ -27,9 +28,6 @@ import {
   supportsFeeConfig,
 } from '../version/version-query.js';
 import type { AnnotatedSvmTransaction, SvmReceipt, SvmRpc } from '../types.js';
-
-/** BPF Loader v3 ProgramData account header size (discriminant + slot + option + authority). */
-const PROGRAM_DATA_HEADER_SIZE = 45;
 
 /**
  * Handles program upgrade for a warp route token program.
