@@ -49,6 +49,7 @@ import {
   remoteDecimalsToScale,
   scaleToRemoteDecimals,
 } from './warp-tx.js';
+import { prepareProgramUpgrade } from './warp-upgrade.js';
 
 export class SvmCollateralTokenReader implements ArtifactReader<
   RawCollateralWarpArtifactConfig,
@@ -258,7 +259,23 @@ export class SvmCollateralTokenWriter
       `Cannot update collateral token ${programId}: token has no owner`,
     );
 
-    return computeWarpTokenUpdateInstructions(
+    const txs: AnnotatedSvmTransaction[] = [];
+
+    if ('programBytes' in this.config.program) {
+      const upgradeResult = await prepareProgramUpgrade(
+        programId,
+        current.config.contractVersion,
+        artifact.config.contractVersion,
+        this.config.program.programBytes,
+        this.svmSigner,
+        this.rpc,
+        `collateral token ${programId}`,
+      );
+
+      txs.push(...(upgradeResult?.authorityTransactions ?? []));
+    }
+
+    const configUpdateTxs = await computeWarpTokenUpdateInstructions(
       current.config,
       artifact.config,
       programId,
@@ -266,5 +283,9 @@ export class SvmCollateralTokenWriter
       this.rpc,
       `collateral token ${programId}`,
     );
+
+    txs.push(...configUpdateTxs);
+
+    return txs;
   }
 }

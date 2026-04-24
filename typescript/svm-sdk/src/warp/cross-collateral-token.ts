@@ -68,6 +68,7 @@ import {
   remoteDecimalsToScale,
   scaleToRemoteDecimals,
 } from './warp-tx.js';
+import { prepareProgramUpgrade } from './warp-upgrade.js';
 
 const MAX_CC_ROUTERS_PER_TX = 20;
 
@@ -411,8 +412,24 @@ export class SvmCrossCollateralTokenWriter
       expectedCCRouters,
     );
 
-    // CC router updates first (need current owner before any ownership transfer)
     const txs: AnnotatedSvmTransaction[] = [];
+
+    // Program upgrade first (before any config changes)
+    if ('programBytes' in this.config.program) {
+      const upgradeResult = await prepareProgramUpgrade(
+        programId,
+        current.config.contractVersion,
+        artifact.config.contractVersion,
+        this.config.program.programBytes,
+        this.svmSigner,
+        this.rpc,
+        `cross-collateral token ${programId}`,
+      );
+
+      txs.push(...(upgradeResult?.authorityTransactions ?? []));
+    }
+
+    // CC router updates (need current owner before any ownership transfer)
 
     if (Object.keys(toUnenroll).length > 0) {
       txs.push(

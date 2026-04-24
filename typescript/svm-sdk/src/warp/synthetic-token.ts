@@ -64,6 +64,7 @@ import {
   remoteDecimalsToScale,
   scaleToRemoteDecimals,
 } from './warp-tx.js';
+import { prepareProgramUpgrade } from './warp-upgrade.js';
 
 // Borsh discriminator for the Token 2022 InitializeTokenMetadata instruction.
 const METADATA_INITIALIZE_DISCRIMINATOR = new Uint8Array([
@@ -402,7 +403,23 @@ export class SvmSyntheticTokenWriter
       `Cannot update synthetic token ${programId}: token has no owner`,
     );
 
-    return computeWarpTokenUpdateInstructions(
+    const txs: AnnotatedSvmTransaction[] = [];
+
+    if ('programBytes' in this.config.program) {
+      const upgradeResult = await prepareProgramUpgrade(
+        programId,
+        current.config.contractVersion,
+        artifact.config.contractVersion,
+        this.config.program.programBytes,
+        this.svmSigner,
+        this.rpc,
+        `synthetic token ${programId}`,
+      );
+
+      txs.push(...(upgradeResult?.authorityTransactions ?? []));
+    }
+
+    const configUpdateTxs = await computeWarpTokenUpdateInstructions(
       current.config,
       artifact.config,
       programId,
@@ -410,5 +427,9 @@ export class SvmSyntheticTokenWriter
       this.rpc,
       `synthetic token ${programId}`,
     );
+
+    txs.push(...configUpdateTxs);
+
+    return txs;
   }
 }

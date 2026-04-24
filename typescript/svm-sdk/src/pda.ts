@@ -1,4 +1,5 @@
 import {
+  getAddressCodec,
   getAddressEncoder,
   getProgramDerivedAddress,
   getU32Encoder,
@@ -6,6 +7,8 @@ import {
   type Address,
   type ReadonlyUint8Array,
 } from '@solana/kit';
+
+import { LOADER_V3_PROGRAM_ADDRESS } from './constants.js';
 
 import type { PdaWithBump } from './types.js';
 
@@ -325,4 +328,17 @@ export async function deriveStandingQuotePda(
     utf8.encode('-'),
     targetRouter,
   ]);
+}
+
+/**
+ * Derives the ProgramData address for a deployed BPF Loader v3 program.
+ */
+export async function deriveProgramDataAddress(
+  programAddress: Address,
+): Promise<Address> {
+  const pda = await getProgramDerivedAddress({
+    programAddress: LOADER_V3_PROGRAM_ADDRESS,
+    seeds: [getAddressCodec().encode(programAddress)],
+  });
+  return pda[0];
 }
