@@ -441,6 +441,7 @@ export class SvmCrossCollateralTokenWriter
         this.svmSigner,
         this.rpc,
         `cross-collateral token ${programId}`,
+        ownerAddress,
       );
 
       txs.push(...(upgradeResult?.authorityTransactions ?? []));

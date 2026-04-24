@@ -55,6 +55,8 @@ export async function prepareProgramUpgrade(
   signer: SvmSigner,
   rpc: SvmRpc,
   label: string,
+  /** Token owner address — signs the SetFeeConfig(None) migration (distinct from upgrade authority). */
+  owner: Address,
 ): Promise<{
   authorityTransactions: AnnotatedSvmTransaction[];
   receipts: SvmReceipt[];
@@ -133,15 +135,11 @@ export async function prepareProgramUpgrade(
 
   const result = await executeDeployPlan({
     plan,
-    executeStage: async (stage) => {
-      const receipt = await signer.send({
+    executeStage: async (stage) =>
+      signer.send({
         instructions: stage.instructions,
         additionalSigners: stage.additionalSigners,
-      });
-
-      receipts.push(receipt);
-      return receipt;
-    },
+      }),
   });
   receipts.push(...result);
 
@@ -162,7 +160,7 @@ export async function prepareProgramUpgrade(
     receipts.push(await signer.send({ instructions: [transferIx] }));
   }
 
-  // The final Upgrade instruction requires the upgrade authority to execute it.
+  // The Upgrade instruction requires the upgrade authority to sign it.
   authorityTransactions.push({
     feePayer: upgradeAuthority,
     instructions: finalizeStage.instructions,
@@ -175,15 +173,16 @@ export async function prepareProgramUpgrade(
   // that use store(account, false) — transfer_ownership, set_ism, set_igp —
   // will fail with BorshIoError. SetFeeConfig(None) uses store_with_rent_exempt_realloc
   // which grows the account and covers the rent delta.
+  //
+  // This MUST be a separate transaction — Solana's DELAY_VISIBILITY_SLOT_OFFSET
+  // means the new binary is only callable in the slot after the Upgrade tx.
+  // If this migration fails, the operator must manually send SetFeeConfig(None)
+  // to recover the program before any other config changes will succeed.
   if (!supportsFeeConfig(currentVersion ?? null)) {
     authorityTransactions.push({
-      feePayer: upgradeAuthority,
+      feePayer: owner,
       instructions: [
-        await getTokenSetFeeConfigInstruction(
-          programId,
-          upgradeAuthority,
-          null,
-        ),
+        await getTokenSetFeeConfigInstruction(programId, owner, null),
       ],
       annotation: `Migrate ${label}: realloc token account for fee_config field`,
     });

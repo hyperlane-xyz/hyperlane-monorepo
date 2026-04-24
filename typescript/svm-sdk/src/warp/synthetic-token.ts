@@ -429,6 +429,7 @@ export class SvmSyntheticTokenWriter
         this.svmSigner,
         this.rpc,
         `synthetic token ${programId}`,
+        parseAddress(current.config.owner),
       );
 
       txs.push(...(upgradeResult?.authorityTransactions ?? []));

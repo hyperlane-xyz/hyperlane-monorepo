@@ -285,6 +285,7 @@ export class SvmCollateralTokenWriter
         this.svmSigner,
         this.rpc,
         `collateral token ${programId}`,
+        parseAddress(current.config.owner),
       );
 
       txs.push(...(upgradeResult?.authorityTransactions ?? []));

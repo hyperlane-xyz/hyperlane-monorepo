@@ -227,6 +227,7 @@ export class SvmNativeTokenWriter
         this.svmSigner,
         this.rpc,
         `native token ${programId}`,
+        parseAddress(current.config.owner),
       );
 
       txs.push(...(upgradeResult?.authorityTransactions ?? []));
