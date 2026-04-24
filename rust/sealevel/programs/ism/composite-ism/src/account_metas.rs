@@ -41,15 +41,16 @@ pub(crate) fn contains_rate_limited(node: &IsmNode) -> bool {
 /// `program_id` is needed to derive domain PDA keys for `Routing` nodes.
 ///
 /// `extra_accounts` is a slice of additional accounts passed to `VerifyAccountMetas`
-/// beyond the VAM PDA (used in pass 2 for `Routing` to resolve sub-accounts like
-/// `TrustedRelayer` inside a domain PDA). `cursor` tracks how many have been consumed.
+/// beyond the VAM PDA (used in pass 2 for `Routing`/`FallbackRouting` to resolve
+/// sub-accounts). Config validation ensures at most one `Routing` or `FallbackRouting`
+/// exists in the tree, so that node always reads from fixed positions starting at
+/// index 0 — no cursor is needed.
 pub fn required_accounts_for_node(
     node: &IsmNode,
     metadata: &[u8],
     message: &HyperlaneMessage,
     program_id: &Pubkey,
     extra_accounts: &[&AccountInfo],
-    cursor: &mut usize,
 ) -> Result<Vec<SerializableAccountMeta>, ProgramError> {
     match node {
         IsmNode::TrustedRelayer { relayer } => Ok(vec![AccountMeta {
@@ -74,7 +75,6 @@ pub fn required_accounts_for_node(
                     message,
                     program_id,
                     extra_accounts,
-                    cursor,
                 )?;
                 // No dedup: account_metas must mirror the positional consumption in
                 // verify_node. Each active sub-ISM pops its own accounts via
@@ -93,14 +93,7 @@ pub fn required_accounts_for_node(
                 return Ok(vec![]);
             };
             let sub_ism = if amount >= *threshold { upper } else { lower };
-            required_accounts_for_node(
-                sub_ism,
-                metadata,
-                message,
-                program_id,
-                extra_accounts,
-                cursor,
-            )
+            required_accounts_for_node(sub_ism, metadata, message, program_id, extra_accounts)
         }
 
         IsmNode::Routing => {
@@ -112,9 +105,8 @@ pub fn required_accounts_for_node(
             let mut domain_pda_writable = false;
             let mut sub_accounts: Vec<SerializableAccountMeta> = vec![];
 
-            if *cursor < extra_accounts.len() && *extra_accounts[*cursor].key == domain_pda_key {
-                let domain_acc = extra_accounts[*cursor];
-                *cursor += 1;
+            if !extra_accounts.is_empty() && *extra_accounts[0].key == domain_pda_key {
+                let domain_acc = extra_accounts[0];
 
                 if domain_acc.owner == program_id {
                     if let Ok(Some(storage)) =
@@ -130,7 +122,6 @@ pub fn required_accounts_for_node(
                                 message,
                                 program_id,
                                 extra_accounts,
-                                cursor,
                             )?;
                             // No dedup: preserve positional ordering to match verify_node
                             // consumption (same rationale as the Aggregation arm above).
@@ -139,9 +130,9 @@ pub fn required_accounts_for_node(
                     }
                 }
             }
-            // If cursor was not advanced (pass 1 — domain PDA not yet in extra_accounts),
-            // we return only the domain_pda_key.  The fixpoint loop will re-invoke with
-            // the domain PDA present, at which point the branch above fires.
+            // If pass 1 — domain PDA not yet in extra_accounts — we return only the
+            // domain_pda_key. The fixpoint loop will re-invoke with the domain PDA
+            // present, at which point the branch above fires.
 
             let domain_meta = if domain_pda_writable {
                 AccountMeta::new(domain_pda_key, false) // writable, not signer
@@ -158,13 +149,12 @@ pub fn required_accounts_for_node(
 
             // Pass 1: request the domain PDA (same as Routing).
             let domain_provided =
-                *cursor < extra_accounts.len() && *extra_accounts[*cursor].key == domain_pda_key;
+                !extra_accounts.is_empty() && *extra_accounts[0].key == domain_pda_key;
             if !domain_provided {
                 return Ok(vec![AccountMeta::new_readonly(domain_pda_key, false).into()]);
             }
 
-            let domain_acc = extra_accounts[*cursor];
-            *cursor += 1;
+            let domain_acc = extra_accounts[0];
 
             // Check whether the domain PDA holds an ISM for this origin (fast path).
             let mut domain_pda_writable = false;
@@ -185,7 +175,6 @@ pub fn required_accounts_for_node(
                             message,
                             program_id,
                             extra_accounts,
-                            cursor,
                         )?;
                         used_domain_ism = true;
                     }
@@ -213,8 +202,9 @@ pub fn required_accounts_for_node(
             // Pass 2: request the fallback ISM's storage PDA and program account.
             // The program account must be in the outer instruction's accounts so
             // that the CPI to the fallback ISM can locate the callee program.
-            let fallback_provided = *cursor < extra_accounts.len()
-                && *extra_accounts[*cursor].key == fallback_storage_key;
+            // fallback_storage_key is at position 1 (after domain PDA at position 0).
+            let fallback_provided =
+                extra_accounts.len() > 1 && *extra_accounts[1].key == fallback_storage_key;
             if !fallback_provided {
                 return Ok(vec![
                     AccountMeta::new_readonly(domain_pda_key, false).into(),
@@ -224,12 +214,10 @@ pub fn required_accounts_for_node(
             }
 
             // Pass 3+: CPI to the fallback ISM's VerifyAccountMetas instruction.
-            // extra_accounts[*cursor..] starts with the fallback ISM's VAM PDA.
+            // extra_accounts[1..] starts with the fallback ISM's VAM PDA.
             // The fallback program can be any ISM that implements the interface.
-            let cpi_accounts: Vec<AccountInfo> = extra_accounts[*cursor..]
-                .iter()
-                .map(|a| (*a).clone())
-                .collect();
+            let cpi_accounts: Vec<AccountInfo> =
+                extra_accounts[1..].iter().map(|a| (*a).clone()).collect();
             let cpi_metas: Vec<AccountMeta> = cpi_accounts
                 .iter()
                 .map(crate::account_info_to_meta)
@@ -246,7 +234,6 @@ pub fn required_accounts_for_node(
                 data: ixn_data,
             };
             invoke(&ixn, &cpi_accounts)?;
-            *cursor = extra_accounts.len();
 
             let (_, cpi_return_bytes) =
                 get_return_data().ok_or(crate::error::Error::InvalidFallbackIsmAccount)?;
@@ -257,8 +244,8 @@ pub fn required_accounts_for_node(
                 .map_err(|_| ProgramError::BorshIoError)?;
 
             // Keep fallback_storage_key in the result so that the next fixpoint
-            // iteration finds it at cursor position and re-enters Pass 3+ (stable
-            // point).  verify_node skips this sentinel before the CPI to Verify.
+            // iteration finds it at position 1 and re-enters Pass 3+ (stable point).
+            // verify_node skips this sentinel before the CPI to Verify.
             let mut result: Vec<SerializableAccountMeta> = vec![
                 AccountMeta::new_readonly(domain_pda_key, false).into(),
                 AccountMeta::new_readonly(fallback_storage_key, false).into(),
@@ -300,14 +287,12 @@ pub fn all_verify_account_metas(
         AccountMeta::new_readonly(*vam_pda_key, false)
     };
     let mut accounts = vec![storage_meta.into()];
-    let mut cursor = 0usize;
     accounts.extend(required_accounts_for_node(
         root,
         metadata,
         message,
         program_id,
         extra_accounts,
-        &mut cursor,
     )?);
     Ok(accounts)
 }
@@ -369,7 +354,7 @@ mod test {
         let node = IsmNode::TrustedRelayer { relayer };
         let msg = dummy_message(ORIGIN);
         let accounts =
-            required_accounts_for_node(&node, &[], &msg, &program_id, &no_extra(), &mut 0).unwrap();
+            required_accounts_for_node(&node, &[], &msg, &program_id, &no_extra()).unwrap();
         assert_eq!(accounts.len(), 1);
         assert_eq!(accounts[0].pubkey, relayer);
         assert!(accounts[0].is_signer);
@@ -384,7 +369,7 @@ mod test {
         };
         let msg = dummy_message(ORIGIN);
         let accounts =
-            required_accounts_for_node(&node, &[], &msg, &program_id, &no_extra(), &mut 0).unwrap();
+            required_accounts_for_node(&node, &[], &msg, &program_id, &no_extra()).unwrap();
         assert!(accounts.is_empty());
     }
 
@@ -405,8 +390,7 @@ mod test {
         };
         let msg = dummy_message(ORIGIN);
         let accounts =
-            required_accounts_for_node(&node, &metadata, &msg, &program_id, &no_extra(), &mut 0)
-                .unwrap();
+            required_accounts_for_node(&node, &metadata, &msg, &program_id, &no_extra()).unwrap();
         assert_eq!(accounts.len(), 1);
         assert_eq!(accounts[0].pubkey, relayer);
     }
@@ -429,8 +413,7 @@ mod test {
         };
         let msg = dummy_message(ORIGIN);
         let accounts =
-            required_accounts_for_node(&node, &metadata, &msg, &program_id, &no_extra(), &mut 0)
-                .unwrap();
+            required_accounts_for_node(&node, &metadata, &msg, &program_id, &no_extra()).unwrap();
         // Both active sub-ISMs must each contribute their own entry.
         assert_eq!(accounts.len(), 2);
         assert_eq!(accounts[0].pubkey, relayer);
@@ -448,7 +431,7 @@ mod test {
         };
         let msg = dummy_message(ORIGIN);
         let accounts =
-            required_accounts_for_node(&node, &[], &msg, &program_id, &no_extra(), &mut 0).unwrap();
+            required_accounts_for_node(&node, &[], &msg, &program_id, &no_extra()).unwrap();
         assert!(accounts.is_empty());
     }
 
@@ -458,7 +441,7 @@ mod test {
         let node = IsmNode::Routing;
         let msg = dummy_message(ORIGIN);
         let accounts =
-            required_accounts_for_node(&node, &[], &msg, &program_id, &no_extra(), &mut 0).unwrap();
+            required_accounts_for_node(&node, &[], &msg, &program_id, &no_extra()).unwrap();
         assert_eq!(accounts.len(), 1);
         let (expected_key, _) = derive_domain_pda(&program_id, ORIGIN);
         assert_eq!(accounts[0].pubkey, expected_key);
@@ -493,15 +476,13 @@ mod test {
         );
 
         // Pass 1: only the domain PDA key is returned.
-        let pass1 =
-            required_accounts_for_node(&node, &[], &msg, &program_id, &no_extra(), &mut 0).unwrap();
+        let pass1 = required_accounts_for_node(&node, &[], &msg, &program_id, &no_extra()).unwrap();
         assert_eq!(pass1.len(), 1);
         assert_eq!(pass1[0].pubkey, domain_pda_key);
 
         // Pass 2 (domain PDA present but unowned): still only the domain PDA — no fallback.
         let extra = vec![&domain_pda_info];
-        let accounts =
-            required_accounts_for_node(&node, &[], &msg, &program_id, &extra, &mut 0).unwrap();
+        let accounts = required_accounts_for_node(&node, &[], &msg, &program_id, &extra).unwrap();
         assert_eq!(accounts.len(), 1, "expected only domain_pda, no fallback");
         assert_eq!(accounts[0].pubkey, domain_pda_key);
     }
@@ -516,7 +497,7 @@ mod test {
         let node = IsmNode::FallbackRouting { fallback_ism };
         let msg = dummy_message(ORIGIN);
         let accounts =
-            required_accounts_for_node(&node, &[], &msg, &program_id, &no_extra(), &mut 0).unwrap();
+            required_accounts_for_node(&node, &[], &msg, &program_id, &no_extra()).unwrap();
         assert_eq!(accounts.len(), 1);
         let (expected_domain_key, _) = derive_domain_pda(&program_id, ORIGIN);
         assert_eq!(accounts[0].pubkey, expected_domain_key);
@@ -554,8 +535,7 @@ mod test {
         );
 
         let extra = vec![&domain_pda_info];
-        let accounts =
-            required_accounts_for_node(&node, &[], &msg, &program_id, &extra, &mut 0).unwrap();
+        let accounts = required_accounts_for_node(&node, &[], &msg, &program_id, &extra).unwrap();
 
         // [domain_pda, fallback_storage_key, fallback_ism_program_key]
         assert_eq!(accounts.len(), 3);

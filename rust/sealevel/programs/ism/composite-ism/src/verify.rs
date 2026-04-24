@@ -611,7 +611,6 @@ mod test {
             &dummy_message(ORIGIN_DOMAIN),
             &program_id,
             &[],
-            &mut 0,
         )
         .unwrap();
         assert_eq!(

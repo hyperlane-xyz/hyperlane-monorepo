@@ -4,6 +4,34 @@ A composable Interchain Security Module (ISM) for Solana/SVM. A single program
 deployment stores a tree of ISM nodes in one PDA account, allowing operators to
 express arbitrary verification logic without deploying multiple programs.
 
+## The Core Problem: Account Discovery
+
+SVM requires all accounts a transaction touches to be declared upfront, but the
+accounts a complex ISM tree needs are only knowable after reading those accounts
+— a chicken-and-egg problem.
+
+The solution is a **fixpoint simulation loop** driven by the relayer. The relayer
+calls `VerifyMetadataSpec` repeatedly, each time providing more accounts, until
+the ISM returns a fully resolved `MetadataSpec`:
+
+```
+relayer calls VerifyMetadataSpec(extra_accounts=[])
+  → spec: None, need: [domain_pda]
+
+relayer calls VerifyMetadataSpec(extra_accounts=[domain_pda])
+  → spec: None, need: [domain_pda, fallback_vam_pda, fallback_ism]
+
+relayer calls VerifyMetadataSpec(extra_accounts=[domain_pda, fallback_vam_pda, fallback_ism])
+  → spec: Some(MultisigMessageId { validators, threshold }), done!
+```
+
+Only once `spec: Some(...)` is returned does the relayer know the metadata format
+and can build and submit the real `Verify` transaction with the correct accounts.
+
+The loop converges in at most `D + 1` passes, where `D` is the number of
+account-bearing ISM nodes (`Routing`, `FallbackRouting`) in the active path
+through the tree.
+
 ## Architecture
 
 ### Storage
@@ -13,51 +41,64 @@ All config lives in the **VAM PDA** (derived from
 framework already knows to query. It stores an `IsmNode` tree serialized with
 Borsh.
 
-`Routing` nodes are the exception: each origin domain's ISM is stored in a
-separate **domain PDA** at seeds `[b"domain_ism", &domain.to_le_bytes()]`. The
-VAM PDA holds only the `Routing` node itself (plus an optional `default_ism`);
-domain PDAs are created, updated, and closed with `SetDomainIsm` /
-`RemoveDomainIsm` instructions.
+`Routing` and `FallbackRouting` nodes are the exception: each origin domain's
+ISM override is stored in a separate **domain PDA** at seeds
+`[b"domain_ism", &domain.to_le_bytes()]`. The VAM PDA holds only the node
+variant itself; domain PDAs are created, updated, and closed with
+`SetDomainIsm` / `RemoveDomainIsm` instructions.
 
 ### ISM node types
 
 | Variant | Behavior |
 |---|---|
 | `TrustedRelayer { relayer }` | Accepts if `relayer` is a signer on the transaction. |
-| `MultisigMessageId { validators, threshold }` | ECDSA threshold multisig over `CheckpointWithMessageId`. Validators and threshold are stored inline. Domain routing is handled by an outer `Routing` node. |
+| `MultisigMessageId { validators, threshold }` | ECDSA threshold multisig over `CheckpointWithMessageId`. Validators and threshold are stored inline. |
 | `Aggregation { threshold, sub_isms }` | m-of-n: at least `threshold` sub-ISMs must have metadata provided and must verify. |
 | `AmountRouting { threshold, lower, upper }` | Routes to `upper` if the TokenMessage amount >= threshold, else `lower`. |
-| `Routing { default_ism }` | Routes to a per-domain PDA for the message's origin. Falls back to `default_ism` if no domain PDA exists. See below. |
+| `Routing` | Routes to the per-domain PDA for the message's origin. Fails with `NoRouteForDomain` if no domain PDA exists for that origin. |
+| `FallbackRouting { fallback_ism }` | Same as `Routing`, but if no domain PDA override exists, delegates to `fallback_ism` via CPI. The fallback can be any deployed Hyperlane ISM, including legacy multisig ISMs. |
 | `RateLimited { max_capacity, recipient }` | Enforces a rolling 24-hour token transfer cap. State (`filled_level`, `last_updated`) is stored inline in the VAM PDA. |
 | `Pausable { paused }` | Emergency circuit breaker. Rejects all messages when `paused = true`. |
 | `Test { accept }` | Always accepts or always rejects. Testing only. |
 
-### Routing PDA resolution
+### Routing and FallbackRouting
 
-Because SVM programs cannot allocate unbounded heap, storing all domain->ISM
-mappings inline in the VAM PDA would OOM at ~100 domains. `Routing` instead
-stores each domain's ISM in its own account:
+`Routing` and `FallbackRouting` both look up a per-domain PDA for the message's
+origin domain. The difference is what happens when no domain PDA is configured:
 
-1. **`SetDomainIsm`**: creates/updates the PDA at
+- **`Routing`** — hard fails with `NoRouteForDomain`.
+- **`FallbackRouting { fallback_ism }`** — CPIs into the `fallback_ism` program's
+  `VerifyMetadataSpec` (or `Verify`) to delegate resolution. This is how a
+  composite ISM can wrap a default ISM (e.g. a legacy multisig) while allowing
+  per-domain overrides.
+
+#### Domain PDA management
+
+1. **`SetDomainIsm`** — creates/updates the PDA at
    `[b"domain_ism", &origin.to_le_bytes()]` for a given origin domain.
-2. **Verify**: the relayer passes the domain PDA for the message origin as an
-   extra account; the program reads it and dispatches to the sub-ISM inside.
-3. **`RemoveDomainIsm`**: closes the domain PDA and returns rent to the owner.
-   Subsequent messages for that domain fall back to `default_ism`.
+2. **`Verify`** — the relayer passes the domain PDA as an extra account; the
+   program reads it and dispatches to the sub-ISM stored inside.
+3. **`RemoveDomainIsm`** — closes the domain PDA and returns rent to the owner.
+   Subsequent messages for that domain fall through to the fallback (or fail if
+   using plain `Routing`).
 
-#### Two-pass VerifyAccountMetas for TrustedRelayer
+#### FallbackRouting account layout
 
-When a domain PDA contains a `TrustedRelayer` node, the relayer cannot know the
-relayer pubkey from a single `VerifyAccountMetas` call (the domain PDA hasn't
-been read yet). The relayer must loop:
+Because `Routing` and `FallbackRouting` are the only nodes that consume accounts
+from the `extra_accounts` slice, and at most one such node may exist in the
+tree, the account positions are always fixed:
 
-1. Call `VerifyAccountMetas` with `[storage_pda]` → returns `[storage_pda, domain_pda]`.
-2. Call `VerifyAccountMetas` again with `[storage_pda, domain_pda]` → handler
-   reads the domain PDA and appends the relayer pubkey.
-3. Repeat until the returned pubkey set stabilizes (fixpoint).
+| Position | Account |
+|---|---|
+| `extra_accounts[0]` | Domain PDA for the message's origin |
+| `extra_accounts[1]` | Fallback ISM's VAM PDA (FallbackRouting only, fallback path) |
+| `extra_accounts[2..]` | Accounts required by the fallback ISM itself |
 
-This loop converges in at most `depth + 1` iterations where `depth` is the
-nesting level of account-bearing ISMs inside the domain PDA.
+For a **legacy multisig** fallback ISM, `extra_accounts[2]` is the multisig
+program's domain data PDA (validators/threshold are read directly from it). For
+a **new ISM** implementing `VerifyMetadataSpec`, the accounts at `[2..]` are
+whatever that ISM requests through its own fixpoint loop — which is fully
+independent of the outer composite ISM's account space.
 
 ### Instructions
 
@@ -65,38 +106,38 @@ nesting level of account-bearing ISMs inside the domain PDA.
 |---|---|
 | `Initialize` | Creates the VAM PDA and sets the root ISM node. |
 | `UpdateConfig` | Replaces the root ISM node. |
-| `SetDomainIsm` | Creates or updates the domain PDA for a `Routing` node. |
+| `SetDomainIsm` | Creates or updates the domain PDA for a `Routing`/`FallbackRouting` node. |
 | `RemoveDomainIsm` | Closes a domain PDA, returning rent to the owner. |
 | `TransferOwnership` | Changes the owner stored in the VAM PDA. |
 | `GetOwner` | Returns the current owner (simulation only). |
 | `Verify` | Verifies a message against the ISM tree. |
 | `VerifyAccountMetas` | Returns the account list needed by `Verify` (simulation only). |
-| `GetMetadataSpec` | Returns the metadata format expected by the tree (simulation only). |
+| `VerifyMetadataSpec` | Returns the metadata format expected by the tree and the accounts still needed (simulation only). Drives the fixpoint loop described above. |
 | `Type` | Returns the Hyperlane `ModuleType` of the root node (simulation only). |
 
 ## Limitations
 
-- **At most one `Routing` node per composite ISM.** Having two `Routing` nodes
-  anywhere in the VAM PDA tree is rejected at `UpdateConfig` time
-  (`MultipleRoutingNodes` error).
+- **At most one `Routing` or `FallbackRouting` node in the entire tree.**
+  Config validation rejects any tree that contains more than one such node
+  anywhere (`MultipleRoutingNodes` error). This is required because both node
+  types read from fixed positions in `extra_accounts` starting at index 0; a
+  second such node would conflict over the same position.
 
-- **`Routing` is not allowed inside a domain PDA.** `SetDomainIsm` rejects any
-  ISM subtree that contains a `Routing` node (`RoutingInDomainIsm` error). This
-  also means you cannot nest two `Routing` ISMs within the same composite ISM
-  deployment.
+- **`Routing`/`FallbackRouting` are not allowed inside a domain PDA.**
+  `SetDomainIsm` rejects any ISM subtree that contains either variant
+  (`RoutingInDomainIsm` / `FallbackRoutingInDomainIsm` error). Domain PDAs may
+  contain `MultisigMessageId`, `Aggregation`, `AmountRouting`, `TrustedRelayer`,
+  `RateLimited`, `Pausable`, and `Test` nodes only.
 
 - **`RateLimited` requires its containing PDA to be writable.** When the ISM
   tree (or a domain PDA) contains a `RateLimited` node, `VerifyAccountMetas`
-  marks the relevant PDA (storage PDA or domain PDA) writable. Callers must
-  ensure that account is passed as writable in the `Verify` transaction.
-
-- **No cross-program delegation.** `IsmNode` has no variant that references an
-  external program. You cannot embed a call to a separate composite ISM
-  deployment inside the tree.
+  marks the relevant PDA writable. Callers must pass that account as writable in
+  the `Verify` transaction.
 
 - **`MultisigMessageId` validator sets are stored inline in the node.**
-  For scale, the intended pattern is `Routing` with a `MultisigMessageId` inside
-  each domain PDA, so each origin's validator set is isolated to its own account.
+  For scale, the intended pattern is `Routing` or `FallbackRouting` with a
+  `MultisigMessageId` inside each domain PDA, so each origin's validator set is
+  isolated to its own account.
 
 ## Solana-specific scale limits
 

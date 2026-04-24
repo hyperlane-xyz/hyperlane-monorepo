@@ -28,11 +28,9 @@ use crate::{
 fn spec_for_domain_override<'a, 'info>(
     loaded: &Option<Box<DomainIsmStorage>>,
     domain_pda_key: Pubkey,
-    cursor_before: usize,
     message: &HyperlaneMessage,
     program_id: &Pubkey,
     extra_accounts: &[&'a AccountInfo<'info>],
-    cursor: &mut usize,
 ) -> Result<Option<MetadataSpecResult>, Error> {
     let Some(ref storage) = loaded else {
         return Ok(None);
@@ -40,11 +38,12 @@ fn spec_for_domain_override<'a, 'info>(
     let Some(ref ism) = storage.ism else {
         return Ok(None);
     };
-    let result = spec_and_accounts_for_node(ism, message, program_id, extra_accounts, cursor)?;
+    let result = spec_and_accounts_for_node(ism, message, program_id, extra_accounts)?;
     if result.spec.is_some() {
         return Ok(Some(result));
     }
-    *cursor = cursor_before;
+    // Domain ISMs cannot be Routing/FallbackRouting (enforced at config time), so
+    // result.accounts is always empty and this path is unreachable in practice.
     let mut accounts = vec![domain_pda_key];
     accounts.extend(result.accounts);
     Ok(Some(MetadataSpecResult {
@@ -53,29 +52,24 @@ fn spec_for_domain_override<'a, 'info>(
     }))
 }
 
-/// Resolves the [`MetadataSpec`] for an ISM node via a cursor-based fixpoint.
+/// Resolves the [`MetadataSpec`] for an ISM node.
 ///
 /// `extra_accounts` is the slice of accounts passed after the composite ISM's
-/// VAM PDA.  `cursor` tracks how many have been consumed by nodes processed
-/// before this call (shared across siblings in an Aggregation).
+/// VAM PDA.
+///
+/// Config validation guarantees at most one `Routing` or `FallbackRouting` node
+/// in the tree, so that node is always the sole consumer of `extra_accounts` and
+/// always reads from fixed positions (starting at index 0).  No cursor is needed.
 ///
 /// **Return semantics**
 /// - `spec: Some(s), accounts: []` — fully resolved.
-/// - `spec: None, accounts: [a, b, …]` — accounts are needed starting at the
-///   node's own starting-cursor position (relative, NOT global).  The node
-///   restores `cursor` to its value on entry before returning `spec: None`, so
-///   the parent can safely prepend the already-consumed accounts.
-///
-/// Aggregation prepends accounts consumed by earlier sub-ISMs so that the
-/// top-level result is always the complete desired `extra_accounts` slice for
-/// the next simulation (still relative to extra_accounts[0], not including
-/// the composite VAM PDA which the caller prepends).
+/// - `spec: None, accounts: [a, b, …]` — the complete desired `extra_accounts`
+///   slice for the next simulation pass.
 pub(crate) fn spec_and_accounts_for_node<'a, 'info>(
     node: &IsmNode,
     message: &HyperlaneMessage,
     program_id: &Pubkey,
     extra_accounts: &[&'a AccountInfo<'info>],
-    cursor: &mut usize,
 ) -> Result<MetadataSpecResult, Error> {
     match node {
         IsmNode::MultisigMessageId {
@@ -93,26 +87,17 @@ pub(crate) fn spec_and_accounts_for_node<'a, 'info>(
             threshold,
             sub_isms,
         } => {
-            let agg_start = *cursor;
             let mut sub_specs = Vec::with_capacity(sub_isms.len());
             for sub in sub_isms {
-                let sub_start = *cursor;
-                let result =
-                    spec_and_accounts_for_node(sub, message, program_id, extra_accounts, cursor)?;
+                let result = spec_and_accounts_for_node(sub, message, program_id, extra_accounts)?;
                 match result.spec {
                     Some(spec) => sub_specs.push(spec),
                     None => {
-                        // sub restored cursor to sub_start on failure.
-                        // Prepend accounts consumed by earlier sub-ISMs (positions
-                        // agg_start..sub_start) so the returned list is complete.
-                        let mut accounts: Vec<Pubkey> = extra_accounts[agg_start..sub_start]
-                            .iter()
-                            .map(|a| *a.key)
-                            .collect();
-                        accounts.extend(result.accounts);
+                        // At most one sub-ISM consumes accounts (Routing/FallbackRouting),
+                        // so no earlier sibling accounts need to be prepended.
                         return Ok(MetadataSpecResult {
                             spec: None,
-                            accounts,
+                            accounts: result.accounts,
                         });
                     }
                 }
@@ -133,15 +118,14 @@ pub(crate) fn spec_and_accounts_for_node<'a, 'info>(
         } => {
             let amount = parse_routing_amount(&message.body).ok_or(Error::InvalidMessageBody)?;
             let sub_ism = if amount >= *threshold { upper } else { lower };
-            spec_and_accounts_for_node(sub_ism, message, program_id, extra_accounts, cursor)
+            spec_and_accounts_for_node(sub_ism, message, program_id, extra_accounts)
         }
 
         IsmNode::Routing => {
-            let cursor_before = *cursor;
             let (domain_pda_key, _) = derive_domain_pda(program_id, message.origin);
 
             let domain_present =
-                *cursor < extra_accounts.len() && *extra_accounts[*cursor].key == domain_pda_key;
+                !extra_accounts.is_empty() && *extra_accounts[0].key == domain_pda_key;
             if !domain_present {
                 return Ok(MetadataSpecResult {
                     spec: None,
@@ -149,9 +133,7 @@ pub(crate) fn spec_and_accounts_for_node<'a, 'info>(
                 });
             }
 
-            let domain_pda_info = extra_accounts[*cursor];
-            *cursor += 1;
-
+            let domain_pda_info = extra_accounts[0];
             let loaded =
                 load_and_validate_domain_ism_storage(program_id, message.origin, domain_pda_info)
                     .map_err(|_| Error::InvalidConfig)?;
@@ -159,11 +141,9 @@ pub(crate) fn spec_and_accounts_for_node<'a, 'info>(
             if let Some(result) = spec_for_domain_override(
                 &loaded,
                 domain_pda_key,
-                cursor_before,
                 message,
                 program_id,
                 extra_accounts,
-                cursor,
             )? {
                 return Ok(result);
             }
@@ -172,12 +152,11 @@ pub(crate) fn spec_and_accounts_for_node<'a, 'info>(
         }
 
         IsmNode::FallbackRouting { fallback_ism } => {
-            let cursor_before = *cursor;
             let (domain_pda_key, _) = derive_domain_pda(program_id, message.origin);
 
             // Pass 1: domain PDA not yet provided.
             let domain_present =
-                *cursor < extra_accounts.len() && *extra_accounts[*cursor].key == domain_pda_key;
+                !extra_accounts.is_empty() && *extra_accounts[0].key == domain_pda_key;
             if !domain_present {
                 return Ok(MetadataSpecResult {
                     spec: None,
@@ -185,8 +164,7 @@ pub(crate) fn spec_and_accounts_for_node<'a, 'info>(
                 });
             }
 
-            let domain_pda_info = extra_accounts[*cursor];
-            *cursor += 1;
+            let domain_pda_info = extra_accounts[0];
 
             // Fast path: check for a per-domain ISM override.
             let loaded =
@@ -196,26 +174,22 @@ pub(crate) fn spec_and_accounts_for_node<'a, 'info>(
             if let Some(result) = spec_for_domain_override(
                 &loaded,
                 domain_pda_key,
-                cursor_before,
                 message,
                 program_id,
                 extra_accounts,
-                cursor,
             )? {
                 return Ok(result);
             }
 
             // Fallback path: CPI to the fallback ISM's VerifyMetadataSpec.
-            // The fallback ISM's VAM PDA (derived from VERIFY_ACCOUNT_METAS_PDA_SEEDS) must
-            // be the next account so the CPI can pass accounts[0] correctly.
+            // The fallback ISM's VAM PDA must be at position 1 (after domain PDA).
             let (fallback_vam_pda, _) =
                 Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, fallback_ism);
 
             // Pass 2: fallback VAM PDA not yet provided.
             let fallback_present =
-                *cursor < extra_accounts.len() && *extra_accounts[*cursor].key == fallback_vam_pda;
+                extra_accounts.len() > 1 && *extra_accounts[1].key == fallback_vam_pda;
             if !fallback_present {
-                *cursor = cursor_before;
                 return Ok(MetadataSpecResult {
                     spec: None,
                     accounts: vec![domain_pda_key, fallback_vam_pda, *fallback_ism],
@@ -230,7 +204,7 @@ pub(crate) fn spec_and_accounts_for_node<'a, 'info>(
             // composite ISMs (which call next_account_info in their Type handler)
             // don't fail with NotEnoughAccountKeys.  Legacy multisig ISMs ignore
             // extra accounts, so this is backwards-compatible.
-            let fallback_storage_info = (*extra_accounts[*cursor]).clone();
+            let fallback_storage_info = (*extra_accounts[1]).clone();
             let fallback_storage_meta =
                 AccountMeta::new_readonly(*fallback_storage_info.key, false);
             invoke(
@@ -245,7 +219,6 @@ pub(crate) fn spec_and_accounts_for_node<'a, 'info>(
             )
             .map_err(|_| Error::FallbackIsmCallFailed)?;
             let Some((_, type_bytes)) = get_return_data() else {
-                *cursor = cursor_before;
                 return Err(Error::FallbackIsmCallFailed);
             };
             let fallback_type = borsh::from_slice::<SimulationReturnData<u32>>(&type_bytes)
@@ -258,11 +231,11 @@ pub(crate) fn spec_and_accounts_for_node<'a, 'info>(
                 // multisig-ism-message-id and read validators/threshold directly.
                 let (multisig_domain_pda, _) = domain_data_pda(fallback_ism, message.origin);
 
-                let domain_pda_present = *cursor + 1 < extra_accounts.len()
-                    && *extra_accounts[*cursor + 1].key == multisig_domain_pda;
+                // multisig_domain_pda is at position 2 (after domain_pda, fallback_vam_pda).
+                let domain_pda_present =
+                    extra_accounts.len() > 2 && *extra_accounts[2].key == multisig_domain_pda;
 
                 if !domain_pda_present {
-                    *cursor = cursor_before;
                     return Ok(MetadataSpecResult {
                         spec: None,
                         accounts: vec![
@@ -277,19 +250,17 @@ pub(crate) fn spec_and_accounts_for_node<'a, 'info>(
                 // Read validators/threshold directly from the domain PDA account.
                 // AccountData<DomainData> layout: [bool (initialized)] + [u8 (bump_seed)]
                 // + borsh(ValidatorsAndThreshold). No discriminator prefix.
-                let multisig_domain_pda_info = extra_accounts[*cursor + 1];
+                let multisig_domain_pda_info = extra_accounts[2];
                 let data = multisig_domain_pda_info.data.borrow();
                 let buf = &mut &data[..];
                 let initialized =
                     bool::deserialize(buf).map_err(|_| Error::FallbackIsmCallFailed)?;
                 if !initialized {
-                    *cursor = cursor_before;
                     return Err(Error::FallbackIsmCallFailed);
                 }
                 u8::deserialize(buf).map_err(|_| Error::FallbackIsmCallFailed)?; // bump_seed
                 let vat = ValidatorsAndThreshold::deserialize(buf)
                     .map_err(|_| Error::FallbackIsmCallFailed)?;
-                *cursor = extra_accounts.len();
                 Ok(MetadataSpecResult {
                     spec: Some(MetadataSpec::MultisigMessageId {
                         validators: vat.validators,
@@ -300,18 +271,15 @@ pub(crate) fn spec_and_accounts_for_node<'a, 'info>(
             } else if fallback_type == ModuleType::Unused as u32 {
                 // Old test ISM (ModuleType::Unused) lacks VerifyMetadataSpec but
                 // never requires metadata, so Null is always correct.
-                *cursor = extra_accounts.len();
                 Ok(MetadataSpecResult {
                     spec: Some(MetadataSpec::Null),
                     accounts: vec![],
                 })
             } else {
                 // New ISM that implements VerifyMetadataSpec.
-                // extra_accounts[cursor..] starts with the fallback ISM's VAM PDA.
-                let cpi_accounts: Vec<AccountInfo> = extra_accounts[*cursor..]
-                    .iter()
-                    .map(|a| (*a).clone())
-                    .collect();
+                // extra_accounts[1..] starts with the fallback ISM's VAM PDA.
+                let cpi_accounts: Vec<AccountInfo> =
+                    extra_accounts[1..].iter().map(|a| (*a).clone()).collect();
                 let cpi_metas: Vec<AccountMeta> = cpi_accounts
                     .iter()
                     .map(crate::account_info_to_meta)
@@ -329,7 +297,6 @@ pub(crate) fn spec_and_accounts_for_node<'a, 'info>(
                 invoke(&ixn, &cpi_accounts).map_err(|_| Error::FallbackIsmCallFailed)?;
 
                 let Some((_, cpi_bytes)) = get_return_data() else {
-                    *cursor = cursor_before;
                     return Err(Error::FallbackIsmCallFailed);
                 };
                 let cpi_result =
@@ -338,18 +305,14 @@ pub(crate) fn spec_and_accounts_for_node<'a, 'info>(
                         .map_err(|_| Error::FallbackIsmCallFailed)?;
 
                 match cpi_result.spec {
-                    Some(spec) => {
-                        *cursor = extra_accounts.len();
-                        Ok(MetadataSpecResult {
-                            spec: Some(spec),
-                            accounts: vec![],
-                        })
-                    }
+                    Some(spec) => Ok(MetadataSpecResult {
+                        spec: Some(spec),
+                        accounts: vec![],
+                    }),
                     None => {
                         // cpi_result.accounts = full desired accounts for the fallback ISM
                         // (including its VAM PDA as accounts[0]).
                         // Construct our relative result: [domain_pda_key] + cpi accounts + [fallback_ism].
-                        *cursor = cursor_before;
                         let mut accounts = vec![domain_pda_key];
                         accounts.extend(cpi_result.accounts);
                         accounts.push(*fallback_ism);

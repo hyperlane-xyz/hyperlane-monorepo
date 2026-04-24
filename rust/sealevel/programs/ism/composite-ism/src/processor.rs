@@ -167,9 +167,8 @@ fn get_metadata_spec(
     let root = storage.root.as_ref().ok_or(Error::ConfigNotSet)?;
 
     let extra: Vec<&AccountInfo> = accounts_iter.collect();
-    let mut cursor = 0usize;
 
-    let result = spec_and_accounts_for_node(root, message, program_id, &extra, &mut cursor)
+    let result = spec_and_accounts_for_node(root, message, program_id, &extra)
         .map_err(Into::<ProgramError>::into)?;
 
     if result.spec.is_some() {
