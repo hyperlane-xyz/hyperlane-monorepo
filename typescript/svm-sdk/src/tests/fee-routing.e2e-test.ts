@@ -10,6 +10,7 @@ import {
   SvmRoutingFeeReader,
   SvmRoutingFeeWriter,
 } from '../fee/routing-fee.js';
+import { DEFAULT_FEE_SALT } from '../fee/types.js';
 import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
 import { createRpc } from '../rpc.js';
 import { TEST_SVM_CHAIN_METADATA } from '../testing/constants.js';
@@ -50,6 +51,7 @@ describe('SVM Routing Fee E2E Tests', function () {
       1,
       signer,
       ALL_DOMAINS_CONTEXT,
+      DEFAULT_FEE_SALT,
     );
   });
 
@@ -77,7 +79,11 @@ describe('SVM Routing Fee E2E Tests', function () {
     expect(receipts.length).to.be.greaterThan(0);
     expect(deployed.artifactState).to.equal(ArtifactState.DEPLOYED);
 
-    const reader = new SvmRoutingFeeReader(rpc, ALL_DOMAINS_CONTEXT);
+    const reader = new SvmRoutingFeeReader(
+      rpc,
+      ALL_DOMAINS_CONTEXT,
+      DEFAULT_FEE_SALT,
+    );
     const readResult = await reader.read(deployed.deployed.programId);
 
     expect(readResult.config.type).to.equal(FeeType.routing);
@@ -107,7 +113,11 @@ describe('SVM Routing Fee E2E Tests', function () {
       },
     });
 
-    const reader = new SvmRoutingFeeReader(rpc, ALL_DOMAINS_CONTEXT);
+    const reader = new SvmRoutingFeeReader(
+      rpc,
+      ALL_DOMAINS_CONTEXT,
+      DEFAULT_FEE_SALT,
+    );
     const readResult = await reader.read(deployed.deployed.programId);
 
     const route = readResult.config.routes[10];
@@ -160,7 +170,11 @@ describe('SVM Routing Fee E2E Tests', function () {
       await signer.send(tx);
     }
 
-    const reader = new SvmRoutingFeeReader(rpc, ALL_DOMAINS_CONTEXT);
+    const reader = new SvmRoutingFeeReader(
+      rpc,
+      ALL_DOMAINS_CONTEXT,
+      DEFAULT_FEE_SALT,
+    );
     const readResult = await reader.read(deployed.deployed.programId);
     expect(readResult.config.routes[20]?.type).to.equal(
       FeeStrategyType.progressive,
@@ -203,7 +217,11 @@ describe('SVM Routing Fee E2E Tests', function () {
       await signer.send(tx);
     }
 
-    const reader = new SvmRoutingFeeReader(rpc, ALL_DOMAINS_CONTEXT);
+    const reader = new SvmRoutingFeeReader(
+      rpc,
+      ALL_DOMAINS_CONTEXT,
+      DEFAULT_FEE_SALT,
+    );
     const readResult = await reader.read(deployed.deployed.programId);
     expect(readResult.config.routes[10]?.maxFee).to.equal('9999');
     expect(readResult.config.routes[10]?.halfAmount).to.equal('4444');
@@ -244,7 +262,11 @@ describe('SVM Routing Fee E2E Tests', function () {
       await signer.send(tx);
     }
 
-    const reader = new SvmRoutingFeeReader(rpc, ALL_DOMAINS_CONTEXT);
+    const reader = new SvmRoutingFeeReader(
+      rpc,
+      ALL_DOMAINS_CONTEXT,
+      DEFAULT_FEE_SALT,
+    );
     const readResult = await reader.read(deployed.deployed.programId);
     expect(readResult.config.routes[10]?.type).to.equal(
       FeeStrategyType.regressive,
@@ -292,7 +314,11 @@ describe('SVM Routing Fee E2E Tests', function () {
       await signer.send(tx);
     }
 
-    const reader = new SvmRoutingFeeReader(rpc, ALL_DOMAINS_CONTEXT);
+    const reader = new SvmRoutingFeeReader(
+      rpc,
+      ALL_DOMAINS_CONTEXT,
+      DEFAULT_FEE_SALT,
+    );
     const readResult = await reader.read(deployed.deployed.programId);
     expect(readResult.config.routes[10]).to.exist;
     expect(readResult.config.routes[20]).to.be.undefined;

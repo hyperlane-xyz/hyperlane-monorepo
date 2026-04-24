@@ -100,7 +100,10 @@ export class SvmProtocolProvider implements ProtocolProvider {
     context: FeeReadContext,
   ): IRawFeeArtifactManager | null {
     const rpc = createRpc(this.getRpcUrls(chainMetadata)[0]);
-    return new SvmFeeArtifactManager(rpc, context, chainMetadata.domainId);
+    return new SvmFeeArtifactManager(rpc, context, {
+      domainId: chainMetadata.domainId,
+      chainName: chainMetadata.name,
+    });
   }
 
   getMinGas(): MinimumRequiredGasByAction {

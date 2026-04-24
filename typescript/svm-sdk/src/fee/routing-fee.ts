@@ -41,7 +41,6 @@ import {
   routeDataToFeeStrategy,
 } from './fee-strategy-utils.js';
 import {
-  DEFAULT_FEE_SALT,
   FeeDataKind,
   type SvmDeployedFee,
   type SvmFeeWriterConfig,
@@ -56,7 +55,7 @@ export class SvmRoutingFeeReader implements ArtifactReader<
   constructor(
     protected readonly rpc: SvmRpc,
     protected readonly context: FeeReadContext,
-    protected readonly salt: Uint8Array = DEFAULT_FEE_SALT,
+    protected readonly salt: Uint8Array,
   ) {}
 
   async read(
@@ -113,7 +112,7 @@ export class SvmRoutingFeeWriter
     private readonly domainId: number,
     private readonly svmSigner: SvmSigner,
     context: FeeReadContext,
-    salt: Uint8Array = DEFAULT_FEE_SALT,
+    salt: Uint8Array,
   ) {
     super(rpc, context, salt);
   }

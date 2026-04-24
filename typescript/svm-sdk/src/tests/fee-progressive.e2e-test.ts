@@ -8,6 +8,7 @@ import {
   SvmProgressiveFeeReader,
   SvmProgressiveFeeWriter,
 } from '../fee/progressive-fee.js';
+import { DEFAULT_FEE_SALT } from '../fee/types.js';
 import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
 import { createRpc } from '../rpc.js';
 import { TEST_SVM_CHAIN_METADATA } from '../testing/constants.js';
@@ -38,11 +39,12 @@ describe('SVM Progressive Fee E2E Tests', function () {
       rpc,
       1,
       signer,
+      DEFAULT_FEE_SALT,
     );
 
     ctx = {
       writer,
-      reader: new SvmProgressiveFeeReader(rpc),
+      reader: new SvmProgressiveFeeReader(rpc, DEFAULT_FEE_SALT),
       signer,
       rpc,
       makeConfig: (overrides) => ({

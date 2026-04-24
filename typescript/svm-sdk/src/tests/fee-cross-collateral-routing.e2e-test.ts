@@ -10,6 +10,7 @@ import {
   SvmCrossCollateralRoutingFeeReader,
   SvmCrossCollateralRoutingFeeWriter,
 } from '../fee/cross-collateral-routing-fee.js';
+import { DEFAULT_FEE_SALT } from '../fee/types.js';
 import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
 import { createRpc } from '../rpc.js';
 import { TEST_SVM_CHAIN_METADATA } from '../testing/constants.js';
@@ -51,6 +52,7 @@ describe('SVM CrossCollateralRouting Fee E2E Tests', function () {
       1,
       signer,
       ALL_CONTEXT,
+      DEFAULT_FEE_SALT,
     );
   });
 
@@ -87,7 +89,11 @@ describe('SVM CrossCollateralRouting Fee E2E Tests', function () {
     expect(receipts.length).to.be.greaterThan(0);
     expect(deployed.artifactState).to.equal(ArtifactState.DEPLOYED);
 
-    const reader = new SvmCrossCollateralRoutingFeeReader(rpc, ALL_CONTEXT);
+    const reader = new SvmCrossCollateralRoutingFeeReader(
+      rpc,
+      ALL_CONTEXT,
+      DEFAULT_FEE_SALT,
+    );
     const readResult = await reader.read(deployed.deployed.programId);
 
     expect(readResult.config.type).to.equal(FeeType.crossCollateralRouting);
@@ -148,7 +154,11 @@ describe('SVM CrossCollateralRouting Fee E2E Tests', function () {
       await signer.send(tx);
     }
 
-    const reader = new SvmCrossCollateralRoutingFeeReader(rpc, ALL_CONTEXT);
+    const reader = new SvmCrossCollateralRoutingFeeReader(
+      rpc,
+      ALL_CONTEXT,
+      DEFAULT_FEE_SALT,
+    );
     const readResult = await reader.read(deployed.deployed.programId);
     expect(readResult.config.routes[10]?.[ROUTER_B]?.type).to.equal(
       FeeStrategyType.progressive,
@@ -196,7 +206,11 @@ describe('SVM CrossCollateralRouting Fee E2E Tests', function () {
       await signer.send(tx);
     }
 
-    const reader = new SvmCrossCollateralRoutingFeeReader(rpc, ALL_CONTEXT);
+    const reader = new SvmCrossCollateralRoutingFeeReader(
+      rpc,
+      ALL_CONTEXT,
+      DEFAULT_FEE_SALT,
+    );
     const readResult = await reader.read(deployed.deployed.programId);
     expect(readResult.config.routes[10]?.[ROUTER_A]?.maxFee).to.equal('7777');
     expect(readResult.config.routes[10]?.[ROUTER_A]?.halfAmount).to.equal(
@@ -244,7 +258,11 @@ describe('SVM CrossCollateralRouting Fee E2E Tests', function () {
       await signer.send(tx);
     }
 
-    const reader = new SvmCrossCollateralRoutingFeeReader(rpc, ALL_CONTEXT);
+    const reader = new SvmCrossCollateralRoutingFeeReader(
+      rpc,
+      ALL_CONTEXT,
+      DEFAULT_FEE_SALT,
+    );
     const readResult = await reader.read(deployed.deployed.programId);
     expect(readResult.config.routes[10]?.[ROUTER_A]?.type).to.equal(
       FeeStrategyType.regressive,
@@ -296,7 +314,11 @@ describe('SVM CrossCollateralRouting Fee E2E Tests', function () {
       await signer.send(tx);
     }
 
-    const reader = new SvmCrossCollateralRoutingFeeReader(rpc, ALL_CONTEXT);
+    const reader = new SvmCrossCollateralRoutingFeeReader(
+      rpc,
+      ALL_CONTEXT,
+      DEFAULT_FEE_SALT,
+    );
     const readResult = await reader.read(deployed.deployed.programId);
     expect(readResult.config.routes[10]?.[ROUTER_A]).to.exist;
     expect(readResult.config.routes[10]?.[ROUTER_B]).to.be.undefined;

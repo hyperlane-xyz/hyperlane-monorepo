@@ -9,6 +9,7 @@ import {
   SvmOffchainQuotedLinearFeeReader,
   SvmOffchainQuotedLinearFeeWriter,
 } from '../fee/offchain-quoted-linear-fee.js';
+import { DEFAULT_FEE_SALT } from '../fee/types.js';
 import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
 import { createRpc } from '../rpc.js';
 import { TEST_SVM_CHAIN_METADATA } from '../testing/constants.js';
@@ -42,13 +43,14 @@ describe('SVM OffchainQuotedLinear Fee E2E Tests', function () {
       rpc,
       1,
       signer,
+      DEFAULT_FEE_SALT,
     );
   });
 
   // Reuse shared leaf tests (create/read, no-op update, params update, beneficiary update)
   defineLeafFeeTests<typeof FeeType.offchainQuotedLinear>(() => ({
     writer,
-    reader: new SvmOffchainQuotedLinearFeeReader(rpc),
+    reader: new SvmOffchainQuotedLinearFeeReader(rpc, DEFAULT_FEE_SALT),
     signer,
     rpc,
     makeConfig: (overrides) => ({
@@ -75,7 +77,7 @@ describe('SVM OffchainQuotedLinear Fee E2E Tests', function () {
       },
     });
 
-    const reader = new SvmOffchainQuotedLinearFeeReader(rpc);
+    const reader = new SvmOffchainQuotedLinearFeeReader(rpc, DEFAULT_FEE_SALT);
     const readResult = await reader.read(deployed.deployed.programId);
 
     expect(readResult.config.quoteSigners).to.have.length(2);
@@ -106,7 +108,7 @@ describe('SVM OffchainQuotedLinear Fee E2E Tests', function () {
       await signer.send(tx);
     }
 
-    const reader = new SvmOffchainQuotedLinearFeeReader(rpc);
+    const reader = new SvmOffchainQuotedLinearFeeReader(rpc, DEFAULT_FEE_SALT);
     const readResult = await reader.read(deployed.deployed.programId);
     expect(readResult.config.quoteSigners).to.have.length(2);
   });
@@ -133,7 +135,7 @@ describe('SVM OffchainQuotedLinear Fee E2E Tests', function () {
       await signer.send(tx);
     }
 
-    const reader = new SvmOffchainQuotedLinearFeeReader(rpc);
+    const reader = new SvmOffchainQuotedLinearFeeReader(rpc, DEFAULT_FEE_SALT);
     const readResult = await reader.read(deployed.deployed.programId);
     expect(readResult.config.quoteSigners).to.have.length(2);
     expect(
@@ -165,7 +167,7 @@ describe('SVM OffchainQuotedLinear Fee E2E Tests', function () {
     }
 
     // Must still read back as offchainQuotedLinear, not downgrade to linear
-    const reader = new SvmOffchainQuotedLinearFeeReader(rpc);
+    const reader = new SvmOffchainQuotedLinearFeeReader(rpc, DEFAULT_FEE_SALT);
     const readResult = await reader.read(deployed.deployed.programId);
     expect(readResult.config.type).to.equal(FeeType.offchainQuotedLinear);
     expect(readResult.config.quoteSigners).to.have.length(0);

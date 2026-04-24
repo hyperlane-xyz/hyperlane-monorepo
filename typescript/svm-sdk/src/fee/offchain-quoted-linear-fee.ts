@@ -34,7 +34,6 @@ import type { AnnotatedSvmTransaction, SvmReceipt, SvmRpc } from '../types.js';
 
 import { fetchFeeAccount } from './fee-query.js';
 import {
-  DEFAULT_FEE_SALT,
   FeeDataKind,
   FeeStrategyKind,
   h160ToSigner,
@@ -49,7 +48,7 @@ export class SvmOffchainQuotedLinearFeeReader implements ArtifactReader<
 > {
   constructor(
     protected readonly rpc: SvmRpc,
-    protected readonly salt: Uint8Array = DEFAULT_FEE_SALT,
+    protected readonly salt: Uint8Array,
   ) {}
 
   async read(
@@ -104,7 +103,7 @@ export class SvmOffchainQuotedLinearFeeWriter
     rpc: SvmRpc,
     private readonly domainId: number,
     private readonly svmSigner: SvmSigner,
-    salt: Uint8Array = DEFAULT_FEE_SALT,
+    salt: Uint8Array,
   ) {
     super(rpc, salt);
   }

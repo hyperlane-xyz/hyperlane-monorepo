@@ -37,14 +37,14 @@ import {
   SvmRegressiveFeeWriter,
 } from './regressive-fee.js';
 import { SvmRoutingFeeReader, SvmRoutingFeeWriter } from './routing-fee.js';
-import { DEFAULT_FEE_SALT } from './types.js';
+import { resolveFeeSalt } from './types.js';
 
 export class SvmFeeArtifactManager implements IRawFeeArtifactManager {
   constructor(
     private readonly rpc: SvmRpc,
     private readonly context: FeeReadContext,
-    private readonly domainId: number,
-    private readonly salt: Uint8Array = DEFAULT_FEE_SALT,
+    private readonly chainConfig: { domainId: number; chainName: string },
+    private readonly salt: Uint8Array = resolveFeeSalt(chainConfig.chainName),
   ) {}
 
   async readFee(
@@ -82,7 +82,7 @@ export class SvmFeeArtifactManager implements IRawFeeArtifactManager {
         new SvmLinearFeeWriter(
           { program },
           this.rpc,
-          this.domainId,
+          this.chainConfig.domainId,
           signer,
           this.salt,
         ),
@@ -90,7 +90,7 @@ export class SvmFeeArtifactManager implements IRawFeeArtifactManager {
         new SvmRegressiveFeeWriter(
           { program },
           this.rpc,
-          this.domainId,
+          this.chainConfig.domainId,
           signer,
           this.salt,
         ),
@@ -98,7 +98,7 @@ export class SvmFeeArtifactManager implements IRawFeeArtifactManager {
         new SvmProgressiveFeeWriter(
           { program },
           this.rpc,
-          this.domainId,
+          this.chainConfig.domainId,
           signer,
           this.salt,
         ),
@@ -106,7 +106,7 @@ export class SvmFeeArtifactManager implements IRawFeeArtifactManager {
         new SvmOffchainQuotedLinearFeeWriter(
           { program },
           this.rpc,
-          this.domainId,
+          this.chainConfig.domainId,
           signer,
           this.salt,
         ),
@@ -114,7 +114,7 @@ export class SvmFeeArtifactManager implements IRawFeeArtifactManager {
         new SvmRoutingFeeWriter(
           { program },
           this.rpc,
-          this.domainId,
+          this.chainConfig.domainId,
           signer,
           this.context,
           this.salt,
@@ -123,7 +123,7 @@ export class SvmFeeArtifactManager implements IRawFeeArtifactManager {
         new SvmCrossCollateralRoutingFeeWriter(
           { program },
           this.rpc,
-          this.domainId,
+          this.chainConfig.domainId,
           signer,
           this.context,
           this.salt,

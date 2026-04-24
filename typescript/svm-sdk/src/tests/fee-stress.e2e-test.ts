@@ -29,6 +29,7 @@ import { SvmRoutingFeeWriter } from '../fee/routing-fee.js';
 import {
   deriveFeeSalt,
   signerToH160,
+  DEFAULT_FEE_SALT,
   FeeDataKind,
   FeeStrategyKind,
 } from '../fee/types.js';
@@ -216,6 +217,7 @@ describe('SVM Fee Stress Tests — Finding Limits', function () {
           rpc,
           1,
           signer,
+          DEFAULT_FEE_SALT,
         );
 
         await writer.create({
@@ -248,6 +250,7 @@ describe('SVM Fee Stress Tests — Finding Limits', function () {
           1,
           signer,
           { knownRoutersPerDomain: { 1: new Set() } },
+          DEFAULT_FEE_SALT,
         );
 
         await writer.create({

@@ -3,6 +3,7 @@ import { before, describe } from 'mocha';
 
 import { SvmSigner } from '../clients/signer.js';
 import { SvmLinearFeeReader, SvmLinearFeeWriter } from '../fee/linear-fee.js';
+import { DEFAULT_FEE_SALT } from '../fee/types.js';
 import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
 import { createRpc } from '../rpc.js';
 import { TEST_SVM_CHAIN_METADATA } from '../testing/constants.js';
@@ -33,11 +34,12 @@ describe('SVM Linear Fee E2E Tests', function () {
       rpc,
       1,
       signer,
+      DEFAULT_FEE_SALT,
     );
 
     ctx = {
       writer,
-      reader: new SvmLinearFeeReader(rpc),
+      reader: new SvmLinearFeeReader(rpc, DEFAULT_FEE_SALT),
       signer,
       rpc,
       makeConfig: (overrides) => ({

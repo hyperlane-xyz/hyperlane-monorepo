@@ -25,6 +25,25 @@ export function deriveFeeSalt(context: string): Uint8Array {
   return keccak_256(new TextEncoder().encode(context));
 }
 
+/**
+ * Resolves the fee salt for a given chain.
+ *
+ * Checks the SVM_FEE_{CHAIN_NAME}_SALT env var. If set, the value is
+ * hashed with keccak256 to produce a 32-byte salt. If not set, returns
+ * DEFAULT_FEE_SALT (all zeros).
+ *
+ * This ensures consistency across fee artifact managers and warp writers
+ * within the same deployment session without leaking protocol-specific
+ * details into the config.
+ */
+export function resolveFeeSalt(chainName: string): Uint8Array {
+  const envKey = `SVM_FEE_${chainName.toUpperCase()}_SALT`;
+  const envValue =
+    typeof process !== 'undefined' ? process.env[envKey] : undefined;
+  if (!envValue) return DEFAULT_FEE_SALT;
+  return deriveFeeSalt(envValue);
+}
+
 /** On-chain FeeDataStrategy discriminant values. */
 export const FeeStrategyKind = {
   Linear: 0,

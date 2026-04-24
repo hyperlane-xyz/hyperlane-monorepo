@@ -185,7 +185,11 @@ export {
   SvmCrossCollateralRoutingFeeWriter as SealevelCrossCollateralRoutingFeeWriter,
 } from './fee/cross-collateral-routing-fee.js';
 export type { SvmDeployedFee as SealevelDeployedFee } from './fee/types.js';
-export { DEFAULT_FEE_SALT, deriveFeeSalt } from './fee/types.js';
+export {
+  DEFAULT_FEE_SALT,
+  deriveFeeSalt,
+  resolveFeeSalt,
+} from './fee/types.js';
 
 // Version detection
 export {
