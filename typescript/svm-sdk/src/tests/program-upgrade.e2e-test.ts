@@ -345,4 +345,113 @@ describe('SVM Program Upgrade E2E Tests', function () {
 
     expect(updateTxs).to.have.length(0);
   });
+
+  it('should fail ownership transfer after upgrade without SetFeeConfig(None) migration', async () => {
+    // Deploy with legacy bytes
+    const legacyWriter = new SvmCollateralTokenWriter(
+      {
+        program: { programBytes: LEGACY_SVM_PROGRAM_BYTES.tokenCollateral },
+        ataPayerFundingAmount: TEST_ATA_PAYER_FUNDING_AMOUNT,
+        feeSalt: DEFAULT_FEE_SALT,
+      },
+      rpc,
+      signer,
+    );
+
+    // Deploy with ALL optional fields set (ISM, IGP, routers, gas) to maximize
+    // serialized size. When every Option is Some, the serialized data fills the
+    // allocated buffer exactly — leaving no room for the 1-byte fee_config tag
+    // that the new binary writes.
+    const [deployed] = await legacyWriter.create({
+      config: {
+        type: TokenType.collateral,
+        owner: signer.getSignerAddress(),
+        mailbox: mailboxAddress,
+        token: collateralMint,
+        interchainSecurityModule: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: TEST_PROGRAM_IDS.testIsm },
+        },
+        hook: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: TEST_PROGRAM_IDS.igp },
+        },
+        remoteRouters: {
+          1: {
+            address:
+              '0x1111111111111111111111111111111111111111111111111111111111111111',
+          },
+        },
+        destinationGas: { 1: '100000' },
+      },
+    });
+
+    const programId = deployed.deployed.address;
+
+    // Upgrade to new version
+    const upgradeWriter = new SvmCollateralTokenWriter(
+      {
+        program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenCollateral },
+        ataPayerFundingAmount: TEST_ATA_PAYER_FUNDING_AMOUNT,
+        feeSalt: DEFAULT_FEE_SALT,
+      },
+      rpc,
+      signer,
+    );
+
+    const current = await legacyWriter.read(programId);
+    const upgradeTxs = await upgradeWriter.update({
+      ...current,
+      config: {
+        ...current.config,
+        contractVersion: '1.0.0',
+      },
+    });
+
+    for (const tx of upgradeTxs) {
+      await signer.send({
+        instructions: tx.instructions,
+        additionalSigners: tx.additionalSigners,
+        skipPreflight: true,
+      });
+    }
+    await sleep(1000);
+
+    // Ownership transfer WITHOUT SetFeeConfig(None) migration fails.
+    // The new binary serializes fee_config: None (1 extra byte) but
+    // transfer_ownership uses store(account, false) — no realloc.
+    // When all optional fields are Some, the buffer is exactly full
+    // and the extra byte causes BorshIoError.
+    const newOwner = await SvmSigner.connectWithSigner(
+      [TEST_SVM_CHAIN_METADATA.rpcUrl],
+      '0x0000000000000000000000000000000000000000000000000000000000000003',
+    );
+    await airdropSol(rpc, address(newOwner.getSignerAddress()), 5_000_000_000n);
+
+    const afterUpgrade = await upgradeWriter.read(programId);
+    const ownershipTxs = await upgradeWriter.update({
+      ...afterUpgrade,
+      config: {
+        ...afterUpgrade.config,
+        contractVersion: '1.0.0',
+        owner: newOwner.getSignerAddress(),
+      },
+    });
+
+    expect(ownershipTxs.length).to.be.greaterThan(0);
+    try {
+      for (const tx of ownershipTxs) {
+        await signer.send({
+          instructions: tx.instructions,
+          additionalSigners: tx.additionalSigners,
+        });
+      }
+      expect.fail('Should have failed without SetFeeConfig(None) migration');
+    } catch (e: unknown) {
+      // BorshIoError surfaces in the cause chain as
+      // "Failed to serialize or deserialize account data".
+      const cause = (e as { cause?: { message?: string } }).cause;
+      expect(cause?.message).to.include('serialize or deserialize');
+    }
+  });
 });
