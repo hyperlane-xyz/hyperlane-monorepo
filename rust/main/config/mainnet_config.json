@@ -3484,7 +3484,13 @@
       "storageGasOracle": "0xf8344D85a1429708e0BE6724218E938087e596DF",
       "testRecipient": "0xF15D70941dE2Bf95A23d6488eBCbedE0a444137f",
       "timelockController": "0x0000000000000000000000000000000000000000",
-      "validatorAnnounce": "0xC88bAD76EC7acD9fd3b9Bb264f7f5C18097c5710"
+      "validatorAnnounce": "0xC88bAD76EC7acD9fd3b9Bb264f7f5C18097c5710",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     },
     "oortmainnet": {
       "blockExplorers": [
@@ -7265,7 +7271,13 @@
       "interchainSecurityModule": "0x726f757465725f69736d00000000000000000000000000010000000000000000",
       "mailbox": "0x68797065726c616e650000000000000000000000000000000000000000000000",
       "merkleTreeHook": "0x726f757465725f706f73745f6469737061746368000000030000000000000001",
-      "validatorAnnounce": "0x68797065726c616e650000000000000000000000000000000000000000000000"
+      "validatorAnnounce": "0x68797065726c616e650000000000000000000000000000000000000000000000",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     },
     "fluence": {
       "blockExplorers": [
