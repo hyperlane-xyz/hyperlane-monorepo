@@ -387,7 +387,11 @@ export async function getTokenSetFeeConfigInstruction(
   const { address: tokenPda } = await deriveHyperlaneTokenPda(programAddress);
   return buildInstruction(
     programAddress,
-    [writableAccount(tokenPda), readonlySignerAddress(owner)],
+    [
+      readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
+      writableAccount(tokenPda),
+      writableSignerAddress(owner),
+    ],
     encodeTokenProgramInstruction({ kind: 'setFeeConfig', value }),
   );
 }
