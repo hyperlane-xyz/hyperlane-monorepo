@@ -62,6 +62,12 @@ export enum TokenProgramInstructionKind {
   SetInterchainSecurityModule = 5,
   SetInterchainGasPaymaster = 6,
   TransferOwnership = 7,
+  SetFeeConfig = 8,
+}
+
+export interface FeeConfigValue {
+  feeProgram: Address;
+  feeAccount: Address;
 }
 
 export interface TokenInitInstructionData {
@@ -92,7 +98,8 @@ export type TokenProgramInstructionData =
       kind: 'setInterchainGasPaymaster';
       value: [Address, InterchainGasPaymasterType] | null;
     }
-  | { kind: 'transferOwnership'; value: Address | null };
+  | { kind: 'transferOwnership'; value: Address | null }
+  | { kind: 'setFeeConfig'; value: FeeConfigValue | null };
 
 interface TokenInitIgpValue {
   programId: Address;
@@ -195,6 +202,17 @@ export function encodeTokenProgramInstruction(
         u8(TokenProgramInstructionKind.TransferOwnership),
         option(instruction.value, (addr) => ADDRESS_CODEC.encode(addr)),
       );
+    case 'setFeeConfig':
+      return concatBytes(
+        PROGRAM_INSTRUCTION_DISCRIMINATOR,
+        u8(TokenProgramInstructionKind.SetFeeConfig),
+        option(instruction.value, (fc) =>
+          concatBytes(
+            ADDRESS_CODEC.encode(fc.feeProgram),
+            ADDRESS_CODEC.encode(fc.feeAccount),
+          ),
+        ),
+      );
   }
 }
 
@@ -242,8 +260,10 @@ export function decodeTokenProgramInstruction(
       };
     case TokenProgramInstructionKind.TransferOwnership:
       return { kind: 'transferOwnership', value: decodeOptionAddress(cursor) };
+    case TokenProgramInstructionKind.SetFeeConfig:
+      return { kind: 'setFeeConfig', value: decodeOptionFeeConfig(cursor) };
     default:
-      if (kind <= TokenProgramInstructionKind.TransferOwnership) {
+      if (kind <= TokenProgramInstructionKind.SetFeeConfig) {
         throw new Error(
           `Token instruction kind ${kind} is recognized but decoding is not yet implemented`,
         );
@@ -359,6 +379,19 @@ export async function getTokenSetDestinationGasConfigsInstruction(
   );
 }
 
+export async function getTokenSetFeeConfigInstruction(
+  programAddress: Address,
+  owner: Address,
+  value: FeeConfigValue | null,
+): Promise<Instruction> {
+  const { address: tokenPda } = await deriveHyperlaneTokenPda(programAddress);
+  return buildInstruction(
+    programAddress,
+    [writableAccount(tokenPda), readonlySignerAddress(owner)],
+    encodeTokenProgramInstruction({ kind: 'setFeeConfig', value }),
+  );
+}
+
 export function encodeTokenInit(value: TokenInitInstructionData): Uint8Array {
   const normalized: TokenInitCodecValue = {
     mailbox: value.mailbox,
@@ -459,6 +492,15 @@ function decodeOptionIgpTuple(
     ADDRESS_CODEC.decode(cursor.readBytes(32)),
     decodeInterchainGasPaymasterType(cursor),
   ];
+}
+
+function decodeOptionFeeConfig(cursor: ByteCursor): FeeConfigValue | null {
+  const hasValue = cursor.readU8() === 1;
+  if (!hasValue) return null;
+  return {
+    feeProgram: ADDRESS_CODEC.decode(cursor.readBytes(32)),
+    feeAccount: ADDRESS_CODEC.decode(cursor.readBytes(32)),
+  };
 }
 
 function decodeVec<T>(
