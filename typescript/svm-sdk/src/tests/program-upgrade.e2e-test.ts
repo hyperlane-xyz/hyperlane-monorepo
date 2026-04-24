@@ -120,8 +120,8 @@ describe('SVM Program Upgrade E2E Tests', function () {
       },
     });
 
-    // Expect 2 authority txs: extend (new binary is larger) + upgrade
-    expect(updateTxs).to.have.length(2);
+    // Expect 3 authority txs: extend + upgrade + SetFeeConfig(None) migration
+    expect(updateTxs).to.have.length(3);
     for (const tx of updateTxs) {
       await signer.send({
         instructions: tx.instructions,
@@ -251,8 +251,8 @@ describe('SVM Program Upgrade E2E Tests', function () {
       },
     });
 
-    // Expect 2 authority txs: extend + upgrade, both with feePayer = signerB
-    expect(updateTxs).to.have.length(2);
+    // Expect 3 authority txs: extend + upgrade + migration, all with feePayer = signerB
+    expect(updateTxs).to.have.length(3);
     for (const tx of updateTxs) {
       expect(tx.feePayer).to.equal(signerB.getSignerAddress());
     }
@@ -408,6 +408,8 @@ describe('SVM Program Upgrade E2E Tests', function () {
       },
     });
 
+    // Remove the set fee tx to make the test fail
+    upgradeTxs.pop();
     for (const tx of upgradeTxs) {
       await signer.send({
         instructions: tx.instructions,
@@ -453,5 +455,85 @@ describe('SVM Program Upgrade E2E Tests', function () {
       const cause = (e as { cause?: { message?: string } }).cause;
       expect(cause?.message).to.include('serialize or deserialize');
     }
+  });
+
+  it('should succeed ownership transfer after upgrade with migration', async () => {
+    // Same setup as the failing test — legacy deploy with all options filled.
+    const legacyWriter = new SvmCollateralTokenWriter(
+      {
+        program: { programBytes: LEGACY_SVM_PROGRAM_BYTES.tokenCollateral },
+        ataPayerFundingAmount: TEST_ATA_PAYER_FUNDING_AMOUNT,
+        feeSalt: DEFAULT_FEE_SALT,
+      },
+      rpc,
+      signer,
+    );
+
+    const [deployed] = await legacyWriter.create({
+      config: {
+        type: TokenType.collateral,
+        owner: signer.getSignerAddress(),
+        mailbox: mailboxAddress,
+        token: collateralMint,
+        interchainSecurityModule: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: TEST_PROGRAM_IDS.testIsm },
+        },
+        hook: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: TEST_PROGRAM_IDS.igp },
+        },
+        remoteRouters: {
+          1: {
+            address:
+              '0x1111111111111111111111111111111111111111111111111111111111111111',
+          },
+        },
+        destinationGas: { 1: '100000' },
+      },
+    });
+
+    const programId = deployed.deployed.address;
+
+    const upgradeWriter = new SvmCollateralTokenWriter(
+      {
+        program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenCollateral },
+        ataPayerFundingAmount: TEST_ATA_PAYER_FUNDING_AMOUNT,
+        feeSalt: DEFAULT_FEE_SALT,
+      },
+      rpc,
+      signer,
+    );
+
+    const current = await legacyWriter.read(programId);
+
+    const newOwner = await SvmSigner.connectWithSigner(
+      [TEST_SVM_CHAIN_METADATA.rpcUrl],
+      '0x0000000000000000000000000000000000000000000000000000000000000004',
+    );
+    await airdropSol(rpc, address(newOwner.getSignerAddress()), 5_000_000_000n);
+
+    // Upgrade + migration + ownership transfer — all txs included
+    const allTxs = await upgradeWriter.update({
+      ...current,
+      config: {
+        ...current.config,
+        contractVersion: '1.0.0',
+        owner: newOwner.getSignerAddress(),
+      },
+    });
+
+    for (const tx of allTxs) {
+      await signer.send({
+        instructions: tx.instructions,
+        additionalSigners: tx.additionalSigners,
+        skipPreflight: true,
+      });
+    }
+
+    await sleep(1000);
+    const afterUpdate = await upgradeWriter.read(programId);
+    expect(afterUpdate.config.contractVersion).to.equal('1.0.0');
+    expect(afterUpdate.config.owner).to.equal(newOwner.getSignerAddress());
   });
 });

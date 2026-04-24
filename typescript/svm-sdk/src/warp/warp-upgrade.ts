@@ -20,8 +20,12 @@ import {
   getExtendProgramCheckedInstruction,
   getSetBufferAuthorityInstruction,
 } from '../instructions/loader.js';
+import { getTokenSetFeeConfigInstruction } from '../instructions/token.js';
 import { deriveProgramDataAddress } from '../pda.js';
-import { compareVersions } from '../version/version-query.js';
+import {
+  compareVersions,
+  supportsFeeConfig,
+} from '../version/version-query.js';
 import type { AnnotatedSvmTransaction, SvmReceipt, SvmRpc } from '../types.js';
 
 /** BPF Loader v3 ProgramData account header size (discriminant + slot + option + authority). */
@@ -165,6 +169,25 @@ export async function prepareProgramUpgrade(
     additionalSigners: finalizeStage.additionalSigners,
     annotation: `Upgrade ${label}: ${currentVersion ?? 'unknown'} → ${expectedVersion}`,
   });
+
+  // Post-upgrade migration: when upgrading from a pre-fee binary, the token
+  // account is 1 byte too small (missing the fee_config Option tag). Handlers
+  // that use store(account, false) — transfer_ownership, set_ism, set_igp —
+  // will fail with BorshIoError. SetFeeConfig(None) uses store_with_rent_exempt_realloc
+  // which grows the account and covers the rent delta.
+  if (!supportsFeeConfig(currentVersion ?? null)) {
+    authorityTransactions.push({
+      feePayer: upgradeAuthority,
+      instructions: [
+        await getTokenSetFeeConfigInstruction(
+          programId,
+          upgradeAuthority,
+          null,
+        ),
+      ],
+      annotation: `Migrate ${label}: realloc token account for fee_config field`,
+    });
+  }
 
   return { authorityTransactions, receipts };
 }
