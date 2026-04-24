@@ -1,5 +1,7 @@
 import { address, type Rpc, type SolanaRpcApi } from '@solana/kit';
 
+import { resolveFeeSalt } from '../fee/types.js';
+
 import type {
   ArtifactReader,
   ArtifactWriter,
@@ -31,6 +33,10 @@ import { detectWarpTokenType } from './warp-query.js';
 export class SvmWarpArtifactManager implements IRawWarpArtifactManager {
   constructor(
     private readonly rpc: Rpc<SolanaRpcApi>,
+    chainConfig: { chainName: string },
+    private readonly feeSalt: Uint8Array = resolveFeeSalt(
+      chainConfig.chainName,
+    ),
     private readonly ataPayerFundingAmount: bigint = 100_000_000n,
   ) {}
 
@@ -77,6 +83,7 @@ export class SvmWarpArtifactManager implements IRawWarpArtifactManager {
           {
             program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenNative },
             ataPayerFundingAmount: this.ataPayerFundingAmount,
+            feeSalt: this.feeSalt,
           },
           this.rpc,
           signer,
@@ -88,6 +95,7 @@ export class SvmWarpArtifactManager implements IRawWarpArtifactManager {
               programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenSynthetic,
             },
             ataPayerFundingAmount: this.ataPayerFundingAmount,
+            feeSalt: this.feeSalt,
           },
           this.rpc,
           signer,
@@ -99,6 +107,7 @@ export class SvmWarpArtifactManager implements IRawWarpArtifactManager {
               programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenCollateral,
             },
             ataPayerFundingAmount: this.ataPayerFundingAmount,
+            feeSalt: this.feeSalt,
           },
           this.rpc,
           signer,
@@ -110,6 +119,7 @@ export class SvmWarpArtifactManager implements IRawWarpArtifactManager {
               programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenCrossCollateral,
             },
             ataPayerFundingAmount: this.ataPayerFundingAmount,
+            feeSalt: this.feeSalt,
           },
           this.rpc,
           signer,

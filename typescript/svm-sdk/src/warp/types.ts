@@ -13,4 +13,6 @@ export type SvmWarpTokenConfig = Readonly<{
    * creation on transfer_out.
    */
   ataPayerFundingAmount: bigint;
+  /** Salt for fee account PDA derivation. Resolved from chain name by the artifact manager. */
+  feeSalt: Uint8Array;
 }>;

@@ -19,6 +19,7 @@ import {
   airdropSol,
   createSplMint,
 } from '../testing/setup.js';
+import { DEFAULT_FEE_SALT } from '../fee/types.js';
 import {
   SvmCollateralTokenReader,
   SvmCollateralTokenWriter,
@@ -72,6 +73,7 @@ describe('SVM Program Upgrade E2E Tests', function () {
       {
         program: { programBytes: LEGACY_SVM_PROGRAM_BYTES.tokenCollateral },
         ataPayerFundingAmount: TEST_ATA_PAYER_FUNDING_AMOUNT,
+        feeSalt: DEFAULT_FEE_SALT,
       },
       rpc,
       signer,
@@ -100,6 +102,7 @@ describe('SVM Program Upgrade E2E Tests', function () {
       {
         program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenCollateral },
         ataPayerFundingAmount: TEST_ATA_PAYER_FUNDING_AMOUNT,
+        feeSalt: DEFAULT_FEE_SALT,
       },
       rpc,
       signer,
@@ -137,6 +140,7 @@ describe('SVM Program Upgrade E2E Tests', function () {
       {
         program: { programBytes: LEGACY_SVM_PROGRAM_BYTES.tokenCollateral },
         ataPayerFundingAmount: TEST_ATA_PAYER_FUNDING_AMOUNT,
+        feeSalt: DEFAULT_FEE_SALT,
       },
       rpc,
       signerA,
@@ -186,6 +190,7 @@ describe('SVM Program Upgrade E2E Tests', function () {
       {
         program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenCollateral },
         ataPayerFundingAmount: TEST_ATA_PAYER_FUNDING_AMOUNT,
+        feeSalt: DEFAULT_FEE_SALT,
       },
       rpc,
       signerA,
@@ -225,6 +230,7 @@ describe('SVM Program Upgrade E2E Tests', function () {
       {
         program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenCollateral },
         ataPayerFundingAmount: TEST_ATA_PAYER_FUNDING_AMOUNT,
+        feeSalt: DEFAULT_FEE_SALT,
       },
       rpc,
       signer,
@@ -263,6 +269,7 @@ describe('SVM Program Upgrade E2E Tests', function () {
       {
         program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenCollateral },
         ataPayerFundingAmount: TEST_ATA_PAYER_FUNDING_AMOUNT,
+        feeSalt: DEFAULT_FEE_SALT,
       },
       rpc,
       signer,

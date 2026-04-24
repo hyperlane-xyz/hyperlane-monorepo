@@ -21,6 +21,7 @@ import {
   airdropSol,
   createSplMint,
 } from '../testing/setup.js';
+import { DEFAULT_FEE_SALT } from '../fee/types.js';
 import { SvmCollateralTokenWriter } from '../warp/collateral-token.js';
 
 import { defineWarpTokenTests } from './warp-token-suite.js';
@@ -89,6 +90,7 @@ describe('SVM Collateral Warp Token E2E Tests', function () {
       {
         program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenCollateral },
         ataPayerFundingAmount: TEST_ATA_PAYER_FUNDING_AMOUNT,
+        feeSalt: DEFAULT_FEE_SALT,
       },
       rpc,
       signer,

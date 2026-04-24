@@ -390,6 +390,7 @@ export class SvmSyntheticTokenWriter
         this.svmSigner,
         programAddress,
         tokenConfig,
+        this.config.feeSalt,
       )),
     );
 

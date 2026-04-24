@@ -20,13 +20,18 @@ import { getSetUpgradeAuthorityInstruction } from '../instructions/loader.js';
 import {
   getTokenEnrollRemoteRoutersInstruction,
   getTokenSetDestinationGasConfigsInstruction,
+  getTokenSetFeeConfigInstruction,
   getTokenSetInterchainGasPaymasterInstruction,
   getTokenSetInterchainSecurityModuleInstruction,
   getTokenTransferOwnershipInstruction,
   type TokenInitInstructionData,
 } from '../instructions/token.js';
 import { DEFAULT_IGP_SALT } from '../hook/igp-hook.js';
-import { deriveAtaPayerPda, deriveOverheadIgpAccountPda } from '../pda.js';
+import {
+  deriveAtaPayerPda,
+  deriveFeeAccountPda,
+  deriveOverheadIgpAccountPda,
+} from '../pda.js';
 import {
   buildInstruction,
   writableAccount,
@@ -185,7 +190,11 @@ export const MAX_GAS_CONFIGS_PER_TX = 60;
 export async function applyPostInitConfig(
   signer: SvmSigner,
   programId: Address,
-  config: Pick<RawWarpArtifactConfig, 'remoteRouters' | 'destinationGas'>,
+  config: Pick<
+    RawWarpArtifactConfig,
+    'remoteRouters' | 'destinationGas' | 'fee'
+  >,
+  feeSalt: Uint8Array,
 ): Promise<SvmReceipt[]> {
   const receipts: SvmReceipt[] = [];
 
@@ -221,6 +230,29 @@ export async function applyPostInitConfig(
               domain: parseInt(domain),
               gas: BigInt(gas),
             })),
+          ),
+        ],
+      }),
+    );
+  }
+
+  // Set fee config if the deployed artifact includes a fee program.
+  const feeDeployed = config.fee?.deployed;
+  if (feeDeployed) {
+    const feeAccountPda = await deriveFeeAccountPda(
+      parseAddress(feeDeployed.address),
+      feeSalt,
+    );
+    receipts.push(
+      await signer.send({
+        instructions: [
+          await getTokenSetFeeConfigInstruction(
+            programId,
+            signer.signer.address,
+            {
+              feeProgram: parseAddress(feeDeployed.address),
+              feeAccount: feeAccountPda.address,
+            },
           ),
         ],
       }),

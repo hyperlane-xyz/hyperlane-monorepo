@@ -377,6 +377,7 @@ export class SvmCrossCollateralTokenWriter
         this.svmSigner,
         programAddress,
         tokenConfig,
+        this.config.feeSalt,
       )),
     );
 

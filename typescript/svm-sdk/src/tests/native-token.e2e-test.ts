@@ -19,6 +19,7 @@ import {
   TEST_PROGRAM_IDS,
   airdropSol,
 } from '../testing/setup.js';
+import { DEFAULT_FEE_SALT } from '../fee/types.js';
 import { SvmNativeTokenWriter } from '../warp/native-token.js';
 
 import { defineWarpTokenTests } from './warp-token-suite.js';
@@ -83,6 +84,7 @@ describe('SVM Native Warp Token E2E Tests', function () {
       {
         program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenNative },
         ataPayerFundingAmount: TEST_ATA_PAYER_FUNDING_AMOUNT,
+        feeSalt: DEFAULT_FEE_SALT,
       },
       rpc,
       signer,

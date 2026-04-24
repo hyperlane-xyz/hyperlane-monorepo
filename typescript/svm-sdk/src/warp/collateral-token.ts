@@ -246,6 +246,7 @@ export class SvmCollateralTokenWriter
         this.svmSigner,
         programAddress,
         tokenConfig,
+        this.config.feeSalt,
       )),
     );
 
