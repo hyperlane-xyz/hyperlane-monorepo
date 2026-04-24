@@ -193,12 +193,14 @@ const encodeMessageCommand: CommandModuleWithContext<EncodeMessageArgs> = {
       );
     }
 
-    const originId = Number.isNaN(Number(origin))
-      ? context.multiProvider.getDomainId(origin)
-      : Number(origin);
-    const destId = Number.isNaN(Number(destination))
-      ? context.multiProvider.getDomainId(destination)
-      : Number(destination);
+    const originTrimmed = origin.trim();
+    const destTrimmed = destination.trim();
+    const originId = /^\d+$/.test(originTrimmed)
+      ? Number(originTrimmed)
+      : context.multiProvider.getDomainId(originTrimmed);
+    const destId = /^\d+$/.test(destTrimmed)
+      ? Number(destTrimmed)
+      : context.multiProvider.getDomainId(destTrimmed);
     const originChain = context.multiProvider.tryGetChainName(originId);
     const destChain = context.multiProvider.tryGetChainName(destId);
 
