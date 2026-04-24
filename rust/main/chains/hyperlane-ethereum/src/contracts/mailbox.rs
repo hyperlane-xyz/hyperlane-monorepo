@@ -112,6 +112,22 @@ impl<M> EthereumMailboxIndexer<M>
 where
     M: Middleware + 'static,
 {
+    /// Returns true if any log in a transaction receipt is a CCTP V2 DepositForBurn event.
+    ///
+    /// Takes the raw receipt logs (all contracts) rather than the filtered dispatch logs,
+    /// because the DepositForBurn event is emitted by Circle's TokenMessenger, not the mailbox.
+    fn is_cctp_v2(logs: &[ethers::types::Log]) -> bool {
+        use ethers::types::H256 as EthersH256;
+        use ethers_core::utils::keccak256;
+        // keccak256("DepositForBurn(address,uint256,address,bytes32,uint32,bytes32,bytes32,uint256,uint32,bytes)")
+        // Distinct from V1 whose first param is `uint64 indexed nonce`.
+        let cctp_v2_topic = EthersH256::from(keccak256(
+            b"DepositForBurn(address,uint256,address,bytes32,uint32,bytes32,bytes32,uint256,uint32,bytes)",
+        ));
+        logs.iter()
+            .any(|log| log.topics.first() == Some(&cctp_v2_topic))
+    }
+
     /// Create new EthereumMailboxIndexer
     pub fn new(
         provider: Arc<M>,
@@ -199,28 +215,60 @@ where
         Ok(logs)
     }
 
-    async fn is_cctp_v2(&self, tx_hash: H512) -> ChainResult<bool> {
+    async fn fetch_logs_and_cctp_v2(
+        &self,
+        tx_hash: H512,
+    ) -> ChainResult<(Vec<(Indexed<HyperlaneMessage>, LogMeta)>, bool)> {
+        use ethers::abi::RawLog;
         use ethers::types::H256 as EthersH256;
-        use ethers_core::utils::keccak256;
+        use ethers_contract::{EthEvent, LogMeta as EthersLogMeta};
 
-        // keccak256("DepositForBurn(address,uint256,address,bytes32,uint32,bytes32,bytes32,uint256,uint32,bytes)")
-        // Distinct from V1 whose first param is `uint64 indexed nonce`.
-        let cctp_v2_topic = EthersH256::from(keccak256(
-            b"DepositForBurn(address,uint256,address,bytes32,uint32,bytes32,bytes32,uint256,uint32,bytes)",
-        ));
+        let (raw_dispatch_logs, is_cctp_v2) = call_and_retry_indefinitely(|| {
+            let provider = self.provider.clone();
+            let contract_address = self.contract.address();
+            Box::pin(async move {
+                let ethers_tx_hash: EthersH256 = tx_hash.into();
+                let receipt = provider
+                    .get_transaction_receipt(ethers_tx_hash)
+                    .await
+                    .map_err(ChainCommunicationError::from_other)?
+                    .ok_or_else(|| {
+                        ChainCommunicationError::CustomError(format!(
+                            "No receipt found for tx hash {tx_hash:?}"
+                        ))
+                    })?;
 
-        let ethers_tx_hash: EthersH256 = tx_hash.into();
-        let receipt = self
-            .provider
-            .get_transaction_receipt(ethers_tx_hash)
-            .await
-            .map_err(ChainCommunicationError::from_other)?;
+                let is_cctp_v2 = Self::is_cctp_v2(&receipt.logs);
 
-        Ok(receipt.is_some_and(|r| {
-            r.logs
-                .iter()
-                .any(|log| log.topics.first() == Some(&cctp_v2_topic))
-        }))
+                let dispatch_logs: Vec<(DispatchFilter, LogMeta)> = receipt
+                    .logs
+                    .into_iter()
+                    .filter_map(|log| {
+                        if log.address != contract_address {
+                            return None;
+                        }
+                        let raw_log = RawLog {
+                            topics: log.topics.clone(),
+                            data: log.data.to_vec(),
+                        };
+                        let log_meta: EthersLogMeta = (&log).into();
+                        DispatchFilter::decode_log(&raw_log)
+                            .ok()
+                            .map(|decoded| (decoded, log_meta.into()))
+                    })
+                    .collect();
+
+                Ok((dispatch_logs, is_cctp_v2))
+            })
+        })
+        .await;
+
+        let messages = raw_dispatch_logs
+            .into_iter()
+            .map(|(log, meta)| (HyperlaneMessage::from(log.message.to_vec()).into(), meta))
+            .collect();
+
+        Ok((messages, is_cctp_v2))
     }
 }
 

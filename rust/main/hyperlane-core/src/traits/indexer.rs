@@ -75,18 +75,17 @@ pub trait Indexer<T: Sized>: Send + Sync + Debug {
         Ok(vec![])
     }
 
-    /// Check whether a transaction originates from a CCTP V2 fast transfer.
+    /// Fetch logs and check CCTP V2 status from a single transaction.
     ///
-    /// Returns `false` by default. Only EVM chains override this; non-EVM chains
-    /// always return `false`, which means the relay API CCTP V2 gate rejects all
-    /// non-EVM messages. The relay API is therefore currently EVM-only in scope.
-    ///
-    /// Note: topic0-only matching is sufficient here because Circle's attestation
-    /// service is the real gate — without a genuine `DepositForBurn` from
-    /// `TokenMessengerV2`, Circle will not issue an attestation and the message
-    /// cannot be delivered regardless.
-    async fn is_cctp_v2(&self, _tx_hash: H512) -> ChainResult<bool> {
-        Ok(false)
+    /// Non-EVM chains use the default, which returns `false` for the CCTP flag
+    /// (CCTP is EVM-only). EVM chains override this to extract both from a single
+    /// `get_transaction_receipt` RPC call.
+    async fn fetch_logs_and_cctp_v2(
+        &self,
+        tx_hash: H512,
+    ) -> ChainResult<(Vec<(Indexed<T>, LogMeta)>, bool)> {
+        let logs = self.fetch_logs_by_tx_hash(tx_hash).await?;
+        Ok((logs, false))
     }
 }
 

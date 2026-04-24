@@ -1,6 +1,6 @@
 use hyperlane_core::{HyperlaneMessage, Indexer, H256, H512};
 use std::{collections::HashMap, sync::Arc, time::Duration};
-use tracing::{debug, error, warn};
+use tracing::{debug, error};
 
 /// Error returned by [`extract_messages`].
 #[derive(Debug, thiserror::Error)]
@@ -25,7 +25,7 @@ pub async fn extract_messages(
 ) -> Result<Vec<ExtractedMessage>, ExtractError> {
     // Get indexer for chain
     let indexer = indexers.get(chain_name).ok_or_else(|| {
-        ExtractError::Failed(format!("Chain not found in registry: {}", chain_name))
+        ExtractError::Failed(format!("Chain not found in registry: {chain_name}"))
     })?;
 
     debug!(
@@ -37,16 +37,16 @@ pub async fn extract_messages(
     // Parse tx hash using protocol-specific method
     let tx_hash_512 = indexer
         .parse_tx_hash(tx_hash)
-        .map_err(|e| ExtractError::Failed(format!("Invalid tx hash format: {}", e)))?;
+        .map_err(|e| ExtractError::Failed(format!("Invalid tx hash format: {e}")))?;
 
-    // Fetch messages from transaction.
-    // fetch_logs_by_tx_hash retries indefinitely on missing receipts (required by the
-    // contract_sync indexing path). For the relay API we bound it to 5 seconds so an
-    // invalid or not-yet-confirmed tx hash returns a clean error instead of burning the
-    // entire 10-second outer handler timeout.
-    let messages_with_meta = tokio::time::timeout(
+    // Fetch messages and CCTP V2 flag from the transaction in a single receipt lookup.
+    // fetch_logs_and_cctp_v2 retries indefinitely on missing receipts; the 5-second
+    // timeout here bounds both the log fetch and the CCTP check so an invalid or
+    // not-yet-confirmed tx hash returns a clean error instead of burning the entire
+    // 10-second outer handler timeout.
+    let (messages_with_meta, is_cctp_v2) = tokio::time::timeout(
         Duration::from_secs(5),
-        indexer.fetch_logs_by_tx_hash(tx_hash_512),
+        indexer.fetch_logs_and_cctp_v2(tx_hash_512),
     )
     .await
     .map_err(|_| {
@@ -64,7 +64,7 @@ pub async fn extract_messages(
             error = ?e,
             "Failed to fetch logs from transaction"
         );
-        ExtractError::Failed(format!("Failed to fetch transaction logs: {}", e))
+        ExtractError::Failed(format!("Failed to fetch transaction logs: {e}"))
     })?;
 
     // Extract just the messages
@@ -90,18 +90,6 @@ pub async fn extract_messages(
         message_count = messages.len(),
         "Successfully extracted messages from transaction"
     );
-
-    // Check once per tx whether this is a CCTP fast transfer.
-    // Errors are treated as false — the relay API will reject the request below.
-    let is_cctp_v2 = indexer.is_cctp_v2(tx_hash_512).await.unwrap_or_else(|e| {
-        warn!(
-            chain = %chain_name,
-            tx_hash = %tx_hash,
-            error = ?e,
-            "Failed to check for CCTP V2 burn event, treating as non-CCTP"
-        );
-        false
-    });
 
     debug!(
         chain = %chain_name,

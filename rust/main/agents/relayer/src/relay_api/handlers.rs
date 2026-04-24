@@ -97,12 +97,6 @@ impl TxHashCache {
             }
         }
 
-        // Enforce max size — run eviction again if still at capacity
-        if self.cache.len() >= self.max_entries {
-            let ttl = self.ttl;
-            self.cache
-                .retain(|_, &mut timestamp| now.duration_since(timestamp) < ttl);
-        }
         if self.cache.len() >= self.max_entries {
             warn!(
                 cache_size = self.cache.len(),
