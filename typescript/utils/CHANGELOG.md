@@ -1,5 +1,11 @@
 # @hyperlane-xyz/utils
 
+## 33.0.2
+
+### Patch Changes
+
+- 1f918d0: Added `@hyperlane-xyz/sdk` subpath exports for `core`, `hook`, and `ism` modules. Hardened `@hyperlane-xyz/utils` pretty-mode logging with a graceful fallback when `pino-pretty` is not installed.
+
 ## 33.0.1
 
 ## 33.0.0

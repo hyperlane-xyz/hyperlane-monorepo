@@ -293,12 +293,12 @@ fn parse_checkpoint_syncer(syncer: ValueParser) -> ConfigResult<CheckpointSyncer
                 .parse_string()
                 .end()
                 .map(str::to_owned);
-            // Using rusoto_core::Region just to get some input validation
-            let region: Option<rusoto_core::Region> = syncer
+            let region: Option<String> = syncer
                 .chain(&mut err)
                 .get_key("region")
-                .parse_from_str("Expected aws region")
-                .end();
+                .parse_string()
+                .end()
+                .map(str::to_owned);
             let folder = syncer
                 .chain(&mut err)
                 .get_opt_key("folder")
@@ -309,7 +309,7 @@ fn parse_checkpoint_syncer(syncer: ValueParser) -> ConfigResult<CheckpointSyncer
             cfg_unwrap_all!(&syncer.cwp, err: [bucket, region]);
             err.into_result(CheckpointSyncerConf::S3 {
                 bucket,
-                region: Region::new(region.name().to_owned()),
+                region: Region::new(region),
                 folder,
             })
         }

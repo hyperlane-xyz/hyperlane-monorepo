@@ -191,8 +191,7 @@ export const getRebalancingUSDTConfigForChain = (
   currentChain: keyof typeof usdtTokenAddresses,
   routerConfigByChain: ChainMap<RouterConfigWithoutOwner>,
   ownersByChain: ChainMap<Address>,
-  // TODO: uncomment when USDTOft warp routes are in the registry
-  // rebalancingConfigByChain: ChainMap<RebalancingConfig>,
+  rebalancingConfigByChain: ChainMap<RebalancingConfig>,
 ): HypTokenRouterConfig => {
   const owner = ownersByChain[currentChain];
   assert(owner, `Owner not found for chain ${currentChain}`);
@@ -203,22 +202,21 @@ export const getRebalancingUSDTConfigForChain = (
     `USDT token address not found for chain ${currentChain}`,
   );
 
-  // TODO: uncomment when USDTOft warp routes are in the registry
-  // const currentRebalancingConfig = rebalancingConfigByChain[currentChain];
-  // assert(
-  //   currentRebalancingConfig,
-  //   `Rebalancing config not found for chain ${currentChain}`,
-  // );
-  // const { allowedRebalancers, allowedRebalancingBridges } =
-  //   currentRebalancingConfig;
+  const currentRebalancingConfig = rebalancingConfigByChain[currentChain];
+  assert(
+    currentRebalancingConfig,
+    `Rebalancing config not found for chain ${currentChain}`,
+  );
+  const { allowedRebalancers, allowedRebalancingBridges } =
+    currentRebalancingConfig;
 
   return {
     type: TokenType.collateral,
     token: usdtTokenAddress,
     mailbox: routerConfigByChain[currentChain].mailbox,
     owner,
-    // allowedRebalancers,
-    // allowedRebalancingBridges,
+    allowedRebalancers,
+    allowedRebalancingBridges,
   };
 };
 

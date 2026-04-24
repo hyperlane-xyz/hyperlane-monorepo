@@ -42,7 +42,7 @@ import { getCombinedChainsToScrape } from '../../src/config/agent/scraper.js';
 import {
   DeployEnvironment,
   envNameToAgentEnv,
-} from '../../src/config/environment.js';
+} from '../../src/config/deploy-environment.js';
 import {
   chainIsProtocol,
   filterRemoteDomainMetadata,

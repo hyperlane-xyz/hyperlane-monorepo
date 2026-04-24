@@ -94,12 +94,19 @@ async function getExistingK8sSecrets(
   existing: string[];
   missing: string[];
 }> {
+  // `-o name` outputs `secret/NAME` per line and works for both single-named
+  // and multi-named queries. The `.items[*]` jsonpath used previously silently
+  // returned empty for single-name queries (kubectl only wraps multi-named
+  // resources in a List) — causing the wait poll to time out.
   const [output] = await execCmd(
     `kubectl get secret ${resourceNames.join(
       ' ',
-    )} -n ${namespace} --ignore-not-found -o jsonpath='{.items[*].metadata.name}'`,
+    )} -n ${namespace} --ignore-not-found -o name`,
   );
-  const existing = output.split(' ').filter(Boolean);
+  const existing = output
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => line.replace(/^secret\//, ''));
   const missing = resourceNames.filter(
     (resource) => !existing.includes(resource),
   );

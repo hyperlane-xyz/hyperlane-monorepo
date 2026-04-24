@@ -1,18 +1,20 @@
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { Wallet } from 'ethers';
+import type { Logger } from 'pino';
 import { pino } from 'pino';
 import Sinon, { type SinonStubbedInstance } from 'sinon';
 
 import {
   type ChainName,
+  HyperlaneCore,
   type MultiProvider,
   ProviderType,
   TokenStandard,
   WarpTxCategory,
   type WarpCore,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { assert, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { ExternalBridgeType } from '../config/types.js';
 import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
@@ -441,6 +443,165 @@ describe('InventoryRebalancer E2E', () => {
       const actionParams = actionTracker.createRebalanceAction.lastCall.args[0];
       expect(actionParams.amount).to.equal(1_000_000n);
     });
+  });
+
+  it('sendAndConfirmInventoryTx uses the EVM-like signer path for Tron txs', async () => {
+    const TRON_CHAIN = 'tron' as ChainName;
+    config.inventorySigners[ProtocolType.Tron] = {
+      address: INVENTORY_SIGNER,
+      key: TEST_PRIVATE_KEY,
+    };
+
+    const getChainMetadata = (chain: ChainName) => ({
+      name: chain,
+      protocol:
+        chain === TRON_CHAIN ? ProtocolType.Tron : ProtocolType.Ethereum,
+      blocks: { reorgPeriod: 2 },
+      rpcUrls: [{ http: 'http://127.0.0.1:9090/jsonrpc' }],
+    });
+    warpCore.multiProvider.getChainMetadata.callsFake(getChainMetadata);
+    multiProvider.getChainMetadata.callsFake(getChainMetadata);
+    warpCore.multiProvider.toMultiProvider =
+      Sinon.stub().returns(multiProvider);
+
+    const sendFn = (inventoryRebalancer as any).sendAndConfirmInventoryTx.bind(
+      inventoryRebalancer,
+    );
+    const result = await sendFn(TRON_CHAIN, {
+      category: WarpTxCategory.Transfer,
+      type: ProviderType.Tron,
+      transaction: {
+        to: '0xRouterAddress',
+        data: '0xTransferRemoteData',
+        value: 1000000n,
+      },
+    });
+
+    expect(result).to.deep.equal({ txHash: '0xTransferRemoteTxHash' });
+    expect(multiProvider.setSigner.calledOnce).to.be.true;
+    expect(
+      multiProvider.sendTransaction.calledOnceWithExactly(
+        TRON_CHAIN,
+        {
+          to: '0xRouterAddress',
+          data: '0xTransferRemoteData',
+          value: 1000000n,
+        },
+        { waitConfirmations: 2 },
+      ),
+    ).to.be.true;
+  });
+
+  it('buildSignerAccountConfig returns correct config for Tron protocol', () => {
+    config.inventorySigners[ProtocolType.Tron] = {
+      address: INVENTORY_SIGNER,
+      key: TEST_PRIVATE_KEY,
+    };
+
+    const buildFn = (inventoryRebalancer as any).buildSignerAccountConfig.bind(
+      inventoryRebalancer,
+    );
+    const result = buildFn(
+      ProtocolType.Tron,
+      TEST_PRIVATE_KEY,
+      'tron' as ChainName,
+    );
+
+    expect(result.protocol).to.equal(ProtocolType.Tron);
+    expect(result.privateKey).to.equal(TEST_PRIVATE_KEY);
+    // Tron uses same 0x-prefixed hex key format as Ethereum
+    expect(result.privateKey.startsWith('0x')).to.be.true;
+  });
+
+  it('getTransactionReceipt returns EthersV5 type for Tron chain', async () => {
+    const TRON_CHAIN = 'tron' as ChainName;
+    const mockReceipt = {
+      transactionHash: '0xTronReceipt',
+      logs: [],
+    };
+
+    warpCore.multiProvider.getChainMetadata.callsFake((chain: ChainName) => ({
+      name: chain,
+      protocol:
+        chain === TRON_CHAIN ? ProtocolType.Tron : ProtocolType.Ethereum,
+    }));
+
+    warpCore.multiProvider.getEthersV5Provider.returns({
+      getTransactionReceipt: Sinon.stub().resolves(mockReceipt),
+    });
+
+    const getReceiptFn = (
+      inventoryRebalancer as any
+    ).getTransactionReceipt.bind(inventoryRebalancer);
+    const receipt = await getReceiptFn(TRON_CHAIN, '0xTronTxHash');
+
+    expect(receipt).to.not.be.undefined;
+    expect(receipt.type).to.equal(ProviderType.EthersV5);
+    expect(receipt.receipt).to.deep.equal(mockReceipt);
+  });
+
+  it('extractDispatchedMessageId returns Tron message ids via the EthersV5 path', async () => {
+    const TRON_CHAIN = 'tron' as ChainName;
+    const expectedMessageId =
+      '0x1111111111111111111111111111111111111111111111111111111111111111';
+    const mockReceipt = {
+      transactionHash: '0xTronTx',
+      logs: [{}],
+    };
+
+    warpCore.multiProvider.getChainMetadata.callsFake((chain: ChainName) => ({
+      name: chain,
+      protocol:
+        chain === TRON_CHAIN ? ProtocolType.Tron : ProtocolType.Ethereum,
+    }));
+
+    const getDispatchedMessagesStub = Sinon.stub(
+      HyperlaneCore,
+      'getDispatchedMessages',
+    ).returns([{ id: expectedMessageId }] as any);
+    warpCore.multiProvider.getEthersV5Provider.returns({
+      getTransactionReceipt: Sinon.stub().resolves(mockReceipt),
+    });
+
+    const extractFn = (
+      inventoryRebalancer as any
+    ).extractDispatchedMessageId.bind(inventoryRebalancer);
+    const messageId = await extractFn(TRON_CHAIN, '0xTronTx');
+    expect(messageId).to.equal(expectedMessageId);
+    expect(getDispatchedMessagesStub.calledOnce).to.be.true;
+    expect(getDispatchedMessagesStub.firstCall.firstArg).to.equal(mockReceipt);
+  });
+
+  it('selects the Tron signer address from a mixed multi-protocol config', () => {
+    config.inventorySigners[ProtocolType.Tron] = {
+      address: INVENTORY_SIGNER,
+      key: TEST_PRIVATE_KEY,
+    };
+    config.inventorySigners[ProtocolType.Sealevel] = {
+      address: 'SoLANAAddReSs1234567890123456789012345678',
+      key: '1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32',
+    };
+
+    warpCore.multiProvider.getChainMetadata.callsFake((chain: ChainName) => ({
+      name: chain,
+      protocol:
+        chain === 'tron'
+          ? ProtocolType.Tron
+          : chain === SOLANA_CHAIN
+            ? ProtocolType.Sealevel
+            : ProtocolType.Ethereum,
+    }));
+
+    const getInventorySignerAddress = (
+      inventoryRebalancer as any
+    ).getInventorySignerAddress.bind(inventoryRebalancer);
+
+    expect(getInventorySignerAddress('tron' as ChainName)).to.equal(
+      INVENTORY_SIGNER,
+    );
+    expect(getInventorySignerAddress(SOLANA_CHAIN)).to.equal(
+      'SoLANAAddReSs1234567890123456789012345678',
+    );
   });
 
   describe('Partial Fulfillment (Insufficient Inventory)', () => {
@@ -1700,24 +1861,34 @@ describe('InventoryRebalancer E2E', () => {
       expect(results[0].success).to.be.true;
       expect(bridge.execute.callCount).to.equal(2);
 
-      const reverseQuoteRequests = bridge.quote
-        .getCalls()
-        .map((call) => call.args[0])
-        .filter((params) => params.toAmount !== undefined);
-      expect(reverseQuoteRequests).to.have.lengthOf(2);
-
-      const requestedOutputs = reverseQuoteRequests
-        .map((params) => params.toAmount as bigint)
-        .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
       const maxPerSourceOutput = perChainInventory - reservedGas;
-      const totalAvailableCapacity = maxPerSourceOutput * 2n;
+      const executionQuoteRequests = bridge.quote
+        .getCalls()
+        .slice(-2)
+        .map((call) => call.args[0]);
+      expect(executionQuoteRequests).to.have.lengthOf(2);
 
-      expect(requestedOutputs.every((output) => output <= maxPerSourceOutput))
-        .to.be.true;
-      expect(requestedOutputs[0] < maxPerSourceOutput).to.be.true;
-      expect(requestedOutputs[1]).to.equal(maxPerSourceOutput);
-      expect(requestedOutputs[0] + requestedOutputs[1] < totalAvailableCapacity)
-        .to.be.true;
+      const forwardQuoteRequests = executionQuoteRequests.filter(
+        (params) => params.fromAmount !== undefined,
+      );
+      const reverseQuoteRequests = executionQuoteRequests.filter(
+        (params) => params.toAmount !== undefined,
+      );
+      const forwardAmounts = forwardQuoteRequests.map(
+        (params) => params.fromAmount as bigint,
+      );
+
+      expect(
+        forwardQuoteRequests.length + reverseQuoteRequests.length,
+      ).to.equal(2);
+      expect(forwardQuoteRequests.length).to.be.greaterThan(0);
+      expect(forwardAmounts.every((amount) => amount <= maxPerSourceOutput)).to
+        .be.true;
+      expect(
+        reverseQuoteRequests.every(
+          (params) => (params.toAmount as bigint) <= maxPerSourceOutput,
+        ),
+      ).to.be.true;
     });
 
     it('applies 5% buffer to total bridge amount', async () => {
@@ -1851,7 +2022,7 @@ describe('InventoryRebalancer E2E', () => {
       expect(quotedTargetOutput).to.equal(1_050_000_000_000_000_000n);
     });
 
-    it('fails bridge execution when reverse quote exceeds planned source capacity', async () => {
+    it('retries forward execution when reverse quote exceeds planned source capacity', async () => {
       const amount = BigInt(1e18);
       const sourceInventory = BigInt(2e18);
       const targetWithBuffer = (amount * 105n) / 100n;
@@ -1898,6 +2069,110 @@ describe('InventoryRebalancer E2E', () => {
               toAmount: targetWithBuffer,
             },
           }),
+        )
+        .onThirdCall()
+        .resolves(
+          createMockBridgeQuote({
+            fromAmount: sourceInventory,
+            toAmount: targetWithBuffer - 1n,
+            toAmountMin: targetWithBuffer - 1n,
+            requestParams: {
+              fromChain: 42161,
+              toChain: 1399811149,
+              fromToken: '0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
+              toToken: '0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
+              fromAddress: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+              toAddress: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+              fromAmount: sourceInventory,
+            },
+          }),
+        );
+
+      bridge.execute.resolves({
+        txHash: '0xBridgeTxHash',
+        fromChain: 42161,
+        toChain: 1399811149,
+      });
+
+      const results = await inventoryRebalancer.rebalance([route]);
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.true;
+      expect(bridge.execute.calledOnce).to.be.true;
+      expect(bridge.quote.callCount).to.equal(3);
+      expect(bridge.quote.getCall(1).args[0].toAmount).to.equal(
+        targetWithBuffer,
+      );
+      expect(bridge.quote.getCall(2).args[0].fromAmount).to.equal(
+        sourceInventory,
+      );
+      expect(bridge.quote.getCall(2).args[0].toAmount).to.be.undefined;
+    });
+
+    it('fails when forward retry still exceeds planned source capacity', async () => {
+      const amount = BigInt(1e18);
+      const sourceInventory = BigInt(2e18);
+      const targetWithBuffer = (amount * 105n) / 100n;
+
+      const route = createTestRoute({ amount });
+      createTestIntent({ amount });
+
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 0n,
+        [ARBITRUM_CHAIN]: sourceInventory,
+      });
+
+      bridge.quote
+        .onFirstCall()
+        .resolves(
+          createMockBridgeQuote({
+            fromAmount: sourceInventory,
+            toAmount: sourceInventory,
+            toAmountMin: sourceInventory,
+            requestParams: {
+              fromChain: 42161,
+              toChain: 1399811149,
+              fromToken: '0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
+              toToken: '0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
+              fromAddress: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+              toAddress: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+              fromAmount: sourceInventory,
+            },
+          }),
+        )
+        .onSecondCall()
+        .resolves(
+          createMockBridgeQuote({
+            fromAmount: sourceInventory + 1n,
+            toAmount: targetWithBuffer,
+            toAmountMin: targetWithBuffer,
+            requestParams: {
+              fromChain: 42161,
+              toChain: 1399811149,
+              fromToken: '0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
+              toToken: '0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
+              fromAddress: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+              toAddress: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+              toAmount: targetWithBuffer,
+            },
+          }),
+        )
+        .onThirdCall()
+        .resolves(
+          createMockBridgeQuote({
+            fromAmount: sourceInventory + 1n,
+            toAmount: targetWithBuffer - 1n,
+            toAmountMin: targetWithBuffer - 1n,
+            requestParams: {
+              fromChain: 42161,
+              toChain: 1399811149,
+              fromToken: '0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
+              toToken: '0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
+              fromAddress: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+              toAddress: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+              fromAmount: sourceInventory,
+            },
+          }),
         );
 
       const results = await inventoryRebalancer.rebalance([route]);
@@ -1906,7 +2181,213 @@ describe('InventoryRebalancer E2E', () => {
       expect(results[0].success).to.be.false;
       expect(results[0].error).to.include('All inventory movements failed');
       expect(results[0].error).to.include('exceeded planned source capacity');
+      expect(bridge.quote.callCount).to.equal(3);
       expect(bridge.execute.called).to.be.false;
+      expect(bridge.quote.getCall(1).args[0].toAmount).to.equal(
+        targetWithBuffer,
+      );
+      expect(bridge.quote.getCall(2).args[0].fromAmount).to.equal(
+        sourceInventory,
+      );
+      expect(bridge.quote.getCall(2).args[0].toAmount).to.be.undefined;
+    });
+
+    it('fails gracefully when execute-time bridge quote rejects', async () => {
+      const amount = BigInt(1e18);
+      const sourceInventory = BigInt(2e18);
+
+      const route = createTestRoute({ amount });
+      createTestIntent({ amount });
+
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 0n,
+        [ARBITRUM_CHAIN]: sourceInventory,
+      });
+
+      bridge.quote
+        .onFirstCall()
+        .resolves(
+          createMockBridgeQuote({
+            fromAmount: sourceInventory,
+            toAmount: sourceInventory,
+            toAmountMin: sourceInventory,
+            requestParams: {
+              fromChain: 42161,
+              toChain: 1399811149,
+              fromToken: '0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
+              toToken: '0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
+              fromAddress: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+              toAddress: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+              fromAmount: sourceInventory,
+            },
+          }),
+        )
+        .onSecondCall()
+        .rejects(new Error('LiFi API timeout'));
+
+      const results = await inventoryRebalancer.rebalance([route]);
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.false;
+      expect(results[0].error).to.include('All inventory movements failed');
+      expect(results[0].error).to.include('LiFi API timeout');
+      expect(bridge.quote.callCount).to.equal(2);
+      expect(bridge.execute.called).to.be.false;
+    });
+
+    it('preserves non-Error rejection reasons from parallel bridge execution', async () => {
+      const amount = BigInt(1e18);
+      const sourceInventory = BigInt(2e18);
+
+      const route = createTestRoute({ amount });
+      createTestIntent({ amount });
+
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 0n,
+        [ARBITRUM_CHAIN]: sourceInventory,
+      });
+
+      bridge.quote.onFirstCall().resolves(
+        createMockBridgeQuote({
+          fromAmount: sourceInventory,
+          toAmount: sourceInventory,
+          toAmountMin: sourceInventory,
+          requestParams: {
+            fromChain: 42161,
+            toChain: 1399811149,
+            fromToken: '0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
+            toToken: '0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
+            fromAddress: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+            toAddress: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+            fromAmount: sourceInventory,
+          },
+        }),
+      );
+
+      // Simulate a foreign promise rejecting with a non-Error reason at runtime.
+      const rejectionReason = 'bridge exploded' as unknown as Error;
+
+      const executeInventoryMovementStub = Sinon.stub(
+        inventoryRebalancer as unknown as {
+          executeInventoryMovement: () => Promise<unknown>;
+        },
+        'executeInventoryMovement',
+      ).callsFake(() =>
+        Promise.resolve().then(() => {
+          throw rejectionReason;
+        }),
+      );
+
+      const results = await inventoryRebalancer.rebalance([route]);
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.false;
+      expect(results[0].error).to.include('All inventory movements failed');
+      expect(results[0].error).to.include('arbitrum: bridge exploded');
+      expect(executeInventoryMovementStub.calledOnce).to.be.true;
+      expect(bridge.execute.called).to.be.false;
+
+      executeInventoryMovementStub.restore();
+    });
+
+    it('logs actual successful bridge output floors instead of planned output totals', async () => {
+      const amount = BigInt(1e18);
+      const perChainInventory = BigInt(0.6e18);
+      const logger = {
+        info: Sinon.stub(),
+        debug: Sinon.stub(),
+        warn: Sinon.stub(),
+        error: Sinon.stub(),
+      };
+
+      const localRebalancer = new InventoryRebalancer(
+        config,
+        actionTracker as unknown as IActionTracker,
+        { lifi: bridge as unknown as IExternalBridge },
+        warpCore as unknown as WarpCore,
+        multiProvider as unknown as MultiProvider,
+        logger as unknown as Logger,
+      );
+
+      const route = createTestRoute({ amount });
+      createTestIntent({ amount });
+
+      localRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 0n,
+        [ARBITRUM_CHAIN]: perChainInventory,
+        [BASE_CHAIN]: perChainInventory,
+      });
+
+      bridge.quote
+        .onCall(0)
+        .resolves(
+          createMockBridgeQuote({
+            fromAmount: perChainInventory,
+            toAmount: BigInt(0.525e18),
+            toAmountMin: BigInt(0.525e18),
+          }),
+        )
+        .onCall(1)
+        .resolves(
+          createMockBridgeQuote({
+            fromAmount: perChainInventory,
+            toAmount: BigInt(0.525e18),
+            toAmountMin: BigInt(0.525e18),
+          }),
+        )
+        .onCall(2)
+        .resolves(
+          createMockBridgeQuote({
+            fromAmount: perChainInventory,
+            toAmount: BigInt(0.505e18),
+            toAmountMin: BigInt(0.5e18),
+          }),
+        )
+        .onCall(3)
+        .resolves(
+          createMockBridgeQuote({
+            fromAmount: perChainInventory,
+            toAmount: BigInt(0.515e18),
+            toAmountMin: BigInt(0.51e18),
+          }),
+        );
+
+      bridge.execute
+        .onFirstCall()
+        .resolves({
+          txHash: '0xSuccessTxHash1',
+          fromChain: 42161,
+          toChain: 1399811149,
+        })
+        .onSecondCall()
+        .resolves({
+          txHash: '0xSuccessTxHash2',
+          fromChain: 8453,
+          toChain: 1399811149,
+        });
+
+      const results = await localRebalancer.rebalance([route]);
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.true;
+      expect(bridge.execute.callCount).to.equal(2);
+
+      const summaryCall = logger.info
+        .getCalls()
+        .find(
+          (call: ReturnType<typeof logger.info.getCall>) =>
+            call.args[0] &&
+            typeof call.args[0] === 'object' &&
+            Object.prototype.hasOwnProperty.call(
+              call.args[0],
+              'totalQuotedOutputMin',
+            ),
+        );
+
+      assert(summaryCall, 'Expected summary log with totalQuotedOutputMin');
+      expect(summaryCall.args[0].totalQuotedOutputMin).to.equal(
+        BigInt(1.01e18).toString(),
+      );
     });
 
     it('continues when some bridges fail', async () => {
@@ -2177,7 +2658,9 @@ describe('InventoryRebalancer E2E', () => {
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.true;
       expect(bridge.execute.calledOnce).to.be.true;
-      expect(bridge.quote.getCall(1)?.args[0].toAmount).to.equal(tokenBalance);
+      expect(bridge.quote.callCount).to.equal(2);
+      expect(bridge.quote.getCall(1).args[0].fromAmount).to.equal(tokenBalance);
+      expect(bridge.quote.getCall(1).args[0].toAmount).to.be.undefined;
     });
 
     it('calculates max viable amount as inventory minus (gasCosts * 20) for native tokens', async () => {
@@ -2267,15 +2750,121 @@ describe('InventoryRebalancer E2E', () => {
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.true;
       expect(bridge.execute.calledOnce).to.be.true;
+      expect(bridge.quote.callCount).to.equal(3);
 
-      expect(bridge.quote.getCall(1)?.args[0].fromAmount).to.equal(maxViable);
-      const executionTargetOutput = bridge.quote.getCall(2)?.args[0].toAmount;
+      expect(bridge.quote.getCall(1).args[0].fromAmount).to.equal(maxViable);
+      const executionTargetOutput = bridge.quote.getCall(2).args[0].toAmount;
       expect(executionTargetOutput).to.be.a('bigint');
       if (executionTargetOutput === undefined) {
         throw new Error('Expected reverse quote to set toAmount');
       }
       expect(executionTargetOutput > amount).to.be.true;
       expect(executionTargetOutput <= maxViable).to.be.true;
+    });
+
+    it('uses forward quote when target output exactly matches source capacity', async () => {
+      const amount = 1000n;
+      const rawBalance = 1100n;
+      const targetWithBuffer = 1050n;
+
+      const route = createTestRoute({ amount });
+      createTestIntent({ amount });
+
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 0n,
+        [ARBITRUM_CHAIN]: rawBalance,
+      });
+
+      bridge.quote
+        .onFirstCall()
+        .resolves(
+          createMockBridgeQuote({
+            fromAmount: rawBalance,
+            toAmount: targetWithBuffer,
+            toAmountMin: targetWithBuffer,
+          }),
+        )
+        .onSecondCall()
+        .resolves(
+          createMockBridgeQuote({
+            fromAmount: rawBalance,
+            toAmount: targetWithBuffer,
+            toAmountMin: targetWithBuffer,
+          }),
+        );
+
+      bridge.execute.resolves({
+        txHash: '0xForwardBoundaryBridgeTxHash',
+        fromChain: 42161,
+        toChain: 1399811149,
+      });
+
+      const results = await inventoryRebalancer.rebalance([route]);
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.true;
+      expect(bridge.execute.calledOnce).to.be.true;
+      expect(bridge.quote.callCount).to.equal(2);
+      expect(bridge.quote.getCall(1).args[0].fromAmount).to.equal(rawBalance);
+      expect(bridge.quote.getCall(1).args[0].toAmount).to.be.undefined;
+    });
+
+    it('retries reverse quote as forward when exact-output exceeds source capacity', async () => {
+      const amount = 1000n;
+      const rawBalance = 1100n;
+      const targetWithBuffer = 1050n;
+
+      const route = createTestRoute({ amount });
+      createTestIntent({ amount });
+
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 0n,
+        [ARBITRUM_CHAIN]: rawBalance,
+      });
+
+      bridge.quote
+        .onFirstCall()
+        .resolves(
+          createMockBridgeQuote({
+            fromAmount: rawBalance,
+            toAmount: 1051n,
+            toAmountMin: 1051n,
+          }),
+        )
+        .onSecondCall()
+        .resolves(
+          createMockBridgeQuote({
+            fromAmount: rawBalance + 1n,
+            toAmount: targetWithBuffer,
+            toAmountMin: targetWithBuffer,
+          }),
+        )
+        .onThirdCall()
+        .resolves(
+          createMockBridgeQuote({
+            fromAmount: rawBalance,
+            toAmount: 1049n,
+            toAmountMin: 1049n,
+          }),
+        );
+
+      bridge.execute.resolves({
+        txHash: '0xForwardFallbackBridgeTxHash',
+        fromChain: 42161,
+        toChain: 1399811149,
+      });
+
+      const results = await inventoryRebalancer.rebalance([route]);
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.true;
+      expect(bridge.execute.calledOnce).to.be.true;
+      expect(bridge.quote.callCount).to.equal(3);
+      expect(bridge.quote.getCall(1).args[0].toAmount).to.equal(
+        targetWithBuffer,
+      );
+      expect(bridge.quote.getCall(2).args[0].fromAmount).to.equal(rawBalance);
+      expect(bridge.quote.getCall(2).args[0].toAmount).to.be.undefined;
     });
 
     it('handles quote failures gracefully by skipping the source chain', async () => {

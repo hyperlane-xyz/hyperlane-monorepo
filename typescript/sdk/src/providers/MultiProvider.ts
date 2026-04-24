@@ -52,6 +52,7 @@ export interface MultiProviderOptions {
   providers?: ChainMap<Provider>;
   providerBuilder?: ProviderBuilderFn<Provider>;
   signers?: ChainMap<Signer>;
+  minConfirmationTimeoutMs?: number;
 }
 
 export interface SendTransactionOptions {
@@ -471,12 +472,11 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
       options?.waitConfirmations ?? metadata.blocks?.confirmations ?? 1;
 
     const estimateBlockTime = metadata.blocks?.estimateBlockTime;
+    const minTimeout =
+      this.options.minConfirmationTimeoutMs ?? MIN_CONFIRMATION_TIMEOUT_MS;
     const dynamicTimeout =
       typeof confirmations === 'number' && estimateBlockTime
-        ? Math.max(
-            confirmations * estimateBlockTime * 1000 * 2,
-            MIN_CONFIRMATION_TIMEOUT_MS,
-          )
+        ? Math.max(confirmations * estimateBlockTime * 1000 * 2, minTimeout)
         : DEFAULT_CONFIRMATION_TIMEOUT_MS;
     const timeoutMs = options?.timeoutMs ?? dynamicTimeout;
 

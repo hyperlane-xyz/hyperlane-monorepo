@@ -361,6 +361,14 @@ export const RebalancerConfigSchema = z
                 path: ['inventorySigners', protocol],
               });
             }
+          } else if (protocol === ProtocolType.Tron) {
+            if (!isAddressEvm(signerConfig.address)) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: `inventorySigners.${protocol} must be a valid 0x hex address, got: ${signerConfig.address}`,
+                path: ['inventorySigners', protocol],
+              });
+            }
           }
           // Other protocols: accept any non-empty string (future-proof)
         }

@@ -7,40 +7,15 @@ import { IRawIsmArtifactManager } from './ism.js';
 import { IRawMailboxArtifactManager } from './mailbox.js';
 import { MinimumRequiredGasByAction } from './mingas.js';
 import { AnnotatedTx, TxReceipt } from './module.js';
+import { ProtocolType } from './protocolType.js';
 import {
   ITransactionSubmitter,
   JsonRpcSubmitterConfig,
   TransactionSubmitterConfig,
 } from './submitter.js';
+import { IRawFeeArtifactManager } from './fee.js';
 import { IRawWarpArtifactManager } from './warp.js';
 import { IRawValidatorAnnounceArtifactManager } from './validator-announce.js';
-
-export enum ProtocolType {
-  Ethereum = 'ethereum',
-  Sealevel = 'sealevel',
-  Cosmos = 'cosmos',
-  CosmosNative = 'cosmosnative',
-  Starknet = 'starknet',
-  Radix = 'radix',
-  Aleo = 'aleo',
-  Tron = 'tron',
-  Unknown = 'unknown',
-}
-
-// A type that also allows for literal values of the enum
-export type ProtocolTypeValue = `${ProtocolType}`;
-
-export const ProtocolSmallestUnit = {
-  [ProtocolType.Ethereum]: 'wei',
-  [ProtocolType.Sealevel]: 'lamports',
-  [ProtocolType.Cosmos]: 'uATOM',
-  [ProtocolType.CosmosNative]: 'uATOM',
-  [ProtocolType.Starknet]: 'fri',
-  [ProtocolType.Radix]: 'attos',
-  [ProtocolType.Aleo]: 'microcredits',
-  [ProtocolType.Tron]: 'SUN',
-  [ProtocolType.Unknown]: 'unknown',
-};
 
 export type SignerConfig = Pick<
   JsonRpcSubmitterConfig,
@@ -128,6 +103,20 @@ export interface ProtocolProvider {
   createValidatorAnnounceArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
   ): IRawValidatorAnnounceArtifactManager | null;
+
+  /**
+   * Creates a Fee artifact manager for the protocol.
+   * The artifact manager provides protocol-specific readers and writers
+   * that handle fee operations using the Artifact API pattern.
+   *
+   * Not all protocols support fee programs.
+   *
+   * @param chainMetadata Chain metadata for the target chain
+   * @returns A protocol-specific Fee artifact manager, or null if not supported
+   */
+  createFeeArtifactManager(
+    chainMetadata: ChainMetadataForAltVM,
+  ): IRawFeeArtifactManager | null;
 
   getMinGas(): MinimumRequiredGasByAction;
 }

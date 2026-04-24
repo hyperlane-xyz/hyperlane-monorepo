@@ -5,11 +5,11 @@ import type {
 } from '../ProviderType.js';
 import { ProviderType } from '../ProviderType.js';
 import { HyperlaneSmartProvider } from '../SmartProvider/SmartProvider.js';
-import type { ProviderRetryOptions } from '../SmartProvider/types.js';
+import type { SmartProviderOptions } from '../SmartProvider/types.js';
 
 import type { ProviderBuilderFn } from './types.js';
 
-const DEFAULT_RETRY_OPTIONS: ProviderRetryOptions = {
+const DEFAULT_RETRY_OPTIONS: SmartProviderOptions = {
   maxRetries: 3,
   baseRetryDelayMs: 250,
 };
@@ -19,7 +19,7 @@ export const defaultEthersV5ProviderBuilder: ProviderBuilderFn<
 > = (
   rpcUrls: RpcUrl[],
   network: number | string,
-  retryOverride?: ProviderRetryOptions,
+  retryOverride?: SmartProviderOptions,
 ) => {
   const provider = new HyperlaneSmartProvider(
     network,
