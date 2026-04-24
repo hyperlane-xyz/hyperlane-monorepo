@@ -281,10 +281,7 @@ async function buildRemoveQuoteSignerAccounts(
   route: SvmRouteKey | null,
 ) {
   if (!route) {
-    return [
-      writableAccount(feeAccount),
-      writableSignerAddress(owner),
-    ];
+    return [writableAccount(feeAccount), writableSignerAddress(owner)];
   }
 
   const routePda =
@@ -758,10 +755,7 @@ export function getQuoteFeeInstruction(
     Uint8Array.from(targetRouter),
   );
 
-  const accounts = [
-    readonlyAccount(feeAccount),
-    writableSignerAddress(payer),
-  ];
+  const accounts = [readonlyAccount(feeAccount), writableSignerAddress(payer)];
 
   if (quoteFeeAccounts.transientPda) {
     accounts.push(writableAccount(quoteFeeAccounts.transientPda));
