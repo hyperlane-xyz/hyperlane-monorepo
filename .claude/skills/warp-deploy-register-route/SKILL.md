@@ -50,11 +50,11 @@ Convert the warp route ID to a PascalCase TypeScript enum key.
 
 Examples from the file:
 
-- `IgraUSDS = 'USDS/igra'` — chain + token (stable single-chain format)
-- `IgraWETH = 'WETH/igra'` — chain + token
-- `ArbitrumTIA = 'TIA/arbitrum'` — chain + token (older multi-chain format, still valid for existing routes)
+- `IgraUSDC = 'USDC/igra'` — single collateral: `<NewChain><TOKEN>`
+- `EthereumIgraUSDS = 'USDS/ethereum-igra'` — multi collateral: `<CollateralChain><NewChain><TOKEN>`
+- `ArbitrumTIA = 'TIA/arbitrum'` — older single-chain format, still valid for existing routes
 
-For `USDS/igra`, the key would be `IgraUSDS`.
+For `USDS/igra`, the key would be `IgraUSDS`. For `USDS/ethereum-igra`, the key would be `EthereumIgraUSDS`.
 
 Confirm the derived key name makes sense before proceeding.
 
@@ -68,10 +68,11 @@ File: `typescript/infra/config/environments/mainnet3/warp/warpIds.ts`
 2. Add the new enum entry in an appropriate location (group with related routes if there's a logical section; otherwise append before the closing `}`)
 3. Use the format: `EnumKeyName = 'TOKEN/chains',`
 
-Example addition for `USDS/igra`:
+Example additions:
 
 ```typescript
-  IgraUSDS = 'USDS/igra',
+  IgraUSDC = 'USDC/igra',         // single collateral
+  EthereumIgraUSDS = 'USDS/ethereum-igra',  // multi collateral
 ```
 
 After editing, show the user the added line and confirm the file looks correct.
@@ -313,7 +314,7 @@ git add typescript/infra/config/environments/mainnet3/warp/warpIds.ts
 git add .registryrc
 git add typescript/infra/config/environments/mainnet3/
 git add typescript/infra/config/warp.ts
-git commit -m "feat: add <TOKEN>/<chain1>-<chain2> warp route"
+git commit -m "feat: add <WARP_ROUTE_ID> warp route"
 git push -u origin HEAD
 ```
 
@@ -321,16 +322,17 @@ Then open the PR:
 
 ```bash
 gh pr create \
-  --title "feat: add <TOKEN>/<chain1>-<chain2> warp route" \
+  --base main \
+  --title "feat: add <WARP_ROUTE_ID> warp route" \
   --body "$(cat <<'EOF'
 ## Summary
 
-Adds the `<TOKEN>/<chain1>-<chain2>` warp route to the monorepo.
+Adds the `<WARP_ROUTE_ID>` warp route to the monorepo.
 
 | Field | Value |
 | ----- | ----- |
 | **Linear** | <linear-issue-url> |
-| **Warp route ID** | `<TOKEN>/<chain1>-<chain2>` |
+| **Warp route ID** | `<WARP_ROUTE_ID>` |
 | **Warp monitor** | [Grafana](https://abacusworks.grafana.net/d/ddz6ma94rnzswc/warp-routes?orgId=1&var-warp_route_id=<URL-encoded-warp-route-id>) |
 
 ## Changes

@@ -104,7 +104,7 @@ Wait for confirmation before proceeding. If the user provides corrections, updat
 
 ### 10b: Update deploy.yaml with Real Owners
 
-Replace every occurrence of the deployer address in the deploy.yaml with the correct real owner per chain. Update `owner` fields at the chain level and inside any `tokenFee` blocks.
+Update the deploy.yaml by replacing the deployer address with the correct real owner per chain. Only update explicit `owner` keys: the chain-level `owner` field and `owner` inside any `tokenFee` and `feeContracts` blocks. Do not do a global string replace — parse the YAML structure and target only these specific keys.
 
 Write the updated deploy.yaml back to the registry path. Show the user the diff (old → new owners).
 
@@ -129,8 +129,10 @@ pnpm hyperlane warp apply \
   --key.ethereum $MY_ETH_KEY_VAR \
   [--key.sealevel $MY_SOL_KEY_VAR]  # only if sealevel chains present
   [--key.cosmos $MY_COSMOS_KEY_VAR]  # only if cosmos chains present
-  -w <TOKEN>/<chain1>-<chain2>
+  -w <WARP_ROUTE_ID>
 ```
+
+Where `<WARP_ROUTE_ID>` is the stable route ID from init-route Step 7a (e.g. `USDS/igra` or `USDS/ethereum-igra`).
 
 Show the user the exact command and ask:
 
@@ -153,7 +155,7 @@ cd /path/to/hyperlane-monorepo/typescript/cli
 pnpm hyperlane warp read \
   --registry $(pwd)/../hyperlane-registry \
   --registry http://localhost:<port> \
-  -w <TOKEN>/<chain1>-<chain2>
+  -w <WARP_ROUTE_ID>
 ```
 
 Show the user the output and verify that each chain's `owner` matches the expected real owner address. Flag any discrepancies.
@@ -232,7 +234,7 @@ cd $REGISTRY_PATH
 git checkout -b feat/<token-chains>
 git add deployments/warp_routes/<TOKEN>/
 git add .changeset/
-git commit -m "feat: add <TOKEN>/<chain1>-<chain2> warp route"
+git commit -m "feat: add <WARP_ROUTE_ID> warp route"
 ```
 
 ### 12d: Push and Open PR
@@ -243,11 +245,12 @@ Push the branch and open a PR on GitHub:
 cd $REGISTRY_PATH
 git push -u origin HEAD
 gh pr create \
-  --title "feat: add <TOKEN>/<chain1>-<chain2> warp route" \
+  --base main \
+  --title "feat: add <WARP_ROUTE_ID> warp route" \
   --body "$(cat <<'EOF'
 ## Summary
 
-Adds the `<TOKEN>/<chain1>-<chain2>` warp route.
+Adds the `<WARP_ROUTE_ID>` warp route.
 
 | Field | Value |
 | ----- | ----- |

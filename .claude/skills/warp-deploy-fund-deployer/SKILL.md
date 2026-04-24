@@ -404,7 +404,7 @@ Once all chains are funded, run `/warp-deploy-init-route` to generate the deploy
 
 ## Notes
 
-- Gas estimates assume typical EVM warp route deployment (~3–5M gas units). Actual cost depends on gas price at deploy time.
+- The preflight formula uses 30,000,000 gas units (from `WARP_DEPLOY_GAS` in the CLI) as a conservative upper bound. Typical EVM warp route deployments use 3–5M gas, but the formula buffers significantly to avoid underfunding.
 - The 10 USD threshold is conservative for most chains. Ethereum mainnet and Solana may need significantly more.
 - For Solana (Sealevel), `cast balance` does not work — use `solana balance <ADDRESS>` if the Solana CLI is available, otherwise skip and warn the user to check manually.
 - The deployer only needs collateral token for **testing** a transfer after deployment. 1 USD is enough; do not request more.

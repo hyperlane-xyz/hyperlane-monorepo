@@ -80,7 +80,7 @@ If the ticket says "owner yield", use `collateralVault` + `synthetic`. If ambigu
 Run this check on the collateral token address from the ticket:
 
 ```bash
-cast call <collateral-token-address> "asset()" --rpc-url $(cast chain-id <chain>)
+cast call <collateral-token-address> "asset()(address)" --rpc-url <RPC_URL>
 ```
 
 - **If `asset()` returns a non-zero address** → the token IS an ERC4626 vault. Use it directly as `token` in the deploy.yaml. No vault deployment needed.
@@ -483,7 +483,7 @@ pnpm hyperlane warp deploy \
 
 Where `<TOKEN>/<new-chain>` is the warp route ID from Step 7a, and `$MY_ETH_KEY_VAR` etc. are the env variable names provided in 7c.
 
-Show the user the exact command with the real values substituted. Then ask:
+Show the user the exact command with env variable names substituted (e.g. `$MY_ETH_KEY_VAR`), never key values. Then ask:
 
 > **Ready to run the warp deploy?** Type `yes` to execute, or `no` to run it manually.
 

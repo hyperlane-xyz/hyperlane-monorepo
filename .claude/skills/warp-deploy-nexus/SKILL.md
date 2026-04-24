@@ -30,7 +30,7 @@ Show the user the warp route IDs you'll add and ask them to confirm before proce
 The `hyperlane-warp-ui-template` repo is at the same level as `hyperlane-monorepo`:
 
 ```
-REPO_PATH="$(dirname $(pwd))/../hyperlane-warp-ui-template"
+REPO_PATH="$(pwd)/../hyperlane-warp-ui-template"
 ```
 
 1. Ensure the repo is clean and up to date on the `nexus` branch:
