@@ -115,6 +115,8 @@ export function validateWarpConfigForAltVM(
     scale = Number(config.scale.numerator) / Number(config.scale.denominator);
   }
 
+  // TODO: full CLI compatibility for SVM fee deployment will be implemented
+  // in a follow-up PR (requires mapping EVM TokenFeeConfigInput → provider-sdk FeeConfig).
   const baseConfig = {
     owner: config.owner,
     mailbox: config.mailbox,
@@ -126,6 +128,7 @@ export function validateWarpConfigForAltVM(
     remoteRouters: config.remoteRouters,
     destinationGas: config.destinationGas,
     scale,
+    contractVersion: config.contractVersion,
   };
 
   switch (config.type) {
