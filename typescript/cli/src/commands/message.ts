@@ -4,7 +4,6 @@ import type { CommandModule } from 'yargs';
 import type { ProtocolType } from '@hyperlane-xyz/utils';
 import {
   addressToBytes32,
-  assert,
   bytesToProtocolAddress,
   formatMessage,
   messageId,
@@ -87,11 +86,11 @@ const decodeMessageCommand: CommandModuleWithContext<DecodeMessageArgs> = {
     log(
       `Recipient:   ${bytes32WithAddress(parsed.recipient, destMetadata?.protocol, destMetadata?.bech32Prefix)}`,
     );
-    // Warp transfer body is exactly 64 bytes (bytes32 recipient + uint256 amount)
+    // Best-effort: 64-byte bodies may be warp transfers (bytes32 + uint256) but not all are
     const isWarpBody = /^0x[0-9a-fA-F]{128}$/.test(parsed.body);
     if (isWarpBody) {
       const warp = parseWarpRouteMessage(parsed.body);
-      log(`Body (warp transfer):`);
+      log(`Body (possible warp transfer):`);
       log(
         `  Recipient: ${bytes32WithAddress(warp.recipient, destMetadata?.protocol, destMetadata?.bech32Prefix)}`,
       );
@@ -154,15 +153,20 @@ const encodeMessageCommand: CommandModuleWithContext<EncodeMessageArgs> = {
     body: {
       type: 'string',
       description: 'Message body as hex string (default: 0x)',
+      conflicts: ['warpRecipient', 'warpAmount'],
     },
     warpRecipient: {
       type: 'string',
       description:
         'Warp route recipient address — builds warp message body automatically',
+      implies: 'warpAmount',
+      conflicts: 'body',
     },
     warpAmount: {
       type: 'string',
       description: 'Warp route token amount (required with --warp-recipient)',
+      implies: 'warpRecipient',
+      conflicts: 'body',
     },
   },
   handler: async (argv) => {
@@ -181,14 +185,7 @@ const encodeMessageCommand: CommandModuleWithContext<EncodeMessageArgs> = {
 
     let messageBody = body ?? '0x';
 
-    assert(
-      !warpAmount || warpRecipient,
-      '--warp-amount requires --warp-recipient',
-    );
-
-    if (warpRecipient) {
-      assert(!body, '--body and --warp-recipient are mutually exclusive');
-      assert(warpAmount, '--warp-amount is required with --warp-recipient');
+    if (warpRecipient && warpAmount) {
       const recipientBytes32 = addressToBytes32(warpRecipient);
       messageBody = ethers.utils.solidityPack(
         ['bytes32', 'uint256'],
