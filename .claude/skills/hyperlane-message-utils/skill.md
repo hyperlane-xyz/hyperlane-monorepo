@@ -77,7 +77,7 @@ Origin:      1 (ethereum)
 Sender:      0x000...cb527f... (0xBEA3Da2758523301415C609ac4ADEBb638F0eadf)
 Destination: 56 (bsc)
 Recipient:   0x000...cb527f... (0xBEA3Da2758523301415C609ac4ADEBb638F0eadf)
-Body (warp transfer):
+Body (possible warp transfer):
   Recipient: 0x000...cb527f... (0xBEA3Da2758523301415C609ac4ADEBb638F0eadf)
   Amount:    2000
 ```
@@ -115,7 +115,7 @@ hyperlane message encode \
 | `--warpRecipient`      | no       | Warp transfer recipient — builds body automatically          |
 | `--warpAmount`         | no       | Warp transfer token amount (required with `--warpRecipient`) |
 
-`--body` and `--warpRecipient` are mutually exclusive — using `--warpRecipient` overrides the body.
+`--body` and `--warpRecipient`/`--warpAmount` are mutually exclusive — passing both is a CLI error. `--warpRecipient` and `--warpAmount` must always be used together.
 
 **Output:**
 
@@ -172,7 +172,7 @@ uint256 amount     (32 bytes)
 Total: 64 bytes (128 hex chars + 0x prefix)
 ```
 
-The `decode` command auto-detects this format: if the body is exactly 64 bytes, it decodes and displays the recipient and amount fields.
+The `decode` command does a best-effort detection: if the body is exactly 64 bytes it attempts to decode and display the recipient and amount fields, labelled as "possible warp transfer" since not all 64-byte bodies are warp transfers.
 
 ## Common Use Cases
 
