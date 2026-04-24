@@ -27,7 +27,6 @@ use crate::{
 /// returns `Some(result)`. Returns `Ok(None)` if no override is configured.
 fn spec_for_domain_override<'a, 'info>(
     loaded: &Option<Box<DomainIsmStorage>>,
-    domain_pda_key: Pubkey,
     message: &HyperlaneMessage,
     program_id: &Pubkey,
     extra_accounts: &[&'a AccountInfo<'info>],
@@ -131,13 +130,9 @@ pub(crate) fn spec_and_accounts_for_node<'a, 'info>(
                 load_and_validate_domain_ism_storage(program_id, message.origin, domain_pda_info)
                     .map_err(|_| Error::InvalidConfig)?;
 
-            if let Some(result) = spec_for_domain_override(
-                &loaded,
-                domain_pda_key,
-                message,
-                program_id,
-                extra_accounts,
-            )? {
+            if let Some(result) =
+                spec_for_domain_override(&loaded, message, program_id, extra_accounts)?
+            {
                 return Ok(result);
             }
 
@@ -164,13 +159,9 @@ pub(crate) fn spec_and_accounts_for_node<'a, 'info>(
                 load_and_validate_domain_ism_storage(program_id, message.origin, domain_pda_info)
                     .map_err(|_| Error::InvalidConfig)?;
 
-            if let Some(result) = spec_for_domain_override(
-                &loaded,
-                domain_pda_key,
-                message,
-                program_id,
-                extra_accounts,
-            )? {
+            if let Some(result) =
+                spec_for_domain_override(&loaded, message, program_id, extra_accounts)?
+            {
                 return Ok(result);
             }
 
