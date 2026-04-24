@@ -3,9 +3,13 @@ import { expect } from 'chai';
 import { before, describe, it } from 'mocha';
 
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
-import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
+import { FeeType } from '@hyperlane-xyz/provider-sdk/fee';
 import type { IgpHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
+import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
 import { sleep } from '@hyperlane-xyz/utils';
+
+import { SvmLinearFeeWriter } from '../fee/linear-fee.js';
+import { deriveFeeAccountPda } from '../pda.js';
 
 import { SvmSigner } from '../clients/signer.js';
 import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
@@ -131,6 +135,49 @@ describe('SVM Program Upgrade E2E Tests', function () {
 
     const afterUpgrade = await reader.read(programId);
     expect(afterUpgrade.config.contractVersion).to.equal('1.0.0');
+
+    // Verify SetFeeConfig works after upgrade — the whole point of upgrading
+    const feeWriter = new SvmLinearFeeWriter(
+      { program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenFee } },
+      rpc,
+      1,
+      signer,
+      DEFAULT_FEE_SALT,
+    );
+    const [deployedFee] = await feeWriter.create({
+      config: {
+        type: FeeType.linear,
+        owner: signer.getSignerAddress(),
+        beneficiary: signer.getSignerAddress(),
+        maxFee: '1000000',
+        halfAmount: '500000',
+      },
+    });
+    const feeProgram = address(deployedFee.deployed.programId);
+
+    const setFeeTxs = await upgradeWriter.update({
+      ...afterUpgrade,
+      config: {
+        ...afterUpgrade.config,
+        contractVersion: '1.0.0',
+        fee: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: feeProgram },
+        },
+      },
+    });
+    expect(setFeeTxs).to.have.length(1);
+    for (const tx of setFeeTxs) {
+      await signer.send({ instructions: tx.instructions });
+    }
+
+    const withFee = await reader.read(programId);
+    const expectedPda = await deriveFeeAccountPda(feeProgram, DEFAULT_FEE_SALT);
+    expect(withFee.deployed.feeConfig).to.exist;
+    expect(withFee.deployed.feeConfig?.feeProgram).to.equal(feeProgram);
+    expect(withFee.deployed.feeConfig?.feeAccount).to.equal(
+      expectedPda.address,
+    );
   });
 
   it('should upgrade when authority differs from payer', async () => {
