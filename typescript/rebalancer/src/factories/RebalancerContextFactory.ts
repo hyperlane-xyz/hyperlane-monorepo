@@ -716,6 +716,10 @@ export class RebalancerContextFactory {
     return { rebalancers, externalBridgeRegistry, inventoryConfig };
   }
 
+  public createExternalBridgeRegistry(): Partial<ExternalBridgeRegistry> {
+    return this.buildExternalBridgeRegistry();
+  }
+
   /**
    * Creates a RebalancerOrchestrator with all required dependencies.
    */
