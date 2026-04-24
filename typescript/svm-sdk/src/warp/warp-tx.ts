@@ -1,5 +1,7 @@
 import { type Address, address as parseAddress } from '@solana/kit';
 
+import type { TokenFeeConfig } from '../accounts/token.js';
+
 import {
   computeRemoteRoutersUpdates,
   type RawWarpArtifactConfig,
@@ -312,6 +314,8 @@ export async function computeWarpTokenUpdateInstructions(
   ownerAddress: Address,
   rpc: SvmRpc,
   label: string,
+  feeSalt: Uint8Array,
+  currentOnChainFeeConfig?: TokenFeeConfig,
 ): Promise<AnnotatedSvmTransaction[]> {
   const txs: AnnotatedSvmTransaction[] = [];
 
@@ -359,11 +363,49 @@ export async function computeWarpTokenUpdateInstructions(
     );
   }
 
+  // Fee config diff — compare the full (feeProgram, feeAccount) pair.
+  // Same program with a different salt produces a different fee account PDA.
+  const expectedFee = expected.fee?.deployed?.address;
+  if (expectedFee) {
+    const expectedFeePda = await deriveFeeAccountPda(
+      parseAddress(expectedFee),
+      feeSalt,
+    );
+    const expectedFeeConfig: TokenFeeConfig = {
+      feeProgram: parseAddress(expectedFee),
+      feeAccount: expectedFeePda.address,
+    };
+    const changed =
+      !currentOnChainFeeConfig ||
+      !eqAddressSol(
+        currentOnChainFeeConfig.feeProgram,
+        expectedFeeConfig.feeProgram,
+      ) ||
+      !eqAddressSol(
+        currentOnChainFeeConfig.feeAccount,
+        expectedFeeConfig.feeAccount,
+      );
+    if (changed) {
+      configInstructions.push(
+        await getTokenSetFeeConfigInstruction(
+          programId,
+          ownerAddress,
+          expectedFeeConfig,
+        ),
+      );
+    }
+  } else if (currentOnChainFeeConfig) {
+    // Expected has no fee but current does — remove it
+    configInstructions.push(
+      await getTokenSetFeeConfigInstruction(programId, ownerAddress, null),
+    );
+  }
+
   if (configInstructions.length > 0) {
     txs.push({
       feePayer: ownerAddress,
       instructions: configInstructions,
-      annotation: `Update ${label}: ISM/hook config`,
+      annotation: `Update ${label}: ISM/hook/fee config`,
     });
   }
 

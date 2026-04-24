@@ -5,8 +5,9 @@ import { describe, it } from 'mocha';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import type { RawNativeWarpArtifactConfig } from '@hyperlane-xyz/provider-sdk/warp';
 
-import { computeWarpTokenUpdateInstructions } from '../warp/warp-tx.js';
+import { DEFAULT_FEE_SALT } from '../fee/types.js';
 import type { SvmRpc } from '../types.js';
+import { computeWarpTokenUpdateInstructions } from '../warp/warp-tx.js';
 
 const OWNER = address('zUeFx6cfxedG2JnFtMKkTXnxgPa5M44tyaF9RrPunCp');
 const PROGRAM = address('2gqSMt66ZABt82TTQgrdxf7tJ4eQpLuYj6N29ieBQrH2');
@@ -99,6 +100,7 @@ describe('computeWarpTokenUpdateInstructions — feePayer', () => {
         OWNER,
         createStubRpc(),
         'test',
+        DEFAULT_FEE_SALT,
       );
 
       expect(txs).to.have.length(expectedTxCount);

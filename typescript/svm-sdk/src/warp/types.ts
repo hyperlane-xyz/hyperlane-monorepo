@@ -1,3 +1,6 @@
+import type { DeployedWarpAddress } from '@hyperlane-xyz/provider-sdk/warp';
+
+import type { TokenFeeConfig } from '../accounts/token.js';
 import type { SvmProgramTarget } from '../types.js';
 
 /**
@@ -16,3 +19,14 @@ export type SvmWarpTokenConfig = Readonly<{
   /** Salt for fee account PDA derivation. Resolved from chain name by the artifact manager. */
   feeSalt: Uint8Array;
 }>;
+
+/**
+ * SVM-specific extension of DeployedWarpAddress that carries the
+ * on-chain fee configuration (both program ID and fee account PDA).
+ *
+ * Used for accurate fee config diffing during updates — the same fee
+ * program with a different salt produces a different fee account PDA.
+ */
+export interface SvmDeployedWarpAddress extends DeployedWarpAddress {
+  feeConfig?: TokenFeeConfig;
+}

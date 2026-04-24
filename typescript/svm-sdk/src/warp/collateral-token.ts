@@ -38,7 +38,7 @@ import { readonlyAccount, writableAccount } from '../instructions/utils.js';
 import { deriveAtaPayerPda, deriveEscrowPda } from '../pda.js';
 import type { AnnotatedSvmTransaction, SvmReceipt, SvmRpc } from '../types.js';
 
-import type { SvmWarpTokenConfig } from './types.js';
+import type { SvmDeployedWarpAddress, SvmWarpTokenConfig } from './types.js';
 import {
   fetchTokenAccount,
   fetchWarpProgramVersion,
@@ -57,14 +57,14 @@ import { prepareProgramUpgrade } from './warp-upgrade.js';
 
 export class SvmCollateralTokenReader implements ArtifactReader<
   RawCollateralWarpArtifactConfig,
-  DeployedWarpAddress
+  SvmDeployedWarpAddress
 > {
   constructor(protected readonly rpc: SvmRpc) {}
 
   async read(
     programAddress: string,
   ): Promise<
-    ArtifactDeployed<RawCollateralWarpArtifactConfig, DeployedWarpAddress>
+    ArtifactDeployed<RawCollateralWarpArtifactConfig, SvmDeployedWarpAddress>
   > {
     const programId = parseAddress(programAddress);
     const token = await fetchTokenAccount(this.rpc, programId);
@@ -138,7 +138,7 @@ export class SvmCollateralTokenReader implements ArtifactReader<
     return {
       artifactState: ArtifactState.DEPLOYED,
       config,
-      deployed: { address: programId },
+      deployed: { address: programId, feeConfig: feeConfig ?? undefined },
     };
   }
 }
@@ -146,7 +146,7 @@ export class SvmCollateralTokenReader implements ArtifactReader<
 export class SvmCollateralTokenWriter
   extends SvmCollateralTokenReader
   implements
-    ArtifactWriter<RawCollateralWarpArtifactConfig, DeployedWarpAddress>
+    ArtifactWriter<RawCollateralWarpArtifactConfig, SvmDeployedWarpAddress>
 {
   constructor(
     private readonly config: SvmWarpTokenConfig,
@@ -160,7 +160,7 @@ export class SvmCollateralTokenWriter
     artifact: ArtifactNew<RawCollateralWarpArtifactConfig>,
   ): Promise<
     [
-      ArtifactDeployed<RawCollateralWarpArtifactConfig, DeployedWarpAddress>,
+      ArtifactDeployed<RawCollateralWarpArtifactConfig, SvmDeployedWarpAddress>,
       SvmReceipt[],
     ]
   > {
@@ -297,6 +297,8 @@ export class SvmCollateralTokenWriter
       parseAddress(current.config.owner),
       this.rpc,
       `collateral token ${programId}`,
+      this.config.feeSalt,
+      current.deployed.feeConfig,
     );
 
     txs.push(...configUpdateTxs);
