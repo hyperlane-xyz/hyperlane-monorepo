@@ -51,6 +51,8 @@ pub enum Error {
     InvalidFallbackIsmAccount = 23,
     #[error("CPI to fallback ISM failed or returned no/invalid data")]
     FallbackIsmCallFailed = 24,
+    #[error("FallbackRouting must be the last sub-ISM in an Aggregation; placing it earlier drains accounts_iter and starves subsequent siblings")]
+    FallbackRoutingNotLast = 25,
 }
 
 impl From<Error> for ProgramError {

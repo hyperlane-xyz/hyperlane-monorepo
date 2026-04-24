@@ -39,17 +39,10 @@ fn spec_for_domain_override<'a, 'info>(
         return Ok(None);
     };
     let result = spec_and_accounts_for_node(ism, message, program_id, extra_accounts)?;
-    if result.spec.is_some() {
-        return Ok(Some(result));
-    }
-    // Domain ISMs cannot be Routing/FallbackRouting (enforced at config time), so
-    // result.accounts is always empty and this path is unreachable in practice.
-    let mut accounts = vec![domain_pda_key];
-    accounts.extend(result.accounts);
-    Ok(Some(MetadataSpecResult {
-        spec: None,
-        accounts,
-    }))
+    // Domain ISMs cannot be Routing/FallbackRouting (enforced at config time),
+    // so spec is always Some here — no node in a domain ISM returns spec: None.
+    debug_assert!(result.spec.is_some());
+    Ok(Some(result))
 }
 
 /// Resolves the [`MetadataSpec`] for an ISM node.
@@ -251,6 +244,9 @@ pub(crate) fn spec_and_accounts_for_node<'a, 'info>(
                 // AccountData<DomainData> layout: [bool (initialized)] + [u8 (bump_seed)]
                 // + borsh(ValidatorsAndThreshold). No discriminator prefix.
                 let multisig_domain_pda_info = extra_accounts[2];
+                if *multisig_domain_pda_info.owner != *fallback_ism {
+                    return Err(Error::FallbackIsmCallFailed);
+                }
                 let data = multisig_domain_pda_info.data.borrow();
                 let buf = &mut &data[..];
                 let initialized =

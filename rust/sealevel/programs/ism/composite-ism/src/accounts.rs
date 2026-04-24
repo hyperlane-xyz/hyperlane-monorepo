@@ -97,16 +97,17 @@ pub enum IsmNode {
     Routing,
 
     /// Routes to a per-domain PDA first (like `Routing`), then falls back to a
-    /// statically-configured composite ISM when no domain-specific ISM is set.
+    /// statically-configured ISM when no domain-specific ISM is set.
     ///
     /// At verify time, if no domain ISM is found, the caller must provide (in
     /// order after the domain PDA):
-    /// 1. The fallback ISM's storage PDA (at `VERIFY_ACCOUNT_METAS_PDA_SEEDS`
+    /// 1. The fallback ISM's VAM PDA (at `VERIFY_ACCOUNT_METAS_PDA_SEEDS`
     ///    under `fallback_ism`).
     /// 2. Any additional accounts required by the fallback ISM.
     ///
-    /// The fallback ISM must be another composite ISM deployment; other types are
-    /// not supported and will return `InvalidFallbackIsmAccount`.
+    /// The fallback can be any deployed Hyperlane ISM program, including legacy
+    /// multisig ISMs. `validate_config` rejects self-referential configs where
+    /// `fallback_ism` equals the enclosing program's own ID.
     ///
     /// `FallbackRouting` is not allowed inside a domain PDA (enforced by
     /// `validate_domain_ism`), and at most one routing-type node is allowed per tree.

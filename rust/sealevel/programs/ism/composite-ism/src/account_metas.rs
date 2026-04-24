@@ -66,7 +66,7 @@ pub fn required_accounts_for_node(
         IsmNode::Aggregation { sub_isms, .. } => {
             let mut accounts: Vec<SerializableAccountMeta> = Vec::new();
             for (i, sub_ism) in sub_isms.iter().enumerate() {
-                let Ok(Some(sub_meta)) = sub_metadata_at(metadata, i) else {
+                let Some(sub_meta) = sub_metadata_at(metadata, i)? else {
                     continue;
                 };
                 let sub_accounts = required_accounts_for_node(

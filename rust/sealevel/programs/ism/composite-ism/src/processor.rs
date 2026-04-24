@@ -192,7 +192,7 @@ fn get_metadata_spec(
 /// 1. `[writable]` The storage PDA account.
 /// 2. `[executable]` The system program.
 fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], mut root: IsmNode) -> ProgramResult {
-    validate_config(&root)?;
+    validate_config(program_id, &root)?;
     normalize_node(&mut root);
 
     let accounts_iter = &mut accounts.iter();
@@ -251,7 +251,7 @@ fn update_config(
     accounts: &[AccountInfo],
     mut root: IsmNode,
 ) -> ProgramResult {
-    validate_config(&root)?;
+    validate_config(program_id, &root)?;
     normalize_node(&mut root);
 
     let accounts_iter = &mut accounts.iter();
@@ -403,19 +403,37 @@ fn transfer_ownership(
     Ok(())
 }
 
+/// Returns `true` if `node` or any node in its subtree is a `FallbackRouting`.
+fn contains_fallback_routing(node: &IsmNode) -> bool {
+    match node {
+        IsmNode::FallbackRouting { .. } => true,
+        IsmNode::Aggregation { sub_isms, .. } => sub_isms.iter().any(contains_fallback_routing),
+        IsmNode::AmountRouting { lower, upper, .. } => {
+            contains_fallback_routing(lower) || contains_fallback_routing(upper)
+        }
+        _ => false,
+    }
+}
+
 /// Validates the ISM config tree for the VAM PDA root.
 ///
 /// Checks:
 /// - Aggregation threshold in range.
 /// - MultisigMessageId threshold in range.
 /// - RateLimited max_capacity > 0.
-/// - At most one Routing node in the tree.
-fn validate_config(node: &IsmNode) -> ProgramResult {
+/// - TrustedRelayer relayer is not the default pubkey.
+/// - At most one Routing or FallbackRouting node in the tree.
+/// - FallbackRouting does not point back at this program (self-referential loop).
+fn validate_config(program_id: &Pubkey, node: &IsmNode) -> ProgramResult {
     let mut routing_found = false;
-    validate_config_inner(node, &mut routing_found)
+    validate_config_inner(program_id, node, &mut routing_found)
 }
 
-fn validate_config_inner(node: &IsmNode, routing_found: &mut bool) -> ProgramResult {
+fn validate_config_inner(
+    program_id: &Pubkey,
+    node: &IsmNode,
+    routing_found: &mut bool,
+) -> ProgramResult {
     match node {
         IsmNode::Aggregation {
             threshold,
@@ -424,8 +442,20 @@ fn validate_config_inner(node: &IsmNode, routing_found: &mut bool) -> ProgramRes
             if *threshold as usize > sub_isms.len() || *threshold == 0 {
                 return Err(Error::InvalidConfig.into());
             }
+            // FallbackRouting must be the last sub-ISM (checked transitively).
+            // On the fallback path, verify_node drains accounts_iter entirely (it
+            // collects all remaining accounts to CPI into the fallback program).
+            // Any sibling that follows would find the iterator empty and fail with
+            // NotEnoughAccountKeys. This applies even when FallbackRouting is nested
+            // inside a non-last sub-ISM (e.g. AmountRouting { lower: FallbackRouting })
+            // because AmountRouting may route to FallbackRouting at runtime.
+            for sub in sub_isms[..sub_isms.len().saturating_sub(1)].iter() {
+                if contains_fallback_routing(sub) {
+                    return Err(Error::FallbackRoutingNotLast.into());
+                }
+            }
             for sub in sub_isms {
-                validate_config_inner(sub, routing_found)?;
+                validate_config_inner(program_id, sub, routing_found)?;
             }
             Ok(())
         }
@@ -449,8 +479,10 @@ fn validate_config_inner(node: &IsmNode, routing_found: &mut bool) -> ProgramRes
             Ok(())
         }
         IsmNode::AmountRouting { lower, upper, .. } => {
-            validate_config_inner(lower, routing_found)?;
-            validate_config_inner(upper, routing_found)
+            // Both branches are validated even though only one executes at runtime,
+            // so an invalid sub-ISM in the inactive branch is caught at config time.
+            validate_config_inner(program_id, lower, routing_found)?;
+            validate_config_inner(program_id, upper, routing_found)
         }
         IsmNode::RateLimited { max_capacity, .. } => {
             if *max_capacity == 0 {
@@ -466,7 +498,7 @@ fn validate_config_inner(node: &IsmNode, routing_found: &mut bool) -> ProgramRes
             Ok(())
         }
         IsmNode::FallbackRouting { fallback_ism } => {
-            if *fallback_ism == Pubkey::default() {
+            if *fallback_ism == Pubkey::default() || fallback_ism == program_id {
                 return Err(Error::InvalidConfig.into());
             }
             if *routing_found {
@@ -475,7 +507,13 @@ fn validate_config_inner(node: &IsmNode, routing_found: &mut bool) -> ProgramRes
             *routing_found = true;
             Ok(())
         }
-        IsmNode::TrustedRelayer { .. } | IsmNode::Test { .. } | IsmNode::Pausable { .. } => Ok(()),
+        IsmNode::TrustedRelayer { relayer } => {
+            if *relayer == Pubkey::default() {
+                return Err(Error::InvalidConfig.into());
+            }
+            Ok(())
+        }
+        IsmNode::Test { .. } | IsmNode::Pausable { .. } => Ok(()),
     }
 }
 
@@ -523,7 +561,13 @@ fn validate_domain_ism(node: &IsmNode) -> ProgramResult {
         }
         IsmNode::Routing { .. } => Err(Error::RoutingInDomainIsm.into()),
         IsmNode::FallbackRouting { .. } => Err(Error::FallbackRoutingInDomainIsm.into()),
-        IsmNode::TrustedRelayer { .. } | IsmNode::Test { .. } | IsmNode::Pausable { .. } => Ok(()),
+        IsmNode::TrustedRelayer { relayer } => {
+            if *relayer == Pubkey::default() {
+                return Err(Error::InvalidConfig.into());
+            }
+            Ok(())
+        }
+        IsmNode::Test { .. } | IsmNode::Pausable { .. } => Ok(()),
     }
 }
 
@@ -691,7 +735,7 @@ mod test {
             ],
         };
         assert_eq!(
-            validate_config(&node).unwrap_err(),
+            validate_config(&Pubkey::new_unique(), &node).unwrap_err(),
             Error::InvalidConfig.into()
         );
     }
@@ -703,7 +747,7 @@ mod test {
             sub_isms: vec![IsmNode::Test { accept: true }],
         };
         assert_eq!(
-            validate_config(&node).unwrap_err(),
+            validate_config(&Pubkey::new_unique(), &node).unwrap_err(),
             Error::InvalidConfig.into()
         );
     }
@@ -715,7 +759,7 @@ mod test {
             threshold: 0,
         };
         assert_eq!(
-            validate_config(&node).unwrap_err(),
+            validate_config(&Pubkey::new_unique(), &node).unwrap_err(),
             Error::InvalidConfig.into()
         );
     }
@@ -728,7 +772,7 @@ mod test {
             threshold: 2,
         };
         assert_eq!(
-            validate_config(&node).unwrap_err(),
+            validate_config(&Pubkey::new_unique(), &node).unwrap_err(),
             Error::InvalidConfig.into()
         );
     }
@@ -739,7 +783,7 @@ mod test {
             validators: vec![H160::random(), H160::random()],
             threshold: 2,
         };
-        assert!(validate_config(&node).is_ok());
+        assert!(validate_config(&Pubkey::new_unique(), &node).is_ok());
     }
 
     #[test]
@@ -751,7 +795,7 @@ mod test {
             last_updated: 0,
         };
         assert_eq!(
-            validate_config(&node).unwrap_err(),
+            validate_config(&Pubkey::new_unique(), &node).unwrap_err(),
             Error::InvalidConfig.into()
         );
     }
@@ -763,7 +807,7 @@ mod test {
             sub_isms: vec![IsmNode::Routing, IsmNode::Routing],
         };
         assert_eq!(
-            validate_config(&node).unwrap_err(),
+            validate_config(&Pubkey::new_unique(), &node).unwrap_err(),
             Error::MultipleRoutingNodes.into()
         );
     }
@@ -774,7 +818,76 @@ mod test {
             threshold: 2,
             sub_isms: vec![IsmNode::Routing, IsmNode::Test { accept: true }],
         };
-        assert!(validate_config(&node).is_ok());
+        assert!(validate_config(&Pubkey::new_unique(), &node).is_ok());
+    }
+
+    #[test]
+    fn test_validate_config_fallback_routing_not_last_rejected() {
+        let fallback_ism = Pubkey::new_unique();
+        let node = IsmNode::Aggregation {
+            threshold: 1,
+            sub_isms: vec![
+                IsmNode::FallbackRouting { fallback_ism },
+                IsmNode::Test { accept: true },
+            ],
+        };
+        assert_eq!(
+            validate_config(&Pubkey::new_unique(), &node).unwrap_err(),
+            Error::FallbackRoutingNotLast.into()
+        );
+    }
+
+    #[test]
+    fn test_validate_config_fallback_routing_last_ok() {
+        let fallback_ism = Pubkey::new_unique();
+        let node = IsmNode::Aggregation {
+            threshold: 1,
+            sub_isms: vec![
+                IsmNode::Test { accept: true },
+                IsmNode::FallbackRouting { fallback_ism },
+            ],
+        };
+        assert!(validate_config(&Pubkey::new_unique(), &node).is_ok());
+    }
+
+    #[test]
+    fn test_validate_config_fallback_routing_in_amount_routing_not_last_rejected() {
+        // FallbackRouting nested inside AmountRouting which is not the last sub-ISM.
+        // At runtime AmountRouting may route to FallbackRouting, draining accounts_iter
+        // and starving the subsequent TrustedRelayer sibling.
+        let fallback_ism = Pubkey::new_unique();
+        let node = IsmNode::Aggregation {
+            threshold: 1,
+            sub_isms: vec![
+                IsmNode::AmountRouting {
+                    threshold: hyperlane_core::U256::from(1000u64),
+                    lower: Box::new(IsmNode::FallbackRouting { fallback_ism }),
+                    upper: Box::new(IsmNode::Test { accept: true }),
+                },
+                IsmNode::Test { accept: true },
+            ],
+        };
+        assert_eq!(
+            validate_config(&Pubkey::new_unique(), &node).unwrap_err(),
+            Error::FallbackRoutingNotLast.into()
+        );
+    }
+
+    #[test]
+    fn test_validate_config_fallback_routing_in_amount_routing_last_ok() {
+        let fallback_ism = Pubkey::new_unique();
+        let node = IsmNode::Aggregation {
+            threshold: 1,
+            sub_isms: vec![
+                IsmNode::Test { accept: true },
+                IsmNode::AmountRouting {
+                    threshold: hyperlane_core::U256::from(1000u64),
+                    lower: Box::new(IsmNode::FallbackRouting { fallback_ism }),
+                    upper: Box::new(IsmNode::Test { accept: true }),
+                },
+            ],
+        };
+        assert!(validate_config(&Pubkey::new_unique(), &node).is_ok());
     }
 
     #[test]
