@@ -24,6 +24,10 @@ import {
 } from '@solana/kit';
 
 import { fetchMintMetadata } from '../accounts/mint.js';
+import {
+  SYNTHETIC_PLUGIN_SIZE,
+  splitPluginDataAndFeeConfig,
+} from '../accounts/token.js';
 import type { SvmSigner } from '../clients/signer.js';
 import { concatBytes, u32le, u64le, u8 } from '../codecs/binary.js';
 import {
@@ -195,6 +199,10 @@ export class SvmSyntheticTokenReader implements ArtifactReader<
 
     const { address: mintPda } = await deriveSyntheticMintPda(programId);
     const metadata = await fetchMintMetadata(this.rpc, mintPda);
+    const { feeConfig } = splitPluginDataAndFeeConfig(
+      token.pluginData,
+      SYNTHETIC_PLUGIN_SIZE,
+    );
     const contractVersion = await fetchWarpProgramVersion(
       this.rpc,
       programId,
@@ -225,6 +233,12 @@ export class SvmSyntheticTokenReader implements ArtifactReader<
       metadataUri: metadata.uri,
       scale: remoteDecimalsToScale(token.decimals, token.remoteDecimals),
       contractVersion: contractVersion ?? undefined,
+      fee: feeConfig
+        ? {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: feeConfig.feeProgram },
+          }
+        : undefined,
     };
 
     return {

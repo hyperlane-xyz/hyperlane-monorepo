@@ -20,7 +20,11 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { fetchMintMetadata, getMintDecimals } from '../accounts/mint.js';
-import { decodeCollateralPlugin } from '../accounts/token.js';
+import {
+  COLLATERAL_PLUGIN_SIZE,
+  decodeCollateralPlugin,
+  splitPluginDataAndFeeConfig,
+} from '../accounts/token.js';
 import type { SvmSigner } from '../clients/signer.js';
 import {
   DEFAULT_COMPUTE_UNITS,
@@ -69,7 +73,11 @@ export class SvmCollateralTokenReader implements ArtifactReader<
       `Collateral token not initialized at ${programId}`,
     );
 
-    const plugin = decodeCollateralPlugin(token.pluginData);
+    const { pluginData, feeConfig } = splitPluginDataAndFeeConfig(
+      token.pluginData,
+      COLLATERAL_PLUGIN_SIZE,
+    );
+    const plugin = decodeCollateralPlugin(pluginData);
 
     const remoteRouters: Record<number, { address: string }> = {};
     for (const [domain, router] of token.remoteRouters.entries()) {
@@ -119,6 +127,12 @@ export class SvmCollateralTokenReader implements ArtifactReader<
       destinationGas,
       scale: remoteDecimalsToScale(token.decimals, token.remoteDecimals),
       contractVersion: contractVersion ?? undefined,
+      fee: feeConfig
+        ? {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: feeConfig.feeProgram },
+          }
+        : undefined,
     };
 
     return {

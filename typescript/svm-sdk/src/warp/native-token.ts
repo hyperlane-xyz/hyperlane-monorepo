@@ -8,6 +8,10 @@ import {
   type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
+  NATIVE_PLUGIN_SIZE,
+  splitPluginDataAndFeeConfig,
+} from '../accounts/token.js';
+import {
   TokenType,
   type DeployedWarpAddress,
   type RawNativeWarpArtifactConfig,
@@ -71,6 +75,10 @@ export class SvmNativeTokenReader implements ArtifactReader<
       destinationGas[domain] = gas.toString();
     }
 
+    const { feeConfig } = splitPluginDataAndFeeConfig(
+      token.pluginData,
+      NATIVE_PLUGIN_SIZE,
+    );
     const contractVersion = await fetchWarpProgramVersion(
       this.rpc,
       programId,
@@ -98,6 +106,12 @@ export class SvmNativeTokenReader implements ArtifactReader<
       decimals: token.decimals,
       scale: remoteDecimalsToScale(token.decimals, token.remoteDecimals),
       contractVersion: contractVersion ?? undefined,
+      fee: feeConfig
+        ? {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: feeConfig.feeProgram },
+          }
+        : undefined,
     };
 
     return {
