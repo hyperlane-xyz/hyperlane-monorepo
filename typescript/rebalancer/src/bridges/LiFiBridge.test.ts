@@ -15,6 +15,7 @@ const testLogger = pino({ level: 'silent' });
 
 const TEST_PRIVATE_KEY =
   '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
+const OTHER_PRIVATE_KEY = `${TEST_PRIVATE_KEY.slice(0, -1)}1`;
 
 const BRIDGE_CONFIG: ExternalBridgeConfig = {
   integrator: 'test-rebalancer',
@@ -30,6 +31,58 @@ const SOLANA_CHAIN_METADATA_CONFIG: ExternalBridgeConfig = {
       displayName: 'Solana',
       domainId: 1399811149,
       rpcUrls: [{ http: 'https://api.mainnet-beta.solana.com' }],
+    },
+  },
+};
+
+const DUPLICATE_CHAIN_ID_CONFIG: ExternalBridgeConfig = {
+  integrator: 'test-rebalancer',
+  chainMetadata: {
+    ethereum: {
+      chainId: 1,
+      protocol: ProtocolType.Ethereum,
+      name: 'ethereum',
+      displayName: 'Ethereum',
+      domainId: 1,
+      rpcUrls: [{ http: 'https://ethereum-rpc.local' }],
+    },
+    radix: {
+      chainId: 1,
+      protocol: ProtocolType.Radix,
+      name: 'radix',
+      displayName: 'Radix',
+      domainId: 1001,
+      rpcUrls: [{ http: 'https://radix-rpc.local' }],
+    },
+    solanamainnet: {
+      chainId: 1399811149,
+      protocol: ProtocolType.Sealevel,
+      name: 'solanamainnet',
+      displayName: 'Solana',
+      domainId: 1399811149,
+      rpcUrls: [{ http: 'https://api.mainnet-beta.solana.com' }],
+    },
+  },
+};
+
+const NON_EVM_DOMAIN_COLLISION_CONFIG: ExternalBridgeConfig = {
+  integrator: 'test-rebalancer',
+  chainMetadata: {
+    ethereum: {
+      chainId: 1,
+      protocol: ProtocolType.Ethereum,
+      name: 'ethereum',
+      displayName: 'Ethereum',
+      domainId: 1,
+      rpcUrls: [{ http: 'https://ethereum-rpc.local' }],
+    },
+    cosmos: {
+      chainId: 999999999,
+      protocol: ProtocolType.Cosmos,
+      name: 'cosmos',
+      displayName: 'Cosmos',
+      domainId: 1,
+      rpcUrls: [{ http: 'https://rpc.cosmos.invalid' }],
     },
   },
 };
@@ -557,6 +610,49 @@ describe('LiFiBridge.quote() input validation', function () {
   });
 });
 
+describe('LiFiBridge.quote() routing policy', function () {
+  let bridge: LiFiBridge;
+
+  beforeEach(() => {
+    bridge = new LiFiBridge(BRIDGE_CONFIG, testLogger);
+  });
+
+  it('should use RECOMMENDED order for reverse toAmount quotes', async () => {
+    const originalFetch = globalThis.fetch;
+    let requestUrl = '';
+
+    globalThis.fetch = (async (input: URL | RequestInfo) => {
+      requestUrl = String(input);
+      return {
+        ok: true,
+        json: async () =>
+          createLiFiStep({
+            toChainId: 1151111081099710,
+            toAmount: '5000000000',
+          }),
+      } as Response;
+    }) as typeof fetch;
+
+    try {
+      const quote = await bridge.quote({
+        fromChain: 42161,
+        toChain: 1151111081099710,
+        fromToken: TOKEN_ADDR,
+        toToken: TOKEN_ADDR,
+        fromAddress: SENDER_ADDR,
+        toAddress: SENDER_ADDR,
+        toAmount: 5000000000n,
+      });
+      const params = new URL(requestUrl).searchParams;
+
+      expect(params.get('order')).to.equal('RECOMMENDED');
+      expect(quote.requestParams.toAmount).to.equal(5000000000n);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
+
 describe('LiFiBridge.getStatus()', function () {
   let bridge: LiFiBridge;
 
@@ -610,6 +706,180 @@ describe('LiFiBridge constructor chainMetadataByChainId', function () {
       const msg = (error as Error).message;
       expect(msg).to.include('toToken');
       expect(msg).to.include('does not match requested');
+    }
+  });
+
+  it('should prefer Ethereum metadata for LiFi chainId lookups when non-EVM chainIds collide', () => {
+    const bridge = new LiFiBridge(DUPLICATE_CHAIN_ID_CONFIG, testLogger);
+    const quote = createTestQuote(
+      { fromChainId: 1 },
+      {
+        fromChain: 1,
+        toChain: 1151111081099710,
+      },
+    );
+
+    return bridge
+      .execute(quote, {
+        [ProtocolType.Ethereum]: '0x1234',
+      })
+      .catch((error: unknown) => {
+        const msg = error instanceof Error ? error.message : String(error);
+        expect(
+          isValidationError(msg),
+          `Expected non-validation error but got: ${msg}`,
+        ).to.equal(false);
+        expect(msg).to.not.include('Missing private key');
+        expect(msg).to.not.include('protocol radix');
+        expect(msg.toLowerCase()).to.include('private key');
+      });
+  });
+
+  it('should index Tron by chainId even when domainId differs', () => {
+    const TRON_CHAIN_ID = 728126428;
+    const bridge = new LiFiBridge(
+      {
+        integrator: 'test-rebalancer',
+        chainMetadata: {
+          tron: {
+            chainId: TRON_CHAIN_ID,
+            protocol: ProtocolType.Tron,
+            name: 'tron',
+            displayName: 'Tron',
+            domainId: 999000999,
+            rpcUrls: [{ http: 'https://api.trongrid.io/jsonrpc' }],
+          },
+        },
+      },
+      testLogger,
+    );
+    const getProtocolTypeForChainId = (
+      bridge as any
+    ).getProtocolTypeForChainId.bind(bridge);
+
+    expect(getProtocolTypeForChainId(TRON_CHAIN_ID)).to.equal(
+      ProtocolType.Tron,
+    );
+    expect(getProtocolTypeForChainId(999000999)).to.equal(undefined);
+  });
+
+  it('should not let non-EVM domainIds overwrite EVM chainId lookups', () => {
+    const bridge = new LiFiBridge(NON_EVM_DOMAIN_COLLISION_CONFIG, testLogger);
+    const getProtocolTypeForChainId = (
+      bridge as any
+    ).getProtocolTypeForChainId.bind(bridge);
+
+    expect(getProtocolTypeForChainId(1)).to.equal(ProtocolType.Ethereum);
+    expect(getProtocolTypeForChainId(999999999)).to.equal(ProtocolType.Cosmos);
+  });
+});
+
+describe('LiFiBridge source protocol handling', function () {
+  it('ignores unrelated Tron keys when executing an Ethereum LiFi route', async () => {
+    const bridge = new LiFiBridge(BRIDGE_CONFIG, testLogger);
+    (bridge as any).configureLiFiProvider = (
+      protocol: ProtocolType,
+      key: string,
+      fromChain: number,
+    ) => {
+      expect(protocol).to.equal(ProtocolType.Ethereum);
+      expect(key).to.equal(TEST_PRIVATE_KEY);
+      expect(fromChain).to.equal(42161);
+      throw new Error('expected downstream error');
+    };
+
+    const quote = createTestQuote();
+
+    try {
+      await bridge.execute(quote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+        [ProtocolType.Tron]: OTHER_PRIVATE_KEY,
+      });
+      expect.fail('Expected execute to throw');
+    } catch (error: unknown) {
+      const msg = (error as Error).message;
+      expect(msg).to.equal('expected downstream error');
+    }
+  });
+
+  it('addressesEqual keeps Sealevel base58 comparison case-sensitive', () => {
+    const bridge = new LiFiBridge(SOLANA_CHAIN_METADATA_CONFIG, testLogger);
+    const addressesEqualFn = (bridge as any).addressesEqual.bind(bridge);
+
+    expect(
+      addressesEqualFn(
+        'SoLANAAddReSs1234567890123456789012345678',
+        'solanaaddress1234567890123456789012345678',
+        1399811149,
+      ),
+    ).to.be.false;
+  });
+
+  it('throws when the route source protocol is Tron', async () => {
+    const TRON_CHAIN_ID = 728126428;
+    const bridge = new LiFiBridge(
+      {
+        integrator: 'test-rebalancer',
+        chainMetadata: {
+          tron: {
+            chainId: TRON_CHAIN_ID,
+            protocol: ProtocolType.Tron,
+            name: 'tron',
+            displayName: 'Tron',
+            domainId: TRON_CHAIN_ID,
+            rpcUrls: [{ http: 'https://api.trongrid.io/jsonrpc' }],
+          },
+        },
+      },
+      testLogger,
+    );
+    const quote = createTestQuote(
+      { fromChainId: TRON_CHAIN_ID },
+      { fromChain: TRON_CHAIN_ID },
+    );
+
+    try {
+      await bridge.execute(quote, {
+        [ProtocolType.Tron]: TEST_PRIVATE_KEY,
+      });
+      expect.fail('Should have thrown for unsupported source protocol Tron');
+    } catch (error: unknown) {
+      const msg = (error as Error).message;
+      expect(msg).to.include("Unsupported protocol type 'tron'");
+    }
+  });
+
+  it('throws when the route source protocol is an unsupported non-Tron chain', async () => {
+    const COSMOS_CHAIN_ID = 999999999;
+    const bridge = new LiFiBridge(
+      {
+        integrator: 'test-rebalancer',
+        chainMetadata: {
+          cosmos: {
+            chainId: COSMOS_CHAIN_ID,
+            protocol: ProtocolType.Cosmos,
+            name: 'cosmos',
+            displayName: 'Cosmos',
+            domainId: COSMOS_CHAIN_ID,
+            rpcUrls: [{ http: 'https://rpc.cosmos.invalid' }],
+          },
+        },
+      },
+      testLogger,
+    );
+    const quote = createTestQuote(
+      { fromChainId: COSMOS_CHAIN_ID },
+      { fromChain: COSMOS_CHAIN_ID },
+    );
+
+    try {
+      await bridge.execute(quote, {
+        [ProtocolType.Cosmos]: TEST_PRIVATE_KEY,
+      });
+      expect.fail('Should have thrown for unsupported source protocol Cosmos');
+    } catch (error: unknown) {
+      const msg = (error as Error).message;
+      expect(msg).to.include("Unsupported protocol type 'cosmos'");
     }
   });
 });

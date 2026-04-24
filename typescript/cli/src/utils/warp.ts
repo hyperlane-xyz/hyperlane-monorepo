@@ -145,14 +145,14 @@ export async function resolveWarpRouteId(args: {
       );
     }
 
-    return (await search({
+    return search<string>({
       message: `Multiple routes found for "${symbol}". Select one:`,
       source: (term) =>
         matchingIds.filter((id) =>
           id.toLowerCase().includes(term?.toLowerCase() || ''),
         ),
       pageSize: 20,
-    })) as string;
+    });
   }
 
   assert(
@@ -178,14 +178,14 @@ export async function resolveWarpRouteId(args: {
     return routeIds[0];
   }
 
-  return (await search({
+  return search<string>({
     message: 'Select a warp route:',
     source: (term) =>
       routeIds.filter((id) =>
         id.toLowerCase().includes(term?.toLowerCase() || ''),
       ),
     pageSize: 20,
-  })) as string;
+  });
 }
 
 export async function getWarpConfigs({
@@ -217,6 +217,30 @@ export async function getWarpConfigs({
   });
 
   return { warpDeployConfig, warpCoreConfig, resolvedWarpRouteId };
+}
+
+export async function getWarpRouteDeployConfig({
+  context,
+  warpRouteId,
+}: {
+  context: CommandContext;
+  warpRouteId?: string;
+}): Promise<{
+  config: WarpRouteDeployConfigMailboxRequired;
+  resolvedWarpRouteId: string;
+}> {
+  const resolvedWarpRouteId = await resolveWarpRouteId({
+    warpRouteId,
+    context,
+    promptByDeploymentConfigs: true,
+  });
+
+  const config = await readWarpRouteDeployConfig({
+    context,
+    warpRouteId: resolvedWarpRouteId,
+  });
+
+  return { config, resolvedWarpRouteId };
 }
 
 export function filterWarpConfigsToMatchingChains(

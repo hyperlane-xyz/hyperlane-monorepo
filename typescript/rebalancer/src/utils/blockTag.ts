@@ -2,35 +2,48 @@ import type { Logger } from 'pino';
 
 import { providers } from 'ethers';
 
-import { EthJsonRpcBlockParameterTag } from '@hyperlane-xyz/sdk';
-import type { MinimalProviderRegistry } from '@hyperlane-xyz/sdk/providers/MinimalProviderRegistry';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import {
+  EthJsonRpcBlockParameterTag,
+  type MultiProtocolProvider,
+} from '@hyperlane-xyz/sdk';
+import { isEVMLike, ProtocolType } from '@hyperlane-xyz/utils';
 import type { ConfirmedBlockTag } from '../interfaces/IMonitor.js';
 
 /**
  * Get the confirmed block tag for a chain, accounting for reorg period.
  * Returns a block number that is safe from reorgs, or a named tag like 'finalized'.
  *
- * @param multiProvider - MinimalProviderRegistry instance
+ * @param multiProvider - Provider registry with chain metadata and ethers access
  * @param chainName - Name of the chain
  * @param logger - Optional logger for warnings
  * @returns Confirmed block tag (number, named tag, or undefined on error)
  */
 export async function getConfirmedBlockTag(
-  multiProvider: MinimalProviderRegistry,
+  multiProvider: Pick<
+    MultiProtocolProvider,
+    'getChainMetadata' | 'getEthersV5Provider'
+  >,
   chainName: string,
   logger?: Logger,
 ): Promise<ConfirmedBlockTag> {
   try {
     const metadata = multiProvider.getChainMetadata(chainName);
 
-    // Only EVM chains support block tag queries
-    if (metadata.protocol !== ProtocolType.Ethereum) {
+    // Only EVM-like chains support block tag queries (e.g., Ethereum, Tron).
+    // Tron uses TronJsonRpcProvider which supports eth_blockNumber
+    if (!isEVMLike(metadata.protocol)) {
       return undefined;
     }
 
     const reorgPeriod = metadata.blocks?.reorgPeriod ?? 32;
     if (typeof reorgPeriod === 'string') {
+      if (metadata.protocol === ProtocolType.Tron) {
+        logger?.warn(
+          { chain: chainName, reorgPeriod },
+          'Tron does not support named block tags — ignoring string reorgPeriod, using latest block',
+        );
+        return undefined;
+      }
       return reorgPeriod as EthJsonRpcBlockParameterTag;
     }
 

@@ -1,7 +1,7 @@
 import { ChainMap, HypTokenRouterConfig } from '@hyperlane-xyz/sdk';
 
 import { AgentGCPKey } from '../../../../../src/agents/gcp.js';
-import { DeployEnvironment } from '../../../../../src/config/environment.js';
+import { DeployEnvironment } from '../../../../../src/config/deploy-environment.js';
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { Role } from '../../../../../src/roles.js';
 import { Contexts } from '../../../../contexts.js';
@@ -95,6 +95,8 @@ const stagingOwnersByChain: Record<DeploymentChain, string> = {
   hyperevm: DEPLOYER,
   linea: DEPLOYER,
   monad: DEPLOYER,
+  bsc: DEPLOYER,
+  katana: DEPLOYER,
 };
 
 export const getEclipseUSDCSTAGEWarpConfig = async (

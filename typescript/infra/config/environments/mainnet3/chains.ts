@@ -140,6 +140,16 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   //     confirmations: 3,
   //   },
   // },
+  // arbitrum: {
+  //   blocks: {
+  //     confirmations: 3,
+  //   },
+  // },
+  // unichain: {
+  //   blocks: {
+  //     confirmations: 5,
+  //   },
+  // },
 };
 
 export const getRegistry = async (

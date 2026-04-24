@@ -179,6 +179,10 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
           derivedHookConfig = { type: HookType.PREDICATE, address };
           this._cache.set(address, derivedHookConfig);
           break;
+        case OnchainHookType.CCTP:
+          derivedHookConfig = { type: HookType.CCTP, address };
+          this._cache.set(address, derivedHookConfig);
+          break;
         default:
           throw new Error(
             `Unsupported HookType: ${OnchainHookType[onchainHookType]}`,
