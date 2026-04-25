@@ -52,16 +52,20 @@ export function routeDataToFeeStrategy(route: RouteData): FeeStrategy {
 const MAX_U64 = 2n ** 64n - 1n;
 const MAX_BPS = 10_000n;
 const BPS_PRECISION = 10_000n;
+// maxFee = MAX_U64 / ASSUMED_MAX_AMOUNT.
+// Chosen so that both maxFee and halfAmount fit in u64 for any valid bps
+// (down to 0.0001 — the minimum 4-decimal precision).
+// maxFee * 5 * 10^7 (worst-case halfAmount multiplier) must be <= MAX_U64,
+// so ASSUMED_MAX_AMOUNT >= 5 * 10^7. We use 10^8 for round headroom.
+const ASSUMED_MAX_AMOUNT = 10n ** 8n;
 
 /**
  * Converts bps to raw maxFee/halfAmount using u64-safe math.
  * SVM fee program stores these as u64 but uses u256 internally for arithmetic.
- * maxFee is set to u64 max to maximize the fee ceiling, and halfAmount is
- * derived from the bps ratio: fee/amount ≈ bps/10000 for small amounts.
  */
 function bpsToRawParams(bps: number): { maxFee: bigint; halfAmount: bigint } {
   assert(bps > 0, 'bps must be > 0');
-  const maxFee = MAX_U64;
+  const maxFee = MAX_U64 / ASSUMED_MAX_AMOUNT;
   const scaledBps = BigInt(Math.round(bps * Number(BPS_PRECISION)));
   const halfAmount = ((maxFee / 2n) * MAX_BPS * BPS_PRECISION) / scaledBps;
   return { maxFee, halfAmount };
