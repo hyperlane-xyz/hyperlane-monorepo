@@ -29,7 +29,6 @@ import { getMintDecimals, fetchMintMetadata } from '../accounts/mint.js';
 import {
   COLLATERAL_PLUGIN_SIZE,
   decodeCollateralPlugin,
-  splitPluginDataAndFeeConfig,
 } from '../accounts/token.js';
 import type { SvmSigner } from '../clients/signer.js';
 import {
@@ -90,17 +89,17 @@ export class SvmCrossCollateralTokenReader implements ArtifactReader<
     >
   > {
     const programId = parseAddress(programAddress);
-    const token = await fetchTokenAccount(this.rpc, programId);
+    const token = await fetchTokenAccount(
+      this.rpc,
+      programId,
+      COLLATERAL_PLUGIN_SIZE,
+    );
     assert(
       !isNullish(token),
       `Cross-collateral token not initialized at ${programId}`,
     );
 
-    const { pluginData, feeConfig } = splitPluginDataAndFeeConfig(
-      token.pluginData,
-      COLLATERAL_PLUGIN_SIZE,
-    );
-    const plugin = decodeCollateralPlugin(pluginData);
+    const plugin = decodeCollateralPlugin(token.pluginData);
 
     // Read CC state
     const { address: ccStatePdaAddr } =
@@ -175,10 +174,10 @@ export class SvmCrossCollateralTokenReader implements ArtifactReader<
       scale: remoteDecimalsToScale(token.decimals, token.remoteDecimals),
       crossCollateralRouters,
       contractVersion: contractVersion ?? undefined,
-      fee: feeConfig
+      fee: token.feeConfig
         ? {
             artifactState: ArtifactState.UNDERIVED,
-            deployed: { address: feeConfig.feeProgram },
+            deployed: { address: token.feeConfig.feeProgram },
           }
         : undefined,
     };
@@ -186,7 +185,7 @@ export class SvmCrossCollateralTokenReader implements ArtifactReader<
     return {
       artifactState: ArtifactState.DEPLOYED,
       config,
-      deployed: { address: programId, feeConfig: feeConfig ?? undefined },
+      deployed: { address: programId, feeConfig: token.feeConfig ?? undefined },
     };
   }
 }

@@ -4,15 +4,20 @@ import { it } from 'mocha';
 
 import type { ArtifactWriter } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import { FeeType } from '@hyperlane-xyz/provider-sdk/fee';
 import type {
-  DeployedWarpAddress,
   RawNativeWarpArtifactConfig,
   RawWarpArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
 
 import { SvmSigner } from '../clients/signer.js';
 import { getProgramUpgradeAuthority } from '../deploy/program-deployer.js';
+import { SvmLinearFeeWriter } from '../fee/linear-fee.js';
+import { DEFAULT_FEE_SALT } from '../fee/types.js';
+import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
+import { deriveFeeAccountPda } from '../pda.js';
 import type { createRpc } from '../rpc.js';
+import type { SvmDeployedWarpAddress } from '../warp/types.js';
 import { airdropSol } from '../testing/setup.js';
 import { supportsFeeConfig } from '../version/version-query.js';
 
@@ -25,7 +30,7 @@ export type WarpConfigOverrides = Partial<
 >;
 
 export interface WarpTestContext {
-  writer: ArtifactWriter<RawWarpArtifactConfig, DeployedWarpAddress>;
+  writer: ArtifactWriter<RawWarpArtifactConfig, SvmDeployedWarpAddress>;
   makeConfig: (overrides?: WarpConfigOverrides) => RawWarpArtifactConfig;
   igpProgramId: Address;
   testIsmAddress: Address;
@@ -310,5 +315,51 @@ export function defineWarpTokenTests(
     const { writer } = getContext();
     const token = await writer.read(deployedProgramId);
     expect(token.config.scale).to.equal(1e9);
+  });
+
+  it('should set fee config and read it back', async () => {
+    const { writer, makeConfig, signer, rpc } = getContext();
+
+    // Deploy a fee program
+    const feeWriter = new SvmLinearFeeWriter(
+      { program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenFee } },
+      rpc,
+      1,
+      signer,
+      DEFAULT_FEE_SALT,
+    );
+    const [deployedFee] = await feeWriter.create({
+      config: {
+        type: FeeType.linear,
+        owner: signer.getSignerAddress(),
+        beneficiary: signer.getSignerAddress(),
+        maxFee: '1000000',
+        halfAmount: '500000',
+      },
+    });
+    const feeProgramId = address(deployedFee.deployed.programId);
+
+    // Deploy a token with fee config set
+    const [deployed] = await writer.create({
+      config: makeConfig({
+        fee: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: feeProgramId },
+        },
+      }),
+    });
+
+    // Read back and verify fee config was parsed correctly
+    const onChain = await writer.read(deployed.deployed.address);
+    const expectedPda = await deriveFeeAccountPda(
+      feeProgramId,
+      DEFAULT_FEE_SALT,
+    );
+
+    expect(onChain.deployed.feeConfig).to.exist;
+    expect(onChain.deployed.feeConfig?.feeProgram).to.equal(feeProgramId);
+    expect(onChain.deployed.feeConfig?.feeAccount).to.equal(
+      expectedPda.address,
+    );
   });
 }

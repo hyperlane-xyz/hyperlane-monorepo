@@ -23,10 +23,7 @@ import {
 } from '@solana/kit';
 
 import { fetchMintMetadata } from '../accounts/mint.js';
-import {
-  SYNTHETIC_PLUGIN_SIZE,
-  splitPluginDataAndFeeConfig,
-} from '../accounts/token.js';
+import { SYNTHETIC_PLUGIN_SIZE } from '../accounts/token.js';
 import type { SvmSigner } from '../clients/signer.js';
 import { concatBytes, u32le, u64le, u8 } from '../codecs/binary.js';
 import {
@@ -180,7 +177,11 @@ export class SvmSyntheticTokenReader implements ArtifactReader<
     ArtifactDeployed<RawSyntheticWarpArtifactConfig, SvmDeployedWarpAddress>
   > {
     const programId = parseAddress(programAddress);
-    const token = await fetchTokenAccount(this.rpc, programId);
+    const token = await fetchTokenAccount(
+      this.rpc,
+      programId,
+      SYNTHETIC_PLUGIN_SIZE,
+    );
     assert(
       !isNullish(token),
       `Synthetic token not initialized at ${programId}`,
@@ -198,10 +199,6 @@ export class SvmSyntheticTokenReader implements ArtifactReader<
 
     const { address: mintPda } = await deriveSyntheticMintPda(programId);
     const metadata = await fetchMintMetadata(this.rpc, mintPda);
-    const { feeConfig } = splitPluginDataAndFeeConfig(
-      token.pluginData,
-      SYNTHETIC_PLUGIN_SIZE,
-    );
     const contractVersion = await fetchWarpProgramVersion(
       this.rpc,
       programId,
@@ -232,10 +229,10 @@ export class SvmSyntheticTokenReader implements ArtifactReader<
       metadataUri: metadata.uri,
       scale: remoteDecimalsToScale(token.decimals, token.remoteDecimals),
       contractVersion: contractVersion ?? undefined,
-      fee: feeConfig
+      fee: token.feeConfig
         ? {
             artifactState: ArtifactState.UNDERIVED,
-            deployed: { address: feeConfig.feeProgram },
+            deployed: { address: token.feeConfig.feeProgram },
           }
         : undefined,
     };
@@ -243,7 +240,7 @@ export class SvmSyntheticTokenReader implements ArtifactReader<
     return {
       artifactState: ArtifactState.DEPLOYED,
       config,
-      deployed: { address: programId, feeConfig: feeConfig ?? undefined },
+      deployed: { address: programId, feeConfig: token.feeConfig ?? undefined },
     };
   }
 }

@@ -30,11 +30,12 @@ export enum SvmWarpTokenType {
 export async function fetchTokenAccount(
   rpc: SvmRpc,
   programId: Address,
+  pluginSize: number,
 ): Promise<HyperlaneTokenAccountData | null> {
   const { address: tokenPda } = await deriveHyperlaneTokenPda(programId);
   const account = await fetchEncodedAccount(rpc, tokenPda);
   if (!account.exists) return null;
-  return decodeHyperlaneTokenAccount(Uint8Array.from(account.data));
+  return decodeHyperlaneTokenAccount(Uint8Array.from(account.data), pluginSize);
 }
 
 /**

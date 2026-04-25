@@ -7,10 +7,7 @@ import {
   ArtifactState,
   type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
-import {
-  NATIVE_PLUGIN_SIZE,
-  splitPluginDataAndFeeConfig,
-} from '../accounts/token.js';
+import { NATIVE_PLUGIN_SIZE } from '../accounts/token.js';
 import {
   TokenType,
   type RawNativeWarpArtifactConfig,
@@ -61,7 +58,11 @@ export class SvmNativeTokenReader implements ArtifactReader<
     ArtifactDeployed<RawNativeWarpArtifactConfig, SvmDeployedWarpAddress>
   > {
     const programId = parseAddress(programAddress);
-    const token = await fetchTokenAccount(this.rpc, programId);
+    const token = await fetchTokenAccount(
+      this.rpc,
+      programId,
+      NATIVE_PLUGIN_SIZE,
+    );
     assert(!isNullish(token), `Native token not initialized at ${programId}`);
 
     const remoteRouters: Record<number, { address: string }> = {};
@@ -74,10 +75,6 @@ export class SvmNativeTokenReader implements ArtifactReader<
       destinationGas[domain] = gas.toString();
     }
 
-    const { feeConfig } = splitPluginDataAndFeeConfig(
-      token.pluginData,
-      NATIVE_PLUGIN_SIZE,
-    );
     const contractVersion = await fetchWarpProgramVersion(
       this.rpc,
       programId,
@@ -105,10 +102,10 @@ export class SvmNativeTokenReader implements ArtifactReader<
       decimals: token.decimals,
       scale: remoteDecimalsToScale(token.decimals, token.remoteDecimals),
       contractVersion: contractVersion ?? undefined,
-      fee: feeConfig
+      fee: token.feeConfig
         ? {
             artifactState: ArtifactState.UNDERIVED,
-            deployed: { address: feeConfig.feeProgram },
+            deployed: { address: token.feeConfig.feeProgram },
           }
         : undefined,
     };
@@ -116,7 +113,7 @@ export class SvmNativeTokenReader implements ArtifactReader<
     return {
       artifactState: ArtifactState.DEPLOYED,
       config,
-      deployed: { address: programId, feeConfig: feeConfig ?? undefined },
+      deployed: { address: programId, feeConfig: token.feeConfig ?? undefined },
     };
   }
 }

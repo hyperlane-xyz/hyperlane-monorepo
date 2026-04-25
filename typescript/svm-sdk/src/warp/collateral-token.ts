@@ -23,7 +23,6 @@ import { fetchMintMetadata, getMintDecimals } from '../accounts/mint.js';
 import {
   COLLATERAL_PLUGIN_SIZE,
   decodeCollateralPlugin,
-  splitPluginDataAndFeeConfig,
 } from '../accounts/token.js';
 import type { SvmSigner } from '../clients/signer.js';
 import {
@@ -67,17 +66,17 @@ export class SvmCollateralTokenReader implements ArtifactReader<
     ArtifactDeployed<RawCollateralWarpArtifactConfig, SvmDeployedWarpAddress>
   > {
     const programId = parseAddress(programAddress);
-    const token = await fetchTokenAccount(this.rpc, programId);
+    const token = await fetchTokenAccount(
+      this.rpc,
+      programId,
+      COLLATERAL_PLUGIN_SIZE,
+    );
     assert(
       !isNullish(token),
       `Collateral token not initialized at ${programId}`,
     );
 
-    const { pluginData, feeConfig } = splitPluginDataAndFeeConfig(
-      token.pluginData,
-      COLLATERAL_PLUGIN_SIZE,
-    );
-    const plugin = decodeCollateralPlugin(pluginData);
+    const plugin = decodeCollateralPlugin(token.pluginData);
 
     const remoteRouters: Record<number, { address: string }> = {};
     for (const [domain, router] of token.remoteRouters.entries()) {
@@ -127,10 +126,10 @@ export class SvmCollateralTokenReader implements ArtifactReader<
       destinationGas,
       scale: remoteDecimalsToScale(token.decimals, token.remoteDecimals),
       contractVersion: contractVersion ?? undefined,
-      fee: feeConfig
+      fee: token.feeConfig
         ? {
             artifactState: ArtifactState.UNDERIVED,
-            deployed: { address: feeConfig.feeProgram },
+            deployed: { address: token.feeConfig.feeProgram },
           }
         : undefined,
     };
@@ -138,7 +137,7 @@ export class SvmCollateralTokenReader implements ArtifactReader<
     return {
       artifactState: ArtifactState.DEPLOYED,
       config,
-      deployed: { address: programId, feeConfig: feeConfig ?? undefined },
+      deployed: { address: programId, feeConfig: token.feeConfig ?? undefined },
     };
   }
 }

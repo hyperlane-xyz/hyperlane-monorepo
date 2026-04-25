@@ -36,6 +36,7 @@ export interface HyperlaneTokenAccountData {
   destinationGas: Map<number, bigint>;
   remoteRouters: Map<number, Uint8Array>;
   pluginData: Uint8Array;
+  feeConfig: TokenFeeConfig | null;
 }
 
 export interface IgpProgramData {
@@ -61,8 +62,11 @@ export interface OverheadIgpAccountData {
 
 export function decodeHyperlaneTokenAccount(
   raw: Uint8Array,
+  pluginSize: number,
 ): HyperlaneTokenAccountData | null {
-  const wrapped = decodeAccountData(raw, decodeHyperlaneTokenInner);
+  const wrapped = decodeAccountData(raw, (cursor) =>
+    decodeHyperlaneTokenInner(cursor, pluginSize),
+  );
   return wrapped.data;
 }
 
@@ -116,8 +120,8 @@ export function decodeOverheadIgpAccount(
 
 function decodeHyperlaneTokenInner(
   cursor: ByteCursor,
+  pluginSize: number,
 ): HyperlaneTokenAccountData {
-  // Kept manual because payload ends with trailing pluginData (remainder bytes).
   const bump = cursor.readU8();
   const mailbox = readAddress(cursor);
   const mailboxProcessAuthority = readAddress(cursor);
@@ -129,7 +133,14 @@ function decodeHyperlaneTokenInner(
   const interchainGasPaymaster = readOptionIgpConfig(cursor);
   const destinationGas = decodeMapU32U64(cursor);
   const remoteRouters = decodeMapU32H256(cursor);
-  const pluginData = cursor.readBytes(cursor.remaining());
+  const pluginData = cursor.readBytes(pluginSize);
+
+  // fee_config: Option<FeeConfig> — last field, backward-compatible.
+  // Pre-fee accounts have no trailing bytes; treat as None.
+  let feeConfig: TokenFeeConfig | null = null;
+  if (cursor.remaining() > 0) {
+    feeConfig = readOptionFeeConfig(cursor);
+  }
 
   return {
     bump,
@@ -144,6 +155,7 @@ function decodeHyperlaneTokenInner(
     destinationGas,
     remoteRouters,
     pluginData,
+    feeConfig,
   };
 }
 
@@ -227,13 +239,6 @@ function readOptionAddress(cursor: ByteCursor): Address | null {
   return tag === 1 ? readAddress(cursor) : null;
 }
 
-// ---------------------------------------------------------------------------
-// Fee config decoding
-// On-chain layout: Option<FeeConfig> = 1 byte tag + (if Some: Pubkey + Pubkey)
-// Appended after plugin data in HyperlaneToken accounts (Phase 5+).
-// Pre-fee accounts have no trailing bytes after plugin data.
-// ---------------------------------------------------------------------------
-
 export interface TokenFeeConfig {
   feeProgram: Address;
   feeAccount: Address;
@@ -243,45 +248,6 @@ export interface TokenFeeConfig {
 export const NATIVE_PLUGIN_SIZE = 1;
 export const SYNTHETIC_PLUGIN_SIZE = 34;
 export const COLLATERAL_PLUGIN_SIZE = 98;
-
-/**
- * Splits raw pluginData into actual plugin bytes and an optional FeeConfig.
- *
- * The base decoder reads all remaining bytes after remoteRouters as pluginData.
- * For fee-enabled programs, the trailing bytes contain Option<FeeConfig> after
- * the fixed-size plugin data. Pre-fee accounts have pluginData.length == pluginSize.
- */
-export function splitPluginDataAndFeeConfig(
-  pluginData: Uint8Array,
-  pluginSize: number,
-): { pluginData: Uint8Array; feeConfig: TokenFeeConfig | null } {
-  if (pluginData.length <= pluginSize) {
-    return { pluginData, feeConfig: null };
-  }
-
-  const feeDataLen = pluginData.length - pluginSize;
-  // Option<FeeConfig> is 1 byte (tag=0, None) or 65 bytes (tag=1 + two 32-byte pubkeys).
-  assert(
-    feeDataLen === 1 || feeDataLen === 65,
-    `Unexpected fee config data size: ${feeDataLen} bytes (expected 1 or 65)`,
-  );
-
-  const actualPluginData = pluginData.subarray(0, pluginSize);
-  const cursor = new ByteCursor(pluginData.subarray(pluginSize));
-
-  const tag = cursor.readU8();
-  if (tag === 0) {
-    return { pluginData: actualPluginData, feeConfig: null };
-  }
-
-  assert(tag === 1, `Invalid FeeConfig option tag: ${tag}`);
-  const feeProgram = readAddress(cursor);
-  const feeAccount = readAddress(cursor);
-  return {
-    pluginData: actualPluginData,
-    feeConfig: { feeProgram, feeAccount },
-  };
-}
 
 function readOptionIgpConfig(cursor: ByteCursor): {
   programId: Address;
@@ -304,4 +270,13 @@ function readOptionIgpConfig(cursor: ByteCursor): {
       account: readAddress(cursor),
     },
   };
+}
+
+function readOptionFeeConfig(cursor: ByteCursor): TokenFeeConfig | null {
+  const tag = cursor.readU8();
+  if (tag === 0) return null;
+  assert(tag === 1, `Invalid FeeConfig option tag: ${tag}`);
+  const feeProgram = readAddress(cursor);
+  const feeAccount = readAddress(cursor);
+  return { feeProgram, feeAccount };
 }
