@@ -2,7 +2,7 @@ import { address } from '@solana/kit';
 import { expect } from 'chai';
 import { before, describe, it } from 'mocha';
 
-import { FeeType } from '@hyperlane-xyz/provider-sdk/fee';
+import { FeeType, FeeParamsKind } from '@hyperlane-xyz/provider-sdk/fee';
 
 import { SvmSigner } from '../clients/signer.js';
 import {
@@ -57,8 +57,11 @@ describe('SVM OffchainQuotedLinear Fee E2E Tests', function () {
       type: FeeType.offchainQuotedLinear,
       owner: signer.getSignerAddress(),
       beneficiary: signer.getSignerAddress(),
-      maxFee: '1000000',
-      halfAmount: '500000',
+      params: {
+        kind: FeeParamsKind.raw,
+        maxFee: '1000000',
+        halfAmount: '500000',
+      },
       quoteSigners: [SIGNER_A],
       ...overrides,
     }),
@@ -71,8 +74,7 @@ describe('SVM OffchainQuotedLinear Fee E2E Tests', function () {
         type: FeeType.offchainQuotedLinear,
         owner: signer.getSignerAddress(),
         beneficiary: signer.getSignerAddress(),
-        maxFee: '100',
-        halfAmount: '50',
+        params: { kind: FeeParamsKind.raw, maxFee: '100', halfAmount: '50' },
         quoteSigners: [SIGNER_A, SIGNER_B],
       },
     });
@@ -92,8 +94,7 @@ describe('SVM OffchainQuotedLinear Fee E2E Tests', function () {
         type: FeeType.offchainQuotedLinear,
         owner: signer.getSignerAddress(),
         beneficiary: signer.getSignerAddress(),
-        maxFee: '100',
-        halfAmount: '50',
+        params: { kind: FeeParamsKind.raw, maxFee: '100', halfAmount: '50' },
         quoteSigners: [SIGNER_A],
       },
     });
@@ -119,8 +120,7 @@ describe('SVM OffchainQuotedLinear Fee E2E Tests', function () {
         type: FeeType.offchainQuotedLinear,
         owner: signer.getSignerAddress(),
         beneficiary: signer.getSignerAddress(),
-        maxFee: '100',
-        halfAmount: '50',
+        params: { kind: FeeParamsKind.raw, maxFee: '100', halfAmount: '50' },
         quoteSigners: [SIGNER_A, SIGNER_B, SIGNER_C],
       },
     });
@@ -149,8 +149,7 @@ describe('SVM OffchainQuotedLinear Fee E2E Tests', function () {
         type: FeeType.offchainQuotedLinear,
         owner: signer.getSignerAddress(),
         beneficiary: signer.getSignerAddress(),
-        maxFee: '100',
-        halfAmount: '50',
+        params: { kind: FeeParamsKind.raw, maxFee: '100', halfAmount: '50' },
         quoteSigners: [SIGNER_A],
       },
     });

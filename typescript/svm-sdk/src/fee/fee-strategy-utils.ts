@@ -1,8 +1,10 @@
 import {
+  FeeParamsKind,
   FeeStrategyType,
+  type FeeParams,
   type FeeStrategy,
 } from '@hyperlane-xyz/provider-sdk/fee';
-import { isNullish } from '@hyperlane-xyz/utils';
+import { assert, isNullish } from '@hyperlane-xyz/utils';
 
 import type {
   RouteDomainData,
@@ -19,7 +21,8 @@ type RouteData = RouteDomainData | CrossCollateralRouteData;
  */
 export function routeDataToFeeStrategy(route: RouteData): FeeStrategy {
   const { maxFee, halfAmount } = route.feeData.params;
-  const base = {
+  const params: FeeParams = {
+    kind: FeeParamsKind.raw,
     maxFee: maxFee.toString(),
     halfAmount: halfAmount.toString(),
   };
@@ -27,21 +30,64 @@ export function routeDataToFeeStrategy(route: RouteData): FeeStrategy {
   if (!isNullish(route.signers)) {
     return {
       type: FeeStrategyType.offchainQuotedLinear,
-      ...base,
+      params,
       quoteSigners: route.signers.map(h160ToSigner),
     };
   }
 
   switch (route.feeData.kind) {
     case FeeStrategyKind.Linear:
-      return { type: FeeStrategyType.linear, ...base };
+      return { type: FeeStrategyType.linear, params };
     case FeeStrategyKind.Regressive:
-      return { type: FeeStrategyType.regressive, ...base };
+      return { type: FeeStrategyType.regressive, params };
     case FeeStrategyKind.Progressive:
-      return { type: FeeStrategyType.progressive, ...base };
+      return { type: FeeStrategyType.progressive, params };
     default: {
       const _exhaustive: never = route.feeData;
       throw new Error(`Unknown strategy kind: ${String(_exhaustive)}`);
+    }
+  }
+}
+
+const MAX_U64 = 2n ** 64n - 1n;
+const MAX_BPS = 10_000n;
+const BPS_PRECISION = 10_000n;
+
+/**
+ * Converts bps to raw maxFee/halfAmount using u64-safe math.
+ * SVM fee program stores these as u64 but uses u256 internally for arithmetic.
+ * maxFee is set to u64 max to maximize the fee ceiling, and halfAmount is
+ * derived from the bps ratio: fee/amount ≈ bps/10000 for small amounts.
+ */
+function bpsToRawParams(bps: number): { maxFee: bigint; halfAmount: bigint } {
+  assert(bps > 0, 'bps must be > 0');
+  const maxFee = MAX_U64;
+  const scaledBps = BigInt(Math.round(bps * Number(BPS_PRECISION)));
+  const halfAmount = ((maxFee / 2n) * MAX_BPS * BPS_PRECISION) / scaledBps;
+  return { maxFee, halfAmount };
+}
+
+/**
+ * Resolves FeeParams to raw maxFee/halfAmount bigints.
+ * For raw params, returns the values directly.
+ * For bps params, always derives maxFee/halfAmount from bps
+ * (any pre-populated maxFee/halfAmount on the bps variant are ignored).
+ */
+export function resolveRawFeeParams(params: FeeParams): {
+  maxFee: bigint;
+  halfAmount: bigint;
+} {
+  switch (params.kind) {
+    case FeeParamsKind.raw:
+      return {
+        maxFee: BigInt(params.maxFee),
+        halfAmount: BigInt(params.halfAmount),
+      };
+    case FeeParamsKind.bps:
+      return bpsToRawParams(params.bps);
+    default: {
+      const _exhaustive: never = params;
+      throw new Error(`Unknown FeeParams kind: ${String(_exhaustive)}`);
     }
   }
 }
@@ -56,10 +102,7 @@ export function feeStrategyToOnChain(strategy: FeeStrategy): {
   };
   signers: Uint8Array[] | null;
 } {
-  const params = {
-    maxFee: BigInt(strategy.maxFee),
-    halfAmount: BigInt(strategy.halfAmount),
-  };
+  const params = resolveRawFeeParams(strategy.params);
 
   switch (strategy.type) {
     case FeeStrategyType.linear:

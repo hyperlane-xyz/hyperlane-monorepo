@@ -15,7 +15,7 @@ import {
   defineLeafFeeTests,
   type LeafFeeTestContext,
 } from './fee-leaf-suite.js';
-import { FeeType } from '@hyperlane-xyz/provider-sdk/fee';
+import { FeeType, FeeParamsKind } from '@hyperlane-xyz/provider-sdk/fee';
 
 const TEST_PRIVATE_KEY =
   '0x0000000000000000000000000000000000000000000000000000000000000001';
@@ -50,8 +50,11 @@ describe('SVM Regressive Fee E2E Tests', function () {
         type: FeeType.regressive,
         owner: signer.getSignerAddress(),
         beneficiary: signer.getSignerAddress(),
-        maxFee: '5000000',
-        halfAmount: '2500000',
+        params: {
+          kind: FeeParamsKind.raw,
+          maxFee: '5000000',
+          halfAmount: '2500000',
+        },
         ...overrides,
       }),
     };

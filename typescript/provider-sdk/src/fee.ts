@@ -35,25 +35,40 @@ export const FeeStrategyType = {
 export type FeeStrategyType =
   (typeof FeeStrategyType)[keyof typeof FeeStrategyType];
 
-export interface FeeParams {
-  maxFee: string;
-  halfAmount: string;
-}
+export const FeeParamsKind = {
+  bps: 'bps',
+  raw: 'raw',
+} as const;
 
-export interface LinearFeeStrategy extends FeeParams {
+export type FeeParamsKind = (typeof FeeParamsKind)[keyof typeof FeeParamsKind];
+
+export type FeeParams =
+  | {
+      kind: typeof FeeParamsKind.bps;
+      bps: number;
+      maxFee?: string;
+      halfAmount?: string;
+    }
+  | { kind: typeof FeeParamsKind.raw; maxFee: string; halfAmount: string };
+
+export interface LinearFeeStrategy {
   type: typeof FeeStrategyType.linear;
+  params: FeeParams;
 }
 
-export interface RegressiveFeeStrategy extends FeeParams {
+export interface RegressiveFeeStrategy {
   type: typeof FeeStrategyType.regressive;
+  params: FeeParams;
 }
 
-export interface ProgressiveFeeStrategy extends FeeParams {
+export interface ProgressiveFeeStrategy {
   type: typeof FeeStrategyType.progressive;
+  params: FeeParams;
 }
 
-export interface OffchainQuotedLinearFeeStrategy extends FeeParams {
+export interface OffchainQuotedLinearFeeStrategy {
   type: typeof FeeStrategyType.offchainQuotedLinear;
+  params: FeeParams;
   quoteSigners: string[];
 }
 
@@ -76,25 +91,29 @@ export type FeeType = (typeof FeeType)[keyof typeof FeeType];
 
 // ====== Config API Types (chain names as keys) ======
 
-export type BaseFeeConfig<T = {}> = {
+export interface BaseFeeConfig {
   owner: string;
   beneficiary: string;
-} & T;
+}
 
-export interface LinearFeeConfig extends BaseFeeConfig<FeeParams> {
+export interface LinearFeeConfig extends BaseFeeConfig {
   type: typeof FeeType.linear;
+  params: FeeParams;
 }
 
-export interface RegressiveFeeConfig extends BaseFeeConfig<FeeParams> {
+export interface RegressiveFeeConfig extends BaseFeeConfig {
   type: typeof FeeType.regressive;
+  params: FeeParams;
 }
 
-export interface ProgressiveFeeConfig extends BaseFeeConfig<FeeParams> {
+export interface ProgressiveFeeConfig extends BaseFeeConfig {
   type: typeof FeeType.progressive;
+  params: FeeParams;
 }
 
-export interface OffchainQuotedLinearFeeConfig extends BaseFeeConfig<FeeParams> {
+export interface OffchainQuotedLinearFeeConfig extends BaseFeeConfig {
   type: typeof FeeType.offchainQuotedLinear;
+  params: FeeParams;
   quoteSigners: string[];
 }
 

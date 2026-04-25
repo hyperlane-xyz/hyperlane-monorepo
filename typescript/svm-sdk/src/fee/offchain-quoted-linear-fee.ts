@@ -1,6 +1,7 @@
 import { address as parseAddress } from '@solana/kit';
 
 import {
+  FeeParamsKind,
   FeeType,
   type OffchainQuotedLinearFeeConfig,
 } from '@hyperlane-xyz/provider-sdk/fee';
@@ -33,6 +34,7 @@ import { deriveFeeAccountPda } from '../pda.js';
 import type { AnnotatedSvmTransaction, SvmReceipt, SvmRpc } from '../types.js';
 
 import { fetchFeeAccount } from './fee-query.js';
+import { resolveRawFeeParams } from './fee-strategy-utils.js';
 import {
   FeeDataKind,
   FeeStrategyKind,
@@ -85,8 +87,11 @@ export class SvmOffchainQuotedLinearFeeReader implements ArtifactReader<
         type: FeeType.offchainQuotedLinear,
         owner,
         beneficiary,
-        maxFee: maxFee.toString(),
-        halfAmount: halfAmount.toString(),
+        params: {
+          kind: FeeParamsKind.raw,
+          maxFee: maxFee.toString(),
+          halfAmount: halfAmount.toString(),
+        },
         quoteSigners: account.feeData.signers.map(h160ToSigner),
       },
       deployed: { address: programId, programId, feeAccountPda },
@@ -136,10 +141,7 @@ export class SvmOffchainQuotedLinearFeeWriter
           config: {
             strategy: {
               kind: FeeStrategyKind.Linear,
-              params: {
-                maxFee: BigInt(feeConfig.maxFee),
-                halfAmount: BigInt(feeConfig.halfAmount),
-              },
+              params: resolveRawFeeParams(feeConfig.params),
             },
             signers: signerBytes,
           },
@@ -186,9 +188,11 @@ export class SvmOffchainQuotedLinearFeeWriter
     const ownerAddress = parseAddress(currentConfig.owner);
 
     // Phase 1: Diff fee params
+    const currentParams = resolveRawFeeParams(currentConfig.params);
+    const expectedParams = resolveRawFeeParams(expected.params);
     if (
-      currentConfig.maxFee !== expected.maxFee ||
-      currentConfig.halfAmount !== expected.halfAmount
+      currentParams.maxFee !== expectedParams.maxFee ||
+      currentParams.halfAmount !== expectedParams.halfAmount
     ) {
       txs.push({
         feePayer: ownerAddress,
@@ -197,10 +201,7 @@ export class SvmOffchainQuotedLinearFeeWriter
             programId,
             feeAccountPda,
             ownerAddress,
-            {
-              maxFee: BigInt(expected.maxFee),
-              halfAmount: BigInt(expected.halfAmount),
-            },
+            expectedParams,
           ),
         ],
         annotation: 'Update offchainQuotedLinear fee params',

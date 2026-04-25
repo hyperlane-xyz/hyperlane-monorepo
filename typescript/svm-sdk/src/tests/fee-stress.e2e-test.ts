@@ -20,7 +20,11 @@ import { secp256k1 } from '@noble/curves/secp256k1';
 import { keccak_256 } from '@noble/hashes/sha3';
 import { before, describe, it } from 'mocha';
 
-import { FeeType, FeeStrategyType } from '@hyperlane-xyz/provider-sdk/fee';
+import {
+  FeeType,
+  FeeStrategyType,
+  FeeParamsKind,
+} from '@hyperlane-xyz/provider-sdk/fee';
 
 import { SvmSigner } from '../clients/signer.js';
 import { concatBytes, u32le, u64le } from '../codecs/binary.js';
@@ -225,8 +229,11 @@ describe('SVM Fee Stress Tests — Finding Limits', function () {
             type: FeeType.offchainQuotedLinear,
             owner: signer.getSignerAddress(),
             beneficiary: signer.getSignerAddress(),
-            maxFee: '1000',
-            halfAmount: '500',
+            params: {
+              kind: FeeParamsKind.raw,
+              maxFee: '1000',
+              halfAmount: '500',
+            },
             quoteSigners: signers,
           },
         });
@@ -261,8 +268,11 @@ describe('SVM Fee Stress Tests — Finding Limits', function () {
             routes: {
               1: {
                 type: FeeStrategyType.offchainQuotedLinear,
-                maxFee: '1000',
-                halfAmount: '500',
+                params: {
+                  kind: FeeParamsKind.raw,
+                  maxFee: '1000',
+                  halfAmount: '500',
+                },
                 quoteSigners: signers,
               },
             },

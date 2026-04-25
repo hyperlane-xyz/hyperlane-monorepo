@@ -2,7 +2,11 @@ import { address } from '@solana/kit';
 import { expect } from 'chai';
 import { before, describe, it } from 'mocha';
 
-import { FeeType, FeeStrategyType } from '@hyperlane-xyz/provider-sdk/fee';
+import {
+  FeeType,
+  FeeStrategyType,
+  FeeParamsKind,
+} from '@hyperlane-xyz/provider-sdk/fee';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 
 import { SvmSigner } from '../clients/signer.js';
@@ -66,20 +70,29 @@ describe('SVM CrossCollateralRouting Fee E2E Tests', function () {
           10: {
             [ROUTER_A]: {
               type: FeeStrategyType.linear,
-              maxFee: '1000',
-              halfAmount: '500',
+              params: {
+                kind: FeeParamsKind.raw,
+                maxFee: '1000',
+                halfAmount: '500',
+              },
             },
             [ROUTER_B]: {
               type: FeeStrategyType.regressive,
-              maxFee: '2000',
-              halfAmount: '1000',
+              params: {
+                kind: FeeParamsKind.raw,
+                maxFee: '2000',
+                halfAmount: '1000',
+              },
             },
           },
           20: {
             [ROUTER_A]: {
               type: FeeStrategyType.progressive,
-              maxFee: '3000',
-              halfAmount: '1500',
+              params: {
+                kind: FeeParamsKind.raw,
+                maxFee: '3000',
+                halfAmount: '1500',
+              },
             },
           },
         },
@@ -100,7 +113,9 @@ describe('SVM CrossCollateralRouting Fee E2E Tests', function () {
     expect(readResult.config.routes[10]?.[ROUTER_A]?.type).to.equal(
       FeeStrategyType.linear,
     );
-    expect(readResult.config.routes[10]?.[ROUTER_A]?.maxFee).to.equal('1000');
+    expect(readResult.config.routes[10]?.[ROUTER_A]?.params.maxFee).to.equal(
+      '1000',
+    );
     expect(readResult.config.routes[10]?.[ROUTER_B]?.type).to.equal(
       FeeStrategyType.regressive,
     );
@@ -119,8 +134,11 @@ describe('SVM CrossCollateralRouting Fee E2E Tests', function () {
           10: {
             [ROUTER_A]: {
               type: FeeStrategyType.linear,
-              maxFee: '1000',
-              halfAmount: '500',
+              params: {
+                kind: FeeParamsKind.raw,
+                maxFee: '1000',
+                halfAmount: '500',
+              },
             },
           },
         },
@@ -136,13 +154,19 @@ describe('SVM CrossCollateralRouting Fee E2E Tests', function () {
           10: {
             [ROUTER_A]: {
               type: FeeStrategyType.linear,
-              maxFee: '1000',
-              halfAmount: '500',
+              params: {
+                kind: FeeParamsKind.raw,
+                maxFee: '1000',
+                halfAmount: '500',
+              },
             },
             [ROUTER_B]: {
               type: FeeStrategyType.progressive,
-              maxFee: '5000',
-              halfAmount: '2500',
+              params: {
+                kind: FeeParamsKind.raw,
+                maxFee: '5000',
+                halfAmount: '2500',
+              },
             },
           },
         },
@@ -163,7 +187,9 @@ describe('SVM CrossCollateralRouting Fee E2E Tests', function () {
     expect(readResult.config.routes[10]?.[ROUTER_B]?.type).to.equal(
       FeeStrategyType.progressive,
     );
-    expect(readResult.config.routes[10]?.[ROUTER_B]?.maxFee).to.equal('5000');
+    expect(readResult.config.routes[10]?.[ROUTER_B]?.params.maxFee).to.equal(
+      '5000',
+    );
   });
 
   it('should update params on an existing CC route', async () => {
@@ -176,8 +202,11 @@ describe('SVM CrossCollateralRouting Fee E2E Tests', function () {
           10: {
             [ROUTER_A]: {
               type: FeeStrategyType.linear,
-              maxFee: '1000',
-              halfAmount: '500',
+              params: {
+                kind: FeeParamsKind.raw,
+                maxFee: '1000',
+                halfAmount: '500',
+              },
             },
           },
         },
@@ -193,8 +222,11 @@ describe('SVM CrossCollateralRouting Fee E2E Tests', function () {
           10: {
             [ROUTER_A]: {
               type: FeeStrategyType.linear,
-              maxFee: '7777',
-              halfAmount: '3333',
+              params: {
+                kind: FeeParamsKind.raw,
+                maxFee: '7777',
+                halfAmount: '3333',
+              },
             },
           },
         },
@@ -212,10 +244,12 @@ describe('SVM CrossCollateralRouting Fee E2E Tests', function () {
       DEFAULT_FEE_SALT,
     );
     const readResult = await reader.read(deployed.deployed.programId);
-    expect(readResult.config.routes[10]?.[ROUTER_A]?.maxFee).to.equal('7777');
-    expect(readResult.config.routes[10]?.[ROUTER_A]?.halfAmount).to.equal(
-      '3333',
+    expect(readResult.config.routes[10]?.[ROUTER_A]?.params.maxFee).to.equal(
+      '7777',
     );
+    expect(
+      readResult.config.routes[10]?.[ROUTER_A]?.params.halfAmount,
+    ).to.equal('3333');
   });
 
   it('should change strategy type on an existing CC route', async () => {
@@ -228,8 +262,11 @@ describe('SVM CrossCollateralRouting Fee E2E Tests', function () {
           10: {
             [ROUTER_A]: {
               type: FeeStrategyType.linear,
-              maxFee: '1000',
-              halfAmount: '500',
+              params: {
+                kind: FeeParamsKind.raw,
+                maxFee: '1000',
+                halfAmount: '500',
+              },
             },
           },
         },
@@ -245,8 +282,11 @@ describe('SVM CrossCollateralRouting Fee E2E Tests', function () {
           10: {
             [ROUTER_A]: {
               type: FeeStrategyType.regressive,
-              maxFee: '2000',
-              halfAmount: '1000',
+              params: {
+                kind: FeeParamsKind.raw,
+                maxFee: '2000',
+                halfAmount: '1000',
+              },
             },
           },
         },
@@ -279,13 +319,19 @@ describe('SVM CrossCollateralRouting Fee E2E Tests', function () {
           10: {
             [ROUTER_A]: {
               type: FeeStrategyType.linear,
-              maxFee: '1000',
-              halfAmount: '500',
+              params: {
+                kind: FeeParamsKind.raw,
+                maxFee: '1000',
+                halfAmount: '500',
+              },
             },
             [ROUTER_B]: {
               type: FeeStrategyType.linear,
-              maxFee: '2000',
-              halfAmount: '1000',
+              params: {
+                kind: FeeParamsKind.raw,
+                maxFee: '2000',
+                halfAmount: '1000',
+              },
             },
           },
         },
@@ -301,8 +347,11 @@ describe('SVM CrossCollateralRouting Fee E2E Tests', function () {
           10: {
             [ROUTER_A]: {
               type: FeeStrategyType.linear,
-              maxFee: '1000',
-              halfAmount: '500',
+              params: {
+                kind: FeeParamsKind.raw,
+                maxFee: '1000',
+                halfAmount: '500',
+              },
             },
           },
         },

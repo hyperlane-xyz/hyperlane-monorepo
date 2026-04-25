@@ -3,7 +3,7 @@ import { expect } from 'chai';
 import { before, describe, it } from 'mocha';
 
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
-import { FeeType } from '@hyperlane-xyz/provider-sdk/fee';
+import { FeeType, FeeParamsKind } from '@hyperlane-xyz/provider-sdk/fee';
 import type { IgpHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
 import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
 
@@ -66,8 +66,11 @@ describe('SVM Warp Fee Config E2E Tests', function () {
         type: FeeType.linear,
         owner: signer.getSignerAddress(),
         beneficiary: signer.getSignerAddress(),
-        maxFee: '1000000',
-        halfAmount: '500000',
+        params: {
+          kind: FeeParamsKind.raw,
+          maxFee: '1000000',
+          halfAmount: '500000',
+        },
       },
     });
     return address(deployed.deployed.programId);

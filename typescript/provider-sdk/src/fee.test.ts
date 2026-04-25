@@ -10,6 +10,7 @@ import {
   DerivedFeeConfig,
   FeeArtifactConfig,
   FeeConfig,
+  FeeParamsKind,
   FeeStrategyType,
   FeeType,
   RoutingFeeArtifactConfig,
@@ -18,6 +19,12 @@ import {
   mergeFeeArtifacts,
   shouldDeployNewFee,
 } from './fee.js';
+
+const rawParams = (maxFee: string, halfAmount: string) => ({
+  kind: FeeParamsKind.raw,
+  maxFee,
+  halfAmount,
+});
 
 const chainLookup: ChainLookup = {
   getChainMetadata: () => {
@@ -43,8 +50,7 @@ describe('fee type support', () => {
         type: FeeType.linear,
         owner: '0xowner',
         beneficiary: '0xbeneficiary',
-        maxFee: '1000',
-        halfAmount: '500',
+        params: rawParams('1000', '500'),
       };
 
       const artifact = feeConfigToArtifact(config, chainLookup);
@@ -59,8 +65,7 @@ describe('fee type support', () => {
         type: FeeType.regressive,
         owner: '0xowner',
         beneficiary: '0xbeneficiary',
-        maxFee: '2000',
-        halfAmount: '1000',
+        params: rawParams('2000', '1000'),
       };
 
       const artifact = feeConfigToArtifact(config, chainLookup);
@@ -72,8 +77,7 @@ describe('fee type support', () => {
         type: FeeType.progressive,
         owner: '0xowner',
         beneficiary: '0xbeneficiary',
-        maxFee: '3000',
-        halfAmount: '1500',
+        params: rawParams('3000', '1500'),
       };
 
       const artifact = feeConfigToArtifact(config, chainLookup);
@@ -85,8 +89,7 @@ describe('fee type support', () => {
         type: FeeType.offchainQuotedLinear,
         owner: '0xowner',
         beneficiary: '0xbeneficiary',
-        maxFee: '1000',
-        halfAmount: '500',
+        params: rawParams('1000', '500'),
         quoteSigners: ['0xsigner1'],
       };
 
@@ -102,13 +105,11 @@ describe('fee type support', () => {
         routes: {
           ethereum: {
             type: FeeStrategyType.linear,
-            maxFee: '1000',
-            halfAmount: '500',
+            params: rawParams('1000', '500'),
           },
           polygon: {
             type: FeeStrategyType.regressive,
-            maxFee: '2000',
-            halfAmount: '1000',
+            params: rawParams('2000', '1000'),
           },
         },
       };
@@ -121,13 +122,11 @@ describe('fee type support', () => {
         routes: {
           1: {
             type: FeeStrategyType.linear,
-            maxFee: '1000',
-            halfAmount: '500',
+            params: rawParams('1000', '500'),
           },
           137: {
             type: FeeStrategyType.regressive,
-            maxFee: '2000',
-            halfAmount: '1000',
+            params: rawParams('2000', '1000'),
           },
         },
       };
@@ -143,8 +142,7 @@ describe('fee type support', () => {
           ethereum: {
             '0xrouter1': {
               type: FeeStrategyType.progressive,
-              maxFee: '5000',
-              halfAmount: '2500',
+              params: rawParams('5000', '2500'),
             },
           },
         },
@@ -159,8 +157,7 @@ describe('fee type support', () => {
           1: {
             '0xrouter1': {
               type: FeeStrategyType.progressive,
-              maxFee: '5000',
-              halfAmount: '2500',
+              params: rawParams('5000', '2500'),
             },
           },
         },
@@ -176,13 +173,11 @@ describe('fee type support', () => {
         routes: {
           ethereum: {
             type: FeeStrategyType.linear,
-            maxFee: '1000',
-            halfAmount: '500',
+            params: rawParams('1000', '500'),
           },
           unknownchain: {
             type: FeeStrategyType.linear,
-            maxFee: '2000',
-            halfAmount: '1000',
+            params: rawParams('2000', '1000'),
           },
         },
       };
@@ -211,8 +206,7 @@ describe('fee type support', () => {
             type: FeeType.linear,
             owner: '0xowner',
             beneficiary: '0xbeneficiary',
-            maxFee: '1000',
-            halfAmount: '500',
+            params: rawParams('1000', '500'),
           },
           deployed: { address: '0xfee' },
         },
@@ -223,8 +217,7 @@ describe('fee type support', () => {
         type: FeeType.linear,
         owner: '0xowner',
         beneficiary: '0xbeneficiary',
-        maxFee: '1000',
-        halfAmount: '500',
+        params: rawParams('1000', '500'),
         address: '0xfee',
       });
     });
@@ -240,13 +233,11 @@ describe('fee type support', () => {
             routes: {
               1: {
                 type: FeeStrategyType.linear,
-                maxFee: '1000',
-                halfAmount: '500',
+                params: rawParams('1000', '500'),
               },
               137: {
                 type: FeeStrategyType.regressive,
-                maxFee: '2000',
-                halfAmount: '1000',
+                params: rawParams('2000', '1000'),
               },
             },
           },
@@ -262,13 +253,11 @@ describe('fee type support', () => {
         routes: {
           ethereum: {
             type: FeeStrategyType.linear,
-            maxFee: '1000',
-            halfAmount: '500',
+            params: rawParams('1000', '500'),
           },
           polygon: {
             type: FeeStrategyType.regressive,
-            maxFee: '2000',
-            halfAmount: '1000',
+            params: rawParams('2000', '1000'),
           },
         },
         address: '0xfee',
@@ -288,15 +277,13 @@ describe('fee type support', () => {
               1: {
                 '0xrouter1': {
                   type: FeeStrategyType.linear,
-                  maxFee: '1000',
-                  halfAmount: '500',
+                  params: rawParams('1000', '500'),
                 },
               },
               137: {
                 '0xrouter2': {
                   type: FeeStrategyType.regressive,
-                  maxFee: '2000',
-                  halfAmount: '1000',
+                  params: rawParams('2000', '1000'),
                 },
               },
             },
@@ -314,15 +301,13 @@ describe('fee type support', () => {
           ethereum: {
             '0xrouter1': {
               type: FeeStrategyType.linear,
-              maxFee: '1000',
-              halfAmount: '500',
+              params: rawParams('1000', '500'),
             },
           },
           polygon: {
             '0xrouter2': {
               type: FeeStrategyType.regressive,
-              maxFee: '2000',
-              halfAmount: '1000',
+              params: rawParams('2000', '1000'),
             },
           },
         },
@@ -342,13 +327,11 @@ describe('fee type support', () => {
             routes: {
               1: {
                 type: FeeStrategyType.linear,
-                maxFee: '1000',
-                halfAmount: '500',
+                params: rawParams('1000', '500'),
               },
               99999: {
                 type: FeeStrategyType.regressive,
-                maxFee: '2000',
-                halfAmount: '1000',
+                params: rawParams('2000', '1000'),
               },
             },
           },
@@ -364,8 +347,7 @@ describe('fee type support', () => {
         routes: {
           ethereum: {
             type: FeeStrategyType.linear,
-            maxFee: '1000',
-            halfAmount: '500',
+            params: rawParams('1000', '500'),
           },
         },
         address: '0xfee',
@@ -385,15 +367,13 @@ describe('fee type support', () => {
               1: {
                 '0xrouter1': {
                   type: FeeStrategyType.linear,
-                  maxFee: '1000',
-                  halfAmount: '500',
+                  params: rawParams('1000', '500'),
                 },
               },
               99999: {
                 '0xrouter2': {
                   type: FeeStrategyType.progressive,
-                  maxFee: '3000',
-                  halfAmount: '1500',
+                  params: rawParams('3000', '1500'),
                 },
               },
             },
@@ -411,8 +391,7 @@ describe('fee type support', () => {
           ethereum: {
             '0xrouter1': {
               type: FeeStrategyType.linear,
-              maxFee: '1000',
-              halfAmount: '500',
+              params: rawParams('1000', '500'),
             },
           },
         },
@@ -441,15 +420,13 @@ describe('fee type support', () => {
         type: FeeType.linear,
         owner: '0xowner',
         beneficiary: '0xbeneficiary',
-        maxFee: '1000',
-        halfAmount: '500',
+        params: rawParams('1000', '500'),
       };
       const expected: FeeArtifactConfig = {
         type: FeeType.regressive,
         owner: '0xowner',
         beneficiary: '0xbeneficiary',
-        maxFee: '1000',
-        halfAmount: '500',
+        params: rawParams('1000', '500'),
       };
 
       expect(shouldDeployNewFee(actual, expected)).to.equal(true);
@@ -460,15 +437,13 @@ describe('fee type support', () => {
         type: FeeType.linear,
         owner: '0xowner',
         beneficiary: '0xbeneficiary',
-        maxFee: '1000',
-        halfAmount: '500',
+        params: rawParams('1000', '500'),
       };
       const expected: FeeArtifactConfig = {
         type: FeeType.linear,
         owner: '0xowner',
         beneficiary: '0xbeneficiary',
-        maxFee: '2000',
-        halfAmount: '1000',
+        params: rawParams('2000', '1000'),
       };
 
       expect(shouldDeployNewFee(actual, expected)).to.equal(true);
@@ -479,8 +454,7 @@ describe('fee type support', () => {
         type: FeeType.linear,
         owner: '0xowner',
         beneficiary: '0xbeneficiary',
-        maxFee: '1000',
-        halfAmount: '500',
+        params: rawParams('1000', '500'),
       };
 
       expect(shouldDeployNewFee(config, config)).to.equal(false);
@@ -491,16 +465,14 @@ describe('fee type support', () => {
         type: FeeType.offchainQuotedLinear,
         owner: '0xowner',
         beneficiary: '0xbeneficiary',
-        maxFee: '1000',
-        halfAmount: '500',
+        params: rawParams('1000', '500'),
         quoteSigners: ['0xsigner1'],
       };
       const expected: FeeArtifactConfig = {
         type: FeeType.offchainQuotedLinear,
         owner: '0xowner',
         beneficiary: '0xbeneficiary',
-        maxFee: '2000',
-        halfAmount: '500',
+        params: rawParams('2000', '500'),
         quoteSigners: ['0xsigner1'],
       };
 
@@ -521,8 +493,7 @@ describe('fee type support', () => {
         routes: {
           1: {
             type: FeeStrategyType.linear,
-            maxFee: '1000',
-            halfAmount: '500',
+            params: rawParams('1000', '500'),
           },
         },
       };
@@ -545,8 +516,7 @@ describe('fee type support', () => {
           1: {
             '0xrouter': {
               type: FeeStrategyType.linear,
-              maxFee: '1000',
-              halfAmount: '500',
+              params: rawParams('1000', '500'),
             },
           },
         },
@@ -573,8 +543,7 @@ describe('fee type support', () => {
           type: FeeType.linear,
           owner: '0xowner',
           beneficiary: '0xbeneficiary',
-          maxFee: '1000',
-          halfAmount: '500',
+          params: rawParams('1000', '500'),
         },
       };
 
@@ -589,8 +558,7 @@ describe('fee type support', () => {
           type: FeeType.linear,
           owner: '0xowner',
           beneficiary: '0xbeneficiary',
-          maxFee: '1000',
-          halfAmount: '500',
+          params: rawParams('1000', '500'),
         },
         deployed: { address: '0xold' },
       };
@@ -601,8 +569,7 @@ describe('fee type support', () => {
           type: FeeType.regressive,
           owner: '0xowner',
           beneficiary: '0xbeneficiary',
-          maxFee: '1000',
-          halfAmount: '500',
+          params: rawParams('1000', '500'),
         },
       };
 
@@ -631,8 +598,7 @@ describe('fee type support', () => {
           routes: {
             1: {
               type: FeeStrategyType.linear,
-              maxFee: '1000',
-              halfAmount: '500',
+              params: rawParams('1000', '500'),
             },
           },
         },
@@ -652,8 +618,7 @@ describe('fee type support', () => {
           type: FeeType.linear,
           owner: '0xowner',
           beneficiary: '0xbeneficiary',
-          maxFee: '1000',
-          halfAmount: '500',
+          params: rawParams('1000', '500'),
         },
         deployed: { address: '0xold' },
       };
@@ -664,8 +629,7 @@ describe('fee type support', () => {
           type: FeeType.linear,
           owner: '0xowner',
           beneficiary: '0xbeneficiary',
-          maxFee: '2000',
-          halfAmount: '1000',
+          params: rawParams('2000', '1000'),
         },
       };
 

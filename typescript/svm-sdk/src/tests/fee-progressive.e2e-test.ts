@@ -1,7 +1,7 @@
 import { address } from '@solana/kit';
 import { before, describe } from 'mocha';
 
-import { FeeType } from '@hyperlane-xyz/provider-sdk/fee';
+import { FeeType, FeeParamsKind } from '@hyperlane-xyz/provider-sdk/fee';
 
 import { SvmSigner } from '../clients/signer.js';
 import {
@@ -51,8 +51,11 @@ describe('SVM Progressive Fee E2E Tests', function () {
         type: FeeType.progressive,
         owner: signer.getSignerAddress(),
         beneficiary: signer.getSignerAddress(),
-        maxFee: '8000000',
-        halfAmount: '4000000',
+        params: {
+          kind: FeeParamsKind.raw,
+          maxFee: '8000000',
+          halfAmount: '4000000',
+        },
         ...overrides,
       }),
     };

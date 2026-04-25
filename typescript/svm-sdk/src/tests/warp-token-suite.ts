@@ -4,7 +4,7 @@ import { it } from 'mocha';
 
 import type { ArtifactWriter } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
-import { FeeType } from '@hyperlane-xyz/provider-sdk/fee';
+import { FeeParamsKind, FeeType } from '@hyperlane-xyz/provider-sdk/fee';
 import type {
   RawNativeWarpArtifactConfig,
   RawWarpArtifactConfig,
@@ -17,9 +17,9 @@ import { DEFAULT_FEE_SALT } from '../fee/types.js';
 import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
 import { deriveFeeAccountPda } from '../pda.js';
 import type { createRpc } from '../rpc.js';
-import type { SvmDeployedWarpAddress } from '../warp/types.js';
 import { airdropSol } from '../testing/setup.js';
 import { supportsFeeConfig } from '../version/version-query.js';
+import type { SvmDeployedWarpAddress } from '../warp/types.js';
 
 /**
  * Overrides that can be applied to any token type config.
@@ -333,8 +333,11 @@ export function defineWarpTokenTests(
         type: FeeType.linear,
         owner: signer.getSignerAddress(),
         beneficiary: signer.getSignerAddress(),
-        maxFee: '1000000',
-        halfAmount: '500000',
+        params: {
+          kind: FeeParamsKind.raw,
+          maxFee: '1000000',
+          halfAmount: '500000',
+        },
       },
     });
     const feeProgramId = address(deployedFee.deployed.programId);

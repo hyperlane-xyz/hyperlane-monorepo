@@ -1,10 +1,11 @@
 import { address as parseAddress } from '@solana/kit';
 
-import type {
-  LinearFeeConfig,
-  OffchainQuotedLinearFeeConfig,
-  ProgressiveFeeConfig,
-  RegressiveFeeConfig,
+import {
+  FeeParamsKind,
+  type LinearFeeConfig,
+  type OffchainQuotedLinearFeeConfig,
+  type ProgressiveFeeConfig,
+  type RegressiveFeeConfig,
 } from '@hyperlane-xyz/provider-sdk/fee';
 import {
   type ArtifactDeployed,
@@ -33,6 +34,7 @@ import { deriveFeeAccountPda } from '../pda.js';
 import type { AnnotatedSvmTransaction, SvmReceipt, SvmRpc } from '../types.js';
 
 import { fetchFeeAccount } from './fee-query.js';
+import { resolveRawFeeParams } from './fee-strategy-utils.js';
 import {
   FeeDataKind,
   type FeeStrategyKind,
@@ -89,8 +91,11 @@ export abstract class SvmLeafFeeReader<
         type: this.feeType,
         owner,
         beneficiary,
-        maxFee: maxFee.toString(),
-        halfAmount: halfAmount.toString(),
+        params: {
+          kind: FeeParamsKind.raw,
+          maxFee: maxFee.toString(),
+          halfAmount: halfAmount.toString(),
+        },
       } as C,
       deployed: { address: programId, programId, feeAccountPda },
     };
@@ -132,10 +137,7 @@ export abstract class SvmLeafFeeWriter<C extends LeafFeeConfig>
           config: {
             strategy: {
               kind: this.strategyKind,
-              params: {
-                maxFee: BigInt(feeConfig.maxFee),
-                halfAmount: BigInt(feeConfig.halfAmount),
-              },
+              params: resolveRawFeeParams(feeConfig.params),
             },
             signers: null,
           },
@@ -182,9 +184,11 @@ export abstract class SvmLeafFeeWriter<C extends LeafFeeConfig>
     const ownerAddress = parseAddress(currentConfig.owner);
 
     // Phase 1: Diff fee params
+    const currentParams = resolveRawFeeParams(currentConfig.params);
+    const expectedParams = resolveRawFeeParams(expected.params);
     if (
-      currentConfig.maxFee !== expected.maxFee ||
-      currentConfig.halfAmount !== expected.halfAmount
+      currentParams.maxFee !== expectedParams.maxFee ||
+      currentParams.halfAmount !== expectedParams.halfAmount
     ) {
       txs.push({
         feePayer: ownerAddress,
@@ -193,10 +197,7 @@ export abstract class SvmLeafFeeWriter<C extends LeafFeeConfig>
             programId,
             feeAccountPda,
             ownerAddress,
-            {
-              maxFee: BigInt(expected.maxFee),
-              halfAmount: BigInt(expected.halfAmount),
-            },
+            expectedParams,
           ),
         ],
         annotation: `Update ${this.feeType} fee params`,

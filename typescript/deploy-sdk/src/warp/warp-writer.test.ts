@@ -22,6 +22,7 @@ import type {
   TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
 import {
+  FeeParamsKind,
   FeeType,
   type DeployedFeeArtifact,
   type FeeArtifactConfig,
@@ -1188,8 +1189,7 @@ describe('WarpTokenWriter', () => {
       type: FeeType.linear,
       owner: '0xowner',
       beneficiary: '0xbeneficiary',
-      maxFee: '1000',
-      halfAmount: '500',
+      params: { kind: FeeParamsKind.raw, maxFee: '1000', halfAmount: '500' },
     };
 
     const deployedFee: DeployedFeeArtifact = {
@@ -1338,8 +1338,7 @@ describe('WarpTokenWriter', () => {
       type: FeeType.linear,
       owner: '0xowner',
       beneficiary: '0xbeneficiary',
-      maxFee: '1000',
-      halfAmount: '500',
+      params: { kind: FeeParamsKind.raw, maxFee: '1000', halfAmount: '500' },
     };
 
     const deployedFee: DeployedFeeArtifact = {
@@ -1465,8 +1464,11 @@ describe('WarpTokenWriter', () => {
             routes: {
               [REMOTE_DOMAIN_ID_1]: {
                 type: FeeType.linear,
-                maxFee: '1000',
-                halfAmount: '500',
+                params: {
+                  kind: FeeParamsKind.raw,
+                  maxFee: '1000',
+                  halfAmount: '500',
+                },
               },
             },
           },
@@ -1569,8 +1571,7 @@ describe('WarpTokenWriter', () => {
       type: FeeType.linear,
       owner: '0xowner',
       beneficiary: '0xbeneficiary',
-      maxFee: '1000',
-      halfAmount: '500',
+      params: { kind: FeeParamsKind.raw, maxFee: '1000', halfAmount: '500' },
     };
 
     const configWithFee: WarpArtifactConfig = {

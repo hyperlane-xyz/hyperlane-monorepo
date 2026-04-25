@@ -2,7 +2,11 @@ import { address } from '@solana/kit';
 import { expect } from 'chai';
 import { before, describe, it } from 'mocha';
 
-import { FeeType, FeeStrategyType } from '@hyperlane-xyz/provider-sdk/fee';
+import {
+  FeeType,
+  FeeStrategyType,
+  FeeParamsKind,
+} from '@hyperlane-xyz/provider-sdk/fee';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 
 import { SvmSigner } from '../clients/signer.js';
@@ -64,13 +68,19 @@ describe('SVM Routing Fee E2E Tests', function () {
         routes: {
           10: {
             type: FeeStrategyType.linear,
-            maxFee: '1000',
-            halfAmount: '500',
+            params: {
+              kind: FeeParamsKind.raw,
+              maxFee: '1000',
+              halfAmount: '500',
+            },
           },
           20: {
             type: FeeStrategyType.regressive,
-            maxFee: '2000',
-            halfAmount: '1000',
+            params: {
+              kind: FeeParamsKind.raw,
+              maxFee: '2000',
+              halfAmount: '1000',
+            },
           },
         },
       },
@@ -88,11 +98,11 @@ describe('SVM Routing Fee E2E Tests', function () {
 
     expect(readResult.config.type).to.equal(FeeType.routing);
     expect(readResult.config.routes[10]?.type).to.equal(FeeStrategyType.linear);
-    expect(readResult.config.routes[10]?.maxFee).to.equal('1000');
+    expect(readResult.config.routes[10]?.params.maxFee).to.equal('1000');
     expect(readResult.config.routes[20]?.type).to.equal(
       FeeStrategyType.regressive,
     );
-    expect(readResult.config.routes[20]?.maxFee).to.equal('2000');
+    expect(readResult.config.routes[20]?.params.maxFee).to.equal('2000');
     expect(readResult.config.routes[30]).to.be.undefined;
   });
 
@@ -105,8 +115,11 @@ describe('SVM Routing Fee E2E Tests', function () {
         routes: {
           10: {
             type: FeeStrategyType.offchainQuotedLinear,
-            maxFee: '5000',
-            halfAmount: '2500',
+            params: {
+              kind: FeeParamsKind.raw,
+              maxFee: '5000',
+              halfAmount: '2500',
+            },
             quoteSigners: [SIGNER_A],
           },
         },
@@ -139,8 +152,11 @@ describe('SVM Routing Fee E2E Tests', function () {
         routes: {
           10: {
             type: FeeStrategyType.linear,
-            maxFee: '1000',
-            halfAmount: '500',
+            params: {
+              kind: FeeParamsKind.raw,
+              maxFee: '1000',
+              halfAmount: '500',
+            },
           },
         },
       },
@@ -153,13 +169,19 @@ describe('SVM Routing Fee E2E Tests', function () {
         routes: {
           10: {
             type: FeeStrategyType.linear,
-            maxFee: '1000',
-            halfAmount: '500',
+            params: {
+              kind: FeeParamsKind.raw,
+              maxFee: '1000',
+              halfAmount: '500',
+            },
           },
           20: {
             type: FeeStrategyType.progressive,
-            maxFee: '3000',
-            halfAmount: '1500',
+            params: {
+              kind: FeeParamsKind.raw,
+              maxFee: '3000',
+              halfAmount: '1500',
+            },
           },
         },
       },
@@ -179,7 +201,7 @@ describe('SVM Routing Fee E2E Tests', function () {
     expect(readResult.config.routes[20]?.type).to.equal(
       FeeStrategyType.progressive,
     );
-    expect(readResult.config.routes[20]?.maxFee).to.equal('3000');
+    expect(readResult.config.routes[20]?.params.maxFee).to.equal('3000');
   });
 
   it('should update params on an existing route', async () => {
@@ -191,8 +213,11 @@ describe('SVM Routing Fee E2E Tests', function () {
         routes: {
           10: {
             type: FeeStrategyType.linear,
-            maxFee: '1000',
-            halfAmount: '500',
+            params: {
+              kind: FeeParamsKind.raw,
+              maxFee: '1000',
+              halfAmount: '500',
+            },
           },
         },
       },
@@ -205,8 +230,11 @@ describe('SVM Routing Fee E2E Tests', function () {
         routes: {
           10: {
             type: FeeStrategyType.linear,
-            maxFee: '9999',
-            halfAmount: '4444',
+            params: {
+              kind: FeeParamsKind.raw,
+              maxFee: '9999',
+              halfAmount: '4444',
+            },
           },
         },
       },
@@ -223,8 +251,8 @@ describe('SVM Routing Fee E2E Tests', function () {
       DEFAULT_FEE_SALT,
     );
     const readResult = await reader.read(deployed.deployed.programId);
-    expect(readResult.config.routes[10]?.maxFee).to.equal('9999');
-    expect(readResult.config.routes[10]?.halfAmount).to.equal('4444');
+    expect(readResult.config.routes[10]?.params.maxFee).to.equal('9999');
+    expect(readResult.config.routes[10]?.params.halfAmount).to.equal('4444');
   });
 
   it('should change an existing route strategy type', async () => {
@@ -236,8 +264,11 @@ describe('SVM Routing Fee E2E Tests', function () {
         routes: {
           10: {
             type: FeeStrategyType.linear,
-            maxFee: '1000',
-            halfAmount: '500',
+            params: {
+              kind: FeeParamsKind.raw,
+              maxFee: '1000',
+              halfAmount: '500',
+            },
           },
         },
       },
@@ -250,8 +281,11 @@ describe('SVM Routing Fee E2E Tests', function () {
         routes: {
           10: {
             type: FeeStrategyType.regressive,
-            maxFee: '2000',
-            halfAmount: '1000',
+            params: {
+              kind: FeeParamsKind.raw,
+              maxFee: '2000',
+              halfAmount: '1000',
+            },
           },
         },
       },
@@ -271,7 +305,7 @@ describe('SVM Routing Fee E2E Tests', function () {
     expect(readResult.config.routes[10]?.type).to.equal(
       FeeStrategyType.regressive,
     );
-    expect(readResult.config.routes[10]?.maxFee).to.equal('2000');
+    expect(readResult.config.routes[10]?.params.maxFee).to.equal('2000');
   });
 
   it('should remove a route via update', async () => {
@@ -283,13 +317,19 @@ describe('SVM Routing Fee E2E Tests', function () {
         routes: {
           10: {
             type: FeeStrategyType.linear,
-            maxFee: '1000',
-            halfAmount: '500',
+            params: {
+              kind: FeeParamsKind.raw,
+              maxFee: '1000',
+              halfAmount: '500',
+            },
           },
           20: {
             type: FeeStrategyType.linear,
-            maxFee: '2000',
-            halfAmount: '1000',
+            params: {
+              kind: FeeParamsKind.raw,
+              maxFee: '2000',
+              halfAmount: '1000',
+            },
           },
         },
       },
@@ -302,8 +342,11 @@ describe('SVM Routing Fee E2E Tests', function () {
         routes: {
           10: {
             type: FeeStrategyType.linear,
-            maxFee: '1000',
-            halfAmount: '500',
+            params: {
+              kind: FeeParamsKind.raw,
+              maxFee: '1000',
+              halfAmount: '500',
+            },
           },
         },
       },

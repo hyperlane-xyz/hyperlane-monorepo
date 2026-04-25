@@ -44,14 +44,18 @@ export function defineLeafFeeTests<T extends LeafFeeConfig['type']>(
     expect(receipts.length).to.be.greaterThan(0);
     expect(deployed.artifactState).to.equal(ArtifactState.DEPLOYED);
     expect(deployed.config.type).to.equal(config.type);
-    expect(deployed.config.maxFee).to.equal(config.maxFee);
-    expect(deployed.config.halfAmount).to.equal(config.halfAmount);
+    expect(deployed.config.params.maxFee).to.equal(config.params.maxFee);
+    expect(deployed.config.params.halfAmount).to.equal(
+      config.params.halfAmount,
+    );
 
     const readResult = await writer.read(deployed.deployed.programId);
 
     expect(readResult.config.type).to.equal(config.type);
-    expect(readResult.config.maxFee).to.equal(config.maxFee);
-    expect(readResult.config.halfAmount).to.equal(config.halfAmount);
+    expect(readResult.config.params.maxFee).to.equal(config.params.maxFee);
+    expect(readResult.config.params.halfAmount).to.equal(
+      config.params.halfAmount,
+    );
     expect(readResult.config.owner).to.equal(signer.getSignerAddress());
     expect(readResult.config.beneficiary).to.equal(signer.getSignerAddress());
   });
@@ -70,8 +74,7 @@ export function defineLeafFeeTests<T extends LeafFeeConfig['type']>(
     const updateTxs = await writer.update({
       ...deployed,
       config: makeConfig({
-        maxFee: '9999999',
-        halfAmount: '4444444',
+        params: { kind: 'raw', maxFee: '9999999', halfAmount: '4444444' },
       }),
     });
 
@@ -79,8 +82,8 @@ export function defineLeafFeeTests<T extends LeafFeeConfig['type']>(
     await executeUpdateTxs(updateTxs);
 
     const readResult = await reader.read(deployed.deployed.programId);
-    expect(readResult.config.maxFee).to.equal('9999999');
-    expect(readResult.config.halfAmount).to.equal('4444444');
+    expect(readResult.config.params.maxFee).to.equal('9999999');
+    expect(readResult.config.params.halfAmount).to.equal('4444444');
   });
 
   it('should update beneficiary', async () => {
