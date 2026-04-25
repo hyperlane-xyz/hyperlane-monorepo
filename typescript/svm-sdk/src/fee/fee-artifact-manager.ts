@@ -1,7 +1,7 @@
 import { address as parseAddress } from '@solana/kit';
 
 import {
-  type FeeType,
+  FeeType,
   type DeployedFeeAddress,
   type DeployedFeeArtifact,
   type FeeArtifactConfigs,
@@ -78,7 +78,7 @@ export class SvmFeeArtifactManager implements IRawFeeArtifactManager {
         DeployedFeeAddress
       >;
     } = {
-      linear: () =>
+      [FeeType.linear]: () =>
         new SvmLinearFeeWriter(
           { program },
           this.rpc,
@@ -86,7 +86,7 @@ export class SvmFeeArtifactManager implements IRawFeeArtifactManager {
           signer,
           this.salt,
         ),
-      regressive: () =>
+      [FeeType.regressive]: () =>
         new SvmRegressiveFeeWriter(
           { program },
           this.rpc,
@@ -94,7 +94,7 @@ export class SvmFeeArtifactManager implements IRawFeeArtifactManager {
           signer,
           this.salt,
         ),
-      progressive: () =>
+      [FeeType.progressive]: () =>
         new SvmProgressiveFeeWriter(
           { program },
           this.rpc,
@@ -102,7 +102,7 @@ export class SvmFeeArtifactManager implements IRawFeeArtifactManager {
           signer,
           this.salt,
         ),
-      offchainQuotedLinear: () =>
+      [FeeType.offchainQuotedLinear]: () =>
         new SvmOffchainQuotedLinearFeeWriter(
           { program },
           this.rpc,
@@ -110,7 +110,7 @@ export class SvmFeeArtifactManager implements IRawFeeArtifactManager {
           signer,
           this.salt,
         ),
-      routing: () =>
+      [FeeType.routing]: () =>
         new SvmRoutingFeeWriter(
           { program },
           this.rpc,
@@ -119,7 +119,7 @@ export class SvmFeeArtifactManager implements IRawFeeArtifactManager {
           this.context,
           this.salt,
         ),
-      crossCollateralRouting: () =>
+      [FeeType.crossCollateralRouting]: () =>
         new SvmCrossCollateralRoutingFeeWriter(
           { program },
           this.rpc,
@@ -143,13 +143,16 @@ export class SvmFeeArtifactManager implements IRawFeeArtifactManager {
         DeployedFeeAddress
       >;
     } = {
-      linear: () => new SvmLinearFeeReader(this.rpc, this.salt),
-      regressive: () => new SvmRegressiveFeeReader(this.rpc, this.salt),
-      progressive: () => new SvmProgressiveFeeReader(this.rpc, this.salt),
-      offchainQuotedLinear: () =>
+      [FeeType.linear]: () => new SvmLinearFeeReader(this.rpc, this.salt),
+      [FeeType.regressive]: () =>
+        new SvmRegressiveFeeReader(this.rpc, this.salt),
+      [FeeType.progressive]: () =>
+        new SvmProgressiveFeeReader(this.rpc, this.salt),
+      [FeeType.offchainQuotedLinear]: () =>
         new SvmOffchainQuotedLinearFeeReader(this.rpc, this.salt),
-      routing: () => new SvmRoutingFeeReader(this.rpc, context, this.salt),
-      crossCollateralRouting: () =>
+      [FeeType.routing]: () =>
+        new SvmRoutingFeeReader(this.rpc, context, this.salt),
+      [FeeType.crossCollateralRouting]: () =>
         new SvmCrossCollateralRoutingFeeReader(this.rpc, context, this.salt),
     };
 
