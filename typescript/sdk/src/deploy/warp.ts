@@ -60,6 +60,7 @@ import {
   RemoteRouters,
   resolveRouterMapConfig,
 } from '../router/types.js';
+import { tokenFeeConfigInputToProviderFeeConfig } from '../fee/feeConfigMapping.js';
 import { EvmWarpModule } from '../token/EvmWarpModule.js';
 import { MAX_GAS_OVERHEAD, TokenType, gasOverhead } from '../token/config.js';
 import { HypERC20Factories, hypERC20factories } from '../token/contracts.js';
@@ -115,8 +116,6 @@ export function validateWarpConfigForAltVM(
     scale = Number(config.scale.numerator) / Number(config.scale.denominator);
   }
 
-  // TODO: full CLI compatibility for SVM fee deployment will be implemented
-  // in a follow-up PR (requires mapping EVM TokenFeeConfigInput → provider-sdk FeeConfig).
   const baseConfig = {
     owner: config.owner,
     mailbox: config.mailbox,
@@ -125,6 +124,9 @@ export function validateWarpConfigForAltVM(
       | string
       | undefined,
     hook: config.hook as ProviderHookConfig | string | undefined,
+    fee: config.tokenFee
+      ? tokenFeeConfigInputToProviderFeeConfig(config.tokenFee)
+      : undefined,
     remoteRouters: config.remoteRouters,
     destinationGas: config.destinationGas,
     scale,
