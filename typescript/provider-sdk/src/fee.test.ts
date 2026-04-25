@@ -211,13 +211,16 @@ describe('fee type support', () => {
           deployed: { address: '0xfee' },
         },
         chainLookup,
+        '0xtoken',
       );
 
       expect(derived).to.deep.equal({
         type: FeeType.linear,
+        token: '0xtoken',
         owner: '0xowner',
-        beneficiary: '0xbeneficiary',
-        params: rawParams('1000', '500'),
+        maxFee: 1000n,
+        halfAmount: 500n,
+        bps: 10000,
         address: '0xfee',
       });
     });
@@ -244,20 +247,31 @@ describe('fee type support', () => {
           deployed: { address: '0xfee' },
         },
         chainLookup,
+        '0xtoken',
       );
 
       const expectedDerived: DerivedFeeConfig = {
         type: FeeType.routing,
+        token: '0xtoken',
         owner: '0xowner',
-        beneficiary: '0xbeneficiary',
-        routes: {
+        feeContracts: {
           ethereum: {
             type: FeeStrategyType.linear,
-            params: rawParams('1000', '500'),
+            token: '0xtoken',
+            owner: '0xowner',
+            maxFee: 1000n,
+            halfAmount: 500n,
+            bps: 10000,
+            address: '0xfee',
           },
           polygon: {
             type: FeeStrategyType.regressive,
-            params: rawParams('2000', '1000'),
+            token: '0xtoken',
+            owner: '0xowner',
+            maxFee: 2000n,
+            halfAmount: 1000n,
+            bps: 10000,
+            address: '0xfee',
           },
         },
         address: '0xfee',
@@ -291,23 +305,33 @@ describe('fee type support', () => {
           deployed: { address: '0xfee' },
         },
         chainLookup,
+        '0xtoken',
       );
 
       const expectedDerived: DerivedFeeConfig = {
         type: FeeType.crossCollateralRouting,
         owner: '0xowner',
-        beneficiary: '0xbeneficiary',
-        routes: {
+        feeContracts: {
           ethereum: {
             '0xrouter1': {
               type: FeeStrategyType.linear,
-              params: rawParams('1000', '500'),
+              token: '0xtoken',
+              owner: '0xowner',
+              maxFee: 1000n,
+              halfAmount: 500n,
+              bps: 10000,
+              address: '0xfee',
             },
           },
           polygon: {
             '0xrouter2': {
               type: FeeStrategyType.regressive,
-              params: rawParams('2000', '1000'),
+              token: '0xtoken',
+              owner: '0xowner',
+              maxFee: 2000n,
+              halfAmount: 1000n,
+              bps: 10000,
+              address: '0xfee',
             },
           },
         },
@@ -338,16 +362,22 @@ describe('fee type support', () => {
           deployed: { address: '0xfee' },
         },
         chainLookup,
+        '0xtoken',
       );
 
       const expectedDerived: DerivedFeeConfig = {
         type: FeeType.routing,
+        token: '0xtoken',
         owner: '0xowner',
-        beneficiary: '0xbeneficiary',
-        routes: {
+        feeContracts: {
           ethereum: {
             type: FeeStrategyType.linear,
-            params: rawParams('1000', '500'),
+            token: '0xtoken',
+            owner: '0xowner',
+            maxFee: 1000n,
+            halfAmount: 500n,
+            bps: 10000,
+            address: '0xfee',
           },
         },
         address: '0xfee',
@@ -381,17 +411,22 @@ describe('fee type support', () => {
           deployed: { address: '0xfee' },
         },
         chainLookup,
+        '0xtoken',
       );
 
       const expectedDerived: DerivedFeeConfig = {
         type: FeeType.crossCollateralRouting,
         owner: '0xowner',
-        beneficiary: '0xbeneficiary',
-        routes: {
+        feeContracts: {
           ethereum: {
             '0xrouter1': {
               type: FeeStrategyType.linear,
-              params: rawParams('1000', '500'),
+              token: '0xtoken',
+              owner: '0xowner',
+              maxFee: 1000n,
+              halfAmount: 500n,
+              bps: 10000,
+              address: '0xfee',
             },
           },
         },
@@ -409,6 +444,7 @@ describe('fee type support', () => {
             deployed: { address: '0xfee' },
           },
           chainLookup,
+          '0xtoken',
         ),
       ).to.throw(/Unhandled fee type/);
     });

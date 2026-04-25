@@ -110,7 +110,7 @@ export interface BaseDerivedWarpConfig {
   mailbox: string;
   interchainSecurityModule: DerivedIsmConfig | string;
   hook: DerivedHookConfig | string;
-  fee?: DerivedFeeConfig | string;
+  tokenFee?: DerivedFeeConfig;
   remoteRouters: RemoteRouters;
   destinationGas: DestinationGas;
   scale?: number;
@@ -541,13 +541,19 @@ export function warpArtifactToDerivedConfig(
     isNullish(config.fee) || !isArtifactNew(config.fee),
     'Expected fee to be a deployed or underived artifact',
   );
-  let feeConfig: DerivedWarpConfig['fee'];
+  const feeToken =
+    'token' in config
+      ? config.token
+      : '0x0000000000000000000000000000000000000000';
+  let feeConfig: DerivedWarpConfig['tokenFee'];
   if (isNullish(config.fee)) {
     feeConfig = undefined;
-  } else if (isArtifactDeployed(config.fee)) {
-    feeConfig = feeArtifactToDerivedConfig(config.fee, chainLookup);
   } else {
-    feeConfig = config.fee.deployed.address;
+    assert(
+      isArtifactDeployed(config.fee),
+      'Expected fee to be a deployed artifact for derived config',
+    );
+    feeConfig = feeArtifactToDerivedConfig(config.fee, chainLookup, feeToken);
   }
 
   const baseDerivedConfig = {
@@ -555,7 +561,7 @@ export function warpArtifactToDerivedConfig(
     mailbox: config.mailbox,
     interchainSecurityModule: ismConfig,
     hook: hookConfig,
-    fee: feeConfig,
+    tokenFee: feeConfig,
     remoteRouters,
     destinationGas,
     name: config.name,

@@ -4,6 +4,8 @@ export {
   EvmTokenFeeReader,
 } from './fee/EvmTokenFeeReader.js';
 
+export { tokenFeeConfigInputToProviderFeeConfig } from './fee/feeConfigMapping.js';
+
 export {
   buildExecuteCalldata,
   buildQuoteCalldata,
