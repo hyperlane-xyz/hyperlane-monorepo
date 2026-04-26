@@ -8,7 +8,7 @@ import {
   TokenType,
   type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
@@ -105,5 +105,66 @@ describe('hyperlane warp fee CLI e2e tests (Sealevel)', function () {
     expect(chainConfig.tokenFee).to.not.be.undefined;
     expect(chainConfig.tokenFee!.type).to.equal(TokenFeeType.LinearFee);
     expect(chainConfig.tokenFee!.owner).to.equal(ownerAddress);
+  });
+
+  it('should deploy a native warp route with RoutingFee (multiple domains) on SVM', async function () {
+    const ownerAddress = signer.getSignerAddress();
+    const SYMBOL = 'RTKN';
+
+    const warpRouteId = `${SYMBOL}/${CHAIN_NAME}`;
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, {
+      [CHAIN_NAME]: {
+        type: TokenType.native,
+        name: 'Routing Fee Token',
+        symbol: SYMBOL,
+        decimals: 9,
+        mailbox: mailboxAddress,
+        owner: ownerAddress,
+        remoteRouters: {
+          anvil1: {
+            address:
+              '0x1111111111111111111111111111111111111111111111111111111111111111',
+          },
+          anvil2: {
+            address:
+              '0x2222222222222222222222222222222222222222222222222222222222222222',
+          },
+        },
+        tokenFee: {
+          type: TokenFeeType.RoutingFee,
+          owner: ownerAddress,
+          feeContracts: {
+            anvil1: {
+              type: TokenFeeType.LinearFee,
+              bps: 50,
+            },
+            anvil2: {
+              type: TokenFeeType.LinearFee,
+              bps: 100,
+            },
+          },
+        },
+      },
+    } as WarpRouteDeployConfig);
+
+    await warpCommands.deploy(SVM_KEY, warpRouteId, WARP_DEPLOY_OUTPUT_PATH);
+
+    const warpCorePath = getWarpCoreConfigPath(SYMBOL, [CHAIN_NAME]);
+    const readConfig = await warpCommands.readConfig(CHAIN_NAME, warpCorePath);
+    const chainConfig = readConfig[CHAIN_NAME];
+
+    const fee = chainConfig.tokenFee;
+    assert(fee, 'Expected tokenFee to be defined');
+    expect(fee.type).to.equal(TokenFeeType.RoutingFee);
+    expect(fee.owner).to.equal(ownerAddress);
+
+    assert(
+      fee.type === TokenFeeType.RoutingFee,
+      'Expected RoutingFee type for narrowing',
+    );
+    expect(fee.feeContracts.anvil1).to.not.be.undefined;
+    expect(fee.feeContracts.anvil1.type).to.equal(TokenFeeType.LinearFee);
+    expect(fee.feeContracts.anvil2).to.not.be.undefined;
+    expect(fee.feeContracts.anvil2.type).to.equal(TokenFeeType.LinearFee);
   });
 });
