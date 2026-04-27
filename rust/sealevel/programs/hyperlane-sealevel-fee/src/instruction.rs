@@ -28,14 +28,14 @@ pub enum Instruction {
     /// Quote the fee for a transfer. Called via CPI from warp route programs.
     /// Returns fee amount (u64 LE) via set_return_data.
     QuoteFee(QuoteFee),
-    /// Set or update the fee strategy for a destination domain (owner-only, Routing mode).
-    SetRoute(SetRoute),
-    /// Remove a destination domain route, closing the RouteDomain PDA (owner-only).
-    RemoveRoute(u32),
-    /// Set or update a cross-collateral route (owner-only, CrossCollateralRouting mode).
-    SetCrossCollateralRoute(SetCrossCollateralRoute),
-    /// Remove a cross-collateral route, closing the CC route PDA (owner-only).
-    RemoveCrossCollateralRoute(RemoveCrossCollateralRoute),
+    /// Set or update a remote fee route (owner-only).
+    /// For Routing: pass target_router = None.
+    /// For CC: pass target_router = Some(router), rejects H256::zero().
+    /// Closes any existing standing quote PDA for the (domain, target_router) pair.
+    SetRemoteFeeRoute(SetRemoteFeeRoute),
+    /// Remove a remote fee route, closing the route PDA (owner-only).
+    /// Also closes any standing quote PDA for the (domain, target_router) pair.
+    RemoveRemoteFeeRoute(RemoveRemoteFeeRoute),
     /// Update the fee params on a Leaf fee account (owner-only).
     /// Rejects if the fee account is not FeeData::Leaf.
     UpdateFeeParams(FeeParams),
@@ -153,39 +153,29 @@ pub struct QuoteFee {
     pub target_router: H256,
 }
 
-/// Set or update a per-domain route (owner-only).
+/// Set or update a remote fee route (owner-only).
+/// For Routing mode: target_router = None (uses RouteDomain PDA).
+/// For CC mode: target_router = Some(router) (uses CrossCollateralRoute PDA).
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
-pub struct SetRoute {
+pub struct SetRemoteFeeRoute {
     /// Hyperlane destination domain ID.
     pub domain: u32,
-    /// Fee strategy for this destination domain.
+    /// Remote warp route address. None for Routing, Some for CC.
+    pub target_router: Option<H256>,
+    /// Fee strategy for this route.
     pub fee_data: FeeDataStrategy,
     /// Authorized offchain quote signers for this route.
     /// Some = offchain quoting enabled, None = on-chain fee only.
     pub signers: Option<BTreeSet<SignerAddress>>,
 }
 
-/// Set or update a cross-collateral route (owner-only).
+/// Remove a remote fee route (owner-only).
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
-pub struct SetCrossCollateralRoute {
+pub struct RemoveRemoteFeeRoute {
     /// Hyperlane destination domain ID.
-    pub destination: u32,
-    /// Remote warp route contract address.
-    pub target_router: H256,
-    /// Fee strategy for this (destination, target_router) pair.
-    pub fee_data: FeeDataStrategy,
-    /// Authorized offchain quote signers for this route.
-    /// Some = offchain quoting enabled, None = on-chain fee only.
-    pub signers: Option<BTreeSet<SignerAddress>>,
-}
-
-/// Remove a cross-collateral route (owner-only).
-#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
-pub struct RemoveCrossCollateralRoute {
-    /// Hyperlane destination domain ID.
-    pub destination: u32,
-    /// Remote warp route contract address.
-    pub target_router: H256,
+    pub domain: u32,
+    /// Remote warp route address. None for Routing, Some for CC.
+    pub target_router: Option<H256>,
 }
 
 /// Simulation-only: query required accounts for a QuoteFee call.
@@ -250,24 +240,35 @@ pub fn init_fee_instruction(
     })
 }
 
-/// Builds a SetRoute instruction (owner-only).
-pub fn set_route_instruction(
+/// Builds a SetRemoteFeeRoute instruction (owner-only).
+/// For Routing: pass target_router = None.
+/// For CC: pass target_router = Some(router).
+pub fn set_remote_fee_route_instruction(
     program_id: Pubkey,
     fee_account: Pubkey,
     owner: Pubkey,
     domain: u32,
+    target_router: Option<H256>,
     fee_data: FeeDataStrategy,
     signers: Option<BTreeSet<SignerAddress>>,
 ) -> Result<SolanaInstruction, ProgramError> {
     let domain_le = domain.to_le_bytes();
-    let (route_pda, _bump) = Pubkey::try_find_program_address(
-        route_domain_pda_seeds!(fee_account, &domain_le),
+    let route_pda = derive_route_pda_from_target_router(
+        &program_id,
+        &fee_account,
+        &domain_le,
+        target_router.as_ref(),
+    )?;
+    let standing_target = target_router.unwrap_or(H256::zero());
+    let (standing_pda, _) = Pubkey::try_find_program_address(
+        fee_standing_quote_pda_seeds!(fee_account, &domain_le, standing_target),
         &program_id,
     )
     .ok_or(ProgramError::InvalidSeeds)?;
 
-    let ixn = Instruction::SetRoute(SetRoute {
+    let ixn = Instruction::SetRemoteFeeRoute(SetRemoteFeeRoute {
         domain,
+        target_router,
         fee_data,
         signers,
     });
@@ -276,12 +277,14 @@ pub fn set_route_instruction(
     // 0. `[executable]` System program.
     // 1. `[]` Fee account.
     // 2. `[signer, writable]` Owner.
-    // 3. `[writable]` RouteDomain PDA.
+    // 3. `[writable]` Route PDA (RouteDomain or CrossCollateralRoute).
+    // 4. `[writable]` Standing quote PDA (created empty or overwritten to empty).
     let accounts = vec![
         AccountMeta::new_readonly(system_program::ID, false),
         AccountMeta::new_readonly(fee_account, false),
         AccountMeta::new(owner, true),
         AccountMeta::new(route_pda, false),
+        AccountMeta::new(standing_pda, false),
     ];
 
     Ok(SolanaInstruction {
@@ -291,30 +294,45 @@ pub fn set_route_instruction(
     })
 }
 
-/// Builds a RemoveRoute instruction (owner-only).
-pub fn remove_route_instruction(
+/// Builds a RemoveRemoteFeeRoute instruction (owner-only).
+/// For Routing: pass target_router = None.
+/// For CC: pass target_router = Some(router).
+pub fn remove_remote_fee_route_instruction(
     program_id: Pubkey,
     fee_account: Pubkey,
     owner: Pubkey,
     domain: u32,
+    target_router: Option<H256>,
 ) -> Result<SolanaInstruction, ProgramError> {
     let domain_le = domain.to_le_bytes();
-    let (route_pda, _bump) = Pubkey::try_find_program_address(
-        route_domain_pda_seeds!(fee_account, &domain_le),
+    let route_pda = derive_route_pda_from_target_router(
+        &program_id,
+        &fee_account,
+        &domain_le,
+        target_router.as_ref(),
+    )?;
+    let standing_target = target_router.unwrap_or(H256::zero());
+    let (standing_pda, _) = Pubkey::try_find_program_address(
+        fee_standing_quote_pda_seeds!(fee_account, &domain_le, standing_target),
         &program_id,
     )
     .ok_or(ProgramError::InvalidSeeds)?;
 
-    let ixn = Instruction::RemoveRoute(domain);
+    let ixn = Instruction::RemoveRemoteFeeRoute(RemoveRemoteFeeRoute {
+        domain,
+        target_router,
+    });
 
     // Accounts:
     // 0. `[]` Fee account.
-    // 1. `[signer, writable]` Owner.
-    // 2. `[writable]` RouteDomain PDA.
+    // 1. `[signer, writable]` Owner (receives rent refund).
+    // 2. `[writable]` Route PDA.
+    // 3. `[writable]` Standing quote PDA (closed if it exists).
     let accounts = vec![
         AccountMeta::new_readonly(fee_account, false),
         AccountMeta::new(owner, true),
         AccountMeta::new(route_pda, false),
+        AccountMeta::new(standing_pda, false),
     ];
 
     Ok(SolanaInstruction {
@@ -324,84 +342,28 @@ pub fn remove_route_instruction(
     })
 }
 
-/// Builds a SetCrossCollateralRoute instruction (owner-only).
-pub fn set_cc_route_instruction(
-    program_id: Pubkey,
-    fee_account: Pubkey,
-    owner: Pubkey,
-    destination: u32,
-    target_router: H256,
-    fee_data: FeeDataStrategy,
-    signers: Option<BTreeSet<SignerAddress>>,
-) -> Result<SolanaInstruction, ProgramError> {
-    let dest_le = destination.to_le_bytes();
-    let (cc_route_pda, _bump) = Pubkey::try_find_program_address(
-        cc_route_pda_seeds!(fee_account, &dest_le, target_router),
-        &program_id,
-    )
-    .ok_or(ProgramError::InvalidSeeds)?;
-
-    let ixn = Instruction::SetCrossCollateralRoute(SetCrossCollateralRoute {
-        destination,
-        target_router,
-        fee_data,
-        signers,
-    });
-
-    // Accounts:
-    // 0. `[executable]` System program.
-    // 1. `[]` Fee account.
-    // 2. `[signer, writable]` Owner.
-    // 3. `[writable]` CrossCollateralRoute PDA.
-    let accounts = vec![
-        AccountMeta::new_readonly(system_program::ID, false),
-        AccountMeta::new_readonly(fee_account, false),
-        AccountMeta::new(owner, true),
-        AccountMeta::new(cc_route_pda, false),
-    ];
-
-    Ok(SolanaInstruction {
-        program_id,
-        data: borsh::to_vec(&ixn)?,
-        accounts,
-    })
-}
-
-/// Builds a RemoveCrossCollateralRoute instruction (owner-only).
-pub fn remove_cc_route_instruction(
-    program_id: Pubkey,
-    fee_account: Pubkey,
-    owner: Pubkey,
-    destination: u32,
-    target_router: H256,
-) -> Result<SolanaInstruction, ProgramError> {
-    let dest_le = destination.to_le_bytes();
-    let (cc_route_pda, _bump) = Pubkey::try_find_program_address(
-        cc_route_pda_seeds!(fee_account, &dest_le, target_router),
-        &program_id,
-    )
-    .ok_or(ProgramError::InvalidSeeds)?;
-
-    let ixn = Instruction::RemoveCrossCollateralRoute(RemoveCrossCollateralRoute {
-        destination,
-        target_router,
-    });
-
-    // Accounts:
-    // 0. `[]` Fee account.
-    // 1. `[signer, writable]` Owner.
-    // 2. `[writable]` CrossCollateralRoute PDA.
-    let accounts = vec![
-        AccountMeta::new_readonly(fee_account, false),
-        AccountMeta::new(owner, true),
-        AccountMeta::new(cc_route_pda, false),
-    ];
-
-    Ok(SolanaInstruction {
-        program_id,
-        data: borsh::to_vec(&ixn)?,
-        accounts,
-    })
+/// Derives the route PDA from an optional target_router.
+/// None → RouteDomain PDA, Some → CrossCollateralRoute PDA.
+fn derive_route_pda_from_target_router(
+    program_id: &Pubkey,
+    fee_account: &Pubkey,
+    domain_le: &[u8; 4],
+    target_router: Option<&H256>,
+) -> Result<Pubkey, ProgramError> {
+    match target_router {
+        None => Pubkey::try_find_program_address(
+            route_domain_pda_seeds!(fee_account, domain_le),
+            program_id,
+        )
+        .map(|(key, _)| key)
+        .ok_or(ProgramError::InvalidSeeds),
+        Some(router) => Pubkey::try_find_program_address(
+            cc_route_pda_seeds!(fee_account, domain_le, router),
+            program_id,
+        )
+        .map(|(key, _)| key)
+        .ok_or(ProgramError::InvalidSeeds),
+    }
 }
 
 /// Builds an UpdateFeeParams instruction (owner-only, Leaf mode only).

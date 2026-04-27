@@ -2145,8 +2145,7 @@ mod prune_expired_quotes {
         )
         .await;
 
-        // Prune with None (resolves to H256::zero()) on CC account.
-        // No standing PDA was ever created with H256::zero() for CC → RouteNotFound.
+        // Prune with None on CC account → mode mismatch (CC requires Some).
         let domain_le = 42u32.to_le_bytes();
         let (domain_pda, _) = Pubkey::find_program_address(
             fee_standing_quote_pda_seeds!(cc_fee_key, &domain_le),
@@ -2170,7 +2169,7 @@ mod prune_expired_quotes {
             result,
             TransactionError::InstructionError(
                 0,
-                InstructionError::Custom(FeeError::RouteNotFound as u32),
+                InstructionError::Custom(FeeError::NotRoutingFeeData as u32),
             ),
         );
     }
@@ -2213,8 +2212,7 @@ mod prune_expired_quotes {
             .await
             .unwrap();
 
-        // Prune with Some(random_router) on Leaf account.
-        // PDA derived with random_router was never created → RouteNotFound.
+        // Prune with Some(router) on Leaf account → mode mismatch (Leaf requires None).
         let random_router = H256::random();
         let domain_le = 42u32.to_le_bytes();
         let (wrong_pda, _) = Pubkey::find_program_address(
@@ -2239,7 +2237,7 @@ mod prune_expired_quotes {
             result,
             TransactionError::InstructionError(
                 0,
-                InstructionError::Custom(FeeError::RouteNotFound as u32),
+                InstructionError::Custom(FeeError::NotCrossCollateralRoutingFeeData as u32),
             ),
         );
     }

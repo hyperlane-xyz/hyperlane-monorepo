@@ -294,12 +294,12 @@ fn build_set_cc_route_ix(
     target_router: H256,
     strategy: FeeDataStrategy,
 ) -> Instruction {
-    instruction::set_cc_route_instruction(
+    instruction::set_remote_fee_route_instruction(
         fee_program_id(),
         *fee_account,
         *owner,
         destination,
-        target_router,
+        Some(target_router),
         strategy,
         None,
     )
@@ -312,12 +312,12 @@ fn build_remove_cc_route_ix(
     destination: u32,
     target_router: H256,
 ) -> Instruction {
-    instruction::remove_cc_route_instruction(
+    instruction::remove_remote_fee_route_instruction(
         fee_program_id(),
         *fee_account,
         *owner,
         destination,
-        target_router,
+        Some(target_router),
     )
     .unwrap()
 }
@@ -337,11 +337,12 @@ fn build_set_route_ix(
     domain: u32,
     strategy: FeeDataStrategy,
 ) -> Instruction {
-    instruction::set_route_instruction(
+    instruction::set_remote_fee_route_instruction(
         fee_program_id(),
         *fee_account,
         *owner,
         domain,
+        None,
         strategy,
         None,
     )
@@ -349,7 +350,14 @@ fn build_set_route_ix(
 }
 
 fn build_remove_route_ix(fee_account: &Pubkey, owner: &Pubkey, domain: u32) -> Instruction {
-    instruction::remove_route_instruction(fee_program_id(), *fee_account, *owner, domain).unwrap()
+    instruction::remove_remote_fee_route_instruction(
+        fee_program_id(),
+        *fee_account,
+        *owner,
+        domain,
+        None,
+    )
+    .unwrap()
 }
 
 /// Derives the standing quote PDA for a domain (or wildcard).
