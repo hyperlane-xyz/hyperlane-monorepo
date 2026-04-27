@@ -94,22 +94,19 @@ impl Indexer<HyperlaneMessage> for MockIndexer {
         Ok(0)
     }
 
-    async fn fetch_logs_by_tx_hash(
+    async fn fetch_logs_and_cctp_v2(
         &self,
         _tx_hash: H512,
-    ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
+    ) -> ChainResult<(Vec<(Indexed<HyperlaneMessage>, LogMeta)>, bool)> {
         if let Some(d) = self.delay {
             tokio::time::sleep(d).await;
         }
-        Ok(self
+        let logs = self
             .messages
             .iter()
             .map(|m| (Indexed::new(m.clone()), LogMeta::default()))
-            .collect())
-    }
-
-    async fn is_cctp_v2(&self, _tx_hash: H512) -> ChainResult<bool> {
-        Ok(self.is_cctp_v2_result)
+            .collect();
+        Ok((logs, self.is_cctp_v2_result))
     }
 }
 
