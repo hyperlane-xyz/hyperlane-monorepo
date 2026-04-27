@@ -1812,16 +1812,10 @@ mod quote_fee {
         )
         .await;
 
-        let ix = build_quote_fee_leaf_ix(
-            &fee_key,
-            &payer.pubkey(),
-            42,
-            H256::zero(),
-            500, // at half_amount → fee = 500
-        );
-        process_tx(&mut banks_client, &payer, ix, &[])
-            .await
-            .unwrap();
+        // Linear: min(1000, 500 * 1000 / (2 * 500)) = 500.
+        let ix = build_quote_fee_leaf_ix(&fee_key, &payer.pubkey(), 42, H256::zero(), 500);
+        let fee = simulate_quote_fee(&mut banks_client, &payer, ix).await;
+        assert_eq!(fee, 500);
     }
 
     #[tokio::test]
@@ -1842,10 +1836,10 @@ mod quote_fee {
         )
         .await;
 
+        // Regressive: 1000 * 1000 / (500 + 1000) = 666.
         let ix = build_quote_fee_leaf_ix(&fee_key, &payer.pubkey(), 42, H256::zero(), 1000);
-        process_tx(&mut banks_client, &payer, ix, &[])
-            .await
-            .unwrap();
+        let fee = simulate_quote_fee(&mut banks_client, &payer, ix).await;
+        assert_eq!(fee, 666);
     }
 
     #[tokio::test]
@@ -1866,10 +1860,10 @@ mod quote_fee {
         )
         .await;
 
+        // Progressive: 1000 * 1000^2 / (500^2 + 1000^2) = 1000 * 1000000 / 1250000 = 800.
         let ix = build_quote_fee_leaf_ix(&fee_key, &payer.pubkey(), 42, H256::zero(), 1000);
-        process_tx(&mut banks_client, &payer, ix, &[])
-            .await
-            .unwrap();
+        let fee = simulate_quote_fee(&mut banks_client, &payer, ix).await;
+        assert_eq!(fee, 800);
     }
 
     #[tokio::test]
