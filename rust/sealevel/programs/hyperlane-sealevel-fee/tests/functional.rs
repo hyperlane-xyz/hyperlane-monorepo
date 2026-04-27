@@ -532,11 +532,16 @@ fn encode_u48(ts: i64) -> [u8; 6] {
     out
 }
 
-fn encode_data(max_fee: u64, half_amount: u64) -> Vec<u8> {
-    let mut buf = Vec::with_capacity(16);
-    buf.extend_from_slice(&max_fee.to_le_bytes());
-    buf.extend_from_slice(&half_amount.to_le_bytes());
-    buf
+fn encode_data(strategy: &FeeDataStrategy) -> Vec<u8> {
+    borsh::to_vec(strategy).unwrap()
+}
+
+/// Shorthand for encoding Linear fee data (most common in tests).
+fn encode_linear_data(max_fee: u64, half_amount: u64) -> Vec<u8> {
+    encode_data(&FeeDataStrategy::Linear(FeeParams {
+        max_fee,
+        half_amount,
+    }))
 }
 
 fn encode_context(dest: u32, recipient: H256, amount: u64) -> Vec<u8> {

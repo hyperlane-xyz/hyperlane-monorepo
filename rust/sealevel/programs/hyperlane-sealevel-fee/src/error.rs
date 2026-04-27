@@ -84,6 +84,9 @@ pub enum Error {
     /// Quote issued_at is below the fee account's min_issued_at threshold.
     #[error("Quote issued_at below min_issued_at")]
     QuoteBelowMinIssuedAt = 26,
+    /// Quoted fee strategy variant does not match the on-chain strategy variant.
+    #[error("Quoted curve variant does not match on-chain curve")]
+    CurveVariantMismatch = 27,
 }
 
 impl From<Error> for ProgramError {

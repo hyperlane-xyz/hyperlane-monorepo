@@ -472,42 +472,14 @@ impl QuoteContext for CcFeeQuoteContext {
     }
 }
 
-/// Parsed quote data containing fee curve parameters.
-/// Wire format: max_fee (u64 LE, 8 bytes) + half_amount (u64 LE, 8 bytes).
-#[derive(Debug, Default, PartialEq)]
-pub struct FeeQuoteData {
-    /// Maximum fee parameter for the fee curve.
-    pub max_fee: u64,
-    /// Half amount parameter — transfer amount at which fee = max_fee / 2.
-    pub half_amount: u64,
-}
-
-impl SizedData for FeeQuoteData {
-    fn size(&self) -> usize {
-        std::mem::size_of::<u64>() // max_fee
-        + std::mem::size_of::<u64>() // half_amount
-    }
-}
-
-impl TryFrom<&[u8]> for FeeQuoteData {
+/// Converts opaque quote data bytes into a FeeDataStrategy.
+/// Wire format: Borsh-encoded FeeDataStrategy (1-byte variant tag + params).
+/// The variant tag commits the signer to a specific curve type.
+impl TryFrom<&[u8]> for FeeDataStrategy {
     type Error = ProgramError;
 
     fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
-        if bytes.len() != SizedData::size(&FeeQuoteData::default()) {
-            return Err(ProgramError::InvalidInstructionData);
-        }
-        Ok(Self {
-            max_fee: u64::from_le_bytes(
-                bytes[0..8]
-                    .try_into()
-                    .map_err(|_| ProgramError::InvalidInstructionData)?,
-            ),
-            half_amount: u64::from_le_bytes(
-                bytes[8..16]
-                    .try_into()
-                    .map_err(|_| ProgramError::InvalidInstructionData)?,
-            ),
-        })
+        borsh::from_slice(bytes).map_err(|_| ProgramError::InvalidInstructionData)
     }
 }
 
@@ -563,10 +535,9 @@ pub struct FeeStandingQuoteValue {
     pub issued_at: i64,
     /// When the quote expires (unix timestamp). Must be > issued_at for standing quotes.
     pub expiry: i64,
-    /// Maximum fee parameter for the fee curve.
-    pub max_fee: u64,
-    /// Half amount parameter — transfer amount at which fee = max_fee / 2.
-    pub half_amount: u64,
+    /// Quoted fee strategy (curve variant + params). The variant tag commits the signer
+    /// to a specific curve type — rejected at QuoteFee time if it doesn't match on-chain.
+    pub fee_data: FeeDataStrategy,
     /// Auth provenance recorded at submission time.
     /// Used to reject CC exact-domain quotes that were authorized via DEFAULT_ROUTER
     /// once a router-specific route exists later.
@@ -577,8 +548,7 @@ impl SizedData for FeeStandingQuoteValue {
     fn size(&self) -> usize {
         std::mem::size_of::<i64>()  // issued_at
         + std::mem::size_of::<i64>() // expiry
-        + std::mem::size_of::<u64>() // max_fee
-        + std::mem::size_of::<u64>() // half_amount
+        + SizedData::size(&self.fee_data) // fee_data (variant tag + params)
         + std::mem::size_of::<u8>() // auth_scope
     }
 }
@@ -760,8 +730,10 @@ mod tests {
             FeeStandingQuoteValue {
                 issued_at: 100,
                 expiry: 200,
-                max_fee: 1000,
-                half_amount: 500,
+                fee_data: FeeDataStrategy::Linear(FeeParams {
+                    max_fee: 1000,
+                    half_amount: 500,
+                }),
                 ..Default::default()
             },
         );
@@ -770,8 +742,10 @@ mod tests {
             FeeStandingQuoteValue {
                 issued_at: 100,
                 expiry: 300,
-                max_fee: 2000,
-                half_amount: 1000,
+                fee_data: FeeDataStrategy::Linear(FeeParams {
+                    max_fee: 2000,
+                    half_amount: 1000,
+                }),
                 ..Default::default()
             },
         );
@@ -995,8 +969,10 @@ mod tests {
             FeeStandingQuoteValue {
                 issued_at: 100,
                 expiry: 200,
-                max_fee: 1000,
-                half_amount: 500,
+                fee_data: FeeDataStrategy::Linear(FeeParams {
+                    max_fee: 1000,
+                    half_amount: 500,
+                }),
                 ..Default::default()
             },
         );
@@ -1012,8 +988,10 @@ mod tests {
         let value = FeeStandingQuoteValue {
             issued_at: 100,
             expiry: 200,
-            max_fee: 1000,
-            half_amount: 500,
+            fee_data: FeeDataStrategy::Linear(FeeParams {
+                max_fee: 1000,
+                half_amount: 500,
+            }),
             ..Default::default()
         };
         assert_eq!(

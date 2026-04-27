@@ -29,7 +29,7 @@ async fn test_submit_transient_quote() {
         LOCAL_DOMAIN,
         &payer.pubkey(),
         encode_context(42, H256::zero(), 1000),
-        encode_data(100, 50),
+        encode_linear_data(100, 50),
         issued_at,
     );
 
@@ -82,7 +82,7 @@ async fn test_invalid_signature_fails() {
         LOCAL_DOMAIN,
         &payer.pubkey(),
         encode_context(42, H256::zero(), 1000),
-        encode_data(100, 50),
+        encode_linear_data(100, 50),
         issued_at,
     );
 
@@ -119,7 +119,7 @@ async fn test_no_signers_fails() {
         LOCAL_DOMAIN,
         &payer.pubkey(),
         encode_context(42, H256::zero(), 1000),
-        encode_data(100, 50),
+        encode_linear_data(100, 50),
         issued_at,
     );
 
@@ -202,7 +202,7 @@ async fn test_extraneous_account_rejected() {
         LOCAL_DOMAIN,
         &payer.pubkey(),
         encode_context(42, H256::zero(), 1000),
-        encode_data(100, 50),
+        encode_linear_data(100, 50),
         issued_at,
     );
 
@@ -261,7 +261,7 @@ async fn test_expired_quote_rejected() {
         LOCAL_DOMAIN,
         &payer.pubkey(),
         encode_context(42, H256::zero(), 1000),
-        encode_data(100, 50),
+        encode_linear_data(100, 50),
         issued_at,
     );
 
@@ -304,7 +304,7 @@ async fn test_zero_fee_params_transient_quote() {
         LOCAL_DOMAIN,
         &payer.pubkey(),
         encode_context(42, H256::zero(), 1000),
-        encode_data(0, 0), // zero fees
+        encode_linear_data(0, 0), // zero fees
         issued_at,
     );
 
@@ -341,7 +341,7 @@ async fn test_double_submit_same_salt_fails() {
         LOCAL_DOMAIN,
         &payer.pubkey(),
         encode_context(42, H256::zero(), 1000),
-        encode_data(100, 50),
+        encode_linear_data(100, 50),
         issued_at,
     );
 
@@ -387,7 +387,7 @@ async fn test_transient_issued_at_too_far_in_future_rejected() {
 
     // Clock is at 2, MAX_ISSUED_AT_SKEW = 300. issued_at = 400 > 2 + 300 → rejected.
     let context = encode_context(42, H256::zero(), 100);
-    let data = encode_data(1000, 500);
+    let data = encode_linear_data(1000, 500);
     let quote = make_signed_transient_quote(
         &signing_key,
         &fee_key,
@@ -436,7 +436,7 @@ async fn test_standing_issued_at_too_far_in_future_rejected() {
         LOCAL_DOMAIN,
         &payer.pubkey(),
         encode_standing_context(42, H256::zero()),
-        encode_data(1000, 500),
+        encode_linear_data(1000, 500),
         encode_u48(400),        // issued_at: too far in future
         encode_u48(9999999999), // expiry: far future (valid)
     );
@@ -513,7 +513,7 @@ async fn test_transient_quote_consumed_and_autoclosed() {
     let recipient = H256::zero();
     let amount = 1000u64;
     let context = encode_context(dest, recipient, amount);
-    let data = encode_data(2000, 1000);
+    let data = encode_linear_data(2000, 1000);
     let issued_at = encode_u48(100);
 
     let quote = make_signed_transient_quote(
@@ -599,7 +599,7 @@ async fn test_context_mismatch_different_amount() {
     let dest = 42u32;
     let recipient = H256::zero();
     let context = encode_context(dest, recipient, 500);
-    let data = encode_data(1000, 500);
+    let data = encode_linear_data(1000, 500);
     let issued_at = encode_u48(100);
 
     let quote = make_signed_transient_quote(
@@ -663,7 +663,7 @@ async fn test_context_mismatch_different_destination() {
         .unwrap();
 
     let context = encode_context(42, H256::zero(), 500);
-    let data = encode_data(1000, 500);
+    let data = encode_linear_data(1000, 500);
     let issued_at = encode_u48(100);
 
     let quote = make_signed_transient_quote(
@@ -727,7 +727,7 @@ async fn test_context_mismatch_different_recipient() {
         .unwrap();
 
     let context = encode_context(42, H256::zero(), 500);
-    let data = encode_data(1000, 500);
+    let data = encode_linear_data(1000, 500);
     let issued_at = encode_u48(100);
 
     let quote = make_signed_transient_quote(
@@ -801,7 +801,7 @@ async fn test_zero_fee_params_consumed() {
     let recipient = H256::zero();
     let amount = 1000u64;
     let context = encode_context(dest, recipient, amount);
-    let data = encode_data(0, 0); // zero fee
+    let data = encode_linear_data(0, 0); // zero fee
     let issued_at = encode_u48(100);
 
     let quote = make_signed_transient_quote(
@@ -900,7 +900,10 @@ async fn test_transient_on_routing_account_works() {
     let recipient = H256::zero();
     let amount = 100u64;
     let context = encode_context(dest, recipient, amount);
-    let data = encode_data(2000, 1000); // override params
+    let data = encode_data(&FeeDataStrategy::Regressive(FeeParams {
+        max_fee: 2000,
+        half_amount: 1000,
+    }));
     let issued_at = encode_u48(100);
 
     let quote = make_signed_transient_quote(
@@ -1023,7 +1026,10 @@ async fn test_transient_on_cc_account_works() {
 
     // Submit transient with CC context (76 bytes).
     let context = encode_cc_context(dest, recipient, amount, target_router);
-    let data = encode_data(3000, 1500);
+    let data = encode_data(&FeeDataStrategy::Progressive(FeeParams {
+        max_fee: 3000,
+        half_amount: 1500,
+    }));
     let issued_at = encode_u48(100);
 
     let quote = make_signed_transient_quote(
@@ -1162,7 +1168,7 @@ async fn test_cc_context_wrong_target_router_fails() {
 
     // Submit transient with wrong target_router in context.
     let context = encode_cc_context(dest, H256::zero(), 100, wrong_router);
-    let data = encode_data(1000, 500);
+    let data = encode_linear_data(1000, 500);
     let issued_at = encode_u48(100);
 
     let quote = make_signed_transient_quote(
@@ -1249,7 +1255,7 @@ async fn test_payer_mismatch_fails() {
     let recipient = H256::zero();
     let amount = 100u64;
     let context = encode_context(dest, recipient, amount);
-    let data = encode_data(1000, 500);
+    let data = encode_linear_data(1000, 500);
     let issued_at = encode_u48(100);
 
     let quote = make_signed_transient_quote(
@@ -1329,7 +1335,7 @@ async fn test_routed_wildcard_transient_rejected() {
 
     // Transient quote with WILDCARD_DOMAIN destination.
     let context = encode_context(WILDCARD_DOMAIN, H256::zero(), 1000);
-    let data = encode_data(100, 50);
+    let data = encode_linear_data(100, 50);
     let issued_at = encode_u48(100);
     let quote = make_signed_transient_quote(
         &signing_key,

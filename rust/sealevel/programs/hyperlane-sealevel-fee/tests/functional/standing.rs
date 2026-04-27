@@ -40,7 +40,7 @@ mod submit_standing_quote {
         let dest = 42u32;
         let recipient = H256::zero();
         let context = encode_standing_context(dest, recipient);
-        let data = encode_data(2000, 1000);
+        let data = encode_linear_data(2000, 1000);
         let issued_at = encode_u48(100);
         let expiry = encode_u48(9999999999);
 
@@ -65,8 +65,8 @@ mod submit_standing_quote {
         let standing = fetch_standing_pda(&mut banks_client, domain_pda).await;
         assert_eq!(standing.quotes.len(), 1);
         let value = standing.quotes.get(&recipient).unwrap();
-        assert_eq!(value.max_fee, 2000);
-        assert_eq!(value.half_amount, 1000);
+        assert_eq!(value.fee_data.params().max_fee, 2000);
+        assert_eq!(value.fee_data.params().half_amount, 1000);
         assert_eq!(value.issued_at, 100);
     }
 
@@ -95,7 +95,7 @@ mod submit_standing_quote {
 
         // First quote: issued_at=100, max_fee=1000.
         let context = encode_standing_context(dest, recipient);
-        let data = encode_data(1000, 500);
+        let data = encode_linear_data(1000, 500);
         let quote1 = make_signed_standing_quote(
             &signing_key,
             &fee_key,
@@ -112,7 +112,7 @@ mod submit_standing_quote {
             .unwrap();
 
         // Second quote: issued_at=200 (newer), max_fee=2000. Should replace.
-        let data2 = encode_data(2000, 1000);
+        let data2 = encode_linear_data(2000, 1000);
         let quote2 = make_signed_standing_quote(
             &signing_key,
             &fee_key,
@@ -132,7 +132,7 @@ mod submit_standing_quote {
         let standing = fetch_standing_pda(&mut banks_client, domain_pda).await;
         assert_eq!(standing.quotes.len(), 1);
         let value = standing.quotes.get(&recipient).unwrap();
-        assert_eq!(value.max_fee, 2000);
+        assert_eq!(value.fee_data.params().max_fee, 2000);
         assert_eq!(value.issued_at, 200);
     }
 
@@ -167,7 +167,7 @@ mod submit_standing_quote {
             LOCAL_DOMAIN,
             &payer.pubkey(),
             context.clone(),
-            encode_data(1000, 500),
+            encode_linear_data(1000, 500),
             encode_u48(200),
             encode_u48(9999999999),
         );
@@ -183,7 +183,7 @@ mod submit_standing_quote {
             LOCAL_DOMAIN,
             &payer.pubkey(),
             context,
-            encode_data(2000, 1000),
+            encode_linear_data(2000, 1000),
             encode_u48(100),
             encode_u48(9999999999),
         );
@@ -229,7 +229,7 @@ mod submit_standing_quote {
             LOCAL_DOMAIN,
             &payer.pubkey(),
             context.clone(),
-            encode_data(1000, 500),
+            encode_linear_data(1000, 500),
             encode_u48(100),
             encode_u48(9999999999),
         );
@@ -245,7 +245,7 @@ mod submit_standing_quote {
             LOCAL_DOMAIN,
             &payer.pubkey(),
             context,
-            encode_data(9999, 5000),
+            encode_linear_data(9999, 5000),
             encode_u48(100),
             encode_u48(9999999999),
         );
@@ -258,7 +258,7 @@ mod submit_standing_quote {
         let domain_pda = standing_quote_pda_for(&fee_key, dest);
         let standing = fetch_standing_pda(&mut banks_client, domain_pda).await;
         let value = standing.quotes.get(&recipient).unwrap();
-        assert_eq!(value.max_fee, 1000); // not 9999
+        assert_eq!(value.fee_data.params().max_fee, 1000); // not 9999
     }
 
     #[tokio::test]
@@ -293,7 +293,7 @@ mod submit_standing_quote {
             LOCAL_DOMAIN,
             &payer.pubkey(),
             context,
-            encode_data(1000, 500),
+            encode_linear_data(1000, 500),
             encode_u48(100),
             encode_u48(9999999999),
         );
@@ -340,7 +340,7 @@ mod submit_standing_quote {
             LOCAL_DOMAIN,
             &payer.pubkey(),
             encode_standing_context(dest, recipient_a),
-            encode_data(1000, 500),
+            encode_linear_data(1000, 500),
             encode_u48(100),
             encode_u48(9999999999),
         );
@@ -356,7 +356,7 @@ mod submit_standing_quote {
             LOCAL_DOMAIN,
             &payer.pubkey(),
             encode_standing_context(dest, recipient_b),
-            encode_data(2000, 1000),
+            encode_linear_data(2000, 1000),
             encode_u48(100),
             encode_u48(9999999999),
         );
@@ -369,8 +369,26 @@ mod submit_standing_quote {
         let domain_pda = standing_quote_pda_for(&fee_key, dest);
         let standing = fetch_standing_pda(&mut banks_client, domain_pda).await;
         assert_eq!(standing.quotes.len(), 2);
-        assert_eq!(standing.quotes.get(&recipient_a).unwrap().max_fee, 1000);
-        assert_eq!(standing.quotes.get(&recipient_b).unwrap().max_fee, 2000);
+        assert_eq!(
+            standing
+                .quotes
+                .get(&recipient_a)
+                .unwrap()
+                .fee_data
+                .params()
+                .max_fee,
+            1000
+        );
+        assert_eq!(
+            standing
+                .quotes
+                .get(&recipient_b)
+                .unwrap()
+                .fee_data
+                .params()
+                .max_fee,
+            2000
+        );
     }
 
     #[tokio::test]
@@ -396,7 +414,7 @@ mod submit_standing_quote {
         let dest = 42u32;
         let context =
             encode_standing_context(dest, hyperlane_sealevel_fee::accounts::WILDCARD_RECIPIENT);
-        let data = encode_data(3000, 1500);
+        let data = encode_linear_data(3000, 1500);
 
         let quote = make_signed_standing_quote(
             &signing_key,
@@ -424,6 +442,8 @@ mod submit_standing_quote {
                 .quotes
                 .get(&hyperlane_sealevel_fee::accounts::WILDCARD_RECIPIENT)
                 .unwrap()
+                .fee_data
+                .params()
                 .max_fee,
             3000
         );
@@ -452,7 +472,7 @@ mod submit_standing_quote {
         let dest = 42u32;
         let recipient = H256::zero();
         let context = encode_standing_context(dest, recipient);
-        let data = encode_data(0, 0); // zero fee
+        let data = encode_linear_data(0, 0); // zero fee
 
         let quote = make_signed_standing_quote(
             &signing_key,
@@ -473,8 +493,8 @@ mod submit_standing_quote {
         let domain_pda = standing_quote_pda_for(&fee_key, dest);
         let standing = fetch_standing_pda(&mut banks_client, domain_pda).await;
         let value = standing.quotes.get(&recipient).unwrap();
-        assert_eq!(value.max_fee, 0);
-        assert_eq!(value.half_amount, 0);
+        assert_eq!(value.fee_data.params().max_fee, 0);
+        assert_eq!(value.fee_data.params().half_amount, 0);
     }
 
     #[tokio::test]
@@ -501,7 +521,7 @@ mod submit_standing_quote {
             hyperlane_sealevel_fee::accounts::WILDCARD_DOMAIN,
             hyperlane_sealevel_fee::accounts::WILDCARD_RECIPIENT,
         );
-        let data = encode_data(1000, 500);
+        let data = encode_linear_data(1000, 500);
 
         let quote = make_signed_standing_quote(
             &signing_key,
@@ -600,7 +620,7 @@ mod submit_standing_quote {
             LOCAL_DOMAIN,
             &payer.pubkey(),
             encode_standing_context(dest, recipient),
-            encode_data(777, 1),
+            encode_linear_data(777, 1),
             encode_u48(100),
             encode_u48(9999999999),
         );
@@ -667,7 +687,7 @@ mod submit_standing_quote {
             LOCAL_DOMAIN,
             &payer.pubkey(),
             encode_standing_context(WILDCARD_DOMAIN, recipient),
-            encode_data(777, 1),
+            encode_linear_data(777, 1),
             encode_u48(100),
             encode_u48(9999999999),
         );
@@ -732,7 +752,7 @@ mod submit_standing_quote {
             LOCAL_DOMAIN,
             &payer.pubkey(),
             encode_standing_context(dest, H256::random()),
-            encode_data(777, 1),
+            encode_linear_data(777, 1),
             encode_u48(100),
             encode_u48(9999999999),
         );
@@ -813,7 +833,7 @@ mod submit_standing_quote {
             LOCAL_DOMAIN,
             &payer.pubkey(),
             encode_standing_context(WILDCARD_DOMAIN, H256::random()),
-            encode_data(777, 1),
+            encode_linear_data(777, 1),
             encode_u48(100),
             encode_u48(9999999999),
         );
@@ -872,7 +892,7 @@ mod quote_fee_standing {
             LOCAL_DOMAIN,
             &payer.pubkey(),
             encode_standing_context(dest, recipient),
-            encode_data(quoted_max_fee, quoted_half_amount),
+            encode_linear_data(quoted_max_fee, quoted_half_amount),
             encode_u48(100),
             encode_u48(9999999999),
         );
@@ -993,7 +1013,7 @@ mod quote_fee_standing {
             LOCAL_DOMAIN,
             &payer.pubkey(),
             encode_standing_context(dest, WILDCARD_RECIPIENT),
-            encode_data(10000, 5000),
+            encode_linear_data(10000, 5000),
             encode_u48(100),
             encode_u48(9999999999),
         );
@@ -1009,7 +1029,7 @@ mod quote_fee_standing {
             LOCAL_DOMAIN,
             &payer.pubkey(),
             encode_standing_context(dest, specific_recipient),
-            encode_data(200, 100),
+            encode_linear_data(200, 100),
             encode_u48(100),
             encode_u48(9999999999),
         );
@@ -1115,7 +1135,7 @@ mod quote_fee_standing {
             LOCAL_DOMAIN,
             &payer.pubkey(),
             encode_standing_context(WILDCARD_DOMAIN, recipient),
-            encode_data(8000, 4000),
+            encode_linear_data(8000, 4000),
             encode_u48(100),
             encode_u48(9999999999),
         );
@@ -1166,7 +1186,7 @@ mod quote_fee_standing {
             LOCAL_DOMAIN,
             &payer.pubkey(),
             encode_standing_context(dest, recipient),
-            encode_data(777, 1),
+            encode_linear_data(777, 1),
             encode_u48(100),
             encode_u48(9999999999),
         );
@@ -1182,7 +1202,7 @@ mod quote_fee_standing {
             LOCAL_DOMAIN,
             &payer.pubkey(),
             encode_standing_context(WILDCARD_DOMAIN, recipient),
-            encode_data(333, 1),
+            encode_linear_data(333, 1),
             encode_u48(100),
             encode_u48(9999999999),
         );
@@ -1235,7 +1255,7 @@ mod quote_fee_standing {
             LOCAL_DOMAIN,
             &payer.pubkey(),
             encode_standing_context(dest, recipient),
-            encode_data(333, 1),
+            encode_linear_data(333, 1),
             encode_u48(100),
             encode_u48(9999999999),
         );
@@ -1256,7 +1276,7 @@ mod quote_fee_standing {
             LOCAL_DOMAIN,
             &payer.pubkey(),
             transient_ctx,
-            encode_data(777, 1),
+            encode_linear_data(777, 1),
             encode_u48(100),
         );
 
@@ -1366,7 +1386,7 @@ mod quote_fee_standing {
             LOCAL_DOMAIN,
             &payer.pubkey(),
             encode_standing_context(dest, recipient),
-            encode_data(1, 1), // very cheap
+            encode_linear_data(1, 1), // very cheap
             encode_u48(100),
             encode_u48(9999999999),
         );
@@ -1530,7 +1550,7 @@ mod quote_fee_standing {
             LOCAL_DOMAIN,
             &payer.pubkey(),
             encode_standing_context(WILDCARD_DOMAIN, recipient),
-            encode_data(777, 1),
+            encode_linear_data(777, 1),
             encode_u48(100),
             encode_u48(9999999999),
         );
@@ -1593,7 +1613,7 @@ mod quote_fee_standing {
             LOCAL_DOMAIN,
             &payer.pubkey(),
             encode_standing_context(dest, recipient),
-            encode_data(9999, 5000),
+            encode_linear_data(9999, 5000),
             encode_u48(100),
             encode_u48(5000000000),
         );
@@ -1691,7 +1711,7 @@ mod close_transient_quote {
             LOCAL_DOMAIN,
             &payer.pubkey(),
             encode_context(42, H256::zero(), 1000),
-            encode_data(100, 50),
+            encode_linear_data(100, 50),
             encode_u48(100),
         );
 
@@ -1823,7 +1843,7 @@ mod prune_expired_quotes {
             LOCAL_DOMAIN,
             &payer.pubkey(),
             encode_standing_context(dest, H256::zero()),
-            encode_data(1000, 500),
+            encode_linear_data(1000, 500),
             encode_u48(100),
             encode_u48(9999999999),
         );
@@ -1881,7 +1901,7 @@ mod prune_expired_quotes {
             LOCAL_DOMAIN,
             &payer.pubkey(),
             encode_standing_context(dest, expired_recipient),
-            encode_data(1000, 500),
+            encode_linear_data(1000, 500),
             encode_u48(100),
             encode_u48(50000000000),
         );
@@ -1901,7 +1921,7 @@ mod prune_expired_quotes {
             LOCAL_DOMAIN,
             &payer.pubkey(),
             encode_standing_context(dest, valid_recipient),
-            encode_data(2000, 1000),
+            encode_linear_data(2000, 1000),
             encode_u48(100),
             encode_u48(200000000000),
         );
@@ -1971,7 +1991,7 @@ mod prune_expired_quotes {
             LOCAL_DOMAIN,
             &payer.pubkey(),
             encode_standing_context(dest, H256::zero()),
-            encode_data(1000, 500),
+            encode_linear_data(1000, 500),
             encode_u48(100),
             encode_u48(9999999999),
         );
@@ -2017,7 +2037,7 @@ mod prune_expired_quotes {
             LOCAL_DOMAIN,
             &payer.pubkey(),
             encode_standing_context(dest, stale_recipient),
-            encode_data(1000, 500),
+            encode_linear_data(1000, 500),
             encode_u48(100),
             encode_u48(9999999999),
         );
@@ -2037,7 +2057,7 @@ mod prune_expired_quotes {
             LOCAL_DOMAIN,
             &payer.pubkey(),
             encode_standing_context(dest, fresh_recipient),
-            encode_data(2000, 1000),
+            encode_linear_data(2000, 1000),
             encode_u48(300),
             encode_u48(9999999999),
         );
@@ -2088,7 +2108,7 @@ mod prune_expired_quotes {
             LOCAL_DOMAIN,
             &payer.pubkey(),
             encode_standing_context(dest, H256::zero()),
-            encode_data(1000, 500),
+            encode_linear_data(1000, 500),
             encode_u48(100),
             encode_u48(9999999999),
         );
@@ -2196,7 +2216,7 @@ mod prune_expired_quotes {
 
         // Submit a valid Leaf standing quote first so the domain PDA exists.
         let context = encode_standing_context(42, H256::zero());
-        let data = encode_data(1000, 500);
+        let data = encode_linear_data(1000, 500);
         let quote = make_signed_standing_quote(
             &signing_key,
             &fee_key,

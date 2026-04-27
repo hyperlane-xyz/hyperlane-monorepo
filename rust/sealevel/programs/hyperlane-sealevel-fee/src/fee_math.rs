@@ -85,6 +85,21 @@ impl FeeDataStrategy {
             Self::Linear(p) | Self::Regressive(p) | Self::Progressive(p) => p,
         }
     }
+
+    /// Returns the Borsh-aligned variant tag for this strategy.
+    pub fn variant_tag(&self) -> u8 {
+        match self {
+            Self::Linear(_) => 0,
+            Self::Regressive(_) => 1,
+            Self::Progressive(_) => 2,
+        }
+    }
+
+    /// Returns true if both strategies use the same curve variant,
+    /// regardless of their inner params.
+    pub fn same_variant(&self, other: &Self) -> bool {
+        self.variant_tag() == other.variant_tag()
+    }
 }
 
 /// Linear: fee = min(max_fee, amount * max_fee / (2 * half_amount))

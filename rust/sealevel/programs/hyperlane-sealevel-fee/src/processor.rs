@@ -25,15 +25,15 @@ use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use crate::{
     accounts::{
         CcFeeQuoteContext, CrossCollateralRoute, CrossCollateralRouteAccount, FeeAccount,
-        FeeAccountData, FeeData, FeeQuoteContext, FeeQuoteData, FeeStandingQuotePda,
-        FeeStandingQuotePdaAccount, FeeStandingQuoteValue, QuoteContext, RouteDomain,
-        RouteDomainAccount, StandingQuoteAuthScope, TransientQuote, TransientQuoteAccount,
-        ValidatableQuote, DEFAULT_ROUTER, WILDCARD_DOMAIN,
+        FeeAccountData, FeeData, FeeQuoteContext, FeeStandingQuotePda, FeeStandingQuotePdaAccount,
+        FeeStandingQuoteValue, QuoteContext, RouteDomain, RouteDomainAccount,
+        StandingQuoteAuthScope, TransientQuote, TransientQuoteAccount, ValidatableQuote,
+        DEFAULT_ROUTER, WILDCARD_DOMAIN,
     },
     cc_route_pda_seeds,
     error::Error,
     fee_account_pda_seeds,
-    fee_math::FeeParams,
+    fee_math::{FeeDataStrategy, FeeParams},
     fee_standing_quote_pda_seeds,
     instruction::{
         GetQuoteAccountMetas, GetSubmitQuoteAccountMetas, InitFee, Instruction, QuoteFee,
@@ -425,15 +425,12 @@ fn try_consume_transient_quote<C: crate::accounts::QuoteContext>(
     let ctx = C::try_from_bytes(&transient.context).map_err(|_| Error::TransientContextMismatch)?;
     ctx.validate(quote_fee_data)?;
 
-    // Parse quote data and compute fee using on-chain curve with quoted params.
-    let quote_data = FeeQuoteData::try_from(transient.data.as_slice())
+    // Parse quoted strategy and verify curve variant matches on-chain.
+    let quoted_strategy = FeeDataStrategy::try_from(transient.data.as_slice())
         .map_err(|_| Error::InvalidTransientData)?;
-
-    let mut quoted_strategy = strategy.clone();
-    *quoted_strategy.params_mut() = FeeParams {
-        max_fee: quote_data.max_fee,
-        half_amount: quote_data.half_amount,
-    };
+    if !quoted_strategy.same_variant(strategy) {
+        return Err(Error::CurveVariantMismatch.into());
+    }
     let fee = quoted_strategy.compute_fee(quote_fee_data.amount)?;
 
     // Transient PDA must be writable for autoclose.
@@ -506,14 +503,11 @@ fn try_resolve_standing_quote(
                 continue;
             }
 
-            // Compute fee using on-chain curve with standing quote params.
-            let mut quoted_strategy = strategy.clone();
-            *quoted_strategy.params_mut() = FeeParams {
-                max_fee: value.max_fee,
-                half_amount: value.half_amount,
-            };
-
-            let fee = quoted_strategy.compute_fee(quote_fee_data.amount)?;
+            // Verify curve variant matches on-chain, then compute fee.
+            if !value.fee_data.same_variant(strategy) {
+                continue;
+            }
+            let fee = value.fee_data.compute_fee(quote_fee_data.amount)?;
             return Ok(Some(fee));
         }
     }
@@ -1010,19 +1004,13 @@ fn process_set_wildcard_quote_signers(
 
 /// Submit a signed offchain quote. Creates a transient or standing quote PDA.
 ///
-/// Transient (expiry == issued_at):
-/// 0. `[executable]` System program.
-/// 1. `[signer, writable]` Payer (bound to scoped_salt).
-/// 2. `[]` Fee account.
-/// 3..N. `[]` Route PDAs (signer lookup).
-/// N+1. `[writable]` Transient quote PDA.
+/// Transient accounts (expiry == issued_at):
+/// `[0]` System program, `[1]` Payer (signer), `[2]` Fee account,
+/// `[3..N]` Route PDAs, `[N+1]` Transient quote PDA (writable).
 ///
-/// Standing (expiry > issued_at):
-/// 0. `[executable]` System program.
-/// 1. `[signer, writable]` Payer.
-/// 2. `[]` Fee account.
-/// 3..N. `[]` Route PDAs (signer lookup).
-/// N+1. `[writable]` Standing quote PDA.
+/// Standing accounts (expiry > issued_at):
+/// `[0]` System program, `[1]` Payer (signer), `[2]` Fee account,
+/// `[3..N]` Route PDAs, `[N+1]` Standing quote PDA (writable).
 fn process_submit_quote(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -1305,8 +1293,8 @@ fn process_submit_quote(
             return Err(Error::FullyWildcardedStandingQuote.into());
         }
 
-        // Parse quote data.
-        let quote_data = FeeQuoteData::try_from(quote.data.as_slice())
+        // Parse quoted fee strategy (curve variant + params).
+        let quoted_fee_data = FeeDataStrategy::try_from(quote.data.as_slice())
             .map_err(|_| Error::InvalidStandingQuoteData)?;
 
         // Account 3: Domain standing quote PDA.
@@ -1345,8 +1333,7 @@ fn process_submit_quote(
         let new_value = FeeStandingQuoteValue {
             issued_at: issued_at_ts,
             expiry: expiry_ts,
-            max_fee: quote_data.max_fee,
-            half_amount: quote_data.half_amount,
+            fee_data: quoted_fee_data,
             auth_scope: resolved_auth_scope,
         };
 

@@ -65,7 +65,7 @@ async fn test_cc_standing_creates_route_bound_pda() {
         .unwrap();
 
     let context = encode_cc_standing_context(dest, recipient, target_router);
-    let data = encode_data(2000, 1000);
+    let data = encode_linear_data(2000, 1000);
     let quote = make_signed_standing_quote(
         &signing_key,
         &fee_key,
@@ -95,7 +95,16 @@ async fn test_cc_standing_creates_route_bound_pda() {
     let cc_pda = cc_standing_quote_pda_for(&fee_key, dest, &target_router);
     let standing = fetch_standing_pda(&mut banks_client, cc_pda).await;
     assert_eq!(standing.quotes.len(), 1);
-    assert_eq!(standing.quotes.get(&recipient).unwrap().max_fee, 2000);
+    assert_eq!(
+        standing
+            .quotes
+            .get(&recipient)
+            .unwrap()
+            .fee_data
+            .params()
+            .max_fee,
+        2000
+    );
 }
 
 #[tokio::test]
@@ -174,7 +183,7 @@ async fn test_two_routers_get_separate_pdas() {
         LOCAL_DOMAIN,
         &payer.pubkey(),
         ctx_a,
-        encode_data(1000, 500),
+        encode_linear_data(1000, 500),
         encode_u48(100),
         encode_u48(9999999999),
     );
@@ -200,7 +209,7 @@ async fn test_two_routers_get_separate_pdas() {
         LOCAL_DOMAIN,
         &payer.pubkey(),
         ctx_b,
-        encode_data(5000, 2500),
+        encode_linear_data(5000, 2500),
         encode_u48(100),
         encode_u48(9999999999),
     );
@@ -224,8 +233,26 @@ async fn test_two_routers_get_separate_pdas() {
 
     let standing_a = fetch_standing_pda(&mut banks_client, pda_a).await;
     let standing_b = fetch_standing_pda(&mut banks_client, pda_b).await;
-    assert_eq!(standing_a.quotes.get(&recipient).unwrap().max_fee, 1000);
-    assert_eq!(standing_b.quotes.get(&recipient).unwrap().max_fee, 5000);
+    assert_eq!(
+        standing_a
+            .quotes
+            .get(&recipient)
+            .unwrap()
+            .fee_data
+            .params()
+            .max_fee,
+        1000
+    );
+    assert_eq!(
+        standing_b
+            .quotes
+            .get(&recipient)
+            .unwrap()
+            .fee_data
+            .params()
+            .max_fee,
+        5000
+    );
 }
 
 #[tokio::test]
@@ -275,7 +302,7 @@ async fn test_cc_standing_zero_target_router_rejected() {
 
     // Submit with target_router = H256::zero() → should be rejected.
     let context = encode_cc_standing_context(42, H256::zero(), H256::zero());
-    let data = encode_data(1000, 500);
+    let data = encode_linear_data(1000, 500);
     let quote = make_signed_standing_quote(
         &signing_key,
         &fee_key,
@@ -358,7 +385,7 @@ async fn test_cc_standing_default_router_rejected() {
         H256::zero(),
         hyperlane_sealevel_fee::accounts::DEFAULT_ROUTER,
     );
-    let data = encode_data(1000, 500);
+    let data = encode_linear_data(1000, 500);
     let quote = make_signed_standing_quote(
         &signing_key,
         &fee_key,
@@ -469,7 +496,7 @@ async fn test_cc_submit_spoofed_specific_route_pda_rejected() {
         LOCAL_DOMAIN,
         &payer.pubkey(),
         encode_cc_standing_context(dest, recipient, target_router),
-        encode_data(777, 1),
+        encode_linear_data(777, 1),
         encode_u48(100),
         encode_u48(9999999999),
     );
@@ -575,7 +602,7 @@ async fn test_cc_submit_spoofed_default_route_pda_rejected() {
         LOCAL_DOMAIN,
         &payer.pubkey(),
         encode_cc_standing_context(dest, recipient, target_router),
-        encode_data(777, 1),
+        encode_linear_data(777, 1),
         encode_u48(100),
         encode_u48(9999999999),
     );
@@ -670,7 +697,7 @@ async fn test_cc_exact_does_not_fallback_to_default_when_specific_exists_without
         LOCAL_DOMAIN,
         &payer.pubkey(),
         encode_cc_standing_context(dest, H256::random(), target_router),
-        encode_data(777, 1),
+        encode_linear_data(777, 1),
         encode_u48(100),
         encode_u48(9999999999),
     );
@@ -761,7 +788,7 @@ async fn test_cc_default_authorized_standing_quote_invalidated_by_later_specific
         LOCAL_DOMAIN,
         &payer.pubkey(),
         encode_cc_standing_context(dest, recipient, target_router),
-        encode_data(777, 1),
+        encode_linear_data(777, 1),
         encode_u48(100),
         encode_u48(9999999999),
     );
@@ -889,7 +916,7 @@ async fn test_cc_wildcard_submit_with_extra_route_pda_rejected() {
         LOCAL_DOMAIN,
         &payer.pubkey(),
         encode_cc_standing_context(WILDCARD_DOMAIN, H256::random(), target_router),
-        encode_data(777, 1),
+        encode_linear_data(777, 1),
         encode_u48(100),
         encode_u48(9999999999),
     );
@@ -992,7 +1019,7 @@ async fn test_cc_prune_does_not_remove_domain_from_tracking() {
         LOCAL_DOMAIN,
         &payer.pubkey(),
         ctx_a,
-        encode_data(1000, 500),
+        encode_linear_data(1000, 500),
         encode_u48(100),
         encode_u48(9999999999),
     );
@@ -1015,7 +1042,7 @@ async fn test_cc_prune_does_not_remove_domain_from_tracking() {
         LOCAL_DOMAIN,
         &payer.pubkey(),
         ctx_b,
-        encode_data(2000, 1000),
+        encode_linear_data(2000, 1000),
         encode_u48(100),
         encode_u48(9999999999),
     );
@@ -1116,9 +1143,12 @@ async fn test_cc_standing_quote_consumed_in_quote_fee() {
         .await
         .unwrap();
 
-    // Submit CC standing quote: max_fee=888, half_amount=1.
+    // Submit CC standing quote: Progressive max_fee=888, half_amount=1.
     let context = encode_cc_standing_context(dest, recipient, target_router);
-    let data = encode_data(888, 1);
+    let data = encode_data(&FeeDataStrategy::Progressive(FeeParams {
+        max_fee: 888,
+        half_amount: 1,
+    }));
     let quote = make_signed_standing_quote(
         &signing_key,
         &fee_key,
@@ -1232,7 +1262,7 @@ async fn test_cc_quote_fee_uses_router_bound_standing_pda() {
         LOCAL_DOMAIN,
         &payer.pubkey(),
         encode_cc_standing_context(dest, recipient, router_a),
-        encode_data(777, 1),
+        encode_linear_data(777, 1),
         encode_u48(100),
         encode_u48(9999999999),
     );
@@ -1257,7 +1287,7 @@ async fn test_cc_quote_fee_uses_router_bound_standing_pda() {
         LOCAL_DOMAIN,
         &payer.pubkey(),
         encode_cc_standing_context(dest, recipient, router_b),
-        encode_data(333, 1),
+        encode_linear_data(333, 1),
         encode_u48(100),
         encode_u48(9999999999),
     );
@@ -1350,7 +1380,7 @@ async fn test_cc_quote_fee_wildcard_domain_fallback_is_router_scoped() {
         LOCAL_DOMAIN,
         &payer.pubkey(),
         encode_cc_standing_context(WILDCARD_DOMAIN, recipient, router_a),
-        encode_data(555, 1),
+        encode_linear_data(555, 1),
         encode_u48(100),
         encode_u48(9999999999),
     );
@@ -1447,7 +1477,7 @@ async fn test_cc_quote_fee_exact_recipient_beats_wildcard_recipient() {
         LOCAL_DOMAIN,
         &payer.pubkey(),
         encode_cc_standing_context(dest, exact_recipient, target_router),
-        encode_data(888, 1),
+        encode_linear_data(888, 1),
         encode_u48(100),
         encode_u48(9999999999),
     );
@@ -1472,7 +1502,7 @@ async fn test_cc_quote_fee_exact_recipient_beats_wildcard_recipient() {
         LOCAL_DOMAIN,
         &payer.pubkey(),
         encode_cc_standing_context(dest, WILDCARD_RECIPIENT, target_router),
-        encode_data(444, 1),
+        encode_linear_data(444, 1),
         encode_u48(100),
         encode_u48(9999999999),
     );
@@ -1586,7 +1616,7 @@ async fn test_cc_prune_one_router_preserves_other_router_quote() {
         LOCAL_DOMAIN,
         &payer.pubkey(),
         encode_cc_standing_context(dest, recipient, router_a),
-        encode_data(777, 1),
+        encode_linear_data(777, 1),
         encode_u48(100),
         encode_u48(5000000000),
     );
@@ -1609,7 +1639,7 @@ async fn test_cc_prune_one_router_preserves_other_router_quote() {
         LOCAL_DOMAIN,
         &payer.pubkey(),
         encode_cc_standing_context(dest, recipient, router_b),
-        encode_data(333, 1),
+        encode_linear_data(333, 1),
         encode_u48(100),
         encode_u48(9999999999),
     );
@@ -1658,7 +1688,16 @@ async fn test_cc_prune_one_router_preserves_other_router_quote() {
     let pda_b = cc_standing_quote_pda_for(&fee_key, dest, &router_b);
     let standing_b = fetch_standing_pda(banks_client, pda_b).await;
     assert_eq!(standing_b.quotes.len(), 1);
-    assert_eq!(standing_b.quotes.get(&recipient).unwrap().max_fee, 333);
+    assert_eq!(
+        standing_b
+            .quotes
+            .get(&recipient)
+            .unwrap()
+            .fee_data
+            .params()
+            .max_fee,
+        333
+    );
 
     // QuoteFee for router_b still returns standing fee: min(333, 100*333/2) = 333.
     let ix = build_quote_fee_cc_ix(
@@ -1716,7 +1755,7 @@ async fn test_transient_pda_spoof_rejected() {
     let recipient = H256::zero();
     let amount = 100u64;
     let context = encode_context(dest, recipient, amount);
-    let data = encode_data(5000, 1);
+    let data = encode_linear_data(5000, 1);
     let issued_at = encode_u48(100);
 
     let quote = make_signed_transient_quote(
@@ -1821,7 +1860,7 @@ async fn test_standing_pda_recreated_after_prune() {
         LOCAL_DOMAIN,
         &payer.pubkey(),
         encode_standing_context(dest, recipient),
-        encode_data(1000, 500),
+        encode_linear_data(1000, 500),
         encode_u48(100),
         encode_u48(5000000000),
     );
@@ -1856,7 +1895,7 @@ async fn test_standing_pda_recreated_after_prune() {
         LOCAL_DOMAIN,
         &payer.pubkey(),
         encode_standing_context(dest, recipient),
-        encode_data(2000, 1000),
+        encode_linear_data(2000, 1000),
         encode_u48(5500000000),
         encode_u48(9999999999),
     );
@@ -1866,7 +1905,16 @@ async fn test_standing_pda_recreated_after_prune() {
     // PDA recreated with new params.
     let standing = fetch_standing_pda(banks_client, pda_key).await;
     assert_eq!(standing.quotes.len(), 1);
-    assert_eq!(standing.quotes.get(&recipient).unwrap().max_fee, 2000);
+    assert_eq!(
+        standing
+            .quotes
+            .get(&recipient)
+            .unwrap()
+            .fee_data
+            .params()
+            .max_fee,
+        2000
+    );
 }
 
 #[tokio::test]
