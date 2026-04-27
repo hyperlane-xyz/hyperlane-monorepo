@@ -2,6 +2,8 @@
 minimumReleaseAge: 10080
 minimumReleaseAgeExclude:
   - '@hyperlane-xyz/*'
+  - '@prisma/*'
+  - 'prisma'
 
 packages:
   - 'solhint-plugin'
