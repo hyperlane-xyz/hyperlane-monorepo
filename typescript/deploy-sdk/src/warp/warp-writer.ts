@@ -63,10 +63,16 @@ export function createWarpTokenWriter(
   chainMetadata: ChainMetadataForAltVM,
   chainLookup: ChainLookup,
   signer: ISigner<AnnotatedTx, TxReceipt>,
+  context?: {
+    mailbox?: string;
+    syntheticFactoryProgramId?: string;
+    collateralFactoryProgramId?: string;
+    nativeFactoryProgramId?: string;
+  },
 ): WarpTokenWriter {
   const protocolProvider = getProtocolProvider(chainMetadata.protocol);
   const artifactManager: IRawWarpArtifactManager =
-    protocolProvider.createWarpArtifactManager(chainMetadata);
+    protocolProvider.createWarpArtifactManager(chainMetadata, context);
 
   return new WarpTokenWriter(
     artifactManager,

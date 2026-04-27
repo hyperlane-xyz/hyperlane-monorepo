@@ -71,10 +71,19 @@ export class SvmProtocolProvider implements ProtocolProvider {
 
   createWarpArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
-    _context?: { mailbox?: string },
+    context?: {
+      mailbox?: string;
+      syntheticFactoryProgramId?: string;
+      collateralFactoryProgramId?: string;
+      nativeFactoryProgramId?: string;
+    },
   ): IRawWarpArtifactManager {
     const rpc = createRpc(this.getRpcUrls(chainMetadata)[0]);
-    return new SvmWarpArtifactManager(rpc);
+    return new SvmWarpArtifactManager(rpc, undefined, {
+      syntheticFactoryProgramId: context?.syntheticFactoryProgramId,
+      collateralFactoryProgramId: context?.collateralFactoryProgramId,
+      nativeFactoryProgramId: context?.nativeFactoryProgramId,
+    });
   }
 
   createMailboxArtifactManager(

@@ -290,10 +290,18 @@ export async function executeWarpDeploy(
           const config = mustGet(protocolSpecificConfig, chain);
           const signer = mustGet(altVmSigners, chain);
           const chainMetadata = chainLookup.getChainMetadata(chain);
+          const chainAddresses = registryAddresses[chain] ?? {};
           const writer = createWarpTokenWriter(
             chainMetadata,
             chainLookup,
             signer,
+            {
+              syntheticFactoryProgramId:
+                chainAddresses['syntheticFactoryProgramId'],
+              collateralFactoryProgramId:
+                chainAddresses['collateralFactoryProgramId'],
+              nativeFactoryProgramId: chainAddresses['nativeFactoryProgramId'],
+            },
           );
 
           const artifact = warpConfigToArtifact(
@@ -680,11 +688,20 @@ export async function enrollCrossChainRouters(
           const signer = mustGet(altVmSigners, currentChain);
           const chainLookup = altVmChainLookup(multiProvider);
           const chainMetadata = chainLookup.getChainMetadata(currentChain);
+          const currentChainAddresses = registryAddresses[currentChain] ?? {};
 
           const writer = createWarpTokenWriter(
             chainMetadata,
             chainLookup,
             signer,
+            {
+              syntheticFactoryProgramId:
+                currentChainAddresses['syntheticFactoryProgramId'],
+              collateralFactoryProgramId:
+                currentChainAddresses['collateralFactoryProgramId'],
+              nativeFactoryProgramId:
+                currentChainAddresses['nativeFactoryProgramId'],
+            },
           );
 
           const expectedConfig: WarpRouteDeployConfigMailboxRequired[string] = {
