@@ -464,14 +464,6 @@ fn try_resolve_standing_quote(
 ) -> Result<Option<u64>, ProgramError> {
     use crate::accounts::WILDCARD_RECIPIENT;
 
-    // Uninitialized PDA → no standing quotes for this domain.
-    if standing_pda_info.owner == &system_program::ID && standing_pda_info.data_is_empty() {
-        return Ok(None);
-    }
-    if standing_pda_info.owner != program_id {
-        return Err(ProgramError::IncorrectProgramId);
-    }
-
     // Re-derive PDA to prevent spoofing from a different fee account or domain.
     let domain_le = domain.to_le_bytes();
     let (expected_key, _) = Pubkey::find_program_address(
@@ -480,6 +472,15 @@ fn try_resolve_standing_quote(
     );
     if *standing_pda_info.key != expected_key {
         return Err(ProgramError::InvalidArgument);
+    }
+
+    // Uninitialized PDA → no standing quotes for this domain.
+    if standing_pda_info.owner == &system_program::ID && standing_pda_info.data_is_empty() {
+        return Ok(None);
+    }
+
+    if standing_pda_info.owner != program_id {
+        return Err(ProgramError::IncorrectProgramId);
     }
 
     let standing = FeeStandingQuotePdaAccount::fetch(&mut &standing_pda_info.data.borrow()[..])?
