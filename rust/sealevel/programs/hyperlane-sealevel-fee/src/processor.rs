@@ -1099,10 +1099,6 @@ fn process_submit_quote(
             } else {
                 // Exact domain: auth from RouteDomain PDA.
                 let route_pda_info = next_account_info(accounts_iter)?;
-                if route_pda_info.owner != program_id {
-                    return Err(ProgramError::IncorrectProgramId);
-                }
-
                 let domain_le = ctx.destination_domain.to_le_bytes();
                 let (expected_key, _) = Pubkey::find_program_address(
                     route_domain_pda_seeds!(fee_account_info.key, &domain_le),
@@ -1110,6 +1106,9 @@ fn process_submit_quote(
                 );
                 if *route_pda_info.key != expected_key {
                     return Err(ProgramError::InvalidArgument);
+                }
+                if route_pda_info.owner != program_id {
+                    return Err(ProgramError::IncorrectProgramId);
                 }
 
                 let route = RouteDomainAccount::fetch(&mut &route_pda_info.data.borrow()[..])?
@@ -1413,6 +1412,15 @@ fn process_close_transient_quote(program_id: &Pubkey, accounts: &[AccountInfo]) 
         .into_inner()
         .data;
 
+    // Re-derive PDA to verify key before trusting deserialized fields.
+    let (expected_key, _) = Pubkey::find_program_address(
+        transient_quote_pda_seeds!(fee_account_info.key, transient.scoped_salt),
+        program_id,
+    );
+    if *transient_pda_info.key != expected_key {
+        return Err(Error::TransientPdaMismatch.into());
+    }
+
     // Account 2: Payer refund (must be signer and match stored payer).
     let payer_refund_info = next_account_info(accounts_iter)?;
     if !payer_refund_info.is_signer {
@@ -1420,15 +1428,6 @@ fn process_close_transient_quote(program_id: &Pubkey, accounts: &[AccountInfo]) 
     }
     if *payer_refund_info.key != transient.payer {
         return Err(Error::TransientPayerMismatch.into());
-    }
-
-    // Re-derive PDA to verify key.
-    let (expected_key, _) = Pubkey::find_program_address(
-        transient_quote_pda_seeds!(fee_account_info.key, transient.scoped_salt),
-        program_id,
-    );
-    if *transient_pda_info.key != expected_key {
-        return Err(Error::TransientPdaMismatch.into());
     }
 
     ensure_no_extraneous_accounts(accounts_iter)?;
