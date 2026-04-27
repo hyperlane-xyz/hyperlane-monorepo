@@ -1009,13 +1009,20 @@ fn process_set_wildcard_quote_signers(
 }
 
 /// Submit a signed offchain quote. Creates a transient or standing quote PDA.
-/// For now, only transient quotes are implemented.
 ///
-/// Transient quote accounts:
+/// Transient (expiry == issued_at):
 /// 0. `[executable]` System program.
 /// 1. `[signer, writable]` Payer (bound to scoped_salt).
 /// 2. `[]` Fee account.
-/// 3. `[writable]` Transient quote PDA.
+/// 3..N. `[]` Route PDAs (signer lookup).
+/// N+1. `[writable]` Transient quote PDA.
+///
+/// Standing (expiry > issued_at):
+/// 0. `[executable]` System program.
+/// 1. `[signer, writable]` Payer.
+/// 2. `[]` Fee account.
+/// 3..N. `[]` Route PDAs (signer lookup).
+/// N+1. `[writable]` Standing quote PDA.
 fn process_submit_quote(
     program_id: &Pubkey,
     accounts: &[AccountInfo],

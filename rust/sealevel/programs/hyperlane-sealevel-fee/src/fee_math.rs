@@ -10,7 +10,8 @@ use crate::error::Error;
 /// Parameters for fee curve computation.
 #[derive(BorshDeserialize, BorshSerialize, Clone, Debug, Default, PartialEq)]
 pub struct FeeParams {
-    /// Maximum fee that can be charged, in local token units.
+    /// Fee ceiling in local token units. Hard cap for Linear (clamped via min()),
+    /// asymptotic upper bound for Regressive/Progressive (approached but never reached).
     pub max_fee: u64,
     /// The transfer amount at which fee reaches half of max_fee.
     pub half_amount: u64,
