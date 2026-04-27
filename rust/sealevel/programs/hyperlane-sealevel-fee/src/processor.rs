@@ -1525,9 +1525,9 @@ fn process_prune_expired_quotes(
         .data;
 
     let clock = Clock::get()?;
-    standing
-        .quotes
-        .retain(|_, value| clock.unix_timestamp <= value.expiry);
+    standing.quotes.retain(|_, value| {
+        clock.unix_timestamp <= value.expiry && value.issued_at >= fee_account.min_issued_at
+    });
 
     if standing.quotes.is_empty() {
         // Close the PDA.

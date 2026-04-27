@@ -2004,6 +2004,90 @@ mod prune_expired_quotes {
     }
 
     #[tokio::test]
+    async fn test_prune_removes_quotes_below_min_issued_at() {
+        let program_id = fee_program_id();
+        let program_test = ProgramTest::new(
+            "hyperlane_sealevel_fee",
+            program_id,
+            processor!(fee_process_instruction),
+        );
+        let mut ctx = program_test.start_with_context().await;
+        let payer = ctx.payer.insecure_clone();
+        let banks_client = &mut ctx.banks_client;
+
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let fee_key = setup_fee_with_signer(banks_client, &payer, &signing_key).await;
+
+        let dest = 42u32;
+        let stale_recipient = H256::random();
+        let fresh_recipient = H256::random();
+
+        // Submit quote with issued_at=100 (will be below min_issued_at).
+        let q1 = make_signed_standing_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            encode_standing_context(dest, stale_recipient),
+            encode_data(1000, 500),
+            encode_u48(100),
+            encode_u48(9999999999),
+        );
+        process_tx(
+            banks_client,
+            &payer,
+            build_submit_standing_ix(&fee_key, &payer.pubkey(), &q1, dest),
+            &[],
+        )
+        .await
+        .unwrap();
+
+        // Submit quote with issued_at=300 (will be above min_issued_at).
+        let q2 = make_signed_standing_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            encode_standing_context(dest, fresh_recipient),
+            encode_data(2000, 1000),
+            encode_u48(300),
+            encode_u48(9999999999),
+        );
+        process_tx(
+            banks_client,
+            &payer,
+            build_submit_standing_ix(&fee_key, &payer.pubkey(), &q2, dest),
+            &[],
+        )
+        .await
+        .unwrap();
+
+        // Warp clock so min_issued_at=200 can be set.
+        let mut clock = banks_client
+            .get_sysvar::<solana_program::clock::Clock>()
+            .await
+            .unwrap();
+        clock.unix_timestamp = 400;
+        ctx.set_sysvar(&clock);
+        let banks_client = &mut ctx.banks_client;
+
+        // Set min_issued_at=200.
+        let ix = build_set_min_issued_at_ix(&fee_key, &payer.pubkey(), 200);
+        process_tx(banks_client, &payer, ix, &[]).await.unwrap();
+
+        // Prune — only the stale entry (issued_at=100) should be removed.
+        let ix = build_prune_ix(&fee_key, &payer.pubkey(), dest);
+        process_tx(banks_client, &payer, ix, &[]).await.unwrap();
+
+        // PDA should still exist with only the fresh entry.
+        let domain_pda = standing_quote_pda_for(&fee_key, dest);
+        let standing = fetch_standing_pda(banks_client, domain_pda).await;
+        assert_eq!(standing.quotes.len(), 1);
+        assert!(!standing.quotes.contains_key(&stale_recipient));
+        assert!(standing.quotes.contains_key(&fresh_recipient));
+    }
+
+    #[tokio::test]
     async fn test_extraneous_account_rejected() {
         let (mut banks_client, payer) = setup_client().await;
         let signing_key = SigningKey::random(&mut rand::thread_rng());
