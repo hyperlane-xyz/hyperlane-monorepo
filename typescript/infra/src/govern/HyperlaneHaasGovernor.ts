@@ -19,18 +19,17 @@ import {
 
 import { chainsToSkip } from '../config/chain.js';
 
-import {
-  AnnotatedCallData,
-  HyperlaneAppGovernor,
-} from './HyperlaneAppGovernor.js';
+import { HyperlaneAppGovernor } from './HyperlaneAppGovernor.js';
 import { HyperlaneCoreGovernor } from './HyperlaneCoreGovernor.js';
 import { HyperlaneICAChecker } from './HyperlaneICAChecker.js';
 import { ProxiedRouterGovernor } from './ProxiedRouterGovernor.js';
+import { AnnotatedCallData } from './types.js';
 
 export class HyperlaneHaasGovernor extends HyperlaneAppGovernor<
   HyperlaneCore,
   CoreConfig
 > {
+  static readonly CHAIN_CHECK_CONCURRENCY = 10;
   protected readonly icaGovernor: ProxiedRouterGovernor<any, any>;
   protected readonly coreGovernor: HyperlaneCoreGovernor;
 
@@ -109,22 +108,33 @@ export class HyperlaneHaasGovernor extends HyperlaneAppGovernor<
         chalk.yellow('Skipping chains:', chainsToSkip.join(', ')),
       );
     }
+    const evmChainsToCheck = chains.filter(
+      (chain) =>
+        isEVMLike(
+          this.coreChecker.multiProvider.getChainMetadata(chain).protocol,
+        ) && !chainsToSkip.includes(chain),
+    );
+
+    let nextChainIndex = 0;
+    const workerCount = Math.min(
+      HyperlaneHaasGovernor.CHAIN_CHECK_CONCURRENCY,
+      evmChainsToCheck.length,
+    );
+
     await Promise.allSettled(
-      chains
-        .filter(
-          (chain) =>
-            isEVMLike(
-              this.coreChecker.multiProvider.getChainMetadata(chain).protocol,
-            ) && !chainsToSkip.includes(chain),
-        )
-        .map(async (chain) => {
+      Array.from({ length: workerCount }, async () => {
+        while (nextChainIndex < evmChainsToCheck.length) {
+          const chain = evmChainsToCheck[nextChainIndex];
+          nextChainIndex += 1;
+
           try {
             await this.checkChain(chain);
           } catch (err) {
             rootLogger.error(chalk.red(`Failed to check chain ${chain}:`, err));
             failedChains.push(chain);
           }
-        }),
+        }
+      }),
     );
 
     if (failedChains.length > 0) {

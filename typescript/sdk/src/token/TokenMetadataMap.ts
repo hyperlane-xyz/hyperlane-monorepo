@@ -62,15 +62,17 @@ export class TokenMetadataMap {
     throw new Error('No symbol found in token metadata map.');
   }
 
-  finalize(): void {
+  finalize(validateScale = true): void {
     assert(
       [...this.tokenMetadataMap.values()].every((config) => !!config.decimals),
       'All decimals must be defined',
     );
 
-    assert(
-      verifyScale(this.tokenMetadataMap),
-      `Found invalid or missing scale for inconsistent decimals`,
-    );
+    if (validateScale) {
+      assert(
+        verifyScale(this.tokenMetadataMap),
+        `Found invalid or missing scale for inconsistent decimals`,
+      );
+    }
   }
 }

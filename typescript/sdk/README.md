@@ -20,7 +20,7 @@ Note, this package uses [ESM Modules](https://gist.github.com/sindresorhus/a3978
 
 The SDK includes various classes for building, deploying, and testing multi-chain applications. Different abstractions serve different use cases. A few common utilities include:
 
-- `MultiProvider` / `MultiProtocolProvider`: A utility for managing chain metadata, and RPC providers.
+- `MinimalProviderRegistry` / `MultiProviderAdapter` / `MultiProtocolProvider`: provider layers for metadata + providers, `MultiProvider` compatibility, and default multi-VM builder wiring.
 - `HyperlaneApp` / `MultiProtocolApp`: A base to extend for a multi-chain app.
 - `HyperlaneCore` / `MultiProtocolCore`: A class for common interactions with Hyperlane core deployments.
 - `HyperlaneDeployer`: The base class for executing multi-chain contract deployments.

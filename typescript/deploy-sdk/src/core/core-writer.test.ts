@@ -4,6 +4,7 @@ import sinon from 'sinon';
 import {
   ChainMetadataForAltVM,
   MockSigner,
+  ProtocolType,
   hasProtocol,
   registerProtocol,
 } from '@hyperlane-xyz/provider-sdk';
@@ -33,10 +34,7 @@ import {
   MailboxOnChain,
 } from '@hyperlane-xyz/provider-sdk/mailbox';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
-import {
-  ProtocolProvider,
-  ProtocolType,
-} from '@hyperlane-xyz/provider-sdk/protocol';
+import { ProtocolProvider } from '@hyperlane-xyz/provider-sdk/protocol';
 import {
   DeployedValidatorAnnounceArtifact,
   IRawValidatorAnnounceArtifactManager,
@@ -152,6 +150,7 @@ describe('CoreWriter', () => {
       createHookArtifactManager: sinon.stub().returns(mockHookArtifactManager),
       createMailboxArtifactManager: sinon.stub(),
       createValidatorAnnounceArtifactManager: sinon.stub(),
+      createFeeArtifactManager: sinon.stub(),
       getMinGas: sinon.stub(),
       createWarpArtifactManager: sinon.stub(),
     } satisfies ProtocolProvider;
@@ -571,14 +570,6 @@ describe('CoreWriter', () => {
         signer,
       );
 
-      const placeholderTx: AnnotatedTx = {
-        to: '0xhookfactory',
-        data: '0xnoop',
-      };
-
-      const createNoopHookTxStub = sinon
-        .stub(signer, 'getCreateNoopHookTransaction')
-        .resolves(placeholderTx);
       const artifact: ArtifactNew<MailboxArtifactConfig> = {
         artifactState: ArtifactState.NEW,
         config: {
@@ -632,7 +623,6 @@ describe('CoreWriter', () => {
       expect(initialConfig.requiredHook.deployed.address).to.equal(
         ZERO_ADDRESS_HEX_32,
       );
-      sinon.assert.notCalled(createNoopHookTxStub);
       sinon.assert.notCalled(sendAndConfirmTxStub);
     });
 

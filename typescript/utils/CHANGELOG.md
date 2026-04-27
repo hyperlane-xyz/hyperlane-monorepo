@@ -1,5 +1,33 @@
 # @hyperlane-xyz/utils
 
+## 33.0.2
+
+### Patch Changes
+
+- 1f918d0: Added `@hyperlane-xyz/sdk` subpath exports for `core`, `hook`, and `ism` modules. Hardened `@hyperlane-xyz/utils` pretty-mode logging with a graceful fallback when `pino-pretty` is not installed.
+
+## 33.0.1
+
+## 33.0.0
+
+## 32.0.1
+
+## 32.0.0
+
+## 31.2.1
+
+## 31.2.0
+
+## 31.1.0
+
+## 31.0.1
+
+### Patch Changes
+
+- d5168fc: Fixed `parseMessage` crash in browser environments by using `readUInt8` instead of the Node.js 16+ `readUint8` alias, which is missing from common Buffer polyfills.
+
+## 31.0.0
+
 ## 30.1.1
 
 ## 30.1.0

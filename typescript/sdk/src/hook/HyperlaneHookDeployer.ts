@@ -23,6 +23,7 @@ import {
 import { HyperlaneContracts } from '../contracts/types.js';
 import { CoreAddresses } from '../core/contracts.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
+import { submitBatched } from '../deploy/utils.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { HyperlaneIgpDeployer } from '../gas/HyperlaneIgpDeployer.js';
 import { IgpFactories } from '../gas/contracts.js';
@@ -36,7 +37,6 @@ import {
   AggregationHookConfig,
   AmountRoutingHookConfig,
   CCIPHookConfig,
-  DeployableHookType,
   DomainRoutingHookConfig,
   FallbackRoutingHookConfig,
   HookConfig,
@@ -199,6 +199,11 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
         continue;
       }
 
+      if (hookConfig.type === HookType.PREDICATE) {
+        throw new Error(
+          'Predicate hooks cannot be deployed via HyperlaneHookDeployer, they must be pre-deployed',
+        );
+      }
       const subhooks = await this.deployContracts(
         chain,
         hookConfig,
@@ -208,8 +213,9 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
         hookConfig.type !== HookType.UNKNOWN,
         `Cannot deploy unknown hook type in aggregation`,
       );
-      const hookType = hookConfig.type as DeployableHookType;
-      aggregatedHooks.push(subhooks[hookType].address);
+      aggregatedHooks.push(
+        subhooks[hookConfig.type as keyof HookFactories].address,
+      );
       hooks = { ...hooks, ...subhooks };
     }
 
@@ -334,6 +340,11 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
         if (typeof config.fallback === 'string') {
           fallbackAddress = config.fallback;
         } else {
+          if (config.fallback.type === HookType.PREDICATE) {
+            throw new Error(
+              'Predicate hooks cannot be deployed via HyperlaneHookDeployer, they must be pre-deployed',
+            );
+          }
           const fallbackHook = await this.deployContracts(
             chain,
             config.fallback,
@@ -343,8 +354,8 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
             config.fallback.type !== HookType.UNKNOWN,
             `Cannot deploy unknown hook type as fallback`,
           );
-          const fallbackType = config.fallback.type as DeployableHookType;
-          fallbackAddress = fallbackHook[fallbackType].address;
+          fallbackAddress =
+            fallbackHook[config.fallback.type as keyof HookFactories].address;
         }
         routingHook = await this.deployContract(
           chain,
@@ -381,6 +392,11 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
         prevHookConfig = hookConfig;
         prevHookAddress = hookConfig;
       } else {
+        if (hookConfig.type === HookType.PREDICATE) {
+          throw new Error(
+            'Predicate hooks cannot be deployed via HyperlaneHookDeployer, they must be pre-deployed',
+          );
+        }
         const hook = await this.deployContracts(
           chain,
           hookConfig,
@@ -390,34 +406,32 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
           hookConfig.type !== HookType.UNKNOWN,
           `Cannot deploy unknown hook type for routing destination ${dest}`,
         );
-        const deployedHookType = hookConfig.type as DeployableHookType;
         routingConfigs.push({
           destination: destDomain,
-          hook: hook[deployedHookType].address,
+          hook: hook[hookConfig.type as keyof HookFactories].address,
         });
         prevHookConfig = hookConfig;
-        prevHookAddress = hook[deployedHookType].address;
+        prevHookAddress = hook[hookConfig.type as keyof HookFactories].address;
       }
     }
 
     const overrides = this.multiProvider.getTransactionOverrides(chain);
     await this.runIfOwner(chain, routingHook, async () => {
-      this.logger.debug(
-        {
-          chain,
-          routingHookAddress: routingHook.address,
-          routingConfigs,
-        },
-        'Setting routing hooks',
-      );
-      const estimatedGas =
-        await routingHook.estimateGas.setHooks(routingConfigs);
-      return this.multiProvider.handleTx(
+      await submitBatched(
         chain,
-        routingHook.setHooks(routingConfigs, {
-          gasLimit: addBufferToGasLimit(estimatedGas),
-          ...overrides,
-        }),
+        routingConfigs,
+        async (batch) => {
+          const estimatedGas = await routingHook.estimateGas.setHooks(batch);
+          await this.multiProvider.handleTx(
+            chain,
+            routingHook.setHooks(batch, {
+              gasLimit: addBufferToGasLimit(estimatedGas),
+              ...overrides,
+            }),
+          );
+        },
+        this.logger,
+        'routing hook configs',
       );
     });
 
@@ -439,17 +453,22 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
         continue;
       }
 
+      if (hookConfig.type === HookType.PREDICATE) {
+        throw new Error(
+          'Predicate hooks cannot be deployed via HyperlaneHookDeployer, they must be pre-deployed',
+        );
+      }
+
       const contracts = await this.deployContracts(
         chain,
-        hookConfig.type,
+        hookConfig,
         this.core[chain],
       );
       assert(
         hookConfig.type !== HookType.UNKNOWN,
         `Cannot deploy unknown hook type in amount routing`,
       );
-      const deployedType = hookConfig.type as DeployableHookType;
-      hooks.push(contracts[deployedType].address);
+      hooks.push(contracts[hookConfig.type as keyof HookFactories].address);
     }
 
     const [lowerHook, upperHook] = hooks;

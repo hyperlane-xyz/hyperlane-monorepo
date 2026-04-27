@@ -14,7 +14,7 @@ import { Address, Domain, assert } from '@hyperlane-xyz/utils';
 
 import { BaseSealevelAdapter } from '../../app/MultiProtocolApp.js';
 import { SEALEVEL_PRIORITY_FEES } from '../../consts/sealevel.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
 import { ChainName } from '../../types.js';
 import {
   SealevelAccountDataWrapper,
@@ -53,7 +53,7 @@ export abstract class SealevelIgpProgramAdapter extends BaseSealevelAdapter {
 
   constructor(
     public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider,
+    public readonly multiProvider: MultiProviderAdapter,
     public readonly addresses: { programId: Address },
   ) {
     super(chainName, multiProvider, addresses);
@@ -199,7 +199,7 @@ export class SealevelIgpAdapter extends SealevelIgpProgramAdapter {
 
   constructor(
     public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider,
+    public readonly multiProvider: MultiProviderAdapter,
     public readonly addresses: { igp: Address; programId: Address },
   ) {
     super(chainName, multiProvider, addresses);
@@ -375,7 +375,7 @@ export class SealevelOverheadIgpAdapter extends SealevelIgpProgramAdapter {
 
   constructor(
     public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider,
+    public readonly multiProvider: MultiProviderAdapter,
     public readonly addresses: { overheadIgp: Address; programId: Address },
   ) {
     super(chainName, multiProvider, addresses);

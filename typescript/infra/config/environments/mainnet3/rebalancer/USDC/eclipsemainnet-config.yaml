@@ -1,7 +1,7 @@
 warpRouteId: USDC/eclipsemainnet
 inventorySigners:
   ethereum: '0x6056e8E8e5Db30ffa9d721e3D73b3D558011FdA9'
-  sealevel: '5seKh2p3B8Kq9nAE7X4svfX9uLt81wWAiDJuLK1XNgXf'
+  sealevel: '4ZJoMHQPEMkeExtFQLbuh8nB21dxHj741dSo6oJ5BcMo'
 externalBridges:
   lifi:
     integrator: rebalancer
@@ -10,36 +10,45 @@ strategy:
   chains:
     ethereum:
       weighted:
-        weight: 29
+        weight: 27
         tolerance: 5
       bridgeLockTime: 1800
       bridgeMinAcceptedAmount: 3500
       bridge: '0x8c8D831E1e879604b4B304a2c951B8AEe3aB3a23'
       override:
+        bsc:
+          executionType: inventory
+          externalBridge: lifi
         solanamainnet:
           executionType: inventory
           externalBridge: lifi
 
     base:
       weighted:
-        weight: 24
+        weight: 22
         tolerance: 5
       bridgeLockTime: 1800
       bridgeMinAcceptedAmount: 3500
       bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
       override:
+        bsc:
+          executionType: inventory
+          externalBridge: lifi
         solanamainnet:
           executionType: inventory
           externalBridge: lifi
 
     arbitrum:
       weighted:
-        weight: 17
+        weight: 16
         tolerance: 5
       bridgeLockTime: 1800
       bridgeMinAcceptedAmount: 3500
       bridge: '0x4c19c653a8419A475d9B6735511cB81C15b8d9b2'
       override:
+        bsc:
+          executionType: inventory
+          externalBridge: lifi
         solanamainnet:
           executionType: inventory
           externalBridge: lifi
@@ -52,6 +61,9 @@ strategy:
       bridgeMinAcceptedAmount: 3500
       bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
       override:
+        bsc:
+          executionType: inventory
+          externalBridge: lifi
         solanamainnet:
           executionType: inventory
           externalBridge: lifi
@@ -64,6 +76,9 @@ strategy:
       bridgeMinAcceptedAmount: 2500
       bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
       override:
+        bsc:
+          executionType: inventory
+          externalBridge: lifi
         solanamainnet:
           executionType: inventory
           externalBridge: lifi
@@ -76,6 +91,9 @@ strategy:
       bridgeMinAcceptedAmount: 3500
       bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
       override:
+        bsc:
+          executionType: inventory
+          externalBridge: lifi
         solanamainnet:
           executionType: inventory
           externalBridge: lifi
@@ -88,9 +106,19 @@ strategy:
       bridgeMinAcceptedAmount: 2500
       bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
       override:
+        bsc:
+          executionType: inventory
+          externalBridge: lifi
         solanamainnet:
           executionType: inventory
           externalBridge: lifi
+
+    bsc:
+      weighted:
+        weight: 5
+        tolerance: 3
+      executionType: inventory
+      externalBridge: lifi
 
     solanamainnet:
       weighted:

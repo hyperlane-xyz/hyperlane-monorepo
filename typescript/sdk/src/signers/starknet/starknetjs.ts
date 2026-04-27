@@ -3,7 +3,7 @@ import { Account as StarknetAccount } from 'starknet';
 
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
 import { SendTransactionOptions } from '../../providers/MultiProvider.js';
 import { StarknetJsTransaction } from '../../providers/ProviderType.js';
 import { ChainName } from '../../types.js';
@@ -16,7 +16,7 @@ export class StarknetMultiProtocolSignerAdapter implements IMultiProtocolSigner<
     private readonly chainName: ChainName,
     privateKey: string,
     address: string,
-    multiProtocolProvider: MultiProtocolProvider,
+    multiProtocolProvider: MultiProviderAdapter,
   ) {
     const provider = multiProtocolProvider.getStarknetProvider(this.chainName);
 

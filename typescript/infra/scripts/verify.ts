@@ -6,7 +6,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { readJson } from '@hyperlane-xyz/utils/fs';
 
-import { assertEnvironment } from '../src/config/environment.js';
+import { assertEnvironment } from '../src/config/deploy-environment.js';
 import {
   extractBuildArtifact,
   fetchExplorerApiKeys,

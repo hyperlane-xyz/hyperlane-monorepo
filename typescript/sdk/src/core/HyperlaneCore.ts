@@ -150,7 +150,9 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     hook?: Address,
     metadata?: string,
   ): Promise<{ dispatchTx: TransactionReceipt; message: DispatchedMessage }> {
-    const mailbox = this.getContracts(origin).mailbox;
+    const mailbox = this.getContracts(origin).mailbox.connect(
+      this.multiProvider.getSigner(origin),
+    );
     const destinationDomain = this.multiProvider.getDomainId(destination);
     const recipientBytes32 = addressToBytes32(recipient);
     const quote = await this.quoteGasPayment(
@@ -334,15 +336,14 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     ismMetadata: string,
   ): Promise<ethers.ContractReceipt> {
     const destinationChain = this.getDestination(message);
+    const mailbox = this.getContracts(destinationChain).mailbox.connect(
+      this.multiProvider.getSigner(destinationChain),
+    );
     const txOverrides =
       this.multiProvider.getTransactionOverrides(destinationChain);
     return this.multiProvider.handleTx(
       destinationChain,
-      this.getContracts(destinationChain).mailbox.process(
-        ismMetadata,
-        message.message,
-        { ...txOverrides },
-      ),
+      mailbox.process(ismMetadata, message.message, { ...txOverrides }),
     );
   }
 

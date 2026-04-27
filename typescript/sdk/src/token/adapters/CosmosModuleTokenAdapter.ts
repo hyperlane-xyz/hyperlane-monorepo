@@ -1,6 +1,6 @@
 import { MsgSendEncodeObject } from '@cosmjs/stargate';
 
-import { MsgRemoteTransferEncodeObject } from '@hyperlane-xyz/cosmos-sdk';
+import type { MsgRemoteTransferEncodeObject } from '@hyperlane-xyz/cosmos-sdk/runtime';
 import {
   Address,
   Domain,
@@ -12,7 +12,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { BaseCosmNativeAdapter } from '../../app/MultiProtocolApp.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
 import { ChainName } from '../../types.js';
 import { PROTOCOL_TO_DEFAULT_NATIVE_TOKEN } from '../nativeTokenMetadata.js';
 import { TokenMetadata } from '../types.js';
@@ -38,7 +38,7 @@ class CosmosModuleTokenAdapter
 
   constructor(
     public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider,
+    public readonly multiProvider: MultiProviderAdapter,
     public readonly addresses: Record<string, Address>,
     public readonly properties: {
       denom: string;
@@ -130,7 +130,7 @@ export class CosmNativeHypCollateralAdapter
 
   constructor(
     public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider,
+    public readonly multiProvider: MultiProviderAdapter,
     public readonly addresses: { token: Address },
   ) {
     super(chainName, multiProvider, addresses, {

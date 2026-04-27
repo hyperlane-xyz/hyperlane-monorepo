@@ -37,12 +37,10 @@ import { ChainMap, ChainName, ChainNameOrId } from '../types.js';
 import { ZKSyncDeployer } from '../zksync/ZKSyncDeployer.js';
 
 import { AnnotatedEV5Transaction } from './ProviderType.js';
-import {
-  ProviderBuilderFn,
-  defaultProviderBuilder,
-  defaultTronEthersProviderBuilder,
-  defaultZKProviderBuilder,
-} from './providerBuilders.js';
+import { ProviderBuilderFn } from './builders/types.js';
+import { defaultProviderBuilder } from './builders/ethersV5.js';
+import { defaultTronEthersProviderBuilder } from './builders/tron.js';
+import { defaultZKProviderBuilder } from './builders/zksync.js';
 
 type Provider = providers.Provider | ZKSyncProvider;
 
@@ -54,6 +52,7 @@ export interface MultiProviderOptions {
   providers?: ChainMap<Provider>;
   providerBuilder?: ProviderBuilderFn<Provider>;
   signers?: ChainMap<Signer>;
+  minConfirmationTimeoutMs?: number;
 }
 
 export interface SendTransactionOptions {
@@ -473,12 +472,11 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
       options?.waitConfirmations ?? metadata.blocks?.confirmations ?? 1;
 
     const estimateBlockTime = metadata.blocks?.estimateBlockTime;
+    const minTimeout =
+      this.options.minConfirmationTimeoutMs ?? MIN_CONFIRMATION_TIMEOUT_MS;
     const dynamicTimeout =
       typeof confirmations === 'number' && estimateBlockTime
-        ? Math.max(
-            confirmations * estimateBlockTime * 1000 * 2,
-            MIN_CONFIRMATION_TIMEOUT_MS,
-          )
+        ? Math.max(confirmations * estimateBlockTime * 1000 * 2, minTimeout)
         : DEFAULT_CONFIRMATION_TIMEOUT_MS;
     const timeoutMs = options?.timeoutMs ?? dynamicTimeout;
 

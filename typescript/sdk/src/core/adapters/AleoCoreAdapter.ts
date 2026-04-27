@@ -1,7 +1,7 @@
 import { Address, HexString, assert, pollAsync } from '@hyperlane-xyz/utils';
 
 import { BaseAleoAdapter } from '../../app/MultiProtocolApp.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
 import {
   ProviderType,
   TypedTransactionReceipt,
@@ -13,7 +13,7 @@ import { ICoreAdapter } from './types.js';
 export class AleoCoreAdapter extends BaseAleoAdapter implements ICoreAdapter {
   constructor(
     public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider<any>,
+    public readonly multiProvider: MultiProviderAdapter<any>,
     public readonly addresses: { mailbox: Address },
   ) {
     super(chainName, multiProvider, addresses);

@@ -1,12 +1,11 @@
 import { expect } from 'chai';
 import { RpcProvider } from 'starknet';
 
-import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
 
 import { StarknetSigner } from '../clients/signer.js';
-import { normalizeStarknetAddressSafe } from '../contracts.js';
 import { StarknetAnnotatedTx, StarknetTxReceipt } from '../types.js';
 
 import { StarknetHookArtifactManager } from './hook-artifact-manager.js';
@@ -130,20 +129,6 @@ describe('StarknetHookArtifactManager', () => {
     expect(receipts).to.have.length(1);
     expect(signer.capturedTxs).to.have.length(1);
     expect(signer.capturedTxs[0]?.kind).to.equal('deploy');
-  });
-
-  it('reads custom Starknet hooks as unknownHook artifacts', async () => {
-    const manager = new StarknetHookArtifactManager(chainMetadata);
-    const provider = Reflect.get(manager, 'provider') as {
-      getHookType: (_req: { hookAddress: string }) => Promise<AltVM.HookType>;
-    };
-    provider.getHookType = async () => AltVM.HookType.CUSTOM;
-
-    const artifact = await manager.readHook('0xabc');
-    expect(artifact.config).to.deep.equal({ type: 'unknownHook' });
-    expect(artifact.deployed.address).to.equal(
-      normalizeStarknetAddressSafe('0xabc'),
-    );
   });
 
   it('rejects creating unknownHook artifacts on Starknet', async () => {

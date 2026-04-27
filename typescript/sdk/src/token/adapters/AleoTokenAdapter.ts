@@ -1,8 +1,8 @@
 import {
   ALEO_NATIVE_DENOM,
   AleoProvider,
-  AleoTransaction,
-} from '@hyperlane-xyz/aleo-sdk';
+} from '@hyperlane-xyz/aleo-sdk/runtime';
+import type { AleoTransaction } from '@hyperlane-xyz/aleo-sdk/runtime';
 import {
   Address,
   Domain,
@@ -13,7 +13,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { BaseAleoAdapter } from '../../app/MultiProtocolApp.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
 import { ChainName } from '../../types.js';
 import { TokenMetadata } from '../types.js';
 
@@ -39,7 +39,7 @@ export class AleoTokenAdapter
 
   constructor(
     public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider,
+    public readonly multiProvider: MultiProviderAdapter,
     public readonly addresses: { token: Address },
   ) {
     super(chainName, multiProvider, addresses);
@@ -152,7 +152,7 @@ export class BaseAleoHypTokenAdapter
 {
   constructor(
     public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider,
+    public readonly multiProvider: MultiProviderAdapter,
     public readonly addresses: { token: Address },
   ) {
     super(chainName, multiProvider, addresses);

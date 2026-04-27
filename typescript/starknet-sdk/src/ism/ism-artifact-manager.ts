@@ -20,6 +20,7 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import { StarknetProvider } from '../clients/provider.js';
 import { StarknetSigner } from '../clients/signer.js';
+import { getIsmType } from './ism-query.js';
 import {
   StarknetRoutingIsmReader,
   StarknetRoutingIsmWriter,
@@ -56,7 +57,7 @@ export class StarknetIsmArtifactManager implements IRawIsmArtifactManager {
   }
 
   async readIsm(address: string): Promise<DeployedRawIsmArtifact> {
-    const type = await this.provider.getIsmType({ ismAddress: address });
+    const type = await getIsmType(this.provider.getRawProvider(), address);
     if (type === AltVM.IsmType.CUSTOM) {
       return this.createReader(AltVM.IsmType.TEST_ISM).read(address);
     }

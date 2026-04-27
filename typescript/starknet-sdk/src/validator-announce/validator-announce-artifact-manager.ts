@@ -20,6 +20,7 @@ import { hash } from 'starknet';
 
 import { StarknetProvider } from '../clients/provider.js';
 import { StarknetSigner } from '../clients/signer.js';
+import { getCreateValidatorAnnounceTx } from './validator-announce-tx.js';
 import {
   normalizeStarknetAddressSafe,
   shouldFallbackStorageRead,
@@ -153,10 +154,10 @@ class StarknetValidatorAnnounceWriter
       TxReceipt[],
     ]
   > {
-    const tx = await this.signer.getCreateValidatorAnnounceTransaction({
-      signer: this.signer.getSignerAddress(),
-      mailboxAddress: artifact.config.mailboxAddress,
-    });
+    const tx = getCreateValidatorAnnounceTx(
+      this.signer.getSignerAddress(),
+      artifact.config.mailboxAddress,
+    );
     const receipt = await this.signer.sendAndConfirmTransaction(tx);
     const validatorAnnounceId = receipt.contractAddress;
     assert(

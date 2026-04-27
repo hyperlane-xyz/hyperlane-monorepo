@@ -50,7 +50,7 @@ export {
   isContractAddress,
   assertIsContractAddress,
 } from './contracts/contracts.js';
-export { MUTABLE_HOOK_TYPE } from './hook/types.js';
+export { MUTABLE_HOOK_TYPE, OnchainHookType } from './hook/types.js';
 export { MUTABLE_ISM_TYPE } from './ism/types.js';
 
 export { HyperlaneApp } from './app/HyperlaneApp.js';
@@ -448,15 +448,17 @@ export {
   SendTransactionOptions,
 } from './providers/MultiProvider.js';
 export {
+  defaultProviderBuilderMap,
+  protocolToDefaultProviderBuilder,
+  ProviderBuilderMap,
+} from './providers/defaultProviderBuilderMaps.js';
+export {
   defaultEthersV5ProviderBuilder,
   defaultFuelProviderBuilder,
   defaultProviderBuilder,
-  defaultProviderBuilderMap,
   defaultSolProviderBuilder,
   defaultViemProviderBuilder,
-  protocolToDefaultProviderBuilder,
   ProviderBuilderFn,
-  ProviderBuilderMap,
   TypedProviderBuilderFn,
 } from './providers/providerBuilders.js';
 export {
@@ -706,11 +708,13 @@ export {
   IHypVSXERC20Adapter,
   IHypXERC20Adapter,
   InterchainGasQuote,
+  IPredicateAwareAdapter,
   ITokenAdapter,
   TransferParams,
   TransferRemoteParams,
   Quote,
   QuoteTransferRemoteParams,
+  isPredicateCapableAdapter,
 } from './token/adapters/ITokenAdapter.js';
 export {
   SealevelHypCollateralAdapter,
@@ -746,8 +750,6 @@ export {
   SealevelTransferRemoteInstruction,
   SealevelTransferRemoteSchema,
 } from './token/adapters/serialization.js';
-export { HypERC20App } from './token/app.js';
-export { HypERC20Checker } from './token/checker.js';
 export { DeployableTokenType, TokenType } from './token/config.js';
 export {
   expandVirtualWarpDeployConfig,
@@ -769,6 +771,15 @@ export {
 export { HypERC20Deployer, HypERC721Deployer } from './token/deploy.js';
 export { EvmWarpModule } from './token/EvmWarpModule.js';
 export { EvmWarpRouteReader } from './token/EvmWarpRouteReader.js';
+export {
+  WARP_ROUTE_CHECK_SCALE_TYPE,
+  WARP_ROUTE_CHECK_TYPE,
+  checkWarpRouteDeployConfig,
+} from './token/warpCheck.js';
+export type {
+  WarpRouteCheckResult,
+  WarpRouteCheckViolation,
+} from './token/warpCheck.js';
 export {
   EvmXERC20Reader,
   StandardXERC20Limits,
@@ -839,6 +850,7 @@ export {
   HypTokenRouterConfigSchema,
   HypTokenRouterVirtualConfig,
   isCollateralRebaseTokenConfig,
+  isCctpTokenConfig,
   isCollateralTokenConfig,
   isMovableCollateralTokenConfig,
   isNativeTokenConfig,
@@ -874,6 +886,9 @@ export {
   XERC20Type,
   XERC20TokenExtraBridgesLimits,
   XERC20TokenMetadata,
+  PredicateWrapperConfig,
+  PredicateWrapperConfigSchema,
+  isPredicateWrapperConfig,
 } from './token/types.js';
 export {
   deriveBridgesConfig,
@@ -885,6 +900,17 @@ export {
   CONFIGURATION_CHANGED_EVENT_SELECTOR,
   XERC20_VS_ABI,
 } from './token/xerc20-abi.js';
+export {
+  PredicateApiClient,
+  PredicateAttestation,
+  PredicateAttestationRequest,
+  PredicateAttestationResponse,
+  PredicateAttestationSchema,
+} from './predicate/PredicateApiClient.js';
+export {
+  PredicateWrapperDeployer,
+  PredicateWrapperDeploymentResult,
+} from './predicate/PredicateDeployer.js';
 export {
   ChainMap,
   ChainName,
@@ -904,12 +930,20 @@ export {
 } from './types.js';
 export { getCosmosRegistryChain } from './utils/cosmos.js';
 export {
+  alignLocalAmountToMessage,
   DEFAULT_SCALE,
+  localAmountFromMessage,
+  messageAmountFromLocal,
+  minLocalAmountForMessage,
   normalizeScale,
   scalesEqual,
   verifyScale,
 } from './utils/decimals.js';
-export type { NormalizedScale, ScaleInput } from './utils/decimals.js';
+export type {
+  NormalizedScale,
+  ScaleAlignment,
+  ScaleInput,
+} from './utils/decimals.js';
 export { filterByChains } from './utils/filter.js';
 export {
   ANVIL_RPC_METHODS,

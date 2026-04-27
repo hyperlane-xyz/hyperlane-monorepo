@@ -11,6 +11,8 @@ import {
   StarknetWarpTokenReaderBase,
   StarknetWarpTokenWriterBase,
 } from './token-artifact-manager.js';
+import { getCreateSyntheticTokenTx } from './warp-tx.js';
+import { getMailboxConfig } from '../mailbox/mailbox-query.js';
 
 export class StarknetSyntheticTokenReader extends StarknetWarpTokenReaderBase<
   'synthetic',
@@ -87,12 +89,17 @@ export class StarknetSyntheticTokenWriter extends StarknetWarpTokenWriterBase<
   protected async createToken(
     artifact: ArtifactNew<RawWarpArtifactConfigs['synthetic']>,
   ) {
-    const tx = await this.signer.getCreateSyntheticTokenTransaction({
-      signer: this.signer.getSignerAddress(),
+    const mailbox = await getMailboxConfig(
+      this.provider.getRawProvider(),
+      artifact.config.mailbox,
+    );
+    const tx = getCreateSyntheticTokenTx(this.signer.getSignerAddress(), {
       mailboxAddress: artifact.config.mailbox,
       name: artifact.config.name,
       denom: artifact.config.symbol,
       decimals: artifact.config.decimals,
+      defaultHook: mailbox.defaultHook,
+      defaultIsm: mailbox.defaultIsm,
     });
     return this.signer.sendAndConfirmTransaction(tx);
   }

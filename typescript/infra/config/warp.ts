@@ -7,13 +7,12 @@ import {
   MultiProvider,
   OwnableConfig,
   WarpRouteDeployConfig,
+  WarpRouteDeployConfigMailboxRequired,
 } from '@hyperlane-xyz/sdk';
 import { assert, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
-import {
-  EnvironmentConfig,
-  getRouterConfigsForAllVms,
-} from '../src/config/environment.js';
+import { getRouterConfigsForAllVms } from '../scripts/core-utils.js';
+import { EnvironmentConfig } from '../src/config/environment.js';
 import { RouterConfigWithoutOwner } from '../src/config/warp.js';
 
 import { getAleoUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getAleoUSDCWarpConfig.js';
@@ -53,7 +52,10 @@ import { getCarchainnUSDCWarpConfig } from './environments/mainnet3/warp/configG
 import { getCarchainnUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getCarrchainUSDTWarpConfig.js';
 import { getCarchainnWBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getCarrchainWBTCWarpConfig.js';
 import { getEclipseEthereumESWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumESWarpConfig.js';
-import { getEclipseEthereumSolanaUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumSolanaUSDTWarpConfig.js';
+import {
+  getEclipseUSDTGnosisSafeBuilderStrategyConfig,
+  getEclipseUSDTWarpConfig,
+} from './environments/mainnet3/warp/configGetters/getEclipseUSDTWarpConfig.js';
 import { getEclipseEthereumWBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumWBTCWarpConfig.js';
 import { getEclipseStrideTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseStrideSTTIAWarpConfig.js';
 import { getEclipseStrideStTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseStrideTIAWarpConfig.js';
@@ -135,6 +137,8 @@ import {
 import { WarpRouteIds } from './environments/mainnet3/warp/warpIds.js';
 import { getCCTPWarpConfig as getTestnetCCTPWarpConfig } from './environments/testnet4/warp/getCCTPConfig.js';
 import { DEFAULT_REGISTRY_URI } from './registry.js';
+import { getUSDTOftWarpConfig } from './environments/mainnet3/warp/configGetters/getUSDTOftWarpConfig.js';
+import { getUSDTOftLegacyWarpConfig } from './environments/mainnet3/warp/configGetters/getUSDTOftLegacyWarpConfig.js';
 import { getUSDTSTAGEWarpConfig } from './environments/mainnet3/warp/configGetters/getUSDTSTAGEWarpConfig.js';
 
 type WarpConfigGetter = (
@@ -163,8 +167,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.EclipseUSDC]: getEclipseUSDCWarpConfig,
   [WarpRouteIds.EclipseUSDCSTAGE]: getEclipseUSDCSTAGEWarpConfig,
   [WarpRouteIds.ETHSTAGEStage]: getETHStageWarpConfig,
-  [WarpRouteIds.EclipseEthereumSolanaUSDT]:
-    getEclipseEthereumSolanaUSDTWarpConfig,
+  [WarpRouteIds.EclipseUSDT]: getEclipseUSDTWarpConfig,
   [WarpRouteIds.EclipseEthereumWBTC]: getEclipseEthereumWBTCWarpConfig,
   [WarpRouteIds.BaseZeroNetworkCBBTC]: getBaseZeroNetworkCBBTCWarpConfig,
   [WarpRouteIds.BaseEthereumREZ]: getREZBaseEthereumWarpConfig,
@@ -223,6 +226,8 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.Eni1Piece]: getEni1PieceWarpConfig,
   [WarpRouteIds.ModeUSDTSTAGE]: getUSDTSTAGEWarpConfig,
   [WarpRouteIds.AleoUSDC]: getAleoUSDCWarpConfig,
+  [WarpRouteIds.USDTOft]: getUSDTOftWarpConfig,
+  [WarpRouteIds.USDTOftLegacy]: getUSDTOftLegacyWarpConfig,
 };
 
 type StrategyConfigGetter = () => ChainSubmissionStrategy;
@@ -242,6 +247,7 @@ export const strategyConfigGetterMap: Record<string, StrategyConfigGetter> = {
     getRezStagingGnosisSafeBuilderStrategyConfig,
   [WarpRouteIds.BsquaredUBTC]: getUbtcGnosisSafeBuilderStrategyConfigGenerator,
   [WarpRouteIds.EclipseUSDC]: getEclipseUSDCStrategyConfig,
+  [WarpRouteIds.EclipseUSDT]: getEclipseUSDTGnosisSafeBuilderStrategyConfig,
   [WarpRouteIds.IgraUSDC]: getIgraUSDCStrategyConfig,
   [WarpRouteIds.EclipseUSDCSTAGE]:
     getUSDCSTAGEEclipseFileSubmitterStrategyConfig,
@@ -266,12 +272,10 @@ export const sandboxStrategyConfigGetterMap: Record<
 /**
  * Retrieves the Warp configuration for the specified Warp route ID by fetching it from the FileSystemRegistry and GithubRegistry
  */
-async function getConfigFromMergedRegistry(
-  _routerConfig: ChainMap<RouterConfigWithoutOwner>,
-  _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
+export async function getWarpDeployConfigFromMergedRegistry(
   warpRouteId: string,
   registryUris: string[],
-): Promise<ChainMap<HypTokenRouterConfig>> {
+): Promise<WarpRouteDeployConfigMailboxRequired> {
   const registry = getRegistry({
     registryUris,
     enableProxy: true,
@@ -289,7 +293,7 @@ async function getConfigFromMergedRegistry(
  */
 export async function getWarpConfigMapFromMergedRegistry(
   registryUris: string[],
-): Promise<Record<string, ChainMap<HypTokenRouterConfig>>> {
+): Promise<Record<string, WarpRouteDeployConfigMailboxRequired>> {
   const registry = getRegistry({
     registryUris,
     enableProxy: true,
@@ -317,7 +321,7 @@ export async function getWarpConfigMapFromMergedRegistry(
 async function populateWarpRouteMailboxAddresses(
   warpRoute: WarpRouteDeployConfig,
   registry: IRegistry,
-): Promise<ChainMap<HypTokenRouterConfig>> {
+): Promise<WarpRouteDeployConfigMailboxRequired> {
   const mailboxPromises = objMap(warpRoute, async (chainName, config) => {
     const mailbox =
       config.mailbox || (await registry.getChainAddresses(chainName))?.mailbox;
@@ -339,7 +343,28 @@ export async function getWarpConfig(
   warpRouteId: string,
   registryUris = [DEFAULT_REGISTRY_URI],
   forceRegistryConfig = false,
+  getterInputs?: WarpConfigGetterInputs,
 ): Promise<ChainMap<HypTokenRouterConfig>> {
+  const { abacusWorksEnvOwnerConfig, routerConfigWithoutOwner } =
+    getterInputs ?? (await getWarpConfigGetterInputs(multiProvider, envConfig));
+  return getWarpConfigWithGetterInputs(
+    warpRouteId,
+    routerConfigWithoutOwner,
+    abacusWorksEnvOwnerConfig,
+    registryUris,
+    forceRegistryConfig,
+  );
+}
+
+export interface WarpConfigGetterInputs {
+  abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>;
+  routerConfigWithoutOwner: ChainMap<RouterConfigWithoutOwner>;
+}
+
+export async function getWarpConfigGetterInputs(
+  multiProvider: MultiProvider,
+  envConfig: EnvironmentConfig,
+): Promise<WarpConfigGetterInputs> {
   const routerConfig = await getRouterConfigsForAllVms(
     envConfig,
     multiProvider,
@@ -362,6 +387,19 @@ export async function getWarpConfig(
     };
   });
 
+  return {
+    abacusWorksEnvOwnerConfig,
+    routerConfigWithoutOwner,
+  };
+}
+
+async function getWarpConfigWithGetterInputs(
+  warpRouteId: string,
+  routerConfigWithoutOwner: ChainMap<RouterConfigWithoutOwner>,
+  abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
+  registryUris = [DEFAULT_REGISTRY_URI],
+  forceRegistryConfig = false,
+): Promise<ChainMap<HypTokenRouterConfig>> {
   const warpConfigGetter = warpConfigGetterMap[warpRouteId];
   if (warpConfigGetter && !forceRegistryConfig) {
     return warpConfigGetter(
@@ -371,10 +409,5 @@ export async function getWarpConfig(
     );
   }
 
-  return getConfigFromMergedRegistry(
-    routerConfigWithoutOwner,
-    abacusWorksEnvOwnerConfig,
-    warpRouteId,
-    registryUris,
-  );
+  return getWarpDeployConfigFromMergedRegistry(warpRouteId, registryUris);
 }

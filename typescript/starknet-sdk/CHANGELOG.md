@@ -1,5 +1,107 @@
 # @hyperlane-xyz/starknet-sdk
 
+## 28.0.4
+
+### Patch Changes
+
+- b864cca: Multi-VM fee type support was added to provider-sdk and deploy-sdk. Fee types (linear, regressive, progressive, offchainQuotedLinear, routing, crossCollateralRouting) were defined with Config API and Artifact API variants. FeeReader and FeeWriter with required FeeReadContext were added to deploy-sdk. Fee was integrated into warp types and the warp writer update flow. All protocol providers received createFeeArtifactManager stubs.
+- Updated dependencies [b864cca]
+- Updated dependencies [1f918d0]
+  - @hyperlane-xyz/provider-sdk@5.1.0
+  - @hyperlane-xyz/utils@33.0.2
+  - @hyperlane-xyz/starknet-core@33.0.2
+
+## 28.0.3
+
+### Patch Changes
+
+- @hyperlane-xyz/starknet-core@33.0.1
+- @hyperlane-xyz/utils@33.0.1
+- @hyperlane-xyz/provider-sdk@5.0.3
+
+## 28.0.2
+
+### Patch Changes
+
+- @hyperlane-xyz/starknet-core@33.0.0
+- @hyperlane-xyz/utils@33.0.0
+- @hyperlane-xyz/provider-sdk@5.0.2
+
+## 28.0.1
+
+### Patch Changes
+
+- @hyperlane-xyz/starknet-core@32.0.1
+- @hyperlane-xyz/utils@32.0.1
+- @hyperlane-xyz/provider-sdk@5.0.1
+
+## 28.0.0
+
+### Major Changes
+
+- 3dc6367: Core query methods (getIsmType, getRoutingIsm, getHookType, etc.) were removed from the IProvider interface and extracted into standalone query functions in each SDK. isMessageDelivered was kept on the interface to enforce all providers implement it.
+
+  Starknet get\*Transaction methods were extracted into standalone tx builder functions (mailbox-tx.ts, ism-tx.ts, hook-tx.ts, warp-tx.ts) with their own parameter types, removing the dependency on provider-sdk Req/Res types.
+
+  Tron and Aleo providers and signers had all get\*Transaction and action methods removed. Old e2e tests replaced with artifact API equivalents.
+
+  76 Req/Res types were removed from provider-sdk altvm.ts, reducing it from 587 to 243 lines.
+
+- fa08f2a: IProvider and ISigner interfaces were slimmed to their minimal surface. IProvider was reduced from 53 to 22 query-only methods by removing all get\*Transaction methods. ISigner was reduced from 36 to 5 infrastructure methods by removing all action methods (createMailbox, setDefaultIsm, enrollRemoteRouter, etc.). Transaction building is now handled exclusively by artifact managers using concrete class methods or standalone helper functions.
+
+  Throwing stubs were removed from SVM, Cosmos, Radix, and Starknet provider/signer implementations. Old action-method-based e2e tests were replaced with artifact API equivalents. Cosmos routing ISM writer was fixed to handle domain route updates correctly via remove + re-add.
+
+### Patch Changes
+
+- Updated dependencies [3dc6367]
+- Updated dependencies [fa08f2a]
+  - @hyperlane-xyz/provider-sdk@5.0.0
+  - @hyperlane-xyz/starknet-core@32.0.0
+  - @hyperlane-xyz/utils@32.0.0
+
+## 27.2.10
+
+### Patch Changes
+
+- @hyperlane-xyz/starknet-core@31.2.1
+- @hyperlane-xyz/utils@31.2.1
+- @hyperlane-xyz/provider-sdk@4.3.4
+
+## 27.2.9
+
+### Patch Changes
+
+- @hyperlane-xyz/starknet-core@31.2.0
+- @hyperlane-xyz/utils@31.2.0
+- @hyperlane-xyz/provider-sdk@4.3.3
+
+## 27.2.8
+
+### Patch Changes
+
+- cf3f11c: Starknet devnet switched to instant per-transaction block mining and starknet.js polling interval reduced for fast block times, speeding up e2e tests ~5x.
+  - @hyperlane-xyz/starknet-core@31.1.0
+  - @hyperlane-xyz/utils@31.1.0
+  - @hyperlane-xyz/provider-sdk@4.3.2
+
+## 27.2.7
+
+### Patch Changes
+
+- Updated dependencies [d5168fc]
+  - @hyperlane-xyz/utils@31.0.1
+  - @hyperlane-xyz/provider-sdk@4.3.1
+  - @hyperlane-xyz/starknet-core@31.0.1
+
+## 27.2.6
+
+### Patch Changes
+
+- Updated dependencies [44626fb]
+  - @hyperlane-xyz/provider-sdk@4.3.0
+  - @hyperlane-xyz/starknet-core@31.0.0
+  - @hyperlane-xyz/utils@31.0.0
+
 ## 27.2.5
 
 ### Patch Changes

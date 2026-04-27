@@ -24,20 +24,20 @@ describe('MultiProvider Tron factory resolution', () => {
 
   it('resolves Mailbox to tron factory with different bytecode', async () => {
     const resolved = await mp.resolveTronFactory(new Mailbox__factory());
-    expect(resolved).to.be.instanceOf(TronContractFactory);
+    expect(resolved.constructor.name).to.equal(TronContractFactory.name);
     expect(resolved.bytecode).to.equal(new TronMailbox__factory().bytecode);
     expect(resolved.bytecode).to.not.equal(new Mailbox__factory().bytecode);
   });
 
   it('resolves ProxyAdmin to tron factory', async () => {
     const resolved = await mp.resolveTronFactory(new ProxyAdmin__factory());
-    expect(resolved).to.be.instanceOf(TronContractFactory);
+    expect(resolved.constructor.name).to.equal(TronContractFactory.name);
     expect(resolved.bytecode).to.equal(new TronProxyAdmin__factory().bytecode);
   });
 
   it('resolves TestRecipient to tron factory', async () => {
     const resolved = await mp.resolveTronFactory(new TestRecipient__factory());
-    expect(resolved).to.be.instanceOf(TronContractFactory);
+    expect(resolved.constructor.name).to.equal(TronContractFactory.name);
     expect(resolved.bytecode).to.equal(
       new TronTestRecipient__factory().bytecode,
     );

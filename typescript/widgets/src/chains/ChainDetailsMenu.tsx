@@ -4,10 +4,10 @@ import { stringify as yamlStringify } from 'yaml';
 
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import {
-  ChainMetadata,
   isValidChainMetadata,
   mergeChainMetadata,
-} from '@hyperlane-xyz/sdk';
+  type ChainMetadata,
+} from '@hyperlane-xyz/sdk/metadata/chainMetadataTypes';
 import {
   Result,
   failure,

@@ -10,7 +10,7 @@ use hyperlane_base::{
 };
 use hyperlane_core::{
     accumulator::merkle::Proof, AggregationIsm, CcipReadIsm, Checkpoint, HyperlaneDomain,
-    HyperlaneMessage, InterchainSecurityModule, Mailbox, MultisigIsm, RoutingIsm, H256,
+    HyperlaneMessage, InterchainSecurityModule, Mailbox, MultisigIsm, RoutingIsm, H256, H512,
 };
 use hyperlane_ethereum::Signers;
 use hyperlane_test::mocks::MockMailboxContract;
@@ -190,6 +190,12 @@ impl BuildsBaseMetadata for MockBaseMetadataBuilder {
             .unwrap()
             .pop_front()
             .expect("No mock get_merkle_leaf_id_by_message_id response set")
+    }
+    async fn retrieve_origin_tx_hash_by_message_id(
+        &self,
+        _message_id: H256,
+    ) -> eyre::Result<Option<H512>> {
+        Ok(None)
     }
     async fn build_ism(&self, address: H256) -> eyre::Result<Box<dyn InterchainSecurityModule>> {
         self.responses

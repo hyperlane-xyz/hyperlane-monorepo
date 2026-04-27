@@ -6,7 +6,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { isEVMLike, rootLogger } from '@hyperlane-xyz/utils';
 
-import { DeployEnvironment } from '../config/environment.js';
+import { DeployEnvironment } from '../config/deploy-environment.js';
 import { TurnkeyRole } from '../roles.js';
 
 import { fetchLatestGCPSecret } from './gcloud.js';

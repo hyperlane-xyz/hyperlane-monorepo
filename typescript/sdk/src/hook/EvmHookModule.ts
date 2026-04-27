@@ -810,6 +810,14 @@ export class EvmHookModule extends HyperlaneModule<
         return this.deployAmountRoutingHook({ config });
       case HookType.CCIP:
         return this.deployCCIPHook({ config });
+      case HookType.CCTP:
+        // TODO: https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3773
+        // we can remove the ts-ignore once we have a proper type for address Hooks
+        // @ts-ignore
+        return IPostDispatchHook__factory.connect(
+          config.address,
+          this.multiProvider.getSignerOrProvider(this.args.chain),
+        );
       default:
         throw new Error(`Unsupported hook config: ${config}`);
     }

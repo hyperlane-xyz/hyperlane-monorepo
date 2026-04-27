@@ -76,13 +76,10 @@ import {
   getHyperlaneCore,
 } from '../../scripts/core-utils.js';
 import { legacyEthIcaRouter } from '../config/chain.js';
-import { DeployEnvironment } from '../config/environment.js';
+import { DeployEnvironment } from '../config/deploy-environment.js';
 import { tokens } from '../config/warp.js';
-import {
-  GovernanceType,
-  Owner,
-  determineGovernanceType,
-} from '../governance.js';
+import { Owner, determineGovernanceType } from '../governance.js';
+import { GovernanceType } from '../governanceTypes.js';
 import { decodeMultiSendData, getSafeTx, parseSafeTx } from '../utils/safe.js';
 
 export interface GovernTransaction extends Record<string, any> {
@@ -1322,14 +1319,27 @@ export class GovernTransactionReader {
 
       // Check if it's a fee contract by calling feeType()
       const baseFee = BaseFee__factory.connect(feeRecipientAddress, provider);
-      await baseFee.feeType(); // Will throw if not a fee contract
+      const feeType = await baseFee.feeType();
 
       // Get routing destinations from the token router
       const tokenRouter = TokenRouter__factory.connect(
         tokenRouterAddress,
         provider,
       );
-      const domains = await tokenRouter.domains();
+      const routerDomains = await tokenRouter.domains();
+
+      // For RoutingFee contracts, also read domains from the fee contract itself
+      // since it may have routes configured before the token router enrolls them
+      let domains = routerDomains;
+      if (feeType === OnchainTokenFeeType.RoutingFee) {
+        const routingFee = RoutingFee__factory.connect(
+          feeRecipientAddress,
+          provider,
+        );
+        const feeDomains = await routingFee.domains();
+        const domainSet = new Set([...routerDomains, ...feeDomains]);
+        domains = Array.from(domainSet);
+      }
 
       // Use EvmTokenFeeReader to derive full config
       const feeReader = new EvmTokenFeeReader(this.multiProvider, chain);

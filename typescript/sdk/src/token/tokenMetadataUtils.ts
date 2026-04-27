@@ -27,6 +27,7 @@ import {
 export async function deriveTokenMetadata(
   multiProvider: MultiProvider,
   configMap: WarpRouteDeployConfig,
+  { validateScale = true }: { validateScale?: boolean } = {},
 ): Promise<TokenMetadataMap> {
   const metadataMap = new TokenMetadataMap();
   const prioritizedTypes = new Set<string>([
@@ -143,6 +144,6 @@ export async function deriveTokenMetadata(
     }
   }
 
-  metadataMap.finalize();
+  metadataMap.finalize(validateScale);
   return metadataMap;
 }

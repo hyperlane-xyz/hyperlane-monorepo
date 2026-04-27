@@ -8,7 +8,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { BaseCosmosAdapter } from '../../app/MultiProtocolApp.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
 import {
   ProviderType,
   TypedTransactionReceipt,
@@ -37,7 +37,7 @@ export class CosmNativeCoreAdapter
 {
   constructor(
     public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider<any>,
+    public readonly multiProvider: MultiProviderAdapter,
     public readonly addresses: { mailbox: Address },
   ) {
     super(chainName, multiProvider, addresses);
