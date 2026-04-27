@@ -48,13 +48,11 @@ export function createSealevelHypAdapter(
       });
     case TokenStandard.SealevelHypSynthetic:
       assert(mailbox, 'Mailbox required for Sealevel hyp tokens');
-      assert(
-        collateralAddressOrDenom,
-        'collateralAddressOrDenom required for Sealevel hyp synthetic tokens',
-      );
       return new SealevelHypSyntheticAdapter(chainName, multiProvider, {
         warpRouter: addressOrDenom,
-        token: collateralAddressOrDenom,
+        // Mint is derived from warpRouter internally; collateralAddressOrDenom
+        // is unused by the adapter but required by the base class constructor.
+        token: collateralAddressOrDenom ?? addressOrDenom,
         mailbox,
       });
     case TokenStandard.SealevelHypCrossCollateral:

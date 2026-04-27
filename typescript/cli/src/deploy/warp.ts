@@ -164,10 +164,8 @@ export async function runWarpRouteDeploy({
   const initialBalances = await getBalances(context, deploymentChains);
 
   logBlue('🚀 All systems ready, captain! Beginning deployment...');
-  const { deployedContracts, enrollmentContracts } = await executeDeploy(
-    deploymentParams,
-    apiKeys,
-  );
+  const { deployedContracts, enrollmentContracts, collateralAddresses } =
+    await executeDeploy(deploymentParams, apiKeys);
 
   const registryAddresses = await registry.getAddresses();
 
@@ -243,6 +241,7 @@ export async function runWarpRouteDeploy({
   const { warpCoreConfig, addWarpRouteOptions } = await getWarpCoreConfig(
     deploymentParams,
     deployedContracts,
+    collateralAddresses,
   );
 
   // Use warpRouteId if provided, otherwise if the user is deploying
@@ -288,6 +287,7 @@ async function executeDeploy(
 ): Promise<{
   deployedContracts: ChainMap<Address>;
   enrollmentContracts: ChainMap<Address>;
+  collateralAddresses: ChainMap<string>;
   deployments: WarpCoreConfig;
 }> {
   const {
@@ -297,21 +297,28 @@ async function executeDeploy(
 
   const registryAddresses = await registry.getAddresses();
 
-  const { deployedContracts, enrollmentContracts } = await executeWarpDeploy(
-    warpDeployConfig,
-    multiProvider,
-    altVmSigners,
-    registryAddresses,
-    apiKeys,
-  );
+  const { deployedContracts, enrollmentContracts, collateralAddresses } =
+    await executeWarpDeploy(
+      warpDeployConfig,
+      multiProvider,
+      altVmSigners,
+      registryAddresses,
+      apiKeys,
+    );
 
   const { warpCoreConfig: deployments } = await getWarpCoreConfig(
     { context: params.context, warpDeployConfig },
     deployedContracts,
+    collateralAddresses,
   );
 
   logGreen('✅ Warp contract deployments complete');
-  return { deployedContracts, enrollmentContracts, deployments };
+  return {
+    deployedContracts,
+    enrollmentContracts,
+    collateralAddresses,
+    deployments,
+  };
 }
 
 async function writeDeploymentArtifacts(
@@ -327,6 +334,7 @@ async function writeDeploymentArtifacts(
 async function getWarpCoreConfig(
   params: DeployParams,
   contracts: ChainMap<Address>,
+  collateralAddresses: ChainMap<string> = {},
 ): Promise<{
   warpCoreConfig: WarpCoreConfig;
   addWarpRouteOptions: AddWarpRouteConfigOptions;
@@ -356,6 +364,7 @@ async function getWarpCoreConfig(
     deployedWarpConfig,
     contracts,
     tokenMetadataMap,
+    collateralAddresses,
   );
 
   fullyConnectTokens(warpCoreConfig, params.context.multiProvider);
@@ -374,13 +383,15 @@ function generateTokenConfigs(
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
   contracts: ChainMap<Address>,
   tokenMetadataMap: TokenMetadataMap,
+  collateralAddresses: ChainMap<string> = {},
 ): void {
   for (const chainName of Object.keys(contracts)) {
     const config = warpDeployConfig[chainName];
     const collateralAddressOrDenom =
-      'token' in config && typeof config.token === 'string'
+      collateralAddresses[chainName] ??
+      ('token' in config && typeof config.token === 'string'
         ? config.token
-        : undefined;
+        : undefined);
 
     const protocol = multiProvider.getProtocol(chainName);
 

@@ -157,6 +157,8 @@ export type WarpRouteAddresses = {
 
 export interface DeployedWarpAddress {
   address: string;
+  /** Mint address for SVM synthetic tokens; absent for all other token types. */
+  collateralAddress?: string;
 }
 
 /**

@@ -427,7 +427,7 @@ export class SvmFactorySyntheticTokenWriter implements ArtifactWriter<
       {
         artifactState: ArtifactState.DEPLOYED,
         config: tokenConfig,
-        deployed: { address: routePda },
+        deployed: { address: routePda, collateralAddress: mintPda.toString() },
       },
       receipts,
     ];

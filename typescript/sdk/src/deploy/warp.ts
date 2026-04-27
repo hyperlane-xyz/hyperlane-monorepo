@@ -190,6 +190,7 @@ export async function executeWarpDeploy(
 ): Promise<{
   deployedContracts: ChainMap<Address>;
   enrollmentContracts: ChainMap<Address>;
+  collateralAddresses: ChainMap<string>;
 }> {
   const contractVerifier = new ContractVerifier(
     multiProvider,
@@ -237,6 +238,7 @@ export async function executeWarpDeploy(
   // factory route PDAs are used as addressOrDenom, but the factory program ID
   // is enrolled on remote chains (so message.recipient is the executable program).
   let enrollmentContracts: ChainMap<Address> = { ...deployedContracts };
+  const collateralAddresses: ChainMap<string> = {};
 
   // get unique list of protocols
   const protocols = Array.from(
@@ -318,6 +320,9 @@ export async function executeWarpDeploy(
 
           const [deployed] = await writer.create(artifact);
           deployResults[chain] = deployed.deployed.address;
+          if (deployed.deployed.collateralAddress) {
+            collateralAddresses[chain] = deployed.deployed.collateralAddress;
+          }
           enrollmentResults[chain] =
             resolveFactoryEnrollmentAddress(
               deployed.config.type,
@@ -333,7 +338,7 @@ export async function executeWarpDeploy(
     }
   }
 
-  return { deployedContracts, enrollmentContracts };
+  return { deployedContracts, enrollmentContracts, collateralAddresses };
 }
 
 /**
