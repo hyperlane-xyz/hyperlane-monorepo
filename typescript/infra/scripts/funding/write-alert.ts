@@ -102,8 +102,10 @@ async function main() {
         alertConfigMapping[alert].walletName,
       );
 
-      // Drop disabled / decommissioned / known-down chains from both sides so
-      // they're stripped from the new query without prompting as "missing".
+      // Drop disabled / decommissioned / known-down chains from the proposed
+      // thresholds so they're stripped from the regenerated query. We leave
+      // currentThresholds intact so the diff still surfaces the removal.
+      proposedThresholds = filterAlertChains(proposedThresholds, noAlertChains);
       const droppedChains = Object.keys(currentThresholds).filter((chain) =>
         noAlertChains.has(chain),
       );
@@ -112,13 +114,12 @@ async function main() {
           `Removing ${droppedChains.length} no-alert chain(s) from ${alert}: ${droppedChains.join(', ')}`,
         );
       }
-      proposedThresholds = filterAlertChains(proposedThresholds, noAlertChains);
-      currentThresholds = filterAlertChains(currentThresholds, noAlertChains);
 
       // log an error if a chain is defined in current thresholds but not in the proposed thresholds
       // this is to ensure that we don't introduce a regression where a chain is no longer being monitored
+      // (skip the check for chains we deliberately stopped alerting on)
       const missingChains = Object.keys(currentThresholds).filter(
-        (chain) => !proposedThresholds[chain],
+        (chain) => !proposedThresholds[chain] && !noAlertChains.has(chain),
       );
       if (missingChains.length > 0) {
         missingChainErrors.push({
