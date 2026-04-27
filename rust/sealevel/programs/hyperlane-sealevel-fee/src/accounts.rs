@@ -226,9 +226,17 @@ impl FeeAccountPrefix {
         use account_utils::DiscriminatorData;
         use borsh::BorshDeserialize;
 
-        // Skip AccountData wrapper: initialized (1) + discriminator (8)
+        // Verify initialized flag + discriminator, then skip past them.
         let prefix_len = 1 + FeeAccount::DISCRIMINATOR.len();
         if data.len() < prefix_len {
+            return Err(ProgramError::InvalidAccountData);
+        }
+
+        if data[0] != 1 {
+            return Err(ProgramError::UninitializedAccount);
+        }
+
+        if data[1..prefix_len] != FeeAccount::DISCRIMINATOR {
             return Err(ProgramError::InvalidAccountData);
         }
         let mut reader = &data[prefix_len..];
