@@ -64,6 +64,28 @@ pub struct HyperlaneToken<T> {
     pub fee_config: Option<FeeConfig>,
 }
 
+/// Reads an optional trailing field from a Borsh reader. Treats EOF as
+/// `None` so that accounts serialized before the field existed still
+/// deserialize correctly. All future trailing-optional fields must use
+/// this helper to preserve backward compatibility.
+fn read_optional_trailing<R: std::io::Read, V: BorshDeserialize>(
+    reader: &mut R,
+) -> std::io::Result<Option<V>> {
+    let mut tag = [0u8; 1];
+    match reader.read_exact(&mut tag) {
+        Ok(()) => match tag[0] {
+            0 => Ok(None),
+            1 => V::deserialize_reader(reader).map(Some),
+            v => Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("Invalid Option tag: {v}"),
+            )),
+        },
+        Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => Ok(None),
+        Err(e) => Err(e),
+    }
+}
+
 impl<T: BorshDeserialize> BorshDeserialize for HyperlaneToken<T> {
     fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
         let bump = u8::deserialize_reader(reader)?;
@@ -79,24 +101,7 @@ impl<T: BorshDeserialize> BorshDeserialize for HyperlaneToken<T> {
         let destination_gas = HashMap::<u32, u64>::deserialize_reader(reader)?;
         let remote_routers = HashMap::<u32, H256>::deserialize_reader(reader)?;
         let plugin_data = T::deserialize_reader(reader)?;
-        // Backward-compatible: old accounts created before fee_config was added
-        // will have no trailing bytes after plugin_data. Treat EOF as None,
-        // but propagate any other deserialization error (e.g. corrupt data).
-        let mut fee_config_tag = [0u8; 1];
-        let fee_config = match reader.read_exact(&mut fee_config_tag) {
-            Ok(()) => match fee_config_tag[0] {
-                0 => None,
-                1 => Some(FeeConfig::deserialize_reader(reader)?),
-                value => {
-                    return Err(std::io::Error::new(
-                        std::io::ErrorKind::InvalidData,
-                        format!("Invalid Option tag: {value}"),
-                    ))
-                }
-            },
-            Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => None,
-            Err(e) => return Err(e),
-        };
+        let fee_config = read_optional_trailing::<_, FeeConfig>(reader)?;
 
         Ok(Self {
             bump,

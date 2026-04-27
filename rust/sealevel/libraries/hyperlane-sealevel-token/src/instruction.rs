@@ -243,17 +243,24 @@ pub fn set_fee_config_instruction(
         Pubkey::try_find_program_address(hyperlane_token_pda_seeds!(), &program_id)
             .ok_or(ProgramError::InvalidSeeds)?;
 
-    let ixn = Instruction::SetFeeConfig(fee_config);
-
     // Accounts:
     // 0. `[executable]` The system program.
     // 1. `[writeable]` The token PDA account.
     // 2. `[signer]` The owner.
-    let accounts = vec![
+    // When fee_config is Some:
+    // 3. `[executable]` The fee program.
+    // 4. `[]` The fee account (owned by fee program).
+    let mut accounts = vec![
         AccountMeta::new_readonly(system_program::ID, false),
         AccountMeta::new(token_key, false),
         AccountMeta::new(owner_payer, true),
     ];
+    if let Some(ref cfg) = fee_config {
+        accounts.push(AccountMeta::new_readonly(cfg.fee_program, false));
+        accounts.push(AccountMeta::new_readonly(cfg.fee_account, false));
+    }
+
+    let ixn = Instruction::SetFeeConfig(fee_config);
 
     Ok(SolanaInstruction {
         program_id,

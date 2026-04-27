@@ -3472,6 +3472,8 @@ async fn test_cc_remote_transfer_with_fee() {
                     AccountMeta::new_readonly(system_program::ID, false),
                     AccountMeta::new(ctx.cc.token, false),
                     AccountMeta::new(ctx.payer.pubkey(), true),
+                    AccountMeta::new_readonly(fee_program_id(), false),
+                    AccountMeta::new_readonly(fee_account_key, false),
                 ],
             )],
             Some(&ctx.payer.pubkey()),
@@ -3713,6 +3715,8 @@ async fn test_cc_local_transfer_with_fee() {
                     AccountMeta::new_readonly(system_program::ID, false),
                     AccountMeta::new(ctx.cc.token, false),
                     AccountMeta::new(ctx.payer.pubkey(), true),
+                    AccountMeta::new_readonly(fee_program_id(), false),
+                    AccountMeta::new_readonly(fee_account_key, false),
                 ],
             )],
             Some(&ctx.payer.pubkey()),
@@ -3944,6 +3948,8 @@ async fn test_cc_remote_transfer_with_fee_routing_mode() {
                     AccountMeta::new_readonly(system_program::ID, false),
                     AccountMeta::new(ctx.cc.token, false),
                     AccountMeta::new(ctx.payer.pubkey(), true),
+                    AccountMeta::new_readonly(fp, false),
+                    AccountMeta::new_readonly(fee_account_key, false),
                 ],
             )],
             Some(&ctx.payer.pubkey()),
@@ -4157,6 +4163,8 @@ async fn test_cc_remote_transfer_with_fee_cc_routing_mode() {
                     AccountMeta::new_readonly(system_program::ID, false),
                     AccountMeta::new(ctx.cc.token, false),
                     AccountMeta::new(ctx.payer.pubkey(), true),
+                    AccountMeta::new_readonly(fp, false),
+                    AccountMeta::new_readonly(fee_account_key, false),
                 ],
             )],
             Some(&ctx.payer.pubkey()),
@@ -4298,4 +4306,561 @@ async fn test_cc_remote_transfer_with_fee_cc_routing_mode() {
     )
     .await;
     assert_token_balance(&mut ctx.banks_client, &fee_beneficiary_ata, expected_fee).await;
+}
+
+// === Additional fee tests for parity with native ===
+
+#[tokio::test]
+async fn test_set_fee_config() {
+    let ctx = TestContext::new(false).await;
+
+    let account_data = ctx
+        .banks_client
+        .get_account(ctx.cc.token)
+        .await
+        .unwrap()
+        .unwrap()
+        .data;
+    let token = HyperlaneTokenAccount::<CollateralPlugin>::fetch(&mut &account_data[..])
+        .unwrap()
+        .into_inner();
+    assert_eq!(token.fee_config, None);
+
+    let fee_salt = H256::zero();
+    let fee_account_key = {
+        let fp = fee_program_id();
+        let (fee_account, _) = Pubkey::find_program_address(fee_account_pda_seeds!(fee_salt), &fp);
+        let ix = fee_instruction::init_fee_instruction(
+            fp,
+            ctx.payer.pubkey(),
+            fee_salt,
+            Pubkey::new_unique(),
+            FeeData::Leaf(LeafFeeConfig {
+                strategy: FeeDataStrategy::Linear(FeeParams {
+                    max_fee: FEE_MAX,
+                    half_amount: FEE_HALF_AMOUNT,
+                }),
+                signers: None,
+            }),
+            LOCAL_DOMAIN,
+        )
+        .unwrap();
+        let recent_blockhash = ctx.banks_client.get_latest_blockhash().await.unwrap();
+        ctx.banks_client
+            .process_transaction(Transaction::new_signed_with_payer(
+                &[ix],
+                Some(&ctx.payer.pubkey()),
+                &[&ctx.payer],
+                recent_blockhash,
+            ))
+            .await
+            .unwrap();
+        fee_account
+    };
+
+    let fee_config = FeeConfig {
+        fee_program: fee_program_id(),
+        fee_account: fee_account_key,
+    };
+    let recent_blockhash = ctx.banks_client.get_latest_blockhash().await.unwrap();
+    ctx.banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[Instruction::new_with_bytes(
+                ctx.program_id,
+                &HyperlaneTokenInstruction::SetFeeConfig(Some(fee_config.clone()))
+                    .encode()
+                    .unwrap(),
+                vec![
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new(ctx.cc.token, false),
+                    AccountMeta::new(ctx.payer.pubkey(), true),
+                    AccountMeta::new_readonly(fee_config.fee_program, false),
+                    AccountMeta::new_readonly(fee_config.fee_account, false),
+                ],
+            )],
+            Some(&ctx.payer.pubkey()),
+            &[&ctx.payer],
+            recent_blockhash,
+        ))
+        .await
+        .unwrap();
+
+    let account_data = ctx
+        .banks_client
+        .get_account(ctx.cc.token)
+        .await
+        .unwrap()
+        .unwrap()
+        .data;
+    let token = HyperlaneTokenAccount::<CollateralPlugin>::fetch(&mut &account_data[..])
+        .unwrap()
+        .into_inner();
+    assert_eq!(token.fee_config, Some(fee_config));
+
+    let recent_blockhash = ctx.banks_client.get_latest_blockhash().await.unwrap();
+    ctx.banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[Instruction::new_with_bytes(
+                ctx.program_id,
+                &HyperlaneTokenInstruction::SetFeeConfig(None)
+                    .encode()
+                    .unwrap(),
+                vec![
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new(ctx.cc.token, false),
+                    AccountMeta::new(ctx.payer.pubkey(), true),
+                ],
+            )],
+            Some(&ctx.payer.pubkey()),
+            &[&ctx.payer],
+            recent_blockhash,
+        ))
+        .await
+        .unwrap();
+
+    let account_data = ctx
+        .banks_client
+        .get_account(ctx.cc.token)
+        .await
+        .unwrap()
+        .unwrap()
+        .data;
+    let token = HyperlaneTokenAccount::<CollateralPlugin>::fetch(&mut &account_data[..])
+        .unwrap()
+        .into_inner();
+    assert_eq!(token.fee_config, None);
+}
+
+#[tokio::test]
+async fn test_set_fee_config_non_owner_fails() {
+    let mut ctx = TestContext::new(false).await;
+    let non_owner =
+        new_funded_keypair(&mut ctx.banks_client, &ctx.payer, ONE_SOL_IN_LAMPORTS).await;
+    let recent_blockhash = ctx.banks_client.get_latest_blockhash().await.unwrap();
+    let result = ctx
+        .banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[Instruction::new_with_bytes(
+                ctx.program_id,
+                &HyperlaneTokenInstruction::SetFeeConfig(Some(FeeConfig {
+                    fee_program: Pubkey::new_unique(),
+                    fee_account: Pubkey::new_unique(),
+                }))
+                .encode()
+                .unwrap(),
+                vec![
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new(ctx.cc.token, false),
+                    AccountMeta::new(non_owner.pubkey(), true),
+                ],
+            )],
+            Some(&non_owner.pubkey()),
+            &[&non_owner],
+            recent_blockhash,
+        ))
+        .await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+    );
+}
+
+#[tokio::test]
+async fn test_get_program_version() {
+    use package_versioned::{get_program_version_instruction_data, PACKAGE_VERSION};
+    let program_id = hyperlane_sealevel_token_cross_collateral_id();
+    let (banks_client, payer) = setup_client().await;
+    let ix =
+        Instruction::new_with_bytes(program_id, &get_program_version_instruction_data(), vec![]);
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let simulation = banks_client
+        .simulate_transaction(Transaction::new_unsigned(Message::new_with_blockhash(
+            &[ix],
+            Some(&payer.pubkey()),
+            &recent_blockhash,
+        )))
+        .await
+        .unwrap();
+    let return_data = simulation
+        .simulation_details
+        .unwrap()
+        .return_data
+        .unwrap()
+        .data;
+    let version: SimulationReturnData<String> =
+        borsh::BorshDeserialize::try_from_slice(&return_data).unwrap();
+    assert_eq!(version.return_data, PACKAGE_VERSION);
+}
+
+#[tokio::test]
+async fn test_set_fee_config_wrong_fee_account_owner() {
+    let ctx = TestContext::new(false).await;
+    let wrong_fee_account = ctx.cc.token;
+    let recent_blockhash = ctx.banks_client.get_latest_blockhash().await.unwrap();
+    let result = ctx
+        .banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[Instruction::new_with_bytes(
+                ctx.program_id,
+                &HyperlaneTokenInstruction::SetFeeConfig(Some(FeeConfig {
+                    fee_program: fee_program_id(),
+                    fee_account: wrong_fee_account,
+                }))
+                .encode()
+                .unwrap(),
+                vec![
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new(ctx.cc.token, false),
+                    AccountMeta::new(ctx.payer.pubkey(), true),
+                    AccountMeta::new_readonly(fee_program_id(), false),
+                    AccountMeta::new_readonly(wrong_fee_account, false),
+                ],
+            )],
+            Some(&ctx.payer.pubkey()),
+            &[&ctx.payer],
+            recent_blockhash,
+        ))
+        .await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+    );
+}
+
+struct CcFeeTestContext {
+    ctx: TestContext,
+    igp_program: Pubkey,
+    igp_program_data: Pubkey,
+    igp_overhead_igp: Pubkey,
+    igp_igp: Pubkey,
+    target_router: H256,
+    token_sender: Keypair,
+    token_sender_ata: Pubkey,
+    fee_account_key: Pubkey,
+    fee_beneficiary_ata: Pubkey,
+    domain_standing_quote_pda: Pubkey,
+    wildcard_standing_quote_pda: Pubkey,
+}
+
+async fn setup_cc_fee_test_context() -> CcFeeTestContext {
+    let mut ctx = TestContext::new(true).await;
+    let igp = ctx.igp_accounts.as_ref().unwrap();
+    let (igp_program, igp_program_data, igp_overhead_igp, igp_igp) =
+        (igp.program, igp.program_data, igp.overhead_igp, igp.igp);
+
+    let target_router = H256::random();
+    set_cc_routers(
+        &mut ctx.banks_client,
+        &ctx.program_id,
+        &ctx.payer,
+        vec![CrossCollateralRouterUpdate::Add {
+            domain: REMOTE_DOMAIN,
+            router: target_router,
+        }],
+    )
+    .await
+    .unwrap();
+
+    let fee_beneficiary_owner = Pubkey::new_unique();
+    let fee_salt = H256::zero();
+    let fee_account_key = {
+        let fp = fee_program_id();
+        let (fee_account, _) = Pubkey::find_program_address(fee_account_pda_seeds!(fee_salt), &fp);
+        let ix = fee_instruction::init_fee_instruction(
+            fp,
+            ctx.payer.pubkey(),
+            fee_salt,
+            fee_beneficiary_owner,
+            FeeData::Leaf(LeafFeeConfig {
+                strategy: FeeDataStrategy::Linear(FeeParams {
+                    max_fee: FEE_MAX,
+                    half_amount: FEE_HALF_AMOUNT,
+                }),
+                signers: None,
+            }),
+            LOCAL_DOMAIN,
+        )
+        .unwrap();
+        let recent_blockhash = ctx.banks_client.get_latest_blockhash().await.unwrap();
+        ctx.banks_client
+            .process_transaction(Transaction::new_signed_with_payer(
+                &[ix],
+                Some(&ctx.payer.pubkey()),
+                &[&ctx.payer],
+                recent_blockhash,
+            ))
+            .await
+            .unwrap();
+        fee_account
+    };
+
+    let recent_blockhash = ctx.banks_client.get_latest_blockhash().await.unwrap();
+    ctx.banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[Instruction::new_with_bytes(
+                ctx.program_id,
+                &HyperlaneTokenInstruction::SetFeeConfig(Some(FeeConfig {
+                    fee_program: fee_program_id(),
+                    fee_account: fee_account_key,
+                }))
+                .encode()
+                .unwrap(),
+                vec![
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new(ctx.cc.token, false),
+                    AccountMeta::new(ctx.payer.pubkey(), true),
+                    AccountMeta::new_readonly(fee_program_id(), false),
+                    AccountMeta::new_readonly(fee_account_key, false),
+                ],
+            )],
+            Some(&ctx.payer.pubkey()),
+            &[&ctx.payer],
+            recent_blockhash,
+        ))
+        .await
+        .unwrap();
+
+    let fee_beneficiary_ata =
+        spl_associated_token_account::get_associated_token_address_with_program_id(
+            &fee_beneficiary_owner,
+            &ctx.mint,
+            &ctx.spl_token_program_id,
+        );
+    let recent_blockhash = ctx.banks_client.get_latest_blockhash().await.unwrap();
+    ctx.banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[
+                spl_associated_token_account::instruction::create_associated_token_account(
+                    &ctx.payer.pubkey(),
+                    &fee_beneficiary_owner,
+                    &ctx.mint,
+                    &ctx.spl_token_program_id,
+                ),
+            ],
+            Some(&ctx.payer.pubkey()),
+            &[&ctx.payer],
+            recent_blockhash,
+        ))
+        .await
+        .unwrap();
+
+    let (token_sender, token_sender_ata) = ctx
+        .create_funded_sender(100 * 10u64.pow(LOCAL_DECIMALS_U32))
+        .await;
+
+    let domain_standing_quote_pda = {
+        let d = REMOTE_DOMAIN.to_le_bytes();
+        let (pda, _) = Pubkey::find_program_address(
+            fee_standing_quote_pda_seeds!(&fee_account_key, &d),
+            &fee_program_id(),
+        );
+        pda
+    };
+    let wildcard_standing_quote_pda = {
+        let d = WILDCARD_DOMAIN.to_le_bytes();
+        let (pda, _) = Pubkey::find_program_address(
+            fee_standing_quote_pda_seeds!(&fee_account_key, &d),
+            &fee_program_id(),
+        );
+        pda
+    };
+
+    CcFeeTestContext {
+        ctx,
+        igp_program,
+        igp_program_data,
+        igp_overhead_igp,
+        igp_igp,
+        target_router,
+        token_sender,
+        token_sender_ata,
+        fee_account_key,
+        fee_beneficiary_ata,
+        domain_standing_quote_pda,
+        wildcard_standing_quote_pda,
+    }
+}
+
+#[tokio::test]
+async fn test_transfer_remote_with_fee_wrong_fee_program() {
+    let fctx = setup_cc_fee_test_context().await;
+    let token_sender_pubkey = fctx.token_sender.pubkey();
+    let transfer_amount = 69 * 10u64.pow(LOCAL_DECIMALS_U32);
+    let wrong_fee_program = Pubkey::new_unique();
+    let unique_msg = Keypair::new();
+    let (dispatched_msg_key, _) = Pubkey::find_program_address(
+        mailbox_dispatched_message_pda_seeds!(&unique_msg.pubkey()),
+        &fctx.ctx.mailbox_program_id,
+    );
+    let (gas_payment_pda_key, _) = Pubkey::find_program_address(
+        igp_gas_payment_pda_seeds!(&unique_msg.pubkey()),
+        &igp_program_id(),
+    );
+    let ixn_data = CrossCollateralInstruction::TransferRemoteTo(TransferRemoteTo {
+        destination_domain: REMOTE_DOMAIN,
+        recipient: H256::random(),
+        amount_or_id: transfer_amount.into(),
+        target_router: fctx.target_router,
+    })
+    .encode()
+    .unwrap();
+    let recent_blockhash = fctx.ctx.banks_client.get_latest_blockhash().await.unwrap();
+    let result = fctx
+        .ctx
+        .banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[Instruction::new_with_bytes(
+                fctx.ctx.program_id,
+                &ixn_data,
+                vec![
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new_readonly(fctx.ctx.cc.token, false),
+                    AccountMeta::new_readonly(fctx.ctx.cc.cc_state, false),
+                    AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
+                    AccountMeta::new_readonly(fctx.ctx.mailbox_program_id, false),
+                    AccountMeta::new(fctx.ctx.mailbox_accounts.outbox, false),
+                    AccountMeta::new_readonly(fctx.ctx.cc.dispatch_authority, false),
+                    AccountMeta::new(token_sender_pubkey, true),
+                    AccountMeta::new_readonly(unique_msg.pubkey(), true),
+                    AccountMeta::new(dispatched_msg_key, false),
+                    AccountMeta::new_readonly(wrong_fee_program, false),
+                    AccountMeta::new_readonly(fctx.fee_account_key, false),
+                    AccountMeta::new_readonly(fctx.domain_standing_quote_pda, false),
+                    AccountMeta::new_readonly(fctx.wildcard_standing_quote_pda, false),
+                    AccountMeta::new(fctx.fee_beneficiary_ata, false),
+                    AccountMeta::new_readonly(fctx.igp_program, false),
+                    AccountMeta::new(fctx.igp_program_data, false),
+                    AccountMeta::new(gas_payment_pda_key, false),
+                    AccountMeta::new_readonly(fctx.igp_overhead_igp, false),
+                    AccountMeta::new(fctx.igp_igp, false),
+                    AccountMeta::new_readonly(fctx.ctx.spl_token_program_id, false),
+                    AccountMeta::new(fctx.ctx.mint, false),
+                    AccountMeta::new(fctx.token_sender_ata, false),
+                    AccountMeta::new(fctx.ctx.cc.escrow, false),
+                ],
+            )],
+            Some(&token_sender_pubkey),
+            &[&fctx.token_sender, &unique_msg],
+            recent_blockhash,
+        ))
+        .await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+    );
+}
+
+#[tokio::test]
+async fn test_transfer_remote_with_fee_missing_beneficiary() {
+    let fctx = setup_cc_fee_test_context().await;
+    let token_sender_pubkey = fctx.token_sender.pubkey();
+    let transfer_amount = 69 * 10u64.pow(LOCAL_DECIMALS_U32);
+    let unique_msg = Keypair::new();
+    let (dispatched_msg_key, _) = Pubkey::find_program_address(
+        mailbox_dispatched_message_pda_seeds!(&unique_msg.pubkey()),
+        &fctx.ctx.mailbox_program_id,
+    );
+    let ixn_data = CrossCollateralInstruction::TransferRemoteTo(TransferRemoteTo {
+        destination_domain: REMOTE_DOMAIN,
+        recipient: H256::random(),
+        amount_or_id: transfer_amount.into(),
+        target_router: fctx.target_router,
+    })
+    .encode()
+    .unwrap();
+    let recent_blockhash = fctx.ctx.banks_client.get_latest_blockhash().await.unwrap();
+    let result = fctx
+        .ctx
+        .banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[Instruction::new_with_bytes(
+                fctx.ctx.program_id,
+                &ixn_data,
+                vec![
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new_readonly(fctx.ctx.cc.token, false),
+                    AccountMeta::new_readonly(fctx.ctx.cc.cc_state, false),
+                    AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
+                    AccountMeta::new_readonly(fctx.ctx.mailbox_program_id, false),
+                    AccountMeta::new(fctx.ctx.mailbox_accounts.outbox, false),
+                    AccountMeta::new_readonly(fctx.ctx.cc.dispatch_authority, false),
+                    AccountMeta::new(token_sender_pubkey, true),
+                    AccountMeta::new_readonly(unique_msg.pubkey(), true),
+                    AccountMeta::new(dispatched_msg_key, false),
+                    AccountMeta::new_readonly(fee_program_id(), false),
+                    AccountMeta::new_readonly(fctx.fee_account_key, false),
+                    AccountMeta::new_readonly(fctx.domain_standing_quote_pda, false),
+                    AccountMeta::new_readonly(fctx.wildcard_standing_quote_pda, false),
+                    // NO beneficiary
+                ],
+            )],
+            Some(&token_sender_pubkey),
+            &[&fctx.token_sender, &unique_msg],
+            recent_blockhash,
+        ))
+        .await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(
+            0,
+            #[allow(deprecated)]
+            InstructionError::NotEnoughAccountKeys,
+        ),
+    );
+}
+
+#[tokio::test]
+async fn test_transfer_remote_with_fee_beneficiary_not_found_cap() {
+    let fctx = setup_cc_fee_test_context().await;
+    let token_sender_pubkey = fctx.token_sender.pubkey();
+    let transfer_amount = 69 * 10u64.pow(LOCAL_DECIMALS_U32);
+    let unique_msg = Keypair::new();
+    let (dispatched_msg_key, _) = Pubkey::find_program_address(
+        mailbox_dispatched_message_pda_seeds!(&unique_msg.pubkey()),
+        &fctx.ctx.mailbox_program_id,
+    );
+    let ixn_data = CrossCollateralInstruction::TransferRemoteTo(TransferRemoteTo {
+        destination_domain: REMOTE_DOMAIN,
+        recipient: H256::random(),
+        amount_or_id: transfer_amount.into(),
+        target_router: fctx.target_router,
+    })
+    .encode()
+    .unwrap();
+    let mut accounts = vec![
+        AccountMeta::new_readonly(system_program::ID, false),
+        AccountMeta::new_readonly(fctx.ctx.cc.token, false),
+        AccountMeta::new_readonly(fctx.ctx.cc.cc_state, false),
+        AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
+        AccountMeta::new_readonly(fctx.ctx.mailbox_program_id, false),
+        AccountMeta::new(fctx.ctx.mailbox_accounts.outbox, false),
+        AccountMeta::new_readonly(fctx.ctx.cc.dispatch_authority, false),
+        AccountMeta::new(token_sender_pubkey, true),
+        AccountMeta::new_readonly(unique_msg.pubkey(), true),
+        AccountMeta::new(dispatched_msg_key, false),
+        AccountMeta::new_readonly(fee_program_id(), false),
+        AccountMeta::new_readonly(fctx.fee_account_key, false),
+    ];
+    for _ in 0..16 {
+        accounts.push(AccountMeta::new_readonly(Pubkey::new_unique(), false));
+    }
+    let recent_blockhash = fctx.ctx.banks_client.get_latest_blockhash().await.unwrap();
+    let result = fctx
+        .ctx
+        .banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[Instruction::new_with_bytes(
+                fctx.ctx.program_id,
+                &ixn_data,
+                accounts,
+            )],
+            Some(&token_sender_pubkey),
+            &[&fctx.token_sender, &unique_msg],
+            recent_blockhash,
+        ))
+        .await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::Custom(6)),
+    );
 }

@@ -1151,6 +1151,11 @@ where
     /// 0. `[executable]` The system program.
     /// 1. `[writeable]` The token PDA account.
     /// 2. `[signer]` The access control owner.
+    ///
+    /// When fee_config is Some:
+    ///
+    /// 3. `[executable]` The fee program.
+    /// 4. `[]` The fee account (owned by fee program).
     pub fn set_fee_config(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
@@ -1171,6 +1176,25 @@ where
         // Account 2: Owner
         let owner_account = next_account_info(accounts_iter)?;
         token.ensure_owner_signer(owner_account)?;
+
+        // Validate fee config accounts when setting (not clearing).
+        if let Some(ref cfg) = fee_config {
+            // Account 3: Fee program — must match instruction data and be executable.
+            let fee_program_info = next_account_info(accounts_iter)?;
+            if fee_program_info.key != &cfg.fee_program || !fee_program_info.executable {
+                return Err(ProgramError::InvalidArgument);
+            }
+
+            // Account 4: Fee account — must match instruction data, be owned by
+            // fee program, and contain a valid fee account prefix.
+            let fee_account_info = next_account_info(accounts_iter)?;
+            if fee_account_info.key != &cfg.fee_account
+                || fee_account_info.owner != &cfg.fee_program
+            {
+                return Err(ProgramError::InvalidArgument);
+            }
+            FeeAccountPrefix::parse_from(&fee_account_info.data.borrow())?;
+        }
 
         token.fee_config = fee_config;
 
