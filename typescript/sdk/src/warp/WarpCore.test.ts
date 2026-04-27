@@ -418,34 +418,36 @@ describe('WarpCore', () => {
       } as any),
     );
 
-    // recipient === destination router
-    const routerAddress = evmHypSynthetic.addressOrDenom;
-    const recipientIsRouter = await warpCore.validateTransfer({
-      originTokenAmount: evmHypNative.amount(TRANSFER_AMOUNT),
-      destination: test2.name,
-      recipient: routerAddress,
-      sender: MOCK_ADDRESS,
-    });
-    expect(Object.keys(recipientIsRouter || {})[0]).to.equal('recipient');
-    expect(Object.values(recipientIsRouter || {})[0]).to.include('router');
+    try {
+      // recipient === destination router
+      const routerAddress = evmHypSynthetic.addressOrDenom;
+      const recipientIsRouter = await warpCore.validateTransfer({
+        originTokenAmount: evmHypNative.amount(TRANSFER_AMOUNT),
+        destination: test2.name,
+        recipient: routerAddress,
+        sender: MOCK_ADDRESS,
+      });
+      expect(Object.keys(recipientIsRouter || {})[0]).to.equal('recipient');
+      expect(Object.values(recipientIsRouter || {})[0]).to.include('router');
 
-    // recipient === destination collateral token (simulate via temporary override)
-    const fakeCollateral = '0x000000000000000000000000000000000000dead';
-    (evmHypSynthetic as any).collateralAddressOrDenom = fakeCollateral;
-    const recipientIsCollateral = await warpCore.validateTransfer({
-      originTokenAmount: evmHypNative.amount(TRANSFER_AMOUNT),
-      destination: test2.name,
-      recipient: fakeCollateral,
-      sender: MOCK_ADDRESS,
-    });
-    (evmHypSynthetic as any).collateralAddressOrDenom = undefined;
-    expect(Object.keys(recipientIsCollateral || {})[0]).to.equal('recipient');
-    expect(Object.values(recipientIsCollateral || {})[0]).to.include(
-      'collateral',
-    );
-
-    balanceStubs.forEach((s) => s.restore());
-    quoteStubs.forEach((s) => s.restore());
+      // recipient === destination collateral token (simulate via temporary override)
+      const fakeCollateral = '0x000000000000000000000000000000000000dead';
+      (evmHypSynthetic as any).collateralAddressOrDenom = fakeCollateral;
+      const recipientIsCollateral = await warpCore.validateTransfer({
+        originTokenAmount: evmHypNative.amount(TRANSFER_AMOUNT),
+        destination: test2.name,
+        recipient: fakeCollateral,
+        sender: MOCK_ADDRESS,
+      });
+      expect(Object.keys(recipientIsCollateral || {})[0]).to.equal('recipient');
+      expect(Object.values(recipientIsCollateral || {})[0]).to.include(
+        'collateral',
+      );
+    } finally {
+      (evmHypSynthetic as any).collateralAddressOrDenom = undefined;
+      balanceStubs.forEach((s) => s.restore());
+      quoteStubs.forEach((s) => s.restore());
+    }
   });
 
   it('Validates destination token routing', async () => {
