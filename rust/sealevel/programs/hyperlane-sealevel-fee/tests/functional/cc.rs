@@ -1030,10 +1030,6 @@ async fn test_cc_prune_does_not_remove_domain_from_tracking() {
     );
     process_tx(banks_client, &payer, ix, &[]).await.unwrap();
 
-    // CC accounts do not track domains in standing_quote_domains.
-    let fee_acct = fetch_fee_account(banks_client, fee_key).await;
-    assert!(!fee_acct.standing_quote_domains.contains(&dest));
-
     // Warp clock past expiry — both quotes have expiry=9999999999.
     let mut clock = banks_client
         .get_sysvar::<solana_program::clock::Clock>()
@@ -1067,11 +1063,6 @@ async fn test_cc_prune_does_not_remove_domain_from_tracking() {
     // Router_a's PDA should be closed.
     let account = banks_client.get_account(pda_a).await.unwrap();
     assert!(account.is_none() || account.unwrap().data.is_empty());
-
-    // CC accounts never add domains to standing_quote_domains,
-    // so the set remains empty regardless of prune operations.
-    let fee_acct = fetch_fee_account(banks_client, fee_key).await;
-    assert!(!fee_acct.standing_quote_domains.contains(&dest));
 }
 
 #[tokio::test]
@@ -1681,10 +1672,6 @@ async fn test_cc_prune_one_router_preserves_other_router_quote() {
     );
     let fee = simulate_quote_fee(banks_client, &payer, ix).await;
     assert_eq!(fee, 333);
-
-    // CC accounts never track domains in standing_quote_domains.
-    let fee_acct = fetch_fee_account(banks_client, fee_key).await;
-    assert!(!fee_acct.standing_quote_domains.contains(&dest));
 }
 
 #[tokio::test]
@@ -1841,12 +1828,10 @@ async fn test_standing_pda_recreated_after_prune() {
     let ix = build_submit_standing_ix(&fee_key, &payer.pubkey(), &sq1, dest);
     process_tx(banks_client, &payer, ix, &[]).await.unwrap();
 
-    // Verify PDA exists and domain tracked.
+    // Verify PDA exists.
     let pda_key = standing_quote_pda_for(&fee_key, dest);
     let standing = fetch_standing_pda(banks_client, pda_key).await;
     assert_eq!(standing.quotes.len(), 1);
-    let fee_acct = fetch_fee_account(banks_client, fee_key).await;
-    assert!(fee_acct.standing_quote_domains.contains(&dest));
 
     // Warp clock past expiry and prune.
     let mut clock = banks_client
@@ -1860,11 +1845,9 @@ async fn test_standing_pda_recreated_after_prune() {
     let ix = build_prune_ix(&fee_key, &payer.pubkey(), dest);
     process_tx(banks_client, &payer, ix, &[]).await.unwrap();
 
-    // PDA closed, domain removed.
+    // PDA closed.
     let account = banks_client.get_account(pda_key).await.unwrap();
     assert!(account.is_none() || account.unwrap().data.is_empty());
-    let fee_acct = fetch_fee_account(banks_client, fee_key).await;
-    assert!(!fee_acct.standing_quote_domains.contains(&dest));
 
     // Submit a new standing quote on the same domain — PDA should be recreated.
     let sq2 = make_signed_standing_quote(
@@ -1884,10 +1867,6 @@ async fn test_standing_pda_recreated_after_prune() {
     let standing = fetch_standing_pda(banks_client, pda_key).await;
     assert_eq!(standing.quotes.len(), 1);
     assert_eq!(standing.quotes.get(&recipient).unwrap().max_fee, 2000);
-
-    // Domain re-added to tracking.
-    let fee_acct = fetch_fee_account(banks_client, fee_key).await;
-    assert!(fee_acct.standing_quote_domains.contains(&dest));
 }
 
 #[tokio::test]

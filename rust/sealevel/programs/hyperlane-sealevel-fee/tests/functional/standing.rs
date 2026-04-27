@@ -68,10 +68,6 @@ mod submit_standing_quote {
         assert_eq!(value.max_fee, 2000);
         assert_eq!(value.half_amount, 1000);
         assert_eq!(value.issued_at, 100);
-
-        // Verify domain was added to standing_quote_domains.
-        let fee_acct = fetch_fee_account(&mut banks_client, fee_key).await;
-        assert!(fee_acct.standing_quote_domains.contains(&dest));
     }
 
     #[tokio::test]
@@ -1857,10 +1853,6 @@ mod prune_expired_quotes {
         let domain_pda = standing_quote_pda_for(&fee_key, dest);
         let account = banks_client.get_account(domain_pda).await.unwrap();
         assert!(account.is_none() || account.unwrap().data.is_empty());
-
-        // Domain removed from standing_quote_domains.
-        let fee_acct = fetch_fee_account(banks_client, fee_key).await;
-        assert!(!fee_acct.standing_quote_domains.contains(&dest));
     }
 
     #[tokio::test]
@@ -1941,10 +1933,6 @@ mod prune_expired_quotes {
         assert_eq!(standing.quotes.len(), 1);
         assert!(!standing.quotes.contains_key(&expired_recipient));
         assert!(standing.quotes.contains_key(&valid_recipient));
-
-        // Domain still in standing_quote_domains.
-        let fee_acct = fetch_fee_account(banks_client, fee_key).await;
-        assert!(fee_acct.standing_quote_domains.contains(&dest));
     }
 
     #[tokio::test]
@@ -2253,64 +2241,6 @@ mod prune_expired_quotes {
                 0,
                 InstructionError::Custom(FeeError::RouteNotFound as u32),
             ),
-        );
-    }
-
-    /// Non-CC standing quote submission with fee_account passed as readonly fails
-    /// because Leaf/Routing modes need to update standing_quote_domains.
-    #[tokio::test]
-    async fn test_leaf_standing_submit_readonly_fee_account_fails() {
-        let (mut banks_client, payer) = setup_client().await;
-        let signing_key = SigningKey::random(&mut rand::thread_rng());
-        let signer_address = eth_address(&signing_key);
-
-        let fee_key = init_fee_account(
-            &mut banks_client,
-            &payer,
-            default_salt(),
-            payer.pubkey(),
-            default_leaf_fee_data(),
-        )
-        .await;
-
-        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
-        process_tx(&mut banks_client, &payer, ix, &[])
-            .await
-            .unwrap();
-
-        let dest = 42u32;
-        let recipient = H256::zero();
-        let quote = make_signed_standing_quote(
-            &signing_key,
-            &fee_key,
-            LOCAL_DOMAIN,
-            &payer.pubkey(),
-            encode_standing_context(dest, recipient),
-            encode_data(1000, 500),
-            encode_u48(100),
-            encode_u48(9999999999),
-        );
-
-        // Build instruction manually with fee_account as readonly.
-        let domain_le = dest.to_le_bytes();
-        let (standing_pda, _) = Pubkey::find_program_address(
-            fee_standing_quote_pda_seeds!(fee_key, &domain_le),
-            &fee_program_id(),
-        );
-        let ix = Instruction::new_with_borsh(
-            fee_program_id(),
-            &FeeInstruction::SubmitQuote(quote),
-            vec![
-                AccountMeta::new_readonly(system_program::ID, false),
-                AccountMeta::new(payer.pubkey(), true),
-                AccountMeta::new_readonly(fee_key, false), // readonly — should fail
-                AccountMeta::new(standing_pda, false),
-            ],
-        );
-        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
-        assert_tx_error(
-            result,
-            TransactionError::InstructionError(0, InstructionError::InvalidAccountData),
         );
     }
 }

@@ -390,9 +390,9 @@ async fn test_leaf_standing() {
         simulate_get_submit_metas(&mut banks_client, &payer, &fee_key, 42, H256::zero(), None)
             .await;
 
-    // system + payer + fee_account(W) + standing_pda = 4
+    // system + payer + fee_account(R) + standing_pda = 4
     assert_eq!(metas.len(), 4);
-    assert!(metas[2].is_writable); // fee_account writable for standing
+    assert!(!metas[2].is_writable); // fee_account read-only for standing
     assert!(metas[3].is_writable); // standing PDA
 }
 
@@ -469,7 +469,7 @@ async fn test_cc_standing() {
     )
     .await;
 
-    // system + payer + fee_account(W) + cc_specific + cc_default + standing_pda = 6
+    // system + payer + fee_account(R) + cc_specific + cc_default + standing_pda = 6
     assert_eq!(metas.len(), 6);
     assert_eq!(
         metas[3].pubkey,

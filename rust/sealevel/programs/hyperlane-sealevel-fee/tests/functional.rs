@@ -641,7 +641,6 @@ fn build_submit_standing_ix_with_routes(
         *target_router,
         quote.clone(),
         route_pdas,
-        true, // fee_account writable (Leaf/Routing default)
     )
     .unwrap()
 }
@@ -706,7 +705,6 @@ mod init_fee {
         assert_eq!(acct.domain_id, LOCAL_DOMAIN);
         assert_eq!(leaf_signers(&acct), &Some(BTreeSet::new()));
         assert_eq!(acct.min_issued_at, 0);
-        assert_eq!(acct.standing_quote_domains, BTreeSet::new());
     }
 
     #[tokio::test]

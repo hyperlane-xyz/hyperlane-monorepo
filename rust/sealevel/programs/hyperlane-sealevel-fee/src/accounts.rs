@@ -197,9 +197,6 @@ pub struct FeeAccount {
     pub domain_id: u32,
     /// Emergency revocation threshold: standing quotes with issued_at < min_issued_at are rejected.
     pub min_issued_at: i64,
-    /// Set of Hyperlane destination domain IDs that have standing quote PDAs.
-    /// Used for offchain PDA discovery.
-    pub standing_quote_domains: BTreeSet<u32>,
 }
 
 impl AccessControl for FeeAccount {
@@ -229,9 +226,7 @@ impl SizedData for FeeAccount {
         + PUBKEY_SIZE                                                                               // beneficiary
         + SizedData::size(&self.fee_data)                                                           // fee_data
         + std::mem::size_of::<u32>()                                                                // domain_id
-        + std::mem::size_of::<i64>()                                                                // min_issued_at
-        + BORSH_LEN_PREFIX + (self.standing_quote_domains.len() * std::mem::size_of::<u32>())
-        // standing_quote_domains
+        + std::mem::size_of::<i64>() // min_issued_at
     }
 }
 
@@ -665,7 +660,6 @@ mod tests {
             }),
             domain_id: 42,
             min_issued_at: 0,
-            standing_quote_domains: BTreeSet::new(),
         };
         let encoded = borsh::to_vec(&account).unwrap();
         let decoded: FeeAccount = borsh::from_slice(&encoded).unwrap();
@@ -689,7 +683,6 @@ mod tests {
             }),
             domain_id: 1,
             min_issued_at: 0,
-            standing_quote_domains: BTreeSet::new(),
         };
         let encoded = borsh::to_vec(&account).unwrap();
         let decoded: FeeAccount = borsh::from_slice(&encoded).unwrap();
@@ -808,7 +801,6 @@ mod tests {
             }),
             domain_id: 1,
             min_issued_at: 0,
-            standing_quote_domains: BTreeSet::new(),
         };
         assert_eq!(account.size(), borsh::to_vec(&account).unwrap().len());
     }
@@ -831,7 +823,6 @@ mod tests {
             }),
             domain_id: 1,
             min_issued_at: 0,
-            standing_quote_domains: BTreeSet::new(),
         };
         assert_eq!(account.size(), borsh::to_vec(&account).unwrap().len());
     }
@@ -847,7 +838,6 @@ mod tests {
             }),
             domain_id: 1,
             min_issued_at: 0,
-            standing_quote_domains: BTreeSet::new(),
         };
         assert_eq!(account.size(), borsh::to_vec(&account).unwrap().len());
     }
@@ -856,10 +846,6 @@ mod tests {
     fn test_sized_data_fee_account_cc_with_wildcard_signers() {
         let mut signers = BTreeSet::new();
         signers.insert(H160::random());
-        let mut domains = BTreeSet::new();
-        domains.insert(1u32);
-        domains.insert(42u32);
-        domains.insert(1000u32);
 
         let account = FeeAccount {
             bump_seed: 1,
@@ -870,7 +856,6 @@ mod tests {
             }),
             domain_id: 1,
             min_issued_at: -100,
-            standing_quote_domains: domains,
         };
         assert_eq!(account.size(), borsh::to_vec(&account).unwrap().len());
     }

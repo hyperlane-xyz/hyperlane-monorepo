@@ -157,7 +157,6 @@ fn process_init_fee(program_id: &Pubkey, accounts: &[AccountInfo], data: InitFee
             fee_data: data.fee_data,
             domain_id: data.domain_id,
             min_issued_at: 0,
-            standing_quote_domains: BTreeSet::new(),
         }
         .into(),
     );
@@ -1263,14 +1262,6 @@ fn process_submit_quote(
     } else {
         // Standing quote: expiry > issued_at. Store in per-domain PDA.
 
-        // Non-CC standing quotes update standing_quote_domains on the fee account,
-        // so the fee account must be writable.
-        if !matches!(fee_account.fee_data, FeeData::CrossCollateralRouting(_))
-            && !fee_account_info.is_writable
-        {
-            return Err(ProgramError::InvalidAccountData);
-        }
-
         // Parse context based on FeeData variant.
         // Leaf/Routing: 44B context, target_router = H256::zero() sentinel.
         // CC: 76B context with target_router, reject H256::zero().
@@ -1391,25 +1382,6 @@ fn process_submit_quote(
                 ),
             )?;
             standing_account.store(domain_pda_info, false)?;
-
-            // Update standing_quote_domains on fee account (non-CC only).
-            // CC accounts have multiple PDAs per domain (one per target_router),
-            // making domain tracking unreliable — offchain tooling handles CC domain discovery.
-            if !matches!(
-                fee_account.data.fee_data,
-                FeeData::CrossCollateralRouting(_)
-            ) {
-                let mut fee_account_mut = fee_account.data;
-                fee_account_mut
-                    .standing_quote_domains
-                    .insert(destination_domain);
-                FeeAccountData::new(fee_account_mut.into()).store_with_rent_exempt_realloc(
-                    fee_account_info,
-                    &rent,
-                    payer_info,
-                    system_program_info,
-                )?;
-            }
         } else {
             standing_account.store_with_rent_exempt_realloc(
                 domain_pda_info,
@@ -1481,7 +1453,7 @@ fn process_close_transient_quote(program_id: &Pubkey, accounts: &[AccountInfo]) 
 }
 
 /// Remove expired standing quotes for a domain (owner-only).
-/// Closes the domain PDA if empty and removes domain from standing_quote_domains.
+/// Closes the domain PDA if empty.
 ///
 /// Accounts:
 /// 0. `[executable]` System program.
@@ -1501,7 +1473,7 @@ fn process_prune_expired_quotes(
         return Err(ProgramError::IncorrectProgramId);
     }
 
-    let (fee_account_info, mut fee_account, owner_info) =
+    let (fee_account_info, fee_account, owner_info) =
         fetch_fee_account_and_verify_owner(program_id, accounts_iter)?;
 
     // Account 3: Domain standing quote PDA.
@@ -1532,13 +1504,6 @@ fn process_prune_expired_quotes(
     if standing.quotes.is_empty() {
         // Close the PDA.
         close_pda(domain_pda_info, owner_info)?;
-
-        // Remove domain from standing_quote_domains (non-CC only).
-        // CC accounts never add domains to this set — offchain tooling handles CC domain discovery.
-        if !matches!(fee_account.fee_data, FeeData::CrossCollateralRouting(_)) {
-            fee_account.standing_quote_domains.remove(&domain);
-            FeeAccountData::new(fee_account.into()).store(fee_account_info, false)?;
-        }
 
         msg!("Pruned domain {} — PDA closed", domain);
     } else {
@@ -1715,15 +1680,11 @@ fn process_get_submit_quote_account_metas(
         is_signer: true,
         is_writable: true,
     });
-    // Account 2: Fee account.
-    // Standing quotes on non-CC accounts may update standing_quote_domains → writable.
-    // CC standing quotes and all transient quotes: fee_account is read-only.
-    let fee_account_writable = data.scoped_salt.is_none()
-        && !matches!(fee_account.fee_data, FeeData::CrossCollateralRouting(_));
+    // Account 2: Fee account (always read-only for SubmitQuote).
     metas.push(SerializableAccountMeta {
         pubkey: *fee_account_info.key,
         is_signer: false,
-        is_writable: fee_account_writable,
+        is_writable: false,
     });
 
     // Route PDAs for signer lookup (Routing/CC exact domain only).

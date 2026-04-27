@@ -76,8 +76,7 @@ pub enum Instruction {
         signers: BTreeSet<SignerAddress>,
     },
     /// Submit a signed offchain quote (transient or standing).
-    /// Transient: fee_account is read-only.
-    /// Standing: fee_account must be writable (updates standing_quote_domains on new domain).
+    /// Fee account is always read-only.
     SubmitQuote(SvmSignedQuote),
     /// Close an orphaned transient quote PDA, returning rent to the original payer.
     CloseTransientQuote,
@@ -684,8 +683,6 @@ pub fn submit_transient_quote_instruction(
 /// For CC fee accounts, pass the actual target_router.
 /// For Routing/CC fee accounts, pass `route_pdas` with the route PDA(s) for signer lookup.
 /// For Leaf, pass an empty slice.
-/// `fee_account_writable`: true for Leaf/Routing (updates standing_quote_domains), false for CC.
-#[allow(clippy::too_many_arguments)]
 pub fn submit_standing_quote_instruction(
     program_id: Pubkey,
     payer: Pubkey,
@@ -694,7 +691,6 @@ pub fn submit_standing_quote_instruction(
     target_router: H256,
     quote: SvmSignedQuote,
     route_pdas: &[Pubkey],
-    fee_account_writable: bool,
 ) -> Result<SolanaInstruction, ProgramError> {
     let domain_le = domain.to_le_bytes();
     let (standing_pda, _) = Pubkey::try_find_program_address(
@@ -708,18 +704,13 @@ pub fn submit_standing_quote_instruction(
     // Accounts:
     // 0. `[executable]` System program.
     // 1. `[signer, writable]` Payer.
-    // 2. `[writable/readonly]` Fee account (writable for Leaf/Routing, readonly for CC).
+    // 2. `[]` Fee account (read-only).
     // 3..N. `[]` Route PDAs (Routing: 1 RouteDomain, CC: specific + default CC route).
     // N+1. `[writable]` Standing quote PDA.
-    let fee_account_meta = if fee_account_writable {
-        AccountMeta::new(fee_account, false)
-    } else {
-        AccountMeta::new_readonly(fee_account, false)
-    };
     let mut accounts = vec![
         AccountMeta::new_readonly(system_program::ID, false),
         AccountMeta::new(payer, true),
-        fee_account_meta,
+        AccountMeta::new_readonly(fee_account, false),
     ];
     for pda in route_pdas {
         accounts.push(AccountMeta::new_readonly(*pda, false));
