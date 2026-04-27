@@ -16,9 +16,11 @@ import {
 } from '@hyperlane-xyz/provider-sdk/warp';
 import { ZERO_ADDRESS_HEX_32 } from '@hyperlane-xyz/utils';
 import type { SvmSigner } from '../clients/signer.js';
+import { fetchMintMetadata } from '../accounts/mint.js';
 import {
   decodeCollateralPlugin,
   decodeHyperlaneTokenRouteAccount,
+  decodeSyntheticPlugin,
   type HyperlaneTokenAccountData,
 } from '../accounts/token.js';
 import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
@@ -84,7 +86,7 @@ export class SvmWarpArtifactManager implements IRawWarpArtifactManager {
         if (tokenType !== undefined) {
           const raw = Buffer.from(acctInfo.value.data[0] as string, 'base64');
           const routeData = decodeHyperlaneTokenRouteAccount(raw);
-          return this.buildFactoryRouteArtifact(
+          return await this.buildFactoryRouteArtifact(
             tokenAddress,
             routeData?.token ?? null,
             tokenType,
@@ -99,11 +101,11 @@ export class SvmWarpArtifactManager implements IRawWarpArtifactManager {
     return reader.read(tokenAddress);
   }
 
-  private buildFactoryRouteArtifact(
+  private async buildFactoryRouteArtifact(
     tokenAddress: string,
     tokenData: HyperlaneTokenAccountData | null,
     type: SvmWarpTokenType,
-  ): DeployedRawWarpArtifact {
+  ): Promise<DeployedRawWarpArtifact> {
     const remoteRouters: Record<number, { address: string }> = {};
     const destinationGas: Record<number, string> = {};
 
@@ -143,12 +145,22 @@ export class SvmWarpArtifactManager implements IRawWarpArtifactManager {
         decimals: tokenData?.decimals ?? 9,
       };
     } else if (type === SvmWarpTokenType.Synthetic) {
+      let name = '';
+      let symbol = '';
+      let decimals = tokenData?.decimals ?? 0;
+      if (tokenData?.pluginData.length) {
+        const { mint } = decodeSyntheticPlugin(tokenData.pluginData);
+        const meta = await fetchMintMetadata(this.rpc, mint.toString());
+        name = meta.name;
+        symbol = meta.symbol;
+        decimals = meta.decimals;
+      }
       config = {
         ...baseConfig,
         type: TokenType.synthetic,
-        name: '',
-        symbol: '',
-        decimals: tokenData?.decimals ?? 0,
+        name,
+        symbol,
+        decimals,
       };
     } else {
       const token = tokenData

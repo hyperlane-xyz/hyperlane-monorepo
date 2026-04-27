@@ -187,7 +187,10 @@ export async function executeWarpDeploy(
   altVmSigners: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>>,
   registryAddresses: ChainMap<ChainAddresses>,
   apiKeys: ChainMap<string>,
-): Promise<ChainMap<Address>> {
+): Promise<{
+  deployedContracts: ChainMap<Address>;
+  enrollmentContracts: ChainMap<Address>;
+}> {
   const contractVerifier = new ContractVerifier(
     multiProvider,
     apiKeys,
@@ -230,6 +233,10 @@ export async function executeWarpDeploy(
       return config.foreignDeployment;
     },
   );
+  // Enrollment addresses may differ from deployed addresses for factory routes:
+  // factory route PDAs are used as addressOrDenom, but the factory program ID
+  // is enrolled on remote chains (so message.recipient is the executable program).
+  let enrollmentContracts: ChainMap<Address> = { ...deployedContracts };
 
   // get unique list of protocols
   const protocols = Array.from(
@@ -272,13 +279,12 @@ export async function executeWarpDeploy(
             );
 
         const evmContracts = await deployer.deploy(protocolSpecificConfig);
-        deployedContracts = {
-          ...deployedContracts,
-          ...objMap(
-            evmContracts as HyperlaneContractsMap<HypERC20Factories>,
-            (_, contracts) => getRouter(contracts).address,
-          ),
-        };
+        const evmAddresses = objMap(
+          evmContracts as HyperlaneContractsMap<HypERC20Factories>,
+          (_, contracts) => getRouter(contracts).address,
+        );
+        deployedContracts = { ...deployedContracts, ...evmAddresses };
+        enrollmentContracts = { ...enrollmentContracts, ...evmAddresses };
 
         break;
       }
@@ -286,6 +292,7 @@ export async function executeWarpDeploy(
         const chainLookup = altVmChainLookup(multiProvider);
 
         const deployResults: ChainMap<Address> = {};
+        const enrollmentResults: ChainMap<Address> = {};
         for (const chain of objKeys(protocolSpecificConfig)) {
           const config = mustGet(protocolSpecificConfig, chain);
           const signer = mustGet(altVmSigners, chain);
@@ -311,19 +318,42 @@ export async function executeWarpDeploy(
 
           const [deployed] = await writer.create(artifact);
           deployResults[chain] = deployed.deployed.address;
+          enrollmentResults[chain] =
+            resolveFactoryEnrollmentAddress(
+              deployed.config.type,
+              chainAddresses,
+            ) ?? deployed.deployed.address;
         }
 
-        deployedContracts = {
-          ...deployedContracts,
-          ...deployResults,
-        };
+        deployedContracts = { ...deployedContracts, ...deployResults };
+        enrollmentContracts = { ...enrollmentContracts, ...enrollmentResults };
 
         break;
       }
     }
   }
 
-  return deployedContracts;
+  return { deployedContracts, enrollmentContracts };
+}
+
+/**
+ * Returns the factory program ID to enroll on remote chains for a given token type,
+ * or undefined if this chain uses legacy (per-program) deployment.
+ *
+ * Factory routes enroll the factory program (executable) as the remote router so that
+ * the Solana mailbox can CPI into it. The route PDA is preserved as addressOrDenom.
+ */
+function resolveFactoryEnrollmentAddress(
+  tokenType: string,
+  chainAddresses: ChainAddresses,
+): string | undefined {
+  const factoryKeyByType: Partial<Record<string, string>> = {
+    [ProviderTokenType.synthetic]: 'syntheticFactoryProgramId',
+    [ProviderTokenType.collateral]: 'collateralFactoryProgramId',
+    [ProviderTokenType.native]: 'nativeFactoryProgramId',
+  };
+  const key = factoryKeyByType[tokenType];
+  return key ? (chainAddresses[key] as string | undefined) : undefined;
 }
 
 async function resolveWarpIsmAndHook(
@@ -541,11 +571,13 @@ export async function enrollCrossChainRouters(
     altVmSigners,
     registryAddresses,
     warpDeployConfig,
+    enrollmentContracts,
   }: {
     multiProvider: MultiProvider;
     altVmSigners: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>>;
     registryAddresses: ChainMap<ChainAddresses>;
     warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+    enrollmentContracts?: ChainMap<Address>;
   },
   deployedContracts: ChainMap<Address>,
 ): Promise<ChainMap<TypedAnnotatedTransaction[]>> {
@@ -578,11 +610,14 @@ export async function enrollCrossChainRouters(
         (_, value) => ({ address: addressToBytes32(value.address) }),
       );
 
-      // Merge: deployed routers take precedence over user-specified
+      // Merge: deployed routers take precedence over user-specified.
+      // Use enrollmentContracts when provided — for factory routes this is the
+      // factory program ID (executable), not the route PDA.
+      const routerAddresses = enrollmentContracts ?? deployedContracts;
       const remoteRouters: RemoteRouters = {
         ...userRemoteRouters,
         ...Object.fromEntries(
-          Object.entries(deployedContracts)
+          Object.entries(routerAddresses)
             .filter(([chain, _address]) => chain !== currentChain)
             .map(([chain, address]) => [
               multiProvider.getDomainId(chain).toString(),

@@ -291,6 +291,10 @@ export class SvmFactorySyntheticTokenWriter implements ArtifactWriter<
     private readonly ataPayerFundingAmount: bigint,
   ) {}
 
+  enrollmentAddress(): string {
+    return this.factoryProgram.toString();
+  }
+
   async create(
     artifact: ArtifactNew<RawSyntheticWarpArtifactConfig>,
   ): Promise<
@@ -473,6 +477,10 @@ export class SvmFactoryCollateralTokenWriter implements ArtifactWriter<
     private readonly ataPayerFundingAmount: bigint,
   ) {}
 
+  enrollmentAddress(): string {
+    return this.factoryProgram.toString();
+  }
+
   async create(
     artifact: ArtifactNew<RawCollateralWarpArtifactConfig>,
   ): Promise<
@@ -622,6 +630,10 @@ export class SvmFactoryNativeTokenWriter implements ArtifactWriter<
     private readonly svmSigner: SvmSigner,
     private readonly factoryProgram: Address,
   ) {}
+
+  enrollmentAddress(): string {
+    return this.factoryProgram.toString();
+  }
 
   async create(
     artifact: ArtifactNew<RawNativeWarpArtifactConfig>,

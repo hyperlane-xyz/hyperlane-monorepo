@@ -130,7 +130,15 @@ async function deriveWarpRouteConfigs(
         default: {
           const chainLookup = altVmChainLookup(multiProvider);
           const chainMetadata = chainLookup.getChainMetadata(chain);
-          const reader = createWarpTokenReader(chainMetadata, chainLookup);
+          const chainAddresses =
+            await context.registry.getChainAddresses(chain);
+          const reader = createWarpTokenReader(chainMetadata, chainLookup, {
+            syntheticFactoryProgramId:
+              chainAddresses?.['syntheticFactoryProgramId'],
+            collateralFactoryProgramId:
+              chainAddresses?.['collateralFactoryProgramId'],
+            nativeFactoryProgramId: chainAddresses?.['nativeFactoryProgramId'],
+          });
           return reader.deriveWarpConfig(address);
         }
       }

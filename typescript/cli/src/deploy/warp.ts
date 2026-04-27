@@ -164,12 +164,21 @@ export async function runWarpRouteDeploy({
   const initialBalances = await getBalances(context, deploymentChains);
 
   logBlue('🚀 All systems ready, captain! Beginning deployment...');
-  const { deployedContracts } = await executeDeploy(deploymentParams, apiKeys);
+  const { deployedContracts, enrollmentContracts } = await executeDeploy(
+    deploymentParams,
+    apiKeys,
+  );
 
   const registryAddresses = await registry.getAddresses();
 
   const enrollTxs = await enrollCrossChainRouters(
-    { multiProvider, altVmSigners, registryAddresses, warpDeployConfig },
+    {
+      multiProvider,
+      altVmSigners,
+      registryAddresses,
+      warpDeployConfig,
+      enrollmentContracts,
+    },
     deployedContracts,
   );
 
@@ -278,6 +287,7 @@ async function executeDeploy(
   apiKeys: ChainMap<string>,
 ): Promise<{
   deployedContracts: ChainMap<Address>;
+  enrollmentContracts: ChainMap<Address>;
   deployments: WarpCoreConfig;
 }> {
   const {
@@ -287,7 +297,7 @@ async function executeDeploy(
 
   const registryAddresses = await registry.getAddresses();
 
-  const deployedContracts = await executeWarpDeploy(
+  const { deployedContracts, enrollmentContracts } = await executeWarpDeploy(
     warpDeployConfig,
     multiProvider,
     altVmSigners,
@@ -301,7 +311,7 @@ async function executeDeploy(
   );
 
   logGreen('✅ Warp contract deployments complete');
-  return { deployedContracts, deployments };
+  return { deployedContracts, enrollmentContracts, deployments };
 }
 
 async function writeDeploymentArtifacts(
