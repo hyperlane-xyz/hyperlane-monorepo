@@ -4,5 +4,8 @@
   "multisig_ism_message_id": "2YjtZDiUoptoSsA5eVrDCcX6wxNK6YoEVW7y82x5Z2fw",
   "igp_program_id": "GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U",
   "overhead_igp_account": "EBEZGxTABcfHgPH1vZZc9BnFWHjne4nzqApZZxGTCgsn",
-  "igp_account": "DrFtxirPPsfdY4HQiNZj2A9o4Ux7JaL3gELANgAoihhp"
+  "igp_account": "DrFtxirPPsfdY4HQiNZj2A9o4Ux7JaL3gELANgAoihhp",
+  "synthetic_factory_program_id": "5UEgXD8t4wzgVA3L2EaXEMkkTRb6YB2GMa6pvC4q2Com",
+  "collateral_factory_program_id": "Hqgb8R8DnfCzXe9P45mqj5Fk6J1hSZCVDXtC9xwCoVWK",
+  "native_factory_program_id": "DZjajMXXi2SvTxj77YJFAv9jK7nfhgdqhPTtM6sYMW3M"
 }

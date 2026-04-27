@@ -17,7 +17,10 @@ use std::fmt::Debug;
 
 use hyperlane_sealevel_mailbox::mailbox_message_dispatch_authority_pda_seeds;
 
-use crate::{hyperlane_token_factory_state_pda_seeds, hyperlane_token_pda_seeds};
+use crate::{
+    hyperlane_token_factory_state_pda_seeds, hyperlane_token_pda_seeds,
+    hyperlane_token_route_pda_seeds,
+};
 
 /// Instructions shared by all Hyperlane Sealevel Token programs.
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
@@ -434,6 +437,26 @@ pub fn create_route_instruction(
     })
 }
 
+/// Derives the route PDA for a given factory program and salt.
+pub fn route_pda(factory_program_id: Pubkey, salt: &[u8; 32]) -> Pubkey {
+    Pubkey::find_program_address(hyperlane_token_route_pda_seeds!(salt), &factory_program_id).0
+}
+
+/// Derives the router lookup PDA for a given factory program, domain, and remote router.
+/// Used as an extra account in `EnrollRemoteRoutersForRoute`.
+pub fn router_lookup_pda(factory_program_id: Pubkey, domain: u32, router: H256) -> Pubkey {
+    let origin_le = domain.to_le_bytes();
+    Pubkey::find_program_address(
+        &[
+            b"hyperlane_token_lookup",
+            origin_le.as_ref(),
+            router.as_fixed_bytes(),
+        ],
+        &factory_program_id,
+    )
+    .0
+}
+
 /// Builds an `EnrollRemoteRoutersForRoute` instruction.
 ///
 /// Accounts:
@@ -466,6 +489,65 @@ pub fn enroll_remote_routers_for_route_instruction(
     Ok(SolanaInstruction {
         program_id,
         data: Instruction::EnrollRemoteRoutersForRoute(data).encode()?,
+        accounts,
+    })
+}
+
+/// Builds a `SetDestinationGasConfigsForRoute` instruction.
+///
+/// Accounts:
+/// 0. `[executable]` System program.
+/// 1. `[writable]`   Route PDA.
+/// 2. `[signer]`     Owner / payer.
+pub fn set_destination_gas_configs_for_route_instruction(
+    program_id: Pubkey,
+    owner_payer: Pubkey,
+    data: SetDestinationGasConfigsForRoute,
+) -> Result<SolanaInstruction, ProgramError> {
+    let (route_pda_key, _) =
+        Pubkey::try_find_program_address(hyperlane_token_route_pda_seeds!(&data.salt), &program_id)
+            .ok_or(ProgramError::InvalidSeeds)?;
+
+    let accounts = vec![
+        AccountMeta::new_readonly(system_program::ID, false),
+        AccountMeta::new(route_pda_key, false),
+        AccountMeta::new(owner_payer, true),
+    ];
+
+    Ok(SolanaInstruction {
+        program_id,
+        data: Instruction::SetDestinationGasConfigsForRoute(data).encode()?,
+        accounts,
+    })
+}
+
+/// Builds a `TransferOwnershipForRoute` instruction.
+///
+/// Accounts:
+/// 0. `[writable]` Route PDA.
+/// 1. `[signer]`   Current owner.
+pub fn transfer_ownership_for_route_instruction(
+    program_id: Pubkey,
+    current_owner: Pubkey,
+    salt: [u8; 32],
+    new_owner: Option<Pubkey>,
+) -> Result<SolanaInstruction, ProgramError> {
+    let (route_pda_key, _) =
+        Pubkey::try_find_program_address(hyperlane_token_route_pda_seeds!(&salt), &program_id)
+            .ok_or(ProgramError::InvalidSeeds)?;
+
+    let accounts = vec![
+        AccountMeta::new(route_pda_key, false),
+        AccountMeta::new(current_owner, true),
+    ];
+
+    Ok(SolanaInstruction {
+        program_id,
+        data: Instruction::TransferOwnershipForRoute(SetWithSalt {
+            salt,
+            value: new_owner,
+        })
+        .encode()?,
         accounts,
     })
 }
