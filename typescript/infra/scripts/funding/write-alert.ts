@@ -17,7 +17,11 @@ import {
   ProvisionedAlertRule,
   alertConfigMapping,
 } from '../../src/config/funding/grafanaAlerts.js';
-import { parseBalancesPromQLQuery } from '../../src/funding/alerts.js';
+import {
+  filterAlertChains,
+  getNoAlertChains,
+  parseBalancesPromQLQuery,
+} from '../../src/funding/alerts.js';
 import { validateThresholds } from '../../src/funding/balances.js';
 import {
   fetchGrafanaAlert,
@@ -79,6 +83,7 @@ async function main() {
     const alertsToUpdate = Object.values(AlertType);
     const alertUpdateInfo: AlertUpdateInfo[] = [];
     const missingChainErrors: RegressionError[] = [];
+    const noAlertChains = getNoAlertChains();
 
     for (const alert of alertsToUpdate) {
       // fetch alertRule config from Grafana via the Grafana API
@@ -92,10 +97,23 @@ async function main() {
 
       // parse the current thresholds from the existing query
       const existingQuery = alertRule.queries[0];
-      const currentThresholds = parseBalancesPromQLQuery(
+      let currentThresholds = parseBalancesPromQLQuery(
         existingQuery,
         alertConfigMapping[alert].walletName,
       );
+
+      // Drop disabled / decommissioned / known-down chains from both sides so
+      // they're stripped from the new query without prompting as "missing".
+      const droppedChains = Object.keys(currentThresholds).filter((chain) =>
+        noAlertChains.has(chain),
+      );
+      if (droppedChains.length > 0) {
+        rootLogger.info(
+          `Removing ${droppedChains.length} no-alert chain(s) from ${alert}: ${droppedChains.join(', ')}`,
+        );
+      }
+      proposedThresholds = filterAlertChains(proposedThresholds, noAlertChains);
+      currentThresholds = filterAlertChains(currentThresholds, noAlertChains);
 
       // log an error if a chain is defined in current thresholds but not in the proposed thresholds
       // this is to ensure that we don't introduce a regression where a chain is no longer being monitored
