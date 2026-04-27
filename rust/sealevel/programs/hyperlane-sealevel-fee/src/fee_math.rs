@@ -92,8 +92,14 @@ fn compute_linear(max_fee: U256, half_amount: U256, amount: U256) -> Result<u64,
         return Ok(0);
     }
 
-    let denominator = U256::from(2) * half_amount;
-    let fee = amount * max_fee / denominator;
+    let denominator = U256::from(2)
+        .checked_mul(half_amount)
+        .ok_or::<ProgramError>(Error::FeeComputationOverflow.into())?;
+    let fee = amount
+        .checked_mul(max_fee)
+        .ok_or::<ProgramError>(Error::FeeComputationOverflow.into())?
+        .checked_div(denominator)
+        .ok_or::<ProgramError>(Error::FeeComputationOverflow.into())?;
     let capped = core::cmp::min(fee, max_fee);
 
     capped
@@ -107,7 +113,15 @@ fn compute_regressive(max_fee: U256, half_amount: U256, amount: U256) -> Result<
         return Ok(0);
     }
 
-    let fee = max_fee * amount / (half_amount + amount);
+    let numerator = max_fee
+        .checked_mul(amount)
+        .ok_or::<ProgramError>(Error::FeeComputationOverflow.into())?;
+    let denominator = half_amount
+        .checked_add(amount)
+        .ok_or::<ProgramError>(Error::FeeComputationOverflow.into())?;
+    let fee = numerator
+        .checked_div(denominator)
+        .ok_or::<ProgramError>(Error::FeeComputationOverflow.into())?;
 
     fee.try_into()
         .map_err(|_| Error::FeeComputationOverflow.into())
@@ -123,15 +137,25 @@ fn compute_progressive(
         return Ok(0);
     }
 
-    let amount_sq = amount * amount;
-    let half_sq = half_amount * half_amount;
-    let denominator = half_sq + amount_sq;
+    let amount_sq = amount
+        .checked_mul(amount)
+        .ok_or::<ProgramError>(Error::FeeComputationOverflow.into())?;
+    let half_sq = half_amount
+        .checked_mul(half_amount)
+        .ok_or::<ProgramError>(Error::FeeComputationOverflow.into())?;
+    let denominator = half_sq
+        .checked_add(amount_sq)
+        .ok_or::<ProgramError>(Error::FeeComputationOverflow.into())?;
 
     if denominator.is_zero() {
         return Ok(0);
     }
 
-    let fee = max_fee * amount_sq / denominator;
+    let fee = max_fee
+        .checked_mul(amount_sq)
+        .ok_or::<ProgramError>(Error::FeeComputationOverflow.into())?
+        .checked_div(denominator)
+        .ok_or::<ProgramError>(Error::FeeComputationOverflow.into())?;
 
     fee.try_into()
         .map_err(|_| Error::FeeComputationOverflow.into())
