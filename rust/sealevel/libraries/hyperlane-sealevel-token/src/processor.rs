@@ -522,17 +522,19 @@ where
             &[dispatch_authority_seeds],
         )?;
 
+        // Verify mailbox set return data (sanity check — always true after dispatch).
+        let (returning_program_id, returned_data) =
+            get_return_data().ok_or(ProgramError::InvalidArgument)?;
+        if returning_program_id != token.mailbox {
+            return Err(ProgramError::InvalidArgument);
+        }
+
         // Pay for gas if IGP is configured.
         if let Some((igp_payment_account_metas, igp_payment_account_infos)) = igp_payment_accounts {
             let (igp_program_id, _) = token
                 .interchain_gas_paymaster()
                 .ok_or(ProgramError::InvalidArgument)?;
 
-            let (returning_program_id, returned_data) =
-                get_return_data().ok_or(ProgramError::InvalidArgument)?;
-            if returning_program_id != token.mailbox {
-                return Err(ProgramError::InvalidArgument);
-            }
             let message_id =
                 H256::try_from_slice(&returned_data).map_err(|_| ProgramError::InvalidArgument)?;
 
