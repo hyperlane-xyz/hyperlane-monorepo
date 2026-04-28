@@ -9,7 +9,7 @@ use hyperlane_core::{H160, H256};
 use solana_program::{program_error::ProgramError, pubkey::Pubkey};
 
 use crate::fee_math::FeeDataStrategy;
-use solana_program::clock::Clock;
+use quote_verifier::ValidatableQuote;
 
 // --- Discriminators ---
 
@@ -334,31 +334,6 @@ impl SizedData for CrossCollateralRoute {
 }
 
 // --- Transient quote PDA ---
-
-// --- Quote validation trait ---
-
-/// Common validation for quote values.
-/// Checks issued_at freshness and expiry.
-pub trait ValidatableQuote {
-    /// Expiry timestamp (unix).
-    fn expiry(&self) -> i64;
-
-    /// Issued-at timestamp (unix).
-    fn issued_at(&self) -> i64;
-
-    /// Validates that the quote is still usable given the clock and min_issued_at threshold.
-    /// Returns an error describing the first failed check.
-    fn validate_quote(&self, min_issued_at: i64, clock: &Clock) -> Result<(), ProgramError> {
-        if self.issued_at() < min_issued_at {
-            return Err(crate::error::Error::StaleStandingQuote.into());
-        }
-
-        if clock.unix_timestamp > self.expiry() {
-            return Err(crate::error::Error::QuoteExpired.into());
-        }
-        Ok(())
-    }
-}
 
 // --- Transient quote PDA ---
 

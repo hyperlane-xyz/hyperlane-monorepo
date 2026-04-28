@@ -193,7 +193,7 @@ mod submit_standing_quote {
             result,
             TransactionError::InstructionError(
                 0,
-                InstructionError::Custom(FeeError::StaleStandingQuote as u32),
+                InstructionError::Custom(QuoteValidationError::StaleQuote as u32),
             ),
         );
     }

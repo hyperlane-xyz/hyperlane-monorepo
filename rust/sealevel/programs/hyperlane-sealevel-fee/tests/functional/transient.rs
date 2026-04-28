@@ -271,7 +271,7 @@ async fn test_expired_quote_rejected() {
         result,
         TransactionError::InstructionError(
             0,
-            InstructionError::Custom(FeeError::QuoteExpired as u32),
+            InstructionError::Custom(QuoteValidationError::QuoteExpired as u32),
         ),
     );
 }

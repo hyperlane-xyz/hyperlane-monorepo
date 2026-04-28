@@ -27,8 +27,8 @@ use crate::{
         CcFeeQuoteContext, CrossCollateralRoute, CrossCollateralRouteAccount, FeeAccount,
         FeeAccountData, FeeData, FeeQuoteContext, FeeStandingQuotePda, FeeStandingQuotePdaAccount,
         FeeStandingQuoteValue, QuoteContext, RouteDomain, RouteDomainAccount,
-        StandingQuoteAuthScope, TransientQuote, TransientQuoteAccount, ValidatableQuote,
-        DEFAULT_ROUTER, WILDCARD_DOMAIN,
+        StandingQuoteAuthScope, TransientQuote, TransientQuoteAccount, DEFAULT_ROUTER,
+        WILDCARD_DOMAIN,
     },
     cc_route_pda_seeds,
     error::Error,
@@ -42,9 +42,9 @@ use crate::{
     route_domain_pda_seeds, transient_quote_pda_seeds,
 };
 
-/// Maximum allowed clock skew (seconds) between signer infrastructure and Solana clock.
-/// Quotes with issued_at > now + MAX_ISSUED_AT_SKEW are rejected.
-const MAX_ISSUED_AT_SKEW: i64 = 300; // 5 minutes
+use quote_verifier::{
+    QuoteValidationError, ValidatableQuote, MAX_QUOTE_ISSUED_AT_FUTURE_SKEW_SECS,
+};
 
 #[cfg(not(feature = "no-entrypoint"))]
 solana_program::entrypoint!(process_instruction);
@@ -1028,11 +1028,11 @@ fn process_submit_quote(
     // Validate quote hasn't expired.
     let clock = Clock::get()?;
     if clock.unix_timestamp > expiry_ts {
-        return Err(Error::QuoteExpired.into());
+        return Err(QuoteValidationError::QuoteExpired.into());
     }
 
     // Reject issued_at too far in the future (clock skew guard).
-    if issued_at_ts > clock.unix_timestamp + MAX_ISSUED_AT_SKEW {
+    if issued_at_ts > clock.unix_timestamp + MAX_QUOTE_ISSUED_AT_FUTURE_SKEW_SECS {
         return Err(Error::IssuedAtTooFarInFuture.into());
     }
 
@@ -1339,7 +1339,7 @@ fn process_submit_quote(
 
         if let Some(existing) = standing_pda.quotes.get(&recipient_key) {
             if issued_at_ts < existing.issued_at {
-                return Err(Error::StaleStandingQuote.into());
+                return Err(QuoteValidationError::StaleQuote.into());
             }
             // Equal issued_at → no-op (don't update, don't error).
             if issued_at_ts == existing.issued_at {
