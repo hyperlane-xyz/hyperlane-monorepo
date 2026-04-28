@@ -12,7 +12,10 @@ use solana_system_interface::{
 };
 
 pub mod discriminator;
+pub mod error;
+
 pub use discriminator::*;
+pub use error::*;
 
 /// Reads an optional trailing field from a Borsh reader. Treats EOF as
 /// `None` so that accounts serialized before the field existed still
@@ -34,6 +37,17 @@ pub fn read_optional_trailing<R: std::io::Read, V: BorshDeserialize>(
         Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => Ok(None),
         Err(e) => Err(e),
     }
+}
+
+/// Verifies that no additional accounts remain in the iterator.
+pub fn ensure_no_extraneous_accounts(
+    accounts_iter: &mut std::slice::Iter<'_, AccountInfo<'_>>,
+) -> Result<(), ProgramError> {
+    if accounts_iter.next().is_some() {
+        return Err(AccountError::ExtraneousAccount.into());
+    }
+
+    Ok(())
 }
 
 /// The SPL Noop program ID.

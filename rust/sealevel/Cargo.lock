@@ -28,6 +28,7 @@ dependencies = [
  "solana-system-interface 2.0.0",
  "spl-discriminator 0.5.1",
  "spl-type-length-value 0.6.0",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
