@@ -79,6 +79,15 @@ export const chainsToSkip: ChainName[] = [
   'abstract',
   'sophon',
 
+  // permanently decommissioned
+  'everclear',
+  'milkyway',
+
+  'artela',
+  'polynomialfi',
+
+  // arcadia artela chilizmainnet coti electroneum galactica igra immutablezkevmmainnet krown megaeth ontology polynomialfi pulsechain reactive sei shibarium unichain viction xrplevm
+
   ...getDisabledChains(),
 ];
 
