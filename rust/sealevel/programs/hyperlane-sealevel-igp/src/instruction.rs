@@ -47,6 +47,10 @@ pub enum Instruction {
     /// Adds or removes an authorized quote signer on the IGP.
     /// Requires fee_config to be set via SetIgpQuoteConfig first.
     SetIgpQuoteSigner(SetIgpQuoteSignerOperation),
+    /// Sets the min_issued_at threshold on the IGP.
+    /// Monotonic: new value must be >= current value.
+    /// Requires fee_config to be set via SetIgpQuoteConfig first.
+    SetIgpMinIssuedAt(i64),
 }
 
 /// Operation for adding or removing a quote signer.
@@ -464,6 +468,32 @@ pub fn set_igp_quote_signer_instruction(
     operation: SetIgpQuoteSignerOperation,
 ) -> Result<SolanaInstruction, ProgramError> {
     let ixn = Instruction::SetIgpQuoteSigner(operation);
+
+    // Accounts:
+    // 0. `[executable]` The system program.
+    // 1. `[writeable]` The IGP.
+    // 2. `[signer]` The IGP owner.
+    let accounts = vec![
+        AccountMeta::new_readonly(system_program::ID, false),
+        AccountMeta::new(igp, false),
+        AccountMeta::new_readonly(owner, true),
+    ];
+
+    Ok(SolanaInstruction {
+        program_id,
+        data: borsh::to_vec(&ixn)?,
+        accounts,
+    })
+}
+
+/// Gets an instruction to set the min_issued_at threshold on an IGP.
+pub fn set_igp_min_issued_at_instruction(
+    program_id: Pubkey,
+    igp: Pubkey,
+    owner: Pubkey,
+    min_issued_at: i64,
+) -> Result<SolanaInstruction, ProgramError> {
+    let ixn = Instruction::SetIgpMinIssuedAt(min_issued_at);
 
     // Accounts:
     // 0. `[executable]` The system program.

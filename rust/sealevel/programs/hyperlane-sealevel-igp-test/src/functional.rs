@@ -31,9 +31,10 @@ use hyperlane_sealevel_igp::{
     error::Error as IgpError,
     igp_gas_payment_pda_seeds, igp_pda_seeds, igp_program_data_pda_seeds,
     instruction::{
-        set_igp_quote_config_instruction, set_igp_quote_signer_instruction, GasOracleConfig,
-        GasOverheadConfig, InitIgp, InitOverheadIgp, Instruction as IgpInstruction, PayForGas,
-        QuoteGasPayment, SetIgpQuoteSignerOperation,
+        set_igp_min_issued_at_instruction, set_igp_quote_config_instruction,
+        set_igp_quote_signer_instruction, GasOracleConfig, GasOverheadConfig, InitIgp,
+        InitOverheadIgp, Instruction as IgpInstruction, PayForGas, QuoteGasPayment,
+        SetIgpQuoteSignerOperation,
     },
     overhead_igp_pda_seeds,
     processor::process_instruction as igp_process_instruction,
@@ -2081,5 +2082,136 @@ async fn test_remove_igp_quote_signer_not_found() {
     assert_transaction_error(
         result,
         TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+    );
+}
+
+// --- SetIgpMinIssuedAt tests ---
+
+#[tokio::test]
+async fn test_set_igp_min_issued_at() {
+    let (mut banks_client, payer) = setup_client().await;
+    let igp_key = setup_igp_with_quote_config(&mut banks_client, &payer).await;
+
+    let ix =
+        set_igp_min_issued_at_instruction(igp_program_id(), igp_key, payer.pubkey(), 500).unwrap();
+    process_instruction(&mut banks_client, ix, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    let igp = fetch_igp(&mut banks_client, igp_key).await;
+    assert_eq!(igp.fee_config.unwrap().min_issued_at, 500);
+
+    // Increase is allowed.
+    let ix =
+        set_igp_min_issued_at_instruction(igp_program_id(), igp_key, payer.pubkey(), 1000).unwrap();
+    process_instruction(&mut banks_client, ix, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    let igp = fetch_igp(&mut banks_client, igp_key).await;
+    assert_eq!(igp.fee_config.unwrap().min_issued_at, 1000);
+}
+
+#[tokio::test]
+async fn test_set_igp_min_issued_at_equal_allowed() {
+    let (mut banks_client, payer) = setup_client().await;
+    let igp_key = setup_igp_with_quote_config(&mut banks_client, &payer).await;
+
+    let ix =
+        set_igp_min_issued_at_instruction(igp_program_id(), igp_key, payer.pubkey(), 500).unwrap();
+    process_instruction(&mut banks_client, ix, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    // Setting same value is allowed (non-decreasing).
+    let ix =
+        set_igp_min_issued_at_instruction(igp_program_id(), igp_key, payer.pubkey(), 500).unwrap();
+    process_instruction(&mut banks_client, ix, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    let igp = fetch_igp(&mut banks_client, igp_key).await;
+    assert_eq!(igp.fee_config.unwrap().min_issued_at, 500);
+}
+
+#[tokio::test]
+async fn test_set_igp_min_issued_at_monotonic_rejection() {
+    let (mut banks_client, payer) = setup_client().await;
+    let igp_key = setup_igp_with_quote_config(&mut banks_client, &payer).await;
+
+    // Set to 1000.
+    let ix =
+        set_igp_min_issued_at_instruction(igp_program_id(), igp_key, payer.pubkey(), 1000).unwrap();
+    process_instruction(&mut banks_client, ix, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    // Try to lower to 500 — should fail.
+    let ix =
+        set_igp_min_issued_at_instruction(igp_program_id(), igp_key, payer.pubkey(), 500).unwrap();
+    let result = process_instruction(&mut banks_client, ix, &payer, &[&payer]).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+    );
+}
+
+#[tokio::test]
+async fn test_set_igp_min_issued_at_rejects_no_fee_config() {
+    let (mut banks_client, payer) = setup_client().await;
+    initialize(&mut banks_client, &payer).await.unwrap();
+
+    let salt = H256::random();
+    let (igp_key, _) = initialize_igp(
+        &mut banks_client,
+        &payer,
+        salt,
+        Some(payer.pubkey()),
+        payer.pubkey(),
+    )
+    .await
+    .unwrap();
+
+    let ix =
+        set_igp_min_issued_at_instruction(igp_program_id(), igp_key, payer.pubkey(), 100).unwrap();
+    let result = process_instruction(&mut banks_client, ix, &payer, &[&payer]).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+    );
+}
+
+#[tokio::test]
+async fn test_set_igp_min_issued_at_rejects_non_owner() {
+    let (mut banks_client, payer) = setup_client().await;
+    let igp_key = setup_igp_with_quote_config(&mut banks_client, &payer).await;
+
+    let non_owner = new_funded_keypair(&mut banks_client, &payer, 1_000_000_000).await;
+    let ix = set_igp_min_issued_at_instruction(igp_program_id(), igp_key, non_owner.pubkey(), 100)
+        .unwrap();
+    let result = process_instruction(&mut banks_client, ix, &non_owner, &[&non_owner]).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+    );
+}
+
+#[tokio::test]
+async fn test_set_igp_min_issued_at_rejects_extraneous_account() {
+    let (mut banks_client, payer) = setup_client().await;
+    let igp_key = setup_igp_with_quote_config(&mut banks_client, &payer).await;
+
+    let mut ix =
+        set_igp_min_issued_at_instruction(igp_program_id(), igp_key, payer.pubkey(), 100).unwrap();
+    ix.accounts
+        .push(AccountMeta::new_readonly(Pubkey::new_unique(), false));
+
+    let result = process_instruction(&mut banks_client, ix, &payer, &[&payer]).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(
+            0,
+            InstructionError::Custom(account_utils::AccountError::ExtraneousAccount as u32),
+        ),
     );
 }

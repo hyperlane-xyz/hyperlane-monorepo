@@ -87,6 +87,9 @@ pub fn process_instruction(
         IgpInstruction::SetIgpQuoteSigner(operation) => {
             set_igp_quote_signer(program_id, accounts, operation)?;
         }
+        IgpInstruction::SetIgpMinIssuedAt(min_issued_at) => {
+            set_igp_min_issued_at(program_id, accounts, min_issued_at)?;
+        }
     }
 
     Ok(())
@@ -758,6 +761,55 @@ fn set_igp_quote_signer(
             }
         }
     }
+
+    let igp_account = IgpAccount::new(igp.into());
+    igp_account.store_with_rent_exempt_realloc(
+        igp_info,
+        &Rent::get()?,
+        owner_info,
+        system_program_info,
+    )?;
+
+    Ok(())
+}
+
+/// Sets the min_issued_at threshold on the IGP.
+/// Monotonic: new value must be >= current value.
+///
+/// Accounts:
+/// 0. `[executable]` The system program.
+/// 1. `[writeable]` The IGP account.
+/// 2. `[signer]` The IGP owner.
+fn set_igp_min_issued_at(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    min_issued_at: i64,
+) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    // Account 0: System program.
+    let system_program_info = next_account_info(accounts_iter)?;
+    if system_program_info.key != &system_program::ID {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+
+    // Account 1: IGP + Account 2: Owner (signer).
+    let (igp_info, mut igp, owner_info) =
+        get_igp_variant_and_verify_owner::<Igp>(program_id, accounts_iter)?;
+
+    ensure_no_extraneous_accounts(accounts_iter)?;
+
+    let fee_config = igp
+        .fee_config
+        .as_mut()
+        .ok_or(ProgramError::InvalidArgument)?;
+
+    // Monotonic: cannot decrease.
+    if min_issued_at < fee_config.min_issued_at {
+        return Err(ProgramError::InvalidArgument);
+    }
+
+    fee_config.min_issued_at = min_issued_at;
 
     let igp_account = IgpAccount::new(igp.into());
     igp_account.store_with_rent_exempt_realloc(
