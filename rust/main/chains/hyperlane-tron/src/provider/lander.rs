@@ -28,6 +28,14 @@ pub trait TronProviderForLander: Send + Sync {
     /// Estimates the gas required for a transaction.
     async fn estimate_gas(&self, tx: &TypedTransaction) -> ChainResult<ethers::types::U256>;
 
+    /// Returns the gas price used for cost estimation.
+    ///
+    /// Default implementation falls back to values already encoded in the tx.
+    async fn get_gas_price(&self, tx: &TypedTransaction) -> ChainResult<ethers::types::U256> {
+        tx.gas_price()
+            .ok_or_else(|| ChainCommunicationError::from_other_str("missing Tron tx gas price"))
+    }
+
     /// Calls a read-only function on the Tron network.
     async fn call<T: Detokenize>(
         &self,
@@ -55,6 +63,10 @@ impl TronProviderForLander for TronProvider {
 
     async fn estimate_gas(&self, tx: &TypedTransaction) -> ChainResult<ethers::types::U256> {
         Ok(Middleware::estimate_gas(self, tx, None).await?)
+    }
+
+    async fn get_gas_price(&self, _tx: &TypedTransaction) -> ChainResult<ethers::types::U256> {
+        Ok(Middleware::get_gas_price(self).await?)
     }
 
     async fn call<T: Detokenize>(

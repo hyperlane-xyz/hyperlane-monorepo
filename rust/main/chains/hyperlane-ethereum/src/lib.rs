@@ -25,7 +25,8 @@ mod tx;
 #[allow(clippy::arithmetic_side_effects, clippy::unwrap_used)]
 mod contracts;
 #[allow(clippy::unwrap_used)]
-mod interfaces;
+/// Ethereum contract interfaces
+pub mod interfaces;
 
 fn extract_fn_map(abi: &'static Lazy<abi::Abi>) -> HashMap<Vec<u8>, &'static str> {
     abi.functions()

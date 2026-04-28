@@ -236,6 +236,8 @@ fn launch_radix_relayer(agent_config_path: String, relay_chains: Vec<String>) ->
         .hyp_env("DEFAULTSIGNER_SUFFIX", SUFFIX)
         .hyp_env("CHAINS_RADIXTEST0_SUBMITTER", SUBMITTER_TYPE.to_string())
         .hyp_env("CHAINS_RADIXTEST1_SUBMITTER", SUBMITTER_TYPE.to_string())
+        .hyp_env("CHAINS_RADIXTEST0_GASESTIMATOR", SUBMITTER_TYPE.to_string())
+        .hyp_env("CHAINS_RADIXTEST1_GASESTIMATOR", SUBMITTER_TYPE.to_string())
         .hyp_env(
             "GASPAYMENTENFORCEMENT",
             r#"[{

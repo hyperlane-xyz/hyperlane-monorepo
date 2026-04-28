@@ -4,14 +4,14 @@ use async_trait::async_trait;
 use tracing::debug;
 
 use hyperlane_base::{settings::ChainConf, CoreMetrics};
-use hyperlane_core::{ContractLocator, H256, H512};
+use hyperlane_core::{ContractLocator, FixedPointNumber, H256, H512};
 use hyperlane_tron::{TronProvider, TronProviderForLander};
 
 use crate::adapter::chains::tron::{
     conf::create_signer, precursor::Precursor, submit::submit_transaction,
 };
 use crate::{
-    adapter::{chains::tron::TronTxPrecursor, AdaptsChain, GasLimit, TxBuildingResult},
+    adapter::{chains::tron::TronTxPrecursor, AdaptsChain, TxBuildingResult},
     payload::PayloadDetails,
     transaction::Transaction,
     DispatcherMetrics, FullPayload, LanderError, TransactionStatus,
@@ -59,9 +59,27 @@ impl<P: TronProviderForLander> AdaptsChain for TronAdapter<P> {
     /// Simulates Payload and returns its gas limit. Called in the Building Stage (PayloadDispatcher)
     async fn estimate_gas_limit(
         &self,
-        _payload: &FullPayload,
-    ) -> Result<Option<GasLimit>, LanderError> {
-        todo!()
+        payload: &FullPayload,
+    ) -> Result<hyperlane_core::TxCostEstimate, LanderError> {
+        let precursor = TronTxPrecursor::from_data(&payload.data)?;
+        let gas_limit = self
+            .provider
+            .estimate_gas(&precursor.tx)
+            .await
+            .map_err(LanderError::ChainCommunicationError)?;
+        let gas_price = self
+            .provider
+            .get_gas_price(&precursor.tx)
+            .await
+            .map_err(LanderError::ChainCommunicationError)?;
+        let gas_price = hyperlane_core::U256::from(gas_price);
+
+        Ok(hyperlane_core::TxCostEstimate {
+            gas_limit: gas_limit.into(),
+            gas_price: FixedPointNumber::try_from(gas_price)
+                .map_err(LanderError::ChainCommunicationError)?,
+            l2_gas_limit: None,
+        })
     }
 
     /// Performs batching if available. Internally estimates gas limit for batch as well. Called in the Building Stage (PayloadDispatcher)
