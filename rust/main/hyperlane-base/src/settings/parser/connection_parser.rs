@@ -296,6 +296,7 @@ fn build_sealevel_connection_conf(
     let transaction_submitter = parse_transaction_submitter_config(chain, &mut local_err);
     let mailbox_process_alt = parse_sealevel_mailbox_process_alt(chain, &mut local_err);
     let process_alt_overrides = parse_sealevel_process_alt_overrides(chain, &mut local_err);
+    let warp_factory_programs = parse_sealevel_warp_factory_programs(chain, &mut local_err);
 
     if !local_err.is_ok() {
         err.merge(local_err);
@@ -312,6 +313,7 @@ fn build_sealevel_connection_conf(
         transaction_submitter,
         mailbox_process_alt,
         process_alt_overrides,
+        warp_factory_programs,
     }))
 }
 
@@ -339,6 +341,29 @@ fn parse_sealevel_mailbox_process_alt(
     } else {
         None
     }
+}
+
+fn parse_sealevel_warp_factory_programs(
+    chain: &ValueParser,
+    err: &mut ConfigParsingError,
+) -> Vec<Pubkey> {
+    let keys = [
+        "syntheticFactoryProgramId",
+        "collateralFactoryProgramId",
+        "nativeFactoryProgramId",
+    ];
+    keys.iter()
+        .filter_map(|key| {
+            let s = chain.chain(err).get_opt_key(key).parse_string().end()?;
+            match Pubkey::from_str(s) {
+                Ok(pubkey) => Some(pubkey),
+                Err(e) => {
+                    err.push((&chain.cwp).add(*key), eyre!("Invalid {key} pubkey: {e}"));
+                    None
+                }
+            }
+        })
+        .collect()
 }
 
 fn parse_sealevel_process_alt_overrides(

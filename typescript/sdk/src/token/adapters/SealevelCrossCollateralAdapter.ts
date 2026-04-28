@@ -112,7 +112,7 @@ export class SealevelHypCrossCollateralAdapter
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       // 1.   [] The token PDA account.
       {
-        pubkey: this.deriveHypTokenAccount(),
+        pubkey: await this.deriveHypTokenAccount(),
         isSigner: false,
         isWritable: false,
       },
@@ -138,7 +138,7 @@ export class SealevelHypCrossCollateralAdapter
       },
       // 6.   [] Message dispatch authority.
       {
-        pubkey: this.deriveMessageDispatchAuthorityAccount(),
+        pubkey: await this.deriveMessageDispatchAuthorityAccount(),
         isSigner: false,
         isWritable: false,
       },
@@ -210,7 +210,11 @@ export class SealevelHypCrossCollateralAdapter
         isWritable: true,
       },
       // N+3. [writeable] The escrow PDA account.
-      { pubkey: this.deriveEscrowAccount(), isSigner: false, isWritable: true },
+      {
+        pubkey: await this.deriveEscrowAccount(),
+        isSigner: false,
+        isWritable: true,
+      },
     ];
 
     return keys;
@@ -350,7 +354,7 @@ export class SealevelHypCrossCollateralAdapter
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       // 1.   [] The token PDA account.
       {
-        pubkey: this.deriveHypTokenAccount(),
+        pubkey: await this.deriveHypTokenAccount(),
         isSigner: false,
         isWritable: false,
       },
@@ -385,7 +389,11 @@ export class SealevelHypCrossCollateralAdapter
         isWritable: true,
       },
       // 9.   [writeable] The escrow PDA account.
-      { pubkey: this.deriveEscrowAccount(), isSigner: false, isWritable: true },
+      {
+        pubkey: await this.deriveEscrowAccount(),
+        isSigner: false,
+        isWritable: true,
+      },
       // 10+. Target HandleLocal accounts (from simulation).
       // Skip index 0 (cc_dispatch_authority) — transfer_remote_to_local
       // prepends it to the CPI, so remaining_accounts starts at index 1.

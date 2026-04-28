@@ -66,6 +66,28 @@ export function decodeHyperlaneTokenAccount(
   return wrapped.data;
 }
 
+export interface HyperlaneTokenRouteAccountData {
+  salt: Uint8Array;
+  token: HyperlaneTokenAccountData;
+}
+
+/**
+ * Decodes a factory route account.
+ * Layout: initialized(1) | salt(32) | HyperlaneToken
+ * (same as legacy but prefixed with a 32-byte salt)
+ */
+export function decodeHyperlaneTokenRouteAccount(
+  raw: Uint8Array,
+): HyperlaneTokenRouteAccountData | null {
+  if (raw.length === 0) return null;
+  const cursor = new ByteCursor(raw);
+  const initialized = cursor.readBool();
+  if (!initialized) return null;
+  const salt = cursor.readBytes(32);
+  const token = decodeHyperlaneTokenInner(cursor);
+  return { salt, token };
+}
+
 export function decodeIgpProgramDataAccount(
   raw: Uint8Array,
 ): IgpProgramData | null {

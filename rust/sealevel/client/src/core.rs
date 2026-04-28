@@ -11,11 +11,12 @@ use crate::cmd_utils::get_compute_unit_price_micro_lamports_for_chain_name;
 use crate::ONE_SOL_IN_LAMPORTS;
 use crate::{
     artifacts::{read_json, write_json},
-    cmd_utils::{create_new_directory, deploy_program},
+    cmd_utils::{account_exists, create_new_directory, deploy_program},
     multisig_ism::deploy_multisig_ism_message_id,
     Context, CoreCmd, CoreDeploy, CoreSubCmd,
 };
 use hyperlane_core::H256;
+use hyperlane_sealevel_token_lib::instruction::{init_factory_instruction, InitFactory};
 
 pub(crate) fn adjust_gas_price_if_needed(chain_name: &str, ctx: &mut Context) {
     if chain_name.eq("solanamainnet") {
@@ -99,6 +100,25 @@ pub(crate) fn process_core_cmd(mut ctx: Context, cmd: CoreCmd) {
             let (igp_program_id, overhead_igp_account, igp_account) =
                 deploy_igp(&mut ctx, &core, &key_dir);
 
+            let synthetic_factory_program_id = deploy_warp_factory(
+                &mut ctx,
+                &core,
+                &key_dir,
+                "hyperlane_sealevel_token_factory",
+            );
+            let collateral_factory_program_id = deploy_warp_factory(
+                &mut ctx,
+                &core,
+                &key_dir,
+                "hyperlane_sealevel_token_collateral_factory",
+            );
+            let native_factory_program_id = deploy_warp_factory(
+                &mut ctx,
+                &core,
+                &key_dir,
+                "hyperlane_sealevel_token_native_factory",
+            );
+
             let program_ids = CoreProgramIds {
                 mailbox: mailbox_program_id,
                 validator_announce: validator_announce_program_id,
@@ -106,6 +126,9 @@ pub(crate) fn process_core_cmd(mut ctx: Context, cmd: CoreCmd) {
                 igp_program_id,
                 overhead_igp_account,
                 igp_account,
+                synthetic_factory_program_id: Some(synthetic_factory_program_id),
+                collateral_factory_program_id: Some(collateral_factory_program_id),
+                native_factory_program_id: Some(native_factory_program_id),
             };
             write_program_ids(&core_dir, program_ids);
         }
@@ -287,6 +310,62 @@ pub struct CoreProgramIds {
     pub overhead_igp_account: Pubkey,
     #[serde(with = "crate::serde::serde_pubkey")]
     pub igp_account: Pubkey,
+    #[serde(default, with = "crate::serde::serde_option_pubkey")]
+    pub synthetic_factory_program_id: Option<Pubkey>,
+    #[serde(default, with = "crate::serde::serde_option_pubkey")]
+    pub collateral_factory_program_id: Option<Pubkey>,
+    #[serde(default, with = "crate::serde::serde_option_pubkey")]
+    pub native_factory_program_id: Option<Pubkey>,
+}
+
+/// Deploys a warp factory program and initializes its factory state PDA.
+/// Idempotent: skips init if the factory state account already exists.
+fn deploy_warp_factory(
+    ctx: &mut Context,
+    core: &CoreDeploy,
+    key_dir: &Path,
+    program_name: &str,
+) -> Pubkey {
+    let program_id = deploy_program(
+        ctx.payer_keypair_path(),
+        key_dir,
+        program_name,
+        core.built_so_dir
+            .join(format!("{}.so", program_name))
+            .to_str()
+            .unwrap(),
+        &ctx.client.url(),
+        core.local_domain,
+    )
+    .unwrap();
+
+    println!("Deployed {} at program ID {}", program_name, program_id);
+
+    let (factory_state_key, _) =
+        Pubkey::find_program_address(&[b"hyperlane_token_factory"], &program_id);
+
+    if account_exists(&ctx.client, &factory_state_key).unwrap() {
+        println!("{} factory already initialized, skipping", program_name);
+        return program_id;
+    }
+
+    let instruction = init_factory_instruction(
+        program_id,
+        ctx.payer_pubkey,
+        InitFactory {
+            interchain_security_module: None,
+        },
+    )
+    .unwrap();
+
+    ctx.new_txn().add(instruction).send_with_payer();
+
+    println!(
+        "Initialized {} factory state {}",
+        program_name, factory_state_key
+    );
+
+    program_id
 }
 
 fn write_program_ids(core_dir: &Path, program_ids: CoreProgramIds) {

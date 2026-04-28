@@ -118,6 +118,13 @@ export {
   deriveReplayProtectionPda,
   deriveCrossCollateralStatePda,
   deriveCrossCollateralDispatchAuthorityPda,
+  deriveFactoryStatePda,
+  deriveRoutePda,
+  deriveRouteMintPda,
+  deriveRouteAtaPayerPda,
+  deriveRouteEscrowPda,
+  deriveRouteNativeCollateralPda,
+  deriveRouterLookupPda,
 } from './pda.js';
 
 // Account decoders
@@ -148,3 +155,10 @@ export {
   SvmCrossCollateralTokenReader,
   SvmCrossCollateralTokenWriter,
 } from './warp/cross-collateral-token.js';
+
+// Factory warp token writers
+export {
+  SvmFactorySyntheticTokenWriter,
+  SvmFactoryCollateralTokenWriter,
+  SvmFactoryNativeTokenWriter,
+} from './warp/factory-token.js';

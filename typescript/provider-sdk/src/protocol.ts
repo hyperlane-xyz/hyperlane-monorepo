@@ -75,7 +75,12 @@ export interface ProtocolProvider {
    */
   createWarpArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
-    context?: { mailbox?: string },
+    context?: {
+      mailbox?: string;
+      syntheticFactoryProgramId?: string;
+      collateralFactoryProgramId?: string;
+      nativeFactoryProgramId?: string;
+    },
   ): IRawWarpArtifactManager;
 
   /**

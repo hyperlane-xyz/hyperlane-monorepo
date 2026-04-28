@@ -15,6 +15,26 @@ import {
 } from '../pda.js';
 import type { SvmRpc } from '../types.js';
 
+// Plugin data byte lengths for each token type (legacy and factory share the same layout).
+const NATIVE_PLUGIN_BYTES = 1;
+const SYNTHETIC_PLUGIN_BYTES = 34;
+const COLLATERAL_PLUGIN_BYTES = 98;
+
+/**
+ * Infers the warp token type from the plugin data trailing bytes.
+ * Returns null if the length does not match a known type.
+ */
+export function detectTypeFromPluginData(
+  pluginData: Uint8Array,
+): SvmWarpTokenType | null {
+  if (pluginData.length === NATIVE_PLUGIN_BYTES) return SvmWarpTokenType.Native;
+  if (pluginData.length === SYNTHETIC_PLUGIN_BYTES)
+    return SvmWarpTokenType.Synthetic;
+  if (pluginData.length >= COLLATERAL_PLUGIN_BYTES)
+    return SvmWarpTokenType.Collateral;
+  return null;
+}
+
 export enum SvmWarpTokenType {
   Native = 'native',
   Synthetic = 'synthetic',
@@ -38,8 +58,8 @@ export async function fetchTokenAccount(
 
 /**
  * Detects the warp token type by checking which type-specific PDA exists on-chain.
+ * For legacy routes only — factory routes are handled upstream via account ownership.
  *
- * Each token type creates exactly one unique PDA during init:
  *   Native:     nativeCollateralPda  ["hyperlane_token", "-", "native_collateral"]
  *   Synthetic:  syntheticMintPda     ["hyperlane_token", "-", "mint"]
  *   Collateral: escrowPda            ["hyperlane_token", "-", "escrow"]

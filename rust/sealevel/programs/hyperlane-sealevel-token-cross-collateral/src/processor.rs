@@ -157,6 +157,7 @@ pub fn process_instruction(
                 program_id, accounts, new_igp,
             )
         }
+        _ => Err(ProgramError::InvalidInstructionData),
     }
     .map_err(|err| {
         msg!("{}", err);

@@ -79,6 +79,7 @@ pub fn process_instruction(
         TokenIxn::SetInterchainGasPaymaster(new_igp) => {
             set_interchain_gas_paymaster(program_id, accounts, new_igp)
         }
+        _ => Err(solana_program::program_error::ProgramError::InvalidInstructionData),
     }
     .map_err(|err| {
         msg!("{}", err);

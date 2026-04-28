@@ -241,3 +241,64 @@ export async function deriveCrossCollateralDispatchAuthorityPda(
     utf8.encode('dispatch_authority'),
   ]);
 }
+
+// ── Factory route PDAs ────────────────────────────────────────────────────────
+
+export async function deriveFactoryStatePda(
+  programAddress: Address,
+): Promise<PdaWithBump> {
+  return derive(programAddress, [utf8.encode('hyperlane_token_factory')]);
+}
+
+export async function deriveRoutePda(
+  programAddress: Address,
+  salt: Uint8Array,
+): Promise<PdaWithBump> {
+  return derive(programAddress, [utf8.encode('hyperlane_token_route'), salt]);
+}
+
+export async function deriveRouteMintPda(
+  programAddress: Address,
+  salt: Uint8Array,
+): Promise<PdaWithBump> {
+  return derive(programAddress, [utf8.encode('hyperlane_token_mint'), salt]);
+}
+
+export async function deriveRouteAtaPayerPda(
+  programAddress: Address,
+  salt: Uint8Array,
+): Promise<PdaWithBump> {
+  return derive(programAddress, [
+    utf8.encode('hyperlane_token_ata_payer'),
+    salt,
+  ]);
+}
+
+export async function deriveRouteEscrowPda(
+  programAddress: Address,
+  salt: Uint8Array,
+): Promise<PdaWithBump> {
+  return derive(programAddress, [utf8.encode('hyperlane_token_escrow'), salt]);
+}
+
+export async function deriveRouteNativeCollateralPda(
+  programAddress: Address,
+  salt: Uint8Array,
+): Promise<PdaWithBump> {
+  return derive(programAddress, [
+    utf8.encode('hyperlane_token_native_coll'),
+    salt,
+  ]);
+}
+
+export async function deriveRouterLookupPda(
+  programAddress: Address,
+  domain: number,
+  router: Uint8Array,
+): Promise<PdaWithBump> {
+  return derive(programAddress, [
+    utf8.encode('hyperlane_token_lookup'),
+    u32.encode(domain),
+    router,
+  ]);
+}

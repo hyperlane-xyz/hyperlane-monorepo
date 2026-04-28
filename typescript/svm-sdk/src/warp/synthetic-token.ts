@@ -372,7 +372,10 @@ export class SvmSyntheticTokenWriter
       {
         artifactState: ArtifactState.DEPLOYED,
         config: tokenConfig,
-        deployed: { address: programAddress },
+        deployed: {
+          address: programAddress,
+          collateralAddress: mintPda.toString(),
+        },
       },
       receipts,
     ];

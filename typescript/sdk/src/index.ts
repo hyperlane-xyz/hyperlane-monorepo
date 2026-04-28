@@ -731,6 +731,8 @@ export {
   SealevelEnrollRemoteRoutersInstructionSchema,
   SealevelGasRouterConfig,
   SealevelGasRouterConfigSchema,
+  SealevelHyperlaneRouteData,
+  SealevelHyperlaneRouteDataSchema,
   SealevelHyperlaneTokenData,
   SealevelHyperlaneTokenDataSchema,
   SealevelHypTokenInstruction,
@@ -747,6 +749,8 @@ export {
   SealevelSetInterchainGasPaymasterInstructionSchema,
   SealevelSetInterchainSecurityModuleInstruction,
   SealevelSetInterchainSecurityModuleInstructionSchema,
+  SealevelTransferRemoteFromRouteInstruction,
+  SealevelTransferRemoteFromRouteSchema,
   SealevelTransferRemoteInstruction,
   SealevelTransferRemoteSchema,
 } from './token/adapters/serialization.js';

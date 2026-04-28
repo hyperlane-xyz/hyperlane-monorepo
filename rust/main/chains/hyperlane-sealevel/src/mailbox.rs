@@ -1,7 +1,11 @@
 // Silence a clippy bug https://github.com/rust-lang/rust-clippy/issues/12281
 #![allow(clippy::blocks_in_conditions)]
 
-use std::{collections::HashMap, str::FromStr as _, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    str::FromStr as _,
+    sync::Arc,
+};
 
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -17,6 +21,7 @@ use hyperlane_sealevel_mailbox::{
 use hyperlane_sealevel_message_recipient_interface::{
     HandleInstruction, MessageRecipientInstruction,
 };
+use hyperlane_sealevel_token_lib::accounts::RouterLookupAccount;
 use lazy_static::lazy_static;
 use serializable_account_meta::SimulationReturnData;
 use solana_commitment_config::CommitmentConfig;
@@ -92,6 +97,8 @@ pub struct SealevelMailbox {
     mailbox_process_alt: Option<Pubkey>,
     /// Per-message ALT overrides (first match wins, falls back to mailbox_process_alt)
     process_alt_overrides: Vec<ProcessAltOverride>,
+    /// Factory warp route program IDs for factory-aware account metas resolution
+    warp_factory_programs: HashSet<Pubkey>,
 
     system_program: Pubkey,
     spl_noop: Pubkey,
@@ -130,6 +137,7 @@ impl SealevelMailbox {
             tx_submitter,
             mailbox_process_alt: conf.mailbox_process_alt,
             process_alt_overrides: conf.process_alt_overrides.clone(),
+            warp_factory_programs: conf.warp_factory_programs.iter().cloned().collect(),
             provider,
 
             system_program,
@@ -259,6 +267,13 @@ impl SealevelMailbox {
         message: &HyperlaneMessage,
     ) -> ChainResult<Vec<AccountMeta>> {
         let recipient_program_id = Pubkey::new_from_array(message.recipient.into());
+
+        if self.warp_factory_programs.contains(&recipient_program_id) {
+            return self
+                .get_factory_handle_account_metas(message, recipient_program_id)
+                .await;
+        }
+
         let instruction = MessageRecipientInstruction::HandleAccountMetas(HandleInstruction {
             sender: message.sender,
             origin: message.origin,
@@ -285,6 +300,58 @@ impl SealevelMailbox {
         }
 
         Ok(account_metas)
+    }
+
+    /// Gets the account metas required for a factory warp route's Handle instruction.
+    ///
+    /// Unlike legacy routes (where the recipient program owns its own PDAs), factory routes
+    /// use a lookup PDA keyed by `(origin, sender)` to find the route PDA. Both must be
+    /// provided as initial accounts when simulating `HandleAccountMetas` on the factory program.
+    async fn get_factory_handle_account_metas(
+        &self,
+        message: &HyperlaneMessage,
+        factory_program_id: Pubkey,
+    ) -> ChainResult<Vec<AccountMeta>> {
+        let origin_le = message.origin.to_le_bytes();
+        let sender_bytes = message.sender.0;
+
+        let (lookup_pda, _) = Pubkey::find_program_address(
+            &[
+                b"hyperlane_token_lookup",
+                origin_le.as_ref(),
+                sender_bytes.as_ref(),
+            ],
+            &factory_program_id,
+        );
+
+        let lookup_account = self
+            .provider
+            .rpc_client()
+            .get_account_with_finalized_commitment(lookup_pda)
+            .await?;
+        let lookup = RouterLookupAccount::fetch(&mut &lookup_account.data[..])
+            .map_err(ChainCommunicationError::from_other)?
+            .into_inner();
+
+        let instruction_data = MessageRecipientInstruction::HandleAccountMetas(HandleInstruction {
+            sender: message.sender,
+            origin: message.origin,
+            message: message.body.clone(),
+        })
+        .encode()
+        .map_err(ChainCommunicationError::from_other)?;
+
+        let instruction = Instruction::new_with_bytes(
+            factory_program_id,
+            &instruction_data,
+            vec![
+                AccountMeta::new_readonly(lookup_pda, false),
+                AccountMeta::new_readonly(lookup.route_pda, false),
+            ],
+        );
+
+        let account_metas = self.get_account_metas(instruction).await?;
+        sanitize_dynamic_accounts(account_metas, &self.get_payer()?.pubkey())
     }
 
     async fn get_non_signer_account_metas_with_instruction_bytes(

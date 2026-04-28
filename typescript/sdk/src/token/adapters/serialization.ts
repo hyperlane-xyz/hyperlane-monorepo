@@ -12,6 +12,11 @@ import {
   getSealevelAccountDataSchema,
 } from '../../utils/sealevelSerialization.js';
 
+export {
+  SealevelInterchainGasPaymasterConfig,
+  SealevelInterchainGasPaymasterConfigSchema,
+};
+
 /**
  * Hyperlane Token Borsh Schema
  */
@@ -110,6 +115,39 @@ export const SealevelHyperlaneTokenDataSchema = new Map<any, any>([
 ]);
 
 /**
+ * Factory route account schema.
+ * Mirrors HyperlaneTokenRoute<T> in rust/sealevel/libraries/hyperlane-sealevel-token/src/accounts.rs.
+ */
+export class SealevelHyperlaneRouteData {
+  salt!: Uint8Array;
+  token!: SealevelHyperlaneTokenData;
+  constructor(public readonly fields: any) {
+    Object.assign(this, fields);
+    this.token = new SealevelHyperlaneTokenData(fields.token);
+  }
+}
+
+export const SealevelHyperlaneRouteDataSchema = new Map<any, any>([
+  // Include inner schemas from the token schema first so our wrapper override wins.
+  ...SealevelHyperlaneTokenDataSchema,
+  // Override the top-level wrapper to point to the route data.
+  [
+    SealevelAccountDataWrapper,
+    getSealevelAccountDataSchema(SealevelHyperlaneRouteData),
+  ],
+  [
+    SealevelHyperlaneRouteData,
+    {
+      kind: 'struct',
+      fields: [
+        ['salt', [32]],
+        ['token', SealevelHyperlaneTokenData],
+      ],
+    },
+  ],
+]);
+
+/**
  * Transfer Remote Borsh Schema
  */
 
@@ -123,6 +161,17 @@ export enum SealevelHypTokenInstruction {
   SetInterchainSecurityModule = 5,
   SetInterchainGasPaymaster = 6,
   TransferOwnership = 7,
+  // Factory instructions (indices 8+)
+  InitFactory = 8,
+  CreateRoute = 9,
+  EnrollRemoteRoutersForRoute = 10,
+  SetDestinationGasConfigsForRoute = 11,
+  SetInterchainSecurityModuleForRoute = 12,
+  SetInterchainGasPaymasterForRoute = 13,
+  TransferOwnershipForRoute = 14,
+  TransferRemoteFromRoute = 15,
+  SetFactoryInterchainSecurityModule = 16,
+  TransferFactoryOwnership = 17,
 }
 
 /**
@@ -143,6 +192,24 @@ export const SealevelHypTokenInstructionName: Record<
   [SealevelHypTokenInstruction.SetInterchainGasPaymaster]:
     'SetInterchainGasPaymaster',
   [SealevelHypTokenInstruction.TransferOwnership]: 'TransferOwnership',
+  [SealevelHypTokenInstruction.InitFactory]: 'InitFactory',
+  [SealevelHypTokenInstruction.CreateRoute]: 'CreateRoute',
+  [SealevelHypTokenInstruction.EnrollRemoteRoutersForRoute]:
+    'EnrollRemoteRoutersForRoute',
+  [SealevelHypTokenInstruction.SetDestinationGasConfigsForRoute]:
+    'SetDestinationGasConfigsForRoute',
+  [SealevelHypTokenInstruction.SetInterchainSecurityModuleForRoute]:
+    'SetInterchainSecurityModuleForRoute',
+  [SealevelHypTokenInstruction.SetInterchainGasPaymasterForRoute]:
+    'SetInterchainGasPaymasterForRoute',
+  [SealevelHypTokenInstruction.TransferOwnershipForRoute]:
+    'TransferOwnershipForRoute',
+  [SealevelHypTokenInstruction.TransferRemoteFromRoute]:
+    'TransferRemoteFromRoute',
+  [SealevelHypTokenInstruction.SetFactoryInterchainSecurityModule]:
+    'SetFactoryInterchainSecurityModule',
+  [SealevelHypTokenInstruction.TransferFactoryOwnership]:
+    'TransferFactoryOwnership',
 };
 
 export class SealevelTransferRemoteInstruction {
@@ -172,6 +239,45 @@ export const SealevelTransferRemoteSchema = new Map<any, any>([
     {
       kind: 'struct',
       fields: [
+        ['destination_domain', 'u32'],
+        ['recipient', [32]],
+        ['amount_or_id', 'u256'],
+      ],
+    },
+  ],
+]);
+
+/**
+ * TransferRemoteFromRoute instruction data.
+ * Mirrors TransferRemoteFromRoute in rust/sealevel/libraries/hyperlane-sealevel-token/src/instruction.rs.
+ */
+export class SealevelTransferRemoteFromRouteInstruction {
+  salt!: Uint8Array;
+  destination_domain!: number;
+  recipient!: Uint8Array;
+  amount_or_id!: bigint;
+  constructor(public readonly fields: any) {
+    Object.assign(this, fields);
+  }
+}
+
+export const SealevelTransferRemoteFromRouteSchema = new Map<any, any>([
+  [
+    SealevelInstructionWrapper,
+    {
+      kind: 'struct',
+      fields: [
+        ['instruction', 'u8'],
+        ['data', SealevelTransferRemoteFromRouteInstruction],
+      ],
+    },
+  ],
+  [
+    SealevelTransferRemoteFromRouteInstruction,
+    {
+      kind: 'struct',
+      fields: [
+        ['salt', [32]],
         ['destination_domain', 'u32'],
         ['recipient', [32]],
         ['amount_or_id', 'u256'],

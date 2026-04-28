@@ -211,10 +211,15 @@ export class WarpTokenReader implements ArtifactReader<
 export function createWarpTokenReader(
   chainMetadata: ChainMetadataForAltVM,
   chainLookup: ChainLookup,
+  context?: {
+    syntheticFactoryProgramId?: string;
+    collateralFactoryProgramId?: string;
+    nativeFactoryProgramId?: string;
+  },
 ): WarpTokenReader {
   const protocolProvider = getProtocolProvider(chainMetadata.protocol);
   const artifactManager: IRawWarpArtifactManager =
-    protocolProvider.createWarpArtifactManager(chainMetadata);
+    protocolProvider.createWarpArtifactManager(chainMetadata, context);
 
   return new WarpTokenReader(artifactManager, chainMetadata, chainLookup);
 }

@@ -14,7 +14,7 @@ use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
 use solana_program::{account_info::AccountInfo, program_error::ProgramError, pubkey::Pubkey};
 use std::{cmp::Ordering, collections::HashMap, fmt::Debug};
 
-use crate::hyperlane_token_pda_seeds;
+use crate::{hyperlane_token_pda_seeds, hyperlane_token_route_pda_seeds};
 
 /// HyperlaneToken account data.
 pub type HyperlaneTokenAccount<T> = AccountData<HyperlaneToken<T>>;
@@ -197,6 +197,123 @@ impl<T> HyperlaneGasRouter for HyperlaneToken<T> {
         self.destination_gas.set_destination_gas(config);
     }
 }
+
+// ── Factory extension types ──────────────────────────────────────────────────
+
+/// State stored per-factory-program (one per deployed factory binary).
+/// Held at `hyperlane_token_factory_state_pda_seeds!()`.
+/// Provides a global ISM shared by all routes created under this factory.
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Default)]
+pub struct HyperlaneTokenFactory {
+    /// The bump seed for this PDA.
+    pub bump: u8,
+    /// Access control owner (can update the global ISM).
+    pub owner: Option<Pubkey>,
+    /// The interchain security module used for all routes in this factory.
+    pub interchain_security_module: Option<Pubkey>,
+}
+
+/// Account data wrapper for `HyperlaneTokenFactory`.
+pub type HyperlaneTokenFactoryAccount = AccountData<HyperlaneTokenFactory>;
+
+impl SizedData for HyperlaneTokenFactory {
+    fn size(&self) -> usize {
+        // bump
+        std::mem::size_of::<u8>() +
+        // owner
+        1 + 32 +
+        // interchain_security_module
+        1 + 32
+    }
+}
+
+impl AccessControl for HyperlaneTokenFactory {
+    fn owner(&self) -> Option<&Pubkey> {
+        self.owner.as_ref()
+    }
+
+    fn set_owner(&mut self, new_owner: Option<Pubkey>) -> Result<(), ProgramError> {
+        self.owner = new_owner;
+        Ok(())
+    }
+}
+
+/// Lookup account that maps `(origin_domain, remote_router_h256)` to a route PDA.
+/// Stored at `hyperlane_token_router_lookup_pda_seeds!(origin_le, sender_bytes)`.
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Default)]
+pub struct RouterLookup {
+    /// The bump seed for this PDA.
+    pub bump: u8,
+    /// The route PDA this (origin, sender) pair resolves to.
+    pub route_pda: Pubkey,
+}
+
+/// Account data wrapper for `RouterLookup`.
+pub type RouterLookupAccount = AccountData<RouterLookup>;
+
+impl SizedData for RouterLookup {
+    fn size(&self) -> usize {
+        // bump
+        std::mem::size_of::<u8>() +
+        // route_pda
+        32
+    }
+}
+
+/// Route instance state — one per warp route created via a factory program.
+/// Stored at `hyperlane_token_route_pda_seeds!(salt)`.
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Default)]
+pub struct HyperlaneTokenRoute<T> {
+    /// 32-byte salt that uniquely identifies this route within the factory.
+    pub salt: [u8; 32],
+    /// All token state for this route (same as the per-program `HyperlaneToken<T>`).
+    pub token: HyperlaneToken<T>,
+}
+
+/// Account data wrapper for `HyperlaneTokenRoute<T>`.
+pub type HyperlaneTokenRouteAccount<T> = AccountData<HyperlaneTokenRoute<T>>;
+
+impl<T> SizedData for HyperlaneTokenRoute<T>
+where
+    T: SizedData,
+{
+    fn size(&self) -> usize {
+        // salt
+        32 +
+        // token
+        self.token.size()
+    }
+}
+
+impl<T> HyperlaneTokenRoute<T>
+where
+    T: BorshSerialize + BorshDeserialize + Default + Debug,
+{
+    /// Deserializes the route PDA from `route_account_info` and verifies it belongs
+    /// to `program_id` with the expected `salt`.
+    pub fn verify_account_and_fetch_inner(
+        program_id: &Pubkey,
+        salt: &[u8; 32],
+        route_account_info: &AccountInfo<'_>,
+    ) -> Result<Self, ProgramError> {
+        let route = HyperlaneTokenRouteAccount::fetch(&mut &route_account_info.data.borrow()[..])?
+            .into_inner();
+        let route_seeds: &[&[u8]] = hyperlane_token_route_pda_seeds!(salt, route.token.bump);
+        let expected_route_key = Pubkey::create_program_address(route_seeds, program_id)?;
+        if route_account_info.key != &expected_route_key {
+            return Err(ProgramError::InvalidArgument);
+        }
+        if route_account_info.owner != program_id {
+            return Err(ProgramError::IncorrectProgramId);
+        }
+        if &route.salt != salt {
+            return Err(ProgramError::InvalidArgument);
+        }
+        Ok(*route)
+    }
+}
+
+// ── End factory extension types ──────────────────────────────────────────────
 
 /// Converts an amount from one decimal representation to another.
 pub fn convert_decimals(amount: U256, from_decimals: u8, to_decimals: u8) -> Option<U256> {
