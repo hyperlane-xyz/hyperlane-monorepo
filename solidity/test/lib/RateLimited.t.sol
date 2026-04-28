@@ -35,10 +35,11 @@ contract RateLimitLibTest is Test {
         assertEq(rateLimited.refillRate(), uint256(2 ether) / 1 days); // 2 ether / 1 day
     }
 
-    function testRateLimited_revertsIfMaxNotSet() external {
+    function testRateLimited_returnsZeroIfMaxNotSet() external {
         rateLimited.setRefillRate(0);
-        vm.expectRevert();
-        rateLimited.calculateCurrentLevel();
+        // `calculateCurrentLevel` no longer reverts on zero capacity —
+        // dynamic-capacity subclasses rely on it being a pass-through.
+        assertEq(rateLimited.calculateCurrentLevel(), 0);
     }
 
     function testRateLimited_returnsCurrentFilledLevel_anyDay(
@@ -140,11 +141,9 @@ contract RateLimitLibTest is Test {
         assertApproxEqRel(currentTargetLimit, MAX_CAPACITY, ONE_PERCENT);
     }
 
-    function testCalculateCurrentLevel_revertsWhenCapacityIsZero() public {
+    function testCalculateCurrentLevel_returnsZeroWhenCapacityIsZero() public {
         rateLimited.setRefillRate(0);
-
-        vm.expectRevert("RateLimitNotSet");
-        rateLimited.calculateCurrentLevel();
+        assertEq(rateLimited.calculateCurrentLevel(), 0);
     }
 
     function testValidateAndConsumeFilledLevel_revertsWhenExceedingLimit()
