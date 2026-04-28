@@ -24,15 +24,15 @@ use access_control::AccessControl;
 use account_utils::{AccountData, DiscriminatorPrefixed, DiscriminatorPrefixedData};
 use hyperlane_sealevel_igp::{
     accounts::{
-        GasOracle, GasPaymentAccount, GasPaymentData, Igp, IgpAccount, OverheadIgp,
+        GasOracle, GasPaymentAccount, GasPaymentData, Igp, IgpAccount, IgpFeeConfig, OverheadIgp,
         OverheadIgpAccount, ProgramData, ProgramDataAccount, RemoteGasData, SOL_DECIMALS,
         TOKEN_EXCHANGE_RATE_SCALE,
     },
     error::Error as IgpError,
     igp_gas_payment_pda_seeds, igp_pda_seeds, igp_program_data_pda_seeds,
     instruction::{
-        GasOracleConfig, GasOverheadConfig, InitIgp, InitOverheadIgp,
-        Instruction as IgpInstruction, PayForGas, QuoteGasPayment,
+        set_igp_quote_config_instruction, GasOracleConfig, GasOverheadConfig, InitIgp,
+        InitOverheadIgp, Instruction as IgpInstruction, PayForGas, QuoteGasPayment,
     },
     overhead_igp_pda_seeds,
     processor::process_instruction as igp_process_instruction,
@@ -297,6 +297,7 @@ async fn test_initialize_igp() {
                 owner,
                 beneficiary,
                 gas_oracles: HashMap::new(),
+                fee_config: None,
             }
             .into()
         ),
@@ -1583,4 +1584,267 @@ async fn test_transfer_overhead_igp_ownership() {
         IgpInstruction::TransferOverheadIgpOwnership,
     )
     .await;
+}
+
+// --- SetIgpQuoteConfig tests ---
+
+async fn fetch_igp(banks_client: &mut BanksClient, igp_key: Pubkey) -> Igp {
+    let account = banks_client.get_account(igp_key).await.unwrap().unwrap();
+    IgpAccount::fetch(&mut &account.data[..])
+        .unwrap()
+        .into_inner()
+        .data
+}
+
+#[tokio::test]
+async fn test_set_igp_quote_config_enable() {
+    let (mut banks_client, payer) = setup_client().await;
+    initialize(&mut banks_client, &payer).await.unwrap();
+
+    let salt = H256::random();
+    let (igp_key, _) = initialize_igp(
+        &mut banks_client,
+        &payer,
+        salt,
+        Some(payer.pubkey()),
+        payer.pubkey(),
+    )
+    .await
+    .unwrap();
+
+    // Initially fee_config is None.
+    let igp = fetch_igp(&mut banks_client, igp_key).await;
+    assert_eq!(igp.fee_config, None);
+
+    // Enable quoting.
+    let config = IgpFeeConfig {
+        signers: Default::default(),
+        domain_id: 42,
+        min_issued_at: 100,
+    };
+    let ix = set_igp_quote_config_instruction(
+        igp_program_id(),
+        igp_key,
+        payer.pubkey(),
+        Some(config.clone()),
+    )
+    .unwrap();
+    process_instruction(&mut banks_client, ix, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    let igp = fetch_igp(&mut banks_client, igp_key).await;
+    assert_eq!(igp.fee_config, Some(config));
+}
+
+#[tokio::test]
+async fn test_set_igp_quote_config_disable() {
+    let (mut banks_client, payer) = setup_client().await;
+    initialize(&mut banks_client, &payer).await.unwrap();
+
+    let salt = H256::random();
+    let (igp_key, _) = initialize_igp(
+        &mut banks_client,
+        &payer,
+        salt,
+        Some(payer.pubkey()),
+        payer.pubkey(),
+    )
+    .await
+    .unwrap();
+
+    // Enable first.
+    let config = IgpFeeConfig {
+        signers: Default::default(),
+        domain_id: 42,
+        min_issued_at: 0,
+    };
+    let ix =
+        set_igp_quote_config_instruction(igp_program_id(), igp_key, payer.pubkey(), Some(config))
+            .unwrap();
+    process_instruction(&mut banks_client, ix, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    // Disable.
+    let ix =
+        set_igp_quote_config_instruction(igp_program_id(), igp_key, payer.pubkey(), None).unwrap();
+    process_instruction(&mut banks_client, ix, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    let igp = fetch_igp(&mut banks_client, igp_key).await;
+    assert_eq!(igp.fee_config, None);
+}
+
+#[tokio::test]
+async fn test_set_igp_quote_config_reinit_resets() {
+    let (mut banks_client, payer) = setup_client().await;
+    initialize(&mut banks_client, &payer).await.unwrap();
+
+    let salt = H256::random();
+    let (igp_key, _) = initialize_igp(
+        &mut banks_client,
+        &payer,
+        salt,
+        Some(payer.pubkey()),
+        payer.pubkey(),
+    )
+    .await
+    .unwrap();
+
+    // Set config with domain_id=42, min_issued_at=500.
+    let config1 = IgpFeeConfig {
+        signers: Default::default(),
+        domain_id: 42,
+        min_issued_at: 500,
+    };
+    let ix =
+        set_igp_quote_config_instruction(igp_program_id(), igp_key, payer.pubkey(), Some(config1))
+            .unwrap();
+    process_instruction(&mut banks_client, ix, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    // Re-set with different values — should fully replace.
+    let config2 = IgpFeeConfig {
+        signers: Default::default(),
+        domain_id: 99,
+        min_issued_at: 0,
+    };
+    let ix = set_igp_quote_config_instruction(
+        igp_program_id(),
+        igp_key,
+        payer.pubkey(),
+        Some(config2.clone()),
+    )
+    .unwrap();
+    process_instruction(&mut banks_client, ix, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    let igp = fetch_igp(&mut banks_client, igp_key).await;
+    assert_eq!(igp.fee_config, Some(config2));
+}
+
+#[tokio::test]
+async fn test_set_igp_quote_config_rejects_non_owner() {
+    let (mut banks_client, payer) = setup_client().await;
+    initialize(&mut banks_client, &payer).await.unwrap();
+
+    let salt = H256::random();
+    let (igp_key, _) = initialize_igp(
+        &mut banks_client,
+        &payer,
+        salt,
+        Some(payer.pubkey()),
+        payer.pubkey(),
+    )
+    .await
+    .unwrap();
+
+    let non_owner = new_funded_keypair(&mut banks_client, &payer, 1_000_000_000).await;
+
+    let config = IgpFeeConfig {
+        signers: Default::default(),
+        domain_id: 42,
+        min_issued_at: 0,
+    };
+    let ix = set_igp_quote_config_instruction(
+        igp_program_id(),
+        igp_key,
+        non_owner.pubkey(),
+        Some(config),
+    )
+    .unwrap();
+    let result = process_instruction(&mut banks_client, ix, &non_owner, &[&non_owner]).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+    );
+}
+
+#[tokio::test]
+async fn test_set_igp_quote_config_rejects_overhead_igp() {
+    let (mut banks_client, payer) = setup_client().await;
+    initialize(&mut banks_client, &payer).await.unwrap();
+
+    let salt = H256::random();
+    let (igp_key, _) = initialize_igp(
+        &mut banks_client,
+        &payer,
+        salt,
+        Some(payer.pubkey()),
+        payer.pubkey(),
+    )
+    .await
+    .unwrap();
+
+    let (overhead_igp_key, _) = initialize_overhead_igp(
+        &mut banks_client,
+        &payer,
+        salt,
+        Some(payer.pubkey()),
+        igp_key,
+    )
+    .await
+    .unwrap();
+
+    // Try to set quote config on OverheadIgp — should fail (discriminator mismatch).
+    let config = IgpFeeConfig {
+        signers: Default::default(),
+        domain_id: 42,
+        min_issued_at: 0,
+    };
+    let ix = set_igp_quote_config_instruction(
+        igp_program_id(),
+        overhead_igp_key,
+        payer.pubkey(),
+        Some(config),
+    )
+    .unwrap();
+    let result = process_instruction(&mut banks_client, ix, &payer, &[&payer]).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::BorshIoError),
+    );
+}
+
+#[tokio::test]
+async fn test_set_igp_quote_config_rejects_extraneous_account() {
+    let (mut banks_client, payer) = setup_client().await;
+    initialize(&mut banks_client, &payer).await.unwrap();
+
+    let salt = H256::random();
+    let (igp_key, _) = initialize_igp(
+        &mut banks_client,
+        &payer,
+        salt,
+        Some(payer.pubkey()),
+        payer.pubkey(),
+    )
+    .await
+    .unwrap();
+
+    let config = IgpFeeConfig {
+        signers: Default::default(),
+        domain_id: 42,
+        min_issued_at: 0,
+    };
+
+    // Build instruction manually to sneak in an extra account.
+    let mut ix =
+        set_igp_quote_config_instruction(igp_program_id(), igp_key, payer.pubkey(), Some(config))
+            .unwrap();
+    ix.accounts
+        .push(AccountMeta::new_readonly(Pubkey::new_unique(), false));
+
+    let result = process_instruction(&mut banks_client, ix, &payer, &[&payer]).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(
+            0,
+            InstructionError::Custom(account_utils::AccountError::ExtraneousAccount as u32),
+        ),
+    );
 }

@@ -20,15 +20,15 @@ use solana_system_interface::{instruction as system_instruction, program as syst
 
 use access_control::AccessControl;
 use account_utils::{
-    create_pda_account, verify_account_uninitialized, verify_rent_exempt, AccountData,
-    DiscriminatorPrefixed, SizedData,
+    create_pda_account, ensure_no_extraneous_accounts, verify_account_uninitialized,
+    verify_rent_exempt, AccountData, DiscriminatorPrefixed, SizedData,
 };
 use serializable_account_meta::SimulationReturnData;
 
 use crate::{
     accounts::{
-        GasPaymentAccount, GasPaymentData, Igp, IgpAccount, OverheadIgp, OverheadIgpAccount,
-        ProgramData, ProgramDataAccount,
+        GasPaymentAccount, GasPaymentData, Igp, IgpAccount, IgpFeeConfig, OverheadIgp,
+        OverheadIgpAccount, ProgramData, ProgramDataAccount,
     },
     igp_gas_payment_pda_seeds, igp_pda_seeds, igp_program_data_pda_seeds,
     instruction::{
@@ -80,6 +80,9 @@ pub fn process_instruction(
         }
         IgpInstruction::SetGasOracleConfigs(configs) => {
             set_gas_oracle_configs(program_id, accounts, configs)?;
+        }
+        IgpInstruction::SetIgpQuoteConfig(config) => {
+            set_igp_quote_config(program_id, accounts, config)?;
         }
     }
 
@@ -662,6 +665,45 @@ fn set_gas_oracle_configs(
 
     let igp_account = IgpAccount::new(igp.into());
 
+    igp_account.store_with_rent_exempt_realloc(
+        igp_info,
+        &Rent::get()?,
+        owner_info,
+        system_program_info,
+    )?;
+
+    Ok(())
+}
+
+/// Sets or removes the IGP quote configuration.
+///
+/// Accounts:
+/// 0. `[executable]` The system program.
+/// 1. `[writeable]` The IGP account.
+/// 2. `[signer]` The IGP owner.
+fn set_igp_quote_config(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    config: Option<IgpFeeConfig>,
+) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    // Account 0: System program.
+    let system_program_info = next_account_info(accounts_iter)?;
+    if system_program_info.key != &system_program::ID {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+
+    // Account 1: IGP + Account 2: Owner (signer).
+    // Discriminator check rejects OverheadIgp.
+    let (igp_info, mut igp, owner_info) =
+        get_igp_variant_and_verify_owner::<Igp>(program_id, accounts_iter)?;
+
+    ensure_no_extraneous_accounts(accounts_iter)?;
+
+    igp.fee_config = config;
+
+    let igp_account = IgpAccount::new(igp.into());
     igp_account.store_with_rent_exempt_realloc(
         igp_info,
         &Rent::get()?,

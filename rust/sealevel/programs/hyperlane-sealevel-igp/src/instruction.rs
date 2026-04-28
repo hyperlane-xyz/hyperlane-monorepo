@@ -11,7 +11,7 @@ use solana_program::{
 use solana_system_interface::program as system_program;
 
 use crate::{
-    accounts::{GasOracle, InterchainGasPaymasterType},
+    accounts::{GasOracle, IgpFeeConfig, InterchainGasPaymasterType},
     igp_gas_payment_pda_seeds, igp_pda_seeds, igp_program_data_pda_seeds, overhead_igp_pda_seeds,
 };
 
@@ -40,6 +40,10 @@ pub enum Instruction {
     SetGasOracleConfigs(Vec<GasOracleConfig>),
     /// Claims lamports from an IGP, sending them to the IGP's beneficiary.
     Claim,
+    /// Sets or removes the IGP quote configuration.
+    /// Some(config) → sets fee_config (operator controls all fields).
+    /// None → removes fee_config (disables quoting).
+    SetIgpQuoteConfig(Option<IgpFeeConfig>),
 }
 
 impl Instruction {
@@ -412,4 +416,30 @@ pub fn set_beneficiary_instruction(
     };
 
     Ok(instruction)
+}
+
+/// Gets an instruction to set or remove the IGP quote configuration.
+pub fn set_igp_quote_config_instruction(
+    program_id: Pubkey,
+    igp: Pubkey,
+    owner: Pubkey,
+    config: Option<IgpFeeConfig>,
+) -> Result<SolanaInstruction, ProgramError> {
+    let ixn = Instruction::SetIgpQuoteConfig(config);
+
+    // Accounts:
+    // 0. `[executable]` The system program.
+    // 1. `[writeable]` The IGP.
+    // 2. `[signer]` The IGP owner.
+    let accounts = vec![
+        AccountMeta::new_readonly(system_program::ID, false),
+        AccountMeta::new(igp, false),
+        AccountMeta::new_readonly(owner, true),
+    ];
+
+    Ok(SolanaInstruction {
+        program_id,
+        data: borsh::to_vec(&ixn)?,
+        accounts,
+    })
 }
