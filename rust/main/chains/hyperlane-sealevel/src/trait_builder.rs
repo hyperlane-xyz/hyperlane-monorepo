@@ -41,6 +41,9 @@ pub struct ConnectionConf {
     /// Per-message ALT overrides. First matching entry wins.
     /// Falls back to `mailbox_process_alt` if no match.
     pub process_alt_overrides: Vec<ProcessAltOverride>,
+    /// Factory warp route program IDs. When a message recipient matches one of these,
+    /// the relayer uses the factory-aware account metas path (lookup PDA + route PDA).
+    pub warp_factory_programs: Vec<Pubkey>,
 }
 
 /// An error type when parsing a connection configuration.
