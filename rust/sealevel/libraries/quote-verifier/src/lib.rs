@@ -9,7 +9,7 @@ use std::collections::BTreeSet;
 use borsh::{BorshDeserialize, BorshSerialize};
 use ecdsa_signature::EcdsaSignature;
 use hyperlane_core::{H160, H256};
-use solana_program::{keccak, pubkey::Pubkey};
+use solana_program::{clock::Clock, keccak, program_error::ProgramError, pubkey::Pubkey};
 
 /// Domain tag prepended to the message hash to prevent cross-protocol replay.
 const DOMAIN_TAG: &[u8] = b"HyperlaneSvmQuote";
@@ -129,6 +129,66 @@ impl SvmSignedQuote {
         }
 
         Ok(recovered_signer)
+    }
+}
+
+/// Maximum seconds a quote's `issued_at` can be ahead of the on-chain clock.
+/// Quotes with `issued_at > now + MAX_QUOTE_ISSUED_AT_FUTURE_SKEW_SECS` are rejected.
+pub const MAX_QUOTE_ISSUED_AT_FUTURE_SKEW_SECS: i64 = 300;
+
+/// Errors from quote time validation.
+#[derive(Copy, Clone, Debug, Eq, thiserror::Error, PartialEq)]
+#[repr(u32)]
+pub enum QuoteValidationError {
+    /// fnv1a("QuoteValidationError::StaleQuote")
+    #[error("Quote is stale (issued_at below min_issued_at)")]
+    StaleQuote = 931416553,
+
+    /// fnv1a("QuoteValidationError::QuoteExpired")
+    #[error("Quote has expired")]
+    QuoteExpired = 2912712095,
+}
+
+impl From<QuoteValidationError> for ProgramError {
+    fn from(e: QuoteValidationError) -> Self {
+        ProgramError::Custom(e as u32)
+    }
+}
+
+/// Common validation for quote values.
+/// Checks issued_at freshness and expiry.
+pub trait ValidatableQuote {
+    /// Expiry timestamp (unix).
+    fn expiry(&self) -> i64;
+
+    /// Issued-at timestamp (unix).
+    fn issued_at(&self) -> i64;
+
+    /// Validates that the quote is still usable given the clock and min_issued_at threshold.
+    fn validate_quote(
+        &self,
+        min_issued_at: i64,
+        clock: &Clock,
+    ) -> Result<(), QuoteValidationError> {
+        if self.issued_at() < min_issued_at {
+            return Err(QuoteValidationError::StaleQuote);
+        }
+
+        if clock.unix_timestamp > self.expiry() {
+            return Err(QuoteValidationError::QuoteExpired);
+        }
+
+        Ok(())
+    }
+}
+
+impl ValidatableQuote for SvmSignedQuote {
+    fn expiry(&self) -> i64 {
+        self.expiry_timestamp()
+    }
+
+    fn issued_at(&self) -> i64 {
+        self.issued_at_timestamp()
     }
 }
 
