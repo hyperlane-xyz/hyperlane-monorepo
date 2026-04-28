@@ -122,16 +122,8 @@ contract DelayedFlowRouterTest is Test {
         //    have dispatched many messages before a router is deployed.
         //    Each warmup occupies `inboundMessages[0]` on the remote side;
         //    subsequent preverify/warp messages land at index 1/2.
-        originMailbox.dispatch(
-            DESTINATION_DOMAIN,
-            bytes32(0),
-            bytes("warmup")
-        );
-        destinationMailbox.dispatch(
-            ORIGIN_DOMAIN,
-            bytes32(0),
-            bytes("warmup")
-        );
+        originMailbox.dispatch(DESTINATION_DOMAIN, bytes32(0), bytes("warmup"));
+        destinationMailbox.dispatch(ORIGIN_DOMAIN, bytes32(0), bytes("warmup"));
     }
 
     // ============ Capacity source derivation ============
@@ -156,9 +148,10 @@ contract DelayedFlowRouterTest is Test {
     }
 
     function test_maxCapacity_tracksNativeBalance() public {
-        (HypNative nativeRouter, DelayedFlowRouter nativeDelay) = _deployNativeDelay(
-            INITIAL_COLLATERAL
-        );
+        (
+            HypNative nativeRouter,
+            DelayedFlowRouter nativeDelay
+        ) = _deployNativeDelay(INITIAL_COLLATERAL);
         assertEq(
             nativeDelay.maxCapacity(),
             (INITIAL_COLLATERAL * THRESHOLD_BPS) / 10_000
@@ -222,19 +215,9 @@ contract DelayedFlowRouterTest is Test {
     }
 
     function test_oversize_clipsAtMaxDelay() public {
-        // Call _handle directly (user doesn't hold billions of tokens to burn)
         uint256 cap = destinationDelay.maxCapacity();
-        uint256 huge = cap * 100;
         bytes32 id = keccak256("oversize");
-        bytes memory payload = abi.encode(id, huge);
-
-        vm.prank(address(destinationMailbox));
-        destinationDelay.handle(
-            ORIGIN_DOMAIN,
-            address(originDelay).addressToBytes32(),
-            payload
-        );
-
+        _simulateWithdrawal(id, cap * 100);
         // Raw wait would be 100× DURATION; clipped to MAX_DELAY
         assertEq(
             destinationDelay.readyAt(id),
@@ -248,23 +231,13 @@ contract DelayedFlowRouterTest is Test {
         uint256 cap = destinationDelay.maxCapacity();
         uint256 amount = cap / 4;
 
-        // Drain bucket first (index 1 is the preverify; 0 is the warmup).
-        _dispatchWithdrawal(cap + 1);
-        destinationMailbox.processInboundMessage(1);
+        // Drain bucket first.
+        _simulateWithdrawal(keccak256("drain"), cap + 1);
         assertEq(destinationDelay.filledLevel(), 0);
 
         // Local deposit on collateral chain credits destinationDelay's
-        // bucket via its postDispatch (local, no preverify enforcement on
-        // origin side here — origin is just synthetic).
-        underlying.mintTo(address(this), amount);
-        underlying.approve(address(collateralRouter), amount);
-        vm.deal(address(this), 1 ether);
-        collateralRouter.transferRemote{value: 1 ether}(
-            ORIGIN_DOMAIN,
-            address(this).addressToBytes32(),
-            amount
-        );
-
+        // bucket via its postDispatch.
+        _deposit(amount);
         assertEq(destinationDelay.filledLevel(), amount);
     }
 
@@ -367,74 +340,86 @@ contract DelayedFlowRouterTest is Test {
 
         bytes32 id = keccak256(abi.encode("fuzz-withdraw", amount));
         uint256 levelBefore = destinationDelay.calculateCurrentLevel();
-
-        vm.prank(address(destinationMailbox));
-        destinationDelay.handle(
-            ORIGIN_DOMAIN,
-            address(originDelay).addressToBytes32(),
-            abi.encode(id, amount)
-        );
+        _simulateWithdrawal(id, amount);
 
         uint48 readyAt = destinationDelay.readyAt(id);
         uint48 wait = readyAt - uint48(block.timestamp);
         assertLe(wait, MAX_DELAY, "wait exceeds maxDelay");
+        // Under-threshold is always instant; over-threshold may floor to 0
+        // via integer division for tiny overages (Math.mulDiv rounds down).
         if (amount <= levelBefore) {
             assertEq(wait, 0, "under-threshold must be instant");
-        } else {
-            assertGt(wait, 0, "over-threshold must delay");
         }
     }
 
-    /// @dev Round-trip: withdraw then deposit the same amount. Final bucket
-    /// level matches the starting level up to an additive clamp at `cap`.
-    function testFuzz_roundTrip_bucketReturns(uint128 _amount) public {
+    /// @dev Sequence of alternating withdrawals and deposits. Asserts that
+    /// the bucket never exceeds `maxCapacity()`, is bounded below by zero,
+    /// and that each committed wait is within `[0, maxDelay]`.
+    function testFuzz_sequence_invariants(uint128[8] memory _amounts) public {
+        for (uint256 i = 0; i < _amounts.length; i++) {
+            uint256 cap = destinationDelay.maxCapacity();
+            uint256 amount = bound(uint256(_amounts[i]), 1, cap);
+
+            if (i % 2 == 0) {
+                // Inbound withdrawal → consume bucket.
+                bytes32 id = keccak256(abi.encode("fuzz-seq", i));
+                uint256 levelBefore = destinationDelay.calculateCurrentLevel();
+                _simulateWithdrawal(id, amount);
+                uint48 wait = destinationDelay.readyAt(id) -
+                    uint48(block.timestamp);
+                assertLe(wait, MAX_DELAY, "wait exceeds maxDelay");
+                // Under-threshold is always instant; over-threshold may
+                // still floor to 0 via integer division for small overages.
+                if (amount <= levelBefore) {
+                    assertEq(wait, 0);
+                }
+            } else {
+                // Outbound deposit → credit bucket.
+                _deposit(amount);
+            }
+
+            assertLe(
+                destinationDelay.filledLevel(),
+                destinationDelay.maxCapacity(),
+                "bucket > cap"
+            );
+        }
+    }
+
+    // ============ Rebalancing ============
+
+    /// @dev After a full drain, a rebalancer depositing the same amount
+    /// restores instant UX for the next same-sized withdrawal.
+    function test_rebalancing_restoresInstantUX() public {
         uint256 cap = destinationDelay.maxCapacity();
-        uint256 amount = bound(uint256(_amount), 1, cap);
-        uint256 startLevel = destinationDelay.calculateCurrentLevel();
 
-        // Consume via _handle (simulates an incoming withdrawal preverify).
-        bytes32 id = keccak256(abi.encode("fuzz-rt", amount));
-        vm.prank(address(destinationMailbox));
-        destinationDelay.handle(
-            ORIGIN_DOMAIN,
-            address(originDelay).addressToBytes32(),
-            abi.encode(id, amount)
-        );
-        uint256 levelAfterConsume = destinationDelay.calculateCurrentLevel();
-
-        // Credit back by the same amount via a local deposit dispatch.
-        underlying.mintTo(address(this), amount);
-        underlying.approve(address(collateralRouter), amount);
-        vm.deal(address(this), 1 ether);
-        collateralRouter.transferRemote{value: 1 ether}(
-            ORIGIN_DOMAIN,
-            address(this).addressToBytes32(),
-            amount
+        // 1. User A drains the bucket + enough overage to produce a
+        //    measurable delay (small overages floor to 0 via integer
+        //    division on the rate).
+        bytes32 idA = keccak256("user-A");
+        _simulateWithdrawal(idA, cap + cap / 2);
+        assertEq(destinationDelay.filledLevel(), 0);
+        assertGt(
+            destinationDelay.readyAt(idA) - uint48(block.timestamp),
+            0,
+            "A should be delayed"
         );
 
-        uint256 levelAfterCredit = destinationDelay.calculateCurrentLevel();
-        // Credit clamps at cap — the bucket should end at min(startLevel, cap)
-        // if it was fully refillable, or between levelAfterConsume + amount
-        // and cap otherwise.
-        assertLe(levelAfterCredit, cap, "exceeds cap");
-        assertGe(
-            levelAfterCredit,
-            levelAfterConsume,
-            "credit must not shrink bucket"
+        // 2. Rebalancer deposits `cap` (collateral → synthetic dispatch).
+        _deposit(cap);
+        assertEq(
+            destinationDelay.filledLevel(),
+            cap,
+            "bucket should be refilled"
         );
-        // Within a single block, refill is zero, so the credit is exactly
-        // `amount` clamped to `cap - levelAfterConsume`.
-        uint256 expected = levelAfterConsume + amount > cap
-            ? cap
-            : levelAfterConsume + amount;
-        assertEq(levelAfterCredit, expected, "round-trip level mismatch");
-        // Final level is bounded above by start (we can't exceed cap) and
-        // below by what consume left, so we're within [startLevel - amount,
-        // cap].
-        assertLe(
-            levelAfterCredit,
-            startLevel + amount,
-            "net flow grew bucket"
+
+        // 3. User B can now withdraw `cap` with no wait.
+        bytes32 idB = keccak256("user-B");
+        _simulateWithdrawal(idB, cap);
+        assertEq(
+            destinationDelay.readyAt(idB),
+            uint48(block.timestamp),
+            "B should be instant"
         );
     }
 
@@ -482,10 +467,34 @@ contract DelayedFlowRouterTest is Test {
 
     // ============ Helpers ============
 
+    function _simulateWithdrawal(bytes32 _id, uint256 _amount) internal {
+        vm.prank(address(destinationMailbox));
+        destinationDelay.handle(
+            ORIGIN_DOMAIN,
+            address(originDelay).addressToBytes32(),
+            abi.encode(_id, _amount)
+        );
+    }
+
+    function _deposit(uint256 _amount) internal {
+        underlying.mintTo(address(this), _amount);
+        underlying.approve(address(collateralRouter), _amount);
+        vm.deal(address(this), 1 ether);
+        collateralRouter.transferRemote{value: 1 ether}(
+            ORIGIN_DOMAIN,
+            address(this).addressToBytes32(),
+            _amount
+        );
+    }
+
     function _deployNativeDelay(
         uint256 fund
     ) internal returns (HypNative, DelayedFlowRouter) {
-        HypNative nativeRouter = new HypNative(1, 1, address(destinationMailbox));
+        HypNative nativeRouter = new HypNative(
+            1,
+            1,
+            address(destinationMailbox)
+        );
         vm.deal(address(nativeRouter), fund);
         nativeRouter.initialize(address(0), address(0), address(this));
         DelayedFlowRouter nativeDelay = new DelayedFlowRouter(

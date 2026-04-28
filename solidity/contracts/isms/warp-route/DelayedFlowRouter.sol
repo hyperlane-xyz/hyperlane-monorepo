@@ -136,10 +136,7 @@ contract DelayedFlowRouter is TimelockRouter, RateLimited {
             "DelayedFlowRouter: wrong sender"
         );
         uint32 n = message.nonce();
-        require(
-            n > lastCreditedNonce,
-            "DelayedFlowRouter: already credited"
-        );
+        require(n > lastCreditedNonce, "DelayedFlowRouter: already credited");
         lastCreditedNonce = n;
 
         uint256 amount = message.body().amount();
@@ -177,14 +174,9 @@ contract DelayedFlowRouter is TimelockRouter, RateLimited {
         bytes32 /*_sender*/,
         bytes calldata payload
     ) internal override {
-        (bytes32 id, uint256 amount) = abi.decode(
-            payload,
-            (bytes32, uint256)
-        );
+        (bytes32 id, uint256 amount) = abi.decode(payload, (bytes32, uint256));
         uint256 deficitSecs = _consume(amount);
-        uint48 wait = deficitSecs > maxDelay
-            ? maxDelay
-            : uint48(deficitSecs);
+        uint48 wait = deficitSecs > maxDelay ? maxDelay : uint48(deficitSecs);
         _TimelockRouter_commitReadyAt(id, wait);
     }
 }

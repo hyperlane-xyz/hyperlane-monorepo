@@ -145,10 +145,7 @@ contract TimelockRouter is
     /// @dev Leaf helper for `_handle` overrides: one-shot replay guard and
     /// `readyAt` write. `wait` is the number of seconds the message must be
     /// withheld from the ISM before `verify` will pass.
-    function _TimelockRouter_commitReadyAt(
-        bytes32 id,
-        uint48 wait
-    ) internal {
+    function _TimelockRouter_commitReadyAt(bytes32 id, uint48 wait) internal {
         require(
             readyAt[id] == 0,
             "TimelockRouter: message already preverified"
