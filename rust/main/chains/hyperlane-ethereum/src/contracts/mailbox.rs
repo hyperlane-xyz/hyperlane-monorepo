@@ -112,20 +112,33 @@ impl<M> EthereumMailboxIndexer<M>
 where
     M: Middleware + 'static,
 {
-    /// Returns true if any log in a transaction receipt is a CCTP V2 DepositForBurn event.
+    /// Counts CCTP V2 DepositForBurn events in a transaction receipt.
     ///
     /// Takes the raw receipt logs (all contracts) rather than the filtered dispatch logs,
     /// because the DepositForBurn event is emitted by Circle's TokenMessenger, not the mailbox.
-    fn is_cctp_v2(logs: &[ethers::types::Log]) -> bool {
-        use ethers::types::H256 as EthersH256;
+    /// Both the topic hash and the emitting address are checked: topic-only matching would let
+    /// any contract spoof the V2 detection by emitting a log with the same topics[0].
+    fn cctp_v2_burn_count(logs: &[ethers::types::Log]) -> usize {
+        use ethers::types::{Address, H256 as EthersH256};
         use ethers_core::utils::keccak256;
+
         // keccak256("DepositForBurn(address,uint256,address,bytes32,uint32,bytes32,bytes32,uint256,uint32,bytes)")
         // Distinct from V1 whose first param is `uint64 indexed nonce`.
         let cctp_v2_topic = EthersH256::from(keccak256(
             b"DepositForBurn(address,uint256,address,bytes32,uint32,bytes32,bytes32,uint256,uint32,bytes)",
         ));
+
+        // Circle deploys TokenMessenger V2 at the same address on every EVM chain.
+        // Source: https://developers.circle.com/cctp/references/contract-addresses#tokenmessengerv2
+        let token_messenger_v2: Address = "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d"
+            .parse()
+            .expect("valid address");
+
         logs.iter()
-            .any(|log| log.topics.first() == Some(&cctp_v2_topic))
+            .filter(|log| {
+                log.address == token_messenger_v2 && log.topics.first() == Some(&cctp_v2_topic)
+            })
+            .count()
     }
 
     /// Create new EthereumMailboxIndexer
@@ -238,7 +251,7 @@ where
                         ))
                     })?;
 
-                let is_cctp_v2 = Self::is_cctp_v2(&receipt.logs);
+                let burn_count = Self::cctp_v2_burn_count(&receipt.logs);
 
                 let dispatch_logs: Vec<(DispatchFilter, LogMeta)> = receipt
                     .logs
@@ -257,6 +270,13 @@ where
                             .map(|decoded| (decoded, log_meta.into()))
                     })
                     .collect();
+
+                // Only treat as CCTP V2 if every Dispatch in the tx has a
+                // corresponding DepositForBurn. A mixed tx (some CCTP, some
+                // unrelated dispatches) gets is_cctp_v2=false so it fails at
+                // the relay-API gate rather than routing unrelated messages
+                // through the fail-fast CCTP path.
+                let is_cctp_v2 = burn_count > 0 && burn_count == dispatch_logs.len();
 
                 Ok((dispatch_logs, is_cctp_v2))
             })

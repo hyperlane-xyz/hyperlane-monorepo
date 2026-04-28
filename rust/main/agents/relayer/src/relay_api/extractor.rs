@@ -129,7 +129,9 @@ pub async fn extract_messages(
 pub struct ExtractedMessage {
     pub message: HyperlaneMessage,
     pub message_id: H256,
-    /// True when the transaction contains a Circle CCTP V2 `DepositForBurn` event.
+    /// True when every Dispatch in the transaction has a corresponding CCTP V2 `DepositForBurn`
+    /// event. False for mixed transactions (some CCTP, some unrelated dispatches) so that
+    /// unrelated messages are never routed through the fail-fast CCTP path.
     pub is_cctp_v2: bool,
     /// The origin transaction hash, used by the ccip-server to skip GraphQL lookup.
     pub tx_hash: H512,
