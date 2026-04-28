@@ -74,6 +74,22 @@ pub struct RelayerSettings {
     /// Whether to enable IGP indexing.
     pub igp_indexing_enabled: bool,
     /// Whether to enable the relay API endpoint (default: false)
+    ///
+    /// # Deployment requirement
+    ///
+    /// The relay API feeds an `UnboundedSender` that is shared with the normal
+    /// message-processing path. There is no back-pressure at the channel level:
+    /// the rate limiter (`relay_api_rate_limit_*`) and `MAX_MESSAGES_PER_TX=10`
+    /// provide a soft cap (~17 ops/sec at default limits) but will not prevent
+    /// unbounded queue growth under sustained load if the endpoint is exposed
+    /// publicly without per-tenant limiting at the ingress layer.
+    ///
+    /// **The relay API must be deployed behind an ingress that enforces
+    /// per-tenant rate limits.** Enabling it on a publicly reachable port
+    /// without ingress-level controls risks OOM under a flood of requests.
+    ///
+    /// A bounded channel with `try_send` → HTTP 503 would be the proper
+    /// back-pressure mechanism if the ingress requirement cannot be met.
     pub relay_api_enabled: bool,
     /// Relay API rate limit: max requests per window (default: 100)
     pub relay_api_rate_limit_max_requests: Option<usize>,

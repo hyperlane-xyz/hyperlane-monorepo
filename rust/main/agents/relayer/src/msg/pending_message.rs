@@ -119,6 +119,13 @@ pub struct PendingMessage {
     /// instead of parking it in the final long backoff arm. Set by the relay API
     /// so that small `max_retries` budgets are respected without touching the
     /// behavior of normal relayer messages.
+    ///
+    /// Intentionally non-persistent (`skip_serializing`, no `deserialize`): the relay
+    /// API injects messages directly into the processor channel without a DB write, so
+    /// rehydration via the DB-loader path never sees these messages while fail_fast is
+    /// relevant. If a message were recovered through the DB path before the indexer
+    /// catches up, it would rehydrate with `fail_fast=false` and follow the normal
+    /// long-backoff arm — acceptable degradation, not a correctness issue.
     #[new(default)]
     #[serde(skip_serializing)]
     fail_fast: bool,
@@ -1076,10 +1083,6 @@ impl PendingMessage {
             } => {
                 warn!(?root, ?canonical_root, "Merkle root mismatch");
                 self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
-            }
-            // Handled inside the ccip_read retry loop; should not propagate here
-            MetadataBuildError::AttestationPending => {
-                self.on_reprepare(Some(err), ReprepareReason::CouldNotFetchMetadata)
             }
         });
         let build_metadata_end = Instant::now();

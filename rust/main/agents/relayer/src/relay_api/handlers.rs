@@ -706,7 +706,30 @@ async fn relay_work(state: &ServerState, req: &RelayRequest) -> ServerResult<Jso
     }
 
     // Phase 2: send all validated messages.
-    let mut send_failed = false;
+    //
+    // Pre-check: verify every destination channel is open before sending anything.
+    // UnboundedSender::send() only fails when the receiver (processor) has been
+    // dropped. If any channel is already closed we bail here — no messages have
+    // entered the queue yet, so the caller's retry is safe and won't double-enqueue.
+    for v in &validated {
+        if v.send_channel.is_closed() {
+            error!(
+                message_id = ?v.message_id,
+                destination_domain = v.destination_domain,
+                "Processor channel closed for destination; aborting before any send"
+            );
+            state.record_failure("send_failed");
+            return Err(ServerError::InternalError(
+                "Processor channel closed for destination".to_string(),
+            ));
+        }
+    }
+
+    // Send phase. A failure here is an extreme race (channel closed between the
+    // is_closed() check above and this send). If that happens, messages already
+    // sent in this loop may be double-enqueued on the caller's retry — this is
+    // unavoidable without transactional send semantics, but the pre-check above
+    // eliminates the common case (channel already closed before we start).
     for v in validated {
         if let Err(e) = v
             .send_channel
@@ -715,10 +738,13 @@ async fn relay_work(state: &ServerState, req: &RelayRequest) -> ServerResult<Jso
             error!(
                 message_id = ?v.message_id,
                 error = %e,
-                "Failed to send message to processor channel"
+                "Processor channel closed mid-send (race); earlier messages in this \
+                 batch may be double-enqueued on retry"
             );
-            send_failed = true;
-            continue;
+            state.record_failure("send_failed");
+            return Err(ServerError::InternalError(
+                "Failed to send message to processor".to_string(),
+            ));
         }
 
         info!(
@@ -750,13 +776,6 @@ async fn relay_work(state: &ServerState, req: &RelayRequest) -> ServerResult<Jso
             destination: v.destination_domain,
             nonce: v.nonce,
         });
-    }
-
-    if send_failed {
-        state.record_failure("send_failed");
-        return Err(ServerError::InternalError(
-            "Failed to send messages to processor".to_string(),
-        ));
     }
 
     state.record_success();

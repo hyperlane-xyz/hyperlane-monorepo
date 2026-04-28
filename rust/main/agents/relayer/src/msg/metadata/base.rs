@@ -47,9 +47,6 @@ pub enum MetadataBuildError {
     FastPathError(String),
     #[error("Merkle root mismatch ({root}, {canonical_root})")]
     MerkleRootMismatch { root: H256, canonical_root: H256 },
-    /// Attestation is not yet available from the offchain lookup server (transient)
-    #[error("Attestation pending")]
-    AttestationPending,
 }
 
 #[derive(Clone, Debug, PartialEq, thiserror::Error)]

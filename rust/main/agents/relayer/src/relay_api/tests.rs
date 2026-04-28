@@ -83,6 +83,10 @@ impl MockIndexer {
 
 #[async_trait]
 impl Indexer<HyperlaneMessage> for MockIndexer {
+    fn parse_tx_hash(&self, tx_hash: &str) -> ChainResult<H512> {
+        hyperlane_core::parse_evm_hex_tx_hash(tx_hash)
+    }
+
     async fn fetch_logs_in_range(
         &self,
         _range: RangeInclusive<u32>,

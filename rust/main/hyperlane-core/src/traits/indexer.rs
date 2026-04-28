@@ -37,34 +37,17 @@ pub trait Indexer<T: Sized>: Send + Sync + Debug {
     /// Get the chain's latest block number that has reached finality
     async fn get_finalized_block_number(&self) -> ChainResult<u32>;
 
-    /// Parse an EVM hex-encoded transaction hash string to H512.
-    fn parse_tx_hash(&self, tx_hash: &str) -> ChainResult<H512> {
-        use crate::ChainCommunicationError;
-
-        // Strip at most one "0x" prefix
-        let tx_hash_clean = tx_hash.strip_prefix("0x").unwrap_or(tx_hash);
-
-        // Reject empty input
-        if tx_hash_clean.is_empty() {
-            return Err(ChainCommunicationError::from_other_str(
-                "TX hash cannot be empty",
-            ));
-        }
-
-        let hash_bytes = hex::decode(tx_hash_clean).map_err(|e| {
-            ChainCommunicationError::from_other_str(&format!("Invalid hex tx hash: {e}"))
-        })?;
-
-        if hash_bytes.len() > 64 {
-            return Err(ChainCommunicationError::from_other_str(
-                "TX hash exceeds 64 bytes",
-            ));
-        }
-
-        let mut padded = [0u8; 64];
-        let start = 64usize.saturating_sub(hash_bytes.len());
-        padded[start..].copy_from_slice(&hash_bytes);
-        Ok(H512::from_slice(&padded))
+    /// Parse a chain-specific transaction hash string into an [`H512`].
+    ///
+    /// The default implementation returns an error — chains must override this
+    /// with their own encoding (EVM: [`parse_evm_hex_tx_hash`], Sealevel: base58,
+    /// Aleo/Radix: bech32m, etc.). A default that silently decodes hex would give
+    /// non-EVM callers a misleading "invalid hex" error instead of a clear
+    /// "not supported" response.
+    fn parse_tx_hash(&self, _tx_hash: &str) -> ChainResult<H512> {
+        Err(crate::ChainCommunicationError::from_other_str(
+            "tx-hash-based lookup is not supported for this chain",
+        ))
     }
 
     /// Fetch list of logs emitted in a transaction with the given hash.
@@ -100,12 +83,47 @@ pub trait SequenceAwareIndexer<T>: Indexer<T> {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)>;
 }
 
+/// Parse an EVM hex-encoded transaction hash string into an [`H512`].
+///
+/// Accepts an optional `0x` prefix. Hashes shorter than 64 bytes are
+/// right-aligned (zero-padded on the left) to match [`H512`]'s layout —
+/// `From<H512> for H256` reads `bytes[32..64]`, so a 32-byte EVM hash
+/// placed at the right half round-trips correctly.
+///
+/// EVM [`Indexer`] implementations should call this from their
+/// `parse_tx_hash` override rather than re-implementing the logic.
+pub fn parse_evm_hex_tx_hash(tx_hash: &str) -> ChainResult<H512> {
+    use crate::ChainCommunicationError;
+
+    let tx_hash_clean = tx_hash.strip_prefix("0x").unwrap_or(tx_hash);
+
+    if tx_hash_clean.is_empty() {
+        return Err(ChainCommunicationError::from_other_str(
+            "TX hash cannot be empty",
+        ));
+    }
+
+    let hash_bytes = hex::decode(tx_hash_clean).map_err(|e| {
+        ChainCommunicationError::from_other_str(&format!("Invalid hex tx hash: {e}"))
+    })?;
+
+    if hash_bytes.len() > 64 {
+        return Err(ChainCommunicationError::from_other_str(
+            "TX hash exceeds 64 bytes",
+        ));
+    }
+
+    let mut padded = [0u8; 64];
+    let start = 64usize.saturating_sub(hash_bytes.len());
+    padded[start..].copy_from_slice(&hash_bytes);
+    Ok(H512::from_slice(&padded))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::HyperlaneMessage;
 
-    // Mock indexer for testing default parse_tx_hash implementation
     #[derive(Debug)]
     struct MockIndexer;
 
@@ -124,47 +142,28 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_tx_hash_hex_no_prefix() {
-        let indexer = MockIndexer;
-        // 64-byte hash (128 hex chars)
+    fn test_parse_tx_hash_default_not_supported() {
+        let err = MockIndexer.parse_tx_hash("0xdeadbeef").unwrap_err();
+        assert!(err.to_string().contains("not supported"));
+    }
+
+    #[test]
+    fn test_parse_evm_hex_no_prefix() {
         let tx_hash = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
-        let result = indexer.parse_tx_hash(tx_hash);
-        assert!(result.is_ok());
-        let parsed = result.unwrap();
-        assert_eq!(
-            parsed,
-            H512::from_slice(
-                &hex::decode("1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef")
-                    .unwrap()
-            )
-        );
+        let parsed = parse_evm_hex_tx_hash(tx_hash).unwrap();
+        assert_eq!(parsed, H512::from_slice(&hex::decode(tx_hash).unwrap()));
     }
 
     #[test]
-    fn test_parse_tx_hash_hex_with_prefix() {
-        let indexer = MockIndexer;
-        // 64-byte hash (128 hex chars) with 0x prefix
-        let tx_hash = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
-        let result = indexer.parse_tx_hash(tx_hash);
-        assert!(result.is_ok());
-        let parsed = result.unwrap();
-        assert_eq!(
-            parsed,
-            H512::from_slice(
-                &hex::decode("1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef")
-                    .unwrap()
-            )
-        );
+    fn test_parse_evm_hex_with_prefix() {
+        let inner = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+        let parsed = parse_evm_hex_tx_hash(&format!("0x{inner}")).unwrap();
+        assert_eq!(parsed, H512::from_slice(&hex::decode(inner).unwrap()));
     }
 
     #[test]
-    fn test_parse_tx_hash_short_hash() {
-        let indexer = MockIndexer;
-        let tx_hash = "0x1234";
-        let result = indexer.parse_tx_hash(tx_hash);
-        assert!(result.is_ok());
-        let parsed = result.unwrap();
-        // Should be left-padded with zeros
+    fn test_parse_evm_hex_short_right_aligned() {
+        let parsed = parse_evm_hex_tx_hash("0x1234").unwrap();
         let mut expected = [0u8; 64];
         expected[62] = 0x12;
         expected[63] = 0x34;
@@ -172,39 +171,35 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_tx_hash_invalid_hex() {
-        let indexer = MockIndexer;
-        let tx_hash = "0xGHIJKL"; // Invalid hex characters
-        let result = indexer.parse_tx_hash(tx_hash);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Invalid hex"));
+    fn test_parse_evm_hex_invalid() {
+        assert!(parse_evm_hex_tx_hash("0xGHIJKL")
+            .unwrap_err()
+            .to_string()
+            .contains("Invalid hex"));
     }
 
     #[test]
-    fn test_parse_tx_hash_too_long() {
-        let indexer = MockIndexer;
-        // 65 bytes (130 hex chars) - exceeds H512 size
+    fn test_parse_evm_hex_too_long() {
         let tx_hash = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12";
-        let result = indexer.parse_tx_hash(tx_hash);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("exceeds 64 bytes"));
+        assert!(parse_evm_hex_tx_hash(tx_hash)
+            .unwrap_err()
+            .to_string()
+            .contains("exceeds 64 bytes"));
     }
 
     #[test]
-    fn test_parse_tx_hash_empty() {
-        let indexer = MockIndexer;
-        let tx_hash = "";
-        let result = indexer.parse_tx_hash(tx_hash);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("cannot be empty"));
+    fn test_parse_evm_hex_empty() {
+        assert!(parse_evm_hex_tx_hash("")
+            .unwrap_err()
+            .to_string()
+            .contains("cannot be empty"));
     }
 
     #[test]
-    fn test_parse_tx_hash_only_prefix() {
-        let indexer = MockIndexer;
-        let tx_hash = "0x";
-        let result = indexer.parse_tx_hash(tx_hash);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("cannot be empty"));
+    fn test_parse_evm_hex_only_prefix() {
+        assert!(parse_evm_hex_tx_hash("0x")
+            .unwrap_err()
+            .to_string()
+            .contains("cannot be empty"));
     }
 }

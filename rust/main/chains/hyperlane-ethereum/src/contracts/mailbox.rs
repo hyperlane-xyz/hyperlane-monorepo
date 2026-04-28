@@ -168,6 +168,10 @@ impl<M> Indexer<HyperlaneMessage> for EthereumMailboxIndexer<M>
 where
     M: Middleware + 'static,
 {
+    fn parse_tx_hash(&self, tx_hash: &str) -> ChainResult<H512> {
+        hyperlane_core::parse_evm_hex_tx_hash(tx_hash)
+    }
+
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         self.get_finalized_block_number().await
     }

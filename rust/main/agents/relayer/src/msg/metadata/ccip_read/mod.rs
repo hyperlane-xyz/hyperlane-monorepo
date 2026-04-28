@@ -266,9 +266,7 @@ async fn metadata_build(
                     );
                     return Ok(data);
                 }
-                Err(MetadataBuildError::AttestationPending)
-                    if pending_attempts < MAX_PENDING_RETRIES =>
-                {
+                Err(FetchOutcome::Pending) if pending_attempts < MAX_PENDING_RETRIES => {
                     pending_attempts = pending_attempts.saturating_add(1);
                     tracing::debug!(
                         ?ism_address,
@@ -280,7 +278,17 @@ async fn metadata_build(
                     );
                     tokio::time::sleep(Duration::from_secs(1)).await;
                 }
-                Err(err) => {
+                Err(FetchOutcome::Pending) => {
+                    tracing::warn!(
+                        ?ism_address,
+                        url,
+                        origin_tx_hash = ?origin_tx_hash,
+                        max = MAX_PENDING_RETRIES,
+                        "Attestation still pending after max retries"
+                    );
+                    break;
+                }
+                Err(FetchOutcome::Failed(err)) => {
                     tracing::warn!(?ism_address, url, origin_tx_hash = ?origin_tx_hash, error = ?err, "Failed to fetch offchain data");
                     break;
                 }
@@ -292,13 +300,47 @@ async fn metadata_build(
     Err(MetadataBuildError::CouldNotFetch)
 }
 
+/// Private result type for [`fetch_offchain_data`].
+/// `Pending` signals a transient "not yet available" from the offchain server and
+/// is only ever produced and consumed inside this module — it never escapes to
+/// [`MetadataBuildError`].
+enum FetchOutcome {
+    Pending,
+    Failed(MetadataBuildError),
+}
+
+impl From<MetadataBuildError> for FetchOutcome {
+    fn from(e: MetadataBuildError) -> Self {
+        FetchOutcome::Failed(e)
+    }
+}
+
+/// Returns true when an offchain-lookup response body explicitly signals that
+/// an attestation is not yet available.
+///
+/// Checks two shapes:
+/// - Circle's attestation API: `{"status": "pending", ...}`
+/// - Generic CCIP-read servers: `{"error": "... pending ..."}`
+fn body_signals_pending(body: &str) -> bool {
+    let Ok(val) = serde_json::from_str::<serde_json::Value>(body) else {
+        return false;
+    };
+    val.get("status")
+        .and_then(|s| s.as_str())
+        .is_some_and(|s| s.eq_ignore_ascii_case("pending"))
+        || val
+            .get("error")
+            .and_then(|s| s.as_str())
+            .is_some_and(|s| s.to_lowercase().contains("pending"))
+}
+
 /// Fetch data from offchain lookup server
 async fn fetch_offchain_data(
     ism_builder: &CcipReadIsmMetadataBuilder,
     info: &OffchainLookup,
     url: &str,
     origin_tx_hash: Option<String>,
-) -> Result<Metadata, MetadataBuildError> {
+) -> Result<Metadata, FetchOutcome> {
     // Compute relayer authentication signature via EIP-191
     let maybe_signature_hex = if let Some(signer) = ism_builder.base.base_builder().get_signer() {
         Some(CcipReadIsmMetadataBuilder::generate_signature_hex(signer, info, url).await?)
@@ -351,9 +393,6 @@ async fn fetch_offchain_data(
             })?
     };
 
-    // Capture status before consuming the body.
-    // HTTP 404 is the canonical "attestation not yet available" response from Circle's
-    // attestation service — treat it as transient without inspecting the body.
     let status = res.status();
 
     let response_body = res.text().await.map_err(|err| {
@@ -367,19 +406,20 @@ async fn fetch_offchain_data(
     );
 
     if status == reqwest::StatusCode::NOT_FOUND {
-        return Err(MetadataBuildError::AttestationPending);
+        // A bare 404 without a pending body is an infrastructure error (misconfigured
+        // route, wrong URL) — don't burn 30s of retries on it.
+        return if body_signals_pending(&response_body) {
+            Err(FetchOutcome::Pending)
+        } else {
+            Err(FetchOutcome::Failed(MetadataBuildError::FailedToBuild(
+                format!("Offchain lookup server returned 404: {response_body}"),
+            )))
+        };
     }
 
-    // For non-404 responses, check the error body for an explicit "pending" signal.
-    // We intentionally do NOT match generic "not found" substrings here — a 404 already
-    // handles the attestation-not-ready case above, and matching "not found" in the body
-    // would catch infrastructure errors (e.g. "Route not found") and waste 30s of retries.
-    if let Ok(val) = serde_json::from_str::<serde_json::Value>(&response_body) {
-        if let Some(err_msg) = val.get("error").and_then(|e| e.as_str()) {
-            if err_msg.to_lowercase().contains("pending") {
-                return Err(MetadataBuildError::AttestationPending);
-            }
-        }
+    // For non-404 responses, check the body for an explicit "pending" signal.
+    if body_signals_pending(&response_body) {
+        return Err(FetchOutcome::Pending);
     }
 
     let json: OffchainResponse = serde_json::from_str(&response_body).map_err(|err| {
