@@ -27,6 +27,7 @@ use super::test_utils::{
 
 const TEST_BLOCK_TIME: Duration = Duration::from_millis(10);
 const TEST_DOMAIN: KnownHyperlaneDomain = KnownHyperlaneDomain::Arbitrum;
+const BANDWITH_ERROR: &str = "BANDWITH_ERROR";
 
 /// Expected transaction state at each step of the inclusion process
 #[derive(Clone, Debug)]
@@ -44,6 +45,8 @@ struct ConfigurableMockProvider {
     /// How many times to fail before succeeding
     fail_count: std::sync::Mutex<u32>,
     max_failures: u32,
+    /// Error to return for transient failures before succeeding
+    transient_submit_error: Option<String>,
     /// Finalized block number
     finalized_block: u32,
     /// Transaction receipt to return (None = not found, Some(None) = mempool, Some(Some(n)) = included at block n)
@@ -57,6 +60,7 @@ impl ConfigurableMockProvider {
             should_submit_fail: false,
             fail_count: std::sync::Mutex::new(0),
             max_failures: 0,
+            transient_submit_error: None,
             finalized_block: 100,
             receipt_block: None,
         }
@@ -80,6 +84,14 @@ impl ConfigurableMockProvider {
     fn with_retryable_error(max_failures: u32) -> Self {
         Self {
             max_failures,
+            ..Self::new()
+        }
+    }
+
+    fn with_transient_submit_error(error: &str, max_failures: u32) -> Self {
+        Self {
+            max_failures,
+            transient_submit_error: Some(error.to_owned()),
             ..Self::new()
         }
     }
@@ -115,9 +127,11 @@ impl TronProviderForLander for ConfigurableMockProvider {
         let mut fail_count = self.fail_count.lock().unwrap();
         if *fail_count < self.max_failures {
             *fail_count += 1;
-            return Err(ChainCommunicationError::from_other_str(
-                "SERVER_BUSY: node is busy, please retry",
-            ));
+            let error = self
+                .transient_submit_error
+                .as_deref()
+                .unwrap_or("SERVER_BUSY: node is busy, please retry");
+            return Err(ChainCommunicationError::from_other_str(error));
         }
 
         Ok(H256::random())
@@ -504,6 +518,116 @@ async fn test_tron_inclusion_retryable_error() {
             .await
             .contains_key(&created_tx.uuid),
         "Transaction should remain in pool for status checking after submission"
+    );
+}
+
+#[tokio::test]
+#[traced_test]
+async fn test_tron_inclusion_bandwidth_error_is_retried_later() {
+    let mock_provider = ConfigurableMockProvider::with_transient_submit_error(BANDWITH_ERROR, 1);
+    let dispatcher_state =
+        mock_dispatcher_state_with_provider(mock_provider, Duration::from_secs(1));
+    let (finality_stage_sender, _finality_stage_receiver) = mpsc::channel(100);
+    let inclusion_stage_pool = Arc::new(tokio::sync::Mutex::new(HashMap::new()));
+    let created_tx = mock_tron_tx(
+        &dispatcher_state.payload_db,
+        &dispatcher_state.tx_db,
+        TransactionStatus::PendingInclusion,
+    )
+    .await;
+    let tx_uuid = created_tx.uuid.clone();
+    let mock_domain = TEST_DOMAIN.as_str();
+    inclusion_stage_pool
+        .lock()
+        .await
+        .insert(tx_uuid.clone(), created_tx);
+
+    InclusionStage::process_txs_step(
+        &inclusion_stage_pool,
+        &finality_stage_sender,
+        &dispatcher_state,
+        mock_domain,
+    )
+    .await
+    .unwrap();
+
+    let after_bandwidth_error = dispatcher_state
+        .tx_db
+        .retrieve_transaction_by_uuid(&tx_uuid)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        after_bandwidth_error.status,
+        TransactionStatus::PendingInclusion
+    );
+    assert_eq!(after_bandwidth_error.submission_attempts, 1);
+    assert!(after_bandwidth_error.last_submission_attempt.is_some());
+    assert!(inclusion_stage_pool.lock().await.contains_key(&tx_uuid));
+    assert_eq!(
+        dispatcher_state
+            .metrics
+            .inclusion_stage_error
+            .with_label_values(&[mock_domain, "TxGasCapReached", "false"])
+            .get(),
+        1
+    );
+
+    // The retry must honor Tron's resubmission interval instead of spinning in
+    // the generic one-second retry loop.
+    InclusionStage::process_txs_step(
+        &inclusion_stage_pool,
+        &finality_stage_sender,
+        &dispatcher_state,
+        mock_domain,
+    )
+    .await
+    .unwrap();
+    let before_retry_interval = dispatcher_state
+        .tx_db
+        .retrieve_transaction_by_uuid(&tx_uuid)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(before_retry_interval.submission_attempts, 1);
+
+    let ready_tx = {
+        let mut pool = inclusion_stage_pool.lock().await;
+        let tx = pool.get_mut(&tx_uuid).unwrap();
+        tx.last_submission_attempt = Some(chrono::Utc::now() - chrono::Duration::seconds(19));
+        tx.last_status_check = Some(chrono::Utc::now() - chrono::Duration::seconds(1));
+        tx.clone()
+    };
+    dispatcher_state
+        .tx_db
+        .store_transaction_by_uuid(&ready_tx)
+        .await
+        .unwrap();
+
+    InclusionStage::process_txs_step(
+        &inclusion_stage_pool,
+        &finality_stage_sender,
+        &dispatcher_state,
+        mock_domain,
+    )
+    .await
+    .unwrap();
+
+    let after_retry = dispatcher_state
+        .tx_db
+        .retrieve_transaction_by_uuid(&tx_uuid)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(after_retry.status, TransactionStatus::Mempool);
+    assert_eq!(after_retry.submission_attempts, 2);
+    assert_eq!(
+        dispatcher_state
+            .metrics
+            .inclusion_stage_error
+            .with_label_values(&[mock_domain, "TxGasCapReached", "false"])
+            .get(),
+        1
     );
 }
 
