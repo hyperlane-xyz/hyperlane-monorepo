@@ -1,7 +1,7 @@
 //! Accounts for the Hyperlane token program.
 
 use access_control::AccessControl;
-use account_utils::{AccountData, SizedData};
+use account_utils::{read_optional_trailing, AccountData, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{H256, U256};
 use hyperlane_sealevel_connection_client::{
@@ -62,28 +62,6 @@ pub struct HyperlaneToken<T> {
     /// Optional warp fee configuration. Must be the last field for
     /// backward-compatible deserialization.
     pub fee_config: Option<FeeConfig>,
-}
-
-/// Reads an optional trailing field from a Borsh reader. Treats EOF as
-/// `None` so that accounts serialized before the field existed still
-/// deserialize correctly. All future trailing-optional fields must use
-/// this helper to preserve backward compatibility.
-fn read_optional_trailing<R: std::io::Read, V: BorshDeserialize>(
-    reader: &mut R,
-) -> std::io::Result<Option<V>> {
-    let mut tag = [0u8; 1];
-    match reader.read_exact(&mut tag) {
-        Ok(()) => match tag[0] {
-            0 => Ok(None),
-            1 => V::deserialize_reader(reader).map(Some),
-            v => Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                format!("Invalid Option tag: {v}"),
-            )),
-        },
-        Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => Ok(None),
-        Err(e) => Err(e),
-    }
 }
 
 impl<T: BorshDeserialize> BorshDeserialize for HyperlaneToken<T> {

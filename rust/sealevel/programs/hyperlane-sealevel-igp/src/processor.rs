@@ -161,6 +161,7 @@ fn init_igp(program_id: &Pubkey, accounts: &[AccountInfo], data: InitIgp) -> Pro
                 owner: data.owner,
                 beneficiary: data.beneficiary,
                 gas_oracles: HashMap::new(),
+                fee_config: None,
             }
             .into()
         },

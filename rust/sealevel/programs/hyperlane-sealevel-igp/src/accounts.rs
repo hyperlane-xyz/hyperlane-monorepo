@@ -6,7 +6,9 @@ use std::{
 };
 
 use access_control::AccessControl;
-use account_utils::{AccountData, DiscriminatorData, DiscriminatorPrefixed, SizedData};
+use account_utils::{
+    read_optional_trailing, AccountData, DiscriminatorData, DiscriminatorPrefixed, SizedData,
+};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{H160, H256, U256};
 use quote_verifier::ValidatableQuote;
@@ -158,7 +160,9 @@ impl DiscriminatorData for Igp {
 }
 
 /// IGP account data.
-#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default)]
+/// `BorshDeserialize` is implemented manually to support backward-compatible
+/// deserialization of accounts created before `fee_config` was added.
+#[derive(BorshSerialize, Debug, PartialEq, Default)]
 pub struct Igp {
     /// The bump seed for the IGP PDA.
     pub bump_seed: u8,
@@ -170,6 +174,28 @@ pub struct Igp {
     pub beneficiary: Pubkey,
     /// The gas oracles for each destination domain.
     pub gas_oracles: HashMap<u32, GasOracle>,
+    /// Offchain quoting configuration. None = quoting disabled (oracle-only).
+    /// Managed via SetIgpQuoteConfig. Trailing field for backward compat.
+    pub fee_config: Option<IgpFeeConfig>,
+}
+
+impl BorshDeserialize for Igp {
+    fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
+        let bump_seed = u8::deserialize_reader(reader)?;
+        let salt = H256::deserialize_reader(reader)?;
+        let owner = Option::<Pubkey>::deserialize_reader(reader)?;
+        let beneficiary = Pubkey::deserialize_reader(reader)?;
+        let gas_oracles = HashMap::<u32, GasOracle>::deserialize_reader(reader)?;
+        let fee_config = read_optional_trailing::<_, IgpFeeConfig>(reader)?;
+        Ok(Self {
+            bump_seed,
+            salt,
+            owner,
+            beneficiary,
+            gas_oracles,
+            fee_config,
+        })
+    }
 }
 
 impl SizedData for Igp {
@@ -180,7 +206,15 @@ impl SizedData for Igp {
         // 32 for beneficiary
         // 4 for gas_oracles.len()
         // M * (4 + (1 + 257)) for gas_oracles contents
-        1 + 32 + 33 + 32 + 4 + (self.gas_oracles.len() * (1 + 257))
+        1 + 32
+            + 33
+            + 32
+            + 4
+            + (self.gas_oracles.len() * (1 + 257))
+            + match &self.fee_config {
+                Some(cfg) => 1 + cfg.size(),
+                None => 1,
+            }
     }
 }
 
@@ -562,6 +596,95 @@ mod test {
             expiry: 500,
         };
         assert_eq!(quote.size(), borsh::to_vec(&quote).unwrap().len());
+    }
+
+    // --- Igp backward-compat deserialization ---
+
+    #[test]
+    fn test_igp_borsh_roundtrip_with_fee_config() {
+        let igp = Igp {
+            bump_seed: 1,
+            salt: H256::random(),
+            owner: Some(Pubkey::new_unique()),
+            beneficiary: Pubkey::new_unique(),
+            gas_oracles: HashMap::new(),
+            fee_config: Some(IgpFeeConfig {
+                signers: BTreeSet::from([H160::random()]),
+                domain_id: 42,
+                min_issued_at: 1000,
+            }),
+        };
+        let encoded = borsh::to_vec(&igp).unwrap();
+        let decoded: Igp = borsh::from_slice(&encoded).unwrap();
+        assert_eq!(igp, decoded);
+    }
+
+    #[test]
+    fn test_igp_borsh_roundtrip_without_fee_config() {
+        let igp = Igp {
+            bump_seed: 1,
+            salt: H256::random(),
+            owner: Some(Pubkey::new_unique()),
+            beneficiary: Pubkey::new_unique(),
+            gas_oracles: HashMap::new(),
+            fee_config: None,
+        };
+        let encoded = borsh::to_vec(&igp).unwrap();
+        let decoded: Igp = borsh::from_slice(&encoded).unwrap();
+        assert_eq!(igp, decoded);
+    }
+
+    #[test]
+    fn test_igp_backward_compat_deserialize_without_fee_config() {
+        // Simulate old-format data: serialize an Igp, then strip the trailing
+        // fee_config byte so it looks like an account created before fee_config.
+        let igp = Igp {
+            bump_seed: 1,
+            salt: H256::random(),
+            owner: Some(Pubkey::new_unique()),
+            beneficiary: Pubkey::new_unique(),
+            gas_oracles: HashMap::new(),
+            fee_config: None,
+        };
+        let encoded = borsh::to_vec(&igp).unwrap();
+        // The last byte is the Option::None tag (0x00) for fee_config.
+        // Strip it to simulate old format.
+        let old_format = &encoded[..encoded.len() - 1];
+        let mut reader = old_format;
+        let deserialized = Igp::deserialize_reader(&mut reader).unwrap();
+        assert_eq!(deserialized.fee_config, None);
+        assert_eq!(deserialized.bump_seed, igp.bump_seed);
+        assert_eq!(deserialized.beneficiary, igp.beneficiary);
+    }
+
+    #[test]
+    fn test_igp_sized_data_with_fee_config() {
+        let igp = Igp {
+            bump_seed: 1,
+            salt: H256::random(),
+            owner: Some(Pubkey::new_unique()),
+            beneficiary: Pubkey::new_unique(),
+            gas_oracles: HashMap::new(),
+            fee_config: Some(IgpFeeConfig {
+                signers: BTreeSet::from([H160::random(), H160::random()]),
+                domain_id: 42,
+                min_issued_at: 1000,
+            }),
+        };
+        assert_eq!(igp.size(), borsh::to_vec(&igp).unwrap().len());
+    }
+
+    #[test]
+    fn test_igp_sized_data_without_fee_config() {
+        let igp = Igp {
+            bump_seed: 1,
+            salt: H256::random(),
+            owner: Some(Pubkey::new_unique()),
+            beneficiary: Pubkey::new_unique(),
+            gas_oracles: HashMap::new(),
+            fee_config: None,
+        };
+        assert_eq!(igp.size(), borsh::to_vec(&igp).unwrap().len());
     }
 
     // --- Existing tests ---
