@@ -33,7 +33,7 @@ use crate::{
     igp_gas_payment_pda_seeds, igp_pda_seeds, igp_program_data_pda_seeds,
     instruction::{
         GasOracleConfig, GasOverheadConfig, InitIgp, InitOverheadIgp,
-        Instruction as IgpInstruction, PayForGas, QuoteGasPayment,
+        Instruction as IgpInstruction, PayForGas, QuoteGasPayment, SetIgpQuoteSignerOperation,
     },
     overhead_igp_pda_seeds,
 };
@@ -83,6 +83,9 @@ pub fn process_instruction(
         }
         IgpInstruction::SetIgpQuoteConfig(config) => {
             set_igp_quote_config(program_id, accounts, config)?;
+        }
+        IgpInstruction::SetIgpQuoteSigner(operation) => {
+            set_igp_quote_signer(program_id, accounts, operation)?;
         }
     }
 
@@ -702,6 +705,59 @@ fn set_igp_quote_config(
     ensure_no_extraneous_accounts(accounts_iter)?;
 
     igp.fee_config = config;
+
+    let igp_account = IgpAccount::new(igp.into());
+    igp_account.store_with_rent_exempt_realloc(
+        igp_info,
+        &Rent::get()?,
+        owner_info,
+        system_program_info,
+    )?;
+
+    Ok(())
+}
+
+/// Adds or removes an authorized quote signer on the IGP.
+/// Requires fee_config to be set via SetIgpQuoteConfig first.
+///
+/// Accounts:
+/// 0. `[executable]` The system program.
+/// 1. `[writeable]` The IGP account.
+/// 2. `[signer]` The IGP owner.
+fn set_igp_quote_signer(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    operation: SetIgpQuoteSignerOperation,
+) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    // Account 0: System program.
+    let system_program_info = next_account_info(accounts_iter)?;
+    if system_program_info.key != &system_program::ID {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+
+    // Account 1: IGP + Account 2: Owner (signer).
+    let (igp_info, mut igp, owner_info) =
+        get_igp_variant_and_verify_owner::<Igp>(program_id, accounts_iter)?;
+
+    ensure_no_extraneous_accounts(accounts_iter)?;
+
+    let fee_config = igp
+        .fee_config
+        .as_mut()
+        .ok_or(ProgramError::InvalidArgument)?;
+
+    match operation {
+        SetIgpQuoteSignerOperation::Add(signer) => {
+            fee_config.signers.insert(signer);
+        }
+        SetIgpQuoteSignerOperation::Remove(signer) => {
+            if !fee_config.signers.remove(&signer) {
+                return Err(ProgramError::InvalidArgument);
+            }
+        }
+    }
 
     let igp_account = IgpAccount::new(igp.into());
     igp_account.store_with_rent_exempt_realloc(

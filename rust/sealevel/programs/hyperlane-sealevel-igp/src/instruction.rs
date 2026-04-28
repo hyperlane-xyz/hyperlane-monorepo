@@ -1,7 +1,7 @@
 //! Program instructions.
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use hyperlane_core::H256;
+use hyperlane_core::{H160, H256};
 
 use solana_program::{
     instruction::{AccountMeta, Instruction as SolanaInstruction},
@@ -44,6 +44,18 @@ pub enum Instruction {
     /// Some(config) → sets fee_config (operator controls all fields).
     /// None → removes fee_config (disables quoting).
     SetIgpQuoteConfig(Option<IgpFeeConfig>),
+    /// Adds or removes an authorized quote signer on the IGP.
+    /// Requires fee_config to be set via SetIgpQuoteConfig first.
+    SetIgpQuoteSigner(SetIgpQuoteSignerOperation),
+}
+
+/// Operation for adding or removing a quote signer.
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
+pub enum SetIgpQuoteSignerOperation {
+    /// Add the signer to the authorized set.
+    Add(H160),
+    /// Remove the signer from the authorized set.
+    Remove(H160),
 }
 
 impl Instruction {
@@ -426,6 +438,32 @@ pub fn set_igp_quote_config_instruction(
     config: Option<IgpFeeConfig>,
 ) -> Result<SolanaInstruction, ProgramError> {
     let ixn = Instruction::SetIgpQuoteConfig(config);
+
+    // Accounts:
+    // 0. `[executable]` The system program.
+    // 1. `[writeable]` The IGP.
+    // 2. `[signer]` The IGP owner.
+    let accounts = vec![
+        AccountMeta::new_readonly(system_program::ID, false),
+        AccountMeta::new(igp, false),
+        AccountMeta::new_readonly(owner, true),
+    ];
+
+    Ok(SolanaInstruction {
+        program_id,
+        data: borsh::to_vec(&ixn)?,
+        accounts,
+    })
+}
+
+/// Gets an instruction to add or remove an authorized quote signer on an IGP.
+pub fn set_igp_quote_signer_instruction(
+    program_id: Pubkey,
+    igp: Pubkey,
+    owner: Pubkey,
+    operation: SetIgpQuoteSignerOperation,
+) -> Result<SolanaInstruction, ProgramError> {
+    let ixn = Instruction::SetIgpQuoteSigner(operation);
 
     // Accounts:
     // 0. `[executable]` The system program.

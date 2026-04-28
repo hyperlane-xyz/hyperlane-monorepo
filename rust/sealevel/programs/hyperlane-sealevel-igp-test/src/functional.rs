@@ -1,4 +1,4 @@
-use hyperlane_core::H256;
+use hyperlane_core::{H160, H256};
 
 use std::collections::HashMap;
 
@@ -31,8 +31,9 @@ use hyperlane_sealevel_igp::{
     error::Error as IgpError,
     igp_gas_payment_pda_seeds, igp_pda_seeds, igp_program_data_pda_seeds,
     instruction::{
-        set_igp_quote_config_instruction, GasOracleConfig, GasOverheadConfig, InitIgp,
-        InitOverheadIgp, Instruction as IgpInstruction, PayForGas, QuoteGasPayment,
+        set_igp_quote_config_instruction, set_igp_quote_signer_instruction, GasOracleConfig,
+        GasOverheadConfig, InitIgp, InitOverheadIgp, Instruction as IgpInstruction, PayForGas,
+        QuoteGasPayment, SetIgpQuoteSignerOperation,
     },
     overhead_igp_pda_seeds,
     processor::process_instruction as igp_process_instruction,
@@ -1846,5 +1847,239 @@ async fn test_set_igp_quote_config_rejects_extraneous_account() {
             0,
             InstructionError::Custom(account_utils::AccountError::ExtraneousAccount as u32),
         ),
+    );
+}
+
+// --- AddIgpQuoteSigner tests ---
+
+/// Helper: initialize IGP with quote config enabled.
+async fn setup_igp_with_quote_config(banks_client: &mut BanksClient, payer: &Keypair) -> Pubkey {
+    initialize(banks_client, payer).await.unwrap();
+    let salt = H256::random();
+    let (igp_key, _) = initialize_igp(
+        banks_client,
+        payer,
+        salt,
+        Some(payer.pubkey()),
+        payer.pubkey(),
+    )
+    .await
+    .unwrap();
+
+    let config = IgpFeeConfig {
+        signers: Default::default(),
+        domain_id: 42,
+        min_issued_at: 0,
+    };
+    let ix =
+        set_igp_quote_config_instruction(igp_program_id(), igp_key, payer.pubkey(), Some(config))
+            .unwrap();
+    process_instruction(banks_client, ix, payer, &[payer])
+        .await
+        .unwrap();
+
+    igp_key
+}
+
+#[tokio::test]
+async fn test_add_igp_quote_signer() {
+    let (mut banks_client, payer) = setup_client().await;
+    let igp_key = setup_igp_with_quote_config(&mut banks_client, &payer).await;
+
+    let signer_addr = H160::random();
+    let ix = set_igp_quote_signer_instruction(
+        igp_program_id(),
+        igp_key,
+        payer.pubkey(),
+        SetIgpQuoteSignerOperation::Add(signer_addr),
+    )
+    .unwrap();
+    process_instruction(&mut banks_client, ix, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    let igp = fetch_igp(&mut banks_client, igp_key).await;
+    let signers = &igp.fee_config.unwrap().signers;
+    assert!(signers.contains(&signer_addr));
+    assert_eq!(signers.len(), 1);
+}
+
+#[tokio::test]
+async fn test_add_igp_quote_signer_rejects_no_fee_config() {
+    let (mut banks_client, payer) = setup_client().await;
+    initialize(&mut banks_client, &payer).await.unwrap();
+
+    let salt = H256::random();
+    let (igp_key, _) = initialize_igp(
+        &mut banks_client,
+        &payer,
+        salt,
+        Some(payer.pubkey()),
+        payer.pubkey(),
+    )
+    .await
+    .unwrap();
+
+    // fee_config is None — should fail.
+    let ix = set_igp_quote_signer_instruction(
+        igp_program_id(),
+        igp_key,
+        payer.pubkey(),
+        SetIgpQuoteSignerOperation::Add(H160::random()),
+    )
+    .unwrap();
+    let result = process_instruction(&mut banks_client, ix, &payer, &[&payer]).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+    );
+}
+
+#[tokio::test]
+async fn test_add_igp_quote_signer_rejects_non_owner() {
+    let (mut banks_client, payer) = setup_client().await;
+    let igp_key = setup_igp_with_quote_config(&mut banks_client, &payer).await;
+
+    let non_owner = new_funded_keypair(&mut banks_client, &payer, 1_000_000_000).await;
+    let ix = set_igp_quote_signer_instruction(
+        igp_program_id(),
+        igp_key,
+        non_owner.pubkey(),
+        SetIgpQuoteSignerOperation::Add(H160::random()),
+    )
+    .unwrap();
+    let result = process_instruction(&mut banks_client, ix, &non_owner, &[&non_owner]).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+    );
+}
+
+#[tokio::test]
+async fn test_add_igp_quote_signer_rejects_overhead_igp() {
+    let (mut banks_client, payer) = setup_client().await;
+    initialize(&mut banks_client, &payer).await.unwrap();
+
+    let salt = H256::random();
+    let (igp_key, _) = initialize_igp(
+        &mut banks_client,
+        &payer,
+        salt,
+        Some(payer.pubkey()),
+        payer.pubkey(),
+    )
+    .await
+    .unwrap();
+    let (overhead_igp_key, _) = initialize_overhead_igp(
+        &mut banks_client,
+        &payer,
+        salt,
+        Some(payer.pubkey()),
+        igp_key,
+    )
+    .await
+    .unwrap();
+
+    let ix = set_igp_quote_signer_instruction(
+        igp_program_id(),
+        overhead_igp_key,
+        payer.pubkey(),
+        SetIgpQuoteSignerOperation::Add(H160::random()),
+    )
+    .unwrap();
+    let result = process_instruction(&mut banks_client, ix, &payer, &[&payer]).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::BorshIoError),
+    );
+}
+
+#[tokio::test]
+async fn test_add_igp_quote_signer_rejects_extraneous_account() {
+    let (mut banks_client, payer) = setup_client().await;
+    let igp_key = setup_igp_with_quote_config(&mut banks_client, &payer).await;
+
+    let mut ix = set_igp_quote_signer_instruction(
+        igp_program_id(),
+        igp_key,
+        payer.pubkey(),
+        SetIgpQuoteSignerOperation::Add(H160::random()),
+    )
+    .unwrap();
+    ix.accounts
+        .push(AccountMeta::new_readonly(Pubkey::new_unique(), false));
+
+    let result = process_instruction(&mut banks_client, ix, &payer, &[&payer]).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(
+            0,
+            InstructionError::Custom(account_utils::AccountError::ExtraneousAccount as u32),
+        ),
+    );
+}
+
+#[tokio::test]
+async fn test_remove_igp_quote_signer() {
+    let (mut banks_client, payer) = setup_client().await;
+    let igp_key = setup_igp_with_quote_config(&mut banks_client, &payer).await;
+
+    let signer_addr = H160::random();
+
+    // Add first.
+    let ix = set_igp_quote_signer_instruction(
+        igp_program_id(),
+        igp_key,
+        payer.pubkey(),
+        SetIgpQuoteSignerOperation::Add(signer_addr),
+    )
+    .unwrap();
+    process_instruction(&mut banks_client, ix, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    let igp = fetch_igp(&mut banks_client, igp_key).await;
+    assert!(igp
+        .fee_config
+        .as_ref()
+        .unwrap()
+        .signers
+        .contains(&signer_addr));
+
+    // Remove.
+    let ix = set_igp_quote_signer_instruction(
+        igp_program_id(),
+        igp_key,
+        payer.pubkey(),
+        SetIgpQuoteSignerOperation::Remove(signer_addr),
+    )
+    .unwrap();
+    process_instruction(&mut banks_client, ix, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    let igp = fetch_igp(&mut banks_client, igp_key).await;
+    let signers = &igp.fee_config.as_ref().unwrap().signers;
+    assert!(!signers.contains(&signer_addr));
+    assert!(signers.is_empty());
+}
+
+#[tokio::test]
+async fn test_remove_igp_quote_signer_not_found() {
+    let (mut banks_client, payer) = setup_client().await;
+    let igp_key = setup_igp_with_quote_config(&mut banks_client, &payer).await;
+
+    // Remove a signer that was never added — should fail.
+    let ix = set_igp_quote_signer_instruction(
+        igp_program_id(),
+        igp_key,
+        payer.pubkey(),
+        SetIgpQuoteSignerOperation::Remove(H160::random()),
+    )
+    .unwrap();
+    let result = process_instruction(&mut banks_client, ix, &payer, &[&payer]).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
     );
 }
