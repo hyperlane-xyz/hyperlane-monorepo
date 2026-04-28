@@ -1,13 +1,16 @@
 //! Interchain gas paymaster accounts.
 
-use std::{cmp::Ordering, collections::HashMap};
+use std::{
+    cmp::Ordering,
+    collections::{BTreeSet, HashMap},
+};
 
 use access_control::AccessControl;
 use account_utils::{AccountData, DiscriminatorData, DiscriminatorPrefixed, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
+use hyperlane_core::{H160, H256, U256};
+use quote_verifier::ValidatableQuote;
 use solana_program::{clock::Slot, program_error::ProgramError, pubkey::Pubkey};
-
-use hyperlane_core::{H256, U256};
 
 use crate::error::Error;
 
@@ -292,6 +295,160 @@ impl SizedData for GasPaymentData {
     }
 }
 
+// --- IGP quoting types ---
+
+/// Borsh serialized size of Pubkey (32 bytes).
+const PUBKEY_SIZE: usize = 32;
+
+/// Borsh serialized size of H256 (32 bytes).
+const H256_SIZE: usize = 32;
+
+/// Borsh serialized size of H160 (20 bytes).
+const H160_SIZE: usize = 20;
+
+/// Borsh serialized size of a Vec/Map/Set length prefix (u32).
+const BORSH_LEN_PREFIX: usize = std::mem::size_of::<u32>();
+
+/// Wildcard sender: matches any sender in standing quote PDA lookups.
+pub const WILDCARD_SENDER: Pubkey = Pubkey::new_from_array([0xFF; 32]);
+
+/// Wildcard domain: matches any destination domain in standing quote PDA lookups.
+pub const WILDCARD_DOMAIN: u32 = u32::MAX;
+
+/// Configuration for offchain quoting on an IGP account.
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Clone, Default)]
+pub struct IgpFeeConfig {
+    /// Authorized secp256k1 signer addresses for quote submission.
+    pub signers: BTreeSet<H160>,
+    /// Hyperlane domain ID for cross-chain replay prevention in signing messages.
+    pub domain_id: u32,
+    /// Emergency revocation threshold: reject quotes with issued_at below this value.
+    pub min_issued_at: i64,
+}
+
+impl SizedData for IgpFeeConfig {
+    fn size(&self) -> usize {
+        BORSH_LEN_PREFIX + (self.signers.len() * H160_SIZE)
+            + std::mem::size_of::<u32>()  // domain_id
+            + std::mem::size_of::<i64>() // min_issued_at
+    }
+}
+
+// --- Standing quote PDA ---
+
+/// AccountData wrapper for IgpStandingQuote.
+pub type IgpStandingQuoteAccount = AccountData<DiscriminatorPrefixed<IgpStandingQuote>>;
+
+impl DiscriminatorData for IgpStandingQuote {
+    const DISCRIMINATOR: [u8; 8] = *b"IGPSTQTE";
+}
+
+/// Standing quote data for a specific (igp, fee_token_mint, domain, sender) combination.
+/// Context fields are stored for PDA re-derivation in CloseIgpStandingQuote.
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Clone)]
+pub struct IgpStandingQuote {
+    /// PDA bump seed.
+    pub bump_seed: u8,
+    /// Fee token mint (Pubkey::default() for SOL). Stored for PDA re-derivation.
+    pub fee_token_mint: Pubkey,
+    /// Destination domain. Stored for PDA re-derivation.
+    pub destination_domain: u32,
+    /// Sender (warp route program ID). Stored for PDA re-derivation.
+    pub sender: Pubkey,
+    /// Token exchange rate, scaled by TOKEN_EXCHANGE_RATE_SCALE (10^19).
+    pub token_exchange_rate: u128,
+    /// Gas price on the remote chain.
+    pub gas_price: u128,
+    /// Remote token decimals (same role as RemoteGasData.token_decimals).
+    pub token_decimals: u8,
+    /// When the quote was issued (unix timestamp).
+    pub issued_at: i64,
+    /// When the quote expires (unix timestamp).
+    pub expiry: i64,
+}
+
+impl SizedData for IgpStandingQuote {
+    fn size(&self) -> usize {
+        std::mem::size_of::<u8>()       // bump_seed
+            + PUBKEY_SIZE               // fee_token_mint
+            + std::mem::size_of::<u32>() // destination_domain
+            + PUBKEY_SIZE               // sender
+            + std::mem::size_of::<u128>() // token_exchange_rate
+            + std::mem::size_of::<u128>() // gas_price
+            + std::mem::size_of::<u8>()  // token_decimals
+            + std::mem::size_of::<i64>() // issued_at
+            + std::mem::size_of::<i64>() // expiry
+    }
+}
+
+impl ValidatableQuote for IgpStandingQuote {
+    fn expiry(&self) -> i64 {
+        self.expiry
+    }
+
+    fn issued_at(&self) -> i64 {
+        self.issued_at
+    }
+}
+
+// --- Transient quote PDA ---
+
+/// AccountData wrapper for IgpTransientQuote.
+pub type IgpTransientQuoteAccount = AccountData<DiscriminatorPrefixed<IgpTransientQuote>>;
+
+impl DiscriminatorData for IgpTransientQuote {
+    const DISCRIMINATOR: [u8; 8] = *b"IGPTQOTE";
+}
+
+/// Transient quote data, created and consumed in the same transaction.
+/// Keyed by (igp_account, scoped_salt) where scoped_salt = keccak256(payer || client_salt).
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Clone)]
+pub struct IgpTransientQuote {
+    /// PDA bump seed.
+    pub bump_seed: u8,
+    /// Payer who created the transient quote (receives rent refund on autoclose).
+    pub payer: Pubkey,
+    /// Scoped salt: keccak256(payer || client_salt).
+    pub scoped_salt: H256,
+    /// Destination domain from the quote context.
+    pub destination_domain: u32,
+    /// Sender (warp route program ID) from the quote context.
+    pub sender: Pubkey,
+    /// Token exchange rate, scaled by TOKEN_EXCHANGE_RATE_SCALE (10^19).
+    pub token_exchange_rate: u128,
+    /// Gas price on the remote chain.
+    pub gas_price: u128,
+    /// Remote token decimals.
+    pub token_decimals: u8,
+    /// Expiry timestamp (equals issued_at for transient quotes).
+    pub expiry: i64,
+}
+
+impl SizedData for IgpTransientQuote {
+    fn size(&self) -> usize {
+        std::mem::size_of::<u8>()       // bump_seed
+            + PUBKEY_SIZE               // payer
+            + H256_SIZE                 // scoped_salt
+            + std::mem::size_of::<u32>() // destination_domain
+            + PUBKEY_SIZE               // sender
+            + std::mem::size_of::<u128>() // token_exchange_rate
+            + std::mem::size_of::<u128>() // gas_price
+            + std::mem::size_of::<u8>()  // token_decimals
+            + std::mem::size_of::<i64>() // expiry
+    }
+}
+
+impl ValidatableQuote for IgpTransientQuote {
+    fn expiry(&self) -> i64 {
+        self.expiry
+    }
+
+    fn issued_at(&self) -> i64 {
+        // Transient quotes have expiry == issued_at by construction.
+        self.expiry
+    }
+}
+
 /// Converts `num` from `from_decimals` to `to_decimals`.
 fn convert_decimals(num: U256, from_decimals: u8, to_decimals: u8) -> U256 {
     match from_decimals.cmp(&to_decimals) {
@@ -304,6 +461,110 @@ fn convert_decimals(num: U256, from_decimals: u8, to_decimals: u8) -> U256 {
 #[cfg(test)]
 mod test {
     use super::*;
+
+    // --- IgpFeeConfig ---
+
+    #[test]
+    fn test_igp_fee_config_borsh_roundtrip() {
+        let config = IgpFeeConfig {
+            signers: BTreeSet::from([H160::random(), H160::random()]),
+            domain_id: 42,
+            min_issued_at: 1000,
+        };
+        let encoded = borsh::to_vec(&config).unwrap();
+        let decoded: IgpFeeConfig = borsh::from_slice(&encoded).unwrap();
+        assert_eq!(config, decoded);
+    }
+
+    #[test]
+    fn test_igp_fee_config_sized_data_empty() {
+        let config = IgpFeeConfig::default();
+        assert_eq!(config.size(), borsh::to_vec(&config).unwrap().len());
+    }
+
+    #[test]
+    fn test_igp_fee_config_sized_data_with_signers() {
+        let config = IgpFeeConfig {
+            signers: BTreeSet::from([H160::random(), H160::random(), H160::random()]),
+            domain_id: 1,
+            min_issued_at: 500,
+        };
+        assert_eq!(config.size(), borsh::to_vec(&config).unwrap().len());
+    }
+
+    // --- IgpStandingQuote ---
+
+    #[test]
+    fn test_igp_standing_quote_borsh_roundtrip() {
+        let quote = IgpStandingQuote {
+            bump_seed: 1,
+            fee_token_mint: Pubkey::default(),
+            destination_domain: 137,
+            sender: Pubkey::new_unique(),
+            token_exchange_rate: 2_000_000_000_000_000_000,
+            gas_price: 50_000_000_000,
+            token_decimals: 18,
+            issued_at: 1000,
+            expiry: 2000,
+        };
+        let encoded = borsh::to_vec(&quote).unwrap();
+        let decoded: IgpStandingQuote = borsh::from_slice(&encoded).unwrap();
+        assert_eq!(quote, decoded);
+    }
+
+    #[test]
+    fn test_igp_standing_quote_sized_data() {
+        let quote = IgpStandingQuote {
+            bump_seed: 1,
+            fee_token_mint: Pubkey::default(),
+            destination_domain: 137,
+            sender: Pubkey::new_unique(),
+            token_exchange_rate: 2_000_000_000_000_000_000,
+            gas_price: 50_000_000_000,
+            token_decimals: 18,
+            issued_at: 1000,
+            expiry: 2000,
+        };
+        assert_eq!(quote.size(), borsh::to_vec(&quote).unwrap().len());
+    }
+
+    // --- IgpTransientQuote ---
+
+    #[test]
+    fn test_igp_transient_quote_borsh_roundtrip() {
+        let quote = IgpTransientQuote {
+            bump_seed: 2,
+            payer: Pubkey::new_unique(),
+            scoped_salt: H256::random(),
+            destination_domain: 42,
+            sender: Pubkey::new_unique(),
+            token_exchange_rate: 1_000_000_000_000_000_000,
+            gas_price: 25_000_000_000,
+            token_decimals: 9,
+            expiry: 500,
+        };
+        let encoded = borsh::to_vec(&quote).unwrap();
+        let decoded: IgpTransientQuote = borsh::from_slice(&encoded).unwrap();
+        assert_eq!(quote, decoded);
+    }
+
+    #[test]
+    fn test_igp_transient_quote_sized_data() {
+        let quote = IgpTransientQuote {
+            bump_seed: 2,
+            payer: Pubkey::new_unique(),
+            scoped_salt: H256::random(),
+            destination_domain: 42,
+            sender: Pubkey::new_unique(),
+            token_exchange_rate: 1_000_000_000_000_000_000,
+            gas_price: 25_000_000_000,
+            token_decimals: 9,
+            expiry: 500,
+        };
+        assert_eq!(quote.size(), borsh::to_vec(&quote).unwrap().len());
+    }
+
+    // --- Existing tests ---
 
     #[test]
     fn test_convert_decimals() {

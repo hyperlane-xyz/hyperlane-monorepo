@@ -6245,6 +6245,7 @@ dependencies = [
  "hyperlane-core",
  "num-derive",
  "num-traits",
+ "quote-verifier",
  "serializable-account-meta",
  "solana-program 3.0.0",
  "solana-system-interface 2.0.0",
@@ -8846,6 +8847,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a338cc41d27e6cc6dce6cefc13a0729dfbb81c262b1f519331575dd80ef3067f"
 dependencies = [
  "proc-macro2",
+]
+
+[[package]]
+name = "quote-verifier"
+version = "0.1.0"
+dependencies = [
+ "borsh 1.6.0",
+ "ecdsa-signature",
+ "getrandom 0.2.15",
+ "hyperlane-core",
+ "solana-program 3.0.0",
+ "thiserror 1.0.63",
 ]
 
 [[package]]

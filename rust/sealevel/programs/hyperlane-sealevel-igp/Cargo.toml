@@ -16,6 +16,7 @@ hyperlane-core = { path = "../../../main/hyperlane-core" }
 access-control = { path = "../../libraries/access-control" }
 account-utils = { path = "../../libraries/account-utils" }
 serializable-account-meta = { path = "../../libraries/serializable-account-meta" }
+quote-verifier = { path = "../../libraries/quote-verifier" }
 borsh.workspace = true
 solana-program.workspace = true
 solana-system-interface.workspace = true
