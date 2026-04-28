@@ -321,17 +321,21 @@ impl From<MetadataBuildError> for FetchOutcome {
 /// Checks two shapes:
 /// - Circle's attestation API: `{"status": "pending", ...}`
 /// - Generic CCIP-read servers: `{"error": "... pending ..."}`
+/// - ccip-server wrapping Circle 404: `{"error": "CCTP attestation not found"}`
+///   (Circle 404 = attestation not yet processed; treated as pending)
 fn body_signals_pending(body: &str) -> bool {
     let Ok(val) = serde_json::from_str::<serde_json::Value>(body) else {
         return false;
     };
-    val.get("status")
+    let status_pending = val
+        .get("status")
         .and_then(|s| s.as_str())
-        .is_some_and(|s| s.eq_ignore_ascii_case("pending"))
-        || val
-            .get("error")
-            .and_then(|s| s.as_str())
-            .is_some_and(|s| s.to_lowercase().contains("pending"))
+        .is_some_and(|s| s.eq_ignore_ascii_case("pending"));
+    let error_pending = val.get("error").and_then(|s| s.as_str()).is_some_and(|s| {
+        let l = s.to_lowercase();
+        l.contains("pending") || l == "cctp attestation not found"
+    });
+    status_pending || error_pending
 }
 
 /// Fetch data from offchain lookup server
@@ -513,6 +517,28 @@ mod test {
                 .into(),
         };
         assert!(signer.verify(&signed).is_ok());
+    }
+
+    #[test]
+    fn test_body_signals_pending() {
+        // {"status": "pending"} -> pending
+        assert!(body_signals_pending(r#"{"status":"pending"}"#));
+        assert!(body_signals_pending(r#"{"status":"PENDING","foo":"bar"}"#));
+        // {"error": "... pending ..."} -> pending
+        assert!(body_signals_pending(
+            r#"{"error":"CCTP attestation is pending"}"#
+        ));
+        // Circle 404 wrapped by ccip-server -> pending
+        assert!(body_signals_pending(
+            r#"{"error":"CCTP attestation not found"}"#
+        ));
+        // unrelated 404 error -> not pending
+        assert!(!body_signals_pending(r#"{"error":"route not found"}"#));
+        // empty / non-json -> not pending
+        assert!(!body_signals_pending(""));
+        assert!(!body_signals_pending("not json"));
+        // success body -> not pending
+        assert!(!body_signals_pending(r#"{"data":"0xdeadbeef"}"#));
     }
 
     #[test]

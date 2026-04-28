@@ -159,7 +159,7 @@ class CCTPAttestationService {
           },
           'CCTP attestation not found',
         );
-        throw new Error(`CCTP attestation not found`);
+        throw new Error(`CCTP attestation is pending`);
       }
 
       // This should not happen according to the CCTP API spec, but we'll log it just in case
