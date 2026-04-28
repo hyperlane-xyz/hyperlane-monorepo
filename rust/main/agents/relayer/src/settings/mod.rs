@@ -443,7 +443,12 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
                     .filter(|s| !s.is_empty())
                     .collect()
             })
-            .unwrap_or_default();
+            .unwrap_or_else(|| {
+                vec![
+                    "https://nexus.hyperlane.xyz".to_string(),
+                    "http://localhost:3000".to_string(),
+                ]
+            });
 
         err.into_result(RelayerSettings {
             base,

@@ -128,15 +128,24 @@ where
             b"DepositForBurn(address,uint256,address,bytes32,uint32,bytes32,bytes32,uint256,uint32,bytes)",
         ));
 
-        // Circle deploys TokenMessenger V2 at the same address on every EVM chain.
-        // Source: https://developers.circle.com/cctp/references/contract-addresses#tokenmessengerv2
-        let token_messenger_v2: Address = "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d"
-            .parse()
-            .expect("valid address");
+        // Circle deploys TokenMessenger V2 at a small set of known addresses.
+        // Source: https://developers.circle.com/cctp/references/contract-addresses
+        let token_messenger_v2_addresses: [Address; 3] = [
+            "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d" // mainnet (all chains except EDGE)
+                .parse()
+                .expect("valid address"),
+            "0x98706A006bc632Df31CAdFCBD43F38887ce2ca5c" // mainnet EDGE
+                .parse()
+                .expect("valid address"),
+            "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA" // testnet (all chains)
+                .parse()
+                .expect("valid address"),
+        ];
 
         logs.iter()
             .filter(|log| {
-                log.address == token_messenger_v2 && log.topics.first() == Some(&cctp_v2_topic)
+                token_messenger_v2_addresses.contains(&log.address)
+                    && log.topics.first() == Some(&cctp_v2_topic)
             })
             .count()
     }

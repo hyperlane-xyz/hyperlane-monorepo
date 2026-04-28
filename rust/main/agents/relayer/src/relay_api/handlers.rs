@@ -240,28 +240,18 @@ impl ServerState {
     pub fn router(self) -> Router {
         use tower_http::cors::CorsLayer;
 
-        let cors_headers: Vec<HeaderValue> = if self.cors_origins.is_empty() {
-            vec![
-                "http://localhost:3000"
-                    .parse()
-                    .expect("static CORS origin is valid"),
-                "https://nexus.hyperlane.xyz"
-                    .parse()
-                    .expect("static CORS origin is valid"),
-            ]
-        } else {
-            self.cors_origins
-                .iter()
-                .filter_map(|origin| {
-                    origin
-                        .parse::<HeaderValue>()
-                        .map_err(|e| {
-                            warn!(origin, error = %e, "Ignoring invalid CORS origin");
-                        })
-                        .ok()
-                })
-                .collect()
-        };
+        let cors_headers: Vec<HeaderValue> = self
+            .cors_origins
+            .iter()
+            .filter_map(|origin| {
+                origin
+                    .parse::<HeaderValue>()
+                    .map_err(|e| {
+                        warn!(origin, error = %e, "Ignoring invalid CORS origin");
+                    })
+                    .ok()
+            })
+            .collect();
         let cors = CorsLayer::new()
             .allow_origin(cors_headers)
             .allow_methods([Method::POST])
