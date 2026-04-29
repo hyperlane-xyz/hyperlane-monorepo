@@ -87,13 +87,9 @@ pub struct RelayerSettings {
     /// **The relay API must be deployed behind an ingress that enforces
     /// per-tenant rate limits.** Enabling it on a publicly reachable port
     /// without ingress-level controls risks OOM under a flood of requests.
-    ///
-    /// A bounded channel with `try_send` → HTTP 503 would be the proper
-    /// back-pressure mechanism if the ingress requirement cannot be met.
     pub relay_api_enabled: bool,
     /// Port for the relay API HTTP server. When set, the relay API is served on
-    /// this dedicated port instead of the shared metrics port, keeping public
-    /// API traffic cleanly separated from internal metrics scraping.
+    /// this dedicated port instead of the shared metrics port. Defaults to 8900.
     pub relay_api_port: Option<u16>,
     /// Relay API rate limit: max requests per window (default: 100)
     pub relay_api_rate_limit_max_requests: Option<usize>,
