@@ -101,6 +101,10 @@ hyperlane:
   relayer:
     enabled: false
     aws: # true | false
+    # relayApi controls only the containerPort declaration so Kubernetes knows
+    # about the port. The actual HYP_RELAYAPIENABLED / HYP_RELAYAPIPORT env vars
+    # flow through envConfig (set by the infra TS helpers). Direct Helm users
+    # must also populate envConfig with relay API fields to enable the feature.
     relayApi:
       enabled: false
       port: 8900

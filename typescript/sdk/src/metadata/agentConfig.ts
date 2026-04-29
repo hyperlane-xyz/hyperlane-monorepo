@@ -518,7 +518,7 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
     .string()
     .optional()
     .describe(
-      'Relay API allowed CORS origins, comma-separated. Defaults to https://nexus.hyperlane.xyz and http://localhost:3000.',
+      'Relay API allowed CORS origins, comma-separated. Defaults to https://nexus.hyperlane.xyz.',
     ),
 });
 
