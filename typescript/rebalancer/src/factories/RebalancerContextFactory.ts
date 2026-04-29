@@ -21,6 +21,7 @@ import {
 
 import { LiFiBridge } from '../bridges/LiFiBridge.js';
 import { KatanaBridge } from '../bridges/KatanaBridge.js';
+import { FluentBridge } from '../bridges/FluentBridge.js';
 import { type RebalancerConfig } from '../config/RebalancerConfig.js';
 import {
   ExecutionType,
@@ -653,6 +654,16 @@ export class RebalancerContextFactory {
             {
               integrator: 'hyperlane',
               defaultSlippage: externalBridges?.katana?.defaultSlippage,
+              chainMetadata: this.multiProvider.metadata,
+            },
+            this.logger,
+          );
+          break;
+        }
+        case ExternalBridgeType.Fluent: {
+          registry[ExternalBridgeType.Fluent] = new FluentBridge(
+            {
+              integrator: 'hyperlane',
               chainMetadata: this.multiProvider.metadata,
             },
             this.logger,

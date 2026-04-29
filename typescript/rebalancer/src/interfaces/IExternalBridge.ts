@@ -64,7 +64,7 @@ export interface BridgeTransferResult {
  */
 export type BridgeTransferStatus =
   | { status: 'pending'; substatus?: string }
-  | { status: 'complete'; receivingTxHash: string; receivedAmount: bigint }
+  | { status: 'complete'; receivingTxHash?: string; receivedAmount?: bigint }
   | { status: 'failed'; error?: string }
   | { status: 'not_found' };
 
