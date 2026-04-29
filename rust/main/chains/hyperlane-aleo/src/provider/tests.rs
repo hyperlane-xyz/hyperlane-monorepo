@@ -270,6 +270,14 @@ async fn provable_mainnet_get_block_range() {
         .expect("get_latest_height sanity check failed");
     println!("latest height: {latest}");
 
+    // Second sanity check: confirm get_block works on a known-good (tip) block.
+    rpc.get_block::<MainnetV0>(latest)
+        .await
+        .unwrap_or_else(|e| {
+            panic!("get_block sanity check failed at latest height {latest}: {e:?}")
+        });
+    println!("block {latest}: ok (sanity)");
+
     for height in 17918388u32..=17918398 {
         match rpc.get_block::<MainnetV0>(height).await {
             Ok(_) => println!("block {height}: ok"),
