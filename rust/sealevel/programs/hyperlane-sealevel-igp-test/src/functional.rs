@@ -3171,7 +3171,7 @@ async fn test_quote_gas_payment_new_flow_wildcard_sender_fallback() {
     });
 
     // Submit wildcard-sender quote (not an exact match for quoted_sender).
-    let (igp_key, signing_key) = setup_igp_with_oracle_and_standing_quote(
+    let (igp_key, _) = setup_igp_with_oracle_and_standing_quote(
         &mut banks_client,
         &payer,
         dest_domain,
@@ -3354,4 +3354,120 @@ async fn test_quote_gas_payment_new_flow_with_overhead() {
     )
     .unwrap();
     assert_eq!(fee, expected);
+}
+
+// --- PayForGas new flow tests ---
+
+// PayForGas new flow happy-path tests require sender_authority to be a PDA signer,
+// which is only possible via invoke_signed (CPI from warp route). These will be
+// tested in Phase 5 warp route E2E tests. Here we test the negative paths only.
+
+#[tokio::test]
+async fn test_pay_for_gas_new_flow_rejects_sender_authority_not_signer() {
+    let (mut banks_client, payer) = setup_client().await;
+    let (igp_key, _) = setup_igp_with_signer(&mut banks_client, &payer).await;
+
+    let quoted_sender = Pubkey::new_unique();
+    let (sender_authority, _) = Pubkey::find_program_address(
+        &[b"hyperlane_dispatcher", b"-", b"dispatch_authority"],
+        &quoted_sender,
+    );
+
+    let exact_pda = derive_standing_quote_pda(&igp_key, &Pubkey::default(), 137, &quoted_sender);
+
+    let unique_gas_payment = Keypair::new();
+
+    // Build manually with sender_authority NOT as signer.
+    let program_id = igp_program_id();
+    let (program_data, _) =
+        Pubkey::find_program_address(igp_program_data_pda_seeds!(), &program_id);
+    let (gas_payment_pda, _) = Pubkey::find_program_address(
+        igp_gas_payment_pda_seeds!(unique_gas_payment.pubkey()),
+        &program_id,
+    );
+
+    let ix = Instruction::new_with_borsh(
+        program_id,
+        &IgpInstruction::PayForGas(PayForGas {
+            message_id: H256::random(),
+            destination_domain: 137,
+            gas_amount: 100_000,
+        }),
+        vec![
+            AccountMeta::new_readonly(system_program::id(), false),
+            AccountMeta::new(payer.pubkey(), true),
+            AccountMeta::new(program_data, false),
+            AccountMeta::new_readonly(unique_gas_payment.pubkey(), true),
+            AccountMeta::new(gas_payment_pda, false),
+            AccountMeta::new(igp_key, false),
+            AccountMeta::new_readonly(sender_authority, false), // NOT signer
+            AccountMeta::new_readonly(quoted_sender, false),
+            AccountMeta::new_readonly(exact_pda, false),
+        ],
+    );
+
+    let result = process_instruction(
+        &mut banks_client,
+        ix,
+        &payer,
+        &[&payer, &unique_gas_payment],
+    )
+    .await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::MissingRequiredSignature),
+    );
+}
+
+#[tokio::test]
+async fn test_pay_for_gas_new_flow_rejects_wrong_sender_authority() {
+    let (mut banks_client, payer) = setup_client().await;
+    let (igp_key, _) = setup_igp_with_signer(&mut banks_client, &payer).await;
+
+    let quoted_sender = Pubkey::new_unique();
+    // Use a random keypair as sender_authority — PDA binding will fail.
+    let wrong_authority = Keypair::new();
+
+    let exact_pda = derive_standing_quote_pda(&igp_key, &Pubkey::default(), 137, &quoted_sender);
+
+    let unique_gas_payment = Keypair::new();
+    let program_id = igp_program_id();
+    let (program_data, _) =
+        Pubkey::find_program_address(igp_program_data_pda_seeds!(), &program_id);
+    let (gas_payment_pda, _) = Pubkey::find_program_address(
+        igp_gas_payment_pda_seeds!(unique_gas_payment.pubkey()),
+        &program_id,
+    );
+
+    let ix = Instruction::new_with_borsh(
+        program_id,
+        &IgpInstruction::PayForGas(PayForGas {
+            message_id: H256::random(),
+            destination_domain: 137,
+            gas_amount: 100_000,
+        }),
+        vec![
+            AccountMeta::new_readonly(system_program::id(), false),
+            AccountMeta::new(payer.pubkey(), true),
+            AccountMeta::new(program_data, false),
+            AccountMeta::new_readonly(unique_gas_payment.pubkey(), true),
+            AccountMeta::new(gas_payment_pda, false),
+            AccountMeta::new(igp_key, false),
+            AccountMeta::new_readonly(wrong_authority.pubkey(), true), // signer but wrong PDA
+            AccountMeta::new_readonly(quoted_sender, false),
+            AccountMeta::new_readonly(exact_pda, false),
+        ],
+    );
+
+    let result = process_instruction(
+        &mut banks_client,
+        ix,
+        &payer,
+        &[&payer, &unique_gas_payment, &wrong_authority],
+    )
+    .await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::InvalidSeeds),
+    );
 }

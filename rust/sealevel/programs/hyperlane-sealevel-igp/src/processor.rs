@@ -277,16 +277,33 @@ fn init_igp_variant<T: account_utils::DiscriminatorPrefixedData + SizedData>(
     Ok(*igp_info.key)
 }
 
+/// Dispatch authority PDA seeds for sender_authority verification.
+/// Same seeds as mailbox uses: ["hyperlane_dispatcher", "-", "dispatch_authority"].
+const DISPATCH_AUTHORITY_SEEDS: &[&[u8]] = &[b"hyperlane_dispatcher", b"-", b"dispatch_authority"];
+
 /// Pay for gas.
 ///
-/// Accounts:
+/// Old flow accounts:
 /// 0. `[executable]` The system program.
 /// 1. `[signer]` The payer.
 /// 2. `[writeable]` The IGP program data.
 /// 3. `[signer]` Unique gas payment account.
 /// 4. `[writeable]` Gas payment PDA.
-/// 5. `[writeable]` The IGP account.
-/// 6. `[]` Overhead IGP account (optional).
+/// 5. `[writeable]` The IGP account (owner == program_id).
+/// 6. `[]` Overhead IGP account (optional, owner == program_id).
+///
+/// New flow (detected by account 6 owner != program_id):
+///
+/// 0. `[executable]` The system program.
+/// 1. `[signer]` The payer.
+/// 2. `[writeable]` The IGP program data.
+/// 3. `[signer]` Unique gas payment account.
+/// 4. `[writeable]` Gas payment PDA.
+/// 5. `[writeable]` The IGP account (same position as old flow).
+/// 6. `[signer]` sender_authority (dispatch_authority PDA — must be signer).
+/// 7. `[]` quoted_sender (warp route program ID).
+/// 8. Standing quote PDAs (exact, ws, wd — at least 1 required, trailing optional).
+/// 9. `[]` Overhead IGP account (optional, after cascade).
 fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
@@ -351,30 +368,113 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
         return Err(ProgramError::InvalidSeeds);
     }
 
-    // Account 6: Overhead IGP account (optional).
-    // The caller is expected to only provide an overhead IGP they are comfortable
-    // with / have configured themselves.
-    let gas_amount = if let Some(overhead_igp_info) = accounts_iter.next() {
-        if overhead_igp_info.owner != program_id {
-            return Err(ProgramError::IncorrectProgramId);
-        }
+    // Account 6: detection point — overhead IGP (old flow) or sender_authority (new flow).
+    let (required_payment, gas_amount) = match accounts_iter.next() {
+        None => {
+            let gas_amount = payment.gas_amount;
+            let required_payment = igp.quote_gas_payment(payment.destination_domain, gas_amount)?;
 
-        let overhead_igp =
-            OverheadIgpAccount::fetch(&mut &overhead_igp_info.data.borrow()[..])?.into_inner();
-        let overhead_igp_key = Pubkey::create_program_address(
-            overhead_igp_pda_seeds!(overhead_igp.salt, overhead_igp.bump_seed),
-            program_id,
-        )?;
-        if overhead_igp_key != *overhead_igp_info.key || overhead_igp.inner != *igp_info.key {
-            return Err(ProgramError::InvalidArgument);
+            (required_payment, gas_amount)
         }
+        Some(next) if next.owner == program_id => {
+            // The caller is expected to only provide an overhead IGP they are comfortable
+            // with / have configured themselves.
+            let overhead_igp =
+                OverheadIgpAccount::fetch(&mut &next.data.borrow()[..])?.into_inner();
+            let overhead_igp_key = Pubkey::create_program_address(
+                overhead_igp_pda_seeds!(overhead_igp.salt, overhead_igp.bump_seed),
+                program_id,
+            )?;
+            if overhead_igp_key != *next.key || overhead_igp.inner != *igp_info.key {
+                return Err(ProgramError::InvalidArgument);
+            }
 
-        overhead_igp.gas_overhead(payment.destination_domain) + payment.gas_amount
-    } else {
-        payment.gas_amount
+            let gas_amount =
+                overhead_igp.gas_overhead(payment.destination_domain) + payment.gas_amount;
+            let required_payment = igp.quote_gas_payment(payment.destination_domain, gas_amount)?;
+
+            (required_payment, gas_amount)
+        }
+        Some(sender_authority_info) => {
+            // sender_authority must be a signer (anti-spoofing).
+            if !sender_authority_info.is_signer {
+                return Err(ProgramError::MissingRequiredSignature);
+            }
+
+            // Account 7: quoted_sender (warp route program ID).
+            let quoted_sender_info = next_account_info(accounts_iter)?;
+            let quoted_sender = quoted_sender_info.key;
+
+            // Verify sender_authority is the dispatch authority PDA for quoted_sender.
+            // This binds the authority to the actual message sender program.
+            let (expected_authority, _) =
+                Pubkey::find_program_address(DISPATCH_AUTHORITY_SEEDS, quoted_sender);
+            if *sender_authority_info.key != expected_authority {
+                return Err(ProgramError::InvalidSeeds);
+            }
+
+            // At least one quote PDA must follow.
+            if accounts_iter.as_slice().is_empty() {
+                return Err(ProgramError::NotEnoughAccountKeys);
+            }
+
+            let fee_token_mint = Pubkey::default();
+            let clock = Clock::get()?;
+            let min_issued_at = igp.fee_config.as_ref().map_or(0, |cfg| cfg.min_issued_at);
+
+            // Standing cascade (transient support added in follow-up commit).
+            let cascade_levels: &[(u32, Pubkey)] = &[
+                (payment.destination_domain, *quoted_sender),
+                (payment.destination_domain, WILDCARD_SENDER),
+                (WILDCARD_DOMAIN, *quoted_sender),
+            ];
+
+            let (resolved, overhead_info) = cascade_levels.iter().try_fold(
+                (None, None),
+                |(resolved, overhead), (domain, sender)| {
+                    if resolved.is_some() || overhead.is_some() {
+                        return Ok((resolved, overhead));
+                    }
+                    try_cascade_level(
+                        program_id,
+                        accounts_iter,
+                        igp_info.key,
+                        &fee_token_mint,
+                        *domain,
+                        sender,
+                        min_issued_at,
+                        &clock,
+                    )
+                },
+            )?;
+
+            // Overhead: detected during cascade or from remaining accounts.
+            let overhead_info = overhead_info.or_else(|| accounts_iter.next());
+
+            let gas_amount = match overhead_info {
+                Some(oi) => apply_overhead_gas(
+                    oi,
+                    program_id,
+                    igp_info.key,
+                    payment.destination_domain,
+                    payment.gas_amount,
+                )?,
+                None => payment.gas_amount,
+            };
+
+            let required_payment = match resolved {
+                Some(quote) => compute_gas_fee(
+                    quote.token_exchange_rate,
+                    quote.gas_price,
+                    gas_amount,
+                    quote.token_decimals,
+                )?,
+                None => igp.quote_gas_payment(payment.destination_domain, gas_amount)?,
+            };
+
+            (required_payment, gas_amount)
+        }
     };
-
-    let required_payment = igp.quote_gas_payment(payment.destination_domain, gas_amount)?;
 
     // Transfer the required payment to the IGP.
     invoke(
