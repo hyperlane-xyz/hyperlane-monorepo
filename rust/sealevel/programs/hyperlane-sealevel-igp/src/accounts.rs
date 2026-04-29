@@ -457,7 +457,7 @@ impl DiscriminatorData for IgpStandingQuote {
 
 /// Standing quote data for a specific (igp, fee_token_mint, domain, sender) combination.
 /// Context fields are stored for PDA re-derivation in CloseIgpStandingQuote.
-#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Clone)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Clone, Default)]
 pub struct IgpStandingQuote {
     /// PDA bump seed.
     pub bump_seed: u8,

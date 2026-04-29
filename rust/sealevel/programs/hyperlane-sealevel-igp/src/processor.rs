@@ -21,16 +21,22 @@ use solana_system_interface::{instruction as system_instruction, program as syst
 use access_control::AccessControl;
 use account_utils::{
     create_pda_account, ensure_no_extraneous_accounts, verify_account_uninitialized,
-    verify_rent_exempt, AccountData, DiscriminatorPrefixed, SizedData,
+    verify_rent_exempt, AccountData, AccountInfoExt, AccountInitState, DiscriminatorPrefixed,
+    SizedData,
 };
 use serializable_account_meta::SimulationReturnData;
 
+use quote_verifier::{QuoteValidationError, SvmSignedQuote, MAX_QUOTE_ISSUED_AT_FUTURE_SKEW_SECS};
+
 use crate::{
     accounts::{
-        GasPaymentAccount, GasPaymentData, Igp, IgpAccount, IgpFeeConfig, OverheadIgp,
-        OverheadIgpAccount, ProgramData, ProgramDataAccount,
+        GasPaymentAccount, GasPaymentData, Igp, IgpAccount, IgpFeeConfig, IgpQuoteContext,
+        IgpQuoteData, IgpStandingQuote, IgpStandingQuoteAccount, OverheadIgp, OverheadIgpAccount,
+        ProgramData, ProgramDataAccount, WILDCARD_DOMAIN, WILDCARD_SENDER,
     },
+    error::Error as IgpError,
     igp_gas_payment_pda_seeds, igp_pda_seeds, igp_program_data_pda_seeds,
+    igp_standing_quote_pda_seeds,
     instruction::{
         GasOracleConfig, GasOverheadConfig, InitIgp, InitOverheadIgp,
         Instruction as IgpInstruction, PayForGas, QuoteGasPayment, SetIgpQuoteSignerOperation,
@@ -89,6 +95,9 @@ pub fn process_instruction(
         }
         IgpInstruction::SetIgpMinIssuedAt(min_issued_at) => {
             set_igp_min_issued_at(program_id, accounts, min_issued_at)?;
+        }
+        IgpInstruction::SubmitIgpQuote(quote) => {
+            submit_igp_quote(program_id, accounts, quote)?;
         }
     }
 
@@ -818,6 +827,177 @@ fn set_igp_min_issued_at(
         owner_info,
         system_program_info,
     )?;
+
+    Ok(())
+}
+
+/// Submits an offchain-signed quote to the IGP.
+/// Standing path: creates or updates a standing quote PDA.
+/// Transient path: not yet supported (will be added in a follow-up commit).
+///
+/// Accounts:
+/// 0. `[executable]` The system program.
+/// 1. `[signer, writeable]` The payer.
+/// 2. `[]` The IGP account.
+/// 3. `[writeable]` The standing quote PDA.
+fn submit_igp_quote(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    quote: SvmSignedQuote,
+) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    // Account 0: System program.
+    let system_program_info = next_account_info(accounts_iter)?;
+    if system_program_info.key != &system_program::ID {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+
+    // Account 1: Payer (signer, writable).
+    let payer_info = next_account_info(accounts_iter)?;
+    if !payer_info.is_signer {
+        return Err(ProgramError::MissingRequiredSignature);
+    }
+
+    // Account 2: IGP account (read-only).
+    let igp_info = next_account_info(accounts_iter)?;
+    if igp_info.owner != program_id {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+    let igp = IgpAccount::fetch(&mut &igp_info.data.borrow()[..])?.into_inner();
+
+    // Sanity check: verify IGP PDA derivation (same check as pay_for_gas).
+    let igp_key =
+        Pubkey::create_program_address(igp_pda_seeds!(igp.salt, igp.bump_seed), program_id)?;
+    if igp_info.key != &igp_key {
+        return Err(ProgramError::InvalidSeeds);
+    }
+
+    let fee_config = igp.fee_config.as_ref().ok_or(IgpError::QuoteConfigNotSet)?;
+
+    // Account 3: Quote PDA (writable).
+    let quote_pda_info = next_account_info(accounts_iter)?;
+
+    // --- Parse quote fields ---
+    let ctx = IgpQuoteContext::try_from(quote.context.as_slice())?;
+    let data = IgpQuoteData::try_from(quote.data.as_slice())?;
+
+    if ctx.fee_token_mint != Pubkey::default() {
+        return Err(IgpError::NonDefaultFeeTokenMint.into());
+    }
+
+    // --- Verify signature ---
+    quote
+        .verify_signer(
+            igp_info.key,
+            fee_config.domain_id,
+            payer_info.key,
+            &fee_config.signers,
+        )
+        .map_err(Into::<ProgramError>::into)?;
+
+    // --- Validate timestamps ---
+    let issued_at_ts = quote.issued_at_timestamp();
+    let expiry_ts = quote.expiry_timestamp();
+
+    if expiry_ts < issued_at_ts {
+        return Err(QuoteValidationError::InvalidExpiry.into());
+    }
+
+    let clock = Clock::get()?;
+    if clock.unix_timestamp > expiry_ts {
+        return Err(QuoteValidationError::QuoteExpired.into());
+    }
+
+    if issued_at_ts > clock.unix_timestamp + MAX_QUOTE_ISSUED_AT_FUTURE_SKEW_SECS {
+        return Err(QuoteValidationError::IssuedAtTooFarInFuture.into());
+    }
+
+    // Emergency revocation: reject quotes below min_issued_at threshold.
+    if issued_at_ts < fee_config.min_issued_at {
+        return Err(QuoteValidationError::StaleQuote.into());
+    }
+
+    // --- Business logic ---
+
+    // Reject fully-wildcarded.
+    if ctx.destination_domain == WILDCARD_DOMAIN && ctx.sender == WILDCARD_SENDER {
+        return Err(QuoteValidationError::FullyWildcardedQuote.into());
+    }
+
+    // Standing quotes only in this commit. Transient support added in follow-up.
+    if quote.is_transient() {
+        return Err(ProgramError::InvalidArgument);
+    }
+
+    // Derive expected standing quote PDA and verify.
+    let dest_domain_le = ctx.destination_domain.to_le_bytes();
+    let (expected_pda, pda_bump) = Pubkey::find_program_address(
+        igp_standing_quote_pda_seeds!(
+            igp_info.key,
+            ctx.fee_token_mint,
+            &dest_domain_le,
+            ctx.sender
+        ),
+        program_id,
+    );
+    if *quote_pda_info.key != expected_pda {
+        return Err(ProgramError::InvalidSeeds);
+    }
+
+    ensure_no_extraneous_accounts(accounts_iter)?;
+
+    // --- Create or update standing quote PDA ---
+    let standing_quote = IgpStandingQuote {
+        bump_seed: pda_bump,
+        fee_token_mint: ctx.fee_token_mint,
+        destination_domain: ctx.destination_domain,
+        sender: ctx.sender,
+        token_exchange_rate: data.token_exchange_rate,
+        gas_price: data.gas_price,
+        token_decimals: data.token_decimals,
+        issued_at: issued_at_ts,
+        expiry: expiry_ts,
+    };
+
+    let standing_account = IgpStandingQuoteAccount::new(standing_quote.into());
+
+    match quote_pda_info.init_state(program_id) {
+        AccountInitState::Uninitialized => {
+            let rent = Rent::get()?;
+            create_pda_account(
+                payer_info,
+                &rent,
+                standing_account.size(),
+                program_id,
+                system_program_info,
+                quote_pda_info,
+                igp_standing_quote_pda_seeds!(
+                    igp_info.key,
+                    ctx.fee_token_mint,
+                    &dest_domain_le,
+                    ctx.sender,
+                    pda_bump
+                ),
+            )?;
+
+            standing_account.store(quote_pda_info, false)?;
+        }
+        AccountInitState::Initialized => {
+            // Check monotonic issued_at.
+            let existing = IgpStandingQuoteAccount::fetch(&mut &quote_pda_info.data.borrow()[..])?
+                .into_inner();
+
+            if issued_at_ts <= existing.data.issued_at {
+                return Err(QuoteValidationError::StaleStandingQuoteUpdate.into());
+            }
+
+            standing_account.store(quote_pda_info, false)?;
+        }
+        AccountInitState::OwnerMismatch => {
+            return Err(ProgramError::IncorrectProgramId);
+        }
+    }
 
     Ok(())
 }
