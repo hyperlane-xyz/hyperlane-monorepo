@@ -172,6 +172,14 @@ pub enum QuoteValidationError {
     /// fnv1a("QuoteValidationError::StaleStandingQuoteUpdate")
     #[error("Standing quote update has older or equal issued_at")]
     StaleStandingQuoteUpdate = 295001952,
+
+    /// fnv1a("QuoteValidationError::TransientPayerMismatch")
+    #[error("Transient quote payer does not match")]
+    TransientPayerMismatch = 1502614465,
+
+    /// fnv1a("QuoteValidationError::TransientContextMismatch")
+    #[error("Transient quote context does not match")]
+    TransientContextMismatch = 2783899611,
 }
 
 impl From<QuoteValidationError> for ProgramError {

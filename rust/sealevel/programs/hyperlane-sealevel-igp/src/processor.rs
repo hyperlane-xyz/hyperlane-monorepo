@@ -21,8 +21,8 @@ use solana_system_interface::{instruction as system_instruction, program as syst
 use access_control::AccessControl;
 use account_utils::{
     create_pda_account, ensure_no_extraneous_accounts, verify_account_uninitialized,
-    verify_rent_exempt, AccountData, AccountInfoExt, AccountInitState, DiscriminatorPrefixed,
-    SizedData,
+    verify_rent_exempt, AccountData, AccountInfoExt, AccountInitState, DiscriminatorData,
+    DiscriminatorPrefixed, SizedData,
 };
 use serializable_account_meta::SimulationReturnData;
 
@@ -422,31 +422,54 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
             let clock = Clock::get()?;
             let min_issued_at = igp.fee_config.as_ref().map_or(0, |cfg| cfg.min_issued_at);
 
-            // Standing cascade (transient support added in follow-up commit).
-            let cascade_levels: &[(u32, Pubkey)] = &[
-                (payment.destination_domain, *quoted_sender),
-                (payment.destination_domain, WILDCARD_SENDER),
-                (WILDCARD_DOMAIN, *quoted_sender),
-            ];
+            // Cascade: transient (if present) → standing (exact → ws → wd).
+            // Peek discriminator to detect transient; if matched, all failures are hard errors.
+            let is_transient = accounts_iter.as_slice().first().is_some_and(|first| {
+                matches!(first.init_state(program_id), AccountInitState::Initialized)
+                    && first.data.borrow().len() >= 9
+                    && first.data.borrow()[1..9] == IgpTransientQuote::DISCRIMINATOR
+            });
 
-            let (resolved, overhead_info) = cascade_levels.iter().try_fold(
-                (None, None),
-                |(resolved, overhead), (domain, sender)| {
-                    if resolved.is_some() || overhead.is_some() {
-                        return Ok((resolved, overhead));
-                    }
-                    try_cascade_level(
-                        program_id,
-                        accounts_iter,
-                        igp_info.key,
-                        &fee_token_mint,
-                        *domain,
-                        sender,
-                        min_issued_at,
-                        &clock,
-                    )
-                },
-            )?;
+            let (resolved, overhead_info) = if is_transient {
+                let transient_info = next_account_info(accounts_iter)?;
+                let quote = try_resolve_transient_quote(
+                    program_id,
+                    transient_info,
+                    igp_info.key,
+                    payer_info.key,
+                    payment.destination_domain,
+                    quoted_sender,
+                    min_issued_at,
+                    &clock,
+                )?;
+                (Some(quote), None)
+            } else {
+                // Standing cascade.
+                let cascade_levels: &[(u32, Pubkey)] = &[
+                    (payment.destination_domain, *quoted_sender),
+                    (payment.destination_domain, WILDCARD_SENDER),
+                    (WILDCARD_DOMAIN, *quoted_sender),
+                ];
+
+                cascade_levels.iter().try_fold(
+                    (None, None),
+                    |(resolved, overhead), (domain, sender)| {
+                        if resolved.is_some() || overhead.is_some() {
+                            return Ok((resolved, overhead));
+                        }
+                        try_cascade_level(
+                            program_id,
+                            accounts_iter,
+                            igp_info.key,
+                            &fee_token_mint,
+                            *domain,
+                            sender,
+                            min_issued_at,
+                            &clock,
+                        )
+                    },
+                )?
+            };
 
             // Overhead: detected during cascade or from remaining accounts.
             let overhead_info = overhead_info.or_else(|| accounts_iter.next());
@@ -461,6 +484,8 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
                 )?,
                 None => payment.gas_amount,
             };
+
+            ensure_no_extraneous_accounts(accounts_iter)?;
 
             let required_payment = match resolved {
                 Some(quote) => compute_gas_fee(
@@ -626,6 +651,8 @@ fn quote_gas_payment(
                 )?,
                 None => payment.gas_amount,
             };
+
+            ensure_no_extraneous_accounts(accounts_iter)?;
 
             // Resolve: quote match → compute_gas_fee, else oracle fallback.
             match resolved {
@@ -1288,9 +1315,9 @@ fn try_cascade_level<'a, 'b>(
 }
 
 #[allow(unused, clippy::too_many_arguments)]
-/// Tries to resolve a transient quote PDA.
-/// Returns Ok(None) if uninitialized, expired, context or payer doesn't match.
-/// Re-derives PDA from stored scoped_salt for verification.
+/// Resolves a transient quote PDA. Called only after discriminator check confirms
+/// the account is a transient PDA — all validation failures are hard errors.
+/// Returns the resolved quote values on success.
 fn try_resolve_transient_quote(
     program_id: &Pubkey,
     account_info: &AccountInfo,
@@ -1300,44 +1327,38 @@ fn try_resolve_transient_quote(
     sender: &Pubkey,
     min_issued_at: i64,
     clock: &Clock,
-) -> Result<Option<ResolvedQuote>, ProgramError> {
-    match account_info.init_state(program_id) {
-        AccountInitState::Uninitialized => Ok(None),
-        AccountInitState::OwnerMismatch => Err(ProgramError::IncorrectProgramId),
-        AccountInitState::Initialized => {
-            let transient =
-                IgpTransientQuoteAccount::fetch(&mut &account_info.data.borrow()[..])?.into_inner();
+) -> Result<ResolvedQuote, ProgramError> {
+    let transient =
+        IgpTransientQuoteAccount::fetch(&mut &account_info.data.borrow()[..])?.into_inner();
 
-            // Re-derive PDA from stored scoped_salt to verify account authenticity.
-            let (expected, _) = Pubkey::find_program_address(
-                igp_transient_quote_pda_seeds!(igp_key, transient.data.scoped_salt),
-                program_id,
-            );
-            if *account_info.key != expected {
-                return Err(ProgramError::InvalidSeeds);
-            }
-
-            // Verify payer binding — prevents another payer from using this quote.
-            if transient.data.payer != *payer {
-                return Ok(None);
-            }
-
-            // Verify stored context matches expected values.
-            if transient.data.destination_domain != dest_domain || transient.data.sender != *sender
-            {
-                return Ok(None);
-            }
-
-            // Expired → skip (not error).
-            if transient.data.validate_quote(min_issued_at, clock).is_err() {
-                return Ok(None);
-            }
-
-            Ok(Some(ResolvedQuote {
-                token_exchange_rate: transient.data.token_exchange_rate,
-                gas_price: transient.data.gas_price,
-                token_decimals: transient.data.token_decimals,
-            }))
-        }
+    // Re-derive PDA from stored scoped_salt to verify account authenticity.
+    let (expected, _) = Pubkey::find_program_address(
+        igp_transient_quote_pda_seeds!(igp_key, transient.data.scoped_salt),
+        program_id,
+    );
+    if *account_info.key != expected {
+        return Err(ProgramError::InvalidSeeds);
     }
+
+    // Verify payer binding — prevents another payer from using this quote.
+    if transient.data.payer != *payer {
+        return Err(QuoteValidationError::TransientPayerMismatch.into());
+    }
+
+    // Verify stored context matches expected values.
+    if transient.data.destination_domain != dest_domain || transient.data.sender != *sender {
+        return Err(QuoteValidationError::TransientContextMismatch.into());
+    }
+
+    // Expired or stale → hard error (discriminator matched, so this IS the transient).
+    transient
+        .data
+        .validate_quote(min_issued_at, clock)
+        .map_err(Into::<ProgramError>::into)?;
+
+    Ok(ResolvedQuote {
+        token_exchange_rate: transient.data.token_exchange_rate,
+        gas_price: transient.data.gas_price,
+        token_decimals: transient.data.token_decimals,
+    })
 }
