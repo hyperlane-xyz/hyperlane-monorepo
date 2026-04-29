@@ -91,6 +91,10 @@ pub struct RelayerSettings {
     /// A bounded channel with `try_send` → HTTP 503 would be the proper
     /// back-pressure mechanism if the ingress requirement cannot be met.
     pub relay_api_enabled: bool,
+    /// Port for the relay API HTTP server. When set, the relay API is served on
+    /// this dedicated port instead of the shared metrics port, keeping public
+    /// API traffic cleanly separated from internal metrics scraping.
+    pub relay_api_port: Option<u16>,
     /// Relay API rate limit: max requests per window (default: 100)
     pub relay_api_rate_limit_max_requests: Option<usize>,
     /// Relay API rate limit: time window in seconds (default: 60)
@@ -399,6 +403,12 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .parse_bool()
             .unwrap_or(false);
 
+        let relay_api_port = p
+            .chain(&mut err)
+            .get_opt_key("relayApiPort")
+            .parse_u16()
+            .end();
+
         let relay_api_rate_limit_max_requests = p
             .chain(&mut err)
             .get_opt_key("relayApiRateLimitMaxRequests")
@@ -469,6 +479,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             tx_id_indexing_enabled,
             igp_indexing_enabled,
             relay_api_enabled,
+            relay_api_port,
             relay_api_rate_limit_max_requests,
             relay_api_rate_limit_window_secs,
             relay_api_cors_origins,

@@ -149,6 +149,7 @@ impl Server {
         }
 
         if let Some(relay_state) = self.relay_api_state {
+            tracing::info!("Relay API enabled");
             router = router.merge(relay_state.router());
         }
 

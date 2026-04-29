@@ -98,6 +98,7 @@ pub struct Relayer {
     metric_app_contexts: Arc<Vec<(MatchingList, String)>>,
     max_retries: u32,
     relay_api_enabled: bool,
+    relay_api_port: Option<u16>,
     relay_api_rate_limit_max_requests: Option<usize>,
     relay_api_rate_limit_window_secs: Option<u64>,
     relay_api_cors_origins: Vec<String>,
@@ -299,6 +300,7 @@ impl BaseAgent for Relayer {
             metric_app_contexts: settings.metric_app_contexts,
             max_retries: settings.max_retries,
             relay_api_enabled: settings.relay_api_enabled,
+            relay_api_port: settings.relay_api_port,
             relay_api_rate_limit_max_requests: settings.relay_api_rate_limit_max_requests,
             relay_api_rate_limit_window_secs: settings.relay_api_rate_limit_window_secs,
             relay_api_cors_origins: settings.relay_api_cors_origins,
@@ -537,16 +539,41 @@ impl BaseAgent for Relayer {
         // run server
         start_entity_init = Instant::now();
 
-        let relayer_router = match self
+        let (relayer_router, maybe_relay_api_state) = match self
             .build_router(prep_queues, send_channels, sender.clone())
             .await
         {
-            Ok(router) => router,
+            Ok(result) => result,
             Err(e) => {
                 error!(error = ?e, "Failed to build relayer router; aborting");
                 return;
             }
         };
+
+        // If a dedicated relay API port is configured, bind it on its own server.
+        // Bind relay API on its own port (default 8900), keeping it separate from metrics.
+        let metrics_router = if let Some(relay_api_state) = maybe_relay_api_state {
+            let port = self.relay_api_port.unwrap_or(8900);
+            let relay_router = relay_api_state.router();
+            let relay_api_task = tokio::spawn(
+                async move {
+                    let url = format!("0.0.0.0:{port}");
+                    info!(port, "starting relay API server on 0.0.0.0");
+                    let listener = tokio::net::TcpListener::bind(&url)
+                        .await
+                        .expect("Failed to bind relay API port");
+                    axum::serve(listener, relay_router)
+                        .await
+                        .expect("Relay API server failed");
+                }
+                .instrument(info_span!("Relay API server")),
+            );
+            tasks.push(relay_api_task);
+            relayer_router
+        } else {
+            relayer_router
+        };
+
         let server = self
             .core
             .settings
@@ -554,7 +581,7 @@ impl BaseAgent for Relayer {
             .expect("Failed to create server");
         let server_task = tokio::spawn(
             async move {
-                let _ = server.run_with_custom_router(relayer_router).await;
+                let _ = server.run_with_custom_router(metrics_router).await;
             }
             .instrument(info_span!("Relayer server")),
         );
@@ -588,7 +615,7 @@ impl Relayer {
         prep_queues: PrepQueue,
         send_channels: HashMap<u32, mpsc::UnboundedSender<QueueOperation>>,
         sender: BroadcastSender<relayer_server::operations::message_retry::MessageRetryRequest>,
-    ) -> Result<Router> {
+    ) -> Result<(Router, Option<RelayApiState>)> {
         // create a db mapping for server handlers
         let dbs: HashMap<u32, HyperlaneRocksDB> = self
             .origins
@@ -666,7 +693,7 @@ impl Relayer {
             None
         };
 
-        let mut server = relayer_server::Server::new(self.destinations.len())
+        let server = relayer_server::Server::new(self.destinations.len())
             .with_op_retry(sender)
             .with_message_queue(prep_queues)
             .with_dbs(dbs)
@@ -675,12 +702,8 @@ impl Relayer {
             .with_prover_sync(prover_syncs)
             .with_dispatcher_command_entrypoints(dispatcher_entrypoints);
 
-        if let Some(relay_api_state) = maybe_relay_api_state {
-            server = server.with_relay_api(relay_api_state);
-        }
-
         let router = server.router();
-        Ok(router)
+        Ok((router, maybe_relay_api_state))
     }
 
     fn record_critical_error(
