@@ -902,7 +902,7 @@
       },
       "interchainAccountRouter": "0xC00b94c115742f711a6F9EA90373c33e9B72A4A9",
       "interchainGasPaymaster": "0x9e6B1022bE9BBF5aFd152483DAD9b88911bC8611",
-      "interchainSecurityModule": "0x49E4344885B46ADb0433729e9F613396680AA187",
+      "interchainSecurityModule": "0xDd46ED0818EC4823BAf4f8F190B400f73F51e6Cc",
       "mailbox": "0xc005dc82818d67AF737725bD4bf75435d065D239",
       "merkleTreeHook": "0x48e6c30B97748d1e2e03bf3e9FbE3890ca5f8CCA",
       "name": "ethereum",
@@ -945,7 +945,8 @@
       "validatorAnnounce": "0xCe74905e51497b4adD3639366708b821dcBcff96",
       "staticMerkleRootWeightedMultisigIsmFactory": "0xA2502bF73e5313c1bf48E47C887cdcbf2640FA41",
       "staticMessageIdWeightedMultisigIsmFactory": "0x4272124Fba59CbA076D85375895f94B6a3485c3E",
-      "technicalStack": "other"
+      "technicalStack": "other",
+      "quotedCalls": "0xe38E2E3B4d9Aef4556e62e4D2B1e6Fc155bCc985"
     },
     "fraxtal": {
       "aggregationHook": "0x96F30f1c79bC2905e5dFac6e8A3E5CD82A301a10",
@@ -2943,7 +2944,13 @@
       "validatorAnnounce": "0xFB9e40D811Cea562cc8a322b029eF2BDcC3ef6ed",
       "staticMerkleRootWeightedMultisigIsmFactory": "0x33AA12b4e8E79cA551Ca9D1F2eC7d2cE02129dd4",
       "staticMessageIdWeightedMultisigIsmFactory": "0xB31553F20D7b06Eb8Eaefe29376146e1d276d091",
-      "technicalStack": "opstack"
+      "technicalStack": "opstack",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     },
     "astar": {
       "blockExplorers": [
@@ -3354,7 +3361,13 @@
       "testRecipient": "0xbB22547D1dc681fe925f568f637Ff67aC06c20fc",
       "validatorAnnounce": "0xb4fc9B5fD57499Ef6FfF3995728a55F7A618ef86",
       "interchainAccountRouter": "0xCf42106b85fC72c43Ac4976f20fA2aD7D9592c31",
-      "timelockController": "0x0000000000000000000000000000000000000000"
+      "timelockController": "0x0000000000000000000000000000000000000000",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     },
     "shibarium": {
       "blockExplorers": [
@@ -4696,6 +4709,12 @@
       "validatorAnnounce": "0xA166219dF110BDA97b91e65D4BB4Aae4159978b9",
       "index": {
         "from": 6451460
+      },
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
       }
     },
     "prom": {
@@ -6018,6 +6037,12 @@
       "validatorAnnounce": "0xb89c6ED617f5F46175E41551350725A09110bbCE",
       "index": {
         "from": 75891
+      },
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
       }
     },
     "guru": {
@@ -7340,6 +7365,12 @@
       "validatorAnnounce": "0x7B8AA8f23Ab6B0757eC6FC71894211376D9335b0",
       "index": {
         "from": 10997212
+      },
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
       }
     },
     "hashkey": {

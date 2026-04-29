@@ -64,27 +64,14 @@ export function getDisabledChains(): ChainName[] {
 // Used by scripts like check-owner-ica.ts to exclude chains that are temporarily
 // unsupported (e.g. zksync, zeronetwork) or have known issues
 export const chainsToSkip: ChainName[] = [
-  // downtime
-  'molten',
-  'fluence',
-  'tangle',
-
   // not AW owned
   'forma',
 
   // TODO: remove once zksync PR is merged into main
   // mainnets
   'zksync',
-  'zeronetwork',
   'abstract',
   'sophon',
-
-  // permanently decommissioned
-  'everclear',
-  'milkyway',
-
-  'artela',
-  'polynomialfi',
 
   // arcadia artela chilizmainnet coti electroneum galactica igra immutablezkevmmainnet krown megaeth ontology polynomialfi pulsechain reactive sei shibarium unichain viction xrplevm
 
