@@ -349,6 +349,84 @@ pub const WILDCARD_SENDER: Pubkey = Pubkey::new_from_array([0xFF; 32]);
 /// Wildcard domain: matches any destination domain in standing quote PDA lookups.
 pub const WILDCARD_DOMAIN: u32 = u32::MAX;
 
+// --- IGP quote context and data parsing ---
+
+/// Expected size of the IGP quote context bytes.
+/// Layout: [0:32] fee_token_mint | [32:36] destination_domain (u32 LE) | [36:68] sender
+pub const IGP_QUOTE_CONTEXT_SIZE: usize = PUBKEY_SIZE + std::mem::size_of::<u32>() + PUBKEY_SIZE;
+
+/// Expected size of the IGP quote data bytes.
+/// Layout: [0:16] token_exchange_rate (u128 LE) | [16:32] gas_price (u128 LE) | [32:33] token_decimals (u8)
+pub const IGP_QUOTE_DATA_SIZE: usize =
+    std::mem::size_of::<u128>() + std::mem::size_of::<u128>() + std::mem::size_of::<u8>();
+
+/// Parsed IGP quote context from signed quote context bytes.
+#[derive(Debug, PartialEq)]
+pub struct IgpQuoteContext {
+    /// Fee token mint (Pubkey::default() for SOL).
+    pub fee_token_mint: Pubkey,
+    /// Hyperlane destination domain.
+    pub destination_domain: u32,
+    /// Sender program ID for per-sender pricing.
+    pub sender: Pubkey,
+}
+
+impl TryFrom<&[u8]> for IgpQuoteContext {
+    type Error = ProgramError;
+
+    fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
+        if bytes.len() != IGP_QUOTE_CONTEXT_SIZE {
+            return Err(Error::InvalidIgpQuoteContext.into());
+        }
+
+        Ok(Self {
+            fee_token_mint: Pubkey::try_from(&bytes[..32])
+                .map_err(|_| Error::InvalidIgpQuoteContext)?,
+            destination_domain: u32::from_le_bytes(
+                bytes[32..36]
+                    .try_into()
+                    .map_err(|_| Error::InvalidIgpQuoteContext)?,
+            ),
+            sender: Pubkey::try_from(&bytes[36..68]).map_err(|_| Error::InvalidIgpQuoteContext)?,
+        })
+    }
+}
+
+/// Parsed IGP quote data from signed quote data bytes.
+#[derive(Debug, PartialEq)]
+pub struct IgpQuoteData {
+    /// Token exchange rate, scaled by TOKEN_EXCHANGE_RATE_SCALE (10^19).
+    pub token_exchange_rate: u128,
+    /// Gas price on the remote chain.
+    pub gas_price: u128,
+    /// Remote token decimals for decimal conversion.
+    pub token_decimals: u8,
+}
+
+impl TryFrom<&[u8]> for IgpQuoteData {
+    type Error = ProgramError;
+
+    fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
+        if bytes.len() != IGP_QUOTE_DATA_SIZE {
+            return Err(Error::InvalidIgpQuoteData.into());
+        }
+
+        Ok(Self {
+            token_exchange_rate: u128::from_le_bytes(
+                bytes[..16]
+                    .try_into()
+                    .map_err(|_| Error::InvalidIgpQuoteData)?,
+            ),
+            gas_price: u128::from_le_bytes(
+                bytes[16..32]
+                    .try_into()
+                    .map_err(|_| Error::InvalidIgpQuoteData)?,
+            ),
+            token_decimals: bytes[32],
+        })
+    }
+}
+
 /// Configuration for offchain quoting on an IGP account.
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Clone, Default)]
 pub struct IgpFeeConfig {
@@ -685,6 +763,62 @@ mod test {
             fee_config: None,
         };
         assert_eq!(igp.size(), borsh::to_vec(&igp).unwrap().len());
+    }
+
+    // --- IgpQuoteContext parsing ---
+
+    #[test]
+    fn test_igp_quote_context_try_from_valid() {
+        let mint = Pubkey::new_unique();
+        let sender = Pubkey::new_unique();
+        let domain: u32 = 137;
+
+        let mut bytes = Vec::with_capacity(IGP_QUOTE_CONTEXT_SIZE);
+        bytes.extend_from_slice(mint.as_ref());
+        bytes.extend_from_slice(&domain.to_le_bytes());
+        bytes.extend_from_slice(sender.as_ref());
+
+        let ctx = IgpQuoteContext::try_from(bytes.as_slice()).unwrap();
+        assert_eq!(ctx.fee_token_mint, mint);
+        assert_eq!(ctx.destination_domain, domain);
+        assert_eq!(ctx.sender, sender);
+    }
+
+    #[test]
+    fn test_igp_quote_context_try_from_wrong_length() {
+        let result = IgpQuoteContext::try_from(&[0u8; 10][..]);
+        assert_eq!(
+            result.unwrap_err(),
+            ProgramError::Custom(Error::InvalidIgpQuoteContext as u32),
+        );
+    }
+
+    // --- IgpQuoteData parsing ---
+
+    #[test]
+    fn test_igp_quote_data_try_from_valid() {
+        let exchange_rate: u128 = 2_000_000_000_000_000_000;
+        let gas_price: u128 = 50_000_000_000;
+        let decimals: u8 = 18;
+
+        let mut bytes = Vec::with_capacity(IGP_QUOTE_DATA_SIZE);
+        bytes.extend_from_slice(&exchange_rate.to_le_bytes());
+        bytes.extend_from_slice(&gas_price.to_le_bytes());
+        bytes.push(decimals);
+
+        let data = IgpQuoteData::try_from(bytes.as_slice()).unwrap();
+        assert_eq!(data.token_exchange_rate, exchange_rate);
+        assert_eq!(data.gas_price, gas_price);
+        assert_eq!(data.token_decimals, decimals);
+    }
+
+    #[test]
+    fn test_igp_quote_data_try_from_wrong_length() {
+        let result = IgpQuoteData::try_from(&[0u8; 5][..]);
+        assert_eq!(
+            result.unwrap_err(),
+            ProgramError::Custom(Error::InvalidIgpQuoteData as u32),
+        );
     }
 
     // --- Existing tests ---
