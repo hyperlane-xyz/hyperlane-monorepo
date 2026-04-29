@@ -24,21 +24,25 @@ use access_control::AccessControl;
 use account_utils::{AccountData, DiscriminatorPrefixed, DiscriminatorPrefixedData};
 use hyperlane_sealevel_igp::{
     accounts::{
-        GasOracle, GasPaymentAccount, GasPaymentData, Igp, IgpAccount, IgpFeeConfig, OverheadIgp,
-        OverheadIgpAccount, ProgramData, ProgramDataAccount, RemoteGasData, SOL_DECIMALS,
-        TOKEN_EXCHANGE_RATE_SCALE,
+        GasOracle, GasPaymentAccount, GasPaymentData, Igp, IgpAccount, IgpFeeConfig,
+        IgpStandingQuote, IgpStandingQuoteAccount, OverheadIgp, OverheadIgpAccount, ProgramData,
+        ProgramDataAccount, RemoteGasData, SOL_DECIMALS, TOKEN_EXCHANGE_RATE_SCALE,
+        WILDCARD_DOMAIN, WILDCARD_SENDER,
     },
     error::Error as IgpError,
     igp_gas_payment_pda_seeds, igp_pda_seeds, igp_program_data_pda_seeds,
+    igp_standing_quote_pda_seeds,
     instruction::{
         set_igp_min_issued_at_instruction, set_igp_quote_config_instruction,
-        set_igp_quote_signer_instruction, GasOracleConfig, GasOverheadConfig, InitIgp,
-        InitOverheadIgp, Instruction as IgpInstruction, PayForGas, QuoteGasPayment,
-        SetIgpQuoteSignerOperation,
+        set_igp_quote_signer_instruction, submit_igp_quote_instruction, GasOracleConfig,
+        GasOverheadConfig, InitIgp, InitOverheadIgp, Instruction as IgpInstruction, PayForGas,
+        QuoteGasPayment, SetIgpQuoteSignerOperation,
     },
     overhead_igp_pda_seeds,
     processor::process_instruction as igp_process_instruction,
 };
+use k256::ecdsa::{SigningKey, VerifyingKey};
+use quote_verifier::{QuoteValidationError, QuoteVerifyError, SvmSignedQuote};
 
 const TEST_DESTINATION_DOMAIN: u32 = 11111;
 const TEST_GAS_AMOUNT: u64 = 300000;
@@ -53,9 +57,18 @@ async fn setup_client() -> (BanksClient, Keypair) {
         processor!(igp_process_instruction),
     );
 
-    let (banks_client, payer, _recent_blockhash) = program_test.start().await;
+    let ctx = program_test.start_with_context().await;
+    // Set clock to a known small value so quote tests using small timestamps work.
+    let mut clock = ctx
+        .banks_client
+        .get_sysvar::<solana_program::clock::Clock>()
+        .await
+        .unwrap();
+    clock.unix_timestamp = 2;
+    ctx.set_sysvar(&clock);
+    let payer = ctx.payer.insecure_clone();
 
-    (banks_client, payer)
+    (ctx.banks_client, payer)
 }
 
 async fn initialize(
@@ -2212,6 +2225,491 @@ async fn test_set_igp_min_issued_at_rejects_extraneous_account() {
         TransactionError::InstructionError(
             0,
             InstructionError::Custom(account_utils::AccountError::ExtraneousAccount as u32),
+        ),
+    );
+}
+
+// --- SubmitIgpQuote helpers ---
+
+const IGP_DOMAIN_ID: u32 = 42;
+
+fn encode_u48(ts: i64) -> [u8; 6] {
+    let mut out = [0u8; 6];
+    out.copy_from_slice(&ts.to_be_bytes()[2..8]);
+    out
+}
+
+fn encode_igp_context(fee_token_mint: &Pubkey, dest_domain: u32, sender: &Pubkey) -> Vec<u8> {
+    let mut buf = Vec::with_capacity(68);
+    buf.extend_from_slice(fee_token_mint.as_ref());
+    buf.extend_from_slice(&dest_domain.to_le_bytes());
+    buf.extend_from_slice(sender.as_ref());
+    buf
+}
+
+fn encode_igp_data(exchange_rate: u128, gas_price: u128, token_decimals: u8) -> Vec<u8> {
+    let mut buf = Vec::with_capacity(33);
+    buf.extend_from_slice(&exchange_rate.to_le_bytes());
+    buf.extend_from_slice(&gas_price.to_le_bytes());
+    buf.push(token_decimals);
+    buf
+}
+
+fn sign_hash(signing_key: &SigningKey, hash: &[u8; 32]) -> [u8; 65] {
+    let (sig, recovery_id) = signing_key
+        .sign_prehash_recoverable(hash)
+        .expect("signing failed");
+    let mut bytes = [0u8; 65];
+    bytes[..64].copy_from_slice(&sig.to_bytes());
+    bytes[64] = recovery_id.to_byte();
+    bytes
+}
+
+fn eth_address(signing_key: &SigningKey) -> H160 {
+    let verifying_key = VerifyingKey::from(signing_key);
+    let pubkey_bytes = verifying_key.to_encoded_point(false);
+    let hash = solana_program::keccak::hash(&pubkey_bytes.as_bytes()[1..]);
+    H160::from_slice(&hash.as_ref()[12..])
+}
+
+fn make_signed_igp_quote(
+    signing_key: &SigningKey,
+    igp_key: &Pubkey,
+    domain_id: u32,
+    payer: &Pubkey,
+    context: Vec<u8>,
+    data: Vec<u8>,
+    issued_at: i64,
+    expiry: i64,
+) -> SvmSignedQuote {
+    let client_salt = H256::random();
+    let mut quote = SvmSignedQuote {
+        context,
+        data,
+        issued_at: encode_u48(issued_at),
+        expiry: encode_u48(expiry),
+        client_salt,
+        signature: [0u8; 65],
+    };
+    let scoped_salt = quote.compute_scoped_salt(payer);
+    let message_hash = quote.build_message_hash(igp_key, domain_id, &scoped_salt);
+    quote.signature = sign_hash(signing_key, message_hash.as_fixed_bytes());
+    quote
+}
+
+fn derive_standing_quote_pda(
+    igp_key: &Pubkey,
+    fee_token_mint: &Pubkey,
+    dest_domain: u32,
+    sender: &Pubkey,
+) -> Pubkey {
+    let dest_le = dest_domain.to_le_bytes();
+    let (pda, _) = Pubkey::find_program_address(
+        igp_standing_quote_pda_seeds!(igp_key, fee_token_mint, &dest_le, sender),
+        &igp_program_id(),
+    );
+    pda
+}
+
+/// Sets up an IGP with quote config and a signer, returns (igp_key, signing_key).
+async fn setup_igp_with_signer(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+) -> (Pubkey, SigningKey) {
+    let igp_key = setup_igp_with_quote_config(banks_client, payer).await;
+
+    let signing_key = SigningKey::random(&mut rand::thread_rng());
+    let signer_addr = eth_address(&signing_key);
+
+    let ix = set_igp_quote_signer_instruction(
+        igp_program_id(),
+        igp_key,
+        payer.pubkey(),
+        SetIgpQuoteSignerOperation::Add(signer_addr),
+    )
+    .unwrap();
+    process_instruction(banks_client, ix, payer, &[payer])
+        .await
+        .unwrap();
+
+    (igp_key, signing_key)
+}
+
+fn fetch_standing_quote(account_data: &[u8]) -> IgpStandingQuote {
+    IgpStandingQuoteAccount::fetch(&mut &account_data[..])
+        .unwrap()
+        .into_inner()
+        .data
+}
+
+// --- SubmitIgpQuote tests ---
+
+#[tokio::test]
+async fn test_submit_standing_quote() {
+    let (mut banks_client, payer) = setup_client().await;
+    let (igp_key, signing_key) = setup_igp_with_signer(&mut banks_client, &payer).await;
+
+    let sender = Pubkey::new_unique();
+    let dest_domain = 137u32;
+    let exchange_rate = 2_000_000_000_000_000_000u128;
+    let gas_price = 50_000_000_000u128;
+    let token_decimals = 18u8;
+
+    let context = encode_igp_context(&Pubkey::default(), dest_domain, &sender);
+    let data = encode_igp_data(exchange_rate, gas_price, token_decimals);
+
+    let quote = make_signed_igp_quote(
+        &signing_key,
+        &igp_key,
+        IGP_DOMAIN_ID,
+        &payer.pubkey(),
+        context,
+        data,
+        100,
+        200,
+    );
+
+    let quote_pda = derive_standing_quote_pda(&igp_key, &Pubkey::default(), dest_domain, &sender);
+
+    let ix =
+        submit_igp_quote_instruction(igp_program_id(), payer.pubkey(), igp_key, quote_pda, quote)
+            .unwrap();
+    process_instruction(&mut banks_client, ix, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    // Verify PDA data.
+    let account = banks_client.get_account(quote_pda).await.unwrap().unwrap();
+    let standing = fetch_standing_quote(&account.data);
+    assert_eq!(standing.token_exchange_rate, exchange_rate);
+    assert_eq!(standing.gas_price, gas_price);
+    assert_eq!(standing.token_decimals, token_decimals);
+    assert_eq!(standing.destination_domain, dest_domain);
+    assert_eq!(standing.sender, sender);
+    assert_eq!(standing.fee_token_mint, Pubkey::default());
+    assert_eq!(standing.issued_at, 100);
+    assert_eq!(standing.expiry, 200);
+}
+
+#[tokio::test]
+async fn test_submit_standing_quote_update() {
+    let (mut banks_client, payer) = setup_client().await;
+    let (igp_key, signing_key) = setup_igp_with_signer(&mut banks_client, &payer).await;
+
+    let sender = Pubkey::new_unique();
+    let dest_domain = 137u32;
+    let context = encode_igp_context(&Pubkey::default(), dest_domain, &sender);
+    let quote_pda = derive_standing_quote_pda(&igp_key, &Pubkey::default(), dest_domain, &sender);
+
+    // First quote.
+    let quote1 = make_signed_igp_quote(
+        &signing_key,
+        &igp_key,
+        IGP_DOMAIN_ID,
+        &payer.pubkey(),
+        context.clone(),
+        encode_igp_data(1_000, 100, 18),
+        100,
+        200,
+    );
+    let ix =
+        submit_igp_quote_instruction(igp_program_id(), payer.pubkey(), igp_key, quote_pda, quote1)
+            .unwrap();
+    process_instruction(&mut banks_client, ix, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    // Update with newer issued_at.
+    let quote2 = make_signed_igp_quote(
+        &signing_key,
+        &igp_key,
+        IGP_DOMAIN_ID,
+        &payer.pubkey(),
+        context,
+        encode_igp_data(2_000, 200, 18),
+        150,
+        300,
+    );
+    let ix =
+        submit_igp_quote_instruction(igp_program_id(), payer.pubkey(), igp_key, quote_pda, quote2)
+            .unwrap();
+    process_instruction(&mut banks_client, ix, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    let account = banks_client.get_account(quote_pda).await.unwrap().unwrap();
+    let standing = fetch_standing_quote(&account.data);
+    assert_eq!(standing.token_exchange_rate, 2_000);
+    assert_eq!(standing.gas_price, 200);
+    assert_eq!(standing.issued_at, 150);
+}
+
+#[tokio::test]
+async fn test_submit_standing_quote_stale_rejection() {
+    let (mut banks_client, payer) = setup_client().await;
+    let (igp_key, signing_key) = setup_igp_with_signer(&mut banks_client, &payer).await;
+
+    let sender = Pubkey::new_unique();
+    let context = encode_igp_context(&Pubkey::default(), 137, &sender);
+    let quote_pda = derive_standing_quote_pda(&igp_key, &Pubkey::default(), 137, &sender);
+
+    // First with issued_at=150.
+    let quote1 = make_signed_igp_quote(
+        &signing_key,
+        &igp_key,
+        IGP_DOMAIN_ID,
+        &payer.pubkey(),
+        context.clone(),
+        encode_igp_data(1_000, 100, 18),
+        150,
+        300,
+    );
+    let ix =
+        submit_igp_quote_instruction(igp_program_id(), payer.pubkey(), igp_key, quote_pda, quote1)
+            .unwrap();
+    process_instruction(&mut banks_client, ix, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    // Try older issued_at=100.
+    let quote2 = make_signed_igp_quote(
+        &signing_key,
+        &igp_key,
+        IGP_DOMAIN_ID,
+        &payer.pubkey(),
+        context,
+        encode_igp_data(2_000, 200, 18),
+        100,
+        300,
+    );
+    let ix =
+        submit_igp_quote_instruction(igp_program_id(), payer.pubkey(), igp_key, quote_pda, quote2)
+            .unwrap();
+    let result = process_instruction(&mut banks_client, ix, &payer, &[&payer]).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(
+            0,
+            InstructionError::Custom(QuoteValidationError::StaleStandingQuoteUpdate as u32),
+        ),
+    );
+}
+
+#[tokio::test]
+async fn test_submit_standing_quote_rejects_fully_wildcarded() {
+    let (mut banks_client, payer) = setup_client().await;
+    let (igp_key, signing_key) = setup_igp_with_signer(&mut banks_client, &payer).await;
+
+    let context = encode_igp_context(&Pubkey::default(), WILDCARD_DOMAIN, &WILDCARD_SENDER);
+    let quote_pda = derive_standing_quote_pda(
+        &igp_key,
+        &Pubkey::default(),
+        WILDCARD_DOMAIN,
+        &WILDCARD_SENDER,
+    );
+
+    let quote = make_signed_igp_quote(
+        &signing_key,
+        &igp_key,
+        IGP_DOMAIN_ID,
+        &payer.pubkey(),
+        context,
+        encode_igp_data(1_000, 100, 18),
+        100,
+        200,
+    );
+    let ix =
+        submit_igp_quote_instruction(igp_program_id(), payer.pubkey(), igp_key, quote_pda, quote)
+            .unwrap();
+    let result = process_instruction(&mut banks_client, ix, &payer, &[&payer]).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(
+            0,
+            InstructionError::Custom(QuoteValidationError::FullyWildcardedQuote as u32),
+        ),
+    );
+}
+
+#[tokio::test]
+async fn test_submit_standing_quote_rejects_unauthorized_signer() {
+    let (mut banks_client, payer) = setup_client().await;
+    let (igp_key, _) = setup_igp_with_signer(&mut banks_client, &payer).await;
+
+    let wrong_key = SigningKey::random(&mut rand::thread_rng());
+    let sender = Pubkey::new_unique();
+    let context = encode_igp_context(&Pubkey::default(), 137, &sender);
+    let quote_pda = derive_standing_quote_pda(&igp_key, &Pubkey::default(), 137, &sender);
+
+    let quote = make_signed_igp_quote(
+        &wrong_key,
+        &igp_key,
+        IGP_DOMAIN_ID,
+        &payer.pubkey(),
+        context,
+        encode_igp_data(1_000, 100, 18),
+        100,
+        200,
+    );
+    let ix =
+        submit_igp_quote_instruction(igp_program_id(), payer.pubkey(), igp_key, quote_pda, quote)
+            .unwrap();
+    let result = process_instruction(&mut banks_client, ix, &payer, &[&payer]).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(
+            0,
+            InstructionError::Custom(QuoteVerifyError::UnauthorizedSigner as u32),
+        ),
+    );
+}
+
+#[tokio::test]
+async fn test_submit_standing_quote_rejects_non_default_fee_token() {
+    let (mut banks_client, payer) = setup_client().await;
+    let (igp_key, signing_key) = setup_igp_with_signer(&mut banks_client, &payer).await;
+
+    let non_default_mint = Pubkey::new_unique();
+    let sender = Pubkey::new_unique();
+    let context = encode_igp_context(&non_default_mint, 137, &sender);
+    let quote_pda = derive_standing_quote_pda(&igp_key, &non_default_mint, 137, &sender);
+
+    let quote = make_signed_igp_quote(
+        &signing_key,
+        &igp_key,
+        IGP_DOMAIN_ID,
+        &payer.pubkey(),
+        context,
+        encode_igp_data(1_000, 100, 18),
+        100,
+        200,
+    );
+    let ix =
+        submit_igp_quote_instruction(igp_program_id(), payer.pubkey(), igp_key, quote_pda, quote)
+            .unwrap();
+    let result = process_instruction(&mut banks_client, ix, &payer, &[&payer]).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(
+            0,
+            InstructionError::Custom(IgpError::NonDefaultFeeTokenMint as u32),
+        ),
+    );
+}
+
+#[tokio::test]
+async fn test_submit_standing_quote_rejects_no_fee_config() {
+    let (mut banks_client, payer) = setup_client().await;
+    initialize(&mut banks_client, &payer).await.unwrap();
+
+    let salt = H256::random();
+    let (igp_key, _) = initialize_igp(
+        &mut banks_client,
+        &payer,
+        salt,
+        Some(payer.pubkey()),
+        payer.pubkey(),
+    )
+    .await
+    .unwrap();
+
+    let signing_key = SigningKey::random(&mut rand::thread_rng());
+    let sender = Pubkey::new_unique();
+    let context = encode_igp_context(&Pubkey::default(), 137, &sender);
+    let quote_pda = derive_standing_quote_pda(&igp_key, &Pubkey::default(), 137, &sender);
+
+    let quote = make_signed_igp_quote(
+        &signing_key,
+        &igp_key,
+        IGP_DOMAIN_ID,
+        &payer.pubkey(),
+        context,
+        encode_igp_data(1_000, 100, 18),
+        100,
+        200,
+    );
+    let ix =
+        submit_igp_quote_instruction(igp_program_id(), payer.pubkey(), igp_key, quote_pda, quote)
+            .unwrap();
+    let result = process_instruction(&mut banks_client, ix, &payer, &[&payer]).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(
+            0,
+            InstructionError::Custom(IgpError::QuoteConfigNotSet as u32),
+        ),
+    );
+}
+
+#[tokio::test]
+async fn test_submit_standing_quote_rejects_below_min_issued_at() {
+    let (mut banks_client, payer) = setup_client().await;
+    let (igp_key, signing_key) = setup_igp_with_signer(&mut banks_client, &payer).await;
+
+    // Set min_issued_at to 500.
+    let ix =
+        set_igp_min_issued_at_instruction(igp_program_id(), igp_key, payer.pubkey(), 500).unwrap();
+    process_instruction(&mut banks_client, ix, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    let sender = Pubkey::new_unique();
+    let context = encode_igp_context(&Pubkey::default(), 137, &sender);
+    let quote_pda = derive_standing_quote_pda(&igp_key, &Pubkey::default(), 137, &sender);
+
+    // issued_at=100 < min_issued_at=500.
+    let quote = make_signed_igp_quote(
+        &signing_key,
+        &igp_key,
+        IGP_DOMAIN_ID,
+        &payer.pubkey(),
+        context,
+        encode_igp_data(1_000, 100, 18),
+        100,
+        200,
+    );
+    let ix =
+        submit_igp_quote_instruction(igp_program_id(), payer.pubkey(), igp_key, quote_pda, quote)
+            .unwrap();
+    let result = process_instruction(&mut banks_client, ix, &payer, &[&payer]).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(
+            0,
+            InstructionError::Custom(QuoteValidationError::StaleQuote as u32),
+        ),
+    );
+}
+
+#[tokio::test]
+async fn test_submit_standing_quote_rejects_invalid_expiry() {
+    let (mut banks_client, payer) = setup_client().await;
+    let (igp_key, signing_key) = setup_igp_with_signer(&mut banks_client, &payer).await;
+
+    let sender = Pubkey::new_unique();
+    let context = encode_igp_context(&Pubkey::default(), 137, &sender);
+    let quote_pda = derive_standing_quote_pda(&igp_key, &Pubkey::default(), 137, &sender);
+
+    // expiry (50) < issued_at (100).
+    let quote = make_signed_igp_quote(
+        &signing_key,
+        &igp_key,
+        IGP_DOMAIN_ID,
+        &payer.pubkey(),
+        context,
+        encode_igp_data(1_000, 100, 18),
+        100,
+        50,
+    );
+    let ix =
+        submit_igp_quote_instruction(igp_program_id(), payer.pubkey(), igp_key, quote_pda, quote)
+            .unwrap();
+    let result = process_instruction(&mut banks_client, ix, &payer, &[&payer]).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(
+            0,
+            InstructionError::Custom(QuoteValidationError::InvalidExpiry as u32),
         ),
     );
 }
