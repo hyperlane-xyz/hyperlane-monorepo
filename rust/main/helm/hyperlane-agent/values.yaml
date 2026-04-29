@@ -101,6 +101,9 @@ hyperlane:
   relayer:
     enabled: false
     aws: # true | false
+    relayApi:
+      enabled: false
+      port: 8900
     podAnnotations:
       prometheus.io/port: '9090'
       prometheus.io/scrape: 'true'

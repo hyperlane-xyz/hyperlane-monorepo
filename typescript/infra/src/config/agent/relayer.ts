@@ -86,6 +86,15 @@ export interface BaseRelayerConfig {
   txIdIndexingEnabled?: boolean;
   igpIndexingEnabled?: boolean;
   reorgPeriodOverrides?: ChainMap<number>;
+  relayApi?: RelayApiConfig;
+}
+
+export interface RelayApiConfig {
+  enabled: boolean;
+  port?: number;
+  rateLimitMaxRequests?: number;
+  rateLimitWindowSecs?: number;
+  corsOrigins?: string;
 }
 
 // Full relayer-specific agent config for a single chain
@@ -185,6 +194,23 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
     relayerConfig.allowContractCallCaching = baseConfig.cache?.enabled ?? false;
     relayerConfig.txIdIndexingEnabled = baseConfig.txIdIndexingEnabled ?? true;
     relayerConfig.igpIndexingEnabled = baseConfig.igpIndexingEnabled ?? true;
+    if (baseConfig.relayApi !== undefined) {
+      relayerConfig.relayApiEnabled = baseConfig.relayApi.enabled;
+      if (baseConfig.relayApi.port !== undefined) {
+        relayerConfig.relayApiPort = baseConfig.relayApi.port;
+      }
+      if (baseConfig.relayApi.rateLimitMaxRequests !== undefined) {
+        relayerConfig.relayApiRateLimitMaxRequests =
+          baseConfig.relayApi.rateLimitMaxRequests;
+      }
+      if (baseConfig.relayApi.rateLimitWindowSecs !== undefined) {
+        relayerConfig.relayApiRateLimitWindowSecs =
+          baseConfig.relayApi.rateLimitWindowSecs;
+      }
+      if (baseConfig.relayApi.corsOrigins !== undefined) {
+        relayerConfig.relayApiCorsOrigins = baseConfig.relayApi.corsOrigins;
+      }
+    }
 
     return relayerConfig;
   }
