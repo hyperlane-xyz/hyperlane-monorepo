@@ -460,34 +460,27 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
 
                 (Some(quote), None)
             } else {
-                // Standing cascade.
+                // Standing cascade: exact → wildcard-sender → wildcard-domain.
                 let cascade_levels: &[(u32, Pubkey)] = &[
                     (payment.destination_domain, *quoted_sender),
                     (payment.destination_domain, WILDCARD_SENDER),
                     (WILDCARD_DOMAIN, *quoted_sender),
                 ];
 
-                cascade_levels.iter().try_fold(
-                    (None, None),
-                    |(resolved, overhead), (domain, sender)| {
-                        if resolved.is_some() || overhead.is_some() {
-                            return Ok((resolved, overhead));
-                        }
-                        try_cascade_level(
-                            program_id,
-                            accounts_iter,
-                            igp_info.key,
-                            &fee_token_mint,
-                            *domain,
-                            sender,
-                            min_issued_at,
-                            &clock,
-                        )
-                    },
-                )?
+                let resolved = try_standing_cascade(
+                    program_id,
+                    accounts_iter,
+                    igp_info.key,
+                    &fee_token_mint,
+                    cascade_levels,
+                    min_issued_at,
+                    &clock,
+                )?;
+
+                (resolved, None)
             };
 
-            // Overhead: detected during cascade or from remaining accounts.
+            // Overhead: from remaining accounts (non-matching accounts stay in iterator).
             let overhead_info = overhead_info.or_else(|| accounts_iter.next());
 
             let gas_amount = match overhead_info {
@@ -630,35 +623,25 @@ fn quote_gas_payment(
             let fee_config = igp.fee_config.as_ref().ok_or(IgpError::QuoteConfigNotSet)?;
             let min_issued_at = fee_config.min_issued_at;
 
-            // Cascade walk: standing-only (no transient at quote time).
+            // Standing cascade: exact → wildcard-sender → wildcard-domain.
             let cascade_levels: &[(u32, Pubkey)] = &[
                 (payment.destination_domain, *quoted_sender),
                 (payment.destination_domain, WILDCARD_SENDER),
                 (WILDCARD_DOMAIN, *quoted_sender),
             ];
 
-            let (resolved, overhead_info) = cascade_levels.iter().try_fold(
-                (None, None),
-                |(resolved, overhead), (domain, sender)| {
-                    if resolved.is_some() || overhead.is_some() {
-                        return Ok((resolved, overhead));
-                    }
-
-                    try_cascade_level(
-                        program_id,
-                        accounts_iter,
-                        igp_info.key,
-                        &fee_token_mint,
-                        *domain,
-                        sender,
-                        min_issued_at,
-                        &clock,
-                    )
-                },
+            let resolved = try_standing_cascade(
+                program_id,
+                accounts_iter,
+                igp_info.key,
+                &fee_token_mint,
+                cascade_levels,
+                min_issued_at,
+                &clock,
             )?;
 
-            // Overhead: detected during cascade or from remaining accounts.
-            let overhead_info = overhead_info.or_else(|| accounts_iter.next());
+            // Overhead: from remaining accounts (non-matching accounts stay in iterator).
+            let overhead_info = accounts_iter.next();
 
             let gas_amount = match overhead_info {
                 Some(oi) => apply_overhead_gas(
@@ -1281,56 +1264,66 @@ fn submit_igp_quote(
 
 // --- Quote cascade resolution helpers ---
 
-/// Tries a single cascade level: checks if the next account is a standing quote PDA
-/// for the given (domain, sender), or if it's the overhead IGP (cascade done).
-/// Returns (resolved_quote, overhead_igp_if_detected).
+/// Walks standing quote PDAs in strict order. At least the first expected PDA
+/// must be present; after one expected PDA is consumed, remaining trailing PDAs
+/// may be omitted and the next account is left for overhead handling.
 #[allow(clippy::too_many_arguments)]
-fn try_cascade_level<'a, 'b>(
+fn try_standing_cascade(
     program_id: &Pubkey,
-    accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
+    accounts_iter: &mut std::slice::Iter<'_, AccountInfo<'_>>,
     igp_key: &Pubkey,
     fee_token_mint: &Pubkey,
-    dest_domain: u32,
-    sender: &Pubkey,
+    cascade_levels: &[(u32, Pubkey)],
     min_issued_at: i64,
     clock: &Clock,
-) -> Result<(Option<ResolvedQuote>, Option<&'a AccountInfo<'b>>), ProgramError> {
-    let account = match accounts_iter.next() {
-        None => return Ok((None, None)),
-        Some(a) => a,
-    };
+) -> Result<Option<ResolvedQuote>, ProgramError> {
+    let mut consumed_quote_pda = false;
 
-    // Derive expected standing PDA for this level.
-    let dest_le = dest_domain.to_le_bytes();
-    let (expected_standing, _) = Pubkey::find_program_address(
-        igp_standing_quote_pda_seeds!(igp_key, fee_token_mint, &dest_le, sender),
-        program_id,
-    );
+    for (dest_domain, sender) in cascade_levels {
+        let account = match accounts_iter.as_slice().first() {
+            None => break,
+            Some(a) => a,
+        };
 
-    if *account.key == expected_standing {
-        // Account is the standing PDA for this level.
-        let resolved = match account.init_state(program_id) {
-            AccountInitState::Uninitialized => None,
+        let dest_le = dest_domain.to_le_bytes();
+        let (expected_standing, _) = Pubkey::find_program_address(
+            igp_standing_quote_pda_seeds!(igp_key, fee_token_mint, &dest_le, sender),
+            program_id,
+        );
+
+        if *account.key != expected_standing {
+            if !consumed_quote_pda {
+                return Err(ProgramError::NotEnoughAccountKeys);
+            }
+            break;
+        }
+
+        let account = next_account_info(accounts_iter)?;
+        consumed_quote_pda = true;
+
+        match account.init_state(program_id) {
+            AccountInitState::Uninitialized => {}
             AccountInitState::OwnerMismatch => return Err(ProgramError::IncorrectProgramId),
             AccountInitState::Initialized => {
                 let standing =
                     IgpStandingQuoteAccount::fetch(&mut &account.data.borrow()[..])?.into_inner();
-                if standing.data.validate_quote(min_issued_at, clock).is_err() {
-                    None
-                } else {
-                    Some(ResolvedQuote {
+
+                if standing.data.validate_quote(min_issued_at, clock).is_ok() {
+                    return Ok(Some(ResolvedQuote {
                         token_exchange_rate: standing.data.token_exchange_rate,
                         gas_price: standing.data.gas_price,
                         token_decimals: standing.data.token_decimals,
-                    })
+                    }));
                 }
             }
-        };
-        Ok((resolved, None))
-    } else {
-        // Not a standing PDA for this level — must be the overhead IGP.
-        Ok((None, Some(account)))
+        }
     }
+
+    if !consumed_quote_pda {
+        return Err(ProgramError::NotEnoughAccountKeys);
+    }
+
+    Ok(None)
 }
 
 #[allow(unused, clippy::too_many_arguments)]

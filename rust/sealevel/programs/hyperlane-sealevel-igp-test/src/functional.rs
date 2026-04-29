@@ -3168,6 +3168,61 @@ async fn test_quote_gas_payment_new_flow_rejects_no_pdas_after_sender() {
 }
 
 #[tokio::test]
+async fn test_quote_gas_payment_new_flow_rejects_overhead_without_quote_pda() {
+    let (mut banks_client, payer) = setup_client().await;
+    let (igp_key, _) = setup_igp_with_signer(&mut banks_client, &payer).await;
+
+    // Create overhead IGP.
+    let salt = H256::random();
+    let (overhead_igp_key, _) = initialize_overhead_igp(
+        &mut banks_client,
+        &payer,
+        salt,
+        Some(payer.pubkey()),
+        igp_key,
+    )
+    .await
+    .unwrap();
+
+    let quoted_sender = Pubkey::new_unique();
+
+    // Pass overhead_igp as first account after quoted_sender — no quote PDAs.
+    let ix = build_quote_gas_payment_new_flow(
+        igp_key,
+        quoted_sender,
+        137,
+        100_000,
+        &[], // no standing PDAs
+        Some(overhead_igp_key),
+    );
+    let result = process_instruction(&mut banks_client, ix, &payer, &[&payer]).await;
+    #[allow(deprecated)]
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::NotEnoughAccountKeys),
+    );
+}
+
+#[tokio::test]
+async fn test_quote_gas_payment_new_flow_rejects_wildcard_without_exact_pda() {
+    let (mut banks_client, payer) = setup_client().await;
+    let (igp_key, _) = setup_igp_with_signer(&mut banks_client, &payer).await;
+
+    let quoted_sender = Pubkey::new_unique();
+    let ws_pda = derive_standing_quote_pda(&igp_key, &Pubkey::default(), 137, &WILDCARD_SENDER);
+
+    // Passing wildcard-sender first would skip the exact level; strict order rejects it.
+    let ix =
+        build_quote_gas_payment_new_flow(igp_key, quoted_sender, 137, 100_000, &[ws_pda], None);
+    let result = process_instruction(&mut banks_client, ix, &payer, &[&payer]).await;
+    #[allow(deprecated)]
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::NotEnoughAccountKeys),
+    );
+}
+
+#[tokio::test]
 async fn test_quote_gas_payment_new_flow_wildcard_sender_fallback() {
     let (mut banks_client, payer) = setup_client().await;
 
