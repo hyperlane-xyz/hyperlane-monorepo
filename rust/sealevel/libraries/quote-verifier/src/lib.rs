@@ -32,13 +32,22 @@ pub struct SvmSignedQuote {
     pub signature: [u8; 65],
 }
 
-/// Errors from quote verification.
+/// Errors from quote signature verification.
 #[derive(Copy, Clone, Debug, Eq, thiserror::Error, PartialEq)]
+#[repr(u32)]
 pub enum QuoteVerifyError {
+    /// fnv1a("QuoteVerifyError::InvalidSignature")
     #[error("Invalid signature")]
-    InvalidSignature,
+    InvalidSignature = 3331620663,
+    /// fnv1a("QuoteVerifyError::UnauthorizedSigner")
     #[error("Recovered signer is not authorized")]
-    UnauthorizedSigner,
+    UnauthorizedSigner = 3705418912,
+}
+
+impl From<QuoteVerifyError> for ProgramError {
+    fn from(e: QuoteVerifyError) -> Self {
+        ProgramError::Custom(e as u32)
+    }
 }
 
 impl SvmSignedQuote {
@@ -147,6 +156,22 @@ pub enum QuoteValidationError {
     /// fnv1a("QuoteValidationError::QuoteExpired")
     #[error("Quote has expired")]
     QuoteExpired = 2912712095,
+
+    /// fnv1a("QuoteValidationError::InvalidExpiry")
+    #[error("Quote expiry is before issued_at")]
+    InvalidExpiry = 1187193018,
+
+    /// fnv1a("QuoteValidationError::IssuedAtTooFarInFuture")
+    #[error("Quote issued_at too far in the future")]
+    IssuedAtTooFarInFuture = 2242007873,
+
+    /// fnv1a("QuoteValidationError::FullyWildcardedQuote")
+    #[error("Fully wildcarded quote not allowed")]
+    FullyWildcardedQuote = 3996517591,
+
+    /// fnv1a("QuoteValidationError::StaleStandingQuoteUpdate")
+    #[error("Standing quote update has older or equal issued_at")]
+    StaleStandingQuoteUpdate = 295001952,
 }
 
 impl From<QuoteValidationError> for ProgramError {

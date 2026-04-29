@@ -545,7 +545,7 @@ mod submit_standing_quote {
             result,
             TransactionError::InstructionError(
                 0,
-                InstructionError::Custom(FeeError::FullyWildcardedStandingQuote as u32),
+                InstructionError::Custom(QuoteValidationError::FullyWildcardedQuote as u32),
             ),
         );
     }
@@ -848,7 +848,7 @@ mod submit_standing_quote {
             result,
             TransactionError::InstructionError(
                 0,
-                InstructionError::Custom(FeeError::UnauthorizedQuoteSigner as u32),
+                InstructionError::Custom(QuoteVerifyError::UnauthorizedSigner as u32),
             ),
         );
     }

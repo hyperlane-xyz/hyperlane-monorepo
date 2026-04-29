@@ -36,7 +36,7 @@ use hyperlane_sealevel_fee::{
     route_domain_pda_seeds, transient_quote_pda_seeds,
 };
 use k256::ecdsa::{SigningKey, VerifyingKey};
-use quote_verifier::{QuoteValidationError, SvmSignedQuote};
+use quote_verifier::{QuoteValidationError, QuoteVerifyError, SvmSignedQuote};
 use solana_program::keccak;
 
 const LOCAL_DOMAIN: u32 = 1234;

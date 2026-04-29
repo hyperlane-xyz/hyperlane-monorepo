@@ -92,7 +92,7 @@ async fn test_invalid_signature_fails() {
         result,
         TransactionError::InstructionError(
             0,
-            InstructionError::Custom(FeeError::UnauthorizedQuoteSigner as u32),
+            InstructionError::Custom(QuoteVerifyError::UnauthorizedSigner as u32),
         ),
     );
 }
@@ -129,7 +129,7 @@ async fn test_no_signers_fails() {
         result,
         TransactionError::InstructionError(
             0,
-            InstructionError::Custom(FeeError::UnauthorizedQuoteSigner as u32),
+            InstructionError::Custom(QuoteVerifyError::UnauthorizedSigner as u32),
         ),
     );
 }
@@ -170,7 +170,7 @@ async fn test_expiry_before_issued_at_fails() {
         result,
         TransactionError::InstructionError(
             0,
-            InstructionError::Custom(FeeError::InvalidQuoteExpiry as u32),
+            InstructionError::Custom(QuoteValidationError::InvalidExpiry as u32),
         ),
     );
 }
@@ -404,7 +404,7 @@ async fn test_transient_issued_at_too_far_in_future_rejected() {
         result,
         TransactionError::InstructionError(
             0,
-            InstructionError::Custom(FeeError::IssuedAtTooFarInFuture as u32),
+            InstructionError::Custom(QuoteValidationError::IssuedAtTooFarInFuture as u32),
         ),
     );
 }
@@ -447,7 +447,7 @@ async fn test_standing_issued_at_too_far_in_future_rejected() {
         result,
         TransactionError::InstructionError(
             0,
-            InstructionError::Custom(FeeError::IssuedAtTooFarInFuture as u32),
+            InstructionError::Custom(QuoteValidationError::IssuedAtTooFarInFuture as u32),
         ),
     );
 }

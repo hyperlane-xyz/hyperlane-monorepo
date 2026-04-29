@@ -1022,7 +1022,7 @@ fn process_submit_quote(
 
     // Validate expiry >= issued_at.
     if expiry_ts < issued_at_ts {
-        return Err(Error::InvalidQuoteExpiry.into());
+        return Err(QuoteValidationError::InvalidExpiry.into());
     }
 
     // Validate quote hasn't expired.
@@ -1033,7 +1033,7 @@ fn process_submit_quote(
 
     // Reject issued_at too far in the future (clock skew guard).
     if issued_at_ts > clock.unix_timestamp + MAX_QUOTE_ISSUED_AT_FUTURE_SKEW_SECS {
-        return Err(Error::IssuedAtTooFarInFuture.into());
+        return Err(QuoteValidationError::IssuedAtTooFarInFuture.into());
     }
 
     let accounts_iter = &mut accounts.iter();
@@ -1191,10 +1191,7 @@ fn process_submit_quote(
             payer_info.key,
             &resolved_signers,
         )
-        .map_err(|e| match e {
-            quote_verifier::QuoteVerifyError::InvalidSignature => Error::InvalidQuoteSignature,
-            quote_verifier::QuoteVerifyError::UnauthorizedSigner => Error::UnauthorizedQuoteSigner,
-        })?;
+        .map_err(Into::<ProgramError>::into)?;
 
     if quote.is_transient() {
         // Reject wildcard domain transient quotes for routed modes.
@@ -1290,7 +1287,7 @@ fn process_submit_quote(
         if destination_domain == crate::accounts::WILDCARD_DOMAIN
             && recipient == crate::accounts::WILDCARD_RECIPIENT
         {
-            return Err(Error::FullyWildcardedStandingQuote.into());
+            return Err(QuoteValidationError::FullyWildcardedQuote.into());
         }
 
         // Parse quoted fee strategy (curve variant + params).
