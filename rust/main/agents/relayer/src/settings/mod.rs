@@ -95,7 +95,7 @@ pub struct RelayerSettings {
     pub relay_api_rate_limit_max_requests: Option<usize>,
     /// Relay API rate limit: time window in seconds (default: 60)
     pub relay_api_rate_limit_window_secs: Option<u64>,
-    /// Relay API allowed CORS origins (comma-separated). Defaults to localhost:3000 and nexus.hyperlane.xyz.
+    /// Relay API allowed CORS origins (comma-separated). Defaults to https://nexus.hyperlane.xyz.
     pub relay_api_cors_origins: Vec<String>,
 }
 
@@ -449,12 +449,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
                     .filter(|s| !s.is_empty())
                     .collect()
             })
-            .unwrap_or_else(|| {
-                vec![
-                    "https://nexus.hyperlane.xyz".to_string(),
-                    "http://localhost:3000".to_string(),
-                ]
-            });
+            .unwrap_or_else(|| vec!["https://nexus.hyperlane.xyz".to_string()]);
 
         err.into_result(RelayerSettings {
             base,
