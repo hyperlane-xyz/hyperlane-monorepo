@@ -26,14 +26,16 @@ use account_utils::{
 };
 use serializable_account_meta::SimulationReturnData;
 
-use quote_verifier::{QuoteValidationError, SvmSignedQuote, MAX_QUOTE_ISSUED_AT_FUTURE_SKEW_SECS};
+use quote_verifier::{
+    QuoteValidationError, SvmSignedQuote, ValidatableQuote, MAX_QUOTE_ISSUED_AT_FUTURE_SKEW_SECS,
+};
 
 use crate::{
     accounts::{
         GasPaymentAccount, GasPaymentData, Igp, IgpAccount, IgpFeeConfig, IgpQuoteContext,
         IgpQuoteData, IgpStandingQuote, IgpStandingQuoteAccount, IgpTransientQuote,
         IgpTransientQuoteAccount, OverheadIgp, OverheadIgpAccount, ProgramData, ProgramDataAccount,
-        WILDCARD_DOMAIN, WILDCARD_SENDER,
+        ResolvedQuote, WILDCARD_DOMAIN, WILDCARD_SENDER,
     },
     error::Error as IgpError,
     igp_gas_payment_pda_seeds, igp_pda_seeds, igp_program_data_pda_seeds,
@@ -1045,4 +1047,106 @@ fn submit_igp_quote(
     }
 
     Ok(())
+}
+
+// --- Quote cascade resolution helpers ---
+
+#[allow(unused, clippy::too_many_arguments)]
+/// Tries to resolve a standing quote at a specific cascade level.
+/// Returns Ok(None) if uninitialized or expired/stale (allows fallback to next level).
+/// Returns Err if PDA key mismatch or owner mismatch (hard error).
+fn try_resolve_standing_quote(
+    program_id: &Pubkey,
+    account_info: &AccountInfo,
+    igp_key: &Pubkey,
+    fee_token_mint: &Pubkey,
+    dest_domain: u32,
+    sender: &Pubkey,
+    min_issued_at: i64,
+    clock: &Clock,
+) -> Result<Option<ResolvedQuote>, ProgramError> {
+    // Derive expected PDA and verify key.
+    let dest_le = dest_domain.to_le_bytes();
+    let (expected, _) = Pubkey::find_program_address(
+        igp_standing_quote_pda_seeds!(igp_key, fee_token_mint, &dest_le, sender),
+        program_id,
+    );
+    if *account_info.key != expected {
+        return Err(ProgramError::InvalidSeeds);
+    }
+
+    match account_info.init_state(program_id) {
+        AccountInitState::Uninitialized => Ok(None),
+        AccountInitState::OwnerMismatch => Err(ProgramError::IncorrectProgramId),
+        AccountInitState::Initialized => {
+            let standing =
+                IgpStandingQuoteAccount::fetch(&mut &account_info.data.borrow()[..])?.into_inner();
+
+            // Expired or stale → skip (not error), allows fallback.
+            if standing.data.validate_quote(min_issued_at, clock).is_err() {
+                return Ok(None);
+            }
+
+            Ok(Some(ResolvedQuote {
+                token_exchange_rate: standing.data.token_exchange_rate,
+                gas_price: standing.data.gas_price,
+                token_decimals: standing.data.token_decimals,
+            }))
+        }
+    }
+}
+
+#[allow(unused, clippy::too_many_arguments)]
+/// Tries to resolve a transient quote PDA.
+/// Returns Ok(None) if uninitialized, expired, context or payer doesn't match.
+/// Re-derives PDA from stored scoped_salt for verification.
+fn try_resolve_transient_quote(
+    program_id: &Pubkey,
+    account_info: &AccountInfo,
+    igp_key: &Pubkey,
+    payer: &Pubkey,
+    dest_domain: u32,
+    sender: &Pubkey,
+    min_issued_at: i64,
+    clock: &Clock,
+) -> Result<Option<ResolvedQuote>, ProgramError> {
+    match account_info.init_state(program_id) {
+        AccountInitState::Uninitialized => Ok(None),
+        AccountInitState::OwnerMismatch => Err(ProgramError::IncorrectProgramId),
+        AccountInitState::Initialized => {
+            let transient =
+                IgpTransientQuoteAccount::fetch(&mut &account_info.data.borrow()[..])?.into_inner();
+
+            // Re-derive PDA from stored scoped_salt to verify account authenticity.
+            let (expected, _) = Pubkey::find_program_address(
+                igp_transient_quote_pda_seeds!(igp_key, transient.data.scoped_salt),
+                program_id,
+            );
+            if *account_info.key != expected {
+                return Err(ProgramError::InvalidSeeds);
+            }
+
+            // Verify payer binding — prevents another payer from using this quote.
+            if transient.data.payer != *payer {
+                return Ok(None);
+            }
+
+            // Verify stored context matches expected values.
+            if transient.data.destination_domain != dest_domain || transient.data.sender != *sender
+            {
+                return Ok(None);
+            }
+
+            // Expired → skip (not error).
+            if transient.data.validate_quote(min_issued_at, clock).is_err() {
+                return Ok(None);
+            }
+
+            Ok(Some(ResolvedQuote {
+                token_exchange_rate: transient.data.token_exchange_rate,
+                gas_price: transient.data.gas_price,
+                token_decimals: transient.data.token_decimals,
+            }))
+        }
+    }
 }
