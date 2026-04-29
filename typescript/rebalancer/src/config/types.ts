@@ -37,6 +37,7 @@ export enum ExecutionType {
 export enum ExternalBridgeType {
   LiFi = 'lifi',
   Katana = 'katana',
+  Fluent = 'fluent',
 }
 
 export const RebalancerMinAmountConfigSchema = z.object({
@@ -131,9 +132,15 @@ export const KatanaBridgeConfigSchema = z.object({
   defaultSlippage: z.number().optional(),
 });
 
+// FluentBridge moves native ETH at 1:1, so there are no per-bridge tunables.
+// The schema exists so a `fluent: {}` entry in YAML is recognized and signals
+// that the bridge should be registered.
+export const FluentBridgeConfigSchema = z.object({});
+
 export const ExternalBridgesConfigSchema = z.object({
   lifi: LiFiBridgeConfigSchema.optional(),
   katana: KatanaBridgeConfigSchema.optional(),
+  fluent: FluentBridgeConfigSchema.optional(),
 });
 
 export const RebalancerConfigSchema = z

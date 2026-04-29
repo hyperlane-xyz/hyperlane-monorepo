@@ -37,7 +37,8 @@
     "test:ci": "pnpm test",
     "start": "node dist/service.js",
     "start:dev": "tsx src/service.ts",
-    "bridge:dev": "tsx src/scripts/externalBridge.ts"
+    "bridge:dev": "tsx src/scripts/externalBridge.ts",
+    "bridge:direct": "tsx src/scripts/bridgeDirect.ts"
   },
   "dependencies": {
     "@google-cloud/pino-logging-gcp-config": "catalog:",
