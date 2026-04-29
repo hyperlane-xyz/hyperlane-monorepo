@@ -25,6 +25,35 @@ bytecode_hash = "none"
 # Reduce optimizer runs for coverage to save memory (25k -> 200)
 optimizer_runs = 200
 
+# Pre-cancun build profile. Compiles a slimmer contract subset for chains
+# whose EVM lacks PUSH0 / MCOPY / transient storage opcodes. The cancun-only
+# InterchainGasPaymaster and offchain-quoting tree (TransientStorage,
+# ReentrancyGuardTransient, OffchainQuoted*, QuotedCalls, Predicate*Wrapper)
+# are excluded at build time. MinimalInterchainGasPaymaster is the
+# deployable IGP variant for this target.
+#
+# NOTE: foundry's [profile.x] skip = [...] does not filter the build input —
+# only the CLI flag `--skip <glob>` does. The skip array below is kept for
+# documentation / `forge test` filtering; the hardhat config does the actual
+# source-path filtering at build time.
+
+[profile.paris]
+evm_version = "paris"
+out = "out-paris"
+cache_path = "forge-cache-paris"
+skip = [
+    "**/TransientStorage.sol",
+    "**/ReentrancyGuardTransient.sol",
+    "**/AbstractOffchainQuoter.sol",
+    "**/OffchainQuotedIGP.sol",
+    "**/hooks/igp/InterchainGasPaymaster.sol",
+    "**/QuotedCalls.sol",
+    "**/OffchainQuotedLinearFee.sol",
+    "**/AbstractPredicateWrapper.sol",
+    "**/PredicateCrossCollateralRouterWrapper.sol",
+    "**/PredicateRouterWrapper.sol",
+]
+
 [profile.tron]
 # Tron uses 0x41 prefix for CREATE2 instead of 0xff
 # Override Create2.sol with patched version in overrides/tron/

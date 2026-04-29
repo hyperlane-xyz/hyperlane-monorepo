@@ -82,6 +82,13 @@ library FeeQuoteData {
     }
 }
 
+struct StoredQuote {
+    uint256 maxFee;
+    uint256 halfAmount;
+    uint48 issuedAt;
+    uint48 expiry;
+}
+
 /**
  * @title OffchainQuotedLinearFee
  * @notice ITokenFee implementation backed by offchain-signed quotes with
@@ -114,15 +121,6 @@ contract OffchainQuotedLinearFee is AbstractOffchainQuoter, LinearFee {
         keccak256("OffchainQuotedLinearFee.recipient");
     bytes32 private constant TRANSIENT_AMOUNT_SLOT =
         keccak256("OffchainQuotedLinearFee.amount");
-
-    // ============ Structs ============
-
-    struct StoredQuote {
-        uint256 maxFee;
-        uint256 halfAmount;
-        uint48 issuedAt;
-        uint48 expiry;
-    }
 
     // ============ Storage ============
 

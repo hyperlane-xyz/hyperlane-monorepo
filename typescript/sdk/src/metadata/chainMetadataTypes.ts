@@ -45,6 +45,22 @@ export enum ChainTechnicalStack {
   Unknown = 'unknown',
 }
 
+/**
+ * Solidity EVM compile target. Set per-chain when the chain's EVM does not
+ * implement the default (cancun) opcode set. Each non-default target
+ * corresponds to a `@hyperlane-xyz/core` bundle compiled for that target;
+ * the deployer routes to the matching bundle at deploy time.
+ *
+ * Currently supported non-default target: paris (covers chains lacking
+ * either PUSH0 or MCOPY/transient storage). Additional targets can be
+ * added without a breaking change via `forwardCompatibleEnum`.
+ */
+export enum EvmTarget {
+  Paris = 'paris',
+  Cancun = 'cancun',
+  Unknown = 'unknown',
+}
+
 export enum ChainStatus {
   Live = 'live',
   Disabled = 'disabled',
@@ -334,6 +350,12 @@ export const ChainMetadataSchemaObject = z.object({
       'The technical stack of the chain. See ChainTechnicalStack for valid values.',
     ),
 
+  evmTarget: forwardCompatibleEnum(EvmTarget, EvmTarget.Unknown)
+    .optional()
+    .describe(
+      'Solidity EVM compile target for deploys on this chain. Defaults to cancun when absent. See EvmTarget for valid values.',
+    ),
+
   transactionOverrides: z
     .record(z.any())
     .optional()
@@ -433,6 +455,23 @@ export const ChainMetadataSchema = ChainMetadataSchemaExtensible.refine(
     {
       message: 'An index.from value is required for Arbitrum Nitro chains',
       path: ['index', 'from'],
+    },
+  )
+  .refine(
+    (metadata) => {
+      // evmTarget controls Solidity EVM compile-target routing for the
+      // @hyperlane-xyz/core typechain factories — only meaningful for
+      // EVM chains. Setting it on non-Ethereum protocols is a misconfiguration.
+      if (
+        metadata.evmTarget !== undefined &&
+        metadata.protocol !== ProtocolType.Ethereum
+      ) {
+        return false;
+      } else return true;
+    },
+    {
+      message: 'evmTarget can only be set on Ethereum-protocol chains',
+      path: ['evmTarget'],
     },
   );
 

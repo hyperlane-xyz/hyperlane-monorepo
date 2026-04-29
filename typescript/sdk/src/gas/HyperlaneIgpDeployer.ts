@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 
 import {
+  GasParamStruct,
   InterchainGasPaymaster,
   ProxyAdmin,
   StorageGasOracle,
@@ -57,7 +58,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       [await this.multiProvider.getSignerAddress(chain), config.beneficiary],
     );
 
-    const gasParamsToSet: InterchainGasPaymaster.GasParamStruct[] = [];
+    const gasParamsToSet: GasParamStruct[] = [];
     for (const [remote, newGasOverhead] of Object.entries(config.overhead)) {
       // TODO: add back support for non-EVM remotes.
       // Previously would check core metadata for non EVMs and fallback to multiprovider for custom EVMs

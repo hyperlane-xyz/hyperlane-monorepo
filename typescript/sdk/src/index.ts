@@ -382,6 +382,7 @@ export {
   DisabledChainSchema,
   EnabledChainSchema,
   EthJsonRpcBlockParameterTag,
+  EvmTarget,
   ExplorerFamily,
   ExplorerFamilyValue,
   getChainIdNumber,

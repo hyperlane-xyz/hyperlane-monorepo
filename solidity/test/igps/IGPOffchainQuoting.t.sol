@@ -5,11 +5,12 @@ import {Test} from "forge-std/Test.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 import {InterchainGasPaymaster} from "../../contracts/hooks/igp/InterchainGasPaymaster.sol";
+import {MinimalInterchainGasPaymaster, GasParam, DomainGasConfig, TokenGasOracleConfig} from "../../contracts/hooks/igp/MinimalInterchainGasPaymaster.sol";
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {AbstractOffchainQuoter} from "../../contracts/libs/AbstractOffchainQuoter.sol";
 import {SignedQuote} from "../../contracts/interfaces/IOffchainQuoter.sol";
-import {IGPQuoteContext, IGPQuoteData, OffchainQuotedIGP} from "../../contracts/hooks/igp/OffchainQuotedIGP.sol";
+import {IGPQuoteContext, IGPQuoteData, OffchainQuotedIGP, StoredGasQuote} from "../../contracts/hooks/igp/OffchainQuotedIGP.sol";
 import {StorageGasOracle} from "../../contracts/hooks/igp/StorageGasOracle.sol";
 import {IGasOracle} from "../../contracts/interfaces/IGasOracle.sol";
 import {StandardHookMetadata} from "../../contracts/hooks/libs/StandardHookMetadata.sol";
@@ -146,12 +147,8 @@ contract IGPOffchainQuotingTest is Test {
         IGasOracle gasOracle,
         uint96 overhead
     ) internal {
-        InterchainGasPaymaster.GasParam[]
-            memory params = new InterchainGasPaymaster.GasParam[](1);
-        params[0] = InterchainGasPaymaster.GasParam(
-            domain,
-            InterchainGasPaymaster.DomainGasConfig(gasOracle, overhead)
-        );
+        GasParam[] memory params = new GasParam[](1);
+        params[0] = GasParam(domain, DomainGasConfig(gasOracle, overhead));
         igp.setDestinationGasConfigs(params);
     }
 
@@ -239,15 +236,8 @@ contract IGPOffchainQuotingTest is Test {
         // Need to set up a token oracle first
         address tokenAddr = address(0xFEE);
         StorageGasOracle tokenOracle = new StorageGasOracle();
-        InterchainGasPaymaster.TokenGasOracleConfig[]
-            memory configs = new InterchainGasPaymaster.TokenGasOracleConfig[](
-                1
-            );
-        configs[0] = InterchainGasPaymaster.TokenGasOracleConfig(
-            tokenAddr,
-            DEST,
-            tokenOracle
-        );
+        TokenGasOracleConfig[] memory configs = new TokenGasOracleConfig[](1);
+        configs[0] = TokenGasOracleConfig(tokenAddr, DEST, tokenOracle);
         igp.setTokenGasOracles(configs);
         tokenOracle.setRemoteGasData(
             StorageGasOracle.RemoteGasDataConfig({
@@ -606,7 +596,7 @@ contract IGPOffchainQuotingTest is Test {
             expiry
         );
 
-        OffchainQuotedIGP.StoredGasQuote memory sq = igp.offchainQuotes(
+        StoredGasQuote memory sq = igp.offchainQuotes(
             address(0),
             DEST,
             address(this)
@@ -618,7 +608,7 @@ contract IGPOffchainQuotingTest is Test {
     }
 
     function test_offchainQuotes_returnsEmptyForUnset() public view {
-        OffchainQuotedIGP.StoredGasQuote memory sq = igp.offchainQuotes(
+        StoredGasQuote memory sq = igp.offchainQuotes(
             address(0),
             99999,
             address(0xDEAD)
@@ -653,7 +643,7 @@ contract IGPOffchainQuotingTest is Test {
             now_ + 7200
         );
 
-        OffchainQuotedIGP.StoredGasQuote memory sq = igp.offchainQuotes(
+        StoredGasQuote memory sq = igp.offchainQuotes(
             address(0),
             DEST,
             address(this)
@@ -726,11 +716,8 @@ contract IGPOffchainQuotingTest is Test {
     uint128 constant TOKEN_RATE = 5e10; // 5.0 — different from native
 
     function _setupTokenOracle() internal {
-        InterchainGasPaymaster.TokenGasOracleConfig[]
-            memory configs = new InterchainGasPaymaster.TokenGasOracleConfig[](
-                1
-            );
-        configs[0] = InterchainGasPaymaster.TokenGasOracleConfig({
+        TokenGasOracleConfig[] memory configs = new TokenGasOracleConfig[](1);
+        configs[0] = TokenGasOracleConfig({
             feeToken: FEE_TOKEN,
             remoteDomain: DEST,
             gasOracle: oracle

@@ -18,6 +18,7 @@ import { HypTokenConfigSchema } from '../token/types.js';
 import {
   ChainMetadataSchema,
   ChainTechnicalStack,
+  EvmTarget,
   ExplorerFamily,
 } from './chainMetadataTypes.js';
 import { forwardCompatibleEnum } from './customZodTypes.js';
@@ -135,6 +136,79 @@ describe('forwardCompatibleEnum', () => {
         expect(result.data.technicalStack).to.equal(
           ChainTechnicalStack.Unknown,
         );
+      }
+    });
+  });
+
+  describe('EvmTarget normalization', () => {
+    const baseMetadata = {
+      chainId: 1,
+      domainId: 1,
+      name: 'testchain',
+      protocol: ProtocolType.Ethereum,
+      rpcUrls: [{ http: 'https://rpc.example.com' }],
+    };
+
+    it('should parse known evm targets correctly', () => {
+      for (const target of [EvmTarget.Paris, EvmTarget.Cancun]) {
+        const result = ChainMetadataSchema.safeParse({
+          ...baseMetadata,
+          evmTarget: target,
+        });
+        expect(result.success).to.be.true;
+        if (result.success) {
+          expect(result.data.evmTarget).to.equal(target);
+        }
+      }
+    });
+
+    it('should normalize shanghai (no published bundle) to EvmTarget.Unknown', () => {
+      const result = ChainMetadataSchema.safeParse({
+        ...baseMetadata,
+        evmTarget: 'shanghai',
+      });
+      expect(result.success).to.be.true;
+      if (result.success) {
+        expect(result.data.evmTarget).to.equal(EvmTarget.Unknown);
+      }
+    });
+
+    it('should normalize arbitrary unknown targets to EvmTarget.Unknown', () => {
+      const result = ChainMetadataSchema.safeParse({
+        ...baseMetadata,
+        evmTarget: 'futurefork',
+      });
+      expect(result.success).to.be.true;
+      if (result.success) {
+        expect(result.data.evmTarget).to.equal(EvmTarget.Unknown);
+      }
+    });
+
+    it('should accept absent evmTarget (defaults to cancun behavior)', () => {
+      const result = ChainMetadataSchema.safeParse(baseMetadata);
+      expect(result.success).to.be.true;
+      if (result.success) {
+        expect(result.data.evmTarget).to.be.undefined;
+      }
+    });
+
+    it('should reject evmTarget set on non-Ethereum protocols', () => {
+      // Solidity EVM compile-target routing is meaningful only for EVM chains.
+      const result = ChainMetadataSchema.safeParse({
+        ...baseMetadata,
+        chainId: 'cosmoshub-4',
+        domainId: 1234,
+        protocol: ProtocolType.Cosmos,
+        bech32Prefix: 'cosmos',
+        slip44: 118,
+        restUrls: [{ http: 'https://rest.example.com' }],
+        grpcUrls: [{ http: 'https://grpc.example.com' }],
+        evmTarget: EvmTarget.Paris,
+      });
+      expect(result.success).to.be.false;
+      if (!result.success) {
+        expect(result.error.issues.some((i) => i.path.includes('evmTarget'))).to
+          .be.true;
       }
     });
   });

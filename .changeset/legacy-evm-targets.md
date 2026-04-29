@@ -1,0 +1,6 @@
+---
+'@hyperlane-xyz/core': minor
+'@hyperlane-xyz/sdk': minor
+---
+
+Added support for deploying core contracts to chains whose EVM lacks PUSH0 / MCOPY / transient storage opcodes. `InterchainGasPaymaster` was split into a slim paris-compatible base (`MinimalInterchainGasPaymaster`) and a cancun-deployed derived contract (`InterchainGasPaymaster`, name preserved) that mixes in `OffchainQuotedIGP`. The split is bytecode-preserving for cancun deployments — existing on-chain IGPs require no migration. A new optional `evmTarget` field was added to chain metadata (`paris` / `cancun` / `unknown`); when set to `paris`, `MultiProvider.handleDeploy` routes through `resolveEvmTargetFactory` to dynamically import the target-specific bundle from `@hyperlane-xyz/core/paris` (mirrors the tron-sdk routing pattern). The matrix is forward-extensible — additional targets can be added without a breaking change. Foundry profile `[profile.paris]`, hardhat config `paris-hardhat.config.cts`, and `pnpm build:paris` script were added; the `@hyperlane-xyz/core` package now declares `"sideEffects": false` so the legacy bundle stays code-split out of consumer apps. Several IGP-related structs (`GasParam`, `DomainGasConfig`, `TokenGasOracleConfig`, `StoredGasQuote`) were hoisted to file scope to simplify cross-contract typing.

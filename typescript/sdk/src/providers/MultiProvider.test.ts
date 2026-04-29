@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import { ContractFactory } from 'ethers';
 
 import {
+  InterchainGasPaymaster__factory,
   Mailbox__factory,
   ProxyAdmin__factory,
   TestRecipient__factory,
@@ -14,7 +15,10 @@ import {
 } from '@hyperlane-xyz/tron-sdk';
 import { TestChainName, test1, test2 } from '../consts/testChains.js';
 import type { ProtocolTransaction, ProtocolReceipt } from './ProviderType.js';
-import { EthJsonRpcBlockParameterTag } from '../metadata/chainMetadataTypes.js';
+import {
+  EthJsonRpcBlockParameterTag,
+  EvmTarget,
+} from '../metadata/chainMetadataTypes.js';
 import sinon from 'sinon';
 
 import { MultiProvider } from './MultiProvider.js';
@@ -61,6 +65,63 @@ describe('MultiProvider Tron factory resolution', () => {
       expect.fail('Should have thrown');
     } catch (e: any) {
       expect(e.message).to.include('No Tron-compiled factory found for');
+    }
+  });
+});
+
+describe('MultiProvider EVM target factory resolution', () => {
+  const mp = new MultiProvider({});
+
+  it('returns the original factory when target is undefined', async () => {
+    const factory = new InterchainGasPaymaster__factory();
+    const resolved = await mp.resolveEvmTargetFactory(factory, undefined);
+    expect(resolved).to.equal(factory);
+  });
+
+  it('returns the original factory for cancun (default target)', async () => {
+    const factory = new InterchainGasPaymaster__factory();
+    const resolved = await mp.resolveEvmTargetFactory(
+      factory,
+      EvmTarget.Cancun,
+    );
+    expect(resolved).to.equal(factory);
+  });
+
+  it('returns the original factory for unknown target (e.g. shanghai metadata with no published bundle)', async () => {
+    // forwardCompatibleEnum normalizes unrecognized strings (like 'shanghai',
+    // which has no published bundle) to EvmTarget.Unknown. The matrix has no
+    // entry for Unknown, so the resolver passes through to the default factory.
+    // A chain misconfigured this way will deploy cancun bytecode and fail at
+    // runtime if the target chain truly lacks the required opcodes.
+    const factory = new InterchainGasPaymaster__factory();
+    const resolved = await mp.resolveEvmTargetFactory(
+      factory,
+      EvmTarget.Unknown,
+    );
+    expect(resolved).to.equal(factory);
+  });
+
+  it('resolves InterchainGasPaymaster to MinimalInterchainGasPaymaster bytecode for paris', async () => {
+    const factory = new InterchainGasPaymaster__factory();
+    const resolved = await mp.resolveEvmTargetFactory(factory, EvmTarget.Paris);
+    // Paris bundle aliases InterchainGasPaymaster__factory to the slim
+    // MinimalInterchainGasPaymaster (no offchain quoting). Different bytecode,
+    // strict subset of selectors.
+    expect(resolved).to.not.equal(factory);
+    expect(resolved.bytecode).to.not.equal(factory.bytecode);
+  });
+
+  it('throws for an unknown factory under a registered target', async () => {
+    class Unknown__factory extends ContractFactory {
+      constructor() {
+        super([], '0x');
+      }
+    }
+    try {
+      await mp.resolveEvmTargetFactory(new Unknown__factory(), EvmTarget.Paris);
+      expect.fail('Should have thrown');
+    } catch (e: any) {
+      expect(e.message).to.include('No paris-compiled factory found for');
     }
   });
 });

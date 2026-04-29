@@ -12,6 +12,7 @@ import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 import {IInterchainSecurityModule} from "../contracts/interfaces/IInterchainSecurityModule.sol";
 import {TestInterchainGasPaymaster} from "../contracts/test/TestInterchainGasPaymaster.sol";
 import {InterchainGasPaymaster} from "../contracts/hooks/igp/InterchainGasPaymaster.sol";
+import {MinimalInterchainGasPaymaster, GasParam, DomainGasConfig, TokenGasOracleConfig} from "../contracts/hooks/igp/MinimalInterchainGasPaymaster.sol";
 import {StorageGasOracle} from "../contracts/hooks/igp/StorageGasOracle.sol";
 import {IGasOracle} from "../contracts/interfaces/IGasOracle.sol";
 import {IPostDispatchHook} from "../contracts/interfaces/hooks/IPostDispatchHook.sol";
@@ -207,11 +208,8 @@ contract InterchainAccountRouterTestBase is Test {
     }
 
     function _setTokenGasConfig(address _token, uint32 _domain) internal {
-        InterchainGasPaymaster.TokenGasOracleConfig[]
-            memory params = new InterchainGasPaymaster.TokenGasOracleConfig[](
-                1
-            );
-        params[0] = InterchainGasPaymaster.TokenGasOracleConfig(
+        TokenGasOracleConfig[] memory params = new TokenGasOracleConfig[](1);
+        params[0] = TokenGasOracleConfig(
             _token,
             _domain,
             IGasOracle(address(gasOracle))

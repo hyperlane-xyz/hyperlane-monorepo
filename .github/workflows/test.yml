@@ -335,6 +335,9 @@ jobs:
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
 
+      - name: Build legacy EVM bundle
+        run: pnpm run build:paris
+
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
 

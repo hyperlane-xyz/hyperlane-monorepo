@@ -14,6 +14,7 @@ import {
   FallbackDomainRoutingHook,
   IL1CrossDomainMessenger__factory,
   IPostDispatchHook__factory,
+  GasParamStruct,
   InterchainGasPaymaster,
   InterchainGasPaymaster__factory,
   OPStackHook,
@@ -560,7 +561,7 @@ export class EvmHookModule extends HyperlaneModule<
     currentOverheads?: IgpConfig['overhead'];
     targetOverheads: IgpConfig['overhead'];
   }): Promise<AnnotatedEV5Transaction[]> {
-    const gasParamsToSet: InterchainGasPaymaster.GasParamStruct[] = [];
+    const gasParamsToSet: GasParamStruct[] = [];
     for (const [remote, gasOverhead] of Object.entries(targetOverheads)) {
       // Note: non-EVM remotes actually *are* supported, provided that the remote domain is in the MultiProvider.
       // Previously would check core metadata for non EVMs and fallback to multiprovider for custom EVMs

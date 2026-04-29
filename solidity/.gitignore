@@ -27,6 +27,11 @@ artifacts-tron
 cache-tron
 out-tron
 forge-cache-tron
+# Paris (legacy EVM target)
+artifacts-paris
+cache-paris
+out-paris
+forge-cache-paris
 core-utils/zksync/artifacts/output
 .zksolc-libraries-cache/
 typechain-types/

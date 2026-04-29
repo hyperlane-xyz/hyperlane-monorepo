@@ -81,6 +81,13 @@ library IGPQuoteData {
     }
 }
 
+struct StoredGasQuote {
+    uint128 tokenExchangeRate;
+    uint128 gasPrice;
+    uint48 issuedAt;
+    uint48 expiry;
+}
+
 /**
  * @title OffchainQuotedIGP
  * @notice Offchain-signed gas quote resolution for the IGP.
@@ -107,15 +114,6 @@ abstract contract OffchainQuotedIGP is AbstractOffchainQuoter {
         keccak256("OffchainQuotedIGP.destination");
     bytes32 private constant TRANSIENT_SENDER_SLOT =
         keccak256("OffchainQuotedIGP.sender");
-
-    // ============ Structs ============
-
-    struct StoredGasQuote {
-        uint128 tokenExchangeRate;
-        uint128 gasPrice;
-        uint48 issuedAt;
-        uint48 expiry;
-    }
 
     // ============ ERC-7201 Namespaced Storage ============
 
