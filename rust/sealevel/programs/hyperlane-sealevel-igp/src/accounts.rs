@@ -514,7 +514,7 @@ impl DiscriminatorData for IgpTransientQuote {
 
 /// Transient quote data, created and consumed in the same transaction.
 /// Keyed by (igp_account, scoped_salt) where scoped_salt = keccak256(payer || client_salt).
-#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Clone)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Clone, Default)]
 pub struct IgpTransientQuote {
     /// PDA bump seed.
     pub bump_seed: u8,

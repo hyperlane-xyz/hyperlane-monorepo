@@ -31,12 +31,13 @@ use quote_verifier::{QuoteValidationError, SvmSignedQuote, MAX_QUOTE_ISSUED_AT_F
 use crate::{
     accounts::{
         GasPaymentAccount, GasPaymentData, Igp, IgpAccount, IgpFeeConfig, IgpQuoteContext,
-        IgpQuoteData, IgpStandingQuote, IgpStandingQuoteAccount, OverheadIgp, OverheadIgpAccount,
-        ProgramData, ProgramDataAccount, WILDCARD_DOMAIN, WILDCARD_SENDER,
+        IgpQuoteData, IgpStandingQuote, IgpStandingQuoteAccount, IgpTransientQuote,
+        IgpTransientQuoteAccount, OverheadIgp, OverheadIgpAccount, ProgramData, ProgramDataAccount,
+        WILDCARD_DOMAIN, WILDCARD_SENDER,
     },
     error::Error as IgpError,
     igp_gas_payment_pda_seeds, igp_pda_seeds, igp_program_data_pda_seeds,
-    igp_standing_quote_pda_seeds,
+    igp_standing_quote_pda_seeds, igp_transient_quote_pda_seeds,
     instruction::{
         GasOracleConfig, GasOverheadConfig, InitIgp, InitOverheadIgp,
         Instruction as IgpInstruction, PayForGas, QuoteGasPayment, SetIgpQuoteSignerOperation,
@@ -925,77 +926,121 @@ fn submit_igp_quote(
         return Err(QuoteValidationError::FullyWildcardedQuote.into());
     }
 
-    // Standing quotes only in this commit. Transient support added in follow-up.
-    if quote.is_transient() {
-        return Err(ProgramError::InvalidArgument);
-    }
-
-    // Derive expected standing quote PDA and verify.
-    let dest_domain_le = ctx.destination_domain.to_le_bytes();
-    let (expected_pda, pda_bump) = Pubkey::find_program_address(
-        igp_standing_quote_pda_seeds!(
-            igp_info.key,
-            ctx.fee_token_mint,
-            &dest_domain_le,
-            ctx.sender
-        ),
-        program_id,
-    );
-    if *quote_pda_info.key != expected_pda {
-        return Err(ProgramError::InvalidSeeds);
-    }
-
     ensure_no_extraneous_accounts(accounts_iter)?;
 
-    // --- Create or update standing quote PDA ---
-    let standing_quote = IgpStandingQuote {
-        bump_seed: pda_bump,
-        fee_token_mint: ctx.fee_token_mint,
-        destination_domain: ctx.destination_domain,
-        sender: ctx.sender,
-        token_exchange_rate: data.token_exchange_rate,
-        gas_price: data.gas_price,
-        token_decimals: data.token_decimals,
-        issued_at: issued_at_ts,
-        expiry: expiry_ts,
-    };
-
-    let standing_account = IgpStandingQuoteAccount::new(standing_quote.into());
-
-    match quote_pda_info.init_state(program_id) {
-        AccountInitState::Uninitialized => {
-            let rent = Rent::get()?;
-            create_pda_account(
-                payer_info,
-                &rent,
-                standing_account.size(),
-                program_id,
-                system_program_info,
-                quote_pda_info,
-                igp_standing_quote_pda_seeds!(
-                    igp_info.key,
-                    ctx.fee_token_mint,
-                    &dest_domain_le,
-                    ctx.sender,
-                    pda_bump
-                ),
-            )?;
-
-            standing_account.store(quote_pda_info, false)?;
+    if quote.is_transient() {
+        // --- Transient path ---
+        let scoped_salt = quote.compute_scoped_salt(payer_info.key);
+        let (expected_pda, pda_bump) = Pubkey::find_program_address(
+            igp_transient_quote_pda_seeds!(igp_info.key, scoped_salt),
+            program_id,
+        );
+        if *quote_pda_info.key != expected_pda {
+            return Err(ProgramError::InvalidSeeds);
         }
-        AccountInitState::Initialized => {
-            // Check monotonic issued_at.
-            let existing = IgpStandingQuoteAccount::fetch(&mut &quote_pda_info.data.borrow()[..])?
-                .into_inner();
 
-            if issued_at_ts <= existing.data.issued_at {
-                return Err(QuoteValidationError::StaleStandingQuoteUpdate.into());
+        // Transient PDAs must not already exist.
+        match quote_pda_info.init_state(program_id) {
+            AccountInitState::Uninitialized => {
+                let transient_quote = IgpTransientQuote {
+                    bump_seed: pda_bump,
+                    payer: *payer_info.key,
+                    scoped_salt,
+                    destination_domain: ctx.destination_domain,
+                    sender: ctx.sender,
+                    token_exchange_rate: data.token_exchange_rate,
+                    gas_price: data.gas_price,
+                    token_decimals: data.token_decimals,
+                    expiry: expiry_ts,
+                };
+
+                let transient_account = IgpTransientQuoteAccount::new(transient_quote.into());
+                let rent = Rent::get()?;
+
+                create_pda_account(
+                    payer_info,
+                    &rent,
+                    transient_account.size(),
+                    program_id,
+                    system_program_info,
+                    quote_pda_info,
+                    igp_transient_quote_pda_seeds!(igp_info.key, scoped_salt, pda_bump),
+                )?;
+
+                transient_account.store(quote_pda_info, false)?;
             }
-
-            standing_account.store(quote_pda_info, false)?;
+            AccountInitState::Initialized => {
+                return Err(ProgramError::AccountAlreadyInitialized);
+            }
+            AccountInitState::OwnerMismatch => {
+                return Err(ProgramError::IncorrectProgramId);
+            }
         }
-        AccountInitState::OwnerMismatch => {
-            return Err(ProgramError::IncorrectProgramId);
+    } else {
+        // --- Standing path ---
+        let dest_domain_le = ctx.destination_domain.to_le_bytes();
+        let (expected_pda, pda_bump) = Pubkey::find_program_address(
+            igp_standing_quote_pda_seeds!(
+                igp_info.key,
+                ctx.fee_token_mint,
+                &dest_domain_le,
+                ctx.sender
+            ),
+            program_id,
+        );
+        if *quote_pda_info.key != expected_pda {
+            return Err(ProgramError::InvalidSeeds);
+        }
+
+        let standing_quote = IgpStandingQuote {
+            bump_seed: pda_bump,
+            fee_token_mint: ctx.fee_token_mint,
+            destination_domain: ctx.destination_domain,
+            sender: ctx.sender,
+            token_exchange_rate: data.token_exchange_rate,
+            gas_price: data.gas_price,
+            token_decimals: data.token_decimals,
+            issued_at: issued_at_ts,
+            expiry: expiry_ts,
+        };
+
+        let standing_account = IgpStandingQuoteAccount::new(standing_quote.into());
+
+        match quote_pda_info.init_state(program_id) {
+            AccountInitState::Uninitialized => {
+                let rent = Rent::get()?;
+                create_pda_account(
+                    payer_info,
+                    &rent,
+                    standing_account.size(),
+                    program_id,
+                    system_program_info,
+                    quote_pda_info,
+                    igp_standing_quote_pda_seeds!(
+                        igp_info.key,
+                        ctx.fee_token_mint,
+                        &dest_domain_le,
+                        ctx.sender,
+                        pda_bump
+                    ),
+                )?;
+
+                standing_account.store(quote_pda_info, false)?;
+            }
+            AccountInitState::Initialized => {
+                let existing =
+                    IgpStandingQuoteAccount::fetch(&mut &quote_pda_info.data.borrow()[..])?
+                        .into_inner();
+
+                if issued_at_ts <= existing.data.issued_at {
+                    return Err(QuoteValidationError::StaleStandingQuoteUpdate.into());
+                }
+
+                standing_account.store(quote_pda_info, false)?;
+            }
+            AccountInitState::OwnerMismatch => {
+                return Err(ProgramError::IncorrectProgramId);
+            }
         }
     }
 

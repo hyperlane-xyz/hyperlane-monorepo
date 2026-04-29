@@ -10,7 +10,7 @@ use solana_program::{
 use solana_program_test::*;
 use solana_sdk::{
     instruction::InstructionError, signature::Signature, signature::Signer,
-    signer::keypair::Keypair, transaction::TransactionError,
+    signer::keypair::Keypair, transaction::Transaction, transaction::TransactionError,
 };
 use solana_system_interface::program as system_program;
 
@@ -25,13 +25,13 @@ use account_utils::{AccountData, DiscriminatorPrefixed, DiscriminatorPrefixedDat
 use hyperlane_sealevel_igp::{
     accounts::{
         GasOracle, GasPaymentAccount, GasPaymentData, Igp, IgpAccount, IgpFeeConfig,
-        IgpStandingQuote, IgpStandingQuoteAccount, OverheadIgp, OverheadIgpAccount, ProgramData,
-        ProgramDataAccount, RemoteGasData, SOL_DECIMALS, TOKEN_EXCHANGE_RATE_SCALE,
-        WILDCARD_DOMAIN, WILDCARD_SENDER,
+        IgpStandingQuote, IgpStandingQuoteAccount, IgpTransientQuote, IgpTransientQuoteAccount,
+        OverheadIgp, OverheadIgpAccount, ProgramData, ProgramDataAccount, RemoteGasData,
+        SOL_DECIMALS, TOKEN_EXCHANGE_RATE_SCALE, WILDCARD_DOMAIN, WILDCARD_SENDER,
     },
     error::Error as IgpError,
     igp_gas_payment_pda_seeds, igp_pda_seeds, igp_program_data_pda_seeds,
-    igp_standing_quote_pda_seeds,
+    igp_standing_quote_pda_seeds, igp_transient_quote_pda_seeds,
     instruction::{
         set_igp_min_issued_at_instruction, set_igp_quote_config_instruction,
         set_igp_quote_signer_instruction, submit_igp_quote_instruction, GasOracleConfig,
@@ -2710,6 +2710,225 @@ async fn test_submit_standing_quote_rejects_invalid_expiry() {
         TransactionError::InstructionError(
             0,
             InstructionError::Custom(QuoteValidationError::InvalidExpiry as u32),
+        ),
+    );
+}
+
+// --- Transient quote helpers ---
+
+fn derive_transient_quote_pda(igp_key: &Pubkey, scoped_salt: &H256) -> Pubkey {
+    let (pda, _) = Pubkey::find_program_address(
+        igp_transient_quote_pda_seeds!(igp_key, scoped_salt),
+        &igp_program_id(),
+    );
+    pda
+}
+
+fn fetch_transient_quote(account_data: &[u8]) -> IgpTransientQuote {
+    IgpTransientQuoteAccount::fetch(&mut &account_data[..])
+        .unwrap()
+        .into_inner()
+        .data
+}
+
+/// Creates a transient quote (expiry == issued_at) and derives the PDA.
+fn make_transient_igp_quote(
+    signing_key: &SigningKey,
+    igp_key: &Pubkey,
+    domain_id: u32,
+    payer: &Pubkey,
+    context: Vec<u8>,
+    data: Vec<u8>,
+    issued_at: i64,
+) -> (SvmSignedQuote, Pubkey) {
+    let quote = make_signed_igp_quote(
+        signing_key,
+        igp_key,
+        domain_id,
+        payer,
+        context,
+        data,
+        issued_at,
+        issued_at, // expiry == issued_at → transient
+    );
+    let scoped_salt = quote.compute_scoped_salt(payer);
+    let pda = derive_transient_quote_pda(igp_key, &scoped_salt);
+    (quote, pda)
+}
+
+// --- Transient quote tests ---
+
+#[tokio::test]
+async fn test_submit_transient_quote() {
+    let (mut banks_client, payer) = setup_client().await;
+    let (igp_key, signing_key) = setup_igp_with_signer(&mut banks_client, &payer).await;
+
+    let sender = Pubkey::new_unique();
+    let dest_domain = 137u32;
+    let exchange_rate = 2_000_000_000_000_000_000u128;
+    let gas_price = 50_000_000_000u128;
+    let token_decimals = 18u8;
+
+    let context = encode_igp_context(&Pubkey::default(), dest_domain, &sender);
+    let data = encode_igp_data(exchange_rate, gas_price, token_decimals);
+
+    let (quote, quote_pda) = make_transient_igp_quote(
+        &signing_key,
+        &igp_key,
+        IGP_DOMAIN_ID,
+        &payer.pubkey(),
+        context,
+        data,
+        100,
+    );
+
+    let ix =
+        submit_igp_quote_instruction(igp_program_id(), payer.pubkey(), igp_key, quote_pda, quote)
+            .unwrap();
+    process_instruction(&mut banks_client, ix, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    // Verify PDA data.
+    let account = banks_client.get_account(quote_pda).await.unwrap().unwrap();
+    let transient = fetch_transient_quote(&account.data);
+    assert_eq!(transient.payer, payer.pubkey());
+    assert_eq!(transient.destination_domain, dest_domain);
+    assert_eq!(transient.sender, sender);
+    assert_eq!(transient.token_exchange_rate, exchange_rate);
+    assert_eq!(transient.gas_price, gas_price);
+    assert_eq!(transient.token_decimals, token_decimals);
+    assert_eq!(transient.expiry, 100);
+}
+
+#[tokio::test]
+async fn test_submit_transient_quote_rejects_reuse_by_different_payer() {
+    let (mut banks_client, payer) = setup_client().await;
+    let (igp_key, signing_key) = setup_igp_with_signer(&mut banks_client, &payer).await;
+
+    let sender = Pubkey::new_unique();
+    let context = encode_igp_context(&Pubkey::default(), 137, &sender);
+    let data = encode_igp_data(1_000, 100, 18);
+
+    // First submission succeeds (signed for payer).
+    let (quote1, quote_pda) = make_transient_igp_quote(
+        &signing_key,
+        &igp_key,
+        IGP_DOMAIN_ID,
+        &payer.pubkey(),
+        context.clone(),
+        data.clone(),
+        100,
+    );
+    let ix =
+        submit_igp_quote_instruction(igp_program_id(), payer.pubkey(), igp_key, quote_pda, quote1)
+            .unwrap();
+    process_instruction(&mut banks_client, ix, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    // Second submission: different payer but manually pass the FIRST quote's PDA.
+    // The new payer produces a different scoped_salt, so the PDA derivation won't match.
+    // This tests InvalidSeeds (PDA mismatch), which is the actual protection against
+    // a different payer trying to reuse someone else's transient PDA.
+    let other_payer = new_funded_keypair(&mut banks_client, &payer, 1_000_000_000).await;
+    let (quote2, _other_pda) = make_transient_igp_quote(
+        &signing_key,
+        &igp_key,
+        IGP_DOMAIN_ID,
+        &other_payer.pubkey(),
+        context,
+        data,
+        100,
+    );
+    let ix = submit_igp_quote_instruction(
+        igp_program_id(),
+        other_payer.pubkey(),
+        igp_key,
+        quote_pda, // first payer's PDA — wrong for other_payer's scoped_salt
+        quote2,
+    )
+    .unwrap();
+    let result = process_instruction(&mut banks_client, ix, &other_payer, &[&other_payer]).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::InvalidSeeds),
+    );
+}
+
+#[tokio::test]
+async fn test_submit_transient_quote_rejects_duplicate() {
+    let (mut banks_client, payer) = setup_client().await;
+    let (igp_key, signing_key) = setup_igp_with_signer(&mut banks_client, &payer).await;
+
+    let sender = Pubkey::new_unique();
+    let context = encode_igp_context(&Pubkey::default(), 137, &sender);
+    let data = encode_igp_data(1_000, 100, 18);
+
+    let (quote, quote_pda) = make_transient_igp_quote(
+        &signing_key,
+        &igp_key,
+        IGP_DOMAIN_ID,
+        &payer.pubkey(),
+        context,
+        data,
+        100,
+    );
+
+    let first_ix = submit_igp_quote_instruction(
+        igp_program_id(),
+        payer.pubkey(),
+        igp_key,
+        quote_pda,
+        quote.clone(),
+    )
+    .unwrap();
+    let second_ix =
+        submit_igp_quote_instruction(igp_program_id(), payer.pubkey(), igp_key, quote_pda, quote)
+            .unwrap();
+
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let tx = Transaction::new_signed_with_payer(
+        &[first_ix, second_ix],
+        Some(&payer.pubkey()),
+        &[&payer],
+        recent_blockhash,
+    );
+    let result = banks_client.process_transaction(tx).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(1, InstructionError::AccountAlreadyInitialized),
+    );
+}
+
+#[tokio::test]
+async fn test_submit_transient_quote_rejects_non_default_fee_token() {
+    let (mut banks_client, payer) = setup_client().await;
+    let (igp_key, signing_key) = setup_igp_with_signer(&mut banks_client, &payer).await;
+
+    let non_default_mint = Pubkey::new_unique();
+    let sender = Pubkey::new_unique();
+    let context = encode_igp_context(&non_default_mint, 137, &sender);
+    let data = encode_igp_data(1_000, 100, 18);
+
+    let (quote, quote_pda) = make_transient_igp_quote(
+        &signing_key,
+        &igp_key,
+        IGP_DOMAIN_ID,
+        &payer.pubkey(),
+        context,
+        data,
+        100,
+    );
+    let ix =
+        submit_igp_quote_instruction(igp_program_id(), payer.pubkey(), igp_key, quote_pda, quote)
+            .unwrap();
+    let result = process_instruction(&mut banks_client, ix, &payer, &[&payer]).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(
+            0,
+            InstructionError::Custom(IgpError::NonDefaultFeeTokenMint as u32),
         ),
     );
 }
