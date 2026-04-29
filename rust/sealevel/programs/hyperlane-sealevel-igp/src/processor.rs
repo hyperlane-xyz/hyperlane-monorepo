@@ -442,6 +442,10 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
                     min_issued_at,
                     &clock,
                 )?;
+
+                // Autoclose: drain lamports to payer, zero data, reassign to system program.
+                transient_info.close_account(payer_info)?;
+
                 (Some(quote), None)
             } else {
                 // Standing cascade.

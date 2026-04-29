@@ -60,10 +60,14 @@ pub enum AccountInitState {
     OwnerMismatch,
 }
 
-/// Extension trait for `AccountInfo` providing common inspection methods.
+/// Extension trait for `AccountInfo` providing common inspection and lifecycle methods.
 pub trait AccountInfoExt {
     /// Checks the account's initialization state against an expected owner.
     fn init_state(&self, expected_owner: &Pubkey) -> AccountInitState;
+
+    /// Closes the account by draining lamports to recipient, zeroing data, and
+    /// reassigning ownership to the system program.
+    fn close_account(&self, recipient: &AccountInfo) -> Result<(), ProgramError>;
 }
 
 impl AccountInfoExt for AccountInfo<'_> {
@@ -75,6 +79,29 @@ impl AccountInfoExt for AccountInfo<'_> {
         } else {
             AccountInitState::OwnerMismatch
         }
+    }
+
+    fn close_account(&self, recipient: &AccountInfo) -> Result<(), ProgramError> {
+        if !self.is_writable {
+            return Err(ProgramError::InvalidAccountData);
+        }
+
+        if self.key == recipient.key {
+            return Err(ProgramError::InvalidAccountData);
+        }
+
+        let lamports = self.lamports();
+        **self.try_borrow_mut_lamports()? = 0;
+        **recipient.try_borrow_mut_lamports()? = recipient
+            .lamports()
+            .checked_add(lamports)
+            .ok_or(ProgramError::ArithmeticOverflow)?;
+
+        self.resize(0)?;
+
+        self.assign(&system_program_id());
+
+        Ok(())
     }
 }
 
