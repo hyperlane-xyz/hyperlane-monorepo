@@ -24,10 +24,10 @@ use access_control::AccessControl;
 use account_utils::{AccountData, DiscriminatorPrefixed, DiscriminatorPrefixedData};
 use hyperlane_sealevel_igp::{
     accounts::{
-        GasOracle, GasPaymentAccount, GasPaymentData, Igp, IgpAccount, IgpFeeConfig,
-        IgpStandingQuote, IgpStandingQuoteAccount, IgpTransientQuote, IgpTransientQuoteAccount,
-        OverheadIgp, OverheadIgpAccount, ProgramData, ProgramDataAccount, RemoteGasData,
-        SOL_DECIMALS, TOKEN_EXCHANGE_RATE_SCALE, WILDCARD_DOMAIN, WILDCARD_SENDER,
+        compute_gas_fee, GasOracle, GasPaymentAccount, GasPaymentData, Igp, IgpAccount,
+        IgpFeeConfig, IgpStandingQuote, IgpStandingQuoteAccount, IgpTransientQuote,
+        IgpTransientQuoteAccount, OverheadIgp, OverheadIgpAccount, ProgramData, ProgramDataAccount,
+        RemoteGasData, SOL_DECIMALS, TOKEN_EXCHANGE_RATE_SCALE, WILDCARD_DOMAIN, WILDCARD_SENDER,
     },
     error::Error as IgpError,
     igp_gas_payment_pda_seeds, igp_pda_seeds, igp_program_data_pda_seeds,
@@ -2931,4 +2931,427 @@ async fn test_submit_transient_quote_rejects_non_default_fee_token() {
             InstructionError::Custom(IgpError::NonDefaultFeeTokenMint as u32),
         ),
     );
+}
+
+// --- QuoteGasPayment new flow tests ---
+
+/// Builds a QuoteGasPayment instruction with new flow accounts.
+fn build_quote_gas_payment_new_flow(
+    igp_key: Pubkey,
+    quoted_sender: Pubkey,
+    destination_domain: u32,
+    gas_amount: u64,
+    standing_pdas: &[Pubkey],
+    overhead_igp: Option<Pubkey>,
+) -> Instruction {
+    let mut accounts = vec![
+        AccountMeta::new_readonly(system_program::id(), false),
+        AccountMeta::new_readonly(igp_key, false),
+        AccountMeta::new_readonly(quoted_sender, false),
+    ];
+    for pda in standing_pdas {
+        accounts.push(AccountMeta::new_readonly(*pda, false));
+    }
+    if let Some(overhead) = overhead_igp {
+        accounts.push(AccountMeta::new_readonly(overhead, false));
+    }
+    Instruction::new_with_borsh(
+        igp_program_id(),
+        &IgpInstruction::QuoteGasPayment(QuoteGasPayment {
+            destination_domain,
+            gas_amount,
+        }),
+        accounts,
+    )
+}
+
+/// Sets up IGP with oracle + standing quote for a specific sender.
+async fn setup_igp_with_oracle_and_standing_quote(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    dest_domain: u32,
+    oracle: GasOracle,
+    quote_exchange_rate: u128,
+    quote_gas_price: u128,
+    quote_token_decimals: u8,
+    quoted_sender: &Pubkey,
+) -> (Pubkey, SigningKey) {
+    let (igp_key, signing_key) = setup_igp_with_signer(banks_client, payer).await;
+
+    // Set oracle.
+    let ix = Instruction::new_with_borsh(
+        igp_program_id(),
+        &IgpInstruction::SetGasOracleConfigs(vec![GasOracleConfig {
+            domain: dest_domain,
+            gas_oracle: Some(oracle),
+        }]),
+        vec![
+            AccountMeta::new_readonly(system_program::id(), false),
+            AccountMeta::new(igp_key, false),
+            AccountMeta::new_readonly(payer.pubkey(), true),
+        ],
+    );
+    process_instruction(banks_client, ix, payer, &[payer])
+        .await
+        .unwrap();
+
+    // Submit standing quote.
+    let context = encode_igp_context(&Pubkey::default(), dest_domain, quoted_sender);
+    let data = encode_igp_data(quote_exchange_rate, quote_gas_price, quote_token_decimals);
+    let quote = make_signed_igp_quote(
+        &signing_key,
+        &igp_key,
+        IGP_DOMAIN_ID,
+        &payer.pubkey(),
+        context,
+        data,
+        100,
+        200,
+    );
+    let quote_pda =
+        derive_standing_quote_pda(&igp_key, &Pubkey::default(), dest_domain, quoted_sender);
+    let ix =
+        submit_igp_quote_instruction(igp_program_id(), payer.pubkey(), igp_key, quote_pda, quote)
+            .unwrap();
+    process_instruction(banks_client, ix, payer, &[payer])
+        .await
+        .unwrap();
+
+    (igp_key, signing_key)
+}
+
+#[tokio::test]
+async fn test_quote_gas_payment_new_flow_with_exact_quote() {
+    let (mut banks_client, payer) = setup_client().await;
+
+    let dest_domain = 137u32;
+    let gas_amount = 100_000u64;
+    let quoted_sender = Pubkey::new_unique();
+
+    let quote_exchange_rate = 2 * TOKEN_EXCHANGE_RATE_SCALE;
+    let quote_gas_price = 50_000_000_000u128;
+    let quote_decimals = 18u8;
+
+    // Oracle has DIFFERENT pricing to verify quote takes priority.
+    let oracle = GasOracle::RemoteGasData(RemoteGasData {
+        token_exchange_rate: TOKEN_EXCHANGE_RATE_SCALE,
+        gas_price: 1_000_000_000,
+        token_decimals: 9,
+    });
+
+    let (igp_key, _) = setup_igp_with_oracle_and_standing_quote(
+        &mut banks_client,
+        &payer,
+        dest_domain,
+        oracle,
+        quote_exchange_rate,
+        quote_gas_price,
+        quote_decimals,
+        &quoted_sender,
+    )
+    .await;
+
+    let exact_pda =
+        derive_standing_quote_pda(&igp_key, &Pubkey::default(), dest_domain, &quoted_sender);
+
+    let ix = build_quote_gas_payment_new_flow(
+        igp_key,
+        quoted_sender,
+        dest_domain,
+        gas_amount,
+        &[exact_pda],
+        None,
+    );
+
+    let result =
+        simulate_instruction::<SimulationReturnData<u64>>(&mut banks_client, &payer, ix).await;
+    let fee = result.unwrap().unwrap().return_data;
+
+    let expected = compute_gas_fee(
+        quote_exchange_rate,
+        quote_gas_price,
+        gas_amount,
+        quote_decimals,
+    )
+    .unwrap();
+    assert_eq!(fee, expected);
+}
+
+#[tokio::test]
+async fn test_quote_gas_payment_new_flow_oracle_fallback() {
+    let (mut banks_client, payer) = setup_client().await;
+
+    let dest_domain = 137u32;
+    let gas_amount = 100_000u64;
+    let quoted_sender = Pubkey::new_unique();
+    let other_sender = Pubkey::new_unique();
+
+    let oracle_exchange_rate = TOKEN_EXCHANGE_RATE_SCALE;
+    let oracle_gas_price = 1_000_000_000u128;
+    let oracle_decimals = 9u8;
+
+    let oracle = GasOracle::RemoteGasData(RemoteGasData {
+        token_exchange_rate: oracle_exchange_rate,
+        gas_price: oracle_gas_price,
+        token_decimals: oracle_decimals,
+    });
+
+    // Quote is for other_sender, not quoted_sender.
+    let (igp_key, _) = setup_igp_with_oracle_and_standing_quote(
+        &mut banks_client,
+        &payer,
+        dest_domain,
+        oracle,
+        2 * TOKEN_EXCHANGE_RATE_SCALE,
+        50_000_000_000,
+        18,
+        &other_sender,
+    )
+    .await;
+
+    // Pass exact PDA for quoted_sender (uninitialized — no quote exists).
+    let exact_pda =
+        derive_standing_quote_pda(&igp_key, &Pubkey::default(), dest_domain, &quoted_sender);
+
+    let ix = build_quote_gas_payment_new_flow(
+        igp_key,
+        quoted_sender,
+        dest_domain,
+        gas_amount,
+        &[exact_pda],
+        None,
+    );
+
+    let result =
+        simulate_instruction::<SimulationReturnData<u64>>(&mut banks_client, &payer, ix).await;
+    let fee = result.unwrap().unwrap().return_data;
+
+    let expected = compute_gas_fee(
+        oracle_exchange_rate,
+        oracle_gas_price,
+        gas_amount,
+        oracle_decimals,
+    )
+    .unwrap();
+    assert_eq!(fee, expected);
+}
+
+#[tokio::test]
+async fn test_quote_gas_payment_new_flow_rejects_no_pdas_after_sender() {
+    let (mut banks_client, payer) = setup_client().await;
+    let (igp_key, _) = setup_igp_with_signer(&mut banks_client, &payer).await;
+
+    let quoted_sender = Pubkey::new_unique();
+
+    let ix = build_quote_gas_payment_new_flow(igp_key, quoted_sender, 137, 100_000, &[], None);
+    let result = process_instruction(&mut banks_client, ix, &payer, &[&payer]).await;
+    #[allow(deprecated)]
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::NotEnoughAccountKeys),
+    );
+}
+
+#[tokio::test]
+async fn test_quote_gas_payment_new_flow_wildcard_sender_fallback() {
+    let (mut banks_client, payer) = setup_client().await;
+
+    let dest_domain = 137u32;
+    let gas_amount = 100_000u64;
+    let quoted_sender = Pubkey::new_unique();
+
+    let ws_exchange_rate = 3 * TOKEN_EXCHANGE_RATE_SCALE;
+    let ws_gas_price = 30_000_000_000u128;
+    let ws_decimals = 18u8;
+
+    let oracle = GasOracle::RemoteGasData(RemoteGasData {
+        token_exchange_rate: TOKEN_EXCHANGE_RATE_SCALE,
+        gas_price: 1_000_000_000,
+        token_decimals: 9,
+    });
+
+    // Submit wildcard-sender quote (not an exact match for quoted_sender).
+    let (igp_key, signing_key) = setup_igp_with_oracle_and_standing_quote(
+        &mut banks_client,
+        &payer,
+        dest_domain,
+        oracle,
+        ws_exchange_rate,
+        ws_gas_price,
+        ws_decimals,
+        &WILDCARD_SENDER, // wildcard sender
+    )
+    .await;
+
+    // Pass uninitialized exact PDA + initialized wildcard-sender PDA.
+    let exact_pda =
+        derive_standing_quote_pda(&igp_key, &Pubkey::default(), dest_domain, &quoted_sender);
+    let ws_pda =
+        derive_standing_quote_pda(&igp_key, &Pubkey::default(), dest_domain, &WILDCARD_SENDER);
+
+    let ix = build_quote_gas_payment_new_flow(
+        igp_key,
+        quoted_sender,
+        dest_domain,
+        gas_amount,
+        &[exact_pda, ws_pda],
+        None,
+    );
+
+    let result =
+        simulate_instruction::<SimulationReturnData<u64>>(&mut banks_client, &payer, ix).await;
+    let fee = result.unwrap().unwrap().return_data;
+
+    // Exact is uninitialized → falls through to wildcard-sender.
+    let expected =
+        compute_gas_fee(ws_exchange_rate, ws_gas_price, gas_amount, ws_decimals).unwrap();
+    assert_eq!(fee, expected);
+}
+
+#[tokio::test]
+async fn test_quote_gas_payment_new_flow_wildcard_domain_fallback() {
+    let (mut banks_client, payer) = setup_client().await;
+
+    let dest_domain = 137u32;
+    let gas_amount = 100_000u64;
+    let quoted_sender = Pubkey::new_unique();
+
+    let wd_exchange_rate = 4 * TOKEN_EXCHANGE_RATE_SCALE;
+    let wd_gas_price = 40_000_000_000u128;
+    let wd_decimals = 18u8;
+
+    let oracle = GasOracle::RemoteGasData(RemoteGasData {
+        token_exchange_rate: TOKEN_EXCHANGE_RATE_SCALE,
+        gas_price: 1_000_000_000,
+        token_decimals: 9,
+    });
+
+    // Submit wildcard-domain quote.
+    let (igp_key, _) = setup_igp_with_oracle_and_standing_quote(
+        &mut banks_client,
+        &payer,
+        WILDCARD_DOMAIN, // wildcard domain
+        oracle,
+        wd_exchange_rate,
+        wd_gas_price,
+        wd_decimals,
+        &quoted_sender,
+    )
+    .await;
+
+    // Pass uninitialized exact + uninitialized ws + initialized wd.
+    let exact_pda =
+        derive_standing_quote_pda(&igp_key, &Pubkey::default(), dest_domain, &quoted_sender);
+    let ws_pda =
+        derive_standing_quote_pda(&igp_key, &Pubkey::default(), dest_domain, &WILDCARD_SENDER);
+    let wd_pda = derive_standing_quote_pda(
+        &igp_key,
+        &Pubkey::default(),
+        WILDCARD_DOMAIN,
+        &quoted_sender,
+    );
+
+    let ix = build_quote_gas_payment_new_flow(
+        igp_key,
+        quoted_sender,
+        dest_domain,
+        gas_amount,
+        &[exact_pda, ws_pda, wd_pda],
+        None,
+    );
+
+    let result =
+        simulate_instruction::<SimulationReturnData<u64>>(&mut banks_client, &payer, ix).await;
+    let fee = result.unwrap().unwrap().return_data;
+
+    let expected =
+        compute_gas_fee(wd_exchange_rate, wd_gas_price, gas_amount, wd_decimals).unwrap();
+    assert_eq!(fee, expected);
+}
+
+#[tokio::test]
+async fn test_quote_gas_payment_new_flow_with_overhead() {
+    let (mut banks_client, payer) = setup_client().await;
+
+    let dest_domain = 137u32;
+    let gas_amount = 100_000u64;
+    let gas_overhead = 50_000u64;
+    let quoted_sender = Pubkey::new_unique();
+
+    let quote_exchange_rate = 2 * TOKEN_EXCHANGE_RATE_SCALE;
+    let quote_gas_price = 50_000_000_000u128;
+    let quote_decimals = 18u8;
+
+    let oracle = GasOracle::RemoteGasData(RemoteGasData {
+        token_exchange_rate: TOKEN_EXCHANGE_RATE_SCALE,
+        gas_price: 1_000_000_000,
+        token_decimals: 9,
+    });
+
+    let (igp_key, _) = setup_igp_with_oracle_and_standing_quote(
+        &mut banks_client,
+        &payer,
+        dest_domain,
+        oracle,
+        quote_exchange_rate,
+        quote_gas_price,
+        quote_decimals,
+        &quoted_sender,
+    )
+    .await;
+
+    // Create overhead IGP.
+    let salt = H256::random();
+    let (overhead_igp_key, _) = initialize_overhead_igp(
+        &mut banks_client,
+        &payer,
+        salt,
+        Some(payer.pubkey()),
+        igp_key,
+    )
+    .await
+    .unwrap();
+
+    // Set gas overhead for destination domain.
+    let ix = Instruction::new_with_borsh(
+        igp_program_id(),
+        &IgpInstruction::SetDestinationGasOverheads(vec![GasOverheadConfig {
+            destination_domain: dest_domain,
+            gas_overhead: Some(gas_overhead),
+        }]),
+        vec![
+            AccountMeta::new_readonly(system_program::id(), false),
+            AccountMeta::new(overhead_igp_key, false),
+            AccountMeta::new_readonly(payer.pubkey(), true),
+        ],
+    );
+    process_instruction(&mut banks_client, ix, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    let exact_pda =
+        derive_standing_quote_pda(&igp_key, &Pubkey::default(), dest_domain, &quoted_sender);
+
+    let ix = build_quote_gas_payment_new_flow(
+        igp_key,
+        quoted_sender,
+        dest_domain,
+        gas_amount,
+        &[exact_pda],
+        Some(overhead_igp_key),
+    );
+
+    let result =
+        simulate_instruction::<SimulationReturnData<u64>>(&mut banks_client, &payer, ix).await;
+    let fee = result.unwrap().unwrap().return_data;
+
+    // Fee should use quote pricing with overhead gas added.
+    let expected = compute_gas_fee(
+        quote_exchange_rate,
+        quote_gas_price,
+        gas_amount + gas_overhead,
+        quote_decimals,
+    )
+    .unwrap();
+    assert_eq!(fee, expected);
 }

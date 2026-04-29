@@ -32,10 +32,10 @@ use quote_verifier::{
 
 use crate::{
     accounts::{
-        GasPaymentAccount, GasPaymentData, Igp, IgpAccount, IgpFeeConfig, IgpQuoteContext,
-        IgpQuoteData, IgpStandingQuote, IgpStandingQuoteAccount, IgpTransientQuote,
-        IgpTransientQuoteAccount, OverheadIgp, OverheadIgpAccount, ProgramData, ProgramDataAccount,
-        ResolvedQuote, WILDCARD_DOMAIN, WILDCARD_SENDER,
+        compute_gas_fee, GasPaymentAccount, GasPaymentData, Igp, IgpAccount, IgpFeeConfig,
+        IgpQuoteContext, IgpQuoteData, IgpStandingQuote, IgpStandingQuoteAccount,
+        IgpTransientQuote, IgpTransientQuoteAccount, OverheadIgp, OverheadIgpAccount, ProgramData,
+        ProgramDataAccount, ResolvedQuote, WILDCARD_DOMAIN, WILDCARD_SENDER,
     },
     error::Error as IgpError,
     igp_gas_payment_pda_seeds, igp_pda_seeds, igp_program_data_pda_seeds,
@@ -428,10 +428,18 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
 
 /// Quotes the required payment for a given gas amount and destination domain.
 ///
-/// Accounts:
+/// Old flow accounts:
 /// 0. `[executable]` The system program.
-/// 1. `[]` The IGP account.
-/// 2. `[]` The overhead IGP account (optional).
+/// 1. `[]` The IGP account (owner == program_id).
+/// 2. `[]` The overhead IGP account (optional, owner == program_id).
+///
+/// New flow (detected by account 2 owner != program_id):
+///
+/// 0. `[executable]` The system program.
+/// 1. `[]` The IGP account (same position as old flow).
+/// 2. `[]` quoted_sender (owner != program_id — informational, NOT signer).
+/// 3. Standing quote PDAs (exact, ws, wd — at least 1 required, trailing optional).
+/// 4. `[]` The overhead IGP account (optional, after cascade).
 fn quote_gas_payment(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -445,43 +453,119 @@ fn quote_gas_payment(
         return Err(ProgramError::IncorrectProgramId);
     }
 
-    // Account 1: The IGP account.
+    // Account 1: The IGP account (same position in both flows).
     let igp_info = next_account_info(accounts_iter)?;
-    // The caller should validate the IGP account before paying for gas,
-    // but we do some basic checks here as a sanity check.
     if igp_info.owner != program_id {
         return Err(ProgramError::IncorrectProgramId);
     }
-
-    // Account 2: Overhead IGP account (optional).
-    // The caller is expected to only provide an overhead IGP they are comfortable
-    // with / have configured themselves.
-    let gas_amount = if let Some(overhead_igp_info) = accounts_iter.next() {
-        if overhead_igp_info.owner != program_id {
-            return Err(ProgramError::IncorrectProgramId);
-        }
-
-        let overhead_igp =
-            OverheadIgpAccount::fetch(&mut &overhead_igp_info.data.borrow()[..])?.into_inner();
-
-        if overhead_igp.inner != *igp_info.key {
-            return Err(ProgramError::InvalidArgument);
-        }
-
-        overhead_igp.gas_overhead(payment.destination_domain) + payment.gas_amount
-    } else {
-        payment.gas_amount
-    };
-
     let igp = IgpAccount::fetch(&mut &igp_info.data.borrow()[..])?.into_inner();
 
-    let required_payment = igp.quote_gas_payment(payment.destination_domain, gas_amount)?;
+    // Account 2: detection point.
+    let required_payment = match accounts_iter.next() {
+        None => igp.quote_gas_payment(payment.destination_domain, payment.gas_amount)?,
+        Some(next) if next.owner == program_id => {
+            let gas_amount = apply_overhead_gas(
+                next,
+                program_id,
+                igp_info.key,
+                payment.destination_domain,
+                payment.gas_amount,
+            )?;
+
+            igp.quote_gas_payment(payment.destination_domain, gas_amount)?
+        }
+        Some(quoted_sender_info) => {
+            let quoted_sender = quoted_sender_info.key;
+
+            // At least one standing PDA must follow.
+            if accounts_iter.as_slice().is_empty() {
+                return Err(ProgramError::NotEnoughAccountKeys);
+            }
+
+            let fee_token_mint = Pubkey::default();
+            let clock = Clock::get()?;
+            let min_issued_at = igp.fee_config.as_ref().map_or(0, |cfg| cfg.min_issued_at);
+
+            // Cascade walk: standing-only (no transient at quote time).
+            let cascade_levels: &[(u32, Pubkey)] = &[
+                (payment.destination_domain, *quoted_sender),
+                (payment.destination_domain, WILDCARD_SENDER),
+                (WILDCARD_DOMAIN, *quoted_sender),
+            ];
+
+            let (resolved, overhead_info) = cascade_levels.iter().try_fold(
+                (None, None),
+                |(resolved, overhead), (domain, sender)| {
+                    if resolved.is_some() || overhead.is_some() {
+                        return Ok((resolved, overhead));
+                    }
+
+                    try_cascade_level(
+                        program_id,
+                        accounts_iter,
+                        igp_info.key,
+                        &fee_token_mint,
+                        *domain,
+                        sender,
+                        min_issued_at,
+                        &clock,
+                    )
+                },
+            )?;
+
+            // Overhead: detected during cascade or from remaining accounts.
+            let overhead_info = overhead_info.or_else(|| accounts_iter.next());
+
+            let gas_amount = match overhead_info {
+                Some(oi) => apply_overhead_gas(
+                    oi,
+                    program_id,
+                    igp_info.key,
+                    payment.destination_domain,
+                    payment.gas_amount,
+                )?,
+                None => payment.gas_amount,
+            };
+
+            // Resolve: quote match → compute_gas_fee, else oracle fallback.
+            match resolved {
+                Some(quote) => compute_gas_fee(
+                    quote.token_exchange_rate,
+                    quote.gas_price,
+                    gas_amount,
+                    quote.token_decimals,
+                )?,
+                None => igp.quote_gas_payment(payment.destination_domain, gas_amount)?,
+            }
+        }
+    };
 
     set_return_data(&borsh::to_vec(&SimulationReturnData::new(
         required_payment,
     ))?);
 
     Ok(())
+}
+
+/// Verifies an overhead IGP account and returns the gas amount with overhead applied.
+fn apply_overhead_gas(
+    overhead_igp_info: &AccountInfo,
+    program_id: &Pubkey,
+    igp_key: &Pubkey,
+    destination_domain: u32,
+    gas_amount: u64,
+) -> Result<u64, ProgramError> {
+    if overhead_igp_info.owner != program_id {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+
+    let overhead_igp =
+        OverheadIgpAccount::fetch(&mut &overhead_igp_info.data.borrow()[..])?.into_inner();
+    if overhead_igp.inner != *igp_key {
+        return Err(ProgramError::InvalidArgument);
+    }
+
+    Ok(overhead_igp.gas_overhead(destination_domain) + gas_amount)
 }
 
 /// Sets the beneficiary of an IGP.
@@ -1051,48 +1135,55 @@ fn submit_igp_quote(
 
 // --- Quote cascade resolution helpers ---
 
-#[allow(unused, clippy::too_many_arguments)]
-/// Tries to resolve a standing quote at a specific cascade level.
-/// Returns Ok(None) if uninitialized or expired/stale (allows fallback to next level).
-/// Returns Err if PDA key mismatch or owner mismatch (hard error).
-fn try_resolve_standing_quote(
+/// Tries a single cascade level: checks if the next account is a standing quote PDA
+/// for the given (domain, sender), or if it's the overhead IGP (cascade done).
+/// Returns (resolved_quote, overhead_igp_if_detected).
+#[allow(clippy::too_many_arguments)]
+fn try_cascade_level<'a, 'b>(
     program_id: &Pubkey,
-    account_info: &AccountInfo,
+    accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
     igp_key: &Pubkey,
     fee_token_mint: &Pubkey,
     dest_domain: u32,
     sender: &Pubkey,
     min_issued_at: i64,
     clock: &Clock,
-) -> Result<Option<ResolvedQuote>, ProgramError> {
-    // Derive expected PDA and verify key.
+) -> Result<(Option<ResolvedQuote>, Option<&'a AccountInfo<'b>>), ProgramError> {
+    let account = match accounts_iter.next() {
+        None => return Ok((None, None)),
+        Some(a) => a,
+    };
+
+    // Derive expected standing PDA for this level.
     let dest_le = dest_domain.to_le_bytes();
-    let (expected, _) = Pubkey::find_program_address(
+    let (expected_standing, _) = Pubkey::find_program_address(
         igp_standing_quote_pda_seeds!(igp_key, fee_token_mint, &dest_le, sender),
         program_id,
     );
-    if *account_info.key != expected {
-        return Err(ProgramError::InvalidSeeds);
-    }
 
-    match account_info.init_state(program_id) {
-        AccountInitState::Uninitialized => Ok(None),
-        AccountInitState::OwnerMismatch => Err(ProgramError::IncorrectProgramId),
-        AccountInitState::Initialized => {
-            let standing =
-                IgpStandingQuoteAccount::fetch(&mut &account_info.data.borrow()[..])?.into_inner();
-
-            // Expired or stale → skip (not error), allows fallback.
-            if standing.data.validate_quote(min_issued_at, clock).is_err() {
-                return Ok(None);
+    if *account.key == expected_standing {
+        // Account is the standing PDA for this level.
+        let resolved = match account.init_state(program_id) {
+            AccountInitState::Uninitialized => None,
+            AccountInitState::OwnerMismatch => return Err(ProgramError::IncorrectProgramId),
+            AccountInitState::Initialized => {
+                let standing =
+                    IgpStandingQuoteAccount::fetch(&mut &account.data.borrow()[..])?.into_inner();
+                if standing.data.validate_quote(min_issued_at, clock).is_err() {
+                    None
+                } else {
+                    Some(ResolvedQuote {
+                        token_exchange_rate: standing.data.token_exchange_rate,
+                        gas_price: standing.data.gas_price,
+                        token_decimals: standing.data.token_decimals,
+                    })
+                }
             }
-
-            Ok(Some(ResolvedQuote {
-                token_exchange_rate: standing.data.token_exchange_rate,
-                gas_price: standing.data.gas_price,
-                token_decimals: standing.data.token_decimals,
-            }))
-        }
+        };
+        Ok((resolved, None))
+    } else {
+        // Not a standing PDA for this level — must be the overhead IGP.
+        Ok((None, Some(account)))
     }
 }
 
