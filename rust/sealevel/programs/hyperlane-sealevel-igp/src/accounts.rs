@@ -123,7 +123,7 @@ impl OverheadIgp {
         destination_domain: u32,
         gas_amount: u64,
         inner_igp: &Igp,
-    ) -> Result<u64, Error> {
+    ) -> Result<u64, ProgramError> {
         let total_gas_amount = self.gas_overhead(destination_domain) + gas_amount;
         inner_igp.quote_gas_payment(destination_domain, total_gas_amount)
     }
@@ -225,31 +225,19 @@ impl Igp {
         &self,
         destination_domain: u32,
         gas_amount: u64,
-    ) -> Result<u64, Error> {
+    ) -> Result<u64, ProgramError> {
         let oracle = self
             .gas_oracles
             .get(&destination_domain)
             .ok_or(Error::NoGasOracleSetForDestinationDomain)?;
-        let GasOracle::RemoteGasData(RemoteGasData {
-            token_exchange_rate,
-            gas_price,
-            token_decimals,
-        }) = oracle;
+        let GasOracle::RemoteGasData(data) = oracle;
 
-        // Arithmetic is done using U256 to avoid overflows.
-
-        // The total cost quoted in the destination chain's native token.
-        let destination_gas_cost = U256::from(gas_amount) * U256::from(*gas_price);
-
-        // Convert to the local native token (decimals not yet accounted for).
-        let origin_cost = (destination_gas_cost * U256::from(*token_exchange_rate))
-            / U256::from(TOKEN_EXCHANGE_RATE_SCALE);
-
-        // Convert from the remote token's decimals to the local token's decimals.
-        let origin_cost = convert_decimals(origin_cost, *token_decimals, SOL_DECIMALS);
-
-        // Panics if an overflow occurs.
-        Ok(origin_cost.as_u64())
+        compute_gas_fee(
+            data.token_exchange_rate,
+            data.gas_price,
+            gas_amount,
+            data.token_decimals,
+        )
     }
 }
 
@@ -561,6 +549,33 @@ impl ValidatableQuote for IgpTransientQuote {
     }
 }
 
+/// Resolved quote values from the cascade.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ResolvedQuote {
+    /// Token exchange rate, scaled by TOKEN_EXCHANGE_RATE_SCALE (10^19).
+    pub token_exchange_rate: u128,
+    /// Gas price on the remote chain.
+    pub gas_price: u128,
+    /// Remote token decimals for decimal conversion.
+    pub token_decimals: u8,
+}
+
+/// Computes the gas fee from quote parameters.
+/// Same formula as the on-chain oracle path but with checked u64 conversion.
+pub fn compute_gas_fee(
+    token_exchange_rate: u128,
+    gas_price: u128,
+    gas_amount: u64,
+    token_decimals: u8,
+) -> Result<u64, ProgramError> {
+    let dest_cost = U256::from(gas_amount) * U256::from(gas_price);
+    let origin_cost =
+        (dest_cost * U256::from(token_exchange_rate)) / U256::from(TOKEN_EXCHANGE_RATE_SCALE);
+    let origin_cost = convert_decimals(origin_cost, token_decimals, SOL_DECIMALS);
+
+    u64::try_from(origin_cost).map_err(|_| ProgramError::ArithmeticOverflow)
+}
+
 /// Converts `num` from `from_decimals` to `to_decimals`.
 fn convert_decimals(num: U256, from_decimals: u8, to_decimals: u8) -> U256 {
     match from_decimals.cmp(&to_decimals) {
@@ -819,6 +834,45 @@ mod test {
             result.unwrap_err(),
             ProgramError::Custom(Error::InvalidIgpQuoteData as u32),
         );
+    }
+
+    // --- compute_gas_fee ---
+
+    #[test]
+    fn test_compute_gas_fee_matches_oracle_path() {
+        // Same inputs as the oracle would provide — result must match.
+        let exchange_rate: u128 = 10u128.pow(19); // 1:1
+        let gas_price: u128 = 1_000_000_000; // 1 gwei
+        let gas_amount: u64 = 100_000;
+        let token_decimals: u8 = 9; // same as SOL
+
+        let result = compute_gas_fee(exchange_rate, gas_price, gas_amount, token_decimals).unwrap();
+
+        // Manual: 100_000 * 1e9 * 1e19 / 1e19 = 100_000 * 1e9 = 1e14
+        // convert_decimals(1e14, 9, 9) = 1e14
+        assert_eq!(result, 100_000_000_000_000);
+    }
+
+    #[test]
+    fn test_compute_gas_fee_with_decimal_conversion() {
+        let exchange_rate: u128 = 10u128.pow(19);
+        let gas_price: u128 = 1_000_000_000;
+        let gas_amount: u64 = 100_000;
+        let token_decimals: u8 = 18; // remote has 18 decimals, local has 9
+
+        let result = compute_gas_fee(exchange_rate, gas_price, gas_amount, token_decimals).unwrap();
+
+        // convert_decimals divides by 10^(18-9) = 10^9
+        assert_eq!(result, 100_000);
+    }
+
+    #[test]
+    fn test_compute_gas_fee_overflow_returns_error() {
+        // Values that produce a result > u64::MAX but within U256 range.
+        // exchange_rate=1e19, gas_price=1e18, gas_amount=u64::MAX, decimals=0
+        // result = u64::MAX * 1e18 * 1e19 / 1e19 = u64::MAX * 1e18 >> u64::MAX
+        let result = compute_gas_fee(10u128.pow(19), 10u128.pow(18), u64::MAX, 0);
+        assert_eq!(result.unwrap_err(), ProgramError::ArithmeticOverflow);
     }
 
     // --- Existing tests ---
