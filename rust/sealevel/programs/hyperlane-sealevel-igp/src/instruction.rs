@@ -55,6 +55,8 @@ pub enum Instruction {
     /// Submits an offchain-signed quote to the IGP.
     /// Standing (expiry > issued_at) or transient (expiry == issued_at).
     SubmitIgpQuote(SvmSignedQuote),
+    /// Closes an orphaned transient quote PDA, refunding rent to the stored payer.
+    CloseIgpTransientQuote,
 }
 
 /// Operation for adding or removing a quote signer.
@@ -536,6 +538,32 @@ pub fn submit_igp_quote_instruction(
         AccountMeta::new(payer, true),
         AccountMeta::new_readonly(igp, false),
         AccountMeta::new(quote_pda, false),
+    ];
+
+    Ok(SolanaInstruction {
+        program_id,
+        data: borsh::to_vec(&ixn)?,
+        accounts,
+    })
+}
+
+/// Gets an instruction to close an orphaned transient quote PDA.
+pub fn close_igp_transient_quote_instruction(
+    program_id: Pubkey,
+    transient_pda: Pubkey,
+    payer: Pubkey,
+    igp: Pubkey,
+) -> Result<SolanaInstruction, ProgramError> {
+    let ixn = Instruction::CloseIgpTransientQuote;
+
+    // Accounts:
+    // 0. `[writeable]` The transient quote PDA.
+    // 1. `[signer, writeable]` The payer (must match stored payer).
+    // 2. `[]` The IGP account (for PDA re-derivation).
+    let accounts = vec![
+        AccountMeta::new(transient_pda, false),
+        AccountMeta::new(payer, true),
+        AccountMeta::new_readonly(igp, false),
     ];
 
     Ok(SolanaInstruction {

@@ -33,10 +33,10 @@ use hyperlane_sealevel_igp::{
     igp_gas_payment_pda_seeds, igp_pda_seeds, igp_program_data_pda_seeds,
     igp_standing_quote_pda_seeds, igp_transient_quote_pda_seeds,
     instruction::{
-        set_igp_min_issued_at_instruction, set_igp_quote_config_instruction,
-        set_igp_quote_signer_instruction, submit_igp_quote_instruction, GasOracleConfig,
-        GasOverheadConfig, InitIgp, InitOverheadIgp, Instruction as IgpInstruction, PayForGas,
-        QuoteGasPayment, SetIgpQuoteSignerOperation,
+        close_igp_transient_quote_instruction, set_igp_min_issued_at_instruction,
+        set_igp_quote_config_instruction, set_igp_quote_signer_instruction,
+        submit_igp_quote_instruction, GasOracleConfig, GasOverheadConfig, InitIgp, InitOverheadIgp,
+        Instruction as IgpInstruction, PayForGas, QuoteGasPayment, SetIgpQuoteSignerOperation,
     },
     overhead_igp_pda_seeds,
     processor::process_instruction as igp_process_instruction,
@@ -3469,5 +3469,95 @@ async fn test_pay_for_gas_new_flow_rejects_wrong_sender_authority() {
     assert_transaction_error(
         result,
         TransactionError::InstructionError(0, InstructionError::InvalidSeeds),
+    );
+}
+
+// --- CloseIgpTransientQuote tests ---
+
+#[tokio::test]
+async fn test_close_igp_transient_quote() {
+    let (mut banks_client, payer) = setup_client().await;
+    let (igp_key, signing_key) = setup_igp_with_signer(&mut banks_client, &payer).await;
+
+    let sender = Pubkey::new_unique();
+    let context = encode_igp_context(&Pubkey::default(), 137, &sender);
+    let data = encode_igp_data(1_000, 100, 18);
+
+    // Create transient quote.
+    let (quote, quote_pda) = make_transient_igp_quote(
+        &signing_key,
+        &igp_key,
+        IGP_DOMAIN_ID,
+        &payer.pubkey(),
+        context,
+        data,
+        100,
+    );
+    let ix =
+        submit_igp_quote_instruction(igp_program_id(), payer.pubkey(), igp_key, quote_pda, quote)
+            .unwrap();
+    process_instruction(&mut banks_client, ix, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    // Verify PDA exists.
+    let account = banks_client.get_account(quote_pda).await.unwrap();
+    assert!(account.is_some());
+
+    // Close it.
+    let ix =
+        close_igp_transient_quote_instruction(igp_program_id(), quote_pda, payer.pubkey(), igp_key)
+            .unwrap();
+    process_instruction(&mut banks_client, ix, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    // Verify PDA is gone (system-owned, empty).
+    let account = banks_client.get_account(quote_pda).await.unwrap();
+    assert!(account.is_none() || account.unwrap().data.is_empty());
+}
+
+#[tokio::test]
+async fn test_close_igp_transient_quote_wrong_payer() {
+    let (mut banks_client, payer) = setup_client().await;
+    let (igp_key, signing_key) = setup_igp_with_signer(&mut banks_client, &payer).await;
+
+    let sender = Pubkey::new_unique();
+    let context = encode_igp_context(&Pubkey::default(), 137, &sender);
+    let data = encode_igp_data(1_000, 100, 18);
+
+    // Create transient quote with payer.
+    let (quote, quote_pda) = make_transient_igp_quote(
+        &signing_key,
+        &igp_key,
+        IGP_DOMAIN_ID,
+        &payer.pubkey(),
+        context,
+        data,
+        100,
+    );
+    let ix =
+        submit_igp_quote_instruction(igp_program_id(), payer.pubkey(), igp_key, quote_pda, quote)
+            .unwrap();
+    process_instruction(&mut banks_client, ix, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    // Try to close with a different payer.
+    let wrong_payer = new_funded_keypair(&mut banks_client, &payer, 1_000_000_000).await;
+    let ix = close_igp_transient_quote_instruction(
+        igp_program_id(),
+        quote_pda,
+        wrong_payer.pubkey(),
+        igp_key,
+    )
+    .unwrap();
+    let result = process_instruction(&mut banks_client, ix, &wrong_payer, &[&wrong_payer]).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(
+            0,
+            InstructionError::Custom(QuoteValidationError::TransientPayerMismatch as u32),
+        ),
     );
 }

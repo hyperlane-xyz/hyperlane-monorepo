@@ -102,6 +102,9 @@ pub fn process_instruction(
         IgpInstruction::SubmitIgpQuote(quote) => {
             submit_igp_quote(program_id, accounts, quote)?;
         }
+        IgpInstruction::CloseIgpTransientQuote => {
+            close_igp_transient_quote(program_id, accounts)?;
+        }
     }
 
     Ok(())
@@ -1365,4 +1368,51 @@ fn try_resolve_transient_quote(
         gas_price: transient.data.gas_price,
         token_decimals: transient.data.token_decimals,
     })
+}
+
+/// Closes an orphaned transient quote PDA, refunding rent to the stored payer.
+///
+/// Accounts:
+/// 0. `[writeable]` The transient quote PDA.
+/// 1. `[signer, writeable]` The payer (must match stored payer).
+/// 2. `[]` The IGP account (for PDA re-derivation).
+fn close_igp_transient_quote(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    // Account 0: Transient quote PDA.
+    let transient_pda_info = next_account_info(accounts_iter)?;
+    if transient_pda_info.owner != program_id {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+    let transient =
+        IgpTransientQuoteAccount::fetch(&mut &transient_pda_info.data.borrow()[..])?.into_inner();
+
+    // Account 1: Payer (signer).
+    let payer_info = next_account_info(accounts_iter)?;
+    if !payer_info.is_signer {
+        return Err(ProgramError::MissingRequiredSignature);
+    }
+
+    // Account 2: IGP account (read-only, for PDA re-derivation).
+    let igp_info = next_account_info(accounts_iter)?;
+
+    ensure_no_extraneous_accounts(accounts_iter)?;
+
+    // Verify stored payer matches signer.
+    if transient.data.payer != *payer_info.key {
+        return Err(QuoteValidationError::TransientPayerMismatch.into());
+    }
+
+    // Re-derive PDA from IGP key + stored scoped_salt to verify account authenticity.
+    let (expected, _) = Pubkey::find_program_address(
+        igp_transient_quote_pda_seeds!(igp_info.key, transient.data.scoped_salt),
+        program_id,
+    );
+    if *transient_pda_info.key != expected {
+        return Err(ProgramError::InvalidSeeds);
+    }
+
+    transient_pda_info.close_account(payer_info)?;
+
+    Ok(())
 }
