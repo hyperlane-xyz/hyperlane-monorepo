@@ -50,6 +50,34 @@ pub fn ensure_no_extraneous_accounts(
     Ok(())
 }
 
+/// Result of checking an account's initialization state.
+pub enum AccountInitState {
+    /// Account is uninitialized (empty data, owned by system program).
+    Uninitialized,
+    /// Account is initialized and owned by the expected program.
+    Initialized,
+    /// Account owner does not match the expected program.
+    OwnerMismatch,
+}
+
+/// Extension trait for `AccountInfo` providing common inspection methods.
+pub trait AccountInfoExt {
+    /// Checks the account's initialization state against an expected owner.
+    fn init_state(&self, expected_owner: &Pubkey) -> AccountInitState;
+}
+
+impl AccountInfoExt for AccountInfo<'_> {
+    fn init_state(&self, expected_owner: &Pubkey) -> AccountInitState {
+        if self.data_is_empty() && self.owner == &system_program_id() {
+            AccountInitState::Uninitialized
+        } else if self.owner == expected_owner {
+            AccountInitState::Initialized
+        } else {
+            AccountInitState::OwnerMismatch
+        }
+    }
+}
+
 /// The SPL Noop program ID.
 /// Defined here to avoid pulling in `spl-noop` which depends on `solana-program ^2`.
 pub const SPL_NOOP_PROGRAM_ID: Pubkey = pubkey!("noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV");

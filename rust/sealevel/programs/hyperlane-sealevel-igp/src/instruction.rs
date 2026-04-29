@@ -2,6 +2,7 @@
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{H160, H256};
+use quote_verifier::SvmSignedQuote;
 
 use solana_program::{
     instruction::{AccountMeta, Instruction as SolanaInstruction},
@@ -51,6 +52,9 @@ pub enum Instruction {
     /// Monotonic: new value must be >= current value.
     /// Requires fee_config to be set via SetIgpQuoteConfig first.
     SetIgpMinIssuedAt(i64),
+    /// Submits an offchain-signed quote to the IGP.
+    /// Standing (expiry > issued_at) or transient (expiry == issued_at).
+    SubmitIgpQuote(SvmSignedQuote),
 }
 
 /// Operation for adding or removing a quote signer.
@@ -503,6 +507,35 @@ pub fn set_igp_min_issued_at_instruction(
         AccountMeta::new_readonly(system_program::ID, false),
         AccountMeta::new(igp, false),
         AccountMeta::new_readonly(owner, true),
+    ];
+
+    Ok(SolanaInstruction {
+        program_id,
+        data: borsh::to_vec(&ixn)?,
+        accounts,
+    })
+}
+
+/// Gets an instruction to submit an offchain-signed quote to the IGP.
+pub fn submit_igp_quote_instruction(
+    program_id: Pubkey,
+    payer: Pubkey,
+    igp: Pubkey,
+    quote_pda: Pubkey,
+    quote: SvmSignedQuote,
+) -> Result<SolanaInstruction, ProgramError> {
+    let ixn = Instruction::SubmitIgpQuote(quote);
+
+    // Accounts:
+    // 0. `[executable]` The system program.
+    // 1. `[signer, writeable]` The payer.
+    // 2. `[]` The IGP account.
+    // 3. `[writeable]` The quote PDA (standing or transient).
+    let accounts = vec![
+        AccountMeta::new_readonly(system_program::ID, false),
+        AccountMeta::new(payer, true),
+        AccountMeta::new_readonly(igp, false),
+        AccountMeta::new(quote_pda, false),
     ];
 
     Ok(SolanaInstruction {
