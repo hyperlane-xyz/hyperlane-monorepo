@@ -130,6 +130,8 @@ export interface HelmRelayerValues extends HelmStatefulSetValues {
   environmentVariableEndpointEnabled?: boolean;
   // Config for the cache
   cacheDefaultExpirationSeconds?: number;
+  // Config for the relay API
+  relayApi?: RelayApiConfig;
 }
 
 export interface RelayerDbBootstrapConfig {

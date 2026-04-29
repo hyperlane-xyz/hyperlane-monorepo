@@ -108,12 +108,6 @@ spec:
           - name: HYPERLANE_RELAYER_ENVIRONMENT_VARIABLE_ENDPOINT_ENABLED
             value: {{ . | quote }}
           {{- end }}
-          {{- if .Values.hyperlane.relayer.relayApi.enabled }}
-          - name: HYP_RELAYAPIENABLED
-            value: "true"
-          - name: HYP_RELAYAPIPORT
-            value: {{ .Values.hyperlane.relayer.relayApi.port | quote }}
-          {{- end }}
           {{- with .Values.hyperlane.relayer.maxSubmitQueueLength }}
           - name: HYP_MAXSUBMITQUEUELENGTH
             value: {{ . | quote }}

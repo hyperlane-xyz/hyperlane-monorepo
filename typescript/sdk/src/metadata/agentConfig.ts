@@ -493,6 +493,7 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
     .number()
     .int()
     .positive()
+    .lte(65535)
     .optional()
     .describe(
       'Port for the relay API HTTP server. When set, the relay API is served on this dedicated port instead of the shared metrics port.',
