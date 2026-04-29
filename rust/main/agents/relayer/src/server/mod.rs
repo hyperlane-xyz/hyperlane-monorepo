@@ -46,8 +46,6 @@ pub struct Server {
     prover_syncs: Option<HashMap<u32, Arc<RwLock<MerkleTreeBuilder>>>>,
     #[new(default)]
     dispatcher_command_entrypoints: Option<HashMap<u32, Arc<dyn CommandEntrypoint>>>,
-    #[new(default)]
-    relay_api_state: Option<crate::relay_api::handlers::ServerState>,
 }
 
 impl Server {
@@ -98,11 +96,6 @@ impl Server {
         self
     }
 
-    pub fn with_relay_api(mut self, state: crate::relay_api::handlers::ServerState) -> Self {
-        self.relay_api_state = Some(state);
-        self
-    }
-
     // return a custom router that can be used in combination with other routers
     pub fn router(self) -> Router {
         let mut router = Router::new();
@@ -146,11 +139,6 @@ impl Server {
                 .is_ok_and(|v| v == "true");
         if expose_environment_variable_endpoint {
             router = router.merge(EnvironmentVariableApi::new().router());
-        }
-
-        if let Some(relay_state) = self.relay_api_state {
-            tracing::info!("Relay API enabled");
-            router = router.merge(relay_state.router());
         }
 
         router
