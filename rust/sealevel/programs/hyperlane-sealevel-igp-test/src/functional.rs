@@ -2278,6 +2278,7 @@ fn eth_address(signing_key: &SigningKey) -> H160 {
     H160::from_slice(&hash.as_ref()[12..])
 }
 
+#[allow(clippy::too_many_arguments)]
 fn make_signed_igp_quote(
     signing_key: &SigningKey,
     igp_key: &Pubkey,
@@ -2971,15 +2972,19 @@ fn build_quote_gas_payment_new_flow(
     )
 }
 
+struct QuoteParams {
+    exchange_rate: u128,
+    gas_price: u128,
+    token_decimals: u8,
+}
+
 /// Sets up IGP with oracle + standing quote for a specific sender.
 async fn setup_igp_with_oracle_and_standing_quote(
     banks_client: &mut BanksClient,
     payer: &Keypair,
     dest_domain: u32,
     oracle: GasOracle,
-    quote_exchange_rate: u128,
-    quote_gas_price: u128,
-    quote_token_decimals: u8,
+    quote: QuoteParams,
     quoted_sender: &Pubkey,
 ) -> (Pubkey, SigningKey) {
     let (igp_key, signing_key) = setup_igp_with_signer(banks_client, payer).await;
@@ -3003,7 +3008,7 @@ async fn setup_igp_with_oracle_and_standing_quote(
 
     // Submit standing quote.
     let context = encode_igp_context(&Pubkey::default(), dest_domain, quoted_sender);
-    let data = encode_igp_data(quote_exchange_rate, quote_gas_price, quote_token_decimals);
+    let data = encode_igp_data(quote.exchange_rate, quote.gas_price, quote.token_decimals);
     let quote = make_signed_igp_quote(
         &signing_key,
         &igp_key,
@@ -3050,9 +3055,11 @@ async fn test_quote_gas_payment_new_flow_with_exact_quote() {
         &payer,
         dest_domain,
         oracle,
-        quote_exchange_rate,
-        quote_gas_price,
-        quote_decimals,
+        QuoteParams {
+            exchange_rate: quote_exchange_rate,
+            gas_price: quote_gas_price,
+            token_decimals: quote_decimals,
+        },
         &quoted_sender,
     )
     .await;
@@ -3108,9 +3115,11 @@ async fn test_quote_gas_payment_new_flow_oracle_fallback() {
         &payer,
         dest_domain,
         oracle,
-        2 * TOKEN_EXCHANGE_RATE_SCALE,
-        50_000_000_000,
-        18,
+        QuoteParams {
+            exchange_rate: 2 * TOKEN_EXCHANGE_RATE_SCALE,
+            gas_price: 50_000_000_000,
+            token_decimals: 18,
+        },
         &other_sender,
     )
     .await;
@@ -3182,9 +3191,11 @@ async fn test_quote_gas_payment_new_flow_wildcard_sender_fallback() {
         &payer,
         dest_domain,
         oracle,
-        ws_exchange_rate,
-        ws_gas_price,
-        ws_decimals,
+        QuoteParams {
+            exchange_rate: ws_exchange_rate,
+            gas_price: ws_gas_price,
+            token_decimals: ws_decimals,
+        },
         &WILDCARD_SENDER, // wildcard sender
     )
     .await;
@@ -3238,9 +3249,11 @@ async fn test_quote_gas_payment_new_flow_wildcard_domain_fallback() {
         &payer,
         WILDCARD_DOMAIN, // wildcard domain
         oracle,
-        wd_exchange_rate,
-        wd_gas_price,
-        wd_decimals,
+        QuoteParams {
+            exchange_rate: wd_exchange_rate,
+            gas_price: wd_gas_price,
+            token_decimals: wd_decimals,
+        },
         &quoted_sender,
     )
     .await;
@@ -3299,9 +3312,11 @@ async fn test_quote_gas_payment_new_flow_with_overhead() {
         &payer,
         dest_domain,
         oracle,
-        quote_exchange_rate,
-        quote_gas_price,
-        quote_decimals,
+        QuoteParams {
+            exchange_rate: quote_exchange_rate,
+            gas_price: quote_gas_price,
+            token_decimals: quote_decimals,
+        },
         &quoted_sender,
     )
     .await;
@@ -3359,6 +3374,229 @@ async fn test_quote_gas_payment_new_flow_with_overhead() {
         quote_decimals,
     )
     .unwrap();
+    assert_eq!(fee, expected);
+}
+
+#[tokio::test]
+async fn test_quote_gas_payment_new_flow_rejects_no_fee_config() {
+    let (mut banks_client, payer) = setup_client().await;
+
+    // Set up IGP WITHOUT fee_config (no SetIgpQuoteConfig call).
+    initialize(&mut banks_client, &payer).await.unwrap();
+    let salt = H256::random();
+    let (igp_key, _) = initialize_igp(
+        &mut banks_client,
+        &payer,
+        salt,
+        Some(payer.pubkey()),
+        payer.pubkey(),
+    )
+    .await
+    .unwrap();
+
+    // Set oracle so old flow would work.
+    let ix = Instruction::new_with_borsh(
+        igp_program_id(),
+        &IgpInstruction::SetGasOracleConfigs(vec![GasOracleConfig {
+            domain: 137,
+            gas_oracle: Some(GasOracle::RemoteGasData(RemoteGasData {
+                token_exchange_rate: TOKEN_EXCHANGE_RATE_SCALE,
+                gas_price: 1_000_000_000,
+                token_decimals: 9,
+            })),
+        }]),
+        vec![
+            AccountMeta::new_readonly(system_program::id(), false),
+            AccountMeta::new(igp_key, false),
+            AccountMeta::new_readonly(payer.pubkey(), true),
+        ],
+    );
+    process_instruction(&mut banks_client, ix, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    let quoted_sender = Pubkey::new_unique();
+    let exact_pda = derive_standing_quote_pda(&igp_key, &Pubkey::default(), 137, &quoted_sender);
+
+    // New flow with no fee_config → QuoteConfigNotSet.
+    let ix =
+        build_quote_gas_payment_new_flow(igp_key, quoted_sender, 137, 100_000, &[exact_pda], None);
+    let result = process_instruction(&mut banks_client, ix, &payer, &[&payer]).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(
+            0,
+            InstructionError::Custom(IgpError::QuoteConfigNotSet as u32),
+        ),
+    );
+}
+
+#[tokio::test]
+async fn test_quote_gas_payment_new_flow_config_disabled_after_standing_quote() {
+    let (mut banks_client, payer) = setup_client().await;
+
+    let dest_domain = 137u32;
+    let gas_amount = 100_000u64;
+    let quoted_sender = Pubkey::new_unique();
+
+    let oracle = GasOracle::RemoteGasData(RemoteGasData {
+        token_exchange_rate: TOKEN_EXCHANGE_RATE_SCALE,
+        gas_price: 1_000_000_000,
+        token_decimals: 9,
+    });
+
+    // Set up IGP with signer + standing quote.
+    let (igp_key, _) = setup_igp_with_oracle_and_standing_quote(
+        &mut banks_client,
+        &payer,
+        dest_domain,
+        oracle,
+        QuoteParams {
+            exchange_rate: 2 * TOKEN_EXCHANGE_RATE_SCALE,
+            gas_price: 50_000_000_000,
+            token_decimals: 18,
+        },
+        &quoted_sender,
+    )
+    .await;
+
+    // Disable fee_config.
+    let ix =
+        set_igp_quote_config_instruction(igp_program_id(), igp_key, payer.pubkey(), None).unwrap();
+    process_instruction(&mut banks_client, ix, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    // New flow should now reject — config disabled, standing quote must not resolve.
+    let exact_pda =
+        derive_standing_quote_pda(&igp_key, &Pubkey::default(), dest_domain, &quoted_sender);
+    let ix = build_quote_gas_payment_new_flow(
+        igp_key,
+        quoted_sender,
+        dest_domain,
+        gas_amount,
+        &[exact_pda],
+        None,
+    );
+    let result = process_instruction(&mut banks_client, ix, &payer, &[&payer]).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(
+            0,
+            InstructionError::Custom(IgpError::QuoteConfigNotSet as u32),
+        ),
+    );
+}
+
+#[tokio::test]
+async fn test_quote_gas_payment_new_flow_expired_exact_falls_to_wildcard_sender() {
+    let (mut ctx, payer) = setup_client_with_context().await;
+
+    let dest_domain = 137u32;
+    let gas_amount = 100_000u64;
+    let quoted_sender = Pubkey::new_unique();
+
+    let ws_exchange_rate = 3 * TOKEN_EXCHANGE_RATE_SCALE;
+    let ws_gas_price = 30_000_000_000u128;
+    let ws_decimals = 18u8;
+
+    let oracle = GasOracle::RemoteGasData(RemoteGasData {
+        token_exchange_rate: TOKEN_EXCHANGE_RATE_SCALE,
+        gas_price: 1_000_000_000,
+        token_decimals: 9,
+    });
+
+    // Create IGP with signer + oracle.
+    let (igp_key, signing_key) = setup_igp_with_signer(&mut ctx.banks_client, &payer).await;
+    let ix = Instruction::new_with_borsh(
+        igp_program_id(),
+        &IgpInstruction::SetGasOracleConfigs(vec![GasOracleConfig {
+            domain: dest_domain,
+            gas_oracle: Some(oracle),
+        }]),
+        vec![
+            AccountMeta::new_readonly(system_program::id(), false),
+            AccountMeta::new(igp_key, false),
+            AccountMeta::new_readonly(payer.pubkey(), true),
+        ],
+    );
+    process_instruction(&mut ctx.banks_client, ix, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    // Submit exact quote with expiry=100 (valid now at clock=2).
+    let context = encode_igp_context(&Pubkey::default(), dest_domain, &quoted_sender);
+    let data = encode_igp_data(5 * TOKEN_EXCHANGE_RATE_SCALE, 99_000_000_000, 18);
+    let exact_quote = make_signed_igp_quote(
+        &signing_key,
+        &igp_key,
+        IGP_DOMAIN_ID,
+        &payer.pubkey(),
+        context,
+        data,
+        1,   // issued_at
+        100, // expiry — valid at clock=2, expired at clock=101
+    );
+    let exact_pda =
+        derive_standing_quote_pda(&igp_key, &Pubkey::default(), dest_domain, &quoted_sender);
+    let ix = submit_igp_quote_instruction(
+        igp_program_id(),
+        payer.pubkey(),
+        igp_key,
+        exact_pda,
+        exact_quote,
+    )
+    .unwrap();
+    process_instruction(&mut ctx.banks_client, ix, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    // Submit wildcard-sender quote with expiry=500 (stays valid).
+    let context = encode_igp_context(&Pubkey::default(), dest_domain, &WILDCARD_SENDER);
+    let data = encode_igp_data(ws_exchange_rate, ws_gas_price, ws_decimals);
+    let ws_quote = make_signed_igp_quote(
+        &signing_key,
+        &igp_key,
+        IGP_DOMAIN_ID,
+        &payer.pubkey(),
+        context,
+        data,
+        1,
+        500, // stays valid at clock=101
+    );
+    let ws_pda =
+        derive_standing_quote_pda(&igp_key, &Pubkey::default(), dest_domain, &WILDCARD_SENDER);
+    let ix =
+        submit_igp_quote_instruction(igp_program_id(), payer.pubkey(), igp_key, ws_pda, ws_quote)
+            .unwrap();
+    process_instruction(&mut ctx.banks_client, ix, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    // Advance clock past exact quote's expiry but before wildcard's.
+    let mut clock = ctx
+        .banks_client
+        .get_sysvar::<solana_program::clock::Clock>()
+        .await
+        .unwrap();
+    clock.unix_timestamp = 101;
+    ctx.set_sysvar(&clock);
+
+    // Query: expired exact should be skipped → wildcard-sender resolves.
+    let ix = build_quote_gas_payment_new_flow(
+        igp_key,
+        quoted_sender,
+        dest_domain,
+        gas_amount,
+        &[exact_pda, ws_pda],
+        None,
+    );
+    let result =
+        simulate_instruction::<SimulationReturnData<u64>>(&mut ctx.banks_client, &payer, ix).await;
+    let fee = result.unwrap().unwrap().return_data;
+
+    let expected =
+        compute_gas_fee(ws_exchange_rate, ws_gas_price, gas_amount, ws_decimals).unwrap();
     assert_eq!(fee, expected);
 }
 
@@ -3760,9 +3998,11 @@ async fn test_get_igp_quote_account_metas_trims_at_valid_exact() {
         &payer,
         dest_domain,
         oracle,
-        2 * TOKEN_EXCHANGE_RATE_SCALE,
-        50_000_000_000,
-        18,
+        QuoteParams {
+            exchange_rate: 2 * TOKEN_EXCHANGE_RATE_SCALE,
+            gas_price: 50_000_000_000,
+            token_decimals: 18,
+        },
         &quoted_sender,
     )
     .await;
@@ -3873,4 +4113,39 @@ async fn test_get_igp_quote_account_metas_transient_only() {
     assert_eq!(metas[8].pubkey, expected_transient_pda);
     assert!(metas[8].is_writable);
     assert!(!metas[8].is_signer);
+}
+
+#[tokio::test]
+async fn test_get_igp_quote_account_metas_rejects_no_fee_config() {
+    let (mut banks_client, payer) = setup_client().await;
+
+    // IGP without fee_config.
+    initialize(&mut banks_client, &payer).await.unwrap();
+    let salt = H256::random();
+    let (igp_key, _) = initialize_igp(
+        &mut banks_client,
+        &payer,
+        salt,
+        Some(payer.pubkey()),
+        payer.pubkey(),
+    )
+    .await
+    .unwrap();
+
+    let ix = get_igp_quote_account_metas_instruction(
+        igp_program_id(),
+        igp_key,
+        137,
+        Pubkey::new_unique(),
+        None,
+    )
+    .unwrap();
+    let result = process_instruction(&mut banks_client, ix, &payer, &[&payer]).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(
+            0,
+            InstructionError::Custom(IgpError::QuoteConfigNotSet as u32),
+        ),
+    );
 }

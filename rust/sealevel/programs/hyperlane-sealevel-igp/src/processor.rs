@@ -429,7 +429,10 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
 
             let fee_token_mint = Pubkey::default();
             let clock = Clock::get()?;
-            let min_issued_at = igp.fee_config.as_ref().map_or(0, |cfg| cfg.min_issued_at);
+
+            // Require fee_config for new flow — prevents stale quotes after config removal.
+            let fee_config = igp.fee_config.as_ref().ok_or(IgpError::QuoteConfigNotSet)?;
+            let min_issued_at = fee_config.min_issued_at;
 
             // Cascade: transient (if present) → standing (exact → ws → wd).
             // Peek discriminator to detect transient; if matched, all failures are hard errors.
@@ -615,14 +618,17 @@ fn quote_gas_payment(
         Some(quoted_sender_info) => {
             let quoted_sender = quoted_sender_info.key;
 
-            // At least one standing PDA must follow.
+            // At least one quote PDA must follow.
             if accounts_iter.as_slice().is_empty() {
                 return Err(ProgramError::NotEnoughAccountKeys);
             }
 
             let fee_token_mint = Pubkey::default();
             let clock = Clock::get()?;
-            let min_issued_at = igp.fee_config.as_ref().map_or(0, |cfg| cfg.min_issued_at);
+
+            // Require fee_config for new flow — prevents stale quotes after config removal.
+            let fee_config = igp.fee_config.as_ref().ok_or(IgpError::QuoteConfigNotSet)?;
+            let min_issued_at = fee_config.min_issued_at;
 
             // Cascade walk: standing-only (no transient at quote time).
             let cascade_levels: &[(u32, Pubkey)] = &[
@@ -1518,6 +1524,8 @@ fn get_igp_quote_account_metas(
     let (sender_authority, _) =
         Pubkey::find_program_address(DISPATCH_AUTHORITY_SEEDS, &data.sender);
 
+    // Placeholders: SDK must replace payer (idx 1), unique_gas_payment (idx 3),
+    // and gas_payment_pda (idx 4, derived from unique_gas_payment) before use.
     let mut metas = vec![
         SerializableAccountMeta {
             pubkey: system_program::ID,
@@ -1525,6 +1533,7 @@ fn get_igp_quote_account_metas(
             is_writable: false,
         },
         SerializableAccountMeta {
+            // Placeholder: payer (SDK replaces with actual payer).
             pubkey: Pubkey::default(),
             is_signer: true,
             is_writable: true,
@@ -1535,11 +1544,13 @@ fn get_igp_quote_account_metas(
             is_writable: true,
         },
         SerializableAccountMeta {
+            // Placeholder: unique_gas_payment keypair (SDK generates fresh).
             pubkey: Pubkey::default(),
             is_signer: true,
             is_writable: false,
         },
         SerializableAccountMeta {
+            // Placeholder: gas_payment_pda (SDK derives from unique_gas_payment).
             pubkey: Pubkey::default(),
             is_signer: false,
             is_writable: true,
@@ -1561,6 +1572,9 @@ fn get_igp_quote_account_metas(
         },
     ];
 
+    // Require fee_config for both paths — prevents returning metas after config removal.
+    let fee_config = igp.fee_config.as_ref().ok_or(IgpError::QuoteConfigNotSet)?;
+
     if let Some(scoped_salt) = data.scoped_salt {
         // Transient path: prefix + transient PDA only (no standing PDAs).
         let (transient_key, _) = Pubkey::find_program_address(
@@ -1576,7 +1590,7 @@ fn get_igp_quote_account_metas(
         // Standing path: walk cascade, trim at first valid.
         let fee_token_mint = Pubkey::default();
         let clock = Clock::get()?;
-        let min_issued_at = igp.fee_config.as_ref().map_or(0, |cfg| cfg.min_issued_at);
+        let min_issued_at = fee_config.min_issued_at;
 
         let cascade: [(&AccountInfo, u32, &Pubkey); 3] = [
             (exact_info, data.destination_domain, &data.sender),
