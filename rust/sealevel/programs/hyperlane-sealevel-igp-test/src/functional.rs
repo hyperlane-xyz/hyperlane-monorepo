@@ -18,7 +18,7 @@ use hyperlane_test_utils::{
     assert_transaction_error, igp_program_id, new_funded_keypair, process_instruction,
     simulate_instruction, transfer_lamports,
 };
-use serializable_account_meta::SimulationReturnData;
+use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 
 use access_control::AccessControl;
 use account_utils::{AccountData, DiscriminatorPrefixed, DiscriminatorPrefixedData};
@@ -34,10 +34,10 @@ use hyperlane_sealevel_igp::{
     igp_standing_quote_pda_seeds, igp_transient_quote_pda_seeds,
     instruction::{
         close_igp_standing_quote_instruction, close_igp_transient_quote_instruction,
-        set_igp_min_issued_at_instruction, set_igp_quote_config_instruction,
-        set_igp_quote_signer_instruction, submit_igp_quote_instruction, GasOracleConfig,
-        GasOverheadConfig, InitIgp, InitOverheadIgp, Instruction as IgpInstruction, PayForGas,
-        QuoteGasPayment, SetIgpQuoteSignerOperation,
+        get_igp_quote_account_metas_instruction, set_igp_min_issued_at_instruction,
+        set_igp_quote_config_instruction, set_igp_quote_signer_instruction,
+        submit_igp_quote_instruction, GasOracleConfig, GasOverheadConfig, InitIgp, InitOverheadIgp,
+        Instruction as IgpInstruction, PayForGas, QuoteGasPayment, SetIgpQuoteSignerOperation,
     },
     overhead_igp_pda_seeds,
     processor::process_instruction as igp_process_instruction,
@@ -3575,7 +3575,6 @@ async fn test_close_igp_standing_quote() {
     let (mut ctx, payer) = setup_client_with_context().await;
 
     // Setup IGP with signer + oracle (needed for quote submission).
-    initialize(&mut ctx.banks_client, &payer).await.unwrap();
     let igp_key = setup_igp_with_quote_config(&mut ctx.banks_client, &payer).await;
     let signing_key = SigningKey::random(&mut rand::thread_rng());
     let signer_addr = eth_address(&signing_key);
@@ -3679,7 +3678,6 @@ async fn test_close_igp_standing_quote_not_expired() {
 async fn test_close_igp_standing_quote_wrong_beneficiary() {
     let (mut ctx, payer) = setup_client_with_context().await;
 
-    initialize(&mut ctx.banks_client, &payer).await.unwrap();
     let igp_key = setup_igp_with_quote_config(&mut ctx.banks_client, &payer).await;
     let signing_key = SigningKey::random(&mut rand::thread_rng());
     let ix = set_igp_quote_signer_instruction(
@@ -3740,4 +3738,139 @@ async fn test_close_igp_standing_quote_wrong_beneficiary() {
             InstructionError::Custom(IgpError::BeneficiaryMismatch as u32),
         ),
     );
+}
+
+// --- GetIgpQuoteAccountMetas tests ---
+
+#[tokio::test]
+async fn test_get_igp_quote_account_metas_trims_at_valid_exact() {
+    let (mut banks_client, payer) = setup_client().await;
+
+    let dest_domain = 137u32;
+    let quoted_sender = Pubkey::new_unique();
+    let oracle = GasOracle::RemoteGasData(RemoteGasData {
+        token_exchange_rate: TOKEN_EXCHANGE_RATE_SCALE,
+        gas_price: 1_000_000_000,
+        token_decimals: 9,
+    });
+
+    // Setup IGP with oracle + exact standing quote.
+    let (igp_key, _) = setup_igp_with_oracle_and_standing_quote(
+        &mut banks_client,
+        &payer,
+        dest_domain,
+        oracle,
+        2 * TOKEN_EXCHANGE_RATE_SCALE,
+        50_000_000_000,
+        18,
+        &quoted_sender,
+    )
+    .await;
+
+    let exact_pda =
+        derive_standing_quote_pda(&igp_key, &Pubkey::default(), dest_domain, &quoted_sender);
+
+    let ix = get_igp_quote_account_metas_instruction(
+        igp_program_id(),
+        igp_key,
+        dest_domain,
+        quoted_sender,
+        None,
+    )
+    .unwrap();
+
+    let result = simulate_instruction::<SimulationReturnData<Vec<SerializableAccountMeta>>>(
+        &mut banks_client,
+        &payer,
+        ix,
+    )
+    .await;
+    let metas = result.unwrap().unwrap().return_data;
+
+    // Fixed prefix (8) + only exact PDA (1) = 9 accounts.
+    // Exact is valid → ws and wd trimmed.
+    assert_eq!(metas.len(), 9);
+    assert_eq!(metas[8].pubkey, exact_pda);
+}
+
+#[tokio::test]
+async fn test_get_igp_quote_account_metas_returns_all_when_none_valid() {
+    let (mut banks_client, payer) = setup_client().await;
+    let (igp_key, _) = setup_igp_with_signer(&mut banks_client, &payer).await;
+
+    let dest_domain = 137u32;
+    let quoted_sender = Pubkey::new_unique();
+
+    // No standing quotes submitted — all PDAs uninitialized.
+    let exact_pda =
+        derive_standing_quote_pda(&igp_key, &Pubkey::default(), dest_domain, &quoted_sender);
+    let ws_pda =
+        derive_standing_quote_pda(&igp_key, &Pubkey::default(), dest_domain, &WILDCARD_SENDER);
+    let wd_pda = derive_standing_quote_pda(
+        &igp_key,
+        &Pubkey::default(),
+        WILDCARD_DOMAIN,
+        &quoted_sender,
+    );
+
+    let ix = get_igp_quote_account_metas_instruction(
+        igp_program_id(),
+        igp_key,
+        dest_domain,
+        quoted_sender,
+        None,
+    )
+    .unwrap();
+
+    let result = simulate_instruction::<SimulationReturnData<Vec<SerializableAccountMeta>>>(
+        &mut banks_client,
+        &payer,
+        ix,
+    )
+    .await;
+    let metas = result.unwrap().unwrap().return_data;
+
+    // Fixed prefix (8) + all 3 PDAs = 11 accounts.
+    assert_eq!(metas.len(), 11);
+    assert_eq!(metas[8].pubkey, exact_pda);
+    assert_eq!(metas[9].pubkey, ws_pda);
+    assert_eq!(metas[10].pubkey, wd_pda);
+}
+
+#[tokio::test]
+async fn test_get_igp_quote_account_metas_transient_only() {
+    let (mut banks_client, payer) = setup_client().await;
+    let (igp_key, _) = setup_igp_with_signer(&mut banks_client, &payer).await;
+
+    let dest_domain = 137u32;
+    let quoted_sender = Pubkey::new_unique();
+    let scoped_salt = H256::random();
+
+    let (expected_transient_pda, _) = Pubkey::find_program_address(
+        igp_transient_quote_pda_seeds!(igp_key, scoped_salt),
+        &igp_program_id(),
+    );
+
+    let ix = get_igp_quote_account_metas_instruction(
+        igp_program_id(),
+        igp_key,
+        dest_domain,
+        quoted_sender,
+        Some(scoped_salt),
+    )
+    .unwrap();
+
+    let result = simulate_instruction::<SimulationReturnData<Vec<SerializableAccountMeta>>>(
+        &mut banks_client,
+        &payer,
+        ix,
+    )
+    .await;
+    let metas = result.unwrap().unwrap().return_data;
+
+    // Fixed prefix (8) + transient PDA only (1) = 9. No standing PDAs.
+    assert_eq!(metas.len(), 9);
+    assert_eq!(metas[8].pubkey, expected_transient_pda);
+    assert!(metas[8].is_writable);
+    assert!(!metas[8].is_signer);
 }

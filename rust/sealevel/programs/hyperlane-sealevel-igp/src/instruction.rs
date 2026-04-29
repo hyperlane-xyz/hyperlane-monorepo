@@ -12,8 +12,11 @@ use solana_program::{
 use solana_system_interface::program as system_program;
 
 use crate::{
-    accounts::{GasOracle, IgpFeeConfig, InterchainGasPaymasterType},
-    igp_gas_payment_pda_seeds, igp_pda_seeds, igp_program_data_pda_seeds, overhead_igp_pda_seeds,
+    accounts::{
+        GasOracle, IgpFeeConfig, InterchainGasPaymasterType, WILDCARD_DOMAIN, WILDCARD_SENDER,
+    },
+    igp_gas_payment_pda_seeds, igp_pda_seeds, igp_program_data_pda_seeds,
+    igp_standing_quote_pda_seeds, overhead_igp_pda_seeds,
 };
 
 /// The program instructions.
@@ -59,6 +62,19 @@ pub enum Instruction {
     CloseIgpTransientQuote,
     /// Closes an expired standing quote PDA, refunding rent to the IGP's beneficiary.
     CloseIgpStandingQuote,
+    /// Simulation-only: returns required account metas for a PayForGas new flow call.
+    GetIgpQuoteAccountMetas(GetIgpQuoteAccountMetas),
+}
+
+/// Input data for the GetIgpQuoteAccountMetas simulation instruction.
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
+pub struct GetIgpQuoteAccountMetas {
+    /// Hyperlane destination domain.
+    pub destination_domain: u32,
+    /// Sender program ID (quoted_sender) for PDA derivation.
+    pub sender: Pubkey,
+    /// Scoped salt for transient PDA derivation. None = standing-only.
+    pub scoped_salt: Option<H256>,
 }
 
 /// Operation for adding or removing a quote signer.
@@ -592,6 +608,59 @@ pub fn close_igp_standing_quote_instruction(
         AccountMeta::new(standing_pda, false),
         AccountMeta::new_readonly(igp, false),
         AccountMeta::new(beneficiary, false),
+    ];
+
+    Ok(SolanaInstruction {
+        program_id,
+        data: borsh::to_vec(&ixn)?,
+        accounts,
+    })
+}
+
+/// Gets a simulation instruction to retrieve required account metas for quoting.
+pub fn get_igp_quote_account_metas_instruction(
+    program_id: Pubkey,
+    igp: Pubkey,
+    destination_domain: u32,
+    sender: Pubkey,
+    scoped_salt: Option<H256>,
+) -> Result<SolanaInstruction, ProgramError> {
+    let ixn = Instruction::GetIgpQuoteAccountMetas(GetIgpQuoteAccountMetas {
+        destination_domain,
+        sender,
+        scoped_salt,
+    });
+
+    let fee_token_mint = Pubkey::default();
+    let dest_le = destination_domain.to_le_bytes();
+    let wildcard_le = WILDCARD_DOMAIN.to_le_bytes();
+
+    let (exact_pda, _) = Pubkey::try_find_program_address(
+        igp_standing_quote_pda_seeds!(igp, fee_token_mint, &dest_le, sender),
+        &program_id,
+    )
+    .ok_or(ProgramError::InvalidSeeds)?;
+    let (ws_pda, _) = Pubkey::try_find_program_address(
+        igp_standing_quote_pda_seeds!(igp, fee_token_mint, &dest_le, WILDCARD_SENDER),
+        &program_id,
+    )
+    .ok_or(ProgramError::InvalidSeeds)?;
+    let (wd_pda, _) = Pubkey::try_find_program_address(
+        igp_standing_quote_pda_seeds!(igp, fee_token_mint, &wildcard_le, sender),
+        &program_id,
+    )
+    .ok_or(ProgramError::InvalidSeeds)?;
+
+    // Accounts:
+    // 0. `[]` The IGP account.
+    // 1. `[]` Exact standing PDA.
+    // 2. `[]` Wildcard-sender standing PDA.
+    // 3. `[]` Wildcard-domain standing PDA.
+    let accounts = vec![
+        AccountMeta::new_readonly(igp, false),
+        AccountMeta::new_readonly(exact_pda, false),
+        AccountMeta::new_readonly(ws_pda, false),
+        AccountMeta::new_readonly(wd_pda, false),
     ];
 
     Ok(SolanaInstruction {

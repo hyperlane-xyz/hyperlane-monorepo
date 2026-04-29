@@ -24,7 +24,7 @@ use account_utils::{
     verify_rent_exempt, AccountData, AccountInfoExt, AccountInitState, DiscriminatorData,
     DiscriminatorPrefixed, SizedData,
 };
-use serializable_account_meta::SimulationReturnData;
+use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 
 use quote_verifier::{
     QuoteValidationError, SvmSignedQuote, ValidatableQuote, MAX_QUOTE_ISSUED_AT_FUTURE_SKEW_SECS,
@@ -41,7 +41,7 @@ use crate::{
     igp_gas_payment_pda_seeds, igp_pda_seeds, igp_program_data_pda_seeds,
     igp_standing_quote_pda_seeds, igp_transient_quote_pda_seeds,
     instruction::{
-        GasOracleConfig, GasOverheadConfig, InitIgp, InitOverheadIgp,
+        GasOracleConfig, GasOverheadConfig, GetIgpQuoteAccountMetas, InitIgp, InitOverheadIgp,
         Instruction as IgpInstruction, PayForGas, QuoteGasPayment, SetIgpQuoteSignerOperation,
     },
     overhead_igp_pda_seeds,
@@ -107,6 +107,9 @@ pub fn process_instruction(
         }
         IgpInstruction::CloseIgpStandingQuote => {
             close_igp_standing_quote(program_id, accounts)?;
+        }
+        IgpInstruction::GetIgpQuoteAccountMetas(data) => {
+            get_igp_quote_account_metas(program_id, accounts, data)?;
         }
     }
 
@@ -1476,6 +1479,158 @@ fn close_igp_standing_quote(program_id: &Pubkey, accounts: &[AccountInfo]) -> Pr
     }
 
     standing_pda_info.close_account(beneficiary_info)?;
+
+    Ok(())
+}
+
+/// Simulation-only: returns the required account metas for PayForGas new flow.
+/// If scoped_salt is provided, returns prefix + transient PDA only (transient
+/// and standing are mutually exclusive paths). Otherwise, walks the standing
+/// cascade and returns prefix + trimmed standing PDAs.
+///
+/// Accounts:
+/// 0. `[]` The IGP account.
+/// 1. `[]` Exact standing PDA (ignored if scoped_salt provided).
+/// 2. `[]` Wildcard-sender standing PDA (ignored if scoped_salt provided).
+/// 3. `[]` Wildcard-domain standing PDA (ignored if scoped_salt provided).
+fn get_igp_quote_account_metas(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    data: GetIgpQuoteAccountMetas,
+) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    let igp_info = next_account_info(accounts_iter)?;
+    if igp_info.owner != program_id {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+    let igp = IgpAccount::fetch(&mut &igp_info.data.borrow()[..])?.into_inner();
+
+    let exact_info = next_account_info(accounts_iter)?;
+    let ws_info = next_account_info(accounts_iter)?;
+    let wd_info = next_account_info(accounts_iter)?;
+
+    ensure_no_extraneous_accounts(accounts_iter)?;
+
+    // Build fixed prefix (PayForGas accounts 0-7).
+    let (program_data_key, _) =
+        Pubkey::find_program_address(igp_program_data_pda_seeds!(), program_id);
+    let (sender_authority, _) =
+        Pubkey::find_program_address(DISPATCH_AUTHORITY_SEEDS, &data.sender);
+
+    let mut metas = vec![
+        SerializableAccountMeta {
+            pubkey: system_program::ID,
+            is_signer: false,
+            is_writable: false,
+        },
+        SerializableAccountMeta {
+            pubkey: Pubkey::default(),
+            is_signer: true,
+            is_writable: true,
+        },
+        SerializableAccountMeta {
+            pubkey: program_data_key,
+            is_signer: false,
+            is_writable: true,
+        },
+        SerializableAccountMeta {
+            pubkey: Pubkey::default(),
+            is_signer: true,
+            is_writable: false,
+        },
+        SerializableAccountMeta {
+            pubkey: Pubkey::default(),
+            is_signer: false,
+            is_writable: true,
+        },
+        SerializableAccountMeta {
+            pubkey: *igp_info.key,
+            is_signer: false,
+            is_writable: true,
+        },
+        SerializableAccountMeta {
+            pubkey: sender_authority,
+            is_signer: true,
+            is_writable: false,
+        },
+        SerializableAccountMeta {
+            pubkey: data.sender,
+            is_signer: false,
+            is_writable: false,
+        },
+    ];
+
+    if let Some(scoped_salt) = data.scoped_salt {
+        // Transient path: prefix + transient PDA only (no standing PDAs).
+        let (transient_key, _) = Pubkey::find_program_address(
+            igp_transient_quote_pda_seeds!(igp_info.key, scoped_salt),
+            program_id,
+        );
+        metas.push(SerializableAccountMeta {
+            pubkey: transient_key,
+            is_signer: false,
+            is_writable: true,
+        });
+    } else {
+        // Standing path: walk cascade, trim at first valid.
+        let fee_token_mint = Pubkey::default();
+        let clock = Clock::get()?;
+        let min_issued_at = igp.fee_config.as_ref().map_or(0, |cfg| cfg.min_issued_at);
+
+        let cascade: [(&AccountInfo, u32, &Pubkey); 3] = [
+            (exact_info, data.destination_domain, &data.sender),
+            (ws_info, data.destination_domain, &WILDCARD_SENDER),
+            (wd_info, WILDCARD_DOMAIN, &data.sender),
+        ];
+
+        let (needed_pdas, _) = cascade.iter().try_fold(
+            (Vec::<SerializableAccountMeta>::new(), false),
+            |(mut pdas, resolved), (account, domain, sender)| {
+                if resolved {
+                    return Ok((pdas, true));
+                }
+
+                let dest_le = domain.to_le_bytes();
+                let (expected, _) = Pubkey::find_program_address(
+                    igp_standing_quote_pda_seeds!(igp_info.key, fee_token_mint, &dest_le, sender),
+                    program_id,
+                );
+                if *account.key != expected {
+                    return Err(ProgramError::InvalidSeeds);
+                }
+
+                let is_valid = match account.init_state(program_id) {
+                    AccountInitState::Uninitialized => false,
+                    AccountInitState::Initialized => {
+                        let quote =
+                            IgpStandingQuoteAccount::fetch(&mut &account.data.borrow()[..])?;
+                        quote
+                            .into_inner()
+                            .data
+                            .validate_quote(min_issued_at, &clock)
+                            .is_ok()
+                    }
+                    AccountInitState::OwnerMismatch => return Err(ProgramError::InvalidArgument),
+                };
+
+                pdas.push(SerializableAccountMeta {
+                    pubkey: *account.key,
+                    is_signer: false,
+                    is_writable: false,
+                });
+
+                Ok((pdas, is_valid))
+            },
+        )?;
+
+        metas.extend(needed_pdas);
+    }
+
+    set_return_data(
+        &borsh::to_vec(&SimulationReturnData::new(metas))
+            .map_err(|_| ProgramError::BorshIoError)?,
+    );
 
     Ok(())
 }
