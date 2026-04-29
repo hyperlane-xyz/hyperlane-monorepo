@@ -1,5 +1,6 @@
-import { ChainMap } from '@hyperlane-xyz/sdk';
+import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 
+import { getDisabledChains } from '../config/chain.js';
 import {
   AlertType,
   WalletName,
@@ -9,6 +10,33 @@ import {
   fetchGrafanaAlert,
   fetchGrafanaServiceAccountToken,
 } from '../infrastructure/monitoring/grafana.js';
+
+// Chains we should not generate Grafana balance alerts for, in addition to
+// any chain marked as disabled in the registry. Mirrors the alert-relevant
+// subset of `chainsToSkip` in src/config/chain.ts.
+const ADDITIONAL_NO_ALERT_CHAINS: ChainName[] = [
+  // permanently decommissioned
+  'everclear',
+  'milkyway',
+
+  // downtime
+  'molten',
+  'fluence',
+  'tangle',
+];
+
+export function getNoAlertChains(): Set<ChainName> {
+  return new Set([...getDisabledChains(), ...ADDITIONAL_NO_ALERT_CHAINS]);
+}
+
+export function filterAlertChains<T>(
+  thresholds: ChainMap<T>,
+  noAlertChains: Set<ChainName>,
+): ChainMap<T> {
+  return Object.fromEntries(
+    Object.entries(thresholds).filter(([chain]) => !noAlertChains.has(chain)),
+  );
+}
 
 export function parseBalancesPromQLQuery(
   query: string,

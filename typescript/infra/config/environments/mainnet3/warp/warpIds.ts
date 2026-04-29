@@ -169,4 +169,7 @@ export enum WarpRouteIds {
 
   // Fluent routes
   FluentBLEND = 'BLEND/fluent',
+
+  // Kiichain routes
+  KiichainKII = 'KII/kiichain',
 }

@@ -15,6 +15,7 @@ use crate::merkle_tree::builder::MerkleTreeBuilder;
 use crate::msg::gas_payment::GasPaymentEnforcer;
 use crate::msg::op_queue::OperationPriorityQueue;
 use crate::msg::pending_message::MessageContext;
+
 use crate::server::environment_variable::EnvironmentVariableApi;
 
 pub const ENDPOINT_MESSAGES_QUEUE_SIZE: usize = 100;
@@ -139,6 +140,7 @@ impl Server {
         if expose_environment_variable_endpoint {
             router = router.merge(EnvironmentVariableApi::new().router());
         }
+
         router
     }
 }

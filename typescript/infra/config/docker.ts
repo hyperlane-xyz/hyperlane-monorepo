@@ -50,16 +50,16 @@ export const mainnetDockerTags: MainnetDockerTags = {
   checkWarpDeploy: 'main',
   // standalone services
   keyFunder: '3b17358-20260315-183126',
-  warpMonitor: '3b17358-20260315-183126',
+  warpMonitor: 'a915865-20260424-083851',
   rebalancer: '1a19513-20260413-090011',
   feeQuoting: '12d899d-20260325-184337',
 };
 
 export const testnetDockerTags: BaseDockerTags = {
   // rust agents
-  relayer: '7eb690c-20260406-142107',
-  relayerRC: '7eb690c-20260406-142107',
-  relayerFastPath: '7eb690c-20260406-142107',
+  relayer: 'd851a31-20260429-121400',
+  relayerRC: 'd851a31-20260429-121400',
+  relayerFastPath: 'd851a31-20260429-121400',
   validator: '7eb690c-20260406-142107',
   validatorRC: '7eb690c-20260406-142107',
   scraper: 'caa8162-20260409-132508',

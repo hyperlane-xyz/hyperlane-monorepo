@@ -93,6 +93,7 @@ impl HyperlaneRocksDB {
     ) -> DbResult<bool> {
         if let Ok(Some(_)) = self.retrieve_message_id_by_nonce(&message.nonce) {
             trace!(hyp_message=?message, "Message already stored in db");
+            self.try_update_max_seen_message_nonce(message.nonce)?;
             return Ok(false);
         }
         self.upsert_message(message, dispatched_block_number)?;

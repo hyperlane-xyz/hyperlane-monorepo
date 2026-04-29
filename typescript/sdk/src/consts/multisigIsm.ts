@@ -798,13 +798,17 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   fluent: {
-    threshold: 2,
+    threshold: 3,
     validators: [
       {
         address: '0xea189ae1a9c3e86bcb63597a34a8ea3b0bb83406',
         alias: AW_VALIDATOR_ALIAS,
       },
       DEFAULT_MITOSIS_VALIDATOR,
+      {
+        address: '0x6a07e3406536d3a117f41850e69c70961d002efe',
+        alias: 'Fluent',
+      },
     ],
   },
 

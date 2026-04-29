@@ -348,10 +348,11 @@
   },
   "fluent": {
     "type": "messageIdMultisigIsm",
-    "threshold": 2,
+    "threshold": 3,
     "validators": [
       "0xea189ae1a9c3e86bcb63597a34a8ea3b0bb83406",
-      "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
+      "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36",
+      "0x6a07e3406536d3a117f41850e69c70961d002efe"
     ]
   },
   "fraxtal": {

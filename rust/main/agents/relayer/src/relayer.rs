@@ -15,6 +15,7 @@ use tokio::{
     sync::{
         broadcast::Sender as BroadcastSender,
         mpsc::{self, Receiver as MpscReceiver, UnboundedSender},
+        RwLock,
     },
     task::JoinHandle,
 };
@@ -32,11 +33,15 @@ use hyperlane_base::{
 };
 use hyperlane_core::{
     rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, ContractSyncCursor,
-    HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, PendingOperation,
-    QueueOperation, H512, U256,
+    HyperlaneDomain, HyperlaneMessage, Indexer, InterchainGasPayment, MerkleTreeInsertion,
+    PendingOperation, QueueOperation, H512, U256,
 };
 use lander::{CommandEntrypoint, DispatcherMetrics};
 
+use crate::relay_api::{
+    handlers::{RateLimiter, ServerState as RelayApiState, TxHashCache},
+    RelayApiMetrics,
+};
 use crate::{db_loader::DbLoader, relayer::origin::Origin, server::ENDPOINT_MESSAGES_QUEUE_SIZE};
 use crate::{
     db_loader::DbLoaderExt,
@@ -92,6 +97,11 @@ pub struct Relayer {
     allow_local_checkpoint_syncers: bool,
     metric_app_contexts: Arc<Vec<(MatchingList, String)>>,
     max_retries: u32,
+    relay_api_enabled: bool,
+    relay_api_port: Option<u16>,
+    relay_api_rate_limit_max_requests: Option<usize>,
+    relay_api_rate_limit_window_secs: Option<u64>,
+    relay_api_cors_origins: Vec<String>,
     core_metrics: Arc<CoreMetrics>,
     // TODO: decide whether to consolidate `agent_metrics` and `chain_metrics` into a single struct
     // or move them in `core_metrics`, like the validator metrics
@@ -289,6 +299,11 @@ impl BaseAgent for Relayer {
             allow_local_checkpoint_syncers: settings.allow_local_checkpoint_syncers,
             metric_app_contexts: settings.metric_app_contexts,
             max_retries: settings.max_retries,
+            relay_api_enabled: settings.relay_api_enabled,
+            relay_api_port: settings.relay_api_port,
+            relay_api_rate_limit_max_requests: settings.relay_api_rate_limit_max_requests,
+            relay_api_rate_limit_window_secs: settings.relay_api_rate_limit_window_secs,
+            relay_api_cors_origins: settings.relay_api_cors_origins,
             core_metrics,
             agent_metrics,
             chain_metrics,
@@ -524,7 +539,33 @@ impl BaseAgent for Relayer {
         // run server
         start_entity_init = Instant::now();
 
-        let relayer_router = self.build_router(prep_queues, sender.clone()).await;
+        let (relayer_router, maybe_relay_api_state) = self
+            .build_router(prep_queues, send_channels, sender.clone())
+            .await;
+
+        // Bind relay API on its own port (default 8900), keeping it separate from metrics.
+        let metrics_router = if let Some(relay_api_state) = maybe_relay_api_state {
+            let port = self.relay_api_port.unwrap_or(8900);
+            let relay_router = relay_api_state.router();
+            let relay_api_task = tokio::spawn(
+                async move {
+                    let url = format!("0.0.0.0:{port}");
+                    info!(port, "starting relay API server on 0.0.0.0");
+                    let listener = tokio::net::TcpListener::bind(&url)
+                        .await
+                        .expect("Failed to bind relay API port");
+                    axum::serve(listener, relay_router)
+                        .await
+                        .expect("Relay API server failed");
+                }
+                .instrument(info_span!("Relay API server")),
+            );
+            tasks.push(relay_api_task);
+            relayer_router
+        } else {
+            relayer_router
+        };
+
         let server = self
             .core
             .settings
@@ -532,7 +573,7 @@ impl BaseAgent for Relayer {
             .expect("Failed to create server");
         let server_task = tokio::spawn(
             async move {
-                let _ = server.run_with_custom_router(relayer_router).await;
+                let _ = server.run_with_custom_router(metrics_router).await;
             }
             .instrument(info_span!("Relayer server")),
         );
@@ -564,9 +605,9 @@ impl Relayer {
     async fn build_router(
         &self,
         prep_queues: PrepQueue,
+        send_channels: HashMap<u32, mpsc::UnboundedSender<QueueOperation>>,
         sender: BroadcastSender<relayer_server::operations::message_retry::MessageRetryRequest>,
-    ) -> Router {
-        // create a db mapping for server handlers
+    ) -> (Router, Option<RelayApiState>) {
         let dbs: HashMap<u32, HyperlaneRocksDB> = self
             .origins
             .iter()
@@ -584,7 +625,7 @@ impl Relayer {
             .map(|(key, ctx)| (key.origin.clone(), ctx.origin_gas_payment_enforcer.clone()))
             .collect();
 
-        let msg_ctxs = self
+        let msg_ctxs: HashMap<(u32, u32), Arc<crate::msg::pending_message::MessageContext>> = self
             .msg_ctxs
             .iter()
             .map(|(key, value)| ((key.origin.id(), key.destination.id()), value.clone()))
@@ -606,7 +647,45 @@ impl Relayer {
                 })
             })
             .collect();
-        relayer_server::Server::new(self.destinations.len())
+
+        let maybe_relay_api_state = if self.relay_api_enabled {
+            let relay_api_metrics = RelayApiMetrics::new(&self.core_metrics.registry())
+                .expect("Failed to create relay API metrics");
+            let tx_hash_cache = Arc::new(parking_lot::Mutex::new(TxHashCache::new(10000)));
+            let max_requests = self.relay_api_rate_limit_max_requests.unwrap_or(100);
+            let window_secs = self.relay_api_rate_limit_window_secs.unwrap_or(60);
+            let rate_limiter = Arc::new(RwLock::new(RateLimiter::new(max_requests, window_secs)));
+            info!(
+                max_requests,
+                window_secs, "Initialized relay API rate limiter"
+            );
+
+            let indexers: HashMap<String, Arc<dyn Indexer<HyperlaneMessage>>> = self
+                .origins
+                .iter()
+                .map(|(domain, origin)| (domain.name().to_string(), origin.message_indexer.clone()))
+                .collect();
+
+            Some(
+                RelayApiState::new(
+                    indexers,
+                    dbs.clone(),
+                    send_channels,
+                    msg_ctxs.clone(),
+                    relay_api_metrics,
+                )
+                .with_tx_hash_cache(tx_hash_cache)
+                .with_rate_limiter(rate_limiter)
+                .with_cors_origins(self.relay_api_cors_origins.clone())
+                .with_message_whitelist(self.message_whitelist.clone())
+                .with_message_blacklist(self.message_blacklist.clone())
+                .with_address_blacklist(self.address_blacklist.clone()),
+            )
+        } else {
+            None
+        };
+
+        let router = relayer_server::Server::new(self.destinations.len())
             .with_op_retry(sender)
             .with_message_queue(prep_queues)
             .with_dbs(dbs)
@@ -614,7 +693,9 @@ impl Relayer {
             .with_msg_ctxs(msg_ctxs)
             .with_prover_sync(prover_syncs)
             .with_dispatcher_command_entrypoints(dispatcher_entrypoints)
-            .router()
+            .router();
+
+        (router, maybe_relay_api_state)
     }
 
     fn record_critical_error(
