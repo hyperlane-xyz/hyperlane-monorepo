@@ -483,6 +483,43 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
     .boolean()
     .optional()
     .describe('Whether to enable IGP indexing'),
+  relayApiEnabled: z
+    .boolean()
+    .optional()
+    .describe(
+      'Whether to enable the relay API HTTP server. Defaults to false.',
+    ),
+  relayApiPort: z
+    .number()
+    .int()
+    .positive()
+    .lte(65535)
+    .optional()
+    .describe(
+      'Port for the relay API HTTP server. When set, the relay API is served on this dedicated port instead of the shared metrics port.',
+    ),
+  relayApiRateLimitMaxRequests: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe(
+      'Relay API rate limit: max requests allowed per window. Defaults to 100.',
+    ),
+  relayApiRateLimitWindowSecs: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe(
+      'Relay API rate limit: window duration in seconds. Defaults to 60.',
+    ),
+  relayApiCorsOrigins: z
+    .string()
+    .optional()
+    .describe(
+      'Relay API allowed CORS origins, comma-separated. Defaults to https://nexus.hyperlane.xyz.',
+    ),
 });
 
 export type RelayerConfig = z.infer<typeof RelayerAgentConfigSchema>;

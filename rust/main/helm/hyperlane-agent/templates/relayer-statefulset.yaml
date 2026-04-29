@@ -122,6 +122,10 @@ spec:
         ports:
         - name: metrics
           containerPort: {{ .Values.hyperlane.metrics.port }}
+        {{- if .Values.hyperlane.relayer.relayApi.enabled }}
+        - name: relay-api
+          containerPort: {{ .Values.hyperlane.relayer.relayApi.port }}
+        {{- end }}
       volumes:
       - name: relayer-configmap
         configMap:

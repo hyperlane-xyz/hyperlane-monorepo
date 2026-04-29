@@ -10,11 +10,14 @@ use hyperlane_core::{ChainCommunicationError, ChainResult, LogMeta, H512};
 
 use crate::EthereumReorgPeriod;
 
+/// Returns `Ok(None)` when the RPC returns no receipt for the tx hash.
+/// Returns `Err` for transient RPC failures.
+/// Callers that need retry-on-missing-receipt must convert `None` to `Err` inside their retry closure.
 pub async fn fetch_raw_logs_and_meta<T: EthEvent, M>(
     tx_hash: H512,
     provider: Arc<M>,
     contract_address: EthersH160,
-) -> ChainResult<Vec<(T, LogMeta)>>
+) -> ChainResult<Option<Vec<(T, LogMeta)>>>
 where
     M: Middleware + 'static,
 {
@@ -24,14 +27,13 @@ where
         .await
         .map_err(|err| ContractError::<M>::MiddlewareError(err))?;
     let Some(receipt) = receipt else {
-        return Err(eyre::eyre!("No receipt found for tx hash {:?}", tx_hash).into());
+        return Ok(None);
     };
 
     let logs: Vec<(T, LogMeta)> = receipt
         .logs
         .into_iter()
         .filter_map(|log| {
-            // Filter out logs that aren't emitted by this contract
             if log.address != contract_address {
                 return None;
             }
@@ -44,7 +46,7 @@ where
             event_filter.map(|log| (log, log_meta.into()))
         })
         .collect();
-    Ok(logs)
+    Ok(Some(logs))
 }
 
 pub async fn get_finalized_block_number<M, T>(

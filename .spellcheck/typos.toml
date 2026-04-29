@@ -24,6 +24,7 @@ extend-exclude = [
   "rust/main/chains/hyperlane-sealevel/src/provider/recipient/*.json",
   "rust/main/chains/hyperlane-aleo/src/indexer/mock_responses/",
   "rust/main/chains/hyperlane-aleo/src/provider/mock_responses/",
+  "rust/main/chains/hyperlane-radix/src/utils.rs",
   "rust/main/chains/hyperlane-starknet/abis/",
   "rust/main/lander/src/adapter/chains/aleo/adapter/status/test_fixtures/",
   "rust/sealevel/environments/",
