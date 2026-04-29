@@ -9,9 +9,9 @@ use async_trait::async_trait;
 use ethers::prelude::Middleware;
 use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
 use hyperlane_core::{
-    ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneProvider, Indexed, Indexer, InterchainGasPaymaster, InterchainGasPayment, LogMeta,
-    SequenceAwareIndexer, H160, H256, H512,
+    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain,
+    HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexed, Indexer,
+    InterchainGasPaymaster, InterchainGasPayment, LogMeta, SequenceAwareIndexer, H160, H256, H512,
 };
 
 use super::utils::{fetch_raw_logs_and_meta, get_finalized_block_number};
@@ -134,7 +134,13 @@ where
             let provider = self.provider.clone();
             let contract = self.contract.address();
             Box::pin(async move {
-                fetch_raw_logs_and_meta::<GasPaymentFilter, M>(tx_hash, provider, contract).await
+                fetch_raw_logs_and_meta::<GasPaymentFilter, M>(tx_hash, provider, contract)
+                    .await?
+                    .ok_or_else(|| {
+                        ChainCommunicationError::CustomError(format!(
+                            "No receipt found for tx hash {tx_hash:?}"
+                        ))
+                    })
             })
         })
         .await;

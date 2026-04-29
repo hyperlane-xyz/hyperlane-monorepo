@@ -112,6 +112,44 @@ impl<M> EthereumMailboxIndexer<M>
 where
     M: Middleware + 'static,
 {
+    /// Counts CCTP V2 DepositForBurn events in a transaction receipt.
+    ///
+    /// Takes the raw receipt logs (all contracts) rather than the filtered dispatch logs,
+    /// because the DepositForBurn event is emitted by Circle's TokenMessenger, not the mailbox.
+    /// Both the topic hash and the emitting address are checked: topic-only matching would let
+    /// any contract spoof the V2 detection by emitting a log with the same topics[0].
+    fn cctp_v2_burn_count(logs: &[ethers::types::Log]) -> usize {
+        use ethers::types::{Address, H256 as EthersH256};
+        use ethers_core::utils::keccak256;
+
+        // keccak256("DepositForBurn(address,uint256,address,bytes32,uint32,bytes32,bytes32,uint256,uint32,bytes)")
+        // Distinct from V1 whose first param is `uint64 indexed nonce`.
+        let cctp_v2_topic = EthersH256::from(keccak256(
+            b"DepositForBurn(address,uint256,address,bytes32,uint32,bytes32,bytes32,uint256,uint32,bytes)",
+        ));
+
+        // Circle deploys TokenMessenger V2 at a small set of known addresses.
+        // Source: https://developers.circle.com/cctp/references/contract-addresses
+        let token_messenger_v2_addresses: [Address; 3] = [
+            "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d" // mainnet (all chains except EDGE)
+                .parse()
+                .expect("valid address"),
+            "0x98706A006bc632Df31CAdFCBD43F38887ce2ca5c" // mainnet EDGE
+                .parse()
+                .expect("valid address"),
+            "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA" // testnet (all chains)
+                .parse()
+                .expect("valid address"),
+        ];
+
+        logs.iter()
+            .filter(|log| {
+                token_messenger_v2_addresses.contains(&log.address)
+                    && log.topics.first() == Some(&cctp_v2_topic)
+            })
+            .count()
+    }
+
     /// Create new EthereumMailboxIndexer
     pub fn new(
         provider: Arc<M>,
@@ -139,6 +177,10 @@ impl<M> Indexer<HyperlaneMessage> for EthereumMailboxIndexer<M>
 where
     M: Middleware + 'static,
 {
+    fn parse_tx_hash(&self, tx_hash: &str) -> ChainResult<H512> {
+        hyperlane_core::parse_evm_hex_tx_hash(tx_hash)
+    }
+
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         self.get_finalized_block_number().await
     }
@@ -177,7 +219,13 @@ where
             let provider = self.provider.clone();
             let contract = self.contract.address();
             Box::pin(async move {
-                fetch_raw_logs_and_meta::<DispatchFilter, M>(tx_hash, provider, contract).await
+                fetch_raw_logs_and_meta::<DispatchFilter, M>(tx_hash, provider, contract)
+                    .await?
+                    .ok_or_else(|| {
+                        ChainCommunicationError::CustomError(format!(
+                            "No receipt found for tx hash {tx_hash:?}"
+                        ))
+                    })
             })
         })
         .await;
@@ -191,6 +239,69 @@ where
             })
             .collect();
         Ok(logs)
+    }
+
+    async fn fetch_logs_and_cctp_v2(
+        &self,
+        tx_hash: H512,
+    ) -> ChainResult<(Vec<(Indexed<HyperlaneMessage>, LogMeta)>, bool)> {
+        use ethers::abi::RawLog;
+        use ethers::types::H256 as EthersH256;
+        use ethers_contract::{EthEvent, LogMeta as EthersLogMeta};
+
+        let (raw_dispatch_logs, is_cctp_v2) = call_and_retry_indefinitely(|| {
+            let provider = self.provider.clone();
+            let contract_address = self.contract.address();
+            Box::pin(async move {
+                let ethers_tx_hash: EthersH256 = tx_hash.into();
+                let receipt = provider
+                    .get_transaction_receipt(ethers_tx_hash)
+                    .await
+                    .map_err(ChainCommunicationError::from_other)?
+                    .ok_or_else(|| {
+                        ChainCommunicationError::CustomError(format!(
+                            "No receipt found for tx hash {tx_hash:?}"
+                        ))
+                    })?;
+
+                let burn_count = Self::cctp_v2_burn_count(&receipt.logs);
+
+                let dispatch_logs: Vec<(DispatchFilter, LogMeta)> = receipt
+                    .logs
+                    .into_iter()
+                    .filter_map(|log| {
+                        if log.address != contract_address {
+                            return None;
+                        }
+                        let raw_log = RawLog {
+                            topics: log.topics.clone(),
+                            data: log.data.to_vec(),
+                        };
+                        let log_meta: EthersLogMeta = (&log).into();
+                        DispatchFilter::decode_log(&raw_log)
+                            .ok()
+                            .map(|decoded| (decoded, log_meta.into()))
+                    })
+                    .collect();
+
+                // Only treat as CCTP V2 if every Dispatch in the tx has a
+                // corresponding DepositForBurn. A mixed tx (some CCTP, some
+                // unrelated dispatches) gets is_cctp_v2=false so it fails at
+                // the relay-API gate rather than routing unrelated messages
+                // through the fail-fast CCTP path.
+                let is_cctp_v2 = burn_count > 0 && burn_count == dispatch_logs.len();
+
+                Ok((dispatch_logs, is_cctp_v2))
+            })
+        })
+        .await;
+
+        let messages = raw_dispatch_logs
+            .into_iter()
+            .map(|(log, meta)| (HyperlaneMessage::from(log.message.to_vec()).into(), meta))
+            .collect();
+
+        Ok((messages, is_cctp_v2))
     }
 }
 
