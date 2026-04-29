@@ -21,6 +21,12 @@ pub enum Error {
     /// Phase 3: only SOL (Pubkey::default()) is supported as fee token mint.
     #[error("Non-default fee token mint not supported")]
     NonDefaultFeeTokenMint = 5,
+    /// Standing quote has not expired yet (cannot close).
+    #[error("Standing quote not expired")]
+    StandingQuoteNotExpired = 6,
+    /// Beneficiary does not match the IGP's beneficiary.
+    #[error("Beneficiary mismatch")]
+    BeneficiaryMismatch = 7,
 }
 
 impl From<Error> for ProgramError {

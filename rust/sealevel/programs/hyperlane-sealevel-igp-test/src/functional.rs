@@ -33,10 +33,11 @@ use hyperlane_sealevel_igp::{
     igp_gas_payment_pda_seeds, igp_pda_seeds, igp_program_data_pda_seeds,
     igp_standing_quote_pda_seeds, igp_transient_quote_pda_seeds,
     instruction::{
-        close_igp_transient_quote_instruction, set_igp_min_issued_at_instruction,
-        set_igp_quote_config_instruction, set_igp_quote_signer_instruction,
-        submit_igp_quote_instruction, GasOracleConfig, GasOverheadConfig, InitIgp, InitOverheadIgp,
-        Instruction as IgpInstruction, PayForGas, QuoteGasPayment, SetIgpQuoteSignerOperation,
+        close_igp_standing_quote_instruction, close_igp_transient_quote_instruction,
+        set_igp_min_issued_at_instruction, set_igp_quote_config_instruction,
+        set_igp_quote_signer_instruction, submit_igp_quote_instruction, GasOracleConfig,
+        GasOverheadConfig, InitIgp, InitOverheadIgp, Instruction as IgpInstruction, PayForGas,
+        QuoteGasPayment, SetIgpQuoteSignerOperation,
     },
     overhead_igp_pda_seeds,
     processor::process_instruction as igp_process_instruction,
@@ -49,7 +50,7 @@ const TEST_GAS_AMOUNT: u64 = 300000;
 const TEST_GAS_OVERHEAD_AMOUNT: u64 = 100000;
 const LOCAL_DECIMALS: u8 = SOL_DECIMALS;
 
-async fn setup_client() -> (BanksClient, Keypair) {
+async fn setup_client_with_context() -> (ProgramTestContext, Keypair) {
     let program_id = igp_program_id();
     let program_test = ProgramTest::new(
         "hyperlane_sealevel_igp",
@@ -68,6 +69,11 @@ async fn setup_client() -> (BanksClient, Keypair) {
     ctx.set_sysvar(&clock);
     let payer = ctx.payer.insecure_clone();
 
+    (ctx, payer)
+}
+
+async fn setup_client() -> (BanksClient, Keypair) {
+    let (ctx, payer) = setup_client_with_context().await;
     (ctx.banks_client, payer)
 }
 
@@ -3558,6 +3564,180 @@ async fn test_close_igp_transient_quote_wrong_payer() {
         TransactionError::InstructionError(
             0,
             InstructionError::Custom(QuoteValidationError::TransientPayerMismatch as u32),
+        ),
+    );
+}
+
+// --- CloseIgpStandingQuote tests ---
+
+#[tokio::test]
+async fn test_close_igp_standing_quote() {
+    let (mut ctx, payer) = setup_client_with_context().await;
+
+    // Setup IGP with signer + oracle (needed for quote submission).
+    initialize(&mut ctx.banks_client, &payer).await.unwrap();
+    let igp_key = setup_igp_with_quote_config(&mut ctx.banks_client, &payer).await;
+    let signing_key = SigningKey::random(&mut rand::thread_rng());
+    let signer_addr = eth_address(&signing_key);
+    let ix = set_igp_quote_signer_instruction(
+        igp_program_id(),
+        igp_key,
+        payer.pubkey(),
+        SetIgpQuoteSignerOperation::Add(signer_addr),
+    )
+    .unwrap();
+    process_instruction(&mut ctx.banks_client, ix, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    // Submit standing quote with expiry=100 (clock is at 2 → valid).
+    let sender = Pubkey::new_unique();
+    let context = encode_igp_context(&Pubkey::default(), 137, &sender);
+    let data = encode_igp_data(1_000, 100, 18);
+    let quote = make_signed_igp_quote(
+        &signing_key,
+        &igp_key,
+        IGP_DOMAIN_ID,
+        &payer.pubkey(),
+        context,
+        data,
+        50,
+        100,
+    );
+    let quote_pda = derive_standing_quote_pda(&igp_key, &Pubkey::default(), 137, &sender);
+    let ix =
+        submit_igp_quote_instruction(igp_program_id(), payer.pubkey(), igp_key, quote_pda, quote)
+            .unwrap();
+    process_instruction(&mut ctx.banks_client, ix, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    // Advance clock past expiry.
+    let mut clock = ctx
+        .banks_client
+        .get_sysvar::<solana_program::clock::Clock>()
+        .await
+        .unwrap();
+    clock.unix_timestamp = 200;
+    ctx.set_sysvar(&clock);
+
+    // Close the expired standing quote. Beneficiary = payer (set during IGP init).
+    let ix =
+        close_igp_standing_quote_instruction(igp_program_id(), quote_pda, igp_key, payer.pubkey())
+            .unwrap();
+    process_instruction(&mut ctx.banks_client, ix, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    // Verify PDA is gone.
+    let account = ctx.banks_client.get_account(quote_pda).await.unwrap();
+    assert!(account.is_none() || account.unwrap().data.is_empty());
+}
+
+#[tokio::test]
+async fn test_close_igp_standing_quote_not_expired() {
+    let (mut banks_client, payer) = setup_client().await;
+    let (igp_key, signing_key) = setup_igp_with_signer(&mut banks_client, &payer).await;
+
+    // Submit standing quote with expiry=200 (clock is at 2 → NOT expired).
+    let sender = Pubkey::new_unique();
+    let context = encode_igp_context(&Pubkey::default(), 137, &sender);
+    let data = encode_igp_data(1_000, 100, 18);
+    let quote = make_signed_igp_quote(
+        &signing_key,
+        &igp_key,
+        IGP_DOMAIN_ID,
+        &payer.pubkey(),
+        context,
+        data,
+        100,
+        200,
+    );
+    let quote_pda = derive_standing_quote_pda(&igp_key, &Pubkey::default(), 137, &sender);
+    let ix =
+        submit_igp_quote_instruction(igp_program_id(), payer.pubkey(), igp_key, quote_pda, quote)
+            .unwrap();
+    process_instruction(&mut banks_client, ix, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    // Try to close — not expired yet.
+    let ix =
+        close_igp_standing_quote_instruction(igp_program_id(), quote_pda, igp_key, payer.pubkey())
+            .unwrap();
+    let result = process_instruction(&mut banks_client, ix, &payer, &[&payer]).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(
+            0,
+            InstructionError::Custom(IgpError::StandingQuoteNotExpired as u32),
+        ),
+    );
+}
+
+#[tokio::test]
+async fn test_close_igp_standing_quote_wrong_beneficiary() {
+    let (mut ctx, payer) = setup_client_with_context().await;
+
+    initialize(&mut ctx.banks_client, &payer).await.unwrap();
+    let igp_key = setup_igp_with_quote_config(&mut ctx.banks_client, &payer).await;
+    let signing_key = SigningKey::random(&mut rand::thread_rng());
+    let ix = set_igp_quote_signer_instruction(
+        igp_program_id(),
+        igp_key,
+        payer.pubkey(),
+        SetIgpQuoteSignerOperation::Add(eth_address(&signing_key)),
+    )
+    .unwrap();
+    process_instruction(&mut ctx.banks_client, ix, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    let sender = Pubkey::new_unique();
+    let context = encode_igp_context(&Pubkey::default(), 137, &sender);
+    let data = encode_igp_data(1_000, 100, 18);
+    let quote = make_signed_igp_quote(
+        &signing_key,
+        &igp_key,
+        IGP_DOMAIN_ID,
+        &payer.pubkey(),
+        context,
+        data,
+        50,
+        100,
+    );
+    let quote_pda = derive_standing_quote_pda(&igp_key, &Pubkey::default(), 137, &sender);
+    let ix =
+        submit_igp_quote_instruction(igp_program_id(), payer.pubkey(), igp_key, quote_pda, quote)
+            .unwrap();
+    process_instruction(&mut ctx.banks_client, ix, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    // Advance clock past expiry.
+    let mut clock = ctx
+        .banks_client
+        .get_sysvar::<solana_program::clock::Clock>()
+        .await
+        .unwrap();
+    clock.unix_timestamp = 200;
+    ctx.set_sysvar(&clock);
+
+    // Try to close with wrong beneficiary.
+    let wrong_beneficiary = Pubkey::new_unique();
+    let ix = close_igp_standing_quote_instruction(
+        igp_program_id(),
+        quote_pda,
+        igp_key,
+        wrong_beneficiary,
+    )
+    .unwrap();
+    let result = process_instruction(&mut ctx.banks_client, ix, &payer, &[&payer]).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(
+            0,
+            InstructionError::Custom(IgpError::BeneficiaryMismatch as u32),
         ),
     );
 }

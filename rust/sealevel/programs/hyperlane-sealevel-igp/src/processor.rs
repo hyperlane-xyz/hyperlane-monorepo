@@ -105,6 +105,9 @@ pub fn process_instruction(
         IgpInstruction::CloseIgpTransientQuote => {
             close_igp_transient_quote(program_id, accounts)?;
         }
+        IgpInstruction::CloseIgpStandingQuote => {
+            close_igp_standing_quote(program_id, accounts)?;
+        }
     }
 
     Ok(())
@@ -1413,6 +1416,66 @@ fn close_igp_transient_quote(program_id: &Pubkey, accounts: &[AccountInfo]) -> P
     }
 
     transient_pda_info.close_account(payer_info)?;
+
+    Ok(())
+}
+
+/// Closes an expired standing quote PDA, refunding rent to the IGP's beneficiary.
+///
+/// Accounts:
+/// 0. `[writeable]` The standing quote PDA.
+/// 1. `[]` The IGP account (for PDA re-derivation + beneficiary check).
+/// 2. `[writeable]` The beneficiary (receives rent refund).
+fn close_igp_standing_quote(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    // Account 0: Standing quote PDA.
+    let standing_pda_info = next_account_info(accounts_iter)?;
+    if standing_pda_info.owner != program_id {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+    let standing =
+        IgpStandingQuoteAccount::fetch(&mut &standing_pda_info.data.borrow()[..])?.into_inner();
+
+    // Account 1: IGP account (read-only).
+    let igp_info = next_account_info(accounts_iter)?;
+    if igp_info.owner != program_id {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+    let igp = IgpAccount::fetch(&mut &igp_info.data.borrow()[..])?.into_inner();
+
+    // Account 2: Beneficiary (writable, receives rent refund).
+    let beneficiary_info = next_account_info(accounts_iter)?;
+
+    ensure_no_extraneous_accounts(accounts_iter)?;
+
+    // Verify beneficiary matches IGP's beneficiary.
+    if *beneficiary_info.key != igp.beneficiary {
+        return Err(IgpError::BeneficiaryMismatch.into());
+    }
+
+    // Re-derive PDA from stored context fields + IGP key.
+    let dest_domain_le = standing.data.destination_domain.to_le_bytes();
+    let (expected, _) = Pubkey::find_program_address(
+        igp_standing_quote_pda_seeds!(
+            igp_info.key,
+            standing.data.fee_token_mint,
+            &dest_domain_le,
+            standing.data.sender
+        ),
+        program_id,
+    );
+    if *standing_pda_info.key != expected {
+        return Err(ProgramError::InvalidSeeds);
+    }
+
+    // Verify quote has expired.
+    let clock = Clock::get()?;
+    if clock.unix_timestamp <= standing.data.expiry {
+        return Err(IgpError::StandingQuoteNotExpired.into());
+    }
+
+    standing_pda_info.close_account(beneficiary_info)?;
 
     Ok(())
 }
