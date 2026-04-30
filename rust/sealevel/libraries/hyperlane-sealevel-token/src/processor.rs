@@ -38,6 +38,8 @@ use solana_program::{
     rent::Rent,
     sysvar::Sysvar,
 };
+use solana_system_interface::program as system_program;
+use std::collections::HashMap;
 
 /// Parsed IGP accounts for the deferred PayForGas CPI.
 /// The variant determines the invocation mode.
@@ -53,8 +55,6 @@ enum IgpPaymentAccounts<'b> {
         account_infos: Vec<AccountInfo<'b>>,
     },
 }
-use solana_system_interface::program as system_program;
-use std::collections::HashMap;
 
 use crate::{
     accounts::{FeeConfig, HyperlaneToken, HyperlaneTokenAccount},

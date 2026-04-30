@@ -1059,7 +1059,7 @@ fn set_igp_min_issued_at(
 
 /// Submits an offchain-signed quote to the IGP.
 /// Standing path: creates or updates a standing quote PDA.
-/// Transient path: not yet supported (will be added in a follow-up commit).
+/// Transient path: creates a transient quote PDA for single-transaction use.
 ///
 /// Accounts:
 /// 0. `[executable]` The system program.

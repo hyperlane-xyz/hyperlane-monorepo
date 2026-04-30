@@ -224,12 +224,12 @@ impl SizedData for Igp {
         // 33 for owner (1 byte Option, 32 bytes for pubkey)
         // 32 for beneficiary
         // 4 for gas_oracles.len()
-        // M * (4 + (1 + 257)) for gas_oracles contents
+        // M * (4 + 1 + 33) for gas_oracles contents (u32 key + enum disc + RemoteGasData)
         1 + 32
             + 33
             + 32
             + 4
-            + (self.gas_oracles.len() * (1 + 257))
+            + (self.gas_oracles.len() * (4 + 1 + 33))
             + match &self.fee_config {
                 Some(cfg) => 1 + cfg.size(),
                 None => 0,
@@ -792,6 +792,22 @@ mod test {
             owner: Some(Pubkey::new_unique()),
             beneficiary: Pubkey::new_unique(),
             gas_oracles: HashMap::new(),
+            fee_config: None,
+        };
+        assert_eq!(igp.size(), borsh::to_vec(&igp).unwrap().len());
+    }
+
+    #[test]
+    fn test_igp_sized_data_with_gas_oracles() {
+        let mut gas_oracles = HashMap::new();
+        gas_oracles.insert(1u32, GasOracle::RemoteGasData(RemoteGasData::default()));
+        gas_oracles.insert(2u32, GasOracle::RemoteGasData(RemoteGasData::default()));
+        let igp = Igp {
+            bump_seed: 1,
+            salt: H256::random(),
+            owner: Some(Pubkey::new_unique()),
+            beneficiary: Pubkey::new_unique(),
+            gas_oracles,
             fee_config: None,
         };
         assert_eq!(igp.size(), borsh::to_vec(&igp).unwrap().len());

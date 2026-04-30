@@ -3,7 +3,10 @@
 //! new PDA accounts.
 
 use account_utils::DiscriminatorEncode;
-use hyperlane_core::{Encode, HyperlaneMessage, H256, U256};
+use hyperlane_core::{Encode, HyperlaneMessage, H160, H256, U256};
+use k256::ecdsa::SigningKey;
+use k256::ecdsa::VerifyingKey;
+use quote_verifier::SvmSignedQuote;
 use solana_program::{
     instruction::{AccountMeta, Instruction},
     pubkey,
@@ -77,6 +80,7 @@ const LOCAL_DECIMALS_U32: u32 = LOCAL_DECIMALS as u32;
 const REMOTE_DOMAIN: u32 = 4321;
 const REMOTE_DECIMALS: u8 = 18;
 const REMOTE_GAS_AMOUNT: u64 = 200000;
+const IGP_DOMAIN_ID: u32 = 42;
 
 fn hyperlane_sealevel_token_native_id() -> Pubkey {
     pubkey!("CGn8yNtSD3aTTqJfYhUb6s1aVTN75NzwtsFKo1e83aga")
@@ -1733,16 +1737,6 @@ async fn test_transfer_remote_with_fee_native() {
 
 #[tokio::test]
 async fn test_transfer_remote_with_transient_quote_native() {
-    use k256::ecdsa::SigningKey;
-    use quote_verifier::SvmSignedQuote;
-    use solana_program::keccak;
-
-    fn encode_u48(ts: i64) -> [u8; 6] {
-        let bytes = ts.to_be_bytes();
-        let mut out = [0u8; 6];
-        out.copy_from_slice(&bytes[2..8]);
-        out
-    }
     fn encode_context(dest: u32, recipient: H256, amount: u64) -> Vec<u8> {
         let mut buf = Vec::with_capacity(44);
         buf.extend_from_slice(&dest.to_le_bytes());
@@ -1756,21 +1750,6 @@ async fn test_transfer_remote_with_transient_quote_native() {
             half_amount,
         }))
         .unwrap()
-    }
-    fn sign_hash(signing_key: &SigningKey, hash: &[u8; 32]) -> [u8; 65] {
-        let (sig, recovery_id) = signing_key
-            .sign_prehash_recoverable(hash)
-            .expect("signing failed");
-        let mut bytes = [0u8; 65];
-        bytes[..64].copy_from_slice(&sig.to_bytes());
-        bytes[64] = recovery_id.to_byte();
-        bytes
-    }
-    fn eth_address(signing_key: &SigningKey) -> hyperlane_core::H160 {
-        let verifying_key = k256::ecdsa::VerifyingKey::from(signing_key);
-        let pubkey_bytes = verifying_key.to_encoded_point(false);
-        let hash = keccak::hash(&pubkey_bytes.as_bytes()[1..]);
-        hyperlane_core::H160::from_slice(&hash.as_ref()[12..])
     }
 
     let program_id = hyperlane_sealevel_token_native_id();
@@ -2800,45 +2779,6 @@ async fn test_transfer_remote_with_fee_routing_mode() {
 /// native SOL transfers.
 #[tokio::test]
 async fn test_transfer_remote_igp_new_flow_standing_native() {
-    use k256::ecdsa::SigningKey;
-    use quote_verifier::SvmSignedQuote;
-    use solana_program::keccak;
-
-    fn encode_u48(ts: i64) -> [u8; 6] {
-        let mut out = [0u8; 6];
-        out.copy_from_slice(&ts.to_be_bytes()[2..8]);
-        out
-    }
-    fn encode_igp_context(fee_token_mint: &Pubkey, dest_domain: u32, sender: &Pubkey) -> Vec<u8> {
-        let mut buf = Vec::with_capacity(68);
-        buf.extend_from_slice(fee_token_mint.as_ref());
-        buf.extend_from_slice(&dest_domain.to_le_bytes());
-        buf.extend_from_slice(sender.as_ref());
-        buf
-    }
-    fn encode_igp_data(exchange_rate: u128, gas_price: u128, token_decimals: u8) -> Vec<u8> {
-        let mut buf = Vec::with_capacity(33);
-        buf.extend_from_slice(&exchange_rate.to_le_bytes());
-        buf.extend_from_slice(&gas_price.to_le_bytes());
-        buf.push(token_decimals);
-        buf
-    }
-    fn sign_hash(signing_key: &SigningKey, hash: &[u8; 32]) -> [u8; 65] {
-        let (sig, recovery_id) = signing_key
-            .sign_prehash_recoverable(hash)
-            .expect("signing failed");
-        let mut bytes = [0u8; 65];
-        bytes[..64].copy_from_slice(&sig.to_bytes());
-        bytes[64] = recovery_id.to_byte();
-        bytes
-    }
-    fn eth_address(signing_key: &SigningKey) -> hyperlane_core::H160 {
-        let verifying_key = k256::ecdsa::VerifyingKey::from(signing_key);
-        let pubkey_bytes = verifying_key.to_encoded_point(false);
-        let hash = keccak::hash(&pubkey_bytes.as_bytes()[1..]);
-        hyperlane_core::H160::from_slice(&hash.as_ref()[12..])
-    }
-
     let program_id = hyperlane_sealevel_token_native_id();
     let mailbox_program_id = mailbox_id();
 
@@ -2878,106 +2818,31 @@ async fn test_transfer_remote_igp_new_flow_standing_native() {
     .unwrap();
 
     // --- IGP quoting setup ---
-    let igp_signing_key = SigningKey::random(&mut rand::thread_rng());
-    let igp_signer_address = eth_address(&igp_signing_key);
-    let igp_domain_id: u32 = 42;
-
-    let igp_config = IgpFeeConfig {
-        signers: Default::default(),
-        domain_id: igp_domain_id,
-        min_issued_at: 0,
-    };
-    let ix = set_igp_quote_config_instruction(
-        igp_program_id(),
-        igp_accounts.igp,
-        payer.pubkey(),
-        Some(igp_config),
-    )
-    .unwrap();
-    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
-    banks_client
-        .process_transaction(Transaction::new_signed_with_payer(
-            &[ix],
-            Some(&payer.pubkey()),
-            &[&payer],
-            recent_blockhash,
-        ))
-        .await
-        .unwrap();
-
-    let ix = set_igp_quote_signer_instruction(
-        igp_program_id(),
-        igp_accounts.igp,
-        payer.pubkey(),
-        SetIgpQuoteSignerOperation::Add(igp_signer_address),
-    )
-    .unwrap();
-    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
-    banks_client
-        .process_transaction(Transaction::new_signed_with_payer(
-            &[ix],
-            Some(&payer.pubkey()),
-            &[&payer],
-            recent_blockhash,
-        ))
-        .await
-        .unwrap();
+    let igp_signing_key = setup_igp_new_flow(&mut banks_client, &payer, &igp_accounts.igp).await;
 
     // Submit a standing IGP quote with custom pricing.
     let igp_exchange_rate = 2 * TOKEN_EXCHANGE_RATE_SCALE;
     let igp_gas_price: u128 = 5;
     let igp_token_decimals: u8 = 9;
-    let igp_context = encode_igp_context(&Pubkey::default(), REMOTE_DOMAIN, &program_id);
-    let igp_data_bytes = encode_igp_data(igp_exchange_rate, igp_gas_price, igp_token_decimals);
-
-    let clock: solana_program::clock::Clock = banks_client.get_sysvar().await.unwrap();
-    let now = clock.unix_timestamp;
-
-    let mut igp_quote = SvmSignedQuote {
-        context: igp_context,
-        data: igp_data_bytes,
-        issued_at: encode_u48(now),
-        expiry: encode_u48(now + 3600),
-        client_salt: H256::random(),
-        signature: [0u8; 65],
-    };
-    let igp_scoped_salt = igp_quote.compute_scoped_salt(&payer.pubkey());
-    let igp_msg_hash =
-        igp_quote.build_message_hash(&igp_accounts.igp, igp_domain_id, &igp_scoped_salt);
-    igp_quote.signature = sign_hash(&igp_signing_key, igp_msg_hash.as_fixed_bytes());
-
-    let exact_standing_pda = {
-        let dest_le = REMOTE_DOMAIN.to_le_bytes();
-        let (pda, _) = Pubkey::find_program_address(
-            igp_standing_quote_pda_seeds!(
-                &igp_accounts.igp,
-                &Pubkey::default(),
-                &dest_le,
-                &program_id
-            ),
-            &igp_program_id(),
-        );
-        pda
-    };
-
-    let ix = submit_igp_quote_instruction(
-        igp_program_id(),
-        payer.pubkey(),
-        igp_accounts.igp,
-        exact_standing_pda,
-        igp_quote,
+    submit_standing_igp_quote(
+        &mut banks_client,
+        &payer,
+        &igp_accounts.igp,
+        &igp_signing_key,
+        REMOTE_DOMAIN,
+        &program_id,
+        igp_exchange_rate,
+        igp_gas_price,
+        igp_token_decimals,
     )
-    .unwrap();
-    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
-    banks_client
-        .process_transaction(Transaction::new_signed_with_payer(
-            &[ix],
-            Some(&payer.pubkey()),
-            &[&payer],
-            recent_blockhash,
-        ))
-        .await
-        .unwrap();
+    .await;
+
+    let exact_standing_pda = derive_igp_standing_quote_pda(
+        &igp_accounts.igp,
+        &Pubkey::default(),
+        REMOTE_DOMAIN,
+        &program_id,
+    );
 
     // --- TransferRemote with IGP new flow (no fees) ---
     let token_sender =
@@ -3078,45 +2943,6 @@ async fn test_transfer_remote_igp_new_flow_standing_native() {
 /// Isolates whether the IGP transient autoclose works with native SOL transfers.
 #[tokio::test]
 async fn test_transfer_remote_igp_new_flow_transient_native() {
-    use k256::ecdsa::SigningKey;
-    use quote_verifier::SvmSignedQuote;
-    use solana_program::keccak;
-
-    fn encode_u48(ts: i64) -> [u8; 6] {
-        let mut out = [0u8; 6];
-        out.copy_from_slice(&ts.to_be_bytes()[2..8]);
-        out
-    }
-    fn encode_igp_context(fee_token_mint: &Pubkey, dest_domain: u32, sender: &Pubkey) -> Vec<u8> {
-        let mut buf = Vec::with_capacity(68);
-        buf.extend_from_slice(fee_token_mint.as_ref());
-        buf.extend_from_slice(&dest_domain.to_le_bytes());
-        buf.extend_from_slice(sender.as_ref());
-        buf
-    }
-    fn encode_igp_data(exchange_rate: u128, gas_price: u128, token_decimals: u8) -> Vec<u8> {
-        let mut buf = Vec::with_capacity(33);
-        buf.extend_from_slice(&exchange_rate.to_le_bytes());
-        buf.extend_from_slice(&gas_price.to_le_bytes());
-        buf.push(token_decimals);
-        buf
-    }
-    fn sign_hash(signing_key: &SigningKey, hash: &[u8; 32]) -> [u8; 65] {
-        let (sig, recovery_id) = signing_key
-            .sign_prehash_recoverable(hash)
-            .expect("signing failed");
-        let mut bytes = [0u8; 65];
-        bytes[..64].copy_from_slice(&sig.to_bytes());
-        bytes[64] = recovery_id.to_byte();
-        bytes
-    }
-    fn eth_address(signing_key: &SigningKey) -> hyperlane_core::H160 {
-        let verifying_key = k256::ecdsa::VerifyingKey::from(signing_key);
-        let pubkey_bytes = verifying_key.to_encoded_point(false);
-        let hash = keccak::hash(&pubkey_bytes.as_bytes()[1..]);
-        hyperlane_core::H160::from_slice(&hash.as_ref()[12..])
-    }
-
     let program_id = hyperlane_sealevel_token_native_id();
     let mailbox_program_id = mailbox_id();
     let (mut banks_client, payer) = setup_client().await;
@@ -3155,50 +2981,7 @@ async fn test_transfer_remote_igp_new_flow_transient_native() {
     .unwrap();
 
     // IGP quoting setup.
-    let igp_signing_key = SigningKey::random(&mut rand::thread_rng());
-    let igp_signer_address = eth_address(&igp_signing_key);
-    let igp_domain_id: u32 = 42;
-
-    let igp_config = IgpFeeConfig {
-        signers: Default::default(),
-        domain_id: igp_domain_id,
-        min_issued_at: 0,
-    };
-    let ix = set_igp_quote_config_instruction(
-        igp_program_id(),
-        igp_accounts.igp,
-        payer.pubkey(),
-        Some(igp_config),
-    )
-    .unwrap();
-    let bh = banks_client.get_latest_blockhash().await.unwrap();
-    banks_client
-        .process_transaction(Transaction::new_signed_with_payer(
-            &[ix],
-            Some(&payer.pubkey()),
-            &[&payer],
-            bh,
-        ))
-        .await
-        .unwrap();
-
-    let ix = set_igp_quote_signer_instruction(
-        igp_program_id(),
-        igp_accounts.igp,
-        payer.pubkey(),
-        SetIgpQuoteSignerOperation::Add(igp_signer_address),
-    )
-    .unwrap();
-    let bh = banks_client.get_latest_blockhash().await.unwrap();
-    banks_client
-        .process_transaction(Transaction::new_signed_with_payer(
-            &[ix],
-            Some(&payer.pubkey()),
-            &[&payer],
-            bh,
-        ))
-        .await
-        .unwrap();
+    let igp_signing_key = setup_igp_new_flow(&mut banks_client, &payer, &igp_accounts.igp).await;
 
     // Fund sender.
     let token_sender =
@@ -3225,7 +3008,7 @@ async fn test_transfer_remote_igp_new_flow_transient_native() {
     };
     let igp_scoped_salt = igp_quote.compute_scoped_salt(&token_sender_pubkey);
     let igp_msg_hash =
-        igp_quote.build_message_hash(&igp_accounts.igp, igp_domain_id, &igp_scoped_salt);
+        igp_quote.build_message_hash(&igp_accounts.igp, IGP_DOMAIN_ID, &igp_scoped_salt);
     igp_quote.signature = sign_hash(&igp_signing_key, igp_msg_hash.as_fixed_bytes());
 
     let (igp_transient_pda, _) = Pubkey::find_program_address(
@@ -3343,15 +3126,6 @@ async fn test_transfer_remote_igp_new_flow_transient_native() {
 /// (not oracle), both PDAs autoclosed, and dispatch succeeded.
 #[tokio::test]
 async fn test_transfer_remote_fully_transient_fee_and_igp_native() {
-    use k256::ecdsa::SigningKey;
-    use quote_verifier::SvmSignedQuote;
-    use solana_program::keccak;
-
-    fn encode_u48(ts: i64) -> [u8; 6] {
-        let mut out = [0u8; 6];
-        out.copy_from_slice(&ts.to_be_bytes()[2..8]);
-        out
-    }
     fn encode_fee_context(dest: u32, recipient: H256, amount: u64) -> Vec<u8> {
         let mut buf = Vec::with_capacity(44);
         buf.extend_from_slice(&dest.to_le_bytes());
@@ -3365,35 +3139,6 @@ async fn test_transfer_remote_fully_transient_fee_and_igp_native() {
             half_amount,
         }))
         .unwrap()
-    }
-    fn encode_igp_context(fee_token_mint: &Pubkey, dest_domain: u32, sender: &Pubkey) -> Vec<u8> {
-        let mut buf = Vec::with_capacity(68);
-        buf.extend_from_slice(fee_token_mint.as_ref());
-        buf.extend_from_slice(&dest_domain.to_le_bytes());
-        buf.extend_from_slice(sender.as_ref());
-        buf
-    }
-    fn encode_igp_data(exchange_rate: u128, gas_price: u128, token_decimals: u8) -> Vec<u8> {
-        let mut buf = Vec::with_capacity(33);
-        buf.extend_from_slice(&exchange_rate.to_le_bytes());
-        buf.extend_from_slice(&gas_price.to_le_bytes());
-        buf.push(token_decimals);
-        buf
-    }
-    fn sign_hash(signing_key: &SigningKey, hash: &[u8; 32]) -> [u8; 65] {
-        let (sig, recovery_id) = signing_key
-            .sign_prehash_recoverable(hash)
-            .expect("signing failed");
-        let mut bytes = [0u8; 65];
-        bytes[..64].copy_from_slice(&sig.to_bytes());
-        bytes[64] = recovery_id.to_byte();
-        bytes
-    }
-    fn eth_address(signing_key: &SigningKey) -> hyperlane_core::H160 {
-        let verifying_key = k256::ecdsa::VerifyingKey::from(signing_key);
-        let pubkey_bytes = verifying_key.to_encoded_point(false);
-        let hash = keccak::hash(&pubkey_bytes.as_bytes()[1..]);
-        hyperlane_core::H160::from_slice(&hash.as_ref()[12..])
     }
 
     let program_id = hyperlane_sealevel_token_native_id();
@@ -3527,49 +3272,7 @@ async fn test_transfer_remote_fully_transient_fee_and_igp_native() {
     .await;
 
     // === IGP quoting setup ===
-    let igp_signing_key = SigningKey::random(&mut rand::thread_rng());
-    let igp_signer_address = eth_address(&igp_signing_key);
-    let igp_domain_id: u32 = 42;
-
-    let ix = set_igp_quote_config_instruction(
-        igp_program_id(),
-        igp_accounts.igp,
-        payer.pubkey(),
-        Some(IgpFeeConfig {
-            signers: Default::default(),
-            domain_id: igp_domain_id,
-            min_issued_at: 0,
-        }),
-    )
-    .unwrap();
-    let bh = banks_client.get_latest_blockhash().await.unwrap();
-    banks_client
-        .process_transaction(Transaction::new_signed_with_payer(
-            &[ix],
-            Some(&payer.pubkey()),
-            &[&payer],
-            bh,
-        ))
-        .await
-        .unwrap();
-
-    let ix = set_igp_quote_signer_instruction(
-        igp_program_id(),
-        igp_accounts.igp,
-        payer.pubkey(),
-        SetIgpQuoteSignerOperation::Add(igp_signer_address),
-    )
-    .unwrap();
-    let bh = banks_client.get_latest_blockhash().await.unwrap();
-    banks_client
-        .process_transaction(Transaction::new_signed_with_payer(
-            &[ix],
-            Some(&payer.pubkey()),
-            &[&payer],
-            bh,
-        ))
-        .await
-        .unwrap();
+    let igp_signing_key = setup_igp_new_flow(&mut banks_client, &payer, &igp_accounts.igp).await;
 
     // === Fund sender ===
     let token_sender =
@@ -3631,7 +3334,7 @@ async fn test_transfer_remote_fully_transient_fee_and_igp_native() {
     };
     let igp_scoped_salt = igp_quote.compute_scoped_salt(&token_sender_pubkey);
     let igp_msg_hash =
-        igp_quote.build_message_hash(&igp_accounts.igp, igp_domain_id, &igp_scoped_salt);
+        igp_quote.build_message_hash(&igp_accounts.igp, IGP_DOMAIN_ID, &igp_scoped_salt);
     igp_quote.signature = sign_hash(&igp_signing_key, igp_msg_hash.as_fixed_bytes());
 
     let (igp_transient_pda, _) = Pubkey::find_program_address(
@@ -3785,7 +3488,185 @@ async fn test_transfer_remote_fully_transient_fee_and_igp_native() {
 }
 
 // ========================================================================
-// IGP new flow: stricter assertion helper + missing tests
+// IGP new flow: shared helpers
+// ========================================================================
+
+fn encode_u48(ts: i64) -> [u8; 6] {
+    let mut out = [0u8; 6];
+    out.copy_from_slice(&ts.to_be_bytes()[2..8]);
+    out
+}
+
+fn encode_igp_context(fee_token_mint: &Pubkey, dest_domain: u32, sender: &Pubkey) -> Vec<u8> {
+    let mut buf = Vec::with_capacity(68);
+    buf.extend_from_slice(fee_token_mint.as_ref());
+    buf.extend_from_slice(&dest_domain.to_le_bytes());
+    buf.extend_from_slice(sender.as_ref());
+    buf
+}
+
+fn encode_igp_data(exchange_rate: u128, gas_price: u128, token_decimals: u8) -> Vec<u8> {
+    let mut buf = Vec::with_capacity(33);
+    buf.extend_from_slice(&exchange_rate.to_le_bytes());
+    buf.extend_from_slice(&gas_price.to_le_bytes());
+    buf.push(token_decimals);
+    buf
+}
+
+fn sign_hash(signing_key: &SigningKey, hash: &[u8; 32]) -> [u8; 65] {
+    let (sig, recovery_id) = signing_key
+        .sign_prehash_recoverable(hash)
+        .expect("signing failed");
+    let mut bytes = [0u8; 65];
+    bytes[..64].copy_from_slice(&sig.to_bytes());
+    bytes[64] = recovery_id.to_byte();
+    bytes
+}
+
+fn eth_address(signing_key: &SigningKey) -> H160 {
+    let verifying_key = VerifyingKey::from(signing_key);
+    let pubkey_bytes = verifying_key.to_encoded_point(false);
+    let hash = solana_program::keccak::hash(&pubkey_bytes.as_bytes()[1..]);
+    H160::from_slice(&hash.as_ref()[12..])
+}
+
+#[allow(clippy::too_many_arguments)]
+fn make_signed_igp_quote(
+    signing_key: &SigningKey,
+    igp_key: &Pubkey,
+    domain_id: u32,
+    payer: &Pubkey,
+    context: Vec<u8>,
+    data: Vec<u8>,
+    issued_at: i64,
+    expiry: i64,
+) -> SvmSignedQuote {
+    let client_salt = H256::random();
+    let mut quote = SvmSignedQuote {
+        context,
+        data,
+        issued_at: encode_u48(issued_at),
+        expiry: encode_u48(expiry),
+        client_salt,
+        signature: [0u8; 65],
+    };
+    let scoped_salt = quote.compute_scoped_salt(payer);
+    let message_hash = quote.build_message_hash(igp_key, domain_id, &scoped_salt);
+    quote.signature = sign_hash(signing_key, message_hash.as_fixed_bytes());
+    quote
+}
+
+fn derive_igp_standing_quote_pda(
+    igp_key: &Pubkey,
+    fee_token_mint: &Pubkey,
+    dest_domain: u32,
+    sender: &Pubkey,
+) -> Pubkey {
+    let dest_le = dest_domain.to_le_bytes();
+    Pubkey::find_program_address(
+        igp_standing_quote_pda_seeds!(igp_key, fee_token_mint, &dest_le, sender),
+        &igp_program_id(),
+    )
+    .0
+}
+
+/// Enables IGP quoting and adds a signer. Returns the signing key.
+async fn setup_igp_new_flow(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    igp_key: &Pubkey,
+) -> SigningKey {
+    let config = IgpFeeConfig {
+        signers: Default::default(),
+        domain_id: IGP_DOMAIN_ID,
+        min_issued_at: 0,
+    };
+    let ix =
+        set_igp_quote_config_instruction(igp_program_id(), *igp_key, payer.pubkey(), Some(config))
+            .unwrap();
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&payer.pubkey()),
+            &[payer],
+            recent_blockhash,
+        ))
+        .await
+        .unwrap();
+
+    let signing_key = SigningKey::random(&mut rand::thread_rng());
+    let signer_addr = eth_address(&signing_key);
+    let ix = set_igp_quote_signer_instruction(
+        igp_program_id(),
+        *igp_key,
+        payer.pubkey(),
+        SetIgpQuoteSignerOperation::Add(signer_addr),
+    )
+    .unwrap();
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&payer.pubkey()),
+            &[payer],
+            recent_blockhash,
+        ))
+        .await
+        .unwrap();
+
+    signing_key
+}
+
+/// Submits a standing IGP quote for (dest_domain, sender) with given pricing.
+#[allow(clippy::too_many_arguments)]
+async fn submit_standing_igp_quote(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    igp_key: &Pubkey,
+    signing_key: &SigningKey,
+    dest_domain: u32,
+    sender: &Pubkey,
+    exchange_rate: u128,
+    gas_price: u128,
+    token_decimals: u8,
+) {
+    let fee_token_mint = Pubkey::default();
+    let context = encode_igp_context(&fee_token_mint, dest_domain, sender);
+    let data = encode_igp_data(exchange_rate, gas_price, token_decimals);
+
+    let clock: solana_program::clock::Clock = banks_client.get_sysvar().await.unwrap();
+    let now = clock.unix_timestamp;
+
+    let quote = make_signed_igp_quote(
+        signing_key,
+        igp_key,
+        IGP_DOMAIN_ID,
+        &payer.pubkey(),
+        context,
+        data,
+        now,
+        now + 3600,
+    );
+
+    let quote_pda = derive_igp_standing_quote_pda(igp_key, &fee_token_mint, dest_domain, sender);
+    let ix =
+        submit_igp_quote_instruction(igp_program_id(), payer.pubkey(), *igp_key, quote_pda, quote)
+            .unwrap();
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&payer.pubkey()),
+            &[payer],
+            recent_blockhash,
+        ))
+        .await
+        .unwrap();
+}
+
+// ========================================================================
+// IGP new flow: stricter assertion helper + tests
 // ========================================================================
 
 #[allow(clippy::too_many_arguments)]
@@ -3837,60 +3718,9 @@ async fn assert_igp_gas_payment(
     assert_eq!(gas_payment.data.payment, expected_payment);
 }
 
-fn derive_igp_standing_quote_pda(
-    igp_key: &Pubkey,
-    fee_token_mint: &Pubkey,
-    dest_domain: u32,
-    sender: &Pubkey,
-) -> Pubkey {
-    let dest_le = dest_domain.to_le_bytes();
-    Pubkey::find_program_address(
-        igp_standing_quote_pda_seeds!(igp_key, fee_token_mint, &dest_le, sender),
-        &igp_program_id(),
-    )
-    .0
-}
-
 /// Cascade: exact PDA uninitialized, wildcard-sender resolves.
 #[tokio::test]
 async fn test_transfer_remote_igp_new_flow_cascade_wildcard_sender_native() {
-    use k256::ecdsa::SigningKey;
-    use quote_verifier::SvmSignedQuote;
-    use solana_program::keccak;
-
-    fn encode_u48(ts: i64) -> [u8; 6] {
-        let mut o = [0u8; 6];
-        o.copy_from_slice(&ts.to_be_bytes()[2..8]);
-        o
-    }
-    fn encode_igp_context(m: &Pubkey, d: u32, s: &Pubkey) -> Vec<u8> {
-        let mut b = Vec::with_capacity(68);
-        b.extend_from_slice(m.as_ref());
-        b.extend_from_slice(&d.to_le_bytes());
-        b.extend_from_slice(s.as_ref());
-        b
-    }
-    fn encode_igp_data(r: u128, p: u128, d: u8) -> Vec<u8> {
-        let mut b = Vec::with_capacity(33);
-        b.extend_from_slice(&r.to_le_bytes());
-        b.extend_from_slice(&p.to_le_bytes());
-        b.push(d);
-        b
-    }
-    fn sign_hash(k: &SigningKey, h: &[u8; 32]) -> [u8; 65] {
-        let (s, r) = k.sign_prehash_recoverable(h).unwrap();
-        let mut b = [0u8; 65];
-        b[..64].copy_from_slice(&s.to_bytes());
-        b[64] = r.to_byte();
-        b
-    }
-    fn eth_address(k: &SigningKey) -> hyperlane_core::H160 {
-        let v = k256::ecdsa::VerifyingKey::from(k);
-        let p = v.to_encoded_point(false);
-        let h = keccak::hash(&p.as_bytes()[1..]);
-        hyperlane_core::H160::from_slice(&h.as_ref()[12..])
-    }
-
     let program_id = hyperlane_sealevel_token_native_id();
     let (mut banks_client, payer) = setup_client().await;
     let mailbox_accounts = initialize_mailbox(
@@ -3923,89 +3753,29 @@ async fn test_transfer_remote_igp_new_flow_cascade_wildcard_sender_native() {
     .unwrap();
 
     // IGP quoting.
-    let igp_config = IgpFeeConfig {
-        signers: Default::default(),
-        domain_id: 42,
-        min_issued_at: 0,
-    };
-    let ix = set_igp_quote_config_instruction(
-        igp_program_id(),
-        igp_accounts.igp,
-        payer.pubkey(),
-        Some(igp_config),
-    )
-    .unwrap();
-    let bh = banks_client.get_latest_blockhash().await.unwrap();
-    banks_client
-        .process_transaction(Transaction::new_signed_with_payer(
-            &[ix],
-            Some(&payer.pubkey()),
-            &[&payer],
-            bh,
-        ))
-        .await
-        .unwrap();
-
-    let signing_key = SigningKey::random(&mut rand::thread_rng());
-    let ix = set_igp_quote_signer_instruction(
-        igp_program_id(),
-        igp_accounts.igp,
-        payer.pubkey(),
-        SetIgpQuoteSignerOperation::Add(eth_address(&signing_key)),
-    )
-    .unwrap();
-    let bh = banks_client.get_latest_blockhash().await.unwrap();
-    banks_client
-        .process_transaction(Transaction::new_signed_with_payer(
-            &[ix],
-            Some(&payer.pubkey()),
-            &[&payer],
-            bh,
-        ))
-        .await
-        .unwrap();
+    let signing_key = setup_igp_new_flow(&mut banks_client, &payer, &igp_accounts.igp).await;
 
     let qer = 3 * TOKEN_EXCHANGE_RATE_SCALE;
     let qgp: u128 = 7;
     // Submit wildcard-sender quote.
-    let ctx = encode_igp_context(&Pubkey::default(), REMOTE_DOMAIN, &WILDCARD_SENDER);
-    let data = encode_igp_data(qer, qgp, 9);
-    let clock: solana_program::clock::Clock = banks_client.get_sysvar().await.unwrap();
-    let mut q = SvmSignedQuote {
-        context: ctx,
-        data,
-        issued_at: encode_u48(clock.unix_timestamp),
-        expiry: encode_u48(clock.unix_timestamp + 3600),
-        client_salt: H256::random(),
-        signature: [0u8; 65],
-    };
-    let ss = q.compute_scoped_salt(&payer.pubkey());
-    let mh = q.build_message_hash(&igp_accounts.igp, 42, &ss);
-    q.signature = sign_hash(&signing_key, mh.as_fixed_bytes());
+    submit_standing_igp_quote(
+        &mut banks_client,
+        &payer,
+        &igp_accounts.igp,
+        &signing_key,
+        REMOTE_DOMAIN,
+        &WILDCARD_SENDER,
+        qer,
+        qgp,
+        9,
+    )
+    .await;
     let ws_pda = derive_igp_standing_quote_pda(
         &igp_accounts.igp,
         &Pubkey::default(),
         REMOTE_DOMAIN,
         &WILDCARD_SENDER,
     );
-    let ix = submit_igp_quote_instruction(
-        igp_program_id(),
-        payer.pubkey(),
-        igp_accounts.igp,
-        ws_pda,
-        q,
-    )
-    .unwrap();
-    let bh = banks_client.get_latest_blockhash().await.unwrap();
-    banks_client
-        .process_transaction(Transaction::new_signed_with_payer(
-            &[ix],
-            Some(&payer.pubkey()),
-            &[&payer],
-            bh,
-        ))
-        .await
-        .unwrap();
 
     let exact_pda = derive_igp_standing_quote_pda(
         &igp_accounts.igp,
@@ -4084,15 +3854,6 @@ async fn test_transfer_remote_igp_new_flow_cascade_wildcard_sender_native() {
 /// Cascade: all 3 uninitialized, falls back to oracle.
 #[tokio::test]
 async fn test_transfer_remote_igp_new_flow_cascade_oracle_fallback_native() {
-    use k256::ecdsa::SigningKey;
-    use solana_program::keccak;
-    fn eth_address(k: &SigningKey) -> hyperlane_core::H160 {
-        let v = k256::ecdsa::VerifyingKey::from(k);
-        let p = v.to_encoded_point(false);
-        let h = keccak::hash(&p.as_bytes()[1..]);
-        hyperlane_core::H160::from_slice(&h.as_ref()[12..])
-    }
-
     let program_id = hyperlane_sealevel_token_native_id();
     let (mut banks_client, payer) = setup_client().await;
     let mailbox_accounts = initialize_mailbox(
@@ -4125,46 +3886,7 @@ async fn test_transfer_remote_igp_new_flow_cascade_oracle_fallback_native() {
     .unwrap();
 
     // Enable quoting but don't submit any quotes.
-    let igp_config = IgpFeeConfig {
-        signers: Default::default(),
-        domain_id: 42,
-        min_issued_at: 0,
-    };
-    let ix = set_igp_quote_config_instruction(
-        igp_program_id(),
-        igp_accounts.igp,
-        payer.pubkey(),
-        Some(igp_config),
-    )
-    .unwrap();
-    let bh = banks_client.get_latest_blockhash().await.unwrap();
-    banks_client
-        .process_transaction(Transaction::new_signed_with_payer(
-            &[ix],
-            Some(&payer.pubkey()),
-            &[&payer],
-            bh,
-        ))
-        .await
-        .unwrap();
-    let signing_key = SigningKey::random(&mut rand::thread_rng());
-    let ix = set_igp_quote_signer_instruction(
-        igp_program_id(),
-        igp_accounts.igp,
-        payer.pubkey(),
-        SetIgpQuoteSignerOperation::Add(eth_address(&signing_key)),
-    )
-    .unwrap();
-    let bh = banks_client.get_latest_blockhash().await.unwrap();
-    banks_client
-        .process_transaction(Transaction::new_signed_with_payer(
-            &[ix],
-            Some(&payer.pubkey()),
-            &[&payer],
-            bh,
-        ))
-        .await
-        .unwrap();
+    let _signing_key = setup_igp_new_flow(&mut banks_client, &payer, &igp_accounts.igp).await;
 
     let exact_pda = derive_igp_standing_quote_pda(
         &igp_accounts.igp,
@@ -4256,43 +3978,6 @@ async fn test_transfer_remote_igp_new_flow_cascade_oracle_fallback_native() {
 /// OverheadIgp with gas overhead applies to quoted payment.
 #[tokio::test]
 async fn test_transfer_remote_igp_new_flow_with_overhead_native() {
-    use k256::ecdsa::SigningKey;
-    use quote_verifier::SvmSignedQuote;
-    use solana_program::keccak;
-
-    fn encode_u48(ts: i64) -> [u8; 6] {
-        let mut o = [0u8; 6];
-        o.copy_from_slice(&ts.to_be_bytes()[2..8]);
-        o
-    }
-    fn encode_igp_context(m: &Pubkey, d: u32, s: &Pubkey) -> Vec<u8> {
-        let mut b = Vec::with_capacity(68);
-        b.extend_from_slice(m.as_ref());
-        b.extend_from_slice(&d.to_le_bytes());
-        b.extend_from_slice(s.as_ref());
-        b
-    }
-    fn encode_igp_data(r: u128, p: u128, d: u8) -> Vec<u8> {
-        let mut b = Vec::with_capacity(33);
-        b.extend_from_slice(&r.to_le_bytes());
-        b.extend_from_slice(&p.to_le_bytes());
-        b.push(d);
-        b
-    }
-    fn sign_hash(k: &SigningKey, h: &[u8; 32]) -> [u8; 65] {
-        let (s, r) = k.sign_prehash_recoverable(h).unwrap();
-        let mut b = [0u8; 65];
-        b[..64].copy_from_slice(&s.to_bytes());
-        b[64] = r.to_byte();
-        b
-    }
-    fn eth_address(k: &SigningKey) -> hyperlane_core::H160 {
-        let v = k256::ecdsa::VerifyingKey::from(k);
-        let p = v.to_encoded_point(false);
-        let h = keccak::hash(&p.as_bytes()[1..]);
-        hyperlane_core::H160::from_slice(&h.as_ref()[12..])
-    }
-
     let program_id = hyperlane_sealevel_token_native_id();
     let (mut banks_client, payer) = setup_client().await;
     let mailbox_accounts = initialize_mailbox(
@@ -4349,87 +4034,29 @@ async fn test_transfer_remote_igp_new_flow_with_overhead_native() {
         .unwrap();
 
     // IGP quoting.
-    let igp_config = IgpFeeConfig {
-        signers: Default::default(),
-        domain_id: 42,
-        min_issued_at: 0,
-    };
-    let ix = set_igp_quote_config_instruction(
-        igp_program_id(),
-        igp_accounts.igp,
-        payer.pubkey(),
-        Some(igp_config),
-    )
-    .unwrap();
-    let bh = banks_client.get_latest_blockhash().await.unwrap();
-    banks_client
-        .process_transaction(Transaction::new_signed_with_payer(
-            &[ix],
-            Some(&payer.pubkey()),
-            &[&payer],
-            bh,
-        ))
-        .await
-        .unwrap();
-    let signing_key = SigningKey::random(&mut rand::thread_rng());
-    let ix = set_igp_quote_signer_instruction(
-        igp_program_id(),
-        igp_accounts.igp,
-        payer.pubkey(),
-        SetIgpQuoteSignerOperation::Add(eth_address(&signing_key)),
-    )
-    .unwrap();
-    let bh = banks_client.get_latest_blockhash().await.unwrap();
-    banks_client
-        .process_transaction(Transaction::new_signed_with_payer(
-            &[ix],
-            Some(&payer.pubkey()),
-            &[&payer],
-            bh,
-        ))
-        .await
-        .unwrap();
+    let signing_key = setup_igp_new_flow(&mut banks_client, &payer, &igp_accounts.igp).await;
 
     let qer = 2 * TOKEN_EXCHANGE_RATE_SCALE;
     let qgp: u128 = 5;
-    let ctx_bytes = encode_igp_context(&Pubkey::default(), REMOTE_DOMAIN, &program_id);
-    let data_bytes = encode_igp_data(qer, qgp, 9);
-    let clock: solana_program::clock::Clock = banks_client.get_sysvar().await.unwrap();
-    let mut q = SvmSignedQuote {
-        context: ctx_bytes,
-        data: data_bytes,
-        issued_at: encode_u48(clock.unix_timestamp),
-        expiry: encode_u48(clock.unix_timestamp + 3600),
-        client_salt: H256::random(),
-        signature: [0u8; 65],
-    };
-    let ss = q.compute_scoped_salt(&payer.pubkey());
-    let mh = q.build_message_hash(&igp_accounts.igp, 42, &ss);
-    q.signature = sign_hash(&signing_key, mh.as_fixed_bytes());
+    submit_standing_igp_quote(
+        &mut banks_client,
+        &payer,
+        &igp_accounts.igp,
+        &signing_key,
+        REMOTE_DOMAIN,
+        &program_id,
+        qer,
+        qgp,
+        9,
+    )
+    .await;
+
     let exact_pda = derive_igp_standing_quote_pda(
         &igp_accounts.igp,
         &Pubkey::default(),
         REMOTE_DOMAIN,
         &program_id,
     );
-    let ix = submit_igp_quote_instruction(
-        igp_program_id(),
-        payer.pubkey(),
-        igp_accounts.igp,
-        exact_pda,
-        q,
-    )
-    .unwrap();
-    let bh = banks_client.get_latest_blockhash().await.unwrap();
-    banks_client
-        .process_transaction(Transaction::new_signed_with_payer(
-            &[ix],
-            Some(&payer.pubkey()),
-            &[&payer],
-            bh,
-        ))
-        .await
-        .unwrap();
 
     let token_sender =
         new_funded_keypair(&mut banks_client, &payer, 100 * ONE_SOL_IN_LAMPORTS).await;
@@ -4502,43 +4129,6 @@ async fn test_transfer_remote_igp_new_flow_with_overhead_native() {
 /// Cascade: exact + ws uninitialized, wildcard-domain resolves.
 #[tokio::test]
 async fn test_transfer_remote_igp_new_flow_cascade_wildcard_domain_native() {
-    use k256::ecdsa::SigningKey;
-    use quote_verifier::SvmSignedQuote;
-    use solana_program::keccak;
-
-    fn encode_u48(ts: i64) -> [u8; 6] {
-        let mut o = [0u8; 6];
-        o.copy_from_slice(&ts.to_be_bytes()[2..8]);
-        o
-    }
-    fn encode_igp_context(m: &Pubkey, d: u32, s: &Pubkey) -> Vec<u8> {
-        let mut b = Vec::with_capacity(68);
-        b.extend_from_slice(m.as_ref());
-        b.extend_from_slice(&d.to_le_bytes());
-        b.extend_from_slice(s.as_ref());
-        b
-    }
-    fn encode_igp_data(r: u128, p: u128, d: u8) -> Vec<u8> {
-        let mut b = Vec::with_capacity(33);
-        b.extend_from_slice(&r.to_le_bytes());
-        b.extend_from_slice(&p.to_le_bytes());
-        b.push(d);
-        b
-    }
-    fn sign_hash(k: &SigningKey, h: &[u8; 32]) -> [u8; 65] {
-        let (s, r) = k.sign_prehash_recoverable(h).unwrap();
-        let mut b = [0u8; 65];
-        b[..64].copy_from_slice(&s.to_bytes());
-        b[64] = r.to_byte();
-        b
-    }
-    fn eth_address(k: &SigningKey) -> hyperlane_core::H160 {
-        let v = k256::ecdsa::VerifyingKey::from(k);
-        let p = v.to_encoded_point(false);
-        let h = keccak::hash(&p.as_bytes()[1..]);
-        hyperlane_core::H160::from_slice(&h.as_ref()[12..])
-    }
-
     let program_id = hyperlane_sealevel_token_native_id();
     let (mut banks_client, payer) = setup_client().await;
     let mailbox_accounts = initialize_mailbox(
@@ -4571,90 +4161,30 @@ async fn test_transfer_remote_igp_new_flow_cascade_wildcard_domain_native() {
     .unwrap();
 
     // IGP quoting.
-    let igp_config = IgpFeeConfig {
-        signers: Default::default(),
-        domain_id: 42,
-        min_issued_at: 0,
-    };
-    let ix = set_igp_quote_config_instruction(
-        igp_program_id(),
-        igp_accounts.igp,
-        payer.pubkey(),
-        Some(igp_config),
-    )
-    .unwrap();
-    let bh = banks_client.get_latest_blockhash().await.unwrap();
-    banks_client
-        .process_transaction(Transaction::new_signed_with_payer(
-            &[ix],
-            Some(&payer.pubkey()),
-            &[&payer],
-            bh,
-        ))
-        .await
-        .unwrap();
-
-    let signing_key = SigningKey::random(&mut rand::thread_rng());
-    let ix = set_igp_quote_signer_instruction(
-        igp_program_id(),
-        igp_accounts.igp,
-        payer.pubkey(),
-        SetIgpQuoteSignerOperation::Add(eth_address(&signing_key)),
-    )
-    .unwrap();
-    let bh = banks_client.get_latest_blockhash().await.unwrap();
-    banks_client
-        .process_transaction(Transaction::new_signed_with_payer(
-            &[ix],
-            Some(&payer.pubkey()),
-            &[&payer],
-            bh,
-        ))
-        .await
-        .unwrap();
+    let signing_key = setup_igp_new_flow(&mut banks_client, &payer, &igp_accounts.igp).await;
 
     let qer = 4 * TOKEN_EXCHANGE_RATE_SCALE;
     let qgp: u128 = 3;
     // Submit wildcard-domain quote only.
-    let ctx_bytes = encode_igp_context(&Pubkey::default(), IGP_WILDCARD_DOMAIN, &program_id);
-    let data_bytes = encode_igp_data(qer, qgp, 9);
-    let clock: solana_program::clock::Clock = banks_client.get_sysvar().await.unwrap();
-    let mut q = SvmSignedQuote {
-        context: ctx_bytes,
-        data: data_bytes,
-        issued_at: encode_u48(clock.unix_timestamp),
-        expiry: encode_u48(clock.unix_timestamp + 3600),
-        client_salt: H256::random(),
-        signature: [0u8; 65],
-    };
-    let ss = q.compute_scoped_salt(&payer.pubkey());
-    let mh = q.build_message_hash(&igp_accounts.igp, 42, &ss);
-    q.signature = sign_hash(&signing_key, mh.as_fixed_bytes());
+    submit_standing_igp_quote(
+        &mut banks_client,
+        &payer,
+        &igp_accounts.igp,
+        &signing_key,
+        IGP_WILDCARD_DOMAIN,
+        &program_id,
+        qer,
+        qgp,
+        9,
+    )
+    .await;
+
     let wd_pda = derive_igp_standing_quote_pda(
         &igp_accounts.igp,
         &Pubkey::default(),
         IGP_WILDCARD_DOMAIN,
         &program_id,
     );
-    let ix = submit_igp_quote_instruction(
-        igp_program_id(),
-        payer.pubkey(),
-        igp_accounts.igp,
-        wd_pda,
-        q,
-    )
-    .unwrap();
-    let bh = banks_client.get_latest_blockhash().await.unwrap();
-    banks_client
-        .process_transaction(Transaction::new_signed_with_payer(
-            &[ix],
-            Some(&payer.pubkey()),
-            &[&payer],
-            bh,
-        ))
-        .await
-        .unwrap();
-
     let exact_pda = derive_igp_standing_quote_pda(
         &igp_accounts.igp,
         &Pubkey::default(),
