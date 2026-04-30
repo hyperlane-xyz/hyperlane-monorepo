@@ -156,7 +156,7 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     /// Whether this operation is ready to be attempted.
     fn is_ready(&self) -> bool {
         self.next_attempt_after()
-            .map_or(true, |t| Instant::now() >= t)
+            .is_none_or(|t| Instant::now() >= t)
     }
 
     /// Set the next time this operation should be attempted.
