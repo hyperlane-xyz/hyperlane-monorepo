@@ -1358,3 +1358,79 @@ async fn test_routed_wildcard_transient_rejected() {
         ),
     );
 }
+
+/// C-3: Transient quote with mismatched curve variant must be rejected at QuoteFee.
+#[tokio::test]
+async fn test_transient_curve_variant_mismatch_rejected() {
+    let (mut banks_client, payer) = setup_client().await;
+    let signing_key = SigningKey::random(&mut rand::thread_rng());
+    let signer_address = eth_address(&signing_key);
+
+    // On-chain uses Linear.
+    let fee_key = init_fee_account(
+        &mut banks_client,
+        &payer,
+        default_salt(),
+        payer.pubkey(),
+        FeeData::Leaf(LeafFeeConfig {
+            strategy: FeeDataStrategy::Linear(FeeParams {
+                max_fee: 100,
+                half_amount: 50,
+            }),
+            signers: Some(BTreeSet::new()),
+        }),
+    )
+    .await;
+
+    let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
+    process_tx(&mut banks_client, &payer, ix, &[])
+        .await
+        .unwrap();
+
+    // Submit transient quote with Regressive (mismatched variant).
+    let dest = 42u32;
+    let recipient = H256::zero();
+    let amount = 1000u64;
+    let context = encode_context(dest, recipient, amount);
+    let data = encode_data(&FeeDataStrategy::Regressive(FeeParams {
+        max_fee: 2000,
+        half_amount: 1000,
+    }));
+
+    let quote = make_signed_transient_quote(
+        &signing_key,
+        &fee_key,
+        LOCAL_DOMAIN,
+        &payer.pubkey(),
+        context,
+        data,
+        encode_u48(100),
+    );
+    let submit_ix = build_submit_transient_ix(&fee_key, &payer.pubkey(), &quote);
+    process_tx(&mut banks_client, &payer, submit_ix, &[])
+        .await
+        .unwrap();
+
+    // QuoteFee should fail with CurveVariantMismatch.
+    let scoped_salt = quote.compute_scoped_salt(&payer.pubkey());
+    let (transient_pda, _) = Pubkey::find_program_address(
+        transient_quote_pda_seeds!(fee_key, scoped_salt),
+        &fee_program_id(),
+    );
+    let quote_ix = build_quote_fee_with_transient_ix(
+        &fee_key,
+        &payer.pubkey(),
+        &transient_pda,
+        dest,
+        recipient,
+        amount,
+    );
+    let result = process_tx(&mut banks_client, &payer, quote_ix, &[]).await;
+    assert_tx_error(
+        result,
+        TransactionError::InstructionError(
+            0,
+            InstructionError::Custom(FeeError::CurveVariantMismatch as u32),
+        ),
+    );
+}

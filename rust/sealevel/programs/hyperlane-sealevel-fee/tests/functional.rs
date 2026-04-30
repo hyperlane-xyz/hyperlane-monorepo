@@ -1310,6 +1310,94 @@ mod set_route {
         let result = process_tx(&mut banks_client, &non_owner, ix, &[]).await;
         assert!(result.is_err());
     }
+
+    #[tokio::test]
+    async fn test_set_route_resets_standing_quotes() {
+        let (mut banks_client, payer) = setup_client().await;
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let signer_address = eth_address(&signing_key);
+
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            payer.pubkey(),
+            FeeData::Routing(RoutingFeeConfig {
+                wildcard_signers: BTreeSet::new(),
+            }),
+        )
+        .await;
+
+        let domain = 42u32;
+        let strategy = FeeDataStrategy::Linear(FeeParams {
+            max_fee: 100,
+            half_amount: 50,
+        });
+        let ix = build_set_route_ix(&fee_key, &payer.pubkey(), domain, strategy);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Add signer to the route PDA.
+        let ix = build_add_quote_signer_ix_with_route(
+            &fee_key,
+            &payer.pubkey(),
+            signer_address,
+            Some(instruction::RouteKey::Domain(domain)),
+        );
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Submit a standing quote for that domain.
+        let recipient = H256::zero();
+        let context = encode_standing_context(domain, recipient);
+        let data = encode_linear_data(5000, 2500);
+
+        let quote = make_signed_standing_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            context,
+            data,
+            encode_u48(100),
+            encode_u48(9999999999),
+        );
+        let ix = build_submit_standing_ix_with_routes(
+            &fee_key,
+            &payer.pubkey(),
+            &quote,
+            domain,
+            &H256::zero(),
+            &[route_pda_for(&fee_key, domain)],
+        );
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Verify standing quote exists.
+        let domain_pda = standing_quote_pda_for(&fee_key, domain);
+        let standing = fetch_standing_pda(&mut banks_client, domain_pda).await;
+        assert_eq!(standing.quotes.len(), 1);
+
+        // Update the route — this should reset (empty) the standing quote PDA.
+        let new_strategy = FeeDataStrategy::Regressive(FeeParams {
+            max_fee: 200,
+            half_amount: 100,
+        });
+        let ix = build_set_route_ix(&fee_key, &payer.pubkey(), domain, new_strategy);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Verify standing quote PDA is now empty.
+        let standing = fetch_standing_pda(&mut banks_client, domain_pda).await;
+        assert!(
+            standing.quotes.is_empty(),
+            "Standing quotes must be reset after route update"
+        );
+    }
 }
 
 mod remove_route {
@@ -1468,6 +1556,92 @@ mod remove_route {
         let ix = build_remove_route_ix(&fee_key, &non_owner.pubkey(), 42);
         let result = process_tx(&mut banks_client, &non_owner, ix, &[]).await;
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_remove_route_closes_standing_quotes() {
+        let (mut banks_client, payer) = setup_client().await;
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let signer_address = eth_address(&signing_key);
+
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            payer.pubkey(),
+            FeeData::Routing(RoutingFeeConfig {
+                wildcard_signers: BTreeSet::new(),
+            }),
+        )
+        .await;
+
+        let domain = 42u32;
+        let ix = build_set_route_ix(
+            &fee_key,
+            &payer.pubkey(),
+            domain,
+            FeeDataStrategy::Linear(FeeParams {
+                max_fee: 100,
+                half_amount: 50,
+            }),
+        );
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Add signer and submit standing quote.
+        let ix = build_add_quote_signer_ix_with_route(
+            &fee_key,
+            &payer.pubkey(),
+            signer_address,
+            Some(instruction::RouteKey::Domain(domain)),
+        );
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let recipient = H256::zero();
+        let context = encode_standing_context(domain, recipient);
+        let data = encode_linear_data(5000, 2500);
+        let quote = make_signed_standing_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            context,
+            data,
+            encode_u48(100),
+            encode_u48(9999999999),
+        );
+        let ix = build_submit_standing_ix_with_routes(
+            &fee_key,
+            &payer.pubkey(),
+            &quote,
+            domain,
+            &H256::zero(),
+            &[route_pda_for(&fee_key, domain)],
+        );
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Verify standing quote PDA exists.
+        let domain_pda = standing_quote_pda_for(&fee_key, domain);
+        let account = banks_client.get_account(domain_pda).await.unwrap();
+        assert!(account.is_some());
+
+        // Remove the route.
+        let ix = build_remove_route_ix(&fee_key, &payer.pubkey(), domain);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Verify standing quote PDA was closed.
+        let account = banks_client.get_account(domain_pda).await.unwrap();
+        assert!(
+            account.is_none() || account.unwrap().data.is_empty(),
+            "Standing quote PDA must be closed after route removal"
+        );
     }
 }
 
@@ -2258,6 +2432,248 @@ mod add_quote_signer {
             result,
             TransactionError::InstructionError(0, InstructionError::InvalidArgument),
         );
+    }
+
+    #[tokio::test]
+    async fn test_add_on_leaf_with_no_signers_fails() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            payer.pubkey(),
+            FeeData::Leaf(LeafFeeConfig {
+                strategy: FeeDataStrategy::Linear(FeeParams {
+                    max_fee: 100,
+                    half_amount: 50,
+                }),
+                signers: None, // on-chain-only
+            }),
+        )
+        .await;
+
+        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), H160::random());
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::OffchainQuotingNotConfigured as u32),
+            ),
+        );
+    }
+
+    #[tokio::test]
+    async fn test_add_signer_to_domain_route() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            payer.pubkey(),
+            FeeData::Routing(RoutingFeeConfig {
+                wildcard_signers: BTreeSet::new(),
+            }),
+        )
+        .await;
+
+        let domain = 42u32;
+        let ix = build_set_route_ix(
+            &fee_key,
+            &payer.pubkey(),
+            domain,
+            FeeDataStrategy::Linear(FeeParams {
+                max_fee: 100,
+                half_amount: 50,
+            }),
+        );
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let signer = H160::random();
+        let ix = build_add_quote_signer_ix_with_route(
+            &fee_key,
+            &payer.pubkey(),
+            signer,
+            Some(instruction::RouteKey::Domain(domain)),
+        );
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let route = fetch_route_domain(&mut banks_client, route_pda_for(&fee_key, domain)).await;
+        assert!(route.signers.as_ref().unwrap().contains(&signer));
+        assert_eq!(route.signers.as_ref().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_remove_signer_from_domain_route() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            payer.pubkey(),
+            FeeData::Routing(RoutingFeeConfig {
+                wildcard_signers: BTreeSet::new(),
+            }),
+        )
+        .await;
+
+        let domain = 42u32;
+        let ix = build_set_route_ix(
+            &fee_key,
+            &payer.pubkey(),
+            domain,
+            FeeDataStrategy::Linear(FeeParams {
+                max_fee: 100,
+                half_amount: 50,
+            }),
+        );
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let signer = H160::random();
+        let ix = build_add_quote_signer_ix_with_route(
+            &fee_key,
+            &payer.pubkey(),
+            signer,
+            Some(instruction::RouteKey::Domain(domain)),
+        );
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let ix = instruction::set_quote_signer_instruction(
+            fee_program_id(),
+            fee_key,
+            payer.pubkey(),
+            instruction::SetQuoteSignerOperation::Remove(signer),
+            Some(instruction::RouteKey::Domain(domain)),
+        )
+        .unwrap();
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let route = fetch_route_domain(&mut banks_client, route_pda_for(&fee_key, domain)).await;
+        assert!(route.signers.as_ref().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_domain_route_signer_on_leaf_fails() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let ix = build_add_quote_signer_ix_with_route(
+            &fee_key,
+            &payer.pubkey(),
+            H160::random(),
+            Some(instruction::RouteKey::Domain(42)),
+        );
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::NotRoutingFeeData as u32),
+            ),
+        );
+    }
+
+    #[tokio::test]
+    async fn test_cc_route_signer_on_routing_account_fails() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            payer.pubkey(),
+            FeeData::Routing(RoutingFeeConfig {
+                wildcard_signers: BTreeSet::new(),
+            }),
+        )
+        .await;
+
+        let ix = build_add_quote_signer_ix_with_route(
+            &fee_key,
+            &payer.pubkey(),
+            H160::random(),
+            Some(instruction::RouteKey::CrossCollateral {
+                destination: 42,
+                target_router: H256::random(),
+            }),
+        );
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::NotCrossCollateralRoutingFeeData as u32),
+            ),
+        );
+    }
+
+    #[tokio::test]
+    async fn test_add_signer_to_cc_route() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            payer.pubkey(),
+            FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+                wildcard_signers: BTreeSet::new(),
+            }),
+        )
+        .await;
+
+        let domain = 42u32;
+        let target_router = H256::random();
+        let ix = build_set_cc_route_ix(
+            &fee_key,
+            &payer.pubkey(),
+            domain,
+            target_router,
+            FeeDataStrategy::Linear(FeeParams {
+                max_fee: 100,
+                half_amount: 50,
+            }),
+        );
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let signer = H160::random();
+        let ix = build_add_quote_signer_ix_with_route(
+            &fee_key,
+            &payer.pubkey(),
+            signer,
+            Some(instruction::RouteKey::CrossCollateral {
+                destination: domain,
+                target_router,
+            }),
+        );
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        let route = fetch_cc_route(
+            &mut banks_client,
+            cc_route_pda_for(&fee_key, domain, &target_router),
+        )
+        .await;
+        assert!(route.signers.as_ref().unwrap().contains(&signer));
+        assert_eq!(route.signers.as_ref().unwrap().len(), 1);
     }
 }
 

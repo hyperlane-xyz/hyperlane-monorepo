@@ -2261,4 +2261,66 @@ mod prune_expired_quotes {
             ),
         );
     }
+
+    /// C-3: Standing quote with mismatched curve variant is skipped, falls through to on-chain.
+    #[tokio::test]
+    async fn test_standing_curve_variant_mismatch_falls_through_to_onchain() {
+        let (mut banks_client, payer) = setup_client().await;
+        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let signer_address = eth_address(&signing_key);
+
+        // On-chain uses Progressive with max_fee=100, half_amount=50.
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            payer.pubkey(),
+            FeeData::Leaf(LeafFeeConfig {
+                strategy: FeeDataStrategy::Progressive(FeeParams {
+                    max_fee: 100,
+                    half_amount: 50,
+                }),
+                signers: Some(BTreeSet::new()),
+            }),
+        )
+        .await;
+
+        let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Submit standing quote with Linear (mismatched variant).
+        let dest = 42u32;
+        let recipient = H256::zero();
+        let context = encode_standing_context(dest, recipient);
+        let data = encode_linear_data(9999, 5000);
+
+        let quote = make_signed_standing_quote(
+            &signing_key,
+            &fee_key,
+            LOCAL_DOMAIN,
+            &payer.pubkey(),
+            context,
+            data,
+            encode_u48(100),
+            encode_u48(9999999999),
+        );
+        let ix = build_submit_standing_ix(&fee_key, &payer.pubkey(), &quote, dest);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // QuoteFee should skip the mismatched standing quote and use on-chain Progressive.
+        let amount = 1000u64;
+        let quote_ix = build_quote_fee_leaf_ix(&fee_key, &payer.pubkey(), dest, recipient, amount);
+        let fee = simulate_quote_fee(&mut banks_client, &payer, quote_ix).await;
+
+        // Progressive: fee = max_fee * amount^2 / (half_amount^2 + amount^2)
+        // = 100 * 1_000_000 / (2_500 + 1_000_000) = 100_000_000 / 1_002_500 = 99
+        assert_eq!(
+            fee, 99,
+            "should use on-chain Progressive, not standing Linear"
+        );
+    }
 }
