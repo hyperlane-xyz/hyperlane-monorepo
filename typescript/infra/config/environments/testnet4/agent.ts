@@ -377,6 +377,13 @@ const releaseCandidate: RootAgentConfig = {
     cache: {
       enabled: true,
     },
+    relayApi: {
+      enabled: true,
+      port: 8900,
+      rateLimitMaxRequests: 100,
+      rateLimitWindowSecs: 60,
+      corsOrigins: 'https://nexus.hyperlane.xyz,http://localhost:3000',
+    },
     resources: relayerResources,
   },
   validators: {
