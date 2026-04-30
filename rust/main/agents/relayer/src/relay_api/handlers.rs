@@ -537,6 +537,7 @@ async fn relay_work(state: &ServerState, req: &RelayRequest) -> ServerResult<Jso
         // returns false and no non-EVM indexer overrides it. Extending the relay API
         // to non-EVM chains requires a chain-specific is_cctp_v2 implementation.
         if !extracted.is_cctp_v2 {
+            warn!(message_id = ?extracted.message_id, "Rejecting non-CCTP V2 message");
             state.record_failure("not_cctp_v2");
             return Err(ServerError::InvalidRequest(
                 "Only EVM CCTP V2 messages are supported via the relay API".to_string(),
@@ -547,6 +548,12 @@ async fn relay_work(state: &ServerState, req: &RelayRequest) -> ServerResult<Jso
         let msg_ctx = msg_ctxs
             .get(&(extracted.message.origin, extracted.message.destination))
             .ok_or_else(|| {
+                warn!(
+                    message_id = ?extracted.message_id,
+                    origin = extracted.message.origin,
+                    destination = extracted.message.destination,
+                    "No message context for origin/destination pair"
+                );
                 ServerError::InternalError(format!(
                     "No message context for origin {} to destination {}",
                     extracted.message.origin, extracted.message.destination
@@ -624,6 +631,7 @@ async fn relay_work(state: &ServerState, req: &RelayRequest) -> ServerResult<Jso
         // Apply message filtering (whitelist, blacklist, address blacklist)
         if let Some(whitelist) = &state.message_whitelist {
             if !whitelist.msg_matches(&extracted.message, true) {
+                warn!(message_id = ?extracted.message_id, "Rejecting message not on whitelist");
                 state.record_failure("message_not_whitelisted");
                 return Err(ServerError::InvalidRequest(
                     "Message not whitelisted".to_string(),
@@ -633,6 +641,7 @@ async fn relay_work(state: &ServerState, req: &RelayRequest) -> ServerResult<Jso
 
         if let Some(blacklist) = &state.message_blacklist {
             if blacklist.msg_matches(&extracted.message, false) {
+                warn!(message_id = ?extracted.message_id, "Rejecting blacklisted message");
                 state.record_failure("message_blacklisted");
                 return Err(ServerError::InvalidRequest(
                     "Message blacklisted".to_string(),
@@ -666,13 +675,13 @@ async fn relay_work(state: &ServerState, req: &RelayRequest) -> ServerResult<Jso
             })?
             .clone();
 
-        // 3 retries is intentional for the relay API fast path — if it fails the
-        // contract indexer will re-queue it within seconds.
+        // 1 retry: one attempt in the relay API queue, then drop and let the
+        // contract indexer re-queue it within seconds via the classical path.
         let pending_msg = PendingMessage::maybe_from_persisted_retries(
             extracted.message.clone(),
             msg_ctx.clone(),
             app_context.clone(),
-            3,
+            1,
         )
         .map(|m| m.with_fail_fast())
         .ok_or_else(|| {

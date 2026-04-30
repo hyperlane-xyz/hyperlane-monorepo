@@ -153,6 +153,12 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     /// returning `NotReady` if it is too early and matters.
     fn next_attempt_after(&self) -> Option<Instant>;
 
+    /// Whether this operation is ready to be attempted.
+    fn is_ready(&self) -> bool {
+        self.next_attempt_after()
+            .map_or(true, |t| Instant::now() >= t)
+    }
+
     /// Set the next time this operation should be attempted.
     fn set_next_attempt_after(&mut self, delay: Duration);
 
