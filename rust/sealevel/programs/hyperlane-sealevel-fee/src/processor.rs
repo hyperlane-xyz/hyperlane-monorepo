@@ -1192,22 +1192,23 @@ fn process_submit_quote(
 
         ensure_no_extraneous_accounts(accounts_iter)?;
 
-        let is_new_pda =
-            domain_pda_info.data_is_empty() && domain_pda_info.owner == &system_program::ID;
-
-        let mut standing_pda = if is_new_pda {
-            FeeStandingQuotePda {
-                bump_seed: domain_bump,
-                quotes: std::collections::BTreeMap::new(),
-            }
-        } else {
-            if domain_pda_info.owner != program_id {
+        let (is_new_pda, mut standing_pda) = match domain_pda_info.init_state(program_id) {
+            AccountInitState::Uninitialized => (
+                true,
+                FeeStandingQuotePda {
+                    bump_seed: domain_bump,
+                    quotes: std::collections::BTreeMap::new(),
+                },
+            ),
+            AccountInitState::Initialized => (
+                false,
+                FeeStandingQuotePdaAccount::fetch(&mut &domain_pda_info.data.borrow()[..])?
+                    .into_inner()
+                    .data,
+            ),
+            AccountInitState::OwnerMismatch => {
                 return Err(ProgramError::IncorrectProgramId);
             }
-
-            FeeStandingQuotePdaAccount::fetch(&mut &domain_pda_info.data.borrow()[..])?
-                .into_inner()
-                .data
         };
 
         // Insert or update the quote for this recipient.
@@ -1873,27 +1874,31 @@ fn upsert_route_pda<'a, 'b, T: account_utils::Data + SizedData>(
         return Err(ProgramError::InvalidArgument);
     }
 
-    if route_pda_info.data_is_empty() && route_pda_info.owner == &system_program::ID {
-        let rent = Rent::get()?;
-        create_pda_account(
-            owner_info,
-            &rent,
-            SizedData::size(account),
-            program_id,
-            system_program_info,
-            route_pda_info,
-            signer_seeds,
-        )?;
-        account.store(route_pda_info, false)?;
-    } else if route_pda_info.owner != program_id {
-        return Err(ProgramError::IncorrectProgramId);
-    } else {
-        account.store_with_rent_exempt_realloc(
-            route_pda_info,
-            &Rent::get()?,
-            owner_info,
-            system_program_info,
-        )?;
+    match route_pda_info.init_state(program_id) {
+        AccountInitState::Uninitialized => {
+            let rent = Rent::get()?;
+            create_pda_account(
+                owner_info,
+                &rent,
+                SizedData::size(account),
+                program_id,
+                system_program_info,
+                route_pda_info,
+                signer_seeds,
+            )?;
+            account.store(route_pda_info, false)?;
+        }
+        AccountInitState::Initialized => {
+            account.store_with_rent_exempt_realloc(
+                route_pda_info,
+                &Rent::get()?,
+                owner_info,
+                system_program_info,
+            )?;
+        }
+        AccountInitState::OwnerMismatch => {
+            return Err(ProgramError::IncorrectProgramId);
+        }
     }
 
     Ok(())
