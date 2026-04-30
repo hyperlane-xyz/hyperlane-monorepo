@@ -189,7 +189,7 @@ async function main() {
   usdcContract.connect(account);
   const { transaction_hash: approveTxHash } = await usdcContract.approve(
     DEX_ADDRESS,
-    amount,
+    sendAmount,
   );
   logger.info(
     `Approve transaction submitted, hash: ${approveTxHash} Waiting for confirmation...`,
@@ -208,7 +208,7 @@ async function main() {
   const { transaction_hash } = await dexContract.deposit_on_behalf_of(
     recipientAddress,
     PARADEX_USDC,
-    +amount! * 1e2, // Paradex USDC has 8 decimals, while we are passing in an amount with 6 decimals, so we need to multiply by 1e2
+    +sendAmount! * 1e2, // Paradex USDC has 8 decimals, while we are passing in an amount with 6 decimals, so we need to multiply by 1e2
   );
   logger.info(
     `Deposit on behalf transaction submitted, hash: ${transaction_hash} Waiting for confirmation...`,
