@@ -18,7 +18,10 @@ use solana_program::{
 use solana_system_interface::program as system_program;
 
 use access_control::AccessControl;
-use account_utils::{create_pda_account, verify_account_uninitialized, SizedData};
+use account_utils::{
+    create_pda_account, ensure_no_extraneous_accounts, verify_account_uninitialized,
+    AccountInfoExt, AccountInitState, SizedData,
+};
 use quote_verifier::SvmSignedQuote;
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 
@@ -361,26 +364,21 @@ fn is_transient_quote(
 ) -> Result<bool, ProgramError> {
     use crate::accounts::TRANSIENT_QUOTE_DISCRIMINATOR;
 
-    // Uninitialized PDA: not a transient quote.
-    if account_info.owner == &system_program::ID && account_info.data_is_empty() {
-        return Ok(false);
+    match account_info.init_state(program_id) {
+        AccountInitState::Uninitialized => Ok(false),
+        AccountInitState::OwnerMismatch => Err(ProgramError::IncorrectProgramId),
+        AccountInitState::Initialized => {
+            // AccountData format: [initialized: bool (1)][discriminator: [u8; 8]][data...]
+            let data = account_info.data.borrow();
+            if data.len() < 9 {
+                return Err(ProgramError::InvalidAccountData);
+            }
+            let discriminator: [u8; 8] = data[1..9]
+                .try_into()
+                .map_err(|_| ProgramError::InvalidAccountData)?;
+            Ok(discriminator == TRANSIENT_QUOTE_DISCRIMINATOR)
+        }
     }
-
-    if account_info.owner != program_id {
-        return Err(ProgramError::IncorrectProgramId);
-    }
-
-    // AccountData format: [initialized: bool (1)][discriminator: [u8; 8]][data...]
-    let data = account_info.data.borrow();
-    if data.len() < 9 {
-        return Err(ProgramError::InvalidAccountData);
-    }
-
-    let discriminator: [u8; 8] = data[1..9]
-        .try_into()
-        .map_err(|_| ProgramError::InvalidAccountData)?;
-
-    Ok(discriminator == TRANSIENT_QUOTE_DISCRIMINATOR)
 }
 
 /// Attempts to consume a transient quote PDA.
@@ -404,7 +402,7 @@ fn try_consume_transient_quote<C: crate::accounts::QuoteContext>(
 
     // Verify payer binding.
     if transient.payer != *payer_info.key {
-        return Err(Error::TransientPayerMismatch.into());
+        return Err(QuoteValidationError::TransientPayerMismatch.into());
     }
 
     // Re-derive PDA from stored scoped_salt + bump and verify key matches.
@@ -422,7 +420,8 @@ fn try_consume_transient_quote<C: crate::accounts::QuoteContext>(
     transient.validate_quote(min_issued_at, clock)?;
 
     // Parse and validate context using the generic context type.
-    let ctx = C::try_from_bytes(&transient.context).map_err(|_| Error::TransientContextMismatch)?;
+    let ctx = C::try_from_bytes(&transient.context)
+        .map_err(|_| QuoteValidationError::TransientContextMismatch)?;
     ctx.validate(quote_fee_data)?;
 
     // Parse quoted strategy and verify curve variant matches on-chain.
@@ -439,7 +438,7 @@ fn try_consume_transient_quote<C: crate::accounts::QuoteContext>(
     }
 
     // Autoclose: drain lamports to payer, zero data, reassign to system program.
-    close_pda(transient_acct, payer_info)?;
+    transient_acct.close_account(payer_info)?;
 
     Ok(Some(fee))
 }
@@ -475,12 +474,10 @@ fn try_resolve_standing_quote(
     }
 
     // Uninitialized PDA → no standing quotes for this domain.
-    if standing_pda_info.owner == &system_program::ID && standing_pda_info.data_is_empty() {
-        return Ok(None);
-    }
-
-    if standing_pda_info.owner != program_id {
-        return Err(ProgramError::IncorrectProgramId);
+    match standing_pda_info.init_state(program_id) {
+        AccountInitState::Uninitialized => return Ok(None),
+        AccountInitState::OwnerMismatch => return Err(ProgramError::IncorrectProgramId),
+        AccountInitState::Initialized => {}
     }
 
     let standing = FeeStandingQuotePdaAccount::fetch(&mut &standing_pda_info.data.borrow()[..])?
@@ -536,9 +533,10 @@ fn resolve_routing(
     }
     // Unconfigured route: uninitialized (system-owned, empty) → None.
     // Owned by another program → error (consistent with standing PDA pattern).
-    verify_optional_pda_owner(route_pda_info, program_id)?;
-    if route_pda_info.owner != program_id {
-        return Ok(None);
+    match route_pda_info.init_state(program_id) {
+        AccountInitState::Uninitialized => return Ok(None),
+        AccountInitState::OwnerMismatch => return Err(ProgramError::IncorrectProgramId),
+        AccountInitState::Initialized => {}
     }
 
     let route = RouteDomainAccount::fetch(&mut &route_pda_info.data.borrow()[..])?.into_inner();
@@ -569,13 +567,15 @@ fn resolve_cc_routing(
             return Err(ProgramError::InvalidArgument);
         }
 
-        if pda_info.owner == program_id && !pda_info.data_is_empty() {
-            let route =
-                CrossCollateralRouteAccount::fetch(&mut &pda_info.data.borrow()[..])?.into_inner();
-            return Ok((route.data.fee_data, is_specific));
+        match pda_info.init_state(program_id) {
+            AccountInitState::Initialized => {
+                let route = CrossCollateralRouteAccount::fetch(&mut &pda_info.data.borrow()[..])?
+                    .into_inner();
+                return Ok((route.data.fee_data, is_specific));
+            }
+            AccountInitState::Uninitialized => {}
+            AccountInitState::OwnerMismatch => return Err(ProgramError::IncorrectProgramId),
         }
-
-        verify_optional_pda_owner(pda_info, program_id)?;
     }
 
     Err(Error::RouteNotFound.into())
@@ -587,15 +587,10 @@ fn verify_optional_pda_owner(
     account_info: &AccountInfo,
     program_id: &Pubkey,
 ) -> Result<(), ProgramError> {
-    if account_info.owner == &system_program::ID && account_info.data_is_empty() {
-        return Ok(());
+    match account_info.init_state(program_id) {
+        AccountInitState::Uninitialized | AccountInitState::Initialized => Ok(()),
+        AccountInitState::OwnerMismatch => Err(ProgramError::IncorrectProgramId),
     }
-
-    if account_info.owner != program_id {
-        return Err(ProgramError::IncorrectProgramId);
-    }
-
-    Ok(())
 }
 
 /// Set the beneficiary on a fee account (owner-only).
@@ -1060,7 +1055,7 @@ fn process_submit_quote(
     // Reject quotes below the min_issued_at threshold at ingest time.
     // Prevents stranding rent on dead-on-arrival entries.
     if issued_at_ts < fee_account.min_issued_at {
-        return Err(Error::QuoteBelowMinIssuedAt.into());
+        return Err(QuoteValidationError::StaleQuote.into());
     }
 
     // Resolve signers based on fee_data type and destination domain.
@@ -1424,12 +1419,12 @@ fn process_close_transient_quote(program_id: &Pubkey, accounts: &[AccountInfo]) 
         return Err(ProgramError::MissingRequiredSignature);
     }
     if *payer_refund_info.key != transient.payer {
-        return Err(Error::TransientPayerMismatch.into());
+        return Err(QuoteValidationError::TransientPayerMismatch.into());
     }
 
     ensure_no_extraneous_accounts(accounts_iter)?;
 
-    close_pda(transient_pda_info, payer_refund_info)?;
+    transient_pda_info.close_account(payer_refund_info)?;
 
     msg!("Closed transient quote PDA");
 
@@ -1499,7 +1494,7 @@ fn process_prune_expired_quotes(
 
     if standing.quotes.is_empty() {
         // Close the PDA.
-        close_pda(domain_pda_info, owner_info)?;
+        domain_pda_info.close_account(owner_info)?;
 
         msg!("Pruned domain {} — PDA closed", domain);
     } else {
@@ -1968,7 +1963,7 @@ fn remove_route_pda<'a, 'b>(
         return Err(Error::RouteNotFound.into());
     }
 
-    close_pda(route_pda_info, owner_info)
+    route_pda_info.close_account(owner_info)
 }
 
 /// Creates or updates a route PDA (RouteDomain or CrossCollateralRoute).
@@ -2072,7 +2067,7 @@ fn try_close_standing_quote_pda<'a, 'b>(
 
     // Close if program-owned; skip if system-owned (never created).
     if standing_pda_info.owner == program_id && !standing_pda_info.data_is_empty() {
-        close_pda(standing_pda_info, owner_info)?;
+        standing_pda_info.close_account(owner_info)?;
     }
 
     Ok(())
@@ -2098,31 +2093,4 @@ fn fetch_fee_account_and_verify_owner<'a, 'b>(
     fee_account.ensure_owner_signer(owner_info)?;
 
     Ok((fee_account_info, fee_account.data, owner_info))
-}
-
-/// Errors if there are remaining accounts in the iterator.
-fn ensure_no_extraneous_accounts(
-    accounts_iter: &mut std::slice::Iter<'_, AccountInfo<'_>>,
-) -> ProgramResult {
-    if accounts_iter.next().is_some() {
-        return Err(Error::ExtraneousAccount.into());
-    }
-
-    Ok(())
-}
-
-/// Closes a PDA account by draining lamports, zeroing data, and reassigning to the system program.
-fn close_pda(pda_info: &AccountInfo, recipient_info: &AccountInfo) -> ProgramResult {
-    if pda_info.key == recipient_info.key {
-        return Err(ProgramError::InvalidAccountData);
-    }
-    let lamports = pda_info.lamports();
-    **pda_info.try_borrow_mut_lamports()? = 0;
-    **recipient_info.try_borrow_mut_lamports()? = recipient_info
-        .lamports()
-        .checked_add(lamports)
-        .ok_or(ProgramError::ArithmeticOverflow)?;
-    pda_info.resize(0)?;
-    pda_info.assign(&system_program::ID);
-    Ok(())
 }

@@ -228,7 +228,7 @@ async fn test_extraneous_account_rejected() {
         result,
         TransactionError::InstructionError(
             0,
-            InstructionError::Custom(FeeError::ExtraneousAccount as u32),
+            InstructionError::Custom(AccountError::ExtraneousAccount as u32),
         ),
     );
 }
@@ -637,7 +637,7 @@ async fn test_context_mismatch_different_amount() {
         result,
         TransactionError::InstructionError(
             0,
-            InstructionError::Custom(FeeError::TransientContextMismatch as u32),
+            InstructionError::Custom(QuoteValidationError::TransientContextMismatch as u32),
         ),
     );
 }
@@ -701,7 +701,7 @@ async fn test_context_mismatch_different_destination() {
         result,
         TransactionError::InstructionError(
             0,
-            InstructionError::Custom(FeeError::TransientContextMismatch as u32),
+            InstructionError::Custom(QuoteValidationError::TransientContextMismatch as u32),
         ),
     );
 }
@@ -765,7 +765,7 @@ async fn test_context_mismatch_different_recipient() {
         result,
         TransactionError::InstructionError(
             0,
-            InstructionError::Custom(FeeError::TransientContextMismatch as u32),
+            InstructionError::Custom(QuoteValidationError::TransientContextMismatch as u32),
         ),
     );
 }
@@ -1226,7 +1226,7 @@ async fn test_cc_context_wrong_target_router_fails() {
         result,
         TransactionError::InstructionError(
             0,
-            InstructionError::Custom(FeeError::TransientContextMismatch as u32),
+            InstructionError::Custom(QuoteValidationError::TransientContextMismatch as u32),
         ),
     );
 }
@@ -1307,7 +1307,7 @@ async fn test_payer_mismatch_fails() {
         result,
         TransactionError::InstructionError(
             0,
-            InstructionError::Custom(FeeError::TransientPayerMismatch as u32),
+            InstructionError::Custom(QuoteValidationError::TransientPayerMismatch as u32),
         ),
     );
 }

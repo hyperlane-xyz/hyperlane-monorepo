@@ -1766,7 +1766,7 @@ mod close_transient_quote {
             result,
             TransactionError::InstructionError(
                 0,
-                InstructionError::Custom(FeeError::TransientPayerMismatch as u32),
+                InstructionError::Custom(QuoteValidationError::TransientPayerMismatch as u32),
             ),
         );
     }
@@ -1791,7 +1791,7 @@ mod close_transient_quote {
             result,
             TransactionError::InstructionError(
                 0,
-                InstructionError::Custom(FeeError::ExtraneousAccount as u32),
+                InstructionError::Custom(AccountError::ExtraneousAccount as u32),
             ),
         );
     }
@@ -2141,7 +2141,7 @@ mod prune_expired_quotes {
             result,
             TransactionError::InstructionError(
                 0,
-                InstructionError::Custom(FeeError::ExtraneousAccount as u32),
+                InstructionError::Custom(AccountError::ExtraneousAccount as u32),
             ),
         );
     }

@@ -19,6 +19,7 @@ use solana_system_interface::program as system_program;
 
 use serializable_account_meta::SimulationReturnData;
 
+use account_utils::AccountError;
 use hyperlane_sealevel_fee::{
     accounts::{
         CrossCollateralRoute, CrossCollateralRouteAccount, CrossCollateralRoutingFeeConfig,
@@ -2082,7 +2083,7 @@ mod quote_fee {
             result,
             TransactionError::InstructionError(
                 0,
-                InstructionError::Custom(FeeError::ExtraneousAccount as u32),
+                InstructionError::Custom(AccountError::ExtraneousAccount as u32),
             ),
         );
     }
@@ -2140,7 +2141,7 @@ mod quote_fee {
             result,
             TransactionError::InstructionError(
                 0,
-                InstructionError::Custom(FeeError::ExtraneousAccount as u32),
+                InstructionError::Custom(AccountError::ExtraneousAccount as u32),
             ),
         );
     }

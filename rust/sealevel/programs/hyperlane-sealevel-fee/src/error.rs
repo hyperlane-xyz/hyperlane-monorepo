@@ -21,51 +21,39 @@ pub enum Error {
     /// The route PDA was not found / not initialized.
     #[error("Route not found")]
     RouteNotFound = 5,
-    /// Extra accounts were provided beyond what the instruction expects.
-    #[error("Extraneous account")]
-    ExtraneousAccount = 6,
-    /// Transient quote context does not match the QuoteFee parameters.
-    #[error("Transient quote context mismatch")]
-    TransientContextMismatch = 7,
-    /// Transient quote payer does not match the QuoteFee payer.
-    #[error("Transient quote payer mismatch")]
-    TransientPayerMismatch = 8,
     /// Transient quote PDA key does not match derivation from stored scoped_salt.
     #[error("Transient quote PDA mismatch")]
-    TransientPdaMismatch = 9,
+    TransientPdaMismatch = 6,
     /// Transient quote data is invalid (wrong length or format).
     #[error("Invalid transient quote data")]
-    InvalidTransientData = 10,
+    InvalidTransientData = 7,
     /// Standing quote amount must be wildcard (u64::MAX).
     #[error("Standing quote amount must be wildcard")]
-    StandingQuoteAmountNotWildcard = 11,
+    StandingQuoteAmountNotWildcard = 8,
     /// Standing quote context is invalid.
     #[error("Invalid standing quote context")]
-    InvalidStandingQuoteContext = 12,
+    InvalidStandingQuoteContext = 9,
     /// Standing quote data is invalid.
     #[error("Invalid standing quote data")]
-    InvalidStandingQuoteData = 13,
+    InvalidStandingQuoteData = 10,
     /// CC standing quote cannot use H256::zero() as target_router.
     #[error("Zero target router not allowed for CC standing quotes")]
-    ZeroTargetRouterNotAllowed = 14,
+    ZeroTargetRouterNotAllowed = 11,
     /// Domain 0 and u32::MAX (wildcard sentinel) cannot be used as route domains.
     #[error("Invalid route domain")]
-    InvalidRouteDomain = 15,
+    InvalidRouteDomain = 12,
     /// Offchain quoting is not configured (signers is None).
     #[error("Offchain quoting not configured")]
-    OffchainQuotingNotConfigured = 16,
+    OffchainQuotingNotConfigured = 13,
     /// SetWildcardQuoteSigners is only valid for Routing/CrossCollateralRouting modes.
     #[error("Wildcard signers not applicable for this fee mode")]
-    WildcardSignersNotApplicable = 17,
+    WildcardSignersNotApplicable = 14,
     /// SetMinIssuedAt must be monotonically increasing (cannot move backward).
     #[error("min_issued_at must be >= current value")]
-    MinIssuedAtMustBeMonotonic = 18,
-    /// Quote issued_at is below the fee account's min_issued_at threshold.
-    #[error("Quote issued_at below min_issued_at")]
-    QuoteBelowMinIssuedAt = 19,
+    MinIssuedAtMustBeMonotonic = 15,
     /// Quoted fee strategy variant does not match the on-chain strategy variant.
     #[error("Quoted curve variant does not match on-chain curve")]
-    CurveVariantMismatch = 20,
+    CurveVariantMismatch = 16,
 }
 
 impl From<Error> for ProgramError {

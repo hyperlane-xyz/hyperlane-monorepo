@@ -9,7 +9,7 @@ use hyperlane_core::{H160, H256};
 use solana_program::{program_error::ProgramError, pubkey::Pubkey};
 
 use crate::fee_math::FeeDataStrategy;
-use quote_verifier::ValidatableQuote;
+use quote_verifier::{QuoteValidationError, ValidatableQuote};
 
 // --- Discriminators ---
 
@@ -436,7 +436,7 @@ impl QuoteContext for FeeQuoteContext {
             || self.recipient != quote_fee.recipient
             || self.amount != quote_fee.amount
         {
-            return Err(crate::error::Error::TransientContextMismatch.into());
+            return Err(QuoteValidationError::TransientContextMismatch.into());
         }
         Ok(())
     }
@@ -483,7 +483,7 @@ impl QuoteContext for CcFeeQuoteContext {
             || self.amount != quote_fee.amount
             || self.target_router != quote_fee.target_router
         {
-            return Err(crate::error::Error::TransientContextMismatch.into());
+            return Err(QuoteValidationError::TransientContextMismatch.into());
         }
         Ok(())
     }
