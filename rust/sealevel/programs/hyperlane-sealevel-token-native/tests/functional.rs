@@ -1829,11 +1829,11 @@ async fn test_transfer_remote_with_transient_quote_native() {
     };
 
     // Add signer to fee account.
-    let add_signer_ix = hyperlane_sealevel_fee::instruction::add_quote_signer_instruction(
+    let add_signer_ix = hyperlane_sealevel_fee::instruction::set_quote_signer_instruction(
         fee_program_id(),
         fee_account_key,
         payer.pubkey(),
-        signer_address,
+        hyperlane_sealevel_fee::instruction::SetQuoteSignerOperation::Add(signer_address),
         None,
     )
     .unwrap();
@@ -3216,11 +3216,11 @@ async fn test_transfer_remote_fully_transient_fee_and_igp_native() {
     };
 
     // Add fee signer.
-    let ix = hyperlane_sealevel_fee::instruction::add_quote_signer_instruction(
+    let ix = hyperlane_sealevel_fee::instruction::set_quote_signer_instruction(
         fee_program_id(),
         fee_account_key,
         payer.pubkey(),
-        fee_signer_address,
+        hyperlane_sealevel_fee::instruction::SetQuoteSignerOperation::Add(fee_signer_address),
         None,
     )
     .unwrap();

@@ -495,16 +495,22 @@ fn build_add_quote_signer_ix_with_route(
     signer: H160,
     route: Option<instruction::RouteKey>,
 ) -> Instruction {
-    instruction::add_quote_signer_instruction(fee_program_id(), *fee_account, *owner, signer, route)
-        .unwrap()
-}
-
-fn build_remove_quote_signer_ix(fee_account: &Pubkey, owner: &Pubkey, signer: H160) -> Instruction {
-    instruction::remove_quote_signer_instruction(
+    instruction::set_quote_signer_instruction(
         fee_program_id(),
         *fee_account,
         *owner,
-        signer,
+        instruction::SetQuoteSignerOperation::Add(signer),
+        route,
+    )
+    .unwrap()
+}
+
+fn build_remove_quote_signer_ix(fee_account: &Pubkey, owner: &Pubkey, signer: H160) -> Instruction {
+    instruction::set_quote_signer_instruction(
+        fee_program_id(),
+        *fee_account,
+        *owner,
+        instruction::SetQuoteSignerOperation::Remove(signer),
         None,
     )
     .unwrap()

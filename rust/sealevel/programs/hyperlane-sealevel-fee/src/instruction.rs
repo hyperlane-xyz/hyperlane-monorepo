@@ -43,21 +43,13 @@ pub enum Instruction {
     SetBeneficiary(Pubkey),
     /// Transfer ownership of the fee account (owner-only).
     TransferOwnership(Option<Pubkey>),
-    /// Add an authorized offchain quote signer (owner-only).
+    /// Add or remove an authorized offchain quote signer (owner-only).
     /// For Leaf: route = None (mutates FeeAccount.signers).
     /// For Routing: route = Some(Domain(d)) (mutates RouteDomain.signers).
     /// For CC: route = Some(CrossCollateral { .. }) (mutates CrossCollateralRoute.signers).
-    AddQuoteSigner {
-        /// Ethereum address (secp256k1) of the signer to authorize.
-        signer: H160,
-        /// Route key for PDA derivation. None targets FeeAccount (Leaf mode).
-        route: Option<RouteKey>,
-    },
-    /// Remove an offchain quote signer (owner-only).
-    /// Same routing semantics as AddQuoteSigner.
-    RemoveQuoteSigner {
-        /// Ethereum address (secp256k1) of the signer to remove.
-        signer: H160,
+    SetQuoteSigner {
+        /// Add or remove operation with the signer address.
+        operation: SetQuoteSignerOperation,
         /// Route key for PDA derivation. None targets FeeAccount (Leaf mode).
         route: Option<RouteKey>,
     },
@@ -120,6 +112,24 @@ pub enum RouteKey {
         /// Remote warp route contract address.
         target_router: H256,
     },
+}
+
+/// Operation for adding or removing a quote signer.
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
+pub enum SetQuoteSignerOperation {
+    /// Add the signer to the authorized set.
+    Add(H160),
+    /// Remove the signer from the authorized set.
+    Remove(H160),
+}
+
+impl SetQuoteSignerOperation {
+    /// Returns the signer address regardless of the operation variant.
+    pub fn signer(&self) -> &H160 {
+        match self {
+            Self::Add(s) | Self::Remove(s) => s,
+        }
+    }
 }
 
 // --- Instruction data structs ---
@@ -438,19 +448,19 @@ pub fn transfer_ownership_instruction(
     })
 }
 
-/// Builds an AddQuoteSigner instruction (owner-only).
+/// Builds a SetQuoteSigner instruction (owner-only).
 /// For Leaf mode: pass `route = None` (mutates FeeAccount.signers).
 /// For Routing: pass `route = Some(RouteKey::Domain(d))`.
 /// For CC: pass `route = Some(RouteKey::CrossCollateral { .. })`.
-pub fn add_quote_signer_instruction(
+pub fn set_quote_signer_instruction(
     program_id: Pubkey,
     fee_account: Pubkey,
     owner: Pubkey,
-    signer: H160,
+    operation: SetQuoteSignerOperation,
     route: Option<RouteKey>,
 ) -> Result<SolanaInstruction, ProgramError> {
-    let ixn = Instruction::AddQuoteSigner {
-        signer,
+    let ixn = Instruction::SetQuoteSigner {
+        operation,
         route: route.clone(),
     };
 
@@ -459,42 +469,6 @@ pub fn add_quote_signer_instruction(
     let fee_account_writable = route.is_none();
     let mut accounts = vec![
         AccountMeta::new_readonly(system_program::ID, false),
-        if fee_account_writable {
-            AccountMeta::new(fee_account, false)
-        } else {
-            AccountMeta::new_readonly(fee_account, false)
-        },
-        AccountMeta::new(owner, true),
-    ];
-
-    if let Some(ref route_key) = route {
-        let route_pda = derive_route_pda(&program_id, &fee_account, route_key)?;
-        accounts.push(AccountMeta::new(route_pda, false));
-    }
-
-    Ok(SolanaInstruction {
-        program_id,
-        data: borsh::to_vec(&ixn)?,
-        accounts,
-    })
-}
-
-/// Builds a RemoveQuoteSigner instruction (owner-only).
-/// Same routing semantics as add_quote_signer_instruction.
-pub fn remove_quote_signer_instruction(
-    program_id: Pubkey,
-    fee_account: Pubkey,
-    owner: Pubkey,
-    signer: H160,
-    route: Option<RouteKey>,
-) -> Result<SolanaInstruction, ProgramError> {
-    let ixn = Instruction::RemoveQuoteSigner {
-        signer,
-        route: route.clone(),
-    };
-
-    let fee_account_writable = route.is_none();
-    let mut accounts = vec![
         if fee_account_writable {
             AccountMeta::new(fee_account, false)
         } else {

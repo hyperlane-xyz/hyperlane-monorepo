@@ -40,7 +40,7 @@ use crate::{
     fee_standing_quote_pda_seeds,
     instruction::{
         GetQuoteAccountMetas, GetSubmitQuoteAccountMetas, InitFee, Instruction, QuoteFee,
-        RemoveRemoteFeeRoute, RouteKey, SetRemoteFeeRoute,
+        RemoveRemoteFeeRoute, RouteKey, SetQuoteSignerOperation, SetRemoteFeeRoute,
     },
     route_domain_pda_seeds, transient_quote_pda_seeds,
 };
@@ -81,11 +81,8 @@ pub fn process_instruction(
         Instruction::TransferOwnership(new_owner) => {
             process_transfer_ownership(program_id, accounts, new_owner)
         }
-        Instruction::AddQuoteSigner { signer, route } => {
-            process_add_quote_signer(program_id, accounts, signer, route)
-        }
-        Instruction::RemoveQuoteSigner { signer, route } => {
-            process_remove_quote_signer(program_id, accounts, signer, route)
+        Instruction::SetQuoteSigner { operation, route } => {
+            process_set_quote_signer(program_id, accounts, operation, route)
         }
         Instruction::SetMinIssuedAt { min_issued_at } => {
             process_set_min_issued_at(program_id, accounts, min_issued_at)
@@ -685,15 +682,15 @@ fn process_update_fee_params(
 /// 1. `[writable]` Fee account.
 /// 2. `[signer, writable]` Owner.
 ///
-/// Accounts (route = Some / Routing or CC):
+/// Accounts:
 /// 0. `[executable]` System program.
-/// 1. `[]` Fee account.
+/// 1. `[writable]` Fee account (writable for Leaf; readonly for routed modes).
 /// 2. `[signer, writable]` Owner.
-/// 3. `[writable]` Route PDA (RouteDomain or CrossCollateralRoute).
-fn process_add_quote_signer(
+/// 3. `[writable]` Route PDA (only for Routing/CC modes).
+fn process_set_quote_signer(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
-    signer: H160,
+    operation: SetQuoteSignerOperation,
     route: Option<RouteKey>,
 ) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
@@ -706,21 +703,22 @@ fn process_add_quote_signer(
     let (fee_account_info, mut fee_account, owner_info) =
         fetch_fee_account_and_verify_owner(program_id, accounts_iter)?;
 
+    let signer = operation.signer();
     match route {
         None => {
             ensure_no_extraneous_accounts(accounts_iter)?;
 
-            match &mut fee_account.fee_data {
-                FeeData::Leaf(cfg) => {
-                    cfg.signers
-                        .as_mut()
-                        .ok_or(ProgramError::from(Error::OffchainQuotingNotConfigured))?
-                        .insert(signer);
-                }
-                _ => {
-                    return Err(Error::NotLeafFeeData.into());
-                }
-            }
+            let FeeData::Leaf(cfg) = &mut fee_account.fee_data else {
+                return Err(Error::NotLeafFeeData.into());
+            };
+
+            // Leaf requires signers to be configured (Some) — unlike route PDAs which
+            // auto-create. This check runs before apply_signer_op so Add cannot
+            // silently create signers on an unconfigured Leaf.
+            cfg.signers
+                .as_ref()
+                .ok_or(ProgramError::from(Error::OffchainQuotingNotConfigured))?;
+            apply_signer_op(&mut cfg.signers, &operation);
 
             FeeAccountData::new(fee_account.into()).store_with_rent_exempt_realloc(
                 fee_account_info,
@@ -753,10 +751,7 @@ fn process_add_quote_signer(
                 RouteDomainAccount::fetch(&mut &route_pda_info.data.borrow()[..])?
                     .into_inner()
                     .data;
-            route_domain
-                .signers
-                .get_or_insert_with(BTreeSet::new)
-                .insert(signer);
+            apply_signer_op(&mut route_domain.signers, &operation);
             RouteDomainAccount::new(route_domain.into()).store_with_rent_exempt_realloc(
                 route_pda_info,
                 &Rent::get()?,
@@ -791,10 +786,7 @@ fn process_add_quote_signer(
                 CrossCollateralRouteAccount::fetch(&mut &cc_pda_info.data.borrow()[..])?
                     .into_inner()
                     .data;
-            cc_route
-                .signers
-                .get_or_insert_with(BTreeSet::new)
-                .insert(signer);
+            apply_signer_op(&mut cc_route.signers, &operation);
             CrossCollateralRouteAccount::new(cc_route.into()).store_with_rent_exempt_realloc(
                 cc_pda_info,
                 &Rent::get()?,
@@ -804,126 +796,24 @@ fn process_add_quote_signer(
         }
     }
 
-    msg!("Added quote signer: {}", signer);
+    msg!("SetQuoteSigner: {}", signer);
 
     Ok(())
 }
 
-/// Remove an offchain quote signer (owner-only).
-/// Dispatches by route key: None → FeeAccount (Leaf), Some → route PDA.
-///
-/// Accounts (route = None / Leaf):
-/// 0. `[writable]` Fee account (fee_data must be Leaf).
-/// 1. `[signer, writable]` Owner.
-///
-/// Accounts (route = Some(Domain) / Routing):
-/// 0. `[]` Fee account (fee_data must be Routing).
-/// 1. `[signer, writable]` Owner.
-/// 2. `[writable]` RouteDomain PDA.
-///
-/// Accounts (route = Some(CrossCollateral) / CC):
-/// 0. `[]` Fee account (fee_data must be CrossCollateralRouting).
-/// 1. `[signer, writable]` Owner.
-/// 2. `[writable]` CrossCollateralRoute PDA.
-fn process_remove_quote_signer(
-    program_id: &Pubkey,
-    accounts: &[AccountInfo],
-    signer: H160,
-    route: Option<RouteKey>,
-) -> ProgramResult {
-    let accounts_iter = &mut accounts.iter();
-
-    // Account 0 + 1: Fee account + owner.
-    let (fee_account_info, mut fee_account, _owner_info) =
-        fetch_fee_account_and_verify_owner(program_id, accounts_iter)?;
-
-    match route {
-        None => {
-            // Leaf path: mutate LeafFeeConfig.signers.
-            ensure_no_extraneous_accounts(accounts_iter)?;
-
-            match &mut fee_account.fee_data {
-                FeeData::Leaf(cfg) => {
-                    if let Some(ref mut signers) = cfg.signers {
-                        signers.remove(&signer);
-                    }
-                }
-                _ => {
-                    return Err(Error::NotLeafFeeData.into());
-                }
-            }
-            FeeAccountData::new(fee_account.into()).store(fee_account_info, false)?;
+/// Applies a signer operation to an optional signer set.
+/// Creates the set on Add if it doesn't exist; no-op on Remove if None.
+fn apply_signer_op(signers: &mut Option<BTreeSet<H160>>, operation: &SetQuoteSignerOperation) {
+    match operation {
+        SetQuoteSignerOperation::Add(s) => {
+            signers.get_or_insert_with(BTreeSet::new).insert(*s);
         }
-        Some(RouteKey::Domain(domain)) => {
-            // Routing path: mutate RouteDomain.signers.
-            if !matches!(fee_account.fee_data, FeeData::Routing(_)) {
-                return Err(Error::NotRoutingFeeData.into());
+        SetQuoteSignerOperation::Remove(s) => {
+            if let Some(set) = signers {
+                set.remove(s);
             }
-
-            // Account 2: RouteDomain PDA.
-            let route_pda_info = next_account_info(accounts_iter)?;
-            ensure_no_extraneous_accounts(accounts_iter)?;
-
-            let domain_le = domain.to_le_bytes();
-            let (expected_key, _) = Pubkey::find_program_address(
-                route_domain_pda_seeds!(fee_account_info.key, &domain_le),
-                program_id,
-            );
-            if *route_pda_info.key != expected_key {
-                return Err(ProgramError::InvalidArgument);
-            }
-            if route_pda_info.owner != program_id {
-                return Err(ProgramError::IncorrectProgramId);
-            }
-
-            let mut route_domain =
-                RouteDomainAccount::fetch(&mut &route_pda_info.data.borrow()[..])?
-                    .into_inner()
-                    .data;
-            if let Some(ref mut signers) = route_domain.signers {
-                signers.remove(&signer);
-            }
-            RouteDomainAccount::new(route_domain.into()).store(route_pda_info, false)?;
-        }
-        Some(RouteKey::CrossCollateral {
-            destination,
-            target_router,
-        }) => {
-            // CC path: mutate CrossCollateralRoute.signers.
-            if !matches!(fee_account.fee_data, FeeData::CrossCollateralRouting(_)) {
-                return Err(Error::NotCrossCollateralRoutingFeeData.into());
-            }
-
-            // Account 2: CrossCollateralRoute PDA.
-            let cc_pda_info = next_account_info(accounts_iter)?;
-            ensure_no_extraneous_accounts(accounts_iter)?;
-
-            let dest_le = destination.to_le_bytes();
-            let (expected_key, _) = Pubkey::find_program_address(
-                cc_route_pda_seeds!(fee_account_info.key, &dest_le, target_router),
-                program_id,
-            );
-            if *cc_pda_info.key != expected_key {
-                return Err(ProgramError::InvalidArgument);
-            }
-            if cc_pda_info.owner != program_id {
-                return Err(ProgramError::IncorrectProgramId);
-            }
-
-            let mut cc_route =
-                CrossCollateralRouteAccount::fetch(&mut &cc_pda_info.data.borrow()[..])?
-                    .into_inner()
-                    .data;
-            if let Some(ref mut signers) = cc_route.signers {
-                signers.remove(&signer);
-            }
-            CrossCollateralRouteAccount::new(cc_route.into()).store(cc_pda_info, false)?;
         }
     }
-
-    msg!("Removed quote signer: {}", signer);
-
-    Ok(())
 }
 
 /// Set the minimum issued_at threshold for standing quote validation (owner-only).
