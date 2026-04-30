@@ -33,7 +33,7 @@ pub struct FeeConfig {
 ///
 /// `BorshDeserialize` is implemented manually to support backward-compatible
 /// deserialization of accounts created before `fee_config` was added.
-#[derive(BorshSerialize, Debug, PartialEq, Default)]
+#[derive(Debug, PartialEq, Default)]
 pub struct HyperlaneToken<T> {
     /// The bump seed for this PDA.
     pub bump: u8,
@@ -96,6 +96,30 @@ impl<T: BorshDeserialize> BorshDeserialize for HyperlaneToken<T> {
             plugin_data,
             fee_config,
         })
+    }
+}
+
+impl<T: BorshSerialize> BorshSerialize for HyperlaneToken<T> {
+    fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        self.bump.serialize(writer)?;
+        self.mailbox.serialize(writer)?;
+        self.mailbox_process_authority.serialize(writer)?;
+        self.dispatch_authority_bump.serialize(writer)?;
+        self.decimals.serialize(writer)?;
+        self.remote_decimals.serialize(writer)?;
+        self.owner.serialize(writer)?;
+        self.interchain_security_module.serialize(writer)?;
+        self.interchain_gas_paymaster.serialize(writer)?;
+        self.destination_gas.serialize(writer)?;
+        self.remote_routers.serialize(writer)?;
+        self.plugin_data.serialize(writer)?;
+        // Only write the Option tag + payload when Some; write nothing for None
+        // so the serialized size matches the pre-upgrade layout.
+        if let Some(cfg) = &self.fee_config {
+            1u8.serialize(writer)?;
+            cfg.serialize(writer)?;
+        }
+        Ok(())
     }
 }
 
@@ -175,8 +199,11 @@ where
         (self.remote_routers.len() * (std::mem::size_of::<u32>() + 32)) +
         // plugin_data
         self.plugin_data.size() +
-        // fee_config: Option<FeeConfig> — None: 1 tag, Some: 1 tag + 32 + 32
-        1 + if self.fee_config.is_some() { 64 } else { 0 }
+        // fee_config: Option<FeeConfig> — None: 0 (omitted), Some: 1 tag + 32 + 32
+        match &self.fee_config {
+            Some(_) => 1 + 64,
+            None => 0,
+        }
     }
 }
 
@@ -442,9 +469,9 @@ mod test {
 
     #[test]
     fn test_backward_compat_deserialize_without_fee_config() {
-        // Simulate old-format data: serialize a token, then strip the trailing
-        // fee_config bytes so it looks like an account created before fee_config
-        // was added.
+        // Serializing with fee_config: None omits the trailing field entirely,
+        // producing the same layout as a pre-upgrade account. Verify that
+        // read_optional_trailing handles EOF → None correctly.
         let token = HyperlaneToken::<()> {
             bump: 1,
             decimals: 9,
@@ -454,11 +481,7 @@ mod test {
         };
         let serialized = borsh::to_vec(&token).unwrap();
 
-        // The last byte is the Option::None tag (0x00) for fee_config.
-        // Strip it to simulate old-format data.
-        let old_format = &serialized[..serialized.len() - 1];
-
-        let mut reader = std::io::Cursor::new(old_format);
+        let mut reader = std::io::Cursor::new(&serialized);
         let deserialized = HyperlaneToken::<()>::deserialize_reader(&mut reader).unwrap();
         assert_eq!(deserialized.fee_config, None);
         assert_eq!(deserialized.bump, 1);
