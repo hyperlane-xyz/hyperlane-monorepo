@@ -53,6 +53,9 @@ hyperlane-test-utils = { path = "../../libraries/test-utils" }
 hyperlane-sealevel-test-ism = { path = "../ism/test-ism", features = [
     "no-entrypoint",
 ] }
+k256.workspace = true
+quote-verifier = { path = "../../libraries/quote-verifier" }
+rand.workspace = true
 
 [lib]
 crate-type = ["cdylib", "lib"]
