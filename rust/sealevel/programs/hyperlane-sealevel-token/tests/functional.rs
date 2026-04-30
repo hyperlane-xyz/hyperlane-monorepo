@@ -15,11 +15,15 @@ use hyperlane_sealevel_fee::{
     processor::process_instruction as fee_process_instruction,
 };
 use hyperlane_sealevel_igp::{
-    accounts::{GasPaymentAccount, GasPaymentData, IgpFeeConfig, InterchainGasPaymasterType},
+    accounts::{
+        GasPaymentAccount, GasPaymentData, IgpFeeConfig, InterchainGasPaymasterType,
+        TOKEN_EXCHANGE_RATE_SCALE, WILDCARD_DOMAIN as IGP_WILDCARD_DOMAIN, WILDCARD_SENDER,
+    },
     igp_gas_payment_pda_seeds, igp_standing_quote_pda_seeds,
     instruction::{
         set_igp_quote_config_instruction, set_igp_quote_signer_instruction,
-        submit_igp_quote_instruction, SetIgpQuoteSignerOperation,
+        submit_igp_quote_instruction, GasOverheadConfig, Instruction as IgpProgramInstruction,
+        SetIgpQuoteSignerOperation,
     },
 };
 use hyperlane_sealevel_mailbox::{
@@ -2152,6 +2156,7 @@ async fn test_set_fee_config_wrong_fee_account_owner() {
 /// Shared setup for synthetic negative fee tests.
 struct SyntheticFeeTestContext {
     banks_client: BanksClient,
+    payer: Keypair,
     program_id: Pubkey,
     mailbox_accounts: MailboxAccounts,
     igp_accounts: IgpAccounts,
@@ -2323,6 +2328,7 @@ async fn setup_synthetic_fee_test_context() -> SyntheticFeeTestContext {
 
     SyntheticFeeTestContext {
         banks_client,
+        payer,
         program_id,
         mailbox_accounts,
         igp_accounts,
@@ -2709,6 +2715,55 @@ async fn submit_standing_igp_quote(
         ))
         .await
         .unwrap();
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn assert_igp_gas_payment(
+    banks_client: &mut BanksClient,
+    gas_payment_pda_key: Pubkey,
+    dispatched_message_key: Pubkey,
+    expected_igp: Pubkey,
+    expected_destination_domain: u32,
+    expected_unique_gas_payment_pubkey: Pubkey,
+    expected_gas_amount: u64,
+    expected_payment: u64,
+) {
+    let gas_payment = GasPaymentAccount::fetch(
+        &mut &banks_client
+            .get_account(gas_payment_pda_key)
+            .await
+            .unwrap()
+            .unwrap()
+            .data[..],
+    )
+    .unwrap()
+    .into_inner();
+
+    let dispatched_message = DispatchedMessageAccount::fetch(
+        &mut &banks_client
+            .get_account(dispatched_message_key)
+            .await
+            .unwrap()
+            .unwrap()
+            .data[..],
+    )
+    .unwrap()
+    .into_inner();
+    let message =
+        HyperlaneMessage::read_from(&mut &dispatched_message.encoded_message[..]).unwrap();
+
+    assert_eq!(gas_payment.data.igp, expected_igp);
+    assert_eq!(
+        gas_payment.data.destination_domain,
+        expected_destination_domain
+    );
+    assert_eq!(
+        gas_payment.data.unique_gas_payment_pubkey,
+        expected_unique_gas_payment_pubkey
+    );
+    assert_eq!(gas_payment.data.message_id, message.id());
+    assert_eq!(gas_payment.data.gas_amount, expected_gas_amount);
+    assert_eq!(gas_payment.data.payment, expected_payment);
 }
 
 // ========================================================================
@@ -3105,19 +3160,17 @@ async fn test_transfer_remote_igp_new_flow_transient_synthetic() {
         ((REMOTE_GAS_AMOUNT as u128) * igp_gas_price * igp_exchange_rate / scale) as u64;
     assert_ne!(expected_payment, REMOTE_GAS_AMOUNT);
 
-    let gas_payment = GasPaymentAccount::fetch(
-        &mut &banks_client
-            .get_account(gas_payment_pda_key)
-            .await
-            .unwrap()
-            .unwrap()
-            .data[..],
+    assert_igp_gas_payment(
+        &mut banks_client,
+        gas_payment_pda_key,
+        dispatched_message_key,
+        igp_accounts.igp,
+        REMOTE_DOMAIN,
+        unique_message_account_keypair.pubkey(),
+        REMOTE_GAS_AMOUNT,
+        expected_payment,
     )
-    .unwrap()
-    .into_inner();
-
-    assert_eq!(gas_payment.data.payment, expected_payment);
-    assert_eq!(gas_payment.data.gas_amount, REMOTE_GAS_AMOUNT);
+    .await;
 
     // Verify transient autoclosed.
     let transient_account = banks_client.get_account(igp_transient_pda).await.unwrap();
@@ -3125,4 +3178,795 @@ async fn test_transfer_remote_igp_new_flow_transient_synthetic() {
         transient_account.is_none() || transient_account.unwrap().data.is_empty(),
         "IGP transient PDA should be closed"
     );
+}
+
+// ========================================================================
+// IGP new flow: cascade tests
+// ========================================================================
+
+/// Helper: builds the transfer_remote account list for IGP new flow.
+/// `igp_variable_pdas` are standing quote PDAs between quoted_sender and the
+/// configured_igp terminal.
+#[allow(clippy::too_many_arguments)]
+fn build_igp_new_flow_transfer_remote_accounts(
+    hyperlane_token_accounts: &HyperlaneTokenAccounts,
+    mailbox_accounts: &MailboxAccounts,
+    igp_accounts: &IgpAccounts,
+    program_id: &Pubkey,
+    token_sender_pubkey: &Pubkey,
+    unique_msg_pubkey: &Pubkey,
+    dispatched_message_key: &Pubkey,
+    gas_payment_pda_key: &Pubkey,
+    igp_variable_pdas: &[Pubkey],
+) -> Vec<AccountMeta> {
+    let mut accounts = vec![
+        // Core
+        AccountMeta::new_readonly(system_program::ID, false),
+        AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
+        AccountMeta::new_readonly(hyperlane_token_accounts.token, false),
+        AccountMeta::new_readonly(mailbox_accounts.program, false),
+        AccountMeta::new(mailbox_accounts.outbox, false),
+        AccountMeta::new_readonly(hyperlane_token_accounts.dispatch_authority, false),
+        AccountMeta::new_readonly(*token_sender_pubkey, true),
+        AccountMeta::new_readonly(*unique_msg_pubkey, true),
+        AccountMeta::new(*dispatched_message_key, false),
+        // IGP new flow
+        AccountMeta::new_readonly(igp_accounts.program, false),
+        AccountMeta::new(igp_accounts.program_data, false),
+        AccountMeta::new(*gas_payment_pda_key, false),
+        AccountMeta::new_readonly(hyperlane_token_accounts.dispatch_authority, false),
+        AccountMeta::new_readonly(*program_id, false),
+    ];
+    // Variable quote PDAs
+    for pda in igp_variable_pdas {
+        accounts.push(AccountMeta::new_readonly(*pda, false));
+    }
+    // TERMINAL: configured_igp (OverheadIgp) + inner_igp
+    accounts.push(AccountMeta::new_readonly(igp_accounts.overhead_igp, false));
+    accounts.push(AccountMeta::new(igp_accounts.igp, false));
+    // Plugin (synthetic)
+    accounts.push(AccountMeta::new_readonly(spl_token_2022::id(), false));
+    accounts.push(AccountMeta::new(hyperlane_token_accounts.mint, false));
+    // token_sender_ata is added by caller since it varies
+    accounts
+}
+
+/// Cascade: exact PDA uninitialized, wildcard-sender PDA resolves.
+#[tokio::test]
+async fn test_transfer_remote_igp_new_flow_cascade_wildcard_sender() {
+    let program_id = hyperlane_sealevel_token_id();
+    let token_sender = Keypair::new();
+    let token_sender_pubkey = token_sender.pubkey();
+
+    let sender_initial_balance = 100 * 10u64.pow(LOCAL_DECIMALS_U32);
+    let (
+        mut banks_client,
+        payer,
+        mailbox_accounts,
+        igp_accounts,
+        hyperlane_token_accounts,
+        token_sender_ata,
+    ) = transfer_from_remote(
+        convert_decimals(
+            sender_initial_balance.into(),
+            LOCAL_DECIMALS,
+            REMOTE_DECIMALS,
+        )
+        .unwrap(),
+        None,
+        None,
+        Some(token_sender_pubkey),
+    )
+    .await
+    .unwrap();
+
+    transfer_lamports(
+        &mut banks_client,
+        &payer,
+        &token_sender_pubkey,
+        ONE_SOL_IN_LAMPORTS,
+    )
+    .await;
+
+    let remote_router = H256::random();
+    enroll_remote_router(
+        &mut banks_client,
+        &program_id,
+        &payer,
+        &hyperlane_token_accounts.token,
+        REMOTE_DOMAIN,
+        remote_router,
+    )
+    .await
+    .unwrap();
+
+    let signing_key = setup_igp_new_flow(&mut banks_client, &payer, &igp_accounts.igp).await;
+
+    let quote_exchange_rate = 3 * TOKEN_EXCHANGE_RATE_SCALE;
+    let quote_gas_price: u128 = 7;
+
+    // Submit standing quote for wildcard-sender (not exact).
+    submit_standing_igp_quote(
+        &mut banks_client,
+        &payer,
+        &igp_accounts.igp,
+        &signing_key,
+        REMOTE_DOMAIN,
+        &WILDCARD_SENDER, // wildcard sender
+        quote_exchange_rate,
+        quote_gas_price,
+        9,
+    )
+    .await;
+
+    // Derive PDAs: exact (uninitialized) and wildcard-sender (initialized).
+    let exact_pda = derive_igp_standing_quote_pda(
+        &igp_accounts.igp,
+        &Pubkey::default(),
+        REMOTE_DOMAIN,
+        &program_id,
+    );
+    let ws_pda = derive_igp_standing_quote_pda(
+        &igp_accounts.igp,
+        &Pubkey::default(),
+        REMOTE_DOMAIN,
+        &WILDCARD_SENDER,
+    );
+
+    let unique_msg = Keypair::new();
+    let (dispatched_message_key, _) = Pubkey::find_program_address(
+        mailbox_dispatched_message_pda_seeds!(&unique_msg.pubkey()),
+        &mailbox_accounts.program,
+    );
+    let (gas_payment_pda_key, _) = Pubkey::find_program_address(
+        igp_gas_payment_pda_seeds!(&unique_msg.pubkey()),
+        &igp_program_id(),
+    );
+
+    let transfer_amount = 10 * 10u64.pow(LOCAL_DECIMALS_U32);
+    let mut accounts = build_igp_new_flow_transfer_remote_accounts(
+        &hyperlane_token_accounts,
+        &mailbox_accounts,
+        &igp_accounts,
+        &program_id,
+        &token_sender_pubkey,
+        &unique_msg.pubkey(),
+        &dispatched_message_key,
+        &gas_payment_pda_key,
+        &[exact_pda, ws_pda],
+    );
+    accounts.push(AccountMeta::new(token_sender_ata, false));
+
+    let bh = banks_client.get_latest_blockhash().await.unwrap();
+    banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[Instruction::new_with_bytes(
+                program_id,
+                &HyperlaneTokenInstruction::TransferRemote(TransferRemote {
+                    destination_domain: REMOTE_DOMAIN,
+                    recipient: H256::random(),
+                    amount_or_id: transfer_amount.into(),
+                })
+                .encode()
+                .unwrap(),
+                accounts,
+            )],
+            Some(&token_sender_pubkey),
+            &[&token_sender, &unique_msg],
+            bh,
+        ))
+        .await
+        .unwrap();
+
+    // Verify quote pricing from wildcard-sender quote.
+    let expected_payment = ((REMOTE_GAS_AMOUNT as u128) * quote_gas_price * quote_exchange_rate
+        / TOKEN_EXCHANGE_RATE_SCALE) as u64;
+    assert_igp_gas_payment(
+        &mut banks_client,
+        gas_payment_pda_key,
+        dispatched_message_key,
+        igp_accounts.igp,
+        REMOTE_DOMAIN,
+        unique_msg.pubkey(),
+        REMOTE_GAS_AMOUNT,
+        expected_payment,
+    )
+    .await;
+}
+
+/// Cascade: exact + wildcard-sender uninitialized, wildcard-domain resolves.
+#[tokio::test]
+async fn test_transfer_remote_igp_new_flow_cascade_wildcard_domain() {
+    let program_id = hyperlane_sealevel_token_id();
+    let token_sender = Keypair::new();
+    let token_sender_pubkey = token_sender.pubkey();
+
+    let sender_initial_balance = 100 * 10u64.pow(LOCAL_DECIMALS_U32);
+    let (
+        mut banks_client,
+        payer,
+        mailbox_accounts,
+        igp_accounts,
+        hyperlane_token_accounts,
+        token_sender_ata,
+    ) = transfer_from_remote(
+        convert_decimals(
+            sender_initial_balance.into(),
+            LOCAL_DECIMALS,
+            REMOTE_DECIMALS,
+        )
+        .unwrap(),
+        None,
+        None,
+        Some(token_sender_pubkey),
+    )
+    .await
+    .unwrap();
+
+    transfer_lamports(
+        &mut banks_client,
+        &payer,
+        &token_sender_pubkey,
+        ONE_SOL_IN_LAMPORTS,
+    )
+    .await;
+
+    let remote_router = H256::random();
+    enroll_remote_router(
+        &mut banks_client,
+        &program_id,
+        &payer,
+        &hyperlane_token_accounts.token,
+        REMOTE_DOMAIN,
+        remote_router,
+    )
+    .await
+    .unwrap();
+
+    let signing_key = setup_igp_new_flow(&mut banks_client, &payer, &igp_accounts.igp).await;
+
+    let quote_exchange_rate = 4 * TOKEN_EXCHANGE_RATE_SCALE;
+    let quote_gas_price: u128 = 3;
+
+    // Submit standing quote for wildcard-domain only.
+    submit_standing_igp_quote(
+        &mut banks_client,
+        &payer,
+        &igp_accounts.igp,
+        &signing_key,
+        IGP_WILDCARD_DOMAIN,
+        &program_id, // wildcard domain, exact sender
+        quote_exchange_rate,
+        quote_gas_price,
+        9,
+    )
+    .await;
+
+    // All 3 cascade PDAs: exact + ws (uninitialized), wd (initialized).
+    let exact_pda = derive_igp_standing_quote_pda(
+        &igp_accounts.igp,
+        &Pubkey::default(),
+        REMOTE_DOMAIN,
+        &program_id,
+    );
+    let ws_pda = derive_igp_standing_quote_pda(
+        &igp_accounts.igp,
+        &Pubkey::default(),
+        REMOTE_DOMAIN,
+        &WILDCARD_SENDER,
+    );
+    let wd_pda = derive_igp_standing_quote_pda(
+        &igp_accounts.igp,
+        &Pubkey::default(),
+        IGP_WILDCARD_DOMAIN,
+        &program_id,
+    );
+
+    let unique_msg = Keypair::new();
+    let (dispatched_message_key, _) = Pubkey::find_program_address(
+        mailbox_dispatched_message_pda_seeds!(&unique_msg.pubkey()),
+        &mailbox_accounts.program,
+    );
+    let (gas_payment_pda_key, _) = Pubkey::find_program_address(
+        igp_gas_payment_pda_seeds!(&unique_msg.pubkey()),
+        &igp_program_id(),
+    );
+
+    let transfer_amount = 10 * 10u64.pow(LOCAL_DECIMALS_U32);
+    let mut accounts = build_igp_new_flow_transfer_remote_accounts(
+        &hyperlane_token_accounts,
+        &mailbox_accounts,
+        &igp_accounts,
+        &program_id,
+        &token_sender_pubkey,
+        &unique_msg.pubkey(),
+        &dispatched_message_key,
+        &gas_payment_pda_key,
+        &[exact_pda, ws_pda, wd_pda],
+    );
+    accounts.push(AccountMeta::new(token_sender_ata, false));
+
+    let bh = banks_client.get_latest_blockhash().await.unwrap();
+    banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[Instruction::new_with_bytes(
+                program_id,
+                &HyperlaneTokenInstruction::TransferRemote(TransferRemote {
+                    destination_domain: REMOTE_DOMAIN,
+                    recipient: H256::random(),
+                    amount_or_id: transfer_amount.into(),
+                })
+                .encode()
+                .unwrap(),
+                accounts,
+            )],
+            Some(&token_sender_pubkey),
+            &[&token_sender, &unique_msg],
+            bh,
+        ))
+        .await
+        .unwrap();
+
+    let expected_payment = ((REMOTE_GAS_AMOUNT as u128) * quote_gas_price * quote_exchange_rate
+        / TOKEN_EXCHANGE_RATE_SCALE) as u64;
+    assert_igp_gas_payment(
+        &mut banks_client,
+        gas_payment_pda_key,
+        dispatched_message_key,
+        igp_accounts.igp,
+        REMOTE_DOMAIN,
+        unique_msg.pubkey(),
+        REMOTE_GAS_AMOUNT,
+        expected_payment,
+    )
+    .await;
+}
+
+/// Cascade: all 3 standing PDAs uninitialized — falls back to oracle pricing.
+#[tokio::test]
+async fn test_transfer_remote_igp_new_flow_cascade_oracle_fallback() {
+    let program_id = hyperlane_sealevel_token_id();
+    let token_sender = Keypair::new();
+    let token_sender_pubkey = token_sender.pubkey();
+
+    let sender_initial_balance = 100 * 10u64.pow(LOCAL_DECIMALS_U32);
+    let (
+        mut banks_client,
+        payer,
+        mailbox_accounts,
+        igp_accounts,
+        hyperlane_token_accounts,
+        token_sender_ata,
+    ) = transfer_from_remote(
+        convert_decimals(
+            sender_initial_balance.into(),
+            LOCAL_DECIMALS,
+            REMOTE_DECIMALS,
+        )
+        .unwrap(),
+        None,
+        None,
+        Some(token_sender_pubkey),
+    )
+    .await
+    .unwrap();
+
+    transfer_lamports(
+        &mut banks_client,
+        &payer,
+        &token_sender_pubkey,
+        ONE_SOL_IN_LAMPORTS,
+    )
+    .await;
+
+    let remote_router = H256::random();
+    enroll_remote_router(
+        &mut banks_client,
+        &program_id,
+        &payer,
+        &hyperlane_token_accounts.token,
+        REMOTE_DOMAIN,
+        remote_router,
+    )
+    .await
+    .unwrap();
+
+    // Enable quoting but don't submit any quotes — all PDAs uninitialized.
+    let _signing_key = setup_igp_new_flow(&mut banks_client, &payer, &igp_accounts.igp).await;
+
+    let exact_pda = derive_igp_standing_quote_pda(
+        &igp_accounts.igp,
+        &Pubkey::default(),
+        REMOTE_DOMAIN,
+        &program_id,
+    );
+    let ws_pda = derive_igp_standing_quote_pda(
+        &igp_accounts.igp,
+        &Pubkey::default(),
+        REMOTE_DOMAIN,
+        &WILDCARD_SENDER,
+    );
+    let wd_pda = derive_igp_standing_quote_pda(
+        &igp_accounts.igp,
+        &Pubkey::default(),
+        IGP_WILDCARD_DOMAIN,
+        &program_id,
+    );
+
+    let unique_msg = Keypair::new();
+    let (dispatched_message_key, _) = Pubkey::find_program_address(
+        mailbox_dispatched_message_pda_seeds!(&unique_msg.pubkey()),
+        &mailbox_accounts.program,
+    );
+    let (gas_payment_pda_key, _) = Pubkey::find_program_address(
+        igp_gas_payment_pda_seeds!(&unique_msg.pubkey()),
+        &igp_program_id(),
+    );
+
+    let transfer_amount = 10 * 10u64.pow(LOCAL_DECIMALS_U32);
+    let mut accounts = build_igp_new_flow_transfer_remote_accounts(
+        &hyperlane_token_accounts,
+        &mailbox_accounts,
+        &igp_accounts,
+        &program_id,
+        &token_sender_pubkey,
+        &unique_msg.pubkey(),
+        &dispatched_message_key,
+        &gas_payment_pda_key,
+        &[exact_pda, ws_pda, wd_pda],
+    );
+    accounts.push(AccountMeta::new(token_sender_ata, false));
+
+    let bh = banks_client.get_latest_blockhash().await.unwrap();
+    banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[Instruction::new_with_bytes(
+                program_id,
+                &HyperlaneTokenInstruction::TransferRemote(TransferRemote {
+                    destination_domain: REMOTE_DOMAIN,
+                    recipient: H256::random(),
+                    amount_or_id: transfer_amount.into(),
+                })
+                .encode()
+                .unwrap(),
+                accounts,
+            )],
+            Some(&token_sender_pubkey),
+            &[&token_sender, &unique_msg],
+            bh,
+        ))
+        .await
+        .unwrap();
+
+    // Oracle pricing: gas_amount * gas_price(1) * exchange_rate(SCALE) / SCALE = gas_amount.
+    let oracle_payment = REMOTE_GAS_AMOUNT;
+    assert_igp_gas_payment(
+        &mut banks_client,
+        gas_payment_pda_key,
+        dispatched_message_key,
+        igp_accounts.igp,
+        REMOTE_DOMAIN,
+        unique_msg.pubkey(),
+        REMOTE_GAS_AMOUNT,
+        oracle_payment,
+    )
+    .await;
+}
+
+// ========================================================================
+// IGP new flow: overhead test
+// ========================================================================
+
+/// Standing quote with actual gas overhead configured on OverheadIgp.
+#[tokio::test]
+async fn test_transfer_remote_igp_new_flow_with_overhead() {
+    let program_id = hyperlane_sealevel_token_id();
+    let token_sender = Keypair::new();
+    let token_sender_pubkey = token_sender.pubkey();
+
+    let sender_initial_balance = 100 * 10u64.pow(LOCAL_DECIMALS_U32);
+    let (
+        mut banks_client,
+        payer,
+        mailbox_accounts,
+        igp_accounts,
+        hyperlane_token_accounts,
+        token_sender_ata,
+    ) = transfer_from_remote(
+        convert_decimals(
+            sender_initial_balance.into(),
+            LOCAL_DECIMALS,
+            REMOTE_DECIMALS,
+        )
+        .unwrap(),
+        None,
+        None,
+        Some(token_sender_pubkey),
+    )
+    .await
+    .unwrap();
+
+    transfer_lamports(
+        &mut banks_client,
+        &payer,
+        &token_sender_pubkey,
+        ONE_SOL_IN_LAMPORTS,
+    )
+    .await;
+
+    let remote_router = H256::random();
+    enroll_remote_router(
+        &mut banks_client,
+        &program_id,
+        &payer,
+        &hyperlane_token_accounts.token,
+        REMOTE_DOMAIN,
+        remote_router,
+    )
+    .await
+    .unwrap();
+
+    // Set actual gas overhead on the OverheadIgp (100_000 gas).
+    let gas_overhead: u64 = 100_000;
+    let overhead_ix = Instruction::new_with_borsh(
+        igp_program_id(),
+        &IgpProgramInstruction::SetDestinationGasOverheads(vec![GasOverheadConfig {
+            destination_domain: REMOTE_DOMAIN,
+            gas_overhead: Some(gas_overhead),
+        }]),
+        vec![
+            AccountMeta::new_readonly(system_program::ID, false),
+            AccountMeta::new(igp_accounts.overhead_igp, false),
+            AccountMeta::new_readonly(payer.pubkey(), true),
+        ],
+    );
+    let bh = banks_client.get_latest_blockhash().await.unwrap();
+    banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[overhead_ix],
+            Some(&payer.pubkey()),
+            &[&payer],
+            bh,
+        ))
+        .await
+        .unwrap();
+
+    let signing_key = setup_igp_new_flow(&mut banks_client, &payer, &igp_accounts.igp).await;
+
+    let quote_exchange_rate = 2 * TOKEN_EXCHANGE_RATE_SCALE;
+    let quote_gas_price: u128 = 5;
+
+    submit_standing_igp_quote(
+        &mut banks_client,
+        &payer,
+        &igp_accounts.igp,
+        &signing_key,
+        REMOTE_DOMAIN,
+        &program_id,
+        quote_exchange_rate,
+        quote_gas_price,
+        9,
+    )
+    .await;
+
+    let exact_pda = derive_igp_standing_quote_pda(
+        &igp_accounts.igp,
+        &Pubkey::default(),
+        REMOTE_DOMAIN,
+        &program_id,
+    );
+
+    let unique_msg = Keypair::new();
+    let (dispatched_message_key, _) = Pubkey::find_program_address(
+        mailbox_dispatched_message_pda_seeds!(&unique_msg.pubkey()),
+        &mailbox_accounts.program,
+    );
+    let (gas_payment_pda_key, _) = Pubkey::find_program_address(
+        igp_gas_payment_pda_seeds!(&unique_msg.pubkey()),
+        &igp_program_id(),
+    );
+
+    let transfer_amount = 10 * 10u64.pow(LOCAL_DECIMALS_U32);
+    let mut accounts = build_igp_new_flow_transfer_remote_accounts(
+        &hyperlane_token_accounts,
+        &mailbox_accounts,
+        &igp_accounts,
+        &program_id,
+        &token_sender_pubkey,
+        &unique_msg.pubkey(),
+        &dispatched_message_key,
+        &gas_payment_pda_key,
+        &[exact_pda],
+    );
+    accounts.push(AccountMeta::new(token_sender_ata, false));
+
+    let bh = banks_client.get_latest_blockhash().await.unwrap();
+    banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[Instruction::new_with_bytes(
+                program_id,
+                &HyperlaneTokenInstruction::TransferRemote(TransferRemote {
+                    destination_domain: REMOTE_DOMAIN,
+                    recipient: H256::random(),
+                    amount_or_id: transfer_amount.into(),
+                })
+                .encode()
+                .unwrap(),
+                accounts,
+            )],
+            Some(&token_sender_pubkey),
+            &[&token_sender, &unique_msg],
+            bh,
+        ))
+        .await
+        .unwrap();
+
+    // gas_amount = REMOTE_GAS_AMOUNT + overhead = 200000 + 100000 = 300000
+    let expected_gas_amount = REMOTE_GAS_AMOUNT + gas_overhead;
+    let expected_payment = ((expected_gas_amount as u128) * quote_gas_price * quote_exchange_rate
+        / TOKEN_EXCHANGE_RATE_SCALE) as u64;
+
+    assert_igp_gas_payment(
+        &mut banks_client,
+        gas_payment_pda_key,
+        dispatched_message_key,
+        igp_accounts.igp,
+        REMOTE_DOMAIN,
+        unique_msg.pubkey(),
+        expected_gas_amount,
+        expected_payment,
+    )
+    .await;
+}
+
+// ========================================================================
+// IGP new flow + fee combined
+// ========================================================================
+
+/// Fee program (Leaf mode) + IGP new flow with standing quote.
+#[tokio::test]
+async fn test_transfer_remote_igp_new_flow_with_fee() {
+    let ctx = setup_synthetic_fee_test_context().await;
+    let mut banks_client = ctx.banks_client;
+    let program_id = ctx.program_id;
+
+    let signing_key =
+        setup_igp_new_flow(&mut banks_client, &ctx.payer, &ctx.igp_accounts.igp).await;
+
+    let quote_exchange_rate = 2 * TOKEN_EXCHANGE_RATE_SCALE;
+    let quote_gas_price: u128 = 5;
+
+    submit_standing_igp_quote(
+        &mut banks_client,
+        &ctx.payer,
+        &ctx.igp_accounts.igp,
+        &signing_key,
+        REMOTE_DOMAIN,
+        &program_id,
+        quote_exchange_rate,
+        quote_gas_price,
+        9,
+    )
+    .await;
+
+    let exact_pda = derive_igp_standing_quote_pda(
+        &ctx.igp_accounts.igp,
+        &Pubkey::default(),
+        REMOTE_DOMAIN,
+        &program_id,
+    );
+
+    let unique_msg = Keypair::new();
+    let (dispatched_message_key, _) = Pubkey::find_program_address(
+        mailbox_dispatched_message_pda_seeds!(&unique_msg.pubkey()),
+        &ctx.mailbox_accounts.program,
+    );
+    let (gas_payment_pda_key, _) = Pubkey::find_program_address(
+        igp_gas_payment_pda_seeds!(&unique_msg.pubkey()),
+        &igp_program_id(),
+    );
+
+    let transfer_amount = 50 * 10u64.pow(LOCAL_DECIMALS_U32);
+    let token_sender_pubkey = ctx.token_sender.pubkey();
+
+    let sender_balance_before = {
+        let acct = banks_client
+            .get_account(ctx.token_sender_ata)
+            .await
+            .unwrap()
+            .unwrap();
+        spl_token_2022::extension::StateWithExtensions::<spl_token_2022::state::Account>::unpack(
+            &acct.data,
+        )
+        .unwrap()
+        .base
+        .amount
+    };
+
+    let bh = banks_client.get_latest_blockhash().await.unwrap();
+    banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[Instruction::new_with_bytes(
+                program_id,
+                &HyperlaneTokenInstruction::TransferRemote(TransferRemote {
+                    destination_domain: REMOTE_DOMAIN,
+                    recipient: H256::random(),
+                    amount_or_id: transfer_amount.into(),
+                })
+                .encode()
+                .unwrap(),
+                vec![
+                    // Core
+                    AccountMeta::new_readonly(system_program::ID, false),
+                    AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
+                    AccountMeta::new_readonly(ctx.hyperlane_token_accounts.token, false),
+                    AccountMeta::new_readonly(ctx.mailbox_accounts.program, false),
+                    AccountMeta::new(ctx.mailbox_accounts.outbox, false),
+                    AccountMeta::new_readonly(
+                        ctx.hyperlane_token_accounts.dispatch_authority,
+                        false,
+                    ),
+                    AccountMeta::new_readonly(token_sender_pubkey, true),
+                    AccountMeta::new_readonly(unique_msg.pubkey(), true),
+                    AccountMeta::new(dispatched_message_key, false),
+                    // Fee section
+                    AccountMeta::new_readonly(fee_program_id(), false),
+                    AccountMeta::new_readonly(ctx.fee_account_key, false),
+                    AccountMeta::new_readonly(ctx.domain_standing_quote_pda, false),
+                    AccountMeta::new_readonly(ctx.wildcard_standing_quote_pda, false),
+                    AccountMeta::new(ctx.fee_beneficiary_ata, false), // terminal
+                    // IGP new flow
+                    AccountMeta::new_readonly(ctx.igp_accounts.program, false),
+                    AccountMeta::new(ctx.igp_accounts.program_data, false),
+                    AccountMeta::new(gas_payment_pda_key, false),
+                    AccountMeta::new_readonly(
+                        ctx.hyperlane_token_accounts.dispatch_authority,
+                        false,
+                    ),
+                    AccountMeta::new_readonly(program_id, false),
+                    AccountMeta::new_readonly(exact_pda, false),
+                    AccountMeta::new_readonly(ctx.igp_accounts.overhead_igp, false), // TERMINAL
+                    AccountMeta::new(ctx.igp_accounts.igp, false),
+                    // Plugin (synthetic)
+                    AccountMeta::new_readonly(spl_token_2022::id(), false),
+                    AccountMeta::new(ctx.hyperlane_token_accounts.mint, false),
+                    AccountMeta::new(ctx.token_sender_ata, false),
+                ],
+            )],
+            Some(&token_sender_pubkey),
+            &[&ctx.token_sender, &unique_msg],
+            bh,
+        ))
+        .await
+        .unwrap();
+
+    // Verify fee deducted.
+    // Linear fee: min(FEE_MAX, amount * FEE_MAX / FEE_HALF_AMOUNT).
+    // FEE_MAX=100, FEE_HALF_AMOUNT=500_000, amount=50*10^8=5_000_000_000.
+    // amount >> half_amount → fee capped at FEE_MAX=100.
+    let expected_fee = FEE_MAX;
+    assert_token_balance(&mut banks_client, &ctx.fee_beneficiary_ata, expected_fee).await;
+
+    // Verify sender balance: initial - transfer - fee.
+    assert_token_balance(
+        &mut banks_client,
+        &ctx.token_sender_ata,
+        sender_balance_before - transfer_amount - expected_fee,
+    )
+    .await;
+
+    // Verify IGP used quote pricing.
+    let expected_igp_payment = ((REMOTE_GAS_AMOUNT as u128) * quote_gas_price * quote_exchange_rate
+        / TOKEN_EXCHANGE_RATE_SCALE) as u64;
+    assert_igp_gas_payment(
+        &mut banks_client,
+        gas_payment_pda_key,
+        dispatched_message_key,
+        ctx.igp_accounts.igp,
+        REMOTE_DOMAIN,
+        unique_msg.pubkey(),
+        REMOTE_GAS_AMOUNT,
+        expected_igp_payment,
+    )
+    .await;
 }
