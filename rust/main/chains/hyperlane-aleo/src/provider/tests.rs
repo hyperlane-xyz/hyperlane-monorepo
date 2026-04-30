@@ -278,7 +278,7 @@ async fn provable_mainnet_get_block_range() {
         });
     println!("block {latest}: ok (sanity)");
 
-    for height in 17918388u32..=17918398 {
+    for height in 18077366u32..=18077376 {
         match rpc.get_block::<MainnetV0>(height).await {
             Ok(_) => println!("block {height}: ok"),
             Err(err) => {
