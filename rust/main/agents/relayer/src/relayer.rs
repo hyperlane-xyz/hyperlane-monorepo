@@ -666,9 +666,16 @@ impl Relayer {
                 .map(|(domain, origin)| (domain.name().to_string(), origin.message_indexer.clone()))
                 .collect();
 
+            let igp_indexers: HashMap<u32, Arc<dyn Indexer<InterchainGasPayment>>> = self
+                .origins
+                .iter()
+                .filter_map(|(domain, origin)| origin.igp_indexer.clone().map(|i| (domain.id(), i)))
+                .collect();
+
             Some(
                 RelayApiState::new(
                     indexers,
+                    igp_indexers,
                     dbs.clone(),
                     send_channels,
                     msg_ctxs.clone(),

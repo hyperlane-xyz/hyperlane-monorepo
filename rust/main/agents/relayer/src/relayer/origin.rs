@@ -36,6 +36,11 @@ pub struct Origin {
     /// API can reuse the existing RPC connection instead of opening a new one.
     pub message_indexer: Arc<dyn Indexer<HyperlaneMessage>>,
     pub interchain_gas_payment_sync: Option<InterchainGasPaymentSync>,
+    /// The underlying IGP indexer shared with `interchain_gas_payment_sync`. Exposed so the
+    /// relay API can eagerly store gas payments from a tx receipt before enqueuing the message,
+    /// closing the race window where the relayer checks for gas payment before the background
+    /// `tx_id_indexer_task` has stored it.
+    pub igp_indexer: Option<Arc<dyn Indexer<InterchainGasPayment>>>,
     pub merkle_tree_hook_sync: MerkleTreeHookSync,
 }
 
@@ -141,8 +146,8 @@ impl Factory for OriginFactory {
             res
         };
 
-        let interchain_gas_payment_sync = if self.igp_indexing_enabled {
-            let igp_sync = {
+        let (interchain_gas_payment_sync, igp_indexer) = if self.igp_indexing_enabled {
+            let (igp_sync, igp_idx) = {
                 let start_entity_init = Instant::now();
                 let res = self
                     .init_igp_sync(&domain, chain_conf, hyperlane_db.clone())
@@ -154,9 +159,9 @@ impl Factory for OriginFactory {
                 );
                 res
             };
-            Some(igp_sync)
+            (Some(igp_sync), Some(igp_idx))
         } else {
-            None
+            (None, None)
         };
 
         let merkle_tree_hook_sync = {
@@ -182,6 +187,7 @@ impl Factory for OriginFactory {
             message_sync,
             message_indexer,
             interchain_gas_payment_sync,
+            igp_indexer,
             merkle_tree_hook_sync,
         };
         Ok(origin)
@@ -266,7 +272,13 @@ impl OriginFactory {
         domain: &HyperlaneDomain,
         chain_conf: &ChainConf,
         db: Arc<HyperlaneRocksDB>,
-    ) -> Result<InterchainGasPaymentSync, FactoryError> {
+    ) -> Result<
+        (
+            InterchainGasPaymentSync,
+            Arc<dyn Indexer<InterchainGasPayment>>,
+        ),
+        FactoryError,
+    > {
         match InterchainGasPayment::indexing_cursor(domain.domain_protocol()) {
             CursorType::SequenceAware => Self::build_sequenced_contract_sync(
                 domain,
@@ -278,7 +290,12 @@ impl OriginFactory {
                 false,
             )
             .await
-            .map(|(r, _)| r as Arc<dyn ContractSyncer<_>>)
+            .map(|(r, i)| {
+                (
+                    r as Arc<dyn ContractSyncer<_>>,
+                    Arc::new(i) as Arc<dyn Indexer<_>>,
+                )
+            })
             .map_err(|err| {
                 FactoryError::InterchainGasPaymentSync(domain.to_string(), err.to_string())
             }),
@@ -292,7 +309,12 @@ impl OriginFactory {
                 false,
             )
             .await
-            .map(|(r, _)| r as Arc<dyn ContractSyncer<_>>)
+            .map(|(r, i)| {
+                (
+                    r as Arc<dyn ContractSyncer<_>>,
+                    Arc::new(i) as Arc<dyn Indexer<_>>,
+                )
+            })
             .map_err(|err| {
                 FactoryError::InterchainGasPaymentSync(domain.to_string(), err.to_string())
             }),
