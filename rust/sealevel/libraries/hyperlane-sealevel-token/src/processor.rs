@@ -38,6 +38,22 @@ use solana_program::{
     rent::Rent,
     sysvar::Sysvar,
 };
+
+/// Parsed IGP accounts for the deferred PayForGas CPI.
+/// The variant determines the invocation mode.
+enum IgpPaymentAccounts<'b> {
+    /// Old flow: oracle-based pricing, plain `invoke`.
+    Legacy {
+        account_metas: Vec<AccountMeta>,
+        account_infos: Vec<AccountInfo<'b>>,
+    },
+    /// New flow: offchain quote pricing, `invoke_signed` with dispatch_authority PDA.
+    #[allow(dead_code)]
+    Quoted {
+        account_metas: Vec<AccountMeta>,
+        account_infos: Vec<AccountInfo<'b>>,
+    },
+}
 use solana_system_interface::program as system_program;
 use std::collections::HashMap;
 
@@ -510,7 +526,10 @@ where
                     }
                 };
 
-                Some((igp_payment_account_metas, igp_payment_account_infos))
+                Some(IgpPaymentAccounts::Legacy {
+                    account_metas: igp_payment_account_metas,
+                    account_infos: igp_payment_account_infos,
+                })
             } else {
                 None
             };
@@ -578,7 +597,7 @@ where
         }
 
         // Pay for gas if IGP is configured.
-        if let Some((igp_payment_account_metas, igp_payment_account_infos)) = igp_payment_accounts {
+        if let Some(igp_payment) = igp_payment_accounts {
             let (igp_program_id, _) = token
                 .interchain_gas_paymaster()
                 .ok_or(ProgramError::InvalidArgument)?;
@@ -590,16 +609,40 @@ where
                 .destination_gas(destination_domain)
                 .ok_or(ProgramError::InvalidArgument)?;
 
-            let igp_ixn = Instruction::new_with_borsh(
-                *igp_program_id,
-                &IgpInstruction::PayForGas(IgpPayForGas {
-                    message_id,
-                    destination_domain,
-                    gas_amount: destination_gas,
-                }),
-                igp_payment_account_metas,
-            );
-            invoke(&igp_ixn, &igp_payment_account_infos)?;
+            match igp_payment {
+                IgpPaymentAccounts::Legacy {
+                    account_metas,
+                    account_infos,
+                } => {
+                    let igp_ixn = Instruction::new_with_borsh(
+                        *igp_program_id,
+                        &IgpInstruction::PayForGas(IgpPayForGas {
+                            message_id,
+                            destination_domain,
+                            gas_amount: destination_gas,
+                        }),
+                        account_metas,
+                    );
+
+                    invoke(&igp_ixn, &account_infos)?;
+                }
+                IgpPaymentAccounts::Quoted {
+                    account_metas,
+                    account_infos,
+                } => {
+                    let igp_ixn = Instruction::new_with_borsh(
+                        *igp_program_id,
+                        &IgpInstruction::PayForGas(IgpPayForGas {
+                            message_id,
+                            destination_domain,
+                            gas_amount: destination_gas,
+                        }),
+                        account_metas,
+                    );
+
+                    invoke_signed(&igp_ixn, &account_infos, &[dispatch_authority_seeds])?;
+                }
+            }
         }
 
         Ok(remote_amount)
