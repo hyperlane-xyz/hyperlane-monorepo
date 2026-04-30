@@ -6,7 +6,9 @@ use axum::{
     Json, Router,
 };
 use hyperlane_base::db::HyperlaneRocksDB;
-use hyperlane_core::{HyperlaneMessage, Indexer, QueueOperation, H256, H512};
+use hyperlane_core::{
+    HyperlaneLogStore, HyperlaneMessage, Indexer, InterchainGasPayment, QueueOperation, H256, H512,
+};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
@@ -152,6 +154,10 @@ impl Drop for TxHashReservation {
 pub struct ServerState {
     // Required: server cannot function without these
     indexers: HashMap<String, Arc<dyn Indexer<HyperlaneMessage>>>,
+    /// IGP indexers keyed by origin domain id. Used to eagerly store gas payments from a
+    /// tx receipt before injecting the message into the processor queue, so the relayer's
+    /// gas payment check never races the background `tx_id_indexer_task`.
+    igp_indexers: HashMap<u32, Arc<dyn Indexer<InterchainGasPayment>>>,
     dbs: HashMap<u32, HyperlaneRocksDB>,
     send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
     msg_ctxs: HashMap<(u32, u32), Arc<MessageContext>>,
@@ -168,6 +174,7 @@ pub struct ServerState {
 impl ServerState {
     pub fn new(
         indexers: HashMap<String, Arc<dyn Indexer<HyperlaneMessage>>>,
+        igp_indexers: HashMap<u32, Arc<dyn Indexer<InterchainGasPayment>>>,
         dbs: HashMap<u32, HyperlaneRocksDB>,
         send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
         msg_ctxs: HashMap<(u32, u32), Arc<MessageContext>>,
@@ -175,6 +182,7 @@ impl ServerState {
     ) -> Self {
         Self {
             indexers,
+            igp_indexers,
             dbs,
             send_channels,
             msg_ctxs,
@@ -704,7 +712,65 @@ async fn relay_work(state: &ServerState, req: &RelayRequest) -> ServerResult<Jso
         });
     }
 
-    // Phase 2: send all validated messages.
+    // Phase 2: eagerly store IGP payments from the tx receipt for each origin domain.
+    //
+    // The relayer's gas payment check runs immediately after a message enters the processor
+    // queue. Without this step the check races the background `tx_id_indexer_task`, which
+    // indexes the same receipt asynchronously and may arrive ~30 s later — causing spurious
+    // `GasPaymentNotFound` retries. By fetching and storing the payments here, before any
+    // message is enqueued, the race window is closed.
+    //
+    // Failures are non-fatal: log a warning and proceed. The background indexer still
+    // serves as a fallback, so a transient RPC error here doesn't break relay.
+    //
+    // We deduplicate by (origin_domain, tx_hash) so that a batch with multiple messages
+    // from the same tx only triggers one RPC call.
+    {
+        let mut seen: std::collections::HashSet<(u32, H512)> = std::collections::HashSet::new();
+        for v in &validated {
+            let key = (v.origin_domain, v.tx_hash);
+            if !seen.insert(key) {
+                continue;
+            }
+            let Some(igp_indexer) = state.igp_indexers.get(&v.origin_domain) else {
+                continue;
+            };
+            let Some(db) = state.dbs.get(&v.origin_domain) else {
+                continue;
+            };
+            match igp_indexer.fetch_logs_by_tx_hash(v.tx_hash).await {
+                Ok(payments) => {
+                    if let Err(e) = db.store_logs(&payments).await {
+                        warn!(
+                            origin_domain = v.origin_domain,
+                            tx_hash = ?v.tx_hash,
+                            error = %e,
+                            "Failed to store IGP payments from relay API receipt; \
+                             background indexer will retry"
+                        );
+                    } else {
+                        debug!(
+                            origin_domain = v.origin_domain,
+                            tx_hash = ?v.tx_hash,
+                            count = payments.len(),
+                            "Stored IGP payments from relay API receipt"
+                        );
+                    }
+                }
+                Err(e) => {
+                    warn!(
+                        origin_domain = v.origin_domain,
+                        tx_hash = ?v.tx_hash,
+                        error = %e,
+                        "Failed to fetch IGP payments from relay API receipt; \
+                         background indexer will retry"
+                    );
+                }
+            }
+        }
+    }
+
+    // Phase 3: send all validated messages.
     //
     // Pre-check: verify every destination channel is open before sending anything.
     // UnboundedSender::send() only fails when the receiver (processor) has been
