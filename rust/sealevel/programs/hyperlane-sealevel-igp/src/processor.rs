@@ -26,9 +26,7 @@ use account_utils::{
 };
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 
-use quote_verifier::{
-    QuoteValidationError, SvmSignedQuote, ValidatableQuote, MAX_QUOTE_ISSUED_AT_FUTURE_SKEW_SECS,
-};
+use quote_verifier::{QuoteValidationError, SvmSignedQuote, ValidatableQuote};
 
 use crate::{
     accounts::{
@@ -1123,26 +1121,13 @@ fn submit_igp_quote(
         .map_err(Into::<ProgramError>::into)?;
 
     // --- Validate timestamps ---
+    let clock = Clock::get()?;
+    quote
+        .validate_quote_submission(fee_config.min_issued_at, &clock)
+        .map_err(Into::<ProgramError>::into)?;
+
     let issued_at_ts = quote.issued_at_timestamp();
     let expiry_ts = quote.expiry_timestamp();
-
-    if expiry_ts < issued_at_ts {
-        return Err(QuoteValidationError::InvalidExpiry.into());
-    }
-
-    let clock = Clock::get()?;
-    if clock.unix_timestamp > expiry_ts {
-        return Err(QuoteValidationError::QuoteExpired.into());
-    }
-
-    if issued_at_ts > clock.unix_timestamp + MAX_QUOTE_ISSUED_AT_FUTURE_SKEW_SECS {
-        return Err(QuoteValidationError::IssuedAtTooFarInFuture.into());
-    }
-
-    // Emergency revocation: reject quotes below min_issued_at threshold.
-    if issued_at_ts < fee_config.min_issued_at {
-        return Err(QuoteValidationError::StaleQuote.into());
-    }
 
     // --- Business logic ---
 

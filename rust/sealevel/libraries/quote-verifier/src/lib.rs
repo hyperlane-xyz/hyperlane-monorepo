@@ -198,6 +198,7 @@ pub trait ValidatableQuote {
     fn issued_at(&self) -> i64;
 
     /// Validates that the quote is still usable given the clock and min_issued_at threshold.
+    /// Used at consumption time (cascade resolution).
     fn validate_quote(
         &self,
         min_issued_at: i64,
@@ -209,6 +210,33 @@ pub trait ValidatableQuote {
 
         if clock.unix_timestamp > self.expiry() {
             return Err(QuoteValidationError::QuoteExpired);
+        }
+
+        Ok(())
+    }
+
+    /// Full validation for quote submission (ingest time).
+    /// Checks structural validity (expiry >= issued_at), liveness (not expired,
+    /// not too far in the future), and freshness (above min_issued_at).
+    fn validate_quote_submission(
+        &self,
+        min_issued_at: i64,
+        clock: &Clock,
+    ) -> Result<(), QuoteValidationError> {
+        if self.expiry() < self.issued_at() {
+            return Err(QuoteValidationError::InvalidExpiry);
+        }
+
+        if clock.unix_timestamp > self.expiry() {
+            return Err(QuoteValidationError::QuoteExpired);
+        }
+
+        if self.issued_at() > clock.unix_timestamp + MAX_QUOTE_ISSUED_AT_FUTURE_SKEW_SECS {
+            return Err(QuoteValidationError::IssuedAtTooFarInFuture);
+        }
+
+        if self.issued_at() < min_issued_at {
+            return Err(QuoteValidationError::StaleQuote);
         }
 
         Ok(())
@@ -235,7 +263,7 @@ fn decode_u48_timestamp(bytes: &[u8; 6]) -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use k256::ecdsa::{RecoveryId, Signature, SigningKey, VerifyingKey};
+    use k256::ecdsa::{SigningKey, VerifyingKey};
 
     fn make_quote(
         context: Vec<u8>,

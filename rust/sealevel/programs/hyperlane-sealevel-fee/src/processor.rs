@@ -45,9 +45,7 @@ use crate::{
     route_domain_pda_seeds, transient_quote_pda_seeds,
 };
 
-use quote_verifier::{
-    QuoteValidationError, ValidatableQuote, MAX_QUOTE_ISSUED_AT_FUTURE_SKEW_SECS,
-};
+use quote_verifier::{QuoteValidationError, ValidatableQuote};
 
 #[cfg(not(feature = "no-entrypoint"))]
 solana_program::entrypoint!(process_instruction);
@@ -902,25 +900,6 @@ fn process_submit_quote(
     accounts: &[AccountInfo],
     quote: SvmSignedQuote,
 ) -> ProgramResult {
-    let expiry_ts = quote.expiry_timestamp();
-    let issued_at_ts = quote.issued_at_timestamp();
-
-    // Validate expiry >= issued_at.
-    if expiry_ts < issued_at_ts {
-        return Err(QuoteValidationError::InvalidExpiry.into());
-    }
-
-    // Validate quote hasn't expired.
-    let clock = Clock::get()?;
-    if clock.unix_timestamp > expiry_ts {
-        return Err(QuoteValidationError::QuoteExpired.into());
-    }
-
-    // Reject issued_at too far in the future (clock skew guard).
-    if issued_at_ts > clock.unix_timestamp + MAX_QUOTE_ISSUED_AT_FUTURE_SKEW_SECS {
-        return Err(QuoteValidationError::IssuedAtTooFarInFuture.into());
-    }
-
     let accounts_iter = &mut accounts.iter();
 
     // Account 0: System program.
@@ -942,11 +921,14 @@ fn process_submit_quote(
     }
     let fee_account = FeeAccountData::fetch(&mut &fee_account_info.data.borrow()[..])?.into_inner();
 
-    // Reject quotes below the min_issued_at threshold at ingest time.
-    // Prevents stranding rent on dead-on-arrival entries.
-    if issued_at_ts < fee_account.min_issued_at {
-        return Err(QuoteValidationError::StaleQuote.into());
-    }
+    // Validate structural validity, liveness, and freshness.
+    let clock = Clock::get()?;
+    quote
+        .validate_quote_submission(fee_account.min_issued_at, &clock)
+        .map_err(Into::<ProgramError>::into)?;
+
+    let issued_at_ts = quote.issued_at_timestamp();
+    let expiry_ts = quote.expiry_timestamp();
 
     // Resolve signers based on fee_data type and destination domain.
     // - Leaf: signers from FeeData::Leaf for all quotes.
