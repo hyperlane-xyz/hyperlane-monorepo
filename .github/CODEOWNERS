@@ -5,7 +5,7 @@ solidity/ @yorhodes @nambrot
 starknet/ @yorhodes @troykessler
 
 ## Agents
-rust/ @tkporter @yjamin
+rust/ @tkporter
 
 ## SDK
 typescript/sdk @yorhodes @paulbalaji @xaroz @xeno097
@@ -15,11 +15,11 @@ typescript/widgets @xaroz @xeno097
 ## Multi-VM SDK
 typescript/deploy-sdk @xeno097 @troykessler
 typescript/provider-sdk @xeno097 @troykessler
-typescript/aleo-sdk @xeno097 @troykessler @yjamin
-typescript/cosmos-sdk @xeno097 @troykessler @yjamin
-typescript/cosmos-types @xeno097 @troykessler @yjamin
-typescript/radix-sdk @xeno097 @troykessler @yjamin
-typescript/tron-sdk @xeno097 @troykessler @yjamin
+typescript/aleo-sdk @xeno097 @troykessler
+typescript/cosmos-sdk @xeno097 @troykessler
+typescript/cosmos-types @xeno097 @troykessler
+typescript/radix-sdk @xeno097 @troykessler
+typescript/tron-sdk @xeno097 @troykessler
 
 ## CLI
 typescript/cli @yorhodes @xeno097
