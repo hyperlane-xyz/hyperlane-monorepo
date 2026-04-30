@@ -1245,8 +1245,13 @@ fn submit_igp_quote(
                     IgpStandingQuoteAccount::fetch(&mut &quote_pda_info.data.borrow()[..])?
                         .into_inner();
 
-                if issued_at_ts <= existing.data.issued_at {
+                if issued_at_ts < existing.data.issued_at {
                     return Err(QuoteValidationError::StaleStandingQuoteUpdate.into());
+                }
+                // Equal issued_at → no-op, matching EVM and fee program behavior.
+                if issued_at_ts == existing.data.issued_at {
+                    msg!("IGP standing quote no-op (equal issued_at)");
+                    return Ok(());
                 }
 
                 standing_account.store(quote_pda_info, false)?;
