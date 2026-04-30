@@ -4,7 +4,9 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 
 import { Contexts } from '../../config/contexts.js';
+import { DockerImageRepos } from '../../config/docker.js';
 import { KeyFunderHelmManager } from '../../src/funding/key-funder.js';
+import { verifyImagesAndConfirm } from '../../src/utils/attestation.js';
 import {
   checkNodeServicesImageExists,
   warnIfPrTag,
@@ -41,6 +43,10 @@ async function main() {
       );
       process.exit(1);
     }
+
+    await verifyImagesAndConfirm([
+      { component: 'key-funder', image: DockerImageRepos.NODE_SERVICES, tag },
+    ]);
   }
 
   const defaultRegistryCommit = readRegistryRc();

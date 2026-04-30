@@ -32,6 +32,7 @@ jobs:
       id-token: write
       packages: write
       pull-requests: write
+      attestations: write
 
     steps:
       - name: Generate GitHub App Token
@@ -107,10 +108,19 @@ jobs:
           context: .
           file: ./rust/Dockerfile
           push: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
-          provenance: false
+          provenance: mode=max
+          sbom: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           platforms: ${{ steps.determine-platforms.outputs.platforms }}
+
+      - name: Attest build provenance
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ghcr.io/hyperlane-xyz/hyperlane-agent
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
 
       - name: Comment image tags on PR
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && always()

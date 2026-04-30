@@ -35,6 +35,7 @@ jobs:
       contents: read
       id-token: write
       packages: write
+      attestations: write
 
     steps:
       - uses: actions/checkout@v6
@@ -98,13 +99,22 @@ jobs:
           context: ./
           file: ./Dockerfile
           push: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
-          provenance: false
+          provenance: mode=max
+          sbom: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             FOUNDRY_VERSION=${{ env.FOUNDRY_VERSION }}
             REGISTRY_COMMIT=${{ env.REGISTRY_VERSION }}
           platforms: ${{ steps.determine-platforms.outputs.platforms }}
+
+      - name: Attest build provenance
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ghcr.io/hyperlane-xyz/hyperlane-monorepo
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
 
       - name: Generate job summary
         if: always()

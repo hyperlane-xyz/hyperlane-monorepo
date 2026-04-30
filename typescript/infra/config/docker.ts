@@ -4,7 +4,6 @@ export const DockerImageNames = {
   AGENT: 'hyperlane-agent',
   MONOREPO: 'hyperlane-monorepo',
   NODE_SERVICES: 'hyperlane-node-services',
-  FEE_QUOTING: 'hyperlane-fee-quoting',
 } as const;
 
 type DockerImageReposType = {
@@ -43,7 +42,7 @@ export const mainnetDockerTags: MainnetDockerTags = {
   relayer: '7eb690c-20260406-142107',
   relayerRC: '7eb690c-20260406-142107',
   relayerFastPath: '7eb690c-20260406-142107',
-  validator: '7eb690c-20260406-142107',
+  validator: 'b24afdc-20260423-160239',
   validatorRC: '7eb690c-20260406-142107',
   scraper: 'caa8162-20260409-132508',
   // monorepo services
@@ -52,7 +51,11 @@ export const mainnetDockerTags: MainnetDockerTags = {
   keyFunder: '3b17358-20260315-183126',
   warpMonitor: 'a915865-20260424-083851',
   rebalancer: '1a19513-20260413-090011',
-  feeQuoting: '12d899d-20260325-184337',
+  // Bumped from the old standalone hyperlane-fee-quoting tag when the
+  // service was migrated onto hyperlane-node-services. Points at a
+  // post-migration node-services build that includes the fee-quoting
+  // bundle; bump again after the next signed main build lands.
+  feeQuoting: '1a19513-20260413-090011',
 };
 
 export const testnetDockerTags: BaseDockerTags = {

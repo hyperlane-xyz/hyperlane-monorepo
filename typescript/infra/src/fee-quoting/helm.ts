@@ -4,6 +4,7 @@ import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 
 import { DockerImageRepos, mainnetDockerTags } from '../../config/docker.js';
 import { DeployEnvironment } from '../config/deploy-environment.js';
+import { NODE_SERVICE_NAMES } from '../utils/consts.js';
 import { HelmManager } from '../utils/helm.js';
 import { getInfraPath } from '../utils/utils.js';
 import { readYaml } from '@hyperlane-xyz/utils/fs';
@@ -43,9 +44,10 @@ export class FeeQuotingHelmManager extends HelmManager {
     return {
       ...envValues,
       image: {
-        repository: DockerImageRepos.FEE_QUOTING,
+        repository: DockerImageRepos.NODE_SERVICES,
         tag: mainnetDockerTags.feeQuoting,
       },
+      serviceName: NODE_SERVICE_NAMES.FEE_QUOTING,
       hyperlane: {
         ...envValues.hyperlane,
         runEnv: this.environment,

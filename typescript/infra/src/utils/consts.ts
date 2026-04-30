@@ -13,6 +13,7 @@ export const NODE_SERVICE_NAMES = {
   CCIP_SERVER: 'ccip-server',
   KEYFUNDER: 'keyfunder',
   RELAYER: 'relayer',
+  FEE_QUOTING: 'fee-quoting',
 } as const;
 /**
  * Get validator alias from defaultMultisigConfigs if available
