@@ -1407,6 +1407,9 @@ importers:
       '@hyperlane-xyz/sealevel-sdk':
         specifier: workspace:*
         version: link:../svm-sdk
+      '@hyperlane-xyz/starknet-sdk':
+        specifier: workspace:*
+        version: link:../starknet-sdk
       '@hyperlane-xyz/tron-sdk':
         specifier: workspace:*
         version: link:../tron-sdk
@@ -1491,6 +1494,9 @@ importers:
       prompts:
         specifier: ^2.4.2
         version: 2.4.2
+      starknet:
+        specifier: 'catalog:'
+        version: 7.6.4
       tmp:
         specifier: ^0.2.3
         version: 0.2.5
