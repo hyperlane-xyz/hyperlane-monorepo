@@ -398,8 +398,10 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
                 return Err(ProgramError::InvalidArgument);
             }
 
-            let gas_amount =
-                overhead_igp.gas_overhead(payment.destination_domain) + payment.gas_amount;
+            let gas_amount = overhead_igp
+                .gas_overhead(payment.destination_domain)
+                .checked_add(payment.gas_amount)
+                .ok_or(ProgramError::ArithmeticOverflow)?;
             let required_payment = igp.quote_gas_payment(payment.destination_domain, gas_amount)?;
 
             (required_payment, gas_amount, None)
@@ -691,11 +693,18 @@ fn apply_overhead_gas(
 
     let overhead_igp =
         OverheadIgpAccount::fetch(&mut &overhead_igp_info.data.borrow()[..])?.into_inner();
-    if overhead_igp.inner != *igp_key {
+    let overhead_igp_key = Pubkey::create_program_address(
+        overhead_igp_pda_seeds!(overhead_igp.salt, overhead_igp.bump_seed),
+        program_id,
+    )?;
+    if overhead_igp_key != *overhead_igp_info.key || overhead_igp.inner != *igp_key {
         return Err(ProgramError::InvalidArgument);
     }
 
-    Ok(overhead_igp.gas_overhead(destination_domain) + gas_amount)
+    overhead_igp
+        .gas_overhead(destination_domain)
+        .checked_add(gas_amount)
+        .ok_or(ProgramError::ArithmeticOverflow)
 }
 
 /// Sets the beneficiary of an IGP.

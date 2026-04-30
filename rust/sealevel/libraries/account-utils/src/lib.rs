@@ -97,6 +97,7 @@ impl AccountInfoExt for AccountInfo<'_> {
             .checked_add(lamports)
             .ok_or(ProgramError::ArithmeticOverflow)?;
 
+        self.data.borrow_mut().fill(0);
         self.resize(0)?;
 
         self.assign(&system_program_id());
@@ -253,6 +254,10 @@ where
         let mut writable_target: &mut [u8] = &mut *target;
         true.serialize(&mut writable_target)
             .and_then(|_| self.data.serialize(&mut writable_target))?;
+        // Zero any trailing bytes so stale data from a previously larger
+        // serialization (e.g. an optional field going from Some → None)
+        // does not confuse future deserialization.
+        writable_target.fill(0);
         Ok(())
     }
 }
