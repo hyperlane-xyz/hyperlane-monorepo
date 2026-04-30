@@ -738,8 +738,29 @@ async fn relay_work(state: &ServerState, req: &RelayRequest) -> ServerResult<Jso
             let Some(db) = state.dbs.get(&v.origin_domain) else {
                 continue;
             };
-            match igp_indexer.fetch_logs_by_tx_hash(v.tx_hash).await {
-                Ok(payments) => {
+            match tokio::time::timeout(
+                Duration::from_secs(5),
+                igp_indexer.fetch_logs_by_tx_hash(v.tx_hash),
+            )
+            .await
+            {
+                Err(_) => {
+                    warn!(
+                        origin_domain = v.origin_domain,
+                        tx_hash = ?v.tx_hash,
+                        "IGP payment fetch timed out; background indexer will retry"
+                    );
+                }
+                Ok(Err(e)) => {
+                    warn!(
+                        origin_domain = v.origin_domain,
+                        tx_hash = ?v.tx_hash,
+                        error = %e,
+                        "Failed to fetch IGP payments from relay API receipt; \
+                         background indexer will retry"
+                    );
+                }
+                Ok(Ok(payments)) => {
                     if let Err(e) = db.store_logs(&payments).await {
                         warn!(
                             origin_domain = v.origin_domain,
@@ -756,15 +777,6 @@ async fn relay_work(state: &ServerState, req: &RelayRequest) -> ServerResult<Jso
                             "Stored IGP payments from relay API receipt"
                         );
                     }
-                }
-                Err(e) => {
-                    warn!(
-                        origin_domain = v.origin_domain,
-                        tx_hash = ?v.tx_hash,
-                        error = %e,
-                        "Failed to fetch IGP payments from relay API receipt; \
-                         background indexer will retry"
-                    );
                 }
             }
         }

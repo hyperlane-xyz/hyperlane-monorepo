@@ -197,7 +197,14 @@ async fn make_state_multi(
     }
 
     let metrics = RelayApiMetrics::new(&Registry::new()).unwrap();
-    let state = ServerState::new(indexers, dbs, send_channels, msg_ctxs, metrics);
+    let state = ServerState::new(
+        indexers,
+        HashMap::new(),
+        dbs,
+        send_channels,
+        msg_ctxs,
+        metrics,
+    );
 
     TestHarness {
         state,
@@ -498,7 +505,14 @@ async fn test_partial_send_failure_releases_dedup_for_retry() {
     msg_ctxs.insert((ORIGIN_ID, dest_b), msg_ctx.clone());
 
     let metrics = RelayApiMetrics::new(&Registry::new()).unwrap();
-    let state = ServerState::new(indexers, dbs, send_channels, msg_ctxs, metrics);
+    let state = ServerState::new(
+        indexers,
+        HashMap::new(),
+        dbs,
+        send_channels,
+        msg_ctxs,
+        metrics,
+    );
 
     let cache = Arc::new(Mutex::new(TxHashCache::new(100)));
     let router = state.with_tx_hash_cache(cache).router();
