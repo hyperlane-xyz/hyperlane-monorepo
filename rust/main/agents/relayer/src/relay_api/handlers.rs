@@ -738,8 +738,13 @@ async fn relay_work(state: &ServerState, req: &RelayRequest) -> ServerResult<Jso
             let Some(db) = state.dbs.get(&v.origin_domain) else {
                 continue;
             };
+            // 2 s = one honest RPC attempt. EVM's fetch_logs_by_tx_hash uses
+            // call_and_retry_indefinitely with a 2 s inter-retry sleep; a timeout
+            // longer than 2 s would let the sleep run and add a full retry cycle
+            // to every /relay response when the RPC node is slow or flaky.
+            // This is best-effort — the background indexer is the fallback.
             match tokio::time::timeout(
-                Duration::from_secs(5),
+                Duration::from_secs(2),
                 igp_indexer.fetch_logs_by_tx_hash(v.tx_hash),
             )
             .await

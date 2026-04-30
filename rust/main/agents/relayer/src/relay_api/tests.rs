@@ -11,8 +11,8 @@ use hyperlane_base::{
     db::{test_utils, HyperlaneRocksDB},
 };
 use hyperlane_core::{
-    ChainResult, HyperlaneDomain, HyperlaneMessage, Indexed, Indexer, LogMeta, QueueOperation,
-    H256, H512,
+    ChainResult, GasPaymentKey, HyperlaneDomain, HyperlaneMessage, Indexed, Indexer,
+    InterchainGasPayment, LogMeta, QueueOperation, H256, H512, U256,
 };
 use hyperlane_test::mocks::MockMailboxContract;
 use parking_lot::Mutex;
@@ -111,6 +111,46 @@ impl Indexer<HyperlaneMessage> for MockIndexer {
             .map(|m| (Indexed::new(m.clone()), LogMeta::default()))
             .collect();
         Ok((logs, self.is_cctp_v2_result))
+    }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// MockIgpIndexer
+// ──────────────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone)]
+struct MockIgpIndexer {
+    payments: Vec<(Indexed<InterchainGasPayment>, LogMeta)>,
+}
+
+impl MockIgpIndexer {
+    fn with_payments(payments: Vec<(Indexed<InterchainGasPayment>, LogMeta)>) -> Self {
+        Self { payments }
+    }
+}
+
+#[async_trait]
+impl Indexer<InterchainGasPayment> for MockIgpIndexer {
+    fn parse_tx_hash(&self, tx_hash: &str) -> ChainResult<H512> {
+        hyperlane_core::parse_evm_hex_tx_hash(tx_hash)
+    }
+
+    async fn fetch_logs_in_range(
+        &self,
+        _range: RangeInclusive<u32>,
+    ) -> ChainResult<Vec<(Indexed<InterchainGasPayment>, LogMeta)>> {
+        Ok(vec![])
+    }
+
+    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
+        Ok(0)
+    }
+
+    async fn fetch_logs_by_tx_hash(
+        &self,
+        _tx_hash: H512,
+    ) -> ChainResult<Vec<(Indexed<InterchainGasPayment>, LogMeta)>> {
+        Ok(self.payments.clone())
     }
 }
 
@@ -532,4 +572,99 @@ async fn test_partial_send_failure_releases_dedup_for_retry() {
         StatusCode::TOO_MANY_REQUESTS,
         "after 500, same tx_hash must not be blocked by dedup cache"
     );
+}
+
+#[tokio::test]
+async fn test_igp_payments_stored_before_enqueue() {
+    // Compute the message ID so we can create a matching IGP payment.
+    let msg = test_msg(ORIGIN_ID, DEST_ID, 1);
+    let message_id = msg.id();
+
+    let payment = InterchainGasPayment {
+        message_id,
+        destination: DEST_ID,
+        payment: U256::from(100u64),
+        gas_amount: U256::from(200u64),
+    };
+    let igp_indexer = Arc::new(MockIgpIndexer::with_payments(vec![(
+        Indexed::new(payment),
+        LogMeta::default(),
+    )]));
+
+    // Build state manually so we can (a) inject the IGP indexer and (b) retain a
+    // clone of the DB to verify storage after the request.
+    let tempdir = TempDir::new().unwrap();
+    let db = test_utils::setup_db(tempdir.path().to_str().unwrap().to_owned());
+    let domain = HyperlaneDomain::new_test_domain("relay_api_igp_test");
+    let rocks_db = HyperlaneRocksDB::new(&domain, db);
+    let rocks_db_ref = rocks_db.clone(); // kept for post-request verification
+
+    let mock_builder = build_mock_base_builder(domain.clone(), domain.clone());
+    let msg_ctx = Arc::new(MessageContext {
+        destination_mailbox: Arc::new(mock_mailbox()),
+        origin_db: Arc::new(rocks_db.clone()),
+        cache: OptionalCache::new(None),
+        metadata_builder: Arc::new(mock_builder),
+        origin_gas_payment_enforcer: Arc::new(RwLock::new(GasPaymentEnforcer::new(
+            [],
+            rocks_db.clone(),
+        ))),
+        transaction_gas_limit: None,
+        metrics: dummy_submission_metrics(),
+        application_operation_verifier: Arc::new(DummyApplicationOperationVerifier {}),
+    });
+
+    let mut indexers = HashMap::new();
+    indexers.insert(
+        "ethereum".to_string(),
+        Arc::new(MockIndexer::cctp(msg)) as Arc<dyn Indexer<HyperlaneMessage>>,
+    );
+    let mut igp_indexers = HashMap::new();
+    igp_indexers.insert(
+        ORIGIN_ID,
+        igp_indexer as Arc<dyn Indexer<InterchainGasPayment>>,
+    );
+    let mut dbs = HashMap::new();
+    dbs.insert(ORIGIN_ID, rocks_db);
+    let (tx, mut rx) = mpsc::unbounded_channel::<QueueOperation>();
+    let mut send_channels = HashMap::new();
+    send_channels.insert(DEST_ID, tx);
+    let mut msg_ctxs = HashMap::new();
+    msg_ctxs.insert((ORIGIN_ID, DEST_ID), msg_ctx);
+
+    let metrics = RelayApiMetrics::new(&Registry::new()).unwrap();
+    let state = ServerState::new(
+        indexers,
+        igp_indexers,
+        dbs,
+        send_channels,
+        msg_ctxs,
+        metrics,
+    );
+
+    let cache = Arc::new(Mutex::new(TxHashCache::new(100)));
+    let status = send_relay(state.with_tx_hash_cache(cache).router(), TX_HASH).await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert!(rx.try_recv().is_ok(), "message should have been enqueued");
+
+    // Verify the IGP payment was stored in the DB before the message entered the queue.
+    let key = GasPaymentKey {
+        message_id,
+        destination: DEST_ID,
+    };
+    let stored = rocks_db_ref
+        .retrieve_gas_payment_by_gas_payment_key(key)
+        .expect("DB lookup should not fail");
+    assert!(
+        stored.is_some(),
+        "IGP payment should have been stored by the relay handler before enqueue"
+    );
+    let stored = stored.unwrap();
+    assert_eq!(
+        stored.payment,
+        U256::from(100u64),
+        "payment amount mismatch"
+    );
+    assert_eq!(stored.gas_amount, U256::from(200u64), "gas amount mismatch");
 }
