@@ -378,12 +378,12 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
     }
 
     // Account 6: detection point — overhead IGP (old flow) or sender_authority (new flow).
-    let (required_payment, gas_amount) = match accounts_iter.next() {
+    let (required_payment, gas_amount, transient_info_to_close) = match accounts_iter.next() {
         None => {
             let gas_amount = payment.gas_amount;
             let required_payment = igp.quote_gas_payment(payment.destination_domain, gas_amount)?;
 
-            (required_payment, gas_amount)
+            (required_payment, gas_amount, None)
         }
         Some(next) if next.owner == program_id => {
             // The caller is expected to only provide an overhead IGP they are comfortable
@@ -402,7 +402,7 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
                 overhead_igp.gas_overhead(payment.destination_domain) + payment.gas_amount;
             let required_payment = igp.quote_gas_payment(payment.destination_domain, gas_amount)?;
 
-            (required_payment, gas_amount)
+            (required_payment, gas_amount, None)
         }
         Some(sender_authority_info) => {
             // sender_authority must be a signer (anti-spoofing).
@@ -442,7 +442,7 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
                     && first.data.borrow()[1..9] == IgpTransientQuote::DISCRIMINATOR
             });
 
-            let (resolved, overhead_info) = if is_transient {
+            let (resolved, overhead_info, transient_info_to_close) = if is_transient {
                 let transient_info = next_account_info(accounts_iter)?;
                 let quote = try_resolve_transient_quote(
                     program_id,
@@ -455,10 +455,7 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
                     &clock,
                 )?;
 
-                // Autoclose: drain lamports to payer, zero data, reassign to system program.
-                transient_info.close_account(payer_info)?;
-
-                (Some(quote), None)
+                (Some(quote), None, Some(transient_info))
             } else {
                 // Standing cascade: exact → wildcard-sender → wildcard-domain.
                 let cascade_levels: &[(u32, Pubkey)] = &[
@@ -477,7 +474,7 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
                     &clock,
                 )?;
 
-                (resolved, None)
+                (resolved, None, None)
             };
 
             // Overhead: from remaining accounts (non-matching accounts stay in iterator).
@@ -506,7 +503,7 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
                 None => igp.quote_gas_payment(payment.destination_domain, gas_amount)?,
             };
 
-            (required_payment, gas_amount)
+            (required_payment, gas_amount, transient_info_to_close)
         }
     };
 
@@ -548,6 +545,10 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
     // Increment the payment count and update the program data.
     program_data.payment_count += 1;
     ProgramDataAccount::from(program_data).store(program_data_info, false)?;
+
+    if let Some(transient_info) = transient_info_to_close {
+        transient_info.close_account(payer_info)?;
+    }
 
     msg!(
         "Paid IGP {} for {} gas for message {} to {}",
