@@ -124,7 +124,10 @@ impl OverheadIgp {
         gas_amount: u64,
         inner_igp: &Igp,
     ) -> Result<u64, ProgramError> {
-        let total_gas_amount = self.gas_overhead(destination_domain) + gas_amount;
+        let total_gas_amount = self
+            .gas_overhead(destination_domain)
+            .checked_add(gas_amount)
+            .ok_or(ProgramError::ArithmeticOverflow)?;
         inner_igp.quote_gas_payment(destination_domain, total_gas_amount)
     }
 }
@@ -587,20 +590,28 @@ pub fn compute_gas_fee(
     gas_amount: u64,
     token_decimals: u8,
 ) -> Result<u64, ProgramError> {
-    let dest_cost = U256::from(gas_amount) * U256::from(gas_price);
-    let origin_cost =
-        (dest_cost * U256::from(token_exchange_rate)) / U256::from(TOKEN_EXCHANGE_RATE_SCALE);
-    let origin_cost = convert_decimals(origin_cost, token_decimals, SOL_DECIMALS);
+    let dest_cost = U256::from(gas_amount)
+        .checked_mul(U256::from(gas_price))
+        .ok_or(ProgramError::ArithmeticOverflow)?;
+    let origin_cost = dest_cost
+        .checked_mul(U256::from(token_exchange_rate))
+        .ok_or(ProgramError::ArithmeticOverflow)?
+        / U256::from(TOKEN_EXCHANGE_RATE_SCALE);
+    let origin_cost = convert_decimals(origin_cost, token_decimals, SOL_DECIMALS)?;
 
     u64::try_from(origin_cost).map_err(|_| ProgramError::ArithmeticOverflow)
 }
 
 /// Converts `num` from `from_decimals` to `to_decimals`.
-fn convert_decimals(num: U256, from_decimals: u8, to_decimals: u8) -> U256 {
+fn convert_decimals(num: U256, from_decimals: u8, to_decimals: u8) -> Result<U256, ProgramError> {
     match from_decimals.cmp(&to_decimals) {
-        Ordering::Greater => num / U256::from(10u64).pow(U256::from(from_decimals - to_decimals)),
-        Ordering::Less => num * U256::from(10u64).pow(U256::from(to_decimals - from_decimals)),
-        Ordering::Equal => num,
+        Ordering::Greater => {
+            Ok(num / U256::from(10u64).pow(U256::from(from_decimals - to_decimals)))
+        }
+        Ordering::Less => num
+            .checked_mul(U256::from(10u64).pow(U256::from(to_decimals - from_decimals)))
+            .ok_or(ProgramError::ArithmeticOverflow),
+        Ordering::Equal => Ok(num),
     }
 }
 
@@ -915,33 +926,33 @@ mod test {
         let num = U256::from(1000000u128);
         let from_decimals = 9;
         let to_decimals = 9;
-        let result = convert_decimals(num, from_decimals, to_decimals);
+        let result = convert_decimals(num, from_decimals, to_decimals).unwrap();
         assert_eq!(result, num);
 
         let num = U256::from(1000000000000000u128);
         let from_decimals = 18;
         let to_decimals = 9;
-        let result = convert_decimals(num, from_decimals, to_decimals);
+        let result = convert_decimals(num, from_decimals, to_decimals).unwrap();
         assert_eq!(result, U256::from(1000000u128));
 
         let num = U256::from(1000000u128);
         let from_decimals = 4;
         let to_decimals = 9;
-        let result = convert_decimals(num, from_decimals, to_decimals);
+        let result = convert_decimals(num, from_decimals, to_decimals).unwrap();
         assert_eq!(result, U256::from(100000000000u128));
 
         // Some loss of precision
         let num = U256::from(9999999u128);
         let from_decimals = 9;
         let to_decimals = 4;
-        let result = convert_decimals(num, from_decimals, to_decimals);
+        let result = convert_decimals(num, from_decimals, to_decimals).unwrap();
         assert_eq!(result, U256::from(99u128));
 
         // Total loss of precision
         let num = U256::from(999u128);
         let from_decimals = 9;
         let to_decimals = 4;
-        let result = convert_decimals(num, from_decimals, to_decimals);
+        let result = convert_decimals(num, from_decimals, to_decimals).unwrap();
         assert_eq!(result, U256::from(0u128));
     }
 }

@@ -543,7 +543,10 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
     gas_payment_account.store(gas_payment_account_info, false)?;
 
     // Increment the payment count and update the program data.
-    program_data.payment_count += 1;
+    program_data.payment_count = program_data
+        .payment_count
+        .checked_add(1)
+        .ok_or(ProgramError::ArithmeticOverflow)?;
     ProgramDataAccount::from(program_data).store(program_data_info, false)?;
 
     if let Some(transient_info) = transient_info_to_close {

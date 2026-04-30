@@ -156,9 +156,8 @@ where
     /// Converts a remote token amount to a local token amount, accounting for decimals and types.
     pub fn remote_amount_to_local_amount(&self, amount: U256) -> Result<u64, ProgramError> {
         let amount = convert_decimals(amount, self.remote_decimals, self.decimals)
-            .ok_or(ProgramError::InvalidArgument)?
-            .as_u64();
-        Ok(amount)
+            .ok_or(ProgramError::InvalidArgument)?;
+        u64::try_from(amount).map_err(|_| ProgramError::ArithmeticOverflow)
     }
 }
 
