@@ -49,8 +49,7 @@ impl OpQueue {
         self.process_retry_requests().await;
         let mut queue = self.queue.lock().await;
         let mut popped = vec![];
-        while queue.peek().map_or(false, |Reverse(op)| op.is_ready()) {
-            let Reverse(op) = queue.pop().unwrap();
+        while let Some(Reverse(op)) = queue.pop() {
             popped.push(op);
             if popped.len() >= limit {
                 break;
