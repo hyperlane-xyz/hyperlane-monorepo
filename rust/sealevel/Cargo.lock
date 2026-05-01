@@ -3516,6 +3516,7 @@ dependencies = [
  "hyperlane-core",
  "num-derive",
  "num-traits",
+ "package-versioned",
  "quote-verifier",
  "serde",
  "serializable-account-meta",

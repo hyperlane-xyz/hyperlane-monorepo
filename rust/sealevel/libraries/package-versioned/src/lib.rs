@@ -1,5 +1,7 @@
 use serializable_account_meta::SimulationReturnData;
-use solana_program::{program::set_return_data, program_error::ProgramError};
+use solana_program::{
+    instruction::Instruction, program::set_return_data, program_error::ProgramError, pubkey::Pubkey,
+};
 
 /// Single source of truth for all Hyperlane SVM program versions.
 /// Compiled into each program's binary — atomic on upgrade, no migration step.
@@ -29,6 +31,15 @@ pub fn is_get_program_version(instruction_data: &[u8]) -> bool {
 /// Builds the instruction data for a `GetProgramVersion` call.
 pub fn get_program_version_instruction_data() -> Vec<u8> {
     GET_PROGRAM_VERSION_DISCRIMINATOR.to_vec()
+}
+
+/// Builds a `GetProgramVersion` instruction. No accounts required.
+pub fn get_program_version_instruction(program_id: Pubkey) -> Instruction {
+    Instruction {
+        program_id,
+        data: get_program_version_instruction_data(),
+        accounts: vec![],
+    }
 }
 
 /// Shared handler for the `GetProgramVersion` instruction.

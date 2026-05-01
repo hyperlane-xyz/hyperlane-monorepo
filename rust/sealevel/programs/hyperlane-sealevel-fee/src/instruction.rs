@@ -725,15 +725,3 @@ pub fn prune_expired_quotes_instruction(
         accounts,
     })
 }
-
-/// Builds a GetProgramVersion instruction. No accounts required.
-/// Uses a universal discriminator shared across all Hyperlane SVM programs.
-pub fn get_program_version_instruction(
-    program_id: Pubkey,
-) -> Result<SolanaInstruction, ProgramError> {
-    Ok(SolanaInstruction {
-        program_id,
-        data: package_versioned::get_program_version_instruction_data(),
-        accounts: vec![],
-    })
-}

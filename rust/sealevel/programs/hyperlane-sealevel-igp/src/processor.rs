@@ -48,12 +48,22 @@ use crate::{
 #[cfg(not(feature = "no-entrypoint"))]
 entrypoint!(process_instruction);
 
+/// Marker type for PackageVersioned trait implementation.
+pub struct IgpProgram;
+
+impl package_versioned::PackageVersioned for IgpProgram {}
+
 /// Entrypoint for the IGP program.
 pub fn process_instruction(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
     instruction_data: &[u8],
 ) -> ProgramResult {
+    // Universal version query — discriminator-based, independent of instruction enum.
+    if package_versioned::is_get_program_version(instruction_data) {
+        return package_versioned::process_get_program_version::<IgpProgram>();
+    }
+
     match IgpInstruction::try_from_slice(instruction_data)? {
         IgpInstruction::Init => {
             init(program_id, accounts)?;

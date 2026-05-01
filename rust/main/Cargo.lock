@@ -6246,6 +6246,7 @@ dependencies = [
  "hyperlane-core",
  "num-derive",
  "num-traits",
+ "package-versioned",
  "quote-verifier",
  "serializable-account-meta",
  "solana-program 3.0.0",
@@ -8000,6 +8001,15 @@ dependencies = [
  "elliptic-curve 0.13.8",
  "primeorder",
  "sha2 0.10.8",
+]
+
+[[package]]
+name = "package-versioned"
+version = "0.1.0"
+dependencies = [
+ "borsh 1.6.0",
+ "serializable-account-meta",
+ "solana-program 3.0.0",
 ]
 
 [[package]]
