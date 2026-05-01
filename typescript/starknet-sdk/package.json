@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/starknet-sdk",
-  "version": "28.0.4",
+  "version": "28.0.5",
   "description": "Hyperlane TypeScript SDK for Starknet artifact API support",
   "keywords": [
     "blockchain",

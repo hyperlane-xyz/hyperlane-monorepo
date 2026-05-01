@@ -1,5 +1,27 @@
 # @hyperlane-xyz/rebalancer
 
+## 27.3.0
+
+### Minor Changes
+
+- 054b178: Added Tron blockchain support to the rebalancer using ProtocolType.Tron. Tron chains were treated as EVM-like for signer creation, block tag resolution, gas estimation, and transaction receipt parsing. The LiFi bridge was updated to gracefully skip Tron chains as no Tron-compatible aggregator is available.
+
+### Patch Changes
+
+- 7756d0a: LiFi chain metadata resolution was fixed for non-EVM chain ID collisions during rebalancer bridge execution.
+- Updated dependencies [6f4b790]
+- Updated dependencies [bfe4d2e]
+- Updated dependencies [6929388]
+- Updated dependencies [47649b7]
+- Updated dependencies [bfe4d2e]
+- Updated dependencies [0b1c1d1]
+- Updated dependencies [d9dec53]
+  - @hyperlane-xyz/sdk@33.1.0
+  - @hyperlane-xyz/provider-sdk@6.0.0
+  - @hyperlane-xyz/metrics@0.2.21
+  - @hyperlane-xyz/utils@33.1.0
+  - @hyperlane-xyz/core@11.3.1
+
 ## 27.2.14
 
 ### Patch Changes
