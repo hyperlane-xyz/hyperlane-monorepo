@@ -23,14 +23,16 @@ export enum OnchainTokenFeeType {
   OffchainQuotedLinearFee = 6,
 }
 
-export enum TokenFeeType {
-  LinearFee = 'LinearFee',
-  ProgressiveFee = 'ProgressiveFee',
-  RegressiveFee = 'RegressiveFee',
-  RoutingFee = 'RoutingFee',
-  CrossCollateralRoutingFee = 'CrossCollateralRoutingFee',
-  OffchainQuotedLinearFee = 'OffchainQuotedLinearFee',
-}
+export const TokenFeeType = {
+  LinearFee: 'LinearFee',
+  ProgressiveFee: 'ProgressiveFee',
+  RegressiveFee: 'RegressiveFee',
+  RoutingFee: 'RoutingFee',
+  CrossCollateralRoutingFee: 'CrossCollateralRoutingFee',
+  OffchainQuotedLinearFee: 'OffchainQuotedLinearFee',
+} as const;
+
+export type TokenFeeType = (typeof TokenFeeType)[keyof typeof TokenFeeType];
 
 export const ImmutableTokenFeeType = [
   TokenFeeType.LinearFee,
