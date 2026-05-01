@@ -600,20 +600,6 @@ async function selectCronJobs(
     .filter((_, i) => selection.includes(i));
 }
 
-export async function getWarpMonitorManagers(
-  environment: DeployEnvironment,
-  chain: string,
-): Promise<WarpRouteMonitorHelmManager[]> {
-  return WarpRouteMonitorHelmManager.getManagersForChain(environment, chain);
-}
-
-export async function getRebalancerManagers(
-  environment: DeployEnvironment,
-  chain: string,
-): Promise<RebalancerHelmManager[]> {
-  return RebalancerHelmManager.getManagersForChain(environment, chain);
-}
-
 export function getCronjobManagers(
   environment: DeployEnvironment,
 ): HelmManager<any>[] {
@@ -643,8 +629,14 @@ export async function collectAllK8sHelmManagers(
   cronjobManagers: HelmManager<any>[];
 }> {
   const coreManagers = getCoreInfraManagers(environment, chain);
-  const warpManagers = await getWarpMonitorManagers(environment, chain);
-  const rebalancerManagers = await getRebalancerManagers(environment, chain);
+  const warpManagers = await WarpRouteMonitorHelmManager.getManagersForChain(
+    environment,
+    chain,
+  );
+  const rebalancerManagers = await RebalancerHelmManager.getManagersForChain(
+    environment,
+    chain,
+  );
   const cronjobManagers = getCronjobManagers(environment);
 
   return {
