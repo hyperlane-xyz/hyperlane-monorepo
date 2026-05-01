@@ -333,10 +333,10 @@ async function refreshDependentK8sResourcesInteractive(
   }
 }
 
-export function getCoreInfraManagers(
+function getCoreInfraManagersWithContext(
   environment: DeployEnvironment,
   chain: string,
-): HelmManager<any>[] {
+): [string, HelmManager<any>][] {
   const envConfig = getEnvironmentConfig(environment);
   const coreHelmManagers: [string, HelmManager<any>][] = [];
 
@@ -360,35 +360,21 @@ export function getCoreInfraManagers(
     }
   }
 
-  return coreHelmManagers.map(([_, m]) => m);
+  return coreHelmManagers;
+}
+
+export function getCoreInfraManagers(
+  environment: DeployEnvironment,
+  chain: string,
+): HelmManager<any>[] {
+  return getCoreInfraManagersWithContext(environment, chain).map(([_, m]) => m);
 }
 
 async function selectCoreInfrastructure(
   environment: DeployEnvironment,
   chain: string,
 ): Promise<HelmManager<any>[]> {
-  const envConfig = getEnvironmentConfig(environment);
-  const coreHelmManagers: [string, HelmManager<any>][] = [];
-
-  for (const [context, agentConfig] of Object.entries(envConfig.agents)) {
-    if (agentConfig.relayer) {
-      coreHelmManagers.push([context, new RelayerHelmManager(agentConfig)]);
-    }
-
-    if (
-      agentConfig.validators &&
-      agentConfig.contextChainNames.validator?.includes(chain)
-    ) {
-      coreHelmManagers.push([
-        context,
-        new ValidatorHelmManager(agentConfig, chain),
-      ]);
-    }
-
-    if (agentConfig.scraper) {
-      coreHelmManagers.push([context, new ScraperHelmManager(agentConfig)]);
-    }
-  }
+  const coreHelmManagers = getCoreInfraManagersWithContext(environment, chain);
 
   if (coreHelmManagers.length === 0) {
     console.log('No core infrastructure to refresh');
