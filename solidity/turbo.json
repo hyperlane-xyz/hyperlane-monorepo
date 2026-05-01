@@ -17,6 +17,13 @@
     },
     "build:paris": {
       "dependsOn": ["build"],
+      "inputs": [
+        "contracts/**",
+        "paris-hardhat.config.cts",
+        "rootHardhatConfig.cts",
+        "tsconfig.paris-typechain.json",
+        "fix-typechain-ethers.mjs"
+      ],
       "outputs": [
         "artifacts-paris/**",
         "cache-paris/**",

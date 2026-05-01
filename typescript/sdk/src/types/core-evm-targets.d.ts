@@ -8,6 +8,7 @@
  * classes by `factory.constructor.name` at runtime, not statically.
  */
 declare module '@hyperlane-xyz/core/paris' {
+  // CAST: module exports are resolved by runtime name lookup; no static type available.
   const exports: Record<string, any>;
   export = exports;
 }

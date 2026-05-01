@@ -389,6 +389,7 @@ export {
   getDomainId,
   getReorgPeriod,
   isValidChainMetadata,
+  supportsOffchainQuoting,
   mergeChainMetadata,
   mergeChainMetadataMap,
   NativeToken,

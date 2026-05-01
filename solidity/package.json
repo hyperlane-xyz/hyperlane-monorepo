@@ -80,7 +80,7 @@
     "build:tron": "./build-tron.sh",
     "build:paris": "pnpm hardhat-paris compile && tsc --project tsconfig.paris-typechain.json && node fix-typechain-ethers.mjs ./dist/paris/typechain/factories",
     "test:tron": "FOUNDRY_PROFILE=tron forge test --match-contract 'Tron(Create2|SafeERC20)Test' -vvv && bash test/tron/check-SafeERC20-diff.sh",
-    "prepack": "[ -d dist ] || (echo 'Error: dist/ not found. Run pnpm build first.' && exit 1)",
+    "prepack": "[ -f dist/index.js ] && [ -f dist/paris/typechain/index.js ] && [ -d artifacts-paris ] || (echo 'Error: build outputs missing. Run pnpm build && pnpm build:paris first.' && exit 1)",
     "lint": "solhint contracts/**/*.sol",
     "clean": "pnpm hardhat-esm clean && pnpm hardhat-zk clean && rm -rf ./dist ./cache ./cache-zk ./cache-tron ./cache-paris ./artifacts-tron ./artifacts-paris ./out-tron ./out-paris ./forge-cache-tron ./forge-cache-paris ./types ./coverage ./out ./forge-cache ./fixtures",
     "coverage": "pnpm fixtures && ./coverage.sh",

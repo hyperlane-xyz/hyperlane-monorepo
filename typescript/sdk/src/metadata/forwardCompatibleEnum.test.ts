@@ -192,25 +192,65 @@ describe('forwardCompatibleEnum', () => {
       }
     });
 
-    it('should reject evmTarget set on non-Ethereum protocols', () => {
-      // Solidity EVM compile-target routing is meaningful only for EVM chains.
-      const result = ChainMetadataSchema.safeParse({
-        ...baseMetadata,
-        chainId: 'cosmoshub-4',
-        domainId: 1234,
+    // Solidity EVM compile-target routing is meaningful only for EVM chains.
+    // Schema must reject `evmTarget` on every non-Ethereum protocol. Each
+    // protocol has its own minimum-required field set, so build per-protocol
+    // base metadata before attaching evmTarget.
+    const nonEthereumCases: {
+      protocol: ProtocolType;
+      extra: Record<string, unknown>;
+    }[] = [
+      {
         protocol: ProtocolType.Cosmos,
-        bech32Prefix: 'cosmos',
-        slip44: 118,
-        restUrls: [{ http: 'https://rest.example.com' }],
-        grpcUrls: [{ http: 'https://grpc.example.com' }],
-        evmTarget: EvmTarget.Paris,
+        extra: {
+          chainId: 'cosmoshub-4',
+          domainId: 1234,
+          bech32Prefix: 'cosmos',
+          slip44: 118,
+          restUrls: [{ http: 'https://rest.example.com' }],
+          grpcUrls: [{ http: 'https://grpc.example.com' }],
+        },
+      },
+      {
+        protocol: ProtocolType.CosmosNative,
+        extra: {
+          chainId: 'osmosis-1',
+          domainId: 5678,
+          bech32Prefix: 'osmo',
+          slip44: 118,
+          restUrls: [{ http: 'https://rest.example.com' }],
+          grpcUrls: [{ http: 'https://grpc.example.com' }],
+        },
+      },
+      {
+        protocol: ProtocolType.Sealevel,
+        extra: { chainId: 1399811149, domainId: 1399811149 },
+      },
+      {
+        protocol: ProtocolType.Starknet,
+        extra: { chainId: 'SN_MAIN', domainId: 23448594 },
+      },
+      {
+        protocol: ProtocolType.Tron,
+        extra: { chainId: 728126428, domainId: 728126428 },
+      },
+    ];
+
+    for (const { protocol, extra } of nonEthereumCases) {
+      it(`should reject evmTarget set on protocol=${protocol}`, () => {
+        const result = ChainMetadataSchema.safeParse({
+          ...baseMetadata,
+          ...extra,
+          protocol,
+          evmTarget: EvmTarget.Paris,
+        });
+        expect(result.success).to.be.false;
+        if (!result.success) {
+          expect(result.error.issues.some((i) => i.path.includes('evmTarget')))
+            .to.be.true;
+        }
       });
-      expect(result.success).to.be.false;
-      if (!result.success) {
-        expect(result.error.issues.some((i) => i.path.includes('evmTarget'))).to
-          .be.true;
-      }
-    });
+    }
   });
 
   describe('TokenType normalization', () => {

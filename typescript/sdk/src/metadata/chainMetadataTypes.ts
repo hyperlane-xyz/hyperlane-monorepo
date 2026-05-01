@@ -61,6 +61,17 @@ export enum EvmTarget {
   Unknown = 'unknown',
 }
 
+/**
+ * Whether the chain's deployed IGP supports offchain quoting (transient
+ * storage). Legacy EVM targets deploy MinimalInterchainGasPaymaster, which
+ * has no `addQuoteSigner` / `removeQuoteSigner` / `submitQuote` functions.
+ */
+export function supportsOffchainQuoting(
+  metadata: Pick<ChainMetadata, 'evmTarget'>,
+): boolean {
+  return metadata.evmTarget !== EvmTarget.Paris;
+}
+
 export enum ChainStatus {
   Live = 'live',
   Disabled = 'disabled',

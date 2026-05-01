@@ -473,6 +473,8 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     Record<
       EvmTarget,
       {
+        // CAST: dynamic import resolves factory classes by runtime name lookup;
+        // no static type can represent an arbitrary bundle of ContractFactory subclasses.
         load: () => Promise<Record<string, any>>;
         factoryAliases?: Record<string, string>;
       }
@@ -506,7 +508,18 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
   ): Promise<F> {
     if (!target) return factory;
     const entry = MultiProvider.EVM_TARGET_BUNDLES[target];
-    if (!entry) return factory;
+    if (!entry) {
+      // Target is set but we have no bundle for it. Cancun is the default
+      // (no override needed); anything else (Unknown, forward-compat-normalized
+      // values) is a likely misconfig that would otherwise only surface as a
+      // runtime revert at the destination.
+      if (target !== EvmTarget.Cancun) {
+        this.logger.warn(
+          `evmTarget=${target} has no published @hyperlane-xyz/core bundle; deploying default cancun bytecode for ${factory.constructor.name}. If the chain truly requires a legacy target, this deployment will revert at runtime.`,
+        );
+      }
+      return factory;
+    }
     const bundle = await entry.load();
     const sourceName = factory.constructor.name;
     const lookupName = entry.factoryAliases?.[sourceName] ?? sourceName;
@@ -516,6 +529,8 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
         `No ${target}-compiled factory found for ${sourceName} (looked up as ${lookupName})`,
       );
     }
+    // CAST: factory loaded by runtime name lookup from a target-specific bundle;
+    // TypeScript cannot statically verify the loaded class matches F.
     return new TargetFactory() as unknown as F;
   }
 

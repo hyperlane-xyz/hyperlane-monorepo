@@ -60,6 +60,7 @@ import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { isProxy, proxyAdmin } from '../deploy/proxy.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { IgpConfig } from '../gas/types.js';
+import { supportsOffchainQuoting } from '../metadata/chainMetadataTypes.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { ArbL2ToL1IsmConfig, IsmType, OpStackIsmConfig } from '../ism/types.js';
@@ -1211,6 +1212,12 @@ export class EvmHookModule extends HyperlaneModule<
 
     // Add quote signers if configured
     if (config.quoteSigners?.length) {
+      assert(
+        supportsOffchainQuoting(
+          this.multiProvider.getChainMetadata(this.chain),
+        ),
+        `Cannot configure quoteSigners on ${this.chain}: legacy evmTarget deploys MinimalInterchainGasPaymaster, which has no addQuoteSigner function. Drop quoteSigners from the IGP config or remove evmTarget from chain metadata.`,
+      );
       for (const signer of config.quoteSigners) {
         await this.multiProvider.handleTx(
           this.chain,
