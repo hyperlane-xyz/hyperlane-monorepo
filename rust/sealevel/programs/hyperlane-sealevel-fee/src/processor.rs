@@ -140,6 +140,10 @@ fn process_init_fee(program_id: &Pubkey, accounts: &[AccountInfo], data: InitFee
 
     ensure_no_extraneous_accounts(accounts_iter)?;
 
+    if let FeeData::Leaf(ref cfg) = data.fee_data {
+        cfg.strategy.validate_params()?;
+    }
+
     let fee_account = FeeAccountData::new(
         FeeAccount {
             bump_seed: fee_account_bump,
@@ -656,6 +660,7 @@ fn process_update_fee_params(
     match &mut fee_account.fee_data {
         FeeData::Leaf(cfg) => {
             *cfg.strategy.params_mut() = new_params;
+            cfg.strategy.validate_params()?;
         }
         _ => {
             return Err(Error::NotLeafFeeData.into());
@@ -1659,6 +1664,8 @@ fn process_set_remote_fee_route(
     if data.domain == 0 || data.domain == crate::accounts::WILDCARD_DOMAIN {
         return Err(Error::InvalidRouteDomain.into());
     }
+
+    data.fee_data.validate_params()?;
 
     let domain_le = data.domain.to_le_bytes();
 

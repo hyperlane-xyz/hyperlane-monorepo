@@ -49,6 +49,15 @@ impl SizedData for FeeDataStrategy {
 }
 
 impl FeeDataStrategy {
+    /// Validates that fee params are nonzero.
+    pub fn validate_params(&self) -> Result<(), ProgramError> {
+        let p = self.params();
+        if p.max_fee == 0 || p.half_amount == 0 {
+            return Err(crate::error::Error::ZeroFeeParams.into());
+        }
+        Ok(())
+    }
+
     /// Computes the fee for the given transfer amount.
     /// All arithmetic uses U256 intermediates. Results rounded down.
     /// Returns 0 when max_fee or half_amount is 0.

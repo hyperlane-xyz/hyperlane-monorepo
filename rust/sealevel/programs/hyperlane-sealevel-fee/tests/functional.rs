@@ -835,6 +835,56 @@ mod init_fee {
         let prefix = FeeAccountPrefix::parse_from(&account.data).unwrap();
         assert_eq!(prefix.beneficiary, beneficiary);
     }
+
+    #[tokio::test]
+    async fn test_leaf_zero_max_fee_rejected() {
+        let (mut banks_client, payer) = setup_client().await;
+        let (ix, _) = build_init_fee_ix(
+            &payer.pubkey(),
+            default_salt(),
+            payer.pubkey(),
+            FeeData::Leaf(LeafFeeConfig {
+                strategy: FeeDataStrategy::Linear(FeeParams {
+                    max_fee: 0,
+                    half_amount: 500,
+                }),
+                signers: Some(BTreeSet::new()),
+            }),
+        );
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::ZeroFeeParams as u32),
+            ),
+        );
+    }
+
+    #[tokio::test]
+    async fn test_leaf_zero_half_amount_rejected() {
+        let (mut banks_client, payer) = setup_client().await;
+        let (ix, _) = build_init_fee_ix(
+            &payer.pubkey(),
+            default_salt(),
+            payer.pubkey(),
+            FeeData::Leaf(LeafFeeConfig {
+                strategy: FeeDataStrategy::Regressive(FeeParams {
+                    max_fee: 1000,
+                    half_amount: 0,
+                }),
+                signers: Some(BTreeSet::new()),
+            }),
+        );
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::ZeroFeeParams as u32),
+            ),
+        );
+    }
 }
 
 mod set_beneficiary {
@@ -1122,6 +1172,53 @@ mod update_fee_params {
             TransactionError::InstructionError(
                 0,
                 InstructionError::Custom(FeeError::NotLeafFeeData as u32),
+            ),
+        );
+    }
+
+    #[tokio::test]
+    async fn test_zero_params_rejected() {
+        let (mut banks_client, payer) = setup_client().await;
+        let key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let ix = build_ix(
+            &key,
+            &payer.pubkey(),
+            FeeParams {
+                max_fee: 0,
+                half_amount: 50,
+            },
+        );
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::ZeroFeeParams as u32),
+            ),
+        );
+
+        let ix = build_ix(
+            &key,
+            &payer.pubkey(),
+            FeeParams {
+                max_fee: 100,
+                half_amount: 0,
+            },
+        );
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::ZeroFeeParams as u32),
             ),
         );
     }
@@ -1419,6 +1516,39 @@ mod set_route {
         assert!(
             standing.quotes.is_empty(),
             "Standing quotes must be reset after route update"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_zero_params_rejected() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            payer.pubkey(),
+            FeeData::Routing(RoutingFeeConfig {
+                wildcard_signers: BTreeSet::new(),
+            }),
+        )
+        .await;
+
+        let ix = build_set_route_ix(
+            &fee_key,
+            &payer.pubkey(),
+            42,
+            FeeDataStrategy::Linear(FeeParams {
+                max_fee: 0,
+                half_amount: 50,
+            }),
+        );
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::ZeroFeeParams as u32),
+            ),
         );
     }
 }
@@ -1922,6 +2052,40 @@ mod set_cc_route {
             TransactionError::InstructionError(
                 0,
                 InstructionError::Custom(FeeError::InvalidRouteDomain as u32),
+            ),
+        );
+    }
+
+    #[tokio::test]
+    async fn test_zero_params_rejected() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            payer.pubkey(),
+            FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+                wildcard_signers: BTreeSet::new(),
+            }),
+        )
+        .await;
+
+        let ix = build_set_cc_route_ix(
+            &fee_key,
+            &payer.pubkey(),
+            42,
+            H256::random(),
+            FeeDataStrategy::Progressive(FeeParams {
+                max_fee: 100,
+                half_amount: 0,
+            }),
+        );
+        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(FeeError::ZeroFeeParams as u32),
             ),
         );
     }

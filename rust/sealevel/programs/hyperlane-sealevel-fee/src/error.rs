@@ -54,6 +54,9 @@ pub enum Error {
     /// Quoted fee strategy variant does not match the on-chain strategy variant.
     #[error("Quoted curve variant does not match on-chain curve")]
     CurveVariantMismatch = 16,
+    /// Fee params max_fee and half_amount must both be nonzero.
+    #[error("Fee params must be nonzero")]
+    ZeroFeeParams = 17,
 }
 
 impl From<Error> for ProgramError {
