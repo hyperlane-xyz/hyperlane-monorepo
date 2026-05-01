@@ -1359,8 +1359,13 @@ fn try_resolve_transient_quote(
         return Err(QuoteValidationError::TransientPayerMismatch.into());
     }
 
-    // Verify stored context matches expected values.
-    if transient.data.destination_domain != dest_domain || transient.data.sender != *sender {
+    // Verify stored context matches expected values. Wildcard fields match any value,
+    // matching EVM behavior where transient quotes support partial wildcards.
+    let dest_matches = transient.data.destination_domain == dest_domain
+        || transient.data.destination_domain == WILDCARD_DOMAIN;
+    let sender_matches =
+        transient.data.sender == *sender || transient.data.sender == WILDCARD_SENDER;
+    if !dest_matches || !sender_matches {
         return Err(QuoteValidationError::TransientContextMismatch.into());
     }
 
