@@ -1,5 +1,16 @@
 # @hyperlane-xyz/cli
 
+## 33.1.0
+
+### Minor Changes
+
+- 21dee68: feat: added cli helper for message decoding and encoding
+
+### Patch Changes
+
+- bfe4d2e: Import cycles flagged by oxlint were resolved by extracting shared code into dedicated leaf modules, performing a hard cutover (no backcompat re-exports), and using dependency injection for submitter factories and aggregation metadata decoding. The `import/no-cycle` lint rule is now enforced as an error.
+- 6929388: Fixed cctp transfer validation
+
 ## 33.0.2
 
 ## 33.0.1
