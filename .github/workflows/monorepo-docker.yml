@@ -17,7 +17,6 @@ on:
       - '.registryrc'
       - '.github/workflows/monorepo-docker.yml'
       - 'pnpm-lock.yaml'
-      - 'typescript/infra/**'
   workflow_dispatch:
     inputs:
       include_arm64:
