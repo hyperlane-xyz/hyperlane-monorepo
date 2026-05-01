@@ -26,34 +26,49 @@ import { ChainLookup } from './chain.js';
 // ====== Strategy Types (shared between Config API and Artifact API) ======
 
 export const FeeStrategyType = {
-  linear: 'linear',
-  regressive: 'regressive',
-  progressive: 'progressive',
-  offchainQuotedLinear: 'offchainQuotedLinear',
+  linear: 'LinearFee',
+  regressive: 'RegressiveFee',
+  progressive: 'ProgressiveFee',
+  offchainQuotedLinear: 'OffchainQuotedLinearFee',
 } as const;
 
 export type FeeStrategyType =
   (typeof FeeStrategyType)[keyof typeof FeeStrategyType];
 
-export interface FeeParams {
-  maxFee: string;
-  halfAmount: string;
-}
+export const FeeParamsType = {
+  bps: 'bps',
+  raw: 'raw',
+} as const;
 
-export interface LinearFeeStrategy extends FeeParams {
+export type FeeParamsType = (typeof FeeParamsType)[keyof typeof FeeParamsType];
+
+export type FeeParams =
+  | {
+      type: typeof FeeParamsType.bps;
+      bps: number;
+      maxFee?: string;
+      halfAmount?: string;
+    }
+  | { type: typeof FeeParamsType.raw; maxFee: string; halfAmount: string };
+
+export interface LinearFeeStrategy {
   type: typeof FeeStrategyType.linear;
+  params: FeeParams;
 }
 
-export interface RegressiveFeeStrategy extends FeeParams {
+export interface RegressiveFeeStrategy {
   type: typeof FeeStrategyType.regressive;
+  params: FeeParams;
 }
 
-export interface ProgressiveFeeStrategy extends FeeParams {
+export interface ProgressiveFeeStrategy {
   type: typeof FeeStrategyType.progressive;
+  params: FeeParams;
 }
 
-export interface OffchainQuotedLinearFeeStrategy extends FeeParams {
+export interface OffchainQuotedLinearFeeStrategy {
   type: typeof FeeStrategyType.offchainQuotedLinear;
+  params: FeeParams;
   quoteSigners: string[];
 }
 
@@ -64,37 +79,41 @@ export type FeeStrategy =
   | OffchainQuotedLinearFeeStrategy;
 
 export const FeeType = {
-  linear: 'linear',
-  regressive: 'regressive',
-  progressive: 'progressive',
-  offchainQuotedLinear: 'offchainQuotedLinear',
-  routing: 'routing',
-  crossCollateralRouting: 'crossCollateralRouting',
+  linear: 'LinearFee',
+  regressive: 'RegressiveFee',
+  progressive: 'ProgressiveFee',
+  offchainQuotedLinear: 'OffchainQuotedLinearFee',
+  routing: 'RoutingFee',
+  crossCollateralRouting: 'CrossCollateralRoutingFee',
 } as const;
 
 export type FeeType = (typeof FeeType)[keyof typeof FeeType];
 
 // ====== Config API Types (chain names as keys) ======
 
-export type BaseFeeConfig<T = {}> = {
+export interface BaseFeeConfig {
   owner: string;
   beneficiary: string;
-} & T;
+}
 
-export interface LinearFeeConfig extends BaseFeeConfig<FeeParams> {
+export interface LinearFeeConfig extends BaseFeeConfig {
   type: typeof FeeType.linear;
+  params: FeeParams;
 }
 
-export interface RegressiveFeeConfig extends BaseFeeConfig<FeeParams> {
+export interface RegressiveFeeConfig extends BaseFeeConfig {
   type: typeof FeeType.regressive;
+  params: FeeParams;
 }
 
-export interface ProgressiveFeeConfig extends BaseFeeConfig<FeeParams> {
+export interface ProgressiveFeeConfig extends BaseFeeConfig {
   type: typeof FeeType.progressive;
+  params: FeeParams;
 }
 
-export interface OffchainQuotedLinearFeeConfig extends BaseFeeConfig<FeeParams> {
+export interface OffchainQuotedLinearFeeConfig extends BaseFeeConfig {
   type: typeof FeeType.offchainQuotedLinear;
+  params: FeeParams;
   quoteSigners: string[];
 }
 
@@ -132,14 +151,14 @@ export interface CrossCollateralRoutingFeeArtifactConfig extends BaseFeeConfig {
   routes: Record<number, Record<string, FeeStrategy>>;
 }
 
-export interface FeeArtifactConfigs {
-  linear: LinearFeeConfig;
-  regressive: RegressiveFeeConfig;
-  progressive: ProgressiveFeeConfig;
-  offchainQuotedLinear: OffchainQuotedLinearFeeConfig;
-  routing: RoutingFeeArtifactConfig;
-  crossCollateralRouting: CrossCollateralRoutingFeeArtifactConfig;
-}
+export type FeeArtifactConfigs = {
+  [FeeType.linear]: LinearFeeConfig;
+  [FeeType.regressive]: RegressiveFeeConfig;
+  [FeeType.progressive]: ProgressiveFeeConfig;
+  [FeeType.offchainQuotedLinear]: OffchainQuotedLinearFeeConfig;
+  [FeeType.routing]: RoutingFeeArtifactConfig;
+  [FeeType.crossCollateralRouting]: CrossCollateralRoutingFeeArtifactConfig;
+};
 
 export type FeeArtifactConfig = FeeArtifactConfigs[FeeType];
 
