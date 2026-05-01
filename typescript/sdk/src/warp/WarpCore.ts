@@ -282,6 +282,7 @@ export class WarpCore {
     attestation,
     amount,
     destinationToken,
+    quotedCalls,
   }: {
     originToken: IToken;
     destination: ChainNameOrId;
@@ -292,6 +293,7 @@ export class WarpCore {
     attestation?: PredicateAttestation;
     amount?: bigint;
     destinationToken?: IToken;
+    quotedCalls?: QuotedCallsParams;
   }): Promise<TransactionFeeEstimate> {
     this.logger.debug(`Estimating local transfer gas to ${destination}`);
     const originMetadata = this.multiProvider.getChainMetadata(
@@ -342,6 +344,7 @@ export class WarpCore {
       tokenFeeQuote,
       attestation,
       destinationToken,
+      quotedCalls,
     });
 
     // Starknet does not support gas estimation without starknet account
@@ -399,6 +402,7 @@ export class WarpCore {
     attestation,
     amount,
     destinationToken,
+    quotedCalls,
   }: {
     originToken: IToken;
     destination: ChainNameOrId;
@@ -409,6 +413,7 @@ export class WarpCore {
     attestation?: PredicateAttestation;
     amount?: bigint;
     destinationToken?: IToken;
+    quotedCalls?: QuotedCallsParams;
   }): Promise<TokenAmount<IToken>> {
     const originMetadata = this.multiProvider.getChainMetadata(
       originToken.chainName,
@@ -431,6 +436,7 @@ export class WarpCore {
       attestation,
       amount,
       destinationToken,
+      quotedCalls,
     });
 
     // Get the local gas token. This assumes the chain's native token will pay for local gas
@@ -859,7 +865,7 @@ export class WarpCore {
     const tokenAddress = (
       collateral && !isZeroishAddress(collateral)
         ? collateral
-        : token.isNative()
+        : token.isNative() || token.isHypNative()
           ? '0x0000000000000000000000000000000000000000'
           : token.addressOrDenom
     ) as `0x${string}`;
