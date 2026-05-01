@@ -333,6 +333,8 @@ async function refreshDependentK8sResourcesInteractive(
   }
 }
 
+// Returns an array of [context, helm manager] tuples — context (e.g. `hyperlane`,
+// `default_ism`) is preserved so the interactive selector can label each choice.
 function getCoreInfraManagersWithContext(
   environment: DeployEnvironment,
   chain: string,
