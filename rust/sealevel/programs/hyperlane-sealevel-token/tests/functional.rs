@@ -2861,6 +2861,18 @@ async fn test_transfer_remote_igp_new_flow_standing_exact() {
         REMOTE_DOMAIN,
         &program_id,
     );
+    let ws_standing_pda = derive_igp_standing_quote_pda(
+        &igp_accounts.igp,
+        &Pubkey::default(),
+        REMOTE_DOMAIN,
+        &WILDCARD_SENDER,
+    );
+    let wd_standing_pda = derive_igp_standing_quote_pda(
+        &igp_accounts.igp,
+        &Pubkey::default(),
+        IGP_WILDCARD_DOMAIN,
+        &program_id,
+    );
 
     let transfer_amount = 10 * 10u64.pow(LOCAL_DECIMALS_U32);
 
@@ -2895,8 +2907,10 @@ async fn test_transfer_remote_igp_new_flow_standing_exact() {
                 AccountMeta::new_readonly(hyperlane_token_accounts.dispatch_authority, false),
                 // quoted_sender = program_id
                 AccountMeta::new_readonly(program_id, false),
-                // variable: exact standing quote PDA
+                // variable: all 3 cascade standing quote PDAs
                 AccountMeta::new_readonly(exact_standing_pda, false),
+                AccountMeta::new_readonly(ws_standing_pda, false),
+                AccountMeta::new_readonly(wd_standing_pda, false),
                 // TERMINAL: configured_igp (OverheadIgp)
                 AccountMeta::new_readonly(igp_accounts.overhead_igp, false),
                 // inner_igp (after terminal for OverheadIgp)
@@ -3299,7 +3313,8 @@ async fn test_transfer_remote_igp_new_flow_cascade_wildcard_sender() {
     )
     .await;
 
-    // Derive PDAs: exact (uninitialized) and wildcard-sender (initialized).
+    // Derive PDAs: exact (uninitialized), wildcard-sender (initialized),
+    // wildcard-domain (uninitialized).
     let exact_pda = derive_igp_standing_quote_pda(
         &igp_accounts.igp,
         &Pubkey::default(),
@@ -3311,6 +3326,12 @@ async fn test_transfer_remote_igp_new_flow_cascade_wildcard_sender() {
         &Pubkey::default(),
         REMOTE_DOMAIN,
         &WILDCARD_SENDER,
+    );
+    let wd_pda = derive_igp_standing_quote_pda(
+        &igp_accounts.igp,
+        &Pubkey::default(),
+        IGP_WILDCARD_DOMAIN,
+        &program_id,
     );
 
     let unique_msg = Keypair::new();
@@ -3333,7 +3354,7 @@ async fn test_transfer_remote_igp_new_flow_cascade_wildcard_sender() {
         &unique_msg.pubkey(),
         &dispatched_message_key,
         &gas_payment_pda_key,
-        &[exact_pda, ws_pda],
+        &[exact_pda, ws_pda, wd_pda],
     );
     accounts.push(AccountMeta::new(token_sender_ata, false));
 
@@ -3755,6 +3776,18 @@ async fn test_transfer_remote_igp_new_flow_with_overhead() {
         REMOTE_DOMAIN,
         &program_id,
     );
+    let ws_pda = derive_igp_standing_quote_pda(
+        &igp_accounts.igp,
+        &Pubkey::default(),
+        REMOTE_DOMAIN,
+        &WILDCARD_SENDER,
+    );
+    let wd_pda = derive_igp_standing_quote_pda(
+        &igp_accounts.igp,
+        &Pubkey::default(),
+        IGP_WILDCARD_DOMAIN,
+        &program_id,
+    );
 
     let unique_msg = Keypair::new();
     let (dispatched_message_key, _) = Pubkey::find_program_address(
@@ -3776,7 +3809,7 @@ async fn test_transfer_remote_igp_new_flow_with_overhead() {
         &unique_msg.pubkey(),
         &dispatched_message_key,
         &gas_payment_pda_key,
-        &[exact_pda],
+        &[exact_pda, ws_pda, wd_pda],
     );
     accounts.push(AccountMeta::new(token_sender_ata, false));
 
@@ -3855,6 +3888,18 @@ async fn test_transfer_remote_igp_new_flow_with_fee() {
         REMOTE_DOMAIN,
         &program_id,
     );
+    let ws_pda = derive_igp_standing_quote_pda(
+        &ctx.igp_accounts.igp,
+        &Pubkey::default(),
+        REMOTE_DOMAIN,
+        &WILDCARD_SENDER,
+    );
+    let wd_pda = derive_igp_standing_quote_pda(
+        &ctx.igp_accounts.igp,
+        &Pubkey::default(),
+        IGP_WILDCARD_DOMAIN,
+        &program_id,
+    );
 
     let unique_msg = Keypair::new();
     let (dispatched_message_key, _) = Pubkey::find_program_address(
@@ -3924,7 +3969,10 @@ async fn test_transfer_remote_igp_new_flow_with_fee() {
                         false,
                     ),
                     AccountMeta::new_readonly(program_id, false),
+                    // All 3 cascade standing quote PDAs
                     AccountMeta::new_readonly(exact_pda, false),
+                    AccountMeta::new_readonly(ws_pda, false),
+                    AccountMeta::new_readonly(wd_pda, false),
                     AccountMeta::new_readonly(ctx.igp_accounts.overhead_igp, false), // TERMINAL
                     AccountMeta::new(ctx.igp_accounts.igp, false),
                     // Plugin (synthetic)

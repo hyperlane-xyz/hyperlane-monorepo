@@ -3336,6 +3336,18 @@ async fn test_transfer_remote_igp_new_flow_standing_collateral() {
         REMOTE_DOMAIN,
         &program_id,
     );
+    let ws_pda = derive_igp_standing_quote_pda(
+        &igp_accounts.igp,
+        &Pubkey::default(),
+        REMOTE_DOMAIN,
+        &hyperlane_sealevel_igp::accounts::WILDCARD_SENDER,
+    );
+    let wd_pda = derive_igp_standing_quote_pda(
+        &igp_accounts.igp,
+        &Pubkey::default(),
+        hyperlane_sealevel_igp::accounts::WILDCARD_DOMAIN,
+        &program_id,
+    );
 
     // TransferRemote with IGP new flow.
     let unique_msg = Keypair::new();
@@ -3379,6 +3391,8 @@ async fn test_transfer_remote_igp_new_flow_standing_collateral() {
                     AccountMeta::new_readonly(hyperlane_token_accounts.dispatch_authority, false),
                     AccountMeta::new_readonly(program_id, false),
                     AccountMeta::new_readonly(exact_pda, false),
+                    AccountMeta::new_readonly(ws_pda, false),
+                    AccountMeta::new_readonly(wd_pda, false),
                     AccountMeta::new_readonly(igp_accounts.overhead_igp, false), // TERMINAL
                     AccountMeta::new(igp_accounts.igp, false),
                     // Plugin (collateral)
@@ -3808,6 +3822,18 @@ async fn test_transfer_remote_igp_new_flow_with_fee_collateral() {
         REMOTE_DOMAIN,
         &program_id,
     );
+    let ws_pda = derive_igp_standing_quote_pda(
+        &ctx.igp_accounts.igp,
+        &Pubkey::default(),
+        REMOTE_DOMAIN,
+        &hyperlane_sealevel_igp::accounts::WILDCARD_SENDER,
+    );
+    let wd_pda = derive_igp_standing_quote_pda(
+        &ctx.igp_accounts.igp,
+        &Pubkey::default(),
+        hyperlane_sealevel_igp::accounts::WILDCARD_DOMAIN,
+        &program_id,
+    );
 
     let unique_msg = Keypair::new();
     let (dispatched_message_key, _) = Pubkey::find_program_address(
@@ -3863,6 +3889,8 @@ async fn test_transfer_remote_igp_new_flow_with_fee_collateral() {
                     ),
                     AccountMeta::new_readonly(program_id, false),
                     AccountMeta::new_readonly(exact_pda, false),
+                    AccountMeta::new_readonly(ws_pda, false),
+                    AccountMeta::new_readonly(wd_pda, false),
                     AccountMeta::new_readonly(ctx.igp_accounts.overhead_igp, false),
                     AccountMeta::new(ctx.igp_accounts.igp, false),
                     // Plugin (collateral)
@@ -3991,6 +4019,12 @@ async fn test_transfer_remote_igp_new_flow_cascade_wildcard_sender_collateral() 
         REMOTE_DOMAIN,
         &hyperlane_sealevel_igp::accounts::WILDCARD_SENDER,
     );
+    let wd_pda = derive_igp_standing_quote_pda(
+        &igp_accounts.igp,
+        &Pubkey::default(),
+        hyperlane_sealevel_igp::accounts::WILDCARD_DOMAIN,
+        &program_id,
+    );
 
     let unique_msg = Keypair::new();
     let (dm, _) = Pubkey::find_program_address(
@@ -4032,6 +4066,7 @@ async fn test_transfer_remote_igp_new_flow_cascade_wildcard_sender_collateral() 
                     AccountMeta::new_readonly(program_id, false),
                     AccountMeta::new_readonly(exact_pda, false),
                     AccountMeta::new_readonly(ws_pda, false),
+                    AccountMeta::new_readonly(wd_pda, false),
                     AccountMeta::new_readonly(igp_accounts.overhead_igp, false),
                     AccountMeta::new(igp_accounts.igp, false),
                     AccountMeta::new_readonly(spl_token_program_id, false),
@@ -4341,6 +4376,18 @@ async fn test_transfer_remote_igp_new_flow_with_overhead_collateral() {
         REMOTE_DOMAIN,
         &program_id,
     );
+    let ws_pda = derive_igp_standing_quote_pda(
+        &igp_accounts.igp,
+        &Pubkey::default(),
+        REMOTE_DOMAIN,
+        &hyperlane_sealevel_igp::accounts::WILDCARD_SENDER,
+    );
+    let wd_pda = derive_igp_standing_quote_pda(
+        &igp_accounts.igp,
+        &Pubkey::default(),
+        hyperlane_sealevel_igp::accounts::WILDCARD_DOMAIN,
+        &program_id,
+    );
     let unique_msg = Keypair::new();
     let (dm, _) = Pubkey::find_program_address(
         mailbox_dispatched_message_pda_seeds!(&unique_msg.pubkey()),
@@ -4380,6 +4427,8 @@ async fn test_transfer_remote_igp_new_flow_with_overhead_collateral() {
                     AccountMeta::new_readonly(hta.dispatch_authority, false),
                     AccountMeta::new_readonly(program_id, false),
                     AccountMeta::new_readonly(exact_pda, false),
+                    AccountMeta::new_readonly(ws_pda, false),
+                    AccountMeta::new_readonly(wd_pda, false),
                     AccountMeta::new_readonly(igp_accounts.overhead_igp, false),
                     AccountMeta::new(igp_accounts.igp, false),
                     AccountMeta::new_readonly(spl_token_program_id, false),

@@ -3066,13 +3066,21 @@ async fn test_quote_gas_payment_new_flow_with_exact_quote() {
 
     let exact_pda =
         derive_standing_quote_pda(&igp_key, &Pubkey::default(), dest_domain, &quoted_sender);
+    let ws_pda =
+        derive_standing_quote_pda(&igp_key, &Pubkey::default(), dest_domain, &WILDCARD_SENDER);
+    let wd_pda = derive_standing_quote_pda(
+        &igp_key,
+        &Pubkey::default(),
+        WILDCARD_DOMAIN,
+        &quoted_sender,
+    );
 
     let ix = build_quote_gas_payment_new_flow(
         igp_key,
         quoted_sender,
         dest_domain,
         gas_amount,
-        &[exact_pda],
+        &[exact_pda, ws_pda, wd_pda],
         None,
     );
 
@@ -3088,6 +3096,101 @@ async fn test_quote_gas_payment_new_flow_with_exact_quote() {
     )
     .unwrap();
     assert_eq!(fee, expected);
+}
+
+/// Exact PDA takes priority over wildcard-sender when both have valid quotes.
+#[tokio::test]
+async fn test_quote_gas_payment_new_flow_exact_takes_priority_over_wildcard() {
+    let (mut banks_client, payer) = setup_client().await;
+
+    let dest_domain = 137u32;
+    let gas_amount = 100_000u64;
+    let quoted_sender = Pubkey::new_unique();
+
+    // Exact quote pricing.
+    let exact_rate = 2 * TOKEN_EXCHANGE_RATE_SCALE;
+    let exact_gas_price = 50_000_000_000u128;
+    let exact_decimals = 18u8;
+
+    // Wildcard-sender quote pricing (different from exact).
+    let ws_rate = 5 * TOKEN_EXCHANGE_RATE_SCALE;
+    let ws_gas_price = 100_000_000_000u128;
+    let ws_decimals = 18u8;
+
+    let oracle = GasOracle::RemoteGasData(RemoteGasData {
+        token_exchange_rate: TOKEN_EXCHANGE_RATE_SCALE,
+        gas_price: 1_000_000_000,
+        token_decimals: 9,
+    });
+
+    // Setup IGP with oracle + exact standing quote.
+    let (igp_key, signing_key) = setup_igp_with_oracle_and_standing_quote(
+        &mut banks_client,
+        &payer,
+        dest_domain,
+        oracle,
+        QuoteParams {
+            exchange_rate: exact_rate,
+            gas_price: exact_gas_price,
+            token_decimals: exact_decimals,
+        },
+        &quoted_sender,
+    )
+    .await;
+
+    // Also submit a wildcard-sender quote with DIFFERENT pricing.
+    let ws_context = encode_igp_context(&Pubkey::default(), dest_domain, &WILDCARD_SENDER);
+    let ws_data = encode_igp_data(ws_rate, ws_gas_price, ws_decimals);
+    let ws_quote = make_signed_igp_quote(
+        &signing_key,
+        &igp_key,
+        IGP_DOMAIN_ID,
+        &payer.pubkey(),
+        ws_context,
+        ws_data,
+        100,
+        200,
+    );
+    let ws_pda =
+        derive_standing_quote_pda(&igp_key, &Pubkey::default(), dest_domain, &WILDCARD_SENDER);
+    let ix =
+        submit_igp_quote_instruction(igp_program_id(), payer.pubkey(), igp_key, ws_pda, ws_quote)
+            .unwrap();
+    process_instruction(&mut banks_client, ix, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    let exact_pda =
+        derive_standing_quote_pda(&igp_key, &Pubkey::default(), dest_domain, &quoted_sender);
+    let wd_pda = derive_standing_quote_pda(
+        &igp_key,
+        &Pubkey::default(),
+        WILDCARD_DOMAIN,
+        &quoted_sender,
+    );
+
+    let ix = build_quote_gas_payment_new_flow(
+        igp_key,
+        quoted_sender,
+        dest_domain,
+        gas_amount,
+        &[exact_pda, ws_pda, wd_pda],
+        None,
+    );
+
+    let result =
+        simulate_instruction::<SimulationReturnData<u64>>(&mut banks_client, &payer, ix).await;
+    let fee = result.unwrap().unwrap().return_data;
+
+    // Must use exact quote, NOT wildcard-sender.
+    let expected_exact =
+        compute_gas_fee(exact_rate, exact_gas_price, gas_amount, exact_decimals).unwrap();
+    let would_be_ws = compute_gas_fee(ws_rate, ws_gas_price, gas_amount, ws_decimals).unwrap();
+    assert_ne!(
+        expected_exact, would_be_ws,
+        "pricing must differ to validate priority"
+    );
+    assert_eq!(fee, expected_exact);
 }
 
 #[tokio::test]
@@ -3124,16 +3227,24 @@ async fn test_quote_gas_payment_new_flow_oracle_fallback() {
     )
     .await;
 
-    // Pass exact PDA for quoted_sender (uninitialized — no quote exists).
+    // All 3 cascade PDAs required: exact, wildcard-sender, wildcard-domain.
     let exact_pda =
         derive_standing_quote_pda(&igp_key, &Pubkey::default(), dest_domain, &quoted_sender);
+    let ws_pda =
+        derive_standing_quote_pda(&igp_key, &Pubkey::default(), dest_domain, &WILDCARD_SENDER);
+    let wd_pda = derive_standing_quote_pda(
+        &igp_key,
+        &Pubkey::default(),
+        WILDCARD_DOMAIN,
+        &quoted_sender,
+    );
 
     let ix = build_quote_gas_payment_new_flow(
         igp_key,
         quoted_sender,
         dest_domain,
         gas_amount,
-        &[exact_pda],
+        &[exact_pda, ws_pda, wd_pda],
         None,
     );
 
@@ -3186,7 +3297,9 @@ async fn test_quote_gas_payment_new_flow_rejects_overhead_without_quote_pda() {
 
     let quoted_sender = Pubkey::new_unique();
 
-    // Pass overhead_igp as first account after quoted_sender — no quote PDAs.
+    // Pass overhead_igp as first account after quoted_sender — no standing quote PDAs.
+    // The cascade now requires all 3 PDAs; the overhead key doesn't match the
+    // expected exact PDA, so it fails with InvalidArgument.
     let ix = build_quote_gas_payment_new_flow(
         igp_key,
         quoted_sender,
@@ -3196,10 +3309,9 @@ async fn test_quote_gas_payment_new_flow_rejects_overhead_without_quote_pda() {
         Some(overhead_igp_key),
     );
     let result = process_instruction(&mut banks_client, ix, &payer, &[&payer]).await;
-    #[allow(deprecated)]
     assert_transaction_error(
         result,
-        TransactionError::InstructionError(0, InstructionError::NotEnoughAccountKeys),
+        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
     );
 }
 
@@ -3209,16 +3321,28 @@ async fn test_quote_gas_payment_new_flow_rejects_wildcard_without_exact_pda() {
     let (igp_key, _) = setup_igp_with_signer(&mut banks_client, &payer).await;
 
     let quoted_sender = Pubkey::new_unique();
+    let exact_pda = derive_standing_quote_pda(&igp_key, &Pubkey::default(), 137, &quoted_sender);
     let ws_pda = derive_standing_quote_pda(&igp_key, &Pubkey::default(), 137, &WILDCARD_SENDER);
+    let wd_pda = derive_standing_quote_pda(
+        &igp_key,
+        &Pubkey::default(),
+        WILDCARD_DOMAIN,
+        &quoted_sender,
+    );
 
-    // Passing wildcard-sender first would skip the exact level; strict order rejects it.
-    let ix =
-        build_quote_gas_payment_new_flow(igp_key, quoted_sender, 137, 100_000, &[ws_pda], None);
+    // Passing wildcard-sender first instead of exact PDA — wrong order, rejected.
+    let ix = build_quote_gas_payment_new_flow(
+        igp_key,
+        quoted_sender,
+        137,
+        100_000,
+        &[ws_pda, exact_pda, wd_pda],
+        None,
+    );
     let result = process_instruction(&mut banks_client, ix, &payer, &[&payer]).await;
-    #[allow(deprecated)]
     assert_transaction_error(
         result,
-        TransactionError::InstructionError(0, InstructionError::NotEnoughAccountKeys),
+        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
     );
 }
 
@@ -3260,13 +3384,19 @@ async fn test_quote_gas_payment_new_flow_wildcard_sender_fallback() {
         derive_standing_quote_pda(&igp_key, &Pubkey::default(), dest_domain, &quoted_sender);
     let ws_pda =
         derive_standing_quote_pda(&igp_key, &Pubkey::default(), dest_domain, &WILDCARD_SENDER);
+    let wd_pda = derive_standing_quote_pda(
+        &igp_key,
+        &Pubkey::default(),
+        WILDCARD_DOMAIN,
+        &quoted_sender,
+    );
 
     let ix = build_quote_gas_payment_new_flow(
         igp_key,
         quoted_sender,
         dest_domain,
         gas_amount,
-        &[exact_pda, ws_pda],
+        &[exact_pda, ws_pda, wd_pda],
         None,
     );
 
@@ -3407,13 +3537,21 @@ async fn test_quote_gas_payment_new_flow_with_overhead() {
 
     let exact_pda =
         derive_standing_quote_pda(&igp_key, &Pubkey::default(), dest_domain, &quoted_sender);
+    let ws_pda =
+        derive_standing_quote_pda(&igp_key, &Pubkey::default(), dest_domain, &WILDCARD_SENDER);
+    let wd_pda = derive_standing_quote_pda(
+        &igp_key,
+        &Pubkey::default(),
+        WILDCARD_DOMAIN,
+        &quoted_sender,
+    );
 
     let ix = build_quote_gas_payment_new_flow(
         igp_key,
         quoted_sender,
         dest_domain,
         gas_amount,
-        &[exact_pda],
+        &[exact_pda, ws_pda, wd_pda],
         Some(overhead_igp_key),
     );
 
@@ -3472,10 +3610,23 @@ async fn test_quote_gas_payment_new_flow_rejects_no_fee_config() {
 
     let quoted_sender = Pubkey::new_unique();
     let exact_pda = derive_standing_quote_pda(&igp_key, &Pubkey::default(), 137, &quoted_sender);
+    let ws_pda = derive_standing_quote_pda(&igp_key, &Pubkey::default(), 137, &WILDCARD_SENDER);
+    let wd_pda = derive_standing_quote_pda(
+        &igp_key,
+        &Pubkey::default(),
+        WILDCARD_DOMAIN,
+        &quoted_sender,
+    );
 
     // New flow with no fee_config → QuoteConfigNotSet.
-    let ix =
-        build_quote_gas_payment_new_flow(igp_key, quoted_sender, 137, 100_000, &[exact_pda], None);
+    let ix = build_quote_gas_payment_new_flow(
+        igp_key,
+        quoted_sender,
+        137,
+        100_000,
+        &[exact_pda, ws_pda, wd_pda],
+        None,
+    );
     let result = process_instruction(&mut banks_client, ix, &payer, &[&payer]).await;
     assert_transaction_error(
         result,
@@ -3525,12 +3676,20 @@ async fn test_quote_gas_payment_new_flow_config_disabled_after_standing_quote() 
     // New flow should now reject — config disabled, standing quote must not resolve.
     let exact_pda =
         derive_standing_quote_pda(&igp_key, &Pubkey::default(), dest_domain, &quoted_sender);
+    let ws_pda =
+        derive_standing_quote_pda(&igp_key, &Pubkey::default(), dest_domain, &WILDCARD_SENDER);
+    let wd_pda = derive_standing_quote_pda(
+        &igp_key,
+        &Pubkey::default(),
+        WILDCARD_DOMAIN,
+        &quoted_sender,
+    );
     let ix = build_quote_gas_payment_new_flow(
         igp_key,
         quoted_sender,
         dest_domain,
         gas_amount,
-        &[exact_pda],
+        &[exact_pda, ws_pda, wd_pda],
         None,
     );
     let result = process_instruction(&mut banks_client, ix, &payer, &[&payer]).await;
@@ -3638,12 +3797,18 @@ async fn test_quote_gas_payment_new_flow_expired_exact_falls_to_wildcard_sender(
     ctx.set_sysvar(&clock);
 
     // Query: expired exact should be skipped → wildcard-sender resolves.
+    let wd_pda = derive_standing_quote_pda(
+        &igp_key,
+        &Pubkey::default(),
+        WILDCARD_DOMAIN,
+        &quoted_sender,
+    );
     let ix = build_quote_gas_payment_new_flow(
         igp_key,
         quoted_sender,
         dest_domain,
         gas_amount,
-        &[exact_pda, ws_pda],
+        &[exact_pda, ws_pda, wd_pda],
         None,
     );
     let result =
@@ -4036,7 +4201,7 @@ async fn test_close_igp_standing_quote_wrong_beneficiary() {
 // --- GetIgpQuoteAccountMetas tests ---
 
 #[tokio::test]
-async fn test_get_igp_quote_account_metas_trims_at_valid_exact() {
+async fn test_get_igp_quote_account_metas_returns_all_with_valid_exact() {
     let (mut banks_client, payer) = setup_client().await;
 
     let dest_domain = 137u32;
@@ -4082,10 +4247,20 @@ async fn test_get_igp_quote_account_metas_trims_at_valid_exact() {
     .await;
     let metas = result.unwrap().unwrap().return_data;
 
-    // Fixed prefix (8) + only exact PDA (1) = 9 accounts.
-    // Exact is valid → ws and wd trimmed.
-    assert_eq!(metas.len(), 9);
+    // Fixed prefix (8) + all 3 cascade PDAs = 11 accounts.
+    // All cascade levels are always included regardless of resolution.
+    assert_eq!(metas.len(), 11);
     assert_eq!(metas[8].pubkey, exact_pda);
+    let ws_pda =
+        derive_standing_quote_pda(&igp_key, &Pubkey::default(), dest_domain, &WILDCARD_SENDER);
+    let wd_pda = derive_standing_quote_pda(
+        &igp_key,
+        &Pubkey::default(),
+        WILDCARD_DOMAIN,
+        &quoted_sender,
+    );
+    assert_eq!(metas[9].pubkey, ws_pda);
+    assert_eq!(metas[10].pubkey, wd_pda);
 }
 
 #[tokio::test]
@@ -4171,10 +4346,10 @@ async fn test_get_igp_quote_account_metas_transient_only() {
 }
 
 #[tokio::test]
-async fn test_get_igp_quote_account_metas_rejects_no_fee_config() {
+async fn test_get_igp_quote_account_metas_legacy_no_fee_config() {
     let (mut banks_client, payer) = setup_client().await;
 
-    // IGP without fee_config.
+    // IGP without fee_config → legacy flow metas.
     initialize(&mut banks_client, &payer).await.unwrap();
     let salt = H256::random();
     let (igp_key, _) = initialize_igp(
@@ -4195,12 +4370,96 @@ async fn test_get_igp_quote_account_metas_rejects_no_fee_config() {
         None,
     )
     .unwrap();
-    let result = process_instruction(&mut banks_client, ix, &payer, &[&payer]).await;
-    assert_transaction_error(
-        result,
-        TransactionError::InstructionError(
-            0,
-            InstructionError::Custom(IgpError::QuoteConfigNotSet as u32),
-        ),
+
+    let result = simulate_instruction::<SimulationReturnData<Vec<SerializableAccountMeta>>>(
+        &mut banks_client,
+        &payer,
+        ix,
+    )
+    .await;
+    let metas = result.unwrap().unwrap().return_data;
+
+    // Legacy: shared prefix (5) + IGP account (1) = 6 accounts.
+    // No sender_authority, quoted_sender, or cascade PDAs.
+    assert_eq!(metas.len(), 6);
+    assert_eq!(metas[5].pubkey, igp_key);
+}
+
+/// Round-trip: simulate GetIgpQuoteAccountMetas, use returned metas for QuoteGasPayment.
+#[tokio::test]
+async fn test_get_igp_quote_account_metas_roundtrip_with_quote() {
+    let (mut banks_client, payer) = setup_client().await;
+
+    let dest_domain = 137u32;
+    let quoted_sender = Pubkey::new_unique();
+
+    let quote_exchange_rate = 2 * TOKEN_EXCHANGE_RATE_SCALE;
+    let quote_gas_price: u128 = 50_000_000_000;
+    let quote_decimals: u8 = 18;
+
+    let oracle = GasOracle::RemoteGasData(RemoteGasData {
+        token_exchange_rate: TOKEN_EXCHANGE_RATE_SCALE,
+        gas_price: 1_000_000_000,
+        token_decimals: 9,
+    });
+
+    let (igp_key, _) = setup_igp_with_oracle_and_standing_quote(
+        &mut banks_client,
+        &payer,
+        dest_domain,
+        oracle,
+        QuoteParams {
+            exchange_rate: quote_exchange_rate,
+            gas_price: quote_gas_price,
+            token_decimals: quote_decimals,
+        },
+        &quoted_sender,
+    )
+    .await;
+
+    // Step 1: Simulate GetIgpQuoteAccountMetas.
+    let sim_ix = get_igp_quote_account_metas_instruction(
+        igp_program_id(),
+        igp_key,
+        dest_domain,
+        quoted_sender,
+        None,
+    )
+    .unwrap();
+    let result = simulate_instruction::<SimulationReturnData<Vec<SerializableAccountMeta>>>(
+        &mut banks_client,
+        &payer,
+        sim_ix,
+    )
+    .await;
+    let metas = result.unwrap().unwrap().return_data;
+
+    // Step 2: Verify simulation returned the correct PayForGas layout.
+    //   [0] system, [1] payer(placeholder), [2] program_data, [3] unique(placeholder),
+    //   [4] gas_payment_pda(placeholder), [5] igp, [6] sender_authority,
+    //   [7] quoted_sender, [8..10] cascade PDAs
+    assert_eq!(metas.len(), 11);
+
+    // Shared prefix.
+    assert_eq!(metas[0].pubkey, system_program::id());
+    assert_eq!(metas[5].pubkey, igp_key);
+    assert_eq!(metas[7].pubkey, quoted_sender);
+
+    // sender_authority is a signer (signed via invoke_signed).
+    assert!(metas[6].is_signer);
+
+    // Cascade PDAs match expected derivation.
+    let exact_pda =
+        derive_standing_quote_pda(&igp_key, &Pubkey::default(), dest_domain, &quoted_sender);
+    let ws_pda =
+        derive_standing_quote_pda(&igp_key, &Pubkey::default(), dest_domain, &WILDCARD_SENDER);
+    let wd_pda = derive_standing_quote_pda(
+        &igp_key,
+        &Pubkey::default(),
+        WILDCARD_DOMAIN,
+        &quoted_sender,
     );
+    assert_eq!(metas[8].pubkey, exact_pda);
+    assert_eq!(metas[9].pubkey, ws_pda);
+    assert_eq!(metas[10].pubkey, wd_pda);
 }

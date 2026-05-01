@@ -309,8 +309,10 @@ const DISPATCH_AUTHORITY_SEEDS: &[&[u8]] = &[b"hyperlane_dispatcher", b"-", b"di
 /// 5. `[writeable]` The IGP account (same position as old flow).
 /// 6. `[signer]` sender_authority (dispatch_authority PDA — must be signer).
 /// 7. `[]` quoted_sender (warp route program ID).
-/// 8. Standing quote PDAs (exact, ws, wd — at least 1 required, trailing optional).
-/// 9. `[]` Overhead IGP account (optional, after cascade).
+/// 8. `[]` Standing quote PDA (exact).
+/// 9. `[]` Standing quote PDA (wildcard-sender).
+/// 10. `[]` Standing quote PDA (wildcard-domain).
+/// 11. `[]` Overhead IGP account (optional, after cascade).
 fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
@@ -576,8 +578,10 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
 /// 0. `[executable]` The system program.
 /// 1. `[]` The IGP account (same position as old flow).
 /// 2. `[]` quoted_sender (owner != program_id — informational, NOT signer).
-/// 3. Standing quote PDAs (exact, ws, wd — at least 1 required, trailing optional).
-/// 4. `[]` The overhead IGP account (optional, after cascade).
+/// 3. `[]` Standing quote PDA (exact).
+/// 4. `[]` Standing quote PDA (wildcard-sender).
+/// 5. `[]` Standing quote PDA (wildcard-domain).
+/// 6. `[]` The overhead IGP account (optional, after cascade).
 fn quote_gas_payment(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -1267,9 +1271,9 @@ fn submit_igp_quote(
 
 // --- Quote cascade resolution helpers ---
 
-/// Walks standing quote PDAs in strict order. At least the first expected PDA
-/// must be present; after one expected PDA is consumed, remaining trailing PDAs
-/// may be omitted and the next account is left for overhead handling.
+/// Walks all standing quote PDAs in strict order (exact, wildcard-sender,
+/// wildcard-domain). All 3 must be present and match the expected derivation.
+/// Consumes all 3 from the iterator even after early resolution.
 #[allow(clippy::too_many_arguments)]
 fn try_standing_cascade(
     program_id: &Pubkey,
@@ -1280,13 +1284,13 @@ fn try_standing_cascade(
     min_issued_at: i64,
     clock: &Clock,
 ) -> Result<Option<ResolvedQuote>, ProgramError> {
-    let mut consumed_quote_pda = false;
+    // All cascade PDAs must be provided and consumed from the iterator,
+    // even after a valid quote is found — prevents leftover accounts from
+    // confusing downstream account parsing (e.g. overhead IGP).
+    let mut resolved: Option<ResolvedQuote> = None;
 
     for (dest_domain, sender) in cascade_levels {
-        let account = match accounts_iter.as_slice().first() {
-            None => break,
-            Some(a) => a,
-        };
+        let account = next_account_info(accounts_iter)?;
 
         let dest_le = dest_domain.to_le_bytes();
         let (expected_standing, _) = Pubkey::find_program_address(
@@ -1295,14 +1299,13 @@ fn try_standing_cascade(
         );
 
         if *account.key != expected_standing {
-            if !consumed_quote_pda {
-                return Err(ProgramError::NotEnoughAccountKeys);
-            }
-            break;
+            return Err(ProgramError::InvalidArgument);
         }
 
-        let account = next_account_info(accounts_iter)?;
-        consumed_quote_pda = true;
+        // Skip validation if we already resolved a quote at a higher-priority level.
+        if resolved.is_some() {
+            continue;
+        }
 
         match account.init_state(program_id) {
             AccountInitState::Uninitialized => {}
@@ -1312,21 +1315,17 @@ fn try_standing_cascade(
                     IgpStandingQuoteAccount::fetch(&mut &account.data.borrow()[..])?.into_inner();
 
                 if standing.data.validate_quote(min_issued_at, clock).is_ok() {
-                    return Ok(Some(ResolvedQuote {
+                    resolved = Some(ResolvedQuote {
                         token_exchange_rate: standing.data.token_exchange_rate,
                         gas_price: standing.data.gas_price,
                         token_decimals: standing.data.token_decimals,
-                    }));
+                    });
                 }
             }
         }
     }
 
-    if !consumed_quote_pda {
-        return Err(ProgramError::NotEnoughAccountKeys);
-    }
-
-    Ok(None)
+    Ok(resolved)
 }
 
 #[allow(unused, clippy::too_many_arguments)]
@@ -1505,139 +1504,123 @@ fn get_igp_quote_account_metas(
 ) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
+    // Account 0: IGP account.
     let igp_info = next_account_info(accounts_iter)?;
     if igp_info.owner != program_id {
         return Err(ProgramError::IncorrectProgramId);
     }
     let igp = IgpAccount::fetch(&mut &igp_info.data.borrow()[..])?.into_inner();
 
-    let exact_info = next_account_info(accounts_iter)?;
-    let ws_info = next_account_info(accounts_iter)?;
-    let wd_info = next_account_info(accounts_iter)?;
-
-    ensure_no_extraneous_accounts(accounts_iter)?;
-
-    // Build fixed prefix (PayForGas accounts 0-7).
     let (program_data_key, _) =
         Pubkey::find_program_address(igp_program_data_pda_seeds!(), program_id);
-    let (sender_authority, _) =
-        Pubkey::find_program_address(DISPATCH_AUTHORITY_SEEDS, &data.sender);
 
+    // Shared prefix: PayForGas accounts [0..4].
     // Placeholders: SDK must replace payer (idx 1), unique_gas_payment (idx 3),
     // and gas_payment_pda (idx 4, derived from unique_gas_payment) before use.
     let mut metas = vec![
         SerializableAccountMeta {
+            // [0] system_program
             pubkey: system_program::ID,
             is_signer: false,
             is_writable: false,
         },
         SerializableAccountMeta {
-            // Placeholder: payer (SDK replaces with actual payer).
+            // [1] Placeholder: payer (SDK replaces with actual payer).
             pubkey: Pubkey::default(),
             is_signer: true,
             is_writable: true,
         },
         SerializableAccountMeta {
+            // [2] program_data
             pubkey: program_data_key,
             is_signer: false,
             is_writable: true,
         },
         SerializableAccountMeta {
-            // Placeholder: unique_gas_payment keypair (SDK generates fresh).
+            // [3] Placeholder: unique_gas_payment keypair (SDK generates fresh).
             pubkey: Pubkey::default(),
             is_signer: true,
             is_writable: false,
         },
         SerializableAccountMeta {
-            // Placeholder: gas_payment_pda (SDK derives from unique_gas_payment).
+            // [4] Placeholder: gas_payment_pda (SDK derives from unique_gas_payment).
             pubkey: Pubkey::default(),
             is_signer: false,
             is_writable: true,
-        },
-        SerializableAccountMeta {
-            pubkey: *igp_info.key,
-            is_signer: false,
-            is_writable: true,
-        },
-        SerializableAccountMeta {
-            pubkey: sender_authority,
-            is_signer: true,
-            is_writable: false,
-        },
-        SerializableAccountMeta {
-            pubkey: data.sender,
-            is_signer: false,
-            is_writable: false,
         },
     ];
 
-    // Require fee_config for both paths — prevents returning metas after config removal.
-    let fee_config = igp.fee_config.as_ref().ok_or(IgpError::QuoteConfigNotSet)?;
+    ensure_no_extraneous_accounts(accounts_iter)?;
 
-    if let Some(scoped_salt) = data.scoped_salt {
-        // Transient path: prefix + transient PDA only (no standing PDAs).
-        let (transient_key, _) = Pubkey::find_program_address(
-            igp_transient_quote_pda_seeds!(igp_info.key, scoped_salt),
-            program_id,
-        );
+    if igp.fee_config.is_some() {
+        // Quoted flow: [5] IGP terminal, [6] sender_authority, [7] quoted_sender,
+        // then transient PDA or all 3 standing cascade PDAs (derived on-chain).
+
+        // [5] IGP account (terminal sentinel for warp route parsing).
         metas.push(SerializableAccountMeta {
-            pubkey: transient_key,
+            pubkey: *igp_info.key,
             is_signer: false,
             is_writable: true,
         });
-    } else {
-        // Standing path: walk cascade, trim at first valid.
-        let fee_token_mint = Pubkey::default();
-        let clock = Clock::get()?;
-        let min_issued_at = fee_config.min_issued_at;
 
-        let cascade: [(&AccountInfo, u32, &Pubkey); 3] = [
-            (exact_info, data.destination_domain, &data.sender),
-            (ws_info, data.destination_domain, &WILDCARD_SENDER),
-            (wd_info, WILDCARD_DOMAIN, &data.sender),
-        ];
+        let (sender_authority, _) =
+            Pubkey::find_program_address(DISPATCH_AUTHORITY_SEEDS, &data.sender);
 
-        let (needed_pdas, _) = cascade.iter().try_fold(
-            (Vec::<SerializableAccountMeta>::new(), false),
-            |(mut pdas, resolved), (account, domain, sender)| {
-                if resolved {
-                    return Ok((pdas, true));
-                }
+        // [6] sender_authority (dispatch_authority PDA, signed via invoke_signed).
+        metas.push(SerializableAccountMeta {
+            pubkey: sender_authority,
+            is_signer: true,
+            is_writable: false,
+        });
+        // [7] quoted_sender (warp route program_id).
+        metas.push(SerializableAccountMeta {
+            pubkey: data.sender,
+            is_signer: false,
+            is_writable: false,
+        });
 
-                let dest_le = domain.to_le_bytes();
-                let (expected, _) = Pubkey::find_program_address(
-                    igp_standing_quote_pda_seeds!(igp_info.key, fee_token_mint, &dest_le, sender),
+        if let Some(scoped_salt) = data.scoped_salt {
+            // Transient path: [8] transient PDA only.
+            let (transient_key, _) = Pubkey::find_program_address(
+                igp_transient_quote_pda_seeds!(igp_info.key, scoped_salt),
+                program_id,
+            );
+            metas.push(SerializableAccountMeta {
+                pubkey: transient_key,
+                is_signer: false,
+                is_writable: true,
+            });
+        } else {
+            // Standing path: [8..10] all 3 cascade PDAs, derived on-chain.
+            let fee_token_mint = Pubkey::default();
+            let dest_le = data.destination_domain.to_le_bytes();
+            let wildcard_le = WILDCARD_DOMAIN.to_le_bytes();
+
+            let cascade_seeds: [(&[u8], &Pubkey); 3] = [
+                (&dest_le, &data.sender),
+                (&dest_le, &WILDCARD_SENDER),
+                (&wildcard_le, &data.sender),
+            ];
+
+            for (domain_le, sender) in &cascade_seeds {
+                let (pda, _) = Pubkey::find_program_address(
+                    igp_standing_quote_pda_seeds!(igp_info.key, fee_token_mint, domain_le, sender),
                     program_id,
                 );
-                if *account.key != expected {
-                    return Err(ProgramError::InvalidSeeds);
-                }
-
-                let is_valid = match account.init_state(program_id) {
-                    AccountInitState::Uninitialized => false,
-                    AccountInitState::Initialized => {
-                        let quote =
-                            IgpStandingQuoteAccount::fetch(&mut &account.data.borrow()[..])?;
-                        quote
-                            .into_inner()
-                            .data
-                            .validate_quote(min_issued_at, &clock)
-                            .is_ok()
-                    }
-                    AccountInitState::OwnerMismatch => return Err(ProgramError::InvalidArgument),
-                };
-
-                pdas.push(SerializableAccountMeta {
-                    pubkey: *account.key,
+                metas.push(SerializableAccountMeta {
+                    pubkey: pda,
                     is_signer: false,
                     is_writable: false,
                 });
-
-                Ok((pdas, is_valid))
-            },
-        )?;
-
-        metas.extend(needed_pdas);
+            }
+        }
+    } else {
+        // Legacy flow: just the IGP account at [5]. No cascade PDAs needed.
+        metas.push(SerializableAccountMeta {
+            pubkey: *igp_info.key,
+            is_signer: false,
+            is_writable: true,
+        });
     }
 
     set_return_data(

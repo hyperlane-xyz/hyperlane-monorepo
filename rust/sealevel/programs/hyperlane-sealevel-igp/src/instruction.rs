@@ -12,11 +12,8 @@ use solana_program::{
 use solana_system_interface::program as system_program;
 
 use crate::{
-    accounts::{
-        GasOracle, IgpFeeConfig, InterchainGasPaymasterType, WILDCARD_DOMAIN, WILDCARD_SENDER,
-    },
-    igp_gas_payment_pda_seeds, igp_pda_seeds, igp_program_data_pda_seeds,
-    igp_standing_quote_pda_seeds, overhead_igp_pda_seeds,
+    accounts::{GasOracle, IgpFeeConfig, InterchainGasPaymasterType},
+    igp_gas_payment_pda_seeds, igp_pda_seeds, igp_program_data_pda_seeds, overhead_igp_pda_seeds,
 };
 
 /// The program instructions.
@@ -631,37 +628,8 @@ pub fn get_igp_quote_account_metas_instruction(
         scoped_salt,
     });
 
-    let fee_token_mint = Pubkey::default();
-    let dest_le = destination_domain.to_le_bytes();
-    let wildcard_le = WILDCARD_DOMAIN.to_le_bytes();
-
-    let (exact_pda, _) = Pubkey::try_find_program_address(
-        igp_standing_quote_pda_seeds!(igp, fee_token_mint, &dest_le, sender),
-        &program_id,
-    )
-    .ok_or(ProgramError::InvalidSeeds)?;
-    let (ws_pda, _) = Pubkey::try_find_program_address(
-        igp_standing_quote_pda_seeds!(igp, fee_token_mint, &dest_le, WILDCARD_SENDER),
-        &program_id,
-    )
-    .ok_or(ProgramError::InvalidSeeds)?;
-    let (wd_pda, _) = Pubkey::try_find_program_address(
-        igp_standing_quote_pda_seeds!(igp, fee_token_mint, &wildcard_le, sender),
-        &program_id,
-    )
-    .ok_or(ProgramError::InvalidSeeds)?;
-
-    // Accounts:
-    // 0. `[]` The IGP account.
-    // 1. `[]` Exact standing PDA.
-    // 2. `[]` Wildcard-sender standing PDA.
-    // 3. `[]` Wildcard-domain standing PDA.
-    let accounts = vec![
-        AccountMeta::new_readonly(igp, false),
-        AccountMeta::new_readonly(exact_pda, false),
-        AccountMeta::new_readonly(ws_pda, false),
-        AccountMeta::new_readonly(wd_pda, false),
-    ];
+    // Account: only the IGP account. Cascade PDAs are derived on-chain.
+    let accounts = vec![AccountMeta::new_readonly(igp, false)];
 
     Ok(SolanaInstruction {
         program_id,

@@ -2843,6 +2843,18 @@ async fn test_transfer_remote_igp_new_flow_standing_native() {
         REMOTE_DOMAIN,
         &program_id,
     );
+    let ws_standing_pda = derive_igp_standing_quote_pda(
+        &igp_accounts.igp,
+        &Pubkey::default(),
+        REMOTE_DOMAIN,
+        &WILDCARD_SENDER,
+    );
+    let wd_standing_pda = derive_igp_standing_quote_pda(
+        &igp_accounts.igp,
+        &Pubkey::default(),
+        IGP_WILDCARD_DOMAIN,
+        &program_id,
+    );
 
     // --- TransferRemote with IGP new flow (no fees) ---
     let token_sender =
@@ -2890,6 +2902,8 @@ async fn test_transfer_remote_igp_new_flow_standing_native() {
                     AccountMeta::new_readonly(hyperlane_token_accounts.dispatch_authority, false),
                     AccountMeta::new_readonly(program_id, false),
                     AccountMeta::new_readonly(exact_standing_pda, false),
+                    AccountMeta::new_readonly(ws_standing_pda, false),
+                    AccountMeta::new_readonly(wd_standing_pda, false),
                     AccountMeta::new_readonly(igp_accounts.overhead_igp, false), // TERMINAL
                     AccountMeta::new(igp_accounts.igp, false),
                     // Plugin (native)
@@ -3783,6 +3797,12 @@ async fn test_transfer_remote_igp_new_flow_cascade_wildcard_sender_native() {
         REMOTE_DOMAIN,
         &program_id,
     );
+    let wd_pda = derive_igp_standing_quote_pda(
+        &igp_accounts.igp,
+        &Pubkey::default(),
+        IGP_WILDCARD_DOMAIN,
+        &program_id,
+    );
     let token_sender =
         new_funded_keypair(&mut banks_client, &payer, 100 * ONE_SOL_IN_LAMPORTS).await;
     let tsp = token_sender.pubkey();
@@ -3824,6 +3844,7 @@ async fn test_transfer_remote_igp_new_flow_cascade_wildcard_sender_native() {
                     AccountMeta::new_readonly(program_id, false),
                     AccountMeta::new_readonly(exact_pda, false),
                     AccountMeta::new_readonly(ws_pda, false),
+                    AccountMeta::new_readonly(wd_pda, false),
                     AccountMeta::new_readonly(igp_accounts.overhead_igp, false),
                     AccountMeta::new(igp_accounts.igp, false),
                     AccountMeta::new_readonly(system_program::ID, false),
@@ -4057,6 +4078,18 @@ async fn test_transfer_remote_igp_new_flow_with_overhead_native() {
         REMOTE_DOMAIN,
         &program_id,
     );
+    let ws_pda = derive_igp_standing_quote_pda(
+        &igp_accounts.igp,
+        &Pubkey::default(),
+        REMOTE_DOMAIN,
+        &WILDCARD_SENDER,
+    );
+    let wd_pda = derive_igp_standing_quote_pda(
+        &igp_accounts.igp,
+        &Pubkey::default(),
+        IGP_WILDCARD_DOMAIN,
+        &program_id,
+    );
 
     let token_sender =
         new_funded_keypair(&mut banks_client, &payer, 100 * ONE_SOL_IN_LAMPORTS).await;
@@ -4098,6 +4131,8 @@ async fn test_transfer_remote_igp_new_flow_with_overhead_native() {
                     AccountMeta::new_readonly(hta.dispatch_authority, false),
                     AccountMeta::new_readonly(program_id, false),
                     AccountMeta::new_readonly(exact_pda, false),
+                    AccountMeta::new_readonly(ws_pda, false),
+                    AccountMeta::new_readonly(wd_pda, false),
                     AccountMeta::new_readonly(igp_accounts.overhead_igp, false),
                     AccountMeta::new(igp_accounts.igp, false),
                     AccountMeta::new_readonly(system_program::ID, false),
