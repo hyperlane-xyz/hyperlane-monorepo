@@ -893,12 +893,6 @@ impl PendingMessage {
         PendingOperationResult::NotReady
     }
 
-    fn is_ready(&self) -> bool {
-        self.next_attempt_after
-            .map(|a| Instant::now() >= a)
-            .unwrap_or(true)
-    }
-
     /// Record in HyperlaneDB and various metrics that this process has observed
     /// the successful processing of a message. An `Ok(())` value returned by
     /// this function is the 'commit' point in a message's lifetime for

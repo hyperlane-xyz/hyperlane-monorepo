@@ -120,7 +120,7 @@ impl CcipReadIsmMetadataBuilder {
             .get_cached_call_result::<SerializedOffchainLookup>(ism_domain, fn_key, &call_params)
             .await
             .map_err(|err| {
-                warn!(error = %err, "Error when caching call result for {:?}", fn_key);
+                warn!(error = %err, message_id = ?message.id(), "Error when caching call result for {:?}", fn_key);
             })
             .ok()
             .flatten();
@@ -134,7 +134,7 @@ impl CcipReadIsmMetadataBuilder {
 
                 match response {
                     Ok(_) => {
-                        info!("incorrectly configured getOffchainVerifyInfo, expected revert");
+                        info!(message_id = ?message.id(), "incorrectly configured getOffchainVerifyInfo, expected revert");
                         return Err(MetadataBuildError::CouldNotFetch);
                     }
                     Err(raw_error) => {
@@ -152,7 +152,7 @@ impl CcipReadIsmMetadataBuilder {
                                 MetadataBuildError::FailedToBuild(msg)
                             })?
                         } else {
-                            info!(?raw_error, "unable to parse custom error out of revert");
+                            info!(?raw_error, message_id = ?message.id(), "unable to parse custom error out of revert");
                             return Err(MetadataBuildError::CouldNotFetch);
                         }
                     }
@@ -171,7 +171,7 @@ impl CcipReadIsmMetadataBuilder {
             )
             .await
             .map_err(|err| {
-                warn!(error = %err, "Error when caching call result for {:?}", fn_key);
+                warn!(error = %err, message_id = ?message.id(), "Error when caching call result for {:?}", fn_key);
             })
             .ok();
 
@@ -246,7 +246,7 @@ async fn metadata_build(
 
     for url in info.urls.iter() {
         if ccip_url_regex.is_match(url) {
-            tracing::warn!(?ism_address, url, "Suspicious CCIP read url");
+            tracing::warn!(?ism_address, url, message_id = ?message.id(), "Suspicious CCIP read url");
             continue;
         }
 
@@ -254,12 +254,22 @@ async fn metadata_build(
         // Move to the next URL only on hard failures.
         const MAX_PENDING_RETRIES: u32 = 30;
         let mut pending_attempts = 0u32;
+        tracing::info!(?ism_address, url, message_id = ?message.id(), "Fetching CCIP read offchain data");
         loop {
-            match fetch_offchain_data(ism_builder, &info, url, origin_tx_hash.clone()).await {
+            match fetch_offchain_data(
+                ism_builder,
+                &info,
+                url,
+                origin_tx_hash.clone(),
+                message.id(),
+            )
+            .await
+            {
                 Ok(data) => {
                     tracing::info!(
                         ?ism_address,
                         url,
+                        message_id = ?message.id(),
                         origin_tx_hash = ?origin_tx_hash,
                         attempts = pending_attempts,
                         "Successfully fetched offchain lookup data"
@@ -271,6 +281,7 @@ async fn metadata_build(
                     tracing::debug!(
                         ?ism_address,
                         url,
+                        message_id = ?message.id(),
                         origin_tx_hash = ?origin_tx_hash,
                         attempt = pending_attempts,
                         max = MAX_PENDING_RETRIES,
@@ -282,6 +293,7 @@ async fn metadata_build(
                     tracing::warn!(
                         ?ism_address,
                         url,
+                        message_id = ?message.id(),
                         origin_tx_hash = ?origin_tx_hash,
                         max = MAX_PENDING_RETRIES,
                         "Attestation still pending after max retries"
@@ -289,7 +301,7 @@ async fn metadata_build(
                     break;
                 }
                 Err(FetchOutcome::Failed(err)) => {
-                    tracing::warn!(?ism_address, url, origin_tx_hash = ?origin_tx_hash, error = ?err, "Failed to fetch offchain data");
+                    tracing::warn!(?ism_address, url, message_id = ?message.id(), origin_tx_hash = ?origin_tx_hash, error = ?err, "Failed to fetch offchain data");
                     break;
                 }
             }
@@ -344,6 +356,7 @@ async fn fetch_offchain_data(
     info: &OffchainLookup,
     url: &str,
     origin_tx_hash: Option<String>,
+    message_id: H256,
 ) -> Result<Metadata, FetchOutcome> {
     // Compute relayer authentication signature via EIP-191
     let maybe_signature_hex = if let Some(signer) = ism_builder.base.base_builder().get_signer() {
@@ -370,6 +383,7 @@ async fn fetch_offchain_data(
         tracing::debug!(
             url = interpolated_url,
             ?body,
+            ?message_id,
             "Sending POST request to offchain lookup server"
         );
         Client::new()
@@ -406,6 +420,7 @@ async fn fetch_offchain_data(
     tracing::debug!(
         response = response_body,
         status = status.as_u16(),
+        ?message_id,
         "Received response from offchain lookup server"
     );
 

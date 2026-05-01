@@ -166,6 +166,7 @@ export enum WarpRouteIds {
   EthereumIgraUSDS = 'USDS/ethereum-igra',
   EthereumIgraWETH = 'WETH/ethereum-igra',
   EthereumIgraUSDT = 'USDT/ethereum-igra',
+  IgraTIBBIR = 'TIBBIR/igra',
 
   // Fluent routes
   FluentBLEND = 'BLEND/fluent',
