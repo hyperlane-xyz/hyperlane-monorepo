@@ -6,7 +6,9 @@ use axum::{
     Json, Router,
 };
 use hyperlane_base::db::HyperlaneRocksDB;
-use hyperlane_core::{HyperlaneMessage, Indexer, QueueOperation, H256, H512};
+use hyperlane_core::{
+    HyperlaneLogStore, HyperlaneMessage, Indexer, InterchainGasPayment, QueueOperation, H256, H512,
+};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
@@ -152,6 +154,10 @@ impl Drop for TxHashReservation {
 pub struct ServerState {
     // Required: server cannot function without these
     indexers: HashMap<String, Arc<dyn Indexer<HyperlaneMessage>>>,
+    /// IGP indexers keyed by origin domain id. Used to eagerly store gas payments from a
+    /// tx receipt before injecting the message into the processor queue, so the relayer's
+    /// gas payment check never races the background `tx_id_indexer_task`.
+    igp_indexers: HashMap<u32, Arc<dyn Indexer<InterchainGasPayment>>>,
     dbs: HashMap<u32, HyperlaneRocksDB>,
     send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
     msg_ctxs: HashMap<(u32, u32), Arc<MessageContext>>,
@@ -168,6 +174,7 @@ pub struct ServerState {
 impl ServerState {
     pub fn new(
         indexers: HashMap<String, Arc<dyn Indexer<HyperlaneMessage>>>,
+        igp_indexers: HashMap<u32, Arc<dyn Indexer<InterchainGasPayment>>>,
         dbs: HashMap<u32, HyperlaneRocksDB>,
         send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
         msg_ctxs: HashMap<(u32, u32), Arc<MessageContext>>,
@@ -175,6 +182,7 @@ impl ServerState {
     ) -> Self {
         Self {
             indexers,
+            igp_indexers,
             dbs,
             send_channels,
             msg_ctxs,
@@ -537,6 +545,7 @@ async fn relay_work(state: &ServerState, req: &RelayRequest) -> ServerResult<Jso
         // returns false and no non-EVM indexer overrides it. Extending the relay API
         // to non-EVM chains requires a chain-specific is_cctp_v2 implementation.
         if !extracted.is_cctp_v2 {
+            warn!(message_id = ?extracted.message_id, "Rejecting non-CCTP V2 message");
             state.record_failure("not_cctp_v2");
             return Err(ServerError::InvalidRequest(
                 "Only EVM CCTP V2 messages are supported via the relay API".to_string(),
@@ -547,6 +556,12 @@ async fn relay_work(state: &ServerState, req: &RelayRequest) -> ServerResult<Jso
         let msg_ctx = msg_ctxs
             .get(&(extracted.message.origin, extracted.message.destination))
             .ok_or_else(|| {
+                warn!(
+                    message_id = ?extracted.message_id,
+                    origin = extracted.message.origin,
+                    destination = extracted.message.destination,
+                    "No message context for origin/destination pair"
+                );
                 ServerError::InternalError(format!(
                     "No message context for origin {} to destination {}",
                     extracted.message.origin, extracted.message.destination
@@ -624,6 +639,7 @@ async fn relay_work(state: &ServerState, req: &RelayRequest) -> ServerResult<Jso
         // Apply message filtering (whitelist, blacklist, address blacklist)
         if let Some(whitelist) = &state.message_whitelist {
             if !whitelist.msg_matches(&extracted.message, true) {
+                warn!(message_id = ?extracted.message_id, "Rejecting message not on whitelist");
                 state.record_failure("message_not_whitelisted");
                 return Err(ServerError::InvalidRequest(
                     "Message not whitelisted".to_string(),
@@ -633,6 +649,7 @@ async fn relay_work(state: &ServerState, req: &RelayRequest) -> ServerResult<Jso
 
         if let Some(blacklist) = &state.message_blacklist {
             if blacklist.msg_matches(&extracted.message, false) {
+                warn!(message_id = ?extracted.message_id, "Rejecting blacklisted message");
                 state.record_failure("message_blacklisted");
                 return Err(ServerError::InvalidRequest(
                     "Message blacklisted".to_string(),
@@ -666,13 +683,13 @@ async fn relay_work(state: &ServerState, req: &RelayRequest) -> ServerResult<Jso
             })?
             .clone();
 
-        // 3 retries is intentional for the relay API fast path — if it fails the
-        // contract indexer will re-queue it within seconds.
+        // 1 retry: one attempt in the relay API queue, then drop and let the
+        // contract indexer re-queue it within seconds via the classical path.
         let pending_msg = PendingMessage::maybe_from_persisted_retries(
             extracted.message.clone(),
             msg_ctx.clone(),
             app_context.clone(),
-            3,
+            1,
         )
         .map(|m| m.with_fail_fast())
         .ok_or_else(|| {
@@ -695,7 +712,82 @@ async fn relay_work(state: &ServerState, req: &RelayRequest) -> ServerResult<Jso
         });
     }
 
-    // Phase 2: send all validated messages.
+    // Phase 2: eagerly store IGP payments from the tx receipt for each origin domain.
+    //
+    // The relayer's gas payment check runs immediately after a message enters the processor
+    // queue. Without this step the check races the background `tx_id_indexer_task`, which
+    // indexes the same receipt asynchronously and may arrive ~30 s later — causing spurious
+    // `GasPaymentNotFound` retries. By fetching and storing the payments here, before any
+    // message is enqueued, the race window is closed.
+    //
+    // Failures are non-fatal: log a warning and proceed. The background indexer still
+    // serves as a fallback, so a transient RPC error here doesn't break relay.
+    //
+    // We deduplicate by (origin_domain, tx_hash) so that a batch with multiple messages
+    // from the same tx only triggers one RPC call.
+    {
+        let mut seen: std::collections::HashSet<(u32, H512)> = std::collections::HashSet::new();
+        for v in &validated {
+            let key = (v.origin_domain, v.tx_hash);
+            if !seen.insert(key) {
+                continue;
+            }
+            let Some(igp_indexer) = state.igp_indexers.get(&v.origin_domain) else {
+                continue;
+            };
+            let Some(db) = state.dbs.get(&v.origin_domain) else {
+                continue;
+            };
+            // 2 s = one honest RPC attempt. EVM's fetch_logs_by_tx_hash uses
+            // call_and_retry_indefinitely with a 2 s inter-retry sleep; a timeout
+            // longer than 2 s would let the sleep run and add a full retry cycle
+            // to every /relay response when the RPC node is slow or flaky.
+            // This is best-effort — the background indexer is the fallback.
+            match tokio::time::timeout(
+                Duration::from_secs(2),
+                igp_indexer.fetch_logs_by_tx_hash(v.tx_hash),
+            )
+            .await
+            {
+                Err(_) => {
+                    warn!(
+                        origin_domain = v.origin_domain,
+                        tx_hash = ?v.tx_hash,
+                        "IGP payment fetch timed out; background indexer will retry"
+                    );
+                }
+                Ok(Err(e)) => {
+                    warn!(
+                        origin_domain = v.origin_domain,
+                        tx_hash = ?v.tx_hash,
+                        error = %e,
+                        "Failed to fetch IGP payments from relay API receipt; \
+                         background indexer will retry"
+                    );
+                }
+                Ok(Ok(payments)) => {
+                    if let Err(e) = db.store_logs(&payments).await {
+                        warn!(
+                            origin_domain = v.origin_domain,
+                            tx_hash = ?v.tx_hash,
+                            error = %e,
+                            "Failed to store IGP payments from relay API receipt; \
+                             background indexer will retry"
+                        );
+                    } else {
+                        debug!(
+                            origin_domain = v.origin_domain,
+                            tx_hash = ?v.tx_hash,
+                            count = payments.len(),
+                            "Stored IGP payments from relay API receipt"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    // Phase 3: send all validated messages.
     //
     // Pre-check: verify every destination channel is open before sending anything.
     // UnboundedSender::send() only fails when the receiver (processor) has been
