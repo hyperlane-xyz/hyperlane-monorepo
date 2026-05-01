@@ -237,6 +237,6 @@ export const blacklistedMessageIds = [
 
   // USDC/eclipsemainnet warp transfer to USDC contract itself [2026-01-30]
   '0x4190cf8c0419cd966fc96fcb9050be3d941cb06974667bd768f22e90abcec6a6',
-  // USDC/paradex - Circle USDC blacklisted recipient on Arbitrum [2026-05-01]
+  // USDC/paradex - warp transfer to USDC contract address as recipient [2026-05-01]
   '0xeece23565b9bf5a344516b92a8bf857644f5ef29e49fd0b525c8f752452cf113',
 ];
