@@ -241,3 +241,18 @@ export async function deriveCrossCollateralDispatchAuthorityPda(
     utf8.encode('dispatch_authority'),
   ]);
 }
+
+// ====== Fee Program PDAs ======
+
+export async function deriveFeeAccountPda(
+  programAddress: Address,
+  salt: ReadonlyUint8Array,
+): Promise<PdaWithBump> {
+  return derive(programAddress, [
+    utf8.encode('hyperlane_fee'),
+    utf8.encode('-'),
+    utf8.encode('fee'),
+    utf8.encode('-'),
+    salt,
+  ]);
+}
