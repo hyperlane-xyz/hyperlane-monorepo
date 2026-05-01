@@ -355,7 +355,7 @@ export class WarpCore {
     // Typically the transfers require a single transaction
     if (txs.length === 1) {
       try {
-        return this.multiProvider.estimateTransactionFee({
+        return await this.multiProvider.estimateTransactionFee({
           chainNameOrId: originMetadata.name,
           transaction: txs[0],
           sender,
