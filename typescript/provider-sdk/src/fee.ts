@@ -1,8 +1,10 @@
 import {
   Logger,
+  assert,
   deepEquals,
   isNullish,
   normalizeConfig,
+  objMap,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -135,7 +137,60 @@ export type FeeConfig =
   | RoutingFeeConfig
   | CrossCollateralRoutingFeeConfig;
 
-export type DerivedFeeConfig = FeeConfig & { address: string };
+// ====== Derived Fee Config Types ======
+// Resolved types returned by feeArtifactToDerivedConfig — bigint fields
+// are resolved from on-chain raw params, bps is reverse-computed.
+
+export type LeafFeeType =
+  | typeof FeeType.linear
+  | typeof FeeType.regressive
+  | typeof FeeType.progressive;
+
+export interface DerivedLeafFeeConfig {
+  type: LeafFeeType;
+  token: string;
+  owner: string;
+  beneficiary: string;
+  maxFee: bigint;
+  halfAmount: bigint;
+  bps: number;
+  address: string;
+}
+
+export interface DerivedOffchainQuotedLinearFeeConfig {
+  type: typeof FeeType.offchainQuotedLinear;
+  token: string;
+  owner: string;
+  beneficiary: string;
+  maxFee: bigint;
+  halfAmount: bigint;
+  bps: number;
+  quoteSigners: string[];
+  address: string;
+}
+
+export interface DerivedRoutingFeeConfig {
+  type: typeof FeeType.routing;
+  token: string;
+  owner: string;
+  beneficiary: string;
+  feeContracts: Record<string, DerivedFeeConfig>;
+  address: string;
+}
+
+export interface DerivedCrossCollateralRoutingFeeConfig {
+  type: typeof FeeType.crossCollateralRouting;
+  owner: string;
+  beneficiary: string;
+  feeContracts: Record<string, Record<string, DerivedFeeConfig>>;
+  address: string;
+}
+
+export type DerivedFeeConfig =
+  | DerivedLeafFeeConfig
+  | DerivedOffchainQuotedLinearFeeConfig
+  | DerivedRoutingFeeConfig
+  | DerivedCrossCollateralRoutingFeeConfig;
 
 // ====== Artifact API Types (domain IDs as keys) ======
 // Direct fee types (linear, regressive, progressive) are identical
@@ -184,6 +239,92 @@ export interface IRawFeeArtifactManager extends IArtifactManager<
     address: string,
     context: FeeReadContext,
   ): Promise<DeployedFeeArtifact>;
+}
+
+// ====== Fee Params Utilities ======
+
+const MAX_BPS = 10_000n;
+const BPS_PRECISION = 10_000n;
+const MAX_BPS_DECIMALS = 4;
+
+/**
+ * Resolves raw maxFee/halfAmount bigints from FeeParams.
+ * For 'raw' type, converts string values directly.
+ * For 'bps' type, asserts that maxFee/halfAmount overrides are present
+ * (they must be resolved by the reader before reaching derived config).
+ */
+function resolveRawParams(params: FeeParams): {
+  maxFee: bigint;
+  halfAmount: bigint;
+} {
+  if (params.type === FeeParamsType.raw) {
+    return {
+      maxFee: BigInt(params.maxFee),
+      halfAmount: BigInt(params.halfAmount),
+    };
+  }
+  assert(
+    params.maxFee !== undefined && params.halfAmount !== undefined,
+    'bps FeeParams must have maxFee/halfAmount resolved for derived config',
+  );
+  return {
+    maxFee: BigInt(params.maxFee),
+    halfAmount: BigInt(params.halfAmount),
+  };
+}
+
+/**
+ * Reverse-computes bps from raw fee params using scaled integer math.
+ * Formula: scaledBps = (maxFee * MAX_BPS * BPS_PRECISION) / (halfAmount * 2)
+ * Rounds to MAX_BPS_DECIMALS decimal places.
+ */
+function computeBps(maxFee: bigint, halfAmount: bigint): number {
+  assert(halfAmount !== 0n, 'halfAmount must be > 0');
+  const scaledBps = (maxFee * MAX_BPS * BPS_PRECISION) / (halfAmount * 2n);
+  const factor = 10 ** MAX_BPS_DECIMALS;
+  return (
+    Math.round((Number(scaledBps) / Number(BPS_PRECISION)) * factor) / factor
+  );
+}
+
+function strategyToDerivedFeeConfig(
+  strategy: FeeStrategy,
+  token: string,
+  owner: string,
+  beneficiary: string,
+  address: string,
+): DerivedFeeConfig {
+  const { maxFee, halfAmount } = resolveRawParams(strategy.params);
+  const base = {
+    token,
+    owner,
+    beneficiary,
+    maxFee,
+    halfAmount,
+    bps: computeBps(maxFee, halfAmount),
+    address,
+  };
+
+  switch (strategy.type) {
+    case FeeStrategyType.linear:
+    case FeeStrategyType.regressive:
+    case FeeStrategyType.progressive:
+      return { ...base, type: strategy.type };
+
+    case FeeStrategyType.offchainQuotedLinear:
+      return {
+        ...base,
+        type: strategy.type,
+        quoteSigners: strategy.quoteSigners,
+      };
+
+    default: {
+      const invalidStrategy: never = strategy;
+      throw new Error(
+        `Unhandled fee strategy type: ${JSON.stringify(invalidStrategy)}`,
+      );
+    }
+  }
 }
 
 // ====== Config <-> Artifact Conversion ======
@@ -320,11 +461,15 @@ export function feeConfigToArtifact(
 
 /**
  * Converts a DeployedFeeArtifact to DerivedFeeConfig format.
- * Domain IDs are converted back to chain names for routing/CC routing fee types.
+ * Flattens FeeParams to top-level maxFee/halfAmount/bps and converts
+ * domain IDs back to chain names for routing/CC routing fee types.
+ *
+ * @param token Fee token address (native → zero, collateral → token, synthetic → zero placeholder)
  */
 export function feeArtifactToDerivedConfig(
   artifact: DeployedFeeArtifact,
   chainLookup: ChainLookup,
+  token: string,
 ): DerivedFeeConfig {
   const { config } = artifact;
   const address = artifact.deployed.address;
@@ -332,16 +477,52 @@ export function feeArtifactToDerivedConfig(
   switch (config.type) {
     case FeeType.linear:
     case FeeType.regressive:
-    case FeeType.progressive:
-    case FeeType.offchainQuotedLinear:
-      return { ...config, address };
+    case FeeType.progressive: {
+      const { maxFee, halfAmount } = resolveRawParams(config.params);
+      return {
+        type: config.type,
+        token,
+        owner: config.owner,
+        beneficiary: config.beneficiary,
+        maxFee,
+        halfAmount,
+        bps: computeBps(maxFee, halfAmount),
+        address,
+      };
+    }
+
+    case FeeType.offchainQuotedLinear: {
+      const { maxFee, halfAmount } = resolveRawParams(config.params);
+      return {
+        type: config.type,
+        token,
+        owner: config.owner,
+        beneficiary: config.beneficiary,
+        maxFee,
+        halfAmount,
+        bps: computeBps(maxFee, halfAmount),
+        quoteSigners: config.quoteSigners,
+        address,
+      };
+    }
 
     case FeeType.routing:
       return {
         type: config.type,
+        token,
         owner: config.owner,
         beneficiary: config.beneficiary,
-        routes: convertRoutesToDerived(config.routes, chainLookup),
+        feeContracts: objMap(
+          convertRoutesToDerived(config.routes, chainLookup),
+          (_, strategy) =>
+            strategyToDerivedFeeConfig(
+              strategy,
+              token,
+              config.owner,
+              config.beneficiary,
+              address,
+            ),
+        ),
         address,
       };
 
@@ -350,7 +531,19 @@ export function feeArtifactToDerivedConfig(
         type: config.type,
         owner: config.owner,
         beneficiary: config.beneficiary,
-        routes: convertCCRoutesToDerived(config.routes, chainLookup),
+        feeContracts: objMap(
+          convertCCRoutesToDerived(config.routes, chainLookup),
+          (_, routerMap) =>
+            objMap(routerMap, (__, strategy) =>
+              strategyToDerivedFeeConfig(
+                strategy,
+                token,
+                config.owner,
+                config.beneficiary,
+                address,
+              ),
+            ),
+        ),
         address,
       };
 
