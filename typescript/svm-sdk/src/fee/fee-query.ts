@@ -1,0 +1,68 @@
+import type { Address } from '@solana/kit';
+
+import { FeeType } from '@hyperlane-xyz/provider-sdk/fee';
+import { assert } from '@hyperlane-xyz/utils';
+
+import {
+  decodeFeeAccount,
+  type DecodedFeeData,
+  type FeeAccountData,
+} from '../accounts/fee.js';
+import { FeeDataKind, FeeStrategyKind } from '../fee/types.js';
+import { deriveFeeAccountPda } from '../pda.js';
+import { fetchAccountDataRaw } from '../rpc.js';
+import type { SvmRpc } from '../types.js';
+
+/**
+ * Fetches and decodes the FeeAccount PDA for a given fee program and salt.
+ * Returns null if the account does not exist or is not initialized.
+ */
+export async function fetchFeeAccount(
+  rpc: SvmRpc,
+  programId: Address,
+  salt: Uint8Array,
+): Promise<FeeAccountData | null> {
+  const { address: feeAccountPda } = await deriveFeeAccountPda(programId, salt);
+  const data = await fetchAccountDataRaw(rpc, feeAccountPda);
+  if (!data) return null;
+  return decodeFeeAccount(data);
+}
+
+/**
+ * Detects the provider-sdk FeeType from on-chain DecodedFeeData.
+ *
+ * For Leaf data:
+ *   - signers !== null → offchainQuotedLinear (asserts Linear strategy)
+ *   - signers === null → strategy kind determines type (linear/regressive/progressive)
+ * For Routing/CrossCollateralRouting: direct mapping (added in later phases).
+ */
+export function detectSvmFeeType(feeData: DecodedFeeData): FeeType {
+  switch (feeData.kind) {
+    case FeeDataKind.Leaf: {
+      if (feeData.signers !== null) {
+        assert(
+          feeData.strategy.kind === FeeStrategyKind.Linear,
+          `offchainQuotedLinear requires Linear strategy, got kind ${feeData.strategy.kind}`,
+        );
+        return FeeType.offchainQuotedLinear;
+      }
+      switch (feeData.strategy.kind) {
+        case FeeStrategyKind.Linear:
+          return FeeType.linear;
+        case FeeStrategyKind.Regressive:
+          return FeeType.regressive;
+        case FeeStrategyKind.Progressive:
+          return FeeType.progressive;
+        default: {
+          const _exhaustive: never = feeData.strategy;
+          throw new Error(`Unhandled FeeStrategyKind: ${_exhaustive}`);
+        }
+      }
+    }
+
+    default: {
+      const _exhaustive: never = feeData.kind;
+      throw new Error(`Unhandled FeeDataKind: ${_exhaustive}`);
+    }
+  }
+}
