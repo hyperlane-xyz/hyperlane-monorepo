@@ -1403,6 +1403,9 @@ fn close_igp_transient_quote(program_id: &Pubkey, accounts: &[AccountInfo]) -> P
 
     // Account 2: IGP account (read-only, for PDA re-derivation).
     let igp_info = next_account_info(accounts_iter)?;
+    if igp_info.owner != program_id {
+        return Err(ProgramError::IncorrectProgramId);
+    }
 
     ensure_no_extraneous_accounts(accounts_iter)?;
 

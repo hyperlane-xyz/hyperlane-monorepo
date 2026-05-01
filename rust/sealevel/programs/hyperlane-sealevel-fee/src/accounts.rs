@@ -527,9 +527,9 @@ pub struct FeeStandingQuotePda {
 
 impl SizedData for FeeStandingQuotePda {
     fn size(&self) -> usize {
-        std::mem::size_of::<u8>()                                                                       // bump
-        + BORSH_LEN_PREFIX + (self.quotes.len() * (H256_SIZE + SizedData::size(&FeeStandingQuoteValue::default())))
-        // quotes
+        std::mem::size_of::<u8>() // bump
+        + BORSH_LEN_PREFIX       // quotes BTreeMap length prefix
+        + self.quotes.values().map(|v| H256_SIZE + v.size()).sum::<usize>()
     }
 }
 
