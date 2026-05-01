@@ -12,7 +12,10 @@ import { IRawHookArtifactManager } from '@hyperlane-xyz/provider-sdk/hook';
 import { IRawIsmArtifactManager } from '@hyperlane-xyz/provider-sdk/ism';
 import { IRawMailboxArtifactManager } from '@hyperlane-xyz/provider-sdk/mailbox';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
-import { IRawFeeArtifactManager } from '@hyperlane-xyz/provider-sdk/fee';
+import {
+  FeeReadContext,
+  IRawFeeArtifactManager,
+} from '@hyperlane-xyz/provider-sdk/fee';
 import { IRawValidatorAnnounceArtifactManager } from '@hyperlane-xyz/provider-sdk/validator-announce';
 import { IRawWarpArtifactManager } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert } from '@hyperlane-xyz/utils';
@@ -93,6 +96,7 @@ export class StarknetProtocolProvider implements ProtocolProvider {
 
   createFeeArtifactManager(
     _chainMetadata: ChainMetadataForAltVM,
+    _context: FeeReadContext,
   ): IRawFeeArtifactManager | null {
     return null;
   }

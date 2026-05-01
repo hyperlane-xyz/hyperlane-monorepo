@@ -199,7 +199,9 @@ describe('fee type support', () => {
   });
 
   describe('feeArtifactToDerivedConfig', () => {
-    it('derives linear fee config with address', () => {
+    const TOKEN = '0xtoken';
+
+    it('derives linear fee config with resolved bigints and bps', () => {
       const derived = feeArtifactToDerivedConfig(
         {
           artifactState: ArtifactState.DEPLOYED,
@@ -212,18 +214,22 @@ describe('fee type support', () => {
           deployed: { address: '0xfee' },
         },
         chainLookup,
+        TOKEN,
       );
 
       expect(derived).to.deep.equal({
         type: FeeType.linear,
+        token: TOKEN,
         owner: '0xowner',
         beneficiary: '0xbeneficiary',
-        params: rawParams('1000', '500'),
+        maxFee: 1000n,
+        halfAmount: 500n,
+        bps: 10000,
         address: '0xfee',
       });
     });
 
-    it('converts routing fee domain IDs back to chain names', () => {
+    it('converts routing fee domain IDs back to chain names with derived entries', () => {
       const derived = feeArtifactToDerivedConfig(
         {
           artifactState: ArtifactState.DEPLOYED,
@@ -245,20 +251,34 @@ describe('fee type support', () => {
           deployed: { address: '0xfee' },
         },
         chainLookup,
+        TOKEN,
       );
 
       const expectedDerived: DerivedFeeConfig = {
         type: FeeType.routing,
+        token: TOKEN,
         owner: '0xowner',
         beneficiary: '0xbeneficiary',
-        routes: {
+        feeContracts: {
           ethereum: {
             type: FeeStrategyType.linear,
-            params: rawParams('1000', '500'),
+            token: TOKEN,
+            owner: '0xowner',
+            beneficiary: '0xbeneficiary',
+            maxFee: 1000n,
+            halfAmount: 500n,
+            bps: 10000,
+            address: '0xfee',
           },
           polygon: {
             type: FeeStrategyType.regressive,
-            params: rawParams('2000', '1000'),
+            token: TOKEN,
+            owner: '0xowner',
+            beneficiary: '0xbeneficiary',
+            maxFee: 2000n,
+            halfAmount: 1000n,
+            bps: 10000,
+            address: '0xfee',
           },
         },
         address: '0xfee',
@@ -292,23 +312,36 @@ describe('fee type support', () => {
           deployed: { address: '0xfee' },
         },
         chainLookup,
+        TOKEN,
       );
 
       const expectedDerived: DerivedFeeConfig = {
         type: FeeType.crossCollateralRouting,
         owner: '0xowner',
         beneficiary: '0xbeneficiary',
-        routes: {
+        feeContracts: {
           ethereum: {
             '0xrouter1': {
               type: FeeStrategyType.linear,
-              params: rawParams('1000', '500'),
+              token: TOKEN,
+              owner: '0xowner',
+              beneficiary: '0xbeneficiary',
+              maxFee: 1000n,
+              halfAmount: 500n,
+              bps: 10000,
+              address: '0xfee',
             },
           },
           polygon: {
             '0xrouter2': {
               type: FeeStrategyType.regressive,
-              params: rawParams('2000', '1000'),
+              token: TOKEN,
+              owner: '0xowner',
+              beneficiary: '0xbeneficiary',
+              maxFee: 2000n,
+              halfAmount: 1000n,
+              bps: 10000,
+              address: '0xfee',
             },
           },
         },
@@ -339,21 +372,11 @@ describe('fee type support', () => {
           deployed: { address: '0xfee' },
         },
         chainLookup,
+        TOKEN,
       );
 
-      const expectedDerived: DerivedFeeConfig = {
-        type: FeeType.routing,
-        owner: '0xowner',
-        beneficiary: '0xbeneficiary',
-        routes: {
-          ethereum: {
-            type: FeeStrategyType.linear,
-            params: rawParams('1000', '500'),
-          },
-        },
-        address: '0xfee',
-      };
-      expect(derived).to.deep.equal(expectedDerived);
+      assert(derived.type === FeeType.routing, 'Expected routing');
+      expect(Object.keys(derived.feeContracts)).to.deep.equal(['ethereum']);
     });
 
     it('skips unknown domain IDs in crossCollateralRouting fee derived config', () => {
@@ -382,23 +405,14 @@ describe('fee type support', () => {
           deployed: { address: '0xfee' },
         },
         chainLookup,
+        TOKEN,
       );
 
-      const expectedDerived: DerivedFeeConfig = {
-        type: FeeType.crossCollateralRouting,
-        owner: '0xowner',
-        beneficiary: '0xbeneficiary',
-        routes: {
-          ethereum: {
-            '0xrouter1': {
-              type: FeeStrategyType.linear,
-              params: rawParams('1000', '500'),
-            },
-          },
-        },
-        address: '0xfee',
-      };
-      expect(derived).to.deep.equal(expectedDerived);
+      assert(
+        derived.type === FeeType.crossCollateralRouting,
+        'Expected CC routing',
+      );
+      expect(Object.keys(derived.feeContracts)).to.deep.equal(['ethereum']);
     });
 
     it('throws for unhandled fee types', () => {
@@ -410,6 +424,7 @@ describe('fee type support', () => {
             deployed: { address: '0xfee' },
           },
           chainLookup,
+          TOKEN,
         ),
       ).to.throw(/Unhandled fee type/);
     });
