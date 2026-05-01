@@ -23,9 +23,9 @@ use account_utils::AccountError;
 use hyperlane_sealevel_fee::{
     accounts::{
         CrossCollateralRoute, CrossCollateralRouteAccount, CrossCollateralRoutingFeeConfig,
-        FeeAccount, FeeAccountData, FeeData, FeeStandingQuotePda, FeeStandingQuotePdaAccount,
-        LeafFeeConfig, RouteDomain, RouteDomainAccount, RoutingFeeConfig, DEFAULT_ROUTER,
-        WILDCARD_DOMAIN, WILDCARD_RECIPIENT,
+        FeeAccount, FeeAccountData, FeeAccountPrefix, FeeData, FeeStandingQuotePda,
+        FeeStandingQuotePdaAccount, LeafFeeConfig, RouteDomain, RouteDomainAccount,
+        RoutingFeeConfig, DEFAULT_ROUTER, WILDCARD_DOMAIN, WILDCARD_RECIPIENT,
     },
     cc_route_pda_seeds,
     error::Error as FeeError,
@@ -817,6 +817,24 @@ mod init_fee {
             TransactionError::InstructionError(0, InstructionError::AccountAlreadyInitialized),
         );
     }
+
+    #[tokio::test]
+    async fn test_fee_account_prefix_parse_from_live_account() {
+        let (mut banks_client, payer) = setup_client().await;
+        let beneficiary = Pubkey::new_unique();
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            beneficiary,
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let account = banks_client.get_account(fee_key).await.unwrap().unwrap();
+        let prefix = FeeAccountPrefix::parse_from(&account.data).unwrap();
+        assert_eq!(prefix.beneficiary, beneficiary);
+    }
 }
 
 mod set_beneficiary {
@@ -954,6 +972,8 @@ mod transfer_ownership {
             .await
             .unwrap();
 
+        let expected_err = TransactionError::InstructionError(0, InstructionError::InvalidArgument);
+
         // SetBeneficiary should fail — no owner.
         let ix = Instruction::new_with_borsh(
             fee_program_id(),
@@ -964,17 +984,17 @@ mod transfer_ownership {
             ],
         );
         let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
-        assert!(result.is_err());
+        assert_tx_error(result, expected_err.clone());
 
         // TransferOwnership should fail.
         let ix = build_ix(&fee_key, &payer.pubkey(), Some(Pubkey::new_unique()));
         let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
-        assert!(result.is_err());
+        assert_tx_error(result, expected_err.clone());
 
         // AddQuoteSigner should fail.
         let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), H160::zero());
         let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
-        assert!(result.is_err());
+        assert_tx_error(result, expected_err.clone());
 
         // UpdateFeeParams should fail.
         let ix = Instruction::new_with_borsh(
@@ -989,7 +1009,7 @@ mod transfer_ownership {
             ],
         );
         let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
-        assert!(result.is_err());
+        assert_tx_error(result, expected_err);
     }
 }
 
@@ -1308,7 +1328,10 @@ mod set_route {
             }),
         );
         let result = process_tx(&mut banks_client, &non_owner, ix, &[]).await;
-        assert!(result.is_err());
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+        );
     }
 
     #[tokio::test]
@@ -1555,7 +1578,10 @@ mod remove_route {
 
         let ix = build_remove_route_ix(&fee_key, &non_owner.pubkey(), 42);
         let result = process_tx(&mut banks_client, &non_owner, ix, &[]).await;
-        assert!(result.is_err());
+        assert_tx_error(
+            result,
+            TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+        );
     }
 
     #[tokio::test]
@@ -2814,6 +2840,37 @@ mod set_min_issued_at {
         );
 
         // Value unchanged.
+        assert_eq!(
+            fetch_fee_account(&mut banks_client, fee_key)
+                .await
+                .min_issued_at,
+            5000
+        );
+    }
+
+    #[tokio::test]
+    async fn test_equal_value_accepted() {
+        let (mut banks_client, payer) = setup_client().await;
+        let fee_key = init_fee_account(
+            &mut banks_client,
+            &payer,
+            default_salt(),
+            payer.pubkey(),
+            default_leaf_fee_data(),
+        )
+        .await;
+
+        let ix = build_set_min_issued_at_ix(&fee_key, &payer.pubkey(), 5000);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
+        // Same value again — should succeed (< is the guard, not <=).
+        let ix = build_set_min_issued_at_ix(&fee_key, &payer.pubkey(), 5000);
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
+
         assert_eq!(
             fetch_fee_account(&mut banks_client, fee_key)
                 .await

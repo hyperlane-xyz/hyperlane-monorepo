@@ -764,4 +764,33 @@ mod tests {
             500_000_000_000_000
         );
     }
+
+    // --- variant_tag / same_variant tests ---
+
+    fn params(max_fee: u64, half_amount: u64) -> FeeParams {
+        FeeParams {
+            max_fee,
+            half_amount,
+        }
+    }
+
+    #[test]
+    fn test_variant_tag_values() {
+        assert_eq!(FeeDataStrategy::Linear(params(1, 1)).variant_tag(), 0);
+        assert_eq!(FeeDataStrategy::Regressive(params(1, 1)).variant_tag(), 1);
+        assert_eq!(FeeDataStrategy::Progressive(params(1, 1)).variant_tag(), 2);
+    }
+
+    #[test]
+    fn test_same_variant() {
+        let linear = FeeDataStrategy::Linear(params(100, 50));
+        let regressive = FeeDataStrategy::Regressive(params(999, 333));
+        let progressive = FeeDataStrategy::Progressive(params(42, 21));
+
+        assert!(linear.same_variant(&FeeDataStrategy::Linear(params(1, 1))));
+        assert!(!linear.same_variant(&regressive));
+        assert!(!linear.same_variant(&progressive));
+        assert!(regressive.same_variant(&FeeDataStrategy::Regressive(params(1, 1))));
+        assert!(progressive.same_variant(&FeeDataStrategy::Progressive(params(1, 1))));
+    }
 }

@@ -12,8 +12,6 @@ use solana_system_interface::program as system_program;
 
 use std::collections::BTreeSet;
 
-use hyperlane_core::H160 as SignerAddress;
-
 use crate::{
     accounts::FeeData, cc_route_pda_seeds, fee_account_pda_seeds, fee_math::FeeDataStrategy,
     fee_math::FeeParams, fee_standing_quote_pda_seeds, route_domain_pda_seeds,
@@ -65,7 +63,7 @@ pub enum Instruction {
     /// Pass an empty set to disable wildcard quoting.
     SetWildcardQuoteSigners {
         /// New wildcard signer set. Empty = no wildcard quoting.
-        signers: BTreeSet<SignerAddress>,
+        signers: BTreeSet<H160>,
     },
     /// Submit a signed offchain quote (transient or standing).
     /// Fee account is always read-only.
@@ -176,7 +174,7 @@ pub struct SetRemoteFeeRoute {
     pub fee_data: FeeDataStrategy,
     /// Authorized offchain quote signers for this route.
     /// Some = offchain quoting enabled, None = on-chain fee only.
-    pub signers: Option<BTreeSet<SignerAddress>>,
+    pub signers: Option<BTreeSet<H160>>,
 }
 
 /// Remove a remote fee route (owner-only).
@@ -260,7 +258,7 @@ pub fn set_remote_fee_route_instruction(
     domain: u32,
     target_router: Option<H256>,
     fee_data: FeeDataStrategy,
-    signers: Option<BTreeSet<SignerAddress>>,
+    signers: Option<BTreeSet<H160>>,
 ) -> Result<SolanaInstruction, ProgramError> {
     let domain_le = domain.to_le_bytes();
     let route_pda = derive_route_pda_from_target_router(
@@ -526,7 +524,7 @@ pub fn set_wildcard_quote_signers_instruction(
     program_id: Pubkey,
     fee_account: Pubkey,
     owner: Pubkey,
-    signers: BTreeSet<SignerAddress>,
+    signers: BTreeSet<H160>,
 ) -> Result<SolanaInstruction, ProgramError> {
     let ixn = Instruction::SetWildcardQuoteSigners { signers };
 

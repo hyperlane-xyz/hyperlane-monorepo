@@ -1434,3 +1434,76 @@ async fn test_transient_curve_variant_mismatch_rejected() {
         ),
     );
 }
+
+/// M-18: Passing a read-only transient PDA to QuoteFee must fail.
+#[tokio::test]
+async fn test_readonly_transient_pda_rejected() {
+    let (mut banks_client, payer) = setup_client().await;
+    let signing_key = SigningKey::random(&mut rand::thread_rng());
+    let signer_address = eth_address(&signing_key);
+
+    let fee_key = init_fee_account(
+        &mut banks_client,
+        &payer,
+        default_salt(),
+        payer.pubkey(),
+        default_leaf_fee_data(),
+    )
+    .await;
+
+    let ix = build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address);
+    process_tx(&mut banks_client, &payer, ix, &[])
+        .await
+        .unwrap();
+
+    let dest = 42u32;
+    let recipient = H256::zero();
+    let amount = 1000u64;
+    let context = encode_context(dest, recipient, amount);
+    let data = encode_linear_data(2000, 1000);
+
+    let quote = make_signed_transient_quote(
+        &signing_key,
+        &fee_key,
+        LOCAL_DOMAIN,
+        &payer.pubkey(),
+        context,
+        data,
+        encode_u48(100),
+    );
+    let submit_ix = build_submit_transient_ix(&fee_key, &payer.pubkey(), &quote);
+    process_tx(&mut banks_client, &payer, submit_ix, &[])
+        .await
+        .unwrap();
+
+    // Build QuoteFee with transient PDA as read-only (not writable).
+    let scoped_salt = quote.compute_scoped_salt(&payer.pubkey());
+    let (transient_pda, _) = Pubkey::find_program_address(
+        transient_quote_pda_seeds!(fee_key, scoped_salt),
+        &fee_program_id(),
+    );
+    let domain_quotes_pda = standing_quote_pda_for(&fee_key, dest);
+    let wildcard_quotes_pda = standing_quote_pda_for(&fee_key, WILDCARD_DOMAIN);
+
+    let quote_ix = Instruction::new_with_borsh(
+        fee_program_id(),
+        &FeeInstruction::QuoteFee(hyperlane_sealevel_fee::instruction::QuoteFee {
+            destination_domain: dest,
+            recipient,
+            amount,
+            target_router: H256::zero(),
+        }),
+        vec![
+            AccountMeta::new_readonly(fee_key, false),
+            AccountMeta::new(payer.pubkey(), true),
+            AccountMeta::new_readonly(transient_pda, false), // read-only — should fail
+            AccountMeta::new_readonly(domain_quotes_pda, false),
+            AccountMeta::new_readonly(wildcard_quotes_pda, false),
+        ],
+    );
+    let result = process_tx(&mut banks_client, &payer, quote_ix, &[]).await;
+    assert_tx_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::InvalidAccountData),
+    );
+}

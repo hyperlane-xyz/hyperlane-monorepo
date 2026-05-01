@@ -335,8 +335,6 @@ impl SizedData for CrossCollateralRoute {
 
 // --- Transient quote PDA ---
 
-// --- Transient quote PDA ---
-
 /// AccountData wrapper for TransientQuote.
 pub type TransientQuoteAccount = AccountData<DiscriminatorPrefixed<TransientQuote>>;
 

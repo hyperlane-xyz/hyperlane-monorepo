@@ -514,3 +514,62 @@ mod get_program_version {
         assert_eq!(result.return_data, package_versioned::PACKAGE_VERSION);
     }
 }
+
+#[tokio::test]
+async fn test_get_quote_metas_with_wildcard_domain() {
+    let (mut banks_client, payer) = setup_client().await;
+    let fee_key = init_fee_account(
+        &mut banks_client,
+        &payer,
+        default_salt(),
+        payer.pubkey(),
+        default_leaf_fee_data(),
+    )
+    .await;
+
+    let metas = simulate_get_metas(
+        &mut banks_client,
+        &payer,
+        &fee_key,
+        WILDCARD_DOMAIN,
+        H256::zero(),
+        None,
+    )
+    .await;
+
+    // prefix (2) + domain_quotes + wildcard_quotes = 4
+    // When dest == WILDCARD_DOMAIN, both PDAs use WILDCARD_DOMAIN in seeds.
+    assert_eq!(metas.len(), 4);
+
+    let expected_wildcard = standing_quote_pda_for(&fee_key, WILDCARD_DOMAIN);
+    assert_eq!(metas[2].pubkey, expected_wildcard);
+    assert_eq!(metas[3].pubkey, expected_wildcard);
+}
+
+#[tokio::test]
+async fn test_get_submit_metas_with_wildcard_domain() {
+    let (mut banks_client, payer) = setup_client().await;
+    let fee_key = init_fee_account(
+        &mut banks_client,
+        &payer,
+        default_salt(),
+        payer.pubkey(),
+        default_leaf_fee_data(),
+    )
+    .await;
+
+    let metas = simulate_get_submit_metas(
+        &mut banks_client,
+        &payer,
+        &fee_key,
+        WILDCARD_DOMAIN,
+        H256::zero(),
+        None,
+    )
+    .await;
+
+    // Standing submit: system_program + fee_account + payer + standing_pda = 4
+    assert!(metas.len() >= 4);
+    let standing_pda = standing_quote_pda_for(&fee_key, WILDCARD_DOMAIN);
+    assert_eq!(metas[3].pubkey, standing_pda);
+}
