@@ -30,6 +30,10 @@ pub enum Error {
     /// maximum number of variable fee section accounts.
     #[error("Fee beneficiary not found")]
     FeeBeneficiaryNotFound = 6,
+
+    /// IGP has offchain quoting configured but caller used legacy (oracle-only) flow.
+    #[error("IGP requires new quoting flow")]
+    IgpNewFlowRequired = 7,
 }
 
 impl From<Error> for ProgramError {

@@ -274,6 +274,81 @@ impl AccessControl for Igp {
     }
 }
 
+/// The quoting mode for an IGP account, determined by whether `fee_config` is set.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IgpQuoteMode {
+    /// No `fee_config` — use the legacy on-chain gas oracle path.
+    Legacy,
+    /// `fee_config` is set — require the offchain quoting cascade.
+    Quoted,
+}
+
+/// Determines the quoting mode of an IGP account by partially deserializing
+/// its data. Skips through variable-length fields (owner, gas_oracles) using
+/// Borsh length prefixes, then validates the trailing `IgpFeeConfig`.
+///
+/// Returns `Legacy` if the account lacks `fee_config`, or an error if the
+/// account data is malformed.
+pub fn igp_quote_mode(data: &[u8]) -> Result<IgpQuoteMode, ProgramError> {
+    use borsh::BorshDeserialize;
+
+    let mut reader: &[u8] = data;
+
+    // AccountData init flag (1 byte bool).
+    bool::deserialize_reader(&mut reader).map_err(|_| ProgramError::InvalidAccountData)?;
+
+    // Discriminator — must match Igp.
+    let disc =
+        <[u8; 8]>::deserialize_reader(&mut reader).map_err(|_| ProgramError::InvalidAccountData)?;
+    if disc != Igp::DISCRIMINATOR {
+        return Err(ProgramError::InvalidAccountData);
+    }
+
+    // Igp fixed fields: bump (1) + salt (32).
+    u8::deserialize_reader(&mut reader).map_err(|_| ProgramError::InvalidAccountData)?;
+    H256::deserialize_reader(&mut reader).map_err(|_| ProgramError::InvalidAccountData)?;
+
+    // owner (Option<Pubkey> — variable: 1 byte for None, 33 for Some).
+    Option::<Pubkey>::deserialize_reader(&mut reader)
+        .map_err(|_| ProgramError::InvalidAccountData)?;
+
+    // beneficiary (32 bytes).
+    Pubkey::deserialize_reader(&mut reader).map_err(|_| ProgramError::InvalidAccountData)?;
+
+    // Skip gas_oracles HashMap entries using Borsh length prefix.
+    let map_len = u32::deserialize_reader(&mut reader)
+        .map_err(|_| ProgramError::InvalidAccountData)? as usize;
+    // Layout-coupled to GasOracle::RemoteGasData. If a new GasOracle variant
+    // with a different serialized size is added, this constant must be updated.
+    const GAS_ORACLE_ENTRY_SIZE: usize = 4 + 1 + 16 + 16 + 1; // u32 key + enum tag + rate + price + decimals
+    let skip = map_len
+        .checked_mul(GAS_ORACLE_ENTRY_SIZE)
+        .ok_or(ProgramError::ArithmeticOverflow)?;
+    if reader.len() < skip {
+        return Err(ProgramError::InvalidAccountData);
+    }
+    reader = &reader[skip..];
+
+    // No trailing bytes → fee_config is absent (pre-upgrade account).
+    if reader.is_empty() {
+        return Ok(IgpQuoteMode::Legacy);
+    }
+
+    // None tag (0) → fee_config explicitly set to None.
+    if reader[0] == 0 {
+        return Ok(IgpQuoteMode::Legacy);
+    }
+
+    // Some tag (1) → fee_config must deserialize successfully.
+    if reader[0] == 1 {
+        IgpFeeConfig::try_from_slice(&reader[1..]).map_err(|_| ProgramError::InvalidAccountData)?;
+        return Ok(IgpQuoteMode::Quoted);
+    }
+
+    // Unexpected tag byte.
+    Err(ProgramError::InvalidAccountData)
+}
+
 /// Remote gas data.
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -954,5 +1029,92 @@ mod test {
         let to_decimals = 4;
         let result = convert_decimals(num, from_decimals, to_decimals).unwrap();
         assert_eq!(result, U256::from(0u128));
+    }
+
+    // --- igp_quote_mode tests ---
+
+    /// Serializes an Igp into the on-chain AccountData layout using store_in_slice.
+    fn make_igp_account_data(igp: Igp) -> Vec<u8> {
+        let account = IgpAccount::new(igp.into());
+        let mut buf = vec![0u8; account.size()];
+        account.store_in_slice(&mut buf).unwrap();
+        buf
+    }
+
+    fn default_igp(fee_config: Option<IgpFeeConfig>) -> Igp {
+        Igp {
+            bump_seed: 1,
+            salt: H256::zero(),
+            owner: Some(Pubkey::new_unique()),
+            beneficiary: Pubkey::new_unique(),
+            gas_oracles: HashMap::new(),
+            fee_config,
+        }
+    }
+
+    #[test]
+    fn test_igp_quote_mode_none() {
+        let data = make_igp_account_data(default_igp(None));
+        assert_eq!(igp_quote_mode(&data).unwrap(), IgpQuoteMode::Legacy);
+    }
+
+    #[test]
+    fn test_igp_quote_mode_some() {
+        let data = make_igp_account_data(default_igp(Some(IgpFeeConfig {
+            signers: BTreeSet::new(),
+            domain_id: 1,
+            min_issued_at: 0,
+        })));
+        assert_eq!(igp_quote_mode(&data).unwrap(), IgpQuoteMode::Quoted);
+    }
+
+    #[test]
+    fn test_igp_quote_mode_with_oracles() {
+        let mut gas_oracles = HashMap::new();
+        gas_oracles.insert(
+            1,
+            GasOracle::RemoteGasData(RemoteGasData {
+                token_exchange_rate: 1_000_000_000,
+                gas_price: 50_000_000_000,
+                token_decimals: 18,
+            }),
+        );
+        gas_oracles.insert(
+            2,
+            GasOracle::RemoteGasData(RemoteGasData {
+                token_exchange_rate: 2_000_000_000,
+                gas_price: 100_000_000_000,
+                token_decimals: 9,
+            }),
+        );
+        let igp = Igp {
+            bump_seed: 1,
+            salt: H256::zero(),
+            owner: Some(Pubkey::new_unique()),
+            beneficiary: Pubkey::new_unique(),
+            gas_oracles,
+            fee_config: Some(IgpFeeConfig {
+                signers: BTreeSet::from([H160::random()]),
+                domain_id: 42,
+                min_issued_at: 1000,
+            }),
+        };
+        let data = make_igp_account_data(igp);
+        assert_eq!(igp_quote_mode(&data).unwrap(), IgpQuoteMode::Quoted);
+    }
+
+    #[test]
+    fn test_igp_quote_mode_garbage_trailing_bytes() {
+        let mut data = make_igp_account_data(default_igp(None));
+        // Append garbage with Some tag — should error, not return Legacy.
+        data.push(1); // Some tag
+        data.extend_from_slice(&[0xFF; 5]); // invalid IgpFeeConfig
+        assert!(igp_quote_mode(&data).is_err());
+    }
+
+    #[test]
+    fn test_igp_quote_mode_truncated_data() {
+        assert!(igp_quote_mode(&[]).is_err());
+        assert!(igp_quote_mode(&[0u8; 50]).is_err());
     }
 }

@@ -17,7 +17,7 @@ use hyperlane_sealevel_fee::{
     instruction::{Instruction as FeeInstruction, QuoteFee},
 };
 use hyperlane_sealevel_igp::{
-    accounts::InterchainGasPaymasterType,
+    accounts::{igp_quote_mode, IgpQuoteMode, InterchainGasPaymasterType},
     instruction::{Instruction as IgpInstruction, PayForGas as IgpPayForGas},
 };
 use hyperlane_sealevel_mailbox::{
@@ -498,92 +498,99 @@ where
                 igp_payment_pda_account.clone(),
             ];
 
-            // Detect new flow vs old flow.
+            // Accounts [5..N]: flow-dependent, then configured_igp as TERMINAL.
             //
-            // Old flow iterator order:
-            //   configured_igp, [inner_igp if OverheadIgp]
+            // Legacy:  [5] configured_igp
+            // Quoted:  [5] sender_authority  [6] quoted_sender
+            //          [7..N] variable quote PDAs
+            //          [N+1] configured_igp (TERMINAL)
             //
-            // New flow iterator order:
-            //   sender_authority, quoted_sender,
-            //   [variable quote PDAs],
-            //   configured_igp (TERMINAL), [inner_igp if OverheadIgp]
+            // Both:    [N+2] inner_igp (OverheadIgp only)
+            //          [N+3] configured_igp again (OverheadIgp only, appended at end)
             //
-            // Detection: if next account is dispatch_authority → new flow.
+            // Collect accounts until we hit configured_igp_key. In Legacy flow
+            // this is immediate (zero collected). In Quoted flow it collects
+            // sender_authority, quoted_sender, and cascade PDAs.
             let configured_igp_key = igp_account_type.key();
-            let is_new_flow = accounts_iter
-                .as_slice()
-                .first()
-                .is_some_and(|acc| *acc.key == dispatch_authority_key);
+            let mut pre_igp_accounts: Vec<(AccountInfo<'b>, AccountMeta)> = Vec::new();
 
-            // New-flow-only accounts: sender_authority, quoted_sender,
-            // and variable quote PDAs. Empty for old flow (extend is no-op).
-            let mut new_flow_metas: Vec<AccountMeta> = Vec::new();
-            let mut new_flow_infos: Vec<AccountInfo<'b>> = Vec::new();
-
-            let configured_igp_account;
-            if is_new_flow {
-                // sender_authority (dispatch_authority PDA).
-                let sender_authority = next_account_info(accounts_iter)?;
-                new_flow_metas.push(AccountMeta::new_readonly(*sender_authority.key, true));
-                new_flow_infos.push(sender_authority.clone());
-
-                // quoted_sender (warp route program_id).
-                let quoted_sender = next_account_info(accounts_iter)?;
-                if quoted_sender.key != program_id {
-                    return Err(ProgramError::InvalidArgument);
+            const MAX_IGP_VARIABLE_ACCOUNTS: usize = 15;
+            let configured_igp_account = loop {
+                let next = next_account_info(accounts_iter)?;
+                if next.key == configured_igp_key {
+                    break next; // TERMINAL: configured_igp found
                 }
-                new_flow_metas.push(AccountMeta::new_readonly(*quoted_sender.key, false));
-                new_flow_infos.push(quoted_sender.clone());
 
-                // Variable quote accounts until terminal (configured_igp).
-                // Mirrors fee section's sentinel pattern.
-                const MAX_IGP_VARIABLE_ACCOUNTS: usize = 15;
-                configured_igp_account = loop {
-                    let next = next_account_info(accounts_iter)?;
-                    if next.key == configured_igp_key {
-                        break next; // TERMINAL
-                    }
-                    if new_flow_metas.len() >= MAX_IGP_VARIABLE_ACCOUNTS {
-                        return Err(Error::ExtraneousAccount.into());
-                    }
+                if pre_igp_accounts.len() >= MAX_IGP_VARIABLE_ACCOUNTS {
+                    return Err(Error::ExtraneousAccount.into());
+                }
 
-                    new_flow_metas.push(AccountMeta {
+                pre_igp_accounts.push((
+                    next.clone(),
+                    AccountMeta {
                         pubkey: *next.key,
                         is_signer: next.is_signer,
                         is_writable: next.is_writable,
-                    });
+                    },
+                ));
+            };
 
-                    new_flow_infos.push(next.clone());
-                };
-            } else {
-                configured_igp_account = next_account_info(accounts_iter)?;
-                if configured_igp_account.key != configured_igp_key {
-                    return Err(ProgramError::InvalidArgument);
-                }
-            }
-
-            // Shared: [5] igp_account (configured_igp for Igp,
-            // inner_igp for OverheadIgp — always next after terminal).
-            match igp_account_type {
+            // Account [N+1]: IGP account for PayForGas CPI.
+            // For Igp type: configured_igp IS the IGP.
+            // For OverheadIgp: inner_igp follows configured_igp.
+            let igp_account_info = match igp_account_type {
                 InterchainGasPaymasterType::Igp(_) => {
                     igp_payment_account_metas
                         .push(AccountMeta::new(*configured_igp_account.key, false));
                     igp_payment_account_infos.push(configured_igp_account.clone());
+                    configured_igp_account
                 }
                 InterchainGasPaymasterType::OverheadIgp(_) => {
+                    // Account [N+2]: inner_igp (the real IGP behind the overhead).
                     let inner_igp_account = next_account_info(accounts_iter)?;
                     igp_payment_account_metas.push(AccountMeta::new(*inner_igp_account.key, false));
                     igp_payment_account_infos.push(inner_igp_account.clone());
+                    inner_igp_account
+                }
+            };
+
+            // Determine quoting mode from the IGP account's on-chain state.
+            let quote_mode = igp_quote_mode(&igp_account_info.data.borrow())?;
+            match quote_mode {
+                IgpQuoteMode::Quoted => {
+                    // Account [5]: sender_authority (dispatch_authority PDA, signed via invoke_signed).
+                    if let Some(sender_authority) = pre_igp_accounts.get_mut(0) {
+                        sender_authority.1 =
+                            AccountMeta::new_readonly(*sender_authority.0.key, true);
+                    } else {
+                        return Err(Error::IgpNewFlowRequired.into());
+                    }
+
+                    // Account [6]: quoted_sender (must be this warp route's program_id).
+                    if let Some(quoted_sender) = pre_igp_accounts.get_mut(1) {
+                        if quoted_sender.0.key != program_id {
+                            return Err(ProgramError::InvalidArgument);
+                        }
+                        quoted_sender.1 = AccountMeta::new_readonly(*quoted_sender.0.key, false);
+                    } else {
+                        return Err(Error::IgpNewFlowRequired.into());
+                    }
+
+                    // Accounts [5..N]: sender_authority + quoted_sender + cascade PDAs.
+                    for (info, meta) in pre_igp_accounts.into_iter() {
+                        igp_payment_account_infos.push(info);
+                        igp_payment_account_metas.push(meta);
+                    }
+                }
+                IgpQuoteMode::Legacy => {
+                    // Legacy: no pre-IGP accounts expected.
+                    if !pre_igp_accounts.is_empty() {
+                        return Err(ProgramError::InvalidArgument);
+                    }
                 }
             }
 
-            // New flow: [6] sender_authority, [7] quoted_sender,
-            // [8+] variable quote PDAs. No-op for old flow.
-            igp_payment_account_metas.extend(new_flow_metas);
-            igp_payment_account_infos.extend(new_flow_infos);
-
-            // Shared: overhead at end (OverheadIgp only).
-            // Old flow puts it at [6], new flow at [N].
+            // Account [N+3]: OverheadIgp appended at end (OverheadIgp only).
             if matches!(igp_account_type, InterchainGasPaymasterType::OverheadIgp(_)) {
                 igp_payment_account_metas.push(AccountMeta::new_readonly(
                     *configured_igp_account.key,
@@ -592,16 +599,15 @@ where
                 igp_payment_account_infos.push(configured_igp_account.clone());
             }
 
-            Some(if is_new_flow {
-                IgpPaymentAccounts::Quoted {
+            Some(match quote_mode {
+                IgpQuoteMode::Quoted => IgpPaymentAccounts::Quoted {
                     account_metas: igp_payment_account_metas,
                     account_infos: igp_payment_account_infos,
-                }
-            } else {
-                IgpPaymentAccounts::Legacy {
+                },
+                IgpQuoteMode::Legacy => IgpPaymentAccounts::Legacy {
                     account_metas: igp_payment_account_metas,
                     account_infos: igp_payment_account_infos,
-                }
+                },
             })
         } else {
             None
