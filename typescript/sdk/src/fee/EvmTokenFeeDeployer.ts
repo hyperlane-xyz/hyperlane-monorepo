@@ -80,9 +80,9 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
     chain: ChainName,
     config: Exclude<
       TokenFeeConfig,
-      | { type: TokenFeeType.RoutingFee }
-      | { type: TokenFeeType.CrossCollateralRoutingFee }
-      | { type: TokenFeeType.OffchainQuotedLinearFee }
+      | { type: typeof TokenFeeType.RoutingFee }
+      | { type: typeof TokenFeeType.CrossCollateralRoutingFee }
+      | { type: typeof TokenFeeType.OffchainQuotedLinearFee }
     >,
   ): Promise<BaseFee> {
     let { maxFee, halfAmount } = config;
