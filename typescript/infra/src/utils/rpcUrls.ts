@@ -604,14 +604,18 @@ export function getCronjobManagers(
 }
 
 /**
- * Collect all K8s helm managers for a given chain, split into service managers
- * (which need both secret and pod refresh) and cronjob managers (secrets only).
+ * Collect all K8s helm managers for a given chain. Tollkeeper is split out
+ * because its Deployment-backed pods need `kubectl rollout restart` rather than
+ * the name-based delete used by refreshK8sResources for StatefulSet pods.
+ * CronJob managers only need secret refresh (pods pick up new secrets on next
+ * run).
  */
 export async function collectAllK8sHelmManagers(
   environment: DeployEnvironment,
   chain: string,
 ): Promise<{
   serviceManagers: HelmManager<any>[];
+  tollkeeperManagers: TollkeeperHelmManager[];
   cronjobManagers: HelmManager<any>[];
 }> {
   const coreManagers = getCoreInfraManagers(environment, chain);
@@ -623,10 +627,15 @@ export async function collectAllK8sHelmManagers(
     environment,
     chain,
   );
+  const tollkeeperManagers = await TollkeeperHelmManager.getManagersForChain(
+    environment,
+    chain,
+  );
   const cronjobManagers = getCronjobManagers(environment);
 
   return {
     serviceManagers: [...coreManagers, ...warpManagers, ...rebalancerManagers],
+    tollkeeperManagers,
     cronjobManagers,
   };
 }
@@ -654,9 +663,13 @@ export async function setRpcUrls(
 
   if (options?.refreshK8s) {
     const deployEnv = environment as DeployEnvironment;
-    const { serviceManagers, cronjobManagers } =
+    const { serviceManagers, tollkeeperManagers, cronjobManagers } =
       await collectAllK8sHelmManagers(deployEnv, chain);
-    const allManagersForSecrets = [...serviceManagers, ...cronjobManagers];
+    const allManagersForSecrets = [
+      ...serviceManagers,
+      ...tollkeeperManagers,
+      ...cronjobManagers,
+    ];
 
     if (allManagersForSecrets.length > 0) {
       await refreshK8sResources(
@@ -674,13 +687,16 @@ export async function setRpcUrls(
         { skipConfirmation: true },
       );
     }
+    for (const manager of tollkeeperManagers) {
+      await manager.restartDeployment();
+    }
   }
 }
 
 export interface ReleaseInfo {
   release: string;
   type: string;
-  refresh: 'secret+pod' | 'secret-only';
+  refresh: 'secret+pod' | 'secret+rollout-restart' | 'secret-only';
 }
 
 /**
@@ -691,10 +707,8 @@ export async function listAffectedReleases(
   environment: DeployEnvironment,
   chain: string,
 ): Promise<ReleaseInfo[]> {
-  const { serviceManagers, cronjobManagers } = await collectAllK8sHelmManagers(
-    environment,
-    chain,
-  );
+  const { serviceManagers, tollkeeperManagers, cronjobManagers } =
+    await collectAllK8sHelmManagers(environment, chain);
 
   const releases: ReleaseInfo[] = [];
 
@@ -711,6 +725,14 @@ export async function listAffectedReleases(
       release: manager.helmReleaseName,
       type,
       refresh: 'secret+pod',
+    });
+  }
+
+  for (const manager of tollkeeperManagers) {
+    releases.push({
+      release: manager.helmReleaseName,
+      type: 'tollkeeper',
+      refresh: 'secret+rollout-restart',
     });
   }
 
@@ -734,18 +756,23 @@ export async function refreshSelectedReleases(
   chain: string,
   releaseNames: string[],
 ): Promise<void> {
-  const { serviceManagers, cronjobManagers } = await collectAllK8sHelmManagers(
-    environment,
-    chain,
-  );
+  const { serviceManagers, tollkeeperManagers, cronjobManagers } =
+    await collectAllK8sHelmManagers(environment, chain);
 
   const selectedServices = serviceManagers.filter((m) =>
+    releaseNames.includes(m.helmReleaseName),
+  );
+  const selectedTollkeeper = tollkeeperManagers.filter((m) =>
     releaseNames.includes(m.helmReleaseName),
   );
   const selectedCronjobs = cronjobManagers.filter((m) =>
     releaseNames.includes(m.helmReleaseName),
   );
-  const allForSecrets = [...selectedServices, ...selectedCronjobs];
+  const allForSecrets = [
+    ...selectedServices,
+    ...selectedTollkeeper,
+    ...selectedCronjobs,
+  ];
 
   if (allForSecrets.length === 0) {
     console.log('No matching releases found to refresh');
@@ -770,6 +797,9 @@ export async function refreshSelectedReleases(
       environment,
       { skipConfirmation: true },
     );
+  }
+  for (const manager of selectedTollkeeper) {
+    await manager.restartDeployment();
   }
 }
 
