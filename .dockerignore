@@ -17,6 +17,7 @@ rust
 docs
 tools
 vectors
+.claude
 .changeset
 
 # Test & coverage artifacts

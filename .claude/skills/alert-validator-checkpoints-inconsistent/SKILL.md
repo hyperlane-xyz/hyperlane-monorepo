@@ -73,7 +73,7 @@ The metric shows the latest highest signed index by a validator as it's observed
 
 ## Known Issue Handling
 
-Before proposing remediation, check whether this alert pattern matches an active known issue.
+If you have the ability to access known issues, before proposing remediation, check whether this alert pattern matches an active known issue.
 
 Treat this as likely known when all of the following are true:
 
@@ -94,7 +94,7 @@ Canonical example:
 - Updating ISM enrollment on milkyway is intentionally deferred because the chain is cumbersome to maintain and expected to sunset
 - Recurring validator-down alerts in this context should usually be treated as known unless new impact is detected
 
-If the issue is not yet tracked as known but appears recurring + currently unactionable, recommend saving it as a known issue candidate.
+If you have the ability to track known issues and the issue is not yet tracked as known but appears recurring + currently unactionable, recommend saving it as a known issue candidate.
 
 ### Step 0: Pick the app context
 
