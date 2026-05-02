@@ -10,6 +10,8 @@ import { concatBytes, i64le, option, u8, u32le } from '../codecs/binary.js';
 import {
   encodeFeeData,
   encodeFeeParams,
+  encodeSetQuoteSignerOperation,
+  type SetQuoteSignerOp,
   type SvmFeeData,
   type SvmFeeParams,
 } from '../codecs/fee.js';
@@ -21,6 +23,7 @@ import {
   readonlySignerAddress,
   writableAccount,
   writableSigner,
+  writableSignerAddress,
 } from './utils.js';
 
 const ADDRESS_CODEC = getAddressCodec();
@@ -132,6 +135,32 @@ export function getTransferFeeOwnershipInstruction(
     concatBytes(
       u8(FeeInstructionKind.TransferOwnership),
       option(newOwner, (addr) => ADDRESS_CODEC.encode(addr)),
+    ),
+  );
+}
+
+// ====== SetMinIssuedAt ======
+
+// ====== SetQuoteSigner (Leaf mode — route = None) ======
+
+export function getSetQuoteSignerInstruction(
+  programId: Address,
+  feeAccount: Address,
+  owner: Address,
+  operation: SetQuoteSignerOp,
+  signer: Uint8Array,
+): Instruction {
+  return buildInstruction(
+    programId,
+    [
+      readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
+      writableAccount(feeAccount),
+      writableSignerAddress(owner),
+    ],
+    concatBytes(
+      u8(FeeInstructionKind.SetQuoteSigner),
+      encodeSetQuoteSignerOperation(operation, signer),
+      u8(0), // Option::None for route (Leaf mode)
     ),
   );
 }
