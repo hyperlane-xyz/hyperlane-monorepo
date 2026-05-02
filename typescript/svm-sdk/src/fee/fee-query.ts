@@ -6,10 +6,12 @@ import { assert } from '@hyperlane-xyz/utils';
 import {
   decodeFeeAccount,
   type DecodedFeeData,
+  decodeRouteDomain,
   type FeeAccountData,
+  type RouteDomainData,
 } from '../accounts/fee.js';
 import { FeeDataKind, FeeStrategyKind } from '../fee/types.js';
-import { deriveFeeAccountPda } from '../pda.js';
+import { deriveFeeAccountPda, deriveRouteDomainPda } from '../pda.js';
 import { fetchAccountDataRaw } from '../rpc.js';
 import type { SvmRpc } from '../types.js';
 
@@ -60,9 +62,32 @@ export function detectSvmFeeType(feeData: DecodedFeeData): FeeType {
       }
     }
 
+    case FeeDataKind.Routing:
+      return FeeType.routing;
+
     default: {
-      const _exhaustive: never = feeData.kind;
-      throw new Error(`Unhandled FeeDataKind: ${_exhaustive}`);
+      const _exhaustive: never = feeData;
+      throw new Error(`Unhandled FeeDataKind: ${String(_exhaustive)}`);
     }
   }
+}
+
+/**
+ * Fetches and decodes a RouteDomain PDA for a given fee account and domain.
+ * Returns null if the account does not exist or is not initialized.
+ */
+export async function fetchRouteDomain(
+  rpc: SvmRpc,
+  programId: Address,
+  feeAccount: Address,
+  domain: number,
+): Promise<RouteDomainData | null> {
+  const { address: routePda } = await deriveRouteDomainPda(
+    programId,
+    feeAccount,
+    domain,
+  );
+  const data = await fetchAccountDataRaw(rpc, routePda);
+  if (!data) return null;
+  return decodeRouteDomain(data);
 }

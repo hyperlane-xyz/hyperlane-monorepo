@@ -256,3 +256,38 @@ export async function deriveFeeAccountPda(
     salt,
   ]);
 }
+
+export async function deriveRouteDomainPda(
+  programAddress: Address,
+  feeAccount: Address,
+  domain: number,
+): Promise<PdaWithBump> {
+  return derive(programAddress, [
+    utf8.encode('hyperlane_fee'),
+    utf8.encode('-'),
+    utf8.encode('route'),
+    utf8.encode('-'),
+    addressEncoder.encode(feeAccount),
+    utf8.encode('-'),
+    u32.encode(domain),
+  ]);
+}
+
+export async function deriveStandingQuotePda(
+  programAddress: Address,
+  feeAccount: Address,
+  domain: number,
+  targetRouter: ReadonlyUint8Array,
+): Promise<PdaWithBump> {
+  return derive(programAddress, [
+    utf8.encode('hyperlane_fee'),
+    utf8.encode('-'),
+    utf8.encode('standing'),
+    utf8.encode('-'),
+    addressEncoder.encode(feeAccount),
+    utf8.encode('-'),
+    u32.encode(domain),
+    utf8.encode('-'),
+    targetRouter,
+  ]);
+}

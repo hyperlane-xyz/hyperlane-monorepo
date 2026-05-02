@@ -8,15 +8,25 @@ import { getAddressCodec } from '@solana/kit';
 
 import { concatBytes, i64le, option, u8, u32le } from '../codecs/binary.js';
 import {
+  encodeBTreeSetH160,
   encodeFeeData,
+  encodeFeeDataStrategy,
   encodeFeeParams,
+  encodeRouteKey,
   encodeSetQuoteSignerOperation,
   type SetQuoteSignerOp,
   type SvmFeeData,
+  type SvmFeeDataStrategy,
   type SvmFeeParams,
+  type SvmRouteKey,
+  SvmRouteKeyKind,
 } from '../codecs/fee.js';
 import { SYSTEM_PROGRAM_ADDRESS } from '../constants.js';
-import { deriveFeeAccountPda } from '../pda.js';
+import {
+  deriveFeeAccountPda,
+  deriveRouteDomainPda,
+  deriveStandingQuotePda,
+} from '../pda.js';
 import {
   buildInstruction,
   readonlyAccount,
@@ -177,5 +187,139 @@ export function getSetMinIssuedAtInstruction(
     programId,
     [writableAccount(feeAccount), readonlySignerAddress(owner)],
     concatBytes(u8(FeeInstructionKind.SetMinIssuedAt), i64le(minIssuedAt)),
+  );
+}
+
+// ====== SetRemoteFeeRoute ======
+
+const H256_ZERO = new Uint8Array(32);
+
+export async function getSetRemoteFeeRouteInstruction(
+  programId: Address,
+  feeAccount: Address,
+  owner: Address,
+  domain: number,
+  targetRouter: Uint8Array | null,
+  feeData: SvmFeeDataStrategy,
+  signers: Uint8Array[] | null,
+): Promise<Instruction> {
+  const { address: routePda } = await deriveRouteDomainPda(
+    programId,
+    feeAccount,
+    domain,
+  );
+  const { address: standingQuotePda } = await deriveStandingQuotePda(
+    programId,
+    feeAccount,
+    domain,
+    targetRouter ?? H256_ZERO,
+  );
+  return buildInstruction(
+    programId,
+    [
+      readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
+      readonlyAccount(feeAccount),
+      writableSignerAddress(owner),
+      writableAccount(routePda),
+      writableAccount(standingQuotePda),
+    ],
+    concatBytes(
+      u8(FeeInstructionKind.SetRemoteFeeRoute),
+      u32le(domain),
+      option(targetRouter, (r) => r),
+      encodeFeeDataStrategy(feeData),
+      option(signers, encodeBTreeSetH160),
+    ),
+  );
+}
+
+// ====== RemoveRemoteFeeRoute ======
+
+export async function getRemoveRemoteFeeRouteInstruction(
+  programId: Address,
+  feeAccount: Address,
+  owner: Address,
+  domain: number,
+  targetRouter: Uint8Array | null,
+): Promise<Instruction> {
+  const { address: routePda } = await deriveRouteDomainPda(
+    programId,
+    feeAccount,
+    domain,
+  );
+  const { address: standingQuotePda } = await deriveStandingQuotePda(
+    programId,
+    feeAccount,
+    domain,
+    targetRouter ?? H256_ZERO,
+  );
+  return buildInstruction(
+    programId,
+    [
+      readonlyAccount(feeAccount),
+      writableSignerAddress(owner),
+      writableAccount(routePda),
+      writableAccount(standingQuotePda),
+    ],
+    concatBytes(
+      u8(FeeInstructionKind.RemoveRemoteFeeRoute),
+      u32le(domain),
+      option(targetRouter, (r) => r),
+    ),
+  );
+}
+
+// ====== SetWildcardQuoteSigners ======
+
+export function getSetWildcardQuoteSignersInstruction(
+  programId: Address,
+  feeAccount: Address,
+  owner: Address,
+  signers: Uint8Array[],
+): Instruction {
+  return buildInstruction(
+    programId,
+    [
+      readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
+      writableAccount(feeAccount),
+      writableSignerAddress(owner),
+    ],
+    concatBytes(
+      u8(FeeInstructionKind.SetWildcardQuoteSigners),
+      encodeBTreeSetH160(signers),
+    ),
+  );
+}
+
+// ====== SetQuoteSigner (Routing mode — route = Some(Domain)) ======
+
+export async function getSetQuoteSignerForRouteInstruction(
+  programId: Address,
+  feeAccount: Address,
+  owner: Address,
+  operation: SetQuoteSignerOp,
+  signer: Uint8Array,
+  route: SvmRouteKey,
+): Promise<Instruction> {
+  let routePda: Address;
+  if (route.kind === SvmRouteKeyKind.Domain) {
+    routePda = (await deriveRouteDomainPda(programId, feeAccount, route.domain))
+      .address;
+  } else {
+    throw new Error('CrossCollateral route not yet supported');
+  }
+  return buildInstruction(
+    programId,
+    [
+      readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
+      readonlyAccount(feeAccount),
+      writableSignerAddress(owner),
+      writableAccount(routePda),
+    ],
+    concatBytes(
+      u8(FeeInstructionKind.SetQuoteSigner),
+      encodeSetQuoteSignerOperation(operation, signer),
+      option(route, encodeRouteKey),
+    ),
   );
 }
