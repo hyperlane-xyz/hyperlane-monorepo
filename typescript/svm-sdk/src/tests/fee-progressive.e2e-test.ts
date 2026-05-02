@@ -1,7 +1,11 @@
 import { address } from '@solana/kit';
 import { before, describe } from 'mocha';
 
-import { FeeParamsType, FeeType } from '@hyperlane-xyz/provider-sdk/fee';
+import {
+  FeeParamsType,
+  FeeType,
+  type ProgressiveFeeConfig,
+} from '@hyperlane-xyz/provider-sdk/fee';
 
 import { SvmSigner } from '../clients/signer.js';
 import {
@@ -24,7 +28,7 @@ const TEST_PRIVATE_KEY =
 describe('SVM Progressive Fee E2E Tests', function () {
   this.timeout(180_000);
 
-  let ctx: LeafFeeTestContext<typeof FeeType.progressive>;
+  let ctx: LeafFeeTestContext<ProgressiveFeeConfig>;
 
   before(async () => {
     const rpc = createRpc(TEST_SVM_CHAIN_METADATA.rpcUrl);
