@@ -9,26 +9,28 @@ import type {
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import { FeeParamsType } from '@hyperlane-xyz/provider-sdk/fee';
 
+import type { BaseFeeConfig, FeeParams } from '@hyperlane-xyz/provider-sdk/fee';
+
 import type { SvmSigner } from '../clients/signer.js';
-import type { LeafFeeConfig } from '../fee/leaf-fee.js';
 import type { SvmDeployedFee } from '../fee/types.js';
 import type { createRpc } from '../rpc.js';
 
-export interface LeafFeeTestContext<T extends LeafFeeConfig['type']> {
-  writer: ArtifactWriter<Extract<LeafFeeConfig, { type: T }>, SvmDeployedFee>;
-  reader: ArtifactReader<Extract<LeafFeeConfig, { type: T }>, SvmDeployedFee>;
-  makeConfig: (
-    overrides?: Partial<Omit<LeafFeeConfig, 'type'>>,
-  ) => Extract<LeafFeeConfig, { type: T }>;
+/** Any fee config with params — covers leaf types and offchainQuotedLinear. */
+type ParamsFeeConfig = BaseFeeConfig & { type: string; params: FeeParams };
+
+export interface LeafFeeTestContext<C extends ParamsFeeConfig> {
+  writer: ArtifactWriter<C, SvmDeployedFee>;
+  reader: ArtifactReader<C, SvmDeployedFee>;
+  makeConfig: (overrides?: Record<string, unknown>) => C;
   signer: SvmSigner;
   rpc: ReturnType<typeof createRpc>;
 }
 
-export function defineLeafFeeTests<T extends LeafFeeConfig['type']>(
-  getContext: () => LeafFeeTestContext<T>,
+export function defineLeafFeeTests<C extends ParamsFeeConfig>(
+  getContext: () => LeafFeeTestContext<C>,
 ): void {
   async function executeUpdateTxs(
-    txs: Awaited<ReturnType<LeafFeeTestContext<T>['writer']['update']>>,
+    txs: Awaited<ReturnType<LeafFeeTestContext<C>['writer']['update']>>,
   ): Promise<void> {
     const { signer } = getContext();
     for (const tx of txs) {
