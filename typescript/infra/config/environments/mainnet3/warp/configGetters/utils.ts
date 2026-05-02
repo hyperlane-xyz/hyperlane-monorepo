@@ -90,6 +90,14 @@ export function getUSDCRebalancingBridgesConfigFor(
   );
 }
 
+export async function getExistingWarpDeployConfig(
+  warpRouteId: string,
+): Promise<ChainMap<HypTokenRouterConfig>> {
+  const warpRoute = await getRegistry().getWarpDeployConfig(warpRouteId);
+  assert(warpRoute, `Warp route deploy config not found for ${warpRouteId}`);
+  return warpRoute as ChainMap<HypTokenRouterConfig>;
+}
+
 export const getRebalancingUSDCConfigForChain = (
   currentChain: keyof typeof usdcTokenAddresses,
   routerConfigByChain: ChainMap<RouterConfigWithoutOwner>,
