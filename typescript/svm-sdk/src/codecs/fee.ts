@@ -2,7 +2,7 @@ import type { ReadonlyUint8Array } from '@solana/kit';
 
 import { FeeDataKind, type FeeStrategyKind } from '../fee/types.js';
 
-import { concatBytes, u8, u64le } from './binary.js';
+import { concatBytes, option, u8, u32le, u64le } from './binary.js';
 
 // ====== Discriminators (8-byte ASCII) ======
 
@@ -41,11 +41,45 @@ export function encodeFeeDataStrategy(
   return concatBytes(u8(strategy.kind), encodeFeeParams(strategy.params));
 }
 
+// ====== BTreeSet<H160> encoding ======
+
+/**
+ * Encodes a list of H160 signers as a Borsh BTreeSet.
+ * Sorts lexicographically to match Rust BTreeSet canonical order.
+ */
+export function encodeBTreeSetH160(signers: Uint8Array[]): ReadonlyUint8Array {
+  const sorted = [...signers].sort((a, b) => {
+    for (let i = 0; i < 20; i++) {
+      const diff = (a[i] ?? 0) - (b[i] ?? 0);
+      if (diff !== 0) return diff;
+    }
+    return 0;
+  });
+  return concatBytes(u32le(sorted.length), ...sorted);
+}
+
+// ====== SetQuoteSigner operation ======
+
+export const SetQuoteSignerOp = {
+  Add: 0,
+  Remove: 1,
+} as const;
+
+export type SetQuoteSignerOp =
+  (typeof SetQuoteSignerOp)[keyof typeof SetQuoteSignerOp];
+
+export function encodeSetQuoteSignerOperation(
+  op: SetQuoteSignerOp,
+  signer: Uint8Array,
+): ReadonlyUint8Array {
+  return concatBytes(u8(op), signer);
+}
+
 // ====== Leaf Fee Config ======
 
 export interface SvmLeafFeeConfig {
   strategy: SvmFeeDataStrategy;
-  signers: null;
+  signers: Uint8Array[] | null;
 }
 
 export function encodeLeafFeeConfig(
@@ -53,7 +87,7 @@ export function encodeLeafFeeConfig(
 ): ReadonlyUint8Array {
   return concatBytes(
     encodeFeeDataStrategy(config.strategy),
-    u8(0), // Option::None for signers
+    option(config.signers, encodeBTreeSetH160),
   );
 }
 
