@@ -61,6 +61,19 @@ const STRATEGY_TYPE_TO_KIND = {
   [FeeStrategyType.progressive]: FeeStrategyKind.Progressive,
 } as const;
 
+/** Pure leaf strategy types that have a direct on-chain kind mapping. */
+export type PureLeafStrategyType = keyof typeof STRATEGY_TYPE_TO_KIND;
+
+/**
+ * Maps a provider-sdk FeeStrategyType to the on-chain FeeStrategyKind variant tag.
+ * Only accepts pure leaf strategy types (excludes offchainQuotedLinear).
+ */
+export function feeStrategyTypeToKind(
+  strategyType: PureLeafStrategyType,
+): FeeStrategyKind {
+  return STRATEGY_TYPE_TO_KIND[strategyType];
+}
+
 /**
  * Converts on-chain SvmFeeDataStrategy to provider-sdk FeeStrategy.
  * Used by leaf fee readers to produce the artifact config.
