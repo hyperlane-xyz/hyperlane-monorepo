@@ -4,7 +4,10 @@ import { before, describe } from 'mocha';
 import { FeeParamsType, FeeType } from '@hyperlane-xyz/provider-sdk/fee';
 
 import { SvmSigner } from '../clients/signer.js';
-import { SvmLinearFeeReader, SvmLinearFeeWriter } from '../fee/linear-fee.js';
+import {
+  SvmRegressiveFeeReader,
+  SvmRegressiveFeeWriter,
+} from '../fee/regressive-fee.js';
 import { DEFAULT_FEE_SALT } from '../fee/types.js';
 import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
 import { createRpc } from '../rpc.js';
@@ -18,10 +21,10 @@ import {
 const TEST_PRIVATE_KEY =
   '0x0000000000000000000000000000000000000000000000000000000000000001';
 
-describe('SVM Linear Fee E2E Tests', function () {
+describe('SVM Regressive Fee E2E Tests', function () {
   this.timeout(180_000);
 
-  let ctx: LeafFeeTestContext<typeof FeeType.linear>;
+  let ctx: LeafFeeTestContext<typeof FeeType.regressive>;
 
   before(async () => {
     const rpc = createRpc(TEST_SVM_CHAIN_METADATA.rpcUrl);
@@ -32,24 +35,24 @@ describe('SVM Linear Fee E2E Tests', function () {
     await airdropSol(rpc, address(signer.getSignerAddress()), 100_000_000_000n);
 
     ctx = {
-      writer: new SvmLinearFeeWriter(
+      writer: new SvmRegressiveFeeWriter(
         { program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenFee } },
         rpc,
         1,
         signer,
         DEFAULT_FEE_SALT,
       ),
-      reader: new SvmLinearFeeReader(rpc, DEFAULT_FEE_SALT),
+      reader: new SvmRegressiveFeeReader(rpc, DEFAULT_FEE_SALT),
       signer,
       rpc,
       makeConfig: (overrides) => ({
-        type: FeeType.linear,
+        type: FeeType.regressive,
         owner: signer.getSignerAddress(),
         beneficiary: signer.getSignerAddress(),
         params: {
           type: FeeParamsType.raw,
-          maxFee: '1000000',
-          halfAmount: '500000',
+          maxFee: '2000000',
+          halfAmount: '1000000',
         },
         ...overrides,
       }),
