@@ -91,21 +91,88 @@ export function encodeLeafFeeConfig(
   );
 }
 
+// ====== Routing Fee Config ======
+
+export const ROUTEDOM_DISCRIMINATOR = new Uint8Array([
+  0x52,
+  0x4f,
+  0x55,
+  0x54,
+  0x45,
+  0x44,
+  0x4f,
+  0x4d, // ROUTEDOM
+]);
+
+export const STDQUOTE_DISCRIMINATOR = new Uint8Array([
+  0x53,
+  0x54,
+  0x44,
+  0x51,
+  0x55,
+  0x4f,
+  0x54,
+  0x45, // STDQUOTE
+]);
+
+export interface SvmRoutingFeeConfig {
+  wildcardSigners: Uint8Array[];
+}
+
+export function encodeRoutingFeeConfig(
+  config: SvmRoutingFeeConfig,
+): ReadonlyUint8Array {
+  return encodeBTreeSetH160(config.wildcardSigners);
+}
+
+// ====== Route Key ======
+
+export const SvmRouteKeyKind = {
+  Domain: 0,
+  CrossCollateral: 1,
+} as const;
+
+export type SvmRouteKey =
+  | { kind: typeof SvmRouteKeyKind.Domain; domain: number }
+  | {
+      kind: typeof SvmRouteKeyKind.CrossCollateral;
+      destination: number;
+      targetRouter: Uint8Array;
+    };
+
+export function encodeRouteKey(key: SvmRouteKey): ReadonlyUint8Array {
+  switch (key.kind) {
+    case SvmRouteKeyKind.Domain:
+      return concatBytes(u8(key.kind), u32le(key.domain));
+    case SvmRouteKeyKind.CrossCollateral:
+      return concatBytes(
+        u8(key.kind),
+        u32le(key.destination),
+        key.targetRouter,
+      );
+    default: {
+      const _exhaustive: never = key;
+      throw new Error(`Unhandled RouteKey kind: ${String(_exhaustive)}`);
+    }
+  }
+}
+
 // ====== Fee Data (top-level discriminated union) ======
 
-export type SvmFeeData = {
-  kind: typeof FeeDataKind.Leaf;
-  config: SvmLeafFeeConfig;
-};
+export type SvmFeeData =
+  | { kind: typeof FeeDataKind.Leaf; config: SvmLeafFeeConfig }
+  | { kind: typeof FeeDataKind.Routing; config: SvmRoutingFeeConfig };
 
 export function encodeFeeData(data: SvmFeeData): ReadonlyUint8Array {
   switch (data.kind) {
     case FeeDataKind.Leaf:
       return concatBytes(u8(data.kind), encodeLeafFeeConfig(data.config));
+    case FeeDataKind.Routing:
+      return concatBytes(u8(data.kind), encodeRoutingFeeConfig(data.config));
 
     default: {
-      const _exhaustive: never = data.kind;
-      throw new Error(`Unhandled FeeData kind: ${_exhaustive}`);
+      const _exhaustive: never = data;
+      throw new Error(`Unhandled FeeData kind: ${String(_exhaustive)}`);
     }
   }
 }
