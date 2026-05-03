@@ -11,4 +11,4 @@ env:
   - name: QUOTE_MODE
     value: 'transient'
   - name: WARP_ROUTE_IDS
-    value: 'USDC/ctusd,USDT/ctusd'
+    value: 'USDC/moonpay,USDT/moonpay'
