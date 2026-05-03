@@ -5,7 +5,6 @@ import {
   HypTokenRouterConfig,
   IsmType,
   OwnableConfig,
-  RoutingIsmConfig,
   TokenType,
 } from '@hyperlane-xyz/sdk';
 
@@ -16,8 +15,8 @@ import {
   tokens,
 } from '../../../../../src/config/warp.js';
 import { getExistingWarpDeployConfig } from './utils.js';
-import { WarpRouteIds } from '../warpIds.js';
 
+const STAGING_SOURCE_WARP_ROUTE_ID = 'USDT/ctusd';
 const FAST_PATH_RELAYER = relayerAddresses.mainnet3.fastpath;
 const HYPERLANE_RELAYER = relayerAddresses.mainnet3.hyperlane;
 const CCTP_CAPABLE_CHAINS: ChainName[] = ['arbitrum', 'base', 'ethereum'];
@@ -25,14 +24,9 @@ const ROUTE_CHAINS: ChainName[] = [
   'solanamainnet',
   'arbitrum',
   'base',
-  'citrea',
   'ethereum',
-  'katana',
+  'citrea',
 ];
-const SOLANA_XO_TOKEN_MINT = 'xoUSDq85Rjsb6SbUwJyreFgeWQvxdkT7R3c3g7s6p5Y';
-const SOLANA_XO_NAME = 'XO Cash';
-const SOLANA_XO_SYMBOL = 'XO';
-const KATANA_VBUSDC_TOKEN = '0x203A662b0BD271A6ed5a60EdFbd04bFce608FD36';
 
 function trustedRelayerIsm(relayer: string) {
   return {
@@ -65,36 +59,31 @@ function getTrustedRelayer(local: ChainName, remote: ChainName): string {
     : FAST_PATH_RELAYER;
 }
 
-function getInterchainSecurityModule(
-  local: ChainName,
-  owner: string,
-): RoutingIsmConfig | ReturnType<typeof trustedRelayerIsm> {
+function getInterchainSecurityModule(local: ChainName, owner: string) {
   if (local === 'solanamainnet') {
     return trustedRelayerIsm(HYPERLANE_RELAYER);
   }
 
-  const domains = Object.fromEntries(
-    ROUTE_CHAINS.filter((chain) => chain !== local).map((remote) => [
-      remote,
-      local !== 'citrea' && CCTP_CAPABLE_CHAINS.includes(remote)
-        ? cctpOrTrustedRelayerIsm(owner, getTrustedRelayer(local, remote))
-        : trustedRelayerIsm(getTrustedRelayer(local, remote)),
-    ]),
-  );
-
   return {
     type: IsmType.ROUTING,
     owner,
-    domains,
-  };
+    domains: Object.fromEntries(
+      ROUTE_CHAINS.filter((chain) => chain !== local).map((remote) => [
+        remote,
+        CCTP_CAPABLE_CHAINS.includes(remote)
+          ? cctpOrTrustedRelayerIsm(owner, getTrustedRelayer(local, remote))
+          : trustedRelayerIsm(getTrustedRelayer(local, remote)),
+      ]),
+    ),
+  } as const;
 }
 
-export async function getUSDCCtUSDWarpConfig(
+export async function getUSDTMoonpayWarpConfig(
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
 ): Promise<ChainMap<HypTokenRouterConfig>> {
   const existingConfig = await getExistingWarpDeployConfig(
-    WarpRouteIds.USDCCtUSD,
+    STAGING_SOURCE_WARP_ROUTE_ID,
   );
   const solanamainnetOwner =
     existingConfig.solanamainnet.owner ??
@@ -103,12 +92,6 @@ export async function getUSDCCtUSDWarpConfig(
     existingConfig.arbitrum.owner ?? abacusWorksEnvOwnerConfig.arbitrum.owner;
   const baseOwner =
     existingConfig.base.owner ?? abacusWorksEnvOwnerConfig.base.owner;
-  const citreaOwner =
-    existingConfig.citrea.owner ?? abacusWorksEnvOwnerConfig.citrea.owner;
-  const ethereumOwner =
-    existingConfig.ethereum.owner ?? abacusWorksEnvOwnerConfig.ethereum.owner;
-  const katanaOwner =
-    existingConfig.katana.owner ?? abacusWorksEnvOwnerConfig.katana.owner;
 
   return {
     ...existingConfig,
@@ -117,9 +100,7 @@ export async function getUSDCCtUSDWarpConfig(
       mailbox: routerConfig.solanamainnet.mailbox,
       owner: solanamainnetOwner,
       type: TokenType.crossCollateral,
-      token: SOLANA_XO_TOKEN_MINT,
-      name: SOLANA_XO_NAME,
-      symbol: SOLANA_XO_SYMBOL,
+      token: tokens.solanamainnet.USDT,
       decimals: 6,
       interchainSecurityModule: getInterchainSecurityModule(
         'solanamainnet',
@@ -131,7 +112,7 @@ export async function getUSDCCtUSDWarpConfig(
       mailbox: routerConfig.arbitrum.mailbox,
       owner: arbitrumOwner,
       type: TokenType.crossCollateral,
-      token: tokens.arbitrum.USDC,
+      token: tokens.arbitrum.USDT,
       interchainSecurityModule: getInterchainSecurityModule(
         'arbitrum',
         arbitrumOwner,
@@ -142,41 +123,8 @@ export async function getUSDCCtUSDWarpConfig(
       mailbox: routerConfig.base.mailbox,
       owner: baseOwner,
       type: TokenType.crossCollateral,
-      token: tokens.base.USDC,
+      token: tokens.base.USDT,
       interchainSecurityModule: getInterchainSecurityModule('base', baseOwner),
-    },
-    citrea: {
-      ...existingConfig.citrea,
-      mailbox: routerConfig.citrea.mailbox,
-      owner: citreaOwner,
-      type: TokenType.crossCollateral,
-      token: tokens.citrea.ctUSD,
-      interchainSecurityModule: getInterchainSecurityModule(
-        'citrea',
-        citreaOwner,
-      ),
-    },
-    ethereum: {
-      ...existingConfig.ethereum,
-      mailbox: routerConfig.ethereum.mailbox,
-      owner: ethereumOwner,
-      type: TokenType.crossCollateral,
-      token: tokens.ethereum.USDC,
-      interchainSecurityModule: getInterchainSecurityModule(
-        'ethereum',
-        ethereumOwner,
-      ),
-    },
-    katana: {
-      ...existingConfig.katana,
-      mailbox: routerConfig.katana.mailbox,
-      owner: katanaOwner,
-      type: TokenType.crossCollateral,
-      token: KATANA_VBUSDC_TOKEN,
-      interchainSecurityModule: getInterchainSecurityModule(
-        'katana',
-        katanaOwner,
-      ),
     },
   };
 }
