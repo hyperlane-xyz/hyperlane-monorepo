@@ -20,7 +20,6 @@ import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
 import { getFixedRoutingFeeConfig } from './utils.js';
 
 const FAST_PATH_RELAYER = relayerAddresses.mainnet3.fastpath;
-const HYPERLANE_RELAYER = relayerAddresses.mainnet3.hyperlane;
 
 const ROUTE_CHAINS = [
   'solanamainnet',
@@ -40,6 +39,7 @@ const CCTP_FAST_ROUTE_ADDRESSES = {
   base: '0x31169ee5A8C0D680de74461d7B5394fFc7C3576B',
   ethereum: '0x7A576Bb5291567cfDbB4585B1911CF7C9891ea07',
 } as const satisfies Record<(typeof CCTP_CHAINS)[number], string>;
+const ZERO_HOOK = '0x0000000000000000000000000000000000000000';
 
 const SOLANA_IGP_ADDRESS = 'BhNcatUDC2D5JTyeaqrdSukiVFsEHK7e3hVmKMztwefv';
 const QUOTE_SIGNERS = [
@@ -54,10 +54,12 @@ function trustedRelayerIsm(relayer: string) {
   } as const;
 }
 
+function isCctpChain(chain: ChainName): chain is (typeof CCTP_CHAINS)[number] {
+  return CCTP_CHAINS.includes(chain as (typeof CCTP_CHAINS)[number]);
+}
+
 function getTrustedRelayer(local: ChainName, remote: ChainName): string {
-  return local === 'solanamainnet' || remote === 'solanamainnet'
-    ? HYPERLANE_RELAYER
-    : FAST_PATH_RELAYER;
+  return FAST_PATH_RELAYER;
 }
 
 function buildDefaultIsm(owner: string): IsmConfig {
@@ -68,6 +70,25 @@ function buildDefaultIsm(owner: string): IsmConfig {
   };
 }
 
+function buildRemoteIsm(
+  local: (typeof ROUTE_CHAINS)[number],
+  remote: (typeof ROUTE_CHAINS)[number],
+  owner: string,
+): IsmConfig {
+  if (isCctpChain(local) && isCctpChain(remote)) {
+    return {
+      type: IsmType.AGGREGATION,
+      threshold: 2,
+      modules: [
+        trustedRelayerIsm(getTrustedRelayer(local, remote)),
+        CCTP_FAST_ROUTE_ADDRESSES[local],
+      ],
+    };
+  }
+
+  return buildDefaultIsm(owner);
+}
+
 function buildInnerRoutingIsm(
   local: (typeof ROUTE_CHAINS)[number],
   owner: string,
@@ -75,9 +96,7 @@ function buildInnerRoutingIsm(
   const domains = Object.fromEntries(
     ROUTE_CHAINS.filter((remote) => remote !== local).map((remote) => [
       remote,
-      CCTP_CHAINS.includes(local) && CCTP_CHAINS.includes(remote)
-        ? CCTP_FAST_ROUTE_ADDRESSES[local]
-        : trustedRelayerIsm(getTrustedRelayer(local, remote)),
+      buildRemoteIsm(local, remote, owner),
     ]),
   );
 
@@ -102,14 +121,23 @@ function buildInterchainSecurityModule(
   } as const;
 }
 
-function buildAggregatedFastRouteHook(local: (typeof CCTP_CHAINS)[number]) {
+function buildFastRouteHook(local: (typeof CCTP_CHAINS)[number]) {
   return {
-    type: HookType.AGGREGATION,
-    hooks: [
-      { type: HookType.MAILBOX_DEFAULT },
-      CCTP_FAST_ROUTE_ADDRESSES[local],
-    ],
-  } as const satisfies HookConfig;
+    type: HookType.FALLBACK_ROUTING,
+    owner: ZERO_HOOK,
+    domains: Object.fromEntries(
+      CCTP_CHAINS.filter((remote) => remote !== local).map((remote) => [
+        remote,
+        {
+          type: HookType.AMOUNT_ROUTING,
+          threshold: AMOUNT_ROUTING_THRESHOLD,
+          lowerHook: CCTP_FAST_ROUTE_ADDRESSES[local],
+          upperHook: ZERO_HOOK,
+        } as const satisfies HookConfig,
+      ]),
+    ),
+    fallback: ZERO_HOOK,
+  } as const;
 }
 
 function buildHook(local: (typeof ROUTE_CHAINS)[number], owner: string) {
@@ -117,28 +145,18 @@ function buildHook(local: (typeof ROUTE_CHAINS)[number], owner: string) {
     return SOLANA_IGP_ADDRESS;
   }
 
-  if (!CCTP_CHAINS.includes(local)) return undefined;
-
-  const domains = Object.fromEntries(
-    CCTP_CHAINS.filter((remote) => remote !== local).map((remote) => [
-      remote,
-      {
-        type: HookType.AMOUNT_ROUTING,
-        threshold: AMOUNT_ROUTING_THRESHOLD,
-        lowerHook: buildAggregatedFastRouteHook(local),
-        upperHook: { type: HookType.MAILBOX_DEFAULT },
-      } as const satisfies HookConfig,
-    ]),
-  );
+  if (!isCctpChain(local)) return undefined;
 
   return {
-    type: HookType.FALLBACK_ROUTING,
-    owner,
-    domains,
-    fallback: {
-      type: HookType.MAILBOX_DEFAULT,
-    },
-  } as const;
+    type: HookType.AGGREGATION,
+    hooks: [
+      { type: HookType.MAILBOX_DEFAULT },
+      {
+        ...buildFastRouteHook(local),
+        owner,
+      },
+    ],
+  } as const satisfies HookConfig;
 }
 
 export async function getUSDTMoonpayWarpConfig(
