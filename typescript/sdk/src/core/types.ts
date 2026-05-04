@@ -12,11 +12,11 @@ import {
   IcaRouterConfigSchema,
 } from '../ica/types.js';
 import type { DerivedIsmConfig, IsmConfig } from '../ism/types.js';
-import { IsmConfigSchema } from '../ism/types.js';
+import { IsmConfigSchema, IsmType } from '../ism/types.js';
 import type { ChainName } from '../types.js';
 import { DeployedOwnableSchema, OwnableSchema } from '../types.js';
 
-export const CoreConfigSchema = OwnableSchema.extend({
+const CoreConfigBaseSchema = OwnableSchema.extend({
   defaultIsm: IsmConfigSchema,
   defaultHook: HookConfigSchema,
   requiredHook: HookConfigSchema,
@@ -28,11 +28,33 @@ export const CoreConfigSchema = OwnableSchema.extend({
   permit2: z.string().optional(),
 });
 
-export const DerivedCoreConfigSchema = CoreConfigSchema.merge(
+const rejectRateLimitedDefaultIsm = (
+  val: { defaultIsm: unknown },
+  ctx: z.RefinementCtx,
+) => {
+  if (
+    typeof val.defaultIsm === 'object' &&
+    val.defaultIsm !== null &&
+    'type' in val.defaultIsm &&
+    (val.defaultIsm as { type: string }).type === IsmType.RATE_LIMITED
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'RateLimitedIsm cannot be used as a core default ISM',
+      path: ['defaultIsm'],
+    });
+  }
+};
+
+export const CoreConfigSchema = CoreConfigBaseSchema.superRefine(
+  rejectRateLimitedDefaultIsm,
+);
+
+export const DerivedCoreConfigSchema = CoreConfigBaseSchema.merge(
   z.object({
     interchainAccountRouter: DerivedIcaRouterConfigSchema.optional(),
   }),
-);
+).superRefine(rejectRateLimitedDefaultIsm);
 
 export const DeployedCoreAddressesSchema = ProxyFactoryFactoriesSchema.extend({
   mailbox: z.string(),

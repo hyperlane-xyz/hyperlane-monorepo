@@ -15,6 +15,7 @@ import {
   OPStackIsm__factory,
   Ownable__factory,
   PausableIsm__factory,
+  RateLimitedIsm__factory,
   StaticAggregationIsm__factory,
   TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
@@ -576,6 +577,27 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     } catch {
       this.logger.debug(
         'Error accessing "VERIFIED_MASK_INDEX" property, implying this is not an OP Stack ISM.',
+        address,
+      );
+    }
+
+    // if it has recipient() property --> RATE_LIMITED
+    const rateLimitedIsm = RateLimitedIsm__factory.connect(
+      address,
+      this.provider,
+    );
+    try {
+      const recipient = await rateLimitedIsm.recipient();
+      const maxCapacity = (await rateLimitedIsm.maxCapacity()).toString();
+      return {
+        address,
+        type: IsmType.RATE_LIMITED,
+        recipient,
+        maxCapacity,
+      };
+    } catch {
+      this.logger.debug(
+        'Error accessing "recipient" property, implying this is not a Rate Limited ISM.',
         address,
       );
     }

@@ -322,6 +322,8 @@ export {
   RoutingIsmConfig,
   RoutingIsmConfigSchema,
   SafeParseIsmConfigSchema,
+  RateLimitedIsmConfig,
+  RateLimitedIsmConfigSchema,
   TrustedRelayerIsmConfig,
   TrustedRelayerIsmConfigSchema,
   WeightedMultisigIsmConfig,

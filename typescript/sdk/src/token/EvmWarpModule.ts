@@ -63,6 +63,7 @@ import { getEvmHookUpdateTransactions } from '../hook/updates.js';
 import { stripPredicateSubHook } from '../hook/utils.js';
 import { DerivedHookConfig, OnchainHookType } from '../hook/types.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
+import { IsmType } from '../ism/types.js';
 import { PredicateWrapperDeployer } from '../predicate/PredicateDeployer.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
@@ -1721,6 +1722,19 @@ export class EvmWarpModule extends HyperlaneModule<
       };
     }
 
+    // Auto-populate recipient for RateLimitedIsm from the deployed token address
+    let expectedIsm = expectedConfig.interchainSecurityModule;
+    if (
+      typeof expectedIsm === 'object' &&
+      expectedIsm.type === IsmType.RATE_LIMITED &&
+      !expectedIsm.recipient
+    ) {
+      expectedIsm = {
+        ...expectedIsm,
+        recipient: this.args.addresses.deployedTokenRoute,
+      };
+    }
+
     const ismModule = new EvmIsmModule(
       this.multiProvider,
       {
@@ -1738,9 +1752,7 @@ export class EvmWarpModule extends HyperlaneModule<
     this.logger.info(
       `Comparing target ISM config with ${this.args.chain} chain`,
     );
-    const updateTransactions = await ismModule.update(
-      expectedConfig.interchainSecurityModule,
-    );
+    const updateTransactions = await ismModule.update(expectedIsm);
     const { deployedIsm } = ismModule.serialize();
 
     return { deployedIsm, updateTransactions };
