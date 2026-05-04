@@ -9,19 +9,20 @@ import {
   OwnableConfig,
   TokenType,
 } from '@hyperlane-xyz/sdk';
+import { assert } from '@hyperlane-xyz/utils';
 
 import relayerAddresses from '../../../../relayer.json' with { type: 'json' };
 import {
   RouterConfigWithoutOwner,
   tokens,
 } from '../../../../../src/config/warp.js';
-import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
+import { getRegistry } from '../../../../registry.js';
+import { WarpRouteIds } from '../warpIds.js';
 import { getFixedRoutingFeeConfig } from './utils.js';
 
 const FAST_PATH_RELAYER = relayerAddresses.mainnet3.fastpath;
 
 const ROUTE_CHAINS = [
-  'solanamainnet',
   'arbitrum',
   'base',
   'ethereum',
@@ -33,13 +34,6 @@ const CCTP_CHAINS = [
 ] as const satisfies readonly ChainName[];
 const AMOUNT_ROUTING_THRESHOLD = 100_000 * 10 ** 6;
 
-const CCTP_FAST_ROUTE_ADDRESSES = {
-  arbitrum: '0xE086378F7f0afd5C3ff95E10B5e7806a0901b33f',
-  base: '0x31169ee5A8C0D680de74461d7B5394fFc7C3576B',
-  ethereum: '0x7A576Bb5291567cfDbB4585B1911CF7C9891ea07',
-} as const satisfies Record<(typeof CCTP_CHAINS)[number], string>;
-
-const SOLANA_IGP_ADDRESS = 'BhNcatUDC2D5JTyeaqrdSukiVFsEHK7e3hVmKMztwefv';
 const MOONPAY_OWNER = '0xEA2117b24F7947647Bec60527B68f4244AE40c01';
 const QUOTE_SIGNERS = [
   '0xEd1829805De615eEFC7303766D395Ea0a1B2b04d',
@@ -52,6 +46,24 @@ function trustedRelayerIsm(relayer: string) {
     relayer,
   } as const;
 }
+
+function getCctpFastRouteAddresses(): Record<
+  (typeof CCTP_CHAINS)[number],
+  string
+> {
+  const route = getRegistry().getWarpRoute(WarpRouteIds.MainnetCCTPV2Fast);
+  assert(route, 'Mainnet CCTP v2 fast route not found in registry');
+
+  return Object.fromEntries(
+    CCTP_CHAINS.map((chain) => {
+      const token = route.tokens.find(({ chainName }) => chainName === chain);
+      assert(token?.addressOrDenom, `Missing fast route address for ${chain}`);
+      return [chain, token.addressOrDenom];
+    }),
+  ) as Record<(typeof CCTP_CHAINS)[number], string>;
+}
+
+const CCTP_FAST_ROUTE_ADDRESSES = getCctpFastRouteAddresses();
 
 function isCctpChain(chain: ChainName): chain is (typeof CCTP_CHAINS)[number] {
   return CCTP_CHAINS.includes(chain as (typeof CCTP_CHAINS)[number]);
@@ -110,13 +122,17 @@ function buildInterchainSecurityModule(
   local: (typeof ROUTE_CHAINS)[number],
   owner: string,
 ): IsmConfig | undefined {
-  if (local === 'solanamainnet') return undefined;
-  const innerRoutingIsm = buildInnerRoutingIsm(local, owner);
-  return {
+  const amountRoutingIsm = {
     type: IsmType.AMOUNT_ROUTING,
     threshold: AMOUNT_ROUTING_THRESHOLD,
-    lowerIsm: innerRoutingIsm,
+    lowerIsm: buildInnerRoutingIsm(local, owner),
     upperIsm: buildDefaultIsm(owner),
+  } as const;
+
+  return {
+    type: IsmType.AGGREGATION,
+    threshold: 1,
+    modules: [buildDefaultIsm(owner), amountRoutingIsm],
   } as const;
 }
 
@@ -144,10 +160,6 @@ function buildFastRouteHook(
 }
 
 function buildHook(local: (typeof ROUTE_CHAINS)[number], owner: string) {
-  if (local === 'solanamainnet') {
-    return SOLANA_IGP_ADDRESS;
-  }
-
   if (!isCctpChain(local)) return undefined;
 
   return {
@@ -169,23 +181,11 @@ export async function getUSDTMoonpayWarpConfig(
     ]),
   ) as Record<(typeof ROUTE_CHAINS)[number], ChainName[]>;
 
-  const solanamainnetOwner = MOONPAY_OWNER;
   const arbitrumOwner = MOONPAY_OWNER;
   const baseOwner = MOONPAY_OWNER;
   const ethereumOwner = MOONPAY_OWNER;
 
   return {
-    solanamainnet: {
-      type: TokenType.crossCollateral,
-      token: tokens.solanamainnet.USDT,
-      mailbox: routerConfig.solanamainnet.mailbox,
-      owner: solanamainnetOwner,
-      hook: buildHook('solanamainnet', solanamainnetOwner),
-      gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
-      name: 'USDT',
-      symbol: 'USDT',
-      decimals: 6,
-    },
     arbitrum: {
       type: TokenType.crossCollateral,
       token: tokens.arbitrum.USDT,
