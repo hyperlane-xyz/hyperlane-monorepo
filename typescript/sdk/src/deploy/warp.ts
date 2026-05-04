@@ -358,7 +358,9 @@ async function resolveRateLimitedIsms(
   contractVerifier?: ContractVerifier,
 ): Promise<void> {
   for (const [chain, ismConfig] of Object.entries(rateLimitedConfigs)) {
-    if (multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) continue;
+    const protocol = multiProvider.getProtocol(chain);
+    if (protocol !== ProtocolType.Ethereum && protocol !== ProtocolType.Tron)
+      continue;
     const tokenAddress = deployedContracts[chain];
     const chainAddresses = registryAddresses[chain];
 
