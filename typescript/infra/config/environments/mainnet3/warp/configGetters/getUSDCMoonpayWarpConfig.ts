@@ -45,6 +45,7 @@ const SOLANA_IGP_ADDRESS = 'BhNcatUDC2D5JTyeaqrdSukiVFsEHK7e3hVmKMztwefv';
 const SOLANA_XO_TOKEN_MINT = 'xoUSDq85Rjsb6SbUwJyreFgeWQvxdkT7R3c3g7s6p5Y';
 const SOLANA_XO_NAME = 'XO Cash';
 const SOLANA_XO_SYMBOL = 'XO';
+const MOONPAY_OWNER = '0xEA2117b24F7947647Bec60527B68f4244AE40c01';
 const QUOTE_SIGNERS = [
   '0xEd1829805De615eEFC7303766D395Ea0a1B2b04d',
   '0x6bb7818bbE8d88094Cf3620e58BC6BbEd542B867',
@@ -175,7 +176,7 @@ function buildHook(local: (typeof ROUTE_CHAINS)[number], owner: string) {
 
 export async function getUSDCMoonpayWarpConfig(
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
-  abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
+  _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
 ): Promise<ChainMap<HypTokenRouterConfig>> {
   const feeDestinationsByChain = Object.fromEntries(
     ROUTE_CHAINS.map((local) => [
@@ -184,11 +185,11 @@ export async function getUSDCMoonpayWarpConfig(
     ]),
   ) as Record<(typeof ROUTE_CHAINS)[number], ChainName[]>;
 
-  const solanamainnetOwner = abacusWorksEnvOwnerConfig.solanamainnet.owner;
-  const arbitrumOwner = abacusWorksEnvOwnerConfig.arbitrum.owner;
-  const baseOwner = abacusWorksEnvOwnerConfig.base.owner;
-  const citreaOwner = abacusWorksEnvOwnerConfig.citrea.owner;
-  const ethereumOwner = abacusWorksEnvOwnerConfig.ethereum.owner;
+  const solanamainnetOwner = MOONPAY_OWNER;
+  const arbitrumOwner = MOONPAY_OWNER;
+  const baseOwner = MOONPAY_OWNER;
+  const citreaOwner = MOONPAY_OWNER;
+  const ethereumOwner = MOONPAY_OWNER;
 
   return {
     solanamainnet: {
