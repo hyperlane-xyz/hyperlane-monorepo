@@ -62,7 +62,7 @@ export async function setRpcUrlsInteractive(
   }
 }
 
-export async function getAndDisplayCurrentSecrets(
+async function getAndDisplayCurrentSecrets(
   environment: string,
   chain: string,
 ): Promise<string[]> {
@@ -244,7 +244,7 @@ async function confirmSetSecretsInteractive(
  * @param chain The chain to update the secret for
  * @param secretPayload The new secret payload to set
  */
-export async function updateSecretAndDisablePrevious(
+async function updateSecretAndDisablePrevious(
   environment: string,
   chain: string,
   secretPayload: string,
@@ -365,7 +365,7 @@ function getCoreInfraManagersWithContext(
   return coreHelmManagers;
 }
 
-export function getCoreInfraManagers(
+function getCoreInfraManagers(
   environment: DeployEnvironment,
   chain: string,
 ): HelmManager<any>[] {
@@ -588,7 +588,7 @@ async function selectCronJobs(
     .filter((_, i) => selection.includes(i));
 }
 
-export function getCronjobManagers(
+function getCronJobManagers(
   environment: DeployEnvironment,
 ): HelmManager<any>[] {
   const managers: HelmManager<any>[] = [];
@@ -614,7 +614,7 @@ export function getCronjobManagers(
  * CronJob managers only need secret refresh (pods pick up new secrets on next
  * run).
  */
-export async function collectAllK8sHelmManagers(
+async function collectAllK8sHelmManagers(
   environment: DeployEnvironment,
   chain: string,
 ): Promise<{
@@ -635,7 +635,7 @@ export async function collectAllK8sHelmManagers(
     environment,
     chain,
   );
-  const cronjobManagers = getCronjobManagers(environment);
+  const cronjobManagers = getCronJobManagers(environment);
 
   return {
     serviceManagers: [...coreManagers, ...warpManagers, ...rebalancerManagers],
