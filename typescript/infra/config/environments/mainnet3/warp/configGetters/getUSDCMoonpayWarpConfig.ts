@@ -91,7 +91,14 @@ function buildRemoteIsm(
   }
 
   if (local === 'citrea' && remote === 'ethereum') {
-    return trustedRelayerIsm(getTrustedRelayer(local, remote));
+    return {
+      type: IsmType.AGGREGATION,
+      threshold: 1,
+      modules: [
+        trustedRelayerIsm(getTrustedRelayer(local, remote)),
+        buildDefaultIsm(owner),
+      ],
+    };
   }
 
   return buildDefaultIsm(owner);
