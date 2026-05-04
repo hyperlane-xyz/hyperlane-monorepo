@@ -43376,6 +43376,31 @@
       ]
     },
     {
+      "name": "USDe/igra",
+      "matchingList": [
+        {
+          "originDomain": 38833,
+          "senderAddress": [
+            "0x000000000000000000000000361a7da84a1f4a0c565772c45ed838c6a0faea94"
+          ],
+          "destinationDomain": 1,
+          "recipientAddress": [
+            "0x00000000000000000000000054b904c3cb5c6aa19a5292acc72ece1c285e7eab"
+          ]
+        },
+        {
+          "originDomain": 1,
+          "senderAddress": [
+            "0x00000000000000000000000054b904c3cb5c6aa19a5292acc72ece1c285e7eab"
+          ],
+          "destinationDomain": 38833,
+          "recipientAddress": [
+            "0x000000000000000000000000361a7da84a1f4a0c565772c45ed838c6a0faea94"
+          ]
+        }
+      ]
+    },
+    {
       "name": "IKAS/igra",
       "matchingList": [
         {

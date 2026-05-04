@@ -159,6 +159,7 @@ export enum WarpRouteIds {
 
   // Igra routes
   IgraUSDC = 'USDC/igra',
+  IgraUSDe = 'USDe/igra',
   IgraIKAS = 'IKAS/igra',
   IgraSOL = 'SOL/igra',
   IgraWSTETH = 'WSTETH/igra',
