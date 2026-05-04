@@ -15,7 +15,6 @@ import {
   RouterConfigWithoutOwner,
   tokens,
 } from '../../../../../src/config/warp.js';
-import { getWarpFeeOwner } from '../../governance/utils.js';
 import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
 import { getFixedRoutingFeeConfig } from './utils.js';
 
@@ -214,7 +213,7 @@ export async function getUSDCMoonpayWarpConfig(
         arbitrumOwner,
       ),
       tokenFee: getFixedRoutingFeeConfig(
-        getWarpFeeOwner('arbitrum'),
+        MOONPAY_OWNER,
         feeDestinationsByChain.arbitrum,
         3,
         undefined,
@@ -232,7 +231,7 @@ export async function getUSDCMoonpayWarpConfig(
         baseOwner,
       ),
       tokenFee: getFixedRoutingFeeConfig(
-        getWarpFeeOwner('base'),
+        MOONPAY_OWNER,
         feeDestinationsByChain.base,
         3,
         undefined,
@@ -249,7 +248,7 @@ export async function getUSDCMoonpayWarpConfig(
         citreaOwner,
       ),
       tokenFee: getFixedRoutingFeeConfig(
-        getWarpFeeOwner('citrea'),
+        MOONPAY_OWNER,
         feeDestinationsByChain.citrea,
         3,
         undefined,
@@ -267,7 +266,7 @@ export async function getUSDCMoonpayWarpConfig(
         ethereumOwner,
       ),
       tokenFee: getFixedRoutingFeeConfig(
-        getWarpFeeOwner('ethereum'),
+        MOONPAY_OWNER,
         feeDestinationsByChain.ethereum,
         3,
         undefined,
