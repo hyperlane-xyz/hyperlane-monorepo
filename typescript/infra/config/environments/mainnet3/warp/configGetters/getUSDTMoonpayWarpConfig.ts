@@ -35,17 +35,11 @@ const CCTP_CHAINS = [
 const AMOUNT_ROUTING_THRESHOLD = 100_000 * 10 ** 6;
 
 const MOONPAY_OWNER = '0xEA2117b24F7947647Bec60527B68f4244AE40c01';
+const NO_OWNER = '0x0000000000000000000000000000000000000000';
 const QUOTE_SIGNERS = [
   '0xEd1829805De615eEFC7303766D395Ea0a1B2b04d',
   '0x6bb7818bbE8d88094Cf3620e58BC6BbEd542B867',
 ];
-
-function trustedRelayerIsm(relayer: string) {
-  return {
-    type: IsmType.TRUSTED_RELAYER,
-    relayer,
-  } as const;
-}
 
 function getCctpFastRouteAddresses(): Record<
   (typeof CCTP_CHAINS)[number],
@@ -69,35 +63,30 @@ function isCctpChain(chain: ChainName): chain is (typeof CCTP_CHAINS)[number] {
   return CCTP_CHAINS.includes(chain as (typeof CCTP_CHAINS)[number]);
 }
 
-function getTrustedRelayer(local: ChainName, remote: ChainName): string {
-  return FAST_PATH_RELAYER;
-}
-
-function buildDefaultIsm(owner: string): IsmConfig {
+function buildDefaultIsm(): IsmConfig {
   return {
     type: IsmType.FALLBACK_ROUTING,
     domains: {},
-    owner,
+    owner: NO_OWNER,
   };
 }
 
 function buildRemoteIsm(
   local: (typeof ROUTE_CHAINS)[number],
   remote: (typeof ROUTE_CHAINS)[number],
-  owner: string,
 ): IsmConfig {
   if (isCctpChain(local) && isCctpChain(remote)) {
     return {
       type: IsmType.AGGREGATION,
       threshold: 2,
       modules: [
-        trustedRelayerIsm(getTrustedRelayer(local, remote)),
+        { type: IsmType.TRUSTED_RELAYER, relayer: FAST_PATH_RELAYER },
         CCTP_FAST_ROUTE_ADDRESSES[local],
       ],
     };
   }
 
-  return buildDefaultIsm(owner);
+  return buildDefaultIsm();
 }
 
 function buildInnerRoutingIsm(
@@ -107,7 +96,7 @@ function buildInnerRoutingIsm(
   const domains = Object.fromEntries(
     ROUTE_CHAINS.filter((remote) => remote !== local).map((remote) => [
       remote,
-      buildRemoteIsm(local, remote, owner),
+      buildRemoteIsm(local, remote),
     ]),
   );
 
@@ -126,13 +115,13 @@ function buildInterchainSecurityModule(
     type: IsmType.AMOUNT_ROUTING,
     threshold: AMOUNT_ROUTING_THRESHOLD,
     lowerIsm: buildInnerRoutingIsm(local, owner),
-    upperIsm: buildDefaultIsm(owner),
+    upperIsm: buildDefaultIsm(),
   } as const;
 
   return {
     type: IsmType.AGGREGATION,
     threshold: 1,
-    modules: [buildDefaultIsm(owner), amountRoutingIsm],
+    modules: [buildDefaultIsm(), amountRoutingIsm],
   } as const;
 }
 

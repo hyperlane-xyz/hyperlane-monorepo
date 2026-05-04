@@ -41,18 +41,13 @@ const SOLANA_IGP_ADDRESS = 'BhNcatUDC2D5JTyeaqrdSukiVFsEHK7e3hVmKMztwefv';
 const SOLANA_XO_TOKEN_MINT = 'xoUSDq85Rjsb6SbUwJyreFgeWQvxdkT7R3c3g7s6p5Y';
 const SOLANA_XO_NAME = 'XO Cash';
 const SOLANA_XO_SYMBOL = 'XO';
+const SOLANA_MOONPAY_OWNER = 'BNGDJ1h9brgt6FFVd8No1TVAH48Fp44d7jkuydr1URwJ';
 const MOONPAY_OWNER = '0xEA2117b24F7947647Bec60527B68f4244AE40c01';
+const NO_OWNER = '0x0000000000000000000000000000000000000000';
 const QUOTE_SIGNERS = [
   '0xEd1829805De615eEFC7303766D395Ea0a1B2b04d',
   '0x6bb7818bbE8d88094Cf3620e58BC6BbEd542B867',
 ];
-
-function trustedRelayerIsm(relayer: string) {
-  return {
-    type: IsmType.TRUSTED_RELAYER,
-    relayer,
-  } as const;
-}
 
 function getCctpFastRouteAddresses(): Record<
   (typeof CCTP_CHAINS)[number],
@@ -76,15 +71,11 @@ function isCctpChain(chain: ChainName): chain is (typeof CCTP_CHAINS)[number] {
   return CCTP_CHAINS.includes(chain as (typeof CCTP_CHAINS)[number]);
 }
 
-function getTrustedRelayer(local: ChainName, remote: ChainName): string {
-  return FAST_PATH_RELAYER;
-}
-
-function buildDefaultIsm(owner: string): IsmConfig {
+function buildDefaultIsm(): IsmConfig {
   return {
     type: IsmType.FALLBACK_ROUTING,
     domains: {},
-    owner,
+    owner: NO_OWNER,
   };
 }
 
@@ -98,7 +89,7 @@ function buildRemoteIsm(
       type: IsmType.AGGREGATION,
       threshold: 2,
       modules: [
-        trustedRelayerIsm(getTrustedRelayer(local, remote)),
+        { type: IsmType.TRUSTED_RELAYER, relayer: FAST_PATH_RELAYER },
         CCTP_FAST_ROUTE_ADDRESSES[local],
       ],
     };
@@ -109,13 +100,13 @@ function buildRemoteIsm(
       type: IsmType.AGGREGATION,
       threshold: 1,
       modules: [
-        trustedRelayerIsm(getTrustedRelayer(local, remote)),
-        buildDefaultIsm(owner),
+        { type: IsmType.TRUSTED_RELAYER, relayer: FAST_PATH_RELAYER },
+        buildDefaultIsm(),
       ],
     };
   }
 
-  return buildDefaultIsm(owner);
+  return buildDefaultIsm();
 }
 
 function buildInnerRoutingIsm(
@@ -145,13 +136,13 @@ function buildInterchainSecurityModule(
     type: IsmType.AMOUNT_ROUTING,
     threshold: AMOUNT_ROUTING_THRESHOLD,
     lowerIsm: buildInnerRoutingIsm(local, owner),
-    upperIsm: buildDefaultIsm(owner),
+    upperIsm: buildDefaultIsm(),
   } as const;
 
   return {
     type: IsmType.AGGREGATION,
     threshold: 1,
-    modules: [buildDefaultIsm(owner), amountRoutingIsm],
+    modules: [buildDefaultIsm(), amountRoutingIsm],
   } as const;
 }
 
@@ -204,7 +195,7 @@ export async function getUSDCMoonpayWarpConfig(
     ]),
   ) as Record<(typeof ROUTE_CHAINS)[number], ChainName[]>;
 
-  const solanamainnetOwner = _abacusWorksEnvOwnerConfig.solanamainnet.owner;
+  const solanamainnetOwner = SOLANA_MOONPAY_OWNER;
   const arbitrumOwner = MOONPAY_OWNER;
   const baseOwner = MOONPAY_OWNER;
   const citreaOwner = MOONPAY_OWNER;
