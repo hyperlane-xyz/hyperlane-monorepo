@@ -11,7 +11,6 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
-import relayerAddresses from '../../../../relayer.json' with { type: 'json' };
 import {
   RouterConfigWithoutOwner,
   tokens,
@@ -19,8 +18,6 @@ import {
 import { getRegistry } from '../../../../registry.js';
 import { WarpRouteIds } from '../warpIds.js';
 import { getFixedRoutingFeeConfig } from './utils.js';
-
-const FAST_PATH_RELAYER = relayerAddresses.mainnet3.fastpath;
 
 const ROUTE_CHAINS = [
   'arbitrum',
@@ -76,14 +73,7 @@ function buildRemoteIsm(
   remote: (typeof ROUTE_CHAINS)[number],
 ): IsmConfig {
   if (isCctpChain(local) && isCctpChain(remote)) {
-    return {
-      type: IsmType.AGGREGATION,
-      threshold: 2,
-      modules: [
-        { type: IsmType.TRUSTED_RELAYER, relayer: FAST_PATH_RELAYER },
-        CCTP_FAST_ROUTE_ADDRESSES[local],
-      ],
-    };
+    return CCTP_FAST_ROUTE_ADDRESSES[local];
   }
 
   return buildDefaultIsm();

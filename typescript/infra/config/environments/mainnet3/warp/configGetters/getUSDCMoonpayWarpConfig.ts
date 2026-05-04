@@ -84,14 +84,7 @@ function buildRemoteIsm(
   remote: (typeof ROUTE_CHAINS)[number],
 ): IsmConfig {
   if (isCctpChain(local) && isCctpChain(remote)) {
-    return {
-      type: IsmType.AGGREGATION,
-      threshold: 2,
-      modules: [
-        { type: IsmType.TRUSTED_RELAYER, relayer: FAST_PATH_RELAYER },
-        CCTP_FAST_ROUTE_ADDRESSES[local],
-      ],
-    };
+    return CCTP_FAST_ROUTE_ADDRESSES[local];
   }
 
   if (local === 'citrea' && remote === 'ethereum') {
