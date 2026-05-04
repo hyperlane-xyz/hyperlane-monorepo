@@ -455,6 +455,12 @@ if (config.type === MyType.Foo) { ... }
 | "Just in case" abstractions      | Premature generalization           | Build for current use case; refactor when pattern repeats |
 | Defensive defaults               | Silently fails instead of alerting | Fail fast with `assert()`                                 |
 
+## Handy CLIs
+
+| CLI      | Purpose                                                                                 |
+| -------- | --------------------------------------------------------------------------------------- |
+| `gcloud` | Interact with Google Cloud (logs, projects, etc). See `/gcp-logs` skill for log queries |
+
 ## Debugging & Operations
 
 ### Skills for Common Tasks
@@ -554,7 +560,6 @@ Available MCP servers:
 
 | Server               | Purpose                       |
 | -------------------- | ----------------------------- |
-| `google-cloud-mcp`   | GCP logging queries           |
 | `grafana`            | Grafana dashboards and alerts |
 | `hyperlane-explorer` | Message status queries        |
 | `notion`             | Documentation access          |

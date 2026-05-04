@@ -41,32 +41,6 @@ function healthEmoji(staleness?: number): string {
   return '❌';
 }
 
-/** Redact path segments after the host (often contain API keys). */
-function redactUrl(url: string): string {
-  try {
-    const u = new URL(url);
-    const hasPath = u.pathname.length > 1; // more than just "/"
-    const hasQuery = u.search.length > 0;
-    const suffix = hasPath || hasQuery ? '/<redacted>' : '/';
-    return `${u.protocol}//${u.host}${suffix}`;
-  } catch (err) {
-    console.warn('Failed to parse URL for redaction', err);
-    return '<redacted-url>';
-  }
-}
-
-/** Strip the raw RPC URL from error messages to avoid leaking secrets. */
-function sanitizeError(msg: string, url: string): string {
-  // Replace exact URL first
-  let sanitized = msg.replaceAll(url, '[REDACTED_RPC_URL]');
-  // Also redact the URL without trailing slash (ethers sometimes strips it)
-  const urlNoTrailingSlash = url.replace(/\/+$/, '');
-  if (urlNoTrailingSlash !== url) {
-    sanitized = sanitized.replaceAll(urlNoTrailingSlash, '[REDACTED_RPC_URL]');
-  }
-  return sanitized;
-}
-
 async function probeUrl(
   url: string,
   expectedChainId: number,
@@ -93,7 +67,7 @@ async function probeUrl(
     };
   } catch (error: unknown) {
     const raw = error instanceof Error ? error.message : String(error);
-    return { url, error: sanitizeError(raw, url) };
+    return { url, error: raw };
   }
 }
 
@@ -110,7 +84,7 @@ function printTable(label: string, results: ProbeResult[], maxBlock: number) {
     if (isProbeError(r)) {
       return {
         '#': i + 1,
-        URL: redactUrl(r.url),
+        URL: r.url,
         'Block #': '—',
         'Block Diff': '—',
         'Block Time': '—',
@@ -123,7 +97,7 @@ function printTable(label: string, results: ProbeResult[], maxBlock: number) {
     const staleness = nowSec - r.blockTimestamp;
     return {
       '#': i + 1,
-      URL: redactUrl(r.url),
+      URL: r.url,
       'Block #': r.blockNumber,
       'Block Diff': maxBlock - r.blockNumber,
       'Block Time': new Date(r.blockTimestamp * 1000).toISOString(),
@@ -177,8 +151,13 @@ async function main() {
     (url: string) => !privateSet.has(url),
   );
 
+  const dedupedCount = allRegistryUrls.length - registryUrls.length;
+  const dedupNote =
+    dedupedCount > 0
+      ? ` (${dedupedCount} registry URL${dedupedCount > 1 ? 's' : ''} already in private set)`
+      : '';
   console.log(
-    `Probing ${privateUrls.length} private + ${registryUrls.length} registry RPCs for ${chain} (${environment})...`,
+    `Probing ${privateUrls.length} private + ${registryUrls.length} registry RPCs for ${chain} (${environment})...${dedupNote}`,
   );
 
   // Probe all URLs concurrently
@@ -191,7 +170,7 @@ async function main() {
       ? s.value
       : {
           url: allUrls[i],
-          error: sanitizeError(String(s.reason), allUrls[i]),
+          error: String(s.reason),
         },
   );
 
@@ -209,11 +188,11 @@ async function main() {
     privateResults,
     maxBlock,
   );
-  printTable(
-    `Registry RPCs (${environment} / ${chain})`,
-    registryResults,
-    maxBlock,
-  );
+  const registryLabel =
+    registryResults.length === 0 && dedupedCount > 0
+      ? `Registry RPCs (${environment} / ${chain}) — all ${dedupedCount} already in private set`
+      : `Registry RPCs (${environment} / ${chain})`;
+  printTable(registryLabel, registryResults, maxBlock);
 
   process.exit(0);
 }
