@@ -21,7 +21,7 @@ The skill parses parameters from conversation context (typically from `/debug-rp
 | `chain`       | Yes      | Conversation context               | Chain name (e.g., `ethereum`)    |
 | `environment` | Yes      | Conversation context or `mainnet3` | `mainnet3` or `testnet4`         |
 | `rpcUrls`     | Yes      | Debug skill's proposed URL list    | JSON array of full RPC URLs      |
-| `refreshK8s`  | No       | User request, default true         | Whether to refresh K8s resources |
+| `refreshK8s`  | No       | User request, default false        | Whether to refresh K8s resources |
 
 ## Workflow
 
@@ -44,7 +44,7 @@ If any required parameter cannot be found, output what's missing and stop.
 
 Before making changes, output what will happen:
 
-```
+```text
 Applying RPC URL changes for <chain> (<environment>):
 New URLs: ["https://url1", "https://url2"]
 Refresh K8s: yes/no
@@ -65,6 +65,8 @@ Omit `--refresh-k8s` if the user explicitly said not to refresh, or if kubectl a
 
 The script validates each URL before applying. If validation fails, it will error out and no changes are made.
 
+> **Note:** URL validation is EVM-only — for non-EVM chains (Cosmos, Sealevel, Radix, etc.) `testProvider` short-circuits and returns healthy without probing. For those chains, double-check the URL set yourself before invoking this skill.
+
 ### Step 5: Verify the Fix
 
 Run the debug script again to confirm the new URLs are healthy:
@@ -78,7 +80,7 @@ pnpm --dir "$MONOREPO_ROOT/typescript/infra" exec tsx scripts/secret-rpc-urls/de
 
 Output a summary:
 
-```
+```text
 RPC URL update for <chain> (<environment>): SUCCESS/FAILED
 
 - Secret updated: yes/no
@@ -99,5 +101,5 @@ RPC URL update for <chain> (<environment>): SUCCESS/FAILED
 
 - **No interactive prompts.** This skill does not use `AskUserQuestion`. The human-in-the-loop gate is the act of invoking `/fix-rpc-urls` itself.
 - The URLs from `/debug-rpc-provider` output can be passed directly.
-- The `set-rpc-urls.ts` script always validates URLs before applying — there is no way to skip validation.
+- The `set-rpc-urls.ts` script always validates URLs before applying for EVM chains — there is no way to skip validation. Non-EVM chains skip URL probing.
 - If `--refresh-k8s` is used, the script refreshes all dependent K8s resources (relayers, validators, scrapers, warp monitors, rebalancers, cronjobs) without prompting.

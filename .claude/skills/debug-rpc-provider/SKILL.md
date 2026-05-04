@@ -14,7 +14,7 @@ Diagnose RPC provider health issues for a Hyperlane chain and recommend fixes.
 
 ## Input Parameters
 
-```
+```test
 /debug-rpc-provider <chain> [environment=mainnet3]
 ```
 
@@ -66,7 +66,7 @@ Output the following structured information:
 
    Format:
 
-   ```
+   ```test
    Proposed new RPC URLs for <chain> (<environment>):
    ["https://full-url-1", "https://full-url-2"]
    ```
@@ -80,11 +80,13 @@ Output the following structured information:
 
 If you recommended URL changes in Step 4, end your response with the confirmation convention so the user gets an approve/reject button:
 
-```
+```test
 [CONFIRM: Fix RPC URLs for <chain>]
 ```
 
 This MUST be the very last thing in your message. Do NOT run `/fix-rpc-urls` yourself — wait for user approval.
+
+> **Note:** `[CONFIRM: ...]` is a Haggis-specific harness primitive — Haggis renders it as an inline approve/reject button. In other Claude Code contexts it is just text, so this skill is intended to be invoked from Haggis.
 
 If all URLs are healthy and no changes are needed, skip this step.
 

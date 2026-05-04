@@ -52,7 +52,10 @@ async function main() {
       type: 'boolean',
       description: 'Skip confirmation prompts (required with --rpc-urls)',
       default: false,
-    }).argv;
+    })
+    // The three write/read modes are mutually exclusive.
+    .conflicts('rpc-urls', ['list-releases', 'refresh-releases'])
+    .conflicts('list-releases', 'refresh-releases').argv;
 
   await assertCorrectKubeContext(getEnvironmentConfig(environment));
 
