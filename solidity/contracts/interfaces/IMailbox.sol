@@ -48,6 +48,8 @@ interface IMailbox {
 
     function delivered(bytes32 messageId) external view returns (bool);
 
+    function processedAt(bytes32 messageId) external view returns (uint48);
+
     function defaultIsm() external view returns (IInterchainSecurityModule);
 
     function defaultHook() external view returns (IPostDispatchHook);
