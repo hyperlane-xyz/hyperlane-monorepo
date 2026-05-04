@@ -82,7 +82,6 @@ function buildDefaultIsm(): IsmConfig {
 function buildRemoteIsm(
   local: (typeof ROUTE_CHAINS)[number],
   remote: (typeof ROUTE_CHAINS)[number],
-  owner: string,
 ): IsmConfig {
   if (isCctpChain(local) && isCctpChain(remote)) {
     return {
@@ -109,15 +108,25 @@ function buildRemoteIsm(
   return buildDefaultIsm();
 }
 
+function shouldIncludeInnerRoutingRemote(
+  local: (typeof ROUTE_CHAINS)[number],
+  remote: (typeof ROUTE_CHAINS)[number],
+): boolean {
+  return (
+    (isCctpChain(local) && isCctpChain(remote)) ||
+    (local === 'citrea' && remote === 'ethereum')
+  );
+}
+
 function buildInnerRoutingIsm(
   local: (typeof ROUTE_CHAINS)[number],
   owner: string,
 ): IsmConfig {
   const domains = Object.fromEntries(
-    ROUTE_CHAINS.filter((remote) => remote !== local).map((remote) => [
-      remote,
-      buildRemoteIsm(local, remote, owner),
-    ]),
+    ROUTE_CHAINS.filter(
+      (remote) =>
+        remote !== local && shouldIncludeInnerRoutingRemote(local, remote),
+    ).map((remote) => [remote, buildRemoteIsm(local, remote)]),
   );
 
   return {
@@ -132,6 +141,8 @@ function buildInterchainSecurityModule(
   owner: string,
 ): IsmConfig | undefined {
   if (local === 'solanamainnet') return undefined;
+  // The outer 1-of-2 already covers default verification for every domain.
+  // The inner routing tree only lists remotes that need stricter handling.
   const amountRoutingIsm = {
     type: IsmType.AMOUNT_ROUTING,
     threshold: AMOUNT_ROUTING_THRESHOLD,
