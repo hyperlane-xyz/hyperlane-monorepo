@@ -39,7 +39,6 @@ const CCTP_FAST_ROUTE_ADDRESSES = {
   base: '0x31169ee5A8C0D680de74461d7B5394fFc7C3576B',
   ethereum: '0x7A576Bb5291567cfDbB4585B1911CF7C9891ea07',
 } as const satisfies Record<(typeof CCTP_CHAINS)[number], string>;
-const ZERO_HOOK = '0x0000000000000000000000000000000000000000';
 
 const SOLANA_IGP_ADDRESS = 'BhNcatUDC2D5JTyeaqrdSukiVFsEHK7e3hVmKMztwefv';
 const QUOTE_SIGNERS = [
@@ -121,22 +120,26 @@ function buildInterchainSecurityModule(
   } as const;
 }
 
-function buildFastRouteHook(local: (typeof CCTP_CHAINS)[number]) {
+function buildFastRouteHook(
+  local: (typeof CCTP_CHAINS)[number],
+  owner: string,
+) {
   return {
     type: HookType.FALLBACK_ROUTING,
-    owner: ZERO_HOOK,
+    owner,
     domains: Object.fromEntries(
       CCTP_CHAINS.filter((remote) => remote !== local).map((remote) => [
         remote,
         {
-          type: HookType.AMOUNT_ROUTING,
-          threshold: AMOUNT_ROUTING_THRESHOLD,
-          lowerHook: CCTP_FAST_ROUTE_ADDRESSES[local],
-          upperHook: ZERO_HOOK,
+          type: HookType.AGGREGATION,
+          hooks: [
+            { type: HookType.MAILBOX_DEFAULT },
+            CCTP_FAST_ROUTE_ADDRESSES[local],
+          ],
         } as const satisfies HookConfig,
       ]),
     ),
-    fallback: ZERO_HOOK,
+    fallback: { type: HookType.MAILBOX_DEFAULT },
   } as const;
 }
 
@@ -148,14 +151,10 @@ function buildHook(local: (typeof ROUTE_CHAINS)[number], owner: string) {
   if (!isCctpChain(local)) return undefined;
 
   return {
-    type: HookType.AGGREGATION,
-    hooks: [
-      { type: HookType.MAILBOX_DEFAULT },
-      {
-        ...buildFastRouteHook(local),
-        owner,
-      },
-    ],
+    type: HookType.AMOUNT_ROUTING,
+    threshold: AMOUNT_ROUTING_THRESHOLD,
+    lowerHook: buildFastRouteHook(local, owner),
+    upperHook: { type: HookType.MAILBOX_DEFAULT },
   } as const satisfies HookConfig;
 }
 
