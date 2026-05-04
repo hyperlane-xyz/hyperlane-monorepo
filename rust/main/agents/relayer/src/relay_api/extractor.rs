@@ -95,7 +95,7 @@ pub async fn extract_messages(
         chain = %chain_name,
         tx_hash = %tx_hash,
         is_cctp_v2,
-        "CCTP V2 burn event check result"
+        "CCTP V2 MessageSent check result"
     );
 
     // Convert all messages to ExtractedMessage structs
@@ -129,9 +129,11 @@ pub async fn extract_messages(
 pub struct ExtractedMessage {
     pub message: HyperlaneMessage,
     pub message_id: H256,
-    /// True when every Dispatch in the transaction has a corresponding CCTP V2 `DepositForBurn`
-    /// event. False for mixed transactions (some CCTP, some unrelated dispatches) so that
-    /// unrelated messages are never routed through the fail-fast CCTP path.
+    /// True when every Dispatch in the transaction has at least one corresponding CCTP V2
+    /// `MessageSent` event from MessageTransmitter V2. Covers both native USDC transfers
+    /// (2 MessageSent per dispatch: burn + GMP hook) and GMP-only transfers (1 MessageSent
+    /// per dispatch). False for mixed transactions so that unrelated messages are never
+    /// routed through the fail-fast CCTP path.
     pub is_cctp_v2: bool,
     /// The origin transaction hash, used by the ccip-server to skip GraphQL lookup.
     pub tx_hash: H512,
