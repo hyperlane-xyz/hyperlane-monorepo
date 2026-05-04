@@ -29,7 +29,7 @@ const CCTP_CHAINS = [
   'base',
   'ethereum',
 ] as const satisfies readonly ChainName[];
-const AMOUNT_ROUTING_THRESHOLD = 100_000 * 10 ** 6;
+const AMOUNT_ROUTING_THRESHOLD = 1_000 * 10 ** 6;
 
 const MOONPAY_OWNER = '0xEA2117b24F7947647Bec60527B68f4244AE40c01';
 const NO_OWNER = '0x0000000000000000000000000000000000000000';

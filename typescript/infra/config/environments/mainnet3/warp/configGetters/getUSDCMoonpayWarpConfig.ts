@@ -35,7 +35,7 @@ const CCTP_CHAINS = [
   'base',
   'ethereum',
 ] as const satisfies readonly ChainName[];
-const AMOUNT_ROUTING_THRESHOLD = 100_000 * 10 ** 6;
+const AMOUNT_ROUTING_THRESHOLD = 1_000 * 10 ** 6;
 
 const SOLANA_IGP_ADDRESS = 'BhNcatUDC2D5JTyeaqrdSukiVFsEHK7e3hVmKMztwefv';
 const SOLANA_XO_TOKEN_MINT = 'xoUSDq85Rjsb6SbUwJyreFgeWQvxdkT7R3c3g7s6p5Y';
