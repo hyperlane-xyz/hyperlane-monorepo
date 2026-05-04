@@ -380,7 +380,8 @@
       "staticMessageIdWeightedMultisigIsmFactory": "0x7c5B5bdA7F1d1F70A6678ABb4d894612Fc76498F",
       "interchainAccountIsm": "0xA7FA26ef3Ea88CD696779735AC9591E01146DA38",
       "interchainAccountRouter": "0x3F100cBBE5FD5466BdB4B3a15Ac226957e7965Ad",
-      "timelockController": "0x0000000000000000000000000000000000000000"
+      "timelockController": "0x0000000000000000000000000000000000000000",
+      "gnosisSafeTransactionServiceUrl": "https://transaction-optimism-sepolia.safe.optimism.io"
     },
     "polygonamoy": {
       "aggregationHook": "0x06a54A2db82D37410C1383c51F96Bd7b3ABD243E",
@@ -481,7 +482,7 @@
       "domainRoutingIsm": "0xfa9a26cCc5417d1C1D03C949b5013Bb5898dA905",
       "domainRoutingIsmFactory": "0x3F100cBBE5FD5466BdB4B3a15Ac226957e7965Ad",
       "fallbackRoutingHook": "0x17Dc724B7a2F09141C13b8AC33B396073785c2BC",
-      "gnosisSafeTransactionServiceUrl": "https://safe-transaction-sepolia.safe.global",
+      "gnosisSafeTransactionServiceUrl": "https://api.safe.global/tx-service/sep",
       "index": {
         "from": 4517401
       },
@@ -1441,7 +1442,8 @@
       "validatorAnnounce": "0x6AD4DEBA8A147d000C09de6465267a9047d1c217",
       "index": {
         "from": 27652999
-      }
+      },
+      "gnosisSafeTransactionServiceUrl": "https://transaction-mode-sepolia.safe.optimism.io"
     },
     "somniatestnet": {
       "blockExplorers": [
