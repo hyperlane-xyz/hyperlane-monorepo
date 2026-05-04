@@ -85,12 +85,11 @@ When it matches, explicitly say this appears to be a known issue and summarize:
 - quick checks performed to confirm nothing changed,
 - why no immediate remediation is expected.
 
-Canonical example:
+Typical shape of a known-issue match:
 
-- Warp route `MILK/bsc-milkyway`
-- Old validator set enrolled on milkyway for messages from BSC
-- Updating ISM enrollment on milkyway is intentionally deferred because the chain is cumbersome to maintain and expected to sunset
-- Recurring validator-down alerts in this context should usually be treated as known unless new impact is detected
+- A specific origin/destination + app_context (e.g. a particular warp route) is named in the known issue.
+- The expected fingerprint is recurring inconsistency from a stale or intentionally-deferred enrollment, not an acute new failure.
+- The known issue explains why remediation is deferred (e.g. enrollment update is non-trivial on that chain, or the chain is winding down) and what would change the assessment.
 
 If you have the ability to track known issues and the issue is not yet tracked as known but appears recurring + currently unactionable, recommend saving it as a known issue candidate.
 

@@ -4,7 +4,7 @@ import select from '@inquirer/select';
 import { ethers } from 'ethers';
 
 import { ChainName } from '@hyperlane-xyz/sdk';
-import { isEVMLike, timeout } from '@hyperlane-xyz/utils';
+import { assert, isEVMLike, timeout } from '@hyperlane-xyz/utils';
 
 import { getChain } from '../../config/registry.js';
 import { getEnvironmentConfig } from '../../scripts/core-utils.js';
@@ -599,8 +599,10 @@ export function getCronjobManagers(
         '', // registryCommit not needed for refresh
       ),
     );
-  } catch {
-    // Environment may not have key funder configured
+  } catch (error) {
+    console.warn(
+      `Skipping key funder cronjob (may not be configured for ${environment}): ${error}`,
+    );
   }
   return managers;
 }
@@ -647,26 +649,31 @@ export async function collectAllK8sHelmManagers(
  * GCP secret, and optionally refreshes dependent K8s resources.
  */
 export async function setRpcUrls(
-  environment: string,
+  environment: DeployEnvironment,
   chain: string,
   rpcUrls: string[],
   options?: { refreshK8s?: boolean },
 ): Promise<void> {
-  // Validate all URLs
-  for (const url of rpcUrls) {
-    const healthy = await testProvider(chain, url);
-    if (!healthy) {
-      throw new Error(`Provider validation failed for ${url}`);
-    }
+  assert(rpcUrls.length > 0, 'rpcUrls must be non-empty');
+
+  // Validate all URLs in parallel
+  const healthChecks = await Promise.all(
+    rpcUrls.map(async (url) => ({
+      url,
+      healthy: await testProvider(chain, url),
+    })),
+  );
+  const unhealthy = healthChecks.filter((r) => !r.healthy).map((r) => r.url);
+  if (unhealthy.length > 0) {
+    throw new Error(`Provider validation failed for: ${unhealthy.join(', ')}`);
   }
 
   const secretPayload = JSON.stringify(rpcUrls);
   await updateSecretAndDisablePrevious(environment, chain, secretPayload);
 
   if (options?.refreshK8s) {
-    const deployEnv = environment as DeployEnvironment;
     const { serviceManagers, tollkeeperManagers, cronjobManagers } =
-      await collectAllK8sHelmManagers(deployEnv, chain);
+      await collectAllK8sHelmManagers(environment, chain);
     const allManagersForSecrets = [
       ...serviceManagers,
       ...tollkeeperManagers,

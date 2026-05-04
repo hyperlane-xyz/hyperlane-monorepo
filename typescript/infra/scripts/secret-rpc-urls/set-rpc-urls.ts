@@ -1,6 +1,5 @@
 import { assert } from '@hyperlane-xyz/utils';
 
-import { DeployEnvironment } from '../../src/config/deploy-environment.js';
 import {
   listAffectedReleases,
   refreshSelectedReleases,
@@ -68,10 +67,7 @@ async function main() {
       chains.length === 1,
       '--list-releases only supports a single chain at a time',
     );
-    const releases = await listAffectedReleases(
-      environment as DeployEnvironment,
-      chains[0],
-    );
+    const releases = await listAffectedReleases(environment, chains[0]);
     console.log(JSON.stringify(releases, null, 2));
     return;
   }
@@ -88,11 +84,7 @@ async function main() {
       .map((r) => r.trim())
       .filter(Boolean);
     assert(releaseNames.length > 0, 'No release names provided');
-    await refreshSelectedReleases(
-      environment as DeployEnvironment,
-      chains[0],
-      releaseNames,
-    );
+    await refreshSelectedReleases(environment, chains[0], releaseNames);
     return;
   }
 
@@ -107,8 +99,8 @@ async function main() {
     let rpcUrls: string[];
     try {
       rpcUrls = JSON.parse(rpcUrlsJson);
-    } catch {
-      console.error('Failed to parse --rpc-urls as JSON');
+    } catch (e) {
+      console.error(`Failed to parse --rpc-urls as JSON: ${e}`);
       process.exit(1);
     }
     assert(
