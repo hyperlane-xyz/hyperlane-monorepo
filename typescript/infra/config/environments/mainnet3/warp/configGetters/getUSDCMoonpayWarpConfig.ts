@@ -1,38 +1,54 @@
 import {
-  AggregationIsmConfig,
   ChainMap,
   ChainName,
+  HookType,
   HypTokenRouterConfig,
   IsmType,
   OwnableConfig,
-  RoutingIsmConfig,
   TokenType,
 } from '@hyperlane-xyz/sdk';
 
 import relayerAddresses from '../../../../relayer.json' with { type: 'json' };
-import { DEFAULT_OFFCHAIN_LOOKUP_ISM_URLS } from '../../../utils.js';
 import {
   RouterConfigWithoutOwner,
   tokens,
 } from '../../../../../src/config/warp.js';
-import { getExistingWarpDeployConfig } from './utils.js';
+import { getWarpFeeOwner } from '../../governance/utils.js';
+import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
+import { getFixedRoutingFeeConfig } from './utils.js';
 
-const STAGING_SOURCE_WARP_ROUTE_ID = 'USDC/ctusd';
 const FAST_PATH_RELAYER = relayerAddresses.mainnet3.fastpath;
 const HYPERLANE_RELAYER = relayerAddresses.mainnet3.hyperlane;
-const CCTP_CAPABLE_CHAINS: ChainName[] = ['arbitrum', 'base', 'ethereum'];
-const ROUTE_CHAINS: ChainName[] = [
+
+const ROUTE_CHAINS = [
   'solanamainnet',
   'arbitrum',
   'base',
   'citrea',
   'ethereum',
   'katana',
-];
+] as const satisfies readonly ChainName[];
+const CCTP_CHAINS = [
+  'arbitrum',
+  'base',
+  'ethereum',
+] as const satisfies readonly ChainName[];
+
+const CCTP_FAST_ROUTE_ADDRESSES = {
+  arbitrum: '0xE086378F7f0afd5C3ff95E10B5e7806a0901b33f',
+  base: '0x31169ee5A8C0D680de74461d7B5394fFc7C3576B',
+  ethereum: '0x7A576Bb5291567cfDbB4585B1911CF7C9891ea07',
+} as const satisfies Record<(typeof CCTP_CHAINS)[number], string>;
+
+const SOLANA_IGP_ADDRESS = 'BhNcatUDC2D5JTyeaqrdSukiVFsEHK7e3hVmKMztwefv';
 const SOLANA_XO_TOKEN_MINT = 'xoUSDq85Rjsb6SbUwJyreFgeWQvxdkT7R3c3g7s6p5Y';
 const SOLANA_XO_NAME = 'XO Cash';
 const SOLANA_XO_SYMBOL = 'XO';
 const KATANA_VBUSDC_TOKEN = '0x203A662b0BD271A6ed5a60EdFbd04bFce608FD36';
+const QUOTE_SIGNERS = [
+  '0xEd1829805De615eEFC7303766D395Ea0a1B2b04d',
+  '0x6bb7818bbE8d88094Cf3620e58BC6BbEd542B867',
+];
 
 function trustedRelayerIsm(relayer: string) {
   return {
@@ -41,43 +57,25 @@ function trustedRelayerIsm(relayer: string) {
   } as const;
 }
 
-function cctpOrTrustedRelayerIsm(
-  owner: string,
-  relayer: string,
-): AggregationIsmConfig {
-  return {
-    type: IsmType.AGGREGATION,
-    threshold: 1,
-    modules: [
-      {
-        type: IsmType.OFFCHAIN_LOOKUP,
-        owner,
-        urls: DEFAULT_OFFCHAIN_LOOKUP_ISM_URLS,
-      },
-      trustedRelayerIsm(relayer),
-    ],
-  };
-}
-
 function getTrustedRelayer(local: ChainName, remote: ChainName): string {
   return local === 'solanamainnet' || remote === 'solanamainnet'
     ? HYPERLANE_RELAYER
     : FAST_PATH_RELAYER;
 }
 
-function getInterchainSecurityModule(
-  local: ChainName,
+function buildInterchainSecurityModule(
+  local: (typeof ROUTE_CHAINS)[number],
   owner: string,
-): RoutingIsmConfig | ReturnType<typeof trustedRelayerIsm> {
+) {
   if (local === 'solanamainnet') {
     return trustedRelayerIsm(HYPERLANE_RELAYER);
   }
 
   const domains = Object.fromEntries(
-    ROUTE_CHAINS.filter((chain) => chain !== local).map((remote) => [
+    ROUTE_CHAINS.filter((remote) => remote !== local).map((remote) => [
       remote,
-      local !== 'citrea' && CCTP_CAPABLE_CHAINS.includes(remote)
-        ? cctpOrTrustedRelayerIsm(owner, getTrustedRelayer(local, remote))
+      CCTP_CHAINS.includes(local) && CCTP_CHAINS.includes(remote)
+        ? CCTP_FAST_ROUTE_ADDRESSES[local]
         : trustedRelayerIsm(getTrustedRelayer(local, remote)),
     ]),
   );
@@ -86,96 +84,154 @@ function getInterchainSecurityModule(
     type: IsmType.ROUTING,
     owner,
     domains,
-  };
+  } as const;
+}
+
+function buildHook(local: (typeof ROUTE_CHAINS)[number], owner: string) {
+  if (local === 'solanamainnet') {
+    return SOLANA_IGP_ADDRESS;
+  }
+
+  if (!CCTP_CHAINS.includes(local)) {
+    return undefined;
+  }
+
+  const domains = Object.fromEntries(
+    ROUTE_CHAINS.filter(
+      (remote) => remote !== local && CCTP_CHAINS.includes(remote),
+    ).map((remote) => [remote, CCTP_FAST_ROUTE_ADDRESSES[local]]),
+  );
+
+  return {
+    type: HookType.FALLBACK_ROUTING,
+    owner,
+    domains,
+    fallback: {
+      type: HookType.MAILBOX_DEFAULT,
+    },
+  } as const;
 }
 
 export async function getUSDCMoonpayWarpConfig(
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
 ): Promise<ChainMap<HypTokenRouterConfig>> {
-  const existingConfig = await getExistingWarpDeployConfig(
-    STAGING_SOURCE_WARP_ROUTE_ID,
-  );
-  const solanamainnetOwner =
-    existingConfig.solanamainnet.owner ??
-    abacusWorksEnvOwnerConfig.solanamainnet.owner;
-  const arbitrumOwner =
-    existingConfig.arbitrum.owner ?? abacusWorksEnvOwnerConfig.arbitrum.owner;
-  const baseOwner =
-    existingConfig.base.owner ?? abacusWorksEnvOwnerConfig.base.owner;
-  const citreaOwner =
-    existingConfig.citrea.owner ?? abacusWorksEnvOwnerConfig.citrea.owner;
-  const ethereumOwner =
-    existingConfig.ethereum.owner ?? abacusWorksEnvOwnerConfig.ethereum.owner;
-  const katanaOwner =
-    existingConfig.katana.owner ?? abacusWorksEnvOwnerConfig.katana.owner;
+  const feeDestinationsByChain = Object.fromEntries(
+    ROUTE_CHAINS.map((local) => [
+      local,
+      ROUTE_CHAINS.filter((remote) => remote !== local),
+    ]),
+  ) as Record<(typeof ROUTE_CHAINS)[number], ChainName[]>;
+
+  const solanamainnetOwner = abacusWorksEnvOwnerConfig.solanamainnet.owner;
+  const arbitrumOwner = abacusWorksEnvOwnerConfig.arbitrum.owner;
+  const baseOwner = abacusWorksEnvOwnerConfig.base.owner;
+  const citreaOwner = abacusWorksEnvOwnerConfig.citrea.owner;
+  const ethereumOwner = abacusWorksEnvOwnerConfig.ethereum.owner;
+  const katanaOwner = abacusWorksEnvOwnerConfig.katana.owner;
 
   return {
-    ...existingConfig,
     solanamainnet: {
-      ...existingConfig.solanamainnet,
-      mailbox: routerConfig.solanamainnet.mailbox,
-      owner: solanamainnetOwner,
       type: TokenType.crossCollateral,
       token: SOLANA_XO_TOKEN_MINT,
-      name: SOLANA_XO_NAME,
-      symbol: SOLANA_XO_SYMBOL,
-      decimals: 6,
-      interchainSecurityModule: getInterchainSecurityModule(
+      mailbox: routerConfig.solanamainnet.mailbox,
+      owner: solanamainnetOwner,
+      hook: buildHook('solanamainnet', solanamainnetOwner),
+      interchainSecurityModule: buildInterchainSecurityModule(
         'solanamainnet',
         solanamainnetOwner,
       ),
+      gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
+      name: SOLANA_XO_NAME,
+      symbol: SOLANA_XO_SYMBOL,
+      decimals: 6,
     },
     arbitrum: {
-      ...existingConfig.arbitrum,
-      mailbox: routerConfig.arbitrum.mailbox,
-      owner: arbitrumOwner,
       type: TokenType.crossCollateral,
       token: tokens.arbitrum.USDC,
-      interchainSecurityModule: getInterchainSecurityModule(
+      mailbox: routerConfig.arbitrum.mailbox,
+      owner: arbitrumOwner,
+      hook: buildHook('arbitrum', arbitrumOwner),
+      interchainSecurityModule: buildInterchainSecurityModule(
         'arbitrum',
         arbitrumOwner,
       ),
+      tokenFee: getFixedRoutingFeeConfig(
+        getWarpFeeOwner('arbitrum'),
+        feeDestinationsByChain.arbitrum,
+        3,
+        undefined,
+        QUOTE_SIGNERS,
+      ),
     },
     base: {
-      ...existingConfig.base,
-      mailbox: routerConfig.base.mailbox,
-      owner: baseOwner,
       type: TokenType.crossCollateral,
       token: tokens.base.USDC,
-      interchainSecurityModule: getInterchainSecurityModule('base', baseOwner),
+      mailbox: routerConfig.base.mailbox,
+      owner: baseOwner,
+      hook: buildHook('base', baseOwner),
+      interchainSecurityModule: buildInterchainSecurityModule(
+        'base',
+        baseOwner,
+      ),
+      tokenFee: getFixedRoutingFeeConfig(
+        getWarpFeeOwner('base'),
+        feeDestinationsByChain.base,
+        3,
+        undefined,
+        QUOTE_SIGNERS,
+      ),
     },
     citrea: {
-      ...existingConfig.citrea,
-      mailbox: routerConfig.citrea.mailbox,
-      owner: citreaOwner,
       type: TokenType.crossCollateral,
       token: tokens.citrea.ctUSD,
-      interchainSecurityModule: getInterchainSecurityModule(
+      mailbox: routerConfig.citrea.mailbox,
+      owner: citreaOwner,
+      interchainSecurityModule: buildInterchainSecurityModule(
         'citrea',
         citreaOwner,
       ),
+      tokenFee: getFixedRoutingFeeConfig(
+        getWarpFeeOwner('citrea'),
+        feeDestinationsByChain.citrea,
+        3,
+        undefined,
+        QUOTE_SIGNERS,
+      ),
     },
     ethereum: {
-      ...existingConfig.ethereum,
-      mailbox: routerConfig.ethereum.mailbox,
-      owner: ethereumOwner,
       type: TokenType.crossCollateral,
       token: tokens.ethereum.USDC,
-      interchainSecurityModule: getInterchainSecurityModule(
+      mailbox: routerConfig.ethereum.mailbox,
+      owner: ethereumOwner,
+      hook: buildHook('ethereum', ethereumOwner),
+      interchainSecurityModule: buildInterchainSecurityModule(
         'ethereum',
         ethereumOwner,
       ),
+      tokenFee: getFixedRoutingFeeConfig(
+        getWarpFeeOwner('ethereum'),
+        feeDestinationsByChain.ethereum,
+        3,
+        undefined,
+        QUOTE_SIGNERS,
+      ),
     },
     katana: {
-      ...existingConfig.katana,
-      mailbox: routerConfig.katana.mailbox,
-      owner: katanaOwner,
       type: TokenType.crossCollateral,
       token: KATANA_VBUSDC_TOKEN,
-      interchainSecurityModule: getInterchainSecurityModule(
+      mailbox: routerConfig.katana.mailbox,
+      owner: katanaOwner,
+      interchainSecurityModule: buildInterchainSecurityModule(
         'katana',
         katanaOwner,
+      ),
+      tokenFee: getFixedRoutingFeeConfig(
+        getWarpFeeOwner('katana'),
+        feeDestinationsByChain.katana,
+        3,
+        undefined,
+        QUOTE_SIGNERS,
       ),
     },
   };
