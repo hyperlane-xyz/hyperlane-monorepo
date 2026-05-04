@@ -1,5 +1,32 @@
 # @hyperlane-xyz/sdk
 
+## 33.1.0
+
+### Minor Changes
+
+- 47649b7: Added CCTP hook type
+- d9dec53: Relay API configuration fields were added to RelayerAgentConfigSchema (relayApiEnabled, relayApiPort, relayApiRateLimitMaxRequests, relayApiRateLimitWindowSecs, relayApiCorsOrigins). All fields are optional for backward compatibility.
+
+### Patch Changes
+
+- 6f4b790: Added batched transaction submission for hook, IGP, and routing ISM deployments to avoid hitting gas limits on chains with lower block gas caps. Chain-specific batch size overrides were added (e.g. citrea). Routing ISM deployment was refactored to deploy with an initial batch of domains and enroll the remainder individually, with per-chain initialization sizes; the final `transferOwnership` call is skipped when the deployer is already the configured owner. The gas buffer multiplier was increased for ISM factory deployments. A configurable `minConfirmationTimeoutMs` option was added to `MultiProvider`. The `defaultEthersV5ProviderBuilder` `retryOverride` parameter was widened from `ProviderRetryOptions` to `SmartProviderOptions` so callers can pass `fallbackStaggerMs`.
+- bfe4d2e: Import cycles flagged by oxlint were resolved by extracting shared code into dedicated leaf modules, performing a hard cutover (no backcompat re-exports), and using dependency injection for submitter factories and aggregation metadata decoding. The `import/no-cycle` lint rule is now enforced as an error.
+- 6929388: Fixed cctp transfer validation
+- 0b1c1d1: Fixed two `WarpCore` issues for `QuotedCalls` flows:
+  - Updated `resolveQuotedCallsParams` to treat `EvmHypNative` routes as native (zero-address token) by also checking `isHypNative()`. Previously, native warp routers were misidentified — `getQuotedTransferFee` returned `msg.value` (transfer amount + fee) as the IGP quote, so UIs displayed the bridged amount itself as "Interchain Gas".
+  - Added an optional `quotedCalls` param to `getLocalTransferFee` and `getLocalTransferFeeAmount`, forwarded to `getTransferRemoteTxs`. Internal gas estimation now builds the actual `QuotedCalls.execute(...)` multicall instead of plain `transferRemote`, giving accurate pre-sign gas estimates for the QuotedCalls path. Callers were previously hardcoding `localQuote = 0`.
+
+- Updated dependencies [bfe4d2e]
+  - @hyperlane-xyz/provider-sdk@6.0.0
+  - @hyperlane-xyz/aleo-sdk@33.1.0
+  - @hyperlane-xyz/cosmos-sdk@33.1.0
+  - @hyperlane-xyz/deploy-sdk@6.0.0
+  - @hyperlane-xyz/radix-sdk@33.1.0
+  - @hyperlane-xyz/tron-sdk@23.0.5
+  - @hyperlane-xyz/starknet-core@33.1.0
+  - @hyperlane-xyz/utils@33.1.0
+  - @hyperlane-xyz/core@11.3.1
+
 ## 33.0.2
 
 ### Patch Changes

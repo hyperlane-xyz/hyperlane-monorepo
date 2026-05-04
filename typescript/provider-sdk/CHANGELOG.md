@@ -1,5 +1,15 @@
 # @hyperlane-xyz/provider-sdk
 
+## 6.0.0
+
+### Major Changes
+
+- bfe4d2e: Breaking: the `./protocol` subpath no longer re-exports `ProtocolType`, `ProtocolTypeValue`, or `ProtocolSmallestUnit`. These were moved to the new `./protocolType` module to break an import cycle. Import them from the main `@hyperlane-xyz/provider-sdk` entry instead.
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@33.1.0
+
 ## 5.1.0
 
 ### Minor Changes

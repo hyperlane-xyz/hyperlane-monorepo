@@ -1,5 +1,21 @@
 # @hyperlane-xyz/relayer
 
+## 1.1.28
+
+### Patch Changes
+
+- bfe4d2e: Import cycles flagged by oxlint were resolved by extracting shared code into dedicated leaf modules, performing a hard cutover (no backcompat re-exports), and using dependency injection for submitter factories and aggregation metadata decoding. The `import/no-cycle` lint rule is now enforced as an error.
+- Updated dependencies [6f4b790]
+- Updated dependencies [bfe4d2e]
+- Updated dependencies [6929388]
+- Updated dependencies [47649b7]
+- Updated dependencies [0b1c1d1]
+- Updated dependencies [d9dec53]
+  - @hyperlane-xyz/sdk@33.1.0
+  - @hyperlane-xyz/metrics@0.2.21
+  - @hyperlane-xyz/utils@33.1.0
+  - @hyperlane-xyz/core@11.3.1
+
 ## 1.1.27
 
 ### Patch Changes
