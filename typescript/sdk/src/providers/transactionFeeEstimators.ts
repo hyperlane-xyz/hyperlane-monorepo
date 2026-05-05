@@ -50,9 +50,41 @@ export interface TransactionFeeEstimate {
   fee: number | bigint;
 }
 
+const maxStargateClientCacheSize = 32;
 const stargateClients = new Map<string, Promise<StargateClient>>();
 
+function shouldCacheStargateClient(url: string): boolean {
+  return !url.startsWith('ws://') && !url.startsWith('wss://');
+}
+
+function disconnectStargateClient(client: Promise<StargateClient>): void {
+  void client.then(
+    (stargateClient) => stargateClient.disconnect(),
+    () => undefined,
+  );
+}
+
+function evictStargateClient(
+  url: string,
+  client?: Promise<StargateClient>,
+): void {
+  const cachedClient = stargateClients.get(url);
+  if (!cachedClient || (client && cachedClient !== client)) return;
+
+  stargateClients.delete(url);
+  disconnectStargateClient(cachedClient);
+}
+
+export function clearCachedStargateClients(): void {
+  for (const client of stargateClients.values()) {
+    disconnectStargateClient(client);
+  }
+  stargateClients.clear();
+}
+
 function getStargateClient(url: string): Promise<StargateClient> {
+  if (!shouldCacheStargateClient(url)) return StargateClient.connect(url);
+
   let client = stargateClients.get(url);
   if (!client) {
     client = StargateClient.connect(url).catch((error) => {
@@ -60,6 +92,15 @@ function getStargateClient(url: string): Promise<StargateClient> {
       throw error;
     });
     stargateClients.set(url, client);
+  } else {
+    stargateClients.delete(url);
+    stargateClients.set(url, client);
+  }
+
+  while (stargateClients.size > maxStargateClientCacheSize) {
+    const oldestUrl = stargateClients.keys().next().value;
+    if (!oldestUrl) break;
+    evictStargateClient(oldestUrl);
   }
   return client;
 }
@@ -243,14 +284,23 @@ export async function estimateTransactionFeeCosmJsWasm({
   const url: string = wasmClient.cometClient.client.url;
   const stargateClient = getStargateClient(url);
 
-  return estimateTransactionFeeCosmJs({
-    transaction: { type: ProviderType.CosmJs, transaction: message },
-    provider: { type: ProviderType.CosmJs, provider: stargateClient },
-    estimatedGasPrice,
-    sender,
-    senderPubKey,
-    memo,
-  });
+  try {
+    return await estimateTransactionFeeCosmJs({
+      transaction: { type: ProviderType.CosmJs, transaction: message },
+      provider: { type: ProviderType.CosmJs, provider: stargateClient },
+      estimatedGasPrice,
+      sender,
+      senderPubKey,
+      memo,
+    });
+  } catch (error) {
+    evictStargateClient(url, stargateClient);
+    throw error;
+  } finally {
+    if (!shouldCacheStargateClient(url)) {
+      disconnectStargateClient(stargateClient);
+    }
+  }
 }
 
 export async function estimateTransactionFeeCosmJsNative({

@@ -26,6 +26,10 @@ import {
 import { COSMOS_MODULE_MESSAGE_REGISTRY as R } from '../registry.js';
 import { getWarpTokenType } from '../warp/warp-query.js';
 
+function shouldCacheStargateClient(url: string): boolean {
+  return !url.startsWith('ws://') && !url.startsWith('wss://');
+}
+
 export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
   private readonly query: QueryClient &
     BankExtension &
@@ -110,36 +114,52 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
       req.senderPubKey,
       `Cosmos Native requires a sender public key to estimate the transaction fee`,
     );
-    const stargateClient = await this.getStargateClient();
+    const stargateClientPromise = this.getStargateClient();
+    let stargateClient: StargateClient | undefined;
 
-    const message = this.registry.encodeAsAny(req.transaction);
-    const pubKey = encodeSecp256k1Pubkey(
-      new Uint8Array(Buffer.from(strip0x(req.senderPubKey), 'hex')),
-    );
+    try {
+      stargateClient = await stargateClientPromise;
 
-    const queryClient = stargateClient['getQueryClient']();
-    assert(queryClient, `queryClient could not be found on stargate client`);
+      const message = this.registry.encodeAsAny(req.transaction);
+      const pubKey = encodeSecp256k1Pubkey(
+        new Uint8Array(Buffer.from(strip0x(req.senderPubKey), 'hex')),
+      );
 
-    const { sequence } = await stargateClient.getSequence(req.senderAddress);
-    const { gasInfo } = await queryClient.tx.simulate(
-      [message],
-      undefined,
-      pubKey,
-      sequence,
-    );
-    const gasUnits = Uint53.fromString(
-      gasInfo?.gasUsed.toString() ?? '0',
-    ).toNumber();
+      const queryClient = stargateClient['getQueryClient']();
+      assert(queryClient, `queryClient could not be found on stargate client`);
 
-    const gasPrice = parseFloat(req.estimatedGasPrice.toString());
-    return {
-      gasUnits: BigInt(gasUnits),
-      gasPrice,
-      fee: BigInt(Math.floor(gasUnits * gasPrice)),
-    };
+      const { sequence } = await stargateClient.getSequence(req.senderAddress);
+      const { gasInfo } = await queryClient.tx.simulate(
+        [message],
+        undefined,
+        pubKey,
+        sequence,
+      );
+      const gasUnits = Uint53.fromString(
+        gasInfo?.gasUsed.toString() ?? '0',
+      ).toNumber();
+
+      const gasPrice = parseFloat(req.estimatedGasPrice.toString());
+      return {
+        gasUnits: BigInt(gasUnits),
+        gasPrice,
+        fee: BigInt(Math.floor(gasUnits * gasPrice)),
+      };
+    } catch (error) {
+      this.evictStargateClient(stargateClientPromise);
+      throw error;
+    } finally {
+      if (!shouldCacheStargateClient(this.rpcUrls[0])) {
+        stargateClient?.disconnect();
+      }
+    }
   }
 
   private getStargateClient(): Promise<StargateClient> {
+    if (!shouldCacheStargateClient(this.rpcUrls[0])) {
+      return StargateClient.connect(this.rpcUrls[0]);
+    }
+
     this.stargateClient ??= StargateClient.connect(this.rpcUrls[0]).catch(
       (error) => {
         this.stargateClient = undefined;
@@ -147,6 +167,23 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
       },
     );
     return this.stargateClient;
+  }
+
+  private evictStargateClient(client: Promise<StargateClient>): void {
+    if (this.stargateClient !== client) return;
+
+    this.stargateClient = undefined;
+    void client.then(
+      (stargateClient) => stargateClient.disconnect(),
+      () => undefined,
+    );
+  }
+
+  disconnect(): void {
+    this.cometClient.disconnect();
+    if (this.stargateClient) {
+      this.evictStargateClient(this.stargateClient);
+    }
   }
 
   async isMessageDelivered(req: AltVM.ReqIsMessageDelivered): Promise<boolean> {
