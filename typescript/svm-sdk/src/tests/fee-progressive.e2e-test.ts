@@ -12,7 +12,7 @@ import {
   SvmProgressiveFeeReader,
   SvmProgressiveFeeWriter,
 } from '../fee/progressive-fee.js';
-import { DEFAULT_FEE_SALT } from '../fee/types.js';
+import { DEFAULT_FEE_SALT, type SvmFeeWriterConfig } from '../fee/types.js';
 import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
 import { createRpc } from '../rpc.js';
 import { TEST_SVM_CHAIN_METADATA } from '../testing/constants.js';
@@ -38,9 +38,13 @@ describe('SVM Progressive Fee E2E Tests', function () {
     );
     await airdropSol(rpc, address(signer.getSignerAddress()), 100_000_000_000n);
 
+    const writerConfig: SvmFeeWriterConfig = {
+      program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenFee },
+    };
+
     ctx = {
       writer: new SvmProgressiveFeeWriter(
-        { program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenFee } },
+        writerConfig,
         rpc,
         1,
         signer,
@@ -49,6 +53,9 @@ describe('SVM Progressive Fee E2E Tests', function () {
       reader: new SvmProgressiveFeeReader(rpc, DEFAULT_FEE_SALT),
       signer,
       rpc,
+      rpcUrl: TEST_SVM_CHAIN_METADATA.rpcUrl,
+      makeWriter: (s) =>
+        new SvmProgressiveFeeWriter(writerConfig, rpc, 1, s, DEFAULT_FEE_SALT),
       makeConfig: (overrides) => ({
         type: FeeType.progressive,
         owner: signer.getSignerAddress(),
