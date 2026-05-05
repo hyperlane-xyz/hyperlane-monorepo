@@ -204,11 +204,14 @@ export async function getSetRemoteFeeRouteInstruction(
   feeData: SvmFeeDataStrategy,
   signers: Uint8Array[] | null,
 ): Promise<Instruction> {
-  const { address: routePda } = await deriveRouteDomainPda(
-    programId,
-    feeAccount,
-    domain,
-  );
+  const { address: routePda } = targetRouter
+    ? await deriveCrossCollateralRoutePda(
+        programId,
+        feeAccount,
+        domain,
+        targetRouter,
+      )
+    : await deriveRouteDomainPda(programId, feeAccount, domain);
   const { address: standingQuotePda } = await deriveStandingQuotePda(
     programId,
     feeAccount,
@@ -243,11 +246,14 @@ export async function getRemoveRemoteFeeRouteInstruction(
   domain: number,
   targetRouter: Uint8Array | null,
 ): Promise<Instruction> {
-  const { address: routePda } = await deriveRouteDomainPda(
-    programId,
-    feeAccount,
-    domain,
-  );
+  const { address: routePda } = targetRouter
+    ? await deriveCrossCollateralRoutePda(
+        programId,
+        feeAccount,
+        domain,
+        targetRouter,
+      )
+    : await deriveRouteDomainPda(programId, feeAccount, domain);
   const { address: standingQuotePda } = await deriveStandingQuotePda(
     programId,
     feeAccount,
