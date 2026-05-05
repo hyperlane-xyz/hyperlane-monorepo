@@ -125,6 +125,29 @@ export function encodeRoutingFeeConfig(
   return encodeBTreeSetH160(config.wildcardSigners);
 }
 
+// ====== Cross-Collateral Routing Fee Config ======
+
+export const CC_ROUTE_DISCRIMINATOR = new Uint8Array([
+  0x43,
+  0x43,
+  0x5f,
+  0x52,
+  0x4f,
+  0x55,
+  0x54,
+  0x45, // CC_ROUTE
+]);
+
+export interface SvmCrossCollateralRoutingFeeConfig {
+  wildcardSigners: Uint8Array[];
+}
+
+export function encodeCrossCollateralRoutingFeeConfig(
+  config: SvmCrossCollateralRoutingFeeConfig,
+): ReadonlyUint8Array {
+  return encodeBTreeSetH160(config.wildcardSigners);
+}
+
 // ====== Route Key ======
 
 export const SvmRouteKeyKind = {
@@ -161,7 +184,11 @@ export function encodeRouteKey(key: SvmRouteKey): ReadonlyUint8Array {
 
 export type SvmFeeData =
   | { kind: typeof FeeDataKind.Leaf; config: SvmLeafFeeConfig }
-  | { kind: typeof FeeDataKind.Routing; config: SvmRoutingFeeConfig };
+  | { kind: typeof FeeDataKind.Routing; config: SvmRoutingFeeConfig }
+  | {
+      kind: typeof FeeDataKind.CrossCollateralRouting;
+      config: SvmCrossCollateralRoutingFeeConfig;
+    };
 
 export function encodeFeeData(data: SvmFeeData): ReadonlyUint8Array {
   switch (data.kind) {
@@ -169,6 +196,11 @@ export function encodeFeeData(data: SvmFeeData): ReadonlyUint8Array {
       return concatBytes(u8(data.kind), encodeLeafFeeConfig(data.config));
     case FeeDataKind.Routing:
       return concatBytes(u8(data.kind), encodeRoutingFeeConfig(data.config));
+    case FeeDataKind.CrossCollateralRouting:
+      return concatBytes(
+        u8(data.kind),
+        encodeCrossCollateralRoutingFeeConfig(data.config),
+      );
 
     default: {
       const _exhaustive: never = data;

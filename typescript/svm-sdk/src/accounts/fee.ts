@@ -6,6 +6,7 @@ import {
 } from '../codecs/account-data.js';
 import type { ByteCursor } from '../codecs/binary.js';
 import {
+  CC_ROUTE_DISCRIMINATOR,
   FEE_ACCT_DISCRIMINATOR,
   ROUTEDOM_DISCRIMINATOR,
   STDQUOTE_DISCRIMINATOR,
@@ -27,6 +28,10 @@ export type DecodedFeeData =
     }
   | {
       kind: typeof FeeDataKind.Routing;
+      wildcardSigners: Uint8Array[];
+    }
+  | {
+      kind: typeof FeeDataKind.CrossCollateralRouting;
       wildcardSigners: Uint8Array[];
     };
 
@@ -79,6 +84,11 @@ function decodeFeeData(cursor: ByteCursor): DecodedFeeData {
         kind,
         wildcardSigners: readSigners(cursor),
       };
+    case FeeDataKind.CrossCollateralRouting:
+      return {
+        kind,
+        wildcardSigners: readSigners(cursor),
+      };
 
     default:
       throw new Error(`Unhandled FeeData kind: ${kind}`);
@@ -123,6 +133,27 @@ export interface RouteDomainData {
 export function decodeRouteDomain(raw: Uint8Array): RouteDomainData | null {
   const wrapped = decodeAccountData(raw, (cursor) =>
     decodeDiscriminatorPrefixed(cursor, ROUTEDOM_DISCRIMINATOR, (c) => ({
+      bumpSeed: c.readU8(),
+      feeData: decodeFeeDataStrategy(c),
+      signers: readOptionSigners(c),
+    })),
+  );
+  return wrapped.data;
+}
+
+// ====== Cross-Collateral Route ======
+
+export interface CrossCollateralRouteData {
+  bumpSeed: number;
+  feeData: SvmFeeDataStrategy;
+  signers: Uint8Array[] | null;
+}
+
+export function decodeCrossCollateralRoute(
+  raw: Uint8Array,
+): CrossCollateralRouteData | null {
+  const wrapped = decodeAccountData(raw, (cursor) =>
+    decodeDiscriminatorPrefixed(cursor, CC_ROUTE_DISCRIMINATOR, (c) => ({
       bumpSeed: c.readU8(),
       feeData: decodeFeeDataStrategy(c),
       signers: readOptionSigners(c),

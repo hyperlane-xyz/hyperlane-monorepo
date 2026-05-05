@@ -4,6 +4,8 @@ import { FeeType } from '@hyperlane-xyz/provider-sdk/fee';
 import { assert } from '@hyperlane-xyz/utils';
 
 import {
+  type CrossCollateralRouteData,
+  decodeCrossCollateralRoute,
   decodeFeeAccount,
   type DecodedFeeData,
   decodeRouteDomain,
@@ -11,7 +13,11 @@ import {
   type RouteDomainData,
 } from '../accounts/fee.js';
 import { FeeDataKind, FeeStrategyKind } from '../fee/types.js';
-import { deriveFeeAccountPda, deriveRouteDomainPda } from '../pda.js';
+import {
+  deriveCrossCollateralRoutePda,
+  deriveFeeAccountPda,
+  deriveRouteDomainPda,
+} from '../pda.js';
 import { fetchAccountDataRaw } from '../rpc.js';
 import type { SvmRpc } from '../types.js';
 
@@ -65,6 +71,9 @@ export function detectSvmFeeType(feeData: DecodedFeeData): FeeType {
     case FeeDataKind.Routing:
       return FeeType.routing;
 
+    case FeeDataKind.CrossCollateralRouting:
+      return FeeType.crossCollateralRouting;
+
     default: {
       const _exhaustive: never = feeData;
       throw new Error(`Unhandled FeeDataKind: ${String(_exhaustive)}`);
@@ -90,4 +99,27 @@ export async function fetchRouteDomain(
   const data = await fetchAccountDataRaw(rpc, routePda);
   if (!data) return null;
   return decodeRouteDomain(data);
+}
+
+/**
+ * Fetches and decodes a CrossCollateralRoute PDA for a given fee account,
+ * destination domain, and target router.
+ * Returns null if the account does not exist or is not initialized.
+ */
+export async function fetchCrossCollateralRoute(
+  rpc: SvmRpc,
+  programId: Address,
+  feeAccount: Address,
+  destination: number,
+  targetRouter: Uint8Array,
+): Promise<CrossCollateralRouteData | null> {
+  const { address: ccRoutePda } = await deriveCrossCollateralRoutePda(
+    programId,
+    feeAccount,
+    destination,
+    targetRouter,
+  );
+  const data = await fetchAccountDataRaw(rpc, ccRoutePda);
+  if (!data) return null;
+  return decodeCrossCollateralRoute(data);
 }
