@@ -126,6 +126,7 @@ export function validateWarpConfigForAltVM(
     remoteRouters: config.remoteRouters,
     destinationGas: config.destinationGas,
     scale,
+    contractVersion: config.contractVersion,
   };
 
   switch (config.type) {
