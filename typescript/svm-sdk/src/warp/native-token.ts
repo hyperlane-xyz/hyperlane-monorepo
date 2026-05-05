@@ -27,7 +27,7 @@ import { deriveNativeCollateralPda } from '../pda.js';
 import type { AnnotatedSvmTransaction, SvmReceipt, SvmRpc } from '../types.js';
 
 import type { SvmWarpTokenConfig } from './types.js';
-import { fetchTokenAccount, routerBytesToHex } from './warp-query.js';
+import { fetchNativeTokenAccount, routerBytesToHex } from './warp-query.js';
 import {
   applyPostInitConfig,
   assertLocalDecimals,
@@ -53,7 +53,7 @@ export class SvmNativeTokenReader implements ArtifactReader<
     ArtifactDeployed<RawNativeWarpArtifactConfig, DeployedWarpAddress>
   > {
     const programId = parseAddress(programAddress);
-    const token = await fetchTokenAccount(this.rpc, programId);
+    const token = await fetchNativeTokenAccount(this.rpc, programId);
     assert(!isNullish(token), `Native token not initialized at ${programId}`);
 
     const remoteRouters: Record<number, { address: string }> = {};
