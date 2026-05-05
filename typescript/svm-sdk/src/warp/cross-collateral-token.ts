@@ -54,6 +54,7 @@ import type { AnnotatedSvmTransaction, SvmReceipt, SvmRpc } from '../types.js';
 import type { SvmWarpTokenConfig } from './types.js';
 import {
   fetchCrossCollateralTokenAccount,
+  fetchWarpProgramVersion,
   routerBytesToHex,
   routerHexToBytes,
 } from './warp-query.js';
@@ -132,6 +133,12 @@ export class SvmCrossCollateralTokenReader implements ArtifactReader<
         `warp route initialized with ${token.decimals} but mint reports ${metadata.decimals}`,
     );
 
+    const contractVersion = await fetchWarpProgramVersion(
+      this.rpc,
+      programId,
+      token.owner,
+    );
+
     const config: RawCrossCollateralWarpArtifactConfig = {
       type: TokenType.crossCollateral,
       owner: token.owner ?? ZERO_ADDRESS_HEX_32,
@@ -155,6 +162,7 @@ export class SvmCrossCollateralTokenReader implements ArtifactReader<
       remoteRouters,
       destinationGas,
       scale: remoteDecimalsToScale(token.decimals, token.remoteDecimals),
+      contractVersion: contractVersion ?? undefined,
       crossCollateralRouters,
     };
 
