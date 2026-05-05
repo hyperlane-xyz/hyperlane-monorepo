@@ -3,6 +3,7 @@ import {
   FeeParamsType,
   type FeeStrategy,
   FeeStrategyType,
+  bpsToRawFeeParams,
 } from '@hyperlane-xyz/provider-sdk/fee';
 import { assert, isNullish, setEquality } from '@hyperlane-xyz/utils';
 
@@ -13,31 +14,7 @@ import { FeeStrategyKind, h160ToSigner, signerToH160 } from './types.js';
 // ====== Constants ======
 
 const MAX_U64 = 2n ** 64n - 1n;
-const MAX_BPS = 10_000n;
-const BPS_PRECISION = 10_000n;
-const MAX_BPS_DECIMALS = 4;
 const ASSUMED_MAX_AMOUNT = 10n ** 8n;
-
-// ====== BPS <-> Raw Conversion ======
-
-function bpsToRawParams(bps: number): { maxFee: bigint; halfAmount: bigint } {
-  assert(Number.isFinite(bps) && bps > 0, 'bps must be > 0');
-  assert(
-    isBpsPrecisionValid(bps),
-    `bps must have at most ${MAX_BPS_DECIMALS} decimal places, got ${bps}`,
-  );
-  const maxFee = MAX_U64 / ASSUMED_MAX_AMOUNT;
-  const scaledBps = BigInt(Math.round(bps * Number(BPS_PRECISION)));
-  const halfAmount = ((maxFee / 2n) * MAX_BPS * BPS_PRECISION) / scaledBps;
-  assert(halfAmount <= MAX_U64, 'halfAmount must fit in u64');
-  return { maxFee, halfAmount };
-}
-
-function isBpsPrecisionValid(bps: number): boolean {
-  const factor = 10 ** MAX_BPS_DECIMALS;
-  const scaled = bps * factor;
-  return Math.abs(Math.round(scaled) - scaled) <= 1e-9;
-}
 
 /**
  * Resolves provider-sdk FeeParams to raw bigint maxFee/halfAmount.
@@ -52,7 +29,7 @@ export function resolveRawFeeParams(params: FeeParams): SvmFeeParams {
         halfAmount: BigInt(params.halfAmount),
       };
     case FeeParamsType.bps:
-      return bpsToRawParams(params.bps);
+      return bpsToRawFeeParams(params.bps, MAX_U64, ASSUMED_MAX_AMOUNT);
     default: {
       const _exhaustive: never = params;
       throw new Error(`Unknown FeeParams type: ${String(_exhaustive)}`);
