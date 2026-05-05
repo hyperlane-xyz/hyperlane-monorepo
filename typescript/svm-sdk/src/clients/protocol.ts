@@ -79,7 +79,9 @@ export class SvmProtocolProvider implements ProtocolProvider {
     _context?: { mailbox?: string },
   ): IRawWarpArtifactManager {
     const rpc = createRpc(this.getRpcUrls(chainMetadata)[0]);
-    return new SvmWarpArtifactManager(rpc);
+    return new SvmWarpArtifactManager(rpc, {
+      chainName: chainMetadata.name,
+    });
   }
 
   createMailboxArtifactManager(
