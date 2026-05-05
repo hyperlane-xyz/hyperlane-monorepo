@@ -158,7 +158,7 @@ export async function getUSDTMoonpayWarpConfig(
 ): Promise<ChainMap<HypTokenRouterConfig>> {
   const rebalancingConfigByChain = getRebalancingBridgesConfigFor(
     ['arbitrum', 'ethereum'],
-    [WarpRouteIds.USDTOft, WarpRouteIds.USDTOftLegacy],
+    [WarpRouteIds.USDTOft],
   );
   const feeDestinationsByChain = Object.fromEntries(
     ROUTE_CHAINS.map((local) => [
