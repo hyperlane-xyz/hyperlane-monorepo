@@ -139,7 +139,7 @@ export function compareVersions(a: string, b: string): number {
  * Returns true if the given version supports fee configuration
  * (SetFeeConfig instruction, fee section in TransferRemote).
  */
-export function supportsFeeConfig(version: string | null): boolean {
+export function supportsFeeConfig(version: string | null | undefined): boolean {
   if (!version) return false;
   return compareVersions(version, SVM_PROGRAM_MINIMUM_FEE_SUPPORT_VERSION) >= 0;
 }

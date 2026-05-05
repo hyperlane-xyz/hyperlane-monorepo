@@ -35,7 +35,11 @@ import { deriveAtaPayerPda, deriveEscrowPda } from '../pda.js';
 import type { AnnotatedSvmTransaction, SvmReceipt, SvmRpc } from '../types.js';
 
 import type { SvmWarpTokenConfig } from './types.js';
-import { fetchCollateralTokenAccount, routerBytesToHex } from './warp-query.js';
+import {
+  fetchCollateralTokenAccount,
+  fetchWarpProgramVersion,
+  routerBytesToHex,
+} from './warp-query.js';
 import {
   applyPostInitConfig,
   assertLocalDecimals,
@@ -84,6 +88,12 @@ export class SvmCollateralTokenReader implements ArtifactReader<
         `warp route initialized with ${token.decimals} but mint reports ${metadata.decimals}`,
     );
 
+    const contractVersion = await fetchWarpProgramVersion(
+      this.rpc,
+      programId,
+      token.owner,
+    );
+
     const config: RawCollateralWarpArtifactConfig = {
       type: TokenType.collateral,
       owner: token.owner ?? ZERO_ADDRESS_HEX_32,
@@ -107,6 +117,7 @@ export class SvmCollateralTokenReader implements ArtifactReader<
       remoteRouters,
       destinationGas,
       scale: remoteDecimalsToScale(token.decimals, token.remoteDecimals),
+      contractVersion: contractVersion ?? undefined,
     };
 
     return {

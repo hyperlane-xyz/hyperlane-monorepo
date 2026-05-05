@@ -17,6 +17,7 @@ import {
   deriveEscrowPda,
 } from '../pda.js';
 import type { SvmRpc } from '../types.js';
+import { queryProgramVersion } from '../version/version-query.js';
 
 export enum SvmWarpTokenType {
   Native = 'native',
@@ -120,6 +121,20 @@ export async function detectWarpTokenType(
   const result = matches[0];
   assert(result !== undefined, 'Unexpected empty matches after validation');
   return result;
+}
+
+/**
+ * Queries the on-chain program version for a warp token program.
+ * Uses the token owner as the simulation fee payer (must exist on-chain).
+ * Returns null if the owner is null (can't simulate without a payer).
+ */
+export async function fetchWarpProgramVersion(
+  rpc: SvmRpc,
+  programId: Address,
+  owner: Address | null,
+): Promise<string | null> {
+  if (!owner) return null;
+  return queryProgramVersion(rpc, programId, owner);
 }
 
 /** Converts a 32-byte router H256 to a 0x-prefixed hex string. */
