@@ -658,13 +658,17 @@ describe('TokenDeployer', async () => {
 
   describe('RateLimitedIsm with non-deployer warp owner', () => {
     let ismDeployer: HypERC20Deployer;
+    let ismFactory: HyperlaneIsmFactory;
 
     before(async () => {
       const pfd = new HyperlaneProxyFactoryDeployer(multiProvider);
       const factories = await pfd.deploy(
         multiProvider.mapKnownChains(() => ({})),
       );
-      const ismFactory = new HyperlaneIsmFactory(factories, multiProvider);
+      ismFactory = new HyperlaneIsmFactory(factories, multiProvider);
+    });
+
+    beforeEach(() => {
       ismDeployer = new HypERC20Deployer(multiProvider, ismFactory);
     });
 
