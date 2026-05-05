@@ -4,10 +4,11 @@ import {
   type FeeStrategy,
   FeeStrategyType,
 } from '@hyperlane-xyz/provider-sdk/fee';
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, isNullish } from '@hyperlane-xyz/utils';
 
+import type { RouteDomainData } from '../accounts/fee.js';
 import type { SvmFeeDataStrategy, SvmFeeParams } from '../codecs/fee.js';
-import { FeeStrategyKind } from './types.js';
+import { FeeStrategyKind, h160ToSigner, signerToH160 } from './types.js';
 
 // ====== Constants ======
 
@@ -98,11 +99,11 @@ export function leafDataToFeeStrategy(
 
 /**
  * Converts provider-sdk FeeStrategy to on-chain SvmFeeDataStrategy + optional signers.
- * Used by leaf fee writers to produce the on-chain encoding.
+ * Handles all strategy types including offchainQuotedLinear (for routing routes).
  */
 export function feeStrategyToOnChain(strategy: FeeStrategy): {
   feeData: SvmFeeDataStrategy;
-  signers: null;
+  signers: Uint8Array[] | null;
 } {
   switch (strategy.type) {
     case FeeStrategyType.linear:
@@ -116,13 +117,68 @@ export function feeStrategyToOnChain(strategy: FeeStrategy): {
     }
 
     case FeeStrategyType.offchainQuotedLinear:
-      throw new Error(
-        'offchainQuotedLinear not supported in leaf feeStrategyToOnChain — use dedicated writer',
-      );
+      return {
+        feeData: {
+          kind: FeeStrategyKind.Linear,
+          params: resolveRawFeeParams(strategy.params),
+        },
+        signers: strategy.quoteSigners.map(signerToH160),
+      };
 
     default: {
       const _exhaustive: never = strategy;
       throw new Error(`Unhandled FeeStrategyType: ${String(_exhaustive)}`);
     }
   }
+}
+
+/**
+ * Converts on-chain RouteDomainData to provider-sdk FeeStrategy.
+ * If signers are present, returns offchainQuotedLinear (asserts Linear kind).
+ * Otherwise maps the strategy kind directly.
+ */
+export function routeDataToFeeStrategy(route: RouteDomainData): FeeStrategy {
+  const { maxFee, halfAmount } = route.feeData.params;
+  const params: FeeParams = {
+    type: FeeParamsType.raw,
+    maxFee: maxFee.toString(),
+    halfAmount: halfAmount.toString(),
+  };
+
+  if (!isNullish(route.signers)) {
+    assert(
+      route.feeData.kind === FeeStrategyKind.Linear,
+      `offchainQuotedLinear requires Linear strategy, got kind ${route.feeData.kind}`,
+    );
+    return {
+      type: FeeStrategyType.offchainQuotedLinear,
+      params,
+      quoteSigners: route.signers.map(h160ToSigner),
+    };
+  }
+
+  const strategyType = STRATEGY_KIND_TO_TYPE[route.feeData.kind];
+  assert(
+    strategyType !== undefined,
+    `Unknown strategy kind: ${route.feeData.kind}`,
+  );
+  return { type: strategyType, params };
+}
+
+/**
+ * Computes the union of all offchainQuotedLinear signers across route strategies.
+ * Used to set wildcard signers on the Routing/CC fee account.
+ */
+export function computeWildcardSignersFromStrategies(
+  strategies: Iterable<FeeStrategy>,
+): Uint8Array[] {
+  const union = new Set<string>();
+  for (const strategy of strategies) {
+    if (strategy.type === FeeStrategyType.offchainQuotedLinear) {
+      for (const s of strategy.quoteSigners) {
+        union.add(s.toLowerCase());
+      }
+    }
+  }
+  return [...union].sort().map(signerToH160);
 }
