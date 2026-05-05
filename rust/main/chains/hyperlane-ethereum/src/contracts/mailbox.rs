@@ -1106,7 +1106,7 @@ mod test {
 
         #[test]
         fn counts_multiple_message_sent_logs() {
-            // Native USDC transfers emit 2 MessageSent per dispatch (burn + GMP hook)
+            // Two matching logs should count as two
             let log = make_log(mainnet_transmitter(), message_sent_topic());
             assert_eq!(cctp_v2_message_sent_count(&[log.clone(), log]), 2);
         }
