@@ -91,14 +91,7 @@ function buildRemoteIsm(
   }
 
   if (local === 'citrea' && remote === 'ethereum') {
-    return {
-      type: IsmType.AGGREGATION,
-      threshold: 1,
-      modules: [
-        { type: IsmType.TRUSTED_RELAYER, relayer: FAST_PATH_RELAYER },
-        buildDefaultIsm(),
-      ],
-    };
+    return { type: IsmType.TRUSTED_RELAYER, relayer: FAST_PATH_RELAYER };
   }
 
   return buildDefaultIsm();

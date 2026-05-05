@@ -98,45 +98,6 @@ export async function getExistingWarpDeployConfig(
   return warpRoute as ChainMap<HypTokenRouterConfig>;
 }
 
-export async function getDeployedRouteRebalancingConfigFor(
-  deploymentChains: readonly ChainName[],
-  warpRouteId: WarpRouteIds,
-): Promise<ChainMap<RebalancingConfig>> {
-  const warpRoute = await getExistingWarpDeployConfig(warpRouteId);
-
-  const rebalanceableChains = deploymentChains.filter((chain) => {
-    const chainConfig = warpRoute[chain] as
-      | (HypTokenRouterConfig & Partial<RebalancingConfig>)
-      | undefined;
-    return (
-      !!chainConfig?.allowedRebalancers &&
-      !!chainConfig?.allowedRebalancingBridges
-    );
-  });
-
-  return objMap(
-    arrayToObject(rebalanceableChains),
-    (currentChain): RebalancingConfig => {
-      const chainConfig = warpRoute[currentChain] as
-        | (HypTokenRouterConfig & Partial<RebalancingConfig>)
-        | undefined;
-      assert(
-        chainConfig?.allowedRebalancers,
-        `Allowed rebalancers not found for ${warpRouteId} on ${currentChain}`,
-      );
-      assert(
-        chainConfig.allowedRebalancingBridges,
-        `Allowed rebalancing bridges not found for ${warpRouteId} on ${currentChain}`,
-      );
-
-      return {
-        allowedRebalancers: chainConfig.allowedRebalancers,
-        allowedRebalancingBridges: chainConfig.allowedRebalancingBridges,
-      };
-    },
-  );
-}
-
 export const getRebalancingUSDCConfigForChain = (
   currentChain: keyof typeof usdcTokenAddresses,
   routerConfigByChain: ChainMap<RouterConfigWithoutOwner>,
