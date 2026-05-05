@@ -19,7 +19,10 @@ import {
 import { getRegistry } from '../../../../registry.js';
 import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
 import { WarpRouteIds } from '../warpIds.js';
-import { getFixedRoutingFeeConfig } from './utils.js';
+import {
+  getFixedRoutingFeeConfig,
+  getUSDCRebalancingBridgesConfigFor,
+} from './utils.js';
 
 const FAST_PATH_RELAYER = relayerAddresses.mainnet3.fastpath;
 
@@ -192,6 +195,10 @@ export async function getUSDCMoonpayWarpConfig(
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
 ): Promise<ChainMap<HypTokenRouterConfig>> {
+  const rebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
+    ['arbitrum', 'base', 'ethereum'],
+    [WarpRouteIds.MainnetCCTPV2Standard, WarpRouteIds.MainnetCCTPV2Fast],
+  );
   const feeDestinationsByChain = Object.fromEntries(
     ROUTE_CHAINS.map((local) => [
       local,
@@ -222,6 +229,7 @@ export async function getUSDCMoonpayWarpConfig(
       token: tokens.arbitrum.USDC,
       mailbox: routerConfig.arbitrum.mailbox,
       owner: arbitrumOwner,
+      ...rebalancingConfigByChain.arbitrum,
       hook: buildHook('arbitrum', arbitrumOwner),
       interchainSecurityModule: buildInterchainSecurityModule(
         'arbitrum',
@@ -240,6 +248,7 @@ export async function getUSDCMoonpayWarpConfig(
       token: tokens.base.USDC,
       mailbox: routerConfig.base.mailbox,
       owner: baseOwner,
+      ...rebalancingConfigByChain.base,
       hook: buildHook('base', baseOwner),
       interchainSecurityModule: buildInterchainSecurityModule(
         'base',
@@ -275,6 +284,7 @@ export async function getUSDCMoonpayWarpConfig(
       token: tokens.ethereum.USDC,
       mailbox: routerConfig.ethereum.mailbox,
       owner: ethereumOwner,
+      ...rebalancingConfigByChain.ethereum,
       hook: buildHook('ethereum', ethereumOwner),
       interchainSecurityModule: buildInterchainSecurityModule(
         'ethereum',

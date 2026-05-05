@@ -17,7 +17,10 @@ import {
 } from '../../../../../src/config/warp.js';
 import { getRegistry } from '../../../../registry.js';
 import { WarpRouteIds } from '../warpIds.js';
-import { getFixedRoutingFeeConfig } from './utils.js';
+import {
+  getDeployedRouteRebalancingConfigFor,
+  getFixedRoutingFeeConfig,
+} from './utils.js';
 
 const ROUTE_CHAINS = [
   'arbitrum',
@@ -153,6 +156,10 @@ export async function getUSDTMoonpayWarpConfig(
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
 ): Promise<ChainMap<HypTokenRouterConfig>> {
+  const rebalancingConfigByChain = await getDeployedRouteRebalancingConfigFor(
+    ['arbitrum', 'ethereum'],
+    WarpRouteIds.EclipseUSDT,
+  );
   const feeDestinationsByChain = Object.fromEntries(
     ROUTE_CHAINS.map((local) => [
       local,
@@ -170,6 +177,7 @@ export async function getUSDTMoonpayWarpConfig(
       token: tokens.arbitrum.USDT,
       mailbox: routerConfig.arbitrum.mailbox,
       owner: arbitrumOwner,
+      ...rebalancingConfigByChain.arbitrum,
       hook: buildHook('arbitrum', arbitrumOwner),
       interchainSecurityModule: buildInterchainSecurityModule(
         'arbitrum',
@@ -206,6 +214,7 @@ export async function getUSDTMoonpayWarpConfig(
       token: tokens.ethereum.USDT,
       mailbox: routerConfig.ethereum.mailbox,
       owner: ethereumOwner,
+      ...rebalancingConfigByChain.ethereum,
       hook: buildHook('ethereum', ethereumOwner),
       interchainSecurityModule: buildInterchainSecurityModule(
         'ethereum',

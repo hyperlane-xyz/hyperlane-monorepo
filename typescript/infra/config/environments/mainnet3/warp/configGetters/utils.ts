@@ -24,7 +24,7 @@ import { WarpRouteIds } from '../warpIds.js';
 
 const REBALANCER = '0xa3948a15e1d0778a7d53268b651B2411AF198FE3';
 
-type RebalancingConfig = Required<
+export type RebalancingConfig = Required<
   Pick<MovableTokenConfig, 'allowedRebalancingBridges' | 'allowedRebalancers'>
 >;
 
@@ -96,6 +96,45 @@ export async function getExistingWarpDeployConfig(
   const warpRoute = await getRegistry().getWarpDeployConfig(warpRouteId);
   assert(warpRoute, `Warp route deploy config not found for ${warpRouteId}`);
   return warpRoute as ChainMap<HypTokenRouterConfig>;
+}
+
+export async function getDeployedRouteRebalancingConfigFor(
+  deploymentChains: readonly ChainName[],
+  warpRouteId: WarpRouteIds,
+): Promise<ChainMap<RebalancingConfig>> {
+  const warpRoute = await getExistingWarpDeployConfig(warpRouteId);
+
+  const rebalanceableChains = deploymentChains.filter((chain) => {
+    const chainConfig = warpRoute[chain] as
+      | (HypTokenRouterConfig & Partial<RebalancingConfig>)
+      | undefined;
+    return (
+      !!chainConfig?.allowedRebalancers &&
+      !!chainConfig?.allowedRebalancingBridges
+    );
+  });
+
+  return objMap(
+    arrayToObject(rebalanceableChains),
+    (currentChain): RebalancingConfig => {
+      const chainConfig = warpRoute[currentChain] as
+        | (HypTokenRouterConfig & Partial<RebalancingConfig>)
+        | undefined;
+      assert(
+        chainConfig?.allowedRebalancers,
+        `Allowed rebalancers not found for ${warpRouteId} on ${currentChain}`,
+      );
+      assert(
+        chainConfig.allowedRebalancingBridges,
+        `Allowed rebalancing bridges not found for ${warpRouteId} on ${currentChain}`,
+      );
+
+      return {
+        allowedRebalancers: chainConfig.allowedRebalancers,
+        allowedRebalancingBridges: chainConfig.allowedRebalancingBridges,
+      };
+    },
+  );
 }
 
 export const getRebalancingUSDCConfigForChain = (
