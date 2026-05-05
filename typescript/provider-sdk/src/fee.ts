@@ -287,7 +287,10 @@ export function bpsToRawFeeParams(
   maxInt: bigint,
   assumedMaxAmount: bigint,
 ): { maxFee: bigint; halfAmount: bigint } {
-  assert(Number.isFinite(bps) && bps > 0, 'bps must be > 0');
+  assert(
+    Number.isFinite(bps) && bps > 0,
+    'bps must be > 0 to prevent division by zero',
+  );
   assertBpsPrecision(bps);
   const maxFee = maxInt / assumedMaxAmount;
   const scaledBps = BigInt(Math.round(bps * Number(BPS_PRECISION)));
