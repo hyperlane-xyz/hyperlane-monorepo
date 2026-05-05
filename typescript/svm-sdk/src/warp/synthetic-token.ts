@@ -49,6 +49,7 @@ import type {
 } from '../types.js';
 
 import type { SvmDeployedWarpAddress, SvmWarpTokenConfig } from './types.js';
+import { prepareProgramUpgrade } from './warp-upgrade.js';
 import {
   fetchSyntheticTokenAccount,
   fetchWarpProgramVersion,
@@ -407,7 +408,22 @@ export class SvmSyntheticTokenWriter
       `Cannot update synthetic token ${programId}: token has no owner`,
     );
 
-    return computeWarpTokenUpdateInstructions(
+    const txs: AnnotatedSvmTransaction[] = [];
+
+    if ('programBytes' in this.config.program) {
+      const upgradeResult = await prepareProgramUpgrade(
+        programId,
+        current.config.contractVersion,
+        artifact.config.contractVersion,
+        this.config.program.programBytes,
+        this.svmSigner,
+        this.rpc,
+        `synthetic token ${programId}`,
+      );
+      txs.push(...(upgradeResult?.authorityTransactions ?? []));
+    }
+
+    const configUpdateTxs = await computeWarpTokenUpdateInstructions(
       current.config,
       artifact.config,
       programId,
@@ -417,5 +433,8 @@ export class SvmSyntheticTokenWriter
       this.config.feeSalt,
       current.deployed.feeConfig,
     );
+    txs.push(...configUpdateTxs);
+
+    return txs;
   }
 }

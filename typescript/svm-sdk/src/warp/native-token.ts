@@ -26,6 +26,7 @@ import { deriveNativeCollateralPda } from '../pda.js';
 import type { AnnotatedSvmTransaction, SvmReceipt, SvmRpc } from '../types.js';
 
 import type { SvmDeployedWarpAddress, SvmWarpTokenConfig } from './types.js';
+import { prepareProgramUpgrade } from './warp-upgrade.js';
 import {
   fetchNativeTokenAccount,
   fetchWarpProgramVersion,
@@ -204,7 +205,22 @@ export class SvmNativeTokenWriter
       `Cannot update native token ${programId}: token has no owner`,
     );
 
-    return computeWarpTokenUpdateInstructions(
+    const txs: AnnotatedSvmTransaction[] = [];
+
+    if ('programBytes' in this.config.program) {
+      const upgradeResult = await prepareProgramUpgrade(
+        programId,
+        current.config.contractVersion,
+        artifact.config.contractVersion,
+        this.config.program.programBytes,
+        this.svmSigner,
+        this.rpc,
+        `native token ${programId}`,
+      );
+      txs.push(...(upgradeResult?.authorityTransactions ?? []));
+    }
+
+    const configUpdateTxs = await computeWarpTokenUpdateInstructions(
       current.config,
       artifact.config,
       programId,
@@ -214,5 +230,8 @@ export class SvmNativeTokenWriter
       this.config.feeSalt,
       current.deployed.feeConfig,
     );
+    txs.push(...configUpdateTxs);
+
+    return txs;
   }
 }
