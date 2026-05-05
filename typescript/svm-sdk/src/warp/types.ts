@@ -1,3 +1,6 @@
+import type { DeployedWarpAddress } from '@hyperlane-xyz/provider-sdk/warp';
+
+import type { TokenFeeConfig } from '../accounts/token.js';
 import type { SvmProgramTarget } from '../types.js';
 
 /**
@@ -14,3 +17,12 @@ export type SvmWarpTokenConfig = Readonly<{
    */
   ataPayerFundingAmount: bigint;
 }>;
+
+/**
+ * SVM-specific extension of DeployedWarpAddress that carries the
+ * on-chain fee configuration (both program ID and fee account PDA).
+ * Used for accurate fee config diffing during updates.
+ */
+export interface SvmDeployedWarpAddress extends DeployedWarpAddress {
+  feeConfig?: TokenFeeConfig;
+}

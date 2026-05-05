@@ -7,7 +7,6 @@ import {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   TokenType,
-  type DeployedWarpAddress,
   type RawSyntheticWarpArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import {
@@ -49,7 +48,7 @@ import type {
   SvmRpc,
 } from '../types.js';
 
-import type { SvmWarpTokenConfig } from './types.js';
+import type { SvmDeployedWarpAddress, SvmWarpTokenConfig } from './types.js';
 import {
   fetchSyntheticTokenAccount,
   fetchWarpProgramVersion,
@@ -166,14 +165,14 @@ function createInitializeMetadataInstruction(
 
 export class SvmSyntheticTokenReader implements ArtifactReader<
   RawSyntheticWarpArtifactConfig,
-  DeployedWarpAddress
+  SvmDeployedWarpAddress
 > {
   constructor(protected readonly rpc: SvmRpc) {}
 
   async read(
     programAddress: string,
   ): Promise<
-    ArtifactDeployed<RawSyntheticWarpArtifactConfig, DeployedWarpAddress>
+    ArtifactDeployed<RawSyntheticWarpArtifactConfig, SvmDeployedWarpAddress>
   > {
     const programId = parseAddress(programAddress);
     const token = await fetchSyntheticTokenAccount(this.rpc, programId);
@@ -230,14 +229,18 @@ export class SvmSyntheticTokenReader implements ArtifactReader<
     return {
       artifactState: ArtifactState.DEPLOYED,
       config,
-      deployed: { address: programId },
+      deployed: {
+        address: programId,
+        feeConfig: token.feeConfig ?? undefined,
+      },
     };
   }
 }
 
 export class SvmSyntheticTokenWriter
   extends SvmSyntheticTokenReader
-  implements ArtifactWriter<RawSyntheticWarpArtifactConfig, DeployedWarpAddress>
+  implements
+    ArtifactWriter<RawSyntheticWarpArtifactConfig, SvmDeployedWarpAddress>
 {
   constructor(
     private readonly config: SvmWarpTokenConfig,
@@ -251,7 +254,7 @@ export class SvmSyntheticTokenWriter
     artifact: ArtifactNew<RawSyntheticWarpArtifactConfig>,
   ): Promise<
     [
-      ArtifactDeployed<RawSyntheticWarpArtifactConfig, DeployedWarpAddress>,
+      ArtifactDeployed<RawSyntheticWarpArtifactConfig, SvmDeployedWarpAddress>,
       SvmReceipt[],
     ]
   > {
@@ -392,7 +395,7 @@ export class SvmSyntheticTokenWriter
   async update(
     artifact: ArtifactDeployed<
       RawSyntheticWarpArtifactConfig,
-      DeployedWarpAddress
+      SvmDeployedWarpAddress
     >,
   ): Promise<AnnotatedSvmTransaction[]> {
     const programId = parseAddress(artifact.deployed.address);

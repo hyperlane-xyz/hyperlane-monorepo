@@ -9,7 +9,6 @@ import {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   TokenType,
-  type DeployedWarpAddress,
   type RawNativeWarpArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import {
@@ -26,7 +25,7 @@ import { writableAccount } from '../instructions/utils.js';
 import { deriveNativeCollateralPda } from '../pda.js';
 import type { AnnotatedSvmTransaction, SvmReceipt, SvmRpc } from '../types.js';
 
-import type { SvmWarpTokenConfig } from './types.js';
+import type { SvmDeployedWarpAddress, SvmWarpTokenConfig } from './types.js';
 import {
   fetchNativeTokenAccount,
   fetchWarpProgramVersion,
@@ -47,14 +46,14 @@ const SOL_DECIMALS = 9;
 
 export class SvmNativeTokenReader implements ArtifactReader<
   RawNativeWarpArtifactConfig,
-  DeployedWarpAddress
+  SvmDeployedWarpAddress
 > {
   constructor(protected readonly rpc: SvmRpc) {}
 
   async read(
     programAddress: string,
   ): Promise<
-    ArtifactDeployed<RawNativeWarpArtifactConfig, DeployedWarpAddress>
+    ArtifactDeployed<RawNativeWarpArtifactConfig, SvmDeployedWarpAddress>
   > {
     const programId = parseAddress(programAddress);
     const token = await fetchNativeTokenAccount(this.rpc, programId);
@@ -102,14 +101,17 @@ export class SvmNativeTokenReader implements ArtifactReader<
     return {
       artifactState: ArtifactState.DEPLOYED,
       config,
-      deployed: { address: programId },
+      deployed: {
+        address: programId,
+        feeConfig: token.feeConfig ?? undefined,
+      },
     };
   }
 }
 
 export class SvmNativeTokenWriter
   extends SvmNativeTokenReader
-  implements ArtifactWriter<RawNativeWarpArtifactConfig, DeployedWarpAddress>
+  implements ArtifactWriter<RawNativeWarpArtifactConfig, SvmDeployedWarpAddress>
 {
   constructor(
     private readonly config: SvmWarpTokenConfig,
@@ -123,7 +125,7 @@ export class SvmNativeTokenWriter
     artifact: ArtifactNew<RawNativeWarpArtifactConfig>,
   ): Promise<
     [
-      ArtifactDeployed<RawNativeWarpArtifactConfig, DeployedWarpAddress>,
+      ArtifactDeployed<RawNativeWarpArtifactConfig, SvmDeployedWarpAddress>,
       SvmReceipt[],
     ]
   > {
@@ -190,7 +192,7 @@ export class SvmNativeTokenWriter
   async update(
     artifact: ArtifactDeployed<
       RawNativeWarpArtifactConfig,
-      DeployedWarpAddress
+      SvmDeployedWarpAddress
     >,
   ): Promise<AnnotatedSvmTransaction[]> {
     const programId = parseAddress(artifact.deployed.address);

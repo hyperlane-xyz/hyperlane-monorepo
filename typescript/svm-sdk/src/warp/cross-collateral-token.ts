@@ -13,7 +13,6 @@ import {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   TokenType,
-  type DeployedWarpAddress,
   type RawCrossCollateralWarpArtifactConfig,
   computeCCRouterGasConfigUpdates,
   computeCrossCollateralRouterUpdates,
@@ -51,7 +50,7 @@ import {
 } from '../pda.js';
 import type { AnnotatedSvmTransaction, SvmReceipt, SvmRpc } from '../types.js';
 
-import type { SvmWarpTokenConfig } from './types.js';
+import type { SvmDeployedWarpAddress, SvmWarpTokenConfig } from './types.js';
 import {
   fetchCrossCollateralTokenAccount,
   fetchWarpProgramVersion,
@@ -73,14 +72,17 @@ const MAX_CC_ROUTERS_PER_TX = 20;
 
 export class SvmCrossCollateralTokenReader implements ArtifactReader<
   RawCrossCollateralWarpArtifactConfig,
-  DeployedWarpAddress
+  SvmDeployedWarpAddress
 > {
   constructor(protected readonly rpc: SvmRpc) {}
 
   async read(
     programAddress: string,
   ): Promise<
-    ArtifactDeployed<RawCrossCollateralWarpArtifactConfig, DeployedWarpAddress>
+    ArtifactDeployed<
+      RawCrossCollateralWarpArtifactConfig,
+      SvmDeployedWarpAddress
+    >
   > {
     const programId = parseAddress(programAddress);
     const token = await fetchCrossCollateralTokenAccount(this.rpc, programId);
@@ -169,7 +171,10 @@ export class SvmCrossCollateralTokenReader implements ArtifactReader<
     return {
       artifactState: ArtifactState.DEPLOYED,
       config,
-      deployed: { address: programId },
+      deployed: {
+        address: programId,
+        feeConfig: token.feeConfig ?? undefined,
+      },
     };
   }
 }
@@ -259,7 +264,7 @@ export async function buildCrossCollateralRouterUnenrollTxs(
 export class SvmCrossCollateralTokenWriter
   extends SvmCrossCollateralTokenReader
   implements
-    ArtifactWriter<RawCrossCollateralWarpArtifactConfig, DeployedWarpAddress>
+    ArtifactWriter<RawCrossCollateralWarpArtifactConfig, SvmDeployedWarpAddress>
 {
   constructor(
     private readonly config: SvmWarpTokenConfig,
@@ -275,7 +280,7 @@ export class SvmCrossCollateralTokenWriter
     [
       ArtifactDeployed<
         RawCrossCollateralWarpArtifactConfig,
-        DeployedWarpAddress
+        SvmDeployedWarpAddress
       >,
       SvmReceipt[],
     ]
@@ -390,7 +395,7 @@ export class SvmCrossCollateralTokenWriter
   async update(
     artifact: ArtifactDeployed<
       RawCrossCollateralWarpArtifactConfig,
-      DeployedWarpAddress
+      SvmDeployedWarpAddress
     >,
   ): Promise<AnnotatedSvmTransaction[]> {
     const programId = parseAddress(artifact.deployed.address);
