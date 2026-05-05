@@ -20,13 +20,20 @@ import { getSetUpgradeAuthorityInstruction } from '../instructions/loader.js';
 import {
   getTokenEnrollRemoteRoutersInstruction,
   getTokenSetDestinationGasConfigsInstruction,
+  getTokenSetFeeConfigInstruction,
   getTokenSetInterchainGasPaymasterInstruction,
   getTokenSetInterchainSecurityModuleInstruction,
   getTokenTransferOwnershipInstruction,
   type TokenInitInstructionData,
 } from '../instructions/token.js';
 import { DEFAULT_IGP_SALT } from '../hook/igp-hook.js';
-import { deriveAtaPayerPda, deriveOverheadIgpAccountPda } from '../pda.js';
+import { fetchFeeAccount } from '../fee/fee-query.js';
+import { DEFAULT_FEE_SALT } from '../fee/types.js';
+import {
+  deriveAtaPayerPda,
+  deriveFeeAccountPda,
+  deriveOverheadIgpAccountPda,
+} from '../pda.js';
 import {
   buildInstruction,
   writableAccount,
@@ -185,7 +192,11 @@ export const MAX_GAS_CONFIGS_PER_TX = 60;
 export async function applyPostInitConfig(
   signer: SvmSigner,
   programId: Address,
-  config: Pick<RawWarpArtifactConfig, 'remoteRouters' | 'destinationGas'>,
+  config: Pick<
+    RawWarpArtifactConfig,
+    'remoteRouters' | 'destinationGas' | 'fee'
+  >,
+  feeSalt: Uint8Array = DEFAULT_FEE_SALT,
 ): Promise<SvmReceipt[]> {
   const receipts: SvmReceipt[] = [];
 
@@ -221,6 +232,40 @@ export async function applyPostInitConfig(
               domain: parseInt(domain),
               gas: BigInt(gas),
             })),
+          ),
+        ],
+      }),
+    );
+  }
+
+  // Set fee config if a deployed fee artifact is present
+  const feeDeployed = config.fee?.deployed;
+  if (feeDeployed) {
+    const feeProgram = parseAddress(feeDeployed.address);
+    const { address: feeAccountPda } = await deriveFeeAccountPda(
+      feeProgram,
+      feeSalt,
+    );
+
+    // Validate the fee PDA exists before setting it on the token
+    const feeAccount = await fetchFeeAccount(
+      signer.getRpc(),
+      feeProgram,
+      feeSalt,
+    );
+    assert(
+      feeAccount,
+      `Fee account PDA not initialized at program ${feeDeployed.address} with the given salt. ` +
+        'Deploy the fee program first before setting it on the warp token.',
+    );
+
+    receipts.push(
+      await signer.send({
+        instructions: [
+          await getTokenSetFeeConfigInstruction(
+            programId,
+            signer.signer.address,
+            { feeProgram, feeAccount: feeAccountPda },
           ),
         ],
       }),

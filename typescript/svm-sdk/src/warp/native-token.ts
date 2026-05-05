@@ -176,6 +176,7 @@ export class SvmNativeTokenWriter
         this.svmSigner,
         programAddress,
         tokenConfig,
+        this.config.feeSalt,
       )),
     );
 

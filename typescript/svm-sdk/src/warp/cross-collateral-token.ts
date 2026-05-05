@@ -361,12 +361,13 @@ export class SvmCrossCollateralTokenWriter
       );
     }
 
-    // Apply standard post-init config (remote routers + destination gas)
+    // Apply standard post-init config (remote routers + destination gas + fee)
     receipts.push(
       ...(await applyPostInitConfig(
         this.svmSigner,
         programAddress,
         tokenConfig,
+        this.config.feeSalt,
       )),
     );
 
