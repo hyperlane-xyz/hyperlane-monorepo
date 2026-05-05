@@ -205,6 +205,15 @@ describe('EvmIsmModule', async () => {
         await createIsm(config);
       });
     }
+
+    it('deploys a rate limited ism via randomIsmConfig', async () => {
+      const config = randomIsmConfig(
+        undefined,
+        undefined,
+        IsmType.RATE_LIMITED,
+      );
+      await createIsm(config);
+    });
   });
 
   describe('update', async () => {

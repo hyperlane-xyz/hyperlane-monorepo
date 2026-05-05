@@ -397,6 +397,7 @@ export const randomIsmConfig = (
         const config: RateLimitedIsmConfig = {
           type: IsmType.RATE_LIMITED,
           maxCapacity: '86400',
+          recipient: randomAddress(),
           owner: randomAddress(),
         };
         return config;

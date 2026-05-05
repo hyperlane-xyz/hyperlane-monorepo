@@ -219,14 +219,9 @@ export async function executeWarpDeploy(
       protocol === ProtocolType.Ethereum || protocol === ProtocolType.Tron,
       `RateLimitedIsm is only supported on Ethereum and Tron chains, but chain ${chain} has protocol ${protocol}`,
     );
-    if (ism.type === IsmType.RATE_LIMITED) {
-      // Top-level: default owner to token owner only when not user-supplied
-      rateLimitedSnapshot[chain] = { ...ism, owner: ism.owner ?? config.owner };
-    } else {
-      // Nested inside a composite ISM (aggregation, routing, etc.)
-      // Store the full ISM tree; recipient + owner defaults are applied in setRateLimitedIsms.
-      rateLimitedSnapshot[chain] = ism;
-    }
+    // Store the full ISM tree as-is; recipient + owner defaults are applied
+    // uniformly in setRateLimitedIsms via setRateLimitedIsmRecipient.
+    rateLimitedSnapshot[chain] = ism;
   }
 
   // For each chain in WarpRouteConfig, deploy each Ism Factory, if it's not in the registry

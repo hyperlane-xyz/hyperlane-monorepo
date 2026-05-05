@@ -1752,20 +1752,24 @@ export class EvmWarpModule extends HyperlaneModule<
     // token address.  Any user-supplied value is silently wrong (it would wire
     // the ISM to the wrong chain), so we always set it from the deployed token
     // route.  Handles both top-level and nested (e.g. inside aggregation) nodes.
-    // Thread the on-chain owner through so that an omitted owner in expectedConfig
+    // Thread the owner through so that an omitted ism.owner in expectedConfig
     // doesn't look like an owner diff to EvmIsmModule.update (which would redeploy
     // the ISM and reset the rate-limit bucket).
+    // Primary default: the warp-route owner (matches deploy path in token/deploy.ts).
+    // Fallback: the current on-chain ISM owner (same-type, same-owner in-place update).
     let expectedIsm = expectedConfig.interchainSecurityModule;
     if (
       typeof expectedIsm === 'object' &&
       ismTreeContainsRateLimited(expectedIsm)
     ) {
       const actualIsm = actualConfig.interchainSecurityModule;
-      const rawOwner =
+      const onChainOwner =
         typeof actualIsm === 'object' && 'owner' in actualIsm
           ? actualIsm.owner
           : undefined;
-      const defaultOwner = typeof rawOwner === 'string' ? rawOwner : undefined;
+      const defaultOwner =
+        expectedConfig.owner ??
+        (typeof onChainOwner === 'string' ? onChainOwner : undefined);
       expectedIsm = setRateLimitedIsmRecipient(
         expectedIsm,
         this.args.addresses.deployedTokenRoute,
