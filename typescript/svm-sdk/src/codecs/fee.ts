@@ -1,5 +1,7 @@
 import type { ReadonlyUint8Array } from '@solana/kit';
 
+import { assert } from '@hyperlane-xyz/utils';
+
 import { FeeDataKind, type FeeStrategyKind } from '../fee/types.js';
 
 import { concatBytes, option, u8, u32le, u64le } from './binary.js';
@@ -168,6 +170,10 @@ export function encodeRouteKey(key: SvmRouteKey): ReadonlyUint8Array {
     case SvmRouteKeyKind.Domain:
       return concatBytes(u8(key.kind), u32le(key.domain));
     case SvmRouteKeyKind.CrossCollateral:
+      assert(
+        key.targetRouter.length === 32,
+        `targetRouter must be 32 bytes, got ${key.targetRouter.length}`,
+      );
       return concatBytes(
         u8(key.kind),
         u32le(key.destination),

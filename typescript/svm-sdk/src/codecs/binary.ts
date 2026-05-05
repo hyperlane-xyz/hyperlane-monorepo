@@ -162,6 +162,10 @@ export function u128le(value: bigint): ReadonlyUint8Array {
 }
 
 export function i64le(value: bigint): ReadonlyUint8Array {
+  assert(
+    value >= -(1n << 63n) && value < 1n << 63n,
+    `i64 out of range: ${value}`,
+  );
   const unsigned = value < 0n ? value + (1n << 64n) : value;
   return U64_CODEC.encode(unsigned);
 }

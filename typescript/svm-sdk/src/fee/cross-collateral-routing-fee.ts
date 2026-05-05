@@ -270,21 +270,6 @@ export class SvmCrossCollateralRoutingFeeWriter
     );
     const ownerAddress = parseAddress(currentConfig.owner);
 
-    // Build sets of (domain, router) pairs for diff
-    const expectedPairs = new Set<string>();
-    for (const [domainStr, routerMap] of Object.entries(expected.routes)) {
-      for (const router of Object.keys(routerMap)) {
-        expectedPairs.add(`${domainStr}:${router}`);
-      }
-    }
-
-    const currentPairs = new Set<string>();
-    for (const [domainStr, routerMap] of Object.entries(currentConfig.routes)) {
-      for (const router of Object.keys(routerMap)) {
-        currentPairs.add(`${domainStr}:${router}`);
-      }
-    }
-
     // 1. Add or update CC routes
     for (const [domainStr, routerMap] of Object.entries(expected.routes)) {
       const domain = Number(domainStr);
@@ -313,22 +298,24 @@ export class SvmCrossCollateralRoutingFeeWriter
     }
 
     // 2. Remove stale CC routes
-    for (const pair of currentPairs) {
-      if (!expectedPairs.has(pair)) {
-        const [domainStr, router] = pair.split(':');
-        txs.push({
-          feePayer: ownerAddress,
-          instructions: [
-            await getRemoveRemoteFeeRouteInstruction(
-              programId,
-              feeAccountPda,
-              ownerAddress,
-              Number(domainStr),
-              routerToBytes(router),
-            ),
-          ],
-          annotation: `Remove CC route for domain ${domainStr}`,
-        });
+    for (const [domainStr, routerMap] of Object.entries(currentConfig.routes)) {
+      const domain = Number(domainStr);
+      for (const router of Object.keys(routerMap)) {
+        if (!expected.routes[domain]?.[router]) {
+          txs.push({
+            feePayer: ownerAddress,
+            instructions: [
+              await getRemoveRemoteFeeRouteInstruction(
+                programId,
+                feeAccountPda,
+                ownerAddress,
+                domain,
+                routerToBytes(router),
+              ),
+            ],
+            annotation: `Remove CC route for domain ${domain} router ${router.slice(0, 10)}...`,
+          });
+        }
       }
     }
 

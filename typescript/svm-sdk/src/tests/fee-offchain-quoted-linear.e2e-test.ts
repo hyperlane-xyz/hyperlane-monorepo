@@ -13,7 +13,7 @@ import {
   SvmOffchainQuotedLinearFeeReader,
   SvmOffchainQuotedLinearFeeWriter,
 } from '../fee/offchain-quoted-linear-fee.js';
-import { DEFAULT_FEE_SALT } from '../fee/types.js';
+import { DEFAULT_FEE_SALT, type SvmFeeWriterConfig } from '../fee/types.js';
 import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
 import { createRpc } from '../rpc.js';
 import { TEST_SVM_CHAIN_METADATA } from '../testing/constants.js';
@@ -30,6 +30,10 @@ const SIGNER_C = '0x3333333333333333333333333333333333333333';
 describe('SVM OffchainQuotedLinear Fee E2E Tests', function () {
   this.timeout(180_000);
 
+  const writerConfig: SvmFeeWriterConfig = {
+    program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenFee },
+  };
+
   let rpc: ReturnType<typeof createRpc>;
   let signer: SvmSigner;
   let writer: SvmOffchainQuotedLinearFeeWriter;
@@ -44,7 +48,7 @@ describe('SVM OffchainQuotedLinear Fee E2E Tests', function () {
     await airdropSol(rpc, address(signer.getSignerAddress()), 100_000_000_000n);
 
     writer = new SvmOffchainQuotedLinearFeeWriter(
-      { program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenFee } },
+      writerConfig,
       rpc,
       1,
       signer,
@@ -59,6 +63,15 @@ describe('SVM OffchainQuotedLinear Fee E2E Tests', function () {
     reader,
     signer,
     rpc,
+    rpcUrl: TEST_SVM_CHAIN_METADATA.rpcUrl,
+    makeWriter: (s) =>
+      new SvmOffchainQuotedLinearFeeWriter(
+        writerConfig,
+        rpc,
+        1,
+        s,
+        DEFAULT_FEE_SALT,
+      ),
     makeConfig: (overrides) => ({
       type: FeeType.offchainQuotedLinear,
       owner: signer.getSignerAddress(),
