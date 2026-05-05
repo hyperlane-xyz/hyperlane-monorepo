@@ -116,7 +116,11 @@ where
 /// range of CCTP V2 usage patterns.
 ///
 /// Both the topic hash and the emitting address are checked: topic-only matching would let
-/// any contract spoof the V2 detection by emitting a log with the same topics[0].
+/// any contract spoof the V2 detection by emitting a log with the same topics[0]. Note that
+/// MessageTransmitter V2's sendMessage is permissionless, so an attacker can produce a real
+/// MessageSent from the canonical address with arbitrary body. The address check rules out
+/// third-party contract spoofing but not direct transmitter calls; treat is_cctp_v2 as an
+/// admission heuristic, not a verification claim.
 fn cctp_v2_message_sent_count(logs: &[ethers::types::Log]) -> usize {
     use ethers::types::{Address, H256 as EthersH256};
     use ethers_core::utils::keccak256;
@@ -283,13 +287,14 @@ where
                     })
                     .collect();
 
-                // Treat as CCTP V2 if every Dispatch has at least one corresponding
-                // MessageSent from MessageTransmitter V2. Native USDC transfers emit 2
-                // MessageSent per dispatch (burn + GMP hook); GMP-only transfers emit 1.
-                // Using >= covers both without breaking on mixed txs where unrelated
-                // dispatches would bring message_sent_count below dispatch_logs.len().
+                // Treat as CCTP V2 if every Dispatch has a corresponding MessageSent from
+                // MessageTransmitter V2. Both native USDC transfers (depositForBurn path) and
+                // GMP-only transfers (_postDispatch path) emit exactly 1 MessageSent per
+                // Dispatch, so a 1:1 match is the correct invariant. A mixed tx (some CCTP,
+                // some unrelated dispatches) produces fewer MessageSent than Dispatch events
+                // and correctly gets is_cctp_v2=false.
                 let is_cctp_v2 =
-                    message_sent_count > 0 && message_sent_count >= dispatch_logs.len();
+                    message_sent_count > 0 && message_sent_count == dispatch_logs.len();
 
                 Ok((dispatch_logs, is_cctp_v2))
             })
