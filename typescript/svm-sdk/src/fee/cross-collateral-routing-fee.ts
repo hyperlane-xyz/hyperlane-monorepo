@@ -18,6 +18,7 @@ import {
   eqAddressSol,
   eqOptionalAddress,
   isZeroishAddress,
+  setEquality,
   ZERO_ADDRESS_HEX_32,
 } from '@hyperlane-xyz/utils';
 
@@ -38,11 +39,13 @@ import type { AnnotatedSvmTransaction, SvmReceipt, SvmRpc } from '../types.js';
 import { fetchCrossCollateralRoute, fetchFeeAccount } from './fee-query.js';
 import {
   computeWildcardSignersFromStrategies,
+  feeStrategiesEqual,
   feeStrategyToOnChain,
   routeDataToFeeStrategy,
 } from './fee-strategy-utils.js';
 import {
   FeeDataKind,
+  h160ToSigner,
   type SvmDeployedFee,
   type SvmFeeWriterConfig,
 } from './types.js';
@@ -105,9 +108,10 @@ export class SvmCrossCollateralRoutingFeeReader implements ArtifactReader<
           domain,
           routerToBytes(router),
         );
+
         if (route) {
-          if (!routes[domain]) routes[domain] = {};
-          routes[domain]![router] = routeDataToFeeStrategy(route);
+          routes[domain] ??= {};
+          routes[domain][router] = routeDataToFeeStrategy(route);
         }
       }
     }
@@ -212,6 +216,31 @@ export class SvmCrossCollateralRoutingFeeWriter
       }
     }
 
+    if (
+      !eqOptionalAddress(
+        this.svmSigner.signer.address,
+        feeConfig.owner,
+        eqAddressSol,
+      )
+    ) {
+      const newOwner =
+        feeConfig.owner && !isZeroishAddress(feeConfig.owner)
+          ? parseAddress(feeConfig.owner)
+          : null;
+      receipts.push(
+        await this.svmSigner.send({
+          instructions: [
+            getTransferFeeOwnershipInstruction(
+              programId,
+              feeAccountPda,
+              this.svmSigner.signer.address,
+              newOwner,
+            ),
+          ],
+        }),
+      );
+    }
+
     return [
       {
         artifactState: ArtifactState.DEPLOYED,
@@ -260,6 +289,10 @@ export class SvmCrossCollateralRoutingFeeWriter
     for (const [domainStr, routerMap] of Object.entries(expected.routes)) {
       const domain = Number(domainStr);
       for (const [router, strategy] of Object.entries(routerMap)) {
+        const currentStrategy = currentConfig.routes[domain]?.[router];
+        if (currentStrategy && feeStrategiesEqual(currentStrategy, strategy)) {
+          continue;
+        }
         const { feeData, signers } = feeStrategyToOnChain(strategy);
         txs.push({
           feePayer: ownerAddress,
@@ -291,7 +324,7 @@ export class SvmCrossCollateralRoutingFeeWriter
               feeAccountPda,
               ownerAddress,
               Number(domainStr),
-              routerToBytes(router!),
+              routerToBytes(router),
             ),
           ],
           annotation: `Remove CC route for domain ${domainStr}`,
@@ -303,18 +336,23 @@ export class SvmCrossCollateralRoutingFeeWriter
     const wildcardSigners = computeWildcardSignersFromStrategies(
       allCCStrategies(expected.routes),
     );
-    txs.push({
-      feePayer: ownerAddress,
-      instructions: [
-        getSetWildcardQuoteSignersInstruction(
-          programId,
-          feeAccountPda,
-          ownerAddress,
-          wildcardSigners,
-        ),
-      ],
-      annotation: 'Update wildcard quote signers',
-    });
+    const currentWildcardSigners = computeWildcardSignersFromStrategies(
+      allCCStrategies(currentConfig.routes),
+    );
+    if (!h160SetEquality(currentWildcardSigners, wildcardSigners)) {
+      txs.push({
+        feePayer: ownerAddress,
+        instructions: [
+          getSetWildcardQuoteSignersInstruction(
+            programId,
+            feeAccountPda,
+            ownerAddress,
+            wildcardSigners,
+          ),
+        ],
+        annotation: 'Update wildcard quote signers',
+      });
+    }
 
     // 4. Diff beneficiary
     if (!eqAddressSol(currentConfig.beneficiary, expected.beneficiary)) {
@@ -354,4 +392,11 @@ export class SvmCrossCollateralRoutingFeeWriter
 
     return txs;
   }
+}
+
+function h160SetEquality(a: Uint8Array[], b: Uint8Array[]): boolean {
+  return setEquality(
+    new Set(a.map((signer) => h160ToSigner(signer).toLowerCase())),
+    new Set(b.map((signer) => h160ToSigner(signer).toLowerCase())),
+  );
 }

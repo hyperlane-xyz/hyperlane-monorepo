@@ -40,7 +40,8 @@ export function defineLeafFeeTests<C extends ParamsFeeConfig>(
 
   it('should create and read', async () => {
     const { writer, signer, makeConfig } = getContext();
-    const config = makeConfig();
+    const owner = await generateKeyPairSigner();
+    const config = makeConfig({ owner: owner.address });
 
     const [deployed, receipts] = await writer.create({ config });
 
@@ -51,7 +52,7 @@ export function defineLeafFeeTests<C extends ParamsFeeConfig>(
     const readResult = await writer.read(deployed.deployed.programId);
     expect(readResult.config.type).to.equal(config.type);
     expect(readResult.config.params.type).to.equal(FeeParamsType.raw);
-    expect(readResult.config.owner).to.equal(signer.getSignerAddress());
+    expect(readResult.config.owner).to.equal(owner.address);
     expect(readResult.config.beneficiary).to.equal(signer.getSignerAddress());
   });
 

@@ -166,6 +166,31 @@ export abstract class SvmLeafFeeWriter<C extends LeafFeeConfig>
       this.salt,
     );
 
+    if (
+      !eqOptionalAddress(
+        this.svmSigner.signer.address,
+        feeConfig.owner,
+        eqAddressSol,
+      )
+    ) {
+      const newOwner =
+        feeConfig.owner && !isZeroishAddress(feeConfig.owner)
+          ? parseAddress(feeConfig.owner)
+          : null;
+      receipts.push(
+        await this.svmSigner.send({
+          instructions: [
+            getTransferFeeOwnershipInstruction(
+              programId,
+              feeAccountPda,
+              this.svmSigner.signer.address,
+              newOwner,
+            ),
+          ],
+        }),
+      );
+    }
+
     return [
       {
         artifactState: ArtifactState.DEPLOYED,

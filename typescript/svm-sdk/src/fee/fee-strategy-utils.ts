@@ -4,7 +4,7 @@ import {
   type FeeStrategy,
   FeeStrategyType,
 } from '@hyperlane-xyz/provider-sdk/fee';
-import { assert, isNullish } from '@hyperlane-xyz/utils';
+import { assert, isNullish, setEquality } from '@hyperlane-xyz/utils';
 
 import type { RouteDomainData } from '../accounts/fee.js';
 import type { SvmFeeDataStrategy, SvmFeeParams } from '../codecs/fee.js';
@@ -15,16 +15,28 @@ import { FeeStrategyKind, h160ToSigner, signerToH160 } from './types.js';
 const MAX_U64 = 2n ** 64n - 1n;
 const MAX_BPS = 10_000n;
 const BPS_PRECISION = 10_000n;
+const MAX_BPS_DECIMALS = 4;
 const ASSUMED_MAX_AMOUNT = 10n ** 8n;
 
 // ====== BPS <-> Raw Conversion ======
 
 function bpsToRawParams(bps: number): { maxFee: bigint; halfAmount: bigint } {
-  assert(bps > 0, 'bps must be > 0');
+  assert(Number.isFinite(bps) && bps > 0, 'bps must be > 0');
+  assert(
+    isBpsPrecisionValid(bps),
+    `bps must have at most ${MAX_BPS_DECIMALS} decimal places, got ${bps}`,
+  );
   const maxFee = MAX_U64 / ASSUMED_MAX_AMOUNT;
   const scaledBps = BigInt(Math.round(bps * Number(BPS_PRECISION)));
   const halfAmount = ((maxFee / 2n) * MAX_BPS * BPS_PRECISION) / scaledBps;
+  assert(halfAmount <= MAX_U64, 'halfAmount must fit in u64');
   return { maxFee, halfAmount };
+}
+
+function isBpsPrecisionValid(bps: number): boolean {
+  const factor = 10 ** MAX_BPS_DECIMALS;
+  const scaled = bps * factor;
+  return Math.abs(Math.round(scaled) - scaled) <= 1e-9;
 }
 
 /**
@@ -127,6 +139,39 @@ export function feeStrategyToOnChain(strategy: FeeStrategy): {
 
     default: {
       const _exhaustive: never = strategy;
+      throw new Error(`Unhandled FeeStrategyType: ${String(_exhaustive)}`);
+    }
+  }
+}
+
+export function feeStrategiesEqual(a: FeeStrategy, b: FeeStrategy): boolean {
+  if (a.type !== b.type) return false;
+
+  const aParams = resolveRawFeeParams(a.params);
+  const bParams = resolveRawFeeParams(b.params);
+  if (
+    aParams.maxFee !== bParams.maxFee ||
+    aParams.halfAmount !== bParams.halfAmount
+  ) {
+    return false;
+  }
+
+  switch (a.type) {
+    case FeeStrategyType.linear:
+    case FeeStrategyType.regressive:
+    case FeeStrategyType.progressive:
+      return true;
+
+    case FeeStrategyType.offchainQuotedLinear: {
+      if (b.type !== FeeStrategyType.offchainQuotedLinear) return false;
+      return setEquality(
+        new Set(a.quoteSigners.map((s) => s.toLowerCase())),
+        new Set(b.quoteSigners.map((s) => s.toLowerCase())),
+      );
+    }
+
+    default: {
+      const _exhaustive: never = a;
       throw new Error(`Unhandled FeeStrategyType: ${String(_exhaustive)}`);
     }
   }
