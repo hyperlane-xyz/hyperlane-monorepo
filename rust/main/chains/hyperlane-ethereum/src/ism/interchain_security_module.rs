@@ -162,10 +162,25 @@ where
             }
             // RateLimitedIsm: verify() reverts because the mailbox sets delivery
             // state before calling verify() on-chain, but simulation skips that.
+            // Confirm it's a RateLimitedIsm via recipient(), then check capacity.
             let rate_limited =
                 IRateLimitedIsm::new(self.contract.address(), self.contract.client());
             if rate_limited.recipient().call().await.is_ok() {
-                return Ok(Some(U256::zero()));
+                // Parse token amount from warp message body (bytes [32..64]).
+                let body = message.body.as_slice();
+                let token_amount = if body.len() >= 64 {
+                    ethers::types::U256::from_big_endian(&body[32..64])
+                } else {
+                    ethers::types::U256::zero()
+                };
+                let current_level = rate_limited
+                    .calculate_current_level()
+                    .call()
+                    .await
+                    .unwrap_or(ethers::types::U256::zero());
+                if token_amount <= current_level {
+                    return Ok(Some(U256::zero()));
+                }
             }
         }
         Ok(None)
