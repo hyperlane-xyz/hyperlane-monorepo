@@ -3,8 +3,11 @@ import { type Address, fetchEncodedAccount } from '@solana/kit';
 import { assert, fromHexString, toHexString } from '@hyperlane-xyz/utils';
 
 import {
+  COLLATERAL_PLUGIN_SIZE,
   decodeHyperlaneTokenAccount,
   type HyperlaneTokenAccountData,
+  NATIVE_PLUGIN_SIZE,
+  SYNTHETIC_PLUGIN_SIZE,
 } from '../accounts/token.js';
 import {
   deriveCrossCollateralStatePda,
@@ -29,11 +32,40 @@ export enum SvmWarpTokenType {
 export async function fetchTokenAccount(
   rpc: SvmRpc,
   programId: Address,
+  pluginSize: number,
 ): Promise<HyperlaneTokenAccountData | null> {
   const { address: tokenPda } = await deriveHyperlaneTokenPda(programId);
   const account = await fetchEncodedAccount(rpc, tokenPda);
   if (!account.exists) return null;
-  return decodeHyperlaneTokenAccount(account.data as Uint8Array);
+  return decodeHyperlaneTokenAccount(Uint8Array.from(account.data), pluginSize);
+}
+
+export function fetchNativeTokenAccount(
+  rpc: SvmRpc,
+  programId: Address,
+): Promise<HyperlaneTokenAccountData | null> {
+  return fetchTokenAccount(rpc, programId, NATIVE_PLUGIN_SIZE);
+}
+
+export function fetchSyntheticTokenAccount(
+  rpc: SvmRpc,
+  programId: Address,
+): Promise<HyperlaneTokenAccountData | null> {
+  return fetchTokenAccount(rpc, programId, SYNTHETIC_PLUGIN_SIZE);
+}
+
+export function fetchCollateralTokenAccount(
+  rpc: SvmRpc,
+  programId: Address,
+): Promise<HyperlaneTokenAccountData | null> {
+  return fetchTokenAccount(rpc, programId, COLLATERAL_PLUGIN_SIZE);
+}
+
+export function fetchCrossCollateralTokenAccount(
+  rpc: SvmRpc,
+  programId: Address,
+): Promise<HyperlaneTokenAccountData | null> {
+  return fetchTokenAccount(rpc, programId, COLLATERAL_PLUGIN_SIZE);
 }
 
 /**

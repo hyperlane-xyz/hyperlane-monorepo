@@ -50,7 +50,7 @@ import type {
 } from '../types.js';
 
 import type { SvmWarpTokenConfig } from './types.js';
-import { fetchTokenAccount, routerBytesToHex } from './warp-query.js';
+import { fetchSyntheticTokenAccount, routerBytesToHex } from './warp-query.js';
 import {
   applyPostInitConfig,
   assertLocalDecimals,
@@ -172,7 +172,7 @@ export class SvmSyntheticTokenReader implements ArtifactReader<
     ArtifactDeployed<RawSyntheticWarpArtifactConfig, DeployedWarpAddress>
   > {
     const programId = parseAddress(programAddress);
-    const token = await fetchTokenAccount(this.rpc, programId);
+    const token = await fetchSyntheticTokenAccount(this.rpc, programId);
     assert(
       !isNullish(token),
       `Synthetic token not initialized at ${programId}`,

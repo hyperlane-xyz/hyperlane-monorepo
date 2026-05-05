@@ -35,7 +35,7 @@ import { deriveAtaPayerPda, deriveEscrowPda } from '../pda.js';
 import type { AnnotatedSvmTransaction, SvmReceipt, SvmRpc } from '../types.js';
 
 import type { SvmWarpTokenConfig } from './types.js';
-import { fetchTokenAccount, routerBytesToHex } from './warp-query.js';
+import { fetchCollateralTokenAccount, routerBytesToHex } from './warp-query.js';
 import {
   applyPostInitConfig,
   assertLocalDecimals,
@@ -58,7 +58,7 @@ export class SvmCollateralTokenReader implements ArtifactReader<
     ArtifactDeployed<RawCollateralWarpArtifactConfig, DeployedWarpAddress>
   > {
     const programId = parseAddress(programAddress);
-    const token = await fetchTokenAccount(this.rpc, programId);
+    const token = await fetchCollateralTokenAccount(this.rpc, programId);
     assert(
       !isNullish(token),
       `Collateral token not initialized at ${programId}`,

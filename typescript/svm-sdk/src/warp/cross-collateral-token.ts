@@ -53,7 +53,7 @@ import type { AnnotatedSvmTransaction, SvmReceipt, SvmRpc } from '../types.js';
 
 import type { SvmWarpTokenConfig } from './types.js';
 import {
-  fetchTokenAccount,
+  fetchCrossCollateralTokenAccount,
   routerBytesToHex,
   routerHexToBytes,
 } from './warp-query.js';
@@ -82,7 +82,7 @@ export class SvmCrossCollateralTokenReader implements ArtifactReader<
     ArtifactDeployed<RawCrossCollateralWarpArtifactConfig, DeployedWarpAddress>
   > {
     const programId = parseAddress(programAddress);
-    const token = await fetchTokenAccount(this.rpc, programId);
+    const token = await fetchCrossCollateralTokenAccount(this.rpc, programId);
     assert(
       !isNullish(token),
       `Cross-collateral token not initialized at ${programId}`,
