@@ -18,7 +18,6 @@ import {
   eqAddressSol,
   eqOptionalAddress,
   isZeroishAddress,
-  setEquality,
   ZERO_ADDRESS_HEX_32,
 } from '@hyperlane-xyz/utils';
 
@@ -40,11 +39,11 @@ import {
   computeWildcardSignersFromStrategies,
   feeStrategiesEqual,
   feeStrategyToOnChain,
+  h160SetEquality,
   routeDataToFeeStrategy,
 } from './fee-strategy-utils.js';
 import {
   FeeDataKind,
-  h160ToSigner,
   type SvmDeployedFee,
   type SvmFeeWriterConfig,
 } from './types.js';
@@ -339,11 +338,4 @@ export class SvmRoutingFeeWriter
 
     return txs;
   }
-}
-
-function h160SetEquality(a: Uint8Array[], b: Uint8Array[]): boolean {
-  return setEquality(
-    new Set(a.map((signer) => h160ToSigner(signer).toLowerCase())),
-    new Set(b.map((signer) => h160ToSigner(signer).toLowerCase())),
-  );
 }

@@ -204,3 +204,11 @@ export function computeWildcardSignersFromStrategies(
   }
   return [...union].sort().map(signerToH160);
 }
+
+/** Case-insensitive equality check for two H160 signer sets. */
+export function h160SetEquality(a: Uint8Array[], b: Uint8Array[]): boolean {
+  return setEquality(
+    new Set(a.map((signer) => h160ToSigner(signer).toLowerCase())),
+    new Set(b.map((signer) => h160ToSigner(signer).toLowerCase())),
+  );
+}

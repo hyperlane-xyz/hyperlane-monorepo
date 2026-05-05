@@ -621,10 +621,11 @@ describe('fee type support', () => {
       };
 
       const result = mergeFeeArtifacts(current, expected);
-      expect(result.artifactState).to.equal(ArtifactState.DEPLOYED);
-      expect((result as DeployedFeeArtifact).deployed.address).to.equal(
-        '0xexisting',
+      assert(
+        result.artifactState === ArtifactState.DEPLOYED,
+        'expected DEPLOYED',
       );
+      expect(result.deployed.address).to.equal('0xexisting');
     });
 
     it('deploys new linear fee when params change', () => {
