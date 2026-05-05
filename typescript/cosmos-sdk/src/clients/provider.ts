@@ -34,6 +34,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
   private readonly registry: Registry;
   private readonly cometClient: CometClient;
   private readonly rpcUrls: string[];
+  private stargateClient?: Promise<StargateClient>;
 
   static async connect(
     rpcUrls: string[],
@@ -109,7 +110,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
       req.senderPubKey,
       `Cosmos Native requires a sender public key to estimate the transaction fee`,
     );
-    const stargateClient = await StargateClient.connect(this.rpcUrls[0]);
+    const stargateClient = await this.getStargateClient();
 
     const message = this.registry.encodeAsAny(req.transaction);
     const pubKey = encodeSecp256k1Pubkey(
@@ -136,6 +137,16 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
       gasPrice,
       fee: BigInt(Math.floor(gasUnits * gasPrice)),
     };
+  }
+
+  private getStargateClient(): Promise<StargateClient> {
+    this.stargateClient ??= StargateClient.connect(this.rpcUrls[0]).catch(
+      (error) => {
+        this.stargateClient = undefined;
+        throw error;
+      },
+    );
+    return this.stargateClient;
   }
 
   async isMessageDelivered(req: AltVM.ReqIsMessageDelivered): Promise<boolean> {

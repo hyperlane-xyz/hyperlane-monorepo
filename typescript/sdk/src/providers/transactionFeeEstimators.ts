@@ -50,6 +50,20 @@ export interface TransactionFeeEstimate {
   fee: number | bigint;
 }
 
+const stargateClients = new Map<string, Promise<StargateClient>>();
+
+function getStargateClient(url: string): Promise<StargateClient> {
+  let client = stargateClients.get(url);
+  if (!client) {
+    client = StargateClient.connect(url).catch((error) => {
+      stargateClients.delete(url);
+      throw error;
+    });
+    stargateClients.set(url, client);
+  }
+  return client;
+}
+
 export async function estimateTransactionFeeEthersV5({
   transaction,
   provider,
@@ -227,7 +241,7 @@ export async function estimateTransactionFeeCosmJsWasm({
   const wasmClient = await provider.provider;
   // @ts-ignore access a private field here to extract client URL
   const url: string = wasmClient.cometClient.client.url;
-  const stargateClient = StargateClient.connect(url);
+  const stargateClient = getStargateClient(url);
 
   return estimateTransactionFeeCosmJs({
     transaction: { type: ProviderType.CosmJs, transaction: message },

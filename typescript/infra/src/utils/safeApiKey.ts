@@ -4,8 +4,20 @@ import { fetchGCPSecret } from './gcloud.js';
 
 const safeApiKeySecretName = 'gnosis-safe-api-key';
 
+let safeApiKey: Promise<string> | undefined;
+
 export async function getSafeApiKey(): Promise<string> {
-  const secret = await fetchGCPSecret(safeApiKeySecretName, false);
-  assert(typeof secret === 'string', 'Safe API key secret must be a string');
-  return secret;
+  safeApiKey ??= fetchGCPSecret(safeApiKeySecretName, false)
+    .then((secret) => {
+      assert(
+        typeof secret === 'string',
+        'Safe API key secret must be a string',
+      );
+      return secret;
+    })
+    .catch((error) => {
+      safeApiKey = undefined;
+      throw error;
+    });
+  return safeApiKey;
 }
