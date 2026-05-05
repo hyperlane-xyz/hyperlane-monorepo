@@ -457,6 +457,8 @@ export class SvmCrossCollateralTokenWriter
         ownerAddress,
         this.rpc,
         `cross-collateral token ${programId}`,
+        this.config.feeSalt,
+        current.deployed.feeConfig,
       )),
     );
 

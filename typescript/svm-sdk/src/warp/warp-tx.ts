@@ -17,6 +17,7 @@ import { InterchainGasPaymasterTypeKind } from '../codecs/shared.js';
 import { SYSTEM_PROGRAM_ADDRESS } from '../constants.js';
 import { getProgramUpgradeAuthority } from '../deploy/program-deployer.js';
 import { getSetUpgradeAuthorityInstruction } from '../instructions/loader.js';
+import type { TokenFeeConfig } from '../accounts/token.js';
 import {
   getTokenEnrollRemoteRoutersInstruction,
   getTokenSetDestinationGasConfigsInstruction,
@@ -325,6 +326,8 @@ export async function computeWarpTokenUpdateInstructions(
   ownerAddress: Address,
   rpc: SvmRpc,
   label: string,
+  feeSalt: Uint8Array = DEFAULT_FEE_SALT,
+  currentOnChainFeeConfig?: TokenFeeConfig,
 ): Promise<AnnotatedSvmTransaction[]> {
   const txs: AnnotatedSvmTransaction[] = [];
 
@@ -380,7 +383,64 @@ export async function computeWarpTokenUpdateInstructions(
     });
   }
 
-  // 2. Router diff — the same domain set (toUnenroll/toEnroll) drives both
+  // 2. Fee config diff
+  const expectedFee = expected.fee?.deployed?.address;
+  if (expectedFee) {
+    const expectedFeeProgram = parseAddress(expectedFee);
+    const { address: expectedFeePda } = await deriveFeeAccountPda(
+      expectedFeeProgram,
+      feeSalt,
+    );
+    const expectedFeeConfig: TokenFeeConfig = {
+      feeProgram: expectedFeeProgram,
+      feeAccount: expectedFeePda,
+    };
+
+    const changed =
+      !currentOnChainFeeConfig ||
+      !eqAddressSol(
+        currentOnChainFeeConfig.feeProgram,
+        expectedFeeConfig.feeProgram,
+      ) ||
+      !eqAddressSol(
+        currentOnChainFeeConfig.feeAccount,
+        expectedFeeConfig.feeAccount,
+      );
+
+    if (changed) {
+      const feeAccount = await fetchFeeAccount(
+        rpc,
+        expectedFeeProgram,
+        feeSalt,
+      );
+      assert(
+        feeAccount,
+        `Fee account PDA not initialized at program ${expectedFee} with the given salt.`,
+      );
+
+      txs.push({
+        feePayer: ownerAddress,
+        instructions: [
+          await getTokenSetFeeConfigInstruction(
+            programId,
+            ownerAddress,
+            expectedFeeConfig,
+          ),
+        ],
+        annotation: `Update ${label}: set fee config`,
+      });
+    }
+  } else if (currentOnChainFeeConfig) {
+    txs.push({
+      feePayer: ownerAddress,
+      instructions: [
+        await getTokenSetFeeConfigInstruction(programId, ownerAddress, null),
+      ],
+      annotation: `Update ${label}: remove fee config`,
+    });
+  }
+
+  // 3. Router diff — the same domain set (toUnenroll/toEnroll) drives both
   //    router and gas config changes, batched independently because gas config
   //    instructions are smaller and allow more entries per tx.
   const diff = computeRemoteRoutersUpdates(
@@ -480,7 +540,7 @@ export async function computeWarpTokenUpdateInstructions(
   const expectedOwnerAddress =
     expected.owner && !isZeroishAddress(expected.owner) ? expected.owner : null;
 
-  // 3. Ownership change — own tx
+  // 4. Ownership change — own tx
   if (!eqOptionalAddress(current.owner, expected.owner, eqAddressSol)) {
     txs.push({
       feePayer: ownerAddress,
@@ -495,7 +555,7 @@ export async function computeWarpTokenUpdateInstructions(
     });
   }
 
-  // 4. Upgrade authority — always last tx.
+  // 5. Upgrade authority — always last tx.
   // Skip when the program is immutable (no current authority).
   const currentUpgradeAuthority = await getProgramUpgradeAuthority(
     rpc,
