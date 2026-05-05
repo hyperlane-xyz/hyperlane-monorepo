@@ -71,6 +71,8 @@ function evictStargateClient(
   const cachedClient = stargateClients.get(url);
   if (!cachedClient || (client && cachedClient !== client)) return;
 
+  // Disconnecting an evicted shared client can fail concurrent callers that
+  // were using it, but avoids keeping a poisoned socket in the process cache.
   stargateClients.delete(url);
   disconnectStargateClient(cachedClient);
 }

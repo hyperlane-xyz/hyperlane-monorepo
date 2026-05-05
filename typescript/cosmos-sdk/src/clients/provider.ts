@@ -172,6 +172,8 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
   private evictStargateClient(client: Promise<StargateClient>): void {
     if (this.stargateClient !== client) return;
 
+    // Disconnecting an evicted shared client can fail concurrent estimates on
+    // this provider, but avoids keeping a poisoned socket cached.
     this.stargateClient = undefined;
     void client.then(
       (stargateClient) => stargateClient.disconnect(),
