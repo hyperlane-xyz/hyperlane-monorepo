@@ -166,6 +166,12 @@ export class SvmCrossCollateralTokenReader implements ArtifactReader<
       destinationGas,
       scale: remoteDecimalsToScale(token.decimals, token.remoteDecimals),
       contractVersion: contractVersion ?? undefined,
+      fee: token.feeConfig
+        ? {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: token.feeConfig.feeProgram },
+          }
+        : undefined,
       crossCollateralRouters,
     };
 

@@ -97,6 +97,12 @@ export class SvmNativeTokenReader implements ArtifactReader<
       decimals: token.decimals,
       scale: remoteDecimalsToScale(token.decimals, token.remoteDecimals),
       contractVersion: contractVersion ?? undefined,
+      fee: token.feeConfig
+        ? {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: token.feeConfig.feeProgram },
+          }
+        : undefined,
     };
 
     return {
