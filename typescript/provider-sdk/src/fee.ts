@@ -243,9 +243,58 @@ export interface IRawFeeArtifactManager extends IArtifactManager<
 
 // ====== Fee Params Utilities ======
 
-const MAX_BPS = 10_000n;
-const BPS_PRECISION = 10_000n;
-const MAX_BPS_DECIMALS = 4;
+export const MAX_BPS = 10_000n;
+export const BPS_PRECISION = 10_000n;
+export const MAX_BPS_DECIMALS = 4;
+
+/** Returns true if bps has at most MAX_BPS_DECIMALS decimal places. */
+export function isBpsPrecisionValid(bps: number): boolean {
+  const factor = 10 ** MAX_BPS_DECIMALS;
+  const scaled = bps * factor;
+  return Math.abs(Math.round(scaled) - scaled) <= 1e-9;
+}
+
+/** Validates that a bps value does not exceed MAX_BPS_DECIMALS decimal places. */
+export function assertBpsPrecision(bps: number): void {
+  assert(
+    isBpsPrecisionValid(bps),
+    `bps must have at most ${MAX_BPS_DECIMALS} decimal places, got ${bps}`,
+  );
+}
+
+/**
+ * Reverse-computes bps from raw fee params using scaled integer math.
+ * Formula: scaledBps = (maxFee * MAX_BPS * BPS_PRECISION) / (halfAmount * 2)
+ * Rounds to MAX_BPS_DECIMALS decimal places.
+ */
+export function computeBps(maxFee: bigint, halfAmount: bigint): number {
+  assert(halfAmount !== 0n, 'halfAmount must be > 0');
+  const scaledBps = (maxFee * MAX_BPS * BPS_PRECISION) / (halfAmount * 2n);
+  const factor = 10 ** MAX_BPS_DECIMALS;
+  return (
+    Math.round((Number(scaledBps) / Number(BPS_PRECISION)) * factor) / factor
+  );
+}
+
+/**
+ * Converts bps to raw maxFee/halfAmount using a VM-specific max integer
+ * and assumed max transfer amount.
+ * maxFee = maxInt / assumedMaxAmount
+ * halfAmount = ((maxFee / 2) * MAX_BPS * BPS_PRECISION) / scaledBps
+ */
+export function bpsToRawFeeParams(
+  bps: number,
+  maxInt: bigint,
+  assumedMaxAmount: bigint,
+): { maxFee: bigint; halfAmount: bigint } {
+  assert(Number.isFinite(bps) && bps > 0, 'bps must be > 0');
+  assertBpsPrecision(bps);
+  const maxFee = maxInt / assumedMaxAmount;
+  const scaledBps = BigInt(Math.round(bps * Number(BPS_PRECISION)));
+  const halfAmount = ((maxFee / 2n) * MAX_BPS * BPS_PRECISION) / scaledBps;
+  assert(halfAmount <= maxInt, 'halfAmount must fit in max integer');
+  return { maxFee, halfAmount };
+}
 
 /**
  * Resolves raw maxFee/halfAmount bigints from FeeParams.
@@ -271,20 +320,6 @@ function resolveRawParams(params: FeeParams): {
     maxFee: BigInt(params.maxFee),
     halfAmount: BigInt(params.halfAmount),
   };
-}
-
-/**
- * Reverse-computes bps from raw fee params using scaled integer math.
- * Formula: scaledBps = (maxFee * MAX_BPS * BPS_PRECISION) / (halfAmount * 2)
- * Rounds to MAX_BPS_DECIMALS decimal places.
- */
-function computeBps(maxFee: bigint, halfAmount: bigint): number {
-  assert(halfAmount !== 0n, 'halfAmount must be > 0');
-  const scaledBps = (maxFee * MAX_BPS * BPS_PRECISION) / (halfAmount * 2n);
-  const factor = 10 ** MAX_BPS_DECIMALS;
-  return (
-    Math.round((Number(scaledBps) / Number(BPS_PRECISION)) * factor) / factor
-  );
 }
 
 function strategyToDerivedFeeConfig(
