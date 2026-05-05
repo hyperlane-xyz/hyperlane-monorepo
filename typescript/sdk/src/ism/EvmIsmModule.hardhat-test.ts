@@ -569,7 +569,7 @@ describe('EvmIsmModule', async () => {
         .true;
     });
 
-    it('redeploys rate limited ism with new owner on ownership change', async () => {
+    it('transfers ownership in-place on ownership change', async () => {
       const recipient = randomAddress();
       const signerAddress = await multiProvider.getSignerAddress(chain);
       const rateLimitedConfig: RateLimitedIsmConfig = {
@@ -585,12 +585,12 @@ describe('EvmIsmModule', async () => {
       // mutate in-place so testConfig (same reference) stays in sync for afterEach
       rateLimitedConfig.owner = newOwner;
 
-      // RATE_LIMITED is immutable — update() redeploys and returns no txs
-      await expectTxsAndUpdate(ism, rateLimitedConfig, 0);
+      // RATE_LIMITED is mutable — update() transfers ownership in-place (1 tx)
+      await expectTxsAndUpdate(ism, rateLimitedConfig, 1);
 
-      // a new contract should have been deployed
+      // same contract address — no redeploy
       expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
-        .false;
+        .true;
 
       const rateLimitedIsm = RateLimitedIsm__factory.connect(
         ism.serialize().deployedIsm,

@@ -220,8 +220,8 @@ export async function executeWarpDeploy(
       `RateLimitedIsm is only supported on Ethereum and Tron chains, but chain ${chain} has protocol ${protocol}`,
     );
     if (ism.type === IsmType.RATE_LIMITED) {
-      // Top-level: record with owner defaulted to the token owner
-      rateLimitedSnapshot[chain] = { ...ism, owner: config.owner };
+      // Top-level: default owner to token owner only when not user-supplied
+      rateLimitedSnapshot[chain] = { ...ism, owner: ism.owner ?? config.owner };
     } else {
       // Nested inside a composite ISM (aggregation, routing, etc.)
       // Store the full ISM tree; recipient + owner defaults are applied in setRateLimitedIsms.
@@ -287,18 +287,15 @@ export async function executeWarpDeploy(
     switch (protocol) {
       case ProtocolType.Tron:
       case ProtocolType.Ethereum: {
+        const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
+          registryAddresses,
+          multiProvider,
+          undefined,
+          contractVerifier,
+        );
         const deployer = warpDeployConfig.isNft
-          ? new HypERC721Deployer(multiProvider)
-          : new HypERC20Deployer( // TODO: replace with EvmERC20WarpModule
-              multiProvider,
-              HyperlaneIsmFactory.fromAddressesMap(
-                registryAddresses,
-                multiProvider,
-                undefined,
-                contractVerifier,
-              ),
-              contractVerifier,
-            );
+          ? new HypERC721Deployer(multiProvider, ismFactory, contractVerifier)
+          : new HypERC20Deployer(multiProvider, ismFactory, contractVerifier); // TODO: replace with EvmERC20WarpModule
 
         const chainSet = new Set(Object.keys(protocolSpecificConfig));
         const rateLimitedForBatch = objFilter(

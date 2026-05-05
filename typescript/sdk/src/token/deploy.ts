@@ -902,7 +902,7 @@ abstract class TokenDeployer<
       objMap(rateLimitedIsms, async (chain, ismConfig) => {
         const router = this.router(deployedContractsMap[chain]);
         const mailbox = configMap[chain].mailbox;
-        const defaultOwner = configMap[chain].owner as string;
+        const defaultOwner = configMap[chain].owner;
 
         const resolvedIsm = setRateLimitedIsmRecipient(
           ismConfig,
@@ -971,6 +971,7 @@ abstract class TokenDeployer<
         owner: await this.multiProvider.getSigner(chain).getAddress(),
       })),
     );
+
     const directBridgeContracts: Record<string, Record<string, unknown>> = {};
     const oftContracts: Record<string, Record<string, unknown>> = {};
     for (const [chain, config] of Object.entries(resolvedConfigMap)) {
@@ -1054,6 +1055,10 @@ abstract class TokenDeployer<
 
     await this.enrollCrossCollateralRouters(configMap, deployedContractsMap);
 
+    // RateLimitedIsms are wired after enrollment. A brief window exists where
+    // the token's effective ISM is the mailbox defaultIsm, but it is inert on a
+    // fresh deploy: no remote peers are enrolled yet, so no valid inbound message
+    // can arrive and be handled by the token during that window.
     if (rateLimitedIsms && Object.keys(rateLimitedIsms).length > 0) {
       await this.setRateLimitedIsms(
         rateLimitedIsms,

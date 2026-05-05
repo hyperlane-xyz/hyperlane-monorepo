@@ -722,7 +722,7 @@ describe('TokenDeployer', async () => {
     });
 
     it('deploys RateLimitedIsm nested inside staticAggregationIsm and wires it correctly', async () => {
-      const warpOwner = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
+      const warpOwner = ethers.Wallet.createRandom().address;
 
       const warpConfig: WarpRouteDeployConfigMailboxRequired = {
         [chain]: {

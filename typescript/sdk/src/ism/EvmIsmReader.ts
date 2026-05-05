@@ -581,7 +581,10 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       );
     }
 
-    // if it has recipient() property --> RATE_LIMITED
+    // Detect RateLimitedIsm by probing for its unique recipient() selector.
+    // Safe today because no other NULL-type ISM in this repo exposes recipient().
+    // TODO: replace with bytecode or unique-selector matching if custom NULL ISMs
+    //       with the same interface are ever introduced.
     const rateLimitedIsm = RateLimitedIsm__factory.connect(
       address,
       this.provider,
