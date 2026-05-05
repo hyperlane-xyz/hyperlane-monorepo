@@ -211,6 +211,8 @@ export class SvmNativeTokenWriter
       parseAddress(current.config.owner),
       this.rpc,
       `native token ${programId}`,
+      this.config.feeSalt,
+      current.deployed.feeConfig,
     );
   }
 }

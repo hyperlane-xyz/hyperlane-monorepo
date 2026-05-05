@@ -414,6 +414,8 @@ export class SvmSyntheticTokenWriter
       parseAddress(current.config.owner),
       this.rpc,
       `synthetic token ${programId}`,
+      this.config.feeSalt,
+      current.deployed.feeConfig,
     );
   }
 }

@@ -268,6 +268,8 @@ export class SvmCollateralTokenWriter
       parseAddress(current.config.owner),
       this.rpc,
       `collateral token ${programId}`,
+      this.config.feeSalt,
+      current.deployed.feeConfig,
     );
   }
 }
