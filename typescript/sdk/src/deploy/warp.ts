@@ -51,7 +51,7 @@ import { EvmHookModule } from '../hook/EvmHookModule.js';
 import { HookConfig } from '../hook/types.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
-import { IsmConfig, IsmType } from '../ism/types.js';
+import { IsmConfig } from '../ism/types.js';
 import { altVmChainLookup } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { TypedAnnotatedTransaction } from '../providers/ProviderType.js';
