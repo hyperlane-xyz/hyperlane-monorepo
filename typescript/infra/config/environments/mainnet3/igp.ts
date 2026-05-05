@@ -1,5 +1,11 @@
-import { ChainMap, ChainName, HookType, IgpConfig } from '@hyperlane-xyz/sdk';
-import { exclude, objMap } from '@hyperlane-xyz/utils';
+import {
+  ChainMap,
+  ChainName,
+  HookType,
+  IgpConfig,
+  defaultMultisigConfigs,
+} from '@hyperlane-xyz/sdk';
+import { exclude, objFilter, objMap } from '@hyperlane-xyz/utils';
 
 import {
   AllStorageGasOracleConfigs,
@@ -9,12 +15,15 @@ import {
 
 import { getEdenIgpConfig } from './eden.js';
 import { getTronIgpConfig } from './tron.js';
+import { supportedChainNamesInRegistry } from './chains.js';
 import gasPrices from './gasPrices.json' with { type: 'json' };
 import { DEPLOYER, chainOwners } from './owners.js';
-import { supportedChainNames } from './supportedChainNames.js';
 import rawTokenPrices from './tokenPrices.json' with { type: 'json' };
 
 const tokenPrices: ChainMap<string> = rawTokenPrices;
+const supportedIgpChainNames = supportedChainNamesInRegistry.filter(
+  (chain) => !!defaultMultisigConfigs[chain],
+);
 
 function getOracleConfigWithOverrides(origin: ChainName) {
   const oracleConfig = storageGasOracleConfig[origin];
@@ -41,15 +50,21 @@ function getOracleConfigWithOverrides(origin: ChainName) {
 
 const storageGasOracleConfig: AllStorageGasOracleConfigs =
   getAllStorageGasOracleConfigs(
-    supportedChainNames,
+    supportedIgpChainNames,
     tokenPrices,
     gasPrices,
     (local, remote) => getOverheadWithOverrides(local, remote),
     true,
   );
 
-export const igp: ChainMap<IgpConfig> = objMap(
+const supportedIgpChainOwners = objFilter(
   chainOwners,
+  (chain, owner): owner is (typeof chainOwners)[string] =>
+    chain in storageGasOracleConfig || chain === 'eden' || chain === 'tron',
+);
+
+export const igp: ChainMap<IgpConfig> = objMap(
+  supportedIgpChainOwners,
   (local, owner): IgpConfig => {
     if (local === 'eden') {
       return getEdenIgpConfig(owner, storageGasOracleConfig);
@@ -70,7 +85,7 @@ export const igp: ChainMap<IgpConfig> = objMap(
       oracleKey: DEPLOYER,
       beneficiary: DEPLOYER,
       overhead: Object.fromEntries(
-        exclude(local, supportedChainNames).map((remote) => [
+        exclude(local, supportedIgpChainNames).map((remote) => [
           remote,
           getOverheadWithOverrides(local, remote),
         ]),

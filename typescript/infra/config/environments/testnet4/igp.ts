@@ -7,9 +7,9 @@ import {
   getOverhead,
 } from '../../../src/config/gas-oracle.js';
 
+import { supportedChainNamesInRegistry } from './chains.js';
 import gasPrices from './gasPrices.json' with { type: 'json' };
 import { owners } from './owners.js';
-import { supportedChainNames } from './supportedChainNames.js';
 import rawTokenPrices from './tokenPrices.json' with { type: 'json' };
 
 const tokenPrices: ChainMap<string> = rawTokenPrices;
@@ -31,7 +31,7 @@ function getOracleConfigWithOverrides(origin: ChainName) {
 
 export const storageGasOracleConfig: AllStorageGasOracleConfigs =
   getAllStorageGasOracleConfigs(
-    supportedChainNames,
+    supportedChainNamesInRegistry,
     tokenPrices,
     gasPrices,
     (local, remote) => getOverheadWithOverrides(local, remote),
@@ -49,7 +49,7 @@ export const igp: ChainMap<IgpConfig> = objMap(
       oracleConfig: getOracleConfigWithOverrides(chain),
       overhead: Object.fromEntries(
         // no need to set overhead for chain to itself
-        exclude(chain, supportedChainNames).map((remote) => [
+        exclude(chain, supportedChainNamesInRegistry).map((remote) => [
           remote,
           getOverheadWithOverrides(chain, remote),
         ]),

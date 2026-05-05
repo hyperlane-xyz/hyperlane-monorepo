@@ -24,7 +24,11 @@ import { Contexts } from '../../contexts.js';
 import { DockerImageRepos, testnetDockerTags } from '../../docker.js';
 import { getDomainId } from '../../registry.js';
 
-import { environment, ethereumChainNames } from './chains.js';
+import {
+  environment,
+  ethereumChainNames,
+  supportedChainNamesInRegistry,
+} from './chains.js';
 import {
   supportedChainNames,
   testnet4SupportedChainNames,
@@ -124,7 +128,7 @@ export const hyperlaneContextAgentChainNames = getAgentChainNamesFromConfig(
 const contextBase = {
   namespace: environment,
   runEnv: environment,
-  environmentChainNames: supportedChainNames,
+  environmentChainNames: supportedChainNamesInRegistry,
   aws: {
     region: 'us-east-1',
   },

@@ -41,7 +41,11 @@ import { Contexts } from '../../contexts.js';
 import { DockerImageRepos, mainnetDockerTags } from '../../docker.js';
 import { getDomainId, getWarpAddresses } from '../../registry.js';
 
-import { environment, ethereumChainNames } from './chains.js';
+import {
+  environment,
+  ethereumChainNames,
+  supportedChainNamesInRegistry,
+} from './chains.js';
 import { blacklistedMessageIds } from './customBlacklist.js';
 import aaveSenderAddresses from './misc-artifacts/aave-sender-addresses.json' with { type: 'json' };
 import everclearSenderAddresses from './misc-artifacts/everclear-sender-addresses.json' with { type: 'json' };
@@ -576,7 +580,7 @@ const sealevelTransactionSubmitterConfigGetter = (
 const contextBase = {
   namespace: environment,
   runEnv: environment,
-  environmentChainNames: supportedChainNames,
+  environmentChainNames: supportedChainNamesInRegistry,
   aws: {
     region: 'us-east-1',
   },

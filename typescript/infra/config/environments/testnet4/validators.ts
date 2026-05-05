@@ -1,15 +1,27 @@
+import { objFilter } from '@hyperlane-xyz/utils';
+
 import { ValidatorBaseChainConfigMap } from '../../../src/config/agent/validator.js';
 import { Contexts } from '../../contexts.js';
-import { getReorgPeriod } from '../../registry.js';
+import { getReorgPeriod as resolveReorgPeriod } from '../../registry.js';
 import { validatorBaseConfigsFn } from '../utils.js';
 
-import { environment } from './chains.js';
+import { environment, supportedChainNamesInRegistry } from './chains.js';
 
 export const validatorChainConfig = (
   context: Contexts,
 ): ValidatorBaseChainConfigMap => {
   const validatorsConfig = validatorBaseConfigsFn(environment, context);
-  return {
+  const supportedChainNamesInRegistrySet = new Set(supportedChainNamesInRegistry);
+  const getReorgPeriod = (
+    chain: keyof ValidatorBaseChainConfigMap,
+  ): string | number =>
+    supportedChainNamesInRegistrySet.has(chain as string)
+      ? resolveReorgPeriod(
+          chain as Parameters<typeof resolveReorgPeriod>[0],
+        )
+      : 0;
+  return objFilter(
+    {
     arbitrumsepolia: {
       interval: 5,
       reorgPeriod: getReorgPeriod('arbitrumsepolia'),
@@ -290,5 +302,8 @@ export const validatorChainConfig = (
         'tronshasta',
       ),
     },
-  };
+  },
+    (chain, config): config is ValidatorBaseChainConfigMap[string] =>
+      supportedChainNamesInRegistrySet.has(chain),
+  );
 };
