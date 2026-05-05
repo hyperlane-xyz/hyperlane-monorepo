@@ -18,8 +18,8 @@ import {
 import { getRegistry } from '../../../../registry.js';
 import { WarpRouteIds } from '../warpIds.js';
 import {
-  getDeployedRouteRebalancingConfigFor,
   getFixedRoutingFeeConfig,
+  getRebalancingBridgesConfigFor,
 } from './utils.js';
 
 const ROUTE_CHAINS = [
@@ -156,9 +156,9 @@ export async function getUSDTMoonpayWarpConfig(
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
 ): Promise<ChainMap<HypTokenRouterConfig>> {
-  const rebalancingConfigByChain = await getDeployedRouteRebalancingConfigFor(
+  const rebalancingConfigByChain = getRebalancingBridgesConfigFor(
     ['arbitrum', 'ethereum'],
-    WarpRouteIds.EclipseUSDT,
+    [WarpRouteIds.USDTOft, WarpRouteIds.USDTOftLegacy],
   );
   const feeDestinationsByChain = Object.fromEntries(
     ROUTE_CHAINS.map((local) => [
