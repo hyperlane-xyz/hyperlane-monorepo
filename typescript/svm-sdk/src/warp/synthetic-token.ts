@@ -225,6 +225,12 @@ export class SvmSyntheticTokenReader implements ArtifactReader<
       metadataUri: metadata.uri,
       scale: remoteDecimalsToScale(token.decimals, token.remoteDecimals),
       contractVersion: contractVersion ?? undefined,
+      fee: token.feeConfig
+        ? {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: token.feeConfig.feeProgram },
+          }
+        : undefined,
     };
 
     return {

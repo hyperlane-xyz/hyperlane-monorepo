@@ -159,6 +159,8 @@ describe('SVM Warp Fee Config E2E Tests', function () {
     expect(onChain.deployed.feeConfig?.feeAccount).to.equal(
       expectedPda.address,
     );
+    expect(onChain.config.fee).to.exist;
+    expect(onChain.config.fee?.deployed?.address).to.equal(feeProgramA);
   });
 
   it('should add fee via update when none was set', async () => {
@@ -195,6 +197,7 @@ describe('SVM Warp Fee Config E2E Tests', function () {
 
     const afterUpdate = await writer.read(deployed.deployed.address);
     expect(afterUpdate.deployed.feeConfig?.feeProgram).to.equal(feeProgramA);
+    expect(afterUpdate.config.fee?.deployed?.address).to.equal(feeProgramA);
   });
 
   it('should change from one fee program to another', async () => {
@@ -320,5 +323,6 @@ describe('SVM Warp Fee Config E2E Tests', function () {
 
     const afterUpdate = await writer.read(deployed.deployed.address);
     expect(afterUpdate.deployed.feeConfig).to.be.undefined;
+    expect(afterUpdate.config.fee).to.be.undefined;
   });
 });
