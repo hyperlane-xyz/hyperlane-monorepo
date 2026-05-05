@@ -23,6 +23,7 @@ import {
 } from '../codecs/fee.js';
 import { SYSTEM_PROGRAM_ADDRESS } from '../constants.js';
 import {
+  deriveCrossCollateralRoutePda,
   deriveFeeAccountPda,
   deriveRouteDomainPda,
   deriveStandingQuotePda,
@@ -302,11 +303,26 @@ export async function getSetQuoteSignerForRouteInstruction(
   route: SvmRouteKey,
 ): Promise<Instruction> {
   let routePda: Address;
-  if (route.kind === SvmRouteKeyKind.Domain) {
-    routePda = (await deriveRouteDomainPda(programId, feeAccount, route.domain))
-      .address;
-  } else {
-    throw new Error('CrossCollateral route not yet supported');
+  switch (route.kind) {
+    case SvmRouteKeyKind.Domain:
+      routePda = (
+        await deriveRouteDomainPda(programId, feeAccount, route.domain)
+      ).address;
+      break;
+    case SvmRouteKeyKind.CrossCollateral:
+      routePda = (
+        await deriveCrossCollateralRoutePda(
+          programId,
+          feeAccount,
+          route.destination,
+          route.targetRouter,
+        )
+      ).address;
+      break;
+    default: {
+      const _exhaustive: never = route;
+      throw new Error(`Unhandled route kind: ${String(_exhaustive)}`);
+    }
   }
   return buildInstruction(
     programId,

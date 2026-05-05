@@ -291,3 +291,22 @@ export async function deriveStandingQuotePda(
     targetRouter,
   ]);
 }
+
+export async function deriveCrossCollateralRoutePda(
+  programAddress: Address,
+  feeAccount: Address,
+  destination: number,
+  targetRouter: ReadonlyUint8Array,
+): Promise<PdaWithBump> {
+  return derive(programAddress, [
+    utf8.encode('hyperlane_fee'),
+    utf8.encode('-'),
+    utf8.encode('cc_route'),
+    utf8.encode('-'),
+    addressEncoder.encode(feeAccount),
+    utf8.encode('-'),
+    u32.encode(destination),
+    utf8.encode('-'),
+    targetRouter,
+  ]);
+}
