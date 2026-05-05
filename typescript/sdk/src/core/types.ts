@@ -12,9 +12,10 @@ import {
   IcaRouterConfigSchema,
 } from '../ica/types.js';
 import type { DerivedIsmConfig, IsmConfig } from '../ism/types.js';
-import { IsmConfigSchema, IsmType } from '../ism/types.js';
+import { IsmConfigSchema } from '../ism/types.js';
 import type { ChainName } from '../types.js';
 import { DeployedOwnableSchema, OwnableSchema } from '../types.js';
+import { ismTreeContainsRateLimited } from '../utils/ism.js';
 
 const CoreConfigBaseSchema = OwnableSchema.extend({
   defaultIsm: IsmConfigSchema,
@@ -32,12 +33,7 @@ const rejectRateLimitedDefaultIsm = (
   val: { defaultIsm: unknown },
   ctx: z.RefinementCtx,
 ) => {
-  if (
-    typeof val.defaultIsm === 'object' &&
-    val.defaultIsm !== null &&
-    'type' in val.defaultIsm &&
-    (val.defaultIsm as { type: string }).type === IsmType.RATE_LIMITED
-  ) {
+  if (ismTreeContainsRateLimited(val.defaultIsm)) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: 'RateLimitedIsm cannot be used as a core default ISM',

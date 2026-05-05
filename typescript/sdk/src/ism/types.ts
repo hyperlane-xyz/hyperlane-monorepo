@@ -304,8 +304,11 @@ export const TrustedRelayerIsmConfigSchema = z.object({
 export const RateLimitedIsmConfigSchema = z
   .object({
     type: z.literal(IsmType.RATE_LIMITED),
-    maxCapacity: z.string(),
+    maxCapacity: z
+      .string()
+      .regex(/^\d+$/, 'maxCapacity must be a base-10 integer string'),
     recipient: ZHash.optional(),
+    owner: ZHash.optional(),
   })
   .refine((val) => BigInt(val.maxCapacity) >= 86400n, {
     message: 'maxCapacity must be at least 86400',

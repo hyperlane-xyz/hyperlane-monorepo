@@ -3,4 +3,4 @@
 "@hyperlane-xyz/sdk": minor
 ---
 
-Added rate limited ism support
+Added rate-limited ISM support.

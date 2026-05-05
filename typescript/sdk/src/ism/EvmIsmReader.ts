@@ -589,11 +589,13 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     try {
       const recipient = await rateLimitedIsm.recipient();
       const maxCapacity = (await rateLimitedIsm.maxCapacity()).toString();
+      const owner = await rateLimitedIsm.owner();
       return {
         address,
         type: IsmType.RATE_LIMITED,
         recipient,
         maxCapacity,
+        owner,
       };
     } catch {
       this.logger.debug(

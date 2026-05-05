@@ -3,6 +3,8 @@ import { expect } from 'chai';
 import { Signer } from 'ethers';
 import hre from 'hardhat';
 
+import { RateLimitedIsm__factory } from '@hyperlane-xyz/core';
+
 import { Address, eqAddress } from '@hyperlane-xyz/utils';
 
 import { TestChainName, testChains } from '../consts/testChains.js';
@@ -26,6 +28,7 @@ import {
   IsmConfig,
   IsmType,
   MultisigIsmConfig,
+  RateLimitedIsmConfig,
   RoutingIsmConfig,
   TrustedRelayerIsmConfig,
 } from './types.js';
@@ -174,6 +177,26 @@ describe('EvmIsmModule', async () => {
         upperIsm: randomMultisigIsmConfig(3, 5),
         threshold: 2,
       });
+    });
+
+    it('deploys a rate limited ism and transfers ownership to non-deployer', async () => {
+      const recipient = randomAddress();
+      const owner = randomAddress();
+      const config: RateLimitedIsmConfig = {
+        type: IsmType.RATE_LIMITED,
+        maxCapacity: '86400',
+        recipient,
+        owner,
+      };
+      const { ism } = await createIsm(config);
+
+      const rateLimitedIsm = RateLimitedIsm__factory.connect(
+        ism.serialize().deployedIsm,
+        multiProvider.getProvider(chain),
+      );
+      expect((await rateLimitedIsm.owner()).toLowerCase()).to.equal(
+        owner.toLowerCase(),
+      );
     });
 
     for (let i = 0; i < 16; i++) {
@@ -544,6 +567,38 @@ describe('EvmIsmModule', async () => {
       // expect the ISM address to be the same
       expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
         .true;
+    });
+
+    it('redeploys rate limited ism with new owner on ownership change', async () => {
+      const recipient = randomAddress();
+      const signerAddress = await multiProvider.getSignerAddress(chain);
+      const rateLimitedConfig: RateLimitedIsmConfig = {
+        type: IsmType.RATE_LIMITED,
+        maxCapacity: '86400',
+        recipient,
+        owner: signerAddress,
+      };
+
+      const { ism, initialIsmAddress } = await createIsm(rateLimitedConfig);
+
+      const newOwner = randomAddress();
+      // mutate in-place so testConfig (same reference) stays in sync for afterEach
+      rateLimitedConfig.owner = newOwner;
+
+      // RATE_LIMITED is immutable — update() redeploys and returns no txs
+      await expectTxsAndUpdate(ism, rateLimitedConfig, 0);
+
+      // a new contract should have been deployed
+      expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
+        .false;
+
+      const rateLimitedIsm = RateLimitedIsm__factory.connect(
+        ism.serialize().deployedIsm,
+        multiProvider.getProvider(chain),
+      );
+      expect((await rateLimitedIsm.owner()).toLowerCase()).to.equal(
+        newOwner.toLowerCase(),
+      );
     });
   });
 });

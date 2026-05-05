@@ -63,14 +63,18 @@ import { getEvmHookUpdateTransactions } from '../hook/updates.js';
 import { stripPredicateSubHook } from '../hook/utils.js';
 import { DerivedHookConfig, OnchainHookType } from '../hook/types.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
-import { IsmType } from '../ism/types.js';
 import { PredicateWrapperDeployer } from '../predicate/PredicateDeployer.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { RemoteRouters, resolveRouterMapConfig } from '../router/types.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { scalesEqual } from '../utils/decimals.js';
-import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
+import { IsmType } from '../ism/types.js';
+import {
+  extractIsmAndHookFactoryAddresses,
+  ismTreeContainsRateLimited,
+  setRateLimitedIsmRecipient,
+} from '../utils/ism.js';
 
 import {
   CCTP_PPM_STORAGE_VERSION,
@@ -161,9 +165,31 @@ export class EvmWarpModule extends HyperlaneModule<
    * @returns A promise that resolves to the token router configuration.
    */
   async read(): Promise<DerivedTokenRouterConfig> {
-    return this.reader.deriveWarpRouteConfig(
+    const config = await this.reader.deriveWarpRouteConfig(
       this.args.addresses.deployedTokenRoute,
     );
+    // recipient is always the token address itself — implicit in the warp
+    // context, so omit it from read() output to keep configs clean.
+    // Mutate in place to preserve the DerivedIsmConfig type (WithAddress<...>).
+    const stripRecipient = (node: unknown): void => {
+      if (typeof node !== 'object' || node === null) return;
+      const n = node as Record<string, unknown>;
+      if (n.type === IsmType.RATE_LIMITED) {
+        n.recipient = undefined;
+        return;
+      }
+      if (Array.isArray(n.modules)) n.modules.forEach(stripRecipient);
+      if (typeof n.domains === 'object' && n.domains !== null)
+        Object.values(n.domains as Record<string, unknown>).forEach(
+          stripRecipient,
+        );
+      if (n.lowerIsm) stripRecipient(n.lowerIsm);
+      if (n.upperIsm) stripRecipient(n.upperIsm);
+    };
+    const ism = config.interchainSecurityModule;
+    if (typeof ism !== 'string' && ismTreeContainsRateLimited(ism))
+      stripRecipient(ism);
+    return config;
   }
 
   /**
@@ -1722,17 +1748,19 @@ export class EvmWarpModule extends HyperlaneModule<
       };
     }
 
-    // Auto-populate recipient for RateLimitedIsm from the deployed token address
+    // Always override recipient for any RateLimitedIsm node — it must be the
+    // token address.  Any user-supplied value is silently wrong (it would wire
+    // the ISM to the wrong chain), so we always set it from the deployed token
+    // route.  Handles both top-level and nested (e.g. inside aggregation) nodes.
     let expectedIsm = expectedConfig.interchainSecurityModule;
     if (
       typeof expectedIsm === 'object' &&
-      expectedIsm.type === IsmType.RATE_LIMITED &&
-      !expectedIsm.recipient
+      ismTreeContainsRateLimited(expectedIsm)
     ) {
-      expectedIsm = {
-        ...expectedIsm,
-        recipient: this.args.addresses.deployedTokenRoute,
-      };
+      expectedIsm = setRateLimitedIsmRecipient(
+        expectedIsm,
+        this.args.addresses.deployedTokenRoute,
+      );
     }
 
     const ismModule = new EvmIsmModule(

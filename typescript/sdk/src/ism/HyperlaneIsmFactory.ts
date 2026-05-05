@@ -297,6 +297,23 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           IsmType.RATE_LIMITED,
           [mailbox, rateLimitedConfig.maxCapacity, rateLimitedConfig.recipient],
         );
+        if (rateLimitedConfig.owner) {
+          const signer = this.multiProvider.getSigner(destination);
+          const signerAddress = await signer.getAddress();
+          if (!eqAddress(signerAddress, rateLimitedConfig.owner)) {
+            const overrides =
+              this.multiProvider.getTransactionOverrides(destination);
+            const rateLimitedIsm = RateLimitedIsm__factory.connect(
+              contract.address,
+              signer,
+            );
+            const tx = await rateLimitedIsm.transferOwnership(
+              rateLimitedConfig.owner,
+              overrides,
+            );
+            await this.multiProvider.handleTx(destination, tx);
+          }
+        }
         break;
       }
       case IsmType.CCIP:

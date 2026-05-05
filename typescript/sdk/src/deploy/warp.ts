@@ -1,7 +1,4 @@
-import {
-  MailboxClient__factory,
-  ProxyAdmin__factory,
-} from '@hyperlane-xyz/core';
+import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   createHookWriter,
@@ -54,7 +51,7 @@ import { EvmHookModule } from '../hook/EvmHookModule.js';
 import { HookConfig } from '../hook/types.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
-import { IsmConfig, IsmType, RateLimitedIsmConfig } from '../ism/types.js';
+import { IsmConfig, IsmType } from '../ism/types.js';
 import { altVmChainLookup } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { TypedAnnotatedTransaction } from '../providers/ProviderType.js';
@@ -72,7 +69,10 @@ import {
   WarpRouteDeployConfigMailboxRequired,
 } from '../token/types.js';
 import { ChainMap } from '../types.js';
-import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
+import {
+  extractIsmAndHookFactoryAddresses,
+  ismTreeContainsRateLimited,
+} from '../utils/ism.js';
 
 import { HyperlaneProxyFactoryDeployer } from './HyperlaneProxyFactoryDeployer.js';
 import { ContractVerifier } from './verify/ContractVerifier.js';
@@ -203,17 +203,29 @@ export async function executeWarpDeploy(
     contractVerifier,
   );
 
-  // Snapshot RATE_LIMITED ISM configs before resolveWarpIsmAndHook mutates them
-  // in place (objMap passes the same config reference, and createWarpIsm sets
-  // config.interchainSecurityModule = undefined for RATE_LIMITED chains).
-  const rateLimitedSnapshot: ChainMap<RateLimitedIsmConfig> = {};
+  // Capture ISM configs that contain a RATE_LIMITED node before resolveWarpIsmAndHook
+  // runs — that function replaces each chain's ISM field with the deployed address,
+  // but RATE_LIMITED ISMs (and any composite ISM containing one) are skipped there
+  // because the constructor requires the token address (recipient), which doesn't
+  // exist yet.  They are wired inside TokenDeployer.deploy() before ownership is
+  // transferred so that setInterchainSecurityModule succeeds regardless of config.owner.
+  const rateLimitedSnapshot: ChainMap<IsmConfig> = {};
   for (const [chain, config] of Object.entries(warpDeployConfig)) {
-    if (
-      typeof config.interchainSecurityModule === 'object' &&
-      config.interchainSecurityModule.type === IsmType.RATE_LIMITED
-    ) {
-      rateLimitedSnapshot[chain] =
-        config.interchainSecurityModule as RateLimitedIsmConfig;
+    if (typeof config.interchainSecurityModule !== 'object') continue;
+    const ism = config.interchainSecurityModule;
+    if (!ismTreeContainsRateLimited(ism)) continue;
+    const protocol = multiProvider.getProtocol(chain);
+    assert(
+      protocol === ProtocolType.Ethereum || protocol === ProtocolType.Tron,
+      `RateLimitedIsm is only supported on Ethereum and Tron chains, but chain ${chain} has protocol ${protocol}`,
+    );
+    if (ism.type === IsmType.RATE_LIMITED) {
+      // Top-level: record with owner defaulted to the token owner
+      rateLimitedSnapshot[chain] = { ...ism, owner: config.owner };
+    } else {
+      // Nested inside a composite ISM (aggregation, routing, etc.)
+      // Store the full ISM tree; recipient + owner defaults are applied in setRateLimitedIsms.
+      rateLimitedSnapshot[chain] = ism;
     }
   }
 
@@ -288,7 +300,15 @@ export async function executeWarpDeploy(
               contractVerifier,
             );
 
-        const evmContracts = await deployer.deploy(protocolSpecificConfig);
+        const chainSet = new Set(Object.keys(protocolSpecificConfig));
+        const rateLimitedForBatch = objFilter(
+          rateLimitedSnapshot,
+          (_chain, ismConfig): ismConfig is IsmConfig => chainSet.has(_chain),
+        );
+        const evmContracts = await deployer.deploy(
+          protocolSpecificConfig,
+          rateLimitedForBatch,
+        );
         deployedContracts = {
           ...deployedContracts,
           ...objMap(
@@ -332,69 +352,7 @@ export async function executeWarpDeploy(
     }
   }
 
-  await resolveRateLimitedIsms(
-    rateLimitedSnapshot,
-    deployedContracts,
-    multiProvider,
-    registryAddresses,
-    contractVerifier,
-  );
-
   return deployedContracts;
-}
-
-// RateLimitedIsm cannot be deployed in the normal resolveWarpIsmAndHook() pass
-// because its constructor takes the token (recipient) address — which doesn't
-// exist yet at that point. This function runs after all tokens are deployed:
-// for each chain whose config specifies a RateLimitedIsm, it deploys the ISM
-// with recipient = deployed token address, then calls setInterchainSecurityModule
-// on the token to wire it up. The token is initialized with no ISM (address zero)
-// during the normal deploy and is updated here.
-async function resolveRateLimitedIsms(
-  rateLimitedConfigs: ChainMap<RateLimitedIsmConfig>,
-  deployedContracts: ChainMap<Address>,
-  multiProvider: MultiProvider,
-  registryAddresses: ChainMap<ChainAddresses>,
-  contractVerifier?: ContractVerifier,
-): Promise<void> {
-  for (const [chain, ismConfig] of Object.entries(rateLimitedConfigs)) {
-    const protocol = multiProvider.getProtocol(chain);
-    if (protocol !== ProtocolType.Ethereum && protocol !== ProtocolType.Tron)
-      continue;
-    const tokenAddress = deployedContracts[chain];
-    const chainAddresses = registryAddresses[chain];
-
-    assert(tokenAddress, `No deployed token address found for ${chain}`);
-    assert(chainAddresses?.mailbox, `No mailbox address found for ${chain}`);
-
-    rootLogger.info(`Deploying RateLimitedIsm for token on ${chain}...`);
-
-    const evmIsmModule = await EvmIsmModule.create({
-      chain,
-      mailbox: chainAddresses.mailbox,
-      multiProvider,
-      proxyFactoryFactories: extractIsmAndHookFactoryAddresses(chainAddresses),
-      config: { ...ismConfig, recipient: tokenAddress },
-      contractVerifier,
-    });
-    const { deployedIsm } = evmIsmModule.serialize();
-
-    rootLogger.info(
-      `Setting RateLimitedIsm ${deployedIsm} on token ${tokenAddress} on ${chain}...`,
-    );
-
-    const tokenContract = MailboxClient__factory.connect(
-      tokenAddress,
-      multiProvider.getProvider(chain),
-    );
-    await multiProvider.sendTransaction(chain, {
-      to: tokenAddress,
-      data: tokenContract.interface.encodeFunctionData(
-        'setInterchainSecurityModule',
-        [deployedIsm],
-      ),
-    });
-  }
 }
 
 async function resolveWarpIsmAndHook(
@@ -476,14 +434,14 @@ async function createWarpIsm({
     return interchainSecurityModule;
   }
 
-  // RateLimitedIsm has a chicken-and-egg problem with the normal ISM deploy flow:
-  // the ISM constructor requires the token (recipient) address, but ISMs are normally
-  // deployed here — before the token exists. We skip it and deploy it in
-  // resolveRateLimitedIsms() after the token is deployed, then call
-  // setInterchainSecurityModule() to wire it up.
-  if (interchainSecurityModule.type === IsmType.RATE_LIMITED) {
+  // RateLimitedIsm has a chicken-and-egg problem: the constructor requires the
+  // token (recipient) address, but ISMs are deployed here — before the token exists.
+  // We skip any ISM tree that contains a RATE_LIMITED node and deploy it later in
+  // setRateLimitedIsms() (after the token is deployed), then wire it up via
+  // setInterchainSecurityModule().
+  if (ismTreeContainsRateLimited(interchainSecurityModule)) {
     rootLogger.info(
-      `Skipping RateLimitedIsm deployment for ${chain}, will deploy after token.`,
+      `Skipping ISM deployment for ${chain} (contains RateLimitedIsm), will deploy after token.`,
     );
     return undefined;
   }
