@@ -21,6 +21,7 @@ use crate::interfaces::i_interchain_security_module::{
     IInterchainSecurityModule as EthereumInterchainSecurityModuleInternal,
     IINTERCHAINSECURITYMODULE_ABI,
 };
+use crate::interfaces::i_rate_limited_ism::IRateLimitedIsm;
 use crate::interfaces::i_trusted_relayer_ism::ITrustedRelayerIsm;
 use crate::{BuildableWithProvider, ConnectionConf, EthereumProvider};
 
@@ -142,14 +143,15 @@ where
             // Context here: https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/4585
             tx = tx.from(RANDOM_ADDRESS);
         }
-        let (verifies, gas_estimate) = try_join(tx.call(), tx.estimate_gas()).await?;
-        if verifies {
-            return Ok(Some(gas_estimate.into()));
+        match try_join(tx.call(), tx.estimate_gas()).await {
+            Ok((true, gas_estimate)) => return Ok(Some(gas_estimate.into())),
+            Ok((false, _)) | Err(_) => {}
         }
-        // For Null-typed ISMs (e.g. TrustedRelayerIsm), verify() returns false
-        // during a dry run because it depends on mailbox state set during process().
-        // If we are the configured trusted relayer, include it with gas=0.
+        // For Null-typed ISMs (e.g. TrustedRelayerIsm, RateLimitedIsm), verify()
+        // returns false or reverts during a dry run because they depend on mailbox
+        // state set during process() (before verify() is called in the real flow).
         if self.module_type().await? == ModuleType::Null {
+            // TrustedRelayerIsm: verify() returns false if sender != trusted relayer.
             if let Some(sender) = self.contract.client().default_sender() {
                 let tr = ITrustedRelayerIsm::new(self.contract.address(), self.contract.client());
                 if let Ok(trusted_relayer) = tr.trusted_relayer().call().await {
@@ -157,6 +159,13 @@ where
                         return Ok(Some(U256::zero()));
                     }
                 }
+            }
+            // RateLimitedIsm: verify() reverts because the mailbox sets delivery
+            // state before calling verify() on-chain, but simulation skips that.
+            let rate_limited =
+                IRateLimitedIsm::new(self.contract.address(), self.contract.client());
+            if rate_limited.recipient().call().await.is_ok() {
+                return Ok(Some(U256::zero()));
             }
         }
         Ok(None)
