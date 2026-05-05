@@ -126,6 +126,21 @@ spec:
         - name: relay-api
           containerPort: {{ .Values.hyperlane.relayer.relayApi.port }}
         {{- end }}
+      {{- if .Values.hyperlane.relayer.relayApi.enabled }}
+      - name: cloudflared
+        image: {{ .Values.hyperlane.relayer.cloudflaredTunnel.image }}
+        args: ["tunnel", "--no-autoupdate", "run"]
+        env:
+          - name: TUNNEL_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: {{ include "agent-common.fullname" . }}-relayer-secret
+                key: CLOUDFLARED_TUNNEL_TOKEN
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+      {{- end }}
       volumes:
       - name: relayer-configmap
         configMap:

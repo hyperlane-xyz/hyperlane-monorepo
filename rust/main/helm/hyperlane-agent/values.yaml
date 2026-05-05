@@ -133,6 +133,8 @@ hyperlane:
       enabled: false
       bucket: ''
       object_targz: ''
+    cloudflaredTunnel:
+      image: cloudflare/cloudflared:2025.4.0
 
   relayerChains:
     - name: 'ethereum'
