@@ -150,8 +150,6 @@ export function getTransferFeeOwnershipInstruction(
   );
 }
 
-// ====== SetMinIssuedAt ======
-
 // ====== SetQuoteSigner (Leaf mode — route = None) ======
 
 export function getSetQuoteSignerInstruction(
