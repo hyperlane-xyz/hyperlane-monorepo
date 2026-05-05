@@ -103,6 +103,27 @@ describe('SVM Cross-Collateral Routing Fee E2E Tests', function () {
     );
   });
 
+  it('should return empty transactions when config is unchanged', async () => {
+    const [deployed] = await writer.create({
+      config: {
+        type: FeeType.crossCollateralRouting,
+        owner: signer.getSignerAddress(),
+        beneficiary: signer.getSignerAddress(),
+        routes: {
+          10: {
+            [ROUTER_A]: {
+              type: FeeStrategyType.linear,
+              params: raw('1000', '500'),
+            },
+          },
+        },
+      },
+    });
+
+    const updateTxs = await writer.update(deployed);
+    expect(updateTxs).to.have.length(0);
+  });
+
   it('should add a new CC route pair via update', async () => {
     const [deployed] = await writer.create({
       config: {

@@ -18,6 +18,7 @@ import {
   eqAddressSol,
   eqOptionalAddress,
   isZeroishAddress,
+  setEquality,
   ZERO_ADDRESS_HEX_32,
 } from '@hyperlane-xyz/utils';
 
@@ -37,11 +38,13 @@ import type { AnnotatedSvmTransaction, SvmReceipt, SvmRpc } from '../types.js';
 import { fetchFeeAccount, fetchRouteDomain } from './fee-query.js';
 import {
   computeWildcardSignersFromStrategies,
+  feeStrategiesEqual,
   feeStrategyToOnChain,
   routeDataToFeeStrategy,
 } from './fee-strategy-utils.js';
 import {
   FeeDataKind,
+  h160ToSigner,
   type SvmDeployedFee,
   type SvmFeeWriterConfig,
 } from './types.js';
@@ -176,6 +179,31 @@ export class SvmRoutingFeeWriter
       );
     }
 
+    if (
+      !eqOptionalAddress(
+        this.svmSigner.signer.address,
+        feeConfig.owner,
+        eqAddressSol,
+      )
+    ) {
+      const newOwner =
+        feeConfig.owner && !isZeroishAddress(feeConfig.owner)
+          ? parseAddress(feeConfig.owner)
+          : null;
+      receipts.push(
+        await this.svmSigner.send({
+          instructions: [
+            getTransferFeeOwnershipInstruction(
+              programId,
+              feeAccountPda,
+              this.svmSigner.signer.address,
+              newOwner,
+            ),
+          ],
+        }),
+      );
+    }
+
     return [
       {
         artifactState: ArtifactState.DEPLOYED,
@@ -210,22 +238,26 @@ export class SvmRoutingFeeWriter
     // 1. Add or update routes
     for (const [domainStr, strategy] of Object.entries(expected.routes)) {
       const domain = Number(domainStr);
-      const { feeData, signers } = feeStrategyToOnChain(strategy);
-      txs.push({
-        feePayer: ownerAddress,
-        instructions: [
-          await getSetRemoteFeeRouteInstruction(
-            programId,
-            feeAccountPda,
-            ownerAddress,
-            domain,
-            null,
-            feeData,
-            signers,
-          ),
-        ],
-        annotation: `Set route for domain ${domain}`,
-      });
+      const currentStrategy = currentConfig.routes[domain];
+
+      if (!currentStrategy || !feeStrategiesEqual(currentStrategy, strategy)) {
+        const { feeData, signers } = feeStrategyToOnChain(strategy);
+        txs.push({
+          feePayer: ownerAddress,
+          instructions: [
+            await getSetRemoteFeeRouteInstruction(
+              programId,
+              feeAccountPda,
+              ownerAddress,
+              domain,
+              null,
+              feeData,
+              signers,
+            ),
+          ],
+          annotation: `Set route for domain ${domain}`,
+        });
+      }
     }
 
     // 2. Remove stale routes
@@ -251,18 +283,23 @@ export class SvmRoutingFeeWriter
     const wildcardSigners = computeWildcardSignersFromStrategies(
       Object.values(expected.routes),
     );
-    txs.push({
-      feePayer: ownerAddress,
-      instructions: [
-        getSetWildcardQuoteSignersInstruction(
-          programId,
-          feeAccountPda,
-          ownerAddress,
-          wildcardSigners,
-        ),
-      ],
-      annotation: 'Update wildcard quote signers',
-    });
+    const currentWildcardSigners = computeWildcardSignersFromStrategies(
+      Object.values(currentConfig.routes),
+    );
+    if (!h160SetEquality(currentWildcardSigners, wildcardSigners)) {
+      txs.push({
+        feePayer: ownerAddress,
+        instructions: [
+          getSetWildcardQuoteSignersInstruction(
+            programId,
+            feeAccountPda,
+            ownerAddress,
+            wildcardSigners,
+          ),
+        ],
+        annotation: 'Update wildcard quote signers',
+      });
+    }
 
     // 4. Diff beneficiary
     if (!eqAddressSol(currentConfig.beneficiary, expected.beneficiary)) {
@@ -302,4 +339,11 @@ export class SvmRoutingFeeWriter
 
     return txs;
   }
+}
+
+function h160SetEquality(a: Uint8Array[], b: Uint8Array[]): boolean {
+  return setEquality(
+    new Set(a.map((signer) => h160ToSigner(signer).toLowerCase())),
+    new Set(b.map((signer) => h160ToSigner(signer).toLowerCase())),
+  );
 }

@@ -126,6 +126,22 @@ describe('SVM Routing Fee E2E Tests', function () {
     }
   });
 
+  it('should return empty transactions when config is unchanged', async () => {
+    const [deployed] = await writer.create({
+      config: {
+        type: FeeType.routing,
+        owner: signer.getSignerAddress(),
+        beneficiary: signer.getSignerAddress(),
+        routes: {
+          10: { type: FeeStrategyType.linear, params: raw('1000', '500') },
+        },
+      },
+    });
+
+    const updateTxs = await writer.update(deployed);
+    expect(updateTxs).to.have.length(0);
+  });
+
   it('should add a new route via update', async () => {
     const [deployed] = await writer.create({
       config: {

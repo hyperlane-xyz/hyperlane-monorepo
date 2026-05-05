@@ -2,6 +2,7 @@ import type { Address } from '@solana/kit';
 import { keccak_256 } from '@noble/hashes/sha3';
 
 import type { DeployedFeeAddress } from '@hyperlane-xyz/provider-sdk/fee';
+import { strip0x } from '@hyperlane-xyz/utils';
 
 import type { SvmProgramTarget } from '../types.js';
 
@@ -62,9 +63,9 @@ export type FeeDataKind = (typeof FeeDataKind)[keyof typeof FeeDataKind];
 
 /** Converts a 0x-prefixed hex address to a 20-byte H160 Uint8Array. */
 export function signerToH160(hexAddress: string): Uint8Array {
-  const hex = hexAddress.startsWith('0x') ? hexAddress.slice(2) : hexAddress;
-  if (hex.length !== 40) {
-    throw new Error(`Expected 40 hex chars for H160, got ${hex.length}`);
+  const hex = strip0x(hexAddress);
+  if (!/^[0-9a-fA-F]{40}$/.test(hex)) {
+    throw new Error(`Expected 40 hex chars for H160, got: ${hexAddress}`);
   }
   const bytes = new Uint8Array(20);
   for (let i = 0; i < 20; i++) {
