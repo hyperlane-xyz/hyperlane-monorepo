@@ -35,6 +35,7 @@ import {
   InterchainGasPaymasterTypeKind,
   type RemoteRouterConfig,
 } from '../codecs/shared.js';
+import type { TokenFeeConfig } from '../accounts/token.js';
 import {
   PROGRAM_INSTRUCTION_DISCRIMINATOR,
   SYSTEM_PROGRAM_ADDRESS,
@@ -62,6 +63,7 @@ export enum TokenProgramInstructionKind {
   SetInterchainSecurityModule = 5,
   SetInterchainGasPaymaster = 6,
   TransferOwnership = 7,
+  SetFeeConfig = 8,
 }
 
 export interface TokenInitInstructionData {
@@ -92,7 +94,8 @@ export type TokenProgramInstructionData =
       kind: 'setInterchainGasPaymaster';
       value: [Address, InterchainGasPaymasterType] | null;
     }
-  | { kind: 'transferOwnership'; value: Address | null };
+  | { kind: 'transferOwnership'; value: Address | null }
+  | { kind: 'setFeeConfig'; value: TokenFeeConfig | null };
 
 interface TokenInitIgpValue {
   programId: Address;
@@ -195,6 +198,17 @@ export function encodeTokenProgramInstruction(
         u8(TokenProgramInstructionKind.TransferOwnership),
         option(instruction.value, (addr) => ADDRESS_CODEC.encode(addr)),
       );
+    case 'setFeeConfig':
+      return concatBytes(
+        PROGRAM_INSTRUCTION_DISCRIMINATOR,
+        u8(TokenProgramInstructionKind.SetFeeConfig),
+        option(instruction.value, (fc) =>
+          concatBytes(
+            ADDRESS_CODEC.encode(fc.feeProgram),
+            ADDRESS_CODEC.encode(fc.feeAccount),
+          ),
+        ),
+      );
   }
 }
 
@@ -242,8 +256,10 @@ export function decodeTokenProgramInstruction(
       };
     case TokenProgramInstructionKind.TransferOwnership:
       return { kind: 'transferOwnership', value: decodeOptionAddress(cursor) };
+    case TokenProgramInstructionKind.SetFeeConfig:
+      return { kind: 'setFeeConfig', value: decodeOptionFeeConfig(cursor) };
     default:
-      if (kind <= TokenProgramInstructionKind.TransferOwnership) {
+      if (kind <= TokenProgramInstructionKind.SetFeeConfig) {
         throw new Error(
           `Token instruction kind ${kind} is recognized but decoding is not yet implemented`,
         );
@@ -461,6 +477,15 @@ function decodeOptionIgpTuple(
   ];
 }
 
+function decodeOptionFeeConfig(cursor: ByteCursor): TokenFeeConfig | null {
+  const hasValue = cursor.readU8() === 1;
+  if (!hasValue) return null;
+  return {
+    feeProgram: ADDRESS_CODEC.decode(cursor.readBytes(32)),
+    feeAccount: ADDRESS_CODEC.decode(cursor.readBytes(32)),
+  };
+}
+
 function decodeVec<T>(
   cursor: ByteCursor,
   decoder: (cursor: ByteCursor) => T,
@@ -471,4 +496,30 @@ function decodeVec<T>(
     out.push(decoder(cursor));
   }
   return out;
+}
+
+// ====== SetFeeConfig instruction builder ======
+
+export async function getTokenSetFeeConfigInstruction(
+  programAddress: Address,
+  owner: Address,
+  value: TokenFeeConfig | null,
+): Promise<Instruction> {
+  const { address: tokenPda } = await deriveHyperlaneTokenPda(programAddress);
+  const accounts = [
+    readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
+    writableAccount(tokenPda),
+    writableSignerAddress(owner),
+  ];
+  if (value) {
+    accounts.push(
+      readonlyAccount(value.feeProgram),
+      readonlyAccount(value.feeAccount),
+    );
+  }
+  return buildInstruction(
+    programAddress,
+    accounts,
+    encodeTokenProgramInstruction({ kind: 'setFeeConfig', value }),
+  );
 }
