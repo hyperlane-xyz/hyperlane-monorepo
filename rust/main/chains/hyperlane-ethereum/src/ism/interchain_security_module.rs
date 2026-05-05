@@ -143,9 +143,8 @@ where
             // Context here: https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/4585
             tx = tx.from(RANDOM_ADDRESS);
         }
-        match try_join(tx.call(), tx.estimate_gas()).await {
-            Ok((true, gas_estimate)) => return Ok(Some(gas_estimate.into())),
-            Ok((false, _)) | Err(_) => {}
+        if let Ok((true, gas_estimate)) = try_join(tx.call(), tx.estimate_gas()).await {
+            return Ok(Some(gas_estimate.into()));
         }
         // For Null-typed ISMs (e.g. TrustedRelayerIsm, RateLimitedIsm), verify()
         // returns false or reverts during a dry run because they depend on mailbox
@@ -168,16 +167,14 @@ where
             if rate_limited.recipient().call().await.is_ok() {
                 // Parse token amount from warp message body (bytes [32..64]).
                 let body = message.body.as_slice();
-                let token_amount = if body.len() >= 64 {
-                    ethers::types::U256::from_big_endian(&body[32..64])
-                } else {
-                    ethers::types::U256::zero()
+                if body.len() < 64 {
+                    return Ok(None);
+                }
+                let token_amount = ethers::types::U256::from_big_endian(&body[32..64]);
+                let current_level = match rate_limited.calculate_current_level().call().await {
+                    Ok(v) => v,
+                    Err(_) => return Ok(None),
                 };
-                let current_level = rate_limited
-                    .calculate_current_level()
-                    .call()
-                    .await
-                    .unwrap_or(ethers::types::U256::zero());
                 if token_amount <= current_level {
                     return Ok(Some(U256::zero()));
                 }
