@@ -1,4 +1,6 @@
 import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
+
+import { tokenFeeConfigInputToProviderFeeConfig } from '../fee/feeConfigMapping.js';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   createHookWriter,
@@ -127,6 +129,9 @@ export function validateWarpConfigForAltVM(
     destinationGas: config.destinationGas,
     scale,
     contractVersion: config.contractVersion,
+    fee: config.tokenFee
+      ? tokenFeeConfigInputToProviderFeeConfig(config.tokenFee)
+      : undefined,
   };
 
   switch (config.type) {
