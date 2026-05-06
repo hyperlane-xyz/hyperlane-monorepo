@@ -218,6 +218,11 @@ pub trait ValidatableQuote {
     /// Full validation for quote submission (ingest time).
     /// Checks structural validity (expiry >= issued_at), liveness (not expired,
     /// not too far in the future), and freshness (above min_issued_at).
+    ///
+    /// No upper bound is enforced on `expiry`: a signer can issue an
+    /// arbitrarily long-lived standing quote. This matches EVM behavior;
+    /// invalidation is the operator's responsibility via `min_issued_at`
+    /// (which monotonically advances and revokes everything below it).
     fn validate_quote_submission(
         &self,
         min_issued_at: i64,
