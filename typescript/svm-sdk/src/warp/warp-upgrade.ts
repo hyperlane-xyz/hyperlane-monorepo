@@ -10,6 +10,7 @@ import type { Address } from '@solana/kit';
 import { assert, eqAddressSol } from '@hyperlane-xyz/utils';
 
 import type { SvmSigner } from '../clients/signer.js';
+import { MAX_COMPUTE_UNITS } from '../constants.js';
 import {
   PROGRAM_DATA_HEADER_SIZE,
   createUpgradeProgramPlan,
@@ -47,11 +48,19 @@ export async function prepareProgramUpgrade(
   authorityTransactions: AnnotatedSvmTransaction[];
   receipts: SvmReceipt[];
 } | null> {
-  if (!expectedVersion || currentVersion === expectedVersion) {
+  if (!expectedVersion) {
     return null;
   }
 
-  if (currentVersion && compareVersions(expectedVersion, currentVersion) < 0) {
+  const cmp = currentVersion
+    ? compareVersions(expectedVersion, currentVersion)
+    : 1;
+
+  if (cmp === 0) {
+    return null;
+  }
+
+  if (cmp < 0) {
     throw new Error(
       `Cannot downgrade ${label}: deployed version ${currentVersion} is newer than expected ${expectedVersion}`,
     );
@@ -95,6 +104,7 @@ export async function prepareProgramUpgrade(
           additionalBytes,
         ),
       ],
+      computeUnits: MAX_COMPUTE_UNITS,
       annotation: `Extend ${label}: +${additionalBytes} bytes`,
     });
   }
@@ -147,6 +157,7 @@ export async function prepareProgramUpgrade(
     feePayer: upgradeAuthority,
     instructions: finalizeStage.instructions,
     additionalSigners: finalizeStage.additionalSigners,
+    computeUnits: MAX_COMPUTE_UNITS,
     annotation: `Upgrade ${label}: ${currentVersion ?? 'unknown'} → ${expectedVersion}`,
   });
 
