@@ -15,6 +15,7 @@ import {
   OPStackHook__factory,
   PausableHook__factory,
   ProtocolFee__factory,
+  RateLimitedHook__factory,
   StaticAggregationHook__factory,
   StorageGasOracle__factory,
 } from '@hyperlane-xyz/core';
@@ -53,6 +54,7 @@ import {
   OpStackHookConfig,
   PausableHookConfig,
   ProtocolFeeHookConfig,
+  RateLimitedHookConfig,
   RoutingHookConfig,
 } from './types.js';
 
@@ -85,6 +87,9 @@ export interface HookReader {
   ): Promise<WithAddress<PausableHookConfig>>;
   deriveIdAuthIsmConfig(address: Address): Promise<DerivedHookConfig>;
   deriveCcipConfig(address: Address): Promise<WithAddress<CCIPHookConfig>>;
+  deriveRateLimitedHookConfig(
+    address: Address,
+  ): Promise<WithAddress<RateLimitedHookConfig>>;
   assertHookType(
     hookType: OnchainHookType,
     expectedType: OnchainHookType,
@@ -182,6 +187,9 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
         case OnchainHookType.CCTP:
           derivedHookConfig = { type: HookType.CCTP, address };
           this._cache.set(address, derivedHookConfig);
+          break;
+        case OnchainHookType.RATE_LIMITED:
+          derivedHookConfig = await this.deriveRateLimitedHookConfig(address);
           break;
         default:
           throw new Error(
@@ -312,6 +320,28 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       address,
       type: HookType.CCIP,
       destinationChain,
+    };
+
+    this._cache.set(address, config);
+
+    return config;
+  }
+
+  async deriveRateLimitedHookConfig(
+    address: Address,
+  ): Promise<WithAddress<RateLimitedHookConfig>> {
+    const hook = RateLimitedHook__factory.connect(address, this.provider);
+
+    const [maxCapacity, owner] = await Promise.all([
+      hook.maxCapacity(),
+      hook.owner(),
+    ]);
+
+    const config: WithAddress<RateLimitedHookConfig> = {
+      address,
+      type: HookType.RATE_LIMITED,
+      maxCapacity: maxCapacity.toString(),
+      owner,
     };
 
     this._cache.set(address, config);

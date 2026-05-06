@@ -2,6 +2,7 @@ import { expect } from 'chai';
 
 import {
   HookType,
+  type RateLimitedHookConfig,
   TokenType,
   type WarpRouteDeployConfig,
   normalizeConfig,
@@ -99,5 +100,49 @@ describe('hyperlane warp apply E2E (hook updates)', async function () {
           .hook,
       ),
     );
+  });
+
+  it('should deploy a warp route with a RateLimitedHook and update its maxCapacity in place', async () => {
+    const chain = TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2;
+    const owner = HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum;
+    const initialMaxCapacity = (86400n * 100n).toString();
+    const updatedMaxCapacity = (86400n * 200n).toString();
+
+    const warpDeployConfig: WarpRouteDeployConfig = {
+      [chain]: {
+        type: TokenType.native,
+        owner,
+        hook: {
+          type: HookType.RATE_LIMITED,
+          maxCapacity: initialMaxCapacity,
+          owner,
+        } as RateLimitedHookConfig,
+      },
+    };
+
+    await writeYamlOrJson(DEFAULT_EVM_WARP_DEPLOY_PATH, warpDeployConfig);
+    await evmWarpCommands.deploy(
+      HYP_KEY_BY_PROTOCOL.ethereum,
+      DEFAULT_EVM_WARP_ID,
+    );
+
+    // Update maxCapacity in place (sender unchanged — same hook contract, just setRefillRate)
+    (warpDeployConfig[chain].hook as RateLimitedHookConfig).maxCapacity =
+      updatedMaxCapacity;
+    await writeYamlOrJson(DEFAULT_EVM_WARP_DEPLOY_PATH, warpDeployConfig);
+
+    await evmWarpCommands.applyRaw({
+      warpRouteId: DEFAULT_EVM_WARP_ID,
+      hypKey: HYP_KEY_BY_PROTOCOL.ethereum,
+    });
+
+    const updatedConfig = await evmWarpCommands.readConfig(
+      chain,
+      DEFAULT_EVM_WARP_CORE_PATH,
+    );
+
+    const hook = updatedConfig[chain].hook as RateLimitedHookConfig;
+    expect(hook.type).to.equal(HookType.RATE_LIMITED);
+    expect(hook.maxCapacity).to.equal(updatedMaxCapacity);
   });
 });

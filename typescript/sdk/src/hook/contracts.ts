@@ -10,6 +10,7 @@ import {
   OPStackHook__factory,
   PausableHook__factory,
   ProtocolFee__factory,
+  RateLimitedHook__factory,
   StaticAggregationHook__factory,
 } from '@hyperlane-xyz/core';
 import { ValueOf } from '@hyperlane-xyz/utils';
@@ -29,6 +30,7 @@ export const hookFactories = {
   [HookType.AMOUNT_ROUTING]: new AmountRoutingHook__factory(),
   [HookType.MAILBOX_DEFAULT]: new DefaultHook__factory(),
   [HookType.CCIP]: new CCIPHook__factory(),
+  [HookType.RATE_LIMITED]: new RateLimitedHook__factory(),
 };
 
 export type HookFactories = typeof hookFactories;

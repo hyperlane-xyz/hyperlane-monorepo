@@ -1,4 +1,7 @@
-import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
+import {
+  MailboxClient__factory,
+  ProxyAdmin__factory,
+} from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   createHookWriter,
@@ -49,6 +52,7 @@ import {
 } from '../contracts/types.js';
 import { EvmHookModule } from '../hook/EvmHookModule.js';
 import { HookConfig } from '../hook/types.js';
+import { hookTreeContainsRateLimited } from '../hook/utils.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { IsmConfig } from '../ism/types.js';
@@ -200,6 +204,15 @@ export async function executeWarpDeploy(
     contractVerifier,
   );
 
+  // Snapshot hook configs that contain RATE_LIMITED before resolveWarpIsmAndHook strips them.
+  // These hooks need the token router address (not yet deployed), so we defer them.
+  const rateLimitedHookSnapshots: ChainMap<HookConfig> = {};
+  for (const [chain, config] of Object.entries(warpDeployConfig)) {
+    if (config.hook && hookTreeContainsRateLimited(config.hook as HookConfig)) {
+      rateLimitedHookSnapshots[chain] = config.hook as HookConfig;
+    }
+  }
+
   // For each chain in WarpRouteConfig, deploy each Ism Factory, if it's not in the registry
   // Then return a modified config with the ism and/or hook address as a string
   const modifiedConfig = await resolveWarpIsmAndHook(
@@ -315,7 +328,65 @@ export async function executeWarpDeploy(
     }
   }
 
+  if (Object.keys(rateLimitedHookSnapshots).length > 0) {
+    await deployAndWireRateLimitedHooks(
+      rateLimitedHookSnapshots,
+      deployedContracts,
+      multiProvider,
+      registryAddresses,
+      contractVerifier,
+    );
+  }
+
   return deployedContracts;
+}
+
+async function deployAndWireRateLimitedHooks(
+  snapshots: ChainMap<HookConfig>,
+  deployedTokens: ChainMap<Address>,
+  multiProvider: MultiProvider,
+  registryAddresses: ChainMap<ChainAddresses>,
+  contractVerifier?: ContractVerifier,
+): Promise<void> {
+  await promiseObjAll(
+    objMap(snapshots, async (chain, hookConfig) => {
+      const tokenAddress = mustGet(deployedTokens, chain);
+      const chainAddresses = registryAddresses[chain];
+      assert(chainAddresses, `No registry addresses for ${chain}`);
+
+      const proxyAdminAddress = (
+        await multiProvider.handleDeploy(chain, new ProxyAdmin__factory(), [])
+      ).address;
+
+      const evmHookModule = await EvmHookModule.create({
+        chain,
+        multiProvider,
+        coreAddresses: {
+          mailbox: chainAddresses.mailbox,
+          proxyAdmin: proxyAdminAddress,
+          rateLimitedSender: tokenAddress,
+        },
+        config: hookConfig,
+        proxyFactoryFactories:
+          extractIsmAndHookFactoryAddresses(chainAddresses),
+        contractVerifier,
+      });
+
+      const { deployedHook } = evmHookModule.serialize();
+      assert(deployedHook, `Failed to get deployed hook address for ${chain}`);
+
+      rootLogger.info(
+        `Wiring RateLimitedHook ${deployedHook} to token ${tokenAddress} on ${chain}`,
+      );
+      const txOverrides = multiProvider.getTransactionOverrides(chain);
+      const signer = multiProvider.getSigner(chain);
+      const token = MailboxClient__factory.connect(tokenAddress, signer);
+      await multiProvider.handleTx(
+        chain,
+        token.setHook(deployedHook, txOverrides),
+      );
+    }),
+  );
 }
 
 async function resolveWarpIsmAndHook(
@@ -466,6 +537,14 @@ async function createWarpHook({
       `Config Hook is ${!hook ? 'empty' : hook}, skipping deployment.`,
     );
     return hook;
+  }
+
+  // RATE_LIMITED hooks need the token router address as sender — defer until post-token deploy
+  if (hookTreeContainsRateLimited(hook)) {
+    rootLogger.info(
+      `RATE_LIMITED hook on ${chain} — deferring deployment until after token deployment`,
+    );
+    return undefined;
   }
 
   rootLogger.info(`Loading registry factory addresses for ${chain}...`);
