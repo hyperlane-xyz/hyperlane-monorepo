@@ -1200,8 +1200,10 @@ async fn test_cc_context_wrong_target_router_fails() {
     );
 
     // QuoteFee with correct target_router but quote has wrong_router → mismatch.
-    let domain_quotes_pda = standing_quote_pda_for(&fee_key, dest);
-    let wildcard_quotes_pda = standing_quote_pda_for(&fee_key, WILDCARD_DOMAIN);
+    // Use CC-shape standing PDAs since this is a CC fee account; otherwise the
+    // test only happens to pass because transient validation trips first.
+    let domain_quotes_pda = cc_standing_quote_pda_for(&fee_key, dest, &target_router);
+    let wildcard_quotes_pda = cc_standing_quote_pda_for(&fee_key, WILDCARD_DOMAIN, &target_router);
     let cc_specific_pda = cc_route_pda_for(&fee_key, dest, &target_router);
 
     let quote_ix = Instruction::new_with_borsh(
