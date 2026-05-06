@@ -467,11 +467,12 @@ pub fn set_igp_quote_config_instruction(
     // Accounts:
     // 0. `[executable]` The system program.
     // 1. `[writeable]` The IGP.
-    // 2. `[signer]` The IGP owner.
+    // 2. `[signer, writable]` The IGP owner — also pays for any rent-exempt
+    //    realloc when the IGP grows, so must be writable.
     let accounts = vec![
         AccountMeta::new_readonly(system_program::ID, false),
         AccountMeta::new(igp, false),
-        AccountMeta::new_readonly(owner, true),
+        AccountMeta::new(owner, true),
     ];
 
     Ok(SolanaInstruction {
@@ -493,11 +494,12 @@ pub fn set_igp_quote_signer_instruction(
     // Accounts:
     // 0. `[executable]` The system program.
     // 1. `[writeable]` The IGP.
-    // 2. `[signer]` The IGP owner.
+    // 2. `[signer, writable]` The IGP owner — also pays for any rent-exempt
+    //    realloc when the IGP grows, so must be writable.
     let accounts = vec![
         AccountMeta::new_readonly(system_program::ID, false),
         AccountMeta::new(igp, false),
-        AccountMeta::new_readonly(owner, true),
+        AccountMeta::new(owner, true),
     ];
 
     Ok(SolanaInstruction {
@@ -519,11 +521,12 @@ pub fn set_igp_min_issued_at_instruction(
     // Accounts:
     // 0. `[executable]` The system program.
     // 1. `[writeable]` The IGP.
-    // 2. `[signer]` The IGP owner.
+    // 2. `[signer, writable]` The IGP owner — also pays for any rent-exempt
+    //    realloc when the IGP grows, so must be writable.
     let accounts = vec![
         AccountMeta::new_readonly(system_program::ID, false),
         AccountMeta::new(igp, false),
-        AccountMeta::new_readonly(owner, true),
+        AccountMeta::new(owner, true),
     ];
 
     Ok(SolanaInstruction {
