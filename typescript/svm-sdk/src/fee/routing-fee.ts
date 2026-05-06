@@ -44,12 +44,21 @@ import {
 } from './fee-strategy-utils.js';
 import {
   FeeDataKind,
+  type WithWildcardSigners,
+  parseDomainId,
   type SvmDeployedFee,
   type SvmFeeWriterConfig,
 } from './types.js';
 
+/**
+ * On-chain route PDAs are non-enumerable, so `read()` only discovers routes
+ * for domains listed in `context.knownRoutersPerDomain`. `update()` diffs
+ * against this same view — routes on domains absent from the context are
+ * invisible and won't be added or removed. Callers must ensure the context
+ * covers all active domains to avoid partial diffs.
+ */
 export class SvmRoutingFeeReader implements ArtifactReader<
-  RoutingFeeArtifactConfig,
+  WithWildcardSigners<RoutingFeeArtifactConfig>,
   SvmDeployedFee
 > {
   constructor(
@@ -60,7 +69,12 @@ export class SvmRoutingFeeReader implements ArtifactReader<
 
   async read(
     address: string,
-  ): Promise<ArtifactDeployed<RoutingFeeArtifactConfig, SvmDeployedFee>> {
+  ): Promise<
+    ArtifactDeployed<
+      WithWildcardSigners<RoutingFeeArtifactConfig>,
+      SvmDeployedFee
+    >
+  > {
     const programId = parseAddress(address);
     const account = await fetchFeeAccount(this.rpc, programId, this.salt);
     assert(account, `Fee account not found for program: ${programId}`);
@@ -77,7 +91,7 @@ export class SvmRoutingFeeReader implements ArtifactReader<
     // Route PDAs are non-enumerable on-chain — use context to discover domains.
     const routes: Record<number, FeeStrategy> = {};
     for (const domainStr of Object.keys(this.context.knownRoutersPerDomain)) {
-      const domain = Number(domainStr);
+      const domain = parseDomainId(domainStr);
       const route = await fetchRouteDomain(
         this.rpc,
         programId,
@@ -94,7 +108,13 @@ export class SvmRoutingFeeReader implements ArtifactReader<
 
     return {
       artifactState: ArtifactState.DEPLOYED,
-      config: { type: FeeType.routing, owner, beneficiary, routes },
+      config: {
+        type: FeeType.routing,
+        owner,
+        beneficiary,
+        routes,
+        wildcardSigners: account.feeData.wildcardSigners,
+      },
       deployed: { address: programId, programId, feeAccountPda },
     };
   }
@@ -159,7 +179,7 @@ export class SvmRoutingFeeWriter
 
     // Set each route via SetRemoteFeeRoute (target_router = null for Routing)
     for (const [domainStr, strategy] of Object.entries(feeConfig.routes)) {
-      const domain = Number(domainStr);
+      const domain = parseDomainId(domainStr);
       const { feeData, signers } = feeStrategyToOnChain(strategy);
       const setRouteIx = await getSetRemoteFeeRouteInstruction(
         programId,
@@ -236,7 +256,7 @@ export class SvmRoutingFeeWriter
 
     // 1. Add or update routes
     for (const [domainStr, strategy] of Object.entries(expected.routes)) {
-      const domain = Number(domainStr);
+      const domain = parseDomainId(domainStr);
       const currentStrategy = currentConfig.routes[domain];
 
       if (!currentStrategy || !feeStrategiesEqual(currentStrategy, strategy)) {
@@ -282,10 +302,7 @@ export class SvmRoutingFeeWriter
     const wildcardSigners = computeWildcardSignersFromStrategies(
       Object.values(expected.routes),
     );
-    const currentWildcardSigners = computeWildcardSignersFromStrategies(
-      Object.values(currentConfig.routes),
-    );
-    if (!h160SetEquality(currentWildcardSigners, wildcardSigners)) {
+    if (!h160SetEquality(currentConfig.wildcardSigners, wildcardSigners)) {
       txs.push({
         feePayer: ownerAddress,
         instructions: [

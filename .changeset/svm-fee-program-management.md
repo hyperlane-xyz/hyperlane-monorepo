@@ -6,7 +6,8 @@
 '@hyperlane-xyz/aleo-sdk': patch
 '@hyperlane-xyz/cosmos-sdk': patch
 '@hyperlane-xyz/radix-sdk': patch
-'@hyperlane-xyz/starknet-core': patch
+'@hyperlane-xyz/starknet-sdk': patch
+'@hyperlane-xyz/tron-sdk': patch
 '@hyperlane-xyz/cli': patch
 ---
 
