@@ -608,25 +608,36 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       },
     };
 
-    // Fetch implementation bytecode once; scanning selectors locally avoids
-    // reverted eth_calls for methods that don't exist on the contract.
-    const implAddress = (await isProxy(this.provider, warpRouteAddress))
-      ? await proxyImplementation(this.provider, warpRouteAddress)
-      : warpRouteAddress;
-    const bytecode = await this.provider.getCode(implAddress);
-
     // Temporarily turn off SmartProvider logging
     // Provider errors are expected because deriving will call methods that may not exist in the Bytecode
     this.setSmartProviderLogLevel('silent');
 
     try {
+      // Fetch implementation bytecode once; scanning selectors locally avoids
+      // reverted eth_calls for methods that don't exist on the contract.
+      // Read the EIP-1967 impl slot directly so UUPS/beacon proxies (which have
+      // an empty admin slot) are resolved correctly alongside TransparentProxy.
+      // Wrapped in try/catch so EOAs / bad addresses don't throw here — bytecode
+      // will be '0x' and the selector guard falls through to probes as pre-PR.
+      let implAddress = warpRouteAddress;
+      try {
+        const impl = await proxyImplementation(this.provider, warpRouteAddress);
+        if (!isZeroishAddress(impl)) implAddress = impl;
+      } catch {
+        // not a proxy or address has no code — use warpRouteAddress directly
+      }
+      const bytecode = await this.provider.getCode(implAddress);
+
       // First, try checking token specific methods
       for (const [tokenType, { factory, method }] of Object.entries(
         contractTypes,
       )) {
-        // Skip if selector absent from bytecode — avoids reverted eth_calls
+        // Skip if selector absent from bytecode — avoids reverted eth_calls.
+        // When bytecode is unavailable ('0x'), fall through to the probe anyway
+        // to preserve pre-optimization behavior on zero-impl / flaky-RPC paths.
         const selector = factory.createInterface().getSighash(method);
-        if (!bytecode.includes(selector.slice(2))) continue;
+        if (bytecode !== '0x' && !bytecode.includes(selector.slice(2)))
+          continue;
 
         try {
           const warpRoute = factory.connect(warpRouteAddress, this.provider);
