@@ -557,8 +557,10 @@ fn resolve_routing(
 }
 
 /// Resolves the fee strategy for CrossCollateralRouting mode.
-/// Tries specific (destination, target_router) first, then falls back to
-/// (destination, DEFAULT_ROUTER).
+/// Always consumes both account slots — (destination, target_router) and
+/// (destination, DEFAULT_ROUTER) — to match the layout produced by
+/// `GetQuoteAccountMetas`. Returns the specific route's strategy if its PDA
+/// is initialized, otherwise falls back to the default route's strategy.
 fn resolve_cc_routing(
     program_id: &Pubkey,
     accounts_iter: &mut std::slice::Iter<'_, AccountInfo<'_>>,
@@ -568,7 +570,7 @@ fn resolve_cc_routing(
 ) -> Result<(crate::fee_math::FeeDataStrategy, bool), ProgramError> {
     let dest_le = destination.to_le_bytes();
 
-    // Try specific (destination, target_router) then default (destination, DEFAULT_ROUTER).
+    let mut chosen: Option<(crate::fee_math::FeeDataStrategy, bool)> = None;
     for (router, is_specific) in [(*target_router, true), (DEFAULT_ROUTER, false)] {
         let pda_info = next_account_info(accounts_iter)?;
         let (expected_key, _) = Pubkey::find_program_address(
@@ -582,16 +584,21 @@ fn resolve_cc_routing(
 
         match pda_info.init_state(program_id) {
             AccountInitState::Initialized => {
-                let route = CrossCollateralRouteAccount::fetch(&mut &pda_info.data.borrow()[..])?
-                    .into_inner();
-                return Ok((route.data.fee_data, is_specific));
+                if chosen.is_none() {
+                    let route =
+                        CrossCollateralRouteAccount::fetch(&mut &pda_info.data.borrow()[..])?
+                            .into_inner();
+                    chosen = Some((route.data.fee_data, is_specific));
+                }
+                // Specific already took precedence — keep iterating to drain
+                // the slot so ensure_no_extraneous_accounts doesn't reject it.
             }
             AccountInitState::Uninitialized => {}
             AccountInitState::OwnerMismatch => return Err(ProgramError::IncorrectProgramId),
         }
     }
 
-    Err(Error::RouteNotFound.into())
+    chosen.ok_or_else(|| Error::RouteNotFound.into())
 }
 
 /// Verifies an optional PDA account is either uninitialized (system-owned, empty)

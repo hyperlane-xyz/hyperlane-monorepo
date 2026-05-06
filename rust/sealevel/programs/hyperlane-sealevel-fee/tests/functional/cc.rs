@@ -821,7 +821,6 @@ async fn test_cc_default_authorized_standing_quote_invalidated_by_later_specific
             recipient,
             100,
             target_router,
-            true,
         ),
     )
     .await;
@@ -855,7 +854,6 @@ async fn test_cc_default_authorized_standing_quote_invalidated_by_later_specific
             recipient,
             100,
             target_router,
-            false,
         ),
     )
     .await;
@@ -1228,7 +1226,6 @@ async fn test_cc_standing_quote_consumed_in_quote_fee() {
         recipient,
         amount,
         target_router,
-        false,
     );
     let fee = simulate_quote_fee(&mut banks_client, &payer, ix).await;
 
@@ -1353,28 +1350,12 @@ async fn test_cc_quote_fee_uses_router_bound_standing_pda() {
     let amount = 100u64;
 
     // QuoteFee for router_a → should use 777/1: min(777, 100*777/2) = 777.
-    let ix = build_quote_fee_cc_ix(
-        &fee_key,
-        &payer.pubkey(),
-        dest,
-        recipient,
-        amount,
-        router_a,
-        false,
-    );
+    let ix = build_quote_fee_cc_ix(&fee_key, &payer.pubkey(), dest, recipient, amount, router_a);
     let fee_a = simulate_quote_fee(&mut banks_client, &payer, ix).await;
     assert_eq!(fee_a, 777);
 
     // QuoteFee for router_b → should use 333/1: min(333, 100*333/2) = 333.
-    let ix = build_quote_fee_cc_ix(
-        &fee_key,
-        &payer.pubkey(),
-        dest,
-        recipient,
-        amount,
-        router_b,
-        false,
-    );
+    let ix = build_quote_fee_cc_ix(&fee_key, &payer.pubkey(), dest, recipient, amount, router_b);
     let fee_b = simulate_quote_fee(&mut banks_client, &payer, ix).await;
     assert_eq!(fee_b, 333);
 }
@@ -1445,28 +1426,12 @@ async fn test_cc_quote_fee_wildcard_domain_fallback_is_router_scoped() {
     let amount = 100u64;
 
     // QuoteFee router_a → wildcard standing: min(555, 100*555/2) = 555.
-    let ix = build_quote_fee_cc_ix(
-        &fee_key,
-        &payer.pubkey(),
-        dest,
-        recipient,
-        amount,
-        router_a,
-        false,
-    );
+    let ix = build_quote_fee_cc_ix(&fee_key, &payer.pubkey(), dest, recipient, amount, router_a);
     let fee_a = simulate_quote_fee(&mut banks_client, &payer, ix).await;
     assert_eq!(fee_a, 555);
 
     // QuoteFee router_b → no standing quote exists, falls to on-chain: min(100, 100*100/100) = 100.
-    let ix = build_quote_fee_cc_ix(
-        &fee_key,
-        &payer.pubkey(),
-        dest,
-        recipient,
-        amount,
-        router_b,
-        false,
-    );
+    let ix = build_quote_fee_cc_ix(&fee_key, &payer.pubkey(), dest, recipient, amount, router_b);
     let fee_b = simulate_quote_fee(&mut banks_client, &payer, ix).await;
     assert_eq!(fee_b, 100);
 }
@@ -1574,7 +1539,6 @@ async fn test_cc_quote_fee_exact_recipient_beats_wildcard_recipient() {
         exact_recipient,
         amount,
         target_router,
-        false,
     );
     let fee = simulate_quote_fee(&mut banks_client, &payer, ix).await;
     assert_eq!(fee, 888);
@@ -1587,7 +1551,6 @@ async fn test_cc_quote_fee_exact_recipient_beats_wildcard_recipient() {
         other_recipient,
         amount,
         target_router,
-        false,
     );
     let fee = simulate_quote_fee(&mut banks_client, &payer, ix).await;
     assert_eq!(fee, 444);
@@ -1746,15 +1709,7 @@ async fn test_cc_prune_one_router_preserves_other_router_quote() {
     );
 
     // QuoteFee for router_b still returns standing fee: min(333, 100*333/2) = 333.
-    let ix = build_quote_fee_cc_ix(
-        &fee_key,
-        &payer.pubkey(),
-        dest,
-        recipient,
-        100,
-        router_b,
-        false,
-    );
+    let ix = build_quote_fee_cc_ix(&fee_key, &payer.pubkey(), dest, recipient, 100, router_b);
     let fee = simulate_quote_fee(banks_client, &payer, ix).await;
     assert_eq!(fee, 333);
 }

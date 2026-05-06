@@ -1061,10 +1061,11 @@ async fn test_transient_on_cc_account_works() {
     );
 
     // QuoteFee with CC accounts + transient.
-    // CC standing PDAs use target_router in seeds.
+    // CC standing PDAs use target_router in seeds; both CC route PDAs are required.
     let domain_quotes_pda = cc_standing_quote_pda_for(&fee_key, dest, &target_router);
     let wildcard_quotes_pda = cc_standing_quote_pda_for(&fee_key, WILDCARD_DOMAIN, &target_router);
     let cc_specific_pda = cc_route_pda_for(&fee_key, dest, &target_router);
+    let cc_default_pda = cc_route_pda_for(&fee_key, dest, &DEFAULT_ROUTER);
 
     let build_ix = || {
         Instruction::new_with_borsh(
@@ -1082,6 +1083,7 @@ async fn test_transient_on_cc_account_works() {
                 AccountMeta::new_readonly(domain_quotes_pda, false),
                 AccountMeta::new_readonly(wildcard_quotes_pda, false),
                 AccountMeta::new_readonly(cc_specific_pda, false),
+                AccountMeta::new_readonly(cc_default_pda, false),
             ],
         )
     };
@@ -1205,6 +1207,7 @@ async fn test_cc_context_wrong_target_router_fails() {
     let domain_quotes_pda = cc_standing_quote_pda_for(&fee_key, dest, &target_router);
     let wildcard_quotes_pda = cc_standing_quote_pda_for(&fee_key, WILDCARD_DOMAIN, &target_router);
     let cc_specific_pda = cc_route_pda_for(&fee_key, dest, &target_router);
+    let cc_default_pda = cc_route_pda_for(&fee_key, dest, &DEFAULT_ROUTER);
 
     let quote_ix = Instruction::new_with_borsh(
         fee_program_id(),
@@ -1221,6 +1224,7 @@ async fn test_cc_context_wrong_target_router_fails() {
             AccountMeta::new_readonly(domain_quotes_pda, false),
             AccountMeta::new_readonly(wildcard_quotes_pda, false),
             AccountMeta::new_readonly(cc_specific_pda, false),
+            AccountMeta::new_readonly(cc_default_pda, false),
         ],
     );
     let result = process_tx(&mut banks_client, &payer, quote_ix, &[]).await;

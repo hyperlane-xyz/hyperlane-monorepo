@@ -443,7 +443,8 @@ fn build_quote_fee_routing_ix(
 }
 
 /// Builds a QuoteFee instruction for CrossCollateralRouting mode.
-/// `include_default` controls whether the DEFAULT_ROUTER PDA is appended (for fallback tests).
+/// Always emits both CC route PDAs — specific and default — to match the
+/// layout `process_quote_fee` consumes and `GetQuoteAccountMetas` produces.
 fn build_quote_fee_cc_ix(
     fee_account: &Pubkey,
     payer: &Pubkey,
@@ -451,7 +452,6 @@ fn build_quote_fee_cc_ix(
     recipient: H256,
     amount: u64,
     target_router: H256,
-    include_default: bool,
 ) -> Instruction {
     // CC standing PDAs use target_router in seeds (not H256::zero()).
     let domain_quotes_pda =
@@ -459,19 +459,16 @@ fn build_quote_fee_cc_ix(
     let wildcard_quotes_pda =
         cc_standing_quote_pda_for(fee_account, WILDCARD_DOMAIN, &target_router);
     let cc_specific_pda = cc_route_pda_for(fee_account, destination_domain, &target_router);
+    let cc_default_pda = cc_route_pda_for(fee_account, destination_domain, &DEFAULT_ROUTER);
 
-    let mut accounts = vec![
+    let accounts = vec![
         AccountMeta::new_readonly(*fee_account, false),
         AccountMeta::new(*payer, true),
         AccountMeta::new_readonly(domain_quotes_pda, false),
         AccountMeta::new_readonly(wildcard_quotes_pda, false),
         AccountMeta::new_readonly(cc_specific_pda, false),
+        AccountMeta::new_readonly(cc_default_pda, false),
     ];
-
-    if include_default {
-        let cc_default_pda = cc_route_pda_for(fee_account, destination_domain, &DEFAULT_ROUTER);
-        accounts.push(AccountMeta::new_readonly(cc_default_pda, false));
-    }
 
     Instruction::new_with_borsh(
         fee_program_id(),
@@ -2331,7 +2328,6 @@ mod quote_fee {
             H256::zero(),
             500,
             target_router,
-            false, // specific route exists, no need for default
         );
         process_tx(&mut banks_client, &payer, ix, &[])
             .await
@@ -2371,7 +2367,6 @@ mod quote_fee {
             H256::zero(),
             150,
             H256::random(), // specific router not configured
-            true,           // include default PDA for fallback
         );
         process_tx(&mut banks_client, &payer, ix, &[])
             .await
@@ -2400,7 +2395,6 @@ mod quote_fee {
             H256::zero(),
             1000,
             H256::random(),
-            true, // include default PDA (both uninitialized)
         );
         let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
         assert_tx_error(
@@ -2413,7 +2407,11 @@ mod quote_fee {
     }
 
     #[tokio::test]
-    async fn test_cc_routing_extraneous_default_when_specific_exists() {
+    async fn test_cc_routing_default_pda_drained_when_specific_active() {
+        // Both CC route PDAs are always required by the layout. When the
+        // specific route is initialized it takes precedence, but the default
+        // slot must still be drained so ensure_no_extraneous_accounts doesn't
+        // reject it.
         let (mut banks_client, payer) = setup_client().await;
         let fee_key = init_fee_account(
             &mut banks_client,
@@ -2428,17 +2426,43 @@ mod quote_fee {
 
         let dest = 42u32;
         let target_router = H256::random();
-        let strategy = FeeDataStrategy::Linear(FeeParams {
-            max_fee: 500,
-            half_amount: 250,
-        });
-        let ix = build_set_cc_route_ix(&fee_key, &payer.pubkey(), dest, target_router, strategy);
-        process_tx(&mut banks_client, &payer, ix, &[])
-            .await
-            .unwrap();
+        // Initialize both specific and default with distinct strategies so we
+        // can tell which one was used by the resulting fee.
+        process_tx(
+            &mut banks_client,
+            &payer,
+            build_set_cc_route_ix(
+                &fee_key,
+                &payer.pubkey(),
+                dest,
+                target_router,
+                FeeDataStrategy::Linear(FeeParams {
+                    max_fee: 500,
+                    half_amount: 250,
+                }),
+            ),
+            &[],
+        )
+        .await
+        .unwrap();
+        process_tx(
+            &mut banks_client,
+            &payer,
+            build_set_cc_route_ix(
+                &fee_key,
+                &payer.pubkey(),
+                dest,
+                DEFAULT_ROUTER,
+                FeeDataStrategy::Linear(FeeParams {
+                    max_fee: 999,
+                    half_amount: 1,
+                }),
+            ),
+            &[],
+        )
+        .await
+        .unwrap();
 
-        // Pass both specific + default PDAs even though specific exists.
-        // The default PDA should be flagged as extraneous.
         let ix = build_quote_fee_cc_ix(
             &fee_key,
             &payer.pubkey(),
@@ -2446,16 +2470,10 @@ mod quote_fee {
             H256::zero(),
             500,
             target_router,
-            true, // include default — should be extraneous
         );
-        let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
-        assert_tx_error(
-            result,
-            TransactionError::InstructionError(
-                0,
-                InstructionError::Custom(AccountError::ExtraneousAccount as u32),
-            ),
-        );
+        process_tx(&mut banks_client, &payer, ix, &[])
+            .await
+            .unwrap();
     }
 
     #[tokio::test]

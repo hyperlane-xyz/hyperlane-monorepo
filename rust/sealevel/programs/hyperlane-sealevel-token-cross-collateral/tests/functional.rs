@@ -4,7 +4,7 @@
 use account_utils::DiscriminatorEncode;
 use hyperlane_core::{Encode, HyperlaneMessage, H256, U256};
 use hyperlane_sealevel_fee::{
-    accounts::{FeeData, LeafFeeConfig, WILDCARD_DOMAIN},
+    accounts::{FeeData, LeafFeeConfig, DEFAULT_ROUTER, WILDCARD_DOMAIN},
     cc_route_pda_seeds, fee_account_pda_seeds,
     fee_math::{FeeDataStrategy, FeeParams},
     fee_standing_quote_pda_seeds, instruction as fee_instruction,
@@ -4254,6 +4254,16 @@ async fn test_cc_remote_transfer_with_fee_cc_routing_mode() {
         )
         .0
     };
+    // CC default route PDA — always required by the layout, ignored at consume
+    // time when the specific route is initialized.
+    let cc_default_route_pda = {
+        let d = REMOTE_DOMAIN.to_le_bytes();
+        Pubkey::find_program_address(
+            cc_route_pda_seeds!(fee_account_key, &d, DEFAULT_ROUTER),
+            &fp,
+        )
+        .0
+    };
 
     let ixn_data = CrossCollateralInstruction::TransferRemoteTo(TransferRemoteTo {
         destination_domain: REMOTE_DOMAIN,
@@ -4283,12 +4293,13 @@ async fn test_cc_remote_transfer_with_fee_cc_routing_mode() {
                     AccountMeta::new(token_sender_pubkey, true),
                     AccountMeta::new_readonly(unique_msg.pubkey(), true),
                     AccountMeta::new(dispatched_msg_key, false),
-                    // Fee (CrossCollateralRouting: CC standing quotes + CC route PDA)
+                    // Fee (CrossCollateralRouting: CC standing quotes + both CC route PDAs)
                     AccountMeta::new_readonly(fp, false),
                     AccountMeta::new_readonly(fee_account_key, false),
                     AccountMeta::new_readonly(domain_standing_quote_pda, false),
                     AccountMeta::new_readonly(wildcard_standing_quote_pda, false),
                     AccountMeta::new_readonly(cc_route_pda, false),
+                    AccountMeta::new_readonly(cc_default_route_pda, false),
                     AccountMeta::new(fee_beneficiary_ata, false),
                     // IGP
                     AccountMeta::new_readonly(igp_program, false),
