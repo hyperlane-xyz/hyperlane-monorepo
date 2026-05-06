@@ -1,7 +1,7 @@
 //! Processor logic shared by all Hyperlane Sealevel Token programs.
 
 use access_control::AccessControl;
-use account_utils::{create_pda_account, SizedData};
+use account_utils::{create_pda_account, ensure_no_extraneous_accounts, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{Decode, Encode, H256, U256};
 use hyperlane_sealevel_connection_client::{
@@ -1322,6 +1322,8 @@ where
             }
             FeeAccountPrefix::parse_from(&fee_account_info.data.borrow())?;
         }
+
+        ensure_no_extraneous_accounts(accounts_iter)?;
 
         token.fee_config = fee_config;
 
