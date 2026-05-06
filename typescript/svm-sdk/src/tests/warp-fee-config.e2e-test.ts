@@ -161,6 +161,10 @@ describe('SVM Warp Fee Config E2E Tests', function () {
     );
     expect(onChain.config.fee).to.exist;
     expect(onChain.config.fee?.deployed?.address).to.equal(feeProgramA);
+
+    // No-op update with the same fee config should produce zero txs.
+    const noopTxs = await writer.update(onChain);
+    expect(noopTxs).to.have.length(0);
   });
 
   it('should add fee via update when none was set', async () => {
