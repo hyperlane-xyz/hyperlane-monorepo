@@ -17,7 +17,7 @@ use hyperlane_core::{
     HyperlaneWatermarkedLogStore, LogMeta, H256, H512,
 };
 
-use crate::db::{BasicBlock, BlockCursor, ScraperDb, StorableTxn};
+use crate::db::{BasicBlock, BlockCursor, CursorKind, ScraperDb, StorableTxn};
 
 /// Maximum number of records to query at a time. This came about because when a
 /// lot of messages are sent in a short period of time we were ending up with a
@@ -51,8 +51,12 @@ impl HyperlaneDbStore {
         stored_events_metric: Option<IntCounterVec>,
     ) -> Result<Self> {
         let cursor = Arc::new(
-            db.block_cursor(domain.id(), index_settings.from as u64)
-                .await?,
+            db.block_cursor(
+                domain.id(),
+                index_settings.from as u64,
+                CursorKind::Finalized,
+            )
+            .await?,
         );
         Ok(Self {
             db,

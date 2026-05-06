@@ -2,10 +2,10 @@
 
 use maplit::hashmap;
 
-use crate::fetch_metric;
 use crate::invariants::provider_metrics_invariant_met;
 use crate::logging::log;
 use crate::metrics::agent_balance_sum;
+use crate::{fetch_metric, fetch_metric_exact};
 
 pub fn termination_invariants_met(
     relayer_metrics_port: u32,
@@ -14,10 +14,10 @@ pub fn termination_invariants_met(
     starting_relayer_balance: f64,
 ) -> eyre::Result<bool> {
     let expected_gas_payments = messages_expected;
-    let gas_payments_event_count = fetch_metric(
+    let gas_payments_event_count = fetch_metric_exact(
         &relayer_metrics_port.to_string(),
         "hyperlane_contract_sync_stored_events",
-        &hashmap! {"data_type" => "gas_payment"},
+        &hashmap! {"data_type" => "gas_payments"},
     )?
     .iter()
     .sum::<u32>();
@@ -63,7 +63,7 @@ pub fn termination_invariants_met(
         return Ok(false);
     }
 
-    let dispatched_messages_scraped = fetch_metric(
+    let dispatched_messages_scraped = fetch_metric_exact(
         &scraper_metrics_port.to_string(),
         "hyperlane_contract_sync_stored_events",
         &hashmap! {"data_type" => "message_dispatch"},
@@ -79,7 +79,7 @@ pub fn termination_invariants_met(
         return Ok(false);
     }
 
-    let gas_payments_scraped = fetch_metric(
+    let gas_payments_scraped = fetch_metric_exact(
         &scraper_metrics_port.to_string(),
         "hyperlane_contract_sync_stored_events",
         &hashmap! {"data_type" => "gas_payment"},
@@ -95,7 +95,7 @@ pub fn termination_invariants_met(
         return Ok(false);
     }
 
-    let delivered_messages_scraped = fetch_metric(
+    let delivered_messages_scraped = fetch_metric_exact(
         &scraper_metrics_port.to_string(),
         "hyperlane_contract_sync_stored_events",
         &hashmap! {"data_type" => "message_delivery"},
