@@ -6,6 +6,8 @@ import type {
 } from '@solana/kit';
 import { getAddressCodec } from '@solana/kit';
 
+import { assert } from '@hyperlane-xyz/utils';
+
 import { concatBytes, i64le, option, u8, u32le } from '../codecs/binary.js';
 import {
   encodeBTreeSetH160,
@@ -81,6 +83,10 @@ export async function getInitFeeInstruction(
   payer: TransactionSigner,
   data: InitFeeData,
 ): Promise<Instruction> {
+  assert(
+    data.salt.length === 32,
+    `salt must be 32 bytes, got ${data.salt.length}`,
+  );
   const { address: feeAccountPda } = await deriveFeeAccountPda(
     programId,
     data.salt,
