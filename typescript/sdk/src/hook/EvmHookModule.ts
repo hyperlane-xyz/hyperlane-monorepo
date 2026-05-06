@@ -908,14 +908,12 @@ export class EvmHookModule extends HyperlaneModule<
   }): Promise<RateLimitedHook> {
     this.logger.debug('Deploying RateLimitedHook...');
     const deployer = new HookDeployer(this.multiProvider, hookFactories);
+    const sender = this.args.addresses.rateLimitedSender;
+    assert(sender, 'rateLimitedSender is required to deploy RateLimitedHook');
     const hook = await deployer.deployContract(
       this.chain,
       HookType.RATE_LIMITED,
-      [
-        this.args.addresses.mailbox,
-        config.maxCapacity,
-        this.args.addresses.rateLimitedSender ?? ethers.constants.AddressZero,
-      ],
+      [this.args.addresses.mailbox, config.maxCapacity, sender],
     );
 
     if (config.owner) {
