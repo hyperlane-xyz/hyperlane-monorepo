@@ -1090,6 +1090,52 @@ async fn test_cc_prune_does_not_remove_domain_from_tracking() {
     // Router_a's PDA should be closed.
     let account = banks_client.get_account(pda_a).await.unwrap();
     assert!(account.is_none() || account.unwrap().data.is_empty());
+
+    // Pruning router_a must not affect router_b's standing PDA on the same domain.
+    let (pda_b, _) = Pubkey::find_program_address(
+        fee_standing_quote_pda_seeds!(fee_key, &domain_le, router_b),
+        &fee_program_id(),
+    );
+    let account_b = banks_client.get_account(pda_b).await.unwrap();
+    assert!(
+        account_b.is_some(),
+        "router_b standing PDA was unexpectedly closed"
+    );
+    let account_b = account_b.unwrap();
+    assert_eq!(account_b.owner, fee_program_id());
+    assert!(!account_b.data.is_empty());
+
+    // The domain itself must remain usable: a fresh standing quote on
+    // (dest, router_a) can still be submitted after pruning router_a.
+    let q_a_fresh = make_signed_standing_quote(
+        &signing_key,
+        &fee_key,
+        LOCAL_DOMAIN,
+        &payer.pubkey(),
+        encode_cc_standing_context(dest, H256::zero(), router_a),
+        encode_linear_data(1500, 750),
+        encode_u48(99999999999),
+        encode_u48(99999999999 + 1000),
+    );
+    let ix = build_submit_standing_ix_with_routes(
+        &fee_key,
+        &payer.pubkey(),
+        &q_a_fresh,
+        dest,
+        &router_a,
+        &[specific_pda_a, default_pda],
+    );
+    process_tx(banks_client, &payer, ix, &[]).await.unwrap();
+
+    // The new PDA should now be initialized.
+    let pda_a_after = banks_client.get_account(pda_a).await.unwrap();
+    assert!(
+        pda_a_after.is_some(),
+        "fresh standing PDA for router_a was not created"
+    );
+    let pda_a_after = pda_a_after.unwrap();
+    assert_eq!(pda_a_after.owner, fee_program_id());
+    assert!(!pda_a_after.data.is_empty());
 }
 
 #[tokio::test]
