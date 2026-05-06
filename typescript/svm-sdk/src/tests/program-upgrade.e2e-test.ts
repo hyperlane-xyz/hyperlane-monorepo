@@ -6,6 +6,7 @@ import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import { FeeParamsType, FeeType } from '@hyperlane-xyz/provider-sdk/fee';
 import type { IgpHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
 import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
+import { sleep } from '@hyperlane-xyz/utils';
 
 import { SvmSigner } from '../clients/signer.js';
 import { SvmLinearFeeWriter } from '../fee/linear-fee.js';
@@ -30,9 +31,11 @@ import { supportsFeeConfig } from '../version/version-query.js';
 const TEST_PRIVATE_KEY =
   '0x0000000000000000000000000000000000000000000000000000000000000001';
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+// `skipPreflight` and the post-send sleep below are test-validator-only
+// workarounds. On mainnet the signer waits for the tx to land on chain, which
+// gives the cluster time to refresh its program cache before the next read.
+// The local test validator confirms much faster, so without these guards the
+// follow-up read can race the validator's program cache and see stale state.
 
 describe('SVM Program Upgrade E2E Tests', function () {
   this.timeout(600_000);
@@ -310,5 +313,104 @@ describe('SVM Program Upgrade E2E Tests', function () {
     expect(afterUpdate.config.owner).to.equal(newOwner.getSignerAddress());
     expect(afterUpdate.deployed.feeConfig).to.exist;
     expect(afterUpdate.deployed.feeConfig?.feeProgram).to.equal(feeProgramId);
+  });
+
+  it('should upgrade a warp route whose upgrade authority is a different key', async () => {
+    // Deploy legacy program owned by signer (initial upgrade authority = signer)
+    const legacyWriter = new SvmCollateralTokenWriter(
+      {
+        program: { programBytes: LEGACY_SVM_PROGRAM_BYTES.tokenCollateral },
+        ataPayerFundingAmount: TEST_ATA_PAYER_FUNDING_AMOUNT,
+      },
+      rpc,
+      signer,
+    );
+
+    const [deployed] = await legacyWriter.create({
+      config: {
+        type: TokenType.collateral,
+        owner: signer.getSignerAddress(),
+        mailbox: mailboxAddress,
+        token: collateralMint,
+        interchainSecurityModule: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: TEST_PROGRAM_IDS.testIsm },
+        },
+        hook: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: TEST_PROGRAM_IDS.igp },
+        },
+        remoteRouters: {
+          1: {
+            address:
+              '0x1111111111111111111111111111111111111111111111111111111111111111',
+          },
+        },
+        destinationGas: { 1: '100000' },
+      },
+    });
+
+    const programId = deployed.deployed.address;
+
+    // Transfer warp-token ownership and BPF upgrade authority to newOwner BEFORE the upgrade
+    const newOwner = await SvmSigner.connectWithSigner(
+      [TEST_SVM_CHAIN_METADATA.rpcUrl],
+      '0x0000000000000000000000000000000000000000000000000000000000000005',
+    );
+    await airdropSol(rpc, address(newOwner.getSignerAddress()), 5_000_000_000n);
+
+    const beforeTransfer = await legacyWriter.read(programId);
+    const transferTxs = await legacyWriter.update({
+      ...beforeTransfer,
+      config: {
+        ...beforeTransfer.config,
+        owner: newOwner.getSignerAddress(),
+      },
+    });
+
+    for (const tx of transferTxs) {
+      await signer.send({
+        instructions: tx.instructions,
+        additionalSigners: tx.additionalSigners,
+        skipPreflight: true,
+      });
+    }
+    await sleep(1000);
+
+    // signer still has SOL to pay for the buffer but is no longer the upgrade authority.
+    // This forces the SetBufferAuthority(signer → newOwner) branch in prepareProgramUpgrade.
+    const upgradeWriter = new SvmCollateralTokenWriter(
+      {
+        program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenCollateral },
+        ataPayerFundingAmount: TEST_ATA_PAYER_FUNDING_AMOUNT,
+      },
+      rpc,
+      signer,
+    );
+
+    const currentAfterTransfer = await upgradeWriter.read(programId);
+    const upgradeTxs = await upgradeWriter.update({
+      ...currentAfterTransfer,
+      config: {
+        ...currentAfterTransfer.config,
+        contractVersion: '1.0.0',
+      },
+    });
+
+    // Returned txs (extend + upgrade) require newOwner to sign as the upgrade authority.
+    for (const tx of upgradeTxs) {
+      await newOwner.send({
+        instructions: tx.instructions,
+        additionalSigners: tx.additionalSigners,
+        skipPreflight: true,
+      });
+    }
+    await sleep(1000);
+
+    const afterUpgrade = await upgradeWriter.read(programId);
+    expect(afterUpgrade.config.contractVersion).to.equal('1.0.0');
+    expect(supportsFeeConfig(afterUpgrade.config.contractVersion)).to.equal(
+      true,
+    );
   });
 });
