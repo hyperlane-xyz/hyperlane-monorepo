@@ -48,6 +48,7 @@ import {
   deriveEscrowPda,
   deriveMailboxOutboxPda,
 } from '../pda.js';
+import { hasProgramBytes } from '../types.js';
 import type { AnnotatedSvmTransaction, SvmReceipt, SvmRpc } from '../types.js';
 
 import type { SvmDeployedWarpAddress, SvmWarpTokenConfig } from './types.js';
@@ -427,7 +428,7 @@ export class SvmCrossCollateralTokenWriter
     const txs: AnnotatedSvmTransaction[] = [];
 
     // Program upgrade first (before any config changes)
-    if ('programBytes' in this.config.program) {
+    if (hasProgramBytes(this.config.program)) {
       const upgradeResult = await prepareProgramUpgrade(
         programId,
         current.config.contractVersion,
