@@ -2483,8 +2483,9 @@ mod quote_fee {
             .unwrap();
 
         let target_router = H256::random();
-        let domain_quotes_pda = standing_quote_pda_for(&fee_key, dest);
-        let wildcard_quotes_pda = standing_quote_pda_for(&fee_key, WILDCARD_DOMAIN);
+        let domain_quotes_pda = cc_standing_quote_pda_for(&fee_key, dest, &target_router);
+        let wildcard_quotes_pda =
+            cc_standing_quote_pda_for(&fee_key, WILDCARD_DOMAIN, &target_router);
         let cc_specific_pda = cc_route_pda_for(&fee_key, dest, &target_router);
         let cc_default_pda = cc_route_pda_for(&fee_key, dest, &DEFAULT_ROUTER);
 

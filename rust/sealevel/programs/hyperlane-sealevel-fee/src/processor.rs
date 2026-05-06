@@ -220,19 +220,41 @@ fn process_quote_fee(
     // Cache clock for the cascade — avoids redundant syscalls.
     let clock = Clock::get()?;
 
-    // Account 2: Either transient quote PDA or domain standing quote PDA.
-    // Peek at discriminator to determine which.
-    let next_info = next_account_info(accounts_iter)?;
-    let has_transient = is_transient_quote(next_info, program_id)?;
-
-    let (transient_info, domain_quotes_info, wildcard_quotes_info) = if has_transient {
-        let domain_quotes_info = next_account_info(accounts_iter)?;
-        let wildcard_quotes_info = next_account_info(accounts_iter)?;
-        (Some(next_info), domain_quotes_info, wildcard_quotes_info)
-    } else {
-        let wildcard_quotes_info = next_account_info(accounts_iter)?;
-        (None, next_info, wildcard_quotes_info)
+    // Resolve target_router for standing quote PDA derivation.
+    // Used both for slot 2 dispatch and the standing-quote cascade below.
+    let standing_target_router = match &fee_account.fee_data {
+        FeeData::CrossCollateralRouting(_) => data.target_router,
+        _ => hyperlane_core::H256::zero(),
     };
+
+    // Pre-derive the expected domain standing PDA key for slot 2 disambiguation.
+    let domain_le = data.destination_domain.to_le_bytes();
+    let (expected_domain_standing_key, _) = Pubkey::find_program_address(
+        fee_standing_quote_pda_seeds!(fee_account_info.key, &domain_le, standing_target_router),
+        program_id,
+    );
+
+    // Account 2: Either transient quote PDA or domain standing quote PDA.
+    // Disambiguate by key, not discriminator: an uninitialized account has no
+    // discriminator, so without a key check the layout becomes ambiguous. The
+    // SDK always emits the transient slot when scoped_salt = Some(...) and omits
+    // it otherwise — this contract is enforced here.
+    let next_info = next_account_info(accounts_iter)?;
+    let (transient_info, domain_quotes_info, wildcard_quotes_info) =
+        if *next_info.key == expected_domain_standing_key {
+            // No transient slot. Slot 2 is the domain standing PDA.
+            let wildcard_quotes_info = next_account_info(accounts_iter)?;
+            (None, next_info, wildcard_quotes_info)
+        } else {
+            // Caller declared a transient slot. The PDA must be initialized with
+            // the TransientQuote discriminator, otherwise the layout is invalid.
+            if !is_initialized_transient_quote(next_info, program_id)? {
+                return Err(Error::InvalidTransientSlot.into());
+            }
+            let domain_quotes_info = next_account_info(accounts_iter)?;
+            let wildcard_quotes_info = next_account_info(accounts_iter)?;
+            (Some(next_info), domain_quotes_info, wildcard_quotes_info)
+        };
 
     // Validate ownership of standing quote PDAs.
     verify_optional_pda_owner(domain_quotes_info, program_id)?;
@@ -316,12 +338,6 @@ fn process_quote_fee(
         }
     }
 
-    // Resolve target_router for standing quote PDA derivation.
-    let standing_target_router = match &fee_account.fee_data {
-        FeeData::CrossCollateralRouting(_) => data.target_router,
-        _ => hyperlane_core::H256::zero(),
-    };
-
     // Steps 2-3: Domain standing quote → wildcard domain standing quote.
     for (pda_info, domain) in [
         (domain_quotes_info, data.destination_domain),
@@ -354,10 +370,12 @@ fn process_quote_fee(
     Ok(())
 }
 
-/// Checks if an account is a transient quote PDA by reading its discriminator.
-/// Returns true if it has TransientQuote discriminator, false if it's a standing
-/// quote or uninitialized. Errors if the account is owned by a different program.
-fn is_transient_quote(
+/// Checks whether an account is an initialized transient quote PDA.
+/// Returns `Ok(true)` only if the account is owned by the program, initialized,
+/// and carries the TransientQuote discriminator. Returns `Ok(false)` for
+/// uninitialized accounts or initialized accounts with a different discriminator.
+/// Returns `Err` if the account is owned by a different program.
+fn is_initialized_transient_quote(
     account_info: &AccountInfo,
     program_id: &Pubkey,
 ) -> Result<bool, ProgramError> {

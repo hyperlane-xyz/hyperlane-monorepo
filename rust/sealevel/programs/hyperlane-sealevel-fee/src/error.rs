@@ -57,6 +57,10 @@ pub enum Error {
     /// Fee params max_fee and half_amount must both be nonzero.
     #[error("Fee params must be nonzero")]
     ZeroFeeParams = 17,
+    /// Caller declared a transient quote slot (slot 2 key != expected standing PDA),
+    /// but the account is uninitialized or has the wrong discriminator.
+    #[error("Transient quote slot expected but PDA is missing or invalid")]
+    InvalidTransientSlot = 18,
 }
 
 impl From<Error> for ProgramError {

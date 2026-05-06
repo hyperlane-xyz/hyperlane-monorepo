@@ -1415,10 +1415,18 @@ mod quote_fee_standing {
             ],
         );
         let result = process_tx(&mut banks_client, &payer, quote_ix, &[]).await;
-        // Should fail because B's PDA doesn't match A's derivation.
+        // Should fail because B's PDA doesn't match A's expected domain standing
+        // PDA derivation. The dispatcher then treats slot 2 as a transient slot
+        // and rejects it because the account is initialized as a standing PDA
+        // (wrong discriminator).
         assert_tx_error(
             result,
-            TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(
+                    hyperlane_sealevel_fee::error::Error::InvalidTransientSlot as u32,
+                ),
+            ),
         );
     }
 
