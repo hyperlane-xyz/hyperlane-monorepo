@@ -104,17 +104,10 @@ function buildInterchainSecurityModule(
   local: (typeof ROUTE_CHAINS)[number],
   owner: string,
 ): IsmConfig | undefined {
-  const amountRoutingIsm = {
-    type: IsmType.AMOUNT_ROUTING,
-    threshold: AMOUNT_ROUTING_THRESHOLD,
-    lowerIsm: buildInnerRoutingIsm(local, owner),
-    upperIsm: buildDefaultIsm(),
-  } as const;
-
   return {
     type: IsmType.AGGREGATION,
     threshold: 1,
-    modules: [buildDefaultIsm(), amountRoutingIsm],
+    modules: [buildDefaultIsm(), buildInnerRoutingIsm(local, owner)],
   } as const;
 }
 
@@ -144,12 +137,7 @@ function buildFastRouteHook(
 function buildHook(local: (typeof ROUTE_CHAINS)[number], owner: string) {
   if (!isCctpChain(local)) return undefined;
 
-  return {
-    type: HookType.AMOUNT_ROUTING,
-    threshold: AMOUNT_ROUTING_THRESHOLD,
-    lowerHook: buildFastRouteHook(local, owner),
-    upperHook: { type: HookType.MAILBOX_DEFAULT },
-  } as const satisfies HookConfig;
+  return buildFastRouteHook(local, owner);
 }
 
 export async function getUSDTMoonpayWarpConfig(

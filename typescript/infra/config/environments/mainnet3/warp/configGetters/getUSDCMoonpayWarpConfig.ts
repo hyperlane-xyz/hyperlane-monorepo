@@ -130,19 +130,12 @@ function buildInterchainSecurityModule(
   owner: string,
 ): IsmConfig | undefined {
   if (local === 'solanamainnet') return undefined;
-  // The outer 1-of-2 already covers default verification for every domain.
-  // The inner routing tree only lists remotes that need stricter handling.
-  const amountRoutingIsm = {
-    type: IsmType.AMOUNT_ROUTING,
-    threshold: AMOUNT_ROUTING_THRESHOLD,
-    lowerIsm: buildInnerRoutingIsm(local, owner),
-    upperIsm: buildDefaultIsm(),
-  } as const;
-
   return {
     type: IsmType.AGGREGATION,
     threshold: 1,
-    modules: [buildDefaultIsm(), amountRoutingIsm],
+    // The outer 1-of-2 already covers default verification for every domain.
+    // The inner routing tree only lists remotes that need stricter handling.
+    modules: [buildDefaultIsm(), buildInnerRoutingIsm(local, owner)],
   } as const;
 }
 
@@ -176,12 +169,7 @@ function buildHook(local: (typeof ROUTE_CHAINS)[number], owner: string) {
 
   if (!isCctpChain(local)) return undefined;
 
-  return {
-    type: HookType.AMOUNT_ROUTING,
-    threshold: AMOUNT_ROUTING_THRESHOLD,
-    lowerHook: buildFastRouteHook(local, owner),
-    upperHook: { type: HookType.MAILBOX_DEFAULT },
-  } as const satisfies HookConfig;
+  return buildFastRouteHook(local, owner);
 }
 
 export async function getUSDCMoonpayWarpConfig(
