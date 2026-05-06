@@ -2,7 +2,7 @@ use axum::{
     extract::State,
     http::{HeaderValue, Method, StatusCode},
     response::{IntoResponse, Response},
-    routing::post,
+    routing::get,
     Json, Router,
 };
 use hyperlane_base::db::HyperlaneRocksDB;
@@ -262,11 +262,11 @@ impl ServerState {
             .collect();
         let cors = CorsLayer::new()
             .allow_origin(cors_headers)
-            .allow_methods([Method::POST])
+            .allow_methods([Method::GET, Method::POST])
             .allow_headers([axum::http::header::CONTENT_TYPE]);
 
         Router::new()
-            .route("/relay", post(create_relay))
+            .route("/relay", get(health).post(create_relay))
             .layer(cors)
             .with_state(self)
     }
@@ -370,6 +370,11 @@ impl RateLimiter {
         self.requests.push_back(now);
         true
     }
+}
+
+// GET /relay - Health check
+async fn health() -> &'static str {
+    "up"
 }
 
 // POST /relay - Extract message and insert into database
