@@ -6,6 +6,13 @@
  * set_return_data. This module queries and compares those versions.
  */
 import {
+  SOLANA_ERROR__INSTRUCTION_ERROR__BORSH_IO_ERROR,
+  SOLANA_ERROR__INSTRUCTION_ERROR__INVALID_INSTRUCTION_DATA,
+  SOLANA_ERROR__INSTRUCTION_ERROR__PROGRAM_FAILED_TO_COMPLETE,
+  getSolanaErrorFromTransactionError,
+  isSolanaError,
+} from '@solana/errors';
+import {
   type Address,
   type Base64EncodedWireTransaction,
   appendTransactionMessageInstructions,
@@ -94,13 +101,33 @@ export async function queryProgramVersion(
     })
     .send();
 
-  // Simulation error → program doesn't support versioning (pre-PackageVersioned)
+  // A pre-PackageVersioned program rejects the GetProgramVersion discriminator
+  // via Borsh decode failure, InvalidInstructionData, or panic. Any other error
+  // (BlockhashNotFound, AccountNotFound, etc.) is an infra failure that would
+  // otherwise be silently misclassified as a pre-versioned program.
   if (result.err) {
-    logger.debug(
-      'Program version query returned error (likely pre-versioned program)',
-      { programAddress, err: result.err },
-    );
-    return null;
+    const solanaError = getSolanaErrorFromTransactionError(result.err);
+    if (
+      isSolanaError(
+        solanaError,
+        SOLANA_ERROR__INSTRUCTION_ERROR__INVALID_INSTRUCTION_DATA,
+      ) ||
+      isSolanaError(
+        solanaError,
+        SOLANA_ERROR__INSTRUCTION_ERROR__BORSH_IO_ERROR,
+      ) ||
+      isSolanaError(
+        solanaError,
+        SOLANA_ERROR__INSTRUCTION_ERROR__PROGRAM_FAILED_TO_COMPLETE,
+      )
+    ) {
+      logger.debug('Pre-versioned program rejected GetProgramVersion', {
+        programAddress,
+        err: result.err,
+      });
+      return null;
+    }
+    throw solanaError;
   }
 
   const returnData = result.returnData;
