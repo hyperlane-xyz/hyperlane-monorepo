@@ -450,8 +450,11 @@ export class EvmIsmModule extends HyperlaneModule<
       });
     }
 
-    // owner is optional on RateLimitedIsmConfig; only transfer if both sides are defined
-    if (current.owner != null && target.owner != null) {
+    if (current.owner != null && target.owner == null) {
+      this.logger.warn(
+        `target.owner is undefined for RateLimitedIsm on chain "${this.chain}" at address "${this.args.addresses.deployedIsm}"; ownership transfer will be skipped`,
+      );
+    } else if (current.owner != null && target.owner != null) {
       txs.push(
         ...transferOwnershipTransactions(
           this.chainId,

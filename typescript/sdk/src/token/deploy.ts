@@ -946,6 +946,16 @@ abstract class TokenDeployer<
       );
     }
 
+    // Fail fast if rateLimitedIsms are requested but ismFactory is missing.
+    // setRateLimitedIsms runs after super.deploy(), so catching this early
+    // prevents partial on-chain work before hitting the same assert there.
+    if (rateLimitedIsms && Object.keys(rateLimitedIsms).length > 0) {
+      assert(
+        this.options.ismFactory,
+        'ismFactory is required to deploy RateLimitedIsm — pass it to the deployer constructor',
+      );
+    }
+
     let tokenMetadataMap: TokenMetadataMap;
     try {
       tokenMetadataMap = await TokenDeployer.deriveTokenMetadata(
