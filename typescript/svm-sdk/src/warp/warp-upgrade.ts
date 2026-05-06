@@ -86,7 +86,7 @@ export async function prepareProgramUpgrade(
   );
 
   const currentAccountSize = Buffer.from(
-    programDataAccount.value.data[0] as string,
+    programDataAccount.value.data[0],
     'base64',
   ).length;
   const currentMaxProgramLen = currentAccountSize - PROGRAM_DATA_HEADER_SIZE;

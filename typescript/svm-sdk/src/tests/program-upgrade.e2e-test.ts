@@ -1,6 +1,9 @@
 import { address, type Address } from '@solana/kit';
-import { expect } from 'chai';
+import chai, { expect } from 'chai';
+import chaiAsPromised from 'chai-as-promised';
 import { before, describe, it } from 'mocha';
+
+chai.use(chaiAsPromised);
 
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import { FeeParamsType, FeeType } from '@hyperlane-xyz/provider-sdk/fee';
@@ -182,18 +185,15 @@ describe('SVM Program Upgrade E2E Tests', function () {
     const current = await writer.read(deployed.deployed.address);
     expect(current.config.contractVersion).to.equal('1.0.0');
 
-    try {
-      await writer.update({
+    await expect(
+      writer.update({
         ...current,
         config: {
           ...current.config,
           contractVersion: '0.1.0',
         },
-      });
-      expect.fail('Should have thrown on downgrade');
-    } catch (err: unknown) {
-      expect((err as Error).message).to.include('Cannot downgrade');
-    }
+      }),
+    ).to.be.rejectedWith('Cannot downgrade');
   });
 
   it('should skip upgrade when contractVersion matches', async () => {

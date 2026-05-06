@@ -344,7 +344,7 @@ export async function getProgramUpgradeAuthority(
     .getAccountInfo(programDataAddress, { encoding: 'base64' })
     .send();
   if (!account.value) return null;
-  const data = Buffer.from(account.value.data[0] as string, 'base64');
+  const data = Buffer.from(account.value.data[0], 'base64');
   if (data.length < PROGRAM_DATA_HEADER_SIZE) return null;
   const hasAuthority = data[12] === 1;
   if (!hasAuthority) return null;
