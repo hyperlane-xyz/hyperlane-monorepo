@@ -1,6 +1,6 @@
 ---
 '@hyperlane-xyz/sdk': patch
-'@hyperlane-xyz/cli': patch
+'@hyperlane-xyz/sealevel-sdk': patch
 ---
 
-SVM fee programs can now be deployed and managed via CLI warp deploy and warp apply commands. Added tokenFeeConfigInputToProviderFeeConfig mapping to bridge EVM SDK fee config types (bps/owner) to provider-sdk fee types (params/beneficiary). Wired tokenFee through validateWarpConfigForAltVM so CLI YAML configs with tokenFee are forwarded to the multi-VM deploy/update flow.
+CLI warp deploy and warp apply commands were wired to drive SVM fee program lifecycles. A new tokenFeeInputToFeeConfig mapping was added to bridge EVM SDK fee config inputs to provider-sdk fee types, and tokenFee was plumbed through validateWarpConfigForAltVM so YAML configs flow into the multi-VM deploy/update path. The four SVM fee writers were switched to deploy programs with exact-byte-length data accounts (matching the warp token writer convention), halving the rent paid for each fee program.
