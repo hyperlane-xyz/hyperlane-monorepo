@@ -158,15 +158,11 @@ describe('EvmHookModule', async () => {
   async function createHook(
     config: HookConfig,
   ): Promise<{ hook: EvmHookModule; initialHookAddress: Address }> {
-    const rateLimitedSender =
-      typeof config !== 'string' && config.type === HookType.RATE_LIMITED
-        ? randomAddress()
-        : undefined;
     const hook = await EvmHookModule.create({
       chain,
       config,
       proxyFactoryFactories: proxyFactoryAddresses,
-      coreAddresses: { ...coreAddresses, rateLimitedSender },
+      coreAddresses: { ...coreAddresses, rateLimitedSender: randomAddress() },
       multiProvider,
     });
     testHook = hook;
