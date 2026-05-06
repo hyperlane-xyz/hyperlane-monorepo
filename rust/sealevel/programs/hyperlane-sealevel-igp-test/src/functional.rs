@@ -1699,7 +1699,7 @@ async fn test_set_igp_quote_config_disable() {
 }
 
 #[tokio::test]
-async fn test_set_igp_quote_config_reinit_resets() {
+async fn test_set_igp_quote_config_reinit_replaces_other_fields() {
     let (mut banks_client, payer) = setup_client().await;
     initialize(&mut banks_client, &payer).await.unwrap();
 
@@ -1727,11 +1727,13 @@ async fn test_set_igp_quote_config_reinit_resets() {
         .await
         .unwrap();
 
-    // Re-set with different values — should fully replace.
+    // Re-set with different domain_id but same min_issued_at — fully replaces
+    // the other fields. min_issued_at cannot move backward (see the dedicated
+    // monotonic-rejection test below).
     let config2 = IgpFeeConfig {
         signers: Default::default(),
         domain_id: 99,
-        min_issued_at: 0,
+        min_issued_at: 500,
     };
     let ix = set_igp_quote_config_instruction(
         igp_program_id(),
@@ -1746,6 +1748,104 @@ async fn test_set_igp_quote_config_reinit_resets() {
 
     let igp = fetch_igp(&mut banks_client, igp_key).await;
     assert_eq!(igp.fee_config, Some(config2));
+}
+
+#[tokio::test]
+async fn test_set_igp_quote_config_rejects_lower_min_issued_at() {
+    let (mut banks_client, payer) = setup_client().await;
+    initialize(&mut banks_client, &payer).await.unwrap();
+
+    let salt = H256::random();
+    let (igp_key, _) = initialize_igp(
+        &mut banks_client,
+        &payer,
+        salt,
+        Some(payer.pubkey()),
+        payer.pubkey(),
+    )
+    .await
+    .unwrap();
+
+    // Initial config sets min_issued_at = 1000 (e.g. emergency revocation).
+    let config1 = IgpFeeConfig {
+        signers: Default::default(),
+        domain_id: 42,
+        min_issued_at: 1000,
+    };
+    process_instruction(
+        &mut banks_client,
+        set_igp_quote_config_instruction(igp_program_id(), igp_key, payer.pubkey(), Some(config1))
+            .unwrap(),
+        &payer,
+        &[&payer],
+    )
+    .await
+    .unwrap();
+
+    // Replaying with a lower min_issued_at must be rejected — otherwise the
+    // owner could undo a SetIgpMinIssuedAt revocation.
+    let config2 = IgpFeeConfig {
+        signers: Default::default(),
+        domain_id: 42,
+        min_issued_at: 500,
+    };
+    let result = process_instruction(
+        &mut banks_client,
+        set_igp_quote_config_instruction(igp_program_id(), igp_key, payer.pubkey(), Some(config2))
+            .unwrap(),
+        &payer,
+        &[&payer],
+    )
+    .await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+    );
+
+    // Equal value is allowed.
+    let config_equal = IgpFeeConfig {
+        signers: Default::default(),
+        domain_id: 42,
+        min_issued_at: 1000,
+    };
+    process_instruction(
+        &mut banks_client,
+        set_igp_quote_config_instruction(
+            igp_program_id(),
+            igp_key,
+            payer.pubkey(),
+            Some(config_equal),
+        )
+        .unwrap(),
+        &payer,
+        &[&payer],
+    )
+    .await
+    .unwrap();
+
+    // Increasing is allowed.
+    let config_higher = IgpFeeConfig {
+        signers: Default::default(),
+        domain_id: 42,
+        min_issued_at: 2000,
+    };
+    process_instruction(
+        &mut banks_client,
+        set_igp_quote_config_instruction(
+            igp_program_id(),
+            igp_key,
+            payer.pubkey(),
+            Some(config_higher.clone()),
+        )
+        .unwrap(),
+        &payer,
+        &[&payer],
+    )
+    .await
+    .unwrap();
+
+    let igp = fetch_igp(&mut banks_client, igp_key).await;
+    assert_eq!(igp.fee_config.unwrap().min_issued_at, 2000);
 }
 
 #[tokio::test]

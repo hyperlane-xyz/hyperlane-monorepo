@@ -965,6 +965,14 @@ fn set_igp_quote_config(
 
     ensure_no_extraneous_accounts(accounts_iter)?;
 
+    // min_issued_at must not move backward when overwriting an existing config,
+    // mirroring the SetIgpMinIssuedAt monotonic guarantee.
+    if let (Some(existing), Some(new_config)) = (&igp.fee_config, &config) {
+        if new_config.min_issued_at < existing.min_issued_at {
+            return Err(ProgramError::InvalidArgument);
+        }
+    }
+
     igp.fee_config = config;
 
     let igp_account = IgpAccount::new(igp.into());
