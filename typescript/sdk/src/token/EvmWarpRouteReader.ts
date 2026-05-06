@@ -674,43 +674,26 @@ export class EvmWarpRouteReader extends EvmRouterReader {
                 'everclearAdapter',
               );
             if (bytecode.includes(everclearSelector.slice(2))) {
+              let everclearTokenType: TokenType = TokenType.collateralEverclear;
               try {
-                const maybeEverclearTokenBridge =
-                  EverclearTokenBridge__factory.connect(
-                    warpRouteAddress,
-                    this.provider,
-                  );
+                // if simulating an ETH transfer works this should be the WETH contract
+                await this.provider.estimateGas({
+                  from: NON_ZERO_SENDER_ADDRESS,
+                  to: wrappedToken,
+                  data: IWETH__factory.createInterface().encodeFunctionData(
+                    'deposit',
+                  ),
+                  value: 0,
+                });
 
-                await maybeEverclearTokenBridge.callStatic.everclearAdapter();
-
-                let everclearTokenType: TokenType =
-                  TokenType.collateralEverclear;
-                try {
-                  // if simulating an ETH transfer works this should be the WETH contract
-                  await this.provider.estimateGas({
-                    from: NON_ZERO_SENDER_ADDRESS,
-                    to: wrappedToken,
-                    data: IWETH__factory.createInterface().encodeFunctionData(
-                      'deposit',
-                    ),
-                    value: 0,
-                  });
-
-                  everclearTokenType = TokenType.ethEverclear;
-                } catch (error) {
-                  this.logger.debug(
-                    `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.collateralEverclear}`,
-                    error,
-                  );
-                }
-
-                return everclearTokenType;
+                everclearTokenType = TokenType.ethEverclear;
               } catch (error) {
                 this.logger.debug(
                   `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.collateralEverclear}`,
                   error,
                 );
               }
+              return everclearTokenType;
             }
 
             const crossCollateralSelector =
@@ -718,20 +701,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
                 'getCrossCollateralRouters',
               );
             if (bytecode.includes(crossCollateralSelector.slice(2))) {
-              try {
-                const crossCollateralRouter =
-                  CrossCollateralRouter__factory.connect(
-                    warpRouteAddress,
-                    this.provider,
-                  );
-                await crossCollateralRouter.getCrossCollateralRouters(0);
-                return TokenType.crossCollateral;
-              } catch (error) {
-                this.logger.debug(
-                  `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.crossCollateral}`,
-                  error,
-                );
-              }
+              return TokenType.crossCollateral;
             }
           }
 
