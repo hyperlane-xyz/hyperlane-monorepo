@@ -340,8 +340,13 @@ pub fn igp_quote_mode(data: &[u8]) -> Result<IgpQuoteMode, ProgramError> {
     }
 
     // Some tag (1) → fee_config must deserialize successfully.
+    // Use deserialize_reader (not try_from_slice / try_from_reader) so any
+    // trailing bytes after a valid IgpFeeConfig — e.g. stale padding from a
+    // future shrink path — don't make this probe spuriously reject and block
+    // dispatch.
     if reader[0] == 1 {
-        IgpFeeConfig::try_from_slice(&reader[1..]).map_err(|_| ProgramError::InvalidAccountData)?;
+        IgpFeeConfig::deserialize_reader(&mut &reader[1..])
+            .map_err(|_| ProgramError::InvalidAccountData)?;
         return Ok(IgpQuoteMode::Quoted);
     }
 
@@ -1110,6 +1115,21 @@ mod test {
         data.push(1); // Some tag
         data.extend_from_slice(&[0xFF; 5]); // invalid IgpFeeConfig
         assert!(igp_quote_mode(&data).is_err());
+    }
+
+    #[test]
+    fn test_igp_quote_mode_tolerates_padding_after_fee_config() {
+        // A future shrink path could leave stale zero padding after a valid
+        // IgpFeeConfig. The probe must not reject in that case — full
+        // Igp::deserialize_reader silently ignores trailing bytes, so
+        // igp_quote_mode needs to match.
+        let mut data = make_igp_account_data(default_igp(Some(IgpFeeConfig {
+            signers: BTreeSet::new(),
+            domain_id: 1,
+            min_issued_at: 0,
+        })));
+        data.extend_from_slice(&[0u8; 8]);
+        assert_eq!(igp_quote_mode(&data).unwrap(), IgpQuoteMode::Quoted);
     }
 
     #[test]
