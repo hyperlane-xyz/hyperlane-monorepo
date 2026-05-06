@@ -45,6 +45,8 @@ import {
 } from './fee-strategy-utils.js';
 import {
   FeeDataKind,
+  parseDomainId,
+  type WithWildcardSigners,
   type SvmDeployedFee,
   type SvmFeeWriterConfig,
 } from './types.js';
@@ -65,8 +67,15 @@ function allCCStrategies(
   return result;
 }
 
+/**
+ * On-chain CC route PDAs are non-enumerable, so `read()` only discovers routes
+ * for (domain, router) pairs listed in `context.knownRoutersPerDomain`.
+ * `update()` diffs against this same view — routes for pairs absent from the
+ * context are invisible and won't be added or removed. Callers must ensure the
+ * context covers all active (domain, router) pairs to avoid partial diffs.
+ */
 export class SvmCrossCollateralRoutingFeeReader implements ArtifactReader<
-  CrossCollateralRoutingFeeArtifactConfig,
+  WithWildcardSigners<CrossCollateralRoutingFeeArtifactConfig>,
   SvmDeployedFee
 > {
   constructor(
@@ -78,7 +87,10 @@ export class SvmCrossCollateralRoutingFeeReader implements ArtifactReader<
   async read(
     address: string,
   ): Promise<
-    ArtifactDeployed<CrossCollateralRoutingFeeArtifactConfig, SvmDeployedFee>
+    ArtifactDeployed<
+      WithWildcardSigners<CrossCollateralRoutingFeeArtifactConfig>,
+      SvmDeployedFee
+    >
   > {
     const programId = parseAddress(address);
     const account = await fetchFeeAccount(this.rpc, programId, this.salt);
@@ -98,7 +110,7 @@ export class SvmCrossCollateralRoutingFeeReader implements ArtifactReader<
     for (const [domainStr, routerSet] of Object.entries(
       this.context.knownRoutersPerDomain,
     )) {
-      const domain = Number(domainStr);
+      const domain = parseDomainId(domainStr);
       for (const router of routerSet) {
         const route = await fetchCrossCollateralRoute(
           this.rpc,
@@ -110,7 +122,7 @@ export class SvmCrossCollateralRoutingFeeReader implements ArtifactReader<
 
         if (route) {
           routes[domain] ??= {};
-          routes[domain][router] = routeDataToFeeStrategy(route);
+          routes[domain][router.toLowerCase()] = routeDataToFeeStrategy(route);
         }
       }
     }
@@ -125,6 +137,7 @@ export class SvmCrossCollateralRoutingFeeReader implements ArtifactReader<
         owner,
         beneficiary,
         routes,
+        wildcardSigners: account.feeData.wildcardSigners,
       },
       deployed: { address: programId, programId, feeAccountPda },
     };
@@ -194,7 +207,7 @@ export class SvmCrossCollateralRoutingFeeWriter
 
     // Set each CC route via SetRemoteFeeRoute(target_router = Some)
     for (const [domainStr, routerMap] of Object.entries(feeConfig.routes)) {
-      const domain = Number(domainStr);
+      const domain = parseDomainId(domainStr);
       for (const [router, strategy] of Object.entries(routerMap)) {
         const { feeData, signers } = feeStrategyToOnChain(strategy);
         const setRouteIx = await getSetRemoteFeeRouteInstruction(
@@ -271,9 +284,11 @@ export class SvmCrossCollateralRoutingFeeWriter
 
     // 1. Add or update CC routes
     for (const [domainStr, routerMap] of Object.entries(expected.routes)) {
-      const domain = Number(domainStr);
+      const domain = parseDomainId(domainStr);
       for (const [router, strategy] of Object.entries(routerMap)) {
-        const currentStrategy = currentConfig.routes[domain]?.[router];
+        const normalizedRouter = router.toLowerCase();
+        const currentStrategy =
+          currentConfig.routes[domain]?.[normalizedRouter];
         if (currentStrategy && feeStrategiesEqual(currentStrategy, strategy)) {
           continue;
         }
@@ -286,21 +301,22 @@ export class SvmCrossCollateralRoutingFeeWriter
               feeAccountPda,
               ownerAddress,
               domain,
-              routerToBytes(router),
+              routerToBytes(normalizedRouter),
               feeData,
               signers,
             ),
           ],
-          annotation: `Set CC route for domain ${domain} router ${router.slice(0, 10)}...`,
+          annotation: `Set CC route for domain ${domain} router ${normalizedRouter.slice(0, 10)}...`,
         });
       }
     }
 
     // 2. Remove stale CC routes
     for (const [domainStr, routerMap] of Object.entries(currentConfig.routes)) {
-      const domain = Number(domainStr);
+      const domain = parseDomainId(domainStr);
       for (const router of Object.keys(routerMap)) {
-        if (!expected.routes[domain]?.[router]) {
+        const hasExpected = expected.routes[domain]?.[router.toLowerCase()];
+        if (!hasExpected) {
           txs.push({
             feePayer: ownerAddress,
             instructions: [
@@ -322,10 +338,7 @@ export class SvmCrossCollateralRoutingFeeWriter
     const wildcardSigners = computeWildcardSignersFromStrategies(
       allCCStrategies(expected.routes),
     );
-    const currentWildcardSigners = computeWildcardSignersFromStrategies(
-      allCCStrategies(currentConfig.routes),
-    );
-    if (!h160SetEquality(currentWildcardSigners, wildcardSigners)) {
+    if (!h160SetEquality(currentConfig.wildcardSigners, wildcardSigners)) {
       txs.push({
         feePayer: ownerAddress,
         instructions: [

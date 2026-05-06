@@ -2,7 +2,7 @@ import type { Address } from '@solana/kit';
 import { keccak_256 } from '@noble/hashes/sha3';
 
 import type { DeployedFeeAddress } from '@hyperlane-xyz/provider-sdk/fee';
-import { strip0x } from '@hyperlane-xyz/utils';
+import { assert, strip0x } from '@hyperlane-xyz/utils';
 
 import type { SvmProgramTarget } from '../types.js';
 
@@ -11,6 +11,8 @@ export interface SvmDeployedFee extends DeployedFeeAddress {
   programId: Address;
   feeAccountPda: Address;
 }
+
+export type WithWildcardSigners<T> = T & { wildcardSigners: Uint8Array[] };
 
 /** Writer config for fee program — how to obtain the deployed program. */
 export type SvmFeeWriterConfig = Readonly<{
@@ -40,6 +42,16 @@ export function resolveFeeSalt(chainName: string): Uint8Array {
     return deriveFeeSalt(envValue);
   }
   return DEFAULT_FEE_SALT;
+}
+
+/** Parses a domain ID from a string key, asserting it is a valid non-negative integer. */
+export function parseDomainId(domainStr: string): number {
+  const domain = Number(domainStr);
+  assert(
+    Number.isInteger(domain) && domain >= 0,
+    `Invalid domain ID: ${domainStr}`,
+  );
+  return domain;
 }
 
 /** On-chain fee strategy curve variants (Borsh variant tags). */
