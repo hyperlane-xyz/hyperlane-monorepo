@@ -26,7 +26,7 @@ import {
 import { COSMOS_MODULE_MESSAGE_REGISTRY as R } from '../registry.js';
 import { getWarpTokenType } from '../warp/warp-query.js';
 
-function shouldCacheStargateClient(url: string): boolean {
+export function shouldCacheStargateClient(url: string): boolean {
   return !url.startsWith('ws://') && !url.startsWith('wss://');
 }
 

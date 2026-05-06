@@ -3,7 +3,7 @@ import { readJson } from '@hyperlane-xyz/utils/fs';
 
 import { fetchGCPSecret } from '../utils/gcloud.js';
 
-let explorerApiKeys: Promise<ChainMap<string>> | undefined;
+let explorerApiKeys: ChainMap<string> | undefined;
 
 // read build artifact from given path
 export function extractBuildArtifact(buildArtifactPath: string): BuildArtifact {
@@ -18,11 +18,8 @@ export function extractBuildArtifact(buildArtifactPath: string): BuildArtifact {
 
 // fetch explorer API keys from GCP
 export async function fetchExplorerApiKeys(): Promise<ChainMap<string>> {
-  explorerApiKeys ??= fetchGCPSecret('explorer-api-keys', true)
-    .then((secret) => secret as ChainMap<string>)
-    .catch((error) => {
-      explorerApiKeys = undefined;
-      throw error;
-    });
+  if (explorerApiKeys !== undefined) return explorerApiKeys;
+  const secret = await fetchGCPSecret('explorer-api-keys', true);
+  explorerApiKeys = secret as ChainMap<string>;
   return explorerApiKeys;
 }

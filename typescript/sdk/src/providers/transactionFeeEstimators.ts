@@ -10,6 +10,7 @@ import type {
   PopulatedTransaction as EV5Transaction,
 } from 'ethers';
 
+import { shouldCacheStargateClient } from '@hyperlane-xyz/cosmos-sdk';
 import {
   Address,
   HexString,
@@ -52,10 +53,6 @@ export interface TransactionFeeEstimate {
 
 const maxStargateClientCacheSize = 32;
 const stargateClients = new Map<string, Promise<StargateClient>>();
-
-function shouldCacheStargateClient(url: string): boolean {
-  return !url.startsWith('ws://') && !url.startsWith('wss://');
-}
 
 function disconnectStargateClient(client: Promise<StargateClient>): void {
   void client.then(
