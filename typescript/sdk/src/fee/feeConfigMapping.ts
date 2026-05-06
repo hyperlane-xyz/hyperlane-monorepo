@@ -13,7 +13,7 @@ import { TokenFeeType, type TokenFeeConfigInput } from './types.js';
  * Type discriminant strings already match between the two systems.
  * Beneficiary defaults to owner (EVM input doesn't expose it).
  */
-export function tokenFeeConfigInputToProviderFeeConfig(
+export function tokenFeeInputToFeeConfig(
   input: TokenFeeConfigInput,
 ): FeeConfig {
   const beneficiary = input.owner;
@@ -60,7 +60,9 @@ export function tokenFeeConfigInputToProviderFeeConfig(
 
     default: {
       const _exhaustive: never = input;
-      throw new Error(`Unknown fee type config ${_exhaustive}`);
+      throw new Error(
+        `Unknown fee type config: ${JSON.stringify(_exhaustive)}`,
+      );
     }
   }
 }
@@ -87,6 +89,11 @@ function toFeeStrategy(input: TokenFeeConfigInput): FeeStrategy {
         params: toFeeParams(input),
         quoteSigners: input.quoteSigners ?? [],
       };
+
+    default: {
+      const _exhaustive: never = input;
+      throw new Error(`Unhandled fee strategy: ${JSON.stringify(_exhaustive)}`);
+    }
   }
 }
 

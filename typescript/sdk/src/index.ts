@@ -1049,7 +1049,7 @@ export {
   QuoteSignersConfig,
 } from './fee/types.js';
 export { convertToBps } from './fee/utils.js';
-export { tokenFeeConfigInputToProviderFeeConfig } from './fee/feeConfigMapping.js';
+export { tokenFeeInputToFeeConfig } from './fee/feeConfigMapping.js';
 
 export {
   TurnkeyClientManager,
