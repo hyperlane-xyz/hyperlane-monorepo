@@ -508,6 +508,11 @@ where
             // Both:    [N+2] inner_igp (OverheadIgp only)
             //          [N+3] configured_igp again (OverheadIgp only, appended at end)
             //
+            // This layout MUST stay in lockstep with the producer side in the
+            // IGP program: see `process_get_igp_quote_account_metas` in
+            // `hyperlane-sealevel-igp/src/processor.rs`. Any change to meta
+            // order on either side requires the matching change here.
+            //
             // Collect accounts until we hit configured_igp_key. In Legacy flow
             // this is immediate (zero collected). In Quoted flow it collects
             // sender_authority, quoted_sender, and cascade PDAs.
