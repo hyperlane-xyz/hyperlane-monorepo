@@ -669,11 +669,15 @@ export class EvmWarpRouteReader extends EvmRouterReader {
               );
             }
 
-            const everclearSelector =
-              EverclearTokenBridge__factory.createInterface().getSighash(
-                'everclearAdapter',
-              );
-            if (bytecode.includes(everclearSelector.slice(2))) {
+            try {
+              const maybeEverclearTokenBridge =
+                EverclearTokenBridge__factory.connect(
+                  warpRouteAddress,
+                  this.provider,
+                );
+
+              await maybeEverclearTokenBridge.callStatic.everclearAdapter();
+
               let everclearTokenType: TokenType = TokenType.collateralEverclear;
               try {
                 // if simulating an ETH transfer works this should be the WETH contract
@@ -693,15 +697,28 @@ export class EvmWarpRouteReader extends EvmRouterReader {
                   error,
                 );
               }
+
               return everclearTokenType;
+            } catch (error) {
+              this.logger.debug(
+                `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.collateralEverclear}`,
+                error,
+              );
             }
 
-            const crossCollateralSelector =
-              CrossCollateralRouter__factory.createInterface().getSighash(
-                'getCrossCollateralRouters',
-              );
-            if (bytecode.includes(crossCollateralSelector.slice(2))) {
+            try {
+              const crossCollateralRouter =
+                CrossCollateralRouter__factory.connect(
+                  warpRouteAddress,
+                  this.provider,
+                );
+              await crossCollateralRouter.getCrossCollateralRouters(0);
               return TokenType.crossCollateral;
+            } catch (error) {
+              this.logger.debug(
+                `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.crossCollateral}`,
+                error,
+              );
             }
           }
 
