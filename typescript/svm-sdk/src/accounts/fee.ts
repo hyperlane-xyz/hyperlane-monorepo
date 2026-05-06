@@ -14,7 +14,7 @@ import {
 } from '../codecs/fee.js';
 import { toHexString } from '@hyperlane-xyz/utils';
 
-import { FeeDataKind, FeeStrategyKind } from '../fee/types.js';
+import { FeeDataKind, FeeStrategyKind, h160ToSigner } from '../fee/types.js';
 
 const addressDecoder = getAddressDecoder();
 
@@ -24,15 +24,15 @@ export type DecodedFeeData =
   | {
       kind: typeof FeeDataKind.Leaf;
       strategy: SvmFeeDataStrategy;
-      signers: Uint8Array[] | null;
+      signers: string[] | null;
     }
   | {
       kind: typeof FeeDataKind.Routing;
-      wildcardSigners: Uint8Array[];
+      wildcardSigners: string[];
     }
   | {
       kind: typeof FeeDataKind.CrossCollateralRouting;
-      wildcardSigners: Uint8Array[];
+      wildcardSigners: string[];
     };
 
 // ====== Fee Account ======
@@ -110,16 +110,10 @@ function decodeFeeDataStrategy(cursor: ByteCursor): SvmFeeDataStrategy {
   }
 }
 
-function readOptionSigners(cursor: ByteCursor): Uint8Array[] | null {
+function readOptionSigners(cursor: ByteCursor): string[] | null {
   const tag = cursor.readU8();
   if (tag === 0) return null;
-  // BTreeSet<H160> is serialized as length-prefixed sorted array
-  const count = cursor.readU32LE();
-  const signers: Uint8Array[] = [];
-  for (let i = 0; i < count; i++) {
-    signers.push(cursor.readBytes(20));
-  }
-  return signers;
+  return readSigners(cursor);
 }
 
 // ====== Route Domain ======
@@ -127,7 +121,7 @@ function readOptionSigners(cursor: ByteCursor): Uint8Array[] | null {
 export interface RouteDomainData {
   bumpSeed: number;
   feeData: SvmFeeDataStrategy;
-  signers: Uint8Array[] | null;
+  signers: string[] | null;
 }
 
 export function decodeRouteDomain(raw: Uint8Array): RouteDomainData | null {
@@ -146,7 +140,7 @@ export function decodeRouteDomain(raw: Uint8Array): RouteDomainData | null {
 export interface CrossCollateralRouteData {
   bumpSeed: number;
   feeData: SvmFeeDataStrategy;
-  signers: Uint8Array[] | null;
+  signers: string[] | null;
 }
 
 export function decodeCrossCollateralRoute(
@@ -208,11 +202,11 @@ function decodeMapH256StandingQuoteEntry(
   return entries;
 }
 
-function readSigners(cursor: ByteCursor): Uint8Array[] {
+function readSigners(cursor: ByteCursor): string[] {
   const count = cursor.readU32LE();
-  const signers: Uint8Array[] = [];
+  const signers: string[] = [];
   for (let i = 0; i < count; i++) {
-    signers.push(cursor.readBytes(20));
+    signers.push(h160ToSigner(cursor.readBytes(20)));
   }
   return signers;
 }

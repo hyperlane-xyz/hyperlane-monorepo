@@ -9,7 +9,7 @@ import { assert, isNullish, setEquality } from '@hyperlane-xyz/utils';
 
 import type { RouteDomainData } from '../accounts/fee.js';
 import type { SvmFeeDataStrategy, SvmFeeParams } from '../codecs/fee.js';
-import { FeeStrategyKind, h160ToSigner, signerToH160 } from './types.js';
+import { FeeStrategyKind } from './types.js';
 
 // ====== Constants ======
 
@@ -92,7 +92,7 @@ export function leafDataToFeeStrategy(
  */
 export function feeStrategyToOnChain(strategy: FeeStrategy): {
   feeData: SvmFeeDataStrategy;
-  signers: Uint8Array[] | null;
+  signers: string[] | null;
 } {
   switch (strategy.type) {
     case FeeStrategyType.linear:
@@ -111,7 +111,7 @@ export function feeStrategyToOnChain(strategy: FeeStrategy): {
           kind: FeeStrategyKind.Linear,
           params: resolveRawFeeParams(strategy.params),
         },
-        signers: strategy.quoteSigners.map(signerToH160),
+        signers: strategy.quoteSigners,
       };
 
     default: {
@@ -175,7 +175,7 @@ export function routeDataToFeeStrategy(route: RouteDomainData): FeeStrategy {
     return {
       type: FeeStrategyType.offchainQuotedLinear,
       params,
-      quoteSigners: route.signers.map(h160ToSigner),
+      quoteSigners: route.signers,
     };
   }
 
@@ -193,7 +193,7 @@ export function routeDataToFeeStrategy(route: RouteDomainData): FeeStrategy {
  */
 export function computeWildcardSignersFromStrategies(
   strategies: Iterable<FeeStrategy>,
-): Uint8Array[] {
+): string[] {
   const union = new Set<string>();
   for (const strategy of strategies) {
     if (strategy.type === FeeStrategyType.offchainQuotedLinear) {
@@ -202,13 +202,13 @@ export function computeWildcardSignersFromStrategies(
       }
     }
   }
-  return [...union].sort().map(signerToH160);
+  return [...union].sort();
 }
 
 /** Case-insensitive equality check for two H160 signer sets. */
-export function h160SetEquality(a: Uint8Array[], b: Uint8Array[]): boolean {
+export function h160SetEquality(a: string[], b: string[]): boolean {
   return setEquality(
-    new Set(a.map((signer) => h160ToSigner(signer).toLowerCase())),
-    new Set(b.map((signer) => h160ToSigner(signer).toLowerCase())),
+    new Set(a.map((s) => s.toLowerCase())),
+    new Set(b.map((s) => s.toLowerCase())),
   );
 }

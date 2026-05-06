@@ -12,7 +12,7 @@ export interface SvmDeployedFee extends DeployedFeeAddress {
   feeAccountPda: Address;
 }
 
-export type WithWildcardSigners<T> = T & { wildcardSigners: Uint8Array[] };
+export type WithWildcardSigners<T> = T & { wildcardSigners: string[] };
 
 /** Writer config for fee program — how to obtain the deployed program. */
 export type SvmFeeWriterConfig = Readonly<{

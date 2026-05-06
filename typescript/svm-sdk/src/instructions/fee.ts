@@ -157,7 +157,7 @@ export function getSetQuoteSignerInstruction(
   feeAccount: Address,
   owner: Address,
   operation: SetQuoteSignerOp,
-  signer: Uint8Array,
+  signer: string,
 ): Instruction {
   return buildInstruction(
     programId,
@@ -200,7 +200,7 @@ export async function getSetRemoteFeeRouteInstruction(
   domain: number,
   targetRouter: Uint8Array | null,
   feeData: SvmFeeDataStrategy,
-  signers: Uint8Array[] | null,
+  signers: string[] | null,
 ): Promise<Instruction> {
   const { address: routePda } = targetRouter
     ? await deriveCrossCollateralRoutePda(
@@ -280,7 +280,7 @@ export function getSetWildcardQuoteSignersInstruction(
   programId: Address,
   feeAccount: Address,
   owner: Address,
-  signers: Uint8Array[],
+  signers: string[],
 ): Instruction {
   return buildInstruction(
     programId,
@@ -303,7 +303,7 @@ export async function getSetQuoteSignerForRouteInstruction(
   feeAccount: Address,
   owner: Address,
   operation: SetQuoteSignerOp,
-  signer: Uint8Array,
+  signer: string,
   route: SvmRouteKey,
 ): Promise<Instruction> {
   let routePda: Address;

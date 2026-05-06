@@ -2,7 +2,11 @@ import type { ReadonlyUint8Array } from '@solana/kit';
 
 import { assert } from '@hyperlane-xyz/utils';
 
-import { FeeDataKind, type FeeStrategyKind } from '../fee/types.js';
+import {
+  FeeDataKind,
+  type FeeStrategyKind,
+  signerToH160,
+} from '../fee/types.js';
 
 import { concatBytes, option, u8, u32le, u64le } from './binary.js';
 
@@ -49,10 +53,12 @@ export function encodeFeeDataStrategy(
  * Encodes a list of H160 signers as a Borsh BTreeSet.
  * Sorts lexicographically to match Rust BTreeSet canonical order.
  */
-export function encodeBTreeSetH160(signers: Uint8Array[]): ReadonlyUint8Array {
-  const sorted = [...signers].sort((a, b) => {
+export function encodeBTreeSetH160(signers: string[]): ReadonlyUint8Array {
+  const unique = [...new Set(signers.map((s) => s.toLowerCase()))];
+  const bytes = unique.map(signerToH160);
+  const sorted = bytes.sort((a, b) => {
     for (let i = 0; i < 20; i++) {
-      const diff = (a[i] ?? 0) - (b[i] ?? 0);
+      const diff = a[i] - b[i];
       if (diff !== 0) return diff;
     }
     return 0;
@@ -72,16 +78,16 @@ export type SetQuoteSignerOp =
 
 export function encodeSetQuoteSignerOperation(
   op: SetQuoteSignerOp,
-  signer: Uint8Array,
+  signer: string,
 ): ReadonlyUint8Array {
-  return concatBytes(u8(op), signer);
+  return concatBytes(u8(op), signerToH160(signer));
 }
 
 // ====== Leaf Fee Config ======
 
 export interface SvmLeafFeeConfig {
   strategy: SvmFeeDataStrategy;
-  signers: Uint8Array[] | null;
+  signers: string[] | null;
 }
 
 export function encodeLeafFeeConfig(
@@ -118,7 +124,7 @@ export const STDQUOTE_DISCRIMINATOR = new Uint8Array([
 ]);
 
 export interface SvmRoutingFeeConfig {
-  wildcardSigners: Uint8Array[];
+  wildcardSigners: string[];
 }
 
 export function encodeRoutingFeeConfig(
@@ -141,7 +147,7 @@ export const CC_ROUTE_DISCRIMINATOR = new Uint8Array([
 ]);
 
 export interface SvmCrossCollateralRoutingFeeConfig {
-  wildcardSigners: Uint8Array[];
+  wildcardSigners: string[];
 }
 
 export function encodeCrossCollateralRoutingFeeConfig(
