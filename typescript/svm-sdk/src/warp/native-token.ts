@@ -23,6 +23,7 @@ import { resolveProgram } from '../deploy/resolve-program.js';
 import { getTokenInitInstruction } from '../instructions/token.js';
 import { writableAccount } from '../instructions/utils.js';
 import { deriveNativeCollateralPda } from '../pda.js';
+import { hasProgramBytes } from '../types.js';
 import type { AnnotatedSvmTransaction, SvmReceipt, SvmRpc } from '../types.js';
 
 import type { SvmDeployedWarpAddress, SvmWarpTokenConfig } from './types.js';
@@ -213,7 +214,7 @@ export class SvmNativeTokenWriter
 
     const txs: AnnotatedSvmTransaction[] = [];
 
-    if ('programBytes' in this.config.program) {
+    if (hasProgramBytes(this.config.program)) {
       const upgradeResult = await prepareProgramUpgrade(
         programId,
         current.config.contractVersion,
