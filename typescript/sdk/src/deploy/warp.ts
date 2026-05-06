@@ -386,12 +386,12 @@ async function resolveWarpIsmAndHook(
         warpConfig: config,
       });
 
+      // Spread instead of mutating config in place — the caller holds a reference
+      // to warpDeployConfig[chain] and uses it for registry persistence; mutating
+      // would wipe the RATE_LIMITED stanza from the persisted YAML.
       return {
         ...config,
-        // Preserve the original ISM config (e.g. RATE_LIMITED stanza) when
-        // createWarpIsm skips deployment and returns undefined, so the
-        // registry-persisted YAML retains the full ISM tree.
-        interchainSecurityModule: ism ?? config.interchainSecurityModule,
+        interchainSecurityModule: ism,
         hook,
       };
     }),
