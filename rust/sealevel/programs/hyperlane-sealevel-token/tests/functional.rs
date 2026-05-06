@@ -13,6 +13,7 @@ use hyperlane_sealevel_fee::{
     fee_math::{FeeDataStrategy, FeeParams},
     fee_standing_quote_pda_seeds, instruction as fee_instruction,
     processor::process_instruction as fee_process_instruction,
+    route_domain_pda_seeds,
 };
 use hyperlane_sealevel_igp::{
     accounts::{
@@ -1830,7 +1831,6 @@ async fn test_transfer_remote_with_fee_routing_mode() {
         Pubkey::find_program_address(fee_standing_quote_pda_seeds!(&fee_account_key, &d), &fp).0
     };
     let route_pda = {
-        use hyperlane_sealevel_fee::route_domain_pda_seeds;
         let d = REMOTE_DOMAIN.to_le_bytes();
         Pubkey::find_program_address(route_domain_pda_seeds!(fee_account_key, &d), &fp).0
     };

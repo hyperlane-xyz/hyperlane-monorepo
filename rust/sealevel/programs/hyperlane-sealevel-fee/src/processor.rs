@@ -31,7 +31,7 @@ use crate::{
         FeeAccountData, FeeData, FeeQuoteContext, FeeStandingQuotePda, FeeStandingQuotePdaAccount,
         FeeStandingQuoteValue, QuoteContext, RouteDomain, RouteDomainAccount,
         StandingQuoteAuthScope, TransientQuote, TransientQuoteAccount, DEFAULT_ROUTER,
-        WILDCARD_DOMAIN,
+        TRANSIENT_QUOTE_DISCRIMINATOR, WILDCARD_DOMAIN, WILDCARD_RECIPIENT,
     },
     cc_route_pda_seeds,
     error::Error,
@@ -379,8 +379,6 @@ fn is_initialized_transient_quote(
     account_info: &AccountInfo,
     program_id: &Pubkey,
 ) -> Result<bool, ProgramError> {
-    use crate::accounts::TRANSIENT_QUOTE_DISCRIMINATOR;
-
     match account_info.init_state(program_id) {
         AccountInitState::Uninitialized => Ok(false),
         AccountInitState::OwnerMismatch => Err(ProgramError::IncorrectProgramId),
@@ -478,8 +476,6 @@ fn try_resolve_standing_quote(
     clock: &Clock,
     cc_specific_route_active: bool,
 ) -> Result<Option<u64>, ProgramError> {
-    use crate::accounts::WILDCARD_RECIPIENT;
-
     // Re-derive PDA to prevent spoofing from a different fee account or domain.
     let domain_le = domain.to_le_bytes();
     let (expected_key, _) = Pubkey::find_program_address(

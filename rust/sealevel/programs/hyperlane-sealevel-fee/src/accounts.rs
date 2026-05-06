@@ -223,9 +223,6 @@ impl FeeAccountPrefix {
     ///
     /// On-disk layout: `[initialized (1)][discriminator (8)][bump (1)][owner (Option<Pubkey>)][beneficiary (Pubkey)]...`
     pub fn parse_from(data: &[u8]) -> Result<Self, ProgramError> {
-        use account_utils::DiscriminatorData;
-        use borsh::BorshDeserialize;
-
         // Verify initialized flag + discriminator, then skip past them.
         let prefix_len = 1 + FeeAccount::DISCRIMINATOR.len();
         if data.len() < prefix_len {

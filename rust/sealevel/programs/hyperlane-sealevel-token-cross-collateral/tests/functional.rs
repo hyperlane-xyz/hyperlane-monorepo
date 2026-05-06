@@ -5,7 +5,7 @@ use account_utils::DiscriminatorEncode;
 use hyperlane_core::{Encode, HyperlaneMessage, H256, U256};
 use hyperlane_sealevel_fee::{
     accounts::{FeeData, LeafFeeConfig, WILDCARD_DOMAIN},
-    fee_account_pda_seeds,
+    cc_route_pda_seeds, fee_account_pda_seeds,
     fee_math::{FeeDataStrategy, FeeParams},
     fee_standing_quote_pda_seeds, instruction as fee_instruction,
     processor::process_instruction as fee_process_instruction,
@@ -4247,7 +4247,6 @@ async fn test_cc_remote_transfer_with_fee_cc_routing_mode() {
     };
     // CC specific route PDA for (REMOTE_DOMAIN, target_router).
     let cc_route_pda = {
-        use hyperlane_sealevel_fee::cc_route_pda_seeds;
         let d = REMOTE_DOMAIN.to_le_bytes();
         Pubkey::find_program_address(
             cc_route_pda_seeds!(fee_account_key, &d, &target_router),
