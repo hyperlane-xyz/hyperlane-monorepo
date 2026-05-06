@@ -356,7 +356,7 @@ pub struct TransientQuote {
     /// Fee-type-specific context bytes (44B non-CC: dest_domain u32 + recipient H256 + amount u64,
     /// or 76B CC: adds target_router H256).
     pub context: Vec<u8>,
-    /// Fee params bytes (16B: max_fee u64 LE + half_amount u64 LE).
+    /// Borsh-encoded `FeeDataStrategy` bytes (curve variant tag + variant-specific params).
     pub data: Vec<u8>,
     /// Expiry timestamp (unix). For transient quotes, expiry == issued_at.
     pub expiry: i64,
@@ -1046,14 +1046,10 @@ mod tests {
         assert_eq!(WILDCARD_RECIPIENT.as_bytes(), &[0xFF; 32]);
         assert_eq!(WILDCARD_DOMAIN, u32::MAX);
         // DEFAULT_ROUTER = keccak256("RoutingFee.DEFAULT_ROUTER"), matching EVM.
-        assert_eq!(
-            DEFAULT_ROUTER,
-            H256([
-                0x6e, 0x08, 0x6c, 0xd6, 0x47, 0xd6, 0xeb, 0x8b, 0x51, 0x68, 0x56, 0x66, 0x6e, 0x2c,
-                0x14, 0x65, 0xfb, 0x8a, 0x6a, 0x58, 0xd3, 0xa7, 0x59, 0x38, 0x36, 0x2a, 0xcc, 0x67,
-                0x4e, 0xac, 0xaf, 0x47,
-            ])
-        );
+        // Recompute the hash so a bad precomputed constant fails the test.
+        let expected =
+            H256::from_slice(solana_program::keccak::hash(b"RoutingFee.DEFAULT_ROUTER").as_ref());
+        assert_eq!(DEFAULT_ROUTER, expected);
         assert_ne!(DEFAULT_ROUTER, WILDCARD_RECIPIENT);
     }
 
