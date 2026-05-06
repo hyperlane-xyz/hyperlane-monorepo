@@ -38,8 +38,6 @@ import { resolveRawFeeParams } from './fee-strategy-utils.js';
 import {
   FeeDataKind,
   FeeStrategyKind,
-  h160ToSigner,
-  signerToH160,
   type SvmDeployedFee,
   type SvmFeeWriterConfig,
 } from './types.js';
@@ -91,7 +89,7 @@ export class SvmOffchainQuotedLinearFeeReader implements ArtifactReader<
           maxFee: maxFee.toString(),
           halfAmount: halfAmount.toString(),
         },
-        quoteSigners: account.feeData.signers.map(h160ToSigner),
+        quoteSigners: account.feeData.signers,
       },
       deployed: { address: programId, programId, feeAccountPda },
     };
@@ -127,7 +125,6 @@ export class SvmOffchainQuotedLinearFeeWriter
       this.rpc,
     );
 
-    const signerBytes = feeConfig.quoteSigners.map(signerToH160);
     const resolved = resolveRawFeeParams(feeConfig.params);
     const initIx = await getInitFeeInstruction(
       programId,
@@ -139,7 +136,7 @@ export class SvmOffchainQuotedLinearFeeWriter
           kind: FeeDataKind.Leaf,
           config: {
             strategy: { kind: FeeStrategyKind.Linear, params: resolved },
-            signers: signerBytes,
+            signers: feeConfig.quoteSigners,
           },
         },
         domainId: this.domainId,
@@ -264,7 +261,7 @@ export class SvmOffchainQuotedLinearFeeWriter
               feeAccountPda,
               ownerAddress,
               SetQuoteSignerOp.Add,
-              signerToH160(signer),
+              signer,
             ),
           ],
           annotation: `Add quote signer ${signer}`,
@@ -282,7 +279,7 @@ export class SvmOffchainQuotedLinearFeeWriter
               feeAccountPda,
               ownerAddress,
               SetQuoteSignerOp.Remove,
-              signerToH160(signer),
+              signer,
             ),
           ],
           annotation: `Remove quote signer ${signer}`,
