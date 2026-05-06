@@ -8,7 +8,7 @@ import {
   normalizeConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, type WithAddress } from '@hyperlane-xyz/utils';
 
 import { writeYamlOrJson } from '../../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../../commands/core.js';
@@ -131,6 +131,14 @@ describe('hyperlane warp apply E2E (hook updates)', async function () {
       updatedMaxCapacity;
     await writeYamlOrJson(DEFAULT_EVM_WARP_DEPLOY_PATH, warpDeployConfig);
 
+    const configBeforeApply = await evmWarpCommands.readConfig(
+      chain,
+      DEFAULT_EVM_WARP_CORE_PATH,
+    );
+    const hookAddressBeforeApply = (
+      configBeforeApply[chain].hook as WithAddress<RateLimitedHookConfig>
+    ).address;
+
     await evmWarpCommands.applyRaw({
       warpRouteId: DEFAULT_EVM_WARP_ID,
       hypKey: HYP_KEY_BY_PROTOCOL.ethereum,
@@ -141,8 +149,11 @@ describe('hyperlane warp apply E2E (hook updates)', async function () {
       DEFAULT_EVM_WARP_CORE_PATH,
     );
 
-    const hook = updatedConfig[chain].hook as RateLimitedHookConfig;
+    const hook = updatedConfig[chain]
+      .hook as WithAddress<RateLimitedHookConfig>;
     expect(hook.type).to.equal(HookType.RATE_LIMITED);
     expect(hook.maxCapacity).to.equal(updatedMaxCapacity);
+    // address must be unchanged — setRefillRate is in-place, not a redeploy
+    expect(hook.address).to.equal(hookAddressBeforeApply);
   });
 });

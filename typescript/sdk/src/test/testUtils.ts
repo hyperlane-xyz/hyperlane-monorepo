@@ -279,7 +279,7 @@ export function randomHookConfig(
       return {
         owner: randomAddress(),
         type: hookType,
-        maxCapacity: (86400 + Math.floor(Math.random() * 1000000)).toString(),
+        maxCapacity: ((1 + Math.floor(Math.random() * 100)) * 86400).toString(),
       };
 
     default:

@@ -2,10 +2,7 @@ import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 
 import {
   AggregationHookConfig,
-  AmountRoutingHookConfig,
   DerivedHookConfig,
-  DomainRoutingHookConfig,
-  FallbackRoutingHookConfig,
   HookConfig,
   HookType,
 } from './types.js';
@@ -40,31 +37,25 @@ export function hookTreeContainsRateLimited(
   if (!hook || typeof hook === 'string') return false;
   if (hook.type === HookType.RATE_LIMITED) return true;
   if (hook.type === HookType.AGGREGATION) {
-    return (hook as AggregationHookConfig).hooks.some((h) =>
-      hookTreeContainsRateLimited(h as HookConfig),
-    );
+    return hook.hooks.some(hookTreeContainsRateLimited);
   }
-  if (
-    hook.type === HookType.ROUTING ||
-    hook.type === HookType.FALLBACK_ROUTING
-  ) {
-    const routing = hook as DomainRoutingHookConfig | FallbackRoutingHookConfig;
-    if (
-      Object.values(routing.domains).some((h) =>
-        hookTreeContainsRateLimited(h as HookConfig),
-      )
-    )
-      return true;
-    if ('fallback' in routing)
-      return hookTreeContainsRateLimited(routing.fallback as HookConfig);
-    return false;
+  if (hook.type === HookType.ROUTING) {
+    return Object.values(hook.domains).some(hookTreeContainsRateLimited);
+  }
+  if (hook.type === HookType.FALLBACK_ROUTING) {
+    return (
+      Object.values(hook.domains).some(hookTreeContainsRateLimited) ||
+      hookTreeContainsRateLimited(hook.fallback)
+    );
   }
   if (hook.type === HookType.AMOUNT_ROUTING) {
-    const ar = hook as AmountRoutingHookConfig;
     return (
-      hookTreeContainsRateLimited(ar.lowerHook) ||
-      hookTreeContainsRateLimited(ar.upperHook)
+      hookTreeContainsRateLimited(hook.lowerHook) ||
+      hookTreeContainsRateLimited(hook.upperHook)
     );
+  }
+  if (hook.type === HookType.ARB_L2_TO_L1) {
+    return hookTreeContainsRateLimited(hook.childHook as HookConfig);
   }
   return false;
 }

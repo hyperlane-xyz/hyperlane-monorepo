@@ -1,11 +1,6 @@
 import { z } from 'zod';
 
-import {
-  Address,
-  WithAddress,
-  isNullish,
-  rootLogger,
-} from '@hyperlane-xyz/utils';
+import { Address, WithAddress, isNullish } from '@hyperlane-xyz/utils';
 
 import { ProtocolAgnositicGasOracleConfigWithTypicalCostSchema } from '../gas/oracle/types.js';
 import { ZHash } from '../metadata/customZodTypes.js';
@@ -255,27 +250,19 @@ export const UnknownHookSchema = z
   .passthrough();
 export type UnknownHookConfig = z.infer<typeof UnknownHookSchema>;
 
-export const RateLimitedHookSchema = OwnableSchema.partial()
-  .extend({
-    type: z.literal(HookType.RATE_LIMITED),
-    maxCapacity: z
-      .string()
-      .regex(/^\d+$/, 'maxCapacity must be a base-10 integer string'),
-  })
+export const RateLimitedHookSchema = OwnableSchema.extend({
+  type: z.literal(HookType.RATE_LIMITED),
+  maxCapacity: z
+    .string()
+    .regex(/^\d+$/, 'maxCapacity must be a base-10 integer string'),
+})
   .refine((val) => BigInt(val.maxCapacity) >= 86400n, {
     message: 'maxCapacity must be at least 86400',
     path: ['maxCapacity'],
   })
-  .transform((val) => {
-    const capacity = BigInt(val.maxCapacity);
-    if (capacity % 86400n !== 0n) {
-      const rounded = ((capacity / 86400n) * 86400n).toString();
-      rootLogger.warn(
-        `RateLimitedHook maxCapacity ${val.maxCapacity} is not divisible by 86400; rounding down to ${rounded}`,
-      );
-      return { ...val, maxCapacity: rounded };
-    }
-    return val;
+  .refine((val) => BigInt(val.maxCapacity) % 86400n === 0n, {
+    message: 'maxCapacity must be a multiple of 86400 (seconds per day)',
+    path: ['maxCapacity'],
   });
 
 const KnownHookTypes: string[] = Object.values(HookType).filter(

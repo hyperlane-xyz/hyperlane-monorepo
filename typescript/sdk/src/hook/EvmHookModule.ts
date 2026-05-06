@@ -365,7 +365,7 @@ export class EvmHookModule extends HyperlaneModule<
     ).owner();
 
     // Return an ownership transfer transaction if required
-    if (target.owner != null && !eqAddress(target.owner, owner)) {
+    if (!eqAddress(target.owner, owner)) {
       updateTxs.push({
         annotation: 'Transferring ownership of ownable Hook...',
         chainId: this.chainId,
@@ -419,7 +419,7 @@ export class EvmHookModule extends HyperlaneModule<
 
     if (currentConfig.maxCapacity !== targetConfig.maxCapacity) {
       updateTxs.push({
-        annotation: `Setting maxCapacity on RateLimitedHook on chain "${this.chain}" and address "${this.args.addresses.deployedHook}"`,
+        annotation: `Setting refill rate on RateLimitedHook on chain "${this.chain}" and address "${this.args.addresses.deployedHook}"`,
         chainId: this.chainId,
         to: this.args.addresses.deployedHook,
         data: RateLimitedHook__factory.createInterface().encodeFunctionData(
