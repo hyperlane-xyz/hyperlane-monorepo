@@ -4,4 +4,4 @@
 '@hyperlane-xyz/sdk': patch
 ---
 
-SVM warp route fee integration was added — warp tokens can now reference a deployed fee program via SetFeeConfig, with full create/read/update support and fee PDA validation. Token account decoder was updated to read the trailing Option<FeeConfig> field. Program version detection was added via GetProgramVersion simulation, enabling explicit program upgrades with ExtendProgramChecked and version-gated upgrade flow. Added contractVersion field to provider-sdk warp config types. compare-versions package added to workspace catalog.
+SVM warp route fee integration was added. Warp token writers wired SetFeeConfig into the create and update flows with fee PDA validation, and readers were updated to surface the on-chain fee config. The token account decoder was extended to read the trailing Option<FeeConfig> field. Program version detection was added via GetProgramVersion simulation, gating explicit program upgrades that emit ExtendProgramChecked and Upgrade against the deployed BPF Loader v3 program. A contractVersion field was added to the provider-sdk warp config types, and compare-versions was promoted to the workspace catalog.
