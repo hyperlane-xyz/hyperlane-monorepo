@@ -388,6 +388,14 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
     }
 
     // Account 6: detection point — overhead IGP (old flow) or sender_authority (new flow).
+    //
+    // Quoting contract: once `fee_config` is set on this IGP, callers using the
+    // new (quoted) flow pay quote-derived prices, and callers using the legacy
+    // paths (None or overhead-only) continue to pay oracle-derived prices. The
+    // IGP intentionally enforces nothing here so pre-PR warp routes keep
+    // dispatching without breaking. Operators must keep the gas oracle synced —
+    // any legacy caller pays the oracle price regardless of whether authorized
+    // standing/transient quotes exist.
     let (required_payment, gas_amount, transient_info_to_close) = match accounts_iter.next() {
         None => {
             let gas_amount = payment.gas_amount;
