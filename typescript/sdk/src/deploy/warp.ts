@@ -364,7 +364,7 @@ async function resolveWarpIsmAndHook(
         throw new Error(`Registry factory addresses not found for ${chain}.`);
       }
 
-      config.interchainSecurityModule = await createWarpIsm({
+      const ism = await createWarpIsm({
         ccipContractCache,
         chain,
         chainAddresses,
@@ -375,7 +375,7 @@ async function resolveWarpIsmAndHook(
         warpConfig: config,
       }); // TODO write test
 
-      config.hook = await createWarpHook({
+      const hook = await createWarpHook({
         ccipContractCache,
         chain,
         chainAddresses,
@@ -385,7 +385,15 @@ async function resolveWarpIsmAndHook(
         ismFactoryDeployer,
         warpConfig: config,
       });
-      return config;
+
+      return {
+        ...config,
+        // Preserve the original ISM config (e.g. RATE_LIMITED stanza) when
+        // createWarpIsm skips deployment and returns undefined, so the
+        // registry-persisted YAML retains the full ISM tree.
+        interchainSecurityModule: ism ?? config.interchainSecurityModule,
+        hook,
+      };
     }),
   );
 }
