@@ -275,6 +275,13 @@ export function randomHookConfig(
         upperHook: randomHookConfig(depth + 1, maxDepth),
       };
 
+    case HookType.RATE_LIMITED:
+      return {
+        owner: randomAddress(),
+        type: hookType,
+        maxCapacity: (86400 + Math.floor(Math.random() * 1000000)).toString(),
+      };
+
     default:
       throw new Error(`Unsupported Hook type: ${hookType}`);
   }
