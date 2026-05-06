@@ -1,6 +1,9 @@
 import { expect } from 'chai';
 
-import { type ChainAddresses } from '@hyperlane-xyz/registry';
+import {
+  type ChainAddresses,
+  createWarpRouteConfigId,
+} from '@hyperlane-xyz/registry';
 import { SealevelSigner, createRpc } from '@hyperlane-xyz/sealevel-sdk';
 import { airdropSol } from '@hyperlane-xyz/sealevel-sdk/testing';
 import {
@@ -78,8 +81,8 @@ describe('hyperlane warp fee CLI e2e tests (Sealevel)', function () {
     const BPS = 50;
     const SYMBOL = 'FTKN';
 
-    const warpRouteId = `${SYMBOL}/${CHAIN_NAME}`;
-    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, {
+    const warpRouteId = createWarpRouteConfigId(SYMBOL, CHAIN_NAME);
+    const config: WarpRouteDeployConfig = {
       [CHAIN_NAME]: {
         type: TokenType.native,
         name: 'Fee Token',
@@ -93,7 +96,8 @@ describe('hyperlane warp fee CLI e2e tests (Sealevel)', function () {
           bps: BPS,
         },
       },
-    } as WarpRouteDeployConfig);
+    };
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, config);
 
     await warpCommands.deploy(SVM_KEY, warpRouteId, WARP_DEPLOY_OUTPUT_PATH);
 
@@ -102,17 +106,22 @@ describe('hyperlane warp fee CLI e2e tests (Sealevel)', function () {
     const readConfig = await warpCommands.readConfig(CHAIN_NAME, warpCorePath);
     const chainConfig = readConfig[CHAIN_NAME];
 
-    expect(chainConfig.tokenFee).to.not.be.undefined;
-    expect(chainConfig.tokenFee!.type).to.equal(TokenFeeType.LinearFee);
-    expect(chainConfig.tokenFee!.owner).to.equal(ownerAddress);
+    const fee = chainConfig.tokenFee;
+    assert(fee, 'Expected tokenFee after deploy');
+    assert(
+      fee.type === TokenFeeType.LinearFee,
+      `Expected LinearFee, got ${fee.type}`,
+    );
+    expect(fee.owner).to.equal(ownerAddress);
+    expect(fee.bps).to.equal(BPS);
   });
 
   it('should deploy a native warp route with RoutingFee (multiple domains) on SVM', async function () {
     const ownerAddress = signer.getSignerAddress();
     const SYMBOL = 'RTKN';
 
-    const warpRouteId = `${SYMBOL}/${CHAIN_NAME}`;
-    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, {
+    const warpRouteId = createWarpRouteConfigId(SYMBOL, CHAIN_NAME);
+    const config: WarpRouteDeployConfig = {
       [CHAIN_NAME]: {
         type: TokenType.native,
         name: 'Routing Fee Token',
@@ -145,7 +154,8 @@ describe('hyperlane warp fee CLI e2e tests (Sealevel)', function () {
           },
         },
       },
-    } as WarpRouteDeployConfig);
+    };
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, config);
 
     await warpCommands.deploy(SVM_KEY, warpRouteId, WARP_DEPLOY_OUTPUT_PATH);
 
@@ -162,9 +172,21 @@ describe('hyperlane warp fee CLI e2e tests (Sealevel)', function () {
       fee.type === TokenFeeType.RoutingFee,
       'Expected RoutingFee type for narrowing',
     );
-    expect(fee.feeContracts.anvil1).to.not.be.undefined;
-    expect(fee.feeContracts.anvil1.type).to.equal(TokenFeeType.LinearFee);
-    expect(fee.feeContracts.anvil2).to.not.be.undefined;
-    expect(fee.feeContracts.anvil2.type).to.equal(TokenFeeType.LinearFee);
+
+    const anvil1 = fee.feeContracts.anvil1;
+    assert(anvil1, 'Expected anvil1 fee contract');
+    assert(
+      anvil1.type === TokenFeeType.LinearFee,
+      `Expected LinearFee for anvil1, got ${anvil1.type}`,
+    );
+    expect(anvil1.bps).to.equal(50);
+
+    const anvil2 = fee.feeContracts.anvil2;
+    assert(anvil2, 'Expected anvil2 fee contract');
+    assert(
+      anvil2.type === TokenFeeType.LinearFee,
+      `Expected LinearFee for anvil2, got ${anvil2.type}`,
+    );
+    expect(anvil2.bps).to.equal(100);
   });
 });

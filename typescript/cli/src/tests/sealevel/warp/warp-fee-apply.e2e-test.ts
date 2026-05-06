@@ -1,6 +1,9 @@
 import { expect } from 'chai';
 
-import { type ChainAddresses } from '@hyperlane-xyz/registry';
+import {
+  type ChainAddresses,
+  createWarpRouteConfigId,
+} from '@hyperlane-xyz/registry';
 import { SealevelSigner, createRpc } from '@hyperlane-xyz/sealevel-sdk';
 import { airdropSol } from '@hyperlane-xyz/sealevel-sdk/testing';
 import {
@@ -77,7 +80,7 @@ describe('hyperlane warp fee apply CLI e2e tests (Sealevel)', function () {
   it('should add fee via apply when deployed without one', async function () {
     const ownerAddress = signer.getSignerAddress();
     const SYMBOL = 'ADDFEE';
-    const warpRouteId = `${SYMBOL}/${CHAIN_NAME}`;
+    const warpRouteId = createWarpRouteConfigId(SYMBOL, CHAIN_NAME);
 
     const baseConfig = {
       type: TokenType.native,
@@ -88,9 +91,8 @@ describe('hyperlane warp fee apply CLI e2e tests (Sealevel)', function () {
       owner: ownerAddress,
     };
 
-    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, {
-      [CHAIN_NAME]: baseConfig,
-    } as WarpRouteDeployConfig);
+    const deployConfig: WarpRouteDeployConfig = { [CHAIN_NAME]: baseConfig };
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, deployConfig);
 
     await warpCommands.deploy(SVM_KEY, warpRouteId, WARP_DEPLOY_OUTPUT_PATH);
 
@@ -98,17 +100,17 @@ describe('hyperlane warp fee apply CLI e2e tests (Sealevel)', function () {
     const beforeApply = await warpCommands.readConfig(CHAIN_NAME, warpCorePath);
     expect(beforeApply[CHAIN_NAME].tokenFee).to.be.undefined;
 
-    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, {
+    const applyConfig: WarpRouteDeployConfig = {
       [CHAIN_NAME]: {
         ...baseConfig,
-        ...beforeApply[CHAIN_NAME],
         tokenFee: {
           type: TokenFeeType.LinearFee,
           owner: ownerAddress,
           bps: 75,
         },
       },
-    });
+    };
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, applyConfig);
     syncWarpDeployConfigToRegistry({
       warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
       warpRouteId,
@@ -116,21 +118,25 @@ describe('hyperlane warp fee apply CLI e2e tests (Sealevel)', function () {
     });
     await warpCommands.applyRaw({
       warpRouteId,
-      hypKey: SVM_KEY,
+      privateKey: SVM_KEY,
       skipConfirmationPrompts: true,
     });
 
     const afterApply = await warpCommands.readConfig(CHAIN_NAME, warpCorePath);
     const fee = afterApply[CHAIN_NAME].tokenFee;
     assert(fee, 'Expected tokenFee after apply');
-    expect(fee.type).to.equal(TokenFeeType.LinearFee);
+    assert(
+      fee.type === TokenFeeType.LinearFee,
+      `Expected LinearFee, got ${fee.type}`,
+    );
     expect(fee.owner).to.equal(ownerAddress);
+    expect(fee.bps).to.equal(75);
   });
 
   it('should update fee params via apply', async function () {
     const ownerAddress = signer.getSignerAddress();
     const SYMBOL = 'UPDFEE';
-    const warpRouteId = `${SYMBOL}/${CHAIN_NAME}`;
+    const warpRouteId = createWarpRouteConfigId(SYMBOL, CHAIN_NAME);
 
     const baseConfig = {
       type: TokenType.native,
@@ -146,9 +152,8 @@ describe('hyperlane warp fee apply CLI e2e tests (Sealevel)', function () {
       },
     };
 
-    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, {
-      [CHAIN_NAME]: baseConfig,
-    } as WarpRouteDeployConfig);
+    const deployConfig: WarpRouteDeployConfig = { [CHAIN_NAME]: baseConfig };
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, deployConfig);
 
     await warpCommands.deploy(SVM_KEY, warpRouteId, WARP_DEPLOY_OUTPUT_PATH);
 
@@ -156,17 +161,17 @@ describe('hyperlane warp fee apply CLI e2e tests (Sealevel)', function () {
     const beforeApply = await warpCommands.readConfig(CHAIN_NAME, warpCorePath);
     expect(beforeApply[CHAIN_NAME].tokenFee).to.not.be.undefined;
 
-    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, {
+    const applyConfig: WarpRouteDeployConfig = {
       [CHAIN_NAME]: {
         ...baseConfig,
-        ...beforeApply[CHAIN_NAME],
         tokenFee: {
           type: TokenFeeType.LinearFee,
           owner: ownerAddress,
           bps: 100,
         },
       },
-    });
+    };
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, applyConfig);
     syncWarpDeployConfigToRegistry({
       warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
       warpRouteId,
@@ -174,13 +179,140 @@ describe('hyperlane warp fee apply CLI e2e tests (Sealevel)', function () {
     });
     await warpCommands.applyRaw({
       warpRouteId,
-      hypKey: SVM_KEY,
+      privateKey: SVM_KEY,
       skipConfirmationPrompts: true,
     });
 
     const afterApply = await warpCommands.readConfig(CHAIN_NAME, warpCorePath);
     const fee = afterApply[CHAIN_NAME].tokenFee;
     assert(fee, 'Expected tokenFee after apply');
-    expect(fee.type).to.equal(TokenFeeType.LinearFee);
+    assert(
+      fee.type === TokenFeeType.LinearFee,
+      `Expected LinearFee, got ${fee.type}`,
+    );
+    expect(fee.bps).to.equal(100);
+  });
+
+  it('should remove fee via apply', async function () {
+    const ownerAddress = signer.getSignerAddress();
+    const SYMBOL = 'RMFEE';
+    const warpRouteId = createWarpRouteConfigId(SYMBOL, CHAIN_NAME);
+
+    const baseConfig = {
+      type: TokenType.native,
+      name: 'Remove Fee Token',
+      symbol: SYMBOL,
+      decimals: 9,
+      mailbox: mailboxAddress,
+      owner: ownerAddress,
+      tokenFee: {
+        type: TokenFeeType.LinearFee,
+        owner: ownerAddress,
+        bps: 50,
+      },
+    };
+
+    const deployConfig: WarpRouteDeployConfig = { [CHAIN_NAME]: baseConfig };
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, deployConfig);
+
+    await warpCommands.deploy(SVM_KEY, warpRouteId, WARP_DEPLOY_OUTPUT_PATH);
+
+    const warpCorePath = getWarpCoreConfigPath(SYMBOL, [CHAIN_NAME]);
+    const beforeApply = await warpCommands.readConfig(CHAIN_NAME, warpCorePath);
+    expect(beforeApply[CHAIN_NAME].tokenFee).to.not.be.undefined;
+
+    const { tokenFee: _, ...withoutFee } = baseConfig;
+    const applyConfig: WarpRouteDeployConfig = {
+      [CHAIN_NAME]: withoutFee,
+    };
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, applyConfig);
+    syncWarpDeployConfigToRegistry({
+      warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+      warpRouteId,
+      registryPath: REGISTRY_PATH,
+    });
+    await warpCommands.applyRaw({
+      warpRouteId,
+      privateKey: SVM_KEY,
+      skipConfirmationPrompts: true,
+    });
+
+    const afterApply = await warpCommands.readConfig(CHAIN_NAME, warpCorePath);
+    expect(afterApply[CHAIN_NAME].tokenFee).to.be.undefined;
+  });
+
+  it('should add a quote signer to OffchainQuotedLinearFee via apply', async function () {
+    const ownerAddress = signer.getSignerAddress();
+    const SYMBOL = 'OQSIGN';
+    const warpRouteId = createWarpRouteConfigId(SYMBOL, CHAIN_NAME);
+    const SIGNER_A = '0x000000000000000000000000000000000000000A';
+    const SIGNER_B = '0x000000000000000000000000000000000000000B';
+
+    const baseConfig = {
+      type: TokenType.native,
+      name: 'OQ Signers Token',
+      symbol: SYMBOL,
+      decimals: 9,
+      mailbox: mailboxAddress,
+      owner: ownerAddress,
+      tokenFee: {
+        type: TokenFeeType.OffchainQuotedLinearFee,
+        owner: ownerAddress,
+        bps: 50,
+        quoteSigners: [SIGNER_A],
+      },
+    };
+
+    const deployConfig: WarpRouteDeployConfig = { [CHAIN_NAME]: baseConfig };
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, deployConfig);
+
+    await warpCommands.deploy(SVM_KEY, warpRouteId, WARP_DEPLOY_OUTPUT_PATH);
+
+    const warpCorePath = getWarpCoreConfigPath(SYMBOL, [CHAIN_NAME]);
+    const beforeApply = await warpCommands.readConfig(CHAIN_NAME, warpCorePath);
+    const beforeFee = beforeApply[CHAIN_NAME].tokenFee;
+    assert(beforeFee, 'Expected tokenFee after deploy');
+    assert(
+      beforeFee.type === TokenFeeType.OffchainQuotedLinearFee,
+      `Expected OffchainQuotedLinearFee, got ${beforeFee.type}`,
+    );
+    expect(beforeFee.quoteSigners?.map((s) => s.toLowerCase())).to.deep.equal([
+      SIGNER_A.toLowerCase(),
+    ]);
+
+    const applyConfig: WarpRouteDeployConfig = {
+      [CHAIN_NAME]: {
+        ...baseConfig,
+        tokenFee: {
+          type: TokenFeeType.OffchainQuotedLinearFee,
+          owner: ownerAddress,
+          bps: 50,
+          quoteSigners: [SIGNER_A, SIGNER_B],
+        },
+      },
+    };
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, applyConfig);
+    syncWarpDeployConfigToRegistry({
+      warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+      warpRouteId,
+      registryPath: REGISTRY_PATH,
+    });
+    await warpCommands.applyRaw({
+      warpRouteId,
+      privateKey: SVM_KEY,
+      skipConfirmationPrompts: true,
+    });
+
+    const afterApply = await warpCommands.readConfig(CHAIN_NAME, warpCorePath);
+    const afterFee = afterApply[CHAIN_NAME].tokenFee;
+    assert(afterFee, 'Expected tokenFee after apply');
+    assert(
+      afterFee.type === TokenFeeType.OffchainQuotedLinearFee,
+      `Expected OffchainQuotedLinearFee, got ${afterFee.type}`,
+    );
+    expect(afterFee.bps).to.equal(50);
+    expect(
+      new Set(afterFee.quoteSigners?.map((s) => s.toLowerCase())),
+    ).to.deep.equal(new Set([SIGNER_A.toLowerCase(), SIGNER_B.toLowerCase()]));
   });
 });
