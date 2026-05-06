@@ -127,7 +127,9 @@ describe('SVM OffchainQuotedLinear Fee E2E Tests', function () {
     }
 
     const readResult = await reader.read(deployed.deployed.programId);
-    expect(readResult.config.quoteSigners).to.have.length(2);
+    expect(
+      readResult.config.quoteSigners.map((s) => s.toLowerCase()),
+    ).to.have.members([SIGNER_A.toLowerCase(), SIGNER_B.toLowerCase()]);
   });
 
   it('should remove a signer via update', async () => {
@@ -152,10 +154,9 @@ describe('SVM OffchainQuotedLinear Fee E2E Tests', function () {
     }
 
     const readResult = await reader.read(deployed.deployed.programId);
-    expect(readResult.config.quoteSigners).to.have.length(2);
     expect(
       readResult.config.quoteSigners.map((s) => s.toLowerCase()),
-    ).to.not.include(SIGNER_B.toLowerCase());
+    ).to.have.members([SIGNER_A.toLowerCase(), SIGNER_C.toLowerCase()]);
   });
 
   it('should remain offchainQuotedLinear after removing last signer', async () => {

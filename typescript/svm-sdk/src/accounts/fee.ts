@@ -12,7 +12,7 @@ import {
   STDQUOTE_DISCRIMINATOR,
   type SvmFeeDataStrategy,
 } from '../codecs/fee.js';
-import { toHexString } from '@hyperlane-xyz/utils';
+import { assert, toHexString } from '@hyperlane-xyz/utils';
 
 import { FeeDataKind, FeeStrategyKind, h160ToSigner } from '../fee/types.js';
 
@@ -113,6 +113,7 @@ function decodeFeeDataStrategy(cursor: ByteCursor): SvmFeeDataStrategy {
 function readOptionSigners(cursor: ByteCursor): string[] | null {
   const tag = cursor.readU8();
   if (tag === 0) return null;
+  assert(tag === 1, `Invalid Option tag: ${tag}`);
   return readSigners(cursor);
 }
 
@@ -218,5 +219,6 @@ function readAddress(cursor: ByteCursor): Address {
 function readOptionAddress(cursor: ByteCursor): Address | null {
   const tag = cursor.readU8();
   if (tag === 0) return null;
+  assert(tag === 1, `Invalid Option tag: ${tag}`);
   return readAddress(cursor);
 }
