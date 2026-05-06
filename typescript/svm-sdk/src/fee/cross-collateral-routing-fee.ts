@@ -174,6 +174,7 @@ export class SvmCrossCollateralRoutingFeeWriter
       this.writerConfig.program,
       this.svmSigner,
       this.rpc,
+      true,
     );
 
     const wildcardSigners = computeWildcardSignersFromStrategies(

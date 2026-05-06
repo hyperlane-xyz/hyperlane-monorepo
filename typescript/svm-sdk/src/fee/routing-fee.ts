@@ -145,6 +145,7 @@ export class SvmRoutingFeeWriter
       this.writerConfig.program,
       this.svmSigner,
       this.rpc,
+      true,
     );
 
     const wildcardSigners = computeWildcardSignersFromStrategies(
