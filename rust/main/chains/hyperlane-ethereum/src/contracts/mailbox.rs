@@ -108,48 +108,51 @@ where
     reorg_period: EthereumReorgPeriod,
 }
 
+/// Counts CCTP V2 MessageSent events from MessageTransmitter V2 in a transaction receipt.
+///
+/// MessageSent is emitted by MessageTransmitter V2 for both native USDC transfers
+/// (depositForBurn → MessageTransmitter.sendMessage internally) and GMP messages
+/// (sendMessage called directly). Supporting both lets the relay API handle the full
+/// range of CCTP V2 usage patterns.
+///
+/// Both the topic hash and the emitting address are checked: topic-only matching would let
+/// any contract spoof the V2 detection by emitting a log with the same topics[0]. Note that
+/// MessageTransmitter V2's sendMessage is permissionless, so an attacker can produce a real
+/// MessageSent from the canonical address with arbitrary body. The address check rules out
+/// third-party contract spoofing but not direct transmitter calls; treat is_cctp_v2 as an
+/// admission heuristic, not a verification claim.
+fn cctp_v2_message_sent_count(logs: &[ethers::types::Log]) -> usize {
+    use ethers::types::{Address, H256 as EthersH256};
+    use ethers_core::utils::keccak256;
+
+    let message_sent_topic = EthersH256::from(keccak256(b"MessageSent(bytes)"));
+
+    // Circle deploys MessageTransmitter V2 at a small set of known addresses.
+    // Source: https://developers.circle.com/cctp/references/contract-addresses#messagetransmitterv2
+    let message_transmitter_v2_addresses: [Address; 3] = [
+        "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64" // mainnet (all chains except EDGE)
+            .parse()
+            .expect("valid address"),
+        "0x5b61381Fc9e58E70EfC13a4A97516997019198ee" // mainnet EDGE
+            .parse()
+            .expect("valid address"),
+        "0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275" // testnet (all chains)
+            .parse()
+            .expect("valid address"),
+    ];
+
+    logs.iter()
+        .filter(|log| {
+            message_transmitter_v2_addresses.contains(&log.address)
+                && log.topics.first() == Some(&message_sent_topic)
+        })
+        .count()
+}
+
 impl<M> EthereumMailboxIndexer<M>
 where
     M: Middleware + 'static,
 {
-    /// Counts CCTP V2 DepositForBurn events in a transaction receipt.
-    ///
-    /// Takes the raw receipt logs (all contracts) rather than the filtered dispatch logs,
-    /// because the DepositForBurn event is emitted by Circle's TokenMessenger, not the mailbox.
-    /// Both the topic hash and the emitting address are checked: topic-only matching would let
-    /// any contract spoof the V2 detection by emitting a log with the same topics[0].
-    fn cctp_v2_burn_count(logs: &[ethers::types::Log]) -> usize {
-        use ethers::types::{Address, H256 as EthersH256};
-        use ethers_core::utils::keccak256;
-
-        // keccak256("DepositForBurn(address,uint256,address,bytes32,uint32,bytes32,bytes32,uint256,uint32,bytes)")
-        // Distinct from V1 whose first param is `uint64 indexed nonce`.
-        let cctp_v2_topic = EthersH256::from(keccak256(
-            b"DepositForBurn(address,uint256,address,bytes32,uint32,bytes32,bytes32,uint256,uint32,bytes)",
-        ));
-
-        // Circle deploys TokenMessenger V2 at a small set of known addresses.
-        // Source: https://developers.circle.com/cctp/references/contract-addresses
-        let token_messenger_v2_addresses: [Address; 3] = [
-            "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d" // mainnet (all chains except EDGE)
-                .parse()
-                .expect("valid address"),
-            "0x98706A006bc632Df31CAdFCBD43F38887ce2ca5c" // mainnet EDGE
-                .parse()
-                .expect("valid address"),
-            "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA" // testnet (all chains)
-                .parse()
-                .expect("valid address"),
-        ];
-
-        logs.iter()
-            .filter(|log| {
-                token_messenger_v2_addresses.contains(&log.address)
-                    && log.topics.first() == Some(&cctp_v2_topic)
-            })
-            .count()
-    }
-
     /// Create new EthereumMailboxIndexer
     pub fn new(
         provider: Arc<M>,
@@ -264,7 +267,7 @@ where
                         ))
                     })?;
 
-                let burn_count = Self::cctp_v2_burn_count(&receipt.logs);
+                let message_sent_count = cctp_v2_message_sent_count(&receipt.logs);
 
                 let dispatch_logs: Vec<(DispatchFilter, LogMeta)> = receipt
                     .logs
@@ -284,12 +287,14 @@ where
                     })
                     .collect();
 
-                // Only treat as CCTP V2 if every Dispatch in the tx has a
-                // corresponding DepositForBurn. A mixed tx (some CCTP, some
-                // unrelated dispatches) gets is_cctp_v2=false so it fails at
-                // the relay-API gate rather than routing unrelated messages
-                // through the fail-fast CCTP path.
-                let is_cctp_v2 = burn_count > 0 && burn_count == dispatch_logs.len();
+                // Treat as CCTP V2 if every Dispatch has a corresponding MessageSent from
+                // MessageTransmitter V2. Both native USDC transfers (depositForBurn path) and
+                // GMP-only transfers (_postDispatch path) emit exactly 1 MessageSent per
+                // Dispatch, so a 1:1 match is the correct invariant. A mixed tx (some CCTP,
+                // some unrelated dispatches) produces fewer MessageSent than Dispatch events
+                // and correctly gets is_cctp_v2=false.
+                let is_cctp_v2 =
+                    message_sent_count > 0 && message_sent_count == dispatch_logs.len();
 
                 Ok((dispatch_logs, is_cctp_v2))
             })
@@ -1027,5 +1032,83 @@ mod test {
                 l2_gas_limit: None,
             },
         );
+    }
+
+    mod cctp_v2_message_sent_count {
+        use ethers::types::{Bytes, Log, H160, H256 as EthersH256};
+        use ethers_core::utils::keccak256;
+
+        use super::super::cctp_v2_message_sent_count;
+
+        fn message_sent_topic() -> EthersH256 {
+            EthersH256::from(keccak256(b"MessageSent(bytes)"))
+        }
+
+        fn mainnet_transmitter() -> H160 {
+            "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64"
+                .parse()
+                .unwrap()
+        }
+
+        fn make_log(address: H160, topic: EthersH256) -> Log {
+            Log {
+                address,
+                topics: vec![topic],
+                data: Bytes::default(),
+                ..Default::default()
+            }
+        }
+
+        #[test]
+        fn counts_message_sent_from_mainnet_transmitter() {
+            let log = make_log(mainnet_transmitter(), message_sent_topic());
+            assert_eq!(cctp_v2_message_sent_count(&[log]), 1);
+        }
+
+        #[test]
+        fn counts_message_sent_from_edge_transmitter() {
+            let edge: H160 = "0x5b61381Fc9e58E70EfC13a4A97516997019198ee"
+                .parse()
+                .unwrap();
+            let log = make_log(edge, message_sent_topic());
+            assert_eq!(cctp_v2_message_sent_count(&[log]), 1);
+        }
+
+        #[test]
+        fn counts_message_sent_from_testnet_transmitter() {
+            let testnet: H160 = "0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275"
+                .parse()
+                .unwrap();
+            let log = make_log(testnet, message_sent_topic());
+            assert_eq!(cctp_v2_message_sent_count(&[log]), 1);
+        }
+
+        #[test]
+        fn ignores_message_sent_from_unknown_address() {
+            let unknown: H160 = "0x1234567890123456789012345678901234567890"
+                .parse()
+                .unwrap();
+            let log = make_log(unknown, message_sent_topic());
+            assert_eq!(cctp_v2_message_sent_count(&[log]), 0);
+        }
+
+        #[test]
+        fn ignores_wrong_topic_from_known_transmitter() {
+            let wrong_topic = EthersH256::from(keccak256(b"SomeOtherEvent(bytes)"));
+            let log = make_log(mainnet_transmitter(), wrong_topic);
+            assert_eq!(cctp_v2_message_sent_count(&[log]), 0);
+        }
+
+        #[test]
+        fn empty_logs_returns_zero() {
+            assert_eq!(cctp_v2_message_sent_count(&[]), 0);
+        }
+
+        #[test]
+        fn counts_multiple_message_sent_logs() {
+            // Two matching logs should count as two
+            let log = make_log(mainnet_transmitter(), message_sent_topic());
+            assert_eq!(cctp_v2_message_sent_count(&[log.clone(), log]), 2);
+        }
     }
 }
