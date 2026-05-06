@@ -686,11 +686,18 @@ pub fn compute_gas_fee(
 fn convert_decimals(num: U256, from_decimals: u8, to_decimals: u8) -> Result<U256, ProgramError> {
     match from_decimals.cmp(&to_decimals) {
         Ordering::Greater => {
-            Ok(num / U256::from(10u64).pow(U256::from(from_decimals - to_decimals)))
+            let factor = U256::from(10u64)
+                .checked_pow(U256::from(from_decimals - to_decimals))
+                .ok_or(ProgramError::ArithmeticOverflow)?;
+            Ok(num / factor)
         }
-        Ordering::Less => num
-            .checked_mul(U256::from(10u64).pow(U256::from(to_decimals - from_decimals)))
-            .ok_or(ProgramError::ArithmeticOverflow),
+        Ordering::Less => {
+            let factor = U256::from(10u64)
+                .checked_pow(U256::from(to_decimals - from_decimals))
+                .ok_or(ProgramError::ArithmeticOverflow)?;
+            num.checked_mul(factor)
+                .ok_or(ProgramError::ArithmeticOverflow)
+        }
         Ordering::Equal => Ok(num),
     }
 }
@@ -1034,6 +1041,19 @@ mod test {
         let to_decimals = 4;
         let result = convert_decimals(num, from_decimals, to_decimals).unwrap();
         assert_eq!(result, U256::from(0u128));
+    }
+
+    #[test]
+    fn test_convert_decimals_pow_overflow_is_arithmetic_error() {
+        // 10^(from-to) panics in raw U256::pow once exp > ~77. With
+        // checked_pow it must surface as ArithmeticOverflow instead of
+        // aborting the program.
+        let num = U256::from(1u128);
+        let result = convert_decimals(num, /* from */ 200, /* to */ 9);
+        assert_eq!(result.unwrap_err(), ProgramError::ArithmeticOverflow);
+
+        let result = convert_decimals(num, /* from */ 9, /* to */ 200);
+        assert_eq!(result.unwrap_err(), ProgramError::ArithmeticOverflow);
     }
 
     // --- igp_quote_mode tests ---
