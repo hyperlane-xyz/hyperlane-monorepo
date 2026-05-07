@@ -765,10 +765,12 @@ export class WarpCore {
         sender,
       });
     }
+    const igpDenom = transferQuote.igpQuote.addressOrDenom;
     assert(
-      !transferQuote.igpQuote.addressOrDenom ||
-        isZeroishAddress(transferQuote.igpQuote.addressOrDenom),
-      `CrossCollateralRouter transferRemoteTo requires native IGP fee; got ${transferQuote.igpQuote.addressOrDenom}`,
+      !igpDenom ||
+        isZeroishAddress(igpDenom) ||
+        originToken.protocol === ProtocolType.Sealevel,
+      `CrossCollateralRouter transferRemoteTo requires native IGP fee; got ${igpDenom}`,
     );
     const tokenFeeAmount = transferQuote.tokenFeeQuote?.amount ?? 0n;
     const totalDebit = amount + tokenFeeAmount;

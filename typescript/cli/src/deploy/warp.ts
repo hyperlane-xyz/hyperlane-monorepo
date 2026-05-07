@@ -103,6 +103,28 @@ import {
   validateWarpIsmCompatibility,
 } from './utils.js';
 
+/**
+ * Formats an error for display, including cause chain and any Solana program
+ * logs attached to preflight failure errors.
+ */
+function formatError(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+
+  const parts: string[] = [error.message];
+
+  // SolanaError preflight failures attach { logs, unitsConsumed, ... } to context
+  const ctx = (error as any).context;
+  if (Array.isArray(ctx?.logs) && ctx.logs.length > 0) {
+    parts.push(`Logs:\n  ${(ctx.logs as string[]).join('\n  ')}`);
+  }
+
+  if (error.cause instanceof Error) {
+    parts.push(`Caused by: ${formatError(error.cause)}`);
+  }
+
+  return parts.join('\n');
+}
+
 interface DeployParams {
   context: WriteCommandContext;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
@@ -627,7 +649,7 @@ export async function extendWarpRoute(
       newDeployedContracts = { ...newDeployedContracts, ...contracts };
     }
     for (const [chain, error] of rejected) {
-      errorRed(`Failed to deploy extension to ${chain}: ${error.message}`);
+      errorRed(`Failed to deploy extension to ${chain}: ${formatError(error)}`);
       allRejected.set(chain, error);
     }
   }
@@ -638,11 +660,10 @@ export async function extendWarpRoute(
       const contracts = await deployExtension(chain);
       newDeployedContracts = { ...newDeployedContracts, ...contracts };
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      errorRed(`Failed to deploy extension to ${chain}: ${message}`);
+      errorRed(`Failed to deploy extension to ${chain}: ${formatError(error)}`);
       allRejected.set(
         chain,
-        error instanceof Error ? error : new Error(message),
+        error instanceof Error ? error : new Error(String(error)),
       );
     }
   }

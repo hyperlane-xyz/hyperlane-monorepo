@@ -236,10 +236,18 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
       for (const [routerKey, routerFeeConfig] of Object.entries(
         destinationConfig,
       )) {
-        const deployedFeeContract = await this.deployFee(
-          chain,
-          routerFeeConfig,
-        );
+        const deployedFeeContract =
+          routerFeeConfig.type === TokenFeeType.OffchainQuotedLinearFee
+            ? BaseFee__factory.connect(
+                (
+                  await this.deployOffchainQuotedLinearFee(
+                    chain,
+                    routerFeeConfig,
+                  )
+                ).address,
+                this.multiProvider.getSigner(chain),
+              )
+            : await this.deployFee(chain, routerFeeConfig);
         destinationDomains.push(
           this.multiProvider.getDomainId(destinationChain),
         );
