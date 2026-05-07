@@ -110,27 +110,19 @@ const RANDOM_ADDRESS: H160 = H160([
     0xB0, 0xA6, 0xAA, 0x55,
 ]);
 
-#[async_trait]
-impl<M> InterchainSecurityModule for EthereumInterchainSecurityModule<M>
+// ISM routing chains are shallow in practice; this cap prevents infinite loops from
+// cycles or pathological on-chain configurations.
+const MAX_ISM_ROUTING_DEPTH: usize = 10;
+
+impl<M> EthereumInterchainSecurityModule<M>
 where
     M: Middleware + 'static,
 {
-    #[instrument]
-    async fn module_type(&self) -> ChainResult<ModuleType> {
-        let module = self.contract.module_type().call().await?;
-        if let Some(module_type) = ModuleType::from_u8(module) {
-            Ok(module_type)
-        } else {
-            warn!(%module, "Unknown module type");
-            Ok(ModuleType::Unused)
-        }
-    }
-
-    #[instrument]
-    async fn dry_run_verify(
+    async fn dry_run_verify_inner(
         &self,
         message: &HyperlaneMessage,
         metadata: &Metadata,
+        routing_depth: usize,
     ) -> ChainResult<Option<U256>> {
         let mut tx = self.contract.verify(
             metadata.to_owned().into(),
@@ -165,6 +157,13 @@ where
         // run because the sub-ISM is not directly called. Route the message to the appropriate
         // sub-ISM and recurse so that e.g. a TrustedRelayerIsm sub-ISM can be discovered.
         if module_type == ModuleType::Routing {
+            if routing_depth >= MAX_ISM_ROUTING_DEPTH {
+                warn!(
+                    routing_depth,
+                    "Max ISM routing depth reached in dry_run_verify"
+                );
+                return Ok(None);
+            }
             let routing = IRoutingIsm::new(self.contract.address(), self.contract.client());
             let raw_message: ethers::types::Bytes =
                 RawHyperlaneMessage::from(message).to_vec().into();
@@ -175,12 +174,41 @@ where
                 };
                 let routed_ism =
                     EthereumInterchainSecurityModule::new(self.contract.client(), &locator);
-                if let Ok(result) = routed_ism.dry_run_verify(message, metadata).await {
+                if let Ok(result) = routed_ism
+                    .dry_run_verify_inner(message, metadata, routing_depth + 1)
+                    .await
+                {
                     return Ok(result);
                 }
             }
         }
         Ok(None)
+    }
+}
+
+#[async_trait]
+impl<M> InterchainSecurityModule for EthereumInterchainSecurityModule<M>
+where
+    M: Middleware + 'static,
+{
+    #[instrument]
+    async fn module_type(&self) -> ChainResult<ModuleType> {
+        let module = self.contract.module_type().call().await?;
+        if let Some(module_type) = ModuleType::from_u8(module) {
+            Ok(module_type)
+        } else {
+            warn!(%module, "Unknown module type");
+            Ok(ModuleType::Unused)
+        }
+    }
+
+    #[instrument]
+    async fn dry_run_verify(
+        &self,
+        message: &HyperlaneMessage,
+        metadata: &Metadata,
+    ) -> ChainResult<Option<U256>> {
+        self.dry_run_verify_inner(message, metadata, 0).await
     }
 }
 
