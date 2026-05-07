@@ -21,6 +21,7 @@ use crate::interfaces::i_interchain_security_module::{
     IInterchainSecurityModule as EthereumInterchainSecurityModuleInternal,
     IINTERCHAINSECURITYMODULE_ABI,
 };
+use crate::interfaces::i_routing_ism::IRoutingIsm;
 use crate::interfaces::i_trusted_relayer_ism::ITrustedRelayerIsm;
 use crate::{BuildableWithProvider, ConnectionConf, EthereumProvider};
 
@@ -146,16 +147,36 @@ where
         if verifies {
             return Ok(Some(gas_estimate.into()));
         }
+        let module_type = self.module_type().await?;
         // For Null-typed ISMs (e.g. TrustedRelayerIsm), verify() returns false
         // during a dry run because it depends on mailbox state set during process().
         // If we are the configured trusted relayer, include it with gas=0.
-        if self.module_type().await? == ModuleType::Null {
+        if module_type == ModuleType::Null {
             if let Some(sender) = self.contract.client().default_sender() {
                 let tr = ITrustedRelayerIsm::new(self.contract.address(), self.contract.client());
                 if let Ok(trusted_relayer) = tr.trusted_relayer().call().await {
                     if trusted_relayer == sender {
                         return Ok(Some(U256::zero()));
                     }
+                }
+            }
+        }
+        // For Routing ISMs (e.g. AmountRoutingIsm), verify() always returns false during a dry
+        // run because the sub-ISM is not directly called. Route the message to the appropriate
+        // sub-ISM and recurse so that e.g. a TrustedRelayerIsm sub-ISM can be discovered.
+        if module_type == ModuleType::Routing {
+            let routing = IRoutingIsm::new(self.contract.address(), self.contract.client());
+            let raw_message: ethers::types::Bytes =
+                RawHyperlaneMessage::from(message).to_vec().into();
+            if let Ok(routed_address) = routing.route(raw_message).call().await {
+                let locator = ContractLocator {
+                    domain: &self.domain,
+                    address: routed_address.into(),
+                };
+                let routed_ism =
+                    EthereumInterchainSecurityModule::new(self.contract.client(), &locator);
+                if let Ok(result) = routed_ism.dry_run_verify(message, metadata).await {
+                    return Ok(result);
                 }
             }
         }
