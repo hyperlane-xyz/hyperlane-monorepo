@@ -1058,6 +1058,21 @@ const fastPathUsdtMatchingList = chainMapMatchingList({
   ethereum: '0xd4463cB3c90b3F49c673310BEC9bC18311134B47',
 });
 
+// CROSS Moonpay USDC - https://github.com/hyperlane-xyz/hyperlane-registry/blob/main/deployments/warp_routes/CROSS/moonpay-config.yaml
+const fastPathCrossMoonpayUsdcMatchingList = chainMapMatchingList({
+  arbitrum: '0xeBC079D41C41a0ef7e54aa7Af867df9a621C9bE0',
+  base: '0x253821543C24623ecD3ceBCEd704359AF16CF38f',
+  citrea: '0x2bef59e84615371304bd731601f6344F5F304504',
+  ethereum: '0xA9C9a8FB36Ce3e5ffBAC3757dA7141262723541F',
+});
+
+// CROSS Moonpay USDT - https://github.com/hyperlane-xyz/hyperlane-registry/blob/main/deployments/warp_routes/CROSS/moonpay-config.yaml
+const fastPathCrossMoonpayUsdtMatchingList = chainMapMatchingList({
+  arbitrum: '0x75a9297db5F0349fd1d6f4030953Fe17175e06d4',
+  base: '0x7abBb4ea8a5895127500CF0C15830C9Eb9f61F96',
+  ethereum: '0xeB1b48b238E15A62e1858a601B6BfFdf41163AE3',
+});
+
 const fastPath: RootAgentConfig = {
   ...contextBase,
   context: Contexts.FastPath,
@@ -1073,7 +1088,12 @@ const fastPath: RootAgentConfig = {
       repo: DockerImageRepos.AGENT,
       tag: mainnetDockerTags.relayerFastPath,
     },
-    whitelist: [...fastPathUsdcMatchingList, ...fastPathUsdtMatchingList],
+    whitelist: [
+      ...fastPathUsdcMatchingList,
+      ...fastPathUsdtMatchingList,
+      ...fastPathCrossMoonpayUsdcMatchingList,
+      ...fastPathCrossMoonpayUsdtMatchingList,
+    ],
     blacklist,
     gasPaymentEnforcement,
     reorgPeriodOverrides: { ethereum: 1 },
