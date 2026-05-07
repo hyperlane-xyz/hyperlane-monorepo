@@ -85,119 +85,110 @@ pub(super) fn process_submit_quote(
     // - Routing wildcard: signers from FeeData::Routing.wildcard_signers.
     // - CC exact: signers from resolved CrossCollateralRoute PDA.
     // - CC wildcard: signers from FeeData::CrossCollateralRouting.wildcard_signers.
-    // Returns (signers, destination_domain, standing auth scope).
-    // destination_domain is extracted from the quote context during signer resolution.
-    let (resolved_signers, resolved_destination, resolved_auth_scope): (
-        BTreeSet<H160>,
-        u32,
-        StandingQuoteAuthScope,
-    ) = match &fee_account.fee_data {
-        FeeData::Leaf(cfg) => {
-            let signers = cfg
-                .signers
-                .as_ref()
-                .ok_or(ProgramError::from(Error::OffchainQuotingNotConfigured))?
-                .clone();
-            let ctx = FeeQuoteContext::try_from_bytes(&quote.context)?;
-
-            (
-                signers,
-                ctx.destination_domain,
-                StandingQuoteAuthScope::Direct,
-            )
-        }
-        FeeData::Routing(_) => {
-            let ctx = FeeQuoteContext::try_from_bytes(&quote.context)?;
-            if ctx.destination_domain == WILDCARD_DOMAIN {
-                let signers = fee_account.fee_data.routing_wildcard_signers()?.clone();
-
-                (signers, WILDCARD_DOMAIN, StandingQuoteAuthScope::Direct)
-            } else {
-                // Exact domain: auth from RouteDomain PDA.
-                let route_pda_info = next_account_info(accounts_iter)?;
-                let domain_le = ctx.destination_domain.to_le_bytes();
-                let (expected_key, _) = Pubkey::find_program_address(
-                    route_domain_pda_seeds!(fee_account_info.key, &domain_le),
-                    program_id,
-                );
-                if *route_pda_info.key != expected_key {
-                    return Err(ProgramError::InvalidArgument);
-                }
-                if route_pda_info.owner != program_id {
-                    return Err(ProgramError::IncorrectProgramId);
-                }
-
-                let route = RouteDomainAccount::fetch(&mut &route_pda_info.data.borrow()[..])?
-                    .into_inner()
-                    .data;
-                let signers = route
+    // Returns (signers, standing auth scope).
+    let (resolved_signers, resolved_auth_scope): (BTreeSet<H160>, StandingQuoteAuthScope) =
+        match &fee_account.fee_data {
+            FeeData::Leaf(cfg) => {
+                let signers = cfg
                     .signers
-                    .ok_or(ProgramError::from(Error::OffchainQuotingNotConfigured))?;
-                (
-                    signers,
-                    ctx.destination_domain,
-                    StandingQuoteAuthScope::Direct,
-                )
+                    .as_ref()
+                    .ok_or(ProgramError::from(Error::OffchainQuotingNotConfigured))?
+                    .clone();
+
+                (signers, StandingQuoteAuthScope::Direct)
             }
-        }
-        FeeData::CrossCollateralRouting(_) => {
-            let ctx = CcFeeQuoteContext::try_from_bytes(&quote.context)?;
-            if ctx.destination_domain == WILDCARD_DOMAIN {
-                let signers = fee_account.fee_data.cc_wildcard_signers()?.clone();
+            FeeData::Routing(_) => {
+                let ctx = FeeQuoteContext::try_from_bytes(&quote.context)?;
+                if ctx.destination_domain == WILDCARD_DOMAIN {
+                    let signers = fee_account.fee_data.routing_wildcard_signers()?.clone();
 
-                (signers, WILDCARD_DOMAIN, StandingQuoteAuthScope::Direct)
-            } else {
-                // Exact domain: auth from resolved CC route PDA.
-                // Account 3: CC specific route PDA (read-only).
-                // Account 4: CC default route PDA (read-only).
-                let specific_pda_info = next_account_info(accounts_iter)?;
-                let default_pda_info = next_account_info(accounts_iter)?;
-
-                let dest_le = ctx.destination_domain.to_le_bytes();
-
-                // Resolve: specific → default (same cascade as QuoteFee).
-                let (resolved_pda_info, auth_scope) = {
-                    let (specific_key, _) = Pubkey::find_program_address(
-                        cc_route_pda_seeds!(fee_account_info.key, &dest_le, ctx.target_router),
+                    (signers, StandingQuoteAuthScope::Direct)
+                } else {
+                    // Exact domain: auth from RouteDomain PDA.
+                    let route_pda_info = next_account_info(accounts_iter)?;
+                    let domain_le = ctx.destination_domain.to_le_bytes();
+                    let (expected_key, _) = Pubkey::find_program_address(
+                        route_domain_pda_seeds!(fee_account_info.key, &domain_le),
                         program_id,
                     );
-                    if *specific_pda_info.key != specific_key {
+                    if *route_pda_info.key != expected_key {
                         return Err(ProgramError::InvalidArgument);
                     }
-                    // Verify ownership: must be fee program or system (uninitialized).
-                    verify_optional_pda_owner(specific_pda_info, program_id)?;
-
-                    if specific_pda_info.owner == program_id && !specific_pda_info.data_is_empty() {
-                        (specific_pda_info, StandingQuoteAuthScope::Direct)
-                    } else {
-                        let (default_key, _) = Pubkey::find_program_address(
-                            cc_route_pda_seeds!(fee_account_info.key, &dest_le, DEFAULT_ROUTER),
-                            program_id,
-                        );
-                        if *default_pda_info.key != default_key {
-                            return Err(ProgramError::InvalidArgument);
-                        }
-                        verify_optional_pda_owner(default_pda_info, program_id)?;
-
-                        if default_pda_info.owner != program_id || default_pda_info.data_is_empty()
-                        {
-                            return Err(Error::RouteNotFound.into());
-                        }
-                        (default_pda_info, StandingQuoteAuthScope::CcDefaultFallback)
+                    if route_pda_info.owner != program_id {
+                        return Err(ProgramError::IncorrectProgramId);
                     }
-                };
 
-                let route =
-                    CrossCollateralRouteAccount::fetch(&mut &resolved_pda_info.data.borrow()[..])?
+                    let route = RouteDomainAccount::fetch(&mut &route_pda_info.data.borrow()[..])?
                         .into_inner()
                         .data;
-                let signers = route
-                    .signers
-                    .ok_or(ProgramError::from(Error::OffchainQuotingNotConfigured))?;
-                (signers, ctx.destination_domain, auth_scope)
+                    let signers = route
+                        .signers
+                        .ok_or(ProgramError::from(Error::OffchainQuotingNotConfigured))?;
+                    (signers, StandingQuoteAuthScope::Direct)
+                }
             }
-        }
-    };
+            FeeData::CrossCollateralRouting(_) => {
+                let ctx = CcFeeQuoteContext::try_from_bytes(&quote.context)?;
+                if ctx.destination_domain == WILDCARD_DOMAIN {
+                    let signers = fee_account.fee_data.cc_wildcard_signers()?.clone();
+
+                    (signers, StandingQuoteAuthScope::Direct)
+                } else {
+                    // Exact domain: auth from resolved CC route PDA.
+                    // Account 3: CC specific route PDA (read-only).
+                    // Account 4: CC default route PDA (read-only).
+                    let specific_pda_info = next_account_info(accounts_iter)?;
+                    let default_pda_info = next_account_info(accounts_iter)?;
+
+                    let dest_le = ctx.destination_domain.to_le_bytes();
+
+                    // Resolve: specific → default (same cascade as QuoteFee).
+                    let (resolved_pda_info, auth_scope) = {
+                        let (specific_key, _) = Pubkey::find_program_address(
+                            cc_route_pda_seeds!(fee_account_info.key, &dest_le, ctx.target_router),
+                            program_id,
+                        );
+                        if *specific_pda_info.key != specific_key {
+                            return Err(ProgramError::InvalidArgument);
+                        }
+                        // Verify ownership: must be fee program or system (uninitialized).
+                        verify_optional_pda_owner(specific_pda_info, program_id)?;
+
+                        if specific_pda_info.owner == program_id
+                            && !specific_pda_info.data_is_empty()
+                        {
+                            (specific_pda_info, StandingQuoteAuthScope::Direct)
+                        } else {
+                            let (default_key, _) = Pubkey::find_program_address(
+                                cc_route_pda_seeds!(fee_account_info.key, &dest_le, DEFAULT_ROUTER),
+                                program_id,
+                            );
+                            if *default_pda_info.key != default_key {
+                                return Err(ProgramError::InvalidArgument);
+                            }
+                            verify_optional_pda_owner(default_pda_info, program_id)?;
+
+                            if default_pda_info.owner != program_id
+                                || default_pda_info.data_is_empty()
+                            {
+                                return Err(Error::RouteNotFound.into());
+                            }
+                            (default_pda_info, StandingQuoteAuthScope::CcDefaultFallback)
+                        }
+                    };
+
+                    let route = CrossCollateralRouteAccount::fetch(
+                        &mut &resolved_pda_info.data.borrow()[..],
+                    )?
+                    .into_inner()
+                    .data;
+                    let signers = route
+                        .signers
+                        .ok_or(ProgramError::from(Error::OffchainQuotingNotConfigured))?;
+                    (signers, auth_scope)
+                }
+            }
+        };
 
     // Verify the quote signature against resolved signers.
     quote
@@ -210,15 +201,6 @@ pub(super) fn process_submit_quote(
         .map_err(Into::<ProgramError>::into)?;
 
     if quote.is_transient() {
-        // Reject wildcard domain transient quotes for routed modes.
-        // Transient context matching requires exact destination equality at QuoteFee
-        // time, so wildcard transients would always fail and strand rent.
-        if !matches!(fee_account.fee_data, FeeData::Leaf(_))
-            && resolved_destination == WILDCARD_DOMAIN
-        {
-            return Err(Error::InvalidStandingQuoteContext.into());
-        }
-
         // Next account: Transient quote PDA.
         let transient_pda_info = next_account_info(accounts_iter)?;
 

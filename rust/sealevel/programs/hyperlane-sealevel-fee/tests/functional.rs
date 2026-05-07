@@ -25,7 +25,7 @@ use hyperlane_sealevel_fee::{
         CrossCollateralRoute, CrossCollateralRouteAccount, CrossCollateralRoutingFeeConfig,
         FeeAccount, FeeAccountData, FeeAccountPrefix, FeeData, FeeStandingQuotePda,
         FeeStandingQuotePdaAccount, LeafFeeConfig, RouteDomain, RouteDomainAccount,
-        RoutingFeeConfig, DEFAULT_ROUTER, WILDCARD_DOMAIN, WILDCARD_RECIPIENT,
+        RoutingFeeConfig, DEFAULT_ROUTER, WILDCARD_AMOUNT, WILDCARD_DOMAIN, WILDCARD_RECIPIENT,
     },
     cc_route_pda_seeds,
     error::Error as FeeError,

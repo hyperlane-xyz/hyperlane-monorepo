@@ -432,12 +432,24 @@ impl QuoteContext for FeeQuoteContext {
     }
 
     fn validate(&self, quote_fee: &crate::instruction::QuoteFee) -> Result<(), ProgramError> {
-        if self.destination_domain != quote_fee.destination_domain
-            || self.recipient != quote_fee.recipient
-            || self.amount != quote_fee.amount
+        // Wildcard sentinels (`WILDCARD_DOMAIN`, `WILDCARD_RECIPIENT`,
+        // `WILDCARD_AMOUNT`) on any field skip the equality check, mirroring
+        // EVM's `_matchesTransient`. Off-chain quoters issue wildcard transients
+        // when the corresponding field isn't fixed at sign time.
+        if self.destination_domain != WILDCARD_DOMAIN
+            && self.destination_domain != quote_fee.destination_domain
         {
             return Err(QuoteValidationError::TransientContextMismatch.into());
         }
+
+        if self.recipient != WILDCARD_RECIPIENT && self.recipient != quote_fee.recipient {
+            return Err(QuoteValidationError::TransientContextMismatch.into());
+        }
+
+        if self.amount != WILDCARD_AMOUNT && self.amount != quote_fee.amount {
+            return Err(QuoteValidationError::TransientContextMismatch.into());
+        }
+
         Ok(())
     }
 }
@@ -478,11 +490,21 @@ impl QuoteContext for CcFeeQuoteContext {
     }
 
     fn validate(&self, quote_fee: &crate::instruction::QuoteFee) -> Result<(), ProgramError> {
-        if self.destination_domain != quote_fee.destination_domain
-            || self.recipient != quote_fee.recipient
-            || self.amount != quote_fee.amount
-            || self.target_router != quote_fee.target_router
+        // dest/recipient/amount mirror EVM's `_matchesTransient` wildcard logic.
+        // `target_router` is strict — it's the routing binding that scopes the
+        // quote to a specific fee config, not a filter the signer leaves open.
+        if self.destination_domain != WILDCARD_DOMAIN
+            && self.destination_domain != quote_fee.destination_domain
         {
+            return Err(QuoteValidationError::TransientContextMismatch.into());
+        }
+        if self.recipient != WILDCARD_RECIPIENT && self.recipient != quote_fee.recipient {
+            return Err(QuoteValidationError::TransientContextMismatch.into());
+        }
+        if self.amount != WILDCARD_AMOUNT && self.amount != quote_fee.amount {
+            return Err(QuoteValidationError::TransientContextMismatch.into());
+        }
+        if self.target_router != quote_fee.target_router {
             return Err(QuoteValidationError::TransientContextMismatch.into());
         }
         Ok(())

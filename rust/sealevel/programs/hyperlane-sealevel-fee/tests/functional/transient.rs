@@ -1318,16 +1318,16 @@ async fn test_payer_mismatch_fails() {
     );
 }
 
-/// Routed wildcard domain transient quote rejected at SubmitQuote time.
-/// Wildcard transients would always fail context matching at QuoteFee
-/// and strand rent, so they're rejected early.
+/// Routed wildcard-domain transient quote signed by `wildcard_signers` is
+/// accepted at submit and consumable at QuoteFee for any concrete destination
+/// whose route shares the on-chain curve variant.
 #[tokio::test]
-async fn test_routed_wildcard_transient_rejected() {
+async fn test_routed_wildcard_domain_transient_consumed() {
     let (mut banks_client, payer) = setup_client().await;
     let signing_key = SigningKey::random(&mut rand::thread_rng());
     let signer_address = eth_address(&signing_key);
 
-    // Routing fee account with wildcard signers.
+    // Routing fee account with a wildcard signer set.
     let mut wildcard_signers = BTreeSet::new();
     wildcard_signers.insert(signer_address);
     let fee_key = init_fee_account(
@@ -1339,28 +1339,332 @@ async fn test_routed_wildcard_transient_rejected() {
     )
     .await;
 
-    // Transient quote with WILDCARD_DOMAIN destination.
-    let context = encode_context(WILDCARD_DOMAIN, H256::zero(), 1000);
-    let data = encode_linear_data(100, 50);
-    let issued_at = encode_u48(100);
+    // Configure a concrete route so QuoteFee has an on-chain curve to match.
+    let dest = 42u32;
+    let route_strategy = FeeDataStrategy::Linear(FeeParams {
+        max_fee: 100,
+        half_amount: 50,
+    });
+    let ix = build_set_route_ix(&fee_key, &payer.pubkey(), dest, route_strategy);
+    process_tx(&mut banks_client, &payer, ix, &[])
+        .await
+        .unwrap();
+
+    // Transient quote with WILDCARD_DOMAIN — covers any concrete destination
+    // whose curve matches.
+    let recipient = H256::zero();
+    let amount = 1000u64;
     let quote = make_signed_transient_quote(
         &signing_key,
         &fee_key,
         LOCAL_DOMAIN,
         &payer.pubkey(),
-        context,
-        data,
-        issued_at,
+        encode_context(WILDCARD_DOMAIN, recipient, amount),
+        encode_linear_data(777, 1),
+        encode_u48(100),
     );
 
-    // No route PDA needed — wildcard auth from FeeData.
-    let ix = build_submit_transient_ix(&fee_key, &payer.pubkey(), &quote);
-    let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
+    let submit_ix = build_submit_transient_ix(&fee_key, &payer.pubkey(), &quote);
+    process_tx(&mut banks_client, &payer, submit_ix, &[])
+        .await
+        .unwrap();
+
+    // QuoteFee against the concrete destination resolves the wildcard transient.
+    let scoped_salt = quote.compute_scoped_salt(&payer.pubkey());
+    let (transient_pda, _) = Pubkey::find_program_address(
+        transient_quote_pda_seeds!(fee_key, scoped_salt),
+        &fee_program_id(),
+    );
+    let domain_le = dest.to_le_bytes();
+    let (route_pda, _) = Pubkey::find_program_address(
+        route_domain_pda_seeds!(fee_key, &domain_le),
+        &fee_program_id(),
+    );
+    let quote_ix = Instruction::new_with_borsh(
+        fee_program_id(),
+        &FeeInstruction::QuoteFee(hyperlane_sealevel_fee::instruction::QuoteFee {
+            destination_domain: dest,
+            recipient,
+            amount,
+            target_router: H256::zero(),
+        }),
+        vec![
+            AccountMeta::new_readonly(fee_key, false),
+            AccountMeta::new(payer.pubkey(), true),
+            AccountMeta::new(transient_pda, false),
+            AccountMeta::new_readonly(standing_quote_pda_for(&fee_key, dest), false),
+            AccountMeta::new_readonly(standing_quote_pda_for(&fee_key, WILDCARD_DOMAIN), false),
+            AccountMeta::new_readonly(route_pda, false),
+        ],
+    );
+
+    let fee = simulate_quote_fee(&mut banks_client, &payer, quote_ix).await;
+    // Transient: Linear max_fee=777 half_amount=1 amount=1000 → min(777, 1000*777/2) = 777.
+    assert_eq!(fee, 777);
+}
+
+/// Leaf wildcard-recipient transient is consumable for any recipient.
+#[tokio::test]
+async fn test_leaf_wildcard_recipient_transient_consumed() {
+    let (mut banks_client, payer) = setup_client().await;
+    let signing_key = SigningKey::random(&mut rand::thread_rng());
+    let signer_address = eth_address(&signing_key);
+
+    let fee_key = init_fee_account(
+        &mut banks_client,
+        &payer,
+        default_salt(),
+        payer.pubkey(),
+        default_leaf_fee_data(),
+    )
+    .await;
+    process_tx(
+        &mut banks_client,
+        &payer,
+        build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address),
+        &[],
+    )
+    .await
+    .unwrap();
+
+    // Sign with WILDCARD_RECIPIENT but concrete destination + amount.
+    let dest = 42u32;
+    let amount = 500u64;
+    let quote = make_signed_transient_quote(
+        &signing_key,
+        &fee_key,
+        LOCAL_DOMAIN,
+        &payer.pubkey(),
+        encode_context(dest, WILDCARD_RECIPIENT, amount),
+        encode_linear_data(333, 1),
+        encode_u48(100),
+    );
+
+    process_tx(
+        &mut banks_client,
+        &payer,
+        build_submit_transient_ix(&fee_key, &payer.pubkey(), &quote),
+        &[],
+    )
+    .await
+    .unwrap();
+
+    // Consume against an arbitrary concrete recipient — should still match.
+    let scoped_salt = quote.compute_scoped_salt(&payer.pubkey());
+    let (transient_pda, _) = Pubkey::find_program_address(
+        transient_quote_pda_seeds!(fee_key, scoped_salt),
+        &fee_program_id(),
+    );
+    let arbitrary_recipient = H256::random();
+    let quote_ix = build_quote_fee_with_transient_ix(
+        &fee_key,
+        &payer.pubkey(),
+        &transient_pda,
+        dest,
+        arbitrary_recipient,
+        amount,
+    );
+
+    let fee = simulate_quote_fee(&mut banks_client, &payer, quote_ix).await;
+    // Linear max_fee=333 half_amount=1 amount=500 → min(333, 500*333/2) = 333.
+    assert_eq!(fee, 333);
+}
+
+/// Leaf wildcard-amount transient is consumable for any amount.
+#[tokio::test]
+async fn test_leaf_wildcard_amount_transient_consumed() {
+    let (mut banks_client, payer) = setup_client().await;
+    let signing_key = SigningKey::random(&mut rand::thread_rng());
+    let signer_address = eth_address(&signing_key);
+
+    let fee_key = init_fee_account(
+        &mut banks_client,
+        &payer,
+        default_salt(),
+        payer.pubkey(),
+        default_leaf_fee_data(),
+    )
+    .await;
+    process_tx(
+        &mut banks_client,
+        &payer,
+        build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address),
+        &[],
+    )
+    .await
+    .unwrap();
+
+    let dest = 42u32;
+    let recipient = H256::zero();
+    let quote = make_signed_transient_quote(
+        &signing_key,
+        &fee_key,
+        LOCAL_DOMAIN,
+        &payer.pubkey(),
+        encode_context(dest, recipient, WILDCARD_AMOUNT),
+        encode_linear_data(200, 1),
+        encode_u48(100),
+    );
+
+    process_tx(
+        &mut banks_client,
+        &payer,
+        build_submit_transient_ix(&fee_key, &payer.pubkey(), &quote),
+        &[],
+    )
+    .await
+    .unwrap();
+
+    let scoped_salt = quote.compute_scoped_salt(&payer.pubkey());
+    let (transient_pda, _) = Pubkey::find_program_address(
+        transient_quote_pda_seeds!(fee_key, scoped_salt),
+        &fee_program_id(),
+    );
+    // Consume against an arbitrary concrete amount.
+    let arbitrary_amount = 7777u64;
+    let quote_ix = build_quote_fee_with_transient_ix(
+        &fee_key,
+        &payer.pubkey(),
+        &transient_pda,
+        dest,
+        recipient,
+        arbitrary_amount,
+    );
+
+    let fee = simulate_quote_fee(&mut banks_client, &payer, quote_ix).await;
+    assert_eq!(fee, 200);
+}
+
+/// Multiple wildcards on the same transient (recipient + amount) all skip equality.
+#[tokio::test]
+async fn test_leaf_multi_wildcard_transient_consumed() {
+    let (mut banks_client, payer) = setup_client().await;
+    let signing_key = SigningKey::random(&mut rand::thread_rng());
+    let signer_address = eth_address(&signing_key);
+
+    let fee_key = init_fee_account(
+        &mut banks_client,
+        &payer,
+        default_salt(),
+        payer.pubkey(),
+        default_leaf_fee_data(),
+    )
+    .await;
+    process_tx(
+        &mut banks_client,
+        &payer,
+        build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address),
+        &[],
+    )
+    .await
+    .unwrap();
+
+    let dest = 42u32;
+    let quote = make_signed_transient_quote(
+        &signing_key,
+        &fee_key,
+        LOCAL_DOMAIN,
+        &payer.pubkey(),
+        encode_context(dest, WILDCARD_RECIPIENT, WILDCARD_AMOUNT),
+        encode_linear_data(150, 1),
+        encode_u48(100),
+    );
+
+    process_tx(
+        &mut banks_client,
+        &payer,
+        build_submit_transient_ix(&fee_key, &payer.pubkey(), &quote),
+        &[],
+    )
+    .await
+    .unwrap();
+
+    let scoped_salt = quote.compute_scoped_salt(&payer.pubkey());
+    let (transient_pda, _) = Pubkey::find_program_address(
+        transient_quote_pda_seeds!(fee_key, scoped_salt),
+        &fee_program_id(),
+    );
+    let quote_ix = build_quote_fee_with_transient_ix(
+        &fee_key,
+        &payer.pubkey(),
+        &transient_pda,
+        dest,
+        H256::random(),
+        12345,
+    );
+
+    let fee = simulate_quote_fee(&mut banks_client, &payer, quote_ix).await;
+    assert_eq!(fee, 150);
+}
+
+/// Concrete (non-wildcard) fields are still strict — mismatch produces
+/// `TransientContextMismatch` even when other fields are wildcarded.
+#[tokio::test]
+async fn test_partial_wildcard_concrete_field_mismatch_rejected() {
+    let (mut banks_client, payer) = setup_client().await;
+    let signing_key = SigningKey::random(&mut rand::thread_rng());
+    let signer_address = eth_address(&signing_key);
+
+    let fee_key = init_fee_account(
+        &mut banks_client,
+        &payer,
+        default_salt(),
+        payer.pubkey(),
+        default_leaf_fee_data(),
+    )
+    .await;
+    process_tx(
+        &mut banks_client,
+        &payer,
+        build_add_quote_signer_ix(&fee_key, &payer.pubkey(), signer_address),
+        &[],
+    )
+    .await
+    .unwrap();
+
+    // Concrete dest, wildcard recipient + amount.
+    let dest = 42u32;
+    let quote = make_signed_transient_quote(
+        &signing_key,
+        &fee_key,
+        LOCAL_DOMAIN,
+        &payer.pubkey(),
+        encode_context(dest, WILDCARD_RECIPIENT, WILDCARD_AMOUNT),
+        encode_linear_data(150, 1),
+        encode_u48(100),
+    );
+
+    process_tx(
+        &mut banks_client,
+        &payer,
+        build_submit_transient_ix(&fee_key, &payer.pubkey(), &quote),
+        &[],
+    )
+    .await
+    .unwrap();
+
+    let scoped_salt = quote.compute_scoped_salt(&payer.pubkey());
+    let (transient_pda, _) = Pubkey::find_program_address(
+        transient_quote_pda_seeds!(fee_key, scoped_salt),
+        &fee_program_id(),
+    );
+    // Consume against a different concrete destination → strict mismatch on
+    // the only concrete field.
+    let wrong_dest = 9001u32;
+    let quote_ix = build_quote_fee_with_transient_ix(
+        &fee_key,
+        &payer.pubkey(),
+        &transient_pda,
+        wrong_dest,
+        H256::random(),
+        500,
+    );
+    let result = process_tx(&mut banks_client, &payer, quote_ix, &[]).await;
     assert_tx_error(
         result,
         TransactionError::InstructionError(
             0,
-            InstructionError::Custom(FeeError::InvalidStandingQuoteContext as u32),
+            InstructionError::Custom(QuoteValidationError::TransientContextMismatch as u32),
         ),
     );
 }
