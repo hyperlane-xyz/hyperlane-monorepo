@@ -47,6 +47,39 @@ export function errorToString(error: any, maxLength = 300) {
   return trimToLength(JSON.stringify(details), maxLength);
 }
 
+interface ErrorWithContext {
+  context?: { logs?: unknown };
+}
+
+function isErrorWithContext(e: unknown): e is Error & ErrorWithContext {
+  return e instanceof Error && 'context' in e;
+}
+
+/**
+ * Formats an error for display, including the cause chain and any Solana
+ * program logs attached to preflight failure errors.
+ */
+export function formatError(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+
+  const parts: string[] = [error.message];
+
+  // SolanaError preflight failures attach { logs, unitsConsumed, ... } to context
+  if (
+    isErrorWithContext(error) &&
+    Array.isArray(error.context?.logs) &&
+    error.context.logs.length > 0
+  ) {
+    parts.push(`Logs:\n  ${error.context.logs.join('\n  ')}`);
+  }
+
+  if (error.cause instanceof Error) {
+    parts.push(`Caused by: ${formatError(error.cause)}`);
+  }
+
+  return parts.join('\n');
+}
+
 export const fromHexString = (hexstr: string) =>
   Buffer.from(strip0x(hexstr), 'hex');
 

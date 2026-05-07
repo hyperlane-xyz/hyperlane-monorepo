@@ -59,6 +59,7 @@ import {
   type Address,
   addressToBytes32,
   assert,
+  formatError,
   isEVMLike,
   mapAllSettled,
   mustGet,
@@ -102,28 +103,6 @@ import {
   runPreflightChecksForChains,
   validateWarpIsmCompatibility,
 } from './utils.js';
-
-/**
- * Formats an error for display, including cause chain and any Solana program
- * logs attached to preflight failure errors.
- */
-function formatError(error: unknown): string {
-  if (!(error instanceof Error)) return String(error);
-
-  const parts: string[] = [error.message];
-
-  // SolanaError preflight failures attach { logs, unitsConsumed, ... } to context
-  const ctx = (error as any).context;
-  if (Array.isArray(ctx?.logs) && ctx.logs.length > 0) {
-    parts.push(`Logs:\n  ${(ctx.logs as string[]).join('\n  ')}`);
-  }
-
-  if (error.cause instanceof Error) {
-    parts.push(`Caused by: ${formatError(error.cause)}`);
-  }
-
-  return parts.join('\n');
-}
 
 interface DeployParams {
   context: WriteCommandContext;
