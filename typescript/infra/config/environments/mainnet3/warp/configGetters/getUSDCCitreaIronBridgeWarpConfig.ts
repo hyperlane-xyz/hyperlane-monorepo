@@ -52,20 +52,24 @@ function getMoonpayRouterAddresses(): Record<BridgeChain, string> {
   const route = getRegistry().getWarpRoute(WarpRouteIds.CrossMoonpay);
   assert(route, 'CROSS/moonpay route not found in registry');
 
-  return Object.fromEntries(
-    BRIDGE_CHAINS.map((chain) => {
-      const expectedSymbol = DESTINATION_SYMBOLS[chain];
-      const token = route.tokens.find(
-        ({ chainName, symbol }) =>
-          chainName === chain && symbol === expectedSymbol,
-      );
-      assert(
-        token?.addressOrDenom,
-        `Missing Moonpay ${expectedSymbol} router address for ${chain}`,
-      );
-      return [chain, token.addressOrDenom];
-    }),
-  ) as Record<BridgeChain, string>;
+  const find = (chain: BridgeChain) => {
+    const symbol = DESTINATION_SYMBOLS[chain];
+    const token = route.tokens.find(
+      (t) => t.chainName === chain && t.symbol === symbol,
+    );
+    assert(
+      token?.addressOrDenom,
+      `Missing Moonpay ${symbol} router for ${chain}`,
+    );
+    return token.addressOrDenom;
+  };
+
+  return {
+    arbitrum: find('arbitrum'),
+    base: find('base'),
+    ethereum: find('ethereum'),
+    citrea: find('citrea'),
+  };
 }
 
 function destinationConfigsFor(
@@ -73,34 +77,38 @@ function destinationConfigsFor(
   moonpayRouters: Record<BridgeChain, string>,
 ) {
   const lanes = IRON_DEPOSITS[origin];
-  return Object.fromEntries(
-    Object.entries(lanes).map(([dest, depositAddress]) => [
-      dest,
-      {
-        [addressToBytes32(moonpayRouters[dest as BridgeChain])]: {
-          depositAddress,
-          feeBps: '0',
-        },
-      },
-    ]),
-  );
+  const result: Record<
+    string,
+    Record<string, { depositAddress: string; feeBps: string }>
+  > = {};
+  for (const dest of BRIDGE_CHAINS) {
+    const depositAddress = lanes[dest];
+    if (depositAddress === undefined) continue;
+    result[dest] = {
+      [addressToBytes32(moonpayRouters[dest])]: { depositAddress, feeBps: '0' },
+    };
+  }
+  return result;
 }
 
-export const getUSDCCtUSDIronBridgeWarpConfig = async (
+export const getUSDCCitreaIronBridgeWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const moonpayRouters = getMoonpayRouterAddresses();
 
   return Object.fromEntries(
-    BRIDGE_CHAINS.map((origin) => [
-      origin,
-      {
-        ...routerConfig[origin],
-        type: TokenType.collateralDepositAddress,
-        token: ORIGIN_TOKENS[origin],
-        owner: BRIDGE_OWNER,
-        destinationConfigs: destinationConfigsFor(origin, moonpayRouters),
-      },
-    ]),
+    BRIDGE_CHAINS.map((origin) => {
+      assert(routerConfig[origin], `Missing router config for ${origin}`);
+      return [
+        origin,
+        {
+          ...routerConfig[origin],
+          type: TokenType.collateralDepositAddress,
+          token: ORIGIN_TOKENS[origin],
+          owner: BRIDGE_OWNER,
+          destinationConfigs: destinationConfigsFor(origin, moonpayRouters),
+        },
+      ];
+    }),
   );
 };
