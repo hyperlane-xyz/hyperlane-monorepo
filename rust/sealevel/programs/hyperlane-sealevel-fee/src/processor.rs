@@ -331,11 +331,9 @@ fn process_quote_fee(
             )?,
         };
 
-        if let Some(fee) = fee {
-            set_return_data(&fee.to_le_bytes());
-            msg!("QuoteFee (transient): {} for amount {}", fee, data.amount);
-            return Ok(());
-        }
+        set_return_data(&fee.to_le_bytes());
+        msg!("QuoteFee (transient): {} for amount {}", fee, data.amount);
+        return Ok(());
     }
 
     // Steps 2-3: Domain standing quote → wildcard domain standing quote.
@@ -396,10 +394,12 @@ fn is_initialized_transient_quote(
     }
 }
 
-/// Attempts to consume a transient quote PDA.
+/// Consumes a transient quote PDA.
 /// Generic over the context type (FeeQuoteContext or CcFeeQuoteContext).
 /// Validates context match, payer binding, PDA derivation, and expiry.
 /// On success: computes fee using on-chain curve + quoted params, autocloses PDA.
+/// Any soft mismatch (payer/context/variant/expiry) returns Err — passing a
+/// transient slot is a caller commitment to use it.
 #[allow(clippy::too_many_arguments)]
 fn try_consume_transient_quote<C: crate::accounts::QuoteContext>(
     program_id: &Pubkey,
@@ -410,7 +410,7 @@ fn try_consume_transient_quote<C: crate::accounts::QuoteContext>(
     quote_fee_data: &QuoteFee,
     min_issued_at: i64,
     clock: &Clock,
-) -> Result<Option<u64>, ProgramError> {
+) -> Result<u64, ProgramError> {
     let transient = TransientQuoteAccount::fetch(&mut &transient_acct.data.borrow()[..])?
         .into_inner()
         .data;
@@ -455,7 +455,7 @@ fn try_consume_transient_quote<C: crate::accounts::QuoteContext>(
     // Autoclose: drain lamports to payer, zero data, reassign to system program.
     transient_acct.close_account(payer_info)?;
 
-    Ok(Some(fee))
+    Ok(fee)
 }
 
 /// Attempts to resolve a fee from a standing quote PDA.
