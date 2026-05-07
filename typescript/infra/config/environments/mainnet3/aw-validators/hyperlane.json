@@ -26,9 +26,6 @@
   "arcadia": {
     "validators": ["0xe16ee9618f138cc2dcf9f9a95462099a8bf33a38"]
   },
-  "artela": {
-    "validators": ["0x8fcc1ebd4c0b463618db13f83e4565af3e166b00"]
-  },
   "astar": {
     "validators": ["0x4d1b2cade01ee3493f44304653d8e352c66ec3e7"]
   },
@@ -101,9 +98,6 @@
   "ethereum": {
     "validators": ["0x03c842db86a6a3e524d4a6615390c1ea8e2b9541"]
   },
-  "everclear": {
-    "validators": ["0xeff20ae3d5ab90abb11e882cfce4b92ea6c74837"]
-  },
   "flare": {
     "validators": ["0xb65e52be342dba3ab2c088ceeb4290c744809134"]
   },
@@ -112,9 +106,6 @@
   },
   "flowmainnet": {
     "validators": ["0xe132235c958ca1f3f24d772e5970dd58da4c0f6e"]
-  },
-  "fluence": {
-    "validators": ["0xabc8dd7594783c90a3c0fb760943f78c37ea6d75"]
   },
   "fraxtal": {
     "validators": ["0x4bce180dac6da60d0f3a2bdf036ffe9004f944c1"]
@@ -206,9 +197,6 @@
   "metis": {
     "validators": ["0xc4a3d25107060e800a43842964546db508092260"]
   },
-  "milkyway": {
-    "validators": ["0x9985e0c6df8e25b655b46a317af422f5e7756875"]
-  },
   "miraclechain": {
     "validators": ["0x8fc655174e99194399822ce2d3a0f71d9fc2de7b"]
   },
@@ -220,9 +208,6 @@
   },
   "mode": {
     "validators": ["0x7eb2e1920a4166c19d6884c1cec3d2cf356fc9b7"]
-  },
-  "molten": {
-    "validators": ["0xad5aa33f0d67f6fa258abbe75458ea4908f1dc9f"]
   },
   "monad": {
     "validators": ["0xb4654795b2f1b17513ffde7d85c776e4cade366c"]
@@ -265,9 +250,6 @@
   },
   "polygon": {
     "validators": ["0x12ecb319c7f4e8ac5eb5226662aeb8528c5cefac"]
-  },
-  "polynomialfi": {
-    "validators": ["0x23d348c2d365040e56f3fee07e6897122915f513"]
   },
   "prom": {
     "validators": ["0xb0c4042b7c9a95345be8913f4cdbf4043b923d98"]
@@ -376,8 +358,5 @@
   },
   "zksync": {
     "validators": ["0xadd1d39ce7a687e32255ac457cf99a6d8c5b5d1a"]
-  },
-  "zoramainnet": {
-    "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
   }
 }
