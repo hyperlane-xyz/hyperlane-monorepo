@@ -22,7 +22,7 @@ impl SovereignClient {
     ) -> ChainResult<(SubmitTxResponse, String)> {
         let utx = self.build_tx_json(&call_message);
 
-        let tx = self.sign_tx(utx.clone(), &self.signer).await?;
+        let tx = self.sign_tx(utx, &self.signer).await?;
         let body = self.serialize_tx(&tx).await?;
         let response = self.submit_tx(body.clone()).await?;
 
@@ -40,7 +40,8 @@ impl SovereignClient {
                 "max_fee": 100_000_000,
                 "gas_limit": Value::Null,
                 "chain_id": self.chain_id
-            }
+            },
+            "address_override": Value::Null,
         })
     }
 
@@ -62,24 +63,28 @@ impl SovereignClient {
         tracing::trace!(?utx_json, "Signing transaction");
         let utx_index = self
             .schema
-            .rollup_expected_index(RollupRoots::UnsignedTransaction)
+            .rollup_expected_index(RollupRoots::TransactionSigningPayload)
             .map_err(|e| custom_err!("Failed searching unsigned transaction schema: {e}"))?;
-        let mut utx_bytes = self
-            .schema
-            .json_to_borsh(utx_index, &utx_json.to_string())
-            .map_err(|e| custom_err!("Failed serializing unsigned transaction: {e}"))?;
 
         // test runtime in sovereign sdk hardcodes chain hash to this value
         // https://github.com/Sovereign-Labs/sovereign-sdk-wip/blob/2fcd88e0a4b57183058f3ec9ebf8925998677d0a/crates/module-system/sov-test-utils/src/runtime/macros.rs#L103
-        if env::var("SOV_TEST_UTILS_FIXED_CHAIN_HASH").is_ok() {
-            utx_bytes.extend_from_slice(&[11; 32]);
+        let chain_hash = if env::var("SOV_TEST_UTILS_FIXED_CHAIN_HASH").is_ok() {
+            [11; 32]
         } else {
-            let chain_hash = self
-                .schema
+            self.schema
                 .chain_hash()
-                .map_err(|e| custom_err!("Failed to compute rollup chain hash: {e}"))?;
-            utx_bytes.extend_from_slice(&chain_hash);
+                .map_err(|e| custom_err!("Failed to get chain hash: {e}"))?
+        };
+
+        let mut signing_payload_json = utx_json.clone();
+        if let Some(obj) = signing_payload_json.as_object_mut() {
+            obj.insert("chain_hash".to_string(), serde_json::to_value(chain_hash)?);
         }
+        let utx_versioned_json = json!({ "V0": signing_payload_json });
+        let utx_bytes = self
+            .schema
+            .json_to_borsh(utx_index, &utx_versioned_json.to_string())
+            .map_err(|e| custom_err!("Failed serializing unsigned transaction: {e}"))?;
 
         let signature = signer.sign(&utx_bytes)?;
 
