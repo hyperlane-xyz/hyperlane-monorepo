@@ -31,7 +31,7 @@ use crate::{
         FeeAccountData, FeeData, FeeQuoteContext, FeeStandingQuotePda, FeeStandingQuotePdaAccount,
         FeeStandingQuoteValue, QuoteContext, RouteDomain, RouteDomainAccount,
         StandingQuoteAuthScope, TransientQuote, TransientQuoteAccount, DEFAULT_ROUTER,
-        TRANSIENT_QUOTE_DISCRIMINATOR, WILDCARD_DOMAIN, WILDCARD_RECIPIENT,
+        TRANSIENT_QUOTE_DISCRIMINATOR, WILDCARD_AMOUNT, WILDCARD_DOMAIN, WILDCARD_RECIPIENT,
     },
     cc_route_pda_seeds,
     error::Error,
@@ -1148,7 +1148,7 @@ fn process_submit_quote(
                 let ctx = CcFeeQuoteContext::try_from_bytes(&quote.context)
                     .map_err(|_| Error::InvalidStandingQuoteContext)?;
 
-                if ctx.amount != u64::MAX {
+                if ctx.amount != WILDCARD_AMOUNT {
                     return Err(Error::StandingQuoteAmountNotWildcard.into());
                 }
 
@@ -1164,7 +1164,7 @@ fn process_submit_quote(
                 let ctx = FeeQuoteContext::try_from_bytes(&quote.context)
                     .map_err(|_| Error::InvalidStandingQuoteContext)?;
 
-                if ctx.amount != u64::MAX {
+                if ctx.amount != WILDCARD_AMOUNT {
                     return Err(Error::StandingQuoteAmountNotWildcard.into());
                 }
 

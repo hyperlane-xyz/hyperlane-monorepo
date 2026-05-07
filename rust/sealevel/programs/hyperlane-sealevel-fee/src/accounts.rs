@@ -32,6 +32,11 @@ pub const WILDCARD_RECIPIENT: H256 = H256::repeat_byte(0xFF);
 /// Wildcard destination domain for standing quotes: matches any Hyperlane domain ID.
 pub const WILDCARD_DOMAIN: u32 = u32::MAX;
 
+/// Wildcard amount sentinel for standing quotes: signals the amount field is
+/// not bound to a specific value. Standing quotes must always use this value
+/// because linear fee params already scale with any transfer amount.
+pub const WILDCARD_AMOUNT: u64 = u64::MAX;
+
 /// Default target router for CC routing fallback when no specific (dest, target_router) match.
 /// Value is `keccak256("RoutingFee.DEFAULT_ROUTER")`, matching the EVM constant in
 /// `CrossCollateralRoutingFee.sol`. Precomputed because `const` context cannot call keccak.
@@ -1042,6 +1047,7 @@ mod tests {
     fn test_wildcard_constants() {
         assert_eq!(WILDCARD_RECIPIENT.as_bytes(), &[0xFF; 32]);
         assert_eq!(WILDCARD_DOMAIN, u32::MAX);
+        assert_eq!(WILDCARD_AMOUNT, u64::MAX);
         // DEFAULT_ROUTER = keccak256("RoutingFee.DEFAULT_ROUTER"), matching EVM.
         // Recompute the hash so a bad precomputed constant fails the test.
         let expected =

@@ -27,7 +27,7 @@ pub enum Error {
     /// Transient quote data is invalid (wrong length or format).
     #[error("Invalid transient quote data")]
     InvalidTransientData = 7,
-    /// Standing quote amount must be wildcard (u64::MAX).
+    /// Standing quote amount must be the WILDCARD_AMOUNT sentinel.
     #[error("Standing quote amount must be wildcard")]
     StandingQuoteAmountNotWildcard = 8,
     /// Standing quote context is invalid.
