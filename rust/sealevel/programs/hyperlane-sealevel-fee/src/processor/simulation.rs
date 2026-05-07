@@ -67,22 +67,37 @@ pub(super) fn process_get_quote_account_metas(
         });
     }
 
-    // Standing quote PDAs (domain + wildcard).
-    // For CC: include target_router in PDA seeds. For Leaf/Routing: H256::zero() sentinel via macro default.
+    // Standing quote PDAs.
+    // - Leaf/Routing: 1 domain standing PDA + 1 wildcard standing PDA (target_router = ZERO).
+    // - CC: 1 specific-scope domain standing + 1 default-scope domain standing +
+    //       1 wildcard-domain standing (target_router = data.target_router for the
+    //       shared wildcard PDA).
     let domain_le = data.destination_domain.to_le_bytes();
     let standing_target_router = match &fee_account.fee_data {
         FeeData::CrossCollateralRouting(_) => data.target_router,
         _ => hyperlane_core::H256::zero(),
     };
-    let (domain_quotes_key, _) = Pubkey::find_program_address(
+    let (specific_domain_quotes_key, _) = Pubkey::find_program_address(
         fee_standing_quote_pda_seeds!(fee_account_info.key, &domain_le, standing_target_router),
         program_id,
     );
     metas.push(SerializableAccountMeta {
-        pubkey: domain_quotes_key,
+        pubkey: specific_domain_quotes_key,
         is_signer: false,
         is_writable: false,
     });
+
+    if matches!(fee_account.fee_data, FeeData::CrossCollateralRouting(_)) {
+        let (default_domain_quotes_key, _) = Pubkey::find_program_address(
+            fee_standing_quote_pda_seeds!(fee_account_info.key, &domain_le, DEFAULT_ROUTER),
+            program_id,
+        );
+        metas.push(SerializableAccountMeta {
+            pubkey: default_domain_quotes_key,
+            is_signer: false,
+            is_writable: false,
+        });
+    }
 
     let wildcard_le = WILDCARD_DOMAIN.to_le_bytes();
     let (wildcard_quotes_key, _) = Pubkey::find_program_address(
@@ -185,6 +200,9 @@ pub(super) fn process_get_submit_quote_account_metas(
 
     // Route PDAs for signer lookup (Routing/CC exact domain only).
     // Wildcard domain quotes use fee_data.wildcard_signers — no route PDAs needed.
+    //
+    // CC exact-domain (transient or standing): 1 route PDA at (D, data.target_router).
+    // The caller's ctx.target_router selects the route directly — no cascade.
     let domain_le = data.destination_domain.to_le_bytes();
     let is_wildcard = data.destination_domain == WILDCARD_DOMAIN;
     match &fee_account.fee_data {
@@ -204,21 +222,12 @@ pub(super) fn process_get_submit_quote_account_metas(
         }
         FeeData::CrossCollateralRouting(_) => {
             if !is_wildcard {
-                let (cc_specific_key, _) = Pubkey::find_program_address(
+                let (cc_route_key, _) = Pubkey::find_program_address(
                     cc_route_pda_seeds!(fee_account_info.key, &domain_le, data.target_router),
                     program_id,
                 );
                 metas.push(SerializableAccountMeta {
-                    pubkey: cc_specific_key,
-                    is_signer: false,
-                    is_writable: false,
-                });
-                let (cc_default_key, _) = Pubkey::find_program_address(
-                    cc_route_pda_seeds!(fee_account_info.key, &domain_le, DEFAULT_ROUTER),
-                    program_id,
-                );
-                metas.push(SerializableAccountMeta {
-                    pubkey: cc_default_key,
+                    pubkey: cc_route_key,
                     is_signer: false,
                     is_writable: false,
                 });

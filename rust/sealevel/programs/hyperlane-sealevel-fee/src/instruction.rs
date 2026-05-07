@@ -593,7 +593,7 @@ pub fn submit_transient_quote_instruction(
     // 0. `[executable]` System program.
     // 1. `[signer, writable]` Payer.
     // 2. `[]` Fee account.
-    // 3..N. `[]` Route PDAs (Routing: 1 RouteDomain, CC: specific + default CC route).
+    // 3..N. `[]` Route PDAs (Routing: 1 RouteDomain at D; CC: 1 CC route at (D, ctx.target_router)).
     // N+1. `[writable]` Transient quote PDA.
     let mut accounts = vec![
         AccountMeta::new_readonly(system_program::ID, false),
@@ -639,7 +639,7 @@ pub fn submit_standing_quote_instruction(
     // 0. `[executable]` System program.
     // 1. `[signer, writable]` Payer.
     // 2. `[]` Fee account (read-only).
-    // 3..N. `[]` Route PDAs (Routing: 1 RouteDomain, CC: specific + default CC route).
+    // 3..N. `[]` Route PDAs (Routing: 1 RouteDomain at D; CC: 1 CC route at (D, target_router)).
     // N+1. `[writable]` Standing quote PDA.
     let mut accounts = vec![
         AccountMeta::new_readonly(system_program::ID, false),

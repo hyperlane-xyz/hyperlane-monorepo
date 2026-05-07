@@ -442,9 +442,8 @@ fn build_quote_fee_routing_ix(
     )
 }
 
-/// Builds a QuoteFee instruction for CrossCollateralRouting mode.
-/// Always emits both CC route PDAs — specific and default — to match the
-/// layout `process_quote_fee` consumes and `GetQuoteAccountMetas` produces.
+/// Builds a QuoteFee instruction for CrossCollateralRouting mode, emitting
+/// every standing/route PDA the cascade may consult.
 fn build_quote_fee_cc_ix(
     fee_account: &Pubkey,
     payer: &Pubkey,
@@ -453,9 +452,10 @@ fn build_quote_fee_cc_ix(
     amount: u64,
     target_router: H256,
 ) -> Instruction {
-    // CC standing PDAs use target_router in seeds (not H256::zero()).
-    let domain_quotes_pda =
+    let specific_domain_quotes_pda =
         cc_standing_quote_pda_for(fee_account, destination_domain, &target_router);
+    let default_domain_quotes_pda =
+        cc_standing_quote_pda_for(fee_account, destination_domain, &DEFAULT_ROUTER);
     let wildcard_quotes_pda =
         cc_standing_quote_pda_for(fee_account, WILDCARD_DOMAIN, &target_router);
     let cc_specific_pda = cc_route_pda_for(fee_account, destination_domain, &target_router);
@@ -464,7 +464,8 @@ fn build_quote_fee_cc_ix(
     let accounts = vec![
         AccountMeta::new_readonly(*fee_account, false),
         AccountMeta::new(*payer, true),
-        AccountMeta::new_readonly(domain_quotes_pda, false),
+        AccountMeta::new_readonly(specific_domain_quotes_pda, false),
+        AccountMeta::new_readonly(default_domain_quotes_pda, false),
         AccountMeta::new_readonly(wildcard_quotes_pda, false),
         AccountMeta::new_readonly(cc_specific_pda, false),
         AccountMeta::new_readonly(cc_default_pda, false),
@@ -2501,7 +2502,8 @@ mod quote_fee {
             .unwrap();
 
         let target_router = H256::random();
-        let domain_quotes_pda = cc_standing_quote_pda_for(&fee_key, dest, &target_router);
+        let specific_domain_quotes_pda = cc_standing_quote_pda_for(&fee_key, dest, &target_router);
+        let default_domain_quotes_pda = cc_standing_quote_pda_for(&fee_key, dest, &DEFAULT_ROUTER);
         let wildcard_quotes_pda =
             cc_standing_quote_pda_for(&fee_key, WILDCARD_DOMAIN, &target_router);
         let cc_specific_pda = cc_route_pda_for(&fee_key, dest, &target_router);
@@ -2518,7 +2520,8 @@ mod quote_fee {
             vec![
                 AccountMeta::new_readonly(fee_key, false),
                 AccountMeta::new(payer.pubkey(), true),
-                AccountMeta::new_readonly(domain_quotes_pda, false),
+                AccountMeta::new_readonly(specific_domain_quotes_pda, false),
+                AccountMeta::new_readonly(default_domain_quotes_pda, false),
                 AccountMeta::new_readonly(wildcard_quotes_pda, false),
                 AccountMeta::new_readonly(cc_specific_pda, false),
                 AccountMeta::new_readonly(cc_default_pda, false),

@@ -191,8 +191,8 @@ async fn test_cc_routing() {
     )
     .await;
 
-    // prefix (2) + domain_quotes + wildcard_quotes + cc_specific + cc_default = 6
-    assert_eq!(metas.len(), 6);
+    // prefix (2) + specific_domain + default_domain + wildcard_domain + cc_specific + cc_default = 7
+    assert_eq!(metas.len(), 7);
 
     assert_eq!(
         metas[2].pubkey,
@@ -200,14 +200,18 @@ async fn test_cc_routing() {
     );
     assert_eq!(
         metas[3].pubkey,
-        cc_standing_quote_pda_for(&fee_key, WILDCARD_DOMAIN, &target_router)
+        cc_standing_quote_pda_for(&fee_key, dest, &DEFAULT_ROUTER)
     );
     assert_eq!(
         metas[4].pubkey,
-        cc_route_pda_for(&fee_key, dest, &target_router)
+        cc_standing_quote_pda_for(&fee_key, WILDCARD_DOMAIN, &target_router)
     );
     assert_eq!(
         metas[5].pubkey,
+        cc_route_pda_for(&fee_key, dest, &target_router)
+    );
+    assert_eq!(
+        metas[6].pubkey,
         cc_route_pda_for(&fee_key, dest, &DEFAULT_ROUTER)
     );
 }
@@ -245,8 +249,8 @@ async fn test_cc_routing_with_transient() {
     )
     .await;
 
-    // prefix (2) + transient + domain_quotes + wildcard_quotes + cc_specific + cc_default = 7
-    assert_eq!(metas.len(), 7);
+    // prefix (2) + transient + specific_domain + default_domain + wildcard_domain + cc_specific + cc_default = 8
+    assert_eq!(metas.len(), 8);
 
     assert_eq!(metas[2].pubkey, expected_transient);
     assert!(metas[2].is_writable);
@@ -256,14 +260,18 @@ async fn test_cc_routing_with_transient() {
     );
     assert_eq!(
         metas[4].pubkey,
-        cc_standing_quote_pda_for(&fee_key, WILDCARD_DOMAIN, &target_router)
+        cc_standing_quote_pda_for(&fee_key, dest, &DEFAULT_ROUTER)
     );
     assert_eq!(
         metas[5].pubkey,
-        cc_route_pda_for(&fee_key, dest, &target_router)
+        cc_standing_quote_pda_for(&fee_key, WILDCARD_DOMAIN, &target_router)
     );
     assert_eq!(
         metas[6].pubkey,
+        cc_route_pda_for(&fee_key, dest, &target_router)
+    );
+    assert_eq!(
+        metas[7].pubkey,
         cc_route_pda_for(&fee_key, dest, &DEFAULT_ROUTER)
     );
 }
@@ -469,17 +477,13 @@ async fn test_cc_standing() {
     )
     .await;
 
-    // system + payer + fee_account(R) + cc_specific + cc_default + standing_pda = 6
-    assert_eq!(metas.len(), 6);
+    // system + payer + fee_account(R) + cc_route + standing_pda = 5
+    assert_eq!(metas.len(), 5);
     assert_eq!(
         metas[3].pubkey,
         cc_route_pda_for(&fee_key, dest, &target_router)
     );
-    assert_eq!(
-        metas[4].pubkey,
-        cc_route_pda_for(&fee_key, dest, &DEFAULT_ROUTER)
-    );
-    assert!(metas[5].is_writable); // standing PDA
+    assert!(metas[4].is_writable); // standing PDA
 }
 mod get_program_version {
     use super::*;

@@ -556,18 +556,6 @@ impl SizedData for FeeStandingQuotePda {
 }
 
 /// A standing quote value for a specific recipient on a specific destination domain.
-#[derive(BorshDeserialize, BorshSerialize, Clone, Copy, Debug, Default, PartialEq)]
-#[borsh(use_discriminant = true)]
-#[repr(u8)]
-pub enum StandingQuoteAuthScope {
-    /// Quote was authorized directly by the current scope's signer set.
-    #[default]
-    Direct = 0,
-    /// Quote was authorized for an exact CC route via DEFAULT_ROUTER fallback.
-    CcDefaultFallback = 1,
-}
-
-/// A standing quote value for a specific recipient on a specific destination domain.
 #[derive(BorshDeserialize, BorshSerialize, Clone, Debug, Default, PartialEq)]
 pub struct FeeStandingQuoteValue {
     /// When the quote was issued (unix timestamp).
@@ -577,10 +565,6 @@ pub struct FeeStandingQuoteValue {
     /// Quoted fee strategy (curve variant + params). The variant tag commits the signer
     /// to a specific curve type — rejected at QuoteFee time if it doesn't match on-chain.
     pub fee_data: FeeDataStrategy,
-    /// Auth provenance recorded at submission time.
-    /// Used to reject CC exact-domain quotes that were authorized via DEFAULT_ROUTER
-    /// once a router-specific route exists later.
-    pub auth_scope: StandingQuoteAuthScope,
 }
 
 impl SizedData for FeeStandingQuoteValue {
@@ -588,7 +572,6 @@ impl SizedData for FeeStandingQuoteValue {
         std::mem::size_of::<i64>()  // issued_at
         + std::mem::size_of::<i64>() // expiry
         + SizedData::size(&self.fee_data) // fee_data (variant tag + params)
-        + std::mem::size_of::<u8>() // auth_scope
     }
 }
 
@@ -754,7 +737,6 @@ mod tests {
             context: vec![1, 2, 3, 4],
             data: vec![5, 6, 7, 8],
             expiry: 1234567890,
-            ..Default::default()
         };
         let encoded = borsh::to_vec(&quote).unwrap();
         let decoded: TransientQuote = borsh::from_slice(&encoded).unwrap();
@@ -773,7 +755,6 @@ mod tests {
                     max_fee: 1000,
                     half_amount: 500,
                 }),
-                ..Default::default()
             },
         );
         quotes.insert(
@@ -785,7 +766,6 @@ mod tests {
                     max_fee: 2000,
                     half_amount: 1000,
                 }),
-                ..Default::default()
             },
         );
         let pda = FeeStandingQuotePda {
@@ -986,7 +966,6 @@ mod tests {
             context: vec![0u8; 44],
             data: vec![0u8; 16],
             expiry: 100,
-            ..Default::default()
         };
         assert_eq!(quote.size(), borsh::to_vec(&quote).unwrap().len());
     }
@@ -1012,7 +991,6 @@ mod tests {
                     max_fee: 1000,
                     half_amount: 500,
                 }),
-                ..Default::default()
             },
         );
         let pda = FeeStandingQuotePda {
@@ -1031,7 +1009,6 @@ mod tests {
                 max_fee: 1000,
                 half_amount: 500,
             }),
-            ..Default::default()
         };
         assert_eq!(
             SizedData::size(&value),

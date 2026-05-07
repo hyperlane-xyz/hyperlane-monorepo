@@ -78,14 +78,13 @@ async fn test_cc_standing_creates_route_bound_pda() {
     );
 
     let specific_pda = cc_route_pda_for(&fee_key, dest, &target_router);
-    let default_pda = cc_route_pda_for(&fee_key, dest, &DEFAULT_ROUTER);
     let ix = build_submit_standing_ix_with_routes(
         &fee_key,
         &payer.pubkey(),
         &quote,
         dest,
         &target_router,
-        &[specific_pda, default_pda],
+        &[specific_pda],
     );
     process_tx(&mut banks_client, &payer, ix, &[])
         .await
@@ -188,14 +187,13 @@ async fn test_two_routers_get_separate_pdas() {
         encode_u48(9999999999),
     );
     let specific_pda_a = cc_route_pda_for(&fee_key, dest, &router_a);
-    let default_pda = cc_route_pda_for(&fee_key, dest, &DEFAULT_ROUTER);
     let ix = build_submit_standing_ix_with_routes(
         &fee_key,
         &payer.pubkey(),
         &q_a,
         dest,
         &router_a,
-        &[specific_pda_a, default_pda],
+        &[specific_pda_a],
     );
     process_tx(&mut banks_client, &payer, ix, &[])
         .await
@@ -220,7 +218,7 @@ async fn test_two_routers_get_separate_pdas() {
         &q_b,
         dest,
         &router_b,
-        &[specific_pda_b, default_pda],
+        &[specific_pda_b],
     );
     process_tx(&mut banks_client, &payer, ix, &[])
         .await
@@ -315,97 +313,13 @@ async fn test_cc_standing_zero_target_router_rejected() {
     );
 
     let specific_pda = cc_route_pda_for(&fee_key, 42, &H256::zero());
-    let default_pda = cc_route_pda_for(&fee_key, 42, &DEFAULT_ROUTER);
     let ix = build_submit_standing_ix_with_routes(
         &fee_key,
         &payer.pubkey(),
         &quote,
         42,
         &H256::zero(),
-        &[specific_pda, default_pda],
-    );
-    let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
-    assert_tx_error(
-        result,
-        TransactionError::InstructionError(
-            0,
-            InstructionError::Custom(FeeError::ZeroTargetRouterNotAllowed as u32),
-        ),
-    );
-}
-
-#[tokio::test]
-async fn test_cc_standing_default_router_rejected() {
-    let (mut banks_client, payer) = setup_client().await;
-    let signing_key = SigningKey::random(&mut rand::thread_rng());
-    let signer_address = eth_address(&signing_key);
-
-    let fee_key = init_fee_account(
-        &mut banks_client,
-        &payer,
-        default_salt(),
-        payer.pubkey(),
-        FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-            wildcard_signers: BTreeSet::new(),
-        }),
-    )
-    .await;
-
-    // Set up a DEFAULT_ROUTER CC route so signer resolution succeeds.
-    let ix = build_set_cc_route_ix(
-        &fee_key,
-        &payer.pubkey(),
-        42,
-        DEFAULT_ROUTER,
-        FeeDataStrategy::Linear(FeeParams {
-            max_fee: 1000,
-            half_amount: 500,
-        }),
-    );
-    process_tx(&mut banks_client, &payer, ix, &[])
-        .await
-        .unwrap();
-
-    let ix = build_add_quote_signer_ix_with_route(
-        &fee_key,
-        &payer.pubkey(),
-        signer_address,
-        Some(instruction::RouteKey::CrossCollateral {
-            destination: 42,
-            target_router: DEFAULT_ROUTER,
-        }),
-    );
-    process_tx(&mut banks_client, &payer, ix, &[])
-        .await
-        .unwrap();
-
-    // Submit with target_router = DEFAULT_ROUTER → should be rejected.
-    let context = encode_cc_standing_context(
-        42,
-        H256::zero(),
-        hyperlane_sealevel_fee::accounts::DEFAULT_ROUTER,
-    );
-    let data = encode_linear_data(1000, 500);
-    let quote = make_signed_standing_quote(
-        &signing_key,
-        &fee_key,
-        LOCAL_DOMAIN,
-        &payer.pubkey(),
-        context,
-        data,
-        encode_u48(100),
-        encode_u48(9999999999),
-    );
-
-    let specific_pda = cc_route_pda_for(&fee_key, 42, &DEFAULT_ROUTER);
-    let default_pda = cc_route_pda_for(&fee_key, 42, &DEFAULT_ROUTER);
-    let ix = build_submit_standing_ix_with_routes(
-        &fee_key,
-        &payer.pubkey(),
-        &quote,
-        42,
-        &hyperlane_sealevel_fee::accounts::DEFAULT_ROUTER,
-        &[specific_pda, default_pda],
+        &[specific_pda],
     );
     let result = process_tx(&mut banks_client, &payer, ix, &[]).await;
     assert_tx_error(
@@ -509,116 +423,7 @@ async fn test_cc_submit_spoofed_specific_route_pda_rejected() {
             &quote,
             dest,
             &target_router,
-            &[
-                cc_route_pda_for(&fee_key_b, dest, &target_router),
-                cc_route_pda_for(&fee_key_a, dest, &DEFAULT_ROUTER),
-            ],
-        ),
-        &[],
-    )
-    .await;
-    assert_tx_error(
-        result,
-        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
-    );
-}
-
-#[tokio::test]
-async fn test_cc_submit_spoofed_default_route_pda_rejected() {
-    let (mut banks_client, payer) = setup_client().await;
-    let signing_key = SigningKey::random(&mut rand::thread_rng());
-    let signer_address = eth_address(&signing_key);
-    let dest = 42u32;
-    let target_router = H256::random();
-    let recipient = H256::random();
-
-    let fee_key_a = init_fee_account(
-        &mut banks_client,
-        &payer,
-        H256::zero(),
-        payer.pubkey(),
-        FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-            wildcard_signers: BTreeSet::new(),
-        }),
-    )
-    .await;
-    let fee_key_b = init_fee_account(
-        &mut banks_client,
-        &payer,
-        H256::repeat_byte(1),
-        payer.pubkey(),
-        FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-            wildcard_signers: BTreeSet::new(),
-        }),
-    )
-    .await;
-
-    let strategy = FeeDataStrategy::Linear(FeeParams {
-        max_fee: 100,
-        half_amount: 50,
-    });
-    process_tx(
-        &mut banks_client,
-        &payer,
-        build_set_cc_route_ix(
-            &fee_key_a,
-            &payer.pubkey(),
-            dest,
-            DEFAULT_ROUTER,
-            strategy.clone(),
-        ),
-        &[],
-    )
-    .await
-    .unwrap();
-    process_tx(
-        &mut banks_client,
-        &payer,
-        build_set_cc_route_ix(&fee_key_b, &payer.pubkey(), dest, DEFAULT_ROUTER, strategy),
-        &[],
-    )
-    .await
-    .unwrap();
-    process_tx(
-        &mut banks_client,
-        &payer,
-        build_add_quote_signer_ix_with_route(
-            &fee_key_a,
-            &payer.pubkey(),
-            signer_address,
-            Some(instruction::RouteKey::CrossCollateral {
-                destination: dest,
-                target_router: DEFAULT_ROUTER,
-            }),
-        ),
-        &[],
-    )
-    .await
-    .unwrap();
-
-    let quote = make_signed_standing_quote(
-        &signing_key,
-        &fee_key_a,
-        LOCAL_DOMAIN,
-        &payer.pubkey(),
-        encode_cc_standing_context(dest, recipient, target_router),
-        encode_linear_data(777, 1),
-        encode_u48(100),
-        encode_u48(9999999999),
-    );
-    let result = process_tx(
-        &mut banks_client,
-        &payer,
-        build_submit_standing_ix_with_routes(
-            &fee_key_a,
-            &payer.pubkey(),
-            &quote,
-            dest,
-            &target_router,
-            &[
-                cc_route_pda_for(&fee_key_a, dest, &target_router),
-                cc_route_pda_for(&fee_key_b, dest, &DEFAULT_ROUTER),
-            ],
+            &[cc_route_pda_for(&fee_key_b, dest, &target_router)],
         ),
         &[],
     )
@@ -710,10 +515,7 @@ async fn test_cc_exact_does_not_fallback_to_default_when_specific_exists_without
             &quote,
             dest,
             &target_router,
-            &[
-                cc_route_pda_for(&fee_key, dest, &target_router),
-                cc_route_pda_for(&fee_key, dest, &DEFAULT_ROUTER),
-            ],
+            &[cc_route_pda_for(&fee_key, dest, &target_router)],
         ),
         &[],
     )
@@ -787,7 +589,7 @@ async fn test_cc_default_authorized_standing_quote_invalidated_by_later_specific
         &fee_key,
         LOCAL_DOMAIN,
         &payer.pubkey(),
-        encode_cc_standing_context(dest, recipient, target_router),
+        encode_cc_standing_context(dest, recipient, DEFAULT_ROUTER),
         encode_linear_data(777, 1),
         encode_u48(100),
         encode_u48(9999999999),
@@ -800,11 +602,8 @@ async fn test_cc_default_authorized_standing_quote_invalidated_by_later_specific
             &payer.pubkey(),
             &quote,
             dest,
-            &target_router,
-            &[
-                cc_route_pda_for(&fee_key, dest, &target_router),
-                cc_route_pda_for(&fee_key, dest, &DEFAULT_ROUTER),
-            ],
+            &DEFAULT_ROUTER,
+            &[cc_route_pda_for(&fee_key, dest, &DEFAULT_ROUTER)],
         ),
         &[],
     )
@@ -858,6 +657,136 @@ async fn test_cc_default_authorized_standing_quote_invalidated_by_later_specific
     )
     .await;
     assert_eq!(fee_after, 100);
+}
+
+/// When both the specific-scope and default-scope domain standing PDAs hold
+/// quotes, the consume cascade must consult the specific-scope PDA (because a
+/// specific route is active) and ignore the default-scope quote.
+#[tokio::test]
+async fn test_cc_specific_scope_quote_shadows_default_scope_quote() {
+    let (mut banks_client, payer) = setup_client().await;
+    let signing_key = SigningKey::random(&mut rand::thread_rng());
+    let signer_address = eth_address(&signing_key);
+    let dest = 42u32;
+    let recipient = H256::random();
+    let target_router = H256::random();
+
+    let fee_key = init_fee_account(
+        &mut banks_client,
+        &payer,
+        default_salt(),
+        payer.pubkey(),
+        FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+            wildcard_signers: BTreeSet::new(),
+        }),
+    )
+    .await;
+
+    // Configure both routes with the same on-chain curve (irrelevant — we
+    // assert the standing quote is served).
+    let on_chain = FeeDataStrategy::Linear(FeeParams {
+        max_fee: 100,
+        half_amount: 50,
+    });
+    for router in [DEFAULT_ROUTER, target_router] {
+        process_tx(
+            &mut banks_client,
+            &payer,
+            build_set_cc_route_ix(&fee_key, &payer.pubkey(), dest, router, on_chain.clone()),
+            &[],
+        )
+        .await
+        .unwrap();
+        process_tx(
+            &mut banks_client,
+            &payer,
+            build_add_quote_signer_ix_with_route(
+                &fee_key,
+                &payer.pubkey(),
+                signer_address,
+                Some(instruction::RouteKey::CrossCollateral {
+                    destination: dest,
+                    target_router: router,
+                }),
+            ),
+            &[],
+        )
+        .await
+        .unwrap();
+    }
+
+    // Submit a default-scope standing quote (max_fee=777).
+    let default_quote = make_signed_standing_quote(
+        &signing_key,
+        &fee_key,
+        LOCAL_DOMAIN,
+        &payer.pubkey(),
+        encode_cc_standing_context(dest, recipient, DEFAULT_ROUTER),
+        encode_linear_data(777, 1),
+        encode_u48(100),
+        encode_u48(9999999999),
+    );
+    process_tx(
+        &mut banks_client,
+        &payer,
+        build_submit_standing_ix_with_routes(
+            &fee_key,
+            &payer.pubkey(),
+            &default_quote,
+            dest,
+            &DEFAULT_ROUTER,
+            &[cc_route_pda_for(&fee_key, dest, &DEFAULT_ROUTER)],
+        ),
+        &[],
+    )
+    .await
+    .unwrap();
+
+    // Submit a specific-scope standing quote (max_fee=333).
+    let specific_quote = make_signed_standing_quote(
+        &signing_key,
+        &fee_key,
+        LOCAL_DOMAIN,
+        &payer.pubkey(),
+        encode_cc_standing_context(dest, recipient, target_router),
+        encode_linear_data(333, 1),
+        encode_u48(100),
+        encode_u48(9999999999),
+    );
+    process_tx(
+        &mut banks_client,
+        &payer,
+        build_submit_standing_ix_with_routes(
+            &fee_key,
+            &payer.pubkey(),
+            &specific_quote,
+            dest,
+            &target_router,
+            &[cc_route_pda_for(&fee_key, dest, &target_router)],
+        ),
+        &[],
+    )
+    .await
+    .unwrap();
+
+    // Both PDAs hold quotes. Specific route is active → specific wins.
+    let fee = simulate_quote_fee(
+        &mut banks_client,
+        &payer,
+        build_quote_fee_cc_ix(
+            &fee_key,
+            &payer.pubkey(),
+            dest,
+            recipient,
+            100,
+            target_router,
+        ),
+    )
+    .await;
+    assert_eq!(
+        fee, 333,
+        "specific scope quote must shadow default scope quote"
+    );
 }
 
 #[tokio::test]
@@ -927,10 +856,7 @@ async fn test_cc_wildcard_submit_with_extra_route_pda_rejected() {
             &quote,
             WILDCARD_DOMAIN,
             &target_router,
-            &[
-                cc_route_pda_for(&fee_key, dest, &target_router),
-                cc_route_pda_for(&fee_key, dest, &DEFAULT_ROUTER),
-            ],
+            &[cc_route_pda_for(&fee_key, dest, &target_router)],
         ),
         &[],
     )
@@ -1022,14 +948,13 @@ async fn test_cc_prune_does_not_remove_domain_from_tracking() {
         encode_u48(9999999999),
     );
     let specific_pda_a = cc_route_pda_for(&fee_key, dest, &router_a);
-    let default_pda = cc_route_pda_for(&fee_key, dest, &DEFAULT_ROUTER);
     let ix = build_submit_standing_ix_with_routes(
         &fee_key,
         &payer.pubkey(),
         &q_a,
         dest,
         &router_a,
-        &[specific_pda_a, default_pda],
+        &[specific_pda_a],
     );
     process_tx(banks_client, &payer, ix, &[]).await.unwrap();
 
@@ -1051,7 +976,7 @@ async fn test_cc_prune_does_not_remove_domain_from_tracking() {
         &q_b,
         dest,
         &router_b,
-        &[specific_pda_b, default_pda],
+        &[specific_pda_b],
     );
     process_tx(banks_client, &payer, ix, &[]).await.unwrap();
 
@@ -1121,7 +1046,7 @@ async fn test_cc_prune_does_not_remove_domain_from_tracking() {
         &q_a_fresh,
         dest,
         &router_a,
-        &[specific_pda_a, default_pda],
+        &[specific_pda_a],
     );
     process_tx(banks_client, &payer, ix, &[]).await.unwrap();
 
@@ -1204,14 +1129,13 @@ async fn test_cc_standing_quote_consumed_in_quote_fee() {
         encode_u48(9999999999),
     );
     let specific_pda = cc_route_pda_for(&fee_key, dest, &target_router);
-    let default_pda = cc_route_pda_for(&fee_key, dest, &DEFAULT_ROUTER);
     let ix = build_submit_standing_ix_with_routes(
         &fee_key,
         &payer.pubkey(),
         &quote,
         dest,
         &target_router,
-        &[specific_pda, default_pda],
+        &[specific_pda],
     );
     process_tx(&mut banks_client, &payer, ix, &[])
         .await
@@ -1310,14 +1234,13 @@ async fn test_cc_quote_fee_uses_router_bound_standing_pda() {
         encode_u48(9999999999),
     );
     let specific_pda_a = cc_route_pda_for(&fee_key, dest, &router_a);
-    let default_pda = cc_route_pda_for(&fee_key, dest, &DEFAULT_ROUTER);
     let ix = build_submit_standing_ix_with_routes(
         &fee_key,
         &payer.pubkey(),
         &sq_a,
         dest,
         &router_a,
-        &[specific_pda_a, default_pda],
+        &[specific_pda_a],
     );
     process_tx(&mut banks_client, &payer, ix, &[])
         .await
@@ -1341,7 +1264,7 @@ async fn test_cc_quote_fee_uses_router_bound_standing_pda() {
         &sq_b,
         dest,
         &router_b,
-        &[specific_pda_b, default_pda],
+        &[specific_pda_b],
     );
     process_tx(&mut banks_client, &payer, ix, &[])
         .await
@@ -1374,9 +1297,7 @@ async fn test_cc_quote_fee_wildcard_domain_fallback_is_router_scoped() {
         &payer,
         default_salt(),
         payer.pubkey(),
-        FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
-            wildcard_signers: wildcard_signers,
-        }),
+        FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig { wildcard_signers }),
     )
     .await;
 
@@ -1493,14 +1414,13 @@ async fn test_cc_quote_fee_exact_recipient_beats_wildcard_recipient() {
         encode_u48(9999999999),
     );
     let specific_pda = cc_route_pda_for(&fee_key, dest, &target_router);
-    let default_pda = cc_route_pda_for(&fee_key, dest, &DEFAULT_ROUTER);
     let ix = build_submit_standing_ix_with_routes(
         &fee_key,
         &payer.pubkey(),
         &sq_exact,
         dest,
         &target_router,
-        &[specific_pda, default_pda],
+        &[specific_pda],
     );
     process_tx(&mut banks_client, &payer, ix, &[])
         .await
@@ -1523,7 +1443,7 @@ async fn test_cc_quote_fee_exact_recipient_beats_wildcard_recipient() {
         &sq_wildcard,
         dest,
         &target_router,
-        &[specific_pda, default_pda],
+        &[specific_pda],
     );
     process_tx(&mut banks_client, &payer, ix, &[])
         .await
@@ -1630,14 +1550,13 @@ async fn test_cc_prune_one_router_preserves_other_router_quote() {
         encode_u48(5000000000),
     );
     let specific_pda_a = cc_route_pda_for(&fee_key, dest, &router_a);
-    let default_pda = cc_route_pda_for(&fee_key, dest, &DEFAULT_ROUTER);
     let ix = build_submit_standing_ix_with_routes(
         &fee_key,
         &payer.pubkey(),
         &sq_a,
         dest,
         &router_a,
-        &[specific_pda_a, default_pda],
+        &[specific_pda_a],
     );
     process_tx(banks_client, &payer, ix, &[]).await.unwrap();
 
@@ -1659,7 +1578,7 @@ async fn test_cc_prune_one_router_preserves_other_router_quote() {
         &sq_b,
         dest,
         &router_b,
-        &[specific_pda_b, default_pda],
+        &[specific_pda_b],
     );
     process_tx(banks_client, &payer, ix, &[]).await.unwrap();
 

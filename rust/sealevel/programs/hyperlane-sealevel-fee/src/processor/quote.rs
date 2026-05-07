@@ -16,9 +16,8 @@ use solana_program::{
 use crate::{
     accounts::{
         CcFeeQuoteContext, CrossCollateralRouteAccount, FeeAccountData, FeeData, FeeQuoteContext,
-        FeeStandingQuotePdaAccount, QuoteContext, RouteDomainAccount, StandingQuoteAuthScope,
-        TransientQuoteAccount, DEFAULT_ROUTER, TRANSIENT_QUOTE_DISCRIMINATOR, WILDCARD_DOMAIN,
-        WILDCARD_RECIPIENT,
+        FeeStandingQuotePdaAccount, QuoteContext, RouteDomainAccount, TransientQuoteAccount,
+        DEFAULT_ROUTER, TRANSIENT_QUOTE_DISCRIMINATOR, WILDCARD_DOMAIN, WILDCARD_RECIPIENT,
     },
     cc_route_pda_seeds,
     error::Error,
@@ -37,21 +36,22 @@ use super::common::verify_optional_pda_owner;
 /// Accounts:
 /// 0. `[]` Fee account.
 /// 1. `[writable]` Payer (for transient quote autoclose).
-/// 2. `[writable]` Transient quote PDA (optional — detected by TransientQuote discriminator, writable for autoclose).
+/// 2. `[writable]` Transient quote PDA (optional — disambiguated by key against
+///    the expected specific-scope domain-standing PDA, writable for autoclose).
 ///
-/// If transient PDA is present:
-///     3. `[]` Domain standing quote PDA (always present, may be uninitialized).
-///     4. `[]` Wildcard standing quote PDA (always present, may be uninitialized).
+/// Standing quote PDAs (Leaf/Routing):
+///   N+0. `[]` Specific-scope domain standing PDA at (destination, ZERO).
+///   N+1. `[]` Wildcard-domain standing PDA at (WILDCARD_DOMAIN, ZERO).
 ///
-/// If transient PDA is absent:
-///     2. `[]` Domain standing quote PDA.
-///     3. `[]` Wildcard standing quote PDA.
+/// Standing quote PDAs (CrossCollateralRouting):
+///   N+0. `[]` Specific-scope domain standing PDA at (destination, target_router).
+///   N+1. `[]` Default-scope domain standing PDA at (destination, DEFAULT_ROUTER).
+///   N+2. `[]` Wildcard-domain standing PDA at (WILDCARD_DOMAIN, target_router).
 ///
-/// For Routing mode, additionally:
-///   N+1. `[]` RouteDomain PDA for the destination.
-/// For CrossCollateralRouting mode, additionally:
-///   N+1. `[]` CC route PDA for (destination, target_router) — may be uninitialized.
-///   N+2. `[]` CC route PDA for (destination, DEFAULT_ROUTER) — may be uninitialized.
+/// Route PDAs:
+/// - Routing: 1 RouteDomain PDA at the destination.
+/// - CrossCollateralRouting: CC route PDA at (destination, target_router) +
+///   CC route PDA at (destination, DEFAULT_ROUTER) — both may be uninitialized.
 pub(super) fn process_quote_fee(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -89,30 +89,41 @@ pub(super) fn process_quote_fee(
         program_id,
     );
 
-    // Account 2: Either transient quote PDA or domain standing quote PDA.
+    // Account 2: Either transient quote PDA or specific-scope domain standing PDA.
     // Disambiguate by key, not discriminator: an uninitialized account has no
     // discriminator, so without a key check the layout becomes ambiguous. The
     // SDK always emits the transient slot when scoped_salt = Some(...) and omits
     // it otherwise — this contract is enforced here.
     let next_info = next_account_info(accounts_iter)?;
-    let (transient_info, domain_quotes_info, wildcard_quotes_info) =
+    let (transient_info, specific_domain_quotes_info) =
         if *next_info.key == expected_domain_standing_key {
-            // No transient slot. Slot 2 is the domain standing PDA.
-            let wildcard_quotes_info = next_account_info(accounts_iter)?;
-            (None, next_info, wildcard_quotes_info)
+            (None, next_info)
         } else {
-            // Caller declared a transient slot. The PDA must be initialized with
-            // the TransientQuote discriminator, otherwise the layout is invalid.
             if !is_initialized_transient_quote(next_info, program_id)? {
                 return Err(Error::InvalidTransientSlot.into());
             }
-            let domain_quotes_info = next_account_info(accounts_iter)?;
-            let wildcard_quotes_info = next_account_info(accounts_iter)?;
-            (Some(next_info), domain_quotes_info, wildcard_quotes_info)
+            let specific_domain_quotes_info = next_account_info(accounts_iter)?;
+            (Some(next_info), specific_domain_quotes_info)
         };
 
-    // Validate ownership of standing quote PDAs.
-    verify_optional_pda_owner(domain_quotes_info, program_id)?;
+    // CC mode also requires the default-scope domain standing PDA at
+    // (dest, DEFAULT_ROUTER). It is always present in the CC layout regardless
+    // of which scope is active; only the active scope's PDA is consulted at
+    // cascade time, mirroring the existing always-pass-both pattern used for
+    // cc_specific_route / cc_default_route.
+    let default_domain_quotes_info = match &fee_account.fee_data {
+        FeeData::CrossCollateralRouting(_) => Some(next_account_info(accounts_iter)?),
+        _ => None,
+    };
+
+    // Wildcard-domain standing PDA (shared across CC scopes when in CC mode).
+    let wildcard_quotes_info = next_account_info(accounts_iter)?;
+
+    // Validate ownership of all standing quote PDAs the layout requires.
+    verify_optional_pda_owner(specific_domain_quotes_info, program_id)?;
+    if let Some(default_info) = default_domain_quotes_info {
+        verify_optional_pda_owner(default_info, program_id)?;
+    }
     verify_optional_pda_owner(wildcard_quotes_info, program_id)?;
 
     // --- Resolve on-chain curve type (always needed) ---
@@ -191,22 +202,48 @@ pub(super) fn process_quote_fee(
         return Ok(());
     }
 
-    // Steps 2-3: Domain standing quote → wildcard domain standing quote.
-    for (pda_info, domain) in [
-        (domain_quotes_info, data.destination_domain),
-        (wildcard_quotes_info, WILDCARD_DOMAIN),
+    // Steps 2-3: domain standing quote → wildcard domain standing quote.
+    //
+    // CC scope isolation: only the active scope's domain PDA is consulted at
+    // cascade time (mirroring EVM's "pick one fee contract" dispatch). When
+    // specific is active, that's (dest, target_router); otherwise it's
+    // (dest, DEFAULT_ROUTER). The wildcard-domain PDA is shared and keyed by
+    // data.target_router for both scopes (signed by cc_wildcard_signers).
+    let (active_domain_quotes_info, active_domain_target_router) = match &fee_account.fee_data {
+        FeeData::CrossCollateralRouting(_) => {
+            if cc_specific_route_active {
+                (specific_domain_quotes_info, data.target_router)
+            } else {
+                let default_info =
+                    default_domain_quotes_info.ok_or(ProgramError::NotEnoughAccountKeys)?;
+                (default_info, DEFAULT_ROUTER)
+            }
+        }
+        _ => (specific_domain_quotes_info, hyperlane_core::H256::zero()),
+    };
+
+    for (pda_info, domain, target_router) in [
+        (
+            active_domain_quotes_info,
+            data.destination_domain,
+            active_domain_target_router,
+        ),
+        (
+            wildcard_quotes_info,
+            WILDCARD_DOMAIN,
+            standing_target_router,
+        ),
     ] {
         if let Some(fee) = try_resolve_standing_quote(
             program_id,
             pda_info,
             fee_account_info.key,
             domain,
-            standing_target_router,
+            target_router,
             &strategy,
             &data,
             fee_account.min_issued_at,
             &clock,
-            cc_specific_route_active,
         )? {
             set_return_data(&fee.to_le_bytes());
             msg!("QuoteFee (standing): {} for amount {}", fee, data.amount);
@@ -329,7 +366,6 @@ fn try_resolve_standing_quote(
     quote_fee_data: &QuoteFee,
     min_issued_at: i64,
     clock: &Clock,
-    cc_specific_route_active: bool,
 ) -> Result<Option<u64>, ProgramError> {
     // Re-derive PDA to prevent spoofing from a different fee account or domain.
     let domain_le = domain.to_le_bytes();
@@ -355,16 +391,6 @@ fn try_resolve_standing_quote(
     // Try exact recipient match first, then wildcard.
     for recipient_key in [quote_fee_data.recipient, WILDCARD_RECIPIENT] {
         if let Some(value) = standing.quotes.get(&recipient_key) {
-            // A CC exact-domain standing quote may have been authorized earlier via the
-            // DEFAULT_ROUTER fallback because no router-specific route existed yet. Once a
-            // specific route exists, that quote must no longer apply to the specific route's
-            // trust domain, even if the standing quote PDA key still matches.
-            if cc_specific_route_active
-                && value.auth_scope == StandingQuoteAuthScope::CcDefaultFallback
-            {
-                continue;
-            }
-
             if value.validate_quote(min_issued_at, clock).is_err() {
                 continue;
             }

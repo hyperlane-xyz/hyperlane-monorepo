@@ -4228,11 +4228,19 @@ async fn test_cc_remote_transfer_with_fee_cc_routing_mode() {
         &igp_program_id(),
     );
 
-    // CC standing quote PDAs use target_router in seeds.
-    let domain_standing_quote_pda = {
+    // CC standing quote PDAs: specific scope, default scope, and wildcard domain.
+    let specific_domain_standing_quote_pda = {
         let d = REMOTE_DOMAIN.to_le_bytes();
         Pubkey::find_program_address(
             fee_standing_quote_pda_seeds!(&fee_account_key, &d, &target_router),
+            &fp,
+        )
+        .0
+    };
+    let default_domain_standing_quote_pda = {
+        let d = REMOTE_DOMAIN.to_le_bytes();
+        Pubkey::find_program_address(
+            fee_standing_quote_pda_seeds!(&fee_account_key, &d, DEFAULT_ROUTER),
             &fp,
         )
         .0
@@ -4296,7 +4304,8 @@ async fn test_cc_remote_transfer_with_fee_cc_routing_mode() {
                     // Fee (CrossCollateralRouting: CC standing quotes + both CC route PDAs)
                     AccountMeta::new_readonly(fp, false),
                     AccountMeta::new_readonly(fee_account_key, false),
-                    AccountMeta::new_readonly(domain_standing_quote_pda, false),
+                    AccountMeta::new_readonly(specific_domain_standing_quote_pda, false),
+                    AccountMeta::new_readonly(default_domain_standing_quote_pda, false),
                     AccountMeta::new_readonly(wildcard_standing_quote_pda, false),
                     AccountMeta::new_readonly(cc_route_pda, false),
                     AccountMeta::new_readonly(cc_default_route_pda, false),
