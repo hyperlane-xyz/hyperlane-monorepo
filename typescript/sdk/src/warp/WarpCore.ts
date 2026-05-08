@@ -767,9 +767,7 @@ export class WarpCore {
     }
     const igpDenom = transferQuote.igpQuote.addressOrDenom;
     assert(
-      !igpDenom ||
-        isZeroishAddress(igpDenom) ||
-        originToken.protocol === ProtocolType.Sealevel,
+      !igpDenom || isZeroishAddress(igpDenom) || igpDenom === 'lamport',
       `CrossCollateralRouter transferRemoteTo requires native IGP fee; got ${igpDenom}`,
     );
     const tokenFeeAmount = transferQuote.tokenFeeQuote?.amount ?? 0n;

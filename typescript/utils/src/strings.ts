@@ -59,7 +59,7 @@ function isErrorWithContext(e: unknown): e is Error & ErrorWithContext {
  * Formats an error for display, including the cause chain and any Solana
  * program logs attached to preflight failure errors.
  */
-export function formatError(error: unknown): string {
+export function formatError(error: unknown, depth = 0): string {
   if (!(error instanceof Error)) return String(error);
 
   const parts: string[] = [error.message];
@@ -73,8 +73,8 @@ export function formatError(error: unknown): string {
     parts.push(`Logs:\n  ${error.context.logs.join('\n  ')}`);
   }
 
-  if (error.cause instanceof Error) {
-    parts.push(`Caused by: ${formatError(error.cause)}`);
+  if (error.cause != null && depth < 10) {
+    parts.push(`Caused by: ${formatError(error.cause, depth + 1)}`);
   }
 
   return parts.join('\n');
