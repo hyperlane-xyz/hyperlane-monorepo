@@ -37,6 +37,11 @@ export type { SvmMultisigIsmConfig as SealevelMultisigIsmConfig } from './ism/mu
 export { HYPERLANE_SVM_PROGRAM_BYTES } from './hyperlane/program-bytes.js';
 
 // Low-level instruction builders
+export {
+  getSetIgpMinIssuedAtInstruction,
+  getSetIgpQuoteConfigInstruction,
+  getSetIgpQuoteSignerInstruction,
+} from './instructions/igp.js';
 export { getTransferOwnershipInstruction as getMultisigIsmTransferOwnershipInstruction } from './instructions/multisig-ism-message-id.js';
 export { getSetUpgradeAuthorityInstruction } from './instructions/loader.js';
 export { buildSetDefaultIsmInstruction } from './core/mailbox-tx.js';

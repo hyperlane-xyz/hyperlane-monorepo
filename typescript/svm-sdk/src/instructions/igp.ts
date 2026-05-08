@@ -15,7 +15,24 @@ import {
   getU64Codec,
 } from '@solana/kit';
 
-import { concatBytes, option, u8, vec } from '../codecs/binary.js';
+import {
+  ByteCursor,
+  concatBytes,
+  i64le,
+  option,
+  u8,
+  vec,
+} from '../codecs/binary.js';
+import {
+  decodeSetQuoteSignerOperation,
+  encodeSetQuoteSignerOperation,
+  type SetQuoteSignerOp,
+} from '../codecs/fee.js';
+import {
+  decodeIgpFeeConfig,
+  encodeIgpFeeConfig,
+  type IgpFeeConfig,
+} from '../codecs/igp.js';
 import {
   encodeGasOracleConfig,
   encodeGasOverheadConfig,
@@ -49,6 +66,9 @@ export enum IgpInstructionKind {
   SetDestinationGasOverheads = 8,
   SetGasOracleConfigs = 9,
   Claim = 10,
+  SetIgpQuoteConfig = 11,
+  SetIgpQuoteSigner = 12,
+  SetIgpMinIssuedAt = 13,
 }
 
 export interface InitIgpData {
@@ -78,7 +98,10 @@ export type IgpProgramInstructionData =
   | { kind: 'setIgpBeneficiary'; beneficiary: Address }
   | { kind: 'setDestinationGasOverheads'; configs: GasOverheadConfig[] }
   | { kind: 'setGasOracleConfigs'; configs: GasOracleConfig[] }
-  | { kind: 'claim' };
+  | { kind: 'claim' }
+  | { kind: 'setIgpQuoteConfig'; config: IgpFeeConfig | null }
+  | { kind: 'setIgpQuoteSigner'; operation: SetQuoteSignerOp; signer: string }
+  | { kind: 'setIgpMinIssuedAt'; minIssuedAt: bigint };
 
 const BYTES32_CODEC = fixCodecSize(getBytesCodec(), 32);
 const ADDRESS_CODEC = getAddressCodec();
@@ -163,6 +186,24 @@ export function encodeIgpProgramInstruction(
       );
     case 'claim':
       return u8(IgpInstructionKind.Claim);
+    case 'setIgpQuoteConfig':
+      return concatBytes(
+        u8(IgpInstructionKind.SetIgpQuoteConfig),
+        option(instruction.config, (cfg) => encodeIgpFeeConfig(cfg)),
+      );
+    case 'setIgpQuoteSigner':
+      return concatBytes(
+        u8(IgpInstructionKind.SetIgpQuoteSigner),
+        encodeSetQuoteSignerOperation(
+          instruction.operation,
+          instruction.signer,
+        ),
+      );
+    case 'setIgpMinIssuedAt':
+      return concatBytes(
+        u8(IgpInstructionKind.SetIgpMinIssuedAt),
+        i64le(instruction.minIssuedAt),
+      );
   }
 }
 
@@ -188,6 +229,29 @@ export function decodeIgpProgramInstruction(
           gasAmount: decoded.gasAmount,
         },
       };
+    }
+    case IgpInstructionKind.SetIgpQuoteConfig: {
+      const cursor = new ByteCursor(payload);
+      const tag = cursor.readU8();
+      if (tag === 0) {
+        return { kind: 'setIgpQuoteConfig', config: null };
+      }
+      if (tag !== 1) {
+        throw new Error(`Invalid SetIgpQuoteConfig option tag: ${tag}`);
+      }
+      return {
+        kind: 'setIgpQuoteConfig',
+        config: decodeIgpFeeConfig(cursor),
+      };
+    }
+    case IgpInstructionKind.SetIgpQuoteSigner: {
+      const cursor = new ByteCursor(payload);
+      const { operation, signer } = decodeSetQuoteSignerOperation(cursor);
+      return { kind: 'setIgpQuoteSigner', operation, signer };
+    }
+    case IgpInstructionKind.SetIgpMinIssuedAt: {
+      const cursor = new ByteCursor(payload);
+      return { kind: 'setIgpMinIssuedAt', minIssuedAt: cursor.readI64LE() };
     }
     default:
       if (kind <= IgpInstructionKind.Claim) {
@@ -316,5 +380,61 @@ export async function getSetDestinationGasOverheadsInstruction(
       kind: 'setDestinationGasOverheads',
       configs,
     }),
+  );
+}
+
+export async function getSetIgpQuoteConfigInstruction(
+  programAddress: Address,
+  owner: Address,
+  igpAccount: Address,
+  config: IgpFeeConfig | null,
+): Promise<Instruction> {
+  return buildInstruction(
+    programAddress,
+    [
+      readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
+      writableAccount(igpAccount),
+      writableSignerAddress(owner),
+    ],
+    encodeIgpProgramInstruction({ kind: 'setIgpQuoteConfig', config }),
+  );
+}
+
+export async function getSetIgpQuoteSignerInstruction(
+  programAddress: Address,
+  owner: Address,
+  igpAccount: Address,
+  operation: SetQuoteSignerOp,
+  signer: string,
+): Promise<Instruction> {
+  return buildInstruction(
+    programAddress,
+    [
+      readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
+      writableAccount(igpAccount),
+      writableSignerAddress(owner),
+    ],
+    encodeIgpProgramInstruction({
+      kind: 'setIgpQuoteSigner',
+      operation,
+      signer,
+    }),
+  );
+}
+
+export async function getSetIgpMinIssuedAtInstruction(
+  programAddress: Address,
+  owner: Address,
+  igpAccount: Address,
+  minIssuedAt: bigint,
+): Promise<Instruction> {
+  return buildInstruction(
+    programAddress,
+    [
+      readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
+      writableAccount(igpAccount),
+      writableSignerAddress(owner),
+    ],
+    encodeIgpProgramInstruction({ kind: 'setIgpMinIssuedAt', minIssuedAt }),
   );
 }
