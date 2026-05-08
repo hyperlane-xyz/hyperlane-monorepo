@@ -1,20 +1,20 @@
 /**
- * Verifies the six MCR Iron autoramps for `CROSS/moonpay` against the
- * registry. Per-lane checks:
+ * Verifies Iron autoramps for `CROSS/moonpay` (USDC + USDT iron bridges)
+ * against the registry. Per-lane checks:
  *
  *   A. iron.deposit_account.address
  *      == ctusd-ironbridge.<src>.destinationConfigs.<dst>.<routerKey>.depositAddress
  *   B. iron.recipient.address
  *      == decode(routerKey)        // bytes32 -> 20-byte EVM address
  *   C. iron.recipient.address
- *      == USDC/moonpay token where chainName=<dst>
+ *      == warp-route token where chainName=<dst>
  *
- * Source of truth:
- *   - `deployments/warp_routes/USDC/moonpay-config.yaml` (router addresses)
- *   - `deployments/warp_routes/CROSS/ctusd-ironbridge-deploy.yaml`
- *     (depositAddress + bytes32-encoded destination router keys)
- * Both read via `getRegistry()` from the local registry checkout —
- * `<monorepo>/../../hyperlane-registry`. No RPC, no GitHub fetch.
+ * USDC iron bridge (6 lanes): USDC/moonpay as router source of truth.
+ * USDT iron bridge (2 lanes): merges USDC/moonpay (citrea router) +
+ *   USDT/moonpay (ethereum router) as router source of truth.
+ *
+ * Source of truth files read via `getRegistry()` from the local registry
+ * checkout — `<monorepo>/../../hyperlane-registry`. No RPC, no GitHub fetch.
  *
  * Required env: IRON_API_KEY
  */
@@ -24,8 +24,6 @@
 // real environment when there's no `.env`.
 import 'dotenv/config';
 
-import yargs from 'yargs';
-
 import type { WarpCoreConfig, WarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
 import { bytes32ToAddress, eqAddress } from '@hyperlane-xyz/utils';
 
@@ -33,22 +31,27 @@ import { getRegistry } from '../../config/registry.js';
 
 const IRON_API_BASE = 'https://api.iron.xyz/api';
 
-const DEFAULT_WARP_ROUTE_ID = 'USDC/moonpay';
-const DEFAULT_IRONBRIDGE_ROUTE_ID = 'CROSS/ctusd-ironbridge';
-
-// The six MCR autoramps for `CROSS/moonpay` (arb / base / ethereum USDC ↔
-// citrea ctUSD). Hardcoded rather than discovered via Iron's listing
-// endpoint so the script's expected scope is explicit + grepable.
+// The six MCR autoramps for the USDC iron bridge (arb / base / ethereum USDC ↔
+// citrea ctUSD). Hardcoded rather than discovered via Iron's listing endpoint
+// so the script's expected scope is explicit + grepable.
 // Inventory autoramps (sol XO ↔ EVM USDC) are intentionally NOT in this
 // list — they have a different recipient (operator inventory wallet, not
 // a warp router) and are out of scope for this verifier.
-const MOONPAY_MCR_AUTORAMP_IDS = [
+const USDC_IRONBRIDGE_AUTORAMP_IDS = [
   '019e02ea-d0b9-7967-8475-3249a4990204', // Mint   arbitrum USDC -> citrea ctUSD
   '019e02ec-6416-7331-bd86-f01bc4309770', // Mint   base USDC     -> citrea ctUSD
   '019e02ec-d5b3-771e-9318-c692c0047064', // Mint   ethereum USDC -> citrea ctUSD
   '019e02ed-a694-753f-b848-7f40da70e5fc', // Redeem citrea ctUSD  -> arbitrum USDC
   '019e02ee-60c3-72e2-a75a-70666c6224b3', // Redeem citrea ctUSD  -> base USDC
   '019e02ee-f696-78fe-9d79-6165e010fa09', // Redeem citrea ctUSD  -> ethereum USDC
+];
+
+// The two MCR autoramps for the USDT iron bridge (ethereum USDT ↔ citrea ctUSD).
+// Recipient for eth->citrea is the citrea router in USDC/moonpay; recipient for
+// citrea->eth is the ethereum router in USDT/moonpay.
+const USDT_IRONBRIDGE_AUTORAMP_IDS = [
+  '019e0749-766f-7149-b1ed-e3904b9e2bbe', // Mint   ethereum USDT -> citrea ctUSD
+  '019e0762-ea8e-72b3-a2ee-70eaa6faaa5f', // Redeem citrea ctUSD  -> ethereum USDT
 ];
 
 // Iron API → registry chain-name normalisation. Iron returns capitalised
@@ -104,23 +107,25 @@ interface RegistryArtifacts {
 }
 
 async function loadRegistryArtifacts(
-  warpRouteId: string,
+  warpRouteIds: string[],
   ironbridgeRouteId: string,
 ): Promise<RegistryArtifacts> {
   const registry = getRegistry();
-
-  const moonpay = (await registry.getWarpRoute(
-    warpRouteId,
-  )) as WarpCoreConfig | null;
-  if (!moonpay) {
-    throw new Error(
-      `Could not resolve warp route '${warpRouteId}' from registry at ${registry.getUri()}. ` +
-        `Make sure the registry checkout is on the moonpay branch.`,
-    );
-  }
   const moonpayRouterByChain = new Map<string, string>();
-  for (const token of moonpay.tokens) {
-    moonpayRouterByChain.set(token.chainName, token.addressOrDenom!);
+
+  for (const warpRouteId of warpRouteIds) {
+    const route = (await registry.getWarpRoute(
+      warpRouteId,
+    )) as WarpCoreConfig | null;
+    if (!route) {
+      throw new Error(
+        `Could not resolve warp route '${warpRouteId}' from registry at ${registry.getUri()}. ` +
+          `Make sure the registry checkout is on the moonpay branch.`,
+      );
+    }
+    for (const token of route.tokens) {
+      moonpayRouterByChain.set(token.chainName, token.addressOrDenom!);
+    }
   }
 
   const ironbridgeDeploy = (await registry.getWarpDeployConfig(
@@ -278,22 +283,6 @@ function printTable(rows: LaneCheck[]): void {
 }
 
 async function main(): Promise<void> {
-  const argv = await yargs(process.argv.slice(2))
-    .option('warp-route-id', {
-      type: 'string',
-      default: DEFAULT_WARP_ROUTE_ID,
-      describe:
-        'Registry warp route ID providing destination router addresses.',
-    })
-    .option('ironbridge-route-id', {
-      type: 'string',
-      default: DEFAULT_IRONBRIDGE_ROUTE_ID,
-      describe:
-        'Registry warp deploy ID providing TBA destinationConfigs (depositAddress + router keys).',
-    })
-    .strict()
-    .parseAsync();
-
   const ironApiKey = process.env.IRON_API_KEY;
   if (!ironApiKey) {
     console.error('IRON_API_KEY env var is required.');
@@ -302,21 +291,41 @@ async function main(): Promise<void> {
 
   // Load registry artifacts BEFORE hitting Iron — fails fast on a wrong
   // registry checkout / branch.
-  const artifacts = await loadRegistryArtifacts(
-    argv.warpRouteId,
-    argv.ironbridgeRouteId,
+  const usdcArtifacts = await loadRegistryArtifacts(
+    ['USDC/moonpay'],
+    'CROSS/ctusd-usdc-ironbridge',
+  );
+  // USDT iron bridge recipients span two routes: citrea router lives in
+  // USDC/moonpay; ethereum router lives in USDT/moonpay.
+  const usdtArtifacts = await loadRegistryArtifacts(
+    ['USDC/moonpay', 'USDT/moonpay'],
+    'CROSS/ctusd-usdt-ironbridge',
   );
 
   const checks: LaneCheck[] = [];
-  for (const id of MOONPAY_MCR_AUTORAMP_IDS) {
+
+  console.log('=== USDC iron bridge ===');
+  for (const id of USDC_IRONBRIDGE_AUTORAMP_IDS) {
     const autoramp = await ironRequest<IronAutoramp>(
       `/autoramps/${id}`,
       ironApiKey,
     );
-    checks.push(verifyLane(autoramp, artifacts));
+    checks.push(verifyLane(autoramp, usdcArtifacts));
   }
+  printTable(checks.slice(0, USDC_IRONBRIDGE_AUTORAMP_IDS.length));
 
-  printTable(checks);
+  console.log('');
+  console.log('=== USDT iron bridge ===');
+  const usdtChecks: LaneCheck[] = [];
+  for (const id of USDT_IRONBRIDGE_AUTORAMP_IDS) {
+    const autoramp = await ironRequest<IronAutoramp>(
+      `/autoramps/${id}`,
+      ironApiKey,
+    );
+    usdtChecks.push(verifyLane(autoramp, usdtArtifacts));
+  }
+  checks.push(...usdtChecks);
+  printTable(usdtChecks);
 
   const failed = checks.filter((c) => c.failures.length > 0);
   if (failed.length > 0) {

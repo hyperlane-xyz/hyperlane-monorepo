@@ -5,25 +5,30 @@ registry's source-of-truth YAMLs.
 
 ## `verify-moonpay-autoramps.ts`
 
-Verifies the six MCR Iron autoramps for `CROSS/moonpay`
-(arb / base / ethereum USDC ↔ citrea ctUSD) against the registry.
+Verifies the eight MCR Iron autoramps for `CROSS/moonpay` against the
+registry — six for the USDC iron bridge (arb / base / ethereum USDC ↔
+citrea ctUSD) and two for the USDT iron bridge (ethereum USDT ↔ citrea
+ctUSD).
 
 Per autoramp, the script confirms:
 
 1. **Recipient is the right warp router.** Iron's `recipient.address`
-   equals the destination chain's router address in
-   `deployments/warp_routes/USDC/moonpay-config.yaml`.
+   equals the destination chain's router address in the relevant
+   moonpay config yaml (`USDC/moonpay` for USDC + citrea legs;
+   `USDT/moonpay` for the ethereum USDT leg).
 2. **Deposit address is the right TBA pre-image.** Iron's
    `deposit_account.address` equals the `depositAddress` declared for
-   that (origin, destination, recipient-router) tuple in
-   `deployments/warp_routes/CROSS/ctusd-ironbridge-deploy.yaml`.
+   that (origin, destination, recipient-router) tuple in the ironbridge
+   deploy yaml (`CROSS/ctusd-usdc-ironbridge` or
+   `CROSS/ctusd-usdt-ironbridge`).
 3. **Bytes32 router key matches the moonpay router** (sanity check on
    the destination encoding inside the ironbridge deploy doc).
 
-Both registry artifacts are read via `getRegistry()` from the local
+All registry artifacts are read via `getRegistry()` from the local
 checkout — no GitHub fetch, no on-chain RPC. The registry needs to be
-on a branch where both `USDC/moonpay` and `CROSS/ctusd-ironbridge` are
-present (e.g. `feat/moonpay-deployment`).
+on a branch where `USDC/moonpay`, `USDT/moonpay`,
+`CROSS/ctusd-usdc-ironbridge`, and `CROSS/ctusd-usdt-ironbridge` are
+all present.
 
 The script exits 0 when every lane passes, exits 1 on any mismatch.
 
@@ -47,14 +52,13 @@ IRON_API_KEY=<your-iron-key> pnpm verify:iron-moonpay
 
 ### Flags
 
-| Flag                    | Default                  | Notes                                                               |
-| ----------------------- | ------------------------ | ------------------------------------------------------------------- |
-| `--warp-route-id`       | `USDC/moonpay`           | Registry warp route used as source of truth for routers.            |
-| `--ironbridge-route-id` | `CROSS/ctusd-ironbridge` | Registry warp deploy used as source of truth for deposit addresses. |
+| Flag | Default | Notes |
+| ---- | ------- | ----- |
 
-The set of MCR autoramp IDs is hardcoded in the script
-(`MOONPAY_MCR_AUTORAMP_IDS`); changing the set is a code change, not a
-CLI flag.
+There are no CLI flags. Both the USDC and USDT iron bridge autoramp sets
+are verified unconditionally. The autoramp IDs are hardcoded in the script
+(`USDC_IRONBRIDGE_AUTORAMP_IDS`, `USDT_IRONBRIDGE_AUTORAMP_IDS`);
+adding new lanes is a code change.
 
 ### Output
 
