@@ -1,4 +1,8 @@
-import { type Address, getAddressDecoder } from '@solana/kit';
+import {
+  type Address,
+  getAddressDecoder,
+  getAddressEncoder,
+} from '@solana/kit';
 
 import {
   ascii8,
@@ -6,8 +10,17 @@ import {
   decodeDiscriminatorPrefixed,
   readAddress,
 } from './account-data.js';
-import { type ByteCursor, concatBytes, i64le, u32le } from './binary.js';
+import {
+  type ByteCursor,
+  concatBytes,
+  ensureLength,
+  i64le,
+  option,
+  u32le,
+} from './binary.js';
 import { decodeBTreeSetH160, encodeBTreeSetH160 } from './fee.js';
+
+const addressEncoder = getAddressEncoder();
 
 /**
  * Off-chain quoting configuration on an IGP account.
@@ -147,4 +160,49 @@ export function decodeIgpTransientQuoteAccount(
     ),
   );
   return wrapped.data;
+}
+
+// ====== GetIgpQuoteAccountMetas input ======
+
+const SCOPED_SALT_LEN = 32;
+
+/** Input data for the simulation-only `GetIgpQuoteAccountMetas` instruction. */
+export interface GetIgpQuoteAccountMetasInput {
+  destinationDomain: number;
+  /** Warp route program ID (`quoted_sender` on-chain). */
+  sender: Address;
+  /** When set, queries the transient-quote PDA for this scoped salt. */
+  scopedSalt?: Uint8Array;
+}
+
+export function encodeGetIgpQuoteAccountMetasInput(
+  input: GetIgpQuoteAccountMetasInput,
+): Uint8Array {
+  if (input.scopedSalt !== undefined) {
+    ensureLength(input.scopedSalt, SCOPED_SALT_LEN, 'scopedSalt');
+  }
+  return Uint8Array.from(
+    concatBytes(
+      u32le(input.destinationDomain),
+      addressEncoder.encode(input.sender),
+      option(input.scopedSalt ?? null, (salt) => salt),
+    ),
+  );
+}
+
+export function decodeGetIgpQuoteAccountMetasInput(
+  cursor: ByteCursor,
+): GetIgpQuoteAccountMetasInput {
+  const destinationDomain = cursor.readU32LE();
+  const sender = readAddress(cursor);
+  const tag = cursor.readU8();
+  if (tag === 0) return { destinationDomain, sender };
+  if (tag !== 1) {
+    throw new Error(`Invalid scopedSalt option tag: ${tag}`);
+  }
+  return {
+    destinationDomain,
+    sender,
+    scopedSalt: cursor.readBytes(SCOPED_SALT_LEN),
+  };
 }

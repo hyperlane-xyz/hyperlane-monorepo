@@ -135,7 +135,9 @@ export {
   WILDCARD_DOMAIN,
   WILDCARD_SENDER,
 } from './codecs/igp.js';
+export type { SvmSignedQuote } from './codecs/fee.js';
 export type {
+  GetIgpQuoteAccountMetasInput,
   IgpFeeConfig,
   IgpStandingQuoteData,
   IgpTransientQuoteData,

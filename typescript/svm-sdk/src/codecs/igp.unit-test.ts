@@ -15,10 +15,13 @@ import {
 } from '../pda.js';
 
 import { ascii8 } from './account-data.js';
-import { concatBytes, i64le, u128le, u32le } from './binary.js';
+import { ByteCursor, concatBytes, i64le, u128le, u32le } from './binary.js';
 import {
+  decodeGetIgpQuoteAccountMetasInput,
   decodeIgpStandingQuoteAccount,
   decodeIgpTransientQuoteAccount,
+  encodeGetIgpQuoteAccountMetasInput,
+  type GetIgpQuoteAccountMetasInput,
   type IgpStandingQuoteData,
   type IgpTransientQuoteData,
   WILDCARD_DOMAIN,
@@ -202,5 +205,53 @@ describe('IGP standing/transient quote decoders', () => {
     expect(() => decodeIgpStandingQuoteAccount(raw)).to.throw(
       /Invalid discriminator/,
     );
+  });
+});
+
+describe('GetIgpQuoteAccountMetasInput codec', () => {
+  it('round-trips with scopedSalt', () => {
+    const original: GetIgpQuoteAccountMetasInput = {
+      destinationDomain: 137,
+      sender: SENDER_A,
+      scopedSalt: new Uint8Array(32).fill(9),
+    };
+    const decoded = decodeGetIgpQuoteAccountMetasInput(
+      new ByteCursor(encodeGetIgpQuoteAccountMetasInput(original)),
+    );
+    expect(decoded).to.eql(original);
+  });
+
+  it('round-trips without scopedSalt (Option None)', () => {
+    const original: GetIgpQuoteAccountMetasInput = {
+      destinationDomain: 1,
+      sender: SENDER_A,
+    };
+    const decoded = decodeGetIgpQuoteAccountMetasInput(
+      new ByteCursor(encodeGetIgpQuoteAccountMetasInput(original)),
+    );
+    expect(decoded).to.eql(original);
+  });
+
+  it('encoder rejects non-32-byte scopedSalt', () => {
+    expect(() =>
+      encodeGetIgpQuoteAccountMetasInput({
+        destinationDomain: 1,
+        sender: SENDER_A,
+        scopedSalt: new Uint8Array(31),
+      }),
+    ).to.throw(/scopedSalt must be 32 bytes/);
+  });
+
+  it('decoder throws on invalid scopedSalt option tag', () => {
+    const bytes = Uint8Array.from(
+      concatBytes(
+        u32le(1),
+        addressEncoder.encode(SENDER_A),
+        new Uint8Array([2]),
+      ),
+    );
+    expect(() =>
+      decodeGetIgpQuoteAccountMetasInput(new ByteCursor(bytes)),
+    ).to.throw(/Invalid scopedSalt option tag/);
   });
 });
