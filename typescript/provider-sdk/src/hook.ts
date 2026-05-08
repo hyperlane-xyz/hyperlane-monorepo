@@ -127,6 +127,7 @@ export interface IgpHookConfig {
     }
   >;
   contractVersion?: string;
+  quoteSigners?: string[];
 }
 
 export interface HookArtifactConfigs {

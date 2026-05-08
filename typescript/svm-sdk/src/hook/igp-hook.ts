@@ -127,12 +127,14 @@ export class SvmIgpHookReader implements ArtifactReader<
         overhead,
         oracleConfig,
         contractVersion: contractVersion ?? undefined,
+        quoteSigners: igp.feeConfig?.signers,
       },
       deployed: {
         address: programId,
         programId,
         igpPda,
         overheadIgpPda: overheadIgp ? overheadIgpPda : undefined,
+        feeConfig: igp.feeConfig,
       },
     };
   }
