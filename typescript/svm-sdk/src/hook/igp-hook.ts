@@ -17,6 +17,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import type { GasOracleConfig, GasOverheadConfig } from '../codecs/shared.js';
+import { prepareProgramUpgrade } from '../deploy/program-upgrade.js';
 import { resolveProgram } from '../deploy/resolve-program.js';
 import {
   getInitIgpInstruction,
@@ -27,17 +28,19 @@ import {
 } from '../instructions/igp.js';
 import { deriveIgpAccountPda, deriveOverheadIgpAccountPda } from '../pda.js';
 import type { SvmSigner } from '../clients/signer.js';
-import type {
-  AnnotatedSvmTransaction,
-  SvmDeployedIgpHook,
-  SvmProgramTarget,
-  SvmReceipt,
-  SvmRpc,
+import {
+  hasProgramBytes,
+  type AnnotatedSvmTransaction,
+  type SvmDeployedIgpHook,
+  type SvmProgramTarget,
+  type SvmReceipt,
+  type SvmRpc,
 } from '../types.js';
 
 import {
   fetchIgpAccount,
   fetchIgpProgramData,
+  fetchIgpProgramVersion,
   fetchOverheadIgpAccount,
   remoteGasDataToConfig,
 } from './hook-query.js';
@@ -100,6 +103,12 @@ export class SvmIgpHookReader implements ArtifactReader<
     const owner = igp.owner;
     const beneficiary = igp.beneficiary;
 
+    const contractVersion = await fetchIgpProgramVersion(
+      this.rpc,
+      programId,
+      owner ?? null,
+    );
+
     const { address: igpPda } = await deriveIgpAccountPda(programId, this.salt);
     const { address: overheadIgpPda } = await deriveOverheadIgpAccountPda(
       programId,
@@ -117,6 +126,7 @@ export class SvmIgpHookReader implements ArtifactReader<
         oracleKey: owner ?? ZERO_ADDRESS_HEX_32,
         overhead,
         oracleConfig,
+        contractVersion: contractVersion ?? undefined,
       },
       deployed: {
         address: programId,
@@ -317,6 +327,20 @@ export class SvmIgpHookWriter
     );
     const ownerAddress = parseAddress(current.config.owner);
     const igpPda = current.deployed.igpPda;
+
+    if (hasProgramBytes(this.config.program)) {
+      const upgradeResult = await prepareProgramUpgrade(
+        programId,
+        current.config.contractVersion,
+        config.contractVersion,
+        this.config.program.programBytes,
+        this.svmSigner,
+        this.rpc,
+        `igp ${programId}`,
+      );
+
+      txs.push(...(upgradeResult?.authorityTransactions ?? []));
+    }
 
     const oracleConfigsToUpdate: GasOracleConfig[] = [];
     for (const [domainStr, oracleData] of Object.entries(config.oracleConfig)) {
