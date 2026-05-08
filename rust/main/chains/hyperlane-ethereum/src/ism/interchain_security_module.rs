@@ -114,78 +114,6 @@ const RANDOM_ADDRESS: H160 = H160([
 // cycles or pathological on-chain configurations.
 const MAX_ISM_ROUTING_DEPTH: usize = 10;
 
-impl<M> EthereumInterchainSecurityModule<M>
-where
-    M: Middleware + 'static,
-{
-    async fn dry_run_verify_inner(
-        &self,
-        message: &HyperlaneMessage,
-        metadata: &Metadata,
-        routing_depth: usize,
-    ) -> ChainResult<Option<U256>> {
-        let mut tx = self.contract.verify(
-            metadata.to_owned().into(),
-            RawHyperlaneMessage::from(message).to_vec().into(),
-        );
-        if self.domain.is_zksync_stack() {
-            // We use a random from address to ensure compatibility with zksync,
-            // but intentionally do not set this for other chains which may have assumptions
-            // around the presence of funds in the from address (which defaults to address(0)).
-            // Context here: https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/4585
-            tx = tx.from(RANDOM_ADDRESS);
-        }
-        let (verifies, gas_estimate) = try_join(tx.call(), tx.estimate_gas()).await?;
-        if verifies {
-            return Ok(Some(gas_estimate.into()));
-        }
-        let module_type = self.module_type().await?;
-        // For Null-typed ISMs (e.g. TrustedRelayerIsm), verify() returns false
-        // during a dry run because it depends on mailbox state set during process().
-        // If we are the configured trusted relayer, include it with gas=0.
-        if module_type == ModuleType::Null {
-            if let Some(sender) = self.contract.client().default_sender() {
-                let tr = ITrustedRelayerIsm::new(self.contract.address(), self.contract.client());
-                if let Ok(trusted_relayer) = tr.trusted_relayer().call().await {
-                    if trusted_relayer == sender {
-                        return Ok(Some(U256::zero()));
-                    }
-                }
-            }
-        }
-        // For Routing ISMs (e.g. AmountRoutingIsm), verify() always returns false during a dry
-        // run because the sub-ISM is not directly called. Route the message to the appropriate
-        // sub-ISM and recurse so that e.g. a TrustedRelayerIsm sub-ISM can be discovered.
-        if module_type == ModuleType::Routing {
-            if routing_depth >= MAX_ISM_ROUTING_DEPTH {
-                warn!(
-                    routing_depth,
-                    "Max ISM routing depth reached in dry_run_verify"
-                );
-                return Ok(None);
-            }
-            let routing = IRoutingIsm::new(self.contract.address(), self.contract.client());
-            let raw_message: ethers::types::Bytes =
-                RawHyperlaneMessage::from(message).to_vec().into();
-            if let Ok(routed_address) = routing.route(raw_message).call().await {
-                let locator = ContractLocator {
-                    domain: &self.domain,
-                    address: routed_address.into(),
-                };
-                let routed_ism =
-                    EthereumInterchainSecurityModule::new(self.contract.client(), &locator);
-                if let Ok(result) = routed_ism
-                    .dry_run_verify_inner(message, metadata, routing_depth + 1)
-                    .await
-                {
-                    return Ok(result);
-                }
-            }
-        }
-        Ok(None)
-    }
-}
-
 #[async_trait]
 impl<M> InterchainSecurityModule for EthereumInterchainSecurityModule<M>
 where
@@ -208,7 +136,71 @@ where
         message: &HyperlaneMessage,
         metadata: &Metadata,
     ) -> ChainResult<Option<U256>> {
-        self.dry_run_verify_inner(message, metadata, 0).await
+        let mut current_address = self.contract.address();
+
+        for _ in 0..=MAX_ISM_ROUTING_DEPTH {
+            let locator = ContractLocator {
+                domain: &self.domain,
+                address: current_address.into(),
+            };
+            let ism = EthereumInterchainSecurityModule::new(self.contract.client(), &locator);
+
+            let mut tx = ism.contract.verify(
+                metadata.to_owned().into(),
+                RawHyperlaneMessage::from(message).to_vec().into(),
+            );
+            if self.domain.is_zksync_stack() {
+                // We use a random from address to ensure compatibility with zksync,
+                // but intentionally do not set this for other chains which may have assumptions
+                // around the presence of funds in the from address (which defaults to address(0)).
+                // Context here: https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/4585
+                tx = tx.from(RANDOM_ADDRESS);
+            }
+            let (verifies, gas_estimate) = try_join(tx.call(), tx.estimate_gas()).await?;
+            if verifies {
+                return Ok(Some(gas_estimate.into()));
+            }
+
+            let module_type = ism.module_type().await?;
+            // For Null-typed ISMs (e.g. TrustedRelayerIsm), verify() returns false
+            // during a dry run because it depends on mailbox state set during process().
+            // If we are the configured trusted relayer, include it with gas=0.
+            if module_type == ModuleType::Null {
+                if let Some(sender) = ism.contract.client().default_sender() {
+                    let tr = ITrustedRelayerIsm::new(ism.contract.address(), ism.contract.client());
+                    if let Ok(trusted_relayer) = tr.trusted_relayer().call().await {
+                        if trusted_relayer == sender {
+                            return Ok(Some(U256::zero()));
+                        }
+                    }
+                }
+            }
+
+            // If verify() returned false above, the routed sub-ISM may be a Null/TrustedRelayer ISM
+            // whose verify depends on mailbox state set during process(). Iterate to discover it.
+            if module_type == ModuleType::Routing {
+                let routing = IRoutingIsm::new(ism.contract.address(), ism.contract.client());
+                let raw_message: ethers::types::Bytes =
+                    RawHyperlaneMessage::from(message).to_vec().into();
+                match routing.route(raw_message).call().await {
+                    Ok(routed_address) => {
+                        current_address = routed_address;
+                        continue;
+                    }
+                    Err(err) => {
+                        warn!(?err, ism = %ism.contract.address(), "routing ISM dry-run failed");
+                    }
+                }
+            }
+
+            return Ok(None);
+        }
+
+        warn!(
+            max_depth = MAX_ISM_ROUTING_DEPTH,
+            "Max ISM routing depth reached in dry_run_verify"
+        );
+        Ok(None)
     }
 }
 
