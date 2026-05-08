@@ -21,6 +21,7 @@ use crate::interfaces::i_interchain_security_module::{
     IInterchainSecurityModule as EthereumInterchainSecurityModuleInternal,
     IINTERCHAINSECURITYMODULE_ABI,
 };
+use crate::interfaces::i_rate_limited_ism::IRateLimitedIsm;
 use crate::interfaces::i_routing_ism::IRoutingIsm;
 use crate::interfaces::i_trusted_relayer_ism::ITrustedRelayerIsm;
 use crate::{BuildableWithProvider, ConnectionConf, EthereumProvider};
@@ -156,20 +157,60 @@ where
                 // Context here: https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/4585
                 tx = tx.from(RANDOM_ADDRESS);
             }
-            let (verifies, gas_estimate) = try_join(tx.call(), tx.estimate_gas()).await?;
-            if verifies {
-                return Ok(Some(gas_estimate.into()));
+            match try_join(tx.call(), tx.estimate_gas()).await {
+                Ok((true, gas_estimate)) => return Ok(Some(gas_estimate.into())),
+                Ok((false, _)) => {}
+                Err(err) => {
+                    tracing::debug!(
+                        ?err,
+                        "verify() dry-run failed; falling through to Null-ISM checks"
+                    );
+                }
             }
 
             let module_type = ism.module_type().await?;
-            // For Null-typed ISMs (e.g. TrustedRelayerIsm), verify() returns false
-            // during a dry run because it depends on mailbox state set during process().
-            // If we are the configured trusted relayer, include it with gas=0.
+            // For Null-typed ISMs (e.g. TrustedRelayerIsm, RateLimitedIsm), verify()
+            // returns false or reverts during a dry run because the simulation skips
+            // the EFFECTS performed by Mailbox.process() (e.g. _isDelivered) before
+            // verify() runs on-chain.
             if module_type == ModuleType::Null {
+                // TrustedRelayerIsm: verify() returns false if sender != trusted relayer.
                 if let Some(sender) = ism.contract.client().default_sender() {
                     let tr = ITrustedRelayerIsm::new(ism.contract.address(), ism.contract.client());
                     if let Ok(trusted_relayer) = tr.trusted_relayer().call().await {
                         if trusted_relayer == sender {
+                            return Ok(Some(U256::zero()));
+                        }
+                    }
+                }
+                // RateLimitedIsm: verify() reverts because the mailbox sets delivery
+                // state before calling verify() on-chain, but simulation skips that.
+                let rate_limited =
+                    IRateLimitedIsm::new(ism.contract.address(), ism.contract.client());
+                if let Ok(ism_recipient) = rate_limited.recipient().call().await {
+                    let msg_recipient =
+                        ethers::types::H160::from_slice(&message.recipient.as_bytes()[12..]);
+                    if msg_recipient == ism_recipient {
+                        let body = message.body.as_slice();
+                        if body.len() < 64 {
+                            return Ok(None);
+                        }
+                        let token_amount = ethers::types::U256::from_big_endian(&body[32..64]);
+                        let current_level = match rate_limited
+                            .calculate_current_level()
+                            .call()
+                            .await
+                        {
+                            Ok(v) => v,
+                            Err(err) => {
+                                tracing::debug!(
+                                        ?err,
+                                        "calculateCurrentLevel() failed; rate limit may not be configured"
+                                    );
+                                return Ok(None);
+                            }
+                        };
+                        if token_amount <= current_level {
                             return Ok(Some(U256::zero()));
                         }
                     }
