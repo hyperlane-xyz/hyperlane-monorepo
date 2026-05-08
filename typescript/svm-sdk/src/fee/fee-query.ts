@@ -63,7 +63,7 @@ export function detectSvmFeeType(feeData: DecodedFeeData): FeeType {
           return FeeType.progressive;
         default: {
           const _exhaustive: never = feeData.strategy;
-          throw new Error(`Unhandled FeeStrategyKind: ${_exhaustive}`);
+          throw new Error(`Unhandled FeeStrategyKind: ${String(_exhaustive)}`);
         }
       }
     }

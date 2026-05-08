@@ -18,6 +18,7 @@ import {
   eqAddressSol,
   eqOptionalAddress,
   isZeroishAddress,
+  objMap,
   ZERO_ADDRESS_HEX_32,
 } from '@hyperlane-xyz/utils';
 
@@ -282,13 +283,19 @@ export class SvmCrossCollateralRoutingFeeWriter
     );
     const ownerAddress = parseAddress(currentConfig.owner);
 
+    // Normalize expected router keys to lowercase up front — read() lowercases
+    // keys in currentConfig.routes, so both sides need canonical casing to diff.
+    const expectedRoutes = objMap(expected.routes, (_domain, routerMap) =>
+      Object.fromEntries(
+        Object.entries(routerMap).map(([r, s]) => [r.toLowerCase(), s]),
+      ),
+    );
+
     // 1. Add or update CC routes
-    for (const [domainStr, routerMap] of Object.entries(expected.routes)) {
+    for (const [domainStr, routerMap] of Object.entries(expectedRoutes)) {
       const domain = parseDomainId(domainStr);
       for (const [router, strategy] of Object.entries(routerMap)) {
-        const normalizedRouter = router.toLowerCase();
-        const currentStrategy =
-          currentConfig.routes[domain]?.[normalizedRouter];
+        const currentStrategy = currentConfig.routes[domain]?.[router];
         if (currentStrategy && feeStrategiesEqual(currentStrategy, strategy)) {
           continue;
         }
@@ -301,12 +308,12 @@ export class SvmCrossCollateralRoutingFeeWriter
               feeAccountPda,
               ownerAddress,
               domain,
-              routerToBytes(normalizedRouter),
+              routerToBytes(router),
               feeData,
               signers,
             ),
           ],
-          annotation: `Set CC route for domain ${domain} router ${normalizedRouter.slice(0, 10)}...`,
+          annotation: `Set CC route for domain ${domain} router ${router.slice(0, 10)}...`,
         });
       }
     }
@@ -315,8 +322,7 @@ export class SvmCrossCollateralRoutingFeeWriter
     for (const [domainStr, routerMap] of Object.entries(currentConfig.routes)) {
       const domain = parseDomainId(domainStr);
       for (const router of Object.keys(routerMap)) {
-        const hasExpected = expected.routes[domain]?.[router.toLowerCase()];
-        if (!hasExpected) {
+        if (!expectedRoutes[domain]?.[router]) {
           txs.push({
             feePayer: ownerAddress,
             instructions: [
@@ -336,7 +342,7 @@ export class SvmCrossCollateralRoutingFeeWriter
 
     // 3. Update wildcard signers
     const wildcardSigners = computeWildcardSignersFromStrategies(
-      allCCStrategies(expected.routes),
+      allCCStrategies(expectedRoutes),
     );
     if (!h160SetEquality(currentConfig.wildcardSigners, wildcardSigners)) {
       txs.push({
