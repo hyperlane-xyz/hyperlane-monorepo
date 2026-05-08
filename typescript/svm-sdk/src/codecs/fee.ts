@@ -12,10 +12,12 @@ import {
 import {
   type ByteCursor,
   concatBytes,
+  ensureLength,
   option,
   u8,
   u32le,
   u64le,
+  vecBytes,
 } from './binary.js';
 
 // ====== Discriminators (8-byte ASCII) ======
@@ -85,6 +87,67 @@ export function decodeBTreeSetH160(cursor: ByteCursor): string[] {
     signers.push(h160ToSigner(cursor.readBytes(20)));
   }
   return signers;
+}
+
+// ====== SvmSignedQuote (shared with IGP) ======
+
+const SVM_SIGNED_QUOTE_ISSUED_AT_LEN = 6;
+const SVM_SIGNED_QUOTE_EXPIRY_LEN = 6;
+const SVM_SIGNED_QUOTE_CLIENT_SALT_LEN = 32;
+const SVM_SIGNED_QUOTE_SIGNATURE_LEN = 65;
+
+/**
+ * A signed offchain quote — secp256k1 ECDSA signature over
+ * (context || data || issuedAt || expiry || clientSalt). Mirrors the
+ * Rust `SvmSignedQuote` in the quote-verifier library, used by both
+ * the fee program (SubmitQuote) and the IGP (SubmitIgpQuote).
+ *
+ * `expiry === issuedAt` ⇒ transient quote (single-tx).
+ * `expiry  >  issuedAt` ⇒ standing quote (long-lived).
+ */
+export interface SvmSignedQuote {
+  context: Uint8Array;
+  data: Uint8Array;
+  /** 6 bytes (u48 BE). */
+  issuedAt: Uint8Array;
+  /** 6 bytes (u48 BE). */
+  expiry: Uint8Array;
+  /** 32 bytes — client-provided salt for PDA derivation + replay prevention. */
+  clientSalt: Uint8Array;
+  /** 65 bytes (r:32, s:32, v:1). */
+  signature: Uint8Array;
+}
+
+export function encodeSvmSignedQuote(quote: SvmSignedQuote): Uint8Array {
+  ensureLength(quote.issuedAt, SVM_SIGNED_QUOTE_ISSUED_AT_LEN, 'issuedAt');
+  ensureLength(quote.expiry, SVM_SIGNED_QUOTE_EXPIRY_LEN, 'expiry');
+  ensureLength(
+    quote.clientSalt,
+    SVM_SIGNED_QUOTE_CLIENT_SALT_LEN,
+    'clientSalt',
+  );
+  ensureLength(quote.signature, SVM_SIGNED_QUOTE_SIGNATURE_LEN, 'signature');
+  return Uint8Array.from(
+    concatBytes(
+      vecBytes(quote.context),
+      vecBytes(quote.data),
+      quote.issuedAt,
+      quote.expiry,
+      quote.clientSalt,
+      quote.signature,
+    ),
+  );
+}
+
+export function decodeSvmSignedQuote(cursor: ByteCursor): SvmSignedQuote {
+  return {
+    context: cursor.readVecBytes(),
+    data: cursor.readVecBytes(),
+    issuedAt: cursor.readBytes(SVM_SIGNED_QUOTE_ISSUED_AT_LEN),
+    expiry: cursor.readBytes(SVM_SIGNED_QUOTE_EXPIRY_LEN),
+    clientSalt: cursor.readBytes(SVM_SIGNED_QUOTE_CLIENT_SALT_LEN),
+    signature: cursor.readBytes(SVM_SIGNED_QUOTE_SIGNATURE_LEN),
+  };
 }
 
 // ====== SetQuoteSigner operation ======
