@@ -193,6 +193,7 @@ export {
 } from './sets.js';
 export {
   errorToString,
+  formatError,
   fromHexString,
   sanitizeString,
   streamToString,
