@@ -7,6 +7,8 @@ import {
   type ReadonlyUint8Array,
 } from '@solana/kit';
 
+import { assert } from '@hyperlane-xyz/utils';
+
 import type { PdaWithBump } from './types.js';
 
 const utf8 = getUtf8Encoder();
@@ -279,6 +281,10 @@ export async function deriveStandingQuotePda(
   domain: number,
   targetRouter: ReadonlyUint8Array,
 ): Promise<PdaWithBump> {
+  assert(
+    targetRouter.length === 32,
+    `targetRouter must be 32 bytes, got ${targetRouter.length}`,
+  );
   return derive(programAddress, [
     utf8.encode('hyperlane_fee'),
     utf8.encode('-'),
@@ -298,6 +304,10 @@ export async function deriveCrossCollateralRoutePda(
   destination: number,
   targetRouter: ReadonlyUint8Array,
 ): Promise<PdaWithBump> {
+  assert(
+    targetRouter.length === 32,
+    `targetRouter must be 32 bytes, got ${targetRouter.length}`,
+  );
   return derive(programAddress, [
     utf8.encode('hyperlane_fee'),
     utf8.encode('-'),
