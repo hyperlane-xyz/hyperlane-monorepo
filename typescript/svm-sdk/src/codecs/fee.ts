@@ -5,10 +5,18 @@ import { assert } from '@hyperlane-xyz/utils';
 import {
   FeeDataKind,
   type FeeStrategyKind,
+  h160ToSigner,
   signerToH160,
 } from '../fee/types.js';
 
-import { concatBytes, option, u8, u32le, u64le } from './binary.js';
+import {
+  type ByteCursor,
+  concatBytes,
+  option,
+  u8,
+  u32le,
+  u64le,
+} from './binary.js';
 
 // ====== Discriminators (8-byte ASCII) ======
 
@@ -64,6 +72,19 @@ export function encodeBTreeSetH160(signers: string[]): ReadonlyUint8Array {
     return 0;
   });
   return concatBytes(u32le(sorted.length), ...sorted);
+}
+
+/**
+ * Decodes a Borsh `BTreeSet<H160>` from the cursor.
+ * Mirror of `encodeBTreeSetH160`. Returns 0x-prefixed lowercase hex strings.
+ */
+export function decodeBTreeSetH160(cursor: ByteCursor): string[] {
+  const count = cursor.readU32LE();
+  const signers: string[] = [];
+  for (let i = 0; i < count; i += 1) {
+    signers.push(h160ToSigner(cursor.readBytes(20)));
+  }
+  return signers;
 }
 
 // ====== SetQuoteSigner operation ======

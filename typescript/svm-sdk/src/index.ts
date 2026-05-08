@@ -127,6 +127,7 @@ export {
   decodeIgpAccount,
   decodeOverheadIgpAccount,
 } from './accounts/token.js';
+export type { IgpFeeConfig } from './codecs/igp.js';
 export {
   decodeMultisigIsmAccessControlAccount,
   decodeMultisigIsmDomainDataAccount,

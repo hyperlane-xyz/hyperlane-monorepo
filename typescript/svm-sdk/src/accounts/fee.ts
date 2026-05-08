@@ -7,6 +7,7 @@ import {
 import type { ByteCursor } from '../codecs/binary.js';
 import {
   CC_ROUTE_DISCRIMINATOR,
+  decodeBTreeSetH160,
   FEE_ACCT_DISCRIMINATOR,
   ROUTEDOM_DISCRIMINATOR,
   STDQUOTE_DISCRIMINATOR,
@@ -14,7 +15,7 @@ import {
 } from '../codecs/fee.js';
 import { assert, toHexString } from '@hyperlane-xyz/utils';
 
-import { FeeDataKind, FeeStrategyKind, h160ToSigner } from '../fee/types.js';
+import { FeeDataKind, FeeStrategyKind } from '../fee/types.js';
 
 const addressDecoder = getAddressDecoder();
 
@@ -82,12 +83,12 @@ function decodeFeeData(cursor: ByteCursor): DecodedFeeData {
     case FeeDataKind.Routing:
       return {
         kind,
-        wildcardSigners: readSigners(cursor),
+        wildcardSigners: decodeBTreeSetH160(cursor),
       };
     case FeeDataKind.CrossCollateralRouting:
       return {
         kind,
-        wildcardSigners: readSigners(cursor),
+        wildcardSigners: decodeBTreeSetH160(cursor),
       };
 
     default:
@@ -114,7 +115,7 @@ function readOptionSigners(cursor: ByteCursor): string[] | null {
   const tag = cursor.readU8();
   if (tag === 0) return null;
   assert(tag === 1, `Invalid Option tag: ${tag}`);
-  return readSigners(cursor);
+  return decodeBTreeSetH160(cursor);
 }
 
 // ====== Route Domain ======
@@ -201,15 +202,6 @@ function decodeMapH256StandingQuoteEntry(
     entries.set(keyHex, decodeStandingQuoteEntry(cursor));
   }
   return entries;
-}
-
-function readSigners(cursor: ByteCursor): string[] {
-  const count = cursor.readU32LE();
-  const signers: string[] = [];
-  for (let i = 0; i < count; i++) {
-    signers.push(h160ToSigner(cursor.readBytes(20)));
-  }
-  return signers;
 }
 
 function readAddress(cursor: ByteCursor): Address {
