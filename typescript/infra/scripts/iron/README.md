@@ -37,11 +37,14 @@ pnpm verify:iron-moonpay
 
 ### Flags
 
-| Flag                         | Default                  | Notes                                                               |
-| ---------------------------- | ------------------------ | ------------------------------------------------------------------- |
-| `--autoramp-ids <id>,<id>,…` | discovered via Iron API  | Skip discovery; check a fixed set of UUIDs.                         |
-| `--warp-route-id`            | `USDC/moonpay`           | Registry warp route used as source of truth for routers.            |
-| `--ironbridge-route-id`      | `CROSS/ctusd-ironbridge` | Registry warp deploy used as source of truth for deposit addresses. |
+| Flag                    | Default                  | Notes                                                               |
+| ----------------------- | ------------------------ | ------------------------------------------------------------------- |
+| `--warp-route-id`       | `USDC/moonpay`           | Registry warp route used as source of truth for routers.            |
+| `--ironbridge-route-id` | `CROSS/ctusd-ironbridge` | Registry warp deploy used as source of truth for deposit addresses. |
+
+The set of MCR autoramp IDs is hardcoded in the script
+(`MOONPAY_MCR_AUTORAMP_IDS`); changing the set is a code change, not a
+CLI flag.
 
 ### Output
 

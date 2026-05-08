@@ -22,6 +22,7 @@
 import yargs from 'yargs';
 
 import type { WarpCoreConfig, WarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
+import { bytes32ToAddress, eqAddress } from '@hyperlane-xyz/utils';
 
 import { getRegistry } from '../../config/registry.js';
 
@@ -29,6 +30,21 @@ const IRON_API_BASE = 'https://api.iron.xyz/api';
 
 const DEFAULT_WARP_ROUTE_ID = 'USDC/moonpay';
 const DEFAULT_IRONBRIDGE_ROUTE_ID = 'CROSS/ctusd-ironbridge';
+
+// The six MCR autoramps for `CROSS/moonpay` (arb / base / ethereum USDC ↔
+// citrea ctUSD). Hardcoded rather than discovered via Iron's listing
+// endpoint so the script's expected scope is explicit + grepable.
+// Inventory autoramps (sol XO ↔ EVM USDC) are intentionally NOT in this
+// list — they have a different recipient (operator inventory wallet, not
+// a warp router) and are out of scope for this verifier.
+const MOONPAY_MCR_AUTORAMP_IDS = [
+  '019e02ea-d0b9-7967-8475-3249a4990204', // Mint   arbitrum USDC -> citrea ctUSD
+  '019e02ec-6416-7331-bd86-f01bc4309770', // Mint   base USDC     -> citrea ctUSD
+  '019e02ec-d5b3-771e-9318-c692c0047064', // Mint   ethereum USDC -> citrea ctUSD
+  '019e02ed-a694-753f-b848-7f40da70e5fc', // Redeem citrea ctUSD  -> arbitrum USDC
+  '019e02ee-60c3-72e2-a75a-70666c6224b3', // Redeem citrea ctUSD  -> base USDC
+  '019e02ee-f696-78fe-9d79-6165e010fa09', // Redeem citrea ctUSD  -> ethereum USDC
+];
 
 // Iron API → registry chain-name normalisation. Iron returns capitalised
 // names on `deposit_account.chain` / `recipient.blockchain`; the registry
@@ -49,11 +65,6 @@ interface IronAutoramp {
   recipient: { address: string; blockchain: string };
 }
 
-interface IronAutorampListResponse {
-  cursor?: string;
-  items: IronAutoramp[];
-}
-
 interface LaneCheck {
   autorampId: string;
   name: string;
@@ -69,22 +80,6 @@ interface LaneCheck {
   failures: string[];
 }
 
-const eqHex = (a: string, b: string): boolean =>
-  a.toLowerCase() === b.toLowerCase();
-
-/** Decode a 32-byte hex value to a 20-byte EVM address (the bytes32 used
- *  as a key in `destinationConfigs.<dst>` is the destination router
- *  pointer, padded with leading zeros). */
-function bytes32ToAddress(bytes32: string): string {
-  const hex = bytes32.startsWith('0x') ? bytes32.slice(2) : bytes32;
-  if (hex.length !== 64) {
-    throw new Error(
-      `Expected 32-byte hex (64 chars), got ${hex.length}: ${bytes32}`,
-    );
-  }
-  return `0x${hex.slice(24)}`;
-}
-
 async function ironRequest<T>(path: string, apiKey: string): Promise<T> {
   const res = await fetch(`${IRON_API_BASE}${path}`, {
     headers: { 'X-API-Key': apiKey },
@@ -94,37 +89,6 @@ async function ironRequest<T>(path: string, apiKey: string): Promise<T> {
     throw new Error(`Iron API ${path} failed: HTTP ${res.status} ${body}`);
   }
   return (await res.json()) as T;
-}
-
-/** Discover MCR moonpay autoramps via API, paginating until exhausted.
- *  Filters by `name` containing 'CROSS/moonpay' and excluding 'Inventory'
- *  (those are the sol-XO inventory autoramps, out of scope). */
-async function discoverMoonpayMcrAutorampIds(
-  apiKey: string,
-): Promise<string[]> {
-  const ids: string[] = [];
-  const seen = new Set<string>();
-  let cursor: string | undefined;
-  while (true) {
-    const qs = cursor
-      ? `/autoramps?limit=100&cursor=${encodeURIComponent(cursor)}`
-      : '/autoramps?limit=100';
-    const page = await ironRequest<IronAutorampListResponse>(qs, apiKey);
-    for (const a of page.items ?? []) {
-      const name = a.name ?? '';
-      if (
-        name.includes('CROSS/moonpay') &&
-        !name.includes('Inventory') &&
-        !seen.has(a.id)
-      ) {
-        ids.push(a.id);
-        seen.add(a.id);
-      }
-    }
-    if (!page.cursor || page.cursor === cursor) break;
-    cursor = page.cursor;
-  }
-  return ids;
 }
 
 interface RegistryArtifacts {
@@ -242,14 +206,17 @@ function verifyLane(
     );
   } else {
     expectedDepositAddress = lane.depositAddress;
-    depositMatch = eqHex(autoramp.deposit_account.address, lane.depositAddress);
+    depositMatch = eqAddress(
+      autoramp.deposit_account.address,
+      lane.depositAddress,
+    );
     if (!depositMatch) {
       failures.push(
         `deposit address mismatch: iron=${autoramp.deposit_account.address} ironbridge=${lane.depositAddress}`,
       );
     }
     if (moonpayRouter) {
-      routerKeyMatch = eqHex(lane.routerFromKey, moonpayRouter);
+      routerKeyMatch = eqAddress(lane.routerFromKey, moonpayRouter);
       if (!routerKeyMatch) {
         failures.push(
           `router key in ironbridge bytes32 (${lane.routerFromKey}) does not match moonpay router for ${destination} (${moonpayRouter})`,
@@ -262,7 +229,7 @@ function verifyLane(
     failures.push(`No moonpay router for destination chain ${destination}`);
   } else {
     expectedRecipientAddress = moonpayRouter;
-    recipientMatch = eqHex(autoramp.recipient.address, moonpayRouter);
+    recipientMatch = eqAddress(autoramp.recipient.address, moonpayRouter);
     if (!recipientMatch) {
       failures.push(
         `recipient mismatch: iron=${autoramp.recipient.address} moonpay-router=${moonpayRouter}`,
@@ -307,11 +274,6 @@ function printTable(rows: LaneCheck[]): void {
 
 async function main(): Promise<void> {
   const argv = await yargs(process.argv.slice(2))
-    .option('autoramp-ids', {
-      type: 'string',
-      describe:
-        'Comma-separated list of Iron autoramp UUIDs. Skip discovery via Iron API.',
-    })
     .option('warp-route-id', {
       type: 'string',
       default: DEFAULT_WARP_ROUTE_ID,
@@ -340,22 +302,8 @@ async function main(): Promise<void> {
     argv.ironbridgeRouteId,
   );
 
-  const autorampIds = argv.autorampIds
-    ? argv.autorampIds
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean)
-    : await discoverMoonpayMcrAutorampIds(ironApiKey);
-
-  if (autorampIds.length === 0) {
-    console.error(
-      'No moonpay MCR autoramps found via Iron API. Pass --autoramp-ids explicitly if discovery filter missed them.',
-    );
-    process.exit(2);
-  }
-
   const checks: LaneCheck[] = [];
-  for (const id of autorampIds) {
+  for (const id of MOONPAY_MCR_AUTORAMP_IDS) {
     const autoramp = await ironRequest<IronAutoramp>(
       `/autoramps/${id}`,
       ironApiKey,
