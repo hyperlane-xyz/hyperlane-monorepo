@@ -38,9 +38,13 @@ export { HYPERLANE_SVM_PROGRAM_BYTES } from './hyperlane/program-bytes.js';
 
 // Low-level instruction builders
 export {
+  getCloseIgpStandingQuoteInstruction,
+  getCloseIgpTransientQuoteInstruction,
+  getGetIgpQuoteAccountMetasInstruction,
   getSetIgpMinIssuedAtInstruction,
   getSetIgpQuoteConfigInstruction,
   getSetIgpQuoteSignerInstruction,
+  getSubmitIgpQuoteInstruction,
 } from './instructions/igp.js';
 export { getTransferOwnershipInstruction as getMultisigIsmTransferOwnershipInstruction } from './instructions/multisig-ism-message-id.js';
 export { getSetUpgradeAuthorityInstruction } from './instructions/loader.js';

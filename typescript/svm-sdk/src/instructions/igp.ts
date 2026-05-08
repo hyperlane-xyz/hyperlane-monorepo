@@ -25,12 +25,18 @@ import {
 } from '../codecs/binary.js';
 import {
   decodeSetQuoteSignerOperation,
+  decodeSvmSignedQuote,
   encodeSetQuoteSignerOperation,
+  encodeSvmSignedQuote,
   type SetQuoteSignerOp,
+  type SvmSignedQuote,
 } from '../codecs/fee.js';
 import {
+  decodeGetIgpQuoteAccountMetasInput,
   decodeIgpFeeConfig,
+  encodeGetIgpQuoteAccountMetasInput,
   encodeIgpFeeConfig,
+  type GetIgpQuoteAccountMetasInput,
   type IgpFeeConfig,
 } from '../codecs/igp.js';
 import {
@@ -69,6 +75,10 @@ export enum IgpInstructionKind {
   SetIgpQuoteConfig = 11,
   SetIgpQuoteSigner = 12,
   SetIgpMinIssuedAt = 13,
+  SubmitIgpQuote = 14,
+  CloseIgpTransientQuote = 15,
+  CloseIgpStandingQuote = 16,
+  GetIgpQuoteAccountMetas = 17,
 }
 
 export interface InitIgpData {
@@ -101,7 +111,11 @@ export type IgpProgramInstructionData =
   | { kind: 'claim' }
   | { kind: 'setIgpQuoteConfig'; config: IgpFeeConfig | null }
   | { kind: 'setIgpQuoteSigner'; operation: SetQuoteSignerOp; signer: string }
-  | { kind: 'setIgpMinIssuedAt'; minIssuedAt: bigint };
+  | { kind: 'setIgpMinIssuedAt'; minIssuedAt: bigint }
+  | { kind: 'submitIgpQuote'; quote: SvmSignedQuote }
+  | { kind: 'closeIgpTransientQuote' }
+  | { kind: 'closeIgpStandingQuote' }
+  | { kind: 'getIgpQuoteAccountMetas'; input: GetIgpQuoteAccountMetasInput };
 
 const BYTES32_CODEC = fixCodecSize(getBytesCodec(), 32);
 const ADDRESS_CODEC = getAddressCodec();
@@ -204,6 +218,20 @@ export function encodeIgpProgramInstruction(
         u8(IgpInstructionKind.SetIgpMinIssuedAt),
         i64le(instruction.minIssuedAt),
       );
+    case 'submitIgpQuote':
+      return concatBytes(
+        u8(IgpInstructionKind.SubmitIgpQuote),
+        encodeSvmSignedQuote(instruction.quote),
+      );
+    case 'closeIgpTransientQuote':
+      return u8(IgpInstructionKind.CloseIgpTransientQuote);
+    case 'closeIgpStandingQuote':
+      return u8(IgpInstructionKind.CloseIgpStandingQuote);
+    case 'getIgpQuoteAccountMetas':
+      return concatBytes(
+        u8(IgpInstructionKind.GetIgpQuoteAccountMetas),
+        encodeGetIgpQuoteAccountMetasInput(instruction.input),
+      );
   }
 }
 
@@ -252,6 +280,21 @@ export function decodeIgpProgramInstruction(
     case IgpInstructionKind.SetIgpMinIssuedAt: {
       const cursor = new ByteCursor(payload);
       return { kind: 'setIgpMinIssuedAt', minIssuedAt: cursor.readI64LE() };
+    }
+    case IgpInstructionKind.SubmitIgpQuote: {
+      const cursor = new ByteCursor(payload);
+      return { kind: 'submitIgpQuote', quote: decodeSvmSignedQuote(cursor) };
+    }
+    case IgpInstructionKind.CloseIgpTransientQuote:
+      return { kind: 'closeIgpTransientQuote' };
+    case IgpInstructionKind.CloseIgpStandingQuote:
+      return { kind: 'closeIgpStandingQuote' };
+    case IgpInstructionKind.GetIgpQuoteAccountMetas: {
+      const cursor = new ByteCursor(payload);
+      return {
+        kind: 'getIgpQuoteAccountMetas',
+        input: decodeGetIgpQuoteAccountMetasInput(cursor),
+      };
     }
     default:
       if (kind <= IgpInstructionKind.Claim) {
@@ -436,5 +479,70 @@ export async function getSetIgpMinIssuedAtInstruction(
       writableSignerAddress(owner),
     ],
     encodeIgpProgramInstruction({ kind: 'setIgpMinIssuedAt', minIssuedAt }),
+  );
+}
+
+export async function getSubmitIgpQuoteInstruction(
+  programAddress: Address,
+  payer: TransactionSigner,
+  igpAccount: Address,
+  quotePda: Address,
+  quote: SvmSignedQuote,
+): Promise<Instruction> {
+  return buildInstruction(
+    programAddress,
+    [
+      readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
+      writableSigner(payer),
+      readonlyAccount(igpAccount),
+      writableAccount(quotePda),
+    ],
+    encodeIgpProgramInstruction({ kind: 'submitIgpQuote', quote }),
+  );
+}
+
+export async function getCloseIgpTransientQuoteInstruction(
+  programAddress: Address,
+  transientPda: Address,
+  payer: TransactionSigner,
+  igpAccount: Address,
+): Promise<Instruction> {
+  return buildInstruction(
+    programAddress,
+    [
+      writableAccount(transientPda),
+      writableSigner(payer),
+      readonlyAccount(igpAccount),
+    ],
+    encodeIgpProgramInstruction({ kind: 'closeIgpTransientQuote' }),
+  );
+}
+
+export async function getCloseIgpStandingQuoteInstruction(
+  programAddress: Address,
+  standingPda: Address,
+  igpAccount: Address,
+  beneficiary: Address,
+): Promise<Instruction> {
+  return buildInstruction(
+    programAddress,
+    [
+      writableAccount(standingPda),
+      readonlyAccount(igpAccount),
+      writableAccount(beneficiary),
+    ],
+    encodeIgpProgramInstruction({ kind: 'closeIgpStandingQuote' }),
+  );
+}
+
+export async function getGetIgpQuoteAccountMetasInstruction(
+  programAddress: Address,
+  igpAccount: Address,
+  input: GetIgpQuoteAccountMetasInput,
+): Promise<Instruction> {
+  return buildInstruction(
+    programAddress,
+    [readonlyAccount(igpAccount)],
+    encodeIgpProgramInstruction({ kind: 'getIgpQuoteAccountMetas', input }),
   );
 }
