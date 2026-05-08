@@ -13,7 +13,9 @@ use solana_system_interface::program as system_program;
 
 use crate::{
     accounts::{FeeAccountData, FeeData, DEFAULT_ROUTER, WILDCARD_DOMAIN},
-    cc_route_pda_seeds, fee_standing_quote_pda_seeds,
+    cc_route_pda_seeds,
+    error::Error,
+    fee_standing_quote_pda_seeds,
     instruction::{GetQuoteAccountMetas, GetSubmitQuoteAccountMetas},
     route_domain_pda_seeds, transient_quote_pda_seeds,
 };
@@ -205,6 +207,19 @@ pub(super) fn process_get_submit_quote_account_metas(
     // The caller's ctx.target_router selects the route directly — no cascade.
     let domain_le = data.destination_domain.to_le_bytes();
     let is_wildcard = data.destination_domain == WILDCARD_DOMAIN;
+
+    // Mirror the runtime guard at process_submit_quote: a CC transient signed
+    // with ctx.target_router == DEFAULT_ROUTER is rejected as unconsumable.
+    // Emitting metas for that shape would hand SDK clients a layout for a tx
+    // that can never succeed.
+    if matches!(fee_account.fee_data, FeeData::CrossCollateralRouting(_))
+        && data.scoped_salt.is_some()
+        && !is_wildcard
+        && data.target_router == DEFAULT_ROUTER
+    {
+        return Err(Error::ZeroTargetRouterNotAllowed.into());
+    }
+
     match &fee_account.fee_data {
         FeeData::Leaf(_) => {}
         FeeData::Routing(_) => {

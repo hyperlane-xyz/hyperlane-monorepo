@@ -485,6 +485,160 @@ async fn test_cc_standing() {
     );
     assert!(metas[4].is_writable); // standing PDA
 }
+
+/// E2E round-trip: simulate `GetSubmitQuoteAccountMetas` for a valid CC
+/// transient and feed its returned metas (after replacing the payer
+/// placeholder) into a real `SubmitQuote` transaction. Catches any drift
+/// between the simulation layout and the runtime account expectations.
+#[tokio::test]
+async fn test_cc_transient_submit_metas_round_trip() {
+    let (mut banks_client, payer) = setup_client().await;
+    let signing_key = SigningKey::random(&mut rand::thread_rng());
+    let signer_address = eth_address(&signing_key);
+    let dest = 42u32;
+    let target_router = H256::random();
+
+    let fee_key = init_fee_account(
+        &mut banks_client,
+        &payer,
+        default_salt(),
+        payer.pubkey(),
+        FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+            wildcard_signers: BTreeSet::new(),
+        }),
+    )
+    .await;
+
+    process_tx(
+        &mut banks_client,
+        &payer,
+        build_set_cc_route_ix(
+            &fee_key,
+            &payer.pubkey(),
+            dest,
+            target_router,
+            FeeDataStrategy::Linear(FeeParams {
+                max_fee: 1000,
+                half_amount: 500,
+            }),
+        ),
+        &[],
+    )
+    .await
+    .unwrap();
+    process_tx(
+        &mut banks_client,
+        &payer,
+        build_add_quote_signer_ix_with_route(
+            &fee_key,
+            &payer.pubkey(),
+            signer_address,
+            Some(instruction::RouteKey::CrossCollateral {
+                destination: dest,
+                target_router,
+            }),
+        ),
+        &[],
+    )
+    .await
+    .unwrap();
+
+    let quote = make_signed_transient_quote(
+        &signing_key,
+        &fee_key,
+        LOCAL_DOMAIN,
+        &payer.pubkey(),
+        encode_cc_context(dest, H256::zero(), 100, target_router),
+        encode_linear_data(1000, 500),
+        encode_u48(100),
+    );
+    let scoped_salt = quote.compute_scoped_salt(&payer.pubkey());
+
+    // Drive the SubmitQuote tx layout entirely from the simulator output:
+    // replace the payer placeholder at slot 1 with the real payer key.
+    let metas = simulate_get_submit_metas(
+        &mut banks_client,
+        &payer,
+        &fee_key,
+        dest,
+        target_router,
+        Some(scoped_salt),
+    )
+    .await;
+    let accounts: Vec<AccountMeta> = metas
+        .iter()
+        .enumerate()
+        .map(|(i, m)| {
+            let pubkey = if i == 1 { payer.pubkey() } else { m.pubkey };
+            if m.is_writable {
+                AccountMeta::new(pubkey, m.is_signer)
+            } else {
+                AccountMeta::new_readonly(pubkey, m.is_signer)
+            }
+        })
+        .collect();
+
+    let submit_ix = Instruction::new_with_borsh(
+        fee_program_id(),
+        &FeeInstruction::SubmitQuote(quote),
+        accounts,
+    );
+    process_tx(&mut banks_client, &payer, submit_ix, &[])
+        .await
+        .unwrap();
+}
+
+/// Simulation must mirror the runtime guard at `process_submit_quote`: a CC
+/// transient signed with `ctx.target_router == DEFAULT_ROUTER` is rejected,
+/// so emitting a meta layout for that shape would hand SDKs a tx that can
+/// never succeed.
+#[tokio::test]
+async fn test_cc_transient_default_router_simulation_rejected() {
+    let (mut banks_client, payer) = setup_client().await;
+    let fee_key = init_fee_account(
+        &mut banks_client,
+        &payer,
+        default_salt(),
+        payer.pubkey(),
+        FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+            wildcard_signers: BTreeSet::new(),
+        }),
+    )
+    .await;
+
+    let instruction = Instruction::new_with_borsh(
+        fee_program_id(),
+        &FeeInstruction::GetSubmitQuoteAccountMetas(
+            hyperlane_sealevel_fee::instruction::GetSubmitQuoteAccountMetas {
+                destination_domain: 42,
+                target_router: DEFAULT_ROUTER,
+                scoped_salt: Some(H256::random()),
+            },
+        ),
+        vec![AccountMeta::new_readonly(fee_key, false)],
+    );
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let simulation = banks_client
+        .simulate_transaction(Transaction::new_unsigned(Message::new_with_blockhash(
+            &[instruction],
+            Some(&payer.pubkey()),
+            &recent_blockhash,
+        )))
+        .await
+        .unwrap();
+    let err = simulation
+        .result
+        .expect("simulation must produce a result")
+        .expect_err("simulation must fail for CC transient with DEFAULT_ROUTER");
+    assert_eq!(
+        err,
+        TransactionError::InstructionError(
+            0,
+            InstructionError::Custom(FeeError::ZeroTargetRouterNotAllowed as u32),
+        ),
+    );
+}
+
 mod get_program_version {
     use super::*;
 

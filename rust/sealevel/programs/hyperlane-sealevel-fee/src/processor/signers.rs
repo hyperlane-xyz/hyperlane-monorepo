@@ -25,20 +25,13 @@ use crate::{
 
 use super::common::fetch_fee_account_and_verify_owner;
 
-/// Add an authorized offchain quote signer (owner-only).
-/// Reallocs the fee account if it grows.
-///
-/// Add an offchain quote signer (owner-only).
-/// Dispatches by route key: None → FeeAccount (Leaf), Some → route PDA.
-///
-/// Accounts (route = None / Leaf):
-/// 0. `[executable]` System program.
-/// 1. `[writable]` Fee account.
-/// 2. `[signer, writable]` Owner.
+/// Add or remove an authorized offchain quote signer (owner-only).
+/// Dispatches by `route`: `None` mutates the Leaf `FeeAccount`; `Some` mutates
+/// the corresponding route PDA. Reallocs the target account if its size grows.
 ///
 /// Accounts:
 /// 0. `[executable]` System program.
-/// 1. `[writable]` Fee account (writable for Leaf; readonly for routed modes).
+/// 1. `[writable for Leaf, readonly otherwise]` Fee account.
 /// 2. `[signer, writable]` Owner.
 /// 3. `[writable]` Route PDA (only for Routing/CC modes).
 pub(super) fn process_set_quote_signer(

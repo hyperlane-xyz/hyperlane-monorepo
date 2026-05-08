@@ -1234,6 +1234,90 @@ async fn test_cc_context_wrong_target_router_fails() {
     );
 }
 
+/// A CC transient quote signed with `ctx.target_router == DEFAULT_ROUTER` would
+/// be unconsumable: real QuoteFee callers always pass a concrete target_router
+/// and the consume-time validation is strict on that field. The submit handler
+/// rejects this shape early to prevent operator footguns / rent stranding.
+#[tokio::test]
+async fn test_cc_transient_default_router_target_rejected() {
+    let (mut banks_client, payer) = setup_client().await;
+    let signing_key = SigningKey::random(&mut rand::thread_rng());
+    let signer_address = eth_address(&signing_key);
+
+    let fee_key = init_fee_account(
+        &mut banks_client,
+        &payer,
+        default_salt(),
+        payer.pubkey(),
+        FeeData::CrossCollateralRouting(CrossCollateralRoutingFeeConfig {
+            wildcard_signers: BTreeSet::new(),
+        }),
+    )
+    .await;
+
+    let dest = 42u32;
+
+    // Set up the DEFAULT_ROUTER CC route + signer so the route PDA exists and
+    // signer resolution would otherwise succeed — proving the rejection comes
+    // from the explicit transient-DEFAULT_ROUTER guard, not from missing state.
+    process_tx(
+        &mut banks_client,
+        &payer,
+        build_set_cc_route_ix(
+            &fee_key,
+            &payer.pubkey(),
+            dest,
+            DEFAULT_ROUTER,
+            FeeDataStrategy::Linear(FeeParams {
+                max_fee: 100,
+                half_amount: 50,
+            }),
+        ),
+        &[],
+    )
+    .await
+    .unwrap();
+    process_tx(
+        &mut banks_client,
+        &payer,
+        build_add_quote_signer_ix_with_route(
+            &fee_key,
+            &payer.pubkey(),
+            signer_address,
+            Some(instruction::RouteKey::CrossCollateral {
+                destination: dest,
+                target_router: DEFAULT_ROUTER,
+            }),
+        ),
+        &[],
+    )
+    .await
+    .unwrap();
+
+    let context = encode_cc_context(dest, H256::zero(), 100, DEFAULT_ROUTER);
+    let quote = make_signed_transient_quote(
+        &signing_key,
+        &fee_key,
+        LOCAL_DOMAIN,
+        &payer.pubkey(),
+        context,
+        encode_linear_data(1000, 500),
+        encode_u48(100),
+    );
+
+    let route_pda = cc_route_pda_for(&fee_key, dest, &DEFAULT_ROUTER);
+    let submit_ix =
+        build_submit_transient_ix_with_routes(&fee_key, &payer.pubkey(), &quote, &[route_pda]);
+    let result = process_tx(&mut banks_client, &payer, submit_ix, &[]).await;
+    assert_tx_error(
+        result,
+        TransactionError::InstructionError(
+            0,
+            InstructionError::Custom(FeeError::ZeroTargetRouterNotAllowed as u32),
+        ),
+    );
+}
+
 #[tokio::test]
 async fn test_payer_mismatch_fails() {
     let (mut banks_client, payer) = setup_client().await;
