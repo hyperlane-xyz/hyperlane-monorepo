@@ -9,6 +9,7 @@ import {
   eqAddressSol,
   eqOptionalAddress,
   isZeroishAddress,
+  toHexString,
 } from '@hyperlane-xyz/utils';
 
 import type { SvmSigner } from '../clients/signer.js';
@@ -30,6 +31,7 @@ import {
 import { DEFAULT_IGP_SALT } from '../hook/igp-hook.js';
 import { fetchFeeAccount } from '../fee/fee-query.js';
 import { DEFAULT_FEE_SALT } from '../fee/types.js';
+import { supportsFeeConfig } from '../version/version-query.js';
 import {
   deriveAtaPayerPda,
   deriveFeeAccountPda,
@@ -256,8 +258,8 @@ export async function applyPostInitConfig(
     );
     assert(
       feeAccount,
-      `Fee account PDA not initialized at program ${feeDeployed.address} with the given salt. ` +
-        'Deploy the fee program first before setting it on the warp token.',
+      `Fee account PDA not initialized at program ${feeDeployed.address} with salt ${toHexString(Buffer.from(feeSalt))}. ` +
+        'Deploy the fee program first, or check that SVM_FEE_<CHAIN>_SALT is set correctly for this program id.',
     );
 
     receipts.push(
@@ -328,6 +330,7 @@ export async function computeWarpTokenUpdateInstructions(
   label: string,
   feeSalt: Uint8Array = DEFAULT_FEE_SALT,
   currentOnChainFeeConfig?: TokenFeeConfig,
+  upgradingToVersion?: string,
 ): Promise<AnnotatedSvmTransaction[]> {
   const txs: AnnotatedSvmTransaction[] = [];
 
@@ -386,6 +389,11 @@ export async function computeWarpTokenUpdateInstructions(
   // 2. Fee config diff
   const expectedFee = expected.fee?.deployed?.address;
   if (expectedFee) {
+    const effectiveVersion = upgradingToVersion ?? current.contractVersion;
+    assert(
+      supportsFeeConfig(effectiveVersion),
+      `Cannot set fee config: program at ${programId} is version ${effectiveVersion ?? 'pre-PackageVersioned'} which does not support fee config. Set contractVersion in the expected config and provide program bytes to upgrade first.`,
+    );
     const expectedFeeProgram = parseAddress(expectedFee);
     const { address: expectedFeePda } = await deriveFeeAccountPda(
       expectedFeeProgram,
@@ -415,7 +423,8 @@ export async function computeWarpTokenUpdateInstructions(
       );
       assert(
         feeAccount,
-        `Fee account PDA not initialized at program ${expectedFee} with the given salt.`,
+        `Fee account PDA not initialized at program ${expectedFee} with salt ${toHexString(Buffer.from(feeSalt))}. ` +
+          'Check that SVM_FEE_<CHAIN>_SALT is set correctly for this program id.',
       );
 
       txs.push({

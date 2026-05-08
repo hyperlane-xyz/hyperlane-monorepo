@@ -1,5 +1,5 @@
 ---
-'@hyperlane-xyz/sealevel-sdk': minor
+'@hyperlane-xyz/sealevel-sdk': major
 '@hyperlane-xyz/provider-sdk': patch
 '@hyperlane-xyz/sdk': patch
 ---

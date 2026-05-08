@@ -428,6 +428,7 @@ export class SvmCrossCollateralTokenWriter
     const txs: AnnotatedSvmTransaction[] = [];
 
     // Program upgrade first (before any config changes)
+    let upgradingToVersion: string | undefined;
     if (hasProgramBytes(this.config.program)) {
       const upgradeResult = await prepareProgramUpgrade(
         programId,
@@ -439,6 +440,9 @@ export class SvmCrossCollateralTokenWriter
         `cross-collateral token ${programId}`,
       );
       txs.push(...(upgradeResult?.authorityTransactions ?? []));
+      upgradingToVersion = upgradeResult?.authorityTransactions
+        ? artifact.config.contractVersion
+        : undefined;
     }
 
     // CC router updates (need current owner before any ownership transfer)
@@ -482,6 +486,7 @@ export class SvmCrossCollateralTokenWriter
         `cross-collateral token ${programId}`,
         this.config.feeSalt,
         current.deployed.feeConfig,
+        upgradingToVersion,
       )),
     );
 
