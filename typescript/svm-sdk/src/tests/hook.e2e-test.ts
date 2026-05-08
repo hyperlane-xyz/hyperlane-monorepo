@@ -1,5 +1,8 @@
-import { expect } from 'chai';
+import chai, { expect } from 'chai';
+import chaiAsPromised from 'chai-as-promised';
 import { before, describe, it } from 'mocha';
+
+chai.use(chaiAsPromised);
 
 import { HookType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
@@ -10,6 +13,7 @@ import type {
   MerkleTreeHookConfig,
   IgpHookConfig,
 } from '@hyperlane-xyz/provider-sdk/hook';
+import { sleep } from '@hyperlane-xyz/utils';
 
 import { SvmSigner } from '../clients/signer.js';
 import { SvmHookArtifactManager } from '../hook/hook-artifact-manager.js';
@@ -23,7 +27,7 @@ import {
   SvmMerkleTreeHookReader,
   SvmMerkleTreeHookWriter,
 } from '../hook/merkle-tree-hook.js';
-import type { SvmDeployedHook } from '../types.js';
+import type { AnnotatedSvmTransaction, SvmDeployedHook } from '../types.js';
 import { createRpc } from '../rpc.js';
 import { TEST_SVM_CHAIN_METADATA } from '../testing/constants.js';
 import { TEST_PROGRAM_IDS, airdropSol } from '../testing/setup.js';
@@ -240,6 +244,192 @@ describe('SVM Hook E2E Tests', function () {
         signer,
       );
       expect(igpWriter).to.be.instanceOf(SvmIgpHookWriter);
+    });
+  });
+
+  describe('IGP fee config lifecycle', () => {
+    const SIGNER_A = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+    const SIGNER_B = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+    const SIGNER_C = '0xcccccccccccccccccccccccccccccccccccccccc';
+
+    function makeBaseConfig(): IgpHookConfig {
+      return {
+        type: HookType.INTERCHAIN_GAS_PAYMASTER,
+        owner: signer.getSignerAddress(),
+        beneficiary: signer.getSignerAddress(),
+        oracleKey: signer.getSignerAddress(),
+        overhead: { 1: 50000 },
+        oracleConfig: {
+          1: { gasPrice: '1', tokenExchangeRate: '1000000000000000000' },
+        },
+      };
+    }
+
+    async function setupIgpWith(
+      saltContext: string,
+      domainId: number,
+    ): Promise<SvmIgpHookWriter> {
+      const writer = new SvmIgpHookWriter(
+        { program: { programId: TEST_PROGRAM_IDS.igp }, domainId },
+        rpc,
+        deriveIgpSalt(saltContext),
+        signer,
+      );
+      await writer.create({
+        artifactState: ArtifactState.NEW,
+        config: makeBaseConfig(),
+      });
+      return writer;
+    }
+
+    async function applyTxs(txs: AnnotatedSvmTransaction[]): Promise<void> {
+      for (const tx of txs) {
+        await signer.send({
+          instructions: tx.instructions,
+          additionalSigners: tx.additionalSigners,
+          skipPreflight: true,
+        });
+      }
+      await sleep(500);
+    }
+
+    it('enables fee config from None', async () => {
+      const writer = await setupIgpWith('fee-enable', 1);
+      const current = await writer.read(TEST_PROGRAM_IDS.igp);
+      const txs = await writer.update({
+        ...current,
+        config: { ...current.config, quoteSigners: [SIGNER_A, SIGNER_B] },
+      });
+      await applyTxs(txs);
+
+      const after = await writer.read(TEST_PROGRAM_IDS.igp);
+      expect(new Set(after.config.quoteSigners ?? [])).to.eql(
+        new Set([SIGNER_A, SIGNER_B]),
+      );
+      expect(after.deployed.feeConfig?.domainId).to.equal(1);
+      expect(after.deployed.feeConfig?.minIssuedAt).to.equal(0n);
+    });
+
+    it('updates signer set (Add + Remove diff)', async () => {
+      const writer = await setupIgpWith('fee-churn', 1);
+      const initial = await writer.read(TEST_PROGRAM_IDS.igp);
+      await applyTxs(
+        await writer.update({
+          ...initial,
+          config: { ...initial.config, quoteSigners: [SIGNER_A, SIGNER_B] },
+        }),
+      );
+
+      const after1 = await writer.read(TEST_PROGRAM_IDS.igp);
+      await applyTxs(
+        await writer.update({
+          ...after1,
+          config: { ...after1.config, quoteSigners: [SIGNER_A, SIGNER_C] },
+        }),
+      );
+
+      const after2 = await writer.read(TEST_PROGRAM_IDS.igp);
+      expect(new Set(after2.config.quoteSigners ?? [])).to.eql(
+        new Set([SIGNER_A, SIGNER_C]),
+      );
+    });
+
+    it('emits no txs when expected matches current', async () => {
+      const writer = await setupIgpWith('fee-noop', 1);
+      const initial = await writer.read(TEST_PROGRAM_IDS.igp);
+      await applyTxs(
+        await writer.update({
+          ...initial,
+          config: { ...initial.config, quoteSigners: [SIGNER_A] },
+        }),
+      );
+
+      const current = await writer.read(TEST_PROGRAM_IDS.igp);
+      const txs = await writer.update(current);
+      expect(txs).to.have.length(0);
+    });
+
+    it('clears fee config when quoteSigners is undefined', async () => {
+      const writer = await setupIgpWith('fee-clear', 1);
+      const initial = await writer.read(TEST_PROGRAM_IDS.igp);
+      await applyTxs(
+        await writer.update({
+          ...initial,
+          config: { ...initial.config, quoteSigners: [SIGNER_A] },
+        }),
+      );
+
+      const enabled = await writer.read(TEST_PROGRAM_IDS.igp);
+      await applyTxs(
+        await writer.update({
+          ...enabled,
+          config: { ...enabled.config, quoteSigners: undefined },
+        }),
+      );
+
+      const after = await writer.read(TEST_PROGRAM_IDS.igp);
+      expect(after.config.quoteSigners).to.be.undefined;
+      expect(after.deployed.feeConfig).to.be.undefined;
+    });
+
+    it('re-init after clear resets to fresh config', async () => {
+      const writer = await setupIgpWith('fee-reinit', 1);
+      const initial = await writer.read(TEST_PROGRAM_IDS.igp);
+      await applyTxs(
+        await writer.update({
+          ...initial,
+          config: { ...initial.config, quoteSigners: [SIGNER_A] },
+        }),
+      );
+
+      const enabled = await writer.read(TEST_PROGRAM_IDS.igp);
+      await applyTxs(
+        await writer.update({
+          ...enabled,
+          config: { ...enabled.config, quoteSigners: undefined },
+        }),
+      );
+
+      const cleared = await writer.read(TEST_PROGRAM_IDS.igp);
+      await applyTxs(
+        await writer.update({
+          ...cleared,
+          config: { ...cleared.config, quoteSigners: [SIGNER_B] },
+        }),
+      );
+
+      const after = await writer.read(TEST_PROGRAM_IDS.igp);
+      expect(new Set(after.config.quoteSigners ?? [])).to.eql(
+        new Set([SIGNER_B]),
+      );
+      expect(after.deployed.feeConfig?.minIssuedAt).to.equal(0n);
+    });
+
+    it('throws on domain-id drift', async () => {
+      const salt = 'fee-drift';
+      const writer1 = await setupIgpWith(salt, 1);
+      const initial = await writer1.read(TEST_PROGRAM_IDS.igp);
+      await applyTxs(
+        await writer1.update({
+          ...initial,
+          config: { ...initial.config, quoteSigners: [SIGNER_A] },
+        }),
+      );
+
+      // Same on-chain IGP, different writer-configured domain.
+      const writer2 = new SvmIgpHookWriter(
+        { program: { programId: TEST_PROGRAM_IDS.igp }, domainId: 2 },
+        rpc,
+        deriveIgpSalt(salt),
+        signer,
+      );
+      const drifted = await writer2.read(TEST_PROGRAM_IDS.igp);
+      await expect(
+        writer2.update({
+          ...drifted,
+          config: { ...drifted.config, quoteSigners: [SIGNER_B] },
+        }),
+      ).to.be.rejectedWith(/fee_config domain mismatch/);
     });
   });
 });
