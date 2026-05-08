@@ -15,6 +15,7 @@ import {
 import {
   type Address,
   type Base64EncodedWireTransaction,
+  address as parseAddress,
   appendTransactionMessageInstructions,
   blockhash,
   compileTransactionMessage,
@@ -37,6 +38,16 @@ const logger = rootLogger.child({ module: 'version-query' });
 
 /** Minimum program version that supports SetFeeConfig and fee section. */
 export const SVM_PROGRAM_MINIMUM_FEE_SUPPORT_VERSION = '1.0.0';
+
+/**
+ * Known-funded mainnet address used as a fallback simulation fee payer.
+ * Solana simulation requires the fee payer to exist and hold SOL even with
+ * sigVerify=false; production owners (multisigs, governance) often don't
+ * hold SOL, so callers fall back to this when the owner can't pay.
+ */
+export const FALLBACK_SIMULATION_PAYER = parseAddress(
+  '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf',
+);
 
 /**
  * Queries the on-chain version of a deployed Hyperlane SVM program.

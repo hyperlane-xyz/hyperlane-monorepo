@@ -1,8 +1,4 @@
-import {
-  type Address,
-  address as parseAddress,
-  fetchEncodedAccount,
-} from '@solana/kit';
+import { type Address, fetchEncodedAccount } from '@solana/kit';
 
 import {
   assert,
@@ -10,18 +6,6 @@ import {
   rootLogger,
   toHexString,
 } from '@hyperlane-xyz/utils';
-
-const logger = rootLogger.child({ module: 'warp-query' });
-
-/**
- * Known-funded mainnet address used as a fallback simulation fee payer.
- * Solana simulation requires the fee payer to exist and hold SOL even with
- * sigVerify=false; production token owners (multisigs, governance) often
- * don't hold SOL, so we fall back to this when the owner can't pay.
- */
-const FALLBACK_SIMULATION_PAYER = parseAddress(
-  '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf',
-);
 
 import {
   COLLATERAL_PLUGIN_SIZE,
@@ -38,7 +22,12 @@ import {
   deriveEscrowPda,
 } from '../pda.js';
 import type { SvmRpc } from '../types.js';
-import { queryProgramVersion } from '../version/version-query.js';
+import {
+  FALLBACK_SIMULATION_PAYER,
+  queryProgramVersion,
+} from '../version/version-query.js';
+
+const logger = rootLogger.child({ module: 'warp-query' });
 
 export enum SvmWarpTokenType {
   Native = 'native',

@@ -126,6 +126,7 @@ export interface IgpHookConfig {
       tokenDecimals?: number;
     }
   >;
+  contractVersion?: string;
 }
 
 export interface HookArtifactConfigs {
