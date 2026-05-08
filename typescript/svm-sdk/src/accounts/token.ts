@@ -15,6 +15,10 @@ import {
   type InterchainGasPaymasterType,
   InterchainGasPaymasterTypeKind,
 } from '../codecs/shared.js';
+import {
+  type IgpFeeConfig,
+  readOptionalTrailingIgpFeeConfig,
+} from '../codecs/igp.js';
 
 const IGP_PROGRAM_DATA_DISCRIMINATOR = ascii8('PRGMDATA');
 const IGP_ACCOUNT_DISCRIMINATOR = ascii8('IGP_____');
@@ -61,6 +65,7 @@ export interface IgpAccountData {
   owner: Address | null;
   beneficiary: Address;
   gasOracles: Map<number, GasOracle>;
+  feeConfig: IgpFeeConfig | undefined;
 }
 
 export interface OverheadIgpAccountData {
@@ -101,6 +106,7 @@ export function decodeIgpAccount(raw: Uint8Array): IgpAccountData | null {
     owner: readOptionAddress(c),
     beneficiary: readAddress(c),
     gasOracles: decodeMapU32GasOracle(c),
+    feeConfig: readOptionalTrailingIgpFeeConfig(c),
   }));
 }
 
