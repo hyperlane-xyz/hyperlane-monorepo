@@ -4,11 +4,19 @@ import {
   type ChainAddresses,
   createWarpRouteConfigId,
 } from '@hyperlane-xyz/registry';
-import { SealevelSigner, createRpc } from '@hyperlane-xyz/sealevel-sdk';
+import { FeeType } from '@hyperlane-xyz/provider-sdk/fee';
+import {
+  DEFAULT_FEE_SALT,
+  SealevelSigner,
+  SvmFeeArtifactManager,
+  SvmWarpArtifactManager,
+  createRpc,
+} from '@hyperlane-xyz/sealevel-sdk';
 import { airdropSol } from '@hyperlane-xyz/sealevel-sdk/testing';
 import {
   TokenFeeType,
   TokenType,
+  type WarpCoreConfig,
   type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
@@ -39,6 +47,7 @@ describe('hyperlane warp fee apply CLI e2e tests (Sealevel)', function () {
 
   let signer: Awaited<ReturnType<typeof SealevelSigner.connectWithSigner>>;
   let mailboxAddress: string;
+  let rpc: ReturnType<typeof createRpc>;
 
   const warpCommands = new HyperlaneE2EWarpTestCommands(
     ProtocolType.Sealevel,
@@ -48,7 +57,7 @@ describe('hyperlane warp fee apply CLI e2e tests (Sealevel)', function () {
 
   before(async function () {
     const rpcUrl = TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.CHAIN_NAME_1.rpcUrl;
-    const rpc = createRpc(rpcUrl);
+    rpc = createRpc(rpcUrl);
     signer = await SealevelSigner.connectWithSigner([rpcUrl], SVM_KEY);
 
     await airdropSol(rpc, signer.getSignerAddress(), 50_000_000_000n);
@@ -239,6 +248,18 @@ describe('hyperlane warp fee apply CLI e2e tests (Sealevel)', function () {
 
     const afterApply = await warpCommands.readConfig(CHAIN_NAME, warpCorePath);
     expect(afterApply[CHAIN_NAME].tokenFee).to.be.undefined;
+
+    // On-chain truth check — bypass the CLI readConfig translation. The SDK
+    // reader sets `config.fee` conditionally on the decoded Option<FeeConfig>
+    // from the warp token PDA, so undefined here means the program field is
+    // None on-chain (not just elided by the CLI layer).
+    const coreConfig = readYamlOrJson(warpCorePath) as WarpCoreConfig;
+    const token = coreConfig.tokens.find((t) => t.chainName === CHAIN_NAME);
+    assert(token?.addressOrDenom, 'Token not found in warp core config');
+    const onChain = await new SvmWarpArtifactManager(rpc, {
+      chainName: CHAIN_NAME,
+    }).readWarpToken(token.addressOrDenom);
+    expect(onChain.config.fee).to.be.undefined;
   });
 
   it('should add a quote signer to OffchainQuotedLinearFee via apply', async function () {
@@ -280,6 +301,39 @@ describe('hyperlane warp fee apply CLI e2e tests (Sealevel)', function () {
       SIGNER_A.toLowerCase(),
     ]);
 
+    // Snapshot raw fee params before apply so we can assert that mutating
+    // signers preserves the on-chain bps→raw conversion. A bps echo on the
+    // CLI config can't catch drift from a wasteful SetFeeParams ix.
+    const coreConfig = readYamlOrJson(warpCorePath) as WarpCoreConfig;
+    const tokenAddr = coreConfig.tokens.find(
+      (t) => t.chainName === CHAIN_NAME,
+    )?.addressOrDenom;
+    assert(tokenAddr, 'Token not found in warp core config');
+    const warpAfterDeploy = await new SvmWarpArtifactManager(rpc, {
+      chainName: CHAIN_NAME,
+    }).readWarpToken(tokenAddr);
+    const feeProgramAddr = warpAfterDeploy.config.fee?.deployed?.address;
+    assert(feeProgramAddr, 'Expected fee program after deploy');
+
+    const feeManager = new SvmFeeArtifactManager(
+      rpc,
+      { knownRoutersPerDomain: {} },
+      {
+        domainId:
+          TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.CHAIN_NAME_1.domainId,
+        chainName: CHAIN_NAME,
+      },
+      DEFAULT_FEE_SALT,
+    );
+    const feeBeforeApply = await feeManager.readFee(feeProgramAddr, {
+      knownRoutersPerDomain: {},
+    });
+    assert(
+      feeBeforeApply.config.type === FeeType.offchainQuotedLinear,
+      `Expected offchainQuotedLinear fee, got ${feeBeforeApply.config.type}`,
+    );
+    const rawSnapshot = feeBeforeApply.config.params;
+
     const applyConfig: WarpRouteDeployConfig = {
       [CHAIN_NAME]: {
         ...baseConfig,
@@ -310,9 +364,19 @@ describe('hyperlane warp fee apply CLI e2e tests (Sealevel)', function () {
       afterFee.type === TokenFeeType.OffchainQuotedLinearFee,
       `Expected OffchainQuotedLinearFee, got ${afterFee.type}`,
     );
-    expect(afterFee.bps).to.equal(50);
     expect(
       new Set(afterFee.quoteSigners?.map((s) => s.toLowerCase())),
     ).to.deep.equal(new Set([SIGNER_A.toLowerCase(), SIGNER_B.toLowerCase()]));
+
+    // On-chain truth check — raw params unchanged across apply proves the
+    // writer did not emit a SetFeeParams ix (only SetQuoteSigner).
+    const feeAfterApply = await feeManager.readFee(feeProgramAddr, {
+      knownRoutersPerDomain: {},
+    });
+    assert(
+      feeAfterApply.config.type === FeeType.offchainQuotedLinear,
+      `Expected offchainQuotedLinear fee after apply, got ${feeAfterApply.config.type}`,
+    );
+    expect(feeAfterApply.config.params).to.deep.equal(rawSnapshot);
   });
 });

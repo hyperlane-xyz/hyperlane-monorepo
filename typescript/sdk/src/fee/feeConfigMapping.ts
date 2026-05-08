@@ -11,12 +11,12 @@ import { TokenFeeType, type TokenFeeConfigInput } from './types.js';
 /**
  * Maps an EVM TokenFeeConfigInput to a provider-sdk FeeConfig.
  * Type discriminant strings already match between the two systems.
- * Beneficiary defaults to owner (EVM input doesn't expose it).
+ * Beneficiary defaults to owner when not explicitly provided.
  */
 export function tokenFeeInputToFeeConfig(
   input: TokenFeeConfigInput,
 ): FeeConfig {
-  const beneficiary = input.owner;
+  const beneficiary = input.beneficiary ?? input.owner;
 
   switch (input.type) {
     case TokenFeeType.LinearFee:
@@ -102,17 +102,17 @@ function toFeeParams(input: {
   maxFee?: bigint;
   halfAmount?: bigint;
 }): FeeParams {
-  if (input.bps !== undefined) {
-    return { type: FeeParamsType.bps, bps: input.bps };
+  // Prefer the raw branch when both are present — the schema's `.transform()`
+  // injects a derived `bps` post-parse for Linear/OffchainQuoted, so raw
+  // values would otherwise be silently dropped on round-trip.
+  if (input.maxFee !== undefined && input.halfAmount !== undefined) {
+    return {
+      type: FeeParamsType.raw,
+      maxFee: input.maxFee.toString(),
+      halfAmount: input.halfAmount.toString(),
+    };
   }
 
-  assert(
-    input.maxFee !== undefined && input.halfAmount !== undefined,
-    'Expected bps or maxFee/halfAmount',
-  );
-  return {
-    type: FeeParamsType.raw,
-    maxFee: input.maxFee.toString(),
-    halfAmount: input.halfAmount.toString(),
-  };
+  assert(input.bps !== undefined, 'Expected bps or maxFee/halfAmount');
+  return { type: FeeParamsType.bps, bps: input.bps };
 }

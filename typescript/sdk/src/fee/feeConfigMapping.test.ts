@@ -6,7 +6,11 @@ import {
 import { expect } from 'chai';
 
 import { tokenFeeInputToFeeConfig } from './feeConfigMapping.js';
-import { TokenFeeType, type TokenFeeConfigInput } from './types.js';
+import {
+  TokenFeeConfigInputSchema,
+  TokenFeeType,
+  type TokenFeeConfigInput,
+} from './types.js';
 
 const OWNER = '0x0000000000000000000000000000000000000001';
 const SIGNER_A = '0x000000000000000000000000000000000000000A';
@@ -164,6 +168,48 @@ describe('tokenFeeInputToFeeConfig', () => {
           },
         },
       },
+    });
+  });
+
+  it('maps parsed LinearFee with raw params — schema injects derived bps but raw wins', () => {
+    const parsed = TokenFeeConfigInputSchema.parse({
+      type: TokenFeeType.LinearFee,
+      owner: OWNER,
+      maxFee: 1000n,
+      halfAmount: 500n,
+    });
+
+    expect(tokenFeeInputToFeeConfig(parsed)).to.deep.equal({
+      type: FeeType.linear,
+      owner: OWNER,
+      beneficiary: OWNER,
+      params: {
+        type: FeeParamsType.raw,
+        maxFee: '1000',
+        halfAmount: '500',
+      },
+    });
+  });
+
+  it('maps parsed OffchainQuotedLinearFee with raw params — schema injects derived bps but raw wins', () => {
+    const parsed = TokenFeeConfigInputSchema.parse({
+      type: TokenFeeType.OffchainQuotedLinearFee,
+      owner: OWNER,
+      maxFee: 1000n,
+      halfAmount: 500n,
+      quoteSigners: [SIGNER_A],
+    });
+
+    expect(tokenFeeInputToFeeConfig(parsed)).to.deep.equal({
+      type: FeeType.offchainQuotedLinear,
+      owner: OWNER,
+      beneficiary: OWNER,
+      params: {
+        type: FeeParamsType.raw,
+        maxFee: '1000',
+        halfAmount: '500',
+      },
+      quoteSigners: [SIGNER_A],
     });
   });
 

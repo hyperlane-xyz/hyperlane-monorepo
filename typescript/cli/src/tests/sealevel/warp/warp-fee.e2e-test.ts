@@ -17,6 +17,7 @@ import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import { HyperlaneE2EWarpTestCommands } from '../../commands/warp.js';
 import {
+  BURN_ADDRESS_BY_PROTOCOL,
   CORE_ADDRESSES_PATH_BY_PROTOCOL,
   CORE_CONFIG_PATH_BY_PROTOCOL,
   CORE_READ_CONFIG_PATH_BY_PROTOCOL,
@@ -188,5 +189,43 @@ describe('hyperlane warp fee CLI e2e tests (Sealevel)', function () {
       `Expected LinearFee for anvil2, got ${anvil2.type}`,
     );
     expect(anvil2.bps).to.equal(100);
+  });
+
+  it('should set beneficiary explicitly when provided in tokenFee config', async function () {
+    const ownerAddress = signer.getSignerAddress();
+    const beneficiaryAddress = BURN_ADDRESS_BY_PROTOCOL[ProtocolType.Sealevel];
+    const SYMBOL = 'BENEF';
+
+    const warpRouteId = createWarpRouteConfigId(SYMBOL, CHAIN_NAME);
+    const config: WarpRouteDeployConfig = {
+      [CHAIN_NAME]: {
+        type: TokenType.native,
+        name: 'Beneficiary Token',
+        symbol: SYMBOL,
+        decimals: 9,
+        mailbox: mailboxAddress,
+        owner: ownerAddress,
+        tokenFee: {
+          type: TokenFeeType.LinearFee,
+          owner: ownerAddress,
+          beneficiary: beneficiaryAddress,
+          bps: 50,
+        },
+      },
+    };
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, config);
+
+    await warpCommands.deploy(SVM_KEY, warpRouteId, WARP_DEPLOY_OUTPUT_PATH);
+
+    const warpCorePath = getWarpCoreConfigPath(SYMBOL, [CHAIN_NAME]);
+    const readConfig = await warpCommands.readConfig(CHAIN_NAME, warpCorePath);
+    const fee = readConfig[CHAIN_NAME].tokenFee;
+    assert(fee, 'Expected tokenFee after deploy');
+    assert(
+      fee.type === TokenFeeType.LinearFee,
+      `Expected LinearFee, got ${fee.type}`,
+    );
+    expect(fee.beneficiary).to.equal(beneficiaryAddress);
+    expect(fee.beneficiary).to.not.equal(ownerAddress);
   });
 });
