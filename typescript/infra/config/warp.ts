@@ -139,6 +139,7 @@ import { getCCTPWarpConfig as getTestnetCCTPWarpConfig } from './environments/te
 import { DEFAULT_REGISTRY_URI } from './registry.js';
 import { getUSDCCitreaIronBridgeWarpConfig } from './environments/mainnet3/warp/configGetters/getUSDCCitreaIronBridgeWarpConfig.js';
 import { getUSDCCitreaMoonpayWarpConfig } from './environments/mainnet3/warp/configGetters/getUSDCCitreaMoonpayWarpConfig.js';
+import { getUSDTCitreaIronBridgeWarpConfig } from './environments/mainnet3/warp/configGetters/getUSDTCitreaIronBridgeWarpConfig.js';
 import { getUSDTOftWarpConfig } from './environments/mainnet3/warp/configGetters/getUSDTOftWarpConfig.js';
 import { getUSDTOftLegacyWarpConfig } from './environments/mainnet3/warp/configGetters/getUSDTOftLegacyWarpConfig.js';
 import { getUSDTSTAGEWarpConfig } from './environments/mainnet3/warp/configGetters/getUSDTSTAGEWarpConfig.js';
@@ -232,6 +233,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.USDTOftLegacy]: getUSDTOftLegacyWarpConfig,
   [WarpRouteIds.USDCCitreaIronBridge]: getUSDCCitreaIronBridgeWarpConfig,
   [WarpRouteIds.CrossMoonpay]: getUSDCCitreaMoonpayWarpConfig,
+  [WarpRouteIds.USDTCitreaIronBridge]: getUSDTCitreaIronBridgeWarpConfig,
 };
 
 type StrategyConfigGetter = () => ChainSubmissionStrategy;

@@ -149,7 +149,9 @@ export enum WarpRouteIds {
   // ctUSD
   CitreaUSD = 'ctUSD/citrea',
   CrossMoonpay = 'CROSS/moonpay',
-  USDCCitreaIronBridge = 'CROSS/ctusd-ironbridge',
+  USDCCitreaIronBridge = 'CROSS/ctusd-usdc-ironbridge',
+  USDTCitreaMoonpay = 'USDT/moonpay',
+  USDTCitreaIronBridge = 'CROSS/ctusd-usdt-ironbridge',
 
   // TODO: uncomment when USDTOft warp routes are in the registry
   // USDT OFT

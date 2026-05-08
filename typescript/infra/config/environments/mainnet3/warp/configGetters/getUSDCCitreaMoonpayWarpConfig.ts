@@ -70,7 +70,7 @@ function getCctpFastRouteAddresses(): Record<EvmChain, string> {
 
 function getTBDAAddresses(): Record<EvmChain | 'citrea', string> {
   const route = getRegistry().getWarpRoute(WarpRouteIds.USDCCitreaIronBridge);
-  assert(route, 'CROSS/ctusd-ironbridge route not found in registry');
+  assert(route, 'CROSS/ctusd-usdc-ironbridge route not found in registry');
 
   const find = (chain: EvmChain | 'citrea') => {
     const token = route.tokens.find((t) => t.chainName === chain);
@@ -84,6 +84,19 @@ function getTBDAAddresses(): Record<EvmChain | 'citrea', string> {
     ethereum: find('ethereum'),
     citrea: find('citrea'),
   };
+}
+
+function getUSDTTBDAAddresses(): Record<'citrea' | 'ethereum', string> {
+  const route = getRegistry().getWarpRoute(WarpRouteIds.USDTCitreaIronBridge);
+  assert(route, 'CROSS/ctusd-usdt-ironbridge route not found in registry');
+
+  const find = (chain: 'citrea' | 'ethereum') => {
+    const token = route.tokens.find((t) => t.chainName === chain);
+    assert(token?.addressOrDenom, `Missing USDT TBDA address for ${chain}`);
+    return token.addressOrDenom;
+  };
+
+  return { citrea: find('citrea'), ethereum: find('ethereum') };
 }
 
 const CCTP_FAST_ROUTE_ADDRESSES = getCctpFastRouteAddresses();
@@ -231,6 +244,7 @@ export async function getUSDCCitreaMoonpayWarpConfig(
   );
 
   const tbda = getTBDAAddresses();
+  const usdtTbda = getUSDTTBDAAddresses();
 
   return {
     solanamainnet: {
@@ -286,12 +300,18 @@ export async function getUSDCCitreaMoonpayWarpConfig(
       mailbox: routerConfig.citrea.mailbox,
       owner: MOONPAY_OWNER,
       allowedRebalancers: [REBALANCER],
-      allowedRebalancingBridges: Object.fromEntries(
-        EVM_CHAINS.map((dest) => [
-          dest,
-          [{ bridge: tbda.citrea, approvedTokens: [tokens.citrea.ctUSD] }],
-        ]),
-      ),
+      allowedRebalancingBridges: {
+        ...Object.fromEntries(
+          EVM_CHAINS.map((dest) => [
+            dest,
+            [{ bridge: tbda.citrea, approvedTokens: [tokens.citrea.ctUSD] }],
+          ]),
+        ),
+        ethereum: [
+          { bridge: tbda.citrea, approvedTokens: [tokens.citrea.ctUSD] },
+          { bridge: usdtTbda.citrea, approvedTokens: [tokens.citrea.ctUSD] },
+        ],
+      },
       interchainSecurityModule: buildInterchainSecurityModule(
         'citrea',
         MOONPAY_OWNER,
