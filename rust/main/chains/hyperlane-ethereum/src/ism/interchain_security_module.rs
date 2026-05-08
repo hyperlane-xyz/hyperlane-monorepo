@@ -143,12 +143,20 @@ where
             // Context here: https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/4585
             tx = tx.from(RANDOM_ADDRESS);
         }
-        if let Ok((true, gas_estimate)) = try_join(tx.call(), tx.estimate_gas()).await {
-            return Ok(Some(gas_estimate.into()));
+        match try_join(tx.call(), tx.estimate_gas()).await {
+            Ok((true, gas_estimate)) => return Ok(Some(gas_estimate.into())),
+            Ok((false, _)) => {}
+            Err(err) => {
+                tracing::debug!(
+                    ?err,
+                    "verify() dry-run failed; falling through to Null-ISM checks"
+                );
+            }
         }
         // For Null-typed ISMs (e.g. TrustedRelayerIsm, RateLimitedIsm), verify()
-        // returns false or reverts during a dry run because they depend on mailbox
-        // state set during process() (before verify() is called in the real flow).
+        // returns false or reverts during a dry run because the simulation skips
+        // the EFFECTS performed by Mailbox.process() (e.g. _isDelivered) before
+        // verify() runs on-chain.
         if self.module_type().await? == ModuleType::Null {
             // TrustedRelayerIsm: verify() returns false if sender != trusted relayer.
             if let Some(sender) = self.contract.client().default_sender() {
@@ -161,22 +169,33 @@ where
             }
             // RateLimitedIsm: verify() reverts because the mailbox sets delivery
             // state before calling verify() on-chain, but simulation skips that.
-            // Confirm it's a RateLimitedIsm via recipient(), then check capacity.
+            // Require recipient() to succeed AND match the message recipient so
+            // we don't misclassify future Null-typed ISMs that expose recipient().
             let rate_limited =
                 IRateLimitedIsm::new(self.contract.address(), self.contract.client());
-            if rate_limited.recipient().call().await.is_ok() {
-                // Parse token amount from warp message body (bytes [32..64]).
-                let body = message.body.as_slice();
-                if body.len() < 64 {
-                    return Ok(None);
-                }
-                let token_amount = ethers::types::U256::from_big_endian(&body[32..64]);
-                let current_level = match rate_limited.calculate_current_level().call().await {
-                    Ok(v) => v,
-                    Err(_) => return Ok(None),
-                };
-                if token_amount <= current_level {
-                    return Ok(Some(U256::zero()));
+            if let Ok(ism_recipient) = rate_limited.recipient().call().await {
+                let msg_recipient =
+                    ethers::types::H160::from_slice(&message.recipient.as_bytes()[12..]);
+                if msg_recipient == ism_recipient {
+                    // Parse token amount from warp message body (bytes [32..64]).
+                    let body = message.body.as_slice();
+                    if body.len() < 64 {
+                        return Ok(None);
+                    }
+                    let token_amount = ethers::types::U256::from_big_endian(&body[32..64]);
+                    let current_level = match rate_limited.calculate_current_level().call().await {
+                        Ok(v) => v,
+                        Err(err) => {
+                            tracing::debug!(
+                                ?err,
+                                "calculateCurrentLevel() failed; rate limit may not be configured"
+                            );
+                            return Ok(None);
+                        }
+                    };
+                    if token_amount <= current_level {
+                        return Ok(Some(U256::zero()));
+                    }
                 }
             }
         }
