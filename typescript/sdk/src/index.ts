@@ -520,6 +520,7 @@ export {
   ProviderRetryOptions,
   SmartProviderOptions,
 } from './providers/SmartProvider/types.js';
+export { parseCustomRpcHeaders } from './utils/provider.js';
 export { CallData, CallDataSchema } from './providers/transactions/types.js';
 export {
   randomAddress,

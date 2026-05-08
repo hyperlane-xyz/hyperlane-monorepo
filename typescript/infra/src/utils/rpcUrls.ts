@@ -3,7 +3,7 @@ import { Separator, checkbox, confirm } from '@inquirer/prompts';
 import select from '@inquirer/select';
 import { ethers } from 'ethers';
 
-import { ChainName } from '@hyperlane-xyz/sdk';
+import { ChainName, parseCustomRpcHeaders } from '@hyperlane-xyz/sdk';
 import { assert, isEVMLike, timeout } from '@hyperlane-xyz/utils';
 
 import { getChain } from '../../config/registry.js';
@@ -819,7 +819,10 @@ async function testProvider(chain: ChainName, url: string): Promise<boolean> {
     return true;
   }
 
-  const provider = new ethers.providers.StaticJsonRpcProvider(url);
+  const { url: cleanUrl, headers } = parseCustomRpcHeaders(url);
+  const provider = new ethers.providers.StaticJsonRpcProvider(
+    Object.keys(headers).length > 0 ? { url: cleanUrl, headers } : cleanUrl,
+  );
   const expectedChainId = chainMetadata.chainId;
 
   try {
