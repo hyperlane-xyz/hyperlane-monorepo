@@ -10,7 +10,11 @@ import {
   type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import type { IgpHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
-import { assert, ZERO_ADDRESS_HEX_32 } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  isZeroishAddress,
+  ZERO_ADDRESS_HEX_32,
+} from '@hyperlane-xyz/utils';
 
 import type { GasOracleConfig, GasOverheadConfig } from '../codecs/shared.js';
 import { resolveProgram } from '../deploy/resolve-program.js';
@@ -306,15 +310,13 @@ export class SvmIgpHookWriter
     const config = artifact.config;
     const programId = artifact.deployed.programId;
 
-    const currentIgp = await fetchIgpAccount(this.rpc, programId, this.salt);
-    if (!currentIgp) {
-      throw new Error('IGP account not initialized');
-    }
-
-    assert(currentIgp.owner, `IGP ${programId} has no owner`);
-    const ownerAddress = currentIgp.owner;
-
-    const { address: igpPda } = await deriveIgpAccountPda(programId, this.salt);
+    const current = await this.read(programId);
+    assert(
+      !isZeroishAddress(current.config.owner),
+      `Cannot update IGP ${programId}: IGP has no owner`,
+    );
+    const ownerAddress = parseAddress(current.config.owner);
+    const igpPda = current.deployed.igpPda;
 
     const oracleConfigsToUpdate: GasOracleConfig[] = [];
     for (const [domainStr, oracleData] of Object.entries(config.oracleConfig)) {
@@ -323,7 +325,7 @@ export class SvmIgpHookWriter
         Number.isInteger(domain) && domain >= 0,
         `Invalid domain: '${domainStr}'`,
       );
-      const existingOracle = currentIgp.gasOracles.get(domain);
+      const existingOracle = current.config.oracleConfig[domain];
 
       const newGasPrice = BigInt(oracleData.gasPrice);
       const newTokenExchangeRate = BigInt(oracleData.tokenExchangeRate);
@@ -332,15 +334,12 @@ export class SvmIgpHookWriter
       let needsUpdate = false;
       if (!existingOracle) {
         needsUpdate = true;
-      } else {
-        const existing = existingOracle.value;
-        if (
-          existing.gasPrice !== newGasPrice ||
-          existing.tokenExchangeRate !== newTokenExchangeRate ||
-          existing.tokenDecimals !== newTokenDecimals
-        ) {
-          needsUpdate = true;
-        }
+      } else if (
+        BigInt(existingOracle.gasPrice) !== newGasPrice ||
+        BigInt(existingOracle.tokenExchangeRate) !== newTokenExchangeRate ||
+        (existingOracle.tokenDecimals ?? 9) !== newTokenDecimals
+      ) {
+        needsUpdate = true;
       }
 
       if (needsUpdate) {
@@ -373,14 +372,8 @@ export class SvmIgpHookWriter
       });
     }
 
-    const currentOverheadIgp = await fetchOverheadIgpAccount(
-      this.rpc,
-      programId,
-      this.salt,
-    );
-    if (!currentOverheadIgp) {
-      throw new Error('Overhead IGP account not initialized');
-    }
+    const overheadIgpPda = current.deployed.overheadIgpPda;
+    assert(overheadIgpPda, `Overhead IGP not initialized for ${programId}`);
 
     const overheadConfigsToUpdate: GasOverheadConfig[] = [];
     for (const [domainStr, gas] of Object.entries(config.overhead)) {
@@ -389,10 +382,13 @@ export class SvmIgpHookWriter
         Number.isInteger(domain) && domain >= 0,
         `Invalid domain: '${domainStr}'`,
       );
-      const existingOverhead = currentOverheadIgp?.gasOverheads.get(domain);
+      const existingOverhead = current.config.overhead[domain];
       const newOverhead = BigInt(gas);
 
-      if (!existingOverhead || existingOverhead !== newOverhead) {
+      if (
+        existingOverhead === undefined ||
+        BigInt(existingOverhead) !== newOverhead
+      ) {
         overheadConfigsToUpdate.push({
           destinationDomain: domain,
           gasOverhead: newOverhead,
@@ -401,11 +397,6 @@ export class SvmIgpHookWriter
     }
 
     if (overheadConfigsToUpdate.length > 0) {
-      const { address: overheadIgpPda } = await deriveOverheadIgpAccountPda(
-        programId,
-        this.salt,
-      );
-
       const setOverheadIx = await getSetDestinationGasOverheadsInstruction(
         programId,
         ownerAddress,
