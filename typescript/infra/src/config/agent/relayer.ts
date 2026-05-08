@@ -390,6 +390,33 @@ export function chainMapMatchingList(
   return routerMatchingList(routers);
 }
 
+// Create a matching list for chains that have multiple addresses (e.g. mixed token types in one warp route).
+// Generates entries for all (source, destination) pairs where sender/recipient arrays include all addresses for that chain.
+export function multiAddressChainMapMatchingList(
+  chainAddresses: ChainMap<Address[]>,
+): MatchingList {
+  const chains = Object.keys(chainAddresses);
+  const list: MatchingList = [];
+
+  for (const source of chains) {
+    for (const destination of chains) {
+      if (source === destination) continue;
+      list.push({
+        originDomain: getDomainId(source),
+        senderAddress: chainAddresses[source].map((addr) =>
+          addressToBytes32(addr),
+        ),
+        destinationDomain: getDomainId(destination),
+        recipientAddress: chainAddresses[destination].map((addr) =>
+          addressToBytes32(addr),
+        ),
+      });
+    }
+  }
+
+  return list;
+}
+
 // Create a matching list for the given contract addresses
 export function matchingList<F extends HyperlaneFactories>(
   addressesMap: HyperlaneAddressesMap<F>,
