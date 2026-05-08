@@ -1,9 +1,9 @@
 /**
- * Program upgrade logic for warp route token programs.
+ * Program upgrade logic for Hyperlane SVM programs.
  *
- * Separates upgrade concerns from config diffing (warp-tx.ts).
- * Writers call this before computeWarpTokenUpdateInstructions
- * when contractVersion in the expected config differs from current.
+ * Separates upgrade concerns from config diffing. Writers call this
+ * before their config-update step when expected.contractVersion differs
+ * from the on-chain version.
  */
 import type { Address } from '@solana/kit';
 
@@ -17,7 +17,7 @@ import {
   DeployStageKind,
   executeDeployPlan,
   getProgramUpgradeAuthority,
-} from '../deploy/program-deployer.js';
+} from './program-deployer.js';
 import { deriveProgramDataAddress } from '../pda.js';
 import {
   getExtendProgramCheckedInstruction,
