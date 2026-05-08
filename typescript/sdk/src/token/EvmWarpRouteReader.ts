@@ -43,6 +43,7 @@ import {
   objMap,
   promiseObjAll,
   rootLogger,
+  strip0x,
 } from '@hyperlane-xyz/utils';
 
 import { ExplorerLicenseType } from '../block-explorer/etherscan.js';
@@ -67,7 +68,12 @@ import { DestinationGas } from '../router/types.js';
 import { ChainName, ChainNameOrId, DeployedOwnableConfig } from '../types.js';
 import { NormalizedScale } from '../utils/decimals.js';
 
-import { isProxy, proxyAdmin, proxyImplementation } from './../deploy/proxy.js';
+import {
+  isProxy,
+  isStorageEmpty,
+  proxyAdmin,
+  proxyImplementation,
+} from './../deploy/proxy.js';
 import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
 import {
   CctpTokenConfig,
@@ -615,7 +621,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     try {
       // Fetch implementation bytecode once; scanning selectors locally avoids
       // reverted eth_calls for methods that don't exist on the contract.
-      // Read the EIP-1967 impl slot directly so UUPS/beacon proxies (which have
+      // Read the EIP-1967 impl slot directly so UUPS proxies (which have
       // an empty admin slot) are resolved correctly alongside TransparentProxy.
       // Wrapped in try/catch so EOAs / bad addresses don't throw here — bytecode
       // will be '0x' and the selector guard falls through to probes as pre-PR.
@@ -636,7 +642,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         // When bytecode is unavailable ('0x'), fall through to the probe anyway
         // to preserve pre-optimization behavior on zero-impl / flaky-RPC paths.
         const selector = factory.createInterface().getSighash(method);
-        if (bytecode !== '0x' && !bytecode.includes(selector.slice(2)))
+        if (!isStorageEmpty(bytecode) && !bytecode.includes(strip0x(selector)))
           continue;
 
         try {
