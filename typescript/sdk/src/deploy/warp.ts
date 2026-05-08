@@ -305,6 +305,11 @@ export async function executeWarpDeploy(
           contractVerifier,
         );
 
+        assert(
+          !warpDeployConfig.isNft || isObjEmpty(rateLimitedHookSnapshots),
+          'RATE_LIMITED hooks are not supported for NFT warp routes (HypERC721Deployer has no beforeTransferOwnership override)',
+        );
+
         const deployer = warpDeployConfig.isNft
           ? new HypERC721Deployer(multiProvider)
           : isObjEmpty(rateLimitedHookSnapshots)
@@ -601,24 +606,26 @@ async function createWarpHook({
   }
 
   // RATE_LIMITED hooks need the token router address as sender — defer until post-token deploy.
-  // Only EVM/Tron support EvmHookModule; non-EVM chains skip deferred deployment entirely.
+  // Only EVM/Tron support EvmHookModule; foreignDeployment and non-EVM chains cannot wire the hook.
   if (hookTreeContainsRateLimited(hook)) {
+    assert(
+      !warpConfig.foreignDeployment,
+      `RATE_LIMITED hook configured on ${chain} but it is a foreignDeployment — hook cannot be wired post-deploy`,
+    );
     const protocol = multiProvider.getProtocol(chain);
-    if (protocol === ProtocolType.Ethereum || protocol === ProtocolType.Tron) {
-      rootLogger.info(
-        `RATE_LIMITED hook on ${chain} — deferring deployment until after token deployment`,
-      );
-      rateLimitedHookSnapshots[chain] = {
-        hookConfig: hook,
-        chainAddresses,
-        ccipContractCache,
-        proxyAdminAddress: warpConfig.proxyAdmin?.address,
-      };
-    } else {
-      rootLogger.info(
-        `RATE_LIMITED hook on ${chain} — skipping (non-EVM chain does not support deferred hook deployment)`,
-      );
-    }
+    assert(
+      protocol === ProtocolType.Ethereum || protocol === ProtocolType.Tron,
+      `RATE_LIMITED hook is only supported on EVM/Tron chains; ${chain} uses protocol ${protocol}`,
+    );
+    rootLogger.info(
+      `RATE_LIMITED hook on ${chain} — deferring deployment until after token deployment`,
+    );
+    rateLimitedHookSnapshots[chain] = {
+      hookConfig: hook,
+      chainAddresses,
+      ccipContractCache,
+      proxyAdminAddress: warpConfig.proxyAdmin?.address,
+    };
     return undefined;
   }
 
