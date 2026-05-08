@@ -19,6 +19,11 @@
  * Required env: IRON_API_KEY
  */
 
+// Load `IRON_API_KEY` (and any other env) from `typescript/infra/.env`
+// when present. The file is gitignored. Falls back silently to the
+// real environment when there's no `.env`.
+import 'dotenv/config';
+
 import yargs from 'yargs';
 
 import type { WarpCoreConfig, WarpRouteDeployConfig } from '@hyperlane-xyz/sdk';

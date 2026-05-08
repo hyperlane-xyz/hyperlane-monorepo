@@ -29,10 +29,20 @@ The script exits 0 when every lane passes, exits 1 on any mismatch.
 
 ### Run
 
+`IRON_API_KEY` is loaded from `typescript/infra/.env` automatically
+(via `dotenv`), or read from the shell environment as a fallback.
+`.env*` is already gitignored under `typescript/infra/`.
+
 ```bash
-export IRON_API_KEY=<key>
 cd typescript/infra
+echo 'IRON_API_KEY=<your-iron-key>' > .env   # one-time setup
 pnpm verify:iron-moonpay
+```
+
+If you'd rather pass the key inline, that still works:
+
+```bash
+IRON_API_KEY=<your-iron-key> pnpm verify:iron-moonpay
 ```
 
 ### Flags
