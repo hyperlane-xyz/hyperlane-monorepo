@@ -27,7 +27,7 @@ import {
 
 import { compareVersions as compareSemver } from 'compare-versions';
 
-import { rootLogger } from '@hyperlane-xyz/utils';
+import { assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { ByteCursor } from '../codecs/binary.js';
 import { buildGetProgramVersionInstruction } from '../instructions/version.js';
@@ -144,13 +144,15 @@ export async function queryProgramVersion(
  *   - Borsh String: u32le length prefix + UTF-8 bytes
  *   - trailing u8 tag (always 0)
  */
-function decodeSimulationReturnDataString(raw: Uint8Array): string | null {
-  if (raw.length < 5) return null;
+function decodeSimulationReturnDataString(raw: Uint8Array): string {
+  assert(raw.length >= 5, 'SimulationReturnData<String> too short');
   const cursor = new ByteCursor(raw);
   const strLen = cursor.readU32LE();
-  if (strLen === 0 || strLen > raw.length - 4) return null;
-  const strBytes = cursor.readBytes(strLen);
-  return new TextDecoder().decode(strBytes);
+  assert(
+    raw.length === 4 + strLen + 1,
+    `Malformed SimulationReturnData<String>: expected ${4 + strLen + 1} bytes, got ${raw.length}`,
+  );
+  return new TextDecoder().decode(cursor.readBytes(strLen));
 }
 
 /**

@@ -1,6 +1,27 @@
-import { type Address, fetchEncodedAccount } from '@solana/kit';
+import {
+  type Address,
+  address as parseAddress,
+  fetchEncodedAccount,
+} from '@solana/kit';
 
-import { assert, fromHexString, toHexString } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  fromHexString,
+  rootLogger,
+  toHexString,
+} from '@hyperlane-xyz/utils';
+
+const logger = rootLogger.child({ module: 'warp-query' });
+
+/**
+ * Known-funded mainnet address used as a fallback simulation fee payer.
+ * Solana simulation requires the fee payer to exist and hold SOL even with
+ * sigVerify=false; production token owners (multisigs, governance) often
+ * don't hold SOL, so we fall back to this when the owner can't pay.
+ */
+const FALLBACK_SIMULATION_PAYER = parseAddress(
+  '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf',
+);
 
 import {
   COLLATERAL_PLUGIN_SIZE,
@@ -125,16 +146,28 @@ export async function detectWarpTokenType(
 
 /**
  * Queries the on-chain program version for a warp token program.
- * Uses the token owner as the simulation fee payer (must exist on-chain).
- * Returns null if the owner is null (can't simulate without a payer).
+ *
+ * Uses the token owner as the simulation fee payer when present, falling
+ * back to a known-funded mainnet address when the owner is null or the
+ * owner-paid simulation fails (e.g. production owner has no SOL).
  */
 export async function fetchWarpProgramVersion(
   rpc: SvmRpc,
   programId: Address,
   owner: Address | null,
 ): Promise<string | null> {
-  if (!owner) return null;
-  return queryProgramVersion(rpc, programId, owner);
+  if (owner) {
+    try {
+      return await queryProgramVersion(rpc, programId, owner);
+    } catch (err) {
+      logger.debug(
+        'Owner-as-payer simulation failed; retrying with fallback payer',
+        { programId, owner, err },
+      );
+    }
+  }
+
+  return queryProgramVersion(rpc, programId, FALLBACK_SIMULATION_PAYER);
 }
 
 /** Converts a 32-byte router H256 to a 0x-prefixed hex string. */

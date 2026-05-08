@@ -417,6 +417,7 @@ export class SvmSyntheticTokenWriter
 
     const txs: AnnotatedSvmTransaction[] = [];
 
+    let upgradingToVersion: string | undefined;
     if (hasProgramBytes(this.config.program)) {
       const upgradeResult = await prepareProgramUpgrade(
         programId,
@@ -428,6 +429,9 @@ export class SvmSyntheticTokenWriter
         `synthetic token ${programId}`,
       );
       txs.push(...(upgradeResult?.authorityTransactions ?? []));
+      upgradingToVersion = upgradeResult?.authorityTransactions
+        ? artifact.config.contractVersion
+        : undefined;
     }
 
     const configUpdateTxs = await computeWarpTokenUpdateInstructions(
@@ -439,6 +443,7 @@ export class SvmSyntheticTokenWriter
       `synthetic token ${programId}`,
       this.config.feeSalt,
       current.deployed.feeConfig,
+      upgradingToVersion,
     );
     txs.push(...configUpdateTxs);
 
