@@ -122,6 +122,11 @@ export async function getUSDTCitreaMoonpayWarpConfig(
           },
         ],
       },
+      remoteRouters: {
+        4114: { address: '0x2bef59e84615371304bd731601f6344F5F304504' },
+        8453: { address: '0x7abBb4ea8a5895127500CF0C15830C9Eb9f61F96' },
+        42161: { address: '0x75a9297db5F0349fd1d6f4030953Fe17175e06d4' },
+      },
       hook: HOOKS.ethereum,
       interchainSecurityModule: ISMS.ethereum,
       tokenFee: buildCrossCollateralRoutingFee(MOONPAY_OWNER, ROUTE_CHAINS),
