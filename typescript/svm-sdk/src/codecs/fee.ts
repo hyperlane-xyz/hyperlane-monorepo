@@ -167,6 +167,22 @@ export function encodeSetQuoteSignerOperation(
   return concatBytes(u8(op), signerToH160(signer));
 }
 
+/**
+ * Decodes a `(op, H160)` pair encoded by `encodeSetQuoteSignerOperation`.
+ * Returns the op kind and 0x-prefixed lowercase hex signer.
+ */
+export function decodeSetQuoteSignerOperation(cursor: ByteCursor): {
+  operation: SetQuoteSignerOp;
+  signer: string;
+} {
+  const op = cursor.readU8();
+  if (op !== SetQuoteSignerOp.Add && op !== SetQuoteSignerOp.Remove) {
+    throw new Error(`Invalid SetQuoteSignerOp: ${op}`);
+  }
+  const signer = h160ToSigner(cursor.readBytes(20));
+  return { operation: op, signer };
+}
+
 // ====== Leaf Fee Config ======
 
 export interface SvmLeafFeeConfig {
