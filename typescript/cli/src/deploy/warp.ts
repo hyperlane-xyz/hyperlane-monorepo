@@ -59,6 +59,7 @@ import {
   type Address,
   addressToBytes32,
   assert,
+  formatError,
   isEVMLike,
   mapAllSettled,
   mustGet,
@@ -627,7 +628,7 @@ export async function extendWarpRoute(
       newDeployedContracts = { ...newDeployedContracts, ...contracts };
     }
     for (const [chain, error] of rejected) {
-      errorRed(`Failed to deploy extension to ${chain}: ${error.message}`);
+      errorRed(`Failed to deploy extension to ${chain}: ${formatError(error)}`);
       allRejected.set(chain, error);
     }
   }
@@ -638,11 +639,10 @@ export async function extendWarpRoute(
       const contracts = await deployExtension(chain);
       newDeployedContracts = { ...newDeployedContracts, ...contracts };
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      errorRed(`Failed to deploy extension to ${chain}: ${message}`);
+      errorRed(`Failed to deploy extension to ${chain}: ${formatError(error)}`);
       allRejected.set(
         chain,
-        error instanceof Error ? error : new Error(message),
+        error instanceof Error ? error : new Error(String(error)),
       );
     }
   }
