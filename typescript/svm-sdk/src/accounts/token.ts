@@ -1,10 +1,13 @@
-import { type Address, getAddressDecoder } from '@solana/kit';
+import type { Address } from '@solana/kit';
 
 import { assert } from '@hyperlane-xyz/utils';
 
 import {
+  ascii8,
   decodeAccountData,
   decodeDiscriminatorPrefixed,
+  readAddress,
+  readOptionAddress,
 } from '../codecs/account-data.js';
 import { ByteCursor } from '../codecs/binary.js';
 import {
@@ -235,24 +238,6 @@ export function decodeCollateralPlugin(
     escrowBump: cursor.readU8(),
     ataPayerBump: cursor.readU8(),
   };
-}
-
-function ascii8(value: string): Uint8Array {
-  if (value.length !== 8)
-    throw new Error(`Expected 8-char discriminator, got ${value}`);
-  return Uint8Array.from(value, (char) => char.charCodeAt(0));
-}
-
-const addressDecoder = getAddressDecoder();
-
-function readAddress(cursor: ByteCursor): Address {
-  return addressDecoder.decode(cursor.readBytes(32));
-}
-
-function readOptionAddress(cursor: ByteCursor): Address | null {
-  const tag = cursor.readU8();
-  assert(tag === 0 || tag === 1, `Invalid option tag: ${tag}`);
-  return tag === 1 ? readAddress(cursor) : null;
 }
 
 function readOptionFeeConfig(cursor: ByteCursor): TokenFeeConfig | null {

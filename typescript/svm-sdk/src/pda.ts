@@ -149,6 +149,50 @@ export async function deriveOverheadIgpAccountPda(
   ]);
 }
 
+/** Derives the IGP standing-quote PDA for a (igp, mint, domain, sender) tuple. */
+export async function deriveIgpStandingQuotePda(
+  programAddress: Address,
+  igpAccount: Address,
+  feeTokenMint: Address,
+  destinationDomain: number,
+  sender: Address,
+): Promise<PdaWithBump> {
+  return derive(programAddress, [
+    utf8.encode('hyperlane_igp'),
+    utf8.encode('-'),
+    utf8.encode('standing_quote'),
+    utf8.encode('-'),
+    addressEncoder.encode(igpAccount),
+    utf8.encode('-'),
+    addressEncoder.encode(feeTokenMint),
+    utf8.encode('-'),
+    u32.encode(destinationDomain),
+    utf8.encode('-'),
+    addressEncoder.encode(sender),
+  ]);
+}
+
+/** Derives the IGP transient-quote PDA for a (igp, scoped_salt) tuple. */
+export async function deriveIgpTransientQuotePda(
+  programAddress: Address,
+  igpAccount: Address,
+  scopedSalt: Uint8Array,
+): Promise<PdaWithBump> {
+  assert(
+    scopedSalt.length === 32,
+    `scopedSalt must be 32 bytes, got ${scopedSalt.length}`,
+  );
+  return derive(programAddress, [
+    utf8.encode('hyperlane_igp'),
+    utf8.encode('-'),
+    utf8.encode('transient_quote'),
+    utf8.encode('-'),
+    addressEncoder.encode(igpAccount),
+    utf8.encode('-'),
+    scopedSalt,
+  ]);
+}
+
 export async function deriveValidatorAnnouncePda(
   programAddress: Address,
 ): Promise<PdaWithBump> {

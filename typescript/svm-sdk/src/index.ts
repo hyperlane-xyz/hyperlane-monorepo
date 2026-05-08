@@ -112,6 +112,8 @@ export {
   deriveAtaPayerPda,
   deriveIgpProgramDataPda,
   deriveIgpAccountPda,
+  deriveIgpStandingQuotePda,
+  deriveIgpTransientQuotePda,
   deriveOverheadIgpAccountPda,
   deriveValidatorAnnouncePda,
   deriveValidatorStorageLocationsPda,
@@ -127,7 +129,17 @@ export {
   decodeIgpAccount,
   decodeOverheadIgpAccount,
 } from './accounts/token.js';
-export type { IgpFeeConfig } from './codecs/igp.js';
+export {
+  decodeIgpStandingQuoteAccount,
+  decodeIgpTransientQuoteAccount,
+  WILDCARD_DOMAIN,
+  WILDCARD_SENDER,
+} from './codecs/igp.js';
+export type {
+  IgpFeeConfig,
+  IgpStandingQuoteData,
+  IgpTransientQuoteData,
+} from './codecs/igp.js';
 export {
   decodeMultisigIsmAccessControlAccount,
   decodeMultisigIsmDomainDataAccount,
