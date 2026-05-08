@@ -55,7 +55,7 @@ describe('SVM IGP Program Upgrade E2E Tests', function () {
 
   it('should deploy IGP with legacy bytes, upgrade, and read new version', async () => {
     const legacyWriter = new SvmIgpHookWriter(
-      { program: { programBytes: LEGACY_SVM_PROGRAM_BYTES.igp } },
+      { program: { programBytes: LEGACY_SVM_PROGRAM_BYTES.igp }, domainId: 1 },
       rpc,
       DEFAULT_IGP_SALT,
       signer,
@@ -71,7 +71,10 @@ describe('SVM IGP Program Upgrade E2E Tests', function () {
     expect(legacyRead.config.contractVersion).to.be.undefined;
 
     const newWriter = new SvmIgpHookWriter(
-      { program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.igp } },
+      {
+        program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.igp },
+        domainId: 1,
+      },
       rpc,
       DEFAULT_IGP_SALT,
       signer,
@@ -99,7 +102,10 @@ describe('SVM IGP Program Upgrade E2E Tests', function () {
 
   it('should reject IGP downgrade attempt', async () => {
     const writer = new SvmIgpHookWriter(
-      { program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.igp } },
+      {
+        program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.igp },
+        domainId: 1,
+      },
       rpc,
       DEFAULT_IGP_SALT,
       signer,
@@ -124,7 +130,10 @@ describe('SVM IGP Program Upgrade E2E Tests', function () {
 
   it('should skip IGP upgrade when contractVersion matches', async () => {
     const writer = new SvmIgpHookWriter(
-      { program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.igp } },
+      {
+        program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.igp },
+        domainId: 1,
+      },
       rpc,
       DEFAULT_IGP_SALT,
       signer,

@@ -71,7 +71,7 @@ export class SvmProtocolProvider implements ProtocolProvider {
     const mailbox = context?.mailbox
       ? parseAddress(context.mailbox)
       : undefined;
-    return new SvmHookArtifactManager(rpc, mailbox);
+    return new SvmHookArtifactManager(rpc, chainMetadata.domainId, mailbox);
   }
 
   createWarpArtifactManager(

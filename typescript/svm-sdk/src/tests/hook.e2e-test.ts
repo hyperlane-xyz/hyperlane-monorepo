@@ -100,7 +100,7 @@ describe('SVM Hook E2E Tests', function () {
     it('should create and read IGP Hook with gas oracle configs', async function () {
       const salt = deriveIgpSalt('hyperlane-test');
       const writer = new SvmIgpHookWriter(
-        { program: { programId: TEST_PROGRAM_IDS.igp } },
+        { program: { programId: TEST_PROGRAM_IDS.igp }, domainId: 1 },
         rpc,
         salt,
         signer,
@@ -148,7 +148,7 @@ describe('SVM Hook E2E Tests', function () {
     it('should generate update transactions for config changes', async function () {
       const salt = deriveIgpSalt('hyperlane-update-test');
       const writer = new SvmIgpHookWriter(
-        { program: { programId: TEST_PROGRAM_IDS.igp } },
+        { program: { programId: TEST_PROGRAM_IDS.igp }, domainId: 1 },
         rpc,
         salt,
         signer,
@@ -199,7 +199,11 @@ describe('SVM Hook E2E Tests', function () {
 
   describe('Hook Artifact Manager', () => {
     it('should detect hook type from address', async () => {
-      const manager = new SvmHookArtifactManager(rpc, TEST_PROGRAM_IDS.mailbox);
+      const manager = new SvmHookArtifactManager(
+        rpc,
+        1,
+        TEST_PROGRAM_IDS.mailbox,
+      );
 
       const merkleHookArtifact = await manager.readHook(
         TEST_PROGRAM_IDS.mailbox,
@@ -208,7 +212,11 @@ describe('SVM Hook E2E Tests', function () {
     });
 
     it('should create readers for different hook types', () => {
-      const manager = new SvmHookArtifactManager(rpc, TEST_PROGRAM_IDS.mailbox);
+      const manager = new SvmHookArtifactManager(
+        rpc,
+        1,
+        TEST_PROGRAM_IDS.mailbox,
+      );
 
       const merkleReader = manager.createReader(HookType.MERKLE_TREE);
       expect(merkleReader).to.be.instanceOf(SvmMerkleTreeHookReader);
@@ -218,7 +226,11 @@ describe('SVM Hook E2E Tests', function () {
     });
 
     it('should create writers for different hook types', () => {
-      const manager = new SvmHookArtifactManager(rpc, TEST_PROGRAM_IDS.mailbox);
+      const manager = new SvmHookArtifactManager(
+        rpc,
+        1,
+        TEST_PROGRAM_IDS.mailbox,
+      );
 
       const merkleWriter = manager.createWriter(HookType.MERKLE_TREE, signer);
       expect(merkleWriter).to.be.instanceOf(SvmMerkleTreeHookWriter);

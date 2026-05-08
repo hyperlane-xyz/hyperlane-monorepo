@@ -12,10 +12,14 @@ import {
 import type { IgpHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
 import {
   assert,
+  difference,
+  isNullish,
   isZeroishAddress,
   ZERO_ADDRESS_HEX_32,
 } from '@hyperlane-xyz/utils';
 
+import { SetQuoteSignerOp } from '../codecs/fee.js';
+import type { IgpFeeConfig } from '../codecs/igp.js';
 import type { GasOracleConfig, GasOverheadConfig } from '../codecs/shared.js';
 import { prepareProgramUpgrade } from '../deploy/program-upgrade.js';
 import { resolveProgram } from '../deploy/resolve-program.js';
@@ -25,8 +29,11 @@ import {
   getInitOverheadIgpInstruction,
   getSetDestinationGasOverheadsInstruction,
   getSetGasOracleConfigsInstruction,
+  getSetIgpQuoteConfigInstruction,
+  getSetIgpQuoteSignerInstruction,
 } from '../instructions/igp.js';
 import { deriveIgpAccountPda, deriveOverheadIgpAccountPda } from '../pda.js';
+import { supportsFeeConfig } from '../version/version-query.js';
 import type { SvmSigner } from '../clients/signer.js';
 import {
   hasProgramBytes,
@@ -52,6 +59,8 @@ import {
 export type SvmIgpHookWriterConfig = Readonly<{
   /** How to obtain the deployed program: fresh bytes or pre-existing ID. */
   program: SvmProgramTarget;
+  /** Hyperlane domain id this IGP serves; used for IgpFeeConfig.domain_id. */
+  domainId: number;
 }>;
 
 export function deriveIgpSalt(context: string): Uint8Array {
@@ -330,6 +339,7 @@ export class SvmIgpHookWriter
     const ownerAddress = parseAddress(current.config.owner);
     const igpPda = current.deployed.igpPda;
 
+    let upgradingToVersion: string | undefined;
     if (hasProgramBytes(this.config.program)) {
       const upgradeResult = await prepareProgramUpgrade(
         programId,
@@ -342,7 +352,23 @@ export class SvmIgpHookWriter
       );
 
       txs.push(...(upgradeResult?.authorityTransactions ?? []));
+      upgradingToVersion = !isNullish(upgradeResult)
+        ? config.contractVersion
+        : undefined;
     }
+
+    txs.push(
+      ...(await computeIgpFeeConfigUpdate({
+        programId,
+        igpPda,
+        ownerAddress,
+        domainId: this.config.domainId,
+        expectedQuoteSigners: config.quoteSigners,
+        currentFeeConfig: current.deployed.feeConfig,
+        effectiveContractVersion:
+          upgradingToVersion ?? current.config.contractVersion,
+      })),
+    );
 
     const oracleConfigsToUpdate: GasOracleConfig[] = [];
     for (const [domainStr, oracleData] of Object.entries(config.oracleConfig)) {
@@ -439,4 +465,148 @@ export class SvmIgpHookWriter
 
     return txs;
   }
+}
+
+/**
+ * Computes the IGP fee-config update transactions to reconcile
+ * `currentFeeConfig` (read from chain) with `expectedQuoteSigners`:
+ *
+ *   - undefined ⇒ remove the on-chain fee_config entirely (None).
+ *   - []        ⇒ keep fee_config Some, remove all signers.
+ *   - [...]     ⇒ diff signer set (Add missing, Remove extra).
+ *
+ * Throws if the on-chain `domainId` differs from the writer's configured
+ * domain — these are not allowed to mutate.
+ */
+export async function computeIgpFeeConfigUpdate(args: {
+  programId: Address;
+  igpPda: Address;
+  ownerAddress: Address;
+  domainId: number;
+  expectedQuoteSigners: string[] | undefined;
+  currentFeeConfig: IgpFeeConfig | undefined;
+  effectiveContractVersion: string | undefined;
+}): Promise<AnnotatedSvmTransaction[]> {
+  const {
+    programId,
+    igpPda,
+    ownerAddress,
+    domainId,
+    expectedQuoteSigners,
+    currentFeeConfig,
+    effectiveContractVersion,
+  } = args;
+
+  if (isNullish(expectedQuoteSigners) && isNullish(currentFeeConfig)) {
+    return [];
+  }
+
+  assert(
+    supportsFeeConfig(effectiveContractVersion),
+    `Cannot manage IGP ${programId} fee config: program version ${effectiveContractVersion ?? 'pre-PackageVersioned'} does not support fee config. Set contractVersion in the expected config and provide program bytes to upgrade first.`,
+  );
+
+  // expected undefined → clear on-chain fee_config if currently set.
+  if (isNullish(expectedQuoteSigners)) {
+    return [
+      {
+        feePayer: ownerAddress,
+        instructions: [
+          await getSetIgpQuoteConfigInstruction(
+            programId,
+            ownerAddress,
+            igpPda,
+            null,
+          ),
+        ],
+        annotation: `Clear IGP fee config for ${programId}`,
+      },
+    ];
+  }
+
+  // expected set, currently absent → init empty fee_config then Add each.
+  if (isNullish(currentFeeConfig)) {
+    const txs: AnnotatedSvmTransaction[] = [
+      {
+        feePayer: ownerAddress,
+        instructions: [
+          await getSetIgpQuoteConfigInstruction(
+            programId,
+            ownerAddress,
+            igpPda,
+            {
+              signers: [],
+              domainId,
+              minIssuedAt: 0n,
+            },
+          ),
+        ],
+        annotation: `Init IGP fee config for ${programId}`,
+      },
+    ];
+
+    for (const signer of expectedQuoteSigners) {
+      txs.push({
+        feePayer: ownerAddress,
+        instructions: [
+          await getSetIgpQuoteSignerInstruction(
+            programId,
+            ownerAddress,
+            igpPda,
+            SetQuoteSignerOp.Add,
+            signer,
+          ),
+        ],
+        annotation: `Add IGP quote signer ${signer}`,
+      });
+    }
+    return txs;
+  }
+
+  assert(
+    currentFeeConfig.domainId === domainId,
+    `IGP ${programId} fee_config domain mismatch: configured ${domainId}, on-chain ${currentFeeConfig.domainId}`,
+  );
+
+  // Both present → diff signer set (case-insensitive on hex).
+  const currentSet = new Set(
+    currentFeeConfig.signers.map((s) => s.toLowerCase()),
+  );
+  const expectedSet = new Set(expectedQuoteSigners.map((s) => s.toLowerCase()));
+  const toAdd = difference(expectedSet, currentSet);
+  const toRemove = difference(currentSet, expectedSet);
+
+  const txs: AnnotatedSvmTransaction[] = [];
+  for (const signer of toRemove) {
+    txs.push({
+      feePayer: ownerAddress,
+      instructions: [
+        await getSetIgpQuoteSignerInstruction(
+          programId,
+          ownerAddress,
+          igpPda,
+          SetQuoteSignerOp.Remove,
+          signer,
+        ),
+      ],
+      annotation: `Remove IGP quote signer ${signer}`,
+    });
+  }
+
+  for (const signer of toAdd) {
+    txs.push({
+      feePayer: ownerAddress,
+      instructions: [
+        await getSetIgpQuoteSignerInstruction(
+          programId,
+          ownerAddress,
+          igpPda,
+          SetQuoteSignerOp.Add,
+          signer,
+        ),
+      ],
+      annotation: `Add IGP quote signer ${signer}`,
+    });
+  }
+  return txs;
 }

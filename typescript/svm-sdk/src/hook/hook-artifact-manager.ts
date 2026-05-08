@@ -33,6 +33,7 @@ export type HookAccountDecoder = 'igpProgramData' | 'igp' | 'overheadIgp';
 export class SvmHookArtifactManager implements IRawHookArtifactManager {
   constructor(
     private readonly rpc: SvmRpc,
+    private readonly domainId: number,
     private readonly mailboxAddress?: Address,
     private readonly salt: Uint8Array = DEFAULT_IGP_SALT,
   ) {}
@@ -106,7 +107,10 @@ export class SvmHookArtifactManager implements IRawHookArtifactManager {
       },
       interchainGasPaymaster: () =>
         new SvmIgpHookWriter(
-          { program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.igp } },
+          {
+            program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.igp },
+            domainId: this.domainId,
+          },
           this.rpc,
           this.salt,
           signer,
