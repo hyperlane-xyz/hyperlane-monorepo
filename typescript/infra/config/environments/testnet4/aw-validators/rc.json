@@ -1,4 +1,7 @@
 {
+  "tronshasta": {
+    "validators": []
+  },
   "bsctestnet": {
     "validators": [
       "0x6353c7402626054c824bd0eca721f82b725e2b4d",
