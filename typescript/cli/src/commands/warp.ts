@@ -16,7 +16,11 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { runWarpIcaOwnerCheck, runWarpRouteCheck } from '../check/warp.js';
+import {
+  checkCrossCollateralWarpRoute,
+  runWarpIcaOwnerCheck,
+  runWarpRouteCheck,
+} from '../check/warp.js';
 import { createWarpRouteDeployConfig } from '../config/warp.js';
 import {
   type CommandContext,
@@ -581,6 +585,22 @@ export const check: CommandModuleWithContext<
     chains,
   }) => {
     logCommandHeader('Hyperlane Warp Check');
+
+    // CROSS route case: resolver set warpCoreConfig but not warpDeployConfig
+    // (combined CROSS routes have no deploy config of their own)
+    if (context.warpCoreConfig && !context.warpDeployConfig) {
+      assert(
+        !ica,
+        'Cannot perform ICA owner check for combined CROSS routes (no deploy config)',
+      );
+      const result = await checkCrossCollateralWarpRoute({
+        context,
+        warpCoreConfig: context.warpCoreConfig,
+        warpRouteId: context.resolvedWarpRouteId!,
+      });
+      await runWarpRouteCheck({ result });
+      process.exit(0);
+    }
 
     let { warpCoreConfig, warpDeployConfig } =
       await getWarpConfigsFromContextOrRegistry({
