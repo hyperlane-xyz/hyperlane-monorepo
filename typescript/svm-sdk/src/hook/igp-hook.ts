@@ -511,11 +511,18 @@ export class SvmIgpHookWriter
 
 /**
  * Computes the IGP fee-config update transactions to reconcile
- * `currentFeeConfig` (read from chain) with `expectedQuoteSigners`:
+ * `currentFeeConfig` (read from chain) with `expectedQuoteSigners`,
+ * mirroring EvmHookModule.updateIgpHook's "only diff when explicitly
+ * specified" semantics:
  *
- *   - undefined ⇒ remove the on-chain fee_config entirely (None).
- *   - []        ⇒ keep fee_config Some, remove all signers.
- *   - [...]     ⇒ diff signer set (Add missing, Remove extra).
+ *   - undefined ⇒ no-op (leave on-chain fee_config untouched).
+ *   - []        ⇒ initialize fee_config Some(empty) if currently absent,
+ *                  or remove all on-chain signers while keeping Some.
+ *   - [...]     ⇒ initialize fee_config Some + Add each when currently
+ *                  absent, or diff signer set (Add missing, Remove extra).
+ *
+ * Clearing fee_config back to None is intentionally not exposed through
+ * the declarative diff and must be performed via an explicit instruction.
  *
  * Throws if the on-chain `domainId` differs from the writer's configured
  * domain — these are not allowed to mutate.
