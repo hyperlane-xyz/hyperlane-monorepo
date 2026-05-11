@@ -136,6 +136,19 @@ export async function deriveIgpProgramDataPda(
   ]);
 }
 
+export async function deriveIgpGasPaymentPda(
+  igpProgramAddress: Address,
+  uniqueMessageAccount: Address,
+): Promise<PdaWithBump> {
+  return derive(igpProgramAddress, [
+    utf8.encode('hyperlane_igp'),
+    utf8.encode('-'),
+    utf8.encode('gas_payment'),
+    utf8.encode('-'),
+    addressEncoder.encode(uniqueMessageAccount),
+  ]);
+}
+
 export async function deriveIgpAccountPda(
   programAddress: Address,
   salt: Uint8Array,

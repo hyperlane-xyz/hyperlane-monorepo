@@ -24,8 +24,10 @@ import {
   deriveMailboxOutboxPda,
 } from '../pda.js';
 import {
+  buildFeeTransferRemoteSectionAccounts,
   buildIgpTransferRemoteSectionAccounts,
   getTokenInitInstruction,
+  type FeeTransferRemoteSection,
   type IgpTransferRemoteSection,
   type TokenInitInstructionData,
 } from './token.js';
@@ -121,8 +123,13 @@ function encodeTransferRemoteTo(
  *   7  sender wallet (signer + payer)
  *   8  unique message account (signer)
  *   9  dispatched message PDA (writable)
- *   10..N  IGP section (when configured)
- *   N+1..M  plugin transfer_in accounts (supplied by caller)
+ *   --- Fee section (when fee_config is Some) ---
+ *   10..M  fee program, fee account, pass-through accounts, fee beneficiary(w)
+ *   --- IGP section (when an IGP is configured) ---
+ *   M+1..N IGP program, data(w), payment PDA(w), optional quoted-mode
+ *          accounts, configured IGP(w), optional inner IGP(w)
+ *   --- Plugin ---
+ *   N+1..K plugin transfer_in accounts (supplied by caller)
  *
  * The same-chain (`destination_domain == local_domain`) path uses a
  * different account layout and is not produced by this builder.
@@ -133,6 +140,7 @@ export async function getCrossCollateralTransferRemoteToInstruction(args: {
   uniqueMessageAccount: TransactionSigner;
   mailbox: Address;
   data: TransferRemoteToInstructionData;
+  fee?: FeeTransferRemoteSection;
   igp?: IgpTransferRemoteSection;
   pluginAccounts: InstructionAccountMeta[];
 }): Promise<Instruction> {
@@ -162,7 +170,10 @@ export async function getCrossCollateralTransferRemoteToInstruction(args: {
     writableSigner(args.sender),
     readonlySigner(args.uniqueMessageAccount),
     writableAccount(dispatchedMessagePda),
-    ...(args.igp ? buildIgpTransferRemoteSectionAccounts(args.igp) : []),
+    ...(args.fee ? buildFeeTransferRemoteSectionAccounts(args.fee) : []),
+    ...(args.igp
+      ? buildIgpTransferRemoteSectionAccounts(args.igp, args.programAddress)
+      : []),
     ...args.pluginAccounts,
   ];
 
