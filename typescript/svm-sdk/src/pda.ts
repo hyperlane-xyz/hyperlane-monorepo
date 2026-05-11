@@ -149,6 +149,26 @@ export async function deriveIgpGasPaymentPda(
   ]);
 }
 
+export async function deriveFeeTransientQuotePda(
+  feeProgramAddress: Address,
+  feeAccount: Address,
+  scopedSalt: Uint8Array,
+): Promise<PdaWithBump> {
+  assert(
+    scopedSalt.length === 32,
+    `scopedSalt must be 32 bytes, got ${scopedSalt.length}`,
+  );
+  return derive(feeProgramAddress, [
+    utf8.encode('hyperlane_fee'),
+    utf8.encode('-'),
+    utf8.encode('transient'),
+    utf8.encode('-'),
+    addressEncoder.encode(feeAccount),
+    utf8.encode('-'),
+    scopedSalt,
+  ]);
+}
+
 export async function deriveIgpAccountPda(
   programAddress: Address,
   salt: Uint8Array,
