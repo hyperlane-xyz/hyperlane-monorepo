@@ -52,5 +52,6 @@ export enum CommandType {
   ISM_DEPLOY = 'ism:deploy',
   ISM_READ = 'ism:read',
   HOOK_DEPLOY = 'hook:deploy',
+  HOOK_APPLY = 'hook:apply',
   HOOK_READ = 'hook:read',
 }
