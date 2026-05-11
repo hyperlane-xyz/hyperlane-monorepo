@@ -106,7 +106,14 @@ export class SvmAddressLookupTableWriter
       `SvmAddressLookupTableWriter.create: config.owner (${owner}) must equal the writer's signer (${signer}) — the ALT program has no authority-transfer instruction.`,
     );
 
-    const recentSlot = await this.rpc.getSlot().send();
+    // The ALT program rejects slots that aren't in the SlotHashes sysvar.
+    // A finalized slot is guaranteed to have already been recorded there,
+    // so it's a safe `recent_slot` for create — the alternative (tip
+    // commitment) often picks the in-progress slot which isn't yet in
+    // slot_hashes and trips InvalidInstructionData.
+    const recentSlot = await this.rpc
+      .getSlot({ commitment: 'finalized' })
+      .send();
     const receipts: SvmReceipt[] = [];
 
     const create = await getCreateAddressLookupTableInstruction({

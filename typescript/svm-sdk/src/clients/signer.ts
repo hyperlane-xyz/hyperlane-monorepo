@@ -235,6 +235,7 @@ export class SvmSigner
         recentBlockhash: latestBlockhash.blockhash,
         lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
         computeUnits: tx.computeUnits ?? DEFAULT_COMPUTE_UNITS,
+        addressLookupTables: tx.addressLookupTables,
       });
 
       if (tx.additionalSigners?.length) {
