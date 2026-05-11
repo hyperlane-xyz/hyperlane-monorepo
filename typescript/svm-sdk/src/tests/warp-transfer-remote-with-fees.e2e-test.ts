@@ -4,6 +4,7 @@ import {
   type Address,
   generateKeyPairSigner,
   getAddressCodec,
+  type Instruction,
 } from '@solana/kit';
 import { expect } from 'chai';
 import { before, describe, it } from 'mocha';
@@ -22,8 +23,10 @@ import { SvmAddressLookupTableWriter } from '../alt/address-lookup-table.js';
 import { SvmSigner } from '../clients/signer.js';
 import {
   SPL_NOOP_PROGRAM_ADDRESS,
+  SPL_TOKEN_PROGRAM_ADDRESS,
   SYSTEM_PROGRAM_ADDRESS,
 } from '../constants.js';
+import { SvmCrossCollateralRoutingFeeWriter } from '../fee/cross-collateral-routing-fee.js';
 import { SvmRoutingFeeWriter } from '../fee/routing-fee.js';
 import { DEFAULT_FEE_SALT } from '../fee/types.js';
 import { DEFAULT_IGP_SALT, SvmIgpHookWriter } from '../hook/igp-hook.js';
@@ -39,17 +42,27 @@ import {
   getSubmitIgpQuoteInstruction,
   simulateIgpQuoteAccountMetas,
 } from '../instructions/igp.js';
+import { getCrossCollateralTransferRemoteToInstruction } from '../instructions/cross-collateral-token.js';
+import {
+  getCreateAssociatedTokenIdempotentInstruction,
+  getMintToInstruction,
+} from '../instructions/spl-token.js';
 import {
   getTokenEnrollRemoteRoutersInstruction,
   getTokenSetDestinationGasConfigsInstruction,
   getTokenTransferRemoteInstruction,
 } from '../instructions/token.js';
+import type { SvmSignedQuote } from '../codecs/fee.js';
 import {
+  type InstructionAccountMeta,
   readonlyAccount,
   writableAccount,
   writableSigner,
 } from '../instructions/utils.js';
 import {
+  deriveAssociatedTokenAddress,
+  deriveCrossCollateralStatePda,
+  deriveEscrowPda,
   deriveFeeAccountPda,
   deriveFeeTransientQuotePda,
   deriveHyperlaneTokenPda,
@@ -74,7 +87,9 @@ import {
   TEST_ATA_PAYER_FUNDING_AMOUNT,
   TEST_PROGRAM_IDS,
   airdropSol,
+  createSplMint,
 } from '../testing/setup.js';
+import { SvmCrossCollateralTokenWriter } from '../warp/cross-collateral-token.js';
 import { SvmNativeTokenWriter } from '../warp/native-token.js';
 
 const TEST_PRIVATE_KEY =
@@ -190,8 +205,273 @@ function buildFeeQuoteData(maxFee: bigint, halfAmount: bigint): Uint8Array {
   return out;
 }
 
+/**
+ * Builds the 76-byte CcFeeQuoteContext (Cross-Collateral Routing):
+ *   [0:4]    destination_domain (u32 LE)
+ *   [4:36]   recipient (H256)
+ *   [36:44]  amount (u64 LE)
+ *   [44:76]  target_router (H256)
+ */
+function buildCcFeeQuoteContext(
+  destinationDomain: number,
+  recipient: Uint8Array,
+  amount: bigint,
+  targetRouter: Uint8Array,
+): Uint8Array {
+  const out = new Uint8Array(76);
+  out.set(u32LE(destinationDomain), 0);
+  out.set(recipient, 4);
+  out.set(u64LE(amount), 36);
+  out.set(targetRouter, 44);
+  return out;
+}
+
 const rawParams = (maxFee: string, halfAmount: string) =>
   ({ type: FeeParamsType.raw, maxFee, halfAmount }) as const;
+
+// Quote-vs-oracle distinguisher: setting the IGP quote's gas_price 10x the
+// on-chain oracle's gas_price makes the post-tx IGP-balance delta 10x what
+// the legacy oracle path would charge. Lets every test prove the Quoted
+// flow ran by checking the exact balance delta.
+const QUOTE_GAS_PRICE = 10n;
+const QUOTE_TOKEN_EXCHANGE_RATE = 1_000_000_000_000_000_000n; // 1e18
+const QUOTE_TOKEN_DECIMALS = 9;
+const TOKEN_EXCHANGE_RATE_SCALE = 10_000_000_000_000_000_000n; // 1e19
+const IGP_OVERHEAD_GAS = 50_000n; // configured per-domain overhead
+
+interface IgpQuoteSetup {
+  signedQuote: SvmSignedQuote;
+  transientQuotePda: Address;
+  cascadeQuotePdas: InstructionAccountMeta[];
+  scopedSalt: Uint8Array;
+}
+
+/**
+ * Signs an IGP transient quote (10x oracle gas_price), derives its PDA,
+ * and simulates the IGP cascade to pluck out the writable transient-quote
+ * meta that goes into `igp.quoted.cascadeQuotePdas` for transfer_remote.
+ */
+async function setupIgpTransientQuote(args: {
+  rpc: ReturnType<typeof createRpc>;
+  igpAccount: Address;
+  igpProgramId: Address;
+  quoteSignerPrivateKey: Uint8Array;
+  senderWallet: Address;
+  warpProgramId: Address;
+  destinationDomain: number;
+  localDomain: number;
+}): Promise<IgpQuoteSetup> {
+  const clientSalt = secp256k1.utils.randomSecretKey();
+  const scopedSalt = computeScopedSalt(args.senderWallet, clientSalt);
+  const transientQuotePda = (
+    await deriveIgpTransientQuotePda(
+      args.igpProgramId,
+      args.igpAccount,
+      scopedSalt,
+    )
+  ).address;
+
+  const issuedAt = u48BE(BigInt(Math.floor(Date.now() / 1000)) + 60n);
+  const signedQuote = signSvmQuote({
+    privateKey: args.quoteSignerPrivateKey,
+    feeAccount: args.igpAccount,
+    domainId: args.localDomain,
+    payer: args.senderWallet,
+    context: buildIgpQuoteContext(args.destinationDomain, args.warpProgramId),
+    data: buildIgpQuoteData(
+      QUOTE_TOKEN_EXCHANGE_RATE,
+      QUOTE_GAS_PRICE,
+      QUOTE_TOKEN_DECIMALS,
+    ),
+    issuedAt,
+    expiry: issuedAt, // transient
+    clientSalt,
+  });
+
+  // Sim returns [system, payer_placeholder, program_data, unique_gas_payment,
+  // gas_payment_pda, configured_igp, sender_authority, quoted_sender, cascade...].
+  // D1 already knows / derives slots [0..7]; the only thing we need is the
+  // cascade tail at [8..].
+  const igpMetas = await simulateIgpQuoteAccountMetas({
+    rpc: args.rpc,
+    programId: args.igpProgramId,
+    igpAccount: args.igpAccount,
+    payer: args.senderWallet,
+    input: {
+      destinationDomain: args.destinationDomain,
+      sender: args.warpProgramId,
+      scopedSalt,
+    },
+  });
+  const cascadeQuotePdas = igpMetas
+    .slice(8)
+    .map((m) =>
+      m.isWritable ? writableAccount(m.pubkey) : readonlyAccount(m.pubkey),
+    );
+
+  return { signedQuote, transientQuotePda, cascadeQuotePdas, scopedSalt };
+}
+
+interface FeeQuoteSetup {
+  feeTransientQuotePda: Address;
+  submitInstruction: Instruction;
+  passThroughAccounts: InstructionAccountMeta[];
+  scopedSalt: Uint8Array;
+}
+
+/**
+ * Signs a fee transient quote, derives its PDA, builds the SubmitQuote
+ * instruction (with the payer placeholder replaced), and simulates the fee
+ * cascade to pluck the pass-through accounts the transfer_remote fee
+ * section consumes.
+ *
+ * Context bytes are caller-supplied so the same helper works for Leaf /
+ * Routing (44-byte FeeQuoteContext) and CrossCollateralRouting (76-byte
+ * CcFeeQuoteContext).
+ */
+async function setupFeeTransientQuote(args: {
+  rpc: ReturnType<typeof createRpc>;
+  signer: SvmSigner;
+  senderWallet: Address;
+  feeProgramId: Address;
+  feeAccountPda: Address;
+  feeQuoteSignerPrivateKey: Uint8Array;
+  context: Uint8Array;
+  data: Uint8Array;
+  destinationDomain: number;
+  targetRouter: Uint8Array;
+  localDomain: number;
+}): Promise<FeeQuoteSetup> {
+  const clientSalt = secp256k1.utils.randomSecretKey();
+  const scopedSalt = computeScopedSalt(args.senderWallet, clientSalt);
+  const feeTransientQuotePda = (
+    await deriveFeeTransientQuotePda(
+      args.feeProgramId,
+      args.feeAccountPda,
+      scopedSalt,
+    )
+  ).address;
+
+  const issuedAt = u48BE(BigInt(Math.floor(Date.now() / 1000)) + 60n);
+  const signedQuote = signSvmQuote({
+    privateKey: args.feeQuoteSignerPrivateKey,
+    feeAccount: args.feeAccountPda,
+    domainId: args.localDomain,
+    payer: args.senderWallet,
+    context: args.context,
+    data: args.data,
+    issuedAt,
+    expiry: issuedAt,
+    clientSalt,
+  });
+
+  const submitMetas = await simulateSubmitQuoteAccountMetas({
+    rpc: args.rpc,
+    programId: args.feeProgramId,
+    feeAccount: args.feeAccountPda,
+    payer: args.senderWallet,
+    input: {
+      destinationDomain: args.destinationDomain,
+      targetRouter: args.targetRouter,
+      scopedSalt,
+    },
+  });
+  const submitAccounts = submitMetas.map((m, i) => {
+    if (i === 1) return writableSigner(args.signer.signer);
+    return m.isWritable ? writableAccount(m.pubkey) : readonlyAccount(m.pubkey);
+  });
+  const submitInstruction = getSubmitQuoteInstruction(
+    args.feeProgramId,
+    submitAccounts,
+    signedQuote,
+  );
+
+  // Sim layout: [fee_account, payer_placeholder, ...pass_through]. Drop the
+  // first two: fee_account is already in D1's FeeTransferRemoteSection and
+  // the payer is the warp tx's sender_wallet (in the static prefix).
+  const passMetas = await simulateFeeQuoteAccountMetas({
+    rpc: args.rpc,
+    programId: args.feeProgramId,
+    feeAccount: args.feeAccountPda,
+    payer: args.senderWallet,
+    input: {
+      destinationDomain: args.destinationDomain,
+      targetRouter: args.targetRouter,
+      scopedSalt,
+    },
+  });
+  const passThroughAccounts = passMetas
+    .slice(2)
+    .map((m) =>
+      m.isWritable ? writableAccount(m.pubkey) : readonlyAccount(m.pubkey),
+    );
+
+  return {
+    feeTransientQuotePda,
+    submitInstruction,
+    passThroughAccounts,
+    scopedSalt,
+  };
+}
+
+/**
+ * Common post-transfer assertions shared by all transfer_remote variants:
+ * both transient PDAs closed (Quoted flow ran on both programs), the
+ * dispatched-message + gas-payment PDAs exist, and the IGP balance grew
+ * by the QUOTE-derived gas payment (10x oracle, proving Quoted was used).
+ */
+async function assertCommonPostConditions(args: {
+  rpc: ReturnType<typeof createRpc>;
+  igpTransientPda: Address;
+  feeTransientPda: Address;
+  mailbox: Address;
+  uniqueMessageAccount: Address;
+  gasPaymentPda: Address;
+  igpAccount: Address;
+  igpBalanceBefore: bigint;
+}): Promise<void> {
+  const igpTransient = await args.rpc
+    .getAccountInfo(args.igpTransientPda, { encoding: 'base64' })
+    .send();
+  expect(igpTransient.value, 'IGP transient quote PDA consumed').to.be.null;
+
+  const feeTransient = await args.rpc
+    .getAccountInfo(args.feeTransientPda, { encoding: 'base64' })
+    .send();
+  expect(feeTransient.value, 'fee transient quote PDA consumed').to.be.null;
+
+  const dispatchedMessagePda = (
+    await deriveMailboxDispatchedMessagePda(
+      args.mailbox,
+      args.uniqueMessageAccount,
+    )
+  ).address;
+  const dispatched = await args.rpc
+    .getAccountInfo(dispatchedMessagePda, { encoding: 'base64' })
+    .send();
+  expect(dispatched.value, 'dispatched message PDA').to.exist;
+
+  const gasPayment = await args.rpc
+    .getAccountInfo(args.gasPaymentPda, { encoding: 'base64' })
+    .send();
+  expect(gasPayment.value, 'gas payment PDA').to.exist;
+
+  // IGP balance must have grown by the QUOTE-derived payment (10x oracle).
+  //   total_gas = destination_gas + overhead
+  //   dest_cost = total_gas * quote_gas_price
+  //   origin_cost = dest_cost * exchange_rate / 10^19  (token_decimals = SOL)
+  const totalGasAmount = REMOTE_GAS + IGP_OVERHEAD_GAS;
+  const expectedGasPayment =
+    (totalGasAmount * QUOTE_GAS_PRICE * QUOTE_TOKEN_EXCHANGE_RATE) /
+    TOKEN_EXCHANGE_RATE_SCALE;
+  const igpBalanceAfter = BigInt(
+    (await args.rpc.getBalance(args.igpAccount).send()).value,
+  );
+  expect(igpBalanceAfter - args.igpBalanceBefore).to.equal(
+    expectedGasPayment,
+    'IGP balance delta must match the QUOTE-computed gas payment exactly (proving the Quoted flow drove pricing)',
+  );
+}
 
 describe('SVM Warp Transfer-Remote With Fees E2E', function () {
   this.timeout(300_000);
@@ -374,148 +654,33 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
       ],
     });
 
-    // Sign + prepare the IGP transient quote (won't submit yet — same tx).
-    const clientSalt = secp256k1.utils.randomSecretKey();
-    const scopedSalt = computeScopedSalt(senderWallet, clientSalt);
-    const transientQuotePda = (
-      await deriveIgpTransientQuotePda(
-        TEST_PROGRAM_IDS.igp,
-        igpAccount,
-        scopedSalt,
-      )
-    ).address;
-    // For a transient quote, expiry == issued_at. Shift issued_at slightly
-    // into the future so tx processing time is < expiry.
-    // MAX_QUOTE_ISSUED_AT_FUTURE_SKEW_SECS = 300 in the quote-verifier.
-    // Quote's gas_price = 10x the on-chain oracle's gas_price (oracle = 1)
-    // so the resulting fee is 10x what the legacy/oracle path would charge.
-    // Lets the test distinguish Quoted-flow consumption from a legacy
-    // fallback by asserting the exact IGP balance delta below.
-    const QUOTE_GAS_PRICE = 10n;
-    const QUOTE_TOKEN_EXCHANGE_RATE = 1_000_000_000_000_000_000n; // 1e18
-    const QUOTE_TOKEN_DECIMALS = 9;
-
-    const issuedAt = u48BE(BigInt(Math.floor(Date.now() / 1000)) + 60n);
-    const signedQuote = signSvmQuote({
-      privateKey: quoteSignerPrivateKey,
-      feeAccount: igpAccount,
-      domainId: DOMAIN_LOCAL,
-      payer: senderWallet,
-      context: buildIgpQuoteContext(DOMAIN_REMOTE, warpProgramId),
-      data: buildIgpQuoteData(
-        QUOTE_TOKEN_EXCHANGE_RATE,
-        QUOTE_GAS_PRICE,
-        QUOTE_TOKEN_DECIMALS,
-      ),
-      issuedAt,
-      expiry: issuedAt, // transient quote
-      clientSalt,
+    // ---- Sign + prepare IGP and fee transient quotes ----
+    const igpQuote = await setupIgpTransientQuote({
+      rpc,
+      igpAccount,
+      igpProgramId: TEST_PROGRAM_IDS.igp,
+      quoteSignerPrivateKey,
+      senderWallet,
+      warpProgramId,
+      destinationDomain: DOMAIN_REMOTE,
+      localDomain: DOMAIN_LOCAL,
     });
 
-    // Sign the offchain fee quote. Same scoped_salt as IGP — the fee
-    // and IGP scoped salts use distinct PDA derivations (different program
-    // IDs), so reusing the clientSalt is safe.
-    const feeClientSalt = secp256k1.utils.randomSecretKey();
-    const feeScopedSalt = computeScopedSalt(senderWallet, feeClientSalt);
-    const feeTransientQuotePda = (
-      await deriveFeeTransientQuotePda(
-        feeProgramId,
-        feeAccountPda,
-        feeScopedSalt,
-      )
-    ).address;
-
-    const feeIssuedAt = u48BE(BigInt(Math.floor(Date.now() / 1000)) + 60n);
-    const feeSignedQuote = signSvmQuote({
-      privateKey: feeQuoteSignerPrivateKey,
-      feeAccount: feeAccountPda,
-      domainId: DOMAIN_LOCAL,
-      payer: senderWallet,
+    const feeQuote = await setupFeeTransientQuote({
+      rpc,
+      signer,
+      senderWallet,
+      feeProgramId,
+      feeAccountPda,
+      feeQuoteSignerPrivateKey,
       context: buildFeeQuoteContext(DOMAIN_REMOTE, RECIPIENT, TRANSFER_AMOUNT),
       data: buildFeeQuoteData(5000n, 2500n),
-      issuedAt: feeIssuedAt,
-      expiry: feeIssuedAt, // transient quote
-      clientSalt: feeClientSalt,
+      destinationDomain: DOMAIN_REMOTE,
+      targetRouter: ZERO_TARGET_ROUTER,
+      localDomain: DOMAIN_LOCAL,
     });
 
-    // Simulate the fee-program SubmitQuote account set.
-    const feeSubmitMetas = await simulateSubmitQuoteAccountMetas({
-      rpc,
-      programId: feeProgramId,
-      feeAccount: feeAccountPda,
-      payer: senderWallet,
-      input: {
-        destinationDomain: DOMAIN_REMOTE,
-        targetRouter: ZERO_TARGET_ROUTER,
-        scopedSalt: feeScopedSalt,
-      },
-    });
-    // Replace the payer placeholder (index 1) with the real signer.
-    const feeSubmitAccounts = feeSubmitMetas.map((m, i) => {
-      if (i === 1) return writableSigner(signer.signer);
-      return m.isWritable
-        ? writableAccount(m.pubkey)
-        : readonlyAccount(m.pubkey);
-    });
-    const submitFeeQuoteIx = getSubmitQuoteInstruction(
-      feeProgramId,
-      feeSubmitAccounts,
-      feeSignedQuote,
-    );
-
-    // Discover the fee section's pass-through accounts for transfer_remote.
-    // With scopedSalt provided, the cascade includes the freshly-submitted
-    // transient quote PDA.
-    const feeMetas = await simulateFeeQuoteAccountMetas({
-      rpc,
-      programId: feeProgramId,
-      feeAccount: feeAccountPda,
-      payer: senderWallet,
-      input: {
-        destinationDomain: DOMAIN_REMOTE,
-        targetRouter: ZERO_TARGET_ROUTER,
-        scopedSalt: feeScopedSalt,
-      },
-    });
-    // Sim layout: [fee_account, payer_placeholder, ...pass_through].
-    // Drop the first two — fee_account is part of D1's FeeTransferRemoteSection,
-    // and payer is the warp tx's sender_wallet (already in the static prefix).
-    const feePassThrough = feeMetas
-      .slice(2)
-      .map((m) =>
-        m.isWritable ? writableAccount(m.pubkey) : readonlyAccount(m.pubkey),
-      );
-
-    const igpMetas = await simulateIgpQuoteAccountMetas({
-      rpc,
-      programId: TEST_PROGRAM_IDS.igp,
-      igpAccount,
-      payer: senderWallet,
-      input: {
-        destinationDomain: DOMAIN_REMOTE,
-        sender: warpProgramId,
-        scopedSalt,
-      },
-    });
-    // IGP sim returns the PayForGas CPI account layout:
-    //   [0] system_program
-    //   [1] payer (placeholder, SDK replaces with sender_wallet)
-    //   [2] igp_program_data
-    //   [3] unique_gas_payment (placeholder, SDK replaces with unique_message)
-    //   [4] gas_payment_pda (placeholder, SDK derives from unique_message)
-    //   [5] configured_igp (or inner_igp for OverheadIgp — see warp/IGP variant)
-    //   [6] sender_authority
-    //   [7] quoted_sender (= warp program id)
-    //   [8..]  cascade quote PDAs (transient or standing)
-    // Slots [0..7] map onto fields D1 already knows or derives; the only
-    // value we need from the sim is the cascade tail at [8..].
-    const cascadeQuotePdas = igpMetas
-      .slice(8)
-      .map((m) =>
-        m.isWritable ? writableAccount(m.pubkey) : readonlyAccount(m.pubkey),
-      );
-
-    // Compose [SubmitIgpQuote, TransferRemote].
+    // ---- Compose [SubmitFeeQuote, SubmitIgpQuote, TransferRemote] ----
     const uniqueMessageAccount = await generateKeyPairSigner();
     const warpDispatchAuthority = (
       await deriveMailboxDispatchAuthorityPda(warpProgramId)
@@ -527,12 +692,12 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
       )
     ).address;
 
-    const submitQuoteIx = await getSubmitIgpQuoteInstruction(
+    const submitIgpQuoteIx = await getSubmitIgpQuoteInstruction(
       TEST_PROGRAM_IDS.igp,
       signer.signer,
       igpAccount,
-      transientQuotePda,
-      signedQuote,
+      igpQuote.transientQuotePda,
+      igpQuote.signedQuote,
     );
 
     const transferRemoteIx = await getTokenTransferRemoteInstruction({
@@ -548,7 +713,7 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
       fee: {
         feeProgram: feeProgramId,
         feeAccount: feeAccountPda,
-        passThroughAccounts: feePassThrough,
+        passThroughAccounts: feeQuote.passThroughAccounts,
         // Native warp's fee_beneficiary_pubkey is just the beneficiary wallet
         // (no ATA, since native moves SOL directly).
         feeBeneficiary: feeBeneficiary,
@@ -557,11 +722,11 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
         programId: TEST_PROGRAM_IDS.igp,
         programData: igpProgramData,
         paymentPda: gasPaymentPda,
-        igpAccount: overheadIgpAccount, // OverheadIgp configured
+        igpAccount: overheadIgpAccount,
         innerIgp: igpAccount,
         quoted: {
           senderAuthority: warpDispatchAuthority,
-          cascadeQuotePdas,
+          cascadeQuotePdas: igpQuote.cascadeQuotePdas,
         },
       },
       pluginAccounts: [
@@ -572,8 +737,16 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
       ],
     });
 
-    // Build + freeze an ALT covering the static accounts to fit under
-    // the 1232-byte packet limit.
+    // ---- ALT: only addresses deterministic from the warp/fee/IGP config ----
+    // See the matching note in the CC test below — the transient PDA at slot
+    // 0 of each cascade is the only per-tx entry, so it stays inline.
+    const deterministicIgpCascade = igpQuote.cascadeQuotePdas
+      .map((m) => m.address)
+      .filter((a) => a !== igpQuote.transientQuotePda);
+    const deterministicFeeCascade = feeQuote.passThroughAccounts
+      .map((m) => m.address)
+      .filter((a) => a !== feeQuote.feeTransientQuotePda);
+
     const altWriter = new SvmAddressLookupTableWriter(rpc, signer);
     const [altDeployed] = await altWriter.create({
       config: {
@@ -593,20 +766,22 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
           feeProgramId,
           feeAccountPda,
           feeBeneficiary,
+          ...deterministicIgpCascade,
+          ...deterministicFeeCascade,
         ],
       },
     });
-
-    // Newly-created ALTs aren't available for lookups until the next slot.
     await sleep(2000);
 
-    // Capture IGP balance pre-tx so we can assert the exact gas payment.
     const igpBalanceBefore = BigInt(
       (await rpc.getBalance(igpAccount).send()).value,
     );
-
     const receipt = await signer.send({
-      instructions: [submitFeeQuoteIx, submitQuoteIx, transferRemoteIx],
+      instructions: [
+        feeQuote.submitInstruction,
+        submitIgpQuoteIx,
+        transferRemoteIx,
+      ],
       additionalSigners: [uniqueMessageAccount],
       addressLookupTables: {
         [altDeployed.deployed.address]: altDeployed.config.addresses,
@@ -614,61 +789,19 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
     });
     expect(receipt.signature, 'tx signature').to.be.a('string');
 
-    // Both transient quote PDAs must be CLOSED — proves the fee program and
-    // IGP both ran their respective Quoted flows and consumed the offchain-
-    // signed transient quotes. The legacy/on-chain paths would not touch them.
-    const igpTransient = await rpc
-      .getAccountInfo(transientQuotePda, { encoding: 'base64' })
-      .send();
-    expect(igpTransient.value, 'IGP transient quote PDA consumed').to.be.null;
+    // ---- Common post-conditions ----
+    await assertCommonPostConditions({
+      rpc,
+      igpTransientPda: igpQuote.transientQuotePda,
+      feeTransientPda: feeQuote.feeTransientQuotePda,
+      mailbox: TEST_PROGRAM_IDS.mailbox,
+      uniqueMessageAccount: uniqueMessageAccount.address,
+      gasPaymentPda,
+      igpAccount,
+      igpBalanceBefore,
+    });
 
-    const feeTransient = await rpc
-      .getAccountInfo(feeTransientQuotePda, { encoding: 'base64' })
-      .send();
-    expect(feeTransient.value, 'fee transient quote PDA consumed').to.be.null;
-
-    // Dispatched message PDA exists — proves mailbox dispatch ran.
-    const dispatchedMessagePda = (
-      await deriveMailboxDispatchedMessagePda(
-        TEST_PROGRAM_IDS.mailbox,
-        uniqueMessageAccount.address,
-      )
-    ).address;
-    const dispatched = await rpc
-      .getAccountInfo(dispatchedMessagePda, { encoding: 'base64' })
-      .send();
-    expect(dispatched.value, 'dispatched message PDA').to.exist;
-
-    // Gas payment PDA exists — proves IGP PayForGas CPI created the receipt.
-    const gasPayment = await rpc
-      .getAccountInfo(gasPaymentPda, { encoding: 'base64' })
-      .send();
-    expect(gasPayment.value, 'gas payment PDA').to.exist;
-
-    // IGP balance must have grown by the QUOTE-derived gas payment exactly.
-    // Distinguishes Quoted vs legacy oracle: the oracle is set to gas_price=1
-    // while the quote uses gas_price=10, so the Quoted path charges 10x.
-    //
-    // compute_gas_fee:
-    //   dest_cost = total_gas_amount * quote_gas_price
-    //   origin_cost = dest_cost * exchange_rate / 10^19
-    //   (token_decimals == SOL_DECIMALS so no further conversion)
-    //
-    // total_gas_amount = destination_gas + overhead = 50_000 + 50_000 = 100_000
-    // dest_cost = 100_000 * 10 = 1_000_000
-    // origin_cost = 1_000_000 * 1e18 / 1e19 = 100_000 lamports
-    const TOKEN_EXCHANGE_RATE_SCALE = 10_000_000_000_000_000_000n;
-    const totalGasAmount = REMOTE_GAS + 50_000n; // + IGP overhead for DOMAIN_REMOTE
-    const expectedGasPayment =
-      (totalGasAmount * QUOTE_GAS_PRICE * QUOTE_TOKEN_EXCHANGE_RATE) /
-      TOKEN_EXCHANGE_RATE_SCALE;
-    const igpBalanceAfter = BigInt(
-      (await rpc.getBalance(igpAccount).send()).value,
-    );
-    expect(igpBalanceAfter - igpBalanceBefore).to.equal(
-      expectedGasPayment,
-      'IGP balance delta must match the QUOTE-computed gas payment exactly (proving the Quoted flow, not the oracle, drove pricing)',
-    );
+    // ---- Plugin-specific post-conditions (native) ----
 
     // Native collateral PDA holds at least the transferred amount.
     const nativeBalance = await rpc
@@ -679,7 +812,7 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
       `native collateral balance ${nativeBalance.value} < ${TRANSFER_AMOUNT}`,
     ).to.be.true;
 
-    // Fee beneficiary's balance grew by the exact linear-formula fee:
+    // Fee beneficiary's lamport balance grew by the exact linear-formula fee:
     //   fee = min(max_fee, amount * max_fee / (2 * half_amount))
     //       = min(5000, 100000 * 5000 / (2 * 2500))
     //       = min(5000, 100000) = 5000
@@ -690,6 +823,334 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
     expect(beneficiaryBalanceAfter - beneficiaryBalanceBefore).to.equal(
       EXPECTED_FEE,
       'fee beneficiary delta must match the linear-formula fee exactly',
+    );
+  });
+
+  it('transfer_remote_to: cross-collateral warp + CC-routing fee + quoted IGP under ALT compression', async () => {
+    const senderWallet = address(signer.getSignerAddress());
+
+    // ---- SPL mint + sender ATA funded with enough tokens for amount + fee ----
+    const mint = await createSplMint(rpc, signer, 9);
+    const senderAta = (
+      await deriveAssociatedTokenAddress({ wallet: senderWallet, mint })
+    ).address;
+    await signer.send({
+      instructions: [
+        getCreateAssociatedTokenIdempotentInstruction({
+          payer: senderWallet,
+          ata: senderAta,
+          wallet: senderWallet,
+          mint,
+        }),
+        getMintToInstruction({
+          mint,
+          destination: senderAta,
+          authority: senderWallet,
+          amount: 1_000_000n, // > TRANSFER_AMOUNT + fee
+        }),
+      ],
+    });
+
+    // ---- Fee + beneficiary keypair + beneficiary ATA ----
+    // CC fee_beneficiary_pubkey = ATA(beneficiary_owner, mint, SPL_Token).
+    // The ATA must exist pre-tx so the fee SPL transfer has a destination.
+    const feeQuoteSignerPrivateKey = secp256k1.utils.randomSecretKey();
+    const feeQuoteSignerHex = ethAddressHexFromPrivateKey(
+      feeQuoteSignerPrivateKey,
+    );
+    const feeBeneficiarySigner = await generateKeyPairSigner();
+    const feeBeneficiaryOwner = feeBeneficiarySigner.address;
+    await airdropSol(rpc, feeBeneficiaryOwner, 1_000_000_000n);
+    const feeBeneficiaryAta = (
+      await deriveAssociatedTokenAddress({
+        wallet: feeBeneficiaryOwner,
+        mint,
+      })
+    ).address;
+    await signer.send({
+      instructions: [
+        getCreateAssociatedTokenIdempotentInstruction({
+          payer: senderWallet,
+          ata: feeBeneficiaryAta,
+          wallet: feeBeneficiaryOwner,
+          mint,
+        }),
+      ],
+    });
+
+    // ---- Deploy CC routing fee program ----
+    const routerKey = `0x${Array.from(REMOTE_ROUTER)
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('')}`;
+    const ccFeeWriter = new SvmCrossCollateralRoutingFeeWriter(
+      { program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenFee } },
+      rpc,
+      DOMAIN_LOCAL,
+      signer,
+      { knownRoutersPerDomain: { [DOMAIN_REMOTE]: new Set([routerKey]) } },
+      DEFAULT_FEE_SALT,
+    );
+    const [feeDeployed] = await ccFeeWriter.create({
+      config: {
+        type: FeeType.crossCollateralRouting,
+        owner: signer.getSignerAddress(),
+        beneficiary: feeBeneficiaryOwner,
+        routes: {
+          [DOMAIN_REMOTE]: {
+            [routerKey]: {
+              type: FeeStrategyType.offchainQuotedLinear,
+              params: rawParams('5000', '2500'),
+              quoteSigners: [feeQuoteSignerHex],
+            },
+          },
+        },
+      },
+    });
+    const feeProgramId = address(feeDeployed.deployed.programId);
+    const feeAccountPda = (
+      await deriveFeeAccountPda(feeProgramId, DEFAULT_FEE_SALT)
+    ).address;
+
+    // ---- Deploy cross-collateral warp wired to mint + fee + IGP ----
+    const warpWriter = new SvmCrossCollateralTokenWriter(
+      {
+        program: {
+          programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenCrossCollateral,
+        },
+        ataPayerFundingAmount: TEST_ATA_PAYER_FUNDING_AMOUNT,
+      },
+      rpc,
+      signer,
+    );
+    const [warpDeployed] = await warpWriter.create({
+      config: {
+        type: TokenType.crossCollateral,
+        owner: signer.getSignerAddress(),
+        mailbox: TEST_PROGRAM_IDS.mailbox,
+        token: mint,
+        remoteRouters: {},
+        destinationGas: {},
+        crossCollateralRouters: {},
+        hook: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: TEST_PROGRAM_IDS.igp },
+        },
+        fee: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: feeProgramId },
+        },
+      },
+    });
+    const warpProgramId = address(warpDeployed.deployed.address);
+
+    await signer.send({
+      instructions: [
+        await getTokenEnrollRemoteRoutersInstruction(
+          warpProgramId,
+          senderWallet,
+          [{ domain: DOMAIN_REMOTE, router: REMOTE_ROUTER }],
+        ),
+        await getTokenSetDestinationGasConfigsInstruction(
+          warpProgramId,
+          senderWallet,
+          [{ domain: DOMAIN_REMOTE, gas: REMOTE_GAS }],
+        ),
+      ],
+    });
+
+    // ---- Sign + prepare IGP and CC-fee transient quotes ----
+    const igpQuote = await setupIgpTransientQuote({
+      rpc,
+      igpAccount,
+      igpProgramId: TEST_PROGRAM_IDS.igp,
+      quoteSignerPrivateKey,
+      senderWallet,
+      warpProgramId,
+      destinationDomain: DOMAIN_REMOTE,
+      localDomain: DOMAIN_LOCAL,
+    });
+
+    const feeQuote = await setupFeeTransientQuote({
+      rpc,
+      signer,
+      senderWallet,
+      feeProgramId,
+      feeAccountPda,
+      feeQuoteSignerPrivateKey,
+      context: buildCcFeeQuoteContext(
+        DOMAIN_REMOTE,
+        RECIPIENT,
+        TRANSFER_AMOUNT,
+        REMOTE_ROUTER,
+      ),
+      data: buildFeeQuoteData(5000n, 2500n),
+      destinationDomain: DOMAIN_REMOTE,
+      targetRouter: REMOTE_ROUTER,
+      localDomain: DOMAIN_LOCAL,
+    });
+
+    // ---- Compose [SubmitFeeQuote, SubmitIgpQuote, TransferRemoteTo] ----
+    const uniqueMessageAccount = await generateKeyPairSigner();
+    // CC transfer_remote_to_remote uses the mailbox dispatch authority PDA
+    // (the same one used by the regular transfer_remote), NOT the CC dispatch
+    // authority — that one is only consumed on the local HandleLocal path.
+    const warpDispatchAuthority = (
+      await deriveMailboxDispatchAuthorityPda(warpProgramId)
+    ).address;
+    const gasPaymentPda = (
+      await deriveIgpGasPaymentPda(
+        TEST_PROGRAM_IDS.igp,
+        uniqueMessageAccount.address,
+      )
+    ).address;
+    const escrowPda = (await deriveEscrowPda(warpProgramId)).address;
+
+    const submitIgpQuoteIx = await getSubmitIgpQuoteInstruction(
+      TEST_PROGRAM_IDS.igp,
+      signer.signer,
+      igpAccount,
+      igpQuote.transientQuotePda,
+      igpQuote.signedQuote,
+    );
+
+    const transferRemoteToIx =
+      await getCrossCollateralTransferRemoteToInstruction({
+        programAddress: warpProgramId,
+        sender: signer.signer,
+        uniqueMessageAccount,
+        mailbox: TEST_PROGRAM_IDS.mailbox,
+        data: {
+          destinationDomain: DOMAIN_REMOTE,
+          recipient: RECIPIENT,
+          amountOrId: TRANSFER_AMOUNT,
+          targetRouter: REMOTE_ROUTER,
+        },
+        fee: {
+          feeProgram: feeProgramId,
+          feeAccount: feeAccountPda,
+          passThroughAccounts: feeQuote.passThroughAccounts,
+          // CC plugin: fee_beneficiary_pubkey = ATA(beneficiary_owner, mint).
+          feeBeneficiary: feeBeneficiaryAta,
+        },
+        igp: {
+          programId: TEST_PROGRAM_IDS.igp,
+          programData: igpProgramData,
+          paymentPda: gasPaymentPda,
+          igpAccount: overheadIgpAccount,
+          innerIgp: igpAccount,
+          quoted: {
+            senderAuthority: warpDispatchAuthority,
+            cascadeQuotePdas: igpQuote.cascadeQuotePdas,
+          },
+        },
+        pluginAccounts: [
+          readonlyAccount(SPL_TOKEN_PROGRAM_ADDRESS),
+          writableAccount(mint),
+          writableAccount(senderAta),
+          writableAccount(escrowPda),
+        ],
+      });
+
+    // ---- ALT: only addresses deterministic from the warp/fee/IGP config ----
+    // The cascade returned by each sim is `[transient, ...standing/route]`.
+    // The transient PDA depends on the per-tx `scoped_salt` and must stay
+    // inline; the standing / route PDAs only depend on (program, account,
+    // domain, target_router) and are stable across transfers — same shape
+    // a production route ALT would store.
+    const deterministicIgpCascade = igpQuote.cascadeQuotePdas
+      .map((m) => m.address)
+      .filter((a) => a !== igpQuote.transientQuotePda);
+    const deterministicFeeCascade = feeQuote.passThroughAccounts
+      .map((m) => m.address)
+      .filter((a) => a !== feeQuote.feeTransientQuotePda);
+
+    const altWriter = new SvmAddressLookupTableWriter(rpc, signer);
+    const [altDeployed] = await altWriter.create({
+      config: {
+        owner: senderWallet,
+        addresses: [
+          SYSTEM_PROGRAM_ADDRESS,
+          SPL_NOOP_PROGRAM_ADDRESS,
+          SPL_TOKEN_PROGRAM_ADDRESS,
+          TEST_PROGRAM_IDS.mailbox,
+          (await deriveMailboxOutboxPda(TEST_PROGRAM_IDS.mailbox)).address,
+          (await deriveHyperlaneTokenPda(warpProgramId)).address,
+          (await deriveCrossCollateralStatePda(warpProgramId)).address,
+          warpDispatchAuthority,
+          TEST_PROGRAM_IDS.igp,
+          igpProgramData,
+          igpAccount,
+          overheadIgpAccount,
+          warpProgramId,
+          feeProgramId,
+          feeAccountPda,
+          feeBeneficiaryAta,
+          mint,
+          escrowPda,
+          ...deterministicIgpCascade,
+          ...deterministicFeeCascade,
+        ],
+      },
+    });
+    await sleep(2000);
+
+    const igpBalanceBefore = BigInt(
+      (await rpc.getBalance(igpAccount).send()).value,
+    );
+    const receipt = await signer.send({
+      instructions: [
+        feeQuote.submitInstruction,
+        submitIgpQuoteIx,
+        transferRemoteToIx,
+      ],
+      additionalSigners: [uniqueMessageAccount],
+      addressLookupTables: {
+        [altDeployed.deployed.address]: altDeployed.config.addresses,
+      },
+    });
+    expect(receipt.signature, 'tx signature').to.be.a('string');
+
+    // ---- Common post-conditions ----
+    await assertCommonPostConditions({
+      rpc,
+      igpTransientPda: igpQuote.transientQuotePda,
+      feeTransientPda: feeQuote.feeTransientQuotePda,
+      mailbox: TEST_PROGRAM_IDS.mailbox,
+      uniqueMessageAccount: uniqueMessageAccount.address,
+      gasPaymentPda,
+      igpAccount,
+      igpBalanceBefore,
+    });
+
+    // ---- Plugin-specific post-conditions (cross-collateral) ----
+    // SPL Token v2 account data: bytes [64..72] = u64 LE amount.
+
+    // Escrow PDA's token balance must equal the transferred amount.
+    const escrowAccount = await rpc
+      .getAccountInfo(escrowPda, { encoding: 'base64' })
+      .send();
+    expect(escrowAccount.value, 'escrow account exists').to.exist;
+    const escrowAmount = Buffer.from(
+      escrowAccount.value!.data[0],
+      'base64',
+    ).readBigUInt64LE(64);
+    expect(escrowAmount).to.equal(
+      TRANSFER_AMOUNT,
+      'escrow token balance must equal the transferred amount',
+    );
+
+    // Fee beneficiary ATA's token balance = linear-formula fee (5000).
+    const beneficiaryAtaAccount = await rpc
+      .getAccountInfo(feeBeneficiaryAta, { encoding: 'base64' })
+      .send();
+    expect(beneficiaryAtaAccount.value, 'beneficiary ATA exists').to.exist;
+    const beneficiaryAtaAmount = Buffer.from(
+      beneficiaryAtaAccount.value!.data[0],
+      'base64',
+    ).readBigUInt64LE(64);
+    expect(beneficiaryAtaAmount).to.equal(
+      5000n,
+      'fee beneficiary ATA balance must equal the linear-formula fee (5000)',
     );
   });
 });

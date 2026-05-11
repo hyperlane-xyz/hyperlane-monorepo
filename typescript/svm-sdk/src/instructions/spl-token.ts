@@ -1,0 +1,77 @@
+import type { Address, Instruction } from '@solana/kit';
+
+import {
+  ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
+  SPL_TOKEN_PROGRAM_ADDRESS,
+  SYSTEM_PROGRAM_ADDRESS,
+} from '../constants.js';
+
+import {
+  buildInstruction,
+  readonlyAccount,
+  writableAccount,
+  writableSignerAddress,
+  readonlySignerAddress,
+} from './utils.js';
+
+/**
+ * Builds the idempotent CreateAssociatedTokenAccount instruction (kind 1).
+ *
+ * Succeeds even when the ATA already exists, so callers can fearlessly
+ * issue it whether or not the account was previously initialized.
+ *
+ * Accounts: `[payer(w,s), ata(w), wallet, mint, system, token_program]`.
+ */
+export function getCreateAssociatedTokenIdempotentInstruction(args: {
+  payer: Address;
+  ata: Address;
+  wallet: Address;
+  mint: Address;
+  /** Defaults to the classic SPL Token program. Pass Token-2022 for Token-2022 mints. */
+  tokenProgram?: Address;
+}): Instruction {
+  return buildInstruction(
+    ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
+    [
+      writableSignerAddress(args.payer),
+      writableAccount(args.ata),
+      readonlyAccount(args.wallet),
+      readonlyAccount(args.mint),
+      readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
+      readonlyAccount(args.tokenProgram ?? SPL_TOKEN_PROGRAM_ADDRESS),
+    ],
+    new Uint8Array([1]), // CreateIdempotent
+  );
+}
+
+/**
+ * Builds the SPL Token v2 MintTo instruction (discriminator 7).
+ *
+ * Data layout: `[u8(7), u64 LE amount]` (9 bytes).
+ * Accounts: `[mint(w), destination(w), authority(s)]`.
+ */
+export function getMintToInstruction(args: {
+  mint: Address;
+  destination: Address;
+  authority: Address;
+  amount: bigint;
+  /** Defaults to the classic SPL Token program. */
+  tokenProgram?: Address;
+}): Instruction {
+  const data = new Uint8Array(9);
+  data[0] = 7;
+  let v = args.amount;
+  for (let i = 0; i < 8; i += 1) {
+    data[1 + i] = Number(v & 0xffn);
+    v >>= 8n;
+  }
+  return buildInstruction(
+    args.tokenProgram ?? SPL_TOKEN_PROGRAM_ADDRESS,
+    [
+      writableAccount(args.mint),
+      writableAccount(args.destination),
+      readonlySignerAddress(args.authority),
+    ],
+    data,
+  );
+}
