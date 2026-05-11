@@ -300,9 +300,31 @@ export class EvmWarpRouteReader extends EvmRouterReader {
           ),
         );
 
+        const collateralTokenAddress =
+          'token' in tokenConfig ? tokenConfig.token : undefined;
+
         allowedRebalancingBridges = objFilter(
-          objMap(allowedBridgesByDomain, (_domain, bridges) =>
-            bridges.map((bridge) => ({ bridge })),
+          await promiseObjAll(
+            objMap(allowedBridgesByDomain, async (_domain, bridges) =>
+              Promise.all(
+                bridges.map(async (bridge) => {
+                  if (!collateralTokenAddress) {
+                    return { bridge };
+                  }
+                  const erc20 = HypERC20__factory.connect(
+                    collateralTokenAddress,
+                    this.provider,
+                  );
+                  const allowance = await erc20.allowance(
+                    warpRouteAddress,
+                    bridge,
+                  );
+                  return allowance.eq(constants.MaxUint256)
+                    ? { bridge, approvedTokens: [collateralTokenAddress] }
+                    : { bridge };
+                }),
+              ),
+            ),
           ),
           // Remove domains that do not have allowed bridges
           (_domain, bridges): bridges is any => bridges.length !== 0,
