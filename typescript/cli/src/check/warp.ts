@@ -3,6 +3,7 @@ import { stringify as yamlStringify } from 'yaml';
 import {
   type AccountConfig,
   InterchainAccount,
+  TOKEN_CROSS_COLLATERAL_STANDARDS,
   type WarpCoreConfig,
   type WarpRouteCheckResult,
   type WarpRouteDeployConfigMailboxRequired,
@@ -166,7 +167,9 @@ export async function checkCrossCollateralWarpRoute({
       routeCoreConfig.tokens.every(
         (t) =>
           t.addressOrDenom &&
-          crossAddresses.has(t.addressOrDenom.toLowerCase()),
+          crossAddresses.has(t.addressOrDenom.toLowerCase()) &&
+          t.standard &&
+          TOKEN_CROSS_COLLATERAL_STANDARDS.has(t.standard),
       )
     ) {
       constituentRouteIds.push(routeId);
