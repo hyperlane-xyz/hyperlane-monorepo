@@ -63,6 +63,9 @@ interface HookDeployParams {
   outPath?: string;
 }
 
+/**
+ * Deploys a hook based on the provided configuration.
+ */
 export async function runHookDeploy({
   context,
   chain,
@@ -73,6 +76,7 @@ export async function runHookDeploy({
 
   const { multiProvider, registry, skipConfirmation, chainMetadata } = context;
 
+  // Read and validate hook config
   const rawConfig = await readYamlOrJson(configPath);
   const parseResult = HookConfigSchema.safeParse(rawConfig);
   if (!parseResult.success) {
@@ -83,6 +87,7 @@ export async function runHookDeploy({
   }
   const hookConfig: HookConfig = parseResult.data;
 
+  // Validate that config is not just an address
   assert(
     typeof hookConfig !== 'string',
     'Hook config must be an object, not an address string',
@@ -95,6 +100,7 @@ export async function runHookDeploy({
     );
   }
 
+  // Validate hook compatibility with chain technical stack
   const { technicalStack } = multiProvider.getChainMetadata(chain);
   assert(
     isHookCompatible({
@@ -104,15 +110,18 @@ export async function runHookDeploy({
     `Hook type ${hookConfig.type} is not compatible with chain ${chain} (technical stack: ${technicalStack})`,
   );
 
+  // Get registry addresses for the chain
   const chainAddresses = await registry.getChainAddresses(chain);
   assert(chainAddresses, `No registry addresses found for chain ${chain}`);
   assert(chainAddresses.mailbox, `No mailbox address found for chain ${chain}`);
 
+  // Request API keys for contract verification (unless skipping confirmation)
   let apiKeys: Record<string, string> = {};
   if (!skipConfirmation) {
     apiKeys = await requestAndSaveApiKeys([chain], chainMetadata, registry);
   }
 
+  // Run preflight checks
   await runPreflightChecksForChains({
     context,
     chains: [chain],

@@ -29,7 +29,7 @@ export const hookCommand: CommandModule = {
 };
 
 // Examples for testing:
-// Deploy a merkle tree hook:
+// Deploy a Hook:
 //     hyperlane hook deploy --chain sepolia --config ./hook-config.yaml
 // Deploy with output file:
 //     hyperlane hook deploy --chain sepolia --config ./hook-config.yaml --out ./deployed-hook.json
