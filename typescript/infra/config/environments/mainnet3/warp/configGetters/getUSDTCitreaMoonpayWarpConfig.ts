@@ -13,6 +13,9 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { addressToBytes32, assert } from '@hyperlane-xyz/utils';
 
+import { awIcas } from '../../governance/ica/aw.js';
+import { warpFeesIcas } from '../../governance/ica/warpFees.js';
+import { awSafes } from '../../governance/safe/aw.js';
 import {
   RouterConfigWithoutOwner,
   tokens,
@@ -21,20 +24,16 @@ import { getDomainId, getRegistry } from '../../../../registry.js';
 import { WarpRouteIds } from '../warpIds.js';
 import { getRebalancingBridgesConfigFor } from './utils.js';
 
-const NO_OWNER = '0x0000000000000000000000000000000000000000';
-
-// ICA v2 addresses on ethereum. Arbitrum and base are commented out in awIcas
-// (safe-owned for other routes) but this route explicitly uses ICA v2.
 const ownersByChain = {
-  arbitrum: '0xD2757Bbc28C80789Ed679f22Ac65597Cacf51A45', // ICA on ethereum
-  base: '0x61756c4beBC1BaaC09d89729E2cbaD8BD30c62B7', // ICA on ethereum
-  ethereum: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6', // Safe on ethereum
+  arbitrum: awIcas.arbitrum,
+  base: awIcas.base,
+  ethereum: awSafes.ethereum,
 } as const;
 
 const feeOwnersByChain = {
-  arbitrum: '0x6f0Cfe5fD2E4188AD68b7f8ceB135DD68DF629C7', // warp fees ICA on ethereum
-  base: '0x957019c916D05dDF70816Cad43ebF5D417bE81C8', // warp fees ICA on ethereum
-  ethereum: '0x89d295dBB62aAb434BEd1D372b04c468e828eC9b', // warp fees ICA on ethereum
+  arbitrum: warpFeesIcas.arbitrum,
+  base: warpFeesIcas.base,
+  ethereum: warpFeesIcas.ethereum,
 } as const;
 const QUOTE_SIGNERS = [
   '0xEd1829805De615eEFC7303766D395Ea0a1B2b04d',
@@ -106,11 +105,11 @@ function buildCrossCollateralRoutingFee(
   };
 }
 
-function buildDefaultIsm(): IsmConfig {
+function buildDefaultIsm(owner: string): IsmConfig {
   return {
     type: IsmType.FALLBACK_ROUTING,
     domains: {},
-    owner: NO_OWNER,
+    owner,
   };
 }
 
@@ -136,7 +135,7 @@ function buildInterchainSecurityModule(
   return {
     type: IsmType.AGGREGATION,
     threshold: 1,
-    modules: [buildInnerRoutingIsm(local, owner), buildDefaultIsm()],
+    modules: [buildInnerRoutingIsm(local, owner), buildDefaultIsm(owner)],
   } as const;
 }
 

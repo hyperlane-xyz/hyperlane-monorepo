@@ -14,6 +14,9 @@ import {
 import { addressToBytes32, assert } from '@hyperlane-xyz/utils';
 
 import relayerAddresses from '../../../../relayer.json' with { type: 'json' };
+import { awIcas } from '../../governance/ica/aw.js';
+import { warpFeesIcas } from '../../governance/ica/warpFees.js';
+import { awSafes } from '../../governance/safe/aw.js';
 import {
   RouterConfigWithoutOwner,
   tokens,
@@ -44,23 +47,19 @@ const SOLANA_IGP_ADDRESS = 'BhNcatUDC2D5JTyeaqrdSukiVFsEHK7e3hVmKMztwefv';
 const SOLANA_XO_TOKEN_MINT = 'xoUSDq85Rjsb6SbUwJyreFgeWQvxdkT7R3c3g7s6p5Y';
 const SOLANA_XO_NAME = 'XO Cash';
 const SOLANA_XO_SYMBOL = 'XO';
-const NO_OWNER = '0x0000000000000000000000000000000000000000';
-
-// ICA v2 addresses on ethereum. Arbitrum and base are commented out in awIcas
-// (safe-owned for other routes) but this route explicitly uses ICA v2.
 const ownersByChain = {
   solanamainnet: 'BNGDJ1h9brgt6FFVd8No1TVAH48Fp44d7jkuydr1URwJ', // Squads multisig
-  arbitrum: '0xD2757Bbc28C80789Ed679f22Ac65597Cacf51A45', // ICA on ethereum
-  base: '0x61756c4beBC1BaaC09d89729E2cbaD8BD30c62B7', // ICA on ethereum
-  citrea: '0x682bc0Aca87491ECB3683911996F1d573F989141', // ICA on ethereum
-  ethereum: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6', // Safe on ethereum
+  arbitrum: awIcas.arbitrum,
+  base: awIcas.base,
+  citrea: awIcas.citrea,
+  ethereum: awSafes.ethereum,
 } as const;
 
 const feeOwnersByChain = {
-  arbitrum: '0x6f0Cfe5fD2E4188AD68b7f8ceB135DD68DF629C7', // warp fees ICA on ethereum
-  base: '0x957019c916D05dDF70816Cad43ebF5D417bE81C8', // warp fees ICA on ethereum
-  citrea: '0x656ced4a881e4D618B635984Cf0D1D1e051E8513', // warp fees ICA on ethereum
-  ethereum: '0x89d295dBB62aAb434BEd1D372b04c468e828eC9b', // warp fees ICA on ethereum
+  arbitrum: warpFeesIcas.arbitrum,
+  base: warpFeesIcas.base,
+  citrea: warpFeesIcas.citrea,
+  ethereum: warpFeesIcas.ethereum,
 } as const;
 const QUOTE_SIGNERS = [
   '0xEd1829805De615eEFC7303766D395Ea0a1B2b04d',
@@ -121,17 +120,18 @@ function isCctpChain(chain: ChainName): chain is EvmChain {
   return CCTP_CHAINS.includes(chain as EvmChain);
 }
 
-function buildDefaultIsm(): IsmConfig {
+function buildDefaultIsm(owner: string): IsmConfig {
   return {
     type: IsmType.FALLBACK_ROUTING,
     domains: {},
-    owner: NO_OWNER,
+    owner,
   };
 }
 
 function buildRemoteIsm(
   local: (typeof ROUTE_CHAINS)[number],
   remote: (typeof ROUTE_CHAINS)[number],
+  owner: string,
 ): IsmConfig {
   if (isCctpChain(local) && isCctpChain(remote)) {
     return CCTP_FAST_ROUTE_ADDRESSES[local];
@@ -141,7 +141,7 @@ function buildRemoteIsm(
     return { type: IsmType.TRUSTED_RELAYER, relayer: FAST_PATH_RELAYER };
   }
 
-  return buildDefaultIsm();
+  return buildDefaultIsm(owner);
 }
 
 function shouldIncludeInnerRoutingRemote(
@@ -162,7 +162,7 @@ function buildInnerRoutingIsm(
     ROUTE_CHAINS.filter(
       (remote) =>
         remote !== local && shouldIncludeInnerRoutingRemote(local, remote),
-    ).map((remote) => [remote, buildRemoteIsm(local, remote)]),
+    ).map((remote) => [remote, buildRemoteIsm(local, remote, owner)]),
   );
 
   return {
@@ -177,18 +177,29 @@ function buildInterchainSecurityModule(
   owner: string,
 ): IsmConfig | undefined {
   if (local === 'solanamainnet') return undefined;
+
+  if (local === 'citrea') {
+    // Amount routing: small txs use trusted relayer for fast finality, large use default
+    return {
+      type: IsmType.AGGREGATION,
+      threshold: 1,
+      modules: [
+        buildDefaultIsm(owner),
+        {
+          type: IsmType.AMOUNT_ROUTING,
+          threshold: AMOUNT_ROUTING_THRESHOLD,
+          lowerIsm: buildInnerRoutingIsm(local, owner),
+          upperIsm: buildDefaultIsm(owner),
+        },
+      ],
+    } as const;
+  }
+
+  // CCTP chains: route directly via CCTP fast ISM, no amount routing needed
   return {
     type: IsmType.AGGREGATION,
     threshold: 1,
-    modules: [
-      buildDefaultIsm(),
-      {
-        type: IsmType.AMOUNT_ROUTING,
-        threshold: AMOUNT_ROUTING_THRESHOLD,
-        lowerIsm: buildInnerRoutingIsm(local, owner),
-        upperIsm: buildDefaultIsm(),
-      },
-    ],
+    modules: [buildInnerRoutingIsm(local, owner), buildDefaultIsm(owner)],
   } as const;
 }
 
@@ -219,12 +230,7 @@ function buildHook(local: (typeof ROUTE_CHAINS)[number], owner: string) {
 
   if (!isCctpChain(local)) return undefined;
 
-  return {
-    type: HookType.AMOUNT_ROUTING,
-    threshold: AMOUNT_ROUTING_THRESHOLD,
-    lowerHook: buildFastRouteHook(local, owner),
-    upperHook: { type: HookType.MAILBOX_DEFAULT },
-  } as const;
+  return buildFastRouteHook(local, owner);
 }
 
 function buildCrossCollateralRoutingFee(
