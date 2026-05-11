@@ -48,6 +48,18 @@ export {
   simulateIgpQuoteAccountMetas,
 } from './instructions/igp.js';
 export type { SimulatedAccountMeta } from './instructions/igp.js';
+export {
+  getGetQuoteAccountMetasInstruction,
+  getGetSubmitQuoteAccountMetasInstruction,
+  getSubmitQuoteInstruction,
+  simulateFeeQuoteAccountMetas,
+  simulateSubmitQuoteAccountMetas,
+} from './instructions/fee.js';
+export type {
+  GetQuoteAccountMetasInput,
+  GetSubmitQuoteAccountMetasInput,
+  SimulatedFeeAccountMeta,
+} from './instructions/fee.js';
 export { getTransferOwnershipInstruction as getMultisigIsmTransferOwnershipInstruction } from './instructions/multisig-ism-message-id.js';
 export { getSetUpgradeAuthorityInstruction } from './instructions/loader.js';
 export { buildSetDefaultIsmInstruction } from './core/mailbox-tx.js';
@@ -132,14 +144,19 @@ export {
   deriveCrossCollateralStatePda,
   deriveCrossCollateralDispatchAuthorityPda,
   deriveMailboxDispatchedMessagePda,
+  deriveIgpGasPaymentPda,
+  deriveFeeTransientQuotePda,
 } from './pda.js';
 
 // Warp token transfer-remote instruction builders
 export {
-  getTokenTransferRemoteInstruction,
+  buildFeeTransferRemoteSectionAccounts,
   buildIgpTransferRemoteSectionAccounts,
+  getTokenTransferRemoteInstruction,
 } from './instructions/token.js';
 export type {
+  FeeTransferRemoteSection,
+  IgpQuotedExtension,
   IgpTransferRemoteSection,
   TransferRemoteInstructionData,
 } from './instructions/token.js';
