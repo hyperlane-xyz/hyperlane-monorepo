@@ -463,9 +463,6 @@ export class SvmIgpHookWriter
       });
     }
 
-    const overheadIgpPda = current.deployed.overheadIgpPda;
-    assert(overheadIgpPda, `Overhead IGP not initialized for ${programId}`);
-
     const overheadConfigsToUpdate: GasOverheadConfig[] = [];
     for (const [domainStr, gas] of Object.entries(config.overhead)) {
       const domain = Number(domainStr);
@@ -488,6 +485,12 @@ export class SvmIgpHookWriter
     }
 
     if (overheadConfigsToUpdate.length > 0) {
+      const overheadIgpPda = current.deployed.overheadIgpPda;
+      assert(
+        overheadIgpPda,
+        `Cannot update overheads for IGP ${programId}: overhead PDA not initialized.`,
+      );
+
       const setOverheadIx = await getSetDestinationGasOverheadsInstruction(
         programId,
         ownerAddress,
