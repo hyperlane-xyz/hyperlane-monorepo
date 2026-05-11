@@ -349,8 +349,8 @@ describe('SVM Hook E2E Tests', function () {
       expect(txs).to.have.length(0);
     });
 
-    it('clears fee config when quoteSigners is undefined', async () => {
-      const writer = await setupIgpWith('fee-clear', 1);
+    it('leaves fee config alone when quoteSigners is undefined', async () => {
+      const writer = await setupIgpWith('fee-undefined-noop', 1);
       const initial = await writer.read(TEST_PROGRAM_IDS.igp);
       await applyTxs(
         await writer.update({
@@ -360,49 +360,40 @@ describe('SVM Hook E2E Tests', function () {
       );
 
       const enabled = await writer.read(TEST_PROGRAM_IDS.igp);
-      await applyTxs(
-        await writer.update({
-          ...enabled,
-          config: { ...enabled.config, quoteSigners: undefined },
-        }),
-      );
-
-      const after = await writer.read(TEST_PROGRAM_IDS.igp);
-      expect(after.config.quoteSigners).to.be.undefined;
-      expect(after.deployed.feeConfig).to.be.undefined;
-    });
-
-    it('re-init after clear resets to fresh config', async () => {
-      const writer = await setupIgpWith('fee-reinit', 1);
-      const initial = await writer.read(TEST_PROGRAM_IDS.igp);
-      await applyTxs(
-        await writer.update({
-          ...initial,
-          config: { ...initial.config, quoteSigners: [SIGNER_A] },
-        }),
-      );
-
-      const enabled = await writer.read(TEST_PROGRAM_IDS.igp);
-      await applyTxs(
-        await writer.update({
-          ...enabled,
-          config: { ...enabled.config, quoteSigners: undefined },
-        }),
-      );
-
-      const cleared = await writer.read(TEST_PROGRAM_IDS.igp);
-      await applyTxs(
-        await writer.update({
-          ...cleared,
-          config: { ...cleared.config, quoteSigners: [SIGNER_B] },
-        }),
-      );
+      const txs = await writer.update({
+        ...enabled,
+        config: { ...enabled.config, quoteSigners: undefined },
+      });
+      expect(txs).to.have.length(0);
 
       const after = await writer.read(TEST_PROGRAM_IDS.igp);
       expect(new Set(after.config.quoteSigners ?? [])).to.eql(
-        new Set([SIGNER_B]),
+        new Set([SIGNER_A]),
       );
-      expect(after.deployed.feeConfig?.minIssuedAt).to.equal(0n);
+      expect(after.deployed.feeConfig?.domainId).to.equal(1);
+    });
+
+    it('removes all signers via empty array while keeping fee_config Some', async () => {
+      const writer = await setupIgpWith('fee-empty-signers', 1);
+      const initial = await writer.read(TEST_PROGRAM_IDS.igp);
+      await applyTxs(
+        await writer.update({
+          ...initial,
+          config: { ...initial.config, quoteSigners: [SIGNER_A, SIGNER_B] },
+        }),
+      );
+
+      const enabled = await writer.read(TEST_PROGRAM_IDS.igp);
+      await applyTxs(
+        await writer.update({
+          ...enabled,
+          config: { ...enabled.config, quoteSigners: [] },
+        }),
+      );
+
+      const after = await writer.read(TEST_PROGRAM_IDS.igp);
+      expect(after.deployed.feeConfig?.signers).to.eql([]);
+      expect(after.deployed.feeConfig?.domainId).to.equal(1);
     });
 
     it('throws on domain-id drift', async () => {
