@@ -252,7 +252,17 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
         break;
       case HookType.AGGREGATION:
         config.hooks = await Promise.all(
-          config.hooks.map(async (hook) => this.deriveHookConfig(hook)),
+          config.hooks.map(async (hook) => {
+            const derived = await this.deriveHookConfig(hook);
+            // CCTP hooks can't be redeployed; preserve the original address
+            // so deploy() can connect to the existing contract via the string branch
+            if (derived.type === HookType.CCTP) {
+              return (
+                typeof hook === 'string' ? hook : (derived as any).address
+              ) as HookConfig;
+            }
+            return derived;
+          }),
         );
         break;
       case HookType.AMOUNT_ROUTING:
@@ -384,7 +394,15 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     const hookConfigs: DerivedHookConfig[] = await concurrentMap(
       this.concurrency,
       hooks,
-      (hook) => this.deriveHookConfig(hook),
+      async (hookAddress) => {
+        const derived = await this.deriveHookConfig(hookAddress);
+        // CCTP hooks can't be redeployed; preserve address string so deploy()
+        // can connect to the existing contract via the string branch
+        if (derived.type === HookType.CCTP) {
+          return hookAddress as unknown as DerivedHookConfig;
+        }
+        return derived;
+      },
     );
 
     const config: WithAddress<AggregationHookConfig> = {

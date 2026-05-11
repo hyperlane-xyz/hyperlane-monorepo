@@ -182,7 +182,15 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       case IsmType.FALLBACK_ROUTING:
       case IsmType.ROUTING:
         config.domains = await promiseObjAll(
-          objMap(config.domains, async (_, ism) => this.deriveIsmConfig(ism)),
+          objMap(config.domains, async (_, ism) => {
+            const derived = await this.deriveIsmConfig(ism);
+            // offchainLookupIsm can't be redeployed; preserve the original address
+            // so deploy() can connect to the existing contract via the string branch
+            if (derived.type === IsmType.OFFCHAIN_LOOKUP) {
+              return (typeof ism === 'string' ? ism : derived.address) as any;
+            }
+            return derived;
+          }),
         );
         break;
       case IsmType.AGGREGATION:
@@ -378,12 +386,16 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
           ? await contractInstance.route(this.messageContext.message)
           : await addressDeriveFunc(domainId);
 
-        return [
-          chainName,
-          deriveConfig
-            ? await this.deriveIsmConfig(moduleAddress)
-            : moduleAddress,
-        ];
+        if (deriveConfig) {
+          const derived = await this.deriveIsmConfig(moduleAddress);
+          // offchainLookupIsm can't be redeployed; keep the address so deploy()
+          // can connect to the existing contract via the string branch
+          return [
+            chainName,
+            derived.type === IsmType.OFFCHAIN_LOOKUP ? moduleAddress : derived,
+          ];
+        }
+        return [chainName, moduleAddress];
       },
     );
 
