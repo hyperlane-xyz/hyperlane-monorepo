@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/tron-sdk",
-  "version": "23.0.5",
+  "version": "23.0.6",
   "description": "Hyperlane TypeScript SDK for Tron",
   "keywords": [
     "blockchain",

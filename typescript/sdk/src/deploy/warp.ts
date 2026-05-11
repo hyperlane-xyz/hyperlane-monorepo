@@ -1,4 +1,7 @@
-import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
+import {
+  MailboxClient__factory,
+  ProxyAdmin__factory,
+} from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   createHookWriter,
@@ -49,6 +52,7 @@ import {
 } from '../contracts/types.js';
 import { EvmHookModule } from '../hook/EvmHookModule.js';
 import { HookConfig } from '../hook/types.js';
+import { hookTreeContainsRateLimited } from '../hook/utils.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { IsmConfig } from '../ism/types.js';
@@ -78,6 +82,13 @@ import { HyperlaneProxyFactoryDeployer } from './HyperlaneProxyFactoryDeployer.j
 import { ContractVerifier } from './verify/ContractVerifier.js';
 
 type ChainAddresses = Record<string, string>;
+
+type RateLimitedHookDeployInput = {
+  hookConfig: HookConfig;
+  chainAddresses: ChainAddresses;
+  ccipContractCache: CCIPContractCache;
+  proxyAdminAddress: Address | undefined;
+};
 
 const SUPPORTED_ALTVM_TOKEN_TYPES = new Set<TokenType>([
   TokenType.synthetic,
@@ -184,6 +195,29 @@ export function validateWarpConfigForAltVM(
   }
 }
 
+// Subclass that injects rate-limited hook deployment between configureClients and
+// transferOwnership so that setHook() is called while the deployer signer still owns the token.
+class RateLimitedHookERC20Deployer extends HypERC20Deployer {
+  constructor(
+    multiProvider: MultiProvider,
+    ismFactory: HyperlaneIsmFactory | undefined,
+    contractVerifier: ContractVerifier | undefined,
+    private readonly preTransferFn: (
+      deployedTokens: ChainMap<Address>,
+    ) => Promise<void>,
+  ) {
+    super(multiProvider, ismFactory, contractVerifier);
+  }
+
+  protected override async beforeTransferOwnership(
+    contractsMap: HyperlaneContractsMap<HypERC20Factories>,
+  ): Promise<void> {
+    await this.preTransferFn(
+      objMap(contractsMap, (_, contracts) => getRouter(contracts).address),
+    );
+  }
+}
+
 export async function executeWarpDeploy(
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
   multiProvider: MultiProvider,
@@ -224,6 +258,11 @@ export async function executeWarpDeploy(
     rateLimitedSnapshot[chain] = ism;
   }
 
+  // Hooks containing RATE_LIMITED need the token router address as sender, so they are deferred
+  // until after token deployment. resolveWarpIsmAndHook populates this map (EVM/Tron only) and
+  // returns undefined for those hooks, causing them to be set later via setHook().
+  const rateLimitedHookSnapshots: ChainMap<RateLimitedHookDeployInput> = {};
+
   // For each chain in WarpRouteConfig, deploy each Ism Factory, if it's not in the registry
   // Then return a modified config with the ism and/or hook address as a string
   const modifiedConfig = await resolveWarpIsmAndHook(
@@ -233,6 +272,7 @@ export async function executeWarpDeploy(
     registryAddresses,
     ismFactoryDeployer,
     contractVerifier,
+    rateLimitedHookSnapshots,
   );
 
   // Initialize with unsupported chains so that they are enrolled
@@ -288,14 +328,46 @@ export async function executeWarpDeploy(
           undefined,
           contractVerifier,
         );
+
+        assert(
+          !warpDeployConfig.isNft || isObjEmpty(rateLimitedHookSnapshots),
+          'RATE_LIMITED hooks are not supported for NFT warp routes (HypERC721Deployer has no beforeTransferOwnership override)',
+        );
+
         const deployer = warpDeployConfig.isNft
-          ? new HypERC721Deployer(multiProvider, ismFactory, contractVerifier)
-          : new HypERC20Deployer(multiProvider, ismFactory, contractVerifier); // TODO: replace with EvmERC20WarpModule
+          ? new HypERC721Deployer(multiProvider)
+          : isObjEmpty(rateLimitedHookSnapshots)
+            ? new HypERC20Deployer(multiProvider, ismFactory, contractVerifier) // TODO: replace with EvmERC20WarpModule
+            : new RateLimitedHookERC20Deployer(
+                multiProvider,
+                ismFactory,
+                contractVerifier,
+                // Called BEFORE transferOwnership — deployer signer still owns the token here.
+                async (deployedTokens) => {
+                  const chainSnapshots = objFilter(
+                    rateLimitedHookSnapshots,
+                    (chain, _v): _v is RateLimitedHookDeployInput =>
+                      chain in deployedTokens,
+                  );
+                  if (isObjEmpty(chainSnapshots)) return;
+                  const deployedHooks = await deployAndWireRateLimitedHooks(
+                    chainSnapshots,
+                    deployedTokens,
+                    multiProvider,
+                    contractVerifier,
+                  );
+                  for (const [chain, hookAddress] of Object.entries(
+                    deployedHooks,
+                  )) {
+                    warpDeployConfig[chain].hook = hookAddress;
+                  }
+                },
+              );
 
         const chainSet = new Set(Object.keys(protocolSpecificConfig));
         const rateLimitedForBatch = objFilter(
           rateLimitedSnapshot,
-          (_chain, ismConfig): ismConfig is IsmConfig => chainSet.has(_chain),
+          (_chain, _ismConfig): _ismConfig is IsmConfig => chainSet.has(_chain),
         );
         const evmContracts = await deployer.deploy(
           protocolSpecificConfig,
@@ -347,6 +419,70 @@ export async function executeWarpDeploy(
   return deployedContracts;
 }
 
+async function deployAndWireRateLimitedHooks(
+  snapshots: ChainMap<RateLimitedHookDeployInput>,
+  deployedTokens: ChainMap<Address>,
+  multiProvider: MultiProvider,
+  contractVerifier?: ContractVerifier,
+): Promise<ChainMap<Address>> {
+  return promiseObjAll(
+    objMap(
+      snapshots,
+      async (
+        chain,
+        { hookConfig, chainAddresses, ccipContractCache, proxyAdminAddress },
+      ) => {
+        const tokenAddress = mustGet(deployedTokens, chain);
+        assert(chainAddresses, `No registry addresses for ${chain}`);
+
+        const resolvedProxyAdminAddress: Address =
+          proxyAdminAddress ??
+          (
+            await multiProvider.handleDeploy(
+              chain,
+              new ProxyAdmin__factory(),
+              [],
+            )
+          ).address;
+
+        const evmHookModule = await EvmHookModule.create({
+          chain,
+          multiProvider,
+          coreAddresses: {
+            mailbox: chainAddresses.mailbox,
+            proxyAdmin: resolvedProxyAdminAddress,
+            rateLimitedSender: tokenAddress,
+          },
+          config: hookConfig,
+          ccipContractCache,
+          proxyFactoryFactories:
+            extractIsmAndHookFactoryAddresses(chainAddresses),
+          contractVerifier,
+        });
+
+        const { deployedHook } = evmHookModule.serialize();
+        assert(
+          deployedHook,
+          `Failed to get deployed hook address for ${chain}`,
+        );
+
+        rootLogger.info(
+          `Wiring RateLimitedHook ${deployedHook} to token ${tokenAddress} on ${chain}`,
+        );
+        const txOverrides = multiProvider.getTransactionOverrides(chain);
+        const signer = multiProvider.getSigner(chain);
+        const token = MailboxClient__factory.connect(tokenAddress, signer);
+        await multiProvider.handleTx(
+          chain,
+          token.setHook(deployedHook, txOverrides),
+        );
+
+        return deployedHook;
+      },
+    ),
+  );
+}
+
 async function resolveWarpIsmAndHook(
   warpConfig: WarpRouteDeployConfigMailboxRequired,
   multiProvider: MultiProvider,
@@ -354,6 +490,7 @@ async function resolveWarpIsmAndHook(
   registryAddresses: ChainMap<ChainAddresses>,
   ismFactoryDeployer: HyperlaneProxyFactoryDeployer,
   contractVerifier: ContractVerifier,
+  rateLimitedHookSnapshots: ChainMap<RateLimitedHookDeployInput>,
 ): Promise<WarpRouteDeployConfigMailboxRequired> {
   return promiseObjAll(
     objMap(warpConfig, async (chain, config) => {
@@ -384,6 +521,7 @@ async function resolveWarpIsmAndHook(
         contractVerifier,
         ismFactoryDeployer,
         warpConfig: config,
+        rateLimitedHookSnapshots,
       });
 
       // Spread instead of mutating config in place — the caller holds a reference
@@ -498,6 +636,7 @@ async function createWarpHook({
   altVmSigners,
   contractVerifier,
   warpConfig,
+  rateLimitedHookSnapshots,
 }: {
   ccipContractCache: CCIPContractCache;
   chain: string;
@@ -507,6 +646,7 @@ async function createWarpHook({
   contractVerifier?: ContractVerifier;
   warpConfig: HypTokenRouterConfig;
   ismFactoryDeployer: HyperlaneProxyFactoryDeployer;
+  rateLimitedHookSnapshots: ChainMap<RateLimitedHookDeployInput>;
 }): Promise<HookConfig | undefined> {
   const { hook } = warpConfig;
 
@@ -515,6 +655,30 @@ async function createWarpHook({
       `Config Hook is ${!hook ? 'empty' : hook}, skipping deployment.`,
     );
     return hook;
+  }
+
+  // RATE_LIMITED hooks need the token router address as sender — defer until post-token deploy.
+  // Only EVM/Tron support EvmHookModule; foreignDeployment and non-EVM chains cannot wire the hook.
+  if (hookTreeContainsRateLimited(hook)) {
+    assert(
+      !warpConfig.foreignDeployment,
+      `RATE_LIMITED hook configured on ${chain} but it is a foreignDeployment — hook cannot be wired post-deploy`,
+    );
+    const protocol = multiProvider.getProtocol(chain);
+    assert(
+      protocol === ProtocolType.Ethereum || protocol === ProtocolType.Tron,
+      `RATE_LIMITED hook is only supported on EVM/Tron chains; ${chain} uses protocol ${protocol}`,
+    );
+    rootLogger.info(
+      `RATE_LIMITED hook on ${chain} — deferring deployment until after token deployment`,
+    );
+    rateLimitedHookSnapshots[chain] = {
+      hookConfig: hook,
+      chainAddresses,
+      ccipContractCache,
+      proxyAdminAddress: warpConfig.proxyAdmin?.address,
+    };
+    return undefined;
   }
 
   rootLogger.info(`Loading registry factory addresses for ${chain}...`);

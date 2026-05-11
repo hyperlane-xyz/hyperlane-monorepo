@@ -3,8 +3,8 @@ import { Separator, checkbox, confirm } from '@inquirer/prompts';
 import select from '@inquirer/select';
 import { ethers } from 'ethers';
 
-import { ChainName } from '@hyperlane-xyz/sdk';
-import { isEVMLike, timeout } from '@hyperlane-xyz/utils';
+import { ChainName, parseCustomRpcHeaders } from '@hyperlane-xyz/sdk';
+import { assert, isEVMLike, timeout } from '@hyperlane-xyz/utils';
 
 import { getChain } from '../../config/registry.js';
 import { getEnvironmentConfig } from '../../scripts/core-utils.js';
@@ -333,10 +333,12 @@ async function refreshDependentK8sResourcesInteractive(
   }
 }
 
-async function selectCoreInfrastructure(
+// Returns an array of [context, helm manager] tuples — context (e.g. `hyperlane`,
+// `default_ism`) is preserved so the interactive selector can label each choice.
+function getCoreInfraManagersWithContext(
   environment: DeployEnvironment,
   chain: string,
-): Promise<HelmManager<any>[]> {
+): [string, HelmManager<any>][] {
   const envConfig = getEnvironmentConfig(environment);
   const coreHelmManagers: [string, HelmManager<any>][] = [];
 
@@ -359,6 +361,22 @@ async function selectCoreInfrastructure(
       coreHelmManagers.push([context, new ScraperHelmManager(agentConfig)]);
     }
   }
+
+  return coreHelmManagers;
+}
+
+function getCoreInfraManagers(
+  environment: DeployEnvironment,
+  chain: string,
+): HelmManager<any>[] {
+  return getCoreInfraManagersWithContext(environment, chain).map(([_, m]) => m);
+}
+
+async function selectCoreInfrastructure(
+  environment: DeployEnvironment,
+  chain: string,
+): Promise<HelmManager<any>[]> {
+  const coreHelmManagers = getCoreInfraManagersWithContext(environment, chain);
 
   if (coreHelmManagers.length === 0) {
     console.log('No core infrastructure to refresh');
@@ -570,6 +588,230 @@ async function selectCronJobs(
     .filter((_, i) => selection.includes(i));
 }
 
+function getCronJobManagers(
+  environment: DeployEnvironment,
+): HelmManager<any>[] {
+  const managers: HelmManager<any>[] = [];
+  try {
+    managers.push(
+      KeyFunderHelmManager.forEnvironment(
+        environment,
+        '', // registryCommit not needed for refresh
+      ),
+    );
+  } catch (error) {
+    console.warn(
+      `Skipping key funder cronjob (may not be configured for ${environment}): ${error}`,
+    );
+  }
+  return managers;
+}
+
+/**
+ * Collect all K8s helm managers for a given chain. Tollkeeper is split out
+ * because its Deployment-backed pods need `kubectl rollout restart` rather than
+ * the name-based delete used by refreshK8sResources for StatefulSet pods.
+ * CronJob managers only need secret refresh (pods pick up new secrets on next
+ * run).
+ */
+async function collectAllK8sHelmManagers(
+  environment: DeployEnvironment,
+  chain: string,
+): Promise<{
+  serviceManagers: HelmManager<any>[];
+  tollkeeperManagers: TollkeeperHelmManager[];
+  cronjobManagers: HelmManager<any>[];
+}> {
+  const coreManagers = getCoreInfraManagers(environment, chain);
+  const warpManagers = await WarpRouteMonitorHelmManager.getManagersForChain(
+    environment,
+    chain,
+  );
+  const rebalancerManagers = await RebalancerHelmManager.getManagersForChain(
+    environment,
+    chain,
+  );
+  const tollkeeperManagers = await TollkeeperHelmManager.getManagersForChain(
+    environment,
+    chain,
+  );
+  const cronjobManagers = getCronJobManagers(environment);
+
+  return {
+    serviceManagers: [...coreManagers, ...warpManagers, ...rebalancerManagers],
+    tollkeeperManagers,
+    cronjobManagers,
+  };
+}
+
+/**
+ * Non-interactively set RPC URLs for a chain. Validates each URL, updates the
+ * GCP secret, and optionally refreshes dependent K8s resources.
+ */
+export async function setRpcUrls(
+  environment: DeployEnvironment,
+  chain: string,
+  rpcUrls: string[],
+  options?: { refreshK8s?: boolean },
+): Promise<void> {
+  assert(rpcUrls.length > 0, 'rpcUrls must be non-empty');
+
+  // Validate all URLs in parallel
+  const healthChecks = await Promise.all(
+    rpcUrls.map(async (url) => ({
+      url,
+      healthy: await testProvider(chain, url),
+    })),
+  );
+  const unhealthy = healthChecks.filter((r) => !r.healthy).map((r) => r.url);
+  if (unhealthy.length > 0) {
+    throw new Error(`Provider validation failed for: ${unhealthy.join(', ')}`);
+  }
+
+  const secretPayload = JSON.stringify(rpcUrls);
+  await updateSecretAndDisablePrevious(environment, chain, secretPayload);
+
+  if (options?.refreshK8s) {
+    const { serviceManagers, tollkeeperManagers, cronjobManagers } =
+      await collectAllK8sHelmManagers(environment, chain);
+    const allManagersForSecrets = [
+      ...serviceManagers,
+      ...tollkeeperManagers,
+      ...cronjobManagers,
+    ];
+
+    if (allManagersForSecrets.length > 0) {
+      await refreshK8sResources(
+        allManagersForSecrets,
+        K8sResourceType.SECRET,
+        environment,
+        { skipConfirmation: true },
+      );
+    }
+    if (serviceManagers.length > 0) {
+      await refreshK8sResources(
+        serviceManagers,
+        K8sResourceType.POD,
+        environment,
+        { skipConfirmation: true },
+      );
+    }
+    for (const manager of tollkeeperManagers) {
+      await manager.restartDeployment();
+    }
+  }
+}
+
+export interface ReleaseInfo {
+  release: string;
+  type: string;
+  refresh: 'secret+pod' | 'secret+rollout-restart' | 'secret-only';
+}
+
+/**
+ * List all K8s releases affected by an RPC URL change for a chain.
+ * Returns release metadata without making any changes.
+ */
+export async function listAffectedReleases(
+  environment: DeployEnvironment,
+  chain: string,
+): Promise<ReleaseInfo[]> {
+  const { serviceManagers, tollkeeperManagers, cronjobManagers } =
+    await collectAllK8sHelmManagers(environment, chain);
+
+  const releases: ReleaseInfo[] = [];
+
+  for (const manager of serviceManagers) {
+    let type = 'service';
+    if (manager instanceof RelayerHelmManager) type = 'relayer';
+    else if (manager instanceof ValidatorHelmManager) type = 'validator';
+    else if (manager instanceof ScraperHelmManager) type = 'scraper';
+    else if (manager instanceof WarpRouteMonitorHelmManager)
+      type = 'warp-monitor';
+    else if (manager instanceof RebalancerHelmManager) type = 'rebalancer';
+
+    releases.push({
+      release: manager.helmReleaseName,
+      type,
+      refresh: 'secret+pod',
+    });
+  }
+
+  for (const manager of tollkeeperManagers) {
+    releases.push({
+      release: manager.helmReleaseName,
+      type: 'tollkeeper',
+      refresh: 'secret+rollout-restart',
+    });
+  }
+
+  for (const manager of cronjobManagers) {
+    releases.push({
+      release: manager.helmReleaseName,
+      type: 'cronjob',
+      refresh: 'secret-only',
+    });
+  }
+
+  return releases;
+}
+
+/**
+ * Refresh only the specified K8s releases (by helm release name).
+ * Services get secret + pod refresh; cronjobs get secret-only.
+ */
+export async function refreshSelectedReleases(
+  environment: DeployEnvironment,
+  chain: string,
+  releaseNames: string[],
+): Promise<void> {
+  const { serviceManagers, tollkeeperManagers, cronjobManagers } =
+    await collectAllK8sHelmManagers(environment, chain);
+
+  const selectedServices = serviceManagers.filter((m) =>
+    releaseNames.includes(m.helmReleaseName),
+  );
+  const selectedTollkeeper = tollkeeperManagers.filter((m) =>
+    releaseNames.includes(m.helmReleaseName),
+  );
+  const selectedCronjobs = cronjobManagers.filter((m) =>
+    releaseNames.includes(m.helmReleaseName),
+  );
+  const allForSecrets = [
+    ...selectedServices,
+    ...selectedTollkeeper,
+    ...selectedCronjobs,
+  ];
+
+  if (allForSecrets.length === 0) {
+    console.log('No matching releases found to refresh');
+    return;
+  }
+
+  console.log(
+    `Refreshing ${allForSecrets.length} releases: ${allForSecrets.map((m) => m.helmReleaseName).join(', ')}`,
+  );
+
+  await refreshK8sResources(
+    allForSecrets,
+    K8sResourceType.SECRET,
+    environment,
+    { skipConfirmation: true },
+  );
+
+  if (selectedServices.length > 0) {
+    await refreshK8sResources(
+      selectedServices,
+      K8sResourceType.POD,
+      environment,
+      { skipConfirmation: true },
+    );
+  }
+  for (const manager of selectedTollkeeper) {
+    await manager.restartDeployment();
+  }
+}
+
 async function testProvider(chain: ChainName, url: string): Promise<boolean> {
   const chainMetadata = getChain(chain);
   if (!isEVMLike(chainMetadata.protocol)) {
@@ -577,7 +819,10 @@ async function testProvider(chain: ChainName, url: string): Promise<boolean> {
     return true;
   }
 
-  const provider = new ethers.providers.StaticJsonRpcProvider(url);
+  const { url: cleanUrl, headers } = parseCustomRpcHeaders(url);
+  const provider = new ethers.providers.StaticJsonRpcProvider(
+    Object.keys(headers).length > 0 ? { url: cleanUrl, headers } : cleanUrl,
+  );
   const expectedChainId = chainMetadata.chainId;
 
   try {

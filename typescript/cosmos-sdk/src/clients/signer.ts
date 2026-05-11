@@ -138,6 +138,11 @@ export class CosmosNativeSigner
     return this.account.address;
   }
 
+  disconnect(): void {
+    super.disconnect();
+    this.signer.disconnect();
+  }
+
   supportsTransactionBatching(): boolean {
     return true;
   }

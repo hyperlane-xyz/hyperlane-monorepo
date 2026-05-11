@@ -259,9 +259,11 @@ export {
   PausableHookSchema,
   ProtocolFeeHookConfig,
   ProtocolFeeSchema,
+  RateLimitedHookConfig,
+  RateLimitedHookSchema,
   SafeParseHookConfigSchema,
 } from './hook/types.js';
-export { isHookCompatible } from './hook/utils.js';
+export { hookTreeContainsRateLimited, isHookCompatible } from './hook/utils.js';
 export { EvmIsmReader } from './ism/EvmIsmReader.js';
 export { HyperlaneIsmFactory } from './ism/HyperlaneIsmFactory.js';
 // Note: MetadataBuilder types are now exported from @hyperlane-xyz/relayer
@@ -522,6 +524,7 @@ export {
   ProviderRetryOptions,
   SmartProviderOptions,
 } from './providers/SmartProvider/types.js';
+export { parseCustomRpcHeaders } from './utils/provider.js';
 export { CallData, CallDataSchema } from './providers/transactions/types.js';
 export {
   randomAddress,

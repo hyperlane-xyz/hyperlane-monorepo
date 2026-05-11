@@ -1,5 +1,12 @@
 # @hyperlane-xyz/cli
 
+## 33.1.1
+
+### Patch Changes
+
+- c59b182: Added warp check support for cross-collateral routes
+- 530f02e: The IGP fee assertion is relaxed for Sealevel cross-collateral transfers; OffchainQuotedLinearFee is supported as a sub-fee of routing fees; warp deployment errors now surface their cause chain and Solana preflight logs.
+
 ## 33.1.0
 
 ### Minor Changes
