@@ -58,6 +58,11 @@ export const HookType = {
    * `EvmHookModule.deploy` path just connects to `config.address`.
    */
   CCTP: 'cctpHook',
+  /**
+   * Rate-limits outbound token volume on the origin chain at dispatch time.
+   * Warp-route only. Not valid for core required/default hooks.
+   */
+  RATE_LIMITED: 'rateLimitedHook',
   UNKNOWN: 'unknownHook',
   PREDICATE: 'predicateHook',
 } as const;
@@ -85,6 +90,7 @@ export const HookTypeToContractNameMap: Record<DeployableHookType, string> = {
   [HookType.ARB_L2_TO_L1]: 'arbL2ToL1Hook',
   [HookType.MAILBOX_DEFAULT]: 'defaultHook',
   [HookType.CCIP]: 'ccipHook',
+  [HookType.RATE_LIMITED]: 'rateLimitedHook',
 };
 
 export type MerkleTreeHookConfig = z.infer<typeof MerkleTreeSchema>;
@@ -94,6 +100,7 @@ export type PausableHookConfig = z.infer<typeof PausableHookSchema>;
 export type OpStackHookConfig = z.infer<typeof OpStackHookSchema>;
 export type ArbL2ToL1HookConfig = z.infer<typeof ArbL2ToL1HookSchema>;
 export type MailboxDefaultHookConfig = z.infer<typeof MailboxDefaultHookSchema>;
+export type RateLimitedHookConfig = z.infer<typeof RateLimitedHookSchema>;
 
 export type CCIPHookConfig = z.infer<typeof CCIPHookSchema>;
 // explicitly typed to avoid zod circular dependency
@@ -129,6 +136,7 @@ export const MUTABLE_HOOK_TYPE: HookType[] = [
   HookType.ROUTING,
   HookType.FALLBACK_ROUTING,
   HookType.PAUSABLE,
+  HookType.RATE_LIMITED,
 ];
 
 export const ProtocolFeeSchema = OwnableSchema.extend({
@@ -242,6 +250,21 @@ export const UnknownHookSchema = z
   .passthrough();
 export type UnknownHookConfig = z.infer<typeof UnknownHookSchema>;
 
+export const RateLimitedHookSchema = OwnableSchema.extend({
+  type: z.literal(HookType.RATE_LIMITED),
+  maxCapacity: z
+    .string()
+    .regex(/^\d+$/, 'maxCapacity must be a base-10 integer string'),
+})
+  .refine((val) => BigInt(val.maxCapacity) >= 86400n, {
+    message: 'maxCapacity must be at least 86400',
+    path: ['maxCapacity'],
+  })
+  .refine((val) => BigInt(val.maxCapacity) % 86400n === 0n, {
+    message: 'maxCapacity must be a multiple of 86400 (seconds per day)',
+    path: ['maxCapacity'],
+  });
+
 const KnownHookTypes: string[] = Object.values(HookType).filter(
   (t) => t !== HookType.UNKNOWN,
 );
@@ -298,6 +321,7 @@ export const HookConfigSchema = z.union([
   MailboxDefaultHookSchema,
   CCIPHookSchema,
   CctpHookSchema,
+  RateLimitedHookSchema,
   UnknownHookSchema,
   PredicateHookSchema,
 ]);

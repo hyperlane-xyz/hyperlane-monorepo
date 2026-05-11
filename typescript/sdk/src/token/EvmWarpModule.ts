@@ -1237,6 +1237,7 @@ export class EvmWarpModule extends HyperlaneModule<
           mailbox: actualConfig.mailbox,
           multiProvider: this.multiProvider,
           proxyAdminAddress,
+          rateLimitedSender: this.args.addresses.deployedTokenRoute,
         },
       );
       hookTransactions = result.transactions;
