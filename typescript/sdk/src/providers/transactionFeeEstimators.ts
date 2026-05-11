@@ -3,14 +3,18 @@ import { wasmTypes } from '@cosmjs/cosmwasm-stargate';
 import { toUtf8 } from '@cosmjs/encoding';
 import { Uint53 } from '@cosmjs/math';
 import { Registry } from '@cosmjs/proto-signing';
-import { StargateClient, defaultRegistryTypes } from '@cosmjs/stargate';
+import { defaultRegistryTypes } from '@cosmjs/stargate';
 import { MsgExecuteContract } from 'cosmjs-types/cosmwasm/wasm/v1/tx.js';
 import type {
   providers as EV5Providers,
   PopulatedTransaction as EV5Transaction,
 } from 'ethers';
 
-import { shouldCacheStargateClient } from '@hyperlane-xyz/cosmos-sdk';
+import {
+  StargateClientCache,
+  disconnectStargateClient,
+  shouldCacheStargateClient,
+} from '@hyperlane-xyz/cosmos-sdk';
 import {
   Address,
   HexString,
@@ -51,57 +55,14 @@ export interface TransactionFeeEstimate {
   fee: number | bigint;
 }
 
-const maxStargateClientCacheSize = 32;
-const stargateClients = new Map<string, Promise<StargateClient>>();
-
-function disconnectStargateClient(client: Promise<StargateClient>): void {
-  void client.then(
-    (stargateClient) => stargateClient.disconnect(),
-    () => undefined,
-  );
-}
-
-function evictStargateClient(
-  url: string,
-  client?: Promise<StargateClient>,
-): void {
-  const cachedClient = stargateClients.get(url);
-  if (!cachedClient || (client && cachedClient !== client)) return;
-
-  // Disconnecting an evicted shared client can fail concurrent callers that
-  // were using it, but avoids keeping a poisoned socket in the process cache.
-  stargateClients.delete(url);
-  disconnectStargateClient(cachedClient);
-}
+const stargateClientCache = new StargateClientCache(32);
 
 export function clearCachedStargateClients(): void {
-  for (const client of stargateClients.values()) {
-    disconnectStargateClient(client);
-  }
-  stargateClients.clear();
+  stargateClientCache.clear();
 }
 
-function getStargateClient(url: string): Promise<StargateClient> {
-  if (!shouldCacheStargateClient(url)) return StargateClient.connect(url);
-
-  let client = stargateClients.get(url);
-  if (!client) {
-    client = StargateClient.connect(url).catch((error) => {
-      stargateClients.delete(url);
-      throw error;
-    });
-    stargateClients.set(url, client);
-  } else {
-    stargateClients.delete(url);
-    stargateClients.set(url, client);
-  }
-
-  while (stargateClients.size > maxStargateClientCacheSize) {
-    const oldestUrl = stargateClients.keys().next().value;
-    if (!oldestUrl) break;
-    evictStargateClient(oldestUrl);
-  }
-  return client;
+function getStargateClient(url: string) {
+  return stargateClientCache.get(url);
 }
 
 export async function estimateTransactionFeeEthersV5({
@@ -293,7 +254,7 @@ export async function estimateTransactionFeeCosmJsWasm({
       memo,
     });
   } catch (error) {
-    evictStargateClient(url, stargateClient);
+    stargateClientCache.evict(url, stargateClient);
     throw error;
   } finally {
     if (!shouldCacheStargateClient(url)) {

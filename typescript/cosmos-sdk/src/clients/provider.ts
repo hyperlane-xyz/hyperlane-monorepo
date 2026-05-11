@@ -5,7 +5,7 @@ import {
   type BankExtension,
   type MsgSendEncodeObject,
   QueryClient,
-  StargateClient,
+  type StargateClient,
   defaultRegistryTypes,
   setupBankExtension,
 } from '@cosmjs/stargate';
@@ -26,9 +26,11 @@ import {
 import { COSMOS_MODULE_MESSAGE_REGISTRY as R } from '../registry.js';
 import { getWarpTokenType } from '../warp/warp-query.js';
 
-export function shouldCacheStargateClient(url: string): boolean {
-  return !url.startsWith('ws://') && !url.startsWith('wss://');
-}
+import {
+  StargateClientCache,
+  disconnectStargateClient,
+  shouldCacheStargateClient,
+} from './stargate.js';
 
 export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
   private readonly query: QueryClient &
@@ -38,7 +40,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
   private readonly registry: Registry;
   private readonly cometClient: CometClient;
   private readonly rpcUrls: string[];
-  private stargateClient?: Promise<StargateClient>;
+  private readonly stargateClients = new StargateClientCache(1);
 
   static async connect(
     rpcUrls: string[],
@@ -125,8 +127,9 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
         new Uint8Array(Buffer.from(strip0x(req.senderPubKey), 'hex')),
       );
 
-      const queryClient = stargateClient['getQueryClient']();
-      assert(queryClient, `queryClient could not be found on stargate client`);
+      const queryClient = stargateClient
+        // @ts-ignore force access to protected method
+        .forceGetQueryClient();
 
       const { sequence } = await stargateClient.getSequence(req.senderAddress);
       const { gasInfo } = await queryClient.tx.simulate(
@@ -146,46 +149,22 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
         fee: BigInt(Math.floor(gasUnits * gasPrice)),
       };
     } catch (error) {
-      this.evictStargateClient(stargateClientPromise);
+      this.stargateClients.evict(this.rpcUrls[0], stargateClientPromise);
       throw error;
     } finally {
-      if (!shouldCacheStargateClient(this.rpcUrls[0])) {
-        stargateClient?.disconnect();
+      if (!shouldCacheStargateClient(this.rpcUrls[0]) && stargateClient) {
+        disconnectStargateClient(Promise.resolve(stargateClient));
       }
     }
   }
 
   private getStargateClient(): Promise<StargateClient> {
-    if (!shouldCacheStargateClient(this.rpcUrls[0])) {
-      return StargateClient.connect(this.rpcUrls[0]);
-    }
-
-    this.stargateClient ??= StargateClient.connect(this.rpcUrls[0]).catch(
-      (error) => {
-        this.stargateClient = undefined;
-        throw error;
-      },
-    );
-    return this.stargateClient;
-  }
-
-  private evictStargateClient(client: Promise<StargateClient>): void {
-    if (this.stargateClient !== client) return;
-
-    // Disconnecting an evicted shared client can fail concurrent estimates on
-    // this provider, but avoids keeping a poisoned socket cached.
-    this.stargateClient = undefined;
-    void client.then(
-      (stargateClient) => stargateClient.disconnect(),
-      () => undefined,
-    );
+    return this.stargateClients.get(this.rpcUrls[0]);
   }
 
   disconnect(): void {
     this.cometClient.disconnect();
-    if (this.stargateClient) {
-      this.evictStargateClient(this.stargateClient);
-    }
+    this.stargateClients.clear();
   }
 
   async isMessageDelivered(req: AltVM.ReqIsMessageDelivered): Promise<boolean> {
