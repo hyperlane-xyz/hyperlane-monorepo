@@ -486,6 +486,10 @@ export async function moduleMatchesConfig(
       if (config.recipient) {
         matches &&= eqAddress(onChainRecipient, config.recipient);
       }
+      if (config.owner) {
+        const onChainOwner = await rateLimitedIsm.owner();
+        matches &&= eqAddress(onChainOwner, config.owner);
+      }
       break;
     }
     default: {
