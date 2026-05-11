@@ -52,7 +52,7 @@ describe('computeIgpFeeConfigUpdate', () => {
     expect(txs).to.have.length(0);
   });
 
-  it('clears on-chain fee_config when expected is undefined and current is set', async () => {
+  it('leaves on-chain fee_config alone when expected is undefined and current is set', async () => {
     const txs = await call({
       currentFeeConfig: {
         signers: [SIGNER_A],
@@ -60,7 +60,7 @@ describe('computeIgpFeeConfigUpdate', () => {
         minIssuedAt: 0n,
       },
     });
-    expect(annotations(txs)).to.eql([`Clear IGP fee config for ${PROGRAM_ID}`]);
+    expect(txs).to.have.length(0);
   });
 
   it('initializes empty fee_config when expected is [] and current is undefined', async () => {
@@ -136,20 +136,6 @@ describe('computeIgpFeeConfigUpdate', () => {
     await expect(
       call({
         expectedQuoteSigners: [SIGNER_A],
-        effectiveContractVersion: '0.1.0',
-      }),
-    ).to.be.rejectedWith(/does not support fee config/);
-  });
-
-  it('throws when current is set but program version does not support fee config', async () => {
-    // Edge case: stale on-chain fee_config + downgraded reported version.
-    await expect(
-      call({
-        currentFeeConfig: {
-          signers: [SIGNER_A],
-          domainId: DOMAIN_ID,
-          minIssuedAt: 0n,
-        },
         effectiveContractVersion: '0.1.0',
       }),
     ).to.be.rejectedWith(/does not support fee config/);
