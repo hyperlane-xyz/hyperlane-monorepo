@@ -1,10 +1,7 @@
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import { createHookWriter } from '@hyperlane-xyz/deploy-sdk';
 import { GasAction } from '@hyperlane-xyz/provider-sdk';
-import {
-  type HookConfig as ProviderHookConfig,
-  hookConfigToArtifact,
-} from '@hyperlane-xyz/provider-sdk/hook';
+import { hookConfigToArtifact } from '@hyperlane-xyz/provider-sdk/hook';
 import {
   ContractVerifier,
   EvmHookModule,
@@ -19,6 +16,7 @@ import { type Address, assert, isEVMLike, mustGet } from '@hyperlane-xyz/utils';
 
 import { requestAndSaveApiKeys } from '../context/apiKeys.js';
 import { type WriteCommandContext } from '../context/types.js';
+import { validateHookConfigForAltVM } from '../deploy/configValidation.js';
 import {
   completeDeploy,
   getBalances,
@@ -193,11 +191,8 @@ async function deployNonEvmHook({
     mailbox: chainAddresses?.mailbox,
   });
 
-  // Convert hook config to artifact format
-  const artifact = hookConfigToArtifact(
-    hookConfig as ProviderHookConfig,
-    chainLookup,
-  );
+  const validatedConfig = validateHookConfigForAltVM(hookConfig, chain);
+  const artifact = hookConfigToArtifact(validatedConfig, chainLookup);
   const [deployed] = await writer.create(artifact);
   return deployed.deployed.address;
 }
