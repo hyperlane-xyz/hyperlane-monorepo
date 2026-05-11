@@ -593,10 +593,14 @@ export const check: CommandModuleWithContext<
         !ica,
         'Cannot perform ICA owner check for combined CROSS routes (no deploy config)',
       );
+      assert(
+        context.resolvedWarpRouteId,
+        'resolvedWarpRouteId must be set for CROSS routes',
+      );
       const result = await checkCrossCollateralWarpRoute({
         context,
         warpCoreConfig: context.warpCoreConfig,
-        warpRouteId: context.resolvedWarpRouteId!,
+        warpRouteId: context.resolvedWarpRouteId,
       });
       await runWarpRouteCheck({ result });
       process.exit(0);

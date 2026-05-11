@@ -150,9 +150,9 @@ export async function checkCrossCollateralWarpRoute({
   warpRouteId: string;
 }): Promise<WarpRouteCheckResult> {
   const crossAddresses = new Set(
-    warpCoreConfig.tokens
-      .filter((t) => t.addressOrDenom)
-      .map((t) => t.addressOrDenom!.toLowerCase()),
+    warpCoreConfig.tokens.flatMap((t) =>
+      t.addressOrDenom ? [t.addressOrDenom.toLowerCase()] : [],
+    ),
   );
 
   const allRoutes = await context.registry.getWarpRoutes();
