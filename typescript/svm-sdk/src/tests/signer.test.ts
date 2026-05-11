@@ -11,12 +11,9 @@ import {
   getCompiledTransactionMessageDecoder,
   signature as toSignature,
 } from '@solana/kit';
-import chai, { expect } from 'chai';
-import chaiAsPromised from 'chai-as-promised';
-import { afterEach, describe, it } from 'mocha';
+import { expect } from 'chai';
+import 'chai-as-promised';
 import sinon from 'sinon';
-
-chai.use(chaiAsPromised);
 
 import { SvmSigner } from '../clients/signer.js';
 import type { SvmRpc, SvmTransaction } from '../types.js';
@@ -294,8 +291,6 @@ describe('SvmSigner', () => {
 
   describe('send — block height failure safety net', () => {
     it('exits polling after consecutive block height check failures', async function () {
-      this.timeout(10_000);
-
       let blockHeightCalls = 0;
       const rpc = createMockRpc({
         // Tx never found
@@ -324,8 +319,6 @@ describe('SvmSigner', () => {
 
   describe('send — blockhash expiry and resubmit', () => {
     it('resubmits with new blockhash when block height exceeds lastValidBlockHeight', async function () {
-      this.timeout(10_000);
-
       let blockhashFetches = 0;
       let statusCalls = 0;
 
@@ -373,8 +366,6 @@ describe('SvmSigner', () => {
     });
 
     it('exhausts all 3 blockhash attempts and throws', async function () {
-      this.timeout(10_000);
-
       let blockhashFetches = 0;
       const rpc = createMockRpc({
         getLatestBlockhash: () => ({
@@ -411,8 +402,6 @@ describe('SvmSigner', () => {
 
   describe('send — history check finds confirmed tx', () => {
     it('returns receipt from history check after blockhash expiry', async function () {
-      this.timeout(10_000);
-
       let historyCalled = false;
 
       const rpc = createMockRpc({
@@ -454,8 +443,6 @@ describe('SvmSigner', () => {
 
   describe('send — history check with processed status', () => {
     it('re-polls with fresh blockhash when history finds tx at processed', async function () {
-      this.timeout(10_000);
-
       let blockhashFetches = 0;
       let pollPhase: 'initial' | 'retry' = 'initial';
 
@@ -522,8 +509,6 @@ describe('SvmSigner', () => {
     });
 
     it('throws if processed tx never confirms after retry poll', async function () {
-      this.timeout(10_000);
-
       let blockhashFetches = 0;
 
       const rpc = createMockRpc({
@@ -578,8 +563,6 @@ describe('SvmSigner', () => {
 
   describe('send — RPC failures during polling', () => {
     it('tolerates getSignatureStatuses failures and keeps polling', async function () {
-      this.timeout(10_000);
-
       let statusCalls = 0;
       const rpc = createMockRpc({
         getSignatureStatuses: () => ({
@@ -610,8 +593,6 @@ describe('SvmSigner', () => {
     });
 
     it('tolerates getBlockHeight failures and keeps polling', async function () {
-      this.timeout(10_000);
-
       let statusCalls = 0;
       let blockHeightCalls = 0;
       const rpc = createMockRpc({
@@ -651,8 +632,6 @@ describe('SvmSigner', () => {
     });
 
     it('throws instead of resubmitting when history check hits transient RPC error', async function () {
-      this.timeout(10_000);
-
       let sendTxCalls = 0;
 
       const rpc = createMockRpc({
@@ -693,8 +672,6 @@ describe('SvmSigner', () => {
 
   describe('send — rebroadcast during polling', () => {
     it('rebroadcasts when tx is not found and blockhash is valid', async function () {
-      this.timeout(10_000);
-
       let sendTxCalls = 0;
       let statusCalls = 0;
       const rpc = createMockRpc({
@@ -734,8 +711,6 @@ describe('SvmSigner', () => {
     });
 
     it('does not rebroadcast when tx is at processed status', async function () {
-      this.timeout(10_000);
-
       let sendTxCalls = 0;
       let statusCalls = 0;
       const rpc = createMockRpc({

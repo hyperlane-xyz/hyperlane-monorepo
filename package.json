@@ -13,7 +13,7 @@
     "lint": "oxlint -c oxlint.json",
     "lint:catalog": "tsx scripts/lint-catalog-usage.ts",
     "test": "turbo run test --continue",
-    "test:ci": "turbo run test:ci",
+    "test:ci": "turbo run test:ci --concurrency=4",
     "coverage": "turbo run coverage",
     "version:prepare": "pnpm changeset version && turbo run version:update && pnpm install",
     "version:check": "pnpm changeset status",
@@ -26,6 +26,8 @@
     "@changesets/cli": "^2.26.2"
   },
   "devDependencies": {
+    "chai": "catalog:",
+    "chai-as-promised": "catalog:",
     "husky": "^8.0.0",
     "lint-staged": "^15.5.2",
     "oxfmt": "catalog:",
@@ -34,7 +36,8 @@
     "prettier": "catalog:",
     "prettier-plugin-solidity": "catalog:",
     "tsx": "catalog:",
-    "turbo": "^2.8.11"
+    "turbo": "^2.8.11",
+    "vitest": "catalog:"
   },
   "packageManager": "pnpm@10.30.2",
   "pnpm": {

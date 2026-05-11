@@ -302,9 +302,7 @@ describe('getCreateMailboxTx', () => {
 });
 
 describe('StarknetProvider determineTokenType', () => {
-  it('detects HypNative contracts by class hash', async function () {
-    this.timeout(10_000);
-
+  it('detects HypNative contracts by class hash', async () => {
     const provider = new StarknetTokenTypeTestHarness();
     provider.classHash =
       '0x619ec108cdaaa2ea54b15fc7f4bf321de475dbc2827c72a561e02c092492c25';

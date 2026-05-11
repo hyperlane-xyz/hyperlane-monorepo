@@ -1,5 +1,0 @@
-{
-  "import": ["tsx"],
-  "spec": ["src/**/*.test.ts"],
-  "exit": true
-}

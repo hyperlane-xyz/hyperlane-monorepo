@@ -29,15 +29,15 @@ import {
 } from '../utils/simulation-helpers.js';
 
 describe('Rebalancer Simulation', function () {
-  const anvil = setupAnvilTestSuite(this);
+  const anvil = setupAnvilTestSuite();
 
-  before(async function () {
+  beforeAll(async () => {
     ensureResultsDir();
 
     const scenarios = listScenarios();
     if (scenarios.length === 0) {
       console.log('No scenarios found. Run: pnpm generate-scenarios');
-      this.skip();
+      return;
     }
     console.log(`Found ${scenarios.length} scenarios: ${scenarios.join(', ')}`);
     console.log(
@@ -226,9 +226,7 @@ describe('Rebalancer Simulation', function () {
    * ProductionRebalancer: Tracks pending rebalances via MockActionTracker,
    * significantly reduces redundant rebalances (typically 60-80% fewer)
    */
-  it('inflight-guard: ProductionRebalancer uses fewer rebalances with inflight tracking', async function () {
-    this.timeout(120000);
-
+  it('inflight-guard: ProductionRebalancer uses fewer rebalances with inflight tracking', async () => {
     const { results } = await runScenarioWithRebalancers('inflight-guard', {
       anvilRpc: anvil.rpc,
     });
@@ -305,9 +303,7 @@ describe('Rebalancer Simulation', function () {
    * ProductionRebalancer: MockActionTracker tracks pending transfer, strategy
    * reserves collateral for it, detects deficit → rebalances → transfer succeeds
    */
-  it('blocked-user-transfer: ProductionRebalancer proactively adds collateral for pending transfers', async function () {
-    this.timeout(120000);
-
+  it('blocked-user-transfer: ProductionRebalancer proactively adds collateral for pending transfers', async () => {
     const { results } = await runScenarioWithRebalancers(
       'blocked-user-transfer',
       {

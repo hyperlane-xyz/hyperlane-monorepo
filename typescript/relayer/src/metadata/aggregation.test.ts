@@ -8,7 +8,7 @@ import {
   AggregationMetadata,
   AggregationMetadataBuilder,
 } from './aggregation.js';
-import { Fixture } from './types.test.js';
+import { Fixture } from './fixtures.js';
 
 const path = '../../solidity/fixtures/aggregation';
 const files = existsSync(path) ? readdirSync(path) : [];
@@ -27,34 +27,37 @@ const fixtures: Fixture<AggregationMetadata>[] = files
     };
   });
 
-describe('AggregationMetadataBuilder', () => {
-  fixtures.forEach((fixture, i) => {
-    it(`should encode fixture ${i}`, () => {
-      expect(AggregationMetadataBuilder.encode(fixture.decoded)).to.equal(
-        fixture.encoded,
-      );
-    });
-
-    it(`should decode fixture ${i}`, () => {
-      const count = fixture.decoded.submoduleMetadata.length;
-      expect(
-        AggregationMetadataBuilder.decode(
+(fixtures.length === 0 ? describe.skip : describe)(
+  'AggregationMetadataBuilder',
+  () => {
+    fixtures.forEach((fixture, i) => {
+      it(`should encode fixture ${i}`, () => {
+        expect(AggregationMetadataBuilder.encode(fixture.decoded)).to.equal(
           fixture.encoded,
-          {
-            ism: {
-              type: IsmType.AGGREGATION,
-              modules: Array.from(
-                { length: count },
-                () => ethers.constants.AddressZero,
-              ),
-              threshold: count,
+        );
+      });
+
+      it(`should decode fixture ${i}`, () => {
+        const count = fixture.decoded.submoduleMetadata.length;
+        expect(
+          AggregationMetadataBuilder.decode(
+            fixture.encoded,
+            {
+              ism: {
+                type: IsmType.AGGREGATION,
+                modules: Array.from(
+                  { length: count },
+                  () => ethers.constants.AddressZero,
+                ),
+                threshold: count,
+              },
+            } as any,
+            () => {
+              throw new Error('Should not be called for string modules');
             },
-          } as any,
-          () => {
-            throw new Error('Should not be called for string modules');
-          },
-        ),
-      ).to.deep.equal(fixture.decoded);
+          ),
+        ).to.deep.equal(fixture.decoded);
+      });
     });
-  });
-});
+  },
+);

@@ -1197,7 +1197,7 @@ describe('WarpTokenWriter', () => {
       deployed: { address: FEE_ADDRESS },
     };
 
-    before(() => {
+    beforeAll(() => {
       if (!hasProtocol(FEE_CREATE_PROTOCOL)) {
         let currentFeeManager: IRawFeeArtifactManager;
         registerProtocol(FEE_CREATE_PROTOCOL, () => {
@@ -1348,7 +1348,7 @@ describe('WarpTokenWriter', () => {
     };
 
     // Register once - factory reads currentMockFeeArtifactManager each time
-    before(() => {
+    beforeAll(() => {
       if (!hasProtocol(FEE_TEST_PROTOCOL)) {
         registerProtocol(FEE_TEST_PROTOCOL, () => ({
           createProvider: Sinon.stub(),
@@ -1533,7 +1533,7 @@ describe('WarpTokenWriter', () => {
 
     let noFeeWriter: WarpTokenWriter;
 
-    before(() => {
+    beforeAll(() => {
       if (!hasProtocol(NO_FEE_PROTOCOL)) {
         registerProtocol(NO_FEE_PROTOCOL, () => ({
           createProvider: Sinon.stub(),

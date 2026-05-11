@@ -37,8 +37,8 @@
     "lint": "oxlint -c ../../oxlint.json",
     "clean": "rm -rf ./dist ./cache ./coverage",
     "dev": "tsc --watch",
-    "test": "mocha --config .mocharc.json './src/**/*.test.ts'",
-    "coverage": "c8 pnpm test"
+    "test": "vitest run",
+    "coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@ethersproject/abi": "*",
@@ -58,7 +58,7 @@
     "@types/mocha": "catalog:",
     "@types/node": "catalog:",
     "@types/unzipper": "^0",
-    "c8": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
     "chai": "catalog:",
     "chai-as-promised": "catalog:",
     "mocha": "catalog:",
@@ -67,6 +67,8 @@
     "testcontainers": "catalog:",
     "ts-node": "catalog:",
     "tsx": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
   }
 }

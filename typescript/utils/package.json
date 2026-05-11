@@ -43,7 +43,7 @@
     "check": "tsc --noEmit",
     "lint": "oxlint -c ../../oxlint.json",
     "format": "oxfmt --write ./src",
-    "test": "mocha --config .mocharc.json './src/**/*.test.ts'",
+    "test": "vitest run",
     "test:ci": "pnpm test"
   },
   "dependencies": {
@@ -65,14 +65,14 @@
     "@types/bs58": "catalog:",
     "@types/chai": "catalog:",
     "@types/lodash-es": "catalog:",
-    "@types/mocha": "catalog:",
     "@types/node": "catalog:",
     "@types/sinon": "catalog:",
     "@types/sinon-chai": "catalog:",
     "chai": "catalog:",
-    "mocha": "catalog:",
     "sinon": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
   },
   "peerDependencies": {
     "@google-cloud/pino-logging-gcp-config": "catalog:",

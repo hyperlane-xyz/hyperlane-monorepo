@@ -36,8 +36,8 @@ import {
 } from '../../src/types.js';
 import { setupAnvilTestSuite } from '../utils/anvil.js';
 
-describe('Multi-Domain Deployment', function () {
-  const anvil = setupAnvilTestSuite(this);
+describe('Multi-Domain Deployment', () => {
+  const anvil = setupAnvilTestSuite();
   let provider: ethers.providers.JsonRpcProvider;
 
   beforeEach(async () => {

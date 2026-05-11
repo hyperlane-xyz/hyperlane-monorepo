@@ -21,20 +21,18 @@ const TEST_CHAIN: TronTestChainMetadata = {
   port: 19090,
 };
 
-describe('TronWallet Integration Tests', function () {
-  this.timeout(120_000); // 2 minutes for container startup
-
+describe('TronWallet Integration Tests', () => {
   let node: TronNodeInfo;
   let wallet: TronWallet;
 
-  before(async () => {
+  beforeAll(async () => {
     node = await runTronNode(TEST_CHAIN);
 
     const tronUrl = `http://127.0.0.1:${TEST_CHAIN.port}/jsonrpc`;
     wallet = new TronWallet(node.privateKeys[0], tronUrl);
   });
 
-  after(async () => {
+  afterAll(async () => {
     if (wallet?.provider instanceof TronJsonRpcProvider) {
       wallet.provider.removeAllListeners();
     }

@@ -3,7 +3,7 @@
   "compilerOptions": {
     "outDir": "./dist/",
     "rootDir": ".",
-    "types": ["node", "mocha"]
+    "types": ["node", "mocha", "vitest/globals"]
   },
   "include": [
     "./cli.ts",

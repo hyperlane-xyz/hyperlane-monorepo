@@ -28,7 +28,7 @@
     "dev": "tsc --watch",
     "lint": "oxlint -c ../../oxlint.json",
     "format": "oxfmt --write ./src",
-    "test": "mocha --config .mocharc.json './src/**/*.test.ts' --exit",
+    "test": "vitest run",
     "test:ci": "pnpm test",
     "start": "node dist/service.js",
     "start:dev": "tsx src/service.ts"
@@ -52,17 +52,17 @@
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@types/chai": "catalog:",
     "@types/chai-as-promised": "catalog:",
-    "@types/mocha": "catalog:",
     "@types/node": "catalog:",
     "@types/sinon": "catalog:",
     "@vercel/ncc": "catalog:",
     "chai": "catalog:",
     "chai-as-promised": "catalog:",
-    "mocha": "catalog:",
     "oxfmt": "catalog:",
     "sinon": "catalog:",
     "tsx": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
   },
   "engines": {
     "node": ">=18"

@@ -14,7 +14,7 @@
   "type": "module",
   "scripts": {
     "start:http-registry": "tsx scripts/http-registry.ts",
-    "build": "tsc",
+    "build": "tsc -p tsconfig.build.json",
     "check": "tsc --noEmit",
     "clean": "rm -rf ./dist ./cache",
     "deploy-core": "tsx scripts/deploy.ts -e test -m core",
@@ -24,10 +24,10 @@
     "hardhat-esm": "NODE_OPTIONS='--import tsx/esm' hardhat --config hardhat.config.cts",
     "kathy": "pnpm tsx ./scripts/send-test-messages.ts",
     "format": "oxfmt --write ./src ./config ./scripts ./test",
-    "test:warp": "mocha --config ../sdk/.mocharc.json test/warp-configs.test.ts",
-    "test:gitleaks": "mocha --config ../sdk/.mocharc.json test/gitleaks.test.ts",
-    "test:balance": "mocha --config ../sdk/.mocharc.json test/balance-alerts.test.ts",
-    "test:unit": "mocha --config ../sdk/.mocharc.json --timeout 10000 \"test/**/*.test.ts\" --ignore \"test/{warp-configs,balance-alerts,gitleaks}.test.ts\"",
+    "test:warp": "vitest run test/warp-configs.test.ts",
+    "test:gitleaks": "vitest run test/gitleaks.test.ts",
+    "test:balance": "vitest run test/balance-alerts.test.ts",
+    "test:unit": "vitest run --exclude 'test/warp-configs.test.ts' --exclude 'test/balance-alerts.test.ts' --exclude 'test/gitleaks.test.ts'",
     "test:hardhat": "pnpm hardhat-esm test test/govern.hardhat-test.ts",
     "test": "pnpm test:unit && pnpm test:hardhat && pnpm test:warp && pnpm test:balance",
     "test:ci": "pnpm test:unit && pnpm test:hardhat",
@@ -122,6 +122,8 @@
     "smol-toml": "1.4.2",
     "ts-node": "catalog:",
     "tsx": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
   }
 }

@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "exclude": [
+    "./node_modules/",
+    "./dist/",
+    "./tmp.ts",
+    "./test/**",
+    "./**/*.hardhat-test.ts"
+  ]
+}

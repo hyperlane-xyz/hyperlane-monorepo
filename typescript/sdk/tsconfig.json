@@ -3,7 +3,7 @@
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src",
-    "types": ["node", "mocha"]
+    "types": ["node", "mocha", "vitest/globals"]
   },
   "include": ["./src/**/*"]
 }

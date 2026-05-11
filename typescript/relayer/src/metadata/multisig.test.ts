@@ -5,7 +5,7 @@ import { IsmType, ModuleType } from '@hyperlane-xyz/sdk';
 import { SignatureLike } from '@hyperlane-xyz/utils';
 
 import { MultisigMetadata, MultisigMetadataBuilder } from './multisig.js';
-import { Fixture } from './types.test.js';
+import { Fixture } from './fixtures.js';
 
 const path = '../../solidity/fixtures/multisig';
 const files = existsSync(path) ? readdirSync(path) : [];

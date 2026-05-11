@@ -38,7 +38,7 @@
     "clean": "rm -rf ./dist ./cache",
     "dev": "tsc --watch",
     "test": "echo \"no tests in radix-sdk\"",
-    "test:unit": "mocha --config .mocharc.json",
+    "test:unit": "vitest run",
     "test:ci": "pnpm test:unit",
     "test:e2e": "mocha --config .mocharc.e2e.json"
   },
@@ -66,6 +66,8 @@
     "testcontainers": "catalog:",
     "ts-node": "catalog:",
     "tsx": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
   }
 }
