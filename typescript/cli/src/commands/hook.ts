@@ -1,12 +1,17 @@
 import { type CommandModule } from 'yargs';
 
-import { type CommandModuleWithContext } from '../context/types.js';
+import {
+  type CommandModuleWithContext,
+  type CommandModuleWithWriteContext,
+} from '../context/types.js';
+import { runHookDeploy } from '../hook/deploy.js';
 import { readHookConfig } from '../hook/read.js';
 import { log, logGray } from '../logger.js';
 
 import {
   addressCommandOption,
   chainCommandOption,
+  inputFileCommandOption,
   outputFileCommandOption,
 } from './options.js';
 
@@ -16,8 +21,47 @@ import {
 export const hookCommand: CommandModule = {
   command: 'hook',
   describe: 'Operations relating to Hooks',
-  builder: (yargs) => yargs.command(read).version(false).demandCommand(),
+  builder: (yargs) =>
+    yargs.command(deploy).command(read).version(false).demandCommand(),
   handler: () => log('Command required'),
+};
+
+// Examples for testing:
+// Deploy an IGP hook on a Sealevel chain:
+//     hyperlane hook deploy --chain svmlocal1 --config ./igp-hook-config.yaml --key.sealevel <key>
+// Deploy with output file:
+//     hyperlane hook deploy --chain svmlocal1 --config ./igp-hook-config.yaml --out ./deployed-hook.json
+export const deploy: CommandModuleWithWriteContext<{
+  chain: string;
+  config: string;
+  out?: string;
+}> = {
+  command: 'deploy',
+  describe: 'Deploys a hook to a chain',
+  builder: {
+    chain: {
+      ...chainCommandOption,
+      demandOption: true,
+    },
+    config: inputFileCommandOption({
+      description: 'Path to hook configuration file (YAML or JSON)',
+      demandOption: true,
+    }),
+    out: outputFileCommandOption(
+      undefined,
+      false,
+      'Output file path for deployed hook address',
+    ),
+  },
+  handler: async ({ context, chain, config, out }) => {
+    await runHookDeploy({
+      context,
+      chain,
+      configPath: config,
+      outPath: out,
+    });
+    process.exit(0);
+  },
 };
 
 // Examples for testing:
