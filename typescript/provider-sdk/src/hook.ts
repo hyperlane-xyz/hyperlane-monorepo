@@ -72,6 +72,8 @@ export interface IgpHookModuleConfig {
       tokenDecimals?: number;
     }
   >;
+  contractVersion?: string;
+  quoteSigners?: string[];
 }
 
 export interface MerkleTreeHookConfig {
@@ -335,6 +337,8 @@ export function hookConfigToArtifact(
           oracleKey: config.oracleKey,
           overhead,
           oracleConfig,
+          contractVersion: config.contractVersion,
+          quoteSigners: config.quoteSigners,
         },
       };
     }
@@ -528,6 +532,8 @@ export function hookArtifactToDerivedConfig(
         oracleKey: config.oracleKey,
         overhead,
         oracleConfig,
+        contractVersion: config.contractVersion,
+        quoteSigners: config.quoteSigners,
         address,
       };
     }
