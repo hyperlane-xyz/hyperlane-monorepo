@@ -6,6 +6,7 @@ import {
   type CommandModuleWithContext,
   type CommandModuleWithWriteContext,
 } from '../context/types.js';
+import { runHookApply } from '../hook/apply.js';
 import { runHookDeploy } from '../hook/deploy.js';
 import { readHookConfig } from '../hook/read.js';
 import { log, logGray } from '../logger.js';
@@ -15,6 +16,7 @@ import {
   chainCommandOption,
   inputFileCommandOption,
   outputFileCommandOption,
+  strategyCommandOption,
 } from './options.js';
 
 /**
@@ -24,8 +26,48 @@ export const hookCommand: CommandModule = {
   command: 'hook',
   describe: 'Operations relating to Hooks',
   builder: (yargs) =>
-    yargs.command(deploy).command(read).version(false).demandCommand(),
+    yargs
+      .command(apply)
+      .command(deploy)
+      .command(read)
+      .version(false)
+      .demandCommand(),
   handler: () => log('Command required'),
+};
+
+// Apply updates to an IGP hook on a chain:
+//     hyperlane hook apply --chain svmlocal1 --address <hook-pda> --config ./igp-hook-config.yaml --key.sealevel <key>
+export const apply: CommandModuleWithWriteContext<{
+  chain: string;
+  address: string;
+  config: string;
+  strategy?: string;
+}> = {
+  command: 'apply',
+  describe:
+    'Applies a hook configuration to an existing on-chain hook, generating the minimal set of update transactions',
+  builder: {
+    chain: {
+      ...chainCommandOption,
+      demandOption: true,
+    },
+    address: addressCommandOption('Address of the Hook to update.', true),
+    config: inputFileCommandOption({
+      description: 'Path to hook configuration file (YAML or JSON)',
+      demandOption: true,
+    }),
+    strategy: { ...strategyCommandOption, demandOption: false },
+  },
+  handler: async ({ context, chain, address, config, strategy }) => {
+    await runHookApply({
+      context,
+      chain,
+      address,
+      configPath: config,
+      strategyUrl: strategy,
+    });
+    process.exit(0);
+  },
 };
 
 // Examples for testing:

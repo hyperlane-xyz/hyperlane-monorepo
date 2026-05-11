@@ -1,10 +1,7 @@
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import { createHookWriter } from '@hyperlane-xyz/deploy-sdk';
 import { GasAction } from '@hyperlane-xyz/provider-sdk';
-import {
-  type HookConfig as ProviderHookConfig,
-  hookConfigToArtifact,
-} from '@hyperlane-xyz/provider-sdk/hook';
+import { hookConfigToArtifact } from '@hyperlane-xyz/provider-sdk/hook';
 import {
   ContractVerifier,
   EvmHookModule,
@@ -20,6 +17,7 @@ import { type Address, assert, isEVMLike, mustGet } from '@hyperlane-xyz/utils';
 
 import { requestAndSaveApiKeys } from '../context/apiKeys.js';
 import { type WriteCommandContext } from '../context/types.js';
+import { validateHookConfigForAltVM } from '../deploy/configValidation.js';
 import {
   completeDeploy,
   getBalances,
@@ -216,38 +214,6 @@ async function deployEvmHook({
   return deployedHook;
 }
 
-function toProviderHookConfig(
-  config: Exclude<HookConfig, string>,
-): ProviderHookConfig {
-  switch (config.type) {
-    case HookType.MERKLE_TREE:
-      return { type: 'merkleTreeHook' };
-    case HookType.INTERCHAIN_GAS_PAYMASTER:
-      return {
-        type: 'interchainGasPaymaster',
-        owner: config.owner,
-        beneficiary: config.beneficiary,
-        oracleKey: config.oracleKey,
-        overhead: config.overhead,
-        oracleConfig: config.oracleConfig,
-      };
-    case HookType.PROTOCOL_FEE:
-      return {
-        type: 'protocolFee',
-        owner: config.owner,
-        beneficiary: config.beneficiary,
-        maxProtocolFee: config.maxProtocolFee,
-        protocolFee: config.protocolFee,
-      };
-    case HookType.UNKNOWN:
-      return { type: 'unknownHook' };
-    default:
-      throw new Error(
-        `Hook type '${config.type}' is not supported for non-EVM deployment`,
-      );
-  }
-}
-
 async function deployNonEvmHook({
   context,
   chain,
@@ -269,14 +235,8 @@ async function deployNonEvmHook({
     mailbox: chainAddresses.mailbox,
   });
 
-  const artifact = hookConfigToArtifact(
-    toProviderHookConfig(hookConfig),
-    chainLookup,
-  );
-  const result = await writer.create(artifact);
-  assert(
-    result.length > 0,
-    `Hook deployment via writer.create() returned no results for chain ${chain}`,
-  );
-  return result[0].deployed.address;
+  const validatedConfig = validateHookConfigForAltVM(hookConfig, chain);
+  const artifact = hookConfigToArtifact(validatedConfig, chainLookup);
+  const [deployed] = await writer.create(artifact);
+  return deployed.deployed.address;
 }
