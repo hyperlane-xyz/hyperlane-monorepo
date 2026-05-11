@@ -5,14 +5,18 @@ import {
   RouterConfigWithoutOwner,
   tokens,
 } from '../../../../../src/config/warp.js';
-import { getRegistry } from '../../../../registry.js';
+import { awIcas } from '../../governance/ica/aw.js';
+import { awSafes } from '../../governance/safe/aw.js';
+import { getDomainId, getRegistry } from '../../../../registry.js';
 import { WarpRouteIds } from '../warpIds.js';
 
-// Owner of every TokenBridgeDepositAddress instance. Controls only
-// add/removeDestinationConfig; intentionally distinct from the cross-collateral
-// router's MCR rebalancer so a deployer-key compromise can't redirect Iron
-// deposits without also moving funds via the MCR.
-const BRIDGE_OWNER = '0x1cFd6A81e98de59e3eeB3AE35c3cb13FCb586E1E';
+function getAwOwner(chain: string): string {
+  const owner =
+    awIcas[chain as keyof typeof awIcas] ??
+    awSafes[chain as keyof typeof awSafes];
+  assert(owner, `No AW owner found for chain ${chain}`);
+  return owner;
+}
 
 // Iron-issued deposit addresses, one per (origin, dest) lane.
 // Source: 6 prod Iron autoramps on Iron customer 019e02ea, created 2026-05-07.
@@ -40,7 +44,7 @@ const ORIGIN_TOKENS: Record<BridgeChain, string> = {
 const BRIDGE_CHAINS = ['arbitrum', 'base', 'ethereum', 'citrea'] as const;
 type BridgeChain = (typeof BRIDGE_CHAINS)[number];
 
-// The expected symbol per chain in the CROSS/moonpay route
+// The expected symbol per chain in the USDC/moonpay route
 const DESTINATION_SYMBOLS: Record<BridgeChain, string> = {
   arbitrum: 'USDC',
   base: 'USDC',
@@ -49,8 +53,8 @@ const DESTINATION_SYMBOLS: Record<BridgeChain, string> = {
 };
 
 function getMoonpayRouterAddresses(): Record<BridgeChain, string> {
-  const route = getRegistry().getWarpRoute(WarpRouteIds.CrossMoonpay);
-  assert(route, 'CROSS/moonpay route not found in registry');
+  const route = getRegistry().getWarpRoute(WarpRouteIds.USDCCitreaMoonpay);
+  assert(route, 'USDC/moonpay route not found in registry');
 
   const find = (chain: BridgeChain) => {
     const symbol = DESTINATION_SYMBOLS[chain];
@@ -84,7 +88,7 @@ function destinationConfigsFor(
   for (const dest of BRIDGE_CHAINS) {
     const depositAddress = lanes[dest];
     if (depositAddress === undefined) continue;
-    result[dest] = {
+    result[String(getDomainId(dest))] = {
       [addressToBytes32(moonpayRouters[dest])]: { depositAddress, feeBps: '0' },
     };
   }
@@ -105,7 +109,7 @@ export const getUSDCCitreaIronBridgeWarpConfig = async (
           ...routerConfig[origin],
           type: TokenType.collateralDepositAddress,
           token: ORIGIN_TOKENS[origin],
-          owner: BRIDGE_OWNER,
+          owner: getAwOwner(origin),
           destinationConfigs: destinationConfigsFor(origin, moonpayRouters),
         },
       ];

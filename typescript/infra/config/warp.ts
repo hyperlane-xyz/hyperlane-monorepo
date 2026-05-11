@@ -232,7 +232,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.USDTOft]: getUSDTOftWarpConfig,
   [WarpRouteIds.USDTOftLegacy]: getUSDTOftLegacyWarpConfig,
   [WarpRouteIds.USDCCitreaIronBridge]: getUSDCCitreaIronBridgeWarpConfig,
-  [WarpRouteIds.CrossMoonpay]: getUSDCCitreaMoonpayWarpConfig,
+  [WarpRouteIds.USDCCitreaMoonpay]: getUSDCCitreaMoonpayWarpConfig,
   [WarpRouteIds.USDTCitreaMoonpay]: getUSDTCitreaMoonpayWarpConfig,
 };
 

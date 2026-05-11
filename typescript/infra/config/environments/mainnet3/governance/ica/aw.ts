@@ -141,4 +141,8 @@ export const awIcas: ChainMap<Address> = {
   // mocachain: '0x978d92B88ddcE02879ADa3848F0bCD6279E93B73',
   // fluent: '0x978d92B88ddcE02879ADa3848F0bCD6279E93B73',
   // kiichain: '0x978d92B88ddcE02879ADa3848F0bCD6279E93B73',
+
+  // May 11, 2026 - Moonpay CROSS/USDC route
+  // ----------------------------------------------------------
+  citrea: '0x682bc0Aca87491ECB3683911996F1d573F989141',
 } as const;

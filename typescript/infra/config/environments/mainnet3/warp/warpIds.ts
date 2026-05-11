@@ -148,7 +148,7 @@ export enum WarpRouteIds {
 
   // ctUSD
   CitreaUSD = 'ctUSD/citrea',
-  CrossMoonpay = 'CROSS/moonpay',
+  USDCCitreaMoonpay = 'USDC/moonpay',
   USDCCitreaIronBridge = 'CROSS/ctusd-usdc-ironbridge',
   USDTCitreaMoonpay = 'USDT/moonpay',
 

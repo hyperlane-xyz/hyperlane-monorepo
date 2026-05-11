@@ -11,14 +11,17 @@ import {
   TokenFeeType,
   TokenType,
 } from '@hyperlane-xyz/sdk';
-import { assert } from '@hyperlane-xyz/utils';
+import { addressToBytes32, assert } from '@hyperlane-xyz/utils';
 
 import relayerAddresses from '../../../../relayer.json' with { type: 'json' };
 import {
   RouterConfigWithoutOwner,
   tokens,
 } from '../../../../../src/config/warp.js';
-import { getRegistry } from '../../../../registry.js';
+import { awIcas } from '../../governance/ica/aw.js';
+import { warpFeesIcas } from '../../governance/ica/warpFees.js';
+import { awSafes } from '../../governance/safe/aw.js';
+import { getDomainId, getRegistry } from '../../../../registry.js';
 import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
 import { WarpRouteIds } from '../warpIds.js';
 import { getUSDCRebalancingBridgesConfigFor } from './utils.js';
@@ -44,9 +47,21 @@ const SOLANA_IGP_ADDRESS = 'BhNcatUDC2D5JTyeaqrdSukiVFsEHK7e3hVmKMztwefv';
 const SOLANA_XO_TOKEN_MINT = 'xoUSDq85Rjsb6SbUwJyreFgeWQvxdkT7R3c3g7s6p5Y';
 const SOLANA_XO_NAME = 'XO Cash';
 const SOLANA_XO_SYMBOL = 'XO';
-const SOLANA_MOONPAY_OWNER = 'BNGDJ1h9brgt6FFVd8No1TVAH48Fp44d7jkuydr1URwJ';
-const MOONPAY_OWNER = '0x1cFd6A81e98de59e3eeB3AE35c3cb13FCb586E1E';
 const NO_OWNER = '0x0000000000000000000000000000000000000000';
+
+function getAwOwner(chain: string): string {
+  const owner =
+    awIcas[chain as keyof typeof awIcas] ??
+    awSafes[chain as keyof typeof awSafes];
+  assert(owner, `No AW owner found for chain ${chain}`);
+  return owner;
+}
+
+function getFeeOwner(chain: string): string {
+  const owner = warpFeesIcas[chain as keyof typeof warpFeesIcas];
+  assert(owner, `No warp fees ICA found for chain ${chain}`);
+  return owner;
+}
 const QUOTE_SIGNERS = [
   '0xEd1829805De615eEFC7303766D395Ea0a1B2b04d',
   '0x6bb7818bbE8d88094Cf3620e58BC6BbEd542B867',
@@ -87,6 +102,20 @@ function getTBDAAddresses(): Record<EvmChain | 'citrea', string> {
 }
 
 const CCTP_FAST_ROUTE_ADDRESSES = getCctpFastRouteAddresses();
+
+function getUsdtCrossCollateralRouters(): Record<string, string[]> {
+  const route = getRegistry().getWarpRoute(WarpRouteIds.USDTCitreaMoonpay);
+  assert(route, 'USDT/moonpay route not found in registry');
+  return Object.fromEntries(
+    route.tokens.map(({ chainName, addressOrDenom }) => {
+      assert(addressOrDenom, `Missing USDT router for ${chainName}`);
+      return [
+        String(getDomainId(chainName)),
+        [addressToBytes32(addressOrDenom)],
+      ];
+    }),
+  );
+}
 
 function isCctpChain(chain: ChainName): chain is EvmChain {
   return CCTP_CHAINS.includes(chain as EvmChain);
@@ -223,7 +252,7 @@ function buildCrossCollateralRoutingFee(
 
 export async function getUSDCCitreaMoonpayWarpConfig(
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
-  _abacusWorksEnvOwnerConfig: ChainMap<{ owner: string }>,
+  abacusWorksEnvOwnerConfig: ChainMap<{ owner: string }>,
 ): Promise<ChainMap<HypTokenRouterConfig>> {
   const cctpRebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
     ['arbitrum', 'base', 'ethereum'],
@@ -232,86 +261,107 @@ export async function getUSDCCitreaMoonpayWarpConfig(
 
   const tbda = getTBDAAddresses();
 
+  const solanaOwner = abacusWorksEnvOwnerConfig.solanamainnet.owner;
+  const arbitrumOwner = getAwOwner('arbitrum');
+  const baseOwner = getAwOwner('base');
+  const citreaOwner = getAwOwner('citrea');
+  const ethereumOwner = getAwOwner('ethereum');
+
+  const arbitrumFeeOwner = getFeeOwner('arbitrum');
+  const baseFeeOwner = getFeeOwner('base');
+  const citreaFeeOwner = getFeeOwner('citrea');
+  const ethereumFeeOwner = getFeeOwner('ethereum');
+
+  const crossCollateralRouters = getUsdtCrossCollateralRouters();
+
   return {
     solanamainnet: {
       type: TokenType.crossCollateral,
       token: SOLANA_XO_TOKEN_MINT,
       mailbox: routerConfig.solanamainnet.mailbox,
-      owner: SOLANA_MOONPAY_OWNER,
-      hook: buildHook('solanamainnet', SOLANA_MOONPAY_OWNER),
+      owner: solanaOwner,
+      hook: buildHook('solanamainnet', solanaOwner),
       gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
       name: SOLANA_XO_NAME,
       symbol: SOLANA_XO_SYMBOL,
       decimals: 6,
+      crossCollateralRouters,
     },
     arbitrum: {
       type: TokenType.crossCollateral,
       token: tokens.arbitrum.USDC,
       mailbox: routerConfig.arbitrum.mailbox,
-      owner: MOONPAY_OWNER,
+      owner: arbitrumOwner,
       ...cctpRebalancingConfigByChain.arbitrum,
       allowedRebalancingBridges: {
         ...cctpRebalancingConfigByChain.arbitrum.allowedRebalancingBridges,
-        citrea: [{ bridge: tbda.arbitrum }],
+        [String(getDomainId('citrea'))]: [{ bridge: tbda.arbitrum }],
       },
-      hook: buildHook('arbitrum', MOONPAY_OWNER),
+      hook: buildHook('arbitrum', arbitrumOwner),
       interchainSecurityModule: buildInterchainSecurityModule(
         'arbitrum',
-        MOONPAY_OWNER,
+        arbitrumOwner,
       ),
-      tokenFee: buildCrossCollateralRoutingFee(MOONPAY_OWNER, ROUTE_CHAINS),
+      tokenFee: buildCrossCollateralRoutingFee(arbitrumFeeOwner, ROUTE_CHAINS),
+      crossCollateralRouters,
     },
     base: {
       type: TokenType.crossCollateral,
       token: tokens.base.USDC,
       mailbox: routerConfig.base.mailbox,
-      owner: MOONPAY_OWNER,
+      owner: baseOwner,
       ...cctpRebalancingConfigByChain.base,
       allowedRebalancingBridges: {
         ...cctpRebalancingConfigByChain.base.allowedRebalancingBridges,
-        citrea: [{ bridge: tbda.base }],
+        [String(getDomainId('citrea'))]: [{ bridge: tbda.base }],
       },
-      hook: buildHook('base', MOONPAY_OWNER),
+      hook: buildHook('base', baseOwner),
       interchainSecurityModule: buildInterchainSecurityModule(
         'base',
-        MOONPAY_OWNER,
+        baseOwner,
       ),
-      tokenFee: buildCrossCollateralRoutingFee(MOONPAY_OWNER, ROUTE_CHAINS),
+      tokenFee: buildCrossCollateralRoutingFee(baseFeeOwner, ROUTE_CHAINS),
+      crossCollateralRouters,
     },
     citrea: {
       type: TokenType.crossCollateral,
       token: tokens.citrea.ctUSD,
       mailbox: routerConfig.citrea.mailbox,
-      owner: MOONPAY_OWNER,
+      owner: citreaOwner,
       allowedRebalancers: [REBALANCER],
       allowedRebalancingBridges: Object.fromEntries(
-        EVM_CHAINS.map((dest) => [dest, [{ bridge: tbda.citrea }]]),
+        EVM_CHAINS.map((dest) => [
+          String(getDomainId(dest)),
+          [{ bridge: tbda.citrea }],
+        ]),
       ),
       interchainSecurityModule: buildInterchainSecurityModule(
         'citrea',
-        MOONPAY_OWNER,
+        citreaOwner,
       ),
       tokenFee: buildCrossCollateralRoutingFee(
-        MOONPAY_OWNER,
+        citreaFeeOwner,
         ROUTE_CHAINS.filter((c) => c !== 'citrea'),
       ),
+      crossCollateralRouters,
     },
     ethereum: {
       type: TokenType.crossCollateral,
       token: tokens.ethereum.USDC,
       mailbox: routerConfig.ethereum.mailbox,
-      owner: MOONPAY_OWNER,
+      owner: ethereumOwner,
       ...cctpRebalancingConfigByChain.ethereum,
       allowedRebalancingBridges: {
         ...cctpRebalancingConfigByChain.ethereum.allowedRebalancingBridges,
-        citrea: [{ bridge: tbda.ethereum }],
+        [String(getDomainId('citrea'))]: [{ bridge: tbda.ethereum }],
       },
-      hook: buildHook('ethereum', MOONPAY_OWNER),
+      hook: buildHook('ethereum', ethereumOwner),
       interchainSecurityModule: buildInterchainSecurityModule(
         'ethereum',
-        MOONPAY_OWNER,
+        ethereumOwner,
       ),
-      tokenFee: buildCrossCollateralRoutingFee(MOONPAY_OWNER, ROUTE_CHAINS),
+      tokenFee: buildCrossCollateralRoutingFee(ethereumFeeOwner, ROUTE_CHAINS),
+      crossCollateralRouters,
     },
   };
 }
