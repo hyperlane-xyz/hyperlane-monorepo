@@ -259,6 +259,8 @@ export async function estimateTransactionFeeCosmJsWasm({
   } finally {
     if (!shouldCacheStargateClient(url)) {
       disconnectStargateClient(stargateClient);
+    } else {
+      stargateClientCache.release(stargateClient);
     }
   }
 }

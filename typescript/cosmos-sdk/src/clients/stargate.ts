@@ -16,48 +16,82 @@ export function disconnectStargateClient(
     });
 }
 
+interface StargateClientCacheEntry {
+  client: Promise<StargateClient>;
+  evicted: boolean;
+  leases: number;
+}
+
 export class StargateClientCache {
-  private readonly clients = new Map<string, Promise<StargateClient>>();
+  private readonly clients = new Map<string, StargateClientCacheEntry>();
+  private readonly entries = new Map<
+    Promise<StargateClient>,
+    StargateClientCacheEntry
+  >();
 
   constructor(private readonly maxSize: number) {}
 
   get(url: string): Promise<StargateClient> {
     if (!shouldCacheStargateClient(url)) return StargateClient.connect(url);
 
-    let client = this.clients.get(url);
-    if (!client) {
-      client = StargateClient.connect(url).catch((error) => {
-        this.clients.delete(url);
+    let entry = this.clients.get(url);
+    if (!entry) {
+      let pendingEntry: StargateClientCacheEntry;
+      const client = StargateClient.connect(url).catch((error) => {
+        const entry = pendingEntry;
+        entry.evicted = true;
+        if (this.clients.get(url) === entry) {
+          this.clients.delete(url);
+        }
+        this.disconnectIfIdle(entry);
         throw error;
       });
+      pendingEntry = { client, evicted: false, leases: 0 };
+      entry = pendingEntry;
+      this.entries.set(client, entry);
     } else {
       this.clients.delete(url);
     }
-    this.clients.set(url, client);
+    entry.leases += 1;
+    this.clients.set(url, entry);
 
-    // LRU eviction can disconnect a shared client another caller just received;
-    // callers evict and retry on estimate failure, and the cap is above normal
-    // concurrent chain fanout.
     while (this.clients.size > this.maxSize) {
       const oldestUrl = this.clients.keys().next().value;
       if (!oldestUrl) break;
       this.evict(oldestUrl);
     }
-    return client;
+    return entry.client;
   }
 
   evict(url: string, client?: Promise<StargateClient>): void {
-    const cachedClient = this.clients.get(url);
-    if (!cachedClient || (client && cachedClient !== client)) return;
+    const entry = this.clients.get(url);
+    if (!entry || (client && entry.client !== client)) return;
 
     this.clients.delete(url);
-    disconnectStargateClient(cachedClient);
+    entry.evicted = true;
+    this.disconnectIfIdle(entry);
+  }
+
+  release(client: Promise<StargateClient>): void {
+    const entry = this.entries.get(client);
+    if (!entry) return;
+
+    entry.leases -= 1;
+    this.disconnectIfIdle(entry);
   }
 
   clear(): void {
-    for (const client of this.clients.values()) {
-      disconnectStargateClient(client);
+    for (const entry of this.clients.values()) {
+      entry.evicted = true;
+      this.disconnectIfIdle(entry);
     }
     this.clients.clear();
+  }
+
+  private disconnectIfIdle(entry: StargateClientCacheEntry): void {
+    if (!entry.evicted || entry.leases > 0) return;
+
+    this.entries.delete(entry.client);
+    disconnectStargateClient(entry.client);
   }
 }

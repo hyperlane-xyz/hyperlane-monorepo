@@ -152,7 +152,9 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
       this.stargateClients.evict(this.rpcUrls[0], stargateClientPromise);
       throw error;
     } finally {
-      if (!shouldCacheStargateClient(this.rpcUrls[0]) && stargateClient) {
+      if (shouldCacheStargateClient(this.rpcUrls[0])) {
+        this.stargateClients.release(stargateClientPromise);
+      } else if (stargateClient) {
         disconnectStargateClient(Promise.resolve(stargateClient));
       }
     }
