@@ -20,6 +20,7 @@ import {
   deriveCrossCollateralDispatchAuthorityPda,
   deriveCrossCollateralStatePda,
   deriveHyperlaneTokenPda,
+  deriveMailboxDispatchAuthorityPda,
   deriveMailboxDispatchedMessagePda,
   deriveMailboxOutboxPda,
 } from '../pda.js';
@@ -119,7 +120,7 @@ function encodeTransferRemoteTo(
  *   3  spl noop
  *   4  mailbox program
  *   5  mailbox outbox (writable)
- *   6  CC dispatch authority PDA
+ *   6  mailbox dispatch authority PDA (this program's, signs mailbox dispatch)
  *   7  sender wallet (signer + payer)
  *   8  unique message account (signer)
  *   9  dispatched message PDA (writable)
@@ -151,8 +152,12 @@ export async function getCrossCollateralTransferRemoteToInstruction(args: {
     args.programAddress,
   );
   const { address: mailboxOutbox } = await deriveMailboxOutboxPda(args.mailbox);
-  const { address: ccDispatchAuthority } =
-    await deriveCrossCollateralDispatchAuthorityPda(args.programAddress);
+  // Remote path shares the mailbox dispatch_authority PDA with the regular
+  // transfer_remote (token-lib derives it via
+  // mailbox_message_dispatch_authority_pda_seeds!()). The CC-specific
+  // dispatch authority is only used on the local HandleLocal CPI path.
+  const { address: dispatchAuthority } =
+    await deriveMailboxDispatchAuthorityPda(args.programAddress);
   const { address: dispatchedMessagePda } =
     await deriveMailboxDispatchedMessagePda(
       args.mailbox,
@@ -166,7 +171,7 @@ export async function getCrossCollateralTransferRemoteToInstruction(args: {
     readonlyAccount(SPL_NOOP_PROGRAM_ADDRESS),
     readonlyAccount(args.mailbox),
     writableAccount(mailboxOutbox),
-    readonlyAccount(ccDispatchAuthority),
+    readonlyAccount(dispatchAuthority),
     writableSigner(args.sender),
     readonlySigner(args.uniqueMessageAccount),
     writableAccount(dispatchedMessagePda),
