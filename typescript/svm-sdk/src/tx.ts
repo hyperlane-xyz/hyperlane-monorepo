@@ -1,5 +1,6 @@
 import {
   type Address,
+  type AddressesByLookupTableAddress,
   type Blockhash,
   type Instruction,
   type ReadonlyUint8Array,
@@ -7,6 +8,7 @@ import {
   appendTransactionMessageInstructions,
   blockhash,
   compileTransactionMessage,
+  compressTransactionMessageUsingAddressLookupTables,
   createTransactionMessage,
   getBase58Decoder,
   getCompiledTransactionMessageEncoder,
@@ -68,6 +70,14 @@ export function buildTransactionMessage(params: {
   lastValidBlockHeight: bigint;
   computeUnits?: number;
   priorityFeeMicroLamports?: number;
+  /**
+   * Optional address-lookup tables to compress the message against. The map
+   * keys are ALT addresses; values are the addresses stored in each table in
+   * on-chain index order. Any account in the message that appears in one of
+   * these tables is rewritten to reference the table index instead of being
+   * encoded inline.
+   */
+  addressLookupTables?: AddressesByLookupTableAddress;
 }) {
   const {
     instructions,
@@ -76,6 +86,7 @@ export function buildTransactionMessage(params: {
     lastValidBlockHeight,
     computeUnits = DEFAULT_COMPUTE_UNITS,
     priorityFeeMicroLamports,
+    addressLookupTables,
   } = params;
 
   const computeBudgetIxs = getComputeBudgetInstructions(
@@ -90,7 +101,15 @@ export function buildTransactionMessage(params: {
     { blockhash: recentBlockhash, lastValidBlockHeight },
     withFeePayer,
   );
-  return appendTransactionMessageInstructions(allInstructions, withLifetime);
+  const withInstructions = appendTransactionMessageInstructions(
+    allInstructions,
+    withLifetime,
+  );
+  if (!addressLookupTables) return withInstructions;
+  return compressTransactionMessageUsingAddressLookupTables(
+    withInstructions,
+    addressLookupTables,
+  );
 }
 
 export function transactionToInstructions(
