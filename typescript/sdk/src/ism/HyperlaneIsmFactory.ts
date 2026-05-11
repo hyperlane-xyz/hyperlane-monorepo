@@ -21,6 +21,7 @@ import {
   IStaticWeightedMultisigIsm,
   OPStackIsm__factory,
   PausableIsm__factory,
+  RateLimitedIsm__factory,
   StaticAddressSetFactory,
   StaticThresholdAddressSetFactory,
   StaticWeightedValidatorSetFactory,
@@ -69,6 +70,7 @@ import {
   IsmConfig,
   IsmType,
   MultisigIsmConfig,
+  RateLimitedIsmConfig,
   RoutingIsmConfig,
   RoutingIsmDelta,
   WeightedMultisigIsmConfig,
@@ -82,6 +84,7 @@ const ismFactories = {
   [IsmType.OP_STACK]: new OPStackIsm__factory(),
   [IsmType.ARB_L2_TO_L1]: new ArbL2ToL1Ism__factory(),
   [IsmType.CCIP]: new CCIPIsm__factory(),
+  [IsmType.RATE_LIMITED]: new RateLimitedIsm__factory(),
 };
 
 const domainRoutingInitializationSize = (destination: ChainName) => {
@@ -282,6 +285,37 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           [config.bridge],
         );
         break;
+      case IsmType.RATE_LIMITED: {
+        const rateLimitedConfig = config as RateLimitedIsmConfig;
+        assert(mailbox, `Mailbox address is required for deploying ${ismType}`);
+        assert(
+          rateLimitedConfig.recipient,
+          `Recipient address is required for deploying ${ismType}`,
+        );
+        contract = await this.deployer.deployContract(
+          destination,
+          IsmType.RATE_LIMITED,
+          [mailbox, rateLimitedConfig.maxCapacity, rateLimitedConfig.recipient],
+        );
+        if (rateLimitedConfig.owner) {
+          const signer = this.multiProvider.getSigner(destination);
+          const signerAddress = await signer.getAddress();
+          if (!eqAddress(signerAddress, rateLimitedConfig.owner)) {
+            const overrides =
+              this.multiProvider.getTransactionOverrides(destination);
+            const rateLimitedIsm = RateLimitedIsm__factory.connect(
+              contract.address,
+              signer,
+            );
+            const tx = await rateLimitedIsm.transferOwnership(
+              rateLimitedConfig.owner,
+              overrides,
+            );
+            await this.multiProvider.handleTx(destination, tx);
+          }
+        }
+        break;
+      }
       case IsmType.CCIP:
         contract = await this.deployCCIPIsm(destination, config);
         break;

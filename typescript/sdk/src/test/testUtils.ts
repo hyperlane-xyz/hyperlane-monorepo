@@ -18,6 +18,7 @@ import {
   IsmType,
   ModuleType,
   MultisigIsmConfig,
+  RateLimitedIsmConfig,
   RoutingIsmConfig,
   TrustedRelayerIsmConfig,
   WeightedMultisigIsmConfig,
@@ -399,6 +400,15 @@ export const randomIsmConfig = (
       return config;
     }
     case ModuleType.NULL: {
+      if (providedIsmType === IsmType.RATE_LIMITED) {
+        const config: RateLimitedIsmConfig = {
+          type: IsmType.RATE_LIMITED,
+          maxCapacity: '86400',
+          recipient: randomAddress(),
+          owner: randomAddress(),
+        };
+        return config;
+      }
       const config: TrustedRelayerIsmConfig = {
         type: IsmType.TRUSTED_RELAYER,
         relayer: randomAddress(),

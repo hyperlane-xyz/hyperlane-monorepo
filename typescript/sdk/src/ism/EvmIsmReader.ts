@@ -15,6 +15,7 @@ import {
   OPStackIsm__factory,
   Ownable__factory,
   PausableIsm__factory,
+  RateLimitedIsm__factory,
   StaticAggregationIsm__factory,
   TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
@@ -576,6 +577,32 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     } catch {
       this.logger.debug(
         'Error accessing "VERIFIED_MASK_INDEX" property, implying this is not an OP Stack ISM.',
+        address,
+      );
+    }
+
+    // Detect RateLimitedIsm by probing for its unique recipient() selector.
+    // Safe today because no other NULL-type ISM in this repo exposes recipient().
+    // TODO: replace with bytecode or unique-selector matching if custom NULL ISMs
+    //       with the same interface are ever introduced.
+    const rateLimitedIsm = RateLimitedIsm__factory.connect(
+      address,
+      this.provider,
+    );
+    try {
+      const recipient = await rateLimitedIsm.recipient();
+      const maxCapacity = (await rateLimitedIsm.maxCapacity()).toString();
+      const owner = await rateLimitedIsm.owner();
+      return {
+        address,
+        type: IsmType.RATE_LIMITED,
+        recipient,
+        maxCapacity,
+        owner,
+      };
+    } catch {
+      this.logger.debug(
+        'Error accessing "recipient" property, implying this is not a Rate Limited ISM.',
         address,
       );
     }
