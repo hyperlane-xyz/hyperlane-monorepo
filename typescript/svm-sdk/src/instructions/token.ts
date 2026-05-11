@@ -38,17 +38,20 @@ import {
 import type { TokenFeeConfig } from '../accounts/token.js';
 import {
   PROGRAM_INSTRUCTION_DISCRIMINATOR,
+  SPL_NOOP_PROGRAM_ADDRESS,
   SYSTEM_PROGRAM_ADDRESS,
 } from '../constants.js';
 import {
   deriveHyperlaneTokenPda,
   deriveMailboxDispatchAuthorityPda,
+  deriveMailboxDispatchedMessagePda,
   deriveMailboxOutboxPda,
 } from '../pda.js';
 import {
   buildInstruction,
   type InstructionAccountMeta,
   readonlyAccount,
+  readonlySigner,
   readonlySignerAddress,
   writableAccount,
   writableSigner,
@@ -268,6 +271,95 @@ export function decodeTokenProgramInstruction(
       }
       return null;
   }
+}
+
+/**
+ * Optional IGP account section consumed by warp token `transfer_remote`.
+ * Layout matches the Rust processor: when the token has an IGP configured,
+ * these accounts are appended after the static prefix and before the
+ * plugin-specific accounts.
+ */
+export interface IgpTransferRemoteSection {
+  programId: Address;
+  programData: Address;
+  paymentPda: Address;
+  /** Set only when the configured IGP is an Overhead IGP. */
+  overheadIgpAccount?: Address;
+  igpAccount: Address;
+}
+
+export function buildIgpTransferRemoteSectionAccounts(
+  igp: IgpTransferRemoteSection,
+): InstructionAccountMeta[] {
+  const accounts: InstructionAccountMeta[] = [
+    readonlyAccount(igp.programId),
+    writableAccount(igp.programData),
+    writableAccount(igp.paymentPda),
+  ];
+  if (igp.overheadIgpAccount) {
+    accounts.push(readonlyAccount(igp.overheadIgpAccount));
+  }
+  accounts.push(writableAccount(igp.igpAccount));
+  return accounts;
+}
+
+/**
+ * Builds the warp token `TransferRemote` instruction, used by collateral,
+ * native, and synthetic token programs. Mirrors the account ordering in
+ * `hyperlane-sealevel-token::transfer_remote`:
+ *
+ *   0  system program
+ *   1  spl noop
+ *   2  token PDA
+ *   3  mailbox program
+ *   4  mailbox outbox (writable)
+ *   5  mailbox dispatch authority PDA
+ *   6  sender wallet (signer + payer)
+ *   7  unique message account (signer)
+ *   8  dispatched message PDA (writable)
+ *   9..N  IGP section (when configured)
+ *   N+1..M  plugin transfer_in accounts (supplied by caller)
+ */
+export async function getTokenTransferRemoteInstruction(args: {
+  programAddress: Address;
+  sender: TransactionSigner;
+  uniqueMessageAccount: TransactionSigner;
+  mailbox: Address;
+  data: TransferRemoteInstructionData;
+  igp?: IgpTransferRemoteSection;
+  pluginAccounts: InstructionAccountMeta[];
+}): Promise<Instruction> {
+  const { address: tokenPda } = await deriveHyperlaneTokenPda(
+    args.programAddress,
+  );
+  const { address: mailboxOutbox } = await deriveMailboxOutboxPda(args.mailbox);
+  const { address: dispatchAuthority } =
+    await deriveMailboxDispatchAuthorityPda(args.programAddress);
+  const { address: dispatchedMessagePda } =
+    await deriveMailboxDispatchedMessagePda(
+      args.mailbox,
+      args.uniqueMessageAccount.address,
+    );
+
+  const accounts: InstructionAccountMeta[] = [
+    readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
+    readonlyAccount(SPL_NOOP_PROGRAM_ADDRESS),
+    readonlyAccount(tokenPda),
+    readonlyAccount(args.mailbox),
+    writableAccount(mailboxOutbox),
+    readonlyAccount(dispatchAuthority),
+    writableSigner(args.sender),
+    readonlySigner(args.uniqueMessageAccount),
+    writableAccount(dispatchedMessagePda),
+    ...(args.igp ? buildIgpTransferRemoteSectionAccounts(args.igp) : []),
+    ...args.pluginAccounts,
+  ];
+
+  return buildInstruction(
+    args.programAddress,
+    accounts,
+    encodeTokenProgramInstruction({ kind: 'transferRemote', value: args.data }),
+  );
 }
 
 export async function getTokenInitInstruction(

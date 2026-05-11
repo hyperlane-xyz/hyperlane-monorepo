@@ -113,6 +113,19 @@ export async function deriveMailboxProcessAuthorityPda(
   ]);
 }
 
+export async function deriveMailboxDispatchedMessagePda(
+  mailboxProgramAddress: Address,
+  uniqueMessageAccount: Address,
+): Promise<PdaWithBump> {
+  return derive(mailboxProgramAddress, [
+    utf8.encode('hyperlane'),
+    utf8.encode('-'),
+    utf8.encode('dispatched_message'),
+    utf8.encode('-'),
+    addressEncoder.encode(uniqueMessageAccount),
+  ]);
+}
+
 export async function deriveIgpProgramDataPda(
   programAddress: Address,
 ): Promise<PdaWithBump> {

@@ -5,28 +5,37 @@ import type {
   TransactionSigner,
 } from '@solana/kit';
 
-import { concatBytes, u8, u32le, vec } from '../codecs/binary.js';
+import { concatBytes, u256le, u32le, u8, vec } from '../codecs/binary.js';
 import {
   encodeH256,
   encodeRemoteRouterConfig,
   type H256,
   type RemoteRouterConfig,
 } from '../codecs/shared.js';
-import { SYSTEM_PROGRAM_ADDRESS } from '../constants.js';
+import {
+  SPL_NOOP_PROGRAM_ADDRESS,
+  SYSTEM_PROGRAM_ADDRESS,
+} from '../constants.js';
 import {
   deriveCrossCollateralDispatchAuthorityPda,
   deriveCrossCollateralStatePda,
   deriveHyperlaneTokenPda,
+  deriveMailboxDispatchedMessagePda,
+  deriveMailboxOutboxPda,
 } from '../pda.js';
 import {
+  buildIgpTransferRemoteSectionAccounts,
   getTokenInitInstruction,
+  type IgpTransferRemoteSection,
   type TokenInitInstructionData,
 } from './token.js';
 import {
   buildInstruction,
   type InstructionAccountMeta,
   readonlyAccount,
+  readonlySigner,
   writableAccount,
+  writableSigner,
   writableSignerAddress,
 } from './utils.js';
 
@@ -77,6 +86,95 @@ export async function getCrossCollateralInitInstruction(
     writableAccount(ccDispatchAuthority),
     readonlyAccount(mailboxOutboxPda),
   ]);
+}
+
+export interface TransferRemoteToInstructionData {
+  destinationDomain: number;
+  recipient: H256;
+  amountOrId: bigint;
+  targetRouter: H256;
+}
+
+function encodeTransferRemoteTo(
+  value: TransferRemoteToInstructionData,
+): ReadonlyUint8Array {
+  return concatBytes(
+    u32le(value.destinationDomain),
+    encodeH256(value.recipient),
+    u256le(value.amountOrId),
+    encodeH256(value.targetRouter),
+  );
+}
+
+/**
+ * Builds the cross-collateral `TransferRemoteTo` instruction (remote path).
+ * Mirrors the account ordering in
+ * `hyperlane-sealevel-token-cross-collateral::transfer_remote_to_remote`:
+ *
+ *   0  system program
+ *   1  token PDA
+ *   2  CC state PDA
+ *   3  spl noop
+ *   4  mailbox program
+ *   5  mailbox outbox (writable)
+ *   6  CC dispatch authority PDA
+ *   7  sender wallet (signer + payer)
+ *   8  unique message account (signer)
+ *   9  dispatched message PDA (writable)
+ *   10..N  IGP section (when configured)
+ *   N+1..M  plugin transfer_in accounts (supplied by caller)
+ *
+ * The same-chain (`destination_domain == local_domain`) path uses a
+ * different account layout and is not produced by this builder.
+ */
+export async function getCrossCollateralTransferRemoteToInstruction(args: {
+  programAddress: Address;
+  sender: TransactionSigner;
+  uniqueMessageAccount: TransactionSigner;
+  mailbox: Address;
+  data: TransferRemoteToInstructionData;
+  igp?: IgpTransferRemoteSection;
+  pluginAccounts: InstructionAccountMeta[];
+}): Promise<Instruction> {
+  const { address: tokenPda } = await deriveHyperlaneTokenPda(
+    args.programAddress,
+  );
+  const { address: ccStatePda } = await deriveCrossCollateralStatePda(
+    args.programAddress,
+  );
+  const { address: mailboxOutbox } = await deriveMailboxOutboxPda(args.mailbox);
+  const { address: ccDispatchAuthority } =
+    await deriveCrossCollateralDispatchAuthorityPda(args.programAddress);
+  const { address: dispatchedMessagePda } =
+    await deriveMailboxDispatchedMessagePda(
+      args.mailbox,
+      args.uniqueMessageAccount.address,
+    );
+
+  const accounts: InstructionAccountMeta[] = [
+    readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
+    readonlyAccount(tokenPda),
+    writableAccount(ccStatePda),
+    readonlyAccount(SPL_NOOP_PROGRAM_ADDRESS),
+    readonlyAccount(args.mailbox),
+    writableAccount(mailboxOutbox),
+    readonlyAccount(ccDispatchAuthority),
+    writableSigner(args.sender),
+    readonlySigner(args.uniqueMessageAccount),
+    writableAccount(dispatchedMessagePda),
+    ...(args.igp ? buildIgpTransferRemoteSectionAccounts(args.igp) : []),
+    ...args.pluginAccounts,
+  ];
+
+  return buildInstruction(
+    args.programAddress,
+    accounts,
+    concatBytes(
+      CC_INSTRUCTION_DISCRIMINATOR,
+      u8(CrossCollateralInstructionKind.TransferRemoteTo),
+      encodeTransferRemoteTo(args.data),
+    ),
+  );
 }
 
 export async function getSetCrossCollateralRoutersInstruction(
