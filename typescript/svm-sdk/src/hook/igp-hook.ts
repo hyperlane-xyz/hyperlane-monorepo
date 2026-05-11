@@ -536,7 +536,11 @@ export async function computeIgpFeeConfigUpdate(args: {
     effectiveContractVersion,
   } = args;
 
-  if (isNullish(expectedQuoteSigners) && isNullish(currentFeeConfig)) {
+  // Mirror EvmHookModule.updateIgpHook: when quoteSigners is omitted from
+  // the expected config, leave the on-chain fee config untouched. Clearing
+  // signers requires an explicit empty array; clearing the fee_config
+  // entirely is intentionally not exposed through the diff.
+  if (isNullish(expectedQuoteSigners)) {
     return [];
   }
 
@@ -544,24 +548,6 @@ export async function computeIgpFeeConfigUpdate(args: {
     supportsFeeConfig(effectiveContractVersion),
     `Cannot manage IGP ${programId} fee config: program version ${effectiveContractVersion ?? 'pre-PackageVersioned'} does not support fee config. Set contractVersion in the expected config and provide program bytes to upgrade first.`,
   );
-
-  // expected undefined → clear on-chain fee_config if currently set.
-  if (isNullish(expectedQuoteSigners)) {
-    return [
-      {
-        feePayer: ownerAddress,
-        instructions: [
-          await getSetIgpQuoteConfigInstruction(
-            programId,
-            ownerAddress,
-            igpPda,
-            null,
-          ),
-        ],
-        annotation: `Clear IGP fee config for ${programId}`,
-      },
-    ];
-  }
 
   // expected set, currently absent → init empty fee_config then Add each.
   if (isNullish(currentFeeConfig)) {
