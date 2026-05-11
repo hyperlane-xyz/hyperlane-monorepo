@@ -10,7 +10,14 @@ import { awSafes } from '../../governance/safe/aw.js';
 import { getDomainId, getRegistry } from '../../../../registry.js';
 import { WarpRouteIds } from '../warpIds.js';
 
+// Arbitrum and base are commented out in awIcas (safe-owned for other routes),
+// but this warp route uses ICA v2 ownership for consistency with citrea/ethereum governance.
+const ARBITRUM_ICA = '0xD2757Bbc28C80789Ed679f22Ac65597Cacf51A45';
+const BASE_ICA = '0x61756c4beBC1BaaC09d89729E2cbaD8BD30c62B7';
+
 function getAwOwner(chain: string): string {
+  if (chain === 'arbitrum') return ARBITRUM_ICA;
+  if (chain === 'base') return BASE_ICA;
   const owner =
     awIcas[chain as keyof typeof awIcas] ??
     awSafes[chain as keyof typeof awSafes];
