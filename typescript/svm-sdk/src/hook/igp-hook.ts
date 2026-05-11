@@ -33,7 +33,10 @@ import {
   getSetIgpQuoteSignerInstruction,
 } from '../instructions/igp.js';
 import { deriveIgpAccountPda, deriveOverheadIgpAccountPda } from '../pda.js';
-import { supportsFeeConfig } from '../version/version-query.js';
+import {
+  queryProgramVersion,
+  supportsFeeConfig,
+} from '../version/version-query.js';
 import type { SvmSigner } from '../clients/signer.js';
 import {
   hasProgramBytes,
@@ -307,6 +310,42 @@ export class SvmIgpHookWriter
         instructions: [setOverheadIx],
       });
       receipts.push(overheadReceipt);
+    }
+
+    if (!isNullish(config.quoteSigners)) {
+      const ownerAddress = this.svmSigner.signer.address;
+      const contractVersion = await queryProgramVersion(
+        this.rpc,
+        programId,
+        ownerAddress,
+      );
+      assert(
+        supportsFeeConfig(contractVersion),
+        `Cannot initialize IGP ${programId} fee config: program version ${contractVersion ?? 'pre-PackageVersioned'} does not support fee config.`,
+      );
+
+      const initFeeConfigIx = await getSetIgpQuoteConfigInstruction(
+        programId,
+        ownerAddress,
+        igpPda,
+        { signers: [], domainId: this.config.domainId, minIssuedAt: 0n },
+      );
+      receipts.push(
+        await this.svmSigner.send({ instructions: [initFeeConfigIx] }),
+      );
+
+      for (const signer of config.quoteSigners) {
+        const addSignerIx = await getSetIgpQuoteSignerInstruction(
+          programId,
+          ownerAddress,
+          igpPda,
+          SetQuoteSignerOp.Add,
+          signer,
+        );
+        receipts.push(
+          await this.svmSigner.send({ instructions: [addSignerIx] }),
+        );
+      }
     }
 
     return [
