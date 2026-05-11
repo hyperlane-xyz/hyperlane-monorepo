@@ -17,35 +17,25 @@ import {
   RouterConfigWithoutOwner,
   tokens,
 } from '../../../../../src/config/warp.js';
-import { awIcas } from '../../governance/ica/aw.js';
-import { warpFeesIcas } from '../../governance/ica/warpFees.js';
-import { awSafes } from '../../governance/safe/aw.js';
 import { getDomainId, getRegistry } from '../../../../registry.js';
 import { WarpRouteIds } from '../warpIds.js';
 import { getRebalancingBridgesConfigFor } from './utils.js';
 
 const NO_OWNER = '0x0000000000000000000000000000000000000000';
 
-// Arbitrum and base are commented out in awIcas (safe-owned for other routes),
-// but this warp route uses ICA v2 ownership for consistency with citrea/ethereum governance.
-const ARBITRUM_ICA = '0xD2757Bbc28C80789Ed679f22Ac65597Cacf51A45';
-const BASE_ICA = '0x61756c4beBC1BaaC09d89729E2cbaD8BD30c62B7';
+// ICA v2 addresses on ethereum. Arbitrum and base are commented out in awIcas
+// (safe-owned for other routes) but this route explicitly uses ICA v2.
+const ownersByChain = {
+  arbitrum: '0xD2757Bbc28C80789Ed679f22Ac65597Cacf51A45', // ICA on ethereum
+  base: '0x61756c4beBC1BaaC09d89729E2cbaD8BD30c62B7', // ICA on ethereum
+  ethereum: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6', // Safe on ethereum
+} as const;
 
-function getAwOwner(chain: string): string {
-  if (chain === 'arbitrum') return ARBITRUM_ICA;
-  if (chain === 'base') return BASE_ICA;
-  const owner =
-    awIcas[chain as keyof typeof awIcas] ??
-    awSafes[chain as keyof typeof awSafes];
-  assert(owner, `No AW owner found for chain ${chain}`);
-  return owner;
-}
-
-function getFeeOwner(chain: string): string {
-  const owner = warpFeesIcas[chain as keyof typeof warpFeesIcas];
-  assert(owner, `No warp fees ICA found for chain ${chain}`);
-  return owner;
-}
+const feeOwnersByChain = {
+  arbitrum: '0x6f0Cfe5fD2E4188AD68b7f8ceB135DD68DF629C7', // warp fees ICA on ethereum
+  base: '0x957019c916D05dDF70816Cad43ebF5D417bE81C8', // warp fees ICA on ethereum
+  ethereum: '0x89d295dBB62aAb434BEd1D372b04c468e828eC9b', // warp fees ICA on ethereum
+} as const;
 const QUOTE_SIGNERS = [
   '0xEd1829805De615eEFC7303766D395Ea0a1B2b04d',
   '0x6bb7818bbE8d88094Cf3620e58BC6BbEd542B867',
@@ -179,13 +169,16 @@ export async function getUSDTCitreaMoonpayWarpConfig(
     [WarpRouteIds.USDTOft],
   );
 
-  const arbitrumOwner = getAwOwner('arbitrum');
-  const baseOwner = getAwOwner('base');
-  const ethereumOwner = getAwOwner('ethereum');
-
-  const arbitrumFeeOwner = getFeeOwner('arbitrum');
-  const baseFeeOwner = getFeeOwner('base');
-  const ethereumFeeOwner = getFeeOwner('ethereum');
+  const {
+    arbitrum: arbitrumOwner,
+    base: baseOwner,
+    ethereum: ethereumOwner,
+  } = ownersByChain;
+  const {
+    arbitrum: arbitrumFeeOwner,
+    base: baseFeeOwner,
+    ethereum: ethereumFeeOwner,
+  } = feeOwnersByChain;
 
   const crossCollateralRouters = getUsdcCrossCollateralRouters();
 
