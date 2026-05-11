@@ -52,6 +52,7 @@
   },
   "devDependencies": {
     "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@noble/curves": "^1.9.0",
     "@types/chai": "^4.3.14",
     "@types/chai-as-promised": "catalog:",
     "@types/mocha": "^10.0.6",
@@ -66,5 +67,13 @@
     "testcontainers": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:"
+  },
+  "peerDependencies": {
+    "@noble/curves": "^1.9.0"
+  },
+  "peerDependenciesMeta": {
+    "@noble/curves": {
+      "optional": true
+    }
   }
 }

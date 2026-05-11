@@ -45,7 +45,9 @@ export {
   getSetIgpQuoteConfigInstruction,
   getSetIgpQuoteSignerInstruction,
   getSubmitIgpQuoteInstruction,
+  simulateIgpQuoteAccountMetas,
 } from './instructions/igp.js';
+export type { SimulatedAccountMeta } from './instructions/igp.js';
 export { getTransferOwnershipInstruction as getMultisigIsmTransferOwnershipInstruction } from './instructions/multisig-ism-message-id.js';
 export { getSetUpgradeAuthorityInstruction } from './instructions/loader.js';
 export { buildSetDefaultIsmInstruction } from './core/mailbox-tx.js';
