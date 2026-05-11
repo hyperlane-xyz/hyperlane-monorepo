@@ -129,7 +129,20 @@ export {
   deriveReplayProtectionPda,
   deriveCrossCollateralStatePda,
   deriveCrossCollateralDispatchAuthorityPda,
+  deriveMailboxDispatchedMessagePda,
 } from './pda.js';
+
+// Warp token transfer-remote instruction builders
+export {
+  getTokenTransferRemoteInstruction,
+  buildIgpTransferRemoteSectionAccounts,
+} from './instructions/token.js';
+export type {
+  IgpTransferRemoteSection,
+  TransferRemoteInstructionData,
+} from './instructions/token.js';
+export { getCrossCollateralTransferRemoteToInstruction } from './instructions/cross-collateral-token.js';
+export type { TransferRemoteToInstructionData } from './instructions/cross-collateral-token.js';
 
 // Account decoders
 export {
