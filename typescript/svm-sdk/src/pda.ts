@@ -9,7 +9,11 @@ import {
 
 import { assert } from '@hyperlane-xyz/utils';
 
-import { LOADER_V3_PROGRAM_ADDRESS } from './constants.js';
+import {
+  ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
+  LOADER_V3_PROGRAM_ADDRESS,
+  SPL_TOKEN_PROGRAM_ADDRESS,
+} from './constants.js';
 import type { PdaWithBump } from './types.js';
 
 const utf8 = getUtf8Encoder();
@@ -302,6 +306,24 @@ export async function deriveAtaPayerPda(
     utf8.encode('hyperlane_token'),
     utf8.encode('-'),
     utf8.encode('ata_payer'),
+  ]);
+}
+
+/**
+ * Derives the SPL Associated Token Account address for a (wallet, mint)
+ * pair. `tokenProgram` defaults to the classic SPL Token program — pass
+ * Token-2022 explicitly for Token-2022 mints.
+ */
+export async function deriveAssociatedTokenAddress(args: {
+  wallet: Address;
+  mint: Address;
+  tokenProgram?: Address;
+}): Promise<PdaWithBump> {
+  const tokenProgram = args.tokenProgram ?? SPL_TOKEN_PROGRAM_ADDRESS;
+  return derive(ASSOCIATED_TOKEN_PROGRAM_ADDRESS, [
+    addressEncoder.encode(args.wallet),
+    addressEncoder.encode(tokenProgram),
+    addressEncoder.encode(args.mint),
   ]);
 }
 
