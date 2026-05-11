@@ -1,6 +1,7 @@
 import { constants } from 'ethers';
 
 import {
+  CrossCollateralRoutingFee__factory,
   OffchainQuotedLinearFee__factory,
   RoutingFee__factory,
 } from '@hyperlane-xyz/core';
@@ -34,6 +35,7 @@ import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmTokenFeeDeployer } from './EvmTokenFeeDeployer.js';
 import {
+  DerivedCrossCollateralRoutingFeeConfig,
   DerivedRoutingFeeConfig,
   DerivedTokenFeeConfig,
   EvmTokenFeeReader,
@@ -427,7 +429,10 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     if (targetConfig.type === TokenFeeType.OffchainQuotedLinearFee) {
       mutableFields.quoteSigners = true;
     }
-    if (targetConfig.type === TokenFeeType.RoutingFee) {
+    if (
+      targetConfig.type === TokenFeeType.RoutingFee ||
+      targetConfig.type === TokenFeeType.CrossCollateralRoutingFee
+    ) {
       mutableFields.feeContracts = true;
     }
 
@@ -522,6 +527,27 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       ];
     }
 
+    // CrossCollateralRoutingFee: update sub-fee contracts (nested structure)
+    if (
+      normalizedTargetConfig.type === TokenFeeType.CrossCollateralRoutingFee &&
+      normalizedActualConfig.type === TokenFeeType.CrossCollateralRoutingFee
+    ) {
+      return [
+        ...(await this.updateCrossCollateralRoutingFee(
+          objMerge(
+            actualConfig,
+            normalizedTargetConfig,
+            10,
+            true,
+          ) as DerivedCrossCollateralRoutingFeeConfig,
+        )),
+        ...this.createOwnershipUpdateTxs(
+          normalizedActualConfig,
+          normalizedTargetConfig,
+        ),
+      ];
+    }
+
     // Routing fee: update sub-fee contracts
     if (
       normalizedTargetConfig.type === TokenFeeType.RoutingFee &&
@@ -547,6 +573,89 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       normalizedActualConfig,
       normalizedTargetConfig,
     );
+  }
+
+  private async updateCrossCollateralRoutingFee(
+    targetConfig: DerivedCrossCollateralRoutingFeeConfig,
+  ): Promise<AnnotatedEV5Transaction[]> {
+    const updateTransactions: AnnotatedEV5Transaction[] = [];
+    if (!targetConfig.feeContracts) return [];
+
+    const currentRoutingAddress = this.args.addresses.deployedFee;
+
+    // Collect unique sub-contracts; multiple (dest, router) pairs may share one address
+    const subContractByAddress = new Map<string, DerivedTokenFeeConfig>();
+    for (const routerConfigs of Object.values(targetConfig.feeContracts)) {
+      for (const subFeeConfig of Object.values(routerConfigs)) {
+        const addr = subFeeConfig.address;
+        if (addr && !subContractByAddress.has(addr.toLowerCase())) {
+          subContractByAddress.set(addr.toLowerCase(), subFeeConfig);
+        }
+      }
+    }
+
+    // Track address remappings (old → new) for redeployed sub-contracts
+    const addressRemappings = new Map<string, string>();
+
+    for (const [, subFeeConfig] of subContractByAddress) {
+      const address = subFeeConfig.address!;
+      const subFeeModule = new EvmTokenFeeModule(
+        this.multiProvider,
+        {
+          addresses: { deployedFee: address },
+          chain: this.chainName,
+          config: subFeeConfig,
+        },
+        this.contractVerifier,
+      );
+      const subFeeUpdateTransactions = await subFeeModule.update(subFeeConfig, {
+        address,
+      });
+      updateTransactions.push(...subFeeUpdateTransactions);
+
+      const deployedSubFee = subFeeModule.serialize().deployedFee;
+      if (!eqAddress(deployedSubFee, address)) {
+        addressRemappings.set(address.toLowerCase(), deployedSubFee);
+      }
+    }
+
+    // If any sub-contracts were redeployed, update their pointers in the parent
+    if (addressRemappings.size > 0) {
+      const destinations: number[] = [];
+      const routerKeys: string[] = [];
+      const newAddresses: string[] = [];
+
+      for (const [chainName, routerConfigs] of Object.entries(
+        targetConfig.feeContracts,
+      )) {
+        const domainId = this.multiProvider.getDomainId(chainName);
+        for (const [routerBytes32, subFeeConfig] of Object.entries(
+          routerConfigs,
+        )) {
+          const oldAddr = subFeeConfig.address?.toLowerCase();
+          if (oldAddr && addressRemappings.has(oldAddr)) {
+            destinations.push(domainId);
+            routerKeys.push(routerBytes32);
+            newAddresses.push(addressRemappings.get(oldAddr)!);
+          }
+        }
+      }
+
+      if (destinations.length > 0) {
+        updateTransactions.push({
+          annotation:
+            'Updating CrossCollateralRoutingFee sub-contract pointers',
+          chainId: this.chainId,
+          to: currentRoutingAddress,
+          data: CrossCollateralRoutingFee__factory.createInterface().encodeFunctionData(
+            'setCrossCollateralRouterFeeContracts',
+            [destinations, routerKeys, newAddresses],
+          ),
+        });
+      }
+    }
+
+    return updateTransactions;
   }
 
   private async updateRoutingFee(targetConfig: DerivedRoutingFeeConfig) {
