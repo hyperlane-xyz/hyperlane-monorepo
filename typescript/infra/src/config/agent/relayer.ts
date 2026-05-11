@@ -6,7 +6,6 @@ import {
   AgentConfig,
   ChainMap,
   GasPaymentEnforcement,
-  HyperlaneAddresses,
   HyperlaneAddressesMap,
   HyperlaneFactories,
   IsmCacheConfig,
@@ -383,11 +382,9 @@ export function consistentSenderRecipientMatchingList(
 export function chainMapMatchingList(
   chainMap: ChainMap<Address>,
 ): MatchingList {
-  // Convert to a router matching list
-  const routers = objMap(chainMap, (chain, address) => ({
-    router: address,
-  }));
-  return routerMatchingList(routers);
+  return multiAddressChainMapMatchingList(
+    objMap(chainMap, (_chain, address) => [address]),
+  );
 }
 
 // Create a matching list for chains that have multiple addresses (e.g. mixed token types in one warp route).
@@ -403,12 +400,12 @@ export function multiAddressChainMapMatchingList(
       if (source === destination) continue;
       list.push({
         originDomain: getDomainId(source),
-        senderAddress: chainAddresses[source].map((addr) =>
+        senderAddress: Array.from(new Set(chainAddresses[source])).map((addr) =>
           addressToBytes32(addr),
         ),
         destinationDomain: getDomainId(destination),
-        recipientAddress: chainAddresses[destination].map((addr) =>
-          addressToBytes32(addr),
+        recipientAddress: Array.from(new Set(chainAddresses[destination])).map(
+          (addr) => addressToBytes32(addr),
         ),
       });
     }
@@ -421,32 +418,11 @@ export function multiAddressChainMapMatchingList(
 export function matchingList<F extends HyperlaneFactories>(
   addressesMap: HyperlaneAddressesMap<F>,
 ): MatchingList {
-  const chains = Object.keys(addressesMap);
-
-  // matching list must have at least one element so bypass and check before returning
-  const matchingList: MatchingList = [];
-
-  for (const source of chains) {
-    for (const destination of chains) {
-      if (source === destination) {
-        continue;
-      }
-
-      const uniqueAddresses = (addresses: HyperlaneAddresses<F>) =>
-        Array.from(new Set(Object.values(addresses)).values()).map((s) =>
-          addressToBytes32(s),
-        );
-
-      matchingList.push({
-        originDomain: getDomainId(source),
-        senderAddress: uniqueAddresses(addressesMap[source]),
-        destinationDomain: getDomainId(destination),
-        recipientAddress: uniqueAddresses(addressesMap[destination]),
-      });
-    }
-  }
-
-  return matchingList;
+  return multiAddressChainMapMatchingList(
+    objMap(addressesMap, (_chain, addresses) =>
+      Array.from(new Set<string>(Object.values(addresses))),
+    ),
+  );
 }
 
 /**
