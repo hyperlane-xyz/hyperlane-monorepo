@@ -2,4 +2,4 @@
 "@hyperlane-xyz/sdk": patch
 ---
 
-Return approved tokens for bridges
+Returned approved tokens for bridges
