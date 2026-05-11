@@ -40,6 +40,9 @@ export const tokens = {
     USDT: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9',
     USDC: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
   },
+  citrea: {
+    ctUSD: '0x8D82c4E3c936C7B5724A382a9c5a4E6Eb7aB6d5D',
+  },
   avalanche: {
     USDC: '0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E',
   },
