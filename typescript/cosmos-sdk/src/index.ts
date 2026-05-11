@@ -1,6 +1,7 @@
 export * from './clients/protocol.js';
 export * from './clients/provider.js';
 export * from './clients/signer.js';
+export * from './clients/stargate.js';
 
 export * from './registry.js';
 

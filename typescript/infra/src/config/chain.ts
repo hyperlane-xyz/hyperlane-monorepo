@@ -166,6 +166,10 @@ const secretMetadataOverridesCache = new Map<
   string,
   Promise<ChainMap<Partial<ChainMetadata>>>
 >();
+const githubSecretMetadataOverridesCache = new Map<
+  string,
+  Promise<ChainMap<Partial<ChainMetadata>>>
+>();
 
 export function getSecretMetadataOverrides(
   deployEnv: DeployEnvironment,
@@ -264,6 +268,24 @@ async function fetchSecretMetadataOverrides(
  * @returns A partial chain metadata map with the secret overrides.
  */
 export async function getSecretMetadataOverridesFromGitHubSecrets(
+  deployEnv: DeployEnvironment,
+  chains: string[],
+): Promise<ChainMap<Partial<ChainMetadata>>> {
+  const cacheKey = `${deployEnv}:${[...chains].sort().join(',')}`;
+  const cached = githubSecretMetadataOverridesCache.get(cacheKey);
+  if (cached) return cached;
+  const promise = fetchSecretMetadataOverridesFromGitHubSecrets(
+    deployEnv,
+    chains,
+  ).catch((error) => {
+    githubSecretMetadataOverridesCache.delete(cacheKey);
+    throw error;
+  });
+  githubSecretMetadataOverridesCache.set(cacheKey, promise);
+  return promise;
+}
+
+async function fetchSecretMetadataOverridesFromGitHubSecrets(
   deployEnv: DeployEnvironment,
   chains: string[],
 ): Promise<ChainMap<Partial<ChainMetadata>>> {
