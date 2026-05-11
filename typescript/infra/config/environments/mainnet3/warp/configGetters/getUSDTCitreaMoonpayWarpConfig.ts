@@ -7,13 +7,11 @@ import {
   TokenFeeType,
   TokenType,
 } from '@hyperlane-xyz/sdk';
-import { assert } from '@hyperlane-xyz/utils';
 
 import {
   RouterConfigWithoutOwner,
   tokens,
 } from '../../../../../src/config/warp.js';
-import { getRegistry } from '../../../../registry.js';
 import { WarpRouteIds } from '../warpIds.js';
 import { getRebalancingBridgesConfigFor } from './utils.js';
 
@@ -27,7 +25,6 @@ const ROUTE_CHAINS = [
   'solanamainnet',
   'arbitrum',
   'base',
-  'citrea',
   'ethereum',
 ] as const satisfies readonly ChainName[];
 
@@ -68,14 +65,6 @@ function buildCrossCollateralRoutingFee(
   };
 }
 
-function getUSDTIronBridgeEthereumAddress(): string {
-  const route = getRegistry().getWarpRoute(WarpRouteIds.USDTCitreaIronBridge);
-  assert(route, 'CROSS/ctusd-usdt-ironbridge route not found in registry');
-  const token = route.tokens.find((t) => t.chainName === 'ethereum');
-  assert(token?.addressOrDenom, 'Missing USDT iron bridge ethereum address');
-  return token.addressOrDenom;
-}
-
 export async function getUSDTCitreaMoonpayWarpConfig(
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   _abacusWorksEnvOwnerConfig: ChainMap<{ owner: string }>,
@@ -84,8 +73,6 @@ export async function getUSDTCitreaMoonpayWarpConfig(
     EVM_CHAINS,
     [WarpRouteIds.USDTOft],
   );
-
-  const usdtIronBridgeEthereum = getUSDTIronBridgeEthereumAddress();
 
   return {
     arbitrum: {
@@ -113,17 +100,7 @@ export async function getUSDTCitreaMoonpayWarpConfig(
       mailbox: routerConfig.ethereum.mailbox,
       owner: MOONPAY_OWNER,
       ...oftRebalancingConfigByChain.ethereum,
-      allowedRebalancingBridges: {
-        ...oftRebalancingConfigByChain.ethereum?.allowedRebalancingBridges,
-        citrea: [
-          {
-            bridge: usdtIronBridgeEthereum,
-            approvedTokens: [tokens.ethereum.USDT],
-          },
-        ],
-      },
       remoteRouters: {
-        4114: { address: '0x2bef59e84615371304bd731601f6344F5F304504' },
         8453: { address: '0x7abBb4ea8a5895127500CF0C15830C9Eb9f61F96' },
         42161: { address: '0x75a9297db5F0349fd1d6f4030953Fe17175e06d4' },
       },

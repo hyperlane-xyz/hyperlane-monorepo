@@ -86,19 +86,6 @@ function getTBDAAddresses(): Record<EvmChain | 'citrea', string> {
   };
 }
 
-function getUSDTTBDAAddresses(): Record<'citrea' | 'ethereum', string> {
-  const route = getRegistry().getWarpRoute(WarpRouteIds.USDTCitreaIronBridge);
-  assert(route, 'CROSS/ctusd-usdt-ironbridge route not found in registry');
-
-  const find = (chain: 'citrea' | 'ethereum') => {
-    const token = route.tokens.find((t) => t.chainName === chain);
-    assert(token?.addressOrDenom, `Missing USDT TBDA address for ${chain}`);
-    return token.addressOrDenom;
-  };
-
-  return { citrea: find('citrea'), ethereum: find('ethereum') };
-}
-
 const CCTP_FAST_ROUTE_ADDRESSES = getCctpFastRouteAddresses();
 
 function isCctpChain(chain: ChainName): chain is EvmChain {
@@ -244,7 +231,6 @@ export async function getUSDCCitreaMoonpayWarpConfig(
   );
 
   const tbda = getTBDAAddresses();
-  const usdtTbda = getUSDTTBDAAddresses();
 
   return {
     solanamainnet: {
@@ -266,9 +252,7 @@ export async function getUSDCCitreaMoonpayWarpConfig(
       ...cctpRebalancingConfigByChain.arbitrum,
       allowedRebalancingBridges: {
         ...cctpRebalancingConfigByChain.arbitrum.allowedRebalancingBridges,
-        citrea: [
-          { bridge: tbda.arbitrum, approvedTokens: [tokens.arbitrum.USDC] },
-        ],
+        citrea: [{ bridge: tbda.arbitrum }],
       },
       hook: buildHook('arbitrum', MOONPAY_OWNER),
       interchainSecurityModule: buildInterchainSecurityModule(
@@ -285,7 +269,7 @@ export async function getUSDCCitreaMoonpayWarpConfig(
       ...cctpRebalancingConfigByChain.base,
       allowedRebalancingBridges: {
         ...cctpRebalancingConfigByChain.base.allowedRebalancingBridges,
-        citrea: [{ bridge: tbda.base, approvedTokens: [tokens.base.USDC] }],
+        citrea: [{ bridge: tbda.base }],
       },
       hook: buildHook('base', MOONPAY_OWNER),
       interchainSecurityModule: buildInterchainSecurityModule(
@@ -300,18 +284,9 @@ export async function getUSDCCitreaMoonpayWarpConfig(
       mailbox: routerConfig.citrea.mailbox,
       owner: MOONPAY_OWNER,
       allowedRebalancers: [REBALANCER],
-      allowedRebalancingBridges: {
-        ...Object.fromEntries(
-          EVM_CHAINS.map((dest) => [
-            dest,
-            [{ bridge: tbda.citrea, approvedTokens: [tokens.citrea.ctUSD] }],
-          ]),
-        ),
-        ethereum: [
-          { bridge: tbda.citrea, approvedTokens: [tokens.citrea.ctUSD] },
-          { bridge: usdtTbda.citrea, approvedTokens: [tokens.citrea.ctUSD] },
-        ],
-      },
+      allowedRebalancingBridges: Object.fromEntries(
+        EVM_CHAINS.map((dest) => [dest, [{ bridge: tbda.citrea }]]),
+      ),
       interchainSecurityModule: buildInterchainSecurityModule(
         'citrea',
         MOONPAY_OWNER,
@@ -329,9 +304,7 @@ export async function getUSDCCitreaMoonpayWarpConfig(
       ...cctpRebalancingConfigByChain.ethereum,
       allowedRebalancingBridges: {
         ...cctpRebalancingConfigByChain.ethereum.allowedRebalancingBridges,
-        citrea: [
-          { bridge: tbda.ethereum, approvedTokens: [tokens.ethereum.USDC] },
-        ],
+        citrea: [{ bridge: tbda.ethereum }],
       },
       hook: buildHook('ethereum', MOONPAY_OWNER),
       interchainSecurityModule: buildInterchainSecurityModule(
