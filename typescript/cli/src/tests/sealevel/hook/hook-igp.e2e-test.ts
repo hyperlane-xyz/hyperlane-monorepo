@@ -2,9 +2,14 @@ import { expect } from 'chai';
 
 import {
   type HookConfig,
+  HookType,
   type IgpHookConfig as IgpHookModuleConfig,
 } from '@hyperlane-xyz/sdk';
-import { assert, ProtocolType } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  normalizeAddressEvm,
+  ProtocolType,
+} from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
@@ -50,7 +55,7 @@ describe('hyperlane hook deploy / apply (Sealevel IGP E2E tests)', function () {
     await hyperlaneCore.deployOrUseExistingCore(HYP_KEY);
   });
 
-  it('round-trips contractVersion through deploy → read', async () => {
+  it('round-trips quoteSigners and contractVersion through deploy → read', async () => {
     const baseConfig = readYamlOrJson<HookConfig>(HOOK_CONFIG_FIXTURE_PATH);
     writeYamlOrJson(HOOK_DEPLOY_CONFIG_PATH, baseConfig);
 
@@ -65,8 +70,14 @@ describe('hyperlane hook deploy / apply (Sealevel IGP E2E tests)', function () {
       HOOK_READ_OUT_PATH,
     );
 
-    expect(read.type).to.equal('interchainGasPaymaster');
-    expect(read).to.have.property('contractVersion', '1.0.0');
+    assert(
+      read.type === HookType.INTERCHAIN_GAS_PAYMASTER,
+      `expected IGP hook, got ${read.type}`,
+    );
+    expect(read.contractVersion).to.equal('1.0.0');
+    expect((read.quoteSigners ?? []).map(normalizeAddressEvm)).to.deep.equal(
+      [SIGNER_A].map(normalizeAddressEvm),
+    );
   });
 
   it('updates the signer set via hook apply', async () => {
@@ -76,7 +87,7 @@ describe('hyperlane hook deploy / apply (Sealevel IGP E2E tests)', function () {
       HOOK_CONFIG_FIXTURE_PATH,
     );
     assert(
-      baseConfig.type === 'interchainGasPaymaster',
+      baseConfig.type === HookType.INTERCHAIN_GAS_PAYMASTER,
       'fixture must describe an IGP hook',
     );
     const updated: IgpHookModuleConfig = {
@@ -96,12 +107,12 @@ describe('hyperlane hook deploy / apply (Sealevel IGP E2E tests)', function () {
       HOOK_READ_OUT_PATH,
     );
 
+    assert(
+      read.type === HookType.INTERCHAIN_GAS_PAYMASTER,
+      `expected IGP hook, got ${read.type}`,
+    );
     expect(
-      new Set(
-        ((read as { quoteSigners?: string[] }).quoteSigners ?? []).map((s) =>
-          s.toLowerCase(),
-        ),
-      ),
-    ).to.deep.equal(new Set([SIGNER_A, SIGNER_B]));
+      new Set((read.quoteSigners ?? []).map(normalizeAddressEvm)),
+    ).to.deep.equal(new Set([SIGNER_A, SIGNER_B].map(normalizeAddressEvm)));
   });
 });
