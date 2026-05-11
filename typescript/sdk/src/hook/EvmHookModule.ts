@@ -25,6 +25,8 @@ import {
   ProxyAdmin__factory,
   ProtocolFee,
   ProtocolFee__factory,
+  RateLimitedHook,
+  RateLimitedHook__factory,
   StaticAggregationHook,
   StaticAggregationHookFactory__factory,
   StaticAggregationHook__factory,
@@ -91,12 +93,15 @@ import {
   OpStackHookConfig,
   PausableHookConfig,
   ProtocolFeeHookConfig,
+  RateLimitedHookConfig,
 } from './types.js';
 
 type HookModuleAddresses = {
   deployedHook: Address;
   mailbox: Address;
   proxyAdmin: Address;
+  // Injected by warp deploy path; used as constructor arg for RateLimitedHook.
+  rateLimitedSender?: Address;
 };
 
 class HookDeployer extends HyperlaneDeployer<{}, HookFactories> {
@@ -229,7 +234,9 @@ export class EvmHookModule extends HyperlaneModule<
     chain: ChainNameOrId;
     config: HookConfig;
     proxyFactoryFactories: HyperlaneAddresses<ProxyFactoryFactories>;
-    coreAddresses: Omit<CoreAddresses, 'validatorAnnounce' | 'quotedCalls'>;
+    coreAddresses: Omit<CoreAddresses, 'validatorAnnounce' | 'quotedCalls'> & {
+      rateLimitedSender?: Address;
+    };
     multiProvider: MultiProvider;
     ccipContractCache?: CCIPContractCache;
     contractVerifier?: ContractVerifier;
@@ -339,6 +346,14 @@ export class EvmHookModule extends HyperlaneModule<
         currentConfig: current,
         targetConfig: target,
       });
+    } else if (
+      current.type === HookType.RATE_LIMITED &&
+      target.type === HookType.RATE_LIMITED
+    ) {
+      updateTxs = await this.updateRateLimitedHook({
+        currentConfig: current,
+        targetConfig: target,
+      });
     } else {
       throw new Error(`Unsupported hook type: ${target.type}`);
     }
@@ -387,6 +402,30 @@ export class EvmHookModule extends HyperlaneModule<
         chainId: this.chainId,
         to: this.args.addresses.deployedHook,
         data,
+      });
+    }
+
+    return updateTxs;
+  }
+
+  protected async updateRateLimitedHook({
+    currentConfig,
+    targetConfig,
+  }: {
+    currentConfig: RateLimitedHookConfig;
+    targetConfig: RateLimitedHookConfig;
+  }): Promise<AnnotatedEV5Transaction[]> {
+    const updateTxs: AnnotatedEV5Transaction[] = [];
+
+    if (currentConfig.maxCapacity !== targetConfig.maxCapacity) {
+      updateTxs.push({
+        annotation: `Setting refill rate on RateLimitedHook on chain "${this.chain}" and address "${this.args.addresses.deployedHook}"`,
+        chainId: this.chainId,
+        to: this.args.addresses.deployedHook,
+        data: RateLimitedHook__factory.createInterface().encodeFunctionData(
+          'setRefillRate',
+          [targetConfig.maxCapacity],
+        ),
       });
     }
 
@@ -818,6 +857,8 @@ export class EvmHookModule extends HyperlaneModule<
           config.address,
           this.multiProvider.getSignerOrProvider(this.args.chain),
         );
+      case HookType.RATE_LIMITED:
+        return this.deployRateLimitedHook({ config });
       default:
         throw new Error(`Unsupported hook config: ${config}`);
     }
@@ -856,6 +897,31 @@ export class EvmHookModule extends HyperlaneModule<
       this.chain,
       hook.transferOwnership(config.owner, this.txOverrides),
     );
+
+    return hook;
+  }
+
+  protected async deployRateLimitedHook({
+    config,
+  }: {
+    config: RateLimitedHookConfig;
+  }): Promise<RateLimitedHook> {
+    this.logger.debug('Deploying RateLimitedHook...');
+    const deployer = new HookDeployer(this.multiProvider, hookFactories);
+    const sender = this.args.addresses.rateLimitedSender;
+    assert(sender, 'rateLimitedSender is required to deploy RateLimitedHook');
+    const hook = await deployer.deployContract(
+      this.chain,
+      HookType.RATE_LIMITED,
+      [this.args.addresses.mailbox, config.maxCapacity, sender],
+    );
+
+    if (config.owner) {
+      await this.multiProvider.handleTx(
+        this.chain,
+        hook.transferOwnership(config.owner, this.txOverrides),
+      );
+    }
 
     return hook;
   }

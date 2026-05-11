@@ -69,7 +69,12 @@ import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { RemoteRouters, resolveRouterMapConfig } from '../router/types.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { scalesEqual } from '../utils/decimals.js';
-import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
+import { IsmType } from '../ism/types.js';
+import {
+  extractIsmAndHookFactoryAddresses,
+  ismTreeContainsRateLimited,
+  setRateLimitedIsmRecipient,
+} from '../utils/ism.js';
 
 import {
   CCTP_PPM_STORAGE_VERSION,
@@ -160,9 +165,31 @@ export class EvmWarpModule extends HyperlaneModule<
    * @returns A promise that resolves to the token router configuration.
    */
   async read(): Promise<DerivedTokenRouterConfig> {
-    return this.reader.deriveWarpRouteConfig(
+    const config = await this.reader.deriveWarpRouteConfig(
       this.args.addresses.deployedTokenRoute,
     );
+    // recipient is always the token address itself — implicit in the warp
+    // context, so omit it from read() output to keep configs clean.
+    // Mutate in place to preserve the DerivedIsmConfig type (WithAddress<...>).
+    const stripRecipient = (node: unknown): void => {
+      if (typeof node !== 'object' || node === null) return;
+      const n = node as Record<string, unknown>;
+      if (n.type === IsmType.RATE_LIMITED) {
+        delete n.recipient;
+        return;
+      }
+      if (Array.isArray(n.modules)) n.modules.forEach(stripRecipient);
+      if (typeof n.domains === 'object' && n.domains !== null)
+        Object.values(n.domains as Record<string, unknown>).forEach(
+          stripRecipient,
+        );
+      if (n.lowerIsm) stripRecipient(n.lowerIsm);
+      if (n.upperIsm) stripRecipient(n.upperIsm);
+    };
+    const ism = config.interchainSecurityModule;
+    if (typeof ism !== 'string' && ismTreeContainsRateLimited(ism))
+      stripRecipient(ism);
+    return config;
   }
 
   /**
@@ -1237,6 +1264,7 @@ export class EvmWarpModule extends HyperlaneModule<
           mailbox: actualConfig.mailbox,
           multiProvider: this.multiProvider,
           proxyAdminAddress,
+          rateLimitedSender: this.args.addresses.deployedTokenRoute,
         },
       );
       hookTransactions = result.transactions;
@@ -1721,6 +1749,35 @@ export class EvmWarpModule extends HyperlaneModule<
       };
     }
 
+    // Always override recipient for any RateLimitedIsm node — it must be the
+    // token address.  Any user-supplied value is silently wrong (it would wire
+    // the ISM to the wrong chain), so we always set it from the deployed token
+    // route.  Handles both top-level and nested (e.g. inside aggregation) nodes.
+    // Thread the owner through so that an omitted ism.owner in expectedConfig
+    // doesn't look like an owner diff to EvmIsmModule.update (which would redeploy
+    // the ISM and reset the rate-limit bucket).
+    // Primary default: the warp-route owner (matches deploy path in token/deploy.ts).
+    // Fallback: the current on-chain ISM owner (same-type, same-owner in-place update).
+    let expectedIsm = expectedConfig.interchainSecurityModule;
+    if (
+      typeof expectedIsm === 'object' &&
+      ismTreeContainsRateLimited(expectedIsm)
+    ) {
+      const actualIsm = actualConfig.interchainSecurityModule;
+      const onChainOwner =
+        typeof actualIsm === 'object' && 'owner' in actualIsm
+          ? actualIsm.owner
+          : undefined;
+      const defaultOwner =
+        expectedConfig.owner ??
+        (typeof onChainOwner === 'string' ? onChainOwner : undefined);
+      expectedIsm = setRateLimitedIsmRecipient(
+        expectedIsm,
+        this.args.addresses.deployedTokenRoute,
+        defaultOwner,
+      );
+    }
+
     const ismModule = new EvmIsmModule(
       this.multiProvider,
       {
@@ -1738,9 +1795,7 @@ export class EvmWarpModule extends HyperlaneModule<
     this.logger.info(
       `Comparing target ISM config with ${this.args.chain} chain`,
     );
-    const updateTransactions = await ismModule.update(
-      expectedConfig.interchainSecurityModule,
-    );
+    const updateTransactions = await ismModule.update(expectedIsm);
     const { deployedIsm } = ismModule.serialize();
 
     return { deployedIsm, updateTransactions };

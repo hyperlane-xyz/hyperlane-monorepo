@@ -28,6 +28,8 @@ import { getEthereumAddress } from '../../utils/utils.js';
 import { keyIdentifier } from '../agent.js';
 import { CloudAgentKey } from '../keys.js';
 
+import { getAwsKmsClient } from './client.js';
+
 interface UnfetchedKey {
   fetched: false;
 }
@@ -40,7 +42,6 @@ interface FetchedKey {
 type RemoteKey = UnfetchedKey | FetchedKey;
 
 export class AgentAwsKey extends CloudAgentKey {
-  private client: KMSClient | undefined;
   private region: string;
   public remoteKey: RemoteKey = { fetched: false };
   protected logger: Logger;
@@ -69,15 +70,8 @@ export class AgentAwsKey extends CloudAgentKey {
   }
 
   async getClient(): Promise<KMSClient> {
-    if (this.client) {
-      this.logger.debug('Returning existing KMSClient instance');
-      return this.client;
-    }
-    this.logger.debug('Creating new KMSClient instance');
-    this.client = new KMSClient({
-      region: this.region,
-    });
-    return this.client;
+    this.logger.debug('Returning shared KMSClient instance');
+    return getAwsKmsClient(this.region);
   }
 
   get identifier() {

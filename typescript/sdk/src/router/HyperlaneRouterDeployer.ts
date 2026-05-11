@@ -107,6 +107,11 @@ export abstract class HyperlaneRouterDeployer<
     );
   }
 
+  protected async beforeTransferOwnership(
+    _contractsMap: HyperlaneContractsMap<Factories>,
+    _configMap: ChainMap<Config>,
+  ): Promise<void> {}
+
   async transferOwnership(
     contractsMap: HyperlaneContractsMap<Factories>,
     configMap: ChainMap<Config>,
@@ -150,6 +155,7 @@ export abstract class HyperlaneRouterDeployer<
     );
     await this.deployAndConfigureTokenFees(deployedContractsMap, configMap);
     await this.configureClients(deployedContractsMap, configMap);
+    await this.beforeTransferOwnership(deployedContractsMap, configMap);
     await this.transferOwnership(deployedContractsMap, configMap);
     this.logger.debug(`Finished deploying router contracts for all chains.`);
 

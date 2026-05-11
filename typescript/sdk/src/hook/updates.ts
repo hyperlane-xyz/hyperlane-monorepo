@@ -28,6 +28,7 @@ type UpdateHookParams = {
   setHookFunctionCallEncoder: (newHookAddress: Address) => string;
   ccipContractCache?: CCIPContractCache;
   contractVerifier?: ContractVerifier;
+  rateLimitedSender?: Address;
 };
 
 export async function getEvmHookUpdateTransactions(
@@ -48,6 +49,7 @@ export async function getEvmHookUpdateTransactions(
     multiProvider,
     ccipContractCache,
     contractVerifier,
+    rateLimitedSender,
   } = updateHookParams;
 
   const hookModule = new EvmHookModule(
@@ -63,6 +65,7 @@ export async function getEvmHookUpdateTransactions(
           typeof actualHookConfig === 'string'
             ? actualHookConfig
             : actualHookConfig.address,
+        ...(rateLimitedSender ? { rateLimitedSender } : {}),
       },
     },
     ccipContractCache,

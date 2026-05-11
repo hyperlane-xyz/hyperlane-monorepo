@@ -4,6 +4,7 @@ import { BigNumber, constants } from 'ethers';
 import {
   CrossCollateralRouter__factory,
   ERC20__factory,
+  MailboxClient__factory,
   EverclearTokenBridge__factory,
   GasRouter,
   IMessageTransmitter__factory,
@@ -37,6 +38,7 @@ import {
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { EvmTokenFeeModule } from '../fee/EvmTokenFeeModule.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
+import { IsmConfig } from '../ism/types.js';
 import { PredicateWrapperDeployer } from '../predicate/PredicateDeployer.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { GasRouterDeployer } from '../router/GasRouterDeployer.js';
@@ -44,6 +46,7 @@ import { ProxiedFactories, resolveRouterMapConfig } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
 
 import { normalizeScale } from '../utils/decimals.js';
+import { setRateLimitedIsmRecipient } from '../utils/ism.js';
 import {
   CCTP_PPM_PRECISION_VERSION,
   CCTP_PPM_STORAGE_VERSION,
@@ -879,8 +882,58 @@ abstract class TokenDeployer<
     );
   }
 
+  // Wire rate-limited ISMs BEFORE ownership transfer so that
+  // setInterchainSecurityModule succeeds regardless of config.owner.
+  // Handles both top-level RateLimitedIsm and ISMs nested inside composites
+  // (aggregation, routing, etc.) by setting `recipient` on every RATE_LIMITED
+  // node in the tree before deploying.
+  protected async setRateLimitedIsms(
+    rateLimitedIsms: ChainMap<IsmConfig>,
+    configMap: ChainMap<HypTokenRouterConfig>,
+    deployedContractsMap: HyperlaneContractsMap<Factories>,
+  ): Promise<void> {
+    const ismFactory = this.options.ismFactory;
+    assert(
+      ismFactory,
+      'ismFactory is required to deploy RateLimitedIsm — pass it to the deployer constructor',
+    );
+
+    await promiseObjAll(
+      objMap(rateLimitedIsms, async (chain, ismConfig) => {
+        const router = this.router(deployedContractsMap[chain]);
+        const mailbox = configMap[chain].mailbox;
+        const defaultOwner = configMap[chain].owner;
+
+        const resolvedIsm = setRateLimitedIsmRecipient(
+          ismConfig,
+          router.address,
+          defaultOwner,
+        );
+
+        const deployedIsm = await ismFactory.deploy({
+          destination: chain,
+          config: resolvedIsm,
+          mailbox,
+        });
+
+        const tokenContract = MailboxClient__factory.connect(
+          router.address,
+          this.multiProvider.getProvider(chain),
+        );
+        await this.multiProvider.sendTransaction(chain, {
+          to: router.address,
+          data: tokenContract.interface.encodeFunctionData(
+            'setInterchainSecurityModule',
+            [deployedIsm.address],
+          ),
+        });
+      }),
+    );
+  }
+
   async deploy(
     configMap: ChainMap<HypTokenRouterConfig>,
+    rateLimitedIsms?: ChainMap<IsmConfig>,
   ): Promise<HyperlaneContractsMap<Factories & ProxiedFactories>> {
     // Fail fast if any chain requires a predicate wrapper but lacks the factory.
     // Checked before any on-chain work to avoid partial deployments.
@@ -890,6 +943,16 @@ abstract class TokenDeployer<
       assert(
         factoryContracts?.staticAggregationHookFactory,
         `staticAggregationHookFactory not found for ${chain}. Ensure proxy factories are deployed.`,
+      );
+    }
+
+    // Fail fast if rateLimitedIsms are requested but ismFactory is missing.
+    // setRateLimitedIsms runs after super.deploy(), so catching this early
+    // prevents partial on-chain work before hitting the same assert there.
+    if (rateLimitedIsms && Object.keys(rateLimitedIsms).length > 0) {
+      assert(
+        this.options.ismFactory,
+        'ismFactory is required to deploy RateLimitedIsm — pass it to the deployer constructor',
       );
     }
 
@@ -918,6 +981,7 @@ abstract class TokenDeployer<
         owner: await this.multiProvider.getSigner(chain).getAddress(),
       })),
     );
+
     const directBridgeContracts: Record<string, Record<string, unknown>> = {};
     const oftContracts: Record<string, Record<string, unknown>> = {};
     for (const [chain, config] of Object.entries(resolvedConfigMap)) {
@@ -1000,6 +1064,18 @@ abstract class TokenDeployer<
     await this.deployPredicateWrappers(configMap, deployedContractsMap);
 
     await this.enrollCrossCollateralRouters(configMap, deployedContractsMap);
+
+    // RateLimitedIsms are wired after enrollment. A brief window exists where
+    // the token's effective ISM is the mailbox defaultIsm, but it is inert on a
+    // fresh deploy: no remote peers are enrolled yet, so no valid inbound message
+    // can arrive and be handled by the token during that window.
+    if (rateLimitedIsms && Object.keys(rateLimitedIsms).length > 0) {
+      await this.setRateLimitedIsms(
+        rateLimitedIsms,
+        configMap,
+        deployedContractsMap,
+      );
+    }
 
     await super.transferOwnership(deployedContractsMap, configMap);
 

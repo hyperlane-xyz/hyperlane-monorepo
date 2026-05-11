@@ -8,9 +8,12 @@ import {
   ERC20Test__factory,
   GasRouter__factory,
   LinearFee__factory,
+  MailboxClient__factory,
   ProxyAdmin,
   ProxyAdmin__factory,
+  RateLimitedIsm__factory,
   RoutingFee__factory,
+  StaticAggregationIsm__factory,
   TokenRouter__factory,
   TransparentUpgradeableProxy__factory,
   XERC20Test,
@@ -31,6 +34,12 @@ import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import { TokenFeeType } from '../fee/types.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
+import {
+  AggregationIsmConfig,
+  IsmConfig,
+  IsmType,
+  RateLimitedIsmConfig,
+} from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
@@ -646,6 +655,163 @@ describe('TokenDeployer', async () => {
       });
     });
   }
+
+  describe('RateLimitedIsm with non-deployer warp owner', () => {
+    let ismDeployer: HypERC20Deployer;
+    let ismFactory: HyperlaneIsmFactory;
+
+    before(async () => {
+      const pfd = new HyperlaneProxyFactoryDeployer(multiProvider);
+      const factories = await pfd.deploy(
+        multiProvider.mapKnownChains(() => ({})),
+      );
+      ismFactory = new HyperlaneIsmFactory(factories, multiProvider);
+    });
+
+    beforeEach(() => {
+      ismDeployer = new HypERC20Deployer(multiProvider, ismFactory);
+    });
+
+    it('wires RateLimitedIsm and transfers all ownership when warp owner differs from deployer', async () => {
+      const warpOwner = ethers.Wallet.createRandom().address;
+
+      const warpConfig: WarpRouteDeployConfigMailboxRequired = {
+        [chain]: {
+          ...config[chain],
+          type: TokenType.synthetic,
+          owner: warpOwner,
+        },
+      };
+
+      const rateLimitedIsms: Record<string, RateLimitedIsmConfig> = {
+        [chain]: {
+          type: IsmType.RATE_LIMITED,
+          maxCapacity: '86400',
+          owner: warpOwner,
+        },
+      };
+
+      const contracts = await ismDeployer.deploy(warpConfig, rateLimitedIsms);
+      const routerAddress = contracts[chain].synthetic.address;
+
+      // Token ISM should be the deployed RateLimitedIsm
+      const tokenClient = MailboxClient__factory.connect(
+        routerAddress,
+        multiProvider.getProvider(chain),
+      );
+      const ismAddress = await tokenClient.interchainSecurityModule();
+      expect(isZeroishAddress(ismAddress)).to.be.false;
+
+      // RateLimitedIsm owner should be warpOwner, not the deployer
+      const rateLimitedIsm = RateLimitedIsm__factory.connect(
+        ismAddress,
+        multiProvider.getProvider(chain),
+      );
+      expect((await rateLimitedIsm.owner()).toLowerCase()).to.equal(
+        warpOwner.toLowerCase(),
+      );
+
+      // Token ownership also transferred to warpOwner
+      const router = GasRouter__factory.connect(
+        routerAddress,
+        multiProvider.getProvider(chain),
+      );
+      expect((await router.owner()).toLowerCase()).to.equal(
+        warpOwner.toLowerCase(),
+      );
+    });
+
+    it('deploys RateLimitedIsm nested inside staticAggregationIsm and wires it correctly', async () => {
+      const warpOwner = ethers.Wallet.createRandom().address;
+
+      const warpConfig: WarpRouteDeployConfigMailboxRequired = {
+        [chain]: {
+          ...config[chain],
+          type: TokenType.synthetic,
+          owner: warpOwner,
+          // interchainSecurityModule not set — passed via rateLimitedIsms
+        },
+      };
+
+      const nestedIsmConfig: IsmConfig = {
+        type: IsmType.AGGREGATION,
+        threshold: 2,
+        modules: [
+          {
+            type: IsmType.PAUSABLE,
+            owner: warpOwner,
+            paused: false,
+          },
+          {
+            type: IsmType.RATE_LIMITED,
+            maxCapacity: '1000000000000000000',
+            owner: warpOwner,
+          },
+        ],
+      } satisfies AggregationIsmConfig;
+
+      const contracts = await ismDeployer.deploy(warpConfig, {
+        [chain]: nestedIsmConfig,
+      });
+      const routerAddress = contracts[chain].synthetic.address;
+
+      // Token ISM must be set (not zero)
+      const tokenClient = MailboxClient__factory.connect(
+        routerAddress,
+        multiProvider.getProvider(chain),
+      );
+      const ismAddress = await tokenClient.interchainSecurityModule();
+      expect(isZeroishAddress(ismAddress)).to.be.false;
+
+      // ISM must be a staticAggregationIsm with threshold 2
+      const aggregationIsm = StaticAggregationIsm__factory.connect(
+        ismAddress,
+        multiProvider.getProvider(chain),
+      );
+      const [modules, threshold] = await aggregationIsm.modulesAndThreshold(
+        ethers.constants.AddressZero,
+      );
+      expect(threshold).to.equal(2);
+      expect(modules).to.have.length(2);
+
+      // Find the RateLimitedIsm module by calling recipient() on each
+      let rateLimitedIsmAddress: string | undefined;
+      for (const moduleAddress of modules) {
+        const candidate = RateLimitedIsm__factory.connect(
+          moduleAddress,
+          multiProvider.getProvider(chain),
+        );
+        try {
+          const recipient = await candidate.recipient();
+          // recipient() succeeds only on RateLimitedIsm
+          expect(recipient.toLowerCase()).to.equal(routerAddress.toLowerCase());
+          rateLimitedIsmAddress = moduleAddress;
+          break;
+        } catch {
+          // Not a RateLimitedIsm — continue
+        }
+      }
+      expect(rateLimitedIsmAddress).to.not.be.undefined;
+
+      // RateLimitedIsm owner must be warpOwner
+      const rateLimitedIsm = RateLimitedIsm__factory.connect(
+        rateLimitedIsmAddress!,
+        multiProvider.getProvider(chain),
+      );
+      expect((await rateLimitedIsm.owner()).toLowerCase()).to.equal(
+        warpOwner.toLowerCase(),
+      );
+
+      // Token ownership transferred to warpOwner
+      const router = GasRouter__factory.connect(
+        routerAddress,
+        multiProvider.getProvider(chain),
+      );
+      expect((await router.owner()).toLowerCase()).to.equal(
+        warpOwner.toLowerCase(),
+      );
+    });
+  });
 
   describe('TokenFee with optional token for synthetic', () => {
     it('should deploy LinearFee without token and resolve to router address', async () => {

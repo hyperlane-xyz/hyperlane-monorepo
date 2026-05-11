@@ -1,5 +1,23 @@
 # @hyperlane-xyz/sdk
 
+## 33.1.1
+
+### Patch Changes
+
+- 9ad1bd0: The `parseCustomRpcHeaders` utility is now exported from the SDK barrel so consumers outside `SmartProvider` can apply the `custom_rpc_header` URL convention to their own RPC clients.
+- 530f02e: The IGP fee assertion is relaxed for Sealevel cross-collateral transfers; OffchainQuotedLinearFee is supported as a sub-fee of routing fees; warp deployment errors now surface their cause chain and Solana preflight logs.
+- 9670e43: Fixed warp check for collateralDepositAddress routes
+- cc90a8f: Improved derive token type by only fetching code once
+  - @hyperlane-xyz/aleo-sdk@33.1.1
+  - @hyperlane-xyz/starknet-core@33.1.1
+  - @hyperlane-xyz/cosmos-sdk@33.1.1
+  - @hyperlane-xyz/radix-sdk@33.1.1
+  - @hyperlane-xyz/utils@33.1.1
+  - @hyperlane-xyz/deploy-sdk@6.0.1
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/provider-sdk@6.0.1
+  - @hyperlane-xyz/tron-sdk@23.0.6
+
 ## 33.1.0
 
 ### Minor Changes

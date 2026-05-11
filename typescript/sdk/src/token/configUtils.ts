@@ -53,6 +53,7 @@ import {
   WarpRouteDeployConfigMailboxRequired,
   isCollateralTokenConfig,
   isCrossCollateralTokenConfig,
+  isDepositAddressTokenConfig,
   isMovableCollateralTokenConfig,
   isNativeTokenConfig,
   isOftTokenConfig,
@@ -423,6 +424,16 @@ export function normalizeWarpDeployConfigForCheck(params: {
   const { multiProvider, warpDeployConfig } = params;
 
   return objMap(warpDeployConfig, (_chain, config) => {
+    if (isDepositAddressTokenConfig(config)) {
+      return {
+        ...config,
+        mailbox: constants.AddressZero,
+        interchainSecurityModule: constants.AddressZero,
+        remoteRouters: {},
+        destinationGas: undefined,
+      };
+    }
+
     if (!isOftTokenConfig(config)) {
       return config;
     }
