@@ -144,6 +144,19 @@ export type {
 export { getCrossCollateralTransferRemoteToInstruction } from './instructions/cross-collateral-token.js';
 export type { TransferRemoteToInstructionData } from './instructions/cross-collateral-token.js';
 
+// Address Lookup Table reader / writer pair. Wraps the on-chain ALT
+// program account behind the same ArtifactReader / ArtifactWriter
+// contract used by other SVM artifacts.
+export {
+  SvmAddressLookupTableReader as SealevelAddressLookupTableReader,
+  SvmAddressLookupTableWriter as SealevelAddressLookupTableWriter,
+} from './alt/address-lookup-table.js';
+export type {
+  SvmAltConfig as SealevelAltConfig,
+  SvmDeployedAlt as SealevelDeployedAlt,
+} from './alt/address-lookup-table.js';
+export type { AddressesByLookupTableAddress } from '@solana/kit';
+
 // Account decoders
 export {
   decodeHyperlaneTokenAccount,
