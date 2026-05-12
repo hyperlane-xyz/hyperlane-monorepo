@@ -241,6 +241,19 @@ const QUOTE_TOKEN_DECIMALS = 9;
 const TOKEN_EXCHANGE_RATE_SCALE = 10_000_000_000_000_000_000n; // 1e19
 const IGP_OVERHEAD_GAS = 50_000n; // configured per-domain overhead
 
+// Quote-vs-config distinguisher for the fee program: the route config is
+// pinned at (5000, 2500) so the legacy-config path would charge 5000 on a
+// 100k transfer. The signed fee quotes pin (1000, 500) instead, so the
+// post-tx beneficiary delta is 1000 iff the offchain-quoted path drove
+// pricing — same flavor as the 10x IGP gas-price differential above.
+const ROUTE_MAX_FEE_PARAM = '5000';
+const ROUTE_HALF_AMOUNT_PARAM = '2500';
+const QUOTE_MAX_FEE = 1000n;
+const QUOTE_HALF_AMOUNT = 500n;
+// fee = min(QUOTE_MAX_FEE, TRANSFER_AMOUNT * QUOTE_MAX_FEE / (2 * QUOTE_HALF_AMOUNT))
+//     = min(1000, 100000 * 1000 / 1000) = 1000
+const EXPECTED_QUOTE_DRIVEN_FEE = 1000n;
+
 interface IgpQuoteSetup {
   signedQuote: SvmSignedQuote;
   transientQuotePda: Address;
@@ -590,7 +603,7 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
         routes: {
           [DOMAIN_REMOTE]: {
             type: FeeStrategyType.offchainQuotedLinear,
-            params: rawParams('5000', '2500'),
+            params: rawParams(ROUTE_MAX_FEE_PARAM, ROUTE_HALF_AMOUNT_PARAM),
             quoteSigners: [feeQuoteSignerHex],
           },
         },
@@ -665,7 +678,7 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
       feeAccountPda,
       feeQuoteSignerPrivateKey,
       context: buildFeeQuoteContext(DOMAIN_REMOTE, RECIPIENT, TRANSFER_AMOUNT),
-      data: buildFeeQuoteData(5000n, 2500n),
+      data: buildFeeQuoteData(QUOTE_MAX_FEE, QUOTE_HALF_AMOUNT),
       destinationDomain: DOMAIN_REMOTE,
       targetRouter: ZERO_TARGET_ROUTER,
       localDomain: DOMAIN_LOCAL,
@@ -802,17 +815,16 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
       `native collateral balance ${nativeBalance.value} < ${TRANSFER_AMOUNT}`,
     ).to.be.true;
 
-    // Fee beneficiary's lamport balance grew by the exact linear-formula fee:
-    //   fee = min(max_fee, amount * max_fee / (2 * half_amount))
-    //       = min(5000, 100000 * 5000 / (2 * 2500))
-    //       = min(5000, 100000) = 5000
-    const EXPECTED_FEE = 5000n;
+    // Fee beneficiary's lamport balance grew by the QUOTE-derived fee
+    // (1000), not the route-derived fee (5000). Exact equality proves the
+    // offchain-quoted path drove pricing — if the warp ever fell back to
+    // the route's configured params, the delta would be 5000.
     const beneficiaryBalanceAfter = BigInt(
       (await rpc.getBalance(feeBeneficiary).send()).value,
     );
     expect(beneficiaryBalanceAfter - beneficiaryBalanceBefore).to.equal(
-      EXPECTED_FEE,
-      'fee beneficiary delta must match the linear-formula fee exactly',
+      EXPECTED_QUOTE_DRIVEN_FEE,
+      'fee beneficiary delta must match the QUOTE-computed fee exactly (not the route-config fee)',
     );
   });
 
@@ -889,7 +901,7 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
           [DOMAIN_REMOTE]: {
             [routerKey]: {
               type: FeeStrategyType.offchainQuotedLinear,
-              params: rawParams('5000', '2500'),
+              params: rawParams(ROUTE_MAX_FEE_PARAM, ROUTE_HALF_AMOUNT_PARAM),
               quoteSigners: [feeQuoteSignerHex],
             },
           },
@@ -973,7 +985,7 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
         TRANSFER_AMOUNT,
         REMOTE_ROUTER,
       ),
-      data: buildFeeQuoteData(5000n, 2500n),
+      data: buildFeeQuoteData(QUOTE_MAX_FEE, QUOTE_HALF_AMOUNT),
       destinationDomain: DOMAIN_REMOTE,
       targetRouter: REMOTE_ROUTER,
       localDomain: DOMAIN_LOCAL,
@@ -1128,7 +1140,9 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
       'escrow token balance must equal the transferred amount',
     );
 
-    // Fee beneficiary ATA's token balance = linear-formula fee (5000).
+    // Fee beneficiary ATA balance = QUOTE-derived fee (1000), not the
+    // route-derived fee (5000). Exact equality proves the offchain-quoted
+    // path drove pricing.
     const beneficiaryAtaAccount = await rpc
       .getAccountInfo(feeBeneficiaryAta, { encoding: 'base64' })
       .send();
@@ -1138,8 +1152,8 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
       'base64',
     ).readBigUInt64LE(64);
     expect(beneficiaryAtaAmount).to.equal(
-      5000n,
-      'fee beneficiary ATA balance must equal the linear-formula fee (5000)',
+      EXPECTED_QUOTE_DRIVEN_FEE,
+      'fee beneficiary ATA balance must match the QUOTE-computed fee exactly (not the route-config fee)',
     );
   });
 });
