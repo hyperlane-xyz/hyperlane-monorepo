@@ -62,7 +62,12 @@ import {
 export type SvmIgpHookWriterConfig = Readonly<{
   /** How to obtain the deployed program: fresh bytes or pre-existing ID. */
   program: SvmProgramTarget;
-  /** Hyperlane domain id this IGP serves; used for IgpFeeConfig.domain_id. */
+  /**
+   * Local Hyperlane domain this IGP serves (the origin chain for outbound
+   * messages). Written into IgpFeeConfig.domain_id at init and matched
+   * against it on every fee-config update. Not a remote-fee or
+   * destination domain.
+   */
   domainId: number;
 }>;
 
