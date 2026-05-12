@@ -250,9 +250,9 @@ async fn metadata_build(
             continue;
         }
 
-        // Retry this URL while attestation is pending (transient), up to 30 attempts at 1s intervals.
+        // Retry this URL while attestation is pending (transient), up to 10 attempts at 1s intervals.
         // Move to the next URL only on hard failures.
-        const MAX_PENDING_RETRIES: u32 = 30;
+        const MAX_PENDING_RETRIES: u32 = 10;
         let mut pending_attempts = 0u32;
         tracing::info!(?ism_address, url, message_id = ?message.id(), "Fetching CCIP read offchain data");
         loop {
