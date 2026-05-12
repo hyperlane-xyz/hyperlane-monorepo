@@ -177,18 +177,6 @@ export class SvmAddressLookupTableWriter
     const { config: current, deployed: currentDeployed } =
       await this.read(address);
 
-    // Fail fast: a frozen ALT cannot be mutated for any reason.
-    assert(
-      !current.frozen && !isNullish(currentDeployed.authority),
-      `Cannot mutate ALT ${address}: table is frozen (no further extends or freezes accepted).`,
-    );
-
-    // Emit txs with the on-chain authority as both signer and fee payer.
-    // The actual signing happens downstream — same pattern as warp/IGP
-    // writers — so the writer's own signer is only used by create().
-    const authority = currentDeployed.authority;
-    const txs: AnnotatedSvmTransaction[] = [];
-
     // Address diff: ALT entries are append-only.
     const currentSet = new Set(
       current.addresses.map((a) => normalizeAddressSealevel(a)),
@@ -205,6 +193,31 @@ export class SvmAddressLookupTableWriter
     const toAdd = expected.addresses.filter(
       (a) => !currentSet.has(normalizeAddressSealevel(a)),
     );
+
+    // A frozen table accepts no further mutations. If the address set
+    // already matches expected, there's nothing to reconcile — the
+    // freeze bit can't be flipped either direction. Otherwise, the
+    // requested extend is unsatisfiable.
+    if (current.frozen) {
+      assert(
+        toAdd.length === 0,
+        `Cannot extend ALT ${address}: table is frozen.`,
+      );
+      return [];
+    }
+
+    // Unfrozen path. The on-chain authority must be set.
+    assert(
+      !isNullish(currentDeployed.authority),
+      `ALT ${address} is reported unfrozen but has no on-chain authority — inconsistent state.`,
+    );
+
+    // Emit txs with the on-chain authority as both signer and fee payer.
+    // The actual signing happens downstream — same pattern as warp/IGP
+    // writers — so the writer's own signer is only used by create().
+    const authority = currentDeployed.authority;
+    const txs: AnnotatedSvmTransaction[] = [];
+
     // Emit extends first; once a freeze lands the ALT is terminal so any
     // remaining extends would fail.
     for (const batch of chunk(toAdd, EXTEND_CHUNK_SIZE)) {
