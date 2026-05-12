@@ -775,9 +775,7 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
         transferRemoteIx,
       ],
       additionalSigners: [uniqueMessageAccount],
-      addressLookupTables: {
-        [altDeployed.deployed.address]: altDeployed.config.addresses,
-      },
+      addressLookupTables: [altDeployed.deployed.address],
     });
     expect(receipt.signature, 'tx signature').to.be.a('string');
 
@@ -1097,9 +1095,7 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
         transferRemoteToIx,
       ],
       additionalSigners: [uniqueMessageAccount],
-      addressLookupTables: {
-        [altDeployed.deployed.address]: altDeployed.config.addresses,
-      },
+      addressLookupTables: [altDeployed.deployed.address],
     });
     expect(receipt.signature, 'tx signature').to.be.a('string');
 
