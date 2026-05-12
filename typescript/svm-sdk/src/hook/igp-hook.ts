@@ -404,6 +404,9 @@ export class SvmIgpHookWriter
         domainId: this.config.domainId,
         expectedQuoteSigners: config.quoteSigners,
         currentFeeConfig: current.deployed.feeConfig,
+        // Gate against the version the fee-config txs will execute under:
+        // post-upgrade when an upgrade is queued earlier in this batch,
+        // current on-chain version otherwise.
         effectiveContractVersion:
           upgradingToVersion ?? current.config.contractVersion,
       })),
