@@ -2,7 +2,69 @@ import { expect } from 'chai';
 
 import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
-import { IcaMessageType, icaMatchingList } from './relayer.js';
+import {
+  IcaMessageType,
+  icaMatchingList,
+  multiAddressChainMapMatchingList,
+} from './relayer.js';
+
+describe('multiAddressChainMapMatchingList', () => {
+  const addrA = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+  const addrB = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+  const addrC = '0xcccccccccccccccccccccccccccccccccccccccc';
+
+  it('expands all (source, destination) pairs, skipping self-pairs', () => {
+    const result = multiAddressChainMapMatchingList({
+      ethereum: [addrA],
+      optimism: [addrC],
+      base: [addrB],
+    });
+    // 3 chains → 3*2 = 6 entries
+    expect(result).to.have.lengthOf(6);
+    result.forEach((entry) =>
+      expect(entry.originDomain).to.not.equal(entry.destinationDomain),
+    );
+  });
+
+  it('sets senderAddress and recipientAddress as bytes32 arrays for the correct chains', () => {
+    const result = multiAddressChainMapMatchingList({
+      ethereum: [addrA, addrB], // domain 1
+      optimism: [addrC], // domain 10
+    });
+    expect(result).to.have.lengthOf(2);
+
+    const ethToOp = result.find(
+      (e) => e.originDomain === 1 && e.destinationDomain === 10,
+    );
+    expect(ethToOp).to.exist;
+    expect(ethToOp!.senderAddress).to.deep.equal(
+      [addrA, addrB].map((a) => addressToBytes32(a)),
+    );
+    expect(ethToOp!.recipientAddress).to.deep.equal([addressToBytes32(addrC)]);
+
+    const opToEth = result.find(
+      (e) => e.originDomain === 10 && e.destinationDomain === 1,
+    );
+    expect(opToEth).to.exist;
+    expect(opToEth!.senderAddress).to.deep.equal([addressToBytes32(addrC)]);
+    expect(opToEth!.recipientAddress).to.deep.equal(
+      [addrA, addrB].map((a) => addressToBytes32(a)),
+    );
+  });
+
+  it('deduplicates addresses within a chain', () => {
+    const result = multiAddressChainMapMatchingList({
+      ethereum: [addrA, addrA, addrB],
+      optimism: [addrC],
+    });
+    const ethToOp = result.find(
+      (e) => e.originDomain === 1 && e.destinationDomain === 10,
+    );
+    expect(ethToOp!.senderAddress).to.deep.equal(
+      [addrA, addrB].map((a) => addressToBytes32(a)),
+    );
+  });
+});
 
 describe('icaMatchingList', () => {
   // Velodrome Universal Router owner used in mainnet config
