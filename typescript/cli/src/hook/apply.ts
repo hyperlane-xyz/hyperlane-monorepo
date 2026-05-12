@@ -8,7 +8,13 @@ import {
   extractIsmAndHookFactoryAddresses,
   isHookCompatible,
 } from '@hyperlane-xyz/sdk';
-import { type Address, assert, isEVMLike, mustGet } from '@hyperlane-xyz/utils';
+import {
+  type Address,
+  assert,
+  eqAddress,
+  isEVMLike,
+  mustGet,
+} from '@hyperlane-xyz/utils';
 
 import { type WriteCommandContext } from '../context/types.js';
 import { validateHookConfigForAltVM } from '../deploy/configValidation.js';
@@ -70,7 +76,7 @@ export async function runHookApply({
   assert(chainAddresses.mailbox, `No mailbox address found for chain ${chain}`);
 
   const protocol = multiProvider.getProtocol(chain);
-  const transactions: TypedAnnotatedTransaction[] = isEVMLike(protocol)
+  const { address: resultAddress, transactions } = isEVMLike(protocol)
     ? await generateEvmHookUpdateTxs({
         context,
         chain,
@@ -86,10 +92,19 @@ export async function runHookApply({
         chainAddresses,
       });
 
-  if (transactions.length === 0) {
+  const redeployed = !eqAddress(resultAddress, address);
+  if (redeployed) {
     logGreen(
-      `Hook config on ${chain} is the same as target. No updates needed.`,
+      `Hook on ${chain} was redeployed to ${resultAddress} (type or immutable field changed). The original hook at ${address} is no longer referenced — update any callers.`,
     );
+  }
+
+  if (transactions.length === 0) {
+    if (!redeployed) {
+      logGreen(
+        `Hook config on ${chain} is the same as target. No updates needed.`,
+      );
+    }
     return;
   }
 
@@ -118,7 +133,7 @@ async function generateEvmHookUpdateTxs({
   address: Address;
   hookConfig: Exclude<HookConfig, string>;
   chainAddresses: Record<string, string>;
-}): Promise<TypedAnnotatedTransaction[]> {
+}): Promise<{ address: Address; transactions: TypedAnnotatedTransaction[] }> {
   const { multiProvider } = context;
 
   assert(
@@ -140,7 +155,11 @@ async function generateEvmHookUpdateTxs({
     config: hookConfig,
   });
 
-  return evmHookModule.update(hookConfig);
+  const transactions = await evmHookModule.update(hookConfig);
+  return {
+    address: evmHookModule.serialize().deployedHook,
+    transactions,
+  };
 }
 
 async function generateNonEvmHookUpdateTxs({
@@ -155,7 +174,7 @@ async function generateNonEvmHookUpdateTxs({
   address: Address;
   hookConfig: Exclude<HookConfig, string>;
   chainAddresses: Record<string, string>;
-}): Promise<TypedAnnotatedTransaction[]> {
+}): Promise<{ address: Address; transactions: TypedAnnotatedTransaction[] }> {
   const { multiProvider, altVmSigners } = context;
 
   const signer = mustGet(altVmSigners, chain);
@@ -169,10 +188,8 @@ async function generateNonEvmHookUpdateTxs({
   // deployOrUpdate handles both 'update existing' and 'redeploy when type
   // or immutable fields changed' — callers express intent declaratively
   // rather than picking between writer.create() and .update() themselves.
-  const { transactions } = await writer.deployOrUpdate({
+  return writer.deployOrUpdate({
     actualAddress: address,
     expectedConfig: validateHookConfigForAltVM(hookConfig, chain),
   });
-
-  return transactions;
 }
