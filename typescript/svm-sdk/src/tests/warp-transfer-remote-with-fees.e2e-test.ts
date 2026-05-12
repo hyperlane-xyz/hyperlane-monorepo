@@ -11,7 +11,7 @@ import { expect } from 'chai';
 import { before, describe, it } from 'mocha';
 
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
-import { sleep } from '@hyperlane-xyz/utils';
+import { assert, sleep } from '@hyperlane-xyz/utils';
 import {
   FeeParamsType,
   FeeStrategyType,
@@ -99,7 +99,13 @@ const REMOTE_GAS = 50_000n;
 const TRANSFER_AMOUNT = 100_000n;
 const ZERO_TARGET_ROUTER = new Uint8Array(32);
 
+const U48_MAX = (1n << 48n) - 1n;
+
 function u48BE(seconds: bigint): Uint8Array {
+  assert(
+    seconds >= 0n && seconds <= U48_MAX,
+    `u48BE: ${seconds} does not fit in u48 (0..${U48_MAX})`,
+  );
   const out = new Uint8Array(6);
   for (let i = 5; i >= 0; i -= 1) {
     out[i] = Number(seconds & 0xffn);
