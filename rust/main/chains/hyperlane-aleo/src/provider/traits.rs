@@ -67,7 +67,7 @@ pub struct RpcClient<Client: HttpClient>(Client);
 
 #[derive(serde::Deserialize)]
 struct MappingValueWithMeta {
-    data: Plaintext<CurrentNetwork>,
+    data: Option<Plaintext<CurrentNetwork>>,
     height: u32,
 }
 
@@ -209,16 +209,20 @@ impl<Client: HttpClient> RpcClient<Client> {
         program_id: &str,
         mapping_name: &str,
         mapping_key: &str,
-    ) -> ChainResult<(T, u32)> {
+    ) -> ChainResult<Option<(T, u32)>> {
         let response: MappingValueWithMeta = self
             .request(
                 &format!("program/{program_id}/mapping/{mapping_name}/{mapping_key}"),
                 Some(serde_json::json!({ "metadata": true })),
             )
             .await?;
-        let plain_text = response.data;
-        let result = T::parse_value(plain_text).map_err(HyperlaneAleoError::from)?;
-        Ok((result, response.height))
+        match response.data {
+            None => Ok(None),
+            Some(plain_text) => {
+                let result = T::parse_value(plain_text).map_err(HyperlaneAleoError::from)?;
+                Ok(Some((result, response.height)))
+            }
+        }
     }
 
     /// Gets a transaction by ID

@@ -122,10 +122,14 @@ impl<C: AleoClient> Indexer<H256> for AleoDeliveryIndexer<C> {
 impl<C: AleoClient> SequenceAwareIndexer<H256> for AleoDeliveryIndexer<C> {
     /// Return the latest finalized sequence (if any) and block number
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let (mailbox, height) = self
+        let tip = AleoIndexer::get_finalized_block_number(self).await?;
+        let Some((mailbox, height)) = self
             .provider
             .get_mapping_value_meta::<AleoMailboxStruct>(&self.program, "mailbox", "true")
-            .await?;
+            .await?
+        else {
+            return Ok((None, tip));
+        };
         Ok((Some(mailbox.process_count), height))
     }
 }

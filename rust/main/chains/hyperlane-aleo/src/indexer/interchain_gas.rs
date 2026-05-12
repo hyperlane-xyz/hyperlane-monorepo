@@ -130,14 +130,18 @@ impl<C: AleoClient> Indexer<InterchainGasPayment> for AleoInterchainGasIndexer<C
 impl<C: AleoClient> SequenceAwareIndexer<InterchainGasPayment> for AleoInterchainGasIndexer<C> {
     /// Return the latest finalized sequence (if any) and block number
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let (igp, height) = self
+        let tip = AleoIndexer::get_finalized_block_number(self).await?;
+        let Some((igp, height)) = self
             .client
             .get_mapping_value_meta::<AleoInterchainGasPaymaster>(
                 &self.program,
                 "igps",
                 &self.aleo_address.to_string(),
             )
-            .await?;
+            .await?
+        else {
+            return Ok((None, tip));
+        };
         Ok((Some(igp.count), height))
     }
 }

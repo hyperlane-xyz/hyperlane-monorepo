@@ -129,14 +129,18 @@ impl<C: AleoClient> Indexer<MerkleTreeInsertion> for AleoMerkleTreeHook<C> {
 impl<C: AleoClient> SequenceAwareIndexer<MerkleTreeInsertion> for AleoMerkleTreeHook<C> {
     /// Return the latest finalized sequence (if any) and block number
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let (mth, height) = self
+        let tip = AleoIndexer::get_finalized_block_number(self).await?;
+        let Some((mth, height)) = self
             .client
             .get_mapping_value_meta::<AleoMerkleTreeHookStruct>(
                 &self.program,
                 "merkle_tree_hooks",
                 &self.aleo_address.to_string(),
             )
-            .await?;
+            .await?
+        else {
+            return Ok((None, tip));
+        };
         Ok((Some(mth.tree.count), height))
     }
 }
@@ -147,14 +151,20 @@ impl<C: AleoClient> MerkleTreeHook for AleoMerkleTreeHook<C> {
     ///
     /// - `reorg_period` is ignored as Aleo has a BFT consensus algorithm with instant finality.
     async fn tree(&self, _reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkleAtBlock> {
-        let (mth, block_height) = self
+        let Some((mth, block_height)) = self
             .client
             .get_mapping_value_meta::<AleoMerkleTreeHookStruct>(
                 &self.program,
                 "merkle_tree_hooks",
                 &self.aleo_address.to_string(),
             )
-            .await?;
+            .await?
+        else {
+            return Ok(IncrementalMerkleAtBlock {
+                tree: Default::default(),
+                block_height: None,
+            });
+        };
         Ok(IncrementalMerkleAtBlock {
             tree: mth.tree.into(),
             block_height: Some(block_height.into()),
@@ -182,14 +192,25 @@ impl<C: AleoClient> MerkleTreeHook for AleoMerkleTreeHook<C> {
         &self,
         _reorg_period: &ReorgPeriod,
     ) -> ChainResult<CheckpointAtBlock> {
-        let (mth, block_height) = self
+        let Some((mth, block_height)) = self
             .client
             .get_mapping_value_meta::<AleoMerkleTreeHookStruct>(
                 &self.program,
                 "merkle_tree_hooks",
                 &self.aleo_address.to_string(),
             )
-            .await?;
+            .await?
+        else {
+            return Ok(CheckpointAtBlock {
+                checkpoint: Checkpoint {
+                    merkle_tree_hook_address: self.address,
+                    mailbox_domain: self.domain.id(),
+                    root: H256::zero(),
+                    index: 0,
+                },
+                block_height: None,
+            });
+        };
         Ok(CheckpointAtBlock {
             checkpoint: Checkpoint {
                 merkle_tree_hook_address: self.address,

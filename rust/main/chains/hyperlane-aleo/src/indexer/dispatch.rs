@@ -102,10 +102,14 @@ impl<C: AleoClient> Indexer<HyperlaneMessage> for AleoDispatchIndexer<C> {
 impl<C: AleoClient> SequenceAwareIndexer<HyperlaneMessage> for AleoDispatchIndexer<C> {
     /// Return the latest finalized sequence (if any) and block number
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let (mailbox, height) = self
+        let tip = AleoIndexer::get_finalized_block_number(self).await?;
+        let Some((mailbox, height)) = self
             .provider
             .get_mapping_value_meta::<AleoMailboxStruct>(&self.program, "mailbox", "true")
-            .await?;
+            .await?
+        else {
+            return Ok((None, tip));
+        };
         Ok((Some(mailbox.nonce), height))
     }
 }
