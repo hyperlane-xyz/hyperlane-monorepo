@@ -3,6 +3,7 @@ import {
   type AccountMeta,
   address,
   type Address,
+  assertIsSignature,
   generateKeyPairSigner,
   getAddressCodec,
   type Instruction,
@@ -477,6 +478,52 @@ async function assertCommonPostConditions(args: {
   );
 }
 
+/**
+ * Fetches the landed tx, asserts it was compiled as v0 with at least
+ * one ALT lookup, and that the lookup references our route ALT.
+ * Without this, a regression that silently inlined accounts (skipping
+ * ALT compression) would land a fat-but-valid tx and pass the test —
+ * the assertion on `receipt.signature` alone is too weak.
+ */
+async function assertTxUsedAlt(args: {
+  rpc: ReturnType<typeof createRpc>;
+  signature: string;
+  expectedAltAddress: Address;
+}): Promise<void> {
+  // receipt.signature is `string`; narrow to kit's branded `Signature` via
+  // the type guard so `getTransaction` accepts it without an `as` cast.
+  const sig = args.signature;
+  assertIsSignature(sig);
+  const fetched = await args.rpc
+    .getTransaction(sig, {
+      commitment: 'confirmed',
+      maxSupportedTransactionVersion: 0,
+      encoding: 'json',
+    })
+    .send();
+  expect(fetched, 'tx is indexed on-chain').to.not.be.null;
+  const message = fetched!.transaction.message;
+  const lookups =
+    'addressTableLookups' in message ? message.addressTableLookups : [];
+  expect(
+    lookups.length,
+    'tx emitted at least one ALT lookup',
+  ).to.be.greaterThan(0);
+  expect(
+    lookups.some((l) => l.accountKey === args.expectedAltAddress),
+    `tx referenced expected ALT ${args.expectedAltAddress}`,
+  ).to.be.true;
+  const totalAltResolved = lookups.reduce(
+    (sum, l) =>
+      sum + (l.writableIndexes?.length ?? 0) + (l.readonlyIndexes?.length ?? 0),
+    0,
+  );
+  expect(
+    totalAltResolved,
+    'ALT lookups resolved at least one account',
+  ).to.be.greaterThan(0);
+}
+
 describe('SVM Warp Transfer-Remote With Fees E2E', function () {
   this.timeout(300_000);
 
@@ -791,6 +838,11 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
       addressLookupTables: [altDeployed.deployed.address],
     });
     expect(receipt.signature, 'tx signature').to.be.a('string');
+    await assertTxUsedAlt({
+      rpc,
+      signature: receipt.signature,
+      expectedAltAddress: altDeployed.deployed.address,
+    });
 
     // ---- Common post-conditions ----
     await assertCommonPostConditions({
@@ -1110,6 +1162,11 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
       addressLookupTables: [altDeployed.deployed.address],
     });
     expect(receipt.signature, 'tx signature').to.be.a('string');
+    await assertTxUsedAlt({
+      rpc,
+      signature: receipt.signature,
+      expectedAltAddress: altDeployed.deployed.address,
+    });
 
     // ---- Common post-conditions ----
     await assertCommonPostConditions({
