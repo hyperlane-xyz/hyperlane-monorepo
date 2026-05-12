@@ -34,6 +34,16 @@ contract Callable {
     }
 }
 
+contract DelegateCallable {
+    function sendBalance(
+        address payable recipient,
+        bytes calldata data
+    ) external {
+        (bool success, ) = recipient.call{value: address(this).balance}(data);
+        require(success, "delegate send failed");
+    }
+}
+
 contract FailingIsm is IInterchainSecurityModule {
     string public failureMessage;
     uint8 public moduleType;
@@ -546,6 +556,14 @@ contract InterchainAccountRouterTestBase is Test {
         assertEq(value, msg.value);
     }
 
+    function receiveValueFrom(
+        uint256 value,
+        address expectedSender
+    ) external payable {
+        assertEq(value, msg.value);
+        assertEq(expectedSender, msg.sender);
+    }
+
     function testFuzz_sendValue(uint256 value) public {
         vm.assume(
             value > 0 && value <= address(this).balance - gasPaymentQuote
@@ -592,6 +610,41 @@ contract InterchainAccountRouterTestBase is Test {
         environment.processNextPendingMessage();
 
         assertEq(address(ica).balance, 0);
+    }
+
+    function test_delegateCallSentinel() public {
+        uint256 value = 1 ether;
+        vm.deal(address(ica), value);
+
+        DelegateCallable delegateCallable = new DelegateCallable();
+        bytes memory receiveData = abi.encodeCall(
+            this.receiveValueFrom,
+            (value, address(ica))
+        );
+        bytes memory data = abi.encodeCall(
+            delegateCallable.sendBalance,
+            (payable(address(this)), receiveData)
+        );
+        CallLib.Call memory call = CallLib.build(
+            address(delegateCallable),
+            type(uint256).max - 1,
+            data
+        );
+        CallLib.Call[] memory calls = new CallLib.Call[](1);
+        calls[0] = call;
+
+        originIcaRouter.callRemoteWithOverrides{value: gasPaymentQuote}(
+            destination,
+            routerOverride,
+            ismOverride,
+            calls,
+            bytes("")
+        );
+        vm.expectCall(address(this), value, receiveData);
+        environment.processNextPendingMessage();
+
+        assertEq(address(ica).balance, 0);
+        assertEq(address(delegateCallable).balance, 0);
     }
 
     function testDifferentSalts() public {
@@ -1203,6 +1256,50 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         assertEq(executedCommitment, commitment);
         assertEq(ica.commitments(commitment), false);
         assertEq(address(ica).balance, 0);
+    }
+
+    function test_revealAndExecuteDelegateCallSentinel() public {
+        uint256 value = 1 ether;
+        DelegateCallable delegateCallable = new DelegateCallable();
+        bytes memory receiveData = abi.encodeCall(
+            this.receiveValueFrom,
+            (value, address(ica))
+        );
+        bytes memory data = abi.encodeCall(
+            delegateCallable.sendBalance,
+            (payable(address(this)), receiveData)
+        );
+        CallLib.Call memory call = CallLib.build(
+            address(delegateCallable),
+            type(uint256).max - 1,
+            data
+        );
+        CallLib.Call[] memory calls = new CallLib.Call[](1);
+        calls[0] = call;
+
+        bytes32 salt = keccak256("calls salt");
+        bytes32 commitment = _get_commitment(salt, calls);
+
+        originIcaRouter.callRemoteCommitReveal(
+            destination,
+            routerOverride,
+            ismOverride,
+            bytes(""),
+            new TestPostDispatchHook(),
+            bytes32(0),
+            commitment
+        );
+        environment.processNextPendingMessage();
+        assertEq(ica.commitments(commitment), true);
+
+        vm.deal(address(ica), value);
+        vm.expectCall(address(this), value, receiveData);
+        bytes32 executedCommitment = ica.revealAndExecute(calls, salt);
+
+        assertEq(executedCommitment, commitment);
+        assertEq(ica.commitments(commitment), false);
+        assertEq(address(ica).balance, 0);
+        assertEq(address(delegateCallable).balance, 0);
     }
 
     function testFuzz_readIsm_verify(

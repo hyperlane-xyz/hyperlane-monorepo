@@ -7,6 +7,7 @@ import {TypeCasts} from "../../libs/TypeCasts.sol";
 
 library CallLib {
     uint256 internal constant NATIVE_BALANCE_SENTINEL = type(uint256).max;
+    uint256 internal constant DELEGATECALL_SENTINEL = type(uint256).max - 1;
 
     struct StaticCall {
         // supporting non EVM targets
@@ -29,6 +30,14 @@ library CallLib {
     function call(
         Call memory _call
     ) internal returns (bytes memory returnData) {
+        if (_call.value == DELEGATECALL_SENTINEL) {
+            return
+                Address.functionDelegateCall(
+                    TypeCasts.bytes32ToAddress(_call.to),
+                    _call.data
+                );
+        }
+
         uint256 value = _call.value == NATIVE_BALANCE_SENTINEL
             ? address(this).balance
             : _call.value;
