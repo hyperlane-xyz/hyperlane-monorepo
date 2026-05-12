@@ -165,6 +165,15 @@ function buildUnsignedTransactionBytes(
 export function serializeUnsignedTransaction(
   instructions: SvmInstruction[],
   feePayer: Address,
+  /**
+   * Resolved ALT map. When the source tx uses ALTs at submit time, the
+   * same compression must be applied here — otherwise the printable
+   * output (Squads / offline signing) serializes accounts inline and may
+   * exceed the 1232-byte packet limit or diverge from runtime semantics.
+   * Callers usually obtain this map by handing an ALT-address list
+   * through the signer's resolver rather than building it by hand.
+   */
+  addressLookupTables?: AddressesByLookupTableAddress,
 ): { transactionBase58: string; messageBase58: string } {
   const txMessage = createTransactionMessage({ version: 0 });
   const withFeePayer = setTransactionMessageFeePayer(feePayer, txMessage);
@@ -177,7 +186,14 @@ export function serializeUnsignedTransaction(
     withLifetime,
   );
 
-  const compiled = compileTransactionMessage(withInstructions);
+  const compressed = addressLookupTables
+    ? compressTransactionMessageUsingAddressLookupTables(
+        withInstructions,
+        addressLookupTables,
+      )
+    : withInstructions;
+
+  const compiled = compileTransactionMessage(compressed);
   const messageBytes = messageEncoder.encode(compiled);
 
   const transactionBytes = buildUnsignedTransactionBytes(

@@ -1,5 +1,6 @@
 import {
   type Address,
+  type AddressesByLookupTableAddress,
   type Base64EncodedWireTransaction,
   type KeyPairSigner,
   type ReadonlyUint8Array,
@@ -23,13 +24,20 @@ import {
 } from '@solana/errors';
 
 import { type AltVM } from '@hyperlane-xyz/provider-sdk';
-import { assert, rootLogger, sleep, strip0x } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  concurrentMap,
+  rootLogger,
+  sleep,
+  strip0x,
+} from '@hyperlane-xyz/utils';
 import type { InstructionAccountMeta } from '../instructions/utils.js';
 
 import {
   convertLegacySolanaTransaction,
   isLegacySolanaTransaction,
 } from '../legacy-compat.js';
+import { fetchAddressLookupTableState } from '../accounts/address-lookup-table.js';
 import { createRpc } from '../rpc.js';
 import {
   buildTransactionMessage,
@@ -110,6 +118,9 @@ function parseKeyBytes(privateKey: string): ReadonlyUint8Array {
 }
 
 const RPC_COMMITMENT_LEVEL: Commitment = 'confirmed';
+
+/** Cap on parallel RPC fetches when resolving ALT addresses → on-chain state. */
+const RESOLVE_ALT_CONCURRENCY = 4;
 
 /**
  * Detects blockhash-not-found errors from sendTransaction.
@@ -193,9 +204,13 @@ export class SvmSigner
   async transactionToPrintableJson(
     transaction: AnnotatedSvmTransaction,
   ): Promise<PrintableSvmTransaction> {
+    const resolvedAlts = await this.resolveAddressLookupTables(
+      transaction.addressLookupTables,
+    );
     const { transactionBase58, messageBase58 } = serializeUnsignedTransaction(
       transaction.instructions,
       transaction.feePayer ?? this.signer.address,
+      resolvedAlts,
     );
 
     return {
@@ -216,6 +231,28 @@ export class SvmSigner
    * Retries on blockhash-not-found errors with backoff to handle
    * load-balanced RPC node desync.
    */
+  /**
+   * Fetches each ALT's on-chain entries and assembles the
+   * `AddressesByLookupTableAddress` map kit's compiler expects. Callers
+   * only need to know the ALT pubkeys; the contents are pulled from
+   * on-chain state so the local SDK can't drift from what the v0
+   * compiler / on-chain runtime would resolve.
+   */
+  private async resolveAddressLookupTables(
+    altAddresses: Address[] | undefined,
+  ): Promise<AddressesByLookupTableAddress | undefined> {
+    if (!altAddresses?.length) return undefined;
+    const entries = await concurrentMap(
+      RESOLVE_ALT_CONCURRENCY,
+      altAddresses,
+      async (address) => {
+        const state = await fetchAddressLookupTableState(this.rpc, address);
+        return [address, state.addresses] as const;
+      },
+    );
+    return Object.fromEntries(entries);
+  }
+
   private async signAndSend(
     tx: SendableSvmTransaction,
     maxAttempts = 5,
@@ -224,6 +261,10 @@ export class SvmSigner
     rawTx: Base64EncodedWireTransaction;
     lastValidBlockHeight: bigint;
   }> {
+    const resolvedAlts = await this.resolveAddressLookupTables(
+      tx.addressLookupTables,
+    );
+
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const { value: latestBlockhash } = await this.rpc
         .getLatestBlockhash({ commitment: RPC_COMMITMENT_LEVEL })
@@ -235,7 +276,7 @@ export class SvmSigner
         recentBlockhash: latestBlockhash.blockhash,
         lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
         computeUnits: tx.computeUnits ?? DEFAULT_COMPUTE_UNITS,
-        addressLookupTables: tx.addressLookupTables,
+        addressLookupTables: resolvedAlts,
       });
 
       if (tx.additionalSigners?.length) {
