@@ -5,6 +5,7 @@ export const DockerImageNames = {
   MONOREPO: 'hyperlane-monorepo',
   NODE_SERVICES: 'hyperlane-node-services',
   FEE_QUOTING: 'hyperlane-fee-quoting',
+  UNIVERSAL_ROUTER_ENGINE: 'universal-router-engine',
 } as const;
 
 type DockerImageReposType = {
@@ -36,6 +37,7 @@ interface MainnetDockerTags extends BaseDockerTags {
   warpMonitor: string;
   rebalancer: string;
   feeQuoting: string;
+  universalRouterEngine: string;
 }
 
 export const mainnetDockerTags: MainnetDockerTags = {
@@ -53,6 +55,7 @@ export const mainnetDockerTags: MainnetDockerTags = {
   warpMonitor: 'a915865-20260424-083851',
   rebalancer: '1a19513-20260413-090011',
   feeQuoting: '12d899d-20260325-184337',
+  universalRouterEngine: 'latest',
 };
 
 export const testnetDockerTags: BaseDockerTags = {

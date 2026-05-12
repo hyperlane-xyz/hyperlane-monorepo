@@ -1,0 +1,31 @@
+image:
+  repository: ghcr.io/hyperlane-xyz/universal-router-engine
+  tag: latest
+
+hyperlane:
+  runEnv: mainnet3
+  registryUri: https://github.com/hyperlane-xyz/hyperlane-registry
+  chains: []
+
+replicas: 1
+port: 8080
+prometheus_port: 9090
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    memory: 4Gi
+
+env:
+  - name: PORT
+    value: '8080'
+  - name: PROMETHEUS_PORT
+    value: '9090'
+  - name: PUBLIC_METRICS_ENABLED
+    value: 'false'
+  - name: ROUTE_CACHE_PATH
+    value: '/cache/route-cache.json'
+  - name: CHAIN_CACHE_PATH
+    value: '/cache/chain-cache.json'
