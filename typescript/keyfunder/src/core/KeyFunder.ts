@@ -2,6 +2,7 @@ import { BigNumber, ethers } from 'ethers';
 import type { Logger } from 'pino';
 
 import { HyperlaneIgp, MultiProvider } from '@hyperlane-xyz/sdk';
+import { assert } from '@hyperlane-xyz/utils';
 
 import type {
   ArbitrumOrbitBridgeConfig,
@@ -270,19 +271,10 @@ export class KeyFunder {
       parentSigner.getBalance(),
     ]);
 
-    if (parentBalance.lt(bridgeAmount)) {
-      logger.error(
-        {
-          parentFunderAddress,
-          parentBalance: ethers.utils.formatEther(parentBalance),
-          requiredAmount: ethers.utils.formatEther(bridgeAmount),
-        },
-        'Parent funder balance insufficient to bridge',
-      );
-      throw new Error(
-        `Insufficient parent funder balance on ${bridgeConfig.parentChain}: has ${ethers.utils.formatEther(parentBalance)}, needs ${ethers.utils.formatEther(bridgeAmount)}`,
-      );
-    }
+    assert(
+      parentBalance.gte(bridgeAmount),
+      `Insufficient parent funder balance on ${bridgeConfig.parentChain}: has ${ethers.utils.formatEther(parentBalance)}, needs ${ethers.utils.formatEther(bridgeAmount)}`,
+    );
 
     logger.info(
       {

@@ -37,8 +37,7 @@ export const ArbitrumOrbitBridgeConfigSchema = z
     targetBalance: BalanceStringSchema,
   })
   .refine(
-    (data) =>
-      parseBalanceUnits(data.targetBalance) > parseBalanceUnits(data.threshold),
+    (data) => compareBalanceStrings(data.targetBalance, data.threshold) > 0,
     {
       message: 'Bridge targetBalance must be greater than threshold',
       path: ['targetBalance'],
@@ -147,7 +146,15 @@ export interface ResolvedKeyConfig {
   desiredBalance: string;
 }
 
-function parseBalanceUnits(value: string): string {
-  const [whole, fractional = ''] = value.split('.');
-  return `${whole.padStart(78, '0')}${fractional.padEnd(18, '0')}`;
+function compareBalanceStrings(left: string, right: string): number {
+  const [leftWhole, leftFraction = ''] = left.split('.');
+  const [rightWhole, rightFraction = ''] = right.split('.');
+  if (leftWhole.length !== rightWhole.length) {
+    return leftWhole.length - rightWhole.length;
+  }
+  const wholeCompare = leftWhole.localeCompare(rightWhole);
+  if (wholeCompare !== 0) return wholeCompare;
+  return leftFraction
+    .padEnd(18, '0')
+    .localeCompare(rightFraction.padEnd(18, '0'));
 }
