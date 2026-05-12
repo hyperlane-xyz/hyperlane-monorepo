@@ -91,13 +91,14 @@ export class AleoSigner
     preferredSuffix?: string,
     maxAttempts = 20,
   ): Promise<string> {
+    if (tokenType === TokenType.native) {
+      return 'credits';
+    }
+
     const configuredSuffix = preferredSuffix || this.warpSuffix;
 
     if (configuredSuffix) {
-      const tokenProgramId =
-        tokenType === TokenType.synthetic
-          ? `${this.prefix}_warp_token_${configuredSuffix}.aleo`
-          : `${this.prefix}_${tokenType}_${configuredSuffix}.aleo`;
+      const tokenProgramId = `${this.prefix}_warp_token_${configuredSuffix}.aleo`;
 
       const isAlreadyDeployed = await this.isProgramDeployed(tokenProgramId);
       assert(
@@ -110,7 +111,7 @@ export class AleoSigner
 
     for (let i = 0; i < maxAttempts; i++) {
       const suffix = this.generateSuffix(SUFFIX_LENGTH_LONG);
-      const tokenProgramId = `${this.prefix}_${tokenType}_${suffix}.aleo`;
+      const tokenProgramId = `${this.prefix}_warp_token_${suffix}.aleo`;
 
       if (!(await this.isProgramDeployed(tokenProgramId))) {
         return suffix;
