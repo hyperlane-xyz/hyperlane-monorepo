@@ -1,5 +1,6 @@
 import { secp256k1 } from '@noble/curves/secp256k1';
 import {
+  type AccountMeta,
   address,
   type Address,
   generateKeyPairSigner,
@@ -242,7 +243,7 @@ const IGP_OVERHEAD_GAS = 50_000n; // configured per-domain overhead
 interface IgpQuoteSetup {
   signedQuote: SvmSignedQuote;
   transientQuotePda: Address;
-  cascadeQuotePdas: InstructionAccountMeta[];
+  cascadeQuotePdas: AccountMeta[];
   scopedSalt: Uint8Array;
 }
 
@@ -303,11 +304,7 @@ async function setupIgpTransientQuote(args: {
       scopedSalt,
     },
   });
-  const cascadeQuotePdas = igpMetas
-    .slice(8)
-    .map((m) =>
-      m.isWritable ? writableAccount(m.pubkey) : readonlyAccount(m.pubkey),
-    );
+  const cascadeQuotePdas = igpMetas.slice(8);
 
   return { signedQuote, transientQuotePda, cascadeQuotePdas, scopedSalt };
 }
@@ -315,7 +312,7 @@ async function setupIgpTransientQuote(args: {
 interface FeeQuoteSetup {
   feeTransientQuotePda: Address;
   submitInstruction: Instruction;
-  passThroughAccounts: InstructionAccountMeta[];
+  passThroughAccounts: AccountMeta[];
   scopedSalt: Uint8Array;
 }
 
@@ -376,10 +373,9 @@ async function setupFeeTransientQuote(args: {
       scopedSalt,
     },
   });
-  const submitAccounts = submitMetas.map((m, i) => {
-    if (i === 1) return writableSigner(args.signer.signer);
-    return m.isWritable ? writableAccount(m.pubkey) : readonlyAccount(m.pubkey);
-  });
+  const submitAccounts: InstructionAccountMeta[] = submitMetas.map((m, i) =>
+    i === 1 ? writableSigner(args.signer.signer) : m,
+  );
   const submitInstruction = getSubmitQuoteInstruction(
     args.feeProgramId,
     submitAccounts,
@@ -400,11 +396,7 @@ async function setupFeeTransientQuote(args: {
       scopedSalt,
     },
   });
-  const passThroughAccounts = passMetas
-    .slice(2)
-    .map((m) =>
-      m.isWritable ? writableAccount(m.pubkey) : readonlyAccount(m.pubkey),
-    );
+  const passThroughAccounts = passMetas.slice(2);
 
   return {
     feeTransientQuotePda,

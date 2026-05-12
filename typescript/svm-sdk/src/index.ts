@@ -47,7 +47,6 @@ export {
   getSubmitIgpQuoteInstruction,
   simulateIgpQuoteAccountMetas,
 } from './instructions/igp.js';
-export type { SimulatedAccountMeta } from './instructions/igp.js';
 export {
   getGetQuoteAccountMetasInstruction,
   getGetSubmitQuoteAccountMetasInstruction,
@@ -58,8 +57,12 @@ export {
 export type {
   GetQuoteAccountMetasInput,
   GetSubmitQuoteAccountMetasInput,
-  SimulatedFeeAccountMeta,
 } from './instructions/fee.js';
+export { decodeSimulatedAccountMetas } from './codecs/simulated-account-meta.js';
+export {
+  simulateInstructionAccountMetas,
+  simulateInstructionForReturnData,
+} from './simulation.js';
 export { getTransferOwnershipInstruction as getMultisigIsmTransferOwnershipInstruction } from './instructions/multisig-ism-message-id.js';
 export { getSetUpgradeAuthorityInstruction } from './instructions/loader.js';
 export { buildSetDefaultIsmInstruction } from './core/mailbox-tx.js';

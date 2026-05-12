@@ -1,32 +1,22 @@
 import type {
+  AccountMeta,
   Address,
-  Base64EncodedWireTransaction,
   Instruction,
   ReadonlyUint8Array,
   TransactionSigner,
 } from '@solana/kit';
 import {
-  appendTransactionMessageInstructions,
-  blockhash,
-  compileTransactionMessage,
-  createTransactionMessage,
   fixCodecSize,
   getAddressCodec,
   getBytesCodec,
-  getCompiledTransactionMessageEncoder,
   getNullableCodec,
-  getShortU16Encoder,
   getStructDecoder,
   getStructEncoder,
   getU32Codec,
   getU64Codec,
-  setTransactionMessageFeePayer,
-  setTransactionMessageLifetimeUsingBlockhash,
 } from '@solana/kit';
 
-import { assert } from '@hyperlane-xyz/utils';
-
-import { readAddress } from '../codecs/account-data.js';
+import { simulateInstructionAccountMetas } from '../simulation.js';
 import type { SvmRpc } from '../types.js';
 
 import {
@@ -561,13 +551,6 @@ export async function getGetIgpQuoteAccountMetasInstruction(
   );
 }
 
-/** Mirror of the Rust `SerializableAccountMeta` returned by simulation. */
-export interface SimulatedAccountMeta {
-  pubkey: Address;
-  isSigner: boolean;
-  isWritable: boolean;
-}
-
 /**
  * Runs the IGP's `GetIgpQuoteAccountMetas` instruction via transaction
  * simulation and parses the returned account-meta list.
@@ -584,89 +567,14 @@ export async function simulateIgpQuoteAccountMetas(args: {
   /** Funded address used as the simulation fee payer (signature not required). */
   payer: Address;
   input: GetIgpQuoteAccountMetasInput;
-}): Promise<SimulatedAccountMeta[]> {
-  const ix = await getGetIgpQuoteAccountMetasInstruction(
-    args.programId,
-    args.igpAccount,
-    args.input,
-  );
-
-  const base = createTransactionMessage({ version: 0 });
-  const withPayer = setTransactionMessageFeePayer(args.payer, base);
-  const withLifetime = setTransactionMessageLifetimeUsingBlockhash(
-    {
-      blockhash: blockhash('11111111111111111111111111111111'),
-      lastValidBlockHeight: 0n,
-    },
-    withPayer,
-  );
-  const withIx = appendTransactionMessageInstructions([ix], withLifetime);
-  const compiled = compileTransactionMessage(withIx);
-  const messageBytes = getCompiledTransactionMessageEncoder().encode(compiled);
-
-  // Full unsigned wire tx: compact-u16 signer count + zero-filled signature
-  // slots + compiled message. RPC requires a complete VersionedTransaction
-  // even with sigVerify=false.
-  const sigCountBytes = getShortU16Encoder().encode(
-    compiled.header.numSignerAccounts,
-  );
-  const sigsLen = compiled.header.numSignerAccounts * 64;
-  const wireBytes = new Uint8Array(
-    sigCountBytes.length + sigsLen + messageBytes.length,
-  );
-  wireBytes.set(sigCountBytes, 0);
-  wireBytes.set(messageBytes, sigCountBytes.length + sigsLen);
-
-  // CAST: the branded type expects a signed wire tx but sigVerify=false
-  // accepts the all-zero signature slots.
-  const base64Tx = Buffer.from(wireBytes).toString(
-    'base64',
-  ) as Base64EncodedWireTransaction;
-
-  const { value: result } = await args.rpc
-    .simulateTransaction(base64Tx, {
-      encoding: 'base64',
-      commitment: 'confirmed',
-      sigVerify: false,
-      replaceRecentBlockhash: true,
-      accounts: { encoding: 'base64', addresses: [] },
-    })
-    .send();
-
-  if (result.err) {
-    throw new Error(
-      `simulateIgpQuoteAccountMetas failed: ${JSON.stringify(result.err)}`,
-    );
-  }
-
-  const returnData = result.returnData?.data?.[0];
-  assert(
-    returnData,
-    'simulateIgpQuoteAccountMetas: simulation returned no return_data',
-  );
-
-  return decodeSimulatedAccountMetas(Buffer.from(returnData, 'base64'));
-}
-
-/**
- * Decodes Borsh `SimulationReturnData<Vec<SerializableAccountMeta>>`:
- *
- *   u32le length || N × (32 pubkey || bool isSigner || bool isWritable) || u8 trailing
- *
- * The trailing byte is a documented workaround for Solana truncating
- * trailing zero bytes from simulation return-data (see SimulationReturnData
- * in the Rust serializable-account-meta crate).
- */
-function decodeSimulatedAccountMetas(raw: Uint8Array): SimulatedAccountMeta[] {
-  const cursor = new ByteCursor(raw);
-  const count = cursor.readU32LE();
-  const metas: SimulatedAccountMeta[] = [];
-  for (let i = 0; i < count; i += 1) {
-    metas.push({
-      pubkey: readAddress(cursor),
-      isSigner: cursor.readBool(),
-      isWritable: cursor.readBool(),
-    });
-  }
-  return metas;
+}): Promise<AccountMeta[]> {
+  return simulateInstructionAccountMetas({
+    rpc: args.rpc,
+    payer: args.payer,
+    ix: await getGetIgpQuoteAccountMetasInstruction(
+      args.programId,
+      args.igpAccount,
+      args.input,
+    ),
+  });
 }
