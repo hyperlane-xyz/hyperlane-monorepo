@@ -176,6 +176,7 @@ jobs:
           - read-token
           - program-upgrade
           - warp-fee-config
+          - warp-transfer-remote-with-fees
         include:
           - test: read-token
             continue-on-error: true
