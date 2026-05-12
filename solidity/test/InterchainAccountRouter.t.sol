@@ -568,6 +568,32 @@ contract InterchainAccountRouterTestBase is Test {
         environment.processNextPendingMessage();
     }
 
+    function test_sendNativeBalanceSentinel() public {
+        uint256 value = 1 ether;
+        vm.deal(address(ica), value);
+
+        bytes memory data = abi.encodeCall(this.receiveValue, (value));
+        CallLib.Call memory call = CallLib.build(
+            address(this),
+            type(uint256).max,
+            data
+        );
+        CallLib.Call[] memory calls = new CallLib.Call[](1);
+        calls[0] = call;
+
+        originIcaRouter.callRemoteWithOverrides{value: gasPaymentQuote}(
+            destination,
+            routerOverride,
+            ismOverride,
+            calls,
+            bytes("")
+        );
+        vm.expectCall(address(this), value, data);
+        environment.processNextPendingMessage();
+
+        assertEq(address(ica).balance, 0);
+    }
+
     function testDifferentSalts() public {
         address owner = address(this);
 
@@ -1142,6 +1168,41 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         // Cannot reveal twice
         vm.expectRevert("ICA: Invalid Reveal");
         ica.revealAndExecute(calls, salt);
+    }
+
+    function test_revealAndExecuteNativeBalanceSentinel() public {
+        uint256 value = 1 ether;
+        bytes memory data = abi.encodeCall(this.receiveValue, (value));
+        CallLib.Call memory call = CallLib.build(
+            address(this),
+            type(uint256).max,
+            data
+        );
+        CallLib.Call[] memory calls = new CallLib.Call[](1);
+        calls[0] = call;
+
+        bytes32 salt = keccak256("calls salt");
+        bytes32 commitment = _get_commitment(salt, calls);
+
+        originIcaRouter.callRemoteCommitReveal(
+            destination,
+            routerOverride,
+            ismOverride,
+            bytes(""),
+            new TestPostDispatchHook(),
+            bytes32(0),
+            commitment
+        );
+        environment.processNextPendingMessage();
+        assertEq(ica.commitments(commitment), true);
+
+        vm.deal(address(ica), value);
+        vm.expectCall(address(this), value, data);
+        bytes32 executedCommitment = ica.revealAndExecute(calls, salt);
+
+        assertEq(executedCommitment, commitment);
+        assertEq(ica.commitments(commitment), false);
+        assertEq(address(ica).balance, 0);
     }
 
     function testFuzz_readIsm_verify(
