@@ -311,8 +311,13 @@ export interface IgpQuotedExtension {
   /** Dispatch authority PDA of THIS warp program. */
   senderAuthority: Address;
   /**
+   * Warp program id (= the sender). The on-chain IGP rejects the quote
+   * unless this matches the `sender` field in the signed quote context.
+   */
+  senderProgramId: Address;
+  /**
    * Cascade standing/transient quote PDAs (0..N), appended after
-   * `quotedSender`. Account roles must mirror what
+   * `senderProgramId`. Account roles must mirror what
    * `GetIgpQuoteAccountMetas` returns at simulation time (the transient
    * quote PDA is typically writable since the IGP closes it during
    * consumption).
@@ -350,8 +355,6 @@ export interface IgpTransferRemoteSection {
 
 export function buildIgpTransferRemoteSectionAccounts(
   igp: IgpTransferRemoteSection,
-  /** Warp program address — used to fill in the quoted-mode `quoted_sender` slot. */
-  warpProgramAddress: Address,
 ): InstructionAccountMeta[] {
   const accounts: InstructionAccountMeta[] = [
     readonlyAccount(igp.programId),
@@ -361,7 +364,7 @@ export function buildIgpTransferRemoteSectionAccounts(
   if (igp.quoted) {
     accounts.push(
       readonlyAccount(igp.quoted.senderAuthority),
-      readonlyAccount(warpProgramAddress),
+      readonlyAccount(igp.quoted.senderProgramId),
       ...(igp.quoted.cascadeQuotePdas ?? []),
     );
   }
@@ -426,9 +429,7 @@ export async function getTokenTransferRemoteInstruction(args: {
     readonlySigner(args.uniqueMessageAccount),
     writableAccount(dispatchedMessagePda),
     ...(args.fee ? buildFeeTransferRemoteSectionAccounts(args.fee) : []),
-    ...(args.igp
-      ? buildIgpTransferRemoteSectionAccounts(args.igp, args.programAddress)
-      : []),
+    ...(args.igp ? buildIgpTransferRemoteSectionAccounts(args.igp) : []),
     ...args.pluginAccounts,
   ];
 

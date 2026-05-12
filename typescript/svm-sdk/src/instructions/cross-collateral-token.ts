@@ -176,9 +176,7 @@ export async function getCrossCollateralTransferRemoteToInstruction(args: {
     readonlySigner(args.uniqueMessageAccount),
     writableAccount(dispatchedMessagePda),
     ...(args.fee ? buildFeeTransferRemoteSectionAccounts(args.fee) : []),
-    ...(args.igp
-      ? buildIgpTransferRemoteSectionAccounts(args.igp, args.programAddress)
-      : []),
+    ...(args.igp ? buildIgpTransferRemoteSectionAccounts(args.igp) : []),
     ...args.pluginAccounts,
   ];
 
