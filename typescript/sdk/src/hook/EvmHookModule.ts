@@ -89,7 +89,9 @@ import {
   HookType,
   HookTypeToContractNameMap,
   IgpHookConfig,
+  IgpVersion,
   MUTABLE_HOOK_TYPE,
+  OFFCHAIN_QUOTED_IGP_VERSION,
   OpStackHookConfig,
   PausableHookConfig,
   ProtocolFeeHookConfig,
@@ -110,6 +112,28 @@ class HookDeployer extends HyperlaneDeployer<{}, HookFactories> {
   deployContracts(_chain: ChainName, _config: {}): Promise<any> {
     throw new Error('Method not implemented.');
   }
+}
+
+function stripIgpVersion(config: unknown): unknown {
+  if (Array.isArray(config)) {
+    return config.map(stripIgpVersion);
+  }
+
+  if (config !== null && typeof config === 'object') {
+    const stripped: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(config)) {
+      if (key !== 'igpVersion') {
+        stripped[key] = stripIgpVersion(value);
+      }
+    }
+    return stripped;
+  }
+
+  return config;
+}
+
+function hookConfigsEqual(a: unknown, b: unknown): boolean {
+  return deepEquals(stripIgpVersion(a), stripIgpVersion(b));
 }
 
 export class EvmHookModule extends HyperlaneModule<
@@ -183,7 +207,7 @@ export class EvmHookModule extends HyperlaneModule<
     );
 
     // If configs match, no updates needed
-    if (deepEquals(normalizedCurrentConfig, normalizedTargetConfig)) {
+    if (hookConfigsEqual(normalizedCurrentConfig, normalizedTargetConfig)) {
       return [];
     }
 
@@ -282,7 +306,7 @@ export class EvmHookModule extends HyperlaneModule<
 
       // If the domain is not in the current config or the config has changed, deploy a new hook
       // TODO: in-place updates per domain as a future optimization
-      if (!deepEquals(currentDomains[dest], targetDomainConfig)) {
+      if (!hookConfigsEqual(currentDomains[dest], targetDomainConfig)) {
         const domainHook = await this.deploy({
           config: targetDomainConfig,
         });
@@ -443,6 +467,12 @@ export class EvmHookModule extends HyperlaneModule<
     const igpAddress = this.args.addresses.deployedHook;
     const igpInterface = InterchainGasPaymaster__factory.createInterface();
     const provider = this.multiProvider.getProvider(this.domainId);
+    const currentVersion = await PackageVersioned__factory.connect(
+      igpAddress,
+      provider,
+    )
+      .PACKAGE_VERSION()
+      .catch(() => undefined);
 
     // Upgrade IGP proxy implementation only if contractVersion is specified in config
     if (targetConfig.contractVersion && (await isProxy(provider, igpAddress))) {
@@ -451,12 +481,6 @@ export class EvmHookModule extends HyperlaneModule<
         VERSION_ERROR_MESSAGE,
       );
 
-      const currentVersion = await PackageVersioned__factory.connect(
-        igpAddress,
-        provider,
-      )
-        .PACKAGE_VERSION()
-        .catch(() => undefined);
       if (
         !currentVersion ||
         compareVersions(targetConfig.contractVersion, currentVersion) > 0
@@ -520,6 +544,11 @@ export class EvmHookModule extends HyperlaneModule<
         })),
       );
     } else {
+      assert(
+        targetConfig.igpVersion !== IgpVersion.Legacy,
+        'Legacy IGP updates require an existing gas oracle configuration',
+      );
+
       const newGasOracle = await this.deployStorageGasOracle({
         config: targetConfig,
       });
@@ -539,10 +568,19 @@ export class EvmHookModule extends HyperlaneModule<
 
     // update quote signers only if explicitly specified in target config
     // and IGP supports them (detected from on-chain read or version upgrade)
+    const quoteSignerVersion =
+      targetConfig.contractVersion ?? currentVersion ?? undefined;
     const supportsQuoteSigners =
-      currentConfig.quoteSigners !== undefined ||
-      targetConfig.contractVersion != null;
-    if (targetConfig.quoteSigners !== undefined && supportsQuoteSigners) {
+      targetConfig.igpVersion !== IgpVersion.Legacy &&
+      (currentConfig.quoteSigners !== undefined ||
+        (quoteSignerVersion !== undefined &&
+          compareVersions(quoteSignerVersion, OFFCHAIN_QUOTED_IGP_VERSION) >=
+            0));
+    if (targetConfig.quoteSigners !== undefined) {
+      assert(
+        supportsQuoteSigners,
+        `IGP quoteSigners require contract version >= ${OFFCHAIN_QUOTED_IGP_VERSION}`,
+      );
       updateTxs.push(
         ...this.updateIgpQuoteSigners({
           currentSigners: currentConfig.quoteSigners ?? [],
@@ -770,7 +808,7 @@ export class EvmHookModule extends HyperlaneModule<
     // Deploy a new fallback hook if the fallback config has changed
     if (
       targetConfig.type === HookType.FALLBACK_ROUTING &&
-      !deepEquals(
+      !hookConfigsEqual(
         targetConfig.fallback,
         (currentConfig as FallbackRoutingHookConfig).fallback,
       )
@@ -1224,6 +1262,11 @@ export class EvmHookModule extends HyperlaneModule<
   }: {
     config: IgpHookConfig;
   }): Promise<InterchainGasPaymaster> {
+    assert(
+      config.igpVersion !== IgpVersion.Legacy,
+      'Legacy IGP configs require an existing deployment and cannot deploy a new IGP',
+    );
+
     this.logger.debug('Deploying IGP as hook...');
 
     // Deploy the StorageGasOracle

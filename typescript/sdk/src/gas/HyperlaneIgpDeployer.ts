@@ -7,6 +7,7 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   addBufferToGasLimit,
+  assert,
   eqAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -16,6 +17,7 @@ import { HyperlaneContracts } from '../contracts/types.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
 import { submitBatched } from '../deploy/utils.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
+import { IgpVersion } from '../hook/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
 
@@ -42,12 +44,41 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     });
   }
 
+  protected assertLegacyIgpConfig(chain: ChainName, config: IgpConfig): void {
+    if (config.igpVersion !== IgpVersion.Legacy) return;
+
+    assert(
+      !config.quoteSigners?.length,
+      'Legacy IGP on ' + chain + ' does not support quoteSigners',
+    );
+
+    const cachedAddresses = this.cachedAddresses[chain] ?? {};
+    const requiredCachedContracts: Array<keyof IgpFactories> = [
+      'interchainGasPaymaster',
+      'proxyAdmin',
+      'storageGasOracle',
+    ];
+    const missing = requiredCachedContracts.filter(
+      (contractName) => !cachedAddresses[contractName],
+    );
+
+    assert(
+      missing.length === 0,
+      'Legacy IGP on ' +
+        chain +
+        ' requires existing cached addresses for ' +
+        missing.join(', '),
+    );
+  }
+
   async deployInterchainGasPaymaster(
     chain: ChainName,
     proxyAdmin: ProxyAdmin,
     storageGasOracle: StorageGasOracle,
     config: IgpConfig,
   ): Promise<InterchainGasPaymaster> {
+    this.assertLegacyIgpConfig(chain, config);
+
     const igp = await this.deployProxiedContract(
       chain,
       'interchainGasPaymaster',
@@ -129,6 +160,8 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     chain: ChainName,
     config: IgpConfig,
   ): Promise<StorageGasOracle> {
+    this.assertLegacyIgpConfig(chain, config);
+
     const gasOracle = await this.deployContract(chain, 'storageGasOracle', []);
 
     if (!config.oracleConfig) {
@@ -213,6 +246,8 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     chain: ChainName,
     config: IgpConfig,
   ): Promise<HyperlaneContracts<IgpFactories>> {
+    this.assertLegacyIgpConfig(chain, config);
+
     // NB: To share ProxyAdmins with HyperlaneCore, ensure the ProxyAdmin
     // is loaded into the contract cache.
     const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);

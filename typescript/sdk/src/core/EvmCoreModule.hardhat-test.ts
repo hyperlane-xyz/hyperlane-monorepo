@@ -190,6 +190,16 @@ describe('EvmCoreModule', async () => {
       expect(eqAddress(await qc.PERMIT2(), customPermit2)).to.be.true;
     });
 
+    it('should skip quotedCalls when disabled', async () => {
+      const module = await EvmCoreModule.create({
+        chain: CHAIN,
+        config: { ...config, deployQuotedCalls: false },
+        multiProvider,
+      });
+
+      expect(module.serialize().quotedCalls).to.be.undefined;
+    });
+
     it('should deploy testRecipient', async () => {
       expect(evmCoreModule.serialize().testRecipient).to.exist;
       expect(await testRecipientContract.owner()).to.equal(signer.address);
@@ -255,6 +265,24 @@ describe('EvmCoreModule', async () => {
       const updateTxs = await evmCoreModuleInstance.update(existingConfig);
 
       expect(updateTxs.length).to.equal(0);
+    });
+
+    it('should not auto-deploy missing quotedCalls when disabled', async () => {
+      const { quotedCalls: _, ...addresses } = evmCoreModule.serialize();
+      const evmCoreModuleInstance = new EvmCoreModule(multiProvider, {
+        chain: CHAIN,
+        config: { ...config, deployQuotedCalls: false },
+        addresses,
+      });
+
+      const existingConfig: CoreConfig = await evmCoreModuleInstance.read();
+      const updateTxs = await evmCoreModuleInstance.update({
+        ...existingConfig,
+        deployQuotedCalls: false,
+      });
+
+      expect(updateTxs.length).to.equal(0);
+      expect(evmCoreModuleInstance.serialize().quotedCalls).to.be.undefined;
     });
 
     it('should update a mutable Ism', async () => {

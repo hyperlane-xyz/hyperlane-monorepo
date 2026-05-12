@@ -60,6 +60,24 @@ export function getDisabledChains(): ChainName[] {
     .map(([name]) => name);
 }
 
+// Chains that should keep the legacy IGP path. Deploy flows should recover
+// existing IGP deployments and skip latest-only contracts on these chains.
+export const legacyIgpChains: ChainName[] = Array.from(
+  new Set([
+    'chilizmainnet',
+    'coti',
+    'electroneum',
+    'incentiv',
+    'metis',
+    'prom',
+    'pulsechain',
+    'taiko',
+    'torus',
+    'viction',
+    ...getDisabledChains(),
+  ]),
+);
+
 // A list of chains to skip during deploy, check-deploy and ICA operations.
 // Used by scripts like check-owner-ica.ts to exclude chains that are temporarily
 // unsupported (e.g. zksync, zeronetwork) or have known issues
