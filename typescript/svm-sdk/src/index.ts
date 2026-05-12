@@ -177,7 +177,6 @@ export type {
   SvmAltConfig as SealevelAltConfig,
   SvmDeployedAlt as SealevelDeployedAlt,
 } from './alt/address-lookup-table.js';
-export type { AddressesByLookupTableAddress } from '@solana/kit';
 
 // Account decoders
 export {
