@@ -103,6 +103,13 @@ export class SvmAddressLookupTableWriter
     const { frozen, addresses } = artifact.config;
     const signer = this.svmSigner.signer.address;
 
+    // Dedup by normalized form. The ALT program stores duplicates as-is
+    // (wasted indexes + bytes); update() already treats the table as a
+    // Set, so create() keeps the same semantics.
+    const uniqueAddresses = Array.from(
+      new Set(addresses.map(normalizeAddressSealevel)),
+    ).map(parseAddress);
+
     // The ALT program rejects slots that aren't in the SlotHashes sysvar.
     // A finalized slot is guaranteed to have already been recorded there,
     // so it's a safe `recent_slot` for create — the alternative (tip
@@ -124,7 +131,7 @@ export class SvmAddressLookupTableWriter
     });
     receipts.push(createAltReceipt);
 
-    for (const batch of chunk(addresses, EXTEND_CHUNK_SIZE)) {
+    for (const batch of chunk(uniqueAddresses, EXTEND_CHUNK_SIZE)) {
       const extendIx = getExtendAddressLookupTableInstruction({
         address: create.address,
         authority: signer,
