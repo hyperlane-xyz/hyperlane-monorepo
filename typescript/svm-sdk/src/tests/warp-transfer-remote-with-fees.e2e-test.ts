@@ -735,7 +735,7 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
     const altWriter = new SvmAddressLookupTableWriter(rpc, signer);
     const [altDeployed] = await altWriter.create({
       config: {
-        owner: senderWallet,
+        frozen: false,
         addresses: [
           SYSTEM_PROGRAM_ADDRESS,
           SPL_NOOP_PROGRAM_ADDRESS,
@@ -1052,7 +1052,7 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
     const altWriter = new SvmAddressLookupTableWriter(rpc, signer);
     const [altDeployed] = await altWriter.create({
       config: {
-        owner: senderWallet,
+        frozen: false,
         addresses: [
           SYSTEM_PROGRAM_ADDRESS,
           SPL_NOOP_PROGRAM_ADDRESS,
