@@ -1,6 +1,10 @@
 image:
-  repository: ghcr.io/hyperlane-xyz/universal-router-engine
+  repository: us-east1-docker.pkg.dev/abacus-labs-dev/hyperlane/hyperlane-universal-router-engine
   tag: latest
+  digest: ''
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
 
 hyperlane:
   runEnv: mainnet3
@@ -10,6 +14,15 @@ hyperlane:
 replicas: 1
 port: 8080
 prometheus_port: 9090
+
+podSecurityContext:
+  fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
+
+containerSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
 
 resources:
   requests:

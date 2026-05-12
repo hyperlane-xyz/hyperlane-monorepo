@@ -1,11 +1,11 @@
 const GHCR_REGISTRY = 'ghcr.io/hyperlane-xyz';
-
+const ABACUS_ARTIFACT_REGISTRY =
+  'us-east1-docker.pkg.dev/abacus-labs-dev/hyperlane';
 export const DockerImageNames = {
   AGENT: 'hyperlane-agent',
   MONOREPO: 'hyperlane-monorepo',
   NODE_SERVICES: 'hyperlane-node-services',
   FEE_QUOTING: 'hyperlane-fee-quoting',
-  UNIVERSAL_ROUTER_ENGINE: 'universal-router-engine',
 } as const;
 
 type DockerImageReposType = {
@@ -18,6 +18,8 @@ export const DockerImageRepos = Object.fromEntries(
     `${GHCR_REGISTRY}/${name}`,
   ]),
 ) as DockerImageReposType;
+
+export const UniversalRouterEngineDockerImageRepo = `${ABACUS_ARTIFACT_REGISTRY}/hyperlane-universal-router-engine`;
 
 interface AgentDockerTags {
   relayer: string;

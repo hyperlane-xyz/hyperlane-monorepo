@@ -1,3 +1,9 @@
+{{- $image := "" -}}
+{{- if .Values.image.digest -}}
+{{- $image = printf "%s@%s" .Values.image.repository .Values.image.digest -}}
+{{- else -}}
+{{- $image = printf "%s:%s" .Values.image.repository (required "image.tag is required when image.digest is unset" .Values.image.tag) -}}
+{{- end -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -17,10 +23,22 @@ spec:
         prometheus.io/port: "{{ .Values.prometheus_port }}"
         prometheus.io/scrape: "true"
     spec:
+{{- with .Values.podSecurityContext }}
+      securityContext:
+{{ toYaml . | indent 8 }}
+{{- end }}
+{{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+{{ toYaml . | indent 8 }}
+{{- end }}
       containers:
         - name: {{ .Chart.Name }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: IfNotPresent
+          image: {{ $image | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+{{- with .Values.containerSecurityContext }}
+          securityContext:
+{{ toYaml . | indent 12 }}
+{{- end }}
           readinessProbe:
             httpGet:
               path: /readyz

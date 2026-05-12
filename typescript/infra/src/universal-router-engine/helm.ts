@@ -4,7 +4,10 @@ import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { readYaml } from '@hyperlane-xyz/utils/fs';
 
 import { Contexts } from '../../config/contexts.js';
-import { DockerImageRepos, mainnetDockerTags } from '../../config/docker.js';
+import {
+  mainnetDockerTags,
+  UniversalRouterEngineDockerImageRepo,
+} from '../../config/docker.js';
 import { getAgentConfig } from '../../scripts/agent-utils.js';
 import { DeployEnvironment } from '../config/deploy-environment.js';
 import { HelmManager } from '../utils/helm.js';
@@ -46,7 +49,7 @@ export class UniversalRouterEngineHelmManager extends HelmManager {
     return {
       ...envValues,
       image: {
-        repository: DockerImageRepos.UNIVERSAL_ROUTER_ENGINE,
+        repository: UniversalRouterEngineDockerImageRepo,
         tag: mainnetDockerTags.universalRouterEngine,
       },
       hyperlane: {
