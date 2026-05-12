@@ -27,6 +27,8 @@ const CoreConfigBaseSchema = OwnableSchema.extend({
   interchainAccountRouter: IcaRouterConfigSchema.optional(),
   // Override canonical Permit2 address for QuotedCalls deployment
   permit2: z.string().optional(),
+  // Set false for chains that should keep legacy core artifacts only.
+  deployQuotedCalls: z.boolean().optional(),
 });
 
 const rejectRateLimitedDefaultIsm = (
@@ -71,6 +73,12 @@ export type CoreConfig = z.infer<typeof CoreConfigSchema> & {
   remove?: boolean;
   upgrade?: UpgradeConfig;
 };
+
+export function shouldDeployQuotedCalls(
+  config: Pick<CoreConfig, 'deployQuotedCalls'>,
+): boolean {
+  return config.deployQuotedCalls !== false;
+}
 
 export type CoreConfigHookFieldKey = keyof Pick<
   CoreConfig,

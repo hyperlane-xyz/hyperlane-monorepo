@@ -147,6 +147,7 @@ export {
   MailboxMultisigIsmViolation,
   MailboxViolation,
   MailboxViolationType,
+  shouldDeployQuotedCalls,
   ValidatorAnnounceViolation,
 } from './core/types.js';
 export { HyperlaneAppChecker } from './deploy/HyperlaneAppChecker.js';
@@ -250,9 +251,11 @@ export {
   HookType,
   IgpHookConfig,
   IgpSchema,
+  IgpVersion,
   MerkleTreeHookConfig,
   MerkleTreeSchema,
   normalizeUnknownHookTypes,
+  OFFCHAIN_QUOTED_IGP_VERSION,
   OpStackHookConfig,
   OpStackHookSchema,
   PausableHookConfig,

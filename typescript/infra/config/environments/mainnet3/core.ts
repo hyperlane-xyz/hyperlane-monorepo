@@ -23,6 +23,7 @@ import {
 import { Address, objMap } from '@hyperlane-xyz/utils';
 
 import { getChain } from '../../registry.js';
+import { legacyIgpChains } from '../../../src/config/chain.js';
 
 import { getEdenCoreConfig } from './eden.js';
 import { getTronCoreConfig } from './tron.js';
@@ -172,6 +173,7 @@ export const core: ChainMap<CoreConfig> = objMap(
       defaultIsm,
       defaultHook,
       requiredHook,
+      ...(legacyIgpChains.includes(local) ? { deployQuotedCalls: false } : {}),
       ...owner,
     };
   },
