@@ -1,4 +1,10 @@
-import { ChainMap, ChainName, HookType, IgpConfig } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  ChainName,
+  HookType,
+  IgpConfig,
+  IgpVersion,
+} from '@hyperlane-xyz/sdk';
 import { exclude, objMap } from '@hyperlane-xyz/utils';
 
 import {
@@ -6,6 +12,7 @@ import {
   getAllStorageGasOracleConfigs,
   getOverheadWithOverrides,
 } from '../../../src/config/gas-oracle.js';
+import { legacyIgpChains } from '../../../src/config/chain.js';
 
 import { getEdenIgpConfig } from './eden.js';
 import { getTronIgpConfig } from './tron.js';
@@ -61,6 +68,9 @@ export const igp: ChainMap<IgpConfig> = objMap(
 
     return {
       type: HookType.INTERCHAIN_GAS_PAYMASTER,
+      ...(legacyIgpChains.includes(local)
+        ? { igpVersion: IgpVersion.Legacy }
+        : {}),
       ...owner,
       ownerOverrides: {
         ...owner.ownerOverrides,

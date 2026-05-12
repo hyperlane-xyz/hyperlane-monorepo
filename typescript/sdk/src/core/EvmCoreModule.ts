@@ -27,6 +27,7 @@ import {
   CoreConfigSchema,
   DeployedCoreAddresses,
   DerivedCoreConfig,
+  shouldDeployQuotedCalls,
 } from '../core/types.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import {
@@ -116,8 +117,11 @@ export class EvmCoreModule extends HyperlaneModule<
   ): Promise<AnnotatedEV5Transaction[]> {
     CoreConfigSchema.parse(expectedConfig);
 
-    // Deploy QuotedCalls if not yet present
-    if (!this.args.addresses.quotedCalls) {
+    // Deploy QuotedCalls if not yet present and enabled for this chain.
+    if (
+      shouldDeployQuotedCalls(expectedConfig) &&
+      !this.args.addresses.quotedCalls
+    ) {
       const ismFactory = new HyperlaneIsmFactory(
         attachContractsMap(
           { [this.chainName]: this.args.addresses },
@@ -435,10 +439,10 @@ export class EvmCoreModule extends HyperlaneModule<
       await coreDeployer.deployValidatorAnnounce(chainName, mailbox.address)
     ).address;
 
-    // Deploy QuotedCalls
-    const quotedCalls = (
-      await coreDeployer.deployQuotedCalls(chainName, config.permit2)
-    ).address;
+    const quotedCalls = shouldDeployQuotedCalls(config)
+      ? (await coreDeployer.deployQuotedCalls(chainName, config.permit2))
+          .address
+      : undefined;
 
     // Deploy timelock controller if config.upgrade is set
     let timelockController;
@@ -489,7 +493,7 @@ export class EvmCoreModule extends HyperlaneModule<
       mailbox: mailbox.address,
       interchainAccountRouter,
       validatorAnnounce,
-      quotedCalls,
+      ...(quotedCalls ? { quotedCalls } : {}),
       timelockController,
       testRecipient,
       merkleTreeHook,

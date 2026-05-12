@@ -39,6 +39,7 @@ import {
   HookConfig,
   HookType,
   IgpHookConfig,
+  IgpVersion,
   MUTABLE_HOOK_TYPE,
   PausableHookConfig,
   ProtocolFeeHookConfig,
@@ -670,6 +671,40 @@ describe('EvmHookModule', async () => {
       await expectTxsAndUpdate(hook, config, 1);
     });
 
+    it('should not update IGP only because igpVersion is legacy', async () => {
+      const config = await createDeployerOwnedIgpHookConfig();
+      const { hook } = await createHook(config);
+
+      await expectTxsAndUpdate(
+        hook,
+        { ...config, igpVersion: IgpVersion.Legacy },
+        0,
+      );
+    });
+
+    it('should not update routing hooks only because nested IGP is legacy', async () => {
+      const igpConfig = await createDeployerOwnedIgpHookConfig();
+      const config: FallbackRoutingHookConfig = {
+        owner: await multiProvider.getSignerAddress(chain),
+        domains: {
+          [TestChainName.test1]: {
+            type: HookType.AGGREGATION,
+            hooks: [{ type: HookType.MERKLE_TREE }, igpConfig],
+          },
+        },
+        type: HookType.FALLBACK_ROUTING,
+        fallback: { type: HookType.MERKLE_TREE },
+      };
+      const { hook } = await createHook(config);
+      const legacyConfig = deepCopy(config);
+      (
+        (legacyConfig.domains[TestChainName.test1] as AggregationHookConfig)
+          .hooks[1] as IgpHookConfig
+      ).igpVersion = IgpVersion.Legacy;
+
+      await expectTxsAndUpdate(hook, legacyConfig, 0);
+    });
+
     it('should add quote signers to IGP', async () => {
       const config = await createDeployerOwnedIgpHookConfig();
       config.contractVersion = CONTRACTS_PACKAGE_VERSION;
@@ -737,6 +772,26 @@ describe('EvmHookModule', async () => {
 
       // expect 0 txs since omitting quoteSigners means "don't change"
       await expectTxsAndUpdate(hook, config, 0);
+    });
+
+    it('should reject quote signers for legacy IGP configs', async () => {
+      const config = await createDeployerOwnedIgpHookConfig();
+      const { hook } = await createHook(config);
+      const legacyTarget = {
+        ...config,
+        igpVersion: IgpVersion.Legacy,
+        quoteSigners: [randomAddress()],
+      };
+
+      try {
+        await hook.update(legacyTarget);
+        throw new Error('Expected legacy IGP quote signer update to fail');
+      } catch (error: unknown) {
+        assert(error instanceof Error, 'Expected Error');
+        expect(error.message).to.include(
+          'IGP quoteSigners require contract version >= 11.3.0',
+        );
+      }
     });
 
     it('should not upgrade IGP when contractVersion is not in config', async () => {

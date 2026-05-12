@@ -134,6 +134,13 @@ export type HookConfig = z.infer<typeof HookConfigSchema>;
 
 export type DerivedHookConfig = WithAddress<Exclude<HookConfig, Address>>;
 
+export enum IgpVersion {
+  Legacy = 'legacy',
+  Latest = 'latest',
+}
+
+export const OFFCHAIN_QUOTED_IGP_VERSION = '11.3.0';
+
 // Hook types that can be updated in-place
 export const MUTABLE_HOOK_TYPE: HookType[] = [
   HookType.INTERCHAIN_GAS_PAYMASTER,
@@ -198,6 +205,7 @@ export const IgpSchema = OwnableSchema.extend({
   oracleKey: z.string(),
   overhead: z.record(z.number()),
   oracleConfig: z.record(ProtocolAgnositicGasOracleConfigWithTypicalCostSchema),
+  igpVersion: z.nativeEnum(IgpVersion).optional(),
   quoteSigners: z.array(z.string()).optional(),
   contractVersion: z.string().optional(),
 });
