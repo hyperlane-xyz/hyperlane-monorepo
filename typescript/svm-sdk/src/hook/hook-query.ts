@@ -71,6 +71,8 @@ export async function fetchOverheadIgpAccount(
  * Uses the IGP owner as the simulation fee payer when present, falling
  * back to a known-funded mainnet address when the owner is null or the
  * owner-paid simulation fails (e.g. production owner has no SOL).
+ * Returns null when both attempts fail (e.g. fallback payer absent on
+ * this chain), so reads remain best-effort.
  */
 export async function fetchIgpProgramVersion(
   rpc: Rpc<SolanaRpcApi>,
@@ -87,7 +89,15 @@ export async function fetchIgpProgramVersion(
       );
     }
   }
-  return queryProgramVersion(rpc, programId, FALLBACK_SIMULATION_PAYER);
+  try {
+    return await queryProgramVersion(rpc, programId, FALLBACK_SIMULATION_PAYER);
+  } catch (err) {
+    logger.debug(
+      'Fallback-payer simulation failed; returning null contractVersion',
+      { programId, err },
+    );
+    return null;
+  }
 }
 
 export async function detectHookType(
