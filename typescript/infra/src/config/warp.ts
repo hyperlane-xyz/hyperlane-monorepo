@@ -54,6 +54,7 @@ export const tokens = {
   },
   mantle: {
     USDT: '0x201EBa5CC46D216Ce6DC03F6a759e8E766e956aE',
+    USDT0: '0x779Ded0c9e1022225f8E0630b35a9b54bE713736',
     WETH: '0xdEAddEaDdeadDEadDEADDEAddEADDEAddead1111',
   },
   mode: {
@@ -70,6 +71,7 @@ export const tokens = {
   optimism: {
     USDC: '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85',
     USDT: '0x94b008aA00579c1307B0EF2c499aD98a8ce58e58',
+    USDT0: '0x01bFF41798a0BcF287b996046Ca68b395DbC1071',
     OP: '0x4200000000000000000000000000000000000042',
   },
   gnosis: {
@@ -91,6 +93,9 @@ export const tokens = {
   },
   tron: {
     USDT: '0xa614f803b6fd780986a42c78ec9c7f77e6ded13c', // converted from TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t
+  },
+  monad: {
+    USDT0: '0xe7cd86e13AC4309349F30B3435a9d337750fC82D',
   },
 };
 

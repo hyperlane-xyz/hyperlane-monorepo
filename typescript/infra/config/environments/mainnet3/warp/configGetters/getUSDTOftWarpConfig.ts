@@ -42,15 +42,16 @@ const oftAddresses: Record<DeploymentChain, string> = {
   monad: '0x9151434b16b9763660705744891fA906F660EcC5',
 };
 
-// USDT0 is a separate token from original USDT on optimism, mantle, and monad
+// USDT0 is a separate token from original USDT on optimism, mantle, and monad.
+// On ethereum, arbitrum, plasma, and polygon the original USDT was upgraded in-place.
 const tokenAddresses: Record<DeploymentChain, string> = {
   ethereum: tokens.ethereum.USDT,
   arbitrum: tokens.arbitrum.USDT,
   plasma: tokens.plasma.USDT,
   polygon: tokens.polygon.USDT,
-  optimism: '0x01bFF41798a0BcF287b996046Ca68b395DbC1071',
-  mantle: '0x779Ded0c9e1022225f8E0630b35a9b54bE713736',
-  monad: '0xe7cd86e13AC4309349F30B3435a9d337750fC82D',
+  optimism: tokens.optimism.USDT0,
+  mantle: tokens.mantle.USDT0,
+  monad: tokens.monad.USDT0,
 };
 
 const ownersByChain: Record<DeploymentChain, string> = {
