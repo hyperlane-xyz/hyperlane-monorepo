@@ -60,9 +60,11 @@ spec:
               containerPort: {{ .Values.port }}
             - name: metrics
               containerPort: {{ .Values.prometheus_port }}
+{{- if .Values.hyperlane.chains }}
           envFrom:
             - secretRef:
                 name: {{ .Chart.Name }}-secret
+{{- end }}
           env:
             - name: REGISTRY_URI
               value: {{ .Values.hyperlane.registryUri | quote }}

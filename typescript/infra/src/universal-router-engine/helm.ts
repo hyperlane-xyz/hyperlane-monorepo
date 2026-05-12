@@ -49,6 +49,7 @@ export class UniversalRouterEngineHelmManager extends HelmManager {
     return {
       ...envValues,
       image: {
+        ...envValues.image,
         repository: UniversalRouterEngineDockerImageRepo,
         tag: mainnetDockerTags.universalRouterEngine,
       },
