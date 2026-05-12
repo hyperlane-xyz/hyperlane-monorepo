@@ -33,6 +33,19 @@ interface TransactionFeeCache {
 
 export class AleoProvider extends AleoBase implements AltVM.IProvider {
   private transactionFeeCache: TransactionFeeCache = {};
+  private signerTransferCache = new Map<string, boolean>();
+
+  private async hasSignerTransferFunctions(
+    programId: string,
+  ): Promise<boolean> {
+    if (this.signerTransferCache.has(programId)) {
+      return this.signerTransferCache.get(programId)!;
+    }
+    const program = await this.aleoClient.getProgram(programId);
+    const hasSigner = program.toString().includes('transfer_remote_as_signer');
+    this.signerTransferCache.set(programId, hasSigner);
+    return hasSigner;
+  }
 
   static async connect(
     rpcUrls: string[],
@@ -544,6 +557,8 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
 
     const amount = `${req.amount}${tokenType === AltVM.TokenType.native ? 'u64' : 'u128'}`;
 
+    const useSignerVariant = await this.hasSignerTransferFunctions(programId);
+
     if (req.customHookAddress) {
       const metadataBytes: number[] = fillArray(
         [...Buffer.from(strip0x(req.customHookMetadata || ''), 'hex')],
@@ -558,7 +573,9 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
 
       return {
         programName: programId,
-        functionName: 'transfer_remote_with_hook',
+        functionName: useSignerVariant
+          ? 'transfer_remote_with_hook_as'
+          : 'transfer_remote_with_hook',
         priorityFee: 0,
         privateFee: false,
         inputs: [
@@ -577,7 +594,9 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
 
     return {
       programName: programId,
-      functionName: 'transfer_remote',
+      functionName: useSignerVariant
+        ? 'transfer_remote_as_signer'
+        : 'transfer_remote',
       priorityFee: 0,
       privateFee: false,
       inputs: [
