@@ -5,8 +5,13 @@ import {
   type AccountMeta,
 } from '@solana/kit';
 
+import { assert } from '@hyperlane-xyz/utils';
+
 import { readAddress } from './account-data.js';
 import { ByteCursor } from './binary.js';
+
+/** Wire bytes per entry: 32 pubkey + 1 isSigner + 1 isWritable. */
+const META_ENTRY_BYTES = 34;
 
 /**
  * Decodes the wire format emitted by Solana programs that return
@@ -24,6 +29,13 @@ import { ByteCursor } from './binary.js';
 export function decodeSimulatedAccountMetas(raw: Uint8Array): AccountMeta[] {
   const cursor = new ByteCursor(raw);
   const count = cursor.readU32LE();
+  // Bound `count` against the remaining buffer so a malformed RPC response
+  // can't trick us into a huge allocation that only fails on buffer
+  // underflow several iterations in.
+  assert(
+    count <= cursor.remaining() / META_ENTRY_BYTES,
+    `decodeSimulatedAccountMetas: count ${count} exceeds remaining buffer (${cursor.remaining()} bytes)`,
+  );
   const metas: AccountMeta[] = [];
   for (let i = 0; i < count; i += 1) {
     const address = readAddress(cursor);

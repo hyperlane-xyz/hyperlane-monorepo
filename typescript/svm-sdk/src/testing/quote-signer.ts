@@ -2,6 +2,8 @@ import { keccak_256 } from '@noble/hashes/sha3';
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { type Address, getAddressCodec } from '@solana/kit';
 
+import { assert } from '@hyperlane-xyz/utils';
+
 import { concatBytes, u32le } from '../codecs/binary.js';
 import type { SvmSignedQuote } from '../codecs/fee.js';
 
@@ -14,6 +16,9 @@ const QUOTE_DOMAIN_TAG = new TextEncoder().encode('HyperlaneSvmQuote');
 
 const CLIENT_SALT_LEN = 32;
 const SIGNATURE_LEN = 65;
+const ISSUED_AT_LEN = 6;
+const EXPIRY_LEN = 6;
+const U32_MAX = 0xffffffff;
 
 const addressEncoder = getAddressCodec();
 
@@ -108,12 +113,26 @@ export interface SignSvmQuoteArgs {
  * signer material.
  */
 export function signSvmQuote(args: SignSvmQuoteArgs): SvmSignedQuote {
+  assert(
+    args.issuedAt.length === ISSUED_AT_LEN,
+    `issuedAt must be ${ISSUED_AT_LEN} bytes (u48 BE), got ${args.issuedAt.length}`,
+  );
+  assert(
+    args.expiry.length === EXPIRY_LEN,
+    `expiry must be ${EXPIRY_LEN} bytes (u48 BE), got ${args.expiry.length}`,
+  );
+  assert(
+    Number.isInteger(args.domainId) &&
+      args.domainId >= 0 &&
+      args.domainId <= U32_MAX,
+    `domainId must be a u32 (integer in [0, ${U32_MAX}]), got ${args.domainId}`,
+  );
+
   const clientSalt = args.clientSalt ?? secp256k1.utils.randomSecretKey();
-  if (clientSalt.length !== CLIENT_SALT_LEN) {
-    throw new Error(
-      `clientSalt must be ${CLIENT_SALT_LEN} bytes, got ${clientSalt.length}`,
-    );
-  }
+  assert(
+    clientSalt.length === CLIENT_SALT_LEN,
+    `clientSalt must be ${CLIENT_SALT_LEN} bytes, got ${clientSalt.length}`,
+  );
 
   const scopedSalt = computeScopedSalt(args.payer, clientSalt);
   const messageHash = buildSvmQuoteMessageHash({
