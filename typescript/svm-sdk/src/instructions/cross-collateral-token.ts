@@ -116,7 +116,7 @@ function encodeTransferRemoteTo(
  *
  *   0  system program
  *   1  token PDA
- *   2  CC state PDA
+ *   2  CC state PDA (readonly — `transfer_remote_to_remote` only reads it)
  *   3  spl noop
  *   4  mailbox program
  *   5  mailbox outbox (writable)
@@ -167,7 +167,7 @@ export async function getCrossCollateralTransferRemoteToInstruction(args: {
   const accounts: InstructionAccountMeta[] = [
     readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
     readonlyAccount(tokenPda),
-    writableAccount(ccStatePda),
+    readonlyAccount(ccStatePda),
     readonlyAccount(SPL_NOOP_PROGRAM_ADDRESS),
     readonlyAccount(args.mailbox),
     writableAccount(mailboxOutbox),
