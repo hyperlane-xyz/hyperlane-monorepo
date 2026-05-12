@@ -711,6 +711,7 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
         innerIgp: igpAccount,
         quoted: {
           senderAuthority: warpDispatchAuthority,
+          senderProgramId: warpProgramId,
           cascadeQuotePdas: igpQuote.cascadeQuotePdas,
         },
       },
@@ -1025,6 +1026,7 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
           innerIgp: igpAccount,
           quoted: {
             senderAuthority: warpDispatchAuthority,
+            senderProgramId: warpProgramId,
             cascadeQuotePdas: igpQuote.cascadeQuotePdas,
           },
         },
