@@ -12,6 +12,7 @@ import {
   difference,
   isNullish,
   normalizeAddressSealevel,
+  sleep,
 } from '@hyperlane-xyz/utils';
 
 import { fetchAddressLookupTableState } from '../accounts/address-lookup-table.js';
@@ -29,6 +30,16 @@ import type { AnnotatedSvmTransaction, SvmReceipt, SvmRpc } from '../types.js';
  * signatures + accounts. 20 leaves comfortable headroom.
  */
 const EXTEND_CHUNK_SIZE = 20;
+
+/**
+ * Hard cap on how long `create()` waits for the new ALT to become
+ * referenceable. Solana slots are ~400ms; under any healthy validator
+ * the wait is one slot. 5s is generous headroom for CI under load.
+ * Polling at 1s keeps RPC pressure low while still terminating in one
+ * poll in the common case.
+ */
+const ALT_ACTIVATION_TIMEOUT_MS = 5_000;
+const ALT_ACTIVATION_POLL_MS = 1_000;
 
 export interface SvmAltConfig {
   /**
@@ -154,6 +165,25 @@ export class SvmAddressLookupTableWriter
     }
 
     const final = await fetchAddressLookupTableState(this.rpc, create.address);
+
+    // Wait for activation. v0 txs reference the ALT by index only when
+    // they land at a slot strictly greater than `last_extended_slot`, so
+    // poll the confirmed tip until it crosses that threshold before
+    // returning — callers can then use the ALT in the very next tx
+    // without their own delay.
+    const deadline = Date.now() + ALT_ACTIVATION_TIMEOUT_MS;
+    let currentSlot = await this.rpc
+      .getSlot({ commitment: 'confirmed' })
+      .send();
+    while (currentSlot <= final.lastExtendedSlot) {
+      assert(
+        Date.now() < deadline,
+        `ALT ${create.address} did not activate within ${ALT_ACTIVATION_TIMEOUT_MS}ms (last_extended_slot=${final.lastExtendedSlot}, current=${currentSlot})`,
+      );
+      await sleep(ALT_ACTIVATION_POLL_MS);
+      currentSlot = await this.rpc.getSlot({ commitment: 'confirmed' }).send();
+    }
+
     return [
       {
         artifactState: ArtifactState.DEPLOYED,

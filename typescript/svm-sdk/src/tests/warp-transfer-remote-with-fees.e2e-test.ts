@@ -12,7 +12,7 @@ import { expect } from 'chai';
 import { before, describe, it } from 'mocha';
 
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
-import { assert, sleep } from '@hyperlane-xyz/utils';
+import { assert } from '@hyperlane-xyz/utils';
 import {
   FeeParamsType,
   FeeStrategyType,
@@ -823,7 +823,6 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
         ],
       },
     });
-    await sleep(2000);
 
     const igpBalanceBefore = BigInt(
       (await rpc.getBalance(igpAccount).send()).value,
@@ -1147,7 +1146,6 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
         ],
       },
     });
-    await sleep(2000);
 
     const igpBalanceBefore = BigInt(
       (await rpc.getBalance(igpAccount).send()).value,
