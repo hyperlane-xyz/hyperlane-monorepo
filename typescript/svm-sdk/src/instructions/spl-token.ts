@@ -1,5 +1,7 @@
 import type { Address, Instruction } from '@solana/kit';
 
+import { assert } from '@hyperlane-xyz/utils';
+
 import {
   ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
   SPL_TOKEN_PROGRAM_ADDRESS,
@@ -50,6 +52,8 @@ export function getCreateAssociatedTokenIdempotentInstruction(args: {
  * Data layout: `[u8(7), u64 LE amount]` (9 bytes).
  * Accounts: `[mint(w), destination(w), authority(s)]`.
  */
+const U64_MAX = (1n << 64n) - 1n;
+
 export function getMintToInstruction(args: {
   mint: Address;
   destination: Address;
@@ -58,6 +62,10 @@ export function getMintToInstruction(args: {
   /** Defaults to the classic SPL Token program. */
   tokenProgram?: Address;
 }): Instruction {
+  assert(
+    args.amount >= 0n && args.amount <= U64_MAX,
+    `getMintToInstruction: amount ${args.amount} does not fit in u64 (0..${U64_MAX})`,
+  );
   const data = new Uint8Array(9);
   data[0] = 7;
   let v = args.amount;
