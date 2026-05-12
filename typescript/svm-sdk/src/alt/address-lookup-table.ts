@@ -10,9 +10,7 @@ import {
 import {
   assert,
   difference,
-  eqAddressSol,
   isNullish,
-  isZeroishAddress,
   normalizeAddressSealevel,
 } from '@hyperlane-xyz/utils';
 
@@ -34,15 +32,17 @@ const EXTEND_CHUNK_SIZE = 20;
 
 export interface SvmAltConfig {
   /**
-   * ALT authority. `null` when the table is frozen — terminal, no further
-   * mutation is possible. Setting this to `null` in the expected config
-   * when the on-chain authority is `Some(X)` emits a freeze.
+   * One-way freeze bit. `false` → mutable (extends still accepted).
+   * `true` → terminal: no further extends or mutations are possible.
+   * Setting this to `true` when the on-chain table is still mutable emits
+   * a freeze tx. The reverse transition (true → false) is rejected.
    *
-   * The on-chain ALT program does not support authority transfer, so an
-   * expected owner that differs from the current on-chain authority is
-   * rejected.
+   * The on-chain authority is not configurable — the ALT program has no
+   * transfer-authority instruction, so the create-time signer is the
+   * authority for the table's lifetime. The actual authority address
+   * is surfaced via `SvmDeployedAlt.authority`.
    */
-  owner: Address | null;
+  frozen: boolean;
   /** Addresses stored in the lookup table, in on-chain index order. */
   addresses: Address[];
 }
@@ -50,6 +50,11 @@ export interface SvmAltConfig {
 export interface SvmDeployedAlt {
   address: Address;
   lastExtendedSlot: bigint;
+  /**
+   * On-chain authority. Fixed at create time; `null` once the table is
+   * frozen. Not user-configurable — surfaced from on-chain state.
+   */
+  authority: Address | null;
 }
 
 function chunk<T>(items: T[], size: number): T[][] {
@@ -75,8 +80,8 @@ export class SvmAddressLookupTableReader implements ArtifactReader<
 
     return {
       artifactState: ArtifactState.DEPLOYED,
-      config: { owner, addresses },
-      deployed: { address: altAddress, lastExtendedSlot },
+      config: { frozen: isNullish(owner), addresses },
+      deployed: { address: altAddress, lastExtendedSlot, authority: owner },
     };
   }
 }
@@ -95,16 +100,8 @@ export class SvmAddressLookupTableWriter
   async create(
     artifact: ArtifactNew<SvmAltConfig>,
   ): Promise<[ArtifactDeployed<SvmAltConfig, SvmDeployedAlt>, SvmReceipt[]]> {
-    const { owner, addresses } = artifact.config;
+    const { frozen, addresses } = artifact.config;
     const signer = this.svmSigner.signer.address;
-
-    // The on-chain ALT program has no transfer-authority instruction, so the
-    // create-time authority must be the signer. A `null` owner means
-    // "freeze immediately after extends", which is also done by the signer.
-    assert(
-      isNullish(owner) || eqAddressSol(owner, signer),
-      `SvmAddressLookupTableWriter.create: config.owner (${owner}) must equal the writer's signer (${signer}) — the ALT program has no authority-transfer instruction.`,
-    );
 
     // The ALT program rejects slots that aren't in the SlotHashes sysvar.
     // A finalized slot is guaranteed to have already been recorded there,
@@ -121,9 +118,11 @@ export class SvmAddressLookupTableWriter
       payer: signer,
       recentSlot,
     });
-    receipts.push(
-      await this.svmSigner.send({ instructions: [create.instruction] }),
-    );
+
+    const createAltReceipt = await this.svmSigner.send({
+      instructions: [create.instruction],
+    });
+    receipts.push(createAltReceipt);
 
     for (const batch of chunk(addresses, EXTEND_CHUNK_SIZE)) {
       const extendIx = getExtendAddressLookupTableInstruction({
@@ -135,22 +134,27 @@ export class SvmAddressLookupTableWriter
       receipts.push(await this.svmSigner.send({ instructions: [extendIx] }));
     }
 
-    if (isNullish(owner) || isZeroishAddress(owner)) {
+    if (frozen) {
       const freezeIx = getFreezeAddressLookupTableInstruction({
         address: create.address,
         authority: signer,
       });
-      receipts.push(await this.svmSigner.send({ instructions: [freezeIx] }));
+
+      const freezeReceipt = await this.svmSigner.send({
+        instructions: [freezeIx],
+      });
+      receipts.push(freezeReceipt);
     }
 
     const final = await fetchAddressLookupTableState(this.rpc, create.address);
     return [
       {
         artifactState: ArtifactState.DEPLOYED,
-        config: { owner: final.owner, addresses: final.addresses },
+        config: { frozen: isNullish(final.owner), addresses: final.addresses },
         deployed: {
           address: create.address,
           lastExtendedSlot: final.lastExtendedSlot,
+          authority: final.owner,
         },
       },
       receipts,
@@ -163,19 +167,19 @@ export class SvmAddressLookupTableWriter
     const { address } = artifact.deployed;
     const expected = artifact.config;
 
-    const { config: current } = await this.read(address);
+    const { config: current, deployed: currentDeployed } =
+      await this.read(address);
 
     // Fail fast: a frozen ALT cannot be mutated for any reason.
-    if (isNullish(current.owner) || isZeroishAddress(current.owner)) {
-      throw new Error(
-        `Cannot mutate ALT ${address}: table is frozen (no further extends or freezes accepted).`,
-      );
-    }
+    assert(
+      !current.frozen && !isNullish(currentDeployed.authority),
+      `Cannot mutate ALT ${address}: table is frozen (no further extends or freezes accepted).`,
+    );
 
     // Emit txs with the on-chain authority as both signer and fee payer.
     // The actual signing happens downstream — same pattern as warp/IGP
     // writers — so the writer's own signer is only used by create().
-    const authority = current.owner;
+    const authority = currentDeployed.authority;
     const txs: AnnotatedSvmTransaction[] = [];
 
     // Address diff: ALT entries are append-only.
@@ -211,10 +215,7 @@ export class SvmAddressLookupTableWriter
       });
     }
 
-    // Owner intent: null/zeroish ⇒ freeze. Any real expected.owner must
-    // match the current authority — the on-chain program has no transfer
-    // instruction.
-    if (isNullish(expected.owner) || isZeroishAddress(expected.owner)) {
+    if (expected.frozen) {
       txs.push({
         feePayer: authority,
         instructions: [
@@ -225,10 +226,6 @@ export class SvmAddressLookupTableWriter
         ],
         annotation: `Freeze ALT ${address}`,
       });
-    } else if (!eqAddressSol(expected.owner, authority)) {
-      throw new Error(
-        `Cannot change authority of ALT ${address} from ${authority} to ${expected.owner}: the ALT program has no authority-transfer instruction.`,
-      );
     }
 
     return txs;
