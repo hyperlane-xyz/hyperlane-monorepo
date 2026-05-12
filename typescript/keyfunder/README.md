@@ -41,6 +41,15 @@ chains:
       threshold: '0.3'
       targetMultiplier: 1.5
       triggerMultiplier: 2.0
+  arbitrumorbit:
+    balances:
+      hyperlane-relayer: '0.1'
+    bridge:
+      type: 'arbitrumOrbit'
+      parentChain: 'ethereum'
+      inbox: '0x000000000000000000000000000000000000006e'
+      threshold: '0.2'
+      targetBalance: '1.0'
   arbitrum:
     balances:
       hyperlane-relayer: '0.1'
@@ -68,6 +77,12 @@ chainsToSkip: []
 | `chains.<chain>.igp`                     | IGP claim configuration                                                                          |
 | `chains.<chain>.igp.address`             | IGP contract address (required when `igp` is specified)                                          |
 | `chains.<chain>.igp.claimThreshold`      | Minimum IGP balance before claiming (decimal string; up to 18 decimals)                          |
+| `chains.<chain>.bridge`                  | Optional parent-chain bridge top-up configuration                                                |
+| `chains.<chain>.bridge.type`             | Bridge type. Currently supports `"arbitrumOrbit"`                                                |
+| `chains.<chain>.bridge.parentChain`      | Parent chain where the bridge transaction is sent                                                |
+| `chains.<chain>.bridge.inbox`            | Arbitrum Orbit Inbox address on the parent chain                                                 |
+| `chains.<chain>.bridge.threshold`        | Child-chain funder balance below which bridging is triggered                                     |
+| `chains.<chain>.bridge.targetBalance`    | Target child-chain funder balance after bridging                                                 |
 | `chains.<chain>.sweep`                   | Sweep excess funds configuration                                                                 |
 | `chains.<chain>.sweep.enabled`           | Enable sweep functionality                                                                       |
 | `chains.<chain>.sweep.address`           | Address to sweep funds to (required when enabled)                                                |

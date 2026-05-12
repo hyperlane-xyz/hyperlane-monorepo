@@ -8,6 +8,7 @@ import {
   KeyFunderConfigSchema,
   RoleConfigSchema,
   SweepConfigSchema,
+  BridgeType,
 } from './types.js';
 
 describe('KeyFunderConfig Schemas', () => {
@@ -143,6 +144,48 @@ describe('KeyFunderConfig Schemas', () => {
       };
       const result = ChainConfigSchema.safeParse(config);
       expect(result.success).to.be.true;
+    });
+
+    it('should validate Arbitrum Orbit bridge config', () => {
+      const config = {
+        bridge: {
+          type: BridgeType.ArbitrumOrbit,
+          parentChain: 'ethereum',
+          inbox: '0x000000000000000000000000000000000000006e',
+          threshold: '0.2',
+          targetBalance: '1',
+        },
+      };
+      const result = ChainConfigSchema.safeParse(config);
+      expect(result.success).to.be.true;
+    });
+
+    it('should reject Arbitrum Orbit bridge config without parent chain', () => {
+      const config = {
+        bridge: {
+          type: BridgeType.ArbitrumOrbit,
+          parentChain: '',
+          inbox: '0x000000000000000000000000000000000000006e',
+          threshold: '0.2',
+          targetBalance: '1',
+        },
+      };
+      const result = ChainConfigSchema.safeParse(config);
+      expect(result.success).to.be.false;
+    });
+
+    it('should reject Arbitrum Orbit bridge target below threshold', () => {
+      const config = {
+        bridge: {
+          type: BridgeType.ArbitrumOrbit,
+          parentChain: 'ethereum',
+          inbox: '0x000000000000000000000000000000000000006e',
+          threshold: '1',
+          targetBalance: '0.9',
+        },
+      };
+      const result = ChainConfigSchema.safeParse(config);
+      expect(result.success).to.be.false;
     });
 
     it('should reject invalid balance value', () => {

@@ -24,6 +24,29 @@ export const IgpConfigSchema = z.object({
   claimThreshold: BalanceStringSchema,
 });
 
+export const BridgeType = {
+  ArbitrumOrbit: 'arbitrumOrbit',
+} as const;
+
+export const ArbitrumOrbitBridgeConfigSchema = z
+  .object({
+    type: z.literal(BridgeType.ArbitrumOrbit),
+    parentChain: z.string().min(1),
+    inbox: AddressSchema,
+    threshold: BalanceStringSchema,
+    targetBalance: BalanceStringSchema,
+  })
+  .refine(
+    (data) =>
+      parseBalanceUnits(data.targetBalance) > parseBalanceUnits(data.threshold),
+    {
+      message: 'Bridge targetBalance must be greater than threshold',
+      path: ['targetBalance'],
+    },
+  );
+
+export const BridgeConfigSchema = ArbitrumOrbitBridgeConfigSchema;
+
 const MIN_TRIGGER_DIFFERENCE = 0.05;
 const MIN_TARGET = 1.05;
 const MIN_TRIGGER = 1.1;
@@ -71,6 +94,7 @@ export const ChainConfigSchema = z.object({
   balances: z.record(z.string(), BalanceStringSchema).optional(),
   igp: IgpConfigSchema.optional(),
   sweep: SweepConfigSchema.optional(),
+  bridge: BridgeConfigSchema.optional(),
 });
 
 export const MetricsConfigSchema = z.object({
@@ -107,6 +131,10 @@ export const KeyFunderConfigSchema = z
 
 export type RoleConfig = z.infer<typeof RoleConfigSchema>;
 export type IgpConfig = z.infer<typeof IgpConfigSchema>;
+export type ArbitrumOrbitBridgeConfig = z.infer<
+  typeof ArbitrumOrbitBridgeConfigSchema
+>;
+export type BridgeConfig = z.infer<typeof BridgeConfigSchema>;
 export type SweepConfig = z.infer<typeof SweepConfigSchema>;
 export type ChainConfig = z.infer<typeof ChainConfigSchema>;
 export type MetricsConfig = z.infer<typeof MetricsConfigSchema>;
@@ -117,4 +145,9 @@ export interface ResolvedKeyConfig {
   address: string;
   role: string;
   desiredBalance: string;
+}
+
+function parseBalanceUnits(value: string): string {
+  const [whole, fractional = ''] = value.split('.');
+  return `${whole.padStart(78, '0')}${fractional.padEnd(18, '0')}`;
 }
