@@ -1,5 +1,5 @@
 import { type AltVM } from '@hyperlane-xyz/provider-sdk';
-import { type TokenType } from '@hyperlane-xyz/provider-sdk/warp';
+import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert, isNullish, retryAsync } from '@hyperlane-xyz/utils';
 
 import { type AleoProgram } from '../artifacts.js';
@@ -94,7 +94,10 @@ export class AleoSigner
     const configuredSuffix = preferredSuffix || this.warpSuffix;
 
     if (configuredSuffix) {
-      const tokenProgramId = `${this.prefix}_${tokenType}_${configuredSuffix}.aleo`;
+      const tokenProgramId =
+        tokenType === TokenType.synthetic
+          ? `${this.prefix}_warp_token_${configuredSuffix}.aleo`
+          : `${this.prefix}_${tokenType}_${configuredSuffix}.aleo`;
 
       const isAlreadyDeployed = await this.isProgramDeployed(tokenProgramId);
       assert(
