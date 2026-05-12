@@ -514,10 +514,18 @@ export function getGetSubmitQuoteAccountMetasInstruction(
 }
 
 /**
- * Runs `GetSubmitQuoteAccountMetas` via simulation and parses the returned
- * account-meta list — the accounts the caller must pass to a matching
- * `SubmitQuote` instruction. The returned list has a payer placeholder at
- * index 1 that callers must replace with the real payer pubkey.
+ * Runs `GetSubmitQuoteAccountMetas` via simulation, parses the returned
+ * account-meta list, and substitutes the on-chain payer placeholder
+ * (Pubkey::default at slot 1) with `payerSubstitution` so the result is
+ * ready to feed into `getSubmitQuoteInstruction`.
+ *
+ * `payerSubstitution` is an `Address` (not a `TransactionSigner`) so the
+ * SDK can build instructions destined for offline / external signers; the
+ * substituted slot is marked `WRITABLE_SIGNER` and signed downstream.
+ *
+ * Asserts the placeholder's address before swapping — drift in the
+ * on-chain meta layout fails here loudly instead of as a confusing
+ * runtime error after submission.
  */
 export async function simulateSubmitQuoteAccountMetas(args: {
   rpc: SvmRpc;
@@ -526,8 +534,10 @@ export async function simulateSubmitQuoteAccountMetas(args: {
   /** Funded address used as the simulation fee payer (signature not required). */
   payer: Address;
   input: GetSubmitQuoteAccountMetasInput;
-}): Promise<AccountMeta[]> {
-  return simulateInstructionAccountMetas({
+  /** Real submitter address; replaces the placeholder at slot 1. */
+  payerSubstitution: Address;
+}): Promise<InstructionAccountMeta[]> {
+  const metas = await simulateInstructionAccountMetas({
     rpc: args.rpc,
     payer: args.payer,
     ix: getGetSubmitQuoteAccountMetasInstruction(
@@ -536,4 +546,12 @@ export async function simulateSubmitQuoteAccountMetas(args: {
       args.input,
     ),
   });
+
+  assert(
+    metas[1]?.address === SYSTEM_PROGRAM_ADDRESS,
+    `simulateSubmitQuoteAccountMetas: expected payer placeholder (${SYSTEM_PROGRAM_ADDRESS}) at slot 1, got ${metas[1]?.address} — on-chain contract may have changed`,
+  );
+  return metas.map((m, i) =>
+    i === 1 ? writableSignerAddress(args.payerSubstitution) : m,
+  );
 }

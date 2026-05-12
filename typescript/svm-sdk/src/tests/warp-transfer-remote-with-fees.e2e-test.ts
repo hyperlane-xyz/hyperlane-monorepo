@@ -54,12 +54,7 @@ import {
   getTokenTransferRemoteInstruction,
 } from '../instructions/token.js';
 import type { SvmSignedQuote } from '../codecs/fee.js';
-import {
-  type InstructionAccountMeta,
-  readonlyAccount,
-  writableAccount,
-  writableSigner,
-} from '../instructions/utils.js';
+import { readonlyAccount, writableAccount } from '../instructions/utils.js';
 import {
   deriveAssociatedTokenAddress,
   deriveCrossCollateralStatePda,
@@ -362,20 +357,18 @@ async function setupFeeTransientQuote(args: {
     clientSalt,
   });
 
-  const submitMetas = await simulateSubmitQuoteAccountMetas({
+  const submitAccounts = await simulateSubmitQuoteAccountMetas({
     rpc: args.rpc,
     programId: args.feeProgramId,
     feeAccount: args.feeAccountPda,
     payer: args.senderWallet,
+    payerSubstitution: args.senderWallet,
     input: {
       destinationDomain: args.destinationDomain,
       targetRouter: args.targetRouter,
       scopedSalt,
     },
   });
-  const submitAccounts: InstructionAccountMeta[] = submitMetas.map((m, i) =>
-    i === 1 ? writableSigner(args.signer.signer) : m,
-  );
   const submitInstruction = getSubmitQuoteInstruction(
     args.feeProgramId,
     submitAccounts,
