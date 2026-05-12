@@ -7,6 +7,7 @@ import {
 import { awIcas } from '../../governance/ica/aw.js';
 import { awSafes } from '../../governance/safe/aw.js';
 
+// USDT0 deployment docs: https://docs.usdt0.to/technical-documentation/deployments
 const deploymentChains = [
   'ethereum',
   'arbitrum',
@@ -19,6 +20,7 @@ const deploymentChains = [
 
 export type DeploymentChain = (typeof deploymentChains)[number];
 
+// LayerZero V2 endpoint IDs: https://docs.layerzero.network/v2/developers/evm/technical-reference/deployed-contracts
 const lzEids: Record<DeploymentChain, number> = {
   ethereum: 30101,
   arbitrum: 30110,
@@ -29,6 +31,7 @@ const lzEids: Record<DeploymentChain, number> = {
   monad: 30390,
 };
 
+// OFT/OFT Adapter addresses from https://docs.usdt0.to/technical-documentation/deployments
 const oftAddresses: Record<DeploymentChain, string> = {
   ethereum: '0x6C96dE32CEa08842dcc4058c14d3aaAD7Fa41dee',
   arbitrum: '0x14E4A1B13bf7F943c8ff7C51fb60FA964A298D92',
