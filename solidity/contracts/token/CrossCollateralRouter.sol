@@ -18,7 +18,7 @@ import {HypERC20Collateral} from "./HypERC20Collateral.sol";
 import {TokenMessage} from "./libs/TokenMessage.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
-import {Quote} from "../interfaces/ITokenBridge.sol";
+import {ITokenBridge, Quote} from "../interfaces/ITokenBridge.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
@@ -152,6 +152,36 @@ contract CrossCollateralRouter is HypERC20Collateral, ICrossCollateralFee {
         );
         destinationGas[domain] = gas;
         emit GasSet(domain, gas);
+    }
+
+    // ============ Movable Collateral Overrides ============
+
+    /// @dev Widens MovableCollateralRouter's rebalance-domain check to also
+    /// accept CCR-enrolled domains. For CCR-only domains, `setRecipient` must
+    /// be called to pin a target router — `_recipient`'s fallback would
+    /// otherwise revert in `_mustHaveRemoteRouter`.
+    function setRecipient(
+        uint32 domain,
+        bytes32 recipient
+    ) external override onlyOwner {
+        _requireEnrolled(domain);
+        allowed.recipient[domain] = recipient;
+    }
+
+    function addBridge(
+        uint32 domain,
+        ITokenBridge bridge
+    ) external override onlyOwner {
+        _requireEnrolled(domain);
+        _addBridge(domain, bridge);
+    }
+
+    function _requireEnrolled(uint32 domain) internal view {
+        require(
+            routers(domain) != bytes32(0) ||
+                _crossCollateralRouters[domain].length() > 0,
+            "CCR: domain has no routers"
+        );
     }
 
     // ============ Internal Helpers ============
