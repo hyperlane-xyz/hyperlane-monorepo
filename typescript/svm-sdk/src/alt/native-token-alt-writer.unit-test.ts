@@ -2,6 +2,7 @@ import { type Address, address } from '@solana/kit';
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 
+import { HookType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   type ArtifactDeployed,
   ArtifactState,
@@ -11,6 +12,7 @@ import {
   FeeParamsType,
   FeeType,
 } from '@hyperlane-xyz/provider-sdk/fee';
+import type { IgpHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
 import {
   type DeployedWarpAddress,
   type NativeWarpArtifactConfig,
@@ -18,12 +20,16 @@ import {
 } from '@hyperlane-xyz/provider-sdk/warp';
 
 import type { SvmSigner } from '../clients/signer.js';
-import { H256_ZERO } from '../instructions/fee.js';
 import { WILDCARD_DOMAIN } from '../codecs/igp.js';
+import { SYSTEM_PROGRAM_ADDRESS } from '../constants.js';
 import { resolveFeeSalt } from '../fee/types.js';
+import { DEFAULT_IGP_SALT } from '../hook/igp-hook.js';
+import { H256_ZERO } from '../instructions/fee.js';
 import {
   deriveFeeAccountPda,
   deriveHyperlaneTokenPda,
+  deriveIgpAccountPda,
+  deriveIgpStandingQuotePda,
   deriveMailboxDispatchAuthorityPda,
   deriveNativeCollateralPda,
   deriveStandingQuotePda,
@@ -42,6 +48,9 @@ const MAILBOX: Address = address(
 );
 const FEE_PROGRAM: Address = address(
   'F33ip6ZJ4LQHxq3sJTbxsZNG6tWELzETSdpMmFwGV4tT',
+);
+const IGP_PROGRAM: Address = address(
+  'BCYqLqWsXmA3sP7VBR1G64rUQXqXM6JzkqpYxbFv5Yu1',
 );
 const BENEFICIARY: Address = address(
   'BeneFiCiaRy11111111111111111111111111111111',
@@ -69,6 +78,10 @@ function deployedNative(args?: {
     NativeWarpArtifactConfig,
     DeployedWarpAddress
   >['config']['fee'];
+  hook?: ArtifactDeployed<
+    NativeWarpArtifactConfig,
+    DeployedWarpAddress
+  >['config']['hook'];
   remoteRouters?: Record<number, { address: string }>;
 }): ArtifactDeployed<NativeWarpArtifactConfig, DeployedWarpAddress> {
   return {
@@ -80,8 +93,31 @@ function deployedNative(args?: {
       remoteRouters: args?.remoteRouters ?? {},
       destinationGas: {},
       fee: args?.fee,
+      hook: args?.hook,
     },
     deployed: { address: WARP_PROGRAM },
+  };
+}
+
+function igpHookConfig(): IgpHookConfig {
+  return {
+    type: HookType.INTERCHAIN_GAS_PAYMASTER,
+    owner: '0x0000000000000000000000000000000000000000',
+    beneficiary: '0x0000000000000000000000000000000000000000',
+    oracleKey: '0x0000000000000000000000000000000000000000',
+    overhead: {},
+    oracleConfig: {},
+  };
+}
+
+function deployedIgpHook(): ArtifactDeployed<
+  IgpHookConfig,
+  { address: string }
+> {
+  return {
+    artifactState: ArtifactState.DEPLOYED,
+    config: igpHookConfig(),
+    deployed: { address: IGP_PROGRAM },
   };
 }
 
@@ -209,10 +245,67 @@ describe('SvmNativeTokenAltWriter.deriveWarpRouteAddresses', () => {
     ).to.be.rejectedWith(/fee/i);
   });
 
+  it('includes per-destination IGP cascade addresses when hook is an IGP', async () => {
+    const igpAccount = await deriveIgpAccountPda(IGP_PROGRAM, DEFAULT_IGP_SALT);
+    const perDest = await deriveIgpStandingQuotePda(
+      IGP_PROGRAM,
+      igpAccount.address,
+      SYSTEM_PROGRAM_ADDRESS,
+      10,
+      WARP_PROGRAM,
+    );
+    const perSenderWildcard = await deriveIgpStandingQuotePda(
+      IGP_PROGRAM,
+      igpAccount.address,
+      SYSTEM_PROGRAM_ADDRESS,
+      WILDCARD_DOMAIN,
+      WARP_PROGRAM,
+    );
+
+    const result = await writer.deriveWarpRouteAddresses(
+      deployedNative({
+        hook: deployedIgpHook(),
+        remoteRouters: { 10: { address: REMOTE_ROUTER_HEX } },
+      }),
+    );
+
+    expect(result).to.include.members([
+      perDest.address,
+      perSenderWildcard.address,
+    ]);
+  });
+
+  it('rejects when hook is a NEW artifact', async () => {
+    await expect(
+      writer.deriveWarpRouteAddresses(
+        deployedNative({
+          hook: {
+            artifactState: ArtifactState.NEW,
+            config: igpHookConfig(),
+          },
+        }),
+      ),
+    ).to.be.rejectedWith(/hook/i);
+  });
+
+  it('rejects when hook is UNDERIVED', async () => {
+    await expect(
+      writer.deriveWarpRouteAddresses(
+        deployedNative({
+          hook: {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: IGP_PROGRAM },
+          },
+        }),
+      ),
+    ).to.be.rejectedWith(/hook/i);
+  });
+
   it('output is sorted ascending and contains no duplicates', async () => {
     const result = await writer.deriveWarpRouteAddresses(
       deployedNative({
         fee: deployedLinearFee(),
+        hook: deployedIgpHook(),
         remoteRouters: { 10: { address: REMOTE_ROUTER_HEX } },
       }),
     );
