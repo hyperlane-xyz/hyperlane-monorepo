@@ -77,7 +77,7 @@ export interface SvmDeployedAlt {
   authority: Address | null;
 }
 
-function nonEmptyArray<T>(arr: readonly T[]): NonEmptyArray<T> {
+export function nonEmptyArray<T>(arr: readonly T[]): NonEmptyArray<T> {
   const [first, ...rest] = arr;
   assert(!isNullish(first), 'expected non-empty array');
   return [first, ...rest];
