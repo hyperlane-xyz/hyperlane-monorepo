@@ -9,6 +9,7 @@ import type {
   NativeWarpArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
 
+import type { SvmSigner } from '../clients/signer.js';
 import { resolveFeeSalt } from '../fee/types.js';
 import {
   deriveFeeAccountPda,
@@ -16,7 +17,6 @@ import {
   deriveMailboxDispatchAuthorityPda,
   deriveNativeCollateralPda,
 } from '../pda.js';
-import type { SvmRpc } from '../types.js';
 import { assert, isNullish } from '@hyperlane-xyz/utils';
 
 /**
@@ -35,7 +35,7 @@ import { assert, isNullish } from '@hyperlane-xyz/utils';
  */
 export class SvmNativeTokenAltWriter {
   constructor(
-    protected readonly rpc: SvmRpc,
+    protected readonly signer: SvmSigner,
     protected readonly chainName: string,
   ) {}
 
