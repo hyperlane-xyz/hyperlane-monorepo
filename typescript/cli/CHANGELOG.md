@@ -1,5 +1,12 @@
 # @hyperlane-xyz/cli
 
+## 34.0.0
+
+### Minor Changes
+
+- f758a70: Added rate-limited ISM support.
+- b8a600c: Added rate-limited hook support.
+
 ## 33.1.1
 
 ### Patch Changes

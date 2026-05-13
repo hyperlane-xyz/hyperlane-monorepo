@@ -1,5 +1,30 @@
 # @hyperlane-xyz/sdk
 
+## 34.0.0
+
+### Major Changes
+
+- 2151352: Move ICA call helper exports from the SDK root and `middleware/account/InterchainAccount` to `middleware/account/icaCalls`, and expose fee, middleware account, and utility modules through package subpath exports.
+
+### Minor Changes
+
+- f758a70: Added rate-limited ISM support.
+- b8a600c: Added rate-limited hook support.
+
+### Patch Changes
+
+- 9a1ce26: Cosmos fee estimation clients were cached by reusing Stargate client connections across repeated estimates, with cache eviction on failures.
+- Updated dependencies [9a1ce26]
+  - @hyperlane-xyz/cosmos-sdk@34.0.0
+  - @hyperlane-xyz/deploy-sdk@6.0.2
+  - @hyperlane-xyz/aleo-sdk@34.0.0
+  - @hyperlane-xyz/starknet-core@34.0.0
+  - @hyperlane-xyz/radix-sdk@34.0.0
+  - @hyperlane-xyz/utils@34.0.0
+  - @hyperlane-xyz/core@11.3.1
+  - @hyperlane-xyz/provider-sdk@6.0.2
+  - @hyperlane-xyz/tron-sdk@23.0.7
+
 ## 33.1.1
 
 ### Patch Changes
