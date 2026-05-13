@@ -111,7 +111,7 @@ function getKrownBlacklistIsmConfig(params: {
     {
       type: IsmType.BLACKLIST,
       owner,
-      blacklistedIds,
+      blacklistedMessageIds: blacklistedIds,
     },
     {
       type: IsmType.TRUSTED_RELAYER,
