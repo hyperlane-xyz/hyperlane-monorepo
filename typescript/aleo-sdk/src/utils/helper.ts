@@ -32,6 +32,11 @@ export function getNetworkPrefix(aleoNetworkId: AleoNetworkId): string {
 export const RETRY_ATTEMPTS = 10;
 export const RETRY_DELAY_MS = 100;
 
+// After a deployment tx is confirmed, /program/<id> can take additional
+// seconds to become readable. Poll with generous patience (3min total).
+export const PROGRAM_AVAILABILITY_POLL_INTERVAL_MS = 3_000;
+export const PROGRAM_AVAILABILITY_MAX_ATTEMPTS = 60;
+
 export const SUFFIX_LENGTH_LONG = 6;
 export const SUFFIX_LENGTH_SHORT = 3;
 

@@ -1,9 +1,12 @@
 import { type AltVM } from '@hyperlane-xyz/provider-sdk';
 import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
-import { assert, isNullish, retryAsync } from '@hyperlane-xyz/utils';
+import { assert, isNullish, retryAsync, sleep } from '@hyperlane-xyz/utils';
 
 import { type AleoProgram } from '../artifacts.js';
+import { withAleoFetchRetry } from '../utils/fetch-retry.js';
 import {
+  PROGRAM_AVAILABILITY_MAX_ATTEMPTS,
+  PROGRAM_AVAILABILITY_POLL_INTERVAL_MS,
   RETRY_ATTEMPTS,
   RETRY_DELAY_MS,
   SUFFIX_LENGTH_LONG,
@@ -86,6 +89,59 @@ export class AleoSigner
     );
   }
 
+  // Poll /program/<id> directly via the SDK's host so we can react to the
+  // actual HTTP status code instead of pattern-matching SDK error messages
+  // (which are wrapped through several layers and not part of any stable
+  // contract). 404 = not visible yet (retry); any other non-OK = real
+  // failure (surface immediately).
+  private async waitForProgramVisibility(
+    programId: string,
+    txId: string,
+  ): Promise<void> {
+    assert(
+      typeof globalThis.fetch === 'function',
+      'Program visibility polling requires globalThis.fetch',
+    );
+
+    const url = `${this.aleoClient.host}/program/${programId}`;
+    let lastError: unknown;
+
+    for (let i = 0; i < PROGRAM_AVAILABILITY_MAX_ATTEMPTS; i++) {
+      let res: Response;
+      try {
+        res = await withAleoFetchRetry(() => fetch(url));
+      } catch (err) {
+        // Transient network error on an idempotent GET — retry.
+        lastError = err;
+        await sleep(PROGRAM_AVAILABILITY_POLL_INTERVAL_MS);
+        continue;
+      }
+
+      if (res.ok) return;
+
+      if (res.status === 404) {
+        lastError = new Error(`Program ${programId} not yet at ${url}`);
+        await sleep(PROGRAM_AVAILABILITY_POLL_INTERVAL_MS);
+        continue;
+      }
+
+      // Any other status (auth, server error after GET retries, etc.) is a
+      // real failure — surface it without burning the full poll budget.
+      const body = await res.text().catch(() => '<unreadable body>');
+      throw new Error(
+        `Unexpected ${res.status} from ${url} while waiting for program ` +
+          `visibility after tx ${txId}: ${body}`,
+      );
+    }
+
+    const detail =
+      lastError instanceof Error ? lastError.message : String(lastError);
+    throw new Error(
+      `Program ${programId} not visible at ${url} after tx ${txId} ` +
+        `(${PROGRAM_AVAILABILITY_MAX_ATTEMPTS} attempts): ${detail}`,
+    );
+  }
+
   async getWarpTokenSuffix(
     tokenType: TokenType,
     preferredSuffix?: string,
@@ -141,25 +197,38 @@ export class AleoSigner
       }
 
       try {
+        // buildDeploymentTransaction runs snarkVM in WASM and fetches each
+        // imported program (/program/<id>) via globalThis.fetch. Explorer
+        // nodes return transient 5xx; wrap fetch for the duration of the
+        // build so those reads retry instead of aborting after the proofs.
         const tx = this.skipProofs
           ? await this.programManager.buildDevnodeDeploymentTransaction({
               program,
               priorityFee: 0,
               privateFee: false,
             })
-          : await this.programManager.buildDeploymentTransaction(
-              program,
-              0,
-              false,
-              undefined,
-              undefined,
-              undefined,
+          : await withAleoFetchRetry(() =>
+              this.programManager.buildDeploymentTransaction(
+                program,
+                0,
+                false,
+                undefined,
+                undefined,
+                undefined,
+              ),
             );
 
+        // Broadcast is not idempotent — do not retry.
         const txId =
           await this.programManager.networkClient.submitTransaction(tx);
 
         await this.aleoClient.waitForTransactionConfirmation(txId);
+
+        // /transaction/confirmed/<txId> can flip to accepted before
+        // /program/<id> is readable. Subsequent steps (e.g. buildExecutionTx
+        // during init) fetch the program from the explorer and 404. Poll
+        // until the program is visible before returning.
+        await this.waitForProgramVisibility(id, txId);
       } catch (err) {
         if (this.isProgramAlreadyExistsError(err, id)) {
           continue;
