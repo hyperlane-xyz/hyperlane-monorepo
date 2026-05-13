@@ -46,31 +46,11 @@ contract BlacklistIsmTest is Test {
         assertFalse(ism.verify("", testMessage));
     }
 
-    function test_verify_acceptsAfterWhitelist() public {
-        bytes32[] memory ids = new bytes32[](1);
-        ids[0] = testMessageId;
-
-        vm.prank(owner);
-        ism.blacklist(ids);
-        assertFalse(ism.verify("", testMessage));
-
-        vm.prank(owner);
-        ism.whitelist(ids);
-        assertTrue(ism.verify("", testMessage));
-    }
-
     function test_blacklist_onlyOwner() public {
         bytes32[] memory ids = new bytes32[](1);
         ids[0] = testMessageId;
         vm.expectRevert("Ownable: caller is not the owner");
         ism.blacklist(ids);
-    }
-
-    function test_whitelist_onlyOwner() public {
-        bytes32[] memory ids = new bytes32[](1);
-        ids[0] = testMessageId;
-        vm.expectRevert("Ownable: caller is not the owner");
-        ism.whitelist(ids);
     }
 
     function test_blacklist_batch() public {
@@ -124,19 +104,6 @@ contract BlacklistIsmTest is Test {
         ism.blacklist(ids);
     }
 
-    function test_whitelist_emitsEvents() public {
-        bytes32[] memory ids = new bytes32[](1);
-        ids[0] = testMessageId;
-
-        vm.prank(owner);
-        ism.blacklist(ids);
-
-        vm.expectEmit(true, false, false, false);
-        emit BlacklistIsm.MessageWhitelisted(testMessageId);
-        vm.prank(owner);
-        ism.whitelist(ids);
-    }
-
     function test_verify_nonBlacklistedUnaffected() public {
         bytes memory otherMessage = MessageUtils.formatMessage(
             0,
@@ -168,6 +135,39 @@ contract BlacklistIsmTest is Test {
             assertTrue(ism.blacklistedIds(messageId));
         } else {
             assertFalse(ism.blacklistedIds(messageId));
+        }
+    }
+
+    // Verifies that the set of written storage slots matches exactly the config IDs.
+    // blacklistedIds is at slot 1, so each entry lives at keccak256(abi.encode(id, 1)).
+    function test_storageMatchesConfig() public {
+        uint256 BLACKLISTED_IDS_SLOT = 1;
+
+        bytes32[] memory config = new bytes32[](3);
+        config[0] = keccak256("msg1");
+        config[1] = keccak256("msg2");
+        config[2] = keccak256("msg3");
+
+        vm.record();
+        vm.prank(owner);
+        ism.blacklist(config);
+        (, bytes32[] memory writeSlots) = vm.accesses(address(ism));
+
+        assertEq(writeSlots.length, config.length);
+
+        for (uint256 i = 0; i < config.length; i++) {
+            bytes32 expectedSlot = keccak256(
+                abi.encode(config[i], BLACKLISTED_IDS_SLOT)
+            );
+            bool found = false;
+            for (uint256 j = 0; j < writeSlots.length; j++) {
+                if (writeSlots[j] == expectedSlot) {
+                    found = true;
+                    break;
+                }
+            }
+            assertTrue(found, "config ID missing from storage");
+            assertEq(vm.load(address(ism), expectedSlot), bytes32(uint256(1)));
         }
     }
 }

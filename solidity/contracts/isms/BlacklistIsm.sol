@@ -24,7 +24,6 @@ contract BlacklistIsm is IInterchainSecurityModule, Ownable, PackageVersioned {
     mapping(bytes32 messageId => bool isBlacklisted) public blacklistedIds;
 
     event MessageBlacklisted(bytes32 indexed messageId);
-    event MessageWhitelisted(bytes32 indexed messageId);
 
     constructor(address _owner) Ownable() {
         _transferOwnership(_owner);
@@ -35,14 +34,6 @@ contract BlacklistIsm is IInterchainSecurityModule, Ownable, PackageVersioned {
         for (uint256 i = 0; i < _ids.length; i++) {
             blacklistedIds[_ids[i]] = true;
             emit MessageBlacklisted(_ids[i]);
-        }
-    }
-
-    /// @notice Remove message IDs from the blacklist
-    function whitelist(bytes32[] calldata _ids) external onlyOwner {
-        for (uint256 i = 0; i < _ids.length; i++) {
-            delete blacklistedIds[_ids[i]];
-            emit MessageWhitelisted(_ids[i]);
         }
     }
 
