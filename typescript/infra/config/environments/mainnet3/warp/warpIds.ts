@@ -36,6 +36,7 @@ export enum WarpRouteIds {
   EthereumVanaETH = 'ETH/ethereum-vana',
   EthereumVanaVANA = 'VANA/ethereum-vana',
   VictionETH = 'ETH/viction',
+  KrownETH = 'ETH/krown',
   EthereumVictionUSDC = 'USDC/ethereum-viction',
   EthereumVictionUSDT = 'USDT/ethereum-viction',
   BerachainEthereumSwellUnichainZircuitPZETH = 'PZETH/berachain-ethereum-swell-unichain-zircuit',
@@ -126,6 +127,8 @@ export enum WarpRouteIds {
   CarrChainUSDC = 'USDC/carrchain',
   CarrChainUSDT = 'USDT/carrchain',
   CarrChainWBTC = 'WBTC/carrchain',
+  KrownUSDC = 'USDC/krown',
+  KrownUSDT = 'USDT/krown',
 
   // ENI routes
   EniETH = 'ETH/eni',

@@ -86,6 +86,14 @@ import { getEthereumVictionUSDCWarpConfig } from './environments/mainnet3/warp/c
 import { getEthereumVictionUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionUSDTWarpConfig.js';
 import { getEthereumZircuitRe7LRTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumZircuitRe7LRTWarpConfig.js';
 import { getIncentivUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getIncentivUSDCWarpConfig.js';
+import {
+  getKrownETHStrategyConfig,
+  getKrownETHWarpConfig,
+  getKrownUSDCStrategyConfig,
+  getKrownUSDCWarpConfig,
+  getKrownUSDTStrategyConfig,
+  getKrownUSDTWarpConfig,
+} from './environments/mainnet3/warp/configGetters/getKrownWarpConfigs.js';
 import { getLitchainLITKEYWarpConfig } from './environments/mainnet3/warp/configGetters/getLitLitchainWarpConfig.js';
 import { getLumiaUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getLumiaUSDCWarpConfig.js';
 import { getMantapacificTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getMantapacificTiaWarpConfig.js';
@@ -157,6 +165,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
     getTRUMPWarpConfig,
   [WarpRouteIds.EthereumInkUSDC]: getEthereumInkUSDCConfig,
   [WarpRouteIds.VictionETH]: getVictionETHWarpConfig,
+  [WarpRouteIds.KrownETH]: getKrownETHWarpConfig,
   [WarpRouteIds.EthereumVictionUSDC]: getEthereumVictionUSDCWarpConfig,
   [WarpRouteIds.EthereumVictionUSDT]: getEthereumVictionUSDTWarpConfig,
   [WarpRouteIds.BerachainEthereumSwellUnichainZircuitPZETH]:
@@ -219,6 +228,8 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.CarrChainUSDC]: getCarchainnUSDCWarpConfig,
   [WarpRouteIds.CarrChainUSDT]: getCarchainnUSDTWarpConfig,
   [WarpRouteIds.CarrChainWBTC]: getCarchainnWBTCWarpConfig,
+  [WarpRouteIds.KrownUSDC]: getKrownUSDCWarpConfig,
+  [WarpRouteIds.KrownUSDT]: getKrownUSDTWarpConfig,
   [WarpRouteIds.EniETH]: getEniEthWarpConfig,
   [WarpRouteIds.EniWBTC]: getEniWbtcWarpConfig,
   [WarpRouteIds.EniUSDC]: getEniUsdcWarpConfig,
@@ -249,6 +260,9 @@ export const strategyConfigGetterMap: Record<string, StrategyConfigGetter> = {
   [WarpRouteIds.EclipseUSDC]: getEclipseUSDCStrategyConfig,
   [WarpRouteIds.EclipseUSDT]: getEclipseUSDTGnosisSafeBuilderStrategyConfig,
   [WarpRouteIds.IgraUSDC]: getIgraUSDCStrategyConfig,
+  [WarpRouteIds.KrownETH]: getKrownETHStrategyConfig,
+  [WarpRouteIds.KrownUSDC]: getKrownUSDCStrategyConfig,
+  [WarpRouteIds.KrownUSDT]: getKrownUSDTStrategyConfig,
   [WarpRouteIds.EclipseUSDCSTAGE]:
     getUSDCSTAGEEclipseFileSubmitterStrategyConfig,
   [WarpRouteIds.MainnetCCTPV1]: getCCTPV1StrategyConfig,
