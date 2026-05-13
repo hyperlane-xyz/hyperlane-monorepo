@@ -18,12 +18,15 @@ import {
 } from '@hyperlane-xyz/provider-sdk/warp';
 
 import type { SvmSigner } from '../clients/signer.js';
+import { H256_ZERO } from '../instructions/fee.js';
+import { WILDCARD_DOMAIN } from '../codecs/igp.js';
 import { resolveFeeSalt } from '../fee/types.js';
 import {
   deriveFeeAccountPda,
   deriveHyperlaneTokenPda,
   deriveMailboxDispatchAuthorityPda,
   deriveNativeCollateralPda,
+  deriveStandingQuotePda,
 } from '../pda.js';
 
 import { SvmNativeTokenAltWriter } from './native-token-alt-writer.js';
@@ -40,12 +43,16 @@ const MAILBOX: Address = address(
 const FEE_PROGRAM: Address = address(
   'F33ip6ZJ4LQHxq3sJTbxsZNG6tWELzETSdpMmFwGV4tT',
 );
+const BENEFICIARY: Address = address(
+  'BeneFiCiaRy11111111111111111111111111111111',
+);
+const REMOTE_ROUTER_HEX = `0x${'aa'.repeat(32)}`;
 
 /**
- * `deriveWarpRouteAddresses` is purely PDA derivation in this commit;
- * no signer or rpc methods should be invoked. The mock throws on any
- * access so a future change that accidentally introduces a call here
- * fails loudly instead of returning silent garbage.
+ * `deriveWarpRouteAddresses` is purely PDA derivation; no signer or
+ * rpc methods should be invoked. The mock throws on any access so a
+ * future change that accidentally introduces a call here fails loudly
+ * instead of returning silent garbage.
  */
 function strictUnusedSigner(): SvmSigner {
   return new Proxy({} as object, {
@@ -57,36 +64,48 @@ function strictUnusedSigner(): SvmSigner {
   }) as SvmSigner;
 }
 
-function deployedNative(
+function deployedNative(args?: {
   fee?: ArtifactDeployed<
     NativeWarpArtifactConfig,
     DeployedWarpAddress
-  >['config']['fee'],
-): ArtifactDeployed<NativeWarpArtifactConfig, DeployedWarpAddress> {
+  >['config']['fee'];
+  remoteRouters?: Record<number, { address: string }>;
+}): ArtifactDeployed<NativeWarpArtifactConfig, DeployedWarpAddress> {
   return {
     artifactState: ArtifactState.DEPLOYED,
     config: {
       type: TokenType.native,
       owner: '0x0000000000000000000000000000000000000000',
       mailbox: MAILBOX,
-      remoteRouters: {},
+      remoteRouters: args?.remoteRouters ?? {},
       destinationGas: {},
-      fee,
+      fee: args?.fee,
     },
     deployed: { address: WARP_PROGRAM },
   };
 }
 
-function newLinearFee(): FeeArtifactConfig {
+function linearFeeConfig(): FeeArtifactConfig {
   return {
     type: FeeType.linear,
     owner: '0x0000000000000000000000000000000000000000',
-    beneficiary: '0x0000000000000000000000000000000000000000',
+    beneficiary: BENEFICIARY,
     params: {
       type: FeeParamsType.raw,
       maxFee: '1',
       halfAmount: '1',
     },
+  };
+}
+
+function deployedLinearFee(): ArtifactDeployed<
+  FeeArtifactConfig,
+  { address: string }
+> {
+  return {
+    artifactState: ArtifactState.DEPLOYED,
+    config: linearFeeConfig(),
+    deployed: { address: FEE_PROGRAM },
   };
 }
 
@@ -119,29 +138,72 @@ describe('SvmNativeTokenAltWriter.deriveWarpRouteAddresses', () => {
     );
   });
 
-  it('adds fee program + fee account pda when fee is present', async () => {
+  it('adds fee program + fee account pda + beneficiary when fee is present', async () => {
     const feeAccount = await deriveFeeAccountPda(
       FEE_PROGRAM,
       resolveFeeSalt(CHAIN_NAME),
     );
 
     const result = await writer.deriveWarpRouteAddresses(
+      deployedNative({ fee: deployedLinearFee() }),
+    );
+
+    expect(result).to.include.members([
+      FEE_PROGRAM,
+      feeAccount.address,
+      BENEFICIARY,
+    ]);
+  });
+
+  it('includes per-destination fee cascade addresses for each enrolled remote router', async () => {
+    const feeAccount = await deriveFeeAccountPda(
+      FEE_PROGRAM,
+      resolveFeeSalt(CHAIN_NAME),
+    );
+    const standing = await deriveStandingQuotePda(
+      FEE_PROGRAM,
+      feeAccount.address,
+      10,
+      H256_ZERO,
+    );
+    const wildcardStanding = await deriveStandingQuotePda(
+      FEE_PROGRAM,
+      feeAccount.address,
+      WILDCARD_DOMAIN,
+      H256_ZERO,
+    );
+
+    const result = await writer.deriveWarpRouteAddresses(
       deployedNative({
-        artifactState: ArtifactState.UNDERIVED,
-        deployed: { address: FEE_PROGRAM },
+        fee: deployedLinearFee(),
+        remoteRouters: { 10: { address: REMOTE_ROUTER_HEX } },
       }),
     );
 
-    expect(result).to.have.lengthOf(6);
-    expect(result).to.include.members([FEE_PROGRAM, feeAccount.address]);
+    expect(result).to.include.members([
+      standing.address,
+      wildcardStanding.address,
+    ]);
   });
 
   it('rejects when fee is a NEW artifact (caller must expand first)', async () => {
     await expect(
       writer.deriveWarpRouteAddresses(
         deployedNative({
-          artifactState: ArtifactState.NEW,
-          config: newLinearFee(),
+          fee: { artifactState: ArtifactState.NEW, config: linearFeeConfig() },
+        }),
+      ),
+    ).to.be.rejectedWith(/fee/i);
+  });
+
+  it('rejects when fee is UNDERIVED (no beneficiary / cascade available)', async () => {
+    await expect(
+      writer.deriveWarpRouteAddresses(
+        deployedNative({
+          fee: {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: FEE_PROGRAM },
+          },
         }),
       ),
     ).to.be.rejectedWith(/fee/i);
@@ -150,8 +212,8 @@ describe('SvmNativeTokenAltWriter.deriveWarpRouteAddresses', () => {
   it('output is sorted ascending and contains no duplicates', async () => {
     const result = await writer.deriveWarpRouteAddresses(
       deployedNative({
-        artifactState: ArtifactState.UNDERIVED,
-        deployed: { address: FEE_PROGRAM },
+        fee: deployedLinearFee(),
+        remoteRouters: { 10: { address: REMOTE_ROUTER_HEX } },
       }),
     );
 

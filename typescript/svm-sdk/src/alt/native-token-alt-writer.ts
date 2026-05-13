@@ -2,12 +2,14 @@ import { type Address, address as parseAddress } from '@solana/kit';
 
 import {
   type ArtifactDeployed,
-  isArtifactNew,
+  isArtifactDeployed,
 } from '@hyperlane-xyz/provider-sdk/artifact';
-import type {
-  DeployedWarpAddress,
-  NativeWarpArtifactConfig,
+import {
+  type DeployedWarpAddress,
+  type NativeWarpArtifactConfig,
+  buildFeeReadContextFromWarpArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
+import { assert, isNullish } from '@hyperlane-xyz/utils';
 
 import type { SvmSigner } from '../clients/signer.js';
 import { resolveFeeSalt } from '../fee/types.js';
@@ -17,21 +19,21 @@ import {
   deriveMailboxDispatchAuthorityPda,
   deriveNativeCollateralPda,
 } from '../pda.js';
-import { assert, isNullish } from '@hyperlane-xyz/utils';
+
+import { deriveFeeQuoteCascadeAltAddresses } from './warp-alt.js';
 
 /**
  * Builds the warp-route-specific ALT address set for a native SVM
- * warp route: the warp program, its `hyperlane_token` PDA, the
- * mailbox-dispatch-authority PDA, the native-collateral plugin PDA,
- * and — when the expanded config carries a fee artifact — the fee
- * program + fee account PDA (derived from the program plus the
- * chain's resolved fee salt). Output is base58-sorted and
- * set-deduped.
+ * warp route: the warp program + its hyperlane_token PDA + the
+ * mailbox-dispatch-authority PDA + the native-collateral plugin PDA;
+ * and, when the expanded config carries a deployed fee artifact, the
+ * fee program + fee account PDA + fee beneficiary (the wallet directly
+ * for native warps — no ATA derivation) + the per-destination fee
+ * cascade returned by `deriveFeeQuoteCascadeAltAddresses`. Output is
+ * base58-sorted and set-deduped.
  *
- * Per-destination fee/IGP cascade PDAs and the on-chain
- * fee-account-derived `fee_beneficiary` are added in a follow-up
- * commit that wires the create/read/check wrappers and e2e
- * coverage; those require RPC simulation / fetches.
+ * Per-destination IGP cascade PDAs are added by the follow-up commit;
+ * create/read/check wrappers land alongside.
  */
 export class SvmNativeTokenAltWriter {
   constructor(
@@ -57,8 +59,8 @@ export class SvmNativeTokenAltWriter {
 
     const fee = deployed.config.fee;
     assert(
-      isNullish(fee) || !isArtifactNew(fee),
-      'Expected fee to be deployed or not set',
+      isNullish(fee) || isArtifactDeployed(fee),
+      'Expected fee artifact to be expanded (DEPLOYED) or not set',
     );
 
     if (fee) {
@@ -68,6 +70,17 @@ export class SvmNativeTokenAltWriter {
         resolveFeeSalt(this.chainName),
       );
       out.push(feeProgram, feeAccount.address);
+      out.push(parseAddress(fee.config.beneficiary));
+
+      const cascade = await deriveFeeQuoteCascadeAltAddresses({
+        feeProgram,
+        feeAccount: feeAccount.address,
+        feeConfig: fee.config,
+        feeReadContext: buildFeeReadContextFromWarpArtifactConfig(
+          deployed.config,
+        ),
+      });
+      out.push(...cascade);
     }
 
     return [...new Set(out.map(parseAddress))].sort();
