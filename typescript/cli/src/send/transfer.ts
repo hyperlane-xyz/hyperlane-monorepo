@@ -72,6 +72,7 @@ const SUPPORTED_PROTOCOLS = new Set<ProtocolType>([
   ProtocolType.CosmosNative,
   ProtocolType.Starknet,
   ProtocolType.Radix,
+  ProtocolType.Aleo,
 ]);
 
 const EXPLORER_GRAPHQL_URL =
