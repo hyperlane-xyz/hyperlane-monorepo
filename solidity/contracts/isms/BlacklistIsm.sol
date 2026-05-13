@@ -21,7 +21,7 @@ contract BlacklistIsm is IInterchainSecurityModule, Ownable, PackageVersioned {
     uint8 public constant override moduleType = uint8(Types.NULL);
 
     /// @notice message ID => true if blacklisted
-    mapping(bytes32 => bool) public blacklistedIds;
+    mapping(bytes32 messageId => bool isBlacklisted) public blacklistedIds;
 
     event MessageBlacklisted(bytes32 indexed messageId);
     event MessageWhitelisted(bytes32 indexed messageId);
