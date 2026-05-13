@@ -1,5 +1,5 @@
 import { fetchAddressLookupTable } from '@solana-program/address-lookup-table';
-import type { Address } from '@solana/kit';
+import type { Address, Commitment } from '@solana/kit';
 
 import type { SvmRpc } from '../types.js';
 
@@ -21,12 +21,18 @@ export interface AddressLookupTableState {
  * Reads the on-chain address-lookup table at `address` and returns its
  * normalized state. Use the `addresses` field as input to
  * `buildTransactionMessage({ addressLookupTables })`.
+ *
+ * `commitment` defaults to `confirmed` to match the rest of the signer's
+ * read path (`RPC_COMMITMENT_LEVEL`). Reads at `processed` can lag a
+ * recently-written ALT and surface as a v0 compile mismatch when the
+ * tx is built immediately after `create()`.
  */
 export async function fetchAddressLookupTableState(
   rpc: SvmRpc,
   address: Address,
+  commitment: Commitment = 'confirmed',
 ): Promise<AddressLookupTableState> {
-  const account = await fetchAddressLookupTable(rpc, address);
+  const account = await fetchAddressLookupTable(rpc, address, { commitment });
   const authority = account.data.authority;
   return {
     owner: authority.__option === 'Some' ? authority.value : null,
