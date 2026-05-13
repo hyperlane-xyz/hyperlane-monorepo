@@ -242,37 +242,54 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       case HookType.FALLBACK_ROUTING:
       case HookType.ROUTING:
         config.domains = await promiseObjAll(
-          objMap(config.domains, async (_, hook) =>
-            this.deriveHookConfig(hook),
-          ),
+          objMap(config.domains, async (_, hook) => {
+            const derived = await this.deriveHookConfig(hook);
+            return this.preserveUnredeployable(hook, derived);
+          }),
         );
 
-        if (config.type === HookType.FALLBACK_ROUTING)
-          config.fallback = await this.deriveHookConfig(config.fallback);
+        if (config.type === HookType.FALLBACK_ROUTING) {
+          const derived = await this.deriveHookConfig(config.fallback);
+          config.fallback = this.preserveUnredeployable(
+            config.fallback,
+            derived,
+          );
+        }
         break;
+      case HookType.CCTP:
+        return config;
       case HookType.AGGREGATION:
         config.hooks = await Promise.all(
           config.hooks.map(async (hook) => {
             const derived = await this.deriveHookConfig(hook);
-            // CCTP hooks can't be redeployed; preserve the original address
-            // so deploy() can connect to the existing contract via the string branch
-            if (derived.type === HookType.CCTP) {
-              return (
-                typeof hook === 'string' ? hook : (derived as any).address
-              ) as HookConfig;
-            }
-            return derived;
+            return this.preserveUnredeployable(hook, derived);
           }),
         );
         break;
-      case HookType.AMOUNT_ROUTING:
-        [config.lowerHook, config.upperHook] = await Promise.all([
-          this.deriveHookConfig(config.lowerHook),
-          this.deriveHookConfig(config.upperHook),
+      case HookType.AMOUNT_ROUTING: {
+        const lowerOrig = config.lowerHook;
+        const upperOrig = config.upperHook;
+        const [lowerDerived, upperDerived] = await Promise.all([
+          this.deriveHookConfig(lowerOrig),
+          this.deriveHookConfig(upperOrig),
         ]);
+        config.lowerHook = this.preserveUnredeployable(lowerOrig, lowerDerived);
+        config.upperHook = this.preserveUnredeployable(upperOrig, upperDerived);
         break;
+      }
     }
     return config as DerivedHookConfig;
+  }
+
+  // Returns original HookConfig for non-redeployable types (e.g. CCTP) so that
+  // normalizeConfig — which strips 'address' from all objects — does not discard
+  // the address those hook types embed in their config. A string original survives
+  // normalizeConfig as-is and reaches deploy()'s string branch intact.
+  private preserveUnredeployable(
+    original: HookConfig,
+    derived: DerivedHookConfig,
+  ): HookConfig {
+    return derived.type === HookType.CCTP ? original : derived;
   }
 
   async deriveMailboxDefaultHookConfig(
@@ -395,13 +412,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       this.concurrency,
       hooks,
       async (hookAddress) => {
-        const derived = await this.deriveHookConfig(hookAddress);
-        // CCTP hooks can't be redeployed; preserve address string so deploy()
-        // can connect to the existing contract via the string branch
-        if (derived.type === HookType.CCTP) {
-          return hookAddress as unknown as DerivedHookConfig;
-        }
-        return derived;
+        return this.deriveHookConfig(hookAddress);
       },
     );
 

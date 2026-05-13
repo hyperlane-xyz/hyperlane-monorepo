@@ -184,30 +184,50 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         config.domains = await promiseObjAll(
           objMap(config.domains, async (_, ism) => {
             const derived = await this.deriveIsmConfig(ism);
-            // offchainLookupIsm can't be redeployed; preserve the original address
-            // so deploy() can connect to the existing contract via the string branch
-            if (derived.type === IsmType.OFFCHAIN_LOOKUP) {
-              return (typeof ism === 'string' ? ism : derived.address) as any;
-            }
-            return derived;
+            return this.preserveUnredeployableIsm(ism, derived);
           }),
         );
         break;
       case IsmType.AGGREGATION:
       case IsmType.STORAGE_AGGREGATION:
         config.modules = await Promise.all(
-          config.modules.map(async (ism) => this.deriveIsmConfig(ism)),
+          config.modules.map(async (ism) => {
+            const derived = await this.deriveIsmConfig(ism);
+            return this.preserveUnredeployableIsm(ism, derived);
+          }),
         );
         break;
-      case IsmType.AMOUNT_ROUTING:
-        [config.lowerIsm, config.upperIsm] = await Promise.all([
-          this.deriveIsmConfig(config.lowerIsm),
-          this.deriveIsmConfig(config.upperIsm),
+      case IsmType.AMOUNT_ROUTING: {
+        const lowerOrig = config.lowerIsm;
+        const upperOrig = config.upperIsm;
+        const [lowerDerived, upperDerived] = await Promise.all([
+          this.deriveIsmConfig(lowerOrig),
+          this.deriveIsmConfig(upperOrig),
         ]);
+        config.lowerIsm = this.preserveUnredeployableIsm(
+          lowerOrig,
+          lowerDerived,
+        );
+        config.upperIsm = this.preserveUnredeployableIsm(
+          upperOrig,
+          upperDerived,
+        );
         break;
+      }
     }
 
     return config as DerivedIsmConfig;
+  }
+
+  // Returns the original IsmConfig for non-redeployable ISM types (e.g. OFFCHAIN_LOOKUP)
+  // so normalizeConfig and deploy() handle them correctly. The original is typically a
+  // string address that survives normalizeConfig intact and reaches deploy()'s string
+  // branch; an object config is also preserved as-is for deploy() to use directly.
+  private preserveUnredeployableIsm(
+    original: IsmConfig,
+    derived: DerivedIsmConfig,
+  ): IsmConfig {
+    return derived.type === IsmType.OFFCHAIN_LOOKUP ? original : derived;
   }
 
   async deriveRoutingConfig(

@@ -2,4 +2,4 @@
 "@hyperlane-xyz/sdk": patch
 ---
 
-Fixed offchain lookup ism updates and cross collateral fee updated
+Fixed offchain lookup ISM updates and cross-collateral fee updates.
