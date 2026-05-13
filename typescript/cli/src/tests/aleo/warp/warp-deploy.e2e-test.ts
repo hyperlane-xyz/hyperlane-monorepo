@@ -95,13 +95,17 @@ describe('hyperlane warp deploy (Aleo E2E tests)', async function () {
     };
   });
 
-  let warpDeployConfig: WarpRouteDeployConfig;
   beforeEach(() => {
-    // Generate unique short suffix for each test to avoid program name collisions
+    // Generate unique short suffix for each test to avoid program name collisions.
+    // Note: native tokens always use the fixed suffix "credits" (ignoring ALEO_WARP_SUFFIX),
+    // so only one native token can be initialized per test run. Tests that need fresh
+    // programs per invocation must use synthetic/collateral token types.
     const uniqueSuffix = Math.random().toString(36).substring(2, 8);
     process.env.ALEO_WARP_SUFFIX = uniqueSuffix;
+  });
 
-    warpDeployConfig = {
+  it('should successfully deploy on multiple chains', async () => {
+    const warpDeployConfig: WarpRouteDeployConfig = {
       [TEST_CHAIN_NAMES_BY_PROTOCOL.aleo.CHAIN_NAME_1]: {
         type: TokenType.native,
         mailbox: chain1CoreAddress.mailbox,
@@ -118,9 +122,7 @@ describe('hyperlane warp deploy (Aleo E2E tests)', async function () {
     };
 
     writeYamlOrJson(WARP_DEPLOY_PATH, warpDeployConfig);
-  });
 
-  it('should successfully deploy on multiple chains', async () => {
     const output = await hyperlaneWarp
       .deployRaw({
         warpRouteId: WARP_ROUTE_ID,
@@ -152,10 +154,30 @@ describe('hyperlane warp deploy (Aleo E2E tests)', async function () {
   });
 
   it('should deploy and set the owner to the expected one in the config', async () => {
+    // Native tokens use a fixed program name (no suffix) and can only be initialized once
+    // per test run, so this test uses synthetic tokens on both chains to get collision-free
+    // program names via ALEO_WARP_SUFFIX.
     const differentOwner =
       'aleo17m3l8a4hmf3wypzkf5lsausfdwq9etzyujd0vmqh35ledn2sgvqqzqkqal';
-    warpDeployConfig[TEST_CHAIN_NAMES_BY_PROTOCOL.aleo.CHAIN_NAME_1].owner =
-      differentOwner;
+    const warpDeployConfig: WarpRouteDeployConfig = {
+      [TEST_CHAIN_NAMES_BY_PROTOCOL.aleo.CHAIN_NAME_1]: {
+        type: TokenType.synthetic,
+        mailbox: chain1CoreAddress.mailbox,
+        owner: differentOwner,
+        name: nativeTokenData.name,
+        symbol: nativeTokenData.symbol,
+        decimals: nativeTokenData.decimals,
+      },
+      [TEST_CHAIN_NAMES_BY_PROTOCOL.aleo.CHAIN_NAME_2]: {
+        type: TokenType.synthetic,
+        mailbox: chain2CoreAddress.mailbox,
+        owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.aleo,
+        name: nativeTokenData.name,
+        symbol: nativeTokenData.symbol,
+        decimals: nativeTokenData.decimals,
+      },
+    };
+
     writeYamlOrJson(WARP_DEPLOY_PATH, warpDeployConfig);
 
     const output = await hyperlaneWarp
