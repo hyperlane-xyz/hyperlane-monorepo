@@ -9,11 +9,8 @@ import { TestChainName } from '../../consts/testChains.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { randomAddress } from '../../test/testUtils.js';
 
-import {
-  InterchainAccount,
-  PostCallsSchema,
-  commitmentFromRevealMessage,
-} from './InterchainAccount.js';
+import { InterchainAccount } from './InterchainAccount.js';
+import { PostCallsSchema, commitmentFromRevealMessage } from './icaCalls.js';
 
 describe('commitmentFromRevealMessage', () => {
   // https://explorer.hyperlane.xyz/message/0xd123b9eb8fc8777adf50963b2ad283f05332c584a1e4002f9e4ad21bdafea069

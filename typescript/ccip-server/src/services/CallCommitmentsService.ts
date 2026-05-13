@@ -12,16 +12,18 @@ import {
   AccountConfig,
   InterchainAccount,
   MultiProvider,
+} from '@hyperlane-xyz/sdk';
+import {
   PostCallsIcaType,
   PostCallsLegacyType,
   PostCallsSchema,
   PostCallsType,
-  isPostCallsIca,
   commitmentFromIcaCalls,
   commitmentFromRevealMessage,
   encodeIcaCalls,
+  isPostCallsIca,
   normalizeCalls,
-} from '@hyperlane-xyz/sdk';
+} from '@hyperlane-xyz/sdk/middleware/account/icaCalls';
 import {
   addressToBytes32,
   bytes32ToAddress,
