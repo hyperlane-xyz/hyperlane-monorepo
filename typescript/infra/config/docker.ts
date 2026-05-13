@@ -57,7 +57,7 @@ export const mainnetDockerTags: MainnetDockerTags = {
   warpMonitor: 'a915865-20260424-083851',
   rebalancer: '1a19513-20260413-090011',
   feeQuoting: '12d899d-20260325-184337',
-  universalRouterEngine: 'latest',
+  universalRouterEngine: 'main',
 };
 
 export const testnetDockerTags: BaseDockerTags = {
