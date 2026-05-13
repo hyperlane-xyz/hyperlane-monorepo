@@ -1,4 +1,5 @@
-import { ethers, utils } from 'ethers';
+import { ethers, providers, utils } from 'ethers';
+import { BaseTrie } from 'merkle-patricia-tree';
 
 import {
   AbstractStorageMultisigIsm__factory,
@@ -18,6 +19,7 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   Address,
+  assert,
   deepEquals,
   eqAddress,
   formatMessage,
@@ -37,6 +39,7 @@ import { normalizeConfig } from '../utils/ism.js';
 import {
   DomainRoutingIsmConfig,
   InterchainAccountRouterIsm,
+  BlacklistIsmConfig,
   IsmConfig,
   IsmType,
   ModuleType,
@@ -47,6 +50,87 @@ import {
 } from './types.js';
 
 const logger = rootLogger.child({ module: 'IsmUtils' });
+const BLACKLISTED_IDS_SLOT = 1;
+
+type EthGetProofResponse = {
+  storageHash: string;
+};
+
+export type EthGetProofProvider = providers.Provider & {
+  send(method: string, params: unknown[]): Promise<unknown>;
+};
+
+export function assertEthGetProofProvider(
+  provider: providers.Provider,
+): asserts provider is EthGetProofProvider {
+  const candidate = provider as Partial<EthGetProofProvider>;
+  assert(
+    typeof candidate.send === 'function',
+    'Provider must support send() for eth_getProof',
+  );
+}
+
+const bufferFromHex = (hex: string): Buffer =>
+  Buffer.from(ethers.utils.arrayify(hex));
+
+const evenHex = (hex: string): string =>
+  hex.length % 2 === 0 ? hex : `0x0${hex.slice(2)}`;
+
+const storageTrieValue = (word: string): Buffer =>
+  bufferFromHex(
+    ethers.utils.RLP.encode(
+      ethers.utils.arrayify(evenHex(ethers.utils.hexStripZeros(word))),
+    ),
+  );
+
+const storageSlotTrieKey = (slot: string): Buffer =>
+  bufferFromHex(ethers.utils.keccak256(slot));
+
+const blacklistIdStorageSlot = (id: string): string =>
+  ethers.utils.keccak256(
+    ethers.utils.defaultAbiCoder.encode(
+      ['bytes32', 'uint256'],
+      [id, BLACKLISTED_IDS_SLOT],
+    ),
+  );
+
+export async function blacklistIsmStorageRoot(
+  config: BlacklistIsmConfig,
+): Promise<string> {
+  const trie = new BaseTrie();
+  const ownerWord = ethers.utils.hexZeroPad(config.owner, 32);
+  if (!ethers.BigNumber.from(ownerWord).isZero()) {
+    await trie.put(
+      storageSlotTrieKey(ethers.utils.hexZeroPad('0x00', 32)),
+      storageTrieValue(ownerWord),
+    );
+  }
+
+  const uniqueIds = new Set(config.blacklistedIds);
+  for (const id of uniqueIds) {
+    await trie.put(
+      storageSlotTrieKey(blacklistIdStorageSlot(id)),
+      storageTrieValue(ethers.utils.hexZeroPad('0x01', 32)),
+    );
+  }
+
+  return ethers.utils.hexlify(trie.root).toLowerCase();
+}
+
+export async function blacklistIsmMatchesConfig(params: {
+  provider: EthGetProofProvider;
+  moduleAddress: Address;
+  config: BlacklistIsmConfig;
+}): Promise<boolean> {
+  const expectedStorageRoot = await blacklistIsmStorageRoot(params.config);
+  const proof = (await params.provider.send('eth_getProof', [
+    params.moduleAddress,
+    [],
+    'latest',
+  ])) as EthGetProofResponse;
+
+  return expectedStorageRoot === proof.storageHash.toLowerCase();
+}
 
 // Determines the domains to enroll and unenroll to update the current ISM config
 // to match the target ISM config.
@@ -217,6 +301,8 @@ export async function moduleCanCertainlyVerify(
       case IsmType.TEST_ISM: {
         return true;
       }
+      case IsmType.BLACKLIST:
+        return true;
       default:
         throw new Error(`Unsupported module type: ${(destModule as any).type}`);
     }
@@ -492,6 +578,14 @@ export async function moduleMatchesConfig(
       }
       break;
     }
+    case IsmType.BLACKLIST:
+      assertEthGetProofProvider(provider);
+      matches = await blacklistIsmMatchesConfig({
+        provider,
+        moduleAddress,
+        config,
+      });
+      break;
     default: {
       throw new Error('Unsupported ModuleType');
     }

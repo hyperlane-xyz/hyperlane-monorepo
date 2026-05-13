@@ -39,6 +39,7 @@ catalog:
   bs58: ^6.0.0
   yaml: 2.4.5
   lodash-es: ^4.17.21
+  merkle-patricia-tree: 4.2.4
   borsh: ^0.7.0
   dotenv: ^10.0.0
   asn1.js: ^5.4.1

@@ -47,8 +47,13 @@ import {
   OffchainLookupIsmConfig,
   PausableIsmConfig,
   RateLimitedIsmConfig,
+  BlacklistIsmConfig,
 } from './types.js';
-import { calculateDomainRoutingDelta } from './utils.js';
+import {
+  assertEthGetProofProvider,
+  blacklistIsmMatchesConfig,
+  calculateDomainRoutingDelta,
+} from './utils.js';
 
 type IsmModuleAddresses = {
   deployedIsm: Address;
@@ -113,6 +118,18 @@ export class EvmIsmModule extends HyperlaneModule<
 
     // Nothing to do if its the default ism
     if (typeof targetConfig === 'string' && isZeroishAddress(targetConfig)) {
+      return [];
+    }
+
+    if (
+      typeof targetConfig !== 'string' &&
+      targetConfig.type === IsmType.BLACKLIST &&
+      !isZeroishAddress(this.args.addresses.deployedIsm) &&
+      (await this.blacklistIsmMatchesConfig({
+        moduleAddress: this.args.addresses.deployedIsm,
+        config: targetConfig,
+      }))
+    ) {
       return [];
     }
 
@@ -470,6 +487,15 @@ export class EvmIsmModule extends HyperlaneModule<
     }
 
     return txs;
+  }
+
+  protected async blacklistIsmMatchesConfig(params: {
+    moduleAddress: Address;
+    config: BlacklistIsmConfig;
+  }): Promise<boolean> {
+    const provider = this.multiProvider.getProvider(this.chain);
+    assertEthGetProofProvider(provider);
+    return blacklistIsmMatchesConfig({ provider, ...params });
   }
 
   protected async deploy({
