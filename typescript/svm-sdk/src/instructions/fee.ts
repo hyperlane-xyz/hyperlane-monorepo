@@ -203,7 +203,7 @@ export function getSetMinIssuedAtInstruction(
 
 // ====== SetRemoteFeeRoute ======
 
-const H256_ZERO = new Uint8Array(32);
+export const H256_ZERO = new Uint8Array(32);
 
 export async function getSetRemoteFeeRouteInstruction(
   programId: Address,

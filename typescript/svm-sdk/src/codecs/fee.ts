@@ -235,6 +235,19 @@ export function encodeRoutingFeeConfig(
 
 // ====== Cross-Collateral Routing Fee Config ======
 
+/**
+ * Default target router used by the on-chain CrossCollateralRouting
+ * cascade as a fallback when no `(dest, target_router)` PDA is
+ * initialized. Value is `keccak256("RoutingFee.DEFAULT_ROUTER")`,
+ * mirroring the Rust constant in
+ * `rust/sealevel/programs/hyperlane-sealevel-fee/src/accounts.rs`.
+ */
+export const DEFAULT_ROUTER: Uint8Array = new Uint8Array([
+  0x6e, 0x08, 0x6c, 0xd6, 0x47, 0xd6, 0xeb, 0x8b, 0x51, 0x68, 0x56, 0x66, 0x6e,
+  0x2c, 0x14, 0x65, 0xfb, 0x8a, 0x6a, 0x58, 0xd3, 0xa7, 0x59, 0x38, 0x36, 0x2a,
+  0xcc, 0x67, 0x4e, 0xac, 0xaf, 0x47,
+]);
+
 export const CC_ROUTE_DISCRIMINATOR = new Uint8Array([
   0x43,
   0x43,
