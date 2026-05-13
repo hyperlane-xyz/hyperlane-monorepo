@@ -224,17 +224,18 @@ export class SvmAddressLookupTableWriter
       (a) => !currentSet.has(normalizeAddressSealevel(a)),
     );
 
-    // A frozen table accepts no further mutations. If the address set
-    // already matches expected, there's nothing to reconcile — the
-    // freeze bit can't be flipped either direction. Otherwise, the
-    // requested extend is unsatisfiable.
-    if (current.frozen) {
-      assert(
-        toAdd.length === 0,
-        `Cannot extend ALT ${address}: table is frozen.`,
-      );
-      return [];
-    }
+    // A frozen table accepts no further mutations. Unfreeze and extend
+    // are both unsatisfiable against a frozen ALT; the only legitimate
+    // reconcile is a no-op (same set, expected stays frozen).
+    assert(
+      !current.frozen || expected.frozen,
+      `Cannot unfreeze ALT ${address}: freeze is terminal on-chain.`,
+    );
+    assert(
+      !current.frozen || toAdd.length === 0,
+      `Cannot extend ALT ${address}: table is frozen.`,
+    );
+    if (current.frozen) return [];
 
     // Unfrozen path. The on-chain authority must be set.
     assert(
