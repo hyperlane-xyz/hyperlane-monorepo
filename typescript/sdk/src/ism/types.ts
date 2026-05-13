@@ -15,6 +15,7 @@ import {
   RateLimitedIsm,
   TestIsm,
   TrustedRelayerIsm,
+  BlacklistIsm,
 } from '@hyperlane-xyz/core';
 import type {
   Address,
@@ -86,6 +87,7 @@ export const IsmType = {
   OFFCHAIN_LOOKUP: 'offchainLookupIsm',
   RATE_LIMITED: 'rateLimitedIsm',
   COMPOSITE: 'compositeIsm',
+  BLACKLIST: 'blacklistIsm',
   UNKNOWN: 'unknownIsm',
 } as const;
 
@@ -158,6 +160,7 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
     case IsmType.TRUSTED_RELAYER:
     case IsmType.CCIP:
     case IsmType.RATE_LIMITED:
+    case IsmType.BLACKLIST:
       return ModuleType.NULL;
     case IsmType.ARB_L2_TO_L1:
       return ModuleType.ARB_L2_TO_L1;
@@ -197,6 +200,7 @@ export type TrustedRelayerIsmConfig = z.infer<
 export type CCIPIsmConfig = z.infer<typeof CCIPIsmConfigSchema>;
 export type ArbL2ToL1IsmConfig = z.infer<typeof ArbL2ToL1IsmConfigSchema>;
 export type RateLimitedIsmConfig = z.infer<typeof RateLimitedIsmConfigSchema>;
+export type BlacklistIsmConfig = z.infer<typeof BlacklistIsmConfigSchema>;
 
 export type OffchainLookupIsmConfig = z.infer<
   typeof OffchainLookupIsmConfigSchema
@@ -208,7 +212,8 @@ export type NullIsmConfig =
   | OpStackIsmConfig
   | TrustedRelayerIsmConfig
   | CCIPIsmConfig
-  | RateLimitedIsmConfig;
+  | RateLimitedIsmConfig
+  | BlacklistIsmConfig;
 
 type BaseRoutingIsmConfig<
   T extends
@@ -271,6 +276,7 @@ export type IsmConfig =
   | TrustedRelayerIsmConfig
   | CCIPIsmConfig
   | RateLimitedIsmConfig
+  | BlacklistIsmConfig
   | MultisigIsmConfig
   | WeightedMultisigIsmConfig
   | RoutingIsmConfig
@@ -306,6 +312,7 @@ export type DeployedIsmType = {
   [IsmType.OFFCHAIN_LOOKUP]: AbstractCcipReadIsm;
   [IsmType.INTERCHAIN_ACCOUNT_ROUTING]: InterchainAccountRouter;
   [IsmType.RATE_LIMITED]: RateLimitedIsm;
+  [IsmType.BLACKLIST]: BlacklistIsm;
   [IsmType.UNKNOWN]: IInterchainSecurityModule;
 };
 
@@ -341,6 +348,11 @@ export const WeightedMultisigConfigSchema = z.object({
 export const TrustedRelayerIsmConfigSchema = z.object({
   type: z.literal(IsmType.TRUSTED_RELAYER),
   relayer: z.string(),
+});
+
+export const BlacklistIsmConfigSchema = OwnableSchema.extend({
+  type: z.literal(IsmType.BLACKLIST),
+  blacklistedIds: z.array(ZHash),
 });
 
 export const RateLimitedIsmConfigSchema = z
@@ -893,6 +905,7 @@ export const IsmConfigSchema: z.ZodType<IsmConfig, z.ZodTypeDef, unknown> =
     TrustedRelayerIsmConfigSchema,
     CCIPIsmConfigSchema,
     RateLimitedIsmConfigSchema,
+    BlacklistIsmConfigSchema,
     MultisigIsmConfigSchema,
     WeightedMultisigIsmConfigSchema,
     RoutingIsmConfigSchema,

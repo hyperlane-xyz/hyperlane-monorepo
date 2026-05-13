@@ -6,6 +6,8 @@ import {
   AbstractRoutingIsm__factory,
   AmountRoutingIsm,
   AmountRoutingIsm__factory,
+  BlacklistIsm,
+  BlacklistIsm__factory,
   CCIPIsm,
   CCIPIsm__factory,
   DefaultFallbackRoutingIsm,
@@ -39,6 +41,7 @@ import { randomAddress } from '../test/testUtils.js';
 
 import { EvmIsmReader } from './EvmIsmReader.js';
 import {
+  BlacklistIsmConfig,
   InterchainAccountRouterIsm,
   IsmType,
   ModuleType,
@@ -180,6 +183,52 @@ describe('EvmIsmReader', () => {
     expect(ismConfig).to.deep.equal(expectedConfig);
 
     // should get same result if we call the specific method for the ism type
+    const config = await evmIsmReader.deriveNullConfig(mockAddress);
+    expect(config).to.deep.equal(ismConfig);
+  });
+
+  it('should derive blacklist ISM config correctly', async () => {
+    const mockAddress = randomAddress();
+    const mockOwner = randomAddress();
+
+    const mockContract = {
+      moduleType: sandbox.stub().resolves(ModuleType.NULL),
+      blacklistedIds: sandbox.stub().resolves(false),
+      owner: sandbox.stub().resolves(mockOwner),
+    };
+    sandbox.stub(TrustedRelayerIsm__factory, 'connect').returns({
+      trustedRelayer: sandbox.stub().rejects(missingSelectorError()),
+    } as unknown as TrustedRelayerIsm);
+    sandbox.stub(PausableIsm__factory, 'connect').returns({
+      paused: sandbox.stub().rejects(missingSelectorError()),
+      owner: sandbox.stub().resolves(mockOwner),
+    } as unknown as PausableIsm);
+    sandbox.stub(CCIPIsm__factory, 'connect').returns({
+      ccipOrigin: sandbox.stub().rejects(missingSelectorError()),
+    } as unknown as CCIPIsm);
+    sandbox.stub(OPStackIsm__factory, 'connect').returns({
+      VERIFIED_MASK_INDEX: sandbox.stub().rejects(missingSelectorError()),
+    } as unknown as OPStackIsm);
+    sandbox.stub(RateLimitedIsm__factory, 'connect').returns({
+      recipient: sandbox.stub().rejects(missingSelectorError()),
+    } as unknown as RateLimitedIsm);
+    sandbox
+      .stub(BlacklistIsm__factory, 'connect')
+      .returns(mockContract as unknown as BlacklistIsm);
+    sandbox
+      .stub(IInterchainSecurityModule__factory, 'connect')
+      .returns(mockContract as unknown as IInterchainSecurityModule);
+
+    const expectedConfig: WithAddress<BlacklistIsmConfig> = {
+      address: mockAddress,
+      type: IsmType.BLACKLIST,
+      owner: mockOwner,
+      blacklistedIds: [],
+    };
+
+    const ismConfig = await evmIsmReader.deriveIsmConfig(mockAddress);
+    expect(ismConfig).to.deep.equal(expectedConfig);
+
     const config = await evmIsmReader.deriveNullConfig(mockAddress);
     expect(config).to.deep.equal(ismConfig);
   });

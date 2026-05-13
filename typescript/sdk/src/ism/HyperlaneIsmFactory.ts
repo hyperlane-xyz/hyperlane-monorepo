@@ -4,6 +4,7 @@ import { Logger } from 'pino';
 import {
   AmountRoutingIsm__factory,
   ArbL2ToL1Ism__factory,
+  BlacklistIsm__factory,
   CCIPIsm,
   CCIPIsm__factory,
   DefaultFallbackRoutingIsm,
@@ -65,6 +66,7 @@ import { getZKSyncArtifactByContractName } from '../utils/zksync.js';
 import {
   AggregationIsmConfig,
   AmountRoutingIsmConfig,
+  BlacklistIsmConfig,
   CCIPIsmConfig,
   CompositeIsmConfig,
   DeployedIsm,
@@ -74,7 +76,6 @@ import {
   IsmConfig,
   IsmType,
   MultisigIsmConfig,
-  RateLimitedIsmConfig,
   RoutingIsmConfig,
   RoutingIsmDelta,
   WeightedMultisigIsmConfig,
@@ -89,6 +90,7 @@ const ismFactories = {
   [IsmType.ARB_L2_TO_L1]: new ArbL2ToL1Ism__factory(),
   [IsmType.CCIP]: new CCIPIsm__factory(),
   [IsmType.RATE_LIMITED]: new RateLimitedIsm__factory(),
+  [IsmType.BLACKLIST]: new BlacklistIsm__factory(),
 };
 
 const domainRoutingInitializationSize = (destination: ChainName) => {
@@ -389,26 +391,20 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         );
         break;
       case IsmType.RATE_LIMITED: {
-        const rateLimitedConfig = config as RateLimitedIsmConfig;
         assert(mailbox, `Mailbox address is required for deploying ${ismType}`);
         assert(
-          rateLimitedConfig.recipient,
+          config.recipient,
           `Recipient address is required for deploying ${ismType}`,
         );
         contract = await this.deployer.deployContract(
           destination,
           IsmType.RATE_LIMITED,
-          [
-            mailbox,
-            rateLimitedConfig.maxCapacity,
-            rateLimitedConfig.duration,
-            rateLimitedConfig.recipient,
-          ],
+          [mailbox, config.maxCapacity, config.duration, config.recipient],
         );
-        if (rateLimitedConfig.owner) {
+        if (config.owner) {
           const signer = this.multiProvider.getSigner(destination);
           const signerAddress = await signer.getAddress();
-          if (!eqAddress(signerAddress, rateLimitedConfig.owner)) {
+          if (!eqAddress(signerAddress, config.owner)) {
             const overrides =
               this.multiProvider.getTransactionOverrides(destination);
             const rateLimitedIsm = RateLimitedIsm__factory.connect(
@@ -416,7 +412,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
               signer,
             );
             const tx = await rateLimitedIsm.transferOwnership(
-              rateLimitedConfig.owner,
+              config.owner,
               overrides,
             );
             await this.multiProvider.handleTx(destination, tx);
@@ -424,6 +420,9 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         }
         break;
       }
+      case IsmType.BLACKLIST:
+        contract = await this.deployBlacklistIsm(destination, config);
+        break;
       case IsmType.CCIP:
         contract = await this.deployCCIPIsm(destination, config);
         break;
@@ -475,6 +474,32 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       ism,
       this.multiProvider.getSigner(destination),
     );
+  }
+
+  protected async deployBlacklistIsm(
+    destination: ChainName,
+    config: BlacklistIsmConfig,
+  ): Promise<DeployedIsmType[typeof IsmType.BLACKLIST]> {
+    const signer = this.multiProvider.getSigner(destination);
+    const signerAddress = await signer.getAddress();
+    const overrides = this.multiProvider.getTransactionOverrides(destination);
+    const contract = await this.deployer.deployContract(
+      destination,
+      IsmType.BLACKLIST,
+      [signerAddress],
+    );
+
+    if (config.blacklistedIds.length > 0) {
+      const tx = await contract.blacklist(config.blacklistedIds, overrides);
+      await this.multiProvider.handleTx(destination, tx);
+    }
+
+    if (!eqAddress(signerAddress, config.owner)) {
+      const tx = await contract.transferOwnership(config.owner, overrides);
+      await this.multiProvider.handleTx(destination, tx);
+    }
+
+    return contract;
   }
 
   protected async deployMultisigIsm(
@@ -534,7 +559,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         );
         break;
       default:
-        throw new Error(`Unsupported multisig ISM type ${config.type}`);
+        throw new Error('Unsupported multisig ISM type');
     }
 
     return IMultisigIsm__factory.connect(address, signer);
