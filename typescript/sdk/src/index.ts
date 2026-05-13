@@ -324,6 +324,8 @@ export {
   RoutingIsmConfig,
   RoutingIsmConfigSchema,
   SafeParseIsmConfigSchema,
+  BlacklistIsmConfig,
+  BlacklistIsmConfigSchema,
   RateLimitedIsmConfig,
   RateLimitedIsmConfigSchema,
   TrustedRelayerIsmConfig,

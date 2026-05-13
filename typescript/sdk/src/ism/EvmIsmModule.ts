@@ -3,6 +3,7 @@ import { Logger } from 'pino';
 
 import {
   AbstractCcipReadIsm__factory,
+  BlacklistIsm__factory,
   DomainRoutingIsm__factory,
   PausableIsm__factory,
   RateLimitedIsm__factory,
@@ -37,6 +38,7 @@ import { normalizeConfig } from '../utils/ism.js';
 import { EvmIsmReader } from './EvmIsmReader.js';
 import { HyperlaneIsmFactory } from './HyperlaneIsmFactory.js';
 import {
+  BlacklistIsmConfig,
   DeployedIsm,
   DerivedIsmConfig,
   DomainRoutingIsmConfig,
@@ -258,6 +260,11 @@ export class EvmIsmModule extends HyperlaneModule<
       // owner is optional on RateLimitedIsmConfig — handle ownership here
       // rather than falling through to the generic transferOwnershipTransactions call
       return this.updateRateLimitedIsm({ current, target });
+    } else if (
+      current.type === IsmType.BLACKLIST &&
+      target.type === IsmType.BLACKLIST
+    ) {
+      updateTxs.push(...this.updateBlacklistIsm({ current, target }));
     } else {
       throw new Error(
         `Unsupported update to mutable ISM of type ${target.type}`,
@@ -463,6 +470,43 @@ export class EvmIsmModule extends HyperlaneModule<
           { owner: target.owner },
         ),
       );
+    }
+
+    return txs;
+  }
+
+  protected updateBlacklistIsm({
+    current,
+    target,
+  }: {
+    current: BlacklistIsmConfig;
+    target: BlacklistIsmConfig;
+  }): AnnotatedEV5Transaction[] {
+    const txs: AnnotatedEV5Transaction[] = [];
+    const currentIds = new Set(current.blacklistedMessageIds ?? []);
+    const targetIds = new Set(target.blacklistedMessageIds ?? []);
+
+    const toBlacklist = [...targetIds].filter((id) => !currentIds.has(id));
+    const toWhitelist = [...currentIds].filter((id) => !targetIds.has(id));
+
+    const ismInterface = BlacklistIsm__factory.createInterface();
+
+    if (toBlacklist.length) {
+      txs.push({
+        annotation: `Blacklisting ${toBlacklist.length} message ID(s) on BlacklistIsm on chain "${this.chain}" at address "${this.args.addresses.deployedIsm}"`,
+        chainId: this.chainId,
+        to: this.args.addresses.deployedIsm,
+        data: ismInterface.encodeFunctionData('blacklist', [toBlacklist]),
+      });
+    }
+
+    if (toWhitelist.length) {
+      txs.push({
+        annotation: `Whitelisting ${toWhitelist.length} message ID(s) on BlacklistIsm on chain "${this.chain}" at address "${this.args.addresses.deployedIsm}"`,
+        chainId: this.chainId,
+        to: this.args.addresses.deployedIsm,
+        data: ismInterface.encodeFunctionData('whitelist', [toWhitelist]),
+      });
     }
 
     return txs;

@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import {
   type AggregationIsmConfig,
+  type BlacklistIsmConfig,
   type ChainMap,
   type IsmConfig,
   IsmConfigSchema,
@@ -86,6 +87,8 @@ const ISM_TYPE_DESCRIPTIONS: Record<string, string> = {
   [IsmType.TRUSTED_RELAYER]: 'Deliver messages from an authorized address',
   [IsmType.AMOUNT_ROUTING]:
     'Route messages based on the token amount to transfer',
+  [IsmType.BLACKLIST]:
+    'Reject specific messages by ID (surgical blocking for reorged or malicious messages)',
 };
 
 export async function createAdvancedIsmConfig(
@@ -127,6 +130,8 @@ export async function createAdvancedIsmConfig(
       return createTrustedRelayerConfig(context, true);
     case IsmType.AMOUNT_ROUTING:
       return createAmountRoutingIsmConfig(context);
+    case IsmType.BLACKLIST:
+      return createBlacklistIsmConfig();
     default:
       throw new Error(`Unsupported ISM type: ${moduleType}.`);
   }
@@ -183,6 +188,16 @@ export const createTrustedRelayerConfig = callWithConfigCreationLogs(
     };
   },
   IsmType.TRUSTED_RELAYER,
+);
+
+export const createBlacklistIsmConfig = callWithConfigCreationLogs(
+  async (): Promise<BlacklistIsmConfig> => {
+    const owner = await input({
+      message: 'Enter the owner address for the BlacklistIsm',
+    });
+    return { type: IsmType.BLACKLIST, owner, blacklistedMessageIds: [] };
+  },
+  IsmType.BLACKLIST,
 );
 
 export const createAggregationConfig = callWithConfigCreationLogs(
