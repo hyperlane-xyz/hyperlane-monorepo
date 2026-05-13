@@ -25,7 +25,16 @@ type KrownWarpRouteId =
   | WarpRouteIds.KrownUSDC
   | WarpRouteIds.KrownUSDT;
 
-function getKrownBlacklistIdsByChain(): ChainMap<string[]> {
+const krownWarpRouteTokens: Record<KrownWarpRouteId, string> = {
+  [WarpRouteIds.KrownETH]: 'ETH',
+  [WarpRouteIds.KrownUSDC]: 'USDC',
+  [WarpRouteIds.KrownUSDT]: 'USDT',
+};
+
+function getKrownBlacklistIdsByTokenAndChain(): Record<
+  string,
+  ChainMap<string[]>
+> {
   const [headerLine, ...rows] = readFileSync(BLACKLIST_CSV_PATH, 'utf8')
     .trim()
     .split(/\r?\n/);
@@ -36,6 +45,7 @@ function getKrownBlacklistIdsByChain(): ChainMap<string[]> {
   const messageIdIndex = headers.indexOf('post_reorg_message_id');
   const destinationIndex = headers.indexOf('destination');
   const existsPreReorgIndex = headers.indexOf('exists_pre_reorg');
+  const tokenIndex = headers.indexOf('token');
   assert(
     messageIdIndex >= 0,
     `Missing post_reorg_message_id column in ${BLACKLIST_CSV_PATH}`,
@@ -48,17 +58,20 @@ function getKrownBlacklistIdsByChain(): ChainMap<string[]> {
     existsPreReorgIndex >= 0,
     `Missing exists_pre_reorg column in ${BLACKLIST_CSV_PATH}`,
   );
+  assert(tokenIndex >= 0, `Missing token column in ${BLACKLIST_CSV_PATH}`);
 
-  const idsByChain: ChainMap<string[]> = {};
-  const seenByChain: ChainMap<Set<string>> = {};
+  const idsByTokenAndChain: Record<string, ChainMap<string[]>> = {};
+  const seenByTokenAndChain: Record<string, ChainMap<Set<string>>> = {};
 
   for (const row of rows) {
     const columns = row.split(',');
     const existsPreReorg = columns[existsPreReorgIndex]?.trim().toUpperCase();
     if (existsPreReorg !== 'TRUE') continue;
 
+    const token = columns[tokenIndex]?.trim().toUpperCase();
     const chain = columns[destinationIndex]?.trim();
     const messageId = columns[messageIdIndex]?.trim().toLowerCase();
+    assert(token, `Missing token in ${BLACKLIST_CSV_PATH}`);
     assert(chain, `Missing destination in ${BLACKLIST_CSV_PATH}`);
     assert(messageId, `Missing post_reorg_message_id in ${BLACKLIST_CSV_PATH}`);
     assert(
@@ -66,18 +79,20 @@ function getKrownBlacklistIdsByChain(): ChainMap<string[]> {
       `Invalid Krown blacklist message ID: ${messageId}`,
     );
 
-    idsByChain[chain] ??= [];
-    seenByChain[chain] ??= new Set<string>();
-    if (!seenByChain[chain].has(messageId)) {
-      seenByChain[chain].add(messageId);
-      idsByChain[chain].push(messageId);
+    idsByTokenAndChain[token] ??= {};
+    idsByTokenAndChain[token][chain] ??= [];
+    seenByTokenAndChain[token] ??= {};
+    seenByTokenAndChain[token][chain] ??= new Set<string>();
+    if (!seenByTokenAndChain[token][chain].has(messageId)) {
+      seenByTokenAndChain[token][chain].add(messageId);
+      idsByTokenAndChain[token][chain].push(messageId);
     }
   }
 
-  return idsByChain;
+  return idsByTokenAndChain;
 }
 
-const krownBlacklistIdsByChain = getKrownBlacklistIdsByChain();
+const krownBlacklistIdsByTokenAndChain = getKrownBlacklistIdsByTokenAndChain();
 const trustedRelayer = relayerAddresses.mainnet3.hyperlane;
 const krownOwnerSafeChain = 'ethereum';
 const krownOwnerSafeAddress = '0x3Ea04C1cDDebf600dA09e6FE0654835F27258f30';
@@ -130,6 +145,9 @@ export async function getKrownWarpConfig(
   const registry = getRegistry();
   const config = await getRegistry().getWarpDeployConfig(warpRouteId);
   assert(config, `Warp route deploy config not found: ${warpRouteId}`);
+  const blacklistToken = krownWarpRouteTokens[warpRouteId];
+  const krownBlacklistIdsByChain =
+    krownBlacklistIdsByTokenAndChain[blacklistToken] ?? {};
 
   const result: ChainMap<HypTokenRouterConfig> = {};
   for (const [chain, chainConfig] of Object.entries(config)) {
