@@ -8,7 +8,7 @@ import {
 import { strip0x } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_ROUTER } from '../codecs/fee.js';
-import { WILDCARD_DOMAIN } from '../codecs/igp.js';
+import { WILDCARD_DOMAIN, WILDCARD_SENDER } from '../codecs/igp.js';
 import {
   SPL_NOOP_PROGRAM_ADDRESS,
   SPL_TOKEN_PROGRAM_ADDRESS,
@@ -19,6 +19,7 @@ import {
   deriveCrossCollateralRoutePda,
   deriveIgpAccountPda,
   deriveIgpProgramDataPda,
+  deriveIgpStandingQuotePda,
   deriveMailboxOutboxPda,
   deriveOverheadIgpAccountPda,
   deriveRouteDomainPda,
@@ -221,6 +222,74 @@ async function deriveCrossCollateralFeeCascade(args: {
   }
 
   return out;
+}
+
+/**
+ * Derives the per-destination IGP-quote cascade PDAs the on-chain
+ * IGP `QuoteGasPayment` handler reads through. Mirrors the on-chain
+ * standing-quote lookup: per-destination + per-sender, plus the
+ * domain-wildcard PDA for the same sender, plus the fully-wildcard PDA
+ * (domain + sender both wildcards) that any sender falls back to.
+ *
+ * `feeTokenMint` is the IGP fee-token mint configured on chain.
+ * Picked by the caller per warp type:
+ *   - native            → SYSTEM_PROGRAM_ADDRESS (Pubkey::default())
+ *   - synthetic         → derived synthetic mint PDA
+ *   - collateral / CC   → the collateralized token mint
+ *
+ * SPL-token IGP payment isn't wired up yet — every IGP cascade today
+ * resolves against the native-token sentinel (`Pubkey::default()` ==
+ * `SYSTEM_PROGRAM_ADDRESS`). The helper emits PDAs for both the
+ * caller-provided `feeTokenMint` AND the native sentinel so the ALT
+ * stays valid both now (native-only) and once SPL IGP payment lands.
+ * When the caller's mint already is the native sentinel, the two
+ * cascades collapse via dedup.
+ *
+ * Output is base58-sorted and set-deduped.
+ */
+export async function deriveIgpQuoteCascadeAltAddresses(args: {
+  igpProgram: Address;
+  igpAccount: Address;
+  feeTokenMint: Address;
+  sender: Address;
+  enrolledDomains: number[];
+}): Promise<Address[]> {
+  const { igpProgram, igpAccount, feeTokenMint, sender, enrolledDomains } =
+    args;
+  const out: Address[] = [];
+
+  for (const mint of [feeTokenMint, SYSTEM_PROGRAM_ADDRESS]) {
+    for (const domain of enrolledDomains) {
+      const perDest = await deriveIgpStandingQuotePda(
+        igpProgram,
+        igpAccount,
+        mint,
+        domain,
+        sender,
+      );
+      out.push(perDest.address);
+    }
+
+    const perSenderWildcard = await deriveIgpStandingQuotePda(
+      igpProgram,
+      igpAccount,
+      mint,
+      WILDCARD_DOMAIN,
+      sender,
+    );
+    out.push(perSenderWildcard.address);
+
+    const fullyWildcard = await deriveIgpStandingQuotePda(
+      igpProgram,
+      igpAccount,
+      mint,
+      WILDCARD_DOMAIN,
+      WILDCARD_SENDER,
+    );
+    out.push(fullyWildcard.address);
+  }
+
+  return canonicalize(out);
 }
 
 function canonicalize(addresses: readonly Address[]): Address[] {

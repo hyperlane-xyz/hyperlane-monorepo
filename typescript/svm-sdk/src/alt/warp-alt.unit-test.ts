@@ -9,7 +9,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/fee';
 
 import { DEFAULT_ROUTER } from '../codecs/fee.js';
-import { WILDCARD_DOMAIN } from '../codecs/igp.js';
+import { WILDCARD_DOMAIN, WILDCARD_SENDER } from '../codecs/igp.js';
 import {
   SPL_NOOP_PROGRAM_ADDRESS,
   SPL_TOKEN_PROGRAM_ADDRESS,
@@ -21,6 +21,7 @@ import {
   deriveCrossCollateralRoutePda,
   deriveIgpAccountPda,
   deriveIgpProgramDataPda,
+  deriveIgpStandingQuotePda,
   deriveMailboxOutboxPda,
   deriveOverheadIgpAccountPda,
   deriveRouteDomainPda,
@@ -30,6 +31,7 @@ import {
 import {
   deriveCoreDeploymentAltAddresses,
   deriveFeeQuoteCascadeAltAddresses,
+  deriveIgpQuoteCascadeAltAddresses,
 } from './warp-alt.js';
 
 const MAILBOX: Address = address(
@@ -378,5 +380,144 @@ describe('deriveFeeQuoteCascadeAltAddresses', () => {
         expect(new Set(result).size, feeConfig.type).to.equal(result.length);
       }
     });
+  });
+});
+
+const IGP_ACCOUNT: Address = address(
+  '99gpAccountPda11111111111111111111111111111',
+);
+const NON_NATIVE_MINT: Address = address(
+  'M1ntPda111111111111111111111111111111111111',
+);
+const SENDER_A: Address = address(
+  'WarpProgramA1111111111111111111111111111111',
+);
+const SENDER_B: Address = address(
+  'WarpProgramB1111111111111111111111111111111',
+);
+
+describe('deriveIgpQuoteCascadeAltAddresses', () => {
+  it('returns just the per-sender wildcard + fully wildcard when no domains are enrolled and mint is native', async () => {
+    const perSenderWildcard = await deriveIgpStandingQuotePda(
+      IGP_PROGRAM,
+      IGP_ACCOUNT,
+      SYSTEM_PROGRAM_ADDRESS,
+      WILDCARD_DOMAIN,
+      SENDER_A,
+    );
+    const fullyWildcard = await deriveIgpStandingQuotePda(
+      IGP_PROGRAM,
+      IGP_ACCOUNT,
+      SYSTEM_PROGRAM_ADDRESS,
+      WILDCARD_DOMAIN,
+      WILDCARD_SENDER,
+    );
+
+    const result = await deriveIgpQuoteCascadeAltAddresses({
+      igpProgram: IGP_PROGRAM,
+      igpAccount: IGP_ACCOUNT,
+      feeTokenMint: SYSTEM_PROGRAM_ADDRESS,
+      sender: SENDER_A,
+      enrolledDomains: [],
+    });
+
+    expect(new Set(result)).to.deep.equal(
+      new Set([perSenderWildcard.address, fullyWildcard.address]),
+    );
+    expect(result).to.have.lengthOf(2);
+  });
+
+  it('native mint: emits one cascade (mint and native sentinel are the same — dedup)', async () => {
+    const result = await deriveIgpQuoteCascadeAltAddresses({
+      igpProgram: IGP_PROGRAM,
+      igpAccount: IGP_ACCOUNT,
+      feeTokenMint: SYSTEM_PROGRAM_ADDRESS,
+      sender: SENDER_A,
+      enrolledDomains: [10, 20],
+    });
+
+    // 2 per-D + 1 per-sender-wildcard + 1 fully-wildcard = 4
+    expect(result).to.have.lengthOf(4);
+  });
+
+  it('non-native mint: emits cascades for BOTH the configured mint AND the native sentinel', async () => {
+    const result = await deriveIgpQuoteCascadeAltAddresses({
+      igpProgram: IGP_PROGRAM,
+      igpAccount: IGP_ACCOUNT,
+      feeTokenMint: NON_NATIVE_MINT,
+      sender: SENDER_A,
+      enrolledDomains: [10, 20],
+    });
+
+    // 2 mints × (2 per-D + 1 per-sender-wildcard + 1 fully-wildcard) = 8
+    expect(result).to.have.lengthOf(8);
+
+    // Spot-check: a per-D pda exists under each mint.
+    const perD10Native = await deriveIgpStandingQuotePda(
+      IGP_PROGRAM,
+      IGP_ACCOUNT,
+      SYSTEM_PROGRAM_ADDRESS,
+      10,
+      SENDER_A,
+    );
+    const perD10Mint = await deriveIgpStandingQuotePda(
+      IGP_PROGRAM,
+      IGP_ACCOUNT,
+      NON_NATIVE_MINT,
+      10,
+      SENDER_A,
+    );
+    expect(result).to.include.members([
+      perD10Native.address,
+      perD10Mint.address,
+    ]);
+  });
+
+  it('output is sorted ascending and deduped', async () => {
+    const result = await deriveIgpQuoteCascadeAltAddresses({
+      igpProgram: IGP_PROGRAM,
+      igpAccount: IGP_ACCOUNT,
+      feeTokenMint: NON_NATIVE_MINT,
+      sender: SENDER_A,
+      enrolledDomains: [10, 20, 30],
+    });
+
+    expect(isSortedAscending([...result])).to.equal(true);
+    expect(new Set(result).size).to.equal(result.length);
+  });
+
+  it('different senders produce disjoint per-destination + per-sender-wildcard entries; fully-wildcard pdas stay stable', async () => {
+    const aResult = await deriveIgpQuoteCascadeAltAddresses({
+      igpProgram: IGP_PROGRAM,
+      igpAccount: IGP_ACCOUNT,
+      feeTokenMint: SYSTEM_PROGRAM_ADDRESS,
+      sender: SENDER_A,
+      enrolledDomains: [10],
+    });
+    const bResult = await deriveIgpQuoteCascadeAltAddresses({
+      igpProgram: IGP_PROGRAM,
+      igpAccount: IGP_ACCOUNT,
+      feeTokenMint: SYSTEM_PROGRAM_ADDRESS,
+      sender: SENDER_B,
+      enrolledDomains: [10],
+    });
+
+    const fullyWildcard = await deriveIgpStandingQuotePda(
+      IGP_PROGRAM,
+      IGP_ACCOUNT,
+      SYSTEM_PROGRAM_ADDRESS,
+      WILDCARD_DOMAIN,
+      WILDCARD_SENDER,
+    );
+
+    expect(aResult).to.include(fullyWildcard.address);
+    expect(bResult).to.include(fullyWildcard.address);
+
+    const aOnly = aResult.filter((addr) => !bResult.includes(addr));
+    const bOnly = bResult.filter((addr) => !aResult.includes(addr));
+
+    // sender-A's per-D10 + per-sender-wildcard differ from sender-B's
+    expect(aOnly).to.have.lengthOf(2);
+    expect(bOnly).to.have.lengthOf(2);
   });
 });
