@@ -118,6 +118,16 @@ export class EvmIsmModule extends HyperlaneModule<
       return [];
     }
 
+    // If target is an address reference, use it directly — no comparison or
+    // deployment.  deriveIsmConfig would resolve it to a full config object and
+    // the structural diff would trigger a spurious redeploy of a perfectly good
+    // on-chain ISM.  The outer EvmWarpModule handles setInterchainSecurityModule
+    // based on whether deployedIsm changed.
+    if (typeof targetConfig === 'string') {
+      this.args.addresses.deployedIsm = targetConfig;
+      return [];
+    }
+
     // We need to normalize the current and target configs to compare.
     const normalizedTargetConfig: DerivedIsmConfig = normalizeConfig(
       await this.reader.deriveIsmConfig(targetConfig),
@@ -133,13 +143,6 @@ export class EvmIsmModule extends HyperlaneModule<
 
     // Update the module config to the target one as we are sure now that an update will be needed
     this.args.config = normalizedTargetConfig;
-
-    // if the new config is an address just point the module to the new address
-    if (typeof normalizedTargetConfig === 'string') {
-      this.args.addresses.deployedIsm = normalizedTargetConfig;
-
-      return [];
-    }
 
     // Conditions for deploying a new ISM:
     // - If updating from an address/custom config to a proper ISM config.
