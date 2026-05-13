@@ -17,6 +17,7 @@ import {
   TokenType,
 } from '@hyperlane-xyz/provider-sdk/warp';
 
+import type { SvmSigner } from '../clients/signer.js';
 import { resolveFeeSalt } from '../fee/types.js';
 import {
   deriveFeeAccountPda,
@@ -24,7 +25,6 @@ import {
   deriveMailboxDispatchAuthorityPda,
   deriveNativeCollateralPda,
 } from '../pda.js';
-import type { SvmRpc } from '../types.js';
 
 import { SvmNativeTokenAltWriter } from './native-token-alt-writer.js';
 
@@ -43,18 +43,18 @@ const FEE_PROGRAM: Address = address(
 
 /**
  * `deriveWarpRouteAddresses` is purely PDA derivation in this commit;
- * no rpc methods should be invoked. The mock throws on any access so
- * a future change that accidentally introduces an rpc call here fails
- * loudly instead of returning silent garbage.
+ * no signer or rpc methods should be invoked. The mock throws on any
+ * access so a future change that accidentally introduces a call here
+ * fails loudly instead of returning silent garbage.
  */
-function strictUnusedRpc(): SvmRpc {
+function strictUnusedSigner(): SvmSigner {
   return new Proxy({} as object, {
     get(_target, prop) {
       throw new Error(
-        `SvmRpc method "${String(prop)}" must not be called from this code path`,
+        `SvmSigner property "${String(prop)}" must not be accessed from this code path`,
       );
     },
-  }) as SvmRpc;
+  }) as SvmSigner;
 }
 
 function deployedNative(
@@ -98,7 +98,7 @@ function isSortedAscending<T extends string>(items: T[]): boolean {
 }
 
 describe('SvmNativeTokenAltWriter.deriveWarpRouteAddresses', () => {
-  const writer = new SvmNativeTokenAltWriter(strictUnusedRpc(), CHAIN_NAME);
+  const writer = new SvmNativeTokenAltWriter(strictUnusedSigner(), CHAIN_NAME);
 
   it('returns warp pdas + native collateral pda without fee', async () => {
     const tokenPda = await deriveHyperlaneTokenPda(WARP_PROGRAM);
