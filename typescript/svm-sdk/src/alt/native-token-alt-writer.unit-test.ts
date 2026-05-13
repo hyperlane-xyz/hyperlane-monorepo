@@ -1,0 +1,164 @@
+import { type Address, address } from '@solana/kit';
+import chai, { expect } from 'chai';
+import chaiAsPromised from 'chai-as-promised';
+
+import {
+  type ArtifactDeployed,
+  ArtifactState,
+} from '@hyperlane-xyz/provider-sdk/artifact';
+import {
+  type FeeArtifactConfig,
+  FeeParamsType,
+  FeeType,
+} from '@hyperlane-xyz/provider-sdk/fee';
+import {
+  type DeployedWarpAddress,
+  type NativeWarpArtifactConfig,
+  TokenType,
+} from '@hyperlane-xyz/provider-sdk/warp';
+
+import { resolveFeeSalt } from '../fee/types.js';
+import {
+  deriveFeeAccountPda,
+  deriveHyperlaneTokenPda,
+  deriveMailboxDispatchAuthorityPda,
+  deriveNativeCollateralPda,
+} from '../pda.js';
+import type { SvmRpc } from '../types.js';
+
+import { SvmNativeTokenAltWriter } from './native-token-alt-writer.js';
+
+chai.use(chaiAsPromised);
+
+const CHAIN_NAME = 'svm-alt-native-test';
+const WARP_PROGRAM: Address = address(
+  'BCYqLqWsXmA3sP7VBR1G64rUQXqXM6JzkqpYxbFv5Yu1',
+);
+const MAILBOX: Address = address(
+  'E588QtVUvresuXq2KoNEwAmoifCzYGpRBdHByN9KQMbi',
+);
+const FEE_PROGRAM: Address = address(
+  'F33ip6ZJ4LQHxq3sJTbxsZNG6tWELzETSdpMmFwGV4tT',
+);
+
+/**
+ * `deriveWarpRouteAddresses` is purely PDA derivation in this commit;
+ * no rpc methods should be invoked. The mock throws on any access so
+ * a future change that accidentally introduces an rpc call here fails
+ * loudly instead of returning silent garbage.
+ */
+function strictUnusedRpc(): SvmRpc {
+  return new Proxy({} as object, {
+    get(_target, prop) {
+      throw new Error(
+        `SvmRpc method "${String(prop)}" must not be called from this code path`,
+      );
+    },
+  }) as SvmRpc;
+}
+
+function deployedNative(
+  fee?: ArtifactDeployed<
+    NativeWarpArtifactConfig,
+    DeployedWarpAddress
+  >['config']['fee'],
+): ArtifactDeployed<NativeWarpArtifactConfig, DeployedWarpAddress> {
+  return {
+    artifactState: ArtifactState.DEPLOYED,
+    config: {
+      type: TokenType.native,
+      owner: '0x0000000000000000000000000000000000000000',
+      mailbox: MAILBOX,
+      remoteRouters: {},
+      destinationGas: {},
+      fee,
+    },
+    deployed: { address: WARP_PROGRAM },
+  };
+}
+
+function newLinearFee(): FeeArtifactConfig {
+  return {
+    type: FeeType.linear,
+    owner: '0x0000000000000000000000000000000000000000',
+    beneficiary: '0x0000000000000000000000000000000000000000',
+    params: {
+      type: FeeParamsType.raw,
+      maxFee: '1',
+      halfAmount: '1',
+    },
+  };
+}
+
+function isSortedAscending<T extends string>(items: T[]): boolean {
+  for (let i = 1; i < items.length; i++) {
+    if (items[i - 1]! >= items[i]!) return false;
+  }
+  return true;
+}
+
+describe('SvmNativeTokenAltWriter.deriveWarpRouteAddresses', () => {
+  const writer = new SvmNativeTokenAltWriter(strictUnusedRpc(), CHAIN_NAME);
+
+  it('returns warp pdas + native collateral pda without fee', async () => {
+    const tokenPda = await deriveHyperlaneTokenPda(WARP_PROGRAM);
+    const dispatchAuthority =
+      await deriveMailboxDispatchAuthorityPda(WARP_PROGRAM);
+    const nativeCollateralPda = await deriveNativeCollateralPda(WARP_PROGRAM);
+
+    const result = await writer.deriveWarpRouteAddresses(deployedNative());
+
+    expect(result).to.have.lengthOf(4);
+    expect(new Set(result)).to.deep.equal(
+      new Set([
+        WARP_PROGRAM,
+        tokenPda.address,
+        dispatchAuthority.address,
+        nativeCollateralPda.address,
+      ]),
+    );
+  });
+
+  it('adds fee program + fee account pda when fee is present', async () => {
+    const feeAccount = await deriveFeeAccountPda(
+      FEE_PROGRAM,
+      resolveFeeSalt(CHAIN_NAME),
+    );
+
+    const result = await writer.deriveWarpRouteAddresses(
+      deployedNative({
+        artifactState: ArtifactState.UNDERIVED,
+        deployed: { address: FEE_PROGRAM },
+      }),
+    );
+
+    expect(result).to.have.lengthOf(6);
+    expect(result).to.include.members([FEE_PROGRAM, feeAccount.address]);
+  });
+
+  it('rejects when fee is a NEW artifact (caller must expand first)', async () => {
+    await expect(
+      writer.deriveWarpRouteAddresses(
+        deployedNative({
+          artifactState: ArtifactState.NEW,
+          config: newLinearFee(),
+        }),
+      ),
+    ).to.be.rejectedWith(/fee/i);
+  });
+
+  it('output is sorted ascending and contains no duplicates', async () => {
+    const result = await writer.deriveWarpRouteAddresses(
+      deployedNative({
+        artifactState: ArtifactState.UNDERIVED,
+        deployed: { address: FEE_PROGRAM },
+      }),
+    );
+
+    expect(isSortedAscending([...result])).to.equal(
+      true,
+      `expected ascending order, got: ${result.join(', ')}`,
+    );
+    expect(new Set(result).size).to.equal(result.length);
+  });
+});
