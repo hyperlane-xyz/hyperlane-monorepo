@@ -163,11 +163,32 @@ contract BlacklistIsmTest is Test {
         vm.prank(owner);
         ism.blacklist(ids);
 
-        assertTrue(ism.blacklistedIds(testMessageId));
+        bytes32[] memory listed = ism.blacklistedIds();
+        assertEq(listed.length, 1);
+        assertEq(listed[0], testMessageId);
+
         if (messageId == testMessageId) {
-            assertTrue(ism.blacklistedIds(messageId));
-        } else {
-            assertFalse(ism.blacklistedIds(messageId));
+            assertFalse(ism.verify("", abi.encodePacked(messageId)));
         }
+    }
+
+    function test_blacklistedIds_enumeration() public {
+        bytes32[] memory ids = new bytes32[](2);
+        ids[0] = testMessageId;
+        ids[1] = keccak256("other");
+        vm.prank(owner);
+        ism.blacklist(ids);
+
+        bytes32[] memory listed = ism.blacklistedIds();
+        assertEq(listed.length, 2);
+
+        vm.prank(owner);
+        bytes32[] memory removeOne = new bytes32[](1);
+        removeOne[0] = ids[0];
+        ism.whitelist(removeOne);
+
+        listed = ism.blacklistedIds();
+        assertEq(listed.length, 1);
+        assertEq(listed[0], ids[1]);
     }
 }

@@ -8,6 +8,7 @@ import {PackageVersioned} from "../PackageVersioned.sol";
 
 // ============ External Imports ============
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 /**
  * @title BlacklistIsm
@@ -17,11 +18,11 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
  */
 contract BlacklistIsm is IInterchainSecurityModule, Ownable, PackageVersioned {
     using Message for bytes;
+    using EnumerableSet for EnumerableSet.Bytes32Set;
 
     uint8 public constant override moduleType = uint8(Types.NULL);
 
-    /// @notice message ID => true if blacklisted
-    mapping(bytes32 messageId => bool isBlacklisted) public blacklistedIds;
+    EnumerableSet.Bytes32Set private _blacklistedIds;
 
     event MessageBlacklisted(bytes32 indexed messageId);
     event MessageWhitelisted(bytes32 indexed messageId);
@@ -33,7 +34,7 @@ contract BlacklistIsm is IInterchainSecurityModule, Ownable, PackageVersioned {
     /// @notice Blacklist a batch of message IDs
     function blacklist(bytes32[] calldata _ids) external onlyOwner {
         for (uint256 i = 0; i < _ids.length; i++) {
-            blacklistedIds[_ids[i]] = true;
+            _blacklistedIds.add(_ids[i]);
             emit MessageBlacklisted(_ids[i]);
         }
     }
@@ -41,9 +42,14 @@ contract BlacklistIsm is IInterchainSecurityModule, Ownable, PackageVersioned {
     /// @notice Remove message IDs from the blacklist
     function whitelist(bytes32[] calldata _ids) external onlyOwner {
         for (uint256 i = 0; i < _ids.length; i++) {
-            delete blacklistedIds[_ids[i]];
+            _blacklistedIds.remove(_ids[i]);
             emit MessageWhitelisted(_ids[i]);
         }
+    }
+
+    /// @notice Returns all blacklisted message IDs
+    function blacklistedIds() external view returns (bytes32[] memory) {
+        return _blacklistedIds.values();
     }
 
     /// @inheritdoc IInterchainSecurityModule
@@ -51,6 +57,6 @@ contract BlacklistIsm is IInterchainSecurityModule, Ownable, PackageVersioned {
         bytes calldata,
         bytes calldata _message
     ) external view returns (bool) {
-        return !blacklistedIds[_message.id()];
+        return !_blacklistedIds.contains(_message.id());
     }
 }
