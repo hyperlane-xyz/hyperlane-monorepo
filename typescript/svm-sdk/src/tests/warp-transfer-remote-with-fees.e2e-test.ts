@@ -12,7 +12,7 @@ import { expect } from 'chai';
 import { before, describe, it } from 'mocha';
 
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, pollAsync } from '@hyperlane-xyz/utils';
 import {
   FeeParamsType,
   FeeStrategyType,
@@ -494,15 +494,28 @@ async function assertTxUsedAlt(args: {
   // the type guard so `getTransaction` accepts it without an `as` cast.
   const sig = args.signature;
   assertIsSignature(sig);
-  const fetched = await args.rpc
-    .getTransaction(sig, {
-      commitment: 'confirmed',
-      maxSupportedTransactionVersion: 0,
-      encoding: 'json',
-    })
-    .send();
-  expect(fetched, 'tx is indexed on-chain').to.not.be.null;
-  const message = fetched!.transaction.message;
+  // `getTransaction` reads the RPC's tx index, which is populated
+  // asynchronously after `signer.send` returns confirmed. Poll a few
+  // times before giving up — the indexer typically catches up within a
+  // slot or two on a healthy validator.
+  const fetched = await pollAsync(
+    async () => {
+      const result = await args.rpc
+        .getTransaction(sig, {
+          commitment: 'confirmed',
+          maxSupportedTransactionVersion: 0,
+          encoding: 'json',
+        })
+        .send();
+      if (result == null) {
+        throw new Error(`tx ${sig} not yet indexed`);
+      }
+      return result;
+    },
+    500,
+    5,
+  );
+  const message = fetched.transaction.message;
   const lookups =
     'addressTableLookups' in message ? message.addressTableLookups : [];
   expect(
