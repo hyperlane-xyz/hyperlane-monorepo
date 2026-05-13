@@ -1,5 +1,6 @@
 import { type Address, address as parseAddress } from '@solana/kit';
 
+import { HookType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   type ArtifactDeployed,
   isArtifactDeployed,
@@ -12,14 +13,20 @@ import {
 import { assert, isNullish } from '@hyperlane-xyz/utils';
 
 import type { SvmSigner } from '../clients/signer.js';
+import { SYSTEM_PROGRAM_ADDRESS } from '../constants.js';
 import { resolveFeeSalt } from '../fee/types.js';
+import { DEFAULT_IGP_SALT } from '../hook/igp-hook.js';
 import {
   deriveHyperlaneTokenPda,
+  deriveIgpAccountPda,
   deriveMailboxDispatchAuthorityPda,
   deriveNativeCollateralPda,
 } from '../pda.js';
 
-import { deriveFeeQuoteCascadeAltAddresses } from './warp-alt.js';
+import {
+  deriveFeeQuoteCascadeAltAddresses,
+  deriveIgpQuoteCascadeAltAddresses,
+} from './warp-alt.js';
 
 /**
  * Builds the warp-route-specific ALT address set for a native SVM
@@ -72,6 +79,32 @@ export class SvmNativeTokenAltWriter {
         ),
       });
       out.push(parseAddress(fee.config.beneficiary), ...cascade);
+    }
+
+    const hook = deployed.config.hook;
+    assert(
+      isNullish(hook) || isArtifactDeployed(hook),
+      'Expected hook artifact to be expanded (DEPLOYED) or not set',
+    );
+
+    if (hook?.config.type === HookType.INTERCHAIN_GAS_PAYMASTER) {
+      const igpProgramId = parseAddress(hook.deployed.address);
+      const igpAccount = await deriveIgpAccountPda(
+        igpProgramId,
+        DEFAULT_IGP_SALT,
+      );
+      const enrolledDomains = Object.keys(deployed.config.remoteRouters).map(
+        Number,
+      );
+
+      const igpCascade = await deriveIgpQuoteCascadeAltAddresses({
+        igpProgram: igpProgramId,
+        igpAccount: igpAccount.address,
+        feeTokenMint: SYSTEM_PROGRAM_ADDRESS,
+        sender: warpProgramId,
+        enrolledDomains,
+      });
+      out.push(...igpCascade);
     }
 
     return [...new Set(out.map(parseAddress))].sort();
