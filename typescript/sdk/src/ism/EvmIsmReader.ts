@@ -617,8 +617,6 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         address,
         type: IsmType.BLACKLIST,
         owner,
-        // Can't enumerate on-chain mapping entries; return empty array
-        blacklistedMessageIds: [],
       };
     } catch {
       this.logger.debug(
