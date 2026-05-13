@@ -17,6 +17,7 @@ import {
 import { H256_ZERO } from '../instructions/fee.js';
 import {
   deriveCrossCollateralRoutePda,
+  deriveFeeAccountPda,
   deriveIgpAccountPda,
   deriveIgpProgramDataPda,
   deriveIgpStandingQuotePda,
@@ -70,9 +71,10 @@ export async function deriveCoreDeploymentAltAddresses(
 }
 
 /**
- * Derives the per-destination fee-quote cascade PDAs the on-chain
- * `QuoteFee` handler reads through, excluding the fee account itself
- * (that one lives in the per-token warp-specific bucket). Dispatches
+ * Derives every fee-program-related address an SVM warp route may
+ * touch via the on-chain `QuoteFee` handler: the fee program itself,
+ * the fee account PDA derived from `(feeProgram, feeSalt)`, and the
+ * per-destination cascade PDAs the handler reads through. Dispatches
  * on `feeConfig.type` to the right variant cascade — `Leaf`,
  * `Routing`, or `CrossCollateralRouting` — mirroring
  * `processor/quote.rs::process_quote_fee` in the fee program.
@@ -87,33 +89,41 @@ export async function deriveCoreDeploymentAltAddresses(
  */
 export async function deriveFeeQuoteCascadeAltAddresses(args: {
   feeProgram: Address;
-  feeAccount: Address;
+  feeSalt: Uint8Array;
   feeConfig: FeeArtifactConfig;
   feeReadContext: FeeReadContext;
 }): Promise<Address[]> {
-  let out: Address[];
-  switch (args.feeConfig.type) {
+  const { feeProgram, feeSalt, feeConfig, feeReadContext } = args;
+  const feeAccount = await deriveFeeAccountPda(feeProgram, feeSalt);
+  const cascadeArgs = {
+    feeProgram,
+    feeAccount: feeAccount.address,
+    feeReadContext,
+  };
+
+  let cascade: Address[];
+  switch (feeConfig.type) {
     case FeeType.linear:
     case FeeType.regressive:
     case FeeType.progressive:
     case FeeType.offchainQuotedLinear:
-      out = await deriveLeafFeeCascade(args);
+      cascade = await deriveLeafFeeCascade(cascadeArgs);
       break;
     case FeeType.routing:
-      out = await deriveRoutingFeeCascade(args);
+      cascade = await deriveRoutingFeeCascade(cascadeArgs);
       break;
     case FeeType.crossCollateralRouting:
-      out = await deriveCrossCollateralFeeCascade(args);
+      cascade = await deriveCrossCollateralFeeCascade(cascadeArgs);
       break;
     default: {
-      const _exhaustive: never = args.feeConfig;
+      const _exhaustive: never = feeConfig;
       throw new Error(
         `Unhandled fee config type: ${String((_exhaustive as { type?: unknown }).type)}`,
       );
     }
   }
 
-  return canonicalize(out);
+  return canonicalize([feeProgram, feeAccount.address, ...cascade]);
 }
 
 async function deriveLeafFeeCascade(args: {

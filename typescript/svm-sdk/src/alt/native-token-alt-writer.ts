@@ -14,7 +14,6 @@ import { assert, isNullish } from '@hyperlane-xyz/utils';
 import type { SvmSigner } from '../clients/signer.js';
 import { resolveFeeSalt } from '../fee/types.js';
 import {
-  deriveFeeAccountPda,
   deriveHyperlaneTokenPda,
   deriveMailboxDispatchAuthorityPda,
   deriveNativeCollateralPda,
@@ -64,23 +63,15 @@ export class SvmNativeTokenAltWriter {
     );
 
     if (fee) {
-      const feeProgram = parseAddress(fee.deployed.address);
-      const feeAccount = await deriveFeeAccountPda(
-        feeProgram,
-        resolveFeeSalt(this.chainName),
-      );
-      out.push(feeProgram, feeAccount.address);
-      out.push(parseAddress(fee.config.beneficiary));
-
       const cascade = await deriveFeeQuoteCascadeAltAddresses({
-        feeProgram,
-        feeAccount: feeAccount.address,
+        feeProgram: parseAddress(fee.deployed.address),
+        feeSalt: resolveFeeSalt(this.chainName),
         feeConfig: fee.config,
         feeReadContext: buildFeeReadContextFromWarpArtifactConfig(
           deployed.config,
         ),
       });
-      out.push(...cascade);
+      out.push(parseAddress(fee.config.beneficiary), ...cascade);
     }
 
     return [...new Set(out.map(parseAddress))].sort();
