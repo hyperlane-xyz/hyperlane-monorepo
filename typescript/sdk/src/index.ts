@@ -409,17 +409,7 @@ export {
   interchainAccountFactories,
 } from './middleware/account/contracts.js';
 export {
-  commitmentFromIcaCalls,
-  commitmentFromRevealMessage,
-  encodeIcaCalls,
   InterchainAccount,
-  normalizeCalls,
-  PostCallsSchema,
-  PostCallsType,
-  PostCallsLegacyType,
-  PostCallsIcaType,
-  isPostCallsIca,
-  RawCallData,
   shareCallsWithPrivateRelayer,
 } from './middleware/account/InterchainAccount.js';
 export { InterchainAccountChecker } from './middleware/account/InterchainAccountChecker.js';

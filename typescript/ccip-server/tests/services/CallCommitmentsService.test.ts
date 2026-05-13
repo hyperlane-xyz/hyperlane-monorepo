@@ -6,7 +6,7 @@ import {
   commitmentFromIcaCalls,
   isPostCallsIca,
   normalizeCalls,
-} from '@hyperlane-xyz/sdk';
+} from '@hyperlane-xyz/sdk/middleware/account/icaCalls';
 
 import { CallCommitmentsService } from '../../src/services/CallCommitmentsService.js';
 
