@@ -41,22 +41,30 @@ const EXTEND_CHUNK_SIZE = 20;
 const ALT_ACTIVATION_TIMEOUT_MS = 5_000;
 const ALT_ACTIVATION_POLL_MS = 1_000;
 
-export interface SvmAltConfig {
-  /**
-   * One-way freeze bit. `false` → mutable (extends still accepted).
-   * `true` → terminal: no further extends or mutations are possible.
-   * Setting this to `true` when the on-chain table is still mutable emits
-   * a freeze tx. The reverse transition (true → false) is rejected.
-   *
-   * The on-chain authority is not configurable — the ALT program has no
-   * transfer-authority instruction, so the create-time signer is the
-   * authority for the table's lifetime. The actual authority address
-   * is surfaced via `SvmDeployedAlt.authority`.
-   */
-  frozen: boolean;
-  /** Addresses stored in the lookup table, in on-chain index order. */
-  addresses: Address[];
-}
+/** Non-empty tuple type — at least one element required at compile time. */
+export type NonEmptyArray<T> = readonly [T, ...T[]];
+
+/**
+ * ALT artifact config.
+ *
+ * `frozen` is a one-way bit. `false` → mutable (extends still accepted).
+ * `true` → terminal: no further extends or mutations are possible.
+ * Setting this to `true` when the on-chain table is still mutable emits a
+ * freeze tx. The reverse transition (true → false) is rejected.
+ *
+ * The Solana ALT program rejects freezing an empty table, so the type is
+ * a discriminated union: `frozen: true` requires at least one address at
+ * compile time. Mutable ALTs may legitimately be empty (created now,
+ * extended later).
+ *
+ * The on-chain authority is not configurable — the ALT program has no
+ * transfer-authority instruction, so the create-time signer is the
+ * authority for the table's lifetime. The actual authority address is
+ * surfaced via `SvmDeployedAlt.authority`.
+ */
+export type SvmAltConfig =
+  | { frozen: false; addresses: readonly Address[] }
+  | { frozen: true; addresses: NonEmptyArray<Address> };
 
 export interface SvmDeployedAlt {
   address: Address;
@@ -76,6 +84,12 @@ function chunk<T>(items: T[], size: number): T[][] {
   return out;
 }
 
+function nonEmptyArray<T>(arr: readonly T[]): NonEmptyArray<T> {
+  const [first, ...rest] = arr;
+  assert(!isNullish(first), 'expected non-empty array');
+  return [first, ...rest];
+}
+
 export class SvmAddressLookupTableReader implements ArtifactReader<
   SvmAltConfig,
   SvmDeployedAlt
@@ -88,10 +102,17 @@ export class SvmAddressLookupTableReader implements ArtifactReader<
     const altAddress = parseAddress(address);
     const { owner, addresses, lastExtendedSlot } =
       await fetchAddressLookupTableState(this.rpc, altAddress);
+    // On-chain freeze rejects empty tables (line 208 of the ALT
+    // program's processor.rs), so a frozen ALT is program-guaranteed
+    // non-empty — narrow via `asNonEmpty` instead of leaving the wider
+    // `readonly Address[]` type from the fetched state.
+    const config: SvmAltConfig = isNullish(owner)
+      ? { frozen: true, addresses: nonEmptyArray(addresses) }
+      : { frozen: false, addresses };
 
     return {
       artifactState: ArtifactState.DEPLOYED,
-      config: { frozen: isNullish(owner), addresses },
+      config,
       deployed: { address: altAddress, lastExtendedSlot, authority: owner },
     };
   }
@@ -184,10 +205,13 @@ export class SvmAddressLookupTableWriter
       currentSlot = await this.rpc.getSlot({ commitment: 'confirmed' }).send();
     }
 
+    const finalConfig: SvmAltConfig = isNullish(final.owner)
+      ? { frozen: true, addresses: nonEmptyArray(final.addresses) }
+      : { frozen: false, addresses: final.addresses };
     return [
       {
         artifactState: ArtifactState.DEPLOYED,
-        config: { frozen: isNullish(final.owner), addresses: final.addresses },
+        config: finalConfig,
         deployed: {
           address: create.address,
           lastExtendedSlot: final.lastExtendedSlot,
