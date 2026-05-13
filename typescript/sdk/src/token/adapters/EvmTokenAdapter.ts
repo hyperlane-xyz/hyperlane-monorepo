@@ -899,6 +899,56 @@ export class EvmHypCollateralFiatAdapter
   }
 }
 
+export class EvmHypVaultCollateralAdapter
+  extends BaseEvmHypCollateralAdapter
+  implements IHypTokenAdapter<PopulatedTransaction>
+{
+  public override collateralContract: HypERC4626Collateral;
+  protected readonly vaultAddress = new LazyAsync(() =>
+    this.collateralContract.vault(),
+  );
+
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProviderAdapter,
+    public readonly addresses: { token: Address },
+  ) {
+    super(chainName, multiProvider, addresses);
+    this.collateralContract = HypERC4626Collateral__factory.connect(
+      addresses.token,
+      this.getProvider(),
+    );
+  }
+
+  protected override async loadWrappedTokenAddress(): Promise<Address> {
+    return this.collateralContract.wrappedToken();
+  }
+
+  override async getBalance(address: Address): Promise<bigint> {
+    const vault = ERC4626__factory.connect(
+      await this.vaultAddress.get(),
+      this.getProvider(),
+    );
+    const maxWithdraw = await vault.maxWithdraw(toEvmAddress(address));
+    return maxWithdraw.toBigInt();
+  }
+
+  override async getBridgedSupply(options?: {
+    blockTag?: number | EthJsonRpcBlockParameterTag;
+  }): Promise<bigint | undefined> {
+    const vault = ERC4626__factory.connect(
+      await this.vaultAddress.get(),
+      this.getProvider(),
+    );
+    const overrides = buildBlockTagOverrides(options?.blockTag);
+    const maxWithdraw = await vault.maxWithdraw(
+      toEvmAddress(this.addresses.token),
+      overrides,
+    );
+    return maxWithdraw.toBigInt();
+  }
+}
+
 export class EvmHypRebaseCollateralAdapter
   extends BaseEvmHypCollateralAdapter
   implements IHypTokenAdapter<PopulatedTransaction>
