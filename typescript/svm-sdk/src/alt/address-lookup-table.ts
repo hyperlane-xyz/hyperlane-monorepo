@@ -220,9 +220,13 @@ export class SvmAddressLookupTableWriter
       `Cannot remove addresses from ALT ${address}: ALT entries are append-only. Stale entries: ${[...toRemove].join(', ')}`,
     );
 
-    const toAdd = expected.addresses.filter(
-      (a) => !currentSet.has(normalizeAddressSealevel(a)),
-    );
+    // Dedup in lockstep with `create()` — same input → same on-chain
+    // table regardless of which writer entry point runs.
+    const toAdd = Array.from(
+      new Set(expected.addresses.map(normalizeAddressSealevel)),
+    )
+      .filter((a) => !currentSet.has(a))
+      .map(parseAddress);
 
     // A frozen table accepts no further mutations. Unfreeze and extend
     // are both unsatisfiable against a frozen ALT; the only legitimate
