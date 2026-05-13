@@ -27,7 +27,11 @@ import { getChain } from '../../registry.js';
 import { getEdenCoreConfig } from './eden.js';
 import { getTronCoreConfig } from './tron.js';
 import { igp } from './igp.js';
-import { DEPLOYER, ethereumChainOwners } from './owners.js';
+import {
+  DEPLOYER,
+  ethereumChainOwners,
+  getEdenCoreOwnerConfig,
+} from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
 
 // There are no static ISMs or hooks for zkSync, this means
@@ -36,9 +40,10 @@ import { supportedChainNames } from './supportedChainNames.js';
 export const core: ChainMap<CoreConfig> = objMap(
   ethereumChainOwners,
   (local, owner) => {
-    // eden is a special case, it's only connected to celestia
+    // eden is a special case, it's only connected to celestia.
+    // Core is owned by the Celestia multisig; igp/oracle stays deployer-owned.
     if (local === 'eden') {
-      return getEdenCoreConfig(owner, igp['eden']);
+      return getEdenCoreConfig(getEdenCoreOwnerConfig(), igp['eden']);
     }
 
     // tron only has ISM/hooks for its connected chains
