@@ -415,7 +415,9 @@ export function getGetQuoteAccountMetasInstruction(
  *
  * The first returned meta is the fee account itself, followed by a payer
  * placeholder (Pubkey::default) that callers should replace with the real
- * payer before slotting the list into a transfer_remote instruction.
+ * payer before slotting the list into a transfer_remote instruction. Both
+ * slots are asserted before return so drift in the on-chain layout fails
+ * inside this helper instead of as an opaque runtime error downstream.
  */
 export async function simulateFeeQuoteAccountMetas(args: {
   rpc: SvmRpc;
@@ -425,7 +427,7 @@ export async function simulateFeeQuoteAccountMetas(args: {
   payer: Address;
   input: GetQuoteAccountMetasInput;
 }): Promise<AccountMeta[]> {
-  return simulateInstructionAccountMetas({
+  const metas = await simulateInstructionAccountMetas({
     rpc: args.rpc,
     payer: args.payer,
     ix: getGetQuoteAccountMetasInstruction(
@@ -434,6 +436,15 @@ export async function simulateFeeQuoteAccountMetas(args: {
       args.input,
     ),
   });
+  assert(
+    metas[0]?.address === args.feeAccount,
+    `simulateFeeQuoteAccountMetas: expected fee account (${args.feeAccount}) at slot 0, got ${metas[0]?.address} — on-chain contract may have changed`,
+  );
+  assert(
+    metas[1]?.address === SYSTEM_PROGRAM_ADDRESS,
+    `simulateFeeQuoteAccountMetas: expected payer placeholder (${SYSTEM_PROGRAM_ADDRESS}) at slot 1, got ${metas[1]?.address} — on-chain contract may have changed`,
+  );
+  return metas;
 }
 
 // ====== SubmitQuote ======
