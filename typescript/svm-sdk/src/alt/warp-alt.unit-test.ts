@@ -15,10 +15,12 @@ import {
   SPL_TOKEN_PROGRAM_ADDRESS,
   SYSTEM_PROGRAM_ADDRESS,
 } from '../constants.js';
+import { DEFAULT_FEE_SALT } from '../fee/types.js';
 import { DEFAULT_IGP_SALT, deriveIgpSalt } from '../hook/igp-hook.js';
 import { H256_ZERO } from '../instructions/fee.js';
 import {
   deriveCrossCollateralRoutePda,
+  deriveFeeAccountPda,
   deriveIgpAccountPda,
   deriveIgpProgramDataPda,
   deriveIgpStandingQuotePda,
@@ -139,9 +141,6 @@ describe('deriveCoreDeploymentAltAddresses', () => {
 const FEE_PROGRAM: Address = address(
   'F33ip6ZJ4LQHxq3sJTbxsZNG6tWELzETSdpMmFwGV4tT',
 );
-const FEE_ACCOUNT: Address = address(
-  'F1ee1AccountPda1111111111111111111111111111',
-);
 const ROUTER_A_HEX = `0x${'aa'.repeat(32)}`;
 const ROUTER_B_HEX = `0x${'bb'.repeat(32)}`;
 const ROUTER_A_BYTES = Uint8Array.from({ length: 32 }, () => 0xaa);
@@ -186,8 +185,15 @@ function feeContext(
 }
 
 describe('deriveFeeQuoteCascadeAltAddresses', () => {
+  let FEE_ACCOUNT: Address;
+
+  before(async () => {
+    const pda = await deriveFeeAccountPda(FEE_PROGRAM, DEFAULT_FEE_SALT);
+    FEE_ACCOUNT = pda.address;
+  });
+
   describe('Leaf variants (linear / regressive / progressive / offchainQuoted)', () => {
-    it('returns just the wildcard standing pda when no domains are enrolled', async () => {
+    it('returns fee program + fee account + wildcard standing when no domains are enrolled', async () => {
       const wildcard = await deriveStandingQuotePda(
         FEE_PROGRAM,
         FEE_ACCOUNT,
@@ -197,12 +203,14 @@ describe('deriveFeeQuoteCascadeAltAddresses', () => {
 
       const result = await deriveFeeQuoteCascadeAltAddresses({
         feeProgram: FEE_PROGRAM,
-        feeAccount: FEE_ACCOUNT,
+        feeSalt: DEFAULT_FEE_SALT,
         feeConfig: leafFeeConfig(),
         feeReadContext: feeContext({}),
       });
 
-      expect(result).to.deep.equal([wildcard.address].sort());
+      expect(new Set(result)).to.deep.equal(
+        new Set([FEE_PROGRAM, FEE_ACCOUNT, wildcard.address]),
+      );
     });
 
     it('adds standing pda per enrolled domain plus the wildcard', async () => {
@@ -227,7 +235,7 @@ describe('deriveFeeQuoteCascadeAltAddresses', () => {
 
       const result = await deriveFeeQuoteCascadeAltAddresses({
         feeProgram: FEE_PROGRAM,
-        feeAccount: FEE_ACCOUNT,
+        feeSalt: DEFAULT_FEE_SALT,
         feeConfig: leafFeeConfig(),
         feeReadContext: feeContext({
           10: new Set([ROUTER_A_HEX]),
@@ -236,9 +244,14 @@ describe('deriveFeeQuoteCascadeAltAddresses', () => {
       });
 
       expect(new Set(result)).to.deep.equal(
-        new Set([standingA.address, standingB.address, wildcard.address]),
+        new Set([
+          FEE_PROGRAM,
+          FEE_ACCOUNT,
+          standingA.address,
+          standingB.address,
+          wildcard.address,
+        ]),
       );
-      expect(result).to.have.lengthOf(3);
     });
   });
 
@@ -260,13 +273,19 @@ describe('deriveFeeQuoteCascadeAltAddresses', () => {
 
       const result = await deriveFeeQuoteCascadeAltAddresses({
         feeProgram: FEE_PROGRAM,
-        feeAccount: FEE_ACCOUNT,
+        feeSalt: DEFAULT_FEE_SALT,
         feeConfig: routingFeeConfig(),
         feeReadContext: feeContext({ 10: new Set([ROUTER_A_HEX]) }),
       });
 
       expect(new Set(result)).to.deep.equal(
-        new Set([standing.address, wildcard.address, route.address]),
+        new Set([
+          FEE_PROGRAM,
+          FEE_ACCOUNT,
+          standing.address,
+          wildcard.address,
+          route.address,
+        ]),
       );
     });
   });
@@ -306,13 +325,15 @@ describe('deriveFeeQuoteCascadeAltAddresses', () => {
 
       const result = await deriveFeeQuoteCascadeAltAddresses({
         feeProgram: FEE_PROGRAM,
-        feeAccount: FEE_ACCOUNT,
+        feeSalt: DEFAULT_FEE_SALT,
         feeConfig: ccFeeConfig(),
         feeReadContext: feeContext({ 10: new Set([ROUTER_A_HEX]) }),
       });
 
       expect(new Set(result)).to.deep.equal(
         new Set([
+          FEE_PROGRAM,
+          FEE_ACCOUNT,
           ccRouteA.address,
           ccRouteDefault.address,
           standingA.address,
@@ -325,7 +346,7 @@ describe('deriveFeeQuoteCascadeAltAddresses', () => {
     it('dedups default-route and default-standing pdas across routers in the same domain', async () => {
       const result = await deriveFeeQuoteCascadeAltAddresses({
         feeProgram: FEE_PROGRAM,
-        feeAccount: FEE_ACCOUNT,
+        feeSalt: DEFAULT_FEE_SALT,
         feeConfig: ccFeeConfig(),
         feeReadContext: feeContext({
           10: new Set([ROUTER_A_HEX, ROUTER_B_HEX]),
@@ -354,8 +375,8 @@ describe('deriveFeeQuoteCascadeAltAddresses', () => {
         result.filter((a) => a === standingDefault.address),
       ).to.have.lengthOf(1);
       // 2 cc routes + 2 specific standings + 2 wildcard standings
-      // + 1 default route + 1 default standing = 8.
-      expect(result).to.have.lengthOf(8);
+      // + 1 default route + 1 default standing + fee program + fee account = 10.
+      expect(result).to.have.lengthOf(10);
     });
   });
 
@@ -368,7 +389,7 @@ describe('deriveFeeQuoteCascadeAltAddresses', () => {
       ]) {
         const result = await deriveFeeQuoteCascadeAltAddresses({
           feeProgram: FEE_PROGRAM,
-          feeAccount: FEE_ACCOUNT,
+          feeSalt: DEFAULT_FEE_SALT,
           feeConfig,
           feeReadContext: feeContext({
             10: new Set([ROUTER_A_HEX]),
