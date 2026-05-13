@@ -20,7 +20,7 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import { getOverhead } from '../../../src/config/gas-oracle.js';
 
-import { DEPLOYER } from './owners.js';
+import { DEPLOYER, EDEN_CORE_OWNER } from './owners.js';
 
 export const EDEN_CONNECTED_CHAINS = ['celestia'];
 
@@ -54,10 +54,17 @@ export function getEdenIgpConfig(
   };
 }
 
-export function getEdenCoreConfig(
-  owner: OwnableConfig,
-  igpConfig: IgpConfig,
-): CoreConfig {
+export function getEdenCoreConfig(igpConfig: IgpConfig): CoreConfig {
+  const owner: OwnableConfig = {
+    owner: EDEN_CORE_OWNER,
+    ownerOverrides: {
+      proxyAdmin: EDEN_CORE_OWNER,
+      validatorAnnounce: DEPLOYER,
+      testRecipient: DEPLOYER,
+      fallbackRoutingHook: DEPLOYER,
+    },
+  };
+
   const celestiaMultisig = defaultMultisigConfigs['celestia'];
 
   const merkleRoot = multisigConfigToIsmConfig(
@@ -121,15 +128,11 @@ export function getEdenCoreConfig(
     fallback: merkleHook,
   };
 
-  if (typeof owner.owner !== 'string') {
-    throw new Error('beneficiary must be a string');
-  }
-
   const requiredHook: ProtocolFeeHookConfig = {
     type: HookType.PROTOCOL_FEE,
     maxProtocolFee: ethers.utils.parseUnits('1', 'gwei').toString(),
     protocolFee: BigNumber.from(0).toString(),
-    beneficiary: owner.owner,
+    beneficiary: EDEN_CORE_OWNER,
     ...owner,
   };
 

@@ -24,18 +24,6 @@ export const DEPLOYER = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 // IGP/oracle ownership stays with the deployer.
 export const EDEN_CORE_OWNER = '0x260eDfa1d9f7Ec832E079f90c043360d394d2ce4';
 
-export function getEdenCoreOwnerConfig(): OwnableConfig {
-  return {
-    owner: EDEN_CORE_OWNER,
-    ownerOverrides: {
-      proxyAdmin: EDEN_CORE_OWNER,
-      validatorAnnounce: DEPLOYER,
-      testRecipient: DEPLOYER,
-      fallbackRoutingHook: DEPLOYER,
-    },
-  };
-}
-
 export const ethereumChainOwners: ChainMap<OwnableConfig> = Object.fromEntries(
   ethereumChainNames.map((local) => {
     const owner =
