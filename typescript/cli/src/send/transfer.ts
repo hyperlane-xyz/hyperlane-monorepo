@@ -687,6 +687,14 @@ async function executeDelivery({
       logGreen(`Same-chain transfer on ${origin} completed.`);
       return;
     }
+    // Aleo receipt parsing is not yet implemented; message was dispatched on-chain
+    // but the message ID cannot be extracted. Skip post-send polling.
+    if (originProtocol === ProtocolType.Aleo) {
+      logGreen(
+        `Transfer from ${origin} to ${destination} dispatched. Message ID extraction from Aleo receipts is not yet supported; skipping delivery confirmation.`,
+      );
+      return;
+    }
     throw new Error('No dispatched message found in transfer receipt');
   }
 
