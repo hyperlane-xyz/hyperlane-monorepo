@@ -119,7 +119,7 @@
     "hardhat": "catalog:",
     "mocha": "catalog:",
     "sinon": "catalog:",
-    "smol-toml": "1.4.2",
+    "smol-toml": "1.6.1",
     "ts-node": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:"
