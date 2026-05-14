@@ -33,6 +33,18 @@ export const WarpCoreConfigSchema = z.object({
           }),
         )
         .optional(),
+      svmAltAddresses: z
+        .record(
+          ZChainName,
+          z.object({
+            core: z.string().min(1),
+            warpSpecific: z.array(z.string().min(1)).min(1),
+          }),
+        )
+        .optional()
+        .describe(
+          'SVM Address Lookup Table addresses per chain. `core` is the chain-shared ALT; `warpSpecific` lists the warp-route-specific ALTs.',
+        ),
     })
     .optional(),
 });
