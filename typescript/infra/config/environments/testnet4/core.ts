@@ -26,7 +26,7 @@ import { getChain } from '../../registry.js';
 
 import { igp } from './igp.js';
 import { ethereumChainOwners } from './owners.js';
-import { supportedChainNames } from './supportedChainNames.js';
+import { supportedChainNamesInRegistry } from './chains.js';
 
 // Rome Testnet is an EVM within an SVM, and so the gas metering is vastly different to vanilla EVM.
 // Owing to this, the gas usage numbers are 10-12x higher due to the different metering.
@@ -37,8 +37,8 @@ import { supportedChainNames } from './supportedChainNames.js';
 export const core: ChainMap<CoreConfig> = objMap(
   ethereumChainOwners,
   (local, owner) => {
-    const connectedChains = supportedChainNames.filter(
-      (chain) => chain !== local,
+    const connectedChains = supportedChainNamesInRegistry.filter(
+      (chain) => chain !== local && !!defaultMultisigConfigs[chain],
     );
 
     // Create a map of connected chains to their default multisig configs

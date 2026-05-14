@@ -58,6 +58,10 @@ import {
 import { validatorChainConfig } from './validators.js';
 import { WarpRouteIds } from './warp/warpIds.js';
 
+const supportedChainNamesInRegistrySet = new Set<ChainName>(
+  supportedChainNamesInRegistry,
+);
+
 // The chains here must be consistent with the environment's supportedChainNames, which is
 // checked / enforced at runtime & in the CI pipeline.
 //
@@ -523,8 +527,14 @@ export const scraperOnlyChains: BaseScraperConfig['scraperOnlyChains'] = {
 };
 
 export const hyperlaneContextAgentChainNames = getAgentChainNamesFromConfig(
-  hyperlaneContextAgentChainConfig,
-  mainnet3SupportedChainNames,
+  objMap(hyperlaneContextAgentChainConfig, (_, roleConfig) =>
+    Object.fromEntries(
+      Object.entries(roleConfig).filter(([chain]) =>
+        supportedChainNamesInRegistrySet.has(chain as ChainName),
+      ),
+    ),
+  ) as AgentChainConfig<typeof supportedChainNamesInRegistry>,
+  supportedChainNamesInRegistry,
 );
 
 const sealevelPriorityFeeOracleConfigGetter = (

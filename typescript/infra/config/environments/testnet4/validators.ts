@@ -1,3 +1,4 @@
+import { ChainName } from '@hyperlane-xyz/sdk';
 import { objFilter } from '@hyperlane-xyz/utils';
 
 import { ValidatorBaseChainConfigMap } from '../../../src/config/agent/validator.js';
@@ -11,14 +12,12 @@ export const validatorChainConfig = (
   context: Contexts,
 ): ValidatorBaseChainConfigMap => {
   const validatorsConfig = validatorBaseConfigsFn(environment, context);
-  const supportedChainNamesInRegistrySet = new Set(supportedChainNamesInRegistry);
-  const getReorgPeriod = (
-    chain: keyof ValidatorBaseChainConfigMap,
-  ): string | number =>
-    supportedChainNamesInRegistrySet.has(chain as string)
-      ? resolveReorgPeriod(
-          chain as Parameters<typeof resolveReorgPeriod>[0],
-        )
+  const supportedChainNamesInRegistrySet = new Set<ChainName>(
+    supportedChainNamesInRegistry,
+  );
+  const getReorgPeriod = (chain: ChainName): string | number =>
+    supportedChainNamesInRegistrySet.has(chain)
+      ? resolveReorgPeriod(chain)
       : 0;
   return objFilter(
     {

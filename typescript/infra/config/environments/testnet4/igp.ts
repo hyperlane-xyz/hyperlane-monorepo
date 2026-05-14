@@ -1,5 +1,5 @@
 import { ChainMap, ChainName, HookType, IgpConfig } from '@hyperlane-xyz/sdk';
-import { Address, exclude, objMap } from '@hyperlane-xyz/utils';
+import { Address, exclude, objFilter, objMap } from '@hyperlane-xyz/utils';
 
 import {
   AllStorageGasOracleConfigs,
@@ -38,8 +38,14 @@ export const storageGasOracleConfig: AllStorageGasOracleConfigs =
     false,
   );
 
-export const igp: ChainMap<IgpConfig> = objMap(
+const supportedIgpOwners = objFilter(
   owners,
+  (chain, ownerConfig): ownerConfig is (typeof owners)[string] =>
+    chain in storageGasOracleConfig,
+);
+
+export const igp: ChainMap<IgpConfig> = objMap(
+  supportedIgpOwners,
   (chain, ownerConfig): IgpConfig => {
     return {
       type: HookType.INTERCHAIN_GAS_PAYMASTER,

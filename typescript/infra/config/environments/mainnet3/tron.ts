@@ -139,7 +139,7 @@ export function getTronCoreConfig(
     type: HookType.FALLBACK_ROUTING,
     ...owner,
     domains: Object.fromEntries(
-      TRON_CONNECTED_CHAINS.map((chain) => [
+      tronConnectedChainsWithMultisigs.map((chain) => [
         chain,
         {
           type: HookType.AGGREGATION,

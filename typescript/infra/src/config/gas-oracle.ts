@@ -353,6 +353,10 @@ export function getOverhead(local: ChainName, remote: ChainName): number {
 
   if (isEVMLike(remoteProtocol)) {
     if (!localMultisigConfig) {
+      rootLogger.warn(
+        { local, remote, remoteProtocol },
+        'Missing local multisig config while deriving overhead; using default',
+      );
       return FOREIGN_DEFAULT_OVERHEAD;
     }
     return multisigIsmVerificationCost(
@@ -362,9 +366,14 @@ export function getOverhead(local: ChainName, remote: ChainName): number {
   }
 
   if (remoteProtocol === ProtocolType.Starknet) {
-    return localMultisigConfig
-      ? 10_000_000 + 40_000_000 * localMultisigConfig.threshold
-      : FOREIGN_DEFAULT_OVERHEAD;
+    if (!localMultisigConfig) {
+      rootLogger.warn(
+        { local, remote, remoteProtocol },
+        'Missing local multisig config while deriving overhead; using default',
+      );
+      return FOREIGN_DEFAULT_OVERHEAD;
+    }
+    return 10_000_000 + 40_000_000 * localMultisigConfig.threshold;
   }
 
   if (remoteProtocol === ProtocolType.Aleo) {
