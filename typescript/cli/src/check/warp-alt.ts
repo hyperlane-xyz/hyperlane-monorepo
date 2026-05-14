@@ -44,6 +44,13 @@ export async function runWarpAltCheck({
     return true;
   });
 
+  assert(
+    Object.keys(filtered).length > 0,
+    chain
+      ? `No ALT addresses registered for chain "${chain}"`
+      : 'No SVM chains have ALT addresses registered for this warp route',
+  );
+
   const diffs = await promiseObjAll(
     objMap(filtered, async (chainName, addresses) => {
       const token = warpCoreConfig.tokens.find(
