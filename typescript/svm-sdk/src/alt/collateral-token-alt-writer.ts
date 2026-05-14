@@ -32,6 +32,7 @@ import {
 } from './address-lookup-table.js';
 import {
   type BucketDiff,
+  type SvmTokenAltWriter,
   deriveCoreDeploymentAltAddresses,
   deriveFeeQuoteCascadeAltAddresses,
   deriveIgpQuoteCascadeAltAddresses,
@@ -54,7 +55,7 @@ import {
  * reading the mint's `owner` on-chain via `fetchMintTokenProgram`,
  * matching what the on-chain collateral plugin does at runtime.
  */
-export class SvmCollateralTokenAltWriter {
+export class SvmCollateralTokenAltWriter implements SvmTokenAltWriter<CollateralWarpArtifactConfig> {
   constructor(
     protected readonly chainName: string,
     protected readonly rpc: SvmRpc,

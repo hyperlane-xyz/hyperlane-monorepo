@@ -33,6 +33,7 @@ import {
 } from './address-lookup-table.js';
 import {
   type BucketDiff,
+  type SvmTokenAltWriter,
   deriveCoreDeploymentAltAddresses,
   deriveFeeQuoteCascadeAltAddresses,
   deriveIgpQuoteCascadeAltAddresses,
@@ -53,7 +54,7 @@ import {
  * `transferRemoteToLocal` HandleLocal CPI path, which is out of scope
  * for transferRemote / transferRemoteTo-to-remote ALTs).
  */
-export class SvmCrossCollateralTokenAltWriter {
+export class SvmCrossCollateralTokenAltWriter implements SvmTokenAltWriter<CrossCollateralWarpArtifactConfig> {
   constructor(
     protected readonly chainName: string,
     protected readonly rpc: SvmRpc,

@@ -32,6 +32,7 @@ import {
 } from './address-lookup-table.js';
 import {
   type BucketDiff,
+  type SvmTokenAltWriter,
   deriveCoreDeploymentAltAddresses,
   deriveFeeQuoteCascadeAltAddresses,
   deriveIgpQuoteCascadeAltAddresses,
@@ -52,7 +53,7 @@ import {
  * Synthetic mints are always owned by the Token-2022 program; no
  * on-chain owner check is needed (matches `synthetic-token.ts`).
  */
-export class SvmSyntheticTokenAltWriter {
+export class SvmSyntheticTokenAltWriter implements SvmTokenAltWriter<SyntheticWarpArtifactConfig> {
   constructor(
     protected readonly chainName: string,
     protected readonly altWriter: SvmAddressLookupTableWriter,
