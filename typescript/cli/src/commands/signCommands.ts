@@ -4,6 +4,7 @@
 // middleware can request keys up front when required.
 export const SIGN_COMMANDS = [
   'apply',
+  'create',
   'deploy',
   'send',
   'submit',
@@ -18,18 +19,21 @@ export const CONDITIONAL_SIGN_COMMANDS = ['status'];
 export function isSignCommand(argv: any): boolean {
   const command = argv._[0];
   const subCommand = argv._.length > 1 ? argv._[1] : undefined;
+  const nestedCommand = argv._.length > 2 ? argv._[2] : undefined;
 
   // Check if it's a conditional command that only needs keys with --relay
   if (
     CONDITIONAL_SIGN_COMMANDS.includes(command) ||
-    (subCommand && CONDITIONAL_SIGN_COMMANDS.includes(subCommand))
+    (subCommand && CONDITIONAL_SIGN_COMMANDS.includes(subCommand)) ||
+    (nestedCommand && CONDITIONAL_SIGN_COMMANDS.includes(nestedCommand))
   ) {
     return !!argv.relay;
   }
 
   return !!(
     SIGN_COMMANDS.includes(command) ||
-    (subCommand && SIGN_COMMANDS.includes(subCommand))
+    (subCommand && SIGN_COMMANDS.includes(subCommand)) ||
+    (nestedCommand && SIGN_COMMANDS.includes(nestedCommand))
   );
 }
 
@@ -54,4 +58,7 @@ export enum CommandType {
   HOOK_DEPLOY = 'hook:deploy',
   HOOK_APPLY = 'hook:apply',
   HOOK_READ = 'hook:read',
+  WARP_ALT_CREATE = 'warp:alt:create',
+  WARP_ALT_CHECK = 'warp:alt:check',
+  WARP_ALT_READ = 'warp:alt:read',
 }
