@@ -15,6 +15,8 @@ import {
   HypERC4626,
   HypERC4626Collateral,
   HypERC4626Collateral__factory,
+  HypERC4626OwnerCollateral,
+  HypERC4626OwnerCollateral__factory,
   HypERC4626__factory,
   HypXERC20,
   HypXERC20Lockbox,
@@ -929,8 +931,37 @@ export class EvmHypRebaseCollateralAdapter
       this.getProvider(),
     );
     const overrides = buildBlockTagOverrides(options?.blockTag);
-    const balance = await vault.balanceOf(this.addresses.token, overrides);
-    return balance.toBigInt();
+    const shares = await vault.balanceOf(this.addresses.token, overrides);
+    const assets = await vault.convertToAssets(shares, overrides);
+    return assets.toBigInt();
+  }
+}
+
+export class EvmHypOwnerCollateralAdapter
+  extends EvmMovableCollateralAdapter
+  implements IHypTokenAdapter<PopulatedTransaction>
+{
+  private ownerCollateralContract: HypERC4626OwnerCollateral;
+
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProviderAdapter,
+    public readonly addresses: { token: Address },
+  ) {
+    super(chainName, multiProvider, addresses);
+    this.ownerCollateralContract = HypERC4626OwnerCollateral__factory.connect(
+      addresses.token,
+      this.getProvider(),
+    );
+  }
+
+  override async getBridgedSupply(options?: {
+    blockTag?: number | EthJsonRpcBlockParameterTag;
+  }): Promise<bigint> {
+    const overrides = buildBlockTagOverrides(options?.blockTag);
+    const assetDeposited =
+      await this.ownerCollateralContract.assetDeposited(overrides);
+    return assetDeposited.toBigInt();
   }
 }
 
