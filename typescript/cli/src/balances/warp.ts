@@ -1,4 +1,5 @@
 import {
+  ERC4626_COLLATERAL_STANDARDS,
   TOKEN_COLLATERALIZED_STANDARDS,
   WarpCore,
   type WarpCoreConfig,
@@ -56,7 +57,10 @@ export async function runWarpRouteBalances({
 
   const warpCore = WarpCore.FromConfig(multiProvider, warpCoreConfig);
 
-  const collateralizedSet = new Set(TOKEN_COLLATERALIZED_STANDARDS);
+  const collateralizedSet = new Set([
+    ...TOKEN_COLLATERALIZED_STANDARDS,
+    ...ERC4626_COLLATERAL_STANDARDS,
+  ]);
 
   const rowEntries: [string, BalanceRow][] = await Promise.all(
     warpCore.tokens.map(async (token) => {

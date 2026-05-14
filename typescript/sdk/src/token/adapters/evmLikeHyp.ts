@@ -26,7 +26,7 @@ export function createEvmLikeHypAdapter(
     native: TokenStandard;
     hypNative: TokenStandard;
     hypCollateral: readonly TokenStandard[];
-    hypOwnerCollateral?: TokenStandard;
+    hypOwnerCollateral: TokenStandard | undefined;
     hypCrossCollateralRouter: TokenStandard;
     hypRebaseCollateral: TokenStandard;
     hypCollateralFiat: TokenStandard;

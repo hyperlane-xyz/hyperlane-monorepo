@@ -257,6 +257,11 @@ export const LOCKBOX_STANDARDS = [
   TokenStandard.TronHypVSXERC20Lockbox,
 ];
 
+export const ERC4626_COLLATERAL_STANDARDS = [
+  TokenStandard.EvmHypOwnerCollateral,
+  TokenStandard.EvmHypRebaseCollateral,
+];
+
 export const MINT_LIMITED_STANDARDS = [
   TokenStandard.EvmHypXERC20,
   TokenStandard.EvmHypXERC20Lockbox,

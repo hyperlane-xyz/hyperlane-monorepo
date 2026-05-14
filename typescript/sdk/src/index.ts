@@ -688,6 +688,7 @@ export {
   EvmHypCollateralAdapter,
   EvmMovableCollateralAdapter,
   EvmHypNativeAdapter,
+  EvmHypOwnerCollateralAdapter,
   EvmHypSyntheticAdapter,
   EvmHypVSXERC20Adapter,
   EvmHypVSXERC20LockboxAdapter,
@@ -804,6 +805,7 @@ export {
 } from './token/TokenConnection.js';
 export { TokenMetadataMap } from './token/TokenMetadataMap.js';
 export {
+  ERC4626_COLLATERAL_STANDARDS,
   EVM_TOKEN_TYPE_TO_STANDARD,
   LOCKBOX_STANDARDS,
   MINT_LIMITED_STANDARDS,

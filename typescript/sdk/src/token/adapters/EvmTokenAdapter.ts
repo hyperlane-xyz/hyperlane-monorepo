@@ -938,18 +938,18 @@ export class EvmHypRebaseCollateralAdapter
 }
 
 export class EvmHypOwnerCollateralAdapter
-  extends EvmMovableCollateralAdapter
+  extends EvmHypRebaseCollateralAdapter
   implements IHypTokenAdapter<PopulatedTransaction>
 {
-  private ownerCollateralContract: HypERC4626OwnerCollateral;
+  public override collateralContract: HypERC4626OwnerCollateral;
 
   constructor(
-    public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProviderAdapter,
-    public readonly addresses: { token: Address },
+    chainName: ChainName,
+    multiProvider: MultiProviderAdapter,
+    addresses: { token: Address },
   ) {
     super(chainName, multiProvider, addresses);
-    this.ownerCollateralContract = HypERC4626OwnerCollateral__factory.connect(
+    this.collateralContract = HypERC4626OwnerCollateral__factory.connect(
       addresses.token,
       this.getProvider(),
     );
@@ -960,7 +960,7 @@ export class EvmHypOwnerCollateralAdapter
   }): Promise<bigint> {
     const overrides = buildBlockTagOverrides(options?.blockTag);
     const assetDeposited =
-      await this.ownerCollateralContract.assetDeposited(overrides);
+      await this.collateralContract.assetDeposited(overrides);
     return assetDeposited.toBigInt();
   }
 }
