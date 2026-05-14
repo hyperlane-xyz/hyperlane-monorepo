@@ -1,10 +1,12 @@
 import { type Address, address as parseAddress } from '@solana/kit';
 
+import { type ArtifactDeployed } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type FeeArtifactConfig,
   type FeeReadContext,
   FeeType,
 } from '@hyperlane-xyz/provider-sdk/fee';
+import type { DeployedWarpAddress } from '@hyperlane-xyz/provider-sdk/warp';
 import { strip0x } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_ROUTER } from '../codecs/fee.js';
@@ -26,6 +28,9 @@ import {
   deriveRouteDomainPda,
   deriveStandingQuotePda,
 } from '../pda.js';
+import type { SvmReceipt } from '../types.js';
+
+import type { SvmAltConfig, SvmDeployedAlt } from './address-lookup-table.js';
 
 export interface SvmCoreDeploymentAltIgpContext {
   programId: Address;
@@ -333,4 +338,32 @@ export function diffBucket(
     extraInAlt: actual.filter((a) => !expectedSet.has(a)),
     frozenMismatch: !frozen,
   };
+}
+
+/**
+ * Common surface every per-token-type ALT writer satisfies. Each
+ * concrete writer specializes `C` to its `WarpArtifactConfig` variant.
+ * The `SvmWarpAltManager` dispatcher uses this interface as the
+ * return type of `createWriter(type)`.
+ */
+export interface SvmTokenAltWriter<C> {
+  deriveWarpRouteAddresses(
+    deployed: ArtifactDeployed<C, DeployedWarpAddress>,
+  ): Promise<Address[]>;
+
+  create(deployed: ArtifactDeployed<C, DeployedWarpAddress>): Promise<{
+    core: Address;
+    warpSpecific: Address[];
+    receipts: SvmReceipt[];
+  }>;
+
+  read(addresses: { core: Address; warpSpecific: Address[] }): Promise<{
+    core: ArtifactDeployed<SvmAltConfig, SvmDeployedAlt>;
+    warpSpecific: ArtifactDeployed<SvmAltConfig, SvmDeployedAlt>[];
+  }>;
+
+  check(
+    addresses: { core: Address; warpSpecific: Address[] },
+    deployed: ArtifactDeployed<C, DeployedWarpAddress>,
+  ): Promise<{ core: BucketDiff; warpSpecific: BucketDiff }>;
 }
