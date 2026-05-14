@@ -38,7 +38,7 @@ export async function runWarpAltCreate({
 
   const chainLookup = altVmChainLookup(context.multiProvider);
 
-  const existingAlts = warpCoreConfig.options?.svmAltAddresses ?? {};
+  const existingAlts = warpCoreConfig.options?.sealevel?.altAddresses ?? {};
   const svmTokens = objFilter(
     Object.fromEntries(
       warpCoreConfig.tokens.map((t) => [t.chainName, t] as const),
@@ -95,8 +95,9 @@ export async function runWarpAltCreate({
   );
 
   warpCoreConfig.options ??= {};
-  warpCoreConfig.options.svmAltAddresses = {
-    ...warpCoreConfig.options.svmAltAddresses,
+  warpCoreConfig.options.sealevel ??= {};
+  warpCoreConfig.options.sealevel.altAddresses = {
+    ...warpCoreConfig.options.sealevel.altAddresses,
     ...altAddressesByChain,
   };
 
