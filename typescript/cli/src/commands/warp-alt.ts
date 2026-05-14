@@ -2,7 +2,11 @@ import { stringify as yamlStringify } from 'yaml';
 import { type CommandModule } from 'yargs';
 
 import { runWarpAltCheck } from '../check/warp-alt.js';
-import { type CommandModuleWithContext } from '../context/types.js';
+import {
+  type CommandModuleWithContext,
+  type CommandModuleWithWriteContext,
+} from '../context/types.js';
+import { runWarpAltCreate } from '../deploy/warp-alt.js';
 import { log, logCommandHeader, logGreen } from '../logger.js';
 import { runWarpAltRead } from '../read/warp-alt.js';
 import { indentYamlOrJson } from '../utils/files.js';
@@ -48,10 +52,33 @@ const check: CommandModuleWithContext<{
   },
 };
 
+const create: CommandModuleWithWriteContext<{
+  warpRouteId: string;
+  chain?: string;
+}> = {
+  command: 'create',
+  describe:
+    'Create on-chain SVM Address Lookup Tables for a warp route and persist them to the registry',
+  builder: {
+    'warp-route-id': { ...warpRouteIdCommandOption, demandOption: true },
+    chain: { ...chainCommandOption, demandOption: false },
+  },
+  handler: async ({ context, warpRouteId, chain }) => {
+    logCommandHeader('Hyperlane Warp ALT Create');
+    await runWarpAltCreate({ context, warpRouteId, chain });
+    process.exit(0);
+  },
+};
+
 export const altCommand: CommandModule = {
   command: 'alt',
   describe: 'Manage SVM Address Lookup Tables for a warp route',
   builder: (yargs) =>
-    yargs.command(check).command(read).version(false).demandCommand(),
+    yargs
+      .command(check)
+      .command(create)
+      .command(read)
+      .version(false)
+      .demandCommand(),
   handler: () => log('Command required'),
 };
