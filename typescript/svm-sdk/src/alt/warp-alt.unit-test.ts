@@ -553,7 +553,7 @@ describe('diffBucket', () => {
     const diff = diffBucket([A, B], [A, B], true);
     expect(diff.missingFromAlt).to.deep.equal([]);
     expect(diff.extraInAlt).to.deep.equal([]);
-    expect(diff.frozenMismatch).to.equal(false);
+    expect(diff.unfrozen).to.equal(false);
   });
 
   it('flags missing addresses that are expected but not in actual', () => {
@@ -568,8 +568,8 @@ describe('diffBucket', () => {
     expect(diff.extraInAlt).to.deep.equal([C]);
   });
 
-  it('flags frozenMismatch when frozen=false', () => {
+  it('flags unfrozen when frozen=false', () => {
     const diff = diffBucket([A], [A], false);
-    expect(diff.frozenMismatch).to.equal(true);
+    expect(diff.unfrozen).to.equal(true);
   });
 });
