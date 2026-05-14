@@ -327,9 +327,9 @@ function canonicalize(addresses: readonly Address[]): Address[] {
 
 /**
  * Set-level diff between an on-chain ALT's contents and the expected
- * address list a per-token-type alt writer would regenerate. `frozen`
- * is the on-chain ALT's freeze status; since alt writers always emit
- * frozen tables, an unfrozen actual is treated as a divergence.
+ * address list a per-token-type alt writer would regenerate. `unfrozen`
+ * reflects the on-chain ALT's freeze status — since alt writers always
+ * emit frozen tables, an unfrozen actual is treated as a divergence.
  *
  * Shared across token-type alt writers — each writer reuses this for
  * its `check` method's bucket diffs.
@@ -337,7 +337,7 @@ function canonicalize(addresses: readonly Address[]): Address[] {
 export interface BucketDiff {
   missingFromAlt: Address[];
   extraInAlt: Address[];
-  frozenMismatch: boolean;
+  unfrozen: boolean;
 }
 
 export function diffBucket(
@@ -350,7 +350,7 @@ export function diffBucket(
   return {
     missingFromAlt: expected.filter((a) => !actualSet.has(a)),
     extraInAlt: actual.filter((a) => !expectedSet.has(a)),
-    frozenMismatch: !frozen,
+    unfrozen: !frozen,
   };
 }
 

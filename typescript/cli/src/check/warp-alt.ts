@@ -75,10 +75,10 @@ export async function runWarpAltCheck({
     (d) =>
       d.core.missingFromAlt.length > 0 ||
       d.core.extraInAlt.length > 0 ||
-      d.core.frozenMismatch ||
+      d.core.unfrozen ||
       d.warpSpecific.missingFromAlt.length > 0 ||
       d.warpSpecific.extraInAlt.length > 0 ||
-      d.warpSpecific.frozenMismatch,
+      d.warpSpecific.unfrozen,
   );
 
   if (hasDiff) {
