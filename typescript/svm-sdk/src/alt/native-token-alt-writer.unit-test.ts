@@ -19,7 +19,9 @@ import {
   TokenType,
 } from '@hyperlane-xyz/provider-sdk/warp';
 
-import type { SvmSigner } from '../clients/signer.js';
+import sinon from 'sinon';
+
+import { SvmAddressLookupTableWriter } from './address-lookup-table.js';
 import { WILDCARD_DOMAIN } from '../codecs/igp.js';
 import { SYSTEM_PROGRAM_ADDRESS } from '../constants.js';
 import { resolveFeeSalt } from '../fee/types.js';
@@ -57,20 +59,8 @@ const BENEFICIARY: Address = address(
 );
 const REMOTE_ROUTER_HEX = `0x${'aa'.repeat(32)}`;
 
-/**
- * `deriveWarpRouteAddresses` is purely PDA derivation; no signer or
- * rpc methods should be invoked. The mock throws on any access so a
- * future change that accidentally introduces a call here fails loudly
- * instead of returning silent garbage.
- */
-function strictUnusedSigner(): SvmSigner {
-  return new Proxy({} as object, {
-    get(_target, prop) {
-      throw new Error(
-        `SvmSigner property "${String(prop)}" must not be accessed from this code path`,
-      );
-    },
-  }) as SvmSigner;
+function stubAltWriter(): sinon.SinonStubbedInstance<SvmAddressLookupTableWriter> {
+  return sinon.createStubInstance(SvmAddressLookupTableWriter);
 }
 
 function deployedNative(args?: {
@@ -153,7 +143,7 @@ function isSortedAscending<T extends string>(items: T[]): boolean {
 }
 
 describe('SvmNativeTokenAltWriter.deriveWarpRouteAddresses', () => {
-  const writer = new SvmNativeTokenAltWriter(strictUnusedSigner(), CHAIN_NAME);
+  const writer = new SvmNativeTokenAltWriter(CHAIN_NAME, stubAltWriter());
 
   it('returns warp pdas + native collateral pda without fee', async () => {
     const tokenPda = await deriveHyperlaneTokenPda(WARP_PROGRAM);
@@ -315,5 +305,65 @@ describe('SvmNativeTokenAltWriter.deriveWarpRouteAddresses', () => {
       `expected ascending order, got: ${result.join(', ')}`,
     );
     expect(new Set(result).size).to.equal(result.length);
+  });
+});
+
+const CORE_ALT_ADDRESS: Address = address(
+  'CoreA1t111111111111111111111111111111111111',
+);
+const WARP_ALT_ADDRESS: Address = address(
+  'WarpA1t111111111111111111111111111111111111',
+);
+
+describe('SvmNativeTokenAltWriter.create', () => {
+  it('creates the core and warp-specific ALTs (frozen) and returns their addresses + receipts', async () => {
+    const altWriter = stubAltWriter();
+    altWriter.create
+      .onFirstCall()
+      .resolves([
+        {
+          artifactState: ArtifactState.DEPLOYED,
+          config: { frozen: true, addresses: [CORE_ALT_ADDRESS] },
+          deployed: {
+            address: CORE_ALT_ADDRESS,
+            authority: null,
+            lastExtendedSlot: 0n,
+          },
+        },
+        [{ signature: 'core-sig-1' }],
+      ])
+      .onSecondCall()
+      .resolves([
+        {
+          artifactState: ArtifactState.DEPLOYED,
+          config: { frozen: true, addresses: [WARP_ALT_ADDRESS] },
+          deployed: {
+            address: WARP_ALT_ADDRESS,
+            authority: null,
+            lastExtendedSlot: 0n,
+          },
+        },
+        [{ signature: 'warp-sig-1' }, { signature: 'warp-sig-2' }],
+      ]);
+
+    const writer = new SvmNativeTokenAltWriter(CHAIN_NAME, altWriter);
+
+    const result = await writer.create(
+      deployedNative({
+        fee: deployedLinearFee(),
+        hook: deployedIgpHook(),
+        remoteRouters: { 10: { address: REMOTE_ROUTER_HEX } },
+      }),
+    );
+
+    expect(altWriter.create.callCount).to.equal(2);
+
+    // Both ALTs are created as frozen.
+    expect(altWriter.create.firstCall.args[0].config.frozen).to.equal(true);
+    expect(altWriter.create.secondCall.args[0].config.frozen).to.equal(true);
+
+    expect(result.core).to.equal(CORE_ALT_ADDRESS);
+    expect(result.warpSpecific).to.deep.equal([WARP_ALT_ADDRESS]);
+    expect(result.receipts).to.have.lengthOf(3);
   });
 });

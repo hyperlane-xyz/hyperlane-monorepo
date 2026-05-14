@@ -12,7 +12,6 @@ import {
 } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert, isNullish } from '@hyperlane-xyz/utils';
 
-import type { SvmSigner } from '../clients/signer.js';
 import { SYSTEM_PROGRAM_ADDRESS } from '../constants.js';
 import { resolveFeeSalt } from '../fee/types.js';
 import { DEFAULT_IGP_SALT } from '../hook/igp-hook.js';
@@ -22,8 +21,14 @@ import {
   deriveMailboxDispatchAuthorityPda,
   deriveNativeCollateralPda,
 } from '../pda.js';
+import type { SvmReceipt } from '../types.js';
 
 import {
+  type SvmAddressLookupTableWriter,
+  nonEmptyArray,
+} from './address-lookup-table.js';
+import {
+  deriveCoreDeploymentAltAddresses,
   deriveFeeQuoteCascadeAltAddresses,
   deriveIgpQuoteCascadeAltAddresses,
 } from './warp-alt.js';
@@ -43,8 +48,8 @@ import {
  */
 export class SvmNativeTokenAltWriter {
   constructor(
-    protected readonly signer: SvmSigner,
     protected readonly chainName: string,
+    protected readonly altWriter: SvmAddressLookupTableWriter,
   ) {}
 
   async deriveWarpRouteAddresses(
@@ -108,5 +113,62 @@ export class SvmNativeTokenAltWriter {
     }
 
     return [...new Set(out.map(parseAddress))].sort();
+  }
+
+  /**
+   * Creates the two frozen ALTs that compose a native warp route's
+   * lookup-table coverage on chain: the chain-shared core ALT (SDK
+   * constants + mailbox + IGP — derived via
+   * `deriveCoreDeploymentAltAddresses`) and the warp-route-specific
+   * ALT (warp PDAs + plugin static + fee + per-destination cascades —
+   * derived via `deriveWarpRouteAddresses`). Both are frozen on
+   * creation, matching the registered-once / regenerate-on-change
+   * trust model.
+   *
+   * v1 always emits exactly one entry in `warpSpecific`; the array
+   * shape is forward-compatible with future capacity-driven splits.
+   */
+  async create(
+    deployed: ArtifactDeployed<NativeWarpArtifactConfig, DeployedWarpAddress>,
+  ): Promise<{
+    core: Address;
+    warpSpecific: Address[];
+    receipts: SvmReceipt[];
+  }> {
+    const mailbox = parseAddress(deployed.config.mailbox);
+    const hook = deployed.config.hook;
+    // Same DEPLOYED-only invariant `deriveWarpRouteAddresses` enforces,
+    // re-asserted here so TS narrows the hook union for `igpContext` below.
+    assert(
+      isNullish(hook) || isArtifactDeployed(hook),
+      'Expected hook artifact to be expanded (DEPLOYED) or not set',
+    );
+    const igpContext =
+      hook?.config.type === HookType.INTERCHAIN_GAS_PAYMASTER
+        ? {
+            programId: parseAddress(hook.deployed.address),
+            igpSalt: DEFAULT_IGP_SALT,
+            includeOverheadIgp: Object.keys(hook.config.overhead).length > 0,
+          }
+        : undefined;
+
+    const coreAddresses = await deriveCoreDeploymentAltAddresses(
+      mailbox,
+      igpContext,
+    );
+    const warpAddresses = await this.deriveWarpRouteAddresses(deployed);
+
+    const [coreAlt, coreReceipts] = await this.altWriter.create({
+      config: { frozen: true, addresses: nonEmptyArray(coreAddresses) },
+    });
+    const [warpAlt, warpReceipts] = await this.altWriter.create({
+      config: { frozen: true, addresses: nonEmptyArray(warpAddresses) },
+    });
+
+    return {
+      core: coreAlt.deployed.address,
+      warpSpecific: [warpAlt.deployed.address],
+      receipts: [...coreReceipts, ...warpReceipts],
+    };
   }
 }
