@@ -25,6 +25,7 @@ import {
 import type { SvmReceipt } from '../types.js';
 
 import {
+  type SvmAddressLookupTableReader,
   type SvmAddressLookupTableWriter,
   type SvmAltConfig,
   type SvmDeployedAlt,
@@ -32,6 +33,7 @@ import {
 } from './address-lookup-table.js';
 import {
   type BucketDiff,
+  type SvmTokenAltReader,
   type SvmTokenAltWriter,
   deriveCoreDeploymentAltAddresses,
   deriveFeeQuoteCascadeAltAddresses,
@@ -40,23 +42,23 @@ import {
 } from './warp-alt.js';
 
 /**
- * Builds the warp-route-specific ALT address set for a synthetic SVM
- * warp route: the warp program + its hyperlane_token PDA + the
- * mailbox-dispatch-authority PDA + the synthetic plugin's static
- * accounts `[token_2022_program, mint_pda]`; and, when the expanded
- * config carries a deployed fee artifact, the fee program + fee
- * account PDA + fee beneficiary ATA + the per-destination fee cascade
- * returned by `deriveFeeQuoteCascadeAltAddresses`. The IGP cascade
- * (when an IGP hook is present) uses the synthetic mint PDA as the
- * fee-token mint. Output is base58-sorted and set-deduped.
+ * Read-only ALT surface for a synthetic SVM warp route. Builds the
+ * warp-route-specific ALT address set: warp program + hyperlane_token
+ * PDA + mailbox-dispatch-authority PDA + the synthetic plugin's
+ * static accounts `[token_2022_program, mint_pda]`; and, when the
+ * expanded config carries a deployed fee artifact, the fee program +
+ * fee account PDA + fee beneficiary ATA + the per-destination fee
+ * cascade. The IGP cascade (when an IGP hook is present) uses the
+ * synthetic mint PDA as the fee-token mint. Output is base58-sorted
+ * and set-deduped.
  *
  * Synthetic mints are always owned by the Token-2022 program; no
  * on-chain owner check is needed (matches `synthetic-token.ts`).
  */
-export class SvmSyntheticTokenAltWriter implements SvmTokenAltWriter<SyntheticWarpArtifactConfig> {
+export class SvmSyntheticTokenAltReader implements SvmTokenAltReader<SyntheticWarpArtifactConfig> {
   constructor(
     protected readonly chainName: string,
-    protected readonly altWriter: SvmAddressLookupTableWriter,
+    protected readonly altReader: SvmAddressLookupTableReader,
   ) {}
 
   async deriveWarpRouteAddresses(
@@ -136,40 +138,13 @@ export class SvmSyntheticTokenAltWriter implements SvmTokenAltWriter<SyntheticWa
     return [...new Set(out.map(parseAddress))].sort();
   }
 
-  async create(
-    deployed: ArtifactDeployed<
-      SyntheticWarpArtifactConfig,
-      DeployedWarpAddress
-    >,
-  ): Promise<{
-    core: Address;
-    warpSpecific: Address[];
-    receipts: SvmReceipt[];
-  }> {
-    const { core, warpSpecific } =
-      await this.computeExpectedAltAddresses(deployed);
-
-    const [coreAlt, coreReceipts] = await this.altWriter.create({
-      config: { frozen: true, addresses: nonEmptyArray(core) },
-    });
-    const [warpAlt, warpReceipts] = await this.altWriter.create({
-      config: { frozen: true, addresses: nonEmptyArray(warpSpecific) },
-    });
-
-    return {
-      core: coreAlt.deployed.address,
-      warpSpecific: [warpAlt.deployed.address],
-      receipts: [...coreReceipts, ...warpReceipts],
-    };
-  }
-
   async read(addresses: { core: Address; warpSpecific: Address[] }): Promise<{
     core: ArtifactDeployed<SvmAltConfig, SvmDeployedAlt>;
     warpSpecific: ArtifactDeployed<SvmAltConfig, SvmDeployedAlt>[];
   }> {
-    const core = await this.altWriter.read(addresses.core);
+    const core = await this.altReader.read(addresses.core);
     const warpSpecific = await Promise.all(
-      addresses.warpSpecific.map((addr) => this.altWriter.read(addr)),
+      addresses.warpSpecific.map((addr) => this.altReader.read(addr)),
     );
     return { core, warpSpecific };
   }
@@ -201,7 +176,7 @@ export class SvmSyntheticTokenAltWriter implements SvmTokenAltWriter<SyntheticWa
     };
   }
 
-  private async computeExpectedAltAddresses(
+  protected async computeExpectedAltAddresses(
     deployed: ArtifactDeployed<
       SyntheticWarpArtifactConfig,
       DeployedWarpAddress
@@ -225,6 +200,45 @@ export class SvmSyntheticTokenAltWriter implements SvmTokenAltWriter<SyntheticWa
     return {
       core: await deriveCoreDeploymentAltAddresses(mailbox, igpContext),
       warpSpecific: await this.deriveWarpRouteAddresses(deployed),
+    };
+  }
+}
+
+export class SvmSyntheticTokenAltWriter
+  extends SvmSyntheticTokenAltReader
+  implements SvmTokenAltWriter<SyntheticWarpArtifactConfig>
+{
+  constructor(
+    chainName: string,
+    protected readonly altWriter: SvmAddressLookupTableWriter,
+  ) {
+    super(chainName, altWriter);
+  }
+
+  async create(
+    deployed: ArtifactDeployed<
+      SyntheticWarpArtifactConfig,
+      DeployedWarpAddress
+    >,
+  ): Promise<{
+    core: Address;
+    warpSpecific: Address[];
+    receipts: SvmReceipt[];
+  }> {
+    const { core, warpSpecific } =
+      await this.computeExpectedAltAddresses(deployed);
+
+    const [coreAlt, coreReceipts] = await this.altWriter.create({
+      config: { frozen: true, addresses: nonEmptyArray(core) },
+    });
+    const [warpAlt, warpReceipts] = await this.altWriter.create({
+      config: { frozen: true, addresses: nonEmptyArray(warpSpecific) },
+    });
+
+    return {
+      core: coreAlt.deployed.address,
+      warpSpecific: [warpAlt.deployed.address],
+      receipts: [...coreReceipts, ...warpReceipts],
     };
   }
 }
