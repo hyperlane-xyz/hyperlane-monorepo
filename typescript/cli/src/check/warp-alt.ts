@@ -30,7 +30,7 @@ export async function runWarpAltCheck({
     warpRouteId,
   });
 
-  const altAddresses = warpCoreConfig.options?.svmAltAddresses ?? {};
+  const altAddresses = warpCoreConfig.options?.sealevel?.altAddresses ?? {};
   const chainLookup = altVmChainLookup(context.multiProvider);
 
   const filtered = objFilter(altAddresses, (chainName, _v): _v is typeof _v => {

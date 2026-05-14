@@ -99,7 +99,7 @@ describe('hyperlane warp alt CLI e2e tests (Sealevel)', function () {
     // Before create — no alt entries in the registry.
     const warpCorePath = getWarpCoreConfigPath(SYMBOL, [CHAIN_NAME]);
     const preCreate: WarpCoreConfig = readYamlOrJson(warpCorePath);
-    expect(preCreate.options?.svmAltAddresses?.[CHAIN_NAME]).to.equal(
+    expect(preCreate.options?.sealevel?.altAddresses?.[CHAIN_NAME]).to.equal(
       undefined,
     );
 
@@ -107,8 +107,8 @@ describe('hyperlane warp alt CLI e2e tests (Sealevel)', function () {
     await warpCommands.altCreate(SVM_KEY, warpRouteId);
 
     const postCreate: WarpCoreConfig = readYamlOrJson(warpCorePath);
-    const altEntry = postCreate.options?.svmAltAddresses?.[CHAIN_NAME];
-    expect(altEntry, 'svmAltAddresses entry written').to.be.an('object');
+    const altEntry = postCreate.options?.sealevel?.altAddresses?.[CHAIN_NAME];
+    expect(altEntry, 'sealevel.altAddresses entry written').to.be.an('object');
     expect(altEntry!.core, 'core ALT is a non-empty string')
       .to.be.a('string')
       .and.to.have.length.greaterThan(0);

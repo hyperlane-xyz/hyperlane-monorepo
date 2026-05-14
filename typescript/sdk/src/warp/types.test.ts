@@ -13,7 +13,7 @@ const SOME_TOKEN = {
   addressOrDenom: '0x0000000000000000000000000000000000000001',
 };
 
-describe('WarpCoreConfigSchema.options.svmAltAddresses', () => {
+describe('WarpCoreConfigSchema.options.sealevel.altAddresses', () => {
   it('accepts a config without the field', () => {
     const result = WarpCoreConfigSchema.safeParse({ tokens: [SOME_TOKEN] });
     expect(result.success, JSON.stringify(result, null, 2)).to.equal(true);
@@ -23,10 +23,12 @@ describe('WarpCoreConfigSchema.options.svmAltAddresses', () => {
     const result = WarpCoreConfigSchema.safeParse({
       tokens: [SOME_TOKEN],
       options: {
-        svmAltAddresses: {
-          solana: {
-            core: 'CoreA1t111111111111111111111111111111111111',
-            warpSpecific: ['WarpA1t111111111111111111111111111111111111'],
+        sealevel: {
+          altAddresses: {
+            solana: {
+              core: 'CoreA1t111111111111111111111111111111111111',
+              warpSpecific: ['WarpA1t111111111111111111111111111111111111'],
+            },
           },
         },
       },
@@ -38,10 +40,12 @@ describe('WarpCoreConfigSchema.options.svmAltAddresses', () => {
     const result = WarpCoreConfigSchema.safeParse({
       tokens: [SOME_TOKEN],
       options: {
-        svmAltAddresses: {
-          solana: {
-            core: 'CoreA1t111111111111111111111111111111111111',
-            warpSpecific: [],
+        sealevel: {
+          altAddresses: {
+            solana: {
+              core: 'CoreA1t111111111111111111111111111111111111',
+              warpSpecific: [],
+            },
           },
         },
       },
@@ -53,9 +57,11 @@ describe('WarpCoreConfigSchema.options.svmAltAddresses', () => {
     const result = WarpCoreConfigSchema.safeParse({
       tokens: [SOME_TOKEN],
       options: {
-        svmAltAddresses: {
-          solana: {
-            warpSpecific: ['WarpA1t111111111111111111111111111111111111'],
+        sealevel: {
+          altAddresses: {
+            solana: {
+              warpSpecific: ['WarpA1t111111111111111111111111111111111111'],
+            },
           },
         },
       },
