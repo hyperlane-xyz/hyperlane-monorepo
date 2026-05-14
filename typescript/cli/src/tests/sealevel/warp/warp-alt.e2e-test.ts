@@ -7,6 +7,7 @@ import {
 import { SealevelSigner, createRpc } from '@hyperlane-xyz/sealevel-sdk';
 import { airdropSol } from '@hyperlane-xyz/sealevel-sdk/testing';
 import {
+  TokenFeeType,
   TokenType,
   type WarpCoreConfig,
   type WarpRouteDeployConfig,
@@ -16,6 +17,7 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import { HyperlaneE2EWarpTestCommands } from '../../commands/warp.js';
+import { syncWarpDeployConfigToRegistry } from '../../commands/warp-config-sync.js';
 import {
   CORE_ADDRESSES_PATH_BY_PROTOCOL,
   CORE_CONFIG_PATH_BY_PROTOCOL,
@@ -122,5 +124,77 @@ describe('hyperlane warp alt CLI e2e tests (Sealevel)', function () {
 
     // `warp alt check` exits 0 immediately after create — no diffs.
     await warpCommands.altCheck(warpRouteId);
+  });
+
+  it('check exits non-zero when warp config drifts from registered ALTs', async function () {
+    const ownerAddress = signer.getSignerAddress();
+    const SYMBOL = 'ALTSTL';
+    const warpRouteId = createWarpRouteConfigId(SYMBOL, CHAIN_NAME);
+
+    // Deploy with a LinearFee and no remote routers — the fee cascade
+    // depends on enrolled routers, so adding one later changes the
+    // expected ALT contents.
+    const initialConfig: WarpRouteDeployConfig = {
+      [CHAIN_NAME]: {
+        type: TokenType.native,
+        name: 'Stale ALT Token',
+        symbol: SYMBOL,
+        decimals: 9,
+        mailbox: mailboxAddress,
+        owner: ownerAddress,
+        tokenFee: {
+          type: TokenFeeType.LinearFee,
+          owner: ownerAddress,
+          bps: 50,
+        },
+      },
+    };
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, initialConfig);
+    await warpCommands.deploy(SVM_KEY, warpRouteId, WARP_DEPLOY_OUTPUT_PATH);
+
+    // Create ALTs covering the initial 0-router cascade.
+    await warpCommands.altCreate(SVM_KEY, warpRouteId);
+
+    // Check is clean immediately after create.
+    await warpCommands.altCheck(warpRouteId);
+
+    // Apply a config that adds a remote router — the on-chain warp
+    // now enrolls a new destination, so the fee cascade for that
+    // destination should be added to the expected set.
+    const updatedConfig: WarpRouteDeployConfig = {
+      [CHAIN_NAME]: {
+        ...initialConfig[CHAIN_NAME],
+        remoteRouters: {
+          anvil1: {
+            address:
+              '0x1111111111111111111111111111111111111111111111111111111111111111',
+          },
+        },
+        destinationGas: {
+          anvil1: '42000',
+        },
+      },
+    };
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, updatedConfig);
+    syncWarpDeployConfigToRegistry({
+      warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+      warpRouteId,
+      registryPath: REGISTRY_PATH,
+    });
+    await warpCommands.applyRaw({
+      warpRouteId,
+      privateKey: SVM_KEY,
+      skipConfirmationPrompts: true,
+    });
+
+    // Check now reports a diff and exits non-zero. Assert on both the
+    // exit code and the rendered diff so unrelated failures (e.g. a
+    // CLI startup error) don't accidentally make this pass.
+    const result = await warpCommands.altCheck(warpRouteId).nothrow();
+    expect(result.exitCode, 'altCheck should exit non-zero').to.not.equal(0);
+    expect(result.stdout).to.include(
+      'Warp route ALT check failed: diffs detected',
+    );
+    expect(result.stdout).to.match(/missingFromAlt:\s*\n\s+-/);
   });
 });
