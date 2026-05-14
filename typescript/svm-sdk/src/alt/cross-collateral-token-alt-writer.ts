@@ -26,6 +26,7 @@ import {
 import type { SvmReceipt, SvmRpc } from '../types.js';
 
 import {
+  type SvmAddressLookupTableReader,
   type SvmAddressLookupTableWriter,
   type SvmAltConfig,
   type SvmDeployedAlt,
@@ -33,6 +34,7 @@ import {
 } from './address-lookup-table.js';
 import {
   type BucketDiff,
+  type SvmTokenAltReader,
   type SvmTokenAltWriter,
   deriveCoreDeploymentAltAddresses,
   deriveFeeQuoteCascadeAltAddresses,
@@ -41,10 +43,10 @@ import {
 } from './warp-alt.js';
 
 /**
- * Builds the warp-route-specific ALT address set for a cross-collateral
- * SVM warp route. Same shape as the collateral writer plus the
- * cross-collateral state PDA in the plugin static, and the fee
- * cascade variant kicks into its CrossCollateralRouting branch via
+ * Read-only ALT surface for a cross-collateral SVM warp route. Same
+ * shape as the collateral reader plus the cross-collateral state PDA
+ * in the plugin static, and the fee cascade variant kicks into its
+ * CrossCollateralRouting branch via
  * `buildFeeReadContextFromWarpArtifactConfig`, which surfaces every
  * `(domain, target_router)` pair from the warp's
  * `crossCollateralRouters` config.
@@ -54,11 +56,11 @@ import {
  * `transferRemoteToLocal` HandleLocal CPI path, which is out of scope
  * for transferRemote / transferRemoteTo-to-remote ALTs).
  */
-export class SvmCrossCollateralTokenAltWriter implements SvmTokenAltWriter<CrossCollateralWarpArtifactConfig> {
+export class SvmCrossCollateralTokenAltReader implements SvmTokenAltReader<CrossCollateralWarpArtifactConfig> {
   constructor(
     protected readonly chainName: string,
     protected readonly rpc: SvmRpc,
-    protected readonly altWriter: SvmAddressLookupTableWriter,
+    protected readonly altReader: SvmAddressLookupTableReader,
   ) {}
 
   async deriveWarpRouteAddresses(
@@ -140,40 +142,13 @@ export class SvmCrossCollateralTokenAltWriter implements SvmTokenAltWriter<Cross
     return [...new Set(out.map(parseAddress))].sort();
   }
 
-  async create(
-    deployed: ArtifactDeployed<
-      CrossCollateralWarpArtifactConfig,
-      DeployedWarpAddress
-    >,
-  ): Promise<{
-    core: Address;
-    warpSpecific: Address[];
-    receipts: SvmReceipt[];
-  }> {
-    const { core, warpSpecific } =
-      await this.computeExpectedAltAddresses(deployed);
-
-    const [coreAlt, coreReceipts] = await this.altWriter.create({
-      config: { frozen: true, addresses: nonEmptyArray(core) },
-    });
-    const [warpAlt, warpReceipts] = await this.altWriter.create({
-      config: { frozen: true, addresses: nonEmptyArray(warpSpecific) },
-    });
-
-    return {
-      core: coreAlt.deployed.address,
-      warpSpecific: [warpAlt.deployed.address],
-      receipts: [...coreReceipts, ...warpReceipts],
-    };
-  }
-
   async read(addresses: { core: Address; warpSpecific: Address[] }): Promise<{
     core: ArtifactDeployed<SvmAltConfig, SvmDeployedAlt>;
     warpSpecific: ArtifactDeployed<SvmAltConfig, SvmDeployedAlt>[];
   }> {
-    const core = await this.altWriter.read(addresses.core);
+    const core = await this.altReader.read(addresses.core);
     const warpSpecific = await Promise.all(
-      addresses.warpSpecific.map((addr) => this.altWriter.read(addr)),
+      addresses.warpSpecific.map((addr) => this.altReader.read(addr)),
     );
     return { core, warpSpecific };
   }
@@ -205,7 +180,7 @@ export class SvmCrossCollateralTokenAltWriter implements SvmTokenAltWriter<Cross
     };
   }
 
-  private async computeExpectedAltAddresses(
+  protected async computeExpectedAltAddresses(
     deployed: ArtifactDeployed<
       CrossCollateralWarpArtifactConfig,
       DeployedWarpAddress
@@ -229,6 +204,46 @@ export class SvmCrossCollateralTokenAltWriter implements SvmTokenAltWriter<Cross
     return {
       core: await deriveCoreDeploymentAltAddresses(mailbox, igpContext),
       warpSpecific: await this.deriveWarpRouteAddresses(deployed),
+    };
+  }
+}
+
+export class SvmCrossCollateralTokenAltWriter
+  extends SvmCrossCollateralTokenAltReader
+  implements SvmTokenAltWriter<CrossCollateralWarpArtifactConfig>
+{
+  constructor(
+    chainName: string,
+    rpc: SvmRpc,
+    protected readonly altWriter: SvmAddressLookupTableWriter,
+  ) {
+    super(chainName, rpc, altWriter);
+  }
+
+  async create(
+    deployed: ArtifactDeployed<
+      CrossCollateralWarpArtifactConfig,
+      DeployedWarpAddress
+    >,
+  ): Promise<{
+    core: Address;
+    warpSpecific: Address[];
+    receipts: SvmReceipt[];
+  }> {
+    const { core, warpSpecific } =
+      await this.computeExpectedAltAddresses(deployed);
+
+    const [coreAlt, coreReceipts] = await this.altWriter.create({
+      config: { frozen: true, addresses: nonEmptyArray(core) },
+    });
+    const [warpAlt, warpReceipts] = await this.altWriter.create({
+      config: { frozen: true, addresses: nonEmptyArray(warpSpecific) },
+    });
+
+    return {
+      core: coreAlt.deployed.address,
+      warpSpecific: [warpAlt.deployed.address],
+      receipts: [...coreReceipts, ...warpReceipts],
     };
   }
 }

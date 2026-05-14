@@ -341,21 +341,15 @@ export function diffBucket(
 }
 
 /**
- * Common surface every per-token-type ALT writer satisfies. Each
- * concrete writer specializes `C` to its `WarpArtifactConfig` variant.
- * The `SvmWarpAltManager` dispatcher uses this interface as the
- * return type of `createWriter(type)`.
+ * Read-only surface every per-token-type ALT reader satisfies. Each
+ * concrete reader specializes `C` to its `WarpArtifactConfig` variant.
+ * The `SvmWarpAltReader` dispatcher uses this as the return type of
+ * `createReader(type)`.
  */
-export interface SvmTokenAltWriter<C> {
+export interface SvmTokenAltReader<C> {
   deriveWarpRouteAddresses(
     deployed: ArtifactDeployed<C, DeployedWarpAddress>,
   ): Promise<Address[]>;
-
-  create(deployed: ArtifactDeployed<C, DeployedWarpAddress>): Promise<{
-    core: Address;
-    warpSpecific: Address[];
-    receipts: SvmReceipt[];
-  }>;
 
   read(addresses: { core: Address; warpSpecific: Address[] }): Promise<{
     core: ArtifactDeployed<SvmAltConfig, SvmDeployedAlt>;
@@ -366,4 +360,16 @@ export interface SvmTokenAltWriter<C> {
     addresses: { core: Address; warpSpecific: Address[] },
     deployed: ArtifactDeployed<C, DeployedWarpAddress>,
   ): Promise<{ core: BucketDiff; warpSpecific: BucketDiff }>;
+}
+
+/**
+ * Adds the signer-requiring `create` path on top of the read surface.
+ * `SvmWarpAltManager.createWriter(type)` returns this variant.
+ */
+export interface SvmTokenAltWriter<C> extends SvmTokenAltReader<C> {
+  create(deployed: ArtifactDeployed<C, DeployedWarpAddress>): Promise<{
+    core: Address;
+    warpSpecific: Address[];
+    receipts: SvmReceipt[];
+  }>;
 }
