@@ -4,6 +4,7 @@ import { Logger } from 'pino';
 import {
   AmountRoutingIsm__factory,
   ArbL2ToL1Ism__factory,
+  BlacklistIsm__factory,
   CCIPIsm,
   CCIPIsm__factory,
   DefaultFallbackRoutingIsm,
@@ -63,6 +64,7 @@ import { getZKSyncArtifactByContractName } from '../utils/zksync.js';
 import {
   AggregationIsmConfig,
   AmountRoutingIsmConfig,
+  BlacklistIsmConfig,
   CCIPIsmConfig,
   DeployedIsm,
   DeployedIsmType,
@@ -85,6 +87,7 @@ const ismFactories = {
   [IsmType.ARB_L2_TO_L1]: new ArbL2ToL1Ism__factory(),
   [IsmType.CCIP]: new CCIPIsm__factory(),
   [IsmType.RATE_LIMITED]: new RateLimitedIsm__factory(),
+  [IsmType.BLACKLIST]: new BlacklistIsm__factory(),
 };
 
 const domainRoutingInitializationSize = (destination: ChainName) => {
@@ -263,6 +266,35 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           [config.owner],
         );
         break;
+      case IsmType.BLACKLIST: {
+        const blacklistConfig = config as BlacklistIsmConfig;
+        const signer = this.multiProvider.getSigner(destination);
+        const signerAddress = await signer.getAddress();
+        const overrides =
+          this.multiProvider.getTransactionOverrides(destination);
+        // Deploy with signer as temporary owner so we can call blacklist() before transferring
+        contract = await this.deployer.deployContract(
+          destination,
+          IsmType.BLACKLIST,
+          [signerAddress],
+        );
+        const ism = BlacklistIsm__factory.connect(contract.address, signer);
+        if (blacklistConfig.blacklistedMessageIds?.length) {
+          const tx = await ism.blacklist(
+            blacklistConfig.blacklistedMessageIds,
+            overrides,
+          );
+          await this.multiProvider.handleTx(destination, tx);
+        }
+        if (!eqAddress(signerAddress, blacklistConfig.owner)) {
+          const tx = await ism.transferOwnership(
+            blacklistConfig.owner,
+            overrides,
+          );
+          await this.multiProvider.handleTx(destination, tx);
+        }
+        break;
+      }
       case IsmType.TRUSTED_RELAYER:
         assert(mailbox, `Mailbox address is required for deploying ${ismType}`);
         contract = await this.deployer.deployContract(

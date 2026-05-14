@@ -14,6 +14,12 @@ export function decodeIsmMetadata(
   const { ism } = context;
   switch (ism.type) {
     case IsmType.TRUSTED_RELAYER:
+    case IsmType.TEST_ISM:
+    case IsmType.OP_STACK:
+    case IsmType.PAUSABLE:
+    case IsmType.CCIP:
+    case IsmType.RATE_LIMITED:
+    case IsmType.BLACKLIST:
       return NullMetadataBuilder.decode(ism);
 
     case IsmType.MERKLE_ROOT_MULTISIG:

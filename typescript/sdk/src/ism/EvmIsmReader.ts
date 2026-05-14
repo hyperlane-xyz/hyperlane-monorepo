@@ -6,6 +6,7 @@ import {
   AbstractRoutingIsm__factory,
   AmountRoutingIsm__factory,
   ArbL2ToL1Ism__factory,
+  BlacklistIsm__factory,
   CCIPIsm__factory,
   DefaultFallbackRoutingIsm__factory,
   IInterchainSecurityModule__factory,
@@ -603,6 +604,23 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     } catch {
       this.logger.debug(
         'Error accessing "recipient" property, implying this is not a Rate Limited ISM.',
+        address,
+      );
+    }
+
+    // Detect BlacklistIsm by probing for its unique blacklistedIds(bytes32) selector.
+    const blacklistIsm = BlacklistIsm__factory.connect(address, this.provider);
+    try {
+      await blacklistIsm.blacklistedIds(ethers.constants.HashZero);
+      const owner = await blacklistIsm.owner();
+      return {
+        address,
+        type: IsmType.BLACKLIST,
+        owner,
+      };
+    } catch {
+      this.logger.debug(
+        'Error accessing "blacklistedIds" property, implying this is not a Blacklist ISM.',
         address,
       );
     }
