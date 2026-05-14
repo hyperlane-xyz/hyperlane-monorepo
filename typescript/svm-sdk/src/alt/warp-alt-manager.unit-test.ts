@@ -10,12 +10,22 @@ import {
 import type { SvmSigner } from '../clients/signer.js';
 import type { SvmRpc } from '../types.js';
 
-import { SvmAddressLookupTableWriter } from './address-lookup-table.js';
+import { type Address, address } from '@solana/kit';
+
+import {
+  SvmAddressLookupTableReader,
+  SvmAddressLookupTableWriter,
+} from './address-lookup-table.js';
 import { SvmCollateralTokenAltWriter } from './collateral-token-alt-writer.js';
 import { SvmCrossCollateralTokenAltWriter } from './cross-collateral-token-alt-writer.js';
 import { SvmNativeTokenAltWriter } from './native-token-alt-writer.js';
 import { SvmSyntheticTokenAltWriter } from './synthetic-token-alt-writer.js';
-import { SvmWarpAltManager, createWarpAltManager } from './warp-alt-manager.js';
+import {
+  SvmWarpAltManager,
+  SvmWarpAltReader,
+  createWarpAltManager,
+  createWarpAltReader,
+} from './warp-alt-manager.js';
 
 chai.use(chaiAsPromised);
 
@@ -91,5 +101,48 @@ describe('createWarpAltManager', () => {
     expect(() =>
       createWarpAltManager(chainMetadata({ rpcUrls: [] }), FAKE_SIGNER),
     ).to.throw(/RPC URL/);
+  });
+});
+
+describe('SvmWarpAltReader.read', () => {
+  const CORE: Address = address('CoreA1t111111111111111111111111111111111111');
+  const WARP_A: Address = address(
+    'WarpA1t111111111111111111111111111111111111',
+  );
+  const WARP_B: Address = address(
+    'WarpB1t111111111111111111111111111111111111',
+  );
+
+  it('reads the core ALT and each warp-specific ALT through the injected altReader', async () => {
+    const altReader = sinon.createStubInstance(SvmAddressLookupTableReader);
+    const coreArtifact = { core: 'fake-core' } as never;
+    const warpA = { warp: 'fake-warpA' } as never;
+    const warpB = { warp: 'fake-warpB' } as never;
+    altReader.read.withArgs(CORE).resolves(coreArtifact);
+    altReader.read.withArgs(WARP_A).resolves(warpA);
+    altReader.read.withArgs(WARP_B).resolves(warpB);
+
+    const reader = new SvmWarpAltReader(altReader);
+    const result = await reader.read({
+      core: CORE,
+      warpSpecific: [WARP_A, WARP_B],
+    });
+
+    expect(altReader.read.callCount).to.equal(3);
+    expect(result.core).to.equal(coreArtifact);
+    expect(result.warpSpecific).to.deep.equal([warpA, warpB]);
+  });
+});
+
+describe('createWarpAltReader', () => {
+  it('builds an SvmWarpAltReader from chain metadata (no signer)', () => {
+    const reader = createWarpAltReader(chainMetadata());
+    expect(reader).to.be.instanceOf(SvmWarpAltReader);
+  });
+
+  it('rejects when chain metadata has no rpcUrls', () => {
+    expect(() => createWarpAltReader(chainMetadata({ rpcUrls: [] }))).to.throw(
+      /RPC URL/,
+    );
   });
 });

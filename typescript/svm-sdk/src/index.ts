@@ -222,7 +222,10 @@ export {
 export { SvmWarpArtifactManager } from './warp/warp-artifact-manager.js';
 
 // Warp Address Lookup Table support
-export { createWarpAltManager } from './alt/warp-alt-manager.js';
+export {
+  createWarpAltManager,
+  createWarpAltReader,
+} from './alt/warp-alt-manager.js';
 
 // Fee program
 export { SvmFeeArtifactManager } from './fee/fee-artifact-manager.js';
