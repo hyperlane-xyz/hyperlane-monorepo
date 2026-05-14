@@ -1,4 +1,7 @@
+import type { Address } from '@solana/kit';
+
 import type { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk';
+import type { ArtifactDeployed } from '@hyperlane-xyz/provider-sdk/artifact';
 import type {
   WarpArtifactConfigs,
   WarpType,
@@ -9,7 +12,12 @@ import type { SvmSigner } from '../clients/signer.js';
 import { createRpc } from '../rpc.js';
 import type { SvmRpc } from '../types.js';
 
-import { SvmAddressLookupTableWriter } from './address-lookup-table.js';
+import {
+  SvmAddressLookupTableReader,
+  SvmAddressLookupTableWriter,
+  type SvmAltConfig,
+  type SvmDeployedAlt,
+} from './address-lookup-table.js';
 import { SvmCollateralTokenAltWriter } from './collateral-token-alt-writer.js';
 import { SvmCrossCollateralTokenAltWriter } from './cross-collateral-token-alt-writer.js';
 import { SvmNativeTokenAltWriter } from './native-token-alt-writer.js';
@@ -74,4 +82,40 @@ export function createWarpAltManager(
   const rpc = createRpc(chainMetadata.rpcUrls[0].http);
   const altWriter = new SvmAddressLookupTableWriter(rpc, signer);
   return new SvmWarpAltManager(chainMetadata.name, rpc, altWriter);
+}
+
+/**
+ * Read-only counterpart to `SvmWarpAltManager`. Exposes just the
+ * `read` surface so consumers that only need to inspect on-chain ALT
+ * contents (e.g. `warp alt read` in the CLI) don't have to supply a
+ * signer.
+ */
+export class SvmWarpAltReader {
+  constructor(private readonly altReader: SvmAddressLookupTableReader) {}
+
+  async read(addresses: { core: Address; warpSpecific: Address[] }): Promise<{
+    core: ArtifactDeployed<SvmAltConfig, SvmDeployedAlt>;
+    warpSpecific: ArtifactDeployed<SvmAltConfig, SvmDeployedAlt>[];
+  }> {
+    const core = await this.altReader.read(addresses.core);
+    const warpSpecific = await Promise.all(
+      addresses.warpSpecific.map((addr) => this.altReader.read(addr)),
+    );
+    return { core, warpSpecific };
+  }
+}
+
+/**
+ * Public factory for an `SvmWarpAltReader` from chain metadata —
+ * no signer required.
+ */
+export function createWarpAltReader(
+  chainMetadata: ChainMetadataForAltVM,
+): SvmWarpAltReader {
+  assert(
+    chainMetadata.rpcUrls && chainMetadata.rpcUrls.length > 0,
+    'At least one RPC URL is required',
+  );
+  const rpc = createRpc(chainMetadata.rpcUrls[0].http);
+  return new SvmWarpAltReader(new SvmAddressLookupTableReader(rpc));
 }
