@@ -1,15 +1,38 @@
 import { address, type Address, generateKeyPairSigner } from '@solana/kit';
+import { expect } from 'chai';
 import { before, describe, it } from 'mocha';
 
-import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
-import { FeeType } from '@hyperlane-xyz/provider-sdk/fee';
+import {
+  type ArtifactDeployed,
+  ArtifactState,
+} from '@hyperlane-xyz/provider-sdk/artifact';
+import {
+  type CrossCollateralRoutingFeeArtifactConfig,
+  FeeParamsType,
+  FeeStrategyType,
+  FeeType,
+  type LinearFeeConfig,
+  type RoutingFeeArtifactConfig,
+} from '@hyperlane-xyz/provider-sdk/fee';
 import type { IgpHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
-import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
+import {
+  type CrossCollateralWarpArtifactConfig,
+  type DeployedWarpAddress,
+  TokenType,
+} from '@hyperlane-xyz/provider-sdk/warp';
 
+import { createWarpAltReader } from '../alt/warp-alt-manager.js';
+import { deriveCoreDeploymentAltAddresses } from '../alt/warp-alt.js';
 import { SvmSigner } from '../clients/signer.js';
 import { SvmMailboxWriter } from '../core/mailbox.js';
+import { SvmCrossCollateralRoutingFeeWriter } from '../fee/cross-collateral-routing-fee.js';
+import { SvmLinearFeeWriter } from '../fee/linear-fee.js';
+import { SvmRoutingFeeWriter } from '../fee/routing-fee.js';
+import { DEFAULT_FEE_SALT } from '../fee/types.js';
 import { DEFAULT_IGP_SALT, SvmIgpHookWriter } from '../hook/igp-hook.js';
 import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
+import { simulateFeeQuoteAccountMetas } from '../instructions/fee.js';
+import { simulateIgpQuoteAccountMetas } from '../instructions/igp.js';
 import {
   getCreateAssociatedTokenIdempotentInstruction,
   getMintToInstruction,
@@ -19,7 +42,7 @@ import {
   getTokenSetDestinationGasConfigsInstruction,
 } from '../instructions/token.js';
 import { SvmTestIsmWriter } from '../ism/test-ism.js';
-import { deriveAssociatedTokenAddress } from '../pda.js';
+import { deriveAssociatedTokenAddress, deriveIgpAccountPda } from '../pda.js';
 import { createRpc } from '../rpc.js';
 import { TEST_SVM_CHAIN_METADATA } from '../testing/constants.js';
 import {
@@ -36,6 +59,9 @@ const TEST_PRIVATE_KEY =
 const DOMAIN_LOCAL = 1;
 const DOMAIN_REMOTE = 99;
 const REMOTE_ROUTER = new Uint8Array(32).fill(0xab);
+const REMOTE_ROUTER_HEX = `0x${Array.from(REMOTE_ROUTER)
+  .map((b) => b.toString(16).padStart(2, '0'))
+  .join('')}`;
 const REMOTE_GAS = 50_000n;
 
 interface CompletenessCase {
@@ -79,14 +105,17 @@ const CASES: CompletenessCase[] = [
 ];
 
 /**
- * Drives a single CC warp through the `SvmWarpAltManager` for every
- * combination of fee type (none / leaf / routing / CC routing) and IGP
- * presence, ALT-compresses a real `transfer_remote_to` tx using only the
- * freshly-emitted ALTs, and simulates on chain. If `deriveWarpRouteAddresses`
- * forgets any account the on-chain handler reads, the simulation fails and
- * the test surfaces exactly which addresses are missing — proving the
- * off-chain ALT derivation stays in lockstep with the on-chain program
- * logic across all fee/IGP shape combinations.
+ * For each (fee type × IGP-on/off) combination, this suite derives the
+ * warp's ALT address set off-chain via the same code path that powers
+ * `hyperlane warp alt create`, then runs the on-chain `GetQuoteAccountMetas`
+ * and `GetIgpQuoteAccountMetas` simulation instructions to enumerate every
+ * account each cascade actually reads. The test fails the moment any
+ * simulation-returned account isn't in the ALT set — surfacing drift
+ * between the on-chain handler and the off-chain `deriveWarpRouteAddresses`
+ * derivation as soon as it appears.
+ *
+ * No ALTs are written on chain; the test exercises the pure derivation
+ * path against the live program's account-meta enumerator.
  */
 describe('SVM warp ALT completeness via simulation — cross-collateral', function () {
   this.timeout(600_000);
@@ -95,12 +124,32 @@ describe('SVM warp ALT completeness via simulation — cross-collateral', functi
   let signer: SvmSigner;
   let mailboxAddress: Address;
   let igpProgramId: Address;
+  let igpAccountPda: Address;
   let igpConfig: IgpHookConfig;
   let collateralMint: Address;
-  let senderAta: Address;
   let feeBeneficiaryOwner: Address;
-  let feeBeneficiaryAta: Address;
   let warpProgramId: Address;
+
+  // Each fee variant deploys its own fee program (so the per-chain
+  // `resolveFeeSalt` PDA doesn't collide). The artifact config is the same
+  // shape the off-chain ALT writer consumes — keeping the on-chain account
+  // state and the in-memory artifact in lockstep is what makes the
+  // simulation-vs-ALT diff meaningful.
+  let linearFee: {
+    programId: Address;
+    accountPda: Address;
+    config: LinearFeeConfig;
+  };
+  let routingFee: {
+    programId: Address;
+    accountPda: Address;
+    config: RoutingFeeArtifactConfig;
+  };
+  let ccRoutingFee: {
+    programId: Address;
+    accountPda: Address;
+    config: CrossCollateralRoutingFeeArtifactConfig;
+  };
 
   before(async () => {
     rpc = createRpc(TEST_SVM_CHAIN_METADATA.rpcUrl);
@@ -176,7 +225,7 @@ describe('SVM warp ALT completeness via simulation — cross-collateral', functi
 
     // ---- SPL mint + sender ATA funded for amount + max fee headroom ----
     collateralMint = await createSplMint(rpc, signer, 9);
-    senderAta = (
+    const senderAta = (
       await deriveAssociatedTokenAddress({
         wallet: senderWallet,
         mint: collateralMint,
@@ -200,10 +249,11 @@ describe('SVM warp ALT completeness via simulation — cross-collateral', functi
     });
 
     // ---- Fee beneficiary owner + its ATA (CC fees pay to an ATA) ----
-    // The beneficiary doesn't sign anything during transfer_remote_to,
-    // so we only need its address — discard the keypair.
+    // The beneficiary doesn't sign anything; we just need a stable address
+    // for the fee artifact configs. The ATA is created so the fee program
+    // is wired against real state in case a future simulation branches on it.
     feeBeneficiaryOwner = (await generateKeyPairSigner()).address;
-    feeBeneficiaryAta = (
+    const feeBeneficiaryAta = (
       await deriveAssociatedTokenAddress({
         wallet: feeBeneficiaryOwner,
         mint: collateralMint,
@@ -246,26 +296,228 @@ describe('SVM warp ALT completeness via simulation — cross-collateral', functi
     warpProgramId = address(warpDeployed.deployed.address);
 
     // ---- Enroll the single remote router + gas config used by every test ----
-    const senderForIxs = address(signer.getSignerAddress());
     await signer.send({
       instructions: [
         await getTokenEnrollRemoteRoutersInstruction(
           warpProgramId,
-          senderForIxs,
+          senderWallet,
           [{ domain: DOMAIN_REMOTE, router: REMOTE_ROUTER }],
         ),
         await getTokenSetDestinationGasConfigsInstruction(
           warpProgramId,
-          senderForIxs,
+          senderWallet,
           [{ domain: DOMAIN_REMOTE, gas: REMOTE_GAS }],
         ),
       ],
     });
+
+    // ---- IGP account PDA (cached for per-test simulation calls) ----
+    igpAccountPda = (await deriveIgpAccountPda(igpProgramId, DEFAULT_IGP_SALT))
+      .address;
+
+    // ---- Fee program deploys — one per fee type, default salt each.
+    // Sharing the chain's resolveFeeSalt across multiple fee accounts on
+    // the same program would collide on the (programId, salt) PDA, so we
+    // give each fee type its own program. ----
+    const feeProgramTarget = {
+      program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenFee },
+    };
+    const linearParams = {
+      type: FeeParamsType.raw,
+      maxFee: '1000',
+      halfAmount: '500',
+    };
+    const ccRoutingRouters = {
+      [DOMAIN_REMOTE]: new Set([REMOTE_ROUTER_HEX]),
+    };
+    const feeReadContext = {
+      knownRoutersPerDomain: ccRoutingRouters,
+    };
+
+    const [linearDeployed] = await new SvmLinearFeeWriter(
+      feeProgramTarget,
+      rpc,
+      DOMAIN_LOCAL,
+      signer,
+      DEFAULT_FEE_SALT,
+    ).create({
+      artifactState: ArtifactState.NEW,
+      config: {
+        type: FeeType.linear,
+        owner: signer.getSignerAddress(),
+        beneficiary: feeBeneficiaryOwner,
+        params: linearParams,
+      },
+    });
+    linearFee = {
+      programId: address(linearDeployed.deployed.programId),
+      accountPda: address(linearDeployed.deployed.feeAccountPda),
+      config: linearDeployed.config,
+    };
+
+    const [routingDeployed] = await new SvmRoutingFeeWriter(
+      feeProgramTarget,
+      rpc,
+      DOMAIN_LOCAL,
+      signer,
+      feeReadContext,
+      DEFAULT_FEE_SALT,
+    ).create({
+      artifactState: ArtifactState.NEW,
+      config: {
+        type: FeeType.routing,
+        owner: signer.getSignerAddress(),
+        beneficiary: feeBeneficiaryOwner,
+        routes: {
+          [DOMAIN_REMOTE]: {
+            type: FeeStrategyType.linear,
+            params: linearParams,
+          },
+        },
+      },
+    });
+    routingFee = {
+      programId: address(routingDeployed.deployed.programId),
+      accountPda: address(routingDeployed.deployed.feeAccountPda),
+      config: routingDeployed.config,
+    };
+
+    const [ccRoutingDeployed] = await new SvmCrossCollateralRoutingFeeWriter(
+      feeProgramTarget,
+      rpc,
+      DOMAIN_LOCAL,
+      signer,
+      feeReadContext,
+      DEFAULT_FEE_SALT,
+    ).create({
+      artifactState: ArtifactState.NEW,
+      config: {
+        type: FeeType.crossCollateralRouting,
+        owner: signer.getSignerAddress(),
+        beneficiary: feeBeneficiaryOwner,
+        routes: {
+          [DOMAIN_REMOTE]: {
+            [REMOTE_ROUTER_HEX]: {
+              type: FeeStrategyType.linear,
+              params: linearParams,
+            },
+          },
+        },
+      },
+    });
+    ccRoutingFee = {
+      programId: address(ccRoutingDeployed.deployed.programId),
+      accountPda: address(ccRoutingDeployed.deployed.feeAccountPda),
+      config: ccRoutingDeployed.config,
+    };
   });
 
   for (const c of CASES) {
-    // Pending: bodies land in the next commit. The single `it` call sits
-    // inside the loop so each case is reported as a distinct mocha test.
-    it(c.name);
+    it(c.name, async () => {
+      const feeSetup =
+        c.feeType === FeeType.linear
+          ? linearFee
+          : c.feeType === FeeType.routing
+            ? routingFee
+            : c.feeType === FeeType.crossCollateralRouting
+              ? ccRoutingFee
+              : null;
+
+      // Build the expanded warp artifact the off-chain ALT derivation
+      // consumes. Fee + hook are conditional on the case row.
+      const expandedWarp: ArtifactDeployed<
+        CrossCollateralWarpArtifactConfig,
+        DeployedWarpAddress
+      > = {
+        artifactState: ArtifactState.DEPLOYED,
+        config: {
+          type: TokenType.crossCollateral,
+          owner: signer.getSignerAddress(),
+          mailbox: mailboxAddress,
+          token: collateralMint,
+          remoteRouters: {
+            [DOMAIN_REMOTE]: { address: REMOTE_ROUTER_HEX },
+          },
+          destinationGas: { [DOMAIN_REMOTE]: REMOTE_GAS.toString() },
+          crossCollateralRouters: {
+            [DOMAIN_REMOTE]: new Set([REMOTE_ROUTER_HEX]),
+          },
+          ...(feeSetup
+            ? {
+                fee: {
+                  artifactState: ArtifactState.DEPLOYED,
+                  config: feeSetup.config,
+                  deployed: { address: feeSetup.programId },
+                },
+              }
+            : {}),
+          ...(c.igpEnabled
+            ? {
+                hook: {
+                  artifactState: ArtifactState.DEPLOYED,
+                  config: igpConfig,
+                  deployed: { address: igpProgramId },
+                },
+              }
+            : {}),
+        },
+        deployed: { address: warpProgramId },
+      };
+
+      // ---- Off-chain ALT set ----
+      const altReader = createWarpAltReader(TEST_SVM_CHAIN_METADATA);
+      const reader = altReader.createReader(TokenType.crossCollateral);
+      const warpSpecific = await reader.deriveWarpRouteAddresses(expandedWarp);
+      const core = await deriveCoreDeploymentAltAddresses(
+        mailboxAddress,
+        c.igpEnabled
+          ? {
+              programId: igpProgramId,
+              igpSalt: DEFAULT_IGP_SALT,
+              includeOverheadIgp: Object.keys(igpConfig.overhead).length > 0,
+            }
+          : undefined,
+      );
+      const altSet = new Set<string>([...core, ...warpSpecific]);
+
+      // ---- On-chain expected addresses via simulation ----
+      const senderWallet = address(signer.getSignerAddress());
+      const expected = new Set<string>();
+
+      if (feeSetup) {
+        const metas = await simulateFeeQuoteAccountMetas({
+          rpc,
+          programId: feeSetup.programId,
+          feeAccount: feeSetup.accountPda,
+          payer: senderWallet,
+          input: {
+            destinationDomain: DOMAIN_REMOTE,
+            targetRouter: REMOTE_ROUTER,
+          },
+        });
+        for (const meta of metas) expected.add(meta.address);
+      }
+
+      if (c.igpEnabled) {
+        const metas = await simulateIgpQuoteAccountMetas({
+          rpc,
+          programId: igpProgramId,
+          igpAccount: igpAccountPda,
+          payer: senderWallet,
+          input: {
+            destinationDomain: DOMAIN_REMOTE,
+            sender: warpProgramId,
+          },
+        });
+        for (const meta of metas) expected.add(meta.address);
+      }
+
+      // ---- Assertion: every simulation-returned address is in the ALT ----
+      const missing = [...expected].filter((addr) => !altSet.has(addr));
+      expect(
+        missing,
+        `addresses missing from ALT (${missing.length}): ${missing.join(', ')}`,
+      ).to.have.length(0);
+    });
   }
 });
