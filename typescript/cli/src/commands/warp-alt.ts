@@ -17,34 +17,6 @@ import {
   warpRouteIdCommandOption,
 } from './options.js';
 
-const read: CommandModuleWithContext<{
-  warpRouteId: string;
-  chain?: string;
-  out?: string;
-}> = {
-  command: 'read',
-  describe: 'Read on-chain SVM Address Lookup Table contents for a warp route',
-  builder: {
-    'warp-route-id': { ...warpRouteIdCommandOption, demandOption: true },
-    chain: { ...chainCommandOption, demandOption: false },
-    out: outputFileCommandOption(),
-  },
-  handler: async ({ context, warpRouteId, chain, out }) => {
-    logCommandHeader('Hyperlane Warp ALT Reader');
-
-    const result = await runWarpAltRead({ context, warpRouteId, chain });
-
-    if (out) {
-      writeYamlOrJson(out, result, 'yaml');
-      logGreen(`✅ Warp route ALTs written successfully to ${out}:\n`);
-    } else {
-      logGreen(`✅ Warp route ALTs read successfully:\n`);
-    }
-    log(indentYamlOrJson(yamlStringify(result, null, 2), 4));
-    process.exit(0);
-  },
-};
-
 const check: CommandModuleWithContext<{
   warpRouteId: string;
   chain?: string;
@@ -84,6 +56,34 @@ const create: CommandModuleWithWriteContext<{
   handler: async ({ context, warpRouteId, chain, force }) => {
     logCommandHeader('Hyperlane Warp ALT Create');
     await runWarpAltCreate({ context, warpRouteId, chain, force });
+    process.exit(0);
+  },
+};
+
+const read: CommandModuleWithContext<{
+  warpRouteId: string;
+  chain?: string;
+  out?: string;
+}> = {
+  command: 'read',
+  describe: 'Read on-chain SVM Address Lookup Table contents for a warp route',
+  builder: {
+    'warp-route-id': { ...warpRouteIdCommandOption, demandOption: true },
+    chain: { ...chainCommandOption, demandOption: false },
+    out: outputFileCommandOption(),
+  },
+  handler: async ({ context, warpRouteId, chain, out }) => {
+    logCommandHeader('Hyperlane Warp ALT Reader');
+
+    const result = await runWarpAltRead({ context, warpRouteId, chain });
+
+    if (out) {
+      writeYamlOrJson(out, result, 'yaml');
+      logGreen(`✅ Warp route ALTs written successfully to ${out}:\n`);
+    } else {
+      logGreen(`✅ Warp route ALTs read successfully:\n`);
+    }
+    log(indentYamlOrJson(yamlStringify(result, null, 2), 4));
     process.exit(0);
   },
 };
