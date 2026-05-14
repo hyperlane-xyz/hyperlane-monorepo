@@ -46,9 +46,9 @@ export class SealevelCoreAdapter
     super(chainName, multiProvider, addresses);
   }
 
-  extractMessageIds(
+  async extractMessageIds(
     sourceTx: TypedTransactionReceipt,
-  ): Array<{ messageId: HexString; destination: ChainName }> {
+  ): Promise<Array<{ messageId: HexString; destination: ChainName }>> {
     if (sourceTx.type !== ProviderType.SolanaWeb3) {
       throw new Error(
         `Unsupported provider type for SealevelCoreAdapter ${sourceTx.type}`,

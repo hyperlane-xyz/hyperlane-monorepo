@@ -16,11 +16,37 @@ export class AleoCoreAdapter extends BaseAleoAdapter implements ICoreAdapter {
     super(chainName, multiProvider, addresses);
   }
 
-  extractMessageIds(
+  async extractMessageIds(
     _sourceTx: TypedTransactionReceipt,
-  ): Array<{ messageId: string; destination: ChainName }> {
-    // Message IDs cannot be extracted from Aleo receipts yet.
-    return [];
+  ): Promise<Array<{ messageId: string; destination: ChainName }>> {
+    const provider = this.multiProvider.getAleoProvider(this.chainName);
+
+    // The mailbox nonce is incremented during finalize, so after the tx
+    // confirms the dispatch used nonce = current_nonce - 1.
+    const mailbox = await provider.getMailbox({
+      mailboxAddress: this.addresses.mailbox,
+    });
+    const nonce = mailbox.nonce - 1;
+
+    const [messageId, destinationDomain] = await Promise.all([
+      provider.getDispatchedMessageId(this.addresses.mailbox, nonce),
+      provider.getDispatchedDestinationDomain(this.addresses.mailbox, nonce),
+    ]);
+
+    if (!messageId || destinationDomain == null) {
+      this.logger.warn(
+        `Could not extract message ID or destination from Aleo dispatch at nonce ${nonce}`,
+      );
+      return [];
+    }
+
+    const destination = this.multiProvider.tryGetChainName(destinationDomain);
+    if (!destination) {
+      this.logger.warn(`Unknown destination domain ${destinationDomain}`);
+      return [];
+    }
+
+    return [{ messageId, destination }];
   }
 
   async waitForMessageProcessed(

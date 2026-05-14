@@ -329,6 +329,28 @@ export function bytes32ToU128String(input: string): string {
   return `[${U128.fromBytesLe(lowBytes).toString()},${U128.fromBytesLe(highBytes).toString()}]`;
 }
 
+// Inverse of bytes32ToU128String: parses "[lowU128u128, highU128u128]" from dispatch_id_events
+// and converts back to a 0x-prefixed 32-byte hex string.
+export function u128PairToBytes32(u128PairStr: string): string {
+  const inner = u128PairStr.slice(1, -1);
+  const parts = inner.split(',').map((s) => s.trim().replace(/u128$/, ''));
+  const low = BigInt(parts[0]);
+  const high = BigInt(parts[1]);
+
+  const bytes = new Uint8Array(32);
+  let tempLow = low;
+  for (let i = 0; i < 16; i++) {
+    bytes[i] = Number(tempLow & 0xffn);
+    tempLow >>= 8n;
+  }
+  let tempHigh = high;
+  for (let i = 0; i < 16; i++) {
+    bytes[16 + i] = Number(tempHigh & 0xffn);
+    tempHigh >>= 8n;
+  }
+  return '0x' + Buffer.from(bytes).toString('hex');
+}
+
 export function getBalanceKey(address: string, denom: string): string {
   return new BHP256()
     .hash(

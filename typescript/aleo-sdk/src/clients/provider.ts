@@ -10,6 +10,7 @@ import {
   U128ToString,
   arrayToPlaintext,
   bytes32ToU128String,
+  u128PairToBytes32,
   fillArray,
   formatAddress,
   fromAleoAddress,
@@ -339,6 +340,39 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         throw new Error(`Unknown token type ${metadata['token_type']}`);
       }
     }
+  }
+
+  // ### QUERY DISPATCH ###
+
+  async getDispatchedMessageId(
+    mailboxAddress: string,
+    nonce: number,
+  ): Promise<string | undefined> {
+    const { programId } = fromAleoAddress(mailboxAddress);
+    try {
+      const raw = await this.queryMappingString(
+        programId,
+        'dispatch_id_events',
+        `${nonce}u32`,
+      );
+      return u128PairToBytes32(raw);
+    } catch {
+      return undefined;
+    }
+  }
+
+  async getDispatchedDestinationDomain(
+    mailboxAddress: string,
+    nonce: number,
+  ): Promise<number | undefined> {
+    const { programId } = fromAleoAddress(mailboxAddress);
+    const result = await this.queryMappingValue(
+      programId,
+      'dispatch_events',
+      `${nonce}u32`,
+    );
+    if (!result) return undefined;
+    return result['destination_domain'] as number;
   }
 
   private async getQuotes(
