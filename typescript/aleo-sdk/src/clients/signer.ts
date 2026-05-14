@@ -1,5 +1,5 @@
 import { type AltVM } from '@hyperlane-xyz/provider-sdk';
-import { type TokenType } from '@hyperlane-xyz/provider-sdk/warp';
+import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert, isNullish, retryAsync } from '@hyperlane-xyz/utils';
 
 import { type AleoProgram } from '../artifacts.js';
@@ -91,10 +91,14 @@ export class AleoSigner
     preferredSuffix?: string,
     maxAttempts = 20,
   ): Promise<string> {
+    if (tokenType === TokenType.native) {
+      return 'credits';
+    }
+
     const configuredSuffix = preferredSuffix || this.warpSuffix;
 
     if (configuredSuffix) {
-      const tokenProgramId = `${this.prefix}_${tokenType}_${configuredSuffix}.aleo`;
+      const tokenProgramId = `${this.prefix}_warp_token_${configuredSuffix}.aleo`;
 
       const isAlreadyDeployed = await this.isProgramDeployed(tokenProgramId);
       assert(
@@ -107,7 +111,7 @@ export class AleoSigner
 
     for (let i = 0; i < maxAttempts; i++) {
       const suffix = this.generateSuffix(SUFFIX_LENGTH_LONG);
-      const tokenProgramId = `${this.prefix}_${tokenType}_${suffix}.aleo`;
+      const tokenProgramId = `${this.prefix}_warp_token_${suffix}.aleo`;
 
       if (!(await this.isProgramDeployed(tokenProgramId))) {
         return suffix;
