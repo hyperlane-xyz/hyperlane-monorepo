@@ -38,7 +38,9 @@ import { requestAndSaveApiKeys } from '../../apiKeys.js';
 export async function resolveChains(
   argv: Record<string, any>,
 ): Promise<ChainName[]> {
-  const commandKey = `${argv._[0]}:${argv._[1] || ''}`.trim() as CommandType;
+  const commandKey = `${argv._[0]}:${argv._[1] || ''}${
+    argv._[2] ? `:${argv._[2]}` : ''
+  }`.trim() as CommandType;
 
   switch (commandKey) {
     case CommandType.WARP_DEPLOY:
@@ -52,6 +54,9 @@ export async function resolveChains(
     case CommandType.RELAYER:
       return resolveRelayerChains(argv);
     case CommandType.WARP_READ:
+    case CommandType.WARP_ALT_CREATE:
+    case CommandType.WARP_ALT_CHECK:
+    case CommandType.WARP_ALT_READ:
       return resolveWarpReadChains(argv);
     case CommandType.WARP_APPLY:
       return resolveWarpConfigChains(argv);
