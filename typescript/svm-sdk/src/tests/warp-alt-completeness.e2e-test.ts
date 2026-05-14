@@ -1,7 +1,8 @@
 import { address, type Address, generateKeyPairSigner } from '@solana/kit';
-import { before, describe } from 'mocha';
+import { before, describe, it } from 'mocha';
 
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import { FeeType } from '@hyperlane-xyz/provider-sdk/fee';
 import type { IgpHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
 import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
 
@@ -36,6 +37,46 @@ const DOMAIN_LOCAL = 1;
 const DOMAIN_REMOTE = 99;
 const REMOTE_ROUTER = new Uint8Array(32).fill(0xab);
 const REMOTE_GAS = 50_000n;
+
+interface CompletenessCase {
+  name: string;
+  feeType:
+    | typeof FeeType.linear
+    | typeof FeeType.routing
+    | typeof FeeType.crossCollateralRouting
+    | null;
+  igpEnabled: boolean;
+}
+
+const CASES: CompletenessCase[] = [
+  { name: 'leaf fee + IGP enabled', feeType: FeeType.linear, igpEnabled: true },
+  {
+    name: 'leaf fee + IGP disabled',
+    feeType: FeeType.linear,
+    igpEnabled: false,
+  },
+  {
+    name: 'routing fee + IGP enabled',
+    feeType: FeeType.routing,
+    igpEnabled: true,
+  },
+  {
+    name: 'routing fee + IGP disabled',
+    feeType: FeeType.routing,
+    igpEnabled: false,
+  },
+  {
+    name: 'CC-routing fee + IGP enabled',
+    feeType: FeeType.crossCollateralRouting,
+    igpEnabled: true,
+  },
+  {
+    name: 'CC-routing fee + IGP disabled',
+    feeType: FeeType.crossCollateralRouting,
+    igpEnabled: false,
+  },
+  { name: 'no fee + IGP enabled', feeType: null, igpEnabled: true },
+];
 
 /**
  * Drives a single CC warp through the `SvmWarpAltManager` for every
@@ -221,4 +262,10 @@ describe('SVM warp ALT completeness via simulation — cross-collateral', functi
       ],
     });
   });
+
+  for (const c of CASES) {
+    // Pending: bodies land in the next commit. The single `it` call sits
+    // inside the loop so each case is reported as a distinct mocha test.
+    it(c.name);
+  }
 });
