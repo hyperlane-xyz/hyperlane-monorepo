@@ -2,6 +2,7 @@ import { BHP256, Plaintext, Program, U128 } from '@provablehq/sdk/mainnet.js';
 
 import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
 import {
+  assert,
   isValidAddressAleo,
   isZeroishAddress,
   strip0x,
@@ -332,10 +333,27 @@ export function bytes32ToU128String(input: string): string {
 // Inverse of bytes32ToU128String: parses "[lowU128u128, highU128u128]" from dispatch_id_events
 // and converts back to a 0x-prefixed 32-byte hex string.
 export function u128PairToBytes32(u128PairStr: string): string {
+  assert(
+    u128PairStr.startsWith('[') && u128PairStr.endsWith(']'),
+    `u128PairToBytes32: expected "[low,high]" format, got: ${u128PairStr}`,
+  );
   const inner = u128PairStr.slice(1, -1);
   const parts = inner.split(',').map((s) => s.trim().replace(/u128$/, ''));
+  assert(
+    parts.length === 2,
+    `u128PairToBytes32: expected exactly 2 comma-separated parts, got ${parts.length}: ${inner}`,
+  );
   const low = BigInt(parts[0]);
   const high = BigInt(parts[1]);
+  const u128Max = 2n ** 128n;
+  assert(
+    low >= 0n && low < u128Max,
+    `u128PairToBytes32: low value out of u128 range: ${low}`,
+  );
+  assert(
+    high >= 0n && high < u128Max,
+    `u128PairToBytes32: high value out of u128 range: ${high}`,
+  );
 
   const bytes = new Uint8Array(32);
   let tempLow = low;

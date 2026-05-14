@@ -23,9 +23,19 @@ export class AleoCoreAdapter extends BaseAleoAdapter implements ICoreAdapter {
 
     // The mailbox nonce is incremented during finalize, so after the tx
     // confirms the dispatch used nonce = current_nonce - 1.
+    // LIMITATION: _sourceTx is not parsed for the nonce because the Aleo
+    // receipt (FinalizeJSON) only exposes hashed key IDs, not plaintext values,
+    // and the nonce is not a public input to the dispatch transition. This means
+    // a concurrent dispatch between tx confirmation and this query could cause
+    // nonce - 1 to point to the wrong message. Fix requires snapshotting
+    // mailbox.nonce before submitting the tx (interface change needed).
     const mailbox = await provider.getMailbox({
       mailboxAddress: this.addresses.mailbox,
     });
+    assert(
+      mailbox.nonce > 0,
+      `mailbox.nonce must be > 0 for dispatch lookup (mailbox=${this.addresses.mailbox}, nonce=${mailbox.nonce})`,
+    );
     const nonce = mailbox.nonce - 1;
 
     const [messageId, destinationDomain] = await Promise.all([

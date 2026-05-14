@@ -2,7 +2,7 @@ import { U128 } from '@provablehq/sdk/mainnet.js';
 import { BigNumber } from 'bignumber.js';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { assert, strip0x } from '@hyperlane-xyz/utils';
+import { assert, rootLogger, strip0x } from '@hyperlane-xyz/utils';
 
 import {
   ALEO_NATIVE_DENOM,
@@ -356,7 +356,11 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         `${nonce}u32`,
       );
       return u128PairToBytes32(raw);
-    } catch {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      rootLogger.error(
+        `getDispatchedMessageId failed: programId=${programId} mailboxAddress=${mailboxAddress} nonce=${nonce} (queryMappingString/u128PairToBytes32): ${message}`,
+      );
       return undefined;
     }
   }
@@ -366,13 +370,21 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     nonce: number,
   ): Promise<number | undefined> {
     const { programId } = fromAleoAddress(mailboxAddress);
-    const result = await this.queryMappingValue(
-      programId,
-      'dispatch_events',
-      `${nonce}u32`,
-    );
-    if (!result) return undefined;
-    return result['destination_domain'] as number;
+    try {
+      const result = await this.queryMappingValue(
+        programId,
+        'dispatch_events',
+        `${nonce}u32`,
+      );
+      if (!result) return undefined;
+      return result['destination_domain'] as number;
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      rootLogger.error(
+        `getDispatchedDestinationDomain failed: programId=${programId} mailboxAddress=${mailboxAddress} nonce=${nonce} (queryMappingValue): ${message}`,
+      );
+      return undefined;
+    }
   }
 
   private async getQuotes(
