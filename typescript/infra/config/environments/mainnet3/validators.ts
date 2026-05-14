@@ -16,11 +16,8 @@ export const validatorChainConfig = (
     supportedChainNamesInRegistry,
   );
   const getReorgPeriod = (chain: ChainName): string | number =>
-    supportedChainNamesInRegistrySet.has(chain)
-      ? resolveReorgPeriod(chain)
-      : 0;
-  return objFilter(
-    {
+    supportedChainNamesInRegistrySet.has(chain) ? resolveReorgPeriod(chain) : 0;
+  const validatorConfigs: ValidatorBaseChainConfigMap = {
     ancient8: {
       interval: 5,
       reorgPeriod: getReorgPeriod('ancient8'),
@@ -1654,7 +1651,10 @@ export const validatorChainConfig = (
         'kiichain',
       ),
     },
-  },
+  };
+
+  return objFilter(
+    validatorConfigs,
     (chain, config): config is ValidatorBaseChainConfigMap[string] =>
       supportedChainNamesInRegistrySet.has(chain),
   );

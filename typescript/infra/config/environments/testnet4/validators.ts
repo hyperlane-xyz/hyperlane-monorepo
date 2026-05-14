@@ -16,11 +16,8 @@ export const validatorChainConfig = (
     supportedChainNamesInRegistry,
   );
   const getReorgPeriod = (chain: ChainName): string | number =>
-    supportedChainNamesInRegistrySet.has(chain)
-      ? resolveReorgPeriod(chain)
-      : 0;
-  return objFilter(
-    {
+    supportedChainNamesInRegistrySet.has(chain) ? resolveReorgPeriod(chain) : 0;
+  const validatorConfigs: ValidatorBaseChainConfigMap = {
     arbitrumsepolia: {
       interval: 5,
       reorgPeriod: getReorgPeriod('arbitrumsepolia'),
@@ -301,7 +298,10 @@ export const validatorChainConfig = (
         'tronshasta',
       ),
     },
-  },
+  };
+
+  return objFilter(
+    validatorConfigs,
     (chain, config): config is ValidatorBaseChainConfigMap[string] =>
       supportedChainNamesInRegistrySet.has(chain),
   );
