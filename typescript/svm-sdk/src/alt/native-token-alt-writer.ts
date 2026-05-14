@@ -23,38 +23,24 @@ import {
 } from '../pda.js';
 import type { SvmReceipt } from '../types.js';
 
+import { type SvmAddressLookupTableWriter } from './address-lookup-table.js';
 import {
-  type SvmAddressLookupTableReader,
-  type SvmAddressLookupTableWriter,
-  type SvmAltConfig,
-  type SvmDeployedAlt,
-  nonEmptyArray,
-} from './address-lookup-table.js';
-import {
-  type BucketDiff,
-  type SvmTokenAltReader,
   type SvmTokenAltWriter,
-  deriveCoreDeploymentAltAddresses,
+  SvmTokenAltReaderBase,
+  createWarpAltsImpl,
   deriveFeeQuoteCascadeAltAddresses,
   deriveIgpQuoteCascadeAltAddresses,
-  diffBucket,
 } from './warp-alt.js';
 
 /**
- * Read-only ALT surface for a native SVM warp route. Owns the address
- * derivation (`deriveWarpRouteAddresses`), on-chain ALT reads, and the
- * `check` diff that compares actual vs expected. Constructed with just
- * a `SvmAddressLookupTableReader` — no signer needed.
+ * Read-only ALT surface for a native SVM warp route. Owns the
+ * `deriveWarpRouteAddresses` derivation; shared `read` / `check` /
+ * `computeExpectedAltAddresses` come from `SvmTokenAltReaderBase`.
  *
  * The companion `SvmNativeTokenAltWriter` extends this and adds
  * `create`.
  */
-export class SvmNativeTokenAltReader implements SvmTokenAltReader<NativeWarpArtifactConfig> {
-  constructor(
-    protected readonly chainName: string,
-    protected readonly altReader: SvmAddressLookupTableReader,
-  ) {}
-
+export class SvmNativeTokenAltReader extends SvmTokenAltReaderBase<NativeWarpArtifactConfig> {
   async deriveWarpRouteAddresses(
     deployed: ArtifactDeployed<NativeWarpArtifactConfig, DeployedWarpAddress>,
   ): Promise<Address[]> {
@@ -117,84 +103,6 @@ export class SvmNativeTokenAltReader implements SvmTokenAltReader<NativeWarpArti
 
     return [...new Set(out.map(parseAddress))].sort();
   }
-
-  /**
-   * Reads both buckets of ALTs from chain for this native warp route.
-   * Pure pass-through to the generic `SvmAddressLookupTableReader`.
-   */
-  async read(addresses: { core: string; warpSpecific: string[] }): Promise<{
-    core: ArtifactDeployed<SvmAltConfig, SvmDeployedAlt>;
-    warpSpecific: ArtifactDeployed<SvmAltConfig, SvmDeployedAlt>[];
-  }> {
-    const core = await this.altReader.read(addresses.core);
-    const warpSpecific = await Promise.all(
-      addresses.warpSpecific.map((addr) => this.altReader.read(addr)),
-    );
-    return { core, warpSpecific };
-  }
-
-  /**
-   * Diffs the on-chain ALT contents against what would be regenerated
-   * for the given expanded warp config. Output groups differences by
-   * bucket; the `warpSpecific` bucket aggregates the address sets across
-   * all warp-specific ALTs (v1 has just one).
-   *
-   * Since `create` always freezes, an unfrozen actual ALT is treated as
-   * a divergence — `frozenMismatch: true` flags it.
-   */
-  async check(
-    addresses: { core: string; warpSpecific: string[] },
-    deployed: ArtifactDeployed<NativeWarpArtifactConfig, DeployedWarpAddress>,
-  ): Promise<{
-    core: BucketDiff;
-    warpSpecific: BucketDiff;
-  }> {
-    const actual = await this.read(addresses);
-    const expected = await this.computeExpectedAltAddresses(deployed);
-
-    return {
-      core: diffBucket(
-        actual.core.config.addresses,
-        expected.core,
-        actual.core.config.frozen,
-      ),
-      warpSpecific: diffBucket(
-        actual.warpSpecific.flatMap((a) => a.config.addresses),
-        expected.warpSpecific,
-        actual.warpSpecific.every((a) => a.config.frozen),
-      ),
-    };
-  }
-
-  /**
-   * Computes the expected core + warp-specific address lists for the
-   * given expanded warp config. Shared by the writer's `create` (to
-   * emit the ALTs) and this reader's `check` (to diff against what's
-   * on chain), keeping the two code paths in lockstep.
-   */
-  protected async computeExpectedAltAddresses(
-    deployed: ArtifactDeployed<NativeWarpArtifactConfig, DeployedWarpAddress>,
-  ): Promise<{ core: Address[]; warpSpecific: Address[] }> {
-    const mailbox = parseAddress(deployed.config.mailbox);
-    const hook = deployed.config.hook;
-    assert(
-      isNullish(hook) || isArtifactDeployed(hook),
-      'Expected hook artifact to be expanded (DEPLOYED) or not set',
-    );
-    const igpContext =
-      hook?.config.type === HookType.INTERCHAIN_GAS_PAYMASTER
-        ? {
-            programId: parseAddress(hook.deployed.address),
-            igpSalt: DEFAULT_IGP_SALT,
-            includeOverheadIgp: Object.keys(hook.config.overhead).length > 0,
-          }
-        : undefined;
-
-    return {
-      core: await deriveCoreDeploymentAltAddresses(mailbox, igpContext),
-      warpSpecific: await this.deriveWarpRouteAddresses(deployed),
-    };
-  }
 }
 
 /**
@@ -233,20 +141,7 @@ export class SvmNativeTokenAltWriter
     warpSpecific: Address[];
     receipts: SvmReceipt[];
   }> {
-    const { core, warpSpecific } =
-      await this.computeExpectedAltAddresses(deployed);
-
-    const [coreAlt, coreReceipts] = await this.altWriter.create({
-      config: { frozen: true, addresses: nonEmptyArray(core) },
-    });
-    const [warpAlt, warpReceipts] = await this.altWriter.create({
-      config: { frozen: true, addresses: nonEmptyArray(warpSpecific) },
-    });
-
-    return {
-      core: coreAlt.deployed.address,
-      warpSpecific: [warpAlt.deployed.address],
-      receipts: [...coreReceipts, ...warpReceipts],
-    };
+    const addresses = await this.computeExpectedAltAddresses(deployed);
+    return createWarpAltsImpl(this.altWriter, addresses);
   }
 }
