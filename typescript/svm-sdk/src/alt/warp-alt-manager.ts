@@ -1,5 +1,3 @@
-import type { Address } from '@solana/kit';
-
 import type { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk';
 import type { ArtifactDeployed } from '@hyperlane-xyz/provider-sdk/artifact';
 import type {
@@ -93,7 +91,7 @@ export function createWarpAltManager(
 export class SvmWarpAltReader {
   constructor(private readonly altReader: SvmAddressLookupTableReader) {}
 
-  async read(addresses: { core: Address; warpSpecific: Address[] }): Promise<{
+  async read(addresses: { core: string; warpSpecific: string[] }): Promise<{
     core: ArtifactDeployed<SvmAltConfig, SvmDeployedAlt>;
     warpSpecific: ArtifactDeployed<SvmAltConfig, SvmDeployedAlt>[];
   }> {
