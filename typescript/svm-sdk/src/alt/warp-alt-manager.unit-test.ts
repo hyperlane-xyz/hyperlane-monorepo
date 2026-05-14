@@ -16,10 +16,22 @@ import {
   SvmAddressLookupTableReader,
   SvmAddressLookupTableWriter,
 } from './address-lookup-table.js';
-import { SvmCollateralTokenAltWriter } from './collateral-token-alt-writer.js';
-import { SvmCrossCollateralTokenAltWriter } from './cross-collateral-token-alt-writer.js';
-import { SvmNativeTokenAltWriter } from './native-token-alt-writer.js';
-import { SvmSyntheticTokenAltWriter } from './synthetic-token-alt-writer.js';
+import {
+  SvmCollateralTokenAltReader,
+  SvmCollateralTokenAltWriter,
+} from './collateral-token-alt-writer.js';
+import {
+  SvmCrossCollateralTokenAltReader,
+  SvmCrossCollateralTokenAltWriter,
+} from './cross-collateral-token-alt-writer.js';
+import {
+  SvmNativeTokenAltReader,
+  SvmNativeTokenAltWriter,
+} from './native-token-alt-writer.js';
+import {
+  SvmSyntheticTokenAltReader,
+  SvmSyntheticTokenAltWriter,
+} from './synthetic-token-alt-writer.js';
 import {
   SvmWarpAltManager,
   SvmWarpAltReader,
@@ -104,6 +116,18 @@ describe('createWarpAltManager', () => {
   });
 });
 
+function newReader(): SvmWarpAltReader {
+  const altReader = sinon.createStubInstance(SvmAddressLookupTableReader);
+  const rpc = new Proxy({} as object, {
+    get(_target, prop) {
+      throw new Error(
+        `SvmRpc method "${String(prop)}" must not be called from this test`,
+      );
+    },
+  }) as SvmRpc;
+  return new SvmWarpAltReader(CHAIN_NAME, rpc, altReader);
+}
+
 describe('SvmWarpAltReader.read', () => {
   const CORE: Address = address('CoreA1t111111111111111111111111111111111111');
   const WARP_A: Address = address(
@@ -122,7 +146,14 @@ describe('SvmWarpAltReader.read', () => {
     altReader.read.withArgs(WARP_A).resolves(warpA);
     altReader.read.withArgs(WARP_B).resolves(warpB);
 
-    const reader = new SvmWarpAltReader(altReader);
+    const rpc = new Proxy({} as object, {
+      get(_t, prop) {
+        throw new Error(
+          `SvmRpc method "${String(prop)}" must not be called from this test`,
+        );
+      },
+    }) as SvmRpc;
+    const reader = new SvmWarpAltReader(CHAIN_NAME, rpc, altReader);
     const result = await reader.read({
       core: CORE,
       warpSpecific: [WARP_A, WARP_B],
@@ -131,6 +162,32 @@ describe('SvmWarpAltReader.read', () => {
     expect(altReader.read.callCount).to.equal(3);
     expect(result.core).to.equal(coreArtifact);
     expect(result.warpSpecific).to.deep.equal([warpA, warpB]);
+  });
+});
+
+describe('SvmWarpAltReader.createReader', () => {
+  it('returns SvmNativeTokenAltReader for warp type "native"', () => {
+    expect(newReader().createReader('native')).to.be.instanceOf(
+      SvmNativeTokenAltReader,
+    );
+  });
+
+  it('returns SvmCollateralTokenAltReader for warp type "collateral"', () => {
+    expect(newReader().createReader('collateral')).to.be.instanceOf(
+      SvmCollateralTokenAltReader,
+    );
+  });
+
+  it('returns SvmSyntheticTokenAltReader for warp type "synthetic"', () => {
+    expect(newReader().createReader('synthetic')).to.be.instanceOf(
+      SvmSyntheticTokenAltReader,
+    );
+  });
+
+  it('returns SvmCrossCollateralTokenAltReader for warp type "crossCollateral"', () => {
+    expect(newReader().createReader('crossCollateral')).to.be.instanceOf(
+      SvmCrossCollateralTokenAltReader,
+    );
   });
 });
 
