@@ -94,15 +94,25 @@ describe('hyperlane warp read (Aleo E2E tests)', async function () {
       [TEST_CHAIN_NAMES_BY_PROTOCOL.aleo.CHAIN_NAME_1]: chain1CoreAddress,
       [TEST_CHAIN_NAMES_BY_PROTOCOL.aleo.CHAIN_NAME_2]: chain2CoreAddress,
     };
+  });
 
-    // Deploy the native warp route once. Native tokens always use the fixed program name
-    // "credits" (ignoring ALEO_WARP_SUFFIX), so deploying once and sharing across all
-    // read tests avoids repeated re-initialization failures.
+  beforeEach(async () => {
+    // Generate unique short suffix for each test to avoid program name collisions.
+    // Native tokens use a fixed program name (no suffix) and can only be initialized once,
+    // so read tests use synthetic tokens to get a fresh program per beforeEach call.
+    // (The global beforeEach in e2e-test.setup.ts wipes deployments/warp_routes before each
+    // test, so we must redeploy here rather than once in before.)
+    const uniqueSuffix = Math.random().toString(36).substring(2, 8);
+    process.env.ALEO_WARP_SUFFIX = uniqueSuffix;
+
     warpDeployConfig = {
       [TEST_CHAIN_NAMES_BY_PROTOCOL.aleo.CHAIN_NAME_1]: {
-        type: TokenType.native,
+        type: TokenType.synthetic,
         mailbox: chain1CoreAddress.mailbox,
         owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.aleo,
+        name: nativeTokenData.name,
+        symbol: nativeTokenData.symbol,
+        decimals: nativeTokenData.decimals,
       },
       [TEST_CHAIN_NAMES_BY_PROTOCOL.aleo.CHAIN_NAME_2]: {
         type: TokenType.synthetic,
