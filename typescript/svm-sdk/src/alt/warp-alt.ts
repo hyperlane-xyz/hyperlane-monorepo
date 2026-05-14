@@ -1,13 +1,20 @@
 import { type Address, address as parseAddress } from '@solana/kit';
 
-import { type ArtifactDeployed } from '@hyperlane-xyz/provider-sdk/artifact';
+import { HookType } from '@hyperlane-xyz/provider-sdk/altvm';
+import {
+  type ArtifactDeployed,
+  isArtifactDeployed,
+} from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type FeeArtifactConfig,
   type FeeReadContext,
   FeeType,
 } from '@hyperlane-xyz/provider-sdk/fee';
-import type { DeployedWarpAddress } from '@hyperlane-xyz/provider-sdk/warp';
-import { strip0x } from '@hyperlane-xyz/utils';
+import type {
+  DeployedWarpAddress,
+  WarpArtifactConfig,
+} from '@hyperlane-xyz/provider-sdk/warp';
+import { assert, isNullish, strip0x } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_ROUTER } from '../codecs/fee.js';
 import { WILDCARD_DOMAIN, WILDCARD_SENDER } from '../codecs/igp.js';
@@ -16,6 +23,7 @@ import {
   SPL_TOKEN_PROGRAM_ADDRESS,
   SYSTEM_PROGRAM_ADDRESS,
 } from '../constants.js';
+import { DEFAULT_IGP_SALT } from '../hook/igp-hook.js';
 import { H256_ZERO } from '../instructions/fee.js';
 import {
   deriveCrossCollateralRoutePda,
@@ -30,7 +38,13 @@ import {
 } from '../pda.js';
 import type { SvmReceipt } from '../types.js';
 
-import type { SvmAltConfig, SvmDeployedAlt } from './address-lookup-table.js';
+import {
+  type SvmAddressLookupTableReader,
+  type SvmAddressLookupTableWriter,
+  type SvmAltConfig,
+  type SvmDeployedAlt,
+  nonEmptyArray,
+} from './address-lookup-table.js';
 
 export interface SvmCoreDeploymentAltIgpContext {
   programId: Address;
@@ -372,4 +386,109 @@ export interface SvmTokenAltWriter<C> extends SvmTokenAltReader<C> {
     warpSpecific: Address[];
     receipts: SvmReceipt[];
   }>;
+}
+
+/**
+ * Shared base for per-token-type SVM warp ALT readers. Owns the
+ * `read` pass-through, the `check` set-diff against expected addresses,
+ * and the `computeExpectedAltAddresses` glue (mailbox + IGP cascade
+ * + per-token warp-specific bucket). Concrete subclasses implement
+ * only `deriveWarpRouteAddresses` — the warp-specific address set
+ * each token type contributes to the ALT.
+ */
+export abstract class SvmTokenAltReaderBase<
+  C extends WarpArtifactConfig,
+> implements SvmTokenAltReader<C> {
+  constructor(
+    protected readonly chainName: string,
+    protected readonly altReader: SvmAddressLookupTableReader,
+  ) {}
+
+  abstract deriveWarpRouteAddresses(
+    deployed: ArtifactDeployed<C, DeployedWarpAddress>,
+  ): Promise<Address[]>;
+
+  async read(addresses: { core: string; warpSpecific: string[] }): Promise<{
+    core: ArtifactDeployed<SvmAltConfig, SvmDeployedAlt>;
+    warpSpecific: ArtifactDeployed<SvmAltConfig, SvmDeployedAlt>[];
+  }> {
+    const core = await this.altReader.read(addresses.core);
+    const warpSpecific = await Promise.all(
+      addresses.warpSpecific.map((addr) => this.altReader.read(addr)),
+    );
+    return { core, warpSpecific };
+  }
+
+  async check(
+    addresses: { core: string; warpSpecific: string[] },
+    deployed: ArtifactDeployed<C, DeployedWarpAddress>,
+  ): Promise<{ core: BucketDiff; warpSpecific: BucketDiff }> {
+    const actual = await this.read(addresses);
+    const expected = await this.computeExpectedAltAddresses(deployed);
+
+    return {
+      core: diffBucket(
+        actual.core.config.addresses,
+        expected.core,
+        actual.core.config.frozen,
+      ),
+      warpSpecific: diffBucket(
+        actual.warpSpecific.flatMap((a) => a.config.addresses),
+        expected.warpSpecific,
+        actual.warpSpecific.every((a) => a.config.frozen),
+      ),
+    };
+  }
+
+  protected async computeExpectedAltAddresses(
+    deployed: ArtifactDeployed<C, DeployedWarpAddress>,
+  ): Promise<{ core: Address[]; warpSpecific: Address[] }> {
+    const mailbox = parseAddress(deployed.config.mailbox);
+    const hook = deployed.config.hook;
+    assert(
+      isNullish(hook) || isArtifactDeployed(hook),
+      'Expected hook artifact to be expanded (DEPLOYED) or not set',
+    );
+    const igpContext =
+      hook?.config.type === HookType.INTERCHAIN_GAS_PAYMASTER
+        ? {
+            programId: parseAddress(hook.deployed.address),
+            igpSalt: DEFAULT_IGP_SALT,
+            includeOverheadIgp: Object.keys(hook.config.overhead).length > 0,
+          }
+        : undefined;
+
+    return {
+      core: await deriveCoreDeploymentAltAddresses(mailbox, igpContext),
+      warpSpecific: await this.deriveWarpRouteAddresses(deployed),
+    };
+  }
+}
+
+/**
+ * Shared `create` body for per-token-type writers — emits the two
+ * frozen ALTs (core + warp-specific) and returns the typed bundle.
+ * Each writer's `create` reduces to: compute expected addresses, then
+ * delegate here.
+ */
+export async function createWarpAltsImpl(
+  altWriter: SvmAddressLookupTableWriter,
+  { core, warpSpecific }: { core: Address[]; warpSpecific: Address[] },
+): Promise<{
+  core: Address;
+  warpSpecific: Address[];
+  receipts: SvmReceipt[];
+}> {
+  const [coreAlt, coreReceipts] = await altWriter.create({
+    config: { frozen: true, addresses: nonEmptyArray(core) },
+  });
+  const [warpAlt, warpReceipts] = await altWriter.create({
+    config: { frozen: true, addresses: nonEmptyArray(warpSpecific) },
+  });
+
+  return {
+    core: coreAlt.deployed.address,
+    warpSpecific: [warpAlt.deployed.address],
+    receipts: [...coreReceipts, ...warpReceipts],
+  };
 }
