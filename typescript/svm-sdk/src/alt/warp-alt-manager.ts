@@ -16,11 +16,23 @@ import {
   type SvmAltConfig,
   type SvmDeployedAlt,
 } from './address-lookup-table.js';
-import { SvmCollateralTokenAltWriter } from './collateral-token-alt-writer.js';
-import { SvmCrossCollateralTokenAltWriter } from './cross-collateral-token-alt-writer.js';
-import { SvmNativeTokenAltWriter } from './native-token-alt-writer.js';
-import { SvmSyntheticTokenAltWriter } from './synthetic-token-alt-writer.js';
-import type { SvmTokenAltWriter } from './warp-alt.js';
+import {
+  SvmCollateralTokenAltReader,
+  SvmCollateralTokenAltWriter,
+} from './collateral-token-alt-writer.js';
+import {
+  SvmCrossCollateralTokenAltReader,
+  SvmCrossCollateralTokenAltWriter,
+} from './cross-collateral-token-alt-writer.js';
+import {
+  SvmNativeTokenAltReader,
+  SvmNativeTokenAltWriter,
+} from './native-token-alt-writer.js';
+import {
+  SvmSyntheticTokenAltReader,
+  SvmSyntheticTokenAltWriter,
+} from './synthetic-token-alt-writer.js';
+import type { SvmTokenAltReader, SvmTokenAltWriter } from './warp-alt.js';
 
 /**
  * Dispatches to the correct per-token-type ALT writer based on the
@@ -83,13 +95,19 @@ export function createWarpAltManager(
 }
 
 /**
- * Read-only counterpart to `SvmWarpAltManager`. Exposes just the
- * `read` surface so consumers that only need to inspect on-chain ALT
- * contents (e.g. `warp alt read` in the CLI) don't have to supply a
- * signer.
+ * Read-only counterpart to `SvmWarpAltManager`. Exposes raw ALT
+ * reads (`read`) for consumers that only need to inspect on-chain ALT
+ * contents (e.g. `warp alt read` in the CLI), plus
+ * `createReader(type)` which dispatches to the per-token-type ALT
+ * reader for `derive` / typed `read` / `check` flows without
+ * requiring a signer.
  */
 export class SvmWarpAltReader {
-  constructor(private readonly altReader: SvmAddressLookupTableReader) {}
+  constructor(
+    private readonly chainName: string,
+    private readonly rpc: SvmRpc,
+    private readonly altReader: SvmAddressLookupTableReader,
+  ) {}
 
   async read(addresses: { core: string; warpSpecific: string[] }): Promise<{
     core: ArtifactDeployed<SvmAltConfig, SvmDeployedAlt>;
@@ -100,6 +118,32 @@ export class SvmWarpAltReader {
       addresses.warpSpecific.map((addr) => this.altReader.read(addr)),
     );
     return { core, warpSpecific };
+  }
+
+  createReader<T extends WarpType>(
+    type: T,
+  ): SvmTokenAltReader<WarpArtifactConfigs[T]> {
+    const readers: {
+      [K in WarpType]: () => SvmTokenAltReader<WarpArtifactConfigs[K]>;
+    } = {
+      native: () => new SvmNativeTokenAltReader(this.chainName, this.altReader),
+      collateral: () =>
+        new SvmCollateralTokenAltReader(
+          this.chainName,
+          this.rpc,
+          this.altReader,
+        ),
+      synthetic: () =>
+        new SvmSyntheticTokenAltReader(this.chainName, this.altReader),
+      crossCollateral: () =>
+        new SvmCrossCollateralTokenAltReader(
+          this.chainName,
+          this.rpc,
+          this.altReader,
+        ),
+    };
+
+    return readers[type]();
   }
 }
 
@@ -115,5 +159,9 @@ export function createWarpAltReader(
     'At least one RPC URL is required',
   );
   const rpc = createRpc(chainMetadata.rpcUrls[0].http);
-  return new SvmWarpAltReader(new SvmAddressLookupTableReader(rpc));
+  return new SvmWarpAltReader(
+    chainMetadata.name,
+    rpc,
+    new SvmAddressLookupTableReader(rpc),
+  );
 }
