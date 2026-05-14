@@ -72,6 +72,7 @@ const SUPPORTED_PROTOCOLS = new Set<ProtocolType>([
   ProtocolType.CosmosNative,
   ProtocolType.Starknet,
   ProtocolType.Radix,
+  ProtocolType.Aleo,
 ]);
 
 const EXPLORER_GRAPHQL_URL =
@@ -684,6 +685,14 @@ async function executeDelivery({
     // Same-chain transfers don't dispatch an interchain message.
     if (origin === destination) {
       logGreen(`Same-chain transfer on ${origin} completed.`);
+      return;
+    }
+    // Aleo receipt parsing is not yet implemented; message was dispatched on-chain
+    // but the message ID cannot be extracted. Skip post-send polling.
+    if (originProtocol === ProtocolType.Aleo) {
+      logGreen(
+        `Transfer from ${origin} to ${destination} dispatched. Message ID extraction from Aleo receipts is not yet supported; skipping delivery confirmation.`,
+      );
       return;
     }
     throw new Error('No dispatched message found in transfer receipt');
