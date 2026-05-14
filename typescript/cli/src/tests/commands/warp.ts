@@ -203,6 +203,49 @@ export class HyperlaneE2EWarpTestCommands {
     });
   }
 
+  /**
+   * Creates the SVM Address Lookup Tables for a warp route and persists
+   * them to the registry. Wraps `hyperlane warp alt create`.
+   */
+  public altCreate(
+    privateKey: string,
+    warpRouteId: string,
+    chain?: string,
+  ): ProcessPromise {
+    return $`${localTestRunCmdPrefix()} hyperlane warp alt create \
+          --registry ${this.registryPath} \
+          --warp-route-id ${warpRouteId} \
+          ${chain ? ['--chain', chain] : []} \
+          ${this.privateKeyFlag} ${privateKey} \
+          --verbosity debug \
+          --yes`;
+  }
+
+  /**
+   * Reads the on-chain contents of the SVM Address Lookup Tables
+   * registered for a warp route. Wraps `hyperlane warp alt read`.
+   */
+  public altRead(warpRouteId: string, chain?: string): ProcessPromise {
+    return $`${localTestRunCmdPrefix()} hyperlane warp alt read \
+          --registry ${this.registryPath} \
+          --warp-route-id ${warpRouteId} \
+          ${chain ? ['--chain', chain] : []} \
+          --verbosity debug`;
+  }
+
+  /**
+   * Diffs the on-chain SVM Address Lookup Tables registered for a warp
+   * route against what the SDK would regenerate. Wraps
+   * `hyperlane warp alt check`.
+   */
+  public altCheck(warpRouteId: string, chain?: string): ProcessPromise {
+    return $`${localTestRunCmdPrefix()} hyperlane warp alt check \
+          --registry ${this.registryPath} \
+          --warp-route-id ${warpRouteId} \
+          ${chain ? ['--chain', chain] : []} \
+          --verbosity debug`;
+  }
+
   public sendRaw({
     origin,
     destination,
