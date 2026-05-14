@@ -157,6 +157,9 @@ export enum WarpRouteIds {
   USDTOft = 'USDT/oft',
   USDTOftLegacy = 'USDT/oft-legacy',
 
+  // NEX routes
+  BscNEX = 'NEX/bsc',
+
   // RISE routes
   BscEthereumRISE = 'RISE/bsc-ethereum',
 

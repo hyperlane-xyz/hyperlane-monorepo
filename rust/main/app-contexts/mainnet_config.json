@@ -43321,6 +43321,31 @@
       ]
     },
     {
+      "name": "NEX/bsc",
+      "matchingList": [
+        {
+          "originDomain": 56,
+          "senderAddress": [
+            "0x000000000000000000000000365de036a1f7dccb621530d517133521debb2013"
+          ],
+          "destinationDomain": 1,
+          "recipientAddress": [
+            "0x000000000000000000000000b71183f48f7f7789d40551149be28a51f9a97f9a"
+          ]
+        },
+        {
+          "originDomain": 1,
+          "senderAddress": [
+            "0x000000000000000000000000b71183f48f7f7789d40551149be28a51f9a97f9a"
+          ],
+          "destinationDomain": 56,
+          "recipientAddress": [
+            "0x000000000000000000000000365de036a1f7dccb621530d517133521debb2013"
+          ]
+        }
+      ]
+    },
+    {
       "name": "RISE/bsc-ethereum",
       "matchingList": [
         {
