@@ -31,6 +31,7 @@ import {
 } from './address-lookup-table.js';
 import {
   type BucketDiff,
+  type SvmTokenAltWriter,
   deriveCoreDeploymentAltAddresses,
   deriveFeeQuoteCascadeAltAddresses,
   deriveIgpQuoteCascadeAltAddresses,
@@ -50,7 +51,7 @@ import {
  * Per-destination IGP cascade PDAs are added by the follow-up commit;
  * create/read/check wrappers land alongside.
  */
-export class SvmNativeTokenAltWriter {
+export class SvmNativeTokenAltWriter implements SvmTokenAltWriter<NativeWarpArtifactConfig> {
   constructor(
     protected readonly chainName: string,
     protected readonly altWriter: SvmAddressLookupTableWriter,
