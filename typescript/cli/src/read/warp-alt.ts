@@ -2,6 +2,7 @@ import { createWarpAltReader } from '@hyperlane-xyz/sealevel-sdk';
 import { type ChainName, altVmChainLookup } from '@hyperlane-xyz/sdk';
 import {
   ProtocolType,
+  assert,
   objFilter,
   objMap,
   promiseObjAll,
@@ -38,6 +39,10 @@ export async function runWarpAltRead({
     }
     return true;
   });
+
+  if (chain) {
+    assert(filtered[chain], `No ALT addresses registered for chain "${chain}"`);
+  }
 
   return promiseObjAll(
     objMap(filtered, async (chainName, addresses) => {
