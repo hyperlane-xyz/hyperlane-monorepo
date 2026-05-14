@@ -138,7 +138,7 @@ export class SvmSyntheticTokenAltReader implements SvmTokenAltReader<SyntheticWa
     return [...new Set(out.map(parseAddress))].sort();
   }
 
-  async read(addresses: { core: Address; warpSpecific: Address[] }): Promise<{
+  async read(addresses: { core: string; warpSpecific: string[] }): Promise<{
     core: ArtifactDeployed<SvmAltConfig, SvmDeployedAlt>;
     warpSpecific: ArtifactDeployed<SvmAltConfig, SvmDeployedAlt>[];
   }> {
@@ -150,7 +150,7 @@ export class SvmSyntheticTokenAltReader implements SvmTokenAltReader<SyntheticWa
   }
 
   async check(
-    addresses: { core: Address; warpSpecific: Address[] },
+    addresses: { core: string; warpSpecific: string[] },
     deployed: ArtifactDeployed<
       SyntheticWarpArtifactConfig,
       DeployedWarpAddress
