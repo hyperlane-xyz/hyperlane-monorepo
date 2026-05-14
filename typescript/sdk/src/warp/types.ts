@@ -1,10 +1,16 @@
 import { z } from 'zod';
 
+import { isValidAddressSealevel } from '@hyperlane-xyz/utils';
+
 import { ZChainName } from '../metadata/customZodTypes.js';
 import type { TypedTransaction } from '../providers/ProviderType.js';
 import { TokenConfigSchema } from '../token/IToken.js';
 import type { TokenAmount } from '../token/TokenAmount.js';
 import type { ChainName } from '../types.js';
+
+const ZSealevelAddress = z.string().refine(isValidAddressSealevel, {
+  message: 'Must be a valid Sealevel address (base58-encoded 32-byte pubkey)',
+});
 
 /**
  * Configuration used for instantiating a WarpCore
@@ -39,8 +45,8 @@ export const WarpCoreConfigSchema = z.object({
             .record(
               ZChainName,
               z.object({
-                core: z.string().min(1),
-                warpSpecific: z.array(z.string().min(1)).min(1),
+                core: ZSealevelAddress,
+                warpSpecific: z.array(ZSealevelAddress).min(1),
               }),
             )
             .optional()
