@@ -34,6 +34,7 @@ import {
   deriveCoreDeploymentAltAddresses,
   deriveFeeQuoteCascadeAltAddresses,
   deriveIgpQuoteCascadeAltAddresses,
+  diffBucket,
 } from './warp-alt.js';
 
 const MAILBOX: Address = address(
@@ -540,5 +541,35 @@ describe('deriveIgpQuoteCascadeAltAddresses', () => {
     // sender-A's per-D10 + per-sender-wildcard differ from sender-B's
     expect(aOnly).to.have.lengthOf(2);
     expect(bOnly).to.have.lengthOf(2);
+  });
+});
+
+describe('diffBucket', () => {
+  const A: Address = address('Aaaa111111111111111111111111111111111111111');
+  const B: Address = address('Bbbb111111111111111111111111111111111111111');
+  const C: Address = address('Cccc111111111111111111111111111111111111111');
+
+  it('returns empty diffs and no frozen mismatch when sets match and frozen', () => {
+    const diff = diffBucket([A, B], [A, B], true);
+    expect(diff.missingFromAlt).to.deep.equal([]);
+    expect(diff.extraInAlt).to.deep.equal([]);
+    expect(diff.frozenMismatch).to.equal(false);
+  });
+
+  it('flags missing addresses that are expected but not in actual', () => {
+    const diff = diffBucket([A], [A, B], true);
+    expect(diff.missingFromAlt).to.deep.equal([B]);
+    expect(diff.extraInAlt).to.deep.equal([]);
+  });
+
+  it('flags extra addresses that are in actual but not expected', () => {
+    const diff = diffBucket([A, C], [A], true);
+    expect(diff.missingFromAlt).to.deep.equal([]);
+    expect(diff.extraInAlt).to.deep.equal([C]);
+  });
+
+  it('flags frozenMismatch when frozen=false', () => {
+    const diff = diffBucket([A], [A], false);
+    expect(diff.frozenMismatch).to.equal(true);
   });
 });

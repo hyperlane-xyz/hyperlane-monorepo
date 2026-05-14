@@ -367,3 +367,161 @@ describe('SvmNativeTokenAltWriter.create', () => {
     expect(result.receipts).to.have.lengthOf(3);
   });
 });
+
+function frozenAltAt(
+  altAddress: Address,
+  addresses: Address[],
+): ArtifactDeployed<
+  { frozen: true; addresses: readonly [Address, ...Address[]] },
+  { address: Address; authority: null; lastExtendedSlot: bigint }
+> {
+  return {
+    artifactState: ArtifactState.DEPLOYED,
+    config: {
+      frozen: true,
+      addresses: [addresses[0]!, ...addresses.slice(1)],
+    },
+    deployed: { address: altAddress, authority: null, lastExtendedSlot: 0n },
+  };
+}
+
+describe('SvmNativeTokenAltWriter.read', () => {
+  it('reads the core ALT and every warp-specific ALT through the injected altWriter', async () => {
+    const altWriter = stubAltWriter();
+    const coreAlt = frozenAltAt(CORE_ALT_ADDRESS, [SYSTEM_PROGRAM_ADDRESS]);
+    const warpAlt = frozenAltAt(WARP_ALT_ADDRESS, [WARP_PROGRAM]);
+    altWriter.read.withArgs(CORE_ALT_ADDRESS).resolves(coreAlt);
+    altWriter.read.withArgs(WARP_ALT_ADDRESS).resolves(warpAlt);
+
+    const writer = new SvmNativeTokenAltWriter(CHAIN_NAME, altWriter);
+    const result = await writer.read({
+      core: CORE_ALT_ADDRESS,
+      warpSpecific: [WARP_ALT_ADDRESS],
+    });
+
+    expect(result.core).to.equal(coreAlt);
+    expect(result.warpSpecific).to.deep.equal([warpAlt]);
+  });
+});
+
+describe('SvmNativeTokenAltWriter.check', () => {
+  async function expectedAddressesFor(
+    deployed: ArtifactDeployed<NativeWarpArtifactConfig, DeployedWarpAddress>,
+  ): Promise<{ core: Address[]; warpSpecific: Address[] }> {
+    // Use a stub writer just to surface the private computeExpectedAltAddresses
+    // by piggybacking on `create`. The simulated altWriter records what was
+    // passed and never makes real calls, so this is safe inside a unit test.
+    const altWriter = stubAltWriter();
+    altWriter.create.resolves([
+      frozenAltAt(CORE_ALT_ADDRESS, [SYSTEM_PROGRAM_ADDRESS]),
+      [],
+    ]);
+    const writer = new SvmNativeTokenAltWriter(CHAIN_NAME, altWriter);
+    await writer.create(deployed);
+    return {
+      core: [...altWriter.create.firstCall.args[0].config.addresses],
+      warpSpecific: [...altWriter.create.secondCall.args[0].config.addresses],
+    };
+  }
+
+  it('returns empty diffs when on-chain ALTs match the regenerated expected set', async () => {
+    const deployed = deployedNative({
+      fee: deployedLinearFee(),
+      hook: deployedIgpHook(),
+      remoteRouters: { 10: { address: REMOTE_ROUTER_HEX } },
+    });
+    const expected = await expectedAddressesFor(deployed);
+
+    const altWriter = stubAltWriter();
+    altWriter.read
+      .withArgs(CORE_ALT_ADDRESS)
+      .resolves(frozenAltAt(CORE_ALT_ADDRESS, expected.core));
+    altWriter.read
+      .withArgs(WARP_ALT_ADDRESS)
+      .resolves(frozenAltAt(WARP_ALT_ADDRESS, expected.warpSpecific));
+    const writer = new SvmNativeTokenAltWriter(CHAIN_NAME, altWriter);
+
+    const diff = await writer.check(
+      { core: CORE_ALT_ADDRESS, warpSpecific: [WARP_ALT_ADDRESS] },
+      deployed,
+    );
+
+    expect(diff.core).to.deep.equal({
+      missingFromAlt: [],
+      extraInAlt: [],
+      frozenMismatch: false,
+    });
+    expect(diff.warpSpecific).to.deep.equal({
+      missingFromAlt: [],
+      extraInAlt: [],
+      frozenMismatch: false,
+    });
+  });
+
+  it('reports missing and extra addresses per bucket', async () => {
+    const deployed = deployedNative({
+      fee: deployedLinearFee(),
+      hook: deployedIgpHook(),
+      remoteRouters: { 10: { address: REMOTE_ROUTER_HEX } },
+    });
+    const expected = await expectedAddressesFor(deployed);
+
+    // Drop the first expected core entry to create a "missing", and
+    // inject a junk address that isn't expected to create an "extra".
+    const junk: Address = address(
+      'Junk111111111111111111111111111111111111111',
+    );
+    const actualCore = [...expected.core.slice(1), junk];
+    const actualWarp = [...expected.warpSpecific.slice(1), junk];
+
+    const altWriter = stubAltWriter();
+    altWriter.read
+      .withArgs(CORE_ALT_ADDRESS)
+      .resolves(frozenAltAt(CORE_ALT_ADDRESS, actualCore));
+    altWriter.read
+      .withArgs(WARP_ALT_ADDRESS)
+      .resolves(frozenAltAt(WARP_ALT_ADDRESS, actualWarp));
+    const writer = new SvmNativeTokenAltWriter(CHAIN_NAME, altWriter);
+
+    const diff = await writer.check(
+      { core: CORE_ALT_ADDRESS, warpSpecific: [WARP_ALT_ADDRESS] },
+      deployed,
+    );
+
+    expect(diff.core.missingFromAlt).to.deep.equal([expected.core[0]]);
+    expect(diff.core.extraInAlt).to.deep.equal([junk]);
+    expect(diff.warpSpecific.missingFromAlt).to.deep.equal([
+      expected.warpSpecific[0],
+    ]);
+    expect(diff.warpSpecific.extraInAlt).to.deep.equal([junk]);
+  });
+
+  it('flags frozenMismatch when any on-chain ALT is unfrozen', async () => {
+    const deployed = deployedNative({});
+    const expected = await expectedAddressesFor(deployed);
+
+    const altWriter = stubAltWriter();
+    // Core ALT comes back unfrozen — frozenMismatch should flag it.
+    altWriter.read.withArgs(CORE_ALT_ADDRESS).resolves({
+      artifactState: ArtifactState.DEPLOYED,
+      config: { frozen: false, addresses: expected.core },
+      deployed: {
+        address: CORE_ALT_ADDRESS,
+        authority: WARP_PROGRAM,
+        lastExtendedSlot: 0n,
+      },
+    });
+    altWriter.read
+      .withArgs(WARP_ALT_ADDRESS)
+      .resolves(frozenAltAt(WARP_ALT_ADDRESS, expected.warpSpecific));
+    const writer = new SvmNativeTokenAltWriter(CHAIN_NAME, altWriter);
+
+    const diff = await writer.check(
+      { core: CORE_ALT_ADDRESS, warpSpecific: [WARP_ALT_ADDRESS] },
+      deployed,
+    );
+
+    expect(diff.core.frozenMismatch).to.equal(true);
+    expect(diff.warpSpecific.frozenMismatch).to.equal(false);
+  });
+});
