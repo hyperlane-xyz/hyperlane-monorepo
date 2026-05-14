@@ -11,20 +11,28 @@ import {
 import { expect } from 'chai';
 import { before, describe, it } from 'mocha';
 
-import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
-import { assert, pollAsync } from '@hyperlane-xyz/utils';
+import { HookType } from '@hyperlane-xyz/provider-sdk/altvm';
+import {
+  type ArtifactDeployed,
+  ArtifactState,
+} from '@hyperlane-xyz/provider-sdk/artifact';
+import { assert, pollAsync, toHexString } from '@hyperlane-xyz/utils';
 import {
   FeeParamsType,
   FeeStrategyType,
   FeeType,
 } from '@hyperlane-xyz/provider-sdk/fee';
 import type { IgpHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
-import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
+import {
+  type CrossCollateralWarpArtifactConfig,
+  type DeployedWarpAddress,
+  type NativeWarpArtifactConfig,
+  TokenType,
+} from '@hyperlane-xyz/provider-sdk/warp';
 
-import { SvmAddressLookupTableWriter } from '../alt/address-lookup-table.js';
+import { createWarpAltManager } from '../alt/warp-alt-manager.js';
 import { SvmSigner } from '../clients/signer.js';
 import {
-  SPL_NOOP_PROGRAM_ADDRESS,
   SPL_TOKEN_PROGRAM_ADDRESS,
   SYSTEM_PROGRAM_ADDRESS,
 } from '../constants.js';
@@ -59,18 +67,15 @@ import type { SvmSignedQuote } from '../codecs/fee.js';
 import { readonlyAccount, writableAccount } from '../instructions/utils.js';
 import {
   deriveAssociatedTokenAddress,
-  deriveCrossCollateralStatePda,
   deriveEscrowPda,
   deriveFeeAccountPda,
   deriveFeeTransientQuotePda,
-  deriveHyperlaneTokenPda,
   deriveIgpAccountPda,
   deriveIgpGasPaymentPda,
   deriveIgpProgramDataPda,
   deriveIgpQuoteAuthorityPda,
   deriveIgpTransientQuotePda,
   deriveMailboxDispatchedMessagePda,
-  deriveMailboxOutboxPda,
   deriveNativeCollateralPda,
   deriveOverheadIgpAccountPda,
 } from '../pda.js';
@@ -523,6 +528,7 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
   let igpAccount: Address;
   let overheadIgpAccount: Address;
   let igpProgramData: Address;
+  let igpConfig: IgpHookConfig;
 
   before(async () => {
     rpc = createRpc(TEST_SVM_CHAIN_METADATA.rpcUrl);
@@ -571,8 +577,8 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
     quoteSignerPrivateKey = secp256k1.utils.randomSecretKey();
     const quoteSignerHex = ethAddressHexFromPrivateKey(quoteSignerPrivateKey);
 
-    const igpConfig: IgpHookConfig = {
-      type: 'interchainGasPaymaster',
+    igpConfig = {
+      type: HookType.INTERCHAIN_GAS_PAYMASTER,
       owner: signer.getSignerAddress(),
       beneficiary: signer.getSignerAddress(),
       oracleKey: signer.getSignerAddress(),
@@ -778,40 +784,52 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
       ],
     });
 
-    // ---- ALT: only addresses deterministic from the warp/fee/IGP config ----
-    // See the matching note in the CC test below — the transient PDA at slot
-    // 0 of each cascade is the only per-tx entry, so it stays inline.
-    const deterministicIgpCascade = igpQuote.cascadeQuotePdas
-      .map((m) => m.address)
-      .filter((a) => a !== igpQuote.transientQuotePda);
-    const deterministicFeeCascade = feeQuote.passThroughAccounts
-      .map((m) => m.address)
-      .filter((a) => a !== feeQuote.feeTransientQuotePda);
-
-    const altWriter = new SvmAddressLookupTableWriter(rpc, signer);
-    const [altDeployed] = await altWriter.create({
+    // ---- ALT: drive the per-token-type alt writer through SvmWarpAltManager.
+    // Proves the manager's derived address set is sufficient for an actual
+    // on-chain transfer — if any cascade entry were missing the tx would
+    // fail trying to resolve the dropped account.
+    const expandedNativeWarp: ArtifactDeployed<
+      NativeWarpArtifactConfig,
+      DeployedWarpAddress
+    > = {
+      artifactState: ArtifactState.DEPLOYED,
       config: {
-        frozen: false,
-        addresses: [
-          SYSTEM_PROGRAM_ADDRESS,
-          SPL_NOOP_PROGRAM_ADDRESS,
-          TEST_PROGRAM_IDS.mailbox,
-          (await deriveMailboxOutboxPda(TEST_PROGRAM_IDS.mailbox)).address,
-          (await deriveHyperlaneTokenPda(warpProgramId)).address,
-          igpQuoteAuthority,
-          TEST_PROGRAM_IDS.igp,
-          igpProgramData,
-          igpAccount,
-          overheadIgpAccount,
-          warpProgramId,
-          feeProgramId,
-          feeAccountPda,
-          feeBeneficiary,
-          ...deterministicIgpCascade,
-          ...deterministicFeeCascade,
-        ],
+        type: TokenType.native,
+        owner: signer.getSignerAddress(),
+        mailbox: TEST_PROGRAM_IDS.mailbox,
+        remoteRouters: {
+          [DOMAIN_REMOTE]: { address: toHexString(Buffer.from(REMOTE_ROUTER)) },
+        },
+        destinationGas: { [DOMAIN_REMOTE]: REMOTE_GAS.toString() },
+        fee: {
+          artifactState: ArtifactState.DEPLOYED,
+          config: {
+            type: FeeType.routing,
+            owner: signer.getSignerAddress(),
+            beneficiary: feeBeneficiary,
+            routes: {
+              [DOMAIN_REMOTE]: {
+                type: FeeStrategyType.offchainQuotedLinear,
+                params: rawParams(ROUTE_MAX_FEE_PARAM, ROUTE_HALF_AMOUNT_PARAM),
+                quoteSigners: [feeQuoteSignerHex],
+              },
+            },
+          },
+          deployed: { address: feeProgramId },
+        },
+        hook: {
+          artifactState: ArtifactState.DEPLOYED,
+          config: igpConfig,
+          deployed: { address: TEST_PROGRAM_IDS.igp },
+        },
       },
-    });
+      deployed: { address: warpProgramId },
+    };
+
+    const altManager = createWarpAltManager(TEST_SVM_CHAIN_METADATA, signer);
+    const altResult = await altManager
+      .createWriter(TokenType.native)
+      .create(expandedNativeWarp);
 
     const igpBalanceBefore = BigInt(
       (await rpc.getBalance(igpAccount).send()).value,
@@ -823,14 +841,16 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
         transferRemoteIx,
       ],
       additionalSigners: [uniqueMessageAccount],
-      addressLookupTables: [altDeployed.deployed.address],
+      addressLookupTables: [altResult.core, ...altResult.warpSpecific],
     });
     expect(receipt.signature, 'tx signature').to.be.a('string');
-    await assertTxUsedAlt({
-      rpc,
-      signature: receipt.signature,
-      expectedAltAddress: altDeployed.deployed.address,
-    });
+    for (const altAddress of [altResult.core, ...altResult.warpSpecific]) {
+      await assertTxUsedAlt({
+        rpc,
+        signature: receipt.signature,
+        expectedAltAddress: altAddress,
+      });
+    }
 
     // ---- Common post-conditions ----
     await assertCommonPostConditions({
@@ -1094,47 +1114,60 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
         ],
       });
 
-    // ---- ALT: only addresses deterministic from the warp/fee/IGP config ----
-    // The cascade returned by each sim is `[transient, ...standing/route]`.
-    // The transient PDA depends on the per-tx `scoped_salt` and must stay
-    // inline; the standing / route PDAs only depend on (program, account,
-    // domain, target_router) and are stable across transfers — same shape
-    // a production route ALT would store.
-    const deterministicIgpCascade = igpQuote.cascadeQuotePdas
-      .map((m) => m.address)
-      .filter((a) => a !== igpQuote.transientQuotePda);
-    const deterministicFeeCascade = feeQuote.passThroughAccounts
-      .map((m) => m.address)
-      .filter((a) => a !== feeQuote.feeTransientQuotePda);
-
-    const altWriter = new SvmAddressLookupTableWriter(rpc, signer);
-    const [altDeployed] = await altWriter.create({
+    // ---- ALT: drive the per-token-type alt writer through SvmWarpAltManager.
+    // Same end-to-end proof as the native test, exercising the CC cascade
+    // variant via the warp's CrossCollateralRouting fee config.
+    const expandedCcWarp: ArtifactDeployed<
+      CrossCollateralWarpArtifactConfig,
+      DeployedWarpAddress
+    > = {
+      artifactState: ArtifactState.DEPLOYED,
       config: {
-        frozen: false,
-        addresses: [
-          SYSTEM_PROGRAM_ADDRESS,
-          SPL_NOOP_PROGRAM_ADDRESS,
-          SPL_TOKEN_PROGRAM_ADDRESS,
-          TEST_PROGRAM_IDS.mailbox,
-          (await deriveMailboxOutboxPda(TEST_PROGRAM_IDS.mailbox)).address,
-          (await deriveHyperlaneTokenPda(warpProgramId)).address,
-          (await deriveCrossCollateralStatePda(warpProgramId)).address,
-          igpQuoteAuthority,
-          TEST_PROGRAM_IDS.igp,
-          igpProgramData,
-          igpAccount,
-          overheadIgpAccount,
-          warpProgramId,
-          feeProgramId,
-          feeAccountPda,
-          feeBeneficiaryAta,
-          mint,
-          escrowPda,
-          ...deterministicIgpCascade,
-          ...deterministicFeeCascade,
-        ],
+        type: TokenType.crossCollateral,
+        owner: signer.getSignerAddress(),
+        mailbox: TEST_PROGRAM_IDS.mailbox,
+        token: mint,
+        crossCollateralRouters: {
+          [DOMAIN_REMOTE]: new Set([routerKey]),
+        },
+        remoteRouters: {
+          [DOMAIN_REMOTE]: { address: routerKey },
+        },
+        destinationGas: { [DOMAIN_REMOTE]: REMOTE_GAS.toString() },
+        fee: {
+          artifactState: ArtifactState.DEPLOYED,
+          config: {
+            type: FeeType.crossCollateralRouting,
+            owner: signer.getSignerAddress(),
+            beneficiary: feeBeneficiaryOwner,
+            routes: {
+              [DOMAIN_REMOTE]: {
+                [routerKey]: {
+                  type: FeeStrategyType.offchainQuotedLinear,
+                  params: rawParams(
+                    ROUTE_MAX_FEE_PARAM,
+                    ROUTE_HALF_AMOUNT_PARAM,
+                  ),
+                  quoteSigners: [feeQuoteSignerHex],
+                },
+              },
+            },
+          },
+          deployed: { address: feeProgramId },
+        },
+        hook: {
+          artifactState: ArtifactState.DEPLOYED,
+          config: igpConfig,
+          deployed: { address: TEST_PROGRAM_IDS.igp },
+        },
       },
-    });
+      deployed: { address: warpProgramId },
+    };
+
+    const altManager = createWarpAltManager(TEST_SVM_CHAIN_METADATA, signer);
+    const altResult = await altManager
+      .createWriter(TokenType.crossCollateral)
+      .create(expandedCcWarp);
 
     const igpBalanceBefore = BigInt(
       (await rpc.getBalance(igpAccount).send()).value,
@@ -1146,14 +1179,16 @@ describe('SVM Warp Transfer-Remote With Fees E2E', function () {
         transferRemoteToIx,
       ],
       additionalSigners: [uniqueMessageAccount],
-      addressLookupTables: [altDeployed.deployed.address],
+      addressLookupTables: [altResult.core, ...altResult.warpSpecific],
     });
     expect(receipt.signature, 'tx signature').to.be.a('string');
-    await assertTxUsedAlt({
-      rpc,
-      signature: receipt.signature,
-      expectedAltAddress: altDeployed.deployed.address,
-    });
+    for (const altAddress of [altResult.core, ...altResult.warpSpecific]) {
+      await assertTxUsedAlt({
+        rpc,
+        signature: receipt.signature,
+        expectedAltAddress: altAddress,
+      });
+    }
 
     // ---- Common post-conditions ----
     await assertCommonPostConditions({
