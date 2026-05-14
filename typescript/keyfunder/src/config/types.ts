@@ -6,6 +6,11 @@ const AddressSchema = z
     /^0x[a-fA-F0-9]{40}$/,
     'Must be a valid Ethereum address (0x-prefixed, 40 hex characters)',
   );
+const NonZeroAddressSchema = AddressSchema.refine(
+  (address) =>
+    address.toLowerCase() !== '0x0000000000000000000000000000000000000000',
+  'Must not be the zero address',
+);
 
 // Requires leading digit (e.g., "0.5" not ".5") for YAML readability
 const BalanceStringSchema = z
@@ -75,7 +80,7 @@ export const OpStackBridgeConfigSchema = z
   .object({
     type: z.literal(BridgeType.OpStack),
     parentChain: z.string().min(1),
-    standardBridge: AddressSchema,
+    standardBridge: NonZeroAddressSchema,
     threshold: BalanceStringSchema,
     targetBalance: BalanceStringSchema,
     minGasLimit: z.number().int().nonnegative().default(200_000),

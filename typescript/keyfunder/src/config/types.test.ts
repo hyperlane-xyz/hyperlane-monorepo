@@ -177,6 +177,20 @@ describe('KeyFunderConfig Schemas', () => {
       expect(result.success).to.be.false;
     });
 
+    it('should reject OP Stack zero address bridge', () => {
+      const config = {
+        bridge: {
+          type: BridgeType.OpStack,
+          parentChain: 'ethereum',
+          standardBridge: '0x0000000000000000000000000000000000000000',
+          threshold: '0.2',
+          targetBalance: '1',
+        },
+      };
+      const result = ChainConfigSchema.safeParse(config);
+      expect(result.success).to.be.false;
+    });
+
     it('should reject invalid balance value', () => {
       const config = {
         balances: {

@@ -315,12 +315,17 @@ export class KeyFunder {
   ): OpStackStandardBridge {
     return (
       this.options.opStackStandardBridgeFactory ??
-      ((address: string, contractSigner: Signer) =>
-        new Contract(
+      ((address: string, contractSigner: Signer) => {
+        const contract = new Contract(
           address,
           OP_STACK_STANDARD_BRIDGE_ABI,
           contractSigner,
-        ) as unknown as OpStackStandardBridge)
+        );
+        return {
+          bridgeETHTo: (to, minGasLimit, extraData, overrides) =>
+            contract.bridgeETHTo(to, minGasLimit, extraData, overrides),
+        };
+      })
     )(standardBridge, signer);
   }
 
