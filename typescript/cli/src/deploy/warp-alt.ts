@@ -101,7 +101,7 @@ export async function runWarpAltCreate({
     ...altAddressesByChain,
   };
 
-  await context.registry.addWarpRoute(warpCoreConfig);
+  await context.registry.addWarpRoute(warpCoreConfig, { warpRouteId });
 
   logGreen('✅ Registry updated with new ALT addresses:');
   log(indentYamlOrJson(yamlStringify(warpCoreConfig, null, 2), 4));
