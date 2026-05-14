@@ -9,7 +9,7 @@ Run `hyperlane warp balances` to display the token balance of each leg in a warp
 
 ## Usage
 
-```bash
+```test
 hyperlane warp balances \
   --warp-route-id <SYMBOL/chains> \
   --registry <path-or-url>
@@ -40,7 +40,7 @@ hyperlane warp balances \
 
 2. Run the command:
 
-   ```bash
+   ```test
    hyperlane warp balances --warp-route-id <ID> --registry <REGISTRY>
    ```
 
@@ -48,7 +48,7 @@ hyperlane warp balances \
 
 4. If the user wants to filter to specific chains:
 
-   ```bash
+   ```test
    hyperlane warp balances --warp-route-id <ID> --registry <REGISTRY> --chains ethereum arbitrum
    ```
 
@@ -65,11 +65,11 @@ hyperlane warp balances \
 
 ## Example
 
-```bash
+```test
 hyperlane warp balances --warp-route-id USDC/base-optimism --registry ~/hyperlane-registry
 ```
 
-```
+```test
 Warp route balances:
 
 ┌──────────┬────────┬──────────────────────┬────────────┬────────────────┐

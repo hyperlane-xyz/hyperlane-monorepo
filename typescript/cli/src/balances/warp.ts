@@ -10,6 +10,15 @@ import { logBlue, logGreen, logTable, warnYellow } from '../logger.js';
 import { writeYamlOrJson } from '../utils/files.js';
 import { getWarpCoreConfigOrExit } from '../utils/warp.js';
 
+function formatBigIntBalance(raw: bigint, decimals: number): string {
+  const str = raw.toString().padStart(decimals + 1, '0');
+  const intPart = str.slice(0, str.length - decimals);
+  const fracFull = str.slice(str.length - decimals);
+  const fracTrimmed = fracFull.replace(/0+$/, '');
+  const intFormatted = new Intl.NumberFormat().format(BigInt(intPart));
+  return fracTrimmed ? `${intFormatted}.${fracTrimmed}` : intFormatted;
+}
+
 interface BalanceRow {
   Symbol: string;
   Standard: string;
@@ -65,10 +74,7 @@ export async function runWarpRouteBalances({
 
         const balance =
           balanceRaw !== undefined
-            ? (Number(balanceRaw) / 10 ** token.decimals).toLocaleString(
-                undefined,
-                { maximumFractionDigits: token.decimals },
-              )
+            ? formatBigIntBalance(balanceRaw, token.decimals)
             : 'N/A';
 
         return [
@@ -80,9 +86,9 @@ export async function runWarpRouteBalances({
             Balance: balance,
           },
         ];
-      } catch (e) {
+      } catch (e: unknown) {
         warnYellow(
-          `Could not fetch balance for ${token.symbol} on ${token.chainName}: ${e}`,
+          `Could not fetch balance for ${token.symbol} on ${token.chainName}: ${e instanceof Error ? e.message : String(e)}`,
         );
         return [
           token.chainName,
@@ -97,7 +103,15 @@ export async function runWarpRouteBalances({
     }),
   );
 
-  const tableData = Object.fromEntries(rowEntries);
+  const tableData: Record<string, BalanceRow> = {};
+  for (const [chain, row] of rowEntries) {
+    let key = chain;
+    let i = 2;
+    while (key in tableData) {
+      key = `${chain} (${i++})`;
+    }
+    tableData[key] = row;
+  }
 
   logBlue('\nWarp route balances:');
   logTable(tableData);
