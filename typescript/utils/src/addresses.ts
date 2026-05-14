@@ -691,10 +691,10 @@ export function bytesToProtocolAddress(
   toProtocol: ProtocolType,
   prefix?: string,
 ) {
-  assert(
-    bytes.length && !bytes.every((b) => b == 0),
-    'address bytes must not be empty',
-  );
+  // Formatting only: the inverse `addressToBytes` still rejects empty/all-zero
+  // input so transfer construction stays guarded. Callers that decode stored
+  // data (explorer, CLI display, debug printouts) need this to return the
+  // protocol's zero-address string instead of throwing.
   if (toProtocol === ProtocolType.Ethereum) {
     return bytesToAddressEvm(bytes);
   } else if (toProtocol === ProtocolType.Sealevel) {

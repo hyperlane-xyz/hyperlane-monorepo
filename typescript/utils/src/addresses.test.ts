@@ -107,13 +107,17 @@ describe('Address utilities', () => {
         ),
       ).to.equal(STARKNET_NON_ZERO_ADDR);
     });
-    it('Rejects zeroish addresses', () => {
-      expect(() =>
-        bytesToProtocolAddress(
-          new Uint8Array([0, 0, 0]),
-          ProtocolType.Ethereum,
-        ),
-      ).to.throw(Error);
+    it('Decodes all-zero bytes to the protocol zero address', () => {
+      // Scraper / on-chain data sometimes carries zero-byte addresses (e.g.
+      // unset destination_tx_sender). The decoder must format them rather
+      // than throw, leaving zero-address rejection to the transfer
+      // construction path (`addressToBytes`).
+      expect(
+        bytesToProtocolAddress(new Uint8Array(20), ProtocolType.Ethereum),
+      ).to.equal('0x0000000000000000000000000000000000000000');
+      expect(
+        bytesToProtocolAddress(new Uint8Array(32), ProtocolType.Starknet),
+      ).to.equal(STARKNET_ZERO_ADDR);
     });
   });
 
