@@ -55,6 +55,7 @@ const check: CommandModuleWithContext<{
 const create: CommandModuleWithWriteContext<{
   warpRouteId: string;
   chain?: string;
+  force: boolean;
 }> = {
   command: 'create',
   describe:
@@ -62,10 +63,16 @@ const create: CommandModuleWithWriteContext<{
   builder: {
     'warp-route-id': { ...warpRouteIdCommandOption, demandOption: true },
     chain: { ...chainCommandOption, demandOption: false },
+    force: {
+      type: 'boolean',
+      description:
+        'Recreate ALTs for chains that already have entries in the registry. Existing frozen ALTs cannot be reclaimed.',
+      default: false,
+    },
   },
-  handler: async ({ context, warpRouteId, chain }) => {
+  handler: async ({ context, warpRouteId, chain, force }) => {
     logCommandHeader('Hyperlane Warp ALT Create');
-    await runWarpAltCreate({ context, warpRouteId, chain });
+    await runWarpAltCreate({ context, warpRouteId, chain, force });
     process.exit(0);
   },
 };
