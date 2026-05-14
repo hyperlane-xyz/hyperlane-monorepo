@@ -68,4 +68,21 @@ describe('WarpCoreConfigSchema.options.sealevel.altAddresses', () => {
     });
     expect(result.success).to.equal(false);
   });
+
+  it('rejects an invalid base58 address', () => {
+    const result = WarpCoreConfigSchema.safeParse({
+      tokens: [SOME_TOKEN],
+      options: {
+        sealevel: {
+          altAddresses: {
+            solana: {
+              core: 'x',
+              warpSpecific: ['WarpA1t111111111111111111111111111111111111'],
+            },
+          },
+        },
+      },
+    });
+    expect(result.success).to.equal(false);
+  });
 });
