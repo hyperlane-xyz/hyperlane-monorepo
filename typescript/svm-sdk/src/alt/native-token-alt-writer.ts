@@ -122,7 +122,7 @@ export class SvmNativeTokenAltReader implements SvmTokenAltReader<NativeWarpArti
    * Reads both buckets of ALTs from chain for this native warp route.
    * Pure pass-through to the generic `SvmAddressLookupTableReader`.
    */
-  async read(addresses: { core: Address; warpSpecific: Address[] }): Promise<{
+  async read(addresses: { core: string; warpSpecific: string[] }): Promise<{
     core: ArtifactDeployed<SvmAltConfig, SvmDeployedAlt>;
     warpSpecific: ArtifactDeployed<SvmAltConfig, SvmDeployedAlt>[];
   }> {
@@ -143,7 +143,7 @@ export class SvmNativeTokenAltReader implements SvmTokenAltReader<NativeWarpArti
    * a divergence — `frozenMismatch: true` flags it.
    */
   async check(
-    addresses: { core: Address; warpSpecific: Address[] },
+    addresses: { core: string; warpSpecific: string[] },
     deployed: ArtifactDeployed<NativeWarpArtifactConfig, DeployedWarpAddress>,
   ): Promise<{
     core: BucketDiff;

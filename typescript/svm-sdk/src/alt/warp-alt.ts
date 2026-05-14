@@ -351,13 +351,13 @@ export interface SvmTokenAltReader<C> {
     deployed: ArtifactDeployed<C, DeployedWarpAddress>,
   ): Promise<Address[]>;
 
-  read(addresses: { core: Address; warpSpecific: Address[] }): Promise<{
+  read(addresses: { core: string; warpSpecific: string[] }): Promise<{
     core: ArtifactDeployed<SvmAltConfig, SvmDeployedAlt>;
     warpSpecific: ArtifactDeployed<SvmAltConfig, SvmDeployedAlt>[];
   }>;
 
   check(
-    addresses: { core: Address; warpSpecific: Address[] },
+    addresses: { core: string; warpSpecific: string[] },
     deployed: ArtifactDeployed<C, DeployedWarpAddress>,
   ): Promise<{ core: BucketDiff; warpSpecific: BucketDiff }>;
 }
