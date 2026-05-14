@@ -24,10 +24,12 @@ export async function runWarpAltCreate({
   context,
   warpRouteId,
   chain,
+  force,
 }: {
   context: WriteCommandContext;
   warpRouteId: string;
   chain?: ChainName;
+  force: boolean;
 }): Promise<void> {
   const warpCoreConfig = await getWarpCoreConfigOrExit({
     context,
@@ -36,6 +38,7 @@ export async function runWarpAltCreate({
 
   const chainLookup = altVmChainLookup(context.multiProvider);
 
+  const existingAlts = warpCoreConfig.options?.svmAltAddresses ?? {};
   const svmTokens = objFilter(
     Object.fromEntries(
       warpCoreConfig.tokens.map((t) => [t.chainName, t] as const),
@@ -48,8 +51,19 @@ export async function runWarpAltCreate({
         logGray(`Skipping ${chainName} — not an SVM chain`);
         return false;
       }
+      if (existingAlts[chainName] && !force) {
+        logGray(
+          `Skipping ${chainName} — ALTs already registered. Re-run with --force to recreate (existing frozen ALTs cannot be reclaimed).`,
+        );
+        return false;
+      }
       return true;
     },
+  );
+
+  assert(
+    Object.keys(svmTokens).length > 0,
+    'No SVM chains require ALT creation',
   );
 
   const altAddressesByChain = await promiseObjAll(
