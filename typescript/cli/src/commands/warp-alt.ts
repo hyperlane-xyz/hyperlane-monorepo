@@ -9,26 +9,37 @@ import {
 import { runWarpAltCreate } from '../deploy/warp-alt.js';
 import { log, logCommandHeader, logGreen } from '../logger.js';
 import { runWarpAltRead } from '../read/warp-alt.js';
-import { indentYamlOrJson } from '../utils/files.js';
+import { indentYamlOrJson, writeYamlOrJson } from '../utils/files.js';
 
-import { chainCommandOption, warpRouteIdCommandOption } from './options.js';
+import {
+  chainCommandOption,
+  outputFileCommandOption,
+  warpRouteIdCommandOption,
+} from './options.js';
 
 const read: CommandModuleWithContext<{
   warpRouteId: string;
   chain?: string;
+  out?: string;
 }> = {
   command: 'read',
   describe: 'Read on-chain SVM Address Lookup Table contents for a warp route',
   builder: {
     'warp-route-id': { ...warpRouteIdCommandOption, demandOption: true },
     chain: { ...chainCommandOption, demandOption: false },
+    out: outputFileCommandOption(),
   },
-  handler: async ({ context, warpRouteId, chain }) => {
+  handler: async ({ context, warpRouteId, chain, out }) => {
     logCommandHeader('Hyperlane Warp ALT Reader');
 
     const result = await runWarpAltRead({ context, warpRouteId, chain });
 
-    logGreen(`✅ Warp route ALTs read successfully:\n`);
+    if (out) {
+      writeYamlOrJson(out, result, 'yaml');
+      logGreen(`✅ Warp route ALTs written successfully to ${out}:\n`);
+    } else {
+      logGreen(`✅ Warp route ALTs read successfully:\n`);
+    }
     log(indentYamlOrJson(yamlStringify(result, null, 2), 4));
     process.exit(0);
   },
