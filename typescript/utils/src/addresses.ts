@@ -686,15 +686,20 @@ export function bytesToAddressTron(bytes: Uint8Array): Address {
   return bs58.encode(finalBytes);
 }
 
+/**
+ * Formats raw bytes into a protocol-specific address string.
+ *
+ * Performs no validation: zero-byte input formats to the protocol's
+ * zero-address (e.g. 20 zero bytes for Ethereum → `0x00...00`). Callers
+ * that decode stored data (explorer, CLI display, debug printouts) rely
+ * on this. Zero-address rejection during transfer construction lives at
+ * `addressToBytes` and `WarpCore.validateRecipient`.
+ */
 export function bytesToProtocolAddress(
   bytes: Uint8Array,
   toProtocol: ProtocolType,
   prefix?: string,
 ) {
-  // Formatting only: the inverse `addressToBytes` still rejects empty/all-zero
-  // input so transfer construction stays guarded. Callers that decode stored
-  // data (explorer, CLI display, debug printouts) need this to return the
-  // protocol's zero-address string instead of throwing.
   if (toProtocol === ProtocolType.Ethereum) {
     return bytesToAddressEvm(bytes);
   } else if (toProtocol === ProtocolType.Sealevel) {

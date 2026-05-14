@@ -114,10 +114,42 @@ describe('Address utilities', () => {
       // construction path (`addressToBytes`).
       expect(
         bytesToProtocolAddress(new Uint8Array(20), ProtocolType.Ethereum),
-      ).to.equal('0x0000000000000000000000000000000000000000');
+      ).to.equal(ETH_ZERO_ADDR);
       expect(
         bytesToProtocolAddress(new Uint8Array(32), ProtocolType.Starknet),
       ).to.equal(STARKNET_ZERO_ADDR);
+      // Sealevel is the only converter that delegates to an external library
+      // (`PublicKey` from `@solana/web3.js`). Lock in current behavior so a
+      // future `web3.js` bump can't silently regress to throwing on zero bytes.
+      expect(
+        bytesToProtocolAddress(new Uint8Array(32), ProtocolType.Sealevel),
+      ).to.equal('11111111111111111111111111111111');
+      // Remaining converters: exact zero-byte output is protocol-specific
+      // (bech32/bech32m of zero bytes is not the same as the placeholder
+      // zero-address strings used elsewhere), so just assert "does not throw".
+      expect(() =>
+        bytesToProtocolAddress(
+          new Uint8Array(20),
+          ProtocolType.Cosmos,
+          COSMOS_PREFIX,
+        ),
+      ).to.not.throw();
+      expect(() =>
+        bytesToProtocolAddress(
+          new Uint8Array(32),
+          ProtocolType.CosmosNative,
+          COSMOS_PREFIX,
+        ),
+      ).to.not.throw();
+      expect(() =>
+        bytesToProtocolAddress(new Uint8Array(30), ProtocolType.Radix, 'rdx'),
+      ).to.not.throw();
+      expect(() =>
+        bytesToProtocolAddress(new Uint8Array(32), ProtocolType.Aleo),
+      ).to.not.throw();
+      expect(() =>
+        bytesToProtocolAddress(new Uint8Array(20), ProtocolType.Tron),
+      ).to.not.throw();
     });
   });
 
