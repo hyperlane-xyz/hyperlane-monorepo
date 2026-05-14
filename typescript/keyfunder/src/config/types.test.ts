@@ -8,6 +8,7 @@ import {
   KeyFunderConfigSchema,
   RoleConfigSchema,
   SweepConfigSchema,
+  BridgeType,
 } from './types.js';
 
 describe('KeyFunderConfig Schemas', () => {
@@ -143,6 +144,37 @@ describe('KeyFunderConfig Schemas', () => {
       };
       const result = ChainConfigSchema.safeParse(config);
       expect(result.success).to.be.true;
+    });
+
+    it('should validate OP Stack bridge config', () => {
+      const config = {
+        bridge: {
+          type: BridgeType.OpStack,
+          parentChain: 'ethereum',
+          standardBridge: '0x4200000000000000000000000000000000000010',
+          threshold: '0.2',
+          targetBalance: '1',
+        },
+      };
+      const result = ChainConfigSchema.safeParse(config);
+      expect(result.success).to.be.true;
+      if (result.success) {
+        expect(result.data.bridge?.minGasLimit).to.equal(200_000);
+      }
+    });
+
+    it('should reject OP Stack bridge target below threshold', () => {
+      const config = {
+        bridge: {
+          type: BridgeType.OpStack,
+          parentChain: 'ethereum',
+          standardBridge: '0x4200000000000000000000000000000000000010',
+          threshold: '1',
+          targetBalance: '0.9',
+        },
+      };
+      const result = ChainConfigSchema.safeParse(config);
+      expect(result.success).to.be.false;
     });
 
     it('should reject invalid balance value', () => {

@@ -1,11 +1,14 @@
-import { BigNumber, ethers } from 'ethers';
+import { BigNumber, Contract, ethers } from 'ethers';
+import type { ContractTransaction, Signer, providers } from 'ethers';
 import type { Logger } from 'pino';
 
 import { HyperlaneIgp, MultiProvider } from '@hyperlane-xyz/sdk';
+import { assert } from '@hyperlane-xyz/utils';
 
 import type {
   ChainConfig,
   KeyFunderConfig,
+  OpStackBridgeConfig,
   ResolvedKeyConfig,
 } from '../config/types.js';
 import type { KeyFunderMetrics } from '../metrics/Metrics.js';
@@ -14,12 +17,32 @@ const MIN_DELTA_NUMERATOR = BigNumber.from(6);
 const MIN_DELTA_DENOMINATOR = BigNumber.from(10);
 
 const CHAIN_FUNDING_TIMEOUT_MS = 60_000;
+const OP_STACK_STANDARD_BRIDGE_ABI = [
+  'function bridgeETHTo(address _to, uint32 _minGasLimit, bytes calldata _extraData) external payable',
+];
+
+type BridgeOverrides = Partial<providers.TransactionRequest> & {
+  value: BigNumber;
+};
+
+interface OpStackStandardBridge {
+  bridgeETHTo(
+    to: string,
+    minGasLimit: number,
+    extraData: string,
+    overrides: BridgeOverrides,
+  ): Promise<ContractTransaction>;
+}
 
 export interface KeyFunderOptions {
   logger: Logger;
   metrics?: KeyFunderMetrics;
   skipIgpClaim?: boolean;
   igp?: HyperlaneIgp;
+  opStackStandardBridgeFactory?: (
+    standardBridge: string,
+    signer: Signer,
+  ) => OpStackStandardBridge;
 }
 
 export class KeyFunder {
@@ -89,6 +112,10 @@ export class KeyFunder {
 
     if (!this.options.skipIgpClaim && chainConfig.igp) {
       await this.claimFromIgp(chain, chainConfig);
+    }
+
+    if (chainConfig.bridge) {
+      await this.bridgeToOpStack(chain, chainConfig.bridge);
     }
 
     try {
@@ -199,6 +226,102 @@ export class KeyFunder {
       );
       logger.info('IGP claim completed');
     }
+  }
+
+  private async bridgeToOpStack(
+    chain: string,
+    bridgeConfig: OpStackBridgeConfig,
+  ): Promise<void> {
+    const logger = this.options.logger.child({
+      chain,
+      operation: 'op-stack-bridge',
+      parentChain: bridgeConfig.parentChain,
+    });
+    const childFunderAddress = await this.multiProvider.getSignerAddress(chain);
+    const childFunderBalance = await this.multiProvider
+      .getProvider(chain)
+      .getBalance(childFunderAddress);
+    const threshold = ethers.utils.parseEther(bridgeConfig.threshold);
+
+    logger.info(
+      {
+        childFunderAddress,
+        childFunderBalance: ethers.utils.formatEther(childFunderBalance),
+        threshold: ethers.utils.formatEther(threshold),
+      },
+      'Checking OP Stack bridge conditions',
+    );
+
+    if (childFunderBalance.gte(threshold)) {
+      logger.debug('Child funder balance sufficient, skipping bridge');
+      return;
+    }
+
+    const targetBalance = ethers.utils.parseEther(bridgeConfig.targetBalance);
+    const bridgeAmount = targetBalance.sub(childFunderBalance);
+    const parentSigner = this.multiProvider.getSigner(bridgeConfig.parentChain);
+    const parentFunderAddress = await parentSigner.getAddress();
+    const parentFunderBalance = await parentSigner.getBalance();
+
+    assert(
+      parentFunderBalance.gte(bridgeAmount),
+      `Insufficient parent funder balance on ${bridgeConfig.parentChain}: has ${ethers.utils.formatEther(parentFunderBalance)}, needs ${ethers.utils.formatEther(bridgeAmount)}`,
+    );
+
+    logger.info(
+      {
+        bridgeAmount: ethers.utils.formatEther(bridgeAmount),
+        childFunderAddress,
+        parentFunderAddress,
+        parentFunderBalance: ethers.utils.formatEther(parentFunderBalance),
+        standardBridge: bridgeConfig.standardBridge,
+      },
+      'Bridging native tokens to OP Stack chain',
+    );
+
+    const standardBridge = this.createOpStackStandardBridge(
+      bridgeConfig.standardBridge,
+      parentSigner,
+    );
+    const tx = standardBridge.bridgeETHTo(
+      childFunderAddress,
+      bridgeConfig.minGasLimit,
+      '0x',
+      {
+        ...this.multiProvider.getTransactionOverrides(bridgeConfig.parentChain),
+        value: bridgeAmount,
+      },
+    );
+    const receipt = await this.multiProvider.handleTx(
+      bridgeConfig.parentChain,
+      tx,
+    );
+
+    logger.info(
+      {
+        txHash: receipt.transactionHash,
+        txUrl: this.multiProvider.tryGetExplorerTxUrl(
+          bridgeConfig.parentChain,
+          { hash: receipt.transactionHash },
+        ),
+      },
+      'OP Stack bridge transaction completed',
+    );
+  }
+
+  private createOpStackStandardBridge(
+    standardBridge: string,
+    signer: Signer,
+  ): OpStackStandardBridge {
+    return (
+      this.options.opStackStandardBridgeFactory ??
+      ((address: string, contractSigner: Signer) =>
+        new Contract(
+          address,
+          OP_STACK_STANDARD_BRIDGE_ABI,
+          contractSigner,
+        ) as unknown as OpStackStandardBridge)
+    )(standardBridge, signer);
   }
 
   private async fundKeys(

@@ -8,6 +8,7 @@ The KeyFunder service:
 
 - Funds agent keys (relayers, rebalancer) to maintain desired balances
 - Claims accumulated fees from InterchainGasPaymaster (IGP) contracts
+- Bridges native tokens to OP Stack child-chain funder wallets
 - Sweeps excess funds from the funder wallet to a safe address
 
 ## Configuration
@@ -47,6 +48,14 @@ chains:
     igp:
       address: '0x3b6044acd6767f017e99318AA6Ef93b7B06A5a22'
       claimThreshold: '0.1'
+  optimism:
+    bridge:
+      type: opStack
+      parentChain: ethereum
+      standardBridge: '0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1'
+      threshold: '0.2'
+      targetBalance: '1.0'
+      minGasLimit: 200000
 
 metrics:
   jobName: 'keyfunder-mainnet3'
@@ -65,6 +74,13 @@ chainsToSkip: []
 | `chains`                                 | Per-chain configuration                                                                          |
 | `chains.<chain>.balances`                | Map of role name to desired balance                                                              |
 | `chains.<chain>.balances.<role>`         | Target balance decimal string (e.g., "0.5" ETH; up to 18 decimals)                               |
+| `chains.<chain>.bridge`                  | Native token bridge configuration                                                                |
+| `chains.<chain>.bridge.type`             | Bridge type; currently supports `opStack`                                                        |
+| `chains.<chain>.bridge.parentChain`      | Chain name where the bridge transaction should be sent                                           |
+| `chains.<chain>.bridge.standardBridge`   | OP Stack L1StandardBridge address on the parent chain                                            |
+| `chains.<chain>.bridge.threshold`        | Child-chain funder balance below which bridge funding is triggered                               |
+| `chains.<chain>.bridge.targetBalance`    | Child-chain funder balance to reach after bridge funding; must be greater than `threshold`       |
+| `chains.<chain>.bridge.minGasLimit`      | Minimum gas limit passed to `bridgeETHTo` (default: 200000)                                      |
 | `chains.<chain>.igp`                     | IGP claim configuration                                                                          |
 | `chains.<chain>.igp.address`             | IGP contract address (required when `igp` is specified)                                          |
 | `chains.<chain>.igp.claimThreshold`      | Minimum IGP balance before claiming (decimal string; up to 18 decimals)                          |
@@ -142,6 +158,10 @@ Keys are funded when their balance drops below 40% of the desired balance. The f
 ### IGP Claims
 
 When the IGP contract balance exceeds the claim threshold, accumulated fees are claimed to the funder wallet.
+
+### OP Stack Bridge Funding
+
+When `bridge.type` is `opStack`, the child-chain funder balance is checked before key funding. If it is below `threshold`, the keyfunder sends native tokens through the configured parent-chain `standardBridge` to bring the child-chain funder up to `targetBalance`.
 
 ### Sweep
 

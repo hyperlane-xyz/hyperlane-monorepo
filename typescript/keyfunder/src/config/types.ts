@@ -15,6 +15,10 @@ const BalanceStringSchema = z
     'Must be a valid non-negative decimal string with leading digit (e.g., "0.5" not ".5", up to 18 decimals)',
   );
 
+export const BridgeType = {
+  OpStack: 'opStack',
+} as const;
+
 export const RoleConfigSchema = z.object({
   address: AddressSchema,
 });
@@ -67,8 +71,28 @@ export const SweepConfigSchema = z
     },
   );
 
+export const OpStackBridgeConfigSchema = z
+  .object({
+    type: z.literal(BridgeType.OpStack),
+    parentChain: z.string().min(1),
+    standardBridge: AddressSchema,
+    threshold: BalanceStringSchema,
+    targetBalance: BalanceStringSchema,
+    minGasLimit: z.number().int().nonnegative().default(200_000),
+  })
+  .refine(
+    (data) => compareBalanceStrings(data.targetBalance, data.threshold) > 0,
+    {
+      message: 'Bridge targetBalance must be greater than threshold',
+      path: ['targetBalance'],
+    },
+  );
+
+export const BridgeConfigSchema = OpStackBridgeConfigSchema;
+
 export const ChainConfigSchema = z.object({
   balances: z.record(z.string(), BalanceStringSchema).optional(),
+  bridge: BridgeConfigSchema.optional(),
   igp: IgpConfigSchema.optional(),
   sweep: SweepConfigSchema.optional(),
 });
@@ -108,6 +132,8 @@ export const KeyFunderConfigSchema = z
 export type RoleConfig = z.infer<typeof RoleConfigSchema>;
 export type IgpConfig = z.infer<typeof IgpConfigSchema>;
 export type SweepConfig = z.infer<typeof SweepConfigSchema>;
+export type OpStackBridgeConfig = z.infer<typeof OpStackBridgeConfigSchema>;
+export type BridgeConfig = z.infer<typeof BridgeConfigSchema>;
 export type ChainConfig = z.infer<typeof ChainConfigSchema>;
 export type MetricsConfig = z.infer<typeof MetricsConfigSchema>;
 export type KeyFunderConfig = z.infer<typeof KeyFunderConfigSchema>;
@@ -117,4 +143,25 @@ export interface ResolvedKeyConfig {
   address: string;
   role: string;
   desiredBalance: string;
+}
+
+function compareBalanceStrings(left: string, right: string): number {
+  const leftParts = splitBalance(left);
+  const rightParts = splitBalance(right);
+
+  if (leftParts.integer !== rightParts.integer) {
+    return leftParts.integer > rightParts.integer ? 1 : -1;
+  }
+  if (leftParts.fraction !== rightParts.fraction) {
+    return leftParts.fraction > rightParts.fraction ? 1 : -1;
+  }
+  return 0;
+}
+
+function splitBalance(balance: string): { integer: bigint; fraction: string } {
+  const [integer, fraction = ''] = balance.split('.');
+  return {
+    integer: BigInt(integer),
+    fraction: fraction.padEnd(18, '0'),
+  };
 }

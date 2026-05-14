@@ -1,9 +1,12 @@
 export { KeyFunderConfigLoader } from './config/KeyFunderConfig.js';
 export {
+  BridgeType,
   KeyFunderConfigSchema,
   RoleConfigSchema,
   IgpConfigSchema,
   SweepConfigSchema,
+  BridgeConfigSchema,
+  OpStackBridgeConfigSchema,
   ChainConfigSchema,
   MetricsConfigSchema,
 } from './config/types.js';
@@ -13,6 +16,8 @@ export type {
   RoleConfig,
   IgpConfig,
   SweepConfig,
+  BridgeConfig,
+  OpStackBridgeConfig,
   ChainConfig,
   MetricsConfig,
   ResolvedKeyConfig,
