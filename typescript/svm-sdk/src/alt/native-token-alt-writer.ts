@@ -25,12 +25,16 @@ import type { SvmReceipt } from '../types.js';
 
 import {
   type SvmAddressLookupTableWriter,
+  type SvmAltConfig,
+  type SvmDeployedAlt,
   nonEmptyArray,
 } from './address-lookup-table.js';
 import {
+  type BucketDiff,
   deriveCoreDeploymentAltAddresses,
   deriveFeeQuoteCascadeAltAddresses,
   deriveIgpQuoteCascadeAltAddresses,
+  diffBucket,
 } from './warp-alt.js';
 
 /**
@@ -135,10 +139,84 @@ export class SvmNativeTokenAltWriter {
     warpSpecific: Address[];
     receipts: SvmReceipt[];
   }> {
+    const { core, warpSpecific } =
+      await this.computeExpectedAltAddresses(deployed);
+
+    const [coreAlt, coreReceipts] = await this.altWriter.create({
+      config: { frozen: true, addresses: nonEmptyArray(core) },
+    });
+    const [warpAlt, warpReceipts] = await this.altWriter.create({
+      config: { frozen: true, addresses: nonEmptyArray(warpSpecific) },
+    });
+
+    return {
+      core: coreAlt.deployed.address,
+      warpSpecific: [warpAlt.deployed.address],
+      receipts: [...coreReceipts, ...warpReceipts],
+    };
+  }
+
+  /**
+   * Reads both buckets of ALTs from chain for this native warp route.
+   * Pure pass-through to the generic `SvmAddressLookupTableReader`
+   * inherited by the writer — the per-token layer doesn't reshape the
+   * results, just groups them by bucket.
+   */
+  async read(addresses: { core: Address; warpSpecific: Address[] }): Promise<{
+    core: ArtifactDeployed<SvmAltConfig, SvmDeployedAlt>;
+    warpSpecific: ArtifactDeployed<SvmAltConfig, SvmDeployedAlt>[];
+  }> {
+    const core = await this.altWriter.read(addresses.core);
+    const warpSpecific = await Promise.all(
+      addresses.warpSpecific.map((addr) => this.altWriter.read(addr)),
+    );
+    return { core, warpSpecific };
+  }
+
+  /**
+   * Diffs the on-chain ALT contents against what the writer would
+   * regenerate for the given expanded warp config. Output groups
+   * differences by bucket; the `warpSpecific` bucket aggregates the
+   * address sets across all warp-specific ALTs (v1 has just one).
+   *
+   * Since `create` always freezes, an unfrozen actual ALT is treated
+   * as a divergence — `frozenMismatch: true` flags it.
+   */
+  async check(
+    addresses: { core: Address; warpSpecific: Address[] },
+    deployed: ArtifactDeployed<NativeWarpArtifactConfig, DeployedWarpAddress>,
+  ): Promise<{
+    core: BucketDiff;
+    warpSpecific: BucketDiff;
+  }> {
+    const actual = await this.read(addresses);
+    const expected = await this.computeExpectedAltAddresses(deployed);
+
+    return {
+      core: diffBucket(
+        actual.core.config.addresses,
+        expected.core,
+        actual.core.config.frozen,
+      ),
+      warpSpecific: diffBucket(
+        actual.warpSpecific.flatMap((a) => a.config.addresses),
+        expected.warpSpecific,
+        actual.warpSpecific.every((a) => a.config.frozen),
+      ),
+    };
+  }
+
+  /**
+   * Computes the expected core + warp-specific address lists for the
+   * given expanded warp config. Shared by `create` (to emit the ALTs)
+   * and `check` (to diff against what's on chain), keeping the two
+   * code paths in lockstep.
+   */
+  private async computeExpectedAltAddresses(
+    deployed: ArtifactDeployed<NativeWarpArtifactConfig, DeployedWarpAddress>,
+  ): Promise<{ core: Address[]; warpSpecific: Address[] }> {
     const mailbox = parseAddress(deployed.config.mailbox);
     const hook = deployed.config.hook;
-    // Same DEPLOYED-only invariant `deriveWarpRouteAddresses` enforces,
-    // re-asserted here so TS narrows the hook union for `igpContext` below.
     assert(
       isNullish(hook) || isArtifactDeployed(hook),
       'Expected hook artifact to be expanded (DEPLOYED) or not set',
@@ -152,23 +230,9 @@ export class SvmNativeTokenAltWriter {
           }
         : undefined;
 
-    const coreAddresses = await deriveCoreDeploymentAltAddresses(
-      mailbox,
-      igpContext,
-    );
-    const warpAddresses = await this.deriveWarpRouteAddresses(deployed);
-
-    const [coreAlt, coreReceipts] = await this.altWriter.create({
-      config: { frozen: true, addresses: nonEmptyArray(coreAddresses) },
-    });
-    const [warpAlt, warpReceipts] = await this.altWriter.create({
-      config: { frozen: true, addresses: nonEmptyArray(warpAddresses) },
-    });
-
     return {
-      core: coreAlt.deployed.address,
-      warpSpecific: [warpAlt.deployed.address],
-      receipts: [...coreReceipts, ...warpReceipts],
+      core: await deriveCoreDeploymentAltAddresses(mailbox, igpContext),
+      warpSpecific: await this.deriveWarpRouteAddresses(deployed),
     };
   }
 }
