@@ -475,14 +475,6 @@ export abstract class SealevelHypTokenAdapter
     return this.tokenMintPubKey.toBase58();
   }
 
-  /**
-   * target_router H256 for fee simulation. Non-CC modes use H256::zero()
-   * per the on-chain seed macros; CC overrides this.
-   */
-  protected getTargetRouterBytes(): Uint8Array {
-    return new Uint8Array(32);
-  }
-
   private async loadTokenAccountData(): Promise<SealevelHyperlaneTokenData> {
     const tokenPda = this.deriveHypTokenAccount();
     const accountInfo = await this.getProvider().getAccountInfo(tokenPda);
@@ -556,6 +548,34 @@ export abstract class SealevelHypTokenAdapter
     recipient,
     amount,
   }: QuoteTransferRemoteParams): Promise<InterchainGasQuote> {
+    return this.quoteTransferGas({
+      destination,
+      sender,
+      recipient,
+      amount,
+      // Non-CC routes pass H256::zero() per the fee program's seed macros.
+      targetRouter: new Uint8Array(32),
+    });
+  }
+
+  /// Core quote orchestration shared by quoteTransferRemoteGas (non-CC) and
+  /// quoteTransferRemoteToGas (CC override). `targetRouter` is the 32-byte
+  /// H256 used in the fee program's standing-quote PDA seeds: H256::zero
+  /// for Leaf / Routing modes, destination warp router for
+  /// CrossCollateralRouting.
+  protected async quoteTransferGas({
+    destination,
+    sender,
+    recipient,
+    amount,
+    targetRouter,
+  }: {
+    destination: Domain;
+    sender?: Address;
+    recipient?: Address;
+    amount?: bigint;
+    targetRouter: Uint8Array;
+  }): Promise<InterchainGasQuote> {
     const tokenData = await this.getTokenAccountData();
 
     // -------- Warp fee quote (only when token.fee_config is set) --------
@@ -571,6 +591,7 @@ export abstract class SealevelHypTokenAdapter
         destination,
         recipient,
         amount,
+        targetRouter,
       });
     }
 
@@ -620,14 +641,15 @@ export abstract class SealevelHypTokenAdapter
     destination,
     recipient,
     amount,
+    targetRouter,
   }: {
     feeConfig: SealevelTokenFeeConfig;
     payer: PublicKey;
     destination: Domain;
     recipient: Address;
     amount: bigint;
+    targetRouter: Uint8Array;
   }): Promise<Quote> {
-    const targetRouter = this.getTargetRouterBytes();
     const metas = await simulateFeeQuoteAccountMetas(
       this.getProvider(),
       feeConfig.feeProgram,

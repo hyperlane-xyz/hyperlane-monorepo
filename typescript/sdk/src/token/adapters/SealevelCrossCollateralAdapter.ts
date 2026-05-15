@@ -70,13 +70,15 @@ export class SealevelHypCrossCollateralAdapter
       return { igpQuote: { amount: 0n } };
     }
 
-    const quote = await this.quoteTransferRemoteGas({
+    return this.quoteTransferGas({
       destination: params.destination,
       sender: params.sender,
+      recipient: params.recipient,
+      amount: BigInt(params.amount),
+      // CC fee account uses the destination warp router H256 in its
+      // standing-quote PDA seeds.
+      targetRouter: padBytesToLength(addressToBytes(params.targetRouter), 32),
     });
-    return {
-      igpQuote: { amount: BigInt(quote.igpQuote.amount) },
-    };
   }
 
   // Should match rust/sealevel/programs/hyperlane-sealevel-token-cross-collateral/src/processor.rs transfer_remote_to_remote
