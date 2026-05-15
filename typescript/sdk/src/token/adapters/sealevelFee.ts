@@ -1,7 +1,29 @@
-import { PublicKey } from '@solana/web3.js';
+import {
+  AccountMeta,
+  Connection,
+  Message,
+  PublicKey,
+  TransactionInstruction,
+  VersionedTransaction,
+} from '@solana/web3.js';
+import { deserializeUnchecked, serialize } from 'borsh';
+
+import { assert } from '@hyperlane-xyz/utils';
 
 import { BaseSealevelAdapter } from '../../app/MultiProtocolApp.js';
-import { SealevelInstructionWrapper } from '../../utils/sealevelSerialization.js';
+import {
+  SealevelGetIgpQuoteAccountMetasInstruction,
+  SealevelGetIgpQuoteAccountMetasSchema,
+  SealevelIgpInstruction,
+  SealevelIgpQuoteGasPaymentInstruction,
+  SealevelIgpQuoteGasPaymentResponse,
+  SealevelIgpQuoteGasPaymentResponseSchema,
+  SealevelIgpQuoteGasPaymentSchema,
+} from '../../gas/adapters/serialization.js';
+import {
+  SealevelAccountDataWrapper,
+  SealevelInstructionWrapper,
+} from '../../utils/sealevelSerialization.js';
 
 // ============================================================================
 // Fee program instructions
@@ -201,4 +223,239 @@ export function deriveIgpStandingQuotePda(
     ],
     programId,
   );
+}
+
+// ============================================================================
+// Simulation helpers
+// ============================================================================
+
+// SerializableAccountMeta = [pubkey: 32, is_signer: u8, is_writable: u8] = 34
+// bytes. Matches serializable_account_meta::SerializableAccountMeta in the
+// Rust workspace.
+const SERIALIZABLE_ACCOUNT_META_SIZE = 34;
+
+/**
+ * Parse a borsh-encoded `Vec<SerializableAccountMeta>` (u32 LE length prefix
+ * + N * 34 bytes) into the @solana/web3.js AccountMeta shape.
+ */
+export function parseSimulationAccountMetas(data: Buffer): AccountMeta[] {
+  assert(
+    data.length >= 4,
+    `Simulation return data too short for length prefix: ${data.length}`,
+  );
+  const count = data.readUInt32LE(0);
+  const expectedLength = 4 + count * SERIALIZABLE_ACCOUNT_META_SIZE;
+  assert(
+    data.length >= expectedLength,
+    `Truncated Vec<SerializableAccountMeta>: expected ${expectedLength}, got ${data.length}`,
+  );
+  const metas: AccountMeta[] = [];
+  for (let i = 0; i < count; i++) {
+    const off = 4 + i * SERIALIZABLE_ACCOUNT_META_SIZE;
+    metas.push({
+      pubkey: new PublicKey(data.subarray(off, off + 32)),
+      isSigner: data[off + 32] !== 0,
+      isWritable: data[off + 33] !== 0,
+    });
+  }
+  return metas;
+}
+
+async function simulateAndReadReturnData(
+  connection: Connection,
+  ix: TransactionInstruction,
+  payer: PublicKey,
+  label: string,
+): Promise<Buffer> {
+  const message = Message.compile({
+    recentBlockhash: PublicKey.default.toBase58(),
+    instructions: [ix],
+    payerKey: payer,
+  });
+  const sim = await connection.simulateTransaction(
+    new VersionedTransaction(message),
+    {
+      replaceRecentBlockhash: true,
+      sigVerify: false,
+    },
+  );
+  assert(
+    !sim.value.err,
+    `${label} simulation failed: ${JSON.stringify(sim.value.err)}\nLogs: ${sim.value.logs?.join('\n')}`,
+  );
+  const base64 = sim.value.returnData?.data?.[0];
+  assert(base64, `${label} simulation returned no data`);
+  return Buffer.from(base64, 'base64');
+}
+
+/**
+ * Simulation-only: returns the account metas required for a `QuoteFee` call
+ * on the fee program. Slot 0 of the returned vector is the fee account,
+ * slot 1 is a payer placeholder (Pubkey::default()) that callers must
+ * substitute with the real payer before passing into `simulateWarpFee` or a
+ * `transfer_remote` instruction.
+ */
+export async function simulateFeeQuoteAccountMetas(
+  connection: Connection,
+  feeProgram: PublicKey,
+  feeAccount: PublicKey,
+  payer: PublicKey,
+  params: {
+    destinationDomain: number;
+    targetRouter: Uint8Array;
+    scopedSalt?: Uint8Array;
+  },
+): Promise<AccountMeta[]> {
+  const wrapped = new SealevelInstructionWrapper({
+    instruction: SealevelFeeInstruction.GetQuoteAccountMetas,
+    data: new SealevelGetQuoteAccountMetasInstruction({
+      destination_domain: params.destinationDomain,
+      target_router: params.targetRouter,
+      scoped_salt: params.scopedSalt ?? null,
+    }),
+  });
+  const ix = new TransactionInstruction({
+    keys: [{ pubkey: feeAccount, isSigner: false, isWritable: false }],
+    programId: feeProgram,
+    data: Buffer.from(serialize(SealevelGetQuoteAccountMetasSchema, wrapped)),
+  });
+  const returnData = await simulateAndReadReturnData(
+    connection,
+    ix,
+    payer,
+    'GetQuoteAccountMetas',
+  );
+  return parseSimulationAccountMetas(returnData);
+}
+
+/**
+ * Simulation-only: returns the account metas required for a `QuoteGasPayment`
+ * call in the new-flow IGP path. The returned vector starts with system
+ * program, payer placeholder, program_data, unique_gas_payment placeholder,
+ * gas_payment_pda placeholder, IGP account, then the cascade PDAs. Callers
+ * must substitute placeholders before passing accounts into a real call.
+ */
+export async function simulateIgpQuoteAccountMetas(
+  connection: Connection,
+  igpProgram: PublicKey,
+  igpAccount: PublicKey,
+  payer: PublicKey,
+  params: {
+    destinationDomain: number;
+    sender: PublicKey;
+    scopedSalt?: Uint8Array;
+  },
+): Promise<AccountMeta[]> {
+  const wrapped = new SealevelInstructionWrapper({
+    instruction: SealevelIgpInstruction.GetIgpQuoteAccountMetas,
+    data: new SealevelGetIgpQuoteAccountMetasInstruction({
+      destination_domain: params.destinationDomain,
+      sender: params.sender.toBytes(),
+      scoped_salt: params.scopedSalt ?? null,
+    }),
+  });
+  const ix = new TransactionInstruction({
+    keys: [{ pubkey: igpAccount, isSigner: false, isWritable: false }],
+    programId: igpProgram,
+    data: Buffer.from(
+      serialize(SealevelGetIgpQuoteAccountMetasSchema, wrapped),
+    ),
+  });
+  const returnData = await simulateAndReadReturnData(
+    connection,
+    ix,
+    payer,
+    'GetIgpQuoteAccountMetas',
+  );
+  return parseSimulationAccountMetas(returnData);
+}
+
+/**
+ * Simulation-only: invokes `QuoteFee` on the fee program with the provided
+ * account list and returns the u64 LE fee amount via return data. The
+ * accounts must mirror the layout from `simulateFeeQuoteAccountMetas` with
+ * the payer placeholder (slot 1) replaced by the real payer.
+ */
+export async function simulateWarpFee(
+  connection: Connection,
+  feeProgram: PublicKey,
+  payer: PublicKey,
+  accounts: AccountMeta[],
+  params: {
+    destinationDomain: number;
+    recipient: Uint8Array;
+    amount: bigint;
+    targetRouter: Uint8Array;
+  },
+): Promise<bigint> {
+  const wrapped = new SealevelInstructionWrapper({
+    instruction: SealevelFeeInstruction.QuoteFee,
+    data: new SealevelQuoteFeeInstruction({
+      destination_domain: params.destinationDomain,
+      recipient: params.recipient,
+      amount: params.amount,
+      target_router: params.targetRouter,
+    }),
+  });
+  const ix = new TransactionInstruction({
+    keys: accounts,
+    programId: feeProgram,
+    data: Buffer.from(serialize(SealevelQuoteFeeSchema, wrapped)),
+  });
+  const returnData = await simulateAndReadReturnData(
+    connection,
+    ix,
+    payer,
+    'QuoteFee',
+  );
+  assert(
+    returnData.length >= 8,
+    `QuoteFee return data truncated: expected u64 LE, got ${returnData.length} bytes`,
+  );
+  return returnData.readBigUInt64LE(0);
+}
+
+/**
+ * Simulation-only: invokes the IGP's `QuoteGasPayment` with the provided
+ * account list (legacy or new-flow) and returns the u64 quote amount.
+ */
+export async function simulateIgpQuote(
+  connection: Connection,
+  igpProgram: PublicKey,
+  payer: PublicKey,
+  accounts: AccountMeta[],
+  params: {
+    destinationDomain: number;
+    gasAmount: bigint;
+  },
+): Promise<bigint> {
+  const wrapped = new SealevelInstructionWrapper({
+    instruction: SealevelIgpInstruction.QuoteGasPayment,
+    data: new SealevelIgpQuoteGasPaymentInstruction({
+      destination_domain: params.destinationDomain,
+      gas_amount: params.gasAmount,
+    }),
+  });
+  const ix = new TransactionInstruction({
+    keys: accounts,
+    programId: igpProgram,
+    data: Buffer.from(serialize(SealevelIgpQuoteGasPaymentSchema, wrapped)),
+  });
+  const returnData = await simulateAndReadReturnData(
+    connection,
+    ix,
+    payer,
+    'QuoteGasPayment',
+  );
+  const quote = deserializeUnchecked(
+    SealevelIgpQuoteGasPaymentResponseSchema,
+    SealevelAccountDataWrapper,
+    returnData,
+  );
+  const data = quote.data;
+  assert(
+    data instanceof SealevelIgpQuoteGasPaymentResponse,
+    'Decoded QuoteGasPayment response is not SealevelIgpQuoteGasPaymentResponse',
+  );
+  return data.payment_quote;
 }
