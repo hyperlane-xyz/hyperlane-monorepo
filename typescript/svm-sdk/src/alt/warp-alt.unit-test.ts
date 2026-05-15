@@ -31,11 +31,16 @@ import {
 } from '../pda.js';
 
 import {
+  type AnnotatedAltAddress,
   deriveCoreDeploymentAltAddresses,
   deriveFeeQuoteCascadeAltAddresses,
   deriveIgpQuoteCascadeAltAddresses,
   diffBucket,
 } from './warp-alt.js';
+
+function addressesOf(entries: readonly AnnotatedAltAddress[]): Address[] {
+  return entries.map((e) => e.address);
+}
 
 const MAILBOX: Address = address(
   'E588QtVUvresuXq2KoNEwAmoifCzYGpRBdHByN9KQMbi',
@@ -58,7 +63,7 @@ describe('deriveCoreDeploymentAltAddresses', () => {
     const result = await deriveCoreDeploymentAltAddresses(MAILBOX);
 
     expect(result).to.have.lengthOf(5);
-    expect(new Set(result)).to.deep.equal(
+    expect(new Set(addressesOf(result))).to.deep.equal(
       new Set([
         SYSTEM_PROGRAM_ADDRESS,
         SPL_NOOP_PROGRAM_ADDRESS,
@@ -67,6 +72,20 @@ describe('deriveCoreDeploymentAltAddresses', () => {
         outbox,
       ]),
     );
+  });
+
+  it('annotates the constant entries with their semantic role', async () => {
+    const outbox = (await deriveMailboxOutboxPda(MAILBOX)).address;
+    const result = await deriveCoreDeploymentAltAddresses(MAILBOX);
+
+    const byAddress = new Map(result.map((e) => [e.address, e.description]));
+    expect(byAddress.get(SYSTEM_PROGRAM_ADDRESS)).to.equal('system_program');
+    expect(byAddress.get(SPL_NOOP_PROGRAM_ADDRESS)).to.equal('spl_noop');
+    expect(byAddress.get(SPL_TOKEN_PROGRAM_ADDRESS)).to.equal(
+      'spl_token_program',
+    );
+    expect(byAddress.get(MAILBOX)).to.equal('mailbox');
+    expect(byAddress.get(outbox)).to.equal('mailbox.outbox');
   });
 
   it('adds igp program + program data + igp account when igp ctx supplied', async () => {
@@ -81,7 +100,16 @@ describe('deriveCoreDeploymentAltAddresses', () => {
     });
 
     expect(result).to.have.lengthOf(8);
-    expect(result).to.include.members([IGP_PROGRAM, programData, igpAccount]);
+    expect(addressesOf(result)).to.include.members([
+      IGP_PROGRAM,
+      programData,
+      igpAccount,
+    ]);
+
+    const byAddress = new Map(result.map((e) => [e.address, e.description]));
+    expect(byAddress.get(IGP_PROGRAM)).to.equal('igp.program');
+    expect(byAddress.get(programData)).to.equal('igp.program_data');
+    expect(byAddress.get(igpAccount)).to.equal('igp.account');
   });
 
   it('adds overhead-igp account when includeOverheadIgp is set', async () => {
@@ -96,7 +124,10 @@ describe('deriveCoreDeploymentAltAddresses', () => {
     });
 
     expect(result).to.have.lengthOf(9);
-    expect(result).to.include(overhead);
+    expect(addressesOf(result)).to.include(overhead);
+
+    const byAddress = new Map(result.map((e) => [e.address, e.description]));
+    expect(byAddress.get(overhead)).to.equal('igp.overhead_account');
   });
 
   it('output is sorted ascending and contains no duplicates', async () => {
@@ -105,12 +136,13 @@ describe('deriveCoreDeploymentAltAddresses', () => {
       igpSalt: DEFAULT_IGP_SALT,
       includeOverheadIgp: true,
     });
+    const addresses = addressesOf(result);
 
-    expect(isSortedAscending([...result])).to.equal(
+    expect(isSortedAscending([...addresses])).to.equal(
       true,
-      `expected ascending order, got: ${result.join(', ')}`,
+      `expected ascending order, got: ${addresses.join(', ')}`,
     );
-    expect(new Set(result).size).to.equal(result.length);
+    expect(new Set(addresses).size).to.equal(addresses.length);
   });
 
   it('different igp salts produce different igp account entries', async () => {
@@ -123,8 +155,8 @@ describe('deriveCoreDeploymentAltAddresses', () => {
       igpSalt: ALT_IGP_SALT,
     });
 
-    const aSet = new Set(a);
-    const bSet = new Set(b);
+    const aSet = new Set(addressesOf(a));
+    const bSet = new Set(addressesOf(b));
     const onlyInA = [...aSet].filter((addr) => !bSet.has(addr));
     const onlyInB = [...bSet].filter((addr) => !aSet.has(addr));
 
@@ -209,8 +241,15 @@ describe('deriveFeeQuoteCascadeAltAddresses', () => {
         feeReadContext: feeContext({}),
       });
 
-      expect(new Set(result)).to.deep.equal(
+      expect(new Set(addressesOf(result))).to.deep.equal(
         new Set([FEE_PROGRAM, FEE_ACCOUNT, wildcard.address]),
+      );
+
+      const byAddress = new Map(result.map((e) => [e.address, e.description]));
+      expect(byAddress.get(FEE_PROGRAM)).to.equal('fee.program');
+      expect(byAddress.get(FEE_ACCOUNT)).to.equal('fee.account');
+      expect(byAddress.get(wildcard.address)).to.equal(
+        'fee.standing_quote(domain=wildcard)',
       );
     });
 
@@ -244,7 +283,7 @@ describe('deriveFeeQuoteCascadeAltAddresses', () => {
         }),
       });
 
-      expect(new Set(result)).to.deep.equal(
+      expect(new Set(addressesOf(result))).to.deep.equal(
         new Set([
           FEE_PROGRAM,
           FEE_ACCOUNT,
@@ -252,6 +291,14 @@ describe('deriveFeeQuoteCascadeAltAddresses', () => {
           standingB.address,
           wildcard.address,
         ]),
+      );
+
+      const byAddress = new Map(result.map((e) => [e.address, e.description]));
+      expect(byAddress.get(standingA.address)).to.equal(
+        'fee.standing_quote(domain=10)',
+      );
+      expect(byAddress.get(standingB.address)).to.equal(
+        'fee.standing_quote(domain=20)',
       );
     });
   });
@@ -279,7 +326,7 @@ describe('deriveFeeQuoteCascadeAltAddresses', () => {
         feeReadContext: feeContext({ 10: new Set([ROUTER_A_HEX]) }),
       });
 
-      expect(new Set(result)).to.deep.equal(
+      expect(new Set(addressesOf(result))).to.deep.equal(
         new Set([
           FEE_PROGRAM,
           FEE_ACCOUNT,
@@ -288,6 +335,9 @@ describe('deriveFeeQuoteCascadeAltAddresses', () => {
           route.address,
         ]),
       );
+
+      const byAddress = new Map(result.map((e) => [e.address, e.description]));
+      expect(byAddress.get(route.address)).to.equal('fee.route(domain=10)');
     });
   });
 
@@ -331,7 +381,7 @@ describe('deriveFeeQuoteCascadeAltAddresses', () => {
         feeReadContext: feeContext({ 10: new Set([ROUTER_A_HEX]) }),
       });
 
-      expect(new Set(result)).to.deep.equal(
+      expect(new Set(addressesOf(result))).to.deep.equal(
         new Set([
           FEE_PROGRAM,
           FEE_ACCOUNT,
@@ -341,6 +391,23 @@ describe('deriveFeeQuoteCascadeAltAddresses', () => {
           standingDefault.address,
           wildcardA.address,
         ]),
+      );
+
+      const byAddress = new Map(result.map((e) => [e.address, e.description]));
+      expect(byAddress.get(ccRouteDefault.address)).to.equal(
+        'fee.cc_route(domain=10, target_router=DEFAULT)',
+      );
+      expect(byAddress.get(standingDefault.address)).to.equal(
+        'fee.cc_standing_quote(domain=10, target_router=DEFAULT)',
+      );
+      expect(byAddress.get(ccRouteA.address)).to.equal(
+        `fee.cc_route(domain=10, target_router=${ROUTER_A_HEX})`,
+      );
+      expect(byAddress.get(standingA.address)).to.equal(
+        `fee.cc_standing_quote(domain=10, target_router=${ROUTER_A_HEX})`,
+      );
+      expect(byAddress.get(wildcardA.address)).to.equal(
+        `fee.cc_standing_quote(domain=wildcard, target_router=${ROUTER_A_HEX})`,
       );
     });
 
@@ -367,13 +434,14 @@ describe('deriveFeeQuoteCascadeAltAddresses', () => {
         DEFAULT_ROUTER,
       );
 
+      const addresses = addressesOf(result);
       // Default route + default standing show up exactly once even with
       // two enrolled target routers in the same domain.
       expect(
-        result.filter((a) => a === ccRouteDefault.address),
+        addresses.filter((a) => a === ccRouteDefault.address),
       ).to.have.lengthOf(1);
       expect(
-        result.filter((a) => a === standingDefault.address),
+        addresses.filter((a) => a === standingDefault.address),
       ).to.have.lengthOf(1);
       // 2 cc routes + 2 specific standings + 2 wildcard standings
       // + 1 default route + 1 default standing + fee program + fee account = 10.
@@ -398,8 +466,13 @@ describe('deriveFeeQuoteCascadeAltAddresses', () => {
           }),
         });
 
-        expect(isSortedAscending([...result]), feeConfig.type).to.equal(true);
-        expect(new Set(result).size, feeConfig.type).to.equal(result.length);
+        const addresses = addressesOf(result);
+        expect(isSortedAscending([...addresses]), feeConfig.type).to.equal(
+          true,
+        );
+        expect(new Set(addresses).size, feeConfig.type).to.equal(
+          addresses.length,
+        );
       }
     });
   });
@@ -443,10 +516,18 @@ describe('deriveIgpQuoteCascadeAltAddresses', () => {
       enrolledDomains: [],
     });
 
-    expect(new Set(result)).to.deep.equal(
+    expect(new Set(addressesOf(result))).to.deep.equal(
       new Set([perSenderWildcard.address, fullyWildcard.address]),
     );
     expect(result).to.have.lengthOf(2);
+
+    const byAddress = new Map(result.map((e) => [e.address, e.description]));
+    expect(byAddress.get(perSenderWildcard.address)).to.equal(
+      'igp.standing_quote(mint=native, domain=wildcard, sender=self)',
+    );
+    expect(byAddress.get(fullyWildcard.address)).to.equal(
+      'igp.standing_quote(mint=native, domain=wildcard, sender=wildcard)',
+    );
   });
 
   it('native mint: emits one cascade (mint and native sentinel are the same — dedup)', async () => {
@@ -489,10 +570,18 @@ describe('deriveIgpQuoteCascadeAltAddresses', () => {
       10,
       SENDER_A,
     );
-    expect(result).to.include.members([
+    expect(addressesOf(result)).to.include.members([
       perD10Native.address,
       perD10Mint.address,
     ]);
+
+    const byAddress = new Map(result.map((e) => [e.address, e.description]));
+    expect(byAddress.get(perD10Native.address)).to.equal(
+      'igp.standing_quote(mint=native, domain=10, sender=self)',
+    );
+    expect(byAddress.get(perD10Mint.address)).to.equal(
+      `igp.standing_quote(mint=${NON_NATIVE_MINT}, domain=10, sender=self)`,
+    );
   });
 
   it('output is sorted ascending and deduped', async () => {
@@ -504,8 +593,9 @@ describe('deriveIgpQuoteCascadeAltAddresses', () => {
       enrolledDomains: [10, 20, 30],
     });
 
-    expect(isSortedAscending([...result])).to.equal(true);
-    expect(new Set(result).size).to.equal(result.length);
+    const addresses = addressesOf(result);
+    expect(isSortedAscending([...addresses])).to.equal(true);
+    expect(new Set(addresses).size).to.equal(addresses.length);
   });
 
   it('different senders produce disjoint per-destination + per-sender-wildcard entries; fully-wildcard pdas stay stable', async () => {
@@ -532,11 +622,13 @@ describe('deriveIgpQuoteCascadeAltAddresses', () => {
       WILDCARD_SENDER,
     );
 
-    expect(aResult).to.include(fullyWildcard.address);
-    expect(bResult).to.include(fullyWildcard.address);
+    const aAddresses = addressesOf(aResult);
+    const bAddresses = addressesOf(bResult);
+    expect(aAddresses).to.include(fullyWildcard.address);
+    expect(bAddresses).to.include(fullyWildcard.address);
 
-    const aOnly = aResult.filter((addr) => !bResult.includes(addr));
-    const bOnly = bResult.filter((addr) => !aResult.includes(addr));
+    const aOnly = aAddresses.filter((addr) => !bAddresses.includes(addr));
+    const bOnly = bAddresses.filter((addr) => !aAddresses.includes(addr));
 
     // sender-A's per-D10 + per-sender-wildcard differ from sender-B's
     expect(aOnly).to.have.lengthOf(2);
@@ -548,28 +640,30 @@ describe('diffBucket', () => {
   const A: Address = address('Aaaa111111111111111111111111111111111111111');
   const B: Address = address('Bbbb111111111111111111111111111111111111111');
   const C: Address = address('Cccc111111111111111111111111111111111111111');
+  const A_ANN: AnnotatedAltAddress = { address: A, description: 'a-desc' };
+  const B_ANN: AnnotatedAltAddress = { address: B, description: 'b-desc' };
 
   it('returns empty diffs and no frozen mismatch when sets match and frozen', () => {
-    const diff = diffBucket([A, B], [A, B], true);
+    const diff = diffBucket([A, B], [A_ANN, B_ANN], true);
     expect(diff.missingFromAlt).to.deep.equal([]);
     expect(diff.extraInAlt).to.deep.equal([]);
     expect(diff.unfrozen).to.equal(false);
   });
 
-  it('flags missing addresses that are expected but not in actual', () => {
-    const diff = diffBucket([A], [A, B], true);
-    expect(diff.missingFromAlt).to.deep.equal([B]);
+  it('flags missing addresses with their annotations', () => {
+    const diff = diffBucket([A], [A_ANN, B_ANN], true);
+    expect(diff.missingFromAlt).to.deep.equal([B_ANN]);
     expect(diff.extraInAlt).to.deep.equal([]);
   });
 
-  it('flags extra addresses that are in actual but not expected', () => {
-    const diff = diffBucket([A, C], [A], true);
+  it('flags extra addresses (raw, no annotation available)', () => {
+    const diff = diffBucket([A, C], [A_ANN], true);
     expect(diff.missingFromAlt).to.deep.equal([]);
     expect(diff.extraInAlt).to.deep.equal([C]);
   });
 
   it('flags unfrozen when frozen=false', () => {
-    const diff = diffBucket([A], [A], false);
+    const diff = diffBucket([A], [A_ANN], false);
     expect(diff.unfrozen).to.equal(true);
   });
 });

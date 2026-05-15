@@ -26,8 +26,10 @@ import type { SvmReceipt } from '../types.js';
 
 import { type SvmAddressLookupTableWriter } from './address-lookup-table.js';
 import {
+  type AnnotatedAltAddress,
   type SvmTokenAltWriter,
   SvmTokenAltReaderBase,
+  canonicalize,
   createWarpAltsImpl,
   deriveFeeQuoteCascadeAltAddresses,
   deriveIgpQuoteCascadeAltAddresses,
@@ -47,7 +49,7 @@ export class SvmSyntheticTokenAltReader extends SvmTokenAltReaderBase<SyntheticW
       SyntheticWarpArtifactConfig,
       DeployedWarpAddress
     >,
-  ): Promise<Address[]> {
+  ): Promise<AnnotatedAltAddress[]> {
     const warpProgramId = parseAddress(deployed.deployed.address);
     const mintPda = await deriveSyntheticMintPda(warpProgramId);
     const mint = mintPda.address;
@@ -56,12 +58,18 @@ export class SvmSyntheticTokenAltReader extends SvmTokenAltReaderBase<SyntheticW
     const dispatchAuthority =
       await deriveMailboxDispatchAuthorityPda(warpProgramId);
 
-    const out: Address[] = [
-      warpProgramId,
-      tokenPda.address,
-      dispatchAuthority.address,
-      TOKEN_2022_PROGRAM_ADDRESS,
-      mint,
+    const out: AnnotatedAltAddress[] = [
+      { address: warpProgramId, description: 'warp.program' },
+      { address: tokenPda.address, description: 'warp.token_pda' },
+      {
+        address: dispatchAuthority.address,
+        description: 'warp.dispatch_authority',
+      },
+      {
+        address: TOKEN_2022_PROGRAM_ADDRESS,
+        description: 'warp.token_program',
+      },
+      { address: mint, description: 'warp.synthetic_mint_pda' },
     ];
 
     const fee = deployed.config.fee;
@@ -87,7 +95,10 @@ export class SvmSyntheticTokenAltReader extends SvmTokenAltReaderBase<SyntheticW
         mint,
         tokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
       });
-      out.push(beneficiaryAta.address, ...cascade);
+      out.push(
+        { address: beneficiaryAta.address, description: 'fee.beneficiary_ata' },
+        ...cascade,
+      );
     }
 
     const hook = deployed.config.hook;
@@ -116,7 +127,7 @@ export class SvmSyntheticTokenAltReader extends SvmTokenAltReaderBase<SyntheticW
       out.push(...igpCascade);
     }
 
-    return [...new Set(out.map(parseAddress))].sort();
+    return canonicalize(out);
   }
 }
 
