@@ -60,8 +60,10 @@ import {
   SealevelHypTokenInstruction,
   SealevelHyperlaneTokenData,
   SealevelHyperlaneTokenDataSchema,
+  SealevelTokenFeeConfig,
   SealevelTransferRemoteInstruction,
   SealevelTransferRemoteSchema,
+  decodeTrailingFeeConfig,
 } from './serialization.js';
 
 const NON_EXISTENT_ACCOUNT_ERROR = 'could not find account';
@@ -362,6 +364,11 @@ export abstract class SealevelHypTokenAdapter
 {
   public readonly warpProgramPubKey: PublicKey;
   public readonly addresses: HypTokenAddresses;
+  /// Plugin data length in bytes (token-type specific). Required to locate
+  /// the optional trailing fee_config in raw account data. Mirrors the
+  /// per-plugin struct sizes from
+  /// rust/sealevel/programs/hyperlane-sealevel-token-*.
+  protected abstract readonly pluginDataSize: number;
   protected readonly tokenAccountData = new LazyAsync(() =>
     this.loadTokenAccountData(),
   );
@@ -380,6 +387,12 @@ export abstract class SealevelHypTokenAdapter
     return this.tokenAccountData.get();
   }
 
+  async getFeeConfig(): Promise<SealevelTokenFeeConfig | undefined> {
+    const { fee_config } = await this.getTokenAccountData();
+
+    return fee_config;
+  }
+
   private async loadTokenAccountData(): Promise<SealevelHyperlaneTokenData> {
     const tokenPda = this.deriveHypTokenAccount();
     const accountInfo = await this.getProvider().getAccountInfo(tokenPda);
@@ -389,7 +402,24 @@ export abstract class SealevelHypTokenAdapter
       SealevelAccountDataWrapper,
       accountInfo.data,
     );
-    return wrappedData.data as SealevelHyperlaneTokenData;
+
+    const data = wrappedData.data;
+    assert(
+      data instanceof SealevelHyperlaneTokenData,
+      'Decoded wrapper.data is not SealevelHyperlaneTokenData',
+    );
+
+    const consumedSize = serialize(
+      SealevelHyperlaneTokenDataSchema,
+      wrappedData,
+    ).length;
+    data.fee_config = decodeTrailingFeeConfig(
+      Buffer.from(accountInfo.data),
+      consumedSize,
+      this.pluginDataSize,
+    );
+
+    return data;
   }
 
   override async getMetadata(): Promise<TokenMetadata> {
@@ -745,6 +775,9 @@ export abstract class SealevelHypTokenAdapter
 
 // Interacts with Hyp Native token programs
 export class SealevelHypNativeAdapter extends SealevelHypTokenAdapter {
+  // NativePlugin = [u8 native_collateral_bump]. Matches
+  // rust/sealevel/programs/hyperlane-sealevel-token-native/src/plugin.rs.
+  protected readonly pluginDataSize = 1;
   public readonly wrappedNative: SealevelNativeTokenAdapter;
 
   constructor(
@@ -829,6 +862,11 @@ export class SealevelHypNativeAdapter extends SealevelHypTokenAdapter {
 
 // Interacts with Hyp Collateral token programs
 export class SealevelHypCollateralAdapter extends SealevelHypTokenAdapter {
+  // CollateralPlugin = [Pubkey spl_token_program, Pubkey mint, Pubkey escrow,
+  // u8 escrow_bump, u8 ata_payer_bump]. Matches
+  // rust/sealevel/programs/hyperlane-sealevel-token-collateral/src/plugin.rs.
+  protected readonly pluginDataSize = 98;
+
   async getBalance(owner: Address): Promise<bigint> {
     // Special case where the owner is the warp route program ID.
     // This is because collateral warp routes don't hold escrowed collateral
@@ -882,6 +920,10 @@ export class SealevelHypCollateralAdapter extends SealevelHypTokenAdapter {
 
 // Interacts with Hyp Synthetic token programs (aka 'HypTokens')
 export class SealevelHypSyntheticAdapter extends SealevelHypTokenAdapter {
+  // SyntheticPlugin = [Pubkey mint, u8 mint_bump, u8 ata_payer_bump]. Matches
+  // rust/sealevel/programs/hyperlane-sealevel-token/src/plugin.rs.
+  protected readonly pluginDataSize = 34;
+
   override async getTransferInstructionKeyList(
     params: KeyListParams,
   ): Promise<Array<AccountMeta>> {
