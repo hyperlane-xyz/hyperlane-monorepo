@@ -344,10 +344,16 @@ export class SealevelTokenAdapter
   }
 }
 
+export interface SealevelAltAddresses {
+  core: Address;
+  warpSpecific: Address[];
+}
+
 interface HypTokenAddresses {
   token: Address;
   warpRouter: Address;
   mailbox: Address;
+  altAddresses?: SealevelAltAddresses;
 }
 
 export abstract class SealevelHypTokenAdapter
@@ -749,6 +755,7 @@ export class SealevelHypNativeAdapter extends SealevelHypTokenAdapter {
       token?: Address;
       warpRouter: Address;
       mailbox: Address;
+      altAddresses?: SealevelAltAddresses;
     },
   ) {
     // Pass in placeholder address for 'token' to avoid errors in the parent classes
