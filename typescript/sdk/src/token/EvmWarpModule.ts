@@ -1610,6 +1610,19 @@ export class EvmWarpModule extends HyperlaneModule<
     tokenReaderParams?: Partial<TokenFeeReaderParams>,
   ): Promise<AnnotatedEV5Transaction[]> {
     if (!expectedConfig.tokenFee) {
+      if (actualConfig.tokenFee) {
+        return [
+          {
+            annotation: 'Removing fee recipient...',
+            chainId: this.chainId,
+            to: this.args.addresses.deployedTokenRoute,
+            data: TokenRouter__factory.createInterface().encodeFunctionData(
+              'setFeeRecipient(address)',
+              [constants.AddressZero],
+            ),
+          },
+        ];
+      }
       return [];
     }
 
