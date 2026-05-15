@@ -13,6 +13,60 @@ import {
 } from '../../utils/sealevelSerialization.js';
 
 /**
+ * Optional warp fee configuration. Mirrors `FeeConfig` in
+ * rust/sealevel/libraries/hyperlane-sealevel-token/src/accounts.rs
+ * (introduced in the SVM fee-flow upgrade).
+ */
+export interface SealevelTokenFeeConfig {
+  feeProgram: PublicKey;
+  feeAccount: PublicKey;
+}
+
+const FEE_CONFIG_OPTION_NONE_TAG = 0;
+const FEE_CONFIG_OPTION_SOME_TAG = 1;
+const FEE_CONFIG_SOME_TRAILING_SIZE = 65; // 1 (tag) + 32 (feeProgram) + 32 (feeAccount)
+
+/**
+ * Decode the optional trailing FeeConfig from a Hyperlane token PDA's raw
+ * account data. Returns undefined for pre-upgrade accounts and for accounts
+ * where fee_config is explicitly None.
+ *
+ * On-chain layout: [SealevelHyperlaneTokenData (variable)] [plugin_data
+ * (fixed per token type)] [optional fee_config trailing]. Trailing is one
+ * of: empty (pre-upgrade), `[0u8]` (defensive None — handled even though
+ * the current on-chain serializer skips it), or `[1u8, 32B, 32B]` (Some).
+ * Mirrors `read_optional_trailing` in
+ * rust/sealevel/libraries/account-utils/src/lib.rs.
+ */
+export function decodeTrailingFeeConfig(
+  rawAccountData: Buffer,
+  consumedSize: number,
+  pluginDataSize: number,
+): SealevelTokenFeeConfig | undefined {
+  const trailingOffset = consumedSize + pluginDataSize;
+  if (rawAccountData.length <= trailingOffset) return undefined;
+
+  const tag = rawAccountData[trailingOffset];
+  if (tag === FEE_CONFIG_OPTION_NONE_TAG) return undefined;
+  assert(
+    tag === FEE_CONFIG_OPTION_SOME_TAG,
+    `Invalid fee_config Option tag: ${tag}`,
+  );
+  assert(
+    rawAccountData.length >= trailingOffset + FEE_CONFIG_SOME_TRAILING_SIZE,
+    `Truncated fee_config: expected ${FEE_CONFIG_SOME_TRAILING_SIZE} bytes from offset ${trailingOffset}, got ${rawAccountData.length - trailingOffset}`,
+  );
+  return {
+    feeProgram: new PublicKey(
+      rawAccountData.subarray(trailingOffset + 1, trailingOffset + 33),
+    ),
+    feeAccount: new PublicKey(
+      rawAccountData.subarray(trailingOffset + 33, trailingOffset + 65),
+    ),
+  };
+}
+
+/**
  * Hyperlane Token Borsh Schema
  */
 // Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/libraries/hyperlane-sealevel-token/src/accounts.rs#L25C12-L25C26
@@ -46,6 +100,9 @@ export class SealevelHyperlaneTokenData {
   /// Remote routers.
   remote_routers?: Map<Domain, Uint8Array>;
   remote_router_pubkeys: Map<Domain, PublicKey>;
+  /// Trailing optional warp fee configuration. Hydrated post-decode via
+  /// `decodeTrailingFeeConfig`; NOT part of SealevelHyperlaneTokenDataSchema.
+  fee_config?: SealevelTokenFeeConfig;
   constructor(public readonly fields: any) {
     Object.assign(this, fields);
     this.mailbox_pubkey = new PublicKey(this.mailbox);
