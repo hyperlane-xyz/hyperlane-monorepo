@@ -27,6 +27,14 @@ interface BalanceRow {
   Balance: string;
 }
 
+interface TokenEntry {
+  chain: string;
+  row: BalanceRow;
+  rawBalance: bigint | undefined;
+  isCollateral: boolean;
+  decimals: number;
+}
+
 export async function runWarpRouteBalances({
   context,
   warpRouteId,
@@ -62,7 +70,7 @@ export async function runWarpRouteBalances({
     ...ERC4626_COLLATERAL_STANDARDS,
   ]);
 
-  const rowEntries: [string, BalanceRow][] = await Promise.all(
+  const tokenEntries: TokenEntry[] = await Promise.all(
     warpCore.tokens.map(async (token) => {
       const isCollateral = collateralizedSet.has(token.standard);
 
@@ -81,34 +89,40 @@ export async function runWarpRouteBalances({
             ? formatBigIntBalance(balanceRaw, token.decimals)
             : 'N/A';
 
-        return [
-          token.chainName,
-          {
+        return {
+          chain: token.chainName,
+          row: {
             Symbol: token.symbol,
             Standard: token.standard,
             Address: token.addressOrDenom,
             Balance: balance,
           },
-        ];
+          rawBalance: balanceRaw,
+          isCollateral,
+          decimals: token.decimals,
+        };
       } catch (e: unknown) {
         warnYellow(
           `Could not fetch balance for ${token.symbol} on ${token.chainName}: ${e instanceof Error ? e.message : String(e)}`,
         );
-        return [
-          token.chainName,
-          {
+        return {
+          chain: token.chainName,
+          row: {
             Symbol: token.symbol,
             Standard: token.standard,
             Address: token.addressOrDenom,
             Balance: 'Error',
           },
-        ];
+          rawBalance: undefined,
+          isCollateral,
+          decimals: token.decimals,
+        };
       }
     }),
   );
 
   const tableData: Record<string, BalanceRow> = {};
-  for (const [chain, row] of rowEntries) {
+  for (const { chain, row } of tokenEntries) {
     let key = chain;
     let i = 2;
     while (key in tableData) {
@@ -120,8 +134,40 @@ export async function runWarpRouteBalances({
   logBlue('\nWarp route balances:');
   logTable(tableData);
 
+  const collateralEntries = tokenEntries.filter((e) => e.isCollateral);
+  const syntheticEntries = tokenEntries.filter((e) => !e.isCollateral);
+
+  if (collateralEntries.length > 0 && syntheticEntries.length > 0) {
+    const hasErrors = tokenEntries.some((e) => e.rawBalance === undefined);
+
+    const decimals = tokenEntries[0].decimals;
+    const totalCollateral = collateralEntries.reduce(
+      (sum, e) => sum + (e.rawBalance ?? 0n),
+      0n,
+    );
+    const totalSynthetic = syntheticEntries.reduce(
+      (sum, e) => sum + (e.rawBalance ?? 0n),
+      0n,
+    );
+
+    if (totalCollateral === totalSynthetic) {
+      logGreen(
+        `\nStatus: collateral matches synthetic supply (${formatBigIntBalance(totalCollateral, decimals)})${hasErrors ? ' [some balances unavailable]' : ''}`,
+      );
+    } else {
+      const diff =
+        totalCollateral > totalSynthetic
+          ? totalCollateral - totalSynthetic
+          : totalSynthetic - totalCollateral;
+      const sign = totalCollateral > totalSynthetic ? '+' : '-';
+      warnYellow(
+        `\nStatus: MISMATCH — collateral ${formatBigIntBalance(totalCollateral, decimals)} vs synthetic ${formatBigIntBalance(totalSynthetic, decimals)} (diff: ${sign}${formatBigIntBalance(diff, decimals)})${hasErrors ? ' [some balances unavailable]' : ''}`,
+      );
+    }
+  }
+
   if (out) {
-    const jsonData = rowEntries.map(([chain, row]) => ({ chain, ...row }));
+    const jsonData = tokenEntries.map(({ chain, row }) => ({ chain, ...row }));
     writeYamlOrJson(out, jsonData);
     logGreen(`\nBalances written to ${out}`);
   }

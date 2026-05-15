@@ -56,6 +56,7 @@ hyperlane warp balances \
    - Collateral legs show locked/backing balance
    - Synthetic legs show total circulating supply
    - `Error` in the Balance column means the RPC call failed for that leg
+   - A status line is printed after the table: green if collateral == synthetic total, yellow warning with diff amount if they diverge
 
 ## Common use cases
 
@@ -78,4 +79,12 @@ Warp route balances:
 │ base     │ USDC   │ EvmHypCollateral     │ 0x5244...  │ 4,231,876.12   │
 │ optimism │ USDC   │ EvmHypSynthetic      │ 0x2DBe...  │ 4,231,876.12   │
 └──────────┴────────┴──────────────────────┴────────────┴────────────────┘
+
+Status: collateral matches synthetic supply (4,231,876.12)
+```
+
+Or if there's a mismatch:
+
+```test
+Status: MISMATCH — collateral 4,231,876.12 vs synthetic 4,100,000 (diff: +131,876.12)
 ```
