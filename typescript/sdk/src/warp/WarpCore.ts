@@ -113,11 +113,14 @@ export class WarpCore {
     const parsedConfig = WarpCoreConfigSchema.parse(config);
     const tokens = parsedConfig.tokens.map(
       (token) =>
-        new Token({
-          ...token,
-          addressOrDenom: token.addressOrDenom || '',
-          connections: undefined,
-        }),
+        new Token(
+          {
+            ...token,
+            addressOrDenom: token.addressOrDenom || '',
+            connections: undefined,
+          },
+          parsedConfig.options,
+        ),
     );
 
     parsedConfig.tokens.forEach((config, i) => {
