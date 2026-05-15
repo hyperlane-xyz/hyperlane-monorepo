@@ -145,6 +145,8 @@ const balances: CommandModuleWithContext<
   WarpRouteOptions & {
     chains?: string[];
     out?: string;
+    address?: string;
+    raw?: boolean;
   }
 > = {
   command: 'balances',
@@ -160,10 +162,25 @@ const balances: CommandModuleWithContext<
       false,
       'Output file path (JSON or YAML)',
     ),
+    address: addressCommandOption(
+      "User address to check balances for. When provided, shows the user's token balance on each chain instead of collateral/supply.",
+    ),
+    raw: {
+      type: 'boolean' as const,
+      description: 'Show balances in base units (without decimal formatting)',
+      default: false,
+    },
   },
-  handler: async ({ context, warpRouteId, chains, out }) => {
+  handler: async ({ context, warpRouteId, chains, out, address, raw }) => {
     logCommandHeader('Hyperlane Warp Balances');
-    await runWarpRouteBalances({ context, warpRouteId, chains, out });
+    await runWarpRouteBalances({
+      context,
+      warpRouteId,
+      chains,
+      out,
+      address,
+      raw,
+    });
     process.exit(0);
   },
 };

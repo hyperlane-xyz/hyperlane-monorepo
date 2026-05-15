@@ -40,11 +40,15 @@ export async function runWarpRouteBalances({
   warpRouteId,
   chains,
   out,
+  address,
+  raw,
 }: {
   context: CommandContext;
   warpRouteId?: string;
   chains?: string[];
   out?: string;
+  address?: string;
+  raw?: boolean;
 }): Promise<void> {
   const warpCoreConfig: WarpCoreConfig = await getWarpCoreConfigOrExit({
     context,
@@ -77,7 +81,10 @@ export async function runWarpRouteBalances({
       try {
         let balanceRaw: bigint | undefined;
 
-        if (isCollateral) {
+        if (address) {
+          const adapter = token.getAdapter(multiProvider);
+          balanceRaw = await adapter.getBalance(address);
+        } else if (isCollateral) {
           balanceRaw = await warpCore.getTokenCollateral(token);
         } else {
           const adapter = token.getAdapter(multiProvider);
@@ -86,7 +93,9 @@ export async function runWarpRouteBalances({
 
         const balance =
           balanceRaw !== undefined
-            ? formatBigIntBalance(balanceRaw, token.decimals)
+            ? raw
+              ? balanceRaw.toString()
+              : formatBigIntBalance(balanceRaw, token.decimals)
             : 'N/A';
 
         return {
@@ -131,38 +140,47 @@ export async function runWarpRouteBalances({
     tableData[key] = row;
   }
 
-  logBlue('\nWarp route balances:');
+  if (address) {
+    logBlue(`\nWarp route balances for ${address}:`);
+  } else {
+    logBlue('\nWarp route balances:');
+  }
   logTable(tableData);
 
-  const collateralEntries = tokenEntries.filter((e) => e.isCollateral);
-  const syntheticEntries = tokenEntries.filter((e) => !e.isCollateral);
+  if (!address) {
+    const collateralEntries = tokenEntries.filter((e) => e.isCollateral);
+    const syntheticEntries = tokenEntries.filter((e) => !e.isCollateral);
 
-  if (collateralEntries.length > 0 && syntheticEntries.length > 0) {
-    const hasErrors = tokenEntries.some((e) => e.rawBalance === undefined);
+    if (collateralEntries.length > 0 && syntheticEntries.length > 0) {
+      const hasErrors = tokenEntries.some((e) => e.rawBalance === undefined);
 
-    const decimals = tokenEntries[0].decimals;
-    const totalCollateral = collateralEntries.reduce(
-      (sum, e) => sum + (e.rawBalance ?? 0n),
-      0n,
-    );
-    const totalSynthetic = syntheticEntries.reduce(
-      (sum, e) => sum + (e.rawBalance ?? 0n),
-      0n,
-    );
-
-    if (totalCollateral === totalSynthetic) {
-      logGreen(
-        `\nStatus: collateral matches synthetic supply (${formatBigIntBalance(totalCollateral, decimals)})${hasErrors ? ' [some balances unavailable]' : ''}`,
+      const decimals = tokenEntries[0].decimals;
+      const totalCollateral = collateralEntries.reduce(
+        (sum, e) => sum + (e.rawBalance ?? 0n),
+        0n,
       );
-    } else {
-      const diff =
-        totalCollateral > totalSynthetic
-          ? totalCollateral - totalSynthetic
-          : totalSynthetic - totalCollateral;
-      const sign = totalCollateral > totalSynthetic ? '+' : '-';
-      warnYellow(
-        `\nStatus: MISMATCH — collateral ${formatBigIntBalance(totalCollateral, decimals)} vs synthetic ${formatBigIntBalance(totalSynthetic, decimals)} (diff: ${sign}${formatBigIntBalance(diff, decimals)})${hasErrors ? ' [some balances unavailable]' : ''}`,
+      const totalSynthetic = syntheticEntries.reduce(
+        (sum, e) => sum + (e.rawBalance ?? 0n),
+        0n,
       );
+
+      const fmt = (v: bigint) =>
+        raw ? v.toString() : formatBigIntBalance(v, decimals);
+
+      if (totalCollateral === totalSynthetic) {
+        logGreen(
+          `\nStatus: collateral matches synthetic supply (${fmt(totalCollateral)})${hasErrors ? ' [some balances unavailable]' : ''}`,
+        );
+      } else {
+        const diff =
+          totalCollateral > totalSynthetic
+            ? totalCollateral - totalSynthetic
+            : totalSynthetic - totalCollateral;
+        const sign = totalCollateral > totalSynthetic ? '+' : '-';
+        warnYellow(
+          `\nStatus: MISMATCH — collateral ${fmt(totalCollateral)} vs synthetic ${fmt(totalSynthetic)} (diff: ${sign}${fmt(diff)})${hasErrors ? ' [some balances unavailable]' : ''}`,
+        );
+      }
     }
   }
 
