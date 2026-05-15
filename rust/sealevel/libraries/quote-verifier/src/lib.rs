@@ -320,6 +320,7 @@ mod tests {
     }
 
     /// Creates a fully signed quote using a k256 signing key.
+    #[allow(clippy::too_many_arguments)]
     fn make_signed_quote(
         signing_key: &SigningKey,
         fee_account: &Pubkey,

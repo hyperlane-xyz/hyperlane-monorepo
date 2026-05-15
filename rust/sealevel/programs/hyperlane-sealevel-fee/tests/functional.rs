@@ -583,6 +583,7 @@ fn encode_cc_standing_context(dest: u32, recipient: H256, target_router: H256) -
     buf
 }
 
+#[allow(clippy::too_many_arguments)]
 fn make_signed_standing_quote(
     signing_key: &SigningKey,
     fee_account: &Pubkey,
