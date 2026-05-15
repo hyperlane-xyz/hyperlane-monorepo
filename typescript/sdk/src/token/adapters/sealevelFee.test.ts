@@ -13,6 +13,7 @@ import {
   deriveFeeAccountPda,
   deriveFeeStandingQuotePda,
   deriveIgpStandingQuotePda,
+  parseSimulationAccountMetas,
 } from './sealevelFee.js';
 
 const TEST_PROGRAM = new PublicKey(
@@ -129,5 +130,50 @@ describe('PDA derivers', () => {
       TEST_PROGRAM,
     );
     expect(native.toBase58()).to.not.equal(spl.toBase58());
+  });
+});
+
+describe('parseSimulationAccountMetas', () => {
+  it('decodes a vec with multiple entries', () => {
+    const k1 = Buffer.alloc(32, 0xaa);
+    const k2 = Buffer.alloc(32, 0xbb);
+    const data = Buffer.concat([
+      Buffer.from([0x02, 0x00, 0x00, 0x00]), // len = 2
+      k1,
+      Buffer.from([0x01, 0x00]), // signer=true, writable=false
+      k2,
+      Buffer.from([0x00, 0x01]), // signer=false, writable=true
+    ]);
+    const metas = parseSimulationAccountMetas(data);
+    expect(metas.length).to.equal(2);
+    expect(metas[0].isSigner).to.equal(true);
+    expect(metas[0].isWritable).to.equal(false);
+    expect(metas[1].isSigner).to.equal(false);
+    expect(metas[1].isWritable).to.equal(true);
+    expect(metas[0].pubkey.toBuffer().equals(k1)).to.equal(true);
+    expect(metas[1].pubkey.toBuffer().equals(k2)).to.equal(true);
+  });
+
+  it('decodes an empty vec', () => {
+    const metas = parseSimulationAccountMetas(
+      Buffer.from([0x00, 0x00, 0x00, 0x00]),
+    );
+    expect(metas).to.deep.equal([]);
+  });
+
+  it('throws on truncated length prefix', () => {
+    expect(() => parseSimulationAccountMetas(Buffer.from([0x00]))).to.throw(
+      'Simulation return data too short',
+    );
+  });
+
+  it('throws on truncated vec body', () => {
+    const data = Buffer.concat([
+      Buffer.from([0x02, 0x00, 0x00, 0x00]), // claims 2 entries
+      Buffer.alloc(34, 0xaa), // only 1 entry follows
+    ]);
+    expect(() => parseSimulationAccountMetas(data)).to.throw(
+      'Truncated Vec<SerializableAccountMeta>',
+    );
   });
 });
