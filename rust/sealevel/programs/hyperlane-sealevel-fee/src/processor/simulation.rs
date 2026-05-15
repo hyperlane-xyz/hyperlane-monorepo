@@ -127,9 +127,8 @@ pub(super) fn process_get_quote_account_metas(
             });
         }
         FeeData::CrossCollateralRouting(_) => {
-            let dest_le = data.destination_domain.to_le_bytes();
             let (cc_specific_key, _) = Pubkey::find_program_address(
-                cc_route_pda_seeds!(fee_account_info.key, &dest_le, data.target_router),
+                cc_route_pda_seeds!(fee_account_info.key, &domain_le, data.target_router),
                 program_id,
             );
             metas.push(SerializableAccountMeta {
@@ -139,7 +138,7 @@ pub(super) fn process_get_quote_account_metas(
             });
 
             let (cc_default_key, _) = Pubkey::find_program_address(
-                cc_route_pda_seeds!(fee_account_info.key, &dest_le, DEFAULT_ROUTER),
+                cc_route_pda_seeds!(fee_account_info.key, &domain_le, DEFAULT_ROUTER),
                 program_id,
             );
             metas.push(SerializableAccountMeta {
@@ -217,7 +216,7 @@ pub(super) fn process_get_submit_quote_account_metas(
         && !is_wildcard
         && data.target_router == DEFAULT_ROUTER
     {
-        return Err(Error::ZeroTargetRouterNotAllowed.into());
+        return Err(Error::DefaultRouterNotAllowedForTransientQuote.into());
     }
 
     match &fee_account.fee_data {

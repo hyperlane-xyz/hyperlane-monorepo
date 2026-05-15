@@ -42,6 +42,12 @@ pub enum QuoteVerifyError {
     /// fnv1a("QuoteVerifyError::UnauthorizedSigner")
     #[error("Recovered signer is not authorized")]
     UnauthorizedSigner = 3705418912,
+    /// fnv1a("QuoteVerifyError::NoAuthorizedSigners")
+    /// Authorized signer set is empty: offchain quoting is configured but no
+    /// signer is currently authorized. Distinct from `UnauthorizedSigner`,
+    /// which indicates the recovered signer is not in a non-empty set.
+    #[error("No authorized signers configured")]
+    NoAuthorizedSigners = 2286425709,
 }
 
 impl From<QuoteVerifyError> for ProgramError {
@@ -123,6 +129,13 @@ impl SvmSignedQuote {
         payer: &Pubkey,
         authorized_signers: &BTreeSet<H160>,
     ) -> Result<H160, QuoteVerifyError> {
+        // An empty set means no signer can ever match. Surface the distinct
+        // diagnostic before doing any signature work, so callers can tell apart
+        // "configured but empty" from "recovered signer not in non-empty set".
+        if authorized_signers.is_empty() {
+            return Err(QuoteVerifyError::NoAuthorizedSigners);
+        }
+
         let scoped_salt = self.compute_scoped_salt(payer);
         let message_hash = self.build_message_hash(fee_account, domain_id, &scoped_salt);
 
@@ -576,7 +589,7 @@ mod tests {
         );
 
         let result = quote.verify_signer(&fee_account, 42, &payer, &BTreeSet::new());
-        assert_eq!(result.unwrap_err(), QuoteVerifyError::UnauthorizedSigner);
+        assert_eq!(result.unwrap_err(), QuoteVerifyError::NoAuthorizedSigners);
     }
 
     #[test]
@@ -764,7 +777,7 @@ mod tests {
 
         signers.remove(&signer_address);
         let result = quote.verify_signer(&fee_account, 42, &payer, &signers);
-        assert_eq!(result.unwrap_err(), QuoteVerifyError::UnauthorizedSigner);
+        assert_eq!(result.unwrap_err(), QuoteVerifyError::NoAuthorizedSigners);
     }
 
     // --- Borsh round-trip ---

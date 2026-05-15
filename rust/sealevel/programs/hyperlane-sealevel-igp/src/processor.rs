@@ -458,8 +458,9 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
             // Peek discriminator to detect transient; if matched, all failures are hard errors.
             let is_transient = accounts_iter.as_slice().first().is_some_and(|first| {
                 matches!(first.init_state(program_id), AccountInitState::Initialized)
-                    && first.data.borrow().len() >= 9
-                    && first.data.borrow()[1..9] == IgpTransientQuote::DISCRIMINATOR
+                    && first.data.borrow().len() >= 1 + IgpTransientQuote::DISCRIMINATOR.len()
+                    && first.data.borrow()[1..1 + IgpTransientQuote::DISCRIMINATOR.len()]
+                        == IgpTransientQuote::DISCRIMINATOR
             });
 
             let (resolved, overhead_info, transient_info_to_close) = if is_transient {

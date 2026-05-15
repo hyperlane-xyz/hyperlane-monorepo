@@ -848,7 +848,7 @@ mod submit_standing_quote {
             result,
             TransactionError::InstructionError(
                 0,
-                InstructionError::Custom(QuoteVerifyError::UnauthorizedSigner as u32),
+                InstructionError::Custom(QuoteVerifyError::NoAuthorizedSigners as u32),
             ),
         );
     }

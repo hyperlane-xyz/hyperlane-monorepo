@@ -111,7 +111,8 @@ async fn test_no_signers_fails() {
     )
     .await;
 
-    // No signers added (empty set) — should fail with InvalidQuoteSignature.
+    // Leaf signers is Some(empty) — verify_signer short-circuits with
+    // NoAuthorizedSigners before doing any signature work.
     let issued_at = encode_u48(100);
     let quote = make_signed_transient_quote(
         &signing_key,
@@ -129,7 +130,7 @@ async fn test_no_signers_fails() {
         result,
         TransactionError::InstructionError(
             0,
-            InstructionError::Custom(QuoteVerifyError::UnauthorizedSigner as u32),
+            InstructionError::Custom(QuoteVerifyError::NoAuthorizedSigners as u32),
         ),
     );
 }
@@ -1313,7 +1314,7 @@ async fn test_cc_transient_default_router_target_rejected() {
         result,
         TransactionError::InstructionError(
             0,
-            InstructionError::Custom(FeeError::ZeroTargetRouterNotAllowed as u32),
+            InstructionError::Custom(FeeError::DefaultRouterNotAllowedForTransientQuote as u32),
         ),
     );
 }

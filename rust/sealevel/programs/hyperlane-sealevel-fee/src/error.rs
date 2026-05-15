@@ -36,8 +36,8 @@ pub enum Error {
     /// Standing quote data is invalid.
     #[error("Invalid standing quote data")]
     InvalidStandingQuoteData = 10,
-    /// CC standing quote cannot use H256::zero() as target_router.
-    #[error("Zero target router not allowed for CC standing quotes")]
+    /// CC routes and CC standing quote contexts cannot use H256::zero() as target_router.
+    #[error("Zero target router not allowed for CC routes and standing quotes")]
     ZeroTargetRouterNotAllowed = 11,
     /// Domain 0 and u32::MAX (wildcard sentinel) cannot be used as route domains.
     #[error("Invalid route domain")]
@@ -61,6 +61,11 @@ pub enum Error {
     /// but the account is uninitialized or has the wrong discriminator.
     #[error("Transient quote slot expected but PDA is missing or invalid")]
     InvalidTransientSlot = 18,
+    /// CC transient quote signed with `target_router == DEFAULT_ROUTER` is
+    /// unconsumable: real QuoteFee callers always pass a specific target_router
+    /// and the consume-time validate is strict.
+    #[error("DEFAULT_ROUTER target not allowed for CC transient quotes")]
+    DefaultRouterNotAllowedForTransientQuote = 19,
 }
 
 impl From<Error> for ProgramError {

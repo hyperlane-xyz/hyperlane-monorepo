@@ -93,15 +93,11 @@ pub(super) fn process_submit_quote(
     //   unconsumable (see sanity guard below).
     let is_transient = quote.is_transient();
     let resolved_signers: BTreeSet<H160> = match &fee_account.fee_data {
-        FeeData::Leaf(cfg) => cfg
-            .signers
-            .as_ref()
-            .ok_or(ProgramError::from(Error::OffchainQuotingNotConfigured))?
-            .clone(),
+        FeeData::Leaf(cfg) => cfg.signers.clone(),
         FeeData::Routing(_) => {
             let ctx = FeeQuoteContext::try_from_bytes(&quote.context)?;
             if ctx.destination_domain == WILDCARD_DOMAIN {
-                fee_account.fee_data.routing_wildcard_signers()?.clone()
+                Some(fee_account.fee_data.routing_wildcard_signers()?.clone())
             } else {
                 // Exact domain: auth from RouteDomain PDA.
                 let route_pda_info = next_account_info(accounts_iter)?;
@@ -117,18 +113,16 @@ pub(super) fn process_submit_quote(
                     return Err(ProgramError::IncorrectProgramId);
                 }
 
-                let route = RouteDomainAccount::fetch(&mut &route_pda_info.data.borrow()[..])?
+                RouteDomainAccount::fetch(&mut &route_pda_info.data.borrow()[..])?
                     .into_inner()
-                    .data;
-                route
+                    .data
                     .signers
-                    .ok_or(ProgramError::from(Error::OffchainQuotingNotConfigured))?
             }
         }
         FeeData::CrossCollateralRouting(_) => {
             let ctx = CcFeeQuoteContext::try_from_bytes(&quote.context)?;
             if ctx.destination_domain == WILDCARD_DOMAIN {
-                fee_account.fee_data.cc_wildcard_signers()?.clone()
+                Some(fee_account.fee_data.cc_wildcard_signers()?.clone())
             } else {
                 if ctx.target_router == hyperlane_core::H256::zero() {
                     return Err(Error::ZeroTargetRouterNotAllowed.into());
@@ -140,7 +134,7 @@ pub(super) fn process_submit_quote(
                 // operator footguns. Standing quotes use DEFAULT_ROUTER as the
                 // explicit default-scope storage signal, so it's allowed there.
                 if is_transient && ctx.target_router == DEFAULT_ROUTER {
-                    return Err(Error::ZeroTargetRouterNotAllowed.into());
+                    return Err(Error::DefaultRouterNotAllowedForTransientQuote.into());
                 }
                 // Direct route lookup (no cascade): ctx.target_router selects the
                 // route whose signers must verify. This mirrors EVM's per-fee-
@@ -159,16 +153,14 @@ pub(super) fn process_submit_quote(
                     return Err(Error::RouteNotFound.into());
                 }
 
-                let route =
-                    CrossCollateralRouteAccount::fetch(&mut &route_pda_info.data.borrow()[..])?
-                        .into_inner()
-                        .data;
-                route
+                CrossCollateralRouteAccount::fetch(&mut &route_pda_info.data.borrow()[..])?
+                    .into_inner()
+                    .data
                     .signers
-                    .ok_or(ProgramError::from(Error::OffchainQuotingNotConfigured))?
             }
         }
-    };
+    }
+    .ok_or(ProgramError::from(Error::OffchainQuotingNotConfigured))?;
 
     // Verify the quote signature against resolved signers.
     quote

@@ -634,7 +634,7 @@ async fn test_cc_transient_default_router_simulation_rejected() {
         err,
         TransactionError::InstructionError(
             0,
-            InstructionError::Custom(FeeError::ZeroTargetRouterNotAllowed as u32),
+            InstructionError::Custom(FeeError::DefaultRouterNotAllowedForTransientQuote as u32),
         ),
     );
 }

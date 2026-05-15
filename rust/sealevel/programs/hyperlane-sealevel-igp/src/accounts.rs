@@ -53,6 +53,14 @@ pub enum GasOracle {
     // Future gas oracle variants could include a Pyth type, generalized CPI type, etc.
 }
 
+/// Serialized size of one `(u32 key, GasOracle)` entry in the `gas_oracles`
+/// HashMap. Layout: 4 (u32 key) + 1 (GasOracle variant tag) + 33
+/// (`RemoteGasData` = 2x u128 + u8). Layout-coupled to `GasOracle::RemoteGasData`;
+/// if a new variant with a different serialized size is added — or
+/// `RemoteGasData` fields change — this constant must be updated. The
+/// `test_gas_oracle_entry_size_matches_borsh` test catches drift.
+const GAS_ORACLE_ENTRY_SIZE: usize = 4 + 1 + 16 + 16 + 1;
+
 impl Default for GasOracle {
     fn default() -> Self {
         GasOracle::RemoteGasData(RemoteGasData::default())
@@ -318,9 +326,6 @@ pub fn igp_quote_mode(data: &[u8]) -> Result<IgpQuoteMode, ProgramError> {
     // Skip gas_oracles HashMap entries using Borsh length prefix.
     let map_len = u32::deserialize_reader(&mut reader)
         .map_err(|_| ProgramError::InvalidAccountData)? as usize;
-    // Layout-coupled to GasOracle::RemoteGasData. If a new GasOracle variant
-    // with a different serialized size is added, this constant must be updated.
-    const GAS_ORACLE_ENTRY_SIZE: usize = 4 + 1 + 16 + 16 + 1; // u32 key + enum tag + rate + price + decimals
     let skip = map_len
         .checked_mul(GAS_ORACLE_ENTRY_SIZE)
         .ok_or(ProgramError::ArithmeticOverflow)?;
@@ -734,6 +739,12 @@ mod test {
             min_issued_at: 500,
         };
         assert_eq!(config.size(), borsh::to_vec(&config).unwrap().len());
+    }
+
+    #[test]
+    fn test_gas_oracle_entry_size_matches_borsh() {
+        let entry: (u32, GasOracle) = (0, GasOracle::RemoteGasData(RemoteGasData::default()));
+        assert_eq!(borsh::to_vec(&entry).unwrap().len(), GAS_ORACLE_ENTRY_SIZE);
     }
 
     // --- IgpStandingQuote ---
