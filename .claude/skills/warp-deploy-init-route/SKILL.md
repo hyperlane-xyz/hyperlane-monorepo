@@ -467,13 +467,13 @@ Use the provided variable name(s) to build the command.
 
 ### 7d: Build and Show the Command
 
-Assemble the full deploy command. The command must be run from `typescript/cli`. Always include `--yes` to skip the interactive confirmation prompt:
+Assemble the full deploy command. The command must be run from `typescript/cli`. Always include `--yes` to skip the interactive confirmation prompt and a 10-minute timeout (600000ms).
+
+> **Note:** The HTTP registry must be running before executing this command (started in Step 8). Start it first, then use its URL here.
 
 ```bash
-cd typescript/cli
-
-pnpm hyperlane warp deploy \
-  --registry $REGISTRY_PATH \
+cd /path/to/hyperlane-monorepo/typescript/cli && pnpm hyperlane warp deploy \
+  --registry http://localhost:<port> \
   --warp-route-id <TOKEN>/<new-chain> \
   --key.ethereum $MY_ETH_KEY_VAR \
   [--key.sealevel $MY_SOL_KEY_VAR]   # only if sealevel chains present
@@ -481,7 +481,7 @@ pnpm hyperlane warp deploy \
   --yes
 ```
 
-Where `<TOKEN>/<new-chain>` is the warp route ID from Step 7a, and `$MY_ETH_KEY_VAR` etc. are the env variable names provided in 7c.
+Where `<TOKEN>/<new-chain>` is the warp route ID from Step 7a, `<port>` is the HTTP registry port (typically `3333`), and `$MY_ETH_KEY_VAR` etc. are the env variable names provided in 7c.
 
 Show the user the exact command with env variable names substituted (e.g. `$MY_ETH_KEY_VAR`), never key values. Then ask:
 
