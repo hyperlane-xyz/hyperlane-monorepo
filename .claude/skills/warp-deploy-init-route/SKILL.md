@@ -471,7 +471,7 @@ Assemble the full deploy command. The command must be run from `typescript/cli`.
 
 > **Note:** The HTTP registry must be running before executing this command (started in Step 8). Start it first, then use its URL here.
 
-```bash
+```test
 cd /path/to/hyperlane-monorepo/typescript/cli && pnpm hyperlane warp deploy \
   --registry http://localhost:<port> \
   --warp-route-id <TOKEN>/<new-chain> \
@@ -493,7 +493,7 @@ Show the user the exact command with env variable names substituted (e.g. `$MY_E
 
 If the user confirms, first start the HTTP registry in the background to get private RPC URLs from Secret Manager:
 
-```bash
+```test
 cd <MONOREPO_ROOT> && pnpm -C typescript/infra start:http-registry --writeMode
 ```
 
