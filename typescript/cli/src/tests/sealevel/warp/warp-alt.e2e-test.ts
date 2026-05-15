@@ -196,5 +196,10 @@ describe('hyperlane warp alt CLI e2e tests (Sealevel)', function () {
       'Warp route ALT check failed: diffs detected',
     );
     expect(result.stdout).to.match(/missingFromAlt:\s*\n\s+-/);
+    // The annotated diff names the missing entry by its semantic
+    // role — the new destination's per-domain fee standing-quote PDA.
+    expect(result.stdout).to.include(
+      'description: fee.standing_quote(domain=31337)',
+    );
   });
 });

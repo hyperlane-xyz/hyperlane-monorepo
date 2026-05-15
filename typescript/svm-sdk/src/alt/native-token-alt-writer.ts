@@ -25,8 +25,10 @@ import type { SvmReceipt } from '../types.js';
 
 import { type SvmAddressLookupTableWriter } from './address-lookup-table.js';
 import {
+  type AnnotatedAltAddress,
   type SvmTokenAltWriter,
   SvmTokenAltReaderBase,
+  canonicalize,
   createWarpAltsImpl,
   deriveFeeQuoteCascadeAltAddresses,
   deriveIgpQuoteCascadeAltAddresses,
@@ -43,18 +45,24 @@ import {
 export class SvmNativeTokenAltReader extends SvmTokenAltReaderBase<NativeWarpArtifactConfig> {
   async deriveWarpRouteAddresses(
     deployed: ArtifactDeployed<NativeWarpArtifactConfig, DeployedWarpAddress>,
-  ): Promise<Address[]> {
+  ): Promise<AnnotatedAltAddress[]> {
     const warpProgramId = parseAddress(deployed.deployed.address);
     const tokenPda = await deriveHyperlaneTokenPda(warpProgramId);
     const dispatchAuthority =
       await deriveMailboxDispatchAuthorityPda(warpProgramId);
     const nativeCollateralPda = await deriveNativeCollateralPda(warpProgramId);
 
-    const out: Address[] = [
-      warpProgramId,
-      tokenPda.address,
-      dispatchAuthority.address,
-      nativeCollateralPda.address,
+    const out: AnnotatedAltAddress[] = [
+      { address: warpProgramId, description: 'warp.program' },
+      { address: tokenPda.address, description: 'warp.token_pda' },
+      {
+        address: dispatchAuthority.address,
+        description: 'warp.dispatch_authority',
+      },
+      {
+        address: nativeCollateralPda.address,
+        description: 'warp.native_collateral_pda',
+      },
     ];
 
     const fee = deployed.config.fee;
@@ -72,7 +80,13 @@ export class SvmNativeTokenAltReader extends SvmTokenAltReaderBase<NativeWarpArt
           deployed.config,
         ),
       });
-      out.push(parseAddress(fee.config.beneficiary), ...cascade);
+      out.push(
+        {
+          address: parseAddress(fee.config.beneficiary),
+          description: 'fee.beneficiary',
+        },
+        ...cascade,
+      );
     }
 
     const hook = deployed.config.hook;
@@ -101,7 +115,7 @@ export class SvmNativeTokenAltReader extends SvmTokenAltReaderBase<NativeWarpArt
       out.push(...igpCascade);
     }
 
-    return [...new Set(out.map(parseAddress))].sort();
+    return canonicalize(out);
   }
 }
 

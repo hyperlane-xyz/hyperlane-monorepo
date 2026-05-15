@@ -14,7 +14,7 @@ import type {
   DeployedWarpAddress,
   WarpArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
-import { assert, isNullish, strip0x } from '@hyperlane-xyz/utils';
+import { assert, isNullish, strip0x, toHexString } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_ROUTER } from '../codecs/fee.js';
 import { WILDCARD_DOMAIN, WILDCARD_SENDER } from '../codecs/igp.js';
@@ -53,6 +53,30 @@ export interface SvmCoreDeploymentAltIgpContext {
 }
 
 /**
+ * A single ALT entry with a human-readable label describing what role
+ * the address plays in the warp / fee / IGP cascade. The label is SDK-
+ * derived (we know what we put in the ALT) so it surfaces in `warp
+ * alt check` diffs as "missing: fee.standing_quote(domain=10)" instead
+ * of a bare base58 string, letting operators diagnose drift without
+ * cross-referencing PDA derivations.
+ *
+ * The on-chain ALT only stores raw pubkeys — descriptions are
+ * stripped just before persistence via `createWarpAltsImpl`.
+ */
+export interface AnnotatedAltAddress {
+  address: Address;
+  description: string;
+}
+
+function annotate(address: Address, description: string): AnnotatedAltAddress {
+  return { address, description };
+}
+
+function routerLabel(router: Uint8Array): string {
+  return toHexString(Buffer.from(router));
+}
+
+/**
  * Derives the chain-level address set every SVM warp route on a given
  * chain wants in its ALTs: SDK constants, mailbox/outbox, and the
  * optional IGP quad. Output is set-deduped and base58-sorted so the
@@ -64,14 +88,14 @@ export interface SvmCoreDeploymentAltIgpContext {
 export async function deriveCoreDeploymentAltAddresses(
   mailbox: Address,
   igp?: SvmCoreDeploymentAltIgpContext,
-): Promise<Address[]> {
+): Promise<AnnotatedAltAddress[]> {
   const outbox = (await deriveMailboxOutboxPda(mailbox)).address;
-  const out: Address[] = [
-    SYSTEM_PROGRAM_ADDRESS,
-    SPL_NOOP_PROGRAM_ADDRESS,
-    SPL_TOKEN_PROGRAM_ADDRESS,
-    mailbox,
-    outbox,
+  const out: AnnotatedAltAddress[] = [
+    annotate(SYSTEM_PROGRAM_ADDRESS, 'system_program'),
+    annotate(SPL_NOOP_PROGRAM_ADDRESS, 'spl_noop'),
+    annotate(SPL_TOKEN_PROGRAM_ADDRESS, 'spl_token_program'),
+    annotate(mailbox, 'mailbox'),
+    annotate(outbox, 'mailbox.outbox'),
   ];
 
   if (igp) {
@@ -79,14 +103,18 @@ export async function deriveCoreDeploymentAltAddresses(
 
     const programData = await deriveIgpProgramDataPda(programId);
     const igpAccount = await deriveIgpAccountPda(programId, igpSalt);
-    out.push(programId, programData.address, igpAccount.address);
+    out.push(
+      annotate(programId, 'igp.program'),
+      annotate(programData.address, 'igp.program_data'),
+      annotate(igpAccount.address, 'igp.account'),
+    );
 
     if (includeOverheadIgp) {
       const overhead = await deriveOverheadIgpAccountPda(programId, igpSalt);
-      out.push(overhead.address);
+      out.push(annotate(overhead.address, 'igp.overhead_account'));
     }
   }
-  return [...new Set(out.map(parseAddress))].sort();
+  return canonicalize(out);
 }
 
 /**
@@ -111,7 +139,7 @@ export async function deriveFeeQuoteCascadeAltAddresses(args: {
   feeSalt: Uint8Array;
   feeConfig: FeeArtifactConfig;
   feeReadContext: FeeReadContext;
-}): Promise<Address[]> {
+}): Promise<AnnotatedAltAddress[]> {
   const { feeProgram, feeSalt, feeConfig, feeReadContext } = args;
   const feeAccount = await deriveFeeAccountPda(feeProgram, feeSalt);
   const cascadeArgs = {
@@ -120,7 +148,7 @@ export async function deriveFeeQuoteCascadeAltAddresses(args: {
     feeReadContext,
   };
 
-  let cascade: Address[];
+  let cascade: AnnotatedAltAddress[];
   switch (feeConfig.type) {
     case FeeType.linear:
     case FeeType.regressive:
@@ -142,16 +170,20 @@ export async function deriveFeeQuoteCascadeAltAddresses(args: {
     }
   }
 
-  return canonicalize([feeProgram, feeAccount.address, ...cascade]);
+  return canonicalize([
+    annotate(feeProgram, 'fee.program'),
+    annotate(feeAccount.address, 'fee.account'),
+    ...cascade,
+  ]);
 }
 
 async function deriveLeafFeeCascade(args: {
   feeProgram: Address;
   feeAccount: Address;
   feeReadContext: FeeReadContext;
-}): Promise<Address[]> {
+}): Promise<AnnotatedAltAddress[]> {
   const { feeProgram, feeAccount, feeReadContext } = args;
-  const out: Address[] = [];
+  const out: AnnotatedAltAddress[] = [];
 
   for (const domainStr of Object.keys(feeReadContext.knownRoutersPerDomain)) {
     const domain = Number(domainStr);
@@ -161,7 +193,9 @@ async function deriveLeafFeeCascade(args: {
       domain,
       H256_ZERO,
     );
-    out.push(standing.address);
+    out.push(
+      annotate(standing.address, `fee.standing_quote(domain=${domain})`),
+    );
   }
 
   const wildcardStanding = await deriveStandingQuotePda(
@@ -170,7 +204,9 @@ async function deriveLeafFeeCascade(args: {
     WILDCARD_DOMAIN,
     H256_ZERO,
   );
-  out.push(wildcardStanding.address);
+  out.push(
+    annotate(wildcardStanding.address, 'fee.standing_quote(domain=wildcard)'),
+  );
 
   return out;
 }
@@ -179,14 +215,14 @@ async function deriveRoutingFeeCascade(args: {
   feeProgram: Address;
   feeAccount: Address;
   feeReadContext: FeeReadContext;
-}): Promise<Address[]> {
+}): Promise<AnnotatedAltAddress[]> {
   const { feeProgram, feeAccount, feeReadContext } = args;
   const out = await deriveLeafFeeCascade(args);
 
   for (const domainStr of Object.keys(feeReadContext.knownRoutersPerDomain)) {
     const domain = Number(domainStr);
     const route = await deriveRouteDomainPda(feeProgram, feeAccount, domain);
-    out.push(route.address);
+    out.push(annotate(route.address, `fee.route(domain=${domain})`));
   }
 
   return out;
@@ -196,9 +232,9 @@ async function deriveCrossCollateralFeeCascade(args: {
   feeProgram: Address;
   feeAccount: Address;
   feeReadContext: FeeReadContext;
-}): Promise<Address[]> {
+}): Promise<AnnotatedAltAddress[]> {
   const { feeProgram, feeAccount, feeReadContext } = args;
-  const out: Address[] = [];
+  const out: AnnotatedAltAddress[] = [];
 
   for (const [domainStr, routers] of Object.entries(
     feeReadContext.knownRoutersPerDomain,
@@ -211,7 +247,12 @@ async function deriveCrossCollateralFeeCascade(args: {
       domain,
       DEFAULT_ROUTER,
     );
-    out.push(defaultRoute.address);
+    out.push(
+      annotate(
+        defaultRoute.address,
+        `fee.cc_route(domain=${domain}, target_router=DEFAULT)`,
+      ),
+    );
 
     const defaultStanding = await deriveStandingQuotePda(
       feeProgram,
@@ -219,10 +260,16 @@ async function deriveCrossCollateralFeeCascade(args: {
       domain,
       DEFAULT_ROUTER,
     );
-    out.push(defaultStanding.address);
+    out.push(
+      annotate(
+        defaultStanding.address,
+        `fee.cc_standing_quote(domain=${domain}, target_router=DEFAULT)`,
+      ),
+    );
 
     for (const routerHex of routers) {
       const router = Uint8Array.from(Buffer.from(strip0x(routerHex), 'hex'));
+      const routerHexLabel = routerLabel(router);
 
       const ccRoute = await deriveCrossCollateralRoutePda(
         feeProgram,
@@ -230,7 +277,12 @@ async function deriveCrossCollateralFeeCascade(args: {
         domain,
         router,
       );
-      out.push(ccRoute.address);
+      out.push(
+        annotate(
+          ccRoute.address,
+          `fee.cc_route(domain=${domain}, target_router=${routerHexLabel})`,
+        ),
+      );
 
       const standing = await deriveStandingQuotePda(
         feeProgram,
@@ -238,7 +290,12 @@ async function deriveCrossCollateralFeeCascade(args: {
         domain,
         router,
       );
-      out.push(standing.address);
+      out.push(
+        annotate(
+          standing.address,
+          `fee.cc_standing_quote(domain=${domain}, target_router=${routerHexLabel})`,
+        ),
+      );
 
       const wildcardStanding = await deriveStandingQuotePda(
         feeProgram,
@@ -246,7 +303,12 @@ async function deriveCrossCollateralFeeCascade(args: {
         WILDCARD_DOMAIN,
         router,
       );
-      out.push(wildcardStanding.address);
+      out.push(
+        annotate(
+          wildcardStanding.address,
+          `fee.cc_standing_quote(domain=wildcard, target_router=${routerHexLabel})`,
+        ),
+      );
     }
   }
 
@@ -282,12 +344,13 @@ export async function deriveIgpQuoteCascadeAltAddresses(args: {
   feeTokenMint: Address;
   sender: Address;
   enrolledDomains: number[];
-}): Promise<Address[]> {
+}): Promise<AnnotatedAltAddress[]> {
   const { igpProgram, igpAccount, feeTokenMint, sender, enrolledDomains } =
     args;
-  const out: Address[] = [];
+  const out: AnnotatedAltAddress[] = [];
 
   for (const mint of [feeTokenMint, SYSTEM_PROGRAM_ADDRESS]) {
+    const mintLabel = mint === SYSTEM_PROGRAM_ADDRESS ? 'native' : mint;
     for (const domain of enrolledDomains) {
       const perDest = await deriveIgpStandingQuotePda(
         igpProgram,
@@ -296,7 +359,12 @@ export async function deriveIgpQuoteCascadeAltAddresses(args: {
         domain,
         sender,
       );
-      out.push(perDest.address);
+      out.push(
+        annotate(
+          perDest.address,
+          `igp.standing_quote(mint=${mintLabel}, domain=${domain}, sender=self)`,
+        ),
+      );
     }
 
     const perSenderWildcard = await deriveIgpStandingQuotePda(
@@ -306,7 +374,12 @@ export async function deriveIgpQuoteCascadeAltAddresses(args: {
       WILDCARD_DOMAIN,
       sender,
     );
-    out.push(perSenderWildcard.address);
+    out.push(
+      annotate(
+        perSenderWildcard.address,
+        `igp.standing_quote(mint=${mintLabel}, domain=wildcard, sender=self)`,
+      ),
+    );
 
     const fullyWildcard = await deriveIgpStandingQuotePda(
       igpProgram,
@@ -315,14 +388,30 @@ export async function deriveIgpQuoteCascadeAltAddresses(args: {
       WILDCARD_DOMAIN,
       WILDCARD_SENDER,
     );
-    out.push(fullyWildcard.address);
+    out.push(
+      annotate(
+        fullyWildcard.address,
+        `igp.standing_quote(mint=${mintLabel}, domain=wildcard, sender=wildcard)`,
+      ),
+    );
   }
 
   return canonicalize(out);
 }
 
-function canonicalize(addresses: readonly Address[]): Address[] {
-  return [...new Set(addresses.map(parseAddress))].sort();
+export function canonicalize(
+  entries: readonly AnnotatedAltAddress[],
+): AnnotatedAltAddress[] {
+  const seen = new Map<Address, AnnotatedAltAddress>();
+  for (const entry of entries) {
+    const addr = parseAddress(entry.address);
+    if (!seen.has(addr)) {
+      seen.set(addr, { address: addr, description: entry.description });
+    }
+  }
+  return [...seen.values()].sort((a, b) =>
+    a.address < b.address ? -1 : a.address > b.address ? 1 : 0,
+  );
 }
 
 /**
@@ -335,20 +424,20 @@ function canonicalize(addresses: readonly Address[]): Address[] {
  * its `check` method's bucket diffs.
  */
 export interface BucketDiff {
-  missingFromAlt: Address[];
+  missingFromAlt: AnnotatedAltAddress[];
   extraInAlt: Address[];
   unfrozen: boolean;
 }
 
 export function diffBucket(
   actual: readonly Address[],
-  expected: readonly Address[],
+  expected: readonly AnnotatedAltAddress[],
   frozen: boolean,
 ): BucketDiff {
   const actualSet = new Set(actual);
-  const expectedSet = new Set(expected);
+  const expectedSet = new Set(expected.map((e) => e.address));
   return {
-    missingFromAlt: expected.filter((a) => !actualSet.has(a)),
+    missingFromAlt: expected.filter((e) => !actualSet.has(e.address)),
     extraInAlt: actual.filter((a) => !expectedSet.has(a)),
     unfrozen: !frozen,
   };
@@ -363,7 +452,7 @@ export function diffBucket(
 export interface SvmTokenAltReader<C> {
   deriveWarpRouteAddresses(
     deployed: ArtifactDeployed<C, DeployedWarpAddress>,
-  ): Promise<Address[]>;
+  ): Promise<AnnotatedAltAddress[]>;
 
   read(addresses: { core: string; warpSpecific: string[] }): Promise<{
     core: ArtifactDeployed<SvmAltConfig, SvmDeployedAlt>;
@@ -406,7 +495,7 @@ export abstract class SvmTokenAltReaderBase<
 
   abstract deriveWarpRouteAddresses(
     deployed: ArtifactDeployed<C, DeployedWarpAddress>,
-  ): Promise<Address[]>;
+  ): Promise<AnnotatedAltAddress[]>;
 
   async read(addresses: { core: string; warpSpecific: string[] }): Promise<{
     core: ArtifactDeployed<SvmAltConfig, SvmDeployedAlt>;
@@ -442,7 +531,10 @@ export abstract class SvmTokenAltReaderBase<
 
   protected async computeExpectedAltAddresses(
     deployed: ArtifactDeployed<C, DeployedWarpAddress>,
-  ): Promise<{ core: Address[]; warpSpecific: Address[] }> {
+  ): Promise<{
+    core: AnnotatedAltAddress[];
+    warpSpecific: AnnotatedAltAddress[];
+  }> {
     const mailbox = parseAddress(deployed.config.mailbox);
     const hook = deployed.config.hook;
     assert(
@@ -473,17 +565,26 @@ export abstract class SvmTokenAltReaderBase<
  */
 export async function createWarpAltsImpl(
   altWriter: SvmAddressLookupTableWriter,
-  { core, warpSpecific }: { core: Address[]; warpSpecific: Address[] },
+  {
+    core,
+    warpSpecific,
+  }: { core: AnnotatedAltAddress[]; warpSpecific: AnnotatedAltAddress[] },
 ): Promise<{
   core: Address;
   warpSpecific: Address[];
   receipts: SvmReceipt[];
 }> {
   const [coreAlt, coreReceipts] = await altWriter.create({
-    config: { frozen: true, addresses: nonEmptyArray(core) },
+    config: {
+      frozen: true,
+      addresses: nonEmptyArray(core.map((e) => e.address)),
+    },
   });
   const [warpAlt, warpReceipts] = await altWriter.create({
-    config: { frozen: true, addresses: nonEmptyArray(warpSpecific) },
+    config: {
+      frozen: true,
+      addresses: nonEmptyArray(warpSpecific.map((e) => e.address)),
+    },
   });
 
   return {
