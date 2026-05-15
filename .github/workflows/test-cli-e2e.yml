@@ -543,6 +543,7 @@ jobs:
         test:
           - core-deploy
           - core-apply
+          - warp-alt
           - warp-cross-collateral
           - warp-fee
           - warp-fee-apply
