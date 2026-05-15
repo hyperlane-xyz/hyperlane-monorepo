@@ -30,8 +30,10 @@ import {
   type SvmAddressLookupTableWriter,
 } from './address-lookup-table.js';
 import {
+  type AnnotatedAltAddress,
   type SvmTokenAltWriter,
   SvmTokenAltReaderBase,
+  canonicalize,
   createWarpAltsImpl,
   deriveFeeQuoteCascadeAltAddresses,
   deriveIgpQuoteCascadeAltAddresses,
@@ -68,7 +70,7 @@ export class SvmCrossCollateralTokenAltReader extends SvmTokenAltReaderBase<Cros
       CrossCollateralWarpArtifactConfig,
       DeployedWarpAddress
     >,
-  ): Promise<Address[]> {
+  ): Promise<AnnotatedAltAddress[]> {
     const warpProgramId = parseAddress(deployed.deployed.address);
     const mint = parseAddress(deployed.config.token);
     const tokenProgram = await fetchMintTokenProgram(this.rpc, mint);
@@ -79,14 +81,20 @@ export class SvmCrossCollateralTokenAltReader extends SvmTokenAltReaderBase<Cros
     const escrowPda = await deriveEscrowPda(warpProgramId);
     const ccStatePda = await deriveCrossCollateralStatePda(warpProgramId);
 
-    const out: Address[] = [
-      warpProgramId,
-      tokenPda.address,
-      dispatchAuthority.address,
-      tokenProgram,
-      mint,
-      escrowPda.address,
-      ccStatePda.address,
+    const out: AnnotatedAltAddress[] = [
+      { address: warpProgramId, description: 'warp.program' },
+      { address: tokenPda.address, description: 'warp.token_pda' },
+      {
+        address: dispatchAuthority.address,
+        description: 'warp.dispatch_authority',
+      },
+      { address: tokenProgram, description: 'warp.token_program' },
+      { address: mint, description: 'warp.collateral_mint' },
+      { address: escrowPda.address, description: 'warp.escrow_pda' },
+      {
+        address: ccStatePda.address,
+        description: 'warp.cross_collateral_state',
+      },
     ];
 
     const fee = deployed.config.fee;
@@ -110,7 +118,10 @@ export class SvmCrossCollateralTokenAltReader extends SvmTokenAltReaderBase<Cros
         mint,
         tokenProgram,
       });
-      out.push(beneficiaryAta.address, ...cascade);
+      out.push(
+        { address: beneficiaryAta.address, description: 'fee.beneficiary_ata' },
+        ...cascade,
+      );
     }
 
     const hook = deployed.config.hook;
@@ -139,7 +150,7 @@ export class SvmCrossCollateralTokenAltReader extends SvmTokenAltReaderBase<Cros
       out.push(...igpCascade);
     }
 
-    return [...new Set(out.map(parseAddress))].sort();
+    return canonicalize(out);
   }
 }
 

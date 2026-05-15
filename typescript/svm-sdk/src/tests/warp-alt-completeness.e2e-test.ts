@@ -478,7 +478,9 @@ describe('SVM warp ALT completeness via simulation — cross-collateral', functi
             }
           : undefined,
       );
-      const altSet = new Set<string>([...core, ...warpSpecific]);
+      const altSet = new Set<string>(
+        [...core, ...warpSpecific].map((entry) => entry.address),
+      );
 
       // ---- On-chain expected addresses via simulation ----
       const senderWallet = address(signer.getSignerAddress());
