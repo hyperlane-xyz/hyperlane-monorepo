@@ -259,7 +259,9 @@ export const SealevelIgpDataSchema = new Map<any, any>([
  * IGP instruction Borsh Schema
  */
 
-// Should match Instruction in https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/8f8853bcd7105a6dd7af3a45c413b137ded6e888/rust/sealevel/programs/hyperlane-sealevel-igp/src/instruction.rs#L19-L42
+// Should match Instruction in
+// rust/sealevel/programs/hyperlane-sealevel-igp/src/instruction.rs
+// (extended in the fee-flow upgrade after Claim=10).
 export enum SealevelIgpInstruction {
   Init,
   InitIgp,
@@ -272,7 +274,51 @@ export enum SealevelIgpInstruction {
   SetDestinationGasOverheads,
   SetGasOracleConfigs,
   Claim,
+  SetIgpQuoteConfig,
+  SetIgpQuoteSigner,
+  SetIgpMinIssuedAt,
+  SubmitIgpQuote,
+  CloseIgpTransientQuote,
+  CloseIgpStandingQuote,
+  GetIgpQuoteAccountMetas,
 }
+
+/// Simulation-only instruction returning the account metas required for an
+/// IGP quote (new flow). Mirrors `GetIgpQuoteAccountMetas` in
+/// rust/sealevel/programs/hyperlane-sealevel-igp/src/instruction.rs.
+export class SealevelGetIgpQuoteAccountMetasInstruction {
+  destination_domain!: number;
+  sender!: Uint8Array; // 32 bytes (Pubkey)
+  scoped_salt!: Uint8Array | null; // 32 bytes if Some, null = standing only
+
+  constructor(fields: any) {
+    Object.assign(this, fields);
+  }
+}
+
+export const SealevelGetIgpQuoteAccountMetasSchema = new Map<any, any>([
+  [
+    SealevelInstructionWrapper,
+    {
+      kind: 'struct',
+      fields: [
+        ['instruction', 'u8'],
+        ['data', SealevelGetIgpQuoteAccountMetasInstruction],
+      ],
+    },
+  ],
+  [
+    SealevelGetIgpQuoteAccountMetasInstruction,
+    {
+      kind: 'struct',
+      fields: [
+        ['destination_domain', 'u32'],
+        ['sender', [32]],
+        ['scoped_salt', { kind: 'option', type: [32] }],
+      ],
+    },
+  ],
+]);
 
 export class SealevelIgpQuoteGasPaymentInstruction {
   destination_domain!: number;
