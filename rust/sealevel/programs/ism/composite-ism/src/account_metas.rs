@@ -18,9 +18,9 @@ use crate::{
 
 /// Returns `true` if the ISM tree contains any `RateLimited` node.
 ///
-/// Used to decide whether the storage PDA must be marked writable in
-/// `VerifyAccountMetas` and whether the processor must write it back after
-/// `verify_node`.
+/// This is a static check used only for domain-PDA writability in
+/// `Routing`/`FallbackRouting`. For the storage PDA writable decision in
+/// `all_verify_account_metas`, use [`reachable_contains_rate_limited`] instead.
 pub(crate) fn contains_rate_limited(node: &IsmNode) -> bool {
     match node {
         IsmNode::RateLimited { .. } => true,
@@ -30,8 +30,54 @@ pub(crate) fn contains_rate_limited(node: &IsmNode) -> bool {
         }
         // Routing/FallbackRouting: domain PDAs handle their own writable marking.
         // The fallback ISM's state is managed by the fallback program itself.
-        IsmNode::Routing | IsmNode::FallbackRouting { .. } => false,
-        _ => false,
+        IsmNode::Routing
+        | IsmNode::FallbackRouting { .. }
+        | IsmNode::MultisigMessageId { .. }
+        | IsmNode::TrustedRelayer { .. }
+        | IsmNode::Pausable { .. }
+        | IsmNode::Test { .. } => false,
+    }
+}
+
+/// Returns `true` only if a `RateLimited` node is reachable and will actually
+/// be executed for this message and metadata combination.
+///
+/// Mirrors the same branch-selection logic as `required_accounts_for_node` so
+/// the storage PDA is not unnecessarily marked writable when the `RateLimited`
+/// branch cannot be reached (e.g. `AmountRouting` selects the other branch, or
+/// `Aggregation` has no metadata entry for the `RateLimited` sub-ISM).
+pub(crate) fn reachable_contains_rate_limited(
+    node: &IsmNode,
+    metadata: &[u8],
+    message: &HyperlaneMessage,
+) -> bool {
+    match node {
+        IsmNode::RateLimited { .. } => true,
+        IsmNode::Aggregation { sub_isms, .. } => sub_isms.iter().enumerate().any(|(i, sub)| {
+            sub_metadata_at(metadata, i)
+                .ok()
+                .flatten()
+                .is_some_and(|sub_meta| reachable_contains_rate_limited(sub, sub_meta, message))
+        }),
+        IsmNode::AmountRouting {
+            threshold,
+            lower,
+            upper,
+        } => {
+            let Some(amount) = parse_routing_amount(&message.body) else {
+                return false;
+            };
+            let sub = if amount >= *threshold { upper } else { lower };
+            reachable_contains_rate_limited(sub, metadata, message)
+        }
+        // Routing/FallbackRouting use domain PDAs; their RateLimited state is
+        // tracked in the domain PDA, not in the storage PDA.
+        IsmNode::Routing
+        | IsmNode::FallbackRouting { .. }
+        | IsmNode::MultisigMessageId { .. }
+        | IsmNode::TrustedRelayer { .. }
+        | IsmNode::Pausable { .. }
+        | IsmNode::Test { .. } => false,
     }
 }
 
@@ -42,9 +88,10 @@ pub(crate) fn contains_rate_limited(node: &IsmNode) -> bool {
 ///
 /// `extra_accounts` is a slice of additional accounts passed to `VerifyAccountMetas`
 /// beyond the VAM PDA (used in pass 2 for `Routing`/`FallbackRouting` to resolve
-/// sub-accounts). Config validation ensures at most one `Routing` or `FallbackRouting`
-/// exists in the tree, so that node always reads from fixed positions starting at
-/// index 0 — no cursor is needed.
+/// sub-accounts). The `Aggregation` arm threads a cursor through `extra_accounts`,
+/// advancing by each sub-ISM's result count to mirror `verify_node`'s positional
+/// consumption — this ensures `Routing`/`FallbackRouting` receive the correct slice
+/// even when preceded by account-bearing siblings like `TrustedRelayer`.
 pub fn required_accounts_for_node(
     node: &IsmNode,
     metadata: &[u8],
@@ -65,8 +112,16 @@ pub fn required_accounts_for_node(
 
         IsmNode::Aggregation { sub_isms, .. } => {
             let mut accounts: Vec<SerializableAccountMeta> = Vec::new();
+            // Mirror verify_node's positional account consumption: each sub-ISM
+            // consumes exactly as many accounts from the iterator as it returns here.
+            // Advancing the cursor after each sub-ISM means that sibling sub-ISMs
+            // (e.g. TrustedRelayer before Routing) don't shadow the accounts that a
+            // later sibling needs to read for pass-2 resolution.
+            let mut extra_cursor = extra_accounts;
             for (i, sub_ism) in sub_isms.iter().enumerate() {
                 let Some(sub_meta) = sub_metadata_at(metadata, i)? else {
+                    // No metadata → sub-ISM is skipped; it consumes no accounts at
+                    // verify time, so the cursor stays in place.
                     continue;
                 };
                 let sub_accounts = required_accounts_for_node(
@@ -74,11 +129,10 @@ pub fn required_accounts_for_node(
                     sub_meta,
                     message,
                     program_id,
-                    extra_accounts,
+                    extra_cursor,
                 )?;
-                // No dedup: account_metas must mirror the positional consumption in
-                // verify_node. Each active sub-ISM pops its own accounts via
-                // next_account_info regardless of whether a sibling used the same key.
+                let n = sub_accounts.len();
+                extra_cursor = &extra_cursor[n.min(extra_cursor.len())..];
                 accounts.extend(sub_accounts);
             }
             Ok(accounts)
@@ -90,7 +144,7 @@ pub fn required_accounts_for_node(
             upper,
         } => {
             let Some(amount) = parse_routing_amount(&message.body) else {
-                return Ok(vec![]);
+                return Err(crate::error::Error::InvalidMessageBody.into());
             };
             let sub_ism = if amount >= *threshold { upper } else { lower };
             required_accounts_for_node(sub_ism, metadata, message, program_id, extra_accounts)
@@ -109,24 +163,26 @@ pub fn required_accounts_for_node(
                 let domain_acc = extra_accounts[0];
 
                 if domain_acc.owner == program_id {
-                    if let Ok(Some(storage)) =
-                        DomainIsmAccount::fetch_data(&mut &domain_acc.data.borrow()[..])
-                    {
-                        if let Some(ref ism) = storage.ism {
-                            if contains_rate_limited(ism) {
-                                domain_pda_writable = true;
+                    match DomainIsmAccount::fetch_data(&mut &domain_acc.data.borrow()[..]) {
+                        Ok(Some(storage)) => {
+                            if let Some(ref ism) = storage.ism {
+                                if contains_rate_limited(ism) {
+                                    domain_pda_writable = true;
+                                }
+                                let node_accounts = required_accounts_for_node(
+                                    ism,
+                                    metadata,
+                                    message,
+                                    program_id,
+                                    extra_accounts,
+                                )?;
+                                // No dedup: preserve positional ordering to match verify_node
+                                // consumption (same rationale as the Aggregation arm above).
+                                sub_accounts.extend(node_accounts);
                             }
-                            let node_accounts = required_accounts_for_node(
-                                ism,
-                                metadata,
-                                message,
-                                program_id,
-                                extra_accounts,
-                            )?;
-                            // No dedup: preserve positional ordering to match verify_node
-                            // consumption (same rationale as the Aggregation arm above).
-                            sub_accounts.extend(node_accounts);
                         }
+                        Ok(None) => {} // owned but uninitialized → treat as no ISM
+                        Err(_) => return Err(ProgramError::InvalidAccountData),
                     }
                 }
             }
@@ -162,22 +218,24 @@ pub fn required_accounts_for_node(
             let mut domain_sub_accounts: Vec<SerializableAccountMeta> = vec![];
 
             if domain_acc.owner == program_id {
-                if let Ok(Some(storage)) =
-                    DomainIsmAccount::fetch_data(&mut &domain_acc.data.borrow()[..])
-                {
-                    if let Some(ref ism) = storage.ism {
-                        if contains_rate_limited(ism) {
-                            domain_pda_writable = true;
+                match DomainIsmAccount::fetch_data(&mut &domain_acc.data.borrow()[..]) {
+                    Ok(Some(storage)) => {
+                        if let Some(ref ism) = storage.ism {
+                            if contains_rate_limited(ism) {
+                                domain_pda_writable = true;
+                            }
+                            domain_sub_accounts = required_accounts_for_node(
+                                ism,
+                                metadata,
+                                message,
+                                program_id,
+                                extra_accounts,
+                            )?;
+                            used_domain_ism = true;
                         }
-                        domain_sub_accounts = required_accounts_for_node(
-                            ism,
-                            metadata,
-                            message,
-                            program_id,
-                            extra_accounts,
-                        )?;
-                        used_domain_ism = true;
                     }
+                    Ok(None) => {} // owned but uninitialized → treat as no ISM
+                    Err(_) => return Err(ProgramError::InvalidAccountData),
                 }
             }
 
@@ -281,7 +339,7 @@ pub fn all_verify_account_metas(
     program_id: &Pubkey,
     extra_accounts: &[&AccountInfo],
 ) -> Result<Vec<SerializableAccountMeta>, ProgramError> {
-    let storage_meta = if contains_rate_limited(root) {
+    let storage_meta = if reachable_contains_rate_limited(root, metadata, message) {
         AccountMeta::new(*vam_pda_key, false) // writable, not signer
     } else {
         AccountMeta::new_readonly(*vam_pda_key, false)
@@ -607,5 +665,70 @@ mod test {
             all_verify_account_metas(&vam_pda, &node, &[], &msg, &program_id, &[]).unwrap();
         assert_eq!(accounts.len(), 1);
         assert!(!accounts[0].is_writable);
+    }
+
+    /// Regression: Aggregation([TrustedRelayer(R), Routing]) must converge in pass 2.
+    ///
+    /// Before the cursor-threading fix, Routing always read `extra_accounts[0]` which
+    /// contained R_signer in pass 2 (not the domain PDA), so the loop never converged.
+    #[test]
+    fn test_aggregation_trusted_relayer_before_routing_resolves() {
+        use solana_program::account_info::AccountInfo;
+
+        let program_id = Pubkey::new_unique();
+        let relayer = Pubkey::new_unique();
+        let (domain_pda_key, _) = derive_domain_pda(&program_id, ORIGIN);
+
+        let node = IsmNode::Aggregation {
+            threshold: 2,
+            sub_isms: vec![IsmNode::TrustedRelayer { relayer }, IsmNode::Routing],
+        };
+        let msg = dummy_message(ORIGIN);
+        // Both sub-ISMs active: provide metadata for index 0 (TrustedRelayer) and 1 (Routing).
+        let meta = encode_aggregation_metadata(&[Some(&[]), Some(&[])]);
+
+        // Pass 1: no extra accounts → TrustedRelayer contributes relayer, Routing contributes domain_pda_placeholder.
+        let pass1 =
+            required_accounts_for_node(&node, &meta, &msg, &program_id, &no_extra()).unwrap();
+        assert_eq!(pass1.len(), 2);
+        assert_eq!(pass1[0].pubkey, relayer);
+        assert!(pass1[0].is_signer);
+        assert_eq!(pass1[1].pubkey, domain_pda_key);
+
+        // Pass 2: caller provides [relayer_acc, domain_pda_acc] as extra accounts.
+        // Cursor threading must advance past relayer_acc so Routing sees domain_pda_acc at [0].
+        let foreign_owner = Pubkey::default();
+        let mut relayer_lamports = 0u64;
+        let mut domain_lamports = 0u64;
+        let relayer_acc = AccountInfo::new(
+            &relayer,
+            true,
+            false,
+            &mut relayer_lamports,
+            &mut [],
+            &foreign_owner,
+            false,
+        );
+        let mut domain_data: Vec<u8> = vec![];
+        let domain_pda_acc = AccountInfo::new(
+            &domain_pda_key,
+            false,
+            false,
+            &mut domain_lamports,
+            &mut domain_data,
+            &foreign_owner, // unowned → Routing still emits domain_pda key
+            false,
+        );
+
+        let extra = vec![&relayer_acc, &domain_pda_acc];
+        let pass2 = required_accounts_for_node(&node, &meta, &msg, &program_id, &extra).unwrap();
+
+        // After cursor threading: pass2 == pass1 (relayer + domain_pda) → converged.
+        assert_eq!(pass2.len(), 2);
+        assert_eq!(pass2[0].pubkey, relayer);
+        assert_eq!(
+            pass2[1].pubkey, domain_pda_key,
+            "Routing must resolve domain_pda even with TrustedRelayer sibling before it"
+        );
     }
 }

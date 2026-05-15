@@ -16,7 +16,7 @@
 //! - Verify fails with RecipientMismatch when recipient does not match the configured one
 //! - Verify succeeds for any recipient when no recipient is configured
 //! - Verify fails with InvalidMessageBody when message body is shorter than 64 bytes
-//! - Verify fails with InvalidMessageBody when message amount overflows u64 (high bytes non-zero)
+//! - Verify fails with RateLimitExceeded when message amount overflows u64 (high bytes non-zero)
 //! - VerifyAccountMetas returns the storage PDA as writable (state is mutated on Verify)
 //! - UpdateConfig resets rate limit state to full capacity
 
@@ -592,7 +592,7 @@ async fn test_verify_amount_overflow() {
         &result,
         TransactionError::InstructionError(
             0,
-            InstructionError::Custom(Error::InvalidMessageBody as u32),
+            InstructionError::Custom(Error::RateLimitExceeded as u32),
         ),
     );
 }

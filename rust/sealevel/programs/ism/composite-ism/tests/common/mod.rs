@@ -8,8 +8,9 @@ use hyperlane_sealevel_composite_ism::{
         DomainIsmStorage, IsmNode,
     },
     instruction::{
-        initialize_instruction, remove_domain_ism_instruction, set_domain_ism_instruction,
-        update_config_instruction, verify_metadata_spec_instruction,
+        initialize_instruction, pause_instruction, remove_domain_ism_instruction,
+        set_domain_ism_instruction, unpause_instruction, update_config_instruction,
+        verify_metadata_spec_instruction,
     },
     processor::process_instruction,
 };
@@ -160,13 +161,20 @@ pub async fn get_verify_account_metas(
 ///
 /// Each iteration feeds the previous result back as input accounts, allowing
 /// `Routing` nodes to discover sub-accounts (e.g. `TrustedRelayer`) that are
-/// only readable once the domain PDA is known. The loop terminates when no new
-/// pubkeys appear in the returned list — i.e. the set has converged.
+/// only readable once the domain PDA is known. The loop terminates when the
+/// full `AccountMeta` list (pubkeys **and** flags) stops changing.
+///
+/// Full equality is required because the domain PDA's `is_writable` flag can
+/// flip between iterations: pass 1 returns it readonly (the RateLimited ISM
+/// has not been read yet), pass 2 promotes it to writable (RateLimited
+/// detected), and only pass 3 is stable. Key-only comparison would exit after
+/// pass 2 with stale flags, but since `return result` is used the writable bit
+/// would still be correct in that case; the full check is defensive and ensures
+/// we never ship a pre-stable list to `Verify`.
 ///
 /// Use this everywhere the relayer prepares accounts for `Verify`. A single
 /// call to `get_verify_account_metas` is only sufficient for trees that contain
-/// no `Routing` nodes with `TrustedRelayer` (or other account-bearing ISMs)
-/// inside their domain PDAs.
+/// no `Routing` nodes with account-bearing ISMs inside their domain PDAs.
 pub async fn get_all_verify_account_metas(
     banks_client: &mut BanksClient,
     payer: &Keypair,
@@ -184,14 +192,37 @@ pub async fn get_all_verify_account_metas(
         )
         .await;
 
-        // Converged when no new pubkeys appear (flags may differ but pubkeys are stable).
-        let new_keys: Vec<Pubkey> = result.iter().map(|m| m.pubkey).collect();
-        let prev_keys: Vec<Pubkey> = accounts.iter().map(|m| m.pubkey).collect();
-        if new_keys == prev_keys {
+        // Converged when the full AccountMeta list (pubkeys and flags) stabilizes.
+        if result == accounts {
             return result;
         }
         accounts = result;
     }
+}
+
+/// Simulates `VerifyAccountMetas` and returns the raw simulation result (including errors).
+/// Use this when you expect VAM to fail; use `get_verify_account_metas` when you expect success.
+pub async fn simulate_vam(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    recent_blockhash: Hash,
+    verify_instruction: VerifyInstruction,
+) -> BanksTransactionResultWithSimulation {
+    let storage_pda = AccountMeta::new_readonly(storage_pda_key(), false);
+    banks_client
+        .simulate_transaction(Transaction::new_unsigned(Message::new_with_blockhash(
+            &[Instruction::new_with_bytes(
+                composite_ism_id(),
+                &InterchainSecurityModuleInstruction::VerifyAccountMetas(verify_instruction)
+                    .encode()
+                    .unwrap(),
+                vec![storage_pda],
+            )],
+            Some(&payer.pubkey()),
+            &recent_blockhash,
+        )))
+        .await
+        .unwrap()
 }
 
 /// Simulates `Verify` using the given account metas and returns the raw simulation result.
@@ -323,6 +354,38 @@ pub async fn remove_domain_ism(
     domain: u32,
 ) -> Result<(), BanksClientError> {
     let ix = remove_domain_ism_instruction(composite_ism_id(), payer.pubkey(), domain).unwrap();
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&payer.pubkey()),
+        &[payer],
+        recent_blockhash,
+    );
+    banks_client.process_transaction(tx).await
+}
+
+/// Submits a `Pause` instruction.
+pub async fn pause(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    recent_blockhash: Hash,
+) -> Result<(), BanksClientError> {
+    let ix = pause_instruction(composite_ism_id(), payer.pubkey()).unwrap();
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&payer.pubkey()),
+        &[payer],
+        recent_blockhash,
+    );
+    banks_client.process_transaction(tx).await
+}
+
+/// Submits an `Unpause` instruction.
+pub async fn unpause(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    recent_blockhash: Hash,
+) -> Result<(), BanksClientError> {
+    let ix = unpause_instruction(composite_ism_id(), payer.pubkey()).unwrap();
     let tx = Transaction::new_signed_with_payer(
         &[ix],
         Some(&payer.pubkey()),

@@ -177,6 +177,26 @@ fn parse_chain(
         .and_then(parse_signer)
         .end();
 
+    // Fail fast: 'identity' is Sealevel-only.  Catching this here avoids
+    // silent acceptance on EVM/Cosmos chains that would only fail hours later
+    // when build_mailbox is first called.  If the protocol is unrecognised we
+    // skip the check and let other validations surface the protocol error.
+    if identity.is_some() {
+        if let Some(protocol) = try_get_protocol(&chain) {
+            if protocol != HyperlaneDomainProtocol::Sealevel {
+                err.push(
+                    chain.cwp.clone(),
+                    eyre!(
+                        "'identity' is only supported for Sealevel chains, \
+                         but chain '{}' uses protocol '{:?}'",
+                        name,
+                        protocol
+                    ),
+                );
+            }
+        }
+    }
+
     // measured in seconds (with fractions)
     let estimated_block_time = chain
         .chain(&mut err)

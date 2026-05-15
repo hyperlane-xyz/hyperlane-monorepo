@@ -1,16 +1,17 @@
-use borsh::BorshDeserialize;
 use hyperlane_core::{Encode, HyperlaneMessage, ModuleType};
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, MetadataSpecResult, VerifyMetadataSpecInstruction,
     VERIFY_ACCOUNT_METAS_PDA_SEEDS,
 };
-use multisig_ism::{domain_data_pda, ValidatorsAndThreshold};
+use multisig_ism::{domain_data_pda, interface::MultisigIsmInstruction, ValidatorsAndThreshold};
 use serializable_account_meta::SimulationReturnData;
 use solana_program::{
     account_info::AccountInfo,
+    clock::Clock,
     instruction::{AccountMeta, Instruction as SolanaInstruction},
     program::{get_return_data, invoke},
     pubkey::Pubkey,
+    sysvar::Sysvar,
 };
 
 pub use hyperlane_sealevel_interchain_security_module_interface::MetadataSpec;
@@ -21,6 +22,7 @@ use crate::{
     },
     error::Error,
     metadata::parse_routing_amount,
+    rate_limit::calculate_current_level,
 };
 
 /// If `loaded` contains a per-domain ISM override, resolves its spec and
@@ -231,23 +233,29 @@ pub(crate) fn spec_and_accounts_for_node<'a, 'info>(
                     });
                 }
 
-                // Read validators/threshold directly from the domain PDA account.
-                // AccountData<DomainData> layout: [bool (initialized)] + [u8 (bump_seed)]
-                // + borsh(ValidatorsAndThreshold). No discriminator prefix.
-                let multisig_domain_pda_info = extra_accounts[2];
-                if *multisig_domain_pda_info.owner != *fallback_ism {
+                // CPI to MultisigIsmInstruction::ValidatorsAndThreshold — the stable
+                // public interface. Decouples composite from the internal PDA layout
+                // of multisig-ism-message-id (no discriminator assumptions, no field
+                // ordering assumptions).
+                let multisig_domain_pda_info = (*extra_accounts[2]).clone();
+                invoke(
+                    &SolanaInstruction {
+                        program_id: *fallback_ism,
+                        accounts: vec![AccountMeta::new_readonly(multisig_domain_pda, false)],
+                        data: MultisigIsmInstruction::ValidatorsAndThreshold(message.to_vec())
+                            .encode()
+                            .map_err(|_| Error::FallbackIsmCallFailed)?,
+                    },
+                    &[multisig_domain_pda_info],
+                )
+                .map_err(|_| Error::FallbackIsmCallFailed)?;
+                let Some((_, vat_bytes)) = get_return_data() else {
                     return Err(Error::FallbackIsmCallFailed);
-                }
-                let data = multisig_domain_pda_info.data.borrow();
-                let buf = &mut &data[..];
-                let initialized =
-                    bool::deserialize(buf).map_err(|_| Error::FallbackIsmCallFailed)?;
-                if !initialized {
-                    return Err(Error::FallbackIsmCallFailed);
-                }
-                u8::deserialize(buf).map_err(|_| Error::FallbackIsmCallFailed)?; // bump_seed
-                let vat = ValidatorsAndThreshold::deserialize(buf)
-                    .map_err(|_| Error::FallbackIsmCallFailed)?;
+                };
+                let vat =
+                    borsh::from_slice::<SimulationReturnData<ValidatorsAndThreshold>>(&vat_bytes)
+                        .map(|s| s.return_data)
+                        .map_err(|_| Error::FallbackIsmCallFailed)?;
                 Ok(MetadataSpecResult {
                     spec: Some(MetadataSpec::MultisigMessageId {
                         validators: vat.validators,
@@ -312,12 +320,92 @@ pub(crate) fn spec_and_accounts_for_node<'a, 'info>(
             }
         }
 
-        IsmNode::TrustedRelayer { .. }
-        | IsmNode::Test { .. }
-        | IsmNode::Pausable { .. }
-        | IsmNode::RateLimited { .. } => Ok(MetadataSpecResult {
-            spec: Some(MetadataSpec::Null),
+        IsmNode::TrustedRelayer { relayer } => Ok(MetadataSpecResult {
+            spec: Some(MetadataSpec::TrustedRelayer { relayer: *relayer }),
             accounts: vec![],
         }),
+
+        IsmNode::Test { accept } => Ok(MetadataSpecResult {
+            spec: Some(if *accept {
+                MetadataSpec::Null
+            } else {
+                MetadataSpec::CannotVerify
+            }),
+            accounts: vec![],
+        }),
+
+        IsmNode::Pausable { paused } => Ok(MetadataSpecResult {
+            spec: Some(if !*paused {
+                MetadataSpec::Null
+            } else {
+                MetadataSpec::CannotVerify
+            }),
+            accounts: vec![],
+        }),
+
+        IsmNode::RateLimited {
+            max_capacity,
+            recipient,
+            filled_level,
+            last_updated,
+        } => {
+            let spec = rate_limited_spec(
+                message,
+                *max_capacity,
+                *recipient,
+                *filled_level,
+                *last_updated,
+            );
+            Ok(MetadataSpecResult {
+                spec: Some(spec),
+                accounts: vec![],
+            })
+        }
+    }
+}
+
+/// Returns `Null` if the current transfer would pass the rate-limit check,
+/// or `CannotVerify` if it would be rejected.
+///
+/// Mirrors the logic in `verify.rs` for `IsmNode::RateLimited`, without the
+/// state mutation.  Uses `Clock::get()` for the current timestamp; returns
+/// `CannotVerify` on clock failure so the relayer skips the slot conservatively.
+fn rate_limited_spec(
+    message: &HyperlaneMessage,
+    max_capacity: u64,
+    recipient: Option<hyperlane_core::H256>,
+    filled_level: u64,
+    last_updated: i64,
+) -> MetadataSpec {
+    if let Some(r) = recipient {
+        if message.recipient != r {
+            return MetadataSpec::CannotVerify;
+        }
+    }
+
+    if message.body.len() < 64 {
+        return MetadataSpec::CannotVerify;
+    }
+    // High 24 bytes of the 32-byte BE U256 must be zero; otherwise the amount
+    // overflows u64 and certainly exceeds any realistic capacity.
+    if message.body[32..56].iter().any(|&b| b != 0) {
+        return MetadataSpec::CannotVerify;
+    }
+    let amount = u64::from_be_bytes(match message.body[56..64].try_into() {
+        Ok(b) => b,
+        Err(_) => return MetadataSpec::CannotVerify,
+    });
+
+    let now = match Clock::get() {
+        Ok(clock) => clock.unix_timestamp,
+        Err(_) => return MetadataSpec::CannotVerify,
+    };
+
+    let adjusted = calculate_current_level(filled_level, last_updated, now, max_capacity);
+
+    if amount > adjusted {
+        MetadataSpec::CannotVerify
+    } else {
+        MetadataSpec::Null
     }
 }

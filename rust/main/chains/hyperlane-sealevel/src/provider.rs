@@ -705,10 +705,10 @@ impl SealevelProvider {
                 .map(|s| s.return_data.into_iter().map(|m| m.into()).collect())
                 .unwrap_or_default();
 
-            let result_keys: Vec<_> = result.iter().map(|m| m.pubkey).collect();
-            let prev_keys: Vec<_> = accounts.iter().map(|m| m.pubkey).collect();
-
-            if result_keys == prev_keys {
+            // Converged when the full AccountMeta list (pubkeys AND flags) stabilises.
+            // Key-only comparison would miss is_writable/is_signer flips: the
+            // last iteration's flags would silently take effect.
+            if result == accounts {
                 return Ok(result);
             }
             accounts = result;

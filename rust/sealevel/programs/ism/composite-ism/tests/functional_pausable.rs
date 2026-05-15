@@ -18,7 +18,7 @@ use solana_sdk::{instruction::InstructionError, signature::Signer, transaction::
 
 use common::{
     assert_simulation_error, assert_simulation_ok, dummy_message, get_verify_account_metas,
-    initialize, program_test, simulate_verify, storage_pda_key,
+    initialize, pause, program_test, simulate_verify, storage_pda_key, unpause,
 };
 
 // ── CONFIG ───────────────────────────────────────────────────────────────────
@@ -152,4 +152,98 @@ async fn test_verify_account_metas_empty() {
     // Only the storage PDA — no extra accounts for Pausable ISM.
     assert_eq!(account_metas.len(), 1);
     assert_eq!(account_metas[0].pubkey, storage_pda_key());
+}
+
+// ── PAUSE / UNPAUSE ──────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn test_pause_rejects_verify() {
+    let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
+
+    initialize(
+        &mut banks_client,
+        &payer,
+        recent_blockhash,
+        IsmNode::Pausable { paused: false },
+    )
+    .await
+    .unwrap();
+
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    pause(&mut banks_client, &payer, recent_blockhash)
+        .await
+        .unwrap();
+
+    let msg = dummy_message();
+    let verify_ixn = VerifyInstruction {
+        metadata: vec![],
+        message: msg.to_vec(),
+    };
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let account_metas = get_verify_account_metas(
+        &mut banks_client,
+        &payer,
+        recent_blockhash,
+        verify_ixn.clone(),
+    )
+    .await;
+    let result = simulate_verify(
+        &mut banks_client,
+        &payer,
+        recent_blockhash,
+        verify_ixn,
+        account_metas,
+    )
+    .await;
+
+    assert_simulation_error(
+        &result,
+        TransactionError::InstructionError(
+            0,
+            InstructionError::Custom(Error::VerifyRejected as u32),
+        ),
+    );
+}
+
+#[tokio::test]
+async fn test_unpause_accepts_verify() {
+    let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
+
+    initialize(
+        &mut banks_client,
+        &payer,
+        recent_blockhash,
+        IsmNode::Pausable { paused: true },
+    )
+    .await
+    .unwrap();
+
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    unpause(&mut banks_client, &payer, recent_blockhash)
+        .await
+        .unwrap();
+
+    let msg = dummy_message();
+    let verify_ixn = VerifyInstruction {
+        metadata: vec![],
+        message: msg.to_vec(),
+    };
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let account_metas = get_verify_account_metas(
+        &mut banks_client,
+        &payer,
+        recent_blockhash,
+        verify_ixn.clone(),
+    )
+    .await;
+    let result = simulate_verify(
+        &mut banks_client,
+        &payer,
+        recent_blockhash,
+        verify_ixn,
+        account_metas,
+    )
+    .await;
+
+    assert_simulation_ok(&result);
 }

@@ -860,6 +860,71 @@ async fn test_rate_limited_in_domain_pda_readonly_bypass_rejected() {
     );
 }
 
+/// Documents the relayer-side convergence contract for a `RateLimited` node
+/// stored in a domain PDA.
+///
+/// The fixpoint loop is required — a single VAM pass returns the domain PDA as
+/// readonly (the ISM type is not yet known), while the converged result must
+/// carry `is_writable = true`. Only then can `process_transaction` (not just
+/// simulate) succeed and write the consumed capacity back.
+#[tokio::test]
+async fn test_rate_limited_domain_pda_writable_bit_requires_fixpoint() {
+    let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
+
+    initialize(&mut banks_client, &payer, recent_blockhash, routing_root())
+        .await
+        .unwrap();
+    set_domain_ism(
+        &mut banks_client,
+        &payer,
+        recent_blockhash,
+        ORIGIN,
+        IsmNode::RateLimited {
+            max_capacity: 1_000,
+            recipient: None,
+            filled_level: 0,
+            last_updated: 0,
+        },
+    )
+    .await
+    .unwrap();
+
+    let mut msg = dummy_message();
+    msg.origin = ORIGIN;
+    msg.body = token_message_body(500);
+    let verify_ixn = VerifyInstruction {
+        metadata: vec![],
+        message: msg.to_vec(),
+    };
+
+    let converged = get_all_verify_account_metas(
+        &mut banks_client,
+        &payer,
+        recent_blockhash,
+        verify_ixn.clone(),
+    )
+    .await;
+
+    assert_eq!(converged.len(), 2);
+    assert_eq!(converged[1].pubkey, domain_pda_key(ORIGIN));
+    assert!(
+        converged[1].is_writable,
+        "fixpoint loop must promote domain PDA to writable when it contains RateLimited"
+    );
+
+    // process_transaction (not simulate) with the converged accounts must succeed
+    // and consume 500 from the 1_000 capacity.
+    process_verify_domain(&mut banks_client, &payer, verify_ixn, converged)
+        .await
+        .unwrap();
+
+    let (filled_level, _) = read_domain_rate_limited_state(&mut banks_client, ORIGIN).await;
+    assert_eq!(
+        filled_level, 500,
+        "capacity should drop by the transferred amount"
+    );
+}
+
 // ─── Test (baseline) ─────────────────────────────────────────────────────────
 
 #[tokio::test]

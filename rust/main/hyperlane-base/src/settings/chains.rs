@@ -1409,12 +1409,17 @@ impl ChainConf {
     }
 
     /// Returns the identity keypair for Sealevel chains — the relayer's on-chain identity used
-    /// e.g. by TrustedRelayer ISMs. Falls back to the regular `signer` if `identity` is not set.
+    /// e.g. by TrustedRelayer ISMs.
+    ///
+    /// Returns `None` when `identity` is not configured.  Callers that need a fallback (e.g.
+    /// `SealevelMailbox`) handle the None case themselves.  This matches the lander path in
+    /// `create_identity_keypair`: both return None when identity is absent, so the two paths
+    /// always agree on whether a distinct identity key is in use.
     async fn sealevel_identity_signer(&self) -> Result<Option<h_sealevel::Keypair>> {
         if let Some(conf) = &self.identity {
             Ok(Some(conf.build::<h_sealevel::Keypair>().await?))
         } else {
-            self.signer().await
+            Ok(None)
         }
     }
 

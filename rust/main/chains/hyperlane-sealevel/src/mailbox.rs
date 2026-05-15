@@ -84,8 +84,10 @@ pub struct SealevelMailbox {
     pub(crate) provider: Arc<SealevelProvider>,
     payer: Option<SealevelKeypair>,
     /// Optional identity keypair used as the relayer's on-chain identity (e.g. for
-    /// TrustedRelayer ISMs). When set it must differ from `payer`; if absent, `payer`
-    /// is used and TrustedRelayer ISMs with the relayer set to `payer` will not work.
+    /// TrustedRelayer ISMs). When set it must differ from `payer`. When absent, no
+    /// separate identity co-signer is added; only the fee-payer signature is present.
+    /// TrustedRelayer ISMs that require a *separate* identity signature will not work
+    /// unless this is set.
     ///
     /// IMPORTANT: Do NOT fund this address with SOL, tokens, or any other assets.
     /// It is an identity-only keypair — its signature proves relayer identity but

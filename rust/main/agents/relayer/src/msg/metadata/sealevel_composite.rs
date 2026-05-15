@@ -1,13 +1,15 @@
 use std::{future::Future, pin::Pin, sync::Arc};
 
+use futures_util::future::join_all;
+
 use async_trait::async_trait;
 use derive_more::Deref;
 use derive_new::new;
 use eyre::Result;
 use hyperlane_core::{HyperlaneMessage, Metadata, H256};
 use hyperlane_sealevel::{CompositeIsmMetadataSpec, SealevelCompositeIsm};
-use tracing::{debug, info};
 
+use super::multisig::{build_from_known_validators, MessageIdMultisigMetadataBuilder};
 use crate::msg::metadata::{
     base::{MessageMetadataBuildParams, MetadataBuildError},
     MessageMetadataBuilder, MetadataBuilder,
@@ -47,7 +49,8 @@ impl MetadataBuilder for SealevelCompositeIsmMetadataBuilder {
             .await
             .map_err(|e| MetadataBuildError::FailedToBuild(e.to_string()))?;
 
-        let bytes = build_metadata_from_spec(&spec, message, &self.base).await?;
+        let relayer_pubkey = self.composite_ism.payer_pubkey();
+        let bytes = build_metadata_from_spec(&spec, message, &self.base, relayer_pubkey).await?;
         Ok(Metadata::new(bytes))
     }
 }
@@ -59,100 +62,49 @@ pub(crate) fn build_metadata_from_spec<'a>(
     spec: &'a CompositeIsmMetadataSpec,
     message: &'a HyperlaneMessage,
     builder: &'a MessageMetadataBuilder,
+    relayer_pubkey: Option<H256>,
 ) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, MetadataBuildError>> + Send + 'a>> {
-    Box::pin(build_metadata_from_spec_inner(spec, message, builder))
+    Box::pin(build_metadata_from_spec_inner(
+        spec,
+        message,
+        builder,
+        relayer_pubkey,
+    ))
 }
 
 async fn build_metadata_from_spec_inner(
     spec: &CompositeIsmMetadataSpec,
     message: &HyperlaneMessage,
     builder: &MessageMetadataBuilder,
+    relayer_pubkey: Option<H256>,
 ) -> Result<Vec<u8>, MetadataBuildError> {
     match spec {
         CompositeIsmMetadataSpec::Null => Ok(vec![]),
+
+        CompositeIsmMetadataSpec::TrustedRelayer { relayer } => {
+            let relayer_h256 = H256::from(relayer.to_bytes());
+            if relayer_pubkey == Some(relayer_h256) {
+                Ok(vec![])
+            } else {
+                Err(MetadataBuildError::CouldNotFetch)
+            }
+        }
+
+        CompositeIsmMetadataSpec::CannotVerify => Err(MetadataBuildError::CouldNotFetch),
 
         CompositeIsmMetadataSpec::MultisigMessageId {
             validators,
             threshold,
         } => {
-            // Convert H160 validator addresses to H256 (left-padded with zeros).
             let validators_h256: Vec<H256> = validators.iter().map(|v| (*v).into()).collect();
-
-            if validators_h256.is_empty() {
-                info!("Composite ISM: no validators in spec");
-                return Err(MetadataBuildError::CouldNotFetch);
-            }
-
-            let checkpoint_syncer = builder
-                .base_builder()
-                .build_checkpoint_syncer(message, &validators_h256, builder.app_context.clone())
-                .await
-                .map_err(|e| MetadataBuildError::FailedToBuild(e.to_string()))?;
-
-            let message_id = message.id();
-            let leaf_index = match builder
-                .base_builder()
-                .get_merkle_leaf_id_by_message_id(message_id)
-                .await
-                .map_err(|e| MetadataBuildError::FailedToBuild(e.to_string()))?
-            {
-                Some(idx) => idx,
-                None => {
-                    debug!(hyp_message = ?message, "Composite ISM: no merkle leaf for message id");
-                    return Err(MetadataBuildError::CouldNotFetch);
-                }
-            };
-
-            let _ = checkpoint_syncer
-                .get_validator_latest_checkpoints_and_update_metrics(
-                    &validators_h256,
-                    builder.base_builder().origin_domain(),
-                    builder.base_builder().destination_domain(),
-                )
-                .await;
-
-            let quorum_checkpoint = match checkpoint_syncer
-                .fetch_checkpoint(
-                    &validators_h256,
-                    *threshold as usize,
-                    leaf_index,
-                    builder.base_builder().destination_domain(),
-                )
-                .await
-                .map_err(|e| MetadataBuildError::FailedToBuild(e.to_string()))?
-            {
-                Some(qc) => qc,
-                None => {
-                    debug!("Composite ISM: no quorum checkpoint found");
-                    return Err(MetadataBuildError::CouldNotFetch);
-                }
-            };
-
-            if quorum_checkpoint.checkpoint.message_id != message_id {
-                info!(
-                    got = %quorum_checkpoint.checkpoint.message_id,
-                    expected = %message_id,
-                    "Composite ISM: quorum checkpoint message id mismatch"
-                );
-                return Err(MetadataBuildError::CouldNotFetch);
-            }
-
-            // Format: [hook(32)] [root(32)] [index(4)] [sigs(65 * n)]
-            let mut metadata = Vec::with_capacity(
-                68_usize.saturating_add(quorum_checkpoint.signatures.len().saturating_mul(65)),
-            );
-            metadata.extend_from_slice(
-                &quorum_checkpoint
-                    .checkpoint
-                    .merkle_tree_hook_address
-                    .to_fixed_bytes(),
-            );
-            metadata.extend_from_slice(&quorum_checkpoint.checkpoint.root.to_fixed_bytes());
-            metadata.extend_from_slice(&quorum_checkpoint.checkpoint.index.to_be_bytes());
-            for sig in &quorum_checkpoint.signatures {
-                metadata.extend_from_slice(&sig.to_vec());
-            }
-            Ok(metadata)
+            let metadata = build_from_known_validators(
+                &MessageIdMultisigMetadataBuilder::new(builder.clone()),
+                message,
+                validators_h256,
+                *threshold,
+            )
+            .await?;
+            Ok(metadata.to_owned())
         }
 
         CompositeIsmMetadataSpec::Aggregation {
@@ -162,19 +114,20 @@ async fn build_metadata_from_spec_inner(
             let ism_count = sub_specs.len();
             let threshold_usize = *threshold as usize;
 
-            // Build metadata for each sub-spec, tracking whether the spec is Null.
-            // Null specs return Ok(vec![]) but must not count as real metadata: packing
-            // them as non-(0,0) forces the on-chain aggregation verifier to call verify()
-            // on every sub-ISM, breaking m-of-n threshold semantics (e.g. a paused
-            // Pausable ISM would fail even when another sub-ISM already meets threshold).
-            let mut sub_results: Vec<(bool, Option<Vec<u8>>)> = Vec::with_capacity(ism_count);
-            for sub_spec in sub_specs {
-                let is_null = matches!(sub_spec, CompositeIsmMetadataSpec::Null);
-                match build_metadata_from_spec(sub_spec, message, builder).await {
-                    Ok(bytes) => sub_results.push((is_null, Some(bytes))),
-                    Err(_) => sub_results.push((is_null, None)),
-                }
-            }
+            // Build metadata for all sub-specs in parallel (join_all), tracking
+            // whether each spec is Null.  Null specs return Ok(vec![]) but must not
+            // count as real metadata: packing them as non-(0,0) forces the on-chain
+            // aggregation verifier to call verify() on every sub-ISM, breaking m-of-n
+            // threshold semantics (e.g. a paused Pausable ISM would fail even when
+            // another sub-ISM already meets threshold).
+            let sub_results: Vec<(bool, Option<Vec<u8>>)> =
+                join_all(sub_specs.iter().map(|sub_spec| async move {
+                    let is_null = matches!(sub_spec, CompositeIsmMetadataSpec::Null);
+                    let result =
+                        build_metadata_from_spec(sub_spec, message, builder, relayer_pubkey).await;
+                    (is_null, result.ok())
+                }))
+                .await;
 
             // Non-Null successes are prioritised; Null successes are fallback padding.
             let non_null_count = sub_results

@@ -12,13 +12,11 @@ pub const DOMAIN_ISM_SEED: &[u8] = b"domain_ism";
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Clone)]
 pub enum IsmNode {
     /// Verifies the message was submitted by the trusted relayer (signer check).
-    /// ModuleType: Null.
     TrustedRelayer { relayer: Pubkey },
 
     /// ECDSA threshold multisig over CheckpointWithMessageId.
     /// Validators and threshold are stored inline; domain routing is handled
     /// externally by a `Routing` node.
-    /// ModuleType: MessageIdMultisig.
     MultisigMessageId {
         /// ECDSA secp256k1 validator addresses.
         validators: Vec<H160>,
@@ -26,26 +24,23 @@ pub enum IsmNode {
     },
 
     /// m-of-n aggregation: all sub-ISMs with provided metadata must verify,
-    /// and at least `threshold` must have metadata provided.
-    /// ModuleType: Aggregation.
+    /// and exactly `threshold` sub-ISMs must have metadata provided (matching EVM).
     Aggregation {
         threshold: u8,
         sub_isms: Vec<IsmNode>,
     },
 
     /// Always accepts (accept=true) or always rejects (accept=false).
-    /// Intended for testing. ModuleType: Unused.
+    /// Intended for testing.
     Test { accept: bool },
 
     /// Rejects all messages when paused. Emergency circuit breaker.
-    /// ModuleType: Null.
     Pausable { paused: bool },
 
     /// Routes based on the token amount in the message body.
     ///
     /// Reads `body[32..64]` as a big-endian u256 amount (TokenMessage format).
     /// Routes to `upper` if `amount >= threshold`, else `lower`.
-    /// ModuleType: Routing.
     AmountRouting {
         /// U256 threshold; routes to `upper` if amount >= threshold, else `lower`.
         threshold: U256,
@@ -64,7 +59,6 @@ pub enum IsmNode {
     ///
     /// Calling `UpdateConfig` resets the rate limit state.
     ///
-    /// ModuleType: Null.
     RateLimited {
         /// Config: max tokens transferable per 24-hour rolling window.
         max_capacity: u64,
@@ -93,7 +87,6 @@ pub enum IsmNode {
     ///
     /// Returns `NoRouteForDomain` if no domain PDA is configured for the origin.
     ///
-    /// ModuleType: Routing.
     Routing,
 
     /// Routes to a per-domain PDA first (like `Routing`), then falls back to a
@@ -112,7 +105,6 @@ pub enum IsmNode {
     /// `FallbackRouting` is not allowed inside a domain PDA (enforced by
     /// `validate_domain_ism`), and at most one routing-type node is allowed per tree.
     ///
-    /// ModuleType: Routing.
     FallbackRouting {
         /// The fallback composite ISM program ID. Its storage PDA is read directly
         /// at verify time — no mailbox inbox PDA is required.

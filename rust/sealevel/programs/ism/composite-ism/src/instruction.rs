@@ -28,8 +28,9 @@ pub enum Instruction {
     /// Replaces the full ISM config tree. Owner-gated.
     ///
     /// Accounts:
-    /// 0. `[signer]` The owner.
-    /// 1. `[writable]` The storage PDA account.
+    /// 0. `[signer]`     The owner (also payer for any rent top-up).
+    /// 1. `[writable]`   The storage PDA account.
+    /// 2. `[executable]` The system program.
     UpdateConfig(IsmNode),
 
     /// Gets the owner from the storage PDA.
@@ -66,6 +67,20 @@ pub enum Instruction {
     /// 1. `[]`         The VAM storage PDA (ownership check).
     /// 2. `[writable]` The domain PDA.
     RemoveDomainIsm { domain: u32 },
+
+    /// Sets every `Pausable` node in the ISM tree to `paused: true`. Owner-gated.
+    ///
+    /// Accounts:
+    /// 0. `[signer]`   The owner.
+    /// 1. `[writable]` The storage PDA.
+    Pause,
+
+    /// Sets every `Pausable` node in the ISM tree to `paused: false`. Owner-gated.
+    ///
+    /// Accounts:
+    /// 0. `[signer]`   The owner.
+    /// 1. `[writable]` The storage PDA.
+    Unpause,
 }
 
 impl DiscriminatorData for Instruction {
@@ -107,8 +122,9 @@ pub fn update_config_instruction(
         program_id,
         data: Instruction::UpdateConfig(root).encode()?,
         accounts: vec![
-            AccountMeta::new_readonly(owner, true),
+            AccountMeta::new(owner, true),
             AccountMeta::new(storage_pda_key, false),
+            AccountMeta::new_readonly(system_program::ID, false),
         ],
     })
 }
@@ -193,6 +209,42 @@ pub fn transfer_ownership_instruction(
     Ok(SolanaInstruction {
         program_id,
         data: Instruction::TransferOwnership(new_owner).encode()?,
+        accounts: vec![
+            AccountMeta::new(owner, true),
+            AccountMeta::new(storage_pda_key, false),
+        ],
+    })
+}
+
+/// Creates a Pause instruction.
+pub fn pause_instruction(
+    program_id: Pubkey,
+    owner: Pubkey,
+) -> Result<SolanaInstruction, ProgramError> {
+    let (storage_pda_key, _) = Pubkey::try_find_program_address(storage_pda_seeds!(), &program_id)
+        .ok_or(ProgramError::InvalidSeeds)?;
+
+    Ok(SolanaInstruction {
+        program_id,
+        data: Instruction::Pause.encode()?,
+        accounts: vec![
+            AccountMeta::new(owner, true),
+            AccountMeta::new(storage_pda_key, false),
+        ],
+    })
+}
+
+/// Creates an Unpause instruction.
+pub fn unpause_instruction(
+    program_id: Pubkey,
+    owner: Pubkey,
+) -> Result<SolanaInstruction, ProgramError> {
+    let (storage_pda_key, _) = Pubkey::try_find_program_address(storage_pda_seeds!(), &program_id)
+        .ok_or(ProgramError::InvalidSeeds)?;
+
+    Ok(SolanaInstruction {
+        program_id,
+        data: Instruction::Unpause.encode()?,
         accounts: vec![
             AccountMeta::new(owner, true),
             AccountMeta::new(storage_pda_key, false),

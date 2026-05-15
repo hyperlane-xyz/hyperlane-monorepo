@@ -1,7 +1,9 @@
 use std::collections::HashSet;
 
 use access_control::AccessControl;
-use account_utils::{create_pda_account, DiscriminatorDecode, SizedData};
+use account_utils::{
+    create_pda_account, verify_account_uninitialized, DiscriminatorDecode, SizedData,
+};
 use hyperlane_core::{Decode, HyperlaneMessage, ModuleType};
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, MetadataSpecResult, VERIFY_ACCOUNT_METAS_PDA_SEEDS,
@@ -19,7 +21,7 @@ use solana_program::{
 use solana_system_interface::program as system_program;
 
 use crate::{
-    account_metas::{all_verify_account_metas, contains_rate_limited},
+    account_metas::all_verify_account_metas,
     accounts::{
         derive_domain_pda, CompositeIsmAccount, CompositeIsmStorage, DomainIsmAccount,
         DomainIsmStorage, IsmNode, DOMAIN_ISM_SEED,
@@ -80,14 +82,12 @@ pub fn process_instruction(
             set_domain_ism(program_id, accounts, domain, ism)
         }
         Instruction::RemoveDomainIsm { domain } => remove_domain_ism(program_id, accounts, domain),
+        Instruction::Pause => set_paused(program_id, accounts, true),
+        Instruction::Unpause => set_paused(program_id, accounts, false),
     }
 }
 
-fn ism_type(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
-    let accounts_iter = &mut accounts.iter();
-    let storage_info = next_account_info(accounts_iter)?;
-    let _storage = load_and_verify_storage(program_id, storage_info)?;
-
+fn ism_type(_program_id: &Pubkey, _accounts: &[AccountInfo]) -> ProgramResult {
     let bytes = borsh::to_vec(&SimulationReturnData::new(ModuleType::Composite as u32))
         .map_err(|_| ProgramError::BorshIoError)?;
     set_return_data(&bytes[..]);
@@ -109,12 +109,21 @@ fn verify(
     let storage_info = next_account_info(accounts_iter)?;
     let mut storage = load_and_verify_storage(program_id, storage_info)?;
 
-    let needs_writeback = contains_rate_limited(storage.root.as_ref().ok_or(Error::ConfigNotSet)?);
-
     let root = storage.root.as_mut().ok_or(Error::ConfigNotSet)?;
-    verify_node(root, metadata, message, accounts_iter, program_id)?;
+    let mut did_mutate = false;
+    verify_node(
+        root,
+        metadata,
+        message,
+        accounts_iter,
+        program_id,
+        &mut did_mutate,
+    )?;
 
-    if needs_writeback {
+    if did_mutate {
+        if !storage_info.is_writable {
+            return Err(Error::DomainPdaNotWritable.into());
+        }
         CompositeIsmAccount::from(storage).store(storage_info, true)?;
     }
     Ok(())
@@ -244,8 +253,9 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], mut root: IsmNode) 
 /// Replaces the full ISM config tree. Owner-gated.
 ///
 /// Accounts:
-/// 0. `[signer]` The owner.
-/// 1. `[writable]` The storage PDA account.
+/// 0. `[signer]`     The owner (also payer for any rent top-up).
+/// 1. `[writable]`   The storage PDA account.
+/// 2. `[executable]` The system program.
 fn update_config(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -258,12 +268,22 @@ fn update_config(
 
     let owner_account = next_account_info(accounts_iter)?;
     let storage_pda_account = next_account_info(accounts_iter)?;
+    let system_program_account = next_account_info(accounts_iter)?;
+
+    if system_program_account.key != &system_program::ID {
+        return Err(Error::InvalidSystemProgram.into());
+    }
 
     let mut storage = load_and_verify_storage(program_id, storage_pda_account)?;
     storage.ensure_owner_signer(owner_account)?;
     storage.root = Some(root);
 
-    CompositeIsmAccount::from(*storage).store(storage_pda_account, true)?;
+    CompositeIsmAccount::from(*storage).store_with_rent_exempt_realloc(
+        storage_pda_account,
+        &Rent::get()?,
+        owner_account,
+        system_program_account,
+    )?;
 
     Ok(())
 }
@@ -296,8 +316,7 @@ fn set_domain_ism(
 
     // Derive and verify the domain PDA address.
     let domain_bytes = domain.to_le_bytes();
-    let (expected_pda, bump) =
-        Pubkey::find_program_address(&[DOMAIN_ISM_SEED, &domain_bytes], program_id);
+    let (expected_pda, bump) = derive_domain_pda(program_id, domain);
     if *domain_pda_account.key != expected_pda {
         return Err(Error::InvalidDomainPda.into());
     }
@@ -314,6 +333,7 @@ fn set_domain_ism(
     let required_size = domain_storage.size();
 
     if domain_pda_account.data_is_empty() {
+        verify_account_uninitialized(domain_pda_account)?;
         // Account does not exist — create it.
         create_pda_account(
             owner_account,
@@ -411,7 +431,12 @@ fn contains_fallback_routing(node: &IsmNode) -> bool {
         IsmNode::AmountRouting { lower, upper, .. } => {
             contains_fallback_routing(lower) || contains_fallback_routing(upper)
         }
-        _ => false,
+        IsmNode::Routing
+        | IsmNode::RateLimited { .. }
+        | IsmNode::MultisigMessageId { .. }
+        | IsmNode::TrustedRelayer { .. }
+        | IsmNode::Pausable { .. }
+        | IsmNode::Test { .. } => false,
     }
 }
 
@@ -591,8 +616,54 @@ fn normalize_node(node: &mut IsmNode) {
             normalize_node(lower);
             normalize_node(upper);
         }
-        _ => {}
+        IsmNode::Routing
+        | IsmNode::FallbackRouting { .. }
+        | IsmNode::MultisigMessageId { .. }
+        | IsmNode::TrustedRelayer { .. }
+        | IsmNode::Pausable { .. }
+        | IsmNode::Test { .. } => {}
     }
+}
+
+/// Recursively sets every `Pausable` node in the tree to `paused`.
+fn flip_pausable(node: &mut IsmNode, paused: bool) {
+    match node {
+        IsmNode::Pausable { paused: p } => *p = paused,
+        IsmNode::Aggregation { sub_isms, .. } => {
+            sub_isms.iter_mut().for_each(|s| flip_pausable(s, paused));
+        }
+        IsmNode::AmountRouting { lower, upper, .. } => {
+            flip_pausable(lower, paused);
+            flip_pausable(upper, paused);
+        }
+        IsmNode::Routing
+        | IsmNode::FallbackRouting { .. }
+        | IsmNode::RateLimited { .. }
+        | IsmNode::MultisigMessageId { .. }
+        | IsmNode::TrustedRelayer { .. }
+        | IsmNode::Test { .. } => {}
+    }
+}
+
+/// Sets every `Pausable` node in the ISM tree to `paused`. Owner-gated.
+///
+/// Accounts:
+/// 0. `[signer]`   The owner.
+/// 1. `[writable]` The storage PDA.
+fn set_paused(program_id: &Pubkey, accounts: &[AccountInfo], paused: bool) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+    let owner_account = next_account_info(accounts_iter)?;
+    let storage_pda_account = next_account_info(accounts_iter)?;
+
+    let mut storage = load_and_verify_storage(program_id, storage_pda_account)?;
+    storage.ensure_owner_signer(owner_account)?;
+
+    if let Some(root) = storage.root.as_mut() {
+        flip_pausable(root, paused);
+    }
+
+    CompositeIsmAccount::from(*storage).store(storage_pda_account, false)?;
+    Ok(())
 }
 
 fn load_and_verify_storage(
@@ -618,6 +689,7 @@ fn load_and_verify_storage(
 #[cfg(test)]
 mod test {
     use super::*;
+    use account_utils::DiscriminatorEncode;
     use ecdsa_signature::EcdsaSignature;
     use hyperlane_core::{Checkpoint, CheckpointWithMessageId, Encode, H160, H256};
     use hyperlane_sealevel_interchain_security_module_interface::{
@@ -1050,5 +1122,135 @@ mod test {
             .unwrap(),
         );
         assert!(result.is_ok());
+    }
+
+    fn make_storage_pda_with_owner(
+        program_id: &Pubkey,
+        owner: &Pubkey,
+        root: Option<IsmNode>,
+    ) -> (Pubkey, Vec<u8>) {
+        let (key, bump) = Pubkey::find_program_address(storage_pda_seeds!(), program_id);
+        let storage = CompositeIsmStorage {
+            bump_seed: bump,
+            owner: Some(*owner),
+            root,
+        };
+        let mut data = vec![0u8; 4096];
+        let mut lamports = 0u64;
+        let acc = AccountInfo::new(
+            &key,
+            false,
+            true,
+            &mut lamports,
+            &mut data,
+            program_id,
+            false,
+        );
+        CompositeIsmAccount::from(storage)
+            .store(&acc, false)
+            .unwrap();
+        (key, data)
+    }
+
+    fn run_pause_instruction(
+        id: &Pubkey,
+        key: &Pubkey,
+        owner: &Pubkey,
+        data: &mut Vec<u8>,
+        paused: bool,
+    ) -> ProgramResult {
+        let mut lamports = 0u64;
+        let mut owner_lamports = 1_000_000u64;
+        let storage_acc = AccountInfo::new(key, false, true, &mut lamports, data, id, false);
+        let owner_acc = AccountInfo::new(
+            owner,
+            true,
+            false,
+            &mut owner_lamports,
+            &mut [],
+            &system_program::ID,
+            false,
+        );
+        let ix = if paused {
+            Instruction::Pause
+        } else {
+            Instruction::Unpause
+        };
+        process_instruction(id, &[owner_acc, storage_acc], &ix.encode().unwrap())
+    }
+
+    #[test]
+    fn test_pause_sets_all_pausable_nodes() {
+        let id = program_id();
+        let owner = Pubkey::new_unique();
+        let root = IsmNode::Aggregation {
+            threshold: 2,
+            sub_isms: vec![
+                IsmNode::Pausable { paused: false },
+                IsmNode::Pausable { paused: false },
+            ],
+        };
+        let (key, mut data) = make_storage_pda_with_owner(&id, &owner, Some(root));
+        assert!(run_pause_instruction(&id, &key, &owner, &mut data, true).is_ok());
+        let storage = CompositeIsmAccount::fetch_data(&mut &data[..])
+            .unwrap()
+            .unwrap();
+        if let Some(IsmNode::Aggregation { sub_isms, .. }) = &storage.root {
+            assert_eq!(sub_isms[0], IsmNode::Pausable { paused: true });
+            assert_eq!(sub_isms[1], IsmNode::Pausable { paused: true });
+        } else {
+            panic!("unexpected root");
+        }
+    }
+
+    #[test]
+    fn test_unpause_clears_all_pausable_nodes() {
+        let id = program_id();
+        let owner = Pubkey::new_unique();
+        let root = IsmNode::Aggregation {
+            threshold: 2,
+            sub_isms: vec![
+                IsmNode::Pausable { paused: true },
+                IsmNode::Pausable { paused: true },
+            ],
+        };
+        let (key, mut data) = make_storage_pda_with_owner(&id, &owner, Some(root));
+        assert!(run_pause_instruction(&id, &key, &owner, &mut data, false).is_ok());
+        let storage = CompositeIsmAccount::fetch_data(&mut &data[..])
+            .unwrap()
+            .unwrap();
+        if let Some(IsmNode::Aggregation { sub_isms, .. }) = &storage.root {
+            assert_eq!(sub_isms[0], IsmNode::Pausable { paused: false });
+            assert_eq!(sub_isms[1], IsmNode::Pausable { paused: false });
+        } else {
+            panic!("unexpected root");
+        }
+    }
+
+    #[test]
+    fn test_pause_rejected_by_non_owner() {
+        let id = program_id();
+        let owner = Pubkey::new_unique();
+        let non_owner = Pubkey::new_unique();
+        let root = IsmNode::Pausable { paused: false };
+        let (key, mut data) = make_storage_pda_with_owner(&id, &owner, Some(root));
+        let mut lamports = 0u64;
+        let mut non_owner_lamports = 1_000_000u64;
+        let storage_acc = AccountInfo::new(&key, false, true, &mut lamports, &mut data, &id, false);
+        let non_owner_acc = AccountInfo::new(
+            &non_owner,
+            true,
+            false,
+            &mut non_owner_lamports,
+            &mut [],
+            &system_program::ID,
+            false,
+        );
+        let result = process_instruction(
+            &id,
+            &[non_owner_acc, storage_acc],
+            &Instruction::Pause.encode().unwrap(),
+        );
+        assert!(result.is_err());
     }
 }

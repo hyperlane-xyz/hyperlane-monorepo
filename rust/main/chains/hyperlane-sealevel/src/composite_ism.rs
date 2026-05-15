@@ -43,6 +43,11 @@ impl SealevelCompositeIsm {
         }
     }
 
+    /// Returns the relayer's own Sealevel public key, if a payer keypair is configured.
+    pub fn payer_pubkey(&self) -> Option<H256> {
+        self.payer.as_ref().map(|p| p.pubkey().to_bytes().into())
+    }
+
     /// Simulates `VerifyMetadataSpec` in a fixpoint loop, growing the account
     /// list until the ISM returns a converged `MetadataSpec`.
     ///

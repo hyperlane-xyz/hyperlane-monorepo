@@ -39,6 +39,12 @@ pub fn decode_pubkey(address: &str) -> Result<Pubkey, HyperlaneSealevelError> {
 /// - The payer account is not present in the provided account metas (this is a failure condition)
 ///
 /// `identity` must differ from `payer` (the caller is responsible for ensuring this).
+///
+/// Note on `is_writable`: this function does not strip writable flags because some ISMs
+/// legitimately need writable accounts (e.g. RateLimited updates its domain PDA on every
+/// verify call).  Callers that operate in a read-only context (e.g. ISM getter, handle
+/// simulation) are responsible for stripping writable flags after this call.  A warning
+/// is emitted for each writable account so unexpected escalations are observable.
 pub fn sanitize_dynamic_accounts(
     mut account_metas: Vec<AccountMeta>,
     payer: &Pubkey,
@@ -50,6 +56,9 @@ pub fn sanitize_dynamic_accounts(
         if meta.is_signer && !is_identity {
             tracing::warn!(meta = ?meta, "Forcing account meta to be non-signer");
             meta.is_signer = false;
+        }
+        if meta.is_writable {
+            tracing::debug!(pubkey = %meta.pubkey, "Dynamic account meta requests writable access");
         }
     });
 

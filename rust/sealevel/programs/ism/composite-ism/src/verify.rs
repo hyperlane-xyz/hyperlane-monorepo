@@ -12,7 +12,7 @@ use solana_program::{
     sysvar::Sysvar,
 };
 
-use multisig_ism::MultisigIsmMessageIdMetadata;
+use multisig_ism::{multisig::MultisigIsm, MultisigIsmMessageIdMetadata};
 
 use crate::{
     account_metas::contains_rate_limited,
@@ -45,7 +45,15 @@ where
             if contains_rate_limited(&ism) && !domain_pda_info.is_writable {
                 return Err(Error::DomainPdaNotWritable.into());
             }
-            verify_node(&mut ism, metadata, message, accounts_iter, program_id)?;
+            let mut _did_mutate = false;
+            verify_node(
+                &mut ism,
+                metadata,
+                message,
+                accounts_iter,
+                program_id,
+                &mut _did_mutate,
+            )?;
             if domain_pda_info.is_writable {
                 storage.ism = Some(ism);
                 DomainIsmAccount::from(storage).store(domain_pda_info, false)?;
@@ -73,6 +81,7 @@ pub(crate) fn verify_node<'a, 'b, I>(
     message: &HyperlaneMessage,
     accounts_iter: &mut I,
     program_id: &Pubkey,
+    did_mutate: &mut bool,
 ) -> ProgramResult
 where
     I: Iterator<Item = &'a AccountInfo<'b>>,
@@ -97,37 +106,22 @@ where
             let meta = MultisigIsmMessageIdMetadata::try_from(metadata.to_vec())
                 .map_err(|_| Error::InvalidMetadata)?;
 
-            let signed_digest = CheckpointWithMessageId {
-                checkpoint: Checkpoint {
-                    merkle_tree_hook_address: meta.origin_merkle_tree_hook,
-                    mailbox_domain: message.origin,
-                    root: meta.merkle_root,
-                    index: meta.merkle_index,
+            MultisigIsm::new(
+                CheckpointWithMessageId {
+                    checkpoint: Checkpoint {
+                        merkle_tree_hook_address: meta.origin_merkle_tree_hook,
+                        mailbox_domain: message.origin,
+                        root: meta.merkle_root,
+                        index: meta.merkle_index,
+                    },
+                    message_id: message.id(),
                 },
-                message_id: message.id(),
-            }
-            .eth_signed_message_hash();
-            let signed_digest_bytes = signed_digest.as_bytes();
-
-            if meta.validator_signatures.len() < *threshold as usize {
-                return Err(Error::ThresholdNotMet.into());
-            }
-
-            let validator_count = validators.len();
-            let mut validator_index = 0;
-            for i in 0..*threshold {
-                let signer = meta.validator_signatures[i as usize]
-                    .secp256k1_recover_ethereum_address(signed_digest_bytes)
-                    .map_err(|_| Error::InvalidSignature)?;
-                while validator_index < validator_count && signer != validators[validator_index] {
-                    validator_index += 1;
-                }
-                if validator_index >= validator_count {
-                    return Err(Error::ThresholdNotMet.into());
-                }
-                validator_index += 1;
-            }
-            Ok(())
+                meta.validator_signatures,
+                validators.clone(),
+                *threshold,
+            )
+            .verify()
+            .map_err(|e| Into::<Error>::into(e).into())
         }
 
         IsmNode::Aggregation {
@@ -139,10 +133,17 @@ where
                 let Some(sub_meta) = sub_metadata_at(metadata, i)? else {
                     continue;
                 };
-                verify_node(sub_ism, sub_meta, message, accounts_iter, program_id)?;
+                verify_node(
+                    sub_ism,
+                    sub_meta,
+                    message,
+                    accounts_iter,
+                    program_id,
+                    did_mutate,
+                )?;
                 verified += 1;
             }
-            if verified < *threshold as usize {
+            if verified != *threshold as usize {
                 return Err(Error::ThresholdNotMet.into());
             }
             Ok(())
@@ -155,7 +156,14 @@ where
         } => {
             let amount = parse_routing_amount(&message.body).ok_or(Error::InvalidMessageBody)?;
             let sub_ism: &mut IsmNode = if amount >= *threshold { upper } else { lower };
-            verify_node(sub_ism, metadata, message, accounts_iter, program_id)
+            verify_node(
+                sub_ism,
+                metadata,
+                message,
+                accounts_iter,
+                program_id,
+                did_mutate,
+            )
         }
 
         IsmNode::Routing => {
@@ -264,15 +272,26 @@ where
 
             // Warp-route message body layout (TokenMessage): [recipient (32 bytes)][amount (32 bytes, big-endian U256)][metadata].
             // max_capacity is u64, so we read the amount as the low 8 bytes of the U256
-            // (body[56..64]) and require the high 24 bytes (body[32..56]) to be zero.
-            // A transfer whose amount doesn't fit in u64 would exceed any realistic
-            // capacity and is rejected — AmountRouting reads the full 32 bytes because
-            // it only needs ordering, not arithmetic.
+            // (body[56..64]).  If the high 24 bytes (body[32..56]) are non-zero the amount
+            // doesn't fit in u64 and exceeds any realistic capacity — treat as RateLimitExceeded.
+            // AmountRouting reads the full 32 bytes because it only needs ordering, not arithmetic.
+            //
+            // Replay / double-spend: this node has no per-message-id guard.  Anyone able to
+            // construct a valid token-message body can call Verify directly (bypassing the mailbox)
+            // and drain the bucket without delivering a real message.  The mailbox-level Delivered
+            // mapping provides replay protection at delivery time but does not block direct ISM
+            // calls.  Accepted gap: adding a PDA-per-message guard or requiring the mailbox as a
+            // signer would significantly complicate the account model for limited practical benefit.
+            //
+            // Clock skew: refill speed is proportional to Clock::unix_timestamp elapsed time.
+            // Forward skew refills the bucket faster than wallclock; the DURATION_SECS cap
+            // bounds the worst case to a single full reset.  Backward skew is clamped to zero.
+            // Both are inherent limitations of on-chain clocks without an oracle.
             if message.body.len() < 64 {
                 return Err(Error::InvalidMessageBody.into());
             }
             if message.body[32..56].iter().any(|&b| b != 0) {
-                return Err(Error::InvalidMessageBody.into());
+                return Err(Error::RateLimitExceeded.into());
             }
             let amount = u64::from_be_bytes(
                 message.body[56..64]
@@ -290,6 +309,7 @@ where
 
             *filled_level = adjusted - amount;
             *last_updated = now;
+            *did_mutate = true;
             Ok(())
         }
     }
@@ -379,7 +399,15 @@ mod test {
         let mut node = IsmNode::Test { accept: true };
         let msg = dummy_message(ORIGIN_DOMAIN);
         let mut iter = std::iter::empty::<&AccountInfo>();
-        assert!(verify_node(&mut node, &[], &msg, &mut iter, &no_program_id()).is_ok());
+        assert!(verify_node(
+            &mut node,
+            &[],
+            &msg,
+            &mut iter,
+            &no_program_id(),
+            &mut false
+        )
+        .is_ok());
     }
 
     #[test]
@@ -388,7 +416,15 @@ mod test {
         let msg = dummy_message(ORIGIN_DOMAIN);
         let mut iter = std::iter::empty::<&AccountInfo>();
         assert_eq!(
-            verify_node(&mut node, &[], &msg, &mut iter, &no_program_id()).unwrap_err(),
+            verify_node(
+                &mut node,
+                &[],
+                &msg,
+                &mut iter,
+                &no_program_id(),
+                &mut false
+            )
+            .unwrap_err(),
             Error::VerifyRejected.into()
         );
     }
@@ -398,7 +434,15 @@ mod test {
         let mut node = IsmNode::Pausable { paused: false };
         let msg = dummy_message(ORIGIN_DOMAIN);
         let mut iter = std::iter::empty::<&AccountInfo>();
-        assert!(verify_node(&mut node, &[], &msg, &mut iter, &no_program_id()).is_ok());
+        assert!(verify_node(
+            &mut node,
+            &[],
+            &msg,
+            &mut iter,
+            &no_program_id(),
+            &mut false
+        )
+        .is_ok());
     }
 
     #[test]
@@ -407,7 +451,15 @@ mod test {
         let msg = dummy_message(ORIGIN_DOMAIN);
         let mut iter = std::iter::empty::<&AccountInfo>();
         assert_eq!(
-            verify_node(&mut node, &[], &msg, &mut iter, &no_program_id()).unwrap_err(),
+            verify_node(
+                &mut node,
+                &[],
+                &msg,
+                &mut iter,
+                &no_program_id(),
+                &mut false
+            )
+            .unwrap_err(),
             Error::VerifyRejected.into()
         );
     }
@@ -424,7 +476,15 @@ mod test {
         };
         let msg = dummy_message(ORIGIN_DOMAIN);
         let mut iter = std::iter::empty::<&AccountInfo>();
-        assert!(verify_node(&mut node, &metadata, &msg, &mut iter, &no_program_id()).is_ok());
+        assert!(verify_node(
+            &mut node,
+            &metadata,
+            &msg,
+            &mut iter,
+            &no_program_id(),
+            &mut false
+        )
+        .is_ok());
     }
 
     #[test]
@@ -440,7 +500,42 @@ mod test {
         let msg = dummy_message(ORIGIN_DOMAIN);
         let mut iter = std::iter::empty::<&AccountInfo>();
         assert_eq!(
-            verify_node(&mut node, &metadata, &msg, &mut iter, &no_program_id()).unwrap_err(),
+            verify_node(
+                &mut node,
+                &metadata,
+                &msg,
+                &mut iter,
+                &no_program_id(),
+                &mut false
+            )
+            .unwrap_err(),
+            Error::ThresholdNotMet.into()
+        );
+    }
+
+    #[test]
+    fn test_aggregation_over_provisioned_rejected() {
+        // threshold=1 but both sub-ISMs have metadata: should fail (matches EVM uint8-underflow revert)
+        let metadata = encode_aggregation_metadata(&[Some(&[]), Some(&[])]);
+        let mut node = IsmNode::Aggregation {
+            threshold: 1,
+            sub_isms: vec![
+                IsmNode::Test { accept: true },
+                IsmNode::Test { accept: true },
+            ],
+        };
+        let msg = dummy_message(ORIGIN_DOMAIN);
+        let mut iter = std::iter::empty::<&AccountInfo>();
+        assert_eq!(
+            verify_node(
+                &mut node,
+                &metadata,
+                &msg,
+                &mut iter,
+                &no_program_id(),
+                &mut false
+            )
+            .unwrap_err(),
             Error::ThresholdNotMet.into()
         );
     }
@@ -457,7 +552,15 @@ mod test {
         };
         let msg = dummy_message(ORIGIN_DOMAIN);
         let mut iter = std::iter::empty::<&AccountInfo>();
-        assert!(verify_node(&mut node, &metadata, &msg, &mut iter, &no_program_id()).is_err());
+        assert!(verify_node(
+            &mut node,
+            &metadata,
+            &msg,
+            &mut iter,
+            &no_program_id(),
+            &mut false
+        )
+        .is_err());
     }
 
     #[test]
@@ -488,7 +591,8 @@ mod test {
             &meta_bytes,
             &message,
             &mut iter,
-            &no_program_id()
+            &no_program_id(),
+            &mut false,
         )
         .is_ok());
     }
@@ -523,7 +627,8 @@ mod test {
                 &meta_bytes,
                 &message,
                 &mut iter,
-                &no_program_id()
+                &no_program_id(),
+                &mut false,
             )
             .unwrap_err(),
             Error::ThresholdNotMet.into()
@@ -552,7 +657,15 @@ mod test {
         let mut msg = dummy_message(ORIGIN_DOMAIN);
         msg.body = token_message_body(amount);
         let mut iter = std::iter::empty::<&AccountInfo>();
-        assert!(verify_node(&mut node, &[], &msg, &mut iter, &no_program_id()).is_ok());
+        assert!(verify_node(
+            &mut node,
+            &[],
+            &msg,
+            &mut iter,
+            &no_program_id(),
+            &mut false
+        )
+        .is_ok());
     }
 
     #[test]
@@ -564,7 +677,15 @@ mod test {
         msg.body = token_message_body(amount);
         let mut iter = std::iter::empty::<&AccountInfo>();
         assert_eq!(
-            verify_node(&mut node, &[], &msg, &mut iter, &no_program_id()).unwrap_err(),
+            verify_node(
+                &mut node,
+                &[],
+                &msg,
+                &mut iter,
+                &no_program_id(),
+                &mut false
+            )
+            .unwrap_err(),
             Error::VerifyRejected.into()
         );
     }
@@ -576,7 +697,15 @@ mod test {
         msg.body = vec![0u8; 10];
         let mut iter = std::iter::empty::<&AccountInfo>();
         assert_eq!(
-            verify_node(&mut node, &[], &msg, &mut iter, &no_program_id()).unwrap_err(),
+            verify_node(
+                &mut node,
+                &[],
+                &msg,
+                &mut iter,
+                &no_program_id(),
+                &mut false
+            )
+            .unwrap_err(),
             Error::InvalidMessageBody.into()
         );
     }
@@ -650,7 +779,15 @@ mod test {
         let msg = dummy_message(ORIGIN_DOMAIN);
         let mut iter = accounts.iter();
         assert!(
-            verify_node(&mut node, &metadata, &msg, &mut iter, &program_id).is_ok(),
+            verify_node(
+                &mut node,
+                &metadata,
+                &msg,
+                &mut iter,
+                &program_id,
+                &mut false
+            )
+            .is_ok(),
             "verify_node must succeed when two account slots are provided for two TR(A) sub-ISMs"
         );
         // Both accounts were consumed.

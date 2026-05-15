@@ -6,7 +6,7 @@ use spl_discriminator::ArrayDiscriminator as Discriminator;
 /// The metadata format a message's ISM requires the relayer to supply.
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone, PartialEq)]
 pub enum MetadataSpec {
-    /// No metadata needed (e.g. TrustedRelayer, Test, Pausable, RateLimited).
+    /// No metadata needed; verify() is guaranteed to pass (e.g. unpaused Pausable, Test accept=true).
     Null,
     /// Standard secp256k1 multisig over the message ID.
     MultisigMessageId {
@@ -18,6 +18,13 @@ pub enum MetadataSpec {
         threshold: u8,
         sub_specs: Vec<MetadataSpec>,
     },
+    /// ISM whose verify() passes iff the transaction signer equals `relayer`.
+    /// The relayer should include empty metadata iff its own signing key matches `relayer`.
+    TrustedRelayer { relayer: Pubkey },
+    /// ISM that would fail verify() in the current state (e.g. paused Pausable, Test accept=false,
+    /// or a RateLimited ISM whose capacity is currently exhausted).
+    /// Must not be used as a filler in aggregation metadata.
+    CannotVerify,
 }
 
 /// Return value of `VerifyMetadataSpec`, wrapped in `SimulationReturnData<MetadataSpecResult>`.
@@ -37,7 +44,17 @@ pub struct MetadataSpecResult {
 /// allows programs to implement the required interface.
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub enum InterchainSecurityModuleInstruction {
-    /// Gets the type of ISM.
+    /// Gets the module type of this ISM.
+    ///
+    /// # Account contract
+    ///
+    /// Callers MAY pass the ISM's VAM PDA (derived from
+    /// `VERIFY_ACCOUNT_METAS_PDA_SEEDS`) as account 0 to allow ISMs that need
+    /// to read config at type-query time.  ISMs MUST NOT reject the instruction
+    /// solely because account 0 is present; they SHOULD ignore accounts they do
+    /// not recognise.  This is a one-way relaxation: callers that cannot
+    /// guarantee the PDA exists may still pass an empty account list, and
+    /// well-behaved ISMs will accept both forms.
     Type,
     /// Verifies a message.
     Verify(VerifyInstruction),

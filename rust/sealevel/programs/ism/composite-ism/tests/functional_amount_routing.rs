@@ -11,7 +11,7 @@
 //! - Verify routes to `lower` (accept=true) when amount < threshold
 //! - Verify routes to `upper` (accept=false) when amount == threshold (boundary)
 //! - Verify routes to `upper` (accept=false) when amount > threshold
-//! - Verify fails with InvalidMessageBody when message body is shorter than 64 bytes
+//! - VerifyAccountMetas and Verify both fail with InvalidMessageBody when body is shorter than 64 bytes
 //! - VerifyAccountMetas returns accounts for the `lower` branch when amount < threshold
 //! - VerifyAccountMetas returns accounts for the `upper` branch when amount >= threshold
 
@@ -30,7 +30,7 @@ use solana_sdk::{
 
 use common::{
     assert_simulation_error, assert_simulation_ok, dummy_message, get_verify_account_metas,
-    initialize, program_test, simulate_verify, storage_pda_key, token_message_body,
+    initialize, program_test, simulate_vam, simulate_verify, storage_pda_key, token_message_body,
 };
 
 /// Builds an AmountRouting node with `lower = Test{accept:true}`, `upper = Test{accept:false}`.
@@ -221,24 +221,18 @@ async fn test_verify_body_too_short() {
         metadata: vec![],
         message: msg.to_vec(),
     };
-    let account_metas = get_verify_account_metas(
+
+    // VAM must fail with the same error as Verify so the relayer never builds
+    // a transaction that would succeed at simulation but revert on-chain.
+    let vam_result = simulate_vam(
         &mut banks_client,
         &payer,
         recent_blockhash,
         verify_ixn.clone(),
     )
     .await;
-    let result = simulate_verify(
-        &mut banks_client,
-        &payer,
-        recent_blockhash,
-        verify_ixn,
-        account_metas,
-    )
-    .await;
-
     assert_simulation_error(
-        &result,
+        &vam_result,
         TransactionError::InstructionError(
             0,
             InstructionError::Custom(Error::InvalidMessageBody as u32),

@@ -5,8 +5,8 @@
 //!
 //! 1. **test-ism** (`ModuleType::Unused`): returns `MetadataSpec::Null` directly.
 //!
-//! 2. **multisig-ism-message-id** (`ModuleType::MessageIdMultisig`): reads
-//!    validators/threshold directly from the domain data PDA.
+//! 2. **multisig-ism-message-id** (`ModuleType::MessageIdMultisig`): CPIs to
+//!    `MultisigIsmInstruction::ValidatorsAndThreshold` with the domain data PDA.
 //!
 //! 3. **composite ISM** (any other `ModuleType`): CPIs to the fallback ISM's
 //!    `VerifyMetadataSpec` and propagates the result.
@@ -428,9 +428,9 @@ async fn test_verify_test_ism_fallback_accepts() {
 
 // ── MULTISIG ISM AS FALLBACK ─────────────────────────────────────────────────
 
-/// VerifyMetadataSpec converges to MultisigMessageId in 4 passes when the
-/// fallback is a multisig-ism-message-id (backwards-compat path — no
-/// VerifyMetadataSpec CPI, reads domain PDA directly).
+/// VerifyMetadataSpec converges to MultisigMessageId when the fallback is a
+/// multisig-ism-message-id. Uses a CPI to MultisigIsmInstruction::ValidatorsAndThreshold
+/// rather than reading the domain PDA directly.
 #[tokio::test]
 async fn test_vms_multisig_fallback_returns_multisig_spec() {
     let validators = test_validators();

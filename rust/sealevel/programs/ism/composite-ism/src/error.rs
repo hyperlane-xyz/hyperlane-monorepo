@@ -1,3 +1,4 @@
+use multisig_ism::error::MultisigIsmError;
 use solana_program::program_error::ProgramError;
 
 #[derive(Copy, Clone, Debug, Eq, thiserror::Error, num_derive::FromPrimitive, PartialEq)]
@@ -58,5 +59,15 @@ pub enum Error {
 impl From<Error> for ProgramError {
     fn from(err: Error) -> Self {
         ProgramError::Custom(err as u32)
+    }
+}
+
+impl From<MultisigIsmError> for Error {
+    fn from(err: MultisigIsmError) -> Self {
+        match err {
+            MultisigIsmError::InvalidSignature => Error::InvalidSignature,
+            MultisigIsmError::ThresholdNotMet => Error::ThresholdNotMet,
+            MultisigIsmError::InvalidMetadata => Error::InvalidMetadata,
+        }
     }
 }
