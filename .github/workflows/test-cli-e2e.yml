@@ -548,6 +548,7 @@ jobs:
           - core-deploy
           - core-apply
           - hook-igp
+          - warp-alt
           - warp-cross-collateral
           - warp-fee
           - warp-fee-apply

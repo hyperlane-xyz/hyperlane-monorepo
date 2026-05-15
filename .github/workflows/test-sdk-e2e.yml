@@ -176,6 +176,7 @@ jobs:
           - read-token
           - program-upgrade
           - igp-program-upgrade
+          - warp-alt-simulation-parity
           - warp-fee-config
           - warp-transfer-remote-with-fees
         include:
