@@ -117,7 +117,7 @@ const CASES: CompletenessCase[] = [
  * No ALTs are written on chain; the test exercises the pure derivation
  * path against the live program's account-meta enumerator.
  */
-describe('SVM warp ALT completeness via simulation — cross-collateral', function () {
+describe('SVM warp ALT simulation parity — cross-collateral', function () {
   this.timeout(600_000);
 
   let rpc: ReturnType<typeof createRpc>;

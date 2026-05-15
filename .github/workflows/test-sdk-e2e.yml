@@ -175,6 +175,7 @@ jobs:
           - provider
           - read-token
           - program-upgrade
+          - warp-alt-simulation-parity
           - warp-fee-config
           - warp-transfer-remote-with-fees
         include:
