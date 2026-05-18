@@ -584,7 +584,7 @@ fn validate_domain_ism(node: &IsmNode) -> ProgramResult {
             validate_domain_ism(lower)?;
             validate_domain_ism(upper)
         }
-        IsmNode::Routing { .. } => Err(Error::RoutingInDomainIsm.into()),
+        IsmNode::Routing => Err(Error::RoutingInDomainIsm.into()),
         IsmNode::FallbackRouting { .. } => Err(Error::FallbackRoutingInDomainIsm.into()),
         IsmNode::TrustedRelayer { relayer } => {
             if *relayer == Pubkey::default() {

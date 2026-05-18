@@ -1,4 +1,4 @@
-use hyperlane_core::{Checkpoint, CheckpointWithMessageId, Encode, HyperlaneMessage, Signable};
+use hyperlane_core::{Checkpoint, CheckpointWithMessageId, Encode, HyperlaneMessage};
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction, VERIFY_ACCOUNT_METAS_PDA_SEEDS,
 };
@@ -105,6 +105,10 @@ where
         } => {
             let meta = MultisigIsmMessageIdMetadata::try_from(metadata.to_vec())
                 .map_err(|_| Error::InvalidMetadata)?;
+
+            if meta.validator_signatures.len() < *threshold as usize {
+                return Err(Error::InvalidMetadata.into());
+            }
 
             MultisigIsm::new(
                 CheckpointWithMessageId {
@@ -633,6 +637,40 @@ mod test {
             )
             .unwrap_err(),
             Error::ThresholdNotMet.into()
+        );
+    }
+
+    #[test]
+    fn test_multisig_fewer_sigs_than_threshold_returns_invalid_metadata() {
+        let message = test_message();
+        let checkpoint = test_checkpoint(&message);
+        let signatures = test_signatures();
+
+        // threshold=2 but only one signature provided — must not panic.
+        let mut node = IsmNode::MultisigMessageId {
+            validators: test_validators(),
+            threshold: 2,
+        };
+        let meta = multisig_ism::MultisigIsmMessageIdMetadata {
+            origin_merkle_tree_hook: checkpoint.checkpoint.merkle_tree_hook_address,
+            merkle_root: checkpoint.checkpoint.root,
+            merkle_index: checkpoint.checkpoint.index,
+            validator_signatures: vec![EcdsaSignature::from_bytes(&signatures[0]).unwrap()],
+        };
+        let meta_bytes = meta.to_vec();
+
+        let mut iter = std::iter::empty::<&AccountInfo>();
+        assert_eq!(
+            verify_node(
+                &mut node,
+                &meta_bytes,
+                &message,
+                &mut iter,
+                &no_program_id(),
+                &mut false,
+            )
+            .unwrap_err(),
+            Error::InvalidMetadata.into()
         );
     }
 

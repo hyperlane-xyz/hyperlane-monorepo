@@ -27,11 +27,11 @@ use crate::{
 
 /// If `loaded` contains a per-domain ISM override, resolves its spec and
 /// returns `Some(result)`. Returns `Ok(None)` if no override is configured.
-fn spec_for_domain_override<'a, 'info>(
+fn spec_for_domain_override(
     loaded: &Option<Box<DomainIsmStorage>>,
     message: &HyperlaneMessage,
     program_id: &Pubkey,
-    extra_accounts: &[&'a AccountInfo<'info>],
+    extra_accounts: &[&AccountInfo<'_>],
 ) -> Result<Option<MetadataSpecResult>, Error> {
     let Some(ref storage) = loaded else {
         return Ok(None);
@@ -59,11 +59,11 @@ fn spec_for_domain_override<'a, 'info>(
 /// - `spec: Some(s), accounts: []` — fully resolved.
 /// - `spec: None, accounts: [a, b, …]` — the complete desired `extra_accounts`
 ///   slice for the next simulation pass.
-pub(crate) fn spec_and_accounts_for_node<'a, 'info>(
+pub(crate) fn spec_and_accounts_for_node(
     node: &IsmNode,
     message: &HyperlaneMessage,
     program_id: &Pubkey,
-    extra_accounts: &[&'a AccountInfo<'info>],
+    extra_accounts: &[&AccountInfo<'_>],
 ) -> Result<MetadataSpecResult, Error> {
     match node {
         IsmNode::MultisigMessageId {
