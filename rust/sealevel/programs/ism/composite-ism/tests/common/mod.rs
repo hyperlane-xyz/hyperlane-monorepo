@@ -4,8 +4,8 @@ use borsh::BorshDeserialize;
 use hyperlane_core::{Encode, HyperlaneMessage, ModuleType, H256};
 use hyperlane_sealevel_composite_ism::{
     accounts::{
-        derive_domain_pda, CompositeIsmAccount, CompositeIsmStorage, DomainIsmAccount,
-        DomainIsmStorage, IsmNode,
+        derive_domain_pda, derive_process_authority, CompositeIsmAccount, CompositeIsmStorage,
+        DomainIsmAccount, DomainIsmStorage, IsmNode,
     },
     instruction::{
         initialize_instruction, pause_instruction, remove_domain_ism_instruction,
@@ -35,12 +35,120 @@ pub fn composite_ism_id() -> Pubkey {
     pubkey!("Bprmwvw4fCr1fXF4y3qq7JyNiVwb5JNpkVRqxqMhQgau")
 }
 
+/// A fixed mock mailbox program ID used in functional tests for `RateLimited`.
+pub fn mock_mailbox_id() -> Pubkey {
+    pubkey!("8opHzTAnfzRpPEx21XtnrVTX28YQuCpAjcn1PczScKh")
+}
+
+/// The process authority PDA for the mock mailbox.
+pub fn mock_mailbox_process_authority() -> Pubkey {
+    derive_process_authority(&mock_mailbox_id()).0
+}
+
+/// In-process mock mailbox that forwards `Verify` / `VerifyAccountMetas` calls
+/// to the composite ISM with the process authority as a signer via `invoke_signed`.
+fn mock_mailbox_process_instruction(
+    program_id: &solana_program::pubkey::Pubkey,
+    accounts: &[solana_program::account_info::AccountInfo],
+    data: &[u8],
+) -> solana_program::entrypoint::ProgramResult {
+    use solana_program::{
+        instruction::{AccountMeta as SolAccountMeta, Instruction as SolInstruction},
+        program::invoke_signed,
+    };
+
+    let (process_authority, bump) =
+        solana_program::pubkey::Pubkey::find_program_address(&[b"process_authority"], program_id);
+
+    // When forwarding accounts to the composite ISM via invoke_signed, we must
+    // set is_signer: true for the process authority PDA in the CPI account metas.
+    // invoke_signed grants signer status for accounts whose keys match the provided
+    // seeds, but the runtime only propagates this if the AccountMeta in the CPI
+    // instruction also has is_signer: true.
+    let account_metas: Vec<SolAccountMeta> = accounts
+        .iter()
+        .map(|a| SolAccountMeta {
+            pubkey: *a.key,
+            is_signer: a.is_signer || *a.key == process_authority,
+            is_writable: a.is_writable,
+        })
+        .collect();
+
+    let ix = SolInstruction::new_with_bytes(composite_ism_id(), data, account_metas);
+
+    invoke_signed(&ix, accounts, &[&[b"process_authority", &[bump]]])
+}
+
 pub fn program_test() -> ProgramTest {
-    ProgramTest::new(
+    let mut pt = ProgramTest::new(
         "hyperlane_sealevel_composite_ism",
         composite_ism_id(),
         solana_program_test::processor!(process_instruction),
-    )
+    );
+    pt.add_program(
+        "mock_mailbox",
+        mock_mailbox_id(),
+        solana_program_test::processor!(mock_mailbox_process_instruction),
+    );
+    pt
+}
+
+/// Sends a `Verify` instruction via the mock mailbox, which forwards it to the
+/// composite ISM with the process authority as a CPI signer.
+///
+/// The process authority is a PDA that can only sign via `invoke_signed` in CPI
+/// context (the mock mailbox calls `invoke_signed` to sign with it).  For the
+/// outer transaction to the mock mailbox, the process authority must NOT be
+/// listed as a required signer — it appears with `is_signer: false` so that
+/// `Transaction::sign` does not require a signature for it.  The CPI signing
+/// by the mock mailbox grants the `is_signer` flag inside the composite ISM.
+///
+/// The composite ISM program account must be included in the outer transaction's
+/// account list so that the CPI from the mock mailbox can locate the callee.
+pub async fn process_verify_via_mailbox(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    verify_ixn: VerifyInstruction,
+    account_metas: Vec<AccountMeta>,
+) -> Result<(), BanksClientError> {
+    let process_authority = mock_mailbox_process_authority();
+
+    // Demote the process authority from is_signer in the outer instruction.
+    // The mock mailbox grants it signer status via invoke_signed (CPI).
+    let mut outer_metas: Vec<AccountMeta> = account_metas
+        .into_iter()
+        .map(|m| {
+            if m.pubkey == process_authority && m.is_signer {
+                AccountMeta {
+                    pubkey: m.pubkey,
+                    is_signer: false,
+                    is_writable: m.is_writable,
+                }
+            } else {
+                m
+            }
+        })
+        .collect();
+
+    // Add the composite ISM program account so the CPI from the mock mailbox
+    // can locate the callee program.
+    outer_metas.push(AccountMeta::new_readonly(composite_ism_id(), false));
+
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let ix = Instruction::new_with_bytes(
+        mock_mailbox_id(),
+        &InterchainSecurityModuleInstruction::Verify(verify_ixn)
+            .encode()
+            .unwrap(),
+        outer_metas,
+    );
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&payer.pubkey()),
+        &[payer],
+        recent_blockhash,
+    );
+    banks_client.process_transaction(tx).await
 }
 
 pub fn storage_pda_key() -> Pubkey {

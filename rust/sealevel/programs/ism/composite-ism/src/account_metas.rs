@@ -12,7 +12,7 @@ use solana_program::{
 };
 
 use crate::{
-    accounts::{derive_domain_pda, DomainIsmAccount, IsmNode},
+    accounts::{derive_domain_pda, derive_process_authority, DomainIsmAccount, IsmNode},
     metadata::{parse_routing_amount, sub_metadata_at},
 };
 
@@ -315,8 +315,14 @@ pub fn required_accounts_for_node(
             Ok(result)
         }
 
-        // State lives in the VAM PDA; no extra accounts needed.
-        IsmNode::RateLimited { .. } => Ok(vec![]),
+        // The process authority PDA (derived from the mailbox program ID) must be
+        // passed as a signer so that only `Mailbox.process` can drain the bucket.
+        IsmNode::RateLimited { mailbox, .. } => {
+            let (process_authority, _) = derive_process_authority(mailbox);
+            Ok(vec![
+                AccountMeta::new_readonly(process_authority, true).into()
+            ])
+        }
 
         // No extra accounts for these leaf ISMs.
         IsmNode::Test { .. } | IsmNode::Pausable { .. } => Ok(vec![]),
@@ -481,16 +487,22 @@ mod test {
     #[test]
     fn test_rate_limited_no_extra_accounts() {
         let program_id = Pubkey::new_unique();
+        let mailbox = Pubkey::new_unique();
         let node = IsmNode::RateLimited {
             max_capacity: 1_000,
             recipient: None,
             filled_level: 1_000,
             last_updated: 0,
+            mailbox,
         };
+        let (expected_pda, _) = derive_process_authority(&mailbox);
         let msg = dummy_message(ORIGIN);
         let accounts =
             required_accounts_for_node(&node, &[], &msg, &program_id, &no_extra()).unwrap();
-        assert!(accounts.is_empty());
+        assert_eq!(accounts.len(), 1);
+        assert_eq!(accounts[0].pubkey, expected_pda);
+        assert!(accounts[0].is_signer);
+        assert!(!accounts[0].is_writable);
     }
 
     #[test]
@@ -609,6 +621,7 @@ mod test {
             recipient: None,
             filled_level: 1_000,
             last_updated: 0,
+            mailbox: Pubkey::new_unique(),
         };
         assert!(contains_rate_limited(&node));
     }
@@ -624,6 +637,7 @@ mod test {
                     recipient: None,
                     filled_level: 1_000,
                     last_updated: 0,
+                    mailbox: Pubkey::new_unique(),
                 },
             ],
         };
@@ -640,19 +654,25 @@ mod test {
     fn test_all_verify_account_metas_writable_for_rate_limited() {
         let vam_pda = Pubkey::new_unique();
         let program_id = Pubkey::new_unique();
+        let mailbox = Pubkey::new_unique();
         let node = IsmNode::RateLimited {
             max_capacity: 1_000,
             recipient: None,
             filled_level: 1_000,
             last_updated: 0,
+            mailbox,
         };
+        let (expected_process_authority, _) = derive_process_authority(&mailbox);
         let msg = dummy_message(ORIGIN);
         let accounts =
             all_verify_account_metas(&vam_pda, &node, &[], &msg, &program_id, &[]).unwrap();
-        assert_eq!(accounts.len(), 1);
+        assert_eq!(accounts.len(), 2);
         assert_eq!(accounts[0].pubkey, vam_pda);
         assert!(accounts[0].is_writable);
         assert!(!accounts[0].is_signer);
+        assert_eq!(accounts[1].pubkey, expected_process_authority);
+        assert!(accounts[1].is_signer);
+        assert!(!accounts[1].is_writable);
     }
 
     #[test]

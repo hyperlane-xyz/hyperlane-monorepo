@@ -38,8 +38,9 @@ use std::str::FromStr;
 
 use common::{
     assert_simulation_error, assert_simulation_ok, composite_ism_id, domain_pda_key, dummy_message,
-    encode_aggregation_metadata, get_all_verify_account_metas, initialize, program_test,
-    set_domain_ism, simulate_verify, storage_pda_key, token_message_body,
+    encode_aggregation_metadata, get_all_verify_account_metas, initialize, mock_mailbox_id,
+    process_verify_via_mailbox, program_test, set_domain_ism, simulate_verify, storage_pda_key,
+    token_message_body,
 };
 
 const ORIGIN: u32 = 1234;
@@ -635,21 +636,7 @@ async fn process_verify_domain(
     verify_ixn: VerifyInstruction,
     account_metas: Vec<AccountMeta>,
 ) -> Result<(), solana_program_test::BanksClientError> {
-    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
-    let ix = Instruction::new_with_bytes(
-        composite_ism_id(),
-        &InterchainSecurityModuleInstruction::Verify(verify_ixn)
-            .encode()
-            .unwrap(),
-        account_metas,
-    );
-    let tx = Transaction::new_signed_with_payer(
-        &[ix],
-        Some(&payer.pubkey()),
-        &[payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(tx).await
+    process_verify_via_mailbox(banks_client, payer, verify_ixn, account_metas).await
 }
 
 #[tokio::test]
@@ -670,6 +657,7 @@ async fn test_rate_limited_in_domain_pda_initializes_full() {
             recipient: None,
             filled_level: 0, // normalized to max_capacity by SetDomainIsm
             last_updated: 0,
+            mailbox: mock_mailbox_id(),
         },
     )
     .await
@@ -698,6 +686,7 @@ async fn test_rate_limited_in_domain_pda_domain_pda_is_writable() {
             recipient: None,
             filled_level: 0,
             last_updated: 0,
+            mailbox: mock_mailbox_id(),
         },
     )
     .await
@@ -715,11 +704,16 @@ async fn test_rate_limited_in_domain_pda_domain_pda_is_writable() {
     let account_metas =
         get_all_verify_account_metas(&mut banks_client, &payer, recent_blockhash, verify_ixn).await;
 
-    assert_eq!(account_metas.len(), 2);
+    use hyperlane_sealevel_composite_ism::accounts::derive_process_authority;
+    let expected_process_authority = derive_process_authority(&mock_mailbox_id()).0;
+
+    assert_eq!(account_metas.len(), 3);
     assert_eq!(account_metas[0].pubkey, storage_pda_key());
     assert!(!account_metas[0].is_writable); // VAM PDA stays readonly (RateLimited is in domain PDA)
     assert_eq!(account_metas[1].pubkey, domain_pda_key(ORIGIN));
     assert!(account_metas[1].is_writable); // domain PDA must be writable for state writeback
+    assert_eq!(account_metas[2].pubkey, expected_process_authority);
+    assert!(account_metas[2].is_signer); // process authority must be a signer
 }
 
 #[tokio::test]
@@ -739,6 +733,7 @@ async fn test_rate_limited_in_domain_pda_enforces_limit() {
             recipient: None,
             filled_level: 0,
             last_updated: 0,
+            mailbox: mock_mailbox_id(),
         },
     )
     .await
@@ -813,6 +808,7 @@ async fn test_rate_limited_in_domain_pda_readonly_bypass_rejected() {
             recipient: None,
             filled_level: 0,
             last_updated: 0,
+            mailbox: mock_mailbox_id(),
         },
     )
     .await
@@ -884,6 +880,7 @@ async fn test_rate_limited_domain_pda_writable_bit_requires_fixpoint() {
             recipient: None,
             filled_level: 0,
             last_updated: 0,
+            mailbox: mock_mailbox_id(),
         },
     )
     .await
@@ -905,7 +902,7 @@ async fn test_rate_limited_domain_pda_writable_bit_requires_fixpoint() {
     )
     .await;
 
-    assert_eq!(converged.len(), 2);
+    assert_eq!(converged.len(), 3);
     assert_eq!(converged[1].pubkey, domain_pda_key(ORIGIN));
     assert!(
         converged[1].is_writable,

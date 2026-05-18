@@ -509,8 +509,12 @@ fn validate_config_inner(
             validate_config_inner(program_id, lower, routing_found)?;
             validate_config_inner(program_id, upper, routing_found)
         }
-        IsmNode::RateLimited { max_capacity, .. } => {
-            if *max_capacity == 0 {
+        IsmNode::RateLimited {
+            max_capacity,
+            mailbox,
+            ..
+        } => {
+            if *max_capacity == 0 || *mailbox == Pubkey::default() {
                 return Err(Error::InvalidConfig.into());
             }
             Ok(())
@@ -547,8 +551,12 @@ fn validate_config_inner(
 /// Disallows `Routing` (nested routing is not supported).
 fn validate_domain_ism(node: &IsmNode) -> ProgramResult {
     match node {
-        IsmNode::RateLimited { max_capacity, .. } => {
-            if *max_capacity == 0 {
+        IsmNode::RateLimited {
+            max_capacity,
+            mailbox,
+            ..
+        } => {
+            if *max_capacity == 0 || *mailbox == Pubkey::default() {
                 return Err(Error::InvalidConfig.into());
             }
             Ok(())
@@ -865,6 +873,22 @@ mod test {
             recipient: None,
             filled_level: 0,
             last_updated: 0,
+            mailbox: Pubkey::new_unique(),
+        };
+        assert_eq!(
+            validate_config(&Pubkey::new_unique(), &node).unwrap_err(),
+            Error::InvalidConfig.into()
+        );
+    }
+
+    #[test]
+    fn test_validate_config_rate_limited_default_mailbox_rejected() {
+        let node = IsmNode::RateLimited {
+            max_capacity: 1_000,
+            recipient: None,
+            filled_level: 0,
+            last_updated: 0,
+            mailbox: Pubkey::default(),
         };
         assert_eq!(
             validate_config(&Pubkey::new_unique(), &node).unwrap_err(),
@@ -990,6 +1014,7 @@ mod test {
             recipient: None,
             filled_level: 100,
             last_updated: 0,
+            mailbox: Pubkey::new_unique(),
         };
         assert!(validate_domain_ism(&node).is_ok());
     }
@@ -1001,6 +1026,7 @@ mod test {
             recipient: None,
             filled_level: 0,
             last_updated: 0,
+            mailbox: Pubkey::new_unique(),
         };
         assert_eq!(
             validate_domain_ism(&node).unwrap_err(),
@@ -1010,11 +1036,13 @@ mod test {
 
     #[test]
     fn test_normalize_node_rate_limited() {
+        let mailbox = Pubkey::new_unique();
         let mut node = IsmNode::RateLimited {
             max_capacity: 1_000,
             recipient: None,
             filled_level: 0,
             last_updated: 999,
+            mailbox,
         };
         normalize_node(&mut node);
         assert_eq!(
@@ -1024,12 +1052,14 @@ mod test {
                 recipient: None,
                 filled_level: 1_000,
                 last_updated: 0,
+                mailbox,
             }
         );
     }
 
     #[test]
     fn test_normalize_node_nested_in_aggregation() {
+        let mailbox = Pubkey::new_unique();
         let mut node = IsmNode::Aggregation {
             threshold: 1,
             sub_isms: vec![IsmNode::RateLimited {
@@ -1037,6 +1067,7 @@ mod test {
                 recipient: None,
                 filled_level: 0,
                 last_updated: 42,
+                mailbox,
             }],
         };
         normalize_node(&mut node);
@@ -1048,6 +1079,7 @@ mod test {
                     recipient: None,
                     filled_level: 500,
                     last_updated: 0,
+                    mailbox,
                 }
             );
         }

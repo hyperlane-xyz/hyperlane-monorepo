@@ -8,6 +8,11 @@ use solana_program::{account_info::AccountInfo, program_error::ProgramError, pub
 /// Full seeds: `[DOMAIN_ISM_SEED, &domain.to_le_bytes()]`.
 pub const DOMAIN_ISM_SEED: &[u8] = b"domain_ism";
 
+/// Seed for the process authority PDA derived under the mailbox program ID.
+/// The mailbox program can sign with this PDA via `invoke_signed`, so only
+/// `Mailbox.process` can successfully call `Verify` on a `RateLimited` node.
+pub const PROCESS_AUTHORITY_SEED: &[u8] = b"process_authority";
+
 /// A node in the ISM config tree. Stored inline in the VAM PDA.
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Clone)]
 pub enum IsmNode {
@@ -58,6 +63,11 @@ pub enum IsmNode {
     /// `Initialize`/`UpdateConfig` -- callers cannot set arbitrary initial state.
     ///
     /// Calling `UpdateConfig` resets the rate limit state.
+    ///
+    /// At verify time the process authority PDA (`[b"process_authority"]` under
+    /// the mailbox program ID) must be passed as a signer account.  Only the
+    /// mailbox can sign with this PDA via `invoke_signed`, so `Verify` can only
+    /// succeed when called through `Mailbox.process`.
     RateLimited {
         /// Config: max tokens transferable per 24-hour rolling window.
         max_capacity: u64,
@@ -67,6 +77,8 @@ pub enum IsmNode {
         filled_level: u64,
         /// State: unix timestamp of last deduction. Normalized to `0` on init.
         last_updated: i64,
+        /// Config: the mailbox program ID whose process authority PDA must sign.
+        mailbox: Pubkey,
     },
 
     /// Routes to a per-domain PDA account based on the message's origin domain.
@@ -165,6 +177,16 @@ pub type DomainIsmAccount = AccountData<DomainIsmStorage>;
 pub fn derive_domain_pda(program_id: &Pubkey, domain: u32) -> (Pubkey, u8) {
     let domain_bytes = domain.to_le_bytes();
     Pubkey::find_program_address(&[DOMAIN_ISM_SEED, &domain_bytes], program_id)
+}
+
+/// Derives the process authority PDA for a given mailbox program ID.
+///
+/// The mailbox signs with this PDA via `invoke_signed` when it calls
+/// `Verify` on behalf of a message delivery.  By requiring this account to be
+/// a signer, the `RateLimited` node ensures only the mailbox can drain the
+/// rate-limit bucket.
+pub fn derive_process_authority(mailbox: &Pubkey) -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[PROCESS_AUTHORITY_SEED], mailbox)
 }
 
 /// Loads and validates a domain ISM account, returning the full storage.

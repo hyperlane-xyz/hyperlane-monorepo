@@ -17,7 +17,8 @@ use multisig_ism::{multisig::MultisigIsm, MultisigIsmMessageIdMetadata};
 use crate::{
     account_metas::contains_rate_limited,
     accounts::{
-        derive_domain_pda, load_and_validate_domain_ism_storage, DomainIsmAccount, IsmNode,
+        derive_domain_pda, derive_process_authority, load_and_validate_domain_ism_storage,
+        DomainIsmAccount, IsmNode,
     },
     error::Error,
     metadata::{parse_routing_amount, sub_metadata_at},
@@ -267,6 +268,7 @@ where
             recipient,
             filled_level,
             last_updated,
+            mailbox,
         } => {
             if let Some(r) = recipient {
                 if message.recipient != *r {
@@ -274,19 +276,25 @@ where
                 }
             }
 
+            // Gate capacity mutation on the mailbox process authority.
+            // The mailbox program signs with this PDA via `invoke_signed` when it
+            // calls Verify during message delivery.  Direct calls (not through the
+            // mailbox) cannot produce a valid signer for this PDA, so attackers
+            // cannot drain the rate-limit bucket without delivering a real message.
+            let (expected_authority, _) = derive_process_authority(mailbox);
+            let authority_info = next_account_info(accounts_iter)?;
+            if authority_info.key != &expected_authority {
+                return Err(Error::InvalidProcessAuthority.into());
+            }
+            if !authority_info.is_signer {
+                return Err(Error::ProcessAuthorityNotSigner.into());
+            }
+
             // Warp-route message body layout (TokenMessage): [recipient (32 bytes)][amount (32 bytes, big-endian U256)][metadata].
             // max_capacity is u64, so we read the amount as the low 8 bytes of the U256
             // (body[56..64]).  If the high 24 bytes (body[32..56]) are non-zero the amount
             // doesn't fit in u64 and exceeds any realistic capacity — treat as RateLimitExceeded.
             // AmountRouting reads the full 32 bytes because it only needs ordering, not arithmetic.
-            //
-            // Replay / double-spend: this node has no per-message-id guard.  Anyone able to
-            // construct a valid token-message body can call Verify directly (bypassing the mailbox)
-            // and drain the bucket without delivering a real message.  The mailbox-level Delivered
-            // mapping provides replay protection at delivery time but does not block direct ISM
-            // calls.  Accepted gap: gating the mutating path on mailbox authority requires
-            // mailbox-level changes (the mailbox calls verify before creating the processed-message
-            // PDA, so the ISM cannot check delivery status at verify time).
             //
             // Clock skew: refill speed is proportional to Clock::unix_timestamp elapsed time.
             // Forward skew refills the bucket faster than wallclock; the DURATION_SECS cap
@@ -833,6 +841,103 @@ mod test {
         assert!(
             iter.next().is_none(),
             "both account slots should have been consumed"
+        );
+    }
+
+    fn make_fake_account_info<'a>(
+        key: &'a Pubkey,
+        is_signer: bool,
+        lamports: &'a mut u64,
+        data: &'a mut Vec<u8>,
+        owner: &'a Pubkey,
+    ) -> AccountInfo<'a> {
+        AccountInfo::new(key, is_signer, false, lamports, data, owner, false)
+    }
+
+    fn rate_limited_token_body(amount: u64) -> Vec<u8> {
+        let mut body = vec![0u8; 64];
+        body[56..64].copy_from_slice(&amount.to_be_bytes());
+        body
+    }
+
+    /// `RateLimited` rejects when the process authority key is wrong.
+    #[test]
+    fn test_rate_limited_wrong_authority_rejected() {
+        use crate::accounts::derive_process_authority;
+
+        let mailbox = Pubkey::new_unique();
+        let mut node = IsmNode::RateLimited {
+            max_capacity: 1_000,
+            recipient: None,
+            filled_level: 1_000,
+            last_updated: 0,
+            mailbox,
+        };
+
+        let mut msg = dummy_message(ORIGIN_DOMAIN);
+        msg.body = rate_limited_token_body(100);
+
+        // Provide the WRONG authority (some random key, not the derived PDA).
+        let wrong_key = Pubkey::new_unique();
+        let owner = Pubkey::default();
+        let mut lamports = 0u64;
+        let mut data = vec![];
+        let wrong_acc = make_fake_account_info(&wrong_key, true, &mut lamports, &mut data, &owner);
+
+        let accounts = vec![wrong_acc];
+        let mut iter = accounts.iter();
+        assert_eq!(
+            verify_node(
+                &mut node,
+                &[],
+                &msg,
+                &mut iter,
+                &no_program_id(),
+                &mut false,
+            )
+            .unwrap_err(),
+            Error::InvalidProcessAuthority.into()
+        );
+    }
+
+    /// `RateLimited` rejects when the correct PDA is present but not a signer.
+    #[test]
+    fn test_rate_limited_authority_not_signer_rejected() {
+        use crate::accounts::derive_process_authority;
+
+        let mailbox = Pubkey::new_unique();
+        let mut node = IsmNode::RateLimited {
+            max_capacity: 1_000,
+            recipient: None,
+            filled_level: 1_000,
+            last_updated: 0,
+            mailbox,
+        };
+
+        let mut msg = dummy_message(ORIGIN_DOMAIN);
+        msg.body = rate_limited_token_body(100);
+
+        let (authority_key, _) = derive_process_authority(&mailbox);
+        let owner = Pubkey::default();
+        let mut lamports = 0u64;
+        let mut data = vec![];
+        // Correct key but is_signer = false.
+        let authority_acc =
+            make_fake_account_info(&authority_key, false, &mut lamports, &mut data, &owner);
+
+        let accounts = vec![authority_acc];
+        let mut iter = accounts.iter();
+        assert_eq!(
+            verify_node(
+                &mut node,
+                &[],
+                &msg,
+                &mut iter,
+                &no_program_id(),
+                &mut false,
+            )
+            .unwrap_err(),
+            Error::ProcessAuthorityNotSigner.into()
         );
     }
 

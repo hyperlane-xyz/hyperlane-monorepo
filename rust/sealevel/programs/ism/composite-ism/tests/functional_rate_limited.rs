@@ -28,9 +28,7 @@ use hyperlane_sealevel_composite_ism::{
     error::Error,
     instruction::update_config_instruction,
 };
-use hyperlane_sealevel_interchain_security_module_interface::{
-    InterchainSecurityModuleInstruction, VerifyInstruction,
-};
+use hyperlane_sealevel_interchain_security_module_interface::VerifyInstruction;
 use solana_program::instruction::AccountMeta;
 use solana_program_test::{BanksClient, BanksClientError};
 use solana_sdk::{
@@ -44,8 +42,8 @@ use solana_sdk::{
 
 use common::{
     assert_simulation_error, assert_simulation_ok, composite_ism_id, dummy_message,
-    get_verify_account_metas, initialize, program_test, simulate_verify, storage_pda_key,
-    token_message_body,
+    get_verify_account_metas, initialize, mock_mailbox_id, process_verify_via_mailbox,
+    program_test, simulate_verify, storage_pda_key, token_message_body,
 };
 
 const MAX_CAPACITY: u64 = 1_000;
@@ -56,6 +54,7 @@ fn rate_limited_node(max_capacity: u64) -> IsmNode {
         recipient: None,
         filled_level: 0, // normalized to max_capacity on initialize
         last_updated: 0,
+        mailbox: mock_mailbox_id(),
     }
 }
 
@@ -66,29 +65,6 @@ fn verify_ixn(amount: u64) -> VerifyInstruction {
         metadata: vec![],
         message: msg.to_vec(),
     }
-}
-
-async fn process_verify_with_banks(
-    banks_client: &mut BanksClient,
-    payer: &Keypair,
-    ixn: VerifyInstruction,
-    account_metas: Vec<AccountMeta>,
-) -> Result<(), BanksClientError> {
-    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
-    let ix = Instruction::new_with_bytes(
-        composite_ism_id(),
-        &InterchainSecurityModuleInstruction::Verify(ixn)
-            .encode()
-            .unwrap(),
-        account_metas,
-    );
-    let tx = Transaction::new_signed_with_payer(
-        &[ix],
-        Some(&payer.pubkey()),
-        &[payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(tx).await
 }
 
 async fn read_rate_limited_state(banks_client: &mut BanksClient) -> (u64, i64) {
@@ -177,7 +153,7 @@ async fn test_verify_below_capacity() {
     let ixn = verify_ixn(500);
     let account_metas =
         get_verify_account_metas(&mut banks_client, &payer, recent_blockhash, ixn.clone()).await;
-    process_verify_with_banks(&mut banks_client, &payer, ixn, account_metas)
+    process_verify_via_mailbox(&mut banks_client, &payer, ixn, account_metas)
         .await
         .unwrap();
 
@@ -201,7 +177,7 @@ async fn test_verify_exact_capacity() {
     let ixn = verify_ixn(MAX_CAPACITY);
     let account_metas =
         get_verify_account_metas(&mut banks_client, &payer, recent_blockhash, ixn.clone()).await;
-    process_verify_with_banks(&mut banks_client, &payer, ixn, account_metas)
+    process_verify_via_mailbox(&mut banks_client, &payer, ixn, account_metas)
         .await
         .unwrap();
 
@@ -260,7 +236,7 @@ async fn test_verify_sequential_deductions() {
     let ixn1 = verify_ixn(600);
     let account_metas1 =
         get_verify_account_metas(&mut banks_client, &payer, recent_blockhash, ixn1.clone()).await;
-    process_verify_with_banks(&mut banks_client, &payer, ixn1, account_metas1)
+    process_verify_via_mailbox(&mut banks_client, &payer, ixn1, account_metas1)
         .await
         .unwrap();
 
@@ -272,7 +248,7 @@ async fn test_verify_sequential_deductions() {
     let ixn2 = verify_ixn(400);
     let account_metas2 =
         get_verify_account_metas(&mut banks_client, &payer, recent_blockhash2, ixn2.clone()).await;
-    process_verify_with_banks(&mut banks_client, &payer, ixn2, account_metas2)
+    process_verify_via_mailbox(&mut banks_client, &payer, ixn2, account_metas2)
         .await
         .unwrap();
 
@@ -327,7 +303,7 @@ async fn test_verify_partial_refill() {
         let bh = ctx.banks_client.get_latest_blockhash().await.unwrap();
         get_verify_account_metas(&mut ctx.banks_client, &payer, bh, ixn.clone()).await
     };
-    process_verify_with_banks(&mut ctx.banks_client, &payer, ixn, account_metas)
+    process_verify_via_mailbox(&mut ctx.banks_client, &payer, ixn, account_metas)
         .await
         .unwrap();
 
@@ -346,7 +322,7 @@ async fn test_verify_partial_refill() {
         let bh = ctx.banks_client.get_latest_blockhash().await.unwrap();
         get_verify_account_metas(&mut ctx.banks_client, &payer, bh, ixn2.clone()).await
     };
-    process_verify_with_banks(&mut ctx.banks_client, &payer, ixn2, account_metas2)
+    process_verify_via_mailbox(&mut ctx.banks_client, &payer, ixn2, account_metas2)
         .await
         .unwrap();
 
@@ -395,7 +371,7 @@ async fn test_verify_full_reset_after_24h() {
         let bh = ctx.banks_client.get_latest_blockhash().await.unwrap();
         get_verify_account_metas(&mut ctx.banks_client, &payer, bh, ixn.clone()).await
     };
-    process_verify_with_banks(&mut ctx.banks_client, &payer, ixn, account_metas)
+    process_verify_via_mailbox(&mut ctx.banks_client, &payer, ixn, account_metas)
         .await
         .unwrap();
 
@@ -412,7 +388,7 @@ async fn test_verify_full_reset_after_24h() {
         let bh = ctx.banks_client.get_latest_blockhash().await.unwrap();
         get_verify_account_metas(&mut ctx.banks_client, &payer, bh, ixn2.clone()).await
     };
-    process_verify_with_banks(&mut ctx.banks_client, &payer, ixn2, account_metas2)
+    process_verify_via_mailbox(&mut ctx.banks_client, &payer, ixn2, account_metas2)
         .await
         .unwrap();
 
@@ -450,6 +426,7 @@ async fn test_verify_wrong_recipient() {
             recipient: Some(configured_recipient),
             filled_level: 0,
             last_updated: 0,
+            mailbox: mock_mailbox_id(),
         },
     )
     .await
@@ -614,11 +591,18 @@ async fn test_verify_account_metas_writable_pda() {
     let account_metas =
         get_verify_account_metas(&mut banks_client, &payer, recent_blockhash, ixn).await;
 
+    use hyperlane_sealevel_composite_ism::accounts::derive_process_authority;
+    let expected_process_authority = derive_process_authority(&mock_mailbox_id()).0;
+
     // Storage PDA must be writable so the rate limit state can be written back on Verify.
-    assert_eq!(account_metas.len(), 1);
+    // Process authority PDA must also be present as a signer.
+    assert_eq!(account_metas.len(), 2);
     assert_eq!(account_metas[0].pubkey, storage_pda_key());
     assert!(account_metas[0].is_writable);
     assert!(!account_metas[0].is_signer);
+    assert_eq!(account_metas[1].pubkey, expected_process_authority);
+    assert!(account_metas[1].is_signer);
+    assert!(!account_metas[1].is_writable);
 }
 
 #[tokio::test]
@@ -638,7 +622,7 @@ async fn test_update_config_resets_state() {
     let ixn = verify_ixn(500);
     let account_metas =
         get_verify_account_metas(&mut banks_client, &payer, recent_blockhash, ixn.clone()).await;
-    process_verify_with_banks(&mut banks_client, &payer, ixn, account_metas)
+    process_verify_via_mailbox(&mut banks_client, &payer, ixn, account_metas)
         .await
         .unwrap();
 

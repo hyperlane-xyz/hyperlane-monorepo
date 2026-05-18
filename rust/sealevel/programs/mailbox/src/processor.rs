@@ -350,6 +350,21 @@ fn inbox_process(
         });
     }
 
+    // Derive the global process-authority PDA so that ISMs that require the
+    // Mailbox to co-sign (e.g. RateLimited) receive a proper signer account.
+    // The PDA is derived under the Mailbox's own program ID with a single
+    // well-known seed so any ISM configured with this mailbox can verify it.
+    let (process_authority_key, process_authority_bump) =
+        Pubkey::find_program_address(&[b"process_authority"], program_id);
+
+    // If the ISM requested the global process-authority PDA, mark it as a
+    // signer in the CPI so that invoke_signed can grant signing authority.
+    for meta in &mut ism_verify_account_metas {
+        if meta.pubkey == process_authority_key {
+            meta.is_signer = true;
+        }
+    }
+
     // Call into the ISM to verify the message.
     let verify_instruction = InterchainSecurityModuleInstruction::Verify(VerifyInstruction {
         metadata: process.metadata,
@@ -357,7 +372,11 @@ fn inbox_process(
     });
     let verify =
         Instruction::new_with_bytes(ism, &verify_instruction.encode()?, ism_verify_account_metas);
-    invoke(&verify, &ism_verify_infos)?;
+    invoke_signed(
+        &verify,
+        &ism_verify_infos,
+        &[&[b"process_authority", &[process_authority_bump]]],
+    )?;
 
     // Mark the message as delivered by creating the processed message account.
     let processed_message_account_data = ProcessedMessageAccount::from(ProcessedMessage::new(

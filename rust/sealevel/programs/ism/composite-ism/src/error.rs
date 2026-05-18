@@ -54,6 +54,10 @@ pub enum Error {
     FallbackIsmCallFailed = 24,
     #[error("FallbackRouting must be the last sub-ISM in an Aggregation; placing it earlier drains accounts_iter and starves subsequent siblings")]
     FallbackRoutingNotLast = 25,
+    #[error("Process authority account does not match expected PDA for configured mailbox")]
+    InvalidProcessAuthority = 26,
+    #[error("Process authority must be a signer (Verify must be called via Mailbox.process)")]
+    ProcessAuthorityNotSigner = 27,
 }
 
 impl From<Error> for ProgramError {

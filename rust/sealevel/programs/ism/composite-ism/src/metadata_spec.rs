@@ -348,6 +348,7 @@ pub(crate) fn spec_and_accounts_for_node(
             recipient,
             filled_level,
             last_updated,
+            mailbox: _,
         } => {
             let spec = rate_limited_spec(
                 message,
