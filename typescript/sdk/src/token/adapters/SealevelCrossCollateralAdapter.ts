@@ -8,6 +8,7 @@ import {
   SystemProgram,
   Transaction,
   TransactionInstruction,
+  MessageV0,
   VersionedTransaction,
 } from '@solana/web3.js';
 import { serialize } from 'borsh';
@@ -427,7 +428,7 @@ export class SealevelHypCrossCollateralAdapter
     fromAccountOwner,
     targetRouter,
     extraSigners,
-  }: TransferRemoteToParams): Promise<Transaction> {
+  }: TransferRemoteToParams): Promise<Transaction | VersionedTransaction> {
     assert(fromAccountOwner, 'fromAccountOwner required for Sealevel');
 
     const sender = new PublicKey(fromAccountOwner);
@@ -523,7 +524,7 @@ export class SealevelHypCrossCollateralAdapter
     targetRouterBytes: Uint8Array;
     sender: PublicKey;
     randomWallet?: Keypair;
-  }): Promise<Transaction> {
+  }): Promise<Transaction | VersionedTransaction> {
     const value = new SealevelInstructionWrapper({
       instruction: SealevelCCInstructionKind.TransferRemoteTo,
       data: new SealevelCCTransferRemoteToInstruction({
@@ -552,18 +553,51 @@ export class SealevelHypCrossCollateralAdapter
       await this.getProvider().getLatestBlockhash('finalized')
     ).blockhash;
 
-    // @ts-expect-error Workaround for bug in the web3 lib, sometimes uses recentBlockhash and sometimes uses blockhash
-    const tx = new Transaction({
-      feePayer: sender,
-      blockhash: recentBlockhash,
-      recentBlockhash,
-    })
-      .add(setComputeLimitInstruction)
-      .add(setPriorityFeeInstruction)
-      .add(transferInstruction);
+    const instructions = [
+      setComputeLimitInstruction,
+      setPriorityFeeInstruction,
+      transferInstruction,
+    ];
 
-    if (randomWallet) {
-      tx.partialSign(randomWallet);
+    let tx: Transaction | VersionedTransaction;
+    if (this.addresses.altAddresses) {
+      // ALT path: when the route registers ALT addresses, compile a v0
+      // message so the on-chain account-key list stays under Solana's
+      // 1232-byte tx limit (40+ accounts on new-flow fee + IGP routes).
+      const addressLookupTableAccounts =
+        await this.addressLookupTableAccounts.get();
+      const message = MessageV0.compile({
+        payerKey: sender,
+        instructions,
+        recentBlockhash,
+        addressLookupTableAccounts,
+      });
+      const versionedTx = new VersionedTransaction(message);
+
+      // Only fills the randomWallet's slot; the user wallet's slot stays
+      // empty for the wallet-adapter chain to populate later. Local-domain
+      // CC transfers don't have a unique-message PDA, so randomWallet is
+      // undefined and we skip pre-signing.
+      if (randomWallet) {
+        versionedTx.sign([randomWallet]);
+      }
+
+      tx = versionedTx;
+    } else {
+      // Legacy path — unchanged for routes without ALT.
+      // @ts-expect-error Workaround for bug in the web3 lib, sometimes uses recentBlockhash and sometimes uses blockhash
+      tx = new Transaction({
+        feePayer: sender,
+        blockhash: recentBlockhash,
+        recentBlockhash,
+      })
+        .add(setComputeLimitInstruction)
+        .add(setPriorityFeeInstruction)
+        .add(transferInstruction);
+
+      if (randomWallet) {
+        tx.partialSign(randomWallet);
+      }
     }
 
     return tx;
