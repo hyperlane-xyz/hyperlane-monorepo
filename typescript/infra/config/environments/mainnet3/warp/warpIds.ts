@@ -160,12 +160,17 @@ export enum WarpRouteIds {
   // Igra routes
   IgraUSDC = 'USDC/igra',
   IgraIKAS = 'IKAS/igra',
+  IgraSOL = 'SOL/igra',
   IgraWSTETH = 'WSTETH/igra',
   IgraCBBTC = 'CBBTC/igra',
   EthereumIgraUSDS = 'USDS/ethereum-igra',
   EthereumIgraWETH = 'WETH/ethereum-igra',
   EthereumIgraUSDT = 'USDT/ethereum-igra',
+  IgraTIBBIR = 'TIBBIR/igra',
 
   // Fluent routes
   FluentBLEND = 'BLEND/fluent',
+
+  // Kiichain routes
+  KiichainKII = 'KII/kiichain',
 }

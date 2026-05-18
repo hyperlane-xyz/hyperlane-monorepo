@@ -208,6 +208,16 @@ async fn metadata_build<T: MultisigIsmMetadataBuilder>(
         .call_validators_and_threshold(&multisig_ism, message)
         .await?;
 
+    build_with_known_validators(ism_builder, ism_address, validators, threshold, message).await
+}
+
+async fn build_with_known_validators<T: MultisigIsmMetadataBuilder>(
+    ism_builder: &T,
+    ism_address: H256,
+    validators: Vec<H256>,
+    threshold: u8,
+    message: &HyperlaneMessage,
+) -> Result<Metadata, MetadataBuildError> {
     if validators.is_empty() {
         info!("Could not fetch metadata: No validator set found for ISM");
         return Err(MetadataBuildError::CouldNotFetch);
@@ -240,12 +250,12 @@ async fn metadata_build<T: MultisigIsmMetadataBuilder>(
     {
         Ok(syncer) => syncer,
         Err(CheckpointSyncerBuildError::ReorgFlag(reorg_resp)) => {
-            let err = MetadataBuildError::Refused(MetadataBuildRefused::Reorg(reorg_resp));
-            return Err(err);
+            return Err(MetadataBuildError::Refused(MetadataBuildRefused::Reorg(
+                reorg_resp,
+            )));
         }
         Err(e) => {
-            let err = MetadataBuildError::FailedToBuild(e.to_string());
-            return Err(err);
+            return Err(MetadataBuildError::FailedToBuild(e.to_string()));
         }
     };
 
@@ -255,7 +265,7 @@ async fn metadata_build<T: MultisigIsmMetadataBuilder>(
         .map_err(|_| MetadataBuildError::CouldNotFetch)?
         .ok_or_else(|| {
             info!(
-                hyp_message=?message, ?validators, threshold, ism=%multisig_ism.address(),
+                hyp_message=?message, ?validators, threshold, %ism_address,
                 "Could not fetch metadata: Unable to reach quorum"
             );
             MetadataBuildError::CouldNotFetch
@@ -266,4 +276,36 @@ async fn metadata_build<T: MultisigIsmMetadataBuilder>(
         .format_metadata(metadata)
         .map_err(|_| MetadataBuildError::CouldNotFetch)?;
     Ok(Metadata::new(formatted))
+}
+
+/// Builds metadata from a pre-resolved validator set, bypassing ISM contract lookup.
+///
+/// Applies all the same guards as the normal path (empty-set, size cap, reorg) and
+/// updates ISM build metrics.  Use this when the caller already holds validators and
+/// threshold (e.g. Sealevel composite ISM).
+pub(crate) async fn build_from_known_validators<T: MultisigIsmMetadataBuilder>(
+    ism_builder: &T,
+    message: &HyperlaneMessage,
+    validators: Vec<H256>,
+    threshold: u8,
+) -> Result<Metadata, MetadataBuildError> {
+    let res =
+        build_with_known_validators(ism_builder, H256::zero(), validators, threshold, message)
+            .await;
+    let ism_build_metrics_params = IsmBuildMetricsParams {
+        app_context: ism_builder.as_ref().app_context.clone(),
+        success: res.is_ok(),
+        origin: ism_builder.as_ref().base_builder().origin_domain().clone(),
+        destination: ism_builder
+            .as_ref()
+            .base_builder()
+            .destination_domain()
+            .clone(),
+        ism_type: ism_builder.module_type(),
+    };
+    ism_builder
+        .as_ref()
+        .base_builder()
+        .update_ism_metric(ism_build_metrics_params);
+    res
 }

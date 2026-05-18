@@ -21,6 +21,7 @@ fn test_configuration_fields() {
         signer: Some(SignerConf::HexKey {
             key: Default::default(),
         }),
+        identity: None,
         submitter: SubmitterType::Lander,
         estimated_block_time: expected_estimated_block_time,
         reorg_period: expected_reorg_period.clone(),

@@ -732,6 +732,12 @@
       "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
       "isProxy": false,
       "name": "PausableIsm"
+    },
+    {
+      "name": "QuotedCalls",
+      "address": "0xe38E2E3B4d9Aef4556e62e4D2B1e6Fc155bCc985",
+      "constructorArguments": "000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3",
+      "isProxy": false
     }
   ],
   "fraxtal": [

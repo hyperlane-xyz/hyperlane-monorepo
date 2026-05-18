@@ -5,4 +5,6 @@ pub enum MultisigIsmError {
     InvalidSignature,
     #[error("Threshold not met")]
     ThresholdNotMet,
+    #[error("Invalid metadata")]
+    InvalidMetadata,
 }

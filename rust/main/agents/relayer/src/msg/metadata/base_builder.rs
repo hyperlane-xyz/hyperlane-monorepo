@@ -21,6 +21,7 @@ use hyperlane_core::{
     HyperlaneMessage, InterchainSecurityModule, ModuleType, MultisigIsm, RoutingIsm,
     ValidatorAnnounce, H160, H256, H512,
 };
+use hyperlane_sealevel::SealevelCompositeIsm;
 
 use crate::msg::metadata::base_builder::validator_announced_storages::fetch_storage_locations_helper;
 use crate::{merkle_tree::builder::MerkleTreeBuilder, msg::metadata::MetadataBuildError};
@@ -94,6 +95,10 @@ pub trait BuildsBaseMetadata: Send + Sync + Debug {
     async fn build_multisig_ism(&self, address: H256) -> eyre::Result<Box<dyn MultisigIsm>>;
     async fn build_aggregation_ism(&self, address: H256) -> eyre::Result<Box<dyn AggregationIsm>>;
     async fn build_ccip_read_ism(&self, address: H256) -> eyre::Result<Box<dyn CcipReadIsm>>;
+    async fn build_sealevel_composite_ism(
+        &self,
+        address: H256,
+    ) -> eyre::Result<Arc<SealevelCompositeIsm>>;
     async fn build_checkpoint_syncer(
         &self,
         message: &HyperlaneMessage,
@@ -213,6 +218,16 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
         self.destination_chain_setup
             .build_ccip_read_ism(address, &self.metrics)
             .await
+    }
+
+    async fn build_sealevel_composite_ism(
+        &self,
+        address: H256,
+    ) -> eyre::Result<Arc<SealevelCompositeIsm>> {
+        self.destination_chain_setup
+            .build_sealevel_composite_ism(address, &self.metrics)
+            .await
+            .map(Arc::new)
     }
 
     async fn build_checkpoint_syncer(

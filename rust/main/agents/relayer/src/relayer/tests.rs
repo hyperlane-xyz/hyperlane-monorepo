@@ -61,6 +61,7 @@ fn generate_test_chain_conf(
     ChainConf {
         domain,
         signer,
+        identity: None,
         submitter: Default::default(),
         estimated_block_time: Duration::from_secs_f64(1.1),
         reorg_period: ReorgPeriod::None,
@@ -144,6 +145,11 @@ fn generate_test_relayer_settings(
         max_retries: 1,
         tx_id_indexing_enabled: true,
         igp_indexing_enabled: true,
+        relay_api_enabled: false,
+        relay_api_port: None,
+        relay_api_rate_limit_max_requests: None,
+        relay_api_rate_limit_window_secs: None,
+        relay_api_cors_origins: Vec::new(),
     }
 }
 
