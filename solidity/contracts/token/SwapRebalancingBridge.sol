@@ -36,6 +36,50 @@ interface ICrossCollateralRouterLike is IMovableCollateralRouterLike {
     ) external view returns (bool);
 }
 
+/// @title SwapRebalancingBridge
+/// @notice Same-chain `ITokenBridge` used by `MovableCollateralRouter` to pull
+/// source collateral, execute exact-input swap calls, and fund an enrolled
+/// destination router with the exact nominal amount implied by router scale
+/// math.
+/// @dev
+/// Intended usage:
+/// - owner whitelists authorized rebalancer EOAs, external swap `target`s, and
+/// ERC20 `allowanceTarget`s
+/// - rebalancer calls `executeRebalance(...)` with source router, intended
+/// destination router, `amountIn`, rebalancer stop-loss `minAmountOut`, and
+/// exact-input swap calldata
+/// - bridge verifies the destination router is enrolled on the source router
+/// via `routers(...)` or `crossCollateralRouters(...)`
+/// - bridge stores pending state, calls
+/// `sourceRouter.rebalance(localDomain, amountIn, this)`, receives the router
+/// callback, executes swap calls, tops up any output shortfall from the
+/// rebalancer in `outputToken`, transfers exactly `requiredOut` to the
+/// destination router, and refunds any surplus to the rebalancer
+///
+/// Accepted tradeoffs:
+/// - same-chain only
+/// - one in-flight rebalance per bridge
+/// - intended for exact-input router-style swaps where the external venue owns
+/// the hop path; not a fully generic multi-step token executor
+/// - computes nominal output using standard `TokenRouter`
+/// `scaleNumerator/scaleDenominator`; routers with custom inbound/outbound math
+/// need a different adapter design
+/// - ignores callback `recipient`; the rebalancer-supplied enrolled
+/// `destinationRouter` is authoritative
+///
+/// Ergonomics:
+/// - single-call entrypoint for the rebalancer
+/// - owner-managed allowlists bind arbitrary calldata to known swap venues
+/// - helper views expose destination enrollment and nominal amount calculations
+/// for offchain planning
+///
+/// Trust assumptions:
+/// - owner maintains a safe allowlist of swap venues and spenders
+/// - authorized rebalancers choose economically sane calldata and can fund
+/// output-token shortfalls
+/// - source router is configured to allow `rebalance(localDomain, amountIn,
+/// bridge)` to succeed
+/// - source and destination routers expose honest token and scale parameters
 contract SwapRebalancingBridge is
     ITokenBridge,
     ISwapRebalancingBridge,
@@ -95,6 +139,7 @@ contract SwapRebalancingBridge is
 
     constructor() Ownable() {}
 
+    /// @notice Adds or removes an authorized rebalancer.
     function setAuthorizedRebalancer(
         address rebalancer,
         bool allowed
@@ -103,11 +148,13 @@ contract SwapRebalancingBridge is
         emit RebalancerSet(rebalancer, allowed);
     }
 
+    /// @notice Adds or removes a permitted external call target.
     function setTarget(address target, bool allowed) external onlyOwner {
         whitelistedTargets[target] = allowed;
         emit TargetSet(target, allowed);
     }
 
+    /// @notice Adds or removes a permitted ERC20 allowance target.
     function setAllowanceTarget(
         address target,
         bool allowed
@@ -116,6 +163,7 @@ contract SwapRebalancingBridge is
         emit AllowanceTargetSet(target, allowed);
     }
 
+    /// @notice Returns the current in-flight rebalance, if any.
     function pendingRebalance()
         external
         view
@@ -124,6 +172,8 @@ contract SwapRebalancingBridge is
         return pending;
     }
 
+    /// @notice Returns whether `destinationRouter` is enrolled on
+    /// `sourceRouter` for the source router's local domain.
     function isEnrolledDestination(
         address sourceRouter,
         address destinationRouter
@@ -136,6 +186,8 @@ contract SwapRebalancingBridge is
             );
     }
 
+    /// @notice Returns the nominal destination amount implied by standard
+    /// router scale math.
     function requiredOut(
         address sourceRouter,
         address destinationRouter,
@@ -149,6 +201,12 @@ contract SwapRebalancingBridge is
             );
     }
 
+    /// @notice Starts a same-chain rebalance into an enrolled destination
+    /// router.
+    /// @dev
+    /// `minAmountOut` is the rebalancer's stop-loss threshold. LP protection is
+    /// enforced separately by requiring the destination router to receive
+    /// exactly `requiredOut`.
     function executeRebalance(
         address sourceRouter,
         address destinationRouter,
@@ -221,6 +279,10 @@ contract SwapRebalancingBridge is
         source.rebalance(localDomain, amountIn, this);
     }
 
+    /// @notice Callback quote used by `MovableCollateralRouter.rebalance`.
+    /// @dev Returns only the source-token pull quote. The callback `recipient`
+    /// is ignored because the bridge uses pending state to choose the actual
+    /// destination router.
     function quoteTransferRemote(
         uint32 destination,
         bytes32,
@@ -245,6 +307,12 @@ contract SwapRebalancingBridge is
         quotes[2] = Quote({token: pending.inputToken, amount: 0});
     }
 
+    /// @notice Pulls source collateral from the source router, executes swap
+    /// calls, and settles the destination router exactly.
+    /// @dev
+    /// If the swap under-delivers, the bridge pulls the shortfall from the
+    /// rebalancer in `outputToken`. If the swap over-delivers, the bridge
+    /// refunds the surplus to the rebalancer.
     function transferRemote(
         uint32 destination,
         bytes32,
@@ -271,6 +339,8 @@ contract SwapRebalancingBridge is
             pending.inputToken != pending.outputToken &&
             inputToken.balanceOf(address(this)) != 0
         ) revert InputNotFullySpent();
+        // When input and output token are the same, any unspent input is part
+        // of `actualOut` and is later refunded to the rebalancer as surplus.
         uint256 outputAfter = outputToken.balanceOf(address(this));
         uint256 actualOut = outputAfter - outputBefore;
 
@@ -321,6 +391,8 @@ contract SwapRebalancingBridge is
         return bytes32(0);
     }
 
+    /// @dev Checks destination enrollment against the source router's local
+    /// router mapping or cross-collateral enrollment set.
     function _isEnrolledDestination(
         address sourceRouter,
         address destinationRouter,
@@ -346,6 +418,8 @@ contract SwapRebalancingBridge is
         }
     }
 
+    /// @dev Computes the destination router's nominal credit using standard
+    /// `TokenRouter` scale math.
     function _requiredOut(
         IMovableCollateralRouterLike sourceRouter,
         IMovableCollateralRouterLike destinationRouter,
@@ -380,6 +454,7 @@ contract SwapRebalancingBridge is
             );
     }
 
+    /// @dev Copies calldata swap steps into storage for the router callback.
     function _storeSwapCalls(SwapCall[] calldata swapCalls) internal {
         delete pendingSwapCalls;
         uint256 length = swapCalls.length;
@@ -394,6 +469,8 @@ contract SwapRebalancingBridge is
         }
     }
 
+    /// @dev Executes whitelisted swap calls with temporary exact-input
+    /// approvals.
     function _executeSwapCalls() internal {
         IERC20 inputToken = IERC20(pending.inputToken);
         uint256 length = pendingSwapCalls.length;
