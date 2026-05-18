@@ -67,6 +67,48 @@ export function decodeTrailingFeeConfig(
 }
 
 /**
+ * Prefix of a fee account sufficient to extract the beneficiary owner.
+ * Mirrors `FeeAccountPrefix` in
+ * rust/sealevel/programs/hyperlane-sealevel-fee/src/accounts.rs.
+ * Trailing fields (fee_data, domain_id, min_issued_at) are left for
+ * `deserializeUnchecked` to skip — borsh-js 0.7 lacks i64 support so a
+ * full FeeAccount decoder isn't viable here.
+ */
+export class SealevelFeeAccountPrefix {
+  bump_seed!: number;
+  owner?: Uint8Array | null;
+  owner_pub_key?: PublicKey;
+  beneficiary!: Uint8Array;
+  beneficiary_pub_key!: PublicKey;
+
+  constructor(fields: any) {
+    Object.assign(this, fields);
+    this.beneficiary_pub_key = new PublicKey(this.beneficiary);
+    this.owner_pub_key = this.owner ? new PublicKey(this.owner) : undefined;
+  }
+}
+
+export const SealevelFeeAccountPrefixSchema = new Map<any, any>([
+  [
+    SealevelAccountDataWrapper,
+    // [8] = FEE_ACCT discriminator (consumed; not explicitly verified, same
+    // convention as SealevelIgpDataSchema).
+    getSealevelAccountDataSchema(SealevelFeeAccountPrefix, [8]),
+  ],
+  [
+    SealevelFeeAccountPrefix,
+    {
+      kind: 'struct',
+      fields: [
+        ['bump_seed', 'u8'],
+        ['owner', { kind: 'option', type: [32] }],
+        ['beneficiary', [32]],
+      ],
+    },
+  ],
+]);
+
+/**
  * Hyperlane Token Borsh Schema
  */
 // Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/libraries/hyperlane-sealevel-token/src/accounts.rs#L25C12-L25C26
