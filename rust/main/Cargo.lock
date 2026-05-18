@@ -9321,6 +9321,7 @@ dependencies = [
  "hyperlane-ethereum",
  "hyperlane-metric",
  "hyperlane-operation-verifier",
+ "hyperlane-sealevel",
  "hyperlane-test",
  "itertools 0.10.5",
  "lander",
