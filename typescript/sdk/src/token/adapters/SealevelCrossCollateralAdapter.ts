@@ -44,7 +44,7 @@ const SERIALIZABLE_ACCOUNT_META_SIZE = 34;
 
 export class SealevelHypCrossCollateralAdapter
   extends SealevelHypCollateralAdapter
-  implements IHypCrossCollateralAdapter<Transaction>
+  implements IHypCrossCollateralAdapter<Transaction | VersionedTransaction>
 {
   deriveCrossCollateralStatePda(): PublicKey {
     return this.derivePda(
