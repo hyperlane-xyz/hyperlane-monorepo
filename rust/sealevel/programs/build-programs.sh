@@ -12,7 +12,7 @@ PROGRAM_TYPE="${1:-all}"
 SOLANA_CLI_VERSION_FOR_BUILDING_PROGRAMS="3.0.14"
 
 # The paths to the programs
-CORE_PROGRAM_PATHS=("mailbox" "ism/multisig-ism-message-id" "ism/test-ism" "validator-announce" "hyperlane-sealevel-igp")
+CORE_PROGRAM_PATHS=("mailbox" "ism/multisig-ism-message-id" "ism/composite-ism" "ism/test-ism" "validator-announce" "hyperlane-sealevel-igp")
 TOKEN_PROGRAM_PATHS=("hyperlane-sealevel-token" "hyperlane-sealevel-token-collateral" "hyperlane-sealevel-token-cross-collateral" "hyperlane-sealevel-token-native")
 
 build_program () {

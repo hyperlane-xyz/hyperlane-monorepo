@@ -39,7 +39,7 @@ use hyperlane_sealevel::{
 use crate::{
     adapter::{
         chains::sealevel::{
-            conf::{create_keypair, get_connection_conf},
+            conf::{create_identity_keypair, create_keypair, get_connection_conf},
             payload::processed_account,
             transaction::{Precursor, TransactionFactory, Update},
             SealevelTxPrecursor,
@@ -68,6 +68,9 @@ pub struct SealevelAdapter {
     estimated_block_time: Duration,
     max_batch_size: u32,
     keypair: SealevelKeypair,
+    /// Optional identity keypair for co-signing transactions when a TrustedRelayer ISM is used.
+    /// Only set when the identity key differs from the payer key.
+    identity: Option<SealevelKeypair>,
     client: Arc<dyn SubmitSealevelRpc>,
     provider: Arc<dyn SealevelProviderForLander>,
     oracle: Arc<dyn PriorityFeeOracle>,
@@ -130,18 +133,41 @@ impl SealevelAdapter {
         let estimated_block_time = conf.estimated_block_time;
         let max_batch_size = Self::batch_size(&conf)?;
         let keypair = create_keypair(&conf)?;
+        let identity = create_identity_keypair(&conf, &keypair)?;
         let estimate_freshness_cache = Arc::new(Mutex::new(HashMap::new()));
 
         Ok(Self {
             estimated_block_time,
             max_batch_size,
             keypair,
+            identity,
             provider,
             client,
             oracle,
             submitter,
             estimate_freshness_cache,
         })
+    }
+
+    #[cfg(test)]
+    fn new_internal_default_with_identity(
+        identity: SealevelKeypair,
+        client: Arc<dyn SubmitSealevelRpc>,
+        provider: Arc<dyn SealevelProviderForLander>,
+        oracle: Arc<dyn PriorityFeeOracle>,
+        submitter: Arc<dyn TransactionSubmitter>,
+    ) -> Self {
+        Self {
+            estimated_block_time: Duration::from_secs(1),
+            max_batch_size: 1,
+            keypair: SealevelKeypair::default(),
+            identity: Some(identity),
+            provider,
+            client,
+            oracle,
+            submitter,
+            estimate_freshness_cache: Arc::new(Mutex::new(HashMap::new())),
+        }
     }
 
     #[cfg(test)]
@@ -174,6 +200,7 @@ impl SealevelAdapter {
             estimated_block_time,
             max_batch_size: 1,
             keypair: SealevelKeypair::default(),
+            identity: None,
             provider,
             client,
             oracle,
@@ -236,6 +263,16 @@ impl SealevelAdapter {
             estimate,
         } = precursor;
 
+        let additional_signers: Vec<&SealevelKeypair> = self
+            .identity
+            .iter()
+            .filter(|signer| {
+                instruction
+                    .accounts
+                    .iter()
+                    .any(|meta| meta.pubkey == signer.pubkey() && meta.is_signer)
+            })
+            .collect();
         self.provider
             .create_transaction_for_instruction(
                 estimate.compute_units,
@@ -245,6 +282,7 @@ impl SealevelAdapter {
                 self.submitter.clone(),
                 sign,
                 *alt_address,
+                &additional_signers,
             )
             .await
     }
