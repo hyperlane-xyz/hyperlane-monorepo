@@ -590,8 +590,12 @@ export class EvmTokenFeeModule extends HyperlaneModule<
 
     // Deduplicate update work for shared addresses (old address → deployed address after update).
     // Multiple (chainName, routerBytes32) pairs may point to the same physical contract; we only
-    // run the update once but record the result per-entry so split routes are handled correctly.
-    const updatedByAddress = new Map<string, string>();
+    // run the update once per (address, config) pair. If two entries share an address but have
+    // divergent target configs (split case), each gets its own deployment.
+    const updatedByAddress = new Map<
+      string,
+      { config: ResolvedTokenFeeConfigInput; deployedAddr: string }
+    >();
 
     // Per-entry deployed address, keyed by "chainName:routerBytes32".
     const entryDeployedAddr = new Map<string, string>();
@@ -602,6 +606,10 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       for (const [routerBytes32, subFeeConfig] of Object.entries(
         routerConfigs,
       )) {
+        assert(
+          /^0x[0-9a-fA-F]{64}$/.test(routerBytes32),
+          `routerBytes32 key "${routerBytes32}" for chain ${chainName} is not a valid 32-byte hex string`,
+        );
         const address = subFeeConfig.address;
         const entryKey = `${chainName}:${routerBytes32}`;
 
@@ -623,7 +631,30 @@ export class EvmTokenFeeModule extends HyperlaneModule<
           entryDeployedAddr.set(entryKey, deployedSubFee);
         } else {
           const addrKey = address.toLowerCase();
-          if (!updatedByAddress.has(addrKey)) {
+          const cached = updatedByAddress.get(addrKey);
+          const configMatches =
+            cached && deepEquals(cached.config, subFeeConfig);
+
+          if (!cached || !configMatches) {
+            if (cached && !configMatches) {
+              // Same physical address but divergent target config — this is a route split.
+              // Deploy a fresh sub-fee contract rather than reusing the other entry's result.
+              this.logger.info(
+                `Cross-collateral sub-fee config diverged for ${chainName}/${routerBytes32} at ${address}, deploying new contract`,
+              );
+              const subFeeModule = await EvmTokenFeeModule.create({
+                multiProvider: this.multiProvider,
+                chain: this.chainName,
+                config: subFeeConfig,
+                contractVerifier: this.contractVerifier,
+              });
+              const deployedSubFee = subFeeModule.serialize().deployedFee;
+              this.logger.debug(
+                `New cross-collateral sub-fee contract deployed at ${deployedSubFee} for ${chainName}/${routerBytes32}`,
+              );
+              entryDeployedAddr.set(entryKey, deployedSubFee);
+              continue;
+            }
             // First time we see this address — run the update
             const subFeeModule = new EvmTokenFeeModule(
               this.multiProvider,
@@ -645,14 +676,14 @@ export class EvmTokenFeeModule extends HyperlaneModule<
                 `Cross-collateral sub-fee redeployed: ${address} → ${deployedSubFeeAddr} for ${chainName}/${routerBytes32}`,
               );
             }
-            updatedByAddress.set(addrKey, deployedSubFeeAddr);
+            updatedByAddress.set(addrKey, {
+              config: subFeeConfig,
+              deployedAddr: deployedSubFeeAddr,
+            });
           }
-          const deployedAddr = updatedByAddress.get(addrKey);
-          assert(
-            deployedAddr !== undefined,
-            `Missing deployed fee for ${addrKey}`,
-          );
-          entryDeployedAddr.set(entryKey, deployedAddr);
+          const entry = updatedByAddress.get(addrKey);
+          assert(entry !== undefined, `Missing deployed fee for ${addrKey}`);
+          entryDeployedAddr.set(entryKey, entry.deployedAddr);
         }
       }
     }

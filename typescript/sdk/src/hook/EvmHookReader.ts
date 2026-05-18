@@ -411,9 +411,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     const hookConfigs: DerivedHookConfig[] = await concurrentMap(
       this.concurrency,
       hooks,
-      async (hookAddress) => {
-        return this.deriveHookConfig(hookAddress);
-      },
+      (hook) => this.deriveHookConfig(hook),
     );
 
     const config: WithAddress<AggregationHookConfig> = {
