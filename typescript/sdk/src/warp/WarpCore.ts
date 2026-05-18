@@ -40,7 +40,6 @@ import {
   EVM_TRANSFER_REMOTE_GAS_ESTIMATE,
   EvmHypCollateralFiatAdapter,
 } from '../token/adapters/EvmTokenAdapter.js';
-import type { IHypTokenAdapter } from '../token/adapters/ITokenAdapter.js';
 import {
   IHypXERC20Adapter,
   InterchainGasQuote,
