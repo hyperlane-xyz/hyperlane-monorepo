@@ -1,4 +1,4 @@
-import { PublicKey, Transaction } from '@solana/web3.js';
+import { PublicKey, Transaction, VersionedTransaction } from '@solana/web3.js';
 import { TurnkeySigner as TurnkeySolanaSigner } from '@turnkey/solana';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
@@ -77,7 +77,9 @@ export class TurnkeySealevelSigner implements SvmTransactionSigner {
    * This method uses Turnkey's secure enclave to sign the transaction
    * and enforces any policies configured in Turnkey (e.g., IGP-only restrictions)
    */
-  async signTransaction(transaction: Transaction): Promise<Transaction> {
+  async signTransaction<T extends Transaction | VersionedTransaction>(
+    transaction: T,
+  ): Promise<T> {
     logger.debug('Signing transaction with Turnkey');
 
     try {
