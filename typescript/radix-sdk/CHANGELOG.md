@@ -1,5 +1,12 @@
 # @hyperlane-xyz/radix-sdk
 
+## 34.0.0
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@34.0.0
+- @hyperlane-xyz/provider-sdk@6.0.2
+
 ## 33.1.1
 
 ### Patch Changes

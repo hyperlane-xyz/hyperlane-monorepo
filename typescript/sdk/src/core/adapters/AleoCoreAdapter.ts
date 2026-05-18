@@ -2,10 +2,7 @@ import { Address, HexString, assert, pollAsync } from '@hyperlane-xyz/utils';
 
 import { BaseAleoAdapter } from '../../app/MultiProtocolApp.js';
 import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
-import {
-  ProviderType,
-  TypedTransactionReceipt,
-} from '../../providers/ProviderType.js';
+import { TypedTransactionReceipt } from '../../providers/ProviderType.js';
 import { ChainName } from '../../types.js';
 
 import { ICoreAdapter } from './types.js';
@@ -20,13 +17,9 @@ export class AleoCoreAdapter extends BaseAleoAdapter implements ICoreAdapter {
   }
 
   extractMessageIds(
-    sourceTx: TypedTransactionReceipt,
+    _sourceTx: TypedTransactionReceipt,
   ): Array<{ messageId: string; destination: ChainName }> {
-    assert(
-      sourceTx.type === ProviderType.Aleo,
-      `Unsupported provider type for AleoCoreAdapter ${sourceTx.type}`,
-    );
-
+    // Message IDs cannot be extracted from Aleo receipts yet.
     return [];
   }
 

@@ -764,7 +764,9 @@ export async function enrollCrossChainRouters(
   const supportedChains = Object.keys(
     objFilter(
       resolvedConfigMap,
-      (_, config: any): config is any => !config.foreignDeployment,
+      (_, config: any): config is any =>
+        !config.foreignDeployment &&
+        config.type !== TokenType.collateralDepositAddress,
     ),
   );
 

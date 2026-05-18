@@ -91,8 +91,14 @@ export function loadProgramsInDeployOrder(
           )
           .replaceAll(
             /(hyp_native|hyp_collateral|hyp_synthetic).aleo/g,
-            (_, p1) =>
-              `${p1}_${getCustomWarpSuffixFromEnv() || warpSuffix || coreSuffix}.aleo`,
+            (_, p1) => {
+              if (p1 === 'hyp_native') {
+                return `hyp_warp_token_credits.aleo`;
+              }
+              const effectiveSuffix =
+                getCustomWarpSuffixFromEnv() || warpSuffix || coreSuffix;
+              return `hyp_warp_token_${effectiveSuffix}.aleo`;
+            },
           ),
       ),
     );
@@ -173,9 +179,20 @@ constructor:
   return programs.map((p) => ({
     id: p.id(),
     name:
-      Object.keys(programRegistry).find((r) =>
-        p.id().startsWith(`${prefix}_${r.replaceAll('hyp_', '')}`),
-      ) || '',
+      Object.keys(programRegistry).find((r) => {
+        if (r === 'hyp_native') {
+          return p.id() === `${prefix}_warp_token_credits.aleo`;
+        }
+        if (
+          (r === 'hyp_collateral' || r === 'hyp_synthetic') &&
+          r === programName &&
+          p.id().startsWith(`${prefix}_warp_token_`) &&
+          p.id() !== `${prefix}_warp_token_credits.aleo`
+        ) {
+          return true;
+        }
+        return p.id().startsWith(`${prefix}_${r.replaceAll('hyp_', '')}`);
+      }) || '',
     program: p.toString(),
   }));
 }
