@@ -5,6 +5,7 @@ import { Uint53 } from '@cosmjs/math';
 import { Registry } from '@cosmjs/proto-signing';
 import { defaultRegistryTypes } from '@cosmjs/stargate';
 import { MsgExecuteContract } from 'cosmjs-types/cosmwasm/wasm/v1/tx.js';
+import { VersionedTransaction } from '@solana/web3.js';
 import type {
   providers as EV5Providers,
   PopulatedTransaction as EV5Transaction,
@@ -155,9 +156,14 @@ export async function estimateTransactionFeeSolanaWeb3({
   provider: SolanaWeb3Provider;
 }): Promise<TransactionFeeEstimate> {
   const connection = provider.provider;
-  const { value } = await connection.simulateTransaction(
-    transaction.transaction,
-  );
+  // `Connection.simulateTransaction` has separate overloads for legacy
+  // `Transaction` and `VersionedTransaction`; the union doesn't satisfy
+  // either branch directly, so branch on runtime type to pick the right one.
+  const inner = transaction.transaction;
+  const { value } =
+    inner instanceof VersionedTransaction
+      ? await connection.simulateTransaction(inner)
+      : await connection.simulateTransaction(inner);
   assert(!value.err, `Solana gas estimation failed: ${JSON.stringify(value)}`);
   const gasUnits = BigInt(value.unitsConsumed || 0);
   const recentFees = await connection.getRecentPrioritizationFees();
