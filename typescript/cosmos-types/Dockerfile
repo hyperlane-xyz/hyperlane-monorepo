@@ -1,9 +1,10 @@
-FROM bufbuild/buf:1.50.1 as BUILDER
-FROM node:24-alpine
+ARG NODE_VERSION=24
+FROM bufbuild/buf:1.50.1 AS builder
+FROM node:${NODE_VERSION}-alpine
 
 RUN npm install -g ts-proto@v1.181.2
 
-COPY --from=BUILDER /usr/local/bin /usr/local/bin
+COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Inject user id and group id to avoid permission issues when running as a root user
 ARG USER_ID=1000
