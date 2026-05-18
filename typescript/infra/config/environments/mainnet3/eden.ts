@@ -61,7 +61,6 @@ export function getEdenCoreConfig(igpConfig: IgpConfig): CoreConfig {
       proxyAdmin: EDEN_CORE_OWNER,
       validatorAnnounce: DEPLOYER,
       testRecipient: DEPLOYER,
-      fallbackRoutingHook: DEPLOYER,
     },
   };
 
