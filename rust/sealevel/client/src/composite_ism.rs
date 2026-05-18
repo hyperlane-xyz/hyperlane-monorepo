@@ -76,6 +76,8 @@ pub(crate) enum IsmNodeConfig {
     /// `UpdateConfig` / `SetDomainIsm`.
     RateLimited {
         max_capacity: u64,
+        #[serde(with = "crate::serde::serde_pubkey")]
+        mailbox: Pubkey,
         #[serde(skip_serializing_if = "Option::is_none")]
         recipient: Option<H256>,
     },
@@ -119,9 +121,11 @@ impl From<IsmNodeConfig> for IsmNode {
             },
             IsmNodeConfig::RateLimited {
                 max_capacity,
+                mailbox,
                 recipient,
             } => IsmNode::RateLimited {
                 max_capacity,
+                mailbox,
                 recipient,
                 filled_level: max_capacity, // start full; reset by UpdateConfig/SetDomainIsm
                 last_updated: 0,
@@ -178,10 +182,12 @@ impl TryFrom<IsmNode> for IsmNodeConfig {
             }
             IsmNode::RateLimited {
                 max_capacity,
+                mailbox,
                 recipient,
                 ..
             } => Ok(IsmNodeConfig::RateLimited {
                 max_capacity,
+                mailbox,
                 recipient,
             }),
         }

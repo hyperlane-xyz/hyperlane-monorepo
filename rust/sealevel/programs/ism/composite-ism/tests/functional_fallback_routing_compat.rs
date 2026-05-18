@@ -624,7 +624,6 @@ async fn test_mailbox_process_test_ism_fallback() {
     let payer = context.payer.insecure_clone();
 
     // Initialize mailbox (also initializes test-ism as the default ISM).
-    let bh = context.banks_client.get_latest_blockhash().await.unwrap();
     let mailbox_accounts = initialize_mailbox(
         &mut context.banks_client,
         &mailbox_id(),
@@ -653,7 +652,6 @@ async fn test_mailbox_process_test_ism_fallback() {
     .unwrap();
 
     // Initialize test-send-receiver and set composite ISM as its ISM.
-    let bh = context.banks_client.get_latest_blockhash().await.unwrap();
     let mut receiver =
         hyperlane_sealevel_test_send_receiver::test_client::TestSendReceiverTestClient::new(
             context.banks_client.clone(),
@@ -667,7 +665,7 @@ async fn test_mailbox_process_test_ism_fallback() {
 
     // Build the message targeting the test-send-receiver.
     let recipient = hyperlane_sealevel_test_send_receiver::id();
-    let mut message = HyperlaneMessage {
+    let message = HyperlaneMessage {
         version: 3,
         nonce: 0,
         origin: remote_domain,

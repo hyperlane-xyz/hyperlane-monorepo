@@ -863,8 +863,6 @@ mod test {
     /// `RateLimited` rejects when the process authority key is wrong.
     #[test]
     fn test_rate_limited_wrong_authority_rejected() {
-        use crate::accounts::derive_process_authority;
-
         let mailbox = Pubkey::new_unique();
         let mut node = IsmNode::RateLimited {
             max_capacity: 1_000,
@@ -903,8 +901,6 @@ mod test {
     /// `RateLimited` rejects when the correct PDA is present but not a signer.
     #[test]
     fn test_rate_limited_authority_not_signer_rejected() {
-        use crate::accounts::derive_process_authority;
-
         let mailbox = Pubkey::new_unique();
         let mut node = IsmNode::RateLimited {
             max_capacity: 1_000,

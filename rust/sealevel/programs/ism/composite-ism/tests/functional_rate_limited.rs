@@ -29,12 +29,11 @@ use hyperlane_sealevel_composite_ism::{
     instruction::update_config_instruction,
 };
 use hyperlane_sealevel_interchain_security_module_interface::VerifyInstruction;
-use solana_program::instruction::AccountMeta;
 use solana_program_test::{BanksClient, BanksClientError};
 use solana_sdk::{
     clock::Clock,
     hash::Hash,
-    instruction::{Instruction, InstructionError},
+    instruction::InstructionError,
     signature::Signer,
     signer::keypair::Keypair,
     transaction::{Transaction, TransactionError},
