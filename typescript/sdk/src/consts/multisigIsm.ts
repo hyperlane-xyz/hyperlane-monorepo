@@ -668,7 +668,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       {
         address: '0xa3f19CDFa6B684b44da3cF1e2D19d5Cb916cA0EF',
-        alias: 'Binary Builders',
+        alias: 'Qubelabs',
       },
     ],
   },
