@@ -455,7 +455,7 @@ describe('EvmTokenFeeModule', () => {
       );
     });
 
-    it('should redeploy CCRF when fee contracts differ', async () => {
+    it('should update CCRF sub-fee when fee contracts differ', async () => {
       const initialSubFeeModule = await EvmTokenFeeModule.create({
         multiProvider,
         chain: test4Chain,
@@ -501,8 +501,9 @@ describe('EvmTokenFeeModule', () => {
         },
       );
 
-      expect(txs).to.have.lengthOf(0);
-      expect(module.serialize().deployedFee).to.not.equal(ccrf.address);
+      expect(txs).to.have.lengthOf(1);
+      expect(module.serialize().deployedFee).to.equal(ccrf.address);
+      await multiProvider.sendTransaction(test4Chain, txs[0]);
 
       const onchainConfig = await module.read({
         routingDestinations: [routingDestination],
@@ -524,7 +525,7 @@ describe('EvmTokenFeeModule', () => {
       ).to.equal(BPS + 1);
     });
 
-    it('should redeploy an empty CCRF using explicitly resolved child tokens', async () => {
+    it('should update an empty CCRF using explicitly resolved child tokens', async () => {
       const emptyCcrf = await deployCrossCollateralRoutingFee(signer.address);
       const routingDestination = multiProvider.getDomainId(test4Chain);
       const module = new EvmTokenFeeModule(multiProvider, {
@@ -559,8 +560,9 @@ describe('EvmTokenFeeModule', () => {
         },
       });
 
-      expect(txs).to.have.lengthOf(0);
-      expect(module.serialize().deployedFee).to.not.equal(emptyCcrf.address);
+      expect(txs).to.have.lengthOf(1);
+      expect(module.serialize().deployedFee).to.equal(emptyCcrf.address);
+      await multiProvider.sendTransaction(test4Chain, txs[0]);
 
       const onchainConfig = await module.read({
         routingDestinations: [routingDestination],
@@ -577,7 +579,7 @@ describe('EvmTokenFeeModule', () => {
       ).to.equal(token.address);
     });
 
-    it('should preserve caller-provided CCR routers when diffing for redeploy', async () => {
+    it('should preserve caller-provided CCR routers when diffing for update', async () => {
       const initialSubFeeModule = await EvmTokenFeeModule.create({
         multiProvider,
         chain: test4Chain,
@@ -628,8 +630,9 @@ describe('EvmTokenFeeModule', () => {
         },
       );
 
-      expect(txs).to.have.lengthOf(0);
-      expect(module.serialize().deployedFee).to.not.equal(ccrf.address);
+      expect(txs).to.have.lengthOf(1);
+      expect(module.serialize().deployedFee).to.equal(ccrf.address);
+      await multiProvider.sendTransaction(test4Chain, txs[0]);
 
       const onchainConfig = await module.read({
         crossCollateralRouters: {

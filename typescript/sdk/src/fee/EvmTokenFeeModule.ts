@@ -430,7 +430,10 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     if (targetConfig.type === TokenFeeType.OffchainQuotedLinearFee) {
       mutableFields.quoteSigners = true;
     }
-    if (targetConfig.type === TokenFeeType.RoutingFee) {
+    if (
+      targetConfig.type === TokenFeeType.RoutingFee ||
+      targetConfig.type === TokenFeeType.CrossCollateralRoutingFee
+    ) {
       mutableFields.feeContracts = true;
     }
 
