@@ -154,18 +154,23 @@ export async function runWarpRouteBalances({
     if (collateralEntries.length > 0 && syntheticEntries.length > 0) {
       const hasErrors = tokenEntries.some((e) => e.rawBalance === undefined);
 
-      const decimals = tokenEntries[0].decimals;
+      const commonDecimals = Math.max(
+        ...collateralEntries.map((e) => e.decimals),
+        ...syntheticEntries.map((e) => e.decimals),
+      );
+      const scale = (e: TokenEntry) =>
+        10n ** BigInt(commonDecimals - e.decimals);
       const totalCollateral = collateralEntries.reduce(
-        (sum, e) => sum + (e.rawBalance ?? 0n),
+        (sum, e) => sum + (e.rawBalance ?? 0n) * scale(e),
         0n,
       );
       const totalSynthetic = syntheticEntries.reduce(
-        (sum, e) => sum + (e.rawBalance ?? 0n),
+        (sum, e) => sum + (e.rawBalance ?? 0n) * scale(e),
         0n,
       );
 
       const fmt = (v: bigint) =>
-        raw ? v.toString() : formatBigIntBalance(v, decimals);
+        raw ? v.toString() : formatBigIntBalance(v, commonDecimals);
 
       if (totalCollateral === totalSynthetic) {
         logGreen(

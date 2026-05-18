@@ -1287,10 +1287,7 @@ export class WarpCore {
       LOCKBOX_STANDARDS.includes(token.standard) ||
       ERC4626_COLLATERAL_STANDARDS.includes(token.standard)
     ) {
-      // CAST: ITokenAdapter lacks getBridgedSupply; all ERC4626/lockbox adapters implement IHypTokenAdapter
-      const adapter = token.getAdapter(
-        this.multiProvider,
-      ) as IHypTokenAdapter<unknown>;
+      const adapter = token.getHypAdapter(this.multiProvider);
       const tokenCollateral = await adapter.getBridgedSupply();
       assert(
         tokenCollateral !== undefined,
