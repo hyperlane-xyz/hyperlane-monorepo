@@ -715,6 +715,10 @@ contract OffchainQuotedLinearFeeTest is Test {
             _computeFee(firstMaxFee, HALF_AMOUNT, AMOUNT)
         );
 
+        // Advance time so the newer quote's issuedAt is not future-dated.
+        vm.warp(block.timestamp + 1);
+        uint48 later = uint48(block.timestamp);
+
         // Submit newer standing quote (higher issuedAt) with different params
         _submitStanding(
             DEST,
@@ -722,8 +726,8 @@ contract OffchainQuotedLinearFeeTest is Test {
             WILDCARD_AMOUNT,
             secondMaxFee,
             secondHalfAmount,
-            now_ + 1,
-            now_ + 7200
+            later,
+            later + 7200
         );
 
         // New params are used
