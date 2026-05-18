@@ -8,6 +8,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {SwapRebalancingBridge} from "contracts/token/SwapRebalancingBridge.sol";
 import {ITokenBridge, Quote} from "contracts/interfaces/ITokenBridge.sol";
 import {SwapCall} from "contracts/token/interfaces/ISwapRebalancingBridge.sol";
+import {Quotes} from "contracts/token/libs/Quotes.sol";
 
 interface IUniswapV3Router {
     struct ExactInputSingleParams {
@@ -44,6 +45,8 @@ interface IAerodromeRouter {
 }
 
 contract MockForkRouter {
+    using Quotes for Quote[];
+
     IERC20 public immutable wrappedToken;
     uint32 public immutable localDomain;
     uint256 public immutable scaleNumerator;
@@ -71,6 +74,10 @@ contract MockForkRouter {
         routers[domain] = bytes32(uint256(uint160(router)));
     }
 
+    function approveTokenForBridge(ITokenBridge bridge) external {
+        wrappedToken.approve(address(bridge), type(uint256).max);
+    }
+
     function rebalance(
         uint32 domain,
         uint256 collateralAmount,
@@ -81,7 +88,10 @@ contract MockForkRouter {
             bytes32(0),
             collateralAmount
         );
-        wrappedToken.approve(address(bridge), quotes[1].amount);
+        require(
+            quotes.extract(address(wrappedToken)) <= collateralAmount,
+            "unexpected fees"
+        );
         bridge.transferRemote(domain, bytes32(0), collateralAmount);
     }
 }
@@ -109,6 +119,7 @@ abstract contract SwapRebalancingBridgeForkTestBase is Test {
             1
         );
         sourceRouter.setPrimaryRouter(localDomain, address(destinationRouter));
+        sourceRouter.approveTokenForBridge(bridge);
 
         bridge.setAuthorizedRebalancer(rebalancer, true);
     }
@@ -197,6 +208,116 @@ contract SwapRebalancingBridgeEthereumForkTest is
             destinationBefore,
             rebalancerBefore
         );
+    }
+
+    function testFork_uniswapExactInputSingle_pullsShortfallFromRebalancer()
+        public
+    {
+        uint256 amountIn = 100e6;
+        destinationRouter = new MockForkRouter(
+            IERC20(USDT),
+            LOCAL_DOMAIN,
+            10,
+            11
+        );
+        sourceRouter.setPrimaryRouter(LOCAL_DOMAIN, address(destinationRouter));
+
+        uint256 destinationBefore = IERC20(USDT).balanceOf(
+            address(destinationRouter)
+        );
+        uint256 rebalancerBefore = IERC20(USDT).balanceOf(rebalancer);
+
+        vm.prank(rebalancer);
+        bridge.executeRebalance(
+            address(sourceRouter),
+            address(destinationRouter),
+            amountIn,
+            1,
+            block.timestamp + 1 hours,
+            _uniswapSwapCalls(amountIn)
+        );
+
+        assertEq(
+            IERC20(USDT).balanceOf(address(destinationRouter)) -
+                destinationBefore,
+            110e6
+        );
+        assertLt(IERC20(USDT).balanceOf(rebalancer), rebalancerBefore);
+    }
+
+    function testFork_uniswapExactInputSingle_refundsSurplusToRebalancer()
+        public
+    {
+        uint256 amountIn = 100e6;
+        destinationRouter = new MockForkRouter(
+            IERC20(USDT),
+            LOCAL_DOMAIN,
+            10,
+            9
+        );
+        sourceRouter.setPrimaryRouter(LOCAL_DOMAIN, address(destinationRouter));
+
+        uint256 destinationBefore = IERC20(USDT).balanceOf(
+            address(destinationRouter)
+        );
+        uint256 rebalancerBefore = IERC20(USDT).balanceOf(rebalancer);
+
+        vm.prank(rebalancer);
+        bridge.executeRebalance(
+            address(sourceRouter),
+            address(destinationRouter),
+            amountIn,
+            1,
+            block.timestamp + 1 hours,
+            _uniswapSwapCalls(amountIn)
+        );
+
+        assertEq(
+            IERC20(USDT).balanceOf(address(destinationRouter)) -
+                destinationBefore,
+            90e6
+        );
+        assertGt(IERC20(USDT).balanceOf(rebalancer), rebalancerBefore);
+    }
+
+    function testFork_uniswapExactInputSingle_revertsWhenAmountOutBelowMin()
+        public
+    {
+        uint256 amountIn = 100e6;
+
+        vm.prank(rebalancer);
+        vm.expectRevert(SwapRebalancingBridge.AmountOutTooLow.selector);
+        bridge.executeRebalance(
+            address(sourceRouter),
+            address(destinationRouter),
+            amountIn,
+            200e6,
+            block.timestamp + 1 hours,
+            _uniswapSwapCalls(amountIn)
+        );
+    }
+
+    function _uniswapSwapCalls(
+        uint256 amountIn
+    ) internal view returns (SwapCall[] memory swapCalls) {
+        swapCalls = new SwapCall[](1);
+        swapCalls[0] = SwapCall({
+            target: UNISWAP_V3_ROUTER,
+            allowanceTarget: UNISWAP_V3_ROUTER,
+            data: abi.encodeWithSelector(
+                IUniswapV3Router.exactInputSingle.selector,
+                IUniswapV3Router.ExactInputSingleParams({
+                    tokenIn: USDC,
+                    tokenOut: USDT,
+                    fee: 500,
+                    recipient: address(bridge),
+                    deadline: block.timestamp + 1 hours,
+                    amountIn: amountIn,
+                    amountOutMinimum: 1,
+                    sqrtPriceLimitX96: 0
+                })
+            )
+        });
     }
 }
 

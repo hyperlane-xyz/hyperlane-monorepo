@@ -86,6 +86,7 @@ contract SwapRebalancingBridge is
     error DeadlineExpired();
     error NativeValueNotAccepted();
     error InvalidCallback();
+    error InvalidScale();
     error AmountOutTooLow();
     error InputNotFullySpent();
     error UnapprovedTarget();
@@ -155,9 +156,8 @@ contract SwapRebalancingBridge is
         uint256 minAmountOut,
         uint256 deadline,
         SwapCall[] calldata swapCalls
-    ) external payable {
+    ) external {
         if (!authorizedRebalancers[msg.sender]) revert UnauthorizedRebalancer();
-        if (msg.value != 0) revert NativeValueNotAccepted();
         if (pending.sourceRouter != address(0))
             revert RebalanceAlreadyPending();
         if (deadline < block.timestamp) revert DeadlineExpired();
@@ -351,18 +351,31 @@ contract SwapRebalancingBridge is
         IMovableCollateralRouterLike destinationRouter,
         uint256 amountIn
     ) internal view returns (uint256) {
+        uint256 sourceScaleNumerator = sourceRouter.scaleNumerator();
+        uint256 sourceScaleDenominator = sourceRouter.scaleDenominator();
+        uint256 destinationScaleNumerator = destinationRouter.scaleNumerator();
+        uint256 destinationScaleDenominator = destinationRouter
+            .scaleDenominator();
+
+        if (
+            sourceScaleNumerator == 0 ||
+            sourceScaleDenominator == 0 ||
+            destinationScaleNumerator == 0 ||
+            destinationScaleDenominator == 0
+        ) revert InvalidScale();
+
         uint256 canonical = Math.mulDiv(
             amountIn,
-            sourceRouter.scaleNumerator(),
-            sourceRouter.scaleDenominator(),
+            sourceScaleNumerator,
+            sourceScaleDenominator,
             Math.Rounding.Down
         );
 
         return
             Math.mulDiv(
                 canonical,
-                destinationRouter.scaleDenominator(),
-                destinationRouter.scaleNumerator(),
+                destinationScaleDenominator,
+                destinationScaleNumerator,
                 Math.Rounding.Down
             );
     }
@@ -383,7 +396,6 @@ contract SwapRebalancingBridge is
 
     function _executeSwapCalls() internal {
         IERC20 inputToken = IERC20(pending.inputToken);
-        IERC20 outputToken = IERC20(pending.outputToken);
         uint256 length = pendingSwapCalls.length;
 
         for (uint256 i = 0; i < length; ++i) {
@@ -395,24 +407,11 @@ contract SwapRebalancingBridge is
             ) revert UnapprovedAllowanceTarget();
 
             if (swapCall.allowanceTarget != address(0)) {
-                uint256 inputBalance = inputToken.balanceOf(address(this));
-                if (inputBalance > 0) {
+                if (inputToken.balanceOf(address(this)) > 0) {
                     inputToken.forceApprove(
                         swapCall.allowanceTarget,
-                        inputBalance
+                        pending.amountIn
                     );
-                }
-
-                if (pending.outputToken != pending.inputToken) {
-                    uint256 outputBalance = outputToken.balanceOf(
-                        address(this)
-                    );
-                    if (outputBalance > 0) {
-                        outputToken.forceApprove(
-                            swapCall.allowanceTarget,
-                            outputBalance
-                        );
-                    }
                 }
             }
 
@@ -422,9 +421,6 @@ contract SwapRebalancingBridge is
 
             if (swapCall.allowanceTarget != address(0)) {
                 inputToken.forceApprove(swapCall.allowanceTarget, 0);
-                if (pending.outputToken != pending.inputToken) {
-                    outputToken.forceApprove(swapCall.allowanceTarget, 0);
-                }
             }
 
             if (!success) {

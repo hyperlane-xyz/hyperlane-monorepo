@@ -8,8 +8,11 @@ import {TestSwapTarget} from "contracts/test/TestSwapTarget.sol";
 import {SwapRebalancingBridge} from "contracts/token/SwapRebalancingBridge.sol";
 import {ISwapRebalancingBridge, SwapCall} from "contracts/token/interfaces/ISwapRebalancingBridge.sol";
 import {ITokenBridge, Quote} from "contracts/interfaces/ITokenBridge.sol";
+import {Quotes} from "contracts/token/libs/Quotes.sol";
 
 contract MockRebalanceRouter {
+    using Quotes for Quote[];
+
     ERC20Test public immutable wrappedToken;
     uint32 public immutable localDomain;
     uint256 public immutable scaleNumerator;
@@ -57,6 +60,10 @@ contract MockRebalanceRouter {
         quoteOnly = _quoteOnly;
     }
 
+    function approveTokenForBridge(ITokenBridge bridge) external {
+        wrappedToken.approve(address(bridge), type(uint256).max);
+    }
+
     function rebalance(
         uint32 domain,
         uint256 collateralAmount,
@@ -68,7 +75,10 @@ contract MockRebalanceRouter {
             collateralAmount
         );
         if (quoteOnly) return;
-        wrappedToken.approve(address(bridge), quotes[1].amount);
+        require(
+            quotes.extract(address(wrappedToken)) <= collateralAmount,
+            "unexpected fees"
+        );
         bridge.transferRemote(domain, callbackRecipient, collateralAmount);
     }
 
@@ -132,6 +142,7 @@ contract SwapRebalancingBridgeTest is Test {
 
         inputToken.mintTo(address(sourceRouter), 1_000_000e6);
         outputToken.mintTo(address(swapTarget), type(uint128).max);
+        sourceRouter.approveTokenForBridge(bridge);
     }
 
     function test_executeRebalance_revertsUnauthorized() public {
@@ -194,6 +205,30 @@ contract SwapRebalancingBridgeTest is Test {
             100e6,
             100e18,
             block.timestamp - 1,
+            _swapCalls(100e6)
+        );
+    }
+
+    function test_executeRebalance_revertsWhenScaleIsZero() public {
+        MockRebalanceRouter invalidDestination = new MockRebalanceRouter(
+            outputToken,
+            LOCAL_DOMAIN,
+            0,
+            1
+        );
+        sourceRouter.setPrimaryRouter(
+            LOCAL_DOMAIN,
+            address(invalidDestination)
+        );
+
+        vm.prank(rebalancer);
+        vm.expectRevert(SwapRebalancingBridge.InvalidScale.selector);
+        bridge.executeRebalance(
+            address(sourceRouter),
+            address(invalidDestination),
+            100e6,
+            100e18,
+            block.timestamp + 1,
             _swapCalls(100e6)
         );
     }

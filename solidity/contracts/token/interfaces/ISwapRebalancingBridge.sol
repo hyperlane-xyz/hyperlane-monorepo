@@ -30,7 +30,7 @@ interface ISwapRebalancingBridge {
         uint256 minAmountOut,
         uint256 deadline,
         SwapCall[] calldata swapCalls
-    ) external payable;
+    ) external;
 
     function setAuthorizedRebalancer(address rebalancer, bool allowed) external;
 
@@ -39,6 +39,17 @@ interface ISwapRebalancingBridge {
     function setAllowanceTarget(address target, bool allowed) external;
 
     function pendingRebalance() external view returns (PendingRebalance memory);
+
+    function isEnrolledDestination(
+        address sourceRouter,
+        address destinationRouter
+    ) external view returns (bool);
+
+    function requiredOut(
+        address sourceRouter,
+        address destinationRouter,
+        uint256 amountIn
+    ) external view returns (uint256);
 
     function quoteTransferRemote(
         uint32 destination,
