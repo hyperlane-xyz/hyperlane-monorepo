@@ -9,6 +9,7 @@ import {
 } from '@solana/spl-token';
 import {
   AccountMeta,
+  AddressLookupTableAccount,
   ComputeBudgetProgram,
   Keypair,
   PublicKey,
@@ -475,6 +476,43 @@ export abstract class SealevelHypTokenAdapter
    */
   protected getFeeTokenAddressOrDenom(): string | undefined {
     return this.tokenMintPubKey.toBase58();
+  }
+
+  /// Cached `AddressLookupTableAccount`s fetched from
+  /// `this.addresses.altAddresses`. Empty when no ALT addresses are
+  /// configured (legacy routes). Used by populateTransferRemote(To)Tx to
+  /// compile a `VersionedTransaction` whose account-key footprint fits
+  /// under Solana's 1232-byte transaction size limit when the new fee +
+  /// IGP-quoted-mode sections push the count past what a legacy
+  /// `Transaction` can carry.
+  protected readonly addressLookupTableAccounts = new LazyAsync(() =>
+    this.loadAddressLookupTableAccounts(),
+  );
+
+  private async loadAddressLookupTableAccounts(): Promise<
+    AddressLookupTableAccount[]
+  > {
+    const altAddresses = this.addresses.altAddresses;
+    if (!altAddresses) {
+      return [];
+    }
+
+    const connection = this.getProvider();
+    const addresses = [
+      new PublicKey(altAddresses.core),
+      ...altAddresses.warpSpecific.map((a) => new PublicKey(a)),
+    ];
+
+    const results = await Promise.all(
+      addresses.map((addr) => connection.getAddressLookupTable(addr)),
+    );
+    return results.map((r, i) => {
+      assert(
+        r.value,
+        `Sealevel ALT not found on chain: ${addresses[i].toBase58()}`,
+      );
+      return r.value;
+    });
   }
 
   /// Cached beneficiary owner pubkey from the fee_account. Used to derive
