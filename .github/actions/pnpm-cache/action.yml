@@ -38,9 +38,9 @@ runs:
       uses: buildjet/cache@v4
       with:
         path: ${{ steps.pnpm-store.outputs.store_path }}
-        key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+        key: ${{ runner.os }}-pnpm-11-store-${{ hashFiles('package.json', '**/pnpm-lock.yaml') }}
         restore-keys: |
-          ${{ runner.os }}-pnpm-store-
+          ${{ runner.os }}-pnpm-11-store-
 
     - name: Cache (GitHub)
       id: github-cache
@@ -48,6 +48,6 @@ runs:
       uses: actions/cache@v5
       with:
         path: ${{ steps.pnpm-store.outputs.store_path }}
-        key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+        key: ${{ runner.os }}-pnpm-11-store-${{ hashFiles('package.json', '**/pnpm-lock.yaml') }}
         restore-keys: |
-          ${{ runner.os }}-pnpm-store-
+          ${{ runner.os }}-pnpm-11-store-

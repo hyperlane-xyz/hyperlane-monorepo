@@ -189,3 +189,23 @@ patchedDependencies:
   node-fetch@2.7.0: patches/node-fetch@2.7.0.patch
   bigint-buffer@1.1.5: patches/bigint-buffer@1.1.5.patch
   node-fetch@3.3.2: patches/node-fetch@3.3.2.patch
+allowBuilds:
+  '@prisma/engines': true
+  '@trufflesuite/bigint-buffer': true
+  bigint-buffer: true
+  bufferutil: true
+  core-js: true
+  core-js-pure: true
+  cpu-features: true
+  esbuild: true
+  keccak: true
+  node-hid: true
+  prisma: true
+  protobufjs: true
+  secp256k1: true
+  sharp: true
+  ssh2: true
+  tiny-secp256k1: true
+  usb: true
+  utf-8-validate: true
+  workerd: true
