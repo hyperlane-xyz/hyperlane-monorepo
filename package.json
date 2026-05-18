@@ -36,26 +36,5 @@
     "tsx": "catalog:",
     "turbo": "^2.8.11"
   },
-  "packageManager": "pnpm@10.30.2",
-  "pnpm": {
-    "overrides": {
-      "async": "^2.6.4",
-      "fetch-ponyfill": "^7.1",
-      "flat": "^5.0.2",
-      "globals": "^16.3.0",
-      "lodash": "^4.17.21",
-      "recursive-readdir": "^2.2.3",
-      "underscore": "^1.13",
-      "undici": "^5.11",
-      "@babel/parser": "^7.22.7",
-      "@typechain/ethers-v5": "11.1.2",
-      "xmlhttprequest-ssl": "4.0.0"
-    },
-    "patchedDependencies": {
-      "typechain@8.3.2": "patches/typechain@8.3.2.patch",
-      "node-fetch@2.7.0": "patches/node-fetch@2.7.0.patch",
-      "bigint-buffer@1.1.5": "patches/bigint-buffer@1.1.5.patch",
-      "node-fetch@3.3.2": "patches/node-fetch@3.3.2.patch"
-    }
-  }
+  "packageManager": "pnpm@11.1.3"
 }
