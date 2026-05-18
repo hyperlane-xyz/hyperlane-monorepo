@@ -280,8 +280,9 @@ where
             // construct a valid token-message body can call Verify directly (bypassing the mailbox)
             // and drain the bucket without delivering a real message.  The mailbox-level Delivered
             // mapping provides replay protection at delivery time but does not block direct ISM
-            // calls.  Accepted gap: adding a PDA-per-message guard or requiring the mailbox as a
-            // signer would significantly complicate the account model for limited practical benefit.
+            // calls.  Accepted gap: gating the mutating path on mailbox authority requires
+            // mailbox-level changes (the mailbox calls verify before creating the processed-message
+            // PDA, so the ISM cannot check delivery status at verify time).
             //
             // Clock skew: refill speed is proportional to Clock::unix_timestamp elapsed time.
             // Forward skew refills the bucket faster than wallclock; the DURATION_SECS cap

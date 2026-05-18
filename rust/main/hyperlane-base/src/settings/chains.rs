@@ -1184,12 +1184,14 @@ impl ChainConf {
         match &self.connection {
             ChainConnectionConf::Sealevel(conf) => {
                 let keypair = self.sealevel_signer().await.context(ctx)?;
+                let identity_keypair = self.sealevel_identity_signer().await.context(ctx)?;
                 let provider =
                     Arc::new(build_sealevel_provider(self, &locator, &[], conf, metrics));
                 Ok(h_sealevel::SealevelCompositeIsm::new(
                     provider,
                     locator,
                     keypair.map(h_sealevel::SealevelKeypair::new),
+                    identity_keypair.map(h_sealevel::SealevelKeypair::new),
                 ))
             }
             _ => eyre::bail!("SealevelCompositeIsm is only supported on Sealevel chains"),

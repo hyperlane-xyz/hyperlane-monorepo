@@ -49,7 +49,7 @@ impl MetadataBuilder for SealevelCompositeIsmMetadataBuilder {
             .await
             .map_err(|e| MetadataBuildError::FailedToBuild(e.to_string()))?;
 
-        let relayer_pubkey = self.composite_ism.payer_pubkey();
+        let relayer_pubkey = self.composite_ism.trusted_relayer_pubkey();
         let bytes = build_metadata_from_spec(&spec, message, &self.base, relayer_pubkey).await?;
         Ok(Metadata::new(bytes))
     }
@@ -120,14 +120,28 @@ async fn build_metadata_from_spec_inner(
             // aggregation verifier to call verify() on every sub-ISM, breaking m-of-n
             // threshold semantics (e.g. a paused Pausable ISM would fail even when
             // another sub-ISM already meets threshold).
-            let sub_results: Vec<(bool, Option<Vec<u8>>)> =
+            let sub_results_raw: Vec<(bool, Result<Vec<u8>, MetadataBuildError>)> =
                 join_all(sub_specs.iter().map(|sub_spec| async move {
                     let is_null = matches!(sub_spec, CompositeIsmMetadataSpec::Null);
                     let result =
                         build_metadata_from_spec(sub_spec, message, builder, relayer_pubkey).await;
-                    (is_null, result.ok())
+                    (is_null, result)
                 }))
                 .await;
+
+            // Refused (e.g. reorg) is a hard stop — never satisfy threshold with a
+            // different branch when a validator has flagged a reorg.
+            for (_, result) in sub_results_raw.iter() {
+                if let Err(e @ MetadataBuildError::Refused(_)) = result {
+                    return Err(e.clone());
+                }
+            }
+
+            // Flatten non-refusal build/fetch failures to None for threshold selection.
+            let sub_results: Vec<(bool, Option<Vec<u8>>)> = sub_results_raw
+                .into_iter()
+                .map(|(is_null, r)| (is_null, r.ok()))
+                .collect();
 
             // Non-Null successes are prioritised; Null successes are fallback padding.
             let non_null_count = sub_results

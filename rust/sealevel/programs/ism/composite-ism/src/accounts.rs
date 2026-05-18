@@ -58,7 +58,6 @@ pub enum IsmNode {
     /// `Initialize`/`UpdateConfig` -- callers cannot set arbitrary initial state.
     ///
     /// Calling `UpdateConfig` resets the rate limit state.
-    ///
     RateLimited {
         /// Config: max tokens transferable per 24-hour rolling window.
         max_capacity: u64,

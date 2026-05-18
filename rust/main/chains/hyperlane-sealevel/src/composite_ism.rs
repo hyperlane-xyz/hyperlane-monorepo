@@ -22,6 +22,10 @@ const MAX_SPEC_ITERATIONS: usize = 10;
 #[derive(Debug)]
 pub struct SealevelCompositeIsm {
     payer: Option<SealevelKeypair>,
+    /// Optional identity keypair — the relayer's on-chain identity used by TrustedRelayer ISMs.
+    /// Mirrors the `signer` field in `SealevelMailbox`.  Only meaningful when it differs from
+    /// `payer`; when absent or equal to `payer`, `trusted_relayer_pubkey` returns `None`.
+    identity: Option<SealevelKeypair>,
     program_id: Pubkey,
     domain: HyperlaneDomain,
     provider: Arc<SealevelProvider>,
@@ -33,19 +37,33 @@ impl SealevelCompositeIsm {
         provider: Arc<SealevelProvider>,
         locator: ContractLocator,
         payer: Option<SealevelKeypair>,
+        identity: Option<SealevelKeypair>,
     ) -> Self {
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         Self {
             payer,
+            identity,
             program_id,
             domain: locator.domain.clone(),
             provider,
         }
     }
 
-    /// Returns the relayer's own Sealevel public key, if a payer keypair is configured.
-    pub fn payer_pubkey(&self) -> Option<H256> {
-        self.payer.as_ref().map(|p| p.pubkey().to_bytes().into())
+    /// Returns the pubkey to use for TrustedRelayer ISM matching.
+    ///
+    /// Only returns `Some` when a distinct identity keypair is configured and it differs from
+    /// the payer — matching the `get_signer_if_separate` logic in `SealevelMailbox`.  When
+    /// identity == payer (or no identity is set) we return `None`: the dynamic account
+    /// sanitizer rejects the payer appearing in ISM verify account metas, so payer-as-relayer
+    /// would fail on-chain regardless, and we surface `CouldNotFetch` here instead.
+    pub fn trusted_relayer_pubkey(&self) -> Option<H256> {
+        let identity = self.identity.as_ref()?;
+        let payer = self.payer.as_ref()?;
+        if identity.pubkey() != payer.pubkey() {
+            Some(identity.pubkey().to_bytes().into())
+        } else {
+            None
+        }
     }
 
     /// Simulates `VerifyMetadataSpec` in a fixpoint loop, growing the account
