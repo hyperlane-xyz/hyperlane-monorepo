@@ -103,11 +103,17 @@ export class SealevelHypCrossCollateralAdapter
     mailbox,
     randomWallet,
     igp,
+    feeSection,
+    igpQuotedSection,
   }: {
     sender: PublicKey;
     mailbox: PublicKey;
     randomWallet: PublicKey;
     igp?: IgpPaymentKeys;
+    /** Spliced after slot 9 (dispatched message PDA) when token.fee_config is Some. */
+    feeSection?: AccountMeta[];
+    /** Spliced between the gas-payment PDA and the configured IGP account when inner Igp.fee_config is Some. */
+    igpQuotedSection?: AccountMeta[];
   }): Promise<Array<AccountMeta>> {
     let keys: Array<AccountMeta> = [
       // 0.   [executable] The system program.
@@ -156,18 +162,23 @@ export class SealevelHypCrossCollateralAdapter
       },
     ];
 
+    // Fee section — spliced when token.fee_config is Some on chain.
+    if (feeSection) {
+      keys = [...keys, ...feeSection];
+    }
+
     if (igp) {
       keys = [
         ...keys,
-        // 10.   [executable] The IGP program.
+        // [executable] The IGP program.
         { pubkey: igp.programId, isSigner: false, isWritable: false },
-        // 11.   [writeable] The IGP program data.
+        // [writeable] The IGP program data.
         {
           pubkey: SealevelOverheadIgpAdapter.deriveIgpProgramPda(igp.programId),
           isSigner: false,
           isWritable: true,
         },
-        // 12.   [writeable] Gas payment PDA.
+        // [writeable] Gas payment PDA.
         {
           pubkey: SealevelOverheadIgpAdapter.deriveGasPaymentPda(
             igp.programId,
@@ -177,10 +188,14 @@ export class SealevelHypCrossCollateralAdapter
           isWritable: true,
         },
       ];
+      // Quoted-mode extension — spliced when inner Igp.fee_config is Some.
+      if (igpQuotedSection) {
+        keys = [...keys, ...igpQuotedSection];
+      }
       if (igp.overheadIgpAccount) {
         keys = [
           ...keys,
-          // 13.   [] OPTIONAL - The Overhead IGP account, if the configured IGP is an Overhead IGP.
+          // [] OPTIONAL - The Overhead IGP account, if the configured IGP is an Overhead IGP.
           {
             pubkey: igp.overheadIgpAccount,
             isSigner: false,
@@ -190,7 +205,7 @@ export class SealevelHypCrossCollateralAdapter
       }
       keys = [
         ...keys,
-        // 14.   [writeable] The Overhead's inner IGP account (or the normal IGP account if there's no Overhead IGP).
+        // [writeable] The Overhead's inner IGP account (or the normal IGP account if there's no Overhead IGP).
         { pubkey: igp.igpAccount, isSigner: false, isWritable: true },
       ];
     }
@@ -326,12 +341,15 @@ export class SealevelHypCrossCollateralAdapter
     senderProgram,
     amount,
     recipient,
+    feeSection,
   }: {
     sender: PublicKey;
     targetProgram: PublicKey;
     senderProgram: PublicKey;
     amount: bigint;
     recipient: Uint8Array;
+    /** Spliced after the target program when token.fee_config is Some. */
+    feeSection?: AccountMeta[];
   }): Promise<Array<AccountMeta>> {
     const handleLocalAccountMetas = await this.simulateHandleLocalAccountMetas({
       targetProgram,
@@ -372,7 +390,9 @@ export class SealevelHypCrossCollateralAdapter
       },
       // 5.   [executable] The target program.
       { pubkey: targetProgram, isSigner: false, isWritable: false },
-      // 6.   [executable] The SPL token program for the mint.
+      // Fee section — spliced when token.fee_config is Some on chain.
+      ...(feeSection ?? []),
+      // [executable] The SPL token program for the mint.
       {
         pubkey: await this.getTokenProgramId(),
         isSigner: false,
@@ -418,6 +438,18 @@ export class SealevelHypCrossCollateralAdapter
     );
     const localDomain = this.multiProvider.getDomainId(this.chainName);
 
+    const tokenData = await this.getTokenAccountData();
+    // CC fee account uses the destination warp router H256 in its
+    // standing-quote PDA seeds.
+    const feeSection = tokenData.fee_config
+      ? await this.buildFeeSectionKeys({
+          feeConfig: tokenData.fee_config,
+          payer: sender,
+          destination,
+          targetRouter: targetRouterBytes,
+        })
+      : undefined;
+
     if (destination === localDomain) {
       const targetProgram = new PublicKey(targetRouter);
       const keys = await this.getTransferRemoteToLocalKeyList({
@@ -426,6 +458,7 @@ export class SealevelHypCrossCollateralAdapter
         senderProgram: this.warpProgramPubKey,
         amount: BigInt(amount),
         recipient: recipientBytes,
+        feeSection,
       });
 
       return this.createTransferRemoteToTx({
@@ -441,11 +474,25 @@ export class SealevelHypCrossCollateralAdapter
         ? extraSigners[0]
         : Keypair.generate();
       const mailbox = new PublicKey(this.addresses.mailbox);
+      const igpState = await this.innerIgpFeeState.get();
+      const igpProgramId =
+        tokenData.interchain_gas_paymaster?.program_id_pubkey;
+      const igpQuotedSection =
+        igpState?.feeConfig && igpProgramId
+          ? await this.buildIgpQuotedSectionKeys({
+              igpProgramId,
+              innerIgpAccount: igpState.innerIgpAccount,
+              payer: sender,
+              destination,
+            })
+          : undefined;
       const keys = await this.getTransferRemoteToRemoteKeyList({
         sender,
         mailbox,
         randomWallet: randomWallet.publicKey,
         igp: await this.getIgpKeys(),
+        feeSection,
+        igpQuotedSection,
       });
 
       return this.createTransferRemoteToTx({
