@@ -1,4 +1,5 @@
 import {
+  type Blockhash,
   ComputeBudgetProgram,
   Connection,
   Keypair,
@@ -6,7 +7,26 @@ import {
   Transaction,
   TransactionConfirmationStatus,
   TransactionInstruction,
+  VersionedTransaction,
 } from '@solana/web3.js';
+
+/**
+ * Rewrite a `VersionedTransaction`'s blockhash and clear its signatures so
+ * the caller can re-sign with the fresh blockhash. `MessageV0.recentBlockhash`
+ * is declared `readonly` in TypeScript but is a plain mutable field at
+ * runtime; the same pattern is used by `@solana/wallet-adapter` resubmit
+ * examples. Returns the same instance for chaining.
+ */
+function stampVersionedBlockhash(
+  tx: VersionedTransaction,
+  blockhash: Blockhash,
+): VersionedTransaction {
+  (tx.message as { recentBlockhash: Blockhash }).recentBlockhash = blockhash;
+  for (let i = 0; i < tx.signatures.length; i++) {
+    tx.signatures[i] = new Uint8Array(64);
+  }
+  return tx;
+}
 
 import { Address, ProtocolType, rootLogger, sleep } from '@hyperlane-xyz/utils';
 
@@ -18,11 +38,15 @@ import { ChainName } from '../../types.js';
 import { IMultiProtocolSigner } from '../types.js';
 
 /**
- * Interface for SVM transaction signers
+ * Interface for SVM transaction signers. Accepts both legacy `Transaction`
+ * and `VersionedTransaction` — the latter is required by Sealevel warp
+ * transfer_remote calls compressed with Address Lookup Tables.
  */
 export interface SvmTransactionSigner {
   readonly publicKey: PublicKey;
-  signTransaction(transaction: Transaction): Promise<Transaction>;
+  signTransaction<T extends Transaction | VersionedTransaction>(
+    transaction: T,
+  ): Promise<T>;
 }
 
 export interface SvmSignerConfig {
@@ -57,8 +81,17 @@ export class KeypairSvmTransactionSigner implements SvmTransactionSigner {
     this.publicKey = this.keypair.publicKey;
   }
 
-  async signTransaction(transaction: Transaction): Promise<Transaction> {
-    transaction.partialSign(this.keypair);
+  async signTransaction<T extends Transaction | VersionedTransaction>(
+    transaction: T,
+  ): Promise<T> {
+    // `VersionedTransaction.sign([signer])` populates only the signer's
+    // slot (other signature slots stay as their pre-initialized zero bytes),
+    // matching the partial-sign semantics of legacy `Transaction.partialSign`.
+    if (transaction instanceof VersionedTransaction) {
+      transaction.sign([this.keypair]);
+    } else {
+      transaction.partialSign(this.keypair);
+    }
     return transaction;
   }
 }
@@ -158,27 +191,35 @@ export class SvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
    * Sign and confirm transaction with blockhash resubmit on expiry
    */
   private async signAndConfirm(
-    transaction: Transaction,
+    transaction: Transaction | VersionedTransaction,
     extraSigners?: Keypair[],
   ): Promise<string> {
     // Get initial blockhash
     const { blockhash, lastValidBlockHeight } =
       await this.svmProvider.getLatestBlockhash(this.config.commitment);
 
-    transaction.recentBlockhash = blockhash;
-
-    if (!transaction.feePayer) {
-      transaction.feePayer = this.signer.publicKey;
+    if (transaction instanceof VersionedTransaction) {
+      stampVersionedBlockhash(transaction, blockhash);
+      // `VersionedTransaction.sign([signer])` only populates the signer's
+      // slot (matches partial-sign semantics of legacy `partialSign`).
+      for (const signer of extraSigners ?? []) {
+        transaction.sign([signer]);
+      }
+    } else {
+      transaction.recentBlockhash = blockhash;
+      if (!transaction.feePayer) {
+        transaction.feePayer = this.signer.publicKey;
+      }
+      // Sign with extra signers first (e.g., randomWallet for Sealevel
+      // transferRemote). Uses partialSign to avoid clearing any existing
+      // signatures. This re-signs with the fresh blockhash, overwriting
+      // the adapter's pre-sign.
+      for (const signer of extraSigners ?? []) {
+        transaction.partialSign(signer);
+      }
     }
 
-    // Sign with extra signers first (e.g., randomWallet for Sealevel transferRemote).
-    // Uses partialSign to avoid clearing any existing signatures.
-    // This re-signs with the fresh blockhash, overwriting the adapter's pre-sign.
-    for (const signer of extraSigners ?? []) {
-      transaction.partialSign(signer);
-    }
-
-    // Sign with main signer (uses partialSign via KeypairSvmTransactionSigner)
+    // Sign with main signer (preserves extra signers' signatures)
     const signedTx = await this.signer.signTransaction(transaction);
 
     // Send initial transaction
@@ -200,7 +241,7 @@ export class SvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
    */
   private async pollForConfirmation(
     initialSignature: string,
-    transaction: Transaction,
+    transaction: Transaction | VersionedTransaction,
     lastValidBlockHeight: number,
     extraSigners?: Keypair[],
   ): Promise<string> {
@@ -264,7 +305,7 @@ export class SvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
    */
   private async checkAndResubmitIfExpired(
     signature: string,
-    transaction: Transaction,
+    transaction: Transaction | VersionedTransaction,
     lastValidBlockHeight: number,
     extraSigners?: Keypair[],
   ): Promise<{ signature: string; lastValidBlockHeight: number } | null> {
@@ -285,11 +326,16 @@ export class SvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
     const { blockhash, lastValidBlockHeight: newLastValid } =
       await this.svmProvider.getLatestBlockhash(this.config.commitment);
 
-    transaction.recentBlockhash = blockhash;
-
-    // Re-sign extra signers with new blockhash
-    for (const signer of extraSigners ?? []) {
-      transaction.partialSign(signer);
+    if (transaction instanceof VersionedTransaction) {
+      stampVersionedBlockhash(transaction, blockhash);
+      for (const signer of extraSigners ?? []) {
+        transaction.sign([signer]);
+      }
+    } else {
+      transaction.recentBlockhash = blockhash;
+      for (const signer of extraSigners ?? []) {
+        transaction.partialSign(signer);
+      }
     }
 
     const signedTx = await this.signer.signTransaction(transaction);
@@ -338,7 +384,9 @@ export class SvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
   /**
    * Send signed transaction to network
    */
-  private async sendRawTransaction(transaction: Transaction): Promise<string> {
+  private async sendRawTransaction(
+    transaction: Transaction | VersionedTransaction,
+  ): Promise<string> {
     return await this.svmProvider.sendRawTransaction(transaction.serialize(), {
       skipPreflight: false,
       maxRetries: 3,
