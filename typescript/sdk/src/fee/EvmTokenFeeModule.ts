@@ -533,15 +533,70 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       normalizedTargetConfig.type === TokenFeeType.CrossCollateralRoutingFee &&
       normalizedActualConfig.type === TokenFeeType.CrossCollateralRoutingFee
     ) {
+      const actualCCR = actualConfig as DerivedCrossCollateralRoutingFeeConfig;
+      const targetFeeContracts =
+        (normalizedTargetConfig as DerivedCrossCollateralRoutingFeeConfig)
+          .feeContracts ?? {};
+
+      // Carry actual addresses into target entries, but limit to target keys only so
+      // orphan entries from actualConfig don't get re-injected into the update loop.
+      const merged = objMerge(
+        actualConfig,
+        normalizedTargetConfig,
+        10,
+        true,
+      ) as DerivedCrossCollateralRoutingFeeConfig;
+      if (merged.feeContracts) {
+        for (const chainName of Object.keys(merged.feeContracts)) {
+          if (!(chainName in targetFeeContracts)) {
+            delete merged.feeContracts[chainName];
+          } else {
+            for (const routerBytes32 of Object.keys(
+              merged.feeContracts[chainName],
+            )) {
+              if (!(routerBytes32 in targetFeeContracts[chainName])) {
+                delete merged.feeContracts[chainName][routerBytes32];
+              }
+            }
+          }
+        }
+      }
+
+      // Emit clearing transactions for entries removed from target.
+      const removalDestinations: number[] = [];
+      const removalRouterKeys: string[] = [];
+      const zeroAddresses: string[] = [];
+      for (const [chainName, routerConfigs] of Object.entries(
+        actualCCR.feeContracts ?? {},
+      )) {
+        const targetRouterConfigs = targetFeeContracts[chainName] ?? {};
+        for (const routerBytes32 of Object.keys(routerConfigs)) {
+          if (!(routerBytes32 in targetRouterConfigs)) {
+            removalDestinations.push(this.multiProvider.getDomainId(chainName));
+            removalRouterKeys.push(routerBytes32);
+            zeroAddresses.push(constants.AddressZero);
+          }
+        }
+      }
+      const removalTxs: AnnotatedEV5Transaction[] =
+        removalDestinations.length > 0
+          ? [
+              {
+                annotation:
+                  'Clearing removed CrossCollateralRoutingFee sub-contract pointers',
+                chainId: this.chainId,
+                to: this.args.addresses.deployedFee,
+                data: CrossCollateralRoutingFee__factory.createInterface().encodeFunctionData(
+                  'setCrossCollateralRouterFeeContracts',
+                  [removalDestinations, removalRouterKeys, zeroAddresses],
+                ),
+              },
+            ]
+          : [];
+
       return [
-        ...(await this.updateCrossCollateralRoutingFee(
-          objMerge(
-            actualConfig,
-            normalizedTargetConfig,
-            10,
-            true,
-          ) as DerivedCrossCollateralRoutingFeeConfig,
-        )),
+        ...(await this.updateCrossCollateralRoutingFee(merged)),
+        ...removalTxs,
         ...this.createOwnershipUpdateTxs(
           normalizedActualConfig,
           normalizedTargetConfig,

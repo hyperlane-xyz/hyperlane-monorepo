@@ -281,15 +281,20 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     return config as DerivedHookConfig;
   }
 
-  // Returns original HookConfig for non-redeployable types (e.g. CCTP) so that
+  // Returns original HookConfig for non-redeployable types (CCTP, PREDICATE) so that
   // normalizeConfig — which strips 'address' from all objects — does not discard
-  // the address those hook types embed in their config. A string original survives
-  // normalizeConfig as-is and reaches deploy()'s string branch intact.
+  // the address. Returns the address as a bare string so it survives normalizeConfig
+  // and deploy() reaches the string branch intact, regardless of whether the original
+  // was already a string or an object with an address field.
   private preserveUnredeployable(
     original: HookConfig,
     derived: DerivedHookConfig,
   ): HookConfig {
-    return derived.type === HookType.CCTP ? original : derived;
+    if (derived.type !== HookType.CCTP && derived.type !== HookType.PREDICATE) {
+      return derived;
+    }
+    if (typeof original === 'string') return original;
+    return (original as DerivedHookConfig).address ?? derived;
   }
 
   async deriveMailboxDefaultHookConfig(
