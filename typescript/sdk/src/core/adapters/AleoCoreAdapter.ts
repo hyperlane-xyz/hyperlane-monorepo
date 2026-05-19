@@ -1,11 +1,19 @@
+import { toKeyId } from '@hyperlane-xyz/aleo-sdk/runtime';
 import { Address, HexString, assert, pollAsync } from '@hyperlane-xyz/utils';
 
 import { BaseAleoAdapter } from '../../app/MultiProtocolApp.js';
 import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
-import { TypedTransactionReceipt } from '../../providers/ProviderType.js';
+import {
+  ProviderType,
+  TypedTransactionReceipt,
+} from '../../providers/ProviderType.js';
 import { ChainName } from '../../types.js';
 
 import { ICoreAdapter } from './types.js';
+
+// How many nonces to search backward from the current mailbox nonce.
+// Covers any concurrent dispatches between tx submission and this query.
+const NONCE_SEARCH_WINDOW = 32;
 
 export class AleoCoreAdapter extends BaseAleoAdapter implements ICoreAdapter {
   constructor(
@@ -17,35 +25,78 @@ export class AleoCoreAdapter extends BaseAleoAdapter implements ICoreAdapter {
   }
 
   async extractMessageIds(
-    _sourceTx: TypedTransactionReceipt,
+    sourceTx: TypedTransactionReceipt,
   ): Promise<Array<{ messageId: string; destination: ChainName }>> {
-    const provider = this.multiProvider.getAleoProvider(this.chainName);
+    if (sourceTx.type !== ProviderType.Aleo) {
+      return [];
+    }
 
-    // The mailbox nonce is incremented during finalize, so after the tx
-    // confirms the dispatch used nonce = current_nonce - 1.
-    // LIMITATION: _sourceTx is not parsed for the nonce because the Aleo
-    // receipt (FinalizeJSON) only exposes hashed key IDs, not plaintext values,
-    // and the nonce is not a public input to the dispatch transition. This means
-    // a concurrent dispatch between tx confirmation and this query could cause
-    // nonce - 1 to point to the wrong message. Fix requires snapshotting
-    // mailbox.nonce before submitting the tx (interface change needed).
+    const finalizeKeyIds = new Set(
+      sourceTx.receipt.finalize?.map((op) => op.key_id) ?? [],
+    );
+
+    if (finalizeKeyIds.size === 0) {
+      this.logger.warn(
+        'No finalize ops in Aleo receipt; cannot extract message ID',
+      );
+      return [];
+    }
+
+    // Unlike EVM/SVM adapters that parse receipt logs, Aleo extraction requires
+    // querying on-chain mappings. Callers that construct MultiProtocolCore for an
+    // Aleo origin chain must supply a real mailbox address, not a stub.
+    if (!this.addresses.mailbox) {
+      this.logger.debug(
+        'No Aleo mailbox address configured; skipping message ID extraction',
+      );
+      return [];
+    }
+
+    const provider = this.multiProvider.getAleoProvider(this.chainName);
     const mailbox = await provider.getMailbox({
       mailboxAddress: this.addresses.mailbox,
     });
-    assert(
-      mailbox.nonce > 0,
-      `mailbox.nonce must be > 0 for dispatch lookup (mailbox=${this.addresses.mailbox}, nonce=${mailbox.nonce})`,
-    );
-    const nonce = mailbox.nonce - 1;
+
+    // mailboxAddress is either "programId/address" or just "programId"
+    const programId = this.addresses.mailbox.includes('/')
+      ? this.addresses.mailbox.split('/')[0]
+      : this.addresses.mailbox;
+
+    // Search backward from current nonce matching dispatch_id_events key_ids
+    // against those actually written by this specific transaction's finalize ops.
+    let foundNonce: number | undefined;
+    const upperBound = mailbox.nonce;
+    const lowerBound = Math.max(0, upperBound - NONCE_SEARCH_WINDOW);
+    for (let nonce = upperBound - 1; nonce >= lowerBound; nonce--) {
+      const expectedKeyId = toKeyId(
+        programId,
+        'dispatch_id_events',
+        `${nonce}u32`,
+      );
+      if (finalizeKeyIds.has(expectedKeyId)) {
+        foundNonce = nonce;
+        break;
+      }
+    }
+
+    if (foundNonce === undefined) {
+      this.logger.warn(
+        `No dispatch_id_events key_id found in receipt finalize ops (searched ${NONCE_SEARCH_WINDOW} nonces from ${upperBound})`,
+      );
+      return [];
+    }
 
     const [messageId, destinationDomain] = await Promise.all([
-      provider.getDispatchedMessageId(this.addresses.mailbox, nonce),
-      provider.getDispatchedDestinationDomain(this.addresses.mailbox, nonce),
+      provider.getDispatchedMessageId(this.addresses.mailbox, foundNonce),
+      provider.getDispatchedDestinationDomain(
+        this.addresses.mailbox,
+        foundNonce,
+      ),
     ]);
 
     if (!messageId || destinationDomain == null) {
       this.logger.warn(
-        `Could not extract message ID or destination from Aleo dispatch at nonce ${nonce}`,
+        `Could not fetch message ID or destination for nonce ${foundNonce}`,
       );
       return [];
     }
