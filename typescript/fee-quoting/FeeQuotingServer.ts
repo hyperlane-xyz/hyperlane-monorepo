@@ -10,7 +10,6 @@ import {
   type ChainMetadata,
   EvmHookReader,
   EvmWarpRouteReader,
-  type HookConfig,
   HyperlaneCore,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
@@ -34,10 +33,6 @@ import {
   QuoteService,
   type ChainQuoteContext,
 } from './src/services/quoteService.js';
-
-type DerivedHookHolder = {
-  hook: HookConfig;
-};
 
 export class FeeQuotingServer {
   app: Express;
@@ -219,27 +214,28 @@ export class FeeQuotingServer {
         const reader = new EvmWarpRouteReader(multiProvider, chainName);
         const derivedConfig =
           await reader.deriveWarpRouteConfig(warpRouteAddress);
-        const derivedHook = derivedConfig as unknown as DerivedHookHolder;
 
         // Resolve hook with Mailbox default fallback when router hook is unset
         if (
-          typeof derivedHook.hook === 'string' &&
-          isZeroishAddress(derivedHook.hook)
+          typeof derivedConfig.hook === 'string' &&
+          isZeroishAddress(derivedConfig.hook)
         ) {
           const hookAddress = await core.getHook(
             chainName,
             warpRouteAddress as Address,
           );
           const hookReader = new EvmHookReader(multiProvider, chainName);
-          derivedHook.hook = await hookReader.deriveHookConfig(hookAddress);
+          derivedConfig.hook = await hookReader.deriveHookConfig(hookAddress);
         }
-        const hook = derivedHook.hook;
 
         this.logger.info(
           {
             chainName,
             warpRoute: warpRouteAddress,
-            hookType: typeof hook === 'string' ? 'address' : hook.type,
+            hookType:
+              typeof derivedConfig.hook === 'string'
+                ? 'address'
+                : derivedConfig.hook.type,
             hasFee: !!derivedConfig.tokenFee,
             feeType: derivedConfig.tokenFee?.type,
           },

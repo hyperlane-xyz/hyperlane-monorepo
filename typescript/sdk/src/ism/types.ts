@@ -69,7 +69,6 @@ export const IsmType = {
   PAUSABLE: 'pausableIsm',
   TRUSTED_RELAYER: 'trustedRelayerIsm',
   ARB_L2_TO_L1: 'arbL2ToL1Ism',
-  NET_FLOW_RATE_LIMITED: 'netFlowRateLimitedIsm',
   WEIGHTED_MERKLE_ROOT_MULTISIG: 'weightedMerkleRootMultisigIsm',
   WEIGHTED_MESSAGE_ID_MULTISIG: 'weightedMessageIdMultisigIsm',
   CCIP: 'ccipIsm',
@@ -82,9 +81,7 @@ export type IsmType = (typeof IsmType)[keyof typeof IsmType];
 
 export type DeployableIsmType = Exclude<
   IsmType,
-  | typeof IsmType.CUSTOM
-  | typeof IsmType.UNKNOWN
-  | typeof IsmType.NET_FLOW_RATE_LIMITED
+  typeof IsmType.CUSTOM | typeof IsmType.UNKNOWN
 >;
 
 // ISM types that can be updated in-place
@@ -146,7 +143,6 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
     case IsmType.TRUSTED_RELAYER:
     case IsmType.CCIP:
     case IsmType.RATE_LIMITED:
-    case IsmType.NET_FLOW_RATE_LIMITED:
       return ModuleType.NULL;
     case IsmType.ARB_L2_TO_L1:
       return ModuleType.ARB_L2_TO_L1;
@@ -184,9 +180,6 @@ export type TrustedRelayerIsmConfig = z.infer<
 export type CCIPIsmConfig = z.infer<typeof CCIPIsmConfigSchema>;
 export type ArbL2ToL1IsmConfig = z.infer<typeof ArbL2ToL1IsmConfigSchema>;
 export type RateLimitedIsmConfig = z.infer<typeof RateLimitedIsmConfigSchema>;
-export type NetFlowRateLimitedIsmConfig = z.infer<
-  typeof NetFlowRateLimitedIsmConfigSchema
->;
 
 export type OffchainLookupIsmConfig = z.infer<
   typeof OffchainLookupIsmConfigSchema
@@ -197,9 +190,8 @@ export type NullIsmConfig =
   | PausableIsmConfig
   | OpStackIsmConfig
   | TrustedRelayerIsmConfig
-  | NetFlowRateLimitedIsmConfig
-  | RateLimitedIsmConfig
-  | CCIPIsmConfig;
+  | CCIPIsmConfig
+  | RateLimitedIsmConfig;
 
 type BaseRoutingIsmConfig<
   T extends
@@ -266,7 +258,6 @@ export type DeployedIsmType = {
   [IsmType.TEST_ISM]: TestIsm;
   [IsmType.PAUSABLE]: PausableIsm;
   [IsmType.TRUSTED_RELAYER]: TrustedRelayerIsm;
-  [IsmType.NET_FLOW_RATE_LIMITED]: IInterchainSecurityModule;
   [IsmType.CCIP]: CCIPIsm;
   [IsmType.ARB_L2_TO_L1]: ArbL2ToL1Ism;
   [IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG]: IStaticWeightedMultisigIsm;
@@ -335,11 +326,6 @@ export const RateLimitedIsmConfigSchema = z
     }
     return val;
   });
-
-export const NetFlowRateLimitedIsmConfigSchema = z.object({
-  type: z.literal(IsmType.NET_FLOW_RATE_LIMITED),
-  maxFlowBps: z.number().int().nonnegative(),
-});
 
 export const CCIPIsmConfigSchema = z.object({
   type: z.literal(IsmType.CCIP),
@@ -480,7 +466,6 @@ export const IsmConfigSchema = z.union([
   OpStackIsmConfigSchema,
   PausableIsmConfigSchema,
   TrustedRelayerIsmConfigSchema,
-  NetFlowRateLimitedIsmConfigSchema,
   CCIPIsmConfigSchema,
   RateLimitedIsmConfigSchema,
   MultisigIsmConfigSchema,

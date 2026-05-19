@@ -12,7 +12,6 @@ import {
   IPostDispatchHook__factory,
   InterchainGasPaymaster__factory,
   MerkleTreeHook__factory,
-  NetFlowRateLimitedHookIsm__factory,
   OPStackHook__factory,
   PausableHook__factory,
   ProtocolFee__factory,
@@ -51,7 +50,6 @@ import {
   IgpHookConfig,
   MailboxDefaultHookConfig,
   MerkleTreeHookConfig,
-  NetFlowRateLimitedHookConfig,
   OnchainHookType,
   OpStackHookConfig,
   PausableHookConfig,
@@ -87,9 +85,6 @@ export interface HookReader {
   derivePausableConfig(
     address: Address,
   ): Promise<WithAddress<PausableHookConfig>>;
-  deriveNetFlowRateLimitedConfig(
-    address: Address,
-  ): Promise<WithAddress<NetFlowRateLimitedHookConfig>>;
   deriveIdAuthIsmConfig(address: Address): Promise<DerivedHookConfig>;
   deriveCcipConfig(address: Address): Promise<WithAddress<CCIPHookConfig>>;
   deriveRateLimitedHookConfig(
@@ -180,10 +175,6 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
           break;
         case OnchainHookType.AMOUNT_ROUTING:
           derivedHookConfig = await this.deriveAmountRoutingHookConfig(address);
-          break;
-        case OnchainHookType.RATE_LIMITED:
-          derivedHookConfig =
-            await this.deriveNetFlowRateLimitedConfig(address);
           break;
         case OnchainHookType.MAILBOX_DEFAULT_HOOK:
           derivedHookConfig =
@@ -747,32 +738,6 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       threshold: threshold.toNumber(),
       lowerHook: lowerHookConfig,
       upperHook: upperHookConfig,
-    };
-
-    this._cache.set(address, config);
-
-    return config;
-  }
-
-  async deriveNetFlowRateLimitedConfig(
-    address: Address,
-  ): Promise<WithAddress<NetFlowRateLimitedHookConfig>> {
-    const hook = NetFlowRateLimitedHookIsm__factory.connect(
-      address,
-      this.provider,
-    );
-
-    const [hookType, maxFlowBps] = await Promise.all([
-      hook.hookType(),
-      hook.maxFlowBps(),
-    ]);
-
-    this.assertHookType(hookType, OnchainHookType.RATE_LIMITED);
-
-    const config: WithAddress<NetFlowRateLimitedHookConfig> = {
-      address,
-      type: HookType.NET_FLOW_RATE_LIMITED,
-      maxFlowBps: maxFlowBps.toNumber(),
     };
 
     this._cache.set(address, config);

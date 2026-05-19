@@ -52,11 +52,6 @@ export async function getEvmHookUpdateTransactions(
     rateLimitedSender,
   } = updateHookParams;
 
-  const currentHookAddress =
-    typeof actualHookConfig === 'string'
-      ? actualHookConfig
-      : actualHookConfig.address;
-
   const hookModule = new EvmHookModule(
     multiProvider,
     {
@@ -66,7 +61,10 @@ export async function getEvmHookUpdateTransactions(
         ...hookAndIsmFactories,
         mailbox,
         proxyAdmin: proxyAdminAddress,
-        deployedHook: currentHookAddress,
+        deployedHook:
+          typeof actualHookConfig === 'string'
+            ? actualHookConfig
+            : actualHookConfig.address,
         ...(rateLimitedSender ? { rateLimitedSender } : {}),
       },
     },
@@ -76,7 +74,7 @@ export async function getEvmHookUpdateTransactions(
 
   // Get the current hook address before applying the txs to identify if
   // a new hook was deployed during the update process
-  const { deployedHook: moduleCurrentHookAddress } = hookModule.serialize();
+  const { deployedHook: currentHookAddress } = hookModule.serialize();
 
   logger.info(
     `Comparing target Hook config with current one for ${evmChainName} chain`,
@@ -85,7 +83,7 @@ export async function getEvmHookUpdateTransactions(
   const { deployedHook: newHookAddress } = hookModule.serialize();
 
   // If a new Hook is deployed, push the tx to set the hook on the client contract
-  if (!eqAddress(moduleCurrentHookAddress, newHookAddress)) {
+  if (!eqAddress(currentHookAddress, newHookAddress)) {
     updateTransactions.push({
       chainId: updateHookParams.multiProvider.getEvmChainId(
         updateHookParams.evmChainName,

@@ -66,7 +66,6 @@ export class BaseMetadataBuilder implements MetadataBuilder {
       case IsmType.OP_STACK:
       case IsmType.PAUSABLE:
       case IsmType.CCIP:
-      case IsmType.NET_FLOW_RATE_LIMITED:
       case IsmType.RATE_LIMITED:
         return this.nullMetadataBuilder.build({ ...context, ism });
 

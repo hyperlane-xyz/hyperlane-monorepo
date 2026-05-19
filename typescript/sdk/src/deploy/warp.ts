@@ -416,13 +416,6 @@ export async function executeWarpDeploy(
     }
   }
 
-  await applyPostDeployNetFlowRateLimitConfigs({
-    deployedContracts,
-    multiProvider,
-    registryAddresses,
-    warpDeployConfig,
-  });
-
   return deployedContracts;
 }
 
@@ -508,19 +501,6 @@ async function resolveWarpIsmAndHook(
         throw new Error(`Registry factory addresses not found for ${chain}.`);
       }
 
-      if (EvmWarpModule.hasNetFlowRateLimitedConfig(config)) {
-        EvmWarpModule.assertValidNetFlowRateLimitedConfig(config);
-        assert(
-          multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
-          'netFlowRateLimitedHook/netFlowRateLimitedIsm is only supported for EVM warp routes',
-        );
-        return {
-          ...config,
-          hook: undefined,
-          interchainSecurityModule: undefined,
-        };
-      }
-
       const ism = await createWarpIsm({
         ccipContractCache,
         chain,
@@ -554,62 +534,6 @@ async function resolveWarpIsmAndHook(
       };
     }),
   );
-}
-
-async function applyPostDeployNetFlowRateLimitConfigs({
-  deployedContracts,
-  multiProvider,
-  registryAddresses,
-  warpDeployConfig,
-}: {
-  deployedContracts: ChainMap<Address>;
-  multiProvider: MultiProvider;
-  registryAddresses: ChainMap<ChainAddresses>;
-  warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
-}): Promise<void> {
-  for (const chain of objKeys(warpDeployConfig)) {
-    const config = warpDeployConfig[chain];
-    if (!EvmWarpModule.hasNetFlowRateLimitedConfig(config)) {
-      continue;
-    }
-    EvmWarpModule.assertValidNetFlowRateLimitedConfig(config);
-    assert(
-      multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
-      'netFlowRateLimitedHook/netFlowRateLimitedIsm is only supported for EVM warp routes',
-    );
-    if (config.foreignDeployment) {
-      continue;
-    }
-
-    const deployedTokenRoute = deployedContracts[chain];
-    assert(
-      deployedTokenRoute,
-      `Expected deployed token route for net flow rate limited warp route on ${chain}`,
-    );
-
-    const addresses = registryAddresses[chain];
-    assert(addresses, `Registry factory addresses not found for ${chain}.`);
-
-    const warpModule = new EvmWarpModule(multiProvider, {
-      chain,
-      config,
-      addresses: {
-        ...extractIsmAndHookFactoryAddresses(addresses),
-        deployedTokenRoute,
-      },
-    });
-
-    const actualConfig = await warpModule.read();
-    const updateTxs = await warpModule.update({
-      ...actualConfig,
-      hook: config.hook,
-      interchainSecurityModule: config.interchainSecurityModule,
-    });
-
-    for (const tx of updateTxs) {
-      await multiProvider.sendTransaction(chain, tx);
-    }
-  }
 }
 
 /**

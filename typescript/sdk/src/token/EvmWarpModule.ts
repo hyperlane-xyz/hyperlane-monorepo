@@ -10,7 +10,6 @@ import {
   IERC20__factory,
   MailboxClient__factory,
   MovableCollateralRouter__factory,
-  NetFlowRateLimitedHookIsm__factory,
   PredicateRouterWrapper__factory,
   ProxyAdmin__factory,
   StaticAggregationHook__factory,
@@ -27,7 +26,6 @@ import {
   ZERO_ADDRESS_HEX_32,
   addressToBytes32,
   assert,
-  deepCopy,
   deepEquals,
   difference,
   eqAddress,
@@ -63,15 +61,15 @@ import { EvmTokenFeeModule } from '../fee/EvmTokenFeeModule.js';
 import { TokenFeeReaderParams } from '../fee/EvmTokenFeeReader.js';
 import { getEvmHookUpdateTransactions } from '../hook/updates.js';
 import { stripPredicateSubHook } from '../hook/utils.js';
-import { DerivedHookConfig, HookType, OnchainHookType } from '../hook/types.js';
+import { DerivedHookConfig, OnchainHookType } from '../hook/types.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
-import { IsmType } from '../ism/types.js';
 import { PredicateWrapperDeployer } from '../predicate/PredicateDeployer.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { RemoteRouters, resolveRouterMapConfig } from '../router/types.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { scalesEqual } from '../utils/decimals.js';
+import { IsmType } from '../ism/types.js';
 import {
   extractIsmAndHookFactoryAddresses,
   ismTreeContainsRateLimited,
@@ -132,45 +130,6 @@ export class EvmWarpModule extends HyperlaneModule<
   HypTokenRouterConfig,
   WarpRouteAddresses
 > {
-  public static hasNetFlowRateLimitedConfig(
-    config: HypTokenRouterConfig,
-  ): boolean {
-    return (
-      !!EvmWarpModule.findConfigByType(
-        config.hook,
-        HookType.NET_FLOW_RATE_LIMITED,
-      ) ||
-      !!EvmWarpModule.findConfigByType(
-        config.interchainSecurityModule,
-        IsmType.NET_FLOW_RATE_LIMITED,
-      )
-    );
-  }
-
-  public static assertValidNetFlowRateLimitedConfig(
-    config: HypTokenRouterConfig,
-  ): void {
-    const hookConfig = EvmWarpModule.findConfigByType(
-      config.hook,
-      HookType.NET_FLOW_RATE_LIMITED,
-    );
-    const ismConfig = EvmWarpModule.findConfigByType(
-      config.interchainSecurityModule,
-      IsmType.NET_FLOW_RATE_LIMITED,
-    );
-
-    if (!hookConfig && !ismConfig) return;
-
-    assert(
-      hookConfig && ismConfig,
-      'netFlowRateLimitedHook and netFlowRateLimitedIsm must be configured together',
-    );
-    assert(
-      hookConfig.maxFlowBps === ismConfig.maxFlowBps,
-      'netFlowRateLimitedHook and netFlowRateLimitedIsm maxFlowBps mismatch',
-    );
-  }
-
   protected logger = rootLogger.child({
     module: 'EvmWarpModule',
   });
@@ -263,11 +222,6 @@ export class EvmWarpModule extends HyperlaneModule<
       xerc20Txs = await module.update(config);
     }
 
-    expectedConfig = await this.replaceNetFlowRateLimitedConfigs(
-      actualConfig,
-      expectedConfig,
-    );
-
     /**
      * @remark
      * The order of operations matter
@@ -334,147 +288,6 @@ export class EvmWarpModule extends HyperlaneModule<
     );
 
     return transactions;
-  }
-
-  private async replaceNetFlowRateLimitedConfigs(
-    actualConfig: DerivedTokenRouterConfig,
-    expectedConfig: HypTokenRouterConfig,
-  ): Promise<HypTokenRouterConfig> {
-    const hookConfig = this.findNetFlowRateLimitedHookConfig(
-      expectedConfig.hook,
-    );
-    const ismConfig = this.findNetFlowRateLimitedIsmConfig(
-      expectedConfig.interchainSecurityModule,
-    );
-
-    if (!hookConfig && !ismConfig) return expectedConfig;
-    EvmWarpModule.assertValidNetFlowRateLimitedConfig(expectedConfig);
-    assert(hookConfig, 'netFlowRateLimitedHook must be configured');
-
-    const actualHookConfig = this.findNetFlowRateLimitedHookConfig(
-      actualConfig.hook,
-    );
-    let netFlowAddress = actualHookConfig?.address;
-
-    if (
-      !netFlowAddress ||
-      actualHookConfig?.maxFlowBps !== hookConfig.maxFlowBps
-    ) {
-      const mailbox = actualConfig.mailbox;
-      const tokenRoute = this.args.addresses.deployedTokenRoute;
-      assert(mailbox, 'mailbox must be configured');
-      assert(tokenRoute, 'deployedTokenRoute must be configured');
-
-      const netFlow = await this.multiProvider.handleDeploy(
-        this.chainName,
-        new NetFlowRateLimitedHookIsm__factory(),
-        [mailbox, tokenRoute, hookConfig.maxFlowBps],
-      );
-      netFlowAddress = netFlow.address;
-    }
-    assert(netFlowAddress, 'netFlowRateLimitedHook address must be set');
-
-    const expandedConfig = deepCopy(expectedConfig);
-    expandedConfig.hook = this.replaceNetFlowRateLimitedHookConfig(
-      expandedConfig.hook,
-      netFlowAddress,
-    );
-    expandedConfig.interchainSecurityModule =
-      this.replaceNetFlowRateLimitedIsmConfig(
-        expandedConfig.interchainSecurityModule,
-        netFlowAddress,
-      );
-
-    return expandedConfig;
-  }
-
-  private findNetFlowRateLimitedHookConfig(
-    config: unknown,
-  ): { maxFlowBps: number; address?: Address } | undefined {
-    return EvmWarpModule.findConfigByType(
-      config,
-      HookType.NET_FLOW_RATE_LIMITED,
-    );
-  }
-
-  private findNetFlowRateLimitedIsmConfig(
-    config: unknown,
-  ): { maxFlowBps: number; address?: Address } | undefined {
-    return EvmWarpModule.findConfigByType(
-      config,
-      IsmType.NET_FLOW_RATE_LIMITED,
-    );
-  }
-
-  private static findConfigByType(
-    config: unknown,
-    type: string,
-  ): { maxFlowBps: number; address?: Address } | undefined {
-    if (!config || typeof config !== 'object') return undefined;
-
-    if (
-      'type' in config &&
-      config.type === type &&
-      'maxFlowBps' in config &&
-      typeof config.maxFlowBps === 'number'
-    ) {
-      return {
-        address:
-          'address' in config && typeof config.address === 'string'
-            ? config.address
-            : undefined,
-        maxFlowBps: config.maxFlowBps,
-      };
-    }
-
-    for (const value of Object.values(config)) {
-      if (typeof value !== 'object') continue;
-      const result = Array.isArray(value)
-        ? value
-            .map((item) => EvmWarpModule.findConfigByType(item, type))
-            .find(Boolean)
-        : EvmWarpModule.findConfigByType(value, type);
-      if (result) return result;
-    }
-    return undefined;
-  }
-
-  private replaceNetFlowRateLimitedHookConfig<T>(
-    config: T,
-    address: Address,
-  ): T {
-    return this.replaceConfigByType(
-      config,
-      HookType.NET_FLOW_RATE_LIMITED,
-      address,
-    );
-  }
-
-  private replaceNetFlowRateLimitedIsmConfig<T>(
-    config: T,
-    address: Address,
-  ): T {
-    return this.replaceConfigByType(
-      config,
-      IsmType.NET_FLOW_RATE_LIMITED,
-      address,
-    );
-  }
-
-  private replaceConfigByType<T>(config: T, type: string, address: Address): T {
-    if (!config || typeof config !== 'object') return config;
-    if ('type' in config && config.type === type) return address as T;
-    if (Array.isArray(config)) {
-      return config.map((item) =>
-        this.replaceConfigByType(item, type, address),
-      ) as T;
-    }
-    return Object.fromEntries(
-      Object.entries(config).map(([key, value]) => [
-        key,
-        this.replaceConfigByType(value, type, address),
-      ]),
-    ) as T;
   }
 
   /**
