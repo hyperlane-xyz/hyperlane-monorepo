@@ -403,15 +403,19 @@ const isIgp = (v: object): v is WithAddress<IgpHookConfig> =>
   v.type === HookType.INTERCHAIN_GAS_PAYMASTER &&
   'address' in v;
 
+const getHook = (config: unknown): HookConfig =>
+  (config as { hook: HookConfig }).hook;
+
 function resolveIgp(
   config: DerivedTokenRouterConfig,
   destChainName: string,
   signer: Address,
 ): ResolveResult {
-  if (typeof config.hook === 'string')
+  const hook = getHook(config);
+  if (typeof hook === 'string')
     return { resolved: false, reason: 'not_configured' };
 
-  const destHook = resolveDestinationHook(config.hook, destChainName);
+  const destHook = resolveDestinationHook(hook, destChainName);
   const igp = destHook && deepFind(destHook as object, isIgp);
   if (!igp) return { resolved: false, reason: 'not_configured' };
 
