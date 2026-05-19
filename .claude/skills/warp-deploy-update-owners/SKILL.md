@@ -113,18 +113,17 @@ Write the updated deploy.yaml back to the registry path. Show the user the diff 
 First, start the HTTP registry in the background to use private RPC URLs:
 
 ```bash
-cd <MONOREPO_ROOT> && pnpm -C typescript/infra start:http-registry
+cd <MONOREPO_ROOT> && pnpm -C typescript/infra start:http-registry --writeMode
 ```
 
 Run with `run_in_background: true`. Wait for the log line `Server running` and note the port (typically `3333`) and the background task ID — needed to stop the server after this step.
 
-Assemble the warp apply command. Pass local registry first, HTTP registry second — local receives writes, HTTP provides private RPCs for reads:
+Assemble the warp apply command. Use only the HTTP registry — started with `--writeMode` so it handles both private RPC reads and writes:
 
 ```bash
 cd typescript/cli
 
 pnpm hyperlane warp apply \
-  --registry $(pwd)/../hyperlane-registry \
   --registry http://localhost:<port> \
   --key.ethereum $MY_ETH_KEY_VAR \
   [--key.sealevel $MY_SOL_KEY_VAR]  # only if sealevel chains present
@@ -138,7 +137,7 @@ Show the user the exact command and ask:
 
 > **Ready to run warp apply to transfer ownership?** Type `yes` to execute, or `no` to run manually.
 
-If the user confirms, run it with a 10-minute timeout (600000ms). Show the full output on completion.
+If the user confirms, run it. Show the full output on completion.
 
 **On failure:** stop the HTTP registry (Step 10e), show the error, and stop. Do not proceed to Step 11. Common issues:
 
@@ -153,7 +152,6 @@ After warp apply completes, run warp read to confirm all ownership transfers too
 cd /path/to/hyperlane-monorepo/typescript/cli
 
 pnpm hyperlane warp read \
-  --registry $(pwd)/../hyperlane-registry \
   --registry http://localhost:<port> \
   -w <WARP_ROUTE_ID>
 ```
@@ -315,7 +313,7 @@ After showing the PR URL, tell the user:
 ## Notes
 
 - The registry path is `$(pwd)/../hyperlane-registry` when run from the monorepo root. The hyperlane-registry repo is expected to be cloned at the same level as hyperlane-monorepo.
-- Always pass `--registry $(pwd)/../hyperlane-registry --registry http://localhost:<port>` to CLI commands — local first (writes succeed here), HTTP last (private RPCs take priority for reads). HTTP returning 405 on writes is expected and non-fatal.
+- Always pass `--registry http://localhost:<port>` to CLI commands — the HTTP registry is started with `--writeMode` so it handles both private RPC reads and artifact writes.
 - If the ticket has links to token contracts on block explorers, use those addresses
 - Chain-level `owner` is typically an Abacus Works Safe address specified in the ticket
 - `tokenFee` block `owner` defaults to the Hyperlane ICA address from `warpFees.ts` unless the ticket says otherwise
