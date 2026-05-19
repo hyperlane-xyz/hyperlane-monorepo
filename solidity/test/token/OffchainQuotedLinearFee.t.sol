@@ -720,6 +720,7 @@ contract OffchainQuotedLinearFeeTest is Test {
         uint48 later = uint48(block.timestamp);
 
         // Submit newer standing quote (higher issuedAt) with different params
+        vm.warp(now_ + 1);
         _submitStanding(
             DEST,
             RECIPIENT,
