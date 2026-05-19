@@ -45,7 +45,9 @@ export function getSafeService(
     throw new Error(`Chain is not an EVM chain: ${chain}`);
   }
 
-  const resolvedApiKey = apiKey ?? metadataApiKey;
+  const resolvedApiKey = apiKey?.trim()
+    ? apiKey.trim()
+    : metadataApiKey?.trim() || undefined;
 
   // @ts-ignore
   return new SafeApiKit({
