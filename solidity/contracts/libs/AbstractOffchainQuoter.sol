@@ -43,11 +43,6 @@ abstract contract AbstractOffchainQuoter is IOffchainQuoter {
     bytes32 private constant _NAME_HASH = keccak256("OffchainQuoter");
     bytes32 private constant _VERSION_HASH = keccak256("1");
 
-    /// @dev Maximum lifetime of a standing quote. Bounds the window in which a
-    ///      malicious or compromised signer's quote remains resolvable, and
-    ///      caps the issuedAt monotonicity barrier for future overwrites.
-    uint48 internal constant MAX_STANDING_TTL = 7 days;
-
     // ============ ERC-7201 Namespaced Storage ============
 
     /// @custom:storage-location erc7201:hyperlane.storage.AbstractOffchainQuoter
@@ -92,13 +87,13 @@ abstract contract AbstractOffchainQuoter is IOffchainQuoter {
     ) external {
         if (sq.expiry < sq.issuedAt) revert InvalidQuote();
         if (uint48(block.timestamp) > sq.expiry) revert QuoteExpired();
-        // Standing quotes (expiry != issuedAt) must not be future-dated and
-        // must have bounded TTL. Prevents a malicious signer from locking the
-        // monotonic issuedAt barrier near uint48 max with an indefinite expiry.
-        if (sq.expiry != sq.issuedAt) {
-            if (sq.issuedAt > uint48(block.timestamp)) revert InvalidQuote();
-            if (sq.expiry - sq.issuedAt > MAX_STANDING_TTL)
-                revert InvalidQuote();
+        // Standing quotes (expiry != issuedAt) must not be future-dated.
+        // Prevents a malicious signer from locking the monotonic issuedAt
+        // barrier near uint48 max with an indefinite expiry; a future legitimate
+        // quote can always overwrite by virtue of having a strictly larger
+        // issuedAt at submission time.
+        if (sq.expiry != sq.issuedAt && sq.issuedAt > uint48(block.timestamp)) {
+            revert InvalidQuote();
         }
         // submitter field restricts who can submit (e.g. QuotedCalls only).
         // address(0) means unrestricted — any caller may submit.
