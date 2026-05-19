@@ -1,7 +1,8 @@
 //! Program instructions.
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use hyperlane_core::H256;
+use hyperlane_core::{H160, H256};
+use quote_verifier::SvmSignedQuote;
 
 use solana_program::{
     instruction::{AccountMeta, Instruction as SolanaInstruction},
@@ -11,7 +12,7 @@ use solana_program::{
 use solana_system_interface::program as system_program;
 
 use crate::{
-    accounts::{GasOracle, InterchainGasPaymasterType},
+    accounts::{GasOracle, IgpFeeConfig, InterchainGasPaymasterType},
     igp_gas_payment_pda_seeds, igp_pda_seeds, igp_program_data_pda_seeds, overhead_igp_pda_seeds,
 };
 
@@ -40,6 +41,46 @@ pub enum Instruction {
     SetGasOracleConfigs(Vec<GasOracleConfig>),
     /// Claims lamports from an IGP, sending them to the IGP's beneficiary.
     Claim,
+    /// Sets or removes the IGP quote configuration.
+    /// Some(config) → sets fee_config (operator controls all fields).
+    /// None → removes fee_config (disables quoting).
+    SetIgpQuoteConfig(Option<IgpFeeConfig>),
+    /// Adds or removes an authorized quote signer on the IGP.
+    /// Requires fee_config to be set via SetIgpQuoteConfig first.
+    SetIgpQuoteSigner(SetIgpQuoteSignerOperation),
+    /// Sets the min_issued_at threshold on the IGP.
+    /// Monotonic: new value must be >= current value.
+    /// Requires fee_config to be set via SetIgpQuoteConfig first.
+    SetIgpMinIssuedAt(i64),
+    /// Submits an offchain-signed quote to the IGP.
+    /// Standing (expiry > issued_at) or transient (expiry == issued_at).
+    SubmitIgpQuote(SvmSignedQuote),
+    /// Closes an orphaned transient quote PDA, refunding rent to the stored payer.
+    CloseIgpTransientQuote,
+    /// Closes an expired standing quote PDA, refunding rent to the IGP's beneficiary.
+    CloseIgpStandingQuote,
+    /// Simulation-only: returns required account metas for a PayForGas new flow call.
+    GetIgpQuoteAccountMetas(GetIgpQuoteAccountMetas),
+}
+
+/// Input data for the GetIgpQuoteAccountMetas simulation instruction.
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
+pub struct GetIgpQuoteAccountMetas {
+    /// Hyperlane destination domain.
+    pub destination_domain: u32,
+    /// Sender program ID (quoted_sender) for PDA derivation.
+    pub sender: Pubkey,
+    /// Scoped salt for transient PDA derivation. None = standing-only.
+    pub scoped_salt: Option<H256>,
+}
+
+/// Operation for adding or removing a quote signer.
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
+pub enum SetIgpQuoteSignerOperation {
+    /// Add the signer to the authorized set.
+    Add(H160),
+    /// Remove the signer from the authorized set.
+    Remove(H160),
 }
 
 impl Instruction {
@@ -412,4 +453,190 @@ pub fn set_beneficiary_instruction(
     };
 
     Ok(instruction)
+}
+
+/// Gets an instruction to set or remove the IGP quote configuration.
+pub fn set_igp_quote_config_instruction(
+    program_id: Pubkey,
+    igp: Pubkey,
+    owner: Pubkey,
+    config: Option<IgpFeeConfig>,
+) -> Result<SolanaInstruction, ProgramError> {
+    let ixn = Instruction::SetIgpQuoteConfig(config);
+
+    // Accounts:
+    // 0. `[executable]` The system program.
+    // 1. `[writeable]` The IGP.
+    // 2. `[signer, writable]` The IGP owner — also pays for any rent-exempt
+    //    realloc when the IGP grows, so must be writable.
+    let accounts = vec![
+        AccountMeta::new_readonly(system_program::ID, false),
+        AccountMeta::new(igp, false),
+        AccountMeta::new(owner, true),
+    ];
+
+    Ok(SolanaInstruction {
+        program_id,
+        data: borsh::to_vec(&ixn)?,
+        accounts,
+    })
+}
+
+/// Gets an instruction to add or remove an authorized quote signer on an IGP.
+pub fn set_igp_quote_signer_instruction(
+    program_id: Pubkey,
+    igp: Pubkey,
+    owner: Pubkey,
+    operation: SetIgpQuoteSignerOperation,
+) -> Result<SolanaInstruction, ProgramError> {
+    let ixn = Instruction::SetIgpQuoteSigner(operation);
+
+    // Accounts:
+    // 0. `[executable]` The system program.
+    // 1. `[writeable]` The IGP.
+    // 2. `[signer, writable]` The IGP owner — also pays for any rent-exempt
+    //    realloc when the IGP grows, so must be writable.
+    let accounts = vec![
+        AccountMeta::new_readonly(system_program::ID, false),
+        AccountMeta::new(igp, false),
+        AccountMeta::new(owner, true),
+    ];
+
+    Ok(SolanaInstruction {
+        program_id,
+        data: borsh::to_vec(&ixn)?,
+        accounts,
+    })
+}
+
+/// Gets an instruction to set the min_issued_at threshold on an IGP.
+pub fn set_igp_min_issued_at_instruction(
+    program_id: Pubkey,
+    igp: Pubkey,
+    owner: Pubkey,
+    min_issued_at: i64,
+) -> Result<SolanaInstruction, ProgramError> {
+    let ixn = Instruction::SetIgpMinIssuedAt(min_issued_at);
+
+    // Accounts:
+    // 0. `[executable]` The system program.
+    // 1. `[writeable]` The IGP.
+    // 2. `[signer, writable]` The IGP owner — also pays for any rent-exempt
+    //    realloc when the IGP grows, so must be writable.
+    let accounts = vec![
+        AccountMeta::new_readonly(system_program::ID, false),
+        AccountMeta::new(igp, false),
+        AccountMeta::new(owner, true),
+    ];
+
+    Ok(SolanaInstruction {
+        program_id,
+        data: borsh::to_vec(&ixn)?,
+        accounts,
+    })
+}
+
+/// Gets an instruction to submit an offchain-signed quote to the IGP.
+pub fn submit_igp_quote_instruction(
+    program_id: Pubkey,
+    payer: Pubkey,
+    igp: Pubkey,
+    quote_pda: Pubkey,
+    quote: SvmSignedQuote,
+) -> Result<SolanaInstruction, ProgramError> {
+    let ixn = Instruction::SubmitIgpQuote(quote);
+
+    // Accounts:
+    // 0. `[executable]` The system program.
+    // 1. `[signer, writeable]` The payer.
+    // 2. `[]` The IGP account.
+    // 3. `[writeable]` The quote PDA (standing or transient).
+    let accounts = vec![
+        AccountMeta::new_readonly(system_program::ID, false),
+        AccountMeta::new(payer, true),
+        AccountMeta::new_readonly(igp, false),
+        AccountMeta::new(quote_pda, false),
+    ];
+
+    Ok(SolanaInstruction {
+        program_id,
+        data: borsh::to_vec(&ixn)?,
+        accounts,
+    })
+}
+
+/// Gets an instruction to close an orphaned transient quote PDA.
+pub fn close_igp_transient_quote_instruction(
+    program_id: Pubkey,
+    transient_pda: Pubkey,
+    payer: Pubkey,
+    igp: Pubkey,
+) -> Result<SolanaInstruction, ProgramError> {
+    let ixn = Instruction::CloseIgpTransientQuote;
+
+    // Accounts:
+    // 0. `[writeable]` The transient quote PDA.
+    // 1. `[signer, writeable]` The payer (must match stored payer).
+    // 2. `[]` The IGP account (for PDA re-derivation).
+    let accounts = vec![
+        AccountMeta::new(transient_pda, false),
+        AccountMeta::new(payer, true),
+        AccountMeta::new_readonly(igp, false),
+    ];
+
+    Ok(SolanaInstruction {
+        program_id,
+        data: borsh::to_vec(&ixn)?,
+        accounts,
+    })
+}
+
+/// Gets an instruction to close an expired standing quote PDA.
+pub fn close_igp_standing_quote_instruction(
+    program_id: Pubkey,
+    standing_pda: Pubkey,
+    igp: Pubkey,
+    beneficiary: Pubkey,
+) -> Result<SolanaInstruction, ProgramError> {
+    let ixn = Instruction::CloseIgpStandingQuote;
+
+    // Accounts:
+    // 0. `[writeable]` The standing quote PDA.
+    // 1. `[]` The IGP account (for PDA re-derivation + beneficiary check).
+    // 2. `[writeable]` The beneficiary (receives rent refund).
+    let accounts = vec![
+        AccountMeta::new(standing_pda, false),
+        AccountMeta::new_readonly(igp, false),
+        AccountMeta::new(beneficiary, false),
+    ];
+
+    Ok(SolanaInstruction {
+        program_id,
+        data: borsh::to_vec(&ixn)?,
+        accounts,
+    })
+}
+
+/// Gets a simulation instruction to retrieve required account metas for quoting.
+pub fn get_igp_quote_account_metas_instruction(
+    program_id: Pubkey,
+    igp: Pubkey,
+    destination_domain: u32,
+    sender: Pubkey,
+    scoped_salt: Option<H256>,
+) -> Result<SolanaInstruction, ProgramError> {
+    let ixn = Instruction::GetIgpQuoteAccountMetas(GetIgpQuoteAccountMetas {
+        destination_domain,
+        sender,
+        scoped_salt,
+    });
+
+    // Account: only the IGP account. Cascade PDAs are derived on-chain.
+    let accounts = vec![AccountMeta::new_readonly(igp, false)];
+
+    Ok(SolanaInstruction {
+        program_id,
+        data: borsh::to_vec(&ixn)?,
+        accounts,
+    })
 }

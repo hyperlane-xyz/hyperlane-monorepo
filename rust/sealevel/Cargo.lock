@@ -28,6 +28,7 @@ dependencies = [
  "solana-system-interface 2.0.0",
  "spl-discriminator 0.5.1",
  "spl-type-length-value 0.6.0",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -3495,6 +3496,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-sealevel-fee"
+version = "0.1.0"
+dependencies = [
+ "access-control",
+ "account-utils",
+ "borsh 1.6.0",
+ "getrandom 0.2.17",
+ "hyperlane-core",
+ "k256 0.13.4",
+ "num-derive",
+ "num-traits",
+ "package-versioned",
+ "quote-verifier",
+ "rand 0.8.5",
+ "serializable-account-meta",
+ "solana-program 3.0.0",
+ "solana-program-test",
+ "solana-sdk",
+ "solana-system-interface 2.0.0",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "hyperlane-sealevel-hello-world"
 version = "0.1.0"
 dependencies = [
@@ -3526,6 +3550,8 @@ dependencies = [
  "hyperlane-core",
  "num-derive",
  "num-traits",
+ "package-versioned",
+ "quote-verifier",
  "serde",
  "serializable-account-meta",
  "solana-program 3.0.0",
@@ -3543,6 +3569,9 @@ dependencies = [
  "hyperlane-core",
  "hyperlane-sealevel-igp",
  "hyperlane-test-utils",
+ "k256 0.13.4",
+ "quote-verifier",
+ "rand 0.8.5",
  "serializable-account-meta",
  "solana-program 3.0.0",
  "solana-program-test",
@@ -3697,6 +3726,7 @@ dependencies = [
  "getrandom 0.2.17",
  "hyperlane-core",
  "hyperlane-sealevel-connection-client",
+ "hyperlane-sealevel-fee",
  "hyperlane-sealevel-igp",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
@@ -3704,8 +3734,12 @@ dependencies = [
  "hyperlane-sealevel-token-lib",
  "hyperlane-test-utils",
  "hyperlane-warp-route",
+ "k256 0.13.4",
  "num-derive",
  "num-traits",
+ "package-versioned",
+ "quote-verifier",
+ "rand 0.8.5",
  "serializable-account-meta",
  "solana-program 3.0.0",
  "solana-program-test",
@@ -3727,6 +3761,7 @@ dependencies = [
  "getrandom 0.2.17",
  "hyperlane-core",
  "hyperlane-sealevel-connection-client",
+ "hyperlane-sealevel-fee",
  "hyperlane-sealevel-igp",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
@@ -3734,8 +3769,12 @@ dependencies = [
  "hyperlane-sealevel-token-lib",
  "hyperlane-test-utils",
  "hyperlane-warp-route",
+ "k256 0.13.4",
  "num-derive",
  "num-traits",
+ "package-versioned",
+ "quote-verifier",
+ "rand 0.8.5",
  "serializable-account-meta",
  "solana-program 3.0.0",
  "solana-program-test",
@@ -3758,6 +3797,7 @@ dependencies = [
  "getrandom 0.2.17",
  "hyperlane-core",
  "hyperlane-sealevel-connection-client",
+ "hyperlane-sealevel-fee",
  "hyperlane-sealevel-igp",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
@@ -3766,8 +3806,12 @@ dependencies = [
  "hyperlane-sealevel-token-lib",
  "hyperlane-test-utils",
  "hyperlane-warp-route",
+ "k256 0.13.4",
  "num-derive",
  "num-traits",
+ "package-versioned",
+ "quote-verifier",
+ "rand 0.8.5",
  "serializable-account-meta",
  "solana-program 3.0.0",
  "solana-program-test",
@@ -3789,6 +3833,7 @@ dependencies = [
  "borsh 1.6.0",
  "hyperlane-core",
  "hyperlane-sealevel-connection-client",
+ "hyperlane-sealevel-fee",
  "hyperlane-sealevel-igp",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
@@ -3814,6 +3859,7 @@ dependencies = [
  "getrandom 0.2.17",
  "hyperlane-core",
  "hyperlane-sealevel-connection-client",
+ "hyperlane-sealevel-fee",
  "hyperlane-sealevel-igp",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
@@ -3821,8 +3867,12 @@ dependencies = [
  "hyperlane-sealevel-token-lib",
  "hyperlane-test-utils",
  "hyperlane-warp-route",
+ "k256 0.13.4",
  "num-derive",
  "num-traits",
+ "package-versioned",
+ "quote-verifier",
+ "rand 0.8.5",
  "serializable-account-meta",
  "solana-commitment-config",
  "solana-program 3.0.0",
@@ -5002,6 +5052,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "package-versioned"
+version = "0.1.0"
+dependencies = [
+ "borsh 1.6.0",
+ "serializable-account-meta",
+ "solana-program 3.0.0",
+]
+
+[[package]]
 name = "parity-scale-codec"
 version = "3.7.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5524,6 +5583,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "21b2ebcf727b7760c461f091f9f0f539b77b8e87f2fd88131e7f1b433b3cece4"
 dependencies = [
  "proc-macro2",
+]
+
+[[package]]
+name = "quote-verifier"
+version = "0.1.0"
+dependencies = [
+ "borsh 1.6.0",
+ "ecdsa-signature",
+ "getrandom 0.2.17",
+ "hyperlane-core",
+ "k256 0.13.4",
+ "rand 0.8.5",
+ "solana-program 3.0.0",
+ "thiserror 1.0.69",
 ]
 
 [[package]]

@@ -10,9 +10,12 @@ members = [
     "libraries/interchain-security-module-interface",
     "libraries/message-recipient-interface",
     "libraries/multisig-ism",
+    "libraries/package-versioned",
+    "libraries/quote-verifier",
     "libraries/serializable-account-meta",
     "libraries/test-transaction-utils",
     "libraries/test-utils",
+    "programs/hyperlane-sealevel-fee",
     "programs/hyperlane-sealevel-igp",
     "programs/hyperlane-sealevel-igp-test",
     "programs/hyperlane-sealevel-token",
@@ -184,7 +187,13 @@ overflow-checks = true
 [profile.release.package.multisig-ism]
 overflow-checks = true
 
+[profile.release.package.package-versioned]
+overflow-checks = true
+
 [profile.release.package.serializable-account-meta]
+overflow-checks = true
+
+[profile.release.package.quote-verifier]
 overflow-checks = true
 
 [profile.release.package.hyperlane-test-transaction-utils]
@@ -194,6 +203,9 @@ overflow-checks = true
 overflow-checks = true
 
 [profile.release.package.hyperlane-sealevel-mailbox]
+overflow-checks = true
+
+[profile.release.package.hyperlane-sealevel-fee]
 overflow-checks = true
 
 [profile.release.package.hyperlane-sealevel-igp]

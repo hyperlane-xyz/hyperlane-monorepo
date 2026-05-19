@@ -17,6 +17,23 @@ pub enum Error {
     /// A message decoding error occurred.
     #[error("Message decoding error")]
     MessageDecodeError = 3,
+
+    /// The fee program returned invalid or missing return data.
+    #[error("Invalid fee return data")]
+    InvalidFeeReturnData = 4,
+
+    /// The fee account is not owned by the configured fee program.
+    #[error("Fee account owner mismatch")]
+    FeeAccountOwnerMismatch = 5,
+
+    /// The fee beneficiary terminal account was not found within the
+    /// maximum number of variable fee section accounts.
+    #[error("Fee beneficiary not found")]
+    FeeBeneficiaryNotFound = 6,
+
+    /// IGP has offchain quoting configured but caller used legacy (oracle-only) flow.
+    #[error("IGP requires new quoting flow")]
+    IgpNewFlowRequired = 7,
 }
 
 impl From<Error> for ProgramError {

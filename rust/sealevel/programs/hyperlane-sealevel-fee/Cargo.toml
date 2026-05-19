@@ -1,0 +1,38 @@
+cargo-features = ["workspace-inheritance"]
+
+[package]
+name = "hyperlane-sealevel-fee"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+no-entrypoint = []
+
+[dependencies]
+access-control = { path = "../../libraries/access-control" }
+account-utils = { path = "../../libraries/account-utils" }
+borsh.workspace = true
+hyperlane-core = { path = "../../../main/hyperlane-core" }
+num-derive.workspace = true
+num-traits.workspace = true
+package-versioned = { path = "../../libraries/package-versioned" }
+quote-verifier = { path = "../../libraries/quote-verifier" }
+serializable-account-meta = { path = "../../libraries/serializable-account-meta" }
+solana-program.workspace = true
+solana-system-interface.workspace = true
+thiserror.workspace = true
+# Required to allow dependencies `getrandom` but to preserve determinism required by programs, see
+# https://solana.com/news/rust-to-solana
+getrandom = { workspace = true, features = ["custom"] }
+
+[dev-dependencies]
+k256.workspace = true
+rand.workspace = true
+solana-program-test.workspace = true
+solana-sdk.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+crate-type = ["cdylib", "lib"]

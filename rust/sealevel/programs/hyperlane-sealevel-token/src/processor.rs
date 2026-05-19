@@ -9,6 +9,7 @@ use hyperlane_sealevel_message_recipient_interface::{
     HandleInstruction, MessageRecipientInstruction,
 };
 use hyperlane_sealevel_token_lib::{
+    accounts::FeeConfig,
     instruction::{Init, Instruction as TokenIxn, TransferRemote},
     processor::HyperlaneSealevelToken,
 };
@@ -19,12 +20,21 @@ use crate::plugin::SyntheticPlugin;
 #[cfg(not(feature = "no-entrypoint"))]
 solana_program::entrypoint!(process_instruction);
 
+/// Marker type for PackageVersioned trait implementation.
+pub struct HyperlaneTokenProgram;
+impl package_versioned::PackageVersioned for HyperlaneTokenProgram {}
+
 /// Processes an instruction.
 pub fn process_instruction(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
     instruction_data: &[u8],
 ) -> ProgramResult {
+    // Universal version query.
+    if package_versioned::is_get_program_version(instruction_data) {
+        return package_versioned::process_get_program_version::<HyperlaneTokenProgram>();
+    }
+
     // First, check if the instruction has a discriminant relating to
     // the message recipient interface.
     if let Ok(message_recipient_instruction) = MessageRecipientInstruction::decode(instruction_data)
@@ -79,6 +89,7 @@ pub fn process_instruction(
         TokenIxn::TransferOwnership(new_owner) => {
             transfer_ownership(program_id, accounts, new_owner)
         }
+        TokenIxn::SetFeeConfig(fee_config) => set_fee_config(program_id, accounts, fee_config),
     }
     .map_err(|err| {
         msg!("{}", err);
@@ -261,4 +272,12 @@ fn set_interchain_gas_paymaster(
     HyperlaneSealevelToken::<SyntheticPlugin>::set_interchain_gas_paymaster(
         program_id, accounts, new_igp,
     )
+}
+
+fn set_fee_config(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    fee_config: Option<FeeConfig>,
+) -> ProgramResult {
+    HyperlaneSealevelToken::<SyntheticPlugin>::set_fee_config(program_id, accounts, fee_config)
 }

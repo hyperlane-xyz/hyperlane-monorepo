@@ -40,6 +40,7 @@ dependencies = [
  "solana-system-interface 2.0.0",
  "spl-discriminator 0.5.1",
  "spl-type-length-value 0.6.0",
+ "thiserror 1.0.63",
 ]
 
 [[package]]
@@ -6267,6 +6268,8 @@ dependencies = [
  "hyperlane-core",
  "num-derive",
  "num-traits",
+ "package-versioned",
+ "quote-verifier",
  "serializable-account-meta",
  "solana-program 3.0.0",
  "solana-system-interface 2.0.0",
@@ -8024,6 +8027,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "package-versioned"
+version = "0.1.0"
+dependencies = [
+ "borsh 1.6.0",
+ "serializable-account-meta",
+ "solana-program 3.0.0",
+]
+
+[[package]]
 name = "parity-scale-codec"
 version = "3.6.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8872,6 +8884,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "quote-verifier"
+version = "0.1.0"
+dependencies = [
+ "borsh 1.6.0",
+ "ecdsa-signature",
+ "getrandom 0.2.15",
+ "hyperlane-core",
+ "solana-program 3.0.0",
+ "thiserror 1.0.63",
+]
+
+[[package]]
 name = "r-efi"
 version = "5.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9297,6 +9321,7 @@ dependencies = [
  "hyperlane-ethereum",
  "hyperlane-metric",
  "hyperlane-operation-verifier",
+ "hyperlane-sealevel",
  "hyperlane-test",
  "itertools 0.10.5",
  "lander",

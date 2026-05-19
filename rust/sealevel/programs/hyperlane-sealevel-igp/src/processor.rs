@@ -20,20 +20,27 @@ use solana_system_interface::{instruction as system_instruction, program as syst
 
 use access_control::AccessControl;
 use account_utils::{
-    create_pda_account, verify_account_uninitialized, verify_rent_exempt, AccountData,
+    create_pda_account, ensure_no_extraneous_accounts, verify_account_uninitialized,
+    verify_rent_exempt, AccountData, AccountInfoExt, AccountInitState, DiscriminatorData,
     DiscriminatorPrefixed, SizedData,
 };
-use serializable_account_meta::SimulationReturnData;
+use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
+
+use quote_verifier::{QuoteValidationError, SvmSignedQuote, ValidatableQuote};
 
 use crate::{
     accounts::{
-        GasPaymentAccount, GasPaymentData, Igp, IgpAccount, OverheadIgp, OverheadIgpAccount,
-        ProgramData, ProgramDataAccount,
+        compute_gas_fee, GasPaymentAccount, GasPaymentData, Igp, IgpAccount, IgpFeeConfig,
+        IgpQuoteContext, IgpQuoteData, IgpStandingQuote, IgpStandingQuoteAccount,
+        IgpTransientQuote, IgpTransientQuoteAccount, OverheadIgp, OverheadIgpAccount, ProgramData,
+        ProgramDataAccount, ResolvedQuote, WILDCARD_DOMAIN, WILDCARD_SENDER,
     },
+    error::Error as IgpError,
     igp_gas_payment_pda_seeds, igp_pda_seeds, igp_program_data_pda_seeds,
+    igp_standing_quote_pda_seeds, igp_transient_quote_pda_seeds,
     instruction::{
-        GasOracleConfig, GasOverheadConfig, InitIgp, InitOverheadIgp,
-        Instruction as IgpInstruction, PayForGas, QuoteGasPayment,
+        GasOracleConfig, GasOverheadConfig, GetIgpQuoteAccountMetas, InitIgp, InitOverheadIgp,
+        Instruction as IgpInstruction, PayForGas, QuoteGasPayment, SetIgpQuoteSignerOperation,
     },
     overhead_igp_pda_seeds,
 };
@@ -41,12 +48,22 @@ use crate::{
 #[cfg(not(feature = "no-entrypoint"))]
 entrypoint!(process_instruction);
 
+/// Marker type for PackageVersioned trait implementation.
+pub struct IgpProgram;
+
+impl package_versioned::PackageVersioned for IgpProgram {}
+
 /// Entrypoint for the IGP program.
 pub fn process_instruction(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
     instruction_data: &[u8],
 ) -> ProgramResult {
+    // Universal version query — discriminator-based, independent of instruction enum.
+    if package_versioned::is_get_program_version(instruction_data) {
+        return package_versioned::process_get_program_version::<IgpProgram>();
+    }
+
     match IgpInstruction::try_from_slice(instruction_data)? {
         IgpInstruction::Init => {
             init(program_id, accounts)?;
@@ -80,6 +97,27 @@ pub fn process_instruction(
         }
         IgpInstruction::SetGasOracleConfigs(configs) => {
             set_gas_oracle_configs(program_id, accounts, configs)?;
+        }
+        IgpInstruction::SetIgpQuoteConfig(config) => {
+            set_igp_quote_config(program_id, accounts, config)?;
+        }
+        IgpInstruction::SetIgpQuoteSigner(operation) => {
+            set_igp_quote_signer(program_id, accounts, operation)?;
+        }
+        IgpInstruction::SetIgpMinIssuedAt(min_issued_at) => {
+            set_igp_min_issued_at(program_id, accounts, min_issued_at)?;
+        }
+        IgpInstruction::SubmitIgpQuote(quote) => {
+            submit_igp_quote(program_id, accounts, quote)?;
+        }
+        IgpInstruction::CloseIgpTransientQuote => {
+            close_igp_transient_quote(program_id, accounts)?;
+        }
+        IgpInstruction::CloseIgpStandingQuote => {
+            close_igp_standing_quote(program_id, accounts)?;
+        }
+        IgpInstruction::GetIgpQuoteAccountMetas(data) => {
+            get_igp_quote_account_metas(program_id, accounts, data)?;
         }
     }
 
@@ -161,6 +199,7 @@ fn init_igp(program_id: &Pubkey, accounts: &[AccountInfo], data: InitIgp) -> Pro
                 owner: data.owner,
                 beneficiary: data.beneficiary,
                 gas_oracles: HashMap::new(),
+                fee_config: None,
             }
             .into()
         },
@@ -255,16 +294,35 @@ fn init_igp_variant<T: account_utils::DiscriminatorPrefixedData + SizedData>(
     Ok(*igp_info.key)
 }
 
+/// Dispatch authority PDA seeds for sender_authority verification.
+/// Same seeds as mailbox uses: ["hyperlane_dispatcher", "-", "dispatch_authority"].
+const DISPATCH_AUTHORITY_SEEDS: &[&[u8]] = &[b"hyperlane_dispatcher", b"-", b"dispatch_authority"];
+
 /// Pay for gas.
 ///
-/// Accounts:
+/// Old flow accounts:
 /// 0. `[executable]` The system program.
 /// 1. `[signer]` The payer.
 /// 2. `[writeable]` The IGP program data.
 /// 3. `[signer]` Unique gas payment account.
 /// 4. `[writeable]` Gas payment PDA.
-/// 5. `[writeable]` The IGP account.
-/// 6. `[]` Overhead IGP account (optional).
+/// 5. `[writeable]` The IGP account (owner == program_id).
+/// 6. `[]` Overhead IGP account (optional, owner == program_id).
+///
+/// New flow (detected by account 6 owner != program_id):
+///
+/// 0. `[executable]` The system program.
+/// 1. `[signer]` The payer.
+/// 2. `[writeable]` The IGP program data.
+/// 3. `[signer]` Unique gas payment account.
+/// 4. `[writeable]` Gas payment PDA.
+/// 5. `[writeable]` The IGP account (same position as old flow).
+/// 6. `[signer]` sender_authority (dispatch_authority PDA — must be signer).
+/// 7. `[]` quoted_sender (warp route program ID).
+/// 8. `[]` Standing quote PDA (exact).
+/// 9. `[]` Standing quote PDA (wildcard-sender).
+/// 10. `[]` Standing quote PDA (wildcard-domain).
+/// 11. `[]` Overhead IGP account (optional, after cascade).
 fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
@@ -329,30 +387,146 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
         return Err(ProgramError::InvalidSeeds);
     }
 
-    // Account 6: Overhead IGP account (optional).
-    // The caller is expected to only provide an overhead IGP they are comfortable
-    // with / have configured themselves.
-    let gas_amount = if let Some(overhead_igp_info) = accounts_iter.next() {
-        if overhead_igp_info.owner != program_id {
-            return Err(ProgramError::IncorrectProgramId);
-        }
+    // Account 6: detection point — overhead IGP (old flow) or sender_authority (new flow).
+    //
+    // Quoting contract: once `fee_config` is set on this IGP, callers using the
+    // new (quoted) flow pay quote-derived prices, and callers using the legacy
+    // paths (None or overhead-only) continue to pay oracle-derived prices. The
+    // IGP intentionally enforces nothing here so pre-PR warp routes keep
+    // dispatching without breaking. Operators must keep the gas oracle synced —
+    // any legacy caller pays the oracle price regardless of whether authorized
+    // standing/transient quotes exist.
+    let (required_payment, gas_amount, transient_info_to_close) = match accounts_iter.next() {
+        None => {
+            let gas_amount = payment.gas_amount;
+            let required_payment = igp.quote_gas_payment(payment.destination_domain, gas_amount)?;
 
-        let overhead_igp =
-            OverheadIgpAccount::fetch(&mut &overhead_igp_info.data.borrow()[..])?.into_inner();
-        let overhead_igp_key = Pubkey::create_program_address(
-            overhead_igp_pda_seeds!(overhead_igp.salt, overhead_igp.bump_seed),
-            program_id,
-        )?;
-        if overhead_igp_key != *overhead_igp_info.key || overhead_igp.inner != *igp_info.key {
-            return Err(ProgramError::InvalidArgument);
+            (required_payment, gas_amount, None)
         }
+        Some(next) if next.owner == program_id => {
+            // The caller is expected to only provide an overhead IGP they are comfortable
+            // with / have configured themselves.
+            let overhead_igp =
+                OverheadIgpAccount::fetch(&mut &next.data.borrow()[..])?.into_inner();
+            let overhead_igp_key = Pubkey::create_program_address(
+                overhead_igp_pda_seeds!(overhead_igp.salt, overhead_igp.bump_seed),
+                program_id,
+            )?;
+            if overhead_igp_key != *next.key || overhead_igp.inner != *igp_info.key {
+                return Err(ProgramError::InvalidArgument);
+            }
 
-        overhead_igp.gas_overhead(payment.destination_domain) + payment.gas_amount
-    } else {
-        payment.gas_amount
+            let gas_amount = overhead_igp
+                .gas_overhead(payment.destination_domain)
+                .checked_add(payment.gas_amount)
+                .ok_or(ProgramError::ArithmeticOverflow)?;
+            let required_payment = igp.quote_gas_payment(payment.destination_domain, gas_amount)?;
+
+            (required_payment, gas_amount, None)
+        }
+        Some(sender_authority_info) => {
+            // sender_authority must be a signer (anti-spoofing).
+            if !sender_authority_info.is_signer {
+                return Err(ProgramError::MissingRequiredSignature);
+            }
+
+            // Account 7: quoted_sender (warp route program ID).
+            let quoted_sender_info = next_account_info(accounts_iter)?;
+            let quoted_sender = quoted_sender_info.key;
+
+            // Verify sender_authority is the dispatch authority PDA for quoted_sender.
+            // This binds the authority to the actual message sender program.
+            let (expected_authority, _) =
+                Pubkey::find_program_address(DISPATCH_AUTHORITY_SEEDS, quoted_sender);
+            if *sender_authority_info.key != expected_authority {
+                return Err(ProgramError::InvalidSeeds);
+            }
+
+            // At least one quote PDA must follow.
+            if accounts_iter.as_slice().is_empty() {
+                return Err(ProgramError::NotEnoughAccountKeys);
+            }
+
+            let fee_token_mint = Pubkey::default();
+            let clock = Clock::get()?;
+
+            // Require fee_config for new flow — prevents stale quotes after config removal.
+            let fee_config = igp.fee_config.as_ref().ok_or(IgpError::QuoteConfigNotSet)?;
+            let min_issued_at = fee_config.min_issued_at;
+
+            // Cascade: transient (if present) → standing (exact → ws → wd).
+            // Peek discriminator to detect transient; if matched, all failures are hard errors.
+            let is_transient = accounts_iter.as_slice().first().is_some_and(|first| {
+                matches!(first.init_state(program_id), AccountInitState::Initialized)
+                    && first.data.borrow().len() > IgpTransientQuote::DISCRIMINATOR.len()
+                    && first.data.borrow()[1..1 + IgpTransientQuote::DISCRIMINATOR.len()]
+                        == IgpTransientQuote::DISCRIMINATOR
+            });
+
+            let (resolved, overhead_info, transient_info_to_close) = if is_transient {
+                let transient_info = next_account_info(accounts_iter)?;
+                let quote = try_resolve_transient_quote(
+                    program_id,
+                    transient_info,
+                    igp_info.key,
+                    payer_info.key,
+                    payment.destination_domain,
+                    quoted_sender,
+                    min_issued_at,
+                    &clock,
+                )?;
+
+                (Some(quote), None, Some(transient_info))
+            } else {
+                // Standing cascade: exact → wildcard-sender → wildcard-domain.
+                let cascade_levels: &[(u32, Pubkey)] = &[
+                    (payment.destination_domain, *quoted_sender),
+                    (payment.destination_domain, WILDCARD_SENDER),
+                    (WILDCARD_DOMAIN, *quoted_sender),
+                ];
+
+                let resolved = try_standing_cascade(
+                    program_id,
+                    accounts_iter,
+                    igp_info.key,
+                    &fee_token_mint,
+                    cascade_levels,
+                    min_issued_at,
+                    &clock,
+                )?;
+
+                (resolved, None, None)
+            };
+
+            // Overhead: from remaining accounts (non-matching accounts stay in iterator).
+            let overhead_info = overhead_info.or_else(|| accounts_iter.next());
+
+            let gas_amount = match overhead_info {
+                Some(oi) => apply_overhead_gas(
+                    oi,
+                    program_id,
+                    igp_info.key,
+                    payment.destination_domain,
+                    payment.gas_amount,
+                )?,
+                None => payment.gas_amount,
+            };
+
+            ensure_no_extraneous_accounts(accounts_iter)?;
+
+            let required_payment = match resolved {
+                Some(quote) => compute_gas_fee(
+                    quote.token_exchange_rate,
+                    quote.gas_price,
+                    gas_amount,
+                    quote.token_decimals,
+                )?,
+                None => igp.quote_gas_payment(payment.destination_domain, gas_amount)?,
+            };
+
+            (required_payment, gas_amount, transient_info_to_close)
+        }
     };
-
-    let required_payment = igp.quote_gas_payment(payment.destination_domain, gas_amount)?;
 
     // Transfer the required payment to the IGP.
     invoke(
@@ -390,8 +564,15 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
     gas_payment_account.store(gas_payment_account_info, false)?;
 
     // Increment the payment count and update the program data.
-    program_data.payment_count += 1;
+    program_data.payment_count = program_data
+        .payment_count
+        .checked_add(1)
+        .ok_or(ProgramError::ArithmeticOverflow)?;
     ProgramDataAccount::from(program_data).store(program_data_info, false)?;
+
+    if let Some(transient_info) = transient_info_to_close {
+        transient_info.close_account(payer_info)?;
+    }
 
     msg!(
         "Paid IGP {} for {} gas for message {} to {}",
@@ -406,10 +587,20 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
 
 /// Quotes the required payment for a given gas amount and destination domain.
 ///
-/// Accounts:
+/// Old flow accounts:
 /// 0. `[executable]` The system program.
-/// 1. `[]` The IGP account.
-/// 2. `[]` The overhead IGP account (optional).
+/// 1. `[]` The IGP account (owner == program_id).
+/// 2. `[]` The overhead IGP account (optional, owner == program_id).
+///
+/// New flow (detected by account 2 owner != program_id):
+///
+/// 0. `[executable]` The system program.
+/// 1. `[]` The IGP account (same position as old flow).
+/// 2. `[]` quoted_sender (owner != program_id — informational, NOT signer).
+/// 3. `[]` Standing quote PDA (exact).
+/// 4. `[]` Standing quote PDA (wildcard-sender).
+/// 5. `[]` Standing quote PDA (wildcard-domain).
+/// 6. `[]` The overhead IGP account (optional, after cascade).
 fn quote_gas_payment(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -423,43 +614,121 @@ fn quote_gas_payment(
         return Err(ProgramError::IncorrectProgramId);
     }
 
-    // Account 1: The IGP account.
+    // Account 1: The IGP account (same position in both flows).
     let igp_info = next_account_info(accounts_iter)?;
-    // The caller should validate the IGP account before paying for gas,
-    // but we do some basic checks here as a sanity check.
     if igp_info.owner != program_id {
         return Err(ProgramError::IncorrectProgramId);
     }
-
-    // Account 2: Overhead IGP account (optional).
-    // The caller is expected to only provide an overhead IGP they are comfortable
-    // with / have configured themselves.
-    let gas_amount = if let Some(overhead_igp_info) = accounts_iter.next() {
-        if overhead_igp_info.owner != program_id {
-            return Err(ProgramError::IncorrectProgramId);
-        }
-
-        let overhead_igp =
-            OverheadIgpAccount::fetch(&mut &overhead_igp_info.data.borrow()[..])?.into_inner();
-
-        if overhead_igp.inner != *igp_info.key {
-            return Err(ProgramError::InvalidArgument);
-        }
-
-        overhead_igp.gas_overhead(payment.destination_domain) + payment.gas_amount
-    } else {
-        payment.gas_amount
-    };
-
     let igp = IgpAccount::fetch(&mut &igp_info.data.borrow()[..])?.into_inner();
 
-    let required_payment = igp.quote_gas_payment(payment.destination_domain, gas_amount)?;
+    // Account 2: detection point.
+    let required_payment = match accounts_iter.next() {
+        None => igp.quote_gas_payment(payment.destination_domain, payment.gas_amount)?,
+        Some(next) if next.owner == program_id => {
+            let gas_amount = apply_overhead_gas(
+                next,
+                program_id,
+                igp_info.key,
+                payment.destination_domain,
+                payment.gas_amount,
+            )?;
+
+            igp.quote_gas_payment(payment.destination_domain, gas_amount)?
+        }
+        Some(quoted_sender_info) => {
+            let quoted_sender = quoted_sender_info.key;
+
+            // At least one quote PDA must follow.
+            if accounts_iter.as_slice().is_empty() {
+                return Err(ProgramError::NotEnoughAccountKeys);
+            }
+
+            let fee_token_mint = Pubkey::default();
+            let clock = Clock::get()?;
+
+            // Require fee_config for new flow — prevents stale quotes after config removal.
+            let fee_config = igp.fee_config.as_ref().ok_or(IgpError::QuoteConfigNotSet)?;
+            let min_issued_at = fee_config.min_issued_at;
+
+            // Standing cascade: exact → wildcard-sender → wildcard-domain.
+            let cascade_levels: &[(u32, Pubkey)] = &[
+                (payment.destination_domain, *quoted_sender),
+                (payment.destination_domain, WILDCARD_SENDER),
+                (WILDCARD_DOMAIN, *quoted_sender),
+            ];
+
+            let resolved = try_standing_cascade(
+                program_id,
+                accounts_iter,
+                igp_info.key,
+                &fee_token_mint,
+                cascade_levels,
+                min_issued_at,
+                &clock,
+            )?;
+
+            // Overhead: from remaining accounts (non-matching accounts stay in iterator).
+            let overhead_info = accounts_iter.next();
+
+            let gas_amount = match overhead_info {
+                Some(oi) => apply_overhead_gas(
+                    oi,
+                    program_id,
+                    igp_info.key,
+                    payment.destination_domain,
+                    payment.gas_amount,
+                )?,
+                None => payment.gas_amount,
+            };
+
+            ensure_no_extraneous_accounts(accounts_iter)?;
+
+            // Resolve: quote match → compute_gas_fee, else oracle fallback.
+            match resolved {
+                Some(quote) => compute_gas_fee(
+                    quote.token_exchange_rate,
+                    quote.gas_price,
+                    gas_amount,
+                    quote.token_decimals,
+                )?,
+                None => igp.quote_gas_payment(payment.destination_domain, gas_amount)?,
+            }
+        }
+    };
 
     set_return_data(&borsh::to_vec(&SimulationReturnData::new(
         required_payment,
     ))?);
 
     Ok(())
+}
+
+/// Verifies an overhead IGP account and returns the gas amount with overhead applied.
+fn apply_overhead_gas(
+    overhead_igp_info: &AccountInfo,
+    program_id: &Pubkey,
+    igp_key: &Pubkey,
+    destination_domain: u32,
+    gas_amount: u64,
+) -> Result<u64, ProgramError> {
+    if overhead_igp_info.owner != program_id {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+
+    let overhead_igp =
+        OverheadIgpAccount::fetch(&mut &overhead_igp_info.data.borrow()[..])?.into_inner();
+    let overhead_igp_key = Pubkey::create_program_address(
+        overhead_igp_pda_seeds!(overhead_igp.salt, overhead_igp.bump_seed),
+        program_id,
+    )?;
+    if overhead_igp_key != *overhead_igp_info.key || overhead_igp.inner != *igp_key {
+        return Err(ProgramError::InvalidArgument);
+    }
+
+    overhead_igp
+        .gas_overhead(destination_domain)
+        .checked_add(gas_amount)
+        .ok_or(ProgramError::ArithmeticOverflow)
 }
 
 /// Sets the beneficiary of an IGP.
@@ -667,6 +936,729 @@ fn set_gas_oracle_configs(
         owner_info,
         system_program_info,
     )?;
+
+    Ok(())
+}
+
+/// Sets or removes the IGP quote configuration.
+///
+/// Accounts:
+/// 0. `[executable]` The system program.
+/// 1. `[writeable]` The IGP account.
+/// 2. `[signer]` The IGP owner.
+fn set_igp_quote_config(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    config: Option<IgpFeeConfig>,
+) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    // Account 0: System program.
+    let system_program_info = next_account_info(accounts_iter)?;
+    if system_program_info.key != &system_program::ID {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+
+    // Account 1: IGP + Account 2: Owner (signer).
+    // Discriminator check rejects OverheadIgp.
+    let (igp_info, mut igp, owner_info) =
+        get_igp_variant_and_verify_owner::<Igp>(program_id, accounts_iter)?;
+
+    ensure_no_extraneous_accounts(accounts_iter)?;
+
+    // min_issued_at must not move backward when overwriting an existing config,
+    // mirroring the SetIgpMinIssuedAt monotonic guarantee.
+    if let (Some(existing), Some(new_config)) = (&igp.fee_config, &config) {
+        if new_config.min_issued_at < existing.min_issued_at {
+            return Err(ProgramError::InvalidArgument);
+        }
+    }
+
+    igp.fee_config = config;
+
+    let igp_account = IgpAccount::new(igp.into());
+    igp_account.store_with_rent_exempt_realloc(
+        igp_info,
+        &Rent::get()?,
+        owner_info,
+        system_program_info,
+    )?;
+
+    Ok(())
+}
+
+/// Adds or removes an authorized quote signer on the IGP.
+/// Requires fee_config to be set via SetIgpQuoteConfig first.
+///
+/// Accounts:
+/// 0. `[executable]` The system program.
+/// 1. `[writeable]` The IGP account.
+/// 2. `[signer]` The IGP owner.
+fn set_igp_quote_signer(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    operation: SetIgpQuoteSignerOperation,
+) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    // Account 0: System program.
+    let system_program_info = next_account_info(accounts_iter)?;
+    if system_program_info.key != &system_program::ID {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+
+    // Account 1: IGP + Account 2: Owner (signer).
+    let (igp_info, mut igp, owner_info) =
+        get_igp_variant_and_verify_owner::<Igp>(program_id, accounts_iter)?;
+
+    ensure_no_extraneous_accounts(accounts_iter)?;
+
+    let fee_config = igp
+        .fee_config
+        .as_mut()
+        .ok_or(ProgramError::InvalidArgument)?;
+
+    match operation {
+        SetIgpQuoteSignerOperation::Add(signer) => {
+            fee_config.signers.insert(signer);
+        }
+        SetIgpQuoteSignerOperation::Remove(signer) => {
+            if !fee_config.signers.remove(&signer) {
+                return Err(ProgramError::InvalidArgument);
+            }
+        }
+    }
+
+    let igp_account = IgpAccount::new(igp.into());
+    igp_account.store_with_rent_exempt_realloc(
+        igp_info,
+        &Rent::get()?,
+        owner_info,
+        system_program_info,
+    )?;
+
+    Ok(())
+}
+
+/// Sets the min_issued_at threshold on the IGP.
+/// Monotonic: new value must be >= current value.
+///
+/// Accounts:
+/// 0. `[executable]` The system program.
+/// 1. `[writeable]` The IGP account.
+/// 2. `[signer]` The IGP owner.
+fn set_igp_min_issued_at(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    min_issued_at: i64,
+) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    // Account 0: System program.
+    let system_program_info = next_account_info(accounts_iter)?;
+    if system_program_info.key != &system_program::ID {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+
+    // Account 1: IGP + Account 2: Owner (signer).
+    let (igp_info, mut igp, owner_info) =
+        get_igp_variant_and_verify_owner::<Igp>(program_id, accounts_iter)?;
+
+    ensure_no_extraneous_accounts(accounts_iter)?;
+
+    let fee_config = igp
+        .fee_config
+        .as_mut()
+        .ok_or(ProgramError::InvalidArgument)?;
+
+    // Monotonic: cannot decrease.
+    if min_issued_at < fee_config.min_issued_at {
+        return Err(ProgramError::InvalidArgument);
+    }
+
+    fee_config.min_issued_at = min_issued_at;
+
+    let igp_account = IgpAccount::new(igp.into());
+    igp_account.store_with_rent_exempt_realloc(
+        igp_info,
+        &Rent::get()?,
+        owner_info,
+        system_program_info,
+    )?;
+
+    Ok(())
+}
+
+/// Submits an offchain-signed quote to the IGP.
+/// Standing path: creates or updates a standing quote PDA.
+/// Transient path: creates a transient quote PDA for single-transaction use.
+///
+/// Accounts:
+/// 0. `[executable]` The system program.
+/// 1. `[signer, writeable]` The payer.
+/// 2. `[]` The IGP account.
+/// 3. `[writeable]` The standing quote PDA.
+fn submit_igp_quote(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    quote: SvmSignedQuote,
+) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    // Account 0: System program.
+    let system_program_info = next_account_info(accounts_iter)?;
+    if system_program_info.key != &system_program::ID {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+
+    // Account 1: Payer (signer, writable).
+    let payer_info = next_account_info(accounts_iter)?;
+    if !payer_info.is_signer {
+        return Err(ProgramError::MissingRequiredSignature);
+    }
+
+    // Account 2: IGP account (read-only).
+    let igp_info = next_account_info(accounts_iter)?;
+    if igp_info.owner != program_id {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+    let igp = IgpAccount::fetch(&mut &igp_info.data.borrow()[..])?.into_inner();
+
+    // Sanity check: verify IGP PDA derivation (same check as pay_for_gas).
+    let igp_key =
+        Pubkey::create_program_address(igp_pda_seeds!(igp.salt, igp.bump_seed), program_id)?;
+    if igp_info.key != &igp_key {
+        return Err(ProgramError::InvalidSeeds);
+    }
+
+    let fee_config = igp.fee_config.as_ref().ok_or(IgpError::QuoteConfigNotSet)?;
+
+    // Account 3: Quote PDA (writable).
+    let quote_pda_info = next_account_info(accounts_iter)?;
+
+    // --- Parse quote fields ---
+    let ctx = IgpQuoteContext::try_from(quote.context.as_slice())?;
+    let data = IgpQuoteData::try_from(quote.data.as_slice())?;
+
+    if ctx.fee_token_mint != Pubkey::default() {
+        return Err(IgpError::NonDefaultFeeTokenMint.into());
+    }
+
+    // --- Verify signature ---
+    quote
+        .verify_signer(
+            igp_info.key,
+            fee_config.domain_id,
+            payer_info.key,
+            &fee_config.signers,
+        )
+        .map_err(Into::<ProgramError>::into)?;
+
+    // --- Validate timestamps ---
+    let clock = Clock::get()?;
+    quote
+        .validate_quote_submission(fee_config.min_issued_at, &clock)
+        .map_err(Into::<ProgramError>::into)?;
+
+    let issued_at_ts = quote.issued_at_timestamp();
+    let expiry_ts = quote.expiry_timestamp();
+
+    // --- Business logic ---
+
+    // Reject fully-wildcarded.
+    if ctx.destination_domain == WILDCARD_DOMAIN && ctx.sender == WILDCARD_SENDER {
+        return Err(QuoteValidationError::FullyWildcardedQuote.into());
+    }
+
+    ensure_no_extraneous_accounts(accounts_iter)?;
+
+    if quote.is_transient() {
+        // --- Transient path ---
+        let scoped_salt = quote.compute_scoped_salt(payer_info.key);
+        let (expected_pda, pda_bump) = Pubkey::find_program_address(
+            igp_transient_quote_pda_seeds!(igp_info.key, scoped_salt),
+            program_id,
+        );
+        if *quote_pda_info.key != expected_pda {
+            return Err(ProgramError::InvalidSeeds);
+        }
+
+        // Transient PDAs must not already exist.
+        match quote_pda_info.init_state(program_id) {
+            AccountInitState::Uninitialized => {
+                let transient_quote = IgpTransientQuote {
+                    bump_seed: pda_bump,
+                    payer: *payer_info.key,
+                    scoped_salt,
+                    destination_domain: ctx.destination_domain,
+                    sender: ctx.sender,
+                    token_exchange_rate: data.token_exchange_rate,
+                    gas_price: data.gas_price,
+                    token_decimals: data.token_decimals,
+                    expiry: expiry_ts,
+                };
+
+                let transient_account = IgpTransientQuoteAccount::new(transient_quote.into());
+                let rent = Rent::get()?;
+
+                create_pda_account(
+                    payer_info,
+                    &rent,
+                    transient_account.size(),
+                    program_id,
+                    system_program_info,
+                    quote_pda_info,
+                    igp_transient_quote_pda_seeds!(igp_info.key, scoped_salt, pda_bump),
+                )?;
+
+                transient_account.store(quote_pda_info, false)?;
+            }
+            AccountInitState::Initialized => {
+                return Err(ProgramError::AccountAlreadyInitialized);
+            }
+            AccountInitState::OwnerMismatch => {
+                return Err(ProgramError::IncorrectProgramId);
+            }
+        }
+    } else {
+        // --- Standing path ---
+        let dest_domain_le = ctx.destination_domain.to_le_bytes();
+        let (expected_pda, pda_bump) = Pubkey::find_program_address(
+            igp_standing_quote_pda_seeds!(
+                igp_info.key,
+                ctx.fee_token_mint,
+                &dest_domain_le,
+                ctx.sender
+            ),
+            program_id,
+        );
+        if *quote_pda_info.key != expected_pda {
+            return Err(ProgramError::InvalidSeeds);
+        }
+
+        let standing_quote = IgpStandingQuote {
+            bump_seed: pda_bump,
+            fee_token_mint: ctx.fee_token_mint,
+            destination_domain: ctx.destination_domain,
+            sender: ctx.sender,
+            token_exchange_rate: data.token_exchange_rate,
+            gas_price: data.gas_price,
+            token_decimals: data.token_decimals,
+            issued_at: issued_at_ts,
+            expiry: expiry_ts,
+        };
+
+        let standing_account = IgpStandingQuoteAccount::new(standing_quote.into());
+
+        match quote_pda_info.init_state(program_id) {
+            AccountInitState::Uninitialized => {
+                let rent = Rent::get()?;
+                create_pda_account(
+                    payer_info,
+                    &rent,
+                    standing_account.size(),
+                    program_id,
+                    system_program_info,
+                    quote_pda_info,
+                    igp_standing_quote_pda_seeds!(
+                        igp_info.key,
+                        ctx.fee_token_mint,
+                        &dest_domain_le,
+                        ctx.sender,
+                        pda_bump
+                    ),
+                )?;
+
+                standing_account.store(quote_pda_info, false)?;
+            }
+            AccountInitState::Initialized => {
+                let existing =
+                    IgpStandingQuoteAccount::fetch(&mut &quote_pda_info.data.borrow()[..])?
+                        .into_inner();
+
+                if issued_at_ts < existing.data.issued_at {
+                    return Err(QuoteValidationError::StaleStandingQuoteUpdate.into());
+                }
+                // Equal issued_at → no-op, matching EVM and fee program behavior.
+                if issued_at_ts == existing.data.issued_at {
+                    msg!("IGP standing quote no-op (equal issued_at)");
+                    return Ok(());
+                }
+
+                standing_account.store(quote_pda_info, false)?;
+            }
+            AccountInitState::OwnerMismatch => {
+                return Err(ProgramError::IncorrectProgramId);
+            }
+        }
+    }
+
+    Ok(())
+}
+
+// --- Quote cascade resolution helpers ---
+
+/// Walks all standing quote PDAs in strict order (exact, wildcard-sender,
+/// wildcard-domain). All 3 must be present and match the expected derivation.
+/// Consumes all 3 from the iterator even after early resolution.
+#[allow(clippy::too_many_arguments)]
+fn try_standing_cascade(
+    program_id: &Pubkey,
+    accounts_iter: &mut std::slice::Iter<'_, AccountInfo<'_>>,
+    igp_key: &Pubkey,
+    fee_token_mint: &Pubkey,
+    cascade_levels: &[(u32, Pubkey)],
+    min_issued_at: i64,
+    clock: &Clock,
+) -> Result<Option<ResolvedQuote>, ProgramError> {
+    // All cascade PDAs must be provided and consumed from the iterator,
+    // even after a valid quote is found — prevents leftover accounts from
+    // confusing downstream account parsing (e.g. overhead IGP).
+    let mut resolved: Option<ResolvedQuote> = None;
+
+    for (dest_domain, sender) in cascade_levels {
+        let account = next_account_info(accounts_iter)?;
+
+        let dest_le = dest_domain.to_le_bytes();
+        let (expected_standing, _) = Pubkey::find_program_address(
+            igp_standing_quote_pda_seeds!(igp_key, fee_token_mint, &dest_le, sender),
+            program_id,
+        );
+
+        if *account.key != expected_standing {
+            return Err(ProgramError::InvalidArgument);
+        }
+
+        // Skip validation if we already resolved a quote at a higher-priority level.
+        if resolved.is_some() {
+            continue;
+        }
+
+        match account.init_state(program_id) {
+            AccountInitState::Uninitialized => {}
+            AccountInitState::OwnerMismatch => return Err(ProgramError::IncorrectProgramId),
+            AccountInitState::Initialized => {
+                let standing =
+                    IgpStandingQuoteAccount::fetch(&mut &account.data.borrow()[..])?.into_inner();
+
+                if standing.data.validate_quote(min_issued_at, clock).is_ok() {
+                    resolved = Some(ResolvedQuote {
+                        token_exchange_rate: standing.data.token_exchange_rate,
+                        gas_price: standing.data.gas_price,
+                        token_decimals: standing.data.token_decimals,
+                    });
+                }
+            }
+        }
+    }
+
+    Ok(resolved)
+}
+
+#[allow(unused, clippy::too_many_arguments)]
+/// Resolves a transient quote PDA. Called only after discriminator check confirms
+/// the account is a transient PDA — all validation failures are hard errors.
+/// Returns the resolved quote values on success.
+fn try_resolve_transient_quote(
+    program_id: &Pubkey,
+    account_info: &AccountInfo,
+    igp_key: &Pubkey,
+    payer: &Pubkey,
+    dest_domain: u32,
+    sender: &Pubkey,
+    min_issued_at: i64,
+    clock: &Clock,
+) -> Result<ResolvedQuote, ProgramError> {
+    let transient =
+        IgpTransientQuoteAccount::fetch(&mut &account_info.data.borrow()[..])?.into_inner();
+
+    // Re-derive PDA from stored scoped_salt to verify account authenticity.
+    let (expected, _) = Pubkey::find_program_address(
+        igp_transient_quote_pda_seeds!(igp_key, transient.data.scoped_salt),
+        program_id,
+    );
+    if *account_info.key != expected {
+        return Err(ProgramError::InvalidSeeds);
+    }
+
+    // Verify payer binding — prevents another payer from using this quote.
+    if transient.data.payer != *payer {
+        return Err(QuoteValidationError::TransientPayerMismatch.into());
+    }
+
+    // Verify stored context matches expected values. Wildcard fields match any value,
+    // matching EVM behavior where transient quotes support partial wildcards.
+    let dest_matches = transient.data.destination_domain == dest_domain
+        || transient.data.destination_domain == WILDCARD_DOMAIN;
+    let sender_matches =
+        transient.data.sender == *sender || transient.data.sender == WILDCARD_SENDER;
+    if !dest_matches || !sender_matches {
+        return Err(QuoteValidationError::TransientContextMismatch.into());
+    }
+
+    // Expired or stale → hard error (discriminator matched, so this IS the transient).
+    transient
+        .data
+        .validate_quote(min_issued_at, clock)
+        .map_err(Into::<ProgramError>::into)?;
+
+    Ok(ResolvedQuote {
+        token_exchange_rate: transient.data.token_exchange_rate,
+        gas_price: transient.data.gas_price,
+        token_decimals: transient.data.token_decimals,
+    })
+}
+
+/// Closes an orphaned transient quote PDA, refunding rent to the stored payer.
+///
+/// Accounts:
+/// 0. `[writeable]` The transient quote PDA.
+/// 1. `[signer, writeable]` The payer (must match stored payer).
+/// 2. `[]` The IGP account (for PDA re-derivation).
+fn close_igp_transient_quote(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    // Account 0: Transient quote PDA.
+    let transient_pda_info = next_account_info(accounts_iter)?;
+    if transient_pda_info.owner != program_id {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+    let transient =
+        IgpTransientQuoteAccount::fetch(&mut &transient_pda_info.data.borrow()[..])?.into_inner();
+
+    // Account 1: Payer (signer).
+    let payer_info = next_account_info(accounts_iter)?;
+    if !payer_info.is_signer {
+        return Err(ProgramError::MissingRequiredSignature);
+    }
+
+    // Account 2: IGP account (read-only, for PDA re-derivation).
+    let igp_info = next_account_info(accounts_iter)?;
+    if igp_info.owner != program_id {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+
+    ensure_no_extraneous_accounts(accounts_iter)?;
+
+    // Verify stored payer matches signer.
+    if transient.data.payer != *payer_info.key {
+        return Err(QuoteValidationError::TransientPayerMismatch.into());
+    }
+
+    // Re-derive PDA from IGP key + stored scoped_salt to verify account authenticity.
+    let (expected, _) = Pubkey::find_program_address(
+        igp_transient_quote_pda_seeds!(igp_info.key, transient.data.scoped_salt),
+        program_id,
+    );
+    if *transient_pda_info.key != expected {
+        return Err(ProgramError::InvalidSeeds);
+    }
+
+    transient_pda_info.close_account(payer_info)?;
+
+    Ok(())
+}
+
+/// Closes an expired standing quote PDA, refunding rent to the IGP's beneficiary.
+///
+/// Accounts:
+/// 0. `[writeable]` The standing quote PDA.
+/// 1. `[]` The IGP account (for PDA re-derivation + beneficiary check).
+/// 2. `[writeable]` The beneficiary (receives rent refund).
+fn close_igp_standing_quote(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    // Account 0: Standing quote PDA.
+    let standing_pda_info = next_account_info(accounts_iter)?;
+    if standing_pda_info.owner != program_id {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+    let standing =
+        IgpStandingQuoteAccount::fetch(&mut &standing_pda_info.data.borrow()[..])?.into_inner();
+
+    // Account 1: IGP account (read-only).
+    let igp_info = next_account_info(accounts_iter)?;
+    if igp_info.owner != program_id {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+    let igp = IgpAccount::fetch(&mut &igp_info.data.borrow()[..])?.into_inner();
+
+    // Account 2: Beneficiary (writable, receives rent refund).
+    let beneficiary_info = next_account_info(accounts_iter)?;
+
+    ensure_no_extraneous_accounts(accounts_iter)?;
+
+    // Verify beneficiary matches IGP's beneficiary.
+    if *beneficiary_info.key != igp.beneficiary {
+        return Err(IgpError::BeneficiaryMismatch.into());
+    }
+
+    // Re-derive PDA from stored context fields + IGP key.
+    let dest_domain_le = standing.data.destination_domain.to_le_bytes();
+    let (expected, _) = Pubkey::find_program_address(
+        igp_standing_quote_pda_seeds!(
+            igp_info.key,
+            standing.data.fee_token_mint,
+            &dest_domain_le,
+            standing.data.sender
+        ),
+        program_id,
+    );
+    if *standing_pda_info.key != expected {
+        return Err(ProgramError::InvalidSeeds);
+    }
+
+    // Verify quote has expired.
+    let clock = Clock::get()?;
+    if clock.unix_timestamp <= standing.data.expiry {
+        return Err(IgpError::StandingQuoteNotExpired.into());
+    }
+
+    standing_pda_info.close_account(beneficiary_info)?;
+
+    Ok(())
+}
+
+/// Simulation-only: returns the required account metas for PayForGas new flow.
+/// If scoped_salt is provided, returns prefix + transient PDA only (transient
+/// and standing are mutually exclusive paths). Otherwise, walks the standing
+/// cascade and returns prefix + trimmed standing PDAs.
+///
+/// Accounts:
+/// 0. `[]` The IGP account.
+/// 1. `[]` Exact standing PDA (ignored if scoped_salt provided).
+/// 2. `[]` Wildcard-sender standing PDA (ignored if scoped_salt provided).
+/// 3. `[]` Wildcard-domain standing PDA (ignored if scoped_salt provided).
+fn get_igp_quote_account_metas(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    data: GetIgpQuoteAccountMetas,
+) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    // Account 0: IGP account.
+    let igp_info = next_account_info(accounts_iter)?;
+    if igp_info.owner != program_id {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+    let igp = IgpAccount::fetch(&mut &igp_info.data.borrow()[..])?.into_inner();
+
+    let (program_data_key, _) =
+        Pubkey::find_program_address(igp_program_data_pda_seeds!(), program_id);
+
+    // Shared prefix: PayForGas accounts [0..4].
+    // Placeholders: SDK must replace payer (idx 1), unique_gas_payment (idx 3),
+    // and gas_payment_pda (idx 4, derived from unique_gas_payment) before use.
+    let mut metas = vec![
+        SerializableAccountMeta {
+            // [0] system_program
+            pubkey: system_program::ID,
+            is_signer: false,
+            is_writable: false,
+        },
+        SerializableAccountMeta {
+            // [1] Placeholder: payer (SDK replaces with actual payer).
+            pubkey: Pubkey::default(),
+            is_signer: true,
+            is_writable: true,
+        },
+        SerializableAccountMeta {
+            // [2] program_data
+            pubkey: program_data_key,
+            is_signer: false,
+            is_writable: true,
+        },
+        SerializableAccountMeta {
+            // [3] Placeholder: unique_gas_payment keypair (SDK generates fresh).
+            pubkey: Pubkey::default(),
+            is_signer: true,
+            is_writable: false,
+        },
+        SerializableAccountMeta {
+            // [4] Placeholder: gas_payment_pda (SDK derives from unique_gas_payment).
+            pubkey: Pubkey::default(),
+            is_signer: false,
+            is_writable: true,
+        },
+    ];
+
+    ensure_no_extraneous_accounts(accounts_iter)?;
+
+    if igp.fee_config.is_some() {
+        // Quoted flow: [5] IGP terminal, [6] sender_authority, [7] quoted_sender,
+        // then transient PDA or all 3 standing cascade PDAs (derived on-chain).
+
+        // [5] IGP account (terminal sentinel for warp route parsing).
+        metas.push(SerializableAccountMeta {
+            pubkey: *igp_info.key,
+            is_signer: false,
+            is_writable: true,
+        });
+
+        let (sender_authority, _) =
+            Pubkey::find_program_address(DISPATCH_AUTHORITY_SEEDS, &data.sender);
+
+        // [6] sender_authority (dispatch_authority PDA, signed via invoke_signed).
+        metas.push(SerializableAccountMeta {
+            pubkey: sender_authority,
+            is_signer: true,
+            is_writable: false,
+        });
+        // [7] quoted_sender (warp route program_id).
+        metas.push(SerializableAccountMeta {
+            pubkey: data.sender,
+            is_signer: false,
+            is_writable: false,
+        });
+
+        if let Some(scoped_salt) = data.scoped_salt {
+            // Transient path: [8] transient PDA only.
+            let (transient_key, _) = Pubkey::find_program_address(
+                igp_transient_quote_pda_seeds!(igp_info.key, scoped_salt),
+                program_id,
+            );
+            metas.push(SerializableAccountMeta {
+                pubkey: transient_key,
+                is_signer: false,
+                is_writable: true,
+            });
+        } else {
+            // Standing path: [8..10] all 3 cascade PDAs, derived on-chain.
+            let fee_token_mint = Pubkey::default();
+            let dest_le = data.destination_domain.to_le_bytes();
+            let wildcard_le = WILDCARD_DOMAIN.to_le_bytes();
+
+            let cascade_seeds: [(&[u8], &Pubkey); 3] = [
+                (&dest_le, &data.sender),
+                (&dest_le, &WILDCARD_SENDER),
+                (&wildcard_le, &data.sender),
+            ];
+
+            for (domain_le, sender) in &cascade_seeds {
+                let (pda, _) = Pubkey::find_program_address(
+                    igp_standing_quote_pda_seeds!(igp_info.key, fee_token_mint, domain_le, sender),
+                    program_id,
+                );
+                metas.push(SerializableAccountMeta {
+                    pubkey: pda,
+                    is_signer: false,
+                    is_writable: false,
+                });
+            }
+        }
+    } else {
+        // Legacy flow: just the IGP account at [5]. No cascade PDAs needed.
+        metas.push(SerializableAccountMeta {
+            pubkey: *igp_info.key,
+            is_signer: false,
+            is_writable: true,
+        });
+    }
+
+    set_return_data(
+        &borsh::to_vec(&SimulationReturnData::new(metas))
+            .map_err(|_| ProgramError::BorshIoError)?,
+    );
 
     Ok(())
 }

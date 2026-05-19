@@ -12,7 +12,99 @@ use solana_system_interface::{
 };
 
 pub mod discriminator;
+pub mod error;
+
 pub use discriminator::*;
+pub use error::*;
+
+/// Reads an optional trailing field from a Borsh reader. Treats EOF as
+/// `None` so that accounts serialized before the field existed still
+/// deserialize correctly. All future trailing-optional fields must use
+/// this helper to preserve backward compatibility.
+pub fn read_optional_trailing<R: std::io::Read, V: BorshDeserialize>(
+    reader: &mut R,
+) -> std::io::Result<Option<V>> {
+    let mut tag = [0u8; 1];
+    match reader.read_exact(&mut tag) {
+        Ok(()) => match tag[0] {
+            0 => Ok(None),
+            1 => V::deserialize_reader(reader).map(Some),
+            v => Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("Invalid Option tag: {v}"),
+            )),
+        },
+        Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => Ok(None),
+        Err(e) => Err(e),
+    }
+}
+
+/// Verifies that no additional accounts remain in the iterator.
+pub fn ensure_no_extraneous_accounts(
+    accounts_iter: &mut std::slice::Iter<'_, AccountInfo<'_>>,
+) -> Result<(), ProgramError> {
+    if accounts_iter.next().is_some() {
+        return Err(AccountError::ExtraneousAccount.into());
+    }
+
+    Ok(())
+}
+
+/// Result of checking an account's initialization state.
+pub enum AccountInitState {
+    /// Account is uninitialized (empty data, owned by system program).
+    Uninitialized,
+    /// Account is initialized and owned by the expected program.
+    Initialized,
+    /// Account owner does not match the expected program.
+    OwnerMismatch,
+}
+
+/// Extension trait for `AccountInfo` providing common inspection and lifecycle methods.
+pub trait AccountInfoExt {
+    /// Checks the account's initialization state against an expected owner.
+    fn init_state(&self, expected_owner: &Pubkey) -> AccountInitState;
+
+    /// Closes the account by draining lamports to recipient, zeroing data, and
+    /// reassigning ownership to the system program.
+    fn close_account(&self, recipient: &AccountInfo) -> Result<(), ProgramError>;
+}
+
+impl AccountInfoExt for AccountInfo<'_> {
+    fn init_state(&self, expected_owner: &Pubkey) -> AccountInitState {
+        if self.data_is_empty() && self.owner == &system_program_id() {
+            AccountInitState::Uninitialized
+        } else if self.owner == expected_owner {
+            AccountInitState::Initialized
+        } else {
+            AccountInitState::OwnerMismatch
+        }
+    }
+
+    fn close_account(&self, recipient: &AccountInfo) -> Result<(), ProgramError> {
+        if !self.is_writable {
+            return Err(ProgramError::InvalidAccountData);
+        }
+
+        if self.key == recipient.key {
+            return Err(ProgramError::InvalidAccountData);
+        }
+
+        let lamports = self.lamports();
+        **self.try_borrow_mut_lamports()? = 0;
+        **recipient.try_borrow_mut_lamports()? = recipient
+            .lamports()
+            .checked_add(lamports)
+            .ok_or(ProgramError::ArithmeticOverflow)?;
+
+        self.data.borrow_mut().fill(0);
+        self.resize(0)?;
+
+        self.assign(&system_program_id());
+
+        Ok(())
+    }
+}
 
 /// The SPL Noop program ID.
 /// Defined here to avoid pulling in `spl-noop` which depends on `solana-program ^2`.
@@ -162,6 +254,10 @@ where
         let mut writable_target: &mut [u8] = &mut *target;
         true.serialize(&mut writable_target)
             .and_then(|_| self.data.serialize(&mut writable_target))?;
+        // Zero any trailing bytes so stale data from a previously larger
+        // serialization (e.g. an optional field going from Some → None)
+        // does not confuse future deserialization.
+        writable_target.fill(0);
         Ok(())
     }
 }
