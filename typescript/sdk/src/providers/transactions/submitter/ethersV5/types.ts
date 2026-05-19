@@ -15,6 +15,7 @@ import { TxSubmitterType } from '../TxSubmitterTypes.js';
 export const EV5GnosisSafeTxSubmitterPropsSchema = z.object({
   chain: ZChainName,
   safeAddress: ZHash,
+  apiKey: z.string().optional(),
 });
 
 export type EV5GnosisSafeTxSubmitterProps = z.infer<
@@ -25,6 +26,7 @@ export const EV5GnosisSafeTxBuilderPropsSchema = z.object({
   version: z.string().default('1.0'),
   chain: ZChainName,
   safeAddress: ZHash,
+  apiKey: z.string().optional(),
 });
 
 export type EV5GnosisSafeTxBuilderProps = z.infer<

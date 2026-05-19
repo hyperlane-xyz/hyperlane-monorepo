@@ -42,6 +42,7 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
     multiProvider: MultiProvider,
     safeAddress: Address,
     signerKey?: string,
+    apiKey?: string,
   ): Promise<{ safe: Safe.default; safeService: SafeApiKit.default }> {
     const { gnosisSafeTransactionServiceUrl } =
       multiProvider.getChainMetadata(chain);
@@ -50,8 +51,14 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
       `Must set gnosisSafeTransactionServiceUrl in the Registry metadata for ${chain}`,
     );
 
-    const safe = await getSafe(chain, multiProvider, safeAddress, signerKey);
-    const safeService = await getSafeService(chain, multiProvider);
+    const safe = await getSafe(
+      chain,
+      multiProvider,
+      safeAddress,
+      signerKey,
+      apiKey,
+    );
+    const safeService = getSafeService(chain, multiProvider, apiKey);
     return { safe, safeService };
   }
 
@@ -59,7 +66,7 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
     multiProvider: MultiProvider,
     props: EV5GnosisSafeTxSubmitterProps,
   ): Promise<EV5GnosisSafeTxSubmitter> {
-    const { chain, safeAddress } = props;
+    const { chain, safeAddress, apiKey } = props;
 
     const signer = multiProvider.getSigner(chain);
     const signerAddress = await signer.getAddress();
@@ -68,6 +75,7 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
       chain,
       multiProvider,
       safeAddress,
+      apiKey,
     );
     assert(
       authorized,
@@ -88,6 +96,7 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
         multiProvider,
         safeAddress,
         safeSignerKey,
+        apiKey,
       );
 
     return new EV5GnosisSafeTxSubmitter(

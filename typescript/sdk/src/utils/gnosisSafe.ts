@@ -20,8 +20,9 @@ export function safeApiKeyRequired(txServiceUrl: string): boolean {
 export function getSafeService(
   chain: ChainName,
   multiProvider: MultiProvider,
+  apiKey?: string,
 ): SafeApiKit.default {
-  const { gnosisSafeTransactionServiceUrl, gnosisSafeApiKey } =
+  const { gnosisSafeTransactionServiceUrl, gnosisSafeApiKey: metadataApiKey } =
     multiProvider.getChainMetadata(chain);
   let txServiceUrl = gnosisSafeTransactionServiceUrl;
   if (!txServiceUrl) {
@@ -44,12 +45,14 @@ export function getSafeService(
     throw new Error(`Chain is not an EVM chain: ${chain}`);
   }
 
+  const resolvedApiKey = apiKey ?? metadataApiKey;
+
   // @ts-ignore
   return new SafeApiKit({
     chainId: BigInt(chainId),
     txServiceUrl,
     // Only provide apiKey if the url contains safe.global or 5afe.dev
-    apiKey: safeApiKeyRequired(txServiceUrl) ? gnosisSafeApiKey : undefined,
+    apiKey: safeApiKeyRequired(txServiceUrl) ? resolvedApiKey : undefined,
   });
 }
 
@@ -110,12 +113,13 @@ export async function getSafe(
   multiProvider: MultiProvider,
   safeAddress: Address,
   signer?: SafeProviderConfig['signer'],
+  apiKey?: string,
 ): Promise<Safe.default> {
   // Get the chain id for the given chain
   const chainId = `${multiProvider.getEvmChainId(chain)}`;
 
   // Get the safe version
-  const safeService = getSafeService(chain, multiProvider);
+  const safeService = getSafeService(chain, multiProvider, apiKey);
 
   const { version: rawSafeVersion } = await retryAsync(
     () => safeService.getSafeInfo(safeAddress),
@@ -183,14 +187,21 @@ export async function canProposeSafeTransactions(
   chain: ChainName,
   multiProvider: MultiProvider,
   safeAddress: Address,
+  apiKey?: string,
 ): Promise<boolean> {
   let safeService: SafeApiKit.default;
   try {
-    safeService = getSafeService(chain, multiProvider);
+    safeService = getSafeService(chain, multiProvider, apiKey);
   } catch {
     return false;
   }
-  const safe = await getSafe(chain, multiProvider, safeAddress);
+  const safe = await getSafe(
+    chain,
+    multiProvider,
+    safeAddress,
+    undefined,
+    apiKey,
+  );
   const delegates = await getSafeDelegates(safeService, safeAddress);
   const owners = await safe.getOwners();
   return delegates.includes(proposer) || owners.includes(proposer);

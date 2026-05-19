@@ -38,12 +38,14 @@ export class EV5GnosisSafeTxBuilder extends EV5GnosisSafeTxSubmitter {
     multiProvider: MultiProvider,
     props: EV5GnosisSafeTxBuilderProps,
   ): Promise<EV5GnosisSafeTxBuilder> {
-    const { chain, safeAddress } = props;
+    const { chain, safeAddress, apiKey } = props;
     const { safe, safeService } =
       await EV5GnosisSafeTxSubmitter.initSafeAndService(
         chain,
         multiProvider,
         safeAddress,
+        undefined,
+        apiKey,
       );
     return new EV5GnosisSafeTxBuilder(multiProvider, props, safe, safeService);
   }
