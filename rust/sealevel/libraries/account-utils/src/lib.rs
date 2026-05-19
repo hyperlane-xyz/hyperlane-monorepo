@@ -110,6 +110,15 @@ impl AccountInfoExt for AccountInfo<'_> {
 /// Defined here to avoid pulling in `spl-noop` which depends on `solana-program ^2`.
 pub const SPL_NOOP_PROGRAM_ID: Pubkey = pubkey!("noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV");
 
+/// Serialized size of a `Pubkey` (32 bytes).
+pub const PUBKEY_SIZE: usize = 32;
+/// Serialized size of an `H256` value (32 bytes).
+pub const H256_SIZE: usize = 32;
+/// Serialized size of an `H160` value (20 bytes).
+pub const H160_SIZE: usize = 20;
+/// Borsh-encoded length prefix size (4-byte `u32`).
+pub const BORSH_LEN_PREFIX: usize = std::mem::size_of::<u32>();
+
 /// Data that has a predictable size when serialized.
 pub trait SizedData {
     /// Returns the size of the data when serialized.

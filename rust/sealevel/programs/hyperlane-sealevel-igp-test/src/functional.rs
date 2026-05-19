@@ -15,8 +15,8 @@ use solana_sdk::{
 use solana_system_interface::program as system_program;
 
 use hyperlane_test_utils::{
-    assert_transaction_error, igp_program_id, new_funded_keypair, process_instruction,
-    simulate_instruction, transfer_lamports,
+    assert_transaction_error, eth_address, igp_program_id, new_funded_keypair, process_instruction,
+    sign_hash, simulate_instruction, transfer_lamports,
 };
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 
@@ -42,7 +42,7 @@ use hyperlane_sealevel_igp::{
     overhead_igp_pda_seeds,
     processor::process_instruction as igp_process_instruction,
 };
-use k256::ecdsa::{SigningKey, VerifyingKey};
+use k256::ecdsa::SigningKey;
 use quote_verifier::{QuoteValidationError, QuoteVerifyError, SvmSignedQuote};
 
 const TEST_DESTINATION_DOMAIN: u32 = 11111;
@@ -2359,23 +2359,6 @@ fn encode_igp_data(exchange_rate: u128, gas_price: u128, token_decimals: u8) -> 
     buf.extend_from_slice(&gas_price.to_le_bytes());
     buf.push(token_decimals);
     buf
-}
-
-fn sign_hash(signing_key: &SigningKey, hash: &[u8; 32]) -> [u8; 65] {
-    let (sig, recovery_id) = signing_key
-        .sign_prehash_recoverable(hash)
-        .expect("signing failed");
-    let mut bytes = [0u8; 65];
-    bytes[..64].copy_from_slice(&sig.to_bytes());
-    bytes[64] = recovery_id.to_byte();
-    bytes
-}
-
-fn eth_address(signing_key: &SigningKey) -> H160 {
-    let verifying_key = VerifyingKey::from(signing_key);
-    let pubkey_bytes = verifying_key.to_encoded_point(false);
-    let hash = solana_program::keccak::hash(&pubkey_bytes.as_bytes()[1..]);
-    H160::from_slice(&hash.as_ref()[12..])
 }
 
 #[allow(clippy::too_many_arguments)]

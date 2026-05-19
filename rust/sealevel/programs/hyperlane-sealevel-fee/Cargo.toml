@@ -26,6 +26,7 @@ thiserror.workspace = true
 getrandom = { workspace = true, features = ["custom"] }
 
 [dev-dependencies]
+hyperlane-test-utils = { path = "../../libraries/test-utils" }
 k256.workspace = true
 rand.workspace = true
 solana-program-test.workspace = true

@@ -36,9 +36,9 @@ use hyperlane_sealevel_fee::{
     processor::process_instruction as fee_process_instruction,
     route_domain_pda_seeds, transient_quote_pda_seeds,
 };
-use k256::ecdsa::{SigningKey, VerifyingKey};
+use hyperlane_test_utils::{eth_address, sign_hash};
+use k256::ecdsa::SigningKey;
 use quote_verifier::{QuoteValidationError, QuoteVerifyError, SvmSignedQuote};
-use solana_program::keccak;
 
 const LOCAL_DOMAIN: u32 = 1234;
 
@@ -152,25 +152,6 @@ fn leaf_signers(acct: &FeeAccount) -> &Option<BTreeSet<H160>> {
         FeeData::Leaf(cfg) => &cfg.signers,
         _ => panic!("expected Leaf fee_data"),
     }
-}
-
-/// Signs a message hash with a k256 private key and returns the 65-byte signature.
-fn sign_hash(signing_key: &SigningKey, hash: &[u8; 32]) -> [u8; 65] {
-    let (sig, recovery_id) = signing_key
-        .sign_prehash_recoverable(hash)
-        .expect("signing failed");
-    let mut bytes = [0u8; 65];
-    bytes[..64].copy_from_slice(&sig.to_bytes());
-    bytes[64] = recovery_id.to_byte();
-    bytes
-}
-
-/// Derives the Ethereum address (H160) from a k256 signing key.
-fn eth_address(signing_key: &SigningKey) -> H160 {
-    let verifying_key = VerifyingKey::from(signing_key);
-    let pubkey_bytes = verifying_key.to_encoded_point(false);
-    let hash = keccak::hash(&pubkey_bytes.as_bytes()[1..]);
-    H160::from_slice(&hash.as_ref()[12..])
 }
 
 /// Creates a signed transient quote (expiry == issued_at).

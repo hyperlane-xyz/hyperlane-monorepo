@@ -2,7 +2,8 @@ use std::collections::HashSet;
 
 use access_control::AccessControl;
 use account_utils::{
-    create_pda_account, verify_account_uninitialized, DiscriminatorDecode, SizedData,
+    create_pda_account, verify_account_uninitialized, AccountInfoExt, DiscriminatorDecode,
+    SizedData,
 };
 use hyperlane_core::{Decode, HyperlaneMessage, ModuleType};
 use hyperlane_sealevel_interchain_security_module_interface::{
@@ -384,14 +385,7 @@ fn remove_domain_ism(program_id: &Pubkey, accounts: &[AccountInfo], domain: u32)
         return Err(Error::ProgramIdNotOwner.into());
     }
 
-    // Transfer all lamports to owner, then zero out the account.
-    let lamports = domain_pda_account.lamports();
-    **domain_pda_account.try_borrow_mut_lamports()? = 0;
-    **owner_account.try_borrow_mut_lamports()? += lamports;
-
-    // Clear data and reassign to system program so the account is fully closed.
-    domain_pda_account.assign(&system_program::ID);
-    domain_pda_account.resize(0)?;
+    domain_pda_account.close_account(owner_account)?;
 
     Ok(())
 }
