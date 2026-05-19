@@ -4,8 +4,8 @@ import { type Address, getAddressCodec } from '@solana/kit';
 
 import { assert } from '@hyperlane-xyz/utils';
 
-import { concatBytes, u32le } from '../codecs/binary.js';
-import type { SvmSignedQuote } from '../codecs/fee.js';
+import { concatBytes, u32le } from './codecs/binary.js';
+import type { SvmSignedQuote } from './codecs/fee.js';
 
 /**
  * Domain tag prepended to every quote message hash to scope the signature
@@ -109,8 +109,9 @@ export interface SignSvmQuoteArgs {
  * Signs an offchain quote with the given secp256k1 private key, producing
  * the `SvmSignedQuote` shape the fee program and IGP both accept.
  *
- * Pure-crypto helper intended for tests; do not use to manage production
- * signer material.
+ * The private key is held in memory while signing — same security posture as
+ * viem's `privateKeyToAccount`. Callers are responsible for sourcing key
+ * material safely (env var, KMS, etc.).
  */
 export function signSvmQuote(args: SignSvmQuoteArgs): SvmSignedQuote {
   assert(
