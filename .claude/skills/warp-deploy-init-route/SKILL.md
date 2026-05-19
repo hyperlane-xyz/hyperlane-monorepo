@@ -467,11 +467,11 @@ Use the provided variable name(s) to build the command.
 
 ### 7d: Build and Show the Command
 
-Assemble the full deploy command. The command must be run from `typescript/cli`. Always include `--yes` to skip the interactive confirmation prompt and a 10-minute timeout (600000ms).
+Assemble the full deploy command. The command must be run from `typescript/cli`. Always include `--yes` to skip the interactive confirmation prompt.
 
 > **Note:** The HTTP registry must be running before executing this command (started in Step 8). Start it first, then use its URL here.
 
-```test
+```bash
 cd /path/to/hyperlane-monorepo/typescript/cli && pnpm hyperlane warp deploy \
   --registry http://localhost:<port> \
   --warp-route-id <TOKEN>/<new-chain> \
@@ -493,7 +493,7 @@ Show the user the exact command with env variable names substituted (e.g. `$MY_E
 
 If the user confirms, first start the HTTP registry in the background to get private RPC URLs from Secret Manager:
 
-```test
+```bash
 cd <MONOREPO_ROOT> && pnpm -C typescript/infra start:http-registry --writeMode
 ```
 
@@ -506,7 +506,7 @@ Tell the user upfront:
 > Chains: `<list all chains>`
 > You'll see the full output when it completes.
 
-Then run the deploy command from `typescript/cli`. Use only the HTTP registry — it is started with `--writeMode` so it handles both private RPC reads and artifact writes. Always use a 10-minute timeout (600000ms). Always include `--yes`:
+Then run the deploy command from `typescript/cli`. Use only the HTTP registry — it is started with `--writeMode` so it handles both private RPC reads and artifact writes. Always include `--yes`:
 
 ```bash
 cd /path/to/hyperlane-monorepo/typescript/cli && pnpm hyperlane warp deploy \

@@ -137,7 +137,7 @@ Show the user the exact command and ask:
 
 > **Ready to run warp apply to transfer ownership?** Type `yes` to execute, or `no` to run manually.
 
-If the user confirms, run it with a 10-minute timeout (600000ms). Show the full output on completion.
+If the user confirms, run it. Show the full output on completion.
 
 **On failure:** stop the HTTP registry (Step 10e), show the error, and stop. Do not proceed to Step 11. Common issues:
 
