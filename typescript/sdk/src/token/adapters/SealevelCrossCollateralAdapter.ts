@@ -22,6 +22,9 @@ import {
 import { SealevelInstructionWrapper } from '../../utils/sealevelSerialization.js';
 import type {
   IHypCrossCollateralAdapter,
+  InterchainGasQuote,
+  QuoteTransferRemoteParams,
+  TransferRemoteParams,
   TransferRemoteToParams,
 } from './ITokenAdapter.js';
 import {
@@ -79,6 +82,59 @@ export class SealevelHypCrossCollateralAdapter
       // CC fee account uses the destination warp router H256 in its
       // standing-quote PDA seeds.
       targetRouter: padBytesToLength(addressToBytes(params.targetRouter), 32),
+    });
+  }
+
+  // Override base impl which seeds the standing-quote PDA with H256::zero();
+  // CC fee accounts seed with the destination warp router pulled from the
+  // on-chain remote_routers map.
+  override async quoteTransferRemoteGas(
+    params: QuoteTransferRemoteParams,
+  ): Promise<InterchainGasQuote> {
+    const localDomain = this.multiProvider.getDomainId(this.chainName);
+    if (params.destination === localDomain) {
+      return { igpQuote: { amount: 0n } };
+    }
+    const tokenData = await this.getTokenAccountData();
+    const remoteRouterBytes = tokenData.remote_routers?.get(params.destination);
+    assert(
+      remoteRouterBytes,
+      `No remote router registered for destination domain ${params.destination}`,
+    );
+    return this.quoteTransferGas({
+      destination: params.destination,
+      sender: params.sender,
+      recipient: params.recipient,
+      amount: params.amount,
+      targetRouter: remoteRouterBytes,
+    });
+  }
+
+  // Override base impl which seeds the fee section with H256::zero(); resolve
+  // the destination warp router and delegate to populateTransferRemoteToTx.
+  override async populateTransferRemoteTx({
+    weiAmountOrId,
+    destination,
+    recipient,
+    fromAccountOwner,
+    extraSigners,
+  }: TransferRemoteParams): Promise<Transaction | VersionedTransaction> {
+    const tokenData = await this.getTokenAccountData();
+    const remoteRouterBytes = tokenData.remote_routers?.get(destination);
+    assert(
+      remoteRouterBytes,
+      `No remote router registered for destination domain ${destination}`,
+    );
+    // 32-byte canonical form → base58 round-trips through addressToBytesSol
+    // back to the same 32 bytes (works for both EVM-padded and native SVM
+    // target routers).
+    return this.populateTransferRemoteToTx({
+      amount: weiAmountOrId,
+      destination,
+      recipient,
+      fromAccountOwner,
+      targetRouter: new PublicKey(remoteRouterBytes).toBase58(),
+      extraSigners,
     });
   }
 
