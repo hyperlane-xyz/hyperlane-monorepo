@@ -75,7 +75,13 @@ export function decodeTrailingIgpFeeConfig(
   }
   const domain_id = rawAccountData.readUInt32LE(offset);
   offset += U32_BYTES;
-  const min_issued_at = rawAccountData.readBigInt64LE(offset);
+  // Use DataView for i64 — Node's readBigInt64LE is missing from common
+  // browser Buffer polyfills (e.g., Turbopack).
+  const min_issued_at = new DataView(
+    rawAccountData.buffer,
+    rawAccountData.byteOffset + offset,
+    I64_BYTES,
+  ).getBigInt64(0, true);
 
   return { signers, domain_id, min_issued_at };
 }

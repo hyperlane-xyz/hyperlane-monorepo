@@ -412,7 +412,11 @@ export async function simulateWarpFee(
     returnData.length >= 8,
     `QuoteFee return data truncated: expected u64 LE, got ${returnData.length} bytes`,
   );
-  return returnData.readBigUInt64LE(0);
+  return new DataView(
+    returnData.buffer,
+    returnData.byteOffset,
+    returnData.byteLength,
+  ).getBigUint64(0, true);
 }
 
 /**
