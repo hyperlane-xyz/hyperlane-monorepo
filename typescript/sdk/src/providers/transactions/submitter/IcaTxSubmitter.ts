@@ -80,6 +80,9 @@ export class EvmIcaTxSubmitter implements TxSubmitterInterface<ProtocolType.Ethe
         chain: config.chain,
         destinationChain: config.destinationChain,
         originInterchainAccountRouter: interchainAccountRouterAddress,
+        destinationInterchainAccountRouter:
+          config.destinationInterchainAccountRouter,
+        interchainSecurityModule: config.interchainSecurityModule,
       },
       internalSubmitter,
       multiProvider,
@@ -149,20 +152,14 @@ export class EvmIcaTxSubmitter implements TxSubmitterInterface<ProtocolType.Ethe
     });
     const hookMetadata = formatStandardHookMetadata({
       refundAddress,
-      gasLimit: BigInt(gasLimit.toString()),
+      gasLimit: gasLimit.toBigInt(),
     });
 
     const icaTx = await this.interchainAccountApp.getCallRemote({
       chain: this.config.chain,
       destination: this.config.destinationChain,
       innerCalls,
-      config: {
-        origin: this.config.chain,
-        owner: this.config.owner,
-        ismOverride: this.config.interchainSecurityModule,
-        routerOverride: this.config.destinationInterchainAccountRouter,
-        localRouter: this.config.originInterchainAccountRouter,
-      },
+      config: icaConfig,
       hookMetadata,
     });
 
