@@ -45,7 +45,7 @@ contract RateLimitLibTest is Test {
     function testRateLimited_returnsCurrentFilledLevel_anyDay(
         uint40 time
     ) external {
-        bound(time, 1 days, 2 days);
+        time = uint40(bound(time, 1 days, 2 days));
         vm.warp(time);
 
         // Using approx because division won't be exact
@@ -85,6 +85,7 @@ contract RateLimitLibTest is Test {
         uint256 _newAmount,
         uint40 _newTime
     ) external {
+        _newTime = uint40(bound(_newTime, 1 days, type(uint40).max));
         vm.warp(_newTime);
         vm.assume(_newAmount <= rateLimited.calculateCurrentLevel());
         rateLimited.validateAndConsumeFilledLevel(_newAmount);
