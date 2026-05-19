@@ -134,7 +134,23 @@ export class EvmIcaTxSubmitter implements TxSubmitterInterface<ProtocolType.Ethe
     );
 
     const refundAddress = bytes32ToAddress(this.config.owner);
-    const hookMetadata = formatStandardHookMetadata({ refundAddress });
+    const icaConfig = {
+      origin: this.config.chain,
+      owner: this.config.owner,
+      ismOverride: this.config.interchainSecurityModule,
+      routerOverride: this.config.destinationInterchainAccountRouter,
+      localRouter: this.config.originInterchainAccountRouter,
+    };
+    const gasLimit = await this.interchainAccountApp.estimateIcaHandleGas({
+      origin: this.config.chain,
+      destination: this.config.destinationChain,
+      innerCalls,
+      config: icaConfig,
+    });
+    const hookMetadata = formatStandardHookMetadata({
+      refundAddress,
+      gasLimit: BigInt(gasLimit.toString()),
+    });
 
     const icaTx = await this.interchainAccountApp.getCallRemote({
       chain: this.config.chain,
