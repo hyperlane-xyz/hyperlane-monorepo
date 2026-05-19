@@ -120,6 +120,7 @@ export interface NullMetadataBuildResult extends BaseMetadataBuildResult {
     | typeof IsmType.OP_STACK
     | typeof IsmType.PAUSABLE
     | typeof IsmType.CCIP
+    | typeof IsmType.NET_FLOW_RATE_LIMITED
     | typeof IsmType.RATE_LIMITED;
   /** Always present for null ISMs */
   metadata: string;

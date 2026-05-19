@@ -53,6 +53,7 @@ export const HookType = {
   ROUTING: 'domainRoutingHook',
   FALLBACK_ROUTING: 'fallbackRoutingHook',
   AMOUNT_ROUTING: 'amountRoutingHook',
+  NET_FLOW_RATE_LIMITED: 'netFlowRateLimitedHook',
   PAUSABLE: 'pausableHook',
   ARB_L2_TO_L1: 'arbL2ToL1Hook',
   MAILBOX_DEFAULT: 'defaultHook',
@@ -80,6 +81,7 @@ export type DeployableHookType = Exclude<
   | typeof HookType.PREDICATE
   | typeof HookType.UNKNOWN
   | typeof HookType.CCTP
+  | typeof HookType.NET_FLOW_RATE_LIMITED
 >;
 
 export const HookTypeToContractNameMap: Record<DeployableHookType, string> = {
@@ -129,6 +131,9 @@ export type AmountRoutingHookConfig = {
   lowerHook: HookConfig;
   upperHook: HookConfig;
 };
+export type NetFlowRateLimitedHookConfig = z.infer<
+  typeof NetFlowRateLimitedHookSchema
+>;
 
 export type HookConfig = z.infer<typeof HookConfigSchema>;
 
@@ -229,6 +234,11 @@ export const AmountRoutingHookConfigSchema: z.ZodSchema<AmountRoutingHookConfig>
     }),
   );
 
+export const NetFlowRateLimitedHookSchema = z.object({
+  type: z.literal(HookType.NET_FLOW_RATE_LIMITED),
+  maxFlowBps: z.number().int().nonnegative(),
+});
+
 export const AggregationHookConfigSchema: z.ZodSchema<AggregationHookConfig> =
   z.lazy(() =>
     z.object({
@@ -328,6 +338,7 @@ export const HookConfigSchema = z.union([
   DomainRoutingHookConfigSchema,
   FallbackRoutingHookConfigSchema,
   AmountRoutingHookConfigSchema,
+  NetFlowRateLimitedHookSchema,
   AggregationHookConfigSchema,
   ArbL2ToL1HookSchema,
   MailboxDefaultHookSchema,
