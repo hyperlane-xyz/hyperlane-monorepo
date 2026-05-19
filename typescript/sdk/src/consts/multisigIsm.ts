@@ -31,6 +31,10 @@ const DEFAULT_BLOCKPI_VALIDATOR: ValidatorConfig = {
   address: '0x6d113ae51bfea7b63a8828f97e9dce393b25c189',
   alias: 'BlockPI',
 };
+const DEFAULT_POPS_VALIDATOR: ValidatorConfig = {
+  address: '0xa6c998f0db2b56d7a63faf30a9b677c8b9b6faab',
+  alias: 'P-OPS Team',
+};
 
 // TODO: consider migrating these to the registry too
 export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
@@ -443,21 +447,14 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   celestia: {
-    threshold: 4,
+    threshold: 3,
     validators: [
       {
         address: '0x6dbc192c06907784fb0af0c0c2d8809ea50ba675',
         alias: AW_VALIDATOR_ALIAS,
       },
       DEFAULT_ZKV_VALIDATOR,
-      {
-        address: '0x885a8c1ef7f7eea8955c8f116fc1fbe1113c4a78',
-        alias: 'P2P.ORG',
-      },
-      {
-        address: '0xa6c998f0db2b56d7a63faf30a9b677c8b9b6faab',
-        alias: 'P-OPS Team',
-      },
+      DEFAULT_POPS_VALIDATOR,
       {
         address: '0x21e93a81920b73c0e98aed8e6b058dae409e4909',
         alias: 'Binary Builders',
@@ -654,11 +651,24 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   eden: {
-    threshold: 1,
+    threshold: 3,
     validators: [
       {
         address: '0x1c61e6379443e2842d3e9db28e962b6c717fdab1',
         alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_POPS_VALIDATOR,
+      {
+        address: '0xE95a08Ef009be3Fbc7FDfa4739AB2428910C285f',
+        alias: 'Substance Labs',
+      },
+      {
+        address: '0x359042Ade900d465e96C9c7A9BF975b061c1e8f7',
+        alias: 'Cosmostation',
+      },
+      {
+        address: '0xa3f19CDFa6B684b44da3cF1e2D19d5Cb916cA0EF',
+        alias: 'Qubelabs',
       },
     ],
   },
@@ -1231,7 +1241,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   mantapacific: {
-    threshold: 4,
+    threshold: 3,
     validators: [
       {
         address: '0x8e668c97ad76d0e28375275c41ece4972ab8a5bc',
@@ -1241,7 +1251,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0x521a3e6bf8d24809fde1c1fd3494a859a16f132c',
         alias: 'Cosmostation',
       },
-      { address: '0x14025fe092f5f8a401dd9819704d9072196d2125', alias: 'P2P' },
       {
         address: '0x25b9a0961c51e74fd83295293bc029131bf1e05a',
         alias: 'Neutron',
@@ -1520,7 +1529,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   neutron: {
-    threshold: 4,
+    threshold: 3,
     validators: [
       {
         address: '0xa9b8c1f4998f781f958c63cfcd1708d02f004ff0',
@@ -1530,7 +1539,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0xb65438a014fb05fbadcfe35bc6e25d372b6ba460',
         alias: 'Cosmostation',
       },
-      { address: '0x42fa752defe92459370a052b6387a87f7de9b80c', alias: 'P2P' },
       {
         address: '0xc79503a3e3011535a9c60f6d21f76f59823a38bd',
         alias: 'Neutron',

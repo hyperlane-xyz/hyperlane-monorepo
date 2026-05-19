@@ -36,9 +36,10 @@ import { supportedChainNames } from './supportedChainNames.js';
 export const core: ChainMap<CoreConfig> = objMap(
   ethereumChainOwners,
   (local, owner) => {
-    // eden is a special case, it's only connected to celestia
+    // eden is a special case, it's only connected to celestia.
+    // Core is owned by the Celestia multisig; igp/oracle stays deployer-owned.
     if (local === 'eden') {
-      return getEdenCoreConfig(owner, igp['eden']);
+      return getEdenCoreConfig(igp['eden']);
     }
 
     // tron only has ISM/hooks for its connected chains

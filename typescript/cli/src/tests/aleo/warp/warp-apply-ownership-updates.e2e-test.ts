@@ -88,15 +88,20 @@ describe('hyperlane warp apply ownership (Aleo E2E tests)', async function () {
 
   let warpDeployConfig: WarpRouteDeployConfig;
   beforeEach(async () => {
-    // Generate unique short suffix for each test to avoid program name collisions
+    // Generate unique short suffix for each test to avoid program name collisions.
+    // Native tokens use a fixed program name (no suffix) and can only be initialized once,
+    // so ownership update tests use synthetic tokens to get a fresh program per beforeEach call.
     const uniqueSuffix = Math.random().toString(36).substring(2, 8);
     process.env.ALEO_WARP_SUFFIX = uniqueSuffix;
 
     warpDeployConfig = {
       [TEST_CHAIN_NAMES_BY_PROTOCOL.aleo.CHAIN_NAME_1]: {
-        type: TokenType.native,
+        type: TokenType.synthetic,
         mailbox: chain1CoreAddress.mailbox,
         owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.aleo,
+        name: nativeTokenData.name,
+        symbol: nativeTokenData.symbol,
+        decimals: nativeTokenData.decimals,
       },
       [TEST_CHAIN_NAMES_BY_PROTOCOL.aleo.CHAIN_NAME_2]: {
         type: TokenType.synthetic,
