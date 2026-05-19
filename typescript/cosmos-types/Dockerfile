@@ -1,5 +1,6 @@
+ARG NODE_VERSION=24
 FROM bufbuild/buf:1.50.1 as BUILDER
-FROM node:24-alpine
+FROM node:${NODE_VERSION}-alpine
 
 RUN npm install -g ts-proto@v1.181.2
 
