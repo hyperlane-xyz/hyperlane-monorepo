@@ -3,7 +3,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use access_control::AccessControl;
-use account_utils::{AccountData, DiscriminatorData, DiscriminatorPrefixed, SizedData};
+use account_utils::{
+    AccountData, DiscriminatorData, DiscriminatorPrefixed, SizedData, BORSH_LEN_PREFIX, H160_SIZE,
+    H256_SIZE, PUBKEY_SIZE,
+};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{H160, H256};
 use solana_program::{program_error::ProgramError, pubkey::Pubkey};
@@ -45,22 +48,11 @@ pub const DEFAULT_ROUTER: H256 = H256([
     0xfb, 0x8a, 0x6a, 0x58, 0xd3, 0xa7, 0x59, 0x38, 0x36, 0x2a, 0xcc, 0x67, 0x4e, 0xac, 0xaf, 0x47,
 ]);
 
-// --- Borsh serialized sizes for fixed-layout types ---
-
-/// Borsh serialized size of Pubkey (32 bytes).
-const PUBKEY_SIZE: usize = 32;
-
 /// Borsh serialized size of Option<Pubkey>.
 /// Some: 1 tag + 32 bytes. None: 1 tag.
 fn option_pubkey_size(opt: &Option<Pubkey>) -> usize {
     1 + if opt.is_some() { PUBKEY_SIZE } else { 0 }
 }
-/// Borsh serialized size of H256 (32 bytes).
-const H256_SIZE: usize = 32;
-/// Borsh serialized size of H160 (20 bytes).
-const H160_SIZE: usize = 20;
-/// Borsh serialized size of a Borsh Vec/Map/Set length prefix (u32).
-const BORSH_LEN_PREFIX: usize = std::mem::size_of::<u32>();
 
 // --- Variant-specific fee config structs ---
 

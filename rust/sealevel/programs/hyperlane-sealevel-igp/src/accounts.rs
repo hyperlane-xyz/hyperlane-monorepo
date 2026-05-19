@@ -8,6 +8,7 @@ use std::{
 use access_control::AccessControl;
 use account_utils::{
     read_optional_trailing, AccountData, DiscriminatorData, DiscriminatorPrefixed, SizedData,
+    BORSH_LEN_PREFIX, H160_SIZE, H256_SIZE, PUBKEY_SIZE,
 };
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{H160, H256, U256};
@@ -425,18 +426,6 @@ impl SizedData for GasPaymentData {
 }
 
 // --- IGP quoting types ---
-
-/// Borsh serialized size of Pubkey (32 bytes).
-const PUBKEY_SIZE: usize = 32;
-
-/// Borsh serialized size of H256 (32 bytes).
-const H256_SIZE: usize = 32;
-
-/// Borsh serialized size of H160 (20 bytes).
-const H160_SIZE: usize = 20;
-
-/// Borsh serialized size of a Vec/Map/Set length prefix (u32).
-const BORSH_LEN_PREFIX: usize = std::mem::size_of::<u32>();
 
 /// Wildcard sender: matches any sender in standing quote PDA lookups.
 pub const WILDCARD_SENDER: Pubkey = Pubkey::new_from_array([0xFF; 32]);
