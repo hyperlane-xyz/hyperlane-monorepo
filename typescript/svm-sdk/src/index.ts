@@ -58,6 +58,19 @@ export type {
   GetQuoteAccountMetasInput,
   GetSubmitQuoteAccountMetasInput,
 } from './instructions/fee.js';
+
+// Offchain quote signing primitives (secp256k1 / keccak256). Shared by the
+// fee program and IGP — both verify quotes via the same `SvmSignedQuote`
+// scheme. Mirrors the on-chain `quote-verifier` Rust library.
+export {
+  buildSvmQuoteMessageHash,
+  computeScopedSalt,
+  ethAddressFromPrivateKey,
+  ethAddressHexFromPrivateKey,
+  signSvmQuote,
+} from './quote-signing.js';
+export type { SignSvmQuoteArgs } from './quote-signing.js';
+
 export { decodeSimulatedAccountMetas } from './codecs/simulated-account-meta.js';
 export {
   simulateInstructionAccountMetas,

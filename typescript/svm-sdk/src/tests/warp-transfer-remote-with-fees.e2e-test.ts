@@ -85,7 +85,7 @@ import {
   computeScopedSalt,
   ethAddressHexFromPrivateKey,
   signSvmQuote,
-} from '../testing/quote-signer.js';
+} from '../quote-signing.js';
 import {
   TEST_ATA_PAYER_FUNDING_AMOUNT,
   TEST_PROGRAM_IDS,
