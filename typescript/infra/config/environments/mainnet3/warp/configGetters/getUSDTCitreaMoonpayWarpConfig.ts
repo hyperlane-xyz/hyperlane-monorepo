@@ -28,12 +28,14 @@ const ownersByChain = {
   arbitrum: awIcas.arbitrum,
   base: awIcas.base,
   ethereum: awSafes.ethereum,
+  polygon: awIcas.polygon,
 } as const;
 
 const feeOwnersByChain = {
   arbitrum: warpFeesIcas.arbitrum,
   base: warpFeesIcas.base,
   ethereum: warpFeesIcas.ethereum,
+  polygon: warpFeesIcas.polygon,
 } as const;
 const QUOTE_SIGNERS = [
   '0xEd1829805De615eEFC7303766D395Ea0a1B2b04d',
@@ -46,9 +48,10 @@ const ROUTE_CHAINS = [
   'base',
   'citrea',
   'ethereum',
+  'polygon',
 ] as const satisfies readonly ChainName[];
 
-const EVM_CHAINS = ['arbitrum', 'base', 'ethereum'] as const;
+const EVM_CHAINS = ['arbitrum', 'base', 'ethereum', 'polygon'] as const;
 type EvmChain = (typeof EVM_CHAINS)[number];
 
 const CCTP_CHAINS = EVM_CHAINS;
@@ -139,22 +142,24 @@ function buildInterchainSecurityModule(
   } as const;
 }
 
-function buildHook(local: EvmChain, owner: string) {
+function buildHook(local: ChainName, owner: string) {
+  const fastAddress = (CCTP_FAST_ROUTE_ADDRESSES as Record<string, string>)[
+    local
+  ];
   return {
     type: HookType.FALLBACK_ROUTING,
     owner,
-    domains: Object.fromEntries(
-      CCTP_CHAINS.filter((remote) => remote !== local).map((remote) => [
-        remote,
-        {
-          type: HookType.AGGREGATION,
-          hooks: [
-            { type: HookType.MAILBOX_DEFAULT },
-            CCTP_FAST_ROUTE_ADDRESSES[local],
-          ],
-        } as const satisfies HookConfig,
-      ]),
-    ),
+    domains: fastAddress
+      ? Object.fromEntries(
+          CCTP_CHAINS.filter((remote) => remote !== local).map((remote) => [
+            remote,
+            {
+              type: HookType.AGGREGATION,
+              hooks: [{ type: HookType.MAILBOX_DEFAULT }, fastAddress],
+            } as const satisfies HookConfig,
+          ]),
+        )
+      : {},
     fallback: { type: HookType.MAILBOX_DEFAULT },
   } as const;
 }
@@ -172,11 +177,13 @@ export async function getUSDTCitreaMoonpayWarpConfig(
     arbitrum: arbitrumOwner,
     base: baseOwner,
     ethereum: ethereumOwner,
+    polygon: polygonOwner,
   } = ownersByChain;
   const {
     arbitrum: arbitrumFeeOwner,
     base: baseFeeOwner,
     ethereum: ethereumFeeOwner,
+    polygon: polygonFeeOwner,
   } = feeOwnersByChain;
 
   const crossCollateralRouters = getUsdcCrossCollateralRouters();
@@ -215,16 +222,25 @@ export async function getUSDTCitreaMoonpayWarpConfig(
       mailbox: routerConfig.ethereum.mailbox,
       owner: ethereumOwner,
       ...oftRebalancingConfigByChain.ethereum,
-      remoteRouters: {
-        8453: { address: '0x7abBb4ea8a5895127500CF0C15830C9Eb9f61F96' },
-        42161: { address: '0x75a9297db5F0349fd1d6f4030953Fe17175e06d4' },
-      },
       hook: buildHook('ethereum', ethereumOwner),
       interchainSecurityModule: buildInterchainSecurityModule(
         'ethereum',
         ethereumOwner,
       ),
       tokenFee: buildCrossCollateralRoutingFee(ethereumFeeOwner, ROUTE_CHAINS),
+      crossCollateralRouters,
+    },
+    polygon: {
+      type: TokenType.crossCollateral,
+      token: tokens.polygon.USDT,
+      mailbox: routerConfig.polygon.mailbox,
+      owner: polygonOwner,
+      hook: buildHook('polygon', polygonOwner),
+      interchainSecurityModule: buildInterchainSecurityModule(
+        'polygon',
+        polygonOwner,
+      ),
+      tokenFee: buildCrossCollateralRoutingFee(polygonFeeOwner, ROUTE_CHAINS),
       crossCollateralRouters,
     },
   };

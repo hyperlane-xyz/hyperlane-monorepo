@@ -34,13 +34,15 @@ const ROUTE_CHAINS = [
   'base',
   'citrea',
   'ethereum',
+  'polygon',
 ] as const satisfies readonly ChainName[];
 const CCTP_CHAINS = [
   'arbitrum',
   'base',
   'ethereum',
+  'polygon',
 ] as const satisfies readonly ChainName[];
-const EVM_CHAINS = ['arbitrum', 'base', 'ethereum'] as const;
+const EVM_CHAINS = ['arbitrum', 'base', 'ethereum', 'polygon'] as const;
 type EvmChain = (typeof EVM_CHAINS)[number];
 
 const SOLANA_IGP_ADDRESS = 'BhNcatUDC2D5JTyeaqrdSukiVFsEHK7e3hVmKMztwefv';
@@ -53,6 +55,7 @@ const ownersByChain = {
   base: awIcas.base,
   citrea: awIcas.citrea,
   ethereum: awSafes.ethereum,
+  polygon: awIcas.polygon,
 } as const;
 
 const feeOwnersByChain = {
@@ -60,6 +63,7 @@ const feeOwnersByChain = {
   base: warpFeesIcas.base,
   citrea: warpFeesIcas.citrea,
   ethereum: warpFeesIcas.ethereum,
+  polygon: warpFeesIcas.polygon,
 } as const;
 const QUOTE_SIGNERS = [
   '0xEd1829805De615eEFC7303766D395Ea0a1B2b04d',
@@ -82,7 +86,10 @@ function getCctpFastRouteAddresses(): Record<EvmChain, string> {
   ) as Record<EvmChain, string>;
 }
 
-function getTBDAAddresses(): Record<EvmChain | 'citrea', string> {
+function getTBDAAddresses(): Record<
+  'arbitrum' | 'base' | 'ethereum' | 'citrea',
+  string
+> {
   const route = getRegistry().getWarpRoute(WarpRouteIds.USDCCitreaIronBridge);
   assert(route, 'CROSS/ctusd-usdc-ironbridge route not found in registry');
 
@@ -260,7 +267,7 @@ export async function getUSDCCitreaMoonpayWarpConfig(
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> {
   const cctpRebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
-    ['arbitrum', 'base', 'ethereum'],
+    ['arbitrum', 'base', 'ethereum', 'polygon'],
     [WarpRouteIds.MainnetCCTPV2Standard, WarpRouteIds.MainnetCCTPV2Fast],
   );
 
@@ -272,12 +279,14 @@ export async function getUSDCCitreaMoonpayWarpConfig(
     base: baseOwner,
     citrea: citreaOwner,
     ethereum: ethereumOwner,
+    polygon: polygonOwner,
   } = ownersByChain;
   const {
     arbitrum: arbitrumFeeOwner,
     base: baseFeeOwner,
     citrea: citreaFeeOwner,
     ethereum: ethereumFeeOwner,
+    polygon: polygonFeeOwner,
   } = feeOwnersByChain;
 
   const crossCollateralRouters = getUsdtCrossCollateralRouters();
@@ -369,6 +378,20 @@ export async function getUSDCCitreaMoonpayWarpConfig(
         ethereumOwner,
       ),
       tokenFee: buildCrossCollateralRoutingFee(ethereumFeeOwner, ROUTE_CHAINS),
+      crossCollateralRouters,
+    },
+    polygon: {
+      type: TokenType.crossCollateral,
+      token: tokens.polygon.USDC,
+      mailbox: routerConfig.polygon.mailbox,
+      owner: polygonOwner,
+      ...cctpRebalancingConfigByChain.polygon,
+      hook: buildHook('polygon', polygonOwner),
+      interchainSecurityModule: buildInterchainSecurityModule(
+        'polygon',
+        polygonOwner,
+      ),
+      tokenFee: buildCrossCollateralRoutingFee(polygonFeeOwner, ROUTE_CHAINS),
       crossCollateralRouters,
     },
   };
