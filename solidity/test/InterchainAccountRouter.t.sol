@@ -248,6 +248,7 @@ contract InterchainAccountRouterTestBase is Test {
         uint256 value
     ) internal view returns (CallLib.Call[] memory) {
         vm.assume(data != bytes32(0));
+        vm.assume(value < CallLib.DELEGATECALL_SENTINEL);
 
         CallLib.Call memory call = CallLib.Call(
             TypeCasts.addressToBytes32(address(target)),
