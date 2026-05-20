@@ -16,21 +16,26 @@ import {
   type DerivedTokenFeeConfig,
   type DerivedTokenRouterConfig,
   type EthereumQuoteV2Entry,
+  EvmHookReader,
+  EvmWarpRouteReader,
   FeeQuotingCommand,
   type HookConfig,
   HookType,
+  type HyperlaneCore,
   type IgpHookConfig,
+  type MultiProvider,
   NoQuoteAvailableReason,
   type SignedQuoteData,
   type SubmitQuoteCommand,
   TokenFeeType,
   WARP_FEE_COMMANDS,
 } from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
-  ProtocolType,
   type WithAddress,
   assert,
   eqAddress,
+  isZeroishAddress,
 } from '@hyperlane-xyz/utils';
 
 import { QuoteMode } from '../config.js';
@@ -47,10 +52,6 @@ import type {
   QuoteBinding,
   WarpQuoteRequest,
 } from './IProtocolQuoteService.js';
-import type {
-  EvmRouterQuoteContext,
-  RouterQuoteContext,
-} from './quoteService.js';
 
 /**
  * Label for the quoter contract a signed quote applies to. Used in error
@@ -64,11 +65,26 @@ const QuoterType = {
 
 type QuoterType = (typeof QuoterType)[keyof typeof QuoterType];
 
+/** Per-route on-chain state cached by the service at construction time. */
+interface EvmRouteState {
+  chainId: number;
+  quotedCallsAddress: Address;
+  feeToken: Address;
+  derivedConfig: DerivedTokenRouterConfig;
+}
+
+/** Per-route input to `EvmQuoteService.create` (post warp-config partitioning). */
+export interface EvmRouteSpec {
+  origin: string;
+  warpRouter: Address;
+  quotedCallsAddress: Address;
+  feeToken: Address;
+}
+
 /** Args for the EVM-only v1 path (`/quote/*` legacy endpoints). */
 export interface V1QuoteArgs {
   command: FeeQuotingCommand;
   origin: string;
-  routerCtx: EvmRouterQuoteContext;
   destChainName: string;
   destination: number;
   /** Origin warp router address. */
@@ -80,11 +96,14 @@ export interface V1QuoteArgs {
   binding: QuoteBinding;
 }
 
+const routeKey = (origin: string, router: string) =>
+  `${origin}:${router.toLowerCase()}`;
+
 /**
- * EVM implementation of `IProtocolQuoteService`. Signs an EIP-712 typed-data
- * `SignedQuote` struct via viem; routing decisions are driven by the on-chain
- * config tree decoded by `EvmWarpRouteReader` / `EvmHookReader` and stored on
- * each `EvmRouterQuoteContext`.
+ * EVM implementation of `IProtocolQuoteService`. Owns its full protocol
+ * stack: reads on-chain warp + hook configs at construction time, caches a
+ * per-route state map, and signs EIP-712 typed-data `SignedQuote` structs
+ * via viem.
  *
  * Also exposes `getV1Quotes(...)` — an EVM-only entry point that powers the
  * legacy v1 `/quote/*` routes (command-aware, multi-quote, silently logs on
@@ -95,27 +114,111 @@ export class EvmQuoteService implements IProtocolQuoteService {
   readonly protocol = ProtocolType.Ethereum;
   private readonly account: LocalAccount;
   private readonly logger: Logger;
+  private readonly routesByKey: ReadonlyMap<string, EvmRouteState>;
 
-  constructor(opts: { signerKey: Hex; logger: Logger }) {
-    this.account = privateKeyToAccount(opts.signerKey);
+  private constructor(opts: {
+    account: LocalAccount;
+    logger: Logger;
+    routesByKey: ReadonlyMap<string, EvmRouteState>;
+  }) {
+    this.account = opts.account;
     this.logger = opts.logger;
+    this.routesByKey = opts.routesByKey;
+  }
+
+  /**
+   * Async factory — reads each route's on-chain state via `EvmWarpRouteReader`
+   * (with mailbox-default hook fallback via `core.getHook`). Failures during
+   * read are fatal so a misconfigured deployment doesn't quietly start.
+   */
+  static async create(opts: {
+    signerKey: Hex;
+    logger: Logger;
+    multiProvider: MultiProvider;
+    core: HyperlaneCore;
+    routes: ReadonlyArray<EvmRouteSpec>;
+  }): Promise<EvmQuoteService> {
+    const routesByKey = new Map<string, EvmRouteState>();
+    for (const r of opts.routes) {
+      const reader = new EvmWarpRouteReader(opts.multiProvider, r.origin);
+      const derivedConfig = await reader.deriveWarpRouteConfig(r.warpRouter);
+
+      // Mailbox-default hook fallback when router hook is unset.
+      if (
+        typeof derivedConfig.hook === 'string' &&
+        isZeroishAddress(derivedConfig.hook)
+      ) {
+        const hookAddress = await opts.core.getHook(r.origin, r.warpRouter);
+        const hookReader = new EvmHookReader(opts.multiProvider, r.origin);
+        derivedConfig.hook = await hookReader.deriveHookConfig(hookAddress);
+      }
+
+      routesByKey.set(routeKey(r.origin, r.warpRouter), {
+        chainId: opts.multiProvider.getEvmChainId(r.origin),
+        quotedCallsAddress: r.quotedCallsAddress,
+        feeToken: r.feeToken,
+        derivedConfig,
+      });
+    }
+    return new EvmQuoteService({
+      account: privateKeyToAccount(opts.signerKey),
+      logger: opts.logger,
+      routesByKey,
+    });
+  }
+
+  /**
+   * Testing-only constructor — accepts pre-built route states directly,
+   * bypassing the on-chain read in `create`. Use only from tests that already
+   * mock `derivedConfig` shapes.
+   */
+  static fromState(opts: {
+    signerKey: Hex;
+    logger: Logger;
+    routes: ReadonlyArray<{
+      origin: string;
+      warpRouter: string;
+      chainId: number;
+      quotedCallsAddress: Address;
+      feeToken: Address;
+      derivedConfig: DerivedTokenRouterConfig;
+    }>;
+  }): EvmQuoteService {
+    const routesByKey = new Map<string, EvmRouteState>();
+    for (const r of opts.routes) {
+      routesByKey.set(routeKey(r.origin, r.warpRouter), {
+        chainId: r.chainId,
+        quotedCallsAddress: r.quotedCallsAddress,
+        feeToken: r.feeToken,
+        derivedConfig: r.derivedConfig,
+      });
+    }
+    return new EvmQuoteService({
+      account: privateKeyToAccount(opts.signerKey),
+      logger: opts.logger,
+      routesByKey,
+    });
   }
 
   get signerAddress(): Address {
     return this.account.address;
   }
 
+  hasRoute(origin: string, router: string): boolean {
+    return this.routesByKey.has(routeKey(origin, router));
+  }
+
   // ============ v2 interface ============
 
   async getWarpQuote(req: WarpQuoteRequest): Promise<EthereumQuoteV2Entry> {
-    const ctx = this.requireEvmCtx(req.routerCtx);
+    const route = this.lookupRoute(req.origin, req.router);
     const feeQuoter = this.resolveOffchainFeeLeaf(
-      ctx.derivedConfig.tokenFee,
+      route.derivedConfig.tokenFee,
       req.destChainName,
       req.targetRouter,
     );
     return this.signWarpQuote(
-      ctx,
+      route,
       feeQuoter,
       req.destination,
       req.recipient,
@@ -124,15 +227,15 @@ export class EvmQuoteService implements IProtocolQuoteService {
   }
 
   async getIgpQuote(req: IgpQuoteRequest): Promise<EthereumQuoteV2Entry> {
-    const ctx = this.requireEvmCtx(req.routerCtx);
+    const route = this.lookupRoute(req.origin, req.router);
     if (!isAddress(req.sender)) {
       throw new ApiError(`Invalid EVM sender address: ${req.sender}`, 400);
     }
-    const igp = this.resolveIgp(ctx.derivedConfig, req.destChainName);
+    const igp = this.resolveIgp(route.derivedConfig, req.destChainName);
     return this.signIgpQuote(
-      ctx,
+      route,
       igp,
-      ctx.feeToken,
+      route.feeToken,
       req.destination,
       req.sender,
       req.binding,
@@ -142,18 +245,19 @@ export class EvmQuoteService implements IProtocolQuoteService {
   // ============ v1 EVM-only entry point ============
 
   async getV1Quotes(args: V1QuoteArgs): Promise<SubmitQuoteCommand[]> {
+    const route = this.lookupRoute(args.origin, args.router);
     const quotes: SubmitQuoteCommand[] = [];
 
     if (WARP_FEE_COMMANDS.has(args.command)) {
       assert(args.recipient, `recipient required for ${args.command}`);
       try {
         const feeQuoter = this.resolveOffchainFeeLeaf(
-          args.routerCtx.derivedConfig.tokenFee,
+          route.derivedConfig.tokenFee,
           args.destChainName,
           args.targetRouter,
         );
         const entry = await this.signWarpQuote(
-          args.routerCtx,
+          route,
           feeQuoter,
           args.destination,
           args.recipient,
@@ -166,14 +270,11 @@ export class EvmQuoteService implements IProtocolQuoteService {
     }
 
     try {
-      const igp = this.resolveIgp(
-        args.routerCtx.derivedConfig,
-        args.destChainName,
-      );
+      const igp = this.resolveIgp(route.derivedConfig, args.destChainName);
       const entry = await this.signIgpQuote(
-        args.routerCtx,
+        route,
         igp,
-        args.routerCtx.feeToken,
+        route.feeToken,
         args.destination,
         args.router,
         args.binding,
@@ -267,7 +368,7 @@ export class EvmQuoteService implements IProtocolQuoteService {
   // ============ private: sign ============
 
   private async signWarpQuote(
-    ctx: EvmRouterQuoteContext,
+    route: EvmRouteState,
     feeQuoter: Address,
     destination: number,
     recipient: Hex,
@@ -278,11 +379,11 @@ export class EvmQuoteService implements IProtocolQuoteService {
       [destination, recipient, BigInt(2) ** BigInt(256) - BigInt(1)],
     );
     const data = encodePacked(['uint256', 'uint256'], [0n, 1n]);
-    return this.signEip712(ctx, feeQuoter, context, data, binding);
+    return this.signEip712(route, feeQuoter, context, data, binding);
   }
 
   private async signIgpQuote(
-    ctx: EvmRouterQuoteContext,
+    route: EvmRouteState,
     igp: Address,
     feeToken: Address,
     destination: number,
@@ -294,11 +395,11 @@ export class EvmQuoteService implements IProtocolQuoteService {
       [feeToken, destination, sender],
     );
     const data = encodePacked(['uint128', 'uint128'], [0n, 0n]);
-    return this.signEip712(ctx, igp, context, data, binding);
+    return this.signEip712(route, igp, context, data, binding);
   }
 
   private async signEip712(
-    ctx: EvmRouterQuoteContext,
+    route: EvmRouteState,
     verifyingContract: Address,
     context: Hex,
     data: Hex,
@@ -321,7 +422,7 @@ export class EvmQuoteService implements IProtocolQuoteService {
     // protection); standing leaves it open via address(0).
     const submitter =
       binding.kind === QuoteMode.TRANSIENT
-        ? ctx.quotedCallsAddress
+        ? route.quotedCallsAddress
         : ZERO_ADDRESS;
 
     const quote: SignedQuoteData = {
@@ -334,7 +435,7 @@ export class EvmQuoteService implements IProtocolQuoteService {
     };
 
     const signature = await this.account.signTypedData({
-      domain: { ...EIP712_DOMAIN, chainId: ctx.chainId, verifyingContract },
+      domain: { ...EIP712_DOMAIN, chainId: route.chainId, verifyingContract },
       types: SIGNED_QUOTE_TYPES,
       primaryType: 'SignedQuote',
       message: quote,
@@ -351,12 +452,12 @@ export class EvmQuoteService implements IProtocolQuoteService {
 
   // ============ helpers ============
 
-  private requireEvmCtx(ctx: RouterQuoteContext): EvmRouterQuoteContext {
-    assert(
-      ctx.protocol === ProtocolType.Ethereum,
-      `EvmQuoteService expected an Ethereum router context, got ${ctx.protocol}`,
-    );
-    return ctx;
+  private lookupRoute(origin: string, router: string): EvmRouteState {
+    const route = this.routesByKey.get(routeKey(origin, router));
+    if (!route) {
+      throw new ApiError(`Unknown router ${router} on ${origin}`, 400);
+    }
+    return route;
   }
 
   private logSkipIfExpected(
