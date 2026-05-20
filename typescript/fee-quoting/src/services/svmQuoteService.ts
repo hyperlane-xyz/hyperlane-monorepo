@@ -309,6 +309,7 @@ export class SvmQuoteService implements IProtocolQuoteService {
       data: args.data,
       issuedAt,
       expiry,
+      clientSalt: hexToBytes(args.binding.salt),
     });
 
     return shapeEntry({
