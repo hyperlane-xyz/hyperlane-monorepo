@@ -1,6 +1,6 @@
 #![allow(missing_docs)]
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 
@@ -64,6 +64,8 @@ where
     ccr_addresses: Vec<EthersH160>,
     /// Map from CCR address to its underlying ERC20 token address (from registry)
     ccr_to_erc20: HashMap<EthersH160, EthersH160>,
+    /// Set of known collateral ERC20 addresses — pre-built for fast log pre-filtering
+    known_collaterals: HashSet<EthersH160>,
     reorg_period: EthereumReorgPeriod,
 }
 
@@ -78,14 +80,17 @@ where
         ccr_to_erc20: HashMap<H160, H160>,
         reorg_period: EthereumReorgPeriod,
     ) -> Self {
+        let ccr_to_erc20: HashMap<EthersH160, EthersH160> = ccr_to_erc20
+            .into_iter()
+            .map(|(k, v)| (k.into(), v.into()))
+            .collect();
+        let known_collaterals = ccr_to_erc20.values().copied().collect();
         Self {
             provider,
             local_domain,
             ccr_addresses: ccr_addresses.into_iter().map(Into::into).collect(),
-            ccr_to_erc20: ccr_to_erc20
-                .into_iter()
-                .map(|(k, v)| (k.into(), v.into()))
-                .collect(),
+            known_collaterals,
+            ccr_to_erc20,
             reorg_period,
         }
     }
@@ -109,6 +114,11 @@ where
         };
 
         let result = receipt.logs.iter().find_map(|log| {
+            // Pre-filter: only decode logs from known collateral ERC20 contracts,
+            // skipping all other logs without topic or data parsing.
+            if !self.known_collaterals.contains(&log.address) {
+                return None;
+            }
             let (_, to, value) = decode_erc20_transfer(log)?;
             // `to` must be a known CCR address other than the destination router
             if self.ccr_to_erc20.contains_key(&to) && to != destination_router {
