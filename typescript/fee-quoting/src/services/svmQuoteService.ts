@@ -14,6 +14,11 @@ import {
   FeeType,
 } from '@hyperlane-xyz/provider-sdk/fee';
 import {
+  buildFeeReadContextFromWarpArtifactConfig,
+  type DeployedRawWarpArtifact,
+  type WarpArtifactConfig,
+} from '@hyperlane-xyz/provider-sdk/warp';
+import {
   DEFAULT_ROUTER_KEY,
   type MultiProvider,
   NoQuoteAvailableReason,
@@ -357,6 +362,7 @@ async function readSvmRouteState(
       fee = await tryReadSvmFee(
         provider,
         spec,
+        warpArtifact,
         feeConfig.feeProgram,
         feeConfig.feeAccount,
         logger,
@@ -380,11 +386,24 @@ async function readSvmRouteState(
 async function tryReadSvmFee(
   provider: ReturnType<typeof getProtocolProvider>,
   spec: SvmRouteSpec,
+  warpArtifact: DeployedRawWarpArtifact,
   feeProgram: string,
   feeAccountPda: string,
   logger: Logger,
 ): Promise<SvmRouteState['fee'] | undefined> {
-  const ctx = { knownRoutersPerDomain: {} };
+  // The on-chain SVM CC fee program stores route signers under
+  // non-enumerable PDAs keyed by `(destination, target_router)`, so the fee
+  // reader needs the set of `(destination, router)` pairs to look up. Build
+  // a `WarpArtifactConfig`-shaped view from the raw read so we can use the
+  // provider-sdk helper: the only structural diff is nested ism/hook/fee
+  // artifact wrappers, none of which the helper touches — drop them.
+  const warpView: WarpArtifactConfig = {
+    ...warpArtifact.config,
+    interchainSecurityModule: undefined,
+    hook: undefined,
+    fee: undefined,
+  };
+  const ctx = buildFeeReadContextFromWarpArtifactConfig(warpView);
   const feeMgr = provider.createFeeArtifactManager(spec.chainMetadata, ctx);
   if (!feeMgr) {
     logger.warn(
