@@ -65,7 +65,7 @@ const WARP_QUERY = `${BASE_QUERY}&recipient=${RECIPIENT}&targetRouter=${TARGET_R
 // Base58 placeholders — valid encodings so `@solana/kit`'s `address()` parser
 // accepts them. Actual PDAs don't matter since `fromState` bypasses on-chain
 // reads.
-const SVM_WARP_PROGRAM = '11111111111111111111111111111112';
+const SVM_WARP_PROGRAM = '11111bbn7XmLuiNnyUkAbvEMH74R6CnTXQgB2PLNqt';
 const SVM_FEE_ACCOUNT_PDA = '11111111111111111111111111111114';
 const SVM_IGP_ACCOUNT_PDA = '11111111111111111111111111111116';
 const SVM_TX_SUBMITTER = '11111111111111111111111111111117';
