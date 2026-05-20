@@ -19,8 +19,8 @@ import {
   MultiProvider,
   getSafe,
   getSafeService,
+  normalizeSafeTxServiceUrl,
 } from '@hyperlane-xyz/sdk';
-import { normalizeSafeTxServiceUrl } from '@hyperlane-xyz/sdk/utils/gnosisSafe';
 import {
   Address,
   CallData,

@@ -17,6 +17,8 @@ type SafeApiKitInstance = SafeApiKit.default;
 type SafeApiKitConstructor = new (
   config: SafeApiKitConfig,
 ) => SafeApiKitInstance;
+// CAST: Safe API Kit's declarations expose the class under the default type,
+// while Node ESM imports the default export as the constructor at runtime.
 const SafeApiKitCtor = SafeApiKit as unknown as SafeApiKitConstructor;
 
 export function safeApiKeyRequired(txServiceUrl: string): boolean {
@@ -240,7 +242,7 @@ export async function canProposeSafeTransactions(
   let safeService: SafeApiKitInstance;
   try {
     safeService = getSafeService(chain, multiProvider);
-  } catch (e) {
+  } catch (e: unknown) {
     rootLogger.error('Failed to get Safe service for chain', {
       chain,
       chainName: multiProvider.tryGetChainName(chain),
