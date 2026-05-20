@@ -9,7 +9,7 @@ import {
   type FeeQuotingQuoteResponse,
   type MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 
 import { QuoteMode } from '../config.js';
 import { ApiError } from '../middleware/errorHandler.js';
@@ -23,12 +23,9 @@ import type {
 import { ProtocolSignerRegistry } from './protocolSignerRegistry.js';
 
 /**
- * Per-router config derived from on-chain state.
- *
- * Discriminated by `protocol`; Phase 4 widens this union with
- * `SvmRouterQuoteContext`. Today only the EVM variant exists.
+ * Per-router config derived from on-chain state. Discriminated by `protocol`.
  */
-export type RouterQuoteContext = EvmRouterQuoteContext;
+export type RouterQuoteContext = EvmRouterQuoteContext | SvmRouterQuoteContext;
 
 export interface EvmRouterQuoteContext {
   protocol: ProtocolType.Ethereum;
@@ -39,10 +36,40 @@ export interface EvmRouterQuoteContext {
 }
 
 /**
- * Per-chain context grouping a chain's routers under a single signer-relevant
- * envelope. Phase 4 widens this with an SVM variant.
+ * Sealevel router context — the warp token's program ID plus the discovered
+ * fee/IGP sub-contexts (each carries the resolved on-chain PDA address used
+ * in the signed message hash, and the raw artifact for per-route signer
+ * lookups). Either sub-context may be absent if the token isn't configured
+ * for that quoter.
  */
-export type ChainQuoteContext = EvmChainQuoteContext;
+export interface SvmRouterQuoteContext {
+  protocol: ProtocolType.Sealevel;
+  /** Origin chain's Hyperlane domain id (appears in the signed message hash). */
+  domainId: number;
+  /** Base58 program ID of the warp token. */
+  warpProgramId: string;
+  fee?: SvmFeeQuoterContext;
+  igp?: SvmIgpQuoterContext;
+}
+
+export interface SvmFeeQuoterContext {
+  /** Fee program ID (base58). */
+  programId: string;
+  /** On-chain `fee_account` PDA — appears in the signed message hash. */
+  feeAccountPda: string;
+}
+
+export interface SvmIgpQuoterContext {
+  /** IGP program ID (base58). */
+  programId: string;
+  /** On-chain `igp_account` PDA — appears in the signed message hash. */
+  igpAccountPda: string;
+}
+
+/**
+ * Per-chain context grouping a chain's routers. Discriminated by `protocol`.
+ */
+export type ChainQuoteContext = EvmChainQuoteContext | SvmChainQuoteContext;
 
 export interface EvmChainQuoteContext {
   protocol: ProtocolType.Ethereum;
@@ -50,6 +77,14 @@ export interface EvmChainQuoteContext {
   quotedCallsAddress: Address;
   /** Keys are router addresses normalized to lowercase. */
   routers: Map<string, EvmRouterQuoteContext>;
+}
+
+export interface SvmChainQuoteContext {
+  protocol: ProtocolType.Sealevel;
+  chainName: string;
+  domainId: number;
+  /** Keys are warp program IDs (base58 — no lowercase normalization). */
+  routers: Map<string, SvmRouterQuoteContext>;
 }
 
 export interface QuoteServiceOptions {
@@ -121,9 +156,9 @@ export class QuoteService {
     targetRouter?: Hex,
   ): Promise<FeeQuotingQuoteResponse> {
     const routerCtx = this.lookupRouter(origin, router);
-    // v1 only supports EVM. Today's `RouterQuoteContext` union has only the
-    // Ethereum variant so TS already prevents this branch from triggering;
-    // Phase 4 widens the union and re-introduces a runtime guard.
+    if (routerCtx.protocol !== ProtocolType.Ethereum) {
+      throw new ApiError('v1 quotes are EVM-only', 400);
+    }
 
     const binding = this.buildBinding(salt);
     const destChainName = this.multiProvider.getChainName(destination);
