@@ -3,7 +3,7 @@ import express, { Express } from 'express';
 import type { Logger } from 'pino';
 import { pinoHttp } from 'pino-http';
 import { Registry } from 'prom-client';
-import { type Address, type Hex, isAddress } from 'viem';
+import { type Address, type Hex, hexToBytes, isAddress } from 'viem';
 
 import { IRegistry } from '@hyperlane-xyz/registry';
 import {
@@ -11,7 +11,10 @@ import {
   HyperlaneCore,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import {
+  type ChainMetadataForAltVM,
+  ProtocolType,
+} from '@hyperlane-xyz/provider-sdk';
 import { assert, createServiceLogger, pick } from '@hyperlane-xyz/utils';
 
 import packageJson from './package.json' with { type: 'json' };
@@ -29,6 +32,10 @@ import {
 } from './src/services/evmQuoteService.js';
 import type { IProtocolQuoteService } from './src/services/IProtocolQuoteService.js';
 import { QuoteService } from './src/services/quoteService.js';
+import {
+  SvmQuoteService,
+  type SvmRouteSpec,
+} from './src/services/svmQuoteService.js';
 
 export class FeeQuotingServer {
   app: Express;
@@ -78,11 +85,13 @@ export class FeeQuotingServer {
 
     this.app.use(createHealthRouter(() => this.ready));
 
-    const { multiProvider, core, evmRoutes, protocolByChain } =
+    const { multiProvider, core, evmRoutes, svmRoutes, protocolByChain } =
       await this.partitionWarpRoutes(registry);
 
+    const signerKeyHex = this.config.signerKey as Hex;
+
     const evm = await EvmQuoteService.create({
-      signerKey: this.config.signerKey as Hex,
+      signerKey: signerKeyHex,
       logger: this.logger,
       multiProvider,
       core,
@@ -92,6 +101,19 @@ export class FeeQuotingServer {
     const services: Map<ProtocolType, IProtocolQuoteService> = new Map([
       [ProtocolType.Ethereum, evm],
     ]);
+
+    if (svmRoutes.length > 0) {
+      const svm = await SvmQuoteService.create({
+        // Same secp256k1 key as EVM — SVM verifier recovers H160 the same way
+        // viem's `privateKeyToAccount` does, so the whitelist entry can be
+        // identical across protocols.
+        signerKey: hexToBytes(signerKeyHex),
+        logger: this.logger,
+        multiProvider,
+        routes: svmRoutes,
+      });
+      services.set(ProtocolType.Sealevel, svm);
+    }
 
     const quoteService = new QuoteService({
       evm,
@@ -117,6 +139,12 @@ export class FeeQuotingServer {
     for (const r of evmRoutes) {
       this.logger.info(
         { chain: r.origin, router: r.warpRouter, protocol: 'ethereum' },
+        'Registered router',
+      );
+    }
+    for (const r of svmRoutes) {
+      this.logger.info(
+        { chain: r.origin, router: r.warpProgramId, protocol: 'sealevel' },
         'Registered router',
       );
     }
@@ -158,14 +186,12 @@ export class FeeQuotingServer {
    * Walk the configured warp routes and partition their tokens by protocol.
    * Each protocol's concrete service consumes only its own slice. Builds the
    * `protocolByChain` map used by `QuoteService` for v2 dispatch.
-   *
-   * Sealevel tokens are silently skipped here — Phase 5 commit 3 (next)
-   * adds the `SvmQuoteService` and a parallel route-spec list.
    */
   private async partitionWarpRoutes(registry: IRegistry): Promise<{
     multiProvider: MultiProvider;
     core: HyperlaneCore;
     evmRoutes: EvmRouteSpec[];
+    svmRoutes: SvmRouteSpec[];
     protocolByChain: Map<string, ProtocolType>;
   }> {
     const chainAddresses = await registry.getAddresses();
@@ -198,6 +224,7 @@ export class FeeQuotingServer {
     );
 
     const evmRoutes: EvmRouteSpec[] = [];
+    const svmRoutes: SvmRouteSpec[] = [];
     const protocolByChain = new Map<string, ProtocolType>();
 
     for (const warpConfig of warpConfigs) {
@@ -218,6 +245,14 @@ export class FeeQuotingServer {
             }
             break;
           }
+          case ProtocolType.Sealevel: {
+            const spec = this.buildSvmRouteSpec(chainName, token, metadata);
+            if (spec) {
+              svmRoutes.push(spec);
+              protocolByChain.set(chainName, ProtocolType.Sealevel);
+            }
+            break;
+          }
           default:
             this.logger.debug(
               { chainName, protocol: metadata?.protocol },
@@ -227,7 +262,7 @@ export class FeeQuotingServer {
       }
     }
 
-    return { multiProvider, core, evmRoutes, protocolByChain };
+    return { multiProvider, core, evmRoutes, svmRoutes, protocolByChain };
   }
 
   private buildEvmRouteSpec(
@@ -275,6 +310,38 @@ export class FeeQuotingServer {
       warpRouter,
       quotedCallsAddress: quotedCalls,
       feeToken,
+    };
+  }
+
+  /**
+   * Build the Sealevel route spec consumed by `SvmQuoteService.create`. The
+   * warp program ID comes from the registry token entry; fee program +
+   * fee_account PDA + IGP-hook signers are discovered on-chain at service
+   * construction time (no registry plumbing required).
+   *
+   * SVM has no `quotedCalls`-equivalent contract, so unlike EVM there's no
+   * core-addresses precondition for the route to be registered.
+   */
+  private buildSvmRouteSpec(
+    chainName: string,
+    token: { addressOrDenom?: string },
+    metadata: ChainMetadata,
+  ): SvmRouteSpec | undefined {
+    const warpProgramId = token.addressOrDenom;
+    if (!warpProgramId) {
+      this.logger.warn(
+        { chainName },
+        'No warp program ID for Sealevel token, skipping',
+      );
+      return undefined;
+    }
+    return {
+      origin: chainName,
+      domainId: metadata.domainId,
+      warpProgramId,
+      // `ChainMetadata` from the registry is a structural superset of the
+      // multi-VM `ChainMetadataForAltVM` artifact managers consume.
+      chainMetadata: metadata satisfies ChainMetadataForAltVM,
     };
   }
 }
