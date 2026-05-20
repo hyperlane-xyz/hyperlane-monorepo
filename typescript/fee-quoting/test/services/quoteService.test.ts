@@ -9,6 +9,7 @@ import {
   HookType,
   TokenFeeType,
 } from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import {
   EIP712_DOMAIN,
@@ -70,11 +71,15 @@ function createTestContext(
   overrides?: Partial<ChainQuoteContext>,
 ): ChainQuoteContext {
   const routers = new Map();
-  routers.set(ROUTER, {
+  routers.set(ROUTER.toLowerCase(), {
+    protocol: ProtocolType.Ethereum,
+    chainId: 1,
+    quotedCallsAddress: QUOTED_CALLS,
     feeToken: FEE_TOKEN,
     derivedConfig: mockDerivedConfig,
   });
   return {
+    protocol: ProtocolType.Ethereum,
     chainName: 'ethereum',
     quotedCallsAddress: QUOTED_CALLS,
     routers,
@@ -279,7 +284,10 @@ describe('QuoteService', () => {
 
     function svcWithHook(hook: any) {
       const routers = new Map();
-      routers.set(ROUTER, {
+      routers.set(ROUTER.toLowerCase(), {
+        protocol: ProtocolType.Ethereum,
+        chainId: 1,
+        quotedCallsAddress: QUOTED_CALLS,
         feeToken: FEE_TOKEN,
         derivedConfig: { ...mockDerivedConfig, hook },
       });
@@ -353,7 +361,10 @@ describe('QuoteService', () => {
 
     it('resolves CCRF default fee for transferRemote', async () => {
       const routers = new Map();
-      routers.set(ROUTER, {
+      routers.set(ROUTER.toLowerCase(), {
+        protocol: ProtocolType.Ethereum,
+        chainId: 1,
+        quotedCallsAddress: QUOTED_CALLS,
         feeToken: FEE_TOKEN,
         derivedConfig: {
           ...mockDerivedConfig,
@@ -403,7 +414,10 @@ describe('QuoteService', () => {
       const TARGET_ROUTER =
         '0x000000000000000000000000cccccccccccccccccccccccccccccccccccccccc' as Hex;
       const routers = new Map();
-      routers.set(ROUTER, {
+      routers.set(ROUTER.toLowerCase(), {
+        protocol: ProtocolType.Ethereum,
+        chainId: 1,
+        quotedCallsAddress: QUOTED_CALLS,
         feeToken: FEE_TOKEN,
         derivedConfig: {
           ...mockDerivedConfig,
@@ -462,7 +476,10 @@ describe('QuoteService', () => {
       const UNKNOWN_ROUTER =
         '0x000000000000000000000000dddddddddddddddddddddddddddddddddddddddd' as Hex;
       const routers = new Map();
-      routers.set(ROUTER, {
+      routers.set(ROUTER.toLowerCase(), {
+        protocol: ProtocolType.Ethereum,
+        chainId: 1,
+        quotedCallsAddress: QUOTED_CALLS,
         feeToken: FEE_TOKEN,
         derivedConfig: {
           ...mockDerivedConfig,
@@ -507,9 +524,16 @@ describe('QuoteService', () => {
       expect(feeQuote).to.exist;
     });
 
-    it('falls back to parent fee contract when destination not in feeContracts', async () => {
+    it('skips warp fee quote when destination not in RoutingFee.feeContracts', async () => {
+      // RoutingFee doesn't extend AbstractOffchainQuoter on-chain so it has no
+      // `quoteSigners` of its own — when the destination isn't in the routing
+      // map, there's no offchain-quoted leaf to sign against and the server
+      // must skip the warp quote (returning only the IGP quote).
       const routers = new Map();
-      routers.set(ROUTER, {
+      routers.set(ROUTER.toLowerCase(), {
+        protocol: ProtocolType.Ethereum,
+        chainId: 1,
+        quotedCallsAddress: QUOTED_CALLS,
         feeToken: FEE_TOKEN,
         derivedConfig: {
           ...mockDerivedConfig,
@@ -518,7 +542,6 @@ describe('QuoteService', () => {
             address: FEE_CONTRACT,
             token: FEE_TOKEN,
             owner: ZERO_ADDRESS,
-            quoteSigners: [TEST_SIGNER],
             feeContracts: {
               optimism: {
                 type: TokenFeeType.OffchainQuotedLinearFee,
@@ -549,7 +572,12 @@ describe('QuoteService', () => {
       const feeQuote = res.quotes.find(
         (q) => q.quoter.toLowerCase() === FEE_CONTRACT.toLowerCase(),
       );
-      expect(feeQuote).to.exist;
+      expect(feeQuote).to.not.exist;
+      // IGP quote is still produced.
+      expect(res.quotes).to.have.lengthOf(1);
+      expect(res.quotes[0].quoter.toLowerCase()).to.equal(
+        IGP_ADDRESS.toLowerCase(),
+      );
     });
   });
 
@@ -559,7 +587,10 @@ describe('QuoteService', () => {
 
     it('skips IGP quote when quoteSigners is empty (not upgraded)', async () => {
       const routers = new Map();
-      routers.set(ROUTER, {
+      routers.set(ROUTER.toLowerCase(), {
+        protocol: ProtocolType.Ethereum,
+        chainId: 1,
+        quotedCallsAddress: QUOTED_CALLS,
         feeToken: FEE_TOKEN,
         derivedConfig: {
           ...mockDerivedConfig,
@@ -586,7 +617,10 @@ describe('QuoteService', () => {
 
     it('skips IGP quote when quoteSigners is undefined (not upgraded)', async () => {
       const routers = new Map();
-      routers.set(ROUTER, {
+      routers.set(ROUTER.toLowerCase(), {
+        protocol: ProtocolType.Ethereum,
+        chainId: 1,
+        quotedCallsAddress: QUOTED_CALLS,
         feeToken: FEE_TOKEN,
         derivedConfig: {
           ...mockDerivedConfig,
@@ -613,7 +647,10 @@ describe('QuoteService', () => {
 
     it('skips warp fee quote when signer not authorized', async () => {
       const routers = new Map();
-      routers.set(ROUTER, {
+      routers.set(ROUTER.toLowerCase(), {
+        protocol: ProtocolType.Ethereum,
+        chainId: 1,
+        quotedCallsAddress: QUOTED_CALLS,
         feeToken: FEE_TOKEN,
         derivedConfig: {
           ...mockDerivedConfig,
@@ -643,7 +680,10 @@ describe('QuoteService', () => {
 
     it('skips IGP quote when signer not authorized', async () => {
       const routers = new Map();
-      routers.set(ROUTER, {
+      routers.set(ROUTER.toLowerCase(), {
+        protocol: ProtocolType.Ethereum,
+        chainId: 1,
+        quotedCallsAddress: QUOTED_CALLS,
         feeToken: FEE_TOKEN,
         derivedConfig: {
           ...mockDerivedConfig,
@@ -670,7 +710,10 @@ describe('QuoteService', () => {
 
     it('returns empty quotes when not authorized on any quoter', async () => {
       const routers = new Map();
-      routers.set(ROUTER, {
+      routers.set(ROUTER.toLowerCase(), {
+        protocol: ProtocolType.Ethereum,
+        chainId: 1,
+        quotedCallsAddress: QUOTED_CALLS,
         feeToken: FEE_TOKEN,
         derivedConfig: {
           ...mockDerivedConfig,
