@@ -1,7 +1,9 @@
 import {
   type Address,
+  address as parseAddress,
   getAddressDecoder,
   getAddressEncoder,
+  type ReadonlyUint8Array,
 } from '@solana/kit';
 
 import {
@@ -16,7 +18,9 @@ import {
   ensureLength,
   i64le,
   option,
+  u8,
   u32le,
+  u128le,
 } from './binary.js';
 import { decodeBTreeSetH160, encodeBTreeSetH160 } from './fee.js';
 
@@ -163,6 +167,60 @@ export function decodeIgpTransientQuoteAccount(
     ),
   );
   return wrapped.data;
+}
+
+// ====== IGP quote context + data (signed bytes) ======
+
+/**
+ * Inputs for the offchain IGP signer's `context` slot — the 68 bytes the
+ * on-chain `OffchainQuotedIGP` mirror reads on submit. Layout:
+ *
+ *     [0:32]  fee_token_mint     (Pubkey, zero for SOL)
+ *     [32:36] destination_domain (u32 LE)
+ *     [36:68] sender             (Pubkey of the dispatching warp router)
+ *
+ * Pubkey fields accept plain base58 strings; parsing happens internally so
+ * callers don't need to import `address` from `@solana/kit` themselves.
+ */
+export interface SvmIgpQuoteContextInput {
+  feeTokenMint: string;
+  destinationDomain: number;
+  sender: string;
+}
+
+export function encodeSvmIgpQuoteContext(
+  input: SvmIgpQuoteContextInput,
+): ReadonlyUint8Array {
+  return concatBytes(
+    addressEncoder.encode(parseAddress(input.feeTokenMint)),
+    u32le(input.destinationDomain),
+    addressEncoder.encode(parseAddress(input.sender)),
+  );
+}
+
+/**
+ * Inputs for the offchain IGP signer's `data` slot — the 33 bytes that drive
+ * the on-chain quote cascade's pricing. Mirrors the standing/transient quote
+ * account fields:
+ *
+ *     [0:16]  token_exchange_rate (u128 LE)
+ *     [16:32] gas_price           (u128 LE)
+ *     [32:33] token_decimals      (u8)
+ */
+export interface SvmIgpQuoteDataInput {
+  tokenExchangeRate: bigint;
+  gasPrice: bigint;
+  tokenDecimals: number;
+}
+
+export function encodeSvmIgpQuoteData(
+  input: SvmIgpQuoteDataInput,
+): ReadonlyUint8Array {
+  return concatBytes(
+    u128le(input.tokenExchangeRate),
+    u128le(input.gasPrice),
+    u8(input.tokenDecimals),
+  );
 }
 
 // ====== GetIgpQuoteAccountMetas input ======
