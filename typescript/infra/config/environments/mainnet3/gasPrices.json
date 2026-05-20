@@ -347,6 +347,10 @@
     "amount": "0.1375",
     "decimals": 9
   },
+  "nesa": {
+    "amount": "1.125",
+    "decimals": 9
+  },
   "neutron": {
     "amount": "0.0053",
     "decimals": 1

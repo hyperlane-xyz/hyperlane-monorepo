@@ -1643,5 +1643,15 @@ export const validatorChainConfig = (
         'kiichain',
       ),
     },
+    nesa: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('nesa'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x990f548e766b830f69642d36cdd47fb20a2aa405'],
+        },
+        'nesa',
+      ),
+    },
   };
 };
