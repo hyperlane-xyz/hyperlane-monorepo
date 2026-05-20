@@ -300,7 +300,7 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
 
     // skunkchain special
     solanamainnet: 0.35,
-    ethereum: 0.07,
+    ethereum: 0.12,
     arbitrum: 0.09,
     optimism: 0.05,
     base: 0.05,
