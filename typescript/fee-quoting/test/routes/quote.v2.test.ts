@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import express, { Express } from 'express';
 import { pino } from 'pino';
 import request from 'supertest';
-import { type Address, type Hex, verifyTypedData } from 'viem';
+import { type Address, type Hex, hexToBytes, verifyTypedData } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 
 import {
@@ -11,9 +11,15 @@ import {
   HookType,
   NO_QUOTE_AVAILABLE_ERROR,
   NoQuoteAvailableReason,
+  type SealevelQuoteV2Entry,
   TokenFeeType,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import {
+  type FeeArtifactConfig,
+  FeeParamsType,
+  FeeType,
+} from '@hyperlane-xyz/provider-sdk/fee';
 
 import {
   EIP712_DOMAIN,
@@ -25,6 +31,7 @@ import { createErrorHandler } from '../../src/middleware/errorHandler.js';
 import { createQuoteV2Router } from '../../src/routes/quote.v2.js';
 import { EvmQuoteService } from '../../src/services/evmQuoteService.js';
 import { QuoteService } from '../../src/services/quoteService.js';
+import { SvmQuoteService } from '../../src/services/svmQuoteService.js';
 
 const TEST_PRIVATE_KEY =
   '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' as Hex;
@@ -52,6 +59,26 @@ const TX_SUBMITTER = '0xdddddddddddddddddddddddddddddddddddddddd';
 
 const BASE_QUERY = `origin=ethereum&router=${ROUTER}&destination=${DEST_DOMAIN}&salt=${SALT}&txSubmitter=${TX_SUBMITTER}`;
 const WARP_QUERY = `${BASE_QUERY}&recipient=${RECIPIENT}&targetRouter=${TARGET_ROUTER}`;
+
+// ============ Sealevel fixtures ============
+
+// Base58 placeholders — valid encodings so `@solana/kit`'s `address()` parser
+// accepts them. Actual PDAs don't matter since `fromState` bypasses on-chain
+// reads.
+const SVM_WARP_PROGRAM = '11111111111111111111111111111112';
+const SVM_FEE_ACCOUNT_PDA = '11111111111111111111111111111114';
+const SVM_IGP_ACCOUNT_PDA = '11111111111111111111111111111116';
+const SVM_TX_SUBMITTER = '11111111111111111111111111111117';
+const SVM_ORIGIN = 'solana';
+const SVM_ORIGIN_DOMAIN = 1399811149;
+
+const SVM_TEST_PRIVATE_KEY = hexToBytes(TEST_PRIVATE_KEY);
+// EVM and SVM whitelists use the same H160 (secp256k1 → keccak → last 20),
+// so the EVM signer address registered above is also the SVM signer ID.
+const SVM_SIGNER_H160 = TEST_SIGNER;
+
+const SVM_BASE_QUERY = `origin=${SVM_ORIGIN}&router=${SVM_WARP_PROGRAM}&destination=${DEST_DOMAIN}&salt=${SALT}&txSubmitter=${SVM_TX_SUBMITTER}`;
+const SVM_WARP_QUERY = `${SVM_BASE_QUERY}&recipient=${RECIPIENT}&targetRouter=${TARGET_ROUTER}`;
 
 interface ContextOverrides {
   warpQuoteSigners?: string[];
@@ -138,6 +165,90 @@ function createTestApp(opts: ContextOverrides = {}): Express {
 
 function authed(app: Express, path: string) {
   return request(app).get(path).set('Authorization', `Bearer ${TEST_API_KEY}`);
+}
+
+// ============ Sealevel test app builder ============
+
+interface SvmContextOverrides {
+  warpQuoteSigners?: string[];
+  igpSigners?: string[];
+  hasFee?: boolean;
+  hasIgp?: boolean;
+}
+
+function svmOffchainQuotedLeaf(signers: string[]): FeeArtifactConfig {
+  return {
+    type: FeeType.offchainQuotedLinear,
+    owner: SVM_SIGNER_H160,
+    beneficiary: SVM_SIGNER_H160,
+    params: { type: FeeParamsType.raw, maxFee: '0', halfAmount: '1' },
+    quoteSigners: signers,
+  };
+}
+
+function createSvmTestApp(opts: SvmContextOverrides = {}): Express {
+  const {
+    warpQuoteSigners = [SVM_SIGNER_H160],
+    igpSigners = [SVM_SIGNER_H160],
+    hasFee = true,
+    hasIgp = true,
+  } = opts;
+
+  const logger = pino({ level: 'silent' });
+  // EVM service is still required by `QuoteService` for the v1 handle, but
+  // protocolByChain has no Ethereum entry so v2 traffic never reaches it.
+  const evm = EvmQuoteService.fromState({
+    signerKey: TEST_PRIVATE_KEY,
+    logger,
+    routes: [],
+  });
+  const svm = SvmQuoteService.fromState({
+    signerKey: SVM_TEST_PRIVATE_KEY,
+    logger,
+    routes: [
+      {
+        origin: SVM_ORIGIN,
+        domainId: SVM_ORIGIN_DOMAIN,
+        warpProgramId: SVM_WARP_PROGRAM,
+        fee: hasFee
+          ? {
+              feeAccountPda: SVM_FEE_ACCOUNT_PDA,
+              config: svmOffchainQuotedLeaf(warpQuoteSigners),
+            }
+          : undefined,
+        igp: hasIgp
+          ? { igpAccountPda: SVM_IGP_ACCOUNT_PDA, signers: igpSigners }
+          : undefined,
+      },
+    ],
+  });
+
+  const quoteService = new QuoteService({
+    evm,
+    services: new Map([
+      [ProtocolType.Ethereum, evm],
+      [ProtocolType.Sealevel, svm],
+    ]),
+    protocolByChain: new Map([[SVM_ORIGIN, ProtocolType.Sealevel]]),
+    quoteMode: 'transient',
+    quoteExpiry: 300,
+    multiProvider: {
+      getChainName: (d: number) =>
+        d === DEST_DOMAIN ? DEST_CHAIN_NAME : `chain-${d}`,
+      getChainId: () => 1,
+    } as any,
+    logger,
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use(
+    '/v2/quote',
+    createApiKeyAuth(new Set([TEST_API_KEY]), pino({ level: 'silent' })),
+    createQuoteV2Router(quoteService),
+  );
+  app.use(createErrorHandler(pino({ level: 'silent' })));
+  return app;
 }
 
 describe('v2 Quote Routes', () => {
@@ -295,6 +406,112 @@ describe('v2 Quote Routes', () => {
         if (c.includesMessage) {
           expect(res.body.message).to.include(c.includesMessage);
         }
+      });
+    }
+  });
+
+  // ============ Sealevel ============
+
+  describe('Sealevel happy paths — SealevelQuoteV2Entry shape', () => {
+    interface SvmHappyCase {
+      name: string;
+      path: string;
+      quoter: string;
+      // Hex length includes '0x' + 2 chars per byte.
+      contextHexLen: number;
+      dataHexLen: number;
+    }
+    const cases: SvmHappyCase[] = [
+      {
+        name: 'warp: 44B Leaf context + 17B Linear data',
+        path: `/v2/quote/warp?${SVM_WARP_QUERY}`,
+        quoter: SVM_FEE_ACCOUNT_PDA,
+        contextHexLen: 2 + 44 * 2,
+        dataHexLen: 2 + 17 * 2,
+      },
+      {
+        name: 'igp: 68B context + 33B (u128, u128, u8) data',
+        path: `/v2/quote/igp?${SVM_BASE_QUERY}`,
+        quoter: SVM_IGP_ACCOUNT_PDA,
+        contextHexLen: 2 + 68 * 2,
+        dataHexLen: 2 + 33 * 2,
+      },
+    ];
+
+    for (const c of cases) {
+      it(c.name, async () => {
+        const app = createSvmTestApp();
+        const res = await authed(app, c.path).expect(200);
+        const entry = res.body.quote as SealevelQuoteV2Entry;
+        expect(entry.protocol).to.equal(ProtocolType.Sealevel);
+        expect(entry.quoter).to.equal(c.quoter);
+        expect(entry.details.domainId).to.equal(SVM_ORIGIN_DOMAIN);
+        expect(entry.details.signedQuote.context).to.have.lengthOf(
+          c.contextHexLen,
+        );
+        expect(entry.details.signedQuote.data).to.have.lengthOf(c.dataHexLen);
+        expect(entry.details.signedQuote.signature).to.have.lengthOf(
+          2 + 65 * 2,
+        );
+        expect(entry.details.signedQuote.clientSalt).to.have.lengthOf(
+          2 + 32 * 2,
+        );
+      });
+    }
+  });
+
+  describe('Sealevel 404 skip paths', () => {
+    interface SkipCase {
+      name: string;
+      path: string;
+      overrides: SvmContextOverrides;
+      reason: NoQuoteAvailableReason;
+    }
+    const cases: SkipCase[] = [
+      {
+        name: 'warp: not_authorized when signer is not on the whitelist',
+        path: `/v2/quote/warp?${SVM_WARP_QUERY}`,
+        overrides: { warpQuoteSigners: [OTHER_SIGNER] },
+        reason: NoQuoteAvailableReason.NotAuthorized,
+      },
+      {
+        name: 'warp: not_upgraded when quoteSigners is empty',
+        path: `/v2/quote/warp?${SVM_WARP_QUERY}`,
+        overrides: { warpQuoteSigners: [] },
+        reason: NoQuoteAvailableReason.NotUpgraded,
+      },
+      {
+        name: 'warp: not_configured when route has no fee',
+        path: `/v2/quote/warp?${SVM_WARP_QUERY}`,
+        overrides: { hasFee: false },
+        reason: NoQuoteAvailableReason.NotConfigured,
+      },
+      {
+        name: 'igp: not_authorized when signer is not on the whitelist',
+        path: `/v2/quote/igp?${SVM_BASE_QUERY}`,
+        overrides: { igpSigners: [OTHER_SIGNER] },
+        reason: NoQuoteAvailableReason.NotAuthorized,
+      },
+      {
+        name: 'igp: not_upgraded when IGP signers are empty',
+        path: `/v2/quote/igp?${SVM_BASE_QUERY}`,
+        overrides: { igpSigners: [] },
+        reason: NoQuoteAvailableReason.NotUpgraded,
+      },
+      {
+        name: 'igp: not_configured when route has no IGP',
+        path: `/v2/quote/igp?${SVM_BASE_QUERY}`,
+        overrides: { hasIgp: false },
+        reason: NoQuoteAvailableReason.NotConfigured,
+      },
+    ];
+
+    for (const c of cases) {
+      it(c.name, async () => {
+        const app = createSvmTestApp(c.overrides);
+        const res = await authed(app, c.path).expect(404);
+        expect(res.body.error).to.equal(NO_QUOTE_AVAILABLE_ERROR);
+        expect(res.body.reason).to.equal(c.reason);
       });
     }
   });
