@@ -27,13 +27,15 @@ contract HyperToken is
     /// @notice Constructor for HyperToken contract.
     /// @dev Calls the TokenRouter constructor and disables initializers.
     /// @param __decimals The number of decimals for the token.
-    /// @param _scale The scale factor for the token.
+    /// @param _scaleNumerator Numerator of the scale factor for the token.
+    /// @param _scaleDenominator Denominator of the scale factor for the token.
     /// @param _mailbox The address of the mailbox contract.
     constructor(
         uint8 __decimals,
-        uint256 _scale,
+        uint256 _scaleNumerator,
+        uint256 _scaleDenominator,
         address _mailbox
-    ) HypERC20(__decimals, _scale, _mailbox) {
+    ) HypERC20(__decimals, _scaleNumerator, _scaleDenominator, _mailbox) {
         _disableInitializers();
     }
 
@@ -96,13 +98,7 @@ contract HyperToken is
     // /// @inheritdoc ERC20Upgradeable
     function balanceOf(
         address _account
-    )
-        public
-        view
-        virtual
-        override(ERC20Upgradeable, HypERC20)
-        returns (uint256)
-    {
+    ) public view virtual override(ERC20Upgradeable) returns (uint256) {
         return ERC20Upgradeable.balanceOf(_account);
     }
 }
