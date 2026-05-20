@@ -1,4 +1,4 @@
-import SafeApiKit from '@safe-global/api-kit';
+import SafeApiKit, { type SafeApiKitConfig } from '@safe-global/api-kit';
 import Safe, { SafeProviderConfig } from '@safe-global/protocol-kit';
 import {
   getMultiSendCallOnlyDeployment,
@@ -8,7 +8,7 @@ import {
 import { Address, retryAsync } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainName } from '../types.js';
+import { ChainName, ChainNameOrId } from '../types.js';
 
 export const SAFE_API_RETRIES = 10;
 export const SAFE_API_BASE_RETRY_MS = 1000;
@@ -17,26 +17,59 @@ export function safeApiKeyRequired(txServiceUrl: string): boolean {
   return /safe\.global|5afe\.dev/.test(txServiceUrl);
 }
 
+export function normalizeSafeTxServiceUrl(txServiceUrl: string): string {
+  const trimmedUrl = txServiceUrl.replace(/\/+$/, '');
+  if (trimmedUrl.endsWith('/api')) return trimmedUrl;
+  return `${trimmedUrl}/api`;
+}
+
+export function isSafeGlobalTxServiceUrl(txServiceUrl: string): boolean {
+  try {
+    const url = new URL(normalizeSafeTxServiceUrl(txServiceUrl));
+    return (
+      ['api.safe.global', 'api.5afe.dev'].includes(url.hostname) &&
+      /^\/tx-service\/[^/]+\/api$/.test(url.pathname)
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function getSafeApiKitConfig(
+  chainId: number,
+  txServiceUrl: string,
+  gnosisSafeApiKey?: string,
+): SafeApiKitConfig {
+  const normalizedTxServiceUrl = normalizeSafeTxServiceUrl(txServiceUrl);
+  const apiKey = safeApiKeyRequired(normalizedTxServiceUrl)
+    ? gnosisSafeApiKey
+    : undefined;
+  const baseConfig = {
+    chainId: BigInt(chainId),
+    apiKey,
+  };
+
+  // Safe's hosted gateway authenticates API-key traffic correctly when API Kit
+  // derives the service URL from chainId. Supplying txServiceUrl can hit lower
+  // unauthenticated rate limits on some endpoints.
+  if (apiKey && isSafeGlobalTxServiceUrl(normalizedTxServiceUrl)) {
+    return baseConfig;
+  }
+
+  return {
+    ...baseConfig,
+    txServiceUrl: normalizedTxServiceUrl,
+  };
+}
+
 export function getSafeService(
-  chain: ChainName,
+  chain: ChainNameOrId,
   multiProvider: MultiProvider,
 ): SafeApiKit.default {
   const { gnosisSafeTransactionServiceUrl, gnosisSafeApiKey } =
     multiProvider.getChainMetadata(chain);
-  let txServiceUrl = gnosisSafeTransactionServiceUrl;
-  if (!txServiceUrl) {
+  if (!gnosisSafeTransactionServiceUrl) {
     throw new Error(`must provide tx service url for ${chain}`);
-  }
-
-  // Ensure txServiceUrl ends with /api
-  if (
-    !txServiceUrl.endsWith('/api') &&
-    !txServiceUrl.endsWith('/api/') &&
-    !txServiceUrl.endsWith('api')
-  ) {
-    // Remove trailing slash if present to avoid double slashes
-    txServiceUrl = txServiceUrl.replace(/\/+$/, '');
-    txServiceUrl = `${txServiceUrl}/api`;
   }
 
   const chainId = multiProvider.getEvmChainId(chain);
@@ -44,13 +77,23 @@ export function getSafeService(
     throw new Error(`Chain is not an EVM chain: ${chain}`);
   }
 
-  // @ts-ignore
-  return new SafeApiKit({
-    chainId: BigInt(chainId),
-    txServiceUrl,
-    // Only provide apiKey if the url contains safe.global or 5afe.dev
-    apiKey: safeApiKeyRequired(txServiceUrl) ? gnosisSafeApiKey : undefined,
-  });
+  const txServiceUrl = normalizeSafeTxServiceUrl(
+    gnosisSafeTransactionServiceUrl,
+  );
+  const config = getSafeApiKitConfig(chainId, txServiceUrl, gnosisSafeApiKey);
+  try {
+    // @ts-ignore
+    return new SafeApiKit(config);
+  } catch (error) {
+    if (!config.txServiceUrl && isSafeGlobalTxServiceUrl(txServiceUrl)) {
+      // @ts-ignore
+      return new SafeApiKit({
+        ...config,
+        txServiceUrl,
+      });
+    }
+    throw error;
+  }
 }
 
 // This is the version of the Safe contracts that the SDK is compatible with.

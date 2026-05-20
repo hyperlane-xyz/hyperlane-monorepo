@@ -25,6 +25,7 @@ import {
 import {
   Address,
   CallData,
+  assert,
   deepCopy,
   eqAddress,
   rootLogger,
@@ -41,6 +42,19 @@ const MIN_SAFE_API_VERSION = '5.18.0';
 const SAFE_API_MAX_RETRIES = 10;
 const SAFE_API_MIN_DELAY_MS = 1000;
 const SAFE_API_MAX_DELAY_MS = 3000;
+
+function getSafeServiceForChain(
+  chain: ChainNameOrId,
+  multiProvider: MultiProvider,
+): SafeApiKit.default {
+  return getSafeService(chain, multiProvider);
+}
+
+function normalizeSafeTxServiceUrl(txServiceUrl: string): string {
+  const trimmedUrl = txServiceUrl.replace(/\/+$/, '');
+  if (trimmedUrl.endsWith('/api')) return trimmedUrl;
+  return `${trimmedUrl}/api`;
+}
 
 /**
  * Retry helper for Safe API calls with random delay between 1-3 seconds.
@@ -74,23 +88,6 @@ export async function retrySafeApi<T>(runner: () => Promise<T>): Promise<T> {
     }
   }
   throw new Error('Unreachable');
-}
-
-async function fetchSafeApi<T>(url: string, safeApiKey: string): Promise<T> {
-  return retrySafeApi(async () => {
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': 'node-fetch',
-        Authorization: `Bearer ${safeApiKey}`,
-      },
-    });
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    return response.json();
-  });
 }
 
 export async function getSafeAndService(
@@ -250,28 +247,37 @@ export async function deleteAllPendingSafeTxs(
   multiProvider: MultiProvider,
   safeAddress: Address,
 ): Promise<void> {
-  const txServiceUrl =
-    multiProvider.getChainMetadata(chain).gnosisSafeTransactionServiceUrl;
-  const safeApiKey = await getSafeApiKey();
+  const safeService = getSafeServiceForChain(chain, multiProvider);
+  const pendingTxs: SafeMultisigTransactionListResponse['results'] = [];
+  const limit = 100;
+  let offset = 0;
 
   // Fetch all pending transactions
-  const pendingTxsUrl = `${txServiceUrl}/api/v2/safes/${safeAddress}/multisig-transactions/?executed=false&limit=100`;
-  let pendingTxs;
-  try {
-    pendingTxs = await fetchSafeApi<{ results: { safeTxHash: string }[] }>(
-      pendingTxsUrl,
-      safeApiKey,
-    );
-  } catch (error) {
-    rootLogger.error(
-      chalk.red(`Failed to fetch pending transactions for ${safeAddress}`),
-      error,
-    );
-    return;
+  while (true) {
+    let page: SafeMultisigTransactionListResponse;
+    try {
+      page = await retrySafeApi(() =>
+        safeService.getMultisigTransactions(safeAddress, {
+          executed: false,
+          limit,
+          offset,
+        }),
+      );
+    } catch (error) {
+      rootLogger.error(
+        chalk.red(`Failed to fetch pending transactions for ${safeAddress}`),
+        error,
+      );
+      return;
+    }
+
+    pendingTxs.push(...page.results);
+    if (page.results.length < limit) break;
+    offset += limit;
   }
 
   // Delete each pending transaction
-  for (const tx of pendingTxs.results) {
+  for (const tx of pendingTxs) {
     await deleteSafeTx(chain, multiProvider, safeAddress, tx.safeTxHash);
   }
 
@@ -285,14 +291,10 @@ export async function getSafeTx(
   multiProvider: MultiProvider,
   safeTxHash: string,
 ): Promise<any> {
-  const txServiceUrl =
-    multiProvider.getChainMetadata(chain).gnosisSafeTransactionServiceUrl;
-  const safeApiKey = await getSafeApiKey();
-
-  const txDetailsUrl = `${txServiceUrl}/api/v2/multisig-transactions/${safeTxHash}/`;
+  const safeService = getSafeServiceForChain(chain, multiProvider);
 
   try {
-    return await fetchSafeApi(txDetailsUrl, safeApiKey);
+    return await retrySafeApi(() => safeService.getTransaction(safeTxHash));
   } catch (error) {
     rootLogger.error(
       chalk.red(
@@ -311,17 +313,23 @@ export async function deleteSafeTx(
 ): Promise<void> {
   const signer = multiProvider.getSigner(chain);
   const chainId = multiProvider.getEvmChainId(chain);
-  const txServiceUrl =
-    multiProvider.getChainMetadata(chain).gnosisSafeTransactionServiceUrl;
+  const safeService = getSafeServiceForChain(chain, multiProvider);
+  const { gnosisSafeTransactionServiceUrl } =
+    multiProvider.getChainMetadata(chain);
+  assert(
+    gnosisSafeTransactionServiceUrl,
+    `Missing gnosisSafeTransactionServiceUrl for chain: ${chain}`,
+  );
+  const txServiceUrl = normalizeSafeTxServiceUrl(
+    gnosisSafeTransactionServiceUrl,
+  );
   const safeApiKey = await getSafeApiKey();
 
   // Fetch the transaction details to get the proposer
-  const txDetailsUrl = `${txServiceUrl}/api/v2/multisig-transactions/${safeTxHash}/`;
   let txDetails;
   try {
-    txDetails = await fetchSafeApi<{ proposer?: string }>(
-      txDetailsUrl,
-      safeApiKey,
+    txDetails = await retrySafeApi(() =>
+      safeService.getTransaction(safeTxHash),
     );
   } catch (error) {
     rootLogger.error(
@@ -387,7 +395,7 @@ export async function deleteSafeTx(
     );
 
     // Make the API call to delete the transaction
-    const deleteUrl = `${txServiceUrl}/api/v2/multisig-transactions/${safeTxHash}/`;
+    const deleteUrl = `${txServiceUrl}/v2/multisig-transactions/${safeTxHash}/`;
     await retrySafeApi(async () => {
       const res = await fetch(deleteUrl, {
         method: 'DELETE',
