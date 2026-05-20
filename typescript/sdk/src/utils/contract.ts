@@ -14,8 +14,28 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
+function getErrorMessage(error: unknown): string | undefined {
+  return error instanceof Error
+    ? error.message
+    : isRecord(error) && typeof error.message === 'string'
+      ? error.message
+      : undefined;
+}
+
+function isEmptyProviderResponse(error: unknown): boolean {
+  let current = error;
+  while (isRecord(current)) {
+    if (getErrorMessage(current) === 'Invalid response from provider') {
+      return true;
+    }
+    current = current.cause;
+  }
+  return false;
+}
+
 export function isMissingSelectorCallException(error: unknown): boolean {
   if (!isRecord(error)) return false;
+  if (isEmptyProviderResponse(error)) return true;
 
   const callException =
     error.code === 'CALL_EXCEPTION'
@@ -37,7 +57,8 @@ export function isMissingSelectorCallException(error: unknown): boolean {
   // Some ethers/provider combinations only expose empty return data in the
   // formatted message.
   return (
-    typeof error.message === 'string' && error.message.includes('data="0x"')
+    typeof callException.message === 'string' &&
+    callException.message.includes('data="0x"')
   );
 }
 

@@ -10,6 +10,7 @@ import type { HyperlaneEtherscanProvider } from './HyperlaneEtherscanProvider.js
 import type { HyperlaneJsonRpcProvider } from './HyperlaneJsonRpcProvider.js';
 import { BlockchainError, HyperlaneSmartProvider } from './SmartProvider.js';
 import { ProviderStatus } from './types.js';
+import { isMissingSelectorCallException } from '../../utils/contract.js';
 
 // Dummy provider for testing
 class MockProvider extends providers.BaseProvider implements IProviderMethods {
@@ -451,6 +452,20 @@ describe('SmartProvider', () => {
       expect(e).to.not.be.instanceOf(BlockchainError);
       // Falls through to generic error handler (unhandled case)
       expect(e.message).to.equal('Test fallback message');
+    });
+
+    it('preserves unhandled provider errors as causes', () => {
+      const error = new Error('Invalid response from provider');
+      const CombinedError = provider.testGetCombinedProviderError(
+        [error],
+        'Test fallback message',
+      );
+
+      const e = new CombinedError();
+
+      expect(e).to.be.instanceOf(Error);
+      expect(e.cause).to.equal(error);
+      expect(isMissingSelectorCallException(e)).to.equal(true);
     });
 
     it('treats CALL_EXCEPTION with JSON-RPC error code 3 as permanent (BlockchainError)', () => {

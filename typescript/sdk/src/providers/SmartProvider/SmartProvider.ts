@@ -660,7 +660,9 @@ export class HyperlaneSmartProvider
       );
       return class extends Error {
         constructor() {
-          super(fallbackMsg);
+          super(fallbackMsg, {
+            cause: errors[0],
+          });
         }
       };
     }

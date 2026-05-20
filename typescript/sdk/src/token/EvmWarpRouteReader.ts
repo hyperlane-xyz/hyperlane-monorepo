@@ -66,6 +66,10 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { EvmRouterReader } from '../router/EvmRouterReader.js';
 import { DestinationGas } from '../router/types.js';
 import { ChainName, ChainNameOrId, DeployedOwnableConfig } from '../types.js';
+import {
+  isMissingSelectorCallException,
+  throwIfNotMissingSelector,
+} from '../utils/contract.js';
 import { NormalizedScale } from '../utils/decimals.js';
 
 import {
@@ -407,6 +411,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     const [packageVersion, tokenFee] = await Promise.all([
       this.fetchPackageVersion(routerAddress),
       TokenRouter.feeRecipient().catch((error) => {
+        throwIfNotMissingSelector(error);
         this.logger.debug(
           `Failed to read feeRecipient for token at address "${routerAddress}" on chain "${this.chain}", defaulting to AddressZero`,
           error,
@@ -435,6 +440,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     const routingDestinations =
       destinations ??
       (await TokenRouter.domains().catch((error) => {
+        throwIfNotMissingSelector(error);
         this.logger.debug(
           `Failed to derive token router domains for routing fee config on "${this.chain}"`,
           error,
@@ -661,6 +667,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
               await xerc20['mintingCurrentLimitOf(address)'](warpRouteAddress);
               return TokenType.XERC20;
             } catch (error) {
+              throwIfNotMissingSelector(error);
               this.logger.debug(
                 `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.XERC20}`,
                 error,
@@ -717,6 +724,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
               return everclearTokenType;
             } catch (error) {
+              throwIfNotMissingSelector(error);
               this.logger.debug(
                 `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.collateralEverclear}`,
                 error,
@@ -732,6 +740,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
               await crossCollateralRouter.getCrossCollateralRouters(0);
               return TokenType.crossCollateral;
             } catch (error) {
+              throwIfNotMissingSelector(error);
               this.logger.debug(
                 `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.crossCollateral}`,
                 error,
@@ -740,7 +749,8 @@ export class EvmWarpRouteReader extends EvmRouterReader {
           }
 
           return tokenType as TokenType;
-        } catch {
+        } catch (error) {
+          throwIfNotMissingSelector(error);
           continue;
         }
       }
@@ -1541,15 +1551,15 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
     try {
       return await contractWithVersion.PACKAGE_VERSION();
-    } catch (err: any) {
-      if (err.cause?.code && err.cause?.code === 'CALL_EXCEPTION') {
+    } catch (err) {
+      if (isMissingSelectorCallException(err)) {
         // PACKAGE_VERSION was introduced in @hyperlane-xyz/core@5.4.0
         // See https://github.com/hyperlane-xyz/hyperlane-monorepo/releases/tag/%40hyperlane-xyz%2Fcore%405.4.0
         // The real version of a contract without this function is below 5.4.0
         return '5.3.9';
       } else {
         this.logger.error(`Error when fetching package version ${err}`);
-        return '0.0.0';
+        throw err;
       }
     }
   }
