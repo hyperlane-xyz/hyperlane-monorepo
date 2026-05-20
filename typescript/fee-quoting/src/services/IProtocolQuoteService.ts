@@ -35,6 +35,16 @@ export interface StandingQuoteBinding {
  * Inputs for a warp/token-fee quote. The service looks up its own per-route
  * state by `(origin, router)`; protocol-specific data (derived config, fee
  * account PDA, signers, etc.) is encapsulated inside the service.
+ *
+ * `txSubmitter` is the address that will submit the resulting signed quote
+ * on-chain.
+ *   - EVM: typically the `QuotedCalls` contract (transient) or `address(0)`
+ *     (standing). Current EVM impl ignores the value and derives it from
+ *     the server's `quoteMode` + the route's `quotedCallsAddress`.
+ *   - SVM: the end-user's wallet pubkey. Used as `payer` in
+ *     `scoped_salt = keccak256(payer ‖ client_salt)` for the signed message
+ *     hash — required since SVM has no `QuotedCalls`-equivalent wrapper
+ *     program to pin a known submitter at startup.
  */
 export interface WarpQuoteRequest {
   origin: string;
@@ -49,6 +59,8 @@ export interface WarpQuoteRequest {
    * non-CC no).
    */
   targetRouter: Hex;
+  /** On-chain submitter of the resulting quote (see interface JSDoc). */
+  txSubmitter: string;
   binding: QuoteBinding;
 }
 
@@ -62,6 +74,8 @@ export interface IgpQuoteRequest {
   /** Origin warp router (EVM hex address OR SVM base58 pubkey) — used as the
    *  `sender` field in the IGP context bytes. Often equal to `router`. */
   sender: string;
+  /** On-chain submitter of the resulting quote (see `WarpQuoteRequest` JSDoc). */
+  txSubmitter: string;
   binding: QuoteBinding;
 }
 
