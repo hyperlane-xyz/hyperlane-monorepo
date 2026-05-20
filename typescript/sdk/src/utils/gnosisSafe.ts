@@ -5,7 +5,7 @@ import {
   getMultiSendDeployment,
 } from '@safe-global/safe-deployments';
 
-import { Address, assert, retryAsync } from '@hyperlane-xyz/utils';
+import { Address, assert, retryAsync, rootLogger } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName, ChainNameOrId } from '../types.js';
@@ -240,7 +240,13 @@ export async function canProposeSafeTransactions(
   let safeService: SafeApiKitInstance;
   try {
     safeService = getSafeService(chain, multiProvider);
-  } catch {
+  } catch (e) {
+    rootLogger.error('Failed to get Safe service for chain', {
+      chain,
+      chainName: multiProvider.tryGetChainName(chain),
+      knownChains: multiProvider.getKnownChainNames(),
+      error: e,
+    });
     return false;
   }
   const safe = await getSafe(chain, multiProvider, safeAddress);
