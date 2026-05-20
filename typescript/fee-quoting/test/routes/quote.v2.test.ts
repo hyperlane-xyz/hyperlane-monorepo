@@ -6,13 +6,14 @@ import { type Address, type Hex, verifyTypedData } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 
 import {
+  type DerivedTokenRouterConfig,
   type EthereumQuoteV2Entry,
   HookType,
   NO_QUOTE_AVAILABLE_ERROR,
   NoQuoteAvailableReason,
   TokenFeeType,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 
 import {
   EIP712_DOMAIN,
@@ -22,11 +23,8 @@ import {
 import { createApiKeyAuth } from '../../src/middleware/apiKeyAuth.js';
 import { createErrorHandler } from '../../src/middleware/errorHandler.js';
 import { createQuoteV2Router } from '../../src/routes/quote.v2.js';
-import {
-  QuoteService,
-  type ChainQuoteContext,
-  type EvmRouterQuoteContext,
-} from '../../src/services/quoteService.js';
+import { EvmQuoteService } from '../../src/services/evmQuoteService.js';
+import { QuoteService } from '../../src/services/quoteService.js';
 
 const TEST_PRIVATE_KEY =
   '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' as Hex;
@@ -94,26 +92,26 @@ function createTestApp(opts: ContextOverrides = {}): Express {
       : undefined,
   };
 
-  const routerCtx: EvmRouterQuoteContext = {
-    protocol: ProtocolType.Ethereum,
-    chainId: 1,
-    quotedCallsAddress: QUOTED_CALLS,
-    feeToken: FEE_TOKEN,
-    derivedConfig: derivedConfig as any,
-  };
-  const routers = new Map<string, EvmRouterQuoteContext>();
-  routers.set(ROUTER.toLowerCase(), routerCtx);
-
-  const chainContexts = new Map<string, ChainQuoteContext>();
-  chainContexts.set('ethereum', {
-    protocol: ProtocolType.Ethereum,
-    chainName: 'ethereum',
-    quotedCallsAddress: QUOTED_CALLS,
-    routers,
+  const logger = pino({ level: 'silent' });
+  const evm = EvmQuoteService.fromState({
+    signerKey: TEST_PRIVATE_KEY,
+    logger,
+    routes: [
+      {
+        origin: 'ethereum',
+        warpRouter: ROUTER,
+        chainId: 1,
+        quotedCallsAddress: QUOTED_CALLS,
+        feeToken: FEE_TOKEN,
+        derivedConfig: derivedConfig as unknown as DerivedTokenRouterConfig,
+      },
+    ],
   });
 
   const quoteService = new QuoteService({
-    signerKey: TEST_PRIVATE_KEY,
+    evm,
+    services: new Map([[ProtocolType.Ethereum, evm]]),
+    protocolByChain: new Map([['ethereum', ProtocolType.Ethereum]]),
     quoteMode: 'transient',
     quoteExpiry: 300,
     multiProvider: {
@@ -121,8 +119,7 @@ function createTestApp(opts: ContextOverrides = {}): Express {
         d === DEST_DOMAIN ? DEST_CHAIN_NAME : `chain-${d}`,
       getChainId: () => 1,
     } as any,
-    chainContexts,
-    logger: pino({ level: 'silent' }),
+    logger,
   });
 
   const app = express();
