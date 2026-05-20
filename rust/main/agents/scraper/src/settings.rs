@@ -4,7 +4,12 @@
 //! and validations it defines are not applied here, we should mirror them.
 //! ANY CHANGES HERE NEED TO BE REFLECTED IN THE TYPESCRIPT SDK.
 
-use std::{collections::HashSet, default::Default, ops::Add};
+use std::{
+    collections::{HashMap, HashSet},
+    default::Default,
+    ops::Add,
+    str::FromStr,
+};
 
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
 use eyre::Context;
@@ -15,7 +20,7 @@ use hyperlane_base::{
         Settings,
     },
 };
-use hyperlane_core::{cfg_unwrap_all, config::*, HyperlaneDomain};
+use hyperlane_core::{cfg_unwrap_all, config::*, HyperlaneDomain, H160};
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -30,6 +35,10 @@ pub struct ScraperSettings {
 
     pub db: String,
     pub chains_to_scrape: Vec<HyperlaneDomain>,
+    /// Per-domain CCR contract → underlying ERC20 token mapping.
+    /// Domain ID → { router_address → token_address }.
+    /// Only domains present here will spawn a CCR swap indexer.
+    pub ccr_routers: HashMap<u32, HashMap<H160, H160>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -85,12 +94,33 @@ impl FromRawConf<RawScraperSettings> for ScraperSettings {
             Default::default()
         };
 
+        // Parse optional ccrRouters: { "domainId": { "routerAddr": "tokenAddr" } }
+        let ccr_routers: HashMap<u32, HashMap<H160, H160>> = p
+            .chain(&mut err)
+            .get_opt_key("ccrRouters")
+            .parse_value::<HashMap<String, HashMap<String, String>>>("parsing ccrRouters")
+            .end()
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|(domain_str, router_map)| {
+                let domain_id: u32 = domain_str.parse().ok()?;
+                let parsed: HashMap<H160, H160> = router_map
+                    .into_iter()
+                    .filter_map(|(router, token)| {
+                        Some((H160::from_str(&router).ok()?, H160::from_str(&token).ok()?))
+                    })
+                    .collect();
+                Some((domain_id, parsed))
+            })
+            .collect();
+
         cfg_unwrap_all!(&p.cwp, err: [base, db]);
 
         err.into_result(Self {
             base,
             db,
             chains_to_scrape,
+            ccr_routers,
         })
     }
 }

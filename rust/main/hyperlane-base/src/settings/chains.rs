@@ -14,7 +14,7 @@ use hyperlane_core::{
     HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider,
     IndexMode, InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
     MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, NativeToken, ReorgPeriod, RoutingIsm,
-    SequenceAwareIndexer, SubmitterType, ValidatorAnnounce, H256,
+    SameChainCcrSwap, SequenceAwareIndexer, SubmitterType, ValidatorAnnounce, H160, H256,
 };
 use hyperlane_metric::prometheus_metric::ChainInfo;
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
@@ -834,6 +834,43 @@ impl ChainConf {
 
                 Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
             }
+        }
+        .context(ctx)
+    }
+
+    /// Build a CCR same-chain swap indexer for EVM chains.
+    /// Only supported for Ethereum connections; returns an error for other chain types.
+    pub async fn build_ccr_swap_indexer(
+        &self,
+        metrics: &CoreMetrics,
+        local_domain: u32,
+        ccr_addresses: Vec<H160>,
+        ccr_to_erc20: std::collections::HashMap<H160, H160>,
+    ) -> Result<Box<dyn SequenceAwareIndexer<SameChainCcrSwap>>> {
+        let ctx = "Building CCR swap indexer";
+        // Use a zero address as the locator — CcrSwapIndexer uses ccr_addresses instead.
+        let locator = self.locator(H256::zero());
+
+        match &self.connection {
+            ChainConnectionConf::Ethereum(conf) => {
+                let reorg_period =
+                    EthereumReorgPeriod::try_from(&self.reorg_period).context(ctx)?;
+                self.build_ethereum(
+                    conf,
+                    &locator,
+                    metrics,
+                    h_eth::CcrSwapIndexerBuilder {
+                        local_domain,
+                        ccr_addresses,
+                        ccr_to_erc20,
+                        reorg_period,
+                    },
+                )
+                .await
+            }
+            _ => Err(eyre::eyre!(
+                "CCR swap indexer is only supported for Ethereum chains"
+            )),
         }
         .context(ctx)
     }

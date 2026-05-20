@@ -9,4 +9,5 @@ pub mod domain;
 pub mod gas_payment;
 pub mod message;
 pub mod raw_message_dispatch;
+pub mod same_chain_ccr_swap;
 pub mod transaction;
