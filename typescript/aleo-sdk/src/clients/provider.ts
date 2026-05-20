@@ -10,6 +10,7 @@ import {
   U128ToString,
   arrayToPlaintext,
   bytes32ToU128String,
+  u128PairToBytes32,
   fillArray,
   formatAddress,
   fromAleoAddress,
@@ -352,6 +353,59 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         throw new Error(`Unknown token type ${metadata['token_type']}`);
       }
     }
+  }
+
+  // ### QUERY DISPATCH ###
+
+  async getDispatchNonceForTx(
+    mailboxAddress: string,
+    txId: string,
+  ): Promise<number | null> {
+    const { programId } = fromAleoAddress(mailboxAddress);
+    const blockHash = await this.findBlockHashByTxId(txId);
+    const block = await this.aleoClient.getBlockByHash(blockHash);
+    const blockHeight = Number(block.header.metadata.height);
+    const nonce = await this.queryMappingValue(
+      programId,
+      'dispatch_event_index',
+      `${blockHeight}u32`,
+    );
+    return nonce != null ? (nonce as number) : null;
+  }
+
+  async getDispatchedMessageId(
+    mailboxAddress: string,
+    nonce: number,
+  ): Promise<string> {
+    const { programId } = fromAleoAddress(mailboxAddress);
+    const raw = await this.queryMappingString(
+      programId,
+      'dispatch_id_events',
+      `${nonce}u32`,
+    );
+    return u128PairToBytes32(raw);
+  }
+
+  async getDispatchedDestinationDomain(
+    mailboxAddress: string,
+    nonce: number,
+  ): Promise<number> {
+    const { programId } = fromAleoAddress(mailboxAddress);
+    const result = await this.queryMappingValue(
+      programId,
+      'dispatch_events',
+      `${nonce}u32`,
+    );
+    assert(
+      result != null,
+      `No dispatch_events entry at nonce ${nonce} (mailbox=${mailboxAddress})`,
+    );
+    const domain = result['destination_domain'];
+    assert(
+      typeof domain === 'number',
+      `destination_domain is not a number: ${domain}`,
+    );
+    return domain;
   }
 
   private async getQuotes(

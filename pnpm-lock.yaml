@@ -306,18 +306,10 @@ overrides:
   xmlhttprequest-ssl: 4.0.0
 
 patchedDependencies:
-  bigint-buffer@1.1.5:
-    hash: cd06d79b9cff13280e1a45a0f15abf67bc4ada4d7ad42bdfe120982ffa4340a2
-    path: patches/bigint-buffer@1.1.5.patch
-  node-fetch@2.7.0:
-    hash: 59af5fd5e6879432f6c8aaafe72ade0e018951d8576db2aedda3d59e5a7bc024
-    path: patches/node-fetch@2.7.0.patch
-  node-fetch@3.3.2:
-    hash: 9872737c7a2d7862012132c60c476cac6a03a48fe575d80388b4ba1176583bf9
-    path: patches/node-fetch@3.3.2.patch
-  typechain@8.3.2:
-    hash: fbb49bf3d1f71d8430767373c9ae33cd36e1aedd8ae9584d00dc90775f804950
-    path: patches/typechain@8.3.2.patch
+  bigint-buffer@1.1.5: cd06d79b9cff13280e1a45a0f15abf67bc4ada4d7ad42bdfe120982ffa4340a2
+  node-fetch@2.7.0: 59af5fd5e6879432f6c8aaafe72ade0e018951d8576db2aedda3d59e5a7bc024
+  node-fetch@3.3.2: 9872737c7a2d7862012132c60c476cac6a03a48fe575d80388b4ba1176583bf9
+  typechain@8.3.2: fbb49bf3d1f71d8430767373c9ae33cd36e1aedd8ae9584d00dc90775f804950
 
 importers:
 

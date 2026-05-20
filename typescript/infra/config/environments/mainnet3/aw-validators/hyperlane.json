@@ -272,6 +272,9 @@
   "ronin": {
     "validators": ["0xa3e11929317e4a871c3d47445ea7bb8c4976fd8a"]
   },
+  "scroll": {
+    "validators": ["0xad557170a9f2f21c35e03de07cb30dcbcc3dff63"]
+  },
   "sei": {
     "validators": ["0x9920d2dbf6c85ffc228fdc2e810bf895732c6aa5"]
   },
@@ -349,6 +352,9 @@
   },
   "zerogravity": {
     "validators": ["0xc37e7dad064c11d7ecfc75813a4d8d649d797275"]
+  },
+  "zeronetwork": {
+    "validators": ["0x1bd9e3f8a90ea1a13b0f2838a1858046368aad87"]
   },
   "zetachain": {
     "validators": ["0xa3bca0b80317dbf9c7dce16a16ac89f4ff2b23ef"]
