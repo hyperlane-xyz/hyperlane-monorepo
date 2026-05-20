@@ -178,12 +178,15 @@ export const NoQuoteAvailableReason = {
 export type NoQuoteAvailableReason =
   (typeof NoQuoteAvailableReason)[keyof typeof NoQuoteAvailableReason];
 
+/** The `error` discriminator for `NoQuoteAvailableError` 404 bodies. */
+export const NO_QUOTE_AVAILABLE_ERROR = 'no_quote_available';
+
 /**
  * v2 404 response body shape — emitted when the server cannot produce a quote
  * for the requested route/quoter. NOT a JS `Error` class; this is the JSON body.
  */
 export interface NoQuoteAvailableError {
-  error: 'no_quote_available';
+  error: typeof NO_QUOTE_AVAILABLE_ERROR;
   reason: NoQuoteAvailableReason;
   detail: string;
 }

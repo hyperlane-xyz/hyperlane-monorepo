@@ -1,4 +1,5 @@
 export {
+  DerivedCrossCollateralRoutingFeeConfig,
   DerivedRoutingFeeConfig,
   DerivedTokenFeeConfig,
   EvmTokenFeeReader,
@@ -39,6 +40,7 @@ export {
   type EthereumQuoteV2Entry,
   FeeQuotingCommand,
   type FeeQuotingQuoteResponse,
+  NO_QUOTE_AVAILABLE_ERROR,
   type NoQuoteAvailableError,
   NoQuoteAvailableReason,
   type Permit2Data,
