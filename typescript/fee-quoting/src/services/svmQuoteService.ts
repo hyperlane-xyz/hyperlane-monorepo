@@ -202,6 +202,7 @@ export class SvmQuoteService implements IProtocolQuoteService {
       hexToBytes(req.recipient),
       hexToBytes(req.targetRouter),
       route.fee.feeAccountPda,
+      req.binding,
     );
     this.assertSignerAuthorized(
       resolved.quoteSigners,
@@ -439,7 +440,9 @@ interface ResolvedSvmWarpQuote {
    * Encoder input for `encodeSvmFeeQuoteContext`. `targetRouter` is set iff
    * the leaf came from a `CrossCollateralRouting` parent — the runtime
    * discriminator between the 44B Leaf/Routing context and the 76B
-   * Cross-Collateral context.
+   * Cross-Collateral context. Carries the *resolved* target router bytes
+   * (`DEFAULT_ROUTER` when the walker fell back), not necessarily the
+   * request's targetRouter.
    */
   contextInput: SvmFeeQuoteContextInput;
 }
@@ -450,9 +453,11 @@ interface ResolvedSvmWarpQuote {
  * `FeeStrategy` leaves (no nested `RoutingFee` allowed) — so the walk is a
  * single branch + lookup, no recursion.
  *
- * `feeAccountPda` is the same address at every level (SVM stores the whole
- * tree in one account), so it's threaded through for error-message clarity
- * rather than tracked per node.
+ * `binding` is consumed by the CC branch only: if the exact `targetRouter`
+ * is unconfigured but a `DEFAULT_ROUTER_KEY` entry exists, the on-chain CC
+ * submit handler accepts the DEFAULT-router fallback for standing quotes
+ * but explicitly rejects it for transient quotes. The walker enforces that
+ * rule here so the caller can sign blindly.
  *
  * Only `quoteSigners` and the CC-vs-non-CC discriminator are read off the
  * leaf — the strategy params signed on the wire come from
@@ -464,40 +469,50 @@ function resolveSvmWarpQuote(
   recipient: Uint8Array,
   targetRouter: Uint8Array,
   feeAccountPda: string,
+  binding: QuoteBinding,
 ): ResolvedSvmWarpQuote {
-  const { leaf, isCrossCollateral } = pickLeaf(
+  const picked = pickLeaf(
     config,
     destinationDomain,
     targetRouter,
     feeAccountPda,
+    binding,
   );
 
-  if (leaf.type !== FeeType.offchainQuotedLinear) {
+  if (picked.leaf.type !== FeeType.offchainQuotedLinear) {
     throw new NoQuoteAvailableError(
       NoQuoteAvailableReason.NotUpgraded,
-      `Fee leaf on ${feeAccountPda} is ${leaf.type}, not OffchainQuotedLinearFee`,
+      `Fee leaf on ${feeAccountPda} is ${picked.leaf.type}, not OffchainQuotedLinearFee`,
     );
   }
 
   return {
-    quoteSigners: leaf.quoteSigners,
+    quoteSigners: picked.leaf.quoteSigners,
     contextInput: {
       destinationDomain,
       recipient,
       amount: WILDCARD_AMOUNT,
-      targetRouter: isCrossCollateral ? targetRouter : undefined,
+      targetRouter: picked.effectiveTargetRouter,
     },
   };
 }
 
 type FeeLeafLike = FeeArtifactConfig | FeeStrategy;
 
+interface PickedLeaf {
+  leaf: FeeLeafLike;
+  /** Bytes to sign in `ctx.target_router`. `undefined` for non-CC leaves
+   *  (which produce the 44B Leaf context with no targetRouter slot). */
+  effectiveTargetRouter: Uint8Array | undefined;
+}
+
 function pickLeaf(
   config: FeeArtifactConfig,
   destinationDomain: number,
   targetRouter: Uint8Array,
   feeAccountPda: string,
-): { leaf: FeeLeafLike; isCrossCollateral: boolean } {
+  binding: QuoteBinding,
+): PickedLeaf {
   switch (config.type) {
     case FeeType.linear:
     case FeeType.regressive:
@@ -505,7 +520,7 @@ function pickLeaf(
     case FeeType.offchainQuotedLinear:
       // Top-level leaf — return as-is. Extra BaseFeeConfig fields don't hurt
       // since the consumer only reads `type`, `params`, `quoteSigners`.
-      return { leaf: config, isCrossCollateral: false };
+      return { leaf: config, effectiveTargetRouter: undefined };
     case FeeType.routing: {
       const child = config.routes[destinationDomain];
       if (!child) {
@@ -514,7 +529,7 @@ function pickLeaf(
           `No fee route on ${feeAccountPda} for destination domain ${destinationDomain}`,
         );
       }
-      return { leaf: child, isCrossCollateral: false };
+      return { leaf: child, effectiveTargetRouter: undefined };
     }
     case FeeType.crossCollateralRouting: {
       const destRoutes = config.routes[destinationDomain];
@@ -525,15 +540,28 @@ function pickLeaf(
         );
       }
       const targetRouterKey: Hex = bytesToHex(targetRouter);
-      const child =
-        destRoutes[targetRouterKey] ?? destRoutes[DEFAULT_ROUTER_KEY];
-      if (!child) {
-        throw new NoQuoteAvailableError(
-          NoQuoteAvailableReason.NotConfigured,
-          `No CC fee route on ${feeAccountPda} for ${destinationDomain}/${targetRouterKey} (no default fallback)`,
-        );
+      if (destRoutes[targetRouterKey]) {
+        return {
+          leaf: destRoutes[targetRouterKey],
+          effectiveTargetRouter: targetRouter,
+        };
       }
-      return { leaf: child, isCrossCollateral: true };
+      if (destRoutes[DEFAULT_ROUTER_KEY]) {
+        if (binding.kind === QuoteMode.TRANSIENT) {
+          throw new NoQuoteAvailableError(
+            NoQuoteAvailableReason.NotConfigured,
+            `Only DEFAULT_ROUTER fallback exists for ${destinationDomain}/${targetRouterKey} on ${feeAccountPda}, but on-chain rejects transient quotes signed against DEFAULT_ROUTER`,
+          );
+        }
+        return {
+          leaf: destRoutes[DEFAULT_ROUTER_KEY],
+          effectiveTargetRouter: hexToBytes(DEFAULT_ROUTER_KEY),
+        };
+      }
+      throw new NoQuoteAvailableError(
+        NoQuoteAvailableReason.NotConfigured,
+        `No CC fee route on ${feeAccountPda} for ${destinationDomain}/${targetRouterKey} (no default fallback)`,
+      );
     }
     default: {
       const _exhaustive: never = config;
