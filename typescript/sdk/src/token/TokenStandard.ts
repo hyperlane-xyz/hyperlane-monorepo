@@ -568,6 +568,8 @@ export const TRON_TOKEN_TYPE_TO_STANDARD: Record<
   [TokenType.collateralDepositAddress]: TokenStandard.TronHypCollateral,
   [TokenType.collateralOft]: TokenStandard.TronHypCollateral,
   [TokenType.crossCollateral]: TokenStandard.TronHypCrossCollateralRouter,
+  // HyperToken is EVM-only; map to synthetic for Tron lookups
+  [TokenType.hyperToken]: TokenStandard.TronHypSynthetic,
 };
 
 export const PROTOCOL_TO_NATIVE_STANDARD: Record<
