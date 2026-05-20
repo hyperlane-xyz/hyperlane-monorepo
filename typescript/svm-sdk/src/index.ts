@@ -199,12 +199,23 @@ export {
   decodeOverheadIgpAccount,
 } from './accounts/token.js';
 export {
+  encodeSvmIgpQuoteContext,
+  encodeSvmIgpQuoteData,
   decodeIgpStandingQuoteAccount,
   decodeIgpTransientQuoteAccount,
   WILDCARD_DOMAIN,
   WILDCARD_SENDER,
 } from './codecs/igp.js';
-export type { SvmSignedQuote } from './codecs/fee.js';
+export type { SvmFeeQuoteContextInput, SvmSignedQuote } from './codecs/fee.js';
+export {
+  encodeSvmFeeQuoteContext,
+  WILDCARD_AMOUNT,
+  WILDCARD_RECIPIENT,
+} from './codecs/fee.js';
+export type {
+  SvmIgpQuoteContextInput,
+  SvmIgpQuoteDataInput,
+} from './codecs/igp.js';
 export type {
   GetIgpQuoteAccountMetasInput,
   IgpFeeConfig,
@@ -235,6 +246,16 @@ export {
 export { SvmWarpArtifactManager } from './warp/warp-artifact-manager.js';
 export { isSvmDeployedWarpAddress as isSealevelDeployedWarpAddress } from './warp/types.js';
 export { isSvmDeployedIgpHook as isSealevelDeployedIgpHook } from './types.js';
+
+// Fee data codec — Borsh encoding of the on-chain `FeeDataStrategy` enum
+// (Linear / Regressive / Progressive). Offchain quote signers use this to
+// produce the `data` bytes the SVM fee program verifies against.
+export {
+  encodeFeeDataStrategy,
+  type SvmFeeDataStrategy,
+  type SvmFeeParams,
+} from './codecs/fee.js';
+export { FeeStrategyKind } from './fee/types.js';
 
 // Warp Address Lookup Table support
 export {

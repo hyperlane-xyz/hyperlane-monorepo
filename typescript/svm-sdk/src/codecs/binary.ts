@@ -250,3 +250,21 @@ export function writeBigIntLE(value: bigint, length: number): Uint8Array {
   }
   return out;
 }
+
+const U48_MAX = (1n << 48n) - 1n;
+
+/**
+ * Encodes an unsigned 48-bit integer as 6 big-endian bytes. Used by the
+ * SVM quote signing protocol for `issuedAt` / `expiry` timestamp fields,
+ * which the on-chain `quote-verifier` reads as big-endian u48.
+ */
+export function u48be(value: bigint): Uint8Array {
+  assert(value >= 0n && value <= U48_MAX, `u48 out of range: ${value}`);
+  const out = new Uint8Array(6);
+  let remaining = value;
+  for (let i = 5; i >= 0; i -= 1) {
+    out[i] = Number(remaining & 0xffn);
+    remaining >>= 8n;
+  }
+  return out;
+}
