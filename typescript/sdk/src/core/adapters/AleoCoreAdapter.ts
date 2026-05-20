@@ -2,7 +2,10 @@ import { Address, HexString, assert, pollAsync } from '@hyperlane-xyz/utils';
 
 import { BaseAleoAdapter } from '../../app/MultiProtocolApp.js';
 import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
-import { TypedTransactionReceipt } from '../../providers/ProviderType.js';
+import {
+  ProviderType,
+  TypedTransactionReceipt,
+} from '../../providers/ProviderType.js';
 import { ChainName } from '../../types.js';
 
 import { ICoreAdapter } from './types.js';
@@ -16,11 +19,65 @@ export class AleoCoreAdapter extends BaseAleoAdapter implements ICoreAdapter {
     super(chainName, multiProvider, addresses);
   }
 
-  extractMessageIds(
-    _sourceTx: TypedTransactionReceipt,
-  ): Array<{ messageId: string; destination: ChainName }> {
-    // Message IDs cannot be extracted from Aleo receipts yet.
-    return [];
+  async extractMessageIds(
+    sourceTx: TypedTransactionReceipt,
+  ): Promise<Array<{ messageId: string; destination: ChainName }>> {
+    if (sourceTx.type !== ProviderType.Aleo) {
+      return [];
+    }
+
+    if (!this.addresses.mailbox) {
+      this.logger.debug(
+        'No Aleo mailbox address configured; skipping message ID extraction',
+      );
+      return [];
+    }
+
+    if (sourceTx.receipt.type !== 'execute') {
+      this.logger.warn(
+        `Aleo dispatch transaction was rejected (type=${sourceTx.receipt.type}); no message dispatched`,
+      );
+      return [];
+    }
+
+    const provider = this.multiProvider.getAleoProvider(this.chainName);
+    const txId = sourceTx.receipt.transactionHash;
+
+    // Use dispatch_event_index[block_height] to find the exact nonce for this
+    // transaction's block — same approach as the Rust relayer's block-level anchor.
+    const dispatchNonce = await provider.getDispatchNonceForTx(
+      this.addresses.mailbox,
+      txId,
+    );
+    if (dispatchNonce == null) {
+      this.logger.warn(
+        `No dispatch_event_index entry for tx ${txId}; no message dispatched`,
+      );
+      return [];
+    }
+
+    const [messageId, destinationDomain] = await Promise.all([
+      provider.getDispatchedMessageId(this.addresses.mailbox, dispatchNonce),
+      provider.getDispatchedDestinationDomain(
+        this.addresses.mailbox,
+        dispatchNonce,
+      ),
+    ]);
+
+    if (!messageId || destinationDomain == null) {
+      this.logger.warn(
+        `Could not fetch message ID or destination for nonce ${dispatchNonce}`,
+      );
+      return [];
+    }
+
+    const destination = this.multiProvider.tryGetChainName(destinationDomain);
+    if (!destination) {
+      this.logger.warn(`Unknown destination domain ${destinationDomain}`);
+      return [];
+    }
+
+    return [{ messageId, destination }];
   }
 
   async waitForMessageProcessed(
