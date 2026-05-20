@@ -29,6 +29,7 @@ import { createErrorHandler } from './src/middleware/errorHandler.js';
 import { createMetrics } from './src/middleware/metrics.js';
 import { createHealthRouter } from './src/routes/health.js';
 import { createQuoteRouter } from './src/routes/quote.js';
+import { createQuoteV2Router } from './src/routes/quote.v2.js';
 import {
   QuoteService,
   type ChainQuoteContext,
@@ -120,6 +121,7 @@ export class FeeQuotingServer {
       this.logger,
     );
     this.app.use('/quote', apiKeyAuth, createQuoteRouter(quoteService));
+    this.app.use('/v2/quote', apiKeyAuth, createQuoteV2Router(quoteService));
     this.app.use(createErrorHandler(this.logger));
 
     const port = this.config.port ?? DEFAULT_PORT;
