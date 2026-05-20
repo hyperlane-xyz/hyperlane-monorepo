@@ -357,6 +357,22 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
 
   // ### QUERY DISPATCH ###
 
+  async getDispatchNonceForTx(
+    mailboxAddress: string,
+    txId: string,
+  ): Promise<number | null> {
+    const { programId } = fromAleoAddress(mailboxAddress);
+    const blockHash = await this.findBlockHashByTxId(txId);
+    const block = await this.aleoClient.getBlockByHash(blockHash);
+    const blockHeight = Number(block.header.metadata.height);
+    const nonce = await this.queryMappingValue(
+      programId,
+      'dispatch_event_index',
+      `${blockHeight}u32`,
+    );
+    return nonce != null ? (nonce as number) : null;
+  }
+
   async getDispatchedMessageId(
     mailboxAddress: string,
     nonce: number,

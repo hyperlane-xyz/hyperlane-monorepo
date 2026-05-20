@@ -4,6 +4,8 @@
 "@hyperlane-xyz/cli": minor
 ---
 
-The `extractMessageIds` method on `ICoreAdapter` is now async (returns `Promise`). Callers must add `await` at call sites.
+`ICoreAdapter.extractMessageIds` was made async (returns `Promise`). Callers must add `await` at call sites.
 
-`AleoCoreAdapter` now extracts message IDs using a tx-scoped approach: it matches BHP1024 `key_id` hashes from the transaction's finalize operations against precomputed mapping keys, then queries `dispatch_id_events` and `dispatch_events` for the message ID and destination chain. Unlike EVM/SVM adapters that parse receipt logs, Aleo extraction requires on-chain mapping queries. Callers constructing `MultiProtocolCore` for an Aleo origin chain must supply a real mailbox address (not a stub); passing no address causes extraction to return an empty result rather than throw.
+`AleoCoreAdapter` extracted message IDs by querying on-chain mappings. Because Aleo's mailbox nonce counter is a single shared mapping entry, at most one dispatch is accepted per block; a confirmed transaction with type `"execute"` was the accepted dispatch, and the dispatched nonce is `mailbox.nonce - 1`. Unlike EVM/SVM adapters that parsed receipt logs, Aleo extraction required on-chain mapping queries. Callers constructing `MultiProtocolCore` for an Aleo origin chain had to supply a real mailbox address (not a stub); passing no address caused extraction to return an empty result rather than throw.
+
+Aleo warp token writers (native, collateral, synthetic) verified that the mailbox is initialized before deploying warp tokens. Previously, running `warp deploy` against an uninitialized mailbox produced a cryptic "transaction rejected" error from the on-chain finalize assertion; now a clear error is thrown immediately.
