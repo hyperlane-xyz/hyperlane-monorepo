@@ -210,33 +210,34 @@ describe('SvmQuoteService', () => {
     interface WalkCase {
       name: string;
       feeConfig: FeeArtifactConfig;
+      binding?: QuoteBinding;
       expectedContextLen: number;
-      includesTargetRouter: boolean;
+      /** Expected trailing 32B of the signed context, or undefined for non-CC. */
+      expectedTrailingTargetRouter?: Hex;
     }
     const cases: WalkCase[] = [
       {
         name: 'top-level OffchainQuotedLinear → 44B Leaf context',
         feeConfig: offchainQuotedLeaf([TEST_SIGNER_H160]),
         expectedContextLen: HEX_LEAF_CONTEXT_LEN,
-        includesTargetRouter: false,
       },
       {
         name: 'RoutingFee.routes[dest] → 44B Leaf context',
         feeConfig: routingFee([TEST_SIGNER_H160]),
         expectedContextLen: HEX_LEAF_CONTEXT_LEN,
-        includesTargetRouter: false,
       },
       {
-        name: 'CC routing with exact target router → 76B CC context',
+        name: 'CC routing with exact target router → 76B CC context with request target',
         feeConfig: ccRoutingFee([TEST_SIGNER_H160], TARGET_ROUTER),
         expectedContextLen: HEX_CC_CONTEXT_LEN,
-        includesTargetRouter: true,
+        expectedTrailingTargetRouter: TARGET_ROUTER,
       },
       {
-        name: 'CC routing falls back to DEFAULT_ROUTER_KEY → 76B CC context',
+        name: 'CC routing with only DEFAULT fallback + standing binding → signs with DEFAULT_ROUTER',
         feeConfig: ccRoutingFee([TEST_SIGNER_H160], DEFAULT_ROUTER_KEY),
+        binding: STANDING_BINDING,
         expectedContextLen: HEX_CC_CONTEXT_LEN,
-        includesTargetRouter: true,
+        expectedTrailingTargetRouter: DEFAULT_ROUTER_KEY,
       },
     ];
 
@@ -245,16 +246,18 @@ describe('SvmQuoteService', () => {
         const svc = createTestService({ feeConfig: c.feeConfig });
         const entry = await svc.getWarpQuote({
           ...baseWarpReq,
-          binding: TRANSIENT_BINDING,
+          binding: c.binding ?? TRANSIENT_BINDING,
         });
         assertSealevelEntry(entry, FEE_ACCOUNT_PDA);
         expect(entry.details.signedQuote.context).to.have.lengthOf(
           c.expectedContextLen,
         );
-        if (c.includesTargetRouter) {
+        if (c.expectedTrailingTargetRouter) {
           const ctxHex = entry.details.signedQuote.context;
           const trailing = '0x' + ctxHex.slice(ctxHex.length - 64);
-          expect(trailing.toLowerCase()).to.equal(TARGET_ROUTER.toLowerCase());
+          expect(trailing.toLowerCase()).to.equal(
+            c.expectedTrailingTargetRouter.toLowerCase(),
+          );
         }
       });
     }
@@ -330,6 +333,13 @@ describe('SvmQuoteService', () => {
             beneficiary: TEST_SIGNER_H160,
             routes: { [DEST_DOMAIN]: {} },
           },
+        },
+        reason: NoQuoteAvailableReason.NotConfigured,
+      },
+      {
+        name: 'not_configured when CC only has DEFAULT fallback but binding is transient',
+        opts: {
+          feeConfig: ccRoutingFee([TEST_SIGNER_H160], DEFAULT_ROUTER_KEY),
         },
         reason: NoQuoteAvailableReason.NotConfigured,
       },
