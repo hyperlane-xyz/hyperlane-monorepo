@@ -34,6 +34,10 @@ const ISM_TYPE: ModuleType = ModuleType::MessageIdMultisig;
 #[cfg(not(feature = "no-entrypoint"))]
 solana_program::entrypoint!(process_instruction);
 
+/// Marker type for PackageVersioned trait implementation.
+pub struct MultisigIsmMessageIdProgram;
+impl package_versioned::PackageVersioned for MultisigIsmMessageIdProgram {}
+
 /// PDA seeds relating to the access control PDA account.
 #[macro_export]
 macro_rules! access_control_pda_seeds {
@@ -82,6 +86,11 @@ pub fn process_instruction(
     accounts: &[AccountInfo],
     instruction_data: &[u8],
 ) -> ProgramResult {
+    // Universal version query — discriminator-based, independent of instruction enum.
+    if package_versioned::is_get_program_version(instruction_data) {
+        return package_versioned::process_get_program_version::<MultisigIsmMessageIdProgram>();
+    }
+
     // First, try to decode the instruction as an interchain security module
     // interface supported function based off the discriminator.
     if let Ok(ism_instruction) = InterchainSecurityModuleInstruction::decode(instruction_data) {

@@ -1431,3 +1431,37 @@ async fn test_inbox_set_default_ism_errors_if_owner_not_signer() {
         TransactionError::InstructionError(0, InstructionError::MissingRequiredSignature),
     );
 }
+
+#[tokio::test]
+async fn test_get_program_version() {
+    use serializable_account_meta::SimulationReturnData;
+
+    let program_id = mailbox_id();
+    let (banks_client, payer, _, _) = setup_client().await;
+
+    let ix = Instruction::new_with_bytes(
+        program_id,
+        &package_versioned::get_program_version_instruction_data(),
+        vec![],
+    );
+
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let simulation = banks_client
+        .simulate_transaction(Transaction::new_unsigned(Message::new_with_blockhash(
+            &[ix],
+            Some(&payer.pubkey()),
+            &recent_blockhash,
+        )))
+        .await
+        .unwrap();
+
+    assert!(simulation.result.unwrap().is_ok());
+    let return_data = simulation
+        .simulation_details
+        .unwrap()
+        .return_data
+        .expect("no return data");
+    let result = SimulationReturnData::<String>::try_from_slice(&return_data.data)
+        .expect("failed to deserialize");
+    assert_eq!(result.return_data, package_versioned::PACKAGE_VERSION);
+}
