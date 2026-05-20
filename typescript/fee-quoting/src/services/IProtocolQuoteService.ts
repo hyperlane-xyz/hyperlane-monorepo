@@ -64,7 +64,7 @@ export interface IgpQuoteRequest {
  * privately; the caller only asks for a warp or IGP quote and gets back a
  * shaped `AnyQuoteV2Entry` or a `NoQuoteAvailableError` (404).
  */
-export interface IProtocolQuoteSigner {
+export interface IProtocolQuoteService {
   readonly protocol: ProtocolType;
 
   /**

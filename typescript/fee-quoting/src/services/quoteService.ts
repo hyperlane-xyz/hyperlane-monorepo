@@ -14,12 +14,12 @@ import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { QuoteMode } from '../config.js';
 import { ApiError } from '../middleware/errorHandler.js';
 
-import { EvmQuoteSigner } from './evmQuoteSigner.js';
+import { EvmQuoteService } from './evmQuoteService.js';
 import type {
   IgpQuoteRequest,
   QuoteBinding,
   WarpQuoteRequest,
-} from './IProtocolQuoteSigner.js';
+} from './IProtocolQuoteService.js';
 import { ProtocolSignerRegistry } from './protocolSignerRegistry.js';
 
 /**
@@ -102,12 +102,12 @@ const DEFAULT_TRANSIENT_BUFFER_SECONDS = 300;
 
 /**
  * Orchestrates protocol-dispatched quote production. Per-protocol signing
- * (EVM EIP-712, SVM raw keccak256) lives behind `IProtocolQuoteSigner`. v1
+ * (EVM EIP-712, SVM raw keccak256) lives behind `IProtocolQuoteService`. v1
  * `/quote/*` is EVM-only and reuses the EVM signer's dedicated `getV1Quotes`
  * entry point; v2 `/v2/quote/*` dispatches through the registry.
  */
 export class QuoteService {
-  private readonly evmSigner: EvmQuoteSigner;
+  private readonly evmSigner: EvmQuoteService;
   private readonly signers: ProtocolSignerRegistry;
   private readonly quoteMode: QuoteMode;
   private readonly quoteExpiry: number;
@@ -117,7 +117,7 @@ export class QuoteService {
   private readonly quotesServed?: Counter<string>;
 
   constructor(options: QuoteServiceOptions) {
-    this.evmSigner = new EvmQuoteSigner({
+    this.evmSigner = new EvmQuoteService({
       signerKey: options.signerKey,
       logger: options.logger,
     });
