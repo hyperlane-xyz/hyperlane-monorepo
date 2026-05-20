@@ -60,6 +60,7 @@ import {
   AggregationHookConfig,
   DerivedHookConfig,
   HookType,
+  OnchainHookType,
 } from '../hook/types.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -359,11 +360,42 @@ export class EvmWarpRouteReader extends EvmRouterReader {
   /**
    * Searches the derived hook tree for a PredicateRouterWrapper and, if found,
    * reads its on-chain config (registry, policyId, owner).
+   *
+   * EvmHookReader.preserveUnredeployable() stores PREDICATE sub-hooks as bare address
+   * strings (to survive normalizeConfig and deploy's string branch). The sync
+   * findPredicateAddressInHook() returns undefined for bare strings, so we fall back to
+   * an on-chain hookType() probe on bare string sub-hooks of aggregation hooks.
    */
   private async derivePredicateWrapperConfig(
     hook: DerivedHookConfig | string | undefined,
   ): Promise<PredicateWrapperConfig | undefined> {
-    const predicateAddress = this.findPredicateAddressInHook(hook);
+    let predicateAddress = this.findPredicateAddressInHook(hook);
+
+    if (
+      !predicateAddress &&
+      typeof hook !== 'string' &&
+      hook?.type === HookType.AGGREGATION
+    ) {
+      for (const sub of (hook as AggregationHookConfig).hooks) {
+        if (typeof sub !== 'string') continue;
+        try {
+          const candidate = PredicateRouterWrapper__factory.connect(
+            sub,
+            this.provider,
+          );
+          if (
+            (await candidate.hookType()) ===
+            OnchainHookType.PREDICATE_ROUTER_WRAPPER
+          ) {
+            predicateAddress = sub;
+            break;
+          }
+        } catch {
+          // Not a PredicateRouterWrapper — continue
+        }
+      }
+    }
+
     if (!predicateAddress) return undefined;
 
     const wrapper = PredicateRouterWrapper__factory.connect(
