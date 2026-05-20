@@ -3,10 +3,10 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { NoQuoteAvailableError } from '../middleware/errorHandler.js';
 
-import type { IProtocolQuoteSigner } from './IProtocolQuoteSigner.js';
+import type { IProtocolQuoteService } from './IProtocolQuoteService.js';
 
 /**
- * Dispatcher from `ProtocolType` → `IProtocolQuoteSigner`. Built once at
+ * Dispatcher from `ProtocolType` → `IProtocolQuoteService`. Built once at
  * server startup and consulted on every v2 quote request. Lookups for a
  * protocol with no registered signer throw `NoQuoteAvailableError` (404
  * `NotConfigured`) so partially-rolled-out protocols return a clean v2 body
@@ -14,10 +14,10 @@ import type { IProtocolQuoteSigner } from './IProtocolQuoteSigner.js';
  */
 export class ProtocolSignerRegistry {
   constructor(
-    private readonly signers: Map<ProtocolType, IProtocolQuoteSigner>,
+    private readonly signers: Map<ProtocolType, IProtocolQuoteService>,
   ) {}
 
-  forProtocol(protocol: ProtocolType): IProtocolQuoteSigner {
+  forProtocol(protocol: ProtocolType): IProtocolQuoteService {
     const signer = this.signers.get(protocol);
     if (!signer) {
       throw new NoQuoteAvailableError(

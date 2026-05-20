@@ -42,11 +42,11 @@ import {
 import { ApiError, NoQuoteAvailableError } from '../middleware/errorHandler.js';
 
 import type {
-  IProtocolQuoteSigner,
+  IProtocolQuoteService,
   IgpQuoteRequest,
   QuoteBinding,
   WarpQuoteRequest,
-} from './IProtocolQuoteSigner.js';
+} from './IProtocolQuoteService.js';
 import type {
   EvmRouterQuoteContext,
   RouterQuoteContext,
@@ -81,7 +81,7 @@ export interface V1QuoteArgs {
 }
 
 /**
- * EVM implementation of `IProtocolQuoteSigner`. Signs an EIP-712 typed-data
+ * EVM implementation of `IProtocolQuoteService`. Signs an EIP-712 typed-data
  * `SignedQuote` struct via viem; routing decisions are driven by the on-chain
  * config tree decoded by `EvmWarpRouteReader` / `EvmHookReader` and stored on
  * each `EvmRouterQuoteContext`.
@@ -91,7 +91,7 @@ export interface V1QuoteArgs {
  * skip rather than throwing). v1 was always EVM-only, so this lives on the
  * concrete class rather than the protocol-agnostic interface.
  */
-export class EvmQuoteSigner implements IProtocolQuoteSigner {
+export class EvmQuoteService implements IProtocolQuoteService {
   readonly protocol = ProtocolType.Ethereum;
   private readonly account: LocalAccount;
   private readonly logger: Logger;
@@ -354,7 +354,7 @@ export class EvmQuoteSigner implements IProtocolQuoteSigner {
   private requireEvmCtx(ctx: RouterQuoteContext): EvmRouterQuoteContext {
     assert(
       ctx.protocol === ProtocolType.Ethereum,
-      `EvmQuoteSigner expected an Ethereum router context, got ${ctx.protocol}`,
+      `EvmQuoteService expected an Ethereum router context, got ${ctx.protocol}`,
     );
     return ctx;
   }
