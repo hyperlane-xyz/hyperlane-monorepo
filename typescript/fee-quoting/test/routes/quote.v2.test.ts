@@ -46,8 +46,11 @@ const SALT =
   '0x0000000000000000000000000000000000000000000000000000000000000001' as Hex;
 const DEST_DOMAIN = 42161;
 const DEST_CHAIN_NAME = 'arbitrum';
+// EVM v2 requires `txSubmitter` but ignores the value (server's quoteMode
+// drives the EIP-712 submitter). Any well-formed address works in tests.
+const TX_SUBMITTER = '0xdddddddddddddddddddddddddddddddddddddddd';
 
-const BASE_QUERY = `origin=ethereum&router=${ROUTER}&destination=${DEST_DOMAIN}&salt=${SALT}`;
+const BASE_QUERY = `origin=ethereum&router=${ROUTER}&destination=${DEST_DOMAIN}&salt=${SALT}&txSubmitter=${TX_SUBMITTER}`;
 const WARP_QUERY = `${BASE_QUERY}&recipient=${RECIPIENT}&targetRouter=${TARGET_ROUTER}`;
 
 interface ContextOverrides {
@@ -270,17 +273,17 @@ describe('v2 Quote Routes', () => {
         path: `/v2/quote/warp?${BASE_QUERY}&recipient=0xabc&targetRouter=${TARGET_ROUTER}`,
       },
       {
-        name: 'igp: router is not a valid EVM address',
-        path: `/v2/quote/igp?origin=ethereum&router=0xnotanaddress&destination=${DEST_DOMAIN}&salt=${SALT}`,
+        name: 'igp: router fails ZHash format check',
+        path: `/v2/quote/igp?origin=ethereum&router=0xnotanaddress&destination=${DEST_DOMAIN}&salt=${SALT}&txSubmitter=${TX_SUBMITTER}`,
       },
       {
         name: 'warp: unknown origin',
-        path: `/v2/quote/warp?origin=unknown&router=${ROUTER}&destination=${DEST_DOMAIN}&salt=${SALT}&recipient=${RECIPIENT}&targetRouter=${TARGET_ROUTER}`,
+        path: `/v2/quote/warp?origin=unknown&router=${ROUTER}&destination=${DEST_DOMAIN}&salt=${SALT}&recipient=${RECIPIENT}&targetRouter=${TARGET_ROUTER}&txSubmitter=${TX_SUBMITTER}`,
         includesMessage: 'Unknown origin',
       },
       {
         name: 'igp: unknown router',
-        path: `/v2/quote/igp?origin=ethereum&router=0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddead&destination=${DEST_DOMAIN}&salt=${SALT}`,
+        path: `/v2/quote/igp?origin=ethereum&router=0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddead&destination=${DEST_DOMAIN}&salt=${SALT}&txSubmitter=${TX_SUBMITTER}`,
         includesMessage: 'Unknown router',
       },
     ];
