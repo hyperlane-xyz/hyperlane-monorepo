@@ -14,12 +14,12 @@ export const SAFE_API_RETRIES = 10;
 export const SAFE_API_BASE_RETRY_MS = 1000;
 
 type SafeApiKitInstance = SafeApiKit.default;
-type SafeApiKitConstructor = new (
-  config: SafeApiKitConfig,
-) => SafeApiKitInstance;
-// CAST: Safe API Kit's declarations expose the class under the default type,
-// while Node ESM imports the default export as the constructor at runtime.
-const SafeApiKitCtor = SafeApiKit as unknown as SafeApiKitConstructor;
+
+function isSafeApiKitConstructor(
+  value: unknown,
+): value is typeof SafeApiKit.default {
+  return typeof value === 'function';
+}
 
 export function safeApiKeyRequired(txServiceUrl: string): boolean {
   return /safe\.global|5afe\.dev/.test(txServiceUrl);
@@ -89,8 +89,12 @@ export function getSafeService(
     gnosisSafeTransactionServiceUrl,
     gnosisSafeApiKey,
   );
+  assert(
+    isSafeApiKitConstructor(SafeApiKit),
+    '@safe-global/api-kit default export is not a constructor',
+  );
   try {
-    return new SafeApiKitCtor(config);
+    return new SafeApiKit(config);
   } catch (error) {
     if (
       error instanceof TypeError &&
@@ -100,7 +104,7 @@ export function getSafeService(
       !config.txServiceUrl &&
       isSafeGlobalTxServiceUrl(gnosisSafeTransactionServiceUrl)
     ) {
-      return new SafeApiKitCtor({
+      return new SafeApiKit({
         ...config,
         txServiceUrl: normalizeSafeTxServiceUrl(
           gnosisSafeTransactionServiceUrl,
