@@ -5,13 +5,19 @@ import {
   getMultiSendDeployment,
 } from '@safe-global/safe-deployments';
 
-import { Address, retryAsync } from '@hyperlane-xyz/utils';
+import { Address, assert, retryAsync } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 
 export const SAFE_API_RETRIES = 10;
 export const SAFE_API_BASE_RETRY_MS = 1000;
+
+type SafeApiKitInstance = SafeApiKit.default;
+type SafeApiKitConstructor = new (
+  config: SafeApiKitConfig,
+) => SafeApiKitInstance;
+const SafeApiKitCtor = SafeApiKit as unknown as SafeApiKitConstructor;
 
 export function safeApiKeyRequired(txServiceUrl: string): boolean {
   return /safe\.global|5afe\.dev/.test(txServiceUrl);
@@ -65,29 +71,33 @@ export function getSafeApiKitConfig(
 export function getSafeService(
   chain: ChainNameOrId,
   multiProvider: MultiProvider,
-): SafeApiKit.default {
+): SafeApiKitInstance {
   const { gnosisSafeTransactionServiceUrl, gnosisSafeApiKey } =
     multiProvider.getChainMetadata(chain);
-  if (!gnosisSafeTransactionServiceUrl) {
-    throw new Error(`must provide tx service url for ${chain}`);
-  }
+  assert(
+    gnosisSafeTransactionServiceUrl,
+    `must provide tx service url for ${chain}`,
+  );
 
   const chainId = multiProvider.getEvmChainId(chain);
-  if (!chainId) {
-    throw new Error(`Chain is not an EVM chain: ${chain}`);
-  }
+  assert(chainId, `Chain is not an EVM chain: ${chain}`);
 
   const txServiceUrl = normalizeSafeTxServiceUrl(
     gnosisSafeTransactionServiceUrl,
   );
   const config = getSafeApiKitConfig(chainId, txServiceUrl, gnosisSafeApiKey);
   try {
-    // @ts-ignore
-    return new SafeApiKit(config);
+    return new SafeApiKitCtor(config);
   } catch (error) {
-    if (!config.txServiceUrl && isSafeGlobalTxServiceUrl(txServiceUrl)) {
-      // @ts-ignore
-      return new SafeApiKit({
+    if (
+      error instanceof TypeError &&
+      error.message.includes(
+        'There is no transaction service available for chainId',
+      ) &&
+      !config.txServiceUrl &&
+      isSafeGlobalTxServiceUrl(txServiceUrl)
+    ) {
+      return new SafeApiKitCtor({
         ...config,
         txServiceUrl,
       });
@@ -210,7 +220,7 @@ export async function getSafe(
 }
 
 export async function getSafeDelegates(
-  service: SafeApiKit.default,
+  service: SafeApiKitInstance,
   safeAddress: Address,
 ): Promise<string[]> {
   const delegateResponse = await retryAsync(
@@ -227,7 +237,7 @@ export async function canProposeSafeTransactions(
   multiProvider: MultiProvider,
   safeAddress: Address,
 ): Promise<boolean> {
-  let safeService: SafeApiKit.default;
+  let safeService: SafeApiKitInstance;
   try {
     safeService = getSafeService(chain, multiProvider);
   } catch {

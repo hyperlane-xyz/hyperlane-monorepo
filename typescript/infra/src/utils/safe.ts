@@ -1,7 +1,5 @@
 import { JsonRpcSigner } from '@ethersproject/providers';
-import SafeApiKit, {
-  SafeMultisigTransactionListResponse,
-} from '@safe-global/api-kit';
+import { SafeMultisigTransactionListResponse } from '@safe-global/api-kit';
 import Safe from '@safe-global/protocol-kit';
 import {
   MetaTransactionData,
@@ -22,6 +20,7 @@ import {
   getSafe,
   getSafeService,
 } from '@hyperlane-xyz/sdk';
+import { normalizeSafeTxServiceUrl } from '@hyperlane-xyz/sdk/utils/gnosisSafe';
 import {
   Address,
   CallData,
@@ -43,18 +42,7 @@ const SAFE_API_MAX_RETRIES = 10;
 const SAFE_API_MIN_DELAY_MS = 1000;
 const SAFE_API_MAX_DELAY_MS = 3000;
 
-function getSafeServiceForChain(
-  chain: ChainNameOrId,
-  multiProvider: MultiProvider,
-): SafeApiKit.default {
-  return getSafeService(chain, multiProvider);
-}
-
-function normalizeSafeTxServiceUrl(txServiceUrl: string): string {
-  const trimmedUrl = txServiceUrl.replace(/\/+$/, '');
-  if (trimmedUrl.endsWith('/api')) return trimmedUrl;
-  return `${trimmedUrl}/api`;
-}
+type SafeService = ReturnType<typeof getSafeService>;
 
 /**
  * Retry helper for Safe API calls with random delay between 1-3 seconds.
@@ -95,7 +83,7 @@ export async function getSafeAndService(
   multiProvider: MultiProvider,
   safeAddress: Address,
 ) {
-  let safeService: SafeApiKit.default;
+  let safeService: SafeService;
   try {
     safeService = getSafeService(chain, multiProvider);
   } catch (error) {
@@ -218,7 +206,7 @@ export async function createSafeTransaction(
 export async function proposeSafeTransaction(
   chain: ChainNameOrId,
   safeSdk: Safe.default,
-  safeService: SafeApiKit.default,
+  safeService: SafeService,
   safeTransaction: SafeTransaction,
   safeAddress: Address,
   signer: ethers.Signer,
@@ -247,7 +235,7 @@ export async function deleteAllPendingSafeTxs(
   multiProvider: MultiProvider,
   safeAddress: Address,
 ): Promise<void> {
-  const safeService = getSafeServiceForChain(chain, multiProvider);
+  const safeService = getSafeService(chain, multiProvider);
   const pendingTxs: SafeMultisigTransactionListResponse['results'] = [];
   const limit = 100;
   let offset = 0;
@@ -291,7 +279,7 @@ export async function getSafeTx(
   multiProvider: MultiProvider,
   safeTxHash: string,
 ): Promise<any> {
-  const safeService = getSafeServiceForChain(chain, multiProvider);
+  const safeService = getSafeService(chain, multiProvider);
 
   try {
     return await retrySafeApi(() => safeService.getTransaction(safeTxHash));
@@ -313,7 +301,7 @@ export async function deleteSafeTx(
 ): Promise<void> {
   const signer = multiProvider.getSigner(chain);
   const chainId = multiProvider.getEvmChainId(chain);
-  const safeService = getSafeServiceForChain(chain, multiProvider);
+  const safeService = getSafeService(chain, multiProvider);
   const { gnosisSafeTransactionServiceUrl } =
     multiProvider.getChainMetadata(chain);
   assert(
@@ -394,7 +382,8 @@ export async function deleteSafeTx(
       typedData.message,
     );
 
-    // Make the API call to delete the transaction
+    // API Kit exposes no transaction-delete method, so use Safe's authenticated
+    // Transaction Service endpoint directly.
     const deleteUrl = `${txServiceUrl}/v2/multisig-transactions/${safeTxHash}/`;
     await retrySafeApi(async () => {
       const res = await fetch(deleteUrl, {
@@ -696,7 +685,7 @@ export async function getPendingTxsForChains(
       }
 
       let safeSdk: Safe.default;
-      let safeService: SafeApiKit.default;
+      let safeService: SafeService;
       try {
         ({ safeSdk, safeService } = await getSafeAndService(
           chain,
