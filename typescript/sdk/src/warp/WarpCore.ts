@@ -29,6 +29,7 @@ import { TokenAmount } from '../token/TokenAmount.js';
 import { parseTokenConnectionId } from '../token/TokenConnection.js';
 import { tokenIdentifiersEqual } from '../token/TokenMetadata.js';
 import {
+  ERC4626_COLLATERAL_STANDARDS,
   LOCKBOX_STANDARDS,
   MINT_LIMITED_STANDARDS,
   TOKEN_COLLATERALIZED_STANDARDS,
@@ -38,7 +39,6 @@ import {
 import {
   EVM_TRANSFER_REMOTE_GAS_ESTIMATE,
   EvmHypCollateralFiatAdapter,
-  EvmHypXERC20LockboxAdapter,
 } from '../token/adapters/EvmTokenAdapter.js';
 import {
   IHypXERC20Adapter,
@@ -1282,11 +1282,16 @@ export class WarpCore {
   }
 
   async getTokenCollateral(token: IToken): Promise<bigint> {
-    if (LOCKBOX_STANDARDS.includes(token.standard)) {
-      const adapter = token.getAdapter(
-        this.multiProvider,
-      ) as EvmHypXERC20LockboxAdapter;
+    if (
+      LOCKBOX_STANDARDS.includes(token.standard) ||
+      ERC4626_COLLATERAL_STANDARDS.includes(token.standard)
+    ) {
+      const adapter = token.getHypAdapter(this.multiProvider);
       const tokenCollateral = await adapter.getBridgedSupply();
+      assert(
+        tokenCollateral !== undefined,
+        `getBridgedSupply returned undefined for ${token.symbol} on ${token.chainName}`,
+      );
       return tokenCollateral;
     } else {
       const adapter = token.getAdapter(this.multiProvider);

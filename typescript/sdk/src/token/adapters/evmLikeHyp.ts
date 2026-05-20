@@ -1,6 +1,7 @@
 import {
   EvmHypCollateralFiatAdapter,
   EvmHypNativeAdapter,
+  EvmHypOwnerCollateralAdapter,
   EvmHypRebaseCollateralAdapter,
   EvmHypSyntheticAdapter,
   EvmHypSyntheticRebaseAdapter,
@@ -25,6 +26,7 @@ export function createEvmLikeHypAdapter(
     native: TokenStandard;
     hypNative: TokenStandard;
     hypCollateral: readonly TokenStandard[];
+    hypOwnerCollateral: TokenStandard | undefined;
     hypCrossCollateralRouter: TokenStandard;
     hypRebaseCollateral: TokenStandard;
     hypCollateralFiat: TokenStandard;
@@ -48,6 +50,15 @@ export function createEvmLikeHypAdapter(
 
   if (standard === standards.hypNative) {
     return new EvmHypNativeAdapter(chainName, multiProvider, {
+      token: addressOrDenom,
+    });
+  }
+
+  if (
+    standards.hypOwnerCollateral &&
+    standard === standards.hypOwnerCollateral
+  ) {
+    return new EvmHypOwnerCollateralAdapter(chainName, multiProvider, {
       token: addressOrDenom,
     });
   }

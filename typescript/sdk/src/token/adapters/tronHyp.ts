@@ -11,10 +11,8 @@ export function createTronHypAdapter(
   return createEvmLikeHypAdapter(multiProvider, token, {
     native: TokenStandard.TronNative,
     hypNative: TokenStandard.TronHypNative,
-    hypCollateral: [
-      TokenStandard.TronHypCollateral,
-      TokenStandard.TronHypOwnerCollateral,
-    ],
+    hypCollateral: [TokenStandard.TronHypCollateral],
+    hypOwnerCollateral: TokenStandard.TronHypOwnerCollateral,
     hypCrossCollateralRouter: TokenStandard.TronHypCrossCollateralRouter,
     hypRebaseCollateral: TokenStandard.TronHypRebaseCollateral,
     hypCollateralFiat: TokenStandard.TronHypCollateralFiat,
