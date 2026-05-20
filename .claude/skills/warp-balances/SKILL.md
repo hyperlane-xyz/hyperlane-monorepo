@@ -125,8 +125,12 @@ hyperlane warp balances --warp-route-id USDC/base-optimism --registry ~/hyperlan
 ```test
 Warp route balances:
 
-│ base     │ USDC   │ EvmHypCollateral │ 0x5244... │ 4231876120000 │
-│ optimism │ USDC   │ EvmHypSynthetic  │ 0x2DBe... │ 4231876120000 │
+┌──────────┬────────┬──────────────────────┬────────────┬───────────────┐
+│ (index)  │ Symbol │ Standard             │ Address    │ Balance       │
+├──────────┼────────┼──────────────────────┼────────────┼───────────────┤
+│ base     │ USDC   │ EvmHypCollateral     │ 0x5244...  │ 4231876120000 │
+│ optimism │ USDC   │ EvmHypSynthetic      │ 0x2DBe...  │ 4231876120000 │
+└──────────┴────────┴──────────────────────┴────────────┴───────────────┘
 
 Status: collateral matches synthetic supply (4231876120000)
 ```

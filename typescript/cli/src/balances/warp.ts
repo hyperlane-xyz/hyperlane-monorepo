@@ -74,8 +74,13 @@ export async function runWarpRouteBalances({
     ...ERC4626_COLLATERAL_STANDARDS,
   ]);
 
+  const chainsSet = chains && chains.length > 0 ? new Set(chains) : undefined;
+  const filteredTokens = chainsSet
+    ? warpCore.tokens.filter((t) => chainsSet.has(t.chainName))
+    : warpCore.tokens;
+
   const tokenEntries: TokenEntry[] = await Promise.all(
-    warpCore.tokens.map(async (token) => {
+    filteredTokens.map(async (token) => {
       const isCollateral = collateralizedSet.has(token.standard);
 
       try {
@@ -154,37 +159,43 @@ export async function runWarpRouteBalances({
     if (collateralEntries.length > 0 && syntheticEntries.length > 0) {
       const hasErrors = tokenEntries.some((e) => e.rawBalance === undefined);
 
-      const commonDecimals = Math.max(
-        ...collateralEntries.map((e) => e.decimals),
-        ...syntheticEntries.map((e) => e.decimals),
-      );
-      const scale = (e: TokenEntry) =>
-        10n ** BigInt(commonDecimals - e.decimals);
-      const totalCollateral = collateralEntries.reduce(
-        (sum, e) => sum + (e.rawBalance ?? 0n) * scale(e),
-        0n,
-      );
-      const totalSynthetic = syntheticEntries.reduce(
-        (sum, e) => sum + (e.rawBalance ?? 0n) * scale(e),
-        0n,
-      );
-
-      const fmt = (v: bigint) =>
-        raw ? v.toString() : formatBigIntBalance(v, commonDecimals);
-
-      if (totalCollateral === totalSynthetic) {
-        logGreen(
-          `\nStatus: collateral matches synthetic supply (${fmt(totalCollateral)})${hasErrors ? ' [some balances unavailable]' : ''}`,
+      if (hasErrors) {
+        warnYellow(
+          '\nStatus: INCONCLUSIVE — some balances unavailable, cannot compare collateral vs synthetic supply',
         );
       } else {
-        const diff =
-          totalCollateral > totalSynthetic
-            ? totalCollateral - totalSynthetic
-            : totalSynthetic - totalCollateral;
-        const sign = totalCollateral > totalSynthetic ? '+' : '-';
-        warnYellow(
-          `\nStatus: MISMATCH — collateral ${fmt(totalCollateral)} vs synthetic ${fmt(totalSynthetic)} (diff: ${sign}${fmt(diff)})${hasErrors ? ' [some balances unavailable]' : ''}`,
+        const commonDecimals = Math.max(
+          ...collateralEntries.map((e) => e.decimals),
+          ...syntheticEntries.map((e) => e.decimals),
         );
+        const scale = (e: TokenEntry) =>
+          10n ** BigInt(commonDecimals - e.decimals);
+        const totalCollateral = collateralEntries.reduce(
+          (sum, e) => sum + (e.rawBalance ?? 0n) * scale(e),
+          0n,
+        );
+        const totalSynthetic = syntheticEntries.reduce(
+          (sum, e) => sum + (e.rawBalance ?? 0n) * scale(e),
+          0n,
+        );
+
+        const fmt = (v: bigint) =>
+          raw ? v.toString() : formatBigIntBalance(v, commonDecimals);
+
+        if (totalCollateral === totalSynthetic) {
+          logGreen(
+            `\nStatus: collateral matches synthetic supply (${fmt(totalCollateral)})`,
+          );
+        } else {
+          const diff =
+            totalCollateral > totalSynthetic
+              ? totalCollateral - totalSynthetic
+              : totalSynthetic - totalCollateral;
+          const sign = totalCollateral > totalSynthetic ? '+' : '-';
+          warnYellow(
+            `\nStatus: MISMATCH — collateral ${fmt(totalCollateral)} vs synthetic ${fmt(totalSynthetic)} (diff: ${sign}${fmt(diff)})`,
+          );
+        }
       }
     }
   }

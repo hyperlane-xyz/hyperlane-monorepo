@@ -1494,4 +1494,68 @@ describe('WarpCore', () => {
 
     adapterStubs.forEach((s) => s.restore());
   });
+
+  it('Routes ERC4626 collateral tokens through getBridgedSupply in getTokenCollateral', async () => {
+    const ownerCollateralToken = warpCore.tokens.find(
+      (t) => t.standard === TokenStandard.EvmHypOwnerCollateral,
+    );
+    const rebaseCollateralToken = warpCore.tokens.find(
+      (t) => t.standard === TokenStandard.EvmHypRebaseCollateral,
+    );
+    const nativeToken = warpCore.tokens.find(
+      (t) => t.standard === TokenStandard.EvmHypNative,
+    );
+
+    expect(ownerCollateralToken, 'EvmHypOwnerCollateral token missing').to
+      .exist;
+    expect(rebaseCollateralToken, 'EvmHypRebaseCollateral token missing').to
+      .exist;
+
+    const ERC4626_COLLATERAL_BALANCE = BigInt('5000000000000000000');
+    const REGULAR_COLLATERAL_BALANCE = BigInt('3000000000000000000');
+
+    const getBridgedSupplyStub = sinon
+      .stub()
+      .resolves(ERC4626_COLLATERAL_BALANCE);
+    const getBalanceStub = sinon.stub().resolves(REGULAR_COLLATERAL_BALANCE);
+
+    const stubs = warpCore.tokens.map((t) =>
+      sinon.stub(t, 'getHypAdapter').returns({
+        getBridgedSupply: getBridgedSupplyStub,
+      } as any),
+    );
+    const adapterStubs = warpCore.tokens.map((t) =>
+      sinon.stub(t, 'getAdapter').returns({
+        getBalance: getBalanceStub,
+      } as any),
+    );
+
+    const ownerCollateralResult = await warpCore.getTokenCollateral(
+      ownerCollateralToken!,
+    );
+    expect(ownerCollateralResult).to.equal(ERC4626_COLLATERAL_BALANCE);
+    expect(getBridgedSupplyStub.callCount).to.equal(1);
+    expect(getBalanceStub.callCount).to.equal(0);
+
+    getBridgedSupplyStub.resetHistory();
+    getBalanceStub.resetHistory();
+
+    const rebaseCollateralResult = await warpCore.getTokenCollateral(
+      rebaseCollateralToken!,
+    );
+    expect(rebaseCollateralResult).to.equal(ERC4626_COLLATERAL_BALANCE);
+    expect(getBridgedSupplyStub.callCount).to.equal(1);
+    expect(getBalanceStub.callCount).to.equal(0);
+
+    getBridgedSupplyStub.resetHistory();
+    getBalanceStub.resetHistory();
+
+    const nativeResult = await warpCore.getTokenCollateral(nativeToken!);
+    expect(nativeResult).to.equal(REGULAR_COLLATERAL_BALANCE);
+    expect(getBridgedSupplyStub.callCount).to.equal(0);
+    expect(getBalanceStub.callCount).to.equal(1);
+
+    stubs.forEach((s) => s.restore());
+    adapterStubs.forEach((s) => s.restore());
+  });
 });

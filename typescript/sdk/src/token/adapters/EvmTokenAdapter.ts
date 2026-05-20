@@ -931,8 +931,7 @@ export class EvmHypRebaseCollateralAdapter
       this.getProvider(),
     );
     const overrides = buildBlockTagOverrides(options?.blockTag);
-    const shares = await vault.balanceOf(this.addresses.token, overrides);
-    const assets = await vault.convertToAssets(shares, overrides);
+    const assets = await vault.maxWithdraw(this.addresses.token, overrides);
     return assets.toBigInt();
   }
 }
