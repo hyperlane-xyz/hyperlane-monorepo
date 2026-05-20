@@ -58,6 +58,9 @@ export const PRODUCTION = {
   COMPOUND_STAKING_REWARDS: '0xa860e01Cc4A889BB2917EC97104510A2e1Ae0e53',
 };
 
+// Matches the deployed bytecode across all HYPER family routes
+const DEPLOYED_CONTRACT_VERSION = '7.0.0';
+
 const getHyperWarpConfig =
   (envConfig: typeof STAGING) =>
   async (
@@ -69,6 +72,7 @@ const getHyperWarpConfig =
           ...routerConfig[chain],
           ...TOKEN_CONFIG,
           owner: envConfig.OWNERS[chain],
+          contractVersion: DEPLOYED_CONTRACT_VERSION,
         };
 
         if (chain === COLLATERAL_CHAIN) {
@@ -104,6 +108,7 @@ const getStakedHyperWarpConfig =
           ...routerConfig[chain],
           ...STAKED_TOKEN_CONFIG,
           owner: envConfig.OWNERS[chain],
+          contractVersion: DEPLOYED_CONTRACT_VERSION,
         };
 
         if (chain === COLLATERAL_CHAIN) {
