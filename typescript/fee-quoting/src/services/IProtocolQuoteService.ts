@@ -1,11 +1,9 @@
 import type { Hex } from 'viem';
 
 import type { AnyQuoteV2Entry } from '@hyperlane-xyz/sdk';
-import type { ProtocolType } from '@hyperlane-xyz/utils';
+import type { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 
 import { QuoteMode } from '../config.js';
-
-import type { RouterQuoteContext } from './quoteService.js';
 
 /**
  * Salt + expiry binding applied to a signed quote. Protocol-agnostic: the
@@ -33,9 +31,15 @@ export interface StandingQuoteBinding {
   ttlSeconds: number;
 }
 
-/** Inputs for a warp/token-fee quote. */
+/**
+ * Inputs for a warp/token-fee quote. The service looks up its own per-route
+ * state by `(origin, router)`; protocol-specific data (derived config, fee
+ * account PDA, signers, etc.) is encapsulated inside the service.
+ */
 export interface WarpQuoteRequest {
-  routerCtx: RouterQuoteContext;
+  origin: string;
+  /** Origin warp router (EVM hex address OR SVM base58 program ID). */
+  router: string;
   destChainName: string;
   destination: number;
   recipient: Hex;
@@ -48,12 +52,15 @@ export interface WarpQuoteRequest {
   binding: QuoteBinding;
 }
 
-/** Inputs for an IGP quote. */
+/** Inputs for an IGP quote. Same route-lookup semantics as `WarpQuoteRequest`. */
 export interface IgpQuoteRequest {
-  routerCtx: RouterQuoteContext;
+  origin: string;
+  /** Origin warp router (EVM hex address OR SVM base58 program ID). */
+  router: string;
   destChainName: string;
   destination: number;
-  /** Origin warp router (EVM hex address OR SVM base58 pubkey). */
+  /** Origin warp router (EVM hex address OR SVM base58 pubkey) — used as the
+   *  `sender` field in the IGP context bytes. Often equal to `router`. */
   sender: string;
   binding: QuoteBinding;
 }
