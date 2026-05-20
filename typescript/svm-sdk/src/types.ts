@@ -9,6 +9,7 @@ import type {
 
 import type { DeployedHookAddress } from '@hyperlane-xyz/provider-sdk/hook';
 import type { DeployedIsmAddress } from '@hyperlane-xyz/provider-sdk/ism';
+import { isNullish } from '@hyperlane-xyz/utils';
 
 import type { IgpFeeConfig } from './codecs/igp.js';
 
@@ -96,6 +97,19 @@ export interface SvmDeployedIgpHook extends SvmDeployedHook {
   overheadIgpPda?: Address;
   /** Full on-chain IgpFeeConfig (signers + domainId + minIssuedAt) when set. */
   feeConfig?: IgpFeeConfig;
+}
+
+/**
+ * Narrow the abstract `DeployedHookAddress` (returned by
+ * `IRawHookArtifactManager.readHook`) to the Sealevel IGP variant. `igpPda`
+ * is a required field on Sealevel IGP hook artifacts, so its presence as an
+ * own property is the runtime discriminator — non-IGP Sealevel hooks and
+ * non-Sealevel impls fail the check.
+ */
+export function isSvmDeployedIgpHook(
+  deployed: DeployedHookAddress,
+): deployed is SvmDeployedIgpHook {
+  return !isNullish(deployed) && 'igpPda' in deployed;
 }
 
 export interface PdaWithBump {
